@@ -420,8 +420,8 @@ class Handler(server.ProjectAPIHandler):
     API_SERVER_CRT_LIBS_TOKEN = "<API_SERVER_CRT_LIBS>"
 
     CRT_LIBS_BY_PROJECT_TYPE = {
-        "host_driven": "microtvm_rpc_server microtvm_rpc_common common",
-        "aot_demo": "memory microtvm_rpc_common common",
+        "host_driven": "microtvm_rpc_server microtvm_rpc_common aot_executor_module aot_executor common",
+        "aot_standalone_demo": "memory microtvm_rpc_common common",
     }
 
     def _get_platform_version(self, zephyr_base: str) -> float:

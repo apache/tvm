@@ -21,6 +21,18 @@
 namespace tvm {
 namespace meta_schedule {
 
+void PyMutatorNode::InitializeWithTuneContext(const TuneContext& context) {
+  ICHECK(f_initialize_with_tune_context != nullptr)
+      << "PyMutator's InitializeWithTuneContext method not implemented!";
+  f_initialize_with_tune_context(context);
+}
+
+Optional<tir::Trace> PyMutatorNode::Apply(
+    const tir::Trace& trace, support::LinearCongruentialEngine::TRandState* rand_state) {
+  ICHECK(f_apply != nullptr) << "PyMutator's Apply method not implemented!";
+  return f_apply(trace, *rand_state);
+}
+
 Mutator Mutator::PyMutator(
     PyMutatorNode::FInitializeWithTuneContext f_initialize_with_tune_context,  //
     PyMutatorNode::FApply f_apply,                                             //

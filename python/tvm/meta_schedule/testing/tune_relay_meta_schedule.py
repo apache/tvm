@@ -122,19 +122,22 @@ def main():
         alloc_repeat=alloc_repeat,
         max_workers=ARGS.rpc_workers,
     )
-    lib = ms.tune_relay(
-        mod=mod,
-        target=ARGS.target,
-        config=ms.TuneConfig(
-            strategy="evolutionary",
-            num_trials_per_iter=64,
-            max_trials_per_task=ARGS.num_trials,
-            max_trials_global=ARGS.num_trials,
-        ),
-        runner=runner,  # type: ignore
-        work_dir=ARGS.work_dir,
-        params=params,
-    )
+    with ms.Profiler() as profiler:
+        lib = ms.tune_relay(
+            mod=mod,
+            target=ARGS.target,
+            config=ms.TuneConfig(
+                strategy="evolutionary",
+                num_trials_per_iter=64,
+                max_trials_per_task=ARGS.num_trials,
+                max_trials_global=ARGS.num_trials,
+            ),
+            runner=runner,  # type: ignore
+            work_dir=ARGS.work_dir,
+            params=params,
+        )
+    print("Tuning Time:")
+    print(profiler.table())
     graph, rt_mod, params = lib.graph_json, lib.lib, lib.params
     for input_name, input_shape in input_info.items():
         if input_dtype.startswith("float"):

@@ -41,8 +41,6 @@ def _create_context(mod, target) -> TuneContext:
         ],
         task_name="test",
     )
-    for rule in ctx.postprocs:
-        rule.initialize_with_tune_context(ctx)
     return ctx
 
 

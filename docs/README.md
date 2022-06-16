@@ -79,14 +79,14 @@ the path that matches the regular expression pattern.
 For example, to only build tutorials under `/vta/tutorials`, run
 
 ```bash
-python tests/scripts/ci.py docs --tutorials=/vta/tutorials
+python tests/scripts/ci.py docs --tutorial-pattern=/vta/tutorials
 ```
 
 To only build one specific file, do
 
 ```bash
 # The slash \ is used to get . in regular expression
-python tests/scripts/ci.py docs --tutorials=file_name\.py
+python tests/scripts/ci.py docs --tutorial-pattern=file_name\.py
 ```
 
 ## Helper Scripts
@@ -95,14 +95,14 @@ You can run the following script to reproduce the CI sphinx pre-check stage.
 This script skips the tutorial executions and is useful to quickly check the content.
 
 ```bash
-python tests/scripts/ci.py docs --precheck
+tests/scripts/task_python_docs.sh
 ```
 
 The following script runs the full build which includes tutorial executions.
 You will need a GPU CI environment.
 
 ```bash
-python tests/scripts/ci.py --precheck --full
+python tests/scripts/ci.py docs --full
 ```
 
 ## Define the Order of Tutorials

@@ -1957,6 +1957,25 @@ bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref
   return total_unused_block_vars >= 1;
 }
 
+bool IsSpatialPrimFunc(const PrimFunc& func) {
+  bool result = true;
+  PreOrderVisit(func->body, [&result](const ObjectRef& obj) {
+    if (result == false) {
+      return false;
+    }
+    if (const auto* block = obj.as<BlockNode>()) {
+      for (const IterVar& iter_var : block->iter_vars) {
+        if (iter_var->iter_type != IterVarType::kDataPar) {
+          result = false;
+          return false;
+        }
+      }
+    }
+    return true;
+  });
+  return result;
+}
+
 std::pair<int64_t, int64_t> GetCumulativeSpaceAndReductionLength(const tir::ScheduleState& self,
                                                                  const tir::StmtSRef& block_sref) {
   Array<tir::StmtSRef> loops = tir::GetLoops(block_sref);
@@ -2215,6 +2234,7 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
   return TensorizeInfo(ret);
 }
 
+TVM_REGISTER_GLOBAL("tir.schedule.IsSpatialPrimFunc").set_body_typed(IsSpatialPrimFunc);
 TVM_REGISTER_GLOBAL("tir.schedule.GetTensorizeLoopMapping")
     .set_body_typed([](Schedule sch, BlockRV block, PrimFunc desc_func) {
       return GetTensorizeLoopMapping(sch->state(), sch->GetSRef(block), desc_func);

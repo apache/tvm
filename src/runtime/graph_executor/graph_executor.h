@@ -61,7 +61,7 @@ struct TVMOpParam {
 /*!
  * \brief Tiny graph executor.
  *
- *  This runtime can be acccesibly in various language via
+ *  This runtime can be accessible in various languages via
  *  TVM runtime PackedFunc API.
  */
 class TVM_DLL GraphExecutor : public ModuleNode {

@@ -23,11 +23,10 @@ import tvm
 from tvm import relay
 from tvm.relay.op.contrib import cmsisnn
 
-from tvm.testing.aot import generate_ref_data, AOTTestModel, compile_and_run
+from tvm.testing.aot import generate_ref_data, AOTTestModel, compile_models, compile_and_run
 
 from tvm.micro.testing.aot_test_utils import AOT_USMP_CORSTONE300_RUNNER
-from utils import (
-    skip_if_no_reference_system,
+from .utils import (
     make_module,
     get_range_for_dtype_str,
     get_same_padding,
@@ -76,7 +75,7 @@ def make_model(
         shape = (shape[0], shape[1] + p[0] + p[2], shape[2] + p[1] + p[3], shape[3])
 
     rng = np.random.default_rng(12321)
-    w = tvm.nd.array(
+    weight = tvm.nd.array(
         rng.integers(
             np.iinfo(kernel_dtype).min,
             high=np.iinfo(kernel_dtype).max,
@@ -84,7 +83,7 @@ def make_model(
             dtype=kernel_dtype,
         )
     )
-    weight_const = relay.const(w, kernel_dtype)
+    weight_const = relay.const(weight, kernel_dtype)
     conv = relay.qnn.op.conv2d(
         invar,
         weight_const,
@@ -102,8 +101,8 @@ def make_model(
         padding=p,
         out_dtype="int32",
     )
-    b = tvm.nd.array(rng.integers(0, high=10, size=(out_channels,), dtype="int32"))
-    bias_const = relay.const(b, "int32")
+    bias = tvm.nd.array(rng.integers(0, high=10, size=(out_channels,), dtype="int32"))
+    bias_const = relay.const(bias, "int32")
     last_op = relay.nn.bias_add(conv, bias_const, axis=3) if enable_bias else conv
     requant_input_sc = [sc * input_scale for sc in kernel_scale]
     last_op = relay.qnn.op.requantize(
@@ -115,8 +114,102 @@ def make_model(
         out_dtype=dtype,
     )
     last_op = make_qnn_relu(last_op, relu_type, output_scale, output_zero_point, dtype)
-    params = {"w": w, "b": b}
+    params = {"w": weight, "b": bias}
     return last_op, params
+
+
+@tvm.testing.requires_cmsisnn
+@pytest.mark.parametrize("padding", ["SAME", "VALID"])
+@pytest.mark.parametrize("enable_bias", [True, False])
+@pytest.mark.parametrize(
+    "input_zero_point, input_scale, kernel_scale, out_channels",
+    [(10, 0.0128, [0.11, 0.22], 2)],
+)
+def test_conv2d_number_primfunc_args(
+    padding,
+    enable_bias,
+    input_zero_point,
+    input_scale,
+    kernel_scale,
+    out_channels,
+):
+    """Tests number of arguments in Conv2D primfunc"""
+    interface_api = "c"
+    use_unpacked_api = True
+
+    ifm_shape = (1, 64, 100, 4)
+    kernel_size = (3, 3)
+    strides = (1, 1)
+    dilation = (1, 1)
+    dtype = "int8"
+    groups = 1
+    weight_format = "HWIO"
+    kernel_h = kernel_size[0]
+    kernel_w = kernel_size[1]
+    kernel_shape = (kernel_h, kernel_w, ifm_shape[3] // groups, out_channels)
+    kernel_zero_point = 0
+    in_min, in_max = get_range_for_dtype_str(dtype)
+    relu_type = "RELU"
+
+    output_scale, output_zero_point = get_conv2d_qnn_params(
+        kernel_shape,
+        input_scale,
+        input_zero_point,
+        kernel_scale,
+        kernel_zero_point,
+        dtype,
+        dtype,
+        dtype,
+    )
+
+    model, params = make_model(
+        ifm_shape,
+        kernel_shape,
+        input_zero_point,
+        input_scale,
+        kernel_zero_point,
+        kernel_scale,
+        output_zero_point,
+        output_scale,
+        padding,
+        strides,
+        dilation,
+        groups,
+        dtype,
+        dtype,
+        out_channels,
+        weight_format,
+        enable_bias,
+        relu_type,
+    )
+    orig_mod = make_module(model)
+    cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
+
+    # validate pattern matching
+    assert_partitioned_function(orig_mod, cmsisnn_mod)
+
+    # compile the model
+    rng = np.random.default_rng(12345)
+    inputs = {"input": rng.integers(in_min, high=in_max, size=ifm_shape, dtype=dtype)}
+    output_list = generate_ref_data(orig_mod["main"], inputs, params)
+
+    compiled_models = compile_models(
+        AOTTestModel(module=cmsisnn_mod, inputs=inputs, outputs=output_list, params=params),
+        interface_api,
+        use_unpacked_api,
+    )
+
+    # validate number of TIR primfunc args
+    expected_num_params = 6 if enable_bias else 5
+    cmsisnn_tir_mod = None
+    for target, mod in compiled_models[0].executor_factory.lowered_ir_mods.items():
+        if target.kind.name == "cmsis-nn":
+            cmsisnn_tir_mod = mod
+
+    cmsisnn_func = cmsisnn_tir_mod["tvmgen_default_cmsis_nn_main_0"]
+    assert (
+        len(cmsisnn_func.params) == expected_num_params
+    ), "Generated unexpected number of function arguments"
 
 
 @tvm.testing.requires_cmsisnn
@@ -136,6 +229,7 @@ def test_conv2d_symmetric_padding_int8(
     kernel_scale,
     out_channels,
 ):
+    """Tests QNN Conv2D where the padding is symmetric on both sides of input"""
     interface_api = "c"
     use_unpacked_api = True
     test_runner = AOT_USMP_CORSTONE300_RUNNER
@@ -225,6 +319,7 @@ def test_conv2d_asymmetric_padding_int8(
     kernel_scale,
     out_channels,
 ):
+    """Tests QNN Conv2D where the padding is asymmetric on different sides of input"""
     interface_api = "c"
     use_unpacked_api = True
     test_runner = AOT_USMP_CORSTONE300_RUNNER
@@ -296,6 +391,7 @@ def test_conv2d_asymmetric_padding_int8(
     )
 
 
+# pylint: disable=import-outside-toplevel
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize("ifm_shape", [(1, 55, 55, 3)])
 @pytest.mark.parametrize("kernel_shape", [(3, 2), (1, 3)])
@@ -303,6 +399,7 @@ def test_conv2d_asymmetric_padding_int8(
 @pytest.mark.parametrize("padding", ["SAME", "VALID"])
 @pytest.mark.parametrize("activation", ["NONE", "RELU"])
 def test_conv2d_int8_tflite(ifm_shape, kernel_shape, strides, dilation, padding, activation):
+    """Compares TVM output against TFLite output"""
     interface_api = "c"
     use_unpacked_api = True
     test_runner = AOT_USMP_CORSTONE300_RUNNER
@@ -366,6 +463,7 @@ def test_depthwise_int8(
     out_channels,
     depth_multiplier,
 ):
+    """Tests QNN Depthwise int8 op via CMSIS-NN"""
     interface_api = "c"
     use_unpacked_api = True
     test_runner = AOT_USMP_CORSTONE300_RUNNER
@@ -443,6 +541,7 @@ def test_depthwise_int8(
 
 
 def parameterize_for_invalid_model(test):
+    """Generates non int8 inputs"""
     in_dtype = ["uint8", "int8"]
     kernel_dtype = ["uint8", "int8"]
     kernel_zero_point = [-33, 10, 0]
@@ -466,12 +565,12 @@ def test_invalid_parameters(
     kernel_dtype,
     kernel_zero_point,
 ):
+    """Tests Depthwise op for non int8 inputs"""
     ifm_shape = (1, 28, 28, 12)
     out_channels = 2
     input_scale = 1
     input_zero_point = 24
     kernel_scale = [0.11, 0.0237]
-    in_min, in_max = get_range_for_dtype_str(in_dtype)
 
     kernel_layout = "HWIO"
     kernel_shape = [3, 3, ifm_shape[3], out_channels]

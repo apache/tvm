@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import tir, te
+from tvm import te, tir
 from tvm.script import tir as T
 
 
@@ -268,6 +268,33 @@ def annotated_loops(a: T.handle) -> None:
         A[i] = 0.0
 
 
+@T.prim_func
+def boolean_handling_before(a: T.Buffer[10, "bool"], b: T.Buffer[10, "bool"]) -> None:
+    for i0 in T.serial(10):
+        with T.block("b"):
+            T.reads(a[i0])
+            T.writes(b[i0])
+            b[i0] = a[i0]
+
+
+@T.prim_func
+def boolean_handling_after(a: T.Buffer[10, "int8"], b: T.Buffer[10, "int8"]) -> None:
+    T.preflattened_buffer(a, [10], dtype="bool", data=a.data)
+    T.preflattened_buffer(b, [10], dtype="bool", data=b.data)
+    # body
+    for i0 in T.serial(10):
+        b[i0] = T.cast(T.cast(a[i0], "bool"), "int8")
+
+
+@T.prim_func
+def boolean_handle_after(a: T.Buffer[10, "int8"], b: T.Buffer[10, "int8"]) -> None:
+    T.preflattened_buffer(a, [10], dtype="bool", data=a.data)
+    T.preflattened_buffer(b, [10], dtype="bool", data=b.data)
+    # body
+    for i0 in T.serial(10):
+        b[i0] = T.cast(T.cast(a[i0], "bool"), "int8")
+
+
 def test_elementwise():
     _check(compacted_elementwise_func, flattened_elementwise_func)
 
@@ -319,6 +346,13 @@ def test_annotated_loops():
     tvm.ir.assert_structural_equal(attr3.value, tvm.tir.FloatImm("float32", 0.0))
 
 
+def test_boolean_handling():
+    _check(boolean_handling_before, boolean_handling_after)
+    # mod = tvm.IRModule.from_expr(boolean_handling_before)
+    # mod = tvm.tir.transform.FlattenBuffer()(mod)
+    # print(mod.script())
+
+
 if __name__ == "__main__":
     test_elementwise()
     test_gpu_workload()
@@ -329,3 +363,4 @@ if __name__ == "__main__":
     test_strided_buffer()
     test_lower_te()
     test_annotated_loops()
+    test_boolean_handling()

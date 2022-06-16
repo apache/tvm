@@ -27,11 +27,9 @@ from tvm.testing.aot import generate_ref_data, AOTTestModel, compile_and_run
 from tvm.micro.testing.aot_test_utils import (
     AOT_USMP_CORSTONE300_RUNNER,
 )
-from utils import (
-    skip_if_no_reference_system,
+from .utils import (
     make_module,
     get_range_for_dtype_str,
-    get_same_padding,
     get_conv2d_qnn_params,
     make_qnn_relu,
     assert_partitioned_function,
@@ -55,9 +53,9 @@ def make_model(
     relu_type="NONE",
 ):
     """Return a model and any parameters it may have"""
-    a = relay.var("input", shape=in_shape, dtype=dtype)
+    input_ = relay.var("input", shape=in_shape, dtype=dtype)
     rng = np.random.default_rng(12321)
-    w = tvm.nd.array(
+    weight = tvm.nd.array(
         rng.integers(
             np.iinfo(kernel_dtype).min,
             high=np.iinfo(kernel_dtype).max,
@@ -65,9 +63,9 @@ def make_model(
             dtype=kernel_dtype,
         )
     )
-    weight_const = relay.const(w, kernel_dtype)
-    fc = relay.qnn.op.dense(
-        a,
+    weight_const = relay.const(weight, kernel_dtype)
+    dense = relay.qnn.op.dense(
+        input_,
         weight_const,
         input_zero_point=relay.const(input_zero_point, "int32"),
         kernel_zero_point=relay.const(kernel_zero_point, "int32"),
@@ -77,9 +75,9 @@ def make_model(
         out_dtype="int32",
     )
 
-    b = tvm.nd.array(rng.integers(0, high=10, size=(out_channels,), dtype="int32"))
-    bias_const = relay.const(b, "int32")
-    last_op = relay.nn.bias_add(fc, bias_const) if enable_bias else fc
+    bias = tvm.nd.array(rng.integers(0, high=10, size=(out_channels,), dtype="int32"))
+    bias_const = relay.const(bias, "int32")
+    last_op = relay.nn.bias_add(dense, bias_const) if enable_bias else dense
     requant_input_sc = input_scale * kernel_scale
     last_op = relay.qnn.op.requantize(
         last_op,
@@ -90,7 +88,7 @@ def make_model(
         out_dtype=dtype,
     )
     last_op = make_qnn_relu(last_op, relu_type, output_scale, output_zero_point, dtype)
-    params = {"w": w, "b": b}
+    params = {"w": weight, "b": bias}
     return last_op, params
 
 
@@ -98,7 +96,6 @@ def make_model(
 @pytest.mark.parametrize("in_shape", [(2, 28), (1, 64)])
 @pytest.mark.parametrize("out_channels", [12, 128])
 @pytest.mark.parametrize("enable_bias", [False, True])
-@pytest.mark.parametrize("relu_type", ["RELU"])
 @pytest.mark.parametrize(
     "input_zero_point, input_scale, kernel_scale",
     [(10, 0.0128, 0.11), (-64, 0.0256, 1.37)],
@@ -110,8 +107,8 @@ def test_op_int8(
     input_scale,
     kernel_scale,
     out_channels,
-    relu_type,
 ):
+    """Test QNN fully connected layer"""
     interface_api = "c"
     use_unpacked_api = True
     test_runner = AOT_USMP_CORSTONE300_RUNNER
@@ -170,6 +167,7 @@ def test_op_int8(
 
 
 def parameterize_for_invalid_model(test):
+    """Generates parameters for non int8 inputs to fully connected layer"""
     in_dtype = ["uint8", "int8"]
     kernel_dtype = ["uint8", "int8"]
     kernel_zero_point = [-33, 10, 0]
@@ -193,12 +191,12 @@ def test_invalid_parameters(
     kernel_dtype,
     kernel_zero_point,
 ):
+    """Tests fully connected layer with non int8 inputs"""
     in_shape = (2, 28)
     out_channels = 2
     input_scale = 1
     input_zero_point = 24
     kernel_scale = [0.11, 0.0237]
-    in_min, in_max = get_range_for_dtype_str(in_dtype)
 
     kernel_shape = [out_channels, in_shape[1]]
     conv2d_kernel_shape = [1, 1, kernel_shape[0], kernel_shape[1]]

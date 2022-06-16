@@ -60,7 +60,7 @@ namespace tir {
           to collect them for the CSE pass, but we also won't even want to collect computations
           that contain them.
           The reason is that reusing such computations would change the semantics of the program,
-          and therefore before doing any introduction of variable or any reuse of already introduced
+          and therefore before doing any introduction of var or any reuse of already introduced
           variables, we will make sure that the computation being considered is not forbidden, and
           that it does not even contain a forbidden computation.
  * \param expr The expression to check
@@ -121,6 +121,42 @@ bool CommonSubexpressionEliminator::CanContainEligibleComputations(const PrimExp
 }
 
 /*!
+ * \brief Implements an order on pairs (expression,frequency). First attempts to compare them
+          using the size of the expression. If it is the same, decides something else still
+          deterministic.
+ * \param a The first pair
+ * \param b The second pair
+ * \return A boolean telling if the first pair `a` comes before the second pair `b`
+ * \note We need this order to be deterministic in order to have a fully deterministic pass,
+ *       as we will deal with elements that are coming from a hashtable, but the order in which
+ *       they appeared in the hashtable was based on some runtime addresses, so it can potentially
+ *       change with every execution.
+ */
+bool CommonSubexpressionEliminator::OrderOnExprAndFrequency(std::pair<PrimExpr, size_t> a,
+                                                            std::pair<PrimExpr, size_t> b) {
+  size_t a_size = CalculateExprComplexity(a.first);
+  size_t b_size = CalculateExprComplexity(b.first);
+
+  // Criteria 1 - Size of the expression comes first
+  // `a` comes before `b` if the size of `a` is bigger
+  if (a_size > b_size) {
+    return true;
+  }
+  // `a` does NOT come before `b` if the size of `b` is bigger
+  if (b_size > a_size) {
+    return false;
+  }
+
+  // Criteria 2 - If they had the same size, use the lexicographic order as a last resort
+  // as we need a deterministic order
+  std::stringstream a_stream;
+  std::stringstream b_stream;
+  a_stream << a.first;
+  b_stream << b.first;
+  return (a_stream.str().compare(b_stream.str()) < 0);
+}
+
+/*!
  * \brief Generates a new fresh variable, whose name will be cse_var_i.
  * \param type_annotation The type of the new variable to generate
  * \return A new variable of type `type_annotation` called cse_var_i where i is the first available
@@ -166,10 +202,12 @@ int CommonSubexpressionEliminator::GetNbVarGenerated() { return nb_var_; }
                           of the function being analyzed
  * \return A new statement where CSE has been performed
  */
-Stmt CommonSubexpressionEliminator::PerformCSE(const Stmt& stmt, const Context& context_init) {
+Stmt CommonSubexpressionEliminator::PerformCSE(const Stmt& stmt, const Context& context_init,
+                                               bool identify_equiv_terms) {
   // As this function is being called for each PrimFunc definition, we create a new instance
   // for the one we are having now.
-  CommonSubexpressionEliminator common_subexpression_eliminator(stmt, context_init);
+  CommonSubexpressionEliminator common_subexpression_eliminator(stmt, context_init,
+                                                                identify_equiv_terms);
   return common_subexpression_eliminator.VisitStmt(stmt);
 }
 
@@ -179,8 +217,9 @@ Stmt CommonSubexpressionEliminator::PerformCSE(const Stmt& stmt, const Context& 
                         formal parameters of the function that will be analyzed
  */
 CommonSubexpressionEliminator::CommonSubexpressionEliminator(const Stmt& stmt,
-                                                             const Context& context_init)
-    : initial_body_(stmt), context_(context_init) {}
+                                                             const Context& context_init,
+                                                             bool identify_equiv_terms)
+    : initial_body_(stmt), context_(context_init), identify_equiv_terms_(identify_equiv_terms) {}
 
 /*!
  * \brief The method which overrides the generic dispatcher of StmtExprMutator.
@@ -200,28 +239,28 @@ PrimExpr CommonSubexpressionEliminator::VisitExpr(const PrimExpr& expr) {
   // Transform the hashtable of *syntactic* eligible computations into a vector of pairs
   // containing *semantic* entities, i.e. where equivalent computations are merged.
   std::vector<std::pair<PrimExpr, size_t>> semantic_comp_done_by_expr =
-      SyntacticToSemanticComputations(table_syntactic_comp_done_by_expr);
+      SyntacticToSemanticComputations(table_syntactic_comp_done_by_expr, identify_equiv_terms_);
 
   // Sort the vector of semantic entities by decreasing size
   std::sort(semantic_comp_done_by_expr.begin(), semantic_comp_done_by_expr.end(),
-            [](std::pair<PrimExpr, size_t> a, std::pair<PrimExpr, size_t> b) {
-              return (CalculateExprComplexity(a.first) > CalculateExprComplexity(b.first));
-            });
+            OrderOnExprAndFrequency);
 
   // For each computation done (considering them from biggest to smallest)
   for (size_t i = 0; i < semantic_comp_done_by_expr.size(); i++) {
     std::pair<PrimExpr, size_t>& computation_and_nb = semantic_comp_done_by_expr[i];
 
+    bool ident_equiv_terms = identify_equiv_terms_;  // To avoid the capture of "this"
+
     // The predicate later used (when doing replacements) to select expressions that are
     // equivalent to the current computation (`computation_and_nb.first`)
     std::function<bool(const PrimExpr&)> predicate_selector =
-        [computation_and_nb](const PrimExpr& current_expr) {
+        [computation_and_nb, ident_equiv_terms](const PrimExpr& current_expr) {
           // `current_expr` should be equivalent to `computation_and_nb.first`, but we also check
           // that `current_expr` is an eligible computation even if we know that
           // `computation_and_nb.first` is eligible by construction, in case that one day the
           // equivalence relation would not preserve the eligibility any more (even though that
           // would probably be a very weird equivalence).
-          return (EquivalentTerms(current_expr, computation_and_nb.first) &&
+          return (EquivalentTerms(current_expr, computation_and_nb.first, ident_equiv_terms) &&
                   IsEligibleComputation(current_expr));
         };
 
@@ -229,10 +268,11 @@ PrimExpr CommonSubexpressionEliminator::VisitExpr(const PrimExpr& expr) {
     // equivalent to `computation_and_nb.first`
     auto it_on_var = std::find_if(
         context_.begin(), context_.end(),
-        [computation_and_nb](const std::pair<Var, MaybeValue>& var_and_value) {
+        [computation_and_nb, ident_equiv_terms](const std::pair<Var, MaybeValue>& var_and_value) {
           // Note : safe to call value() as we check has_value() just before
           return (var_and_value.second.has_value() &&
-                  EquivalentTerms(var_and_value.second.value(), computation_and_nb.first));
+                  EquivalentTerms(var_and_value.second.value(), computation_and_nb.first,
+                                  ident_equiv_terms));
         });
 
     // Case where we have a perfectly equivalent computation already available in a variable
@@ -298,7 +338,8 @@ PrimExpr CommonSubexpressionEliminator::VisitExpr(const PrimExpr& expr) {
         // The following insertion will maintain `semantic_comp_done_by_expr` sorted (by
         // decreasing size/complexity), and it will only insert at locations > i as the
         // direct subexprs are necessarily smaller than the current computation.
-        InsertVectorToSortedSemanticComputations(&semantic_comp_done_by_expr, direct_subexprs);
+        InsertVectorToSortedSemanticComputations(&semantic_comp_done_by_expr, direct_subexprs,
+                                                 identify_equiv_terms_);
       }
     }
     // Note : we do not remove the current element, as we never look back in the local vector
@@ -378,28 +419,28 @@ Stmt CommonSubexpressionEliminator::VisitStmt(const Stmt& stmt) {
   // Transform the hashtable of *syntactic* eligible computations into a vector of pairs
   // containing *semantic* entities, i.e. where equivalent computations are merged.
   std::vector<std::pair<PrimExpr, size_t>> semantic_comp_done_by_stmt =
-      SyntacticToSemanticComputations(table_syntactic_comp_done_by_stmt);
+      SyntacticToSemanticComputations(table_syntactic_comp_done_by_stmt, identify_equiv_terms_);
 
   // Sort the vector of semantic entities by decreasing size
   std::sort(semantic_comp_done_by_stmt.begin(), semantic_comp_done_by_stmt.end(),
-            [](std::pair<PrimExpr, size_t> a, std::pair<PrimExpr, size_t> b) {
-              return (CalculateExprComplexity(a.first) > CalculateExprComplexity(b.first));
-            });
+            OrderOnExprAndFrequency);
 
   // For each computation done (considering them from biggest to smallest)
   for (size_t i = 0; i < semantic_comp_done_by_stmt.size(); i++) {
     std::pair<PrimExpr, size_t>& computation_and_nb = semantic_comp_done_by_stmt[i];
 
+    bool ident_equiv_terms = identify_equiv_terms_;  // To avoid the capture of "this"
+
     // The predicate later used (when doing replacements) to select expressions that are
     // equivalent to the current computation (`computation_and_nb.first`)
     std::function<bool(const PrimExpr&)> predicate_selector =
-        [computation_and_nb](const PrimExpr& current_expr) {
+        [computation_and_nb, ident_equiv_terms](const PrimExpr& current_expr) {
           // `current_expr` should be equivalent to `computation_and_nb.first`, but we also check
           // that `current_expr` is an eligible computation even if we know that
           // `computation_and_nb.first` is eligible by construction, in case that one day the
           // equivalence relation would not preserve the eligibility any more (even though that
           // would probably be a very weird equivalence).
-          return (EquivalentTerms(current_expr, computation_and_nb.first) &&
+          return (EquivalentTerms(current_expr, computation_and_nb.first, ident_equiv_terms) &&
                   IsEligibleComputation(current_expr));
         };
 
@@ -407,10 +448,11 @@ Stmt CommonSubexpressionEliminator::VisitStmt(const Stmt& stmt) {
     // equivalent to `computation_and_nb.first`
     auto it_on_var = std::find_if(
         context_.begin(), context_.end(),
-        [computation_and_nb](const std::pair<Var, MaybeValue>& var_and_value) {
+        [computation_and_nb, ident_equiv_terms](const std::pair<Var, MaybeValue>& var_and_value) {
           // Note : safe to call value() as we check has_value() just before
           return (var_and_value.second.has_value() &&
-                  EquivalentTerms(var_and_value.second.value(), computation_and_nb.first));
+                  EquivalentTerms(var_and_value.second.value(), computation_and_nb.first,
+                                  ident_equiv_terms));
         });
 
     // Case where we have a perfectly equivalent computation already available in a variable
@@ -477,7 +519,8 @@ Stmt CommonSubexpressionEliminator::VisitStmt(const Stmt& stmt) {
         // The following insertion will maintain `semantic_comp_done_by_stmt` sorted (by
         // decreasing size/complexity), and it will only insert at locations > i as the
         // direct subexprs are necessarily smaller than the current computation.
-        InsertVectorToSortedSemanticComputations(&semantic_comp_done_by_stmt, direct_subexprs);
+        InsertVectorToSortedSemanticComputations(&semantic_comp_done_by_stmt, direct_subexprs,
+                                                 identify_equiv_terms_);
       }
     }
     // Note : we do not remove the current element, as we never look back in the local vector
@@ -587,8 +630,8 @@ namespace transform {
  * \brief The function which returns the pass for the Common Subexpression Elimination.
  * \return The pass for performing CSE.
  */
-Pass CommonSubexprElimTIR(bool enable_cse_tir) {
-  auto pass_func = [enable_cse_tir](PrimFunc f, IRModule m, PassContext ctx) {
+Pass CommonSubexprElimTIR(bool enable_cse_tir, bool identify_equiv_terms) {
+  auto pass_func = [enable_cse_tir, identify_equiv_terms](PrimFunc f, IRModule m, PassContext ctx) {
     if (enable_cse_tir) {
       auto* n = f.CopyOnWrite();
       Context context_init;
@@ -603,7 +646,8 @@ Pass CommonSubexprElimTIR(bool enable_cse_tir) {
 
       // Do the Common Subexpression Elimination on the body of the function, with the initial
       // context that we have prepared
-      n->body = CommonSubexpressionEliminator::PerformCSE(std::move(f->body), context_init);
+      n->body = CommonSubexpressionEliminator::PerformCSE(std::move(f->body), context_init,
+                                                          identify_equiv_terms);
     }
 
     return f;

@@ -39,8 +39,6 @@ def _create_context(mod, target) -> TuneContext:
         ],
         task_name="test",
     )
-    for rule in ctx.postprocs:
-        rule.initialize_with_tune_context(ctx)
     return ctx
 
 
@@ -86,7 +84,7 @@ class AfterRewrite0:
                             with T.block("C"):
                                 i = T.axis.spatial(512, i0_1_i1_1_fused * 32 + i0_3 * 16 + i0_4)
                                 j = T.axis.spatial(512, i0_0_i1_0_fused * 32 + i0_2_i1_2_fused * 4 + i1_3 * 2 + i1_4)
-                                k = T.axis.reduce(512, i2_1 * 32 + i2_2)
+                                k = T.axis.reduce(512, i2_0 * 512 + i2_1 * 32 + i2_2)
                                 T.reads([A_shared[i, k], B_shared[k, j]])
                                 T.writes([C_local[i, j]])
                                 with T.init():
