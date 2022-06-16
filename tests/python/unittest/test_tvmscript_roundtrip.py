@@ -3288,6 +3288,15 @@ def buffer_ramp_access_as_slice_index():
     return buffer_ramp_access
 
 
+def let_expression():
+    @T.prim_func
+    def func():
+        x = T.var("int32")
+        T.evaluate(T.let(x, 1, x + 1))
+
+    return func
+
+
 ir_generator = tvm.testing.parameter(
     opt_gemm_normalize,
     opt_gemm_lower,
@@ -3325,6 +3334,7 @@ ir_generator = tvm.testing.parameter(
     pointer_type,
     buffer_axis_separator,
     buffer_ramp_access_as_slice_index,
+    let_expression,
 )
 
 
