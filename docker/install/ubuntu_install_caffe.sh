@@ -21,7 +21,7 @@ set -euxo pipefail
 apt-get update --fix-missing
 
 # # Install dependencies
-apt-get install -y --no-install-recommends protobuf-compiler \
+apt-install-and-clear -y --no-install-recommends protobuf-compiler \
     libprotobuf-dev libhdf5-serial-dev libopenblas-dev libgflags-dev libgoogle-glog-dev
 
 

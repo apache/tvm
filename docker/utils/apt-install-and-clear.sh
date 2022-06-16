@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,22 +16,5 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
-set -o pipefail
+apt-get install $@ && apt-get clean
 
-export DEBIAN_FRONTEND=noninteractive
-apt-install-and-clear -y ca-certificates
-
-ARDUINO_CLI_VERSION="0.21.1"
-# Install arduino-cli
-wget -O - https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh -s ${ARDUINO_CLI_VERSION}
-
-# Install the cores we want to test on
-arduino-cli core install arduino:mbed_nano
-arduino-cli core install arduino:sam
-
-# ARDUINO_DIRECTORIES_USER wouldn't normally be created until we
-# install a package, which would casue chmod to fail
-mkdir -p "${ARDUINO_DIRECTORIES_DATA}" "${ARDUINO_DIRECTORIES_USER}" "${ARDUINO_DIRECTORIES_DOWNLOADS}"
-chmod -R o+rw "${ARDUINO_DIRECTORIES_DATA}" "${ARDUINO_DIRECTORIES_USER}" "${ARDUINO_DIRECTORIES_DOWNLOADS}"
