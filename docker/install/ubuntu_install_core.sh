@@ -18,6 +18,8 @@
 
 set -e
 set -u
+# Used for debugging RVM build
+set -x
 set -o pipefail
 
 # install libraries for building c++ core on ubuntu

@@ -26,41 +26,18 @@ if [ -e "$HOME/skip_zeroing_disk" ]; then
     skip_zeroing_disk=1
 fi
 
-sudo apt update
-sudo apt install -y build-essential
-sudo apt-get --purge remove modemmanager  # required to access serial ports.
+# Install common configs
+~/base_box_setup_common.sh
+rm -f ~/base_box_setup_common.sh
 
-sudo apt install -y --no-install-recommends git \
-     cmake cmake-data \
-     ninja-build gperf ccache dfu-util device-tree-compiler wget \
-     python3-dev python3-pip python3-setuptools python3-tk python3-wheel xz-utils file \
-     make gcc gcc-multilib g++-multilib libsdl2-dev
-
-OLD_HOSTNAME=$(hostname)
-sudo hostnamectl set-hostname microtvm
-sudo sed -i.bak "s/${OLD_HOSTNAME}/microtvm.localdomain/g" /etc/hosts
-
-# Poetry deps
-sudo apt install -y python3-venv
-
-# TVM deps
-sudo apt install -y llvm
-
-# ONNX deps
-sudo apt install -y protobuf-compiler libprotoc-dev
+# Poetry
+sed -i "/^# If not running interactively,/ i source \$HOME/.poetry/env" ~/.bashrc
+sed -i "/^# If not running interactively,/ i\\ " ~/.bashrc
 
 # TODO do we need this?
 echo 'export PATH=$HOME/vagrant/bin:"$PATH"' >> ~/.profile
 source ~/.profile
 echo PATH=$PATH
-
-# Poetry
-curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3
-sed -i "/^# If not running interactively,/ i source \$HOME/.poetry/env" ~/.bashrc
-sed -i "/^# If not running interactively,/ i\\ " ~/.bashrc
-
-# Python 3.7
-sudo apt install -y python3.7
 
 # Clean box for packaging as a base box
 sudo apt-get clean
