@@ -25,31 +25,7 @@ from tvm import te, topi
 from tvm.contrib.hexagon.build import HexagonLauncher
 from tvm.topi import testing
 
-from .infrastructure import allocate_hexagon_array
-
-
-def n11c_1024c_1d(n, h, w, c):
-    return [n, h, w, c // 1024, tvm.te.AXIS_SEPARATOR, c % 1024]
-
-
-def nc_1024_1d(n, c):
-    return [n, c // 1024, tvm.te.AXIS_SEPARATOR, c % 1024]
-
-
-def transform_numpy(arr_np, layout):
-    if layout == "nhwc":
-        return arr_np
-    elif layout == "n11c-1024c-1d":
-        N, H, W, C = arr_np.shape
-        return arr_np.reshape([N, H, W, C // 1024, 1024])
-    elif layout == "nc-1d":
-        N, C = arr_np.shape
-        return arr_np.reshape([N, C // 1024, 1024])
-
-
-@tvm.testing.fixture
-def transformed_expected_output_np(expected_output_np, output_layout):
-    return transform_numpy(expected_output_np, output_layout)
+from ..infrastructure import allocate_hexagon_array, transform_numpy
 
 
 class BaseTestBatchFlatten:
@@ -60,7 +36,7 @@ class BaseTestBatchFlatten:
         (2, 4, 8, 1024),
         (2, 3, 5, 2048),
     )
-    input_layout, input_axis_sep = tvm.testing.parameters(("n11c-1024c-1d", [4]))
+    input_layout, input_axis_sep = tvm.testing.parameters(("nhwc-1024c-1d", [4]))
     output_layout, output_axis_sep = tvm.testing.parameters(("nc-1d", [2]))
     data_type = tvm.testing.parameter("float16")
 
@@ -89,8 +65,8 @@ class TestBatchFlatten(BaseTestBatchFlatten):
         tir_s = sl.batch_flatten_stir_schedule(
             D,
             A,
-            nc_1024_1d,
-            n11c_1024c_1d,
+            output_layout,
+            input_layout,
         )
         func_name = "batch_flatten"
         with tvm.transform.PassContext(opt_level=3, config={"tir.disable_assert": True}):
@@ -101,8 +77,8 @@ class TestBatchFlatten(BaseTestBatchFlatten):
         a_numpy = (np.random.uniform(-1, 1, input_shape)).astype(data_type)
         ref = np.reshape(a_numpy, output_shape)
 
-        input_np_transformed = transform_numpy(a_numpy, input_layout)
-        ref_np_transformed = transform_numpy(ref, output_layout)
+        input_np_transformed = transform_numpy(a_numpy, "nhwc", input_layout)
+        ref_np_transformed = transform_numpy(ref, "nhwc", output_layout)
 
         a_tvm = allocate_hexagon_array(
             hexagon_session.device,

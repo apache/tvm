@@ -19,6 +19,7 @@
 import typing
 
 from tvm import te, tir, topi
+from ..utils import get_layout_transform_fn
 
 
 def batch_flatten_compute(inp: te.Tensor) -> te.Tensor:
@@ -66,8 +67,8 @@ def batch_flatten_stir_schedule(
     sch = tir.Schedule(batch_flatten_func, debug_mask="all")
     compute = sch.get_block("compute")
 
-    sch.transform_layout(compute, inp.name, in_layout)
-    sch.transform_layout(compute, out.name, out_layout)
+    sch.transform_layout(compute, inp.name, get_layout_transform_fn(in_layout))
+    sch.transform_layout(compute, out.name, get_layout_transform_fn(out_layout))
     i, j = sch.get_loops(compute)
     jout, channel = sch.split(j, [None, inp.shape[3]])
     height, width = sch.split(jout, [inp.shape[1], inp.shape[2]])
