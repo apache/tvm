@@ -87,7 +87,7 @@ def _make_split(inputs, outputs):  # pylint: disable=redefined-builtin
     return Instruction(
         kind=InstructionKind.get("Split"),
         inputs=inputs,
-        attrs=[],
+        attrs=[True],
         outputs=outputs,
     )
 
@@ -262,7 +262,7 @@ def test_trace_simplified_3():
         (
             'b0 = sch.get_block(name="B", func_name="main")',
             "l1, = sch.get_loops(block=b0)",
-            "l2, l3 = sch.split(loop=l1, factors=[None, 32])",
+            "l2, l3 = sch.split(loop=l1, factors=[None, 32], preserve_unit_iters=True)",
         )
     )
 

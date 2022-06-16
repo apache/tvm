@@ -333,19 +333,20 @@ Array<BlockRV> ConcreteScheduleNode::GetConsumers(const BlockRV& block_rv) {
 
 /******** Schedule: Transform loops ********/
 
-LoopRV ConcreteScheduleNode::Fuse(const Array<LoopRV>& loop_rvs) {
+LoopRV ConcreteScheduleNode::Fuse(const Array<LoopRV>& loop_rvs, bool preserve_unit_iters) {
   CHECK(!loop_rvs.empty()) << "ValueError: 'fuse' requires at least 1 loop(s)";
   Array<StmtSRef> loop_srefs = this->GetSRefs(loop_rvs);
   StmtSRef result{nullptr};
   TVM_TIR_SCHEDULE_BEGIN();
-  result = tir::Fuse(state_, loop_srefs);
+  result = tir::Fuse(state_, loop_srefs, preserve_unit_iters);
   TVM_TIR_SCHEDULE_END("fuse", this->error_render_level_);
   this->state_->DebugVerify();
   return CreateRV<LoopRV>(result);
 }
 
 Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
-                                          const Array<Optional<ExprRV>>& factor_rvs) {
+                                          const Array<Optional<ExprRV>>& factor_rvs,
+                                          bool preserve_unit_iters) {
   class NotSingleInferFactorError : public ScheduleError {
    public:
     explicit NotSingleInferFactorError(IRModule mod) : mod_(mod) {}
@@ -440,7 +441,7 @@ Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
   } else if (!this->analyzer_->CanProve(tot_length >= loop->extent)) {
     throw WrongFactorProductError(state_->mod, GetRef<For>(loop));
   }
-  results = tir::Split(state_, loop_sref, factors);
+  results = tir::Split(state_, loop_sref, factors, preserve_unit_iters);
   TVM_TIR_SCHEDULE_END("split", this->error_render_level_);
   this->state_->DebugVerify();
   return CreateRV<LoopRV>(results);

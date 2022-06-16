@@ -495,7 +495,11 @@ class Schedule(Object):
 
     ########## Schedule: Transform loops ##########
     @type_checked
-    def fuse(self, *loops: List[LoopRV]) -> LoopRV:
+    def fuse(
+        self,
+        *loops: List[LoopRV],
+        preserve_unit_iters: bool = True,
+    ) -> LoopRV:
         """Fuse a list of consecutive loops into one. It requires:
         1) The loops can't have annotations or thread bindings.
         2) The (i+1)-th loop must be the only child of the i-th loop.
@@ -553,13 +557,14 @@ class Schedule(Object):
                         B[vi, vj] = A[vi, vj] * 2.0
 
         """
-        return _ffi_api.ScheduleFuse(self, loops)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ScheduleFuse(self, loops, preserve_unit_iters)  # type: ignore # pylint: disable=no-member
 
     @type_checked
     def split(
         self,
         loop: LoopRV,
         factors: List[Union[int, ExprRV, None]],
+        preserve_unit_iters: bool = True,
     ) -> List[LoopRV]:
         """Split a loop into a list of consecutive loops. It requires:
         1) The loop can't have annotation or thread binding.
@@ -579,6 +584,9 @@ class Schedule(Object):
             - None
             - ExprRV
             - Positive constant integers
+
+        preserve_unit_iters : bool
+            Whether or not to preserve unit iterators in block bindings
 
         Returns
         -------
@@ -628,7 +636,14 @@ class Schedule(Object):
         """
         # it will be checked later in C++ implementation
         # that there is at most one None in `factors`
-        return list(_ffi_api.ScheduleSplit(self, loop, factors))  # type: ignore # pylint: disable=no-member
+        return list(
+            _ffi_api.ScheduleSplit(  # type: ignore # pylint: disable=no-member
+                self,
+                loop,
+                factors,
+                preserve_unit_iters,
+            )
+        )
 
     @type_checked
     def reorder(self, *ordered_loops: List[LoopRV]) -> None:
