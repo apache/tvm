@@ -89,7 +89,6 @@ def test_meta_schedule_replay_func(
             num_trials_per_iter=num_trials_per_iter, max_trials_per_task=max_trials_per_task
         ),
     )
-    context.initialize()
     strategy = context.search_strategy
     spaces = context.space_generator.generate_design_space(context.mod)
     strategy.pre_tuning(spaces)
@@ -154,7 +153,6 @@ def test_meta_schedule_evolutionary_search():  # pylint: disable = invalid-name
         target=tvm.target.Target("llvm"),
         num_threads=1,  # because we are using a mutator from the python side
     )
-    context.initialize()
     strategy = context.search_strategy
     strategy.pre_tuning(
         context.space_generator.generate_design_space(context.mod),
@@ -218,7 +216,6 @@ def test_meta_schedule_evolutionary_search_early_stop():  # pylint: disable = in
         target=tvm.target.Target("llvm"),
         num_threads=1,
     )
-    context.initialize()
     strategy = context.search_strategy
     strategy.pre_tuning(
         context.space_generator.generate_design_space(context.mod),

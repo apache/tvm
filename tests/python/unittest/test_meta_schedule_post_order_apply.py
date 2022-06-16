@@ -223,7 +223,6 @@ def test_meta_schedule_post_order_apply():
         space_generator=PostOrderApply(),
         sch_rules=[WowSoFancyScheduleRule()],
     )
-    context.initialize()
     post_order_apply = context.space_generator
     schs = post_order_apply.generate_design_space(mod)
     assert len(schs) == 1
@@ -240,7 +239,6 @@ def test_meta_schedule_post_order_apply_double():
         space_generator=PostOrderApply(),
         sch_rules=[DoubleScheduleRule()],
     )
-    context.initialize()
     post_order_apply = context.space_generator
     schs = post_order_apply.generate_design_space(mod)
     assert len(schs) == 2
@@ -258,7 +256,6 @@ def test_meta_schedule_post_order_apply_multiple():
         space_generator=PostOrderApply(),
         sch_rules=[DoubleScheduleRule(), ReorderScheduleRule()],
     )
-    context.initialize()
     post_order_apply = context.space_generator
     schs = post_order_apply.generate_design_space(mod)
     assert len(schs) == 4
@@ -276,7 +273,6 @@ def test_meta_schedule_post_order_apply_duplicate_matmul():
         space_generator=PostOrderApply(),
         sch_rules=[WowSoFancyScheduleRule()],
     )
-    context.initialize()
     post_order_apply = context.space_generator
     with pytest.raises(
         TVMError,
@@ -330,12 +326,12 @@ def test_meta_schedule_post_order_apply_remove_block():
                 'b2 = sch.get_block(name="C", func_name="main")',
                 "sch.compute_inline(block=b1)",
                 "l3, l4 = sch.get_loops(block=b2)",
-                "l5, l6 = sch.split(loop=l3, factors=" + str(a) + ")",
-                "l7, l8 = sch.split(loop=l4, factors=" + str(b) + ")",
+                "l5, l6 = sch.split(loop=l3, factors=" + str(a) + ", preserve_unit_iters=True)",
+                "l7, l8 = sch.split(loop=l4, factors=" + str(b) + ", preserve_unit_iters=True)",
                 "sch.reorder(l5, l7, l6, l8)",
                 "l9, l10 = sch.get_loops(block=b0)",
-                "l11, l12 = sch.split(loop=l9, factors=" + str(c) + ")",
-                "l13, l14 = sch.split(loop=l10, factors=" + str(d) + ")",
+                "l11, l12 = sch.split(loop=l9, factors=" + str(c) + ", preserve_unit_iters=True)",
+                "l13, l14 = sch.split(loop=l10, factors=" + str(d) + ", preserve_unit_iters=True)",
                 "sch.reorder(l11, l13, l12, l14)",
             ]
         )
@@ -348,7 +344,6 @@ def test_meta_schedule_post_order_apply_remove_block():
         space_generator=PostOrderApply(),
         sch_rules=[RemoveBlock(), TrinityDouble()],
     )
-    context.initialize()
     post_order_apply = context.space_generator
     schs = post_order_apply.generate_design_space(mod)
     assert len(schs) == 4
@@ -376,7 +371,6 @@ def test_meta_schedule_custom_search_space():
         space_generator=PostOrderApply(),
         sch_rules=[],
     )
-    context.initialize()
     post_order_apply = context.space_generator
     post_order_apply.generate_design_space(mod)
     called = False

@@ -432,6 +432,7 @@ MICRO_SUPPORTED_MODELS = {
     "mps3_an547": ["-mcpu=cortex-m55"],
     "nrf52840": ["-mcpu=cortex-m4"],
     "nrf5340dk": ["-mcpu=cortex-m33"],
+    "rp2040": ["-mcpu=cortex-m0"],
     "sam3x8e": ["-mcpu=cortex-m3"],
     "stm32f746xx": ["-mcpu=cortex-m7", "-march=armv7e-m"],
     "stm32h7xx": ["-mcpu=cortex-m7"],

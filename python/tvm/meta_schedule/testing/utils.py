@@ -30,6 +30,7 @@ def apply_fixed_schedules(
     target: Union[str, Target],
     params: Optional[Dict[str, NDArray]],
     schedule_fn: Callable[[ms.ExtractedTask, Schedule], bool],
+    te_filter_func=None,
 ):
     """Apply fixed schedules (manually written, without any tunable knobs) as specified by
     schedule_fn to extracted tasks, and return a database that can be passed to ApplyHistoryBest.
@@ -45,6 +46,13 @@ def apply_fixed_schedules(
     schedule_fn : Callable[[ExtractedTask, Schedule], bool]
         A callable that is applied for each extracted task and the corresponding default schedule.
         Returns True if the given schedule should be committed to the database, False otherwise.
+    te_filter_func : Union[str, None, Callable[[List[Tensor]], PrimFunc]] = None
+        The filtering function for TE computation
+        If it's a string, it's the name of the filtering function. Built in functions are
+          - "meta_schedule.DefaultTaskFilter"
+          - "meta_schedule.DefaultTaskFilterAllowExtern"
+        If it's None, it's the default filtering function
+        If it's a callable, it's the filtering function
 
     Returns
     -------
@@ -52,7 +60,12 @@ def apply_fixed_schedules(
         The database containing dummy tuning records for manually scheduled traces.
     """
     target = Target(target) if isinstance(target, str) else target
-    extracted_tasks = ms.extract_task_from_relay(relay_mod, target, params)
+    extracted_tasks = ms.extract_task_from_relay(
+        relay_mod,
+        target,
+        params,
+        te_filter_func=te_filter_func,
+    )
     database = ms.database.MemoryDatabase()
     for task in extracted_tasks:
         mod = ms.default_config.mod(task.dispatched[0])

@@ -19,6 +19,7 @@ import numpy as np
 import pytest
 import tvm
 import tvm.testing
+from tvm import IRModule
 from tvm import meta_schedule as ms
 from tvm import relay, te, tir
 from tvm.meta_schedule.testing.relay_workload import get_network
@@ -58,6 +59,14 @@ requires_torch = pytest.mark.skipif(not _has_torch(), reason="torch is not insta
 
 def test_meta_schedule_apply_history_best_no_current():
     assert ms.ApplyHistoryBest.current() is None
+
+
+def test_meta_schedule_dynamic_loop_extent():
+    a = relay.var("a", shape=(1, 8, 8, 512), dtype="float32")
+    b = relay.nn.adaptive_avg_pool2d(a, (7, 7), "NHWC")
+    mod = IRModule({"main": relay.Function([a], b)})
+    extracted_tasks = ms.extract_task_from_relay(mod, target="llvm", params={})
+    assert not extracted_tasks
 
 
 @requires_torch
@@ -193,6 +202,7 @@ def test_meta_schedule_integration_extract_from_bert_base():
 @requires_torch
 def test_meta_schedule_integration_extract_from_resnet_with_filter_func():
     def filter_func(args) -> bool:
+        from tvm.te import create_prim_func  # pylint: disable=import-outside-toplevel
 
         has_complex_op = False
         visited = set()
@@ -205,23 +215,23 @@ def test_meta_schedule_integration_extract_from_resnet_with_filter_func():
             if isinstance(t.op, te.PlaceholderOp):
                 pass
             elif isinstance(t.op, te.ComputeOp):
-                has_complex_op = has_complex_op or any(
-                    [isinstance(e, tir.Reduce) for e in t.op.body]
-                )
+                has_complex_op = has_complex_op or any(isinstance(e, tir.Reduce) for e in t.op.body)
                 for x in t.op.input_tensors:
                     traverse(x)
             visited.add(t.handle.value)
 
         for t in args:
             traverse(t)
-        return has_complex_op
+        if not has_complex_op:
+            return None
+        return create_prim_func(args)
 
     mod, params, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
     extracted_tasks = ms.extract_task_from_relay(
         mod,
         target="llvm",
         params=params,
-        filter_func=filter_func,
+        te_filter_func=filter_func,
     )
     expected_task_names = [
         "fused_" + s

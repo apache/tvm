@@ -16,12 +16,14 @@
 # under the License.
 """A context manager that injects the best tuning record in the database into compilation"""
 import logging
-from typing import List, Optional, Union
+from typing import Callable, List, Optional, Union
 
-from tvm._ffi import register_object
+from tvm._ffi import get_global_func, register_object
 from tvm.ir import IRModule
 from tvm.runtime import Object
 from tvm.target import Target
+from tvm.te import Tensor
+from tvm.tir import PrimFunc
 
 from . import _ffi_api
 from .database import Database
@@ -38,13 +40,29 @@ class ApplyHistoryBest(Object):
     ----------
     database : Database
         The database to be queried from
+    te_filter_func : Union[str, None, Callable[[List[Tensor]], PrimFunc]] = None
+        The filtering function for TE computation
+        If it's a string, it's the name of the filtering function. Built in functions are
+          - "meta_schedule.DefaultTaskFilter"
+          - "meta_schedule.DefaultTaskFilterAllowExtern"
+        If it's None, it's the default filtering function
+        If it's a callable, it's the filtering function
     """
 
     database: Database
 
-    def __init__(self, database: Database) -> None:
+    def __init__(
+        self,
+        database: Database,
+        te_filter_func: Union[str, None, Callable[[List[Tensor]], PrimFunc]] = None,
+    ) -> None:
+        if isinstance(te_filter_func, str):
+            te_filter_func = get_global_func(te_filter_func)
         self.__init_handle_by_constructor__(
-            _ffi_api.ApplyHistoryBest, database, make_logging_func(logger)  # type: ignore # pylint: disable=no-member
+            _ffi_api.ApplyHistoryBest,  # type: ignore # pylint: disable=no-member
+            database,
+            te_filter_func,
+            make_logging_func(logger),
         )
 
     def query(

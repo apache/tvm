@@ -271,6 +271,7 @@ def _get_quant_param_for_input(input_value):
         "quantized::add_scalar": (2, 3),
         "quantized::hardswish": (1, 2),
         "quantized::conv_transpose2d": qconv_indices,
+        "quantized::leaky_relu": (3, 4),
     }
 
     def dfs(current_node):
@@ -443,6 +444,7 @@ def add_input_quant_params_to_op_inputs(graph):
         "quantized::hardswish": 1,
         "aten::hardsigmoid": 1,
         "quantized::conv_transpose2d": 1,
+        "quantized::leaky_relu": 1,
     }
 
     need_input_quant_param = set(num_quantized_inputs.keys())
@@ -935,6 +937,24 @@ def _relu6():
     return _impl
 
 
+def _leaky_relu():
+    # refer to src/ATen/native/quantized/cpu/qrelu.cpp
+    def _impl(inputs, _):
+        assert len(inputs) == 7, "Input quant params not found in op inputs"
+        alpha = inputs[1]
+        output_scale = _expr.const(inputs[3])
+        output_zero_point = _expr.const(inputs[4])
+        input_scale = _expr.const(inputs[5])
+        input_zero_point = _expr.const(inputs[6])
+        dequant = relay.qnn.op.dequantize(inputs[0], input_scale, input_zero_point)
+        dequantized = _op.nn.leaky_relu(dequant, alpha)
+        return relay.qnn.op.quantize(
+            dequantized, output_scale, output_zero_point, out_dtype="uint8"
+        )
+
+    return _impl
+
+
 def _mul_scalar():
     # this is used for mobilenet v3
     def _impl(inputs, _):
@@ -1131,6 +1151,7 @@ convert_map = {
     "quantized::add_scalar": _add_scalar(),
     "quantized::mul_scalar": _mul_scalar(),
     "quantized::relu6": _relu6(),
+    "quantized::leaky_relu": _leaky_relu(),
     "quantized::linear_dynamic": _linear_dynamic(),
     "quantized::hardswish": _hswish(),
     "quantized::conv_transpose2d": _quantized_conv_transpose2d(),

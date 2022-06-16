@@ -138,25 +138,20 @@ def test_meta_schedule_tune_relay(
     mod, params, (input_name, _, _) = get_network(name=model_name, input_shape=input_shape)
     target = Target(target)
     with tempfile.TemporaryDirectory() as work_dir:
-        rt_mod1: tvm.runtime.Module = ms.tune_relay(
-            mod=mod,
-            params=params,
-            target=target,
-            config=ms.TuneConfig(
-                strategy="evolutionary",
-                num_trials_per_iter=32,
-                max_trials_per_task=20000,
-                max_trials_global=20000,
-                search_strategy_config={
-                    "genetic_num_iters": 10,
-                },
-            ),
-            work_dir=work_dir,
-            database=ms.database.JSONDatabase(
-                osp.join(work_dir, "workload.json"),
-                osp.join(work_dir, "records.json"),
-            ),
-        )
+        with ms.Profiler() as profiler:
+            rt_mod1: tvm.runtime.Module = ms.tune_relay(
+                mod=mod,
+                params=params,
+                target=target,
+                config=ms.TuneConfig(
+                    strategy="evolutionary",
+                    num_trials_per_iter=32,
+                    max_trials_per_task=20000,
+                    max_trials_global=20000,
+                ),
+                work_dir=work_dir,
+            )
+        print(profiler.table())
         # Compile without meta-scheduler for correctness check
         with tvm.transform.PassContext(opt_level=0):
             rt_mod2 = relay.build(mod, target=target, params=params)

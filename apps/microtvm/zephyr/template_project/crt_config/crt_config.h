@@ -36,7 +36,7 @@
 #define TVM_CRT_MAX_ARGS 10
 
 /*! Size of the global function registry, in bytes. */
-#define TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES 256
+#define TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES 512
 
 /*! Maximum number of registered modules. */
 #define TVM_CRT_MAX_REGISTERED_MODULES 2

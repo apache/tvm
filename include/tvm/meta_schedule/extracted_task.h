@@ -27,6 +27,15 @@
 #include <tvm/target/target.h>
 
 namespace tvm {
+namespace tir {
+class PrimFunc;
+}  // namespace tir
+namespace te {
+class Tensor;
+}  // namespace te
+}  // namespace tvm
+
+namespace tvm {
 namespace meta_schedule {
 
 /*! \brief A tuning task extracted from the high-level IR */
@@ -66,6 +75,20 @@ class ExtractedTask : public runtime::ObjectRef {
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ExtractedTask, runtime::ObjectRef,
                                                     ExtractedTaskNode);
 };
+
+/*!
+ * \brief The default TE task filter
+ * \param args The input/output arguments of the TE compute graph
+ * \return NullOpt if the task is filtered out, otherwise the task in PrimFunc
+ */
+Optional<tvm::tir::PrimFunc> DefaultTaskFilter(const Array<tvm::te::Tensor, void>& args);
+
+/*!
+ * \brief The default TE task filter, with `te.extern` allowed
+ * \param args The input/output arguments of the TE compute graph
+ * \return NullOpt if the task is filtered out, otherwise the task in PrimFunc
+ */
+Optional<tir::PrimFunc> DefaultTaskFilterAllowExtern(const Array<tvm::te::Tensor, void>& args);
 
 }  // namespace meta_schedule
 }  // namespace tvm
