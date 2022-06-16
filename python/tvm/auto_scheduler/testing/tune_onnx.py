@@ -22,11 +22,11 @@ import os
 import numpy as np  # type: ignore
 import onnx  # type: ignore
 import tvm
-from tvm.relay.frontend import from_onnx
 from tvm import auto_scheduler
 from tvm import meta_schedule as ms
 from tvm import relay
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
+from tvm.relay.frontend import from_onnx
 
 
 def _parse_args():
@@ -82,6 +82,26 @@ def _parse_args():
         type=str,
         required=True,
     )
+    args.add_argument(
+        "--number",
+        type=int,
+        default=3,
+    )
+    args.add_argument(
+        "--repeat",
+        type=int,
+        default=1,
+    )
+    args.add_argument(
+        "--min-repeat-ms",
+        type=int,
+        default=100,
+    )
+    args.add_argument(
+        "--cpu-flush",
+        type=bool,
+        required=True,
+    )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
     parsed.input_shape = json.loads(parsed.input_shape)
@@ -105,10 +125,10 @@ def main():
         host=ARGS.rpc_host,
         port=ARGS.rpc_port,
         n_parallel=ARGS.rpc_workers,
-        number=3,
-        repeat=1,
-        min_repeat_ms=100,  # TODO
-        enable_cpu_cache_flush=False,  # TODO
+        number=ARGS.number,
+        repeat=ARGS.repeat,
+        min_repeat_ms=ARGS.min_repeat_ms,
+        enable_cpu_cache_flush=ARGS.cpu_flush,
     )
 
     if ARGS.target.kind.name == "llvm":
