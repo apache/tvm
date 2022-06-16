@@ -156,10 +156,11 @@ Array<StmtSRef> GetConsumers(const ScheduleState& self, const StmtSRef& block_sr
  * \param self The state of the schedule
  * \param loop_sref The sref to the loop being split
  * \param factors The splitting factors
+ * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
  * \return An array of srefs to the loops after splitting
  */
 TVM_DLL Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
-                              const Array<PrimExpr>& factors);
+                              const Array<PrimExpr>& factors, bool preserve_unit_iters);
 /*!
  * \brief Fuse a list of consecutive loops into one. It requires:
  * 1) The loops can't have annotations or thread bindings.
@@ -168,9 +169,11 @@ TVM_DLL Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
  * 4) The domain of a loop to be fused cannot depend on another loop to be fused.
  * \param self The state of the schedule
  * \param loop_srefs An array of srefs to the loops to be fused
+ * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
  * \return The sref to the fused loop
  */
-TVM_DLL StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs);
+TVM_DLL StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs,
+                      bool preserve_unit_loops);
 /*!
  * \brief Reorder a list of loops. It doesn't require the loops to be consecutive.
  * It requires:

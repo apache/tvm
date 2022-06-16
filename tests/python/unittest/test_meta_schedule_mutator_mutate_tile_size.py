@@ -73,7 +73,6 @@ def _make_mutator(target: Target) -> Mutator:
         target=target,
         mutator_probs={MutateTileSize(): 1.0},
     )
-    ctx.initialize()
     return list(ctx.mutator_probs.keys())[0]
 
 

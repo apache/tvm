@@ -19,4 +19,5 @@
 
 # pylint: disable=wildcard-import
 
-from .cast import *
+from .avg_pool2d import avg_pool2d_compute, avg_pool2d_STIR_schedule
+from .cast import cast_f16_f32_compute, cast_f16_f32_schedule, cast_f32_f16_compute, cast_f32_f16_schedule

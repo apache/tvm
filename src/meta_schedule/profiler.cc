@@ -63,6 +63,7 @@ String ProfilerNode::Table() const {
       p.Row() << i << table_entry[i].name << table_entry[i].minutes << table_entry[i].percentage;
     }
   }
+  p.Separator();
   return p.AsStr();
 }
 
@@ -79,7 +80,8 @@ PackedFunc ProfilerTimedScope(String name) {
                                     tik = std::chrono::high_resolution_clock::now(),  //
                                     name = std::move(name)]() {
       auto tok = std::chrono::high_resolution_clock::now();
-      double duration = std::chrono::duration_cast<std::chrono::seconds>(tok - tik).count();
+      double duration =
+          std::chrono::duration_cast<std::chrono::nanoseconds>(tok - tik).count() / 1e9;
       profiler->stats_sec[name] += duration;
     });
   }

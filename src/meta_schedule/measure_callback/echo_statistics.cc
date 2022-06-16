@@ -79,10 +79,10 @@ class EchoStatisticsNode : public MeasureCallbackNode {
              const Array<MeasureCandidate>& measure_candidates,
              const Array<BuilderResult>& builder_results,
              const Array<RunnerResult>& runner_results) final {
+    auto _ = Profiler::TimedScope("MeasureCallback/EchoStatistics");
     if (this->task_info.empty()) {
       SetupTaskInfo(task_scheduler->tasks);
     }
-    auto _ = Profiler::TimedScope("EchoStatistics");
     ICHECK_EQ(measure_candidates.size(), builder_results.size());
     ICHECK_EQ(measure_candidates.size(), runner_results.size());
     int n = measure_candidates.size();
