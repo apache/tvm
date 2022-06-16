@@ -218,6 +218,9 @@ class XGBConfig(NamedTuple):
     nthread : Optional[int],
         The number of threads to use.
         Default is None, which means to use physical number of cores.
+    adapative_training : bool
+        Whether to use adapatie training, which reduces the training frequency when there are
+        too many logs.
     """
 
     max_depth: int = 10
@@ -226,6 +229,7 @@ class XGBConfig(NamedTuple):
     eta: float = 0.2
     seed: int = 43
     nthread: Optional[int] = None
+    adapative_training: bool = True
 
     def to_dict(self):
         return {
@@ -235,6 +239,7 @@ class XGBConfig(NamedTuple):
             "eta": self.eta,
             "seed": self.seed,
             "nthread": self.nthread,
+            "adapative_training": self.adapative_training,
         }
 
 
@@ -314,6 +319,9 @@ class XGBModel(PyCostModel):
     data: Dict[str, FeatureGroup]
     data_size: int
     booster: Optional["xgb.Booster"]
+    # adaptive training
+    adaptive_training: bool
+    last_train_size: int
 
     def __init__(
         self,
@@ -328,6 +336,7 @@ class XGBModel(PyCostModel):
         early_stopping_rounds: int = 50,
         verbose_eval: int = 25,
         average_peak_n: int = 32,
+        adaptive_training: bool = True,
     ):
         super().__init__()
         # feature extractor
@@ -347,6 +356,9 @@ class XGBModel(PyCostModel):
         self.data = OrderedDict()
         self.data_size = 0
         self.booster = None
+        # adaptive training
+        self.adaptive_training = adaptive_training
+        self.last_train_size = 0
 
     def load(self, path: str) -> None:
         """Load the cost model from given file location.
@@ -490,6 +502,15 @@ class XGBModel(PyCostModel):
             group.append(new_features, new_mean_costs)
         self.data[new_group_hash] = group
         self.data_size += len(new_features)
+
+        if (
+            self.adaptive_training
+            and self.data_size - self.last_train_size < self.last_train_size / 5
+        ):
+            # Set a training threshold related to `last_train_size` to reduce the training
+            # overhead when there're too many results
+            return
+        self.last_train_size = self.data_size
 
         # Step 5. Re-train the model
         self._train(
