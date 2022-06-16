@@ -14,12 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-The tvm.meta_schedule.space_generator package.
-Meta Schedule design space generators that generates design
-space for generation of measure candidates.
-"""
-from .post_order_apply import PostOrderApply
-from .schedule_fn import SCH_FN_TYPE, ScheduleFn
-from .space_generator import PySpaceGenerator, SpaceGenerator
-from .space_generator_union import SpaceGeneratorUnion
+
+""" Computes and Schedules for Hexagon slice ops. """
+
+# pylint: disable=wildcard-import
+
+from .avg_pool2d import avg_pool2d_compute, avg_pool2d_STIR_schedule

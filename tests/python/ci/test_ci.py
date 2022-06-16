@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+import os
 import subprocess
 import sys
 import json
@@ -39,6 +39,42 @@ class TempGit:
         return proc
 
 
+@pytest.mark.parametrize(
+    "target_url,base_url,commit_sha,expected_url,expected_body",
+    [
+        (
+            "https://ci.tlcpack.ai/job/tvm/job/PR-11594/3/display/redirect",
+            "https://pr-docs.tlcpack.ai",
+            "SHA",
+            "issues/11594/comments",
+            "Built docs for commit [SHA](SHA) can be found [here](https://pr-docs.tlcpack.ai/PR-11594/3/docs/index.html).",
+        )
+    ],
+)
+def test_docs_comment(
+    tmpdir_factory, target_url, base_url, commit_sha, expected_url, expected_body
+):
+    docs_comment_script = REPO_ROOT / "tests" / "scripts" / "github_docs_comment.py"
+
+    git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
+    git.run("init")
+    git.run("checkout", "-b", "main")
+    git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
+    proc = subprocess.run(
+        [str(docs_comment_script), "--dry-run", f"--base-url-docs={base_url}"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env={"TARGET_URL": target_url, "COMMIT_SHA": commit_sha},
+        encoding="utf-8",
+        cwd=git.cwd,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"Process failed:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
+
+    assert f"Dry run, would have posted {expected_url} with data {expected_body}." in proc.stderr
+
+
+@tvm.testing.skip_if_wheel_test
 def test_cc_reviewers(tmpdir_factory):
     reviewers_script = REPO_ROOT / "tests" / "scripts" / "github_cc_reviewers.py"
 
@@ -490,6 +526,7 @@ def assert_in(needle: str, haystack: str):
         raise AssertionError(f"item not found:\n{needle}\nin:\n{haystack}")
 
 
+@tvm.testing.skip_if_wheel_test
 def test_github_tag_teams(tmpdir_factory):
     tag_script = REPO_ROOT / "tests" / "scripts" / "github_tag_teams.py"
 

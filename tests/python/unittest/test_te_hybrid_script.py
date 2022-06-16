@@ -101,6 +101,7 @@ def outer_product(n, m, a, b):
     return c
 
 
+@tvm.testing.skip_if_wheel_test
 # Test global function
 # Test bridge between frontend and backend
 def test_outer_product():
@@ -159,6 +160,7 @@ def test_outer_product():
         assert key not in outer_product.__globals__.keys()
 
 
+@tvm.testing.skip_if_wheel_test
 # Test local function
 # Test allocation of local variable
 def test_fanout():
@@ -273,6 +275,7 @@ def test_looptype():
     run_and_check(func, ins, outs=outs)
 
 
+@tvm.testing.skip_if_wheel_test
 def test_if():
     @script
     def if_then_else(a):
@@ -387,6 +390,7 @@ def test_bind():
         run_and_check(func, ins, outs=outs, target="cuda")
 
 
+@tvm.testing.skip_if_wheel_test
 def test_math_intrin():
     @script
     def intrin_real(a):
@@ -432,6 +436,7 @@ def test_math_intrin():
     assert tvm_b.numpy()[0] == b[0]
 
 
+@tvm.testing.skip_if_wheel_test
 # test non caconical loops
 def test_non_zero():
     @te.hybrid.script
@@ -506,6 +511,7 @@ def test_allocate():
     run_and_check(func, ins, outs=outs, target="cuda")
 
 
+@tvm.testing.skip_if_wheel_test
 def test_upstream():
     @te.hybrid.script
     def upstream(a):
@@ -537,6 +543,7 @@ def test_upstream():
     tvm.testing.assert_allclose(tvm_d.numpy(), ref, 1e-5, 1e-5)
 
 
+@tvm.testing.skip_if_wheel_test
 def test_downstream():
     @te.hybrid.script
     def downstream(a):
@@ -564,6 +571,7 @@ def test_downstream():
     tvm.testing.assert_allclose(tvm_c.numpy(), ref, 1e-5, 1e-5)
 
 
+@tvm.testing.skip_if_wheel_test
 def test_const_param():
     @te.hybrid.script
     def add_something(a, b):
@@ -591,6 +599,7 @@ def test_const_param():
     tvm.testing.assert_allclose(nd_c.numpy(), ref, 1e-5, 1e-5)
 
 
+@tvm.testing.skip_if_wheel_test
 def test_value_index():
     @te.hybrid.script
     def kernel_a(a):
@@ -625,6 +634,7 @@ def test_value_index():
     tvm.testing.assert_allclose(res.numpy(), ref)
 
 
+@tvm.testing.skip_if_wheel_test
 def test_func_call():
     @te.hybrid.script
     def foo(a, b):
@@ -645,6 +655,7 @@ def test_func_call():
     run_and_check(func, ins, outs=outs)
 
 
+@tvm.testing.skip_if_wheel_test
 def test_bool():
     @te.hybrid.script
     def foo(a):
@@ -662,6 +673,7 @@ def test_bool():
     run_and_check(func, ins, outs=outs)
 
 
+@tvm.testing.skip_if_wheel_test
 def test_const_range():
     @te.hybrid.script
     def foo(a, b):
@@ -718,6 +730,7 @@ def test_const_range():
     run_and_check(func, ins, outs=outs)
 
 
+@tvm.testing.skip_if_wheel_test
 def test_schedule():
     @script
     def outer_product(a, b):
@@ -781,6 +794,7 @@ def test_schedule():
     # Test loop binds
 
 
+@tvm.testing.skip_if_wheel_test
 def test_capture():
     n = 8
 
@@ -801,6 +815,7 @@ def test_capture():
     run_and_check(func, ins, outs=outs)
 
 
+@tvm.testing.skip_if_wheel_test
 def test_array_inputs():
     @script
     def sum_array(inputs):

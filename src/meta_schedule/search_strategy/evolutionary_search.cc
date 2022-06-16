@@ -499,9 +499,13 @@ std::vector<Schedule> EvolutionarySearchNode::State::SampleInitPopulation(int nu
 
 std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
     std::vector<Schedule> population, int num) {
-  ICHECK_GT(num, 0);
-  // The heap to record best schedule, we do not consider schedules that are already measured
-  IRModuleSet exists = this->measured_workloads_;
+  IRModuleSet exists;
+  {
+    auto _ = Profiler::TimedScope("EvoSearch/Evolve/Misc/CopyMeasuredWorkloads");
+    ICHECK_GT(num, 0);
+    // The heap to record best schedule, we do not consider schedules that are already measured
+    exists = this->measured_workloads_;
+  }
   SizedHeap heap(num);
   for (int iter = 0;; ++iter) {
     // Predict normalized score with the cost model,
@@ -509,31 +513,35 @@ std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
                                                         GetRef<TuneContext>(self->context_),  //
                                                         this->cost_model_,                    //
                                                         this->args_info_);
-    ICHECK_EQ(scores.size(), population.size());
-    for (int i = 0, n = population.size(); i < n; ++i) {
-      Schedule sch = population.at(i);
-      IRModule mod = sch->mod();
-      size_t shash = StructuralHash()(mod);
-      double score = scores.at(i);
-      if (!exists.Has(mod, shash)) {
-        exists.Add(mod, shash);
-        heap.Push(sch, score);
+
+    {
+      auto _ = Profiler::TimedScope("EvoSearch/Evolve/Misc");
+      ICHECK_EQ(scores.size(), population.size());
+      for (int i = 0, n = population.size(); i < n; ++i) {
+        Schedule sch = population.at(i);
+        IRModule mod = sch->mod();
+        size_t shash = StructuralHash()(mod);
+        double score = scores.at(i);
+        if (!exists.Has(mod, shash)) {
+          exists.Add(mod, shash);
+          heap.Push(sch, score);
+        }
+      }
+      // Discontinue once it reaches end of search
+      if (iter == self->genetic_num_iters) {
+        break;
+      }
+      // Set threaded samplers, with probability from predicated normalized throughput
+      for (PerThreadData& data : this->per_thread_data_) {
+        data.Set(scores, self->genetic_mutate_prob, self->context_->mutator_probs);
       }
     }
-    // Discontinue once it reaches end of search
-    if (iter == self->genetic_num_iters) {
-      break;
-    }
-    // Set threaded samplers, with probability from predicated normalized throughput
-    for (PerThreadData& data : this->per_thread_data_) {
-      data.Set(scores, self->genetic_mutate_prob, self->context_->mutator_probs);
-    }
-    ThreadedTraceApply pp(self->context_->postprocs);
-    ConcurrentBitmask cbmask(self->population_size);
-    std::vector<Schedule> next_population(self->population_size, Schedule{nullptr});
-    // The worker function
     {
       auto _ = Profiler::TimedScope("EvoSearch/Evolve/Mutation");
+      ThreadedTraceApply pp(self->context_->postprocs);
+      ConcurrentBitmask cbmask(self->population_size);
+      std::vector<Schedule> next_population(self->population_size, Schedule{nullptr});
+      // The worker function
       auto f_find_candidate = [&cbmask, &population, &next_population, &pp, this](int thread_id,
                                                                                   int trace_id) {
         // Prepare samplers
@@ -571,40 +579,46 @@ std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
       };
       support::parallel_for_dynamic(0, self->population_size, self->context_->num_threads,
                                     f_find_candidate);
+
+      population.swap(next_population);
+      TVM_PY_LOG(INFO, self->context_->logging_func)
+          << "Evolve iter #" << iter << " done. Summary:\n"
+          << pp.SummarizeFailures();
     }
-    population.swap(next_population);
-    TVM_PY_LOG(INFO, self->context_->logging_func) << "Evolve iter #" << iter << " done. Summary:\n"
-                                                   << pp.SummarizeFailures();
   }
   // Return the best states from the heap, sorting from higher score to lower ones
-  std::sort(heap.heap.begin(), heap.heap.end());
-  std::vector<Schedule> results;
-  results.reserve(num);
-  for (const SizedHeap::Item& item : heap.heap) {
-    results.push_back(item.sch);
-  }
-
-  constexpr int kNumScoresPerLine = 16;
-  std::ostringstream os;
-  int n = heap.heap.size();
-  for (int st = 0; st < n; st += kNumScoresPerLine) {
-    os << std::endl;
-    int ed = std::min(st + kNumScoresPerLine, n);
-    os << "[" << (st + 1) << " : " << ed << "]:\t";
-    for (int i = st; i < ed; ++i) {
-      if (i != st) {
-        os << "  ";
-      }
-      os << std::fixed << std::setprecision(4) << heap.heap.at(i).score;
+  {
+    auto _ = Profiler::TimedScope("EvoSearch/Evolve/Misc");
+    std::sort(heap.heap.begin(), heap.heap.end());
+    std::vector<Schedule> results;
+    results.reserve(num);
+    for (const SizedHeap::Item& item : heap.heap) {
+      results.push_back(item.sch);
     }
+
+    constexpr int kNumScoresPerLine = 16;
+    std::ostringstream os;
+    int n = heap.heap.size();
+    for (int st = 0; st < n; st += kNumScoresPerLine) {
+      os << std::endl;
+      int ed = std::min(st + kNumScoresPerLine, n);
+      os << "[" << (st + 1) << " : " << ed << "]:\t";
+      for (int i = st; i < ed; ++i) {
+        if (i != st) {
+          os << "  ";
+        }
+        os << std::fixed << std::setprecision(4) << heap.heap.at(i).score;
+      }
+    }
+    TVM_PY_LOG(INFO, self->context_->logging_func)
+        << "Scores of the best " << n << " candidates:" << os.str();
+    return results;
   }
-  TVM_PY_LOG(INFO, self->context_->logging_func)
-      << "Scores of the best " << n << " candidates:" << os.str();
-  return results;
 }
 
 std::vector<Schedule> EvolutionarySearchNode::State::PickWithEpsGreedy(
     const std::vector<Schedule>& unmeasured, const std::vector<Schedule>& bests, int num) {
+  auto _ = Profiler::TimedScope("EvoSearch/PickWithEpsGreedy");
   int num_rands = num * self->eps_greedy;
   int num_bests = num - num_rands;
   std::vector<int> rands =

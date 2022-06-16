@@ -22,6 +22,7 @@ namespace tvm {
 namespace meta_schedule {
 
 void TaskSchedulerNode::InitializeTask(int task_id) {
+  auto _ = Profiler::TimedScope("InitializeTask");
   TuneContext task = this->tasks[task_id];
   TVM_PY_LOG(INFO, this->logging_func)
       << "Initializing Task #" << task_id << ": " << task->task_name;
