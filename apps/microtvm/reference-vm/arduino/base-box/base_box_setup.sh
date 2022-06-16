@@ -28,7 +28,7 @@ fi
 
 # Install common configs
 ~/base_box_setup_common.sh
-rm -rf ~/base_box_setup_common.sh
+rm -f ~/base_box_setup_common.sh
 
 # Poetry
 sed -i "/^# If not running interactively,/ i source \$HOME/.poetry/env" ~/.bashrc

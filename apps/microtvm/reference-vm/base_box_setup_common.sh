@@ -22,7 +22,6 @@ set -x
 # Fix network DNS issue
 sudo sed -i 's/DNSSEC=yes/DNSSEC=no/' /etc/systemd/resolved.conf
 sudo systemctl restart systemd-resolved
-sudo cat /etc/systemd/resolved.conf
 
 sudo apt update
 sudo apt install -y build-essential
@@ -30,15 +29,13 @@ sudo apt-get --purge remove modemmanager  # required to access serial ports.
 
 # Core
 sudo ~/ubuntu_install_core.sh
-rm -rf ~/ubuntu_install_core.sh
+rm -f ~/ubuntu_install_core.sh
 
 sudo apt install -y --no-install-recommends git \
      gperf ccache dfu-util device-tree-compiler xz-utils file \
      gcc gcc-multilib g++-multilib libsdl2-dev
 
 # Cmake
-# NOTE: latest cmake cannot be installed due to
-# https://github.com/zephyrproject-rtos/zephyr/issues/30232
 wget --no-verbose https://apt.kitware.com/keys/kitware-archive-latest.asc
 sudo apt-key add kitware-archive-latest.asc
 sudo apt-add-repository 'deb https://apt.kitware.com/ubuntu/ bionic main'
@@ -48,7 +45,7 @@ sudo apt install -y --no-install-recommends \
 
 # Python
 sudo ~/ubuntu_install_python.sh
-rm -rf ~/ubuntu_install_python.sh
+rm -f ~/ubuntu_install_python.sh
 
 # Poetry deps
 sudo apt install -y python3-venv
