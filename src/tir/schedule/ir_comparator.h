@@ -90,8 +90,8 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   bool CompareAnnotationMap(const Map<String, ObjectRef>& lhs, const Map<String, ObjectRef>& rhs);
   template <typename T>
   bool CompareBufferAccess(const T* lhs, const T* rhs);
-  template <typename T, typename F>
-  bool CompareArray(const Array<T>& lhs, const Array<T>& rhs, F cmp);
+  template <typename T, typename Self, typename F>
+  bool CompareArray(const Array<T>& lhs, const Array<T>& rhs, F Self::*cmp);
   bool CompareRange(const Range& lhs, const Range& rhs);
   bool CompareIterVar(const IterVar& lhs, const IterVar& rhs);
   void EmitError(const std::string& error_message);
@@ -132,8 +132,6 @@ class AutoTensorizeComparator : public TensorizeComparator {
 
   bool VisitExpr_(const BufferLoadNode* op, const PrimExpr& other) override;
 
-  template <typename T, typename F>
-  bool CompareArray(const Array<T>& lhs, const Array<T>& rhs, F cmp);
   bool CompareBuffer(const Buffer& lhs, const Buffer& rhs) override;
   template <typename T>
   bool CompareBufferAccess(const T* lhs, const T* rhs);

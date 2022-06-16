@@ -333,12 +333,12 @@ bool TensorizeComparator::CompareBufferAccess(const T* lhs, const T* rhs) {
   return true;
 }
 
-template <typename T, typename F>
-bool TensorizeComparator::CompareArray(const Array<T>& lhs, const Array<T>& rhs, F cmp) {
+template <typename T, typename Self, typename F>
+bool TensorizeComparator::CompareArray(const Array<T>& lhs, const Array<T>& rhs, F Self::*cmp) {
   if (lhs.same_as(rhs)) return true;
   if (lhs.size() != rhs.size()) return false;
   for (size_t i = 0; i < lhs.size(); ++i) {
-    if (!(this->*cmp)(lhs[i], rhs[i])) return false;
+    if (!(static_cast<Self*>(this)->*cmp)(lhs[i], rhs[i])) return false;
   }
   return true;
 }
@@ -363,16 +363,6 @@ bool AutoTensorizeComparator::VisitExprDefault_(const Object* op, const PrimExpr
 
 bool AutoTensorizeComparator::VisitStmtDefault_(const Object* op, const Stmt& other) {
   return false;
-}
-
-template <typename T, typename F>
-bool AutoTensorizeComparator::CompareArray(const Array<T>& lhs, const Array<T>& rhs, F cmp) {
-  if (lhs.same_as(rhs)) return true;
-  if (lhs.size() != rhs.size()) return false;
-  for (size_t i = 0; i < lhs.size(); ++i) {
-    if (!(this->*cmp)(lhs[i], rhs[i])) return false;
-  }
-  return true;
 }
 
 bool AutoTensorizeComparator::VisitStmt_(const BlockNode* op, const Stmt& other) {
