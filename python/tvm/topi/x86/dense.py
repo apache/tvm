@@ -311,6 +311,8 @@ def dense_vnni_schedule(cfg, s, C, O, do_parallel=True):
     """Schedule dense compute using VNNI vpdpbusd instruction"""
     # C: The output of GEMM
     # O: The output of the fused op
+    CC = s.cache_write(C, "global")
+
     def split_y(out):
         default_y_split_factor1 = 32
         default_y_split_factor2 = 1
@@ -334,7 +336,8 @@ def dense_vnni_schedule(cfg, s, C, O, do_parallel=True):
             a_xo2, a_xo1 = s[out].split(a_xo, factor=default_x_split_factor2)
             return [a_xo2, a_xo1, a_xi]
         else:
-            cfg.define_split("tile_x", a_x, num_outputs=3, filter=lambda x: x.size[-1] == 16)
+            cfg.define_split("tile_x", a_x, num_outputs=3,
+             filter=lambda x: x.size[-1] == 16)
             return cfg["tile_y"].apply(s, out, a_x)
     
     def split_k(out, rd_axis):
@@ -346,19 +349,24 @@ def dense_vnni_schedule(cfg, s, C, O, do_parallel=True):
             a_ko2, a_ko1 = s[out].split(a_ko, factor=default_k_split_factor2)
             return [a_ko2, a_ko1, a_ki]
         else:
-            cfg.define_split("tile_k", rd_axis, num_outputs=3, filter=lambda x: x.size[-1] == 4)
+            cfg.define_split("tile_k", rd_axis, num_outputs=3,
+             filter=lambda x: x.size[-1] == 4)
             return cfg["tile_k"].apply(s, out, rd_axis)
-
-    (a_k,) = C.op.reduce_axis
 
     a_yo2, a_yo1, a_yi = split_y(C)
     a_xo2, a_xo1, a_xi = split_x(C)
-    a_ko2, a_ko1, a_ki = split_k(C, a_k)
+    s[C].reorder(a_yo2, a_xo2, a_yo1, a_xo1, a_yi, a_xi)
 
-    s[C].reorder(a_yo2, a_xo2, a_yo1, a_xo1, a_ko2, a_yi, a_ko1, a_xi, a_ki)
+    s[CC].compute_at(s[C], a_xo1)
+    yc, xc = s[CC].op.axis
+
+    (a_k,) = CC.op.reduce_axis
+    a_ko2, a_ko1, a_ki = split_k(CC, a_k)
+
+    s[CC].reorder(a_ko2, yc, a_ko1, xc, a_ki)
 
     pc = dot_16x1x16_uint8_int8_int32_cascadelake()
-    s[C].tensorize(a_xi, pc)
+    s[CC].tensorize(xc, pc)
 
     if C == O:
         fused = s[O].fuse(a_yo2, a_xo2)
@@ -368,7 +376,7 @@ def dense_vnni_schedule(cfg, s, C, O, do_parallel=True):
 
         s[O].reorder(a_yo2, a_xo2, a_yo1, a_xo1, a_yi, a_xi)
         s[O].vectorize(a_xi)
-        s[C].compute_at(s[O], a_yi)
+        s[C].compute_at(s[O], a_yo1)
 
         fused = s[O].fuse(a_yo2, a_xo2)
 
