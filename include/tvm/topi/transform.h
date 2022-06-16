@@ -244,7 +244,7 @@ inline Tensor transpose(const Tensor& x, Array<Integer> axes, std::string name =
  * \param x The input tensor
  * \param seq_lengths A 1D Tensor with length x.dims[batch_axis]. Optional Tensor() can be passed.
  * If not defined batch axis is ignored and tensor is reversed along seq_axis.
- * \param seq_axis The axis along which the elements will be reveresed
+ * \param seq_axis The axis along which the elements will be reversed
  * \param batch_axis The axis along which the tensor will be sliced
  * \param name The name of the operation
  * \param tag The tag to mark the operation
@@ -267,7 +267,7 @@ inline Tensor reverse_sequence(const Tensor& x, const Tensor& seq_lengths, int s
     ICHECK(seq_lengths_dim == 1) << "seq_lengths should be 1D vector";
 
     ICHECK(GetConstInt(seq_lengths->shape[0]) == GetConstInt(x->shape[batch_axis]))
-        << "For reverse_sequnece seq_lengths size should match with dimension of batch axis"
+        << "For reverse_sequence seq_lengths size should match with dimension of batch axis"
         << ", but got dimension of batch_axis = " << GetConstInt(x->shape[batch_axis])
         << ", and seq_length size = " << GetConstInt(seq_lengths->shape[0]);
 
@@ -763,7 +763,7 @@ inline Array<PrimExpr> StridedSliceOutputShape(
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
- * \return A Tensor whose op member is the sstrided_slice operation
+ * \return A Tensor whose op member is the strided_slice operation
  */
 inline Tensor strided_slice_with_axes(const Tensor& x, const Array<Integer>& begin,
                                       const Array<Integer>& end, const Array<Integer>& strides,
@@ -1744,7 +1744,7 @@ inline Tensor ndarray_size(const Tensor& src, const DataType& dtype,
 }
 
 /*!
- * \brief Returns a one-hot tensor where the locations repsented by indices take value on_value,
+ * \brief Returns a one-hot tensor where the locations represented by indices take value on_value,
     other locations take value off_value.
  * \param indices locations to set to on_value.
  * \param on_value value that locations represented by indices take on.
@@ -1855,13 +1855,17 @@ inline Tensor sparse_to_dense(const Tensor& sparse_indices, const Array<PrimExpr
  * \param tag output tensor tag.
  * \return new tensor with given diagonal values.
  */
-inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal, int k1, int k2,
-                              bool super_diag_right_align, bool sub_diag_right_align,
+inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal, const Tensor& k1,
+                              const Tensor& k2, bool super_diag_right_align,
+                              bool sub_diag_right_align,
                               const std::string name = "T_matrix_set_diag",
                               const std::string tag = kInjective) {
   size_t ndim = input->shape.size() - 1;
-
   bool only_one_diagonal = k1 == k2;
+
+  std::cout << "\n input " << input->GetShape() << "\n"
+            << "diagonal " << diagonal << "\n k1 " << k1 << " \n k2 " << k2
+            << "\n bool : " << only_one_diagonal;
 
   return compute(
       input->shape,
@@ -1873,11 +1877,12 @@ inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal, int k
             diagonal_indices.push_back(iter_vars[i]);
           }
           if (only_one_diagonal) {
-            k = k1;
+            k = k1(0);
           } else {
             // Determining which diagonal/sub-diagonal/super-diagonal it is
             k = iter_vars[ndim] - iter_vars[ndim - 1];
-            diagonal_indices.push_back(k2 - k);
+            auto idx = k2(0) - k;
+            diagonal_indices.push_back(idx);
 
             // Calculating the offset in diagonal tensor for this diagonal
             auto get_offset = [&](PrimExpr M, PrimExpr N) {
@@ -1895,8 +1900,9 @@ inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal, int k
                                      offset);
           return diagonal(diagonal_indices);
         };
-        return if_then_else((PrimExpr)iter_vars[ndim] - iter_vars[ndim - 1] >= k1,
-                            if_then_else((PrimExpr)iter_vars[ndim] - iter_vars[ndim - 1] <= k2,
+
+        return if_then_else((PrimExpr)iter_vars[ndim] - iter_vars[ndim - 1] >= k1(0),
+                            if_then_else((PrimExpr)iter_vars[ndim] - iter_vars[ndim - 1] <= k2(0),
                                          get_diag(), input(iter_vars)),
                             input(iter_vars));
       },

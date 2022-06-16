@@ -18,6 +18,7 @@
 # pylint: disable=import-outside-toplevel
 """Transform operators."""
 
+import numpy as np
 from ...tir import expr as _expr
 from ..expr import Constant, Expr, Tuple, TupleWrapper, const
 from . import _make
@@ -1247,7 +1248,7 @@ def sequence_mask(data, valid_length, mask_value=0, axis=0):
 
 def one_hot(indices, on_value, off_value, depth, axis, dtype):
     """
-    Returns a one-hot tensor where the locations repsented by indices take value on_value,
+    Returns a one-hot tensor where the locations represented by indices take value on_value,
     other locations take value off_value.
     Final dimension is <indices outer dimensions> x depth x <indices inner dimensions>.
 
@@ -1415,9 +1416,16 @@ def matrix_set_diag(data, diagonal, k=0, align="RIGHT_LEFT"):
         k_one = k
         k_two = k
 
+    if not isinstance(k_one, Expr):
+        k_one = const(np.asarray([k_one], dtype=np.int64))
+    if not isinstance(k_two, Expr):
+        k_two = const(np.asarray([k_two], dtype=np.int64))
+
     super_diag_right_align = align[:5] == "RIGHT"
     sub_diag_right_align = align[-5:] == "RIGHT"
 
+    k_one = const(0)
+    k_two = const(0)
     return _make.matrix_set_diag(
         data, diagonal, k_one, k_two, super_diag_right_align, sub_diag_right_align
     )

@@ -3487,7 +3487,8 @@ class Loop(OnnxOpConverter):
 
         loop_vars = [
             _expr.var(body.input[0].name, shape=(), dtype=iter_dtype),  # iteration count
-            _expr.var("max_count", shape=(), dtype=iter_dtype),  # iteration count
+            # iteration count
+            _expr.var("max_count", shape=(), dtype=iter_dtype),
             get_var(body.input[1].name, cond),  # exit condition
         ]
         loop_vars += [get_var(body.input[i + 2].name, v) for i, v in enumerate(loop_deps)]
@@ -4230,9 +4231,9 @@ class QLinearAdd(OnnxOpConverter):
 
         dtype = infer_type(a).checked_type.dtype
 
-        ## Onnxruntime doesn't actually do this op in integer, they dequantize to fp32
-        ## and then requantize afer
-        ## https://github.com/microsoft/onnxruntime/blob/master/onnxruntime/core/mlas/lib/qladd.cpp
+        # Onnxruntime doesn't actually do this op in integer, they dequantize to fp32
+        # and then requantize afer
+        # https://github.com/microsoft/onnxruntime/blob/master/onnxruntime/core/mlas/lib/qladd.cpp
         a = _qnn.op.dequantize(
             inputs[0], a_scale, a_zero_point
         )  # , c_scale, c_zero_point, out_dtype = dtype)
@@ -4296,7 +4297,8 @@ class QLinearMatMul(OnnxOpConverter):
         b_zp_type = infer_type(b_zp).checked_type
 
         y_scale_type = infer_type(y_scale).checked_type
-        y_zp_type = infer_type(y_zp).checked_type  # 'T3' in ONNX doc for this op
+        # 'T3' in ONNX doc for this op
+        y_zp_type = infer_type(y_zp).checked_type
 
         a_shape = infer_shape(a)
         b_shape = infer_shape(b)
@@ -4471,9 +4473,9 @@ class QLinearMul(OnnxOpConverter):
 
         dtype = infer_type(a).checked_type.dtype
 
-        ## Onnxruntime doesn't actually do this op in integer, they dequantize to fp32
-        ## and then requantize afer
-        ## https://github.com/microsoft/onnxruntime/blob/master/onnxruntime/core/mlas/lib/qlmul.cpp
+        # Onnxruntime doesn't actually do this op in integer, they dequantize to fp32
+        # and then requantize afer
+        # https://github.com/microsoft/onnxruntime/blob/master/onnxruntime/core/mlas/lib/qlmul.cpp
         a = _qnn.op.dequantize(inputs[0], a_scale, a_zero_point)
         b = _qnn.op.dequantize(inputs[3], b_scale, b_zero_point)
         out = _op.multiply(a, b)
@@ -4515,10 +4517,10 @@ class QLinearSigmoid(OnnxOpConverter):
 
         dtype = infer_type(x).checked_type.dtype
 
-        ## Apparently, onnxruntime doesn't do this op in integer, they dequantize to fp32
-        ## and then requantize after:
-        ## https://github.com/microsoft/onnxruntime/blob/master/onnxruntime/core/
-        ## providers/dml/DmlExecutionProvider/src/GraphTransformer.cpp#L245
+        # Apparently, onnxruntime doesn't do this op in integer, they dequantize to fp32
+        # and then requantize after:
+        # https://github.com/microsoft/onnxruntime/blob/master/onnxruntime/core/
+        # providers/dml/DmlExecutionProvider/src/GraphTransformer.cpp#L245
         x = _qnn.op.dequantize(x, x_scale, x_zero_point)
         out = _op.sigmoid(x)
         return _qnn.op.quantize(out, y_scale, y_zero_point, out_dtype=dtype)
@@ -4663,12 +4665,16 @@ class Unique(OnnxOpConverter):
         unique = _op.unique(data, is_sorted=(is_sorted == 1), return_counts=True)
         num_unique = unique[3]
 
-        trim_unique_lambda = lambda input: _op.strided_slice(input, _op.const([0]), num_unique)
+        def trim_unique_lambda(input):
+            return _op.strided_slice(input, _op.const([0]), num_unique)
 
         unique_vals = trim_unique_lambda(unique[0])
-        indices = _op.cast(trim_unique_lambda(unique[1]), "int64")  # ONNX always returns int64
-        inverse_indices = _op.cast(unique[2], "int64")  # ONNX always returns int64
-        counts = _op.cast(trim_unique_lambda(unique[4]), "int64")  # ONNX always returns int64
+        # ONNX always returns int64
+        indices = _op.cast(trim_unique_lambda(unique[1]), "int64")
+        # ONNX always returns int64
+        inverse_indices = _op.cast(unique[2], "int64")
+        # ONNX always returns int64
+        counts = _op.cast(trim_unique_lambda(unique[4]), "int64")
         # ONNX unique returns unique, indices, inverse_indices, (optional) counts
         return _expr.TupleWrapper(_expr.Tuple([unique_vals, indices, inverse_indices, counts]), 4)
 
@@ -5087,6 +5093,37 @@ class Momentum(OnnxOpConverter):
         return _expr.TupleWrapper(_expr.Tuple(result), len(result))
 
 
+class Trilu(OnnxOpConverter):
+    """Operator converter for Trilu"""
+
+    @classmethod
+    def _impl_v14(cls, inputs, attr, params):
+        upper = attr.get("upper", 1)
+        input_shape = shape_of(inputs[0])
+        input_dims = infer_shape(input_shape)[0]
+        data_type = infer_type(inputs[0]).checked_type.dtype
+        k_tensor = relay.const(np.asarray(0), dtype=np.int64)
+        if len(inputs) == 2:
+            k_tensor = inputs[1]
+
+        diag_input = relay.zeros(fold_constant(input_shape), dtype=data_type)
+        k1, k2 = None, None
+        if upper == 0:
+            k1 = relay.add(k_tensor, relay.const(1, dtype="int64"))
+            k1 = relay.expand_dims(k1, axis=0)
+            k2 = relay.take(input_shape, relay.const(input_dims - 1, dtype="int32"))
+            k2 = relay.expand_dims(k2, axis=0)
+        else:
+            k1 = relay.take(input_shape, relay.const(input_dims - 2, dtype="int32"))
+            k1 = relay.multiply(k1, relay.const(-1, dtype="int64"))
+            k1 = relay.subtract(k1, relay.const(1, dtype="int64"))
+            k1 = relay.expand_dims(k1, axis=0)
+            k2 = relay.subtract(k_tensor, relay.const(1, dtype="int64"))
+            k2 = relay.expand_dims(k2, axis=0)
+
+        return relay.matrix_set_diag(inputs[0], diag_input, k=(k1, k2))
+
+
 class Round(OnnxOpConverter):
     """Operator converter for round op."""
 
@@ -5114,6 +5151,8 @@ _identity_list = []
 # use AttrCvt if attributes need to be converted
 # for 1 to N mapping(composed), use custom callable functions
 # for N to 1 mapping, currently not supported(?)
+
+
 def _get_convert_map(opset):
     return {
         # defs/experimental
@@ -5287,6 +5326,7 @@ def _get_convert_map(opset):
         "CumSum": CumSum.get_converter(opset),
         "Unique": Unique.get_converter(opset),
         "Einsum": Einsum.get_converter(opset),
+        "Trilu": Trilu.get_converter(opset),
         # defs/control_flow
         "Loop": Loop.get_converter(opset),
         "If": If.get_converter(opset),
@@ -5420,8 +5460,8 @@ class GraphProto:
         # If requested, directly return the converted expressions.
         if get_output_expr:
             return outputs
-        ## Maintain the order of inputs and parameters from the ONNX graph, but only include
-        ## those parameters that are needed to execute the relay graph
+        # Maintain the order of inputs and parameters from the ONNX graph, but only include
+        # those parameters that are needed to execute the relay graph
         free_vars = analysis.free_vars(outputs)
         nodes = {v: k for k, v in self._nodes.items()}
         free_vars = [nodes[var] for var in free_vars]

@@ -535,7 +535,8 @@ class OperatorConverter(object):
             raise ImportError("The tflite package must be installed")
 
         # Quantize a float value to an quantized integer value
-        quantize = lambda x: float(int(round(x / scale)) + zero_point)
+        def quantize(x):
+            return float(int(round(x / scale)) + zero_point)
 
         # Get min/max of the output dtype. This will be used to ensure that clip a_min/a_max are not
         # beyond the dtype range.
@@ -1060,7 +1061,9 @@ class OperatorConverter(object):
             # Quantize a float value to an quantized integer value
             scale_val = get_scalar_from_constant(input_tensor.qnn_params["scale"])
             zero_point_val = get_scalar_from_constant(input_tensor.qnn_params["zero_point"])
-            quantize = lambda x: float(int(round(x / scale_val)) + zero_point_val)
+
+            def quantize(x):
+                return float(int(round(x / scale_val)) + zero_point_val)
 
             # Get min/max of the input dtype. This will be used to ensure that
             # clip a_min/a_max are not beyond the dtype range.
@@ -3468,6 +3471,11 @@ class OperatorConverter(object):
 
         input_expr = self.get_tensor_expr(input_tensors[0])
         diagonal_expr = self.get_tensor_expr(input_tensors[1])
+        diag_shape = to_int_list(self.get_tensor_shape(input_tensors[1]))
+        input_shape = to_int_list(self.get_tensor_shape(input_tensors[0]))
+        if len(diag_shape) == len(input_shape) - 1:
+            diag_shape = np.insert(diag_shape, len(diag_shape) - 1, 1)
+            diagonal_expr = _op.reshape(diagonal_expr, diag_shape)
 
         out = _op.matrix_set_diag(input_expr, diagonal_expr)
         return out
@@ -3488,13 +3496,13 @@ class OperatorConverter(object):
                     scale and zero points to be equal"
 
         shape = to_int_list(self.get_tensor_shape(diagonal))
-        shape = np.append(shape, shape[-1])
+        diag_shape = np.insert(shape, len(shape) - 1, 1).astype(np.int32)
         dtype = self.get_tensor_type_str(diagonal.tensor.Type())
-
+        shape = np.append(shape, shape[-1]).astype(np.int32)
         input_expr = _op.zeros(tuple(shape), dtype)
         diagonal_expr = self.get_tensor_expr(diagonal)
 
-        out = _op.matrix_set_diag(input_expr, diagonal_expr)
+        out = _op.matrix_set_diag(input_expr, _op.reshape(diagonal_expr, diag_shape))
         return out
 
     def convert_densify(self, op):

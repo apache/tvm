@@ -2718,7 +2718,7 @@ def test_conv(target, dev):
                 group=group,
             )
         elif padding is None:
-            ## autopadding with unset default attributes
+            # autopadding with unset default attributes
             kwargs = {}
             if not all([s == 1 for s in strides]):
                 kwargs["strides"] = strides
@@ -3444,7 +3444,8 @@ def test_mod(target, dev):
     def verify_mod(x_shape, y_shape, fmod, out_shape, dtype="float32"):
         x_np = np.random.uniform(-100.0, 100.0, x_shape).astype(dtype)
         y_np = np.random.uniform(-100.0, 100.0, y_shape).astype(dtype)
-        y_np = np.where(y_np == 0, 1, y_np)  # remove 0's to avoid division by zero error
+        # remove 0's to avoid division by zero error
+        y_np = np.where(y_np == 0, 1, y_np)
 
         mod_node = helper.make_node("Mod", inputs=["x", "y"], outputs=["z"], fmod=fmod)
 
@@ -4353,11 +4354,13 @@ def test_nonzero(target, dev):
         )
 
     input_data = np.array([[1, 0], [1, 1]], dtype=np.int64)
-    result = np.array((np.nonzero(input_data)))  # expected output [[0, 1, 1], [0, 0, 1]]
+    # expected output [[0, 1, 1], [0, 0, 1]]
+    result = np.array((np.nonzero(input_data)))
     verify_nonzero(input_data, result, dtype=np.int64)
 
     input_data = np.array([[3, 0, 0], [0, 4, 0], [5, 6, 0]], dtype=np.int64)
-    result = np.array((np.nonzero(input_data)))  # expected output [[0, 1, 2, 2], [0, 1, 0, 1]]
+    # expected output [[0, 1, 2, 2], [0, 1, 0, 1]]
+    result = np.array((np.nonzero(input_data)))
     verify_nonzero(input_data, result, dtype=np.int64)
 
 
@@ -5224,24 +5227,6 @@ unsupported_onnx_tests = [
     "test_training_dropout_mask",
     "test_training_dropout_zero_ratio",
     "test_training_dropout_zero_ratio_mask",
-    "test_tril",
-    "test_tril_pos",
-    "test_tril_square",
-    "test_tril_square_neg",
-    "test_tril_neg",
-    "test_tril_one_row_neg",
-    "test_tril_out_neg",
-    "test_tril_out_pos",
-    "test_tril_zero",
-    "test_triu",
-    "test_triu_one_row",
-    "test_triu_out_neg_out",
-    "test_triu_out_pos",
-    "test_triu_neg",
-    "test_triu_pos",
-    "test_triu_square",
-    "test_triu_square_neg",
-    "test_triu_zero",
     "test_unique_sorted_with_axis",
     "test_unique_sorted_with_axis_3d",
     "test_unique_sorted_with_negative_axis",
@@ -5830,7 +5815,7 @@ def test_qlinearconv(target, dev):
             input_values.append(b_array)
 
         if padding is None:
-            ## autopadding with unset default attributes
+            # autopadding with unset default attributes
             kwargs = {}
             if not all([s == 1 for s in strides]):
                 kwargs["strides"] = strides
@@ -6357,7 +6342,7 @@ def test_convinteger(target, dev):
         input_values = [x_array, w_array]
 
         if padding is None:
-            ## autopadding with unset default attributes
+            # autopadding with unset default attributes
             kwargs = {}
             if not all([s == 1 for s in strides]):
                 kwargs["strides"] = strides
