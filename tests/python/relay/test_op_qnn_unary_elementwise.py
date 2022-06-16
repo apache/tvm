@@ -19,7 +19,6 @@ from typing import Callable, List
 
 import numpy as np
 import pytest
-from python.tvm.relay.qnn.op.legalizations import hardswish_func
 import scipy.special
 import tvm
 import tvm.testing
