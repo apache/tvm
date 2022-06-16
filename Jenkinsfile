@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-06-10T12:12:40.419262
+// Generated at 2022-06-16T16:38:54.817151
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -392,7 +392,7 @@ def build_docker_images() {
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
             // ci_arm = build_image('ci_arm')
-            build_image('ci_arm')
+            ci_arm = build_image('ci_arm')
           }
         }
       },
@@ -403,7 +403,7 @@ def build_docker_images() {
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
             // ci_cpu = build_image('ci_cpu')
-            build_image('ci_cpu')
+            ci_cpu = build_image('ci_cpu')
           }
         }
       },
@@ -414,7 +414,7 @@ def build_docker_images() {
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
             // ci_gpu = build_image('ci_gpu')
-            build_image('ci_gpu')
+            ci_gpu = build_image('ci_gpu')
           }
         }
       },
@@ -425,7 +425,7 @@ def build_docker_images() {
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
             // ci_hexagon = build_image('ci_hexagon')
-            build_image('ci_hexagon')
+            ci_hexagon = build_image('ci_hexagon')
           }
         }
       },
@@ -436,7 +436,7 @@ def build_docker_images() {
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
             // ci_i386 = build_image('ci_i386')
-            build_image('ci_i386')
+            ci_i386 = build_image('ci_i386')
           }
         }
       },
@@ -447,7 +447,7 @@ def build_docker_images() {
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
             // ci_lint = build_image('ci_lint')
-            build_image('ci_lint')
+            ci_lint = build_image('ci_lint')
           }
         }
       },
@@ -458,7 +458,7 @@ def build_docker_images() {
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
             // ci_qemu = build_image('ci_qemu')
-            build_image('ci_qemu')
+            ci_qemu = build_image('ci_qemu')
           }
         }
       },
@@ -469,7 +469,7 @@ def build_docker_images() {
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
             // ci_wasm = build_image('ci_wasm')
-            build_image('ci_wasm')
+            ci_wasm = build_image('ci_wasm')
           }
         }
       },
