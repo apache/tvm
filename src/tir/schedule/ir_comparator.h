@@ -110,13 +110,14 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   std::unordered_map<ObjectRef, ObjectRef, ObjectPtrHash, ObjectPtrEqual> equal_map_;
 };
 
-/*! \brief IR comparator for auto tensorization. This comparator is used to extract correspondence
- * between the IR of the workload (LHS) and the tensor intrin (RHS). Unlike `TensorizeComparator`,
- * this comparator has relaxed requirements during comparison. It ignores the loop structure
- * (number of loops and their extents) and buffer indices. It only requires the LHS and the
- * RHS to have the same arithmetic operations and the same dtype. With such relaxed requirements,
- * workloads that can only match the tensor intrin after certain transformations (e.g. im2col for
- * conv2d) are allowed for auto tensorization.
+/*!
+ * \brief IR comparator for auto tensorization.
+ * This comparator is used to extract correspondence between the IR of the workload (LHS) and the
+ * tensor intrin (RHS). Unlike `TensorizeComparator`, this comparator has relaxed requirements
+ * during comparison. It ignores the loop structure (number of loops and their extents) and buffer
+ * indices. It only requires the LHS and the RHS to have the same arithmetic operations and the same
+ * dtype. With such relaxed requirements, workloads that can only match the tensor intrin after
+ * certain transformations (e.g. im2col for conv2d) are allowed for auto tensorization.
  */
 class AutoTensorizeComparator : public TensorizeComparator {
  public:
