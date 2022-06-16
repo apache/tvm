@@ -36,7 +36,7 @@ apt-install-and-clear -y python-pip python-dev python3.6 python3.6-dev
 rm -f /usr/bin/python3 && ln -s /usr/bin/python3.6 /usr/bin/python3
 
 # python 3.7
-apt-get install -y python3.7
+apt-install-and-clear -y python3.7
 
 # Install pip
 wget -q https://bootstrap.pypa.io/get-pip.py && python3.7 get-pip.py
