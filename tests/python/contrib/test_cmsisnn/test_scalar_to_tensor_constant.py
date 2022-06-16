@@ -262,7 +262,7 @@ def test_duplicate_constant_arguments():
     dtype = "int8"
     shape = (1, 3, 3, 32)
     operand0 = generate_variable("operand0", shape, dtype)
-    operand1 = generate_variable("operand0", shape, dtype)
+    operand1 = generate_variable("operand1", shape, dtype)
     binary_op = make_binary_op(
         relay.qnn.op.add,
         operand0,

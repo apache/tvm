@@ -178,6 +178,13 @@ def test_same_input_to_binary_op(op, relu_type):
     # validate pattern matching
     assert_partitioned_function(orig_mod, cmsisnn_mod)
 
+    # Check if the number of internal function parameter is 1
+    cmsisnn_global_func = cmsisnn_mod["tvmgen_default_cmsis_nn_main_0"]
+    assert (
+        isinstance(cmsisnn_global_func.body, tvm.relay.expr.Call)
+        and len(cmsisnn_global_func.body.args) == 1
+    ), "Composite function for the binary op should have only 1 parameter."
+
     # validate the output
     in_min, in_max = get_range_for_dtype_str(dtype)
     inputs = {
