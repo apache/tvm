@@ -79,4 +79,4 @@ make -j${num_cores}
 sudo make install
 
 # For debugging with qemu
-apt-get -y install libpython3.8
+apt-install-and-clear -y install libpython3.8

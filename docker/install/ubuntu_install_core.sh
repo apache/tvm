@@ -18,10 +18,12 @@
 
 set -e
 set -u
+# Used for debugging RVM build
+set -x
 set -o pipefail
 
 # install libraries for building c++ core on ubuntu
-apt-get update && apt-get install -y --no-install-recommends \
+apt-get update && apt-install-and-clear -y --no-install-recommends \
     apt-transport-https \
     ca-certificates \
     cmake \

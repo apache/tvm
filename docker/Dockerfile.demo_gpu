@@ -20,6 +20,8 @@
 # tag: v0.54
 FROM tlcpack/ci-gpu:v0.55
 
+COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
+
 # Jupyter notebook.
 RUN pip3 install matplotlib Image "Pillow<7" jupyter[notebook]
 
