@@ -110,12 +110,17 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   std::unordered_map<ObjectRef, ObjectRef, ObjectPtrHash, ObjectPtrEqual> equal_map_;
 };
 
-/*! \brief IR comparator for auto tensorization. Extract correspondence between the IR of the
- *         workload and the tensor intrin.
+/*! \brief IR comparator for auto tensorization. This comparator is used to extract correspondence
+ * between the IR of the workload (LHS) and the tensor intrin (RHS). Unlike `TensorizeComparator`,
+ * this comparator has relaxed requirements during comparison. It ignores the loop structure
+ * (number of loops and their extents) and buffer indices. It only requires the LHS and the
+ * RHS to have the same arithmetic operations and the same dtype. With such relaxed requirements,
+ * workloads that can only match the tensor intrin after certain transformations (e.g. im2col for
+ * conv2d) are allowed for auto tensorization.
  */
-class AutoTensorizeExtractor : public TensorizeComparator {
+class AutoTensorizeComparator : public TensorizeComparator {
  public:
-  explicit AutoTensorizeExtractor(const IRModule& lhs_mod)
+  explicit AutoTensorizeComparator(const IRModule& lhs_mod)
       : TensorizeComparator(lhs_mod, /* assert_mode=*/false) {}
 
  private:
@@ -134,6 +139,8 @@ class AutoTensorizeExtractor : public TensorizeComparator {
   bool CompareBufferAccess(const T* lhs, const T* rhs);
 
  public:
+  // Additional information extracted from LHS (the workload) and RHS (the tensor intrin).
+
   /*! \brief Block iters in the LHS stmt. */
   std::vector<IterVar> lhs_iters_;
   /*! \brief Block iters in the RHS stmt. */

@@ -2270,7 +2270,7 @@ TVM_REGISTER_GLOBAL("tir.schedule.GetTensorizeLoopMapping")
 /*! \brief IndexMap proposer for layout transformation in auto tensorization. */
 class AutoTensorizeMappingProposer {
  public:
-  static Array<IndexMap> ProposeMappings(const AutoTensorizeExtractor* extractor,
+  static Array<IndexMap> ProposeMappings(const AutoTensorizeComparator* extractor,
                                          arith::Analyzer* analyzer) {
     AutoTensorizeMappingProposer proposer(extractor, analyzer);
     proposer.CollectFeasibleSet();
@@ -2278,7 +2278,7 @@ class AutoTensorizeMappingProposer {
   }
 
  private:
-  explicit AutoTensorizeMappingProposer(const AutoTensorizeExtractor* extractor,
+  explicit AutoTensorizeMappingProposer(const AutoTensorizeComparator* extractor,
                                         arith::Analyzer* analyzer)
       : extractor_(extractor), analyzer_(analyzer) {}
 
@@ -2425,7 +2425,7 @@ class AutoTensorizeMappingProposer {
  private:
   // The extractor that has extracted information for auto tensorization from the workload and the
   // tensor intrin.
-  const AutoTensorizeExtractor* extractor_;
+  const AutoTensorizeComparator* extractor_;
   // The arithmetic analyzer.
   arith::Analyzer* analyzer_;
   /*! \brief Potential mappings on RHS for each variable on LHS */
@@ -2443,7 +2443,7 @@ Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(const tir::Schedu
   // Ignore the scope of buffers when comparing, since we can do cache_read/write
   const StmtSRef& scope_sref = GetScopeRoot(self, block_sref, false);
   const tir::BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_block, scope_sref);
-  AutoTensorizeExtractor extractor(self->mod);
+  AutoTensorizeComparator extractor(self->mod);
   if (!extractor.VisitStmt(block->block, desc_info.desc_block->block)) {
     return NullOpt;
   }

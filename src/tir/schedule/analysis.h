@@ -713,7 +713,7 @@ class AutoTensorizeMappingInfoNode : public Object {
   /*! \brief Possible mappings to apply to block iters */
   Array<IndexMap> mappings;
 
-  /* Additional information from AutoTensorizeExtractor */
+  /* Additional information from AutoTensorizeComparator */
 
   /*! \brief Mapping from LHS buffer to RHS buffer */
   Map<Buffer, Buffer> lhs_buffer_map;

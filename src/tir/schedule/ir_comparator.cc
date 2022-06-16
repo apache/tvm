@@ -357,16 +357,16 @@ void TensorizeComparator::EmitError(const std::string& error_message) {
 
 /******** AutoTensorize Extractor ********/
 
-bool AutoTensorizeExtractor::VisitExprDefault_(const Object* op, const PrimExpr& other) {
+bool AutoTensorizeComparator::VisitExprDefault_(const Object* op, const PrimExpr& other) {
   return false;
 }
 
-bool AutoTensorizeExtractor::VisitStmtDefault_(const Object* op, const Stmt& other) {
+bool AutoTensorizeComparator::VisitStmtDefault_(const Object* op, const Stmt& other) {
   return false;
 }
 
 template <typename T, typename F>
-bool AutoTensorizeExtractor::CompareArray(const Array<T>& lhs, const Array<T>& rhs, F cmp) {
+bool AutoTensorizeComparator::CompareArray(const Array<T>& lhs, const Array<T>& rhs, F cmp) {
   if (lhs.same_as(rhs)) return true;
   if (lhs.size() != rhs.size()) return false;
   for (size_t i = 0; i < lhs.size(); ++i) {
@@ -375,20 +375,20 @@ bool AutoTensorizeExtractor::CompareArray(const Array<T>& lhs, const Array<T>& r
   return true;
 }
 
-bool AutoTensorizeExtractor::VisitStmt_(const BlockNode* op, const Stmt& other) {
+bool AutoTensorizeComparator::VisitStmt_(const BlockNode* op, const Stmt& other) {
   const auto* rhs = other.as<BlockNode>();
   // Check block equality.
   // All iter vars and buffer regions including the order should match.
   // When checking iter vars, DefEqual is used to remap variables.
   if (!is_scope_block) {
-    if (!CompareArray(op->iter_vars, rhs->iter_vars, &AutoTensorizeExtractor::CompareIterVar)) {
+    if (!CompareArray(op->iter_vars, rhs->iter_vars, &AutoTensorizeComparator::CompareIterVar)) {
       return false;
     }
     if (!CompareAnnotationMap(op->annotations, rhs->annotations)) {
       return false;
     }
     if (!CompareArray(op->alloc_buffers, rhs->alloc_buffers,
-                      &AutoTensorizeExtractor::CompareBuffer)) {
+                      &AutoTensorizeComparator::CompareBuffer)) {
       return false;
     }
     for (const IterVar& block_iter : op->iter_vars) {
@@ -418,7 +418,7 @@ bool AutoTensorizeExtractor::VisitStmt_(const BlockNode* op, const Stmt& other) 
   return VisitStmt(op->body, rhs->body);
 }
 
-bool AutoTensorizeExtractor::CompareBuffer(const Buffer& lhs, const Buffer& rhs) {
+bool AutoTensorizeComparator::CompareBuffer(const Buffer& lhs, const Buffer& rhs) {
   if (lhs.same_as(rhs)) return true;
   auto it = rhs_buffer_map_.find(rhs);
   bool equal;
@@ -435,18 +435,18 @@ bool AutoTensorizeExtractor::CompareBuffer(const Buffer& lhs, const Buffer& rhs)
   return equal;
 }
 
-bool AutoTensorizeExtractor::VisitStmt_(const BufferStoreNode* op, const Stmt& other) {
+bool AutoTensorizeComparator::VisitStmt_(const BufferStoreNode* op, const Stmt& other) {
   const auto* rhs = other.as<BufferStoreNode>();
   return CompareBufferAccess(op, rhs) && VisitExpr(op->value, rhs->value);
 }
 
-bool AutoTensorizeExtractor::VisitExpr_(const BufferLoadNode* op, const PrimExpr& other) {
+bool AutoTensorizeComparator::VisitExpr_(const BufferLoadNode* op, const PrimExpr& other) {
   const auto* rhs = other.as<BufferLoadNode>();
   return CompareBufferAccess(op, rhs);
 }
 
 template <typename T>
-bool AutoTensorizeExtractor::CompareBufferAccess(const T* lhs, const T* rhs) {
+bool AutoTensorizeComparator::CompareBufferAccess(const T* lhs, const T* rhs) {
   if (!CompareBuffer(lhs->buffer, rhs->buffer)) return false;
   auto it_lhs = lhs_buffer_indices_map_.find(lhs->buffer);
   if (it_lhs == lhs_buffer_indices_map_.end()) {
