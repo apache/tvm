@@ -22,11 +22,14 @@ import sys
 import tempfile
 from typing import Union
 
+import numpy as np
 import pytest
 
 import tvm
 import tvm.testing
+import tvm.testing.micro
 from tvm import relay
+from tvm.relay.backend import Executor, Runtime
 
 from ..zephyr.test_utils import ZEPHYR_BOARDS
 from ..arduino.test_utils import ARDUINO_BOARDS
@@ -36,68 +39,16 @@ from tvm.driver.tvmc.frontends import load_model
 KWS_MODEL_LOCATION = Path(__file__).parents[1] / "testdata" / "kws" / "yes_no.tflite"
 
 
-def _get_platform_model_and_options(board: str):
-    if board in ZEPHYR_BOARDS.keys():
-        platform = "zephyr"
-        target_model = ZEPHYR_BOARDS[board]
-        options = {"zephyr_board": board, "west_cmd": "west"}
-
-    elif board in ARDUINO_BOARDS.keys():
-        platform = "arduino"
-        target_model = ARDUINO_BOARDS[board]
-        options = {"arduino_board": board, "arduino_cli_cmd": "arduino-cli"}
-
-    else:
-        raise ValueError(f"Board {board} is not supported.")
-
-    return platform, target_model, options
-
-
-def tune_model(mod, params, target, module_loader, num_trials):
-    """Tune a Relay module of a full model and return best result for each task"""
-
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        tasks = tvm.autotvm.task.extract_from_program(mod["main"], {}, target)
-    assert len(tasks) > 0
-
-    builder = tvm.autotvm.LocalBuilder(
-        n_parallel=1,
-        build_kwargs={"build_option": {"tir.disable_vectorize": True}},
-        do_fork=False,
-        build_func=tvm.micro.autotvm_build_func,
-        runtime=tvm.relay.backend.Runtime("crt", {"system-lib": True}),
-    )
-    runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=100, module_loader=module_loader)
-    measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
-
-    results = StringIO()
-    for task in tasks:
-        tuner = tvm.autotvm.tuner.GATuner(task)
-
-        tuner.tune(
-            n_trial=num_trials,
-            measure_option=measure_option,
-            callbacks=[
-                tvm.autotvm.callback.log_to_file(results),
-                tvm.autotvm.callback.progress_bar(num_trials, si_prefix="M"),
-            ],
-            si_prefix="M",
-        )
-        assert tuner.best_flops > 1
-
-    return results
-
 
 @pytest.mark.requires_hardware
 @tvm.testing.requires_micro
-def test_kws_autotune_workflow(board):
+def test_kws_autotune_workflow(platform, board):
+    assert platform == "arduino"
     tvmc_model = load_model(KWS_MODEL_LOCATION, model_format="tflite")
     mod, params = tvmc_model.mod, tvmc_model.params
+    target = tvm.testing.micro.get_target(platform, board)
 
-    platform, target_model, options = _get_platform_model_and_options(board)
-    target = tvm.target.target.micro(target_model)
-
-    # Run autotuning and get logs
+    '''# Run autotuning and get logs
     module_loader = tvm.micro.AutoTvmModuleLoader(
         template_project_dir=get_microtvm_template_projects(platform),
         project_options={
@@ -105,9 +56,8 @@ def test_kws_autotune_workflow(board):
             "project_type": "host_driven",
         },
     )
-    buf_logs = tune_model(mod, params, target, module_loader, 2)
+    buf_logs = tvm.testing.micro.tune_model(platform, target, mod, params, tasks, 2)
     str_logs = buf_logs.getvalue().rstrip().split("\n")
-    print(str_logs)
     logs = list(map(json.loads, str_logs))
 
     assert len(logs) == 4
@@ -123,19 +73,29 @@ def test_kws_autotune_workflow(board):
     assert logs[2]["config"]["index"] != logs[3]["config"]["index"]
     assert logs[2]["config"]["entity"] != logs[3]["config"]["entity"]
 
-    # Use logs to apply historical best and compile example project
-    with tvm.autotvm.apply_history_best(buf_logs), tvm.transform.PassContext(
-        opt_level=3, config={"tir.disable_vectorize": True}
-    ):
-        standalone_crt = tvm.relay.build(
-            mod,
-            target,
-            runtime=tvm.relay.backend.Runtime("crt"),
-            executor=tvm.relay.backend.Executor("aot", {"unpacked-api": True}),
-            params=params,
-        )
+    # Compile the best model with AOT and connect to it
+    buf_logs.seek(0)'''
+    with tvm.testing.micro.create_aot_session(
+            platform, board, target, mod, params, tune_logs=None,
+        ) as session:
+        aot_executor = tvm.runtime.executor.aot_executor.AotModule(session.create_aot_executor())
 
-    # Make sure the project compiles correctly. There's no point to uploading,
+
+        samples = (np.random.randint(
+            low=-127,
+            high=128,
+            size=(1, 1960),
+            dtype=np.int8
+        ) for x in range(3))
+
+        labels = [0, 0, 0]
+
+        # Validate perforance across random runs
+        acc, time = tvm.testing.micro.evaluate_model_accuracy(samples, labels)
+        print(acc)
+        print(time)
+
+    '''# Make sure the project compiles correctly. There's no point to uploading,
     # as the example project won't give any output we can check.
     with tempfile.TemporaryDirectory() as temp_dir:
         work_dir = Path(temp_dir) / "project"
@@ -149,7 +109,7 @@ def test_kws_autotune_workflow(board):
             },
         )
 
-        project.build()
+        project.build()'''
 
 
 if __name__ == "__main__":
