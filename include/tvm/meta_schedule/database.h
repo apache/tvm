@@ -98,6 +98,9 @@ struct WorkloadEqual {
   }
 };
 
+/*! \brief The class of measure candidates. */
+class MeasureCandidate;
+
 /*! \brief The class of tuning records. */
 class TuningRecordNode : public runtime::Object {
  public:
@@ -123,6 +126,9 @@ class TuningRecordNode : public runtime::Object {
   static constexpr const char* _type_key = "meta_schedule.TuningRecord";
   TVM_DECLARE_FINAL_OBJECT_INFO(TuningRecordNode, runtime::Object);
 
+  /*! \brief Construct the measure candidate given the initial IR module and trace
+   * stored in the tuning record. */
+  MeasureCandidate AsMeasureCandidate() const;
   /*!
    * \brief Export the tuning record to a JSON string.
    * \return An array containing the trace, running secs, serialized target, and
@@ -188,6 +194,11 @@ class DatabaseNode : public runtime::Object {
    */
   virtual Array<TuningRecord> GetTopK(const Workload& workload, int top_k) = 0;
   /*!
+   * \brief Get all tuning records from the database.
+   * \return An Array of all the tuning records in the database.
+   */
+  virtual Array<TuningRecord> GetAllTuningRecords() = 0;
+  /*!
    * \brief Get the size of the database.
    * \return The size of the database.
    */
@@ -225,6 +236,11 @@ class PyDatabaseNode : public DatabaseNode {
    */
   using FGetTopK = runtime::TypedPackedFunc<Array<TuningRecord>(const Workload&, int)>;
   /*!
+   * \brief The function type of `GetAllTuningRecords` method.
+   * \return An Array of all the tuning records in the database.
+   */
+  using FGetAllTuningRecords = runtime::TypedPackedFunc<Array<TuningRecord>()>;
+  /*!
    * \brief The function type of `Size` method.
    * \return The size of the database.
    */
@@ -238,6 +254,8 @@ class PyDatabaseNode : public DatabaseNode {
   FCommitTuningRecord f_commit_tuning_record;
   /*! \brief The packed function to the `GetTopK` function. */
   FGetTopK f_get_top_k;
+  /*! \brief The packed function to the `GetAllTuningRecords` function. */
+  FGetAllTuningRecords f_get_all_tuning_records;
   /*! \brief The packed function to the `Size` function. */
   FSize f_size;
 
@@ -249,6 +267,7 @@ class PyDatabaseNode : public DatabaseNode {
     // `f_commit_workload` is not visited
     // `f_commit_tuning_record` is not visited
     // `f_get_top_k` is not visited
+    // `f_get_all_tuning_records` is not visited
     // `f_size` is not visited
   }
 
@@ -271,6 +290,12 @@ class PyDatabaseNode : public DatabaseNode {
   Array<TuningRecord> GetTopK(const Workload& workload, int top_k) final {
     ICHECK(f_get_top_k != nullptr) << "PyDatabase's GetTopK method not implemented!";
     return f_get_top_k(workload, top_k);
+  }
+
+  Array<TuningRecord> GetAllTuningRecords() final {
+    ICHECK(f_get_all_tuning_records != nullptr)
+        << "PyDatabase's GetAllTuningRecords method not implemented!";
+    return f_get_all_tuning_records();
   }
 
   int64_t Size() final {
@@ -302,6 +327,7 @@ class Database : public runtime::ObjectRef {
    * \param f_commit_workload The packed function of `CommitWorkload`.
    * \param f_commit_tuning_record The packed function of `CommitTuningRecord`.
    * \param f_get_top_k The packed function of `GetTopK`.
+   * \param f_get_all_tuning_records The packed function of `GetAllTuningRecords`.
    * \param f_size The packed function of `Size`.
    * \return The created database.
    */
@@ -309,6 +335,7 @@ class Database : public runtime::ObjectRef {
                                      PyDatabaseNode::FCommitWorkload f_commit_workload,
                                      PyDatabaseNode::FCommitTuningRecord f_commit_tuning_record,
                                      PyDatabaseNode::FGetTopK f_get_top_k,
+                                     PyDatabaseNode::FGetAllTuningRecords f_get_all_tuning_records,
                                      PyDatabaseNode::FSize f_size);
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Database, runtime::ObjectRef, DatabaseNode);
 };
