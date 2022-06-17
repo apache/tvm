@@ -106,7 +106,7 @@ def deploy() {
             ).trim()
             def tag = "${date_Ymd_HMS}-${upstream_revision.substring(0, 8)}"
             {% for image in images %}
-            update_docker({{ image.name }}, "tlcpackstaging/test_{{ image.name }}:${tag}")
+            update_docker({{ image.name }}, "tlcpackstaging/{{ image.name }}:${tag}")
             {% endfor %}
           } finally {
             sh(
