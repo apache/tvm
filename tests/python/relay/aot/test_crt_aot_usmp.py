@@ -27,7 +27,7 @@ from tvm import relay
 from tvm.relay import transform
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 from tvm.relay.backend import Executor, Runtime
-from tvm import WorkspaceMemoryPools, WorkspacePoolInfo, ConstantPoolInfo, PoolInfoProperties
+from tvm import WorkspaceMemoryPools, WorkspacePoolInfo, PoolInfoProperties
 from tvm.micro import model_library_format as mlf
 from tvm.micro.testing.aot_test_utils import parametrize_aot_options
 from tvm.testing.aot import (
@@ -51,6 +51,9 @@ def _check_for_no_tvm_backendallocworkspace_calls(mod: tvm.runtime.module):
 # U1 test case
 @parametrize_aot_options
 def test_synthetic(interface_api, use_unpacked_api, test_runner):
+    """
+    Simple U1 usecase test
+    """
     mod, params = tvm.relay.testing.synthetic.get_workload()
     main_func = mod["main"]
     shape_dict = {p.name_hint: p.checked_type.concrete_shape for p in main_func.params}
@@ -58,7 +61,7 @@ def test_synthetic(interface_api, use_unpacked_api, test_runner):
 
     input_data = np.ones(shape_dict["data"]).astype(type_dict["data"])
     params = {}
-    for name, shape in shape_dict.items():
+    for name, _ in shape_dict.items():
         if name != "data":
             params[name] = np.ones(shape_dict[name]).astype(type_dict[name])
 
@@ -73,7 +76,6 @@ def test_synthetic(interface_api, use_unpacked_api, test_runner):
         },
     )
 
-    pass_config = {"tir.usmp.enable": True}
     test_runner = AOTTestRunner(
         makefile=test_runner.makefile,
         prologue=test_runner.prologue,

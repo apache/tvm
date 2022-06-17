@@ -258,7 +258,7 @@ struct ConstantInfoNode : public Object {
     hash_reduce(data);
   }
 
-  static constexpr const char* _type_key = "tir.usmp.ConstantInfo";
+  static constexpr const char* _type_key = "ir.ConstantInfo";
   static constexpr bool _type_has_method_sequal_reduce = true;
   static constexpr bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(ConstantInfoNode, Object);

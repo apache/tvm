@@ -148,7 +148,7 @@ ConstantInfo::ConstantInfo(String name_hint, Integer byte_offset, runtime::NDArr
 }
 
 TVM_REGISTER_NODE_TYPE(ConstantInfoNode);
-TVM_REGISTER_GLOBAL("tir.usmp.ConstantInfo")
+TVM_REGISTER_GLOBAL("ir.ConstantInfo")
     .set_body_typed([](String name_hint, Integer byte_offset, runtime::NDArray data) {
       return ConstantInfo(name_hint, byte_offset, data);
     });
