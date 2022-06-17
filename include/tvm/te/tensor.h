@@ -75,8 +75,6 @@ class TensorNode : public DataProducerNode {
   Operation op;
   /*! \brief the output index from source operation */
   int value_index{0};
-  /*! \brief the memory scope of the tensor*/
-  String memory_scope;
   /*! \brief constructor */
   TensorNode() {}
 

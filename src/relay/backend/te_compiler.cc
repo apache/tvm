@@ -414,6 +414,20 @@ class TECompilerImpl : public TECompilerNode {
       }
       // lower the function
       std::unordered_map<te::Tensor, tir::Buffer> binds;
+
+      // If we have memory scopes, need to create tir::Buffer knowing this info
+      size_t i = 0;  // for corresponding from tensor array
+      for (Var param : key->source_func->params) {
+        for (const auto& ttype : FlattenTupleType(param->checked_type())) {
+          te::Tensor x_ref = value->cached_func->inputs[i];
+          // verification if we have synced params and tensors
+          ICHECK(ttype->dtype == x_ref->dtype && ttype->shape.size() == x_ref->shape.size())
+              << "function parameter does not correspond to prepared tensor";
+          binds[x_ref] = BufferWithOffsetAlignment(x_ref->shape, x_ref->dtype, x_ref->op->name, -1,
+                                                   0, false, param->virtual_device()->memory_scope);
+          i++;
+        }
+      }
       auto func_name = value->cached_func->prim_fn_var->name_hint;
       VLOG(1) << "scheduling";
       IRModule scheduled_module =

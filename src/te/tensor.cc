@@ -87,7 +87,6 @@ Tensor Operation::output(size_t i) const {
   node->value_index = i;
   node->dtype = (*this)->output_dtype(i);
   node->shape = (*this)->output_shape(i);
-  node->memory_scope = (*this)->memory_scope();
   return Tensor(node);
 }
 
