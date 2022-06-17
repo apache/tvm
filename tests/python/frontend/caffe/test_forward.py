@@ -221,7 +221,11 @@ def _run_tvm(data, proto_file, blob_file):
 
 
 def _compare_caffe_tvm(caffe_out, tvm_out, is_network=False):
+<<<<<<< HEAD
     for i in range(len(caffe_out)):
+=======
+    for i, _ in enumerate(caffe_out):
+>>>>>>> 2b7ec741f... fix error
         if is_network:
             caffe_out[i] = caffe_out[i][:1]
         tvm.testing.assert_allclose(caffe_out[i], tvm_out[i], rtol=1e-5, atol=1e-5)
