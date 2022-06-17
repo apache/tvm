@@ -512,23 +512,49 @@ class PipelineRewriter : public StmtExprMutator {
     return Buffer(new_buffer);
   }
 
+  // Per-stage states that need to be tracked across pipeline prologue, body, and epilogue.
   struct AsyncStateGlobal {
+    // Buffers that this stage asynchronously writes.
     std::unordered_set<const BufferNode*> dst_buffers;
-    // Only valid if all predicates are true
+    // An imaginary index that the latest async operation associated with this stage has written
+    // into. Only valid if all associated predicates are true, so that we can count the number of
+    // async operation invocations exactly. When it is valid, it is the "sum of extents of loops that
+    // have been executed" - 1, e.g. for epilogue it is prologue extent + body extent - 1.
+    // This is only needed to compute wait count for epilogue without async producers.
     Optional<PrimExpr> producer_head;
   };
 
+  // Per-stage states that are local to each of pipeline prologue, body, and epilogue.
   struct AsyncStateLocal {
     struct {
+      // The index into a list of blocks, where async_wait_stage should be inserted at the beginning.
       int insert_before;
+      // in_flight_count would be a more precise name, but the implementation uses wait_count for
+      // brevity.
       PrimExpr wait_count{nullptr};
 
       bool valid() const { return wait_count.defined(); }
     } pending_wait;
 
+    // Destination buffers of async operations that have been encountered so far in the loop
+    //
+    // for (const Block& block : ordered_stmts_) {
+    //    ...
+    // }
+    //
+    // This is for tracking which async operations have been issued at the "current" iteration, up
+    // until a point where we encounter a consumer of async result buffers. This is used to decide
+    // if the producer_head of each buffer points to a copy written in the current or previous
+    // iteration.
     std::unordered_set<const BufferNode*> seen;
+    // A symbolic expression representing the index the latest async operation associated with this
+    // stage has written into, at the "current" iteration.
     Optional<PrimExpr> producer_head;
+    // The predicate of BlockRealize containing the async operation of this stage.
     Optional<PrimExpr> predicate;
+    // The indices into a list of blocks, where async_commit_stage should be inserted at the end.
+    // If multiple async producers are interleaved with their consumer in between, we need separate
+    // async_commit_stage for each producer.
     std::vector<size_t> insert_commit_stage_after;
   };
 
@@ -694,6 +720,9 @@ class PipelineRewriter : public StmtExprMutator {
             make_intrin(builtin::async_wait_stage(), {stage_id, state.pending_wait.wait_count});
 
         if (state.predicate && !ana_normalized.CanProve(state.predicate.value())) {
+          // If the async operation that this wait_stage is waiting on is predicated, and we cannot
+          // prove that the predicate is always true, the precise wait count is only valid
+          // at iterations where the predicate is true;
           auto wait_stage_false = make_intrin(builtin::async_wait_stage(), {stage_id, 0});
           async_intrins_per_block[state.pending_wait.insert_before].first =
               IfThenElse(state.predicate.value(), wait_stage, wait_stage_false);
@@ -705,14 +734,17 @@ class PipelineRewriter : public StmtExprMutator {
       if (!state.insert_commit_stage_after.empty()) {
         auto commit_stage = make_intrin(builtin::async_commit_stage(), {stage_id});
         for (auto ind : state.insert_commit_stage_after) {
+	  ICHECK(!async_intrins_per_block[ind].second.defined());
           async_intrins_per_block[ind].second = commit_stage;
         }
       }
 
       if (state.predicate && ana_normalized.CanProve(state.predicate.value())) {
+	// Advance the "global" producer head if we know exactly how much we can increment
         async_states[stage_id].producer_head =
             async_states[stage_id].producer_head.value_or(-1) + extent;
       } else {
+	// Otherwise, invalidate the global producer head
         async_states[stage_id].producer_head = NullOpt;
       }
     }

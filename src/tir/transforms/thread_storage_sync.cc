@@ -252,7 +252,7 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
 // duplicate syncthreads if it finds an existing one at a synchronization point.
 class ThreadSyncAfterWaitStageInserter : public StmtExprMutator {
  public:
-  ThreadSyncAfterWaitStageInserter(StorageScope sync_scope) : sync_scope_(sync_scope) {}
+  explicit ThreadSyncAfterWaitStageInserter(StorageScope sync_scope) : sync_scope_(sync_scope) {}
 
   Stmt VisitStmt_(const EvaluateNode* op) final {
     if (op->value->IsInstance<CallNode>()) {
