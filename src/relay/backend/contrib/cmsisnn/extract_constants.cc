@@ -164,7 +164,18 @@ class ExtractConstantsMutator : public MixedModeMutator {
           function_signature.push_back(arg);
         } else {
           if (arg.as<VarNode>()) {
-            function_signature.push_back(arg);
+            // Only push if its not already present as multiple consumers of any input var
+            // will appear only once in the function signature.
+            bool found_in_existing_signature = false;
+            for (auto& sign : function_signature) {
+              if (arg.same_as(sign)) {
+                found_in_existing_signature = true;
+                break;
+              }
+            }
+            if (!found_in_existing_signature) {
+              function_signature.push_back(arg);
+            }
           }
           new_args.push_back(arg);
         }

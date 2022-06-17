@@ -179,6 +179,12 @@ class ScalarToTensorConstantMutator : public MixedModeMutator {
     auto new_body = VisitExpr(func->body);
     Function new_func = WithFields(func, FreeVars(new_body), new_body, func->ret_type,
                                    FreeTypeVars(new_body, mod_), func->attrs);
+
+    // Updating new_func parameters could result into uniquification of function parameters.
+    // Call arguments need to be aligned to the number of arguments expected by new_func.
+    if (new_args[0].same_as(new_args[1])) {
+      new_args.erase(new_args.begin());
+    }
     return Call(new_func, new_args);
   }
 
