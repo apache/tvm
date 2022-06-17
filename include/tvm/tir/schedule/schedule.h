@@ -277,9 +277,10 @@ class ScheduleNode : public runtime::Object {
    * 3) All loops must start with 0.
    * 4) The domain of a loop to be fused cannot depend on another loop to be fused.
    * \param loop_rvs The loops to be fused
+   * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
    * \return The new loop after fusion
    */
-  virtual LoopRV Fuse(const Array<LoopRV>& loop_rvs) = 0;
+  virtual LoopRV Fuse(const Array<LoopRV>& loop_rvs, bool preserve_unit_iters = true) = 0;
   /*!
    * \brief Split a loop into a list of consecutive loops. It requires:
    * 1) The loop can't have annotation or thread binding.
@@ -287,9 +288,11 @@ class ScheduleNode : public runtime::Object {
    * \param loop_rv The loop to be split
    * \param factors The positive tiling factors, and at most one of which is `NullOpt`, which means
    * that factor is inferred.
+   * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
    * \return The new loops after split
    */
-  virtual Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors) = 0;
+  virtual Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors,
+                              bool preserve_unit_iters = true) = 0;
   /*!
    * \brief Reorder a list of loops. It doesn't require the loops to be consecutive.
    * It requires:
@@ -303,6 +306,18 @@ class ScheduleNode : public runtime::Object {
    * \param ordered_loop_rvs The loops in the new order
    */
   virtual void Reorder(const Array<LoopRV>& ordered_loop_rvs) = 0;
+  /*!
+   * \brief Create a new unit loop on top of the specific block.
+   * \param block_rv The block above which the new loop is created
+   * \return The new loop created
+   */
+  virtual LoopRV AddUnitLoop(const BlockRV& block_rv) = 0;
+  /*!
+   * \brief Create a new unit loop on top of the specific loop.
+   * \param loop_rv The loop above which the new loop is created
+   * \return The new loop created
+   */
+  virtual LoopRV AddUnitLoop(const LoopRV& loop_rv) = 0;
   /******** Schedule: Manipulate ForKind ********/
   /*!
    * \brief Parallelize the input loop. It requires:
@@ -364,6 +379,19 @@ class ScheduleNode : public runtime::Object {
    */
   virtual BlockRV CacheWrite(const BlockRV& block_rv, int write_buffer_index,
                              const String& storage_scope) = 0;
+  /*!
+   * \brief Create a block that read/write a buffer region into a read/write cache with reindexing.
+   * The layout of the cache will be the same as by the iterators of the block that reads/writes the
+   * buffer. It requires:
+   * 1) There is only one block who reads/writes the target buffer
+   * 2) There is only one buffer load/store of this buffer in the block
+   * \param block_rv The block operates on the target buffer.
+   * \param buffer_index The index of the buffer in block's read or write region.
+   * \param buffer_index_type The type of the buffer index, kRead or kWrite.
+   * \return The reindex stage block.
+   */
+  virtual BlockRV ReIndex(const BlockRV& block_rv, int buffer_index,
+                          BufferIndexType buffer_index_type) = 0;
   /******** Schedule: Compute location ********/
   /*!
    * \brief Move a producer block under the specific loop, and regenerate the

@@ -20,7 +20,7 @@ set -e
 set -u
 set -o pipefail
 
-apt-get update && apt-get install -y --no-install-recommends git cmake python-setuptools
+apt-get update && apt-install-and-clear -y --no-install-recommends git cmake python-setuptools
 
 git clone https://github.com/Maratyszcza/NNPACK NNPACK
 git clone https://github.com/Maratyszcza/pthreadpool  NNPACK/pthreadpool

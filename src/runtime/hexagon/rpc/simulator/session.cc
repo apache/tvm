@@ -568,10 +568,6 @@ detail::Optional<HEXAPI_Cpu> SimulatorRPCChannel::GetCPU(const detail::MaybeStri
 }
 
 SimulatorRPCChannel::SimulatorRPCChannel(int stack_size, std::string args) {
-  const auto* api = tvm::runtime::Registry::Get("device_api.hexagon");
-  ICHECK(api != nullptr);
-  tvm::runtime::Registry::Register("device_api.cpu", true).set_body(*api);
-
   const char* sdk_root_env = std::getenv("HEXAGON_SDK_ROOT");
   ICHECK(sdk_root_env != nullptr) << "Please set HEXAGON_SDK_ROOT";
   const char* toolchain_env = std::getenv("HEXAGON_TOOLCHAIN");

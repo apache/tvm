@@ -74,7 +74,7 @@ from tvm import autotvm
 #
 # If you are familiar with writing cuda schedule, you can find the following
 # template is very general. Actually this template can be easily modified
-# to tune other operators such as depthwise convolution and gemm.
+# to tune other operators such as depthwise convolution and GEMM.
 # In order to fully understand this template, you should be familiar with
 # the schedule primitives and auto tuning API. You can refer to the above
 # tutorials and :ref:`autotvm tutorial <tutorial-autotvm-matmul-x86>`

@@ -36,11 +36,11 @@ different types of sparsity: **structured** and **unstructured**.
 
 Pruning is a technique primarily used to reduce the parameter size of a model
 by replacing weight values with 0s. Although many methods exist for choosing which
-weights should be set to 0, the most straight forward is by picking the 
+weights should be set to 0, the most straight forward is by picking the
 weights with the smallest value. Typically, weights are pruned to a desired
 sparsity percentage. For example, a 95% sparse model would have only 5% of
 its weights non-zero. Pruning to very high sparsities often requires
-finetuning or full retraining as it tends to be a lossy approximation.
+fine-tuning or full retraining as it tends to be a lossy approximation.
 Although parameter size benefits are quite easy to obtain from a pruned model
 through simple compression, leveraging sparsity to yield runtime speedups
 is more complicated.
@@ -50,8 +50,8 @@ pruned weights together. In other words, they are pruned using both their
 value and location. The benefit of bunching up pruned weights is that it allows
 an algorithm such as matrix multiplication to skip entire blocks. It turns out
 that some degree of *block sparsity* is very important to realizing significant
-speedups on most hardware available today. 
-This is because when loading memory in most CPUs or GPUs, 
+speedups on most hardware available today.
+This is because when loading memory in most CPUs or GPUs,
 it doesn't save any work to skip reading a single value at a time, instead an entire
 chunk or tile is read in and executed using something like vectorized instructions.
 

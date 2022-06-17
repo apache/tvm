@@ -24,14 +24,7 @@ that are supported by [Zephyr Project](https://zephyrproject.org/).
 Zephyr VM is published under [tlcpack](https://app.vagrantup.com/tlcpack).
 Here is a list of different release versions and their tools.
 
-### [microtvm-zephyr-2.5](https://app.vagrantup.com/tlcpack/boxes/microtvm-zephyr-2.5/versions/0.0.1)
+**Note**: We will release all microTVM RVM boxes under [microtvm-zephyr](https://app.vagrantup.com/tlcpack/boxes/microtvm-zephyr) and use box versioning in Vagrant file. Previous versions like `microtvm-zephyr-2.5`, `microtvm-zephyr-2.4` are not continued and will be removed in future.
 
-- Zephyr [version 2.5.0]
-- Zephyr SDK [version 0.12.3]
-- nRFjProg [version 10.12.1]
-
-### [microtvm-zephyr-2.4](https://app.vagrantup.com/tlcpack/boxes/microtvm-zephyr/versions/0.0.4)
-
-- Zephyr [version 2.4.0]
-- Zephyr SDK [version 0.11.3]
-- nRFjProg [version 10.9.0]
+## Versioning
+We use semantic versioning as it is recommended by [Vagrant](https://www.vagrantup.com/docs/boxes/versioning). We use `X.Y.Z` version where we maintain the same major version `X` it has minor changes and newer version is still compatible with older versions and we increase minor version `Y`. However, We increase the major version `X` when new RVM is not compatible with older onces. Updating Zephyr SDK is considered a major change and it requires incrementing major version `X`.

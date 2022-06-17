@@ -1,0 +1,29 @@
+
+name: tvm-bot
+on:
+  status:
+  pull_request_review:
+    types:
+      - submitted
+  issue_comment:
+
+concurrency:
+  group: merge-${{ github.event.pull_request.number }}-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  run-tvm-bot:
+    if: ${{ github.event.issue.pull_request && github.repository == 'apache/tvm' }}
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run tvm-bot
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TVM_BOT_JENKINS_TOKEN: ${{ secrets.TVM_BOT_JENKINS_TOKEN }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_COMMENT: ${{ toJson(github.event.comment) }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -eux
+          python tests/scripts/github_tvmbot.py --pr "$PR_NUMBER" --run-url "$RUN_URL" --trigger-comment-json "$ISSUE_COMMENT"

@@ -269,7 +269,8 @@ class SimplifyExplicitPad {
         } else if (node_map.count(avg_pool3d_)) {
           attrs = MakeAvgPoolAttrs(param, call_node->attrs.as<AvgPool3DAttrs>());
         }
-      } else if (node_map.count(max_pool_)) {
+      }
+      if (node_map.count(max_pool_)) {
         // Fold Padding and MaxPool only if pad_value is the min possible value for the dtype
         auto min_value = tvm::min_value(tvm::runtime::DataType(pad_value->data->dtype));
         const FloatImmNode* maybe_min_float = min_value.as<FloatImmNode>();

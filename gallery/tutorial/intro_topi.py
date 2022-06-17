@@ -23,9 +23,8 @@ Introduction to TOPI
 
 This is an introductory tutorial to TVM Operator Inventory (TOPI).
 TOPI provides numpy-style generic operations and schedules with higher abstractions than TVM.
-In this tutorial, we will see how TOPI can save us from writing boilerplates code in TVM.
+In this tutorial, we will see how TOPI can save us from writing boilerplate code in TVM.
 """
-from __future__ import absolute_import, print_function
 
 import tvm
 import tvm.testing

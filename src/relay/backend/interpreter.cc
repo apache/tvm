@@ -945,14 +945,13 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
  * rewritten \p mod and target-specific modules containing bindings for all TIR primitive
  * functions needed by the rewritten module.
  */
-IRModule Prepare(IRModule mod, CompilationConfig config) {
-  VirtualDevice host_virtual_device = config->host_virtual_device;
+IRModule Prepare(IRModule mod, const CompilationConfig& config) {
   // Run minimal transforms on module to establish invariants needed by interpreter.
   transform::Sequential seq(
       {transform::SimplifyInference(), qnn::transform::Legalize(),
        // Figure out which devices should be used to execute.
        // TODO(mbs): Should ignore all existing annotations when constant folding
-       transform::PlanDevices(std::move(config)),
+       transform::PlanDevices(config),
        // FuseOps will mark wrapped calls to prim-ops with the 'Primitive'
        // attribute.
        transform::FuseOps(/*fuse_opt_level=*/0),
@@ -961,9 +960,7 @@ IRModule Prepare(IRModule mod, CompilationConfig config) {
        // eta expand to support constructors in argument position.
        transform::EtaExpand(
            /*expand_constructor=*/true, /*expand_global_var=*/false),
-       transform::InferType(),
-       tec::LowerTEPass(/*module_name=*/"intrp", [](BaseFunc func) { /* no-op */ },
-                        std::move(host_virtual_device))});
+       transform::InferType(), tec::LowerTE(/*module_name=*/"intrp", config)});
 
   transform::PassContext pass_ctx = transform::PassContext::Current();
   With<transform::PassContext> ctx(pass_ctx);

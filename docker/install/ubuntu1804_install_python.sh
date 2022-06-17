@@ -31,8 +31,7 @@ trap cleanup 0
 # Install python and pip. Don't modify this to add Python package dependencies,
 # instead modify install_python_package.sh
 apt-get update
-apt-get install -y software-properties-common
-apt-get install -y python3.7 python3.7-dev python3-pip
+apt-install-and-clear -y software-properties-common python3.7 python3.7-dev python3-pip
 update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.7 1
 
 # Pin pip and setuptools versions

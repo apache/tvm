@@ -33,7 +33,7 @@ pip3 install --upgrade \
     Pillow==9.1.0 \
     psutil \
     pytest \
-    tlcpack-sphinx-addon==0.2.1 \
+    git+https://github.com/tlc-pack/tlcpack-sphinx-addon.git@14906063f938b7569e40f3d47a0ca39c181fb6ea \
     pytest-profiling \
     pytest-xdist \
     requests \

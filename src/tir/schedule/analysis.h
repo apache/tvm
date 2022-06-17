@@ -626,6 +626,13 @@ bool IsTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref);
 bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref);
 
 /*!
+ * \brief Checks if all the blocks in the PrimFunc is spatial
+ * \param func The PrimFunc to be checked
+ * \return A boolean indicating whether all the blocks in the PrimFunc is spatial
+ */
+bool IsSpatialPrimFunc(const PrimFunc& func);
+
+/*!
  * \brief Checks if the rfactor or cross thread reduction is beneficial to the given block.
  * \param self The schedule state.
  * \param block_sref The block to be checked.

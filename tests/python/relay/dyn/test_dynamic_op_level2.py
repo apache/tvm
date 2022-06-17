@@ -208,6 +208,4 @@ def test_dyn_pad(executor_kind):
 
 
 if __name__ == "__main__":
-    test_dyn_pad()
-    test_dyn_upsampling_infer_type_const()
-    test_dyn_upsampling_run()
+    tvm.testing.main()

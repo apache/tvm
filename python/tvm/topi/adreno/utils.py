@@ -547,3 +547,31 @@ def get_texture_storage(shape):
         return "global.texture-nhwc"
     else:
         return "global.texture-weight"
+
+
+def infer_tile_size(data, layout):
+    """Compute the tile size for Winograd algorithm
+
+    Parameters
+    ----------
+    data: tvm.te.Tensor
+        Data tensor
+
+    layout: string
+        Layout of data tebsir
+        NCHW, NCHW4c, NHWC or NHWC4c are acceptable
+
+    Returns
+    -------
+    tile_size : int
+        Calculated tile size
+    """
+    assert layout in ("NCHW", "NCHW4c", "NHWC", "NHWC4c"), "Incompatible layout"
+    if layout in ("NCHW", "NCHW4c"):
+        H = get_const_tuple(data.shape)[2]
+    else:
+        H = get_const_tuple(data.shape)[1]
+
+    if H % 8 == 0:
+        return 4
+    return 2

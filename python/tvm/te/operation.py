@@ -24,6 +24,7 @@ from typing import List
 import tvm._ffi
 import tvm.tir
 import tvm.tir._ffi_api
+import tvm.arith._ffi_api
 from tvm._ffi.base import string_types
 from tvm.ir import Array
 from tvm.runtime import convert
@@ -352,6 +353,87 @@ def extern(
     op = _ffi_api.ExternOp(name, tag, attrs, inputs, input_placeholders, output_placeholders, body)
     res = [op.output(i) for i in range(len(output_placeholders))]
     return res[0] if len(res) == 1 else res
+
+
+def extern_primfunc(input_tensors: List[_tensor.Tensor], primfunc: tvm.tir.PrimFunc, **kwargs):
+    """Compute tensors via a schedulable TIR PrimFunc
+
+    Parameters
+    ----------
+    input_tensors: list of Tensor
+        Input tensors that map to the corresponding primfunc input params.
+
+    primfunc: PrimFunc
+        The TIR PrimFunc
+
+    Returns
+    -------
+    tensor: Tensor or list of Tensors
+        The created tensor or tuple of tensors if it contains multiple outputs.
+
+    Example
+    -------
+    In the code below, a TVMScript defined TIR PrimFunc is inlined into
+    a TE ExternOp. Applying te.create_prim_func on this
+
+    .. code-block:: python
+
+        A = te.placeholder((128, 128), name="A")
+        B = te.placeholder((128, 128), name="B")
+
+        @T.prim_func
+        def before_split(a: T.handle, b: T.handle) -> None:
+            A = T.match_buffer(a, (128, 128))
+            B = T.match_buffer(b, (128, 128))
+            for i, j in T.grid(128, 128):
+                with T.block("B"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    B[vi, vj] = A[vi, vj] * 2.0
+
+        C = te.extern_primfunc([A, B], func)
+    """
+    access_map = {
+        k: tuple(v) for k, v in tvm.arith._ffi_api.DomainTouchedAccessMap(primfunc).items()
+    }
+    in_buffers = [buf for buf, access in access_map.items() if len(access[0])]
+    out_buffers = [buf for buf, access in access_map.items() if len(access[1])]
+    assert in_buffers, "PrimFunc has no input buffers"
+    assert out_buffers, "PrimFunc has no output buffers"
+
+    outputs = []
+    inplace = []
+    input_buffers = in_buffers
+    for obuf in out_buffers:
+        if obuf in in_buffers:
+            inplace.append(obuf)
+        else:
+            outputs.append(obuf)
+
+    if not outputs:
+        iobuf = inplace.pop()
+        input_buffers.remove(iobuf)
+        outputs = [iobuf]
+
+    assert len(input_buffers) == len(input_tensors), (
+        "The number of provided input input_tensors does not match the number of ",
+        "input buffers in the primfunc",
+    )
+    for tensor, buffer in zip(input_tensors, input_buffers):
+        # TODO(csullivan): Can a stronger comparison between Tensor<>Buffer be made?
+        assert tensor.shape == buffer.shape, (
+            "The input input_tensors provided do not match the input buffers in the ",
+            "primfunc. Please check that the order of input te.Input_Tensors and the ",
+            "order of the primfunc variables in the params list agree.",
+        )
+    output = extern(
+        [buf.shape for buf in outputs],
+        input_tensors,
+        lambda ins, outs: primfunc.body,
+        in_buffers=input_buffers,
+        out_buffers=outputs,
+        **kwargs,
+    )
+    return output
 
 
 def var(name="tindex", dtype="int32", span=None):

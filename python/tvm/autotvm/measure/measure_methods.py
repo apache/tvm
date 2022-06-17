@@ -31,9 +31,9 @@ import threading
 import time
 import traceback
 import typing
+import warnings
 from collections import namedtuple
 from random import getrandbits
-import warnings
 
 import tvm._ffi
 import tvm.ir.transform
@@ -505,10 +505,6 @@ def _build_func_common(measure_input, runtime=None, check_gpu=None, build_option
         if not config.valid():
             raise InstantiationError(config.errors)
 
-        opts = build_option or {}
-        if check_gpu:  # Add verify pass to filter out invalid configs in advance.
-            opts["tir.add_lower_pass"] = [(2, gpu_verify_pass(**check_gpu))]
-
         # if target is vta, we need to use vta build
         if (
             hasattr(measure_input.target, "device_name")
@@ -519,7 +515,28 @@ def _build_func_common(measure_input, runtime=None, check_gpu=None, build_option
 
             func = vta.build(s, args, target_host=task.target_host)
         else:
-            with tvm.ir.transform.PassContext(config=opts):
+            current_pass_context: tvm.ir.transform.PassContext = (
+                tvm.ir.transform.PassContext.current()
+            )
+            current_config = dict(current_pass_context.config)
+            if build_option is not None:
+                current_config.update(build_option)
+
+            if "tir.add_lower_pass" in current_config:
+                current_add_lower_pass = list(current_config["tir.add_lower_pass"])
+            else:
+                current_add_lower_pass = []
+            if check_gpu:
+                current_add_lower_pass.append((2, gpu_verify_pass(**check_gpu)))
+            current_config["tir.add_lower_pass"] = current_add_lower_pass
+
+            with tvm.ir.transform.PassContext(
+                opt_level=current_pass_context.opt_level,
+                required_pass=current_pass_context.required_pass,
+                disabled_pass=current_pass_context.disabled_pass,
+                instruments=current_pass_context.instruments,
+                config=current_config,
+            ):
                 func = build(s, args, target_host=task.target_host, runtime=runtime)
     return func, tuple((get_const_tuple(x.shape), x.dtype) for x in args)
 

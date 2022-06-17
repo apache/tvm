@@ -16,7 +16,10 @@
 # under the License.
 # pylint: disable=invalid-name,unused-argument
 """Tensor Expression for identity"""
+import numpy as np
 from tvm import te
+from tvm.contrib.ethosu.cascader import TESubgraph, EthosuPart, Propagator, register_matcher
+
 from .dma import read_compute, write_compute
 
 
@@ -56,7 +59,6 @@ def identity_compute(
     -------
     te.Tensor
         The Output Feature Map tensor.
-
     """
     dmaed_ifm = read_compute(ifm, ifm_zero_point, ifm_scale)
     id_attrs = {"op": "ethosu_identity", "activation": activation}
@@ -76,7 +78,86 @@ def identity_compute(
         name="ethosu_identity",
         attrs=id_attrs,
     )
+    length = len(ifm.shape)
+    ifm_matrix = np.identity(length + 1)
+    offset = np.zeros(length, dtype="int64")
+    ifm_propagator = Propagator(
+        ifm_matrix,
+        offset.tolist(),
+    )
+    propagator_attrs = {
+        "ifm_propagator": ifm_propagator,
+    }
+    return write_compute(identity, ofm_zero_point, ofm_scale, attrs=propagator_attrs)
 
-    dmaed_ofm = write_compute(identity, ofm_zero_point, ofm_scale)
 
-    return dmaed_ofm
+@register_matcher
+def match_ethosu_identity(output_tensor, device_config):
+    """Match a Tensor Expression corresponding to an NPU identity.
+
+    If the Tensor Expression matches, an EthosuPart will be created that models the
+    matched Tensor Expression. Otherwise, None will be returned.
+
+    Parameters
+    ----------
+    output_tensor : tvm.te.Tensor
+        The tensor to attempt to match with.
+    device_config : EthosuDeviceConfig
+        Target device configuration
+
+    Returns
+    -------
+    Union[None, EthosuPart]
+        The created EthosuPart if there was a match, otherwise None.
+    """
+    write = output_tensor
+    if write.op.name != "ethosu_write":
+        return None
+    identity = write.op.input_tensors[0]
+    if identity.op.name != "ethosu_identity":
+        return None
+    read = identity.op.input_tensors[0]
+    if read.op.name != "ethosu_read":
+        return None
+
+    input_tensors = [
+        read.op.input_tensors[0],
+    ]
+    subgraph = TESubgraph(input_tensors, output_tensor)
+    propagators = [
+        write.op.attrs["ifm_propagator"],
+    ]
+    ifm_dtype = input_tensors[0].dtype
+    ofm_dtype = output_tensor.dtype
+
+    input_tensors_shape = input_tensors[0].shape
+    length = len(input_tensors_shape)
+    assert length <= 4, "Input tensor shape must be <= 4 for the identity operator"
+    channels = int(input_tensors_shape[length - 1]) if length >= 3 else 1
+
+    subkernels = len(device_config.get_kernel_steps(identity.op.name, 1, 1, ifm_dtype))
+
+    input_layout = output_layout = "NHWC"
+    output_quantum = device_config.get_output_quantum(output_layout)
+
+    valid_block_configs = device_config.get_valid_block_configs(
+        propagators[0],
+        identity.op.attrs,
+        output_tensor.shape,
+        channels,
+        channels,
+        output_layout,
+        input_layout,
+        ifm_dtype,
+        ofm_dtype,
+        1,
+        1,
+    )
+
+    return EthosuPart(
+        subgraph,
+        propagators,
+        output_quantum,
+        subkernels,
+        valid_block_configs,
+    )

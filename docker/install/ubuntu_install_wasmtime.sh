@@ -19,7 +19,7 @@
 set -euxo pipefail
 
 # install wasmtime (note: requires ubuntu_install_rust.sh to run first)
-apt-get install -y --no-install-recommends libc6-dev-i386
+apt-install-and-clear -y --no-install-recommends libc6-dev-i386
 export WASMTIME_HOME=/opt/wasmtime
 curl https://wasmtime.dev/install.sh -sSf | bash
 export PATH="${WASMTIME_HOME}/bin:${PATH}"
