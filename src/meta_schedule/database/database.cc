@@ -85,6 +85,19 @@ TuningRecord::TuningRecord(tir::Trace trace, Workload workload, Optional<Array<F
   this->data_ = n;
 }
 
+MeasureCandidate TuningRecordNode::AsMeasureCandidate() const {
+  tir::Schedule sch =
+      tir::Schedule::Traced(workload->mod, -1, 0, tir::ScheduleErrorRenderLevel::kDetail);
+  trace->ApplyToSchedule(sch, false, nullptr);
+  tir::PrimFunc func;
+  for (const auto& kv : sch->mod()->functions) {
+    func = Downcast<tir::PrimFunc>(kv.second);
+  }
+  Array<ArgInfo> args_info = ArgInfo::FromPrimFunc(func);
+  MeasureCandidate candidate = MeasureCandidate(sch, args_info);
+  return candidate;
+}
+
 ObjectRef TuningRecordNode::AsJSON() const {
   Optional<Array<ObjectRef>> json_args_info{nullptr};
   Optional<ObjectRef> json_target{nullptr};
@@ -152,12 +165,15 @@ TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& w
 Database Database::PyDatabase(PyDatabaseNode::FHasWorkload f_has_workload,
                               PyDatabaseNode::FCommitWorkload f_commit_workload,
                               PyDatabaseNode::FCommitTuningRecord f_commit_tuning_record,
-                              PyDatabaseNode::FGetTopK f_get_top_k, PyDatabaseNode::FSize f_size) {
+                              PyDatabaseNode::FGetTopK f_get_top_k,
+                              PyDatabaseNode::FGetAllTuningRecords f_get_all_tuning_records,
+                              PyDatabaseNode::FSize f_size) {
   ObjectPtr<PyDatabaseNode> n = make_object<PyDatabaseNode>();
   n->f_has_workload = f_has_workload;
   n->f_commit_workload = f_commit_workload;
   n->f_commit_tuning_record = f_commit_tuning_record;
   n->f_get_top_k = f_get_top_k;
+  n->f_get_all_tuning_records = f_get_all_tuning_records;
   n->f_size = f_size;
   return Database(n);
 }
@@ -179,6 +195,8 @@ TVM_REGISTER_GLOBAL("meta_schedule.TuningRecord")
                        Optional<Target> target, Optional<Array<ArgInfo>> args_info) {
       return TuningRecord(trace, workload, run_secs, target, args_info);
     });
+TVM_REGISTER_GLOBAL("meta_schedule.TuningRecordAsMeasureCandidate")
+    .set_body_method<TuningRecord>(&TuningRecordNode::AsMeasureCandidate);
 TVM_REGISTER_GLOBAL("meta_schedule.TuningRecordAsJSON")
     .set_body_method<TuningRecord>(&TuningRecordNode::AsJSON);
 TVM_REGISTER_GLOBAL("meta_schedule.TuningRecordFromJSON").set_body_typed(TuningRecord::FromJSON);
@@ -190,6 +208,8 @@ TVM_REGISTER_GLOBAL("meta_schedule.DatabaseCommitTuningRecord")
     .set_body_method<Database>(&DatabaseNode::CommitTuningRecord);
 TVM_REGISTER_GLOBAL("meta_schedule.DatabaseGetTopK")
     .set_body_method<Database>(&DatabaseNode::GetTopK);
+TVM_REGISTER_GLOBAL("meta_schedule.DatabaseGetAllTuningRecords")
+    .set_body_method<Database>(&DatabaseNode::GetAllTuningRecords);
 TVM_REGISTER_GLOBAL("meta_schedule.DatabaseSize").set_body_method<Database>(&DatabaseNode::Size);
 TVM_REGISTER_GLOBAL("meta_schedule.DatabasePyDatabase").set_body_typed(Database::PyDatabase);
 
