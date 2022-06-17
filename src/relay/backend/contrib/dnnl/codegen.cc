@@ -550,7 +550,7 @@ class DNNLJSONSerializer : public backend::contrib::JSONSerializer {
         LOG(FATAL) << "Unrecognized DNNL pattern: " << name;
       }
 
-      if (args.empty() && args.empty()) {
+      if (args.empty()) {
         args = cn->args;
       }
     } else {
