@@ -16,6 +16,40 @@
 # under the License.
 
 import csv
+import os
+
+
+def skip_bencharks_flag_and_reason():
+    """
+    Returns one of these tuples:
+        (False, '') or
+        (True, (a string describing why the test should be skipped))
+
+    NOTE: This function is a temporary measure to prevent the TVM CI system
+    running benchmark scripts every time the CI pre-commit hook executes.
+    This should go away when a better system is in place to govern when various
+    tests / benchmarks are executed.
+    """
+    asn = os.environ.get("ANDROID_SERIAL_NUMBER")
+
+    if asn == "simulator":
+        return (True, "Skipping benchmarks when  ANDROID_SERIAL_NUMBER='simluator'")
+    else:
+        return (False, "")
+
+
+class UnsupportedException(Exception):
+    """
+    Indicates that the specified benchmarking configuration is known to
+    currently be unsupported.  The Exception message may provide more detail.
+    """
+
+
+class NumericalAccuracyException(Exception):
+    """
+    Indicates that the benchmarking configuration appeared to run successfully,
+    but the output data didn't have the expected accuracy.
+    """
 
 
 class BenchmarksTable:
