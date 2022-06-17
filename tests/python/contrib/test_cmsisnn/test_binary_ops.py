@@ -101,7 +101,7 @@ def make_model(
 def test_op_int8(
     op, relu_type, input_0_scale, input_0_zero_point, input_1_scale, input_1_zero_point
 ):
-    """Tests QNN Conv2D operator for CMSIS-NN"""
+    """Tests QNN binary operator for CMSIS-NN"""
     interface_api = "c"
     use_unpacked_api = True
     test_runner = AOT_USMP_CORSTONE300_RUNNER
@@ -130,6 +130,65 @@ def test_op_int8(
     inputs = {
         "input_0": np.random.randint(in_min, high=in_max, size=shape, dtype=dtype),
         "input_1": np.random.randint(in_min, high=in_max, size=shape, dtype=dtype),
+    }
+    output_list = generate_ref_data(orig_mod["main"], inputs)
+    compile_and_run(
+        AOTTestModel(
+            module=cmsisnn_mod,
+            inputs=inputs,
+            outputs=output_list,
+            output_tolerance=1,
+        ),
+        test_runner,
+        interface_api,
+        use_unpacked_api,
+    )
+
+
+@skip_if_no_reference_system
+@tvm.testing.requires_cmsisnn
+@pytest.mark.parametrize("op", [relay.qnn.op.mul, relay.qnn.op.add])
+@pytest.mark.parametrize("relu_type", ["RELU", "NONE"])
+def test_same_input_to_binary_op(op, relu_type):
+    """Tests QNN binary operator for CMSIS-NN where both inputs are the same"""
+    interface_api = "c"
+    use_unpacked_api = True
+    test_runner = AOT_USMP_CORSTONE300_RUNNER
+
+    dtype = "int8"
+    shape = [1, 16, 16, 3]
+    input_ = generate_variable("input")
+    input_scale = 0.256
+    input_zero_point = 33
+
+    model = make_model(
+        op,
+        input_,
+        input_,
+        input_scale,
+        input_zero_point,
+        input_scale,
+        input_zero_point,
+        relu_type,
+    )
+    orig_mod = make_module(model)
+
+    cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod)
+
+    # validate pattern matching
+    assert_partitioned_function(orig_mod, cmsisnn_mod)
+
+    # Check if the number of internal function parameter is 1
+    cmsisnn_global_func = cmsisnn_mod["tvmgen_default_cmsis_nn_main_0"]
+    assert (
+        isinstance(cmsisnn_global_func.body, tvm.relay.expr.Call)
+        and len(cmsisnn_global_func.body.args) == 1
+    ), "Composite function for the binary op should have only 1 parameter."
+
+    # validate the output
+    in_min, in_max = get_range_for_dtype_str(dtype)
+    inputs = {
+        "input": np.random.randint(in_min, high=in_max, size=shape, dtype=dtype),
     }
     output_list = generate_ref_data(orig_mod["main"], inputs)
     compile_and_run(
