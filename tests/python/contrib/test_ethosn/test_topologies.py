@@ -233,11 +233,11 @@ def test_split_with_asym_concats(dtype):
         tei.verify(outputs, dtype, 0)
 
 
-@requires_ethosn
 @pytest.mark.skipif(
     tei.get_ethosn_api_version() == 2205,
     reason="Split is not supported by the 22.05 release of the driver stack",
 )
+@requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 def test_output_tuple_propagation(dtype):
     """This tests the case where the output tuple must be inferred
