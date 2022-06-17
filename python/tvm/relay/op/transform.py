@@ -1424,8 +1424,6 @@ def matrix_set_diag(data, diagonal, k=0, align="RIGHT_LEFT"):
     super_diag_right_align = align[:5] == "RIGHT"
     sub_diag_right_align = align[-5:] == "RIGHT"
 
-    k_one = const(0)
-    k_two = const(0)
     return _make.matrix_set_diag(
         data, diagonal, k_one, k_two, super_diag_right_align, sub_diag_right_align
     )

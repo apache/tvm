@@ -910,33 +910,15 @@ def matrix_set_diag(data, diagonal, k=0, align="RIGHT_LEFT"):
               [7, 5, 7, 7],
               [7, 7, 6, 7]]]
     """
-    print("\n")
-    print("\n")
-    print("\n")
     if isinstance(k, (tuple, list)):
-        print("What is k 1 \n")
         k_one = k[0]
         if len(k) >= 2:
             k_two = k[1]
         else:
             k_two = k[0]
     else:
-        print("What is k 2 \n")
         k_one = k
         k_two = k
-        # k_one = te.placeholder(shape=(1,), name="k1", dtype="int64")
-        # k_two = te.placeholder(shape=(1,), name="k1", dtype="int64")
-
-    # if not isinstance(k_one, Expr):
-    #     k_one = const(np.asarray([k_one], dtype=np.int64))
-    # if not isinstance(k_two, Expr):
-    #     k_two = const(np.asarray([k_two], dtype=np.int64))
-
-    print(" one ", k_one)
-    print(" two ", k_two)
-
-    # k_one = te.placeholder(shape=(1,), name="k1", dtype="int64")
-    # k_two = k_one
 
     super_diag_right_align = align[:5] == "RIGHT"
     sub_diag_right_align = align[-5:] == "RIGHT"

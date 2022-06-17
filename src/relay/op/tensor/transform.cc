@@ -3905,9 +3905,6 @@ Array<te::Tensor> MatrixSetDiagCompute(const Attrs& attrs, const Array<te::Tenso
                                        const Type& out_type) {
   const auto* param = attrs.as<MatrixSetDiagAttrs>();
   ICHECK(param != nullptr);
-  std::cout << "**** \n"
-            << "d";
-  printf("*******************\n");
   return Array<te::Tensor>{topi::matrix_set_diag(inputs[0], inputs[1], inputs[2], inputs[3],
                                                  param->super_diag_right_align,
                                                  param->sub_diag_right_align)};
