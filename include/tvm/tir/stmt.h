@@ -599,9 +599,9 @@ class AllocateConstNode : public StmtNode {
   /*! \brief The optional data associated to the constant.
    */
   Optional<runtime::NDArray> data;
-  /*! \brief If the PrimFunc containing the Stmt is added to IRModule,
-       this is an optional index to indicate the index within
-       "Constants" attribute, that is a Array<NDArray> of IRModule.
+  /*!
+   * \brief If the PrimFunc containing the Stmt is added to IRModule, this is an optional index
+   * to indicate the index within "constants" attribute, that is a Array<NDArray> of IRModule.
    */
   Optional<Integer> irmod_storage_idx;
   /*! \brief The type of the buffer. */

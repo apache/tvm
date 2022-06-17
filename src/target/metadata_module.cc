@@ -215,6 +215,8 @@ runtime::Module CreateMetadataModule(
       String symbol = pf_sym();
       Array<String> variables = pf_var();
       for (size_t i = 0; i < variables.size(); i++) {
+        VLOG(1) << "From module of type '" << mod->type_key() << "' found const var '"
+                << variables[i] << "' for symbol '" << symbol << "'";
         symbol_const_vars.push_back(variables[i].operator std::string());
       }
       ICHECK_EQ(const_vars_by_symbol.count(symbol), 0U) << "Found duplicated symbol: " << symbol;

@@ -235,37 +235,29 @@ def test_extern_gcc_with_target_instance(check_result):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Skip test on Windows for now")
-def test_extern_gcc_consts():
-    @tvm._ffi.register_func("relay.ext.ccompiler.constant_updater")
-    def constant_updater(expr, symbol):
-        """A dummy constant updater just to test that a custom one works."""
-        return {"ccompiler_0_p0": tvm.nd.array(y0_data)}
+@pytest.mark.parametrize("check_result", [check_graph_executor_result, check_vm_result])
+def test_extern_gcc_consts(check_result):
+    shape = (8, 8)
+    dtype = "float32"
+    x = relay.var("x", shape=shape)
+    y0_data = np.random.uniform(0, 1, shape).astype(dtype)
 
-    x = relay.var("x", shape=(8, 8))
-    y0_data = np.random.uniform(0, 1, (8, 8)).astype("float32")
-
-    x0 = relay.var("x0", shape=(8, 8))
-    y0_const = relay.const(y0_data, "float32")
+    x0 = relay.var("x0", shape=shape)
+    y0_const = relay.const(y0_data, dtype)
     z = x0 + y0_const
     f = relay.Function([x0], z)
     f = set_external_func_attr(f, "ccompiler", "ccompiler_0")
     call = relay.Call(f, [x])
     mod = tvm.IRModule.from_expr(call)
 
-    with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
-        compiler = relay.backend.vm.VMCompiler()
-        compiler.lower(mod, "llvm")
-        compiler.codegen()
-        params = compiler.get_params()
-        assert len(params) == 1
-        assert "ccompiler_0_p0" in params.keys()
-
-    with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
-        _, _, params = relay.build(mod, target="llvm")
-        assert len(params) == 1
-        assert "ccompiler_0_p0" in params.keys()
-
-    tvm._ffi.registry.remove_global_func("relay.ext.ccompiler.constant_updater")
+    # Note that while the VMCompiler get_params() will return all 'parameters' from both
+    # TVM and external codegen compiled code, the GraphExecutor.get_params() will return only
+    # those from non-external modules. So in the following we'll test by execution rather than
+    # test by inspection.
+    x_data = np.random.rand(*shape).astype(dtype)
+    inputs = {"x": x_data}
+    expected_result = x_data + y0_data
+    check_result(mod, inputs, shape, expected_result, target="llvm")
 
 
 @pytest.mark.skipif(

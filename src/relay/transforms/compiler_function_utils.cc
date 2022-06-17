@@ -50,13 +50,45 @@ const FunctionNode* AsFunctionNode(const Expr& expr, const std::string& compiler
 }
 
 /*!
- * \brief Rewrite calls to inlined "Compiler" functions to global functions. The given
+ * \brief Rewrite calls to inlined and let-bound "Compiler" functions to global functions. The given
  * module will be extended with the newly outlined functions.
  */
 class Outliner : public MixedModeMutator {
  public:
   Outliner(GlobalSymbolCache* cache, std::string compiler_filter, IRModule mod)
       : cache_(cache), compiler_filter_(std::move(compiler_filter)), mod_(std::move(mod)) {}
+
+  Expr VisitExpr_(const LetNode* op) final {
+    auto pre_visit = [this](const LetNode* op) {
+      Expr var = this->VisitExpr(op->var);
+      Expr value = this->VisitExpr(op->value);
+
+      if (AsFunctionNode(value, compiler_filter_)) {
+        // Inline on-the-fly if the let-bound value is a function of interest.
+        this->memo_[var] = value;
+      }
+    };
+    auto post_visit = [this](const LetNode* op) {
+      // Rely on the Memoizer to cache pre-visit values
+      Expr value = this->VisitExpr(op->value);
+      Expr body = this->VisitExpr(op->body);
+      auto expr = GetRef<Expr>(op);
+
+      if (AsFunctionNode(value, compiler_filter_)) {
+        // The let binding is no longer needed since inlined on-the-fly above.
+        this->memo_[expr] = this->VisitExpr(op->body);
+      } else {
+        Var var = Downcast<Var>(this->VisitExpr(op->var));
+        if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body)) {
+          this->memo_[expr] = expr;
+        } else {
+          this->memo_[expr] = Let(var, value, body);
+        }
+      }
+    };
+    ExpandANormalForm(op, pre_visit, post_visit);
+    return memo_[GetRef<Expr>(op)];
+  }
 
   Expr Rewrite_(const CallNode* pre, const Expr& post) final {
     Call new_call = Downcast<Call>(post);
