@@ -482,8 +482,18 @@ class CodeEmitter(object):
         with tarfile.TarFile(model_library_format_path) as f:
             f.extractall(extract_path)
 
+        with open(os.path.join(extract_path, "metadata.json")) as metadata_f:
+            metadata = json.load(metadata_f)
+
+        all_module_names = []
+        for name in metadata["modules"].keys():
+            all_module_names.append(name)
+        assert len(metadata["modules"]) == 1, "Multiple modules is not supported."
+
         # Extract informations from the Model Library Format
-        graph_file = os.path.join(extract_path, "executor-config", "graph", "graph.json")
+        graph_file = os.path.join(
+            extract_path, "executor-config", "graph", f"{all_module_names[0]}.graph"
+        )
         with open(graph_file, "r") as f:
             # returns JSON object as a dictionary
             graph_dict = json.load(f)
