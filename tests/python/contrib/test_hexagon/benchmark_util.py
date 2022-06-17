@@ -17,6 +17,9 @@
 
 import csv
 import os
+import pytest
+import tempfile
+import collections
 
 
 def skip_bencharks_flag_and_reason():
@@ -36,6 +39,20 @@ def skip_bencharks_flag_and_reason():
         return (True, "Skipping benchmarks when  ANDROID_SERIAL_NUMBER='simluator'")
     else:
         return (False, "")
+
+
+class UnsupportedException(Exception):
+    """
+    Indicates that the specified benchmarking configuration is known to
+    currently be unsupported.  The Exception message may provide more detail.
+    """
+
+
+class NumericalAccuracyException(Exception):
+    """
+    Indicates that the benchmarking configuration appeared to run successfully,
+    but the output data didn't have the expected accuracy.
+    """
 
 
 class UnsupportedException(Exception):
@@ -207,3 +224,62 @@ def get_benchmark_decription(keys_dict):
     other characters that make it unsuitable for use as a filename.
     """
     return " ".join([f"{k}={v}" for k, v in keys_dict.items()])
+
+
+# This fixture provides some initialization / finalization logic for groups of related
+# benchmark runs.
+# See the fixture implementation below for details.
+#
+# The fixture's mechanics are described here: https://stackoverflow.com/a/63047695
+#
+# TODO: There may be cleaner ways to let each class that uses this fixture provide its
+# own value for `csv_column_order`.
+#
+# TODO: In the future we may wish to break this fixture up in to several smaller ones.
+#
+# The overall contract for a class (e.g. `MyTest`) using this fixture is as follows:
+#
+#    https://stackoverflow.com/a/63047695
+#
+#    @pytest.mark.usefixtures("benchmark_group")
+#    class MyTest:
+#
+#       # The fixture requires that this class variable is defined before
+#       # the fixture's finalizer-logic executes.
+#       #
+#       # This is used as an argument to BenchmarkTable.print_csv(...) after
+#       # all of MyTest's unit tests have executed.
+#       csv_column_order = [
+#          ...
+#          ]
+#
+#       # Before the MyTest's first unit test executes, the fixture will populate the
+#       # following class variables:
+#       MyTest.working_dir     : str
+#       MyTest.benchmark_table : BenchmarkTable
+@pytest.fixture(scope="class")
+def benchmark_group(request):
+    working_dir = tempfile.mkdtemp()
+    bt = BenchmarksTable()
+
+    request.cls.working_dir = working_dir
+    request.cls.benchmark_table = bt
+
+    yield
+
+    tabular_output_filename = os.path.join(working_dir, "benchmark-results.csv")
+
+    if not hasattr(request.cls, "csv_column_order"):
+        raise Exception('Classes using this fixture must have a member named "csv_column_order"')
+
+    with open(tabular_output_filename, "w") as csv_file:
+        bt.print_csv(csv_file, request.cls.csv_column_order)
+
+    print()
+    print("*" * 80)
+    print(f"BENCHMARK RESULTS FILE: {tabular_output_filename}")
+    print("*" * 80)
+    print()
+
+    if bt.has_fail() > 0:
+        pytest.fail("At least one benchmark configuration failed", pytrace=False)
