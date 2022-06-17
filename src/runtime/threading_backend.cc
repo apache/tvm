@@ -22,7 +22,6 @@
  * \brief Native threading backend
  */
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/threading_backend.h>
 
 #if defined(__linux__) || defined(__ANDROID__)
 #include <fstream>
@@ -31,6 +30,7 @@
 #include <string.h>
 #else
 #endif
+#include <tvm/runtime/threading_backend.h>
 #if defined(__linux__)
 #include <sched.h>
 #endif
