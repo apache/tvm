@@ -385,6 +385,16 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
       if (attrs->layout == "NCHW4c") {
         supports_texture_storage = true;
       }
+    } else if (const OpNode* opnode = call->op.as<OpNode>()) {
+      auto fpattern = Op::GetAttrMap<TOpPattern>("TOpPattern");
+      auto pattern = fpattern[GetRef<Op>(opnode)];
+      if (pattern <= kInjective) {
+        if (const auto* ttype = call->checked_type().as<TensorTypeNode>()) {
+          if (ttype->shape.size() == 5) {
+            supports_texture_storage = true;
+          }
+        }
+      }
     }
 
     return supports_texture_storage;
