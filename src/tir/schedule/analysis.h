@@ -726,6 +726,7 @@ class AutoTensorizeMappingInfoNode : public Object {
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("mappings", &mappings);
+    v->Visit("lhs_buffer_map", &lhs_buffer_map);
     v->Visit("rhs_buffer_indices", &rhs_buffer_indices);
     v->Visit("lhs_iters", &lhs_iters);
     v->Visit("rhs_iters", &rhs_iters);

@@ -2288,7 +2288,8 @@ class AutoTensorizeMappingProposer {
     // Collect the set of potential iter var mapping between the workload and the tensor intrin.
     // We analyze the appearance of each variable in the buffer indices of each buffer on LHS and
     // RHS. The appearance of a variable in the buffer indices is encoded as bit-masks (BufferMask).
-    // Variables on the LHS and the RHS with the same bit-mask are potential mappings.
+    // Variables on the LHS and the RHS with the same bit-mask and the same iter type are potential
+    // mappings.
     //
     // For example, consider the conv2d case. We will try to match the workload
     // conv2d[n, h, w, c] = sum_{rh, rw, rc} X[n, h + rh, w + rw, c + rc] * W[rh, rw, rc, c]
@@ -2302,7 +2303,7 @@ class AutoTensorizeMappingProposer {
     // both buffer conv2d and W, and not in other buffers. Therefore, {n, h, w} <=> m is a potential
     // mapping.
 
-    // Note: the mapping is not unique when multiple variables in RHS has the same bit-mask.
+    // Note: the mapping is not unique when multiple variables on RHS has the same bit-mask.
     // This is currently not supported.
 
     using BufferMask = std::vector<bool>;
@@ -2358,16 +2359,25 @@ class AutoTensorizeMappingProposer {
       }
     }
 
-    // Step 3: Find variables on LHS and RHS with the same buffer mask
+    // Step 3: Find variables on LHS and RHS with the same buffer mask. Ensure LHS and RHS vars
+    // have the same iter type.
     std::unordered_map<BufferMask, VarSet> mask_to_rhs_vars;
     for (const auto& kv : rhs_buffer_masks) {
       const VarNode* rhs_var = kv.first;
       const BufferMask& mask = kv.second;
       mask_to_rhs_vars[mask].insert(GetRef<Var>(rhs_var));
     }
-
+    std::unordered_map<const VarNode*, IterVarType> rhs_var_iter_type;
+    for (const auto& iter : extractor_->rhs_iters_) {
+      rhs_var_iter_type.emplace(iter->var.get(), iter->iter_type);
+    }
     for (const auto& iter : extractor_->lhs_iters_) {
-      lhs_feasible_vars_[iter->var] = mask_to_rhs_vars[lhs_buffer_masks[iter->var.get()]];
+      auto& potential_mappings = lhs_feasible_vars_[iter->var];
+      VarSet rhs_candidates = mask_to_rhs_vars[lhs_buffer_masks[iter->var.get()]];
+      std::copy_if(
+          rhs_candidates.begin(), rhs_candidates.end(),
+          std::inserter(potential_mappings, potential_mappings.begin()),
+          [&](const Var& var) { return rhs_var_iter_type.at(var.get()) == iter->iter_type; });
     }
   }
 
