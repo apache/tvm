@@ -24,8 +24,9 @@ from typing import Dict, Optional, Union
 from tarfile import ReadError
 import argparse
 import sys
-import numpy as np
 import json
+
+import numpy as np
 
 import tvm
 from tvm import rpc
