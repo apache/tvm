@@ -139,6 +139,10 @@ COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
 RUN bash /install/ubuntu_install_sccache.sh
 ENV PATH /opt/sccache:$PATH
 
+# dnnl
+COPY install/ubuntu_install_dnnl.sh /install/ubuntu_install_dnnl.sh
+RUN bash /install/ubuntu_install_dnnl.sh
+
 # Environment variables
 ENV PATH=/usr/local/nvidia/bin:${PATH}
 ENV PATH=/usr/local/cuda/bin:${PATH}
