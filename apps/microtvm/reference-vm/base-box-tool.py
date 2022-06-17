@@ -57,6 +57,7 @@ EXTRA_SCRIPTS = {
         "apps/microtvm/reference-vm/base_box_setup_common.sh",
         "docker/install/ubuntu_install_core.sh",
         "docker/install/ubuntu_install_python.sh",
+        "docker/utils/apt-install-and-clear.sh",
     ),
     "zephyr": (
         "apps/microtvm/reference-vm/base_box_setup_common.sh",
@@ -65,6 +66,7 @@ EXTRA_SCRIPTS = {
         "docker/install/ubuntu_init_zephyr_project.sh",
         "docker/install/ubuntu_install_zephyr_sdk.sh",
         "docker/install/ubuntu_install_cmsis.sh",
+        "docker/utils/apt-install-and-clear.sh",
     ),
 }
 

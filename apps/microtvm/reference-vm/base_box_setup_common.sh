@@ -23,8 +23,11 @@ set -x
 sudo sed -i 's/DNSSEC=yes/DNSSEC=no/' /etc/systemd/resolved.conf
 sudo systemctl restart systemd-resolved
 
+sudo mv ~/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
+sudo chmod +x /usr/local/bin/apt-install-and-clear
+
 sudo apt update
-sudo apt install -y build-essential
+sudo apt-install-and-clear -y build-essential
 sudo apt-get --purge remove modemmanager  # required to access serial ports.
 
 # Core
