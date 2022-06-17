@@ -588,6 +588,8 @@ class PipelineRewriter : public StmtExprMutator {
     std::vector<PrimExpr> predicates;
     std::vector<Block> new_blocks;
 
+    // In contrast to analyzer_ which is bound to [start, end), this one is bound to
+    // the "normalized" range, [pipeline_loop_->min, extent).
     arith::Analyzer ana_normalized;
     if (!is_unit_loop) {
       ana_normalized.Bind(Downcast<Var>(new_loop_var), Range(pipeline_loop_->min, extent));
@@ -606,6 +608,9 @@ class PipelineRewriter : public StmtExprMutator {
                                                              fragment_info_)(block));
 
       PrimExpr delta = start - pipeline_loop_->min;
+      // This variable corresponds to
+      // - "producer_head" if this stage is an async producer
+      // - "consumer_head" if this stage reads from asynchronously written buffers.
       PrimExpr normalized_access_index = is_unit_loop ? skewed_loop_var : skewed_loop_var + delta;
 
       // Adjust the block predicate and the body according to the final loop bound
@@ -620,28 +625,32 @@ class PipelineRewriter : public StmtExprMutator {
 
       if (pipeline_info_[block].async) {
         auto& local_state = async_states_local[stage];
-        // pending_wait.valid() == true means there is already a consumer stage waiting for an
-        // eariler async operation of this stage. In such cases, we make multiple commit_stage
-        // for a single stage.
         if (local_state.insert_commit_stage_after.empty() || local_state.pending_wait.valid()) {
+          // pending_wait.valid() == true means there is already a consumer stage waiting for an
+          // eariler async operation of this stage. In such cases, we make multiple commit_stage
+          // for this stage.
           local_state.insert_commit_stage_after.push_back(new_blocks.size());
         } else {
+	  // This is the case when one commit_stage groups multiple async blocks.
+	  // async_scope:
+	  //   A_shared[...] = ...
+	  // async_scope:
+	  //   B_shared[...] = ...
+	  // commit_stage(stage)
           local_state.insert_commit_stage_after.back() = new_blocks.size();
         }
 
-        async_states_local[stage].producer_head = normalized_access_index;
+        local_state.producer_head = normalized_access_index;
 
-        if (!async_states_local[stage].predicate ||
-            ana_normalized.CanProve(async_states_local[stage].predicate.value())) {
-          async_states_local[stage].predicate = inbound;
-        } else if (async_states_local[stage].predicate) {
-          async_states_local[stage].predicate =
-              ana_normalized.Simplify(async_states_local[stage].predicate.value() & inbound);
+        if (!local_state.predicate || ana_normalized.CanProve(local_state.predicate.value())) {
+          local_state.predicate = inbound;
+        } else if (local_state.predicate) {
+          local_state.predicate = ana_normalized.Simplify(local_state.predicate.value() & inbound);
         }
 
-        for (auto region : new_block->writes) {
-          async_states[stage].dst_buffers.insert(region->buffer.get());
-          local_state.seen.insert(region->buffer.get());
+        for (auto write_region : new_block->writes) {
+          async_states[stage].dst_buffers.insert(write_region->buffer.get());
+          local_state.seen.insert(write_region->buffer.get());
         }
 
         BlockNode* n = new_block.CopyOnWrite();
@@ -649,7 +658,49 @@ class PipelineRewriter : public StmtExprMutator {
       }
 
       int dep_stage_idx = -1;
+
+      // The following logic has become complicated to handle case like this:
+      //
+      // for i in range(13):
+      //     # Stage 0
+      //     async_scope:
+      //        A_shared[(i + 3) % 4] = A[...]
+      //        async_commit_stage(0)
+      //
+      //     # Stage 1
+      //     async_wait_stage(0, 5)
+      //     compute(A_shared[i], B_shared[i])
+      //
+      //     # Stage 0
+      //     async_scope:
+      //        B_shared[(i + 3) % 4] = B[...]
+      //        async_commit_stage(0)
+      //
+      // Here, multiple async producers in the same stage are interleaved with their consumer in
+      // between. Since each buffer is associated with different commit groups, the wait_count
+      // before the consumer should be bigger than the simpler case:
+      //
+      // for i in range(13):
+      //     # Stage 0
+      //     async_scope:
+      //        A_shared[(i + 3) % 4] = A[...]
+      //        B_shared[(i + 3) % 4] = B[...]
+      //        async_commit_stage(0)
+      //
+      //     # Stage 1
+      //     async_wait_stage(0, 3)
+      //     compute(A_shared[i], B_shared[i])
+      //
+      // The correct wait_count can be determined by considering each commit group separately, and
+      // summing "per-commit" wait_counts.
+      //
+      // From A_shared's perspective, it allows for (i + 3) - i async commit groups to be in flight
+      // while from B_shared's perspective, the producer head at compute points to the copy done by
+      // the previous iteration, so its wait_count is calculated as ((i - 1) + 3) - i.
+      // The sum of the two wait_counts gives 5.
+
       std::vector<Optional<PrimExpr>> producer_head_per_commit;
+
       for (auto read_region : new_block->reads) {
         for (auto kv : async_states) {
           if (kv.first <= stage && kv.second.dst_buffers.count(read_region->buffer.get())) {
@@ -662,7 +713,7 @@ class PipelineRewriter : public StmtExprMutator {
               auto local_state = it->second;
               if (local_state.producer_head && !local_state.seen.count(read_region->buffer.get())) {
                 // Multiple async producers interleaved: The most recent async write is from the
-                // previous iteration
+                // previous iteration. This is the B_shared case above.
                 producer_head_per_commit.push_back(local_state.producer_head.value() - 1);
               } else if (local_state.producer_head && producer_head_per_commit.empty()) {
                 // Normal case
@@ -672,7 +723,8 @@ class PipelineRewriter : public StmtExprMutator {
                 producer_head_per_commit.push_back(async_states[dep_stage_idx].producer_head);
               }
             } else if (it == async_states_local.end() && producer_head_per_commit.empty()) {
-              // Epilogue
+              // Epilogue, no async producer. Since "local" producer_head is not available, use
+              // "global" producer_head.
               producer_head_per_commit.push_back(async_states[dep_stage_idx].producer_head);
             }
           }
@@ -680,12 +732,17 @@ class PipelineRewriter : public StmtExprMutator {
       }
 
       if (!producer_head_per_commit.empty()) {
+	// This stage is a consumer of async results.
         auto wait_count = [=, &ana_normalized]() {
           auto sum = PrimExpr(0);
           for (auto producer_head : producer_head_per_commit) {
             if (producer_head && ana_normalized.CanProve(producer_head.value() >= 0)) {
+              // Here, normalized_access_index corresponds to "consumer_head".
+              // The difference of producer_head and consumer_head is precisely the number
+              // async commit groups can still be in flight after this wait.
               sum += analyzer_.Simplify(producer_head.value() - normalized_access_index);
             } else {
+	      // The precise count cannot be determined, give up.
               return PrimExpr(0);
             }
           }
@@ -697,6 +754,7 @@ class PipelineRewriter : public StmtExprMutator {
         if (!pending_wait.valid()) {
           pending_wait = {static_cast<int>(new_blocks.size()), wait_count};
         } else if (analyzer_.CanProve(wait_count < pending_wait.wait_count)) {
+	  // Coalesce multiple wait_stage if the later one allows fewer in-flight ops.
           pending_wait = {pending_wait.insert_before, wait_count};
         }
       }
