@@ -709,20 +709,17 @@ class PipelineRewriter : public StmtExprMutator {
             dep_stage_idx = kv.first;
 
             auto it = async_states_local.find(dep_stage_idx);
-            if (it != async_states_local.end()) {
+            if (it != async_states_local.end() && it->second.producer_head) {
               auto local_state = it->second;
-              if (local_state.producer_head && !local_state.seen.count(read_region->buffer.get())) {
+              if (!local_state.seen.count(read_region->buffer.get())) {
                 // Multiple async producers interleaved: The most recent async write is from the
                 // previous iteration. This is the B_shared case above.
                 producer_head_per_commit.push_back(local_state.producer_head.value() - 1);
-              } else if (local_state.producer_head && producer_head_per_commit.empty()) {
+              } else if (producer_head_per_commit.empty()) {
                 // Normal case
                 producer_head_per_commit.push_back(local_state.producer_head.value());
-              } else if (!local_state.producer_head && producer_head_per_commit.empty()) {
-                // Epilogue having multiple consumers of the same stage
-                producer_head_per_commit.push_back(async_states[dep_stage_idx].producer_head);
-              }
-            } else if (it == async_states_local.end() && producer_head_per_commit.empty()) {
+	      }
+            } else if (producer_head_per_commit.empty()) {
               // Epilogue, no async producer. Since "local" producer_head is not available, use
               // "global" producer_head.
               producer_head_per_commit.push_back(async_states[dep_stage_idx].producer_head);
