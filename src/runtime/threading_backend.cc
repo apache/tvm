@@ -28,6 +28,7 @@
 #include <fstream>
 #include <sstream>
 #include <errno.h>
+#include <string.h>
 #else
 #endif
 #if defined(__linux__)
