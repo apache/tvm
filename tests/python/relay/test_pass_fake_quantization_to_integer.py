@@ -345,9 +345,6 @@ class TestUnaryQNNOp:
     def test_sigmoid(self):
         self.helper_test_fake_quantize_unary_op(fp32_op=relay.sigmoid)
 
-    def test_hardswish(self):
-        self.helper_test_fake_quantize_unary_op(fp32_op=relay.hardswish)
-
     def test_tanh(self):
         self.helper_test_fake_quantize_unary_op(fp32_op=relay.tanh)
 
