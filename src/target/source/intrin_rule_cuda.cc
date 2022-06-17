@@ -153,8 +153,8 @@ static PrimExpr DispatchCUDAAsync(const PrimExpr& e) {
   ICHECK(call != nullptr);
   PrimExpr stage_idx = call->args[0];
   arith::Analyzer ana;
-  // TODO
-  ICHECK(ana.CanProve(stage_idx) == 0) << "Only the first stage can be made async for CUDA.";
+  ICHECK(ana.CanProve(stage_idx) == 0)
+      << "CUDA can have only one async stage, and only the first stage can be made async for now";
 
   Array<PrimExpr> args;
   for (size_t i = 1; i < call->args.size(); ++i) {

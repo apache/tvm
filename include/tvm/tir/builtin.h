@@ -651,6 +651,25 @@ TVM_DLL const Op& ptx_cp_async();
 TVM_DLL const Op& ptx_commit_group();
 TVM_DLL const Op& ptx_wait_group();
 
+/*!
+ * \brief Intrinsics for expressing asynchrony and synchronization in a software pipeline.
+ *
+ * Similarly to PTX instructions commit_group and wait_group, these intrinsics express
+ * synchronization by "counting":
+ *
+ * async_commit_stage(int i): Group one or more invocation of async operations, and "commit"
+ * them to the i-th stage. The exact interpretation of "committing" can be up to each backend, but
+ * informally it signifies that a group of async operations are now in-flight. The group of
+ * operations committed together is awaited as one chunk, and thus they constitute the granularity
+ * at which the synchronization intrinsic below operates on.
+ *
+ * async_wait_stage(int i, int N): Block until only N most recent committed groups are still
+ * in-flight at the stage i. In other words, if there are M committed groups in-flight at the
+ * stage i, at the invocation of async_wait_stage(i, N), M - N oldest committed groups would be
+ * forced to complete. N does not have to be a constant, but some backends may require a constant
+ * count (e.g. PTX)
+ *
+ */
 TVM_DLL const Op& async_commit_stage();
 TVM_DLL const Op& async_wait_stage();
 

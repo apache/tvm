@@ -230,6 +230,26 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
   StorageScope sync_scope_;
 };
 
+// There are cases where necessary syncthreads is not inserted by ThreadSyncInserter.
+// For example, syncthreads is needed after async_wait_stage in the second loop below,
+// but since ThreadSyncInserter is not aware of the asynchronous semantics, it cannot tell
+// that the syncthreads is needed there.
+//
+// // Pipeline prologue
+// for i in range(125):
+//    async_scope:
+//      shared[(i + 3) % 4] = ...
+//      async_commit_stage(0)
+//    ...
+//
+// // Pipeline Epilogue
+// for i in range(3):
+//    async_wait_stage(0, 2 - i)
+//    local[...] = shared[(i + 125) % 4]
+
+// This class adds syncthreads after all async_wait_stage. That include syncthreads that
+// can be inserted by ThreadSyncInserter as well, but ThreadSyncInserter will not insert
+// duplicate syncthreads if it finds an existing one at a synchronization point.
 class ThreadSyncAfterWaitStageInserter : public StmtExprMutator {
  public:
   ThreadSyncAfterWaitStageInserter(StorageScope sync_scope) : sync_scope_(sync_scope) {}

@@ -1376,7 +1376,7 @@ def get_mma_schedule():
 
 
 def build_and_run(sch):
-    if True or tvm.testing.is_ampere_or_newer():
+    if tvm.testing.is_ampere_or_newer():
         with tvm.transform.PassContext(config={"tir.use_ptx_async_copy": 1}):
             f = tvm.build(sch.mod["main"], target="cuda")
 
@@ -1389,7 +1389,6 @@ def build_and_run(sch):
         c = tvm.nd.array(np.zeros((N, M), dtype="float32"), dev)
         f(a, b, c)
         tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-3)
-        # print(f.imported_modules[0].get_source())
         print("ok")
 
         # evaluator = f.time_evaluator(f.entry_name, dev, number=500)
@@ -1431,7 +1430,7 @@ def test_async_pipelined_mma_gemm_simple():
         == str(epilogue.block.body.body.block.body[0]).rstrip()
     )
 
-    # build_and_run(sch)
+    build_and_run(sch)
 
 
 @tvm.testing.requires_cuda
@@ -1471,7 +1470,7 @@ def test_async_nested_pipeline_mma_gemm_ideal_annotation():
         == str(epilogue.block.body.body[0].block.body[0]).rstrip()
     )
 
-    # build_and_run(sch)
+    build_and_run(sch)
 
 
 @tvm.testing.requires_cuda
@@ -1507,14 +1506,8 @@ def test_async_nested_pipeline_mma_gemm_bad_annotation():
 
     assert "tir.async_wait_stage(0, 0)" == str(body.block.body.body[2].block.body[0]).rstrip()
 
-    # build_and_run(sch)
+    build_and_run(sch)
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_simple_compute_async()
-    test_async_producer_interleaving()
-    test_three_stage_compute_two_stage_async()
-    test_async_pipelined_mma_gemm_simple()
-    test_async_nested_pipeline_mma_gemm_ideal_annotation()
-    test_async_nested_pipeline_mma_gemm_bad_annotation()
+    tvm.testing.main()

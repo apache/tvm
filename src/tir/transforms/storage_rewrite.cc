@@ -1657,7 +1657,6 @@ Pass StorageRewrite() {
     // padded out to 32 bits) would require either rewriting
     // AllocateConst::data, or would require the code generators to
     // handle vectorized constants.
-    LOG(INFO) << f;
     return PointerValueTypeRewrite(std::move(f), true, false, false, true, true, true, false);
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.StorageRewrite", {});
