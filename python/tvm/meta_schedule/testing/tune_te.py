@@ -68,6 +68,26 @@ def _parse_args():
         type=str,
         required=True,
     )
+    args.add_argument(
+        "--number",
+        type=int,
+        default=3,
+    )
+    args.add_argument(
+        "--repeat",
+        type=int,
+        default=1,
+    )
+    args.add_argument(
+        "--min-repeat-ms",
+        type=int,
+        default=100,
+    )
+    args.add_argument(
+        "--cpu-flush",
+        type=bool,
+        required=True,
+    )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
     parsed.rpc_config = ms.runner.RPCConfig(
@@ -87,32 +107,34 @@ ARGS = _parse_args()
 
 
 def main():
-    alloc_repeat = 1
     runner = ms.runner.RPCRunner(
         rpc_config=ARGS.rpc_config,
         evaluator_config=ms.runner.EvaluatorConfig(
-            number=3,
-            repeat=1,
-            min_repeat_ms=100,
-            enable_cpu_cache_flush=False,
+            number=ARGS.number,
+            repeat=ARGS.repeat,
+            min_repeat_ms=ARGS.min_repeat_ms,
+            enable_cpu_cache_flush=ARGS.cpu_flush,
         ),
-        alloc_repeat=alloc_repeat,
+        alloc_repeat=1,
         max_workers=ARGS.rpc_workers,
     )
-    sch: Optional[tir.Schedule] = ms.tune_tir(
-        mod=create_te_workload(ARGS.workload, 0),
-        target=ARGS.target,
-        config=ms.TuneConfig(
-            strategy="evolutionary",
-            num_trials_per_iter=64,
-            max_trials_per_task=ARGS.num_trials,
-            max_trials_global=ARGS.num_trials,
-        ),
-        runner=runner,  # type: ignore
-        task_name=ARGS.workload,
-        work_dir=ARGS.work_dir,
-        num_threads=cpu_count(),
-    )
+    with ms.Profiler() as profiler:
+        sch: Optional[tir.Schedule] = ms.tune_tir(
+            mod=create_te_workload(ARGS.workload, 0),
+            target=ARGS.target,
+            config=ms.TuneConfig(
+                strategy="evolutionary",
+                num_trials_per_iter=64,
+                max_trials_per_task=ARGS.num_trials,
+                max_trials_global=ARGS.num_trials,
+            ),
+            runner=runner,  # type: ignore
+            task_name=ARGS.workload,
+            work_dir=ARGS.work_dir,
+            num_threads=cpu_count(),
+        )
+    print("Tuning Time:")
+    print(profiler.table())
     if sch is None:
         print("No valid schedule found!")
     else:

@@ -24,7 +24,7 @@ microTVM platforms that are supported by [Arduino](https://www.arduino.cc/).
 Arduino VM is published under [tlcpack](https://app.vagrantup.com/tlcpack).
 Here is a list of different release versions and their tools.
 
-(none currently)
+We use semantic versioning as it is recommended by [Vagrant](https://www.vagrantup.com/docs/boxes/versioning). We use `X.Y.Z` version where we maintain the same major version `X` it has minor changes and newer version is still compatible with older versions and we increase minor version `Y`. However, We increase the major version `X` when new RVM is not compatible with older onces. Changing any Arduino board SDKs is considered a major change and requires increasing `X`.
 
 ## Supported Arduino Boards
 This RVM has been tested and is known to work with these boards:
