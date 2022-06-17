@@ -926,11 +926,11 @@ def test_dnnl_fuse():
         conv2d_relu_pat,
         conv2d_sigmoid_pat,
     ) = (
-        dnnl_patterns[1],
-        dnnl_patterns[13],
-        dnnl_patterns[20],
-        dnnl_patterns[26],
-        dnnl_patterns[38],
+        dnnl_patterns[3],
+        dnnl_patterns[15],
+        dnnl_patterns[22],
+        dnnl_patterns[28],
+        dnnl_patterns[40],
     )
 
     def get_blocks(
