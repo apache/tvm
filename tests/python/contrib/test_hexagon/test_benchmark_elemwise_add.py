@@ -28,7 +28,9 @@ import tvm.script
 from tvm.script import tir as T
 from tvm import te
 from tvm.contrib.hexagon.build import HexagonLauncherRPC
-from . import benchmark_util
+from . import benchmark_util as bu
+
+_SHOULD_SKIP_BENCHMARKS, _SKIP_BENCHMARKS_REASON = bu.skip_bencharks_flag_and_reason()
 
 # This is a fixed detail of the v68 architecture.
 HVX_VECTOR_BYTES = 128
@@ -43,7 +45,7 @@ _SUPER_TARGET = tvm.target.Target(_HEXAGON_TARGET, host=_HEXAGON_TARGET)
 # triggering TIME_WAIT state on the server socket. This prevents another
 # server to bind to the same port until the wait time elapses.
 
-_BT = benchmark_util.BenchmarksTable()
+_BT = bu.BenchmarksTable()
 
 _CSV_COLUMN_ORDER = [
     # Identifies which TE-compute / TIRScript is used as the basis for the
@@ -88,21 +90,6 @@ print("OUTPUT DIRECTORY: {}".format(_HOST_OUTPUT_DIR))
 print("-" * 80)
 print()
 
-
-class UnsupportedException(Exception):
-    """
-    Indicates that the specified benchmarking configuration is known to
-    currently be unsupported.  The Exception message may provide more detail.
-    """
-
-
-class NumericalAccuracyException(Exception):
-    """
-    Indicates that the benchmarking configuration appeared to run successfully,
-    but the output data didn't have the expected accuracy.
-    """
-
-
 from typing import Tuple
 
 
@@ -129,7 +116,7 @@ def _get_irmod_elemwise_add(
     dtype_str = str(dtype)
 
     if mem_scope == "global.vtcm":
-        raise UnsupportedException("This benchmark kernel does not yet support VTCM buffers.")
+        raise bu.UnsupportedException("This benchmark kernel does not yet support VTCM buffers.")
 
         # This check is currently elided by the one above, but it should become relevant as soon
         # as we add VTCM support to this kernel generator.
@@ -147,7 +134,7 @@ def _get_irmod_elemwise_add(
         estimated_vtcm_needed_bytes = shape[0] * shape[1] * dtype_bytes * num_vtcm_tensors
 
         if estimated_vtcm_needed_bytes > estimated_vtcm_budget_bytes:
-            raise UnsupportedException("Expect to exceed VTCM budget.")
+            raise bu.UnsupportedException("Expect to exceed VTCM budget.")
 
     @tvm.script.ir_module
     class BenchmarkModule:
@@ -190,10 +177,10 @@ def _benchmark_hexagon_elementwise_add_kernel(
         "mem_scope": mem_scope,
     }
 
-    desc = benchmark_util.get_benchmark_decription(keys_dict)
+    desc = bu.get_benchmark_decription(keys_dict)
 
     # Create the host-side directory for this benchmark run's files / logs...
-    host_files_dir_name = benchmark_util.get_benchmark_id(keys_dict)
+    host_files_dir_name = bu.get_benchmark_id(keys_dict)
     host_files_dir_path = os.path.join(_HOST_OUTPUT_DIR, host_files_dir_name)
     os.mkdir(host_files_dir_path)
 
@@ -238,7 +225,9 @@ def _benchmark_hexagon_elementwise_add_kernel(
             # Upload the .so to the Android device's file system (or wherever is appropriate
             # when using the Hexagon simulator)...
             target_dso_binary_filename = "test_binary.so"
-            hexagon_launcher.upload(host_dso_binary_path, target_dso_binary_filename)
+            target_dso_binary_pathname = hexagon_launcher.upload(
+                host_dso_binary_path, target_dso_binary_filename
+            )
 
             # Generate our testing / validation data...
             (
@@ -251,7 +240,7 @@ def _benchmark_hexagon_elementwise_add_kernel(
                 # On the target device / simulator, make our Hexagon-native shared object
                 # available for use...
                 loaded_hexagon_module: tvm.runtime.module.Module = hexagon_launcher.load_module(
-                    target_dso_binary_filename, sess
+                    target_dso_binary_pathname, sess
                 )
 
                 # Create the target-side tensors to hold the primfunc's inputs and outputs...
@@ -296,11 +285,11 @@ def _benchmark_hexagon_elementwise_add_kernel(
                         result, host_numpy_C_data_expected, rel_tolerance, abs_tolerance
                     )
                 except AssertionError as e:
-                    raise NumericalAccuracyException(str(e))
+                    raise bu.NumericalAccuracyException(str(e))
 
                 _BT.record_success(timing_result, **keys_dict)
 
-        except NumericalAccuracyException as e:
+        except bu.NumericalAccuracyException as e:
             print()
             print(f"FAIL: Numerical accuracy error. See log file.")
 
@@ -309,7 +298,7 @@ def _benchmark_hexagon_elementwise_add_kernel(
 
             _BT.record_fail(**keys_dict, comments=f"Numerical accuracy error. See log file.")
 
-        except UnsupportedException as e:
+        except bu.UnsupportedException as e:
             print()
             print(f"SKIP: {e}")
 
@@ -381,6 +370,7 @@ def _get_elemwise_add_reference_value_tensors(shape: list, dtype: str):
     ]
 
 
+@pytest.mark.skipif(_SHOULD_SKIP_BENCHMARKS, reason=_SKIP_BENCHMARKS_REASON)
 @tvm.testing.requires_hexagon
 def test_elemwise_add(hexagon_launcher: HexagonLauncherRPC):
     for dtype in [
@@ -432,3 +422,7 @@ def test_elemwise_add(hexagon_launcher: HexagonLauncherRPC):
 
     if _BT.has_fail() > 0:
         pytest.fail("At least one benchmark configuration failed", pytrace=False)
+
+
+if __name__ == "__main__":
+    tvm.testing.main()
