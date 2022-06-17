@@ -220,8 +220,8 @@ def _run_tvm(data, proto_file, blob_file):
     return tvm_output
 
 
-def _compare_caffe_tvm(caffe_outs, tvm_out, is_network=False):
-    for i, caffe_out in enumerate(caffe_outs):
+def _compare_caffe_tvm(caffe_out, tvm_out, is_network=False):
+    for i, _ in enumerate(caffe_out):
         if is_network:
             caffe_out[i] = caffe_out[i][:1]
         tvm.testing.assert_allclose(caffe_out[i], tvm_out[i], rtol=1e-5, atol=1e-5)
