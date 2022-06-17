@@ -1057,7 +1057,9 @@ export class Instance implements Disposable {
       dev: DLDevice,
       nstep: number,
       repeat: number,
-      minRepeatMs: number
+      minRepeatMs: number,
+      cooldownIntervalMs: number,
+      repeatsToCooldown: number
     ): Promise<Uint8Array> => {
       finvoke(this.scalar(1, "int32"));
       await dev.sync();
@@ -1081,6 +1083,9 @@ export class Instance implements Disposable {
         } while (durationMs < minRepeatMs);
         const speed = durationMs / setupNumber / 1000;
         result.push(speed);
+        if (cooldownIntervalMs > 0.0 && (i % repeatsToCooldown) == 0 ) {
+          await new Promise(r => setTimeout(r, cooldownIntervalMs));
+        }
       }
       const ret = new Float64Array(result.length);
       ret.set(result);

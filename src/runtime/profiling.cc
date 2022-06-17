@@ -36,6 +36,7 @@
 #include <iostream>
 #include <map>
 #include <numeric>
+#include <thread>
 
 namespace tvm {
 namespace runtime {
@@ -835,6 +836,7 @@ TVM_REGISTER_GLOBAL("runtime.profiling.ProfileFunction")
     });
 
 PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, int min_repeat_ms,
+                             int cooldown_interval_ms, int repeats_to_cooldown,
                              PackedFunc f_preproc) {
   ICHECK(pf != nullptr);
 
@@ -844,8 +846,8 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
     return (*get_micro_time_evaluator)(pf, dev, number, repeat);
   }
 
-  auto ftimer = [pf, dev, number, repeat, min_repeat_ms, f_preproc](TVMArgs args,
-                                                                    TVMRetValue* rv) mutable {
+  auto ftimer = [pf, dev, number, repeat, min_repeat_ms, cooldown_interval_ms, repeats_to_cooldown,
+                 f_preproc](TVMArgs args, TVMRetValue* rv) mutable {
     TVMRetValue temp;
     std::ostringstream os;
     // skip first time call, to activate lazy compilation components.
@@ -865,9 +867,9 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
                                              number * 1.618));  // 1.618 is chosen by random
         }
 
-        Timer t = Timer::Start(dev);
         // start timing
-        for (int i = 0; i < number; ++i) {
+        Timer t = Timer::Start(dev);
+        for (int j = 0; j < number; ++j) {
           pf.CallPacked(args, &temp);
         }
         t->Stop();
@@ -877,6 +879,10 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
 
       double speed = duration_ms / 1e3 / number;
       os.write(reinterpret_cast<char*>(&speed), sizeof(speed));
+
+      if (cooldown_interval_ms > 0 && (i % repeats_to_cooldown) == 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(cooldown_interval_ms));
+      }
     }
 
     std::string blob = os.str();

@@ -222,13 +222,19 @@ class GraphModuleDebug(graph_executor.GraphModule):
                 output_tensors.append(self._get_node_output(i, j))
         self.debug_datum.update_output_tensors(output_tensors)
 
-    def _run_debug(self):
+    def _run_debug(self, number, repeat, min_repeat_ms, cooldown_interval_ms, repeats_to_cooldown):
         """Execute the node specified with index will be executed.
         Each debug output will be copied to the buffer
         Time consumed for each execution will be set as debug output.
         """
         # Get timing.
-        self.debug_datum._time_list = [[float(t)] for t in self.run_individual(10, 1, 1)]
+        self.debug_datum._time_list = self.run_individual(
+            number=number,
+            repeat=repeat,
+            min_repeat_ms=min_repeat_ms,
+            cooldown_interval_ms=cooldown_interval_ms,
+            repeats_to_cooldown=repeats_to_cooldown,
+        )
 
         # Get outputs.
         self._run_per_layer()
@@ -259,11 +265,46 @@ class GraphModuleDebug(graph_executor.GraphModule):
 
         self._debug_get_output(node_index, out)
 
-    def run(self, **input_dict):
+    # pylint: disable=arguments-differ
+    def run(
+        self,
+        number=10,
+        repeat=1,
+        min_repeat_ms=1,
+        cooldown_interval_ms=0,
+        repeats_to_cooldown=1,
+        **input_dict,
+    ):
         """Run forward execution of the graph with debug
 
         Parameters
         ----------
+        number: int, optional
+            The number of times to run this function for taking average.
+            We call these runs as one `repeat` of measurement.
+
+        repeat: int, optional
+            The number of times to repeat the measurement.
+            In total, the function will be invoked (1 + number x repeat) times,
+            where the first one is warm up and will be discarded.
+            The returned result contains `repeat` costs,
+            each of which is an average of `number` costs.
+
+        min_repeat_ms: int, optional
+            The minimum duration of one `repeat` in milliseconds.
+            By default, one `repeat` contains `number` runs. If this parameter is set,
+            the parameters `number` will be dynamically adjusted to meet the
+            minimum duration requirement of one `repeat`.
+            i.e., When the run time of one `repeat` falls below this time, the `number` parameter
+            will be automatically increased.
+
+        cooldown_interval_ms: int, optional
+            The cooldown interval in milliseconds between the number of repeats defined by
+            `repeats_to_cooldown`.
+
+        repeats_to_cooldown: int, optional
+            The number of repeats before the cooldown is activated.
+
         input_dict : dict of str to NDArray
             List of input values to be feed to
         """
@@ -271,7 +312,13 @@ class GraphModuleDebug(graph_executor.GraphModule):
             self.set_input(**input_dict)
 
         # Step 1. Execute the graph
-        self._run_debug()
+        self._run_debug(
+            number=number,
+            repeat=repeat,
+            min_repeat_ms=min_repeat_ms,
+            cooldown_interval_ms=cooldown_interval_ms,
+            repeats_to_cooldown=repeats_to_cooldown,
+        )
         # Step 2. Dump the output tensors to the dump folder
         self.debug_datum.dump_output_tensor()
         # Step 3. Dump the Chrome trace to the dump folder
@@ -279,19 +326,10 @@ class GraphModuleDebug(graph_executor.GraphModule):
         # Step 4. Display the collected information
         self.debug_datum.display_debug_result()
 
-    def run_individual(self, number, repeat=1, min_repeat_ms=0):
-        ret = self._run_individual(number, repeat, min_repeat_ms)
-        return ret.strip(",").split(",") if ret else []
-
-    def run_individual_node(self, index, number=10, repeat=1, min_repeat_ms=0):
-        """Benchmark a single node in the serialized graph.
-
-        This does not do any data transfers and uses arrays already on the device.
-
-        Parameters
-        ----------
-        index : int
-            The index of the node, see `self.debug_datum.get_graph_nodes`
+    def run_individual(
+        self, number, repeat=1, min_repeat_ms=0, cooldown_interval_ms=0, repeats_to_cooldown=1
+    ):
+        """Run each operation in the graph and get the time per op for all ops.
 
         number: int
             The number of times to run this function for taking average.
@@ -312,19 +350,86 @@ class GraphModuleDebug(graph_executor.GraphModule):
             i.e., When the run time of one `repeat` falls below this time, the `number` parameter
             will be automatically increased.
 
+        cooldown_interval_ms: int, optional
+            The cooldown interval in milliseconds between the number of repeats defined by
+            `repeats_to_cooldown`.
+
+        repeats_to_cooldown: int, optional
+            The number of repeats before the cooldown is activated.
+
+        Returns
+        -------
+        A 2-dimensional array where the dimensions are: the index of the operation and
+        the repeat of the measurement.
+        """
+        ret = self._run_individual(
+            number, repeat, min_repeat_ms, cooldown_interval_ms, repeats_to_cooldown
+        )
+        results = []
+        for node_data in ret.strip(";").split(";"):
+            results.append([])
+            for repeat_data in node_data.strip(",").split(","):
+                if repeat_data:
+                    results[-1].append(float(repeat_data))
+        return results
+
+    def run_individual_node(
+        self,
+        index,
+        number=10,
+        repeat=1,
+        min_repeat_ms=0,
+        cooldown_interval_ms=0,
+        repeats_to_cooldown=1,
+    ):
+        """Benchmark a single node in the serialized graph.
+
+        This does not do any data transfers and uses arrays already on the device.
+
+        Parameters
+        ----------
+        index : int
+            The index of the node, see `self.debug_datum.get_graph_nodes`
+
+        number: int
+            The number of times to run this function for taking average.
+            We call these runs as one `repeat` of measurement.
+
+        repeat: int, optional
+            The number of times to repeat the measurement.
+            In total, the function will be invoked (1 + number x repeat) times,
+            where the first one is warm up and will be discarded.
+            The returned result contains `repeat` costs,
+            each of which is an average of `number` costs.
+
+        min_repeat_ms : int, optional
+            The minimum duration of one `repeat` in milliseconds.
+            By default, one `repeat` contains `number` runs. If this parameter is set,
+            the parameters `number` will be dynamically adjusted to meet the
+            minimum duration requirement of one `repeat`.
+            i.e., When the run time of one `repeat` falls below this time, the `number` parameter
+            will be automatically increased.
+
+        cooldown_interval_ms: int, optional
+            The cooldown interval in milliseconds between the number of repeats defined by
+            `repeats_to_cooldown`.
+
+        repeats_to_cooldown: int, optional
+            The number of repeats before the cooldown is activated.
+
         Returns
         -------
         A module BenchmarkResult
         """
         # Results are returned as serialized strings which we deserialize
-        ret = self._run_individual_node(index, number, repeat, min_repeat_ms)
-        answer = []
-        for value in ret.split(","):
-            if value.strip() == "":
-                continue
-            answer.append(float(value))
-
-        return BenchmarkResult(answer)
+        ret = self._run_individual_node(
+            index, number, repeat, min_repeat_ms, cooldown_interval_ms, repeats_to_cooldown
+        )
+        results = []
+        for repeat_data in ret.replace(" ", "").strip(",").split(","):
+            if repeat_data:
+                results.append(float(repeat_data))
+        return BenchmarkResult(results)
 
     def profile(self, collectors=None, **input_dict):
         """Run forward execution of the graph and collect overall and per-op
