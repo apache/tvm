@@ -430,15 +430,13 @@ def tune_tir(
         mutator_probs=mutator_probs,
         num_threads=num_threads,
     )
-    bests: List[TuningRecord] = database.get_top_k(
-        database.commit_workload(mod),
-        top_k=1,
-    )
-    if not bests:
-        return None
-    assert len(bests) == 1
-    sch = Schedule(mod)
-    bests[0].trace.apply_to_schedule(sch, remove_postproc=False)
+    with Profiler.timeit("ApplyHistoryBest"):
+        bests: List[TuningRecord] = database.get_top_k(database.commit_workload(mod), top_k=1)
+        if not bests:
+            return None
+        assert len(bests) == 1
+        sch = Schedule(mod)
+        bests[0].trace.apply_to_schedule(sch, remove_postproc=False)
     return sch
 
 
@@ -488,8 +486,10 @@ def tune_te(
     sch : Optional[Schedule]
         The tuned schedule.
     """
+    with Profiler.timeit("CreatePrimFunc"):
+        func = create_prim_func(tensors)
     return tune_tir(
-        mod=create_prim_func(tensors),
+        mod=func,
         target=target,
         config=config,
         work_dir=work_dir,

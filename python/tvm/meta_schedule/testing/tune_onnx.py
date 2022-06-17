@@ -20,16 +20,22 @@ import json
 import logging
 
 import numpy as np  # type: ignore
+import onnx  # type: ignore
 import tvm
 from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
-from tvm.meta_schedule.testing.relay_workload import get_network
+from tvm.relay.frontend import from_onnx
 
 
 def _parse_args():
     args = argparse.ArgumentParser()
     args.add_argument(
-        "--workload",
+        "--model-name",
+        type=str,
+        required=True,
+    )
+    args.add_argument(
+        "--onnx-path",
         type=str,
         required=True,
     )
@@ -37,6 +43,7 @@ def _parse_args():
         "--input-shape",
         type=str,
         required=True,
+        help='example: `[{"name": "input1", "dtype": "int64", "shape": [1, 1, 8]}]',
     )
     args.add_argument(
         "--target",
@@ -74,9 +81,24 @@ def _parse_args():
         required=True,
     )
     args.add_argument(
-        "--cache-dir",
-        type=str,
-        default=None,
+        "--number",
+        type=int,
+        default=3,
+    )
+    args.add_argument(
+        "--repeat",
+        type=int,
+        default=1,
+    )
+    args.add_argument(
+        "--min-repeat-ms",
+        type=int,
+        default=100,
+    )
+    args.add_argument(
+        "--cpu-flush",
+        type=bool,
+        required=True,
     )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
@@ -98,28 +120,24 @@ ARGS = _parse_args()
 
 
 def main():
-    mod, params, (input_name, input_shape, input_dtype) = get_network(
-        ARGS.workload,
-        ARGS.input_shape,
-        cache_dir=ARGS.cache_dir,
-    )
-    input_info = {input_name: input_shape}
-    input_data = {}
-    print(f"Workload: {ARGS.workload}")
-    for input_name, input_shape in input_info.items():
-        print(f"  input_name: {input_name}")
-        print(f"  input_shape: {input_shape}")
-        print(f"  input_dtype: {input_dtype}")
-    alloc_repeat = 1
+    print(f"Workload: {ARGS.model_name}")
+    onnx_model = onnx.load(ARGS.onnx_path)
+    shape_dict = {}
+    for item in ARGS.input_shape:
+        print(f"  input_name: {item['name']}")
+        print(f"  input_shape: {item['shape']}")
+        print(f"  input_dtype: {item['dtype']}")
+        shape_dict[item["name"]] = item["shape"]
+    mod, params = from_onnx(onnx_model, shape_dict, freeze_params=True)
     runner = ms.runner.RPCRunner(
         rpc_config=ARGS.rpc_config,
         evaluator_config=ms.runner.EvaluatorConfig(
-            number=3,
-            repeat=1,
-            min_repeat_ms=100,
-            enable_cpu_cache_flush=False,
+            number=ARGS.number,
+            repeat=ARGS.repeat,
+            min_repeat_ms=ARGS.min_repeat_ms,
+            enable_cpu_cache_flush=ARGS.cpu_flush,
         ),
-        alloc_repeat=alloc_repeat,
+        alloc_repeat=1,
         max_workers=ARGS.rpc_workers,
     )
     with ms.Profiler() as profiler:
@@ -139,7 +157,9 @@ def main():
     print("Tuning Time:")
     print(profiler.table())
     graph, rt_mod, params = lib.graph_json, lib.lib, lib.params
-    for input_name, input_shape in input_info.items():
+    input_data = {}
+    for item in ARGS.input_shape:
+        input_name, input_shape, input_dtype = item["name"], item["shape"], item["dtype"]
         if input_dtype.startswith("float"):
             input_data[input_name] = np.random.uniform(size=input_shape).astype(input_dtype)
         else:
