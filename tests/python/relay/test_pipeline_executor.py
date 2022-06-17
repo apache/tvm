@@ -595,6 +595,8 @@ def test_pipeline():
                 if input_map[0] == "0":
                     input_data = pipeline_module_test.get_input("data_a")
                     tvm.testing.assert_allclose(data, input_data.numpy())
+
+                assert pipeline_module_test.num_inputs == 2
                 # Running the pipeline executor in the pipeline mode.
                 pipeline_module_test.run()
 
