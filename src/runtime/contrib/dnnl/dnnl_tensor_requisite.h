@@ -275,6 +275,7 @@ class TensorRequisite {
    *               innermost.
    */
   TensorRequisite TreatAs(const std::string& layout, std::string desired_logic_layout = "") const {
+    if (!defined()) return *this;
     if (desired_logic_layout.empty()) desired_logic_layout = DefaultLogicLayoutFor(layout);
 
     const auto origin_dims = dims();

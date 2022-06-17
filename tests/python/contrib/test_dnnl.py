@@ -20,6 +20,7 @@ import numpy as np
 import sys
 import subprocess
 import math
+import collections
 
 import tvm
 from tvm import relay
@@ -51,7 +52,7 @@ def bf16_supported():
             cpu_info = subprocess.check_output("sysctl -a", shell=True).strip().decode()
             for line in cpu_info.split("\n"):
                 if line.startswith("hw.optional.avx512f"):
-                    _bf16_supported = bool(line.split(":", 1)[1])
+                    _bf16_supported = bool(int(line.split(":", 1)[1]))
         elif sys.platform.startswith("linux"):
             _bf16_supported = "avx512" in open("/proc/cpuinfo", "r").read()
     return _bf16_supported
@@ -114,6 +115,7 @@ def partition_for_dnnl(mod, params=None, alter_layout=True, prune_subgraphs=True
 
     mod = dnnl.rewrite_layer_norm(mod)
     mod = dnnl.rewrite_dense_bias_gelu_reshape_last(mod)
+    mod = dnnl.legalize_qnn_for_dnnl(mod)
 
     byoc_seq = tvm.transform.Sequential(
         [
@@ -1124,6 +1126,541 @@ def test_rewrite_dense_bias_gelu_reshape_last(run_module, dtype="float32"):
     run_and_verify_func(
         get_graph(), subgraph_num=1, run_module=run_module, dtype=dtype, test_bf16=False
     )
+
+
+def permute_shape(shape, l_from="", l_to=""):
+    res_shape = []
+    for label in l_to:
+        pos = l_from.find(label)
+        res_shape.append(shape[pos])
+
+    return res_shape
+
+
+def expand_dim(shape, rank=0):
+    assert len(shape) == 1
+    return shape + [1] * (rank - 1)
+
+
+def filler_uni(low=0, high=1):
+    def filler_func(shape):
+        return np.random.uniform(low, high, shape)
+
+    return filler_func
+
+
+class QnnBuilder:
+    def __init__(self, qnn_profile=None):
+        self._args = {}
+        self._args_op = []
+        self._qp = qnn_profile
+
+    def arg(self, shape=[], dtype="float32", filler=filler_uni(), is_const=True):
+        if isinstance(filler, (int, float)):
+            value = np.full(shape, filler).astype(dtype)
+        else:
+            value = filler(shape).astype(dtype)
+
+        if is_const:
+            res = relay.const(value, dtype=dtype)
+        else:
+            name = f"in_{len(self._args)}"
+            res = relay.var(name, shape=shape, dtype=dtype)
+            self._args[name] = value
+            self._args_op.append(res)
+
+        return res
+
+    def make_zp(self, mean_val, num_ch=1, dispersion=0.2):
+        if num_ch == 1:
+            return self.arg(shape=[], dtype="int32", filler=mean_val)
+        else:
+            low = int(mean_val * (1 - dispersion))
+            high = int(mean_val * (1 + dispersion))
+            return self.arg(shape=[num_ch], dtype="int32", filler=filler_uni(low, high))
+
+    def make_scl(self, mean_val, num_ch=1, dispersion=0.2):
+        if num_ch == 1:
+            return self.arg(shape=[], dtype="float32", filler=mean_val)
+        else:
+            low = mean_val * (1 - dispersion)
+            high = mean_val * (1 + dispersion)
+            return self.arg(shape=[num_ch], dtype="float32", filler=filler_uni(low, high))
+
+    def make_zp_and_scl(self, name, num_ch=1, dispersion=0.2):
+        is_per_channel = getattr(self._qp, f"{name}_pc")
+        zp_val = getattr(self._qp, f"{name}_zp")
+        scl_val = getattr(self._qp, f"{name}_scl")
+
+        zp = self.make_zp(zp_val, num_ch if is_per_channel else 1, dispersion)
+        scl = self.make_scl(scl_val, num_ch if is_per_channel else 1, dispersion)
+        return zp, scl
+
+    def finalize(self, op):
+        func = relay.Function(self._args_op, op)
+        mod = tvm.IRModule.from_expr(func)
+        mod = relay.transform.InferType()(mod)
+        return mod, self._args
+
+
+def check_fully_annotated(mod, desired_compiler):
+    matched_ops = []
+    other_ops = []
+
+    def _visit(node):
+        if isinstance(node, tvm.relay.Call):
+            op = node.op
+            if isinstance(op, relay.GlobalVar):
+                func = mod[op]
+                if "Compiler" in func.attrs and func.attrs["Compiler"] == desired_compiler:
+                    matched_ops.append(op)
+                    return
+            else:
+                other_ops.append(op)
+
+    tvm.relay.analysis.post_order_visit(mod["main"].body, _visit)
+
+    assert len(other_ops) == 0 and len(matched_ops) != 0, "Model is not fully DNNL compiled"
+
+
+def check_result(
+    mod,
+    ref_mod,
+    map_inputs,
+    tol=1e-5,
+    target="llvm",
+    device=tvm.cpu(),
+    params=None,
+    ref_result=None,
+    atol=None,
+    desired_compiler="dnnl",
+):
+    if atol is None:
+        atol = tol
+
+    if desired_compiler is not None:
+        check_fully_annotated(mod, desired_compiler)
+
+    if ref_result is None:
+        # Run the reference result
+        relay.backend.te_compiler.get().clear()
+        with tvm.transform.PassContext(opt_level=3):
+            ref_lib = relay.build(ref_mod, target=target, params=params)
+        ref_rt_mod = tvm.contrib.graph_executor.GraphModule(ref_lib["default"](device))
+
+        for name, data in map_inputs.items():
+            ref_rt_mod.set_input(name, data)
+        ref_rt_mod.run()
+        out = ref_rt_mod.get_output(0)
+        ref_result = out.numpy()
+
+    def check_vm_result():
+        relay.backend.te_compiler.get().clear()
+        with tvm.transform.PassContext(opt_level=3):
+            exe = relay.vm.compile(mod, target=target, params=params)
+        code, lib = exe.save()
+        exe = tvm.runtime.vm.Executable.load_exec(code, lib)
+        vm = tvm.runtime.vm.VirtualMachine(exe, device)
+        output = vm.run(**map_inputs)
+        tvm.testing.assert_allclose(output.numpy(), ref_result, rtol=tol, atol=atol)
+
+    def check_graph_executor_result():
+        relay.backend.te_compiler.get().clear()
+        with tvm.transform.PassContext(opt_level=3):
+            lib = relay.build(mod, target=target, params=params)
+        rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](device))
+
+        rt_mod.run(**map_inputs)
+        output = rt_mod.get_output(0)
+        tvm.testing.assert_allclose(output.numpy(), ref_result, rtol=tol, atol=atol)
+
+    check_vm_result()
+    check_graph_executor_result()
+
+
+ConvProfile = collections.namedtuple(
+    "ConvProfile",
+    [
+        "SHAPE",
+        "KER",
+        "STR",
+        "PAD",
+        "DEL",
+        "OC",
+        "GR",
+        "D_LAYOUT",
+        "K_LAYOUT",
+    ],
+)
+base_conv = ConvProfile(
+    SHAPE=[1, 8, 5, 5],
+    KER=[3, 3],
+    STR=[1, 1],
+    PAD=[1, 1],
+    DEL=[1, 1],
+    OC=16,
+    GR=1,
+    D_LAYOUT="NCHW",
+    K_LAYOUT="OIHW",
+)
+base_conv_nhwc = base_conv._replace(D_LAYOUT="NHWC", K_LAYOUT="HWIO")
+base_conv_dilated = base_conv._replace(PAD=[2, 2], DEL=[2, 2])
+base_conv_no_pad = base_conv._replace(PAD=[0, 0])
+base_conv_no_pad_nhwc = base_conv_no_pad._replace(D_LAYOUT="NHWC", K_LAYOUT="HWIO")
+base_conv_group_no_pad = base_conv_no_pad._replace(GR=2)
+base_conv_dw_no_pad = base_conv_no_pad._replace(SHAPE=[1, 16, 5, 5], GR=16)
+
+
+DenseProfile = collections.namedtuple("DenseProfile", ["N", "IC", "OC"])
+base_dense_profile = DenseProfile(N=2, IC=10, OC=16)
+
+ArgConstConfig = collections.namedtuple("ArgConstConfig", ["Data", "Weights", "Bias", "Sum"])
+acp_regular = ArgConstConfig(Data=False, Weights=True, Bias=True, Sum=None)
+acp_no_bias = ArgConstConfig(Data=False, Weights=True, Bias=None, Sum=None)
+acp_with_sum = ArgConstConfig(Data=False, Weights=True, Bias=True, Sum=False)
+acp_no_bias_with_sum = ArgConstConfig(Data=False, Weights=True, Bias=None, Sum=False)
+
+QuantizationConfig = collections.namedtuple(
+    "QuantizationConfig",
+    [
+        "d_zp",
+        "d_scl",
+        "d_pc",
+        "k_zp",
+        "k_scl",
+        "k_pc",
+        "rq_zp",
+        "rq_scl",
+        "rq_pc",
+        "sum_zp",
+        "sum_scl",
+        "sum_pc",
+        "o_zp",
+        "o_scl",
+        "o_pc",
+    ],
+)
+
+qp_regular = QuantizationConfig(
+    d_zp=0,
+    d_scl=0.2,
+    d_pc=False,
+    k_zp=0,
+    k_scl=0.1,
+    k_pc=False,
+    rq_zp=30,
+    rq_scl=0.2,
+    rq_pc=False,
+    sum_zp=15,
+    sum_scl=0.3,
+    sum_pc=False,
+    o_zp=5,
+    o_scl=0.2,
+    o_pc=False,
+)
+qp_asymmetric_data = qp_regular._replace(
+    d_zp=3, rq_zp=10, rq_scl=0.1, sum_zp=15, sum_scl=0.3, o_zp=4
+)
+
+qnn_conv_profiles = tvm.testing.parameter(
+    by_dict={
+        #  Pattern qnn.conv2d + qnn.requantize
+        "Base": (base_conv, acp_regular, qp_regular),
+        "NHWC": (base_conv_nhwc, acp_regular, qp_regular),
+        #  Asymmetric input. NOTE: No pad! Input ZP is not compatible with padding
+        "Group": (base_conv_group_no_pad, acp_regular, qp_asymmetric_data),
+        "DW": (base_conv_dw_no_pad, acp_regular, qp_asymmetric_data),
+        "NoBias": (base_conv, acp_no_bias, qp_regular),
+        "AsymmetricInput": (base_conv_no_pad, acp_regular, qp_asymmetric_data),
+        "AsymmetricInput_NHWC": (base_conv_no_pad_nhwc, acp_regular, qp_asymmetric_data),
+        #  Pattern Conv2d + Requantize + Sum
+        "WithSum": (base_conv_no_pad, acp_with_sum, qp_asymmetric_data),
+        "WithSum_NHWC": (base_conv_no_pad_nhwc, acp_with_sum, qp_asymmetric_data),
+        "WithSum_NoBias": (base_conv_no_pad, acp_no_bias_with_sum, qp_asymmetric_data),
+    }
+)
+
+
+@has_dnnl_codegen
+def test_qnn_conv2d(qnn_conv_profiles):
+    def generate_model(p, c, q):
+        np.random.seed(0)
+
+        N, IC, IH, IW = p.SHAPE
+        d_shape = p.SHAPE
+        w_shape = [p.OC, IC, *p.KER]
+        b_shape = [p.OC]
+        s_shape = [
+            p.SHAPE[0],
+            p.OC,
+            (IH + 2 * p.PAD[0] - (p.KER[0] - 1) * p.DEL[0] - 1) // p.STR[0] + 1,
+            (IW + 2 * p.PAD[1] - (p.KER[1] - 1) * p.DEL[1] - 1) // p.STR[1] + 1,
+        ]
+
+        if p.GR != 1:
+            w_shape[1] //= p.GR
+
+        d_shape = permute_shape(d_shape, l_from="NCHW", l_to=p.D_LAYOUT)
+        s_shape = permute_shape(s_shape, l_from="NCHW", l_to=p.D_LAYOUT)
+        w_shape = permute_shape(w_shape, l_from="OIHW", l_to=p.K_LAYOUT)
+
+        c_dim = p.D_LAYOUT.find("C")
+        b_shape = expand_dim(b_shape, rank=len(p.D_LAYOUT) - c_dim)
+
+        bld = QnnBuilder(qnn_profile=q)
+
+        # Start build a test graph
+        data = bld.arg(shape=d_shape, dtype="uint8", is_const=c.Data, filler=filler_uni(0, 20))
+        d_zp, d_scl = bld.make_zp_and_scl("d", IC)
+
+        # Convolution
+        wgh = bld.arg(shape=w_shape, dtype="int8", is_const=c.Weights, filler=filler_uni(-20, 20))
+        w_zp, w_scl = bld.make_zp_and_scl("k")
+
+        op = tvm.relay.qnn.op.conv2d(
+            data,
+            wgh,
+            d_zp,
+            w_zp,
+            d_scl,
+            w_scl,
+            kernel_size=p.KER,
+            padding=p.PAD,
+            strides=p.STR,
+            dilation=p.DEL,
+            groups=p.GR,
+            channels=p.OC,
+            out_dtype="int32",
+            data_layout=p.D_LAYOUT,
+            kernel_layout=p.K_LAYOUT,
+        )
+        # Optional bias
+        if c.Bias is not None:
+            bias = bld.arg(
+                shape=b_shape, dtype="int32", is_const=c.Bias, filler=filler_uni(-50, 50)
+            )
+            op = tvm.relay.add(op, bias)
+
+        # Re-quantization
+        rq_in_zp = bld.make_zp(0)
+        rq_in_scl = bld.make_scl(q.d_scl * q.k_scl)  # in real cases that should be a vector
+        rq_out_zp, rq_out_scl = bld.make_zp_and_scl("rq")
+
+        op = tvm.relay.qnn.op.requantize(
+            op, rq_in_scl, rq_in_zp, rq_out_scl, rq_out_zp, out_dtype="int32"
+        )
+        op = tvm.relay.clip(
+            op, a_min=0.0, a_max=255.0
+        )  # pytorch frontend specific, I guess it's redundant
+        op = tvm.relay.cast(op, dtype="uint8")
+
+        # Optional sum (ResNet like)
+        if c.Sum is not None:
+            sum_in = bld.arg(dtype="uint8", shape=s_shape, filler=filler_uni(0, 10), is_const=c.Sum)
+
+            lhs_zp, lhs_scl = bld.make_zp_and_scl("rq")
+            rhs_zp, rhs_scl = bld.make_zp_and_scl("sum")
+            out_zp, out_scl = bld.make_zp_and_scl("o")
+
+            op = tvm.relay.qnn.op.add(op, sum_in, lhs_scl, lhs_zp, rhs_scl, rhs_zp, out_scl, out_zp)
+            op = tvm.relay.clip(op, a_min=0.0, a_max=255.0)
+
+        return bld.finalize(op)
+
+    conv_p, arg_p, quant_p = qnn_conv_profiles
+    ref_mod, args = generate_model(conv_p, arg_p, quant_p)
+    mod = partition_for_dnnl(ref_mod)
+
+    # atol=1 means int values should match with +-1 quantum value tolerance
+    check_result(mod, ref_mod, args, tol=1e-10, atol=1, desired_compiler="dnnl")
+
+
+conv_profiles = tvm.testing.parameter(
+    by_dict={
+        "Base": (base_conv, acp_regular),
+        "NHWC": (base_conv_nhwc, acp_regular),
+        "Group": (base_conv_group_no_pad, acp_regular),
+        "DW": (base_conv_dw_no_pad, acp_regular),
+        "Dilated": (base_conv_dilated, acp_regular),
+    }
+)
+
+
+@has_dnnl_codegen
+def test_conv2d_plus(conv_profiles):
+    def generate_model(p, c):
+        np.random.seed(0)
+
+        N, IC, IH, IW = p.SHAPE
+        d_shape = p.SHAPE
+        w_shape = [p.OC, IC, *p.KER]
+        b_shape = [p.OC]
+        s_shape = [
+            p.SHAPE[0],
+            p.OC,
+            (IH + 2 * p.PAD[0] - (p.KER[0] - 1) * p.DEL[0] - 1) // p.STR[0] + 1,
+            (IW + 2 * p.PAD[1] - (p.KER[1] - 1) * p.DEL[1] - 1) // p.STR[1] + 1,
+        ]
+
+        if p.GR != 1:
+            w_shape[1] //= p.GR
+
+        d_shape = permute_shape(d_shape, l_from="NCHW", l_to=p.D_LAYOUT)
+        s_shape = permute_shape(s_shape, l_from="NCHW", l_to=p.D_LAYOUT)
+        w_shape = permute_shape(w_shape, l_from="OIHW", l_to=p.K_LAYOUT)
+
+        c_dim = p.D_LAYOUT.find("C")
+        # b_shape = expand_dim(b_shape, rank=len(p.D_LAYOUT) - c_dim)
+
+        bld = QnnBuilder()
+
+        op = bld.arg(shape=d_shape, dtype="float32", is_const=c.Data)
+        wgh = bld.arg(shape=w_shape, dtype="float32", is_const=c.Weights)
+        op = tvm.relay.nn.conv2d(
+            op,
+            wgh,
+            kernel_size=p.KER,
+            padding=p.PAD,
+            strides=p.STR,
+            dilation=p.DEL,
+            groups=p.GR,
+            channels=p.OC,
+            out_dtype="float32",
+            data_layout=p.D_LAYOUT,
+            kernel_layout=p.K_LAYOUT,
+        )
+
+        if c.Bias is not None:
+            bias = bld.arg(shape=b_shape, dtype="float32", is_const=c.Bias)
+            op = tvm.relay.nn.bias_add(op, bias, axis=c_dim)
+
+        if c.Sum is not None:
+            sum_in = bld.arg(shape=s_shape, dtype="float32", is_const=c.Sum)
+            op = tvm.relay.op.add(op, sum_in)
+
+        return bld.finalize(op)
+
+    conv_p, arg_p = conv_profiles
+    ref_mod, args = generate_model(conv_p, arg_p)
+    mod = partition_for_dnnl(ref_mod, alter_layout=False)
+    check_result(mod, ref_mod, args, tol=1e-5, desired_compiler="dnnl")
+
+
+qnn_dense_profiles = tvm.testing.parameter(
+    by_dict={
+        #  Pattern Dense + Requantize
+        "Base": (base_dense_profile, acp_regular, qp_regular),
+        "AsymmetricInput": (base_dense_profile, acp_regular, qp_asymmetric_data),
+        #  Pattern Dense + Requantize + Sum
+        "AsymmetricInput_Sum": (base_dense_profile, acp_with_sum, qp_asymmetric_data),
+    }
+)
+
+
+@has_dnnl_codegen
+def test_qnn_dense(qnn_dense_profiles):
+    def generate_model(p, c, q):
+        np.random.seed(0)
+
+        d_shape = [p.N, p.IC]
+        w_shape = [p.OC, p.IC]
+        b_shape = [p.OC]
+        s_shape = [p.N, p.OC]
+
+        bld = QnnBuilder(qnn_profile=q)
+
+        # Start build a test graph
+        data = bld.arg(shape=d_shape, dtype="uint8", is_const=c.Data, filler=filler_uni(0, 20))
+        d_zp, d_scl = bld.make_zp_and_scl("d", p.IC)
+
+        # Convolution
+        wgh = bld.arg(shape=w_shape, dtype="int8", is_const=c.Weights, filler=filler_uni(-20, 20))
+        w_zp, w_scl = bld.make_zp_and_scl("k")
+
+        op = tvm.relay.qnn.op.dense(
+            data, wgh, d_zp, w_zp, d_scl, w_scl, units=p.OC, out_dtype="int32"
+        )
+        # Optional bias
+        if c.Bias is not None:
+            bias = bld.arg(
+                shape=b_shape, dtype="int32", is_const=c.Bias, filler=filler_uni(-50, 50)
+            )
+            op = tvm.relay.add(op, bias)
+
+        # Re-quantization
+        rq_in_zp = bld.make_zp(0)
+        rq_in_scl = bld.make_scl(q.d_scl * q.k_scl)  # in real cases that should be a vector
+        rq_out_zp, rq_out_scl = bld.make_zp_and_scl("rq")
+
+        op = tvm.relay.qnn.op.requantize(
+            op, rq_in_scl, rq_in_zp, rq_out_scl, rq_out_zp, out_dtype="int32"
+        )
+        op = tvm.relay.clip(
+            op, a_min=0.0, a_max=255.0
+        )  # pytorch frontend specific, I guess it's redundant
+        op = tvm.relay.cast(op, dtype="uint8")
+
+        # Optional sum (ResNet like)
+        if c.Sum is not None:
+            sum_in = bld.arg(dtype="uint8", shape=s_shape, filler=filler_uni(0, 10), is_const=c.Sum)
+
+            lhs_zp, lhs_scl = bld.make_zp_and_scl("rq")
+            rhs_zp, rhs_scl = bld.make_zp_and_scl("sum")
+            out_zp, out_scl = bld.make_zp_and_scl("o")
+
+            op = tvm.relay.qnn.op.add(op, sum_in, lhs_scl, lhs_zp, rhs_scl, rhs_zp, out_scl, out_zp)
+            op = tvm.relay.clip(op, a_min=0.0, a_max=255.0)
+
+        return bld.finalize(op)
+
+    conv_p, arg_p, quant_p = qnn_dense_profiles
+    ref_mod, args = generate_model(conv_p, arg_p, quant_p)
+    mod = partition_for_dnnl(ref_mod)
+
+    # atol=1 means int values should match with +-1 quantum value tolerance
+    check_result(mod, ref_mod, args, tol=1e-10, atol=1, desired_compiler="dnnl")
+
+
+dense_profiles = tvm.testing.parameter(
+    by_dict={
+        "Base": (base_dense_profile, acp_regular),
+        "WithSum": (base_dense_profile, acp_with_sum),
+    }
+)
+
+
+@has_dnnl_codegen
+def test_dense_plus(dense_profiles):
+    def generate_model(p, c):
+        np.random.seed(0)
+
+        d_shape = [p.N, p.IC]
+        w_shape = [p.OC, p.IC]
+        b_shape = [p.OC]
+        s_shape = [p.N, p.OC]
+
+        c_dim = 1
+
+        bld = QnnBuilder()
+
+        op = bld.arg(shape=d_shape, dtype="float32", is_const=c.Data)
+        wgh = bld.arg(shape=w_shape, dtype="float32", is_const=c.Weights)
+        op = tvm.relay.nn.dense(op, wgh, out_dtype="float32")
+
+        if c.Bias is not None:
+            bias = bld.arg(shape=b_shape, dtype="float32", is_const=c.Bias)
+            op = tvm.relay.nn.bias_add(op, bias, axis=c_dim)
+
+        if c.Sum is not None:
+            sum_in = bld.arg(shape=s_shape, dtype="float32", is_const=c.Sum)
+            op = tvm.relay.op.add(op, sum_in)
+
+        return bld.finalize(op)
+
+    dense_p, arg_p = dense_profiles
+    ref_mod, args = generate_model(dense_p, arg_p)
+    mod = partition_for_dnnl(ref_mod)
+    check_result(mod, ref_mod, args, tol=1e-5, desired_compiler="dnnl")
 
 
 if __name__ == "__main__":
