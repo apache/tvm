@@ -24,10 +24,11 @@
 #include <tvm/runtime/logging.h>
 
 #if defined(__linux__) || defined(__ANDROID__)
-#include <fstream>
-#include <sstream>
 #include <errno.h>
 #include <string.h>
+
+#include <fstream>
+#include <sstream>
 #else
 #endif
 #include <tvm/runtime/threading_backend.h>
