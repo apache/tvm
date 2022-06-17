@@ -24,6 +24,8 @@ import tarfile
 import time
 from typing import Union
 
+import tvm
+from tvm import relay
 from tvm.micro.project_api.server import IoTimeoutError
 
 # Timeout in seconds for AOT transport.
@@ -77,9 +79,36 @@ def _read_line(transport, timeout_sec: int) -> str:
 def mlf_extract_workspace_size_bytes(mlf_tar_path: Union[pathlib.Path, str]) -> int:
     """Extract an MLF archive file and read workspace size from metadata file."""
 
+    workspace_size = 0
     with tarfile.open(mlf_tar_path, "r:*") as tar_file:
         tar_members = [ti.name for ti in tar_file.getmembers()]
         assert "./metadata.json" in tar_members
         with tar_file.extractfile("./metadata.json") as f:
             metadata = json.load(f)
-            return metadata["memory"]["functions"]["main"][0]["workspace_size_bytes"]
+            for mod_name in metadata["modules"].keys():
+                workspace_size += metadata["modules"][mod_name]["memory"]["functions"]["main"][0][
+                    "workspace_size_bytes"
+                ]
+            return workspace_size
+
+
+def get_conv2d_relay_module():
+    """Generate a conv2d Relay module for testing."""
+    data_shape = (1, 3, 64, 64)
+    weight_shape = (8, 3, 5, 5)
+    data = relay.var("data", relay.TensorType(data_shape, "int8"))
+    weight = relay.var("weight", relay.TensorType(weight_shape, "int8"))
+    y = relay.nn.conv2d(
+        data,
+        weight,
+        padding=(2, 2),
+        channels=8,
+        kernel_size=(5, 5),
+        data_layout="NCHW",
+        kernel_layout="OIHW",
+        out_dtype="int32",
+    )
+    f = relay.Function([data, weight], y)
+    mod = tvm.IRModule.from_expr(f)
+    mod = relay.transform.InferType()(mod)
+    return mod
