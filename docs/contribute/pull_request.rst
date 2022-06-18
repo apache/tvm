@@ -113,6 +113,14 @@ each time (e.g. you can test a change in CPU and i386 while retaining incrementa
     # run the CPU build and drop into a shell in the container
     python tests/scripts/ci.py cpu --interactive
 
+We regularly update our docker images and, over time, stale images may unnecessarily consume disk
+space. You can remove stale images that aren't used in the presently checked-out branch plus any
+other worktrees using the following command:
+
+.. code:: bash
+    docker/clear-stale-images.sh
+
+Consult the ``--help`` for more options.
 
 C++ (local)
 ^^^^^^^^^^^
