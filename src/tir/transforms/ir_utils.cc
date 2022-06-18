@@ -448,5 +448,33 @@ std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op) {
   return std::make_pair(op->value, inner->value);
 }
 
+std::vector<PrimExpr> DecomposePredicate(const PrimExpr& predicate) {
+  std::vector<PrimExpr> predicate_subexprs;
+  std::function<void(const PrimExpr&)> decompose;
+  decompose = [&predicate_subexprs, &decompose](const PrimExpr& cond) {
+    if (const AndNode* op = cond.as<AndNode>()) {
+      decompose(op->a);
+      decompose(op->b);
+    } else {
+      predicate_subexprs.push_back(cond);
+    }
+  };
+  decompose(predicate);
+  CHECK(!predicate_subexprs.empty());
+  return predicate_subexprs;
+}
+
+PrimExpr FlattenPredicateSubExprs(const Array<PrimExpr>& predicate_subexprs, const int ignore_idx) {
+  CHECK(!predicate_subexprs.empty());
+  PrimExpr ret = predicate_subexprs.front();
+  for (size_t subexpr_idx = 1; subexpr_idx < predicate_subexprs.size(); ++subexpr_idx) {
+    if (subexpr_idx == static_cast<size_t>(ignore_idx)) {
+      continue;
+    }
+    ret = ret && predicate_subexprs[subexpr_idx];
+  }
+  return ret;
+}
+
 }  // namespace tir
 }  // namespace tvm

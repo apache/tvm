@@ -95,17 +95,31 @@ NDIntSet NDIntSetEval(Region region, PrimExpr predicate,
   return support::NDIntSetEval(support::NDIntSetFromRegion(region), dom_map);
 }
 
+inline bool CheckSameAccessRegion(const Region& lhs, const Region& rhs) {
+  if (lhs.size() != rhs.size()) {
+    return false;
+  }
+  for (size_t region_idx = 0; region_idx < lhs.size(); ++region_idx) {
+    if (!StructuralEqual()(lhs[region_idx], rhs[region_idx])) {
+      return false;
+    }
+  }
+  return true;
+}
+
 /*!
  * \brief Collect the access region of each buffer.
  * \note The param buffer regions will not be collected.
  */
 class BufferAccessRegionCollector : public StmtExprVisitor {
  public:
-  static std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual> Collect(
-      const PrimFunc& f) {
+  static std::pair<std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual>,
+                   std::unordered_map<BlockRealize, PrimExpr, ObjectPtrHash, ObjectPtrEqual>>
+  Collect(const PrimFunc& f) {
     BufferAccessRegionCollector collector;
     collector(f->body);
-    return std::move(collector.buffer_access_region_);
+    return std::make_pair(collector.buffer_access_region_,
+                          collector.block_predicate_with_annotations_);
   }
 
  private:
@@ -257,10 +271,31 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   }
 
   void VisitStmt_(const BlockRealizeNode* op) final {
-    PrimExpr cur_predicate = predicate_in_scope;
-    predicate_in_scope = op->predicate;
+    PrimExpr cur_predicate = predicate_in_scope_;
+    predicate_in_scope_ = op->predicate;
+    std::vector<PrimExpr> cur_predicate_in_scope_subexprs = predicate_in_scope_subexprs_;
+    predicate_in_scope_subexprs_ = DecomposePredicate(predicate_in_scope_);
+    std::unordered_set<size_t> cur_affect_region_size_indices = affect_region_size_indices_;
+    affect_region_size_indices_.clear();
+
     StmtExprVisitor::VisitStmt_(op);
-    predicate_in_scope = cur_predicate;
+
+    std::vector<PrimExpr> predicate_subexprs_with_annotations;
+    predicate_subexprs_with_annotations.reserve(predicate_in_scope_subexprs_.size());
+    for (size_t subexpr_i = 0; subexpr_i < predicate_in_scope_subexprs_.size(); ++subexpr_i) {
+      if (affect_region_size_indices_.count(subexpr_i)) {
+        predicate_subexprs_with_annotations.push_back(
+            affect_region_size(predicate_in_scope_subexprs_[subexpr_i]));
+      } else {
+        predicate_subexprs_with_annotations.push_back(predicate_in_scope_subexprs_[subexpr_i]);
+      }
+    }
+    block_predicate_with_annotations_[GetRef<BlockRealize>(op)] =
+        FlattenPredicateSubExprs(predicate_subexprs_with_annotations);
+
+    predicate_in_scope_ = cur_predicate;
+    predicate_in_scope_subexprs_ = cur_predicate_in_scope_subexprs;
+    affect_region_size_indices_ = cur_affect_region_size_indices;
   }
 
   /**************** Helper functions ****************/
@@ -288,7 +323,21 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       }
       // Step 2. Relax the access region
       NDIntSet nd_int_set =
-          NDIntSetEval(buffer_region->region, predicate_in_scope, dom_map_, &dom_analyzer_);
+          NDIntSetEval(buffer_region->region, predicate_in_scope_, dom_map_, &dom_analyzer_);
+      Region narrowed_buffer_region = SimplifyAndNarrowBufferRegionFromNDIntSet(
+          nd_int_set, buffer->shape, &dom_analyzer_, ancestor_loops_);
+
+      for (size_t subexpr_i = 0; subexpr_i < predicate_in_scope_subexprs_.size(); ++subexpr_i) {
+        PrimExpr flattened_predicate =
+            FlattenPredicateSubExprs(predicate_in_scope_subexprs_, subexpr_i);
+        NDIntSet nd_int_set_wo_subexpr =
+            NDIntSetEval(buffer_region->region, flattened_predicate, dom_map_, &dom_analyzer_);
+        Region narrowed_buffer_region_wo_subexpr = SimplifyAndNarrowBufferRegionFromNDIntSet(
+            nd_int_set_wo_subexpr, buffer->shape, &dom_analyzer_, ancestor_loops_);
+        if (!CheckSameAccessRegion(narrowed_buffer_region, narrowed_buffer_region_wo_subexpr)) {
+          affect_region_size_indices_.insert(subexpr_i);
+        }
+      }
       // Step 3. Restore the non-relaxed ancestor loops domain
       for (size_t i = 0; i < n_ancestor_loops; ++i) {
         const VarNode* v = ancestor_loops_[i]->loop_var.get();
@@ -345,8 +394,12 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
    */
   std::unordered_map<Var, std::pair<Buffer, size_t>, ObjectPtrHash, ObjectPtrEqual>
       buffer_var_in_scope_;
-  /*! \brief The block predicate of current scope */
-  PrimExpr predicate_in_scope{true};
+  /*! \brief The block predicate of the current scope */
+  PrimExpr predicate_in_scope_{true};
+  /*! \brief The sub-expressions of the predicate of the current scope */
+  std::vector<PrimExpr> predicate_in_scope_subexprs_;
+  /*! \brief The set of indicates that affect the buffer size. */
+  std::unordered_set<size_t> affect_region_size_indices_;
 
   /*! \brief The map from loop vars to their iter range. */
   std::unordered_map<const VarNode*, arith::IntSet> dom_map_;
@@ -358,6 +411,9 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   std::unordered_map<Buffer, NDIntSet, ObjectPtrHash, ObjectPtrEqual> relaxed_accesses_;
   /*! \brief The map from Buffer to it entire access region, used for returning. */
   std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual> buffer_access_region_;
+  /*! \brief The map form BlockRealize to its annotated predicate. */
+  std::unordered_map<BlockRealize, PrimExpr, ObjectPtrHash, ObjectPtrEqual>
+      block_predicate_with_annotations_;
   /*! \brief The map from Buffer to it's access regions annotated by current block. */
   std::unordered_map<Buffer, std::vector<BufferRegion>, ObjectPtrHash, ObjectPtrEqual>
       access_annotations_;
@@ -398,7 +454,10 @@ class BufferCompactor : public StmtExprMutator {
       const PrimFunc& f,
       const std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual>& regions,
       const std::unordered_map<Buffer, StorageAlignAnnotation, ObjectPtrHash, ObjectPtrEqual>&
-          storage_align) {
+          storage_align,
+      std::unordered_map<BlockRealize, PrimExpr, ObjectPtrHash, ObjectPtrEqual>&&
+          block_predicate_with_annotations,
+      bool enable_local_pad) {
     std::unordered_map<Buffer, BufferAllocInfo, ObjectPtrHash, ObjectPtrEqual> buffer_info;
 
     for (const auto& kv : regions) {
@@ -419,7 +478,8 @@ class BufferCompactor : public StmtExprMutator {
       }
       buffer_info.emplace(buffer, std::move(buffer_alloc_info));
     }
-    BufferCompactor compactor(std::move(buffer_info));
+    BufferCompactor compactor(std::move(buffer_info), std::move(block_predicate_with_annotations),
+                              enable_local_pad);
     Stmt stmt = compactor(f->body);
     return stmt;
   }
@@ -447,9 +507,14 @@ class BufferCompactor : public StmtExprMutator {
     explicit BufferAllocInfo(Region region) : region(std::move(region)) {}
   };
 
-  explicit BufferCompactor(
-      std::unordered_map<Buffer, BufferAllocInfo, ObjectPtrHash, ObjectPtrEqual> buffer_info)
-      : buffer_info_(std::move(buffer_info)) {}
+  BufferCompactor(
+      std::unordered_map<Buffer, BufferAllocInfo, ObjectPtrHash, ObjectPtrEqual>&& buffer_info,
+      std::unordered_map<BlockRealize, PrimExpr, ObjectPtrHash, ObjectPtrEqual>&&
+          block_predicate_with_annotations,
+      bool enable_local_pad)
+      : buffer_info_(std::move(buffer_info)),
+        block_predicate_with_annotations_(std::move(block_predicate_with_annotations)),
+        enable_local_pad_(enable_local_pad) {}
 
   Stmt VisitStmt_(const BufferStoreNode* _op) final {
     BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(_op));
@@ -463,6 +528,18 @@ class BufferCompactor : public StmtExprMutator {
     BufferLoadNode* op = load.CopyOnWrite();
     RewriteBufferAccess(&op->buffer, &op->indices);
     return std::move(load);
+  }
+
+  Stmt VisitStmt_(const BlockRealizeNode* op) final {
+    if (!enable_local_pad_) {
+      return StmtExprMutator::VisitStmt_(op);
+    }
+    BlockRealize ret = Downcast<BlockRealize>(StmtExprMutator::VisitStmt_(op));
+    auto it = block_predicate_with_annotations_.find(GetRef<BlockRealize>(op));
+    if (it == block_predicate_with_annotations_.end()) {
+      return ret;
+    }
+    return BlockRealize(ret->iter_values, it->second, ret->block);
   }
 
   Stmt VisitStmt_(const BlockNode* op) final {
@@ -580,17 +657,25 @@ class BufferCompactor : public StmtExprMutator {
 
   /*! \brief The allocation information about each buffer. */
   std::unordered_map<Buffer, BufferAllocInfo, ObjectPtrHash, ObjectPtrEqual> buffer_info_;
+  /*! \brief The map form BlockRealize to its annotated predicate. */
+  std::unordered_map<BlockRealize, PrimExpr, ObjectPtrHash, ObjectPtrEqual>&&
+      block_predicate_with_annotations_;
+  /*! \brief Whether local padding has been enabled. */
+  bool enable_local_pad_;
 };
 
-PrimFunc CompactBufferAllocation(PrimFunc f) {
+PrimFunc CompactBufferAllocation(PrimFunc f, bool enable_local_pad) {
   // Only apply this pass to TIR that is not from TE schedules
   if (!IsFromLegacyTESchedule(f)) {
     PrimFuncNode* fptr = f.CopyOnWrite();
-    std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual> region =
-        BufferAccessRegionCollector::Collect(f);
+    std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual> region;
+    std::unordered_map<BlockRealize, PrimExpr, ObjectPtrHash, ObjectPtrEqual>
+        block_predicate_with_annotations;
+    std::tie(region, block_predicate_with_annotations) = BufferAccessRegionCollector::Collect(f);
     std::unordered_map<Buffer, StorageAlignAnnotation, ObjectPtrHash, ObjectPtrEqual>
         storage_align = StorageAlignCollector::Collect(f);
-    fptr->body = BufferCompactor::Compact(f, region, storage_align);
+    fptr->body = BufferCompactor::Compact(
+        f, region, storage_align, std::move(block_predicate_with_annotations), enable_local_pad);
     return f;
   } else {
     return f;
@@ -599,9 +684,9 @@ PrimFunc CompactBufferAllocation(PrimFunc f) {
 
 namespace transform {
 
-Pass CompactBufferAllocation() {
+Pass CompactBufferAllocation(bool enable_local_pad) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
-    return CompactBufferAllocation(std::move(f));
+    return CompactBufferAllocation(std::move(f), enable_local_pad);
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.CompactBufferAllocation", {});
 }

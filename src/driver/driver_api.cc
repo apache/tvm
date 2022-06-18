@@ -43,6 +43,7 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tir.noalias", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.detect_global_barrier", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.instrument_bound_checkers", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_assert", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.enable_local_pad", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_vectorize", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_cse_tir", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.enable_equiv_terms_in_cse_tir", Bool);
@@ -139,9 +140,10 @@ TVM_REGISTER_GLOBAL("driver.get_binds")
       return out_arr;
     });
 
-Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
+Array<tvm::transform::Pass> CreatePassList(bool simple_mode) {
   transform::PassContext pass_ctx = transform::PassContext::Current();
 
+  bool enable_local_pad = pass_ctx->GetConfig<Bool>("tir.enable_local_pad", Bool(false)).value();
   bool disable_vectorize = pass_ctx->GetConfig<Bool>("tir.disable_vectorize", Bool(false)).value();
   bool disable_storage_rewrite =
       pass_ctx->GetConfig<Bool>("tir.disable_storage_rewrite", Bool(false)).value();
@@ -200,7 +202,8 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   pass_list.push_back(tir::transform::ConvertBlocksToOpaque());
   pass_list.push_back(tir::transform::UnifyThreadBinding());
   pass_list.push_back(tir::transform::ManifestSharedMemoryLocalStage());
-  pass_list.push_back(tir::transform::CompactBufferAllocation());
+  pass_list.push_back(tir::transform::CompactBufferAllocation(enable_local_pad));
+  pass_list.push_back(tir::transform::LocalPad(enable_local_pad));
   pass_list.push_back(tir::transform::LowerMatchBuffer());
   pass_list.push_back(tir::transform::InjectSoftwarePipeline());
   pass_list.push_back(tir::transform::LowerOpaqueBlock());
@@ -213,7 +216,7 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   pass_list.insert(pass_list.end(), user_lower_phase1.begin(), user_lower_phase1.end());
 
   // PHASE 2
-  if (!disable_loop_partition) {
+  if (!simple_mode) {
     pass_list.push_back(tir::transform::LoopPartition());
   }
 

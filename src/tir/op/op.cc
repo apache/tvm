@@ -471,6 +471,11 @@ PrimExpr likely(PrimExpr cond, Span span) {
   return tir::Call(cond.dtype(), tir::builtin::likely(), {cond}, span);
 }
 
+// no effect on the region size
+PrimExpr affect_region_size(PrimExpr cond, Span span) {
+  return tir::Call(cond.dtype(), tir::builtin::affect_region_size(), {cond}, span);
+}
+
 // operator>
 PrimExpr operator>(PrimExpr a, PrimExpr b) { return greater(a, b); }
 PrimExpr greater(PrimExpr a, PrimExpr b, Span span) {
