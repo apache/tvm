@@ -25,6 +25,7 @@ import tvm
 from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.relay.frontend import from_onnx
+from tvm.support import describe
 
 
 def _parse_args():
@@ -120,6 +121,7 @@ ARGS = _parse_args()
 
 
 def main():
+    describe()
     print(f"Workload: {ARGS.model_name}")
     onnx_model = onnx.load(ARGS.onnx_path)
     shape_dict = {}

@@ -21,6 +21,7 @@ import os
 import tvm
 from tvm import auto_scheduler
 from tvm.meta_schedule.testing.te_workload import CONFIGS
+from tvm.support import describe
 
 
 def _parse_args():
@@ -94,6 +95,8 @@ ARGS = _parse_args()
 
 
 def main():
+    describe()
+    print(f"Workload: {ARGS.workload}")
     log_file = os.path.join(ARGS.work_dir, f"{ARGS.workload}.json")
     workload_func, params = CONFIGS[ARGS.workload]
     params = params[0]  # type: ignore
