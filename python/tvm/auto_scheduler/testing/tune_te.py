@@ -21,6 +21,7 @@ import os
 import tvm
 from tvm import auto_scheduler
 from tvm.meta_schedule.testing.te_workload import CONFIGS
+from tvm.meta_schedule.utils import cpu_count
 from tvm.support import describe
 
 
@@ -57,11 +58,6 @@ def _parse_args():
         required=True,
     )
     args.add_argument(
-        "--rpc-workers",
-        type=int,
-        required=True,
-    )
-    args.add_argument(
         "--work-dir",
         type=str,
         required=True,
@@ -83,7 +79,7 @@ def _parse_args():
     )
     args.add_argument(
         "--cpu-flush",
-        type=bool,
+        type=int,
         required=True,
     )
     parsed = args.parse_args()
@@ -132,7 +128,7 @@ def main():
         key=ARGS.rpc_key,
         host=ARGS.rpc_host,
         port=ARGS.rpc_port,
-        n_parallel=ARGS.rpc_workers,
+        n_parallel=cpu_count(logical=True),
         number=ARGS.number,
         repeat=ARGS.repeat,
         min_repeat_ms=ARGS.min_repeat_ms,

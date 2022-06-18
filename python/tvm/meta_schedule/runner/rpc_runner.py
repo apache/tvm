@@ -25,6 +25,7 @@ from tvm.contrib.popen_pool import PopenPoolExecutor
 from tvm.rpc import RPCSession
 from tvm.runtime import Device, Module
 
+from ..profiler import Profiler
 from ..utils import (
     cpu_count,
     derived_object,
@@ -243,7 +244,7 @@ class RPCRunner(PyRunner):
         f_alloc_argument: Union[T_ALLOC_ARGUMENT, str, None] = None,
         f_run_evaluator: Union[T_RUN_EVALUATOR, str, None] = None,
         f_cleanup: Union[T_CLEANUP, str, None] = None,
-        max_workers: Optional[int] = 1,
+        max_workers: Optional[int] = None,
         initializer: Optional[Callable[[], None]] = None,
     ) -> None:
         """Constructor
@@ -284,7 +285,7 @@ class RPCRunner(PyRunner):
         self.f_run_evaluator = f_run_evaluator
         self.f_cleanup = f_cleanup
         if max_workers is None:
-            max_workers = cpu_count()
+            max_workers = cpu_count(logical=True)
         logger.info("RPCRunner: max_workers = %d", max_workers)
         self.pool = PopenPoolExecutor(
             max_workers=max_workers,
@@ -378,31 +379,36 @@ def _worker_func(
             yield
         finally:
             # Final step. Always clean up
-            f_cleanup(session, remote_path)
+            with Profiler.timeit("RPCRunner/cleanup"):
+                f_cleanup(session, remote_path)
 
     with resource_handler():
         # Step 1. Create session
-        session = f_create_session(rpc_config)
-        device = session.device(dev_type=device_type, dev_id=0)
+        with Profiler.timeit("RPCRunner/create_session"):
+            session = f_create_session(rpc_config)
+            device = session.device(dev_type=device_type, dev_id=0)
         # Step 2. Upload the module
-        _, remote_path = osp.split(artifact_path)
-        local_path: str = artifact_path
-        rt_mod: Module = f_upload_module(session, local_path, remote_path)
+        with Profiler.timeit("RPCRunner/upload_module"):
+            _, remote_path = osp.split(artifact_path)
+            local_path: str = artifact_path
+            rt_mod: Module = f_upload_module(session, local_path, remote_path)
         # Step 3: Allocate input arguments
-        repeated_args: List[T_ARGUMENT_LIST] = f_alloc_argument(
-            session,
-            device,
-            args_info,
-            alloc_repeat,
-        )
+        with Profiler.timeit("RPCRunner/alloc_argument"):
+            repeated_args: List[T_ARGUMENT_LIST] = f_alloc_argument(
+                session,
+                device,
+                args_info,
+                alloc_repeat,
+            )
         # Step 4: Run time_evaluator
-        costs: List[float] = f_run_evaluator(
-            session,
-            rt_mod,
-            device,
-            evaluator_config,
-            repeated_args,
-        )
+        with Profiler.timeit("LocalRunner/run_evaluator"):
+            costs: List[float] = f_run_evaluator(
+                session,
+                rt_mod,
+                device,
+                evaluator_config,
+                repeated_args,
+            )
     return costs
 
 
@@ -474,7 +480,7 @@ def default_alloc_argument(
     """
     f_random_fill = get_global_func_on_rpc_session(
         session,
-        "tvm.contrib.random.random_fill",
+        "tvm.contrib.random.random_fill_for_measure",
         "Please make sure 'USE_RANDOM' is turned ON in the config.cmake on the RPC server.",
     )
 

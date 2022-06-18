@@ -65,11 +65,6 @@ def _parse_args():
         required=True,
     )
     args.add_argument(
-        "--rpc-workers",
-        type=int,
-        required=True,
-    )
-    args.add_argument(
         "--work-dir",
         type=str,
         required=True,
@@ -96,7 +91,7 @@ def _parse_args():
     )
     args.add_argument(
         "--cpu-flush",
-        type=bool,
+        type=int,
         required=True,
     )
     parsed = args.parse_args()
@@ -141,7 +136,6 @@ def main():
             enable_cpu_cache_flush=ARGS.cpu_flush,
         ),
         alloc_repeat=1,
-        max_workers=ARGS.rpc_workers,
     )
     with ms.Profiler() as profiler:
         lib = ms.tune_relay(

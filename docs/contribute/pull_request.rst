@@ -118,6 +118,7 @@ space. You can remove stale images that aren't used in the presently checked-out
 other worktrees using the following command:
 
 .. code:: bash
+
     docker/clear-stale-images.sh
 
 Consult the ``--help`` for more options.
