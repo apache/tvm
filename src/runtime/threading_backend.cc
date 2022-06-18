@@ -344,81 +344,81 @@ class ThreadGroup::Impl {
     return gettid();
 #else
     return syscall(SYS_gettid);
-  }
 #endif
-    void SetTid() {
-      std::unique_lock<std::mutex> lock(record_tid_mutex_);
-      threads_tid_.push_back(Tid());
+  }
+  void SetTid() {
+    std::unique_lock<std::mutex> lock(record_tid_mutex_);
+    threads_tid_.push_back(Tid());
+  }
+  pid_t GetTid(size_t thread_index) {
+    if (thread_index >= threads_tid_.size()) {
+      LOG(WARNING) << "Get tid fail!";
+      return -1;
     }
-    pid_t GetTid(size_t thread_index) {
-      if (thread_index >= threads_tid_.size()) {
-        LOG(WARNING) << "Get tid fail!";
-        return -1;
-      }
-      return threads_tid_[thread_index];
-    }
+    return threads_tid_[thread_index];
+  }
 
-    int num_workers_;
+  int num_workers_;
 #if defined(__hexagon__)
-    std::vector<QuRTThread> threads_;
+  std::vector<QuRTThread> threads_;
 #else
   std::vector<std::thread> threads_;
 #endif
-    std::vector<pid_t> threads_tid_;
-    std::mutex record_tid_mutex_;
-    std::vector<unsigned int> sorted_order_;
-    int big_count_ = 0;
-    int little_count_ = 0;
-  };
+  std::vector<pid_t> threads_tid_;
+  std::mutex record_tid_mutex_;
+  std::vector<unsigned int> sorted_order_;
+  int big_count_ = 0;
+  int little_count_ = 0;
+};
 
-  ThreadGroup::ThreadGroup(int num_workers, std::function<void(int)> worker_callback,
-                           bool exclude_worker0)
-      : impl_(new ThreadGroup::Impl(num_workers, worker_callback, exclude_worker0)) {}
-  ThreadGroup::~ThreadGroup() { delete impl_; }
-  void ThreadGroup::Join() { impl_->Join(); }
+ThreadGroup::ThreadGroup(int num_workers, std::function<void(int)> worker_callback,
+                         bool exclude_worker0)
+    : impl_(new ThreadGroup::Impl(num_workers, worker_callback, exclude_worker0)) {}
+ThreadGroup::~ThreadGroup() { delete impl_; }
+void ThreadGroup::Join() { impl_->Join(); }
 
-  int ThreadGroup::Configure(AffinityMode mode, int nthreads, bool exclude_worker0,
-                             std::vector<unsigned int> cpus) {
-    return impl_->Configure(mode, nthreads, exclude_worker0, cpus);
-  }
+int ThreadGroup::Configure(AffinityMode mode, int nthreads, bool exclude_worker0,
+                           std::vector<unsigned int> cpus) {
+  return impl_->Configure(mode, nthreads, exclude_worker0, cpus);
+}
 
-  void Yield() {
+void Yield() {
 #ifdef __hexagon__
-    // QuRT doesn't have a yield API, so instead we sleep for the minimum amount
-    // of time to let the OS schedule another thread. std::this_thread::yield()
-    // compiles down to an empty function.
-    qurt_sleep(1);
+  // QuRT doesn't have a yield API, so instead we sleep for the minimum amount
+  // of time to let the OS schedule another thread. std::this_thread::yield()
+  // compiles down to an empty function.
+  qurt_sleep(1);
 #else
   std::this_thread::yield();
 #endif
-  }
+}
 
-  /*!
-   * \brief Set the maximum number of available cores.
-   */
-  void SetMaxConcurrency(int value) {
-    if (value < 0) {
-      LOG(WARNING) << "The value of maximum concurrency '" << value << "' can not be negative "
-                   << "the setting of maximum concurrency is not success.";
-      return;
-    }
-    max_concurrency = value;
+/*!
+ * \brief Set the maximum number of available cores.
+ */
+void SetMaxConcurrency(int value) {
+  if (value < 0) {
+    LOG(WARNING) << "The value of maximum concurrency '" << value << "' can not be negative "
+                 << "the setting of maximum concurrency is not success.";
+    return;
   }
-  int MaxConcurrency() {
-    int max_concurrency = 1;
-    if (tvm::runtime::threading::max_concurrency != 0) {
-      max_concurrency = tvm::runtime::threading::max_concurrency;
+  max_concurrency = value;
+}
+int MaxConcurrency() {
+  int max_concurrency = 1;
+  if (tvm::runtime::threading::max_concurrency != 0) {
+    max_concurrency = tvm::runtime::threading::max_concurrency;
+  } else {
+    const char* val = getenv("TVM_NUM_THREADS");
+    if (val == nullptr) {
+      val = getenv("OMP_NUM_THREADS");
+    }
+    if (val != nullptr) {
+      max_concurrency = atoi(val);
     } else {
-      const char* val = getenv("TVM_NUM_THREADS");
-      if (val == nullptr) {
-        val = getenv("OMP_NUM_THREADS");
-      }
-      if (val != nullptr) {
-        max_concurrency = atoi(val);
-      } else {
-        max_concurrency = std::thread::hardware_concurrency();
+      max_concurrency = std::thread::hardware_concurrency();
 #if defined(_M_X64) || defined(__x86_64__)
-        max_concurrency /= 2;  // ignore hyper-threading
+      max_concurrency /= 2;  // ignore hyper-threading
 #elif defined(__hexagon__)
       // With unsigned PDs, getting the number of available hardware threads
       // is not supported in earlier versions of QuRT. In such cases assume 4.
@@ -431,10 +431,11 @@ class ThreadGroup::Impl {
         }
       }
 #endif
-      }
     }
-    return std::max(max_concurrency, 1);
   }
+  return std::max(max_concurrency, 1);
+}
+
 }  // namespace threading
 }  // namespace runtime
 }  // namespace tvm
