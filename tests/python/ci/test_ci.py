@@ -27,6 +27,14 @@ from pathlib import Path
 from test_utils import REPO_ROOT
 
 
+def parameterize_named(*values):
+    keys = list(values[0].keys())
+    if len(keys) == 1:
+        return pytest.mark.parametrize(",".join(keys), [d[keys[0]] for d in values])
+
+    return pytest.mark.parametrize(",".join(keys), [tuple(d.values()) for d in values])
+
+
 class TempGit:
     def __init__(self, cwd):
         self.cwd = cwd
@@ -786,6 +794,111 @@ def test_github_tag_teams(tmpdir_factory):
         },
         check="No one to cc, exiting",
     )
+
+
+@parameterize_named(
+    dict(
+        tlcpackstaging_body={
+            "results": [
+                {
+                    "last_updated": "2022-06-01T00:00:00.123456Z",
+                    "name": "abc-abc-123",
+                },
+            ]
+        },
+        tlcpack_body={
+            "results": [
+                {
+                    "last_updated": "2022-06-01T00:00:00.123456Z",
+                    "name": "abc-abc-123",
+                },
+            ]
+        },
+        expected="Tag names were the same, no update needed",
+    ),
+    dict(
+        tlcpackstaging_body={
+            "results": [
+                {
+                    "last_updated": "2022-06-01T00:00:00.123456Z",
+                    "name": "abc-abc-234",
+                },
+            ]
+        },
+        tlcpack_body={
+            "results": [
+                {
+                    "last_updated": "2022-06-01T00:00:00.123456Z",
+                    "name": "abc-abc-123",
+                },
+            ]
+        },
+        expected="Using tlcpackstaging tag on tlcpack",
+    ),
+    dict(
+        tlcpackstaging_body={
+            "results": [
+                {
+                    "last_updated": "2022-06-01T00:00:00.123456Z",
+                    "name": "abc-abc-123",
+                },
+            ]
+        },
+        tlcpack_body={
+            "results": [
+                {
+                    "last_updated": "2022-06-01T00:01:00.123456Z",
+                    "name": "abc-abc-234",
+                },
+            ]
+        },
+        expected="Found newer image, using: tlcpack",
+    ),
+)
+def test_open_docker_update_pr(tmpdir_factory, tlcpackstaging_body, tlcpack_body, expected):
+    tag_script = REPO_ROOT / "tests" / "scripts" / "open_docker_update_pr.py"
+
+    git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
+    git.run("init")
+    git.run("config", "user.name", "ci")
+    git.run("config", "user.email", "email@example.com")
+    git.run("checkout", "-b", "main")
+    git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
+    images = [
+        "ci_lint",
+        "ci_gpu",
+        "ci_cpu",
+        "ci_wasm",
+        "ci_i386",
+        "ci_qemu",
+        "ci_arm",
+        "ci_hexagon",
+    ]
+
+    docker_data = {}
+    for image in images:
+        docker_data[f"repositories/tlcpackstaging/{image}/tags"] = tlcpackstaging_body
+        docker_data[f"repositories/tlcpack/{image.replace('_', '-')}/tags"] = tlcpack_body
+
+    proc = subprocess.run(
+        [
+            str(tag_script),
+            "--dry-run",
+            "--testing-docker-data",
+            json.dumps(docker_data),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        encoding="utf-8",
+        cwd=git.cwd,
+        env={"GITHUB_TOKEN": "1234"},
+        check=False,
+    )
+
+    if proc.returncode != 0:
+        raise RuntimeError(f"Process failed:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
+
+    assert_in(expected, proc.stdout)
 
 
 @pytest.mark.parametrize(
