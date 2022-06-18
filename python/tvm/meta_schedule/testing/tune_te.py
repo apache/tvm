@@ -24,6 +24,7 @@ import tvm
 from tvm import meta_schedule as ms
 from tvm import tir
 from tvm.meta_schedule.testing.te_workload import create_te_workload
+from tvm.support import describe
 
 
 def _parse_args():
@@ -107,6 +108,8 @@ ARGS = _parse_args()
 
 
 def main():
+    describe()
+    print(f"Workload: {ARGS.workload}")
     runner = ms.runner.RPCRunner(
         rpc_config=ARGS.rpc_config,
         evaluator_config=ms.runner.EvaluatorConfig(
