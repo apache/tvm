@@ -1,4 +1,5 @@
 from functools import lru_cache
+from io import StringIO
 import json
 from pathlib import Path
 from contextlib import ExitStack
@@ -22,8 +23,10 @@ def get_target(platform: str, board: str):
     return str(tvm.target.target.micro(model))
 
 
-def tune_model(platform, board, mod, params, tasks, num_trials, tuner_cls=tvm.autotvm.tuner.GATuner):
+def tune_model(platform, board, target, mod, params, num_trials, tuner_cls=tvm.autotvm.tuner.GATuner):
     """Tune a Relay module of a full model and return best result for each task"""
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        tasks = tvm.autotvm.task.extract_from_program(mod["main"], {}, target)
     assert len(tasks) > 0
 
     module_loader = tvm.micro.AutoTvmModuleLoader(
@@ -85,37 +88,40 @@ def create_aot_session(platform, board, target, mod, params, tune_logs=None, use
     print(f"Model parameter size: {parameter_size}")
 
     # Once the project has been uploaded, we don't need to keep it
-    with tempfile.TemporaryDirectory() as folder:
-        project = tvm.micro.generate_project(
-            str(get_microtvm_template_projects(platform)),
-            mod,
-            folder,
-            {
-                f"{platform}_board": board,
-                "project_type": "host_driven",
-            },
-        )
-        project.build()
-        project.flash()
+    folder = tempfile.mkdtemp()
+    print(folder)
+    project = tvm.micro.generate_project(
+        str(get_microtvm_template_projects(platform)),
+        lowered,
+        Path(folder) / "project",
+        {
+            f"{platform}_board": board,
+            "project_type": "host_driven",
+        },
+    )
+    project.build()
+    project.flash()
 
     return tvm.micro.Session(project.transport())
 
 
 # This utility functions was designed ONLY for one input / one output models
 # where the outputs are confidences for different classes.
-def evaluate_model_accuracy(aot_executor, input_data, true_labels):
+def evaluate_model_accuracy(session, aot_executor, input_data, true_labels):
     assert aot_executor.get_num_inputs() == 1
     assert aot_executor.get_num_outputs() == 1
-    assert len(input_data) == len(true_labels)
 
     predicted_labels = []
     aot_runtimes = []
     for sample in input_data:
         aot_executor.get_input(0).copyfrom(sample)
-        runtime = aot_executor.module.time_evaluator("run", 1, 1, 1)
+        result = aot_executor.module.time_evaluator("run", session.device, 1, 1, 1)()
+        runtime = result.mean
         output = aot_executor.get_output(0).numpy()
         predicted_labels.append(output.argmax())
         aot_runtimes.append(runtime)
 
     num_correct = sum(u == v for u, v in zip(true_labels, predicted_labels))
-    return num_correct / len(input_data), sum(aot_runtimes) / len(input_data)
+    average_time = sum(aot_runtimes) / len(aot_runtimes)
+    accuracy = num_correct / len(predicted_labels)
+    return average_time, accuracy

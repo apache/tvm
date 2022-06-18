@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from io import StringIO
 import json
 from pathlib import Path
 import sys
@@ -43,23 +42,13 @@ KWS_MODEL_LOCATION = Path(__file__).parents[1] / "testdata" / "kws" / "yes_no.tf
 @pytest.mark.requires_hardware
 @tvm.testing.requires_micro
 def test_kws_autotune_workflow(platform, board):
-    assert platform == "arduino"
     tvmc_model = load_model(KWS_MODEL_LOCATION, model_format="tflite")
     mod, params = tvmc_model.mod, tvmc_model.params
     target = tvm.testing.micro.get_target(platform, board)
 
-    '''# Run autotuning and get logs
-    module_loader = tvm.micro.AutoTvmModuleLoader(
-        template_project_dir=get_microtvm_template_projects(platform),
-        project_options={
-            **options,
-            "project_type": "host_driven",
-        },
-    )
-    buf_logs = tvm.testing.micro.tune_model(platform, target, mod, params, tasks, 2)
+    buf_logs = tvm.testing.micro.tune_model(platform, board, target, mod, params, 2)
     str_logs = buf_logs.getvalue().rstrip().split("\n")
     logs = list(map(json.loads, str_logs))
-
     assert len(logs) == 4
 
     # Check we tested both operators
@@ -74,9 +63,9 @@ def test_kws_autotune_workflow(platform, board):
     assert logs[2]["config"]["entity"] != logs[3]["config"]["entity"]
 
     # Compile the best model with AOT and connect to it
-    buf_logs.seek(0)'''
+    buf_logs.seek(0)
     with tvm.testing.micro.create_aot_session(
-            platform, board, target, mod, params, tune_logs=None,
+            platform, board, target, mod, params, tune_logs=buf_logs,
         ) as session:
         aot_executor = tvm.runtime.executor.aot_executor.AotModule(session.create_aot_executor())
 
@@ -91,25 +80,8 @@ def test_kws_autotune_workflow(platform, board):
         labels = [0, 0, 0]
 
         # Validate perforance across random runs
-        acc, time = tvm.testing.micro.evaluate_model_accuracy(samples, labels)
-        print(acc)
-        print(time)
-
-    '''# Make sure the project compiles correctly. There's no point to uploading,
-    # as the example project won't give any output we can check.
-    with tempfile.TemporaryDirectory() as temp_dir:
-        work_dir = Path(temp_dir) / "project"
-        project = tvm.micro.generate_project(
-            tvm.micro.get_microtvm_template_projects(platform),
-            standalone_crt,
-            work_dir,
-            {
-                **options,
-                "project_type": "example_project",
-            },
-        )
-
-        project.build()'''
+        time, acc = tvm.testing.micro.evaluate_model_accuracy(session, aot_executor, samples, labels)
+        assert time < 1 # Should be ~60 ms
 
 
 if __name__ == "__main__":
