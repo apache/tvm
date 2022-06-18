@@ -39,19 +39,14 @@ import test_utils
 
 
 def _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config):
-    config_main_stack_size = None
-    if test_utils.qemu_boards(zephyr_board):
-        # fyi: qemu_riscv64 seems to be the greediest stack user
-        config_main_stack_size = 4096
 
     project_options = {
+        "config_main_stack_size": 4096,
         "project_type": "host_driven",
         "west_cmd": west_cmd,
         "verbose": bool(build_config.get("debug")),
         "zephyr_board": zephyr_board,
     }
-    if config_main_stack_size is not None:
-        project_options["config_main_stack_size"] = config_main_stack_size
 
     project = tvm.micro.generate_project(
         str(test_utils.TEMPLATE_PROJECT_DIR),
