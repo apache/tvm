@@ -43,8 +43,8 @@
 #define HEXAGON_STACK_ALIGNMENT 32
 #else
 #include <sys/syscall.h>
-#endif
 #include <unistd.h>
+#endif
 
 #include <algorithm>
 #include <thread>
@@ -117,11 +117,12 @@ class ThreadGroup::Impl {
     ICHECK_GE(num_workers, 1) << "Requested a non-positive number of worker threads.";
     for (int i = exclude_worker0; i < num_workers_; ++i) {
       threads_.emplace_back([worker_callback, i, this] {
+#ifndef __hexagon__
         SetTid();
+#endif
         worker_callback(i);
       });
     }
-    gettid();
     InitSortedOrder();
   }
   ~Impl() { Join(); }
@@ -289,9 +290,11 @@ class ThreadGroup::Impl {
 #endif  // __hexagon__
   }
 
+#ifndef __hexagon__
   void SetMainThreadFullCpuAffinity(AffinityMode mode) {
     SetThreadFullCpuAffinity(CURRENT_THREAD_HANDLE, Tid(), mode);
   }
+#endif
 
   void InitSortedOrder() {
     unsigned int threads = std::thread::hardware_concurrency();
@@ -339,13 +342,8 @@ class ThreadGroup::Impl {
     }
   }
 
-  pid_t Tid() {
-#if defined(__hexagon__)
-    return gettid();
-#else
-    return syscall(SYS_gettid);
-#endif
-  }
+#ifndef __hexagon__
+  pid_t Tid() { return syscall(SYS_gettid); }
   void SetTid() {
     std::unique_lock<std::mutex> lock(record_tid_mutex_);
     threads_tid_.push_back(Tid());
@@ -357,6 +355,7 @@ class ThreadGroup::Impl {
     }
     return threads_tid_[thread_index];
   }
+#endif  // __hexagon__
 
   int num_workers_;
 #if defined(__hexagon__)
