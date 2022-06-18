@@ -121,6 +121,7 @@ class ThreadGroup::Impl {
         worker_callback(i);
       });
     }
+    gettid();
     InitSortedOrder();
   }
   ~Impl() { Join(); }
@@ -434,7 +435,6 @@ class ThreadGroup::Impl {
     }
     return std::max(max_concurrency, 1);
   }
-
 }  // namespace threading
 }  // namespace runtime
 }  // namespace tvm
