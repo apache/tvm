@@ -2153,6 +2153,13 @@ class PyTorchOpConverter:
 
         return _op.vision.roi_align(data, boxes, output_size, spatial_scale, sample_ratio)
 
+    def roi_pool(self, inputs, input_types):
+        data = inputs[0]
+        boxes = inputs[1]
+        output_size = (inputs[3], inputs[4])
+        spatial_scale = inputs[2]
+        return _op.vision.roi_pool(data, boxes, output_size, spatial_scale)
+
     def deform_conv2d(self, inputs, input_types):
         data = inputs[0]
         weight = inputs[1]
@@ -3194,6 +3201,7 @@ class PyTorchOpConverter:
             "torchvision::nms": self.nms,
             "aten::logsumexp": self.logsumexp,
             "torchvision::roi_align": self.roi_align,
+            "torchvision::roi_pool": self.roi_pool,
             "torchvision::deform_conv2d": self.deform_conv2d,
             "aten::unbind": self.unbind,
             "aten::__and__": self.logical_and,
