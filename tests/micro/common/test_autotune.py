@@ -47,9 +47,13 @@ def test_kws_autotune_workflow(platform, board):
     target = tvm.testing.micro.get_target(platform, board)
 
     buf_logs = tvm.testing.micro.tune_model(platform, board, target, mod, params, 2)
-    str_logs = buf_logs.getvalue().rstrip().split("\n")
+
+    # buf_logs[:] duplicates the buffer before decoding it, so we can avoid corrupting
+    # it when we parse and evaluate it for testing purposes (we need it for compiling
+    # the best model). We also remove the trailing newline with rstrip().
+    str_logs = buf_logs[:].getvalue().rstrip().split("\n")
     logs = list(map(json.loads, str_logs))
-    assert len(logs) == 4
+    assert len(logs) == 2 * 2 # Two operators, two runs each
 
     # Check we tested both operators
     op_names = list(map(lambda x: x["input"][1], logs))
@@ -63,7 +67,6 @@ def test_kws_autotune_workflow(platform, board):
     assert logs[2]["config"]["entity"] != logs[3]["config"]["entity"]
 
     # Compile the best model with AOT and connect to it
-    buf_logs.seek(0)
     with tvm.testing.micro.create_aot_session(
             platform, board, target, mod, params, tune_logs=buf_logs,
         ) as session:
