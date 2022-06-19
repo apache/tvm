@@ -19,6 +19,7 @@
 #include <tvm/runtime/container/optional.h>
 #include <tvm/tir/expr.h>
 
+#include "../ir_comparator.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -2085,39 +2086,60 @@ bool NeedsRFactorOrCrossThreadReduction(const tir::ScheduleState& self,   //
 
 TVM_REGISTER_NODE_TYPE(TensorizeInfoNode);
 
-Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
-                                                const tir::StmtSRef& block_sref,
-                                                const tir::PrimFunc& desc_func) {
-  arith::Analyzer analyzer;
-  const tir::BlockRealize& block = tir::GetBlockRealize(self, block_sref);
-  // Step 1. Analyze desc_func, extract its block, loops and loop vars
-  const tir::BlockRealizeNode* desc_block = nullptr;
+/*! \brief Auxiliary data structure of information extracted from tensor intrin description */
+struct TensorIntrinDescInfo {
+  /*! \brief The block of the description function, which is the (unique) direct child of the root
+   *         block.
+   */
+  const BlockRealizeNode* desc_block = nullptr;
+  /*! \brief The loops of the description function, in the order from outer loops to inner ones. */
   std::vector<const tir::ForNode*> desc_loops;
+  /*! \brief The loop variables. */
   std::unordered_set<const tir::VarNode*> desc_loop_vars;
-  const auto* desc_scope_realize = desc_func->body.as<tir::BlockRealizeNode>();
+};
+
+/*!
+ * \brief Extract auxilary information from the tensor intrin description.
+ * \param analyze The arithmetic analyzer
+ * \param desc_func The description PrimFunc
+ * \return The auxilary information
+ */
+TensorIntrinDescInfo ExtractTensorIntrinDescInfo(arith::Analyzer* analyzer,
+                                                 const PrimFunc& desc_func) {
+  TensorIntrinDescInfo info;
+  const auto* desc_scope_realize = desc_func->body.as<BlockRealizeNode>();
   ICHECK(desc_scope_realize);
   {
-    auto f_visit = [&desc_block, &desc_loops, &desc_loop_vars,
-                    &analyzer](const ObjectRef& obj) -> bool {
+    auto f_visit = [&](const ObjectRef& obj) -> bool {
       // Extract the block
-      if (const auto* block = obj.as<tir::BlockRealizeNode>()) {
-        desc_block = block;
+      if (const auto* block = obj.as<BlockRealizeNode>()) {
+        info.desc_block = block;
         return false;
       }
-      // Extract loops
-      if (const auto* loop = obj.as<tir::ForNode>()) {
-        desc_loops.push_back(loop);
-        desc_loop_vars.insert(loop->loop_var.get());
-        if (!analyzer.CanProve(loop->min == 0)) {
+      // Extract the loops
+      if (const auto* loop = obj.as<ForNode>()) {
+        info.desc_loops.push_back(loop);
+        info.desc_loop_vars.insert(loop->loop_var.get());
+        if (!analyzer->CanProve(loop->min == 0)) {
           return false;
         }
       }
       return true;
     };
     tir::PostOrderVisit(desc_scope_realize->block->body, f_visit);
-    std::reverse(desc_loops.begin(), desc_loops.end());
-    ICHECK(desc_block);
+    std::reverse(info.desc_loops.begin(), info.desc_loops.end());
+    ICHECK(info.desc_block);
   }
+  return info;
+}
+
+Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
+                                                const tir::StmtSRef& block_sref,
+                                                const tir::PrimFunc& desc_func) {
+  arith::Analyzer analyzer;
+  const tir::BlockRealize& block = tir::GetBlockRealize(self, block_sref);
+  // Step 1. Analyze desc_func, extract its block, loops and loop vars
+  TensorIntrinDescInfo desc_info = ExtractTensorIntrinDescInfo(&analyzer, desc_func);
   // Step 2. Collect loops from block_sref
   const tir::StmtSRef& scope_sref = GetScopeRoot(self, block_sref, false);
   const tir::BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_block, scope_sref);
@@ -2138,6 +2160,9 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
     std::reverse(block_loops.begin(), block_loops.end());
   }
   // Step 3. Map from block loops to desc block loops
+  const std::vector<const ForNode*>& desc_loops = desc_info.desc_loops;
+  const std::unordered_set<const VarNode*>& desc_loop_vars = desc_info.desc_loop_vars;
+  const BlockRealizeNode* desc_block = desc_info.desc_block;
   ObjectPtr<TensorizeInfoNode> ret = make_object<TensorizeInfoNode>();
   const int n_block_vars = block->iter_values.size();
   const int n_desc_vars = desc_block->iter_values.size();
@@ -2238,6 +2263,218 @@ TVM_REGISTER_GLOBAL("tir.schedule.IsSpatialPrimFunc").set_body_typed(IsSpatialPr
 TVM_REGISTER_GLOBAL("tir.schedule.GetTensorizeLoopMapping")
     .set_body_typed([](Schedule sch, BlockRV block, PrimFunc desc_func) {
       return GetTensorizeLoopMapping(sch->state(), sch->GetSRef(block), desc_func);
+    });
+
+/******** Auto Tensorization ********/
+
+/*! \brief IndexMap proposer for layout transformation in auto tensorization. */
+class AutoTensorizeMappingProposer {
+ public:
+  static Array<IndexMap> ProposeMappings(const AutoTensorizeComparator* extractor,
+                                         arith::Analyzer* analyzer) {
+    AutoTensorizeMappingProposer proposer(extractor, analyzer);
+    proposer.CollectFeasibleSet();
+    return proposer.ProposeAllFuseMapping();
+  }
+
+ private:
+  explicit AutoTensorizeMappingProposer(const AutoTensorizeComparator* extractor,
+                                        arith::Analyzer* analyzer)
+      : extractor_(extractor), analyzer_(analyzer) {}
+
+  using VarSet = std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>;
+
+  void CollectFeasibleSet() {
+    // Collect the set of potential iter var mapping between the workload and the tensor intrin.
+    // We analyze the appearance of each variable in the buffer indices of each buffer on LHS and
+    // RHS. The appearance of a variable in the buffer indices is encoded as bit-masks (BufferMask).
+    // Variables on the LHS and the RHS with the same bit-mask and the same iter type are potential
+    // mappings.
+    //
+    // For example, consider the conv2d case. We will try to match the workload
+    // conv2d[n, h, w, c] = sum_{rh, rw, rc} X[n, h + rh, w + rw, c + rc] * W[rh, rw, rc, c]
+    // against a matmul tensor intrin
+    // C[m, n] = sum_{k} A[m, k] * B[k, n]
+    // First we extract the correspondence of the buffers: conv2d <=> C, A <=> X, B <=> W.
+    // Then for each variable, we extract the buffers where it is used for indexing.
+    // Take the variable m on the RHS as an example. m is used to index buffer A and C. On the LHS,
+    // we will find the variables used to index only the exact corresponding buffers conv2d and X
+    // (the variable is not allowed to index other buffers). In this case, n, h, w is used to index
+    // both buffer conv2d and W, and not in other buffers. Therefore, {n, h, w} <=> m is a potential
+    // mapping.
+
+    // Note: the mapping is not unique when multiple variables on RHS has the same bit-mask.
+    // This is currently not supported.
+
+    using BufferMask = std::vector<bool>;
+
+    // Step 1: Assign an index to each buffer in LHS and RHS
+    std::unordered_map<Buffer, int, ObjectPtrHash, ObjectEqual> rhs_buffer_index;
+    std::unordered_map<Buffer, int, ObjectPtrHash, ObjectEqual> lhs_buffer_index;
+    {
+      int i = 0;
+      for (const auto& kv : extractor_->rhs_buffer_map_) {
+        const Buffer& rhs_buffer = kv.first;
+        const Buffer& lhs_buffer = kv.second;
+        rhs_buffer_index[rhs_buffer] = i;
+        lhs_buffer_index[lhs_buffer] = i;
+        ++i;
+      }
+    }
+
+    // Step 2: Compute the buffer mask
+    ICHECK_EQ(rhs_buffer_index.size(), lhs_buffer_index.size());
+    int num_buffers = rhs_buffer_index.size();
+    std::unordered_map<const VarNode*, std::vector<bool>> rhs_buffer_masks, lhs_buffer_masks;
+    // helper function to initialize or update the buffer mask
+    auto update_mask = [&](const VarNode* var,
+                           std::unordered_map<const VarNode*, std::vector<bool>>* masks, int i) {
+      if (!masks->count(var)) {
+        (*masks)[var].resize(num_buffers);
+      }
+      (*masks)[var][i] = true;
+    };
+
+    for (const auto& it : extractor_->rhs_buffer_indices_map_) {
+      const Buffer& rhs_buffer = it.first;
+      for (const PrimExpr& rhs_index : it.second) {
+        if (const VarNode* var_node = rhs_index.as<VarNode>()) {
+          update_mask(var_node, &rhs_buffer_masks, rhs_buffer_index.at(rhs_buffer));
+        } else {
+          LOG(FATAL) << "ValueError: Buffer index " << rhs_index
+                     << " other that variables in tensor intrinsics is not supported.";
+        }
+      }
+
+      auto lhs_buffer_it = extractor_->rhs_buffer_map_.find(rhs_buffer);
+      ICHECK(lhs_buffer_it != extractor_->rhs_buffer_map_.end());
+      const Buffer& lhs_buffer = lhs_buffer_it->second;
+      for (const PrimExpr& index : extractor_->lhs_buffer_indices_map_.at(lhs_buffer)) {
+        PreOrderVisit(index, [&](const ObjectRef& obj) -> bool {
+          if (const VarNode* var = obj.as<VarNode>()) {
+            update_mask(var, &lhs_buffer_masks, lhs_buffer_index.at(lhs_buffer));
+          }
+          return true;
+        });
+      }
+    }
+
+    // Step 3: Find variables on LHS and RHS with the same buffer mask. Ensure LHS and RHS vars
+    // have the same iter type.
+    std::unordered_map<BufferMask, VarSet> mask_to_rhs_vars;
+    for (const auto& kv : rhs_buffer_masks) {
+      const VarNode* rhs_var = kv.first;
+      const BufferMask& mask = kv.second;
+      mask_to_rhs_vars[mask].insert(GetRef<Var>(rhs_var));
+    }
+    std::unordered_map<const VarNode*, IterVarType> rhs_var_iter_type;
+    for (const auto& iter : extractor_->rhs_iters_) {
+      rhs_var_iter_type.emplace(iter->var.get(), iter->iter_type);
+    }
+    for (const auto& iter : extractor_->lhs_iters_) {
+      auto& potential_mappings = lhs_feasible_vars_[iter->var];
+      VarSet rhs_candidates = mask_to_rhs_vars[lhs_buffer_masks[iter->var.get()]];
+      std::copy_if(
+          rhs_candidates.begin(), rhs_candidates.end(),
+          std::inserter(potential_mappings, potential_mappings.begin()),
+          [&](const Var& var) { return rhs_var_iter_type.at(var.get()) == iter->iter_type; });
+    }
+  }
+
+  Array<IndexMap> ProposeAllFuseMapping() {
+    // Now we have calcuated potential mapping for each iter var on LHS. For iters on LHS mapped to
+    // the same iter on RHS, they will be fused in the original order in LHS block iters. We will
+    // generate IndexMap to represent such fusion on LHS. For example, if n, h, w on LHS are mapped
+    // to the same iter var on RHS, we will produce index map `lambda n, h, w: fuse(n, h, w)`, where
+    // fuse(v0, .., vn) = ((v0 * v1_extent + v1) + ... ) * vn_extent + vn
+
+    // the parameters of the result index map, each parameter corresponds to a LHS iter
+    Array<Var> index_map_src;
+    // the outputs of the result index map
+    Array<PrimExpr> index_map_tgt;
+
+    // Step 1: Collect extents of LHS iters and prepare the initial indices of the IndexMap
+    Map<Var, PrimExpr> lhs_iter_extents;
+    for (const auto& iter : extractor_->lhs_iters_) {
+      lhs_iter_extents.Set(iter->var, iter->dom->extent);
+      index_map_src.push_back(iter->var.copy_with_suffix(""));
+    }
+
+    // Step 2: Each iter on RHS has a group of corresponding iters on LHS. Initialize the fusion
+    // result for each group of iters on LHS.
+    Map<Var, PrimExpr> fused_lhs_iters;
+    for (const auto& iter : extractor_->rhs_iters_) {
+      fused_lhs_iters.Set(iter->var, 0);
+    }
+
+    // Step 3: Fuse LHS iters mapped to the same RHS iter
+    for (size_t i = 0; i < extractor_->lhs_iters_.size(); ++i) {
+      const Var& lhs_iter_var = extractor_->lhs_iters_[i]->var;
+      const VarSet& rhs_candidates = lhs_feasible_vars_[lhs_iter_var];
+      if (rhs_candidates.empty()) {
+        // put unmapped iters at the beginning
+        index_map_tgt.push_back(index_map_src[i]);
+      } else if (rhs_candidates.size() == 1) {
+        Var rhs_var = *rhs_candidates.begin();
+        PrimExpr fused_lhs = fused_lhs_iters.at(rhs_var);
+        PrimExpr updated_fused_lhs =
+            fused_lhs * lhs_iter_extents.at(lhs_iter_var) + index_map_src[i];
+        fused_lhs_iters.Set(rhs_var, updated_fused_lhs);
+      } else {
+        // non-unique mapping is not supported
+        return {};
+      }
+    }
+    for (const auto& iter : extractor_->rhs_iters_) {
+      index_map_tgt.push_back(analyzer_->Simplify(fused_lhs_iters[iter->var]));
+    }
+    // At most one mapping is supported.
+    return {IndexMap(index_map_src, index_map_tgt)};
+  }
+
+ private:
+  // The extractor that has extracted information for auto tensorization from the workload and the
+  // tensor intrin.
+  const AutoTensorizeComparator* extractor_;
+  // The arithmetic analyzer.
+  arith::Analyzer* analyzer_;
+  /*! \brief Potential mappings on RHS for each variable on LHS */
+  std::unordered_map<Var, VarSet, ObjectPtrHash, ObjectPtrEqual> lhs_feasible_vars_;
+};
+
+Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(const tir::ScheduleState& self,
+                                                               const tir::StmtSRef& block_sref,
+                                                               const tir::PrimFunc& desc_func) {
+  arith::Analyzer analyzer;
+  const tir::BlockRealize& block = tir::GetBlockRealize(self, block_sref);
+  // Step 1. Analyze desc_func, extract its block, loops and loop vars
+  TensorIntrinDescInfo desc_info = ExtractTensorIntrinDescInfo(&analyzer, desc_func);
+  // Step 2. Check if `desc_block` matches `block`
+  // Ignore the scope of buffers when comparing, since we can do cache_read/write
+  const StmtSRef& scope_sref = GetScopeRoot(self, block_sref, false);
+  const tir::BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_block, scope_sref);
+  AutoTensorizeComparator extractor(self->mod);
+  if (!extractor.VisitStmt(block->block, desc_info.desc_block->block)) {
+    return NullOpt;
+  }
+  Array<IndexMap> mappings = AutoTensorizeMappingProposer::ProposeMappings(&extractor, &analyzer);
+  if (mappings.empty()) {
+    return NullOpt;
+  }
+  ObjectPtr<AutoTensorizeMappingInfoNode> ret = make_object<AutoTensorizeMappingInfoNode>();
+  ret->mappings = std::move(mappings);
+  ret->lhs_buffer_map = std::move(extractor.lhs_buffer_map_);
+  ret->rhs_buffer_indices = std::move(extractor.rhs_buffer_indices_map_);
+  ret->lhs_iters = std::move(extractor.lhs_iters_);
+  ret->rhs_iters = std::move(extractor.rhs_iters_);
+  return AutoTensorizeMappingInfo(ret);
+}
+
+TVM_REGISTER_NODE_TYPE(AutoTensorizeMappingInfoNode);
+
+TVM_REGISTER_GLOBAL("tir.schedule.GetAutoTensorizeMappingInfo")
+    .set_body_typed([](Schedule sch, BlockRV block, PrimFunc desc_func) {
+      return GetAutoTensorizeMappingInfo(sch->state(), sch->GetSRef(block), desc_func);
     });
 
 }  // namespace tir

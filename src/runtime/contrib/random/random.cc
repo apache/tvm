@@ -24,6 +24,7 @@
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/threading_backend.h>
 
 #include <algorithm>
 
@@ -122,6 +123,20 @@ TVM_REGISTER_GLOBAL("tvm.contrib.random.random_fill").set_body([](TVMArgs args, 
   DLTensor* out = args[0];
   entry->random_engine.RandomFill(out);
 });
+
+TVM_REGISTER_GLOBAL("tvm.contrib.random.random_fill_for_measure")
+    .set_body([](TVMArgs args, TVMRetValue* ret) -> void {
+      static const PackedFunc* curand = Registry::Get("runtime.contrib.curand.RandomFill");
+      DLTensor* out = args[0];
+      if (curand && out->device.device_type == DLDeviceType::kDLCUDA) {
+        if (out->dtype.code == DLDataTypeCode::kDLFloat) {
+          (*curand)(out);
+          return;
+        }
+      }
+      RandomThreadLocalEntry* entry = RandomThreadLocalEntry::ThreadLocal();
+      entry->random_engine.RandomFillForMeasure(out);
+    });
 
 }  // namespace contrib
 }  // namespace tvm

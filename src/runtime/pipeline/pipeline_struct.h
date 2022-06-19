@@ -560,6 +560,9 @@ struct InputConnectionConfig {
     }
     return input_connection[key];
   }
+  /*!\brief Returns the number of global inputs through the input_runtime_map list size.*/
+  int GetInputNum() { return input_runtime_map.size(); }
+
   /*!
    * \brief Getting the global input index through the input name.
    * \param input_name The global input name.

@@ -115,6 +115,7 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
   int NumOutputs() const { return num_outputs_; }
   /*!\brief Run the pipeline executor.*/
   void Run();
+  int NumInputs();
   /*!
    * \brief Get a list output data.
    * \return A list of output data.

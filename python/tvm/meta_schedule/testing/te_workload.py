@@ -701,6 +701,74 @@ def softmax_mn(m, n) -> Tuple[te.Tensor, te.Tensor]:  # pylint: disable=invalid-
     return (a, b)
 
 
+def conv2d_nhwc_f16(  # pylint: disable=invalid-name,missing-docstring
+    N: int,
+    H: int,
+    W: int,
+    CI: int,
+    CO: int,
+    kernel_size: int,
+    stride: int = 1,
+    padding: int = 0,
+    dilation: int = 1,
+    groups: int = 1,
+):
+    inputs = te.placeholder((N, H, W, CI), name="inputs", dtype="float16")
+    weight = te.placeholder(
+        (kernel_size, kernel_size, CI // groups, CO), name="weight", dtype="float16"
+    )
+    batch_size, in_h, in_w, _ = inputs.shape
+    k_h, k_w, channel_per_group, out_channel = weight.shape
+    out_channel_per_group = out_channel // groups
+
+    out_h = (in_h + 2 * padding - dilation * (k_h - 1) - 1) // stride + 1
+    out_w = (in_w + 2 * padding - dilation * (k_w - 1) - 1) // stride + 1
+    rh = te.reduce_axis((0, k_h), name="rh")
+    rw = te.reduce_axis((0, k_w), name="rw")
+    rc = te.reduce_axis((0, channel_per_group), name="rc")
+
+    padded = topi.nn.pad(inputs, [0, padding, padding, 0])
+    output = te.compute(
+        (batch_size, out_h, out_w, out_channel),
+        lambda n, h, w, co: te.sum(
+            (
+                tir.Cast(
+                    value=padded[
+                        n,
+                        h * stride + rh * dilation,
+                        w * stride + rw * dilation,
+                        co // out_channel_per_group * channel_per_group + rc,
+                    ],
+                    dtype="float32",
+                )
+                * tir.Cast(value=weight[rh, rw, rc, co], dtype="float32")
+            ),
+            axis=[rh, rw, rc],
+        ),
+        name="conv2d_nhwc",
+    )
+    return (inputs, weight, output)
+
+
+def batch_matmul_nkkm_f16(  # pylint: disable=invalid-name,missing-docstring
+    B: int,
+    N: int,
+    M: int,
+    K: int,
+) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
+    x = te.placeholder((B, N, K), name="X", dtype="float16")
+    y = te.placeholder((B, K, M), name="Y", dtype="float16")
+    k = te.reduce_axis((0, K), name="k")
+    z = te.compute(  # pylint: disable=invalid-name
+        (B, N, M),
+        lambda b, i, j: te.sum(
+            tir.Cast("float32", x[b][i][k]) * tir.Cast("float32", y[b][k][j]), axis=[k]
+        ),
+        name="Z",
+    )
+    return (x, y, z)
+
+
 def create_te_workload(name: str, idx: int) -> tir.PrimFunc:
     workload_func, params = CONFIGS[name]
     return te.create_prim_func(workload_func(*params[idx]))  # type: ignore

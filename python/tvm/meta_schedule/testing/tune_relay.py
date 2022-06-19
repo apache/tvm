@@ -24,6 +24,7 @@ import tvm
 from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.meta_schedule.testing.relay_workload import get_network
+from tvm.support import describe
 
 
 def _parse_args():
@@ -64,11 +65,6 @@ def _parse_args():
         required=True,
     )
     args.add_argument(
-        "--rpc-workers",
-        type=int,
-        required=True,
-    )
-    args.add_argument(
         "--work-dir",
         type=str,
         required=True,
@@ -95,7 +91,7 @@ def _parse_args():
     )
     args.add_argument(
         "--cpu-flush",
-        type=bool,
+        type=int,
         required=True,
     )
     parsed = args.parse_args()
@@ -118,6 +114,8 @@ ARGS = _parse_args()
 
 
 def main():
+    describe()
+    print(f"Workload: {ARGS.workload}")
     mod, params, (input_name, input_shape, input_dtype) = get_network(
         ARGS.workload,
         ARGS.input_shape,
@@ -125,7 +123,6 @@ def main():
     )
     input_info = {input_name: input_shape}
     input_data = {}
-    print(f"Workload: {ARGS.workload}")
     for input_name, input_shape in input_info.items():
         print(f"  input_name: {input_name}")
         print(f"  input_shape: {input_shape}")
@@ -139,7 +136,6 @@ def main():
             enable_cpu_cache_flush=ARGS.cpu_flush,
         ),
         alloc_repeat=1,
-        max_workers=ARGS.rpc_workers,
     )
     with ms.Profiler() as profiler:
         lib = ms.tune_relay(

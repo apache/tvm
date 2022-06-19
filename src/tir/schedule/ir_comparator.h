@@ -90,8 +90,8 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   bool CompareAnnotationMap(const Map<String, ObjectRef>& lhs, const Map<String, ObjectRef>& rhs);
   template <typename T>
   bool CompareBufferAccess(const T* lhs, const T* rhs);
-  template <typename T, typename F>
-  bool CompareArray(const Array<T>& lhs, const Array<T>& rhs, F cmp);
+  template <typename T, typename Self, typename F>
+  bool CompareArray(const Array<T>& lhs, const Array<T>& rhs, F Self::*cmp);
   bool CompareRange(const Range& lhs, const Range& rhs);
   bool CompareIterVar(const IterVar& lhs, const IterVar& rhs);
   void EmitError(const std::string& error_message);
@@ -108,6 +108,54 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   std::vector<std::string> error_messages_;
   // variable remap if any
   std::unordered_map<ObjectRef, ObjectRef, ObjectPtrHash, ObjectPtrEqual> equal_map_;
+};
+
+/*!
+ * \brief IR comparator for auto tensorization.
+ * This comparator is used to extract correspondence between the IR of the workload (LHS) and the
+ * tensor intrin (RHS). Unlike `TensorizeComparator`, this comparator has relaxed requirements
+ * during comparison. It ignores the loop structure (number of loops and their extents) and buffer
+ * indices. It only requires the LHS and the RHS to have the same arithmetic operations and the same
+ * dtype. With such relaxed requirements, workloads that can only match the tensor intrin after
+ * certain transformations (e.g. im2col for conv2d) are allowed for auto tensorization.
+ */
+class AutoTensorizeComparator : public TensorizeComparator {
+ public:
+  explicit AutoTensorizeComparator(const IRModule& lhs_mod)
+      : TensorizeComparator(lhs_mod, /* assert_mode=*/false) {}
+
+ private:
+  bool VisitExprDefault_(const Object* op, const PrimExpr& other) override;
+  bool VisitStmtDefault_(const Object* op, const Stmt& other) override;
+
+  bool VisitStmt_(const BlockNode* op, const Stmt& other) override;
+  bool VisitStmt_(const BufferStoreNode* op, const Stmt& other) override;
+
+  bool VisitExpr_(const BufferLoadNode* op, const PrimExpr& other) override;
+
+  bool CompareBuffer(const Buffer& lhs, const Buffer& rhs) override;
+  template <typename T>
+  bool CompareBufferAccess(const T* lhs, const T* rhs);
+
+ public:
+  // Additional information extracted from LHS (the workload) and RHS (the tensor intrin).
+
+  /*! \brief Block iters in the LHS stmt. */
+  std::vector<IterVar> lhs_iters_;
+  /*! \brief Block iters in the RHS stmt. */
+  std::vector<IterVar> rhs_iters_;
+  /*! \brief The buffer and its access indices in the LHS stmt. */
+  std::unordered_map<Buffer, Array<PrimExpr>, ObjectPtrHash, ObjectPtrEqual>
+      lhs_buffer_indices_map_;
+  /*! \brief The buffer and its access indices in the RHS stmt. */
+  std::unordered_map<Buffer, Array<PrimExpr>, ObjectPtrHash, ObjectPtrEqual>
+      rhs_buffer_indices_map_;
+  /*! \brief Map from LHS buffer to RHS buffer */
+  std::unordered_map<Buffer, Buffer, ObjectHash, ObjectEqual> lhs_buffer_map_;
+
+ private:
+  /*! \brief The domain of the inner block iters. */
+  Map<Var, arith::IntSet> inner_iter_dom_map_;
 };
 
 }  // namespace tir
