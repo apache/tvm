@@ -119,6 +119,7 @@ We do encourage everyone to work anything they are interested in.
 - [Elen Kalda](https://github.com/ekalda): @ekalda
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame
 - [Tristan Konolige](https://github.com/tkonolige): @tkonolige
+- [Denise Kutnick](https://github.com/denise-k): @denise-k
 - [Ruihang Lai](https://github.com/MasterJH5574): @MasterJH5574
 - [Nicola Lancellotti](https://github.com/nicolalancellotti): @NicolaLancellotti
 - [Wuwei Lin](https://github.com/vinx13): @vinx13
