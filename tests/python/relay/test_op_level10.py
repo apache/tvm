@@ -245,7 +245,6 @@ def test_broadcast_to_const_shape_int64(executor_kind):
         tvm.testing.assert_allclose(op_res.numpy(), ref_res)
 
 
-@tvm.testing.uses_gpu
 def test_broadcast_concat_shape_int64(executor_kind):
     x_shape = (1, 2, 1, 1)
     broadcast_shape = [1, 2, 2, 1]
