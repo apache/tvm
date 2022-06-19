@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from io import StringIO
 import json
 from pathlib import Path
 import sys
@@ -26,34 +27,30 @@ import pytest
 
 import tvm
 import tvm.testing
-import tvm.testing.micro
-from tvm import relay
-from tvm.relay.backend import Executor, Runtime
+import tvm.micro.testing
+from tvm.testing.utils import fetch_model_from_url
 
-from ..zephyr.test_utils import ZEPHYR_BOARDS
-from ..arduino.test_utils import ARDUINO_BOARDS
-from tvm.micro import get_microtvm_template_projects
-from tvm.driver.tvmc.frontends import load_model
-
-KWS_MODEL_LOCATION = Path(__file__).parents[1] / "testdata" / "kws" / "yes_no.tflite"
-
+TUNING_RUNS_PER_OPERATOR = 2
 
 
 @pytest.mark.requires_hardware
 @tvm.testing.requires_micro
-def test_kws_autotune_workflow(platform, board):
-    tvmc_model = load_model(KWS_MODEL_LOCATION, model_format="tflite")
-    mod, params = tvmc_model.mod, tvmc_model.params
-    target = tvm.testing.micro.get_target(platform, board)
+def test_kws_autotune_workflow(platform, board, tmp_path):
+    mod, params = fetch_model_from_url(
+        url="https://github.com/tensorflow/tflite-micro/raw/main/tensorflow/lite/micro/examples/micro_speech/micro_speech.tflite",
+        model_format="tflite",
+        sha256="09e5e2a9dfb2d8ed78802bf18ce297bff54281a66ca18e0c23d69ca14f822a83",
+    )
+    target = tvm.micro.testing.get_target(platform, board)
 
-    buf_logs = tvm.testing.micro.tune_model(platform, board, target, mod, params, 2)
+    str_io_logs = tvm.micro.testing.tune_model(
+        platform, board, target, mod, params, TUNING_RUNS_PER_OPERATOR
+    )
+    assert isinstance(str_io_logs, StringIO)
 
-    # buf_logs[:] duplicates the buffer before decoding it, so we can avoid corrupting
-    # it when we parse and evaluate it for testing purposes (we need it for compiling
-    # the best model). We also remove the trailing newline with rstrip().
-    str_logs = buf_logs[:].getvalue().rstrip().split("\n")
+    str_logs = str_io_logs.getvalue().rstrip().split("\n")
     logs = list(map(json.loads, str_logs))
-    assert len(logs) == 2 * 2 # Two operators, two runs each
+    assert len(logs) == 2 * TUNING_RUNS_PER_OPERATOR  # Two operators
 
     # Check we tested both operators
     op_names = list(map(lambda x: x["input"][1], logs))
@@ -67,24 +64,32 @@ def test_kws_autotune_workflow(platform, board):
     assert logs[2]["config"]["entity"] != logs[3]["config"]["entity"]
 
     # Compile the best model with AOT and connect to it
-    with tvm.testing.micro.create_aot_session(
-            platform, board, target, mod, params, tune_logs=buf_logs,
-        ) as session:
+    with tvm.micro.testing.create_aot_session(
+        platform,
+        board,
+        target,
+        mod,
+        params,
+        build_dir=tmp_path,
+        tune_logs=str_io_logs,
+    ) as session:
         aot_executor = tvm.runtime.executor.aot_executor.AotModule(session.create_aot_executor())
 
-
-        samples = (np.random.randint(
-            low=-127,
-            high=128,
-            size=(1, 1960),
-            dtype=np.int8
-        ) for x in range(3))
+        samples = (
+            np.random.randint(low=-127, high=128, size=(1, 1960), dtype=np.int8) for x in range(3)
+        )
 
         labels = [0, 0, 0]
 
         # Validate perforance across random runs
-        time, acc = tvm.testing.micro.evaluate_model_accuracy(session, aot_executor, samples, labels)
-        assert time < 1 # Should be ~60 ms
+        time, acc = tvm.micro.testing.evaluate_model_accuracy(
+            session, aot_executor, samples, labels, runs_per_sample=20
+        )
+        # `time` is the average time taken to execute model inference on the
+        # device, measured in seconds. It does not include the time to upload
+        # the input data via RPC. On slow boards like the Arduino Due, time
+        # is around 0.12 (120 ms), so this gives us plenty of buffer.
+        assert time < 1
 
 
 if __name__ == "__main__":

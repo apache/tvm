@@ -29,9 +29,6 @@ import tvm
 import tvm.testing
 from tvm.contrib.download import download_testdata
 
-from ..zephyr.test_utils import ZEPHYR_BOARDS
-from ..arduino.test_utils import ARDUINO_BOARDS
-
 TVMC_COMMAND = [sys.executable, "-m", "tvm.driver.tvmc"]
 
 MODEL_URL = "https://github.com/tensorflow/tflite-micro/raw/main/tensorflow/lite/micro/examples/micro_speech/micro_speech.tflite"
@@ -59,7 +56,7 @@ def test_tvmc_exist(platform, board):
     [pathlib.Path("./tvmc_relative_path_test"), pathlib.Path(tempfile.mkdtemp())],
 )
 def test_tvmc_model_build_only(platform, board, output_dir):
-    target = tvm.testing.micro.get_target(platform, board)
+    target = tvm.micro.testing.get_target(platform, board)
 
     if not os.path.isabs(output_dir):
         out_dir_temp = os.path.abspath(output_dir)
@@ -125,7 +122,7 @@ def test_tvmc_model_build_only(platform, board, output_dir):
     [pathlib.Path("./tvmc_relative_path_test"), pathlib.Path(tempfile.mkdtemp())],
 )
 def test_tvmc_model_run(platform, board, output_dir):
-    target = tvm.testing.micro.get_target(platform, board)
+    target = tvm.micro.testing.get_target(platform, board)
 
     if not os.path.isabs(output_dir):
         out_dir_temp = os.path.abspath(output_dir)

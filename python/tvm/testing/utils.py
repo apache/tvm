@@ -91,6 +91,7 @@ import tvm._ffi
 
 from tvm.contrib import nvcc, cudnn
 import tvm.contrib.hexagon._ci_env_check as hexagon
+from tvm.driver.tvmc.frontends import load_model
 from tvm.error import TVMError
 
 
@@ -1663,11 +1664,10 @@ def install_request_hook(depth: int) -> None:
 
 
 def fetch_model_from_url(
-        url: str,
-        model_format: str,
-        sha256: str,
-        retries: Optional[int] = 3,
-    ) -> Tuple[str, str]:
+    url: str,
+    model_format: str,
+    sha256: str,
+) -> Tuple[tvm.ir.module.IRModule, dict]:
     """Testing function to fetch a model from a URL and return it as a Relay
     model. Downloaded files are cached for future re-use.
 
@@ -1690,17 +1690,17 @@ def fetch_model_from_url(
 
     rel_path = f"model_{sha256}.{model_format}"
     file = tvm.contrib.download.download_testdata(url, rel_path, overwrite=False)
-    
+
     # Check SHA-256 hash
     file_hash = hashlib.sha256()
-    with open(file,"rb") as f:
-        for block in iter(lambda: f.read(4096), b""):
+    with open(file, "rb") as f:
+        for block in iter(lambda: f.read(2**24), b""):
             file_hash.update(block)
-    
+
     if file_hash.hexdigest() != sha256:
         raise FileNotFoundError("SHA-256 hash for model does not match")
 
-    tvmc_model = tvm.driver.tvmc.frontends.load_model(file, model_format)
+    tvmc_model = load_model(file, model_format)
     return tvmc_model.mod, tvmc_model.params
 
 

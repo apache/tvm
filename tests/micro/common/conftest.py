@@ -25,7 +25,7 @@ def pytest_addoption(parser):
         "--platform",
         required=True,
         choices=["arduino", "zephyr"],
-        help="Platform to run tests with"
+        help="Platform to run tests with",
     )
     parser.addoption(
         "--board",
