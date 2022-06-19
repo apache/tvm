@@ -333,12 +333,12 @@ bool TensorizeComparator::CompareBufferAccess(const T* lhs, const T* rhs) {
   return true;
 }
 
-template <typename T, typename F>
-bool TensorizeComparator::CompareArray(const Array<T>& lhs, const Array<T>& rhs, F cmp) {
+template <typename T, typename Self, typename F>
+bool TensorizeComparator::CompareArray(const Array<T>& lhs, const Array<T>& rhs, F Self::*cmp) {
   if (lhs.same_as(rhs)) return true;
   if (lhs.size() != rhs.size()) return false;
   for (size_t i = 0; i < lhs.size(); ++i) {
-    if (!(this->*cmp)(lhs[i], rhs[i])) return false;
+    if (!(static_cast<Self*>(this)->*cmp)(lhs[i], rhs[i])) return false;
   }
   return true;
 }
@@ -353,6 +353,126 @@ bool TensorizeComparator::CompareIterVar(const IterVar& lhs, const IterVar& rhs)
 
 void TensorizeComparator::EmitError(const std::string& error_message) {
   error_messages_.push_back(error_message);
+}
+
+/******** AutoTensorize Extractor ********/
+
+bool AutoTensorizeComparator::VisitExprDefault_(const Object* op, const PrimExpr& other) {
+  return false;
+}
+
+bool AutoTensorizeComparator::VisitStmtDefault_(const Object* op, const Stmt& other) {
+  return false;
+}
+
+bool AutoTensorizeComparator::VisitStmt_(const BlockNode* op, const Stmt& other) {
+  const auto* rhs = other.as<BlockNode>();
+  // Check block equality.
+  // All iter vars and buffer regions including the order should match.
+  // When checking iter vars, DefEqual is used to remap variables.
+  if (!is_scope_block) {
+    if (!CompareArray(op->iter_vars, rhs->iter_vars, &AutoTensorizeComparator::CompareIterVar)) {
+      return false;
+    }
+    if (!CompareAnnotationMap(op->annotations, rhs->annotations)) {
+      return false;
+    }
+    if (!CompareArray(op->alloc_buffers, rhs->alloc_buffers,
+                      &AutoTensorizeComparator::CompareBuffer)) {
+      return false;
+    }
+    for (const IterVar& block_iter : op->iter_vars) {
+      inner_iter_dom_map_.Set(block_iter->var, arith::IntSet::FromRange(block_iter->dom));
+    }
+  } else {
+    auto collect_iter = [&](const BlockNode* op, std::vector<IterVar>& iters) -> bool {
+      for (const auto& iter : op->iter_vars) {
+        analyzer_.Bind(iter->var, iter->dom);
+        if (iter->iter_type == IterVarType::kDataPar ||
+            iter->iter_type == IterVarType::kCommReduce) {
+          iters.push_back(iter);
+        } else {
+          return false;
+        }
+      }
+      return true;
+    };
+    if (!collect_iter(op, lhs_iters_)) {
+      return false;
+    }
+    if (!collect_iter(rhs, rhs_iters_)) {
+      return false;
+    }
+  }
+  is_scope_block = false;
+  return VisitStmt(op->body, rhs->body);
+}
+
+bool AutoTensorizeComparator::CompareBuffer(const Buffer& lhs, const Buffer& rhs) {
+  if (lhs.same_as(rhs)) return true;
+  auto it = rhs_buffer_map_.find(rhs);
+  bool equal;
+  if (it != rhs_buffer_map_.end()) {
+    equal = (*it).second.same_as(lhs);
+  } else {
+    // Remap both buffer itself and buffer data, skip buffer shape and scope
+    equal = DefEqual(lhs->data, rhs->data) && lhs->dtype == rhs->dtype;
+    if (equal) {
+      rhs_buffer_map_[rhs] = lhs;
+      lhs_buffer_map_[lhs] = rhs;
+    }
+  }
+  return equal;
+}
+
+bool AutoTensorizeComparator::VisitStmt_(const BufferStoreNode* op, const Stmt& other) {
+  const auto* rhs = other.as<BufferStoreNode>();
+  return CompareBufferAccess(op, rhs) && VisitExpr(op->value, rhs->value);
+}
+
+bool AutoTensorizeComparator::VisitExpr_(const BufferLoadNode* op, const PrimExpr& other) {
+  const auto* rhs = other.as<BufferLoadNode>();
+  return CompareBufferAccess(op, rhs);
+}
+
+template <typename T>
+bool AutoTensorizeComparator::CompareBufferAccess(const T* lhs, const T* rhs) {
+  if (!CompareBuffer(lhs->buffer, rhs->buffer)) return false;
+  auto it_lhs = lhs_buffer_indices_map_.find(lhs->buffer);
+  if (it_lhs == lhs_buffer_indices_map_.end()) {
+    if (rhs_buffer_indices_map_.find(rhs->buffer) != rhs_buffer_indices_map_.end()) {
+      return false;
+    }
+    std::vector<PrimExpr> lhs_indices;
+    for (const auto& index : lhs->indices) {
+      lhs_indices.push_back(analyzer_.Simplify(index));
+    }
+    for (const auto& index : rhs->indices) {
+      if (!index.template as<VarNode>()) return false;
+    }
+    lhs_buffer_indices_map_[lhs->buffer] = lhs_indices;
+    rhs_buffer_indices_map_[rhs->buffer] = rhs->indices;
+  } else {
+    auto it_rhs = rhs_buffer_indices_map_.find(rhs->buffer);
+    if (it_rhs == rhs_buffer_indices_map_.end()) {
+      return false;
+    }
+    auto indices_check = [&](const Array<PrimExpr>& indices,
+                             const Array<PrimExpr>& old_indices) -> bool {
+      if (indices.size() != old_indices.size()) {
+        return false;
+      }
+      for (size_t i = 0; i < indices.size(); ++i) {
+        if (!analyzer_.CanProveEqual(indices[i], old_indices[i])) {
+          return false;
+        }
+      }
+      return true;
+    };
+    if (!indices_check(lhs->indices, it_lhs->second)) return false;
+    if (!indices_check(rhs->indices, it_rhs->second)) return false;
+  }
+  return true;
 }
 
 }  // namespace tir
