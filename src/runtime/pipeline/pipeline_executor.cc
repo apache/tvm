@@ -34,6 +34,9 @@ PackedFunc PipelineExecutor::GetFunction(const std::string& name,
   if (name == "get_num_outputs") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->NumOutputs(); });
+  } else if (name == "get_num_inputs") {
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->NumInputs(); });
   } else if (name == "get_input_pipeline_map") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       if (String::CanConvertFrom(args[0])) {
@@ -87,7 +90,10 @@ PackedFunc PipelineExecutor::GetFunction(const std::string& name,
     return PackedFunc();
   }
 }
-
+/*!
+ * brief Returns number of global inputs.
+ */
+int PipelineExecutor::NumInputs(void) { return input_connection_config_.GetInputNum(); }
 /*!
  * \brief set input to the runtime module.
  * \param input_name The input name.

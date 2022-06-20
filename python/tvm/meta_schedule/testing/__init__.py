@@ -15,3 +15,5 @@
 # specific language governing permissions and limitations
 # under the License.
 """Testing utilities in meta schedule"""
+
+# NOTE: Do not import any module here by default

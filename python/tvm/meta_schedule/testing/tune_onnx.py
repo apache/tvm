@@ -18,12 +18,14 @@
 import argparse
 import json
 import logging
+
 import numpy as np  # type: ignore
 import onnx  # type: ignore
 import tvm
-from tvm.relay.frontend import from_onnx
 from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
+from tvm.relay.frontend import from_onnx
+from tvm.support import describe
 
 
 def _parse_args():
@@ -70,13 +72,28 @@ def _parse_args():
         required=True,
     )
     args.add_argument(
-        "--rpc-workers",
-        type=int,
+        "--work-dir",
+        type=str,
         required=True,
     )
     args.add_argument(
-        "--work-dir",
-        type=str,
+        "--number",
+        type=int,
+        default=3,
+    )
+    args.add_argument(
+        "--repeat",
+        type=int,
+        default=1,
+    )
+    args.add_argument(
+        "--min-repeat-ms",
+        type=int,
+        default=100,
+    )
+    args.add_argument(
+        "--cpu-flush",
+        type=int,
         required=True,
     )
     parsed = args.parse_args()
@@ -99,6 +116,7 @@ ARGS = _parse_args()
 
 
 def main():
+    describe()
     print(f"Workload: {ARGS.model_name}")
     onnx_model = onnx.load(ARGS.onnx_path)
     shape_dict = {}
@@ -108,31 +126,32 @@ def main():
         print(f"  input_dtype: {item['dtype']}")
         shape_dict[item["name"]] = item["shape"]
     mod, params = from_onnx(onnx_model, shape_dict, freeze_params=True)
-    alloc_repeat = 1
     runner = ms.runner.RPCRunner(
         rpc_config=ARGS.rpc_config,
         evaluator_config=ms.runner.EvaluatorConfig(
-            number=3,
-            repeat=1,
-            min_repeat_ms=100,
-            enable_cpu_cache_flush=False,
+            number=ARGS.number,
+            repeat=ARGS.repeat,
+            min_repeat_ms=ARGS.min_repeat_ms,
+            enable_cpu_cache_flush=ARGS.cpu_flush,
         ),
-        alloc_repeat=alloc_repeat,
-        max_workers=ARGS.rpc_workers,
+        alloc_repeat=1,
     )
-    lib = ms.tune_relay(
-        mod=mod,
-        target=ARGS.target,
-        config=ms.TuneConfig(
-            strategy="evolutionary",
-            num_trials_per_iter=64,
-            max_trials_per_task=ARGS.num_trials,
-            max_trials_global=ARGS.num_trials,
-        ),
-        runner=runner,  # type: ignore
-        work_dir=ARGS.work_dir,
-        params=params,
-    )
+    with ms.Profiler() as profiler:
+        lib = ms.tune_relay(
+            mod=mod,
+            target=ARGS.target,
+            config=ms.TuneConfig(
+                strategy="evolutionary",
+                num_trials_per_iter=64,
+                max_trials_per_task=ARGS.num_trials,
+                max_trials_global=ARGS.num_trials,
+            ),
+            runner=runner,  # type: ignore
+            work_dir=ARGS.work_dir,
+            params=params,
+        )
+    print("Tuning Time:")
+    print(profiler.table())
     graph, rt_mod, params = lib.graph_json, lib.lib, lib.params
     input_data = {}
     for item in ARGS.input_shape:

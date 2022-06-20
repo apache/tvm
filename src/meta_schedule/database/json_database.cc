@@ -156,6 +156,15 @@ class JSONDatabaseNode : public DatabaseNode {
     return results;
   }
 
+  Array<TuningRecord> GetAllTuningRecords() {
+    Array<TuningRecord> results;
+    results.reserve(Size());
+    for (const TuningRecord& record : this->tuning_records_) {
+      results.push_back(record);
+    }
+    return results;
+  }
+
   int64_t Size() { return tuning_records_.size(); }
 };
 

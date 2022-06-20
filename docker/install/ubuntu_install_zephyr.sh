@@ -26,7 +26,7 @@ export TZ=Etc/UTC
 sudo ln -snf /usr/share/zoneinfo/$TZ /etc/localtime
 echo $TZ > /etc/timezone
 
-sudo apt-get install -y --no-install-recommends \
+sudo apt-install-and-clear -y --no-install-recommends \
      libsdl2-dev ca-certificates gnupg software-properties-common wget \
      git cmake ninja-build gperf \
      ccache dfu-util device-tree-compiler wget \
@@ -40,7 +40,7 @@ echo deb https://apt.kitware.com/ubuntu/ bionic main\
      >> /etc/apt/sources.list.d/kitware.list
 sudo apt-get update
 
-sudo apt-get install -y cmake
+sudo apt-install-and-clear -y cmake
 
 pip3 install west
 

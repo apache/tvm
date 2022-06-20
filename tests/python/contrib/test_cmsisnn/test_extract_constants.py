@@ -117,6 +117,40 @@ def test_nested_function():
 
 
 @tvm.testing.requires_cmsisnn
+def test_internal_function_with_duplicate_arguments():
+    """Tests the pass ExternConstants when a composite function
+    is present within global function with repeating arguments
+    to one of the binary ops.
+    """
+    input0 = relay.var("input0", shape=(8, 8))
+    binary_op0 = input0 + input0
+    binary_op1 = binary_op0 * relay.const(5.0, "float32")
+    local_func = relay.Function([input0], binary_op1, relay.TensorType((8, 8), "float32"))
+    local_func = set_composite_func_attr(local_func, "cmsis-nn")
+
+    arg = relay.var("arg", shape=(8, 8))
+    call_local_func = relay.Call(local_func, [arg])
+    extern_func = relay.Function([arg], call_local_func, relay.TensorType((8, 8), "float32"))
+
+    global_arg = relay.var("global_var", shape=(8, 8))
+    global_var = relay.GlobalVar("external_function")
+    extern_func = set_external_func_attr(extern_func, "cmsis-nn", global_var.name_hint)
+    call_extern_func = relay.Call(global_var, [global_arg])
+    main_func = relay.Function([global_arg], call_extern_func, relay.TensorType((8, 8), "float32"))
+    main_var = relay.GlobalVar("main")
+
+    mod = tvm.IRModule()
+    mod[global_var] = extern_func
+    mod[main_var] = main_func
+
+    mod = ExtractConstantsFromPartitionedFunction()(mod)
+    constant_verifier = CheckFunctionsForConstants()
+    constant_verifier.visit_function(mod[global_var])
+    constant_verifier.check_num_constants()
+    relay.transform.InferType()(mod)
+
+
+@tvm.testing.requires_cmsisnn
 def test_multiple_functions():
     """Tests the pass ExternConstants when global function
     contains multiple composite functions inside it

@@ -171,6 +171,50 @@ class TuneContext(Object):
         )
         _ffi_api.TuneContextInitialize(self)  # type: ignore # pylint: disable=no-member
 
+    def _set_measure_candidates(self, candidates):
+        """Set candidates in a tuning context.
+
+        Parameters
+        ----------
+        candidates : List[MeasureCandidate]
+            A list of measure candidates for the tuning context.
+        """
+        _ffi_api.TuneContextSetMeasureCandidates(self, candidates)  # type: ignore # pylint: disable=no-member
+
+    def _send_to_builder(self, builder):
+        """Send candidates to builder.
+
+        Parameters
+        ----------
+        builder : Builder
+            The builder for building the candidates.
+        """
+        _ffi_api.TuneContextSendToBuilder(self, builder)  # type: ignore # pylint: disable=no-member
+
+    def _send_to_runner(self, runner):
+        """Send candidates to runner.
+
+        Parameters
+        ----------
+        runner : Runner
+            The runner for running the candidates.
+        """
+        _ffi_api.TuneContextSendToRunner(self, runner)  # type: ignore # pylint: disable=no-member
+
+    def _join(self):
+        """Join the runner processes.
+
+        Returns
+        -------
+        result : List[RunnerResult]
+            The runner results.
+        """
+        return _ffi_api.TuneContextJoin(self)  # type: ignore # pylint: disable=no-member
+
+    def _clear_measure_state(self):
+        """Clear the measure states."""
+        _ffi_api.TuneContextClearMeasureState(self)  # type: ignore # pylint: disable=no-member
+
     def generate_design_space(self) -> List[Schedule]:
         """Generate design spaces given a module.
 

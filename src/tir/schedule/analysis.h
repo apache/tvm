@@ -707,6 +707,56 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
                                                 const tir::StmtSRef& block_sref,
                                                 const tir::PrimFunc& desc_func);
 
+/*！\brief Necessary information used to perform transformations for tensorization */
+class AutoTensorizeMappingInfoNode : public Object {
+ public:
+  /*! \brief Possible mappings to apply to block iters */
+  Array<IndexMap> mappings;
+
+  /* Additional information from AutoTensorizeComparator */
+
+  /*! \brief Mapping from LHS buffer to RHS buffer */
+  Map<Buffer, Buffer> lhs_buffer_map;
+  /*! \brief Buffer indices on RHS */
+  Map<Buffer, Array<PrimExpr>> rhs_buffer_indices;
+  /*! \brief Block iters on LHS */
+  Array<IterVar> lhs_iters;
+  /*! \brief Block iters on RHS */
+  Array<IterVar> rhs_iters;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("mappings", &mappings);
+    v->Visit("lhs_buffer_map", &lhs_buffer_map);
+    v->Visit("rhs_buffer_indices", &rhs_buffer_indices);
+    v->Visit("lhs_iters", &lhs_iters);
+    v->Visit("rhs_iters", &rhs_iters);
+  }
+
+  static constexpr const char* _type_key = "tir.schedule.AutoTensorizeMappingInfo";
+  TVM_DECLARE_FINAL_OBJECT_INFO(AutoTensorizeMappingInfoNode, Object);
+};
+
+class AutoTensorizeMappingInfo : public ObjectRef {
+ public:
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(AutoTensorizeMappingInfo, ObjectRef,
+                                            AutoTensorizeMappingInfoNode);
+};
+
+/*!
+ * \brief Get mapping info between a target block and an intrinsic description including layout
+ * transformations to apply.
+ * \param self The schedule state
+ * \param block_sref The compute block for auto tensorization
+ * \param desc_func The prim func describing the computation to be tensorized
+ * \return AutoTensorizeMappingInfo structure if a potential mapping is found, NullOpt otherwise.
+ * \note Returning a valid AutoTensorizeMappingInfo doesn't guarantee the block can be tensorized.
+ * We will need to apply the suggested layout transformations and then match against the tensor
+ * intrinsics.
+ */
+Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(const ScheduleState& self,
+                                                               const StmtSRef& block_sref,
+                                                               const PrimFunc& desc_func);
+
 }  // namespace tir
 }  // namespace tvm
 

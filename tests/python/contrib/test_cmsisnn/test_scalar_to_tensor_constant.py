@@ -257,6 +257,47 @@ def test_all_primary_operands_tensor_constants():
 
 
 @tvm.testing.requires_cmsisnn
+def test_duplicate_constant_arguments():
+    """Tests the pass when repeating operands are arguments to the binary op"""
+    dtype = "int8"
+    shape = (1, 3, 3, 32)
+    operand0 = generate_variable("operand0", shape, dtype)
+    operand1 = generate_variable("operand1", shape, dtype)
+    binary_op = make_binary_op(
+        relay.qnn.op.add,
+        operand0,
+        operand0,
+        input_0_scale=0.0128,
+        input_0_zero_point=32,
+        input_1_scale=0.256,
+        input_1_zero_point=-64,
+    )
+
+    local_func = relay.Function([operand0, operand1], binary_op, relay.TensorType(shape, dtype))
+    local_func = set_composite_func_attr(local_func, "cmsis-nn.qnn_add")
+
+    rng = np.random.default_rng(12345)
+    arg0 = relay.const(rng.integers(-128, high=127, size=shape, dtype=dtype))
+    call_local_func = relay.Call(local_func, [arg0, arg0])
+    extern_func = relay.Function([], call_local_func, relay.TensorType(shape, dtype))
+
+    global_var = relay.GlobalVar("external_function")
+    extern_func = set_external_func_attr(extern_func, "cmsis-nn", global_var.name_hint)
+    call_extern_func = relay.Call(global_var, [])
+    main_func = relay.Function([], call_extern_func, relay.TensorType(shape, dtype))
+    main_var = relay.GlobalVar("main")
+
+    mod = tvm.IRModule()
+    mod[global_var] = extern_func
+    mod[main_var] = main_func
+
+    mod = relay.transform.InferType()(mod)
+    mod = ScalarToTensorConstants()(mod)
+    new_mod = relay.transform.InferType()(mod)
+    assert tvm.ir.structural_equal(mod[global_var].body, new_mod[global_var].body)
+
+
+@tvm.testing.requires_cmsisnn
 def test_non_cmsisnn_ext_func():
     """Non CMSISNN functions should not be altered."""
 

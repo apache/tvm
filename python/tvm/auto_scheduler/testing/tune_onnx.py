@@ -17,19 +17,29 @@
 # pylint: disable=missing-docstring
 import argparse
 import json
-import logging
+import os
 
 import numpy as np  # type: ignore
+import onnx  # type: ignore
 import tvm
+from tvm import auto_scheduler
 from tvm import meta_schedule as ms
+from tvm import relay
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
-from tvm.meta_schedule.testing.relay_workload import get_network
+from tvm.meta_schedule.utils import cpu_count
+from tvm.relay.frontend import from_onnx
+from tvm.support import describe
 
 
 def _parse_args():
     args = argparse.ArgumentParser()
     args.add_argument(
-        "--workload",
+        "--model-name",
+        type=str,
+        required=True,
+    )
+    args.add_argument(
+        "--onnx-path",
         type=str,
         required=True,
     )
@@ -37,6 +47,7 @@ def _parse_args():
         "--input-shape",
         type=str,
         required=True,
+        help='example: `[{"name": "input1", "dtype": "int64", "shape": [1, 1, 8]}]',
     )
     args.add_argument(
         "--target",
@@ -64,19 +75,29 @@ def _parse_args():
         required=True,
     )
     args.add_argument(
-        "--rpc-workers",
-        type=int,
-        required=True,
-    )
-    args.add_argument(
         "--work-dir",
         type=str,
         required=True,
     )
     args.add_argument(
-        "--cache-dir",
-        type=str,
-        default=None,
+        "--number",
+        type=int,
+        default=3,
+    )
+    args.add_argument(
+        "--repeat",
+        type=int,
+        default=1,
+    )
+    args.add_argument(
+        "--min-repeat-ms",
+        type=int,
+        default=100,
+    )
+    args.add_argument(
+        "--cpu-flush",
+        type=int,
+        required=True,
     )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
@@ -90,56 +111,89 @@ def _parse_args():
     return parsed
 
 
-logging.basicConfig(
-    format="%(asctime)s.%(msecs)03d %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-)
-logging.getLogger("tvm.meta_schedule").setLevel(logging.INFO)
 ARGS = _parse_args()
 
 
 def main():
-    mod, params, (input_name, input_shape, input_dtype) = get_network(
-        ARGS.workload,
-        ARGS.input_shape,
-        cache_dir=ARGS.cache_dir,
+    log_file = os.path.join(ARGS.work_dir, f"{ARGS.model_name}.json")
+
+    runner = auto_scheduler.RPCRunner(
+        key=ARGS.rpc_key,
+        host=ARGS.rpc_host,
+        port=ARGS.rpc_port,
+        n_parallel=cpu_count(logical=True),
+        number=ARGS.number,
+        repeat=ARGS.repeat,
+        min_repeat_ms=ARGS.min_repeat_ms,
+        enable_cpu_cache_flush=ARGS.cpu_flush,
     )
-    input_info = {input_name: input_shape}
-    input_data = {}
-    print(f"Workload: {ARGS.workload}")
-    for input_name, input_shape in input_info.items():
-        print(f"  input_name: {input_name}")
-        print(f"  input_shape: {input_shape}")
-        print(f"  input_dtype: {input_dtype}")
-    alloc_repeat = 1
-    runner = ms.runner.RPCRunner(
-        rpc_config=ARGS.rpc_config,
-        evaluator_config=ms.runner.EvaluatorConfig(
-            number=3,
-            repeat=1,
-            min_repeat_ms=100,
-            enable_cpu_cache_flush=False,
-        ),
-        alloc_repeat=alloc_repeat,
-        max_workers=ARGS.rpc_workers,
-    )
-    with ms.Profiler() as profiler:
-        lib = ms.tune_relay(
-            mod=mod,
+
+    if ARGS.target.kind.name == "llvm":
+        hardware_params = auto_scheduler.HardwareParams(
+            num_cores=int(ARGS.target.attrs["num-cores"]),
             target=ARGS.target,
-            config=ms.TuneConfig(
-                strategy="evolutionary",
-                num_trials_per_iter=64,
-                max_trials_per_task=ARGS.num_trials,
-                max_trials_global=ARGS.num_trials,
-            ),
-            runner=runner,  # type: ignore
-            work_dir=ARGS.work_dir,
-            params=params,
         )
-    print("Tuning Time:")
-    print(profiler.table())
+    elif ARGS.target.kind.name == "cuda":
+        hardware_params = auto_scheduler.HardwareParams(
+            num_cores=-1,
+            vector_unit_bytes=16,
+            cache_line_bytes=64,
+            max_shared_memory_per_block=int(ARGS.target.attrs["max_shared_memory_per_block"]),
+            max_threads_per_block=int(ARGS.target.attrs["max_threads_per_block"]),
+            # The value `max_local_memory_per_block` is not used in AutoScheduler,
+            # but is required by the API.
+            max_local_memory_per_block=12345678,
+            max_vthread_extent=8,
+            warp_size=32,
+        )
+    else:
+        raise NotImplementedError(f"Unsupported target {ARGS.target}")
+
+    describe()
+    print(f"Workload: {ARGS.model_name}")
+    onnx_model = onnx.load(ARGS.onnx_path)
+    shape_dict = {}
+    for item in ARGS.input_shape:
+        print(f"  input_name: {item['name']}")
+        print(f"  input_shape: {item['shape']}")
+        print(f"  input_dtype: {item['dtype']}")
+        shape_dict[item["name"]] = item["shape"]
+    mod, params = from_onnx(onnx_model, shape_dict, freeze_params=True)
+    tasks, task_weights = auto_scheduler.extract_tasks(
+        mod["main"],
+        params,
+        target=ARGS.target,
+        hardware_params=hardware_params,
+    )
+    for idx, (task, task_weight) in enumerate(zip(tasks, task_weights)):
+        print(f"==== Task {idx}: {task.desc} (weight {task_weight} key: {task.workload_key}) =====")
+        print(task.compute_dag)
+
+    tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
+    tuner.tune(
+        auto_scheduler.TuningOptions(
+            num_measure_trials=ARGS.num_trials,
+            runner=runner,
+            measure_callbacks=[
+                auto_scheduler.RecordToFile(log_file),
+            ],
+        )
+    )
+
+    with auto_scheduler.ApplyHistoryBest(log_file):
+        with tvm.transform.PassContext(
+            opt_level=3,
+            config={"relay.backend.use_auto_scheduler": True},
+        ):
+            lib = relay.build(
+                mod,
+                target=ARGS.target,
+                params=params,
+            )
     graph, rt_mod, params = lib.graph_json, lib.lib, lib.params
-    for input_name, input_shape in input_info.items():
+    input_data = {}
+    for item in ARGS.input_shape:
+        input_name, input_shape, input_dtype = item["name"], item["shape"], item["dtype"]
         if input_dtype.startswith("float"):
             input_data[input_name] = np.random.uniform(size=input_shape).astype(input_dtype)
         else:
