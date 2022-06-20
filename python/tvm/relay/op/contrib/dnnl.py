@@ -782,6 +782,187 @@ def rewrite_dense_bias_gelu_reshape_last(mod):
     return mod
 
 
+class ResNetV1Rewrite(DFPatternCallback):
+    """
+    A callback to advance downsize operation when the patterns are as pattern1, and the result is written in pattern2:
+    Pattern #1:
+    %26 = nn.conv2d(%25, meta[relay.Constant][16] /* ty=Tensor[(64, 256, 1, 1), float32] */, padding=[0, 0, 0, 0], channels=64, kernel_size=[1, 1]) /* ty=Tensor[(1, 64, 56, 56), float32] */;
+    %27 = add(%26, meta[relay.Constant][17] /* ty=Tensor[(64, 1, 1), float32] */) /* ty=Tensor[(1, 64, 56, 56), float32] */;
+    %28 = nn.relu(%27) /* ty=Tensor[(1, 64, 56, 56), float32] */;
+    
+    %29 = nn.conv2d(%28, meta[relay.Constant][18] /* ty=Tensor[(64, 64, 3, 3), float32] */, padding=[1, 1, 1, 1], channels=64, kernel_size=[3, 3]) /* ty=Tensor[(1, 64, 56, 56), float32] */;
+    %30 = add(%29, meta[relay.Constant][19] /* ty=Tensor[(64, 1, 1), float32] */) /* ty=Tensor[(1, 64, 56, 56), float32] */;
+    %31 = nn.relu(%30) /* ty=Tensor[(1, 64, 56, 56), float32] */;
+    
+    %32 = nn.conv2d(%31, meta[relay.Constant][20] /* ty=Tensor[(256, 64, 1, 1), float32] */, padding=[0, 0, 0, 0], channels=256, kernel_size=[1, 1]) /* ty=Tensor[(1, 256, 56, 56), float32] */;
+    %33 = add(%32, meta[relay.Constant][21] /* ty=Tensor[(256, 1, 1), float32] */) /* ty=Tensor[(1, 256, 56, 56), float32] */;
+    %34 = add(%33, %25) /* ty=Tensor[(1, 256, 56, 56), float32] */;
+    %35 = nn.relu(%34) /* ty=Tensor[(1, 256, 56, 56), float32] */;
+    
+    %36 = nn.conv2d(%35, meta[relay.Constant][22] /* ty=Tensor[(128, 256, 1, 1), float32] */, strides=[2, 2], padding=[0, 0, 0, 0], channels=128, kernel_size=[1, 1]) /* ty=Tensor[(1, 128, 28, 28), float32] */;
+    %37 = add(%36, meta[relay.Constant][23] /* ty=Tensor[(128, 1, 1), float32] */) /* ty=Tensor[(1, 128, 28, 28), float32] */;
+    %38 = nn.relu(%37) /* ty=Tensor[(1, 128, 28, 28), float32] */;
+    
+    %39 = nn.conv2d(%38, meta[relay.Constant][24] /* ty=Tensor[(128, 128, 3, 3), float32] */, padding=[1, 1, 1, 1], channels=128, kernel_size=[3, 3]) /* ty=Tensor[(1, 128, 28, 28), float32] */;
+    %40 = add(%39, meta[relay.Constant][25] /* ty=Tensor[(128, 1, 1), float32] */) /* ty=Tensor[(1, 128, 28, 28), float32] */;
+    %41 = nn.relu(%40) /* ty=Tensor[(1, 128, 28, 28), float32] */;
+    
+    %42 = nn.conv2d(%41, meta[relay.Constant][26] /* ty=Tensor[(512, 128, 1, 1), float32] */, padding=[0, 0, 0, 0], channels=512, kernel_size=[1, 1]) /* ty=Tensor[(1, 512, 28, 28), float32] */;
+    %43 = nn.conv2d(%35, meta[relay.Constant][28] /* ty=Tensor[(512, 256, 1, 1), float32] */, strides=[2, 2], padding=[0, 0, 0, 0], channels=512, kernel_size=[1, 1]) /* ty=Tensor[(1, 512, 28, 28), float32] */;
+    %44 = add(%42, meta[relay.Constant][27] /* ty=Tensor[(512, 1, 1), float32] */) /* ty=Tensor[(1, 512, 28, 28), float32] */;
+    %45 = add(%43, meta[relay.Constant][29] /* ty=Tensor[(512, 1, 1), float32] */) /* ty=Tensor[(1, 512, 28, 28), float32] */;
+    
+    %46 = add(%44, %45) /* ty=Tensor[(1, 512, 28, 28), float32] */;
+    %47 = nn.relu(%46) /* ty=Tensor[(1, 512, 28, 28), float32] */;
+    Pattern #2:
+    %26 = nn.conv2d(%25, meta[relay.Constant][16] /* ty=Tensor[(64, 256, 1, 1), float32] */, padding=[0, 0, 0, 0], channels=64, kernel_size=[1, 1]);
+    %27 = add(%26, meta[relay.Constant][17] /* ty=Tensor[(64, 1, 1), float32] */);
+    %28 = nn.relu(%27);
+    
+    %29 = nn.conv2d(%28, meta[relay.Constant][18] /* ty=Tensor[(64, 64, 3, 3), float32] */, strides=[2, 2], padding=[1, 1, 1, 1], channels=64, kernel_size=[3, 3]);
+    %30 = add(%29, meta[relay.Constant][19] /* ty=Tensor[(64, 1, 1), float32] */);
+    %31 = nn.relu(%30);
+    
+    %32 = nn.conv2d(%31, meta[relay.Constant][20] /* ty=Tensor[(256, 64, 1, 1), float32] */, padding=[0, 0, 0, 0], channels=256, kernel_size=[1, 1]);
+    %33 = add(%32, meta[relay.Constant][21] /* ty=Tensor[(256, 1, 1), float32] */);
+    %34 = nn.max_pool2d(%25, pool_size=[1, 1], strides=[2, 2], padding=[0, 0, 0, 0]);
+    %35 = add(%33, %34);
+    %36 = nn.relu(%35);
+    
+    %37 = nn.conv2d(%36, meta[relay.Constant][22] /* ty=Tensor[(128, 256, 1, 1), float32] */, padding=[0, 0, 0, 0], channels=128, kernel_size=[1, 1]);
+    %38 = add(%37, meta[relay.Constant][23] /* ty=Tensor[(128, 1, 1), float32] */);
+    %39 = nn.relu(%38);
+    
+    %40 = nn.conv2d(%39, meta[relay.Constant][24] /* ty=Tensor[(128, 128, 3, 3), float32] */, padding=[1, 1, 1, 1], channels=128, kernel_size=[3, 3]);
+    %41 = add(%40, meta[relay.Constant][25] /* ty=Tensor[(128, 1, 1), float32] */);
+    %42 = nn.relu(%41);
+    
+    %43 = nn.conv2d(%42, meta[relay.Constant][26] /* ty=Tensor[(512, 128, 1, 1), float32] */, padding=[0, 0, 0, 0], channels=512, kernel_size=[1, 1]);
+    %44 = nn.conv2d(%36, meta[relay.Constant][28] /* ty=Tensor[(512, 256, 1, 1), float32] */, padding=[0, 0, 0, 0], channels=512, kernel_size=[1, 1]);
+    %45 = add(%43, meta[relay.Constant][27] /* ty=Tensor[(512, 1, 1), float32] */);
+    %46 = add(%44, meta[relay.Constant][29] /* ty=Tensor[(512, 1, 1), float32] */);
+    %47 = add(%45, %46);
+    %48 = nn.relu(%47);
+    """
+
+    def __init__(self):
+        super(ResNetV1Rewrite, self).__init__()
+        self.cnt = 0
+        self.attr_lst = []
+        self.data = wildcard()
+        self.w1, self.b1 = wildcard(), wildcard()
+        self.w2, self.b2 = wildcard(), wildcard()
+        self.w3, self.b3 = wildcard(), wildcard()
+        self.w4, self.b4 = wildcard(), wildcard()
+        self.w5, self.b5 = wildcard(), wildcard()
+        self.w6, self.b6 = wildcard(), wildcard()
+        self.w7, self.b7 = wildcard(), wildcard()
+
+        conv1 = is_op("nn.conv2d")(self.data, self.w1).has_attr({"kernel_size": [1, 1]})
+        conv1 = is_op("add")(conv1,self.b1)
+        conv1 = is_op("nn.relu")(conv1)
+
+        conv2 = is_op("nn.conv2d")(conv1, self.w2).has_attr({"kernel_size": [3, 3]})
+        conv2 = is_op("add")(conv2, self.b2)
+        conv2 = is_op("nn.relu")(conv2)
+
+        conv3 = is_op("nn.conv2d")(conv2, self.w3).has_attr({"kernel_size": [1, 1]})
+        conv3 = is_op("add")(conv3, self.b3)
+        conv3 = is_op("add")(conv3, self.data)
+        conv3 = is_op("nn.relu")(conv3)
+
+        left_conv4 = is_op("nn.conv2d")(conv3, self.w4).has_attr({"strides": [2, 2]})
+        left_conv4 = is_op("add")(left_conv4, self.b4)
+        left_conv4 = is_op("nn.relu")(left_conv4)
+
+        left_conv5 = is_op("nn.conv2d")(left_conv4, self.w5).has_attr({"kernel_size": [3, 3]})
+        left_conv5 = is_op("add")(left_conv5, self.b5)
+        left_conv5 = is_op("nn.relu")(left_conv5)
+
+        left_conv6 = is_op("nn.conv2d")(left_conv5, self.w6).has_attr({"kernel_size": [1, 1]})
+        left_conv6 = is_op("add")(left_conv6, self.b6)
+
+        right_conv7 = is_op("nn.conv2d")(conv3, self.w7).has_attr({"strides": [2, 2]})
+        right_conv7 = is_op("add")(right_conv7, self.b7)
+
+        out = is_op("add")(left_conv6, right_conv7)
+        out = is_op("nn.relu")(out)
+        self.pattern = out
+
+    def get_attr(self, pre):
+        """Recursively retrieve attributes from reshape operator."""
+
+        def visit_func(expr):
+            if isinstance(expr, _expr.Call) and expr.op == relay.op.get("nn.conv2d"):
+                self.attr_lst.append(expr.attrs)
+
+        _analysis.post_order_visit(pre, visit_func)
+
+    def callback(self, pre, post, node_map):
+        # print(pre)
+        self.get_attr(pre)
+        data = node_map[self.data][0]
+        w1, b1 = node_map[self.w1][0], node_map[self.b1][0]
+        w2, b2 = node_map[self.w2][0], node_map[self.b2][0]
+        w3, b3 = node_map[self.w3][0], node_map[self.b3][0]
+        w4, b4 = node_map[self.w4][0], node_map[self.b4][0]
+        w5, b5 = node_map[self.w5][0], node_map[self.b5][0]
+        w6, b6 = node_map[self.w6][0], node_map[self.b6][0]
+        w7, b7 = node_map[self.w7][0], node_map[self.b7][0]
+
+        new_attrs = self.attr_lst[-7]
+        conv1 = relay.op.nn.conv2d(data, w1, **new_attrs)
+        conv1 = relay.op.add(conv1, b1)
+        conv1 = relay.op.nn.relu(conv1)
+
+        new_attrs = dict(self.attr_lst[-6])
+        new_attrs["strides"] = [2, 2]
+        conv2 = relay.op.nn.conv2d(conv1, w2, **new_attrs)
+        conv2 = relay.op.add(conv2, b2)
+        conv2 = relay.op.nn.relu(conv2)
+
+        new_attrs = self.attr_lst[-5]
+        conv3 = relay.op.nn.conv2d(conv2, w3, **new_attrs)
+        conv3 = relay.op.add(conv3, b3)
+        max_pool = relay.op.nn.max_pool2d(data, pool_size=(1, 1), strides=(2, 2), layout = new_attrs["data_layout"])
+        conv3 = relay.op.add(conv3, max_pool)
+        conv3 = relay.op.nn.relu(conv3)
+
+        new_attrs = dict(self.attr_lst[-4])
+        new_attrs["strides"] = [1, 1]
+        left_conv4 = relay.op.nn.conv2d(conv3, w4, **new_attrs)
+        left_conv4 = relay.op.add(left_conv4, b4)
+        left_conv4 = relay.op.nn.relu(left_conv4)
+
+        new_attrs = self.attr_lst[-3]
+        left_conv5 = relay.op.nn.conv2d(left_conv4, w5, **new_attrs)
+        left_conv5 = relay.op.add(left_conv5, b5)
+        left_conv5 = relay.op.nn.relu(left_conv5)
+
+        new_attrs = self.attr_lst[-2]
+        left_conv6 = relay.op.nn.conv2d(left_conv5, w6, **new_attrs)
+        left_conv6 = relay.op.add(left_conv6, b6)
+
+        new_attrs = dict(self.attr_lst[-1])
+        new_attrs["strides"] = [1, 1]
+        right_conv7 = relay.op.nn.conv2d(conv3, w7, **new_attrs)
+        right_conv7 = relay.op.add(right_conv7, b7)
+
+        out = relay.op.add(left_conv6, right_conv7)
+        out = relay.op.nn.relu(out)
+        self.attr_lst = []
+        return out
+
+def rewrite_resnetv1(mod):
+    """Rewrite the input graph to reorder reshape operators so that
+    we can perform dense_bias_gelu/dense_bias fusion and then offload
+    them to byoc part.
+    """
+    mod["main"] = rewrite(ResNetV1Rewrite(), mod["main"]
+    )
+    return mod
+
+
 class LegalizeQnnOpForDnnl(DFPatternCallback):
     """Legalize QNN based patterns to match DNNL
 
