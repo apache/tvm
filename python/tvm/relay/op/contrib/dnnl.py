@@ -380,6 +380,8 @@ def get_shape(tensor):
     if isinstance(tensor, tvm.ir.container.Array):
         return tensor[-1].shape
     if isinstance(tensor, relay.expr.Call):
+        if tensor.op.name=="multiply":
+            return tensor.type_args[0].shape
         return tensor.checked_type.shape
     raise TypeError("Unsupport data type: %s" % type(tensor))
 
@@ -395,6 +397,8 @@ def get_dtype(tensor):
     if isinstance(tensor, tvm.ir.container.Array):
         return tensor[-1].dtype
     if isinstance(tensor, relay.expr.Call):
+        if tensor.op.name=="multiply":
+            return tensor.type_args[0].dtype
         return tensor.checked_type.dtype
     raise TypeError("Unsupport data type: %s" % type(tensor))
 
