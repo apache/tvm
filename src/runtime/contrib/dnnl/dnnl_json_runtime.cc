@@ -200,7 +200,11 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
       ops.append_eltwise(1.f, dnnl::algorithm::eltwise_tanh, 0.f, 0.f);
     }
     if (std::regex_match(op_name, sigmoid_pat)) {
-      ops.append_eltwise(1.f, dnnl::algorithm::eltwise_logistic, 0.f, 0.f);
+      if (op_name.find("_sigmoid_mul") != std::string::npos) {
+        ops.append_eltwise(1.f, dnnl::algorithm::eltwise_swish, 1.f, 1.f);
+      } else {
+        ops.append_eltwise(1.f, dnnl::algorithm::eltwise_logistic, 0.f, 0.f);
+      }
     }
     if (std::regex_match(op_name, gelu_pat)) {
       ops.append_eltwise(1.f, dnnl::algorithm::eltwise_gelu_erf, 0.f, 0.f);
