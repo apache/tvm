@@ -319,7 +319,6 @@ void CodeGenLLVM::Optimize() {
     fpass.run(*it);
   }
   fpass.doFinalization();
-  // PrintModule(module_.get());
   mpass.run(*module_);
 }
 
