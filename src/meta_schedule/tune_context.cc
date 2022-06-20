@@ -142,7 +142,9 @@ Array<RunnerResult> TuneContextNode::_Join() {
       results.push_back(future->Result());
     }
   }
-  this->search_strategy.value()->NotifyRunnerResults(this->measure_candidates.value(), results);
+  if (this->search_strategy.defined()) {
+    this->search_strategy.value()->NotifyRunnerResults(this->measure_candidates.value(), results);
+  }
   ICHECK(this->measure_candidates.defined());
   ICHECK(this->builder_results.defined());
   ICHECK_EQ(results.size(), this->measure_candidates.value().size());
@@ -177,6 +179,16 @@ TVM_REGISTER_GLOBAL("meta_schedule.TuneContext")
 TVM_REGISTER_GLOBAL("meta_schedule._SHash2Hex").set_body_typed(SHash2Hex);
 TVM_REGISTER_GLOBAL("meta_schedule.TuneContextInitialize")
     .set_body_method<TuneContext>(&TuneContextNode::Initialize);
+TVM_REGISTER_GLOBAL("meta_schedule.TuneContextSetMeasureCandidates")
+    .set_body_method<TuneContext>(&TuneContextNode::_SetMeasureCandidates);
+TVM_REGISTER_GLOBAL("meta_schedule.TuneContextSendToBuilder")
+    .set_body_method<TuneContext>(&TuneContextNode::_SendToBuilder);
+TVM_REGISTER_GLOBAL("meta_schedule.TuneContextSendToRunner")
+    .set_body_method<TuneContext>(&TuneContextNode::_SendToRunner);
+TVM_REGISTER_GLOBAL("meta_schedule.TuneContextJoin")
+    .set_body_method<TuneContext>(&TuneContextNode::_Join);
+TVM_REGISTER_GLOBAL("meta_schedule.TuneContextClearMeasureState")
+    .set_body_method<TuneContext>(&TuneContextNode::_ClearMeasureState);
 
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -115,6 +115,17 @@ class TuningRecord(Object):
             args_info,
         )
 
+    def as_measure_candidate(self) -> Any:
+        """Generate a measure candidate given an initial IR module and a trace
+        stored in the tuning record.
+
+        Returns
+        -------
+        candidate : MeasureCandidate
+            A generated candidate.
+        """
+        return _ffi_api.TuningRecordAsMeasureCandidate(self)  # type: ignore # pylint: disable=no-member
+
     def as_json(self) -> Any:
         """Export the tuning record to a JSON string.
 
@@ -203,6 +214,16 @@ class Database(Object):
         """
         return _ffi_api.DatabaseGetTopK(self, workload, top_k)  # type: ignore # pylint: disable=no-member
 
+    def get_all_tuning_records(self) -> List[TuningRecord]:
+        """Get all the tuning records from the database.
+
+        Returns
+        -------
+        tuning_records : List[TuningRecord]
+            All tuning records from the database.
+        """
+        return _ffi_api.DatabaseGetAllTuningRecords(self)  # type: ignore # pylint: disable=no-member
+
     def __len__(self) -> int:
         """Get the number of records in the database.
 
@@ -229,6 +250,7 @@ class _PyDatabase(Database):
         f_commit_workload: Callable = None,
         f_commit_tuning_record: Callable = None,
         f_get_top_k: Callable = None,
+        f_get_all_tuning_records: Callable = None,
         f_size: Callable = None,
     ):
         """Constructor."""
@@ -239,6 +261,7 @@ class _PyDatabase(Database):
             f_commit_workload,
             f_commit_tuning_record,
             f_get_top_k,
+            f_get_all_tuning_records,
             f_size,
         )
 
@@ -258,6 +281,7 @@ class PyDatabase:
             "commit_workload",
             "commit_tuning_record",
             "get_top_k",
+            "get_all_tuning_records",
             "__len__",
         ],
     }
@@ -314,6 +338,16 @@ class PyDatabase:
         -------
         top_k_records : List[TuningRecord]
             The top K records.
+        """
+        raise NotImplementedError
+
+    def get_all_tuning_records(self) -> List[TuningRecord]:
+        """Get all the tuning records from the database.
+
+        Returns
+        -------
+        tuning_records : List[TuningRecord]
+            All tuning records from the database.
         """
         raise NotImplementedError
 

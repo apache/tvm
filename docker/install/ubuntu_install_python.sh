@@ -18,23 +18,28 @@
 
 set -e
 set -u
+# Used for debugging RVM build
+set -x
 set -o pipefail
 
 # install python and pip, don't modify this, modify install_python_package.sh
 apt-get update
-apt-get install -y python-dev
+apt-install-and-clear -y python-dev
 
 # python 3.6
-apt-get install -y software-properties-common
+apt-install-and-clear -y software-properties-common
 
 add-apt-repository -y ppa:deadsnakes/ppa
 apt-get update
-apt-get install -y python-pip python-dev python3.6 python3.6-dev
+apt-install-and-clear -y python-pip python-dev python3.6 python3.6-dev
 
 rm -f /usr/bin/python3 && ln -s /usr/bin/python3.6 /usr/bin/python3
 
+# python 3.7
+apt-install-and-clear -y python3.7
+
 # Install pip
-cd /tmp && wget -q https://bootstrap.pypa.io/get-pip.py && python3.6 get-pip.py
+wget -q https://bootstrap.pypa.io/get-pip.py && python3.7 get-pip.py
 
 # Pin pip and setuptools versions
 pip3 install pip==19.3.1 setuptools==58.4.0
