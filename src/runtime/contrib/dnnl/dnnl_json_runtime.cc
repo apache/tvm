@@ -189,6 +189,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     std::regex relu_pat(".*_relu.*");
     std::regex tanh_pat(".*_tanh.*");
     std::regex sigmoid_pat(".*_sigmoid.*");
+    std::regex clip_pat(".*_clip.*");
     std::regex gelu_pat(".*_gelu.*");
 
     // Parsing post-ops.
@@ -198,6 +199,11 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     }
     if (std::regex_match(op_name, tanh_pat)) {
       ops.append_eltwise(1.f, dnnl::algorithm::eltwise_tanh, 0.f, 0.f);
+    }
+    if (std::regex_match(op_name, clip_pat)) {
+      float a_min = GetNodeAttr<float>(nodes_[nid], "a_min");
+      float a_max = GetNodeAttr<float>(nodes_[nid], "a_max");
+      ops.append_eltwise(1.f, dnnl::algorithm::eltwise_clip, a_min, a_max);
     }
     if (std::regex_match(op_name, sigmoid_pat)) {
       if (op_name.find("_sigmoid_mul") != std::string::npos) {

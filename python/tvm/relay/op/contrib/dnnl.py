@@ -289,7 +289,7 @@ def pattern_table():
     dnnl_patterns.append(make_qnn_conv2d_pattern())
     dnnl_patterns.append(make_qnn_dense_pattern())
 
-    elt_list = ["nn.relu", "tanh", "sigmoid", "gelu", "swish", None]
+    elt_list = ["nn.relu", "tanh", "sigmoid", "clip", "gelu", "swish", None]
     for with_bias in [True, False]:
         for elt in elt_list:
             if not with_bias and not elt:
