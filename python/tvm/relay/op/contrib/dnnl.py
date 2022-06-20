@@ -128,8 +128,11 @@ def make_conv_pattern(conv_name, with_bias=True, with_eltwise=None):
         conv_out = is_op("add")(conv, bias)
     else:
         conv_out = conv
-    if with_eltwise:
-        return is_op(with_eltwise)(conv_out)
+    if with_eltwise == "swish":
+        sig_out = is_op("sigmoid")(conv_out)
+        conv_out = is_op("multiply")(conv_out, sig_out)
+    elif with_eltwise:
+        conv_out = is_op(with_eltwise)(conv_out)
     return conv_out
 
 
@@ -165,6 +168,9 @@ def make_dense_pattern(with_bias=True, with_eltwise=None):
         added_erf_val = is_op("add")(erf_val, const2)
         mul_val = is_op("multiply")(dense_out, added_erf_val)
         dense_out = is_op("multiply")(mul_val, const3)
+    elif with_eltwise == "swish":
+        sig_out = is_op("sigmoid")(dense_out)
+        dense_out = is_op("multiply")(dense_out, sig_out)
     elif with_eltwise:
         dense_out = is_op(with_eltwise)(dense_out)
     return dense_out
@@ -191,6 +197,7 @@ def make_dnnl_pattern(op_name, with_bias, with_eltwise):
         pat_name = "dnnl.deconv" + op_name.split("_")[0][-2::]
     pat_name += "_bias" if with_bias else ""
     pat_name += ("_" + with_eltwise.split(".")[-1]) if with_eltwise else ""
+    pat_name =pat_name.replace("_swish", "_sigmoid_mul")
     if "conv" in op_name:
         dnnl_pattern = (pat_name, make_conv_pattern(op_name, with_bias, with_eltwise))
     elif op_name == "nn.dense":
@@ -282,7 +289,7 @@ def pattern_table():
     dnnl_patterns.append(make_qnn_conv2d_pattern())
     dnnl_patterns.append(make_qnn_dense_pattern())
 
-    elt_list = ["nn.relu", "tanh", "sigmoid", "gelu", None]
+    elt_list = ["nn.relu", "tanh", "sigmoid", "gelu", "swish", None]
     for with_bias in [True, False]:
         for elt in elt_list:
             if not with_bias and not elt:

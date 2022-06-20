@@ -470,6 +470,7 @@ class DNNLJSONSerializer : public backend::contrib::JSONSerializer {
       {"relu", "nn.relu"},
       {"tanh", "tanh"},
       {"sigmoid", "sigmoid"},
+      {"mul", "multiply"},
       {"nn.deconv2d", "nn.conv2d_transpose"},
       {"nn.deconv3d", "nn.conv3d_transpose"},
   };
