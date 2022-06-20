@@ -991,6 +991,15 @@ def test_pool2d(run_module, dtype="float32"):
                     )
 
 
+def test_global_avg_pooling2d(run_module, dtype="float32"):
+    x_shape=(1, 3, 32, 32)
+    x = relay.var("x", shape=(x_shape), dtype=dtype)
+    out = relay.nn.global_avg_pool2d(x)
+    out = tvm.IRModule.from_expr(out)
+    config = out, {"x": x_shape}, []
+    run_and_verify_func(config, run_module=run_module)
+
+
 def test_pool3d(run_module, dtype="float32"):
     def get_graph(
         op,

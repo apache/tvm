@@ -89,6 +89,7 @@ _register_external_op_helper("nn.conv3d_transpose")
 _register_external_op_helper("nn.dense")
 _register_external_op_helper("nn.max_pool2d")
 _register_external_op_helper("nn.avg_pool2d")
+_register_external_op_helper("nn.global_avg_pool2d")
 _register_external_op_helper("nn.max_pool3d")
 _register_external_op_helper("nn.avg_pool3d")
 _register_external_op_helper("abs")
@@ -575,6 +576,7 @@ class IsComputeIntensiveGraph(ExprVisitor):
                 "nn.dense",
                 "nn.layer_norm",
                 "nn.batch_matmul",
+                "nn.global_avg_pool2d",
             ]
         )
         if isinstance(call.op, tvm.tir.op.Op):
