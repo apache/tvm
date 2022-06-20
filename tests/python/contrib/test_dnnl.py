@@ -77,23 +77,24 @@ def partition_for_dnnl(mod, params=None, alter_layout=True, prune_subgraphs=True
 
     with TempOpAttr("nn.conv2d", "FTVMLegalize", dnnl.legalize_group_conv):
         with TempOpAttr("nn.conv2d_transpose", "FTVMLegalize", dnnl.legalize_group_conv):
-            seq = tvm.transform.Sequential(
-                [
-                    transform.CanonicalizeOps(),
-                    transform.InferType(),
-                    transform.SimplifyInference(),
-                    transform.FoldConstant(),
-                    transform.FoldScaleAxis(),
-                    # fold consecutive add ops to simplify pattern `conv2d-bias_add-bn-relu`
-                    transform.SimplifyExpr(),
-                    transform.FoldConstant(),
-                    # alter group conv /conv_transpose layout to `GOIHW` / `GIOHW`
-                    transform.Legalize(),
-                    transform.FoldConstant(),
-                ]
-            )
-            with tvm.transform.PassContext(opt_level=3):
-                mod = seq(mod)
+            with TempOpAttr("nn.avg_pool2d", "FTVMLegalize", dnnl.legalize_pad_avg_pool):
+                seq = tvm.transform.Sequential(
+                    [
+                        transform.CanonicalizeOps(),
+                        transform.InferType(),
+                        transform.SimplifyInference(),
+                        transform.FoldConstant(),
+                        transform.FoldScaleAxis(),
+                        # fold consecutive add ops to simplify pattern `conv2d-bias_add-bn-relu`
+                        transform.SimplifyExpr(),
+                        transform.FoldConstant(),
+                        # alter group conv /conv_transpose layout to `GOIHW` / `GIOHW`
+                        transform.Legalize(),
+                        transform.FoldConstant(),
+                    ]
+                )
+                with tvm.transform.PassContext(opt_level=3):
+                    mod = seq(mod)
     if alter_layout:
         with TempOpAttr("nn.conv1d", "FTVMAlterOpLayout", dnnl.alter_conv):
             with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", dnnl.alter_conv):
@@ -1198,7 +1199,21 @@ def test_resnetv1_rewrite(run_module, dtype="float32"):
         dic = {"x": data_shape}
         param_lst = []
         return out, dic, param_lst
+    net, dic, param_lst = get_graph()
+    net = tvm.IRModule.from_expr(net)
+    config = net, dic, param_lst
+    run_and_verify_func(config, run_module=run_module, dtype=dtype)
 
+
+def test_fuse_pad_avg_pool(run_module, dtype="float32"):
+    def get_graph():
+        data_shape = (1, 768, 17, 17)
+        x = relay.var("x", shape=data_shape, dtype=dtype)
+        out = relay.nn.pad(x, pad_width=[[0, 0], [0, 0], [1, 1], [1, 1]])
+        out = relay.nn.avg_pool2d(out, pool_size=[3, 3])
+        dic = {"x": data_shape}
+        param_lst = []
+        return out, dic, param_lst
     net, dic, param_lst = get_graph()
     net = tvm.IRModule.from_expr(net)
     config = net, dic, param_lst
