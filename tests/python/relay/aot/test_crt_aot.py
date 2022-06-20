@@ -44,6 +44,7 @@ from tvm.testing.aot import (
     create_relay_module_and_inputs_from_tflite_file,
 )
 from tvm.micro.testing.aot_test_utils import AOT_DEFAULT_RUNNER, parametrize_aot_options
+from tvm.micro.testing.utils import get_conv2d_relay_module
 
 
 def test_error_c_interface_with_packed_api():
@@ -76,22 +77,7 @@ def test_error_c_interface_with_packed_api():
 @parametrize_aot_options
 def test_conv_with_params(interface_api, use_unpacked_api, test_runner):
     """Tests compilation of convolution with parameters"""
-    relay_model = """
-#[version = "0.0.5"]
-def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(8, 3, 5, 5), int8]) {
-    %1 = nn.conv2d(
-         %data,
-         %weight,
-         padding=[2, 2],
-         channels=8,
-         kernel_size=[5, 5],
-         data_layout="NCHW",
-         kernel_layout="OIHW",
-         out_dtype="int32");
-  %1
-}
-"""
-    mod = tvm.parser.fromtext(relay_model)
+    mod = get_conv2d_relay_module()
     main_func = mod["main"]
     shape_dict = {p.name_hint: p.checked_type.concrete_shape for p in main_func.params}
     type_dict = {p.name_hint: p.checked_type.dtype for p in main_func.params}
@@ -576,23 +562,7 @@ def test_multiple_models(interface_api, use_unpacked_api, test_runner):
     params1 = None
 
     # Convolution model
-    relay_model = """
-    #[version = "0.0.5"]
-    def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(8, 3, 5, 5), int8]) {
-        %1 = nn.conv2d(
-            %data,
-            %weight,
-            padding=[2, 2],
-            channels=8,
-            kernel_size=[5, 5],
-            data_layout="NCHW",
-            kernel_layout="OIHW",
-            out_dtype="int32");
-    %1
-    }
-    """
-
-    mod2 = tvm.parser.fromtext(relay_model)
+    mod2 = get_conv2d_relay_module()
     main_func = mod2["main"]
     shape_dict = {p.name_hint: p.checked_type.concrete_shape for p in main_func.params}
     type_dict = {p.name_hint: p.checked_type.dtype for p in main_func.params}

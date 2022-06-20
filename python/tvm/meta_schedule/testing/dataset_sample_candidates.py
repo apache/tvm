@@ -103,6 +103,14 @@ def sample_candidates(task, task_name, model_name):
     -------
     None
     """
+    candidate_path = os.path.join(
+        args.candidate_cache_dir, model_name, task_name + "_candidates.json"
+    )
+    workload_path = os.path.join(args.candidate_cache_dir, model_name, task_name + "_workload.json")
+    database = ms.database.JSONDatabase(
+        path_workload=workload_path,
+        path_tuning_record=candidate_path,
+    )
     sample_init_population = tvm.get_global_func(
         "meta_schedule.SearchStrategyEvolutionarySearchSampleInitPopulation"
     )
@@ -128,7 +136,7 @@ def sample_candidates(task, task_name, model_name):
     context.initialize()
     context.pre_tuning(
         context.generate_design_space(),
-        database=ms.database.MemoryDatabase(),  # type: ignore
+        database=database,
         cost_model=ms.cost_model.RandomModel(),  # type: ignore
     )
 
@@ -148,16 +156,9 @@ def sample_candidates(task, task_name, model_name):
     all_states = all_states[: args.num_samples_per_task]
 
     workload = ms.database.Workload(context.mod)
-    file_path = os.path.join(args.candidate_cache_dir, model_name, task_name + ".json")
-    with open(file_path, "w", encoding="utf8") as file:
-        for i, state in enumerate(all_states):
-            tuning_record = ms.database.TuningRecord(state.trace, workload)
-            json_str = json.dumps(tuning_record.as_json())
-            assert "\n" not in json_str, "Failed to generate single line string."
-            if i == len(all_states) - 1:
-                file.write(json_str)
-            else:
-                file.write(json_str + "\n")
+    database.commit_workload(context.mod)
+    for state in all_states:
+        database.commit_tuning_record(ms.database.TuningRecord(state.trace, workload))
 
 
 args = _parse_args()  # pylint: disable=invalid-name

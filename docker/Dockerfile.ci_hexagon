@@ -19,8 +19,11 @@
 # tag: v0.02
 FROM tvmcihexagon/ci-hexagon-base:v0.02_SDK4.5.0.3
 
+COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
+
 RUN apt-get update --fix-missing
-RUN apt-get install -y ca-certificates gnupg2 libxml2-dev
+
+RUN apt-install-and-clear -y ca-certificates gnupg2 libxml2-dev
 
 COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
 RUN bash /install/ubuntu_install_core.sh

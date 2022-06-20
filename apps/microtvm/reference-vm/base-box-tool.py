@@ -53,8 +53,15 @@ ALL_PLATFORMS = (
 # Extra scripts required to execute on provisioning
 # in [platform]/base-box/base_box_provision.sh
 EXTRA_SCRIPTS = {
-    "arduino": (),
+    "arduino": (
+        "apps/microtvm/reference-vm/base_box_setup_common.sh",
+        "docker/install/ubuntu_install_core.sh",
+        "docker/install/ubuntu_install_python.sh",
+    ),
     "zephyr": (
+        "apps/microtvm/reference-vm/base_box_setup_common.sh",
+        "docker/install/ubuntu_install_core.sh",
+        "docker/install/ubuntu_install_python.sh",
         "docker/install/ubuntu_init_zephyr_project.sh",
         "docker/install/ubuntu_install_zephyr_sdk.sh",
         "docker/install/ubuntu_install_cmsis.sh",
