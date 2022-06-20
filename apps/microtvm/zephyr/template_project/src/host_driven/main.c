@@ -33,7 +33,7 @@
 #include <drivers/uart.h>
 #include <fatal.h>
 #include <kernel.h>
-#include <power/reboot.h>
+#include <sys/reboot.h>
 #include <random/rand32.h>
 #include <stdio.h>
 #include <sys/printk.h>

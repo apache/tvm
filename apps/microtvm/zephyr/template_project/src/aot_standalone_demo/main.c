@@ -20,7 +20,7 @@
 #include <assert.h>
 #include <float.h>
 #include <kernel.h>
-#include <power/reboot.h>
+#include <sys/reboot.h>
 #include <stdio.h>
 #include <string.h>
 #include <tvm/runtime/c_runtime_api.h>
