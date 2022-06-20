@@ -160,14 +160,30 @@ class JSONTokenizer {
     if (st == cur_) {
       return false;
     }
-    // TODO(@junrushao1994): error checking
+    std::string to_parse(st, cur_);
+    if (!is_float) {
+      try {
+        *token = Token{TokenType::kInteger, IntImm(DataType::Int(64), std::stoll(to_parse))};
+      } catch (const std::invalid_argument& e) {
+        LOG(WARNING) << "ValueError: Invalid argument to std::stoll: " << to_parse
+                     << ". Details: " << e.what() << ". Switching to std::stod now.";
+        is_float = true;
+      } catch (const std::out_of_range& e) {
+        LOG(WARNING) << "ValueError: Out-of-range for std::stoll: " << to_parse
+                     << ". Details: " << e.what() << ". Switching to std::stod now.";
+        is_float = true;
+      }
+    }
     if (is_float) {
-      *token = Token{TokenType::kFloat,
-                     FloatImm(DataType::Float(64),  //
-                              std::stod(std::string(st, cur_)))};
-    } else {
-      *token = Token{TokenType::kInteger,  //
-                     Integer(std::stoi(std::string(st, cur_)))};
+      try {
+        *token = Token{TokenType::kFloat, FloatImm(DataType::Float(64), std::stod(to_parse))};
+      } catch (const std::invalid_argument& e) {
+        LOG(INFO) << "ValueError: Invalid argument to std::stod: " << to_parse
+                  << ". Details: " << e.what();
+      } catch (const std::out_of_range& e) {
+        LOG(INFO) << "ValueError: Out-of-range for std::stod: " << to_parse
+                  << ". Details: " << e.what();
+      }
     }
     return true;
   }
