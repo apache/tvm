@@ -19,6 +19,7 @@ import argparse
 import logging
 from os import cpu_count
 from typing import Optional
+from distutils.util import strtobool
 
 import tvm
 from tvm import meta_schedule as ms
@@ -81,8 +82,9 @@ def _parse_args():
     )
     args.add_argument(
         "--cpu-flush",
-        type=int,
+        type=lambda x: bool(strtobool(x)),
         required=True,
+        help="example: `True / False",
     )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
