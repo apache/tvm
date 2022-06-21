@@ -28,6 +28,7 @@ from tvm.runtime import Module, NDArray
 from tvm.target import Target
 from tvm.te import Tensor, create_prim_func
 from tvm.tir import PrimFunc, Schedule
+from tvm import relay
 
 from . import default_config
 from .apply_history_best import ApplyHistoryBest
@@ -527,6 +528,7 @@ def tune_relay(
     postprocs: Optional[FnPostproc] = None,
     mutator_probs: Optional[FnMutatorProb] = None,
     num_threads: Optional[int] = None,
+    use_vm: Optional[bool] = False,
 ) -> Module:
     """Tune a TIR IRModule with a given target.
 
@@ -590,4 +592,7 @@ def tune_relay(
                 opt_level=3,
                 config={"relay.backend.use_meta_schedule": True},
             ):
-                return relay_build(mod, target=target, params=params)
+                if not use_vm:
+                    return relay_build(mod, target=target, params=params)
+                else:
+                    return relay.vm.compile(mod, target=target, params=params)

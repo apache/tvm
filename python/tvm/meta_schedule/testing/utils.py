@@ -108,7 +108,7 @@ def generate_input_data(input_shape: List[int], input_dtype: str) -> np.ndarray:
         raise ValueError("Unsupported input datatype!")
 
 
-def f_timer(rt_mod: tvm.runtime.Module, dev: tvm.device, input_data: Dict[str, np.ndarray]) -> None:
+def f_timer(rt_mod: tvm.runtime.Module, dev: tvm.device, input_data: Dict[str, NDArray]) -> None:
     """Run and benchmark the given runtime module, print out the result.
 
     Parameters
@@ -139,6 +139,34 @@ def f_timer(rt_mod: tvm.runtime.Module, dev: tvm.device, input_data: Dict[str, n
     print(f"Median : {median(results)}")
 
 
+def f_timer_vm(
+    rt_mod: tvm.runtime.vm.Executable, dev: tvm.device, input_data: Dict[str, NDArray]
+) -> None:
+    """Run and benchmark the given runtime module, print out the result.
+
+    Parameters
+    ----------
+    rt_mod : tvm.runtime.vm.Executable
+        The runtime module.
+    dev : tvm.device
+        The device type to run workload.
+    input_data : Dict[str, np.ndarray]
+        The input data as a dictionary.
+    """
+    from tvm.runtime.vm import VirtualMachine  # pylint:disable=import-outside-toplevel
+
+    vm = VirtualMachine(rt_mod, dev)  # pylint: disable=invalid-name
+    results = vm.benchmark(
+        dev, min_repeat_ms=500, repeat=3, number=3, end_to_end=True, **input_data
+    ).results
+    results = list(np.array(results) * 1000.0)  # type: ignore
+    print("Running time in time_evaluator: ", results)
+    print("-------------------------------")
+    print(f"Min    : {min(results)}")
+    print(f"Max    : {max(results)}")
+    print(f"Median : {median(results)}")
+
+
 def f_per_layer(graph: str) -> Callable:
     """Create a function to run and benchmark the per-layer performance of given runtime module,
     given the graph output of the module from graph compiler.
@@ -154,9 +182,7 @@ def f_per_layer(graph: str) -> Callable:
         The function using the json format graph.
     """
 
-    def func(
-        rt_mod: tvm.runtime.Module, dev: tvm.device, input_data: Dict[str, np.ndarray]
-    ) -> None:
+    def func(rt_mod: tvm.runtime.Module, dev: tvm.device, input_data: Dict[str, NDArray]) -> None:
         """Run and benchmark the per-layer performance of given runtime module,
         print out the result.
 
@@ -186,7 +212,7 @@ def f_per_layer(graph: str) -> Callable:
         print("|graph_nodes| = ", len(graph_nodes))
         print("|graph_time| = ", len(graph_time))
 
-        graph_nodes_time = [(k, float(v) * 1e3) for k, v in zip(graph_nodes, graph_time)]
+        graph_nodes_time = [(k, float(v) * 1e6) for k, v in zip(graph_nodes, graph_time)]
         print(tabulate(graph_nodes_time, headers=["Layer", "Time(us)"]))
 
     return func
