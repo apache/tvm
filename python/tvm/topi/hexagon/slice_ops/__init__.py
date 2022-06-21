@@ -17,6 +17,5 @@
 
 """ Computes and Schedules for Hexagon slice ops. """
 
-# pylint: disable=wildcard-import
-
 from .avg_pool2d import avg_pool2d_compute, avg_pool2d_STIR_schedule
+from .add_subtract_multiply import *

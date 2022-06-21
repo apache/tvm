@@ -974,6 +974,56 @@ def test_scalar_convert_layout():
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
+def test_conv_ln_convert_layout():
+    """Check that layout transforms are propagated through ln."""
+
+    def before():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight = relay.var("weight", shape=(3, 3, 64, 64))
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+
+        dtype = "float32"
+        beta = relay.var("beta", relay.TensorType((64,), dtype))
+        gamma = relay.var("gamma", relay.TensorType((64,), dtype))
+
+        y = relay.nn.layer_norm(y, gamma, beta, axis=3)
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def expected():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        w = relay.var("weight", shape=(3, 3, 64, 64))
+        x = relay.layout_transform(x, "NHWC", "NCHW")
+        w = relay.layout_transform(w, "HWIO", "OIHW")
+        y = relay.nn.conv2d(x, w, channels=64, kernel_size=(3, 3), padding=(1, 1))
+
+        dtype = "float32"
+        beta = relay.var("beta", relay.TensorType((64,), dtype))
+        gamma = relay.var("gamma", relay.TensorType((64,), dtype))
+
+        y = relay.nn.layer_norm(y, gamma, beta, axis=1)
+        y = relay.layout_transform(y, "NCHW", "NHWC")
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    a = before()
+    a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
+    print(a)
+    b = run_opt_pass(expected(), transform.InferType())
+    print(" ")
+    print(b)
+
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+
 def test_conv_bn_convert_layout():
     """Check that layout transforms are propagated through bn."""
 
