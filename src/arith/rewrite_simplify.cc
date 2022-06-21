@@ -1640,13 +1640,34 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
       // the operator overload will eagerly constant fold.
       return op->args[0] << op->args[1];
     }
+  } else if (op->op.same_as(Op::Get("tir.ceil"))) {
+    PrimExpr ceil_arg = op->args[0];
+    if (auto arg_int = op->args[0].as<IntImmNode>()) {
+      return cast(op->dtype, IntImm(arg_int->dtype, arg_int->value));
+    } else if (auto arg_float = ceil_arg.as<FloatImmNode>()) {
+      return cast(op->dtype, FloatImm(arg_float->dtype, std::ceil(arg_float->value)));
+    } else if (auto arg_call = ceil_arg.as<CallNode>()) {
+      // ceil(log2(cast(n,"float64"))) is used as the implementation of
+      // topi.math.ceil_log2, and appears in iteration bounds.
+      if (arg_call->op.same_as(Op::Get("tir.log2"))) {
+        PrimExpr log_arg = arg_call->args[0];
+        if (auto as_float = log_arg.as<FloatImmNode>()) {
+          // ceil(log2(n)) can be simplified, and should produce the
+          // same integer result regardless of the target's rounding
+          // conventions.
+          return FloatImm(op->dtype, std::ceil(std::log2(as_float->value)));
+        }
+      }
+    }
   }
+
   if (op->op.same_as(tir::builtin::likely())) {
     // Cases such as for (i, 0, bound) {if (likely(iter_var < bound)) { .. } }
     if (auto match = TryMatchLiteralConstraint(op->args[0])) {
       return match.value();
     }
   }
+
   return ret;
 }
 
