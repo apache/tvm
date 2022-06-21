@@ -921,6 +921,41 @@ Expr MakeLayerNorm(Expr data, Expr gamma, Expr beta, int axis, double epsilon, b
   return Call(op, {data, gamma, beta}, Attrs(attrs), {});
 }
 
+InferCorrectLayoutOutput LayerNormInferCorrectLayout(const Attrs& attrs,
+                                                     const Array<Layout>& new_in_layouts,
+                                                     const Array<Layout>& old_in_layouts,
+                                                     const Array<tvm::relay::Type>& old_in_types) {
+  const auto* attrs_ptr = attrs.as<LayerNormAttrs>();
+  ICHECK(attrs_ptr);
+  ObjectPtr<LayerNormAttrs> param = make_object<LayerNormAttrs>(*attrs_ptr);
+
+  Array<Array<IndexExpr>> old_in_shapes;
+  for (auto old_in_t : old_in_types) {
+    ICHECK(old_in_t.as<TensorTypeNode>());
+    old_in_shapes.push_back(old_in_t.as<TensorTypeNode>()->shape);
+  }
+
+  size_t axis =
+      param->axis < 0 ? param->axis + old_in_shapes[0].size() : static_cast<size_t>(param->axis);
+
+  Layout ret = Layout::Undef();
+
+  // If new_in_layouts are defined, this code tries to modify the layout.
+  if (new_in_layouts.defined() && old_in_layouts.defined()) {
+    // Get the new C axis. Extract the dim in old layout. Find the index of that dim in next layout.
+    const auto& ln_dim = old_in_layouts[0][axis];
+    auto new_index = new_in_layouts[0].IndexOf(ln_dim);
+    param->axis = new_index;
+    ret = new_in_layouts[0];
+  } else if (old_in_layouts.defined()) {
+    ret = old_in_layouts[0];
+  }
+
+  // LN has 3 inputs, 1 outputs. The last 2 inputs have "C" layout.
+  Layout c_layout = Layout("C");
+  return InferCorrectLayoutOutput({ret, c_layout, c_layout}, {ret}, Attrs(param));
+}
+
 TVM_REGISTER_GLOBAL("relay.op.nn._make.layer_norm").set_body_typed(MakeLayerNorm);
 
 RELAY_REGISTER_OP("nn.layer_norm")
@@ -931,6 +966,7 @@ RELAY_REGISTER_OP("nn.layer_norm")
     .add_argument("data", "Tensor", "Input to which layer_norm will be applied.")
     .add_argument("gamma", "Tensor", "The gamma scale factor.")
     .add_argument("beta", "Tensor", "The beta offset factor.")
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", LayerNormInferCorrectLayout)
     .set_support_level(1)
     .add_type_rel("LayerNorm", LayerNormRel);
 
