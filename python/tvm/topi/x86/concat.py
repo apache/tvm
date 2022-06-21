@@ -23,7 +23,8 @@ from ..utils import get_const_int, const_vector
 
 
 def concatenate(data: tvm.te.Tensor, axis: Optional[int] = 0):
-    """Join a sequence of arrays along an existing axis. Optimized for CPU exeution.
+    """Join a sequence of arrays along an existing axis.
+    Optimized for CPU execution.
 
     Parameters
     ----------
@@ -42,7 +43,7 @@ def concatenate(data: tvm.te.Tensor, axis: Optional[int] = 0):
     in_outers_cumsum = [0, *np.cumsum(in_outers, dtype="int64")[0:-1]]
 
     def gen_ir_1d(data_bufs, out_buf):
-        """Custom conactenation execution."""
+        """Custom concatenation execution."""
         i_b = tvm.tir.ir_builder.create()
         data_bufs1 = [i_b.buffer_ptr(data_buf) for data_buf in data_bufs]
         out_buf = i_b.buffer_ptr(out_buf)
@@ -53,7 +54,7 @@ def concatenate(data: tvm.te.Tensor, axis: Optional[int] = 0):
         return i_b.get()
 
     def gen_ir(data_bufs, out_buf, inner, outer):
-        """Common case of conactenation execution."""
+        """Common case of concatenation execution."""
         i_b = tvm.tir.ir_builder.create()
         data_bufs1 = [i_b.buffer_ptr(data_buf) for data_buf in data_bufs]
         out_buf = i_b.buffer_ptr(out_buf)
