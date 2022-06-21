@@ -60,13 +60,14 @@ This folder contains the source of TVM's documentation, hosted at https://tvm.ap
    # work on most environments (e.g. MacOS).
    export TVM_TUTORIAL_EXEC_PATTERN=none
 
+   cd docs
    make html
    ```
 
 4. Run an HTTP server and visit http://localhost:8000 in your browser
 
    ```bash
-   cd docs/_build/html && python3 -m http.server
+   cd _build/html && python3 -m http.server
    ```
 
 ## Only Execute Specified Tutorials
