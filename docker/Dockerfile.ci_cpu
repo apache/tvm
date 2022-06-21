@@ -110,10 +110,6 @@ RUN bash /install/ubuntu_install_boost.sh
 COPY install/ubuntu_install_caffe.sh /install/ubuntu_install_caffe.sh
 RUN bash /install/ubuntu_install_caffe.sh
 
-# Github Arm(R) Ethos(TM)-N NPU driver
-COPY install/ubuntu_install_ethosn_driver_stack.sh /install/ubuntu_install_ethosn_driver_stack.sh
-RUN bash /install/ubuntu_install_ethosn_driver_stack.sh
-
 # Vitis-AI PyXIR CI deps
 COPY install/ubuntu_install_vitis_ai_packages_ci.sh /install/ubuntu_install_vitis_ai_packages_ci.sh
 RUN bash /install/ubuntu_install_vitis_ai_packages_ci.sh
@@ -123,15 +119,6 @@ COPY install/ubuntu_install_androidsdk.sh /install/ubuntu_install_androidsdk.sh
 RUN bash /install/ubuntu_install_androidsdk.sh
 ENV ANDROID_HOME=/opt/android-sdk-linux/
 ENV ANDROID_NDK_HOME=/opt/android-sdk-linux/ndk/21.3.6528147/
-
-# Install CMSIS_NN
-COPY install/ubuntu_install_cmsis.sh /install/ubuntu_install_cmsis.sh
-RUN bash /install/ubuntu_install_cmsis.sh /opt/arm/ethosu/cmsis
-ENV CMSIS_PATH=/opt/arm/ethosu/cmsis/
-
-# Arm(R) Ethos(TM)-U NPU driver
-COPY install/ubuntu_install_ethosu_driver_stack.sh /install/ubuntu_install_ethosu_driver_stack.sh
-RUN bash /install/ubuntu_install_ethosu_driver_stack.sh
 
 # Install Vela compiler
 COPY install/ubuntu_install_vela.sh /install/ubuntu_install_vela.sh
