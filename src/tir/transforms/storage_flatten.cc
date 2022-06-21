@@ -1110,7 +1110,7 @@ class BufferBindUnwrapper : public StmtExprMutator {
 
     // Match integer bits of source->elem_offset and view->elem_offset
     // as is required by ArgBinder::Bind_
-    if (source->elem_offset.dtype() != view->elem_offset.dtype()) {
+    if (view->elem_offset.defined() && source->elem_offset.dtype() != view->elem_offset.dtype()) {
       view.CopyOnWrite()->elem_offset = cast(source->elem_offset.dtype(), view->elem_offset);
     }
 
