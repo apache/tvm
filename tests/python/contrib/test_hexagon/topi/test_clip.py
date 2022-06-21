@@ -26,7 +26,7 @@ import tvm.testing
 from tvm.topi import testing
 from tvm.contrib.hexagon.build import HexagonLauncher
 import tvm.topi.hexagon.slice_ops as sl
-from .infrastructure import allocate_hexagon_array, transform_numpy
+from ..infrastructure import allocate_hexagon_array, transform_numpy
 
 input_layout = tvm.testing.parameter(
     "nhwc-8h2w32c2w-2d",
@@ -58,6 +58,7 @@ class TestClipSlice:
         ref_np = np.clip(input_np, A_min, A_max)
         return ref_np
 
+    @tvm.testing.requires_hexagon
     def test_clip_slice(
         self,
         input_shape,
