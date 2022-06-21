@@ -19,7 +19,7 @@ from typing import Optional
 import tvm
 from tvm import te
 import numpy as np
-from ..utils import get_const_int, const_vector
+from ..utils import get_const_int
 
 
 def concatenate(data: tvm.te.Tensor, axis: Optional[int] = 0):
