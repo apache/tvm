@@ -23,9 +23,10 @@ from .. import generic
 from .injective import schedule_injective_from_existing
 from ..utils import get_const_int, traverse_inline
 
+
 def _schedule_softmax(softmax_op, s, outs, tgt):
     op_tag = softmax_op.tag
-    axis = get_const_int(softmax_op.attrs["axis"]) # reduce axis
+    axis = get_const_int(softmax_op.attrs["axis"])  # reduce axis
     if op_tag == "softmax_output":
         expsum = softmax_op.input_tensors[1]
         exp = softmax_op.input_tensors[0]
