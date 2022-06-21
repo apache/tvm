@@ -45,18 +45,18 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-06-01T16:34:53.941462
+// Generated at 2022-06-17T13:38:47.940292
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
 ci_lint = 'tlcpack/ci-lint:20220513-055910-fa834f67e'
-ci_gpu = 'tlcpack/ci-gpu:20220519-055908-ddfa1da69'
+ci_gpu = 'tlcpack/ci-gpu:20220606-055910-bf4b8f5c7'
 ci_cpu = 'tlcpack/ci-cpu:20220519-055908-ddfa1da69'
 ci_wasm = 'tlcpack/ci-wasm:20220513-055910-fa834f67e'
 ci_i386 = 'tlcpack/ci-i386:20220513-055910-fa834f67e'
 ci_qemu = 'tlcpack/ci-qemu:20220517-094028-de21c8f2e'
 ci_arm = 'tlcpack/ci-arm:20220513-055910-fa834f67e'
-ci_hexagon = 'tlcpack/ci-hexagon:20220516-190055-672ce3365'
+ci_hexagon = 'tlcpack/ci-hexagon:20220603-203325-cee74c9f8'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -96,6 +96,7 @@ if (currentBuild.getBuildCauses().toString().contains('BranchIndexingCause')) {
 
 // Filenames for stashing between build and test steps
 s3_prefix = "tvm-jenkins-artifacts-prod/tvm/${env.BRANCH_NAME}/${env.BUILD_NUMBER}"
+
 
 // General note: Jenkins has limits on the size of a method (or top level code)
 // that are pretty strict, so most usage of groovy methods in these templates
@@ -171,6 +172,17 @@ def docker_init(image) {
     """,
     label: 'Clean old Docker images',
   )
+
+  if (image.contains("amazonaws.com")) {
+    // If this string is in the image name it's from ECR and needs to be pulled
+    // with the right credentials
+    ecr_pull(image)
+  } else {
+    sh(
+      script: "docker pull ${image}",
+      label: 'Pull docker image',
+    )
+  }
 }
 
 def should_skip_slow_tests(pr_number) {
@@ -273,6 +285,89 @@ def prepare() {
     }
   }
 }
+def ecr_push(full_name) {
+  aws_account_id = sh(
+    returnStdout: true,
+    script: 'aws sts get-caller-identity | grep Account | cut -f4 -d\\"',
+    label: 'Get AWS ID'
+  ).trim()
+
+  def ecr_name = "${aws_account_id}.dkr.ecr.us-west-2.amazonaws.com/${full_name}"
+  try {
+    withEnv([
+      "AWS_ACCOUNT_ID=${aws_account_id}",
+      'AWS_DEFAULT_REGION=us-west-2',
+      "AWS_ECR_REPO=${aws_account_id}.dkr.ecr.us-west-2.amazonaws.com"]) {
+      sh(
+        script: '''
+          set -eux
+          aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ECR_REPO
+        ''',
+        label: 'Log in to ECR'
+      )
+      sh(
+        script: """
+          set -x
+          docker tag ${full_name} \$AWS_ECR_REPO/${full_name}
+          docker push \$AWS_ECR_REPO/${full_name}
+        """,
+        label: 'Upload image to ECR'
+      )
+    }
+  } finally {
+    withEnv([
+      "AWS_ACCOUNT_ID=${aws_account_id}",
+      'AWS_DEFAULT_REGION=us-west-2',
+      "AWS_ECR_REPO=${aws_account_id}.dkr.ecr.us-west-2.amazonaws.com"]) {
+      sh(
+        script: 'docker logout $AWS_ECR_REPO',
+        label: 'Clean up login credentials'
+      )
+    }
+  }
+  return ecr_name
+}
+
+def ecr_pull(full_name) {
+  aws_account_id = sh(
+    returnStdout: true,
+    script: 'aws sts get-caller-identity | grep Account | cut -f4 -d\\"',
+    label: 'Get AWS ID'
+  ).trim()
+
+  try {
+    withEnv([
+      "AWS_ACCOUNT_ID=${aws_account_id}",
+      'AWS_DEFAULT_REGION=us-west-2',
+      "AWS_ECR_REPO=${aws_account_id}.dkr.ecr.us-west-2.amazonaws.com"]) {
+      sh(
+        script: '''
+          set -eux
+          aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ECR_REPO
+        ''',
+        label: 'Log in to ECR'
+      )
+      sh(
+        script: """
+          set -eux
+          docker pull ${full_name}
+        """,
+        label: 'Pull image from ECR'
+      )
+    }
+  } finally {
+    withEnv([
+      "AWS_ACCOUNT_ID=${aws_account_id}",
+      'AWS_DEFAULT_REGION=us-west-2',
+      "AWS_ECR_REPO=${aws_account_id}.dkr.ecr.us-west-2.amazonaws.com"]) {
+      sh(
+        script: 'docker logout $AWS_ECR_REPO',
+        label: 'Clean up login credentials'
+      )
+    }
+  }
+}
+
 def build_image(image_name) {
   hash = sh(
     returnStdout: true,
@@ -283,160 +378,102 @@ def build_image(image_name) {
     script: "${docker_build} ${image_name} --spec ${full_name}",
     label: 'Build docker image'
   )
-  aws_account_id = sh(
-    returnStdout: true,
-    script: 'aws sts get-caller-identity | grep Account | cut -f4 -d\\"',
-    label: 'Get AWS ID'
-  ).trim()
-
-  try {
-    // Use a credential so Jenkins knows to scrub the AWS account ID which is nice
-    // (but so we don't have to rely it being hardcoded in Jenkins)
-    withCredentials([string(
-      credentialsId: 'aws-account-id',
-      variable: '_ACCOUNT_ID_DO_NOT_USE',
-      )]) {
-      withEnv([
-        "AWS_ACCOUNT_ID=${aws_account_id}",
-        'AWS_DEFAULT_REGION=us-west-2']) {
-        sh(
-          script: '''
-            set -x
-            aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
-          ''',
-          label: 'Log in to ECR'
-        )
-        sh(
-          script: """
-            set -x
-            docker tag ${full_name} \$AWS_ACCOUNT_ID.dkr.ecr.\$AWS_DEFAULT_REGION.amazonaws.com/${full_name}
-            docker push \$AWS_ACCOUNT_ID.dkr.ecr.\$AWS_DEFAULT_REGION.amazonaws.com/${full_name}
-          """,
-          label: 'Upload image to ECR'
-        )
-      }
-    }
-  } finally {
-    sh(
-      script: 'rm -f ~/.docker/config.json',
-      label: 'Clean up login credentials'
-    )
-  }
-  sh(
-    script: "docker rmi ${full_name}",
-    label: 'Remove docker image'
-  )
+  return ecr_push(full_name)
 }
+
 
 def build_docker_images() {
   stage('Docker Image Build') {
-    // TODO in a follow up PR: Find ecr tag and use in subsequent builds
-    parallel 'ci-lint': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          docker_init('none')
-          init_git()
-          build_image('ci_lint')
+    parallel(
+      'ci_arm': {
+        node('ARM') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            // We're purposefully not setting the built image here since they
+            // are not yet being uploaded to tlcpack
+            // ci_arm = build_image('ci_arm')
+            build_image('ci_arm')
+          }
         }
-      }
-    }, 'ci-cpu': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          docker_init('none')
-          init_git()
-          build_image('ci_cpu')
+      },
+      'ci_cpu': {
+        node('CPU') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            // We're purposefully not setting the built image here since they
+            // are not yet being uploaded to tlcpack
+            // ci_cpu = build_image('ci_cpu')
+            build_image('ci_cpu')
+          }
         }
-      }
-    }, 'ci-gpu': {
-      node('GPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          docker_init('none')
-          init_git()
-          build_image('ci_gpu')
+      },
+      'ci_gpu': {
+        node('CPU') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            // We're purposefully not setting the built image here since they
+            // are not yet being uploaded to tlcpack
+            // ci_gpu = build_image('ci_gpu')
+            build_image('ci_gpu')
+          }
         }
-      }
-    }, 'ci-qemu': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          docker_init('none')
-          init_git()
-          build_image('ci_qemu')
+      },
+      'ci_hexagon': {
+        node('CPU') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            // We're purposefully not setting the built image here since they
+            // are not yet being uploaded to tlcpack
+            // ci_hexagon = build_image('ci_hexagon')
+            build_image('ci_hexagon')
+          }
         }
-      }
-    }, 'ci-i386': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          docker_init('none')
-          init_git()
-          build_image('ci_i386')
+      },
+      'ci_i386': {
+        node('CPU') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            // We're purposefully not setting the built image here since they
+            // are not yet being uploaded to tlcpack
+            // ci_i386 = build_image('ci_i386')
+            build_image('ci_i386')
+          }
         }
-      }
-    }, 'ci-arm': {
-      node('ARM') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          docker_init('none')
-          init_git()
-          build_image('ci_arm')
+      },
+      'ci_lint': {
+        node('CPU') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            // We're purposefully not setting the built image here since they
+            // are not yet being uploaded to tlcpack
+            // ci_lint = build_image('ci_lint')
+            build_image('ci_lint')
+          }
         }
-      }
-    }, 'ci-wasm': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          docker_init('none')
-          init_git()
-          build_image('ci_wasm')
+      },
+      'ci_qemu': {
+        node('CPU') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            // We're purposefully not setting the built image here since they
+            // are not yet being uploaded to tlcpack
+            // ci_qemu = build_image('ci_qemu')
+            build_image('ci_qemu')
+          }
         }
-      }
-    }, 'ci-hexagon': {
-      node('CPU') {
-        timeout(time: max_time, unit: 'MINUTES') {
-          docker_init('none')
-          init_git()
-          build_image('ci_hexagon')
+      },
+      'ci_wasm': {
+        node('CPU') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            // We're purposefully not setting the built image here since they
+            // are not yet being uploaded to tlcpack
+            // ci_wasm = build_image('ci_wasm')
+            build_image('ci_wasm')
+          }
         }
-      }
-    }
-  }
-  // // TODO: Once we are able to use the built images, enable this step
-  // // If the docker images changed, we need to run the image build before the lint
-  // // can run since it requires a base docker image. Most of the time the images
-  // // aren't build though so it's faster to use the same node that checks for
-  // // docker changes to run the lint in the usual case.
-  // stage('Sanity Check (re-run)') {
-  //   timeout(time: max_time, unit: 'MINUTES') {
-  //     node('CPU') {
-  //       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/sanity") {
-  //         init_git()
-  //         sh (
-  //           script: "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh",
-  //           label: 'Run lint',
-  //         )
-  //       }
-  //     }
-  //   }
-  // }
-}
-
-// Run make. First try to do an incremental make from a previous workspace in hope to
-// accelerate the compilation. If something is wrong, clean the workspace and then
-// build from scratch.
-def make(docker_type, path, make_flag) {
-  timeout(time: max_time, unit: 'MINUTES') {
-    try {
-      cmake_build(docker_type, path, make_flag)
-      // always run cpp test when build
-    } catch (hudson.AbortException ae) {
-      // script exited due to user abort, directly throw instead of retry
-      if (ae.getMessage().contains('script returned exit code 143')) {
-        throw ae
-      }
-      echo 'Incremental compilation failed. Fall back to build from scratch'
-      sh (
-        script: "${docker_run} ${docker_type} ./tests/scripts/task_clean.sh ${path}",
-        label: 'Clear old cmake workspace',
-      )
-      cmake_build(docker_type, path, make_flag)
-    }
+      },
+    )
   }
 }
 def lint() {
@@ -530,6 +567,29 @@ def add_hexagon_permissions() {
     label: 'Add execute permissions for hexagon files',
   )
 }
+
+// Run make. First try to do an incremental make from a previous workspace in hope to
+// accelerate the compilation. If something is wrong, clean the workspace and then
+// build from scratch.
+def make(docker_type, path, make_flag) {
+  timeout(time: max_time, unit: 'MINUTES') {
+    try {
+      cmake_build(docker_type, path, make_flag)
+    } catch (hudson.AbortException ae) {
+      // script exited due to user abort, directly throw instead of retry
+      if (ae.getMessage().contains('script returned exit code 143')) {
+        throw ae
+      }
+      echo 'Incremental compilation failed. Fall back to build from scratch'
+      sh (
+        script: "${docker_run} ${docker_type} ./tests/scripts/task_clean.sh ${path}",
+        label: 'Clear old cmake workspace',
+      )
+      cmake_build(docker_type, path, make_flag)
+    }
+  }
+}
+
 
 def build() {
 stage('Build') {
@@ -847,6 +907,14 @@ def shard_run_unittest_GPU_1_of_3() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -899,6 +967,14 @@ def shard_run_unittest_GPU_2_of_3() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -947,6 +1023,14 @@ def shard_run_unittest_GPU_3_of_3() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -994,6 +1078,14 @@ def shard_run_integration_CPU_1_of_6() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1040,6 +1132,14 @@ def shard_run_integration_CPU_2_of_6() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1086,6 +1186,14 @@ def shard_run_integration_CPU_3_of_6() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1132,6 +1240,14 @@ def shard_run_integration_CPU_4_of_6() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1178,6 +1294,14 @@ def shard_run_integration_CPU_5_of_6() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1224,6 +1348,14 @@ def shard_run_integration_CPU_6_of_6() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1271,6 +1403,14 @@ def shard_run_python_i386_1_of_5() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1317,6 +1457,14 @@ def shard_run_python_i386_2_of_5() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1362,6 +1510,14 @@ def shard_run_python_i386_3_of_5() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1407,6 +1563,14 @@ def shard_run_python_i386_4_of_5() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1452,6 +1616,14 @@ def shard_run_python_i386_5_of_5() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1498,6 +1670,14 @@ def shard_run_test_Hexagon_1_of_7() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1542,6 +1722,14 @@ def shard_run_test_Hexagon_2_of_7() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1586,6 +1774,14 @@ def shard_run_test_Hexagon_3_of_7() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1630,6 +1826,14 @@ def shard_run_test_Hexagon_4_of_7() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1674,6 +1878,14 @@ def shard_run_test_Hexagon_5_of_7() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1718,6 +1930,14 @@ def shard_run_test_Hexagon_6_of_7() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1762,6 +1982,14 @@ def shard_run_test_Hexagon_7_of_7() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1808,6 +2036,14 @@ def shard_run_integration_aarch64_1_of_4() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1853,6 +2089,14 @@ def shard_run_integration_aarch64_2_of_4() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1898,6 +2142,14 @@ def shard_run_integration_aarch64_3_of_4() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1943,6 +2195,14 @@ def shard_run_integration_aarch64_4_of_4() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -1988,6 +2248,14 @@ def shard_run_topi_GPU_1_of_4() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2032,6 +2300,14 @@ def shard_run_topi_GPU_2_of_4() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2076,6 +2352,14 @@ def shard_run_topi_GPU_3_of_4() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2120,6 +2404,14 @@ def shard_run_topi_GPU_4_of_4() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2165,6 +2457,14 @@ def shard_run_frontend_GPU_1_of_6() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2209,6 +2509,14 @@ def shard_run_frontend_GPU_2_of_6() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2253,6 +2561,14 @@ def shard_run_frontend_GPU_3_of_6() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2297,6 +2613,14 @@ def shard_run_frontend_GPU_4_of_6() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2341,6 +2665,14 @@ def shard_run_frontend_GPU_5_of_6() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2385,6 +2717,14 @@ def shard_run_frontend_GPU_6_of_6() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2435,6 +2775,14 @@ def shard_run_topi_aarch64_1_of_2() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2483,6 +2831,14 @@ def shard_run_topi_aarch64_2_of_2() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2528,6 +2884,14 @@ def shard_run_frontend_aarch64_1_of_2() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2572,6 +2936,14 @@ def shard_run_frontend_aarch64_2_of_2() {
             })
           }
         } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -2742,6 +3114,14 @@ stage('Test') {
                 )
               })
             } finally {
+              sh(
+                script: """
+                  set -eux
+                  aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+                """,
+                label: 'Upload JUnits to S3',
+              )
+
               junit 'build/pytest-results/*.xml'
             }
           }
@@ -2787,6 +3167,14 @@ stage('Test') {
                 )
               })
             } finally {
+              sh(
+                script: """
+                  set -eux
+                  aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+                """,
+                label: 'Upload JUnits to S3',
+              )
+
               junit 'build/pytest-results/*.xml'
             }
           }
@@ -2827,6 +3215,14 @@ stage('Test') {
                 )
               })
             } finally {
+              sh(
+                script: """
+                  set -eux
+                  aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+                """,
+                label: 'Upload JUnits to S3',
+              )
+
               junit 'build/pytest-results/*.xml'
             }
           }
@@ -2903,6 +3299,25 @@ stage('Build packages') {
 }
 */
 
+
+def update_docker(ecr_image, hub_image) {
+  if (!ecr_image.contains("amazonaws.com")) {
+    sh("echo Skipping '${ecr_image}' since it doesn't look like an ECR image")
+    return
+  }
+  docker_init(ecr_image)
+  sh(
+    script: """
+    set -eux
+    docker tag \
+      ${ecr_image} \
+      ${hub_image}
+    docker push ${hub_image}
+    """,
+    label: "Update ${hub_image} on Docker Hub",
+  )
+}
+
 def deploy_docs() {
   // Note: This code must stay in the Jenkinsfile to ensure that it runs
   // from a trusted context only
@@ -2915,7 +3330,7 @@ def deploy_docs() {
       git status
       git checkout -B $DOCS_DEPLOY_BRANCH
 
-      rm -rf docs
+      git ls-tree HEAD docs/ --name-only | grep -vP '^docs/v\\d' | xargs rm -rf
       mkdir -p docs
       tar xf ../docs.tgz -C docs
       COMMIT=$(cat docs/commit_hash)
@@ -2959,6 +3374,42 @@ def deploy() {
           )
 
           deploy_docs()
+        }
+      }
+    }
+    if (env.BRANCH_NAME == 'main' && env.DEPLOY_DOCKER_IMAGES == 'yes' && rebuild_docker_images && upstream_revision != null) {
+      node('CPU') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/deploy-docker") {
+          try {
+            withCredentials([string(
+              credentialsId: 'dockerhub-tlcpackstaging-key',
+              variable: 'DOCKERHUB_KEY',
+            )]) {
+              sh(
+                script: 'docker login -u tlcpackstaging -p ${DOCKERHUB_KEY}',
+                label: 'Log in to Docker Hub',
+              )
+            }
+            def date_Ymd_HMS = sh(
+              script: 'python3 -c \'import datetime; print(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))\'',
+              label: 'Determine date',
+              returnStdout: true,
+            ).trim()
+            def tag = "${date_Ymd_HMS}-${upstream_revision.substring(0, 8)}"
+            update_docker(ci_arm, "tlcpackstaging/ci_arm:${tag}")
+            update_docker(ci_cpu, "tlcpackstaging/ci_cpu:${tag}")
+            update_docker(ci_gpu, "tlcpackstaging/ci_gpu:${tag}")
+            update_docker(ci_hexagon, "tlcpackstaging/ci_hexagon:${tag}")
+            update_docker(ci_i386, "tlcpackstaging/ci_i386:${tag}")
+            update_docker(ci_lint, "tlcpackstaging/ci_lint:${tag}")
+            update_docker(ci_qemu, "tlcpackstaging/ci_qemu:${tag}")
+            update_docker(ci_wasm, "tlcpackstaging/ci_wasm:${tag}")
+          } finally {
+            sh(
+              script: 'docker logout',
+              label: 'Clean up login credentials'
+            )
+          }
         }
       }
     }

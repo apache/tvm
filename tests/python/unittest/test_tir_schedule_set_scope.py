@@ -86,20 +86,21 @@ def element_wise_subregion_match_set_scope(A: T.Buffer[(128, 128), "float32"], C
 
 # pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
+use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
 
-def test_set_scope():
+def test_set_scope(use_block_name):
     func = element_wise
     s = tir.Schedule(func, debug_mask='all')
-    s.set_scope(s.get_block("B"), 0, "shared")
+    s.set_scope('B' if use_block_name else s.get_block("B"), 0, "shared")
     tvm.ir.assert_structural_equal(element_wise_set_scope, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=func)
 
 
-def test_set_scope_fail_on_output_buffer():
+def test_set_scope_fail_on_output_buffer(use_block_name):
     func = element_wise
     s = tir.Schedule(func, debug_mask='all')
     with pytest.raises(tvm.tir.ScheduleError):
-        s.set_scope(s.get_block("C"), 0, "shared")
+        s.set_scope('C' if use_block_name else s.get_block("C"), 0, "shared")
 
 
 def test_set_scope_fail_on_index_out_of_bound():

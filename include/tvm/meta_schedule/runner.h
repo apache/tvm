@@ -21,6 +21,12 @@
 
 #include <tvm/ir/expr.h>
 #include <tvm/meta_schedule/arg_info.h>
+#include <tvm/node/reflection.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/optional.h>
+#include <tvm/runtime/container/string.h>
+#include <tvm/runtime/object.h>
+#include <tvm/runtime/packed_func.h>
 
 namespace tvm {
 namespace meta_schedule {

@@ -25,6 +25,12 @@
 #include <tvm/meta_schedule/measure_callback.h>
 #include <tvm/meta_schedule/runner.h>
 #include <tvm/meta_schedule/tune_context.h>
+#include <tvm/node/reflection.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/optional.h>
+#include <tvm/runtime/object.h>
+#include <tvm/runtime/packed_func.h>
+#include <tvm/support/random_engine.h>
 
 namespace tvm {
 namespace meta_schedule {
@@ -74,13 +80,13 @@ class TaskSchedulerNode : public runtime::Object {
   /*! \brief The runner of the scheduler. */
   Runner runner{nullptr};
   /*! \brief The database of the scheduler. */
-  Database database{nullptr};
-  /*! \brief The maximum number of trials allowed. */
-  int max_trials;
+  Optional<Database> database;
   /*! \brief The cost model of the scheduler. */
   Optional<CostModel> cost_model;
   /*! \brief The list of measure callbacks of the scheduler. */
   Array<MeasureCallback> measure_callbacks;
+  /*! \brief The maximum number of trials allowed. */
+  int max_trials;
   /*! \brief The number of trials already conducted. */
   int num_trials_already;
   /*! \brief The tuning task's logging function. t*/
@@ -94,9 +100,9 @@ class TaskSchedulerNode : public runtime::Object {
     v->Visit("builder", &builder);
     v->Visit("runner", &runner);
     v->Visit("database", &database);
-    v->Visit("max_trials", &max_trials);
     v->Visit("cost_model", &cost_model);
     v->Visit("measure_callbacks", &measure_callbacks);
+    v->Visit("max_trials", &max_trials);
     v->Visit("num_trials_already", &num_trials_already);
     // `logging_func` is not visited
   }
@@ -181,42 +187,11 @@ class PyTaskSchedulerNode : public TaskSchedulerNode {
     // `f_next_task_id` is not visited
   }
 
-  void Tune() final {
-    if (f_tune == nullptr) {
-      TaskSchedulerNode::Tune();
-    } else {
-      f_tune();
-    }
-  }
-
-  void InitializeTask(int task_id) final {
-    if (f_initialize_task == nullptr) {
-      TaskSchedulerNode::InitializeTask(task_id);
-    } else {
-      f_initialize_task(task_id);
-    }
-  }
-
-  void TouchTask(int task_id) final {
-    if (f_touch_task == nullptr) {
-      return TaskSchedulerNode::TouchTask(task_id);
-    } else {
-      return f_touch_task(task_id);
-    }
-  }
-
-  Array<RunnerResult> JoinRunningTask(int task_id) final {
-    if (f_join_running_task == nullptr) {
-      return TaskSchedulerNode::JoinRunningTask(task_id);
-    } else {
-      return f_join_running_task(task_id);
-    }
-  }
-
-  int NextTaskId() final {
-    ICHECK(f_next_task_id != nullptr) << "PyTaskScheduler's NextTaskId method not implemented!";
-    return f_next_task_id();
-  }
+  void Tune() final;
+  void InitializeTask(int task_id) final;
+  void TouchTask(int task_id) final;
+  Array<RunnerResult> JoinRunningTask(int task_id) final;
+  int NextTaskId() final;
 
   static constexpr const char* _type_key = "meta_schedule.PyTaskScheduler";
   TVM_DECLARE_FINAL_OBJECT_INFO(PyTaskSchedulerNode, TaskSchedulerNode);
@@ -243,10 +218,10 @@ class TaskScheduler : public runtime::ObjectRef {
   TVM_DLL static TaskScheduler RoundRobin(Array<TuneContext> tasks,                            //
                                           Builder builder,                                     //
                                           Runner runner,                                       //
-                                          Database database,                                   //
-                                          int max_trials,                                      //
+                                          Optional<Database> database,                         //
                                           Optional<CostModel> cost_model,                      //
                                           Optional<Array<MeasureCallback>> measure_callbacks,  //
+                                          int max_trials,                                      //
                                           PackedFunc logging_func);
   /*!
    * \brief Create a task scheduler that fetches tasks in a gradient based fashion.
@@ -268,10 +243,10 @@ class TaskScheduler : public runtime::ObjectRef {
                                              Array<FloatImm> task_weights,                        //
                                              Builder builder,                                     //
                                              Runner runner,                                       //
-                                             Database database,                                   //
-                                             int max_trials,                                      //
+                                             Optional<Database> database,                         //
                                              Optional<CostModel> cost_model,                      //
                                              Optional<Array<MeasureCallback>> measure_callbacks,  //
+                                             int max_trials,                                      //
                                              PackedFunc logging_func,                             //
                                              double alpha,                                        //
                                              int window_size,                                     //
@@ -297,10 +272,10 @@ class TaskScheduler : public runtime::ObjectRef {
       Array<TuneContext> tasks,                                   //
       Builder builder,                                            //
       Runner runner,                                              //
-      Database database,                                          //
-      int max_trials,                                             //
+      Optional<Database> database,                                //
       Optional<CostModel> cost_model,                             //
       Optional<Array<MeasureCallback>> measure_callbacks,         //
+      int max_trials,                                             //
       PackedFunc logging_func,                                    //
       PyTaskSchedulerNode::FTune f_tune,                          //
       PyTaskSchedulerNode::FInitializeTask f_initialize_task,     //

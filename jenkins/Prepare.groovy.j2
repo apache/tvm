@@ -69,6 +69,17 @@ def docker_init(image) {
     """,
     label: 'Clean old Docker images',
   )
+
+  if (image.contains("amazonaws.com")) {
+    // If this string is in the image name it's from ECR and needs to be pulled
+    // with the right credentials
+    ecr_pull(image)
+  } else {
+    sh(
+      script: "docker pull ${image}",
+      label: 'Pull docker image',
+    )
+  }
 }
 
 def should_skip_slow_tests(pr_number) {

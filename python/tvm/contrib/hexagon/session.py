@@ -93,7 +93,8 @@ class Session:
             raise exception
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
-        pass
+        # close session to the tracker
+        del self._rpc
 
     @property
     def device(self):
@@ -109,7 +110,7 @@ class Session:
 
         return self._device
 
-    def upload(self, local_path: Union[str, pathlib.Path], remote_filename: str):
+    def upload(self, local_path: Union[str, pathlib.Path], remote_filename: str) -> pathlib.Path:
         """Upload a local file to the remote workspace.
 
         Parameters
@@ -118,8 +119,13 @@ class Session:
             Path to the local file to be copied.
         remote_filename : str
             Name of the file in the remote workspace.
+
+        Returns
+        -------
+        pathlib.Path :
+            Uploaded file remote path.
         """
-        self._launcher.upload(local_path, remote_filename)
+        return self._launcher.upload(local_path, remote_filename)
 
     def load_module(self, module: Union[str, pathlib.Path, tvm.runtime.Module]):
         """Load TVM module.
@@ -136,10 +142,7 @@ class Session:
             session and loaded.
 
             If the object passed is a string or pathlib.Path, it must
-            be either a bare file name (without any path components),
-            or a full path in the remote system. If it is a file name,
-            the file must already have been uploaded to the remote,
-            and be placed in the remote workspace.
+            be a full path in the remote system.
 
         Returns
         -------
@@ -155,16 +158,19 @@ class Session:
                 binary_name = "test_binary.so"
                 binary_path = temp_dir / binary_name
                 module.save(str(binary_path))
-                self.upload(binary_path, binary_name)
-                module = binary_name
+                remote_file_path = self.upload(binary_path, binary_name)
+        else:
+            remote_file_path = module
 
-        assert isinstance(module, (str, pathlib.Path)), "Invalid path type:" + str(type(module))
-        return self._rpc.get_function("tvm.hexagon.load_module")(str(module))
+        assert isinstance(remote_file_path, (str, pathlib.Path)), "Invalid path type:" + str(
+            type(remote_file_path)
+        )
+        return self._rpc.get_function("tvm.hexagon.load_module")(str(remote_file_path))
 
     def get_graph_executor(
         self,
         graph_json: str,
-        module_name: Union[str, pathlib.Path],
+        module_name: Union[str, pathlib.Path, tvm.runtime.Module],
     ):
         """Create a local GraphModule which consumes a remote libmod.
 
@@ -173,14 +179,10 @@ class Session:
 
         Parameters
         ----------
-
-        module_name : Union[str, pathlib.Path]
-
+        module_name : Union[str, pathlib.Path, tvm.runtime.Module]
             The remote module filename, following the same restrictions
             as `load_module`.
-
         graph_json : str
-
             The string with the graph JSON.
 
         Returns
@@ -196,31 +198,54 @@ class Session:
 
     def get_aot_executor(
         self,
-        module_name: Union[str, pathlib.Path],
+        module_file: Union[str, pathlib.Path],
     ):
         """Create a local GraphModule which consumes a remote libmod.
-
         The session must be established (via __enter__) prior to
         calling this function.
-
         Parameters
         ----------
-
-        module_name : Union[str, pathlib.Path]
-
+        module_file : Union[str, pathlib.Path]
             The remote module filename, following the same restrictions
-            as `load_module`.
-
+            as `load_module`. The filename should be an absolute path.
         Returns
         -------
         GraphModule :
             Runtime graph module that can be used to execute the graph.
+        """
+        aot_mod = self.load_module(module_file)
+        return tvm.runtime.executor.AotModule(aot_mod["default"](self.device))
 
+    def get_graph_debug_executor(
+        self,
+        graph_json: str,
+        module_name: Union[str, pathlib.Path, tvm.runtime.Module],
+        dump_root: Union[str, pathlib.Path] = None,
+    ):
+        """Create a local GraphModuleDebug which consumes a remote libmod.
+
+        Parameters
+        ----------
+        graph_json : str
+            The string with the graph JSON.
+         module_name : Union[str, pathlib.Path, tvm.runtime.Module]
+            The remote module filename, following the same restrictions
+            as `load_module`.
+        session : Session
+            Remote session. The session must be established (via __enter__)
+            prior to calling this function.
+
+        Returns
+        -------
+        GraphModuleDebug :
+            Runtime debug graph module that can be used to debug the graph.
         """
 
-        aot_mod = self.load_module(module_name)
-        self._set_device_type(aot_mod)
-        return tvm.runtime.executor.AotModule(aot_mod["default"](self.device))
+        graph_debug_mod = self.load_module(module_name)
+        self._set_device_type(graph_debug_mod)
+        return tvm.contrib.debugger.debug_executor.create(
+            graph_json, graph_debug_mod, self.device, dump_root=str(dump_root)
+        )
 
     def get_executor_from_factory(self, module: ExecutorFactoryModule):
         """Create a local GraphModule which consumes a remote libmod.
@@ -286,11 +311,7 @@ class Session:
             Runtime graph module that can be used to execute the graph.
 
         """
-
-        graph_json = module.get_graph_json()
-        graph_mod = self.load_module(module.get_lib())
-
-        return tvm.contrib.graph_executor.create(graph_json, graph_mod, self.device)
+        return self.get_graph_executor(module.get_graph_json(), module.get_lib())
 
     def _aot_executor_from_factory(
         self,
@@ -354,7 +375,6 @@ class Session:
                     f"Target kind should be from these options: [hexagon, llvm]."
                 )
 
-            self.upload(binary_path, binary_name)
+            remote_file_path = self.upload(binary_path, binary_name)
 
-        aot_mod = self.load_module(binary_name)
-        return tvm.runtime.executor.AotModule(aot_mod["default"](self.device))
+        return self.get_aot_executor(remote_file_path)

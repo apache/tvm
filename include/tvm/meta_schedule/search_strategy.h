@@ -20,7 +20,15 @@
 #define TVM_META_SCHEDULE_SEARCH_STRATEGY_H_
 
 #include <tvm/meta_schedule/arg_info.h>
+#include <tvm/meta_schedule/cost_model.h>
+#include <tvm/meta_schedule/database.h>
+#include <tvm/meta_schedule/measure_candidate.h>
 #include <tvm/meta_schedule/runner.h>
+#include <tvm/node/reflection.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/optional.h>
+#include <tvm/runtime/object.h>
+#include <tvm/runtime/packed_func.h>
 #include <tvm/tir/schedule/schedule.h>
 
 namespace tvm {
@@ -28,40 +36,6 @@ namespace meta_schedule {
 
 // Forward declaration
 class TuneContext;
-class CostModel;
-class Database;
-
-/*! \brief The schedule (with input shapes) to be measured. */
-class MeasureCandidateNode : public runtime::Object {
- public:
-  /*! \brief The schedule for measurement. */
-  tir::Schedule sch;
-  /*! \brief The argument information, e.g., (shape, dtype) for tensors. */
-  Array<ArgInfo> args_info;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("sch", &sch);
-    v->Visit("args_info", &args_info);
-  }
-
-  static constexpr const char* _type_key = "meta_schedule.MeasureCandidate";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MeasureCandidateNode, Object);
-};
-
-/*!
- * \brief Managed reference to MeasureCandidateNode.
- * \sa MeasureCandidateNode
- */
-class MeasureCandidate : public runtime::ObjectRef {
- public:
-  /*!
-   * \brief Constructor of MeasureCandidate.
-   * \param sch The schedule for measurement.
-   * \param args_info The argument information, e.g., (shape, dtype) for tensors.
-   */
-  TVM_DLL MeasureCandidate(tir::Schedule sch, Array<ArgInfo> args_info);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(MeasureCandidate, ObjectRef, MeasureCandidateNode);
-};
 
 /*!
  * \brief The search strategy for measure candidates generation.
@@ -113,12 +87,16 @@ class SearchStrategyNode : public runtime::Object {
 
   /*!
    * \brief Pre-tuning for the search strategy.
-   * \param design_spaces The design spaces for pre-tuning.
+   * \param design_spaces The design spaces used during tuning process.
+   * \param database The database used during tuning process.
+   * \param cost_model The cost model used during tuning process.
    * \note Pre-tuning is supposed to be called before the tuning process and after the
    *  initialization. Because the search strategy is stateful, we can always call pretuning
    *  and reset the search strategy.
    */
-  virtual void PreTuning(const Array<tir::Schedule>& design_spaces) = 0;
+  virtual void PreTuning(const Array<tir::Schedule>& design_spaces,
+                         const Optional<Database>& database,
+                         const Optional<CostModel>& cost_model) = 0;
 
   /*!
    * \brief Post-tuning for the search strategy.
@@ -135,12 +113,10 @@ class SearchStrategyNode : public runtime::Object {
 
   /*!
    * \brief Update the search strategy with measurement results.
-   * \param context The tuning context.
    * \param measure_candidates The candidates to be measured.
    * \param results The measurement results from the runner.
    */
-  virtual void NotifyRunnerResults(const TuneContext& context,
-                                   const Array<MeasureCandidate>& measure_candidates,
+  virtual void NotifyRunnerResults(const Array<MeasureCandidate>& measure_candidates,
                                    const Array<RunnerResult>& results) = 0;
 
   static constexpr const char* _type_key = "meta_schedule.SearchStrategy";
@@ -159,7 +135,8 @@ class PySearchStrategyNode : public SearchStrategyNode {
    * \brief The function type of `PreTuning` method.
    * \param design_spaces The design spaces for pre-tuning.
    */
-  using FPreTuning = runtime::TypedPackedFunc<void(const Array<tir::Schedule>&)>;
+  using FPreTuning = runtime::TypedPackedFunc<void(
+      const Array<tir::Schedule>&, const Optional<Database>&, const Optional<CostModel>&)>;
   /*! \brief The function type of `PostTuning` method. */
   using FPostTuning = runtime::TypedPackedFunc<void()>;
   /*!
@@ -171,8 +148,8 @@ class PySearchStrategyNode : public SearchStrategyNode {
    * \brief The function type of `NotifyRunnerResults` method.
    * \param results The measurement results from the runner.
    */
-  using FNotifyRunnerResults = runtime::TypedPackedFunc<void(
-      const TuneContext&, const Array<MeasureCandidate>&, const Array<RunnerResult>&)>;
+  using FNotifyRunnerResults =
+      runtime::TypedPackedFunc<void(const Array<MeasureCandidate>&, const Array<RunnerResult>&)>;
 
   /*! \brief The packed function to the `InitializeWithTuneContext` method. */
   FInitializeWithTuneContext f_initialize_with_tune_context;
@@ -193,35 +170,13 @@ class PySearchStrategyNode : public SearchStrategyNode {
     // `f_notify_runner_results` is not visited
   }
 
-  void InitializeWithTuneContext(const TuneContext& context) final {
-    ICHECK(f_initialize_with_tune_context != nullptr)
-        << "PySearchStrategy's InitializeWithTuneContext method not implemented!";
-    this->f_initialize_with_tune_context(context);
-  }
-
-  void PreTuning(const Array<tir::Schedule>& design_spaces) final {
-    ICHECK(f_pre_tuning != nullptr) << "PySearchStrategy's PreTuning method not implemented!";
-    this->f_pre_tuning(design_spaces);
-  }
-
-  void PostTuning() final {
-    ICHECK(f_post_tuning != nullptr) << "PySearchStrategy's PostTuning method not implemented!";
-    this->f_post_tuning();
-  }
-
-  Optional<Array<MeasureCandidate>> GenerateMeasureCandidates() final {
-    ICHECK(f_generate_measure_candidates != nullptr)
-        << "PySearchStrategy's GenerateMeasureCandidates method not implemented!";
-    return this->f_generate_measure_candidates();
-  }
-
-  void NotifyRunnerResults(const TuneContext& context,
-                           const Array<MeasureCandidate>& measure_candidates,
-                           const Array<RunnerResult>& results) final {
-    ICHECK(f_notify_runner_results != nullptr)
-        << "PySearchStrategy's NotifyRunnerResults method not implemented!";
-    this->f_notify_runner_results(context, measure_candidates, results);
-  }
+  void InitializeWithTuneContext(const TuneContext& context) final;
+  void PreTuning(const Array<tir::Schedule>& design_spaces, const Optional<Database>& database,
+                 const Optional<CostModel>& cost_model) final;
+  void PostTuning() final;
+  Optional<Array<MeasureCandidate>> GenerateMeasureCandidates() final;
+  void NotifyRunnerResults(const Array<MeasureCandidate>& measure_candidates,
+                           const Array<RunnerResult>& results);
 
   static constexpr const char* _type_key = "meta_schedule.PySearchStrategy";
   TVM_DECLARE_FINAL_OBJECT_INFO(PySearchStrategyNode, SearchStrategyNode);
@@ -253,8 +208,10 @@ class SearchStrategy : public runtime::ObjectRef {
    * \brief Constructor of replay trace search strategy.
    * \param num_trials_per_iter The number of trials per iteration, i.e., the batch size.
    * \param max_trials_per_task The total number of trials for trace replaying.
+   * \param max_fail_count The max number of failures during trace replaying.
    */
-  TVM_DLL static SearchStrategy ReplayTrace(int num_trials_per_iter, int max_trials_per_task);
+  TVM_DLL static SearchStrategy ReplayTrace(int num_trials_per_iter, int max_trials_per_task,
+                                            int max_fail_count);
 
   /*!
    * \brief Constructor of replay func search strategy.

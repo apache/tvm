@@ -41,6 +41,14 @@
         "vid_hex": "2341",
         "pid_hex": "805a"
     },
+    "portentah7": {
+        "package": "arduino",
+        "architecture": "mbed_portenta",
+        "board": "envie_m7",
+        "model": "stm32h7xx",
+        "vid_hex": "2341",
+        "pid_hex": "025b"
+    },
     "pybadge": {
         "package": "adafruit",
         "architecture": "samd",
@@ -48,6 +56,14 @@
         "model": "atsamd51",
         "vid_hex": "",
         "pid_hex": ""
+    },
+    "rpipico": {
+        "package": "rp2040",
+        "architecture": "rp2040",
+        "board": "rpipico",
+        "model": "rp2040",
+        "vid_hex": "2e8a",
+        "pid_hex": "000a"
     },
     "teensy40": {
         "package": "teensy",

@@ -400,7 +400,10 @@ def roofline_from_existing(
             new_calls.append(call)
         else:
             new_calls.append(call)
-    return profiling.Report(new_calls, report.device_metrics)
+    new_configuration = dict(report.configuration.items())
+    new_configuration["Estimated Peak FMA FLOP/s"] = profiling.Ratio(peak_flops)
+    new_configuration["Estimated Peak Bandwidth (byte/second)"] = profiling.Ratio(peak_bandwidth)
+    return profiling.Report(new_calls, report.device_metrics, new_configuration)
 
 
 def roofline_analysis(

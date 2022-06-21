@@ -28,7 +28,6 @@ logging.basicConfig()
 logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
 
 
-@pytest.mark.skip("Integration test")
 def test_tune_matmul():
     with tempfile.TemporaryDirectory() as work_dir:
         sch: Schedule = tune_te(
@@ -36,9 +35,9 @@ def test_tune_matmul():
             target=Target("llvm --num-cores=16"),
             config=TuneConfig(
                 strategy="replay_trace",
-                num_trials_per_iter=32,
-                max_trials_per_task=32,
-                max_trials_global=32,
+                num_trials_per_iter=1,
+                max_trials_per_task=1,
+                max_trials_global=1,
             ),
             work_dir=work_dir,
         )

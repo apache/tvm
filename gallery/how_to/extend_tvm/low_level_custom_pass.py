@@ -129,7 +129,7 @@ def vectorize(f, mod, ctx):
     tvm.tir.stmt_functor.post_order_visit(f.body, find_width8)
 
     if not loops:
-        return sf
+        return f
 
     # The last list arugment indicates what kinds of nodes will be transformed.
     # Thus, in this case only `For` nodes will call `vectorize8`

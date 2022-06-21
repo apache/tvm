@@ -19,19 +19,28 @@ import argparse
 import json
 import os
 
+from distutils.util import strtobool
 import numpy as np  # type: ignore
+import onnx  # type: ignore
 import tvm
 from tvm import auto_scheduler
 from tvm import meta_schedule as ms
 from tvm import relay
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
-from tvm.meta_schedule.testing.relay_workload import get_network
+from tvm.meta_schedule.utils import cpu_count
+from tvm.relay.frontend import from_onnx
+from tvm.support import describe
 
 
 def _parse_args():
     args = argparse.ArgumentParser()
     args.add_argument(
-        "--workload",
+        "--model-name",
+        type=str,
+        required=True,
+    )
+    args.add_argument(
+        "--onnx-path",
         type=str,
         required=True,
     )
@@ -39,6 +48,7 @@ def _parse_args():
         "--input-shape",
         type=str,
         required=True,
+        help='example: `[{"name": "input1", "dtype": "int64", "shape": [1, 1, 8]}]',
     )
     args.add_argument(
         "--target",
@@ -66,19 +76,30 @@ def _parse_args():
         required=True,
     )
     args.add_argument(
-        "--rpc-workers",
+        "--work-dir",
+        type=str,
+        required=True,
+    )
+    args.add_argument(
+        "--number",
         type=int,
-        required=True,
+        default=3,
     )
     args.add_argument(
-        "--log-dir",
-        type=str,
-        required=True,
+        "--repeat",
+        type=int,
+        default=1,
     )
     args.add_argument(
-        "--cache-dir",
-        type=str,
-        default=None,
+        "--min-repeat-ms",
+        type=int,
+        default=100,
+    )
+    args.add_argument(
+        "--cpu-flush",
+        type=lambda x: bool(strtobool(x)),
+        required=True,
+        help="example: `True / False",
     )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
@@ -96,17 +117,17 @@ ARGS = _parse_args()
 
 
 def main():
-    log_file = os.path.join(ARGS.log_dir, f"{ARGS.workload}.json")
+    log_file = os.path.join(ARGS.work_dir, f"{ARGS.model_name}.json")
 
     runner = auto_scheduler.RPCRunner(
         key=ARGS.rpc_key,
         host=ARGS.rpc_host,
         port=ARGS.rpc_port,
-        n_parallel=ARGS.rpc_workers,
-        number=3,
-        repeat=1,
-        min_repeat_ms=100,  # TODO
-        enable_cpu_cache_flush=False,  # TODO
+        n_parallel=cpu_count(logical=True),
+        number=ARGS.number,
+        repeat=ARGS.repeat,
+        min_repeat_ms=ARGS.min_repeat_ms,
+        enable_cpu_cache_flush=ARGS.cpu_flush,
     )
 
     if ARGS.target.kind.name == "llvm":
@@ -129,18 +150,17 @@ def main():
         )
     else:
         raise NotImplementedError(f"Unsupported target {ARGS.target}")
-    mod, params, (input_name, input_shape, input_dtype) = get_network(
-        ARGS.workload,
-        ARGS.input_shape,
-        cache_dir=ARGS.cache_dir,
-    )
-    input_info = {input_name: input_shape}
-    input_data = {}
-    print(f"Workload: {ARGS.workload}")
-    for input_name, input_shape in input_info.items():
-        print(f"  input_name: {input_name}")
-        print(f"  input_shape: {input_shape}")
-        print(f"  input_dtype: {input_dtype}")
+
+    describe()
+    print(f"Workload: {ARGS.model_name}")
+    onnx_model = onnx.load(ARGS.onnx_path)
+    shape_dict = {}
+    for item in ARGS.input_shape:
+        print(f"  input_name: {item['name']}")
+        print(f"  input_shape: {item['shape']}")
+        print(f"  input_dtype: {item['dtype']}")
+        shape_dict[item["name"]] = item["shape"]
+    mod, params = from_onnx(onnx_model, shape_dict, freeze_params=True)
     tasks, task_weights = auto_scheduler.extract_tasks(
         mod["main"],
         params,
@@ -173,7 +193,9 @@ def main():
                 params=params,
             )
     graph, rt_mod, params = lib.graph_json, lib.lib, lib.params
-    for input_name, input_shape in input_info.items():
+    input_data = {}
+    for item in ARGS.input_shape:
+        input_name, input_shape, input_dtype = item["name"], item["shape"], item["dtype"]
         if input_dtype.startswith("float"):
             input_data[input_name] = np.random.uniform(size=input_shape).astype(input_dtype)
         else:

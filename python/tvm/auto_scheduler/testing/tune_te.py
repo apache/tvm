@@ -12,15 +12,18 @@
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitatios
+# specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
 import argparse
 import os
+from distutils.util import strtobool
 
 import tvm
 from tvm import auto_scheduler
 from tvm.meta_schedule.testing.te_workload import CONFIGS
+from tvm.meta_schedule.utils import cpu_count
+from tvm.support import describe
 
 
 def _parse_args():
@@ -56,14 +59,30 @@ def _parse_args():
         required=True,
     )
     args.add_argument(
-        "--rpc-workers",
-        type=int,
+        "--work-dir",
+        type=str,
         required=True,
     )
     args.add_argument(
-        "--log-dir",
-        type=str,
+        "--number",
+        type=int,
+        default=3,
+    )
+    args.add_argument(
+        "--repeat",
+        type=int,
+        default=1,
+    )
+    args.add_argument(
+        "--min-repeat-ms",
+        type=int,
+        default=100,
+    )
+    args.add_argument(
+        "--cpu-flush",
+        type=lambda x: bool(strtobool(x)),
         required=True,
+        help="example: `True / False",
     )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
@@ -74,7 +93,9 @@ ARGS = _parse_args()
 
 
 def main():
-    log_file = os.path.join(ARGS.log_dir, f"{ARGS.workload}.json")
+    describe()
+    print(f"Workload: {ARGS.workload}")
+    log_file = os.path.join(ARGS.work_dir, f"{ARGS.workload}.json")
     workload_func, params = CONFIGS[ARGS.workload]
     params = params[0]  # type: ignore
     workload_func = auto_scheduler.register_workload(workload_func)
@@ -109,11 +130,11 @@ def main():
         key=ARGS.rpc_key,
         host=ARGS.rpc_host,
         port=ARGS.rpc_port,
-        n_parallel=ARGS.rpc_workers,
-        number=3,
-        repeat=1,
-        min_repeat_ms=100,
-        enable_cpu_cache_flush=False,
+        n_parallel=cpu_count(logical=True),
+        number=ARGS.number,
+        repeat=ARGS.repeat,
+        min_repeat_ms=ARGS.min_repeat_ms,
+        enable_cpu_cache_flush=ARGS.cpu_flush,
     )
 
     # Inspect the computational graph

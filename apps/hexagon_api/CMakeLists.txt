@@ -109,6 +109,9 @@ ExternalProject_Add_Step(android_tvm_runtime_rpc copy_rpc_server
 # Build Hexagon binaries:
 # - libhexagon_rpc_skel.so
 # - libtvm_runtime.a
+if(DEFINED USE_HEXAGON_GTEST)
+  set(GTEST_FLAG "-DUSE_HEXAGON_GTEST=${USE_HEXAGON_GTEST}")
+endif()
 
 ExternalProject_Add(hexagon_tvm_runtime_rpc
   SOURCE_DIR "${TVM_SOURCE_DIR}"
@@ -128,9 +131,7 @@ ExternalProject_Add(hexagon_tvm_runtime_rpc
     "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
     "-DUSE_ALTERNATIVE_LINKER=OFF"
     "-DUSE_CUSTOM_LOGGING=ON"
-    if(DEFINED USE_HEXAGON_GTEST)
-      "-DUSE_HEXAGON_GTEST=${USE_HEXAGON_GTEST}"
-    endif()
+    "${GTEST_FLAG}"
   INSTALL_COMMAND ""
   BUILD_ALWAYS ON
 )

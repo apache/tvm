@@ -36,6 +36,7 @@ namespace relay {
 
 // Pattern Matcher
 bool DFPatternMatcher::Match(const DFPattern& pattern, const Expr& expr) {
+  VLOG(1) << "Match " << PrettyPrint(pattern) << " in:" << std::endl << PrettyPrint(expr);
   memo_.clear();
   matched_nodes_.clear();
   return VisitDFPattern(pattern, expr);
@@ -58,6 +59,7 @@ bool DFPatternMatcher::VisitDFPattern(const DFPattern& pattern, const Expr& expr
     if (out) {
       memo_[pattern].push_back(expr);
       matched_nodes_.push_back(pattern);
+      VLOG(1) << "Matched " << PrettyPrint(pattern) << " at:" << std::endl << PrettyPrint(expr);
     } else {
       ClearMap(watermark);
     }
@@ -124,7 +126,6 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
   if (!matches) {
     return matches;
   }
-  VLOG(1) << "considering AttrPatternNode at:\n" << PrettyPrint(expr);
   auto attributes = attr_pattern->attrs.as<DictAttrsNode>()->dict;
   if (const auto* op_node = expr.as<OpNode>()) {
     Op op = GetRef<Op>(op_node);
@@ -299,14 +300,18 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
 // Recursively find the Dominator parent along all inputs paths.
 bool DFPatternMatcher::MatchesPath(const DominatorPatternNode* op, const Expr& expr) {
   auto call_node = expr.as<CallNode>();
-  for (auto node : expr_graph_.node_map_.at(expr)->inputs_) {
-    if (!(call_node && node->ref_ == call_node->op)) {
+  auto index_node = expr_to_node(expr);
+  for (auto node : index_node->inputs_) {
+    if (!(call_node && node->ref() == call_node->op)) {
       memoize_ = true;
-      if (VisitDFPattern(op->parent, node->ref_)) {
+      if (VisitDFPattern(op->parent, node->ref())) {
         return true;
       } else {
         memoize_ = false;
-        if (!VisitDFPattern(op->path, node->ref_) || !MatchesPath(op, node->ref_)) {
+        if (!VisitDFPattern(op->path, node->ref())) {
+          return false;
+        }
+        if (!MatchesPath(op, node->ref())) {
           return false;
         }
       }
@@ -318,19 +323,19 @@ bool DFPatternMatcher::MatchesPath(const DominatorPatternNode* op, const Expr& e
 // Iteratively ensure that the parent is dominated somewhere by the child or the path
 bool DFPatternMatcher::DominatesParent(const DominatorPatternNode* op, const Expr& expr) {
   std::stack<Expr> stack;
-  std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> visited;
+  std::unordered_set<const ExprNode*> visited;
   stack.push(expr);
   while (!stack.empty()) {
     Expr current = stack.top();
     stack.pop();
-    for (auto node : expr_graph_.node_map_.at(current)->dominator_children_) {
-      if (visited.count(node->ref_) == 0) {
-        if (VisitDFPattern(op->parent, node->ref_)) {
+    for (auto node : expr_to_node(current)->dominator_children_) {
+      if (visited.count(node->node_ref_) == 0) {
+        if (VisitDFPattern(op->parent, node->ref())) {
           return true;
         } else {
-          stack.push(node->ref_);
+          stack.push(node->ref());
         }
-        visited.insert(node->ref_);
+        visited.insert(node->node_ref_);
       }
     }
   }
@@ -500,7 +505,8 @@ bool DFPatternMatcher::VisitDFPattern_(const WildcardPatternNode* op, const Expr
 }
 
 bool MatchPattern(DFPattern pattern, Expr expr) {
-  return DFPatternMatcher(expr).Match(pattern, expr);
+  std::unique_ptr<IndexedGraph<Expr>> expr_graph = CreateIndexedGraph(expr);
+  return DFPatternMatcher(expr_graph.get()).Match(pattern, expr);
 }
 
 TVM_REGISTER_GLOBAL("relay.dataflow_pattern.match").set_body_typed(MatchPattern);
@@ -575,7 +581,8 @@ const std::unordered_map<int, PatternGrouper::Group>& PatternGrouper::GroupMatch
 
   pattern_ = pattern;
   pattern_graph_ = CreateIndexedGraph(pattern_);
-  auto matcher = DFPatternMatcher(pre);
+  std::unique_ptr<IndexedGraph<Expr>> expr_graph = CreateIndexedGraph(pre);
+  DFPatternMatcher matcher(expr_graph.get());
   matcher_ = &matcher;
   this->VisitExprs();
   return this->groups_;
@@ -583,9 +590,9 @@ const std::unordered_map<int, PatternGrouper::Group>& PatternGrouper::GroupMatch
 
 void PatternGrouper::VisitExprs() {
   std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> pre_partitioned;
-  for (size_t i = matcher_->expr_graph_.topological_order_.size(); i != 0; --i) {
-    size_t index = i - 1;
-    Expr current = matcher_->expr_graph_.topological_order_.at(index)->ref_;
+  for (PostDfsIndex i = matcher_->size(); i != 0; --i) {
+    PostDfsIndex index = i - 1;
+    const auto current = matcher_->index_to_node(index)->ref();
     if (gid_assignments_.count(current) == 0) {  // Don't visit nodes we've already grouped
       if (auto op = current.as<FunctionNode>()) {
         if (op->attrs.defined() && op->attrs->dict.count(attr::kPartitionedFromPattern) != 0) {
@@ -602,14 +609,17 @@ void PatternGrouper::VisitExprs() {
 }
 
 void PatternGrouper::CreateGroup(const Expr& expr) {
+  VLOG(1) << "Creating group for:" << std::endl << PrettyPrint(expr);
+
   int var_number = 0;
 
   auto node_map = matcher_->GetMemo();
   // Get fuzzy patterns
   std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> fuzzy_matches;
-  for (auto node : pattern_graph_.topological_order_) {
+  for (PostDfsIndex index = 0; index < pattern_graph_->size(); ++index) {
+    auto node = pattern_graph_->index_to_node(index);
     // Don't treat fuzzy Dominator patterns input variables for partition
-    if (auto op = node->ref_.as<DominatorPatternNode>()) {
+    if (auto op = node->ref().as<DominatorPatternNode>()) {
       for (auto fuzzy_op : {op->parent, op->path}) {
         for (auto match : node_map[fuzzy_op]) {
           fuzzy_matches.insert(match);
@@ -617,12 +627,13 @@ void PatternGrouper::CreateGroup(const Expr& expr) {
       }
     }
     // Don't treat Function params or body as input variables for partition
-    if (node->ref_.as<FunctionPatternNode>()) {
-      auto matches = node_map[node->ref_];
+    if (node->ref().as<FunctionPatternNode>()) {
+      auto matches = node_map[node->ref()];
       for (auto match : matches) {
-        auto graph = CreateIndexedGraph(match.as<FunctionNode>()->body);
-        for (auto node : graph.topological_order_) {
-          fuzzy_matches.insert(node->ref_);
+        auto sub_graph = CreateIndexedGraph(match.as<FunctionNode>()->body);
+        for (PostDfsIndex sub_index = 0; sub_index < sub_graph->size(); ++sub_index) {
+          auto sub_node = sub_graph->index_to_node(sub_index);
+          fuzzy_matches.insert(sub_node->ref());
         }
       }
     }
@@ -636,10 +647,11 @@ void PatternGrouper::CreateGroup(const Expr& expr) {
   std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual> inputs;
   Array<Var> params;
 
-  for (auto node : pattern_graph_.topological_order_) {
+  for (PostDfsIndex index = 0; index < pattern_graph_->size(); ++index) {
+    auto node = pattern_graph_->index_to_node(index);
     auto make_input = [&](const Expr& input) {
       if (fuzzy_matches.count(input) == 0 && input.as<OpNode>() == nullptr &&
-          input.as<FunctionNode>() == nullptr && !EmbedConst(input, node->ref_)) {
+          input.as<FunctionNode>() == nullptr && !EmbedConst(input, node->ref())) {
         inputs[input] =
             Var("FunctionVar_" + std::to_string(graph_number_) + "_" + std::to_string(var_number),
                 NullValue<Type>());
@@ -648,11 +660,11 @@ void PatternGrouper::CreateGroup(const Expr& expr) {
         var_number++;
       }
     };
-    auto tuple = node->ref_.as<TuplePatternNode>();
-    auto call = node->ref_.as<CallPatternNode>();
+    auto tuple = node->ref().as<TuplePatternNode>();
+    auto call = node->ref().as<CallPatternNode>();
     if (tuple && !tuple->fields.defined()) {
-      if (node_map.count(node->ref_)) {
-        auto matches = node_map[node->ref_];
+      if (node_map.count(node->ref())) {
+        auto matches = node_map[node->ref()];
         for (auto match : matches) {
           for (auto input : match.as<TupleNode>()->fields) {
             make_input(input);
@@ -660,8 +672,8 @@ void PatternGrouper::CreateGroup(const Expr& expr) {
         }
       }
     } else if (call && !call->args.defined()) {
-      if (node_map.count(node->ref_)) {
-        auto matches = node_map[node->ref_];
+      if (node_map.count(node->ref())) {
+        auto matches = node_map[node->ref()];
         for (auto match : matches) {
           for (auto input : match.as<CallNode>()->args) {
             make_input(input);
@@ -669,8 +681,8 @@ void PatternGrouper::CreateGroup(const Expr& expr) {
         }
       }
     } else if (node->inputs_.size() == 0) {
-      if (node_map.count(node->ref_)) {
-        auto matches = node_map[node->ref_];
+      if (node_map.count(node->ref())) {
+        auto matches = node_map[node->ref()];
         for (auto match : matches) {
           make_input(match);
         }
@@ -686,6 +698,7 @@ void PatternGrouper::CreateGroup(const Expr& expr) {
   auto body = extractor.Mutate(expr);
 
   group.function = Function(params, body, NullValue<Type>(), Array<TypeVar>());
+  VLOG(1) << "Candidate extracted function:" << std::endl << PrettyPrint(group.function);
   group.name = extractor.GetName();
   // Check to make sure we aren't overlapping with another group or creating an invalid fusion
   // The MatchExtractor will create a new graph by replacing nodes that match the inputs of the
@@ -699,6 +712,10 @@ void PatternGrouper::CreateGroup(const Expr& expr) {
   // output would create an invalid graph tranformation, so we block the creation of such groups.
   auto memo = extractor.GetMemo();
   for (auto kv : memo) {
+    VLOG(1) << "matched index " << matcher_->expr_to_node(kv.first)->index_;
+  }
+
+  for (auto kv : memo) {
     // Check to ensure that this node isn't an input or a global
     if (inputs.count(kv.first) == 0 && kv.first.as<OpNode>() == nullptr &&
         kv.first.as<FunctionNode>() == nullptr && kv.first.as<ConstantNode>() == nullptr) {
@@ -708,14 +725,21 @@ void PatternGrouper::CreateGroup(const Expr& expr) {
         return;
       } else if (kv.second != body) {
         // if the node isn't the output of the group
-        auto node = matcher_->expr_graph_.node_map_.at(kv.first);
+        auto node = matcher_->expr_to_node(kv.first);
         for (auto* output : node->outputs_) {
-          // and the node is used by nodes outside of the group
-          if (memo.count(output->ref_) == 0 &&
-              !matcher_->expr_graph_.node_map_.at(expr)->Dominates(output)) {
-            // Exit because nodes in this pattern's body are used outside the pattern
-            // fusing it would be invalid
-            return;
+          if (memo.count(output->ref()) == 0) {
+            // A node inside the matched group contributes an output to nodes outside of the matched
+            // group...
+            auto root = matcher_->expr_to_node(expr);
+            if (!root->Dominates(output)) {
+              // ...and the outside dataflow does not come back to the root of the matched group.
+              // So reject the match since it would create a cycle.
+              VLOG(1) << "Rejecting group since would create a cycle with output " << output->index_
+                      << " for root " << root->index_ << " in graph:" << std::endl
+                      << matcher_->expr_graph().ToString();
+              return;
+            }
+            // else: We'll allow the output to be included in the matched group.
           }
         }
       }

@@ -314,7 +314,7 @@ output = layers[-1]
 # Compile and run with TVM
 # ------------------------
 #
-# Export the weigths from PyTorch model to Python Dict
+# Export the weights from PyTorch model to Python Dict
 model_params = {}
 for param_tensor in torch_model.state_dict():
     model_params[param_tensor] = torch_model.state_dict()[param_tensor].numpy()

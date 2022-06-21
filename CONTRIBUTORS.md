@@ -47,6 +47,7 @@ We do encourage everyone to work anything they are interested in.
 - [Ziheng Jiang](https://github.com/ZihengJiang) (PMC): @ZihengJiang - relay, compiler
 - [Manupa Karunaratne](https://github.com/manupa-arm): @manupa-arm - ethos-u, memory planner
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame - relay
+- [Tristan Konolige](https://github.com/tkonolige): @tkonolige - profiling, relay, tir, runtime
 - [Ruihang Lai](https://github.com/MasterJH5574): @MasterJH5574 - tir, tvm-script
 - [Wuwei Lin](https://github.com/vinx13): @vinx13 - relay, topi
 - [Yizhi Liu](https://github.com/yzhliu) (PMC): @yzhliu - jvm, topi, relay
@@ -94,6 +95,7 @@ We do encourage everyone to work anything they are interested in.
 - [Liangfu Chen](https://github.com/liangfu): @liangfu
 - [Tianqi Chen](https://github.com/tqchen): @tqchen
 - [Zhi Chen](https://github.com/zhiics): @zhiics
+- [Valery Chernov](https://github.com/vvchernov): @vvchernov
 - [Neo Chien](https://github.com/cchung100m): @cchung100m
 - [Meghan Cowan](https://github.com/cowanmeg): @cowanmeg
 - [Balint Cristian](https://github.com/cbalint13): @cbalint13
@@ -117,6 +119,7 @@ We do encourage everyone to work anything they are interested in.
 - [Elen Kalda](https://github.com/ekalda): @ekalda
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame
 - [Tristan Konolige](https://github.com/tkonolige): @tkonolige
+- [Denise Kutnick](https://github.com/denise-k): @denise-k
 - [Ruihang Lai](https://github.com/MasterJH5574): @MasterJH5574
 - [Nicola Lancellotti](https://github.com/nicolalancellotti): @NicolaLancellotti
 - [Wuwei Lin](https://github.com/vinx13): @vinx13
@@ -142,6 +145,7 @@ We do encourage everyone to work anything they are interested in.
 - [Michalis Papadimitriou](https://github.com/mikepapadim): @mikepapadim
 - [Ashutosh Parkhi](https://github.com/ashutosh-arm): @ashutosh-arm
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic
+- [Alexander Peskov](https://github.com/apeskov): @apeskov
 - [Pariksheet Pinjari](https://github.com/PariksheetPinjari909): @PariksheetPinjari909
 - [Josh Pollock](https://github.com/joshpoll): @joshpoll
 - [Ramana Radhakrishnan](https://github.com/u99127): @u99127

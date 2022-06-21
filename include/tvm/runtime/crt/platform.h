@@ -97,6 +97,25 @@ tvm_crt_error_t TVMPlatformTimerStart();
  */
 tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds);
 
+/*! \brief Platform-specific before measurement call.
+ *
+ * A function which is called before calling TVMFuncCall in the TimeEvaluator.
+ * Can be used, for example, to initialize reset global state which may affect the results of
+ * measurement.
+ *
+ * \return kTvmErrorNoError if successful; a descriptive error code otherwise.
+ */
+tvm_crt_error_t TVMPlatformBeforeMeasurement();
+
+/*! \brief Platform-specific after measurement call.
+ *
+ * A function which is called after calling TVMFuncCall in the TimeEvaluator.
+ * It is the counterpart of the TVMPlatformBeforeMeasurement function.
+ *
+ * \return kTvmErrorNoError if successful; a descriptive error code otherwise.
+ */
+tvm_crt_error_t TVMPlatformAfterMeasurement();
+
 /*! \brief Fill a buffer with random data.
  *
  * Cryptographically-secure random data is NOT required. This function is intended for use

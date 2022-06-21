@@ -1241,11 +1241,10 @@ struct ReIndexTraits : public UnpackedInstTraits<ReIndexTraits> {
                                  Integer buffer_index_type) {
     PythonAPICall py("reindex");
     py.Input("block", block);
-    py.Input("buffer_index", buffer_index);
-    py.Input("buffer_index_type", '"' +
-                                      std::string(BufferIndexType2Str(
-                                          static_cast<BufferIndexType>(buffer_index_type->value))) +
-                                      '"');
+    std::ostringstream os;
+    os << "(\"" << BufferIndexType2Str(static_cast<BufferIndexType>(buffer_index_type->value))
+       << "\", " << buffer_index << ")";
+    py.Input("buffer", os.str());
     py.SingleOutput(outputs);
     return py.Str();
   }
