@@ -391,5 +391,112 @@ class TestLiteralConstraintSplitBooleanOr(BaseBeforeAfter):
                 A[i, j] = 2
 
 
+class TestCeilLog2Int(BaseBeforeAfter):
+    """Simplify expressions resulting from topi.math.ceil_log2"""
+
+    @T.prim_func
+    def before(A: T.Buffer[1, "int32"]):
+        A[0] = T.cast(
+            T.ceil(T.log2(T.cast(14, "float64"), dtype="float64"), dtype="float64"), dtype="int32"
+        )
+
+    @T.prim_func
+    def expected(A: T.Buffer[1, "int32"]):
+        A[0] = 4
+
+
+class TestLeftCeilLog2LowerBound(BaseBeforeAfter):
+    """Integer bounds are propagated through topi.math.ceil_log2"""
+
+    @T.prim_func
+    def before(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            x = T.cast(
+                T.ceil(T.log2(T.cast(i + 1024 + 1, "float64"), dtype="float64"), dtype="float64"),
+                dtype="int32",
+            )
+            if x == 11:
+                A[i] = 0.0
+
+    @T.prim_func
+    def expected(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            A[i] = 0.0
+
+
+class TestLeftShiftLowerBound(BaseBeforeAfter):
+    """Integer bounds are propagated through left shift
+
+    min(1 << i) = 1 << min(i)
+                = 1 << 0
+                = 1
+    """
+
+    @T.prim_func
+    def before(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            if T.shift_left(1, i, dtype="int32") >= 1:
+                A[i] = 0.0
+
+    @T.prim_func
+    def expected(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            A[i] = 0.0
+
+
+class TestLeftShiftUpperBound(BaseBeforeAfter):
+    """Integer bounds are propagated through left shift
+
+    max(31 << i) = 31 << max(i)
+                 = 31 << 15
+                 = 1015808
+    """
+
+    @T.prim_func
+    def before(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            if T.shift_left(31, i, dtype="int32") <= 1015808:
+                A[i] = 0.0
+
+    @T.prim_func
+    def expected(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            A[i] = 0.0
+
+
+class TestLeftShiftOfNegativeValue(BaseBeforeAfter):
+    """No const int bounds of left shift of negative value.
+
+    This is target dependent, and does not currently have a specified
+    behavior in TIR.  For example, in CodeGenC, this generates C code
+    with undefined behavior.
+    """
+
+    @T.prim_func
+    def before(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            if -64 <= T.shift_left(-i, 4, dtype="int32"):
+                A[i] = 0.0
+
+    expected = before
+
+
+class TestLeftShiftByNegativeValue(BaseBeforeAfter):
+    """No const int bounds of left shift by negative bit count.
+
+    This is target dependent, and does not currently have a specified
+    behavior in TIR.  For example, in CodeGenC, this generates C code
+    with undefined behavior.
+    """
+
+    @T.prim_func
+    def before(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            if T.shift_left(16, -i, dtype="int32") <= 16:
+                A[i] = 0.0
+
+    expected = before
+
+
 if __name__ == "__main__":
     tvm.testing.main()
