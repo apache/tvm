@@ -19,7 +19,8 @@
 set -o errexit -o nounset
 set -o pipefail
 
-apt-get update && apt-get install -y openjdk-8-jdk maven
+apt-get update
+apt-install-and-clear -y openjdk-8-jdk maven
 arch=$(uname -m)
 jre_arch="unknown"
 case $arch in

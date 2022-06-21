@@ -16,7 +16,8 @@
 # under the License.
 
 Vagrant.configure("2") do |config|
-  config.vm.box = "tlcpack/microtvm-arduino-0.18.3"
+  config.vm.box = "tlcpack/microtvm-arduino"
+  config.vm.box_version = "1.0.0"
 
   if ENV.has_key?("TVM_RVM_NUM_CORES")
     num_cores = ENV["TVM_RVM_NUM_CORES"]
