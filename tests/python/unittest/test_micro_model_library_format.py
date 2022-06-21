@@ -469,7 +469,7 @@ def test_export_byoc_c_module():
                     "constants_size_bytes": 0,
                     "device": 1,
                     "io_size_bytes": 4800,
-                    "workspace_size_bytes": 1216,
+                    "workspace_size_bytes": 1200,
                 }
             ]
 
