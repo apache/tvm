@@ -177,7 +177,17 @@ class ConstIntBoundAnalyzer::Impl
   }
 
   Entry VisitExpr_(const CastNode* op) final {
-    Entry a = VisitExpr(op->value);
+    Entry a;
+
+    // int(ceil(log2(cast(n,"float64")))) is used as the
+    // implementation of topi.math.ceil_log2, and appears in iteration
+    // bounds.
+    if (auto opt = FindCeilLog2Arg(op)) {
+      a = CeilLog2Bounds(opt.value());
+    } else {
+      a = VisitExpr(op->value);
+    }
+
     Entry b = Everything(op->dtype);
     return Intersect(a, b);
   }
@@ -353,6 +363,7 @@ class ConstIntBoundAnalyzer::Impl
       // assumptions about the result.
       return Everything(op->dtype);
     }
+
     return BinaryOpBoundary(a, b, InfAwareLeftShift);
   }
 
@@ -649,6 +660,46 @@ class ConstIntBoundAnalyzer::Impl
       return ret1;
     }
     return {};
+  }
+
+  /*!
+   * \brief Extract the argument from int(ceil(log2(arg)))
+   *
+   * This expression is used as the implementation of
+   * topi.math.ceil_log2, and can appear in iteration bounds.
+   */
+  static Optional<PrimExpr> FindCeilLog2Arg(const CastNode* op) {
+    if (op->dtype.is_int()) {
+      if (auto as_call = op->value.as<CallNode>()) {
+        if (as_call->op.same_as(Op::Get("tir.ceil"))) {
+          PrimExpr ceil_arg = as_call->args[0];
+          if (auto arg_call = ceil_arg.as<CallNode>()) {
+            if (arg_call->op.same_as(Op::Get("tir.log2"))) {
+              PrimExpr log_arg = arg_call->args[0];
+              return log_arg;
+            }
+          }
+        }
+      }
+    }
+    return NullOpt;
+  }
+
+  /*! \brief Propagate constraints through ceil(log2(arg))
+   *
+   * Helper function for CastNode visitor
+   */
+  Entry CeilLog2Bounds(PrimExpr arg) {
+    if (auto as_float = arg.as<FloatImmNode>()) {
+      // A cast from int to float may have already been simplified
+      // out.  Normally we don't inspect floating-point arguments, but here we can
+      int64_t val = std::ceil(std::log2(as_float->value));
+      return MakeBound(val, val);
+    } else {
+      Entry arg_bounds = VisitExpr(arg);
+      return MakeBound(std::ceil(std::log2(arg_bounds.min_value)),
+                       std::ceil(std::log2(arg_bounds.max_value)));
+    }
   }
 };
 

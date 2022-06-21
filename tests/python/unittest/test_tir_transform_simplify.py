@@ -405,6 +405,25 @@ class TestCeilLog2Int(BaseBeforeAfter):
         A[0] = 4
 
 
+class TestLeftCeilLog2LowerBound(BaseBeforeAfter):
+    """Integer bounds are propagated through topi.math.ceil_log2"""
+
+    @T.prim_func
+    def before(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            x = T.cast(
+                T.ceil(T.log2(T.cast(i + 1024 + 1, "float64"), dtype="float64"), dtype="float64"),
+                dtype="int32",
+            )
+            if x == 11:
+                A[i] = 0.0
+
+    @T.prim_func
+    def expected(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            A[i] = 0.0
+
+
 class TestLeftShiftLowerBound(BaseBeforeAfter):
     """Integer bounds are propagated through left shift
 
