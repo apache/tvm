@@ -27,7 +27,7 @@ from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.relay.frontend import from_onnx
 from tvm.support import describe
-from .utils import generate_input_data
+from .utils import generate_input_data, f_timer, f_per_layer
 
 
 def _parse_args():
@@ -136,9 +136,9 @@ def main():
         print(f"  input_dtype: {item['dtype']}")
         shape_dict[item["name"]] = item["shape"]
     mod, params = from_onnx(onnx_model, shape_dict, freeze_params=True)
-    input_data = {}
-    for item in ARGS.input_shape:
-        input_data[item["name"]] = generate_input_data(item["shape"], item["dtype"])
+    input_data = {
+        item["name"]: generate_input_data(item["shape"], item["dtype"]) for item in ARGS.input_shape
+    }
     runner = ms.runner.RPCRunner(
         rpc_config=ARGS.rpc_config,
         evaluator_config=ms.runner.EvaluatorConfig(
@@ -168,23 +168,13 @@ def main():
     print(profiler.table())
     graph, rt_mod, params = lib.graph_json, lib.lib, lib.params
 
-    def f_timer(rt_mod, dev, input_data):
-        # pylint: disable=import-outside-toplevel
-        from tvm.contrib.graph_executor import GraphModule
-
-        # pylint: enable=import-outside-toplevel
-
-        mod = GraphModule(rt_mod["default"](dev))
-        for input_name, input_value in input_data.items():
-            mod.set_input(input_name, input_value)
-        ftimer = mod.module.time_evaluator(
-            "run",
-            dev,
-            min_repeat_ms=500,
-            repeat=3,
-        )
-        results = list(np.array(ftimer().results) * 1000.0)  # type: ignore
-        print("Running time in time_evaluator: ", results)
+    run_module_via_rpc(
+        rpc_config=ARGS.rpc_config,
+        lib=rt_mod,
+        dev_type=ARGS.target.kind.name,
+        args=input_data,
+        continuation=f_per_layer(graph),
+    )
 
     run_module_via_rpc(
         rpc_config=ARGS.rpc_config,
@@ -192,30 +182,6 @@ def main():
         dev_type=ARGS.target.kind.name,
         args=input_data,
         continuation=f_timer,
-    )
-
-    def f_per_layer(rt_mod, dev, input_data):
-        # pylint: disable=import-outside-toplevel
-        from tvm.contrib.debugger.debug_executor import create
-
-        # pylint: enable=import-outside-toplevel
-        mod = create(graph, rt_mod, dev)
-        for input_name, input_value in input_data.items():
-            mod.set_input(input_name, input_value)
-        graph_nodes = [n["name"] for n in json.loads(graph)["nodes"]]
-        graph_time = mod.run_individual(number=10, repeat=1, min_repeat_ms=5000)
-        print("|graph_nodes| = ", len(graph_nodes))
-        print("|graph_time| = ", len(graph_time))
-        graph_nodes_time = {k: float(v) for k, v in zip(graph_nodes, graph_time)}
-        for k, v in graph_nodes_time.items():
-            print(f"{k} : {v:.3f}")
-
-    run_module_via_rpc(
-        rpc_config=ARGS.rpc_config,
-        lib=rt_mod,
-        dev_type=ARGS.target.kind.name,
-        args=input_data,
-        continuation=f_per_layer,
     )
 
 
