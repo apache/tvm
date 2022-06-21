@@ -24,6 +24,7 @@ import itertools
 import math
 import sys
 import logging
+from typing import List
 
 import numpy as np
 import tvm
@@ -292,6 +293,14 @@ class PyTorchOpConverter:
 
     def min(self, inputs, input_types):
         return self.min_max_common("minimum", "min", inputs, input_types)
+
+    def maximum(self, inputs, input_types):
+        data0, data1 = self.pytorch_promote_types(inputs[:2], input_types[:2])
+        return _op.maximum(data0, data1)
+
+    def minimum(self, inputs, input_types):
+        data0, data1 = self.pytorch_promote_types(inputs[:2], input_types[:2])
+        return _op.minimum(data0, data1)
 
     def make_unary(self, name):
         def unary(inputs, input_types):
@@ -3020,6 +3029,8 @@ class PyTorchOpConverter:
             "aten::sub": self.sub,
             "aten::max": self.max,
             "aten::min": self.min,
+            "aten::maximum": self.maximum,
+            "aten::minimum": self.minimum,
             "aten::amax": self.max,
             "aten::amin": self.min,
             "aten::stft": self.stft,

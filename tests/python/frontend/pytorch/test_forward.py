@@ -364,6 +364,33 @@ def test_min_max():
 
 
 @tvm.testing.uses_gpu
+def test_minimum_maximum():
+    class Maximum(Module):
+        def forward(self, lhs, rhs):
+            return torch.maximum(lhs, rhs)
+
+    class Minimum(Module):
+        def forward(self, lhs, rhs):
+            return torch.minimum(lhs, rhs)
+
+    input_data = [torch.rand((10, 10, 10, 10)), torch.rand((10, 10, 10, 10))]
+
+    verify_model(Maximum(), input_data=input_data)
+    verify_model(Minimum(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_pad():
+    class Pad(Module):
+        def forward(self, input, pad_width=(1, 2, 3, 4), pad_mod="constant", pad_value=None):
+            return torch.nn.functional.pad(input, pad_width, pad_mod, pad_value)
+
+    input_data = [torch.rand((10, 10, 10, 10))]
+
+    verify_model(Pad(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_reciprocal():
     torch.set_grad_enabled(False)
     input_shape = [2, 1, 10, 1, 10]
