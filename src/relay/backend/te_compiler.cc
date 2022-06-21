@@ -424,8 +424,9 @@ class TECompilerImpl : public TECompilerNode {
             // verification if we have synced params and tensors
             ICHECK(ttype->dtype == x_ref->dtype && ttype->shape.size() == x_ref->shape.size())
                 << "function parameter does not correspond to prepared tensor";
-            binds[x_ref] = BufferWithOffsetAlignment(x_ref->shape, x_ref->dtype, x_ref->op->name, -1,
-                                                    0, false, param->virtual_device()->memory_scope);
+            binds[x_ref] =
+                BufferWithOffsetAlignment(x_ref->shape, x_ref->dtype, x_ref->op->name, -1, 0, false,
+                                          param->virtual_device()->memory_scope);
           }
         }
         i++;
