@@ -20,8 +20,6 @@ import os
 import platform
 import torch
 from tvm._ffi import libinfo
-from tvm.relay.frontend import pytorch
-
 
 def _load_platform_specific_library(lib_name="libpt_tvmdsoop"):
     system = platform.system()
@@ -39,6 +37,7 @@ def _load_platform_specific_library(lib_name="libpt_tvmdsoop"):
 
 _load_platform_specific_library()
 
+
 from . import module
 
 GraphModule = module.GraphModule
@@ -49,3 +48,10 @@ from . import pytorch_tvm
 
 PyTorchTVMModule = pytorch_tvm.PyTorchTVMModule
 compile = pytorch_tvm.compile
+
+from . import script_torch
+
+as_torch = script_torch.as_torch
+GraphExecutorFactoryWrapper = script_torch.GraphExecutorFactoryWrapper
+TVMScriptIRModule = script_torch.TVMScriptIRModule
+optimize_torch = script_torch.optimize_torch
