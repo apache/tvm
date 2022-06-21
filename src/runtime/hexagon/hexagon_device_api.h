@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "hexagon_buffer.h"
+#include "hexagon_buffer_manager.h"
 
 namespace tvm {
 namespace runtime {
@@ -72,7 +73,7 @@ class HexagonDeviceAPI final : public DeviceAPI {
    */
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
 
-  //! Erase from tracked hexagon_buffer_map and free
+  //! Erase from HexagonBufferManager and free
   void FreeWorkspace(Device dev, void* data) final;
 
   /*!
@@ -127,23 +128,17 @@ class HexagonDeviceAPI final : public DeviceAPI {
                       TVMStreamHandle stream) final;
 
  private:
-  /*! \brief Helper to allocate a HexagonBuffer and register the result
-   *  in the owned buffer map.
-   *  \return Raw data storage managed by the hexagon buffer
+  /*! \brief Helper to check if the device type is valid for the Hexagon Device API
+   *  \return Boolean indicating whether the device type is valid
    */
-  template <typename... Args>
-  void* AllocateHexagonBuffer(Args&&... args) {
-    auto buf = std::make_unique<HexagonBuffer>(std::forward<Args>(args)...);
-    void* ptr = buf->GetPointer();
-    hexagon_buffer_map_.insert({ptr, std::move(buf)});
-    return ptr;
+  bool IsValidDevice(DLDevice dev) {
+    // Added kDLCPU since we use hexagon as a sub-target of LLVM which by default maps to kDLCPU
+    return (TVMDeviceExtType(dev.device_type) == kDLHexagon) ||
+           (DLDeviceType(dev.device_type) == kDLCPU);
   }
-  /*! \brief Helper to free a HexagonBuffer and unregister the result
-   *  from the owned buffer map.
-   */
-  void FreeHexagonBuffer(void* ptr);
-  //! Lookup table for the HexagonBuffer managing an allocation.
-  std::unordered_map<void*, std::unique_ptr<HexagonBuffer>> hexagon_buffer_map_;
+
+  //! \brief Manages underlying HexagonBuffer allocations
+  HexagonBufferManager hexbuffs;
 };
 }  // namespace hexagon
 }  // namespace runtime

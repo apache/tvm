@@ -270,7 +270,7 @@ def test_error(mod, params, err_msg):
         with tvm.target.Target("llvm"):
             try:
                 mod = relay.transform.InferType()(mod)
-                relay.build(mod, params)
+                relay.build(mod, params=params)
             except tvm.error.TVMError as e:
                 caught = e.args[0]
             finally:

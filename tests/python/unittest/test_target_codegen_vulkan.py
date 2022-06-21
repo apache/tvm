@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import os
 import random
 import re
 import threading
@@ -258,6 +259,7 @@ def test_cumsum(target, dev):
     check_mod(target, dev, mod, x_np, res_np)
 
 
+@tvm.testing.skip_if_wheel_test
 def test_unique(target, dev):
     dtype = "int32"
     x = relay.var("x", shape=(relay.Any(),), dtype=dtype)
@@ -554,6 +556,4 @@ def test_shared_mem_alloc(target, dev):
 
 
 if __name__ == "__main__":
-    import sys
-
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

@@ -462,11 +462,50 @@ TVM_DLL Pass RemoveUnusedFunctions(Array<runtime::String> entry_functions);
 TVM_DLL Pass SimplifyExpr();
 
 /*!
- * \brief Run any registered RelayToTIR passes registered on the functions in a module.
+ * \brief Run any custom passes registered under "RelayToTIR" attributes on TargetKinds.
+ *
+ * This pass looks for inline, let-bound or global functions which have a "Compiler" attribute.
+ * If the attribute value corresponds to a TargetKind with a "RelayToTIR" attribute, then the
+ * 'custom' pass bound to that attribute is run (at most once) on the IRModule as a whole.
+ *
+ * If, in addition, the \p config has a Target with a matching TargetKind, that Target is set
+ * as the 'current' target before the custom pass is executed. In this way it is possible
+ * for custom passes to pick up target options which may guide how they transform the IRModule.
+ * (Those targets are referred to as 'extern codegen targets' elsewhere).
+ *
+ * A typical custom pass will:
+ *  - Find calls to "Compiler" attributes functions with matching compiler name.
+ *  - Lower those function to TIR PrimFuncs.
+ *  - Bind those functions into the IRModule under the the functions' "global_symbol" attribute.
+ *  - Replace all calls to those functions with 'call_lowered' to the matching global.
+ * Care should be taken to handle multiple calls to the same function.
+ * See src/relay/backend/contrib/example_target_hooks/relay_to_tir.cc for an example custom pass.
+ *
+ * It is also possible (despite the pass and attribute names!) for the custom pass to proceed
+ * directly to a runtime::Module, which can be attached to the output IRModules "external_mods"
+ * attribute (taking care not to clobber any existing modules). In this case the flow is as above,
+ * except:
+ *  - The runtime::Module must contain a binding for each compiled function under their
+ *    "global_symbol" (ie runtime::Module::ImplementsFunction should return true).
+ *  - A Relay Function must be bound (or re-bound) into the result IRModule, again with the same
+ *    "global_symbol", but with only the "Extern" attribute set to Integer(1). The function body
+ *    should be the original function body. In this way we always have a TVM definition matching
+ *    every global function name.
+ *
+ * There are many existing runtime::Modules, ranging from source to object to dynamic libaries to
+ * entirely custom implementations. Some of those may require additional compilation using
+ * 'export_library' on the final build artifact.
+ *
+ * The OutlineCompilerFunctionsWithExistingGlobalSymbols and MarkCompilerFunctionsAsExtern utility
+ * passes can be used by custom passes to take care of some of the boilerplate.
+ *
+ * TODO(mbs): Rename PreLoweringTargetHooks?
+ *
+ * \param config All available targets.
  *
  * \return The pass.
  */
-TVM_DLL Pass RelayToTIRTargetHook();
+TVM_DLL Pass RelayToTIRTargetHook(CompilationConfig config);
 
 /*!
  * \brief A pass for manifesting explicit memory allocations and rewriting

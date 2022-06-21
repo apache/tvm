@@ -17,11 +17,9 @@
 # pylint: disable=missing-docstring
 
 import tvm
+from tvm import meta_schedule as ms
 from tvm.ir import IRModule
-from tvm.meta_schedule import TuneContext
-from tvm.meta_schedule.space_generator import PostOrderApply
 from tvm.meta_schedule.testing.conv2d_winograd_cuda import conv2d_winograd_cuda
-from tvm.meta_schedule.tune import DefaultCUDA
 from tvm.target import Target
 from tvm.tir.schedule import Schedule, Trace
 
@@ -43,6 +41,25 @@ def _get_mod():
 
         b127 = sch.get_block(name="data_pad")
         sch.compute_inline(block=b127)
+
+        b3 = sch.get_block(name="data_pack")
+        l25, l26, l27, l28, _, _, _, _ = sch.get_loops(block=b3)
+        l33 = sch.fuse(l25, l26, l27, l28)
+        v34 = sch.sample_categorical(
+            candidates=[32, 64, 128, 256, 512, 1024],
+            probs=[
+                0.16666666666666666,
+                0.16666666666666666,
+                0.16666666666666666,
+                0.16666666666666666,
+                0.16666666666666666,
+                0.16666666666666666,
+            ],
+            decision=2,
+        )
+        l35, l36 = sch.split(loop=l33, factors=[None, v34])
+        sch.bind(loop=l35, thread_axis="blockIdx.x")
+        sch.bind(loop=l36, thread_axis="threadIdx.x")
 
     def data_pack(sch: Schedule):
         b16 = sch.get_block(name="data_pack")
@@ -73,6 +90,16 @@ def _get_mod():
             block_or_loop=b31,
             ann_key="meta_schedule.tiling_structure",
             ann_val="SSSRRSRS",
+        )
+        sch.annotate(
+            block_or_loop=b31,
+            ann_key="meta_schedule.thread_extent_low_inclusive",
+            ann_val=32,
+        )
+        sch.annotate(
+            block_or_loop=b31,
+            ann_key="meta_schedule.thread_extent_high_inclusive",
+            ann_val=1024,
         )
         b32 = sch.cache_write(block=b31, write_buffer_index=0, storage_scope="local")
         b31, b32 = b32, b31
@@ -185,6 +212,57 @@ def _get_mod():
         sch.unroll(loop=l6)
         sch.unroll(loop=l7)
         sch.reorder(l10, l14, l11, l15, l2, l3, l6, l7)
+        l59 = sch.fuse(l10, l14, l11, l15)
+        v60 = sch.sample_categorical(
+            candidates=[32, 64, 128, 256, 512, 1024],
+            probs=[
+                0.16666666666666666,
+                0.16666666666666666,
+                0.16666666666666666,
+                0.16666666666666666,
+                0.16666666666666666,
+                0.16666666666666666,
+            ],
+            decision=2,
+        )
+        l61, l62 = sch.split(loop=l59, factors=[None, v60])
+        sch.bind(loop=l61, thread_axis="blockIdx.x")
+        sch.bind(loop=l62, thread_axis="threadIdx.x")
+
+    def conv2d(sch: Schedule):
+        b7 = sch.get_block(name="conv2d_winograd")
+        l141, l142, l143, l144 = sch.get_loops(block=b7)
+        l145 = sch.fuse(l141, l142, l143, l144)
+        v146 = sch.sample_categorical(
+            candidates=[32, 64, 128, 256, 512, 1024],
+            probs=[
+                0.16666666666666666,
+                0.16666666666666666,
+                0.16666666666666666,
+                0.16666666666666666,
+                0.16666666666666666,
+                0.16666666666666666,
+            ],
+            decision=2,
+        )
+        l147, l148 = sch.split(loop=l145, factors=[None, v146])
+        sch.bind(loop=l147, thread_axis="blockIdx.x")
+        sch.bind(loop=l148, thread_axis="threadIdx.x")
+
+    def root_anno(sch: Schedule):
+        b8 = sch.get_block(name="root", func_name="main")
+        v140 = sch.sample_categorical(
+            candidates=[0, 16, 64, 512, 1024],
+            probs=[
+                0.20000000000000001,
+                0.20000000000000001,
+                0.20000000000000001,
+                0.20000000000000001,
+                0.20000000000000001,
+            ],
+            decision=2,
+        )
+        sch.annotate(block_or_loop=b8, ann_key="meta_schedule.unroll_explicit", ann_val=v140)
 
     # pylint: enable=invalid-name
 
@@ -194,6 +272,8 @@ def _get_mod():
     input_tile_data_pad(sch)
     bgemm(sch)
     inverse(sch)
+    conv2d(sch)
+    root_anno(sch)
 
     return sch.mod
 
@@ -201,25 +281,29 @@ def _get_mod():
 def test_conv2d_winograd_cuda():
     mod = conv2d_winograd_cuda
     mod = IRModule({"main": mod})
-    context = TuneContext(
+    context = ms.TuneContext(
         mod=mod,
-        target=Target("cuda"),
+        target=Target("nvidia/geforce-rtx-3090", host="llvm"),
         task_name="Custom Search Space Task",
-        sch_rules=DefaultCUDA._sch_rules(),  # pylint: disable=protected-access
+        space_generator=ms.space_generator.PostOrderApply(),
+        sch_rules=ms.default_config.schedule_rules(  # pylint: disable=protected-access
+            None, Target("cuda")
+        ),
     )
-    post_order_apply = PostOrderApply()
-    post_order_apply.initialize_with_tune_context(context)
+    post_order_apply = context.space_generator
     (sch,) = post_order_apply.generate_design_space(mod)
     decisions = dict(
         zip(
-            [i for i in sch.trace.insts[:-2] if i.kind.name.startswith("Sample")],
+            [i for i in sch.trace.insts if i.kind.name.startswith("Sample")],
             [
                 # data_pack
                 [3, 3],
                 [64, 2],
+                2,
                 # inverse
                 [3, 3],
                 [2, 64],
+                2,
                 # bgemm
                 [1, 1, 1, 1, 6],
                 [1, 1, 1, 3, 2],
@@ -228,10 +312,14 @@ def test_conv2d_winograd_cuda():
                 [32, 1, 4],
                 1,
                 1,
+                # root anno
+                2,
+                # conv2d
+                2,
             ],
         )
     )
-    trace = Trace(sch.trace.insts[:-2], decisions=decisions)
+    trace = Trace(sch.trace.insts, decisions=decisions)
     sch = Schedule(mod=mod)
     trace.apply_to_schedule(sch, remove_postproc=False)
     answer = sch.mod

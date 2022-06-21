@@ -31,22 +31,21 @@ get the measurement results. The flow of data structures is
 We implement these in python to utilize python's multiprocessing and error handling.
 """
 
+import logging
+import multiprocessing
 import os
-import time
 import shutil
 import tempfile
-import multiprocessing
-import logging
+import time
 
 import tvm._ffi
-from tvm.runtime import Object, module, ndarray
+from tvm.autotvm.env import AutotvmGlobalScope, reset_global_scope
+from tvm.contrib import ndk, tar
+from tvm.contrib.popen_pool import PopenPoolExecutor, PopenWorker, StatusKind
 from tvm.driver import build_module
 from tvm.ir import transform
-from tvm.autotvm.env import AutotvmGlobalScope, reset_global_scope
-from tvm.contrib import tar, ndk
-from tvm.contrib.popen_pool import PopenWorker, PopenPoolExecutor, StatusKind
+from tvm.runtime import Object, module, ndarray
 from tvm.target import Target
-
 
 from . import _ffi_api
 from .loop_state import StateObject
@@ -59,8 +58,8 @@ from .utils import (
     request_remote,
 )
 from .workload_registry import (
-    serialize_workload_registry_entry,
     deserialize_workload_registry_entry,
+    serialize_workload_registry_entry,
 )
 
 # pylint: disable=invalid-name
@@ -224,9 +223,7 @@ def recover_measure_input(inp, rebuild_state=False):
     from .search_task import SearchTask  # lazily import to avoid recursive dependency
 
     task = inp.task
-    task.target, task.target_host = Target.check_and_update_host_consist(
-        task.target, task.target_host
-    )
+    task.target, task.target_host = Target.canon_target_and_host(task.target, task.target_host)
     new_task = SearchTask(
         workload_key=task.workload_key,
         target=task.target,
@@ -557,8 +554,8 @@ class LocalRPCMeasureContext:
         device=0,
     ):
         # pylint: disable=import-outside-toplevel
-        from tvm.rpc.tracker import Tracker
         from tvm.rpc.server import Server
+        from tvm.rpc.tracker import Tracker
 
         self.tracker = Tracker(port=9000, port_end=10000, silent=True)
         device_key = "$local$device$%d" % self.tracker.port
@@ -612,9 +609,7 @@ def _local_build_worker(inp_serialized, build_func, verbose):
     tic = time.time()
     inp = MeasureInput.deserialize(inp_serialized)
     task = inp.task
-    task.target, task.target_host = Target.check_and_update_host_consist(
-        task.target, task.target_host
-    )
+    task.target, task.target_host = Target.canon_target_and_host(task.target, task.target_host)
 
     error_no = MeasureErrorNo.NO_ERROR
     error_msg = None
@@ -634,7 +629,7 @@ def _local_build_worker(inp_serialized, build_func, verbose):
         filename = os.path.join(dirname, "tmp_func." + build_func.output_format)
 
         try:
-            with transform.PassContext():
+            with transform.PassContext().current():
                 func = build_module.build(sch, args, target=task.target)
             func.export_library(filename, build_func)
         # pylint: disable=broad-except

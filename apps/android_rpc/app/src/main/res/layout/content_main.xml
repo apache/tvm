@@ -38,6 +38,7 @@ under the License.
         <EditText
             android:id="@+id/input_address"
             android:hint="@string/input_address"
+            android:autofillHints="@string/label_address_hint"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:inputType="phone"
@@ -55,6 +56,7 @@ under the License.
         <EditText
             android:id="@+id/input_port"
             android:hint="@string/input_port"
+            android:autofillHints="@string/label_port_hint"
             android:minWidth="100dip"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -73,6 +75,8 @@ under the License.
         <EditText
             android:id="@+id/input_key"
             android:hint="@string/input_key"
+            android:autofillHints="@string/label_key_hint"
+            android:inputType="text"
             android:minWidth="100dip"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -87,15 +91,16 @@ under the License.
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/label_persistent"/>
-        <Switch
-            android:id="@+id/switch_persistent"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:switchMinWidth="55dp"
-            android:paddingLeft="10dip"
-            android:checked="false"
-            android:textOff="@string/switch_off"
-            android:textOn="@string/switch_on" />
+        <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switch_persistent"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:switchMinWidth="55dp"
+                android:paddingLeft="10dip"
+                android:paddingRight="10dip"
+                android:checked="false"
+                android:textOff="@string/switch_off"
+                android:textOn="@string/switch_on" />
     </LinearLayout>
 
 </LinearLayout>

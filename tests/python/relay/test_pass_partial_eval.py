@@ -17,6 +17,7 @@
 
 import numpy as np
 import tvm
+import tvm.testing
 from tvm import relay
 from tvm.relay.prelude import Prelude
 from tvm.relay import op, create_executor, transform
@@ -350,7 +351,4 @@ def test_tuple_match():
 
 
 if __name__ == "__main__":
-    import sys
-    import pytest
-
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

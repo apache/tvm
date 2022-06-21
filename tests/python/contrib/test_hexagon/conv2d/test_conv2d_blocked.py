@@ -19,6 +19,7 @@ import sys
 
 import platform
 import tvm
+import tvm.testing
 from tvm import te
 from tvm import topi
 from tvm.topi import testing
@@ -191,4 +192,4 @@ class TestConv2dPackedFilter(BaseConv2d):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

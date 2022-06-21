@@ -26,8 +26,10 @@
 #include <tvm/meta_schedule/builder.h>
 #include <tvm/meta_schedule/cost_model.h>
 #include <tvm/meta_schedule/database.h>
+#include <tvm/meta_schedule/extracted_task.h>
 #include <tvm/meta_schedule/feature_extractor.h>
 #include <tvm/meta_schedule/measure_callback.h>
+#include <tvm/meta_schedule/profiler.h>
 #include <tvm/meta_schedule/runner.h>
 #include <tvm/meta_schedule/schedule_rule.h>
 #include <tvm/meta_schedule/search_strategy.h>
@@ -83,16 +85,17 @@ class PyLogMessage {
     if (this->logging_func.defined()) {
       logging_func(static_cast<int>(logging_level), stream_.str());
     } else {
-      if (logging_level == Level::INFO)
+      if (logging_level == Level::INFO) {
         LOG(INFO) << stream_.str();
-      else if (logging_level == Level::WARNING)
+      } else if (logging_level == Level::WARNING) {
         LOG(WARNING) << stream_.str();
-      else if (logging_level == Level::ERROR)
+      } else if (logging_level == Level::ERROR) {
         LOG(ERROR) << stream_.str();
-      else if (logging_level == Level::DEBUG)
+      } else if (logging_level == Level::DEBUG) {
         DLOG(INFO) << stream_.str();
-      else
+      } else {
         LOG(FATAL) << stream_.str();
+      }
     }
   }
   std::ostringstream& stream() { return stream_; }
@@ -105,38 +108,6 @@ class PyLogMessage {
 
 /*! \brief The type of the random state */
 using TRandState = support::LinearCongruentialEngine::TRandState;
-
-/*!
- * \brief Read lines from a json file.
- * \param path The path to the json file.
- * \param allow_missing Whether to create new file when the given path is not found.
- * \return An array containing lines read from the json file.
- */
-inline Array<String> JSONFileReadLines(const String& path, bool allow_missing) {
-  std::ifstream is(path);
-  if (is.good()) {
-    Array<String> results;
-    for (std::string str; std::getline(is, str);) {
-      results.push_back(str);
-    }
-    return results;
-  }
-  CHECK(allow_missing) << "ValueError: File doesn't exist: " << path;
-  std::ofstream os(path);
-  CHECK(os.good()) << "ValueError: Cannot create new file: " << path;
-  return {};
-}
-
-/*!
- * \brief Append a line to a json file.
- * \param path The path to the json file.
- * \param line The line to append.
- */
-inline void JSONFileAppendLine(const String& path, const std::string& line) {
-  std::ofstream os(path, std::ofstream::app);
-  CHECK(os.good()) << "ValueError: Cannot open the file to write: " << path;
-  os << line << std::endl;
-}
 
 /*!
  * \brief Get the base64 encoded result of a string.
@@ -167,31 +138,18 @@ inline std::string Base64Decode(std::string str) {
 }
 
 /*!
- * \brief Parse lines of json string into a json object.
- * \param lines The lines of json string.
- * \return Array of json objects parsed.
- * \note The function calls the python-side json parser in runtime registry.
+ * \brief Parses a json string into a json object.
+ * \param json_str The json string.
+ * \return The json object
  */
-inline Array<ObjectRef> JSONStr2Obj(const Array<String>& lines) {
-  static const runtime::PackedFunc* f_to_obj =
-      runtime::Registry::Get("meta_schedule.batch_json_str2obj");
-  ICHECK(f_to_obj) << "IndexError: Cannot find the packed function "
-                      "`meta_schedule.batch_json_str2obj` in the global registry";
-  return (*f_to_obj)(lines);
-}
+ObjectRef JSONLoads(std::string json_str);
 
 /*!
- * \brief Serialize a json object into a json string.
- * \param json_obj The json object to serialize.
- * \return A string containing the serialized json object.
- * \note The function calls the python-side json obj serializer in runtime registry.
+ * \brief Dumps a json object into a json string.
+ * \param json_obj The json object.
+ * \return The json string
  */
-inline String JSONObj2Str(const ObjectRef& json_obj) {
-  static const runtime::PackedFunc* f_to_str = runtime::Registry::Get("meta_schedule.json_obj2str");
-  ICHECK(f_to_str) << "IndexError: Cannot find the packed function "
-                      "`meta_schedule.json_obj2str` in the global registry";
-  return (*f_to_str)(json_obj);
-}
+std::string JSONDumps(ObjectRef json_obj);
 
 /*!
  * \brief Converts a structural hash code to string
@@ -444,6 +402,48 @@ inline double GetRunMsMedian(const RunnerResult& runner_result) {
   } else {
     return v[n / 2] * 1000.0;
   }
+}
+
+/*!
+ * \brief Convert the given object to an array of floating point numbers
+ * \param obj The object to be converted
+ * \return The array of floating point numbers
+ */
+inline Array<FloatImm> AsFloatArray(const ObjectRef& obj) {
+  const ArrayNode* arr = obj.as<ArrayNode>();
+  ICHECK(arr) << "TypeError: Expect an array, but gets: " << obj->GetTypeKey();
+  Array<FloatImm> results;
+  results.reserve(arr->size());
+  for (const ObjectRef& elem : *arr) {
+    if (const auto* int_imm = elem.as<IntImmNode>()) {
+      results.push_back(FloatImm(DataType::Float(32), int_imm->value));
+    } else if (const auto* float_imm = elem.as<FloatImmNode>()) {
+      results.push_back(FloatImm(DataType::Float(32), float_imm->value));
+    } else {
+      LOG(FATAL) << "TypeError: Expect an array of float or int, but gets: " << elem->GetTypeKey();
+    }
+  }
+  return results;
+}
+
+/*!
+ * \brief Convert the given object to an array of integers
+ * \param obj The object to be converted
+ * \return The array of integers
+ */
+inline Array<Integer> AsIntArray(const ObjectRef& obj) {
+  const ArrayNode* arr = obj.as<ArrayNode>();
+  ICHECK(arr) << "TypeError: Expect an array, but gets: " << obj->GetTypeKey();
+  Array<Integer> results;
+  results.reserve(arr->size());
+  for (const ObjectRef& elem : *arr) {
+    if (const auto* int_imm = elem.as<IntImmNode>()) {
+      results.push_back(Integer(int_imm->value));
+    } else {
+      LOG(FATAL) << "TypeError: Expect an array of integers, but gets: " << elem->GetTypeKey();
+    }
+  }
+  return results;
 }
 
 }  // namespace meta_schedule

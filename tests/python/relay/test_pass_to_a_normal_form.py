@@ -18,6 +18,7 @@ import pytest
 import sys
 import numpy as np
 import tvm
+import tvm.testing
 from tvm import te
 from tvm import relay
 from tvm.relay.analysis import detect_feature
@@ -228,4 +229,4 @@ def test_gradient_if():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

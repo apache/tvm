@@ -576,4 +576,4 @@ def test_size_one_buffer(shape, transform):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

@@ -73,6 +73,10 @@ Type GetType(const PrimExpr& expr) {
   }
   // Default: return the type indicated by the dtype.
   runtime::DataType dtype = expr.dtype();
+  return GetTypeFromRuntimeDataType(dtype);
+}
+
+Type GetTypeFromRuntimeDataType(const DataType& dtype) {
   if (dtype.is_void()) {
     return VoidType();
   }

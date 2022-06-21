@@ -27,6 +27,8 @@
 
 #include <tvm/target/virtual_device.h>
 
+#include <string>
+
 namespace tvm {
 
 /*!
@@ -68,14 +70,20 @@ class CompilationConfigNode : public Object {
    * \p host_target, however the \p host_target should be used for all host computations and data.
    * Each \p Target will have \p host_target as its 'host'.
    *
+   * Primitive targets must be unique by their kind name. In this way the
+   * \p FindPrimitiveTargetForKind method will find the unique target for the given kind name.
+   * This method is used when transitioning from an external codegen "Compiler" attribute value
+   * to the external codegen target representing that compiler.
+   *
    * It is possible to have multiple primitive targets for the same device type. However given
    * primitive targets left and right where:
    *  - left appears before right in the array
    *  - left->kind->device_type == right->kind->device_type
    * then:
    *  - right.IsExternalCodegenFor(left) must be true
-   * In this way the FindPrimitiveTargetOrFail method will find the 'most general' target for
-   * the requested device type.
+   * In this way the \p FindPrimitiveTargetForDeviceOrFail method will find the 'most general'
+   * target for the requested device type. This method is used when transitioning from a device
+   * constraint to the target needed to compile for that device.
    *
    * In the homogeneous case primitive_targets will have just one entry, which will be pointer equal
    * to optional_homogeneous_target.
@@ -114,11 +122,16 @@ class CompilationConfigNode : public Object {
   void VisitAttrs(AttrVisitor* v);
 
   /*!
-   * \brief Return the unique \p Target to use for \p device_type. Fail if no such target exists.
+   * \brief Returns the unique \p Target to use for \p device_type. Fail if no such target exists.
    *
    * This will be the first primitive target with matching device type.
    */
-  Target FindPrimitiveTargetOrFail(DLDeviceType device_type) const;
+  Target FindPrimitiveTargetForDeviceOrFail(DLDeviceType device_type) const;
+
+  /*!
+   * \brief Returns the unique \p Target to use for \p kind_name. Returns null if none such.
+   */
+  Optional<Target> FindPrimitiveTargetForKind(const std::string& kind_name) const;
 
   /*!
    * \brief Returns a \p VirtualDevice agreeing with \p virtual_device on all its constrained

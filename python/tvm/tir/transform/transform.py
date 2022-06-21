@@ -16,7 +16,8 @@
 # under the License.
 """Wrapping existing transformations."""
 # pylint: disable=invalid-name
-from typing import Optional
+from typing import Optional, Callable
+
 from . import _ffi_api
 from . import function_pass as _fpass
 
@@ -41,26 +42,6 @@ def Apply(ftransform):
         return ftransform(func)
 
     return _fpass.prim_func_pass(_transform, opt_level=0, name="Apply")  # type: ignore
-
-
-def Filter(fcond):
-    """Filter functions by the calling convention attribute.
-
-    Parameters
-    ----------
-    fcond : tvm.tir.PrimFunc -> bool
-        The condition of the filtering.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    # pylint: disable=unused-argument
-    def _transform(func, mod, ctx):
-        return func if fcond(func) else None
-
-    return _fpass.prim_func_pass(_transform, opt_level=0, name="Filter")  # type: ignore
 
 
 def InjectPrefetch():
@@ -324,7 +305,7 @@ def BF16TypeLowering():
     return _ffi_api.BF16TypeLowering()  # type: ignore
 
 
-def CommonSubexprElimTIR(enable_cse_tir: bool = True):
+def CommonSubexprElimTIR(enable_cse_tir: bool = True, identify_equiv_terms: bool = False):
     """Replace redundant computations by new variables.
 
     Returns
@@ -332,7 +313,7 @@ def CommonSubexprElimTIR(enable_cse_tir: bool = True):
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.CommonSubexprElimTIR(enable_cse_tir)  # type: ignore
+    return _ffi_api.CommonSubexprElimTIR(enable_cse_tir, identify_equiv_terms)  # type: ignore
 
 
 def RewriteUnsafeSelect():
@@ -806,3 +787,52 @@ def RenormalizeSplitPattern():
         The result pass
     """
     return _ffi_api.RenormalizeSplitPattern()  # type: ignore
+
+
+def BindTarget(target):
+    """Annotate a PrimFunc with a given target.
+    Parameters
+    -------
+    target : tvm.target.Target
+        target
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.BindTarget(target)  # type: ignore
+
+
+def AnnotateEntryFunc():
+    """Set a PrimFunc as the entry point if it is only function in IRModule.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.AnnotateEntryFunc()  # type: ignore
+
+
+def Filter(fcond: Callable):
+    """Filter out PrimFuncs that does not satisfy the given condition.
+    `fcond` should be a function that takes a primfunc and returns boolean.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.Filter(fcond)  # type: ignore
+
+
+def InjectPTXAsyncCopy():
+    """Rewrite global to shared memory copy on CUDA with asyncronous copy.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InjectPTXAsyncCopy()  # type: ignore

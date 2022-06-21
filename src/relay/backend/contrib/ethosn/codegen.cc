@@ -213,9 +213,14 @@ String MakeVariant(Optional<EthosnCompilerConfig> configuration) {
   String variant = configuration.value()->variant;
   // Transform variant string to lowercase for comparison
   std::string variant_string = variant.c_str();
-  std::transform(variant_string.begin(), variant_string.end(), variant_string.begin(), ::tolower);
-  std::string variant_n78 = "ethos-n78";
-  if (variant_string == variant_n78) {
+
+  // Checking deprecated variant format. Support for specifying
+  // the variant in this way only remains for backwards compatibility
+  // and will be removed in a later release of TVM.
+  std::string deprecated_variant_string = variant_string;
+  std::transform(deprecated_variant_string.begin(), deprecated_variant_string.end(),
+                 deprecated_variant_string.begin(), ::tolower);
+  if (variant_string == "n78" || deprecated_variant_string == "ethos-n78") {
     String tops = configuration.value()->tops;
     String ple_ratio = configuration.value()->ple_ratio;
     variant = "Ethos-N78_" + tops + "TOPS_" + ple_ratio + "PLE_RATIO";

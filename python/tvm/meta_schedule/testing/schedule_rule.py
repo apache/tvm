@@ -17,6 +17,7 @@
 """Default schedule rules"""
 from tvm.meta_schedule.schedule_rule import (
     AddRFactor,
+    AutoBind,
     AutoInline,
     CrossThreadReduction,
     MultiLevelTiling,
@@ -26,6 +27,13 @@ from tvm.meta_schedule.schedule_rule import (
     ScheduleRule,
 )
 from tvm.target import Target
+
+
+def auto_bind(target: Target) -> ScheduleRule:
+    """Default schedule rules for auto bind"""
+    if target.kind.name == "cuda":
+        return AutoBind(max_threadblocks=256, thread_extents=[32, 64, 128, 256, 512, 1024])
+    raise NotImplementedError(f"{target.kind.name} is not supported")
 
 
 def auto_inline(target: Target) -> ScheduleRule:

@@ -19,8 +19,11 @@
 # tag: v0.02
 FROM tvmcihexagon/ci-hexagon-base:v0.02_SDK4.5.0.3
 
+COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
+
 RUN apt-get update --fix-missing
-RUN apt-get install -y ca-certificates gnupg2 libxml2-dev
+
+RUN apt-install-and-clear -y ca-certificates gnupg2 libxml2-dev
 
 COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
 RUN bash /install/ubuntu_install_core.sh
@@ -63,7 +66,6 @@ ENV CLANG_LLVM_HOME /opt/clang-llvm
 ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:/opt/clang-llvm/lib
 ENV PATH /opt/clang-llvm/bin:$PATH
 ENV HEXAGON_TOOLCHAIN "${HEXAGON_SDK_ROOT}/tools/HEXAGON_Tools/8.5.08/Tools"
-ENV HEXAGON_GTEST "${HEXAGON_SDK_ROOT}/utils/googletest/gtest"
 
 # sccache
 COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh

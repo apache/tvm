@@ -42,6 +42,13 @@ if hasattr(typing, "_GenericAlias"):
             return None
 
         @staticmethod
+        def tuple_(type_: Any) -> Optional[List[type]]:
+            if _Subtype._origin(type_) is tuple:
+                subtypes = type_.__args__
+                return subtypes
+            return None
+
+        @staticmethod
         def optional(type_: Any) -> Optional[List[type]]:
             if _Subtype._origin(type_) is Union:
                 subtypes = type_.__args__
@@ -69,6 +76,14 @@ elif hasattr(typing, "_Union"):
             return None
 
         @staticmethod
+        def tuple_(type_: Any) -> Optional[List[type]]:
+            if isinstance(type_, typing.GenericMeta):  # type: ignore # pylint: disable=no-member
+                if type_.__name__ == "Tuple":
+                    subtypes = type_.__args__  # type: ignore # pylint: disable=no-member
+                    return subtypes
+            return None
+
+        @staticmethod
         def optional(type_: Any) -> Optional[List[type]]:
             if isinstance(type_, typing._Union):  # type: ignore # pylint: disable=no-member,protected-access
                 subtypes = type_.__args__
@@ -93,6 +108,10 @@ def _dispatcher(type_: Any) -> Tuple[str, List[type]]:
     if subtype is not None:
         return "list", subtype
 
+    subtype = _Subtype.tuple_(type_)
+    if subtype is not None:
+        return "tuple", subtype
+
     subtype = _Subtype.optional(type_)
     if subtype is not None:
         return "optional", subtype
@@ -108,6 +127,7 @@ _TYPE2STR: Dict[Any, Callable] = {
     "none": lambda: "None",
     "atomic": lambda t: str(t.__name__),
     "list": lambda t: f"List[{_type2str(t)}]",
+    "tuple": lambda *t: f"Tuple[{', '.join([_type2str(x) for x in t])}]",
     "optional": lambda t: f"Optional[{_type2str(t)}]",
     "union": lambda *t: f"Union[{', '.join([_type2str(x) for x in t])}]",
 }
@@ -118,11 +138,26 @@ def _type2str(type_: Any) -> str:
     return _TYPE2STR[key](*subtypes)
 
 
+def _val2type(value: Any):
+    if isinstance(value, list):
+        types = set(_val2type(x) for x in value)
+        if len(types) == 1:
+            return List[types.pop()]  # type: ignore
+
+        return List[Union[tuple(types)]]  # type: ignore
+
+    if isinstance(value, tuple):
+        types = tuple(_val2type(x) for x in value)  # type: ignore
+        return Tuple[types]
+
+    return type(value)
+
+
 def _type_check_err(x: Any, name: str, expected: Any) -> str:
     return (
         f'"{name}" has wrong type. '
         f'Expected "{_type2str(expected)}", '
-        f'but gets: "{_type2str(type(x))}"'
+        f'but gets: "{_type2str(_val2type(x))}"'
     )
 
 
@@ -142,6 +177,17 @@ def _type_check_vtable() -> Dict[str, Callable]:
                 return error_msg
         return None
 
+    def _type_check_tuple(v: Any, name: str, *types: Any) -> Optional[str]:
+        if not isinstance(v, tuple):
+            return _type_check_err(v, name, Tuple[types])
+        if len(types) != len(v):
+            return _type_check_err(v, name, Tuple[types])
+        for i, (x, type_) in enumerate(zip(v, types)):
+            error_msg = _type_check(x, f"{name}[{i}]", type_)
+            if error_msg is not None:
+                return error_msg
+        return None
+
     def _type_check_optional(v: Any, name: str, type_: Any) -> Optional[str]:
         return None if v is None else _type_check(v, name, type_)
 
@@ -150,12 +196,13 @@ def _type_check_vtable() -> Dict[str, Callable]:
             error_msg = _type_check(v, name, type_)
             if error_msg is None:
                 return None
-        return _type_check_err(v, name, types)
+        return _type_check_err(v, name, Union[types])
 
     return {
         "none": _type_check_none,
         "atomic": _type_check_atomic,
         "list": _type_check_list,
+        "tuple": _type_check_tuple,
         "optional": _type_check_optional,
         "union": _type_check_union,
     }

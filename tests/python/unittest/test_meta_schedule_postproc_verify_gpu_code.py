@@ -20,6 +20,7 @@ import sys
 
 import pytest
 import tvm
+import tvm.testing
 from tvm import tir
 from tvm.meta_schedule import TuneContext
 from tvm.meta_schedule.postproc import VerifyGPUCode
@@ -40,8 +41,6 @@ def _create_context(mod, target) -> TuneContext:
         ],
         task_name="test",
     )
-    for rule in ctx.postprocs:
-        rule.initialize_with_tune_context(ctx)
     return ctx
 
 
@@ -452,4 +451,4 @@ def test_postproc_verify_gpu_6():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

@@ -141,14 +141,6 @@ def check_gpu():
         )
 
 
-def check_build():
-    if (REPO_ROOT / "build").exists():
-        warnings.append(
-            "Existing build dir found may be interfering with the Docker "
-            "build (you may need to remove it)"
-        )
-
-
 def gen_name(s: str) -> str:
     # random 4 letters
     suffix = "".join([random.choice(string.ascii_lowercase) for i in range(5)])
@@ -227,38 +219,33 @@ def docker(name: str, image: str, scripts: List[str], env: Dict[str, str], inter
 def docs(
     tutorial_pattern: Optional[str] = None,
     full: bool = False,
-    cpu: bool = False,
     interactive: bool = False,
     skip_build: bool = False,
     docker_image: Optional[str] = None,
 ) -> None:
     """
     Build the documentation from gallery/ and docs/. By default this builds only
-    the Python docs.
+    the Python docs without any tutorials.
 
     arguments:
-    full -- Build all language docs, not just Python
-    precheck -- Run Sphinx precheck script
-    tutorial-pattern -- Regex for which tutorials to execute when building docs (can also be set via TVM_TUTORIAL_EXEC_PATTERN)
-    cpu -- Run with the ci-cpu image and use CMake defaults for building TVM (if no GPUs are available)
+    full -- Build all language docs, not just Python (this will use the 'ci_gpu' Docker image)
+    tutorial-pattern -- Regex for which tutorials to execute when building docs (this will use the 'ci_gpu' Docker image)
     skip_build -- skip build and setup scripts
     interactive -- start a shell after running build / test scripts
     docker-image -- manually specify the docker image to use
     """
-    config = "./tests/scripts/task_config_build_gpu.sh"
     build_dir = get_build_dir("gpu")
-    if cpu and full:
-        clean_exit("--full cannot be used with --cpu")
 
     extra_setup = []
     image = "ci_gpu" if docker_image is None else docker_image
-    if cpu:
+    if not full and tutorial_pattern is None:
+        # TODO: Change this to tlcpack/docs once that is uploaded
         image = "ci_cpu" if docker_image is None else docker_image
         build_dir = get_build_dir("cpu")
-        config = " && ".join(
+        config_script = " && ".join(
             [
-                "mkdir -p build",
-                "pushd build",
+                f"mkdir -p {build_dir}",
+                f"pushd {build_dir}",
                 "cp ../cmake/config.cmake .",
                 # The docs import tvm.micro, so it has to be enabled in the build
                 "echo set\(USE_MICRO ON\) >> config.cmake",
@@ -273,7 +260,8 @@ def docs(
             "tlcpack-sphinx-addon==0.2.1",
             "synr==0.5.0",
             "image==1.5.33",
-            "sphinx-gallery==0.4.0",
+            # Temporary git link until a release is published
+            "git+https://github.com/sphinx-gallery/sphinx-gallery.git@6142f1791151849b5bec4bf3959f75697ba226cd",
             "sphinx-rtd-theme==1.0.0",
             "matplotlib==3.3.4",
             "commonmark==0.9.1",
@@ -287,9 +275,10 @@ def docs(
         ]
     else:
         check_gpu()
+        config_script = f"./tests/scripts/task_config_build_gpu.sh {build_dir}"
 
     scripts = extra_setup + [
-        config + f" {build_dir}",
+        config_script,
         f"./tests/scripts/task_build.py --build-dir {build_dir}",
     ]
 
@@ -307,7 +296,6 @@ def docs(
         "IS_LOCAL": "1",
         "TVM_LIBRARY_PATH": str(REPO_ROOT / build_dir),
     }
-    check_build()
     docker(name=gen_name("docs"), image=image, scripts=scripts, env=env, interactive=interactive)
 
 
@@ -355,6 +343,7 @@ def generate_command(
     options: Dict[str, Option],
     help: str,
     precheck: Optional[Callable[[], None]] = None,
+    post_build: Optional[List[str]] = None,
 ):
     """
     Helper to generate CLIs that:
@@ -390,6 +379,9 @@ def generate_command(
                 f"./tests/scripts/task_config_build_{name}.sh {get_build_dir(name)}",
                 f"./tests/scripts/task_build.py --build-dir {get_build_dir(name)}",
             ]
+
+        if post_build is not None:
+            scripts += post_build
 
         # Check that a test suite was not used alongside specific test names
         if any(v for v in kwargs.values()) and tests is not None:
@@ -539,7 +531,7 @@ def add_subparser(
             kwargs["required"] = not is_optional and not has_default
 
         if str(arg_type).startswith("typing.List"):
-            kwargs["nargs"] = "+"
+            kwargs["action"] = "append"
 
         if arg_cli_name[0] not in seen_prefixes:
             subparser.add_argument(f"-{arg_cli_name[0]}", f"--{arg_cli_name}", **kwargs)
@@ -561,11 +553,14 @@ def add_subparser(
     return subparser
 
 
+CPP_UNITTEST = ("run c++ unitests", ["./tests/scripts/task_cpp_unittest.sh"])
+
 generated = [
     generate_command(
         name="gpu",
         help="Run GPU build and test(s)",
         options={
+            "cpp": CPP_UNITTEST,
             "topi": ("run topi tests", ["./tests/scripts/task_python_topi.sh"]),
             "unittest": (
                 "run unit tests",
@@ -582,6 +577,7 @@ generated = [
         name="cpu",
         help="Run CPU build and test(s)",
         options={
+            "cpp": CPP_UNITTEST,
             "integration": (
                 "run integration tests",
                 ["./tests/scripts/task_python_integration.sh"],
@@ -601,6 +597,7 @@ generated = [
         name="i386",
         help="Run i386 build and test(s)",
         options={
+            "cpp": CPP_UNITTEST,
             "integration": (
                 "run integration tests",
                 [
@@ -619,26 +616,28 @@ generated = [
         name="qemu",
         help="Run QEMU build and test(s)",
         options={
+            "cpp": CPP_UNITTEST,
             "test": (
                 "run microTVM tests",
                 [
                     "./tests/scripts/task_python_microtvm.sh",
                     "./tests/scripts/task_demo_microtvm.sh",
                 ],
-            )
+            ),
         },
     ),
     generate_command(
         name="hexagon",
         help="Run Hexagon build and test(s)",
+        post_build=["./tests/scripts/task_build_hexagon_api.sh --output build-hexagon"],
         options={
+            "cpp": CPP_UNITTEST,
             "test": (
                 "run Hexagon API/Python tests",
                 [
-                    "./tests/scripts/task_build_hexagon_api.sh",
                     "./tests/scripts/task_python_hexagon.sh",
                 ],
-            )
+            ),
         },
     ),
     generate_command(
@@ -646,13 +645,14 @@ generated = [
         help="Run ARM build and test(s) (native or via QEMU on x86)",
         precheck=check_arm_qemu,
         options={
+            "cpp": CPP_UNITTEST,
             "python": (
                 "run full Python tests",
                 [
                     "./tests/scripts/task_python_unittest.sh",
                     "./tests/scripts/task_python_arm_compute_library.sh",
                 ],
-            )
+            ),
         },
     ),
 ]

@@ -91,6 +91,11 @@ def test_apply_history_best():
     x = hist_best.query(target, tsk.workload)
     assert str(x) == str(tsk.config_space.get(2))
 
+    # Confirm same functionality for iterators.
+    hist_best = ApplyHistoryBest(iter(records))
+    x = hist_best.query(target, tsk.workload)
+    assert str(x) == str(tsk.config_space.get(2))
+
 
 if __name__ == "__main__":
     test_load_dump()

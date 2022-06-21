@@ -507,9 +507,7 @@ def _schedule_group_conv2d_NCHWc_int8(cfg, s, output):
     s[conv].reorder(rco, ryo, rxo, rci, ryi, rxi, n, f, y, x, c, rc_block)
     _, rc_block = s[conv].split(rc_block, factor=4)
     target = tvm.target.Target.current(allow_none=False)
-    do_tensorize = True
-    if "vulkan" in target.keys:
-        do_tensorize = "+dotprod" in target.mattr or target.supports_integer_dot_product
+    do_tensorize = "+dotprod" in target.mattr or target.supports_integer_dot_product
     if do_tensorize:
         dtypes = (pad_data.dtype, packed_kernel.dtype)
         s[conv].tensorize(rc_block, dp4a("shared", "shared", "local", dtypes))

@@ -18,6 +18,7 @@ import sys
 import pytest
 import random
 import tvm
+import tvm.testing
 from tvm.tir.usmp.utils import BufferInfo, PoolInfo
 
 
@@ -391,4 +392,4 @@ def run_intervals(intervals):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

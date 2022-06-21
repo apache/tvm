@@ -105,11 +105,22 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
    */
   bool CanInlineLet(const LetNode* op);
 
+  /*! \brief Internal function to apply constraints
+   *
+   * Tests whether the expression is known to be true or false based
+   * on existing constraints.  If the expression or its negation
+   * matches a constraint, return the boolean it should be replaced
+   * with.  Otherwise, return false.
+   */
+  Optional<PrimExpr> TryMatchLiteralConstraint(const PrimExpr& expr) const;
+
  private:
   // Whether x >= val
   bool CanProveGreaterEqual(const PrimExpr& x, int64_t val) {
     return analyzer_->CanProveGreaterEqual(x, val);
   }
+  // Whether x < val
+  bool CanProveLess(const PrimExpr& x, int64_t val) { return analyzer_->CanProveLess(x, val); }
   // Whether x == val
   bool CanProveEqual(const PrimExpr& x, int64_t val) {
     // TODO(tqchen) refer back to super-analyzer.

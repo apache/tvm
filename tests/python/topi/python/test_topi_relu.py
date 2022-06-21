@@ -113,4 +113,4 @@ def test_prelu(x, w, axis, weight_reshape):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

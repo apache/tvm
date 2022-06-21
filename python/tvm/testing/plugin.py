@@ -56,8 +56,8 @@ MARKERS = {
 def pytest_configure(config):
     """Runs at pytest configure time, defines marks to be used later."""
 
-    for markername, desc in MARKERS.items():
-        config.addinivalue_line("markers", "{}: {}".format(markername, desc))
+    for feature in utils.Feature._all_features.values():
+        feature._register_marker(config)
 
     print("enabled targets:", "; ".join(map(lambda x: x[0], utils.enabled_targets())))
     print("pytest marker:", config.option.markexpr)
@@ -269,25 +269,26 @@ def _target_to_requirement(target):
 
     # mapping from target to decorator
     if target.kind.name == "cuda" and "cudnn" in target.attrs.get("libs", []):
-        return utils.requires_cudnn()
+        return utils.requires_cudnn.marks()
     if target.kind.name == "cuda" and "cublas" in target.attrs.get("libs", []):
-        return utils.requires_cublas()
+        return utils.requires_cublas.marks()
     if target.kind.name == "cuda":
-        return utils.requires_cuda()
+        return utils.requires_cuda.marks()
     if target.kind.name == "rocm":
-        return utils.requires_rocm()
+        return utils.requires_rocm.marks()
     if target.kind.name == "vulkan":
-        return utils.requires_vulkan()
+        return utils.requires_vulkan.marks()
     if target.kind.name == "nvptx":
-        return utils.requires_nvptx()
+        return utils.requires_nvptx.marks()
     if target.kind.name == "metal":
-        return utils.requires_metal()
+        return utils.requires_metal.marks()
     if target.kind.name == "opencl":
-        return utils.requires_opencl()
+        return utils.requires_opencl.marks()
     if target.kind.name == "llvm":
-        return utils.requires_llvm()
+        return utils.requires_llvm.marks()
     if target.kind.name == "hexagon":
-        return utils.requires_hexagon()
+        return utils.requires_hexagon.marks()
+
     return []
 
 

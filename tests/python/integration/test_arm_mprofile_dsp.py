@@ -20,12 +20,8 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relay
-from tests.python.relay.aot.aot_test_utils import (
-    AOTTestModel,
-    AOT_CORSTONE300_RUNNER,
-    generate_ref_data,
-    compile_and_run,
-)
+from tvm.testing.aot import AOTTestModel, compile_and_run, generate_ref_data
+from tvm.micro.testing.aot_test_utils import AOT_CORSTONE300_RUNNER
 
 
 @tvm.testing.requires_corstone300
@@ -353,4 +349,4 @@ def test_avgpool_1d(data_shape_ncw, pool_size, strides, padding):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

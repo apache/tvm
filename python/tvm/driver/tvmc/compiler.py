@@ -278,7 +278,7 @@ def compile_model(
         mod = convert_graph_layout(mod, desired_layout)
 
     tvm_target, extra_targets = target_from_cli(target, additional_target_options)
-    tvm_target, target_host = Target.check_and_update_host_consist(tvm_target, target_host)
+    tvm_target, target_host = Target.canon_target_and_host(tvm_target, target_host)
 
     for codegen_from_cli in extra_targets:
         codegen = composite_target.get_codegen_by_target(codegen_from_cli["name"])

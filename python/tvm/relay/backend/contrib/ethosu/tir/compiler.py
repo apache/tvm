@@ -90,6 +90,7 @@ def lower_ethosu(sch, args, const_dict, name="main"):
         mod = tvm.tir.transform.RemoveNoOp()(mod)
         mod, const_dict = ethosu_passes.EncodeConstants(const_dict)(mod)
         mod = ethosu_passes.HoistAllocates()(mod)
+        mod = ethosu_passes.CopyComputeReordering()(mod)
         disable_storage_rewrite = curr_cfg.get("tir.disable_storage_rewrite", False)
         if not disable_storage_rewrite:
             mod = tvm.tir.transform.StorageRewrite()(mod)

@@ -18,6 +18,7 @@
 import sys
 
 import pytest
+import tvm.testing
 from tvm.ir import IRModule
 from tvm.meta_schedule.testing.te_workload import create_te_workload
 from tvm.tir.analysis import estimate_tir_flops
@@ -48,4 +49,4 @@ def test_te_workload(workload, flops):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

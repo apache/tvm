@@ -25,7 +25,8 @@
 
 #include "common_subexpr_elim_tools.h"
 
-#include <tvm/ir/transform.h>  // For the class Pass and the class PassContext
+#include <tvm/arith/analyzer.h>  // For the arith::Analyzer::Simplify() method simplifying terms
+#include <tvm/ir/transform.h>    // For the class Pass and the class PassContext
 #include <tvm/runtime/container/string.h>
 #include <tvm/tir/analysis.h>  // For the ExprDeepEqual analysis
 #include <tvm/tir/expr.h>
@@ -721,13 +722,41 @@ bool EqualTerms(const PrimExpr& a, const PrimExpr& b) {
 }
 
 /*!
+ * \brief Normalization function of a term, use to decide the equivalence relation of interest
+ * \param expr The expression to normalize
+ * \param do_normalization Whether we want the function to actually do normalization
+ * \note This function can be customized
+ */
+PrimExpr NormalizeTerm(const PrimExpr& expr, bool do_normalization) {
+  if (do_normalization) {
+    // Customize here!
+    // We could decide to normalize terms in a way that identifies them modulo commutativity
+    // (like x+y and y+x), or modulo associativity (like (x+y)+z and x+(y+z)), etc.
+    // For that, a normalization procedure (or an incomplete "pseudo-normalization" like
+    // arith::Analyzer::Simplify) will be used.
+
+    // One possible customization:
+    // Here is just an attempt to do more commonings by using the pseudo-normalization function
+    // offered by arith::Analyzer::Simplify(). "pseudo" because while it is correct (i.e.
+    // the simplification is indeed equivalent to the original term), it is incomplete (i.e.
+    // the returned term is not guaranteed to be a normal form).
+    arith::Analyzer analyzer;
+    return analyzer.Simplify(expr);
+  } else {
+    // If `do_normalization` is false, the equivalence relation just checks the syntactic equality,
+    // so the normalization is just the identity function.
+    return expr;
+  }
+}
+
+/*!
  * \brief Decides if two terms are equivalent semantically
  */
-bool EquivalentTerms(const PrimExpr& a, const PrimExpr& b) {
-  // For now, we just check the syntactic equality, but that could later become a semantic test,
-  // for instance identifying computations modulo commutativity (like x+y and y+x), or modulo
-  // associativity (like (x+y)+z and x+(y+z)), etc.
-  return EqualTerms(a, b);
+bool EquivalentTerms(const PrimExpr& a, const PrimExpr& b, bool identify_equiv_terms) {
+  // We restrict the equivalence to be decidable by a normalization procedure that is used to
+  // normalize both sides, and to then compare the normal forms with the strict syntactical
+  // equality
+  return EqualTerms(NormalizeTerm(a, identify_equiv_terms), NormalizeTerm(b, identify_equiv_terms));
 }
 
 /*!
@@ -739,21 +768,52 @@ bool EquivalentTerms(const PrimExpr& a, const PrimExpr& b) {
    \note This function is needed because the advantage of the hashtable was the constant lookup.
           But in order to have this constant lookup, we could not collapse semantically equivalent
           computations.
+          Attention, the pairs returned are deterministic and will always be the same (as the same
+          canonical representant will always be chosen for a given class of equivalence), but the
+          order in which these pairs appear in the result is not deterministic, as it is based on
+          the order in which we found items in the "normalized hashtable" `norm_table`). The caller
+          is expected to sort the result anyway.
  */
 std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
-    const ComputationTable& table) {
+    const ComputationTable& table, bool identify_equiv_terms) {
   std::vector<std::pair<PrimExpr, size_t>> result;
 
-  // table.size() is an upper-bound of the number of elements in the resulting vector,
-  // as we might merge semantically equivalent computations.
-  // We do this reservation even if it might reserve slightly more space than is needed in the end
-  result.reserve(table.size());
+  // If we do NOT identify equivalent terms, then we simply need to transform the input hashtable
+  // into a vector, without doing anything else.
+  if (!identify_equiv_terms) {
+    // The result will contain exactly as many elements as the input `table` has
+    result.reserve(table.size());
+    for (const auto& elem : table) {
+      result.push_back(elem);
+    }
 
-  // Traverse through map in a sorted order on keys to maintain deterministic behavior
-  // We do this by comparing the string repr of each PrimExpr to get a determinstic ordering
-  std::vector<std::pair<PrimExpr, size_t>> sorted_map_items(table.begin(), table.end());
+    return result;
+  }
 
-  sort(sorted_map_items.begin(), sorted_map_items.end(),
+  // Otherwise, in order to identify equivalent terms, we will go through a table `norm_table`
+  // where normal forms are the keys., and use it to efficiently merge equivalent terms.
+
+  // In order to produce the result (a vector of semantical entities), the input table will be
+  // normalized. This normalized table will keep the count for each set of equivalent terms
+  // (i.e. each equivalence class), together with a term that did appear in this equivalence class
+  // (in practice, the first term of the equivalence class that was encoutered).
+  std::unordered_map<PrimExpr, std::pair<PrimExpr, size_t>, StructuralHash, ExprDeepEqual>
+      norm_table;
+
+  // In order to avoid frequent rehashing if the norm_table becomes big, we immediately ask for
+  // enough space to store the amount of elements that the input table has, as it's clearly an
+  // upper bound (in the worst case, each element is its own representant, and there is as many
+  // equivalence classes as there are elements)
+  norm_table.reserve(table.size());
+
+  // Transform the input hashtable to a vector and sort it according to some order, as we will be
+  // iterating through its items soon, and the order of appearance will be used to determine the
+  // individual representant for each class of equivalence, which we want to be deterministic
+  // (otherwise {x+y, y+x} could be both replaced by x+y, and on another run by y+x).
+  std::vector<std::pair<PrimExpr, size_t>> sorted_items_of_table(table.begin(), table.end());
+
+  // We do the ordering by comparing the string repr of each expr to get a determinstic ordering
+  sort(sorted_items_of_table.begin(), sorted_items_of_table.end(),
        [](std::pair<PrimExpr, size_t> a, std::pair<PrimExpr, size_t> b) {
          std::stringstream a_stream;
          std::stringstream b_stream;
@@ -762,21 +822,40 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
          return a_stream.str().compare(b_stream.str()) < 0;
        });
 
-  // For each element in the hashtable
-  for (auto elem : sorted_map_items) {
-    // We try to see if a semantically equivalent term is already in the resulting vector
-    auto it_found = std::find_if(result.begin(), result.end(),
-                                 [elem](std::pair<PrimExpr, size_t> already_seen) {
-                                   return EquivalentTerms(already_seen.first, elem.first);
-                                 });
-    // And if so, we increase (by `elem.second`) its count
-    if (it_found != result.end()) {
-      it_found->second += elem.second;
+  for (const auto& elem : sorted_items_of_table) {
+    PrimExpr norm_elem = NormalizeTerm(elem.first, identify_equiv_terms);
+    // If the normalized term is not already a key in the normalized table
+    auto it_found = norm_table.find(norm_elem);
+    if (it_found == norm_table.end()) {
+      // Then we add the mapping `norm_elem` -> (`elem`.first, `elem`.second) to the norm table
+      // (i.e. `norm_elem` has been seen `elem`.second many times so far, and the chosen element
+      // to represent the equivalence class will be `elem`.first as it's the first element of the
+      // class that we see)
+      norm_table[norm_elem] = elem;
     } else {
-      // If we could not find a semantically equivalent term in the resulting vector, we add it
-      result.push_back(elem);
+      // Otherwise, it's not the first time we see a term in this equivalence class, so we just
+      // increase the count of this equivalence class as we now have `elem`.second additional items
+      // coming to the equivalence class.
+      it_found->second.second += elem.second;
     }
   }
+
+  // norm_table.size() is the number of equivalence class that we have built, so it's exactly the
+  // number of items that we will return in the vector of semantical entities
+  result.reserve(norm_table.size());
+
+  // Transform the intermediate hashtable `norm_table` into a vector, forgetting the keys,
+  // (which are the normal forms), as they won't be used as the canonical representants (which are
+  // instead the first element of each class that is effectively seen)
+  // Careful : the pairs will never change (the canonical represantants chosen will always be the
+  // same), but the order in which the pairs are produced can vary as we are iterating through the
+  // hashtable `norm_table`. It is not an issue as the called will be sorting the result anyway.
+  std::unordered_map<PrimExpr, std::pair<PrimExpr, size_t>, StructuralHash,
+                     ExprDeepEqual>::const_iterator it_norm_table;
+  for (it_norm_table = norm_table.begin(); it_norm_table != norm_table.end(); ++it_norm_table) {
+    result.push_back(it_norm_table->second);
+  }
+
   return result;
 }
 
@@ -822,17 +901,19 @@ void InsertElemToSortedSemanticComputations(std::vector<std::pair<PrimExpr, size
           decreasing size of the expression) and maintain the vector sorted while doing so.
  */
 void InsertVectorToSortedSemanticComputations(std::vector<std::pair<PrimExpr, size_t>>* sorted_vec,
-                                              const std::vector<PrimExpr>& vec_to_add) {
+                                              const std::vector<PrimExpr>& vec_to_add,
+                                              bool identify_equiv_terms) {
   if (sorted_vec == nullptr) {
     return;
   }
   for (auto elem_to_add : vec_to_add) {
     // See if the current element to add (or an equivalent one) is already present
     // in the sorted vector
-    auto it_found = std::find_if(sorted_vec->begin(), sorted_vec->end(),
-                                 [elem_to_add](std::pair<PrimExpr, size_t> elem) {
-                                   return EquivalentTerms(elem.first, elem_to_add);
-                                 });
+    auto it_found =
+        std::find_if(sorted_vec->begin(), sorted_vec->end(),
+                     [elem_to_add, identify_equiv_terms](std::pair<PrimExpr, size_t> elem) {
+                       return EquivalentTerms(elem.first, elem_to_add, identify_equiv_terms);
+                     });
 
     // If we found `elem_to_add` (or an equivalent expression) already in sorted_vec
     if (it_found != sorted_vec->end()) {

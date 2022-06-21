@@ -1703,7 +1703,4 @@ def test_stack_overflow():
 
 
 if __name__ == "__main__":
-    import sys
-    import pytest
-
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

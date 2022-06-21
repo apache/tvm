@@ -37,20 +37,21 @@ if __name__ == "__main__":
     env = {"VTA_HW_PATH": str(Path(os.getcwd()) / "3rdparty" / "vta-hw")}
     sccache_exe = shutil.which("sccache")
 
-    use_sccache = sccache_exe is not None and args.sccache_bucket is not None
+    use_sccache = sccache_exe is not None
     build_dir = Path(os.getcwd()) / args.build_dir
     build_dir = build_dir.relative_to(REPO_ROOT)
 
     if use_sccache:
-        env["SCCACHE_BUCKET"] = args.sccache_bucket
+        if args.sccache_bucket:
+            env["SCCACHE_BUCKET"] = args.sccache_bucket
+            logging.info(f"Using sccache bucket: {args.sccache_bucket}")
+        else:
+            logging.info(f"No sccache bucket set, using local cache")
         env["CXX"] = "/opt/sccache/c++"
         env["CC"] = "/opt/sccache/cc"
 
-        logging.info(f"Using sccache bucket: {args.sccache_bucket}")
     else:
         if sccache_exe is None:
-            reason = "'sccache' executable not found"
-        elif args.sccache_bucket is None:
             reason = "'sccache' executable not found"
         else:
             reason = "<unknown>"
@@ -71,6 +72,7 @@ if __name__ == "__main__":
     num_cpus = max(available_cpus, 1)
 
     sh.run("cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo ..", cwd=build_dir)
+
     target = ""
     if args.cmake_target:
         target = args.cmake_target

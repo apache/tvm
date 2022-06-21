@@ -480,8 +480,8 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   }
   const auto in_dtype = data->dtype;
   ICHECK(in_dtype == DataType::Int(8) || in_dtype == DataType::UInt(8) ||
-         in_dtype == DataType::Int(32))
-      << "Input type should be one of [int8, uint8, int32] but was " << in_dtype;
+         in_dtype == DataType::Int(32) || in_dtype == DataType::Int(64))
+      << "Input type should be one of [int8, uint8, int32, int64] but was " << in_dtype;
 
   const RequantizeAttrs* requantize_attrs = attrs.as<RequantizeAttrs>();
   int axis = requantize_attrs->axis;
@@ -507,8 +507,8 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   // assign output type
   auto out_dtype = requantize_attrs->out_dtype;
   ICHECK(out_dtype == DataType::Int(8) || out_dtype == DataType::UInt(8) ||
-         out_dtype == DataType::Int(32))
-      << "Output type should be one of [int8, uint8, int32] but was " << out_dtype;
+         out_dtype == DataType::Int(16) || out_dtype == DataType::Int(32))
+      << "Output type should be one of [int8, uint8, int16, int32] but was " << out_dtype;
   reporter->Assign(types[5], TensorType(oshape, out_dtype));
   return true;
 }

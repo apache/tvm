@@ -1920,6 +1920,50 @@ def convert_softsign(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_split(g, op, block):
+    """Operator converter for split."""
+
+    x = g.get_node(op.input("X")[0])
+    axis = op.input("AxisTensor")
+    if axis:
+        axis = g.get_node(axis[0])
+        axis, infered = try_infer_value(axis, g.get_params())
+        if infered:
+            axis = axis.tolist()[0]
+    else:
+        axis = op.attr("axis")
+
+    sections = op.input("SectionsTensorList")
+    if sections:
+        tmp_section = []
+        for i in sections:
+            i = g.get_node(i)
+            i, infered = try_infer_value(i, g.get_params())
+            if infered:
+                i = i.tolist()
+            else:
+                raise ValueError("Dynamic Split not yet supported.")
+            tmp_section.extend(i)
+        sections = tmp_section
+    else:
+        sections = op.attr("sections")
+    if sections:
+        indices = []
+        split_index = 0
+        for i in sections[:-1]:
+            if i == -1:
+                input_shape = infer_shape(x)[axis]
+                i = input_shape - np.sum(sections) - 1
+            split_index += i
+            indices.append(split_index)
+    else:
+        indices = op.attr("num")
+
+    out = _op.split(x, indices, axis)
+    for i, out_i in enumerate(out):
+        g.add_node(op.output("Out")[i], out_i)
+
+
 def convert_square(g, op, block):
     """Operator converter for square."""
 
@@ -2092,6 +2136,7 @@ _convert_map = {
     "softmax": convert_softmax,
     "softplus": convert_softplus,
     "softsign": convert_softsign,
+    "split": convert_split,
     "strided_slice": convert_slice,
     "sqrt": convert_unary_op,
     "square": convert_square,

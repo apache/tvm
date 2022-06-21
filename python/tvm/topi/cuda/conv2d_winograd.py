@@ -152,7 +152,7 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_
             bgemm[r_a][r_b][co][p] * A[r_a][vh] * A[r_b][vw], axis=[r_a, r_b]
         ),
         name="inverse",
-        attrs={"schedule_rule": "meta_schedule.winograd_inverse"},
+        attrs={"schedule_rule": "meta_schedule.winograd_inverse.cuda"},
     )
 
     # output

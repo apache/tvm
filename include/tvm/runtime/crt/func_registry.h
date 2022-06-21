@@ -42,13 +42,38 @@ typedef struct TVMFuncRegistry {
   /*! \brief Names of registered functions, concatenated together and separated by \0.
    * An additional \0 is present at the end of the concatenated blob to mark the end.
    *
-   * Byte 0 is the number of functions in `funcs`.
+   * Byte 0 and 1 are the number of functions in `funcs`.
    */
   const char* names;
 
   /*! \brief Function pointers, in the same order as their names in `names`. */
   const TVMBackendPackedCFunc* funcs;
 } TVMFuncRegistry;
+
+/*!
+ * \brief Get the of the number of functions from registry.
+ *
+ * \param reg TVMFunctionRegistry instance that contains the function.
+ * \return The number of functions from registry.
+ */
+uint16_t TVMFuncRegistry_GetNumFuncs(const TVMFuncRegistry* reg);
+
+/*!
+ * \brief Set the number of functions to registry.
+ *
+ * \param reg TVMFunctionRegistry instance that contains the function.
+ * \param num_funcs The number of functions
+ * \return 0 when successful.
+ */
+int TVMFuncRegistry_SetNumFuncs(const TVMFuncRegistry* reg, const uint16_t num_funcs);
+
+/*!
+ * \brief Get the address of 0th function from registry.
+ *
+ * \param reg TVMFunctionRegistry instance that contains the function.
+ * \return the address of 0th function from registry
+ */
+const char* TVMFuncRegistry_Get0thFunctionName(const TVMFuncRegistry* reg);
 
 /*!
  * \brief Get packed function from registry by name.

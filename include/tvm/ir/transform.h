@@ -390,6 +390,10 @@ class Pass : public ObjectRef {
   IRModule operator()(IRModule mod, const PassContext& pass_ctx) const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(Pass, ObjectRef, PassNode);
+
+ private:
+  IRModule static AssertImmutableModule(const IRModule& mod, const PassNode* node,
+                                        const PassContext& pass_ctx);
 };
 
 /*!

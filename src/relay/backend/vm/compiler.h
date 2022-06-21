@@ -91,7 +91,7 @@ class VMCompiler : public runtime::ModuleNode {
 
   virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
 
-  const char* type_key() const { return "VMCompiler"; }
+  const char* type_key() const final { return "VMCompiler"; }
 
   /*!
    * \brief Set the parameters
@@ -146,10 +146,10 @@ class VMCompiler : public runtime::ModuleNode {
   IRModule OptimizeModuleImpl(IRModule mod);
 
   /*! \brief Returns the passes which layout memory. */
-  transform::Sequential MemoryOpt(const VirtualDevice& host_virtual_device);
+  transform::Sequential MemoryOpt(const CompilationConfig& config);
 
   /*! \brief Returns the passes which fuse then lower Relay primitive operators. */
-  transform::Sequential FuseAndLowerOperators(const VirtualDevice& host_virtual_device);
+  transform::Sequential FuseAndLowerOperators(const CompilationConfig& config);
 
   /*!
    * \brief Populate the global function names in a map where the value is used

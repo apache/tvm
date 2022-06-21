@@ -27,7 +27,6 @@ import os.path
 import pathlib
 import queue
 import re
-import select
 import shlex
 import shutil
 import subprocess
@@ -35,7 +34,7 @@ import sys
 import tarfile
 import tempfile
 import threading
-import time
+from typing import Union
 import usb
 
 import serial
@@ -323,6 +322,12 @@ PROJECT_OPTIONS = [
         type="str",
         help="Extra definitions added project compile.",
     ),
+    server.ProjectOption(
+        "cmsis_path",
+        optional=["generate_project"],
+        type="str",
+        help="Path to the CMSIS directory.",
+    ),
 ]
 
 
@@ -331,6 +336,13 @@ def get_zephyr_base(options: dict):
     zephyr_base = options.get("zephyr_base", ZEPHYR_BASE)
     assert zephyr_base, "'zephyr_base' option not passed and not found by default!"
     return zephyr_base
+
+
+def get_cmsis_path(options: dict) -> pathlib.Path:
+    """Returns CMSIS dependency path"""
+    cmsis_path = options.get("cmsis_path")
+    assert cmsis_path, "'cmsis_path' option not passed!"
+    return pathlib.Path(cmsis_path)
 
 
 class Handler(server.ProjectAPIHandler):
@@ -408,8 +420,8 @@ class Handler(server.ProjectAPIHandler):
     API_SERVER_CRT_LIBS_TOKEN = "<API_SERVER_CRT_LIBS>"
 
     CRT_LIBS_BY_PROJECT_TYPE = {
-        "host_driven": "microtvm_rpc_server microtvm_rpc_common common",
-        "aot_demo": "memory microtvm_rpc_common common",
+        "host_driven": "microtvm_rpc_server microtvm_rpc_common aot_executor_module aot_executor common",
+        "aot_standalone_demo": "memory microtvm_rpc_common common",
     }
 
     def _get_platform_version(self, zephyr_base: str) -> float:
@@ -423,6 +435,17 @@ class Handler(server.ProjectAPIHandler):
                     version_minor = line.split("=")[1]
 
         return float(f"{version_major}.{version_minor}")
+
+    def _cmsis_required(self, project_path: Union[str, pathlib.Path]) -> bool:
+        """Check if CMSIS dependency is required."""
+        project_path = pathlib.Path(project_path)
+        for path in (project_path / "codegen" / "host" / "src").iterdir():
+            if path.is_file():
+                with open(path, "r") as lib_f:
+                    lib_content = lib_f.read()
+                if "<arm_nnsupportfunctions.h>" in lib_content and "<arm_math.h>" in lib_content:
+                    return True
+        return False
 
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
         # Check Zephyr version
@@ -470,8 +493,8 @@ class Handler(server.ProjectAPIHandler):
                 shutil.copy2(src_path, dst_path)
 
         # Populate Makefile.
-        with open(API_SERVER_DIR / "CMakeLists.txt.template", "r") as cmake_template_f:
-            with open(project_dir / "CMakeLists.txt", "w") as cmake_f:
+        with open(project_dir / "CMakeLists.txt", "w") as cmake_f:
+            with open(API_SERVER_DIR / "CMakeLists.txt.template", "r") as cmake_template_f:
                 for line in cmake_template_f:
                     if self.API_SERVER_CRT_LIBS_TOKEN in line:
                         crt_libs = self.CRT_LIBS_BY_PROJECT_TYPE[options["project_type"]]
@@ -483,6 +506,20 @@ class Handler(server.ProjectAPIHandler):
                     flags = options.get("compile_definitions")
                     for item in flags:
                         cmake_f.write(f"target_compile_definitions(app PUBLIC {item})\n")
+
+            # Include CMSIS libraries if required.
+            if self._cmsis_required(extract_path):
+                cmsis_path = get_cmsis_path(options)
+                cmake_f.write("\n")
+                cmake_f.write(
+                    f'target_include_directories(tvm_model PRIVATE {str(cmsis_path / "CMSIS" / "DSP" / "Include")})\n'
+                )
+                cmake_f.write(
+                    f'target_include_directories(tvm_model PRIVATE {str(cmsis_path / "CMSIS" / "DSP" / "Include" / "dsp")})\n'
+                )
+                cmake_f.write(
+                    f'target_include_directories(tvm_model PRIVATE {str(cmsis_path / "CMSIS" / "NN" / "Include")})\n'
+                )
 
         self._create_prj_conf(project_dir, options)
 

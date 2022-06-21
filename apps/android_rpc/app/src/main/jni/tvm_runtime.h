@@ -42,6 +42,7 @@
 #include "../src/runtime/graph_executor/graph_executor_factory.cc"
 #include "../src/runtime/library_module.cc"
 #include "../src/runtime/logging.cc"
+#include "../src/runtime/minrpc/minrpc_logger.cc"
 #include "../src/runtime/module.cc"
 #include "../src/runtime/ndarray.cc"
 #include "../src/runtime/object.cc"

@@ -25,7 +25,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.testing.utils import ethosn_available
+from tvm.relay.op.contrib.ethosn import ethosn_available
 from tvm.relay.backend import Runtime, Executor
 
 from tvm.contrib.target.vitis_ai import vitis_ai_available
@@ -412,16 +412,11 @@ def test_compile_tflite_module_with_external_codegen_cmsisnn(
         assert len(c_source_files) == 4
 
 
-@pytest.mark.skipif(
-    not ethosn_available(),
-    reason="--target=Ethos(TM)-N78 is not available. TVM built with 'USE_ETHOSN OFF'",
-)
+@tvm.testing.requires_ethosn
 def test_compile_tflite_module_with_external_codegen_ethos_n78(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tflite")
     tvmc_model = tvmc.load(tflite_mobilenet_v1_1_quant)
-    tvmc_package = tvmc.compile(
-        tvmc_model, target="ethos-n78 -variant=ethos-n78, llvm", dump_code="relay"
-    )
+    tvmc_package = tvmc.compile(tvmc_model, target="ethos-n -variant=n78, llvm", dump_code="relay")
     dumps_path = tvmc_package.package_path + ".relay"
 
     # check for output types
@@ -432,10 +427,7 @@ def test_compile_tflite_module_with_external_codegen_ethos_n78(tflite_mobilenet_
     assert os.path.exists(dumps_path)
 
 
-@pytest.mark.skipif(
-    not vitis_ai_available(),
-    reason="--target=vitis-ai is not available. TVM built with 'USE_VITIS_AI OFF'",
-)
+@tvm.testing.requires_vitis_ai
 def test_compile_tflite_module_with_external_codegen_vitis_ai(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tflite")
 
@@ -683,6 +675,4 @@ def test_compile_tflite_module_with_mod_name_and_ethosu(
 
 
 if __name__ == "__main__":
-    import sys
-
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

@@ -20,6 +20,7 @@ Meta Schedule schedule rules are used for modification of
 blocks in a schedule. See also PostOrderApply.
 """
 from .add_rfactor import AddRFactor
+from .auto_bind import AutoBind
 from .auto_inline import AutoInline
 from .cross_thread_reduction import CrossThreadReduction
 from .multi_level_tiling import MultiLevelTiling, MultiLevelTilingWithIntrin, ReuseType

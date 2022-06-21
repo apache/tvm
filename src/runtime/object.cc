@@ -103,6 +103,8 @@ class TypeContext {
 
     if (static_tindex != TypeIndex::kDynamic) {
       // statically assigned type
+      VLOG(3) << "TypeIndex[" << static_tindex << "]: static: " << skey << ", parent "
+              << type_table_[parent_tindex].name;
       allocated_tindex = static_tindex;
       ICHECK_LT(static_tindex, type_table_.size());
       ICHECK_EQ(type_table_[allocated_tindex].allocated_slots, 0U)
@@ -111,9 +113,13 @@ class TypeContext {
     } else if (pinfo.allocated_slots + num_slots <= pinfo.num_slots) {
       // allocate the slot from parent's reserved pool
       allocated_tindex = parent_tindex + pinfo.allocated_slots;
+      VLOG(3) << "TypeIndex[" << allocated_tindex << "]: dynamic: " << skey << ", parent "
+              << type_table_[parent_tindex].name;
       // update parent's state
       pinfo.allocated_slots += num_slots;
     } else {
+      VLOG(3) << "TypeIndex[" << type_counter_ << "]: dynamic (overflow): " << skey << ", parent "
+              << type_table_[parent_tindex].name;
       ICHECK(pinfo.child_slots_can_overflow)
           << "Reach maximum number of sub-classes for " << pinfo.name;
       // allocate new entries.

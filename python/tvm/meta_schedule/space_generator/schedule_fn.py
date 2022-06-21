@@ -30,17 +30,16 @@ from .space_generator import PySpaceGenerator
 if TYPE_CHECKING:
     from ..tune_context import TuneContext
 
+SCH_FN_TYPE = Union[  # pylint: disable=invalid-name
+    Callable[[Schedule], None],  # No output
+    Callable[[Schedule], Schedule],  # Single output
+    Callable[[Schedule], List[Schedule]],  # Multiple outputs
+]
+
 
 @derived_object
 class ScheduleFn(PySpaceGenerator):
     """A design space generator with design spaces specified by a schedule function."""
-
-    # Multiple cases of schedule functions supported
-    SCH_FN_TYPE = Union[
-        Callable[[IRModule], None],  # No output
-        Callable[[IRModule], Schedule],  # Single output
-        Callable[[IRModule], List[Schedule]],  # Multiple outputs
-    ]
 
     def __init__(self, sch_fn: SCH_FN_TYPE):
         """Constructor.
@@ -53,7 +52,7 @@ class ScheduleFn(PySpaceGenerator):
         super().__init__()
         self.sch_fn = sch_fn
 
-    def initialize_with_tune_context(self, context: "TuneContext") -> None:
+    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         """Initialize the design space generator with tuning context.
 
         Parameters

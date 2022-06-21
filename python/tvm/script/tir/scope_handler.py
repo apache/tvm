@@ -312,6 +312,9 @@ class Let(WithScopeHandler):
 
         super().__init__(let, concise_scope=False, def_symbol=False)
 
+    def __call__(self, var: tvm.tir.Var, value: tvm.tir.PrimExpr, body: tvm.tir.PrimExpr):
+        return tvm.tir.Let(var, value, body)
+
 
 @register
 class Block(WithScopeHandler):

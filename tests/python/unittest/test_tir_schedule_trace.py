@@ -20,6 +20,7 @@ import sys
 
 import pytest
 import tvm
+import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
 from tvm.tir.schedule import BlockRV, Instruction, InstructionKind, LoopRV, Trace
@@ -86,7 +87,7 @@ def _make_split(inputs, outputs):  # pylint: disable=redefined-builtin
     return Instruction(
         kind=InstructionKind.get("Split"),
         inputs=inputs,
-        attrs=[],
+        attrs=[True],
         outputs=outputs,
     )
 
@@ -261,7 +262,7 @@ def test_trace_simplified_3():
         (
             'b0 = sch.get_block(name="B", func_name="main")',
             "l1, = sch.get_loops(block=b0)",
-            "l2, l3 = sch.split(loop=l1, factors=[None, 32])",
+            "l2, l3 = sch.split(loop=l1, factors=[None, 32], preserve_unit_iters=True)",
         )
     )
 
@@ -275,4 +276,4 @@ def test_apply_json_to_schedule_1():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

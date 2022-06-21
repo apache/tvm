@@ -21,6 +21,7 @@ import pytest
 from tvm.micro.project_api.server import ServerError
 
 import test_utils
+import tvm.testing
 
 # A new project and workspace dir is created for EVERY test
 @pytest.fixture
@@ -46,4 +47,4 @@ def test_bugged_project_compile_fails(workspace_dir, project):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

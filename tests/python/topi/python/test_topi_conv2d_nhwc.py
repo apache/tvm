@@ -96,4 +96,4 @@ def test_conv2d_nhwc(target, dev, ref_data, dtype, stride, padding, dilation):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

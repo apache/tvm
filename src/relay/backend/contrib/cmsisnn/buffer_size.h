@@ -56,7 +56,8 @@ namespace cmsisnn {
  */
 int Conv2dBufferSize(CMSISNNFlags flags, int32_t padding_w, int32_t padding_h, int32_t input_n,
                      int32_t input_h, int32_t input_c, int32_t output_h, int32_t output_w,
-                     int32_t stride_w, int32_t stride_h, int32_t filter_w, int32_t filter_h);
+                     int32_t stride_w, int32_t stride_h, int32_t dilation_w, int32_t dilation_h,
+                     int32_t filter_w, int32_t filter_h);
 
 /*!
  * \brief Calculates the appropriate buffer size for CMSIS-NN Depthwise Convolutions

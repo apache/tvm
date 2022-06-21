@@ -966,24 +966,38 @@ def test_slice(target, dev):
 
 
 def _test_onnx_op_elementwise(
-    target, dev, inshape, outfunc, npargs, dtype, opname, kwargs, opset=None
+    target, dev, inshape, outfunc, npargs, dtype, opname, kwargs, opset=None, verify=True
 ):
     indata = np.random.uniform(-1, 1, size=inshape).astype(dtype)
     outdata = outfunc(indata, **npargs)
 
     y = helper.make_node(opname, ["in"], ["out"], **kwargs)
 
+    ONNX_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
+
     graph = helper.make_graph(
         [y],
         opname + "_test",
-        inputs=[helper.make_tensor_value_info("in", TensorProto.FLOAT, list(indata.shape))],
-        outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(outdata.shape))],
+        inputs=[helper.make_tensor_value_info("in", ONNX_DTYPE, list(indata.shape))],
+        outputs=[helper.make_tensor_value_info("out", ONNX_DTYPE, list(outdata.shape))],
     )
 
     model = helper.make_model(graph, producer_name=opname + "_test")
-    verify_with_ort_with_inputs(
-        model, [indata], [outdata.shape], opset=opset, dtype=dtype, target=target, dev=dev
-    )
+    if verify:
+        verify_with_ort_with_inputs(
+            model, [indata], [outdata.shape], opset=opset, dtype=dtype, target=target, dev=dev
+        )
+    else:
+        get_tvm_output(
+            model,
+            [indata],
+            target,
+            dev,
+            [outdata.shape],
+            dtype,
+            opset=opset,
+            opt_level=3,
+        )
 
 
 @tvm.testing.parametrize_targets
@@ -1058,6 +1072,9 @@ def test_clip_min_max_as_inputs(target, dev):
 @tvm.testing.parametrize_targets
 def test_round(target, dev):
     _test_onnx_op_elementwise(target, dev, (2, 4, 5, 6), np.round, {}, "float32", "Round", {})
+    _test_onnx_op_elementwise(
+        target, dev, (2, 4, 5, 6), np.round, {}, "float64", "Round", {}, verify=False
+    )  # TODO: enable verification once ORT supports float64
 
 
 def _test_finite_ops(target, dev, inshape, outfunc, npargs, dtype, opname, kwargs):
@@ -1286,6 +1303,7 @@ def test_batch_matmul(target, dev):
     verify_batch_matmul((4, 32, 16), (16, 32), (4, 32, 32))
     verify_batch_matmul((4, 32, 16, 32), (32, 16), (4, 32, 16, 16))
     verify_batch_matmul((4, 32, 16, 32), (1, 32, 32, 16), (4, 32, 16, 16))
+    verify_batch_matmul((4, 1, 16, 32), (1, 32, 32, 16), (4, 32, 16, 16))
     # Test transb=False
     verify_batch_matmul(
         (2, 3, 4, 3),
@@ -1588,26 +1606,45 @@ def test_upsample3d_trilinear(target, dev):
     tvm.testing.assert_allclose(out_array, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+# TODO: Fix softmax with dynamic input on cuda and enable this test
+@tvm.testing.known_failing_targets("cuda")
 @tvm.testing.parametrize_targets
 def test_softmax(target, dev):
-    def verify_softmax(inshape, axis):
+    def verify_softmax(inshape, axis, opset=None, dynamic=False):
         opname = "Softmax"
-        indata = np.random.uniform(size=inshape).astype(np.float32)
         outshape = inshape
-        y = helper.make_node(opname, ["in"], ["out"])
+        node_list = []
+        input_node_list = [helper.make_tensor_value_info("in", TensorProto.FLOAT, list(inshape))]
+        output_node_list = [helper.make_tensor_value_info("out", TensorProto.FLOAT, list(outshape))]
+        input_list = [np.random.uniform(size=inshape).astype(np.float32)]
+        softmax_inputs = ["in"]
+
+        if dynamic:
+            input_node_list.append(
+                helper.make_tensor_value_info("shape", TensorProto.INT64, [len(inshape)])
+            )
+            input_list.append(np.asarray(inshape))
+            reshape_node = helper.make_node("Reshape", ["in", "shape"], ["dynamic_in"])
+            softmax_inputs[0] = "dynamic_in"
+            node_list += [reshape_node]
+
+        y = helper.make_node(opname, softmax_inputs, ["out"])
         if axis is not None:
             axis_attr = helper.make_attribute("axis", axis)
             y.attribute.append(axis_attr)
+        node_list.append(y)
 
         graph = helper.make_graph(
-            [y],
+            node_list,
             opname + "_test",
-            inputs=[helper.make_tensor_value_info("in", TensorProto.FLOAT, list(indata.shape))],
-            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(outshape))],
+            inputs=input_node_list,
+            outputs=output_node_list,
         )
 
         model = helper.make_model(graph, producer_name=opname + "_test")
-        verify_with_ort_with_inputs(model, [indata], target=target, dev=dev)
+        verify_with_ort_with_inputs(
+            model, input_list, use_vm=True, opset=opset, target=target, dev=dev
+        )
 
     verify_softmax((1, 10), None)
     verify_softmax((1, 10), 1)
@@ -1615,6 +1652,10 @@ def test_softmax(target, dev):
     verify_softmax((1, 2, 3, 10), 2)
     verify_softmax((1, 2, 3, 4, 10), 3)
     verify_softmax((1, 2, 3, 4, 10), 4)
+    verify_softmax((1, 10), -1, dynamic=True)
+    verify_softmax((1, 2, 3, 10), -1, dynamic=True)
+    verify_softmax((1, 10), -1, opset=8, dynamic=True)
+    verify_softmax((1, 2, 3, 10), -1, opset=8, dynamic=True)
 
 
 @tvm.testing.parametrize_targets
@@ -2833,6 +2874,48 @@ def test_conv(target, dev):
 
 @tvm.testing.parametrize_targets
 def test_convtranspose(target, dev):
+    def verify_convtranspose_with_output_shape(
+        x_shape,
+        w_shape,
+        output_shape,
+        kernel_shape,
+        strides,
+        dilations,
+        auto_pad="SAME_UPPER",
+        group=1,
+    ):
+        node = helper.make_node(
+            "ConvTranspose",
+            inputs=["x", "W"],
+            outputs=["y"],
+            kernel_shape=kernel_shape,
+            # Default values for other attributes:
+            strides=strides,
+            dilations=dilations,
+            output_shape=output_shape,
+            auto_pad=auto_pad,
+        )
+
+        if group is not None:
+            group_attr = helper.make_attribute("group", group)
+            node.attribute.append(group_attr)
+
+        graph = helper.make_graph(
+            [node],
+            "ConvTranspose_with_output_shape_test",
+            inputs=[
+                helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x_shape)),
+                helper.make_tensor_value_info("W", TensorProto.FLOAT, list(w_shape)),
+            ],
+            outputs=[
+                helper.make_tensor_value_info("y", TensorProto.FLOAT, [1, 1] + list(output_shape))
+            ],
+        )
+
+        model = helper.make_model(graph, producer_name="convtranspose_output_shape_test")
+
+        verify_with_ort(model, [x_shape, w_shape], use_vm=True, target=target, dev=dev)
+
     def verify_convtranspose_with_padding(
         x_shape,
         w_shape,
@@ -2995,6 +3078,28 @@ def test_convtranspose(target, dev):
         #     repeat(1, D),
         #     repeat(2, D),
         # )
+
+    # Convolution with output_shape
+    for D in [1, 2, 3]:
+        for N in range(60, 66):
+            verify_convtranspose_with_output_shape(
+                (1, 1) + repeat(32, D),
+                (1, 1) + repeat(4, D),
+                repeat(N, D),
+                repeat(4, D),
+                repeat(2, D),
+                repeat(1, D),
+            )
+
+            verify_convtranspose_with_output_shape(
+                (1, 1) + repeat(32, D),
+                (1, 1) + repeat(4, D),
+                repeat(N, D),
+                repeat(4, D),
+                repeat(2, D),
+                repeat(1, D),
+                auto_pad="SAME_LOWER",
+            )
 
 
 @tvm.testing.parametrize_targets
@@ -5053,7 +5158,6 @@ unsupported_onnx_tests = [
     "test_castlike_STRING_to_FLOAT_expanded",
     "test_convtranspose_autopad_same",
     "test_convtranspose_dilations",
-    "test_convtranspose_output_shape",
     "test_cumsum_1d",
     "test_cumsum_1d_exclusive",
     "test_cumsum_1d_reverse",
@@ -5076,7 +5180,6 @@ unsupported_onnx_tests = [
     "test_maxpool_with_argmax_2d_precomputed_pads",
     "test_maxpool_with_argmax_2d_precomputed_strides",
     "test_maxunpool_export_with_output_shape",
-    "test_mvn",
     # This test fails llvm with a lowering error:
     "test_nllloss_NCd1d2d3_none_no_weight_negative_ii_expanded",
     "test_optional_has_element",
@@ -5086,18 +5189,13 @@ unsupported_onnx_tests = [
     "test_qlinearmatmul_3D",
     "test_range_float_type_positive_delta_expanded",
     "test_range_int32_type_negative_delta_expanded",
-    "test_reduce_sum_default_axes_keepdims_example",
-    "test_reduce_sum_default_axes_keepdims_random",
     "test_reduce_sum_do_not_keepdims_example",
     "test_reduce_sum_do_not_keepdims_random",
-    "test_reduce_sum_empty_axes_input_noop_example",
-    "test_reduce_sum_empty_axes_input_noop_random",
     "test_reduce_sum_keepdims_example",
     "test_reduce_sum_keepdims_random",
     "test_reduce_sum_negative_axes_keepdims_example",
     "test_reduce_sum_negative_axes_keepdims_random",
     "test_rnn_seq_length",
-    "test_round",
     "test_sequence_insert_at_back",
     "test_sequence_insert_at_front",
     "test_simple_rnn_batchwise",
@@ -5974,6 +6072,7 @@ def test_qlinearmul(target, dev):
     verify_qlinearmul([5, 1, 7], [2, 7], [5, 2, 7])
 
 
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/11375")
 @tvm.testing.parametrize_targets
 def test_qlinearleakyrelu(target, dev):
     def verify_qlinearleakyrelu(inshape, kwargs):
@@ -5999,6 +6098,7 @@ def test_qlinearleakyrelu(target, dev):
     verify_qlinearleakyrelu([5, 1, 4, 6], {"alpha": 0.65})
 
 
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/11375")
 @tvm.testing.parametrize_targets
 def test_qlinearsigmoid(target, dev):
     def verify_qlinearsigmoid(a_shape):
@@ -6588,99 +6688,4 @@ def test_LinearRegressor(target, dev):
 
 
 if __name__ == "__main__":
-    test_flatten()
-    test_reshape()
-    test_shape()
-    test_expand()
-    test_power()
-    test_squeeze()
-    test_unsqueeze()
-    test_slice()
-    test_floor()
-    test_ceil()
-    test_round()
-    test_isinf()
-    test_isnan()
-    test_clip()
-    test_clip_min_max_as_inputs()
-    test_onehot()
-    test_gemm()
-    test_matmul()
-    test_matmulinteger16()
-    test_gather()
-    test_gatherelements()
-    test_gather_nd()
-    test_scatter()
-    test_lrn()
-    test_instance_norm()
-    test_upsample_nearest()
-    test_upsample_bilinear()
-    test_forward_min()
-    test_forward_max()
-    test_forward_mean()
-    test_forward_hardsigmoid()
-    test_forward_arg_min_max()
-    test_softmax()
-    test_constantofshape()
-    test_all_reduce_funcs()
-    test_pad()
-    test_split()
-    test_binary_ops()
-    test_unary_ops()
-    test_leaky_relu()
-    test_elu()
-    test_selu()
-    test_prelu()
-    test_ThresholdedRelu()
-    test_LogSoftmax()
-    test_resnet()
-    test_inception()
-    test_densenet()
-    test_sign()
-    test_not()
-    test_and()
-    test_tile()
-    test_erf()
-    test_where()
-    test_or()
-    test_depth_to_space()
-    test_space_to_depth()
-    test_batch_norm()
-    test_batch_norm_dynamic_subgraph()
-    test_conv()
-    test_convtranspose()
-    test_unsqueeze_constant()
-    test_pooling()
-    test_lppool()
-    test_lstm()
-    test_gru()
-    test_resize()
-    test_nonzero()
-    test_topk()
-    test_mod()
-    test_xor()
-    test_max_roi_pool()
-    test_roi_align()
-    test_range()
-    test_loop()
-    test_size()
-    test_maxunpool()
-    test_softplus()
-    test_cumsum()
-    test_wrong_input()
-    test_aten()
-    test_index_put()
-    test_reverse_sequence()
-    test_eyelike()
-    test_qlinearconcat()
-    test_qlinearconv()
-    test_random_uniform()
-    test_convinteger()
-    test_batch_matmul()
-    test_use_nt_batch_matmul()
-    test_global_lppool()
-    test_scan()
-    test_random_uniform_like()
-    test_random_normal()
-    test_random_normal_like()
-    test_LinearRegressor()
+    tvm.testing.main()

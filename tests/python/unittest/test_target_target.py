@@ -19,6 +19,7 @@ import sys
 
 import pytest
 import tvm
+import tvm.testing
 from tvm.target import Target, arm_cpu, bifrost, cuda, intel_graphics, mali, rocm, vta
 
 
@@ -353,94 +354,109 @@ def test_target_with_host():
     assert tgt.host.attrs["registers_per_block"] == 32768
 
 
-def test_check_and_update_host_consist_0():
+def test_canon_target_and_host_0():
     target = None
     host = None
-    target, host = Target.check_and_update_host_consist(target, host)
+    target, host = Target.canon_target_and_host(target, host)
+    assert target is None
+    assert host is None
 
 
-def test_check_and_update_host_consist_1():
+def test_canon_target_and_host_1():
     target = None
     host = "llvm"
     with pytest.raises(AssertionError, match=r"Target host is not empty when target is empty."):
-        target, host = Target.check_and_update_host_consist(target, host)
+        target, host = Target.canon_target_and_host(target, host)
 
 
-def test_check_and_update_host_consist_2():
+def test_canon_target_and_host_2():
     target = Target("cuda")
     host = Target("llvm")
-    target, host = Target.check_and_update_host_consist(target, host)
+    target, host = Target.canon_target_and_host(target, host)
     assert target.kind.name == "cuda"
     assert target.host.kind.name == "llvm"
 
 
-def test_check_and_update_host_consist_3():
+def test_canon_target_and_host_3():
     target = Target(target="cuda", host="llvm")
     host = None
-    target, host = Target.check_and_update_host_consist(target, host)
+    target, host = Target.canon_target_and_host(target, host)
     assert target.kind.name == "cuda"
     assert target.host.kind.name == "llvm"
     assert host.kind.name == "llvm"
     assert target.host == host
 
 
-def test_check_and_update_host_consist_4():
-    """Test `check_and_update_host_consist` by using TVM Objects"""
+def test_canon_multi_target_and_host_0():
+    with pytest.raises(AssertionError):
+        Target.canon_multi_target_and_host(None)
+
+
+def test_canon_multi_target_and_host_1():
+    raw_targets = Target.canon_multi_target_and_host({"kind": "llvm"})
+    assert len(raw_targets) == 1
+    assert raw_targets[0].kind.name == "llvm"
+
+
+def test_canon_multi_target_and_host_2():
+    raw_targets = Target.canon_multi_target_and_host({1: "llvm", 2: "cuda"})
+    assert len(raw_targets) == 2
+    assert raw_targets[0].kind.name == "llvm"
+    assert raw_targets[1].kind.name == "cuda"
+
+
+def test_canon_multi_target_and_host_3():
+    raw_targets = Target.canon_multi_target_and_host(["llvm", "cuda"])
+    assert len(raw_targets) == 2
+    assert raw_targets[0].kind.name == "llvm"
+    assert raw_targets[1].kind.name == "cuda"
+
+
+def test_canon_multi_target_and_host_4():
+    raw_targets = Target.canon_multi_target_and_host("llvm")
+    assert len(raw_targets) == 1
+    assert raw_targets[0].kind.name == "llvm"
+
+
+def test_canon_multi_target_and_host_5():
+    raw_targets = Target.canon_multi_target_and_host("cuda", "llvm")
+    assert len(raw_targets) == 1
+    assert raw_targets[0].kind.name == "cuda"
+    assert raw_targets[0].host.kind.name == "llvm"
+
+
+def test_canon_multi_target_and_host_6():
+    """Test `canon_target_and_host` by using TVM Objects"""
     cuda_device_type = tvm.device("cuda").device_type
     target = {cuda_device_type: Target(target="cuda", host="llvm")}
     host = None
-    target_1, host_1 = Target.check_and_update_host_consist(target, host)
-    assert isinstance(target_1, dict)
-    assert target_1[cuda_device_type].kind.name == "cuda"
-    assert target_1[cuda_device_type].host.kind.name == "llvm"
-    assert host_1 is None
+    raw_targets_1 = Target.canon_multi_target_and_host(target, host)
+    assert len(raw_targets_1) == 1
+    assert raw_targets_1[0].kind.name == "cuda"
+    assert raw_targets_1[0].host.kind.name == "llvm"
 
     target = {cuda_device_type: Target(tvm.runtime.container.String("cuda"))}
     host = Target(tvm.runtime.container.String("llvm"))
     target = tvm.runtime.convert(target)
     assert isinstance(target, tvm.ir.container.Map)
-    target_2, host_2 = Target.check_and_update_host_consist(target, host)
-    assert isinstance(target_2, dict)
-    assert target_2[cuda_device_type].kind.name == "cuda"
-    assert host_2.kind.name == "llvm"
+    raw_targets_2 = Target.canon_multi_target_and_host(target, host)
+    assert len(raw_targets_2) == 1
+    assert raw_targets_2[0].kind.name == "cuda"
+    assert raw_targets_2[0].host.kind.name == "llvm"
 
 
-def test_canonicalize_target_and_host_0():
-    with pytest.raises(AssertionError):
-        Target.canonicalize_target_and_host(None)
-
-
-def test_canonicalize_target_and_host_1():
-    raw_targets = Target.canonicalize_target_and_host({"kind": "llvm"})
-    assert len(raw_targets) == 1
-    assert raw_targets[0].kind.name == "llvm"
-
-
-def test_canonicalize_target_and_host_2():
-    raw_targets = Target.canonicalize_target_and_host({1: "llvm", 2: "cuda"})
-    assert len(raw_targets) == 2
-    assert raw_targets[0].kind.name == "llvm"
-    assert raw_targets[1].kind.name == "cuda"
-
-
-def test_canonicalize_target_and_host_3():
-    raw_targets = Target.canonicalize_target_and_host(["llvm", "cuda"])
-    assert len(raw_targets) == 2
-    assert raw_targets[0].kind.name == "llvm"
-    assert raw_targets[1].kind.name == "cuda"
-
-
-def test_canonicalize_target_and_host_4():
-    raw_targets = Target.canonicalize_target_and_host("llvm")
-    assert len(raw_targets) == 1
-    assert raw_targets[0].kind.name == "llvm"
-
-
-def test_canonicalize_target_and_host_5():
-    raw_targets = Target.canonicalize_target_and_host("cuda", "llvm")
-    assert len(raw_targets) == 1
-    assert raw_targets[0].kind.name == "cuda"
-    assert raw_targets[0].host.kind.name == "llvm"
+def test_canon_target_map_and_host():
+    target_map = {"cuda": "cuda_module", "llvm": "cpu_module"}
+    target_map, host = Target.canon_target_map_and_host(target_map, "llvm")
+    assert host.kind.name == "llvm"
+    for t, v in target_map.items():
+        assert t.host.kind.name == "llvm"
+        if t.kind.name == "cuda":
+            assert v == "cuda_module"
+        elif t.kind.name == "llvm":
+            assert v == "cpu_module"
+        else:
+            assert False
 
 
 def test_target_attr_bool_value():
@@ -455,4 +471,4 @@ def test_target_attr_bool_value():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

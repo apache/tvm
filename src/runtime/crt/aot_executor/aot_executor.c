@@ -173,21 +173,29 @@ int TVMAotExecutor_Init(TVMAotExecutor* executor, TVMModuleHandle module_handle,
   for (i = 0; i < md->num_inputs; ++i) {
     LOG_DEBUG("input allocate[%d]: %s\n", i, md->inputs[i].name);
 
+    TVMNDArray* array = &executor->args[arg_idx++];
+
     status = TVMNDArray_Empty(md->inputs[i].num_shape, md->inputs[i].shape, md->inputs[i].dtype,
-                              executor->device, &executor->args[arg_idx++]);
+                              executor->device, array);
     if (status != 0) {
       return status;
     }
+
+    TVMNDArray_IncrementReference(array);
   }
 
   for (i = 0; i < md->num_outputs; ++i) {
     LOG_DEBUG("output allocate[%d]: %s\n", i, md->outputs[i].name);
 
+    TVMNDArray* array = &executor->args[arg_idx++];
+
     status = TVMNDArray_Empty(md->outputs[i].num_shape, md->outputs[i].shape, md->outputs[i].dtype,
-                              executor->device, &executor->args[arg_idx++]);
+                              executor->device, array);
     if (status != 0) {
       return status;
     }
+
+    TVMNDArray_IncrementReference(array);
   }
 
   for (i = 0; i < md->num_pools; ++i) {

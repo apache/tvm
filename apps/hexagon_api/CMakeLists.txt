@@ -42,6 +42,8 @@ ExternalProject_Add(x86_tvm_runtime_rpc
   CMAKE_ARGS
     "-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}"
     "-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
+    "-DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}"
+    "-DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}"
     "-DUSE_HEXAGON_TOOLCHAIN=${USE_HEXAGON_TOOLCHAIN}"
     "-DCMAKE_CXX_STANDARD=14"
     "-DUSE_LIBBACKTRACE=OFF"
@@ -70,6 +72,8 @@ ExternalProject_Add(android_tvm_runtime_rpc
   SOURCE_DIR "${TVM_SOURCE_DIR}"
   BUILD_COMMAND $(MAKE) runtime tvm_rpc
   CMAKE_ARGS
+    "-DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}"
+    "-DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}"
     "-DCMAKE_TOOLCHAIN_FILE=${USE_ANDROID_TOOLCHAIN}"
     "-DANDROID_PLATFORM=${ANDROID_PLATFORM}"
     "-DANDROID_ABI=${ANDROID_ABI}"
@@ -86,6 +90,7 @@ ExternalProject_Add(android_tvm_runtime_rpc
   INSTALL_COMMAND ""
   BUILD_ALWAYS ON
 )
+
 ExternalProject_Get_Property(android_tvm_runtime_rpc BINARY_DIR)
 ExternalProject_Add_Step(android_tvm_runtime_rpc copy_runtime
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -104,11 +109,16 @@ ExternalProject_Add_Step(android_tvm_runtime_rpc copy_rpc_server
 # Build Hexagon binaries:
 # - libhexagon_rpc_skel.so
 # - libtvm_runtime.a
+if(DEFINED USE_HEXAGON_GTEST)
+  set(GTEST_FLAG "-DUSE_HEXAGON_GTEST=${USE_HEXAGON_GTEST}")
+endif()
 
 ExternalProject_Add(hexagon_tvm_runtime_rpc
   SOURCE_DIR "${TVM_SOURCE_DIR}"
   BUILD_COMMAND $(MAKE) runtime hexagon_rpc_sim
   CMAKE_ARGS
+    "-DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}"
+    "-DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}"
     "-DCMAKE_C_COMPILER=${USE_HEXAGON_TOOLCHAIN}/bin/hexagon-clang"
     "-DCMAKE_CXX_COMPILER=${USE_HEXAGON_TOOLCHAIN}/bin/hexagon-clang++"
     "-DUSE_HEXAGON_SDK=${USE_HEXAGON_SDK}"
@@ -121,9 +131,7 @@ ExternalProject_Add(hexagon_tvm_runtime_rpc
     "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
     "-DUSE_ALTERNATIVE_LINKER=OFF"
     "-DUSE_CUSTOM_LOGGING=ON"
-    if(DEFINED USE_HEXAGON_GTEST)
-      "-DUSE_HEXAGON_GTEST=${USE_HEXAGON_GTEST}"
-    endif()
+    "${GTEST_FLAG}"
   INSTALL_COMMAND ""
   BUILD_ALWAYS ON
 )

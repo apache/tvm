@@ -24,8 +24,6 @@ from tvm import relay
 from tvm.relay.backend import Executor, Runtime
 from tvm.contrib.hexagon.session import Session
 
-from .conftest import requires_hexagon_toolchain
-
 
 def get_mobilenet():
     """Download and import mobilenet model with ONNX"""
@@ -38,7 +36,7 @@ def get_mobilenet():
     return onnx.load(model_path)
 
 
-@requires_hexagon_toolchain
+@tvm.testing.requires_hexagon
 def test_mobilenet(hexagon_session: Session):
     dtype = "float32"
     onnx_model = get_mobilenet()
@@ -88,7 +86,7 @@ def test_mobilenet(hexagon_session: Session):
 enable_usmp = tvm.testing.parameter(False, True)
 
 
-@requires_hexagon_toolchain
+@tvm.testing.requires_hexagon
 def test_mobilenet_aot(hexagon_session: Session, aot_host_target, aot_target, enable_usmp):
     if hexagon_session._launcher._serial_number == "simulator":
         pytest.skip(msg="Skip on simulator due to long runtime.")
@@ -137,4 +135,4 @@ def test_mobilenet_aot(hexagon_session: Session, aot_host_target, aot_target, en
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

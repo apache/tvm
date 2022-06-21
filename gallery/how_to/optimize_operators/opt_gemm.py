@@ -312,7 +312,7 @@ ko, ki = s[CC].split(kaxis, factor=kfactor)
 s[CC].reorder(ko, mc, ki, nc)
 s[CC].vectorize(nc)
 
-# TODO: Add separate optimization step to discuss loop unrolloing
+# TODO: Add separate optimization step to discuss loop unrolling
 # unrolling is a loop optimization strategy which can reduce branch
 # prediction failures and increases the chance of concurrent execution
 # unroll kfactor loops
@@ -390,4 +390,4 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # our generated code can achieve 60% of the `numpy` performance with MKL.
 # Note that the outputs on the web page reflect the running times on a non-exclusive
 # Docker container, thereby they are *unreliable*. It is highly encouraged to run the
-# tutorial by yourself to observe the performance gain acheived by TVM.
+# tutorial by yourself to observe the performance gain achieved by TVM.

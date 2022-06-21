@@ -424,7 +424,4 @@ def test_measure_special_inputs_map_by_name_rpc_runner():
 
 
 if __name__ == "__main__":
-    import sys
-    import pytest
-
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

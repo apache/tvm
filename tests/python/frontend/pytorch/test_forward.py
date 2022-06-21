@@ -3511,6 +3511,11 @@ def test_forward_matmul():
     tensor2 = torch.randn(4)
     verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
 
+    # vector x matrix
+    tensor1 = torch.randn(4)
+    tensor2 = torch.randn(4, 3)
+    verify_model(MatMul1().float().eval(), input_data=[tensor1, tensor2])
+
     # matrix x matrix
     tensor1 = torch.randn(10, 4)
     tensor2 = torch.randn(4, 10)

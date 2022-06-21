@@ -22,6 +22,7 @@ import numpy as np
 import pytest
 
 import tvm
+import tvm.testing
 from tvm import relay, runtime
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.op.annotation import compiler_begin, compiler_end
@@ -30,6 +31,8 @@ from utils.external_codegen import (
     set_external_func_attr,
     parametrize_external_codegen_checks,
     parametrize_external_json_codegen_checks,
+    check_graph_executor_result,
+    check_vm_result,
 )
 
 
@@ -177,6 +180,58 @@ def test_extern_gcc(check_result):
     )
 
     check_result(mod, inputs, (2, 2), (y_data * y_data) - (x_data + x_data))
+
+
+# TODO(mbs): The check_aot_executor_result does not support the list-of-targets, mostly because
+# tvm.testing.aot.compile_and_run requires the target to be a kind name string, and
+# tvm.testing.aot.compile_models requires a single Target object. However, code outside of
+# tvm.testing.aot is ready for this more general form.
+@pytest.mark.parametrize("check_result", [check_graph_executor_result, check_vm_result])
+def test_extern_gcc_with_target_instance(check_result):
+    shape = (8, 8)
+    dtype = "int32"
+
+    def make_mod():
+        x0 = relay.var("x0", shape=shape, dtype=dtype)
+        y0 = relay.var("y0", shape=shape, dtype=dtype)
+        z = x0 + y0
+        f = relay.Function([x0, y0], z)
+        f = set_external_func_attr(f, "ccompiler", "ccompiler_0")
+        x = relay.var("x", shape=shape, dtype=dtype)
+        y = relay.var("y", shape=shape, dtype=dtype)
+        call = relay.Call(f, [x, y])
+        return tvm.IRModule.from_expr(call)
+
+    host_target = tvm.target.Target("llvm")
+    generic_target = tvm.target.Target("llvm", host=host_target)
+    # The header attribute is just whitespace, so compilation is as usual.
+    good_extern_codegen_target = tvm.target.Target(
+        {"kind": "ccompiler", "header": "// Good"}, host=host_target
+    )
+    # The header attribute is ill-formed, so compilation is expected to fail.
+    bogus_extern_codegen_target = tvm.target.Target(
+        {"kind": "ccompiler", "header": "Bogus"}, host=host_target
+    )
+
+    mod = make_mod()
+
+    x_data = np.random.rand(*shape).astype(dtype)
+    y_data = np.random.rand(*shape).astype(dtype)
+    expected_result = x_data + y_data
+    inputs = {"x": x_data, "y": y_data}
+
+    check_result(
+        mod, inputs, shape, expected_result, target=[generic_target, good_extern_codegen_target]
+    )
+
+    with pytest.raises(RuntimeError):
+        check_result(
+            mod,
+            inputs,
+            shape,
+            expected_result,
+            target=[generic_target, bogus_extern_codegen_target],
+        )
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Skip test on Windows for now")
@@ -351,4 +406,4 @@ def test_load_params_with_constants_in_ext_codegen():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

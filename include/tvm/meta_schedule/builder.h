@@ -20,6 +20,14 @@
 #define TVM_META_SCHEDULE_BUILDER_H_
 
 #include <tvm/ir/module.h>
+#include <tvm/node/reflection.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/map.h>
+#include <tvm/runtime/container/optional.h>
+#include <tvm/runtime/container/string.h>
+#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/object.h>
+#include <tvm/runtime/packed_func.h>
 #include <tvm/target/target.h>
 
 namespace tvm {

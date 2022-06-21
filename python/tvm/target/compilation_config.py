@@ -23,5 +23,5 @@ def make_compilation_config(ctxt, target, target_host=None):
     """Returns a CompilationConfig appropriate for target and target_host, using the same
     representation conventions as for the standard build interfaces. Intended only for unit
     testing."""
-    raw_targets = tvm.target.Target.canonicalize_target_and_host(target, target_host)
+    raw_targets = tvm.target.Target.canon_multi_target_and_host(target, target_host)
     return _ffi_api.MakeCompilationConfig(ctxt, raw_targets)

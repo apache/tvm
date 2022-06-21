@@ -62,6 +62,13 @@ def tune_network(network, target):
                 best, auto_scheduler.dispatcher.ApplyHistoryBest
             ), "Unable to load multiple log files jointly."
 
+        # Confirm iterables can be directly loaded.
+        loaded_recs = auto_scheduler.dispatcher.load_records(log_file)
+        with auto_scheduler.ApplyHistoryBest(iter(loaded_recs)) as best:
+            assert isinstance(
+                best, auto_scheduler.dispatcher.ApplyHistoryBest
+            ), "Unable to ingest logs from an interator."
+
         # Sample a schedule when missing
         with auto_scheduler.ApplyHistoryBestOrSample(None, num_measure=2):
             with tvm.transform.PassContext(

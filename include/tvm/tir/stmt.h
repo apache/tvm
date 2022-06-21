@@ -1442,6 +1442,11 @@ constexpr const char* pipeline_exec_scope = "pipeline_exec_scope";
 constexpr const char* device_scope = "device_scope";
 
 /*!
+ * \brief Mark that the attached statement runs asynchronously.
+ */
+constexpr const char* async_scope = "async_scope";
+
+/*!
  * \brief Mark that the shape of TensorCore fragment
  */
 constexpr const char* fragment_shape = "fragment_shape";

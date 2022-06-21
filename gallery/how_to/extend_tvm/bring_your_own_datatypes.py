@@ -313,7 +313,7 @@ except tvm.TVMError as e:
     print(str(e).split("\n")[-1])
 
 ######################################################################
-# When we attempt to run the model, we get a familiar error telling us that more functions need to be registerd for myfloat.
+# When we attempt to run the model, we get a familiar error telling us that more functions need to be registered for myfloat.
 #
 # Because this is a neural network, many more operations are required.
 # Here, we register all the needed functions:

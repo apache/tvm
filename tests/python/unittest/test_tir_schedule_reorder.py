@@ -19,6 +19,7 @@ import sys
 
 import pytest
 import tvm
+import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
 from tvm.tir.schedule.testing import verify_trace_roundtrip
@@ -280,7 +281,7 @@ def test_reorder_with_cascade_tiled_ops():
                     )
             for h_i, w, kh, kw in T.grid(4, 108, 3, 3):
                 with T.block("pool_1"):
-                    ax0 = T.axis.spatial(1, 0)
+                    ax0 = T.axis.spatial(1, n)
                     ax1 = T.axis.spatial(16, c)
                     ax2 = T.axis.spatial(108, h_o * 4 + h_i)
                     ax3, rv0, rv1 = T.axis.remap("SRR", [w, kh, kw])
@@ -368,4 +369,4 @@ def test_reorder_fail_not_affine_bindings():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

@@ -618,7 +618,12 @@ bool TVMScriptPrinter::IsSimpleBuffer(const Buffer& buf) {
 
 Doc TVMScriptPrinter::PrintInlineBufferBind(const Buffer& buffer) {
   Doc doc;
-  doc << tir_prefix_ << ".Buffer[" << PrintTuple(buffer->shape.as<ArrayNode>());
+  doc << tir_prefix_ << ".Buffer[";
+  if (buffer->shape.size() == 1) {
+    doc << Print(buffer->shape[0]);
+  } else {
+    doc << PrintTuple(buffer->shape.as<ArrayNode>());
+  }
   doc << ", " << PrintDType(buffer->dtype) << "]";
   return doc;
 }
@@ -1566,7 +1571,7 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
   if (op->body->IsInstance<BlockRealizeNode>() &&
       op->body.as<BlockRealizeNode>()->iter_values.empty()) {
     const BlockNode* block = op->body.as<BlockRealizeNode>()->block.get();
-    if (block->annotations.empty()) {
+    if (block->annotations.empty() && !ContainsOptionalInfo(GetRef<Stmt>(block))) {
       // Skip print root block
       body << "# with " << tir_prefix_ << ".block(\"root\")" << Doc::NewLine();
       body << PrintBlockBody(block);

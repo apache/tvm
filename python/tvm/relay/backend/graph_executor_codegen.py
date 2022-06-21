@@ -53,7 +53,7 @@ class GraphExecutorCodegen(object):
         self._setup(mod, target)
 
     def _setup(self, mod, target):
-        raw_targets = Target.canonicalize_target_and_host(target)
+        raw_targets = Target.canon_multi_target_and_host(target)
         self._init(mod, raw_targets)
 
     def codegen(self, ir_module, func):

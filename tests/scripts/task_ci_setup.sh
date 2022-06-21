@@ -16,9 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
-set -o pipefail
+set -euxo pipefail
 
 # Script to setup additional python env.
 #

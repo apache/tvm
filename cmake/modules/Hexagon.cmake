@@ -61,7 +61,7 @@ endif()
 # the path to the SDK), unless it's needed. The flag USE_HEXAGON decides
 # whether any Hexagon-related functionality is enabled. Specifically,
 # setting USE_HEXAGON=OFF, disables any form of Hexagon support.
-# 
+#
 # Note on the function of USE_HEXAGON_RPC:
 # - When building for Hexagon, this will build the Hexagon endpoint of the
 #   RPC server: the FastRPC skel library (with TVM runtime built into it),
@@ -116,7 +116,7 @@ function(add_hexagon_wrapper_paths)
   link_directories("${HEXAGON_TOOLCHAIN}/lib/iss")
 endfunction()
 
-if(BUILD_FOR_HEXAGON OR USE_HEXAGON_RPC)
+if(BUILD_FOR_HEXAGON)
   # Common sources for TVM runtime with Hexagon support
   file_glob_append(RUNTIME_HEXAGON_SRCS
     "${TVMRT_SOURCE_DIR}/hexagon/*.cc"
@@ -172,6 +172,14 @@ if(USE_HEXAGON_RPC)
           -o "${TVMRT_SOURCE_DIR}/hexagon/rpc"
       MAIN_DEPENDENCY "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc.idl"
     )
+
+    if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
+        # We can't easily fix this at the source-code level, because the .c file is generated
+        # by the qaic program.  But it should be safe to ignore the warning:
+        # https://stackoverflow.com/questions/13905200/is-it-wise-to-ignore-gcc-clangs-wmissing-braces-warning
+        set_source_files_properties("${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc_stub.c"
+            PROPERTY COMPILE_FLAGS "-Wno-missing-braces")
+    endif()
   endfunction()
 
   if(BUILD_FOR_ANDROID)

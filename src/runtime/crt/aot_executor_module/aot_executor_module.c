@@ -80,13 +80,27 @@ int32_t TVMAotExecutorModule_NotImplemented(TVMValue* args, int* tcodes, int nar
 
 int32_t TVMAotExecutorModule_GetInput(TVMValue* args, int* tcodes, int nargs, TVMValue* ret_values,
                                       int* ret_tcodes, void* resource_handle) {
-  int index = TVMAotExecutor_GetInputIndex(aot_executor.executor, args[0].v_str);
+  int64_t index;
 
-  if (index < 0) {
-    return kTvmErrorExecutorModuleNoSuchInput;
+  if (tcodes[0] == kTVMArgInt) {
+    if (args[0].v_int64 > TVMAotExecutor_GetNumInputs(aot_executor.executor)) {
+      return kTvmErrorFunctionCallInvalidArg;
+    }
+
+    index = args[0].v_int64;
+  } else {
+    index = TVMAotExecutor_GetInputIndex(aot_executor.executor, args[0].v_str);
+
+    if (index < 0) {
+      return kTvmErrorExecutorModuleNoSuchInput;
+    }
   }
 
-  ret_values[0].v_handle = (void*)&aot_executor.executor->args[index].dl_tensor;
+  TVMNDArray* array = &aot_executor.executor->args[index];
+
+  TVMNDArray_IncrementReference(array);
+
+  ret_values[0].v_handle = (void*)(&array->dl_tensor);
   ret_tcodes[0] = kTVMNDArrayHandle;
 
   return 0;
@@ -103,9 +117,13 @@ int32_t TVMAotExecutorModule_GetOutput(TVMValue* args, int* tcodes, int nargs, T
   }
 
   // index past the input entries
-  int64_t idx = args[0].v_int64 + TVMAotExecutor_GetNumInputs(aot_executor.executor);
+  int64_t index = args[0].v_int64 + TVMAotExecutor_GetNumInputs(aot_executor.executor);
 
-  ret_values[0].v_handle = (void*)&aot_executor.executor->args[idx].dl_tensor;
+  TVMNDArray* array = &aot_executor.executor->args[index];
+
+  TVMNDArray_IncrementReference(array);
+
+  ret_values[0].v_handle = (void*)(&array->dl_tensor);
   ret_tcodes[0] = kTVMNDArrayHandle;
 
   return 0;
@@ -176,7 +194,7 @@ static const TVMBackendPackedCFunc aot_executor_registry_funcs[] = {
 };
 
 static const TVMFuncRegistry aot_executor_registry = {
-    "\x0aget_input\0"
+    "\x0a\0get_input\0"
     "get_input_index\0"
     "get_input_info\0"
     "get_num_inputs\0"

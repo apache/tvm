@@ -76,7 +76,12 @@ CC_CODEGEN_OBJS = $(subst .cc,.o,$(CC_CODEGEN_SRCS))
 CMSIS_STARTUP_SRCS = $(shell find ${CMSIS_PATH}/Device/ARM/${ARM_CPU}/Source/*.c)
 UART_SRCS = $(shell find ${PLATFORM_PATH}/*.c)
 
-CMSIS_NN_LIBS = $(wildcard ${CMSIS_PATH}/CMSIS/NN/build/Source/*/*.a)
+CMSIS_SHA_FILE=${CMSIS_PATH}/977abe9849781a2e788b02282986480ff4e25ea6.sha
+ifneq ("$(wildcard $(CMSIS_SHA_FILE))","")
+	CMSIS_NN_LIBS = $(wildcard ${CMSIS_PATH}/CMSIS/NN/build/Source/libcmsis-nn.a)
+else
+	CMSIS_NN_LIBS = $(wildcard ${CMSIS_PATH}/CMSIS/NN/build/Source/*/*.a)
+endif
 
 ifdef ETHOSU_TEST_ROOT
 ETHOSU_DRIVER_LIBS = $(wildcard ${DRIVER_PATH}/build/*.a)

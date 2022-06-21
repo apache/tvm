@@ -35,10 +35,12 @@
 
 #include <fstream>
 
+#include "../support/scalars.h"
 #include "./meta_ref.h"
 #include "./op_table.h"
 #include "./span_check.h"
 #include "./tokenizer.h"
+#include "tvm/runtime/builtin_fp16.h"
 
 namespace tvm {
 namespace parser {
@@ -534,47 +536,13 @@ class Parser {
   /*! \brief Convert a numeric token to an NDArray for embedding into the Relay program. */
   NDArray NumberToNDArray(const Token& token) {
     if (token->token_type == TokenType::kInteger) {
-      DLDevice dev = {DLDeviceType::kDLCPU, 0};
-      int64_t i = Downcast<tvm::Integer>(token->data);
-      if (i > std::numeric_limits<int32_t>::max()) {
-        auto dtype = String2DLDataType("int64");
-        auto data = NDArray::Empty({}, dtype, dev);
-        auto array = reinterpret_cast<int64_t*>(data->data);
-        // revisit this, literal node issue.
-        array[0] = i;
-        return data;
-      } else {
-        auto dtype = String2DLDataType("int32");
-        auto data = NDArray::Empty({}, dtype, dev);
-        auto array = reinterpret_cast<int32_t*>(data->data);
-        // revisit this, literal node issue.
-        array[0] = i;
-        return data;
-      }
+      return support::IntImmToNDArray(Downcast<tvm::IntImm>(token->data));
     } else if (token->token_type == TokenType::kFloat) {
-      DLDevice dev = {DLDeviceType::kDLCPU, 0};
-      auto float_imm = Downcast<tvm::FloatImm>(token->data);
-      auto data = NDArray::Empty({}, float_imm->dtype, dev);
-      auto array = reinterpret_cast<float*>(data->data);
-      // revisit this, literal node issue.
-      // TODO(@jroesch): bounds checking
-      float value = float_imm->value;
-      array[0] = value;
-      return data;
+      return support::FloatImmToNDArray(Downcast<tvm::FloatImm>(token->data));
     } else {
       LOG(FATAL) << "internal error: should only call this function on numeric tokens";
-      return NDArray();
+      return {};
     }
-  }
-
-  /*! \brief Convert a boolean value to an NDArray for embedding into the Relay program. */
-  NDArray BooleanToNDarray(bool value) {
-    DLDevice dev = {DLDeviceType::kDLCPU, 0};
-    auto dtype = String2DLDataType("bool");
-    auto data = NDArray::Empty({}, dtype, dev);
-    auto array = reinterpret_cast<bool*>(data->data);
-    array[0] = value;
-    return data;
   }
 
   [[noreturn]] void ParseError(const Token& token, const std::string& msg) {
@@ -1573,8 +1541,7 @@ class Parser {
         case TokenType::kBoolean: {
           Consume(TokenType::kBoolean);
           int64_t value = Downcast<tvm::Integer>(next->data);
-          auto boolean = BooleanToNDarray(value);
-          Expr e = Constant(boolean, next->span);
+          Expr e = Constant(support::BoolToNDArray(value), next->span);
           ICHECK(e->span.defined()) << "constant spans must be defined";
           return e;
         }

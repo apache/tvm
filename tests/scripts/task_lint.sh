@@ -31,9 +31,6 @@ function shard1 {
   echo "Convert scripts to Python..."
   tests/scripts/task_convert_scripts_to_python.sh
 
-  # TODO: Remove this ad-hoc pip install once https://github.com/apache/tvm/pull/11265
-  # is added to the ci_lint Docker image
-  python3 -m pip install --user -r jenkins/requirements.txt
   echo "Check Jenkinsfile generation"
   python3 jenkins/generate.py --check
 
@@ -77,6 +74,9 @@ function shard2 {
 
   echo "Rust check..."
   tests/lint/rust_format.sh
+
+  echo "Docker check..."
+  tests/lint/docker-format.sh
 }
 
 

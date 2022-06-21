@@ -30,9 +30,6 @@ namespace tir {
 /*! \brief Use Tensor Expression to create a schedulable TensorIR func. */
 PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list);
 
-/*! \brief Create a schedulable TensorIR func from TE compute outputs. */
-PrimFunc CreatePrimFuncFromOutputs(const Array<te::Tensor>& outputs);
-
 }  // namespace tir
 }  // namespace tvm
 

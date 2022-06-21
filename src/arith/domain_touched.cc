@@ -26,6 +26,7 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -34,18 +35,54 @@ namespace arith {
 
 using namespace tir;
 
+namespace {
+
+using BufferTouches = std::vector<std::vector<IntSet>>;
+
+struct LoadAccess {
+  BufferTouches set;
+};
+
+struct StoreAccess {
+  BufferTouches set;
+};
+
+struct CombinedAccess {
+  BufferTouches set;
+};
+
+using BufferDomainAccess = std::tuple<LoadAccess, StoreAccess, CombinedAccess>;
+
+}  // namespace
+
 // Find Read region of the tensor in the stmt.
 class BufferTouchedDomain final : public StmtExprVisitor {
  public:
-  BufferTouchedDomain(const Buffer& buffer, bool consider_loads, bool consider_stores)
-      : buffer_(buffer), consider_loads_(consider_loads), consider_stores_(consider_stores) {}
+  BufferTouchedDomain(const Stmt& stmt) { operator()(stmt); }
 
-  Region Find(const Stmt& stmt) {
-    operator()(stmt);
+  std::unordered_map<const BufferNode*, BufferDomainAccess>& GetAccessedBufferRegions() {
+    return buffer_access_map_;
+  }
+
+  Region FindUnion(const Buffer& buffer, bool consider_loads, bool consider_stores) {
+    auto kv = buffer_access_map_.find(buffer.get());
+    CHECK(kv != buffer_access_map_.end())
+        << "The requested buffer is not contained in the provided stmt body.";
+
     Region ret;
     Range none;
-    for (size_t i = 0; i < bounds_.size(); ++i) {
-      ret.push_back(arith::Union(bounds_[i]).CoverRange(none));
+    BufferTouches bounds;
+    if (consider_loads && consider_stores) {
+      bounds = std::get<CombinedAccess>(kv->second).set;
+    } else if (consider_loads) {
+      bounds = std::get<LoadAccess>(kv->second).set;
+    } else if (consider_stores) {
+      bounds = std::get<StoreAccess>(kv->second).set;
+    } else {
+      CHECK(false) << "Must consider at least on of either loads and stores, but both are false";
+    }
+    for (size_t i = 0; i < bounds.size(); ++i) {
+      ret.push_back(arith::Union(bounds[i]).CoverRange(none));
     }
     return ret;
   }
@@ -78,41 +115,70 @@ class BufferTouchedDomain final : public StmtExprVisitor {
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
-    if (consider_loads_ && buffer_.same_as(op->buffer)) {
-      Touch(op->indices);
-    }
+    // Record load-exclusive buffer access
+    Touch(&std::get<LoadAccess>(buffer_access_map_[op->buffer.get()]).set, op->indices);
+    // Record load-store inclusive buffer access
+    Touch(&std::get<CombinedAccess>(buffer_access_map_[op->buffer.get()]).set, op->indices);
     StmtExprVisitor::VisitExpr_(op);
   }
 
   void VisitStmt_(const BufferStoreNode* op) final {
-    if (consider_stores_ && buffer_.same_as(op->buffer)) {
-      Touch(op->indices);
-    }
+    // Record store-exclusive buffer access
+    Touch(&std::get<StoreAccess>(buffer_access_map_[op->buffer.get()]).set, op->indices);
+    // Record load-store inclusive buffer access
+    Touch(&std::get<CombinedAccess>(buffer_access_map_[op->buffer.get()]).set, op->indices);
     StmtExprVisitor::VisitStmt_(op);
   }
 
  private:
-  void Touch(const Array<PrimExpr>& args) {
-    if (args.size() > bounds_.size()) {
-      bounds_.resize(args.size());
+  template <typename ArrayType>
+  void Touch(BufferTouches* bounds, const ArrayType& args) const {
+    if (args.size() > bounds->size()) {
+      bounds->resize(args.size());
     }
     for (size_t i = 0; i < args.size(); ++i) {
-      bounds_[i].emplace_back(EvalSet(args[i], dom_map_));
+      (*bounds)[i].emplace_back(EvalSet(args[i], dom_map_));
     }
   }
 
-  const Buffer& buffer_;
-  bool consider_loads_, consider_stores_;
-  std::vector<std::vector<IntSet> > bounds_;
+  std::unordered_map<const BufferNode*, BufferDomainAccess> buffer_access_map_;
   std::unordered_map<const VarNode*, IntSet> dom_map_;
 };
 
 Region DomainTouched(const Stmt& stmt, const Buffer& buffer, bool consider_loads,
                      bool consider_stores) {
-  return BufferTouchedDomain(buffer, consider_loads, consider_stores).Find(stmt);
+  return BufferTouchedDomain(stmt).FindUnion(buffer, consider_loads, consider_stores);
+}
+
+Map<Buffer, runtime::ADT> DomainTouchedAccessMap(const PrimFunc& func) {
+  auto buffer_access_map = BufferTouchedDomain(func->body).GetAccessedBufferRegions();
+  Map<Buffer, runtime::ADT> ret;
+  auto& buffer_map = func->buffer_map;
+  for (auto& var : func->params) {
+    auto& buffer = buffer_map[var];
+    auto& access = buffer_access_map[buffer.get()];
+    Array<Array<IntSet>> loads, stores, combined;
+    for (std::vector<IntSet>& touch : std::get<LoadAccess>(access).set) {
+      loads.push_back(Array<IntSet>(touch));
+    }
+    for (std::vector<IntSet>& touch : std::get<StoreAccess>(access).set) {
+      stores.push_back(Array<IntSet>(touch));
+    }
+    for (std::vector<IntSet>& touch : std::get<CombinedAccess>(access).set) {
+      combined.push_back(Array<IntSet>(touch));
+    }
+
+    std::vector<ObjectRef> fields;
+    fields.push_back(loads);
+    fields.push_back(stores);
+    fields.push_back(combined);
+    ret.Set(buffer, runtime::ADT::Tuple(fields));
+  }
+  return ret;
 }
 
 TVM_REGISTER_GLOBAL("arith.DomainTouched").set_body_typed(DomainTouched);
+TVM_REGISTER_GLOBAL("arith.DomainTouchedAccessMap").set_body_typed(DomainTouchedAccessMap);
 
 }  // namespace arith
 }  // namespace tvm

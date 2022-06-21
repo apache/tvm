@@ -29,24 +29,30 @@ namespace cmsisnn {
 
 int Conv2dBufferSize(CMSISNNFlags flags, int32_t padding_w, int32_t padding_h, int32_t input_n,
                      int32_t input_h, int32_t input_c, int32_t output_h, int32_t output_w,
-                     int32_t stride_w, int32_t stride_h, int32_t filter_w, int32_t filter_h) {
+                     int32_t stride_w, int32_t stride_h, int32_t dilation_w, int32_t dilation_h,
+                     int32_t filter_w, int32_t filter_h) {
   bool is1x1 = (padding_w == 0) && (padding_h == 0) && (input_c % 4 == 0) && (stride_w == 1) &&
-               (stride_h == 1) && (filter_w == 1) && (filter_h == 1);
-  bool is1xN =
-      (output_h == 1) && (input_h == 1) && (filter_h == 1) && (output_w % 4 == 0) && (input_n == 1);
+               (stride_h == 1) && (filter_w == 1) && (filter_h == 1) && (dilation_w == 1) &&
+               (dilation_h == 1);
+  bool is1xN = (output_h == 1) && (input_h == 1) && (filter_h == 1) && (output_w % 4 == 0) &&
+               (input_n == 1) && (dilation_w == 1) && (dilation_h == 1);
 
   if (is1x1) {
     return 0;
   }
 
   if (is1xN) {
-    if (flags.dsp && !flags.mve) {
+    if (!flags.mve) {
       return (2 * input_c * filter_w * filter_h) * (int32_t)sizeof(int16_t);
     }
     return 0;
   }
 
-  if (flags.dsp) {
+  if (flags.mve) {
+    int32_t col_length = input_c * filter_w * filter_h;
+    col_length = (col_length + 7) / 8;
+    return 4 * col_length * 8 * (int32_t)sizeof(int8_t);
+  } else {
     return (2 * input_c * filter_w * filter_h) * (int32_t)sizeof(int16_t);
   }
   return 0;

@@ -32,7 +32,6 @@
 #include <cstring>
 
 #include "../workspace_pool.h"
-#include "hexagon_buffer.h"
 #include "hexagon_common.h"
 
 namespace tvm {
@@ -55,10 +54,15 @@ void HexagonDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv)
 // DataSpace: static allocations for Hexagon
 void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
                                        Optional<String> mem_scope) {
+  CHECK(shape) << "shape array is null";
+  CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
+
   if (!mem_scope.defined() || mem_scope.value() == "global") {
     return DeviceAPI::AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
   }
 
+  // must be Hexagon device and VTCM scope after this point
+  CHECK_EQ(mem_scope.value(), "global.vtcm");
   CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon) << "dev.device_type: " << dev.device_type;
 
   size_t typesize = (dtype.bits / 8) * dtype.lanes;
@@ -68,13 +72,15 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shap
     alignment = kHexagonAllocAlignment;
   }
 
-  if (ndim == 1) {
+  if (ndim == 0) {
+    return hexbuffs.AllocateHexagonBuffer(typesize, alignment, mem_scope);
+  } else if (ndim == 1) {
     size_t nbytes = shape[0] * typesize;
-    return AllocateHexagonBuffer(nbytes, alignment, mem_scope);
+    return hexbuffs.AllocateHexagonBuffer(nbytes, alignment, mem_scope);
   } else if (ndim == 2) {
     size_t nallocs = shape[0];
     size_t nbytes = shape[1] * typesize;
-    return AllocateHexagonBuffer(nallocs, nbytes, alignment, mem_scope);
+    return hexbuffs.AllocateHexagonBuffer(nallocs, nbytes, alignment, mem_scope);
   } else {
     LOG(FATAL) << "Hexagon Device API supports only 1d and 2d allocations, but received ndim = "
                << ndim;
@@ -84,22 +90,19 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shap
 
 void* HexagonDeviceAPI::AllocDataSpace(Device dev, size_t nbytes, size_t alignment,
                                        DLDataType type_hint) {
-  // Added kDLCPU since we use hexagon as a sub-target of LLVM which by default maps to kDLCPU;
-  bool is_valid_device = (TVMDeviceExtType(dev.device_type) == kDLHexagon) ||
-                         (DLDeviceType(dev.device_type) == kDLCPU);
-  CHECK(is_valid_device) << "dev.device_type: " << dev.device_type;
+  CHECK(nbytes) << "number of bytes is zero";
+  CHECK(alignment) << "alignment is zero";
+  CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
   if (alignment < kHexagonAllocAlignment) {
     alignment = kHexagonAllocAlignment;
   }
-  return AllocateHexagonBuffer(nbytes, alignment, String("global"));
+  return hexbuffs.AllocateHexagonBuffer(nbytes, alignment, String("global"));
 }
 
 void HexagonDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
-  // Added kDLCPU since we use hexagon as a sub-target of LLVM which by default maps to kDLCPU;
-  bool is_valid_device = (TVMDeviceExtType(dev.device_type) == kDLHexagon) ||
-                         (DLDeviceType(dev.device_type) == kDLCPU);
-  CHECK(is_valid_device) << "dev.device_type: " << dev.device_type;
-  FreeHexagonBuffer(ptr);
+  CHECK(ptr) << "buffer pointer is null";
+  CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
+  hexbuffs.FreeHexagonBuffer(ptr);
 }
 
 // WorkSpace: runtime allocations for Hexagon
@@ -109,31 +112,27 @@ struct HexagonWorkspacePool : public WorkspacePool {
 };
 
 void* HexagonDeviceAPI::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
-  // Added kDLCPU since we use hexagon as a sub-target of LLVM which by default maps to kDLCPU;
-  bool is_valid_device = (TVMDeviceExtType(dev.device_type) == kDLHexagon) ||
-                         (DLDeviceType(dev.device_type) == kDLCPU);
-  CHECK(is_valid_device) << "dev.device_type: " << dev.device_type;
+  CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
   return dmlc::ThreadLocalStore<HexagonWorkspacePool>::Get()->AllocWorkspace(dev, size);
 }
 
 void HexagonDeviceAPI::FreeWorkspace(Device dev, void* data) {
-  // Added kDLCPU since we use hexagon as a sub-target of LLVM which by default maps to kDLCPU;
-  bool is_valid_device = (TVMDeviceExtType(dev.device_type) == kDLHexagon) ||
-                         (DLDeviceType(dev.device_type) == kDLCPU);
-  CHECK(is_valid_device) << "dev.device_type: " << dev.device_type;
-  CHECK(hexagon_buffer_map_.count(data) != 0)
+  CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
+  CHECK(hexbuffs.count(data) != 0)
       << "Attempt made to free unknown or already freed workspace allocation";
   dmlc::ThreadLocalStore<HexagonWorkspacePool>::Get()->FreeWorkspace(dev, data);
 }
 
 void* HexagonDeviceAPI::AllocVtcmWorkspace(Device dev, int ndim, const int64_t* shape,
                                            DLDataType dtype, Optional<String> mem_scope) {
+  // must be Hexagon device (not CPU)
   CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon) << "dev.device_type: " << dev.device_type;
   CHECK((ndim == 1 || ndim == 2) && "Hexagon Device API supports only 1d and 2d allocations");
   return AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
 }
 
 void HexagonDeviceAPI::FreeVtcmWorkspace(Device dev, void* ptr) {
+  // must be Hexagon device (not CPU)
   CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon) << "dev.device_type: " << dev.device_type;
   FreeDataSpace(dev, ptr);
 }
@@ -143,13 +142,7 @@ void HexagonDeviceAPI::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHan
   CHECK_EQ(to->byte_offset, 0);
   CHECK_EQ(GetDataSize(*from), GetDataSize(*to));
 
-  auto lookup_hexagon_buffer = [this](void* ptr) -> HexagonBuffer* {
-    auto it = this->hexagon_buffer_map_.find(ptr);
-    if (it != this->hexagon_buffer_map_.end()) {
-      return it->second.get();
-    }
-    return nullptr;
-  };
+  auto lookup_hexagon_buffer = [this](void* ptr) -> HexagonBuffer* { return hexbuffs.find(ptr); };
 
   HexagonBuffer* hex_from_buf = lookup_hexagon_buffer(from->data);
   HexagonBuffer* hex_to_buf = lookup_hexagon_buffer(to->data);
@@ -170,14 +163,6 @@ void HexagonDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void
                                       size_t to_offset, size_t size, Device dev_from, Device dev_to,
                                       DLDataType type_hint, TVMStreamHandle stream) {
   memcpy(static_cast<char*>(to) + to_offset, static_cast<const char*>(from) + from_offset, size);
-}
-
-void HexagonDeviceAPI::FreeHexagonBuffer(void* ptr) {
-  auto it = hexagon_buffer_map_.find(ptr);
-  CHECK(it != hexagon_buffer_map_.end())
-      << "Attempt made to free unknown or already freed dataspace allocation";
-  CHECK(it->second != nullptr);
-  hexagon_buffer_map_.erase(it);
 }
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.mem_copy").set_body([](TVMArgs args, TVMRetValue* rv) {

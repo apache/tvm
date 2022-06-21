@@ -32,7 +32,7 @@ import requests
 import tvm.micro
 from tvm.micro import export_model_library_format
 from tvm.micro.model_library_format import generate_c_interface_header
-from tvm.micro.testing import (
+from tvm.micro.testing.utils import (
     mlf_extract_workspace_size_bytes,
     aot_transport_init_wait,
     aot_transport_find_message,
@@ -87,7 +87,7 @@ def build_project(
         workspace_size = mlf_extract_workspace_size_bytes(model_tar_path)
         project_options = {
             "extra_files_tar": extra_files_tar,
-            "project_type": "aot_demo",
+            "project_type": "aot_standalone_demo",
             "west_cmd": west_cmd,
             "verbose": bool(build_config.get("debug")),
             "zephyr_board": zephyr_board,

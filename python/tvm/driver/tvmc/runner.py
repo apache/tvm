@@ -24,6 +24,8 @@ from typing import Dict, Optional, Union
 from tarfile import ReadError
 import argparse
 import sys
+import json
+
 import numpy as np
 
 import tvm
@@ -33,6 +35,7 @@ from tvm.autotvm.measure import request_remote
 from tvm.contrib import graph_executor as executor
 from tvm.contrib.debugger import debug_executor
 from tvm.runtime import profiler_vm
+from tvm.relay.param_dict import load_param_dict
 from . import TVMCException
 from .arguments import TVMCSuppressedArgumentParser
 from .project import (
@@ -290,6 +293,56 @@ def drive_run(args):
     if args.outputs:
         # Save the outputs
         result.save(args.outputs)
+
+
+def get_input_info(graph_str: str, params: Dict[str, tvm.nd.NDArray]):
+    """Return the 'shape' and 'dtype' dictionaries for the input
+    tensors of a compiled module.
+
+    .. note::
+        We can't simply get the input tensors from a TVM graph
+        because weight tensors are treated equivalently. Therefore, to
+        find the input tensors we look at the 'arg_nodes' in the graph
+        (which are either weights or inputs) and check which ones don't
+        appear in the params (where the weights are stored). These nodes
+        are therefore inferred to be input tensors.
+
+    .. note::
+        There exists a more recent API to retrieve the input information
+        directly from the module. However, this isn't supported when using
+        with RPC due to a lack of support for Array and Map datatypes.
+        Therefore, this function exists only as a fallback when RPC is in
+        use. If RPC isn't being used, please use the more recent API.
+
+    Parameters
+    ----------
+    graph_str : str
+        JSON graph of the module serialized as a string.
+    params : dict
+        Parameter dictionary mapping name to value.
+
+    Returns
+    -------
+    shape_dict : dict
+        Shape dictionary - {input_name: tuple}.
+    dtype_dict : dict
+        dtype dictionary - {input_name: dtype}.
+    """
+
+    shape_dict = {}
+    dtype_dict = {}
+    params_dict = load_param_dict(params)
+    param_names = [k for (k, v) in params_dict.items()]
+    graph = json.loads(graph_str)
+    for node_id in graph["arg_nodes"]:
+        node = graph["nodes"][node_id]
+        # If a node is not in the params, infer it to be an input node
+        name = node["name"]
+        if name not in param_names:
+            shape_dict[name] = graph["attrs"]["shape"][1][node_id]
+            dtype_dict[name] = graph["attrs"]["dltype"][1][node_id]
+
+    return shape_dict, dtype_dict
 
 
 def generate_tensor_data(shape: tuple, dtype: str, fill_mode: str):
@@ -586,7 +639,14 @@ def run_module(
             module.load_params(tvmc_package.params)
 
             logger.debug("Collecting graph input shape and type:")
-            shape_dict, dtype_dict = module.get_input_info()
+
+            if isinstance(session, tvm.rpc.client.RPCSession):
+                # RPC does not support datatypes such as Array and Map,
+                # fallback to obtaining input information from graph json.
+                shape_dict, dtype_dict = get_input_info(tvmc_package.graph, tvmc_package.params)
+            else:
+                shape_dict, dtype_dict = module.get_input_info()
+
             logger.debug("Graph input shape: %s", shape_dict)
             logger.debug("Graph input type: %s", dtype_dict)
 

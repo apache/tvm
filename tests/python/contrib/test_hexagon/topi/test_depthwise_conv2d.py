@@ -28,7 +28,6 @@ import tvm.topi.testing
 from tvm import te, topi
 from tvm.topi.utils import get_const_tuple
 from tvm.topi.nn.utils import get_pad_tuple
-from ..conftest import requires_hexagon_toolchain
 
 
 random_seed = tvm.testing.parameter(0)
@@ -155,7 +154,7 @@ class BaseDepthwiseConv2D:
     (e.g. implemented only for llvm).
     """
 
-    @requires_hexagon_toolchain
+    @tvm.testing.requires_hexagon
     def test_conv2d(
         self,
         hexagon_session: Session,

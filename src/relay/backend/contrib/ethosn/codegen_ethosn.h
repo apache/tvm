@@ -251,7 +251,7 @@ struct EthosnCompilerConfigNode : public tvm::AttrsNode<EthosnCompilerConfigNode
   String compiler_algorithm;
 
   TVM_DECLARE_ATTRS(EthosnCompilerConfigNode, "ext.attrs.EthosnCompilerConfigNode") {
-    TVM_ATTR_FIELD(variant).describe("See Ethos-N documentation.").set_default("Ethos-N78");
+    TVM_ATTR_FIELD(variant).describe("See Ethos-N documentation.").set_default("n78");
     TVM_ATTR_FIELD(sram_size)
         .describe("Optionally override the default sram size. See Ethos(TM)-N documentation.")
         .set_default("0");

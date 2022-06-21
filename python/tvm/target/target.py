@@ -108,6 +108,12 @@ class Target(Object):
             When using a dictionary or json string to configure target, the possible values are
             same as target.
         """
+        if isinstance(target, str) and "-libs=mkldnn" in target:
+            target = target.replace("mkldnn", "dnnl")
+            warnings.warn(
+                "Legacy support of mkldnn is going to be deprecated. "
+                "Please use -libs=dnnl instead.",
+            )
         if isinstance(target, (dict, str)):
             target = convert(target)
         if isinstance(host, (dict, str)):
@@ -191,6 +197,10 @@ class Target(Object):
     def supports_integer_dot_product(self):
         if self.attrs.get("supports_integer_dot_product", []):
             return bool(self.attrs["supports_integer_dot_product"])
+        if self.kind == "cuda":
+            sm_version = int(self.arch.split("_")[1])
+            if sm_version >= 61:
+                return True
         return False
 
     @property
@@ -218,13 +228,13 @@ class Target(Object):
         return list(_ffi_api.ListTargetKinds())
 
     @staticmethod
-    def canonicalize_target(target):
+    def canon_target(target):
         """Given a single target-like object, returns the TVM Target object representing it.
         Can convert from:
         - None (to None).
         - An existing TVM Target object.
-        - A string.
-        - A Python dictionary binding the target 'kind' and other attributes.
+        - A string, eg "cuda" or "cuda -arch=sm_80"
+        - A Python dictionary, eg {"kind": "cuda", "arch": "sm_80" }
         """
         if target is None:
             return None
@@ -233,86 +243,107 @@ class Target(Object):
         return Target(target)
 
     @staticmethod
-    def canonicalize_multi_targets(multi_targets):
-        """Given a single or collection of target-like objects, returns a TVM Array of Target
-        objects representing then. Can convert from:
+    def canon_target_and_host(target, target_host=None):
+        """Returns a TVM Target capturing target and target_host. Also returns the host in
+        canonical form. The given target can be in any form recognized by
+        Target.canon_target. If given, target_host can be in any form recognized by
+        Target.canon_target. If target_host is given it will be set as the 'host' in the
+        result Target object (and a warning given).
+
+        Note that this method does not support heterogeneous compilation targets.
+        """
+        target = Target.canon_target(target)
+        if target is None:
+            assert target_host is None, "Target host is not empty when target is empty."
+            return target, target_host
+        if target.host is None and target_host is not None:
+            warnings.warn(
+                "target_host parameter is going to be deprecated. "
+                "Please pass in tvm.target.Target(target, host=target_host) instead."
+            )
+            target_host = Target.canon_target(target_host)
+            target = target.with_host(target_host)
+        if target is not None:
+            # In case the target already had a host, extract it here.
+            target_host = target.host
+        return target, target_host
+
+    @staticmethod
+    def canon_multi_target(multi_targets):
+        """Given a single target-like object, or a collection-like object of target-like objects,
+        returns a TVM Array of TVM Target objects representing then. Can convert from:
         - None (to None).
-        - A single target-like object in a form recognized by canonicalize_target.
+        - A single target-like object in a form recognized by canon_target.
         - A Python list or TVM Array of target-like objects in a form recognized by
-        canonicalize_target.
+        canon_target.
         - A Python dict or TVM Map from TVM IntImm objects representing device types to
-        a target-like object in a form recognized by canonicalize_target.
+        a target-like object in a form recognized by canon_target. (This is a legacy
+        method to represent heterogeneous targets. The keys are ignored.)
         """
         if multi_targets is None:
             return None
         if isinstance(multi_targets, (dict, Map)) and "kind" not in multi_targets:
             # Convert legacy heterogeneous map representation to ordinary list of targets.
-            return Target.canonicalize_multi_targets([t for _, t in multi_targets.items()])
+            return Target.canon_multi_target(list(multi_targets.values()))
         if isinstance(multi_targets, (list, Array)):
             # Multiple Target results.
-            return convert([Target.canonicalize_target(t) for t in multi_targets])
+            return convert([Target.canon_target(tgt) for tgt in multi_targets])
         # Single Target result.
-        return convert([Target.canonicalize_target(multi_targets)])
+        return convert([Target.canon_target(multi_targets)])
 
     @staticmethod
-    def canonicalize_target_and_host(target, target_host=None):
+    def canon_multi_target_and_host(target, target_host=None):
         """Returns a TVM Array<Target> capturing target and target_host. The given target can be in
-        any form recognized by Target.canonicalize_target or Target.canonicalize_multi_targets. If
-        given target_host can be in any form recognized by Target.canonicalize_target. If
-        target_host is given it will be set as the 'host' in each result Target object (and a
-        warning given).
+        any form recognized by Target.canon_multi_target. If given, target_host can be in
+        any form recognized by Target.canon_target. If target_host is given it will be set
+        as the 'host' in each result Target object (and a warning given).
         """
         # Convert target to Array<Target>, but not yet accounting for any host.
-        raw_targets = Target.canonicalize_multi_targets(target)
-        assert raw_targets is not None
+        raw_targets = Target.canon_multi_target(target)
+        assert raw_targets is not None and len(raw_targets) > 0
         # Convert host to Target, if given.
-        target_host = Target.canonicalize_target(target_host)
-        if target_host is None:
-            return raw_targets
-        warnings.warn(
-            "target_host parameter is going to be deprecated. "
-            "Please pass in tvm.target.Target(target, host=target_host) instead."
-        )
-        # Make sure the (canonical) host is captured in all the (canonical) targets.
-        return convert([Target(t, target_host) for t in raw_targets])
+        if raw_targets[0].host is None and target_host is not None:
+            warnings.warn(
+                "target_host parameter is going to be deprecated. "
+                "Please pass in tvm.target.Target(target, host=target_host) instead."
+            )
+            # Make sure the (canonical) host is captured in all the (canonical) targets.
+            target_host = Target.canon_target(target_host)
+            raw_targets = convert([tgt.with_host(target_host) for tgt in raw_targets])
+        return raw_targets
 
     @staticmethod
-    def check_and_update_host_consist(target, host=None, target_is_dict_key=True):
-        """A helper function that merges a legacy "target, target_host" pair, then returns
-        the merged target and its host field. The function is for legacy target and target
-        host pair only, and should not be used in the new target system.
+    def canon_target_map_and_host(target_map, target_host=None):
+        """Returns target_map as a map from TVM Target's in canonical form to IRModules. The keys
+        of the input target_map can be in any form recognized by Target.canon_target.
+        Similarly, if given, target_host can be in any form recognized by
+        Target.canon_target. The final target_map keys will capture the target_host in
+        canonical form. Also returns the target_host in canonical form."""
+        new_target_map = {}
+        canonical_target_host = None
+        for tgt, mod in target_map.items():
+            tgt = Target.canon_target(tgt)
+            assert tgt is not None
+            if canonical_target_host is None:
+                if tgt.host is not None:
+                    canonical_target_host = tgt.host
+                elif target_host is not None:
+                    # No deprecation warning in this case since host may have been manufactured
+                    # behind the scenes in build_module.py build.
+                    canonical_target_host = Target.canon_target(target_host)
+            if tgt.host is None and canonical_target_host is not None:
+                tgt = tgt.with_host(canonical_target_host)
+            new_target_map[tgt] = mod
+        return new_target_map, canonical_target_host
 
-        Parameters
-        ----------
-        target : Union[str, Dict[str, Any], Target]
-            The target or heterogeneous target
-        host : Union[str, Dict[str, Any], Target, None]
-            The target host
-        target_is_dict_key : Bool
-            When the type of target is dict, whether Target is the key (Otherwise the value)
-        """
-        if isinstance(target, (dict, str)):
-            target = convert(target)
-        if isinstance(host, (dict, str)):
-            host = convert(host)
+    @staticmethod
+    def target_or_current(target):
+        """Returns target, or the current target in the environment if target is None"""
         if target is None:
-            assert host is None, "Target host is not empty when target is empty."
-            return target, host
-        if isinstance(target, Map) and "kind" not in target:
-            new_target = {}
-            for tgt, mod in target.items():
-                if not target_is_dict_key:
-                    tgt, mod = mod, tgt
-                if isinstance(tgt, (Map, String, Target)):
-                    tgt, host = Target.check_and_update_host_consist(tgt, host)
-                if not target_is_dict_key:
-                    tgt, mod = mod, tgt
-                new_target[tgt] = mod
-            target = new_target
-        else:
-            target = Target(target, host)
-            host = target.host
-        return target, host
+            target = Target.current()
+        if target is None:
+            raise ValueError("Target is not set in env or passed as argument.")
+        return target
 
 
 # TODO(@tvm-team): Deprecate the helper functions below. Encourage the usage of config dict instead.
@@ -401,8 +432,10 @@ MICRO_SUPPORTED_MODELS = {
     "mps3_an547": ["-mcpu=cortex-m55"],
     "nrf52840": ["-mcpu=cortex-m4"],
     "nrf5340dk": ["-mcpu=cortex-m33"],
+    "rp2040": ["-mcpu=cortex-m0"],
     "sam3x8e": ["-mcpu=cortex-m3"],
     "stm32f746xx": ["-mcpu=cortex-m7", "-march=armv7e-m"],
+    "stm32h7xx": ["-mcpu=cortex-m7"],
     "stm32l4r5zi": ["-mcpu=cortex-m4"],
     "stm32u5xx": ["-mcpu=cortex-m33"],
     "zynq_mp_r5": ["-mcpu=cortex-r5"],

@@ -29,6 +29,7 @@ import onnx
 import pytest
 
 import tvm
+import tvm.testing
 from PIL import Image
 from tvm import relay
 from tvm.relay.testing import byoc
@@ -367,4 +368,4 @@ def test_rpc_large_array(board, arduino_cli_cmd, tvm_debug, workspace_dir, shape
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()
