@@ -445,5 +445,39 @@ class TestLeftShiftUpperBound(BaseBeforeAfter):
             A[i] = 0.0
 
 
+class TestLeftShiftOfNegativeValue(BaseBeforeAfter):
+    """No const int bounds of left shift of negative value.
+
+    This is target dependent, and does not currently have a specified
+    behavior in TIR.  For example, in CodeGenC, this generates C code
+    with undefined behavior.
+    """
+
+    @T.prim_func
+    def before(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            if -64 <= T.shift_left(-i, 4, dtype="int32"):
+                A[i] = 0.0
+
+    expected = before
+
+
+class TestLeftShiftByNegativeValue(BaseBeforeAfter):
+    """No const int bounds of left shift by negative bit count.
+
+    This is target dependent, and does not currently have a specified
+    behavior in TIR.  For example, in CodeGenC, this generates C code
+    with undefined behavior.
+    """
+
+    @T.prim_func
+    def before(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            if T.shift_left(16, -i, dtype="int32") <= 16:
+                A[i] = 0.0
+
+    expected = before
+
+
 if __name__ == "__main__":
     tvm.testing.main()
