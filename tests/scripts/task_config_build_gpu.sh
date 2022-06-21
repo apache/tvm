@@ -48,4 +48,4 @@ echo set\(USE_CCACHE OFF\) >> config.cmake
 echo set\(SUMMARIZE ON\) >> config.cmake
 echo set\(HIDE_PRIVATE_SYMBOLS ON\) >> config.cmake
 echo set\(USE_PIPELINE_EXECUTOR ON\) >> config.cmake
-echo set\(USE_DNNL_CODEGEN ON\) >> config.cmake
+echo set\(USE_DNNL ON\) >> config.cmake
