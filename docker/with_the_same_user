@@ -61,6 +61,10 @@ else
     CUDA_ENV=""
 fi
 
+echo hello from login
+echo "COMMAND: ${COMMAND[@]}"
+ulimit -c
+
 sudo -u "#${CI_BUILD_UID}" --preserve-env \
 ${CUDA_ENV} \
 PATH=${PATH} \

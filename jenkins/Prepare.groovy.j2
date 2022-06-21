@@ -80,6 +80,14 @@ def docker_init(image) {
       label: 'Pull docker image',
     )
   }
+
+  sh(
+    script: '''
+    set -eux
+    mkdir -p .crashes
+    ''',
+    label: 'Make coredumps directory',
+  )
 }
 
 def should_skip_slow_tests(pr_number) {
@@ -141,6 +149,12 @@ def prepare() {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/prepare") {
         init_git()
+        docker_init(ci_cpu)
+        // sh (
+        //   script: "${docker_run} ${ci_cpu} ./tests/scripts/test_crash.sh",
+        //   label: 'Build docs',
+        // )
+        // sh "exit 1"
         {% for image in images %}
         {{ image.name }} = params.{{ image.name }}_param ?: {{ image.name }}
         {% endfor %}

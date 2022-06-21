@@ -353,7 +353,11 @@ fi
 
 # Expose external directories to the docker container
 for MOUNT_DIR in ${MOUNT_DIRS[@]+"${MOUNT_DIRS[@]}"}; do
-    DOCKER_MOUNT+=( --volume "${MOUNT_DIR}:${MOUNT_DIR}" )
+    if [[ $MOUNT_DIR == *":"* ]]; then
+        DOCKER_MOUNT+=( --volume "${MOUNT_DIR}" )
+    else
+        DOCKER_MOUNT+=( --volume "${MOUNT_DIR}:${MOUNT_DIR}" )
+    fi
 done
 
 # Use nvidia-docker for GPU container.  If nvidia-docker is not
@@ -452,14 +456,17 @@ echo Running \'${COMMAND[@]+"${COMMAND[@]}"}\' inside ${DOCKER_IMAGE_NAME}...
 
 
 DOCKER_CMD=(${DOCKER_BINARY} run
+            #--ulimit core=99999999:99999999
             ${DOCKER_FLAGS[@]+"${DOCKER_FLAGS[@]}"}
             ${DOCKER_ENV[@]+"${DOCKER_ENV[@]}"}
             ${DOCKER_MOUNT[@]+"${DOCKER_MOUNT[@]}"}
             ${DOCKER_DEVICES[@]+"${DOCKER_DEVICES[@]}"}
             "${DOCKER_IMAGE_NAME}"
-            bash --login /docker/with_the_same_user
+            # bash --login /docker/with_the_same_user
             ${COMMAND[@]+"${COMMAND[@]}"}
            )
+
+echo ${DOCKER_CMD[@]+"${DOCKER_CMD[@]}"}
 
 if ${DRY_RUN}; then
     echo ${DOCKER_CMD[@]+"${DOCKER_CMD[@]}"}

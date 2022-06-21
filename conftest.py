@@ -89,6 +89,16 @@ def pytest_collection_modifyitems(config, items):
 
     print(f"Marking tests for shard {shard_index} of {num_shards}")
     for item in items:
+        if "test_crash" in item.nodeid:
+            pass
+        else:
+            item.add_marker(
+                pytest.mark.skip(
+                    reason=f"testing only",
+                )
+            )
+        continue
+
         item_shard_index = find_shard_index(item.nodeid, num_shards=num_shards)
         item.add_marker(
             pytest.mark.skipif(

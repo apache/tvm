@@ -163,6 +163,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 Var::Var(Id vid, Type type_annotation, Span span) {
+  int* abc = nullptr;
+  std::cout << *abc << "\n";
   ObjectPtr<VarNode> n = make_object<VarNode>();
   n->vid = std::move(vid);
   n->type_annotation = std::move(type_annotation);

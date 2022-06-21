@@ -23,6 +23,7 @@ import textwrap
 import pytest
 import tvm.testing
 from pathlib import Path
+from tvm import relay
 
 from test_utils import REPO_ROOT
 
@@ -875,6 +876,10 @@ def test_should_rebuild_docker(tmpdir_factory, changed_files, name, check, expec
 
     assert_in(check, proc.stdout)
     assert proc.returncode == expected_code
+
+
+def test_crash():
+    a = relay.Var("a")
 
 
 if __name__ == "__main__":

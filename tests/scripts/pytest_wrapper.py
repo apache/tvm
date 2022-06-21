@@ -30,6 +30,8 @@ from cmd_utils import init_log
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
+COREDUMP_DIR = Path("/var/crash")
+
 
 def lstrip(s: str, prefix: str) -> str:
     if s.startswith(prefix):
@@ -93,6 +95,10 @@ def make_issue_url(failed_node_ids: List[str]) -> str:
     return "https://github.com/apache/tvm/issues/new?" + urllib.parse.urlencode(params)
 
 
+def symbolicate(path: Path) -> str:
+    return "ok!"
+
+
 def show_failure_help(failed_suites: List[str]) -> None:
     failed_node_ids = failed_test_ids()
 
@@ -115,8 +121,13 @@ def show_failure_help(failed_suites: List[str]) -> None:
         "These pytest suites failed to execute. The results can be found in the "
         "Jenkins 'Tests' tab or by scrolling up through the raw logs here. "
         "If there is no test listed below, the failure likely came from a segmentation "
-        "fault which you can find in the logs above.\n"
-    )
+        "fault which you can find in the logs above and associate with the core dumps below.\n"
+
+    coredumps = list(COREDUMP_DIR.glob("*"))
+    if len(coredumps) > 0:
+        print("=============================== CORE DUMPS ================================"
+        for coredump in coredumps:
+            print(symbolicate(coredump))
     if failed_suites is not None and len(failed_suites) > 0:
         print("\n".join([f"    - {suite}" for suite in failed_suites]))
         print("")

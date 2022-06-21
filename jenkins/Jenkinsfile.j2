@@ -77,7 +77,7 @@ properties([
 upstream_revision = null
 
 // command to start a docker container
-docker_run = 'docker/bash.sh --env CI --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM'
+docker_run = 'docker/bash.sh --mount $(pwd)/.crashes:/var/crash --mount $(pwd)/limits.conf:/etc/security/limits.conf --env CI --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM'
 docker_build = 'docker/build.sh'
 // timeout in minutes
 max_time = 180
@@ -122,7 +122,7 @@ if (rebuild_docker_images) {
   build_docker_images()
 }
 
-lint()
+// lint()
 
 build()
 

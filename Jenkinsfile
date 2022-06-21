@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-06-17T13:38:47.940292
+// Generated at 2022-06-21T12:03:18.769807
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -80,7 +80,7 @@ properties([
 upstream_revision = null
 
 // command to start a docker container
-docker_run = 'docker/bash.sh --env CI --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM'
+docker_run = 'docker/bash.sh --mount $(pwd)/.crashes:/var/crash --mount $(pwd)/limits.conf:/etc/security/limits.conf --env CI --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM'
 docker_build = 'docker/build.sh'
 // timeout in minutes
 max_time = 180
@@ -183,6 +183,14 @@ def docker_init(image) {
       label: 'Pull docker image',
     )
   }
+
+  sh(
+    script: '''
+    set -eux
+    mkdir -p .crashes
+    ''',
+    label: 'Make coredumps directory',
+  )
 }
 
 def should_skip_slow_tests(pr_number) {
@@ -244,6 +252,12 @@ def prepare() {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/prepare") {
         init_git()
+        docker_init(ci_cpu)
+        // sh (
+        //   script: "${docker_run} ${ci_cpu} ./tests/scripts/test_crash.sh",
+        //   label: 'Build docs',
+        // )
+        // sh "exit 1"
         ci_arm = params.ci_arm_param ?: ci_arm
         ci_cpu = params.ci_cpu_param ?: ci_cpu
         ci_gpu = params.ci_gpu_param ?: ci_gpu
@@ -3425,7 +3439,7 @@ if (rebuild_docker_images) {
   build_docker_images()
 }
 
-lint()
+// lint()
 
 build()
 
