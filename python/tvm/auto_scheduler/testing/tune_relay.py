@@ -19,6 +19,7 @@ import argparse
 import json
 import os
 
+from distutils.util import strtobool
 import numpy as np  # type: ignore
 import tvm
 from tvm import auto_scheduler
@@ -94,8 +95,9 @@ def _parse_args():
     )
     args.add_argument(
         "--cpu-flush",
-        type=int,
+        type=lambda x: bool(strtobool(x)),
         required=True,
+        help="example: `True / False",
     )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
