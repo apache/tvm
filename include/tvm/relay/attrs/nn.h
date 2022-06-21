@@ -377,9 +377,9 @@ struct Conv3DTransposeAttrs : public tvm::AttrsNode<Conv3DTransposeAttrs> {
   Array<IndexExpr> output_padding;
   Array<IndexExpr> dilation;
   int groups;
-  std::string data_layout;
-  std::string kernel_layout;
-  std::string out_layout;
+  tvm::String data_layout;
+  tvm::String kernel_layout;
+  tvm::String out_layout;
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Conv3DTransposeAttrs, "relay.attrs.Conv3DTransposeAttrs") {
@@ -891,10 +891,9 @@ struct MaxPool1DAttrs : public tvm::AttrsNode<MaxPool1DAttrs> {
         .set_default(Array<IndexExpr>({0}))
         .describe(
             "If padding is non-zero, then the input is implicitly zero-padded"
-            "Padding support both symmetric and asymmetric as"
-            "one int : same padding used on all sides"
-            "three int : back, bottom, right will use same padding as front, top, left"
-            "six int : padding width in the order of (front, top, left, back, bottom, right)");
+            "Padding supports both symmetric and asymmetric as"
+            "one int : same padding used on each side"
+            "two int : indicates left padding, right padding");
     TVM_ATTR_FIELD(layout).set_default("NCW").describe(
         "Dimension ordering of input data. Can be 'NCW', 'NWC', etc."
         "'N', 'C', 'W' stands for batch, channel, and width"
@@ -933,10 +932,9 @@ struct AvgPool1DAttrs : public tvm::AttrsNode<AvgPool1DAttrs> {
         .set_default(Array<IndexExpr>({0}))
         .describe(
             "If padding is non-zero, then the input is implicitly zero-padded"
-            "Padding support both symmetric and asymmetric as"
-            "one int : same padding used on all sides"
-            "three int : back, bottom, right will use same padding as front, top, left"
-            "six int : padding width in the order of (front, top, left, back, bottom, right)");
+            "Padding supports both symmetric and asymmetric as"
+            "one int : same padding used on each side"
+            "two int : indicates left padding, right padding");
     TVM_ATTR_FIELD(layout).set_default("NCW").describe(
         "Dimension ordering of input data. Can be 'NCW', 'NHC', etc."
         "'N', 'C', 'W' stands for batch, channel, and width"

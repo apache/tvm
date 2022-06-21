@@ -20,7 +20,7 @@
 source "$(dirname $0)/dev_common.sh"
 
 SCRIPT_NAME="$0"
-DEFAULT_STEPS=( file_type asf cpplint clang_format pylint python_format jnilint cppdocs mypy )
+DEFAULT_STEPS=( file_type asf clang_format cpplint python_format pylint jnilint cppdocs mypy )
 
 inplace_fix=0
 
@@ -43,12 +43,12 @@ function run_lint_step() {
             ;;
         clang_format)
             if [ $inplace_fix -eq 0 ]; then
-                cmd=( tests/lint/clang_format.sh )
+                cmd=( tests/lint/git-clang-format.sh )
             else
                 # NOTE: need to run git status to update some docker-side cache. Otherwise,
                 # git-clang-format will fail with "The following files would be modified but have
                 # unstaged changes:"
-                cmd=( bash -c 'git status &>/dev/null && tests/lint/git-clang-format.sh -i origin/main' )
+                cmd=( bash -c 'git status &>/dev/null && tests/lint/git-clang-format.sh -i --rev origin/main' )
             fi
             ;;
         cpplint)
@@ -62,9 +62,9 @@ function run_lint_step() {
             ;;
         python_format)
             if [ $inplace_fix -eq 0 ]; then
-                cmd=( tests/lint/python_format.sh )
+                cmd=( tests/lint/git-black.sh )
             else
-                cmd=( tests/lint/git-black.sh -i origin/main )
+                cmd=( tests/lint/git-black.sh -i --rev origin/main )
             fi
             ;;
         jnilint)

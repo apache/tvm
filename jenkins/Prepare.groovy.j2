@@ -6,11 +6,7 @@ def per_exec_ws(folder) {
 def init_git() {
   checkout scm
 
-  // Clear out all Docker images that aren't going to be used
-  sh(
-    script: "docker image ls --all --format {% raw %}'{{.Repository}}:{{.Tag}}  {{.ID}}'{% endraw %} | { grep -vE '{% for image in images %}{% raw %}${{% endraw %}{{ image.name }}{% raw %}}{% endraw %}{% if not loop.last %}|{% endif %}{% endfor %}' || test \$? = 1; } | { xargs docker rmi || test \$? = 123; }",
-    label: 'Clean old Docker images',
-  )
+
   // Add more info about job node
   sh (
     script: './tests/scripts/task_show_node_info.sh',
@@ -34,10 +30,55 @@ def init_git() {
     label: 'Merge to origin/main'
   )
 
-  retry(5) {
-    timeout(time: 2, unit: 'MINUTES') {
-      sh (script: 'git submodule update --init -f', label: 'Update git submodules')
-    }
+  sh(
+    script: '''
+      set -eux
+      n=0
+      max_retries=3
+      backoff_max=30
+      until [ "$n" -ge $max_retries ]
+      do
+          timeout 5m git submodule update --init -f --jobs 0 && break
+          n=$((n+1))
+          if [ "$n" -eq $max_retries ]; then
+              echo "failed to update $n / $max_retries, giving up"
+              exit 1
+          fi
+
+          WAIT=$((RANDOM % "$backoff_max"))
+          echo "failed to update $n / $max_retries, waiting $WAIT to try again"
+          sleep $WAIT
+      done
+    ''',
+    label: 'Update git submodules',
+  )
+}
+
+def docker_init(image) {
+  // Clear out all Docker images that aren't going to be used
+  sh(
+    script: """
+    set -eux
+    docker image ls --all
+    IMAGES=\$(docker image ls --all --format {% raw %}'{{.Repository}}:{{.Tag}}  {{.ID}}'{% endraw %})
+
+    echo -e "Found images:\\n\$IMAGES"
+    echo "\$IMAGES" | { grep -vE '${image}' || test \$? = 1; } | { xargs docker rmi || test \$? = 123; }
+
+    docker image ls --all
+    """,
+    label: 'Clean old Docker images',
+  )
+
+  if (image.contains("amazonaws.com")) {
+    // If this string is in the image name it's from ECR and needs to be pulled
+    // with the right credentials
+    ecr_pull(image)
+  } else {
+    sh(
+      script: "docker pull ${image}",
+      label: 'Pull docker image',
+    )
   }
 }
 

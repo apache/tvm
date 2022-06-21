@@ -22,7 +22,7 @@ set -o pipefail
 
 # The https:// source added below required an apt https transport
 # support.
-apt-get update && apt-get install -y apt-transport-https
+apt-get update && apt-install-and-clear -y apt-transport-https
 
 # Install the necessary dependencies for sbt
 echo "deb https://repo.scala-sbt.org/scalasbt/debian all main" | sudo tee /etc/apt/sources.list.d/sbt.list
@@ -31,4 +31,4 @@ apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 2EE0EA64E40A89B84B2
 
 # Note: The settings in vta/hardware/chisel/project/build.properties
 # file determines required sbt version.
-apt-get update && apt-get install -y sbt=1.1.1
+apt-get update && apt-install-and-clear -y sbt=1.1.1

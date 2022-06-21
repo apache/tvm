@@ -949,3 +949,19 @@ def schedule_correlation_nchw(outs):
         The computation schedule for the op.
     """
     return _default_schedule(outs, False)
+
+
+def schedule_lstm(outs):
+    """Schedule for LSTM
+
+    Parameters
+    ----------
+    outs : Array of Tensor
+        The outputs of LSTM (hidden states and cell states).
+
+    Returns
+    -------
+    sch: Schedule
+        The default schedule for LSTM.
+    """
+    return _default_schedule(outs, False)

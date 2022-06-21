@@ -196,7 +196,7 @@ def _type_check_vtable() -> Dict[str, Callable]:
             error_msg = _type_check(v, name, type_)
             if error_msg is None:
                 return None
-        return _type_check_err(v, name, types)
+        return _type_check_err(v, name, Union[types])
 
     return {
         "none": _type_check_none,

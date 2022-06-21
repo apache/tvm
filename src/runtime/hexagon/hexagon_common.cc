@@ -32,17 +32,13 @@
 #include <vector>
 
 #include "../library_module.h"
-#include "hexagon_buffer.h"
-
-#if defined(__hexagon__)
 #include "HAP_perf.h"
-#endif
+#include "hexagon_buffer.h"
 
 namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-#if defined(__hexagon__)
 class HexagonTimerNode : public TimerNode {
  public:
   virtual void Start() { start = HAP_perf_get_time_us(); }
@@ -62,7 +58,6 @@ TVM_REGISTER_OBJECT_TYPE(HexagonTimerNode);
 TVM_REGISTER_GLOBAL("profiling.timer.hexagon").set_body_typed([](Device dev) {
   return Timer(make_object<HexagonTimerNode>());
 });
-#endif
 }  // namespace hexagon
 
 namespace {

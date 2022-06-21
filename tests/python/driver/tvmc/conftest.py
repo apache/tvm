@@ -160,7 +160,7 @@ def paddle_resnet50(tmpdir_factory):
     model_url = "paddle_resnet50.tar"
     model_file = download_and_untar(
         "{}/{}".format(base_url, model_url),
-        "paddle_resnet50/model",
+        "paddle_resnet50/model.pdmodel",
         temp_dir=tmpdir_factory.mktemp("data"),
     )
     return model_file

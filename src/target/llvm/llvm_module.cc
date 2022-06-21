@@ -56,7 +56,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     }
   }
 
-  const char* type_key() const { return "llvm"; }
+  const char* type_key() const final { return "llvm"; }
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "__tvm_is_system_module") {
@@ -355,6 +355,12 @@ class LLVMModuleNode final : public runtime::ModuleNode {
                  << "line " << err.getLineNo() << ":" << msg;
     }
     Init(std::move(module), ctx);
+  }
+
+  bool IsDSOExportable() const final { return true; }
+
+  bool ImplementsFunction(const String& name, bool query_imports) final {
+    return std::find(function_names_.begin(), function_names_.end(), name) != function_names_.end();
   }
 
  private:

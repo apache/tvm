@@ -16,9 +16,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
-set -x  # NOTE(areusch): Adding to diagnose flaky timeouts
+set -euxo pipefail
+
 
 source tests/scripts/setup-pytest-env.sh
 
@@ -28,6 +27,7 @@ make cython3
 run_pytest ctypes python-microtvm-zephyr-qemu_x86 tests/micro/zephyr --zephyr-board=qemu_x86
 run_pytest ctypes python-microtvm-zephyr-qemu_riscv32 tests/micro/zephyr --zephyr-board=qemu_riscv32
 run_pytest ctypes python-microtvm-zephyr-qemu_riscv64 tests/micro/zephyr --zephyr-board=qemu_riscv64
+run_pytest ctypes python-microtvm-zephyr-mps2_an521 tests/micro/zephyr --zephyr-board=mps2_an521
 
 # Arduino
 run_pytest ctypes python-microtvm-arduino apps/microtvm/arduino/template_project/tests

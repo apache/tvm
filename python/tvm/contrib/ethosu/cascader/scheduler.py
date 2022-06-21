@@ -31,6 +31,7 @@ from .parts import EthosuPart
 from .tensor_config import MemoryRegion
 from .proposal import Proposal
 from .proposal_generator import generate_proposals
+from .plan_generator import get_copy_cycles_hint
 from .graph import create_cascader_graph
 from .device_config import EthosuDeviceConfig
 from .logging import Logging
@@ -134,7 +135,11 @@ def apply_proposal(proposal: Proposal, sch: te.Schedule) -> None:
             if isinstance(part, EthosuPart):
                 tensor_config = plan.tensor_configs[part.output_tensor]
                 stripe_config = tensor_config.stripe_configs[0]
+                buffer_mode = tensor_config.buffer_mode
                 block_config = part.get_block_config(stripe_config)
+                compute_cycles = part.get_performance_info(
+                    stripe_config, buffer_mode
+                ).compute_cycles
                 iv = part.subgraph.output_tensor.op.axis[0]
                 block_shape = block_config.output_shape
                 if len(block_shape) == 4:
@@ -147,6 +152,10 @@ def apply_proposal(proposal: Proposal, sch: te.Schedule) -> None:
                 sch[part.subgraph.output_tensor].pragma(iv, "block_config_width", width)
                 sch[part.subgraph.output_tensor].pragma(iv, "block_config_depth", depth)
 
+                # Attach AttrStmt directly to npu op so it isn't removed by ReplaceOperators
+                npu_op = part.subgraph.output_tensor.op.input_tensors[0].op.input_tensors[0]
+                sch[npu_op].pragma(npu_op.op.axis[0], "compute_cycles_hint", compute_cycles)
+
         output_tensor_config = plan.output_config
         output_tensor = output_tensor_config.tensor
         output_part = output_tensor.producers[0]
@@ -156,6 +165,7 @@ def apply_proposal(proposal: Proposal, sch: te.Schedule) -> None:
         stripe_shape = [int(x) for x in stripe_config.shape]
         stripe_stage, stripe_axis = stripe_part(output_part, stripe_shape, sch)
         copy_te_tensors = []
+        compute_cycles_hints = []
         readers = defaultdict(list)
         for part in plan.part_group:
             if part != output_part:
@@ -167,8 +177,14 @@ def apply_proposal(proposal: Proposal, sch: te.Schedule) -> None:
                 if tensor_config.home_region != tensor_config.copy_region:
                     copy_te_tensors.append(part.subgraph.input_tensors[i])
 
-        for te_tensor in copy_te_tensors:
+                    compute_cycles_hint, _ = get_copy_cycles_hint(tensor_config)
+                    compute_cycles_hints.append(compute_cycles_hint)
+
+        for te_tensor, compute_cycles_hint in zip(copy_te_tensors, compute_cycles_hints):
             copy_stage = sch.cache_read(te_tensor, "global", readers[te_tensor])
+            sch[copy_stage].pragma(
+                copy_stage.op.axis[0], "compute_cycles_hint", compute_cycles_hint
+            )
             sch[copy_stage].compute_at(stripe_stage, stripe_axis)
 
 

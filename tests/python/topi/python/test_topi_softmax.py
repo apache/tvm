@@ -44,7 +44,7 @@ configs = {
     "softmax": {
         "topi": topi.nn.softmax,
         "ref": tvm.topi.testing.softmax_python,
-        "dimensions": [2, 4],
+        "dimensions": [1, 2, 4],
     },
     "log_softmax": {
         "topi": topi.nn.log_softmax,
@@ -52,7 +52,7 @@ configs = {
         "dimensions": [2],
     },
 }
-shapes = [(32, 10), (3, 4), (1, 16, 256, 256)]
+shapes = [(32, 10), (3, 4), (1, 16, 256, 256), (32,)]
 softmax_operation, shape = tvm.testing.parameters(
     *[
         (name, shape)
@@ -69,13 +69,19 @@ def ref_data(shape, dtype, softmax_operation):
 
     a_np = np.random.uniform(size=shape).astype(dtype)
 
-    if len(shape) == 2:
+    if len(shape) == 1:
+        a_np_2d = a_np[None, :]
+        b_np_2d = tvm.topi.testing.softmax_python(a_np_2d)
+        b_np = b_np_2d[0]
+    elif len(shape) == 2:
         b_np = ref_func(a_np)
     elif len(shape) == 4:
         _, c, h, w = a_np.shape
         a_np_2d = a_np.transpose(0, 2, 3, 1).reshape(h * w, c)
         b_np_2d = tvm.topi.testing.softmax_python(a_np_2d)
         b_np = b_np_2d.reshape(1, h, w, c).transpose(0, 3, 1, 2)
+    else:
+        raise NotImplementedError(f"{len(shape)}-D shape not supported")
 
     return a_np, b_np
 
@@ -89,7 +95,7 @@ def test_softmax(target, dev, shape, dtype, ref_data, softmax_operation):
     A = te.placeholder(shape, dtype=dtype, name="A")
 
     topi_op = configs[softmax_operation]["topi"]
-    B = topi_op(A, axis=1)
+    B = topi_op(A, axis=min(len(shape) - 1, 1))
 
     with tvm.target.Target(target):
         fschedule = tvm.topi.testing.dispatch(target, _softmax_schedule)

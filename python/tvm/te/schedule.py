@@ -25,7 +25,7 @@ from tvm._ffi.base import string_types
 
 from tvm.runtime import Object, convert
 from tvm.ir import container as _container
-from tvm.tir import IterVar, Buffer, Var
+from tvm.tir import IterVar, Buffer, Var, IndexMap
 
 from . import tensor as _tensor
 from . import _ffi_api
@@ -599,65 +599,12 @@ class Stage(Object):
 
         """
 
-        args = []
-        var_arg_name = None
-        kwargs = collections.OrderedDict()
-        default_index_dtype = "int32"
-
-        # Make a dummy variable for each explicitly named input index.
-        # We may have some keyword-only arguments, if the function has
-        # *args before the last argument.
-        params = inspect.signature(mapping_function).parameters
-        for name, param in params.items():
-            if param.kind in [
-                inspect.Parameter.POSITIONAL_ONLY,
-                inspect.Parameter.POSITIONAL_OR_KEYWORD,
-            ]:
-                args.append(tvm.tir.Var(name, default_index_dtype))
-
-            elif param.kind == inspect.Parameter.VAR_POSITIONAL:
-                var_arg_name = name
-
-            elif param.kind == inspect.Parameter.KEYWORD_ONLY:
-                kwargs[name] = tvm.tir.Var(name, default_index_dtype)
-
-            elif param.kind in [inspect.Parameter.VAR_KEYWORD]:
-                raise ValueError("transform_layout mapping may not have **kwargs")
-
         ndim = len(self.op.output(0).shape)
+        index_map, axis_separators = IndexMap.from_func_with_separators(mapping_function, ndim=ndim)
 
-        # Now that all the named arguments have been collected,
-        # everything that remains should go to the *args, if
-        # specified.
-        if var_arg_name is not None:
-            num_var_args = ndim - len(args) - len(kwargs)
-            for i in range(num_var_args):
-                args.append(tvm.tir.Var(f"{var_arg_name}[{i}]", default_index_dtype))
-
-        initial_indices = args + list(kwargs.values())
-        if len(initial_indices) != ndim:
-            raise ValueError(
-                f"transform_layout mapping accepts {len(params)} initial indices, "
-                f"but {self.op.name} is {len(self.op.shape)}-dimensional"
-            )
-
-        mapping = mapping_function(*args, **kwargs)
-
-        final_indices = []
-        axis_separators = []
-        for val in mapping:
-            if isinstance(val, tvm.ir.PrimExpr):
-                final_indices.append(val)
-            elif val is AXIS_SEPARATOR:
-                axis_separators.append(len(final_indices))
-            else:
-                raise TypeError(
-                    "Expected mapping function to return list of "
-                    "either tvm.ir.PrimExpr or tvm.te.AXIS_SEPARATOR.  "
-                    "Instead received {val} of type {type(val)}."
-                )
-
-        new_iter_vars = _ffi_api.StageTransformLayout(self, initial_indices, final_indices)
+        new_iter_vars = _ffi_api.StageTransformLayout(
+            self, index_map.initial_indices, index_map.final_indices
+        )
         _ffi_api.StageSetAxisSeparators(self, axis_separators)
 
         return new_iter_vars or None
@@ -700,9 +647,10 @@ class SpecializedCondition(Object):
 
 
 # Sentinel value used to indicate which groups of pre-flattening axes
-# should be used to post-flattening axes axes.  See
-# Stage.transform_layout for more details.
-AXIS_SEPARATOR = "axis_separator"
+# should be used to post-flattening axes axes.  Moved from
+# te.AXIS_SEPARATOR to tir.IndexMap.AXIS_SEPARATOR for general use,
+# maintained here for backwards compatibility.
+AXIS_SEPARATOR = IndexMap.AXIS_SEPARATOR
 
 
 tvm._ffi._init_api("schedule", __name__)

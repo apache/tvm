@@ -95,7 +95,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
    *
    * \return module type key.
    */
-  const char* type_key() const override { return "tensorrt"; }
+  const char* type_key() const final { return "tensorrt"; }
 
   /*!
    * \brief Initialize runtime. Create TensorRT layer from JSON
@@ -376,7 +376,8 @@ class TensorRTRuntime : public JSONRuntimeBase {
     helper.DeclareField("batch_size", &batch_size);
     helper.ReadAllFields(&reader);
     trt_engine_cache_[std::make_pair(symbol_name_, batch_size)] = engine_and_context;
-    LOG(INFO) << "finished saving engine and context ... ";
+    max_batch_size_ = batch_size;
+    LOG(INFO) << "finished loading engine and context ... ";
     return true;
   }
 

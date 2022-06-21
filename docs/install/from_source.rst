@@ -83,6 +83,14 @@ Homebrew to ensure the dependencies are correctly installed and configured:
     brew install llvm
     brew install python@3.8
 
+If you are on macOS with an M1 Processor you may need to use conda to manage dependencies while building. Specifically you may need, `Miniforge <https://github.com/conda-forge/miniforge>`_ to ensure that the dependencies obtained using pip are compatible with M1. 
+
+.. code:: bash
+
+    brew install miniforge
+    conda init
+    conda create --name tvm python=3.8
+    conda activate tvm
 
 We use cmake to build the library.
 The configuration of TVM can be modified by editing `config.cmake` and/or by passing cmake flags to the command line:
@@ -263,8 +271,6 @@ TVM package
 
 Depending on your development environment, you may want to use a virtual environment and package manager, such
 as ``virtualenv`` or ``conda``, to manage your python packages and dependencies.
-
-to install and maintain your python development environment.
 
 The python package is located at `tvm/python`
 There are two ways to install the package:

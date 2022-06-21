@@ -20,6 +20,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import tir
+from tvm.tir import IndexMap
 from tvm.script import tir as T
 from tvm.tir.schedule.testing import verify_trace_roundtrip
 
@@ -102,11 +103,19 @@ def element_wise_subregion_match_set_axis_separator(A: T.Buffer[(128, 128), "flo
 
 # pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
+use_sugared_transform = tvm.testing.parameter(
+    by_dict={"set_axis_separators": False, "transform_layout_sugared": True}
+)
 
-def test_set_axis_separator():
+def test_set_axis_separator(use_sugared_transform):
     func = element_wise
     s = tir.Schedule(func, debug_mask='all')
-    s.set_axis_separator(s.get_block("B"), 0, "write", [1])
+
+    if use_sugared_transform:
+        s.set_axis_separator(s.get_block("B"), ("write",0), [1])
+    else:
+        s.transform_layout(block='B', buffer='B', index_map=lambda i,j: [i,IndexMap.AXIS_SEPARATOR,j])
+
     tvm.ir.assert_structural_equal(element_wise_set_axis_separator, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=func)
 
@@ -114,24 +123,35 @@ def test_set_axis_separator():
 def test_set_scope_fail_on_index_out_of_bound():
     func = element_wise
     s = tir.Schedule(func, debug_mask='all')
-    with pytest.raises(tvm.tir.ScheduleError):
-        s.set_axis_separator(s.get_block("B"), 1, "write",[1])
-    with pytest.raises(tvm.tir.ScheduleError):
-        s.set_axis_separator(s.get_block("B"), -1, "read",[1])
+    with pytest.raises(AssertionError):
+        s.set_axis_separator(s.get_block("B"), ("write",1),[1])
+    with pytest.raises(AssertionError):
+        s.set_axis_separator(s.get_block("B"), ("read",-1),[1])
 
 
-def test_set_axis_separator_input_buffer():
+def test_set_axis_separator_input_buffer(use_sugared_transform):
     func = element_wise
     s = tir.Schedule(func, debug_mask='all')
-    s.set_axis_separator(s.get_block("B"), 0, "read", [1])
+
+    if use_sugared_transform:
+        s.transform_layout(block='B', buffer='A', index_map=lambda i,j: [i,IndexMap.AXIS_SEPARATOR,j])
+    else:
+        s.set_axis_separator(s.get_block("B"), ("read",0), [1])
+
+
     tvm.ir.assert_structural_equal(element_wise_set_axis_separator_input_buffer, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=func)
 
 
-def test_set_axis_separator_subregion():
+def test_set_axis_separator_subregion(use_sugared_transform):
     func = element_wise_subregion_match
     s = tir.Schedule(func, debug_mask='all')
-    s.set_axis_separator(s.get_block("B"), 0, "write", [1])
+
+    if use_sugared_transform:
+        s.transform_layout(block='B', buffer='B', index_map=lambda i,j: [i,IndexMap.AXIS_SEPARATOR,j])
+    else:
+        s.set_axis_separator(s.get_block("B"), ("write",0), [1])
+
     tvm.ir.assert_structural_equal(element_wise_subregion_match_set_axis_separator, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=func)
 

@@ -17,17 +17,14 @@
 """ This file contains test that use USMP + AoT using C runtime APIs"""
 
 from collections import OrderedDict
-import sys
 import re
 
 import numpy as np
 import pytest
 
 import tvm
-from tvm import relay, TVMError
-from tvm.ir.module import IRModule
-from tvm.relay import testing, transform
-from tvm.relay.testing import byoc
+from tvm import relay
+from tvm.relay import transform
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 from tvm.relay.backend import Executor, Runtime
 from tvm import WorkspaceMemoryPools, PoolInfo
@@ -47,7 +44,7 @@ from tvm.testing.usmp import is_tvm_backendallocworkspace_calls
 
 def _check_for_no_tvm_backendallocworkspace_calls(mod: tvm.runtime.module):
     assert (
-        is_tvm_backendallocworkspace_calls(mod) == False
+        is_tvm_backendallocworkspace_calls(mod) is False
     ), "This is failing because USMP was unable to plan for every tir.allocate node."
 
 
@@ -60,6 +57,7 @@ def _check_for_no_tvm_backendallocworkspace_calls(mod: tvm.runtime.module):
     ],
 )
 def test_memory_planning(workspace_byte_alignment, main_workspace_size):
+    """Checks calculated workspace against known values"""
     mod, params = tvm.relay.testing.synthetic.get_workload()
     target = "c"
     runtime = Runtime("crt")
@@ -141,33 +139,36 @@ def test_conv2d(interface_api, use_unpacked_api, test_runner, groups, weight_sha
 
 @pytest.mark.parametrize("merge_compiler_regions", [False, True])
 def test_byoc_microtvm(merge_compiler_regions):
-    """This is a simple test to check BYOC capabilities of AOT - with and without merging compiler regions to test for https://github.com/apache/tvm/issues/9036"""
+    """
+    This is a simple test to check BYOC capabilities of AOT
+    with and without merging compiler regions to test for https://github.com/apache/tvm/issues/9036
+    """
     use_unpacked_api = False
     interface_api = "packed"
     test_runner = AOTTestRunner(pass_config={"tir.usmp.enable": True})
 
-    x = relay.var("x", shape=(10, 10))
-    w0 = relay.var("w0", shape=(10, 10))
-    w1 = relay.var("w1", shape=(10, 10))
+    input_x = relay.var("x", shape=(10, 10))
+    input_w0 = relay.var("w0", shape=(10, 10))
+    input_w1 = relay.var("w1", shape=(10, 10))
 
     # z0 = x + w0
-    x_ = compiler_begin(x, "ccompiler")
-    w0_ = compiler_begin(w0, "ccompiler")
-    z0_ = relay.add(x_, w0_)
-    z0 = compiler_end(z0_, "ccompiler")
+    marked_input_x = compiler_begin(input_x, "ccompiler")
+    marked_input_w0 = compiler_begin(input_w0, "ccompiler")
+    add_x_and_w0 = relay.add(marked_input_x, marked_input_w0)
+    end_inner_add = compiler_end(add_x_and_w0, "ccompiler")
 
     # z1 = z0 + w1
-    z0__ = compiler_begin(z0, "ccompiler")
-    w1_ = compiler_begin(w1, "ccompiler")
-    z1_ = relay.add(z0__, w1_)
-    z1 = compiler_end(z1_, "ccompiler")
+    marked_inner_add = compiler_begin(end_inner_add, "ccompiler")
+    marked_w1 = compiler_begin(input_w1, "ccompiler")
+    add_nested_and_w1 = relay.add(marked_inner_add, marked_w1)
+    end_outer_add = compiler_end(add_nested_and_w1, "ccompiler")
 
     # z2 = z0 + z1
-    z2 = relay.add(z0, z1)
+    final_add = relay.add(end_inner_add, end_outer_add)
 
-    f = relay.Function([x, w0, w1], z2)
+    relay_func = relay.Function([input_x, input_w0, input_w1], final_add)
     mod = tvm.IRModule()
-    mod["main"] = f
+    mod["main"] = relay_func
 
     if merge_compiler_regions:
         mod = transform.MergeCompilerRegions()(mod)
@@ -199,11 +200,13 @@ def test_byoc_microtvm(merge_compiler_regions):
 
 
 MOBILENET_V1_URL = (
-    "https://storage.googleapis.com/download.tensorflow.org/models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz",
+    "https://storage.googleapis.com/download.tensorflow.org/models/"
+    + "mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz",
     "mobilenet_v1_1.0_224_quant.tflite",
 )
 MOBILENET_V2_URL = (
-    "https://storage.googleapis.com/download.tensorflow.org/models/tflite_11_05_08/mobilenet_v2_1.0_224_quant.tgz",
+    "https://storage.googleapis.com/download.tensorflow.org/models/"
+    + "tflite_11_05_08/mobilenet_v2_1.0_224_quant.tgz",
     "mobilenet_v2_1.0_224_quant.tflite",
 )
 
@@ -217,10 +220,13 @@ MOBILENET_V2_URL = (
     ],
 )
 def test_tflite_model_u1_usecase(model_url, usmp_algo, workspace_size):
-    """This checks for ML models and the memory used by them when using USMP with different algorithms"""
+    """
+    This checks for ML models and the memory used by them
+    when using USMP with different algorithms
+    """
     pytest.importorskip("tflite")
 
-    import tvm.relay.testing.tf as tf_testing
+    import tvm.relay.testing.tf as tf_testing  # pylint: disable=import-outside-toplevel
 
     use_unpacked_api = True
     interface_api = "c"
@@ -287,7 +293,7 @@ def test_tflite_model_u3_usecase_single_external_pool(model_url, usmp_algo):
     """This checks for inference with USMP using external pool placed in the application"""
     pytest.importorskip("tflite")
 
-    import tvm.relay.testing.tf as tf_testing
+    import tvm.relay.testing.tf as tf_testing  # pylint: disable=import-outside-toplevel
 
     use_unpacked_api = True
     interface_api = "c"
@@ -341,7 +347,7 @@ def test_tflite_model_u3_usecase_two_external_pools(model_url, usmp_algo):
     """This checks for inference using two external pools placed in the application"""
     pytest.importorskip("tflite")
 
-    import tvm.relay.testing.tf as tf_testing
+    import tvm.relay.testing.tf as tf_testing  # pylint: disable=import-outside-toplevel
 
     use_unpacked_api = True
     interface_api = "c"
@@ -397,11 +403,11 @@ def test_tflite_model_u3_usecase_two_external_pools(model_url, usmp_algo):
         ((MOBILENET_V1_URL, MOBILENET_V2_URL), "greedy_by_size"),
     ],
 )
-def test_tflite_model_u2_usecase_two_models_with_a_single_external_pool(model_urls, usmp_algo):
+def test_two_models_with_a_single_external_pool(model_urls, usmp_algo):
     """This checks for inference using a single large enough common pool"""
     pytest.importorskip("tflite")
 
-    import tvm.relay.testing.tf as tf_testing
+    import tvm.relay.testing.tf as tf_testing  # pylint: disable=import-outside-toplevel
 
     use_unpacked_api = True
     interface_api = "c"
@@ -469,7 +475,7 @@ def test_tflite_model_u4_usecase_single_external_pool(model_url, usmp_algo):
     """This checks for inference with USMP using external pool placed in the application"""
     pytest.importorskip("tflite")
 
-    import tvm.relay.testing.tf as tf_testing
+    import tvm.relay.testing.tf as tf_testing  # pylint: disable=import-outside-toplevel
 
     use_unpacked_api = True
     interface_api = "c"
@@ -538,7 +544,7 @@ def test_tflite_model_u4_usecase_two_external_pools(model_url, usmp_algo):
     """This checks for inference with USMP using external pool placed in the application"""
     pytest.importorskip("tflite")
 
-    import tvm.relay.testing.tf as tf_testing
+    import tvm.relay.testing.tf as tf_testing  # pylint: disable=import-outside-toplevel
 
     use_unpacked_api = True
     interface_api = "c"
@@ -604,7 +610,8 @@ def test_tflite_model_u4_usecase_two_external_pools(model_url, usmp_algo):
     )
 
 
-def test_u4_usecase_incompatible_interface_api_errors():
+def test_incompatible_interface_api_errors():
+    """Ensures an error is thrown if not using the C interface API"""
     mod, params = tvm.relay.testing.synthetic.get_workload()
     target = "c"
     runtime = Runtime("crt")

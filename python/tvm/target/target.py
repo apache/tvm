@@ -108,6 +108,12 @@ class Target(Object):
             When using a dictionary or json string to configure target, the possible values are
             same as target.
         """
+        if isinstance(target, str) and "-libs=mkldnn" in target:
+            target = target.replace("mkldnn", "dnnl")
+            warnings.warn(
+                "Legacy support of mkldnn is going to be deprecated. "
+                "Please use -libs=dnnl instead.",
+            )
         if isinstance(target, (dict, str)):
             target = convert(target)
         if isinstance(host, (dict, str)):
@@ -247,14 +253,15 @@ class Target(Object):
         Note that this method does not support heterogeneous compilation targets.
         """
         target = Target.canon_target(target)
-        target_host = Target.canon_target(target_host)
         if target is None:
             assert target_host is None, "Target host is not empty when target is empty."
-        if target_host is not None:
+            return target, target_host
+        if target.host is None and target_host is not None:
             warnings.warn(
                 "target_host parameter is going to be deprecated. "
                 "Please pass in tvm.target.Target(target, host=target_host) instead."
             )
+            target_host = Target.canon_target(target_host)
             target = target.with_host(target_host)
         if target is not None:
             # In case the target already had a host, extract it here.
@@ -293,15 +300,15 @@ class Target(Object):
         """
         # Convert target to Array<Target>, but not yet accounting for any host.
         raw_targets = Target.canon_multi_target(target)
-        assert raw_targets is not None
+        assert raw_targets is not None and len(raw_targets) > 0
         # Convert host to Target, if given.
-        target_host = Target.canon_target(target_host)
-        if target_host is not None:
+        if raw_targets[0].host is None and target_host is not None:
             warnings.warn(
                 "target_host parameter is going to be deprecated. "
                 "Please pass in tvm.target.Target(target, host=target_host) instead."
             )
             # Make sure the (canonical) host is captured in all the (canonical) targets.
+            target_host = Target.canon_target(target_host)
             raw_targets = convert([tgt.with_host(target_host) for tgt in raw_targets])
         return raw_targets
 
@@ -312,22 +319,22 @@ class Target(Object):
         Similarly, if given, target_host can be in any form recognized by
         Target.canon_target. The final target_map keys will capture the target_host in
         canonical form. Also returns the target_host in canonical form."""
-        if target_host is not None:
-            warnings.warn(
-                "target_host parameter is going to be deprecated. "
-                "Please pass in tvm.target.Target(target, host=target_host) instead."
-            )
-            target_host = Target.canon_target(target_host)
         new_target_map = {}
+        canonical_target_host = None
         for tgt, mod in target_map.items():
             tgt = Target.canon_target(tgt)
             assert tgt is not None
-            if target_host is not None:
-                tgt = tgt.with_host(target_host)
-            # In case the first target already has a host, extract it here.
-            target_host = tgt.host
+            if canonical_target_host is None:
+                if tgt.host is not None:
+                    canonical_target_host = tgt.host
+                elif target_host is not None:
+                    # No deprecation warning in this case since host may have been manufactured
+                    # behind the scenes in build_module.py build.
+                    canonical_target_host = Target.canon_target(target_host)
+            if tgt.host is None and canonical_target_host is not None:
+                tgt = tgt.with_host(canonical_target_host)
             new_target_map[tgt] = mod
-        return new_target_map, target_host
+        return new_target_map, canonical_target_host
 
     @staticmethod
     def target_or_current(target):
@@ -426,8 +433,10 @@ MICRO_SUPPORTED_MODELS = {
     "mps3_an547": ["-mcpu=cortex-m55"],
     "nrf52840": ["-mcpu=cortex-m4"],
     "nrf5340dk": ["-mcpu=cortex-m33"],
+    "rp2040": ["-mcpu=cortex-m0"],
     "sam3x8e": ["-mcpu=cortex-m3"],
     "stm32f746xx": ["-mcpu=cortex-m7", "-march=armv7e-m"],
+    "stm32h7xx": ["-mcpu=cortex-m7"],
     "stm32l4r5zi": ["-mcpu=cortex-m4"],
     "stm32f4xx": ["-mcpu=cortex-m4", "-march=armv7e-m"],
     "stm32u5xx": ["-mcpu=cortex-m33"],

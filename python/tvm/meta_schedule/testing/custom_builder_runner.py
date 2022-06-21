@@ -145,7 +145,7 @@ def run_module_via_rpc(
     rpc_config: "RPCConfig",
     lib: "Module",
     dev_type: str,
-    args: List["np.ndarray"],
+    args: Dict[str, "np.ndarray"],
     continuation: Callable,
 ):
     """Execute a tvm.runtime.Module on RPC remote"""
@@ -166,5 +166,7 @@ def run_module_via_rpc(
         _, filename = os.path.split(filename)
         rt_mod = session.load_module(filename)
         dev = session.device(dev_type=dev_type, dev_id=0)
-        args = [ndarray.array(arg, dev) for arg in args]
-        return continuation(rt_mod, dev, *args)
+        nd_args = {}
+        for arg_key, arg_value in args.items():
+            nd_args[arg_key] = ndarray.array(arg_value, dev)
+        return continuation(rt_mod, dev, nd_args)

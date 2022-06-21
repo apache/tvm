@@ -192,6 +192,270 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
   self->Replace(scope_sref, new_scope_block, block_sref_reuse);
 }
 
+/*!
+ * \brief Detect the block iter type assoicated with the expression
+ *
+ * This function collects block iters in the expression and check if the block iters have the same
+ * iter type. The detected iter type is the iter type of the block iters in the expression
+ * if they have the same iter type, otherwise the detected iter type will be kOpaque.
+ *
+ * \param expr The expression
+ * \param block_iter_type_map The mapping from block iter to iter type
+ * \return The detected block iter type
+ */
+IterVarType DetectNewBlockIterType(
+    const PrimExpr& expr,
+    const std::unordered_map<const VarNode*, IterVarType>& block_iter_type_map) {
+  IterVarType result{kOpaque};
+  bool found = false;
+  PostOrderVisit(expr, [&](const ObjectRef& obj) {
+    if (const VarNode* var = obj.as<VarNode>()) {
+      auto it = block_iter_type_map.find(var);
+      if (it != block_iter_type_map.end()) {
+        if (!found) {
+          found = true;
+          result = it->second;
+        } else if (result != it->second) {
+          result = kOpaque;
+          return false;
+        }
+      }
+    }
+    return true;
+  });
+  return result;
+}
+
+class NotBijectiveAffineIndexMapError : public ScheduleError {
+ public:
+  NotBijectiveAffineIndexMapError(IRModule mod, IndexMap index_map)
+      : mod_(std::move(mod)), index_map_(std::move(index_map)) {}
+  String FastErrorString() const final {
+    return "ScheduleError: The index map is not bijective affine.";
+  }
+
+  String DetailRenderTemplate() const final {
+    std::ostringstream os;
+    os << "The index map " << index_map_->ToPythonString() << " is not bijective affine.";
+    return os.str();
+  }
+
+  IRModule mod() const final { return mod_; }
+
+  Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+
+ private:
+  IRModule mod_;
+  IndexMap index_map_;
+};
+
+class IndexMapNotApplicableToBlockIterError : public ScheduleError {
+ public:
+  static void Check(const IRModule mod, const Block& block, const IndexMap& index_map) {
+    if (index_map->initial_indices.size() != block->iter_vars.size()) {
+      throw IndexMapNotApplicableToBlockIterError(mod, block, index_map);
+    }
+  }
+  explicit IndexMapNotApplicableToBlockIterError(IRModule mod, Block block, IndexMap index_map)
+      : mod_(std::move(mod)), block_(std::move(block)), index_map_(std::move(index_map)) {}
+
+  String FastErrorString() const final {
+    return "ScheduleError: The index map can't be applied to block iters because the number of "
+           "parameters mismatch.";
+  }
+
+  String DetailRenderTemplate() const final {
+    std::ostringstream os;
+    os << "The index map " << index_map_->ToPythonString()
+       << " can't be applied to block iters of {0} because the number of parameters mismatch. "
+          "Expected: "
+       << index_map_->initial_indices.size() << ", actual: " << block_->iter_vars.size();
+    return os.str();
+  }
+
+  IRModule mod() const final { return mod_; }
+
+  Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+
+ private:
+  IRModule mod_;
+  Block block_;
+  IndexMap index_map_;
+};
+
+class NotTrivialBindingError : public ScheduleError {
+ public:
+  explicit NotTrivialBindingError(IRModule mod, Block block)
+      : mod_(std::move(mod)), block_(std::move(block)) {}
+
+  static void CheckBlockHasTrivialBinding(const IRModule& mod, const BlockRealize& block_realize,
+                                          std::unordered_set<const VarNode*> outer_loop_vars) {
+    // Step 2: Check all the binding values are loops vars
+    for (const PrimExpr& iter_value : block_realize->iter_values) {
+      const VarNode* loop_var = iter_value.as<VarNode>();
+      if (!loop_var || !outer_loop_vars.count(loop_var)) {
+        throw NotTrivialBindingError(mod, block_realize->block);
+      }
+    }
+  }
+
+  String FastErrorString() const final {
+    return "ScheduleError: The binding values of the block are not variables of outer loops.";
+  }
+
+  String DetailRenderTemplate() const final {
+    std::ostringstream os;
+    os << "The binding values of the {0} are not variables of outer loops.";
+    return os.str();
+  }
+
+  IRModule mod() const final { return mod_; }
+  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+
+ private:
+  IRModule mod_;
+  Block block_;
+};
+
+class OpaqueNewIterTypeError : public ScheduleError {
+ public:
+  explicit OpaqueNewIterTypeError(IRModule mod, Block block, PrimExpr iter_value)
+      : mod_(std::move(mod)), block_(std::move(block)), iter_value_(std::move(iter_value)) {}
+
+  String FastErrorString() const final {
+    return "ScheduleError: Cannot detect the new block iter type because it contains more than one "
+           "type of original iter vars.";
+  }
+
+  String DetailRenderTemplate() const final {
+    std::ostringstream os;
+    os << "Cannot detect the block iter type for new iter value " << PrettyPrint(iter_value_)
+       << " in {0} because it contains more than one type of original iter vars.";
+    return os.str();
+  }
+
+  IRModule mod() const final { return mod_; }
+  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+
+ private:
+  IRModule mod_;
+  Block block_;
+  PrimExpr iter_value_;
+};
+
+void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
+                          const IndexMap& index_map) {
+  const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_ptr, block_sref);
+  const Block& block = GetRef<Block>(block_ptr);
+  arith::Analyzer analyzer;
+
+  // Step 1: Collect outer loops and loop vars
+  Array<StmtSRef> loops = GetLoops(block_sref);  // outer loops of the block
+  std::unordered_set<const VarNode*> loop_vars;  // loop vars of the outer loops
+  for (const StmtSRef& loop_sref : loops) {
+    CheckLoopStartsWithZero(self, loop_sref, &analyzer);
+    loop_vars.emplace(loop_sref->StmtAs<ForNode>()->loop_var.get());
+  }
+
+  // Step 2: Check the all outer loops have a single child and the block bindings are trivial (all
+  // binding values are loop vars)
+  StmtSRef scope_sref{nullptr};  // the scope statement for replacement
+  if (!loops.empty()) {
+    scope_sref = loops.front();
+    CheckGetSingleChildBlockRealizeOnSRefTree(self, loops.front());
+  } else {
+    scope_sref = block_sref;
+  }
+
+  BlockRealize block_realize = GetBlockRealize(self, block_sref);
+  NotTrivialBindingError::CheckBlockHasTrivialBinding(self->mod, block_realize, loop_vars);
+
+  // Step 3: Collect information of block iter vars
+  Array<PrimExpr> block_vars;      // iter_var->var of each block iter
+  Map<Var, Range> block_iter_dom;  // domain of block iter
+  std::unordered_map<const VarNode*, IterVarType> block_iter_type;  // iter type of block iter
+
+  Array<PrimExpr>
+      block_iter_range_array;  // array of block iter extents in the same order as block iters
+  for (const auto& iter_var : block->iter_vars) {
+    block_vars.push_back(iter_var->var);
+    block_iter_dom.Set(iter_var->var, iter_var->dom);
+    block_iter_type[iter_var->var.get()] = iter_var->iter_type;
+    ICHECK(is_zero(iter_var->dom->min));
+    block_iter_range_array.push_back(iter_var->dom->extent);
+  }
+
+  // Step 4: Apply the IndexMap to block iters.
+  IndexMapNotApplicableToBlockIterError::Check(self->mod, block, index_map);
+  Array<PrimExpr> transformed_block_iters = index_map->MapIndices(block_vars);
+  Array<PrimExpr> new_block_iter_range = index_map->MapShape(block_iter_range_array);
+
+  auto iter_map = arith::DetectIterMap(
+      /*indices=*/transformed_block_iters, /*input_iters=*/block_iter_dom, /*predicate=*/Bool(true),
+      /*check_level=*/arith::IterMapLevel::Bijective, &analyzer,
+      /*simplify_trivial_iterators=*/true);
+  if (iter_map->indices.empty()) {
+    throw NotBijectiveAffineIndexMapError(self->mod, index_map);
+  }
+
+  // Step 5: Create the new block after transformation.
+
+  // Step 5.1: Create new block iters. After applying the IndexMap f to block iters ax_0, ..., ax_n,
+  // create block iter each expression in f(ax_0, ..., ax_n).
+  Array<IterVar> new_block_iters;  // new block iters
+  Array<PrimExpr> new_block_vars;  // iter_var->var of new block iters
+  for (size_t i = 0; i < index_map->final_indices.size(); ++i) {
+    Var new_block_var{"v" + std::to_string(i), DataType::Int(32)};
+    new_block_vars.push_back(new_block_var);
+    IterVarType iter_type = DetectNewBlockIterType(transformed_block_iters[i], block_iter_type);
+    if (iter_type == kOpaque) {
+      throw OpaqueNewIterTypeError(self->mod, GetRef<Block>(block_ptr), transformed_block_iters[i]);
+    }
+    new_block_iters.push_back(IterVar(/*dom=*/Range::FromMinExtent(0, new_block_iter_range[i]),
+                                      /*var=*/std::move(new_block_var), /*iter_type=*/iter_type));
+  }
+
+  // Step 5.2: Update the block body. Use the inverse map f^{-1} to replace the original block iters
+  // in the body.
+
+  auto inverse_map = arith::InverseAffineIterMap(iter_map->indices, new_block_vars);
+  // Trivial block iters will be simplified in DetectIterMap, they should be mapped to constant
+  // zero.
+  for (const auto& iter_var : block_ptr->iter_vars) {
+    if (inverse_map.find(iter_var->var) == inverse_map.end()) {
+      ICHECK(is_one(iter_var->dom->extent));
+      inverse_map.Set(iter_var->var, 0);
+    }
+  }
+
+  Block new_block = Downcast<Block>(Substitute(GetRef<Block>(block_ptr), inverse_map));
+  new_block.CopyOnWrite()->iter_vars = new_block_iters;
+  new_block = Downcast<Block>(BlockBufferAccessSimplifier::Simplify(new_block, &analyzer));
+
+  // Step 5.3: Create outer loops for each new block iter.
+
+  // Make new loop vars
+  Array<PrimExpr> new_loop_vars;
+  for (int i = 0; i < static_cast<int>(new_block_iters.size()); ++i) {
+    new_loop_vars.push_back(Var("ax" + std::to_string(i), DataType::Int(32)));
+  }
+
+  // Make new block realize
+  BlockRealizeNode* new_block_realize = block_realize.CopyOnWrite();
+  new_block_realize->iter_values = new_loop_vars;
+  new_block_realize->block = new_block;
+
+  // Generate outer loops
+  Stmt body = GetRef<Stmt>(new_block_realize);
+  for (int i = static_cast<int>(new_loop_vars.size()) - 1; i >= 0; --i) {
+    body = For(Downcast<Var>(new_loop_vars[i]), 0, new_block_iter_range[i], ForKind::kSerial,
+               std::move(body));
+  }
+
+  // Step 6: Do the actual replacement
+  self->Replace(scope_sref, body, {{block, new_block}});
+}
+
 class BufferAxisSeparatorMutator : private ReplaceBufferMutator {
  public:
   static Block Mutate(const Block& scope_block, const Buffer& old_buffer, Buffer new_buffer,
@@ -270,6 +534,7 @@ void SetAxisSeparator(ScheduleState self, const StmtSRef& block_sref, int buffer
   // Step 4: Replace the scope block with the new block
   self->Replace(scope_sref, new_scope_block, block_sref_reuse);
 }
+
 /******** InstructionKind Registration ********/
 
 struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> {
@@ -291,11 +556,12 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
                                  Integer buffer_index_type, IndexMap index_map) {
     PythonAPICall py("transform_layout");
     py.Input("block", block_rv);
-    py.Input("buffer_index", buffer_index);
-    py.Input("buffer_index_type", '"' +
-                                      std::string(BufferIndexType2Str(
-                                          static_cast<BufferIndexType>(buffer_index_type->value))) +
-                                      '"');
+
+    std::ostringstream os;
+    os << "(\"" << BufferIndexType2Str(static_cast<BufferIndexType>(buffer_index_type->value))
+       << "\", " << buffer_index << ")";
+    py.Input("buffer", os.str());
+
     py.Input("index_map", index_map->ToPythonString());
     return py.Str();
   }
@@ -323,6 +589,45 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
   friend struct ::tvm::tir::UnpackedInstTraits;
 };
 
+struct TransformBlockLayoutTraits : public UnpackedInstTraits<TransformBlockLayoutTraits> {
+  static constexpr const char* kName = "TransformBlockLayout";
+  static constexpr bool kIsPure = false;
+
+ private:
+  static constexpr size_t kNumInputs = 1;
+  static constexpr size_t kNumAttrs = 1;
+  static constexpr size_t kNumDecisions = 0;
+
+  static void UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv, IndexMap index_map) {
+    return sch->TransformBlockLayout(block_rv, index_map);
+  }
+
+  static String UnpackedAsPython(Array<String> outputs, String block_rv, IndexMap index_map) {
+    PythonAPICall py("transform_block_layout");
+    py.Input("block", block_rv);
+    py.Input("index_map", index_map->ToPythonString());
+    return py.Str();
+  }
+
+ public:
+  static ObjectRef AttrsAsJSON(const Array<ObjectRef>& attrs) {
+    Array<ObjectRef> attrs_record;
+    attrs_record.reserve(kNumAttrs);
+    attrs_record.push_back(String(::tvm::SaveJSON(attrs[0])));
+    return std::move(attrs_record);
+  }
+
+  static Array<ObjectRef> AttrsFromJSON(const ObjectRef& attrs_record_) {
+    Array<ObjectRef> attrs_record = Downcast<Array<ObjectRef>>(attrs_record_);
+    Array<ObjectRef> attrs;
+    attrs.push_back(::tvm::LoadJSON(Downcast<String>(attrs_record[0])));
+    return attrs;
+  }
+
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
+};
+
 struct SetAxisSeparatorTraits : public UnpackedInstTraits<SetAxisSeparatorTraits> {
   static constexpr const char* kName = "SetAxisSeparator";
   static constexpr bool kIsPure = false;
@@ -343,11 +648,12 @@ struct SetAxisSeparatorTraits : public UnpackedInstTraits<SetAxisSeparatorTraits
                                  Integer buffer_index_type, Array<IntImm> axis_separators) {
     PythonAPICall py("set_axis_separator");
     py.Input("block", block_rv);
-    py.Input("buffer_index", buffer_index);
-    py.Input("buffer_index_type", '"' +
-                                      std::string(BufferIndexType2Str(
-                                          static_cast<BufferIndexType>(buffer_index_type->value))) +
-                                      '"');
+
+    std::ostringstream os;
+    os << "(\"" << BufferIndexType2Str(static_cast<BufferIndexType>(buffer_index_type->value))
+       << "\", " << buffer_index << ")";
+    py.Input("buffer", os.str());
+
     py.Input("axis_separators", axis_separators);
     return py.Str();
   }
@@ -357,6 +663,7 @@ struct SetAxisSeparatorTraits : public UnpackedInstTraits<SetAxisSeparatorTraits
 };
 
 TVM_REGISTER_INST_KIND_TRAITS(TransformLayoutTraits);
+TVM_REGISTER_INST_KIND_TRAITS(TransformBlockLayoutTraits);
 TVM_REGISTER_INST_KIND_TRAITS(SetAxisSeparatorTraits);
 
 }  // namespace tir

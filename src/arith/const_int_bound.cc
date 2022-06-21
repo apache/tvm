@@ -598,6 +598,9 @@ class ConstIntBoundAnalyzer::Impl
     if ((x < c).Match(cond)) {
       return {BoundInfo(x.Eval(), MakeBound(kNegInf, c.Eval()->value - 1))};
     }
+    if ((x == c).Match(cond) || (c == x).Match(cond)) {
+      return {BoundInfo(x.Eval(), MakeBound(c.Eval()->value, c.Eval()->value))};
+    }
     if ((x && y).Match(cond)) {
       auto ret1 = DetectBoundInfo(x.Eval());
       auto ret2 = DetectBoundInfo(y.Eval());

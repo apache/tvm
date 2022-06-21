@@ -65,7 +65,7 @@ class TVM_DLL GraphExecutorFactory : public runtime::ModuleNode {
   /*!
    * \return The type key of the executor.
    */
-  const char* type_key() const override { return "GraphExecutorFactory"; }
+  const char* type_key() const final { return "GraphExecutorFactory"; }
 
   /*!
    * \brief Save the module to binary stream.

@@ -168,9 +168,14 @@ class CopyComputeReorderingMutator : public StmtExprMutator {
   }
 
   tvm::runtime::Array<tvm::PrimExpr> get_stmt_args(const Stmt& stmt) {
-    auto eval_node{stmt.as<EvaluateNode>()};
+    Stmt eval_stmt = stmt;
+    if (const auto* attr_stmt = eval_stmt.as<AttrStmtNode>()) {
+      eval_stmt = attr_stmt->body;
+    }
+
+    auto eval_node{eval_stmt.as<EvaluateNode>()};
     ICHECK(eval_node) << "Expected statement to be an evaluate node, but was "
-                      << stmt->GetTypeKey();
+                      << eval_stmt->GetTypeKey();
     auto call_node{eval_node->value.as<CallNode>()};
     ICHECK(call_node) << "Expected expression to be a call node, but was "
                       << eval_node->value->GetTypeKey();

@@ -35,7 +35,7 @@ on a Relay/tir program where the dependencies between passes can be resolved by 
 pass infra. For more details about each type of these passes, please refer to
 the :ref:`pass-infra`
 
-This tutorial mainly demostrates how developers can use the pass infra to perform
+This tutorial mainly demonstrates how developers can use the pass infra to perform
 a certain optimization and create an optimization pipeline for a Relay program.
 The same approach can be used for tir as well.
 """
@@ -104,7 +104,7 @@ mod = relay.transform.EliminateCommonSubexpr()(mod)
 print(mod)
 
 ###############################################################################
-# Some optimizations, such as fusion, are parameteric as well. For example,
+# Some optimizations, such as fusion, are parametric as well. For example,
 # opt level 0 will not allow operators to be fused together. Users can pass the
 # `fuse_opt_level` to enable this.
 mod = relay.transform.FuseOps(fuse_opt_level=0)(mod)
@@ -127,7 +127,7 @@ print(mod)
 # these issues explicitly by specifying the required passes of each pass and
 # packing them as a whole to execute. For example, the same passes can now be
 # applied using the sequential style as the following. :py:class:`tvm.transform.Sequential` is
-# similiar to `torch.nn.sequential <https://pytorch.org/docs/stable/nn.html#torch.nn.Sequential>`_
+# similar to `torch.nn.sequential <https://pytorch.org/docs/stable/nn.html#torch.nn.Sequential>`_
 # and `mxnet.gluon.block <https://mxnet.apache.org/api/python/docs/_modules/mxnet/gluon/block.html>`_.
 # For example, `torch.nn.sequential` is used to contain a sequence of PyTorch
 # `Modules` that will be added to build a network. It focuses on the network
@@ -267,7 +267,7 @@ print("done")
 # -------
 # This tutorial has covered how we can write and invoke passes in TVM more
 # conveniently using the pass infra. Different ways of invoking a pass are also
-# disucssed. Using :py:class:`tvm.transform.Sequential` can largely help
+# discussed. Using :py:class:`tvm.transform.Sequential` can largely help
 # users to ease the work of handling multiple optimization passes and their
 # dependencies. In addition, an example is provided to illustrate
 # how we can debug a pass using the ``PrintIR`` and tracing.

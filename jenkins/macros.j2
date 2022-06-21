@@ -19,39 +19,56 @@
   "workspace/exec_${env.EXECUTOR_NUMBER}/{{ folder }}"
 {%- endmacro -%}
 
-{% macro sharded_test_step(name, num_shards, node, ws, platform) %}
+{% macro junit_to_s3() %}
+sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+{% endmacro %}
+
+{% macro sharded_test_step(name, num_shards, node, ws, docker_image, platform, test_method_names) %}
+
 {% for shard_index in range(1, num_shards + 1) %}
-  '{{ name }} {{ shard_index }} of {{ num_shards }}': {
-    if (!skip_ci && is_docs_only_build != 1) {
-      node('{{ node }}') {
-        ws({{ per_exec_ws(ws) }}) {
-          try {
-            init_git()
-            timeout(time: max_time, unit: 'MINUTES') {
-              withEnv([
-                'PLATFORM={{ platform }}',
-                'TVM_NUM_SHARDS={{ num_shards }}',
-                'TVM_SHARD_INDEX={{ shard_index - 1 }}'], {
-                {{ caller(shard_index, num_shards) | trim | indent(width=12) }}
-              })
-            }
-          } finally {
-            junit 'build/pytest-results/*.xml'
+{% set method_name = "shard_run_" + name.replace(":", "").replace(" ", "-").replace("-", "_") + "_" + shard_index|string + "_of_" + num_shards|string %}
+def {{ method_name }}() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('{{ node }}') {
+      ws({{ per_exec_ws(ws) }}) {
+        try {
+          docker_init({{ docker_image }})
+          init_git()
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM={{ platform }}',
+              'TVM_NUM_SHARDS={{ num_shards }}',
+              'TVM_SHARD_INDEX={{ shard_index - 1 }}'], {
+              {{ caller(shard_index, num_shards) | trim | indent(width=12) }}
+            })
           }
+        } finally {
+          {{ junit_to_s3() }}
+          junit 'build/pytest-results/*.xml'
         }
       }
-    } else {
-      Utils.markStageSkippedForConditional('{{ name }} {{ shard_index }} of {{ num_shards }}')
     }
-  },
+  } else {
+    Utils.markStageSkippedForConditional('{{ name }} {{ shard_index }} of {{ num_shards }}')
+  }
+}
+{% set _ = test_method_names.append((name + " " + shard_index|string + " of " + num_shards|string, method_name)) %}
+
 {% endfor %}
 {% endmacro %}
 
-{% macro sharded_lint_step(name, num_shards, node, ws) %}
+{% macro sharded_lint_step(name, num_shards, docker_image, node, ws) %}
 {% for shard_index in range(1, num_shards + 1) %}
   '{{ name }} {{ shard_index }} of {{ num_shards }}': {
     node('{{ node }}') {
       ws({{ per_exec_ws(ws) }}) {
+        docker_init({{ docker_image }})
         init_git()
         timeout(time: max_time, unit: 'MINUTES') {
           withEnv([
@@ -67,18 +84,20 @@
 {% endmacro %}
 
 
-{% macro test_step(name, node, ws, platform) %}
+{% macro test_step(name, node, ws, docker_image, platform) %}
   '{{ name }}': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('{{ node }}') {
         ws({{ per_exec_ws(ws) }}) {
           timeout(time: max_time, unit: 'MINUTES') {
             try {
+              docker_init({{ docker_image }})
               init_git()
               withEnv(['PLATFORM={{ platform }}'], {
                 {{ caller() | indent(width=12) | trim }}
               })
             } finally {
+              {{ junit_to_s3() | indent(width=4) }}
               junit 'build/pytest-results/*.xml'
             }
           }

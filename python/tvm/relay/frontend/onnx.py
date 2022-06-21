@@ -2195,6 +2195,19 @@ class Mean(OnnxOpConverter):
         return _op.mean(concat, axis=0, keepdims=False)
 
 
+class MeanVarianceNormalization(OnnxOpConverter):
+    """Operator converter for MeanVarianceNormalization."""
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        axis = attr.get("axes", (0, 2, 3))
+        data_mean = _op.mean(inputs[0], axis=axis, keepdims=True)
+        data_mean_squared = _op.power(data_mean, _expr.const(2, "float32"))
+        data_squared = _op.power(inputs[0], _expr.const(2, "float32"))
+        data_squared_mean = _op.mean(data_squared, axis=axis, keepdims=True)
+        return (inputs[0] - data_mean) / _op.sqrt(data_squared_mean - data_mean_squared)
+
+
 class HardSigmoid(OnnxOpConverter):
     """Operator converter for HardSigmoid."""
 
@@ -2254,6 +2267,32 @@ class Reduce(OnnxOpConverter):
                 return cls.run_calculation([inputs[0]], constant_axis, attr.get("keepdims", True))
 
             raise ValueError("Dynamic Reduce is not supported yet!")
+
+        return cls._impl_v1(inputs, attr, params)
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        if not infer_shape(inputs[0]):  # promote scalar to 1-D tensor
+            inputs[0] = _op.expand_dims(inputs[0], axis=0)
+
+        noop_with_empty_axes = attr.get("noop_with_empty_axes", 0)
+        num_axis = int(infer_type(inputs[1]).checked_type.shape[0]) if inputs[1] is not None else 0
+
+        if noop_with_empty_axes and num_axis == 0:
+            return inputs[0]
+
+        if len(inputs) == 2:
+            if isinstance(inputs[1], _expr.Constant):
+                # Get axis and unpack scalar
+                constant_axis = int(inputs[1].data.numpy()[0])
+                return cls.run_calculation([inputs[0]], constant_axis, attr.get("keepdims", True))
+
+            if num_axis > 0:
+                raise ValueError("Dynamic Reduce is not supported yet!")
+
+            axis_len = len(infer_shape(inputs[0]))
+            axis = list(range(axis_len))
+            return cls.run_calculation([inputs[0]], axis, attr.get("keepdims", True))
 
         return cls._impl_v1(inputs, attr, params)
 
@@ -2407,6 +2446,8 @@ class Softmax(OnnxOpConverter):
             axis += ndim
         if axis == 0:
             reshape_shape = [-1]
+        elif axis == ndim - 1:
+            return _op.nn.softmax(inputs[0], axis=axis)
         else:
             axis_val = [in_shape[i] for i in range(axis)]
             reshape_shape = [np.prod(axis_val)] + [-1]
@@ -5046,9 +5087,27 @@ class Momentum(OnnxOpConverter):
         return _expr.TupleWrapper(_expr.Tuple(result), len(result))
 
 
+class Round(OnnxOpConverter):
+    """Operator converter for round op."""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        # Onnx round uses Banker's rounding which rounds .5 to the nearest even integer
+
+        x = inputs[0]
+        dtype = infer_type(x).checked_type.dtype
+        half = _expr.const(0.5, dtype=dtype)
+        one = _expr.const(1, dtype=dtype)
+        two = _expr.const(2, dtype=dtype)
+
+        rounded = _op.ceil(x - half)
+        bankers_mask = one - (_op.ceil(x + half) - _op.floor(x + half))
+        non_even = _op.abs(_op.mod(rounded, two))
+        return rounded + (bankers_mask * non_even)
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
-
 
 # _convert_map defines maps of name to converter functor(callable)
 # for 1 to 1 mapping, use Renamer if nothing but name is different
@@ -5072,7 +5131,7 @@ def _get_convert_map(opset):
         # 'GRUUnit'
         # 'ATen'
         # 'ImageScaler'
-        # 'MeanVarianceNormalization'
+        "MeanVarianceNormalization": MeanVarianceNormalization.get_converter(opset),
         # 'Crop'
         # 'Embedding'
         "Upsample": Upsample.get_converter(opset),
@@ -5094,7 +5153,7 @@ def _get_convert_map(opset):
         "Reciprocal": Reciprocal.get_converter(opset),
         "Floor": Renamer("floor"),
         "Ceil": Renamer("ceil"),
-        "Round": Renamer("round"),
+        "Round": Round.get_converter(opset),
         "IsInf": IsInf.get_converter(opset),
         "IsNaN": Renamer("isnan"),
         "Sqrt": Renamer("sqrt"),

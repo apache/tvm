@@ -24,7 +24,7 @@ from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity
 from tvm.contrib import cblas
 from tvm.contrib import mkl
-from tvm.contrib import mkldnn
+from tvm.contrib import dnnl
 
 from .utils import get_simd_32bit_lanes
 from .. import generic, tag
@@ -424,15 +424,15 @@ def schedule_dense_mkl(_, outs):
     return generic.schedule_extern(outs)
 
 
-@autotvm.register_topi_compute("dense_mkldnn.x86")
-def dense_mkldnn(cfg, data, weight, bias=None, out_dtype=None):
-    """Compute dense using mkldnn. This is an alias of matmul_nt operator."""
-    return matmul_blas_common(cfg, data, weight, bias, out_dtype, False, True, mkldnn)
+@autotvm.register_topi_compute("dense_dnnl.x86")
+def dense_dnnl(cfg, data, weight, bias=None, out_dtype=None):
+    """Compute dense using dnnl. This is an alias of matmul_nt operator."""
+    return matmul_blas_common(cfg, data, weight, bias, out_dtype, False, True, dnnl)
 
 
-@autotvm.register_topi_schedule("dense_mkldnn.x86")
-def schedule_dense_mkldnn(_, outs):
-    """Create schedule for dense_mkldnn. This is an alias of matmul_nt operator."""
+@autotvm.register_topi_schedule("dense_dnnl.x86")
+def schedule_dense_dnnl(_, outs):
+    """Create schedule for dense_dnnl. This is an alias of matmul_nt operator."""
     return generic.schedule_extern(outs)
 
 
@@ -468,17 +468,17 @@ def schedule_matmul_mkl(_, outs):
     return generic.schedule_extern(outs)
 
 
-@autotvm.register_topi_compute("matmul_mkldnn.x86")
-def matmul_mkldnn(
+@autotvm.register_topi_compute("matmul_dnnl.x86")
+def matmul_dnnl(
     cfg, tensor_a, tensor_b, bias=None, out_dtype=None, transpose_a=False, transpose_b=False
 ):
-    """Compute matmul using mkldnn."""
+    """Compute matmul using dnnl."""
     return matmul_blas_common(
-        cfg, tensor_a, tensor_b, bias, out_dtype, transpose_a, transpose_b, mkldnn
+        cfg, tensor_a, tensor_b, bias, out_dtype, transpose_a, transpose_b, dnnl
     )
 
 
-@autotvm.register_topi_schedule("matmul_mkldnn.x86")
-def schedule_matmul_mkldnn(_, outs):
-    """Create schedule for matmul_mkldnn."""
+@autotvm.register_topi_schedule("matmul_dnnl.x86")
+def schedule_matmul_dnnl(_, outs):
+    """Create schedule for matmul_dnnl."""
     return generic.schedule_extern(outs)

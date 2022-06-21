@@ -1693,6 +1693,20 @@ def test_all_resize():
             align_corners=False,
             half_pixel_centers=False,
         )
+        _test_resize(
+            tf.image.resize_nearest_neighbor,
+            images_data_float32,
+            size_data,
+            align_corners=True,
+            half_pixel_centers=False,
+        )
+        _test_resize(
+            tf.image.resize_nearest_neighbor,
+            images_data_float32,
+            size_data,
+            align_corners=False,
+            half_pixel_centers=True,
+        )
 
 
 #######################################################################
@@ -1867,7 +1881,7 @@ def _unary_elewise_create_model(math_op, data, offset=0, int_quant_dtype=tf.int8
         model,
         export_dir,
         signatures=model.tf_function.get_concrete_function(
-            tf.TensorSpec(data.shape, tf.float32, name="input"),
+            tf.TensorSpec(data.shape, tf.float32, name="input")
         ),
     )
 
@@ -3759,8 +3773,7 @@ def test_forward_prelu():
         np.full((32, 3), 0.2, dtype="float32"),
     )
     _test_prelu(
-        np.random.uniform(-5, 5, size=(32, 3)).astype("float32"),
-        np.full((3), 0.2, dtype="float32"),
+        np.random.uniform(-5, 5, size=(32, 3)).astype("float32"), np.full((3), 0.2, dtype="float32")
     )
 
 
@@ -4694,6 +4707,36 @@ def test_forward_mobilenet_int16():
 
 
 #######################################################################
+# Unidirectional Sequence LSTM
+# ---------------------
+def test_forward_unidirectional_sequence_lstm():
+    """Test the UnidirectionalSequenceLSTM TFLite"""
+    if package_version.parse(tf.VERSION) >= package_version.parse("2.1.0"):
+        tflite_model_file = download_testdata(
+            "https://github.com/SebastianBoblestETAS/nn_models/blob/ce49c5de64889493161ca4194a20e0fd5eb707e6/lstm_1_in_3_out_2_ts_4.tflite?raw=true",
+            "lstm_1_in_3_out_2_ts_4.tflite",
+        )
+        with open(tflite_model_file, "rb") as f:
+            tflite_model_buf = f.read()
+
+        data = np.array(
+            [
+                [
+                    [0.5488135, 0.71518934, 0.60276335],
+                    [0.5448832, 0.4236548, 0.6458941],
+                    [0.4375872, 0.891773, 0.96366274],
+                    [0.3834415, 0.79172504, 0.5288949],
+                ]
+            ],
+            dtype="float32",
+        )
+
+        tflite_output = run_tflite_graph(tflite_model_buf, data)
+        tvm_output = run_tvm_graph(tflite_model_buf, data, "serving_default_input_1:0")
+        tvm.testing.assert_allclose(tflite_output, tvm_output)
+
+
+#######################################################################
 # Quantized SSD Mobilenet
 # -----------------------
 
@@ -4930,10 +4973,11 @@ if __name__ == "__main__":
     test_forward_leaky_relu()
     test_forward_relu_n1_to_1()
     test_forward_log_softmax()
-    test_forward_prelu()
     test_forward_fully_connected()
     test_forward_l2_normalization()
     test_forward_local_response_normalization()
+    test_forward_prelu()
+    test_forward_unidirectional_sequence_lstm()
 
     # Elemwise
     test_all_elemwise()

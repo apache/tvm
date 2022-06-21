@@ -34,7 +34,6 @@ from string import Template
 import re
 
 from packaging import version
-import serial.tools.list_ports
 
 from tvm.micro.project_api import server
 
@@ -215,14 +214,21 @@ class Handler(server.ProjectAPIHandler):
         with open(source_dir / "model.h", "r") as f:
             model_h_template = Template(f.read())
 
-        assert (
-            metadata["style"] == "full-model"
+        all_module_names = []
+        for name in metadata["modules"].keys():
+            all_module_names.append(name)
+
+        assert all(
+            metadata["modules"][mod_name]["style"] == "full-model" for mod_name in all_module_names
         ), "when generating AOT, expect only full-model Model Library Format"
 
-        template_values = {
-            "workspace_size_bytes": metadata["memory"]["functions"]["main"][0][
+        workspace_size_bytes = 0
+        for mod_name in all_module_names:
+            workspace_size_bytes += metadata["modules"][mod_name]["memory"]["functions"]["main"][0][
                 "workspace_size_bytes"
-            ],
+            ]
+        template_values = {
+            "workspace_size_bytes": workspace_size_bytes,
         }
 
         with open(source_dir / "model.h", "w") as f:
@@ -495,6 +501,9 @@ class Handler(server.ProjectAPIHandler):
                     raise e
 
     def open_transport(self, options):
+        import serial
+        import serial.tools.list_ports
+
         # Zephyr example doesn't throw an error in this case
         if self._serial is not None:
             return

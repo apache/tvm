@@ -21,13 +21,16 @@
  * \file random/mt_random_engine.cc
  * \brief mt19937 random engine
  */
+#include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/threading_backend.h>
 
 #include <algorithm>
 #include <ctime>
 #include <random>
+#include <thread>
 
 #include "../3rdparty/compiler-rt/builtin_fp16.h"
 
@@ -116,52 +119,112 @@ class RandomEngine {
   }
 
   void RandomFill(DLTensor* data) {
-    int64_t size = 1;
-    for (int i = 0; i < data->ndim; ++i) {
-      size *= data->shape[i];
-    }
-
     if (data->device.device_type == kDLCPU) {
-      FillData(data, size);
+      FillData(data);
     } else {
       runtime::NDArray local = runtime::NDArray::Empty(
           std::vector<int64_t>{data->shape, data->shape + data->ndim}, data->dtype, {kDLCPU, 0});
       DLTensor* tensor = const_cast<DLTensor*>(local.operator->());
-      FillData(tensor, size);
+      FillData(tensor);
+      runtime::NDArray::CopyFromTo(tensor, data);
+    }
+  }
+
+  void RandomFillForMeasure(DLTensor* data) {
+    if (data->device.device_type == kDLCPU) {
+      FillDataForMeasure(data);
+    } else {
+      runtime::NDArray local = runtime::NDArray::Empty(
+          std::vector<int64_t>{data->shape, data->shape + data->ndim}, data->dtype, {kDLCPU, 0});
+      DLTensor* tensor = const_cast<DLTensor*>(local.operator->());
+      FillDataForMeasure(tensor);
       runtime::NDArray::CopyFromTo(tensor, data);
     }
   }
 
  private:
-  void FillData(DLTensor* tensor, int64_t size) {
+  void FillDataImpl(void* data, int64_t st, int64_t ed, DLDataType dtype) {
     // Make the value be 1.0 - 10.0, not (0.0 - 1.0) so that we could satisfy
     // quantized dtype (uint8 / int8) data non-empty requirement
     std::uniform_real_distribution<> dist(1.0, 10.0);
     // Use float representation could make us work well on float / int type too.
-    if (tensor->dtype.bits == 1) {
-      std::generate_n(static_cast<bool*>(tensor->data), size, [&]() { return dist(rnd_engine_); });
-    } else if (tensor->dtype.bits == 4) {
+    if (dtype.bits == 1) {
+      std::generate_n(static_cast<bool*>(data) + st, ed - st, [&]() { return dist(rnd_engine_); });
+    } else if (dtype.bits == 4) {
       // For uint4/int4 we pack two values into a single byte.
       // Thus, to ensure both values are non-zero, we use a distribution of 17 - 30.
       std::uniform_real_distribution<> packed_dist(17.0, 30.0);
-      std::generate_n(reinterpret_cast<uint8_t*>(tensor->data), size,
+      std::generate_n(reinterpret_cast<uint8_t*>(data) + st, ed - st,
                       [&]() { return packed_dist(rnd_engine_); });
-    } else if (tensor->dtype.bits == 8) {
-      std::generate_n(static_cast<uint8_t*>(tensor->data), size,
+    } else if (dtype.bits == 8) {
+      std::generate_n(static_cast<uint8_t*>(data) + st, ed - st,
                       [&]() { return dist(rnd_engine_); });
-    } else if (tensor->dtype.bits == 16) {
-      std::generate_n(static_cast<uint16_t*>(tensor->data), size, [&]() {
+    } else if (dtype.bits == 16) {
+      std::generate_n(static_cast<uint16_t*>(data) + st, ed - st, [&]() {
         return __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(
             static_cast<float>(dist(rnd_engine_)));
       });
-    } else if (tensor->dtype.bits == 32) {
-      std::generate_n(static_cast<float*>(tensor->data), size, [&]() { return dist(rnd_engine_); });
-    } else if (tensor->dtype.bits == 64) {
-      std::generate_n(static_cast<double*>(tensor->data), size,
+    } else if (dtype.bits == 32) {
+      std::generate_n(static_cast<float*>(data) + st, ed - st, [&]() { return dist(rnd_engine_); });
+    } else if (dtype.bits == 64) {
+      std::generate_n(static_cast<double*>(data) + st, ed - st,
                       [&]() { return dist(rnd_engine_); });
     } else {
-      LOG(FATAL) << "Doesn't support dtype code " << tensor->dtype.code << " dtype bits "
-                 << tensor->dtype.bits;
+      LOG(FATAL) << "Doesn't support dtype code " << dtype.code << " dtype bits " << dtype.bits;
+    }
+  }
+
+  void FillData(DLTensor* tensor) {
+    int64_t size = 1;
+    for (int i = 0; i < tensor->ndim; ++i) {
+      size *= tensor->shape[i];
+    }
+    DLDataType dtype = tensor->dtype;
+    if (dtype.bits == 1 || dtype.bits == 4 || dtype.bits == 8 || dtype.bits == 16 ||
+        dtype.bits == 32 || dtype.bits == 64) {
+      FillDataImpl(tensor->data, 0, size, dtype);
+    } else {
+      LOG(FATAL) << "Doesn't support dtype code " << dtype.code << " dtype bits " << dtype.bits;
+    }
+  }
+
+  void FillDataForMeasure(DLTensor* tensor) {
+    struct ParallelTask {
+      static int RunTask(int task_id, TVMParallelGroupEnv* penv, void* cdata) {
+        ParallelTask* task = static_cast<ParallelTask*>(cdata);
+        task->Run(task_id);
+        return 0;
+      }
+
+      void Run(int i) {
+        int64_t chunk_size = size / num_threads;
+        int64_t st = i * chunk_size;
+        int64_t ed = std::min(st + chunk_size, size);
+        self->FillDataImpl(data, st, ed, dtype);
+      }
+
+      RandomEngine* self;
+      void* data;
+      int num_threads;
+      int64_t size;
+      DLDataType dtype;
+    };
+
+    ParallelTask task;
+    task.self = this;
+    task.data = tensor->data;
+    DLDataType dtype = task.dtype = tensor->dtype;
+    int64_t& size = task.size = 1;
+    for (int i = 0; i < tensor->ndim; ++i) {
+      size *= tensor->shape[i];
+    }
+    if (dtype.bits == 1 || dtype.bits == 4 || dtype.bits == 8 || dtype.bits == 16 ||
+        dtype.bits == 32 || dtype.bits == 64) {
+      int num_threads = task.num_threads = runtime::threading::MaxConcurrency();
+      int res = TVMBackendParallelLaunch(ParallelTask::RunTask, &task, num_threads);
+      ICHECK_EQ(res, 0) << "RandomFillForMeasure: TVMBackendParallelLaunch failed";
+    } else {
+      LOG(FATAL) << "Doesn't support dtype code " << dtype.code << " dtype bits " << dtype.bits;
     }
   }
 
