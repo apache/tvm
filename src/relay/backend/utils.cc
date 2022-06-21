@@ -219,17 +219,21 @@ ExecutorCodegenMetadata::ExecutorCodegenMetadata(
 
 TVM_REGISTER_NODE_TYPE(ExecutorCodegenMetadataNode);
 
-Array<Pass> GetPassPrefix(bool is_homogeneous, bool is_vm) {
+Array<Pass> GetPassPrefix(Target homogeneous_target, bool is_vm) {
   Array<Pass> pass_seqs;
   // TODO(mbs): Would be nice to get spans on all diagnostics, but since they arg forgotton
   // by most passes there's little utility in including this now. Plus we'd need to only do
   // this if there's no existing spans to work from.
   // pass_seqs.push_back(parser::AnnotateSpans());
   Array<runtime::String> entry_functions{"main"};
+  // Can be undefined in case of heterogeneous execution
+  bool is_homogeneous = homogeneous_target.defined();
   pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
   pass_seqs.push_back(transform::ToBasicBlockNormalForm());
   // Run all dialect legalization passes.
-  // pass_seqs.push_back(relay::qnn::transform::Legalize());
+  // Should be changed on kDLHexagon
+  if ((is_homogeneous && homogeneous_target->kind->device_type != kDLCPU) || !is_homogeneous)
+    pass_seqs.push_back(relay::qnn::transform::Legalize());
 
   // Legalize pass is restricted to homogeneous execution for now.
   if (is_homogeneous) {
