@@ -32,9 +32,9 @@ namespace tvm {
 namespace codegen {
 
 std::pair<std::unique_ptr<llvm::Module>, std::shared_ptr<llvm::LLVMContext>> CodeGenBlob(
-    const std::string& data, bool system_lib, const std::string& target_triple) {
+    const std::string& data, bool system_lib, const std::string& llvm_target_string) {
   InitializeLLVM();
-  Target target = Target("llvm -mtriple " + target_triple);
+  Target target(llvm_target_string);
   auto tm = GetLLVMTargetMachine(target);
   auto triple = tm->getTargetTriple();
   auto ctx = std::make_shared<llvm::LLVMContext>();

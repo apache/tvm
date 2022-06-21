@@ -42,7 +42,7 @@ namespace codegen {
  * \return LLVM module and LLVM context
  */
 std::pair<std::unique_ptr<llvm::Module>, std::shared_ptr<llvm::LLVMContext>> CodeGenBlob(
-    const std::string& data, bool system_lib, const std::string& target_triple);
+    const std::string& data, bool system_lib, const std::string& llvm_target_string);
 
 }  // namespace codegen
 }  // namespace tvm
