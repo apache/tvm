@@ -45,48 +45,44 @@ configs = {
         "topi": topi.nn.softmax,
         "ref": tvm.topi.testing.softmax_python,
         "dimensions": [1, 2, 4],
+        "axis": [0, 1, 2, 3],
     },
     "log_softmax": {
         "topi": topi.nn.log_softmax,
         "ref": tvm.topi.testing.log_softmax_python,
         "dimensions": [2],
+        "axis": [1],
     },
 }
 shapes = [(32, 10), (3, 4), (1, 16, 256, 256), (32,)]
-softmax_operation, shape = tvm.testing.parameters(
+softmax_operation, shape, axis = tvm.testing.parameters(
     *[
-        (name, shape)
+        (name, shape, axis)
         for name, config in configs.items()
         for shape in shapes
         if len(shape) in config["dimensions"]
+        for axis in range(len(shape))
+        if axis in config["axis"]
     ]
 )
 
 
 @tvm.testing.fixture(cache_return_value=True)
-def ref_data(shape, dtype, softmax_operation):
+def ref_data(shape, dtype, softmax_operation, axis):
     ref_func = configs[softmax_operation]["ref"]
 
     a_np = np.random.uniform(size=shape).astype(dtype)
-
-    if len(shape) == 1:
-        a_np_2d = a_np[None, :]
-        b_np_2d = tvm.topi.testing.softmax_python(a_np_2d)
-        b_np = b_np_2d[0]
-    elif len(shape) == 2:
-        b_np = ref_func(a_np)
-    elif len(shape) == 4:
-        _, c, h, w = a_np.shape
-        a_np_2d = a_np.transpose(0, 2, 3, 1).reshape(h * w, c)
-        b_np_2d = tvm.topi.testing.softmax_python(a_np_2d)
-        b_np = b_np_2d.reshape(1, h, w, c).transpose(0, 3, 1, 2)
-    else:
-        raise NotImplementedError(f"{len(shape)}-D shape not supported")
+    perm = list(range(a_np.ndim))
+    perm[-1], perm[axis] = perm[axis], perm[-1]
+    trans_shape = [a_np.shape[i] for i in perm]
+    a_np_2d = a_np.transpose(perm).reshape(-1, trans_shape[-1])
+    b_np_2d = ref_func(a_np_2d)
+    b_np = b_np_2d.reshape(*trans_shape).transpose(perm)
 
     return a_np, b_np
 
 
-def test_softmax(target, dev, shape, dtype, ref_data, softmax_operation):
+def test_softmax(target, dev, shape, dtype, ref_data, softmax_operation, axis):
     target = tvm.target.Target(target)
     if target.kind.name == "vulkan" and dtype == "float64":
         # https://www.khronos.org/registry/SPIR-V/specs/1.0/GLSL.std.450.html
@@ -95,7 +91,7 @@ def test_softmax(target, dev, shape, dtype, ref_data, softmax_operation):
     A = te.placeholder(shape, dtype=dtype, name="A")
 
     topi_op = configs[softmax_operation]["topi"]
-    B = topi_op(A, axis=min(len(shape) - 1, 1))
+    B = topi_op(A, axis=axis)
 
     with tvm.target.Target(target):
         fschedule = tvm.topi.testing.dispatch(target, _softmax_schedule)
