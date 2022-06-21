@@ -27,6 +27,7 @@ from tvm import auto_scheduler
 from tvm import meta_schedule as ms
 from tvm import relay
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
+from tvm.meta_schedule.testing.utils import generate_input_data
 from tvm.meta_schedule.utils import cpu_count
 from tvm.relay.frontend import from_onnx
 from tvm.support import describe
@@ -168,6 +169,9 @@ def main():
         print(f"  input_dtype: {item['dtype']}")
         shape_dict[item["name"]] = item["shape"]
     mod, params = from_onnx(onnx_model, shape_dict, freeze_params=True)
+    input_data = {}
+    for item in ARGS.input_shape:
+        input_data[item["name"]] = generate_input_data(item["shape"], item["dtype"])
     tasks, task_weights = auto_scheduler.extract_tasks(
         mod["main"],
         params,
@@ -201,15 +205,6 @@ def main():
                 params=params,
             )
     graph, rt_mod, params = lib.graph_json, lib.lib, lib.params
-    input_data = {}
-    for item in ARGS.input_shape:
-        input_name, input_shape, input_dtype = item["name"], item["shape"], item["dtype"]
-        if input_dtype.startswith("float"):
-            input_data[input_name] = np.random.uniform(size=input_shape).astype(input_dtype)
-        else:
-            input_data[input_name] = np.random.randint(
-                low=0, high=10000, size=input_shape, dtype=input_dtype
-            )
 
     def f_timer(rt_mod, dev, input_data):
         # pylint: disable=import-outside-toplevel

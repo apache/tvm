@@ -27,6 +27,7 @@ from tvm import meta_schedule as ms
 from tvm import relay
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.meta_schedule.testing.relay_workload import get_network
+from tvm.meta_schedule.testing.utils import generate_input_data
 from tvm.meta_schedule.utils import cpu_count
 from tvm.support import describe
 
@@ -165,6 +166,8 @@ def main():
     )
     input_info = {input_name: input_shape}
     input_data = {}
+    for item in ARGS.input_shape:
+        input_data[item["name"]] = generate_input_data(item["shape"], item["dtype"])
     for input_name, input_shape in input_info.items():
         print(f"  input_name: {input_name}")
         print(f"  input_shape: {input_shape}")
@@ -202,13 +205,6 @@ def main():
                 params=params,
             )
     graph, rt_mod, params = lib.graph_json, lib.lib, lib.params
-    for input_name, input_shape in input_info.items():
-        if input_dtype.startswith("float"):
-            input_data[input_name] = np.random.uniform(size=input_shape).astype(input_dtype)
-        else:
-            input_data[input_name] = np.random.randint(
-                low=0, high=10000, size=input_shape, dtype=input_dtype
-            )
 
     def f_timer(rt_mod, dev, input_data):
         # pylint: disable=import-outside-toplevel

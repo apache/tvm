@@ -15,7 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Testing utility functions in meta schedule"""
-from typing import Callable, Dict, Optional, Union
+from typing import Callable, Dict, Optional, Union, List
+import numpy as np  # type: ignore
 
 from tvm import meta_schedule as ms
 from tvm.ir import IRModule
@@ -77,3 +78,28 @@ def apply_fixed_schedules(
             database.commit_tuning_record(tune_rec)
 
     return database
+
+
+def generate_input_data(input_shape: List[int], input_dtype: str) -> np.ndarray:
+    """Generate input date with given shape and data type.
+
+    Parameters
+    ----------
+    input_shape : List[int]
+        The shape of the input data.
+    input_dtype : str
+        The data type of the input date.
+
+    Returns
+    -------
+    input_data : np.ndarray
+        The generated input data with given shape and data type in numpy ndarray.
+    """
+    if input_dtype.startswith("float"):
+        return np.random.uniform(size=input_shape).astype(input_dtype)
+    elif input_dtype in ["uint8", "int8"]:
+        return np.random.randint(low=0, high=127, size=input_shape, dtype=input_dtype)
+    elif input_dtype in ["int32", "int64"]:
+        return np.random.randint(low=0, high=10000, size=input_shape, dtype=input_dtype)
+    else:
+        raise ValueError("Unsupported input datatype!")
