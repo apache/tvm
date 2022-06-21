@@ -101,7 +101,7 @@ def generate_input_data(input_shape: List[int], input_dtype: str) -> np.ndarray:
     if input_dtype.startswith("float"):
         return np.random.uniform(size=input_shape).astype(input_dtype)
     elif input_dtype in ["uint8", "int8"]:
-        return np.random.randint(low=0, high=127, size=input_shape, dtype=input_dtype)
+        return np.random.randint(low=0, high=127, size=input_shape, dtype="int32")
     elif input_dtype in ["int32", "int64"]:
         return np.random.randint(low=0, high=10000, size=input_shape, dtype=input_dtype)
     else:
