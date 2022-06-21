@@ -22,7 +22,7 @@ Use Relay Visualizer to Visualize Relay
 
 Relay IR module can contain lots of operations. Although an individual
 operation is usually easy to understand, putting them together can cause
-a complicated, hard-to-read graph. Things can get even worse with optimiztion-passes
+a complicated, hard-to-read graph. Things can get even worse with optimization-passes
 coming into play.
 
 This utility visualizes an IR module as nodes and edges. It defines a set of interfaces including
@@ -89,7 +89,7 @@ viz.render()
 # -------------------------------------------
 # Sometimes we want to emphasize interested information, or parse things differently for a specific usage.
 # It is possible to provide customized parsers as long as it obeys the interface.
-# Here demostrate how to customize parsers for ``relay.var``.
+# Here demonstrate how to customize parsers for ``relay.var``.
 # We need to implement abstract interface :py:class:`tvm.contrib.relay_viz.interface.VizParser`.
 class YourAwesomeParser(VizParser):
     def __init__(self):
@@ -131,7 +131,7 @@ class AwesomeGraph(TermGraph):
         super().node(viz_node)
         # if it's AwesomeVar, duplicate it.
         if viz_node.type_name == "AwesomeVar":
-            duplicated_id = f"duplciated_{viz_node.identity}"
+            duplicated_id = f"duplicated_{viz_node.identity}"
             duplicated_type = "double AwesomeVar"
             super().node(VizNode(duplicated_id, duplicated_type, ""))
             # connect the duplicated var to the original one

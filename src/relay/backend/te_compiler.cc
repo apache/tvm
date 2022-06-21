@@ -17,6 +17,76 @@
  * under the License.
  */
 
+/*!
+ * \file relay/backend/te_compiler.cc
+ * \brief Manages the transition from Relay "Primitive" \p Functions to TIR \p PrimFuncs. Also
+ * handles invocation of external codegen.
+ *
+ * \p LowerTEPass handles the following (as a monolithic blob of code):
+ *
+ *  - Most importantly, any function with the "Primitive" attribute is first converted to TE by
+ *    \p LowerToTECompute (see te_compiler_cache.cc) using each operator's 'compute' function.
+ *    The TE is then 'scheduled' to TIR using the 'anchor' operator's 'schedule' function. Both
+ *    of those functions come from the \p OpStrategy returned by the Python
+ *    'relay.backend.lower_call' function (see te_compiler.py).
+ *    The TIR is packed as a \p PrimFunc and introduced as a new global function. Calls to the
+ *    original "Primitive" function are then rewritten to the form:
+ *    \code
+ *      call_lowered(@new_global, (... original args...), attributes)
+ *    \endcode
+ *
+ *  - The above "Primitive" function can appear:
+ *     - As a global function
+ *     - As a let-bound function
+ *     - As an inline function, ie the 'op' of calls.
+ *    In all three cases it is possible for the same "Primitive" function to be called multiple
+ *    times, and that sharing must be respected.
+ *
+ *  - "Primitive" functions must have a "global_symbol" attribute matching their desired or
+ *    existing global name. Care is taken to ensure GlobalVars with the same name are shared.
+ *
+ *  - It is possible for multiple structurally equal "Primitive" functions to appear in the same
+ *    \p IRModule. Only one implementation should be generated, and all calls should share that
+ *    implementation.
+ *
+ *  - When later converting to DPS (see memory_alloc.cc) we must handle functions who's result
+ *    tensor shapes depend at runtime on the input tensor shapes and/or data.
+ *     - That dependency is first described in TE form (see \p MakeShapeFunc in
+ *       te_compiler_cache.cc), then scheduled to yield a 'dynamic shape function' \p PrimFunc.
+ *       This relies on each operator's "FShapeFunc" and "TShapeDataDependent" attributes.
+ *       Since shapes are rank-1 tensors everything can be reflected back down into the regular
+ *       TE/TIR forms.
+ *     - Then the call_lowered attributes must record everything about the dynamic shape function
+ *       later needed by memory_alloc.cc. We call this 'cross linking' the call with the shape
+ *       function.
+ *
+ *  - Two external codegen mechanisms are supported, both triggered by "Primitive" functions which
+ *    also have a "Compiler" attribute bound to $compiler:
+ *     - Function-at-a-time (old style): The primitive function is passed to the function
+ *       registered as 'relay.ext.$compiler'. The function returns a runtime::Module which
+ *       should return true for \p ImplementsFunction for the function's global name. That
+ *       module is added to the IRModule's "external_mods" attributes.
+ *     - IRModule-at-a-item (new style): The \p RelayToTIRTargetHook sub-pass looks for
+ *       $compiler names which correspond to TargetKind names with a \p RelayToTIR attribute.
+ *       The \p Pass bound to that attribute is run, and each such 'custom' pass can do what
+ *       it likes, including replacing Functions with PrimFuncs, or adding new runtime::Modules
+ *       to the IRModule's "external_mods" attribute.
+ *
+ *  - Calls to functions added by external codegen are also rewritten to call_lowered form, and
+ *    may also require cross-linking to dynamic shape functions. However, since the functions
+ *    are/will be implemented by a runtime::Module all the Relay type information is no longer
+ *    available. So the Relay definitions for these "Primitive" "Compiler" functions are retained
+ *    in the \p IRModule, but marked with the "Extern" attribute to signal the function is now
+ *    just for carrying metadata.
+ *
+ *  - Some operators are handled specially:
+ *     - 'reshape', since it's a no-op on the underlying tensor buffer, and this is handled by
+ *       condition tests in many passes.
+ *     - 'debug', since it's intercepted differently depending on runtimes.
+ *
+ * TODO(mbs): This desperately deserves a refactor to separate all these concerns. See Relax.
+ */
+
 #include "./te_compiler.h"
 
 #include <tvm/driver/driver_api.h>
@@ -222,7 +292,7 @@ class TECompilerImpl : public TECompilerNode {
         } else {
           // It is valid for the external codegen function to return null:
           //  - Unit tests can use it.
-          //  - The true compilation may have already been handled by a RelayToTIR custom hook pass
+          //  - The true compilation may have already been handled by a RelayToTIR custom pass
           //    on the Target's kind. The original Relay functions will be left in place so
           //    that we can capture that their function names are now externally defined.
           VLOG(1) << "Note that no external runtime module was generated by external codegen '"
@@ -566,100 +636,128 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
         return itr->second;
       }
     } else if (const auto* function_node = expr.as<FunctionNode>()) {
-      if (!function_node->HasNonzeroAttr(attr::kPrimitive)) {
-        // Not marked as primitive by FuseOps.
+      if (function_node->HasNonzeroAttr(attr::kExtern)) {
+        // We have a regular call to an 'extern' function. The call itself needs to be rewritten
+        // to call_lowered form, and any required dynamic shape functions generated and
+        // cross-linked.
+        return GetRef<Function>(function_node);
+      } else if (function_node->HasNonzeroAttr(attr::kPrimitive)) {
+        if (const auto* call_node = function_node->body.as<CallNode>()) {
+          if (call_node->op == debug_op_) {
+            // Debug 'primitives' are not lowered.
+            return {};
+          }
+        }
+        // We have a regular call to a 'primitive' function (possibly with a 'Compiler' attribute).
+        // We need to lower and rewrite the call.
+        return GetRef<Function>(function_node);
+      } else {
+        // Not marked as primitive during partitioning or TVM fusion.
         return {};
       }
-      if (const auto* call_node = function_node->body.as<CallNode>()) {
-        if (call_node->op == debug_op_) {
-          // Debug 'primitives' are not lowered.
-          return {};
-        }
-      }
-      return GetRef<Function>(function_node);
     } else {
       return {};
     }
   }
 
   /*!
-   * \brief Lowers the primitive function \p func to TIR for ultimate execution
-   * on a device with configuration \p target. Returns the global var bound
-   * to the TIR implementation, and attributes to attach to the call to identify it as
-   * a TIR call.
+   * \brief Returns a 'call_lowered' call to \p prim_fn_var with \p args and \p span with all the
+   * required attributes filled in. Generally \p prim_fn_var will correspond to the lowered or
+   * externally codegen-ed form of \p original_function, where \p lowered_functions binds all
+   * the required lowered functions.
+   *
+   * The call's attributes will capture:
+   *  - Any attributes on the original_function.
+   *  - All the lowered functions.
+   *    TODO(mbs): Pretty sure that's no longer needed.
+   *  - Details needed to cross-link the call to it's dynamic shape function, if any.
    */
-  Expr MakeLoweredCall(Function func, Array<Expr> visited_args, Span span, Target target) {
-    CCacheKey key = CCacheKey(func, target);
-    CachedFunc cfunc = compiler_->Lower(key, module_name_);
-    ICHECK(cfunc.defined());
-
-    auto opt_compiler = func->GetAttr<String>(attr::kCompiler);
+  Expr MakeLoweredCall(const BaseFunc& original_function, const GlobalVar& prim_fn_var,
+                       Array<Expr> args, Span span, const Target& target,
+                       const Map<GlobalVar, BaseFunc>& lowered_functions) {
+    auto opt_compiler = original_function->GetAttr<String>(attr::kCompiler);
 
     // Add some metadata on top of the *original function* and invoke the callback so it can
     // be captured.
     // TODO(@areusch, @jroesch): this metadata is for AOT, this should be our interface for AOT
     Map<GlobalVar, tir::PrimFunc> prim_fns;
     Array<GlobalVar> all_prim_fn_vars;
-    for (const auto& kv : cfunc->funcs->functions) {
+    for (const auto& kv : lowered_functions) {
       if (opt_compiler) {
-        // We expect just the original func but with just the ExternalSymbol attribute signaling
-        // the function (will be) compiled externally.
+        // We expect the original function to have just the "Extern" attribute signaling the
+        // function (will be) compiled externally.
         ICHECK(kv.second.as<FunctionNode>())
             << PrettyPrint(kv.first) << " must be bound to an (external) Function";
       } else {
-        // We expect one or more PrimFuncs, one of which corresponds to 'the' lowered primitive
-        // (and the rest in support of that via tir::Calls).
+        // We expect one or more PrimFuncs, one of which corresponds to 'the' lowered primitive,
+        // and the rest are in support of that via tir::Calls.
         ICHECK(kv.second.as<tir::PrimFuncNode>())
             << PrettyPrint(kv.first) << " must be bound to a PrimFunc";
         prim_fns.Set(kv.first, Downcast<tir::PrimFunc>(kv.second));
         all_prim_fn_vars.push_back(kv.first);
       }
     }
-    Function func_with_metadata = func;
-    func_with_metadata = WithAttr(func_with_metadata, "prim_fn_var", cfunc->prim_fn_var);
-    func_with_metadata = WithAttr(func_with_metadata, "prim_funcs", prim_fns);
-    func_with_metadata = WithAttr(func_with_metadata, tvm::attr::kTarget, cfunc->target);
-    this->process_fn_(func_with_metadata);
 
+    // Alas, WithAttr cannot work with base classes.
+    if (const auto* prim_func_node = original_function.as<te::PrimFuncNode>()) {
+      auto func_with_metadata = GetRef<te::PrimFunc>(prim_func_node);
+      func_with_metadata = WithAttr(func_with_metadata, "prim_fn_var", prim_fn_var);
+      func_with_metadata = WithAttr(func_with_metadata, "prim_funcs", prim_fns);
+      func_with_metadata = WithAttr(func_with_metadata, tvm::attr::kTarget, target);
+      this->process_fn_(func_with_metadata);
+    } else {
+      const auto* function_node = original_function.as<FunctionNode>();
+      ICHECK(function_node);
+      auto func_with_metadata = GetRef<Function>(function_node);
+      func_with_metadata = WithAttr(func_with_metadata, "prim_fn_var", prim_fn_var);
+      func_with_metadata = WithAttr(func_with_metadata, "prim_funcs", prim_fns);
+      func_with_metadata = WithAttr(func_with_metadata, tvm::attr::kTarget, target);
+      this->process_fn_(func_with_metadata);
+    }
+
+    // Now prepare the attributes of the call_lowered.
     CallLoweredAttrs call_lowered_attrs;
 
-    // Non-External Relay Function
     // TODO(mbs): "reshape" cleanup.
-    if (!opt_compiler && func->HasNonzeroAttr(attr::kReshapeOnly)) {
+    if (!opt_compiler && original_function->HasNonzeroAttr(attr::kReshapeOnly)) {
       call_lowered_attrs.metadata.Set(attr::kReshapeOnly, tvm::Integer(1));
     }
 
-    call_lowered_attrs.metadata.Set("relay_attrs", func->attrs);
+    call_lowered_attrs.metadata.Set("relay_attrs", original_function->attrs);
     call_lowered_attrs.metadata.Set("all_prim_fn_vars", all_prim_fn_vars);
 
-    if (IsDynamic(func->ret_type)) {
-      // Also lower the companion dynamic shape function.
-      // Shape function keys use the underlying primitive function as their 'function',
-      // but the generic 'cpu' target as the target since all shape functions run
-      // on the host cpu irrespective of where the primitive runs.
-      CCacheKey shape_key(func, config_->host_virtual_device->target);
-      CachedFunc lowered_shape_func = compiler_->LowerShapeFunc(shape_key);
+    if (const auto* function_node = original_function.as<FunctionNode>()) {
+      if (IsDynamic(function_node->ret_type)) {
+        // Create a dynamic shape function to calculate the expected shape of the results of
+        // the lowered function.
+        // Shape function keys use the original function as their 'function', but the generic 'cpu'
+        // target as the target since all shape functions run on the host cpu irrespective of where
+        // the primitive runs.
+        CCacheKey shape_key(GetRef<Function>(function_node), config_->host_virtual_device->target);
+        CachedFunc lowered_shape_func = compiler_->LowerShapeFunc(shape_key);
 
-      // Capture the shape function's global var and parameters 'states' in call
-      // annotations so calling convention can be recovered.
-      // TODO(mbs): Shape cleanup.
-      call_lowered_attrs.metadata.Set("prim_shape_fn_var", lowered_shape_func->prim_fn_var);
-      call_lowered_attrs.metadata.Set("prim_shape_fn_states",
-                                      lowered_shape_func->shape_func_param_states);
-      call_lowered_attrs.metadata.Set("prim_shape_fn_num_inputs",
-                                      Integer(static_cast<int>(lowered_shape_func->inputs.size())));
-      call_lowered_attrs.metadata.Set(
-          "prim_shape_fn_num_outputs",
-          Integer(static_cast<int>(lowered_shape_func->outputs.size())));
-      Array<GlobalVar> all_prim_shape_fn_vars;
-      for (const auto& kv : lowered_shape_func->funcs->functions) {
-        CHECK(kv.second.as<tir::PrimFuncNode>()) << "must be a prim fn";
-        all_prim_shape_fn_vars.push_back(kv.first);
+        // Capture the shape function's global var and parameters 'states' in call
+        // annotations so calling convention can be recovered.
+        // TODO(mbs): Shape cleanup.
+        call_lowered_attrs.metadata.Set("prim_shape_fn_var", lowered_shape_func->prim_fn_var);
+        call_lowered_attrs.metadata.Set("prim_shape_fn_states",
+                                        lowered_shape_func->shape_func_param_states);
+        call_lowered_attrs.metadata.Set(
+            "prim_shape_fn_num_inputs",
+            Integer(static_cast<int>(lowered_shape_func->inputs.size())));
+        call_lowered_attrs.metadata.Set(
+            "prim_shape_fn_num_outputs",
+            Integer(static_cast<int>(lowered_shape_func->outputs.size())));
+        Array<GlobalVar> all_prim_shape_fn_vars;
+        for (const auto& kv : lowered_shape_func->funcs->functions) {
+          CHECK(kv.second.as<tir::PrimFuncNode>()) << "must be a prim fn";
+          all_prim_shape_fn_vars.push_back(kv.first);
+        }
+        call_lowered_attrs.metadata.Set("all_prim_shape_fn_vars", all_prim_shape_fn_vars);
       }
-      call_lowered_attrs.metadata.Set("all_prim_shape_fn_vars", all_prim_shape_fn_vars);
     }
 
-    return CallLowered(cfunc->prim_fn_var, std::move(visited_args), std::move(call_lowered_attrs),
+    return CallLowered(prim_fn_var, std::move(args), std::move(call_lowered_attrs),
                        std::move(span));
   }
 
@@ -697,43 +795,51 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
   }
 
   Expr DeviceAwareVisitExpr_(const CallNode* call_node) override {
-    // We can see five forms of calls:
-    //  1. A 'normal' Relay call to a Function with the "primitive" attribute. We will need
-    //     to lower that to a global PrimFunc and rewrite the call to:
+    // We can see six forms of calls:
+    //  1. A 'normal' Relay call to a Function with the "Primitive" attribute and not "Compiler"
+    //     attribute. We will need to lower that to a global PrimFunc and rewrite the call to:
     //       call_lowered(@new_global, (arg1, ..., argn), <attributes>)
-    //     However there are a few special forms which are excluded from this treatment, see
-    //     below.
-    //  2. A 'normal' Relay call to a Function with the "compiler" attribute. We will need
-    //     to invoke the appropriate BYOC toolchain function to yield a runtime module and
-    //     rewrite the call to the same form as above.
-    //  3. A 'normal' Relay call to a PrimFunc which has already been supplied via a global
-    //     definition. We rewrite to use the call_lowered form, but otherwise nothing else
+    //     If needed, the call needs to be cross-linked with any dynamic shape functions.
+    //     (However, some primitives are special and handled separately.)
+    //  2. A 'normal' Relay call to a Function with the "Primitive" and "Compiler" attributes. We
+    //     will need to invoke the "relay.ext.<compiler>" function to yield a runtime module, and
+    //     rewrite the call to the same form as above. Dynamic shape function cross-linking may
+    //     also be needed.
+    //  3. A 'normal' Relay call to a Function with the "Extern" attribute. This function has
+    //     already been compiled by an external codegen and a definition for it exists in some
+    //     runtime module. Again, we rewrite to call_lowered form, and cross-link with a dynamic
+    //     shape function if needed.
+    //  4. A 'normal' Relay call to a PrimFunc which has already been supplied via a global
+    //     definition. We rewrite those to use the call_lowered form, but otherwise nothing else
     //     needs to be done.
-    //  4. A 'normal' Relay call to a Relay Function without any special attribute. These
+    //  5. A 'call_lowered' call from an earlier invocation of this pass or otherwise deliberately
+    //     inserted. It has all the required attributes, and any associated dynamic shape function
+    //     has been generated and cross-linked. These calls are not changed.
+    //  6. A 'normal' Relay call to a Relay Function without any special attribute. These
     //     calls are not changed.
-    //  5. A call_lowered call from an earlier invocation of this pass.
-    // Note that ResolveToPrimitive will yield non-null only for cases 1-3.
+    //
+    // Note that ResolveToPrimitive will yield non-null only for cases 1-4.
 
-    // Look for (possibly indirect) calls to primitives.
-    BaseFunc primitive_func = ResolveToPrimitive(call_node->op);
-    if (!primitive_func.defined()) {
-      // Not a call to a primitive function we need to rewrite.
-      if (const auto* function_node = call_node->op.as<FunctionNode>()) {
-        process_fn_(GetRef<Function>(function_node));
-      }
-      return DeviceAwareExprMutator::DeviceAwareVisitExpr_(call_node);
-    }
-
-    // Prepare the arguments.
+    // Prepare the arguments and op.
     Array<Expr> new_args;
     for (const auto& arg : call_node->args) {
       new_args.push_back(VisitExpr(arg));
     }
+    Expr new_op = VisitExpr(call_node->op);
 
-    // Special case: device_copies are left as calls to primitive operators
-    // (thus undoing FuseOps) so that each backend can handle them directly.
-    // TODO(mbs): device_copy cleanup. Would be better for FuseOps to just leave device_copy
-    // alone.
+    // Look for (possibly indirect) calls to primitives.
+    BaseFunc primitive_func = ResolveToPrimitive(call_node->op);
+    if (!primitive_func.defined()) {
+      // Cases 5 and 6: Leave as ordinary call.
+      if (const auto* function_node = call_node->op.as<FunctionNode>()) {
+        process_fn_(GetRef<Function>(function_node));
+      }
+      return WithFields(GetRef<Call>(call_node), std::move(new_op), std::move(new_args));
+    }
+
+    // Special case for case 1: device_copies are left as calls to primitive operators
+    // so that each backend can handle them directly.
+    // TODO(mbs): device_copy cleanup. Would be better for FuseOps to just leave device_copy alone.
     if (const auto* function_node = primitive_func.as<FunctionNode>()) {
       DeviceCopyProps device_copy_props = GetDeviceCopyProps(function_node->body);
       if (device_copy_props.body.defined()) {
@@ -743,33 +849,23 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
       }
     }
 
-    // Special case: If already lowered by other means then so we don't need to mutate
-    // the call but we do need to mutate the arguments
+    ICHECK(call_node->type_args.empty()) << "lowered functions cannot be polymorphic";
+
+    // Case 4: If the function has already been lowered we just need to update the call.
     if (const auto* prim_func_node = primitive_func.as<tir::PrimFuncNode>()) {
       // Function should already be Target annotated by this point
       // but the TE Compiler metadata is still needed for the callback
       // TODO(Mousius) - Robustify this to not assume we're in the GlobalVar for Target Hooks
-      GlobalVar prim_func_var = Downcast<GlobalVar>(call_node->op);
+      Optional<Target> opt_target = primitive_func->GetAttr<Target>(tvm::attr::kTarget);
+      ICHECK(opt_target.defined());
+      auto prim_fn_var = Downcast<GlobalVar>(call_node->op);
       tir::PrimFunc prim_func = GetRef<tir::PrimFunc>(prim_func_node);
-
-      Map<GlobalVar, tir::PrimFunc> prim_fns = {{prim_func_var, prim_func}};
-      tir::PrimFunc func_with_metadata = WithAttrs(prim_func, {
-                                                                  {"prim_fn_var", prim_func_var},
-                                                                  {"prim_funcs", prim_fns},
-                                                              });
-
-      ICHECK(!IsDynamic(call_node->checked_type()));
-      CallLoweredAttrs call_lowered_attrs;
-      call_lowered_attrs.metadata.Set("relay_attrs", primitive_func->attrs);
-
-      process_fn_(func_with_metadata);
-      ICHECK(call_node->type_args.empty()) << "lowered functions cannot be polymorphic";
-      return CallLowered(prim_func_var, std::move(new_args), std::move(call_lowered_attrs),
-                         call_node->span);
+      Map<GlobalVar, BaseFunc> prim_fns = {{prim_fn_var, prim_func}};
+      return MakeLoweredCall(primitive_func, prim_fn_var, std::move(new_args), call_node->span,
+                             opt_target.value(), prim_fns);
     }
 
-    // Typical case: call to fused primitive Relay Function.
-    // Find the desired target device.
+    // Determine the target for lowering or external codegen.
     Target target;
     Optional<String> opt_compiler = primitive_func->GetAttr<String>(attr::kCompiler);
     if (opt_compiler.defined()) {
@@ -791,10 +887,20 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
       ICHECK(target.defined());
     }
 
-    // Lower the primitive function for that target.
-    Function function = Downcast<Function>(primitive_func);
-    ICHECK(call_node->type_args.empty()) << "lowered functions cannot be polymorphic";
-    return MakeLoweredCall(function, std::move(new_args), call_node->span, target);
+    if (primitive_func->HasNonzeroAttr(attr::kExtern)) {
+      // Case 3: Function has already been compiled.
+      GlobalVar prim_fn_var = Downcast<GlobalVar>(call_node->op);
+      return MakeLoweredCall(primitive_func, prim_fn_var, std::move(new_args), call_node->span,
+                             target, /*lowered_functions=*/{});
+    } else {
+      // Cases 1 and 2: lower the primitive function for the desired target, possibly using external
+      // codegen.
+      CCacheKey key(Downcast<Function>(primitive_func), target);
+      CachedFunc cfunc = compiler_->Lower(key, module_name_);
+      ICHECK(cfunc.defined());
+      return MakeLoweredCall(primitive_func, cfunc->prim_fn_var, std::move(new_args),
+                             call_node->span, target, cfunc->funcs->functions);
+    }
   }
 
   IRModule module_;
@@ -1046,6 +1152,7 @@ void UpdateFunctionMetadata(BaseFunc func,
   function_metadata.Set(prim_fn_var.value()->name_hint, fi);
 }
 
+/*! \brief Main lowering driving. */
 IRModule LowerTE(const IRModule& module, const String& module_name, ProcessFn process_fn,
                  CompilationConfig config) {
   TECompiler compiler(module);
@@ -1163,7 +1270,7 @@ Map<Target, IRModule> GetPerTargetModules(IRModule mod) {
   return per_target_modules;
 }
 
-Pass LowerTEPass(String module_name, ProcessFn process_fn, CompilationConfig complilation_config) {
+Pass LowerTE(String module_name, CompilationConfig complilation_config, ProcessFn process_fn) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule module,
                                                                             PassContext ctx) {
     return LowerTE(module, module_name, process_fn, complilation_config);
@@ -1174,6 +1281,12 @@ Pass LowerTEPass(String module_name, ProcessFn process_fn, CompilationConfig com
        tvm::transform::CreateModulePass(pass_func, 0, "LowerTE", {"InferType"}), InferType(),
        tvm::tir::transform::ExtractPrimFuncConstants()});
 }
+
+TVM_REGISTER_GLOBAL("relay.tec.LowerTE")
+    .set_body_typed([](String module_name, CompilationConfig compilation_config) {
+      return LowerTE(std::move(module_name), std::move(compilation_config));
+    });
+
 }  // namespace tec
 }  // namespace relay
 }  // namespace tvm

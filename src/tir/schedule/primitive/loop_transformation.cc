@@ -77,18 +77,21 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
 /*! \brief Simplify the binding of block realize and update the opaque block reuse mapping */
 class IterMapSimplifyBlockBinding : public StmtExprMutator {
  public:
-  explicit IterMapSimplifyBlockBinding(MapNode* opaque_blocks, Map<Var, Range> loop_var2extent)
-      : opaque_blocks_(opaque_blocks), loop_var2extent_(loop_var2extent) {}
+  explicit IterMapSimplifyBlockBinding(MapNode* opaque_blocks, Map<Var, Range> loop_var2extent,
+                                       bool preserve_unit_iters)
+      : opaque_blocks_(opaque_blocks),
+        loop_var2extent_(loop_var2extent),
+        preserve_unit_iters_(preserve_unit_iters) {}
 
-  static For SimplifyBindings(Stmt stmt, const Array<StmtSRef>& loop_srefs,
-                              MapNode* opaque_blocks) {
+  static For SimplifyBindings(Stmt stmt, const Array<StmtSRef>& loop_srefs, MapNode* opaque_blocks,
+                              bool preserve_unit_iters) {
     Map<Var, Range> loop_var2extent;
     for (const StmtSRef& sref : loop_srefs) {
       const ForNode* loop = TVM_SREF_TO_FOR(loop, sref);
       loop_var2extent.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
     }
-    return Downcast<For>(
-        IterMapSimplifyBlockBinding(opaque_blocks, std::move(loop_var2extent))(std::move(stmt)));
+    return Downcast<For>(IterMapSimplifyBlockBinding(opaque_blocks, std::move(loop_var2extent),
+                                                     preserve_unit_iters)(std::move(stmt)));
   }
 
  private:
@@ -112,11 +115,12 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
       }
       return std::move(realize);
     }
-    Array<PrimExpr> v = arith::IterMapSimplify(/*indices=*/op->iter_values,
-                                               /*input_iters=*/loop_var2extent_,
-                                               /*input_pred=*/op->predicate,
-                                               /*check_level=*/arith::IterMapLevel::Surjective,
-                                               /*simplify_trivial_iterators=*/false);
+    Array<PrimExpr> v =
+        arith::IterMapSimplify(/*indices=*/op->iter_values,
+                               /*input_iters=*/loop_var2extent_,
+                               /*input_pred=*/op->predicate,
+                               /*check_level=*/arith::IterMapLevel::Surjective,
+                               /*simplify_trivial_iterators=*/!preserve_unit_iters_);
     if (v.same_as(op->iter_values)) {
       return GetRef<Stmt>(op);
     } else {
@@ -130,6 +134,8 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
   MapNode* opaque_blocks_;
   /*! \brief The range of loops */
   Map<Var, Range> loop_var2extent_;
+  /*! \brief Whether or not to simplify unit iterators */
+  bool preserve_unit_iters_;
 };
 
 class BlockPropertyError : public ScheduleError {
@@ -376,8 +382,8 @@ class DependentLoopError : public ScheduleError {
   PrimitiveKind kind_;
 };
 
-Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
-                      const Array<PrimExpr>& factors) {
+Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref, const Array<PrimExpr>& factors,
+                      bool preserve_unit_iters) {
   // Invariance
   // - The total repeat number has not changed for each direct child block with updating predicate.
   // - The execution order has not changed. (The block executes with the same args and the same
@@ -432,7 +438,8 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
     new_stmt = For(new_loop_vars[i], 0, factors[i], ForKind::kSerial, new_stmt);
   }
   new_stmt = IterMapSimplifyBlockBinding::SimplifyBindings(std::move(new_stmt), GetLoops(loop_sref),
-                                                           opaque_block_reuse.CopyOnWrite());
+                                                           opaque_block_reuse.CopyOnWrite(),
+                                                           preserve_unit_iters);
   self->Replace(loop_sref, new_stmt, opaque_block_reuse);
   Array<StmtSRef> result_srefs;
   result_srefs.reserve(n);
@@ -444,7 +451,7 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
   return result_srefs;
 }
 
-StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
+StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs, bool preserve_unit_iters) {
   // Invariance
   // - The total repeat number has not changed for each direct child block.
   // - The execution order has not changed. (The block executes with the same
@@ -527,7 +534,8 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
   fused_extent = analyzer.Simplify(fused_extent);
   new_stmt = For(fused_var, 0, fused_extent, ForKind::kSerial, new_stmt);
   new_stmt = IterMapSimplifyBlockBinding::SimplifyBindings(
-      std::move(new_stmt), GetLoops(loop_srefs[0]), opaque_block_reuse.CopyOnWrite());
+      std::move(new_stmt), GetLoops(loop_srefs[0]), opaque_block_reuse.CopyOnWrite(),
+      preserve_unit_iters);
   self->Replace(loop_srefs[0], new_stmt, opaque_block_reuse);
   return self->stmt2ref.at(new_stmt.get());
 }
@@ -755,7 +763,7 @@ struct SplitTraits : public UnpackedInstTraits<SplitTraits> {
 
  private:
   static constexpr size_t kNumInputs = 2;
-  static constexpr size_t kNumAttrs = 0;
+  static constexpr size_t kNumAttrs = 1;
   static constexpr size_t kNumDecisions = 0;
 
   template <size_t delta>
@@ -770,14 +778,17 @@ struct SplitTraits : public UnpackedInstTraits<SplitTraits> {
   }
 
   static Array<LoopRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv,
-                                               Array<Optional<ExprRV>> factors) {
-    return sch->Split(loop_rv, factors);
+                                               Array<Optional<ExprRV>> factors,
+                                               Bool preserve_unit_iters) {
+    return sch->Split(loop_rv, factors, preserve_unit_iters.operator bool());
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String loop_rv, Array<ObjectRef> factors) {
+  static String UnpackedAsPython(Array<String> outputs, String loop_rv, Array<ObjectRef> factors,
+                                 Bool preserve_unit_iters) {
     PythonAPICall py("split");
     py.Input("loop", loop_rv);
     py.Input("factors", factors);
+    py.Input("preserve_unit_iters", preserve_unit_iters.operator bool());
     py.OutputList(outputs);
     return py.Str();
   }
@@ -792,7 +803,7 @@ struct FuseTraits : public UnpackedInstTraits<FuseTraits> {
 
  private:
   static constexpr size_t kNumInputs = 1;
-  static constexpr size_t kNumAttrs = 0;
+  static constexpr size_t kNumAttrs = 1;
   static constexpr size_t kNumDecisions = 0;
 
   template <size_t delta>
@@ -801,15 +812,18 @@ struct FuseTraits : public UnpackedInstTraits<FuseTraits> {
     setter(delta, inputs);
   }
 
-  static LoopRV UnpackedApplyToSchedule(Schedule sch, Array<LoopRV> loop_rvs) {
-    return sch->Fuse(loop_rvs);
+  static LoopRV UnpackedApplyToSchedule(Schedule sch, Array<LoopRV> loop_rvs,
+                                        Bool preserve_unit_iters) {
+    return sch->Fuse(loop_rvs, preserve_unit_iters.operator bool());
   }
 
-  static String UnpackedAsPython(Array<String> outputs, Array<String> loop_rvs) {
+  static String UnpackedAsPython(Array<String> outputs, Array<String> loop_rvs,
+                                 Bool preserve_unit_iters) {
     PythonAPICall py("fuse");
     for (const String& loop_rv : loop_rvs) {
       py.Input("", loop_rv);
     }
+    py.Input("preserve_unit_iters", preserve_unit_iters.operator bool());
     py.SingleOutput(outputs);
     return py.Str();
   }

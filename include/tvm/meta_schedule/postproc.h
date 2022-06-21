@@ -20,6 +20,9 @@
 #ifndef TVM_META_SCHEDULE_POSTPROC_H_
 #define TVM_META_SCHEDULE_POSTPROC_H_
 
+#include <tvm/node/reflection.h>
+#include <tvm/runtime/object.h>
+#include <tvm/runtime/packed_func.h>
 #include <tvm/tir/schedule/schedule.h>
 
 namespace tvm {
@@ -88,16 +91,8 @@ class PyPostprocNode : public PostprocNode {
     // `f_as_string` is not visited
   }
 
-  void InitializeWithTuneContext(const TuneContext& context) final {
-    ICHECK(f_initialize_with_tune_context != nullptr)
-        << "PyPostproc's InitializeWithTuneContext method not implemented!";
-    this->f_initialize_with_tune_context(context);
-  }
-
-  bool Apply(const tir::Schedule& sch) final {
-    ICHECK(f_apply != nullptr) << "PyPostproc's Apply method not implemented!";
-    return this->f_apply(sch);
-  }
+  void InitializeWithTuneContext(const TuneContext& context) final;
+  bool Apply(const tir::Schedule& sch) final;
 
   static constexpr const char* _type_key = "meta_schedule.PyPostproc";
   TVM_DECLARE_FINAL_OBJECT_INFO(PyPostprocNode, PostprocNode);

@@ -19,7 +19,21 @@
 #ifndef TVM_META_SCHEDULE_EXTRACTED_TASK_H_
 #define TVM_META_SCHEDULE_EXTRACTED_TASK_H_
 
+#include <tvm/ir/module.h>
+#include <tvm/node/reflection.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/string.h>
+#include <tvm/runtime/object.h>
 #include <tvm/target/target.h>
+
+namespace tvm {
+namespace tir {
+class PrimFunc;
+}  // namespace tir
+namespace te {
+class Tensor;
+}  // namespace te
+}  // namespace tvm
 
 namespace tvm {
 namespace meta_schedule {
@@ -38,7 +52,7 @@ class ExtractedTaskNode : public runtime::Object {
   /*! \brief Weight of the task */
   int weight;
 
-  void VisitAttrs(AttrVisitor* v) {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("task_name", &task_name);
     v->Visit("mod", &mod);
     v->Visit("target", &target);
@@ -61,6 +75,20 @@ class ExtractedTask : public runtime::ObjectRef {
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ExtractedTask, runtime::ObjectRef,
                                                     ExtractedTaskNode);
 };
+
+/*!
+ * \brief The default TE task filter
+ * \param args The input/output arguments of the TE compute graph
+ * \return NullOpt if the task is filtered out, otherwise the task in PrimFunc
+ */
+Optional<tvm::tir::PrimFunc> DefaultTaskFilter(const Array<tvm::te::Tensor, void>& args);
+
+/*!
+ * \brief The default TE task filter, with `te.extern` allowed
+ * \param args The input/output arguments of the TE compute graph
+ * \return NullOpt if the task is filtered out, otherwise the task in PrimFunc
+ */
+Optional<tir::PrimFunc> DefaultTaskFilterAllowExtern(const Array<tvm::te::Tensor, void>& args);
 
 }  // namespace meta_schedule
 }  // namespace tvm

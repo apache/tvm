@@ -158,20 +158,21 @@ Array<BlockRV> TracedScheduleNode::GetConsumers(const BlockRV& block_rv) {
 
 /******** Schedule: Transform loops ********/
 
-LoopRV TracedScheduleNode::Fuse(const Array<LoopRV>& loop_rvs) {
-  LoopRV result = ConcreteScheduleNode::Fuse(loop_rvs);
+LoopRV TracedScheduleNode::Fuse(const Array<LoopRV>& loop_rvs, bool preserve_unit_loops) {
+  LoopRV result = ConcreteScheduleNode::Fuse(loop_rvs, preserve_unit_loops);
 
   static const InstructionKind& kind = InstructionKind::Get("Fuse");
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
                                       /*inputs=*/{loop_rvs.begin(), loop_rvs.end()},
-                                      /*attrs=*/{},
+                                      /*attrs=*/{Integer(preserve_unit_loops)},
                                       /*outputs=*/{result}));
   return result;
 }
 
 Array<LoopRV> TracedScheduleNode::Split(const LoopRV& loop_rv,
-                                        const Array<Optional<ExprRV>>& factor_rvs) {
-  Array<LoopRV> results = ConcreteScheduleNode::Split(loop_rv, factor_rvs);
+                                        const Array<Optional<ExprRV>>& factor_rvs,
+                                        bool preserve_unit_iters) {
+  Array<LoopRV> results = ConcreteScheduleNode::Split(loop_rv, factor_rvs, preserve_unit_iters);
 
   std::vector<ObjectRef> inputs;
   inputs.reserve(1 + factor_rvs.size());
@@ -183,7 +184,7 @@ Array<LoopRV> TracedScheduleNode::Split(const LoopRV& loop_rv,
   static const InstructionKind& kind = InstructionKind::Get("Split");
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
                                       /*inputs=*/inputs,
-                                      /*attrs=*/{},
+                                      /*attrs=*/{Integer(preserve_unit_iters)},
                                       /*outputs=*/{results.begin(), results.end()}));
   return results;
 }

@@ -17,6 +17,7 @@
 import pytest
 import numpy as np
 
+from tvm import rpc
 from tvm.driver import tvmc
 from tvm.driver.tvmc.model import TVMCResult
 from tvm.driver.tvmc.result_utils import get_top_results
@@ -103,6 +104,44 @@ def test_run_tflite_module__with_profile__valid_input(
     assert (
         tiger_cat_mobilenet_id in top_5_ids
     ), "tiger cat is expected in the top-5 for mobilenet v1"
-    assert type(result.outputs) is dict
-    assert type(result.times) is BenchmarkResult
+    assert isinstance(result.outputs, dict)
+    assert isinstance(result.times, BenchmarkResult)
+    assert "output_0" in result.outputs.keys()
+
+
+def test_run_tflite_module_with_rpc(
+    tflite_mobilenet_v1_1_quant, tflite_compile_model, imagenet_cat
+):
+    """
+    Test to check that TVMC run is functional when it is being used in
+    conjunction with an RPC server.
+    """
+    pytest.importorskip("tflite")
+
+    inputs = np.load(imagenet_cat)
+    input_dict = {"input": inputs["input"].astype("uint8")}
+
+    tflite_compiled_model = tflite_compile_model(tflite_mobilenet_v1_1_quant)
+
+    server = rpc.Server("127.0.0.1", 9099)
+    result = tvmc.run(
+        tflite_compiled_model,
+        inputs=input_dict,
+        hostname=server.host,
+        port=server.port,
+        device="cpu",
+    )
+
+    top_5_results = get_top_results(result, 5)
+    top_5_ids = top_5_results[0]
+
+    # IDs were collected from this reference:
+    # https://github.com/tensorflow/tensorflow/blob/master/tensorflow/lite/
+    # java/demo/app/src/main/assets/labels_mobilenet_quant_v1_224.txt
+    tiger_cat_mobilenet_id = 283
+
+    assert (
+        tiger_cat_mobilenet_id in top_5_ids
+    ), "tiger cat is expected in the top-5 for mobilenet v1"
+    assert isinstance(result.outputs, dict)
     assert "output_0" in result.outputs.keys()

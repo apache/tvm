@@ -32,8 +32,14 @@ class ReplayFuncNode : public SearchStrategyNode {
     int st;
     /*! \brief `[st, ed)` are the indices of the next batch of candidates. */
     int ed;
+    /*! \brief The metadata of the function arguments. */
+    Array<ArgInfo> args_info_{nullptr};
 
-    explicit State(ReplayFuncNode* self) : self(self), st(0), ed(self->num_trials_per_iter) {}
+    explicit State(ReplayFuncNode* self) : self(self), st(0), ed(self->num_trials_per_iter) {
+      const TuneContextNode* ctx = self->context_;
+      ICHECK(ctx);
+      this->args_info_ = ArgInfo::FromPrimFunc(FindEntryFunc(ctx->mod.value()));
+    }
 
     inline Optional<Array<MeasureCandidate>> GenerateMeasureCandidates();
     inline void NotifyRunnerResults(const Array<RunnerResult>& results);
@@ -44,14 +50,8 @@ class ReplayFuncNode : public SearchStrategyNode {
   /*! \brief The number of total trials. */
   int max_trials_per_task;
 
-  /*! \brief The module to be tuned. */
-  IRModule mod_{nullptr};
-  /*! \brief The metadata of the function arguments. */
-  Array<ArgInfo> args_info_{nullptr};
-  /*! \brief The post processors */
-  Array<Postproc> postprocs_{nullptr};
-  /*! \brief The space generator for measure candidates generation. */
-  SpaceGenerator space_generator_{nullptr};
+  /*! \brief The tuning context of the search strategy. */
+  const TuneContextNode* context_{nullptr};
   /*! \brief The random state. -1 means using random number. */
   TRandState rand_state_ = -1;
   /*! \brief The state of the search strategy. */
@@ -60,10 +60,7 @@ class ReplayFuncNode : public SearchStrategyNode {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("num_trials_per_iter", &num_trials_per_iter);
     v->Visit("max_trials_per_task", &max_trials_per_task);
-    // `space_generator_` is not visited
-    // `mod_` is not visited
-    // `args_info_` is not visited
-    // `num_threads_` is not visited
+    // `context_` is not visited.
     // `rand_state_` is not visited
     // `state_` is not visited
   }
@@ -72,15 +69,21 @@ class ReplayFuncNode : public SearchStrategyNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(ReplayFuncNode, SearchStrategyNode);
 
   void InitializeWithTuneContext(const TuneContext& context) final {
-    this->space_generator_ = context->space_generator.value();
-    this->mod_ = context->mod.value();
-    this->args_info_ = ArgInfo::FromPrimFunc(FindEntryFunc(context->mod.value()));
-    this->postprocs_ = context->postprocs;
+    CHECK(context->space_generator.defined())
+        << "ValueError: TuneContext.space_generator is not defined";
+    CHECK(context->mod.defined()) << "ValueError: TuneContext.mod is not defined";
+    this->context_ = context.get();
     this->rand_state_ = ForkSeed(&context->rand_state);
     this->state_.reset();
   }
 
-  void PreTuning(const Array<tir::Schedule>& design_spaces) final {
+  void PreTuning(const Array<tir::Schedule>& design_spaces, const Optional<Database>& database,
+                 const Optional<CostModel>& cost_model) final {
+    CHECK(this->context_ != nullptr) << "ValueError: Did you forget to initialize the TuneContext?";
+    if (this->state_ != nullptr) {
+      TVM_PY_LOG(WARNING, this->context_->logging_func) << "ReplayFunc is already initialized.";
+      this->state_.reset();
+    }
     ICHECK(this->state_ == nullptr);
     this->state_ = std::make_unique<State>(this);
   }
@@ -95,8 +98,7 @@ class ReplayFuncNode : public SearchStrategyNode {
     return this->state_->GenerateMeasureCandidates();
   }
 
-  void NotifyRunnerResults(const TuneContext& context,
-                           const Array<MeasureCandidate>& measure_candidates,
+  void NotifyRunnerResults(const Array<MeasureCandidate>& measure_candidates,
                            const Array<RunnerResult>& results) final {
     ICHECK(this->state_ != nullptr);
     this->state_->NotifyRunnerResults(results);
@@ -109,21 +111,24 @@ inline Optional<Array<MeasureCandidate>> ReplayFuncNode::State::GenerateMeasureC
   }
   ed = std::min(ed, self->max_trials_per_task);
   Array<MeasureCandidate> result;
+  const TuneContextNode* ctx = self->context_;
+  ICHECK(ctx);
+  IRModule mod = ctx->mod.value();
   for (int i = st; i < ed; i++) {
     for (;;) {
-      Array<tir::Schedule> schs = self->space_generator_->GenerateDesignSpace(self->mod_);
+      Array<tir::Schedule> schs = ctx->space_generator.value()->GenerateDesignSpace(mod);
       int design_space_index = tir::SampleInt(&self->rand_state_, 0, schs.size());
       tir::Schedule sch = schs[design_space_index];
       sch->EnterPostproc();
       bool failed = false;
-      for (const Postproc& proc : self->postprocs_) {
+      for (const Postproc& proc : ctx->postprocs) {
         if (!proc->Apply(sch)) {
           failed = true;
           break;
         }
       }
       if (!failed) {
-        result.push_back(MeasureCandidate(sch, self->args_info_));
+        result.push_back(MeasureCandidate(sch, this->args_info_));
         break;
       }
     }

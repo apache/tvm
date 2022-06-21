@@ -21,6 +21,30 @@
 namespace tvm {
 namespace meta_schedule {
 
+void PyCostModelNode::Load(const String& path) {
+  ICHECK(f_load != nullptr) << "PyCostModel's Load method not implemented!";
+  f_load(path);
+}
+
+void PyCostModelNode::Save(const String& path) {
+  ICHECK(f_save != nullptr) << "PyCostModel's Save method not implemented!";
+  f_save(path);
+}
+
+void PyCostModelNode::Update(const TuneContext& context, const Array<MeasureCandidate>& candidates,
+                             const Array<RunnerResult>& results) {
+  ICHECK(f_update != nullptr) << "PyCostModel's Update method not implemented!";
+  f_update(context, candidates, results);
+}
+
+std::vector<double> PyCostModelNode::Predict(const TuneContext& context,
+                                             const Array<MeasureCandidate>& candidates) {
+  ICHECK(f_predict != nullptr) << "PyCostModel's Predict method not implemented!";
+  std::vector<double> result(candidates.size(), 0.0);
+  f_predict(context, candidates, result.data());
+  return result;
+}
+
 CostModel CostModel::PyCostModel(PyCostModelNode::FLoad f_load,        //
                                  PyCostModelNode::FSave f_save,        //
                                  PyCostModelNode::FUpdate f_update,    //

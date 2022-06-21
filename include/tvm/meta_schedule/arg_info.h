@@ -20,7 +20,10 @@
 #define TVM_META_SCHEDULE_ARG_INFO_H_
 
 #include <tvm/node/node.h>
+#include <tvm/node/reflection.h>
 #include <tvm/runtime/container/shape_tuple.h>
+#include <tvm/runtime/data_type.h>
+#include <tvm/runtime/object.h>
 #include <tvm/tir/function.h>
 
 namespace tvm {

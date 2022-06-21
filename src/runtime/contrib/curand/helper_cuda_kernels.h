@@ -16,35 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#ifndef TVM_RUNTIME_CONTRIB_CURAND_HELPER_CUDA_KERNELS_H_
+#define TVM_RUNTIME_CONTRIB_CURAND_HELPER_CUDA_KERNELS_H_
 
-#ifndef TVM_APPS_MICROTVM_ZEPHYR_AOT_DEMO_INCLUDE_ZEPHYR_UART_H_
-#define TVM_APPS_MICROTVM_ZEPHYR_AOT_DEMO_INCLUDE_ZEPHYR_UART_H_
+#include <curand.h>
+#include <tvm/runtime/registry.h>
 
-#include <stdint.h>
-
-// Used to read data from the UART.
-
-/*!
- * \brief Read Uart Rx buffer.
- * \param data Pointer to read data.
- * \param data_size_bytes Read request size in bytes.
- *
- * \return Number of data read in bytes.
- */
-uint32_t TVMPlatformUartRxRead(uint8_t* data, uint32_t data_size_bytes);
+namespace tvm {
+namespace runtime {
+namespace curand {
 
 /*!
- * \brief Write data in serial.
- * \param data Pointer to data to write.
- * \param size Size of data in bytes.
- *
- * \return Number of write in bytes.
+ * \brief An auxiliary function to convert an FP32 array to FP16.
+ * \param src The source FP32 array.
+ * \param dst The destination FP16 array.
+ * \param num The number of elements in the array.
  */
-uint32_t TVMPlatformWriteSerial(const char* data, uint32_t size);
+void ConvertFp32toFp16(const void* src, void* dst, int64_t num);
 
-/*!
- * \brief Initialize Uart.
- */
-void TVMPlatformUARTInit();
+}  // namespace curand
+}  // namespace runtime
+}  // namespace tvm
 
-#endif /* TVM_APPS_MICROTVM_ZEPHYR_AOT_DEMO_INCLUDE_ZEPHYR_UART_H_ */
+#endif  // TVM_RUNTIME_CONTRIB_CURAND_HELPER_CUDA_KERNELS_H_

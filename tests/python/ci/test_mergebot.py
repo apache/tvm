@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import os
 import subprocess
 import json
 import sys
@@ -22,6 +23,7 @@ import pytest
 
 from pathlib import Path
 
+import tvm.testing
 from test_utils import REPO_ROOT
 
 
@@ -137,6 +139,7 @@ test_data = {
 }
 
 
+@tvm.testing.skip_if_wheel_test
 @pytest.mark.parametrize(
     ["number", "filename", "expected", "comment", "user", "detail"],
     [tuple(d.values()) for d in test_data.values()],

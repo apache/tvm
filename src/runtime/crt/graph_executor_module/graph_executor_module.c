@@ -95,7 +95,12 @@ int32_t TVMGraphExecutorModule_GetInput(TVMValue* args, int* tcodes, int nargs,
 
   uint32_t eid = TVMGraphExecutor_GetEntryId(graph_executor.executor,
                                              graph_executor.executor->input_nodes[index], 0);
-  ret_values[0].v_handle = (void*)&graph_executor.executor->data_entry[eid].dl_tensor;
+
+  TVMNDArray* array = &graph_executor.executor->data_entry[eid];
+
+  TVMNDArray_IncrementReference(array);
+
+  ret_values[0].v_handle = (void*)(&array->dl_tensor);
   ret_tcodes[0] = kTVMNDArrayHandle;
   return 0;
 }
@@ -158,7 +163,11 @@ int32_t TVMGraphExecutorModule_GetOutput(TVMValue* args, int* tcodes, int nargs,
   uint32_t index = graph_executor.executor->outputs[output_index].index;
   uint32_t eid = TVMGraphExecutor_GetEntryId(graph_executor.executor, nid, index);
 
-  ret_values[0].v_handle = (void*)&(graph_executor.executor->data_entry[eid].dl_tensor);
+  TVMNDArray* array = &graph_executor.executor->data_entry[eid];
+
+  TVMNDArray_IncrementReference(array);
+
+  ret_values[0].v_handle = (void*)(&array->dl_tensor);
   ret_tcodes[0] = kTVMNDArrayHandle;
   return 0;
 }

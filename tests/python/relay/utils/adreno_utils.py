@@ -105,6 +105,7 @@ def build_run_compare(
         #         print(index, output[index], x)
 
         np.testing.assert_allclose(output, ref_output, rtol=1e-1, atol=1e-1)
+    return graph
 
 
 def gpu_preprocess(tvm_mod):
