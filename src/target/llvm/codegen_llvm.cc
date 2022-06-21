@@ -973,24 +973,8 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     return llvm::ConstantInt::get(DTypeToLLVMType(op->dtype), val);
   } else if (op->op.same_as(builtin::if_then_else())) {
     ICHECK_EQ(op->args[0].dtype().lanes(), 1) << "if_then_else can only take scalar condition";
-    using llvm::BasicBlock;
-    BasicBlock* then_block = BasicBlock::Create(*ctx_, "if_then", function_);
-    BasicBlock* else_block = BasicBlock::Create(*ctx_, "if_else", function_);
-    BasicBlock* end_block = BasicBlock::Create(*ctx_, "if_end", function_);
-    builder_->CreateCondBr(MakeValue(op->args[0]), then_block, else_block);
-    builder_->SetInsertPoint(then_block);
-    llvm::Value* then_value = MakeValue(op->args[1]);
-    BasicBlock* then_value_block = builder_->GetInsertBlock();
-    builder_->CreateBr(end_block);
-    builder_->SetInsertPoint(else_block);
-    llvm::Value* else_value = MakeValue(op->args[2]);
-    BasicBlock* else_value_block = builder_->GetInsertBlock();
-    builder_->CreateBr(end_block);
-    builder_->SetInsertPoint(end_block);
-    llvm::PHINode* value = builder_->CreatePHI(then_value->getType(), 2);
-    value->addIncoming(then_value, then_value_block);
-    value->addIncoming(else_value, else_value_block);
-    return value;
+    return builder_->CreateSelect(MakeValue(op->args[0]), MakeValue(op->args[1]),
+                                  MakeValue(op->args[2]));
   } else if (op->op.same_as(builtin::ret())) {
     auto const* val = op->args[0].as<IntImmNode>();
     ICHECK(val) << "the tir.ret should be transformed to return zero "
