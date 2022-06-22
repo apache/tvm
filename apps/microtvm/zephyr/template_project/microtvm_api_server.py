@@ -520,20 +520,6 @@ class Handler(server.ProjectAPIHandler):
                     for item in flags:
                         cmake_f.write(f"target_compile_definitions(app PUBLIC {item})\n")
 
-            # Include CMSIS libraries if required.
-            # if self._cmsis_required(extract_path):
-            #     cmsis_path = get_cmsis_path(options)
-            #     cmake_f.write("\n")
-            #     cmake_f.write(
-            #         f'target_include_directories(tvm_model PRIVATE {str(cmsis_path / "CMSIS" / "DSP" / "Include")})\n'
-            #     )
-            #     cmake_f.write(
-            #         f'target_include_directories(tvm_model PRIVATE {str(cmsis_path / "CMSIS" / "DSP" / "Include" / "dsp")})\n'
-            #     )
-            #     cmake_f.write(
-            #         f'target_include_directories(tvm_model PRIVATE {str(cmsis_path / "CMSIS" / "NN" / "Include")})\n'
-            #     )
-
         self._create_prj_conf(project_dir, options)
 
         # Populate crt-config.h
