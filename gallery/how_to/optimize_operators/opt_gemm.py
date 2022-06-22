@@ -48,6 +48,12 @@ All the experiment results mentioned below, are executed on 2015's 15' MacBook e
 Intel i7-4770HQ CPU. The cache line size should be 64 bytes for all the x86 CPUs.
 """
 
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
+
 ################################################################################################
 # Preparation and Baseline
 # ------------------------
