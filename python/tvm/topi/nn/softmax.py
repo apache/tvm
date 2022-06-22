@@ -144,4 +144,8 @@ def log_softmax(x, axis=-1):
     max_elem = te.compute((m,), lambda i: tvm.te.max(x[i, k], axis=k))
     k = te.reduce_axis((0, n), name="k")
     expsum = te.compute((m,), lambda i: te.sum(te.exp(x[i, k] - max_elem[i]), axis=k))
-    return te.compute(x.shape, lambda i, j: x[i, j] - max_elem[i] - te.log(expsum[i]))
+    return te.compute(
+        x.shape,
+        lambda i, j: x[i, j] - max_elem[i] - te.log(expsum[i]),
+        attrs={"axis": axis},
+    )
