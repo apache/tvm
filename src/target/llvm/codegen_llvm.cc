@@ -34,22 +34,29 @@
 #include "../../arith/pattern_match.h"
 #include "../build_common.h"
 #include "../func_registry_generator.h"
-#include "codegen_cpu.h"
 #include "codegen_params.h"
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm_common.h"
+
 namespace tvm {
 namespace codegen {
 
 std::unique_ptr<CodeGenLLVM> CodeGenLLVM::Create(llvm::TargetMachine* tm) {
   std::string target = tm->getTarget().getName();
-  std::string factory_name = "tvm.codegen.llvm.target_" + target;
-  const PackedFunc* f = runtime::Registry::Get(factory_name);
-  if (f != nullptr) {
-    void* handle = (*f)();
+  std::string factory_template = "tvm.codegen.llvm.target_";
+  void* handle = nullptr;
+  if (const PackedFunc* f = runtime::Registry::Get(factory_template + target)) {
+    handle = (*f)();
+  } else if (const PackedFunc* f = runtime::Registry::Get(factory_template + "cpu")) {
+    handle = (*f)();
+  } else {
+    LOG(FATAL) << "no factory function for codegen for target " << target;
+  }
+  if (handle) {
     return std::unique_ptr<CodeGenLLVM>(static_cast<CodeGenLLVM*>(handle));
   } else {
-    return std::unique_ptr<CodeGenLLVM>(new CodeGenCPU());
+    LOG(FATAL) << "unable to create codegen for target " << target;
+    return nullptr;  // unreachable
   }
 }
 
