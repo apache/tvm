@@ -51,6 +51,7 @@ from .register import register_pattern_table
 
 
 logger = logging.getLogger("DNNL")
+supported_post_elts = ["nn.relu", "tanh", "sigmoid", "clip", "gelu", "swish", None]
 
 
 def _register_external_op_helper(op_name, supported=True):
@@ -120,6 +121,8 @@ def make_conv_pattern(conv_name, with_bias=True, with_eltwise=None):
     conv_out : CallPattern
         Call node sequence.
     """
+    if with_eltwise not in supported_post_elts:
+        raise ValueError("Unsupported eltwise post-op: %s" % with_eltwise)
     data = wildcard()
     weight = wildcard()
     bias = wildcard()
@@ -150,6 +153,8 @@ def make_dense_pattern(with_bias=True, with_eltwise=None):
     dense_out : CallPattern
         Call node sequence.
     """
+    if with_eltwise not in supported_post_elts:
+        raise ValueError("Unsupported eltwise post-op: %s" % with_eltwise)
     data = wildcard()
     weight = wildcard()
     bias = wildcard()
