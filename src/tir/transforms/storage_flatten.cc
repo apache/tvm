@@ -1108,6 +1108,12 @@ class BufferBindUnwrapper : public StmtExprMutator {
       view = view.MakeStrideView();
     }
 
+    // Match integer bits of source->elem_offset and view->elem_offset
+    // as is required by ArgBinder::Bind_
+    if (view->elem_offset.defined() && source->elem_offset.dtype() != view->elem_offset.dtype()) {
+      view.CopyOnWrite()->elem_offset = cast(source->elem_offset.dtype(), view->elem_offset);
+    }
+
     // Bind any variables that reference the view (e.g. elem_offset,
     // strides, shape).  Pass fuzzy_match=false, because all shape
     // transformations should have been handled in
