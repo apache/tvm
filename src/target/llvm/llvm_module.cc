@@ -69,24 +69,9 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       return PackedFunc(nullptr);
     } else if (name == "get_const_vars") {
       return PackedFunc(nullptr);
-    } else if (name == "_get_target_triple") {
-      std::ostringstream target_triple_ss;
-      target_triple_ss << tm_->getTargetTriple().str();
-      // getTargetTriple() doesn't include other flags besides the triple. Add back flags which are
-      // important for ModulePackImportsToLLVM.
-      if (tm_->Options.FloatABIType == llvm::FloatABI::ABIType::Soft) {
-        target_triple_ss << " -mfloat-abi=soft";
-      }
-      std::string mabi = tm_->Options.MCOptions.ABIName;
-      if (!mabi.empty()) {
-        target_triple_ss << " -mabi=" << mabi;
-      }
-      llvm::StringRef mcpu = tm_->getTargetCPU();
-      if (!mcpu.empty() && mcpu != "generic") {
-        target_triple_ss << " -mcpu=" << mcpu.str();
-      }
-      std::string target_triple = target_triple_ss.str();
-      return PackedFunc([target_triple](TVMArgs args, TVMRetValue* rv) { *rv = target_triple; });
+    } else if (name == "_get_target_string") {
+      std::string target_string = LLVMTargetToString(target_);
+      return PackedFunc([target_string](TVMArgs args, TVMRetValue* rv) { *rv = target_string; });
     }
     if (ee_ == nullptr) LazyInitJIT();
 
@@ -342,7 +327,8 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       target_metadata = os.str();
     }
     mptr_ = module_.get();
-    tm_ = GetLLVMTargetMachine(Target(target_metadata));
+    target_ = Target(target_metadata);
+    tm_ = GetLLVMTargetMachine(target_);
   }
 
   void LoadIR(const std::string& file_name) {
@@ -509,9 +495,9 @@ TVM_REGISTER_GLOBAL("codegen.llvm_target_enabled")
 
 TVM_REGISTER_GLOBAL("codegen.codegen_blob")
     .set_body_typed([](std::string data, bool system_lib,
-                       std::string target_triple) -> runtime::Module {
+                       std::string llvm_target_string) -> runtime::Module {
       auto n = make_object<LLVMModuleNode>();
-      auto p = CodeGenBlob(data, system_lib, target_triple);
+      auto p = CodeGenBlob(data, system_lib, llvm_target_string);
       n->Init(std::move(p.first), p.second);
       return runtime::Module(n);
     });
