@@ -256,7 +256,7 @@ class TensorRequisite {
     if (layout.find("G") != std::string::npos) return "GOI" + sparse_dims[rank - 4];
     if (layout.find("O") != std::string::npos) return "OI" + sparse_dims[rank - 3];
 
-    LOG(FATAL) << "Unknown layout " << layout << "There is no default scheme to handle it";
+    LOG(FATAL) << "Unknown layout: " << layout << ". There is no default scheme to handle it";
     return {};
   }
 

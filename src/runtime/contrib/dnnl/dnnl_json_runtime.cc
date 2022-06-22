@@ -468,6 +468,13 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     // Assumption that bias is correct and can be squeezed to 1D
     bias_tr = bias_tr.Reshape({dst_tr.dims()[1]});
 
+    auto wgh_layout = GetNodeAttr<std::string>(node, "weight_layout", {"NC"});
+    wgh_tr = wgh_tr.TreatAs(wgh_layout, "NC");
+
+    // Crop the weight tensor on demand
+    auto zero_offset = dnnl::memory::dims(wgh_tr.dims().size(), 0);
+    wgh_tr = wgh_tr.Crop({dst_tr.dims()[1], src_tr.dims()[1]}, zero_offset);
+
     // Dense description.
     auto dense_desc = dnnl::inner_product_forward::desc(
         dnnl::prop_kind::forward_inference, src_tr.LayoutAny().desc(), wgh_tr.LayoutAny().desc(),

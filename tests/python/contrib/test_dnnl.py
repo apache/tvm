@@ -94,6 +94,9 @@ def partition_for_dnnl(mod, params=None, alter_layout=True, prune_subgraphs=True
             )
             with tvm.transform.PassContext(opt_level=3):
                 mod = seq(mod)
+
+    mod = dnnl.rewrite_dense_bias_gelu_reshape_last(mod)
+
     if alter_layout:
         with TempOpAttr("nn.conv1d", "FTVMAlterOpLayout", dnnl.alter_conv):
             with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", dnnl.alter_conv):
@@ -104,17 +107,17 @@ def partition_for_dnnl(mod, params=None, alter_layout=True, prune_subgraphs=True
                         with TempOpAttr(
                             "nn.conv3d_transpose", "FTVMAlterOpLayout", dnnl.alter_conv_transpose
                         ):
-                            alter_layout_seq = tvm.transform.Sequential(
-                                [
-                                    transform.AlterOpLayout(),
-                                    transform.FoldConstant(),
-                                ]
-                            )
-                            with tvm.transform.PassContext(opt_level=3):
-                                mod = alter_layout_seq(mod)
+                            with TempOpAttr("nn.dense", "FTVMAlterOpLayout", dnnl.alter_dense):
+                                alter_layout_seq = tvm.transform.Sequential(
+                                    [
+                                        transform.AlterOpLayout(),
+                                        transform.FoldConstant(),
+                                    ]
+                                )
+                                with tvm.transform.PassContext(opt_level=3):
+                                    mod = alter_layout_seq(mod)
 
     mod = dnnl.rewrite_layer_norm(mod)
-    mod = dnnl.rewrite_dense_bias_gelu_reshape_last(mod)
     mod = dnnl.legalize_qnn_for_dnnl(mod)
 
     byoc_seq = tvm.transform.Sequential(
@@ -548,7 +551,6 @@ def get_dense(
     x = relay.var("x", shape=(x_shape), dtype=dtype)
     kernel = relay.var("kernel", shape=(k_shape), dtype=dtype)
     out = relay.nn.dense(x, kernel, units=k_shape[0])
-    # out = relay.nn.dense(x, kernel, units=None)
     if has_reshape:
         out = relay.reshape(out, newshape=(1, x_shape[0], k_shape[0]))
     dic = {"x": x_shape, "kernel": k_shape}
@@ -1132,18 +1134,20 @@ def test_rewrite_dense_bias_gelu_reshape_last(run_module, dtype="float32"):
             x_shape, k_shape, activation=act, has_reshape=True, use_add=True, dtype=dtype
         )
         dense_bias = tvm.IRModule.from_expr(dense_bias)
-        processed_dense_bias = partition_for_dnnl(
-            dense_bias, params=None, alter_layout=False, prune_subgraphs=False
-        )
-        check_dnnl_used(processed_dense_bias, 1)
 
+        processed_dense_bias = partition_for_dnnl(
+            dense_bias, params=None, alter_layout=True, prune_subgraphs=False
+        )
+
+        check_dnnl_used(processed_dense_bias, 1)
         return dense_bias, dic, param_lst
 
     run_and_verify_func(
-        get_graph("gelu"), subgraph_num=1, run_module=run_module, dtype=dtype, test_bf16=False
+        get_graph("gelu"), subgraph_num=1, run_module=run_module, dtype=dtype, test_bf16=True
     )
+
     run_and_verify_func(
-        get_graph(), subgraph_num=1, run_module=run_module, dtype=dtype, test_bf16=False
+        get_graph(), subgraph_num=1, run_module=run_module, dtype=dtype, test_bf16=True
     )
 
 
@@ -1780,7 +1784,7 @@ def test_dense_plus(dense_profiles):
 
         op = bld.arg(shape=d_shape, dtype="float32", is_const=c.Data)
         wgh = bld.arg(shape=w_shape, dtype="float32", is_const=c.Weights)
-        op = tvm.relay.nn.dense(op, wgh, out_dtype="float32")
+        op = tvm.relay.nn.dense(op, wgh, out_dtype="float32", units=w_shape[0])
 
         if c.Bias is not None:
             bias = bld.arg(shape=b_shape, dtype="float32", is_const=c.Bias)

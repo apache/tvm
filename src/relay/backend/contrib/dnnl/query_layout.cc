@@ -362,6 +362,43 @@ std::string get_optimal_layout_for_conv_transpose(std::string data_layout,
   return res;
 }
 
+std::string get_optimal_layout_for_dense(std::string data_layout, std::string weight_shape,
+                                         std::string out_shape, std::string dtype) {
+  dnnl::engine eng(dnnl::engine::kind::cpu, 0);
+  dnnl::stream s(eng);
+  using tag = dnnl::memory::format_tag;
+
+  dnnl::memory::dims data_dims = str2dims(data_layout);
+  dnnl::memory::dims weight_dims = str2dims(weight_shape);
+  dnnl::memory::dims out_dims = str2dims(out_shape);
+  dnnl::memory::dims bias_dims = {out_dims[1]};
+
+  auto dnnl_dtype = dtype_dl2dnnl(tvm::runtime::String2DLDataType(dtype));
+  // Memory descriptions.
+  auto data_md = dnnl::memory::desc({data_dims, dnnl_dtype, tag::any});
+  auto weight_md = dnnl::memory::desc({weight_dims, dnnl_dtype, tag::any});
+  auto bias_md = dnnl::memory::desc({bias_dims, dnnl_dtype, tag::any});
+  auto dst_md = dnnl::memory::desc({out_dims, dnnl_dtype, tag::any});
+
+  // Dense description.
+  auto dense_desc = dnnl::inner_product_forward::desc(dnnl::prop_kind::forward_inference, data_md,
+                                                      weight_md, bias_md, dst_md);
+
+  dnnl::primitive_attr attr;
+  auto dense_prim_desc = dnnl::inner_product_forward::primitive_desc(dense_desc, attr, eng);
+
+  auto src_format = dense_prim_desc.src_desc();
+  auto weights_format = dense_prim_desc.weights_desc();
+  auto dst_format = dense_prim_desc.dst_desc();
+  std::string src_df, weight_df, dst_df;
+
+  src_df = md2fmt_tag_str(&src_format);
+  weight_df = md2fmt_tag_str(&weights_format);
+  dst_df = md2fmt_tag_str(&dst_format);
+  std::string res = src_df + "," + weight_df + "," + dst_df;
+  return res;
+}
+
 TVM_REGISTER_GLOBAL("relay.ir.get_optimal_layout_for_conv")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
       *rv = get_optimal_layout_for_conv(args[0], args[1], args[2], args[3], args[4], args[5],
@@ -372,6 +409,11 @@ TVM_REGISTER_GLOBAL("relay.ir.get_optimal_layout_for_conv_transpose")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
       *rv = get_optimal_layout_for_conv_transpose(args[0], args[1], args[2], args[3], args[4],
                                                   args[5], args[6], args[7], args[8], args[9]);
+    });
+
+TVM_REGISTER_GLOBAL("relay.ir.get_optimal_layout_for_dense")
+    .set_body([](TVMArgs args, TVMRetValue* rv) {
+      *rv = get_optimal_layout_for_dense(args[0], args[1], args[2], args[3]);
     });
 
 }  // namespace contrib
