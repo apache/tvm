@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-08-11T12:19:24.817346
+// Generated at 2022-08-11T13:16:01.842600
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -5551,6 +5551,141 @@ def deploy() {
           )
 
           deploy_docs()
+        }
+      }
+    }
+    if (env.BRANCH_NAME == 'main' && env.RETAG_STAGING_IMAGES == 'yes') {
+      withCredentials([string(
+        credentialsId: 'dockerhub-tlcpack-key',
+        variable: 'TLCPACK_TOKEN',
+        )]) {
+        try {
+          sh(
+            script: 'echo $TLCPACK_TOKEN | docker login --username octomldriazati --password-stdin',
+            label: 'Log in to Docker Hub'
+          )
+          if (ci_arm.contains("tlcpackstaging")) {
+            // Push image to tlcpack
+            def tag = ci_arm.split(":")[1]
+            sh(
+              script: """
+                set -eux
+                docker pull tlcpackstaging/ci_arm:${tag}
+                docker tag tlcpackstaging/ci_arm:${tag} tlcpack/ci-arm:${tag}
+                docker push tlcpack/ci-arm:${tag}
+              """,
+              label: 'Tag tlcpackstaging/ci_arm image to tlcpack',
+            )
+          }
+          if (ci_cpu.contains("tlcpackstaging")) {
+            // Push image to tlcpack
+            def tag = ci_cpu.split(":")[1]
+            sh(
+              script: """
+                set -eux
+                docker pull tlcpackstaging/ci_cpu:${tag}
+                docker tag tlcpackstaging/ci_cpu:${tag} tlcpack/ci-cpu:${tag}
+                docker push tlcpack/ci-cpu:${tag}
+              """,
+              label: 'Tag tlcpackstaging/ci_cpu image to tlcpack',
+            )
+          }
+          if (ci_minimal.contains("tlcpackstaging")) {
+            // Push image to tlcpack
+            def tag = ci_minimal.split(":")[1]
+            sh(
+              script: """
+                set -eux
+                docker pull tlcpackstaging/ci_minimal:${tag}
+                docker tag tlcpackstaging/ci_minimal:${tag} tlcpack/ci-minimal:${tag}
+                docker push tlcpack/ci-minimal:${tag}
+              """,
+              label: 'Tag tlcpackstaging/ci_minimal image to tlcpack',
+            )
+          }
+          if (ci_gpu.contains("tlcpackstaging")) {
+            // Push image to tlcpack
+            def tag = ci_gpu.split(":")[1]
+            sh(
+              script: """
+                set -eux
+                docker pull tlcpackstaging/ci_gpu:${tag}
+                docker tag tlcpackstaging/ci_gpu:${tag} tlcpack/ci-gpu:${tag}
+                docker push tlcpack/ci-gpu:${tag}
+              """,
+              label: 'Tag tlcpackstaging/ci_gpu image to tlcpack',
+            )
+          }
+          if (ci_hexagon.contains("tlcpackstaging")) {
+            // Push image to tlcpack
+            def tag = ci_hexagon.split(":")[1]
+            sh(
+              script: """
+                set -eux
+                docker pull tlcpackstaging/ci_hexagon:${tag}
+                docker tag tlcpackstaging/ci_hexagon:${tag} tlcpack/ci-hexagon:${tag}
+                docker push tlcpack/ci-hexagon:${tag}
+              """,
+              label: 'Tag tlcpackstaging/ci_hexagon image to tlcpack',
+            )
+          }
+          if (ci_i386.contains("tlcpackstaging")) {
+            // Push image to tlcpack
+            def tag = ci_i386.split(":")[1]
+            sh(
+              script: """
+                set -eux
+                docker pull tlcpackstaging/ci_i386:${tag}
+                docker tag tlcpackstaging/ci_i386:${tag} tlcpack/ci-i386:${tag}
+                docker push tlcpack/ci-i386:${tag}
+              """,
+              label: 'Tag tlcpackstaging/ci_i386 image to tlcpack',
+            )
+          }
+          if (ci_lint.contains("tlcpackstaging")) {
+            // Push image to tlcpack
+            def tag = ci_lint.split(":")[1]
+            sh(
+              script: """
+                set -eux
+                docker pull tlcpackstaging/ci_lint:${tag}
+                docker tag tlcpackstaging/ci_lint:${tag} tlcpack/ci-lint:${tag}
+                docker push tlcpack/ci-lint:${tag}
+              """,
+              label: 'Tag tlcpackstaging/ci_lint image to tlcpack',
+            )
+          }
+          if (ci_cortexm.contains("tlcpackstaging")) {
+            // Push image to tlcpack
+            def tag = ci_cortexm.split(":")[1]
+            sh(
+              script: """
+                set -eux
+                docker pull tlcpackstaging/ci_cortexm:${tag}
+                docker tag tlcpackstaging/ci_cortexm:${tag} tlcpack/ci-cortexm:${tag}
+                docker push tlcpack/ci-cortexm:${tag}
+              """,
+              label: 'Tag tlcpackstaging/ci_cortexm image to tlcpack',
+            )
+          }
+          if (ci_wasm.contains("tlcpackstaging")) {
+            // Push image to tlcpack
+            def tag = ci_wasm.split(":")[1]
+            sh(
+              script: """
+                set -eux
+                docker pull tlcpackstaging/ci_wasm:${tag}
+                docker tag tlcpackstaging/ci_wasm:${tag} tlcpack/ci-wasm:${tag}
+                docker push tlcpack/ci-wasm:${tag}
+              """,
+              label: 'Tag tlcpackstaging/ci_wasm image to tlcpack',
+            )
+          }
+        } finally {
+          sh(
+            script: 'docker logout',
+            label: 'Clean up login credentials'
+          )
         }
       }
     }
