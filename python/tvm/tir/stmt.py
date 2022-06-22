@@ -364,13 +364,16 @@ class AllocateConst(Stmt):
     body : Stmt
         The body statement.
 
+    annotations : Optional[Map]
+        Additional annotations about the allocation.
+
     span : Optional[Span]
         The location of this itervar in the source code.
     """
 
-    def __init__(self, buffer_var, dtype, extents, data_or_idx, body, span=None):
+    def __init__(self, buffer_var, dtype, extents, data_or_idx, body, annotations=None, span=None):
         self.__init_handle_by_constructor__(
-            _ffi_api.AllocateConst, buffer_var, dtype, extents, data_or_idx, body, span
+            _ffi_api.AllocateConst, buffer_var, dtype, extents, data_or_idx, body, annotations, span
         )
 
 
