@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,13 +16,26 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Computes and Schedules for Hexagon slice ops. """
+set -e
 
-from .avg_pool2d import avg_pool2d_compute, avg_pool2d_STIR_schedule
-from .add_subtract_multiply import *
-from .cast import (
-    cast_f16_f32_compute,
-    cast_f16_f32_schedule,
-    cast_f32_f16_compute,
-    cast_f32_f16_schedule,
-)
+install_path="/opt/csi-nn2"
+
+# Clone CSI-NN2 Compute Library source code
+git clone --depth 1 --branch 1.12.2 https://github.com/T-head-Semi/csi-nn2.git ${install_path}
+
+# download cross-compiler when not building natively.
+# riscv gcc toolchain will be downloaded to "/path/csi-nn2/tools/gcc-toolchain".
+cd ${install_path}
+./script/download_toolchain.sh
+
+# download custom QEMU to "/path/csi-nn2/tools/qemu".
+./script/download_qemu.sh
+
+# build csinn2 lib for x86 and c906
+# lib will be installed in /path/csi-nn2/install
+# for x86
+make -j4; cd x86_build; make install; cd -
+# for c906
+mkdir -p riscv_build; cd riscv_build
+cmake ../ -DBUILD_RISCV=ON; make -j4; make install; cd -
+

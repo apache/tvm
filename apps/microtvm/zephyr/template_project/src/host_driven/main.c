@@ -33,10 +33,10 @@
 #include <drivers/uart.h>
 #include <fatal.h>
 #include <kernel.h>
-#include <power/reboot.h>
 #include <random/rand32.h>
 #include <stdio.h>
 #include <sys/printk.h>
+#include <sys/reboot.h>
 #include <sys/ring_buffer.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/microtvm_rpc_server.h>

@@ -16,22 +16,24 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
 set -x
 
 # Fix network DNS issue
 sudo sed -i 's/DNSSEC=yes/DNSSEC=no/' /etc/systemd/resolved.conf
 sudo systemctl restart systemd-resolved
 
+sudo cp ~/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
+rm -f ~/apt-install-and-clear.sh
+
 sudo apt update
-sudo apt install -y build-essential
+sudo apt-install-and-clear -y build-essential
 sudo apt-get --purge remove modemmanager  # required to access serial ports.
 
 # Core
 sudo ~/ubuntu_install_core.sh
 rm -f ~/ubuntu_install_core.sh
 
-sudo apt install -y --no-install-recommends git \
+sudo apt-install-and-clear -y --no-install-recommends git \
      gperf ccache dfu-util device-tree-compiler xz-utils file \
      gcc gcc-multilib g++-multilib libsdl2-dev
 
@@ -40,7 +42,7 @@ wget --no-verbose https://apt.kitware.com/keys/kitware-archive-latest.asc
 sudo apt-key add kitware-archive-latest.asc
 sudo apt-add-repository 'deb https://apt.kitware.com/ubuntu/ bionic main'
 sudo apt update
-sudo apt install -y --no-install-recommends \
+sudo apt-install-and-clear -y --no-install-recommends \
      cmake=3.22.2-0kitware1ubuntu18.04.1 cmake-data=3.22.2-0kitware1ubuntu18.04.1 \
 
 # Python
@@ -48,14 +50,14 @@ sudo ~/ubuntu_install_python.sh
 rm -f ~/ubuntu_install_python.sh
 
 # Poetry deps
-sudo apt install -y python3-venv
+sudo apt-install-and-clear -y python3-venv
 
 # TVM deps
 # TODO(mehrdadh): replace with ubuntu_install_llvm.sh
-sudo apt install -y llvm
+sudo apt-install-and-clear -y llvm
 
 # ONNX deps
-sudo apt install -y protobuf-compiler libprotoc-dev
+sudo apt-install-and-clear -y protobuf-compiler libprotoc-dev
 
 # Poetry
 curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3
