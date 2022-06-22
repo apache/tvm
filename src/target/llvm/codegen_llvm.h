@@ -202,6 +202,12 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
     int alignment{0};
   };
   /*!
+   * \brief Convert tvm::runtime::String into llvm::StringRef
+   */
+  static llvm::StringRef MakeStringRef(const String& string) {
+    return llvm::StringRef(string.c_str(), string.size());
+  }
+  /*!
    * \brief Execute falloca at the beginning of the
    *  currrent function and obtain its return value.
    *

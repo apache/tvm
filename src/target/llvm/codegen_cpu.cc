@@ -403,10 +403,10 @@ llvm::Value* CodeGenCPU::CreateCallExtern(Type ret_type, String global_symbol,
 #endif
     return builder_->CreateCall(ext_callee, arg_values);
   } else {
-    llvm::Function* f = module_->getFunction(global_symbol);
+    llvm::Function* f = module_->getFunction(MakeStringRef(global_symbol));
     if (f == nullptr) {
       f = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
-                                 global_symbol.operator llvm::StringRef(), module_.get());
+                                 MakeStringRef(global_symbol), module_.get());
     }
 #if TVM_LLVM_VERSION >= 90
     auto ext_callee = llvm::FunctionCallee(f);
@@ -535,9 +535,8 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   // Linkage ld Error: CALL16 reloc at 0x290 not against global symbol
   const StringImmNode* value = op->value.as<StringImmNode>();
   ICHECK(value != nullptr);
-  llvm::Function* fcompute =
-      llvm::Function::Create(ftype, llvm::Function::InternalLinkage,
-                             value->value.operator llvm::StringRef(), module_.get());
+  llvm::Function* fcompute = llvm::Function::Create(ftype, llvm::Function::InternalLinkage,
+                                                    MakeStringRef(value->value), module_.get());
   SetTargetAttributes(fcompute);
 
   BasicBlock* compute_call_end = CheckCallSuccess(builder_->CreateCall(fcompute, arg_values));
