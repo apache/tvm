@@ -185,8 +185,8 @@ class HoistInfoCollector : public StmtExprVisitor {
     bool IsBlockVariable() const { return !loop_def.as<ForNode>(); }
   };
 
-  static std::vector<HoistInfo> Collect(Stmt stmt) {
-    HoistInfoCollector collector;
+  static std::vector<HoistInfo> Collect(Stmt stmt, HoistExpressionConfig config) {
+    HoistInfoCollector collector(config);
     collector(stmt);
     return collector.completed_loops;
   }
@@ -196,7 +196,7 @@ class HoistInfoCollector : public StmtExprVisitor {
   using Parent::VisitExpr_;
   using Parent::VisitStmt_;
 
-  HoistInfoCollector() = default;
+  HoistInfoCollector(HoistExpressionConfig config) : config(config) {}
 
   void AttemptHoistConditional(PrimExpr cond, HoistedConditionals hoist_from,
                                bool generate_else_block = true) {
@@ -375,9 +375,12 @@ class HoistInfoCollector : public StmtExprVisitor {
         return it->second.count(loop_var.get());
       });
 
-      if (it->reached_sequential_node || uses_loop_var) {
+      bool is_disabled_hoist_across_block_var =
+          !config->FlagSet(HoistedConditionals::kUsingBlockVar) && it->IsBlockVariable();
+
+      if (it->reached_sequential_node || uses_loop_var || is_disabled_hoist_across_block_var) {
         if (it == active_loops.rbegin()) {
-          // The innermost loop iterator is used, cannot hoist.
+          // Cannot hoist beyond the innermost loop iterator.
           return nullptr;
         } else {
           // Hoist to just below the loop iterator that is required.
@@ -391,6 +394,10 @@ class HoistInfoCollector : public StmtExprVisitor {
     // loop.
     return &active_loops.front();
   }
+
+  // The user-provided config describing which expressions should be
+  // hoisted.
+  HoistExpressionConfig config;
 
   // Current thread_extent bindings of block variables.
   std::unordered_set<const VarNode*> active_block_vars;
@@ -416,7 +423,7 @@ class HoistInfoCollector : public StmtExprVisitor {
 class ExpressionHoister : public arith::IRMutatorWithAnalyzer {
  public:
   static Stmt Hoist(Stmt stmt, HoistExpressionConfig config) {
-    auto loop_info = HoistInfoCollector::Collect(stmt);
+    auto loop_info = HoistInfoCollector::Collect(stmt, config);
 
     arith::Analyzer analyzer;
     ExpressionHoister hoister(std::move(loop_info), config, &analyzer);

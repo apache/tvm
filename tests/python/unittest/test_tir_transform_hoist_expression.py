@@ -124,6 +124,54 @@ class TestSuppressHoistBlockVar(BaseBeforeAfter):
     expected = before
 
 
+class TestHoistAcrossBlockVar(BaseBeforeAfter):
+    @T.prim_func
+    def before(A: T.Buffer[(128, 16), "float32"], n: T.int32):
+        thread_x = T.env_thread("threadIdx.x")
+        T.launch_thread(thread_x, 128)
+
+        for i in T.thread_binding(0, 128, thread="threadIdx.x"):
+            if n == 0:
+                for j in T.serial(16):
+                    A[i, j] = 0.0
+
+    @T.prim_func
+    def expected(A: T.Buffer[(128, 16), "float32"], n: T.int32):
+        thread_x = T.env_thread("threadIdx.x")
+
+        if n == 0:
+            T.launch_thread(thread_x, 128)
+            for i in T.thread_binding(0, 128, thread="threadIdx.x"):
+                for j in T.serial(16):
+                    A[i, j] = 0.0
+
+
+class TestSuppressHoistAcrossBlockVar(BaseBeforeAfter):
+    hoisted_conditionals = tvm.testing.parameter(
+        HoistedConditionals.All & ~HoistedConditionals.UsingBlockVar
+    )
+
+    @T.prim_func
+    def before(A: T.Buffer[(128, 16), "float32"], n: T.int32):
+        thread_x = T.env_thread("threadIdx.x")
+        T.launch_thread(thread_x, 128)
+
+        for i in T.thread_binding(0, 128, thread="threadIdx.x"):
+            for j in T.serial(16):
+                if n == 0:
+                    A[i, j] = 0.0
+
+    @T.prim_func
+    def expected(A: T.Buffer[(128, 16), "float32"], n: T.int32):
+        thread_x = T.env_thread("threadIdx.x")
+
+        T.launch_thread(thread_x, 128)
+        if n == 0:
+            for i in T.thread_binding(0, 128, thread="threadIdx.x"):
+                for j in T.serial(16):
+                    A[i, j] = 0.0
+
+
 class TestHoistToMiddle(BaseBeforeAfter):
     @T.prim_func
     def before(A: T.Buffer[(4, 4), "float32"]):
