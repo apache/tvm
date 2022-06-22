@@ -45,7 +45,7 @@ from tvm.relay.expr_functor import ExprMutator
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 from tvm.relay.backend.contrib.ethosu import preprocess
 import tvm.relay.testing.tf as tf_testing
-from tvm import WorkspaceMemoryPools, PoolInfo
+from tvm import WorkspaceMemoryPools, WorkspacePoolInfo, PoolInfoProperties
 
 from tvm.relay.op.contrib.ethosu import partition_for_ethosu
 from tvm.testing.aot import (
@@ -334,16 +334,15 @@ def compare_ethosu_with_reference(
     ethosu_target = tvm.target.Target("ethos-u")
     workspace_pools = WorkspaceMemoryPools(
         [
-            PoolInfo(
+            WorkspacePoolInfo(
                 pool_name,
-                {
-                    host_target: PoolInfo.READ_WRITE_ACCESS,
-                    ethosu_target: PoolInfo.READ_WRITE_ACCESS,
-                },
-                size_hint_bytes=2400000,
-                read_bandwidth_bytes_per_cycle=16,
-                write_bandwidth_bytes_per_cycle=16,
-                target_burst_bytes={ethosu_target: 1},
+                [host_target, ethosu_target],
+                PoolInfoProperties(
+                    size_hint_bytes=2400000,
+                    read_bandwidth_bytes_per_cycle=16,
+                    write_bandwidth_bytes_per_cycle=16,
+                    target_burst_bytes={ethosu_target: 1},
+                ),
             )
         ]
     )

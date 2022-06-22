@@ -192,8 +192,8 @@ class RelayBuildModule : public runtime::ModuleNode {
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetModule(); });
     } else if (name == "build") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        ICHECK_EQ(args.num_args, 6);
-        this->Build(args[0], args[1], args[2], args[3], args[4], args[5]);
+        ICHECK_EQ(args.num_args, 8);
+        this->Build(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]);
       });
     } else if (name == "list_params") {
       return PackedFunc(
@@ -303,13 +303,15 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \param runtime Runtime to codegen for
    * \param mod_name Name of the module
    */
-  void Build(IRModule mod, const Array<Target>& raw_targets, const Executor& executor,
-             const Runtime& runtime, const WorkspaceMemoryPools& workspace_memory_pools,
-             const String& mod_name) {
+  void Build(IRModule mod, const Array<Target>& raw_targets, const tvm::Target& target_host,
+             const Executor& executor, const Runtime& runtime,
+             const WorkspaceMemoryPools& workspace_memory_pools,
+             const ConstantMemoryPools& constant_memory_pools, const String mod_name) {
     VLOG_CONTEXT << "Build";
     executor_ = executor;
     runtime_ = runtime;
     workspace_memory_pools_ = workspace_memory_pools;
+    constant_memory_pools_ = constant_memory_pools;
     config_ = CompilationConfig(PassContext::Current(), raw_targets);
     VLOG(1) << "Using compilation config:" << std::endl << config_;
     BuildRelay(std::move(mod), mod_name);
@@ -414,7 +416,8 @@ class RelayBuildModule : public runtime::ModuleNode {
     IRModule func_module = WithAttrs(IRModule::FromExpr(func),
                                      {{tvm::attr::kExecutor, executor_},
                                       {tvm::attr::kRuntime, runtime_},
-                                      {tvm::attr::kWorkspaceMemoryPools, workspace_memory_pools_}});
+                                      {tvm::attr::kWorkspaceMemoryPools, workspace_memory_pools_},
+                                      {tvm::attr::kConstantMemoryPools, constant_memory_pools_}});
 
     // Generate code for the updated function.
     executor_codegen_ = MakeExecutorCodegen(executor_->name);
@@ -476,6 +479,8 @@ class RelayBuildModule : public runtime::ModuleNode {
   Runtime runtime_;
   /*! \brief Workspace memory pools to codegen for */
   WorkspaceMemoryPools workspace_memory_pools_;
+  /*! \brief Constant memory pools to codegen for */
+  ConstantMemoryPools constant_memory_pools_;
   /*! \brief parameters */
   std::unordered_map<std::string, runtime::NDArray> params_;
   /*! \brief building output */

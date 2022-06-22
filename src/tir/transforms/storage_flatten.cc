@@ -1439,7 +1439,7 @@ class StorageFlattener : public StmtExprMutator {
                  << op->buffer_var->name_hint;
     }
     return AllocateConst(stmt->buffer_var, stmt->dtype, FlattenExtents(stmt), data_or_idx,
-                         stmt->body, stmt->span);
+                         stmt->body, stmt->annotations, stmt->span);
   }
 
   Stmt VisitStmt_(const LetStmtNode* op) final {
