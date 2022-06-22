@@ -250,6 +250,7 @@ Array<Pass> GetPassPrefix(bool is_homogeneous, bool is_vm) {
   pass_seqs.push_back(transform::SimplifyExpr());
   pass_seqs.push_back(transform::CanonicalizeCast());
   pass_seqs.push_back(transform::CanonicalizeOps());
+  pass_seqs.push_back(transform::FlattenAtrousConv());
 
   // Alter layout transformation is currently only applied to homogeneous execution.
   if (is_homogeneous) {
@@ -263,7 +264,6 @@ Array<Pass> GetPassPrefix(bool is_homogeneous, bool is_vm) {
   pass_seqs.push_back(transform::FastMath());
   pass_seqs.push_back(transform::FoldConstant());
 
-  pass_seqs.push_back(transform::FlattenAtrousConv());
   return pass_seqs;
 }
 

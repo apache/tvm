@@ -23,7 +23,9 @@ import logging
 import tvm
 from tvm import te
 from tvm import autotvm
+from tvm.contrib import dnnl
 from .. import nn
+from ..generic import schedule_extern
 from ..nn.conv2d import conv2d_infer_layout, _get_workload as _get_conv2d_workload
 from ..nn.conv2d import unpack_NCHWc_to_nchw
 from ..nn.depthwise_conv2d import _get_workload as _get_depthwise_conv2d_workload
@@ -265,6 +267,34 @@ def schedule_conv2d_NCHWc(cfg, outs):
 
     traverse_inline(s, outs[0].op, _callback)
     return s
+
+
+@autotvm.register_topi_compute("conv2d_nchw_dnnl.x86")
+def conv2d_nchw_dnnl(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    """Compute conv2d in NCHW format using dnnl."""
+    groups = 1
+    _out = dnnl.dnnl_conv2d(data, kernel, strides, padding, dilation, groups, False, out_dtype)
+    return _out
+
+
+@autotvm.register_topi_schedule("conv2d_nchw_dnnl.x86")
+def schedule_conv2d_nchw_dnnl(_, outs):
+    """Create schedule for conv2d_nchw_dnnl"""
+    return schedule_extern(outs)
+
+
+@autotvm.register_topi_compute("conv2d_nhwc_dnnl.x86")
+def conv2d_nhwc_dnnl(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    """Compute conv2d in NHWC format using dnnl."""
+    groups = 1
+    _out = dnnl.dnnl_conv2d(data, kernel, strides, padding, dilation, groups, True, out_dtype)
+    return _out
+
+
+@autotvm.register_topi_schedule("conv2d_nhwc_dnnl.x86")
+def schedule_conv2d_nhwc_dnnl(_, outs):
+    """Create schedule for conv2d_nhwc_dnnl"""
+    return schedule_extern(outs)
 
 
 # FIXME - https://github.com/apache/tvm/issues/4122

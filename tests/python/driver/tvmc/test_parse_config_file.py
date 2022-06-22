@@ -20,7 +20,7 @@ import shlex
 
 import tvm
 from tvm.driver.tvmc.main import _main
-from tvm.driver.tvmc.config_options import convert_config_json_to_cli
+from tvm.driver.tvmc.config_options import convert_config_json_to_cli, get_configs_json_dir
 
 
 def test_parse_json_config_file_one_target():
@@ -153,3 +153,28 @@ def test_tvmc_cl_compile_run_config_file(tflite_mobilenet_v1_1_quant, tmpdir_fac
     exit_code = _main(tvmc_args)
     on_error = "Trying to run a MLF archive must fail because it's only supported on micro targets."
     assert exit_code != 0, on_error
+
+
+def test_tvmc_get_configs_json_dir(tmpdir_factory, monkeypatch):
+    # Reset global state
+    monkeypatch.setattr(tvm.driver.tvmc.config_options, "CONFIGS_JSON_DIR", None)
+
+    # Get default directory for reference
+    default_dir = get_configs_json_dir()
+
+    # Set custom dir which does not exist -> ignore
+    monkeypatch.setattr(tvm.driver.tvmc.config_options, "CONFIGS_JSON_DIR", None)
+    monkeypatch.setenv("TVM_CONFIGS_JSON_DIR", "not_a_directory")
+    result = get_configs_json_dir()
+    assert_msg = "Non-existant directory passed via TVM_CONFIGS_JSON_DIR should be ignored."
+    assert result == default_dir, assert_msg
+
+    # Set custom dir which does exist
+    monkeypatch.setattr(tvm.driver.tvmc.config_options, "CONFIGS_JSON_DIR", None)
+    configs_dir = tmpdir_factory.mktemp("configs")
+    monkeypatch.setenv("TVM_CONFIGS_JSON_DIR", str(configs_dir))
+    result = get_configs_json_dir()
+    assert_msg = (
+        "Custom value passed via TVM_CONFIGS_JSON_DIR should be used instead of default one."
+    )
+    assert result != default_dir and result is not None, assert_msg

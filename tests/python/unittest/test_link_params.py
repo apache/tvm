@@ -264,7 +264,8 @@ def test_c_link_params(linkable_dtype):
         c_dtype = _get_c_datatype(linkable_dtype)
         src_lines = src.split("\n")
         param = param_init[f"{linkable_dtype}_a"].reshape(np.prod(KERNEL_SHAPE))
-        param_def = rf"^static const {c_dtype} __attribute__\(\(section\(\".rodata.tvm\"\), aligned\(16\)\)\) constant_\d+\[{np.prod(param.shape)}\] = {{$"
+        param_def = rf"^static const {c_dtype} __attribute__\(\(section\(\".rodata.tvm\"\), aligned\(16\)\)\) [a-zA-Z_0-9]*constant_\d+\[{np.prod(param.shape)}\] = {{$"
+
         for i, line in enumerate(src_lines):
             if re.match(param_def, line):
                 i += 1

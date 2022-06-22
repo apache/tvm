@@ -392,8 +392,9 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
 
   auto iter_map = arith::DetectIterMap(
       /*indices=*/transformed_block_iters, /*input_iters=*/block_iter_dom, /*predicate=*/Bool(true),
-      /*require_bijective=*/true, &analyzer, /*simplify_trivial_iterators=*/true);
-  if (iter_map.empty()) {
+      /*check_level=*/arith::IterMapLevel::Bijective, &analyzer,
+      /*simplify_trivial_iterators=*/true);
+  if (iter_map->indices.empty()) {
     throw NotBijectiveAffineIndexMapError(self->mod, index_map);
   }
 
@@ -417,7 +418,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   // Step 5.2: Update the block body. Use the inverse map f^{-1} to replace the original block iters
   // in the body.
 
-  auto inverse_map = arith::InverseAffineIterMap(iter_map, new_block_vars);
+  auto inverse_map = arith::InverseAffineIterMap(iter_map->indices, new_block_vars);
   // Trivial block iters will be simplified in DetectIterMap, they should be mapped to constant
   // zero.
   for (const auto& iter_var : block_ptr->iter_vars) {

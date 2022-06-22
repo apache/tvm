@@ -60,7 +60,7 @@ s_scan = tvm.te.scan(s_init, s_update, s_state, inputs=[X])
 # Schedule the Scan Cell
 # ----------------------
 # We can schedule the body of the scan by scheduling the update and
-# init part seperately. Note that it is invalid to schedule the
+# init part separately. Note that it is invalid to schedule the
 # first iteration dimension of the update part.
 # To split on the time iteration, user can schedule on scan_op.scan_axis instead.
 #

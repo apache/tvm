@@ -524,6 +524,32 @@ def test_int64_indices():
     assert loop.extent.dtype == "int64"
 
 
+def test_zero_dim_add():
+    def te_func():
+        a = te.placeholder((), name="a", dtype="int32")
+        b = te.placeholder((), name="b", dtype="int32")
+        c = te.compute(a.shape, lambda *i: a(*i) + b(*i), name="c")
+        return [a, b, c]
+
+    @T.prim_func
+    def expected(
+        a: T.Buffer[(), "int32"],
+        b: T.Buffer[(), "int32"],
+        c: T.Buffer[(), "int32"],
+    ) -> None:
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            with T.block("c"):
+                vi = T.axis.spatial(1, 0)
+                T.reads(a[()], b[()])
+                T.writes(c[()])
+                c[()] = a[()] + b[()]
+
+    _check_workload(te_func, expected)
+
+
 if __name__ == "__main__":
     test_unique_name_complete_block()
     test_unique_name_reduction_block()
@@ -541,3 +567,4 @@ if __name__ == "__main__":
     test_argmax_idx_val()
     test_argmax_val_idx()
     test_int64_indices()
+    test_zero_dim_add()

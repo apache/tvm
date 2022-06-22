@@ -84,7 +84,7 @@ class PurityVisitor : ExprFunctor<Purity(const Expr&)> {
     for (const auto& kv : mod_->functions) {
       if (const auto* function_node = kv.second.as<FunctionNode>()) {
         if (function_node->HasNonzeroAttr(attr::kPrimitive) ||
-            function_node->GetAttr<String>(attr::kExternalSymbol)) {
+            function_node->HasNonzeroAttr(attr::kExtern)) {
           // Ignore primitive and external functions.
           continue;
         }
@@ -133,9 +133,11 @@ class PurityVisitor : ExprFunctor<Purity(const Expr&)> {
 
   Purity VisitExpr_(const GlobalVarNode* global_var_node) final {
     auto global_var = GetRef<GlobalVar>(global_var_node);
+    ICHECK(mod_->ContainGlobalVar(global_var_node->name_hint))
+        << "No definition for '" << global_var_node->name_hint << "'";
     auto func = mod_->Lookup(global_var);
     if (const auto* function_node = func.as<FunctionNode>()) {
-      if (!function_node->GetAttr<String>(attr::kExternalSymbol)) {
+      if (!function_node->HasNonzeroAttr(attr::kExtern)) {
         return VisitGlobalFunction(global_var, GetRef<Function>(function_node));
       }
     }
@@ -534,6 +536,7 @@ namespace transform {
 // Declared in relay/transform.h
 Pass DeadCodeElimination(bool inline_once, bool ignore_impurity) {
   auto pass_func = [=](IRModule mod, PassContext pc) -> IRModule {
+    VLOG(1) << "Before:" << std::endl << PrettyPrint(mod);
     // Which let bindings are pure and can be safely elided?
     std::unordered_map<const VarNode*, bool> var_to_purity;
     if (!ignore_impurity) {
@@ -566,6 +569,7 @@ Pass DeadCodeElimination(bool inline_once, bool ignore_impurity) {
         result->Add(kv.first, kv.second);
       }
     }
+    VLOG(1) << "After:" << std::endl << PrettyPrint(result);
 
     return result;
   };

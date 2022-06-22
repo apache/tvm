@@ -16,10 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument, import-outside-toplevel, no-value-for-parameter
 """A set of passes to legalize some of operations for the NPU"""
-from typing import List, Type, Callable, Any, Dict
+from typing import List, Type, Callable
 import math
 
 import numpy as np  # type: ignore
+from ethosu.vela import scaling, fp_math
 
 import tvm  # type: ignore
 from tvm import relay
@@ -132,7 +133,6 @@ def get_lut_from_func(
     ofm_scale: float,
     ofm_zp: int,
     func: Callable[[float], float],
-    func_params: Dict[str, Any],
 ) -> List[int]:
     """Calculates the values of the lookup table based on the calculation function"""
 
@@ -142,7 +142,7 @@ def get_lut_from_func(
     qmin, qmax = np.iinfo(dtype).min, np.iinfo(dtype).max
     for x in range(qmin, qmax + 1):
         x_real = ifm_scale * (x - ifm_zp)
-        out_real = func(x_real, **func_params)
+        out_real = func(x_real)
         lut_result = int(util.round_away_zero(ofm_zp + out_real / ofm_scale))
         lut_result = min(qmax, max(qmin, lut_result))
         lut_values.append(lut_result)
@@ -165,28 +165,9 @@ class LutActivationRewriter(DFPatternCallback):
         self.activation_type = activation_type
         self.calc_func = calc_func
 
-    def get_calc_func_params(self, expr: tvm.relay.Expr) -> Dict[str, Any]:
-        """
-        Overridable method that can be used to extract additional arguments
-        for passing to calc_func.
-
-        Parameters
-        ----------
-        expr : tvm.relay.Expr
-            The matched composite activation function.
-
-        Returns
-        -------
-        Dict[str, Any]
-            Maps argument name to argument value.
-        """
-        return {}
-
     def callback(self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map):
         params = self.params_class(post.op.body)
         params.ifm.tensor = post.args[0]
-
-        calc_func_params = self.get_calc_func_params(post.op)
 
         input_scale = float(params.ifm.q_params.scale_f32)
         input_zp = int(params.ifm.q_params.zero_point)
@@ -199,7 +180,6 @@ class LutActivationRewriter(DFPatternCallback):
             output_scale,
             output_zp,
             self.calc_func,
-            calc_func_params,
         )
         lut = relay.const(lut_values, dtype=params.ifm.dtype)
 
@@ -257,19 +237,65 @@ def leaky_relu_calc_func(x: float, alpha: float) -> float:
     return x if x >= 0 else x * alpha
 
 
-class LeakyReLURewriter(LutActivationRewriter):
+class LeakyReLURewriter(DFPatternCallback):
     """This pass adds leaky relu as a LUT for identity op."""
 
     def __init__(self):
-        super().__init__(
-            params_class=ethosu_patterns.LeakyReLUParams,
-            activation_type="LUT",
-            calc_func=leaky_relu_calc_func,
+        super().__init__(require_type=True, rewrite_once=True)
+        self.params_class = ethosu_patterns.LeakyReLUParams
+        self.pattern = wildcard().has_attr({"Composite": self.params_class.composite_name})(
+            wildcard()
         )
 
-    def get_calc_func_params(self, expr: tvm.relay.Expr) -> Dict[str, Any]:
-        params = ethosu_patterns.LeakyReLUParams(expr.body)
-        return {"alpha": params.alpha}
+    def callback(self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map):
+        params = self.params_class(post.op.body)
+        params.ifm.tensor = post.args[0]
+
+        input_scale = np.double(float(params.ifm.q_params.scale_f32))
+        input_zp = int(params.ifm.q_params.zero_point)
+        output_scale = np.double(float(params.ofm.q_params.scale_f32))
+        output_zp = int(params.ofm.q_params.zero_point)
+
+        alpha = params.alpha
+
+        # The calculation of the LUT values is similar to that in Vela
+        # convert_lrelu_to_lut(op, arch)
+        # (https://review.mlplatform.org/plugins/gitiles/ml/ethos-u/ethos-u-vela/+/refs/tags/3.2.0/ethosu/vela/tflite_graph_optimiser.py#864)  # pylint: disable=line-too-long
+        alpha_scalar = 1
+        alpha_scale, alpha_shift = scaling.elementwise_mul_scale(input_scale, alpha, output_scale)
+        identity_scale, identity_shift = scaling.elementwise_mul_scale(input_scale, 1, output_scale)
+
+        dtype = params.ifm.dtype
+        qmin, qmax = np.iinfo(dtype).min, np.iinfo(dtype).max
+
+        def calculate_lut_value(i):
+            zp_shift = (
+                fp_math.multiply_by_quantized_multiplier(
+                    alpha_scalar * (i - input_zp), alpha_scale, alpha_shift
+                )
+                if i < input_zp
+                else fp_math.multiply_by_quantized_multiplier(
+                    i - input_zp, identity_scale, identity_shift
+                )
+            )
+
+            return min(qmax, max(qmin, output_zp + zp_shift))
+
+        values = list(map(calculate_lut_value, range(qmin, qmax + 1)))
+        lut = relay.const(values, dtype=dtype)
+
+        # We baked the requantization into the LUT, so we don't requantize the identity operator
+        identity = ethosu_ops.ethosu_identity(
+            ifm=params.ifm.tensor,
+            lut=lut,
+            ifm_scale=input_scale,
+            ifm_zero_point=input_zp,
+            ofm_scale=input_scale,
+            ofm_zero_point=input_zp,
+            activation="LUT",
+        )
+
+        return identity
 
 
 class Conv2DRewriter(DFPatternCallback):

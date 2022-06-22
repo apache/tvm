@@ -52,6 +52,29 @@ def add_hexagon_permissions() {
   {% endfor %}
 }
 
+// Run make. First try to do an incremental make from a previous workspace in hope to
+// accelerate the compilation. If something is wrong, clean the workspace and then
+// build from scratch.
+def make(docker_type, path, make_flag) {
+  timeout(time: max_time, unit: 'MINUTES') {
+    try {
+      cmake_build(docker_type, path, make_flag)
+    } catch (hudson.AbortException ae) {
+      // script exited due to user abort, directly throw instead of retry
+      if (ae.getMessage().contains('script returned exit code 143')) {
+        throw ae
+      }
+      echo 'Incremental compilation failed. Fall back to build from scratch'
+      sh (
+        script: "${docker_run} ${docker_type} ./tests/scripts/task_clean.sh ${path}",
+        label: 'Clear old cmake workspace',
+      )
+      cmake_build(docker_type, path, make_flag)
+    }
+  }
+}
+
+
 def build() {
 stage('Build') {
   environment {
@@ -62,6 +85,7 @@ stage('Build') {
     if (!skip_ci) {
       node('CPU-SMALL') {
         ws({{ m.per_exec_ws('tvm/build-gpu') }}) {
+          docker_init(ci_gpu)
           init_git()
           sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
           make("${ci_gpu} --no-gpu", 'build', '-j2')
@@ -79,6 +103,7 @@ stage('Build') {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws({{ m.per_exec_ws('tvm/build-cpu') }}) {
+          docker_init(ci_cpu)
           init_git()
           sh (
             script: "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh build",
@@ -102,6 +127,7 @@ stage('Build') {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws({{ m.per_exec_ws('tvm/build-wasm') }}) {
+          docker_init(ci_wasm)
           init_git()
           sh (
             script: "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh build",
@@ -126,6 +152,7 @@ stage('Build') {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws({{ m.per_exec_ws('tvm/build-i386') }}) {
+          docker_init(ci_i386)
           init_git()
           sh (
             script: "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh build",
@@ -143,6 +170,7 @@ stage('Build') {
     if (!skip_ci && is_docs_only_build != 1) {
       node('ARM-SMALL') {
         ws({{ m.per_exec_ws('tvm/build-arm') }}) {
+          docker_init(ci_arm)
           init_git()
           sh (
             script: "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh build",
@@ -160,6 +188,7 @@ stage('Build') {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws({{ m.per_exec_ws('tvm/build-qemu') }}) {
+          docker_init(ci_qemu)
           init_git()
           sh (
             script: "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh build",
@@ -177,6 +206,7 @@ stage('Build') {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
         ws({{ m.per_exec_ws('tvm/build-hexagon') }}) {
+          docker_init(ci_hexagon)
           init_git()
           sh (
             script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_config_build_hexagon.sh build",

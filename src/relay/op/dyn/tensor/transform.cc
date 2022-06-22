@@ -258,6 +258,7 @@ RELAY_REGISTER_OP("dyn.broadcast_to")
     .describe(R"code(Broadcast the first input to match the shape argument.
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(2)
+    .set_attrs_type<InitOpAttrs>()
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("shape", "Tensor", "Target shape.")
     .set_support_level(4)

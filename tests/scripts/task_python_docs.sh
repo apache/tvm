@@ -84,6 +84,8 @@ IGNORED_WARNINGS=(
     'autotvm:Cannot find config for target=llvm -keys=cpu -link-params=0'
     'autotvm:One or more operators have not been tuned. Please tune your model for better performance. Use DEBUG logging level to see more details.'
     'autotvm:Cannot find config for target=cuda -keys=cuda,gpu'
+    # Warning is thrown during TFLite quantization for micro_train tutorial
+    'absl:For model inputs containing unsupported operations which cannot be quantized, the `inference_input_type` attribute will default to the original type.'
 )
 
 JOINED_WARNINGS=$(join_by '|' "${IGNORED_WARNINGS[@]}")

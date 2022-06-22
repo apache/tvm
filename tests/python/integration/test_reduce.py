@@ -528,7 +528,7 @@ def test_warp_reduction2():
     check_target("rocm")
 
 
-@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_reduce_storage_reuse():
     target = tvm.target.Target("cuda")
 

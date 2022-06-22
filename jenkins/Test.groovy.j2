@@ -10,6 +10,7 @@
   node="GPU",
   ws="tvm/ut-python-gpu",
   platform="gpu",
+  docker_image="ci_gpu",
   test_method_names=test_method_names,
 ) %}
   {% if shard_index == 1 %}
@@ -44,6 +45,7 @@
   num_shards=6,
   ws="tvm/integration-python-cpu",
   platform="cpu",
+  docker_image="ci_cpu",
   test_method_names=test_method_names,
 ) %}
   {{ m.download_artifacts(tag='cpu', filenames=tvm_multilib_tsim) }}
@@ -59,6 +61,7 @@
   num_shards=5,
   ws="tvm/integration-python-i386",
   platform="i386",
+  docker_image="ci_i386",
   test_method_names=test_method_names,
 ) %}
   {{ m.download_artifacts(tag='i386', filenames=tvm_multilib) }}
@@ -71,13 +74,16 @@
     script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
     label: 'Run i386 integration tests',
   )
+  {% if shard_index == 2 or num_shards < 2 %}
   fsim_test(ci_i386)
+  {% endif %}
 {% endcall %}
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="test: Hexagon",
   node="CPU-SMALL",
   ws="tvm/test-hexagon",
   platform="hexagon",
+  docker_image="ci_hexagon",
   test_method_names=test_method_names,
   num_shards=7,
 ) %}
@@ -98,6 +104,7 @@
   node="ARM-SMALL",
   ws="tvm/ut-python-arm",
   platform="arm",
+  docker_image="ci_arm",
   test_method_names=test_method_names,
 ) %}
   {{ m.download_artifacts(tag='arm', filenames=tvm_multilib) }}
@@ -114,6 +121,7 @@
   num_shards=4,
   ws="tvm/topi-python-gpu",
   platform="gpu",
+  docker_image="ci_gpu",
   test_method_names=test_method_names,
 ) %}
   {{ m.download_artifacts(tag='gpu', filenames=tvm_multilib) }}
@@ -129,6 +137,7 @@
   num_shards=6,
   ws="tvm/frontend-python-gpu",
   platform="gpu",
+  docker_image="ci_gpu",
   test_method_names=test_method_names,
 ) %}
   {{ m.download_artifacts(tag='gpu', filenames=tvm_multilib) }}
@@ -143,12 +152,15 @@
   node="ARM-SMALL",
   ws="tvm/ut-python-arm",
   platform="arm",
+  docker_image="ci_arm",
   num_shards=2,
   test_method_names=test_method_names,
 ) %}
   {{ m.download_artifacts(tag='arm', filenames=tvm_multilib) }}
   ci_setup(ci_arm)
+  {% if shard_index == 1 %}
   cpp_unittest(ci_arm)
+  {% endif %}
   sh (
     script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh",
     label: 'Run test_arm_compute_lib test',
@@ -163,6 +175,7 @@
   node="ARM-SMALL",
   ws="tvm/frontend-python-arm",
   platform="arm",
+  docker_image="ci_arm",
   num_shards=2,
   test_method_names=test_method_names,
 ) %}
@@ -191,6 +204,7 @@ stage('Test') {
     node="CPU-SMALL",
     ws="tvm/ut-python-cpu",
     platform="cpu",
+    docker_image="ci_cpu",
   ) %}
     {{ m.download_artifacts(tag='cpu', filenames=tvm_multilib_tsim) }}
     ci_setup(ci_cpu)
@@ -207,6 +221,7 @@ stage('Test') {
     node="CPU-SMALL",
     ws="tvm/test-qemu",
     platform="qemu",
+    docker_image="ci_qemu",
   ) %}
     {{ m.download_artifacts(tag='qemu', filenames=tvm_lib, folders=microtvm_template_projects) }}
     add_microtvm_permissions()
@@ -226,6 +241,7 @@ stage('Test') {
     node="CPU-SMALL",
     ws="tvm/frontend-python-cpu",
     platform="cpu",
+    docker_image="ci_cpu",
 ) %}
     {{ m.download_artifacts(tag='cpu', filenames=tvm_multilib) }}
     ci_setup(ci_cpu)
@@ -238,6 +254,7 @@ stage('Test') {
     if (!skip_ci) {
       node('GPU') {
         ws({{ m.per_exec_ws('tvm/docs-python-gpu') }}) {
+          docker_init(ci_gpu)
           init_git()
           {{ m.download_artifacts(tag='gpu', filenames=tvm_multilib, folders=microtvm_template_projects) }}
           add_microtvm_permissions()
@@ -249,7 +266,10 @@ stage('Test') {
             )
           }
           {{ m.upload_artifacts(tag='docs', filenames=["docs.tgz"]) }}
-          archiveArtifacts(artifacts: 'docs.tgz', fingerprint: true)
+          sh(
+            script: "aws s3 cp --no-progress _docs s3://${s3_prefix}/docs --recursive",
+            label: 'Upload docs to S3',
+          )
         }
       }
     }

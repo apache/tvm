@@ -587,10 +587,12 @@ def exp_exp_opaque_access_with_tvm_access_ptr_inlined(
 
 # pylint: enable=no-member,invalid-name,unused-variable
 
+use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
 
-def test_compute_inline_elementwise():
+
+def test_compute_inline_elementwise(use_block_name):
     sch = tir.Schedule(elementwise, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = "B" if use_block_name else sch.get_block("B")
     block_c = sch.get_block("C")
     sch.compute_inline(block_b)
     tvm.ir.assert_structural_equal(elementwise_inlined, sch.mod["main"])
@@ -598,9 +600,9 @@ def test_compute_inline_elementwise():
     verify_trace_roundtrip(sch=sch, mod=elementwise)
 
 
-def test_compute_inline_under_loop():
+def test_compute_inline_under_loop(use_block_name):
     sch = tir.Schedule(elementwise_under_loop, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = "B" if use_block_name else sch.get_block("B")
     block_c = sch.get_block("C")
     sch.compute_inline(block_b)
     tvm.ir.assert_structural_equal(elementwise_inlined, sch.mod["main"])
@@ -608,9 +610,9 @@ def test_compute_inline_under_loop():
     verify_trace_roundtrip(sch=sch, mod=elementwise_under_loop)
 
 
-def test_compute_inline_as_dce():
+def test_compute_inline_as_dce(use_block_name):
     sch = tir.Schedule(elementwise_standalone, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = "B" if use_block_name else sch.get_block("B")
     block_c = sch.get_block("C")
     sch.compute_inline(block_b)
     tvm.ir.assert_structural_equal(elementwise_standalone_dce, sch.mod["main"])
@@ -618,9 +620,9 @@ def test_compute_inline_as_dce():
     verify_trace_roundtrip(sch=sch, mod=elementwise_standalone)
 
 
-def test_compute_inline_multi_consumer():
+def test_compute_inline_multi_consumer(use_block_name):
     sch = tir.Schedule(elementwise_multi_producer_consumer, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = "B" if use_block_name else sch.get_block("B")
     block_c = sch.get_block("C")
     block_d = sch.get_block("D")
     sch.compute_inline(block_b)
@@ -630,81 +632,81 @@ def test_compute_inline_multi_consumer():
     verify_trace_roundtrip(sch=sch, mod=elementwise_multi_producer_consumer)
 
 
-def test_compute_inline_fail_multi_writer():
+def test_compute_inline_fail_multi_writer(use_block_name):
     sch = tir.Schedule(fail_multi_reader_writer, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = "B" if use_block_name else sch.get_block("B")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.compute_inline(block_b)
 
 
-def test_reverse_compute_inline_elementwise():
+def test_reverse_compute_inline_elementwise(use_block_name):
     sch = tir.Schedule(elementwise, debug_mask="all")
     block_b = sch.get_block("B")
-    block_c = sch.get_block("C")
+    block_c = "C" if use_block_name else sch.get_block("C")
     sch.reverse_compute_inline(block_c)
     tvm.ir.assert_structural_equal(elementwise_inlined, sch.mod["main"])
     assert sch.get(block_b).name_hint == "B"
     verify_trace_roundtrip(sch=sch, mod=elementwise)
 
 
-def test_reverse_compute_inline_under_loop():
+def test_reverse_compute_inline_under_loop(use_block_name):
     sch = tir.Schedule(elementwise_under_loop, debug_mask="all")
     block_b = sch.get_block("B")
-    block_c = sch.get_block("C")
+    block_c = "C" if use_block_name else sch.get_block("C")
     sch.reverse_compute_inline(block_c)
     tvm.ir.assert_structural_equal(elementwise_inlined, sch.mod["main"])
     assert sch.get(block_b).name_hint == "B"
     verify_trace_roundtrip(sch=sch, mod=elementwise_under_loop)
 
 
-def test_reverse_compute_inline_fail_as_dce():
+def test_reverse_compute_inline_fail_as_dce(use_block_name):
     sch = tir.Schedule(elementwise_standalone, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = "B" if use_block_name else sch.get_block("B")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.reverse_compute_inline(block_b)
 
 
-def test_reverse_compute_inline_fail_multi_producer():
+def test_reverse_compute_inline_fail_multi_producer(use_block_name):
     sch = tir.Schedule(elementwise_multi_producer_consumer, debug_mask="all")
-    block_d = sch.get_block("D")
+    block_d = "D" if use_block_name else sch.get_block("D")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.reverse_compute_inline(block_d)
 
 
-def test_reverse_compute_inline_fail_multi_reader():
+def test_reverse_compute_inline_fail_multi_reader(use_block_name):
     sch = tir.Schedule(fail_multi_reader_writer, debug_mask="all")
-    block_c = sch.get_block("C")
+    block_c = "C" if use_block_name else sch.get_block("C")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.reverse_compute_inline(block_c)
 
 
-def test_reverse_compute_multi_reverse_loads():
+def test_reverse_compute_multi_reverse_loads(use_block_name):
     sch = tir.Schedule(elementwise_multi_reverse_loads, debug_mask="all")
-    block_c = sch.get_block("C")
+    block_c = "C" if use_block_name else sch.get_block("C")
     sch.reverse_compute_inline(block_c)
     tvm.ir.assert_structural_equal(elementwise_multi_reverse_loads_inlined, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise_multi_reverse_loads)
 
 
-def test_reverse_compute_inline_affine_load():
+def test_reverse_compute_inline_affine_load(use_block_name):
     sch = tir.Schedule(elementwise_reverse_affine_load, debug_mask="all")
-    block_c = sch.get_block("C")
+    block_c = "C" if use_block_name else sch.get_block("C")
     sch.reverse_compute_inline(block_c)
     tvm.ir.assert_structural_equal(elementwise_reverse_affine_load_inlined, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise_reverse_affine_load)
 
 
-def test_reverse_compute_inline_multi_affine_load():
+def test_reverse_compute_inline_multi_affine_load(use_block_name):
     sch = tir.Schedule(elementwise_multi_reverse_affine_load, debug_mask="all")
-    block_c = sch.get_block("C")
+    block_c = "C" if use_block_name else sch.get_block("C")
     sch.reverse_compute_inline(block_c)
     tvm.ir.assert_structural_equal(elementwise_multi_reverse_affine_load_inlined, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise_multi_reverse_affine_load)
 
 
-def test_reverse_compute_inline_affine_load_unit_iter():
+def test_reverse_compute_inline_affine_load_unit_iter(use_block_name):
     sch = tir.Schedule(elementwise_reverse_affine_load_unit_iter, debug_mask="all")
-    block_c = sch.get_block("C")
+    block_c = "C" if use_block_name else sch.get_block("C")
     sch.reverse_compute_inline(block_c)
     tvm.ir.assert_structural_equal(
         elementwise_reverse_affine_load_unit_iter_inlined, sch.mod["main"]
@@ -712,9 +714,9 @@ def test_reverse_compute_inline_affine_load_unit_iter():
     verify_trace_roundtrip(sch=sch, mod=elementwise_reverse_affine_load_unit_iter)
 
 
-def test_reverse_compute_inline_affine_load_unit_iter_simplified():
+def test_reverse_compute_inline_affine_load_unit_iter_simplified(use_block_name):
     sch = tir.Schedule(elementwise_reverse_affine_load_unit_iter_simplified, debug_mask="all")
-    block_c = sch.get_block("C")
+    block_c = "C" if use_block_name else sch.get_block("C")
     sch.reverse_compute_inline(block_c)
     tvm.ir.assert_structural_equal(
         elementwise_reverse_affine_load_unit_iter_simplified_inlined, sch.mod["main"]
@@ -723,10 +725,10 @@ def test_reverse_compute_inline_affine_load_unit_iter_simplified():
 
 
 @pytest.mark.parametrize("reverse_order", [True, False])
-def test_reverse_compute_inline_affine_chain(reverse_order):
+def test_reverse_compute_inline_affine_chain(use_block_name, reverse_order):
     sch = tir.Schedule(elementwise_reverse_affine_chain, debug_mask="all")
-    block_c = sch.get_block("C")
-    block_d = sch.get_block("D")
+    block_c = "C" if use_block_name else sch.get_block("C")
+    block_d = "D" if use_block_name else sch.get_block("D")
     if reverse_order:
         sch.reverse_compute_inline(block_d)
         sch.reverse_compute_inline(block_c)
@@ -737,68 +739,68 @@ def test_reverse_compute_inline_affine_chain(reverse_order):
     verify_trace_roundtrip(sch=sch, mod=elementwise_reverse_affine_chain)
 
 
-def test_reverse_compute_fail_non_affine_load():
+def test_reverse_compute_fail_non_affine_load(use_block_name):
     sch = tir.Schedule(elementwise_reverse_non_affine_load, debug_mask="all")
-    block_c = sch.get_block("C")
+    block_c = "C" if use_block_name else sch.get_block("C")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.reverse_compute_inline(block_c)
 
 
-def test_reverse_compute_fail_multi_reverse_loads():
+def test_reverse_compute_fail_multi_reverse_loads(use_block_name):
     sch = tir.Schedule(elementwise_multi_loads, debug_mask="all")
-    block_c = sch.get_block("C")
+    block_c = "C" if use_block_name else sch.get_block("C")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.reverse_compute_inline(block_c)
 
 
-def test_opaque_access_load():
+def test_opaque_access_load(use_block_name):
     sch = tir.Schedule(opaque_access_load, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = "B" if use_block_name else sch.get_block("B")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.compute_inline(block_b)
 
 
-def test_opaque_access_store():
+def test_opaque_access_store(use_block_name):
     sch = tir.Schedule(opaque_access_store, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = "B" if use_block_name else sch.get_block("B")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.compute_inline(block_b)
 
 
-def test_buffer_matched():
+def test_buffer_matched(use_block_name):
     sch = tir.Schedule(buffer_matched, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = "B" if use_block_name else sch.get_block("B")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.compute_inline(block_b)
 
 
-def test_output_block():
+def test_output_block(use_block_name):
     sch = tir.Schedule(matmul_relu, debug_mask="all")
     block = sch.get_block("compute")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.compute_inline(block)
 
 
-def test_compute_inline_predicate():
+def test_compute_inline_predicate(use_block_name):
     sch = tir.Schedule(elementwise_predicate, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = "B" if use_block_name else sch.get_block("B")
     sch.compute_inline(block_b)
     tvm.ir.assert_structural_equal(elementwise_predicate_inlined, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise_predicate)
 
 
-def test_compute_inline_multi_loads():
+def test_compute_inline_multi_loads(use_block_name):
     sch = tir.Schedule(elementwise_multi_loads, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = "B" if use_block_name else sch.get_block("B")
     sch.compute_inline(block_b)
     tvm.ir.assert_structural_equal(elementwise_multi_loads_inlined, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise_multi_loads)
 
 
-def test_compute_inline_with_opaque_access():
+def test_compute_inline_with_opaque_access(use_block_name):
     """Test not rewrite opaque reads/writes after irrelavant compute inline"""
     sch = tir.Schedule(access_opaque_ptr_then_elemwise, debug_mask="all")
-    BB = sch.get_block("BB")
+    BB = "BB" if use_block_name else sch.get_block("BB")
     sch.compute_inline(BB)
     tvm.ir.assert_structural_equal(access_opaque_ptr_then_elemwise_inline, sch.mod["main"])
 
@@ -810,10 +812,10 @@ def test_inline_block_with_init():
         sch.compute_inline(block=block)
 
 
-def test_compute_inline_opaque_access_with_tvm_access_ptr():
+def test_compute_inline_opaque_access_with_tvm_access_ptr(use_block_name):
     """Test opaque access with tvm_access_ptr after compute inline"""
     sch = tir.Schedule(exp_exp_opaque_access_with_tvm_access_ptr, debug_mask="all")
-    compute = sch.get_block("compute")
+    compute = "compute" if use_block_name else sch.get_block("compute")
     sch.compute_inline(compute)
     tvm.ir.assert_structural_equal(
         exp_exp_opaque_access_with_tvm_access_ptr_inlined, sch.mod["main"]

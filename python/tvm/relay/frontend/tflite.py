@@ -695,10 +695,15 @@ class OperatorConverter(object):
         coord_trans = "align_corners" if align_corners else "asymmetric"
         coord_trans = "half_pixel" if half_pixel_centers else coord_trans
 
+        rounding_method = ""
+        if method == "nearest_neighbor":
+            if not align_corners and half_pixel_centers:
+                rounding_method = "round_prefer_ceil"
+
         if bilinear_method and input_tensor.qnn_params:
             in_expr = self.dequantize(in_expr, input_tensor)
         out = _op.image.resize2d(
-            in_expr, target_size, None, "NHWC", method, coordinate_transformation_mode=coord_trans
+            in_expr, target_size, None, "NHWC", method, coord_trans, rounding_method
         )
         if bilinear_method and output_tensor.qnn_params:
             out = self.quantize(out, output_tensor)

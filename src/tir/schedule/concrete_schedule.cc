@@ -199,16 +199,16 @@ Schedule ConcreteScheduleNode::Copy() {
  * \param level An ScheduleErrorRenderLevel enum, level of error rendering
  * \sa ScheduleErrorRenderLevel
  */
-#define TVM_TIR_SCHEDULE_END(primitive, level)                    \
-  }                                                               \
-  catch (const ScheduleError& error) {                            \
-    if ((level) == ScheduleErrorRenderLevel::kDetail) {           \
-      throw tvm::runtime::Error(error.RenderReport(primitive));   \
-    } else if ((level) == ScheduleErrorRenderLevel::kFast) {      \
-      throw tvm::runtime::Error(error.FastErrorString());         \
-    } else if ((level) == ScheduleErrorRenderLevel::kNone) {      \
-      throw tvm::runtime::Error("ScheduleError: (not rendered)"); \
-    }                                                             \
+#define TVM_TIR_SCHEDULE_END(primitive, level)                                                \
+  }                                                                                           \
+  catch (const ScheduleError& error) {                                                        \
+    if ((level) == ScheduleErrorRenderLevel::kDetail) {                                       \
+      throw tvm::runtime::Error(error.RenderReport(primitive) + "\n" + runtime::Backtrace()); \
+    } else if ((level) == ScheduleErrorRenderLevel::kFast) {                                  \
+      throw tvm::runtime::Error(error.FastErrorString());                                     \
+    } else if ((level) == ScheduleErrorRenderLevel::kNone) {                                  \
+      throw tvm::runtime::Error("ScheduleError: (not rendered)");                             \
+    }                                                                                         \
   }
 
 /******** Schedule: Schedule: Sampling ********/
@@ -333,19 +333,20 @@ Array<BlockRV> ConcreteScheduleNode::GetConsumers(const BlockRV& block_rv) {
 
 /******** Schedule: Transform loops ********/
 
-LoopRV ConcreteScheduleNode::Fuse(const Array<LoopRV>& loop_rvs) {
+LoopRV ConcreteScheduleNode::Fuse(const Array<LoopRV>& loop_rvs, bool preserve_unit_iters) {
   CHECK(!loop_rvs.empty()) << "ValueError: 'fuse' requires at least 1 loop(s)";
   Array<StmtSRef> loop_srefs = this->GetSRefs(loop_rvs);
   StmtSRef result{nullptr};
   TVM_TIR_SCHEDULE_BEGIN();
-  result = tir::Fuse(state_, loop_srefs);
+  result = tir::Fuse(state_, loop_srefs, preserve_unit_iters);
   TVM_TIR_SCHEDULE_END("fuse", this->error_render_level_);
   this->state_->DebugVerify();
   return CreateRV<LoopRV>(result);
 }
 
 Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
-                                          const Array<Optional<ExprRV>>& factor_rvs) {
+                                          const Array<Optional<ExprRV>>& factor_rvs,
+                                          bool preserve_unit_iters) {
   class NotSingleInferFactorError : public ScheduleError {
    public:
     explicit NotSingleInferFactorError(IRModule mod) : mod_(mod) {}
@@ -440,7 +441,7 @@ Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
   } else if (!this->analyzer_->CanProve(tot_length >= loop->extent)) {
     throw WrongFactorProductError(state_->mod, GetRef<For>(loop));
   }
-  results = tir::Split(state_, loop_sref, factors);
+  results = tir::Split(state_, loop_sref, factors, preserve_unit_iters);
   TVM_TIR_SCHEDULE_END("split", this->error_render_level_);
   this->state_->DebugVerify();
   return CreateRV<LoopRV>(results);
@@ -451,6 +452,24 @@ void ConcreteScheduleNode::Reorder(const Array<LoopRV>& ordered_loop_rvs) {
   tir::Reorder(state_, GetSRefs(ordered_loop_rvs));
   TVM_TIR_SCHEDULE_END("reorder", this->error_render_level_);
   this->state_->DebugVerify();
+}
+
+LoopRV ConcreteScheduleNode::AddUnitLoop(const BlockRV& block_rv) {
+  LoopRV result{nullptr};
+  TVM_TIR_SCHEDULE_BEGIN();
+  result = CreateRV<LoopRV>(tir::AddUnitLoop(state_, GetSRef(block_rv)));
+  TVM_TIR_SCHEDULE_END("add-unit-loop", this->error_render_level_);
+  this->state_->DebugVerify();
+  return result;
+}
+
+LoopRV ConcreteScheduleNode::AddUnitLoop(const LoopRV& loop_rv) {
+  LoopRV result{nullptr};
+  TVM_TIR_SCHEDULE_BEGIN();
+  result = CreateRV<LoopRV>(tir::AddUnitLoop(state_, GetSRef(loop_rv)));
+  TVM_TIR_SCHEDULE_END("add-unit-loop", this->error_render_level_);
+  this->state_->DebugVerify();
+  return result;
 }
 
 /******** Schedule: Manipulate ForKind ********/
@@ -507,6 +526,16 @@ BlockRV ConcreteScheduleNode::CacheWrite(const BlockRV& block_rv, int write_buff
   TVM_TIR_SCHEDULE_BEGIN();
   result = tir::CacheWrite(state_, this->GetSRef(block_rv), write_buffer_index, storage_scope);
   TVM_TIR_SCHEDULE_END("cache-write", this->error_render_level_);
+  this->state_->DebugVerify();
+  return CreateRV<BlockRV>(result);
+}
+
+BlockRV ConcreteScheduleNode::ReIndex(const BlockRV& block_rv, int buffer_index,
+                                      BufferIndexType buffer_index_type) {
+  StmtSRef result{nullptr};
+  TVM_TIR_SCHEDULE_BEGIN();
+  result = tir::ReIndex(state_, this->GetSRef(block_rv), buffer_index, buffer_index_type);
+  TVM_TIR_SCHEDULE_END("reindex", this->error_render_level_);
   this->state_->DebugVerify();
   return CreateRV<BlockRV>(result);
 }

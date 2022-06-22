@@ -802,24 +802,6 @@ def Inline():
     return _ffi_api.Inline()
 
 
-def InlineComposites(target):
-    """Perform inlining on the given Relay IR module. The functions originate
-    from the MergeComposite pass based on an input pattern table will fold back
-    to main. Currently, this is used for the TRT BYOC which expects a single
-    primitive function to operate on.
-
-    Parameters
-    ----------
-    target: str
-        The byoc target for which ops need to fold back to primitive function.
-    Returns
-    -------
-    ret: tvm.transform.Pass
-        The registered pass that performs inlining for a Relay IR module.
-    """
-    return _ffi_api.InlineComposites(target)
-
-
 def gradient(expr, mod=None, mode="higher_order"):
     """
     Transform the input function,
@@ -1386,3 +1368,55 @@ def SplitArgs(max_function_args):
         The registered pass for constant folding.
     """
     return _ffi_api.SplitArgs(max_function_args)
+
+
+def OutlineCompilerFunctionsWithExistingGlobalSymbols(compiler_filter=""):
+    """Outlines all literal functions in direct call positions which have a "Compiler"
+    attribute.
+
+    The outlined functions are bound to unique global vars according to their existing
+    "global_symbol" attribute. At most one function with the same global symbol is outlined.
+
+    If compiler_filter is non-empty only functions with that as their attribute value are
+    outlined.
+
+    This pass may be useful for external codegen using the "RelayToTIR" custom pass mechanism
+    to prepare the IRModule before custom lowering.
+
+    Parameters
+    ----------
+    compiler_filter : String
+        If non-empty, the 'compiler' attribute to filter on.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The pass.
+    """
+    return _ffi_api.OutlineCompilerFunctionsWithExistingGlobalSymbols(compiler_filter)
+
+
+def MarkCompilerFunctionsAsExtern(compiler_filter=""):
+    """Marks all global functions which have a "Compiler" attribute matching
+    compiler_filter as 'extern'.
+
+    The function's attributes are replaced with a single "Extern" attribute, and
+    all calls to the function are switched to use the 'call_lowered' calling convention.
+
+    If compiler_filter is non-empty only functions with that as their attribute value are
+    outlined.
+
+    This pass may be useful for external codegen using the "RelayToTIR" custom pass mechanism to
+    cleanup the IRModule after custom lowering.
+
+    Parameters
+    ----------
+    compiler_filter : String
+        If non-empty, the 'compiler' attribute to filter on.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The pass.
+    """
+    return _ffi_api.MarkCompilerFunctionsAsExtern(compiler_filter)

@@ -481,6 +481,38 @@ inline const CallNode* GetRootCall(const CallNode* current_call, const std::stri
 }
 
 /*!
+ * \brief Retrieve the expected "root" op nested inside a fused call, such as conv2d in
+ *        relu(add(conv2d))
+ * \param call A Relay call node. Typically nn.relu when called the first time.
+ * \param max_depth The maximum number of calls before the root op, counting from current_call.
+ * \param op_name The name of expected "root" op in this fused call.
+ * \return A CallNode corresponding to the root op
+ */
+inline const CallNode* GetRootCall(const CallNode* current_call, int max_depth,
+                                   const std::string& op_name) {
+  ICHECK(current_call && max_depth >= 0);
+
+  if (max_depth == 0) {
+    ICHECK(current_call && IsOp(current_call, op_name));
+    return current_call;
+  }
+  if (IsOp(current_call, op_name)) {
+    return current_call;
+  }
+
+  ICHECK_GT(current_call->args.size(), 0);
+
+  size_t valid_node_idx = 0;
+  while (valid_node_idx < current_call->args.size() &&
+         current_call->args[valid_node_idx].as<VarNode>()) {
+    valid_node_idx++;
+  }
+
+  const auto* next_call = current_call->args[valid_node_idx].as<CallNode>();
+  return GetRootCall(next_call, max_depth - 1, op_name);
+}
+
+/*!
  * \brief Get the external symbol of the Relay function name.
  *
  * \param func The provided function.

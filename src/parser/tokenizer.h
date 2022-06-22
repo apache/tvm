@@ -295,8 +295,6 @@ struct Tokenizer {
     int line = this->line;
     int column = this->col;
 
-    ICHECK_EQ(Peek(), '[');
-    Next();
     std::stringstream type_key;
     while (More() && Peek() != ']') {
       type_key << Next();
@@ -498,7 +496,7 @@ struct Tokenizer {
       auto token = NewToken(TokenType::kQuestion);
       Next();
       return token;
-    } else if (MatchString("meta")) {
+    } else if (MatchString("meta[")) {
       return TokenizeMetaRef();
     } else if (next == '#') {
       return TokenizeAttr();

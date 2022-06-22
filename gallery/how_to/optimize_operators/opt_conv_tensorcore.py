@@ -306,7 +306,7 @@ def intrin_wmma_store_matrix():
 #   *Warp-level Operation*
 #
 #   Note that all TensorCore instructions are warp-level instructions, which means all 32 threads
-#   in a warp should do this instruction simultaneously. Making theadIdx.x extent=32 is one of the
+#   in a warp should do this instruction simultaneously. Making threadIdx.x extent=32 is one of the
 #   easiest way to solve this. Then We can bind threadIdx.x to any loops except those contain
 #   TensorCore intrinsics directly or indirectly. Also note that it is not the unique solution.
 #   The only thing we should do is to make sure all threads in a warp can call TensorCore at the same time.

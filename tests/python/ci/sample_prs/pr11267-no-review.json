@@ -3,7 +3,7 @@
   "body": "This adds `/opt/sccache` to the PATH of each of the CI docker images so when cmake looks for a C compiler it will pick up the sccache wrapper by default. This fixes some issues where compiler invocations weren't being run though sccache. With this approach the invoker doesn't need to do anything specific to set up sccache.\n\nThis will require a follow up PR to update the Docker images and remove some of the sccache logic in `task_build.py`\n\n\n\ncc @Mousius @areusch",
   "state": "OPEN",
   "author": {
-    "login": "driazati"
+    "login": "abc"
   },
   "comments": {
     "pageInfo": {
@@ -15,6 +15,7 @@
         "author": {
           "login": "areusch"
         },
+        "id": 124,
         "updatedAt": "2022-05-11T16:54:32Z",
         "body": "just confirming--we can disable this when doing a local build, correct? what's the mechanism by which we do that?"
       },
@@ -23,6 +24,7 @@
         "author": {
           "login": "driazati"
         },
+        "id": 123,
         "updatedAt": "2022-05-11T18:46:54Z",
         "body": "@tvm-bot merge"
       }

@@ -148,6 +148,18 @@ class ReLU(nn.Module):
         pass
 
 
+class LeakyReLU(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.leaky_relu = QuantWrapper(nn.LeakyReLU())
+
+    def forward(self, x):
+        return self.leaky_relu(x)
+
+    def fuse_model(self):
+        pass
+
+
 # Mobilenet V3 related modules
 class Hsigmoid(nn.Module):
     def __init__(self, add_stub=False):
@@ -302,6 +314,7 @@ def test_quantized_modules():
             ("semodule", (1, 16, 64, 64), SqueezeExcite(16, add_stub=True), False),
             ("semodule, per_channel", (1, 16, 64, 64), SqueezeExcite(16, add_stub=True), True),
             ("mul_scalar negative", imagenet_ishape, MulScalarNegative(), False),
+            ("leaky_relu", imagenet_ishape, LeakyReLU(), False),
         ]
 
     for (module_name, ishape, raw_module, per_channel) in qmodules:
@@ -347,6 +360,7 @@ def test_quantized_modules():
         # sample outputs
         """
         relu 0.0039215684 2.6052087e-08 0.9999933567176871
+        leaky_relu 0.0 0.0 1.0
         upsample bilinear 0.0 0.0 1.0
         conv_bn 0.22062653 0.011478779 0.6909348115006899
         conv_bn_relu 0.3700896 0.010921672 0.7489366477964451

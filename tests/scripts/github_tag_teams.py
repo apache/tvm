@@ -122,7 +122,7 @@ def parse_teams(r: Dict[str, Any], issue_number: int) -> Dict[str, str]:
     for tag in result:
         result[tag] = list(set(result[tag]))
 
-    return {k.lower(): v for k, v in result.items()}
+    return {k.lower(): v for k, v in result.items() if k.strip()}
 
 
 def tags_from_title(title: str) -> List[str]:

@@ -60,7 +60,7 @@ class PoolAllocationToOffsetConverter : public StmtExprMutator {
       PoolInfo pool_info = pool_allocation->pool_info;
       int byte_pool_offset = pool_allocation->byte_offset->value;
       int required_pool_size_for_allocation =
-          byte_pool_offset + CalculateExtentsSize(allocate_node.operator->());
+          byte_pool_offset + static_cast<int>(CalculateExtentsSize(allocate_node.operator->()));
       if (all_pools_sizes_.find(pool_info) == all_pools_sizes_.end()) {
         all_pools_sizes_[pool_info] = required_pool_size_for_allocation;
       } else {

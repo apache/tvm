@@ -39,6 +39,16 @@
 #include "./type.h"
 
 namespace tvm {
+
+/*!
+ * \brief Returns \p global_var with the given properties. A null property denotes 'no change'.
+ * Returns \p global_var if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
+ */
+GlobalVar WithFields(GlobalVar global_var, Optional<String> opt_name_hint = {},
+                     Optional<Type> opt_type = {}, Optional<VirtualDevice> opt_virtual_device = {},
+                     Optional<Span> opt_span = {});
+
 namespace relay {
 
 using Expr = tvm::RelayExpr;
@@ -97,7 +107,16 @@ class Constant : public Expr {
   TVM_DLL explicit Constant(runtime::NDArray data, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Constant, RelayExpr, ConstantNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ConstantNode);
 };
+
+/*!
+ * \brief Returns \p constant with the given properties. A null property denotes 'no change'.
+ * Returns \p constant if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
+ */
+Constant WithFields(Constant constant, Optional<runtime::NDArray> opt_data = {},
+                    Optional<VirtualDevice> opt_virtual_device = {}, Optional<Span> opt_span = {});
 
 /*! \brief Tuple of multiple Exprs */
 class Tuple;
@@ -149,15 +168,9 @@ class Tuple : public Expr {
 };
 
 /*!
- * \brief Returns the tuple with given properties. A null property denotes 'no change'.
- * Returns this if all properties are unchanged. Otherwise, returns a copy with the new fields.
- * \param tuple The tuple to copy
- * \param opt_fields The (optional) fields for the copied tuple. If none, ret_tuple->fields =
- * tuple->fields.
- * \param opt_virtual_device The (optional) virtual_device for the copied tuple. If none,
- * ret_tuple->virtual_device = tuple->virtual_device.
- * \param opt_span The (optional) span for the copied tuple. If none,
- * ret_tuple->span = tuple->span.
+ * \brief Returns \p tuple with the given properties. A null property denotes 'no change'.
+ * Returns \p tuple if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
  */
 Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields = Optional<Array<Expr>>(),
                  Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
@@ -251,19 +264,9 @@ class Var : public Expr {
 };
 
 /*!
- * \brief Returns the var with given properties. A null property denotes 'no change'.
- * Returns var if all properties are unchanged. Otherwise, returns a copy with the new fields.
- * \param var The var to copy.
- * \param opt_vid The (optional) vid for the copied var. If none, ret_var->vid = var->vid.
- * \param opt_type_annotation The (optional) type_annotation for the copied var. If none,
- * ret_var->type_annotation = var->type_annotation.
- * \param opt_virtual_device The (optional) virtual_device for the copied tuple. If none,
- * ret_tuple->virtual_device = tuple->virtual_device.
- * \param opt_span The (optional) span for the copied var. If none, ret_var->span = var->span.
- * \return If all properties are null or the same as the property in the input var (i.e., opt_vid is
- * null or opt_vid.value() == var->vid, etc.), then we return var. Otherwise, we return a copy of
- * call with the different fields overwritten. (i.e., if opt_vid.value() != var->vid, then
- * ret_var->vid = opt_.value()).
+ * \brief Returns \p vor with the given properties. A null property denotes 'no change'.
+ * Returns \p var if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
  */
 Var WithFields(Var var, Optional<Id> opt_vid = Optional<Id>(),
                Optional<Type> opt_type_annotation = Optional<Type>(),
@@ -374,22 +377,9 @@ class Call : public Expr {
 };
 
 /*!
- * \brief Returns the call with given properties. A null property denotes 'no change'.
- * Returns call if all properties are unchanged. Otherwise, returns a copy with the new fields.
- * \param call The call to copy.
- * \param opt_op The (optional) op for the copied call. If none, ret_call->op = call->op.
- * \param opt_args The (optional) args for the copied call. If none, ret_call->args = call->args.
- * \param opt_attrs The (optional) attrs for the copied call. If none, ret_call->attrs =
- * call->attrs.
- * \param opt_type_args The (optional) type args for the copied call. If none,
- * ret_call->type_args = call->type_args.
- * \param opt_virtual_device The (optional) virtual_device for the copied call. If none,
- * ret_call->virtual_device = call->virtual_device.
- * \param opt_span The (optional) span for the copied call. If none, ret_call->span = call->span.
- * \return If all properties are null or the same as the property in the input call (i.e., opt_op is
- * null or opt_op.value() == call->op, etc.), then we return call. Otherwise, we return a copy of
- * call with the different fields overwritten. (i.e., if opt_op.value() != call->op, then
- * ret_call->op = opt_op.value()).
+ * \brief Returns \p call with the given properties. A null property denotes 'no change'.
+ * Returns \p call if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
  */
 Call WithFields(Call call, Optional<Expr> opt_op = Optional<Expr>(),
                 Optional<Array<Expr>> opt_args = Optional<Array<Expr>>(),
@@ -475,19 +465,9 @@ class Let : public Expr {
 };
 
 /*!
- * \brief Returns the let with given properties. A null property denotes 'no change'.
- * Returns let if all properties are unchanged. Otherwise, returns a copy with the new fields.
- * \param let The let to copy.
- * \param opt_var The (optional) var for the copied let. If none, ret_let->op = let->op.
- * \param opt_value The (optional) value for the copied let. If none, ret_let->args = let->args.
- * \param opt_body The (optional) body for the copied let. If none, ret_let->attrs = let->attrs.
- * \param opt_virtual_device The (optional) virtual_device for the copied let. If none,
- * ret_let->virtual_device = let->virtual_device.
- * \param opt_span The (optional) span for the copied let. If none, ret_let->span = let->span.
- * \return If all properties are null or the same as the property in the input let (i.e., opt_var is
- * null or opt_var.value() == let->var, etc.), then we return let. Otherwise, we return a copy of
- * let with the different fields overwritten. (i.e., if opt_var.value() != let->var, then
- * ret_let->var = opt_var.value()).
+ * \brief Returns \p let with the given properties. A null property denotes 'no change'.
+ * Returns \p let if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
  */
 Let WithFields(Let let, Optional<Var> opt_var = Optional<Var>(),
                Optional<Expr> opt_value = Optional<Expr>(),
@@ -559,23 +539,9 @@ class If : public Expr {
 };
 
 /*!
- * \brief Returns the if_expr with given properties. A null property denotes 'no change'.
- * Returns if_expr if all properties are unchanged. Otherwise, returns a copy with the new fields.
- * \param if_expr The if expression to copy.
- * \param opt_cond The (optional) cond for the copied if_expr. If none, ret_if->cond =
- * if_expr->cond.
- * \param opt_true_branch The (optional) true_branch for the copied if_expr. If none,
- * ret_if->true_branch = ret_if->false_branch.
- * \param opt_false_branch The (optional) false_branch
- * for the copied if_expr. If none, ret_if->false_branch = if_expr->false_branch.
- * \param opt_virtual_device The (optional) virtual_device for the copied if_expr. If none,
- * ret_if->virtual_device = if_expr->virtual_device.
- * \param opt_span The (optional) span for the copied if_expr. If none,
- * ret_if->span = if_expr->span.
- * \return If all properties are null or the same as the property in
- * the input if_expr (i.e., opt_cond is null or opt_cond.value() == if_expr->cond, etc.), then we
- * return if_expr. Otherwise, we return a copy of if_expr with the different fields overwritten.
- * (i.e., if opt_cond.value() != if_expr->cond, then ret_if->cond = opt_cond.value()).
+ * \brief Returns \p if_expr with the given properties. A null property denotes 'no change'.
+ * Returns \p if_expr if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
  */
 If WithFields(If if_expr, Optional<Expr> opt_cond = Optional<Expr>(),
               Optional<Expr> opt_true_branch = Optional<Expr>(),
@@ -628,22 +594,9 @@ class TupleGetItem : public Expr {
 };
 
 /*!
- * \brief Returns the tuple_get_item with given properties. A null property denotes 'no change'.
- * Returns if_expr if all properties are unchanged. Otherwise, returns a copy with the new fields.
- * \param tuple_get_item The tuple_get_item to copy.
- * \param opt_tuple The (optional) tuple for the copied tuple_get_item. If none,
- * ret_tuple_get_item->tuple = tuple_get_item->tuple.
- * \param opt_index The (optional) index for the copied tuple_get_item. If none,
- * ret_tuple_get_item->index = tuple_get_item->index.
- * \param opt_virtual_device The (optional) virtual_device for the copied tuple_get_item.
- * If none, ret_tuple_get_item->virtual_device = tuple_get_item->virtual_device.
- * \param opt_span The (optional) span for the copied tuple_get_item. If none,
- * ret_tuple_get_item->span = tuple_get_item->span.
- * \return If all properties are null or the same as the property in the input tuple_get_item
- * (i.e., opt_tuple is null or opt_tuple.value() == tuple_get_item->tuple, etc.), then we return
- * tuple_get_item. Otherwise, we return a copy of tuple_get_item with the different fields
- * overwritten. (i.e., if opt_tuple.value() != tuple_get_item->tuple, then
- * ret_tuple_get_item->tuple = opt_tuple.value()).
+ * \brief Returns \p tuple_get_item with the given properties. A null property denotes 'no change'.
+ * Returns \p tuple_get_item if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
  */
 TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple = Optional<Expr>(),
                         Optional<Integer> opt_index = Optional<Integer>(),
@@ -692,21 +645,9 @@ class RefCreate : public Expr {
 };
 
 /*!
- * \brief Returns the ref create with given properties. A null property denotes 'no change'.
- * Returns ref_create if all properties are unchanged. Otherwise, returns a copy with the new
+ * \brief Returns \p ref_create with the given properties. A null property denotes 'no change'.
+ * Returns \p ref_crete if all properties are unchanged. Otherwise, returns a copy with the new
  * fields.
- * \param ref_create The ref_create to copy.
- * \param opt_value The (optional) value for the copied ref_create. If none,
- * ret_ref_create->value = ref_create->value.
- * \param opt_virtual_device The (optional) virtual_device for the copied ref_create. If none,
- * ret_ref_create->virtual_device = ref_create->virtual_device.
- * \param opt_span The (optional) span for the copied ref_create. If none,
- * ret_ref_create->span = ref_create->span.
- * \return If all properties are null or the same as the property in the input ref_create
- * (i.e., opt_value is null or opt_value.value() == ref_create->value, etc.), then we return
- * ref_create. Otherwise, we return a copy of ref_create with the different fields overwritten.
- * (i.e., if opt_value.value() != ref_create->value, then
- * ret_ref_create->value = opt_value.value()).
  */
 RefCreate WithFields(RefCreate ref_create, Optional<Expr> opt_value = Optional<Expr>(),
                      Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
@@ -754,20 +695,9 @@ class RefRead : public Expr {
 };
 
 /*!
- * \brief Returns the ref read with given properties. A null property denotes 'no change'.
- * Returns ref_read if all properties are unchanged. Otherwise, returns a copy with the new fields.
- * \param ref_read The ref_read to copy.
- * \param opt_ref The (optional) ref for the copied ref_read. If none, ret_ref_read->ref =
- * ref_read->ref.
- * \param opt_virtual_device
- * The (optional) virtual_device for the copied ref_read. If none, ret_ref_read->virtual_device =
- * ref_read->virtual_device.
- * \param opt_span The (optional) span for the copied ref_read. If none, ret_ref_read->span =
- * ref_read->span.
- * \return If all properties are null or the same as the property in the input
- * ref_read (i.e., opt_ref is null or opt_ref.value() == ref_read->ref, etc.), then we return
- * ref_read. Otherwise, we return a copy of ref_read with the different fields overwritten. (i.e.,
- * if opt_ref.value() != ref_read->ref, then ret_ref_read->ref = opt_ref.value()).
+ * \brief Returns \p ref_read with the given properties. A null property denotes 'no change'.
+ * Returns \p ref_read if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
  */
 RefRead WithFields(RefRead ref_read, Optional<Expr> opt_ref = Optional<Expr>(),
                    Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
@@ -820,22 +750,9 @@ class RefWrite : public Expr {
 };
 
 /*!
- * \brief Returns the ref write with given properties. A null property denotes 'no change'.
- * Returns ref_write if all properties are unchanged. Otherwise, returns a copy with the new fields.
- * \param ref_write The ref_write to copy.
- * \param opt_ref The (optional) ref for the copied ref_write. If none,
- * ret_ref_write->ref = ref_write->ref.
- * \param opt_value The (optional) value for the copied ref_write. If none,
- * ret_ref_write->value = ref_write->value.
- * \param opt_virtual_device
- * The (optional) virtual_device for the copied ref_write. If none, ret_ref_write->virtual_device =
- * ref_write->virtual_device.
- * \param opt_span The (optional) span for the copied ref_write. If none, ret_ref_write->span =
- * ref_write->span.
- * \return If all properties are null or the same as the property in the input ref_write (i.e.,
- * opt_ref is null or opt_ref.value() == ref_write->ref, etc.), then we return ref_write. Otherwise,
- * we return a copy of ref_write with the different fields overwritten. (i.e., if ref_write.value()
- * != ref_write->ref, then ret_ref_write->ref = opt_ref.value()).
+ * \brief Returns \p ref_write with the given properties. A null property denotes 'no change'.
+ * Returns \p ref_write if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
  */
 RefWrite WithFields(RefWrite ref_write, Optional<Expr> opt_ref = Optional<Expr>(),
                     Optional<Expr> opt_value = Optional<Expr>(),
