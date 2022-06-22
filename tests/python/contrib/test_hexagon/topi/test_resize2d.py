@@ -66,15 +66,29 @@ def output_shape(batch, channel, out_height, out_width):
 
 class TestResize2d:
     (batch, channel, in_height, in_width, out_height, out_width,) = tvm.testing.parameters(
-        (1, 32, 8, 8, 16, 16,),
-        (1, 32, 48, 48, 8, 8,),
+        (
+            1,
+            32,
+            8,
+            8,
+            16,
+            16,
+        ),
+        (
+            1,
+            32,
+            48,
+            48,
+            8,
+            8,
+        ),
     )
 
     (layout, input_crouton_layout, output_layout, dtype,) = tvm.testing.parameters(
         ("NHWC", "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d", "float16"),
     )
 
-    coord_trans =  tvm.testing.parameter("asymmetric", "align_corners", "half_pixel")
+    coord_trans = tvm.testing.parameter("asymmetric", "align_corners", "half_pixel")
     method = tvm.testing.parameter("nearest_neighbor", "linear", "cubic")
 
     @tvm.testing.requires_hexagon
