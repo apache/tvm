@@ -99,7 +99,7 @@ class TestCastF16F32Slice2d:
         """
         Top level testing function for cast fp16 to fp32
         """
-        target_hexagon = tvm.target.hexagon("v68")
+        target_hexagon = tvm.target.hexagon("v69")
         target = tvm.target.Target(target_hexagon, host=target_hexagon)
         A = te.placeholder(input_shape, name="A", dtype=dtype)
         M = sl.cast_f16_f32_compute(A)
@@ -183,7 +183,7 @@ class TestCastF32F16Slice2d:
         Top level testing function for cast fp32 to fp16
         """
 
-        target_hexagon = tvm.target.hexagon("v68")
+        target_hexagon = tvm.target.hexagon("v69")
         target = tvm.target.Target(target_hexagon, host=target_hexagon)
         A = te.placeholder(input_shape, name="A", dtype=dtype)
         M = sl.cast_f32_f16_compute(A)
@@ -218,4 +218,4 @@ class TestCastF32F16Slice2d:
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    sys.exit(tvm.testing.main(sys.argv))
