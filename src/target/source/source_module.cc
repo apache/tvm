@@ -23,12 +23,16 @@
  */
 #include "source_module.h"
 
+#include <dmlc/memory_io.h>
 #include <tvm/runtime/metadata.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
+#include <algorithm>
+#include <functional>
+#include <numeric>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -41,7 +45,9 @@
 #include "../func_registry_generator.h"
 #include "../metadata.h"
 #include "../metadata_utils.h"
+#include "codegen_params.h"
 #include "codegen_source_base.h"
+#include "tvm/relay/executor.h"
 
 namespace tvm {
 namespace codegen {
@@ -249,15 +255,17 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     return reference_arg + "_tvm_value";
   }
 
-  void GenerateInternalWorkspaceBuffers() {
+  void GenerateInternalBuffers() {
     if (metadata_->pool_inputs.defined()) {
       for (const auto& kv : metadata_->pool_inputs.value()) {
         tir::usmp::AllocatedPoolInfo allocated_pool_info = kv.second;
         if (allocated_pool_info->pool_info->is_internal) {
-          code_ << "__attribute__((section(\".bss.noinit.tvm\"), ";
-          code_ << "aligned(" << 16 << ")))\n";
-          code_ << "static uint8_t " << allocated_pool_info->pool_info->pool_name << "["
-                << allocated_pool_info->allocated_size->value << "];\n";
+          if (const auto* pool_info = allocated_pool_info->pool_info.as<ConstantPoolInfoNode>()) {
+            GenerateConstantBuffer(pool_info, allocated_pool_info->allocated_size->value);
+          } else {
+            GenerateWorkspaceBuffer(allocated_pool_info->pool_info.as<WorkspacePoolInfoNode>(),
+                                    allocated_pool_info->allocated_size->value);
+          }
         }
       }
     }
@@ -281,6 +289,55 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     code_ << "};\n";
     code_ << "return ret;\n";
     code_ << "}\n\n";
+  }
+
+  void GenerateConstantBuffer(const ConstantPoolInfoNode* pool_info, size_t allocated_size) {
+    size_t offset = 0;
+    if (pool_info->constant_info_array.size() > 0) {
+      // Pool is RO, form an initialized struct
+      code_ << "__attribute__((section(\".rodata.tvm\"), ";
+      code_ << "))\n";
+      code_ << "static struct " << pool_info->pool_name << " {\n";
+      // emit struct field names
+      std::vector<ConstantInfo> const_info_vec(pool_info->constant_info_array.begin(),
+                                               pool_info->constant_info_array.end());
+      std::sort(const_info_vec.begin(), const_info_vec.end(),
+                [](const ConstantInfo& a, const ConstantInfo& b) {
+                  return a->byte_offset->value < b->byte_offset->value;
+                });
+      for (const auto& const_info : const_info_vec) {
+        const auto& data = const_info->data;
+        const auto& offs = const_info->byte_offset;
+        int64_t num_elements = std::accumulate(data.Shape().begin(), data.Shape().end(), 1,
+                                               std::multiplies<int64_t>());
+        code_ << "  ";
+        codegen_c_base_.PrintType(data.DataType(), code_);
+        code_ << " " << const_info->name_hint << "[" << num_elements
+              << "] __attribute__((packed, aligned(" << metadata_->constant_alignment << ")));";
+        code_ << " // " << num_elements * data.DataType().bytes()
+              << " bytes, aligned offset: " << offs << "\n";
+      }
+      code_ << "} " << pool_info->pool_name << " = {\n";
+
+      // emit struct field initialization data
+      for (const auto& const_info : const_info_vec) {
+        code_ << "  ." << const_info->name_hint << " = {\n";
+        codegen::NDArrayDataToC(const_info->data, 4, code_);
+        code_ << "  },\n";
+      }
+      code_ << "};";
+      code_ << "// of total size " << allocated_size << " bytes, aligned: " << offset << " bytes\n";
+    } else {
+      LOG(FATAL) << "No constant data in constant pool found "
+                 << PrettyPrint(GetRef<ObjectRef>(pool_info));
+    }
+  }
+
+  void GenerateWorkspaceBuffer(const WorkspacePoolInfoNode* pool_info, size_t allocated_size) {
+    code_ << "__attribute__((section(\".bss.noinit.tvm\"), ";
+    code_ << "aligned(" << metadata_->workspace_alignment << ")))\n";
+    code_ << "static uint8_t " << pool_info->pool_name << "[";
+    code_ << allocated_size << "];\n";
   }
 
   bool IsInternalWorkspaceBuffer(const tir::Var& pool_var) {
@@ -549,7 +606,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     code_ << "extern \"C\" {\n";
     code_ << "#endif\n";
 
-    GenerateInternalWorkspaceBuffers();
+    GenerateInternalBuffers();
 
     if (metadata_->unpacked_api) {
       if (metadata_->interface_api == "c") {
@@ -646,9 +703,26 @@ class MetadataSerializer : public AttrVisitor {
     WriteKey(key);
   }
 
+  // Serialiding NDArray as tuple of len, data
   void Visit(const char* key, runtime::NDArray* value) final {
-    // TODO(areusch): probably we could consolidate --link-params here, tho...
-    ICHECK(false) << "do not support serializing NDArray as metadata";
+    WriteComma();
+    std::string bytes;
+    dmlc::MemoryStringStream stream(&bytes);
+    value->Save(&stream);
+    // Serializing length of the data of NDArray
+    code_ << stream.Tell();
+    WriteComma();
+    // Serializing NDArray as bytestream
+    code_ << "\"";
+    std::stringstream ss;
+    char buf[6] = {0};
+    for (uint8_t c : bytes) {
+      snprintf(buf, sizeof(buf), "\\x%02x", c);
+      ss << buf;
+    }
+    std::string as_bytes(ss.str());
+    code_ << as_bytes;
+    code_ << "\"\n";
   }
 
   void VisitArray(runtime::metadata::MetadataArray array) {
@@ -722,7 +796,11 @@ class MetadataSerializer : public AttrVisitor {
     if (key != nullptr) {  // NOTE: outermost call passes nullptr key
       address_.push_back(key);
     }
+    WriteComma();
+    code_ << "{\n";
+    is_first_item_ = true;
     ReflectionVTable::Global()->VisitAttrs(metadata.operator->(), this);
+    code_ << "}\n";
     if (key != nullptr) {  // NOTE: outermost call passes nullptr key
       address_.pop_back();
     }
@@ -790,7 +868,7 @@ class MetadataSerializer : public AttrVisitor {
 
     // Finally, emit overall struct.
     address_.push_back(metadata::kMetadataGlobalSymbol);
-    code_ << "static const struct TVMMetadata " << metadata::AddressFromParts(address_) << " = {"
+    code_ << "static const struct TVMMetadata " << metadata::AddressFromParts(address_) << "[1] = {"
           << std::endl;
     Visit(nullptr, &metadata);
     code_ << "};" << std::endl;

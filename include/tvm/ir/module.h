@@ -506,6 +506,15 @@ constexpr const char* kRuntime = "runtime";
  */
 constexpr const char* kWorkspaceMemoryPools = "workspace_memory_pools";
 
+/*!
+ * \brief constant memory pools of the module
+ *
+ * Type: ConstantMemoryPools
+ *
+ * \sa tvm::ConstantMemoryPools
+ */
+constexpr const char* kConstantMemoryPools = "constant_memory_pools";
+
 /*
  * \brief Module attribute for tir constants
  */
