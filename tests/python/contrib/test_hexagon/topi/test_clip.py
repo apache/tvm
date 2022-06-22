@@ -50,7 +50,7 @@ def transformed_input_np(input_np, input_layout):
 
 class TestClipSlice:
     input_shape, output_shape, A_min, A_max, output_layout, dtype = tvm.testing.parameters(
-        ([1, 256, 256, 32], [1, 256, 256, 32], 0.1, 0.5, "nhwc-8h2w32c2w-2d", "float16")
+        ([1, 8, 4, 32], [1, 8, 4, 32], 0.1, 0.5, "nhwc-8h2w32c2w-2d", "float16")
     )
 
     @tvm.testing.fixture

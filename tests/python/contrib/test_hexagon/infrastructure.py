@@ -48,6 +48,7 @@ def allocate_hexagon_array(
         numpy.prod(tensor_shape[dim_i:dim_f])
         for dim_i, dim_f in zip(boundaries[:-1], boundaries[1:])
     ]
+
     arr = tvm.nd.empty(physical_shape, dtype=dtype, device=dev, mem_scope=mem_scope)
 
     if data is not None:
