@@ -135,10 +135,10 @@ void CodeGenLLVM::AddFunctionInternal(const PrimFunc& f, bool ret_void) {
   auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
   ICHECK(global_symbol.defined())
       << "CodeGenLLVM: Expect PrimFunc to have the global_symbol attribute";
-  function_ = module_->getFunction(static_cast<std::string>(global_symbol.value()));
+  function_ = module_->getFunction(MakeStringRef(global_symbol.value()));
   if (function_ == nullptr) {
     function_ = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
-                                       global_symbol.value().operator std::string(), module_.get());
+                                       MakeStringRef(global_symbol.value()), module_.get());
   }
   function_->setCallingConv(llvm::CallingConv::C);
   function_->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
@@ -808,10 +808,10 @@ llvm::Value* CodeGenLLVM::CreateCallExtern(Type ret_type, String global_symbol,
     arg_type.push_back(arg_value.back()->getType());
   }
   llvm::FunctionType* ftype = llvm::FunctionType::get(GetLLVMType(ret_type), arg_type, false);
-  llvm::Function* f = module_->getFunction(global_symbol);
+  llvm::Function* f = module_->getFunction(MakeStringRef(global_symbol));
   if (f == nullptr) {
-    f = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
-                               global_symbol.operator llvm::StringRef(), module_.get());
+    f = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage, MakeStringRef(global_symbol),
+                               module_.get());
   }
   llvm::CallInst* call = builder_->CreateCall(f, arg_value);
   return call;
