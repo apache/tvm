@@ -280,6 +280,7 @@ def conv2d_nhwc(
     dilation,
     out_dtype="float32",
     auto_scheduler_rewritten_layout="",
+    meta_schedule_original_shape=None,
 ):
     """Convolution operator in NHWC layout.
 
@@ -308,6 +309,9 @@ def conv2d_nhwc(
     auto_scheduler_rewritten_layout: str = ""
         The layout after auto-scheduler's layout rewrite pass.
 
+    meta_schedule_original_shape: Optional[List[PrimExpr]] = None
+        The original shape of the input tensor.
+
     Returns
     -------
     output : tvm.te.Tensor
@@ -323,6 +327,7 @@ def conv2d_nhwc(
         "NHWC",
         out_dtype,
         auto_scheduler_rewritten_layout,
+        meta_schedule_original_shape,
         auto_scheduler_should_rewrite_layout=True,
     )
 
@@ -716,6 +721,7 @@ def conv(
     order: str,
     out_dtype: Union[str, None] = None,
     auto_scheduler_rewritten_layout: Optional[str] = None,
+    meta_schedule_original_shape=None,
     auto_scheduler_should_rewrite_layout: bool = False,
 ):
     """Convolution operator in NCHW or NHWC layout.
@@ -755,13 +761,16 @@ def conv(
         Elements are converted to this type before elementwise multiplication
         and summation.
 
+    auto_scheduler_rewritten_layout: str
+        Layout from autoscheduler's layout rewritting.
+
+    meta_schedule_original_shape : Optional[List[PrimExpr]]
+        The original shape of the input tensor.
+
     auto_scheduler_should_rewrite_layout : bool
         Should auto scheduler be allowed to rewrite the layout of the filter
         tensor. Defaults to false. This can cause errors if used with grouped
         convs.
-
-    auto_scheduler_rewritten_layout: str
-        Layout from autoscheduler's layout rewritting.
 
     Returns
     -------
@@ -802,6 +811,8 @@ def conv(
         permutation_to_kernel = [dim + 1, dim] + list(range(dim))
     permutation_from_kernel = np.argsort(permutation_to_kernel)
 
+    if meta_schedule_original_shape:
+        auto_scheduler.rewrite_tensor_shape(filt, meta_schedule_original_shape)
     batch, in_channel, *dimensions = np.array(get_const_tuple(inp.shape))[permutation_to].tolist()
     num_filter, _, *kernel_dimensions = np.array(get_const_tuple(filt.shape))[
         permutation_to_kernel
@@ -959,6 +970,7 @@ def _conv2d_winograd_nhwc_impl(
     tile_size,
     pre_computed=False,
     auto_scheduler_rewritten_layout="",
+    meta_schedule_original_shape=None,
 ):
     """Conv2D Winograd implementation in NHWC layout.
     This is a clean version to be used by the auto-scheduler for both CPU and GPU.
@@ -983,6 +995,8 @@ def _conv2d_winograd_nhwc_impl(
         Whether the kernel is precomputed
     auto_scheduler_rewritten_layout: str = ""
         The layout after auto-scheduler's layout rewrite pass.
+    meta_schedule_original_shape: Optional[List[PrimExpr]] = None
+        The original shape of the input tensor.
 
     Returns
     -------
@@ -994,6 +1008,8 @@ def _conv2d_winograd_nhwc_impl(
         dilation_h = dilation_w = dilation
     else:
         dilation_h, dilation_w = dilation
+    if meta_schedule_original_shape:
+        auto_scheduler.rewrite_tensor_shape(weight, meta_schedule_original_shape)
 
     assert (dilation_h, dilation_w) == (1, 1), "Does not support dilation"
     if not pre_computed:
@@ -1136,6 +1152,7 @@ def conv2d_winograd_nhwc(
     out_dtype,
     pre_computed=False,
     auto_scheduler_rewritten_layout="",
+    meta_schedule_original_shape=None,
 ):
     """Conv2D Winograd in NHWC layout.
     This is a clean version to be used by the auto-scheduler for both CPU and GPU.
@@ -1158,6 +1175,8 @@ def conv2d_winograd_nhwc(
         Whether the kernel is precomputed
     auto_scheduler_rewritten_layout: str = ""
         The layout after auto-scheduler's layout rewrite pass.
+    meta_schedule_original_shape: Optional[List[PrimExpr]] = None
+        The original shape of the input tensor.
 
     Returns
     -------
@@ -1176,6 +1195,7 @@ def conv2d_winograd_nhwc(
         tile_size,
         pre_computed,
         auto_scheduler_rewritten_layout,
+        meta_schedule_original_shape,
     )
 
 
@@ -1187,6 +1207,7 @@ def conv2d_winograd_nhwc_without_weight_transform(
     dilation,
     out_dtype,
     auto_scheduler_rewritten_layout="",
+    meta_schedule_original_shape=None,
 ):
     """Conv2D Winograd without layout transform in NHWC layout.
     This is a clean version to be used by the auto-scheduler for both CPU and GPU.
@@ -1207,6 +1228,8 @@ def conv2d_winograd_nhwc_without_weight_transform(
         Specifies the output data type.
     auto_scheduler_rewritten_layout: str = ""
         The layout after auto-scheduler's layout rewrite pass.
+    meta_schedule_original_shape: Optional[List[PrimExpr]] = None
+        The original shape of the input tensor.
 
     Returns
     -------
@@ -1223,4 +1246,5 @@ def conv2d_winograd_nhwc_without_weight_transform(
         out_dtype,
         pre_computed=True,
         auto_scheduler_rewritten_layout=auto_scheduler_rewritten_layout,
+        meta_schedule_original_shape=meta_schedule_original_shape,
     )
