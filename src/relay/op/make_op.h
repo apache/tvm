@@ -28,6 +28,7 @@
 
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
+#include <tvm/tir/index_map.h>
 
 // Include Templated Make Functions
 #include "nn/convolution_make.h"
@@ -56,6 +57,8 @@ Expr MakeExpandDims(Expr data, int axis, int num_newaxis);
 Expr MakeFull(Expr fill_value, Array<Integer> shape, DataType dtype);
 
 Expr MakeLayoutTransform(Expr data, String src_layout, String dst_layout);
+
+Expr MakeMetaScheduleLayoutTransform(Expr data, tir::IndexMap index_map);
 
 Expr MakeAutoSchedulerLayoutTransform(Expr data, String src_layout, String dst_layout);
 

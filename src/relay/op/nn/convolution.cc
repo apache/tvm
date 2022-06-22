@@ -188,6 +188,18 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   Layout kOIHW("OIHW");
 
   const auto* param = attrs.as<Conv2DAttrs>();
+  DataType out_dtype = param->out_dtype;
+  if (out_dtype.bits() == 0) {
+    out_dtype = data->dtype;
+    if (out_dtype.bits() == 0 && weight != nullptr) {
+      out_dtype = weight->dtype;
+    }
+  }
+  TensorType meta_schedule_weight{nullptr};
+  if (param->meta_schedule_original_shape.size() != 0) {
+    meta_schedule_weight = TensorType(param->meta_schedule_original_shape, out_dtype);
+    weight = meta_schedule_weight.get();
+  }
   ICHECK(param != nullptr);
   const Layout in_layout(param->data_layout);
   const Layout kernel_layout(param->kernel_layout);
@@ -273,27 +285,27 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       weight_dtype = weight->dtype;
     }
 
-    if (param->auto_scheduler_rewritten_layout.size() == 0) {
-      // Normal case: assign result to reporter
-      reporter->Assign(types[1], TensorType(wshape, weight_dtype));
-    } else {
+    if (param->auto_scheduler_rewritten_layout.size() != 0) {
       // If the layout is rewritten by auto-scheduler,
       // we just forcly apply the layout provided by auto-scheduler and
       // skip the normal inference logic.
       {}  // do nothing
+    } else {
+      // Normal case: assign result to reporter
+      reporter->Assign(types[1], TensorType(wshape, weight_dtype));
     }
   } else {
     // use weight to infer the conv shape.
     if (weight == nullptr) return false;
 
     Array<PrimExpr> wshape;
-    if (param->auto_scheduler_rewritten_layout.size() == 0) {
-      wshape = weight->shape;
-    } else {
+    if (param->auto_scheduler_rewritten_layout.size() != 0) {
       // works for the default kernel layout "HWIO"
       ICHECK_EQ(param->kernel_layout, "HWIO");
       wshape = auto_scheduler::GetShapeFromRewrittenLayout(param->auto_scheduler_rewritten_layout,
                                                            {"ry", "rx", "rc", "ff"});
+    } else {
+      wshape = weight->shape;
     }
 
     wshape = trans_kernel_layout.ForwardShape(wshape);
@@ -357,10 +369,6 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   } else {
     oshape.Set(3, dshape_nchw[3]);
   }
-  DataType out_dtype = param->out_dtype;
-  if (out_dtype.bits() == 0) {
-    out_dtype = data->dtype;
-  }
   oshape = trans_out_layout.BackwardShape(oshape);
   // assign output type
   reporter->Assign(types[2], TensorType(oshape, out_dtype));
@@ -412,6 +420,18 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   const auto* param = attrs.as<Conv3DAttrs>();
   ICHECK(param != nullptr);
+  DataType out_dtype = param->out_dtype;
+  if (out_dtype.bits() == 0) {
+    out_dtype = data->dtype;
+    if (out_dtype.bits() == 0 && weight != nullptr) {
+      out_dtype = weight->dtype;
+    }
+  }
+  TensorType meta_schedule_weight{nullptr};
+  if (param->meta_schedule_original_shape.size() != 0) {
+    meta_schedule_weight = TensorType(param->meta_schedule_original_shape, out_dtype);
+    weight = meta_schedule_weight.get();
+  }
   const Layout in_layout(param->data_layout);
   const Layout kernel_layout(param->kernel_layout);
 
@@ -450,14 +470,14 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       weight_dtype = weight->dtype;
     }
 
-    if (param->auto_scheduler_rewritten_layout.size() == 0) {
-      // Normal case: assign result to reporter
-      reporter->Assign(types[1], TensorType(wshape, weight_dtype));
-    } else {
+    if (param->auto_scheduler_rewritten_layout.size() != 0) {
       // If the layout is rewritten by auto-scheduler,
       // we just forcly apply the layout provided by auto-scheduler and
       // skip the normal inference logic.
       {}  // do nothing
+    } else {
+      // Normal case: assign result to reporter
+      reporter->Assign(types[1], TensorType(wshape, weight_dtype));
     }
 
   } else {
@@ -465,13 +485,13 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     if (weight == nullptr) return false;
 
     Array<PrimExpr> wshape;
-    if (param->auto_scheduler_rewritten_layout.size() == 0) {
-      wshape = weight->shape;
-    } else {
+    if (param->auto_scheduler_rewritten_layout.size() != 0) {
       // works for the default kernel layout "DHWIO"
       ICHECK_EQ(param->kernel_layout, "DHWIO");
       wshape = auto_scheduler::GetShapeFromRewrittenLayout(param->auto_scheduler_rewritten_layout,
                                                            {"rd", "rh", "rw", "rc", "cc"});
+    } else {
+      wshape = weight->shape;
     }
 
     wshape = trans_kernel_layout.ForwardShape(wshape);
@@ -520,10 +540,6 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     oshape.Set(4, indexdiv(dshape_ncdhw[4] + pad_w - dilated_ksize_x, param->strides[2]) + 1);
   } else {
     oshape.Set(4, dshape_ncdhw[4]);
-  }
-  DataType out_dtype = param->out_dtype;
-  if (out_dtype.bits() == 0) {
-    out_dtype = data->dtype;
   }
   oshape = trans_out_layout.BackwardShape(oshape);
   // assign output type
