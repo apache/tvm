@@ -649,13 +649,12 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     }
 
     // Set attributes.
-    auto kernel = is_global ? feature_size
-                            : GetNodeAttr<std::vector<int64_t>>(node, "pool_size");
+    auto kernel = is_global ? feature_size : GetNodeAttr<std::vector<int64_t>>(node, "pool_size");
     auto strides = is_global ? std::vector<int64_t>(src_tr.dims().size() - 2, 1)
                              : GetNodeAttr<std::vector<int64_t>>(node, "strides");
     auto dilates = is_global ? std::vector<int64_t>(src_tr.dims().size() - 2, 1)
                              : GetNodeAttr<std::vector<int64_t>>(node, "dilation");
-    auto padding = is_global ? std::vector<int64_t>((src_tr.dims().size()-2) * 2, 0)
+    auto padding = is_global ? std::vector<int64_t>((src_tr.dims().size() - 2) * 2, 0)
                              : GetNodeAttr<std::vector<int64_t>>(node, "padding");
     std::vector<int64_t> padding_l(padding.begin(), padding.begin() + padding.size() / 2);
     std::vector<int64_t> padding_r(padding.begin() + padding.size() / 2, padding.end());

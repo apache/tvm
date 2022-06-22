@@ -463,13 +463,13 @@ def tag2layout(input_data, is_weight=False, conv_type="Conv1D"):
 def legalize_pad_avg_pool(attrs, inputs, types):
     """Legalize pad->avg_pool2d pattern.
     Fuse this pattern into one avg_pool2d with padding = (1, 1),
-    and count_include_pad = True """
+    and count_include_pad = True"""
     data = inputs[0]
+    new_attrs = dict(attrs)
     if isinstance(data, relay.expr.Call) and data.op.name == "nn.pad":
-        new_attrs = dict(attrs)
         new_attrs["padding"] = (1, 1)
         new_attrs["count_include_pad"] = True
-        return relay.nn.avg_pool2d(data.args[0], **new_attrs)
+    return relay.nn.avg_pool2d(data.args[0], **new_attrs)
 
 
 def legalize_group_conv(attrs, inputs, types):
