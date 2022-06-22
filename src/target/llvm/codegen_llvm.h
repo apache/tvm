@@ -47,6 +47,7 @@
 
 #include "../../runtime/thread_storage_scope.h"
 #include "../../tir/transforms/ir_utils.h"
+#include "codegen_params.h"
 #include "llvm_common.h"
 
 namespace tvm {
@@ -185,6 +186,9 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Constant* GetGlobalConstant(
       llvm::Constant* const_data, const std::string& name = "",
       llvm::GlobalValue::LinkageTypes linkage_type = llvm::GlobalValue::InternalLinkage);
+  inline llvm::ConstantArray* NDArrayToLLVMArray(::tvm::runtime::NDArray arr) {
+    return codegen::NDArrayToLLVMArray(ctx_, arr);
+  }
 
  protected:
   /*!
