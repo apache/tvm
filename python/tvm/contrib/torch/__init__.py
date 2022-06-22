@@ -51,7 +51,7 @@ compile = pytorch_tvm.compile
 
 from . import as_torch
 
-TVMScriptIRModule = as_torch.TVMScriptIRModule
+TVMScriptIRModule = as_torch.OperatorModuleWrapper
 as_torch = as_torch.as_torch
 
 from . import optimize_torch

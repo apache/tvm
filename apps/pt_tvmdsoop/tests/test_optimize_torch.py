@@ -45,7 +45,7 @@ def test_matmul_tuning_relay():
     w = torch.randn(20, 30)
     example_inputs = (x, w)
     
-    rt_mod = optimize_torch(matmul, example_inputs, config)
+    rt_mod = optimize_torch(matmul, example_inputs)
 
     torch_answer = torch.matmul(x, w).numpy()
     tvm_answer = rt_mod(x, w).numpy()

@@ -105,14 +105,17 @@ def optimize_torch(
         # Default setting. For a better tuning result the number could be set larger.
         tuning_config = TuneConfig(
             strategy="evolutionary",
-            num_trials_per_iter=1,
-            max_trials_per_task=2,
-            max_trials_global=0,
+            num_trials_per_iter=4,
+            max_trials_per_task=16,
+            max_trials_global=16,
         )
 
+    # If `func` is already a traced module this statement makes no effect
     jit_mod = torch.jit.trace(func, example_inputs)
+
     if isinstance(example_inputs, torch.Tensor):
         example_inputs = [example_inputs]
+
     shape_list = [(f"inp_{idx}", i.shape)
                   for idx, i in enumerate(example_inputs)]
     mod, params = relay.frontend.from_pytorch(jit_mod, shape_list)  # IRmodule
@@ -129,4 +132,4 @@ def optimize_torch(
     save_runtime_mod = get_global_func("tvmtorch.save_runtime_mod")
     save_runtime_mod(executor_factory.module)
 
-    return GraphExecutorFactoryWrapper(torch.classes.tvm_tuning.RelayRuntime())
+    return GraphExecutorFactoryWrapper(torch.classes.tvm_tuning.GraphExecutorFactoryWrapper())

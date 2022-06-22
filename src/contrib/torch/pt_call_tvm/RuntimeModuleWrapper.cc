@@ -44,9 +44,9 @@ struct ThreadLocalStore {
   }
 };
 
-class TVMScriptRuntimeClass : public torch::jit::CustomClassHolder {
+class OperatorModuleWrapper : public torch::jit::CustomClassHolder {
  public:
-  TVMScriptRuntimeClass() { mod_ = ThreadLocalStore::ThreadLocal()->mod; }
+  OperatorModuleWrapper() { runtime_module = ThreadLocalStore::ThreadLocal()->mod; }
 
   void forward(const c10::List<at::Tensor>& inputs) {
     int input_length = inputs.size();
@@ -55,7 +55,7 @@ class TVMScriptRuntimeClass : public torch::jit::CustomClassHolder {
 
     for (int i = 0; i < input_length; ++i) tensors.push_back(toDLPack(inputs[i]));
 
-    tvm::runtime::PackedFunc run = mod_.GetFunction("__tvm_main__");
+    tvm::runtime::PackedFunc run = runtime_module.GetFunction("__tvm_main__");
 
     std::vector<TVMValue> tvm_values(input_length);
     std::vector<int> tvm_type_codes(input_length);
@@ -72,8 +72,44 @@ class TVMScriptRuntimeClass : public torch::jit::CustomClassHolder {
     }
   }
 
+  using SerializationType = std::string;  // executor factory stream
+
+  SerializationType Serialize() {
+    static const runtime::PackedFunc* f_to_str =
+        runtime::Registry::Get("script_torch.save_to_base64");
+    ICHECK(f_to_str) << "IndexError: Cannot find the packed function "
+                        "`script_torch.save_to_tar` in the global registry";
+    return (*f_to_str)(runtime_module);
+  }
+
+  OperatorModuleWrapper(SerializationType state) {
+    auto length = tvm::support::b64strlen(state);
+
+    u_char bytes[length];
+    memset(bytes, 0, sizeof(bytes));
+    tvm::support::b64decode(state, bytes);
+
+    const char* name = tmpnam(NULL);
+    auto file_name = std::string(name) + ".so";
+    auto pFile = fopen(file_name.c_str(), "wb");
+    fwrite(bytes, sizeof(u_char), length, pFile);
+    fclose(pFile);
+
+    std::string load_f_name = "runtime.module.loadfile_so";
+    const PackedFunc* f = runtime::Registry::Get(load_f_name);
+    ICHECK(f != nullptr) << "Loader for `.so` files is not registered,"
+                         << " resolved to (" << load_f_name << ") in the global registry."
+                         << "Ensure that you have loaded the correct runtime code, and"
+                         << "that you are on the correct hardware architecture.";
+
+    runtime_module = (*f)(file_name, "");
+
+    ICHECK(remove(file_name.c_str()) == 0)
+        << "remove temporary file (" << file_name << ") unsuccessfully";
+  }
+
  private:
-  tvm::runtime::Module mod_;
+  tvm::runtime::Module runtime_module;
 };
 
 tvm::Device getDevice(const at::Tensor& tensor) {
@@ -193,13 +229,18 @@ TVM_REGISTER_GLOBAL("tvmtorch.save_runtime_mod").set_body_typed([](tvm::runtime:
 });
 
 TORCH_LIBRARY(tvm_torch, m) {
-  m.class_<TVMScriptRuntimeClass>("TVMScriptRuntime")
+  m.class_<OperatorModuleWrapper>("OperatorModuleWrapper")
       .def(torch::init<>())
-      .def("forward", &TVMScriptRuntimeClass::forward);
+      .def("forward", &OperatorModuleWrapper::forward)
+      .def_pickle([](const c10::intrusive_ptr<OperatorModuleWrapper>& self)
+                      -> OperatorModuleWrapper::SerializationType { return self->Serialize(); },
+                  [](OperatorModuleWrapper::SerializationType state) {
+                    return c10::make_intrusive<OperatorModuleWrapper>(state);
+                  });
 }
 
 TORCH_LIBRARY(tvm_tuning, m) {
-  m.class_<GraphExecutorFactoryWrapper>("RelayRuntime")
+  m.class_<GraphExecutorFactoryWrapper>("GraphExecutorFactoryWrapper")
       .def(torch::init<>())
       .def("forward", &GraphExecutorFactoryWrapper::forward)
       .def_pickle(
