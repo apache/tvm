@@ -223,7 +223,6 @@ def pattern_table():
     def check_qnn_max_pool2d(pattern):
         """Check if max pool2d is supported by CMSIS-NN."""
         output = pattern
-        input_op = None
 
         if str(pattern.op.name) == "clip":
             pooling = pattern.args[0]

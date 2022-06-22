@@ -177,7 +177,17 @@ class ConstIntBoundAnalyzer::Impl
   }
 
   Entry VisitExpr_(const CastNode* op) final {
-    Entry a = VisitExpr(op->value);
+    Entry a;
+
+    // int(ceil(log2(cast(n,"float64")))) is used as the
+    // implementation of topi.math.ceil_log2, and appears in iteration
+    // bounds.
+    if (auto opt = FindCeilLog2Arg(op)) {
+      a = CeilLog2Bounds(opt.value());
+    } else {
+      a = VisitExpr(op->value);
+    }
+
     Entry b = Everything(op->dtype);
     return Intersect(a, b);
   }
@@ -314,6 +324,8 @@ class ConstIntBoundAnalyzer::Impl
 
     if (op->op.same_as(tir::builtin::shift_right())) {
       return VisitRightShift(op);
+    } else if (op->op.same_as(tir::builtin::shift_left())) {
+      return VisitLeftShift(op);
     } else if (op->op.same_as(tir::builtin::bitwise_and())) {
       return VisitBitwiseAnd(op);
     } else {
@@ -339,6 +351,20 @@ class ConstIntBoundAnalyzer::Impl
     } else {
       return MakeBound(0, kPosInf);
     }
+  }
+
+  Entry VisitLeftShift(const CallNode* op) {
+    Entry a = VisitExpr(op->args[0]);
+    Entry b = VisitExpr(op->args[1]);
+
+    if (a.min_value < 0 || b.min_value < 0) {
+      // If either operand can negative, we may run into undefined
+      // behavior for some targets.  In these cases, avoid making any
+      // assumptions about the result.
+      return Everything(op->dtype);
+    }
+
+    return BinaryOpBoundary(a, b, InfAwareLeftShift);
   }
 
   Entry VisitRightShift(const CallNode* op) {
@@ -509,7 +535,33 @@ class ConstIntBoundAnalyzer::Impl
     return floordiv(x, y);
   }
   /*!
-   * \brief Compute x / y, aware of inf.
+   * \brief Compute x << y, aware of inf.
+   * \param x The left operand.
+   * \param y The right operand.
+   * \return the result.
+   */
+  static int64_t InfAwareLeftShift(int64_t x, int64_t y) {
+    if (x == kPosInf || x == kNegInf) return x;
+
+    // Can be replaced with std::bit_width in C++20
+    auto bit_width = [](int64_t as_signed) {
+      uint64_t val = std::abs(as_signed);
+      int num_bits = 0;
+      while (val) {
+        ++num_bits;
+        val >>= 1;
+      }
+      return num_bits;
+    };
+    int x_bits = bit_width(x);
+    if (x_bits + y < 64) {
+      return x << y;
+    } else {
+      return kPosInf;
+    }
+  }
+  /*!
+   * \brief Compute x >> y, aware of inf.
    * \param x The left operand.
    * \param y The right operand.
    * \return the result.
@@ -608,6 +660,46 @@ class ConstIntBoundAnalyzer::Impl
       return ret1;
     }
     return {};
+  }
+
+  /*!
+   * \brief Extract the argument from int(ceil(log2(arg)))
+   *
+   * This expression is used as the implementation of
+   * topi.math.ceil_log2, and can appear in iteration bounds.
+   */
+  static Optional<PrimExpr> FindCeilLog2Arg(const CastNode* op) {
+    if (op->dtype.is_int()) {
+      if (auto as_call = op->value.as<CallNode>()) {
+        if (as_call->op.same_as(Op::Get("tir.ceil"))) {
+          PrimExpr ceil_arg = as_call->args[0];
+          if (auto arg_call = ceil_arg.as<CallNode>()) {
+            if (arg_call->op.same_as(Op::Get("tir.log2"))) {
+              PrimExpr log_arg = arg_call->args[0];
+              return log_arg;
+            }
+          }
+        }
+      }
+    }
+    return NullOpt;
+  }
+
+  /*! \brief Propagate constraints through ceil(log2(arg))
+   *
+   * Helper function for CastNode visitor
+   */
+  Entry CeilLog2Bounds(PrimExpr arg) {
+    if (auto as_float = arg.as<FloatImmNode>()) {
+      // A cast from int to float may have already been simplified
+      // out.  Normally we don't inspect floating-point arguments, but here we can
+      int64_t val = std::ceil(std::log2(as_float->value));
+      return MakeBound(val, val);
+    } else {
+      Entry arg_bounds = VisitExpr(arg);
+      return MakeBound(std::ceil(std::log2(arg_bounds.min_value)),
+                       std::ceil(std::log2(arg_bounds.max_value)));
+    }
   }
 };
 

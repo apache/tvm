@@ -22,7 +22,8 @@ architecture_type=$(uname -i)
 # Depending on the architecture selected to compile for,
 # you may need to install an alternative cross-compiler.
 if [ "$architecture_type" != "aarch64" ]; then
-  apt-get update && apt-get install -y --no-install-recommends \
+  apt-get update
+  apt-install-and-clear -y --no-install-recommends \
     g++-aarch64-linux-gnu \
     gcc-aarch64-linux-gnu
 fi

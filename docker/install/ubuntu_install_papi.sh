@@ -23,7 +23,7 @@ set -o pipefail
 apt-get update --fix-missing
 
 # deps
-apt-get install -y linux-tools-common linux-tools-generic kmod
+apt-install-and-clear -y linux-tools-common linux-tools-generic kmod
 
 cd /
 git clone https://bitbucket.org/icl/papi.git

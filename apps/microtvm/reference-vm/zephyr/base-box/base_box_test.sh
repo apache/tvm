@@ -30,5 +30,4 @@ fi
 
 board=$1
 
-pytest tests/micro/zephyr/test_zephyr.py --zephyr-board=${board}
-pytest tests/micro/zephyr/test_zephyr_aot.py --zephyr-board=${board}
+pytest tests/micro/zephyr --zephyr-board=${board}

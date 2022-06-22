@@ -24,10 +24,9 @@ apt-get update
 # Please do not remove 'curl' package installation from here, as this
 # script runs in some images (e.g. ci_lint) that keep a very mininal
 # set of packages installed by default.
-apt-get install -y curl
+apt-install-and-clear -y curl
 
 # The node install script fetched and executed here will update the
-# apt source list, hence the second apt-get update is necessary.
+# apt source list, hence the second apt-get update --fix-missing is necessary.
 curl -s -S -L https://deb.nodesource.com/setup_14.x | bash -
-apt-get update
-apt-get install -y nodejs
+apt-install-and-clear -y nodejs

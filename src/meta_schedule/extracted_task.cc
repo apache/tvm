@@ -72,7 +72,19 @@ Optional<tir::PrimFunc> DefaultTaskFilterImpl(const Array<te::Tensor>& args, boo
       return NullOpt;
     }
   }
-  return te::CreatePrimFunc(args);
+  PrimFunc func = te::CreatePrimFunc(args);
+  bool dynamic_loop_extent = false;
+  PostOrderVisit(func->body, [&dynamic_loop_extent](const ObjectRef& obj) -> void {
+    if (const auto* loop = obj.as<tir::ForNode>()) {
+      if (!loop->extent->IsInstance<IntImmNode>()) {
+        dynamic_loop_extent = true;
+      }
+    }
+  });
+  if (dynamic_loop_extent) {
+    return NullOpt;
+  }
+  return func;
 }
 
 Optional<tir::PrimFunc> DefaultTaskFilter(const Array<te::Tensor>& args) {

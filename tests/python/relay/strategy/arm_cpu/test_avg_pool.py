@@ -14,9 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import sys
 import numpy as np
-import pytest
 import tvm
 import tvm.testing
 from tvm import relay
@@ -165,4 +163,4 @@ class TestAvgPool3d(BasicPoolTests):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

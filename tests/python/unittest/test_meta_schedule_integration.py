@@ -19,6 +19,7 @@ import numpy as np
 import pytest
 import tvm
 import tvm.testing
+from tvm import IRModule
 from tvm import meta_schedule as ms
 from tvm import relay, te, tir
 from tvm.meta_schedule.testing.relay_workload import get_network
@@ -58,6 +59,14 @@ requires_torch = pytest.mark.skipif(not _has_torch(), reason="torch is not insta
 
 def test_meta_schedule_apply_history_best_no_current():
     assert ms.ApplyHistoryBest.current() is None
+
+
+def test_meta_schedule_dynamic_loop_extent():
+    a = relay.var("a", shape=(1, 8, 8, 512), dtype="float32")
+    b = relay.nn.adaptive_avg_pool2d(a, (7, 7), "NHWC")
+    mod = IRModule({"main": relay.Function([a], b)})
+    extracted_tasks = ms.extract_task_from_relay(mod, target="llvm", params={})
+    assert not extracted_tasks
 
 
 @requires_torch

@@ -24,12 +24,11 @@ export PYXIR_HOME=/opt/pyxir
 mkdir "$PYXIR_HOME"
 
 # install libraries for building Vitis-AI on ubuntu
-apt-get update && apt-get install -y \
+apt-get update && apt-install-and-clear -y \
     graphviz \
     gnupg2 \
     gpg-agent \
-    gcc-aarch64-linux-gnu \
-    && rm -rf /var/lib/apt/lists/*
+    gcc-aarch64-linux-gnu
 
 
 . $VAI_ROOT/conda/etc/profile.d/conda.sh

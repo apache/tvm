@@ -19,11 +19,13 @@ import argparse
 import json
 import logging
 
+from distutils.util import strtobool
 import numpy as np  # type: ignore
 import tvm
 from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.meta_schedule.testing.relay_workload import get_network
+from tvm.support import describe
 
 
 def _parse_args():
@@ -64,11 +66,6 @@ def _parse_args():
         required=True,
     )
     args.add_argument(
-        "--rpc-workers",
-        type=int,
-        required=True,
-    )
-    args.add_argument(
         "--work-dir",
         type=str,
         required=True,
@@ -77,6 +74,27 @@ def _parse_args():
         "--cache-dir",
         type=str,
         default=None,
+    )
+    args.add_argument(
+        "--number",
+        type=int,
+        default=3,
+    )
+    args.add_argument(
+        "--repeat",
+        type=int,
+        default=1,
+    )
+    args.add_argument(
+        "--min-repeat-ms",
+        type=int,
+        default=100,
+    )
+    args.add_argument(
+        "--cpu-flush",
+        type=lambda x: bool(strtobool(x)),
+        required=True,
+        help="example: `True / False",
     )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
@@ -98,6 +116,8 @@ ARGS = _parse_args()
 
 
 def main():
+    describe()
+    print(f"Workload: {ARGS.workload}")
     mod, params, (input_name, input_shape, input_dtype) = get_network(
         ARGS.workload,
         ARGS.input_shape,
@@ -105,22 +125,19 @@ def main():
     )
     input_info = {input_name: input_shape}
     input_data = {}
-    print(f"Workload: {ARGS.workload}")
     for input_name, input_shape in input_info.items():
         print(f"  input_name: {input_name}")
         print(f"  input_shape: {input_shape}")
         print(f"  input_dtype: {input_dtype}")
-    alloc_repeat = 1
     runner = ms.runner.RPCRunner(
         rpc_config=ARGS.rpc_config,
         evaluator_config=ms.runner.EvaluatorConfig(
-            number=3,
-            repeat=1,
-            min_repeat_ms=100,
-            enable_cpu_cache_flush=False,
+            number=ARGS.number,
+            repeat=ARGS.repeat,
+            min_repeat_ms=ARGS.min_repeat_ms,
+            enable_cpu_cache_flush=ARGS.cpu_flush,
         ),
-        alloc_repeat=alloc_repeat,
-        max_workers=ARGS.rpc_workers,
+        alloc_repeat=1,
     )
     with ms.Profiler() as profiler:
         lib = ms.tune_relay(

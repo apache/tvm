@@ -45,12 +45,12 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-06-10T12:12:40.419262
+// Generated at 2022-06-20T19:48:32.482249
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
 ci_lint = 'tlcpack/ci-lint:20220513-055910-fa834f67e'
-ci_gpu = 'tlcpack/ci-gpu:20220606-055910-bf4b8f5c7'
+ci_gpu = 'tlcpack/ci-gpu:20220619-055908-9bba7580b'
 ci_cpu = 'tlcpack/ci-cpu:20220519-055908-ddfa1da69'
 ci_wasm = 'tlcpack/ci-wasm:20220513-055910-fa834f67e'
 ci_i386 = 'tlcpack/ci-i386:20220513-055910-fa834f67e'
@@ -3396,14 +3396,14 @@ def deploy() {
               returnStdout: true,
             ).trim()
             def tag = "${date_Ymd_HMS}-${upstream_revision.substring(0, 8)}"
-            update_docker(ci_arm, "tlcpackstaging/test_ci_arm:${tag}")
-            update_docker(ci_cpu, "tlcpackstaging/test_ci_cpu:${tag}")
-            update_docker(ci_gpu, "tlcpackstaging/test_ci_gpu:${tag}")
-            update_docker(ci_hexagon, "tlcpackstaging/test_ci_hexagon:${tag}")
-            update_docker(ci_i386, "tlcpackstaging/test_ci_i386:${tag}")
-            update_docker(ci_lint, "tlcpackstaging/test_ci_lint:${tag}")
-            update_docker(ci_qemu, "tlcpackstaging/test_ci_qemu:${tag}")
-            update_docker(ci_wasm, "tlcpackstaging/test_ci_wasm:${tag}")
+            update_docker(ci_arm, "tlcpackstaging/ci_arm:${tag}")
+            update_docker(ci_cpu, "tlcpackstaging/ci_cpu:${tag}")
+            update_docker(ci_gpu, "tlcpackstaging/ci_gpu:${tag}")
+            update_docker(ci_hexagon, "tlcpackstaging/ci_hexagon:${tag}")
+            update_docker(ci_i386, "tlcpackstaging/ci_i386:${tag}")
+            update_docker(ci_lint, "tlcpackstaging/ci_lint:${tag}")
+            update_docker(ci_qemu, "tlcpackstaging/ci_qemu:${tag}")
+            update_docker(ci_wasm, "tlcpackstaging/ci_wasm:${tag}")
           } finally {
             sh(
               script: 'docker logout',

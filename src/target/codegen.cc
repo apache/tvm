@@ -291,7 +291,7 @@ std::string PackImportsToC(const runtime::Module& mod, bool system_lib) {
 }
 
 runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
-                                  const std::string& target_triple) {
+                                  const std::string& llvm_target_string) {
   std::string bin = SerializeModule(mod);
 
   uint64_t nbytes = bin.length();
@@ -309,7 +309,7 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
   // the codegen function.
   const PackedFunc* codegen_f = runtime::Registry::Get(codegen_f_name);
   ICHECK(codegen_f != nullptr) << "codegen.codegen_blob is not presented.";
-  return (*codegen_f)(blob_byte_array, system_lib, target_triple);
+  return (*codegen_f)(blob_byte_array, system_lib, llvm_target_string);
 }
 
 TVM_REGISTER_GLOBAL("target.Build").set_body_typed(Build);
