@@ -49,9 +49,12 @@ from . import pytorch_tvm
 PyTorchTVMModule = pytorch_tvm.PyTorchTVMModule
 compile = pytorch_tvm.compile
 
-from . import script_torch
+from . import as_torch
 
-as_torch = script_torch.as_torch
-GraphExecutorFactoryWrapper = script_torch.GraphExecutorFactoryWrapper
-TVMScriptIRModule = script_torch.TVMScriptIRModule
-optimize_torch = script_torch.optimize_torch
+TVMScriptIRModule = as_torch.TVMScriptIRModule
+as_torch = as_torch.as_torch
+
+from . import optimize_torch
+
+GraphExecutorFactoryWrapper = optimize_torch.GraphExecutorFactoryWrapper
+optimize_torch = optimize_torch.optimize_torch
