@@ -36,6 +36,7 @@
 #include <sstream>
 #include <unordered_set>
 #include <vector>
+#include <xmmintrin.h>
 
 namespace tvm {
 namespace codegen {
@@ -54,6 +55,13 @@ runtime::Module Build(IRModule mod, Target target) {
 
   // the build function.
   std::string build_f_name = "target.build." + target->kind->name;
+  if (target->kind->name == "llvm" && !(_mm_getcsr() & 0x8040)) {
+    LOG(WARNING) << "Set FLUSH_TO_ZERO ON by default in Build on LLVM."<< std::endl;
+    //DAZ
+    _mm_setcsr( _mm_getcsr() | 0x0040 );
+    //FTZ
+    _mm_setcsr( _mm_getcsr() | 0x8000 );
+  }
   const PackedFunc* bf = runtime::Registry::Get(build_f_name);
   ICHECK(bf != nullptr) << build_f_name << " is not enabled";
   return (*bf)(mod, target);
