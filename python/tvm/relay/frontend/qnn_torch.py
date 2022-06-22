@@ -989,7 +989,7 @@ def _hswish(fp32_piggy_back=False):
         input_scale = _expr.const(inputs[3])
         input_zero_point = _expr.const(inputs[4])
         return relay.qnn.op.hardswish(
-            input[0], input_scale, input_zero_point, output_scale, output_zero_point
+            inputs[0], input_scale, input_zero_point, output_scale, output_zero_point
         )
 
     def _impl(inputs, _):
