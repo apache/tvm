@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,11 +14,4 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-set -euxo pipefail
-
-python3 -m pylint python/tvm --rcfile="$(dirname "$0")"/pylintrc
-python3 -m pylint vta/python/vta --rcfile="$(dirname "$0")"/pylintrc
-python3 -m pylint tests/python/unittest/test_tvmscript_type.py --rcfile="$(dirname "$0")"/pylintrc
-python3 -m pylint tests/python/contrib/test_cmsisnn --rcfile="$(dirname "$0")"/pylintrc
-python3 -m pylint tests/python/relay/aot/*.py --rcfile="$(dirname "$0")"/pylintrc
-python3 -m pylint tests/python/ci --rcfile="$(dirname "$0")"/pylintrc
+"""Infrastructure and tests for CI scripts"""
