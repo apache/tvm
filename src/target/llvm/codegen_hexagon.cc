@@ -100,7 +100,6 @@ class CodeGenHexagon final : public CodeGenCPU {
 
   llvm::Value* VectorLookupLoad(Buffer buffer, DataType buffer_type, Array<PrimExpr> index);
   llvm::Value* Intrinsic(llvm::Intrinsic::ID, llvm::ArrayRef<llvm::Value*> args);
-
 };
 
 void CodeGenHexagon::Init(const std::string& module_name, llvm::TargetMachine* tm,
@@ -319,7 +318,7 @@ llvm::Value* CodeGenHexagon::Intrinsic(llvm::Intrinsic::ID IntID,
         if (need_width == native_vector_bits_ || need_width == 2 * native_vector_bits_) {
           arg = builder_->CreateBitCast(arg, need_type);
         }
-      }  // TODO: add handling of v128i1 <-> v1024i1
+      }  // TODO(joshherr-quic): add handling of v128i1 <-> v1024i1
     }
     conv_args.push_back(arg);
   }
@@ -361,8 +360,8 @@ llvm::Value* CodeGenHexagon::VectorLookupLoad(Buffer buffer, DataType buffer_typ
   std::vector<llvm::Value*> vloads;
   DataType table_type = buffer_type.with_lanes(table_elem_count);
 
-  auto table_all = MakeValue(BufferLoad(buffer, 
-    {Ramp(IntImm(int32, 0), IntImm(int32, 1), table_elem_count),}));
+  auto table_all = MakeValue(BufferLoad(buffer,
+    {Ramp(IntImm(int32, 0), IntImm(int32, 1), table_elem_count), }));
 
   // The number of value vectors should be a power of 2.
   int table_vec_count = llvm::PowerOf2Ceil(GetVectorBytes(table_type) / native_vector_bytes);
