@@ -40,7 +40,7 @@ def setup_module():
     """Setup the module used for testing."""
 
     @autotvm.template("testing/conv2d_no_batching")
-    def conv2d_no_batching(
+    def conv2d_no_batching(  # pylint: disable=unused-variable
         batch_size, input_h, input_w, channels_in, channels_out, kernel_h, kernel_w
     ):
         """An example template for testing"""

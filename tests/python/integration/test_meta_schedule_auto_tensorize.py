@@ -32,14 +32,14 @@ from tvm.meta_schedule.tune import tune_extracted_tasks
 from tvm.tir.tensor_intrin import AMDGPU_SDOT4_INTRIN, DP4A_INTRIN
 from tvm.tir.tensor_intrin import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 
-config = ms.TuneConfig(
+CONFIG = ms.TuneConfig(
     strategy="evolutionary",
     num_trials_per_iter=32,
     max_trials_per_task=32,
     max_trials_global=20000,
 )
 
-sch_rules_for_vnni = [
+SCH_RULES_FOR_VNNI = [
     schedule_rule.AutoInline(
         into_producer=False,
         into_consumer=True,
@@ -111,17 +111,17 @@ def get_sch_rules_for_dp4a(intrin):
     ]
 
 
-sch_rules_for_dp4a = get_sch_rules_for_dp4a(DP4A_INTRIN)
-sch_rules_for_sdot4 = get_sch_rules_for_dp4a(AMDGPU_SDOT4_INTRIN)
+SCH_RULES_FOR_DP4A = get_sch_rules_for_dp4a(DP4A_INTRIN)
+SCH_RULES_FOR_SDOT4 = get_sch_rules_for_dp4a(AMDGPU_SDOT4_INTRIN)
 
-postprocs_for_vnni = [
+POSTPROCS_FOR_VNNI = [
     postproc.DisallowDynamicLoop(),
     postproc.RewriteParallelVectorizeUnroll(),
     postproc.RewriteReductionBlock(),
     postproc.RewriteTensorize(vectorize_init_loop=True),
 ]
 
-postprocs_for_dp4a = [
+POSTPROCS_FOR_DP4A = [
     postproc.DisallowDynamicLoop(),
     postproc.RewriteCooperativeFetch(),
     postproc.RewriteUnboundBlock(),
@@ -157,7 +157,7 @@ def tune_and_test(relay_mod, data_np, weight_np, op_name, target, sch_rules, pos
     with tempfile.TemporaryDirectory() as work_dir:
         database = tune_extracted_tasks(
             tune_tasks,
-            config,
+            CONFIG,
             work_dir=work_dir,
             sch_rules=lambda: sch_rules,
             postprocs=lambda: postprocs,
@@ -254,7 +254,7 @@ def _test_bert_int8(target, sch_rules, postprocs):
     with tempfile.TemporaryDirectory() as work_dir:
         database = tune_extracted_tasks(
             tune_tasks,
-            config,
+            CONFIG,
             work_dir=work_dir,
             sch_rules=lambda: sch_rules,
             postprocs=lambda: postprocs,
@@ -283,14 +283,14 @@ def _test_bert_int8(target, sch_rules, postprocs):
 @pytest.mark.skip("Requires cascadelake")
 def test_vnni_dense():
     _test_dense(
-        "uint8", sch_rules_for_vnni, postprocs_for_vnni, "llvm -mcpu=cascadelake -num-cores 4"
+        "uint8", SCH_RULES_FOR_VNNI, POSTPROCS_FOR_VNNI, "llvm -mcpu=cascadelake -num-cores 4"
     )
 
 
 @pytest.mark.skip("Only tested locally on sm_86 (for cuda) which is not supported by CI")
 @tvm.testing.requires_gpu
 def test_dp4a_dense():
-    _test_dense("int8", sch_rules_for_dp4a, postprocs_for_dp4a, "nvidia/geforce-rtx-3070")
+    _test_dense("int8", SCH_RULES_FOR_DP4A, POSTPROCS_FOR_DP4A, "nvidia/geforce-rtx-3070")
 
     # Uncomment to test on vulkan or rocm target
     # _test_dense(
@@ -304,14 +304,14 @@ def test_dp4a_dense():
 @pytest.mark.skip("Requires cascadelake")
 def test_vnni_conv2d():
     _test_conv2d(
-        "uint8", sch_rules_for_vnni, postprocs_for_vnni, "llvm -mcpu=cascadelake -num-cores 4"
+        "uint8", SCH_RULES_FOR_VNNI, POSTPROCS_FOR_VNNI, "llvm -mcpu=cascadelake -num-cores 4"
     )
 
 
 @pytest.mark.skip("Only tested locally on sm_86 (for cuda) which is not supported by CI")
 @tvm.testing.requires_gpu
 def test_dp4a_conv2d():
-    _test_conv2d("int8", sch_rules_for_dp4a, postprocs_for_dp4a, "nvidia/geforce-rtx-3070")
+    _test_conv2d("int8", SCH_RULES_FOR_DP4A, POSTPROCS_FOR_DP4A, "nvidia/geforce-rtx-3070")
 
     # Uncomment to test on vulkan or rocm target
     # _test_conv2d(
@@ -324,13 +324,13 @@ def test_dp4a_conv2d():
 
 @pytest.mark.skip("Requires cascadelake")
 def test_vnni_bert_int8():
-    _test_bert_int8("llvm -mcpu=cascadelake -num-cores 4", sch_rules_for_vnni, postprocs_for_vnni)
+    _test_bert_int8("llvm -mcpu=cascadelake -num-cores 4", SCH_RULES_FOR_VNNI, POSTPROCS_FOR_VNNI)
 
 
 @tvm.testing.requires_gpu
 @pytest.mark.skip("Slow on CI")
 def test_dp4a_bert_int8():
-    _test_bert_int8("nvidia/geforce-rtx-3070", sch_rules_for_dp4a, postprocs_for_dp4a)
+    _test_bert_int8("nvidia/geforce-rtx-3070", SCH_RULES_FOR_DP4A, POSTPROCS_FOR_DP4A)
 
     # Uncomment to test on vulkan or rocm target
     # _test_bert_int8("vulkan -from_device=0", sch_rules_for_dp4a, postprocs_for_dp4a)
