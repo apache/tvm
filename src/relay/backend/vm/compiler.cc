@@ -1078,6 +1078,20 @@ IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
       pass_seqs.push_back(transform::FuseOps());
     }
   }
+  if (backend::IsMetaScheduleEnabled() && config_->optional_homogeneous_target.defined()) {
+    Pass major_pass = transform::MetaScheduleLayoutRewrite();
+    bool enable_layout_rewrite_targets =
+        config_->optional_homogeneous_target->kind->device_type == kDLCPU ||
+        config_->optional_homogeneous_target->GetAttr<String>("device", "") == "mali";
+    if (enable_layout_rewrite_targets && pass_ctx.PassEnabled(major_pass->Info())) {
+      With<Target> tctx(config_->optional_homogeneous_target);
+      pass_seqs.push_back(major_pass);
+      // Defuse ops to fold constants, then fuse them again
+      pass_seqs.push_back(transform::DefuseOps());
+      pass_seqs.push_back(transform::FoldConstant());
+      pass_seqs.push_back(transform::FuseOps());
+    }
+  }
 
   pass_seqs.push_back(transform::ToANormalForm());
   pass_seqs.push_back(transform::InferType());

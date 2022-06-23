@@ -27,7 +27,7 @@ from tvm.relay.backend import Executor, Runtime
 from tvm.micro import model_library_format as mlf
 from tvm.relay.op.contrib.ethosu import partition_for_ethosu
 import tvm
-from tvm import WorkspaceMemoryPools, PoolInfo
+from tvm import WorkspaceMemoryPools, WorkspacePoolInfo, PoolInfoProperties
 
 from .. import infra
 
@@ -63,13 +63,15 @@ def _get_ethosu_workspace_size(
 
     workspace_memory_pools = WorkspaceMemoryPools(
         [
-            PoolInfo(
+            WorkspacePoolInfo(
                 "SRAM",
-                {target: PoolInfo.READ_WRITE_ACCESS, ethosu_target: PoolInfo.READ_WRITE_ACCESS},
-                size_hint_bytes=pool_size,
-                read_bandwidth_bytes_per_cycle=16,
-                write_bandwidth_bytes_per_cycle=16,
-                target_burst_bytes={ethosu_target: 1},
+                [target, ethosu_target],
+                PoolInfoProperties(
+                    size_hint_bytes=pool_size,
+                    read_bandwidth_bytes_per_cycle=16,
+                    write_bandwidth_bytes_per_cycle=16,
+                    target_burst_bytes={ethosu_target: 1},
+                ),
             ),
         ]
     )

@@ -17,16 +17,18 @@
 """Definition of x86 operator strategy."""
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
 import logging
-
 import re
-from tvm import topi, tir
-from tvm.topi.x86.utils import target_has_vnni
+
+from tvm import tir, topi
 from tvm.auto_scheduler import is_auto_scheduler_enabled
-from tvm.te import SpecializedCondition
+from tvm.meta_schedule import is_meta_schedule_enabled
 from tvm.relay.ty import is_dynamic
 from tvm.target import Target
-from .generic import *
+from tvm.te import SpecializedCondition
+from tvm.topi.x86.utils import target_has_vnni
+
 from .. import op as _op
+from .generic import *
 
 logger = logging.getLogger("strategy")
 
@@ -111,6 +113,9 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
     if dilation_h < 1 or dilation_w < 1:
         raise ValueError("dilation should be positive value")
 
+    need_auto_scheduler_layout = is_auto_scheduler_enabled()
+    need_meta_schedule_layout = is_meta_schedule_enabled()
+
     if groups == 1:
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
@@ -137,7 +142,7 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
             return conv2d_NCHWc_strategy_cpu(attrs, inputs, out_type, target)
         elif layout == "NHWC":
             assert kernel_layout == "HWIO"
-            if not is_auto_scheduler_enabled():
+            if (not need_auto_scheduler_layout) and (not need_meta_schedule_layout):
                 logger.warning("conv2d NHWC layout is not optimized for x86 with autotvm.")
             if "dnnl" in target.libs:
                 strategy.add_implementation(
@@ -147,7 +152,11 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
                 )
             else:
                 strategy.add_implementation(
-                    wrap_compute_conv2d(topi.nn.conv2d_nhwc, need_auto_scheduler_layout=True),
+                    wrap_compute_conv2d(
+                        topi.nn.conv2d_nhwc,
+                        need_auto_scheduler_layout=need_auto_scheduler_layout,
+                        need_meta_schedule_layout=need_meta_schedule_layout,
+                    ),
                     wrap_topi_schedule(topi.x86.schedule_conv2d_nhwc),
                     name="conv2d_nhwc.x86",
                 )
@@ -171,10 +180,14 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
                 )
 
             # register auto-scheduler implementations
-            if is_auto_scheduler_enabled() and judge_winograd_auto_scheduler:
+            if (
+                need_auto_scheduler_layout or need_meta_schedule_layout
+            ) and judge_winograd_auto_scheduler:
                 strategy.add_implementation(
                     wrap_compute_conv2d(
-                        topi.nn.conv2d_winograd_nhwc, need_auto_scheduler_layout=True
+                        topi.nn.conv2d_winograd_nhwc,
+                        need_auto_scheduler_layout=need_auto_scheduler_layout,
+                        need_meta_schedule_layout=need_meta_schedule_layout,
                     ),
                     naive_schedule,  # this implementation should never be picked by autotvm
                     name="conv2d_nhwc.winograd",
@@ -182,7 +195,7 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
                 )
         elif layout == "HWCN":
             assert kernel_layout == "HWIO"
-            if not is_auto_scheduler_enabled():
+            if (not need_auto_scheduler_layout) or (not need_meta_schedule_layout):
                 logger.warning("conv2d HWCN layout is not optimized for x86 with autotvm.")
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.conv2d_hwcn),
@@ -216,7 +229,7 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
             return depthwise_conv2d_NCHWc_strategy_cpu(attrs, inputs, out_type, target)
         elif layout == "NHWC":
             assert kernel_layout == "HWOI"
-            if not is_auto_scheduler_enabled():
+            if (not need_auto_scheduler_layout) and (not need_meta_schedule_layout):
                 logger.warning(
                     "depthwise_conv2d NHWC layout is not optimized for x86 with autotvm."
                 )
@@ -237,7 +250,7 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
             )
         elif layout == "NHWC":
             assert kernel_layout == "HWIO"
-            if not is_auto_scheduler_enabled():
+            if (not need_auto_scheduler_layout) and (not need_meta_schedule_layout):
                 logger.warning("group_conv2d is not optimized for x86 with autotvm.")
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.group_conv2d_nhwc, has_groups=True),
@@ -328,7 +341,9 @@ def conv3d_strategy_cpu(attrs, inputs, out_type, target):
     """conv3d generic strategy"""
     strategy = _op.OpStrategy()
     layout = attrs.data_layout
-    if is_auto_scheduler_enabled():
+    need_auto_scheduler_layout = is_auto_scheduler_enabled()
+    need_meta_schedule_layout = is_meta_schedule_enabled()
+    if need_auto_scheduler_layout or need_meta_schedule_layout:
         # Use auto-scheduler. We should provide clear compute definition without autotvm templates
         # or packed layouts.
         if layout == "NCDHW":
@@ -339,7 +354,11 @@ def conv3d_strategy_cpu(attrs, inputs, out_type, target):
             )
         elif layout == "NDHWC":
             strategy.add_implementation(
-                wrap_compute_conv3d(topi.nn.conv3d_ndhwc, need_auto_scheduler_layout=True),
+                wrap_compute_conv3d(
+                    topi.nn.conv3d_ndhwc,
+                    need_auto_scheduler_layout=need_auto_scheduler_layout,
+                    need_meta_schedule_layout=need_meta_schedule_layout,
+                ),
                 naive_schedule,
                 name="conv3d_ndhwc.x86",
             )
@@ -456,9 +475,15 @@ def matmul_strategy_cpu(attrs, inputs, out_type, target):
         if length_before == length_after:
             logger.warning("Currently dnnl only support the data type to be float32. Skip.")
 
-    if is_auto_scheduler_enabled():
+    need_auto_scheduler_layout = is_auto_scheduler_enabled()
+    need_meta_schedule_layout = is_meta_schedule_enabled()
+    if need_auto_scheduler_layout or need_meta_schedule_layout:
         strategy.add_implementation(
-            wrap_compute_matmul(topi.nn.matmul, need_auto_scheduler_layout=True),
+            wrap_compute_matmul(
+                topi.nn.matmul,
+                need_auto_scheduler_layout=need_auto_scheduler_layout,
+                need_meta_schedule_layout=need_meta_schedule_layout,
+            ),
             naive_schedule,
             name="matmul.generic",
             plevel=11,
@@ -499,9 +524,16 @@ def dense_strategy_cpu(attrs, inputs, out_type, target):
         plevel=10,
     )
 
-    if is_auto_scheduler_enabled():
+    need_auto_scheduler_layout = is_auto_scheduler_enabled()
+    need_meta_schedule_layout = is_meta_schedule_enabled()
+
+    if need_auto_scheduler_layout or need_meta_schedule_layout:
         strategy.add_implementation(
-            wrap_compute_dense(topi.nn.dense, need_auto_scheduler_layout=True),
+            wrap_compute_dense(
+                topi.nn.dense,
+                need_auto_scheduler_layout=need_auto_scheduler_layout,
+                need_meta_schedule_layout=need_meta_schedule_layout,
+            ),
             naive_schedule,
             name="dense.generic",
             plevel=11,
@@ -568,6 +600,9 @@ def batch_matmul_strategy_cpu(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     mcpu = Target.current().mcpu
 
+    need_auto_scheduler_layout = is_auto_scheduler_enabled()
+    need_meta_schedule_layout = is_meta_schedule_enabled()
+
     if (
         not attrs.transpose_a
         and attrs.transpose_b
@@ -583,10 +618,13 @@ def batch_matmul_strategy_cpu(attrs, inputs, out_type, target):
             name="batch_matmul_vnni.x86",
             plevel=10,
         )
-    elif is_dynamic(out_type) or is_auto_scheduler_enabled():
+    elif is_dynamic(out_type) or need_auto_scheduler_layout or need_meta_schedule_layout:
         strategy.add_implementation(
             wrap_compute_batch_matmul(
-                topi.nn.batch_matmul, need_auto_scheduler_layout=True, need_out_dtype=True
+                topi.nn.batch_matmul,
+                need_out_dtype=True,
+                need_auto_scheduler_layout=need_auto_scheduler_layout,
+                need_meta_schedule_layout=need_meta_schedule_layout,
             ),
             wrap_topi_schedule(topi.generic.nn.schedule_batch_matmul),
             name="batch_matmul.generic",
@@ -733,15 +771,31 @@ def conv2d_winograd_without_weight_transfrom_strategy_cpu(attrs, inputs, out_typ
     assert strides == (1, 1), "Do not support strides now"
     assert groups == 1, "Do not supoort arbitrary group number"
     strategy = _op.OpStrategy()
+    need_auto_scheduler_layout = is_auto_scheduler_enabled()
+    need_meta_schedule_layout = is_meta_schedule_enabled()
     if layout == "NHWC":
-        strategy.add_implementation(
-            wrap_compute_conv2d(
-                topi.nn.conv2d_winograd_nhwc_without_weight_transform,
-                need_auto_scheduler_layout=True,
-            ),
-            naive_schedule,
-            name="ansor.winograd",
-        )
+        if need_meta_schedule_layout:
+            strategy.add_implementation(
+                wrap_compute_conv2d(
+                    topi.nn.conv2d_winograd_nhwc_without_weight_transform,
+                    need_auto_scheduler_layout=False,
+                    need_meta_schedule_layout=True,
+                ),
+                naive_schedule,
+                name="ansor.winograd",
+            )
+        elif need_auto_scheduler_layout:
+            strategy.add_implementation(
+                wrap_compute_conv2d(
+                    topi.nn.conv2d_winograd_nhwc_without_weight_transform,
+                    need_auto_scheduler_layout=True,
+                    need_meta_schedule_layout=False,
+                ),
+                naive_schedule,
+                name="ansor.winograd",
+            )
+        else:
+            raise RuntimeError("Both AutoScheduler and MetaSchedule are not enabled")
     else:
         raise RuntimeError(
             "Unsupported conv2d_winograd_without_weight_transfrom layout {}".format(layout)

@@ -23,7 +23,7 @@ import numpy as np
 
 from tvm.relay.op.contrib.ethosu import partition_for_ethosu
 from tvm.micro import model_library_format as mlf
-from tvm import WorkspaceMemoryPools, PoolInfo
+from tvm import WorkspaceMemoryPools, WorkspacePoolInfo, PoolInfoProperties
 import tvm
 from tvm.testing.aot import convert_to_relay
 
@@ -105,16 +105,15 @@ def test_networks_with_usmp_and_cascader_wo_striping(accel_type, model_url, work
     ethosu_target = tvm.target.Target("ethos-u")
     workspace_pools = WorkspaceMemoryPools(
         [
-            PoolInfo(
+            WorkspacePoolInfo(
                 pool_name,
-                {
-                    host_target: PoolInfo.READ_WRITE_ACCESS,
-                    ethosu_target: PoolInfo.READ_WRITE_ACCESS,
-                },
-                size_hint_bytes=2400000,
-                read_bandwidth_bytes_per_cycle=16,
-                write_bandwidth_bytes_per_cycle=16,
-                target_burst_bytes={ethosu_target: 1},
+                [host_target, ethosu_target],
+                PoolInfoProperties(
+                    size_hint_bytes=2400000,
+                    read_bandwidth_bytes_per_cycle=16,
+                    write_bandwidth_bytes_per_cycle=16,
+                    target_burst_bytes={ethosu_target: 1},
+                ),
             )
         ]
     )

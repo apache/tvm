@@ -103,3 +103,17 @@ def extract_task_from_relay(
         disabled_pass=disabled_pass,
     ):
         return list(extract_task_func(mod, target, relay_params, te_filter_func))
+
+
+def is_meta_schedule_enabled() -> bool:
+    """Return whether the meta-schedule is enabled.
+
+    Returns
+    -------
+    enabled: bool
+        Whether the meta schedule is enabled
+    """
+    return transform.PassContext.current().config.get(
+        "relay.backend.use_meta_schedule",
+        False,
+    )
