@@ -483,7 +483,4 @@ def is_auto_scheduler_enabled():
     return PassContext.current().config.get(
         "relay.backend.use_auto_scheduler",
         False,
-    ) or PassContext.current().config.get(
-        "relay.backend.use_meta_schedule",
-        False,
     )

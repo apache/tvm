@@ -21,7 +21,12 @@ import re
 
 from tvm import _ffi, ir, te, topi
 from tvm.target import generic_func, override_native_generic_func
-from tvm.topi.utils import get_const_float, get_const_int, get_const_tuple, get_float_tuple
+from tvm.topi.utils import (
+    get_const_float,
+    get_const_int,
+    get_const_tuple,
+    get_float_tuple,
+)
 
 from .. import op as _op
 
@@ -211,6 +216,9 @@ def schedule_bitpack(attrs, outs, target):
 get_auto_scheduler_rewritten_layout = _ffi.get_global_func(
     "relay.attrs.get_auto_scheduler_rewritten_layout"
 )
+get_meta_schedule_original_shape = _ffi.get_global_func(
+    "relay.attrs.get_meta_schedule_original_shape"
+)
 
 # conv2d
 def wrap_compute_conv2d(
@@ -219,6 +227,7 @@ def wrap_compute_conv2d(
     need_out_layout=False,
     has_groups=False,
     need_auto_scheduler_layout=False,
+    need_meta_schedule_layout=False,
 ):
     """Wrap conv2d topi compute"""
 
@@ -240,6 +249,9 @@ def wrap_compute_conv2d(
         args.append(out_dtype)
         if need_auto_scheduler_layout:
             args.append(get_auto_scheduler_rewritten_layout(attrs))
+        elif need_meta_schedule_layout:
+            args.append("")
+            args.append(get_meta_schedule_original_shape(attrs))
         return [topi_compute(*args)]
 
     return _compute_conv2d
@@ -530,7 +542,12 @@ def conv3d_transpose_strategy(attrs, inputs, out_type, target):
 
 
 # conv3d
-def wrap_compute_conv3d(topi_compute, need_layout=False, need_auto_scheduler_layout=False):
+def wrap_compute_conv3d(
+    topi_compute,
+    need_layout=False,
+    need_auto_scheduler_layout=False,
+    need_meta_schedule_layout=False,
+):
     """wrap conv3d topi compute"""
 
     def _compute_conv3d(attrs, inputs, out_type):
@@ -552,6 +569,9 @@ def wrap_compute_conv3d(topi_compute, need_layout=False, need_auto_scheduler_lay
         args.append(out_dtype)
         if need_auto_scheduler_layout:
             args.append(get_auto_scheduler_rewritten_layout(attrs))
+        elif need_meta_schedule_layout:
+            args.append("")
+            args.append(get_meta_schedule_original_shape(attrs))
         return [topi_compute(*args)]
 
     return _compute_conv3d
@@ -782,7 +802,11 @@ def copy_if_identical(tensor_a, tensor_b):
 
 
 # matmul
-def wrap_compute_matmul(topi_compute, need_auto_scheduler_layout=False):
+def wrap_compute_matmul(
+    topi_compute,
+    need_auto_scheduler_layout=False,
+    need_meta_schedule_layout=False,
+):
     """wrap matmul topi compute"""
 
     def _compute_matmul(attrs, inputs, out_type):
@@ -799,6 +823,9 @@ def wrap_compute_matmul(topi_compute, need_auto_scheduler_layout=False):
         ]
         if need_auto_scheduler_layout:
             args.append(get_auto_scheduler_rewritten_layout(attrs))
+        elif need_meta_schedule_layout:
+            args.append("")
+            args.append(get_meta_schedule_original_shape(attrs))
         args[1] = copy_if_identical(inputs[0], inputs[1])
         return [topi_compute(*args)]
 
@@ -819,7 +846,11 @@ def matmul_strategy(attrs, inputs, out_type, target):
 
 
 # dense
-def wrap_compute_dense(topi_compute, need_auto_scheduler_layout=False):
+def wrap_compute_dense(
+    topi_compute,
+    need_auto_scheduler_layout=False,
+    need_meta_schedule_layout=False,
+):
     """wrap dense topi compute"""
 
     def _compute_dense(attrs, inputs, out_type):
@@ -829,6 +860,9 @@ def wrap_compute_dense(topi_compute, need_auto_scheduler_layout=False):
         args = [inputs[0], inputs[1], None, out_dtype]
         if need_auto_scheduler_layout:
             args.append(get_auto_scheduler_rewritten_layout(attrs))
+        elif need_meta_schedule_layout:
+            args.append("")
+            args.append(get_meta_schedule_original_shape(attrs))
         args[1] = copy_if_identical(inputs[0], inputs[1])
         return [topi_compute(*args)]
 
@@ -862,7 +896,13 @@ def dense_pack_strategy(attrs, inputs, out_type, target):
 
 
 # batch_matmul
-def wrap_compute_batch_matmul(topi_compute, need_auto_scheduler_layout=False, need_out_dtype=False):
+def wrap_compute_batch_matmul(
+    topi_compute,
+    *,
+    need_auto_scheduler_layout=False,
+    need_meta_schedule_layout=False,
+    need_out_dtype=False,
+):
     """wrap batch_matmul topi compute"""
 
     def _compute_batch_matmul(attrs, inputs, out_type):
@@ -872,6 +912,9 @@ def wrap_compute_batch_matmul(topi_compute, need_auto_scheduler_layout=False, ne
         args.append(attrs.transpose_b)
         if need_auto_scheduler_layout:
             args.append(get_auto_scheduler_rewritten_layout(attrs))
+        elif need_meta_schedule_layout:
+            args.append("")
+            args.append(get_meta_schedule_original_shape(attrs))
         args[1] = copy_if_identical(inputs[0], inputs[1])
         return [topi_compute(*args)]
 
