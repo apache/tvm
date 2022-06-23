@@ -27,8 +27,10 @@ from ..infrastructure import allocate_hexagon_array, transform_numpy
 
 # pylint: disable=invalid-name
 
+
 class TestArgMaxSlice:
-    """ Argmax Slice Op Tests"""
+    """Argmax Slice Op Tests"""
+
     (
         input_shape,
         input_layout,
@@ -76,7 +78,7 @@ class TestArgMaxSlice:
         hexagon_session,
         working_scope,
     ):
-        """ Top level testing function for argmax """
+        """Top level testing function for argmax"""
         target_hexagon = tvm.target.hexagon("v69")
         target = tvm.target.Target(target_hexagon, host=target_hexagon)
         A = te.placeholder(input_shape, name="A", dtype=dtype)
