@@ -16,35 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#ifndef TVM_RELAY_TRANSFORMS_META_SCHEDULE_LAYOUT_REWRITE_H_
+#define TVM_RELAY_TRANSFORMS_META_SCHEDULE_LAYOUT_REWRITE_H_
 
-/*!
- * \file codegen_blob.h
- * \brief Code Generation of blob data
- */
-#ifndef TVM_TARGET_LLVM_CODEGEN_BLOB_H_
-#define TVM_TARGET_LLVM_CODEGEN_BLOB_H_
-#ifdef TVM_LLVM_VERSION
-#include <memory>
-#include <string>
-#include <utility>
-
-#include "llvm_common.h"
+#include <tvm/relay/expr_functor.h>
+#include <tvm/tir/index_map.h>
 
 namespace tvm {
-namespace codegen {
-/**
- * \brief Code Generation of blob data
- *
- * \param data Blob data
- * \param system_lib Whether expose as system library.
- * \param target_triple LLVM target triple
- *
- * \return LLVM module and LLVM context
- */
-std::pair<std::unique_ptr<llvm::Module>, std::shared_ptr<llvm::LLVMContext>> CodeGenBlob(
-    const std::string& data, bool system_lib, const std::string& llvm_target_string);
+namespace relay {
 
-}  // namespace codegen
+class MetaScheduleLayoutRewriter : public ExprMutator {
+ public:
+  Expr VisitExpr_(const CallNode* n) final;
+
+  static void LayoutQueuePush(const tir::IndexMap& index_map);
+};
+
+}  // namespace relay
 }  // namespace tvm
-#endif  // LLVM_VERSION
-#endif  // TVM_TARGET_LLVM_CODEGEN_BLOB_H_
+
+#endif  // TVM_RELAY_TRANSFORMS_META_SCHEDULE_LAYOUT_REWRITE_H_

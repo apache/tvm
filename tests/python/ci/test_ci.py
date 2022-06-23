@@ -47,7 +47,7 @@ class TempGit:
             "https://pr-docs.tlcpack.ai",
             "SHA",
             "issues/11594/comments",
-            "Built docs for commit [SHA](SHA) can be found [here](https://pr-docs.tlcpack.ai/PR-11594/3/docs/index.html).",
+            "Built docs for commit SHA can be found [here](https://pr-docs.tlcpack.ai/PR-11594/3/docs/index.html).",
         )
     ],
 )

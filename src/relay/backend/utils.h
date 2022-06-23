@@ -26,6 +26,7 @@
 
 #include <dmlc/json.h>
 #include <tvm/driver/driver_api.h>
+#include <tvm/relay/executor.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
@@ -81,6 +82,10 @@ class ExecutorCodegenMetadataNode : public Object {
   String interface_api;
   /*! \brief The internal API (packed or unpacked) in use */
   bool unpacked_api;
+  /*! \brief Alginment of the workspace in bytes */
+  Integer workspace_alignment;
+  /*! \brief Alginment of the constants in bytes */
+  Integer constant_alignment;
   /*! \brief the input var names that correspond to pool_inputs */
   Optional<Map<tir::Var, tir::usmp::AllocatedPoolInfo>> pool_inputs;
   /*! \brief the I/O tensor to PoolAllocations if any*/
@@ -97,6 +102,8 @@ class ExecutorCodegenMetadataNode : public Object {
     v->Visit("devices", &devices);
     v->Visit("executor", &executor);
     v->Visit("unpacked_api", &unpacked_api);
+    v->Visit("workspace_alignment", &workspace_alignment);
+    v->Visit("constant_alignment", &constant_alignment);
     v->Visit("pool_inputs", &pool_inputs);
     v->Visit("io_pool_allocations", &io_pool_allocations);
   }
@@ -110,14 +117,15 @@ class ExecutorCodegenMetadataNode : public Object {
  */
 class ExecutorCodegenMetadata : public ObjectRef {
  public:
-  TVM_DLL ExecutorCodegenMetadata(
-      Array<tir::Var> inputs, Array<TensorType> input_tensor_types, Array<String> outputs,
-      Array<TensorType> output_tensor_types, Array<tir::Var> pools, Array<String> devices,
-      String executor, String mod_name, String interface_api = "packed", bool unpacked_api = false,
-      Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs =
-          Map<tir::Var, tir::usmp::AllocatedPoolInfo>(),
-      Map<String, tir::usmp::PoolAllocation> io_pool_allocations = {{}});
-
+  TVM_DLL ExecutorCodegenMetadata(Array<tir::Var> inputs, Array<TensorType> input_tensor_types,
+                                  Array<String> outputs, Array<TensorType> output_tensor_types,
+                                  Array<tir::Var> pools, Array<String> devices, String executor,
+                                  String mod_name, String interface_api = "packed",
+                                  bool unpacked_api = false, Integer workspace_alignment = 16,
+                                  Integer constant_alignment = 16,
+                                  Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs =
+                                      Map<tir::Var, tir::usmp::AllocatedPoolInfo>(),
+                                  Map<String, tir::usmp::PoolAllocation> io_pool_allocations = {});
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ExecutorCodegenMetadata, ObjectRef,
                                         ExecutorCodegenMetadataNode);
 };

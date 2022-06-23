@@ -20,9 +20,9 @@
 #include <assert.h>
 #include <float.h>
 #include <kernel.h>
-#include <power/reboot.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/reboot.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/stack_allocator.h>

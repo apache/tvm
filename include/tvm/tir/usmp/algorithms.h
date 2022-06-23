@@ -53,6 +53,17 @@ Map<BufferInfo, PoolAllocation> GreedyBySize(const Array<BufferInfo>& buffer_inf
  */
 Map<BufferInfo, PoolAllocation> GreedyByConflicts(const Array<BufferInfo>& buffer_info_arr,
                                                   const Integer& memory_pressure);
+/*!
+ *\brief The Hill-Climb algoritm to plan memory
+ *
+ * This will perform an attempt to utilize probabalistic approach to memory
+ * allocation. Typically better than greedy family, but quite slow due to large
+ * number of iterations.
+ *
+ * \return A Map of BufferInfo objects and their associated PoolAllocation
+ */
+Map<BufferInfo, PoolAllocation> HillClimb(const Array<BufferInfo>& buffer_info_arr,
+                                          const Integer& memory_pressure);
 
 /*!
  * \brief The Hill-Climb algorithm to plan memory
