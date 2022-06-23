@@ -41,7 +41,7 @@ def schedule_injective(outs):
     # Fuse axes and vectorize inner 128 elements
     for x in outs:
         fused = s[x].fuse(*x.op.axis)
-        outer, inner = s[x].split(fused, factor=128)
+        _, inner = s[x].split(fused, factor=128)
         s[x].vectorize(inner)
     return s
 
