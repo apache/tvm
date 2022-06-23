@@ -98,9 +98,9 @@ target_cuda = "nvidia/geforce-rtx-3070"
 # We can define the configuration by ourselves
 tuning_config = TuneConfig(
     strategy="evolutionary",
-    num_trials_per_iter=1,
-    max_trials_per_task=1,
-    max_trials_global=0,
+    num_trials_per_iter=64,
+    max_trials_per_task=20000,
+    max_trials_global=20000,
 )
 
 # For PyTorch users, you can write your nn.Module in a normal way.

@@ -32,9 +32,9 @@ from tvm.meta_schedule import TuneConfig
 # default config for testing
 config = TuneConfig(
                 strategy="evolutionary",
-                num_trials_per_iter=2,
-                max_trials_per_task=4,
-                max_trials_global=0,
+                num_trials_per_iter=4,
+                max_trials_per_task=8,
+                max_trials_global=16,
             )
 
 def test_matmul_tuning_relay():

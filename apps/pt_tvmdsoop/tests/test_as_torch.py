@@ -105,33 +105,25 @@ def test_tvmscript_torch_matmul():
 
 
 def test_tvmscript_torch_decorator():
-    s1 = np.arange(8).astype("float32")
-
     q1 = torch.arange(8).type(torch.float32)
     q2 = torch.zeros((8,), dtype=torch.float32)
 
-    numpy_result = s1 + 1
-
     MyModule(q1, q2)
 
-    tvm.testing.assert_allclose(q2.numpy(), numpy_result, atol=1e-5, rtol=1e-5)
+    tvm.testing.assert_allclose(q2.numpy(), (q1+1).numpy(), atol=1e-5, rtol=1e-5)
     
 def test_tvmscript_torch_gpu():
-    s1 = np.arange(8).astype("float32")
-    
     cuda0 = torch.device('cuda:0')
     q1 = torch.arange(8, device=cuda0).type(torch.float32)
     q2 = torch.zeros((8,), dtype=torch.float32, device=cuda0)
 
-    numpy_result = s1 + 1
-
     ModuleGPU(q1, q2)
 
-    tvm.testing.assert_allclose(q2.cpu().numpy(), numpy_result, atol=1e-5, rtol=1e-5)
+    tvm.testing.assert_allclose(q2.cpu().numpy(), (q1+1).cpu().numpy(), atol=1e-5, rtol=1e-5)
 
 
 def test_torch_with_tvmscript():
-    s1 = np.arange(8).astype("float32")
+    ref_result = np.arange(8).astype("float32")
 
     q1 = torch.arange(8).type(torch.float32)
     q2 = torch.zeros((8,), dtype=torch.float32)
@@ -140,7 +132,7 @@ def test_torch_with_tvmscript():
 
     ret = nn_module.forward(q1, q2)
 
-    tvm.testing.assert_allclose(ret.numpy(), s1, atol=1e-5, rtol=1e-5)
+    tvm.testing.assert_allclose(ret.numpy(), ref_result, atol=1e-5, rtol=1e-5)
 
 
 if __name__ == "__main__":

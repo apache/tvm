@@ -105,9 +105,9 @@ def optimize_torch(
         # Default setting. For a better tuning result the number could be set larger.
         tuning_config = TuneConfig(
             strategy="evolutionary",
-            num_trials_per_iter=1,
-            max_trials_per_task=4,
-            max_trials_global=0,
+            num_trials_per_iter=4,
+            max_trials_per_task=8,
+            max_trials_global=16,
         )
 
     # If `func` is already a traced module this statement makes no effect
