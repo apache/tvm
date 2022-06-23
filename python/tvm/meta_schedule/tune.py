@@ -594,7 +594,6 @@ def tune_relay(
             ):
                 if backend == "graph":
                     return relay_build(mod, target=target, params=params)
-                elif backend == "vm":
+                if backend == "vm":
                     return relay.vm.compile(mod, target=target, params=params)
-                else:
-                    raise ValueError(f"Backend {backend} not supported in ApplyHistoryBest!")
+                raise ValueError(f"Backend {backend} not supported in ApplyHistoryBest!")
