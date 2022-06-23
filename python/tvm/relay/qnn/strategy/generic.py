@@ -103,6 +103,48 @@ def wrap_topi_qnn_conv2d(topi_compute):
     return wrapper
 
 
+def wrap_topi_qnn_dense(topi_compute):
+    """Wrap TOPI compute which use qnn.dense attrs"""
+
+    def wrapper(attrs, inputs, _out_type):
+        out_dtype = attrs.out_dtype
+        if len([*inputs]) == 11:
+            args = [*inputs, out_dtype]
+        elif len([*inputs]) == 10:
+            args = [  # QNN Dense params:
+                inputs[0],
+                inputs[1],
+                inputs[2],
+                inputs[3],
+                inputs[4],
+                inputs[5],
+                # Bias argument
+                None,
+                # Requantization params:
+                inputs[6],
+                inputs[7],
+                inputs[8],
+                inputs[9],
+                out_dtype,
+            ]
+        else:
+            assert len([*inputs]) == 6
+            args = [  # QNN Dense params:
+                *inputs,
+                # Bias argument:
+                None,
+                # Requantization params:
+                None,
+                None,
+                None,
+                None,
+                out_dtype,
+            ]
+        return [topi_compute(*args)]
+
+    return wrapper
+
+
 @override_native_generic_func("qnn_quantize_strategy")
 def qnn_quantize_strategy(attrs, inputs, out_type, target):
     """qnn.quantize generic strategy"""

@@ -281,20 +281,57 @@ def schedule_qnn_conv2d(outs):
 
 
 def qnn_dense(
-    data, weight, input_zero_point, kernel_zero_point, _input_scale, _kernel_scale, out_dtype
+    data,
+    weight,
+    # Dense quantization params:
+    input_zero_point,
+    kernel_zero_point,
+    _input_scale,
+    _kernel_scale,
+    # bias
+    bias,
+    # Requantization params:
+    rq_input_scale,
+    rq_input_zero_point,
+    rq_output_scale,
+    rq_output_zero_point,
+    out_dtype,
 ):
     """Compute for qnn.dense"""
     M, K = get_const_tuple(data.shape)
     N, _ = get_const_tuple(weight.shape)
     k = te.reduce_axis((0, K), "k")
-    return te.compute(
+    # This implementation uses "int32" dense output data type.
+    out = te.compute(
         (M, N),
         lambda m, n: te.sum(
-            te.subtract(data[m, k], input_zero_point).astype(out_dtype)
-            * te.subtract(weight[n, k], kernel_zero_point).astype(out_dtype),
+            te.subtract(data[m, k], input_zero_point).astype("int32")
+            * te.subtract(weight[n, k], kernel_zero_point).astype("int32"),
             axis=k,
         ),
     )
+
+    # Add bias
+    if bias is not None:
+        out = te.compute(out.shape, lambda n, c: out[n, c] + bias[c])
+
+    def _rq_compute(*indices):
+        value = out(*indices)
+        sub = te.subtract(value, rq_input_zero_point)
+        mul = te.div(rq_input_scale, rq_output_scale)
+        val = te.add(te.round(te.multiply(mul, sub)), rq_output_zero_point)
+
+        # clip + cast:
+        const_min = tvm.tir.min_value(out_dtype)
+        const_max = tvm.tir.max_value(out_dtype)
+        return te.max(tvm.te.min(val, const_max), const_min).astype(out_dtype)
+
+    # Requantize output of dense
+    # Q_output = zp_output + round((scale_input)/(scale_output) * (Q_input - zp_input))
+    if rq_input_scale is not None and rq_output_scale is not None:
+        return te.compute(out.shape, _rq_compute)
+
+    return out
 
 
 def schedule_qnn_dense(outs):
