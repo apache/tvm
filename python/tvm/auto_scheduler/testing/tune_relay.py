@@ -236,6 +236,7 @@ def main():
         dev_type=ARGS.target.kind.name,
         args=input_data,
         continuation=f_timer(ARGS.backend),
+        backend=ARGS.backend,
     )
 
 
