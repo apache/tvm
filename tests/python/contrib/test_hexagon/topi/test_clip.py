@@ -74,7 +74,7 @@ class TestClipSlice:
         hexagon_session,
     ):
         # establish target and input placeholder
-        target_hexagon = tvm.target.hexagon("v68")
+        target_hexagon = tvm.target.hexagon("v69")
         A = te.placeholder(input_shape, name="A", dtype=dtype)
 
         # get the compute function and schedule
@@ -87,7 +87,7 @@ class TestClipSlice:
         # build the function
         with tvm.transform.PassContext(opt_level=3):
             func = tvm.build(
-                sch, [A, M], tvm.target.Target(target_hexagon, host=target_hexagon), name="clip"
+                sch, tvm.target.Target(target_hexagon, host=target_hexagon), name="clip"
             )
 
         # allocate input and output nd arrays
