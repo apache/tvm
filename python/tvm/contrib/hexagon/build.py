@@ -40,6 +40,19 @@ HEXAGON_RPC_LIB_DIR = os.environ.get("HEXAGON_RPC_LIB_DIR")
 ANDROID_BASH_FILE_NAME = "android_bash.sh"
 
 
+def _check_call_verbose(cmd, **kwargs) -> None:
+    """
+    Similar to subprocess.check_call(cmd), but if the exit code is non-zero
+    then the raised Exception's message provides more detail, including
+    the stdout/stderr provided by the subprocess.
+    """
+    try:
+        subprocess.run(cmd, capture_output=True, check=True, text=True, **kwargs)
+    except Exception as err:
+        error_msg = f"{err}\nstdout:\n{err.stdout}\nstderr:\n{err.stderr}"
+        raise Exception(error_msg)
+
+
 def _get_hexagon_rpc_lib_dir() -> pathlib.Path:
     """Find the Hexagon API binaries.
 
@@ -356,13 +369,11 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         self, local_path: Union[str, pathlib.Path], remote_path: Union[str, pathlib.Path]
     ):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
-        subprocess.check_call(
-            self._adb_device_sub_cmd + ["push", str(local_path), str(remote_path)]
-        )
+        _check_call_verbose(self._adb_device_sub_cmd + ["push", str(local_path), str(remote_path)])
 
     def _create_remote_directory(self, remote_path: Union[str, pathlib.Path]) -> pathlib.Path:
         """Abstract method implementation. See description in HexagonLauncherRPC."""
-        subprocess.check_call(self._adb_device_sub_cmd + ["shell", "mkdir", "-p", str(remote_path)])
+        _check_call_verbose(self._adb_device_sub_cmd + ["shell", "mkdir", "-p", str(remote_path)])
         return pathlib.Path(remote_path)
 
     def _copy_binaries(self):
@@ -418,14 +429,14 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         port = rpc_server_port
         while len(self.forwarded_ports_) < 10:
             if port not in existing_forwards and not _is_port_in_use(port):
-                subprocess.check_call(
+                _check_call_verbose(
                     self._adb_device_sub_cmd + ["forward", f"tcp:{port}", f"tcp:{port}"]
                 )
                 self.forwarded_ports_.append(port)
             port += 1
 
     def _reverse_ports(self, rpc_tracker_port):
-        subprocess.check_call(
+        _check_call_verbose(
             self._adb_device_sub_cmd
             + ["reverse", f"tcp:{rpc_tracker_port}", f"tcp:{rpc_tracker_port}"]
         )
@@ -455,11 +466,11 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
     def _cleanup_port_forwarding(self):
         # Removed pre-defined forward/reverse rules
         rpc_tracker_port = self._rpc_info["rpc_tracker_port"]
-        subprocess.check_call(
+        _check_call_verbose(
             self._adb_device_sub_cmd + ["reverse", "--remove", f"tcp:{rpc_tracker_port}"]
         )
         for port in self.forwarded_ports_:
-            subprocess.check_call(self._adb_device_sub_cmd + ["forward", "--remove", f"tcp:{port}"])
+            _check_call_verbose(self._adb_device_sub_cmd + ["forward", "--remove", f"tcp:{port}"])
 
     def _terminate_remote(self):
         # Send interupt to main and child processes
@@ -519,11 +530,11 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
         self, local_path: Union[str, pathlib.Path], remote_path: Union[str, pathlib.Path]
     ):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
-        subprocess.check_call(["cp", str(local_path), str(remote_path)])
+        _check_call_verbose(["cp", str(local_path), str(remote_path)])
 
     def _create_remote_directory(self, remote_path: Union[str, pathlib.Path]) -> pathlib.Path:
         """Abstract method implementation. See description in HexagonLauncherRPC."""
-        subprocess.check_call(["mkdir", "-p", str(remote_path)])
+        _check_call_verbose(["mkdir", "-p", str(remote_path)])
         return pathlib.Path(os.path.abspath(remote_path))
 
     def _copy_libcxx(self, dest_dir: Union[str, pathlib.Path]):
@@ -547,7 +558,7 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
         # links is to save disk space.
         tar_in = f"tar -cf - -C {lib_dir} " + " ".join(libcxx_files)
         tar_out = f"tar -xf - -C {str(dest_dir)}"
-        subprocess.check_call(tar_in + " | " + tar_out, shell=True)
+        _check_call_verbose(tar_in + " | " + tar_out, shell=True)
 
     def start_server(self):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
