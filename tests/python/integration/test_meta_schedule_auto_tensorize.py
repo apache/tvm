@@ -14,25 +14,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
-import tvm
-from tvm import relay
-import tvm.testing
-import numpy as np
-from tvm.meta_schedule.tune import tune_extracted_tasks
-from tvm.meta_schedule.relay_integration import extract_task_from_relay
-from tvm.meta_schedule import ApplyHistoryBest
-from tvm.meta_schedule import schedule_rule, postproc
-from tvm.meta_schedule.testing.tlcbench import load_quantized_bert_base
-from tvm import meta_schedule as ms
-from tvm.tir.tensor_intrin import (
-    VNNI_DOT_16x4_INTRIN as VNNI_INTRIN,
-    DP4A_INTRIN,
-    AMDGPU_SDOT4_INTRIN,
-)
+"""Integration test for metascheduler's auto tensorization."""
 import tempfile
-import tvm.topi.testing
 
+import numpy as np
+import pytest
+
+import tvm
+import tvm.testing
+import tvm.topi.testing
+from tvm import meta_schedule as ms
+from tvm import relay
+from tvm.meta_schedule import ApplyHistoryBest, postproc, schedule_rule
+from tvm.meta_schedule.relay_integration import extract_task_from_relay
+from tvm.meta_schedule.testing.tlcbench import load_quantized_bert_base
+from tvm.meta_schedule.tune import tune_extracted_tasks
+from tvm.tir.tensor_intrin import AMDGPU_SDOT4_INTRIN, DP4A_INTRIN
+from tvm.tir.tensor_intrin import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 
 config = ms.TuneConfig(
     strategy="evolutionary",
@@ -135,6 +133,7 @@ postprocs_for_dp4a = [
 
 
 def tune_and_test(relay_mod, data_np, weight_np, op_name, target, sch_rules, postprocs):
+    """Test tuning."""
     tgt = "cuda" if "nvidia" in target else target
     dev = tvm.device(tgt, 0)
 
@@ -186,9 +185,9 @@ def tune_and_test(relay_mod, data_np, weight_np, op_name, target, sch_rules, pos
 
 
 def _test_dense(data_dtype, sch_rules, postprocs, target):
-    M, N, K = 1024, 1024, 1024
-    data_shape = (M, K)
-    weight_shape = (N, K)
+    dim_m, dim_n, dim_k = 1024, 1024, 1024
+    data_shape = (dim_m, dim_k)
+    weight_shape = (dim_n, dim_k)
 
     weight_dtype = "int8"
     out_dtype = "int32"
