@@ -18,55 +18,9 @@
 
 from tvm import te
 from tvm import tir
-from tvm.tir import IndexMap
+from ..utils import get_layout_transform_fn
 
 # pylint: disable=invalid-name
-
-
-def layout_transform_nhwc_8h2w32c2w(n, h, w, c):
-    return [
-        n,
-        h // 8,
-        w // 4,
-        c // 32,
-        IndexMap.AXIS_SEPARATOR,
-        h % 8,
-        (w % 4) // 2,
-        c % 32,
-        w % 2,
-    ]
-
-
-def layout_transform_nc_1024c(n, c):
-    return [
-        n,
-        c // 1024,
-        IndexMap.AXIS_SEPARATOR,
-        c % 1024,
-    ]
-
-
-def layout_transform_nhwc_4h2w32c2w(n, h, w, c):
-    return [
-        n,
-        h // 4,
-        w // 4,
-        c // 32,
-        IndexMap.AXIS_SEPARATOR,
-        h % 4,
-        (w % 4) // 2,
-        (c % 32),
-        w % 2,
-    ]
-
-
-def layout_transform_nc_512c(n, c):
-    return [
-        n,
-        c // 512,
-        IndexMap.AXIS_SEPARATOR,
-        c % 512,
-    ]
 
 
 def get_layout_transform_for_f32(f32_layout_string):
@@ -74,14 +28,15 @@ def get_layout_transform_for_f32(f32_layout_string):
     Given f32 layout string, return transform_layout function and
     channel/height split factor to be used for scheduling
     """
+    layout_transform_fn = get_layout_transform_fn(f32_layout_string)
     if f32_layout_string == "nhwc-8h2w32c2w-2d":
-        return [layout_transform_nhwc_8h2w32c2w, 8]
+        return [layout_transform_fn, 8]
     if f32_layout_string == "nhwc-4h2w32c2w-2d":
-        return [layout_transform_nhwc_4h2w32c2w, 4]
+        return [layout_transform_fn, 4]
     if f32_layout_string == "nc-1024c-2d":
-        return [layout_transform_nc_1024c, 1024]
+        return [layout_transform_fn, 1024]
     if f32_layout_string == "nc-512c-2d":
-        return [layout_transform_nc_512c, 512]
+        return [layout_transform_fn, 512]
     raise RuntimeError(f"Unexpected f32_layout '{f32_layout_string}'")
 
 
@@ -124,16 +79,17 @@ def cast_f16_f32_stir_schedule_nc(func, in_layout, out_layout, c_split_factor):
 def cast_f16_f32_schedule(cast_func, in_layout_str, out_layout_str):
     """Schedule for f16 to f32 cast: top level function"""
     f32_layout_transform_func, split_factor = get_layout_transform_for_f32(out_layout_str)
+    f16_layout_transform_func = get_layout_transform_fn(in_layout_str)
     if in_layout_str == "nhwc-8h2w32c2w-2d":
         return cast_f16_f32_stir_schedule_nhwc(
             cast_func,
-            layout_transform_nhwc_8h2w32c2w,
+            f16_layout_transform_func,
             f32_layout_transform_func,
             split_factor,
         )
     if in_layout_str == "nc-1024c-2d":
         return cast_f16_f32_stir_schedule_nc(
-            cast_func, layout_transform_nc_1024c, f32_layout_transform_func, split_factor
+            cast_func, f16_layout_transform_func, f32_layout_transform_func, split_factor
         )
     raise RuntimeError(f"Unexpected input_layout, output_layout '{input_layout, output_layout}'")
 
@@ -177,12 +133,13 @@ def cast_f32_f16_stir_schedule_nc(func, in_layout, out_layout, c_split_factor):
 def cast_f32_f16_schedule(cast_func, in_layout_str, out_layout_str):
     """Schedule for f32 to f16 cast: top level function"""
     f32_layout_transform_func, split_factor = get_layout_transform_for_f32(in_layout_str)
+    f16_layout_transform_func = get_layout_transform_fn(out_layout_str)
     if out_layout_str == "nhwc-8h2w32c2w-2d":
         return cast_f32_f16_stir_schedule_nhwc(
-            cast_func, f32_layout_transform_func, layout_transform_nhwc_8h2w32c2w, split_factor
+            cast_func, f32_layout_transform_func, f16_layout_transform_func, split_factor
         )
     if out_layout_str == "nc-1024c-2d":
         return cast_f32_f16_stir_schedule_nc(
-            cast_func, f32_layout_transform_func, layout_transform_nc_1024c, split_factor
+            cast_func, f32_layout_transform_func, f16_layout_transform_func, split_factor
         )
-    raise RuntimeError(f"Unexpected input_layout, output_layout '{input_layout, output_layout}'")
+    raise RuntimeError(f"Unexpected input_layout, output_layout '{in_layout_str, out_layout_str}'")

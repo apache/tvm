@@ -16,38 +16,14 @@
 # under the License.
 """ Tests for Hexagon slice cast ops """
 import numpy as np
-import pytest
 
 import tvm
 import tvm.testing
 from tvm import te
 import tvm.topi.hexagon.slice_ops as sl
-from ..infrastructure import allocate_hexagon_array
+from ..infrastructure import allocate_hexagon_array, transform_numpy
 
 # pylint: disable=invalid-name
-
-
-def transform_numpy(arr_np, layout):
-    """
-    Layout transformation on numpy arrays
-    """
-    if layout in ["nhwc-8h2w32c2w-2d"]:
-        N, H, W, C = arr_np.shape
-        return arr_np.reshape([N, H // 8, 8, W // 4, 2, 2, C // 32, 32]).transpose(
-            0, 1, 3, 6, 2, 4, 7, 5
-        )
-    if layout in ["nhwc-4h2w32c2w-2d"]:
-        N, H, W, C = arr_np.shape
-        return arr_np.reshape([N, H // 4, 4, W // 4, 2, 2, C // 32, 32]).transpose(
-            0, 1, 3, 6, 2, 4, 7, 5
-        )
-    if layout in ["nc-1024c-2d"]:
-        N, C = arr_np.shape
-        return arr_np.reshape([N, C // 1024, 1024])
-    if layout in ["nc-512c-2d"]:
-        N, C = arr_np.shape
-        return arr_np.reshape([N, C // 512, 512])
-    raise RuntimeError(f"Unexpected layout '{layout}'")
 
 
 class TestCastF16F32Slice2d:
@@ -55,13 +31,13 @@ class TestCastF16F32Slice2d:
     For testing Cast F16  to F32 Slice ops
     """
 
-    input_shape, input_layout, output_layout, axis_sep = tvm.testing.parameters(
-        ((1, 16, 12, 64), "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d", [4]),
-        ((1, 64, 64, 32), "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d", [4]),
-        ((1, 16, 12, 64), "nhwc-8h2w32c2w-2d", "nhwc-4h2w32c2w-2d", [4]),
-        ((1, 64, 64, 32), "nhwc-8h2w32c2w-2d", "nhwc-4h2w32c2w-2d", [4]),
-        ((1, 1024), "nc-1024c-2d", "nc-1024c-2d", [2]),
-        ((1, 1024), "nc-1024c-2d", "nc-512c-2d", [2]),
+    input_shape, orig_layout, input_layout, output_layout, axis_sep = tvm.testing.parameters(
+        ((1, 16, 12, 64), "nhwc", "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d", [4]),
+        ((1, 64, 64, 32), "nhwc", "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d", [4]),
+        ((1, 16, 12, 64), "nhwc", "nhwc-8h2w32c2w-2d", "nhwc-4h2w32c2w-2d", [4]),
+        ((1, 64, 64, 32), "nhwc", "nhwc-8h2w32c2w-2d", "nhwc-4h2w32c2w-2d", [4]),
+        ((1, 1024), "nc", "nc-1024c-2d", "nc-1024c-2d", [2]),
+        ((1, 1024), "nc", "nc-1024c-2d", "nc-512c-2d", [2]),
     )
     dtype = tvm.testing.parameter("float16")
     working_scope = tvm.testing.parameter("global.vtcm")
@@ -71,8 +47,8 @@ class TestCastF16F32Slice2d:
         return np.random.uniform(size=input_shape).astype(dtype)
 
     @tvm.testing.fixture
-    def transformed_input_np(self, input_np, input_layout):
-        return transform_numpy(input_np, input_layout)
+    def transformed_input_np(self, input_np, orig_layout, input_layout):
+        return transform_numpy(input_np, orig_layout, input_layout)
 
     @tvm.testing.fixture
     def expected_output_np(self, input_np):
@@ -80,8 +56,8 @@ class TestCastF16F32Slice2d:
         return ref_np
 
     @tvm.testing.fixture
-    def transformed_expected_output_np(self, expected_output_np, output_layout):
-        return transform_numpy(expected_output_np, output_layout)
+    def transformed_expected_output_np(self, expected_output_np, orig_layout, output_layout):
+        return transform_numpy(expected_output_np, orig_layout, output_layout)
 
     @tvm.testing.requires_hexagon
     def test_cast_fp16_fp32_slice(
@@ -99,7 +75,7 @@ class TestCastF16F32Slice2d:
         """
         Top level testing function for cast fp16 to fp32
         """
-        target_hexagon = tvm.target.hexagon("v69")
+        target_hexagon = tvm.target.hexagon("v68")
         target = tvm.target.Target(target_hexagon, host=target_hexagon)
         A = te.placeholder(input_shape, name="A", dtype=dtype)
         M = sl.cast_f16_f32_compute(A)
@@ -138,13 +114,13 @@ class TestCastF32F16Slice2d:
     For testing Cast F32 to F16 Slice ops
     """
 
-    (input_shape, input_layout, output_layout, axis_sep,) = tvm.testing.parameters(
-        ((1, 16, 12, 64), "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d", [4]),
-        ((1, 64, 64, 32), "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d", [4]),
-        ((1, 16, 12, 64), "nhwc-4h2w32c2w-2d", "nhwc-8h2w32c2w-2d", [4]),
-        ((1, 64, 64, 32), "nhwc-4h2w32c2w-2d", "nhwc-8h2w32c2w-2d", [4]),
-        ((1, 1024), "nc-1024c-2d", "nc-1024c-2d", [2]),
-        ((1, 1024), "nc-512c-2d", "nc-1024c-2d", [2]),
+    (input_shape, orig_layout, input_layout, output_layout, axis_sep,) = tvm.testing.parameters(
+        ((1, 16, 12, 64), "nhwc", "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d", [4]),
+        ((1, 64, 64, 32), "nhwc", "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d", [4]),
+        ((1, 16, 12, 64), "nhwc", "nhwc-4h2w32c2w-2d", "nhwc-8h2w32c2w-2d", [4]),
+        ((1, 64, 64, 32), "nhwc", "nhwc-4h2w32c2w-2d", "nhwc-8h2w32c2w-2d", [4]),
+        ((1, 1024), "nc", "nc-1024c-2d", "nc-1024c-2d", [2]),
+        ((1, 1024), "nc", "nc-512c-2d", "nc-1024c-2d", [2]),
     )
     dtype = tvm.testing.parameter("float32")
     working_scope = tvm.testing.parameter("global.vtcm")
@@ -154,8 +130,8 @@ class TestCastF32F16Slice2d:
         return np.random.uniform(size=input_shape).astype(dtype)
 
     @tvm.testing.fixture
-    def transformed_input_np(self, input_np, input_layout):
-        return transform_numpy(input_np, input_layout)
+    def transformed_input_np(self, input_np, orig_layout, input_layout):
+        return transform_numpy(input_np, orig_layout, input_layout)
 
     @tvm.testing.fixture
     def expected_output_np(self, input_np):
@@ -163,8 +139,8 @@ class TestCastF32F16Slice2d:
         return ref_np
 
     @tvm.testing.fixture
-    def transformed_expected_output_np(self, expected_output_np, output_layout):
-        return transform_numpy(expected_output_np, output_layout)
+    def transformed_expected_output_np(self, expected_output_np, orig_layout, output_layout):
+        return transform_numpy(expected_output_np, orig_layout, output_layout)
 
     @tvm.testing.requires_hexagon
     def test_cast_fp32_fp16_slice(
@@ -183,7 +159,7 @@ class TestCastF32F16Slice2d:
         Top level testing function for cast fp32 to fp16
         """
 
-        target_hexagon = tvm.target.hexagon("v69")
+        target_hexagon = tvm.target.hexagon("v68")
         target = tvm.target.Target(target_hexagon, host=target_hexagon)
         A = te.placeholder(input_shape, name="A", dtype=dtype)
         M = sl.cast_f32_f16_compute(A)
