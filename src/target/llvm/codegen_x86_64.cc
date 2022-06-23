@@ -152,8 +152,7 @@ llvm::Value* CodeGenX86_64::CallVectorIntrin(llvm::Intrinsic::ID id, size_t intr
 
 TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_x86-64")
     .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
-      CodeGenLLVM* cg = new CodeGenX86_64();
-      *rv = static_cast<void*>(cg);
+      *rv = static_cast<void*>(new CodeGenX86_64());
     });
 
 }  // namespace codegen

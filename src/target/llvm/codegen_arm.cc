@@ -126,8 +126,7 @@ PrimExpr CodeGenARM::ARMPopcount(const CallNode* call) {
 
 TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_arm")
     .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
-      CodeGenLLVM* cg = new CodeGenARM();
-      *rv = static_cast<void*>(cg);
+      *rv = static_cast<void*>(new CodeGenARM());
     });
 
 }  // namespace codegen
