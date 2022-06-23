@@ -606,7 +606,7 @@ assert os.path.isfile(f"{FOLDER}/models/quantized.tflite")
 assert os.path.isfile(f"{FOLDER}/models/project.zip")
 
 # Assert MLF file was correctly generated
-assert str(mod.executor) == "aot"
+assert mod.executor.name == "aot"
 
 # Remove the temporary folder we generated at the beginning
 shutil.rmtree(FOLDER)
