@@ -148,18 +148,18 @@ def f_timer(backend: str) -> Callable:
 
         if backend == "vm":
             vm = VirtualMachine(rt_mod, dev)  # pylint: disable=invalid-name
-            results = vm.benchmark(
+            ftimer = vm.benchmark(
                 dev, min_repeat_ms=500, repeat=5, number=1, end_to_end=False, **input_data
-            ).results
+            )
         elif backend == "graph":
             mod = GraphModule(rt_mod["default"](dev))
             for input_name, input_value in input_data.items():
                 mod.set_input(input_name, input_value)
-            ftimer = mod.module.time_evaluator("run", dev, min_repeat_ms=500, repeat=5, number=1)
+            ftimer = mod.module.time_evaluator("run", dev, min_repeat_ms=500, repeat=5, number=1)()
         else:
             raise ValueError(f"Backend {backend} not supported in f_timer!")
 
-        results = list(np.array(ftimer().results) * 1000.0)  # type: ignore
+        results = list(np.array(ftimer.results) * 1000.0)  # type: ignore
 
         print("Running time in time_evaluator: ", results)
         print("-------------------------------")
