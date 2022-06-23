@@ -196,7 +196,7 @@ class HoistInfoCollector : public StmtExprVisitor {
   using Parent::VisitExpr_;
   using Parent::VisitStmt_;
 
-  HoistInfoCollector(HoistExpressionConfig config) : config(config) {}
+  explicit HoistInfoCollector(HoistExpressionConfig config) : config(config) {}
 
   void AttemptHoistConditional(PrimExpr cond, HoistedConditionals hoist_from,
                                bool generate_else_block = true) {
