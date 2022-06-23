@@ -1496,6 +1496,11 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
   }
 }
 
+TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_cpu")
+    .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
+      *rv = static_cast<void*>(new CodeGenCPU());
+    });
+
 }  // namespace codegen
 }  // namespace tvm
 #endif  // TVM_LLVM_VERSION
