@@ -31,6 +31,7 @@
 #include <string>
 #include <vector>
 
+#include "../../../runtime/graph_executor/graph_executor_factory.h"
 #include "../base64.h"
 
 namespace tvm {
@@ -43,6 +44,44 @@ struct ThreadLocalStore {
     return &tls;
   }
 };
+
+using SerializationType = std::string;  // executor factory stream
+
+SerializationType serialize(tvm::runtime::Module module) {
+  static const runtime::PackedFunc* f_to_str =
+      runtime::Registry::Get("script_torch.save_to_base64");
+  ICHECK(f_to_str) << "IndexError: Cannot find the packed function "
+                      "`script_torch.save_to_tar` in the global registry";
+  return (*f_to_str)(module);
+}
+
+tvm::runtime::Module deserialize(SerializationType state) {
+  auto length = tvm::support::b64strlen(state);
+
+  u_char bytes[length];
+  memset(bytes, 0, sizeof(bytes));
+  tvm::support::b64decode(state, bytes);
+
+  const std::string name = tmpnam(NULL);
+  auto file_name = name + ".so";
+  auto pFile = fopen(file_name.c_str(), "wb");
+  fwrite(bytes, sizeof(u_char), length, pFile);
+  fclose(pFile);
+
+  std::string load_f_name = "runtime.module.loadfile_so";
+  const PackedFunc* f = runtime::Registry::Get(load_f_name);
+  ICHECK(f != nullptr) << "Loader for `.so` files is not registered,"
+                       << " resolved to (" << load_f_name << ") in the global registry."
+                       << "Ensure that you have loaded the correct runtime code, and"
+                       << "that you are on the correct hardware architecture.";
+
+  tvm::runtime::Module ret = (*f)(file_name, "");
+
+  ICHECK(remove(file_name.c_str()) == 0)
+      << "remove temporary file (" << file_name << ") unsuccessfully";
+
+  return ret;
+}
 
 class OperatorModuleWrapper : public torch::jit::CustomClassHolder {
  public:
@@ -72,41 +111,9 @@ class OperatorModuleWrapper : public torch::jit::CustomClassHolder {
     }
   }
 
-  using SerializationType = std::string;  // executor factory stream
+  SerializationType Serialize() { return serialize(runtime_module); }
 
-  SerializationType Serialize() {
-    static const runtime::PackedFunc* f_to_str =
-        runtime::Registry::Get("script_torch.save_to_base64");
-    ICHECK(f_to_str) << "IndexError: Cannot find the packed function "
-                        "`script_torch.save_to_tar` in the global registry";
-    return (*f_to_str)(runtime_module);
-  }
-
-  OperatorModuleWrapper(SerializationType state) {
-    auto length = tvm::support::b64strlen(state);
-
-    u_char bytes[length];
-    memset(bytes, 0, sizeof(bytes));
-    tvm::support::b64decode(state, bytes);
-
-    const char* name = tmpnam(NULL);
-    auto file_name = std::string(name) + ".so";
-    auto pFile = fopen(file_name.c_str(), "wb");
-    fwrite(bytes, sizeof(u_char), length, pFile);
-    fclose(pFile);
-
-    std::string load_f_name = "runtime.module.loadfile_so";
-    const PackedFunc* f = runtime::Registry::Get(load_f_name);
-    ICHECK(f != nullptr) << "Loader for `.so` files is not registered,"
-                         << " resolved to (" << load_f_name << ") in the global registry."
-                         << "Ensure that you have loaded the correct runtime code, and"
-                         << "that you are on the correct hardware architecture.";
-
-    runtime_module = (*f)(file_name, "");
-
-    ICHECK(remove(file_name.c_str()) == 0)
-        << "remove temporary file (" << file_name << ") unsuccessfully";
-  }
+  OperatorModuleWrapper(SerializationType state) { runtime_module = deserialize(state); }
 
  private:
   tvm::runtime::Module runtime_module;
@@ -119,7 +126,12 @@ tvm::Device getDevice(const at::Tensor& tensor) {
     case at::DeviceType::CPU:
       dev.device_type = DLDeviceType::kDLCPU;
       if (dev.device_id == -1) {
-        dev.device_id = 1;
+        /*
+         * In PyTorch the device ID for cpu is -1, sometimes causing error during tuning
+         * Thus we manually set the device ID as 0 for avoding potentially error of index out of
+         * bounds
+         */
+        dev.device_id = 0;
       }
       break;
     case at::DeviceType::CUDA:
@@ -134,7 +146,10 @@ tvm::Device getDevice(const at::Tensor& tensor) {
 class GraphExecutorFactoryWrapper : public torch::jit::CustomClassHolder {
  public:
   GraphExecutorFactoryWrapper(tvm::runtime::Module executor_factory)
-      : executor_factory_(executor_factory) {}
+      : executor_factory_(executor_factory) {
+    CHECK(executor_factory_->IsInstance<runtime::GraphExecutorFactory>())
+        << "module is not an instance of GraphExecutorFactory";
+  }
 
   GraphExecutorFactoryWrapper()
       : GraphExecutorFactoryWrapper(ThreadLocalStore::ThreadLocal()->mod) {}
@@ -183,41 +198,9 @@ class GraphExecutorFactoryWrapper : public torch::jit::CustomClassHolder {
     return outputs;
   }
 
-  using SerializationType = std::string;  // executor factory stream
+  SerializationType Serialize() { return serialize(executor_factory_); }
 
-  SerializationType Serialize() {
-    static const runtime::PackedFunc* f_to_str =
-        runtime::Registry::Get("script_torch.save_to_base64");
-    ICHECK(f_to_str) << "IndexError: Cannot find the packed function "
-                        "`script_torch.save_to_tar` in the global registry";
-    return (*f_to_str)(executor_factory_);
-  }
-
-  GraphExecutorFactoryWrapper(SerializationType state) {
-    auto length = tvm::support::b64strlen(state);
-
-    u_char bytes[length];
-    memset(bytes, 0, sizeof(bytes));
-    tvm::support::b64decode(state, bytes);
-
-    const char* name = tmpnam(NULL);
-    auto file_name = std::string(name) + ".so";
-    auto pFile = fopen(file_name.c_str(), "wb");
-    fwrite(bytes, sizeof(u_char), length, pFile);
-    fclose(pFile);
-
-    std::string load_f_name = "runtime.module.loadfile_so";
-    const PackedFunc* f = runtime::Registry::Get(load_f_name);
-    ICHECK(f != nullptr) << "Loader for `.so` files is not registered,"
-                         << " resolved to (" << load_f_name << ") in the global registry."
-                         << "Ensure that you have loaded the correct runtime code, and"
-                         << "that you are on the correct hardware architecture.";
-
-    executor_factory_ = (*f)(file_name, "");
-
-    ICHECK(remove(file_name.c_str()) == 0)
-        << "remove temporary file (" << file_name << ") unsuccessfully";
-  }
+  GraphExecutorFactoryWrapper(SerializationType state) { executor_factory_ = deserialize(state); }
 
  private:
   tvm::runtime::Module executor_factory_;
@@ -232,11 +215,13 @@ TORCH_LIBRARY(tvm_torch, m) {
   m.class_<OperatorModuleWrapper>("OperatorModuleWrapper")
       .def(torch::init<>())
       .def("forward", &OperatorModuleWrapper::forward)
-      .def_pickle([](const c10::intrusive_ptr<OperatorModuleWrapper>& self)
-                      -> OperatorModuleWrapper::SerializationType { return self->Serialize(); },
-                  [](OperatorModuleWrapper::SerializationType state) {
-                    return c10::make_intrusive<OperatorModuleWrapper>(state);
-                  });
+      .def_pickle(
+          [](const c10::intrusive_ptr<OperatorModuleWrapper>& self) -> SerializationType {
+            return self->Serialize();
+          },
+          [](SerializationType state) {
+            return c10::make_intrusive<OperatorModuleWrapper>(state);
+          });
 }
 
 TORCH_LIBRARY(tvm_tuning, m) {
@@ -244,9 +229,10 @@ TORCH_LIBRARY(tvm_tuning, m) {
       .def(torch::init<>())
       .def("forward", &GraphExecutorFactoryWrapper::forward)
       .def_pickle(
-          [](const c10::intrusive_ptr<GraphExecutorFactoryWrapper>& self)
-              -> GraphExecutorFactoryWrapper::SerializationType { return self->Serialize(); },
-          [](GraphExecutorFactoryWrapper::SerializationType state) {
+          [](const c10::intrusive_ptr<GraphExecutorFactoryWrapper>& self) -> SerializationType {
+            return self->Serialize();
+          },
+          [](SerializationType state) {
             return c10::make_intrusive<GraphExecutorFactoryWrapper>(state);
           });
 }
