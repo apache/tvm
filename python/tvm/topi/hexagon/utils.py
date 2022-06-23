@@ -39,6 +39,11 @@ def nhwc_8h2w32c2w_1d(n, h, w, c):
     return [n, h // 8, w // 4, c // 32, h % 8, (w % 4) // 2, c % 32, w % 2]
 
 
+def nhw_32h16w_2d(n, h, w):
+    """Return index map for nhw_32h16w 2d layout"""
+    return [n, h // 32, w // 16, te.AXIS_SEPARATOR, h % 32, w % 16]
+
+
 def get_layout_transform_fn(layout):
     """Return index map function as per the layout string"""
     if layout == "nhwc-8h2w32c2w-2d":
@@ -49,4 +54,6 @@ def get_layout_transform_fn(layout):
         return n11c_1024c_2d
     if layout == "n11c-1024c-1d":
         return n11c_1024c_1d
+    if layout == "nhw-32h16w-2d":
+        return nhw_32h16w_2d
     raise RuntimeError(f"Unexpected layout '{layout}'")
