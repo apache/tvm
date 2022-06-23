@@ -138,6 +138,7 @@ class PatternMatcher {
  public:
   PatternMatcher()
       : qnn_conv2d_op_(Op::Get("qnn.conv2d")),
+        qnn_dense_op_(Op::Get("qnn.dense")),
         qnn_requantize_op_(Op::Get("qnn.requantize")),
         bias_add_op_(Op::Get("add")) {}
 
@@ -147,11 +148,16 @@ class PatternMatcher {
     Op op = Downcast<Op>(call_node->op);
     if (op == qnn_conv2d_op_) {
       registered_ops_[QConv2d]++;
+      ICHECK(anchor_op_ == nullptr);
       anchor_op_ = call_node;
     } else if (op == qnn_requantize_op_) {
       registered_ops_[QRequantize]++;
     } else if (op == bias_add_op_) {
       registered_ops_[BiasAdd]++;
+    } else if (op == qnn_dense_op_) {
+      registered_ops_[QDense]++;
+      ICHECK(anchor_op_ == nullptr);
+      anchor_op_ = call_node;
     }
   }
 
@@ -159,16 +165,21 @@ class PatternMatcher {
   bool find(const Op& op) {
     if (registered_ops_.empty()) return false;
 
-    if (op == qnn_conv2d_op_ || op == qnn_requantize_op_ || op == bias_add_op_) {
+    if (op == qnn_conv2d_op_ || op == qnn_requantize_op_ || op == bias_add_op_ ||
+        op == qnn_dense_op_) {
       // Patterns: qnn.conv2d -> qnn.requantize or qnn.conv2d -> bias_add -> qnn.requantize
       if (registered_ops_[QConv2d] && registered_ops_[QRequantize]) {
+        return true;
+      }
+      // Patterns: qnn.dense -> qnn.requantize or qnn.dense -> bias_add -> qnn.requantize
+      if (registered_ops_[QDense] && registered_ops_[QRequantize]) {
         return true;
       }
     }
     return false;
   }
 
-  // returns whether given Op is last in the pattern qequence.
+  // returns whether given Op is last in the pattern sequence.
   bool IsLeafOp(const Op& op) { return op == qnn_requantize_op_; }
 
   LoweredOutput LowerOps(const CallNode* a_op, const CallNode* leaf_op,
@@ -192,6 +203,17 @@ class PatternMatcher {
       pattr->out_dtype = init_dtype;
 
       return lowered_out;
+    } else if (auto* pattr = const_cast<DenseAttrs*>(a_op->attrs.as<DenseAttrs>())) {
+      const auto* requantize_attrs = leaf_op->attrs.as<qnn::RequantizeAttrs>();
+
+      DataType init_dtype = pattr->out_dtype;
+      pattr->out_dtype = requantize_attrs->out_dtype;
+
+      LoweredOutput lowered_out = (*flower_call)(GetRef<Call>(a_op), inputs, target);
+
+      pattr->out_dtype = init_dtype;
+
+      return lowered_out;
     } else {
       LOG(FATAL) << "Unsupported op: " << PrettyPrint(a_op->op);
       return LoweredOutput({}, OpImplementation());
@@ -202,13 +224,14 @@ class PatternMatcher {
 
  private:
   const Op& qnn_conv2d_op_;
+  const Op& qnn_dense_op_;
   const Op& qnn_requantize_op_;
   const Op& bias_add_op_;
 
   // Main (complicated) operation in the primitive.
   const CallNode* anchor_op_ = nullptr;
 
-  enum POper { QConv2d, BiasAdd, QRequantize };
+  enum POper { QConv2d, QDense, BiasAdd, QRequantize };
   std::map<POper, int> registered_ops_;
 };
 

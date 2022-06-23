@@ -97,7 +97,7 @@ def qnn_dense_strategy_hexagon(attrs, inputs, out_type, target):
     """qnn.dense strategy for Hexagon"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_quantize(topi.hexagon.qnn_dense),
+        wrap_topi_qnn_dense(topi.hexagon.qnn_dense),
         wrap_topi_schedule(topi.hexagon.schedule_qnn_dense),
         name="qnn_dense.hexagon",
     )
