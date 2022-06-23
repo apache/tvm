@@ -17,8 +17,8 @@
 """Testing utility functions in meta schedule"""
 from statistics import median
 from typing import Callable, Dict, Optional, Union, List
-import numpy as np  # type: ignore
 import json
+import numpy as np  # type: ignore
 
 import tvm
 from tvm.ir import IRModule
@@ -100,71 +100,74 @@ def generate_input_data(input_shape: List[int], input_dtype: str) -> np.ndarray:
     """
     if input_dtype.startswith("float"):
         return np.random.uniform(size=input_shape).astype(input_dtype)
-    elif input_dtype in ["uint8", "int8"]:
-        return np.random.randint(low=0, high=127, size=input_shape, dtype="int32")
-    elif input_dtype in ["int32", "int64"]:
+    if input_dtype in ["uint8", "int8"]:
+        return np.random.randint(
+            low=0,
+            high=127,
+            size=input_shape,
+            dtype="int32",  # TODO(zxybazh): fix the datatype when int8 / uint8 is supported better
+        )
+    if input_dtype in ["int32", "int64"]:
         return np.random.randint(low=0, high=10000, size=input_shape, dtype=input_dtype)
-    else:
-        raise ValueError("Unsupported input datatype!")
+    raise ValueError("Unsupported input datatype!")
 
 
-def f_timer(rt_mod: tvm.runtime.Module, dev: tvm.device, input_data: Dict[str, NDArray]) -> None:
-    """Run and benchmark the given runtime module, print out the result.
-
-    Parameters
-    ----------
-    rt_mod : tvm.runtime.Module
-        The runtime module.
-    dev : tvm.device
-        The device type to run workload.
-    input_data : Dict[str, np.ndarray]
-        The input data as a dictionary.
-    """
-    from tvm.contrib.graph_executor import GraphModule  # pylint:disable=import-outside-toplevel
-
-    mod = GraphModule(rt_mod["default"](dev))
-    for input_name, input_value in input_data.items():
-        mod.set_input(input_name, input_value)
-    ftimer = mod.module.time_evaluator(
-        "run",
-        dev,
-        min_repeat_ms=500,
-        repeat=3,
-    )
-    results = list(np.array(ftimer().results) * 1000.0)  # type: ignore
-    print("Running time in time_evaluator: ", results)
-    print("-------------------------------")
-    print(f"Min    : {min(results)}")
-    print(f"Max    : {max(results)}")
-    print(f"Median : {median(results)}")
-
-
-def f_timer_vm(
-    rt_mod: tvm.runtime.vm.Executable, dev: tvm.device, input_data: Dict[str, NDArray]
-) -> None:
-    """Run and benchmark the given runtime module, print out the result.
+def f_timer(backend: str) -> Callable:
+    """Create a function to run and benchmark the performance of whole given runtime module,
+    or Executable in relay vm.
 
     Parameters
     ----------
-    rt_mod : tvm.runtime.vm.Executable
-        The runtime module.
-    dev : tvm.device
-        The device type to run workload.
-    input_data : Dict[str, np.ndarray]
-        The input data as a dictionary.
-    """
-    from tvm.runtime.vm import VirtualMachine  # pylint:disable=import-outside-toplevel
+    backend : str
+        The backend to use, graph / vm.
 
-    vm = VirtualMachine(rt_mod, dev)  # pylint: disable=invalid-name
-    results = vm.benchmark(
-        dev, min_repeat_ms=500, repeat=3, number=3, end_to_end=True, **input_data
-    ).results
-    results = list(np.array(results) * 1000.0)  # type: ignore
-    print("Running time in time_evaluator: ", results)
-    print("-------------------------------")
-    print(f"Min    : {min(results)}")
-    print(f"Max    : {max(results)}")
-    print(f"Median : {median(results)}")
+    Returns
+    -------
+    func : Callable
+        The function to benchmark the workload.
+    """
+
+    def func(
+        rt_mod: Union[tvm.runtime.Module, tvm.runtime.vm.Executable],
+        dev: tvm.device,
+        input_data: Dict[str, NDArray],
+    ) -> None:
+        """Run and benchmark the given runtime module, print out the result.
+
+        Parameters
+        ----------
+        rt_mod : Union[tvm.runtime.Module, tvm.runtime.vm.Executable]
+            The runtime module or vm executable.
+        dev : tvm.device
+            The device type to run workload.
+        input_data : Dict[str, np.ndarray]
+            The input data as a dictionary.
+        """
+        from tvm.contrib.graph_executor import GraphModule  # pylint:disable=import-outside-toplevel
+        from tvm.runtime.vm import VirtualMachine  # pylint:disable=import-outside-toplevel
+
+        if backend == "vm":
+            vm = VirtualMachine(rt_mod, dev)  # pylint: disable=invalid-name
+            results = vm.benchmark(
+                dev, min_repeat_ms=500, repeat=5, number=1, end_to_end=False, **input_data
+            ).results
+        elif backend == "graph":
+            mod = GraphModule(rt_mod["default"](dev))
+            for input_name, input_value in input_data.items():
+                mod.set_input(input_name, input_value)
+            ftimer = mod.module.time_evaluator("run", dev, min_repeat_ms=500, repeat=5, number=1)
+        else:
+            raise ValueError(f"Backend {backend} not supported in f_timer!")
+
+        results = list(np.array(ftimer().results) * 1000.0)  # type: ignore
+
+        print("Running time in time_evaluator: ", results)
+        print("-------------------------------")
+        print(f"Min    : {min(results)}")
+        print(f"Max    : {max(results)}")
+        print(f"Median : {median(results)}")
+
+    return func
 
 
 def f_per_layer(graph: str) -> Callable:
@@ -182,7 +185,11 @@ def f_per_layer(graph: str) -> Callable:
         The function using the json format graph.
     """
 
-    def func(rt_mod: tvm.runtime.Module, dev: tvm.device, input_data: Dict[str, NDArray]) -> None:
+    def func(
+        rt_mod: tvm.runtime.Module,
+        dev: tvm.device,
+        input_data: Dict[str, NDArray],
+    ) -> None:
         """Run and benchmark the per-layer performance of given runtime module,
         print out the result.
 
@@ -197,7 +204,6 @@ def f_per_layer(graph: str) -> Callable:
         """
         # pylint:disable=import-outside-toplevel
         from tvm.contrib.debugger.debug_executor import create
-        from tabulate import tabulate
 
         # pylint:enable=import-outside-toplevel
 
@@ -212,7 +218,7 @@ def f_per_layer(graph: str) -> Callable:
         print("|graph_nodes| = ", len(graph_nodes))
         print("|graph_time| = ", len(graph_time))
 
-        graph_nodes_time = [(k, float(v) * 1e6) for k, v in zip(graph_nodes, graph_time)]
-        print(tabulate(graph_nodes_time, headers=["Layer", "Time(us)"]))
+        for k, v in zip(graph_nodes, graph_time):
+            print(k, float(v) * 1e6, "us")
 
     return func

@@ -528,7 +528,7 @@ def tune_relay(
     postprocs: Optional[FnPostproc] = None,
     mutator_probs: Optional[FnMutatorProb] = None,
     num_threads: Optional[int] = None,
-    use_vm: Optional[bool] = False,
+    backend: Optional[str] = "graph",
 ) -> Module:
     """Tune a TIR IRModule with a given target.
 
@@ -592,7 +592,9 @@ def tune_relay(
                 opt_level=3,
                 config={"relay.backend.use_meta_schedule": True},
             ):
-                if not use_vm:
+                if backend == "graph":
                     return relay_build(mod, target=target, params=params)
-                else:
+                elif backend == "vm":
                     return relay.vm.compile(mod, target=target, params=params)
+                else:
+                    raise ValueError(f"Backend {backend} not supported in ApplyHistoryBest!")

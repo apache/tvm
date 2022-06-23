@@ -20,12 +20,11 @@ import json
 import logging
 
 from distutils.util import strtobool
-import numpy as np  # type: ignore
 import tvm
 from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.meta_schedule.testing.relay_workload import get_network
-from tvm.meta_schedule.testing.utils import generate_input_data, f_timer, f_timer_vm, f_per_layer
+from tvm.meta_schedule.testing.utils import generate_input_data, f_timer, f_per_layer
 from tvm.support import describe
 
 
@@ -105,10 +104,11 @@ def _parse_args():
         default=True,
     )
     args.add_argument(
-        "--use-vm",
-        type=lambda x: bool(strtobool(x)),
+        "--backend",
+        type=str,
         required=True,
-        help="example: `True / False",
+        choices=["graph", "vm"],
+        help="example: graph / vm",
     )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
@@ -169,13 +169,13 @@ def main():
             runner=runner,  # type: ignore
             work_dir=ARGS.work_dir,
             params=params,
-            use_vm=ARGS.use_vm,
+            backend=ARGS.backend,
         )
     print("Tuning Time:")
     print(profiler.table())
     graph, rt_mod, params = lib.graph_json, lib.lib, lib.params
 
-    if not ARGS.use_vm:
+    if ARGS.backend == "graph":
         graph, rt_mod, params = lib.graph_json, lib.lib, lib.params
 
         run_module_via_rpc(
@@ -186,22 +186,13 @@ def main():
             continuation=f_per_layer(graph),
         )
 
-        run_module_via_rpc(
-            rpc_config=ARGS.rpc_config,
-            lib=lib,
-            dev_type=ARGS.target.kind.name,
-            args=input_data,
-            continuation=f_timer,
-        )
-    else:
-        run_module_via_rpc(
-            rpc_config=ARGS.rpc_config,
-            lib=lib,
-            dev_type=ARGS.target.kind.name,
-            args=input_data,
-            continuation=f_timer_vm,
-            use_vm=True,
-        )
+    run_module_via_rpc(
+        rpc_config=ARGS.rpc_config,
+        lib=lib,
+        dev_type=ARGS.target.kind.name,
+        args=input_data,
+        continuation=f_timer(ARGS.backend),
+    )
 
 
 if __name__ == "__main__":

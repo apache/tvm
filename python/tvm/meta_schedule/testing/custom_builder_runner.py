@@ -148,7 +148,7 @@ def run_module_via_rpc(
     dev_type: str,
     args: Dict[str, "np.ndarray"],
     continuation: Callable,
-    use_vm: Optional[bool] = False,
+    backend: Optional[str] = "graph",
 ):
     """Execute a tvm.runtime.Module on RPC remote"""
     # pylint: disable=import-outside-toplevel
@@ -162,14 +162,14 @@ def run_module_via_rpc(
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         filename = os.path.join(tmp_dir, "tvm_tmp_mod." + tar.output_format)
-        if use_vm:
+        if backend == "vm":
             code, lib = lib.save()
         lib.export_library(filename, tar)
         session = rpc_config.connect_server()
         session.upload(filename)
         _, filename = os.path.split(filename)
         rt_mod = session.load_module(filename)
-        if use_vm:
+        if backend == "vm":
             rt_mod = session.get_function("runtime.Load_Executable")(code, rt_mod)
         dev = session.device(dev_type=dev_type, dev_id=0)
         nd_args = {k: ndarray.array(v, dev) for k, v in args.items()}
