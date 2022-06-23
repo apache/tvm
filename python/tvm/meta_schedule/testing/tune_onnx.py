@@ -199,6 +199,7 @@ def main():
             dev_type=ARGS.target.kind.name,
             args=input_data,
             continuation=f_timer_vm,
+            use_vm=True,
         )
 
 
