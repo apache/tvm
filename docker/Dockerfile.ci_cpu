@@ -110,6 +110,10 @@ RUN bash /install/ubuntu_install_boost.sh
 COPY install/ubuntu_install_caffe.sh /install/ubuntu_install_caffe.sh
 RUN bash /install/ubuntu_install_caffe.sh
 
+# Github Arm(R) Ethos(TM)-N NPU driver
+COPY install/ubuntu_install_ethosn_driver_stack.sh /install/ubuntu_install_ethosn_driver_stack.sh
+RUN bash /install/ubuntu_install_ethosn_driver_stack.sh
+
 # Vitis-AI PyXIR CI deps
 COPY install/ubuntu_install_vitis_ai_packages_ci.sh /install/ubuntu_install_vitis_ai_packages_ci.sh
 RUN bash /install/ubuntu_install_vitis_ai_packages_ci.sh

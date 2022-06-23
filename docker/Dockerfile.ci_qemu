@@ -97,10 +97,6 @@ RUN bash /install/ubuntu_install_arduino.sh
 COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_onnx.sh
 RUN bash /install/ubuntu_install_onnx.sh
 
-# Github Arm(R) Ethos(TM)-N NPU driver
-COPY install/ubuntu_install_ethosn_driver_stack.sh /install/ubuntu_install_ethosn_driver_stack.sh
-RUN bash /install/ubuntu_install_ethosn_driver_stack.sh
-
 # Install CMSIS_NN
 COPY install/ubuntu_install_cmsis.sh /install/ubuntu_install_cmsis.sh
 RUN bash /install/ubuntu_install_cmsis.sh /opt/arm/ethosu/cmsis
