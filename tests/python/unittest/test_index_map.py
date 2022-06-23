@@ -16,11 +16,10 @@
 # under the License.
 
 import pytest
-
 import tvm
 import tvm.testing
-from tvm.tir import IndexMap
 from tvm.ir import assert_structural_equal
+from tvm.tir import IndexMap, IntImm, floordiv, floormod
 
 
 def assert_equal_index_map(map1: IndexMap, map2: IndexMap) -> None:
@@ -184,6 +183,23 @@ def test_nonsurjective_inverse(padding_test_case):
     expected_predicate = analyzer.simplify(expected_predicate)
     padding_predicate = analyzer.simplify(padding_predicate)
     tvm.ir.assert_structural_equal(padding_predicate, expected_predicate)
+
+
+def test_index_map_inverse_no_iter():
+    def input_example(i0, i1, i2, i3):
+        j0 = floordiv(i3, 32)
+        j1 = floordiv(i2, 2)
+        j2 = floormod(i2, 2)
+        j3 = floormod(i3, 32)
+        return j0, j1, j2, j3
+
+    def expected_inverse(i0, i1, i2, i3):
+        return IntImm("int32", 0), IntImm("int32", 0), i2 + i1 * 2, i3 + i0 * 32
+
+    index_map = IndexMap.from_func(input_example)
+    inverse_map = index_map.inverse([1, 1, 64, 64])
+    expected_map = IndexMap.from_func(expected_inverse)
+    assert expected_map.is_equivalent_to(inverse_map)
 
 
 if __name__ == "__main__":
