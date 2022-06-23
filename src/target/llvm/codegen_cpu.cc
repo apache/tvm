@@ -25,6 +25,7 @@
 #include "codegen_cpu.h"
 
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/module.h>
 #include <tvm/tir/analysis.h>
 
 #include <algorithm>
@@ -34,7 +35,6 @@
 
 #include "../func_registry_generator.h"
 #include "../metadata_utils.h"
-
 namespace tvm {
 namespace codegen {
 
@@ -403,10 +403,10 @@ llvm::Value* CodeGenCPU::CreateCallExtern(Type ret_type, String global_symbol,
 #endif
     return builder_->CreateCall(ext_callee, arg_values);
   } else {
-    llvm::Function* f = module_->getFunction(global_symbol);
+    llvm::Function* f = module_->getFunction(MakeStringRef(global_symbol));
     if (f == nullptr) {
       f = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
-                                 global_symbol.operator llvm::StringRef(), module_.get());
+                                 MakeStringRef(global_symbol), module_.get());
     }
 #if TVM_LLVM_VERSION >= 90
     auto ext_callee = llvm::FunctionCallee(f);
@@ -535,9 +535,8 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   // Linkage ld Error: CALL16 reloc at 0x290 not against global symbol
   const StringImmNode* value = op->value.as<StringImmNode>();
   ICHECK(value != nullptr);
-  llvm::Function* fcompute =
-      llvm::Function::Create(ftype, llvm::Function::InternalLinkage,
-                             value->value.operator llvm::StringRef(), module_.get());
+  llvm::Function* fcompute = llvm::Function::Create(ftype, llvm::Function::InternalLinkage,
+                                                    MakeStringRef(value->value), module_.get());
   SetTargetAttributes(fcompute);
 
   BasicBlock* compute_call_end = CheckCallSuccess(builder_->CreateCall(fcompute, arg_values));
@@ -989,7 +988,8 @@ class MetadataTypeDefiner : public AttrVisitor {
     elements_.emplace_back(llvm_types_->t_data_type);
   }
   void Visit(const char* key, runtime::NDArray* value) final {
-    CHECK(false) << "Do not support serializing NDArray";
+    elements_.emplace_back(llvm_types_->t_int64);
+    elements_.emplace_back(llvm_types_->t_void_p);
   }
 
  private:
@@ -1025,8 +1025,10 @@ class MetadataTypeDefiner : public AttrVisitor {
         CHECK(false) << "Do not support handle";
         break;
       case MetadataKind::kMetadata:
-        elements_.emplace_back(
-            llvm::PointerType::getUnqual(llvm_types_->structs_by_type_key[arr->type_key]));
+        if (llvm_types_->structs_by_type_key.count(arr->type_key)) {
+          elements_.emplace_back(
+              llvm::PointerType::getUnqual(llvm_types_->structs_by_type_key[arr->type_key]));
+        }
         break;
       default:
         CHECK(false) << "Unsupported metadata kind " << arr->kind;
@@ -1046,12 +1048,8 @@ class MetadataTypeDefiner : public AttrVisitor {
   }
 
   void DefineType(runtime::metadata::MetadataBase metadata) {
+    ICHECK(elements_.empty());
     ReflectionVTable::Global()->VisitAttrs(metadata.operator->(), this);
-    for (auto e : elements_) {
-      std::string value;
-      llvm::raw_string_ostream os(value);
-      e->print(os, true);
-    }
     llvm_types_->structs_by_type_key[metadata->GetTypeKey()] =
         llvm::StructType::create(*ctx_, elements_, metadata->get_c_struct_name());
     elements_.clear();
@@ -1104,8 +1102,14 @@ class MetadataSerializerLLVM : public AttrVisitor {
          llvm::ConstantInt::get(llvm_types_->t_uint8, value->lanes(), false /* isSigned */)}));
   }
 
+  // Serializing NDArray as tuple of len, data
   void Visit(const char* key, runtime::NDArray* value) final {
-    CHECK(false) << "Do not support serializing NDArray";
+    std::string bytes;
+    dmlc::MemoryStringStream stream(&bytes);
+    value->Save(&stream);
+    elements_.back().emplace_back(
+        llvm::ConstantInt::get(llvm_types_->t_int64, bytes.length(), true /* isSigned */));
+    elements_.back().emplace_back(codegen_->GetConstString(bytes));
   }
 
   void VisitMetadata(runtime::metadata::MetadataBase metadata) {
@@ -1219,7 +1223,17 @@ void CodeGenCPU::DefineMetadata(runtime::metadata::Metadata metadata) {
       llvm::StructType::create(*ctx_, {t_int8_, t_int8_, t_int8_}, "DLDataType") /* t_data_type */,
   };
 
+  // create sample ConstantInfoMetadata instance for MetadataTypeDefiner
+  std::string bytes;
+  runtime::NDArray ci = runtime::NDArray::Empty({0}, DataType::UInt(8), Device{kDLCPU});
+  dmlc::MemoryStringStream stream(&bytes);
+  ci.Save(&stream);
+  TVMConstantInfo di =
+      TVMConstantInfo{"default-none", 0, static_cast<int64_t>(bytes.size()), bytes.c_str()};
+
   std::vector<runtime::metadata::MetadataBase> queue;
+  queue.push_back(runtime::metadata::ConstantInfoMetadata(&di));
+
   metadata::DiscoverComplexTypesVisitor discover_complex{&queue};
   discover_complex.Discover(metadata);
 
@@ -1235,9 +1249,8 @@ void CodeGenCPU::DefineMetadata(runtime::metadata::Metadata metadata) {
 
   function_ =
       llvm::Function::Create(ftype_tvm_backend_packed_c_func_, llvm::Function::ExternalLinkage,
-                             "get_c_metadata", module_.get());
+                             runtime::symbol::tvm_get_c_metadata, module_.get());
   SetTargetAttributes(function_);
-
   function_->setCallingConv(llvm::CallingConv::C);
   function_->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
 

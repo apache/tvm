@@ -238,7 +238,7 @@ void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream&
     }
 
     default:
-      CHECK(false) << "Data type not supported";
+      CHECK(false) << "Data type '" << arr_type << "' not supported";
   }
 
   os.flags(old_fmtflags);
