@@ -789,6 +789,59 @@ def test_github_tag_teams(tmpdir_factory):
 
 
 @pytest.mark.parametrize(
+    "images,expected",
+    [
+        (
+            ["ci_arm=tlcpack/ci-arm:abc-abc-123", "ci_lint=tlcpack/ci-lint:abc-abc-234"],
+            {
+                "ci_arm": "tlcpack/ci-arm:abc-abc-123",
+                "ci_lint": "tlcpack/ci-lint:abc-abc-234",
+            },
+        ),
+        (
+            ["ci_arm2=tlcpack/ci-arm2:abc-abc-123"],
+            {
+                "ci_arm2": "tlcpackstaging/ci_arm2:abc-abc-123",
+            },
+        ),
+    ],
+)
+def test_determine_docker_images(tmpdir_factory, images, expected):
+    tag_script = REPO_ROOT / "tests" / "scripts" / "determine_docker_images.py"
+
+    dir = tmpdir_factory.mktemp("tmp_git_dir")
+
+    docker_data = {
+        "repositories/tlcpack/ci-arm/tags/abc-abc-123": {},
+        "repositories/tlcpack/ci-lint/tags/abc-abc-234": {},
+    }
+
+    proc = subprocess.run(
+        [
+            str(tag_script),
+            "--testing-docker-data",
+            json.dumps(docker_data),
+            "--base-dir",
+            dir,
+        ]
+        + images,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        encoding="utf-8",
+        cwd=dir,
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"Failed to run script:\n{proc.stdout}")
+
+    for expected_filename, expected_image in expected.items():
+        with open(Path(dir) / expected_filename) as f:
+            actual_image = f.read()
+
+        assert actual_image == expected_image
+
+
+@pytest.mark.parametrize(
     "changed_files,name,check,expected_code",
     [
         d.values()
