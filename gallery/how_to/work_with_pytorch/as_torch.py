@@ -27,12 +27,12 @@ For avoiding potential "undefined symbol" issue, we strongly recommend to instal
 """
 # Import Tvm and PyTorch, as well as necessary libraries
 import tvm
+import tvm.testing
+import numpy as np
 import torch
+import torch.nn
 from tvm.contrib.torch import as_torch
 from tvm.script import tir as T
-import numpy as np
-import torch.nn
-import tvm.testing
 
 
 ######################################################################
@@ -58,29 +58,19 @@ class MyModule:
 # -------------------------------
 
 
-def test_tvmscript_torch_decorator():
-    s1 = np.arange(8).astype("float32")
+# Define two torch tensors
+q1 = torch.arange(8).type(torch.float32)
+q2 = torch.zeros((8,), dtype=torch.float32)
 
-    # Define two torch tensors
-    q1 = torch.arange(8).type(torch.float32)
-    q2 = torch.zeros((8,), dtype=torch.float32)
+# Call the function directly, the result is stored at `q2`
+MyModule(q1, q2)
 
-    # Result from numpy
-    numpy_result = s1 + 1
+# Testing. No output implies that tensors are equal
+tvm.testing.assert_allclose(q2.numpy(), (q1+1).numpy(), atol=1e-5, rtol=1e-5)
 
-    tvm_module = MyModule
-
-    # We call `MyModule` as PyTorch module's forward
-    tvm_module(q1, q2)
-
-    # Testing. No output implies that tensors are equal
-    tvm.testing.assert_allclose(q2.numpy(), numpy_result, atol=1e-5, rtol=1e-5)
-
-
-test_tvmscript_torch_decorator()
 
 ######################################################################
-# Another example: matrix multiplication with a limit form meta-programming
+# The second example: matrix multiplication with a limit form meta-programming
 # -------------------------------
 # As above, we can add `as_torch` decorator to a Tensor IR function.
 
@@ -105,26 +95,55 @@ def matmul(M: int, N: int, K: int, dtype: str):
 # -------------------------------
 
 
-def test_tvmscript_torch_matmul():
-    # Create two 128 x 128 matrixs as input
-    s1 = np.random.rand(128, 128).astype("float32")
-    s2 = np.random.rand(128, 128).astype("float32")
-    s3 = np.zeros((128, 128)).astype("float32")
+# Create two 128 x 128 matrixes as input
+s1 = np.random.rand(128, 128).astype("float32")
+s2 = np.random.rand(128, 128).astype("float32")
+s3 = np.zeros((128, 128)).astype("float32")
 
-    q1 = torch.from_numpy(s1)
-    q2 = torch.from_numpy(s2)
-    q3 = torch.from_numpy(s3)
+q1 = torch.from_numpy(s1)
+q2 = torch.from_numpy(s2)
+q3 = torch.from_numpy(s3)
 
-    # Result from numpy
-    numpy_result = np.matmul(s1, np.transpose(s2))
+# Result from numpy
+numpy_result = np.matmul(s1, np.transpose(s2))
 
-    # Instantiate the `matmul` function by passing the parameters of shapes and datatype
-    tvm_module = matmul(128, 128, 128, "float32")
+# Instantiate the `matmul` function by passing the parameters of shapes and datatype
+tvm_module = matmul(128, 128, 128, "float32")
 
-    # Run the operator
-    tvm_module(q1, q2, q3)
+# Run the operator
+tvm_module(q1, q2, q3)
 
-    tvm.testing.assert_allclose(q3.numpy(), numpy_result, atol=1e-5, rtol=1e-5)
+tvm.testing.assert_allclose(q3.numpy(), numpy_result, atol=1e-5, rtol=1e-5)
+
+######################################################################
+# Last example: GPU supporting
+# -------------------------------
+# In such an example, we demonstrate our method does support module built upon GPU
+# The code below is the GPU version of `MyModule`
 
 
-test_tvmscript_torch_matmul()
+@as_torch
+@tvm.script.ir_module
+class ModuleGPU:
+    @T.prim_func
+    def main(A: T.Buffer[8, "float32"], B: T.Buffer[8, "float32"]) -> None:
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        for i_0 in T.thread_binding(2, thread="blockIdx.x"):
+            for i_2 in T.thread_binding(2, thread="threadIdx.x"):
+                for i_1 in T.serial(2):
+                    with T.block("B"):
+                        vi = T.axis.spatial(8, i_0 * 4 + i_1 * 2 + i_2)
+                        T.reads(A[vi])
+                        T.writes(B[vi])
+                        B[vi] = A[vi] + T.float32(1)
+
+
+# Define two torch tensors, on GPU
+cuda0 = torch.device('cuda:0')
+q1 = torch.arange(8, device=cuda0).type(torch.float32)
+q2 = torch.zeros((8,), dtype=torch.float32, device=cuda0)
+
+# Running and testing
+ModuleGPU(q1, q2)
+tvm.testing.assert_allclose(
+    q2.cpu().numpy(), (q1+1).cpu().numpy(), atol=1e-5, rtol=1e-5)

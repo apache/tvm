@@ -28,33 +28,26 @@ import tvm
 class OperatorModuleWrapper(torch.nn.Module):
     def __init__(self, module: Union[tvm.ir.module.IRModule, tvm.tir.function.PrimFunc, tvm.contrib.graph_executor.GraphModule]):
         super().__init__()
-        self.engine_cpu = None
-        self.engine_cuda = None
-        self.ir_module = module
+        self.rt_module = None # runtime module
+        self.ir_module = module # IR moudle
 
-    def build_cpu(self):
-        runtime_module = tvm.build(self.ir_module)
+    def build(self, target = None):
+        runtime_module = tvm.build(self.ir_module, target = target)
         func = tvm.get_global_func("tvmtorch.save_runtime_mod")
         func(runtime_module)
 
-        self.engine_cpu = torch.classes.tvm_torch.OperatorModuleWrapper()
-
-    def build_cuda(self):
-        # If the module build on cuda, we won't call the C++ code since some information is missing
-        runtime_module = tvm.build(self.ir_module, target=tvm.target.cuda())
-        self.engine_cuda = runtime_module
+        self.rt_module = torch.classes.tvm_torch.OperatorModuleWrapper()
 
     def forward(self, *torch_inputs: List[torch.Tensor]) -> List[torch.Tensor]:
-        if torch_inputs[0].is_cuda:
-            if self.engine_cuda is None:
-                self.build_cuda()
-            return self.engine_cuda.forward(torch_inputs)
-        else:
-            # We force the tensor inputs to be on cpu.
-            torch_inputs = tuple(map(lambda x: x.cpu(), torch_inputs))
-            if self.engine_cpu is None:
-                self.build_cpu()
-            return self.engine_cpu.forward(torch_inputs)
+        if self.rt_module is None:
+            if torch_inputs[0].is_cuda:
+                self.build(target = "cuda")
+            elif torch_inputs[0].device.type == "cpu":
+                self.build()
+            else:
+                raise Exception(f"the target {torch_inputs[0].device.type} is not supported yet")
+            
+        return self.rt_module.forward(torch_inputs)
 
 
 def as_torch(

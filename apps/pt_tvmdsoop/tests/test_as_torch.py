@@ -59,6 +59,20 @@ class MyModule:
                 vi = T.axis.spatial(8, i)
                 B[vi] = A[vi] + 1.0
 
+@as_torch
+@tvm.script.ir_module
+class ModuleGPU:
+    @T.prim_func
+    def main(A: T.Buffer[8, "float32"], B: T.Buffer[8, "float32"]) -> None:
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        for i_0 in T.thread_binding(2, thread="blockIdx.x"):
+            for i_2 in T.thread_binding(2, thread="threadIdx.x"):
+                for i_1 in T.serial(2):
+                    with T.block("B"):
+                        vi = T.axis.spatial(8, i_0 * 4 + i_1 * 2 + i_2)
+                        T.reads(A[vi])
+                        T.writes(B[vi])
+                        B[vi] = A[vi] + T.float32(1)
 
 class MinuesOnes(torch.nn.Module):
     def __init__(self):
@@ -101,9 +115,22 @@ def test_tvmscript_torch_decorator():
     MyModule(q1, q2)
 
     tvm.testing.assert_allclose(q2.numpy(), numpy_result, atol=1e-5, rtol=1e-5)
+    
+def test_tvmscript_torch_gpu():
+    s1 = np.arange(8).astype("float32")
+    
+    cuda0 = torch.device('cuda:0')
+    q1 = torch.arange(8, device=cuda0).type(torch.float32)
+    q2 = torch.zeros((8,), dtype=torch.float32, device=cuda0)
+
+    numpy_result = s1 + 1
+
+    ModuleGPU(q1, q2)
+
+    tvm.testing.assert_allclose(q2.cpu().numpy(), numpy_result, atol=1e-5, rtol=1e-5)
 
 
-def test_torch_with_tvmscirpt():
+def test_torch_with_tvmscript():
     s1 = np.arange(8).astype("float32")
 
     q1 = torch.arange(8).type(torch.float32)
@@ -119,4 +146,5 @@ def test_torch_with_tvmscirpt():
 if __name__ == "__main__":
     test_tvmscript_torch_matmul()
     test_tvmscript_torch_decorator()
-    test_torch_with_tvmscirpt()
+    test_tvmscript_torch_gpu()
+    test_torch_with_tvmscript()
