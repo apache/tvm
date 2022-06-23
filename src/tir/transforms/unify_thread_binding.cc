@@ -111,7 +111,6 @@ class ThreadBindingUnifier : public StmtExprMutator {
     // Step 4. We will substitute the occurrences of the old variable in the old IterVar with the
     // new variable in further mutation. Thus, we store the mapping entry. Cast to old dtype if
     // needed (we assume both old and new dtype are valid for the range of the thread extent).
-
     var_substitution_map_.Set(old_var, cast(old_var.dtype(), new_iter_var->var));
 
     // Step 5. Mutate recursively, update the body with the new IterVar, and restore the depth
