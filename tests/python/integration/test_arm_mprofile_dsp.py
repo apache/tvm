@@ -173,7 +173,7 @@ def test_conv1d(data_shape_nwc, kernel_size, num_filter, strides, padding, dtype
 
 @tvm.testing.requires_corstone300
 @pytest.mark.parametrize(
-    "M, K, N",
+    "dim_m, dim_k, dim_n",
     [
         (1, 32, 64),
         (3, 12, 10),
