@@ -490,7 +490,25 @@ runtime::Module TIRToRuntime(IRModule mod, Target target) {
   CodeGenCMSISNN codegen;
   Array<String> function_names;
   codegen.Init(output_ssa, emit_asserts, target->str());
+
+  std::vector<std::pair<tvm::GlobalVar, tvm::BaseFunc>> funcs;
   for (auto kv : mod->functions) {
+    funcs.push_back(kv);
+  }
+
+  std::sort(funcs.begin(), funcs.end(),
+            [](std::pair<tvm::GlobalVar, tvm::BaseFunc> kv_a,
+               std::pair<tvm::GlobalVar, tvm::BaseFunc> kv_b) {
+              std::string name_hint_a = kv_a.first->name_hint;
+              std::string name_hint_b = kv_b.first->name_hint;
+              size_t name_a_length = name_hint_a.length();
+              size_t name_b_length = name_hint_b.length();
+              if (name_a_length < name_b_length) return true;
+              if (name_a_length > name_b_length) return false;
+              return name_hint_a < name_hint_b;
+            });
+
+  for (auto kv : funcs) {
     auto prim_func = Downcast<PrimFunc>(kv.second);
     auto global_symbol = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
     function_names.push_back(global_symbol.value());

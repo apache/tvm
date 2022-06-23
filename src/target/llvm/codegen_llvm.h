@@ -47,6 +47,7 @@
 
 #include "../../runtime/thread_storage_scope.h"
 #include "../../tir/transforms/ir_utils.h"
+#include "codegen_params.h"
 #include "llvm_common.h"
 
 namespace tvm {
@@ -185,6 +186,9 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Constant* GetGlobalConstant(
       llvm::Constant* const_data, const std::string& name = "",
       llvm::GlobalValue::LinkageTypes linkage_type = llvm::GlobalValue::InternalLinkage);
+  inline llvm::ConstantArray* NDArrayToLLVMArray(::tvm::runtime::NDArray arr) {
+    return codegen::NDArrayToLLVMArray(ctx_, arr);
+  }
 
  protected:
   /*!
@@ -201,6 +205,12 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
     /*! \brief The alignment of allocation */
     int alignment{0};
   };
+  /*!
+   * \brief Convert tvm::runtime::String into llvm::StringRef
+   */
+  static llvm::StringRef MakeStringRef(const String& string) {
+    return llvm::StringRef(string.c_str(), string.size());
+  }
   /*!
    * \brief Execute falloca at the beginning of the
    *  currrent function and obtain its return value.
