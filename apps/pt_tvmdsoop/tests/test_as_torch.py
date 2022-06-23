@@ -83,9 +83,9 @@ def test_tvmscript_torch_matmul():
 
     numpy_result = np.matmul(s1, s2)
 
-    tvm_module = matmul(128, 128, 128, "float32")
+    nn_module = matmul(128, 128, 128, "float32")
 
-    tvm_module(q1, q2, q3)
+    nn_module(q1, q2, q3)
 
     tvm.testing.assert_allclose(q3.numpy(), numpy_result, atol=1e-5, rtol=1e-5)
 
@@ -98,9 +98,7 @@ def test_tvmscript_torch_decorator():
 
     numpy_result = s1 + 1
 
-    tvm_module = MyModule
-
-    tvm_module(q1, q2)
+    MyModule(q1, q2)
 
     tvm.testing.assert_allclose(q2.numpy(), numpy_result, atol=1e-5, rtol=1e-5)
 
@@ -111,9 +109,9 @@ def test_torch_with_tvmscirpt():
     q1 = torch.arange(8).type(torch.float32)
     q2 = torch.zeros((8,), dtype=torch.float32)
 
-    tvm_module = MinuesOnes()
+    nn_module = MinuesOnes()
 
-    ret = tvm_module.forward(q1, q2)
+    ret = nn_module.forward(q1, q2)
 
     tvm.testing.assert_allclose(ret.numpy(), s1, atol=1e-5, rtol=1e-5)
 

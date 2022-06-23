@@ -32,9 +32,9 @@ from tvm.meta_schedule import TuneConfig
 # default config for testing
 config = TuneConfig(
                 strategy="evolutionary",
-                num_trials_per_iter=64,
-                max_trials_per_task=2000,
-                max_trials_global=2000,
+                num_trials_per_iter=2,
+                max_trials_per_task=4,
+                max_trials_global=0,
             )
 
 def test_matmul_tuning_relay():
@@ -114,9 +114,10 @@ class JitModule(torch.nn.Module):
     def forward(self, input):
         return self.resnet(input - self.means)
 
-target_cuda = "nvidia/geforce-rtx-3070"
-meta_module_resnet18 = MyResNet18(config, target_cuda)
-jit_module_resnet18 = JitModule()
+if torch.cuda.is_available():
+    target_cuda = "nvidia/geforce-rtx-3070"
+    meta_module_resnet18 = MyResNet18(config, target_cuda)
+    jit_module_resnet18 = JitModule()
 
 def compare_optimize_resnet18_to_torchscript():
     results = []
@@ -141,8 +142,9 @@ def compare_optimize_resnet18_to_torchscript():
     compare.print()
 
 if __name__ == "__main__":
-    test_matmul_tuning_relay()
+    test_matmul_tuning_relay() 
     test_nested_module()
     test_save_load_function()
-    compare_optimize_resnet18_to_torchscript()
+    if torch.cuda.is_available():
+        compare_optimize_resnet18_to_torchscript()
     

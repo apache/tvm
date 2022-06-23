@@ -35,6 +35,7 @@ from tvm.meta_schedule import TuneConfig
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchvision.models import resnet18
 # Import library for profiling
 import torch.utils.benchmark as benchmark
 
@@ -64,53 +65,9 @@ class SimpleModel(nn.Module):
 
 example_input = torch.randn(20, 1, 10, 10)
 
-tuning_config = TuneConfig(
-    strategy="evolutionary",
-    num_trials_per_iter=2,
-    max_trials_per_task=2,
-    max_trials_global=2,
-)
-
-
 # We use default configuration for the first example
 model_optimized_by_meta = optimize_torch(
-    SimpleModel(), example_input, tuning_config)
-
-# #####################################################################
-# Optimized SimpleModel by TorchScript
-# ------------------------------
-# As a comparison, we trace this module via `optimize_for_inference` function from TorchScript
-model_optimized_by_jit = torch.jit.optimize_for_inference(
-    torch.jit.trace(SimpleModel(), example_input))
-
-
-######################################################################
-# Compare the performance between two scheduling approaches.
-# ------------------------------
-# Using PyTorch's benchmark Compare class, we can have a straightforward comparison between two inference models.
-
-results = []
-for i in range(20):
-    test_input = torch.rand(20, 1, 10, 10)
-    sub_label = f'[test {i}]'
-    results.append(benchmark.Timer(
-        stmt='model_optimized_by_meta(test_input)',
-        setup='from __main__ import model_optimized_by_meta',
-        globals={'test_input': test_input},
-        sub_label=sub_label,
-        description='tuning by meta',
-    ).blocked_autorange())
-    results.append(benchmark.Timer(
-        stmt='model_optimized_by_jit(test_input)',
-        setup='from __main__ import model_optimized_by_jit',
-        globals={'test_input': test_input},
-        sub_label=sub_label,
-        description='tuning by jit',
-    ).blocked_autorange())
-
-# We can print the results on screen.
-compare = benchmark.Compare(results)
-compare.print()
+    SimpleModel(), example_input)
 
 ######################################################################
 # Save/Load module
@@ -127,3 +84,92 @@ model_loaded = torch.load("meta_model.pt")
 ret2 = model_loaded(example_input)
 
 tvm.testing.assert_allclose(ret1.numpy(), ret2.numpy(), atol=1e-5, rtol=1e-5)
+
+######################################################################
+# Define the resnet18 optimized by MetaSchedule
+# ------------------------------
+# Another example, we compare the two optimizers about the performance of resnet18
+# For learning how to define a resnet18 model via PyTorch's nn.Module,
+# you can refer to https://pytorch.org/docs/stable/jit.html#mixing-tracing-and-scripting
+
+# In our working machine, the GPU model is nvidia/geforce-rtx-3070.
+target_cuda = "nvidia/geforce-rtx-3070"
+
+# We can define the configuration by ourselves
+tuning_config = TuneConfig(
+    strategy="evolutionary",
+    num_trials_per_iter=1,
+    max_trials_per_task=1,
+    max_trials_global=0,
+)
+
+# For PyTorch users, you can write your nn.Module in a normal way.
+# By applying "optimize_torch" function on the resnet18 model, we obtain a new resnet18 model optimized by MetaSchedule
+
+
+class MyResNet18(torch.nn.Module):
+    def __init__(self, config, target=None):
+        super(MyResNet18, self).__init__()
+        self.means = torch.nn.Parameter(torch.tensor([103.939, 116.779, 123.68])
+                                        .resize_(1, 3, 1, 1)).cuda()
+        self.resnet = optimize_torch(
+            resnet18(), [torch.rand(1, 3, 224, 224)], config, target)
+
+    def forward(self, input):
+        return self.resnet(input - self.means)
+
+
+# Since the setting of the number of trials is large, the initialization could be slow (sometimes more than 3 hours!)
+meta_module_resnet18 = MyResNet18(tuning_config, target_cuda)
+
+
+######################################################################
+# Define the resnet18 optimized by TorchScript
+# ------------------------------
+# Besides, let us define a resnet18 model in a standard way.
+# TorchScript also provide a built-in "optimize_for_inference" function to accelerate the inference.
+
+class JitModule(torch.nn.Module):
+    def __init__(self):
+        super(JitModule, self).__init__()
+        self.means = torch.nn.Parameter(torch.tensor([103.939, 116.779, 123.68])
+                                        .resize_(1, 3, 1, 1)).cuda()
+        self.resnet = torch.jit.optimize_for_inference(
+            torch.jit.script(resnet18().cuda().eval()))
+
+    def forward(self, input):
+        return self.resnet(input - self.means)
+
+
+jit_module_resnet18 = JitModule()
+
+######################################################################
+# Compare the performance between two scheduling approaches.
+# ------------------------------
+# Using PyTorch's benchmark Compare class, we can have a straightforward comparison between two inference models.
+
+results = []
+for i in range(20):
+    test_input = torch.rand(1, 3, 224, 224).half().cuda()
+    sub_label = f'[test {i}]'
+    results.append(benchmark.Timer(
+        stmt='meta_module_resnet18(test_input)',
+        setup='from __main__ import meta_module_resnet18',
+        globals={'test_input': test_input},
+        sub_label=sub_label,
+        description='tuning by meta',
+    ).blocked_autorange())
+    results.append(benchmark.Timer(
+        stmt='jit_module_resnet18(test_input)',
+        setup='from __main__ import jit_module_resnet18',
+        globals={'test_input': test_input},
+        sub_label=sub_label,
+        description='tuning by jit',
+    ).blocked_autorange())
+
+# We can print the results on screen.
+compare = benchmark.Compare(results)
+compare.print()
+
+# As above, we can save the module for future use
+torch.save(meta_module_resnet18, "meta_tuned_resnet18.pt")

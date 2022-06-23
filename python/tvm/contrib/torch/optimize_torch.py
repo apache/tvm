@@ -105,9 +105,9 @@ def optimize_torch(
         # Default setting. For a better tuning result the number could be set larger.
         tuning_config = TuneConfig(
             strategy="evolutionary",
-            num_trials_per_iter=4,
-            max_trials_per_task=16,
-            max_trials_global=16,
+            num_trials_per_iter=1,
+            max_trials_per_task=4,
+            max_trials_global=0,
         )
 
     # If `func` is already a traced module this statement makes no effect
@@ -120,14 +120,12 @@ def optimize_torch(
                   for idx, i in enumerate(example_inputs)]
     mod, params = relay.frontend.from_pytorch(jit_mod, shape_list)  # IRmodule
     if work_dir:
-        cm = contextlib.nullcontext()
+        cm = contextlib.nullcontext(work_dir)
     else:
         cm = tempfile.TemporaryDirectory()
     with cm as work_dir_path:
-        if work_dir is None:
-            work_dir = work_dir_path
         executor_factory = tune_relay(
-            mod=mod, params=params, config=tuning_config, target=target, work_dir=work_dir)
+            mod=mod, params=params, config=tuning_config, target=target, work_dir=work_dir_path)
 
     save_runtime_mod = get_global_func("tvmtorch.save_runtime_mod")
     save_runtime_mod(executor_factory.module)
