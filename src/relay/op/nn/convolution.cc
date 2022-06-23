@@ -290,7 +290,7 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       // we just forcly apply the layout provided by auto-scheduler and
       // skip the normal inference logic.
       {}  // do nothing
-    } else {
+    } else if (param->meta_schedule_original_shape.size() == 0) {
       // Normal case: assign result to reporter
       reporter->Assign(types[1], TensorType(wshape, weight_dtype));
     }
@@ -475,7 +475,7 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       // we just forcly apply the layout provided by auto-scheduler and
       // skip the normal inference logic.
       {}  // do nothing
-    } else {
+    } else if (param->meta_schedule_original_shape.size() == 0) {
       // Normal case: assign result to reporter
       reporter->Assign(types[1], TensorType(wshape, weight_dtype));
     }
