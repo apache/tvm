@@ -434,8 +434,7 @@ TVM_REGISTER_GLOBAL("target.build.hexagon").set_body_typed(BuildHexagon);
 
 TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_hexagon")
     .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
-      CodeGenLLVM* cg = new CodeGenHexagon();
-      *rv = static_cast<void*>(cg);
+      *rv = static_cast<void*>(new CodeGenHexagon());
     });
 
 }  // namespace codegen
