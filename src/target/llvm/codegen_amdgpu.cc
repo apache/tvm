@@ -319,6 +319,11 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
 
 TVM_REGISTER_GLOBAL("target.build.rocm").set_body_typed(BuildAMDGPU);
 
+TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_rocm")
+    .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
+      *rv = static_cast<void*>(new CodeGenAMDGPU());
+    });
+
 }  // namespace codegen
 }  // namespace tvm
 #endif  // TVM_LLVM_VERSION
