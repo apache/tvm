@@ -108,7 +108,7 @@ class TestResize2d:
         method,
         hexagon_session,
     ):
-        target_hexagon = tvm.target.hexagon("v68")
+        target_hexagon = tvm.target.hexagon("v69")
         A = te.placeholder(input_shape, name="A", dtype=dtype)
 
         M = s1.resize2d_compute(
