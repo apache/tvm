@@ -34,7 +34,7 @@ RUN pip config set global.no-cache-dir false
 
 RUN apt-get update && apt-install-and-clear -y doxygen graphviz curl shellcheck
 
-RUN pip3 install cpplint pylint==2.9.3 mypy==0.902 black==22.3.0 flake8==3.9.2 blocklint==0.2.3 jinja2==3.0.3
+RUN pip3 install cpplint pylint==2.4.4 mypy==0.902 black==22.3.0 flake8==3.9.2 blocklint==0.2.3 jinja2==3.0.3
 
 # Rust env (build early; takes a while)
 COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh
