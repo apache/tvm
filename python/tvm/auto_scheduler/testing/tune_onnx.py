@@ -112,6 +112,7 @@ def _parse_args():
         "--backend",
         type=str,
         required=True,
+        choices=["graph", "vm"],
         help="example: graph / vm",
     )
     parsed = args.parse_args()
