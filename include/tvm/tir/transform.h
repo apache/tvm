@@ -650,6 +650,12 @@ TVM_DLL Pass Filter(runtime::TypedPackedFunc<bool(PrimFunc)> fcond);
  */
 TVM_DLL Pass InjectPTXAsyncCopy();
 
+/*!
+ * \brief Remove the weight layout rewrite block
+ * \return The pass.
+ */
+TVM_DLL Pass RemoveWeightLayoutRewriteBlock();
+
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm
