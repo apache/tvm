@@ -397,6 +397,19 @@ class RelayBuildModule : public runtime::ModuleNode {
     relay_module = transform::InferType()(relay_module);
     relay_module = transform::LabelOps()(relay_module);
 
+    relay_module = transform::AnnotateMemoryScope(config_)(relay_module);
+    pass_seqs = GetPassPrefix(
+         /*is_homogenous=*/config_->optional_homogeneous_target.defined(), /*is_vm=*/false);
+    pass_seqs.push_back(transform::PlanDevices(config_));
+    // Create a sequential pass and perform optimizations.
+    seq = transform::Sequential(pass_seqs);
+    if (config_->optional_homogeneous_target.defined()) {
+      With<Target> tctx(config_->optional_homogeneous_target);
+      relay_module = seq(relay_module);
+    } else {
+      relay_module = seq(relay_module);
+    }
+    relay_module = transform::InferType()(relay_module);
     ICHECK(relay_module.defined());
 
     return relay_module;
