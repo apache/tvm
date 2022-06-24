@@ -349,9 +349,8 @@ class ThreadGroup::Impl {
     threads_tid_.push_back(Tid());
   }
   pid_t GetTid(size_t thread_index) {
-    if (thread_index >= threads_tid_.size()) {
-      LOG(WARNING) << "Get tid fail!";
-      return -1;
+    while (thread_index >= threads_tid_.size()) {
+      Yield();
     }
     return threads_tid_[thread_index];
   }
