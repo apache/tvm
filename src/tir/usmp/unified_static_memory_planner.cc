@@ -47,12 +47,6 @@ namespace usmp {
 
 static constexpr const char* kDefaultAlgo = "greedy_by_size";
 
-static std::unordered_map<String, std::function<Map<BufferInfo, PoolAllocation>(
-                                      const Array<BufferInfo>&, const Integer&)>>
-    algorithms{{"greedy_by_size", algo::GreedyBySize},
-               {"greedy_by_conflicts", algo::GreedyByConflicts},
-               {"hill_climb", algo::HillClimb}};
-
 IRModule PlanMemory(const IRModule& mod, String algo, bool use_workspace_io) {
   VLOG(1) << "workspace required = " << CalculateModuleWorkspaceSize(mod);
   IRModule module = mod->ShallowCopy();
@@ -64,10 +58,12 @@ IRModule PlanMemory(const IRModule& mod, String algo, bool use_workspace_io) {
   BufferInfoAnalysis buffer_info_analysis = ExtractBufferInfo(main_func, module);
   Array<BufferInfo> buffer_info_arr =
       ConvertToArrayOfBufferInfo(buffer_info_analysis->buffer_info_stmts);
-  CHECK(algorithms.count(algo)) << "The selected USMP algorithm : " << algo
-                                << " is not defined. Please define it in the above algorithms map.";
+  String algo_func_name = "tir.usmp.algo." + algo;
+  const runtime::PackedFunc* pfAlgo = runtime::Registry::Get(algo_func_name);
+  CHECK(pfAlgo) << "The selected USMP algorithm : " << algo
+                << " is not defined. Please register it as " << algo_func_name;
   Map<BufferInfo, PoolAllocation> buffer_info_pool_allocations =
-      algorithms[algo](buffer_info_arr, buffer_info_analysis->memory_pressure);
+      (*pfAlgo)(buffer_info_arr, buffer_info_analysis->memory_pressure);
 
   Map<Stmt, PoolAllocation> stmt_pool_allocations = AssignStmtPoolAllocations(
       buffer_info_analysis->buffer_info_stmts, buffer_info_pool_allocations);
