@@ -127,6 +127,12 @@ TVM_REGISTER_GLOBAL("relay.ir.Function")
                        tvm::Array<TypeVar> ty_params, tvm::DictAttrs attrs) {
       return Function(params, body, ret_type, ty_params, attrs);
     });
+TVM_REGISTER_GLOBAL("relay.ir.FunctionWithFields")
+    .set_body_typed([](Function function, tvm::Array<Var> params, Expr body, Type ret_type,
+                       tvm::Array<TypeVar> ty_params, tvm::DictAttrs attrs,
+                       VirtualDevice virtual_device, Span span) {
+      return WithFields(function, params, body, ret_type, ty_params, attrs, virtual_device, span);
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<FunctionNode>([](const ObjectRef& ref, ReprPrinter* p) {
