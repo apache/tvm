@@ -61,11 +61,10 @@ Array<ArgInfo> ArgInfo::FromPrimFunc(const tir::PrimFunc& func) {
 }
 
 Array<ArgInfo> ArgInfo::FromEntryFunc(const IRModule& mod, bool remove_preproc) {
-  // TODO(@jinhongyii): add pass for layout rewrite
-  // if (remove_preproc) {
-  //   IRModule new_mod = tir::transform::RemoveWeightLayoutRewriteBlock()(mod);
-  //   return ArgInfo::FromPrimFunc(FindEntryFunc(new_mod));
-  // }
+  if (remove_preproc) {
+    IRModule new_mod = tir::transform::RemoveWeightLayoutRewriteBlock()(mod);
+    return ArgInfo::FromPrimFunc(FindEntryFunc(new_mod));
+  }
   return ArgInfo::FromPrimFunc(FindEntryFunc(mod));
 }
 
