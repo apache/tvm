@@ -379,6 +379,20 @@ class RelayBuildModule : public runtime::ModuleNode {
         relay_module = transform::FuseOps()(relay_module);
       }
     }
+    if (backend::IsMetaScheduleEnabled() && config_->optional_homogeneous_target.defined()) {
+      Pass major_pass = transform::MetaScheduleLayoutRewrite();
+      bool enable_layout_rewrite_targets =
+          config_->optional_homogeneous_target->kind->device_type == kDLCPU ||
+          config_->optional_homogeneous_target->GetAttr<String>("device", "") == "mali";
+      if (enable_layout_rewrite_targets && pass_ctx.PassEnabled(major_pass->Info())) {
+        With<Target> tctx(config_->optional_homogeneous_target);
+        relay_module = major_pass(relay_module);
+        // Defuse ops to fold constants, then fuse them again
+        relay_module = transform::DefuseOps()(relay_module);
+        relay_module = transform::FoldConstant()(relay_module);
+        relay_module = transform::FuseOps()(relay_module);
+      }
+    }
 
     relay_module = transform::InferType()(relay_module);
 
