@@ -529,7 +529,7 @@ class PipelineRewriter : public StmtExprMutator {
   // Per-stage states that are local to each of pipeline prologue, body, and epilogue.
   struct AsyncStateLocal {
     struct {
-      // The index into a list of blocks, where async_wait_stage should be inserted at the
+      // The index into a list of blocks, where async_wait_queue should be inserted at the
       // beginning.
       int insert_before;
       // in_flight_count would be a more precise name, but the implementation uses wait_count for
@@ -556,9 +556,9 @@ class PipelineRewriter : public StmtExprMutator {
     Optional<PrimExpr> producer_head;
     // The predicate of BlockRealize containing the async operation of this stage.
     Optional<PrimExpr> predicate;
-    // The indices into a list of blocks, where async_commit_stage should be inserted at the end.
+    // The indices into a list of blocks, where async_commit_queue should be inserted at the end.
     // If multiple async producers are interleaved with their consumer in between, we need separate
-    // async_commit_stage for each producer.
+    // async_commit_queue for each producer.
     std::vector<size_t> insert_commit_stage_after;
   };
 
@@ -719,16 +719,16 @@ class PipelineRewriter : public StmtExprMutator {
       //     # Stage 0
       //     async_scope:
       //        A_shared[(i + 3) % 4] = A[...]
-      //        async_commit_stage(0)
+      //        async_commit_queue(0)
       //
       //     # Stage 1
-      //     async_wait_stage(0, 5)
+      //     async_wait_queue(0, 5)
       //     compute(A_shared[i], B_shared[i])
       //
       //     # Stage 0
       //     async_scope:
       //        B_shared[(i + 3) % 4] = B[...]
-      //        async_commit_stage(0)
+      //        async_commit_queue(0)
       //
       // Here, multiple async producers in the same stage are interleaved with their consumer in
       // between. Since each buffer is associated with different commit groups, the wait_count
@@ -739,10 +739,10 @@ class PipelineRewriter : public StmtExprMutator {
       //     async_scope:
       //        A_shared[(i + 3) % 4] = A[...]
       //        B_shared[(i + 3) % 4] = B[...]
-      //        async_commit_stage(0)
+      //        async_commit_queue(0)
       //
       //     # Stage 1
-      //     async_wait_stage(0, 3)
+      //     async_wait_queue(0, 3)
       //     compute(A_shared[i], B_shared[i])
       //
       // The correct wait_count can be determined by considering each commit group separately, and
@@ -805,7 +805,7 @@ class PipelineRewriter : public StmtExprMutator {
       if (!pending_wait.valid()) {
         pending_wait = {static_cast<int>(i), wait_count};
       } else if (analyzer_.CanProve(wait_count < pending_wait.wait_count)) {
-        // Coalesce multiple wait_stage if the later one allows fewer in-flight ops.
+        // Coalesce multiple wait_queue if the later one allows fewer in-flight ops.
         pending_wait = {pending_wait.insert_before, wait_count};
       }
     }
@@ -821,26 +821,26 @@ class PipelineRewriter : public StmtExprMutator {
       };
 
       if (state.pending_wait.valid()) {
-        auto wait_stage =
-            make_intrin(builtin::async_wait_stage(), {stage_id, state.pending_wait.wait_count});
+        auto wait_queue =
+            make_intrin(builtin::async_wait_queue(), {stage_id, state.pending_wait.wait_count});
 
         if (state.predicate && !ana_normalized.CanProve(state.predicate.value())) {
-          // If the async operation that this wait_stage is waiting on is predicated, and we cannot
+          // If the async operation that this wait_queue is waiting on is predicated, and we cannot
           // prove that the predicate is always true, the precise wait count is only valid
           // at iterations where the predicate is true;
-          auto wait_stage_false = make_intrin(builtin::async_wait_stage(), {stage_id, 0});
+          auto wait_queue_false = make_intrin(builtin::async_wait_queue(), {stage_id, 0});
           async_intrins_per_block[state.pending_wait.insert_before].first =
-              IfThenElse(state.predicate.value(), wait_stage, wait_stage_false);
+              IfThenElse(state.predicate.value(), wait_queue, wait_queue_false);
         } else {
-          async_intrins_per_block[state.pending_wait.insert_before].first = wait_stage;
+          async_intrins_per_block[state.pending_wait.insert_before].first = wait_queue;
         }
       }
 
       if (!state.insert_commit_stage_after.empty()) {
-        auto commit_stage = make_intrin(builtin::async_commit_stage(), {stage_id});
+        auto commit_queue = make_intrin(builtin::async_commit_queue(), {stage_id});
         for (auto ind : state.insert_commit_stage_after) {
           ICHECK(!async_intrins_per_block[ind].second.defined());
-          async_intrins_per_block[ind].second = commit_stage;
+          async_intrins_per_block[ind].second = commit_queue;
         }
       }
 
@@ -859,14 +859,14 @@ class PipelineRewriter : public StmtExprMutator {
     for (size_t i = 0; i < new_blocks.size(); ++i) {
       auto& block = new_blocks[i].block;
       BlockNode* n = block.CopyOnWrite();
-      auto wait_stage_before = async_intrins_per_block[i].first;
-      auto commit_stage_after = async_intrins_per_block[i].second;
-      if (wait_stage_before.defined() && commit_stage_after.defined()) {
-        n->body = SeqStmt({wait_stage_before, n->body, commit_stage_after});
-      } else if (wait_stage_before.defined()) {
-        n->body = SeqStmt({wait_stage_before, n->body});
-      } else if (commit_stage_after.defined()) {
-        n->body = SeqStmt({n->body, commit_stage_after});
+      auto wait_queue_before = async_intrins_per_block[i].first;
+      auto commit_queue_after = async_intrins_per_block[i].second;
+      if (wait_queue_before.defined() && commit_queue_after.defined()) {
+        n->body = SeqStmt({wait_queue_before, n->body, commit_queue_after});
+      } else if (wait_queue_before.defined()) {
+        n->body = SeqStmt({wait_queue_before, n->body});
+      } else if (commit_queue_after.defined()) {
+        n->body = SeqStmt({n->body, commit_queue_after});
       }
       stmts.push_back(BlockRealize({}, new_blocks[i].predicate, block));
     }

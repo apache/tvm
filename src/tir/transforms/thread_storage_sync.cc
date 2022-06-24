@@ -231,7 +231,7 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
 };
 
 // There are cases where necessary syncthreads is not inserted by ThreadSyncInserter.
-// For example, syncthreads is needed after async_wait_stage in the second loop below,
+// For example, syncthreads is needed after async_wait_queue in the second loop below,
 // but since ThreadSyncInserter is not aware of the asynchronous semantics, it cannot tell
 // that the syncthreads is needed there.
 //
@@ -239,15 +239,15 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
 // for i in range(125):
 //    async_scope:
 //      shared[(i + 3) % 4] = ...
-//      async_commit_stage(0)
+//      async_commit_queue(0)
 //    ...
 //
 // // Pipeline Epilogue
 // for i in range(3):
-//    async_wait_stage(0, 2 - i)
+//    async_wait_queue(0, 2 - i)
 //    local[...] = shared[(i + 125) % 4]
 
-// This class adds syncthreads after all async_wait_stage. That include syncthreads that
+// This class adds syncthreads after all async_wait_queue. That include syncthreads that
 // can be inserted by ThreadSyncInserter as well, but ThreadSyncInserter will not insert
 // duplicate syncthreads if it finds an existing one at a synchronization point.
 class ThreadSyncAfterWaitStageInserter : public StmtExprMutator {
@@ -257,7 +257,7 @@ class ThreadSyncAfterWaitStageInserter : public StmtExprMutator {
   Stmt VisitStmt_(const EvaluateNode* op) final {
     if (op->value->IsInstance<CallNode>()) {
       Call call = Downcast<Call>(op->value);
-      if (call->op.same_as(builtin::async_wait_stage())) {
+      if (call->op.same_as(builtin::async_wait_queue())) {
         auto sync = Evaluate(Call(DataType::Int(32), builtin::tvm_storage_sync(),
                                   {StringImm(sync_scope_.to_string())}));
         return SeqStmt({GetRef<Evaluate>(op), sync});

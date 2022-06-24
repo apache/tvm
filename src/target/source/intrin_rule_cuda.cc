@@ -137,9 +137,9 @@ static PrimExpr DispatchCUDAShuffle(const PrimExpr& e) {
 
 struct CUDAAsyncIntrinsic {
   const Op operator()(DataType t, const Op& orig_op) const {
-    if (orig_op.same_as(builtin::async_commit_stage())) {
+    if (orig_op.same_as(builtin::async_commit_queue())) {
       return tvm::tir::builtin::ptx_commit_group();
-    } else if (orig_op.same_as(builtin::async_wait_stage())) {
+    } else if (orig_op.same_as(builtin::async_wait_queue())) {
       return tvm::tir::builtin::ptx_wait_group();
     } else {
       LOG(FATAL) << "Unknown intrinsic: " << orig_op;
@@ -241,10 +241,10 @@ TVM_REGISTER_OP("tir.tvm_warp_shuffle_down")
 TVM_REGISTER_OP("tir.tvm_warp_activemask")
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchCUDAWarpActiveMask);
 
-TVM_REGISTER_OP("tir.async_commit_stage")
+TVM_REGISTER_OP("tir.async_commit_queue")
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchCUDAAsync);
 
-TVM_REGISTER_OP("tir.async_wait_stage")
+TVM_REGISTER_OP("tir.async_wait_queue")
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchCUDAAsync);
 
 TVM_REGISTER_OP("tir.fmod")

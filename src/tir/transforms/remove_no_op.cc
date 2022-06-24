@@ -95,7 +95,7 @@ class NoOpRemover : public StmtMutator {
   Stmt VisitStmt_(const EvaluateNode* op) final {
     if (op->value->IsInstance<CallNode>()) {
       Call call = Downcast<Call>(op->value);
-      if (call->op.same_as(builtin::async_wait_stage())) {
+      if (call->op.same_as(builtin::async_wait_queue())) {
         // Turn wait_group with negative wait count to a nop.
         auto wait_cnt = call->args[0];
         arith::Analyzer ana;
