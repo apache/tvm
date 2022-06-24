@@ -117,9 +117,9 @@ class ThreadGroup::Impl {
     ICHECK_GE(num_workers, 1) << "Requested a non-positive number of worker threads.";
     threads_tid_.resize(num_workers_ - exclude_worker0);
     for (int i = exclude_worker0; i < num_workers_; ++i) {
-      threads_.emplace_back([worker_callback, i, this] {
+      threads_.emplace_back([worker_callback, i, exclude_worker0, this] {
 #ifndef __hexagon__
-        SetTid(i);
+        SetTid(i - exclude_worker0);
 #endif
         worker_callback(i);
       });
