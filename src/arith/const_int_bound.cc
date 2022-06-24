@@ -637,29 +637,36 @@ class ConstIntBoundAnalyzer::Impl
   static std::vector<BoundInfo> DetectBoundInfo(const PrimExpr& cond) {
     PVar<PrimExpr> x, y;
     PVar<IntImm> c;
-    // NOTE: canonical form always use <= or <
-    if ((c <= x).Match(cond)) {
-      return {BoundInfo(x.Eval(), MakeBound(c.Eval()->value, kPosInf))};
-    }
-    if ((c < x).Match(cond)) {
-      return {BoundInfo(x.Eval(), MakeBound(c.Eval()->value + 1, kPosInf))};
-    }
-    if ((x <= c).Match(cond)) {
-      return {BoundInfo(x.Eval(), MakeBound(kNegInf, c.Eval()->value))};
-    }
-    if ((x < c).Match(cond)) {
-      return {BoundInfo(x.Eval(), MakeBound(kNegInf, c.Eval()->value - 1))};
-    }
-    if ((x == c).Match(cond) || (c == x).Match(cond)) {
-      return {BoundInfo(x.Eval(), MakeBound(c.Eval()->value, c.Eval()->value))};
-    }
     if ((x && y).Match(cond)) {
       auto ret1 = DetectBoundInfo(x.Eval());
       auto ret2 = DetectBoundInfo(y.Eval());
       ret1.insert(ret1.end(), ret2.begin(), ret2.end());
       return ret1;
     }
-    return {};
+
+    // NOTE: canonical form always use <= or <
+    Entry bound;
+    if ((c <= x).Match(cond)) {
+      bound = MakeBound(c.Eval()->value, kPosInf);
+    } else if ((c < x).Match(cond)) {
+      bound = MakeBound(c.Eval()->value + 1, kPosInf);
+    } else if ((x <= c).Match(cond)) {
+      bound = MakeBound(kNegInf, c.Eval()->value);
+    } else if ((x < c).Match(cond)) {
+      bound = MakeBound(kNegInf, c.Eval()->value - 1);
+    } else if ((x == c).Match(cond) || (c == x).Match(cond)) {
+      bound = MakeBound(c.Eval()->value, c.Eval()->value);
+    } else {
+      return {};
+    }
+
+    // If the conditional is comparing two integers, do not assign a
+    // value to them.
+    if (x.Eval().as<IntImmNode>()) {
+      return {};
+    }
+
+    return {BoundInfo(x.Eval(), bound)};
   }
 
   /*!
