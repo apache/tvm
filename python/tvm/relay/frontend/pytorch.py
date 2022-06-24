@@ -1963,6 +1963,13 @@ class PyTorchOpConverter:
             target = _op.cast(target, t0)
         return _op.broadcast_to_like(inputs[0], target)
 
+    def broadcast_tensors(self, inputs, input_types):
+        tensor_list = inputs[0]
+        import torch
+
+        res_shape = list(torch.broadcast_shapes(*[self.infer_shape(t) for t in tensor_list]))
+        return [_op.broadcast_to(tensor, res_shape) for tensor in tensor_list]
+
     def Bool(self, inputs, input_types):
         assert len(inputs) == 1
         return inputs[0]
