@@ -26,10 +26,10 @@ from tvm import te
 def test_dot():
     """Test dot product."""
     arr_length = 12
-    arr_lenght_tvm = tvm.runtime.convert(arr_length)
-    placeholder_a = te.placeholder((arr_lenght_tvm,), name="A")
-    placeholder_b = te.placeholder((arr_lenght_tvm,), name="B")
-    reduce_axis_k = te.reduce_axis((0, arr_lenght_tvm), "k")
+    arr_length_tvm = tvm.runtime.convert(arr_length)
+    placeholder_a = te.placeholder((arr_length_tvm,), name="A")
+    placeholder_b = te.placeholder((arr_length_tvm,), name="B")
+    reduce_axis_k = te.reduce_axis((0, arr_length_tvm), "k")
     result_c = te.compute(
         (),
         lambda: te.sum(

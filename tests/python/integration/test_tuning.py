@@ -21,8 +21,6 @@ import logging
 import multiprocessing as mp
 import textwrap
 
-import pytest
-
 import tvm
 import tvm.relay
 import tvm.testing
@@ -220,8 +218,8 @@ def test_tuning_gpu(target):
             r
             for r in results
             if r.error_no == autotvm.MeasureErrorNo.NO_ERROR
-            # Autotvm can filter some records before building if we know they won't work ahead of time.
-            # We can't guarantee we sample at least one good record so we count these as success too
+            # We filter records before building if we know they won't work ahead of time.
+            # We can't guarantee we get one good record so we count these as success too
             or r.error_no == autotvm.MeasureErrorNo.INSTANTIATION_ERROR
         ]
         assert len(successful_results) > 0, f"No successful tuning runs: {results!r}"
@@ -315,7 +313,6 @@ def test_tuning_gpu_inherits_pass_context(target):
             # pylint: disable=too-many-function-args
             super().__init__(timeout, n_parallel, build_kwargs, build_func, do_fork, runtime)
 
-            # pylint: disable=too-many-function-args
             self.build_func = OverwrittenBuildFunc(tar.tar, runtime)
 
     def runner(target):
