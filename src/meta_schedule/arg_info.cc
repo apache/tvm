@@ -60,6 +60,15 @@ Array<ArgInfo> ArgInfo::FromPrimFunc(const tir::PrimFunc& func) {
   return result;
 }
 
+Array<ArgInfo> ArgInfo::FromEntryFunc(const IRModule& mod, bool remove_preproc) {
+  // TODO(@jinhongyii): add pass for layout rewrite
+  // if (remove_preproc) {
+  //   IRModule new_mod = tir::transform::RemoveWeightLayoutRewriteBlock()(mod);
+  //   return ArgInfo::FromPrimFunc(FindEntryFunc(new_mod));
+  // }
+  return ArgInfo::FromPrimFunc(FindEntryFunc(mod));
+}
+
 /******** TensorInfo ********/
 
 TensorInfo::TensorInfo(runtime::DataType dtype, runtime::ShapeTuple shape) {
@@ -112,6 +121,7 @@ TVM_REGISTER_NODE_TYPE(TensorInfoNode);
 
 TVM_REGISTER_GLOBAL("meta_schedule.ArgInfoAsJSON").set_body_method<ArgInfo>(&ArgInfoNode::AsJSON);
 TVM_REGISTER_GLOBAL("meta_schedule.ArgInfoFromPrimFunc").set_body_typed(ArgInfo::FromPrimFunc);
+TVM_REGISTER_GLOBAL("meta_schedule.ArgInfoFromEntryFunc").set_body_typed(ArgInfo::FromEntryFunc);
 TVM_REGISTER_GLOBAL("meta_schedule.ArgInfoFromJSON").set_body_typed(ArgInfo::FromJSON);
 TVM_REGISTER_GLOBAL("meta_schedule.TensorInfo")
     .set_body_typed([](runtime::DataType dtype, runtime::ShapeTuple shape) -> TensorInfo {
