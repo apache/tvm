@@ -96,7 +96,8 @@ class InterfaceCNode : public runtime::ModuleNode {
         EmitConstantPool(code, SanitizeName(pool_name) + " initialization data", pool_info);
       } else {
         EmitIntegerValueMacro(code, SanitizeName(pool_name) + " size",
-                              SanitizeName(pool_name) + _macro_pool_size_postfix, pool_size->value);
+                              SanitizeName(pool_name) + _macro_workspace_pool_size_postfix,
+                              pool_size->value);
       }
     }
     EmitLowerHeaderGuard(code);
@@ -109,8 +110,9 @@ class InterfaceCNode : public runtime::ModuleNode {
   }
 
  private:
-  constexpr static const char* _macro_pool_size_postfix = "_POOL_SIZE_BYTES";
-  constexpr static const char* _macro_pool_data_postfix = "_POOL_DATA";
+  constexpr static const char* _macro_workspace_pool_size_postfix = "_WORKSPACE_POOL_SIZE";
+  constexpr static const char* _macro_constant_pool_size_postfix = "_CONSTANT_POOL_SIZE";
+  constexpr static const char* _macro_constant_pool_data_postfix = "_CONSTANT_POOL_DATA";
 
   void EmitUpperHeaderGuard(std::stringstream& code_stream) {
     std::string header_guard_name = ToCConstantStyle(PrefixGeneratedName({module_name_, "H"}));
@@ -186,9 +188,9 @@ class InterfaceCNode : public runtime::ModuleNode {
                          runtime::GetDataSize(*data.operator->()));
       }
 
-      code_ << "#define " << name_prefixed << _macro_pool_size_postfix << " "
+      code_ << "#define " << name_prefixed << _macro_constant_pool_size_postfix << " "
             << accumulated_pool_len << "\n";
-      code_ << "#define " << name_prefixed << _macro_pool_data_postfix << " \\\n";
+      code_ << "#define " << name_prefixed << _macro_constant_pool_data_postfix << " \\\n";
       codegen::NDArrayDataToC(accumulated_pool, 4, code_, "\\\n");
       code_ << '\n';
 

@@ -409,7 +409,7 @@ TEST(InterfaceAPI, ContainsWorkspacePoolStructSingle) {
 
   ASSERT_THAT(
       header_source,
-      HasSubstr("#define TVMGEN_ULTIMATE_CAT_SPOTTER_MY_MEMORY_POOL_POOL_SIZE_BYTES 100000"));
+      HasSubstr("#define TVMGEN_ULTIMATE_CAT_SPOTTER_MY_MEMORY_POOL_WORKSPACE_POOL_SIZE 100000"));
 }
 
 TEST(InterfaceAPI, ContainsWorkspacePoolStructMany) {
@@ -443,14 +443,14 @@ TEST(InterfaceAPI, ContainsWorkspacePoolStructMany) {
 
   ASSERT_THAT(
       header_source,
-      HasSubstr("#define TVMGEN_ULTIMATE_CAT_SPOTTER_MY_MEMORY_POOL_1_POOL_SIZE_BYTES 100000"));
+      HasSubstr("#define TVMGEN_ULTIMATE_CAT_SPOTTER_MY_MEMORY_POOL_1_WORKSPACE_POOL_SIZE 100000"));
 
   ASSERT_THAT(header_source,
               HasSubstr("* \\brief my_memory_pool_2 size for TVM module \"ultimate_cat_spotter\""));
 
   ASSERT_THAT(
       header_source,
-      HasSubstr("#define TVMGEN_ULTIMATE_CAT_SPOTTER_MY_MEMORY_POOL_2_POOL_SIZE_BYTES 200000"));
+      HasSubstr("#define TVMGEN_ULTIMATE_CAT_SPOTTER_MY_MEMORY_POOL_2_WORKSPACE_POOL_SIZE 200000"));
 }
 
 TEST(InterfaceAPI, ContainsWorkspacePoolStructSanitized) {
@@ -479,7 +479,7 @@ TEST(InterfaceAPI, ContainsWorkspacePoolStructSanitized) {
 
   ASSERT_THAT(
       header_source,
-      HasSubstr("#define TVMGEN_ULTIMATE_CAT_SPOTTER_MY_MEMORY_POOL_1_POOL_SIZE_BYTES 100000"));
+      HasSubstr("#define TVMGEN_ULTIMATE_CAT_SPOTTER_MY_MEMORY_POOL_1_WORKSPACE_POOL_SIZE 100000"));
 }
 
 TEST(InterfaceAPI, ContainsWorkspacePoolStructClash) {

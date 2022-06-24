@@ -18,7 +18,6 @@
 
 from collections import OrderedDict
 import re
-import textwrap
 import numpy as np
 import pytest
 
@@ -340,21 +339,30 @@ def test_tflite_model_u1_usecase(model_url, usmp_algo, workspace_size, constant_
     )
 
 
-def _get_pool_size_define_macro(pool_name: str, model_name="default") -> str:
+def _get_workspace_size_define_macro(pool_name: str, model_name="default") -> str:
     """This function converts pool names to compiler generated
     pool size macros"""
 
     prefix = "TVMGEN_" + model_name.upper() + "_"
-    postfix = "_POOL_SIZE_BYTES"
+    postfix = "_WORKSPACE_POOL_SIZE"
     return prefix + pool_name.upper() + postfix
 
 
-def _get_pool_data_define_macro(pool_name: str, model_name="default") -> str:
+def _get_constant_size_define_macro(pool_name: str, model_name="default") -> str:
+    """This function converts pool names to compiler generated
+    pool size macros"""
+
+    prefix = "TVMGEN_" + model_name.upper() + "_"
+    postfix = "_CONSTANT_POOL_SIZE"
+    return prefix + pool_name.upper() + postfix
+
+
+def _get_constant_data_define_macro(pool_name: str, model_name="default") -> str:
     """This function converts pool names to compiler generated
     pool data macros"""
 
     prefix = "TVMGEN_" + model_name.upper() + "_"
-    postfix = "_POOL_DATA"
+    postfix = "_CONSTANT_POOL_DATA"
     return prefix + pool_name.upper() + postfix
 
 
@@ -385,7 +393,7 @@ def test_tflite_model_u3_usecase_single_external_pool(model_url, usmp_algo):
         pass_config={"tir.usmp.enable": True, "tir.usmp.algorithm": usmp_algo},
         prologue=f"""
         __attribute__((section(".data.tvm"), aligned(16)))
-        static uint8_t {pool_name}[{_get_pool_size_define_macro(pool_name)}];
+        static uint8_t {pool_name}[{_get_workspace_size_define_macro(pool_name)}];
         """,
     )
 
@@ -422,7 +430,7 @@ def test_tflite_model_u3_usecase_single_external_pool(model_url, usmp_algo):
 def test_tflite_model_u3_usecase_conv2d_var_cons(usmp_algo):
     """This checks for inference using workspace and constant pools placed in the application"""
 
-    relay_model = textwrap.dedent(
+    mod = tvm.parser.fromtext(
         """\
         #[version = "0.0.5"]
         def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(3, 3, 5, 5), int8]) {
@@ -450,7 +458,6 @@ def test_tflite_model_u3_usecase_conv2d_var_cons(usmp_algo):
         }
     """
     )
-    mod = tvm.parser.fromtext(relay_model)
 
     main_func = mod["main"]
     shape_dict = {p.name_hint: p.checked_type.concrete_shape for p in main_func.params}
@@ -483,9 +490,9 @@ def test_tflite_model_u3_usecase_conv2d_var_cons(usmp_algo):
         pass_config={"tir.usmp.enable": True, "tir.usmp.algorithm": usmp_algo},
         prologue=f"""
         __attribute__((section(".bss.noinit"), aligned(TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES)))
-        static uint8_t my_memory_pool_1[{_get_pool_size_define_macro("my_memory_pool_1")}];
+        static uint8_t my_memory_pool_1[{_get_workspace_size_define_macro("my_memory_pool_1")}];
         __attribute__((section(".rodata.tvm"), aligned(TVM_RUNTIME_CONST_ALLOC_ALIGNMENT_BYTES)))
-        static uint8_t my_const_pool_1[{_get_pool_size_define_macro("my_const_pool_1")}] = {{ {_get_pool_data_define_macro("my_const_pool_1")} }};
+        static uint8_t my_const_pool_1[{_get_constant_size_define_macro("my_const_pool_1")}] = {{ {_get_constant_data_define_macro("my_const_pool_1")} }};
         """,
     )
 
@@ -546,9 +553,9 @@ def test_tflite_model_u3_usecase_var_cons_ext_pools(model_url, usmp_algo):
         pass_config={"tir.usmp.enable": True, "tir.usmp.algorithm": usmp_algo},
         prologue=f"""
         __attribute__((section(".bss.noinit"), aligned(TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES)))
-        static uint8_t my_memory_pool_1[{_get_pool_size_define_macro("my_memory_pool_1")}];
+        static uint8_t my_memory_pool_1[{_get_workspace_size_define_macro("my_memory_pool_1")}];
         __attribute__((section(".rodata.tvm"), aligned(TVM_RUNTIME_CONST_ALLOC_ALIGNMENT_BYTES)))
-        static uint8_t my_const_pool_1[{_get_pool_size_define_macro("my_const_pool_1")}] = {{ {_get_pool_data_define_macro("my_const_pool_1")} }};
+        static uint8_t my_const_pool_1[{_get_constant_size_define_macro("my_const_pool_1")}] = {{ {_get_constant_data_define_macro("my_const_pool_1")} }};
         """,
     )
 
@@ -607,9 +614,9 @@ def test_tflite_model_u3_usecase_two_external_pools(model_url, usmp_algo):
         pass_config={"tir.usmp.enable": True, "tir.usmp.algorithm": usmp_algo},
         prologue=f"""
         __attribute__((section(".data.tvm"), aligned(16)))
-        static uint8_t my_memory_pool_1[{_get_pool_size_define_macro("my_memory_pool_1")}];
+        static uint8_t my_memory_pool_1[{_get_workspace_size_define_macro("my_memory_pool_1")}];
         __attribute__((section(".data.tvm"), aligned(16)))
-        static uint8_t my_memory_pool_2[{_get_pool_size_define_macro("my_memory_pool_2")}];
+        static uint8_t my_memory_pool_2[{_get_workspace_size_define_macro("my_memory_pool_2")}];
         """,
     )
 
@@ -661,7 +668,7 @@ def test_two_models_with_a_single_external_pool(model_urls, usmp_algo):
         prologue=f"""
         #define MAX(A, B) ((A > B) ? A : B)
         __attribute__((section(".data.tvm"), aligned(16)))
-        static uint8_t my_memory_pool[MAX({_get_pool_size_define_macro("my_memory_pool", "mod1")},{_get_pool_size_define_macro("my_memory_pool", "mod2")})];
+        static uint8_t my_memory_pool[MAX({_get_workspace_size_define_macro("my_memory_pool", "mod1")},{_get_workspace_size_define_macro("my_memory_pool", "mod2")})];
         """,
     )
 
@@ -742,7 +749,7 @@ def test_tflite_model_u4_usecase_single_external_pool(model_url, usmp_algo):
         prologue=f"""
         #include <string.h>
         __attribute__((section(".data.tvm"), aligned(16)))
-        static uint8_t {pool_name}[{_get_pool_size_define_macro(pool_name)}];
+        static uint8_t {pool_name}[{_get_workspace_size_define_macro(pool_name)}];
         struct {_add_module_prefix("workspace_pools")} {_add_module_prefix("workspace_pools")} = {{
             .{pool_name} = {pool_name}
         }};
@@ -815,9 +822,9 @@ def test_tflite_model_u4_usecase_two_external_pools(model_url, usmp_algo):
         prologue=f"""
         #include <string.h>
         __attribute__((section(".data.tvm"), aligned(16)))
-        static uint8_t my_memory_pool_1[{_get_pool_size_define_macro("my_memory_pool_1")}];
+        static uint8_t my_memory_pool_1[{_get_workspace_size_define_macro("my_memory_pool_1")}];
         __attribute__((section(".data.tvm"), aligned(16)))
-        static uint8_t my_memory_pool_2[{_get_pool_size_define_macro("my_memory_pool_2")}];
+        static uint8_t my_memory_pool_2[{_get_workspace_size_define_macro("my_memory_pool_2")}];
         struct {_add_module_prefix("workspace_pools")} {_add_module_prefix("workspace_pools")} = {{
             .my_memory_pool_1 = my_memory_pool_1,
             .my_memory_pool_2 = my_memory_pool_2,

@@ -115,7 +115,7 @@ def _get_workspace_size_define_macro(pool_name: str, model_name="default") -> st
     workspace pool size macros"""
 
     prefix = "TVMGEN_" + model_name.upper() + "_"
-    postfix = "_POOL_SIZE_BYTES"
+    postfix = "_WORKSPACE_POOL_SIZE"
     return prefix + pool_name.upper() + postfix
 
 
