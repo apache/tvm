@@ -40,7 +40,7 @@ from ..loops import while_loop
 from ..prelude import Prelude, StaticTensorArrayOps
 from ..ty import Any, TensorType, TupleType
 from . import qnn_torch
-from .common import AttrCvt, fold_constant, get_relay_op, gru_cell, infer_value, logger
+from .common import AttrCvt, fold_constant, get_relay_op, gru_cell, infer_shape, logger
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
 from .common import infer_value_simulated as _infer_value_simulated
@@ -3011,7 +3011,7 @@ class PyTorchOpConverter:
         )
 
     def embedding_bag(self, inputs, _):
-        weights, indices, offsets = inputs[0:3]
+        weights, indices, offsets_1d = inputs[0:3]
         scale_grad_by_freq = inputs[3]
         mode = inputs[4]
         sparse = inputs[5]
@@ -3025,11 +3025,13 @@ class PyTorchOpConverter:
         assert include_last_offset == 0, "include_last_offset not supported in embedding_bag."
         assert padding_idx == None, "padding_idx not supported in embedding_bag."
 
-        offsets_const_fold = fold_constant(offsets)
+        assert len(infer_shape(indices)) == 1, "Expects 1D indices for aten::embedding_bag."
+
+        offsets_const_fold = fold_constant(offsets_1d)
 
         assert isinstance(offsets_const_fold, _expr.Constant), "Only constant offsets are supported."
-        offsets_np = offsets_const_fold.data.numpy()
 
+        offsets_np = offsets_const_fold.data.numpy()
         offsets_diff = np.diff(offsets_np)
 
         assert np.all(offsets_diff[1:] == offsets_diff[0]), "Only 2D cases supported for now."
