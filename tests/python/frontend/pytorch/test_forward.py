@@ -4297,15 +4297,13 @@ def test_mod():
         verify_model(test_fn, [torch.tensor([1, 2, 3, 4, 5]), torch.tensor(-1.5)])
 
 
+@tvm.testing.uses_gpu
 def test_embedding_bag():
     embedding_matrix = torch.rand(10, 3)
     inp = torch.tensor([[1,2,4,5],
-                        [4,3,2,9]])
+                        [4,3,2,9],
+                        [6,7,8,9]])
     verify_model(lambda inp: F.embedding_bag(inp, embedding_matrix), [inp])
-
-    # verify_model(test_fn, [torch.randn(4, 4), torch.randn(4)])
-    # verify_model(test_fn, [torch.randn(2, 2), torch.randn(2)])
-    # verify_model(test_fn, [torch.randn(3, 8), torch.randn(8)])
 
 
 if __name__ == "__main__":

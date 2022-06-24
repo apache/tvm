@@ -3013,6 +3013,7 @@ class PyTorchOpConverter:
     def embedding_bag(self, inputs, _):
         weights, indices, offsets = inputs[0:3]
         scale_grad_by_freq = inputs[3]
+        mode = inputs[4]
         sparse = inputs[5]
         per_sample_weights = inputs[6]
         include_last_offset = inputs[7]
@@ -3026,7 +3027,7 @@ class PyTorchOpConverter:
 
         offsets_const_fold = fold_constant(offsets)
 
-        assert isinstance(offsets_const_fold, _expr.Constant)
+        assert isinstance(offsets_const_fold, _expr.Constant), "Only constant offsets are supported."
         offsets_np = offsets_const_fold.data.numpy()
 
         offsets_diff = np.diff(offsets_np)
@@ -3035,13 +3036,20 @@ class PyTorchOpConverter:
 
         indices_2d = _op.reshape(indices, (-1, offsets_diff[0]))
 
-        print(self.infer_shape(indices_2d))
-
         mode_map = {0: _op.sum, 1: _op.mean, 2: _op.max}
-        mode = mode_map[inputs[4]]
+        assert mode in mode_map, "unsupported reduction op mode %d." % mode
 
-        assert False
-        return None
+        reduce_op = mode_map[mode]
+
+        # TOOD(masahi): Implementing embedding_bag in terms of gather and reduce defeats the
+        # purpose of using this op. Implement Relay / topi op for fused gather and reduce.
+        gather = _op.take(weights, indices_2d, axis=0)
+        reduced = reduce_op(gather, 1)
+        # pytorch/aten/src/ATen/native/EmbeddingBag.cpp shows that aten::embedding_bag returns
+        # 4 outputs: output, offset2bag, bag_size, max_indices
+        # The Python version of the op only returns the first output, so we also support only the
+        # first output. If the model uses other outputs, the conversion would fail.
+        return reduced, None, None, None
 
     # Operator mappings
     def create_convert_map(self):
