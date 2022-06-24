@@ -53,8 +53,8 @@ rm -f ~/ubuntu_install_python.sh
 sudo apt-install-and-clear -y python3-venv
 
 # TVM deps
-# TODO(mehrdadh): replace with ubuntu_install_llvm.sh
-sudo apt-install-and-clear -y llvm
+sudo ~/ubuntu1804_install_llvm.sh
+rm -rf ~/ubuntu1804_install_llvm.sh
 
 # ONNX deps
 sudo apt-install-and-clear -y protobuf-compiler libprotoc-dev

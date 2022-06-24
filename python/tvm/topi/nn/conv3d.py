@@ -21,8 +21,8 @@ import tvm
 from tvm import te
 
 from ..utils import get_const_tuple
-from .winograd_util import winograd_transform_matrices
 from .conv2d import conv
+from .winograd_util import winograd_transform_matrices
 
 
 def conv3d_ncdhw(Input, Filter, stride, padding, dilation, groups, out_dtype=None):
@@ -65,6 +65,7 @@ def conv3d_ndhwc(
     groups,
     out_dtype="float32",
     auto_scheduler_rewritten_layout="",
+    meta_schedule_origin_shape=None,
 ):
     """Convolution operator in NDHWC layout.
 
@@ -94,6 +95,9 @@ def conv3d_ndhwc(
     auto_scheduler_rewritten_layout: str = ""
         The layout after auto-scheduler's layout rewrite pass.
 
+    meta_schedule_origin_shape: Optional[List[PrimExpr]] = None
+        The original shape of the input tensor.
+
     Returns
     -------
     Output : tvm.te.Tensor
@@ -109,6 +113,7 @@ def conv3d_ndhwc(
         "NDHWC",
         out_dtype,
         auto_scheduler_rewritten_layout,
+        meta_schedule_origin_shape,
     )
 
 

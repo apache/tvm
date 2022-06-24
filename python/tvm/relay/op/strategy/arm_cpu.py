@@ -15,16 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 """Definition of ARM CPU operator strategy."""
-# pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
-import re
 import logging
 
+# pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
+import re
+
 from tvm import relay, topi
+
+from ....auto_scheduler import is_auto_scheduler_enabled
+from ....meta_schedule import is_meta_schedule_enabled
 from ....target import arm_isa
 from ....topi.generic import conv2d as conv2d_generic
-from ....auto_scheduler import is_auto_scheduler_enabled
-from .generic import *
 from .. import op as _op
+from .generic import *
 
 logger = logging.getLogger("strategy")
 
@@ -477,7 +480,9 @@ def schedule_dense_arm_cpu(attrs, inputs, out_type, target):
         logger.warning("dense is not optimized for arm cpu.")
         strategy.add_implementation(
             wrap_compute_dense(
-                topi.nn.dense, need_auto_scheduler_layout=is_auto_scheduler_enabled()
+                topi.nn.dense,
+                need_auto_scheduler_layout=is_auto_scheduler_enabled(),
+                need_meta_schedule_layout=is_meta_schedule_enabled(),
             ),
             wrap_topi_schedule(topi.generic.schedule_dense),
             name="dense.generic",

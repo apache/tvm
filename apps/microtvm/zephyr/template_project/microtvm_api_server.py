@@ -418,6 +418,7 @@ class Handler(server.ProjectAPIHandler):
             f.write("\n")
 
     API_SERVER_CRT_LIBS_TOKEN = "<API_SERVER_CRT_LIBS>"
+    ENABLE_CMSIS_TOKEN = "<ENABLE_CMSIS>"
 
     CRT_LIBS_BY_PROJECT_TYPE = {
         "host_driven": "microtvm_rpc_server microtvm_rpc_common aot_executor_module aot_executor common",
@@ -443,7 +444,15 @@ class Handler(server.ProjectAPIHandler):
             if path.is_file():
                 with open(path, "r") as lib_f:
                     lib_content = lib_f.read()
-                if "<arm_nnsupportfunctions.h>" in lib_content and "<arm_math.h>" in lib_content:
+                if any(
+                    header in lib_content
+                    for header in [
+                        "<arm_nnsupportfunctions.h>",
+                        "<arm_math.h>",
+                        "arm_nn_types.h",
+                        "arm_nnfunctions.h",
+                    ]
+                ):
                     return True
         return False
 
@@ -500,26 +509,16 @@ class Handler(server.ProjectAPIHandler):
                         crt_libs = self.CRT_LIBS_BY_PROJECT_TYPE[options["project_type"]]
                         line = line.replace("<API_SERVER_CRT_LIBS>", crt_libs)
 
+                    if self.ENABLE_CMSIS_TOKEN in line:
+                        enable_cmsis = self._cmsis_required(extract_path)
+                        line = line.replace(self.ENABLE_CMSIS_TOKEN, str(enable_cmsis).upper())
+
                     cmake_f.write(line)
 
                 if options.get("compile_definitions"):
                     flags = options.get("compile_definitions")
                     for item in flags:
                         cmake_f.write(f"target_compile_definitions(app PUBLIC {item})\n")
-
-            # Include CMSIS libraries if required.
-            if self._cmsis_required(extract_path):
-                cmsis_path = get_cmsis_path(options)
-                cmake_f.write("\n")
-                cmake_f.write(
-                    f'target_include_directories(tvm_model PRIVATE {str(cmsis_path / "CMSIS" / "DSP" / "Include")})\n'
-                )
-                cmake_f.write(
-                    f'target_include_directories(tvm_model PRIVATE {str(cmsis_path / "CMSIS" / "DSP" / "Include" / "dsp")})\n'
-                )
-                cmake_f.write(
-                    f'target_include_directories(tvm_model PRIVATE {str(cmsis_path / "CMSIS" / "NN" / "Include")})\n'
-                )
 
         self._create_prj_conf(project_dir, options)
 

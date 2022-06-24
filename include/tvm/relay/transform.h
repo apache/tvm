@@ -372,6 +372,12 @@ TVM_DLL Pass AlterOpLayout();
 TVM_DLL Pass AutoSchedulerLayoutRewrite();
 
 /*!
+ * \brief Do layout rewrite according to the tile structure created by meta-schedule.
+ * \return The pass
+ */
+TVM_DLL Pass MetaScheduleLayoutRewrite();
+
+/*!
  * \brief Given a dest layout, this pass transforms the expr such that most of the ops input data
  * layout is changed to the dest layout. In ideal situation, there are only 2 layout transforms, one
  * at the start and one at the end.

@@ -21,11 +21,12 @@ from tvm import te
 from tvm.contrib import cudnn
 from .. import generic
 from .injective import schedule_injective_from_existing
-from ..utils import traverse_inline
+from ..utils import get_const_int, traverse_inline
 
 
 def _schedule_softmax(softmax_op, s, outs, tgt):
     op_tag = softmax_op.tag
+    axis = get_const_int(softmax_op.attrs["axis"])  # reduce axis
     if op_tag == "softmax_output":
         expsum = softmax_op.input_tensors[1]
         exp = softmax_op.input_tensors[0]
@@ -83,15 +84,16 @@ def _schedule_softmax(softmax_op, s, outs, tgt):
 
         # (4) softmax
         output = outs[0]
-        xo, xi = s[output].split(output.op.axis[1], nparts=num_thread)
+        xo, xi = s[output].split(output.op.axis[axis], nparts=num_thread)
         xio, xii = s[output].split(xi, factor=4)
         s[output].vectorize(xii)
         s[output].bind(xo, thread_x)
-        s[output].bind(output.op.axis[0], block_x)
+        s[output].bind(output.op.axis[axis ^ 1], block_x)
+        s[output].reorder(output.op.axis[axis ^ 1], xo, xio, xii)
 
         if softmax_op != outs[0].op:
             s[softmax_op].compute_at(s[output], xio)
-            s[softmax_op].vectorize(softmax_op.axis[1])  # vec_len == 4
+            s[softmax_op].vectorize(softmax_op.axis[axis])  # vec_len == 4
 
         # (3) expsum
         k = expsum.op.reduce_axis[0]
@@ -104,12 +106,12 @@ def _schedule_softmax(softmax_op, s, outs, tgt):
             s[exp].compute_inline()
             s[delta].compute_inline()
         elif exp is not None:
-            xo, xi = s[exp].split(exp.op.axis[1], nparts=num_thread)
+            xo, xi = s[exp].split(exp.op.axis[axis], nparts=num_thread)
             _, xii = s[exp].split(xi, factor=4)
             s[exp].vectorize(xii)
             s[exp].bind(xo, thread_x)
             s[exp].compute_at(s[expsum], expsum.op.axis[0])
-            s[exp].compute_at(s[output], output.op.axis[0])
+            s[exp].compute_at(s[output], output.op.axis[axis ^ 1])
             s[exp].set_scope("warp")
 
         # (1) max_elem
@@ -131,7 +133,7 @@ def _schedule_softmax(softmax_op, s, outs, tgt):
             s[exp].compute_inline()
             s[delta].compute_inline()
         elif exp is not None:
-            s[exp].bind(exp.op.axis[0], block_x)
+            s[exp].bind(exp.op.axis[axis ^ 1], block_x)
 
         s[max_elem].bind(max_elem.op.axis[0], block_x)
         k = expsum.op.reduce_axis[0]
@@ -143,9 +145,10 @@ def _schedule_softmax(softmax_op, s, outs, tgt):
         s[expsum].set_store_predicate(thread_x.var.equal(0))
 
         output = outs[0]
-        tx, xi = s[output].split(output.op.axis[1], nparts=num_thread)
-        s[output].bind(output.op.axis[0], block_x)
+        tx, xi = s[output].split(output.op.axis[axis], nparts=num_thread)
+        s[output].bind(output.op.axis[axis ^ 1], block_x)
         s[output].bind(tx, thread_x)
+        s[output].reorder(output.op.axis[axis ^ 1], tx, xi)
 
         if softmax_op != outs[0].op:
             s[softmax_op].compute_at(s[output], tx)

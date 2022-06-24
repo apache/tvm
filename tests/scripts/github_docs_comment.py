@@ -65,7 +65,7 @@ if __name__ == "__main__":
     )
 
     url = f'issues/{pr_and_build["pr_number"]}/comments'
-    body = f"Built docs for commit [{commit_sha}]({commit_sha}) can be found [here]({docs_url})."
+    body = f"Built docs for commit {commit_sha} can be found [here]({docs_url})."
     if not args.dry_run:
         github = GitHubRepo(token=os.environ["GITHUB_TOKEN"], user=user, repo=repo)
 

@@ -26,6 +26,7 @@
 
 #include <tvm/te/operation.h>
 #include <tvm/tir/data_layout.h>
+#include <tvm/tir/index_map.h>
 #include <tvm/topi/broadcast.h>
 #include <tvm/topi/detail/broadcast.h>
 #include <tvm/topi/detail/constant_utils.h>
@@ -1689,6 +1690,59 @@ inline Tensor auto_scheduler_layout_transform(const Tensor& src, const String& s
           src_indices.push_back(src_index);
         }
         return src(src_indices);
+      },
+      name, tag);
+}
+
+/*!
+ * \brief Transform the meta-schedule generated layout according to TIR's IndexMap
+ * \param src the source input.
+ * \param index_map The TIR IndexMap
+ * \param name output tensor name.
+ * \param tag output tensor tag.
+ * \return A tensor. The layout transformation method
+ * \note Example:
+ *
+ * For the indexing pattern below:
+ *
+ *  for i in range(32):
+ *    for j in range(64):
+ *      load A[
+ *        i / 16 *  4 + j / 16,
+ *        i % 16 * 16 + j % 16,
+ *      ]
+ *
+ *  The corresponding indexing pattern in TIR is:
+ *
+ *    A[i, j] => A'[i / 4, j / 16, i % 4, j % 16]
+ *
+ *  which converts the pattern to:
+ *
+ *  for i in range(32):
+ *    for j in range(64):
+ *      load A'[
+ *        i / 16 + j / 64,
+ *        i % 16,
+ *        j % 64 / 16,
+ *        j % 16,
+ *      ]
+ *
+ *  In this case, the transformation pattern is:
+ *    A'[a, b, c, d] = A[a * 4 + c, b * 16 + d]
+ */
+inline Tensor meta_schedule_layout_transform(const Tensor& src, const tir::IndexMap& index_map,
+                                             const String name = "T_meta_schedule_layout_trans",
+                                             const String tag = kInjective) {
+  Array<Range> iter_domain;
+  iter_domain.reserve(src->shape.size());
+  for (const PrimExpr& e : src->shape) {
+    iter_domain.push_back(Range::FromMinExtent(make_zero(e->dtype), e));
+  }
+  Array<PrimExpr> post_transform_shape = index_map->MapShape(src->shape);
+  return compute(
+      post_transform_shape,
+      [src, inv = index_map.Inverse(iter_domain)](const Array<Var>& indices) -> PrimExpr {
+        return src(inv->MapIndices(Array<PrimExpr>{indices.begin(), indices.end()}));
       },
       name, tag);
 }

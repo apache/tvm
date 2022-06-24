@@ -1016,10 +1016,7 @@ def test_conv_ln_convert_layout():
 
     a = before()
     a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
-    print(a)
     b = run_opt_pass(expected(), transform.InferType())
-    print(" ")
-    print(b)
 
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
@@ -1592,6 +1589,135 @@ def test_conv_strided_slice_convert_layout():
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
+def test_conv_split_convert_layout():
+    def _test_conv_split_convert_layout1():
+        def before():
+            x = relay.var("x", shape=(1, 38, 38, 512))
+            weight = relay.var("weight", shape=(3, 3, 512, 512))
+            y = relay.nn.conv2d(
+                x,
+                weight,
+                channels=512,
+                kernel_size=(3, 3),
+                data_layout="NHWC",
+                kernel_layout="HWIO",
+            )
+            y = relay.nn.relu(y)
+            y = relay.op.split(y, indices_or_sections=2, axis=-1).astuple()
+            a = relay.TupleGetItem(y, 0)
+            b = relay.TupleGetItem(y, 1)
+            out = relay.Tuple([a, b])
+            return relay.Function(analysis.free_vars(out), out)
+
+        def expected():
+            x = relay.var("x", shape=(1, 38, 38, 512))
+            weight = relay.var("weight", shape=(3, 3, 512, 512))
+            weight = relay.layout_transform(weight, "HWIO", "OIHW")
+            x = relay.layout_transform(x, "NHWC", "NCHW")
+            y = relay.nn.conv2d(x, weight, channels=512, kernel_size=(3, 3))
+            y = relay.nn.relu(y)
+            y = relay.op.split(y, indices_or_sections=2, axis=1).astuple()
+            a = relay.TupleGetItem(y, 0)
+            b = relay.TupleGetItem(y, 1)
+            a = relay.layout_transform(a, "NCHW", "NHWC")
+            b = relay.layout_transform(b, "NCHW", "NHWC")
+            out = relay.Tuple([a, b])
+            return relay.Function(analysis.free_vars(out), out)
+
+        a = before()
+        a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
+        b = run_opt_pass(expected(), transform.InferType())
+
+        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+    def _test_conv_split_convert_layout2():
+        def before():
+            x = relay.var("x", shape=(1, 38, 38, 512))
+            weight = relay.var("weight", shape=(3, 3, 512, 512))
+            y = relay.nn.conv2d(
+                x,
+                weight,
+                channels=512,
+                kernel_size=(3, 3),
+                data_layout="NHWC",
+                kernel_layout="HWIO",
+            )
+            y = relay.nn.relu(y)
+            y = relay.op.split(y, indices_or_sections=2, axis=3).astuple()
+            a = relay.TupleGetItem(y, 0)
+            b = relay.TupleGetItem(y, 1)
+            out = relay.Tuple([a, b])
+            return relay.Function(analysis.free_vars(out), out)
+
+        def expected():
+            x = relay.var("x", shape=(1, 38, 38, 512))
+            weight = relay.var("weight", shape=(3, 3, 512, 512))
+            weight = relay.layout_transform(weight, "HWIO", "OIHW")
+            x = relay.layout_transform(x, "NHWC", "NCHW")
+            y = relay.nn.conv2d(x, weight, channels=512, kernel_size=(3, 3))
+            y = relay.nn.relu(y)
+            y = relay.op.split(y, indices_or_sections=2, axis=1).astuple()
+            a = relay.TupleGetItem(y, 0)
+            b = relay.TupleGetItem(y, 1)
+            a = relay.layout_transform(a, "NCHW", "NHWC")
+            b = relay.layout_transform(b, "NCHW", "NHWC")
+            out = relay.Tuple([a, b])
+            return relay.Function(analysis.free_vars(out), out)
+
+        a = before()
+        a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
+        b = run_opt_pass(expected(), transform.InferType())
+
+        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+    def _test_conv_split_convert_layout3():
+        def before():
+            x = relay.var("x", shape=(1, 38, 38, 512))
+            weight = relay.var("weight", shape=(3, 3, 512, 512))
+            y = relay.nn.conv2d(
+                x,
+                weight,
+                channels=512,
+                kernel_size=(3, 3),
+                data_layout="NHWC",
+                kernel_layout="HWIO",
+            )
+            y = relay.nn.relu(y)
+            y = relay.op.split(y, indices_or_sections=(5, 10), axis=-1).astuple()
+            a = relay.TupleGetItem(y, 0)
+            b = relay.TupleGetItem(y, 1)
+            c = relay.TupleGetItem(y, 2)
+            out = relay.Tuple([a, b, c])
+            return relay.Function(analysis.free_vars(out), out)
+
+        def expected():
+            x = relay.var("x", shape=(1, 38, 38, 512))
+            weight = relay.var("weight", shape=(3, 3, 512, 512))
+            weight = relay.layout_transform(weight, "HWIO", "OIHW")
+            x = relay.layout_transform(x, "NHWC", "NCHW")
+            y = relay.nn.conv2d(x, weight, channels=512, kernel_size=(3, 3))
+            y = relay.nn.relu(y)
+            y = relay.op.split(y, indices_or_sections=(5, 10), axis=1).astuple()
+            a = relay.TupleGetItem(y, 0)
+            b = relay.TupleGetItem(y, 1)
+            c = relay.TupleGetItem(y, 2)
+            a = relay.layout_transform(a, "NCHW", "NHWC")
+            b = relay.layout_transform(b, "NCHW", "NHWC")
+            c = relay.layout_transform(c, "NCHW", "NHWC")
+            out = relay.Tuple([a, b, c])
+            return relay.Function(analysis.free_vars(out), out)
+
+        a = before()
+        a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
+        b = run_opt_pass(expected(), transform.InferType())
+
+        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+    _test_conv_split_convert_layout1()
+    _test_conv_split_convert_layout2()
+    _test_conv_split_convert_layout3()
+
+
 def test_conv_strided_slice_axes_convert_layout():
     def before():
         x = relay.var("x", shape=(1, 28, 28, 32))
@@ -1630,6 +1756,46 @@ def test_conv_strided_slice_axes_convert_layout():
         return y
 
     a = run_opt_pass(before(), transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
+    b = run_opt_pass(expected(), transform.InferType())
+
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+
+def test_conv_topk_convert_layout():
+    def before():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight = relay.var("weight", shape=(3, 3, 64, 64))
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+        y = relay.topk(y, k=2, axis=2)
+        if isinstance(y, relay.expr.TupleWrapper):
+            y = y.astuple()
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def expected():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight = relay.var("weight", shape=(3, 3, 64, 64))
+        weight = relay.layout_transform(weight, "HWIO", "OIHW")
+        x = relay.layout_transform(x, "NHWC", "NCHW")
+        y = relay.nn.conv2d(x, weight, channels=64, kernel_size=(3, 3), padding=(1, 1))
+        y = relay.topk(y, k=2, axis=3).astuple()
+        a = relay.TupleGetItem(y, 0)
+        b = relay.TupleGetItem(y, 1)
+        a = relay.layout_transform(a, "NCHW", "NHWC")
+        b = relay.layout_transform(b, "NCHW", "NHWC")
+        out = relay.Tuple([a, b])
+        return relay.Function(analysis.free_vars(out), out)
+
+    a = before()
+    a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
