@@ -1276,7 +1276,9 @@ IterSumExpr IterMapRewriter::PreprocessDividend(IterMapExpr dividend, PrimExpr o
     return IterSumExpr({split}, make_zero(split.dtype()));
   } else if (dividend->IsInstance<IterSumExprNode>()) {
     auto sum = Downcast<IterSumExpr>(dividend);
-    if (sum->args.size() <= 1) {
+    if (sum->args.empty()) {
+      return IterSumExpr();
+    } else if (sum->args.size() == 1) {
       return sum;
     }
     auto opt_fused = TryFuseIters(sum);
@@ -1552,6 +1554,7 @@ PrimExpr IterMapRewriter::VisitExpr_(const FloorDivNode* op) {
   if (!preprocessed.defined()) {
     return GetRef<PrimExpr>(op);
   }
+  ICHECK_EQ(preprocessed->args.size(), 1U);
   PrimExpr remainder = SplitFloorDivConst(preprocessed->args[0], preprocessed->base, b);
   if (!remainder.defined()) {
     return GetRef<PrimExpr>(op);
@@ -1637,6 +1640,7 @@ PrimExpr IterMapRewriter::VisitExpr_(const FloorModNode* op) {
     return GetRef<PrimExpr>(op);
   }
 
+  ICHECK_EQ(preprocessed->args.size(), 1U);
   PrimExpr remainder = SplitFloorModConst(preprocessed->args[0], preprocessed->base, b);
   if (!remainder.defined()) {
     return GetRef<PrimExpr>(op);
