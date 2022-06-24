@@ -6704,5 +6704,85 @@ def test_LinearRegressor(target, dev):
     verify_LinearRegressor((1, 4), (3), (1))
 
 
+@tvm.testing.parametrize_targets
+def test_sequence(target, dev):
+    def verify_sequence_ops(tensor_shape, num_tensors, axis=0, position=None, new_axis=None):
+        tensor_shape = list(tensor_shape)
+        tensor_values = []
+        for i in range(num_tensors):
+            tensor_values.append(np.random.uniform(size=tensor_shape).astype("float32"))
+
+        # Create an input for each tensor.
+        input_tensor_names = []
+        for i in range(num_tensors):
+            name = "input_tensor_%d" % i
+            input_tensor_names.append(name)
+
+        # Test creating a tensor sequence.
+        construct_node = helper.make_node(
+            "SequenceConstruct",
+            inputs=input_tensor_names,
+            outputs=["sequence"],
+        )
+
+        insert_inputs = ["sequence", input_tensor_names[0]]
+        position_node = None
+        if position is not None:
+            insert_inputs.append("position")
+            position_node = make_constant_node("position", TensorProto.INT32, (), [position])
+
+        # Test sequence insertion.
+        insert_node = helper.make_node(
+            "SequenceInsert", inputs=insert_inputs, outputs=["inserted_sequence"]
+        )
+
+        # Test sequence concatenation.
+        concat_node = helper.make_node(
+            "ConcatFromSequence", inputs=["inserted_sequence"], outputs=["output"], axis=axis
+        )
+
+        if new_axis is not None:
+            new_axis_attr = helper.make_attribute("new_axis", new_axis)
+            concat_node.attribute.append(new_axis_attr)
+
+        # Create input and output tensors.
+        graph_inputs = []
+        for name in input_tensor_names:
+            input_tensor = helper.make_tensor_value_info(name, TensorProto.FLOAT, tensor_shape)
+            graph_inputs.append(input_tensor)
+
+        # Construct output tensor.
+        output_shape = tensor_shape
+        if new_axis is not None:
+            output_shape.insert(axis, 1)
+            output_shape[axis] = num_tensors + 1
+        else:
+            output_shape[axis] = (num_tensors + 1) * output_shape[axis]
+        graph_outputs = [helper.make_tensor_value_info("output", TensorProto.FLOAT, output_shape)]
+
+        graph_nodes = []
+        if position_node is not None:
+            graph_nodes.append(position_node)
+        graph_nodes += [construct_node, insert_node, concat_node]
+
+        graph = helper.make_graph(
+            graph_nodes,
+            "Sequence_test",
+            inputs=graph_inputs,
+            outputs=graph_outputs,
+        )
+        model = helper.make_model(
+            graph,
+            producer_name="Sequence_test",
+        )
+
+        verify_with_ort_with_inputs(model, tensor_values, target=target, dev=dev)
+
+    verify_sequence_ops((10, 3), 2)
+    verify_sequence_ops((3, 3, 3, 3), 4, position=3)
+    verify_sequence_ops((3, 3, 3, 3), 4, axis=2)
+    verify_sequence_ops((3, 3, 3, 3), 4, axis=2, new_axis=1)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
