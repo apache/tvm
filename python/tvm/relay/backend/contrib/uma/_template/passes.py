@@ -27,35 +27,36 @@ from collections import OrderedDict
 def my_ai_hw_conv2d_pass(func, mod, ctx):
     _found_blocks = []
     _loops = []
+    _handles = []
     _entry_node = None
     _external_function_name = "my_hw_ai_conv2dnchw"
 
-    def _has_block(self, name: str, func) -> bool:
+    def _has_block(name: str, func) -> bool:
         """
         Determine of a tir.block with `name` exists in `func`
         """
         def _hb(op):
             if isinstance(op, tvm.tir.Block):
-                my_ai_hw_conv2d_pass._found_blocks.append(op.name_hint)
+                _found_blocks.append(op.name_hint)
 
-        my_ai_hw_conv2d_pass._found_blocks = []
+        _found_blocks = []
         tvm.tir.stmt_functor.post_order_visit(func.body, _hb)
-        return name in my_ai_hw_conv2d_pass._found_blocks
+        return name in _found_blocks
 
-    def transform_function2(
-        self, func: tvm.tir.PrimFunc, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    def _transform_function2(
+        func: tvm.tir.PrimFunc, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
     ) -> tvm.tir.PrimFunc:
         def _replace_conv2d(op):
-            if op == my_ai_hw_conv2d_pass._entry_node:
+            if op == _entry_node:
                 irb = tvm.tir.ir_builder.create()
                 # Collection of buffer address
-                buffers = [b[1].data for b in my_ai_hw_conv2d_pass._handles]
+                buffers = [b[1].data for b in _handles]
                 # extraction of loop offsets
-                for i in my_ai_hw_conv2d_pass._loops:
+                for i in _loops:
                     assert i.min.value == 0
-                offsets = [loop.extent.value for loop in my_ai_hw_conv2d_pass._loops]
+                offsets = [loop.extent.value for loop in _loops]
                 args = buffers # + offsets
-                external_call = tvm.tir.Evaluate(tir_call(irb, True, "my_hw_ai_conv2dnchw", *args))
+                external_call = tvm.tir.Evaluate(tir_call(irb, True, _external_function_name, *args))
                 mac_calls = tvm.tir.SeqStmt([external_call])
                 irb.emit(mac_calls)
                 irb_result = irb.get()
@@ -64,20 +65,20 @@ def my_ai_hw_conv2d_pass(func, mod, ctx):
 
         sch = tir.Schedule(func)
 
-        if self._has_block("conv2d_nchw", func):
+        if _has_block("conv2d_nchw", func):
             conv2d_block = sch.get_block("conv2d_nchw")
 
             rv_loops = sch.get_loops(conv2d_block)
             assert len(rv_loops) == 7
             n, co, h, w, ci, kh, hw = rv_loops
-            my_ai_hw_conv2d_pass._entry_node = sch.get(rv_loops[1])
-            my_ai_hw_conv2d_pass._loops = [sch.get(i) for i in rv_loops]
-            my_ai_hw_conv2d_pass._handles = func.buffer_map.items()
+            _entry_node = sch.get(rv_loops[1])
+            _loops = [sch.get(i) for i in rv_loops]
+            _handles = func.buffer_map.items()
 
             x = tvm.tir.stmt_functor.ir_transform(func.body, None, _replace_conv2d, ["tir.For"])
             return func.with_body(x)
         else:
-            return sch.mod["main"]
+            return func #sch.mod["main"]
 
     def _transform_function(
         func: tvm.tir.PrimFunc, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
@@ -98,7 +99,8 @@ def my_ai_hw_conv2d_pass(func, mod, ctx):
         x = tvm.tir.stmt_functor.ir_transform(func.body, None, _replace_conv2d, ["tir.For"])
         return func.with_body(x)
 
-    return _transform_function(func, mod, ctx)
+    r = _transform_function2(func, mod, ctx)
+    return r
 
 
 def tir_call(ib: tvm.tir.ir_builder, extern: bool, name: str, *args):
