@@ -78,6 +78,8 @@ class TuneConfig(NamedTuple):
         Configuration for search strategy.
     logger_config: Optional[Dict[str, Any]] = None
         Configuration for logger.
+    adaptive_training: Optional[bool] = None
+        Whether adpative training is enabled for cost model.
     """
 
     max_trials_global: int
@@ -88,6 +90,7 @@ class TuneConfig(NamedTuple):
     task_scheduler_config: Optional[Dict[str, Any]] = None
     search_strategy_config: Optional[Dict[str, Any]] = None
     logger_config: Optional[Dict[str, Any]] = None
+    adaptive_training: Optional[bool] = None
 
     def create_strategy(self):
         """Create search strategy from configuration"""
@@ -310,7 +313,7 @@ def tune_extracted_tasks(
     database = default_config.database(database, work_dir)
     builder = default_config.builder(builder)
     runner = default_config.runner(runner)
-    cost_model = default_config.cost_model(cost_model)
+    cost_model = default_config.cost_model(cost_model, config.adaptive_training)
     measure_callbacks = default_config.callbacks(measure_callbacks)
     # parse the tuning contexts
     tune_contexts = []

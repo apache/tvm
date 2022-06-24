@@ -303,6 +303,8 @@ class XGBModel(PyCostModel):
         The verbose level when doing evaluation.
     average_peak_n : int
         The number to calculate average peak score.
+    adaptive_training : bool
+        Whether use adpative training to reduce tuning time.
     """
 
     # feature extractor
