@@ -61,11 +61,20 @@ size_t GreedyBase::round_up_to_byte_alignment(const size_t& non_aligned_byte_off
  */
 bool GreedyBase::IsValidPlacement(const PoolInfo& candidate_pool, const size_t& next_offset,
                                   const size_t& size_bytes) {
-  if (candidate_pool->size_hint_bytes == kUnrestrictedPoolSizeHint) {
+  Integer size_hint_bytes = -1;
+  if (const auto* p = candidate_pool.as<WorkspacePoolInfoNode>()) {
+    size_hint_bytes = p->size_hint_bytes;
+  } else if (const auto* p = candidate_pool.as<ConstantPoolInfoNode>()) {
+    size_hint_bytes = p->size_hint_bytes;
+  } else {
+    LOG(FATAL) << "Pool '" << candidate_pool->GetTypeKey() << "' is not supported";
+  }
+
+  if (size_hint_bytes == kUnrestrictedPoolSizeHint) {
     // this means pool is not bounded
     return true;
   }
-  auto pool_size = static_cast<size_t>(candidate_pool->size_hint_bytes->value);
+  auto pool_size = static_cast<size_t>(size_hint_bytes);
   auto max_address = next_offset + size_bytes;
   if (max_address <= pool_size) {
     return true;

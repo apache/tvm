@@ -107,7 +107,12 @@ class DiscoverComplexTypesVisitor : public AttrVisitor {
    * \param queue An ordered map which holds the
    */
   explicit DiscoverComplexTypesVisitor(std::vector<runtime::metadata::MetadataBase>* queue)
-      : queue_{queue} {}
+      : queue_{queue} {
+    int i = 0;
+    for (auto q : *queue) {
+      type_key_to_position_[q->GetTypeKey()] = i++;
+    }
+  }
 
   void Visit(const char* key, double* value) final;
   void Visit(const char* key, int64_t* value) final;

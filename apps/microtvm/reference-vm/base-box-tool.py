@@ -57,6 +57,7 @@ COMMON_SCRIPTS = [
     "docker/install/ubuntu_install_core.sh",
     "docker/install/ubuntu_install_python.sh",
     "docker/utils/apt-install-and-clear.sh",
+    "docker/install/ubuntu1804_install_llvm.sh",
 ]
 
 EXTRA_SCRIPTS = {
@@ -360,6 +361,9 @@ def do_build_release_test_vm(
     found_box_line = False
     with open(release_test_vagrantfile, "w") as f:
         for line in lines:
+            # Skip setting version
+            if "config.vm.box_version" in line:
+                continue
             m = VM_BOX_RE.match(line)
             if not m:
                 f.write(line)

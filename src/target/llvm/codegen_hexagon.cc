@@ -419,9 +419,10 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
   Array<PrimExpr> o_names = {StringImm(o_name)};
   Map<String, String> extra_args;
   if (target->attrs.count("mcpu")) {
-    llvm::StringRef mcpu = Downcast<String>(target->attrs.at("mcpu"));
-    ICHECK(mcpu.startswith("hexagon")) << "unexpected -mcpu value in target:" << mcpu.str();
-    extra_args.Set("hex_arch", mcpu.drop_front(strlen("hexagon")).str());
+    std::string mcpu = Downcast<String>(target->attrs.at("mcpu"));
+    ICHECK(llvm::StringRef(mcpu).startswith("hexagon"))
+        << "unexpected -mcpu value in target:" << mcpu;
+    extra_args.Set("hex_arch", llvm::StringRef(mcpu).drop_front(strlen("hexagon")).str());
   }
   int rc = (*f)(so_name, o_names, extra_args);
   ICHECK(rc == 0) << "Failed to link " << so_name;
@@ -433,8 +434,7 @@ TVM_REGISTER_GLOBAL("target.build.hexagon").set_body_typed(BuildHexagon);
 
 TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_hexagon")
     .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
-      CodeGenLLVM* cg = new CodeGenHexagon();
-      *rv = static_cast<void*>(cg);
+      *rv = static_cast<void*>(new CodeGenHexagon());
     });
 
 }  // namespace codegen

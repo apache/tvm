@@ -37,8 +37,6 @@ class ReplayTraceNode : public SearchStrategyNode {
 
     /*! \brief The module to be tuned. */
     Array<IRModule> per_thread_mod_{nullptr};
-    /*! \brief The metadata of the function arguments. */
-    Array<ArgInfo> args_info_{nullptr};
 
     explicit State(ReplayTraceNode* self, Array<tir::Trace> design_spaces)
         : self(self), design_spaces(design_spaces), st(0), ed(self->num_trials_per_iter) {
@@ -49,7 +47,6 @@ class ReplayTraceNode : public SearchStrategyNode {
       for (int i = 0; i < ctx->num_threads; i++) {
         this->per_thread_mod_.push_back(DeepCopyIRModule(mod));
       }
-      this->args_info_ = ArgInfo::FromPrimFunc(FindEntryFunc(mod));
     }
 
     inline Optional<Array<MeasureCandidate>> GenerateMeasureCandidates();
@@ -143,8 +140,10 @@ inline Optional<Array<MeasureCandidate>> ReplayTraceNode::State::GenerateMeasure
       int design_space_index = tir::SampleInt(&rand_state, 0, design_spaces.size());
       tir::Trace trace = design_spaces[design_space_index];
       tir::Trace new_trace = tir::Trace(trace->insts, {});
-      if (Optional<tir::Schedule> sch = pp.Apply(mod, new_trace, &rand_state)) {
-        per_task_result.Set(task_id, MeasureCandidate(sch.value(), this->args_info_));
+      if (Optional<tir::Schedule> opt_sch = pp.Apply(mod, new_trace, &rand_state)) {
+        tir::Schedule sch = opt_sch.value();
+        Array<ArgInfo> args_info = ArgInfo::FromEntryFunc(sch->mod(), /*remove_preproc=*/true);
+        per_task_result.Set(task_id, MeasureCandidate(sch, args_info));
         break;
       }
     }

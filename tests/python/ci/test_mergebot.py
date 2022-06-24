@@ -14,27 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""
+Test the @tvm-bot merge code
+"""
 
-import os
 import subprocess
 import json
-import sys
-import pytest
-
 from pathlib import Path
 
-import tvm.testing
-from test_utils import REPO_ROOT
-
-
-class TempGit:
-    def __init__(self, cwd):
-        self.cwd = cwd
-
-    def run(self, *args, **kwargs):
-        proc = subprocess.run(["git"] + list(args), cwd=self.cwd, **kwargs)
-        if proc.returncode != 0:
-            raise RuntimeError(f"git command failed: '{args}'")
+import pytest
+import tvm
+from .test_utils import REPO_ROOT, TempGit
 
 
 SUCCESS_EXPECTED_OUTPUT = """
@@ -47,7 +37,7 @@ Dry run, would have merged with url=pulls/10786/merge and data={
 """.strip()
 
 
-test_data = {
+TEST_DATA = {
     "successful-merge": {
         "number": 10786,
         "filename": "pr10786-merges.json",
@@ -118,7 +108,7 @@ test_data = {
         "expected": "Cannot merge, found [this review]",
         "comment": "@tvm-bot merge",
         "user": "abc",
-        "detail": "Check that a merge request with a 'Changes Requested' review on HEAD is rejected",
+        "detail": "Check that a merge request with a 'Changes Requested' review is rejected",
     },
     "co-authors": {
         "number": 10786,
@@ -142,10 +132,13 @@ test_data = {
 @tvm.testing.skip_if_wheel_test
 @pytest.mark.parametrize(
     ["number", "filename", "expected", "comment", "user", "detail"],
-    [tuple(d.values()) for d in test_data.values()],
-    ids=test_data.keys(),
+    [tuple(d.values()) for d in TEST_DATA.values()],
+    ids=TEST_DATA.keys(),
 )
 def test_mergebot(tmpdir_factory, number, filename, expected, comment, user, detail):
+    """
+    Test the mergebot test cases
+    """
     mergebot_script = REPO_ROOT / "tests" / "scripts" / "github_tvmbot.py"
     test_json_dir = Path(__file__).resolve().parent / "sample_prs"
 
@@ -187,6 +180,7 @@ def test_mergebot(tmpdir_factory, number, filename, expected, comment, user, det
             "TVM_BOT_JENKINS_TOKEN": "123",
         },
         cwd=git.cwd,
+        check=False,
     )
     if proc.returncode != 0:
         raise RuntimeError(f"Process failed:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
@@ -196,4 +190,4 @@ def test_mergebot(tmpdir_factory, number, filename, expected, comment, user, det
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

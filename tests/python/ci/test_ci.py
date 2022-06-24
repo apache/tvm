@@ -14,29 +14,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import os
+"""Test various CI scripts and GitHub Actions workflows"""
 import subprocess
-import sys
 import json
-from tempfile import tempdir
 import textwrap
-import pytest
-import tvm.testing
 from pathlib import Path
 
-from test_utils import REPO_ROOT
+import pytest
+import tvm.testing
+from .test_utils import REPO_ROOT, TempGit
 
 
-class TempGit:
-    def __init__(self, cwd):
-        self.cwd = cwd
+def parameterize_named(*values):
+    keys = list(values[0].keys())
+    if len(keys) == 1:
+        return pytest.mark.parametrize(",".join(keys), [d[keys[0]] for d in values])
 
-    def run(self, *args, **kwargs):
-        proc = subprocess.run(["git"] + list(args), encoding="utf-8", cwd=self.cwd, **kwargs)
-        if proc.returncode != 0:
-            raise RuntimeError(f"git command failed: '{args}'")
-
-        return proc
+    return pytest.mark.parametrize(",".join(keys), [tuple(d.values()) for d in values])
 
 
 @pytest.mark.parametrize(
@@ -47,13 +41,17 @@ class TempGit:
             "https://pr-docs.tlcpack.ai",
             "SHA",
             "issues/11594/comments",
-            "Built docs for commit [SHA](SHA) can be found [here](https://pr-docs.tlcpack.ai/PR-11594/3/docs/index.html).",
+            "Built docs for commit SHA can be found "
+            "[here](https://pr-docs.tlcpack.ai/PR-11594/3/docs/index.html).",
         )
     ],
 )
 def test_docs_comment(
     tmpdir_factory, target_url, base_url, commit_sha, expected_url, expected_body
 ):
+    """
+    Test that a comment with a link to the docs is successfully left on PRs
+    """
     docs_comment_script = REPO_ROOT / "tests" / "scripts" / "github_docs_comment.py"
 
     git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
@@ -67,6 +65,7 @@ def test_docs_comment(
         env={"TARGET_URL": target_url, "COMMIT_SHA": commit_sha},
         encoding="utf-8",
         cwd=git.cwd,
+        check=False,
     )
     if proc.returncode != 0:
         raise RuntimeError(f"Process failed:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
@@ -76,6 +75,9 @@ def test_docs_comment(
 
 @tvm.testing.skip_if_wheel_test
 def test_cc_reviewers(tmpdir_factory):
+    """
+    Test that reviewers are added from 'cc @someone' messages in PRs
+    """
     reviewers_script = REPO_ROOT / "tests" / "scripts" / "github_cc_reviewers.py"
 
     def run(pr_body, requested_reviewers, existing_review_users, expected_reviewers):
@@ -96,6 +98,7 @@ def test_cc_reviewers(tmpdir_factory):
             },
             encoding="utf-8",
             cwd=git.cwd,
+            check=False,
         )
         if proc.returncode != 0:
             raise RuntimeError(f"Process failed:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
@@ -149,6 +152,9 @@ def test_cc_reviewers(tmpdir_factory):
 
 
 def test_update_branch(tmpdir_factory):
+    """
+    Test that the last-successful branch script updates successfully
+    """
     update_script = REPO_ROOT / "tests" / "scripts" / "update_branch.py"
 
     def run(statuses, expected_rc, expected_output):
@@ -174,6 +180,7 @@ def test_update_branch(tmpdir_factory):
             stderr=subprocess.PIPE,
             encoding="utf-8",
             cwd=git.cwd,
+            check=False,
         )
 
         if proc.returncode != expected_rc:
@@ -250,6 +257,9 @@ def test_update_branch(tmpdir_factory):
 
 
 def test_skip_ci(tmpdir_factory):
+    """
+    Test that CI is skipped when it should be
+    """
     skip_ci_script = REPO_ROOT / "tests" / "scripts" / "git_skip_ci.py"
 
     def test(commands, should_skip, pr_title, why):
@@ -265,7 +275,9 @@ def test_skip_ci(tmpdir_factory):
             git.run(*command)
         pr_number = "1234"
         proc = subprocess.run(
-            [str(skip_ci_script), "--pr", pr_number, "--pr-title", pr_title], cwd=git.cwd
+            [str(skip_ci_script), "--pr", pr_number, "--pr-title", pr_title],
+            cwd=git.cwd,
+            check=False,
         )
         expected = 0 if should_skip else 1
         assert proc.returncode == expected, why
@@ -303,7 +315,8 @@ def test_skip_ci(tmpdir_factory):
         ],
         should_skip=False,
         pr_title="[no skip ci] test",
-        why="ci should not be skipped on a branch with [skip ci] in the last commit but not the PR title",
+        why="ci should not be skipped on a branch with "
+        "[skip ci] in the last commit but not the PR title",
     )
 
     test(
@@ -343,6 +356,9 @@ def test_skip_ci(tmpdir_factory):
 
 
 def test_skip_globs(tmpdir_factory):
+    """
+    Test that CI is skipped if only certain files are edited
+    """
     script = REPO_ROOT / "tests" / "scripts" / "git_skip_ci_globs.py"
 
     def run(files, should_skip):
@@ -362,6 +378,7 @@ def test_skip_globs(tmpdir_factory):
             stderr=subprocess.PIPE,
             encoding="utf-8",
             cwd=git.cwd,
+            check=False,
         )
 
         if should_skip:
@@ -378,9 +395,12 @@ def test_skip_globs(tmpdir_factory):
 
 
 def test_ping_reviewers(tmpdir_factory):
+    """
+    Test that reviewers are messaged after a time period of inactivity
+    """
     reviewers_script = REPO_ROOT / "tests" / "scripts" / "ping_reviewers.py"
 
-    def run(pr, check):
+    def run(pull_request, check):
         git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
         # Jenkins git is too old and doesn't have 'git init --initial-branch'
         git.run("init")
@@ -391,7 +411,7 @@ def test_ping_reviewers(tmpdir_factory):
             "data": {
                 "repository": {
                     "pullRequests": {
-                        "nodes": [pr],
+                        "nodes": [pull_request],
                         "edges": [],
                     }
                 }
@@ -416,6 +436,7 @@ def test_ping_reviewers(tmpdir_factory):
             stderr=subprocess.PIPE,
             encoding="utf-8",
             cwd=git.cwd,
+            check=False,
         )
         if proc.returncode != 0:
             raise RuntimeError(f"Process failed:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
@@ -522,15 +543,21 @@ def test_ping_reviewers(tmpdir_factory):
 
 
 def assert_in(needle: str, haystack: str):
+    """
+    Check that 'needle' is in 'haystack'
+    """
     if needle not in haystack:
         raise AssertionError(f"item not found:\n{needle}\nin:\n{haystack}")
 
 
 @tvm.testing.skip_if_wheel_test
 def test_github_tag_teams(tmpdir_factory):
+    """
+    Check that individuals are tagged from team headers
+    """
     tag_script = REPO_ROOT / "tests" / "scripts" / "github_tag_teams.py"
 
-    def run(type, data, check):
+    def run(source_type, data, check):
         git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
         git.run("init")
         git.run("checkout", "-b", "main")
@@ -565,7 +592,7 @@ def test_github_tag_teams(tmpdir_factory):
             }
         }
         env = {
-            type: json.dumps(data),
+            source_type: json.dumps(data),
         }
         proc = subprocess.run(
             [
@@ -579,6 +606,7 @@ def test_github_tag_teams(tmpdir_factory):
             encoding="utf-8",
             cwd=git.cwd,
             env=env,
+            check=False,
         )
         if proc.returncode != 0:
             raise RuntimeError(f"Process failed:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
@@ -586,8 +614,8 @@ def test_github_tag_teams(tmpdir_factory):
         assert_in(check, proc.stdout)
 
     run(
-        "ISSUE",
-        {
+        source_type="ISSUE",
+        data={
             "title": "A title",
             "number": 1234,
             "user": {
@@ -600,12 +628,12 @@ def test_github_tag_teams(tmpdir_factory):
             """.strip()
             ),
         },
-        "No one to cc, exiting",
+        check="No one to cc, exiting",
     )
 
     run(
-        "ISSUE",
-        {
+        source_type="ISSUE",
+        data={
             "title": "A title",
             "number": 1234,
             "user": {
@@ -620,11 +648,11 @@ def test_github_tag_teams(tmpdir_factory):
             """.strip()
             ),
         },
-        "No one to cc, exiting",
+        check="No one to cc, exiting",
     )
 
     run(
-        type="ISSUE",
+        source_type="ISSUE",
         data={
             "title": "A title",
             "number": 1234,
@@ -639,11 +667,12 @@ def test_github_tag_teams(tmpdir_factory):
                 something"""
             ),
         },
-        check="would have updated issues/1234 with {'body': '\\nhello\\n\\nsomething\\n\\ncc @person1 @person2 @person4'}",
+        check="would have updated issues/1234 with {'body': "
+        "'\\nhello\\n\\nsomething\\n\\ncc @person1 @person2 @person4'}",
     )
 
     run(
-        type="ISSUE",
+        source_type="ISSUE",
         data={
             "title": "A title",
             "number": 1234,
@@ -662,7 +691,7 @@ def test_github_tag_teams(tmpdir_factory):
     )
 
     run(
-        type="ISSUE",
+        source_type="ISSUE",
         data={
             "title": "[something] A title",
             "number": 1234,
@@ -677,11 +706,12 @@ def test_github_tag_teams(tmpdir_factory):
                 something"""
             ),
         },
-        check="would have updated issues/1234 with {'body': '\\nhello\\n\\nsomething\\n\\ncc @person1 @person2 @person4'}",
+        check="would have updated issues/1234 with {'body': "
+        "'\\nhello\\n\\nsomething\\n\\ncc @person1 @person2 @person4'}",
     )
 
     run(
-        type="ISSUE",
+        source_type="ISSUE",
         data={
             "title": "[something] A title",
             "number": 1234,
@@ -700,7 +730,7 @@ def test_github_tag_teams(tmpdir_factory):
     )
 
     run(
-        type="PR",
+        source_type="PR",
         data={
             "title": "[something] A title",
             "number": 1234,
@@ -720,7 +750,7 @@ def test_github_tag_teams(tmpdir_factory):
     )
 
     run(
-        type="PR",
+        source_type="PR",
         data={
             "title": "[something] A title",
             "number": 1234,
@@ -740,7 +770,7 @@ def test_github_tag_teams(tmpdir_factory):
     )
 
     run(
-        type="ISSUE",
+        source_type="ISSUE",
         data={
             "title": "[something] A title",
             "number": 1234,
@@ -748,19 +778,17 @@ def test_github_tag_teams(tmpdir_factory):
                 "login": "person5",
             },
             "labels": [{"name": "something2"}],
-            "body": textwrap.dedent(
-                """
-                `mold` and `lld` can be a much faster alternative to `ld` from gcc. We should modify our CMakeLists.txt to detect and use these when possible. cc @person1
-
-                cc @person4
-                """
-            ),
+            "body": "`mold` and `lld` can be a much faster alternative to `ld` from gcc. "
+            "We should modify our CMakeLists.txt to detect and use these when possible. cc @person1"
+            "\n\ncc @person4",
         },
-        check="would have updated issues/1234 with {'body': '\\n`mold` and `lld` can be a much faster alternative to `ld` from gcc. We should modify our CMakeLists.txt to detect and use these when possible. cc @person1\\n\\ncc @person2 @person4\\n'}",
+        check="would have updated issues/1234 with {'body': '`mold` and `lld` can be a much"
+        " faster alternative to `ld` from gcc. We should modify our CMakeLists.txt to "
+        "detect and use these when possible. cc @person1\\n\\ncc @person2 @person4'}",
     )
 
     run(
-        type="ISSUE",
+        source_type="ISSUE",
         data={
             "title": "[something3] A title",
             "number": 1234,
@@ -770,11 +798,12 @@ def test_github_tag_teams(tmpdir_factory):
             "labels": [{"name": "something2"}],
             "body": "@person2 @SOME1-ONE-",
         },
-        check="Dry run, would have updated issues/1234 with {'body': '@person2 @SOME1-ONE-\\n\\ncc @person1'}",
+        check="Dry run, would have updated issues/1234 with"
+        " {'body': '@person2 @SOME1-ONE-\\n\\ncc @person1'}",
     )
 
     run(
-        type="ISSUE",
+        source_type="ISSUE",
         data={
             "title": "[] A title",
             "number": 1234,
@@ -786,6 +815,166 @@ def test_github_tag_teams(tmpdir_factory):
         },
         check="No one to cc, exiting",
     )
+
+
+@parameterize_named(
+    dict(
+        tlcpackstaging_body={
+            "results": [
+                {
+                    "last_updated": "2022-06-01T00:00:00.123456Z",
+                    "name": "abc-abc-123",
+                },
+            ]
+        },
+        tlcpack_body={
+            "results": [
+                {
+                    "last_updated": "2022-06-01T00:00:00.123456Z",
+                    "name": "abc-abc-123",
+                },
+            ]
+        },
+        expected="Tag names were the same, no update needed",
+    ),
+    dict(
+        tlcpackstaging_body={
+            "results": [
+                {
+                    "last_updated": "2022-06-01T00:00:00.123456Z",
+                    "name": "abc-abc-234",
+                },
+            ]
+        },
+        tlcpack_body={
+            "results": [
+                {
+                    "last_updated": "2022-06-01T00:00:00.123456Z",
+                    "name": "abc-abc-123",
+                },
+            ]
+        },
+        expected="Using tlcpackstaging tag on tlcpack",
+    ),
+    dict(
+        tlcpackstaging_body={
+            "results": [
+                {
+                    "last_updated": "2022-06-01T00:00:00.123456Z",
+                    "name": "abc-abc-123",
+                },
+            ]
+        },
+        tlcpack_body={
+            "results": [
+                {
+                    "last_updated": "2022-06-01T00:01:00.123456Z",
+                    "name": "abc-abc-234",
+                },
+            ]
+        },
+        expected="Found newer image, using: tlcpack",
+    ),
+)
+def test_open_docker_update_pr(tmpdir_factory, tlcpackstaging_body, tlcpack_body, expected):
+    """Test workflow to open a PR to update Docker images"""
+    tag_script = REPO_ROOT / "tests" / "scripts" / "open_docker_update_pr.py"
+
+    git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
+    git.run("init")
+    git.run("config", "user.name", "ci")
+    git.run("config", "user.email", "email@example.com")
+    git.run("checkout", "-b", "main")
+    git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
+    images = [
+        "ci_lint",
+        "ci_gpu",
+        "ci_cpu",
+        "ci_wasm",
+        "ci_i386",
+        "ci_qemu",
+        "ci_arm",
+        "ci_hexagon",
+    ]
+
+    docker_data = {}
+    for image in images:
+        docker_data[f"repositories/tlcpackstaging/{image}/tags"] = tlcpackstaging_body
+        docker_data[f"repositories/tlcpack/{image.replace('_', '-')}/tags"] = tlcpack_body
+
+    proc = subprocess.run(
+        [
+            str(tag_script),
+            "--dry-run",
+            "--testing-docker-data",
+            json.dumps(docker_data),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        encoding="utf-8",
+        cwd=git.cwd,
+        env={"GITHUB_TOKEN": "1234"},
+        check=False,
+    )
+
+    if proc.returncode != 0:
+        raise RuntimeError(f"Process failed:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
+
+    assert_in(expected, proc.stdout)
+
+
+@pytest.mark.parametrize(
+    "images,expected",
+    [
+        (
+            ["ci_arm=tlcpack/ci-arm:abc-abc-123", "ci_lint=tlcpack/ci-lint:abc-abc-234"],
+            {
+                "ci_arm": "tlcpack/ci-arm:abc-abc-123",
+                "ci_lint": "tlcpack/ci-lint:abc-abc-234",
+            },
+        ),
+        (
+            ["ci_arm2=tlcpack/ci-arm2:abc-abc-123"],
+            {
+                "ci_arm2": "tlcpackstaging/ci_arm2:abc-abc-123",
+            },
+        ),
+    ],
+)
+def test_determine_docker_images(tmpdir_factory, images, expected):
+    """Test script to decide whether to use tlcpack or tlcpackstaging for images"""
+    tag_script = REPO_ROOT / "tests" / "scripts" / "determine_docker_images.py"
+
+    git_dir = tmpdir_factory.mktemp("tmp_git_dir")
+
+    docker_data = {
+        "repositories/tlcpack/ci-arm/tags/abc-abc-123": {},
+        "repositories/tlcpack/ci-lint/tags/abc-abc-234": {},
+    }
+
+    proc = subprocess.run(
+        [
+            str(tag_script),
+            "--testing-docker-data",
+            json.dumps(docker_data),
+            "--base-dir",
+            git_dir,
+        ]
+        + images,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        encoding="utf-8",
+        cwd=git_dir,
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"Failed to run script:\n{proc.stdout}")
+
+    for expected_filename, expected_image in expected.items():
+        with open(Path(git_dir) / expected_filename) as f:
+            actual_image = f.read()
+
+        assert actual_image == expected_image
 
 
 @pytest.mark.parametrize(
@@ -818,6 +1007,9 @@ def test_github_tag_teams(tmpdir_factory):
     ],
 )
 def test_should_rebuild_docker(tmpdir_factory, changed_files, name, check, expected_code):
+    """
+    Check that the Docker images are built when necessary
+    """
     tag_script = REPO_ROOT / "tests" / "scripts" / "should_rebuild_docker.py"
 
     git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
@@ -871,6 +1063,7 @@ def test_should_rebuild_docker(tmpdir_factory, changed_files, name, check, expec
         stderr=subprocess.STDOUT,
         encoding="utf-8",
         cwd=git.cwd,
+        check=False,
     )
 
     assert_in(check, proc.stdout)
