@@ -40,7 +40,7 @@ from ..loops import while_loop
 from ..prelude import Prelude, StaticTensorArrayOps
 from ..ty import Any, TensorType, TupleType
 from . import qnn_torch
-from .common import AttrCvt, get_relay_op, gru_cell, logger
+from .common import AttrCvt, fold_constant, get_relay_op, gru_cell, infer_value, logger
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
 from .common import infer_value_simulated as _infer_value_simulated
@@ -3009,18 +3009,9 @@ class PyTorchOpConverter:
         return _op.image.grid_sample(
             inputs[0], grid, interpolate_str, layout, padding_mode_str, align_corners
         )
-=======
+
     def embedding_bag(self, inputs, _):
-        weights, indices = inputs[0], inputs[1]
-
-        indices_shape = _infer_shape(indices)
-        print(indices_shape)
-        dim = len(indices_shape)
-        assert dim != 1, "1D input not supported in embedding_bag."
-        mode_map = {0: _op.sum, 1: _op.mean, 2: _op.max}
-        mode = mode_map[inputs[4]]
-
-        offsets = inputs[2]
+        weights, indices, offsets = inputs[0:3]
         scale_grad_by_freq = inputs[3]
         sparse = inputs[5]
         per_sample_weights = inputs[6]
@@ -3032,6 +3023,22 @@ class PyTorchOpConverter:
         assert per_sample_weights == None, "per_sample_weights not supported in embedding_bag."
         assert include_last_offset == 0, "include_last_offset not supported in embedding_bag."
         assert padding_idx == None, "padding_idx not supported in embedding_bag."
+
+        offsets_const_fold = fold_constant(offsets)
+
+        assert isinstance(offsets_const_fold, _expr.Constant)
+        offsets_np = offsets_const_fold.data.numpy()
+
+        offsets_diff = np.diff(offsets_np)
+
+        assert np.all(offsets_diff[1:] == offsets_diff[0]), "Only 2D cases supported for now."
+
+        indices_2d = _op.reshape(indices, (-1, offsets_diff[0]))
+
+        print(self.infer_shape(indices_2d))
+
+        mode_map = {0: _op.sum, 1: _op.mean, 2: _op.max}
+        mode = mode_map[inputs[4]]
 
         assert False
         return None
