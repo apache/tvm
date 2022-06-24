@@ -2479,6 +2479,7 @@ def _range():
 
     return _impl
 
+
 def _einsum():
     def _impl(inputs, attr, params, mod):
         einsum_attr = dict(attr)
