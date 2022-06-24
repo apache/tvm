@@ -158,15 +158,13 @@ def test_double_conv2d(
     assert workspace_size_cascader_enabled_striping_enabled == expected_ws_size_with_striping
 
 
-# TODO(ekalda): Fix a bug in the block config selection that selects block config that is too large
-# for the smaller accelerators
 @pytest.mark.parametrize(
     "accel_type, expected_ws_size_without_striping, expected_ws_size_with_striping",
     [
-        ("ethos-u55-256", 180288, 15200),
-        ("ethos-u55-128", 180288, 15200),
-        ("ethos-u55-64", 180288, 14432),
-        ("ethos-u55-32", 180272, 14416),
+        ("ethos-u55-256", 180288, 15312),
+        ("ethos-u55-128", 180288, 15312),
+        ("ethos-u55-64", 180288, 14544),
+        ("ethos-u55-32", 180272, 14544),
     ],
 )
 def test_depthwise2d_conv2d_pooling(
