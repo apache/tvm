@@ -121,7 +121,7 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
               std::string scope = "global.texture";
               if (const auto* ttype = call->checked_type().as<TensorTypeNode>()) {
                 if (ttype->shape.size() == 5) {
-                  scope = Scope(ttype->shape);
+                  scope = Scope(ttype->shape, GetVirtualDevice(GetRef<Expr>(call)));
                 }
               }
               storage_scope_[call].push_back(scope);
@@ -177,37 +177,39 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
     }
   }
 
-  std::string Scope(Array<PrimExpr> shape) {
-    std::map<int, std::string> diffs;
-    int limit = 16384;
-    int a0 = shape[0].as<IntImmNode>()->value;
-    int a1 = shape[1].as<IntImmNode>()->value;
-    int a2 = shape[2].as<IntImmNode>()->value;
-    int a3 = shape[3].as<IntImmNode>()->value;
+  std::string Scope(Array<PrimExpr> shape, const VirtualDevice& vd) {
+    if (vd != VirtualDevice::FullyUnconstrained()) {
+      std::map<int, std::string> diffs;
+      int limit =
+          vd->target->GetAttr<Integer>("texture_spatial_limit").value_or(Integer(16384))->value;
+      int a0 = shape[0].as<IntImmNode>()->value;
+      int a1 = shape[1].as<IntImmNode>()->value;
+      int a2 = shape[2].as<IntImmNode>()->value;
+      int a3 = shape[3].as<IntImmNode>()->value;
 
-    int d3l = a0 * a1 * a2;
-    int d3r = a3;
-    int diff3 = d3l > d3r ? d3l - d3r : d3r - d3l;
-    if (d3l < limit && d3r < limit) diffs[diff3] = "";
+      int d3l = a0 * a1 * a2;
+      int d3r = a3;
+      int diff3 = d3l > d3r ? d3l - d3r : d3r - d3l;
+      if (d3l < limit && d3r < limit) diffs[diff3] = "";
 
-    int d2l = a0 * a1;
-    int d2r = a2 * a3;
-    int diff2 = d2l > d2r ? d2l - d2r : d2r - d2l;
-    if (d2l < limit && d2r < limit) diffs[diff2] = "nhwc";
+      int d2l = a0 * a1;
+      int d2r = a2 * a3;
+      int diff2 = d2l > d2r ? d2l - d2r : d2r - d2l;
+      if (d2l < limit && d2r < limit) diffs[diff2] = "nhwc";
 
-    int d1l = a0;
-    int d1r = a1 * a2 * a3;
-    int diff1 = d1l > d1r ? d1l - d1r : d1r - d1l;
-    if (d1l < limit && d1r < limit) diffs[diff1] = "weight";
-    if (!diffs.empty()) {
-      std::string scope = "global.texture";
-      if (!diffs.begin()->second.empty()) {
-        scope += ("-" + diffs.begin()->second);
+      int d1l = a0;
+      int d1r = a1 * a2 * a3;
+      int diff1 = d1l > d1r ? d1l - d1r : d1r - d1l;
+      if (d1l < limit && d1r < limit) diffs[diff1] = "weight";
+      if (!diffs.empty()) {
+        std::string scope = "global.texture";
+        if (!diffs.begin()->second.empty()) {
+          scope += ("-" + diffs.begin()->second);
+        }
+        return scope;
       }
-      return scope;
-    } else {
-      return "global.texture";
     }
+    return "global";
   }
 
   void ApplyConsumerScopeToInputs(const ExprNode* expr) {
@@ -221,7 +223,7 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
       bool expr_is_rgba_vectorizable = false;
       if (const auto* ttype = expr->checked_type().as<TensorTypeNode>()) {
         if (ttype->shape.size() == 5) {
-          scope = Scope(ttype->shape);
+          scope = Scope(ttype->shape, GetVirtualDevice(GetRef<Expr>(expr)));
           if (scope != "global") {
             auto inner_dim = ttype->shape.back().as<IntImmNode>();
             if (inner_dim && inner_dim->value == 4) {
