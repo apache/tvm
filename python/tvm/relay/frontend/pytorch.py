@@ -24,7 +24,6 @@ import itertools
 import math
 import sys
 import logging
-from typing import List
 
 import numpy as np
 import tvm
