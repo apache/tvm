@@ -64,7 +64,7 @@ class EvolutionarySearch(SearchStrategy):
         *,
         num_trials_per_iter: int,
         max_trials_per_task: int,
-        population_size: int = 512,
+        population_size: int = 2048,
         init_measured_ratio: float = 0.2,
         init_min_unmeasured: int = 50,
         genetic_num_iters: int = 4,
