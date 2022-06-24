@@ -347,8 +347,9 @@ def tune_extracted_tasks(
         cost_model=cost_model,
         measure_callbacks=measure_callbacks,
     )
-    task_scheduler.tune()
-    cost_model.save(osp.join(work_dir, "cost_model.xgb"))
+    if config.max_trials_global > 0:
+        task_scheduler.tune()
+        cost_model.save(osp.join(work_dir, "cost_model.xgb"))
     return database
 
 
