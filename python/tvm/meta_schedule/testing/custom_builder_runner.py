@@ -176,4 +176,6 @@ def run_module_via_rpc(
             nd_args = {k: ndarray.array(v, dev) for k, v in args.items()}
             return continuation(rt_mod, dev, nd_args)
     except Exception as exc:  # pylint: disable=broad-except
-        print("Run module via RPC failed, exception:", exc)
+        print(
+            f"Run module {continuation.__name__} via RPC failed, exception: {exc}",
+        )
