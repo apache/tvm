@@ -678,6 +678,14 @@ def test_forward_silu():
 
 
 @tvm.testing.uses_gpu
+def test_forward_glu():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.GLU().eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_softplus():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
