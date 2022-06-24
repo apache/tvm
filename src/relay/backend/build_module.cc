@@ -399,7 +399,7 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     relay_module = transform::AnnotateMemoryScope(config_)(relay_module);
     pass_seqs = GetPassPrefix(
-         /*is_homogenous=*/config_->optional_homogeneous_target.defined(), /*is_vm=*/false);
+        /*is_homogenous=*/config_->optional_homogeneous_target.defined(), /*is_vm=*/false);
     pass_seqs.push_back(transform::PlanDevices(config_));
     // Create a sequential pass and perform optimizations.
     seq = transform::Sequential(pass_seqs);

@@ -572,6 +572,7 @@ def test_2conv2d():
 
     build_run_compare(mod, params1, {"data": input_shape}, dtype, target, static_memory_scope)
 
+
 @tvm.testing.requires_opencl
 def test_residual_block():
     target = "opencl --device=adreno"
@@ -660,11 +661,11 @@ def test_residual_block():
         "global.texture-weight",
         "global.texture",
         "global.texture-weight",
-        'global',
+        "global",
         "global.texture",
         "global.texture-weight",
         "",
-        ""
+        "",
     ]
 
     build_run_compare(mod, params1, {"data": input_shape}, dtype, target, static_memory_scope)
@@ -733,6 +734,7 @@ def test_plan_device_issue1():
 
     build_run_compare(mod, params1, {"data": input_shape}, dtype, target, static_memory_scope)
 
+
 @tvm.testing.requires_opencl
 def test_branch_textures():
     target = "opencl --device=adreno"
@@ -794,7 +796,6 @@ def test_branch_textures():
 
     t = relay.Tuple([conv2, conv3])
     c = relay.op.concatenate(t, axis=1)
-
 
     mod = relay.Function([A, W1, B1, W2, B2, W3], c)
     np.random.seed(0)
@@ -1058,6 +1059,7 @@ def test_branch2_texture_params():
     ]
 
     build_run_compare(mod, params1, {"data": input_shape}, dtype, target, static_memory_scope)
+
 
 # function repeat, params scope are different in reused functions
 @tvm.testing.requires_opencl

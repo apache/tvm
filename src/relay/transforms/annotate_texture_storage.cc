@@ -69,12 +69,12 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
     // Filling the input arguments by "global" scope to handle PlanDevice algo which propagates
     // virtual devices from outputs to inputs. At the same time outputs must be unconstrained
     // to avoid useless device_copy
-    for (const auto& cs: storage_info.consumer_storage_scopes_) {
+    for (const auto& cs : storage_info.consumer_storage_scopes_) {
       // we have record in consumers that mean that potentially consumer
       // dealt with textures anyhow, it's safe to mark this expr as global scope
       // even without verification of the consumer's outputs scope
       if (storage_info.CanConsumeTextures(cs.second) &&
-        storage_map.find(GetRef<Expr>(cs.first)) == storage_map.end()) {
+          storage_map.find(GetRef<Expr>(cs.first)) == storage_map.end()) {
         storage_map.Set(GetRef<Expr>(cs.first), Array<String>{"global"});
       }
     }
@@ -107,9 +107,7 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
 
   void VisitExpr_(const VarNode* vn) final { ApplyConsumerScopeToInputs(vn); }
 
-  void VisitExpr_(const ConstantNode* cn) final {
-    ApplyConsumerScopeToInputs(cn);
-  }
+  void VisitExpr_(const ConstantNode* cn) final { ApplyConsumerScopeToInputs(cn); }
 
   void DeviceAwareVisitExpr_(const CallNode* call) final {
     // Check the contents of this primitive function
@@ -170,7 +168,7 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
       if (consumer_storage_scopes_.count(arg.operator->()) &&
           GetConsumerScope(consumer_storage_scopes_[arg.operator->()]) != "global.texture") {
         storage_scope_.erase(arg.operator->());
-        if (const auto* cn = arg.as<CallNode>() ) {
+        if (const auto* cn = arg.as<CallNode>()) {
           if (const auto* fn = cn->op.as<FunctionNode>()) {
             storage_scope_.erase(fn->body.operator->());
           }
@@ -408,10 +406,11 @@ class VDRewriter : public transform::DeviceAwareExprMutator {
       memory_scope = "";
     }
     if (!memory_scope.empty()) {
-      new_call = OnDevice(new_call,
-                  VirtualDevice(virtual_device->device_type(), virtual_device->virtual_device_id,
-                                virtual_device->target, memory_scope),
-                                true);
+      new_call =
+          OnDevice(new_call,
+                   VirtualDevice(virtual_device->device_type(), virtual_device->virtual_device_id,
+                                 virtual_device->target, memory_scope),
+                   true);
     }
     return new_call;
   }
