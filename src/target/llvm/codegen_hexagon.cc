@@ -360,8 +360,10 @@ llvm::Value* CodeGenHexagon::VectorLookupLoad(Buffer buffer, DataType buffer_typ
   std::vector<llvm::Value*> vloads;
   DataType table_type = buffer_type.with_lanes(table_elem_count);
 
-  auto table_all = MakeValue(BufferLoad(buffer,
-    {Ramp(IntImm(int32, 0), IntImm(int32, 1), table_elem_count), }));
+  auto table_all =
+      MakeValue(BufferLoad(buffer, {
+                                       Ramp(IntImm(int32, 0), IntImm(int32, 1), table_elem_count),
+                                   }));
 
   // The number of value vectors should be a power of 2.
   int table_vec_count = llvm::PowerOf2Ceil(GetVectorBytes(table_type) / native_vector_bytes);
@@ -383,19 +385,17 @@ llvm::Value* CodeGenHexagon::VectorLookupLoad(Buffer buffer, DataType buffer_typ
   // Shuffle table bytes:
   // 127, 63,  126, 62,........68, 4,  67, 3,  66, 2,  65, 1,  64, 0
   std::vector<llvm::Value*> table;
-  for (int i = 0; i != table_vec_count; ++i)
-    table.push_back(VSHUFF(vloads[i]));
+  for (int i = 0; i != table_vec_count; ++i) table.push_back(VSHUFF(vloads[i]));
 
   // Get each 32 byte sub-table's output
   std::vector<llvm::Value*> results;
   int table_iters = table_elem_count / 32;
   for (int i = 0; i < table_iters; ++i)
-    results.push_back(VLUT32(index_pad, table[i/4], ConstInt32(i%8)));
+    results.push_back(VLUT32(index_pad, table[i / 4], ConstInt32(i % 8)));
 
   // Combine outputs
   llvm::Value* result = results[0];
-  for (int i = 1; i < table_iters; ++i)
-    result = VXOR(result, results[i]);
+  for (int i = 1; i < table_iters; ++i) result = VXOR(result, results[i]);
 
   llvm::Type* res_type = result->getType();
   llvm::Type* ret_type = DTypeToLLVMType(buffer_type);
