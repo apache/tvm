@@ -16,7 +16,7 @@
 # under the License.
 """Wrapping existing transformations."""
 # pylint: disable=invalid-name
-from typing import Optional, Callable
+from typing import Callable, Optional
 
 from . import _ffi_api
 from . import function_pass as _fpass
@@ -836,3 +836,13 @@ def InjectPTXAsyncCopy():
         The result pass
     """
     return _ffi_api.InjectPTXAsyncCopy()  # type: ignore
+
+
+def RemoveWeightLayoutRewriteBlock():
+    """Remove weight layout rewrite block before benchmarking during tuning stage.
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RemoveWeightLayoutRewriteBlock()  # type: ignore
