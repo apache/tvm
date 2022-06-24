@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, too-many-locals, too-many-statements, unused-argument
 """Test workload for lowering and build."""
 import numpy as np
 
@@ -32,10 +31,10 @@ def tensorcore_gemm(handle_a: T.handle, handle_b: T.handle, handle_c: T.handle) 
     match_buffer_c = T.match_buffer(handle_c, [1024, 1024], "float32")
 
     # body
-    for blockIdx_x in T.thread_binding(0, 16, "blockIdx.x"):
-        for blockIdx_y in T.thread_binding(0, 8, "blockIdx.y"):
+    for block_idx_x in T.thread_binding(0, 16, "blockIdx.x"):
+        for block_idx_y in T.thread_binding(0, 8, "blockIdx.y"):
             with T.block():
-                axis_bx, axis_by = T.axis.remap("SS", [blockIdx_x, blockIdx_y])
+                axis_bx, axis_by = T.axis.remap("SS", [block_idx_x, block_idx_y])
                 shared_a = T.alloc_buffer([1024, 1024], "float16", scope="shared")
                 shared_b = T.alloc_buffer([1024, 1024], "float16", scope="shared")
                 wmma_a = T.alloc_buffer([1024, 1024], "float16", scope="wmma.matrix_a")
@@ -56,7 +55,7 @@ def tensorcore_gemm(handle_a: T.handle, handle_b: T.handle, handle_c: T.handle) 
                                         new_axis_vj * 16 : new_axis_vj * 16 + 16,
                                     ]
                                 )
-                                C0 = T.match_buffer(
+                                match_buffer_c0 = T.match_buffer(
                                     wmma_c[
                                         new_axis_vi * 16 : new_axis_vi * 16 + 16,
                                         new_axis_vj * 16 : new_axis_vj * 16 + 16,
@@ -69,7 +68,7 @@ def tensorcore_gemm(handle_a: T.handle, handle_b: T.handle, handle_c: T.handle) 
                                 )
                                 T.evaluate(
                                     T.tvm_fill_fragment(
-                                        C0.data,
+                                        match_buffer_c0.data,
                                         16,
                                         16,
                                         16,
@@ -124,17 +123,17 @@ def tensorcore_gemm(handle_a: T.handle, handle_b: T.handle, handle_c: T.handle) 
                                         new_axis_vi = T.axis.S(
                                             64, axis_bx * 4 + thread_ty * 2 + index_i
                                         )
-                                        vk = T.axis.S(64, k_o * 2 + k_i)
+                                        axis_vk = T.axis.S(64, k_o * 2 + k_i)
                                         T.reads(
                                             shared_a[
                                                 new_axis_vi * 16 : new_axis_vi * 16 + 16,
-                                                vk * 16 : vk * 16 + 16 + 8,
+                                                axis_vk * 16 : axis_vk * 16 + 16 + 8,
                                             ]
                                         )
                                         T.writes(
                                             wmma_a[
                                                 new_axis_vi * 16 : new_axis_vi * 16 + 16,
-                                                vk * 16 : vk * 16 + 16,
+                                                axis_vk * 16 : axis_vk * 16 + 16,
                                             ]
                                         )
                                         stride0 = T.var("int32")
@@ -142,7 +141,7 @@ def tensorcore_gemm(handle_a: T.handle, handle_b: T.handle, handle_c: T.handle) 
                                         match_buffer_a0 = T.match_buffer(
                                             shared_a[
                                                 new_axis_vi * 16 : new_axis_vi * 16 + 16,
-                                                vk * 16 : vk * 16 + 16 + 8,
+                                                axis_vk * 16 : axis_vk * 16 + 16 + 8,
                                             ],
                                             (16, 16 + 8),
                                             "float16",
@@ -153,7 +152,7 @@ def tensorcore_gemm(handle_a: T.handle, handle_b: T.handle, handle_c: T.handle) 
                                         wmma_a0 = T.match_buffer(
                                             wmma_a[
                                                 new_axis_vi * 16 : new_axis_vi * 16 + 16,
-                                                vk * 16 : vk * 16 + 16,
+                                                axis_vk * 16 : axis_vk * 16 + 16,
                                             ],
                                             (16, 16),
                                             "float16",
@@ -186,25 +185,25 @@ def tensorcore_gemm(handle_a: T.handle, handle_b: T.handle, handle_c: T.handle) 
                                         new_axis_vj = T.axis.S(
                                             64, axis_by * 8 + thread_tz * 4 + index_jj
                                         )
-                                        vk = T.axis.S(64, k_o * 2 + k_i)
+                                        axis_vk = T.axis.S(64, k_o * 2 + k_i)
                                         T.reads(
                                             shared_b[
                                                 new_axis_vj * 16 : new_axis_vj * 16 + 16,
-                                                vk * 16 : vk * 16 + 16 + 8,
+                                                axis_vk * 16 : axis_vk * 16 + 16 + 8,
                                             ]
                                         )
                                         T.writes(
                                             wmma_b[
                                                 new_axis_vj * 16 : new_axis_vj * 16 + 16,
-                                                vk * 16 : vk * 16 + 16,
+                                                axis_vk * 16 : axis_vk * 16 + 16,
                                             ]
                                         )
                                         stride0 = T.var("int32")
                                         stride1 = T.var("int32")
-                                        B0 = T.match_buffer(
+                                        match_buffer_b0 = T.match_buffer(
                                             shared_b[
                                                 new_axis_vj * 16 : new_axis_vj * 16 + 16,
-                                                vk * 16 : vk * 16 + 16 + 8,
+                                                axis_vk * 16 : axis_vk * 16 + 16 + 8,
                                             ],
                                             (16, 16 + 8),
                                             "float16",
@@ -212,10 +211,10 @@ def tensorcore_gemm(handle_a: T.handle, handle_b: T.handle, handle_c: T.handle) 
                                             scope="shared",
                                             offset_factor=1,
                                         )
-                                        wmma_B0 = T.match_buffer(
+                                        wmma_b0 = T.match_buffer(
                                             wmma_b[
                                                 new_axis_vj * 16 : new_axis_vj * 16 + 16,
-                                                vk * 16 : vk * 16 + 16,
+                                                axis_vk * 16 : axis_vk * 16 + 16,
                                             ],
                                             (16, 16),
                                             "float16",
@@ -225,20 +224,20 @@ def tensorcore_gemm(handle_a: T.handle, handle_b: T.handle, handle_c: T.handle) 
                                         )
                                         T.evaluate(
                                             T.tvm_load_matrix_sync(
-                                                wmma_B0.data,
+                                                wmma_b0.data,
                                                 16,
                                                 16,
                                                 16,
                                                 index_jj,
                                                 T.tvm_access_ptr(
                                                     T.type_annotation(dtype="float16"),
-                                                    B0.data,
-                                                    B0.elem_offset + 8,
-                                                    B0.strides[0],
+                                                    match_buffer_b0.data,
+                                                    match_buffer_b0.elem_offset + 8,
+                                                    match_buffer_b0.strides[0],
                                                     1,
                                                     dtype="handle",
                                                 ),
-                                                B0.strides[0],
+                                                match_buffer_b0.strides[0],
                                                 "col_major",
                                                 dtype="handle",
                                             )
@@ -251,16 +250,16 @@ def tensorcore_gemm(handle_a: T.handle, handle_b: T.handle, handle_c: T.handle) 
                                         new_axis_vj = T.axis.S(
                                             64, axis_by * 8 + thread_tz * 4 + index_jj
                                         )
-                                        vk = T.axis.R(64, k_o * 2 + k_i)
+                                        axis_vk = T.axis.R(64, k_o * 2 + k_i)
                                         T.reads(
                                             [
                                                 wmma_a[
                                                     new_axis_vi * 16 : new_axis_vi * 16 + 16,
-                                                    vk * 16 : vk * 16 + 16,
+                                                    axis_vk * 16 : axis_vk * 16 + 16,
                                                 ],
                                                 wmma_b[
                                                     new_axis_vj * 16 : new_axis_vj * 16 + 16,
-                                                    vk * 16 : vk * 16 + 16,
+                                                    axis_vk * 16 : axis_vk * 16 + 16,
                                                 ],
                                                 wmma_c[
                                                     new_axis_vi * 16 : new_axis_vi * 16 + 16,
@@ -274,10 +273,10 @@ def tensorcore_gemm(handle_a: T.handle, handle_b: T.handle, handle_c: T.handle) 
                                                 new_axis_vj * 16 : new_axis_vj * 16 + 16,
                                             ]
                                         )
-                                        wmma_A1 = T.match_buffer(
+                                        wmma_a1 = T.match_buffer(
                                             wmma_a[
                                                 new_axis_vi * 16 : new_axis_vi * 16 + 16,
-                                                vk * 16 : vk * 16 + 16,
+                                                axis_vk * 16 : axis_vk * 16 + 16,
                                             ],
                                             (16, 16),
                                             "float16",
@@ -285,10 +284,10 @@ def tensorcore_gemm(handle_a: T.handle, handle_b: T.handle, handle_c: T.handle) 
                                             scope="wmma.matrix_a",
                                             offset_factor=1,
                                         )
-                                        wmma_B1 = T.match_buffer(
+                                        wmma_b1 = T.match_buffer(
                                             wmma_b[
                                                 new_axis_vj * 16 : new_axis_vj * 16 + 16,
-                                                vk * 16 : vk * 16 + 16,
+                                                axis_vk * 16 : axis_vk * 16 + 16,
                                             ],
                                             (16, 16),
                                             "float16",
@@ -296,7 +295,7 @@ def tensorcore_gemm(handle_a: T.handle, handle_b: T.handle, handle_c: T.handle) 
                                             scope="wmma.matrix_b",
                                             offset_factor=1,
                                         )
-                                        wmma_C1 = T.match_buffer(
+                                        wmma_c1 = T.match_buffer(
                                             wmma_c[
                                                 new_axis_vi * 16 : new_axis_vi * 16 + 16,
                                                 new_axis_vj * 16 : new_axis_vj * 16 + 16,
@@ -309,13 +308,13 @@ def tensorcore_gemm(handle_a: T.handle, handle_b: T.handle, handle_c: T.handle) 
                                         )
                                         T.evaluate(
                                             T.tvm_mma_sync(
-                                                wmma_C1.data,
+                                                wmma_c1.data,
                                                 index_i * 4 + index_jj,
-                                                wmma_A1.data,
+                                                wmma_a1.data,
                                                 index_i,
-                                                wmma_B1.data,
+                                                wmma_b1.data,
                                                 index_jj,
-                                                wmma_C1.data,
+                                                wmma_c1.data,
                                                 index_i * 4 + index_jj,
                                                 dtype="handle",
                                             )
@@ -338,7 +337,7 @@ def tensorcore_gemm(handle_a: T.handle, handle_b: T.handle, handle_c: T.handle) 
                                 )
                                 stride0 = T.var("int32")
                                 stride1 = T.var("int32")
-                                wmma_C2 = T.match_buffer(
+                                wmma_c2 = T.match_buffer(
                                     wmma_c[
                                         new_axis_vi * 16 : new_axis_vi * 16 + 16,
                                         new_axis_vj * 16 : new_axis_vj * 16 + 16,
@@ -349,7 +348,7 @@ def tensorcore_gemm(handle_a: T.handle, handle_b: T.handle, handle_c: T.handle) 
                                     scope="wmma.accumulator",
                                     offset_factor=1,
                                 )
-                                C1 = T.match_buffer(
+                                match_buffer_c1 = T.match_buffer(
                                     match_buffer_c[
                                         new_axis_vi * 16 : new_axis_vi * 16 + 16,
                                         new_axis_vj * 16 : new_axis_vj * 16 + 16,
@@ -361,20 +360,20 @@ def tensorcore_gemm(handle_a: T.handle, handle_b: T.handle, handle_c: T.handle) 
                                 )
                                 T.evaluate(
                                     T.tvm_store_matrix_sync(
-                                        wmma_C2.data,
+                                        wmma_c2.data,
                                         16,
                                         16,
                                         16,
                                         index_i * 4 + index_jj,
                                         T.tvm_access_ptr(
                                             T.type_annotation(dtype="float32"),
-                                            C1.data,
-                                            C1.elem_offset,
-                                            C1.strides[0],
+                                            match_buffer_c1.data,
+                                            match_buffer_c1.elem_offset,
+                                            match_buffer_c1.strides[0],
                                             1,
                                             dtype="handle",
                                         ),
-                                        C1.strides[0],
+                                        match_buffer_c1.strides[0],
                                         "row_major",
                                         dtype="handle",
                                     )
