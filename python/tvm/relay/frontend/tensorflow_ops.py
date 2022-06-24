@@ -2484,8 +2484,9 @@ def _einsum():
         einsum_attr = dict(attr)
         einsum_attr["equation"] = einsum_attr["equation"].decode("utf-8")
         return AttrCvt(op_name="einsum", ignores=["N"])([inputs], einsum_attr)
-        
+
     return _impl
+
 
 def _elu():
     def _impl(inputs, attr, params, mod):
