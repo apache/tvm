@@ -36,8 +36,8 @@ class BaseTestBatchFlatten:
         (2, 4, 8, 1024),
         (2, 3, 5, 2048),
     )
-    input_layout, input_axis_sep = tvm.testing.parameters(("nhwc-1024c-1d", [4]))
-    output_layout, output_axis_sep = tvm.testing.parameters(("nc-1d", [2]))
+    input_layout, input_axis_sep = tvm.testing.parameters(("nhwc-1024c-2d", [4]))
+    output_layout, output_axis_sep = tvm.testing.parameters(("nc-1024-2d", [2]))
     data_type = tvm.testing.parameter("float16")
 
 
@@ -69,7 +69,7 @@ class TestBatchFlatten(BaseTestBatchFlatten):
             input_layout,
         )
         func_name = "batch_flatten"
-        with tvm.transform.PassContext(opt_level=3, config={"tir.disable_assert": True}):
+        with tvm.transform.PassContext(opt_level=3):
             runtime_module = tvm.build(tir_s.mod, target=target, name=func_name)
 
         mod = hexagon_session.load_module(runtime_module)
@@ -98,4 +98,4 @@ class TestBatchFlatten(BaseTestBatchFlatten):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main(pytest.main(sys.argv))

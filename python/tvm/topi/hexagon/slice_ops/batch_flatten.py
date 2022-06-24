@@ -16,8 +16,6 @@
 # under the License.
 
 """Hexagon slice batch flatten compute and schedule"""
-import typing
-
 from tvm import te, tir, topi
 from ..utils import get_layout_transform_fn
 
@@ -43,8 +41,8 @@ def batch_flatten_compute(inp: te.Tensor) -> te.Tensor:
 def batch_flatten_stir_schedule(
     out: te.Tensor,
     inp: te.Tensor,
-    out_layout: typing.Callable,
-    in_layout: typing.Callable,
+    out_layout: str,
+    in_layout: str,
 ) -> tir.Schedule:
     """STIR schedule definition for the compute of batch flatten compute.
     Parameters
