@@ -115,10 +115,11 @@ class ThreadGroup::Impl {
   Impl(int num_workers, std::function<void(int)> worker_callback, bool exclude_worker0)
       : num_workers_(num_workers) {
     ICHECK_GE(num_workers, 1) << "Requested a non-positive number of worker threads.";
+    threads_tid_.resize(num_workers_ - exclude_worker0);
     for (int i = exclude_worker0; i < num_workers_; ++i) {
       threads_.emplace_back([worker_callback, i, this] {
 #ifndef __hexagon__
-        SetTid();
+        SetTid(i);
 #endif
         worker_callback(i);
       });
@@ -344,9 +345,9 @@ class ThreadGroup::Impl {
 
 #ifndef __hexagon__
   pid_t Tid() { return syscall(SYS_gettid); }
-  void SetTid() {
+  void SetTid(size_t index) {
     std::unique_lock<std::mutex> lock(record_tid_mutex_);
-    threads_tid_.push_back(Tid());
+    threads_tid_[index] = (Tid());
   }
   pid_t GetTid(size_t thread_index) {
     while (thread_index >= threads_tid_.size()) {
