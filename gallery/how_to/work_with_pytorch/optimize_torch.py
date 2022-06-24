@@ -18,7 +18,7 @@
 Compile PyTorch Models
 ======================
 **Author**: `Yaoda Zhou <https://github.com/juda/>`_
-This article is an introductory tutorial to optimize PyTorch models by MetaSchedule.
+This article is an introductory tutorial to optimize PyTorch models by using `tvm.contrib.torch.optimize_torch`.
 For us to follow this tutorial, PyTorch as well as TorchVision should be installed.
 For avoiding potential "undefined symbol" issue, we strongly recommend to install PyTorch built with Cxx11 ABI from Conda, as
 .. code-block:: bash
