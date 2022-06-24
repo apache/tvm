@@ -3186,6 +3186,7 @@ class PyTorchOpConverter:
             "aten::upsample_trilinear3d": self.make_upsample3d("linear"),
             "aten::upsample_nearest3d": self.make_upsample3d("nearest_neighbor"),
             "aten::expand_as": self.expand_as,
+            "aten::broadcast_tensors": self.broadcast_tensors,
             "aten::lt": self.make_elemwise("less"),
             "aten::gt": self.make_elemwise("greater"),
             "aten::le": self.make_elemwise("less_equal"),
