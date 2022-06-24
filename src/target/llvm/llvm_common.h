@@ -126,15 +126,8 @@ std::unique_ptr<llvm::TargetMachine> GetLLVMTargetMachine(const Target& target,
  */
 std::string LLVMTargetToString(const Target& target);
 
-void PrintModule(const llvm::Module* mod);
-
 }  // namespace codegen
 }  // namespace tvm
 
-namespace tvm {
-namespace runtime {
-inline String::operator llvm::StringRef() const { return llvm::StringRef(get()->data, size()); }
-}  // namespace runtime
-}  // namespace tvm
 #endif  // TVM_LLVM_VERSION
 #endif  // TVM_TARGET_LLVM_LLVM_COMMON_H_

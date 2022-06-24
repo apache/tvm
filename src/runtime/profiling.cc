@@ -418,12 +418,12 @@ static String print_metric(ObjectRef metric) {
   std::string val;
   if (metric.as<CountNode>()) {
     std::stringstream s;
-    s.imbue(std::locale(""));  // for 1000s seperators
+    s.imbue(std::locale());  // for 1000s seperators
     s << std::fixed << metric.as<CountNode>()->value;
     val = s.str();
   } else if (metric.as<DurationNode>()) {
     std::stringstream s;
-    s.imbue(std::locale(""));  // for 1000s seperators
+    s.imbue(std::locale());  // for 1000s seperators
     s << std::fixed << std::setprecision(2) << metric.as<DurationNode>()->microseconds;
     val = s.str();
   } else if (metric.as<PercentNode>()) {
@@ -432,7 +432,7 @@ static String print_metric(ObjectRef metric) {
     val = s.str();
   } else if (metric.as<RatioNode>()) {
     std::stringstream s;
-    s.imbue(std::locale(""));  // for 1000s seperators
+    s.imbue(std::locale());  // for 1000s seperators
     s << std::setprecision(2) << metric.as<RatioNode>()->ratio;
     val = s.str();
   } else if (metric.as<StringObj>()) {

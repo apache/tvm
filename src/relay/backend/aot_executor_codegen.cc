@@ -876,9 +876,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
    */
   Map<String, FunctionInfo> CalculateWorkspaceSizes(
       const IRModule& lowered_mod, const Map<String, FunctionInfo>& function_metadata) {
-    Executor executor_config = lowered_mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
-    Integer workspace_byte_alignment =
-        executor_config->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
+    Integer workspace_byte_alignment = GetModuleWorkspaceByteAlignment(lowered_mod);
     Map<String, FunctionInfo> updated_function_metadata;
     for (const auto& kv : lowered_mod->functions) {
       GlobalVar global_var = kv.first;
@@ -905,9 +903,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
    */
   IRModule PlanMemoryWithUSMP(const IRModule& mod) {
     VLOG(1) << "Planning memory with USMP for module:" << std::endl << PrettyPrint(mod);
-    Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
-    Integer workspace_byte_alignment =
-        executor_config->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
+    Integer workspace_byte_alignment = GetModuleWorkspaceByteAlignment(mod);
     IRModule lowered_mod = mod->ShallowCopy();
     lowered_mod = tir::transform::UnifiedStaticMemoryPlanner()(lowered_mod);
     function_metadata_ = CalculateWorkspaceSizes(lowered_mod, function_metadata_);
@@ -918,16 +914,22 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     main_func_info->workspace_sizes.clear();
     if (allocated_pool_infos) {
       for (const tir::usmp::AllocatedPoolInfo& allocated_pool_info : allocated_pool_infos.value()) {
-        for (const auto& kv : allocated_pool_info->pool_info->target_access) {
-          Target tgt = kv.first;
+        for (const auto& tgt : allocated_pool_info->pool_info->targets) {
           VLOG(1) << "USMP requires target " << tgt->ToDebugString() << " to have pool size "
                   << allocated_pool_info->allocated_size->value;
-          if (main_func_info->workspace_sizes.find(tgt) == main_func_info->workspace_sizes.end()) {
-            main_func_info->workspace_sizes.Set(tgt, allocated_pool_info->allocated_size);
+          size_t size = allocated_pool_info->allocated_size->value;
+          if (allocated_pool_info->pool_info->IsInstance<ConstantPoolInfoNode>()) {
+            size += main_func_info->constant_sizes.count(tgt)
+                        ? main_func_info->constant_sizes[tgt]->value
+                        : 0;
+            main_func_info->constant_sizes.Set(tgt, size);
+          } else if (allocated_pool_info->pool_info->IsInstance<WorkspacePoolInfoNode>()) {
+            size += main_func_info->workspace_sizes.count(tgt)
+                        ? main_func_info->workspace_sizes[tgt]->value
+                        : 0;
+            main_func_info->workspace_sizes.Set(tgt, size);
           } else {
-            main_func_info->workspace_sizes.Set(tgt,
-                                                main_func_info->workspace_sizes[tgt]->value +
-                                                    allocated_pool_info->allocated_size->value);
+            LOG(FATAL) << "Unknown pool type: " << allocated_pool_info->pool_info->GetTypeKey();
           }
         }
       }
@@ -940,9 +942,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
    * \brief Run StorageRewrite to plan memory for lowered IRModule.
    */
   IRModule PlanMemoryWithStorageRewrite(const IRModule& mod) {
-    Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
-    Integer workspace_byte_alignment =
-        executor_config->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
+    Integer workspace_byte_alignment = GetModuleWorkspaceByteAlignment(mod);
     IRModule lowered_mod = mod->ShallowCopy();
     function_metadata_ = CalculateWorkspaceSizes(lowered_mod, function_metadata_);
     // Running StorageRewrite just on the main function
@@ -964,6 +964,22 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     main_func_info->workspace_sizes.Set(config_->host_target, main_workspace_size_bytes);
     function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info);
     return lowered_mod;
+  }
+
+  /*!
+   * \brief Gets module workspace alignment from supplied executor or defaults to 16
+   */
+  Integer GetModuleWorkspaceByteAlignment(const IRModule& mod) {
+    Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
+    return executor_config->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
+  }
+
+  /*!
+   * \brief Gets module constant alignment from supplied executor or defaults to 16
+   */
+  Integer GetModuleConstantByteAlignment(const IRModule& mod) {
+    Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
+    return executor_config->GetAttr<Integer>("constant-byte-alignment").value_or(16);
   }
 
  protected:
@@ -1026,14 +1042,14 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     VLOG_CONTEXT << "AOT";
 
     Runtime runtime_config = mod->GetAttr<Runtime>(tvm::attr::kRuntime).value();
+    Integer workspace_byte_alignment = GetModuleWorkspaceByteAlignment(mod);
+
     Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
     std::string interface_api =
         executor_config->GetAttr<String>("interface-api").value_or("packed");
-    Integer workspace_byte_alignment =
-        executor_config->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
     bool unpacked_api = executor_config->GetAttr<Bool>("unpacked-api").value_or(Bool(false));
 
-    // Validate choice of use_unpacked_api_ and use_call_cpacked_
+    // Validate choice of unpacked_api and use_call_cpacked_
     if (runtime_config->name == kTvmRuntimeCrt) {
       if (unpacked_api == true) {
         call_type_ = CallType::kUnpacked;
@@ -1173,12 +1189,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     }
     Array<tir::Var> outputs =
         Array<tir::Var>(outputs_begin_iterator, main_func_params_end_iterator - devices.size());
-    std::vector<String> output_var_names;
-    for (const tir::Var& output : outputs) {
-      output_var_names.push_back(output->name_hint);
-    }
 
-    Array<TensorType> output_tensor_types{final_aot_allocator.GetReturnTtypes()};
     lowered_mod->Update(GlobalVar(::tvm::runtime::symbol::tvm_module_main), tir_main_func);
     // Parallel for loops are not supported in AoT codegen.
     lowered_mod = tir::transform::ConvertForLoopsToSerial()(lowered_mod);
@@ -1193,7 +1204,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     ret.function_metadata = std::move(function_metadata_);
 
     // Legalize AOT if needed. This means that all the packed calls
-    // need to be wrapped in TVMValues (unless use_unpacked_api is set)
+    // need to be wrapped in TVMValues (unless unpacked_api is set)
     if (call_type_ == CallType::kCPacked || call_type_ == CallType::kPacked) {
       auto pack_calls = tir::transform::LegalizePackedCalls();
       lowered_mod = pack_calls(lowered_mod);
@@ -1235,11 +1246,32 @@ class AOTExecutorCodegen : public MixedModeVisitor {
             ->GetAttr<Map<String, tir::usmp::PoolAllocation>>(tvm::attr::kIOTensorPoolAllocations)
             .value_or({});
 
-    ret.metadata =
-        ExecutorCodegenMetadata(inputs, input_tensor_types, output_var_names, output_tensor_types,
-                                pool_vars, devices, runtime::kTvmExecutorAot, mod_name,
-                                interface_api, unpacked_api, pool_var_info, io_pool_allocations);
+    std::vector<String> output_var_names;
+    if (auto opt = func->GetAttr<Array<String>>("output_tensor_names")) {
+      Array<String> output_tensor_names = opt.value();
+      for (size_t i = 0; i < output_tensor_names.size(); ++i) {
+        output_var_names.push_back(output_tensor_names[i]);
+      }
+    }
 
+    // If output names have not been specified then generate default output names
+    if (output_var_names.size() == 0) {
+      if (return_sid_.size() == 1) {
+        output_var_names.push_back(String("output"));
+      } else {
+        for (size_t i = 0; i < return_sid_.size(); ++i) {
+          output_var_names.push_back(String("output" + std::to_string(i)));
+        }
+      }
+    }
+
+    Array<TensorType> output_tensor_types{final_aot_allocator.GetReturnTtypes()};
+
+    ret.metadata = ExecutorCodegenMetadata(
+        inputs, input_tensor_types, output_var_names, output_tensor_types, pool_vars, devices,
+        runtime::kTvmExecutorAot, mod_name, interface_api, unpacked_api,
+        GetModuleWorkspaceByteAlignment(mod), GetModuleConstantByteAlignment(mod), pool_var_info,
+        io_pool_allocations);
     return ret;
   }
 

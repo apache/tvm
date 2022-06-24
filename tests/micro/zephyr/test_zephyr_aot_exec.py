@@ -68,6 +68,7 @@ def _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config):
 
 
 @tvm.testing.requires_micro
+@pytest.mark.skip_boards(["mps2_an521"])
 def test_relay(temp_dir, board, west_cmd, tvm_debug):
     """Testing a simple relay graph"""
 
@@ -101,6 +102,7 @@ def test_relay(temp_dir, board, west_cmd, tvm_debug):
 
 
 @tvm.testing.requires_micro
+@pytest.mark.skip_boards(["mps2_an521"])
 def test_aot_executor(temp_dir, board, west_cmd, tvm_debug):
     """Test use of the AOT executor with microTVM."""
 

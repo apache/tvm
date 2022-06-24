@@ -245,6 +245,23 @@ def test_broadcast_to_const_shape_int64(executor_kind):
         tvm.testing.assert_allclose(op_res.numpy(), ref_res)
 
 
+def test_broadcast_concat_shape_int64(executor_kind):
+    x_shape = (1, 2, 1, 1)
+    broadcast_shape = [1, 2, 2, 1]
+    x = relay.var("data", relay.TensorType(x_shape, "float32"))
+    broadcast_to = relay.op.broadcast_to(x, relay.const(broadcast_shape, dtype="int64"))
+    concate = relay.op.concatenate((broadcast_to,), axis=0)
+
+    f = relay.Function([x], concate)
+
+    x = np.zeros(x_shape).astype("float32")
+    ref_res = np.concatenate((np.broadcast_to(x, broadcast_shape),), axis=0)
+
+    for target, dev in tvm.testing.enabled_targets():
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(f)(x)
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res)
+
+
 @tvm.testing.uses_gpu
 def test_broadcast_to_like(executor_kind):
     shape = (4, 1, 6)

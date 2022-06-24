@@ -329,6 +329,11 @@ runtime::Module BuildNVPTX(IRModule mod, Target target) {
 
 TVM_REGISTER_GLOBAL("target.build.nvptx").set_body_typed(BuildNVPTX);
 
+TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_nvptx")
+    .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
+      *rv = static_cast<void*>(new CodeGenNVPTX());
+    });
+
 }  // namespace codegen
 }  // namespace tvm
 #endif  // TVM_LLVM_VERSION

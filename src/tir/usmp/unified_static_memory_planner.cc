@@ -33,6 +33,7 @@
 #include <tvm/tir/usmp/transform.h>
 #include <tvm/tir/usmp/utils.h>
 
+#include <algorithm>
 #include <string>
 
 namespace tvm {
@@ -62,13 +63,15 @@ IRModule PlanMemory(const IRModule& mod, String algo, bool use_workspace_io) {
   PrimFunc main_func = Downcast<PrimFunc>(module->Lookup(::tvm::runtime::symbol::tvm_module_main));
   BufferInfoAnalysis buffer_info_analysis = ExtractBufferInfo(main_func, module);
   Array<BufferInfo> buffer_info_arr =
-      CreateArrayBufferInfo(buffer_info_analysis->buffer_info_stmts);
+      ConvertToArrayOfBufferInfo(buffer_info_analysis->buffer_info_stmts);
   CHECK(algorithms.count(algo)) << "The selected USMP algorithm : " << algo
                                 << " is not defined. Please define it in the above algorithms map.";
   Map<BufferInfo, PoolAllocation> buffer_info_pool_allocations =
       algorithms[algo](buffer_info_arr, buffer_info_analysis->memory_pressure);
+
   Map<Stmt, PoolAllocation> stmt_pool_allocations = AssignStmtPoolAllocations(
       buffer_info_analysis->buffer_info_stmts, buffer_info_pool_allocations);
+
   module = transform::ConvertPoolAllocationsToOffsets(stmt_pool_allocations)(module);
   if (use_workspace_io) {
     Map<String, PoolAllocation> io_pool_allocations =

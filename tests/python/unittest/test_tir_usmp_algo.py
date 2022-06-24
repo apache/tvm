@@ -22,6 +22,7 @@ from tvm.script import tir as T
 from tvm.tir import stmt_functor
 from tvm.tir.usmp import utils as usmp_utils
 from tvm.target import Target
+from tvm import WorkspacePoolInfo, PoolInfoProperties
 
 
 def _replace_stmt_with_buf_var_names(buffer_info_map):
@@ -98,10 +99,10 @@ def _check_max_workspace_size(buffer_pool_allocations, pool_info, size):
 
 def test_no_pool_error():
     target = Target("c")
-    tiny_workspace_pool = usmp_utils.PoolInfo(
-        pool_name="tiny_workspace",
-        target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS},
-        size_hint_bytes=10,
+    tiny_workspace_pool = WorkspacePoolInfo(
+        "tiny_workspace",
+        [target],
+        PoolInfoProperties(size_hint_bytes=10),
     )
     bi_a = usmp_utils.BufferInfo(
         name_hint="bi_a", size_bytes=10, pool_candidates=[tiny_workspace_pool]
@@ -129,9 +130,9 @@ def test_name_based_ordering(algorithm):
 
     def _test():
         target = Target("c")
-        global_workspace_pool = usmp_utils.PoolInfo(
-            pool_name="global_workspace",
-            target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS},
+        global_workspace_pool = WorkspacePoolInfo(
+            "global_workspace",
+            [target],
         )
         bi_a = usmp_utils.BufferInfo(
             name_hint="bi_a", size_bytes=10, pool_candidates=[global_workspace_pool]
@@ -183,9 +184,9 @@ def test_linear(algorithm, workspace_size):
     bi_f
     """
     target = Target("c")
-    global_workspace_pool = usmp_utils.PoolInfo(
-        pool_name="global_workspace",
-        target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS},
+    global_workspace_pool = WorkspacePoolInfo(
+        "global_workspace",
+        [target],
     )
     bi_a = usmp_utils.BufferInfo(
         name_hint="bi_a", size_bytes=10, pool_candidates=[global_workspace_pool]
@@ -250,9 +251,9 @@ def test_fanout(algorithm, workspace_size):
     bi_g
     """
     target = Target("c")
-    global_workspace_pool = usmp_utils.PoolInfo(
-        pool_name="global_workspace",
-        target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS},
+    global_workspace_pool = WorkspacePoolInfo(
+        "global_workspace",
+        targets=[target],
     )
     bi_a = usmp_utils.BufferInfo(
         name_hint="bi_a", size_bytes=10, pool_candidates=[global_workspace_pool]
@@ -372,13 +373,14 @@ class MobilenetStructure:
 )
 def test_mobilenet_subgraph(algorithm, fast_memory_size, slow_memory_size):
     target = Target("c")
-    fast_memory_pool = usmp_utils.PoolInfo(
-        pool_name="fast_memory",
-        target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS},
-        size_hint_bytes=200704,
+    fast_memory_pool = WorkspacePoolInfo(
+        "fast_memory",
+        [target],
+        PoolInfoProperties(size_hint_bytes=200704),
     )
-    slow_memory_pool = usmp_utils.PoolInfo(
-        pool_name="slow_memory", target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS}
+    slow_memory_pool = WorkspacePoolInfo(
+        "slow_memory",
+        [target],
     )
     tir_mod = MobilenetStructure
     tir_mod = _assign_targets_to_primfuncs_irmodule(tir_mod, target)
@@ -538,9 +540,9 @@ class ResnetStructure:
 )
 def test_resnet_subgraph(algorithm, workspace_size):
     target = Target("c")
-    global_workspace_pool = usmp_utils.PoolInfo(
-        pool_name="global_workspace",
-        target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS},
+    global_workspace_pool = WorkspacePoolInfo(
+        "global_workspace",
+        [target],
     )
     tir_mod = ResnetStructure
     tir_mod = _assign_targets_to_primfuncs_irmodule(tir_mod, target)
