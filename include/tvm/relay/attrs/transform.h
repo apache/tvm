@@ -27,6 +27,7 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/relay/base.h>
 #include <tvm/relay/expr.h>
+#include <tvm/tir/index_map.h>
 
 #include <string>
 
@@ -426,6 +427,22 @@ struct AutoSchedulerLayoutTransformAttrs
     TVM_ATTR_FIELD(src_layout).describe("The source layout of the tensor. (e.g. 1N32C112H112W)");
     TVM_ATTR_FIELD(dst_layout)
         .describe("The destination layout of the tensor. (e.g. 1N2C112H112W16c)");
+  }
+};
+
+/*! \brief Attributes for MetaScheduleLayoutTransform operator */
+struct MetaScheduleLayoutTransformAttrs : public tvm::AttrsNode<MetaScheduleLayoutTransformAttrs> {
+  tir::IndexMap index_map;
+
+  TVM_DECLARE_ATTRS(MetaScheduleLayoutTransformAttrs,
+                    "relay.attrs.MetaScheduleLayoutTransformAttrs") {
+    TVM_ATTR_FIELD(index_map).describe(
+        "The order of the extents, for example, "
+        "let extents = [2, 3, 4], reorder = [0, 2, 1], and the shape of buffer A is (4, 6)"
+        "then A[i, j] will be first rewritten to "
+        "A[(6 * i + j) / 12, (6 * i + j) / 4 % 3 , (6 * i + j) % 4] according to the `extents`,"
+        "and then reordered to A[(6 * i + j) / 12, (6 * i + j) % 4 , (6 * i + j) / 4 % 3]"
+        "according to `reorder`");
   }
 };
 

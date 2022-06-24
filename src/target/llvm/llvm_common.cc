@@ -189,13 +189,6 @@ std::string LLVMTargetToString(const Target& target) {
   return os.str();
 }
 
-void PrintModule(const llvm::Module* mod) {
-  std::string modpe_str;
-  llvm::raw_string_ostream rso(modpe_str);
-  mod->print(rso, nullptr);
-  LOG(INFO) << rso.str();
-}
-
 }  // namespace codegen
 }  // namespace tvm
 #endif  // TVM_LLVM_VERSION

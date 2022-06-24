@@ -74,7 +74,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << "name_hint=" << node->name_hint << ",\n  size_bytes=" << node->size_bytes
                 << ",\n  pool_candidates=" << node->pool_candidates
                 << ",\n  alignment=" << node->alignment << ",\n  kind=" << toString[node->kind]
-                << ")";
+                << ",\n  conflicts=" << node->conflicts.size() << ")";
     });
 
 BufferInfoAnalysis::BufferInfoAnalysis(Map<BufferInfo, tir::Stmt> buffer_info_stmts,
@@ -145,7 +145,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ")";
     });
 
-Array<BufferInfo> CreateArrayBufferInfo(const Map<BufferInfo, Stmt>& buffer_info_map) {
+Array<BufferInfo> ConvertToArrayOfBufferInfo(const Map<BufferInfo, Stmt>& buffer_info_map) {
   Array<BufferInfo> ret;
   for (const auto& kv : buffer_info_map) {
     auto buffer_info = kv.first;
@@ -180,10 +180,10 @@ Map<String, PoolAllocation> GetIOPoolAllocations(
   return io_tensor_name_to_pool_allocation;
 }
 
-Integer CalculateExtentsSize(const AllocateNode* op) {
-  size_t element_size_bytes = op->dtype.bytes();
+static Integer CalculateExtentsSize(const DataType& dtype, const Array<PrimExpr>& extents) {
+  size_t element_size_bytes = dtype.bytes();
   size_t num_elements = 1;
-  for (const auto& ext : op->extents) {
+  for (const auto& ext : extents) {
     if (ext->IsInstance<IntImmNode>()) {
       num_elements *= Downcast<IntImm>(ext)->value;
     } else {
@@ -194,11 +194,21 @@ Integer CalculateExtentsSize(const AllocateNode* op) {
   return Integer(num_elements * element_size_bytes);
 }
 
+Integer CalculateExtentsSize(const AllocateNode* op) {
+  return CalculateExtentsSize(op->dtype, op->extents);
+}
+
+Integer CalculateExtentsSize(const AllocateConstNode* op) {
+  return CalculateExtentsSize(op->dtype, op->extents);
+}
+
 class ModuleWorkspaceSizeCalculator : public StmtExprVisitor {
  public:
   explicit ModuleWorkspaceSizeCalculator(const IRModule& module) : mod_(module) {
     for (const auto& gv_func : mod_->functions) {
-      functions_.Set(gv_func.first->name_hint, Downcast<PrimFunc>(gv_func.second));
+      if ((gv_func.second)->IsInstance<tir::PrimFuncNode>()) {
+        functions_.Set(gv_func.first->name_hint, Downcast<PrimFunc>(gv_func.second));
+      }
     }
     main_func_ = Downcast<PrimFunc>(module->Lookup(::tvm::runtime::symbol::tvm_module_main));
     ICHECK(main_func_.defined()) << "main function is not in the module";
@@ -256,7 +266,7 @@ Integer CalculateModuleWorkspaceSize(const IRModule& mod) {
 
 TVM_REGISTER_GLOBAL("tir.usmp.CreateArrayBufferInfo")
     .set_body_typed([](Map<BufferInfo, Stmt> buffer_info_map) {
-      return (CreateArrayBufferInfo(buffer_info_map));
+      return (ConvertToArrayOfBufferInfo(buffer_info_map));
     });
 
 TVM_REGISTER_GLOBAL("tir.usmp.AssignStmtPoolAllocations").set_body_typed(AssignStmtPoolAllocations);

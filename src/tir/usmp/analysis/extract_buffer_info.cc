@@ -73,6 +73,7 @@ class BufferInfoExtractor : public StmtExprVisitor {
  private:
   void VisitStmt(const Stmt& n) override;
   void VisitStmt_(const AllocateNode* op) override;
+  void VisitStmt_(const AllocateConstNode* op) override;
   void VisitExpr_(const CallNode* op) override;
   void VisitExpr_(const VarNode* op) override;
   void VisitExpr_(const BufferLoadNode* op) override;
@@ -81,6 +82,7 @@ class BufferInfoExtractor : public StmtExprVisitor {
 
   void UpdateAliases(const Array<PrimExpr>& args, const PrimFunc& func);
   void RecordAllocateNodeInfo(const AllocateNode* op);
+  void RecordAllocateConstNodeInfo(const AllocateConstNode* op);
   void VisitPrimFunc(const PrimFunc& func, const Call& call);
 
   /*!
@@ -148,6 +150,12 @@ class BufferInfoExtractor : public StmtExprVisitor {
      * loops structure.
      */
     std::unordered_set<Allocate, ObjectPtrHash, ObjectPtrEqual> allocate_nodes;
+    /*
+     * \brief We record the live allocate_const_nodes because once in loops
+     * the liveness range has to be extended to the whole of the nested
+     * loops structure.
+     */
+    std::unordered_set<AllocateConst, ObjectPtrHash, ObjectPtrEqual> allocate_const_nodes;
     /*!
      * \brief This is recorded to extend the liveness of all allocates within
      * nested loop structure.
@@ -292,9 +300,57 @@ void BufferInfoExtractor::VisitStmt_(const AllocateNode* op) {
   current_scope_info.allocate_nodes.erase(GetRef<Allocate>(op));
 }
 
+void BufferInfoExtractor::VisitStmt_(const AllocateConstNode* op) {
+  ScopeInfo& current_scope_info = scope_stack_.top();
+  RecordAllocateConstNodeInfo(op);
+  StmtExprVisitor::VisitStmt(op->body);
+  current_scope_info.allocate_const_nodes.erase(GetRef<AllocateConst>(op));
+}
+
+void BufferInfoExtractor::RecordAllocateConstNodeInfo(const AllocateConstNode* op) {
+  if (!op->annotations.count(kPoolCandidatesAllocateAttr)) {
+    return;
+  }
+  Integer size_bytes = CalculateExtentsSize(op);
+  ICHECK(size_bytes.defined()) << "constant node size should be defined";
+  const auto& buffer_var = op->buffer_var;
+  if (allocate_infos.find(buffer_var) == allocate_infos.end()) {
+    // By default, the core compiler is assumed to attach the a default pool to each allocate.
+    ICHECK(op->annotations.count(kPoolCandidatesAllocateAttr))
+        << "Every statically sized allocate node needs an pool candidate attribute";
+    auto pool_candidates = Downcast<Array<PoolInfo>>(op->annotations[kPoolCandidatesAllocateAttr]);
+    ICHECK(pool_candidates.size() > 0)
+        << "The core compiler should at least attach a single PoolInfo. If there were no "
+           "user-given arguments for memory pools, the default behaviour is a single size "
+           "un-restricted pool is assigned";
+    PrimFunc func = scope_stack_.top().func;
+    Optional<tvm::relay::Executor> executor_config =
+        module_->GetAttr<tvm::relay::Executor>(tvm::attr::kExecutor);
+    Integer alignment = 16;
+    if (executor_config) {
+      alignment =
+          executor_config.value()->GetAttr<Integer>("constant-byte-alignment").value_or(alignment);
+    }
+    auto buffer_info = BufferInfo(GetUniqueBufferName(buffer_var->name_hint), size_bytes,
+                                  pool_candidates, alignment);
+    auto allocate = GetRef<AllocateConst>(op);
+    allocate_infos[buffer_var] =
+        AllocateInfo{allocate, scope_stack_.top().func, scope_stack_.top().call};
+    buffer_info_map_.Set(buffer_info, allocate);
+  } else {
+    // Update the allocate info with the latest call
+    AllocateInfo ai = allocate_infos[buffer_var];
+    ai.call = scope_stack_.top().call;
+    allocate_infos[buffer_var] = ai;
+  }
+}
+
 void BufferInfoExtractor::VisitStmt_(const ForNode* op) {
-  ScopeInfo si{scope_stack_.top().call, scope_stack_.top().func, GetRef<For>(op),
+  ScopeInfo si{scope_stack_.top().call,
+               scope_stack_.top().func,
+               GetRef<For>(op),
                scope_stack_.top().allocate_nodes,
+               scope_stack_.top().allocate_const_nodes,
                scope_stack_.top().initial_stmt_of_the_nested_loops};
   if (!scope_stack_.top().initial_stmt_of_the_nested_loops.defined()) {
     si.initial_stmt_of_the_nested_loops = Integer(current_stmt_idx_);
@@ -355,7 +411,13 @@ void BufferInfoExtractor::VisitExpr_(const VarNode* op) {
 
     ScopeInfo& currect_scope_info = scope_stack_.top();
     if (currect_scope_info.for_loop.defined()) {
-      currect_scope_info.allocate_nodes.insert(Downcast<Allocate>(allocate));
+      if (allocate->IsInstance<AllocateNode>()) {
+        currect_scope_info.allocate_nodes.insert(Downcast<Allocate>(allocate));
+      } else if (allocate->IsInstance<AllocateConstNode>()) {
+        currect_scope_info.allocate_const_nodes.insert(Downcast<AllocateConst>(allocate));
+      } else {
+        LOG(FATAL) << "Handling of " << allocate->GetTypeKey() << " is not implemented";
+      }
     }
   }
   StmtExprVisitor::VisitExpr_(op);
@@ -401,7 +463,11 @@ void BufferInfoExtractor::UpdateAliases(const Array<PrimExpr>& args, const PrimF
 }
 
 void BufferInfoExtractor::VisitPrimFunc(const PrimFunc& func, const Call& call) {
-  ScopeInfo si{call, func, scope_stack_.top().for_loop, scope_stack_.top().allocate_nodes,
+  ScopeInfo si{call,
+               func,
+               scope_stack_.top().for_loop,
+               scope_stack_.top().allocate_nodes,
+               scope_stack_.top().allocate_const_nodes,
                scope_stack_.top().initial_stmt_of_the_nested_loops};
   call_order_.insert(call);
   scope_stack_.push(si);
@@ -436,10 +502,11 @@ BufferInfoAnalysis BufferInfoExtractor::operator()(const PrimFunc& main_func) {
   // associated with each BufferNodes.
   std::vector<LivenessEvent> le_events_timeline;
   for (const auto& kv1 : buffer_info_map_) {
-    if (!kv1.second->IsInstance<AllocateNode>()) {
+    if (!kv1.second->IsInstance<AllocateNode>() && !kv1.second->IsInstance<AllocateConstNode>()) {
       continue;
     }
-    auto allocate = Downcast<Allocate>(kv1.second);
+
+    auto allocate = Downcast<Stmt>(kv1.second);
     auto buffer_info = Downcast<BufferInfo>(kv1.first);
 
     ICHECK(call_order_.size() >= buffer_info_end_stmt_idx_.size());
@@ -504,6 +571,40 @@ BufferInfoAnalysis BufferInfoExtractor::operator()(const PrimFunc& main_func) {
       open_set_size -= le_event.buffer_info->size_bytes;
       open_set.erase(le_event.buffer_info);
     }
+  }
+
+  // All ConstantPoolInfo items should have conflicts with each other
+  // as they will be placed in RO segment and pre-initialized. To achieve this
+  // first, split buffers to vars (WorkspacePoolInfo items) and constants (ConstantPoolInfo items):
+  Array<BufferInfo> buffer_info_vars;
+  Array<BufferInfo> buffer_info_constants;
+  for (const auto& kv : this->buffer_info_map_) {
+    const auto& stmt = kv.second;
+    if (stmt->IsInstance<AllocateConstNode>()) {
+      buffer_info_constants.push_back(kv.first);
+    } else {
+      buffer_info_vars.push_back(kv.first);
+    }
+  }
+  ICHECK(buffer_info_map_.size() == buffer_info_vars.size() + buffer_info_constants.size())
+      << "missing value";
+
+  Map<ObjectRef, ObjectRef> srch;
+  // Then intersect constants with each other, as all constants should exist at the same time:
+  for (const auto& buf : buffer_info_constants) {
+    srch.Set(buf, buf);
+    Array<ObjectRef> conflicts;
+    std::copy_if(buffer_info_constants.begin(), buffer_info_constants.end(),
+                 std::back_inserter(conflicts), [buf](const auto& b) { return b != buf; });
+    buf->conflicts.Assign(conflicts.begin(), conflicts.end());
+  }
+
+  // And third, remove all conflicts between constants and vars:
+  for (const auto& buf : buffer_info_vars) {
+    Array<ObjectRef> conflicts;
+    std::copy_if(buf->conflicts.begin(), buf->conflicts.end(), std::back_inserter(conflicts),
+                 [&srch](const auto& c) { return srch.end() == srch.find(c); });
+    buf->conflicts.Assign(conflicts.begin(), conflicts.end());
   }
   return BufferInfoAnalysis(this->buffer_info_map_, max_open_set_size);
 }

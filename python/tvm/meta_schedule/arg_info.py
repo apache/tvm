@@ -18,6 +18,7 @@
 from typing import Any, List, Union
 
 from tvm._ffi import register_object
+from tvm.ir import IRModule
 from tvm.runtime import DataType, Object, ShapeTuple
 from tvm.tir import PrimFunc
 
@@ -64,6 +65,24 @@ class ArgInfo(Object):
             An array of the argument information derived.
         """
         return _ffi_api.ArgInfoFromPrimFunc(func)  # type: ignore # pylint: disable=no-member
+
+    @staticmethod
+    def from_entry_func(mod: IRModule, remove_preproc: bool = True) -> List["ArgInfo"]:
+        """Extract a list of the argument information from the entry func of an IRModule.
+
+        Parameters
+        ----------
+        mod : IRModule
+            The IRModule to get argument information from.
+        remove_preproc : bool
+            Whether to remove the preprocessing blocks.
+
+        Returns
+        -------
+        extracted : List[ArgInfo]
+            An array of the argument information derived.
+        """
+        return _ffi_api.ArgInfoFromEntryFunc(mod, remove_preproc)  # type: ignore # pylint: disable=no-member
 
 
 @register_object("meta_schedule.TensorInfo")

@@ -844,6 +844,17 @@ class PyTorchOpConverter:
         data = inputs[0]
         return data * _op.tensor.sigmoid(data)
 
+    def glu(self, inputs, input_types):
+        """
+        Applies the gated linear unit function GLU(a,b)= a * sigmoid(b)
+        where a is the first half of the input matrices and b is the second half.
+        Link: https://pytorch.org/docs/stable/generated/torch.nn.GLU.html
+        """
+        data = inputs[0]
+        dim = inputs[1]
+        relay_tup = _op.transform.split(data, 2, dim)
+        return relay_tup[0] * _op.tensor.sigmoid(relay_tup[1])
+
     def log_sigmoid(self, inputs, input_types):
         data = inputs[0]
         return _op.log(_op.tensor.sigmoid(data))
@@ -3053,6 +3064,7 @@ class PyTorchOpConverter:
             "aten::gelu": self.gelu,
             "aten::selu": self.selu,
             "aten::silu": self.silu,
+            "aten::glu": self.glu,
             "aten::log_sigmoid": self.log_sigmoid,
             "aten::adaptive_avg_pool1d": functools.partial(
                 self.adaptive_avg_pool, _op.nn.adaptive_avg_pool1d

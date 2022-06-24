@@ -84,7 +84,7 @@ bool MatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       // we just forcefully apply the layout provided by auto-scheduler and
       // skip the normal inference logic.
       {}  // do nothing
-    } else {
+    } else if (param->meta_schedule_original_shape.size() == 0) {
       // Normal case: assign result to reporter
       reporter->Assign(types[1], TensorType(wshape, tensor_b_dtype));
     }

@@ -2953,6 +2953,44 @@ Example::
 // relay.split
 TVM_REGISTER_NODE_TYPE(SplitAttrs);
 
+InferCorrectLayoutOutput SplitInferCorrectLayout(const Attrs& attrs,
+                                                 const Array<Layout>& new_in_layouts,
+                                                 const Array<Layout>& old_in_layouts,
+                                                 const Array<tvm::relay::Type>& old_in_types) {
+  const auto* attrs_ptr = attrs.as<SplitAttrs>();
+  ICHECK(attrs_ptr);
+  ObjectPtr<SplitAttrs> param = make_object<SplitAttrs>(*attrs_ptr);
+
+  Array<Array<IndexExpr>> old_in_shapes;
+  for (auto old_in_t : old_in_types) {
+    ICHECK(old_in_t.as<TensorTypeNode>());
+    old_in_shapes.push_back(old_in_t.as<TensorTypeNode>()->shape);
+  }
+
+  size_t axis =
+      param->axis < 0 ? param->axis + old_in_shapes[0].size() : static_cast<size_t>(param->axis);
+
+  Layout ret = Layout::Undef();
+  size_t size = 0;
+  if (const IntImmNode* sections = param->indices_or_sections.as<IntImmNode>()) {
+    size = sections->value;
+  } else {
+    size = Downcast<Array<Integer>>(param->indices_or_sections).size() + 1;
+  }
+
+  // If new_in_layouts are defined, this code tries to modify the layout.
+  if (new_in_layouts.defined() && old_in_layouts.defined()) {
+    const auto& sp_dim = old_in_layouts[0][axis];
+    auto new_index = new_in_layouts[0].IndexOf(sp_dim);
+    param->axis = new_index;
+    ret = new_in_layouts[0];
+  } else if (old_in_layouts.defined()) {
+    ret = old_in_layouts[0];
+  }
+
+  return InferCorrectLayoutOutput({ret}, {Array<Layout>(size, ret)}, Attrs(param));
+}
+
 bool SplitRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
               const TypeReporter& reporter) {
   // `types` contains: [data, result]
@@ -3074,6 +3112,7 @@ the entries indicate where along axis the array is split.
     .set_support_level(3)
     .add_type_rel("Split", SplitRel)
     .set_attr<FTVMCompute>("FTVMCompute", SplitCompute)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", SplitInferCorrectLayout)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 // relay.slice_like
@@ -3347,6 +3386,47 @@ RELAY_REGISTER_OP("auto_scheduler_layout_transform")
     .add_type_rel("auto_scheduler_layout_transform", AutoSchedulerLayoutTransformRel)
     .set_support_level(5)
     .set_attr<FTVMCompute>("FTVMCompute", AutoSchedulerLayoutTransformCompute);
+
+// relay.meta_schedule_layout_transform
+TVM_REGISTER_NODE_TYPE(MetaScheduleLayoutTransformAttrs);
+
+Array<te::Tensor> MetaScheduleLayoutTransformCompute(const Attrs& attrs,
+                                                     const Array<te::Tensor>& inputs,
+                                                     const Type& out_type) {
+  const auto* param = attrs.as<MetaScheduleLayoutTransformAttrs>();
+  CHECK(param != nullptr);
+  return Array<te::Tensor>{topi::meta_schedule_layout_transform(inputs[0], param->index_map)};
+}
+
+bool MetaScheduleLayoutTransformRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                                    const TypeReporter& reporter) {
+  TensorType data_type = Downcast<TensorType>(types[0]);
+  const MetaScheduleLayoutTransformAttrs* params = attrs.as<MetaScheduleLayoutTransformAttrs>();
+  ICHECK(params);
+  Array<PrimExpr> new_shape = params->index_map->MapShape(data_type->shape);
+  reporter->Assign(types[1], TensorType(new_shape, data_type->dtype));
+  return true;
+}
+
+Expr MakeMetaScheduleLayoutTransform(Expr data, tir::IndexMap index_map) {
+  static const Op& op = Op::Get("meta_schedule_layout_transform");
+  auto attrs = make_object<MetaScheduleLayoutTransformAttrs>();
+  attrs->index_map = index_map;
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.meta_schedule_layout_transform")
+    .set_body_typed(MakeMetaScheduleLayoutTransform);
+
+RELAY_REGISTER_OP("meta_schedule_layout_transform")
+    .describe(R"code(Transform the input kernel layout.
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<MetaScheduleLayoutTransformAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_type_rel("meta_schedule_layout_transform", MetaScheduleLayoutTransformRel)
+    .set_support_level(5)
+    .set_attr<FTVMCompute>("FTVMCompute", MetaScheduleLayoutTransformCompute);
 
 // relay._contrib_reverse_reshape
 Expr MakeReverseReshape(Expr data, Array<Integer> newshape) {
