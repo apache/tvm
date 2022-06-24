@@ -3009,8 +3009,15 @@ class OperatorConverter(object):
 
         input_tensor = input_tensors[0]
         alpha_tensor = input_tensors[1]
+        if self.has_expr(alpha_tensor.tensor_idx):
+            alpha_expr = self.get_expr(alpha_tensor.tensor_idx)
+        else:
+            alpha_tensor_type = alpha_tensor.tensor.Type()
+            alpha_tensor_type_str = self.get_tensor_type_str(alpha_tensor_type)
+            alpha_expr = self.exp_tab.new_const(
+                self.get_tensor_value(alpha_tensor), dtype=alpha_tensor_type_str
+            )
         in_expr = self.get_expr(input_tensor.tensor_idx)
-        alpha_expr = self.get_expr(alpha_tensor.tensor_idx)
         data_shape = to_int_list(self.get_tensor_shape(input_tensor))
 
         alpha_expr = _op.broadcast_to(alpha_expr, data_shape)
