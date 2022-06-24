@@ -37,6 +37,9 @@
 namespace tvm {
 namespace contrib {
 
+/**
+ * We pass the TVM module by TVM's FFI because Torch's FFI cannot recognize such TVM objects
+ */
 struct ThreadLocalStore {
   tvm::runtime::Module mod;
   static ThreadLocalStore* ThreadLocal() {
@@ -45,7 +48,7 @@ struct ThreadLocalStore {
   }
 };
 
-using SerializationType = std::string;  // executor factory stream
+using SerializationType = std::string;  // base64 stream
 
 SerializationType serialize(tvm::runtime::Module module) {
   static const runtime::PackedFunc* f_to_str =
@@ -83,6 +86,11 @@ tvm::runtime::Module deserialize(SerializationType state) {
   return ret;
 }
 
+/**
+ * @brief A Torch's module which wraps TVM's OperatorModule Class.
+ * The basic forward function calling TVM's runtime is provided.
+ * The TVM module can be serialized/deserialized as a Torch module.
+ */
 class OperatorModuleWrapper : public torch::jit::CustomClassHolder {
  public:
   OperatorModuleWrapper() { runtime_module = ThreadLocalStore::ThreadLocal()->mod; }
@@ -128,7 +136,7 @@ tvm::Device getDevice(const at::Tensor& tensor) {
       if (dev.device_id == -1) {
         /*
          * In PyTorch the device ID for cpu is -1, sometimes causing error during tuning
-         * Thus we manually set the device ID as 0 for avoding potentially error of index out of
+         * Thus we manually set the device ID as 0 for avoiding potentially error of index out of
          * bounds
          */
         dev.device_id = 0;
@@ -143,6 +151,11 @@ tvm::Device getDevice(const at::Tensor& tensor) {
   return dev;
 }
 
+/**
+ * @brief A Torch's module which wraps TVM's GraphExecutorFactory Class.
+ * The basic forward function calling TVM's runtime is provided.
+ * The TVM module can be serialized/deserialized as a Torch module.
+ */
 class GraphExecutorFactoryWrapper : public torch::jit::CustomClassHolder {
  public:
   GraphExecutorFactoryWrapper(tvm::runtime::Module executor_factory)

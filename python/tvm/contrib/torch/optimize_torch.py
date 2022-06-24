@@ -80,6 +80,8 @@ def optimize_torch(
 
     tuning_config : tvm.meta_schedule.TuneConfig
         The configuration of tuning by MetaSchedule.
+        We suggest users to provide their own setting, otherwise by default setting a tuning process could be very slow,
+        sometimes costs a few hours.
 
     target : Optional[Union[str, Target]]
         The target of the compilation.
@@ -102,12 +104,12 @@ def optimize_torch(
     if tuning_config:
         pass
     else:
-        # Default setting. For a better tuning result the number could be set larger.
+        # Default setting. For a better tuning result the number could be set large.
         tuning_config = TuneConfig(
             strategy="evolutionary",
-            num_trials_per_iter=4,
-            max_trials_per_task=8,
-            max_trials_global=16,
+            num_trials_per_iter=64,
+            max_trials_per_task=2000,
+            max_trials_global=2000,
         )
 
     # If `func` is already a traced module this statement makes no effect

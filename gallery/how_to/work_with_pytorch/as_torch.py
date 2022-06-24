@@ -24,6 +24,8 @@ For us to follow this tutorial, PyTorch as well as TorchVision should be install
 For avoiding potential "undefined symbol" issue, we strongly recommend to install PyTorch built with Cxx11 ABI from Conda, as
 .. code-block:: bash
     conda install -c conda-forge pytorch-gpu
+    python -c "import torch;print(torch.compiled_with_cxx11_abi())"
+If the output printed in terminal is `True` then PyTorch built with Cxx11 ABI is successfully installed.
 """
 # Import Tvm and PyTorch, as well as necessary libraries
 import tvm
