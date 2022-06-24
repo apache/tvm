@@ -346,13 +346,9 @@ class ThreadGroup::Impl {
 #ifndef __hexagon__
   pid_t Tid() { return syscall(SYS_gettid); }
   void SetTid(size_t index) {
-    std::unique_lock<std::mutex> lock(record_tid_mutex_);
-    threads_tid_[index] = (Tid());
+    threads_tid_[index] = Tid();
   }
   pid_t GetTid(size_t thread_index) {
-    while (thread_index >= threads_tid_.size()) {
-      Yield();
-    }
     return threads_tid_[thread_index];
   }
 #endif  // __hexagon__
@@ -364,7 +360,6 @@ class ThreadGroup::Impl {
   std::vector<std::thread> threads_;
 #endif
   std::vector<pid_t> threads_tid_;
-  std::mutex record_tid_mutex_;
   std::vector<unsigned int> sorted_order_;
   int big_count_ = 0;
   int little_count_ = 0;
