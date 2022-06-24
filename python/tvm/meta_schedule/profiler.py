@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """A context manager that profiles tuning time cost for different parts."""
-from __future__ import annotations
 
 import logging
 from contextlib import contextmanager
