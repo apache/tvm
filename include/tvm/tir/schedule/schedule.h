@@ -277,9 +277,10 @@ class ScheduleNode : public runtime::Object {
    * 3) All loops must start with 0.
    * 4) The domain of a loop to be fused cannot depend on another loop to be fused.
    * \param loop_rvs The loops to be fused
+   * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
    * \return The new loop after fusion
    */
-  virtual LoopRV Fuse(const Array<LoopRV>& loop_rvs) = 0;
+  virtual LoopRV Fuse(const Array<LoopRV>& loop_rvs, bool preserve_unit_iters = true) = 0;
   /*!
    * \brief Split a loop into a list of consecutive loops. It requires:
    * 1) The loop can't have annotation or thread binding.
@@ -287,9 +288,11 @@ class ScheduleNode : public runtime::Object {
    * \param loop_rv The loop to be split
    * \param factors The positive tiling factors, and at most one of which is `NullOpt`, which means
    * that factor is inferred.
+   * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
    * \return The new loops after split
    */
-  virtual Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors) = 0;
+  virtual Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors,
+                              bool preserve_unit_iters = true) = 0;
   /*!
    * \brief Reorder a list of loops. It doesn't require the loops to be consecutive.
    * It requires:

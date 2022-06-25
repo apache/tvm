@@ -587,11 +587,13 @@ def compile_models(
     interface_api: str,
     use_unpacked_api: bool,
     workspace_byte_alignment: int = 8,
+    constant_byte_alignment: int = 8,
     enable_op_fusion: bool = True,
     pass_config: Dict[str, Any] = None,
     use_runtime_executor: bool = True,
     target: tvm.target.Target = tvm.target.Target("c"),
     workspace_memory_pools=None,
+    constant_memory_pools=None,
     schedule_name: str = None,
 ) -> List[AOTCompiledTestModel]:
     """
@@ -605,6 +607,7 @@ def compile_models(
         "aot",
         {
             "workspace-byte-alignment": workspace_byte_alignment,
+            "constant-byte-alignment": constant_byte_alignment,
             "interface-api": interface_api,
             "unpacked-api": use_unpacked_api,
         },
@@ -632,6 +635,7 @@ def compile_models(
                             executor=executor,
                             runtime=runtime,
                             workspace_memory_pools=workspace_memory_pools,
+                            constant_memory_pools=constant_memory_pools,
                             params=model.params,
                             mod_name=model.name,
                         )
@@ -658,6 +662,7 @@ def compile_models(
                         executor=executor,
                         runtime=runtime,
                         workspace_memory_pools=workspace_memory_pools,
+                        constant_memory_pools=constant_memory_pools,
                         params=model.params,
                         mod_name=model.name,
                     )
@@ -683,6 +688,7 @@ def run_and_check(
     interface_api: str,
     debug_calculated_workspaces=False,
     workspace_byte_alignment=8,
+    constant_byte_alignment=8,
     data_linkage: AOTDataLinkage = None,
     test_dir: str = None,
     verbose: bool = False,
@@ -694,7 +700,10 @@ def run_and_check(
     """
 
     def run_and_check_body(base_path):
-        cflags = f"-DTVM_RUNTIME_ALLOC_ALIGNMENT_BYTES={workspace_byte_alignment} "
+        cflags = (
+            f"-DTVM_RUNTIME_ALLOC_ALIGNMENT_BYTES={workspace_byte_alignment} "
+            f" -DTVM_RUNTIME_CONST_ALLOC_ALIGNMENT_BYTES={constant_byte_alignment} "
+        )
         # The calculated workspaces will not account for stack allocator tags used for debugging
         if debug_calculated_workspaces:
             cflags += "-DTVM_CRT_STACK_ALLOCATOR_ENABLE_LIFO_CHECK "
@@ -830,6 +839,7 @@ def compile_and_run(
     use_unpacked_api: bool,
     debug_calculated_workspaces: bool = False,
     workspace_byte_alignment: int = 8,
+    constant_byte_alignment: int = 8,
     enable_op_fusion: bool = True,
     data_linkage: AOTDataLinkage = None,
     use_runtime_executor: bool = True,
@@ -858,6 +868,7 @@ def compile_and_run(
         interface_api=interface_api,
         use_unpacked_api=use_unpacked_api,
         workspace_byte_alignment=workspace_byte_alignment,
+        constant_byte_alignment=constant_byte_alignment,
         enable_op_fusion=enable_op_fusion,
         pass_config=runner.pass_config,
         use_runtime_executor=use_runtime_executor,
@@ -871,6 +882,7 @@ def compile_and_run(
         interface_api=interface_api,
         debug_calculated_workspaces=debug_calculated_workspaces,
         workspace_byte_alignment=workspace_byte_alignment,
+        constant_byte_alignment=constant_byte_alignment,
         data_linkage=data_linkage,
         test_dir=test_dir,
         verbose=verbose,
@@ -897,7 +909,9 @@ def generate_ref_data(mod, input_data, params=None, target="llvm"):
     else:
         main = mod["main"]
     if main.attrs is None or main.attrs["output_tensor_names"] is None:
-        output_tensor_names = ["output" if i == 0 else f"output{i+1}" for i in range(output_count)]
+        output_tensor_names = (
+            ["output"] if output_count == 1 else [f"output{i}" for i in range(output_count)]
+        )
     else:
         output_tensor_names = main.attrs["output_tensor_names"]
 

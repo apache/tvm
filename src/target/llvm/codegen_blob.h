@@ -23,12 +23,15 @@
  */
 #ifndef TVM_TARGET_LLVM_CODEGEN_BLOB_H_
 #define TVM_TARGET_LLVM_CODEGEN_BLOB_H_
+
 #ifdef TVM_LLVM_VERSION
+
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/Module.h>
+
 #include <memory>
 #include <string>
 #include <utility>
-
-#include "llvm_common.h"
 
 namespace tvm {
 namespace codegen {
@@ -42,9 +45,10 @@ namespace codegen {
  * \return LLVM module and LLVM context
  */
 std::pair<std::unique_ptr<llvm::Module>, std::shared_ptr<llvm::LLVMContext>> CodeGenBlob(
-    const std::string& data, bool system_lib, const std::string& target_triple);
+    const std::string& data, bool system_lib, const std::string& llvm_target_string);
 
 }  // namespace codegen
 }  // namespace tvm
+
 #endif  // LLVM_VERSION
 #endif  // TVM_TARGET_LLVM_CODEGEN_BLOB_H_

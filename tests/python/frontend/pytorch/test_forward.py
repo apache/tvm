@@ -364,6 +364,22 @@ def test_min_max():
 
 
 @tvm.testing.uses_gpu
+def test_minimum_maximum():
+    class Maximum(Module):
+        def forward(self, lhs, rhs):
+            return torch.maximum(lhs, rhs)
+
+    class Minimum(Module):
+        def forward(self, lhs, rhs):
+            return torch.minimum(lhs, rhs)
+
+    input_data = [torch.rand((10, 10, 10, 10)), torch.rand((10, 10, 10, 10))]
+
+    verify_model(Maximum(), input_data=input_data)
+    verify_model(Minimum(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_reciprocal():
     torch.set_grad_enabled(False)
     input_shape = [2, 1, 10, 1, 10]
@@ -675,6 +691,14 @@ def test_forward_silu():
     input_shape = [1, 3, 10, 10]
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.SiLU().eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_glu():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.GLU().eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -1765,6 +1789,28 @@ def test_forward_expand():
     input_shape = [3, 1]
     input_data = torch.rand(input_shape).float()
     verify_model(Expand2().float().eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_broadcast_tensors():
+    torch.set_grad_enabled(False)
+
+    class BroadCastTensors1(Module):
+        def forward(self, x, y):
+            return torch.broadcast_tensors(x, y)
+
+    x = torch.arange(3).view(1, 1, 3)
+    y = torch.arange(2).view(1, 2, 1)
+    verify_model(BroadCastTensors1().float().eval(), input_data=[x, y])
+
+    class BroadCastTensors2(Module):
+        def forward(self, x, y, z):
+            return torch.broadcast_tensors(x, y, z)
+
+    x = torch.arange(3).view(1, 1, 3)
+    y = torch.arange(2).view(1, 2, 1)
+    z = torch.arange(4).view(4, 1, 1)
+    verify_model(BroadCastTensors2().float().eval(), input_data=[x, y, z])
 
 
 @tvm.testing.uses_gpu

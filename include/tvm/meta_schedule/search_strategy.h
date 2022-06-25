@@ -113,12 +113,10 @@ class SearchStrategyNode : public runtime::Object {
 
   /*!
    * \brief Update the search strategy with measurement results.
-   * \param context The tuning context.
    * \param measure_candidates The candidates to be measured.
    * \param results The measurement results from the runner.
    */
-  virtual void NotifyRunnerResults(const TuneContext& context,
-                                   const Array<MeasureCandidate>& measure_candidates,
+  virtual void NotifyRunnerResults(const Array<MeasureCandidate>& measure_candidates,
                                    const Array<RunnerResult>& results) = 0;
 
   static constexpr const char* _type_key = "meta_schedule.SearchStrategy";
@@ -150,8 +148,8 @@ class PySearchStrategyNode : public SearchStrategyNode {
    * \brief The function type of `NotifyRunnerResults` method.
    * \param results The measurement results from the runner.
    */
-  using FNotifyRunnerResults = runtime::TypedPackedFunc<void(
-      const TuneContext&, const Array<MeasureCandidate>&, const Array<RunnerResult>&)>;
+  using FNotifyRunnerResults =
+      runtime::TypedPackedFunc<void(const Array<MeasureCandidate>&, const Array<RunnerResult>&)>;
 
   /*! \brief The packed function to the `InitializeWithTuneContext` method. */
   FInitializeWithTuneContext f_initialize_with_tune_context;
@@ -177,8 +175,7 @@ class PySearchStrategyNode : public SearchStrategyNode {
                  const Optional<CostModel>& cost_model) final;
   void PostTuning() final;
   Optional<Array<MeasureCandidate>> GenerateMeasureCandidates() final;
-  void NotifyRunnerResults(const TuneContext& context,
-                           const Array<MeasureCandidate>& measure_candidates,
+  void NotifyRunnerResults(const Array<MeasureCandidate>& measure_candidates,
                            const Array<RunnerResult>& results);
 
   static constexpr const char* _type_key = "meta_schedule.PySearchStrategy";

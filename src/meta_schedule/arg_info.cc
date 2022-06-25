@@ -60,6 +60,14 @@ Array<ArgInfo> ArgInfo::FromPrimFunc(const tir::PrimFunc& func) {
   return result;
 }
 
+Array<ArgInfo> ArgInfo::FromEntryFunc(const IRModule& mod, bool remove_preproc) {
+  if (remove_preproc) {
+    IRModule new_mod = tir::transform::RemoveWeightLayoutRewriteBlock()(mod);
+    return ArgInfo::FromPrimFunc(FindEntryFunc(new_mod));
+  }
+  return ArgInfo::FromPrimFunc(FindEntryFunc(mod));
+}
+
 /******** TensorInfo ********/
 
 TensorInfo::TensorInfo(runtime::DataType dtype, runtime::ShapeTuple shape) {
@@ -88,7 +96,7 @@ TensorInfo TensorInfo::FromJSON(const ObjectRef& json_obj) {
       dtype = runtime::String2DLDataType(dtype_str);
     }
     // Load json[2] => shape
-    shape = Downcast<Array<Integer>>(json_array->at(2));
+    shape = AsIntArray(json_array->at(2));
   } catch (const std::runtime_error& e) {  // includes tvm::Error and dmlc::Error
     LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
                << "\nThe error is: " << e.what();
@@ -112,6 +120,7 @@ TVM_REGISTER_NODE_TYPE(TensorInfoNode);
 
 TVM_REGISTER_GLOBAL("meta_schedule.ArgInfoAsJSON").set_body_method<ArgInfo>(&ArgInfoNode::AsJSON);
 TVM_REGISTER_GLOBAL("meta_schedule.ArgInfoFromPrimFunc").set_body_typed(ArgInfo::FromPrimFunc);
+TVM_REGISTER_GLOBAL("meta_schedule.ArgInfoFromEntryFunc").set_body_typed(ArgInfo::FromEntryFunc);
 TVM_REGISTER_GLOBAL("meta_schedule.ArgInfoFromJSON").set_body_typed(ArgInfo::FromJSON);
 TVM_REGISTER_GLOBAL("meta_schedule.TensorInfo")
     .set_body_typed([](runtime::DataType dtype, runtime::ShapeTuple shape) -> TensorInfo {

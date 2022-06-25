@@ -244,6 +244,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
         host_virtual_device_(std::move(host_virtual_device)) {}
 
   VMFunction Compile(const GlobalVar& var, const Function& func) {
+    VLOG(1) << "Compiling:" << std::endl << PrettyPrint(func);
     std::vector<Index> param_device_indexes;
     if (IsClosure(func)) {
       // After lifting we'll have functions of the form:
@@ -1039,13 +1040,11 @@ transform::Sequential VMCompiler::FuseAndLowerOperators(const CompilationConfig&
   // Give each "primitive" Function a hash.
   pass_seqs.push_back(LabelOps());
   // Lower "primitive" Functions to PrimFuncs and rewrite calls.
-  pass_seqs.push_back(tec::LowerTEPass(/*module_name=*/"vm_mod",
-                                       [this](const BaseFunc& func) {
-                                         if (func->GetAttr<String>(attr::kCompiler).defined()) {
-                                           backend::UpdateConstants(func, &params_);
-                                         }
-                                       },
-                                       config));
+  pass_seqs.push_back(tec::LowerTE(/*module_name=*/"vm_mod", config, [this](const BaseFunc& func) {
+    if (func->GetAttr<String>(attr::kCompiler).defined()) {
+      backend::UpdateConstants(func, &params_);
+    }
+  }));
   // Since lowered functions are bound in the IRModule, we can now eliminate any unused
   // let-bound functions.
   pass_seqs.push_back(DeadCodeElimination(/*inline_once=*/false));
@@ -1079,6 +1078,20 @@ IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
       pass_seqs.push_back(transform::FuseOps());
     }
   }
+  if (backend::IsMetaScheduleEnabled() && config_->optional_homogeneous_target.defined()) {
+    Pass major_pass = transform::MetaScheduleLayoutRewrite();
+    bool enable_layout_rewrite_targets =
+        config_->optional_homogeneous_target->kind->device_type == kDLCPU ||
+        config_->optional_homogeneous_target->GetAttr<String>("device", "") == "mali";
+    if (enable_layout_rewrite_targets && pass_ctx.PassEnabled(major_pass->Info())) {
+      With<Target> tctx(config_->optional_homogeneous_target);
+      pass_seqs.push_back(major_pass);
+      // Defuse ops to fold constants, then fuse them again
+      pass_seqs.push_back(transform::DefuseOps());
+      pass_seqs.push_back(transform::FoldConstant());
+      pass_seqs.push_back(transform::FuseOps());
+    }
+  }
 
   pass_seqs.push_back(transform::ToANormalForm());
   pass_seqs.push_back(transform::InferType());
@@ -1090,21 +1103,18 @@ IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
   pass_seqs.push_back(transform::LabelOps());
 
   // Lower all functions annotated as "primitive" by FuseOps.
-  pass_seqs.push_back(tec::LowerTEPass(/*module_name=*/"vm_mod",
-                                       [this](const BaseFunc& func) {
-                                         if (func->GetAttr<String>(attr::kCompiler).defined()) {
-                                           backend::UpdateConstants(func, &params_);
-                                         }
-                                       },
-                                       config_));
+  pass_seqs.push_back(tec::LowerTE(/*module_name=*/"vm_mod", config_, [this](const BaseFunc& func) {
+    if (func->GetAttr<String>(attr::kCompiler).defined()) {
+      backend::UpdateConstants(func, &params_);
+    }
+  }));
 
   // Since lowered functions are bound in the IRModule, we can now eliminate any unused
   // let-bound functions.
   pass_seqs.push_back(DeadCodeElimination(/*inline_once=*/false));
 
-  // Now that we have PrimFuncs, flow and solve VirtualDevice constraints again to account for
-  // any memory scopes which lowering has settled on.
-  pass_seqs.push_back(transform::PlanDevices(config_));
+  // At this point it's possible to run PlanDevices again to pick up any additional constraints
+  // introduced during lowering. However we'll not do this until more testing has been done.
 
   // Inline the functions that are lifted to the module scope. We perform this
   // pass after all other optimization passes but before the memory allocation

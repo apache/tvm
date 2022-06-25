@@ -52,6 +52,29 @@ def add_hexagon_permissions() {
   {% endfor %}
 }
 
+// Run make. First try to do an incremental make from a previous workspace in hope to
+// accelerate the compilation. If something is wrong, clean the workspace and then
+// build from scratch.
+def make(docker_type, path, make_flag) {
+  timeout(time: max_time, unit: 'MINUTES') {
+    try {
+      cmake_build(docker_type, path, make_flag)
+    } catch (hudson.AbortException ae) {
+      // script exited due to user abort, directly throw instead of retry
+      if (ae.getMessage().contains('script returned exit code 143')) {
+        throw ae
+      }
+      echo 'Incremental compilation failed. Fall back to build from scratch'
+      sh (
+        script: "${docker_run} ${docker_type} ./tests/scripts/task_clean.sh ${path}",
+        label: 'Clear old cmake workspace',
+      )
+      cmake_build(docker_type, path, make_flag)
+    }
+  }
+}
+
+
 def build() {
 stage('Build') {
   environment {

@@ -16,12 +16,11 @@
 # under the License.
 """Utilities for meta schedule"""
 import ctypes
-import json
 import logging
 import os
 import shutil
 from contextlib import contextmanager
-from typing import Any, List, Dict, Callable, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import psutil  # type: ignore
 from tvm._ffi import get_global_func, register_func
@@ -294,31 +293,6 @@ def _json_de_tvm(obj: Any) -> Any:
     if isinstance(obj, Map):
         return {_json_de_tvm(k): _json_de_tvm(v) for k, v in obj.items()}
     raise TypeError("Not supported type: " + str(type(obj)))
-
-
-@register_func("meta_schedule.json_obj2str")
-def json_obj2str(json_obj: Any) -> str:
-    json_obj = _json_de_tvm(json_obj)
-    return json.dumps(json_obj)
-
-
-@register_func("meta_schedule.batch_json_str2obj")
-def batch_json_str2obj(json_strs: List[str]) -> List[Any]:
-    """Covert a list of JSON strings to a list of json objects.
-    Parameters
-    ----------
-    json_strs : List[str]
-        The list of JSON strings
-    Returns
-    -------
-    result : List[Any]
-        The list of json objects
-    """
-    return [
-        json.loads(json_str)
-        for json_str in map(str.strip, json_strs)
-        if json_str and (not json_str.startswith("#")) and (not json_str.startswith("//"))
-    ]
 
 
 def shash2hex(mod: IRModule) -> str:

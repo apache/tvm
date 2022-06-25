@@ -52,13 +52,21 @@ ALL_PLATFORMS = (
 
 # Extra scripts required to execute on provisioning
 # in [platform]/base-box/base_box_provision.sh
+COMMON_SCRIPTS = [
+    "apps/microtvm/reference-vm/base_box_setup_common.sh",
+    "docker/install/ubuntu_install_core.sh",
+    "docker/install/ubuntu_install_python.sh",
+    "docker/utils/apt-install-and-clear.sh",
+    "docker/install/ubuntu1804_install_llvm.sh",
+]
+
 EXTRA_SCRIPTS = {
-    "arduino": (),
-    "zephyr": (
+    "arduino": [],
+    "zephyr": [
         "docker/install/ubuntu_init_zephyr_project.sh",
         "docker/install/ubuntu_install_zephyr_sdk.sh",
         "docker/install/ubuntu_install_cmsis.sh",
-    ),
+    ],
 }
 
 PACKER_FILE_NAME = "packer.json"
@@ -244,7 +252,9 @@ def generate_packer_config(platform, file_path, providers):
     repo_root = subprocess.check_output(
         ["git", "rev-parse", "--show-toplevel"], encoding="utf-8"
     ).strip()
-    for script in EXTRA_SCRIPTS[platform]:
+
+    scripts_to_copy = COMMON_SCRIPTS + EXTRA_SCRIPTS[platform]
+    for script in scripts_to_copy:
         script_path = os.path.join(repo_root, script)
         filename = os.path.basename(script_path)
         provisioners.append({"type": "file", "source": script_path, "destination": f"~/{filename}"})
@@ -351,6 +361,9 @@ def do_build_release_test_vm(
     found_box_line = False
     with open(release_test_vagrantfile, "w") as f:
         for line in lines:
+            # Skip setting version
+            if "config.vm.box_version" in line:
+                continue
             m = VM_BOX_RE.match(line)
             if not m:
                 f.write(line)
@@ -479,7 +492,7 @@ def release_command(args):
     if args.release_full_name:
         vm_name = args.release_full_name
     else:
-        vm_name = f"tlcpack/microtvm-{args.platform}-{args.platform_version}"
+        vm_name = f"tlcpack/microtvm-{args.platform}"
 
     if not args.skip_creating_release_version:
         subprocess.check_call(
@@ -605,29 +618,17 @@ def parse_args():
         help="Skip creating the version and just upload for this provider.",
     )
     parser_release.add_argument(
-        "--platform-version",
-        required=False,
-        help=(
-            "For Zephyr, the platform version to release, in the form 'x.y'. "
-            "For Arduino, the version of arduino-cli that's being used, in the form 'x.y.z'."
-        ),
-    )
-    parser_release.add_argument(
         "--release-full-name",
         required=False,
         type=str,
         default=None,
         help=(
             "If set, it will use this as the full release name and version for the box. "
-            "If this set, it will ignore `--platform-version` and `--release-version`."
+            "If this set, it will ignore `--release-version`."
         ),
     )
 
     args = parser.parse_args()
-
-    if args.action == "release" and not args.release_full_name:
-        parser.error("--platform-version is requireed.")
-
     return args
 
 

@@ -27,18 +27,20 @@ from . import _ffi_api
 class PoolInfo(Object):
     """PoolInfo object holds information related to memory pools
     where the statically sized allocate nodes will pooled into.
+    This is a base class for WorkspacePoolInfo and ConstantPoolInfo.
+    """
+
+    def __init__(self):
+        pass
+
+
+@register_object("ir.PoolInfoProperties")
+class PoolInfoProperties(Object):
+    """PoolInfo object holds information related to memory pools
+    where the statically sized allocate nodes will pooled into.
 
     Parameters
     ----------
-    pool_name : str
-        The name of the memory pool
-
-    target_access : Dict[Target, str]
-        A dictionary where keys describe which targets could
-        access the pool where value could take the values :
-        a) "rw" : read-write access
-        b) "ro" : write-only acesss
-
     size_hint_bytes : Optional[int]
         The expected size hint to be used by the allocator.
         The default value would be -1 which means the pool
@@ -74,34 +76,21 @@ class PoolInfo(Object):
 
     """
 
-    # The string parameter to indicate read and write access to a pool
-    # This needs to be kept in sync with kTargetPoolReadWriteAccess in
-    # include/tvm/ir/memory_pools.h
-    READ_WRITE_ACCESS = "rw"
-    # The string parameter to indicate read only access to a pool
-    # This needs to be kept in sync with kTargetPoolReadOnlyAccess in
-    # include/tvm/ir/memory_pools.h
-    READ_ONLY_ACCESS = "ro"
-
     def __init__(
         self,
-        pool_name: str,
-        target_access,  # Dict[Target, str]
         size_hint_bytes: Optional[int] = -1,
         clock_frequency_hz: Optional[int] = -1,
         read_bandwidth_bytes_per_cycle: Optional[int] = -1,
         write_bandwidth_bytes_per_cycle: Optional[int] = -1,
         read_latency_cycles: Optional[int] = 0,
         write_latency_cycles: Optional[int] = 0,
-        target_burst_bytes=None,  # Optional[Union[Dict[target.Target, int], None]]
+        target_burst_bytes=None,
     ):
         if not target_burst_bytes:
             target_burst_bytes = dict()
 
         self.__init_handle_by_constructor__(
-            _ffi_api.PoolInfo,  # type: ignore # pylint: disable=no-member
-            pool_name,
-            target_access,
+            _ffi_api.PoolInfoProperties,  # type: ignore # pylint: disable=no-member
             size_hint_bytes,
             clock_frequency_hz,
             read_bandwidth_bytes_per_cycle,
@@ -112,15 +101,90 @@ class PoolInfo(Object):
         )
 
 
+@register_object("ir.WorkspacePoolInfo")
+class WorkspacePoolInfo(PoolInfo):
+    """WorkspacePoolInfo object holds information related to RW memory pools
+    where the statically sized allocate nodes will pooled into.
+
+    Parameters
+    ----------
+    pool_name : str
+        The name of the memory pool
+
+    targets : list[Target]
+        A list of targets which could access the pool
+
+    pool_info_properties : PoolInfoProperties
+        The properties of the pool.
+    """
+
+    def __init__(
+        self,
+        pool_name: str,
+        targets,
+        pool_info_properties=None,
+    ):
+        super().__init__()
+
+        if pool_info_properties is None:
+            pool_info_properties = PoolInfoProperties()
+
+        self.__init_handle_by_constructor__(
+            _ffi_api.WorkspacePoolInfo,  # type: ignore # pylint: disable=no-member
+            pool_name,
+            targets,
+            pool_info_properties,
+        )
+
+
+@register_object("ir.ConstantPoolInfo")
+class ConstantPoolInfo(PoolInfo):
+    """ConstantPoolInfo object holds information related to RO memory pools
+    where the statically sized allocate nodes are pooled into.
+
+    Parameters
+    ----------
+    pool_name : str
+        The name of the memory pool
+
+    targets : list[Target]
+        describes which targets could access the pool
+
+    pool_info_properties : PoolInfoProperties
+        The properties of the pool.
+    """
+
+    def __init__(
+        self,
+        pool_name: str,
+        targets,  # list[Target]
+        constant_info_arr=None,  # list[ConstantInfo]
+        pool_info_properties=None,
+    ):
+        super().__init__()
+
+        if constant_info_arr is None:
+            constant_info_arr = []
+        if pool_info_properties is None:
+            pool_info_properties = PoolInfoProperties()
+        self.__init_handle_by_constructor__(
+            _ffi_api.ConstantPoolInfo,  # type: ignore # pylint: disable=no-member
+            pool_name,
+            targets,
+            constant_info_arr,
+            pool_info_properties,
+        )
+
+
 @register_object("ir.WorkspaceMemoryPools")
 class WorkspaceMemoryPools(Object):
-    """This object contains a list of PoolInfo objects to be used as
+    """This object contains a list of WorkspacePoolInfo objects to be used as
     workspace memory in the compilation
 
     Parameters
     ----------
-    pools : List[PoolInfo]
-        The list of PoolInfo objects to be used with the compilation
+    pools : List[WorkspacePoolInfo]
+        The list of ConstantPoolInfo objects to be used with the compilation
     """
 
     def __init__(
@@ -129,4 +193,24 @@ class WorkspaceMemoryPools(Object):
     ):
         self.__init_handle_by_constructor__(
             _ffi_api.WorkspaceMemoryPools, pools  # type: ignore # pylint: disable=no-member
+        )
+
+
+@register_object("ir.ConstantMemoryPools")
+class ConstantMemoryPools(Object):
+    """This object contains a list of ConstantPoolInfo objects to be used as
+    read-only memory in the compilation
+
+    Parameters
+    ----------
+    pools : List[ConstantPoolInfo]
+        The list of ConstantPoolInfo objects to be used with the compilation
+    """
+
+    def __init__(
+        self,
+        pools: List[ConstantPoolInfo],
+    ):
+        self.__init_handle_by_constructor__(
+            _ffi_api.ConstantMemoryPools, pools  # type: ignore # pylint: disable=no-member
         )

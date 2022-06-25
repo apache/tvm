@@ -399,6 +399,27 @@ where :math:`*` is an channelwise multiplication for each sample in the batch.
 // relay.softmax
 TVM_REGISTER_NODE_TYPE(SoftmaxAttrs);
 
+bool SoftmaxRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                const TypeReporter& reporter) {
+  ICHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+
+  const SoftmaxAttrs* param = attrs.as<SoftmaxAttrs>();
+  ICHECK(param != nullptr);
+  int axis = param->axis;
+  int ndim = static_cast<int>(data->shape.size());
+  if (axis >= ndim || axis < -ndim) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "Wrong axis (" << axis << ") not in expected range: ["
+                                     << -ndim << ", " << ndim << ")");
+    return false;
+  }
+
+  reporter->Assign(types[1], types[0]);
+  return true;
+}
+
 TVM_REGISTER_GLOBAL("relay.op.nn._make.softmax").set_body_typed([](Expr data, int axis) {
   auto attrs = make_object<SoftmaxAttrs>();
   attrs->axis = axis;
@@ -420,7 +441,7 @@ RELAY_REGISTER_OP("nn.softmax")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_support_level(1)
-    .add_type_rel("Identity", IdentityRel);
+    .add_type_rel("Softmax", SoftmaxRel);
 
 // relay.fast_softmax
 TVM_REGISTER_NODE_TYPE(SoftmaxAttrs);
@@ -447,7 +468,7 @@ RELAY_REGISTER_OP("nn.fast_softmax")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_support_level(1)
-    .add_type_rel("Identity", IdentityRel);
+    .add_type_rel("Softmax", SoftmaxRel);
 
 // relay.nn.log_softmax
 TVM_REGISTER_GLOBAL("relay.op.nn._make.log_softmax").set_body_typed([](Expr data, int axis) {
@@ -471,7 +492,7 @@ RELAY_REGISTER_OP("nn.log_softmax")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_support_level(1)
-    .add_type_rel("Identity", IdentityRel)
+    .add_type_rel("Softmax", SoftmaxRel)
     .set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs, const Array<te::Tensor>& inputs,
                                              const Type& out_type) {
       const auto* param = attrs.as<SoftmaxAttrs>();
@@ -810,6 +831,41 @@ axis to be the last item in the input shape.
 // instance_norm
 TVM_REGISTER_NODE_TYPE(InstanceNormAttrs);
 
+template <typename T>
+InferCorrectLayoutOutput NormalizationInferCorrectLayout(
+    const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
+    const Array<tvm::relay::Type>& old_in_types) {
+  const auto* attrs_ptr = attrs.as<T>();
+  ICHECK(attrs_ptr);
+  ObjectPtr<T> param = make_object<T>(*attrs_ptr);
+
+  Array<Array<IndexExpr>> old_in_shapes;
+  for (auto old_in_t : old_in_types) {
+    ICHECK(old_in_t.as<TensorTypeNode>());
+    old_in_shapes.push_back(old_in_t.as<TensorTypeNode>()->shape);
+  }
+
+  size_t axis =
+      param->axis < 0 ? param->axis + old_in_shapes[0].size() : static_cast<size_t>(param->axis);
+
+  Layout ret = Layout::Undef();
+
+  // If new_in_layouts are defined, this code tries to modify the layout.
+  if (new_in_layouts.defined() && old_in_layouts.defined()) {
+    // Get the new C axis. Extract the dim in old layout. Find the index of that dim in next layout.
+    const auto& ln_dim = old_in_layouts[0][axis];
+    auto new_index = new_in_layouts[0].IndexOf(ln_dim);
+    param->axis = new_index;
+    ret = new_in_layouts[0];
+  } else if (old_in_layouts.defined()) {
+    ret = old_in_layouts[0];
+  }
+
+  // For normalization has 3 inputs, 1 outputs. The last 2 inputs have "C" layout.
+  Layout c_layout = Layout("C");
+  return InferCorrectLayoutOutput({ret, c_layout, c_layout}, {ret}, Attrs(param));
+}
+
 bool InstanceNormRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                      const TypeReporter& reporter) {
   ICHECK_EQ(types.size(), 4);
@@ -868,6 +924,8 @@ to be the last item in the input shape.
     .add_argument("data", "Tensor", "Input to which instance_norm will be applied.")
     .add_argument("gamma", "Tensor", "The gamma scale factor.")
     .add_argument("beta", "Tensor", "The beta offset factor.")
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                                   NormalizationInferCorrectLayout<InstanceNormAttrs>)
     .set_support_level(1)
     .add_type_rel("InstanceNorm", InstanceNormRel);
 
@@ -910,6 +968,8 @@ RELAY_REGISTER_OP("nn.layer_norm")
     .add_argument("data", "Tensor", "Input to which layer_norm will be applied.")
     .add_argument("gamma", "Tensor", "The gamma scale factor.")
     .add_argument("beta", "Tensor", "The beta offset factor.")
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                                   NormalizationInferCorrectLayout<LayerNormAttrs>)
     .set_support_level(1)
     .add_type_rel("LayerNorm", LayerNormRel);
 

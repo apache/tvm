@@ -172,6 +172,11 @@ def test_split():
 
     assert_iter_sum_failure([fld(x, flm(flm(y, 8), 6))], var_dom([(x, 24), (y, 8)]))
 
+    # domain of x is undefined
+    assert_iter_sum_pattern(
+        {fld(flm(x, 49) + y, 49): (1, fld(flm(x, 49) + y, 49))}, var_dom([(y, 1)])
+    )
+
 
 def test_compound():
     x = tvm.tir.Var("x", "int32")

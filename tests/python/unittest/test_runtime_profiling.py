@@ -53,6 +53,7 @@ def read_csv(report):
 
 
 @pytest.mark.skipif(not profiler_vm.enabled(), reason="VM Profiler not enabled")
+@tvm.testing.skip_if_wheel_test
 @tvm.testing.parametrize_targets
 def test_vm(target, dev):
     dtype = "float32"

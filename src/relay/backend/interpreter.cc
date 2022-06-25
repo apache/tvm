@@ -960,8 +960,7 @@ IRModule Prepare(IRModule mod, const CompilationConfig& config) {
        // eta expand to support constructors in argument position.
        transform::EtaExpand(
            /*expand_constructor=*/true, /*expand_global_var=*/false),
-       transform::InferType(),
-       tec::LowerTEPass(/*module_name=*/"intrp", [](BaseFunc func) { /* no-op */ }, config)});
+       transform::InferType(), tec::LowerTE(/*module_name=*/"intrp", config)});
 
   transform::PassContext pass_ctx = transform::PassContext::Current();
   With<transform::PassContext> ctx(pass_ctx);

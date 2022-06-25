@@ -20,7 +20,8 @@ import json
 import subprocess
 import re
 import base64
-from urllib import request
+import logging
+from urllib import request, error
 from typing import Dict, Tuple, Any, Optional, List
 
 
@@ -36,7 +37,7 @@ def post(url: str, body: Optional[Any] = None, auth: Optional[Tuple[str, str]] =
     req = request.Request(url, headers=headers, method="POST")
     if auth is not None:
         auth_str = base64.b64encode(f"{auth[0]}:{auth[1]}".encode())
-        req.add_header("Authorization", f"Basic {auth_str}")
+        req.add_header("Authorization", f"Basic {auth_str.decode()}")
 
     if body is None:
         body = ""
@@ -47,8 +48,7 @@ def post(url: str, body: Optional[Any] = None, auth: Optional[Tuple[str, str]] =
     req.add_header("Content-Length", len(data))
 
     with request.urlopen(req, data) as response:
-        response = json.loads(response.read())
-    return response
+        return response.read()
 
 
 class GitHubRepo:
@@ -85,8 +85,13 @@ class GitHubRepo:
         data = data.encode("utf-8")
         req.add_header("Content-Length", len(data))
 
-        with request.urlopen(req, data) as response:
-            response = json.loads(response.read())
+        try:
+            with request.urlopen(req, data) as response:
+                response = json.loads(response.read())
+        except error.HTTPError as e:
+            logging.info(f"Error response: {e.read().decode()}")
+            raise e
+
         return response
 
     def put(self, url: str, data: Dict[str, Any]) -> Dict[str, Any]:

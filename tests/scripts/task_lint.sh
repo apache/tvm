@@ -74,6 +74,9 @@ function shard2 {
 
   echo "Rust check..."
   tests/lint/rust_format.sh
+
+  echo "Docker check..."
+  tests/lint/docker-format.sh
 }
 
 

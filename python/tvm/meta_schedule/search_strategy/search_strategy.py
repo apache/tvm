@@ -77,7 +77,7 @@ class SearchStrategy(Object):
     before usage and post-tuned after usage.
     """
 
-    def initialize_with_tune_context(self, context: "TuneContext") -> None:
+    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         """Initialize the search strategy with tuning context.
 
         Parameters
@@ -129,7 +129,6 @@ class SearchStrategy(Object):
 
     def notify_runner_results(
         self,
-        context: "TuneContext",
         measure_candidates: List[MeasureCandidate],
         results: List[RunnerResult],
     ) -> None:
@@ -137,8 +136,6 @@ class SearchStrategy(Object):
 
         Parameters
         ----------
-        context : TuneContext
-            The tuning context for update.
         measure_candidates : List[MeasureCandidate]
             The measure candidates for update.
         results : List[RunnerResult]
@@ -146,7 +143,6 @@ class SearchStrategy(Object):
         """
         _ffi_api.SearchStrategyNotifyRunnerResults(  # type: ignore # pylint: disable=no-member
             self,
-            context,
             measure_candidates,
             results,
         )
@@ -192,7 +188,7 @@ class PySearchStrategy:
     _tvm_metadata = {
         "cls": _PySearchStrategy,
         "methods": [
-            "initialize_with_tune_context",
+            "_initialize_with_tune_context",
             "pre_tuning",
             "post_tuning",
             "generate_measure_candidates",
@@ -200,7 +196,7 @@ class PySearchStrategy:
         ],
     }
 
-    def initialize_with_tune_context(self, context: "TuneContext") -> None:
+    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         """Initialize the search strategy with tuning context.
 
         Parameters
@@ -236,7 +232,6 @@ class PySearchStrategy:
 
     def notify_runner_results(
         self,
-        context: "TuneContext",
         measure_candidates: List[MeasureCandidate],
         results: List[RunnerResult],
     ) -> None:
@@ -244,8 +239,6 @@ class PySearchStrategy:
 
         Parameters
         ----------
-        context : TuneContext
-            The tuning context for update.
         measure_candidates : List[MeasureCandidate]
             The measure candidates for update.
         results : List[RunnerResult]

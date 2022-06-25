@@ -32,13 +32,10 @@ class ReplayFuncNode : public SearchStrategyNode {
     int st;
     /*! \brief `[st, ed)` are the indices of the next batch of candidates. */
     int ed;
-    /*! \brief The metadata of the function arguments. */
-    Array<ArgInfo> args_info_{nullptr};
 
     explicit State(ReplayFuncNode* self) : self(self), st(0), ed(self->num_trials_per_iter) {
       const TuneContextNode* ctx = self->context_;
       ICHECK(ctx);
-      this->args_info_ = ArgInfo::FromPrimFunc(FindEntryFunc(ctx->mod.value()));
     }
 
     inline Optional<Array<MeasureCandidate>> GenerateMeasureCandidates();
@@ -98,8 +95,7 @@ class ReplayFuncNode : public SearchStrategyNode {
     return this->state_->GenerateMeasureCandidates();
   }
 
-  void NotifyRunnerResults(const TuneContext& context,
-                           const Array<MeasureCandidate>& measure_candidates,
+  void NotifyRunnerResults(const Array<MeasureCandidate>& measure_candidates,
                            const Array<RunnerResult>& results) final {
     ICHECK(this->state_ != nullptr);
     this->state_->NotifyRunnerResults(results);
@@ -129,7 +125,8 @@ inline Optional<Array<MeasureCandidate>> ReplayFuncNode::State::GenerateMeasureC
         }
       }
       if (!failed) {
-        result.push_back(MeasureCandidate(sch, this->args_info_));
+        Array<ArgInfo> args_info = ArgInfo::FromEntryFunc(sch->mod(), /*remove_preproc=*/true);
+        result.push_back(MeasureCandidate(sch, args_info));
         break;
       }
     }

@@ -81,42 +81,6 @@ class Outliner : public MixedModeMutator {
   IRModule mod_;
 };
 
-/*!
- * \brief Rewrite calls to global "Compiler" functions to use the 'call_lowered' convention.
- */
-class CallRewriter : public MixedModeMutator {
- public:
-  CallRewriter(std::string compiler_filter, IRModule mod)
-      : compiler_filter_(std::move(compiler_filter)), mod_(std::move(mod)) {}
-
-  Expr Rewrite_(const CallNode* pre, const Expr& post) final {
-    Call new_call = Downcast<Call>(post);
-    if (const auto* global_var_node = new_call->op.as<GlobalVarNode>()) {
-      if (const auto* function_node =
-              mod_->Lookup(GetRef<GlobalVar>(global_var_node)).as<FunctionNode>()) {
-        Optional<String> opt_compiler = function_node->GetAttr<String>(attr::kCompiler);
-        if (opt_compiler.defined() &&
-            (compiler_filter_.empty() || opt_compiler.value() == compiler_filter_)) {
-          Optional<String> opt_global_symbol =
-              function_node->GetAttr<String>(tvm::attr::kGlobalSymbol);
-          ICHECK(opt_global_symbol.defined());
-          GlobalVar global_symbol = mod_->GetGlobalVar(opt_global_symbol.value());
-          CallLoweredAttrs attrs;
-          attrs.metadata.Set("relay_attrs", new_call->attrs);
-          return CallLowered(global_symbol, new_call->args, attrs, new_call->span);
-        }
-      }
-    }
-    return post;
-  }
-
- private:
-  /*! \brief If non-empty, the "Compiler" attribute value to require on functions to outline. */
-  std::string compiler_filter_;
-  /*! \brief Module being rewritten. */
-  IRModule mod_;
-};
-
 }  // namespace
 
 GlobalSymbolCache::~GlobalSymbolCache() = default;
@@ -169,20 +133,6 @@ transform::Pass MarkCompilerFunctionsAsExtern(std::string compiler_filter) {
   runtime::TypedPackedFunc<IRModule(IRModule, transform::PassContext)> pass_func =
       [compiler_filter = std::move(compiler_filter)](IRModule mod, transform::PassContext ctx) {
         IRModule output_mod = mod->ShallowCopy();
-
-        // First pass, rewrite the calls.
-        // We have to do this before marking functions as 'extern' to know which calls to rewrite!
-        for (const auto& kv : mod->functions) {
-          if (const auto* function_node = AsOptimizableFunctionNode(kv.second)) {
-            Expr new_body =
-                CallRewriter(compiler_filter, output_mod).VisitExpr(function_node->body);
-            Function new_function =
-                WithFields(GetRef<Function>(function_node), /*opt_params=*/{}, new_body);
-            output_mod->Update(kv.first, new_function);
-          }
-        }
-
-        // Second pass, mark functions as 'extern'.
         for (const auto& kv : mod->functions) {
           if (const auto* function_node = kv.second.as<FunctionNode>()) {
             Optional<String> opt_compiler = function_node->GetAttr<String>(attr::kCompiler);
@@ -197,7 +147,6 @@ transform::Pass MarkCompilerFunctionsAsExtern(std::string compiler_filter) {
             }
           }
         }
-
         return output_mod;
       };
 

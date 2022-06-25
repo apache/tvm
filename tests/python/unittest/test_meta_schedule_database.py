@@ -17,19 +17,17 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 """Test Meta Schedule Database"""
 import os.path as osp
-import sys
 import tempfile
 from typing import Callable
 
-import pytest
 import tvm
 import tvm.testing
+from tvm import meta_schedule as ms
 from tvm import tir
 from tvm.ir.module import IRModule
-from tvm.meta_schedule.arg_info import ArgInfo
-from tvm.meta_schedule.database import JSONDatabase, TuningRecord
 from tvm.script import tir as T
 from tvm.tir import Schedule
+
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 # fmt: off
@@ -92,13 +90,13 @@ def _create_schedule(mod: IRModule, sch_fn: Callable[[Schedule], None]) -> Sched
     return sch
 
 
-def _create_tmp_database(tmpdir: str) -> JSONDatabase:
+def _create_tmp_database(tmpdir: str) -> ms.database.JSONDatabase:
     path_workload = osp.join(tmpdir, "workloads.json")
     path_tuning_record = osp.join(tmpdir, "tuning_records.json")
-    return JSONDatabase(path_workload, path_tuning_record)
+    return ms.database.JSONDatabase(path_workload, path_tuning_record)
 
 
-def _equal_record(a: TuningRecord, b: TuningRecord):
+def _equal_record(a: ms.database.TuningRecord, b: ms.database.TuningRecord):
     assert str(a.trace) == str(b.trace)
     assert str(a.run_secs) == str(b.run_secs)
     # AWAIT(@zxybazh): change to export after fixing "(bool)0"
@@ -113,15 +111,15 @@ def test_meta_schedule_tuning_record_round_trip():
     with tempfile.TemporaryDirectory() as tmpdir:
         database = _create_tmp_database(tmpdir)
         workload = database.commit_workload(mod)
-        record = TuningRecord(
+        record = ms.database.TuningRecord(
             _create_schedule(mod, _schedule_matmul).trace,
             workload,
             [1.5, 2.5, 1.8],
             tvm.target.Target("llvm"),
-            ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
+            ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
         )
         database.commit_tuning_record(record)
-        new_record = TuningRecord.from_json(record.as_json(), workload)
+        new_record = ms.database.TuningRecord.from_json(record.as_json(), workload)
         _equal_record(record, new_record)
 
 
@@ -138,12 +136,12 @@ def test_meta_schedule_database_has_workload():
     with tempfile.TemporaryDirectory() as tmpdir:
         database = _create_tmp_database(tmpdir)
         workload = database.commit_workload(mod)
-        record = TuningRecord(
+        record = ms.database.TuningRecord(
             _create_schedule(mod, _schedule_matmul).trace,
             workload,
             [1.5, 2.5, 1.8],
             tvm.target.Target("llvm"),
-            ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
+            ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
         )
         database.commit_tuning_record(record)
         assert len(database) == 1
@@ -156,12 +154,12 @@ def test_meta_schedule_database_add_entry():
     with tempfile.TemporaryDirectory() as tmpdir:
         database = _create_tmp_database(tmpdir)
         workload = database.commit_workload(mod)
-        record = TuningRecord(
+        record = ms.database.TuningRecord(
             _create_schedule(mod, _schedule_matmul).trace,
             workload,
             [1.5, 2.5, 1.8],
             tvm.target.Target("llvm"),
-            ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
+            ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
         )
         database.commit_tuning_record(record)
         assert len(database) == 1
@@ -176,12 +174,12 @@ def test_meta_schedule_database_missing():
         database = _create_tmp_database(tmpdir)
         workload = database.commit_workload(mod)
         workload_2 = database.commit_workload(mod_2)
-        record = TuningRecord(
+        record = ms.database.TuningRecord(
             _create_schedule(mod, _schedule_matmul).trace,
             workload,
             [1.5, 2.5, 1.8],
             tvm.target.Target("llvm"),
-            ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
+            ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
         )
         database.commit_tuning_record(record)
         ret = database.get_top_k(workload_2, 3)
@@ -195,47 +193,47 @@ def test_meta_schedule_database_sorting():
         token = database.commit_workload(mod)
         trace = _create_schedule(mod, _schedule_matmul).trace
         records = [
-            TuningRecord(
+            ms.database.TuningRecord(
                 trace,
                 token,
                 [7.0, 8.0, 9.0],
                 tvm.target.Target("llvm"),
-                ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
+                ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
             ),
-            TuningRecord(
+            ms.database.TuningRecord(
                 trace,
                 token,
                 [1.0, 2.0, 3.0],
                 tvm.target.Target("llvm"),
-                ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
+                ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
             ),
-            TuningRecord(
+            ms.database.TuningRecord(
                 trace,
                 token,
                 [4.0, 5.0, 6.0],
                 tvm.target.Target("llvm"),
-                ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
+                ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
             ),
-            TuningRecord(
+            ms.database.TuningRecord(
                 trace,
                 token,
                 [1.1, 1.2, 600.0],
                 tvm.target.Target("llvm"),
-                ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
+                ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
             ),
-            TuningRecord(
+            ms.database.TuningRecord(
                 trace,
                 token,
                 [1.0, 100.0, 6.0],
                 tvm.target.Target("llvm"),
-                ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
+                ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
             ),
-            TuningRecord(
+            ms.database.TuningRecord(
                 trace,
                 token,
                 [4.0, 9.0, 8.0],
                 tvm.target.Target("llvm"),
-                ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
+                ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
             ),
         ]
         for record in records:
@@ -257,31 +255,31 @@ def test_meta_schedule_database_reload():
         token = database.commit_workload(mod)
         trace = _create_schedule(mod, _schedule_matmul).trace
         records = [
-            TuningRecord(
+            ms.database.TuningRecord(
                 trace,
                 token,
                 [7.0, 8.0, 9.0],
                 tvm.target.Target("llvm"),
-                ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
+                ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
             ),
-            TuningRecord(
+            ms.database.TuningRecord(
                 trace,
                 token,
                 [1.0, 2.0, 3.0],
                 tvm.target.Target("llvm"),
-                ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
+                ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
             ),
-            TuningRecord(
+            ms.database.TuningRecord(
                 trace,
                 token,
                 [4.0, 5.0, 6.0],
                 tvm.target.Target("llvm"),
-                ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
+                ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
             ),
         ]
         for record in records:
             database.commit_tuning_record(record)
-        new_database = JSONDatabase(  # pylint: disable=unused-variable
+        new_database = ms.database.JSONDatabase(
             path_workload=database.path_workload,
             path_tuning_record=database.path_tuning_record,
         )

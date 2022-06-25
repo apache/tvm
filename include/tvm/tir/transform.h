@@ -25,6 +25,7 @@
 #define TVM_TIR_TRANSFORM_H_
 
 #include <tvm/ir/transform.h>
+#include <tvm/target/target.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
 
@@ -364,6 +365,19 @@ TVM_DLL Pass PointerValueTypeRewrite();
 TVM_DLL Pass HoistIfThenElse();
 
 /*!
+ * \brief Hoist loop-invariant expressions nodes to
+ * outside the elligible loops.
+ *
+ * Can hoist conditionals used in IfThenElse statements and
+ * expressions, bindings of variables in Let statements and
+ * expressions, or boolean expressions, configurable to enable/disable
+ * each hoistable type.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass HoistExpression();
+
+/*!
  * \brief Lower cross-thread reduction from thread
  * bindings to intrinsic function calls.
  * \return The pass.
@@ -470,9 +484,10 @@ TVM_DLL Pass LowerVtcmAlloc();
  * \brief Implements a Common Subexpression Elimination (CSE) for TIR
  *        which introduces let-in bindings for duplicated sub-expressions.
  * \param enable_cse_tir Whether common subexpression elimination is enabled.
+ * \param identify_equiv_terms Whether equivalent terms should be identified.
  * \return The pass.
  */
-TVM_DLL Pass CommonSubexprElimTIR(bool enable_cse_tir = true);
+TVM_DLL Pass CommonSubexprElimTIR(bool enable_cse_tir = true, bool identify_equiv_terms = false);
 
 /*!
  * \brief Unify all the thread bindings for "blockIdx.x/y/z", "threadIdx.x/y/z", and
@@ -623,6 +638,36 @@ TVM_DLL Pass ExtractPrimFuncConstants();
  * \return The pass.
  */
 TVM_DLL Pass RenormalizeSplitPattern();
+
+/*!
+ * \brief Annotate a PrimFunc with a given target.
+ * \return The pass.
+ */
+TVM_DLL Pass BindTarget(Target target);
+
+/*!
+ * \brief Set a PrimFunc as the entry point if it is only function in IRModule.
+ * \return The pass.
+ */
+TVM_DLL Pass AnnotateEntryFunc();
+
+/*!
+ * \brief Filter PrimFuncs with a given condition.
+ * \return The pass.
+ */
+TVM_DLL Pass Filter(runtime::TypedPackedFunc<bool(PrimFunc)> fcond);
+
+/*!
+ * \brief Pass to rewrite global to shared memory copy on CUDA with asyncronous copy.
+ * \return The pass.
+ */
+TVM_DLL Pass InjectPTXAsyncCopy();
+
+/*!
+ * \brief Remove the weight layout rewrite block
+ * \return The pass.
+ */
+TVM_DLL Pass RemoveWeightLayoutRewriteBlock();
 
 }  // namespace transform
 }  // namespace tir

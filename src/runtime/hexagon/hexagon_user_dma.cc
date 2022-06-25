@@ -29,7 +29,7 @@ namespace runtime {
 namespace hexagon {
 
 int init_hexagon_user_dma() {
-#if defined(__hexagon__) && __HEXAGON_ARCH__ >= 68
+#if __HEXAGON_ARCH__ >= 68
   // reset DMA engine
   unsigned int status = dmpause() & DM0_STATUS_MASK;
   if (status != DM0_STATUS_IDLE) {
@@ -40,7 +40,7 @@ int init_hexagon_user_dma() {
 }
 
 int hexagon_user_dma_1d_sync_helper(void* dst, void* src, uint32_t length) {
-#if defined(__hexagon__) && __HEXAGON_ARCH__ >= 68
+#if __HEXAGON_ARCH__ >= 68
   static int config_dma = init_hexagon_user_dma();
   if (config_dma != DMA_SUCCESS) {
     return DMA_FAILURE;

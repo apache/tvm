@@ -30,8 +30,8 @@
 
 #include "crt_config.h"
 
-int TVMNDArray_Create(int32_t ndim, const tvm_index_t* shape, DLDataType dtype, DLDevice dev,
-                      TVMNDArray* array) {
+static int Create(int32_t ndim, const tvm_index_t* shape, DLDataType dtype, DLDevice dev,
+                  TVMNDArray* array) {
   memset(array, 0, sizeof(TVMNDArray));
   array->dl_tensor.ndim = ndim;
   tvm_crt_error_t err;
@@ -58,7 +58,7 @@ int64_t TVMNDArray_DataSizeBytes(TVMNDArray* array) {
 
 int TVMNDArray_Empty(int32_t ndim, const tvm_index_t* shape, DLDataType dtype, DLDevice dev,
                      TVMNDArray* array) {
-  int status = TVMNDArray_Create(ndim, shape, dtype, dev, array);
+  int status = Create(ndim, shape, dtype, dev, array);
   if (status != 0) {
     return status;
   }
@@ -132,7 +132,7 @@ int TVMNDArray_Load(TVMNDArray* ret, const char** strm) {
 
 int TVMNDArray_CreateView(TVMNDArray* arr, const tvm_index_t* shape, int32_t ndim, DLDataType dtype,
                           TVMNDArray* array_view) {
-  int status = TVMNDArray_Create(ndim, shape, dtype, arr->dl_tensor.device, array_view);
+  int status = Create(ndim, shape, dtype, arr->dl_tensor.device, array_view);
   if (status != 0) {
     return status;
   }
@@ -149,21 +149,35 @@ int TVMNDArray_RandomFill(TVMNDArray* arr) {
   return TVMPlatformGenerateRandom(arr->dl_tensor.data, (size_t)num_bytes);
 }
 
+void TVMNDArray_IncrementReference(TVMNDArray* arr) { arr->reference_count++; }
+
+uint32_t TVMNDArray_DecrementReference(TVMNDArray* arr) {
+  if (arr->reference_count > 0) {
+    arr->reference_count--;
+  }
+
+  return arr->reference_count;
+}
+
 int TVMNDArray_Release(TVMNDArray* arr) {
   tvm_crt_error_t err;
   DLDevice dev = {kDLCPU, 0};
+
+  if (TVMNDArray_DecrementReference(arr) > 0) {
+    return 0;
+  }
 
   err = TVMPlatformMemoryFree(arr->dl_tensor.data, dev);
   if (err != kTvmErrorNoError) {
     return err;
   }
+  arr->dl_tensor.data = NULL;
 
-  arr->dl_tensor.data = 0;
   err = TVMPlatformMemoryFree(arr->dl_tensor.shape, dev);
   if (err != kTvmErrorNoError) {
     return err;
   }
+  arr->dl_tensor.shape = NULL;
 
-  arr->dl_tensor.shape = 0;
   return 0;
 }

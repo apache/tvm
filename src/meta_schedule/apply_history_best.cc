@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/te/tensor.h>
+
 #include "./utils.h"
 
 namespace tvm {
@@ -87,16 +89,22 @@ void ApplyHistoryBest::ExitWithScope() {
 
 /**************** ApplyHistoryBest ****************/
 
-ApplyHistoryBest::ApplyHistoryBest(Database database, PackedFunc logging_func) {
+ApplyHistoryBest::ApplyHistoryBest(Database database,
+                                   ApplyHistoryBestNode::FTEFilterFunc te_filter_func,
+                                   PackedFunc logging_func) {
   ObjectPtr<ApplyHistoryBestNode> n = make_object<ApplyHistoryBestNode>();
   n->database = database;
+  n->te_filter_func = te_filter_func;
   n->logging_func = logging_func;
+  if (te_filter_func == nullptr) {
+    n->te_filter_func = DefaultTaskFilter;
+  }
   data_ = n;
 }
 
 Optional<IRModule> ApplyHistoryBestNode::Query(runtime::String task_name, IRModule mod,
-                                               Target target,
-                                               Optional<Array<IRModule>> dispatched) {
+                                               Target target, Optional<Array<IRModule>> dispatched,
+                                               FTakeTuningRecord f_take_tuning_record) {
   ICHECK(dispatched.defined());
   ICHECK_EQ(dispatched.value().size(), 1);
   ICHECK(HasOnlyOneFunction<relay::Function>(mod)) << mod;
@@ -114,6 +122,9 @@ Optional<IRModule> ApplyHistoryBestNode::Query(runtime::String task_name, IRModu
   if (database->HasWorkload(prim_mod)) {
     Array<TuningRecord> records = database->GetTopK(database->CommitWorkload(prim_mod), 1);
     if (records.size() == 1) {
+      if (f_take_tuning_record != nullptr) {
+        f_take_tuning_record(records[0]);
+      }
       tir::Schedule sch =
           tir::Schedule::Traced(records[0]->workload->mod, /*seed=*/-1, /*debug_mask=*/0,
                                 /*error_render_level=*/tir::ScheduleErrorRenderLevel::kNone);
@@ -129,8 +140,9 @@ Optional<IRModule> ApplyHistoryBestNode::Query(runtime::String task_name, IRModu
 
 TVM_REGISTER_NODE_TYPE(ApplyHistoryBestNode);
 TVM_REGISTER_GLOBAL("meta_schedule.ApplyHistoryBest")
-    .set_body_typed([](Database database, PackedFunc logging_func) -> ApplyHistoryBest {
-      return ApplyHistoryBest(database, logging_func);
+    .set_body_typed([](Database database, ApplyHistoryBestNode::FTEFilterFunc te_filter_func,
+                       PackedFunc logging_func) -> ApplyHistoryBest {
+      return ApplyHistoryBest(database, te_filter_func, logging_func);
     });
 TVM_REGISTER_GLOBAL("meta_schedule.ApplyHistoryBestEnterScope")
     .set_body_typed(ApplyHistoryBestInternal::EnterScope);

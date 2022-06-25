@@ -56,7 +56,7 @@ def _compose(args, decs):
 requires_hexagon_toolchain = tvm.testing.requires_hexagon(support_required="compile-only")
 
 
-@tvm.testing.fixture
+@pytest.fixture(scope="session")
 def android_serial_number() -> Optional[str]:
     serial = os.getenv(ANDROID_SERIAL_NUMBER, default="")
     # Setting ANDROID_SERIAL_NUMBER to an empty string should be
@@ -138,22 +138,29 @@ def tvm_tracker_port(_tracker_info) -> int:
     return port
 
 
-@tvm.testing.fixture
+@pytest.fixture(scope="session")
+def rpc_server_port_for_session() -> int:
+    return get_free_port()
+
+
+@pytest.fixture()
 def rpc_server_port() -> int:
     return get_free_port()
 
 
-@tvm.testing.fixture
+@pytest.fixture(scope="session")
 def adb_server_socket() -> str:
     return os.getenv(ADB_SERVER_SOCKET, default="tcp:5037")
 
 
-@tvm.testing.fixture
-def hexagon_launcher(
-    request, android_serial_number, rpc_server_port, adb_server_socket
+@pytest.fixture(scope="session")
+def hexagon_server_process(
+    request, android_serial_number, rpc_server_port_for_session, adb_server_socket
 ) -> HexagonLauncherRPC:
-    """Initials and returns hexagon launcher if ANDROID_SERIAL_NUMBER is defined"""
-    if android_serial_number is None:
+    """Initials and returns hexagon launcher if ANDROID_SERIAL_NUMBER is defined.
+    This launcher is started only once per test session.
+    """
+    if android_serial_number is None or android_serial_number == "simulator":
         yield None
     else:
         # Requesting these fixtures sets up a local tracker, if one
@@ -165,19 +172,54 @@ def hexagon_launcher(
         rpc_info = {
             "rpc_tracker_host": tvm_tracker_host,
             "rpc_tracker_port": tvm_tracker_port,
-            "rpc_server_port": rpc_server_port,
+            "rpc_server_port": rpc_server_port_for_session,
             "adb_server_socket": adb_server_socket,
         }
         launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
-        launcher.start_server()
+
         try:
+            launcher.start_server()
             yield launcher
         finally:
             launcher.stop_server()
 
 
-@tvm.testing.fixture
-def hexagon_session(hexagon_launcher) -> Session:
+@pytest.fixture
+def hexagon_launcher(
+    hexagon_server_process,
+    rpc_server_port,
+    tvm_tracker_host,
+    tvm_tracker_port,
+    adb_server_socket,
+    android_serial_number,
+) -> HexagonLauncherRPC:
+    """Initials and returns hexagon launcher which reuses RPC info and Android serial number."""
+    if android_serial_number is None:
+        yield None
+
+    if android_serial_number != "simulator":
+        rpc_info = hexagon_server_process._rpc_info
+    else:
+        rpc_info = {
+            "rpc_tracker_host": tvm_tracker_host,
+            "rpc_tracker_port": tvm_tracker_port,
+            "rpc_server_port": rpc_server_port,
+            "adb_server_socket": adb_server_socket,
+        }
+
+    launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
+    try:
+        if android_serial_number == "simulator":
+            launcher.start_server()
+        yield launcher
+    finally:
+        if android_serial_number == "simulator":
+            launcher.stop_server()
+        launcher.cleanup_directory()
+
+
+@pytest.fixture
+def hexagon_session(hexagon_launcher: HexagonLauncherRPC) -> Session:
     if hexagon_launcher is None:
         yield None
     else:

@@ -69,11 +69,6 @@
 #include <utility>
 #include <vector>
 
-namespace llvm {
-// String to llvm object compatibility.
-class StringRef;
-}  // namespace llvm
-
 namespace tvm {
 namespace runtime {
 
@@ -265,14 +260,6 @@ class String : public ObjectRef {
    * \return std::string
    */
   operator std::string() const { return std::string{get()->data, size()}; }
-
-  // LLVM compatibility function, implemented in src/target/llvm/llvm_common.h
-  /*!
-   * \brief Convert String to an llvm::StringRef object
-   *
-   * \return llvm::StringRef
-   */
-  inline operator llvm::StringRef() const;
 
   /*!
    * \brief Check if a TVMArgValue can be converted to String, i.e. it can be std::string or String

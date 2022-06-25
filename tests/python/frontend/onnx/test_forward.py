@@ -966,24 +966,38 @@ def test_slice(target, dev):
 
 
 def _test_onnx_op_elementwise(
-    target, dev, inshape, outfunc, npargs, dtype, opname, kwargs, opset=None
+    target, dev, inshape, outfunc, npargs, dtype, opname, kwargs, opset=None, verify=True
 ):
     indata = np.random.uniform(-1, 1, size=inshape).astype(dtype)
     outdata = outfunc(indata, **npargs)
 
     y = helper.make_node(opname, ["in"], ["out"], **kwargs)
 
+    ONNX_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
+
     graph = helper.make_graph(
         [y],
         opname + "_test",
-        inputs=[helper.make_tensor_value_info("in", TensorProto.FLOAT, list(indata.shape))],
-        outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(outdata.shape))],
+        inputs=[helper.make_tensor_value_info("in", ONNX_DTYPE, list(indata.shape))],
+        outputs=[helper.make_tensor_value_info("out", ONNX_DTYPE, list(outdata.shape))],
     )
 
     model = helper.make_model(graph, producer_name=opname + "_test")
-    verify_with_ort_with_inputs(
-        model, [indata], [outdata.shape], opset=opset, dtype=dtype, target=target, dev=dev
-    )
+    if verify:
+        verify_with_ort_with_inputs(
+            model, [indata], [outdata.shape], opset=opset, dtype=dtype, target=target, dev=dev
+        )
+    else:
+        get_tvm_output(
+            model,
+            [indata],
+            target,
+            dev,
+            [outdata.shape],
+            dtype,
+            opset=opset,
+            opt_level=3,
+        )
 
 
 @tvm.testing.parametrize_targets
@@ -1058,6 +1072,9 @@ def test_clip_min_max_as_inputs(target, dev):
 @tvm.testing.parametrize_targets
 def test_round(target, dev):
     _test_onnx_op_elementwise(target, dev, (2, 4, 5, 6), np.round, {}, "float32", "Round", {})
+    _test_onnx_op_elementwise(
+        target, dev, (2, 4, 5, 6), np.round, {}, "float64", "Round", {}, verify=False
+    )  # TODO: enable verification once ORT supports float64
 
 
 def _test_finite_ops(target, dev, inshape, outfunc, npargs, dtype, opname, kwargs):
@@ -5072,28 +5089,45 @@ def test_cumsum(target, dev):
 
 @tvm.testing.parametrize_targets
 def test_eyelike(target, dev):
-    def verify_eyelike(indata):
+    def verify_eyelike(indata, dynamic=False):
+        node_list = []
+        eyelike_inputs = ["X"]
+        input_node_list = [
+            helper.make_tensor_value_info("X", TensorProto.FLOAT, list(indata.shape))
+        ]
+        input_list = [indata]
+
+        if dynamic:
+            input_node_list.append(
+                helper.make_tensor_value_info("shape", TensorProto.INT64, [len(indata.shape)])
+            )
+            input_list.append(np.asarray(indata.shape))
+            reshape_node = helper.make_node("Reshape", ["X", "shape"], ["X_dyn"])
+            eyelike_inputs[0] = "X_dyn"
+            node_list += [reshape_node]
+
         node = helper.make_node(
             "EyeLike",
-            inputs=["X"],
+            inputs=eyelike_inputs,
             outputs=["Y"],
         )
+        node_list.append(node)
 
         graph = helper.make_graph(
-            [node],
+            node_list,
             "eyelike_test",
-            inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, list(indata.shape))],
+            inputs=input_node_list,
             outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, list(indata.shape))],
         )
 
         model = helper.make_model(graph, producer_name="eyelike_test")
-
         verify_with_ort_with_inputs(
-            model, [indata], dtype="float32", opset=9, target=target, dev=dev
+            model, input_list, dtype="float32", opset=9, target=target, dev=dev, use_vm=True
         )
 
     input_data = np.zeros((5, 5), dtype=np.float32)
     verify_eyelike(input_data)
+    verify_eyelike(input_data, True)
 
 
 """
@@ -6668,6 +6702,86 @@ def test_LinearRegressor(target, dev):
     verify_LinearRegressor((1, 3), (30), (10), targets=10)
     verify_LinearRegressor((10, 3), (30), (10), targets=10, batch=10)
     verify_LinearRegressor((1, 4), (3), (1))
+
+
+@tvm.testing.parametrize_targets
+def test_sequence(target, dev):
+    def verify_sequence_ops(tensor_shape, num_tensors, axis=0, position=None, new_axis=None):
+        tensor_shape = list(tensor_shape)
+        tensor_values = []
+        for i in range(num_tensors):
+            tensor_values.append(np.random.uniform(size=tensor_shape).astype("float32"))
+
+        # Create an input for each tensor.
+        input_tensor_names = []
+        for i in range(num_tensors):
+            name = "input_tensor_%d" % i
+            input_tensor_names.append(name)
+
+        # Test creating a tensor sequence.
+        construct_node = helper.make_node(
+            "SequenceConstruct",
+            inputs=input_tensor_names,
+            outputs=["sequence"],
+        )
+
+        insert_inputs = ["sequence", input_tensor_names[0]]
+        position_node = None
+        if position is not None:
+            insert_inputs.append("position")
+            position_node = make_constant_node("position", TensorProto.INT32, (), [position])
+
+        # Test sequence insertion.
+        insert_node = helper.make_node(
+            "SequenceInsert", inputs=insert_inputs, outputs=["inserted_sequence"]
+        )
+
+        # Test sequence concatenation.
+        concat_node = helper.make_node(
+            "ConcatFromSequence", inputs=["inserted_sequence"], outputs=["output"], axis=axis
+        )
+
+        if new_axis is not None:
+            new_axis_attr = helper.make_attribute("new_axis", new_axis)
+            concat_node.attribute.append(new_axis_attr)
+
+        # Create input and output tensors.
+        graph_inputs = []
+        for name in input_tensor_names:
+            input_tensor = helper.make_tensor_value_info(name, TensorProto.FLOAT, tensor_shape)
+            graph_inputs.append(input_tensor)
+
+        # Construct output tensor.
+        output_shape = tensor_shape
+        if new_axis is not None:
+            output_shape.insert(axis, 1)
+            output_shape[axis] = num_tensors + 1
+        else:
+            output_shape[axis] = (num_tensors + 1) * output_shape[axis]
+        graph_outputs = [helper.make_tensor_value_info("output", TensorProto.FLOAT, output_shape)]
+
+        graph_nodes = []
+        if position_node is not None:
+            graph_nodes.append(position_node)
+        graph_nodes += [construct_node, insert_node, concat_node]
+
+        graph = helper.make_graph(
+            graph_nodes,
+            "Sequence_test",
+            inputs=graph_inputs,
+            outputs=graph_outputs,
+        )
+        model = helper.make_model(
+            graph,
+            producer_name="Sequence_test",
+        )
+
+        verify_with_ort_with_inputs(model, tensor_values, target=target, dev=dev)
+
+    verify_sequence_ops((10, 3), 2)
+    verify_sequence_ops((3, 3, 3, 3), 4, position=3)
+    verify_sequence_ops((3, 3, 3, 3), 4, axis=2)
+    verify_sequence_ops((3, 3, 3, 3), 4, axis=2, new_axis=1)
 
 
 if __name__ == "__main__":

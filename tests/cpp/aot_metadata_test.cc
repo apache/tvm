@@ -19,6 +19,7 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <tvm/ir/memory_pools.h>
 #include <tvm/ir/type.h>
 #include <tvm/node/reflection.h>
 #include <tvm/runtime/metadata.h>
@@ -38,10 +39,21 @@ const struct TVMTensorInfo kNormalOutputs[1] = {
     {"output1", kNormalOutput1Shape, 3, DLDataType{3, 4, 5}}};
 
 const int64_t kNormalPool1Shape[3] = {3, 8, 8};
-const struct TVMTensorInfo kNormalPools[1] = {{"pool1", kNormalPool1Shape, 3, DLDataType{3, 4, 7}}};
+const struct TVMTensorInfo kNormalWorkspacePools[1] = {
+    {"workspace_pool1", kNormalPool1Shape, 3, DLDataType{3, 4, 7}}};
+const struct TVMConstantInfo kNormalConstantPools[1] = {{"constant_pool1", 0, 0, {}}};
 
 const struct TVMMetadata kNormal = {
-    TVM_METADATA_VERSION, kNormalInputs, 2, kNormalOutputs, 1, kNormalPools, 1, "default",
+    TVM_METADATA_VERSION,
+    kNormalInputs,
+    2,
+    kNormalOutputs,
+    1,
+    kNormalWorkspacePools,
+    1,
+    kNormalConstantPools,
+    1,
+    "default",
 };
 }  // namespace
 
@@ -61,6 +73,7 @@ using ::tvm::runtime::Array;
 using ::tvm::runtime::Downcast;
 using ::tvm::runtime::ObjectRef;
 
+using ::tvm::runtime::metadata::ConstantInfoMetadata;
 using ::tvm::runtime::metadata::Metadata;
 using ::tvm::runtime::metadata::MetadataArray;
 using ::tvm::runtime::metadata::MetadataKind;
@@ -93,13 +106,13 @@ TEST(Metadata, ParseStruct) {
   EXPECT_THAT(output1->shape(), ElementsAre(3, 8, 8));
   EXPECT_THAT(output1->dtype(), Eq(tvm::runtime::DataType(DLDataType{3, 4, 5})));
 
-  auto pools = md->pools();
+  auto pools = md->workspace_pools();
   EXPECT_THAT(pools.size(), Eq(1));
 
-  auto pool1 = pools[0];
-  EXPECT_THAT(pool1->name(), Eq("pool1"));
-  EXPECT_THAT(pool1->shape(), ElementsAre(3, 8, 8));
-  EXPECT_THAT(pool1->dtype(), Eq(tvm::runtime::DataType(DLDataType{3, 4, 7})));
+  auto workspace_pool1 = pools[0];
+  EXPECT_THAT(workspace_pool1->name(), Eq("workspace_pool1"));
+  EXPECT_THAT(workspace_pool1->shape(), ElementsAre(3, 8, 8));
+  EXPECT_THAT(workspace_pool1->dtype(), Eq(tvm::runtime::DataType(DLDataType{3, 4, 7})));
 
   EXPECT_THAT(md->mod_name(), Eq("default"));
 }
@@ -158,8 +171,9 @@ TEST(Metadata, Visitor) {
   ::tvm::ReflectionVTable::Global()->VisitAttrs(md.operator->(), &v);
 
   EXPECT_THAT(v.keys, ElementsAre(StrEq("version"), StrEq("inputs"), StrEq("num_inputs"),
-                                  StrEq("outputs"), StrEq("num_outputs"), StrEq("pools"),
-                                  StrEq("num_pools"), StrEq("mod_name")));
+                                  StrEq("outputs"), StrEq("num_outputs"), StrEq("workspace_pools"),
+                                  StrEq("num_workspace_pools"), StrEq("constant_pools"),
+                                  StrEq("num_constant_pools"), StrEq("mod_name")));
   EXPECT_THAT(Downcast<tvm::IntImm>(v.values[0])->value, Eq(TVM_METADATA_VERSION));
 
   EXPECT_THAT(Downcast<tvm::IntImm>(v.values[0])->value, Eq(TVM_METADATA_VERSION));
@@ -196,14 +210,24 @@ TEST(Metadata, Visitor) {
   auto pool_array = Downcast<MetadataArray>(v.values[5]);
   EXPECT_THAT(pool_array->kind, Eq(MetadataKind::kMetadata));
   EXPECT_THAT(pool_array->type_key, StrEq("metadata.TensorInfoNode"));
-  auto pool1 = Downcast<TensorInfo>(pool_array->array[0]);
+  auto workspace_pool1 = Downcast<TensorInfo>(pool_array->array[0]);
 
-  EXPECT_THAT(pool1->name(), Eq("pool1"));
+  EXPECT_THAT(workspace_pool1->name(), Eq("workspace_pool1"));
 
-  auto num_pools = Downcast<tvm::IntImm>(v.values[6]);
-  EXPECT_THAT(num_pools->value, Eq(1));
+  auto num_workspace_pools = Downcast<tvm::IntImm>(v.values[6]);
+  EXPECT_THAT(num_workspace_pools->value, Eq(1));
 
-  auto mod_name = Downcast<tvm::String>(v.values[7]);
+  auto consts_array = Downcast<MetadataArray>(v.values[7]);
+  EXPECT_THAT(consts_array->kind, Eq(MetadataKind::kMetadata));
+  EXPECT_THAT(consts_array->type_key, StrEq("metadata.ConstantInfoNode"));
+  auto consts1 = Downcast<ConstantInfoMetadata>(consts_array->array[0]);
+
+  EXPECT_THAT(consts1->name_hint(), Eq("constant_pool1"));
+
+  auto num_consts = Downcast<tvm::IntImm>(v.values[8]);
+  EXPECT_THAT(num_consts->value, Eq(1));
+
+  auto mod_name = Downcast<tvm::String>(v.values[9]);
   EXPECT_THAT(mod_name, Eq("default"));
 }
 
@@ -224,8 +248,11 @@ TEST(Metadata, InMemory) {
               tvm::runtime::DataType(DLDataType{3, 4, 5})))}),
       std::vector<TensorInfo>(
           {TensorInfo(make_object<tvm::target::metadata::InMemoryTensorInfoNode>(
-              tvm::String("Pool1"), std::vector<int64_t>{5, 10, 10},
+              tvm::String("Workspace_Pool1"), std::vector<int64_t>{5, 10, 10},
               tvm::runtime::DataType(DLDataType{3, 4, 7})))}),
+      std::vector<tvm::ConstantInfo>({tvm::ConstantInfo(
+          "Constant_Pool1", 64,
+          tvm::runtime::NDArray::Empty({64}, tvm::runtime::DataType::Int(64), {kDLCPU}))}),
       "default"));
 
   auto md_data = md->data();
@@ -253,12 +280,16 @@ TEST(Metadata, InMemory) {
   EXPECT_THAT(tvm::runtime::DataType(output0->dtype),
               Eq(tvm::runtime::DataType(DLDataType({3, 4, 5}))));
 
-  auto pool0 = &md_data->pools[0];
-  EXPECT_THAT(pool0->name, StrEq("Pool1"));
-  EXPECT_THAT(std::vector<int64_t>(pool0->shape, pool0->shape + pool0->num_shape),
+  auto workspace_pool0 = &md_data->workspace_pools[0];
+  EXPECT_THAT(workspace_pool0->name, StrEq("Workspace_Pool1"));
+  EXPECT_THAT(std::vector<int64_t>(workspace_pool0->shape,
+                                   workspace_pool0->shape + workspace_pool0->num_shape),
               ElementsAre(5, 10, 10));
-  EXPECT_THAT(tvm::runtime::DataType(pool0->dtype),
+  EXPECT_THAT(tvm::runtime::DataType(workspace_pool0->dtype),
               Eq(tvm::runtime::DataType(DLDataType({3, 4, 7}))));
+
+  auto constant_pool0 = &md_data->constant_pools[0];
+  EXPECT_THAT(constant_pool0->name_hint, StrEq("Constant_Pool1"));
 
   EXPECT_THAT(md_data->mod_name, StrEq("default"));
 }
@@ -270,7 +301,7 @@ TEST(Metadata, ZeroElementLists) {
           {TensorInfo(make_object<tvm::target::metadata::InMemoryTensorInfoNode>(
               tvm::String("Output1"), std::vector<int64_t>{},
               tvm::runtime::DataType(DLDataType{3, 4, 5})))}),
-      std::vector<TensorInfo>({}), "default"));
+      std::vector<TensorInfo>({}), std::vector<tvm::ConstantInfo>({}), "default"));
 
   EXPECT_THAT(md->data()->num_inputs, Eq(0));
   EXPECT_THAT(md->inputs().size(), Eq(0));
@@ -282,9 +313,9 @@ TEST(Metadata, ZeroElementLists) {
   EXPECT_THAT(md->outputs()[0]->shape().size(), Eq(0));
   EXPECT_THAT(md->outputs()[0]->shape(), ElementsAre());
 
-  EXPECT_THAT(md->pools().size(), Eq(0));
-  EXPECT_THAT(md->num_pools(), Eq(0));
-  EXPECT_THAT(md->pools(), ElementsAre());
+  EXPECT_THAT(md->workspace_pools().size(), Eq(0));
+  EXPECT_THAT(md->num_workspace_pools(), Eq(0));
+  EXPECT_THAT(md->workspace_pools(), ElementsAre());
 }
 
 TEST(MetadataArray, GetElementCStructName) {
@@ -323,8 +354,9 @@ TEST(DiscoverArraysVisitor, DiscoverArrays) {
                                    DiscoveredNameEq("kTvmgenMetadata_inputs"),
                                    DiscoveredNameEq("kTvmgenMetadata_outputs_0_shape"),
                                    DiscoveredNameEq("kTvmgenMetadata_outputs"),
-                                   DiscoveredNameEq("kTvmgenMetadata_pools_0_shape"),
-                                   DiscoveredNameEq("kTvmgenMetadata_pools")}));
+                                   DiscoveredNameEq("kTvmgenMetadata_workspace_pools_0_shape"),
+                                   DiscoveredNameEq("kTvmgenMetadata_workspace_pools"),
+                                   DiscoveredNameEq("kTvmgenMetadata_constant_pools")}));
 }
 
 // In Debug builds the _type_key is no longer inlined but also has no
@@ -381,5 +413,13 @@ TEST(DiscoverComplexTypesVisitor, DiscoverComplexTypes) {
   Metadata md = Metadata(&kNormal);
   visitor.Discover(md);
 
-  EXPECT_THAT(q, ElementsAre(TVMObjectIsInstance<TensorInfo>(), TVMObjectIsInstance<Metadata>()));
+  EXPECT_THAT(
+      q, ElementsAre(TVMObjectIsInstance<TensorInfo>(), TVMObjectIsInstance<ConstantInfoMetadata>(),
+                     TVMObjectIsInstance<Metadata>()));
+}
+
+TEST(Metadata, TVMConstantInfo) {
+  std::vector<tvm::runtime::metadata::MetadataBase> q;
+  std::unique_ptr<TVMConstantInfo[]> ci{new struct TVMConstantInfo[10]};
+  EXPECT_TRUE(ci.get() != nullptr);
 }

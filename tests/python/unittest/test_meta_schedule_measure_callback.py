@@ -20,13 +20,8 @@ from typing import List
 
 import pytest
 import tvm
-from tvm.meta_schedule.builder import BuilderResult
-from tvm.meta_schedule.measure_callback import PyMeasureCallback
-from tvm.meta_schedule.runner import RunnerResult
-from tvm.meta_schedule.search_strategy import MeasureCandidate
-from tvm.meta_schedule.task_scheduler import RoundRobin, TaskScheduler
-from tvm.meta_schedule.testing import DummyBuilder, DummyDatabase, DummyRunner
-from tvm.meta_schedule.utils import derived_object
+from tvm import meta_schedule as ms
+from tvm.meta_schedule.testing.dummy_object import DummyBuilder, DummyRunner
 from tvm.script import tir as T
 from tvm.tir.schedule import Schedule
 
@@ -53,85 +48,87 @@ class Matmul:
 
 
 def test_meta_schedule_measure_callback():
-    @derived_object
-    class FancyMeasureCallback(PyMeasureCallback):
+    @ms.derived_object
+    class FancyMeasureCallback(ms.measure_callback.PyMeasureCallback):
         def apply(
             self,
-            task_scheduler: TaskScheduler,
+            task_scheduler: ms.task_scheduler.TaskScheduler,
             task_id: int,
-            measure_candidates: List[MeasureCandidate],
-            builds: List[BuilderResult],
-            results: List[RunnerResult],
+            measure_candidates: List[ms.MeasureCandidate],
+            builder_results: List[ms.builder.BuilderResult],
+            runner_results: List[ms.runner.RunnerResult],
         ) -> None:
             assert len(measure_candidates) == 1
             tvm.ir.assert_structural_equal(measure_candidates[0].sch.mod, Matmul)
             assert (
-                len(builds) == 1
-                and builds[0].error_msg is None
-                and builds[0].artifact_path == "test_build"
+                len(builder_results) == 1
+                and builder_results[0].error_msg is None
+                and builder_results[0].artifact_path == "test_build"
             )
             assert (
-                len(results) == 1 and results[0].error_msg is None and len(results[0].run_secs) == 2
+                len(runner_results) == 1
+                and runner_results[0].error_msg is None
+                and len(runner_results[0].run_secs) == 2
             )
 
     measure_callback = FancyMeasureCallback()
     measure_callback.apply(
-        RoundRobin(
+        ms.task_scheduler.RoundRobin(
             tasks=[],
             task_weights=[],
             builder=DummyBuilder(),
             runner=DummyRunner(),
-            database=DummyDatabase(),
+            database=ms.database.MemoryDatabase(),
             max_trials=1,
         ),
         0,
-        [MeasureCandidate(Schedule(Matmul), None)],
-        [BuilderResult("test_build", None)],
-        [RunnerResult([1.0, 2.1], None)],
+        [ms.MeasureCandidate(Schedule(Matmul), None)],
+        [ms.builder.BuilderResult("test_build", None)],
+        [ms.runner.RunnerResult([1.0, 2.1], None)],
     )
 
 
 def test_meta_schedule_measure_callback_fail():
-    @derived_object
-    class FailingMeasureCallback(PyMeasureCallback):
+    @ms.derived_object
+    class FailingMeasureCallback(ms.measure_callback.PyMeasureCallback):
         def apply(
             self,
-            task_scheduler: TaskScheduler,
+            task_scheduler: ms.task_scheduler.TaskScheduler,
             task_id: int,
-            measure_candidates: List[MeasureCandidate],
-            builds: List[BuilderResult],
-            results: List[RunnerResult],
+            measure_candidates: List[ms.MeasureCandidate],
+            builder_results: List[ms.builder.BuilderResult],
+            runner_results: List[ms.runner.RunnerResult],
         ) -> None:
             raise ValueError("test")
 
     measure_callback = FailingMeasureCallback()
     with pytest.raises(ValueError, match="test"):
         measure_callback.apply(
-            RoundRobin(
+            ms.task_scheduler.RoundRobin(
                 tasks=[],
                 task_weights=[],
                 builder=DummyBuilder(),
                 runner=DummyRunner(),
-                database=DummyDatabase(),
+                database=ms.database.MemoryDatabase(),
                 max_trials=1,
             ),
             0,
-            [MeasureCandidate(Schedule(Matmul), None)],
-            [BuilderResult("test_build", None)],
-            [RunnerResult([1.0, 2.1], None)],
+            [ms.MeasureCandidate(Schedule(Matmul), None)],
+            [ms.builder.BuilderResult("test_build", None)],
+            [ms.runner.RunnerResult([1.0, 2.1], None)],
         )
 
 
 def test_meta_schedule_measure_callback_as_string():
-    @derived_object
-    class NotSoFancyMeasureCallback(PyMeasureCallback):
+    @ms.derived_object
+    class NotSoFancyMeasureCallback(ms.measure_callback.PyMeasureCallback):
         def apply(
             self,
-            task_scheduler: "TaskScheduler",
+            task_scheduler: ms.task_scheduler.TaskScheduler,
             task_id: int,
-            measure_candidates: List[MeasureCandidate],
-            builds: List[BuilderResult],
-            results: List[RunnerResult],
+            measure_candidates: List[ms.MeasureCandidate],
+            builder_results: List[ms.builder.BuilderResult],
+            runner_results: List[ms.runner.RunnerResult],
         ) -> None:
             pass
 

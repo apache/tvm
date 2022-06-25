@@ -33,9 +33,9 @@ deployed to Arduino using TVM.
 #   using the link at the bottom of this page, or open it online for free using Google Colab.
 #   Click the icon below to open in Google Colab.
 #
-# .. image:: https://raw.githubusercontent.com/guberti/web-data/micro-train-tutorial-data/images/utilities/colab_button.png
+# .. image:: https://raw.githubusercontent.com/tlc-pack/web-data/main/images/utilities/colab_button.png
 #      :align: center
-#      :target: https://colab.research.google.com/github/guberti/tvm-site/blob/asf-site/docs/_downloads/a7c7ea4b5017ae70db1f51dd8e6dcd82/micro_train.ipynb
+#      :target: https://colab.research.google.com/github/apache/tvm-site/blob/asf-site/docs/_downloads/a7c7ea4b5017ae70db1f51dd8e6dcd82/micro_train.ipynb
 #      :width: 300px
 #
 # Motivation
@@ -165,19 +165,20 @@ import shutil
 import urllib.request
 
 # Download datasets
+os.makedirs(f"{FOLDER}/downloads")
 os.makedirs(f"{FOLDER}/images")
 urllib.request.urlretrieve(
-    "http://ai.stanford.edu/~jkrause/car196/cars_train.tgz", f"{FOLDER}/images/target.tgz"
+    "https://data.deepai.org/stanfordcars.zip", f"{FOLDER}/downloads/target.zip"
 )
 urllib.request.urlretrieve(
-    "http://images.cocodataset.org/zips/val2017.zip", f"{FOLDER}/images/random.zip"
+    "http://images.cocodataset.org/zips/val2017.zip", f"{FOLDER}/downloads/random.zip"
 )
 
 # Extract them and rename their folders
-shutil.unpack_archive(f"{FOLDER}/images/target.tgz", f"{FOLDER}/images")
-shutil.unpack_archive(f"{FOLDER}/images/random.zip", f"{FOLDER}/images")
-shutil.move(f"{FOLDER}/images/cars_train", f"{FOLDER}/images/target")
-shutil.move(f"{FOLDER}/images/val2017", f"{FOLDER}/images/random")
+shutil.unpack_archive(f"{FOLDER}/downloads/target.zip", f"{FOLDER}/downloads")
+shutil.unpack_archive(f"{FOLDER}/downloads/random.zip", f"{FOLDER}/downloads")
+shutil.move(f"{FOLDER}/downloads/cars_train/cars_train", f"{FOLDER}/images/target")
+shutil.move(f"{FOLDER}/downloads/val2017", f"{FOLDER}/images/random")
 
 ######################################################################
 # Loading the Data
@@ -490,7 +491,7 @@ arduino_project = tvm.micro.generate_project(
 # We will test our Arduino project by loading both of these images and executing the compiled model
 # on them.
 #
-# .. image:: https://raw.githubusercontent.com/guberti/web-data/micro-train-tutorial-data/testdata/microTVM/data/model_train_images_combined.png
+# .. image:: https://raw.githubusercontent.com/tlc-pack/web-data/main/testdata/microTVM/data/model_train_images_combined.png
 #      :align: center
 #      :height: 200px
 #      :width: 600px

@@ -17,7 +17,11 @@
 
 FROM nvidia/cuda:10.0-devel-ubuntu16.04
 
-RUN apt-get update --fix-missing && apt-get install -y bzip2 wget sudo binutils git
+COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
+
+RUN apt-get update --fix-missing
+
+RUN apt-install-and-clear -y bzip2 wget sudo binutils git
 
 RUN  wget -q http://developer.download.nvidia.com/compute/redist/cudnn/v7.6.0/cudnn-10.0-linux-x64-v7.6.0.64.tgz && \
     tar --no-same-owner -xzf cudnn-10.0-linux-x64-v7.6.0.64.tgz -C /usr/local && \
