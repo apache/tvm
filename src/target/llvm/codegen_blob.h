@@ -23,12 +23,15 @@
  */
 #ifndef TVM_TARGET_LLVM_CODEGEN_BLOB_H_
 #define TVM_TARGET_LLVM_CODEGEN_BLOB_H_
+
 #ifdef TVM_LLVM_VERSION
+
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/Module.h>
+
 #include <memory>
 #include <string>
 #include <utility>
-
-#include "llvm_common.h"
 
 namespace tvm {
 namespace codegen {
@@ -46,5 +49,6 @@ std::pair<std::unique_ptr<llvm::Module>, std::shared_ptr<llvm::LLVMContext>> Cod
 
 }  // namespace codegen
 }  // namespace tvm
+
 #endif  // LLVM_VERSION
 #endif  // TVM_TARGET_LLVM_CODEGEN_BLOB_H_

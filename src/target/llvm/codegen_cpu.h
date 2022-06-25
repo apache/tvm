@@ -32,12 +32,34 @@
 
 #include "codegen_llvm.h"
 
+namespace llvm {
+class BasicBlock;
+class Constant;
+class DIBuilder;
+class DIType;
+class Function;
+class FunctionType;
+class GlobalVariable;
+class LLVMContext;
+class MDNode;
+class StructType;
+class TargetMachine;
+class Type;
+class Value;
+
+// Used in std::unique_ptr
+class Module;
+}  // namespace llvm
+
 namespace tvm {
 namespace codegen {
 
 // CPU host code generation
 class CodeGenCPU : public CodeGenLLVM {
  public:
+  CodeGenCPU();
+  virtual ~CodeGenCPU();
+
   void Init(const std::string& module_name, llvm::TargetMachine* tm, llvm::LLVMContext* ctx,
             bool system_lib, bool dynamic_lookup, bool target_c_runtime) override;
   void AddFunction(const PrimFunc& f) override;
