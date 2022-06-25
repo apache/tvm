@@ -837,10 +837,7 @@ class PyTorchOpConverter:
                 "replicate and circular mode for torch.nn.functional.pad are not supported in TVM"
             )
         pad_value = inputs[3]
-        if pad_value == None:
-            return _op.nn.pad(data, pad, pad_mode=mode)
-        else:
-            return _op.nn.pad(data, pad, pad_value=pad_value, pad_mode=mode)
+        return _op.nn.pad(data, pad, pad_value=pad_value, pad_mode=mode)
 
     def linspace(self, inputs, input_types):
         start = inputs[0]
