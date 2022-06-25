@@ -1079,6 +1079,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     }
 
     mod = transform::ToANormalForm()(mod);
+    mod = transform::InferType()(mod);
+    mod = transform::AnnotateUsedMemory()(mod);
 
     IRModule lowered_mod =
         tec::LowerTE(mod_name, config_, [this, workspace_byte_alignment](BaseFunc func) {
