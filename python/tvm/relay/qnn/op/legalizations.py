@@ -52,6 +52,7 @@ def legalize_qnn_dense(attrs, inputs, types):
 def register_qnn_unary_op_legalize(op_name, floating_point_func):
     """Register unary qnn op for legalization via table lookup op."""
 
+    @reg.register_qnn_legalize(op_name)
     def legalize_qnn_unary_op(attrs, inputs, types):
         return create_integer_lookup_op(
             input_arg=inputs[0],
@@ -63,8 +64,6 @@ def register_qnn_unary_op_legalize(op_name, floating_point_func):
             in_dtype=types[0].dtype,
             out_dtype=types[0].dtype,
         )
-
-    return reg.register_qnn_legalize(op_name, legalize_qnn_unary_op)
 
 
 register_qnn_unary_op_legalize("qnn.sqrt", np.sqrt)
