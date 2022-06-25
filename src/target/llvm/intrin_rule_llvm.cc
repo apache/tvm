@@ -24,6 +24,7 @@
 
 #include "intrin_rule_llvm.h"
 
+#include <llvm/IR/Intrinsics.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/op_attr_types.h>
 

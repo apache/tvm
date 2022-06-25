@@ -19,13 +19,33 @@
 
 #if defined(TVM_LLVM_VERSION) && TVM_LLVM_VERSION >= 70
 
+#include <llvm/ADT/ArrayRef.h>
+#include <llvm/ADT/SmallString.h>
+#include <llvm/ADT/StringRef.h>
 #include <llvm/Bitcode/BitcodeWriter.h>
+#include <llvm/IR/Constants.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/GlobalVariable.h>
+#include <llvm/IR/Instructions.h>
 #if TVM_LLVM_VERSION <= 90
 #include <llvm/IR/Intrinsics.h>
 #else
 #include <llvm/IR/IntrinsicsHexagon.h>
 #endif
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/IR/MDBuilder.h>
+#include <llvm/IR/Module.h>
+#if TVM_LLVM_VERSION >= 100
+#include <llvm/Support/Alignment.h>
+#endif
+#include <llvm/Support/CodeGen.h>
 #include <llvm/Support/CommandLine.h>
+#include <llvm/Support/FileSystem.h>
+#include <llvm/Support/raw_ostream.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/Transforms/Utils/Cloning.h>
 #include <tvm/runtime/module.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tir/analysis.h>
@@ -42,6 +62,7 @@
 #include "../../runtime/hexagon/hexagon_module.h"
 #include "../build_common.h"
 #include "codegen_cpu.h"
+#include "llvm_common.h"
 
 namespace tvm {
 namespace codegen {
@@ -369,18 +390,17 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
       else
         llvm::WriteBitcodeToFile(m, os);
     } else if (cgft == Asm || cgft == Obj) {
-      using namespace llvm;
 #if TVM_LLVM_VERSION <= 90
-      auto ft = cgft == Asm ? TargetMachine::CodeGenFileType::CGFT_AssemblyFile
-                            : TargetMachine::CodeGenFileType::CGFT_ObjectFile;
+      auto ft = cgft == Asm ? llvm::TargetMachine::CodeGenFileType::CGFT_AssemblyFile
+                            : llvm::TargetMachine::CodeGenFileType::CGFT_ObjectFile;
 #else
       auto ft = cgft == Asm ? llvm::CGFT_AssemblyFile : llvm::CGFT_ObjectFile;
 #endif
 
-      SmallString<16384> ss;  // Will grow on demand.
+      llvm::SmallString<16384> ss;  // Will grow on demand.
       llvm::raw_svector_ostream os(ss);
-      std::unique_ptr<llvm::Module> cm = CloneModule(m);
-      legacy::PassManager pass;
+      std::unique_ptr<llvm::Module> cm = llvm::CloneModule(m);
+      llvm::legacy::PassManager pass;
       ICHECK(tm->addPassesToEmitFile(pass, os, nullptr, ft) == 0) << "Cannot emit target code";
       pass.run(*cm.get());
       out.assign(ss.c_str(), ss.size());

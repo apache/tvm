@@ -24,8 +24,14 @@
 
 #include "codegen_params.h"
 
+#include <llvm/ADT/ArrayRef.h>
+#include <llvm/IR/Constants.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/Support/Casting.h>
+
 #include <algorithm>
-#include <memory>
+#include <type_traits>
 #include <vector>
 
 namespace tvm {

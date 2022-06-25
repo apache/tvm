@@ -23,7 +23,12 @@
  */
 #ifdef TVM_LLVM_VERSION
 
+#include <llvm/IR/Intrinsics.h>
 #include <tvm/runtime/registry.h>
+#if TVM_LLVM_VERSION >= 100
+#include <llvm/IR/IntrinsicsARM.h>
+#endif
+#include <llvm/Target/TargetMachine.h>
 
 #include "codegen_cpu.h"
 
@@ -34,6 +39,9 @@ namespace codegen {
 // how to override behavior llvm code generator for specific target
 class CodeGenARM final : public CodeGenCPU {
  public:
+  CodeGenARM() = default;
+  virtual ~CodeGenARM() = default;
+
   void InitTarget(llvm::TargetMachine* tm) final {
     // set native vector bits.
     native_vector_bits_ = 16 * 8;
@@ -48,7 +56,7 @@ class CodeGenARM final : public CodeGenCPU {
 llvm::Value* CodeGenARM::CreateIntrinsic(const CallNode* op) {
   if (op->op.same_as(builtin_call_llvm_intrin_) || op->op.same_as(builtin_call_llvm_pure_intrin_)) {
     llvm::Intrinsic::ID id = static_cast<llvm::Intrinsic::ID>(Downcast<IntImm>(op->args[0])->value);
-    if (id == ::llvm::Intrinsic::ctpop) {
+    if (id == llvm::Intrinsic::ctpop) {
       PrimExpr e = ARMPopcount(op);
       return CodeGenCPU::CreateIntrinsic(e.as<CallNode>());
     }
@@ -59,8 +67,8 @@ llvm::Value* CodeGenARM::CreateIntrinsic(const CallNode* op) {
 PrimExpr CodeGenARM::ARMPopcount(const CallNode* call) {
   using namespace tir;
   const PrimExpr& e = call->args[2];
-  ::llvm::Intrinsic::ID ctpop_id = ::llvm::Intrinsic::ctpop;
-  ::llvm::Intrinsic::ID vpaddlu_id = ::llvm::Intrinsic::arm_neon_vpaddlu;
+  llvm::Intrinsic::ID ctpop_id = llvm::Intrinsic::ctpop;
+  llvm::Intrinsic::ID vpaddlu_id = llvm::Intrinsic::arm_neon_vpaddlu;
 
   // Fallback to default llvm lowering rule if input type not a full vector or half vector length
   int total_size = call->dtype.bits() * call->dtype.lanes();

@@ -23,16 +23,13 @@
  */
 #ifndef TVM_TARGET_LLVM_INTRIN_RULE_LLVM_H_
 #define TVM_TARGET_LLVM_INTRIN_RULE_LLVM_H_
+
 #ifdef TVM_LLVM_VERSION
 
 #include <tvm/runtime/registry.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
-
-#include <string>
-
-#include "llvm_common.h"
 
 namespace tvm {
 namespace codegen {
