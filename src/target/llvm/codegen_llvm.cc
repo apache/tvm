@@ -24,22 +24,83 @@
 // Part of the code are adapted from Halide's CodeGen_LLVM
 #include "codegen_llvm.h"
 
+#include <llvm/ADT/ArrayRef.h>
+#include <llvm/ADT/SmallVector.h>
+#include <llvm/ADT/StringRef.h>
+#include <llvm/ADT/Triple.h>
+#include <llvm/Analysis/TargetTransformInfo.h>
+#if TVM_LLVM_VERSION >= 50
+#include <llvm/BinaryFormat/Dwarf.h>
+#else
+#include <llvm/Support/Dwarf.h>
+#endif
+#include <llvm/IR/Argument.h>
+#include <llvm/IR/Attributes.h>
+#include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/CallingConv.h>
+#include <llvm/IR/Constants.h>
+#include <llvm/IR/DIBuilder.h>
+#include <llvm/IR/DataLayout.h>
+#include <llvm/IR/DebugInfoMetadata.h>
+#include <llvm/IR/DerivedTypes.h>
+#if TVM_LLVM_VERSION >= 150
+#include <llvm/IR/FMF.h>
+#else
+#include <llvm/IR/Operator.h>
+#endif
+#include <llvm/IR/Function.h>
+#include <llvm/IR/GlobalVariable.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/IR/Intrinsics.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/IR/MDBuilder.h>
+#include <llvm/IR/Metadata.h>
+#include <llvm/IR/Module.h>
+#include <llvm/IR/Type.h>
+#include <llvm/IRReader/IRReader.h>
+#include <llvm/Linker/Linker.h>
+#include <llvm/Pass.h>
+#if TVM_LLVM_VERSION >= 100
+#include <llvm/Support/Alignment.h>
+#include <llvm/Support/TypeSize.h>
+#endif
+#include <llvm/Support/CodeGen.h>
+#include <llvm/Support/MemoryBuffer.h>
+#include <llvm/Support/SourceMgr.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/Transforms/IPO.h>
+#include <llvm/Transforms/IPO/PassManagerBuilder.h>
+#include <llvm/Transforms/Utils/ModuleUtils.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/error_codes.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/tir/op.h>
 
 #include <algorithm>
+#include <functional>
+#include <memory>
+#include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "../../arith/pattern_match.h"
 #include "../build_common.h"
 #include "../func_registry_generator.h"
 #include "codegen_params.h"
-#include "llvm/Support/raw_os_ostream.h"
 #include "llvm_common.h"
 
 namespace tvm {
 namespace codegen {
+
+// CodeGenLLVM has members of type std::unique_ptr<T>. These members will be
+// instantiated in the constructor, which will requre that the type T is
+// complete at that point. Put the constructor (and destructor) here, since
+// all types should be complete here.
+CodeGenLLVM::CodeGenLLVM() = default;
+CodeGenLLVM::~CodeGenLLVM() = default;
+CodeGenLLVM::DebugInfo::~DebugInfo() = default;
 
 std::unique_ptr<CodeGenLLVM> CodeGenLLVM::Create(llvm::TargetMachine* tm) {
   std::string target = tm->getTarget().getName();
