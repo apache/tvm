@@ -594,7 +594,7 @@ inline Expr Sigmoid(Expr x) {
 }
 
 inline Expr Hardswish(Expr x) {
-  static const Op& op = Op::Get("nn.hardswish");
+  static const Op& op = Op::Get("hardswish");
   return Call(op, {x}, Attrs(), {});
 }
 
