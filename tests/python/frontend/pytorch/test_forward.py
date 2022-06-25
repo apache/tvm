@@ -1792,6 +1792,28 @@ def test_forward_expand():
 
 
 @tvm.testing.uses_gpu
+def test_forward_broadcast_tensors():
+    torch.set_grad_enabled(False)
+
+    class BroadCastTensors1(Module):
+        def forward(self, x, y):
+            return torch.broadcast_tensors(x, y)
+
+    x = torch.arange(3).view(1, 1, 3)
+    y = torch.arange(2).view(1, 2, 1)
+    verify_model(BroadCastTensors1().float().eval(), input_data=[x, y])
+
+    class BroadCastTensors2(Module):
+        def forward(self, x, y, z):
+            return torch.broadcast_tensors(x, y, z)
+
+    x = torch.arange(3).view(1, 1, 3)
+    y = torch.arange(2).view(1, 2, 1)
+    z = torch.arange(4).view(4, 1, 1)
+    verify_model(BroadCastTensors2().float().eval(), input_data=[x, y, z])
+
+
+@tvm.testing.uses_gpu
 def test_forward_pow():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
