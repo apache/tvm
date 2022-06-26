@@ -1,4 +1,3 @@
-#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,32 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""A postprocessor that rewrites the layout of input tensor"""
 
-set -e
-set -u
-set -o pipefail
+from tvm._ffi.registry import register_object
 
-# install libraries for python package on ubuntu
-pip3 install --upgrade \
-    attrs \
-    cloudpickle \
-    cython \
-    decorator \
-    mypy \
-    numpy~=1.19.5 \
-    orderedset \
-    packaging \
-    Pillow==9.1.0 \
-    psutil \
-    pytest \
-    git+https://github.com/tlc-pack/tlcpack-sphinx-addon.git@7f69989f1c6a6713d0bd7c27f8da2b48344117d3 \
-    pytest-profiling \
-    pytest-xdist \
-    requests \
-    scipy \
-    Jinja2 \
-    synr==0.6.0 \
-    junitparser==2.4.2 \
-    six \
-    tornado \
-    pytest-lazy-fixture
+from .. import _ffi_api
+from .postproc import Postproc
+
+
+@register_object("meta_schedule.RewriteLayout")
+class RewriteLayout(Postproc):
+    """A postprocessor that rewrites the layout of input tensor"""
+
+    def __init__(self) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.PostprocRewriteLayout,  # type: ignore # pylint: disable=no-member
+        )

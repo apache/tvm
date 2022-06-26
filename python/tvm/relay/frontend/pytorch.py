@@ -293,6 +293,14 @@ class PyTorchOpConverter:
     def min(self, inputs, input_types):
         return self.min_max_common("minimum", "min", inputs, input_types)
 
+    def maximum(self, inputs, input_types):
+        data0, data1 = self.pytorch_promote_types(inputs[:2], input_types[:2])
+        return _op.maximum(data0, data1)
+
+    def minimum(self, inputs, input_types):
+        data0, data1 = self.pytorch_promote_types(inputs[:2], input_types[:2])
+        return _op.minimum(data0, data1)
+
     def make_unary(self, name):
         def unary(inputs, input_types):
             # this is just to ensure tensor input
@@ -1963,6 +1971,13 @@ class PyTorchOpConverter:
             target = _op.cast(target, t0)
         return _op.broadcast_to_like(inputs[0], target)
 
+    def broadcast_tensors(self, inputs, input_types):
+        tensor_list = inputs[0]
+        import torch
+
+        res_shape = list(torch.broadcast_shapes(*[self.infer_shape(t) for t in tensor_list]))
+        return [_op.broadcast_to(tensor, res_shape) for tensor in tensor_list]
+
     def Bool(self, inputs, input_types):
         assert len(inputs) == 1
         return inputs[0]
@@ -3020,6 +3035,8 @@ class PyTorchOpConverter:
             "aten::sub": self.sub,
             "aten::max": self.max,
             "aten::min": self.min,
+            "aten::maximum": self.maximum,
+            "aten::minimum": self.minimum,
             "aten::amax": self.max,
             "aten::amin": self.min,
             "aten::stft": self.stft,
@@ -3179,6 +3196,7 @@ class PyTorchOpConverter:
             "aten::upsample_trilinear3d": self.make_upsample3d("linear"),
             "aten::upsample_nearest3d": self.make_upsample3d("nearest_neighbor"),
             "aten::expand_as": self.expand_as,
+            "aten::broadcast_tensors": self.broadcast_tensors,
             "aten::lt": self.make_elemwise("less"),
             "aten::gt": self.make_elemwise("greater"),
             "aten::le": self.make_elemwise("less_equal"),
