@@ -173,7 +173,7 @@ extern "C" void dnnl_conv2d(float* data, float* weights, float* out, int p_N_, i
   std::vector<float> bias(p_O_, 0);
   return dnnl_conv2d_common(data, weights, bias.data(), out, p_N_, p_C_, p_H_, p_W_, p_O_, p_G_,
                             p_Ph0_, p_Pw0_, p_Ph1_, p_Pw1_, p_Kh_, p_Kw_, p_Sh_, p_Sw_, attr, false,
-                            false, false);
+                            true, true);
 }
 
 primitive_attr create_attr_with_relu_post_op() {
@@ -193,7 +193,7 @@ extern "C" void dnnl_fused_conv2d_relu(float* data, float* weights, float* out, 
   std::vector<float> bias(p_O_, 0);
   return dnnl_conv2d_common(data, weights, bias.data(), out, p_N_, p_C_, p_H_, p_W_, p_O_, p_G_,
                             p_Ph0_, p_Pw0_, p_Ph1_, p_Pw1_, p_Kh_, p_Kw_, p_Sh_, p_Sw_,
-                            create_attr_with_relu_post_op(), false, false, false);
+                            create_attr_with_relu_post_op(), false, true, true);
 }
 
 extern "C" void dnnl_fused_conv2d_bias_relu(float* data, float* weights, float* bias, float* out,
@@ -203,7 +203,7 @@ extern "C" void dnnl_fused_conv2d_bias_relu(float* data, float* weights, float* 
                                             int p_Sw_) {
   return dnnl_conv2d_common(data, weights, bias, out, p_N_, p_C_, p_H_, p_W_, p_O_, p_G_, p_Ph0_,
                             p_Pw0_, p_Ph1_, p_Pw1_, p_Kh_, p_Kw_, p_Sh_, p_Sw_,
-                            create_attr_with_relu_post_op(), false, false, false);
+                            create_attr_with_relu_post_op(), false, true, true);
 }
 
 extern "C" void dnnl_dense(float* data, float* weight, float* out, int p_B_, int p_I_, int p_O_) {
