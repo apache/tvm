@@ -194,4 +194,4 @@ class TestCastF32F16Slice2d:
 
 
 if __name__ == "__main__":
-    sys.exit(tvm.testing.main(sys.argv))
+    sys.exit(tvm.testing.main())
