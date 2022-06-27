@@ -360,7 +360,8 @@ def get_conv2d_qnn_params(
 
 
 def get_ethosn_api_version():
-    return tvm.get_global_func("relay.ethos-n.api.version")()
+    gf = tvm.get_global_func("relay.ethos-n.api.version", True)
+    return gf() if gf else None
 
 
 def get_ethosn_variant():
