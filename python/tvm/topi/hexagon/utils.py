@@ -14,7 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
 # pylint: disable=invalid-name
+
+
 """Common hexagon specific utilities"""
 from tvm import te
 
@@ -43,6 +46,24 @@ def nhw_32h16w_2d(n, h, w):
     """Return index map for nhw_32h16w 2d layout"""
     return [n, h // 32, w // 16, te.AXIS_SEPARATOR, h % 32, w % 16]
 
+def nhwc_4h4w32c_1d(n, h, w, c):
+    """Return index map for nhwc_4h4232c 1d layout"""
+    return [n, h // 4, w // 4, c // 32, h % 4, w % 4, c % 32]
+
+
+def nhwc_4h4w32c_2d(n, h, w, c):
+    """Return index map for nhwc_4h4w32c 2d layout"""
+    return [n, h // 4, w // 4, c // 32, te.AXIS_SEPARATOR, h % 4, w % 4, c % 32]
+
+
+def nc_512c_1d(n, c):
+    """Return index map for nc_512c 1d layout"""
+    return [n, c // 512, c % 512]
+
+
+def nc_512c_2d(n, c):
+    """Return index map for nc_512c 2d layout"""
+    return [n, c // 512, te.AXIS_SEPARATOR, c % 512]
 
 def get_layout_transform_fn(layout):
     """Return index map function as per the layout string"""
@@ -56,4 +77,12 @@ def get_layout_transform_fn(layout):
         return n11c_1024c_1d
     if layout == "nhw-32h16w-2d":
         return nhw_32h16w_2d
+    if layout == "nhwc-4h4w32c-2d":
+        return nhwc_4h4w32c_2d
+    if layout == "nhwc-4h4w32c-1d":
+        return nhwc_4h4w32c_1d
+    if layout == "nc-512c-2d":
+        return nc_512c_2d
+    if layout == "nc-512c-1d":
+        return nc_512c_1d
     raise RuntimeError(f"Unexpected layout '{layout}'")

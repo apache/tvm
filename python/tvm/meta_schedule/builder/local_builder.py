@@ -26,11 +26,7 @@ from tvm.runtime import Module, NDArray, load_param_dict, save_param_dict
 from tvm.target import Target
 
 from ...contrib.popen_pool import MapResult, PopenPoolExecutor, StatusKind
-from ..utils import (
-    cpu_count,
-    derived_object,
-    get_global_func_with_default_on_worker,
-)
+from ..utils import cpu_count, derived_object, get_global_func_with_default_on_worker
 from .builder import BuilderInput, BuilderResult, PyBuilder
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
@@ -258,8 +254,10 @@ def default_build(mod: IRModule, target: Target, _params: Optional[Dict[str, NDA
     """
     # pylint: disable=import-outside-toplevel
     from tvm.driver import build as tvm_build
+    from tvm.tir.transform import RemoveWeightLayoutRewriteBlock
 
     # pylint: enable=import-outside-toplevel
+    mod = RemoveWeightLayoutRewriteBlock()(mod)
     return tvm_build(mod, target=target)
 
 
