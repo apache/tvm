@@ -36,6 +36,8 @@
 #include <tvm/te/schedule.h>
 #include <tvm/te/schedule_pass.h>
 #include <tvm/tir/function.h>
+#include <tvm/tir/index_map.h>
+#include <tvm/tir/transform.h>
 #include <tvm/topi/tags.h>
 
 #include <functional>
@@ -47,6 +49,7 @@
 
 #include "../../te/operation/create_primfunc.h"
 #include "../op/memory/memory.h"
+#include "../transforms/meta_schedule_layout_rewrite.h"
 #include "../transforms/pass_utils.h"
 #include "utils.h"
 
@@ -58,6 +61,16 @@ TVM_REGISTER_NODE_TYPE(LoweredOutputNode);
 TVM_REGISTER_NODE_TYPE(CachedFuncNode);
 TVM_REGISTER_NODE_TYPE(CCacheKeyNode);
 TVM_REGISTER_NODE_TYPE(CCacheValueNode);
+
+void ExtractTransformLayout(const meta_schedule::TuningRecord& record) {
+  static tir::InstructionKind kind_transform_layout = tir::InstructionKind::Get("TransformLayout");
+  for (const tir::Instruction& inst : record->trace->insts) {
+    if (inst->kind.same_as(kind_transform_layout)) {
+      ICHECK_EQ(inst->attrs.size(), 3);
+      relay::MetaScheduleLayoutRewriter::LayoutQueuePush(Downcast<tir::IndexMap>(inst->attrs[2]));
+    }
+  }
+}
 
 LoweredOutput::LoweredOutput(tvm::Array<te::Tensor> outputs, OpImplementation impl) {
   auto n = make_object<LoweredOutputNode>();
@@ -353,10 +366,16 @@ class ScheduleBuilder : public ExprVisitor {
                 meta_schedule_ctx_.value()->te_filter_func(te_args)) {
           IRModule relay_mod({{prim_fn_var, relay_func}});
           IRModule tir_mod({{prim_fn_var, tir_func.value()}});
-          if (Optional<IRModule> scheduled_mod = meta_schedule_ctx_.value()->Query(
-                  prim_fn_var->name_hint, relay_mod, target_, Array<IRModule>{tir_mod})) {
-            ICHECK_EQ(scheduled_mod.value()->functions.count(prim_fn_var), 1);
-            prim_func = Downcast<tir::PrimFunc>(scheduled_mod.value()->functions[prim_fn_var]);
+          if (Optional<IRModule> opt_scheduled_mod = meta_schedule_ctx_.value()->Query(
+                  /*task_name=*/prim_fn_var->name_hint,     //
+                  /*mod=*/relay_mod,                        //
+                  /*target=*/target_,                       //
+                  /*dispatched=*/Array<IRModule>{tir_mod},  //
+                  /*f_take_tuning_record=*/ExtractTransformLayout)) {
+            IRModule scheduled_mod =
+                tir::transform::RemoveWeightLayoutRewriteBlock()(opt_scheduled_mod.value());
+            ICHECK_EQ(scheduled_mod->functions.count(prim_fn_var), 1);
+            prim_func = Downcast<tir::PrimFunc>(scheduled_mod->functions[prim_fn_var]);
           }
         }
       }

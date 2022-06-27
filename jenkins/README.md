@@ -72,6 +72,19 @@ See #<issue number>
 '
 gh pr create
 ```
+
+## Network Resources
+
+Downloading files from the Internet in CI is a big source of flaky failures
+(e.g. remote server goes down or is slow), so try to avoid using the network at
+all during tests. In some cases this isn't a reasonable proposition (e.g. the
+docs tutorials which need to download models). In these cases you can re-host
+files in S3 for fast access in CI. A committer can upload a file, specified by
+a name, hash, and path in S3, using the `workflow_dispatch` event on
+[the `upload_ci_resource.yml` GitHub Actions workflow](https://github.com/apache/tvm/actions/workflows/upload_ci_resource.yml).
+The sha256 must match the file or it will not be uploaded. The upload path is
+user-defined so it can be any path (no trailing or leading slashes allowed) but
+be careful not to collide with existing resources on accident.
     
 ## Skipping CI
 

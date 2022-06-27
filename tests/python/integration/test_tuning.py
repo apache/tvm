@@ -157,7 +157,6 @@ def run_test_with_all_multiprocessing(func, *args, **kwargs):
             mp.set_start_method(old_start_method, force=True)
 
 
-@pytest.mark.xfail(strict=False, reason="See https://github.com/apache/tvm/issues/10489")
 @tvm.testing.parametrize_targets("cuda", "opencl")
 def test_tuning_gpu(target, dev):
     def runner(target, dev):
@@ -178,7 +177,14 @@ def test_tuning_gpu(target, dev):
 
         assert len(results) == 20
 
-        successful_results = [r for r in results if r.error_no == autotvm.MeasureErrorNo.NO_ERROR]
+        successful_results = [
+            r
+            for r in results
+            if r.error_no == autotvm.MeasureErrorNo.NO_ERROR
+            # Autotvm can filter some records before building if we know they won't work ahead of time.
+            # We can't guarantee we sample at least one good record so we count these as success too
+            or r.error_no == autotvm.MeasureErrorNo.INSTANTIATION_ERROR
+        ]
         assert len(successful_results) > 0, f"No successful tuning runs: {results!r}"
 
     run_test_with_all_multiprocessing(runner, target, dev)

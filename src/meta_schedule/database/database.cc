@@ -89,13 +89,7 @@ MeasureCandidate TuningRecordNode::AsMeasureCandidate() const {
   tir::Schedule sch =
       tir::Schedule::Traced(workload->mod, -1, 0, tir::ScheduleErrorRenderLevel::kDetail);
   trace->ApplyToSchedule(sch, false, nullptr);
-  tir::PrimFunc func;
-  for (const auto& kv : sch->mod()->functions) {
-    func = Downcast<tir::PrimFunc>(kv.second);
-  }
-  Array<ArgInfo> args_info = ArgInfo::FromPrimFunc(func);
-  MeasureCandidate candidate = MeasureCandidate(sch, args_info);
-  return candidate;
+  return MeasureCandidate(sch, ArgInfo::FromEntryFunc(sch->mod(), /*remove_preproc=*/true));
 }
 
 ObjectRef TuningRecordNode::AsJSON() const {
