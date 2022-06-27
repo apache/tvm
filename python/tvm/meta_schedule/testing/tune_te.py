@@ -86,6 +86,13 @@ def _parse_args():
         required=True,
         help="example: `True / False",
     )
+    args.add_argument(
+        "--adaptive-training",
+        type=lambda x: bool(strtobool(x)),
+        required=False,
+        help="example: True / False",
+        default=True,
+    )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
     parsed.rpc_config = ms.runner.RPCConfig(
@@ -126,6 +133,7 @@ def main():
                 num_trials_per_iter=64,
                 max_trials_per_task=ARGS.num_trials,
                 max_trials_global=ARGS.num_trials,
+                adaptive_training=ARGS.apative_training,
             ),
             runner=runner,  # type: ignore
             task_name=ARGS.workload,

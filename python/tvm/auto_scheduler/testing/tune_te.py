@@ -82,7 +82,14 @@ def _parse_args():
         "--cpu-flush",
         type=lambda x: bool(strtobool(x)),
         required=True,
-        help="example: `True / False",
+        help="example: True / False",
+    )
+    args.add_argument(
+        "--adaptive-training",
+        type=lambda x: bool(strtobool(x)),
+        required=False,
+        help="example: True / False",
+        default=True,
     )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
@@ -147,7 +154,7 @@ def main():
         runner=runner,
     )
     print("Running AutoTuning:")
-    task.tune(tune_option)
+    task.tune(tune_option, adaptive_training=ARGS.adaptive_training)
     print("History Best:")
     print(task.print_best(log_file))
     sch, args = task.apply_best(log_file)

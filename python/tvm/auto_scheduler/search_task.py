@@ -481,7 +481,7 @@ class SearchTask(Object):
             desc,
         )
 
-    def tune(self, tuning_options, search_policy=None):
+    def tune(self, tuning_options, search_policy=None, adaptive_training=False):
         """Run auto scheduling search for a task
 
         Parameters
@@ -492,7 +492,7 @@ class SearchTask(Object):
             The search policy to be used for schedule search.
         """
         if search_policy is None:
-            cost_model = XGBModel()
+            cost_model = XGBModel(adaptive_training=adaptive_training)
             search_policy = SketchPolicy(self, cost_model)
 
         _ffi_api.AutoSchedule(search_policy, tuning_options)
