@@ -202,7 +202,7 @@ def make_dnnl_pattern(op_name, with_bias, with_eltwise):
         pat_name = "dnnl.deconv" + op_name.split("_")[0][-2::]
     pat_name += "_bias" if with_bias else ""
     pat_name += ("_" + with_eltwise.split(".")[-1]) if with_eltwise else ""
-    pat_name =pat_name.replace("_swish", "_sigmoid_mul")
+    pat_name = pat_name.replace("_swish", "_sigmoid_mul")
     if "conv" in op_name:
         dnnl_pattern = (pat_name, make_conv_pattern(op_name, with_bias, with_eltwise))
     elif op_name == "nn.dense":
@@ -392,7 +392,7 @@ def get_shape(tensor):
     if isinstance(tensor, tvm.ir.container.Array):
         return tensor[-1].shape
     if isinstance(tensor, relay.expr.Call):
-        if tensor.op.name=="multiply":
+        if tensor.op.name == "multiply":
             return tensor.type_args[0].shape
         return tensor.checked_type.shape
     raise TypeError("Unsupport data type: %s" % type(tensor))
@@ -409,7 +409,7 @@ def get_dtype(tensor):
     if isinstance(tensor, tvm.ir.container.Array):
         return tensor[-1].dtype
     if isinstance(tensor, relay.expr.Call):
-        if tensor.op.name=="multiply":
+        if tensor.op.name == "multiply":
             return tensor.type_args[0].dtype
         return tensor.checked_type.dtype
     raise TypeError("Unsupport data type: %s" % type(tensor))

@@ -467,8 +467,9 @@ inline const CallNode* GetRootCall(const CallNode* current_call, int depth,
   ICHECK_GT(current_call->args.size(), 0);
   size_t valid_node_idx = 0;
   while (valid_node_idx < current_call->args.size()) {
-   if (IsOp(current_call->args[valid_node_idx].as<CallNode>(), expected_op_names[depth - 1])) break;
-   valid_node_idx++;
+    if (IsOp(current_call->args[valid_node_idx].as<CallNode>(), expected_op_names[depth - 1]))
+      break;
+    valid_node_idx++;
   }
   const auto* next_call = current_call->args[valid_node_idx].as<CallNode>();
   return GetRootCall(next_call, depth - 1, expected_op_names);
