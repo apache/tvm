@@ -33,7 +33,7 @@ def _conv2d_te_definition(shapes: dict) -> list:
     return [ifmap, weights, result]
 
 
-def _pepare_conv2d_schedule(shapes, use_external_conv2d_impl=True, ):
+def _pepare_conv2d_schedule(shapes, use_external_conv2d_impl=True):
     placeholders = _conv2d_te_definition(shapes)
     sch_tir = _create_schedule(placeholders, conv2d_c_code, use_external_conv2d_impl=use_external_conv2d_impl)
     return placeholders, sch_tir
@@ -61,6 +61,13 @@ def _run_reference_conv2d(reference_io_arrays, conv2d_shapes, target):
     ref_mod(ifmap, weights, result)
 
 
+def _prepare_io_arrays(conv2d_shapes, dev):
+    dut_io_arrays = _generate_io_arrays(conv2d_shapes, dev)
+    _, _, ref_result = _generate_io_arrays(conv2d_shapes, dev)
+    reference_io_arrays = [dut_io_arrays[0], dut_io_arrays[1], ref_result]
+    return dut_io_arrays, reference_io_arrays
+
+
 def test_lower_with_uma():
     target = tvm.target.Target(target="llvm", host="llvm")
     dev = tvm.device(target.kind.name, 0)
@@ -77,11 +84,6 @@ def test_lower_with_uma():
     tvm.testing.assert_allclose(dut_results, ref_results, rtol=1e-5)
 
 
-def _prepare_io_arrays(conv2d_shapes, dev):
-    dut_io_arrays = _generate_io_arrays(conv2d_shapes, dev)
-    _, _, ref_result = _generate_io_arrays(conv2d_shapes, dev)
-    reference_io_arrays = [dut_io_arrays[0], dut_io_arrays[1], ref_result]
-    return dut_io_arrays, reference_io_arrays
 
 
 if __name__ == "__main__":

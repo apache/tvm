@@ -87,25 +87,6 @@ class my_ai_hw_conv2d_pass:
             else:
                 return func #sch.mod["main"]
 
-        def _transform_function(
-            func: tvm.tir.PrimFunc, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-        ) -> tvm.tir.PrimFunc:
-            def _replace_conv2d(op):
-                if isinstance(op, tvm.tir.For) and op.loop_var.name == "yy":
-                    irb = tvm.tir.ir_builder.create()
-                    # Collection of buffer address
-                    buffers = [b[1].data for b in func.buffer_map.items()]
-                    args = buffers # + offsets
-                    external_call = tvm.tir.Evaluate(tir_call(irb, True, _external_function_name, *args))
-                    mac_calls = tvm.tir.SeqStmt([external_call])
-                    irb.emit(mac_calls)
-                    irb_result = irb.get()
-                    return irb_result
-                return op
-
-            x = tvm.tir.stmt_functor.ir_transform(func.body, None, _replace_conv2d, ["tir.For"])
-            return func.with_body(x)
-
         r = _transform_function2(func, mod, ctx)
         return r
 
