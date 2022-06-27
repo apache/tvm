@@ -185,7 +185,7 @@ def test_mark_compiler_functions_as_extern():
 def test_inline_compiler_functions():
     mod = expected_outlined_mod()
     gv = mod.get_global_var("tvmgen_default_cutlass_main_0")
-    actual_inlined_mod = tvm.relay.transform.InlineCompilerFunctions([gv])(mod)
+    actual_inlined_mod = tvm.relay.transform.InlineCompilerFunctionsBoundTo([gv])(mod)
     tvm.ir.assert_structural_equal(actual_inlined_mod, expected_inlined_mod(), map_free_vars=True)
 
 

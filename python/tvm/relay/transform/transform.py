@@ -1422,11 +1422,11 @@ def MarkCompilerFunctionsAsExtern(compiler_filter=""):
     return _ffi_api.MarkCompilerFunctionsAsExtern(compiler_filter)
 
 
-def InlineCompilerFunctions(global_vars):
+def InlineCompilerFunctionsBoundTo(global_vars):
     """Inlines all global functions bound to a global var in global_vars.
 
-    Both the global "Compiler" attributed function, and any "Composite" functions it its body are
-    inlined.
+    Both the global "Compiler" attributed function, and any calls to "Composite" functions it its
+    body are inlined.
 
     This pass may be useful for external codegen which needs to undo partitioning based on
     properties of the entire partition.
@@ -1441,4 +1441,4 @@ def InlineCompilerFunctions(global_vars):
     ret : tvm.transform.Pass
         The pass.
     """
-    return _ffi_api.InlineCompilerFunctions(global_vars)
+    return _ffi_api.InlineCompilerFunctionsBoundTo(global_vars)

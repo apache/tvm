@@ -135,13 +135,13 @@ transform::Pass MarkCompilerFunctionsAsExtern(std::string compiler_filter = "");
 
 /*!
  * \brief A pass to inline all global "Compiler" functions which are bound to a global var
- * in \p global_vars. Both the global function and any "Composite" functions it its body are
- * inlined.
+ * in \p global_vars. Both the global function and any calls to "Composite" functions it its body
+ * are inlined.
  *
  * This pass may be useful for external codegen which needs to undo partitioning based on
  * properties of the entire partition.
  */
-transform::Pass InlineCompilerFunctions(Array<GlobalVar> global_vars);
+transform::Pass InlineCompilerFunctionsBoundTo(Array<GlobalVar> global_vars);
 
 }  // namespace transforms
 }  // namespace relay

@@ -1107,7 +1107,7 @@ def prune_tensorrt_subgraphs(mod: tvm.IRModule) -> tvm.IRModule:
         and mod[gv].attrs["Compiler"] == "tensorrt"
         and not is_valid_subgraph(mod[gv].params, mod[gv].body)
     ]
-    return relay.transform.InlineCompilerFunctions(global_vars_to_inline)(mod)
+    return relay.transform.InlineCompilerFunctionsBoundTo(global_vars_to_inline)(mod)
 
 
 class RemoveDropout(ExprMutator):
