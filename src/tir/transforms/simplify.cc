@@ -24,6 +24,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/analysis.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/transform.h>
@@ -70,6 +71,10 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
       // because the call to simplify will always inline the var.
       analyzer_->Bind(op->var, value);
       return this->VisitStmt(op->body);
+    } else if (SideEffect(op->value) <= CallEffectKind::kPure) {
+      // Even if we aren't replacing all occurrences, they may be
+      // necessary for proving conditional statements.
+      non_inlined_bindings_.Set(op->var, value);
     }
     Stmt body = this->VisitStmt(op->body);
     if (value.same_as(op->value) && body.same_as(op->body)) {
@@ -80,6 +85,35 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
       n->body = std::move(body);
       return Stmt(n);
     }
+  }
+
+  Stmt VisitStmt_(const IfThenElseNode* op) {
+    PrimExpr cond = analyzer_->Simplify(Substitute(op->condition, non_inlined_bindings_));
+    if (const int64_t* as_int = as_const_int(cond)) {
+      if (*as_int) {
+        return this->VisitStmt(op->then_case);
+      } else if (op->else_case.defined()) {
+        return this->VisitStmt(op->else_case);
+      } else {
+        return Evaluate(0);
+      }
+    }
+    return Parent::VisitStmt_(op);
+  }
+
+  PrimExpr VisitExpr_(const CallNode* op) {
+    if (op->op.same_as(builtin::if_then_else())) {
+      PrimExpr cond = this->VisitExpr(op->args[0]);
+      cond = analyzer_->Simplify(Substitute(std::move(cond), non_inlined_bindings_));
+      if (const int64_t* as_int = as_const_int(cond)) {
+        if (*as_int) {
+          return this->VisitExpr(op->args[1]);
+        } else {
+          return this->VisitExpr(op->args[2]);
+        }
+      }
+    }
+    return Parent::VisitExpr_(op);
   }
 
   Stmt VisitStmt_(const StoreNode* op) final {
@@ -114,6 +148,8 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     }
     return true;
   }
+
+  Map<Var, PrimExpr> non_inlined_bindings_;
 };
 
 }  // namespace arith

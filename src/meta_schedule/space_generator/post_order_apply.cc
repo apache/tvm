@@ -145,10 +145,9 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
             ann.defined() ? runtime::Registry::Get(ann.value()) : nullptr;
         const bool has_schedule_rule = custom_schedule_fn != nullptr;
 
-        if (ann.defined() && !has_schedule_rule) {
-          TVM_PY_LOG(WARNING, this->logging_func)
-              << "Custom schedule rule not found, ignoring schedule_rule annotation: "
-              << ann.value();
+        if (ann.defined() && ann.value() != "None" && !has_schedule_rule) {
+          LOG(WARNING) << "Custom schedule rule not found, ignoring schedule_rule annotation: "
+                       << ann.value();
         }
 
         if ((has_schedule_rule && sch_rule.defined()) ||

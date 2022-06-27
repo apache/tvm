@@ -26,7 +26,10 @@
 
 #include <tvm/runtime/ndarray.h>
 
-#include "llvm_common.h"
+namespace llvm {
+class ConstantArray;
+class LLVMContext;
+}  // namespace llvm
 
 namespace tvm {
 namespace codegen {
@@ -40,7 +43,7 @@ namespace codegen {
  * \param arr NDArray to convert.
  * \return LLVM array containing the array data.
  */
-llvm::ConstantArray* NDArrayToLLVMArray(llvm::LLVMContext* ctx, ::tvm::runtime::NDArray arr);
+llvm::ConstantArray* NDArrayToLLVMArray(llvm::LLVMContext* ctx, tvm::runtime::NDArray arr);
 
 }  // namespace codegen
 }  // namespace tvm
