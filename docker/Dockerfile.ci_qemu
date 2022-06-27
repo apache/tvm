@@ -116,5 +116,5 @@ RUN bash /install/ubuntu_download_csinn2_compute_lib.sh
 
 # Update PATH
 ENV PATH /opt/arm/gcc-arm-none-eabi/bin:/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4:$PATH
-ENV PATH /opt/csi-nn2/csi-nn2/tools/gcc-toolchain/bin:$PATH
-ENV PATH /opt/csi-nn2/csi-nn2/tools/qemu/bin:$PATH
+ENV PATH /opt/csi-nn2/tools/gcc-toolchain/bin:$PATH
+ENV PATH /opt/csi-nn2/tools/qemu/bin:$PATH
