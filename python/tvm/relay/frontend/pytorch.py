@@ -3575,7 +3575,7 @@ def _convert_dtype_value(val):
         3: "torch.int32",
         2: "torch.int16",
         1: "torch.int8",
-        0: "torch.unit8",
+        0: "torch.uint8",
         None: "torch.int64",
     }  # Default is torch.int64
     if val in convert_torch_dtype_map:
