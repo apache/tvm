@@ -218,9 +218,6 @@ class XGBConfig(NamedTuple):
     nthread : Optional[int],
         The number of threads to use.
         Default is None, which means to use physical number of cores.
-    adapative_training : bool
-        Whether to use adapatie training, which reduces the training frequency when there are
-        too many logs.
     """
 
     max_depth: int = 10
@@ -229,7 +226,6 @@ class XGBConfig(NamedTuple):
     eta: float = 0.2
     seed: int = 43
     nthread: Optional[int] = None
-    adapative_training: bool = True
 
     def to_dict(self):
         return {
@@ -239,7 +235,6 @@ class XGBConfig(NamedTuple):
             "eta": self.eta,
             "seed": self.seed,
             "nthread": self.nthread,
-            "adapative_training": self.adapative_training,
         }
 
 
