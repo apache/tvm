@@ -863,8 +863,9 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
 
       do {
         if (duration_ms > 0.0) {
-          number = static_cast<int>(std::max((min_repeat_ms / (duration_ms / number) + 1),
-                                             number * 1.618));  // 1.618 is chosen by random
+          const double golden_ratio = 1.618;
+          number = static_cast<int>(
+              std::max((min_repeat_ms / (duration_ms / number) + 1), number * golden_ratio));
         }
 
         // start timing

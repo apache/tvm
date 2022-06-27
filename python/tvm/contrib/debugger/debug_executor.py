@@ -19,6 +19,7 @@
 import logging
 import os
 import shutil
+import struct
 import tempfile
 
 import tvm._ffi
@@ -362,15 +363,19 @@ class GraphModuleDebug(graph_executor.GraphModule):
         A 2-dimensional array where the dimensions are: the index of the operation and
         the repeat of the measurement.
         """
-        ret = self._run_individual(
+        res = self._run_individual(
             number, repeat, min_repeat_ms, cooldown_interval_ms, repeats_to_cooldown
         )
         results = []
-        for node_data in ret.strip(";").split(";"):
-            results.append([])
-            for repeat_data in node_data.strip(",").split(","):
-                if repeat_data:
-                    results[-1].append(float(repeat_data))
+        offset = 0
+        format_size = "@q"
+        (nodes_count,) = struct.unpack_from(format_size, res, offset)
+        offset += struct.calcsize(format_size)
+        format_data = "@" + repeat * "d"
+        for _ in range(0, nodes_count):
+            ret = struct.unpack_from(format_data, res, offset)
+            offset += struct.calcsize(format_data)
+            results.append([*ret])
         return results
 
     def run_individual_node(
@@ -422,14 +427,12 @@ class GraphModuleDebug(graph_executor.GraphModule):
         A module BenchmarkResult
         """
         # Results are returned as serialized strings which we deserialize
-        ret = self._run_individual_node(
+        res = self._run_individual_node(
             index, number, repeat, min_repeat_ms, cooldown_interval_ms, repeats_to_cooldown
         )
-        results = []
-        for repeat_data in ret.replace(" ", "").strip(",").split(","):
-            if repeat_data:
-                results.append(float(repeat_data))
-        return BenchmarkResult(results)
+        fmt = "@" + ("d" * repeat)
+        results = struct.unpack(fmt, res)
+        return BenchmarkResult(list(results))
 
     def profile(self, collectors=None, **input_dict):
         """Run forward execution of the graph and collect overall and per-op

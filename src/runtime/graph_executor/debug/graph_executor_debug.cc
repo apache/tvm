@@ -60,8 +60,9 @@ class GraphExecutorDebug : public GraphExecutor {
    *        defined by `repeats_to_cooldown`.
    * \param repeats_to_cooldown The number of repeats before the
    *        cooldown is activated.
-   * \return Comma separated string containing the elapsed time per op for
-   *         the last iteration only, because returning a long string over rpc can be expensive.
+   * \return Returns a string with an encoded byte array. Where the first 8 bytes are int64_t
+   * representing the number of layers. Next the encoded real numbers are float32_t in the number of
+   * repeat multiplied by the number of layers.
    */
   std::string RunIndividual(int number, int repeat, int min_repeat_ms, int cooldown_interval_ms,
                             int repeats_to_cooldown) {
@@ -78,8 +79,12 @@ class GraphExecutorDebug : public GraphExecutor {
     } else {
       int op = 0;
       for (size_t index = 0; index < op_execs_.size(); ++index) {
-        time_sec_per_op[index] = RunIndividualNode(index, number, repeat, min_repeat_ms,
+        std::string result_str = RunIndividualNode(index, number, repeat, min_repeat_ms,
                                                    cooldown_interval_ms, repeats_to_cooldown);
+        const double* blob_ptr = reinterpret_cast<const double*>(result_str.data());
+        for (int i = 0; i < repeat; ++i, ++blob_ptr) {
+          time_sec_per_op[index].push_back(*blob_ptr);
+        }
         if (op_execs_[index]) {
           LOG(INFO) << "Op #" << op << " " << GetNodeName(index) << ":";
           for (size_t cur_repeat = 0; cur_repeat < time_sec_per_op[index].size(); cur_repeat++) {
@@ -92,22 +97,21 @@ class GraphExecutorDebug : public GraphExecutor {
     }
 
     std::ostringstream os;
-    for (size_t index = 0; index < time_sec_per_op.size(); index++) {
-      for (const auto& repeat_data : time_sec_per_op[index]) {
+    int64_t size = time_sec_per_op.size();
+    os.write(reinterpret_cast<char*>(&size), sizeof(int64_t));
+    for (size_t index = 0; index < time_sec_per_op.size(); ++index) {
+      for (auto& repeat_data : time_sec_per_op[index]) {
         // To have good behavior when calculating total time, etc.
-        os << (std::isnan(repeat_data) ? std::to_string(0) : std::to_string(repeat_data)) << ",";
+        double data = std::isnan(repeat_data) ? 0 : repeat_data;
+        os.write(reinterpret_cast<char*>(&data), sizeof(double));
       }
-      os << ";";
     }
     return os.str();
   }
 
-  std::vector<double> RunIndividualNode(int node_index, int number, int repeat, int min_repeat_ms,
-                                        int cooldown_interval_ms, int repeats_to_cooldown) {
+  std::string RunIndividualNode(int node_index, int number, int repeat, int min_repeat_ms,
+                                int cooldown_interval_ms, int repeats_to_cooldown) {
     std::string tkey = module_->type_key();
-
-    // results_in_seconds[a][b] is the bth index run of the ath index repeat
-    std::vector<double> results_in_seconds(repeat, 0);
 
     if (tkey == "rpc") {
       LOG(FATAL) << "RPC measurements should not use RunIndividualNode!";
@@ -115,7 +119,12 @@ class GraphExecutorDebug : public GraphExecutor {
 
     if (!op_execs_[node_index]) {
       // don't return anything...
-      return results_in_seconds;
+      std::ostringstream os;
+      double zero = 0;
+      for (int i = 0; i < repeat; ++i) {
+        os.write(reinterpret_cast<char*>(&zero), sizeof(double));
+      }
+      return os.str();
     }
 
     // assume host runs things which is first device
@@ -123,12 +132,7 @@ class GraphExecutorDebug : public GraphExecutor {
     PackedFunc time_evaluator = profiling::WrapTimeEvaluator(
         TypedPackedFunc<void()>([this, node_index]() { this->RunOpHost(node_index); }), d, number,
         repeat, min_repeat_ms, cooldown_interval_ms, repeats_to_cooldown);
-    std::string result_str = time_evaluator();
-    const double* blob_ptr = reinterpret_cast<const double*>(result_str.data());
-    for (int i = 0; i < repeat; ++i, ++blob_ptr) {
-      results_in_seconds[i] = *blob_ptr;
-    }
-    return results_in_seconds;
+    return time_evaluator();
   }
 
   std::vector<double> RunOpRPC(int index, int number, int repeat, int min_repeat_ms,
@@ -393,36 +397,35 @@ PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
       ICHECK_GE(min_repeat_ms, 0);
       ICHECK_GE(cooldown_interval_ms, 0);
       ICHECK_GT(repeats_to_cooldown, 0);
-      *rv = this->RunIndividual(number, repeat, min_repeat_ms, cooldown_interval_ms,
-                                repeats_to_cooldown);
+      std::string blob = this->RunIndividual(number, repeat, min_repeat_ms, cooldown_interval_ms,
+                                             repeats_to_cooldown);
+      TVMByteArray arr;
+      arr.size = blob.length();
+      arr.data = blob.data();
+      *rv = arr;
     });
   } else if (name == "run_individual_node") {
-    return TypedPackedFunc<std::string(int, int, int, int, int, int_least32_t)>(
-        [sptr_to_self, this](int node_index, int number, int repeat, int min_repeat_ms,
-                             int cooldown_interval_ms, int repeats_to_cooldown) {
-          ICHECK_GE(node_index, 0);
-          ICHECK_LT(node_index, nodes_.size());
-          ICHECK_GT(number, 0);
-          ICHECK_GT(repeat, 0);
-          ICHECK_GE(min_repeat_ms, 0);
-          ICHECK_GE(cooldown_interval_ms, 0);
-          ICHECK_GT(repeats_to_cooldown, 0);
-          std::vector<double> results = this->RunIndividualNode(
-              node_index, number, repeat, min_repeat_ms, cooldown_interval_ms, repeats_to_cooldown);
-
-          // Have problems returning FloatImm so serialize to string results as hack.
-          std::stringstream s;
-
-          // use maximum precision available and use fixed representation
-          s << std::fixed;
-          s.precision(std::numeric_limits<double>::max_digits10);
-
-          for (double cur : results) {
-            s << cur << ", ";
-          }
-
-          return s.str();
-        });
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      int node_index = args[0];
+      int number = args[1];
+      int repeat = args[2];
+      int min_repeat_ms = args[3];
+      int cooldown_interval_ms = args[4];
+      int repeats_to_cooldown = args[5];
+      ICHECK_GE(node_index, 0);
+      ICHECK_LT(node_index, nodes_.size());
+      ICHECK_GT(number, 0);
+      ICHECK_GT(repeat, 0);
+      ICHECK_GE(min_repeat_ms, 0);
+      ICHECK_GE(cooldown_interval_ms, 0);
+      ICHECK_GT(repeats_to_cooldown, 0);
+      std::string blob = this->RunIndividualNode(node_index, number, repeat, min_repeat_ms,
+                                                 cooldown_interval_ms, repeats_to_cooldown);
+      TVMByteArray arr;
+      arr.size = blob.length();
+      arr.data = blob.data();
+      *rv = arr;
+    });
   } else if (name == "profile") {
     return TypedPackedFunc<profiling::Report(Array<profiling::MetricCollector>)>(
         [sptr_to_self, this](Array<profiling::MetricCollector> collectors) {

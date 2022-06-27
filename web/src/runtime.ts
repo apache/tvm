@@ -1070,8 +1070,9 @@ export class Instance implements Disposable {
         let durationMs = 0.0;
         do {
           if (durationMs > 0.0) {
+            let golden_ratio = 1.618;
             setupNumber = Math.floor(
-              Math.max(minRepeatMs / (durationMs / setupNumber) + 1, setupNumber * 1.618)
+              Math.max(minRepeatMs / (durationMs / setupNumber) + 1, setupNumber * golden_ratio)
             );
           }
           const tstart: number = perf.now();

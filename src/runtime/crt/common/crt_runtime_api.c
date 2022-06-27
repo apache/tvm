@@ -560,7 +560,8 @@ tvm_crt_error_t RunTimeEvaluator(tvm_function_index_t function_index, TVMValue* 
     do {
       if (curr_res_seconds > 0.0) {
         double a = (min_repeat_seconds / (curr_res_seconds / g_time_evaluator_state.number) + 1);
-        double b = g_time_evaluator_state.number * 1.618;  // 1.618 is chosen by random
+        const double golden_ratio = 1.618;
+        double b = g_time_evaluator_state.number * golden_ratio;
         g_time_evaluator_state.number = (int64_t)(a > b ? a : b);
       }
       err = TVMPlatformBeforeMeasurement();
