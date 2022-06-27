@@ -35,6 +35,9 @@
 
 #include "literal/cuda_half_t.h"
 #include "ptx.h"
+#include "tvm/ir/expr.h"
+#include "tvm/tir/builtin.h"
+#include "tvm/tir/stmt.h"
 
 namespace tvm {
 namespace codegen {
@@ -917,6 +920,13 @@ void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
     const VarNode* buffer = op->node.as<VarNode>();
     const StringImmNode* layout_str = op->value.as<StringImmNode>();
     fragment_layouts[buffer] = layout_str->value;
+  } else if (op->attr_key == tir::attr::async_commit_scope) {
+    const IntImmNode* queue_id = op->value.as<IntImmNode>();
+    ICHECK(queue_id && queue_id == 0);
+    this->VisitStmt(op->body);
+    auto commit_group = Call(DataType::Void(), builtin::ptx_commit_group(), {});
+    this->VisitExpr(commit_group, this->stream);
+    return;
   }
   CodeGenC::VisitStmt_(op);
 }
