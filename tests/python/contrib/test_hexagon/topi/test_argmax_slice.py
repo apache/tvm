@@ -25,9 +25,6 @@ import tvm.contrib.hexagon
 from ..infrastructure import allocate_hexagon_array, transform_numpy
 
 
-# pylint: disable=invalid-name
-
-
 class TestArgMaxSlice:
     """Argmax Slice Op Tests"""
 
@@ -81,17 +78,17 @@ class TestArgMaxSlice:
         """Top level testing function for argmax"""
         target_hexagon = tvm.target.hexagon("v69")
         target = tvm.target.Target(target_hexagon, host=target_hexagon)
-        A = te.placeholder(input_shape, name="A", dtype=dtype)
-        M = sl.argmax.argmax_compute(A, in_axis)
-        argmax_func = te.create_prim_func([A, M])
+        argmax_input = te.placeholder(input_shape, name="A", dtype=dtype)
+        output = sl.argmax.argmax_compute(argmax_input, in_axis)
+        argmax_func = te.create_prim_func([argmax_input, output])
         tir_s = sl.argmax_schedule(argmax_func, input_layout, output_layout)
-        A_data = allocate_hexagon_array(
+        input_data = allocate_hexagon_array(
             hexagon_session.device,
             data=transformed_input_np,
             axis_separators=in_axis_sep,
             mem_scope=working_scope,
         )
-        M_data = allocate_hexagon_array(
+        output_data = allocate_hexagon_array(
             hexagon_session.device,
             tensor_shape=transformed_expected_output_np.shape,
             dtype=transformed_expected_output_np.dtype,
@@ -99,18 +96,21 @@ class TestArgMaxSlice:
             mem_scope=working_scope,
         )
         with tvm.transform.PassContext(opt_level=3, config={"tir.disable_assert": True}):
-            tir_irm = tvm.lower(tir_s.mod, [A, M], name="argmax")
-            runtime_module = tvm.build(tir_irm, [A, M], target=target, name="argmax")
+            tir_irm = tvm.lower(tir_s.mod, [argmax_input, output], name="argmax")
+            runtime_module = tvm.build(
+                tir_irm, [argmax_input, output], target=target, name="argmax"
+            )
         mod = hexagon_session.load_module(runtime_module)
 
-        mod(A_data, M_data)
-        output_np = M_data.numpy()
+        mod(input_data, output_data)
+        output_np = output_data.numpy()
         tvm.testing.assert_allclose(
             output_np,
             transformed_expected_output_np,
             1e-3,
             1e-3,
         )
+
 
 if __name__ == "__main__":
     tvm.testing.main()
