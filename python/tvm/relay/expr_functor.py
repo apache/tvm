@@ -208,11 +208,6 @@ class ExprMutator(ExprFunctor):
             fn,
             list(new_params),
             new_body,
-            fn.ret_type,
-            fn.type_params,
-            fn.attrs,
-            fn.virtual_device_,
-            fn.span,
         )
 
     def visit_let(self, let):
