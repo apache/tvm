@@ -97,6 +97,9 @@ class GitHubRepo:
     def put(self, url: str, data: Dict[str, Any]) -> Dict[str, Any]:
         return self._request(self.base + url, data, method="PUT")
 
+    def patch(self, url: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        return self._request(self.base + url, data, method="PATCH")
+
     def post(self, url: str, data: Dict[str, Any]) -> Dict[str, Any]:
         return self._request(self.base + url, data, method="POST")
 
