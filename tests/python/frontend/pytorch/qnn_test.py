@@ -184,7 +184,7 @@ class Hsigmoid(nn.Module):
 class Hswish(nn.Module):
     def __init__(self, add_stub=False):
         super().__init__()
-        self.hswish = QuantWrapper(Hardswish())
+        self.hswish = QuantWrapper(nn.Hardswish())
 
     def forward(self, x):
         return self.hswish(x)
