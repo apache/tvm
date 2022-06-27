@@ -30,6 +30,7 @@
 #include "../../support/utils.h"
 #include "../schedule/utils.h"
 #include "./ir_utils.h"
+#include "tvm/tir/stmt.h"
 
 namespace tvm {
 namespace tir {
@@ -556,10 +557,11 @@ class PipelineRewriter : public StmtExprMutator {
     Optional<PrimExpr> producer_head;
     // The predicate of BlockRealize containing the async operation of this stage.
     Optional<PrimExpr> predicate;
+    // (TODO) needs update
     // The indices into a list of blocks, where async_commit_queue should be inserted at the end.
     // If multiple async producers are interleaved with their consumer in between, we need separate
     // async_commit_queue for each producer.
-    std::vector<size_t> insert_commit_stage_after;
+    std::vector<std::vector<size_t>> commit_groups;
   };
 
   /*!
@@ -640,27 +642,28 @@ class PipelineRewriter : public StmtExprMutator {
       if (pipeline_info_[block].async) {
         auto& local_state = async_states_local[stage];
 
-        int commit_stage_id = -1;
-        if (local_state.insert_commit_stage_after.empty() || consumed[stage]) {
+        int commit_group_id = -1;
+        if (local_state.commit_groups.empty() || consumed[stage]) {
           // consumed[stage] == true means there is already a consumer stage waiting for an
-          // eariler async operation of this stage. In such cases, we make multiple commit_stage
+          // eariler async operation of this stage. In such cases, we make multiple commit_queue
           // for this stage.
-          commit_stage_id = local_state.insert_commit_stage_after.size();
-          local_state.insert_commit_stage_after.push_back(new_blocks.size());
+          commit_group_id = local_state.commit_groups.size();
+          local_state.commit_groups.push_back({new_blocks.size()});
         } else {
-          // This is the case when one commit_stage groups multiple async blocks.
-          // async_scope:
-          //   A_shared[...] = ...
-          // async_scope:
-          //   B_shared[...] = ...
-          // commit_stage(stage)
-          commit_stage_id = local_state.insert_commit_stage_after.size() - 1;
-          local_state.insert_commit_stage_after.back() = new_blocks.size();
+          // This is the case when one commit_queue groups multiple async blocks.
+          // with commit_queue(stage):
+          //   async_scope:
+          //     A_shared[...] = ...
+          //   async_scope:
+          //     B_shared[...] = ...
+
+          commit_group_id = local_state.commit_groups.size() - 1;
+          local_state.commit_groups.back().push_back(new_blocks.size());
         }
 
         for (auto write_region : new_block->writes) {
           async_states[stage].dst_buffers.insert(write_region->buffer.get());
-          buffer_to_commit_group[write_region->buffer.get()] = commit_stage_id;
+          buffer_to_commit_group[write_region->buffer.get()] = commit_group_id;
         }
 
         local_state.producer_head = normalized_access_index;
@@ -754,7 +757,7 @@ class PipelineRewriter : public StmtExprMutator {
       // The sum of the two wait_counts gives 5.
 
       auto dep_local_state = async_states_local[dep_stage_idx];
-      auto num_commit_group = dep_local_state.insert_commit_stage_after.size();
+      auto num_commit_group = dep_local_state.commit_groups.size();
       std::vector<Optional<PrimExpr>> producer_head_per_commit;
 
       if (num_commit_group == 0) {
@@ -812,13 +815,13 @@ class PipelineRewriter : public StmtExprMutator {
 
     std::vector<std::pair<Stmt, Stmt>> async_intrins_per_block(new_blocks.size());
 
+    auto make_intrin = [](Op intrin, Array<PrimExpr> args) {
+      return Evaluate(Call(DataType::Void(), intrin, args));
+    };
+
     for (const auto& kv : async_states_local) {
       const int stage_id = kv.first;
       const AsyncStateLocal& state = kv.second;
-
-      auto make_intrin = [](Op intrin, Array<PrimExpr> args) {
-        return Evaluate(Call(DataType::Void(), intrin, args));
-      };
 
       if (state.pending_wait.valid()) {
         auto wait_queue =
@@ -833,14 +836,6 @@ class PipelineRewriter : public StmtExprMutator {
               IfThenElse(state.predicate.value(), wait_queue, wait_queue_false);
         } else {
           async_intrins_per_block[state.pending_wait.insert_before].first = wait_queue;
-        }
-      }
-
-      if (!state.insert_commit_stage_after.empty()) {
-        auto commit_queue = make_intrin(builtin::async_commit_queue(), {stage_id});
-        for (auto ind : state.insert_commit_stage_after) {
-          ICHECK(!async_intrins_per_block[ind].second.defined());
-          async_intrins_per_block[ind].second = commit_queue;
         }
       }
 
@@ -860,26 +855,53 @@ class PipelineRewriter : public StmtExprMutator {
       auto& block = new_blocks[i].block;
       BlockNode* n = block.CopyOnWrite();
       auto wait_queue_before = async_intrins_per_block[i].first;
-      auto commit_queue_after = async_intrins_per_block[i].second;
-      if (wait_queue_before.defined() && commit_queue_after.defined()) {
-        n->body = SeqStmt({wait_queue_before, n->body, commit_queue_after});
-      } else if (wait_queue_before.defined()) {
+      if (wait_queue_before.defined()) {
         n->body = SeqStmt({wait_queue_before, n->body});
-      } else if (commit_queue_after.defined()) {
-        n->body = SeqStmt({n->body, commit_queue_after});
       }
+
       stmts.push_back(BlockRealize({}, new_blocks[i].predicate, block));
+    }
+
+    std::vector<int> commit_group_indices(stmts.size(), -1);
+
+    for (const auto& kv : async_states_local) {
+      const int stage_id = kv.first;
+      const AsyncStateLocal& state = kv.second;
+      if (!state.commit_groups.empty()) {
+        for (int i = 0; i < state.commit_groups.size(); ++i) {
+          for (int j = 0; j < state.commit_groups[i].size(); ++j) {
+            commit_group_indices[state.commit_groups[i][0] + j] = stage_id;
+          }
+        }
+      }
+    }
+
+    Array<Stmt> final_stmts;
+    for (int i = 0; i < stmts.size();) {
+      if (commit_group_indices[i] == -1) {
+        final_stmts.push_back(stmts[i]);
+        ++i;
+      } else {
+        Array<Stmt> group;
+        auto stage_id = commit_group_indices[i];
+        for (int j = i; j < commit_group_indices.size() && commit_group_indices[j] == stage_id; ++j, ++i) {
+          group.push_back(stmts[j]);
+        }
+        auto commit_queue_scope = AttrStmt(make_zero(DataType::Int(32)),
+                                           tir::attr::async_commit_scope, stage_id, SeqStmt(group));
+        final_stmts.push_back(commit_queue_scope);
+      }
     }
 
     Stmt new_loop{nullptr};
 
-    if (stmts.empty()) {
+    if (final_stmts.empty()) {
       return make_nop();
     }
-    if (stmts.size() == 1) {
-      new_loop = stmts[0];
+    if (final_stmts.size() == 1) {
+      new_loop = final_stmts[0];
     } else {
-      new_loop = SeqStmt(stmts);
+      new_loop = SeqStmt(final_stmts);
     }
 
     if (!is_unit_loop) {
