@@ -111,3 +111,6 @@ class TestArgMaxSlice:
             1e-3,
             1e-3,
         )
+
+if __name__ == "__main__":
+    tvm.testing.main()
