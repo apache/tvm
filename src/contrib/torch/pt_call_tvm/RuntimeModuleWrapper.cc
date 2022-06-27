@@ -58,6 +58,17 @@ SerializationType serialize(tvm::runtime::Module module) {
   return (*f_to_str)(module);
 }
 
+struct Deleter { // deleter
+    Deleter(std::string file_name) {
+      this->file_name = file_name;
+    };
+    void operator()(FILE* p) const {
+      ICHECK(remove(file_name.c_str()) == 0)
+        << "remove temporary file (" << file_name << ") unsuccessfully";
+    };
+    std::string file_name;
+};
+
 tvm::runtime::Module deserialize(SerializationType state) {
   auto length = tvm::support::b64strlen(state);
 
@@ -67,9 +78,10 @@ tvm::runtime::Module deserialize(SerializationType state) {
 
   const std::string name = tmpnam(NULL);
   auto file_name = name + ".so";
-  auto pFile = fopen(file_name.c_str(), "wb");
-  fwrite(bytes, sizeof(u_char), length, pFile);
-  fclose(pFile);
+  std::unique_ptr<FILE, Deleter> pFile(
+      fopen(file_name.c_str(), "wb"), Deleter(file_name));
+  fwrite(bytes, sizeof(u_char), length, pFile.get());
+  fclose(pFile.get());
 
   std::string load_f_name = "runtime.module.loadfile_so";
   const PackedFunc* f = runtime::Registry::Get(load_f_name);
@@ -79,9 +91,6 @@ tvm::runtime::Module deserialize(SerializationType state) {
                        << "that you are on the correct hardware architecture.";
 
   tvm::runtime::Module ret = (*f)(file_name, "");
-
-  ICHECK(remove(file_name.c_str()) == 0)
-      << "remove temporary file (" << file_name << ") unsuccessfully";
 
   return ret;
 }
