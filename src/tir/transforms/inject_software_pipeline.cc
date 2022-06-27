@@ -30,7 +30,6 @@
 #include "../../support/utils.h"
 #include "../schedule/utils.h"
 #include "./ir_utils.h"
-#include "tvm/tir/stmt.h"
 
 namespace tvm {
 namespace tir {
@@ -820,8 +819,9 @@ class PipelineRewriter : public StmtExprMutator {
       const AsyncStateLocal& state = kv.second;
 
       if (!state.commit_groups.empty()) {
-        for (int i = 0; i < state.commit_groups.size(); ++i) {
-          for (int j = 0; j < state.commit_groups[i].size(); ++j) {
+        for (size_t i = 0; i < state.commit_groups.size(); ++i) {
+          for (size_t j = 0; j < state.commit_groups[i].size(); ++j) {
+            ICHECK(state.commit_groups[i][0] + j < new_blocks.size());
             commit_group_indices[state.commit_groups[i][0] + j] = stage_id;
           }
         }
@@ -865,20 +865,23 @@ class PipelineRewriter : public StmtExprMutator {
       }
     }
 
-    for (int i = 0; i < new_blocks.size();) {
+    for (size_t i = 0; i < new_blocks.size();) {
       if (commit_group_indices[i] == -1) {
         stmts.push_back(BlockRealize({}, new_blocks[i].predicate, new_blocks[i].block));
         ++i;
       } else {
         Array<Stmt> group;
         auto stage_id = commit_group_indices[i];
-        for (int j = i; j < commit_group_indices.size() && commit_group_indices[j] == stage_id;
-             ++j, ++i) {
-          group.push_back(BlockRealize({}, new_blocks[j].predicate, new_blocks[i].block));
+        auto predicate = new_blocks[i].predicate;
+        for (; i < commit_group_indices.size() && commit_group_indices[i] == stage_id; ++i) {
+          ICHECK(tvm::StructuralEqual()(predicate, new_blocks[i].predicate))
+              << "Predicates in the same stage are expected to be identical";
+          group.push_back(new_blocks[i].block->body);
         }
         auto commit_queue_scope = AttrStmt(make_zero(DataType::Int(32)),
                                            tir::attr::async_commit_scope, stage_id, SeqStmt(group));
-        stmts.push_back(commit_queue_scope);
+        auto new_block = MakeBlock(commit_queue_scope, buffer_data_to_buffer_);
+        stmts.push_back(BlockRealize({}, predicate, new_block));
       }
     }
 
