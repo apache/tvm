@@ -828,23 +828,6 @@ class PyTorchOpConverter:
         dtype = self.infer_type(data)
         return self.full_impl(data, fill_value, dtype)
 
-    def pad(self, inputs, input_types):
-        data = inputs[0]
-        pad = inputs[1]
-        if len(inputs) > 2:
-            mode = inputs[2]
-        else:
-            mode = "constant"
-        if len(inputs) == 4:
-            pad_value = inputs[3]
-        else:
-            pad_value = 0
-        if mode == "replicate" or mode == "circular":
-            raise ValueError(
-                "replicate and circular mode for torch.nn.functional.pad are not supported in TVM"
-            )
-        return _op.nn.pad(data, pad, pad_value=pad_value, pad_mode=mode)
-
     def linspace(self, inputs, input_types):
         start = inputs[0]
         stop = inputs[1]
@@ -3153,7 +3136,6 @@ class PyTorchOpConverter:
             "aten::full_like": self.full_like,
             "aten::new_full": self.new_full,
             "aten::fill_": self.fill_,
-            "aten::pad": self.pad,
             "aten::linspace": self.linspace,
             "aten::reciprocal": self.reciprocal,
             "aten::repeat": self.repeat,
