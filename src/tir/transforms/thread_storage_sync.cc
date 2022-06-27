@@ -249,10 +249,10 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
 
 // This class adds syncthreads after all async_wait_queue. That include syncthreads that
 // can be inserted by ThreadSyncInserter as well, but ThreadSyncInserter will not insert
-// duplicate syncthreads if it finds an existing one at a synchronization point.
-class ThreadSyncAfterWaitStageInserter : public StmtExprMutator {
+// duplicate syncthreads if it finds an existing one at the synchronization point.
+class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
  public:
-  explicit ThreadSyncAfterWaitStageInserter(StorageScope sync_scope) : sync_scope_(sync_scope) {}
+  explicit ThreadSyncAfterWaitQueueInserter(StorageScope sync_scope) : sync_scope_(sync_scope) {}
 
   Stmt VisitStmt_(const EvaluateNode* op) final {
     if (op->value->IsInstance<CallNode>()) {
@@ -425,7 +425,7 @@ class ThreadSyncInserter : public StmtExprMutator {
 Stmt ThreadSync(Stmt stmt, std::string storage_scope) {
   StorageScope sync_scope = StorageScope::Create(storage_scope);
   if (sync_scope.rank == StorageRank::kShared && sync_scope.tag == "") {
-    stmt = ThreadSyncAfterWaitStageInserter(sync_scope)(stmt);
+    stmt = ThreadSyncAfterWaitQueueInserter(sync_scope)(stmt);
   }
   ThreadSyncPlanner planner(sync_scope);
   planner(stmt);

@@ -35,9 +35,6 @@
 
 #include "literal/cuda_half_t.h"
 #include "ptx.h"
-#include "tvm/ir/expr.h"
-#include "tvm/tir/builtin.h"
-#include "tvm/tir/stmt.h"
 
 namespace tvm {
 namespace codegen {

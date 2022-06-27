@@ -652,6 +652,7 @@ TVM_DLL const Op& ptx_commit_group();
 TVM_DLL const Op& ptx_wait_group();
 
 /*!
+ * (TODO) need update
  * \brief Intrinsics for invoking and synchronizing asynchronous operations.
 
  * Synchronization is done in terms of "queue": It is an abstract entity associated
@@ -675,7 +676,6 @@ TVM_DLL const Op& ptx_wait_group();
  * count (e.g. PTX)
  *
  */
-TVM_DLL const Op& async_commit_queue();
 TVM_DLL const Op& async_wait_queue();
 
 /*!

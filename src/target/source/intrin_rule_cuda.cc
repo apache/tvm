@@ -239,9 +239,6 @@ TVM_REGISTER_OP("tir.tvm_warp_shuffle_down")
 TVM_REGISTER_OP("tir.tvm_warp_activemask")
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchCUDAWarpActiveMask);
 
-TVM_REGISTER_OP("tir.async_commit_queue")
-    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchCUDAAsync);
-
 TVM_REGISTER_OP("tir.async_wait_queue")
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchCUDAAsync);
 
