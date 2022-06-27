@@ -348,4 +348,21 @@ TVM_REGISTER_CUDA_TAG("nvidia/jetson-tx1", "sm_53", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/tegra-x1", "sm_53", 49152, 32768);
 
 #undef TVM_REGISTER_CUDA_TAG
+
+#define TVM_REGISTER_TAG_AWS_C5(Name, Cores)                                    \
+  TVM_REGISTER_TARGET_TAG(Name).set_config({{"kind", String("llvm")},           \
+                                            {"mcpu", String("skylake-avx512")}, \
+                                            {"num-cores", Integer(Cores)}});
+
+TVM_REGISTER_TAG_AWS_C5("aws/cpu/c5.large", 1);
+TVM_REGISTER_TAG_AWS_C5("aws/cpu/c5.xlarge", 2);
+TVM_REGISTER_TAG_AWS_C5("aws/cpu/c5.2xlarge", 4);
+TVM_REGISTER_TAG_AWS_C5("aws/cpu/c5.4xlarge", 8);
+TVM_REGISTER_TAG_AWS_C5("aws/cpu/c5.9xlarge", 18);
+TVM_REGISTER_TAG_AWS_C5("aws/cpu/c5.12xlarge", 24);
+TVM_REGISTER_TAG_AWS_C5("aws/cpu/c5.18xlarge", 36);
+TVM_REGISTER_TAG_AWS_C5("aws/cpu/c5.24xlarge", 48);
+
+#undef TVM_REGISTER_TAG_AWS_C5
+
 }  // namespace tvm

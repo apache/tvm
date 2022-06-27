@@ -89,6 +89,41 @@ Python Code Styles
 - Check your code style using ``python tests/scripts/ci.py lint``
 - Stick to language features in ``python 3.7``
 
+- For functions with early returns, prefer ``if``/``elif``/``else`
+  chains for functions with parallel and short bodies to the
+  conditions, such as functions that apply a simple mapping to the
+  arguments.  For more procedural functions, especially where the
+  final ``else`` block would be much longer than the ``if`` and
+  ``elif`` blocks, prefer having the final ``else`` case unindented.
+
+  The pylint check ``no-else-return`` is disabled to allow for this
+  distinction.  See further discussion `here
+  <https://github.com/apache/tvm/pull/11327>`.
+
+  .. code:: python
+
+    # All cases have bodies with similar flow control.  While this could
+    # be expressed as a sequence of if conditions, a reader would need to
+    # inspect the body of each condition to know that only one conditional
+    # body may be reached.
+    def sign(x):
+        if x > 0:
+            return "+"
+        elif x < 0:
+            return "-"
+        else:
+            return ""
+
+    # The initial special case is an early return for a special case,
+    # followed by a more general method.  Using an else block for the
+    # condition would add unnecessary indentation for the remainder of the
+    # function.
+    def num_unique_subsets(values):
+        if len(values)==0:
+            return 1
+
+        # Longer, more general solution here
+        ...
 
 Writing Python Tests
 --------------------
