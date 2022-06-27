@@ -83,14 +83,6 @@ docker_build = 'docker/build.sh'
 max_time = 180
 rebuild_docker_images = false
 
-// skips builds from branch indexing; sourced from https://www.jvt.me/posts/2020/02/23/jenkins-multibranch-skip-branch-index/
-// execute this before anything else, including requesting any time on an agent
-if (currentBuild.getBuildCauses().toString().contains('BranchIndexingCause')) {
-  print "INFO: Build skipped due to trigger being Branch Indexing"
-  currentBuild.result = 'ABORTED' // optional, gives a better hint to the user that it's been skipped, rather than the default which shows it's successful
-  return
-}
-
 // Filenames for stashing between build and test steps
 {% set tvm_runtime = ['build/libtvm_runtime.so', 'build/config.cmake'] %}
 {% set tvm_lib = ['build/libtvm.so'] + tvm_runtime %}
