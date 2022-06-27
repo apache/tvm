@@ -86,7 +86,9 @@ class TestClipSlice:
         # build the function
         with tvm.transform.PassContext(opt_level=3):
             func = tvm.build(
-                tir_schedule.mod, target=tvm.target.Target(target_hexagon, host=target_hexagon), name="clip"
+                tir_schedule.mod,
+                target=tvm.target.Target(target_hexagon, host=target_hexagon),
+                name="clip",
             )
 
         # allocate input and output nd arrays
