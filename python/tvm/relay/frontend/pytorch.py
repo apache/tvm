@@ -1844,10 +1844,10 @@ class PyTorchOpConverter:
     def constant_pad_nd(self, inputs, input_types):
         return self.pad_common("constant", 0, inputs, input_types)
 
-    def reflection_pad2d(self, inputs, input_types):
+    def reflection_pad1d(self, inputs, input_types):
         return self.pad_common("reflect", 0, inputs, input_types)
 
-    def reflection_pad1d(self, inputs, input_types):
+    def reflection_pad2d(self, inputs, input_types):
         return self.pad_common("reflect", 0, inputs, input_types)
 
     def replication_pad1d(self, inputs, input_types):
