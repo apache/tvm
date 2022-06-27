@@ -1823,13 +1823,13 @@ class PyTorchOpConverter:
     def pad(self, inputs, input_types):
 
         # mode: Optional default "constant"
-        if len(inputs) > 2 and inputs[2] != None:
+        if len(inputs) > 2 and inputs[2] is not None:
             mode = inputs[2]
         else:
             mode = "constant"
 
         # pad_value: Optional default 0
-        if len(inputs) == 4 and inputs[3] != None:
+        if len(inputs) == 4 and inputs[3] is not None:
             pad_value = inputs[3]
         else:
             pad_value = 0
