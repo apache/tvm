@@ -97,7 +97,7 @@ def extract_task_from_relay(
             param = nd.array(param)
         relay_params[name] = param
 
-    with autotvm_silencer(), target, transform.PassContext(
+    with target, autotvm_silencer(), transform.PassContext(
         opt_level=opt_level,
         config=pass_config,
         disabled_pass=disabled_pass,
