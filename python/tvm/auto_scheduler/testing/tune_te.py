@@ -142,6 +142,7 @@ def main():
         repeat=ARGS.repeat,
         min_repeat_ms=ARGS.min_repeat_ms,
         enable_cpu_cache_flush=ARGS.cpu_flush,
+        # todo(zxybazh): set session timeout to 60 same as MS
     )
 
     # Inspect the computational graph

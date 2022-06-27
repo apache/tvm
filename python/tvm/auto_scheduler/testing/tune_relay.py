@@ -113,7 +113,7 @@ def _parse_args():
         tracker_host=parsed.rpc_host,
         tracker_port=parsed.rpc_port,
         tracker_key=parsed.rpc_key,
-        session_timeout_sec=3600,
+        session_timeout_sec=600,
     )
     return parsed
 
