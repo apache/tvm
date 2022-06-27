@@ -137,7 +137,7 @@ class LocalBuilder(PyBuilder):
         super().__init__()
 
         if max_workers is None:
-            max_workers = cpu_count(logical=True)
+            max_workers = cpu_count(logical=False)
         logger.info("LocalBuilder: max_workers = %d", max_workers)
 
         self.max_workers = max_workers

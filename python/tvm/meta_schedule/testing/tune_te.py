@@ -17,9 +17,8 @@
 # pylint: disable=missing-docstring
 import argparse
 import logging
-from os import cpu_count
-from typing import Optional
 from distutils.util import strtobool
+from typing import Optional
 
 import tvm
 from tvm import meta_schedule as ms
@@ -130,7 +129,6 @@ def main():
             runner=runner,  # type: ignore
             task_name=ARGS.workload,
             work_dir=ARGS.work_dir,
-            num_threads=cpu_count(),
         )
     print("Tuning Time:")
     print(profiler.table())
