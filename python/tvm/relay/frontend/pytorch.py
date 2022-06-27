@@ -703,12 +703,23 @@ class PyTorchOpConverter:
 
     def new_ones(self, inputs, input_types):
         """
-        Returns a Tensor of size size filled with 1. By default, the returned Tensor has the same torch.dtype and torch.device as this tensor.
+        Returns a Tensor of size size filled with 1. By default, the
+        returned Tensor has the same torch.dtype and torch.device
+        as this tensor.
+
         Parameters
-        size (int...) - a list, tuple, or torch.Size of integers defining the shape of the output tensor.
-        dtype (torch.dtype, optional) - the desired type of returned tensor. Default: if None, same torch.dtype as this tensor.
-        device (torch.device, optional) - the desired device of returned tensor. Default: if None, same torch.device as this tensor.
-        requires_grad (bool, optional) - If autograd should record operations on the returned tensor. Default: False.
+        size (int...)
+            a list, tuple, or torch.Size of integers defining the shape of
+            the output tensor.
+        dtype (torch.dtype, optional)
+            the desired type of returned tensor.
+            Default: if None, same torch.dtype as this tensor.
+        device (torch.device, optional)
+            the desired device of returned tensor.
+            Default: if None, same torch.device as this tensor.
+        requires_grad (bool, optional)
+            If autograd should record operations on the returned tensor.
+            Default: False.
 
         """
         size = inputs[1]
@@ -792,18 +803,22 @@ class PyTorchOpConverter:
     def new_full(self, inputs, input_types):
         """
         Returns a Tensor of size size filled with fill_value.
-        By default, the returned Tensor has the same dtype and device as this tensor.
+        By default, the returned Tensor has the same dtype
+        and device as this tensor.
 
         Parameters
         ----------
         fill_value (scalar)
             The number to fill the output tensor with.
         dtype (torch.dtype, optional)
-            The desired type of returned tensor. Default: if None, same torch.dtype as this tensor.
+            The desired type of returned tensor.
+            Default: if None, same torch.dtype as this tensor.
         device (torch.device, optional)
-            The desired device of returned tensor. Default: if None, same torch.device as this tensor.
+            The desired device of returned tensor.
+            Default: if None, same torch.device as this tensor.
         requires_grad (bool, optional)
-            If autograd should record operations on the returned tensor. Default: False.
+            If autograd should record operations on the returned
+            tensor. Default: False.
         """
         data = inputs[0]
         fill_value = inputs[1]
@@ -2407,7 +2422,8 @@ class PyTorchOpConverter:
     def empty_like(self, inputs, input_types):
         """
         Returns an uninitialized tensor with the same size as input.
-        torch.empty_like(input) is equivalent to torch.empty(input.size(), dtype=input.dtype, layout=input.layout, device=input.device).
+        torch.empty_like(input) is equivalent to torch.empty(input.size(),
+        dtype=input.dtype, layout=input.layout, device=input.device).
         """
         shape = self.infer_shape(inputs[0])
         return _op.zeros(shape, _convert_dtype_value(inputs[1]))
