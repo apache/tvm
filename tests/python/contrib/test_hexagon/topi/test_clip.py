@@ -82,12 +82,11 @@ class TestClipSlice:
 
         # Assume layout is nhwc-8h2w32c2w-2d
         tir_schedule = sl.clip_schedule(M, A, output_layout, input_layout)
-        sch = tir_schedule.mod
 
         # build the function
         with tvm.transform.PassContext(opt_level=3):
             func = tvm.build(
-                sch, tvm.target.Target(target_hexagon, host=target_hexagon), name="clip"
+                tir_schedule.mod, target=tvm.target.Target(target_hexagon, host=target_hexagon), name="clip"
             )
 
         # allocate input and output nd arrays
