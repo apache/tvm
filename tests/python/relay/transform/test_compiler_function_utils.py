@@ -42,7 +42,7 @@ metatable = {
 }
 
 
-def inlined_mod():
+def original_mod():
     return tvm.parser.parse(
         """
         #[version = "0.0.5"]
@@ -143,10 +143,35 @@ def expected_extern_mod():
     )
 
 
+def expected_inlined_mod():
+    return tvm.parser.parse(
+        """
+        #[version = "0.0.5"]
+        def @main(%x0 : Tensor[(1600, 768), float16], %x3 : Tensor[(600, 32, 64), float16]) -> (Tensor[(1600, 2304), float16], Tensor[(600, 32, 32), float16]) {
+          %0 = nn.dense(%x0, meta[relay.Constant][0], units=2304);
+          %1 = add(%0, meta[relay.Constant][1]);
+          %2 = fn(%y_3_i0: Tensor[(600, 32, 64), float16], %y_3_i1: Tensor[(600, 32, 64), float16],
+                  Inline=1, Compiler="cublas", global_symbol="tvmgen_default_cublas_main_3", Primitive=1) -> Tensor[(600, 32, 32), float16] {
+            %6 = fn (%FunctionVar_0_01: Tensor[(600, 32, 64), float16], %FunctionVar_0_11: Tensor[(600, 32, 64), float16],
+                     PartitionedFromPattern="nn.batch_matmul_", Composite="cublas.batch_matmul") -> Tensor[(600, 32, 32), float16] {
+              nn.batch_matmul(%FunctionVar_0_01, %FunctionVar_0_11, out_dtype="float16", transpose_b=True)
+            };
+            %6(%y_3_i0, %y_3_i1)
+          };
+          %3 = %2(%x3, meta[relay.Constant][2]);
+          (%1, %3)
+        }
+        """,
+        "from_string",
+        None,
+        metatable,
+    )
+
+
 def test_outline_compiler_functions_with_existing_global_symbols():
     actual_outlined_mod = tvm.relay.transform.OutlineCompilerFunctionsWithExistingGlobalSymbols(
         "cutlass"
-    )(inlined_mod())
+    )(original_mod())
     tvm.ir.assert_structural_equal(actual_outlined_mod, expected_outlined_mod(), map_free_vars=True)
 
 
@@ -155,6 +180,13 @@ def test_mark_compiler_functions_as_extern():
         expected_outlined_mod()
     )
     tvm.ir.assert_structural_equal(actual_extern_mod, expected_extern_mod(), map_free_vars=True)
+
+
+def test_inline_compiler_functions():
+    mod = expected_outlined_mod()
+    gv = mod.get_global_var("tvmgen_default_cutlass_main_0")
+    actual_inlined_mod = tvm.relay.transform.InlineCompilerFunctionsBoundTo([gv])(mod)
+    tvm.ir.assert_structural_equal(actual_inlined_mod, expected_inlined_mod(), map_free_vars=True)
 
 
 if __name__ == "__main__":
