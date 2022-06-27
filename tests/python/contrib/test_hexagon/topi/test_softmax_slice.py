@@ -136,5 +136,4 @@ class TestSoftmax2d(Basesoftmax2d):
 
 
 if __name__ == "__main__":
-
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()
