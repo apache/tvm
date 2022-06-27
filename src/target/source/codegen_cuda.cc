@@ -922,7 +922,7 @@ void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
     fragment_layouts[buffer] = layout_str->value;
   } else if (op->attr_key == tir::attr::async_commit_scope) {
     const IntImmNode* queue_id = op->value.as<IntImmNode>();
-    ICHECK(queue_id && queue_id == 0);
+    ICHECK(queue_id && queue_id->value == 0);
     this->VisitStmt(op->body);
     auto commit_group = Call(DataType::Void(), builtin::ptx_commit_group(), {});
     this->VisitExpr(commit_group, this->stream);

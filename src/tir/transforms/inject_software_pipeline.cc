@@ -813,29 +813,43 @@ class PipelineRewriter : public StmtExprMutator {
       }
     }
 
-    std::vector<std::pair<Stmt, Stmt>> async_intrins_per_block(new_blocks.size());
-
-    auto make_intrin = [](Op intrin, Array<PrimExpr> args) {
-      return Evaluate(Call(DataType::Void(), intrin, args));
-    };
+    std::vector<int> commit_group_indices(new_blocks.size(), -1);
 
     for (const auto& kv : async_states_local) {
       const int stage_id = kv.first;
       const AsyncStateLocal& state = kv.second;
 
+      if (!state.commit_groups.empty()) {
+        for (int i = 0; i < state.commit_groups.size(); ++i) {
+          for (int j = 0; j < state.commit_groups[i].size(); ++j) {
+            commit_group_indices[state.commit_groups[i][0] + j] = stage_id;
+          }
+        }
+      }
+
       if (state.pending_wait.valid()) {
+        auto make_intrin = [](Op intrin, Array<PrimExpr> args) {
+          return Evaluate(Call(DataType::Void(), intrin, args));
+        };
+
         auto wait_queue =
             make_intrin(builtin::async_wait_queue(), {stage_id, state.pending_wait.wait_count});
+
+        auto insert_wait_before = [&new_blocks](int i, Stmt wait) {
+          auto& block = new_blocks[i].block;
+          BlockNode* n = block.CopyOnWrite();
+          n->body = SeqStmt({wait, n->body});
+        };
 
         if (state.predicate && !ana_normalized.CanProve(state.predicate.value())) {
           // If the async operation that this wait_queue is waiting on is predicated, and we cannot
           // prove that the predicate is always true, the precise wait count is only valid
           // at iterations where the predicate is true;
           auto wait_queue_false = make_intrin(builtin::async_wait_queue(), {stage_id, 0});
-          async_intrins_per_block[state.pending_wait.insert_before].first =
-              IfThenElse(state.predicate.value(), wait_queue, wait_queue_false);
+          insert_wait_before(state.pending_wait.insert_before,
+                             IfThenElse(state.predicate.value(), wait_queue, wait_queue_false));
         } else {
-          async_intrins_per_block[state.pending_wait.insert_before].first = wait_queue;
+          insert_wait_before(state.pending_wait.insert_before, wait_queue);
         }
       }
 
@@ -851,57 +865,32 @@ class PipelineRewriter : public StmtExprMutator {
       }
     }
 
-    for (size_t i = 0; i < new_blocks.size(); ++i) {
-      auto& block = new_blocks[i].block;
-      BlockNode* n = block.CopyOnWrite();
-      auto wait_queue_before = async_intrins_per_block[i].first;
-      if (wait_queue_before.defined()) {
-        n->body = SeqStmt({wait_queue_before, n->body});
-      }
-
-      stmts.push_back(BlockRealize({}, new_blocks[i].predicate, block));
-    }
-
-    std::vector<int> commit_group_indices(stmts.size(), -1);
-
-    for (const auto& kv : async_states_local) {
-      const int stage_id = kv.first;
-      const AsyncStateLocal& state = kv.second;
-      if (!state.commit_groups.empty()) {
-        for (int i = 0; i < state.commit_groups.size(); ++i) {
-          for (int j = 0; j < state.commit_groups[i].size(); ++j) {
-            commit_group_indices[state.commit_groups[i][0] + j] = stage_id;
-          }
-        }
-      }
-    }
-
-    Array<Stmt> final_stmts;
-    for (int i = 0; i < stmts.size();) {
+    for (int i = 0; i < new_blocks.size();) {
       if (commit_group_indices[i] == -1) {
-        final_stmts.push_back(stmts[i]);
+        stmts.push_back(BlockRealize({}, new_blocks[i].predicate, new_blocks[i].block));
         ++i;
       } else {
         Array<Stmt> group;
         auto stage_id = commit_group_indices[i];
-        for (int j = i; j < commit_group_indices.size() && commit_group_indices[j] == stage_id; ++j, ++i) {
-          group.push_back(stmts[j]);
+        for (int j = i; j < commit_group_indices.size() && commit_group_indices[j] == stage_id;
+             ++j, ++i) {
+          group.push_back(BlockRealize({}, new_blocks[j].predicate, new_blocks[i].block));
         }
         auto commit_queue_scope = AttrStmt(make_zero(DataType::Int(32)),
                                            tir::attr::async_commit_scope, stage_id, SeqStmt(group));
-        final_stmts.push_back(commit_queue_scope);
+        stmts.push_back(commit_queue_scope);
       }
     }
 
     Stmt new_loop{nullptr};
 
-    if (final_stmts.empty()) {
+    if (stmts.empty()) {
       return make_nop();
     }
-    if (final_stmts.size() == 1) {
-      new_loop = final_stmts[0];
+    if (stmts.size() == 1) {
+      new_loop = stmts[0];
     } else {
-      new_loop = SeqStmt(final_stmts);
+      new_loop = SeqStmt(stmts);
     }
 
     if (!is_unit_loop) {
