@@ -23,13 +23,50 @@
  */
 #ifdef TVM_LLVM_VERSION
 
+#include "llvm_module.h"
+
+#include <dmlc/io.h>
+#include <llvm/ADT/SmallString.h>
+#include <llvm/ADT/StringRef.h>
+#include <llvm/Bitcode/BitcodeWriter.h>
+#include <llvm/ExecutionEngine/ExecutionEngine.h>
+#include <llvm/ExecutionEngine/MCJIT.h>  // Force linking of MCJIT
+#include <llvm/IR/DataLayout.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/Intrinsics.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/IR/MDBuilder.h>
+#include <llvm/IR/Metadata.h>
+#include <llvm/IR/Module.h>
+#include <llvm/IR/Verifier.h>
+#include <llvm/IRReader/IRReader.h>
+#include <llvm/Support/FileSystem.h>
+#include <llvm/Support/SourceMgr.h>
+#include <llvm/Support/raw_ostream.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/Target/TargetOptions.h>
+#include <llvm/Transforms/Utils/Cloning.h>
 #include <tvm/ir/module.h>
 #include <tvm/relay/runtime.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/string.h>
+#include <tvm/runtime/metadata.h>
+#include <tvm/runtime/module.h>
+#include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/target/codegen.h>
+#include <tvm/target/target.h>
 
+#include <algorithm>
+#include <memory>
 #include <mutex>
+#include <sstream>
+#include <string>
+#include <system_error>
+#include <utility>
+#include <vector>
 
 #include "../../runtime/file_utils.h"
 #include "../../runtime/library_module.h"
@@ -395,6 +432,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     runtime::InitContextFunctions(
         [this](const char* name) { return reinterpret_cast<void*>(GetGlobalAddr(name)); });
   }
+
   // Get global address from execution engine.
   uint64_t GetGlobalAddr(const std::string& name) const {
     // first verifies if GV exists.
@@ -404,6 +442,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       return 0;
     }
   }
+
   uint64_t GetFunctionAddr(const std::string& name) const {
     // first verifies if GV exists.
     if (mptr_->getFunction(name) != nullptr) {
@@ -590,4 +629,5 @@ TVM_REGISTER_GLOBAL("runtime.CreateLLVMCrtMetadataModule")
 
 }  // namespace codegen
 }  // namespace tvm
+
 #endif  // TVM_LLVM_VERSION

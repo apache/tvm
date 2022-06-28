@@ -98,8 +98,8 @@ class XGBModel(PythonBasedModel):
         The random seed
     model_file: Optional[str]
         If is not None, save model to this file after every update.
-    adapative_training: bool = False
-        Whether to use adapatie training, which reduces the training frequency when there are
+    adaptive_training: bool = False
+        Whether to use adaptive training, which reduces the training frequency when there are
         too many logs.
     """
 
@@ -109,7 +109,7 @@ class XGBModel(PythonBasedModel):
         num_warmup_sample=100,
         seed=None,
         model_file=None,
-        adapative_training=False,
+        adaptive_training=False,
     ):
         global xgb
         try:
@@ -141,7 +141,7 @@ class XGBModel(PythonBasedModel):
         self.num_warmup_sample = num_warmup_sample
         self.verbose_eval = verbose_eval
         self.model_file = model_file
-        self.adapative_training = adapative_training
+        self.adaptive_training = adaptive_training
 
         super().__init__()
 
@@ -169,7 +169,7 @@ class XGBModel(PythonBasedModel):
         self.results.extend(results)
 
         if (
-            self.adapative_training
+            self.adaptive_training
             and len(self.inputs) - self.last_train_length < self.last_train_length / 5
         ):
             # Set a training threshold related to `last_train_length` to reduce the training

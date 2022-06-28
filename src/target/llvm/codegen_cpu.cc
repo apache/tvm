@@ -24,6 +24,31 @@
 
 #include "codegen_cpu.h"
 
+#include <llvm/ADT/SmallVector.h>
+#include <llvm/ADT/StringRef.h>
+#include <llvm/IR/Argument.h>
+#include <llvm/IR/Attributes.h>
+#include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/CallingConv.h>
+#include <llvm/IR/Comdat.h>
+#include <llvm/IR/Constants.h>
+#include <llvm/IR/DIBuilder.h>
+#include <llvm/IR/DebugInfoMetadata.h>
+#include <llvm/IR/DebugLoc.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/GlobalVariable.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/MDBuilder.h>
+#include <llvm/IR/Metadata.h>
+#include <llvm/IR/Module.h>
+#if TVM_LLVM_VERSION >= 100
+#include <llvm/Support/Alignment.h>
+#endif
+#include <llvm/Support/raw_ostream.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/Transforms/Utils/ModuleUtils.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/module.h>
 #include <tvm/tir/analysis.h>
@@ -35,8 +60,14 @@
 
 #include "../func_registry_generator.h"
 #include "../metadata_utils.h"
+
 namespace tvm {
 namespace codegen {
+
+// Make these non-inline because of std::unique_ptr. See comment in
+// codegen_llvm.cc for more information.
+CodeGenCPU::CodeGenCPU() = default;
+CodeGenCPU::~CodeGenCPU() = default;
 
 void CodeGenCPU::Init(const std::string& module_name, llvm::TargetMachine* tm,
                       llvm::LLVMContext* ctx, bool system_lib, bool dynamic_lookup,
@@ -479,10 +510,9 @@ void CodeGenCPU::InitGlobalContext(bool dynamic_lookup) {
 
 llvm::BasicBlock* CodeGenCPU::CheckCallSuccess(llvm::Value* retcode) {
   // create emit codes that checks and load the function.
-  using llvm::BasicBlock;
-  BasicBlock* fail_block = BasicBlock::Create(*ctx_, "call_fail", function_);
-  BasicBlock* end_block = BasicBlock::Create(*ctx_, "call_end", function_);
-  llvm::Value* succ = builder_->CreateICmpEQ(retcode, llvm::ConstantInt::get(t_int_, 0));
+  auto* fail_block = llvm::BasicBlock::Create(*ctx_, "call_fail", function_);
+  auto* end_block = llvm::BasicBlock::Create(*ctx_, "call_end", function_);
+  auto* succ = builder_->CreateICmpEQ(retcode, llvm::ConstantInt::get(t_int_, 0));
   builder_->CreateCondBr(succ, end_block, fail_block, md_very_likely_branch_);
   builder_->SetInsertPoint(fail_block);
   // return the code.
@@ -519,7 +549,6 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   // - Make sure the generated compute function is clearly separately(though it can get inlined)
   // - Set noalias on all the pointer arguments, some of them are loaded from TVMArgs.
   //   This is easier than set the alias scope manually.
-  using llvm::BasicBlock;
   Array<Var> vargs = tir::UndefinedVars(op->body, {});
   std::vector<llvm::Value*> arg_values;
   std::vector<llvm::Type*> arg_types;
@@ -539,7 +568,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
                                                     MakeStringRef(value->value), module_.get());
   SetTargetAttributes(fcompute);
 
-  BasicBlock* compute_call_end = CheckCallSuccess(builder_->CreateCall(fcompute, arg_values));
+  llvm::BasicBlock* compute_call_end = CheckCallSuccess(builder_->CreateCall(fcompute, arg_values));
   // enter compute scope and setup compute function.
   With<ComputeScopeStates> scope_states_guard(this);
   size_t idx = 0;
@@ -571,7 +600,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   }
 
   function_ = fcompute;
-  BasicBlock* compute_entry = BasicBlock::Create(*ctx_, "entry", function_);
+  auto* compute_entry = llvm::BasicBlock::Create(*ctx_, "entry", function_);
   builder_->SetInsertPoint(compute_entry);
   this->VisitStmt(op->body);
   builder_->CreateRet(ConstInt32(0));
@@ -616,7 +645,6 @@ void CodeGenCPU::UnpackClosureData(TypedPointer cdata, const Array<Var>& vfields
 }
 
 void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task, std::string name) {
-  using llvm::BasicBlock;
   // closure data
   llvm::Function* f =
       llvm::Function::Create(ftype_tvm_parallel_lambda_, llvm::Function::PrivateLinkage,
@@ -632,11 +660,11 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task, std::strin
 #else
   auto launch_callee = RuntimeTVMParallelLaunch();
 #endif
-  BasicBlock* par_launch_end = CheckCallSuccess(builder_->CreateCall(
+  llvm::BasicBlock* par_launch_end = CheckCallSuccess(builder_->CreateCall(
       launch_callee,
       {f, builder_->CreatePointerCast(cdata.addr, t_void_p_), ConstInt32(num_task)}));
   // Setup the closure function.
-  BasicBlock* lambda_entry = BasicBlock::Create(*ctx_, "parallel_closure_entry", f);
+  auto* lambda_entry = llvm::BasicBlock::Create(*ctx_, "parallel_closure_entry", f);
   builder_->SetInsertPoint(lambda_entry);
   auto it = f->arg_begin();
   llvm::Value* task_id = &(*it++);
@@ -686,7 +714,6 @@ llvm::Value* CodeGenCPU::CreateStaticHandle() {
 }
 
 void CodeGenCPU::CreateStaticInit(const std::string& init_fname, const Stmt& body) {
-  using llvm::BasicBlock;
   // closure data
   llvm::Function* f =
       llvm::Function::Create(ftype_tvm_static_init_callback_, llvm::Function::PrivateLinkage,
@@ -702,10 +729,10 @@ void CodeGenCPU::CreateStaticInit(const std::string& init_fname, const Stmt& bod
   uint64_t nbytes;
   Array<Var> vfields = tir::UndefinedVars(body, {});
   TypedPointer cdata = PackClosureData(vfields, &nbytes);
-  BasicBlock* init_end = CheckCallSuccess(builder_->CreateCall(
+  llvm::BasicBlock* init_end = CheckCallSuccess(builder_->CreateCall(
       finit, {gv, f, builder_->CreatePointerCast(cdata.addr, t_void_p_), ConstInt32(nbytes)}));
   // Setup the closure function.
-  BasicBlock* lambda_entry = BasicBlock::Create(*ctx_, "entry", f);
+  auto* lambda_entry = llvm::BasicBlock::Create(*ctx_, "entry", f);
   builder_->SetInsertPoint(lambda_entry);
   auto it = f->arg_begin();
   cdata.addr = builder_->CreatePointerCast(&(*it++), cdata.addr->getType());
@@ -727,7 +754,6 @@ void CodeGenCPU::CreateStaticInit(const std::string& init_fname, const Stmt& bod
 }
 
 llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
-  using llvm::BasicBlock;
   // We will store the packed function handle in global space.
   // Initialize it during the first call.
   llvm::DataLayout layout(module_.get());
@@ -752,9 +778,9 @@ llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
     hptr = it->second;
   }
   // create emit codes that checks and load the function.
-  BasicBlock* pre_block = builder_->GetInsertBlock();
-  BasicBlock* init_block = BasicBlock::Create(*ctx_, "handle_init", function_);
-  BasicBlock* end_block = BasicBlock::Create(*ctx_, "handle_init_end", function_);
+  llvm::BasicBlock* pre_block = builder_->GetInsertBlock();
+  auto* init_block = llvm::BasicBlock::Create(*ctx_, "handle_init", function_);
+  auto* end_block = llvm::BasicBlock::Create(*ctx_, "handle_init_end", function_);
 #if TVM_LLVM_VERSION >= 110
   llvm::Value* handle = builder_->CreateAlignedLoad(hptr->getValueType(), hptr, llvm::Align(align));
 #elif TVM_LLVM_VERSION >= 80
@@ -1395,7 +1421,6 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
 }
 
 void CodeGenCPU::VisitStmt_(const AssertStmtNode* op) {
-  using llvm::BasicBlock;
   llvm::Value* cond = MakeValue(op->condition);
   std::ostringstream os;
   os << "Assert fail: " << op->condition;
@@ -1403,8 +1428,8 @@ void CodeGenCPU::VisitStmt_(const AssertStmtNode* op) {
     os << ", " << op->message.as<StringImmNode>()->value;
   }
   llvm::Value* msg = GetConstString(os.str());
-  BasicBlock* fail_block = BasicBlock::Create(*ctx_, "assert_fail", function_);
-  BasicBlock* end_block = BasicBlock::Create(*ctx_, "assert_end", function_);
+  auto* fail_block = llvm::BasicBlock::Create(*ctx_, "assert_fail", function_);
+  auto* end_block = llvm::BasicBlock::Create(*ctx_, "assert_end", function_);
   builder_->CreateCondBr(cond, end_block, fail_block, md_very_likely_branch_);
   // fail condition.
   builder_->SetInsertPoint(fail_block);
@@ -1501,6 +1526,11 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
     LOG(FATAL) << "cannot handle for type " << op->kind;
   }
 }
+
+TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_cpu")
+    .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
+      *rv = static_cast<void*>(new CodeGenCPU());
+    });
 
 }  // namespace codegen
 }  // namespace tvm

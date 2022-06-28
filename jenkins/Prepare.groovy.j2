@@ -141,6 +141,22 @@ def prepare() {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/prepare") {
         init_git()
+
+        if (env.DETERMINE_DOCKER_IMAGES == 'yes') {
+          sh(
+            script: "./tests/scripts/determine_docker_images.py {% for image in images %}{{ image.name }}={% raw %}${{% endraw %}{{ image.name }}{% raw %}}{% endraw %} {% endfor %}",
+            label: 'Decide whether to use tlcpack or tlcpackstaging for Docker images',
+          )
+          // Pull image names from the results of should_rebuild_docker.py
+          {% for image in images %}
+          {{ image.name }} = sh(
+            script: "cat .docker-image-names/{{ image.name }}",
+            label: "Find docker image name for {{ image.name }}",
+            returnStdout: true,
+          ).trim()
+          {% endfor %}
+        }
+
         {% for image in images %}
         {{ image.name }} = params.{{ image.name }}_param ?: {{ image.name }}
         {% endfor %}

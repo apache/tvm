@@ -97,9 +97,23 @@ def extract_task_from_relay(
             param = nd.array(param)
         relay_params[name] = param
 
-    with autotvm_silencer(), target, transform.PassContext(
+    with target, autotvm_silencer(), transform.PassContext(
         opt_level=opt_level,
         config=pass_config,
         disabled_pass=disabled_pass,
     ):
         return list(extract_task_func(mod, target, relay_params, te_filter_func))
+
+
+def is_meta_schedule_enabled() -> bool:
+    """Return whether the meta-schedule is enabled.
+
+    Returns
+    -------
+    enabled: bool
+        Whether the meta schedule is enabled
+    """
+    return transform.PassContext.current().config.get(
+        "relay.backend.use_meta_schedule",
+        False,
+    )
