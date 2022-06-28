@@ -84,7 +84,7 @@ def _parse_args():
         "--cpu-flush",
         type=lambda x: bool(strtobool(x)),
         required=True,
-        help="example: `True / False",
+        help="example: True / False",
     )
     args.add_argument(
         "--adaptive-training",
@@ -133,7 +133,7 @@ def main():
                 num_trials_per_iter=64,
                 max_trials_per_task=ARGS.num_trials,
                 max_trials_global=ARGS.num_trials,
-                adaptive_training=ARGS.apative_training,
+                adaptive_training=ARGS.adaptive_training,
             ),
             runner=runner,  # type: ignore
             task_name=ARGS.workload,
