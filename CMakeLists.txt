@@ -395,7 +395,6 @@ endif()
 if(USE_PROFILER)
   message(STATUS "Build with profiler...")
 
-  add_definitions(-DUSE_PROFILER=1)
   tvm_file_glob(GLOB RUNTIME_GRAPH_EXECUTOR_DEBUG_SRCS src/runtime/graph_executor/debug/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_GRAPH_EXECUTOR_DEBUG_SRCS})
   set_source_files_properties(${RUNTIME_GRAPH_EXECUTOR_SRCS}
