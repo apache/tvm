@@ -867,10 +867,22 @@ class PyTorchOpConverter:
         data = inputs[0]
         return _op.log(_op.tensor.sigmoid(data))
 
-    def cross_entropy_loss_with_logits(self, inputs, input_types):
+    def cross_entropy_loss(self, inputs, input_types):
         input = inputs[0]
-        target = inputs[2]
-        return _op.nn.cross_entropy_with_logits(input, target)
+        target = inputs[1]
+        weight = inputs[2]
+        reduction = inputs[3]
+        ignore_index = inputs[4]
+        label_smoothing = inputs[5]
+        assert weight is None, "weight not supported in cross_entropy_loss"
+        assert reduction == 1, "reduction not supported in cross_entropy_loss"
+        assert ignore_index == -100, "reduce not supported in cross_entropy_loss"
+        assert label_smoothing == 0.0, "label_smoothing not supported in cross_entropy_loss"
+        input_shape = self.infer_shape(input)
+        target_shape = self.infer_shape(input)
+        if input_shape != target_shape:
+            raise NotImplementedError("class indices for cross_entropy_loss is not supported")
+        return _op.nn.cross_entropy_with_logits(_op.nn.log_softmax(input), target)
 
     def hard_sigmoid(self, inputs, input_types):
         def _relu6(x):
