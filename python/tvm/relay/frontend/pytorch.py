@@ -1778,50 +1778,86 @@ class PyTorchOpConverter:
     def none(self, inputs, input_types):
         return None
 
-    def make_pad(self, mode):
-        def pad(inputs, input_types):
-            data = inputs[0]
-            if isinstance(inputs[1], list):
-                pad_list = inputs[1]
-            else:
-                pad_list = list(self.infer_shape(inputs[1]))
+    def pad_common(self, mode, pad_value, inputs, input_types):
+        data = inputs[0]
+        if isinstance(inputs[1], list):
+            pad_list = inputs[1]
+        else:
+            pad_list = list(self.infer_shape(inputs[1]))
 
-            # initialize paddings based on input len
-            pad_len = len(self.infer_shape(data)) * 2
-            paddings = [0] * pad_len
+        # initialize paddings based on input len
+        pad_len = len(self.infer_shape(data)) * 2
+        paddings = [pad_value] * pad_len
 
-            if len(pad_list) >= 2:
-                paddings[-1] = pad_list[1]
-                paddings[-2] = pad_list[0]
-            if len(pad_list) >= 4:
-                paddings[-3] = pad_list[3]
-                paddings[-4] = pad_list[2]
-            if len(pad_list) >= 6:
-                paddings[-5] = pad_list[5]
-                paddings[-6] = pad_list[4]
+        if len(pad_list) >= 2:
+            paddings[-1] = pad_list[1]
+            paddings[-2] = pad_list[0]
+        if len(pad_list) >= 4:
+            paddings[-3] = pad_list[3]
+            paddings[-4] = pad_list[2]
+        if len(pad_list) >= 6:
+            paddings[-5] = pad_list[5]
+            paddings[-6] = pad_list[4]
 
-            # group into tuple of 2 ints
-            paddings = [paddings[i : i + 2] for i in range(0, len(paddings), 2)]
+        # group into tuple of 2 ints
+        paddings = [paddings[i : i + 2] for i in range(0, len(paddings), 2)]
 
-            const_paddings = []
-            non_zero_found = False
-            for pad in paddings:
-                const_paddings.append([])
-                for p in pad:
-                    if not isinstance(p, int):
-                        p = int(_infer_value(p, {}).numpy())
-                    const_paddings[-1].append(p)
-                    if p != 0:
-                        non_zero_found = True
+        const_paddings = []
+        non_zero_found = False
+        for pad in paddings:
+            const_paddings.append([])
+            for p in pad:
+                if not isinstance(p, int):
+                    p = int(_infer_value(p, {}).numpy())
+                const_paddings[-1].append(p)
+                if p != 0:
+                    non_zero_found = True
 
-            if not non_zero_found:
-                return data
-            elif mode == "constant":
-                return _op.nn.pad(data, const_paddings, pad_value=inputs[2], pad_mode=mode)
-            else:
-                return _op.nn.pad(data, const_paddings, pad_mode=mode)
+        if not non_zero_found:
+            return data
+        elif mode == "constant":
+            return _op.nn.pad(data, const_paddings, pad_value=inputs[2], pad_mode=mode)
+        else:
+            return _op.nn.pad(data, const_paddings, pad_mode=mode)
 
-        return pad
+    def pad(self, inputs, input_types):
+
+        # mode: Optional default "constant"
+        if len(inputs) > 2 and inputs[2] is not None:
+            mode = inputs[2]
+        else:
+            mode = "constant"
+
+        # pad_value: Optional default 0
+        if len(inputs) == 4 and inputs[3] is not None:
+            pad_value = inputs[3]
+        else:
+            pad_value = 0
+
+        # replicate is edge in TVM's padding mode
+        if mode == "replicate":
+            mode = "edge"
+        elif mode == "circular":
+            raise ValueError("circular mode for torch.nn.functional.pad are not supported in TVM")
+        return self.pad_common(mode, pad_value, inputs, input_types)
+
+    def constant_pad_nd(self, inputs, input_types):
+        return self.pad_common("constant", 0, inputs, input_types)
+
+    def reflection_pad1d(self, inputs, input_types):
+        return self.pad_common("reflect", 0, inputs, input_types)
+
+    def reflection_pad2d(self, inputs, input_types):
+        return self.pad_common("reflect", 0, inputs, input_types)
+
+    def replication_pad1d(self, inputs, input_types):
+        return self.pad_common("edge", 0, inputs, input_types)
+
+    def replication_pad2d(self, inputs, input_types):
+        return self.pad_common("edge", 0, inputs, input_types)
+
+    def replication_pad3d(self, inputs, input_types):
+        return self.pad_common("edge", 0, inputs, input_types)
 
     def clamp_common(self, data, min=None, max=None):
         def get_v(v, default_v):
@@ -3142,12 +3178,13 @@ class PyTorchOpConverter:
             "prim::NumToTensor": self.numtotensor,
             "prim::ImplicitTensorToNum": self.tensortonum,
             "aten::ScalarImplicit": self.tensortonum,
-            "aten::constant_pad_nd": self.make_pad("constant"),
-            "aten::reflection_pad1d": self.make_pad("reflect"),
-            "aten::reflection_pad2d": self.make_pad("reflect"),
-            "aten::replication_pad1d": self.make_pad("edge"),
-            "aten::replication_pad2d": self.make_pad("edge"),
-            "aten::replication_pad3d": self.make_pad("edge"),
+            "aten::pad": self.pad,
+            "aten::constant_pad_nd": self.constant_pad_nd,
+            "aten::reflection_pad1d": self.reflection_pad1d,
+            "aten::reflection_pad2d": self.reflection_pad2d,
+            "aten::replication_pad1d": self.replication_pad1d,
+            "aten::replication_pad2d": self.replication_pad2d,
+            "aten::replication_pad3d": self.replication_pad3d,
             "aten::permute": self.transpose,
             "aten::sum": self.make_reduce("sum"),
             "aten::prod": self.make_reduce("prod"),
