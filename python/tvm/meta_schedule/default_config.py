@@ -141,10 +141,14 @@ def callbacks(  # pylint: disable=redefined-outer-name
 
 def cost_model(
     cost_model: Optional[CostModel],  # pylint: disable=redefined-outer-name
+    adpative_training: Optional[bool],
 ) -> CostModel:
     """Normalize the input to tvm.meta_schedule.CostModel"""
     if cost_model is None:
-        return XGBModel(extractor=PerStoreFeature())  # type: ignore
+        return XGBModel(  # type: ignore
+            extractor=PerStoreFeature(),
+            adaptive_training=adpative_training is None or adpative_training,
+        )
     if not isinstance(cost_model, CostModel):
         raise TypeError(f"Expected `cost_model` to be CostModel, but gets: {cost_model}")
     return cost_model
