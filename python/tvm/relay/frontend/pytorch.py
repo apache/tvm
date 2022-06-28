@@ -870,18 +870,29 @@ class PyTorchOpConverter:
     def cross_entropy_loss(self, inputs, input_types):
         input = inputs[0]
         target = inputs[1]
-        weight = inputs[2]
+        weights = inputs[2]
         reduction = inputs[3]
         ignore_index = inputs[4]
         label_smoothing = inputs[5]
-        assert weight is None, "weight not supported in cross_entropy_loss"
-        assert reduction == 1, "reduction not supported in cross_entropy_loss"
-        assert ignore_index == -100, "ignore_index not supported in cross_entropy_loss"
-        assert label_smoothing == 0.0, "label_smoothing not supported in cross_entropy_loss"
         input_shape = self.infer_shape(input)
-        target_shape = self.infer_shape(input)
+        target_shape = self.infer_shape(target)
         if input_shape != target_shape:
-            raise NotImplementedError("class indices for cross_entropy_loss is not supported")
+            if reduction == 0:
+                reduction = "none"
+            elif reduction == 1:
+                reduction = "mean"
+            else:
+                reduction = "sum"
+            num_class = self.infer_shape(input)[1]
+            if weights == None:
+                weights = _op.full(_expr.const(1), (num_class,), dtype=input_types[0])
+            return _op.nn.nll_loss(
+                _op.nn.log_softmax(input), target, weights, reduction, ignore_index
+            )
+        assert reduction == 1, "reduction not supported in cross_entropy_loss"
+        assert ignore_index == -100, "reduce not supported in cross_entropy_loss"
+        assert label_smoothing == 0.0, "label_smoothing not supported in cross_entropy_loss"
+        assert weights is None, "weight not supported in cross_entropy_loss"
         return _op.nn.cross_entropy_with_logits(_op.nn.log_softmax(input), target)
 
     def hard_sigmoid(self, inputs, input_types):

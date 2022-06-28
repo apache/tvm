@@ -727,20 +727,6 @@ def test_forward_log_sigmoid():
     verify_model(torch.nn.LogSigmoid().eval(), input_data=input_data)
 
 
-def test_cross_entropy_loss():
-    def test_func_cross_entropy_loss(input, target):
-        loss = torch.nn.CrossEntropyLoss()
-        return loss(input, target)
-
-    verify_model(
-        test_func_cross_entropy_loss,
-        input_data=[
-            torch.randn(3, 5),
-            torch.randn(3, 5).softmax(dim=1),
-        ],
-    )
-
-
 @tvm.testing.uses_gpu
 def test_forward_adaptive_avgpool():
     torch.set_grad_enabled(False)
@@ -4095,6 +4081,24 @@ def test_forward_nll_loss():
     verify_model(torch.nn.NLLLoss(ignore_index=1).eval(), input_data=[predictions, targets])
     verify_model(torch.nn.NLLLoss(reduction="sum").eval(), input_data=[predictions, targets])
     verify_model(torch.nn.NLLLoss(reduction="none").eval(), input_data=[predictions, targets])
+
+
+def test_cross_entropy_loss():
+    torch.set_grad_enabled(False)
+    N, C = 10, 3
+    # class indices
+    predictions = torch.rand((N, C)).float()
+    targets = torch.randint(0, 3, (N,))
+    weights = torch.tensor([1, 2, 3]).float()
+    verify_model(torch.nn.CrossEntropyLoss().eval(), input_data=[predictions, targets])
+    verify_model(
+        torch.nn.CrossEntropyLoss(weight=weights).eval(), input_data=[predictions, targets]
+    )
+
+    # class probabilities
+    predictions = torch.randn(N, C).float()
+    targets = torch.randn(N, C)
+    verify_model(torch.nn.CrossEntropyLoss().eval(), input_data=[predictions, targets])
 
 
 @tvm.testing.uses_gpu
