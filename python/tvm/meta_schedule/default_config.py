@@ -145,8 +145,8 @@ def cost_model(
 ) -> CostModel:
     """Normalize the input to tvm.meta_schedule.CostModel"""
     if cost_model is None:
-        return XGBModel(
-            extractor=PerStoreFeature(),  # type: ignore
+        return XGBModel(  # type: ignore
+            extractor=PerStoreFeature(),
             adaptive_training=adpative_training is None or adpative_training,
         )
     if not isinstance(cost_model, CostModel):
