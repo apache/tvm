@@ -20,8 +20,6 @@ from tvm import te
 from tvm import tir
 from ..utils import get_layout_transform_fn
 
-# pylint: disable=invalid-name
-
 
 def get_layout_transform_for_f32(f32_layout_string):
     """
@@ -51,12 +49,12 @@ def cast_f16_f32_stir_schedule_nhwc(func, in_layout, out_layout, h_split_factor)
     """Schedule for nhwc f16 to f32 cast: nhwc layout"""
     sch = tir.Schedule(func, debug_mask="all")
     block_name = "CastF16F32"
-    n, h, w, c = sch.get_loops(sch.get_block(block_name))
-    h_outer, h_inner = sch.split(h, [None, h_split_factor])
-    w_outer, w_inner = sch.split(w, [None, 4])
-    c_outer, c_inner = sch.split(c, [None, 32])
+    n_orig, h_orig, w_orig, c_orig = sch.get_loops(sch.get_block(block_name))
+    h_outer, h_inner = sch.split(h_orig, [None, h_split_factor])
+    w_outer, w_inner = sch.split(w_orig, [None, 4])
+    c_outer, c_inner = sch.split(c_orig, [None, 32])
     w_inner_o, w_inner_i = sch.split(w_inner, [None, 2])
-    sch.reorder(n, h_outer, w_outer, c_outer, h_inner, w_inner_o, c_inner, w_inner_i)
+    sch.reorder(n_orig, h_outer, w_outer, c_outer, h_inner, w_inner_o, c_inner, w_inner_i)
     sch.transform_layout(block_name, "A", in_layout)
     sch.transform_layout(block_name, block_name, out_layout)
     fused = sch.fuse(c_inner, w_inner_i)
@@ -68,8 +66,8 @@ def cast_f16_f32_stir_schedule_nc(func, in_layout, out_layout, c_split_factor):
     """Schedule for nc f16 to f32 cast: nc layout"""
     sch = tir.Schedule(func, debug_mask="all")
     block_name = "CastF16F32"
-    _, c = sch.get_loops(sch.get_block(block_name))
-    _, c_inner = sch.split(c, [None, c_split_factor])
+    _, c_orig = sch.get_loops(sch.get_block(block_name))
+    _, c_inner = sch.split(c_orig, [None, c_split_factor])
     sch.transform_layout(block_name, "A", in_layout)
     sch.transform_layout(block_name, block_name, out_layout)
     sch.vectorize(c_inner)
@@ -105,12 +103,12 @@ def cast_f32_f16_stir_schedule_nhwc(func, in_layout, out_layout, h_split_factor)
     """Schedule for nhwc f32 to f16 cast: nhwc layout"""
     sch = tir.Schedule(func, debug_mask="all")
     block_name = "CastF32F16"
-    n, h, w, c = sch.get_loops(sch.get_block(block_name))
-    h_outer, h_inner = sch.split(h, [None, h_split_factor])
-    w_outer, w_inner = sch.split(w, [None, 4])
-    c_outer, c_inner = sch.split(c, [None, 32])
+    n_orig, h_orig, w_orig, c_orig = sch.get_loops(sch.get_block(block_name))
+    h_outer, h_inner = sch.split(h_orig, [None, h_split_factor])
+    w_outer, w_inner = sch.split(w_orig, [None, 4])
+    c_outer, c_inner = sch.split(c_orig, [None, 32])
     w_inner_o, w_inner_i = sch.split(w_inner, [None, 2])
-    sch.reorder(n, h_outer, w_outer, c_outer, h_inner, w_inner_o, c_inner, w_inner_i)
+    sch.reorder(n_orig, h_outer, w_outer, c_outer, h_inner, w_inner_o, c_inner, w_inner_i)
     sch.transform_layout(block_name, "A", in_layout)
     sch.transform_layout(block_name, block_name, out_layout)
     fused = sch.fuse(c_inner, w_inner_i)
@@ -122,8 +120,8 @@ def cast_f32_f16_stir_schedule_nc(func, in_layout, out_layout, c_split_factor):
     """Schedule for nc f32 to f16 cast: nc layout"""
     sch = tir.Schedule(func, debug_mask="all")
     block_name = "CastF32F16"
-    _, c = sch.get_loops(sch.get_block(block_name))
-    _, c_inner = sch.split(c, [None, c_split_factor])
+    _, c_orig = sch.get_loops(sch.get_block(block_name))
+    _, c_inner = sch.split(c_orig, [None, c_split_factor])
     sch.transform_layout(block_name, "A", in_layout)
     sch.transform_layout(block_name, block_name, out_layout)
     sch.vectorize(c_inner)

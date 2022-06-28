@@ -23,8 +23,6 @@ from tvm import te
 import tvm.topi.hexagon.slice_ops as sl
 from ..infrastructure import allocate_hexagon_array, transform_numpy
 
-# pylint: disable=invalid-name
-
 
 class TestCastF16F32Slice2d:
     """
@@ -77,17 +75,17 @@ class TestCastF16F32Slice2d:
         """
         target_hexagon = tvm.target.hexagon("v68")
         target = tvm.target.Target(target_hexagon, host=target_hexagon)
-        A = te.placeholder(input_shape, name="A", dtype=dtype)
-        M = sl.cast_f16_f32_compute(A)
-        cast_func = te.create_prim_func([A, M])
+        cast_input = te.placeholder(input_shape, name="A", dtype=dtype)
+        cast_output = sl.cast_f16_f32_compute(cast_input)
+        cast_func = te.create_prim_func([cast_input, cast_output])
         tir_s = sl.cast_f16_f32_schedule(cast_func, input_layout, output_layout)
-        A_data = allocate_hexagon_array(
+        input_data = allocate_hexagon_array(
             hexagon_session.device,
             data=transformed_input_np,
             axis_separators=axis_sep,
             mem_scope=working_scope,
         )
-        M_data = allocate_hexagon_array(
+        output_data = allocate_hexagon_array(
             hexagon_session.device,
             tensor_shape=transformed_expected_output_np.shape,
             dtype=transformed_expected_output_np.dtype,
@@ -95,12 +93,12 @@ class TestCastF16F32Slice2d:
             mem_scope=working_scope,
         )
         with tvm.transform.PassContext(opt_level=3):
-            tir_irm = tvm.lower(tir_s.mod, [A, M], name="cast_f16_f32")
+            tir_irm = tvm.lower(tir_s.mod, [cast_input, cast_output], name="cast_f16_f32")
             runtime_module = tvm.build(tir_irm, target=target, name="cast_f16_f32")
         mod = hexagon_session.load_module(runtime_module)
 
-        mod(A_data, M_data)
-        output_np = M_data.numpy()
+        mod(input_data, output_data)
+        output_np = output_data.numpy()
         tvm.testing.assert_allclose(
             output_np,
             transformed_expected_output_np,
@@ -161,17 +159,17 @@ class TestCastF32F16Slice2d:
 
         target_hexagon = tvm.target.hexagon("v68")
         target = tvm.target.Target(target_hexagon, host=target_hexagon)
-        A = te.placeholder(input_shape, name="A", dtype=dtype)
-        M = sl.cast_f32_f16_compute(A)
-        cast_func = te.create_prim_func([A, M])
+        cast_input = te.placeholder(input_shape, name="A", dtype=dtype)
+        cast_output = sl.cast_f32_f16_compute(cast_input)
+        cast_func = te.create_prim_func([cast_input, cast_output])
         tir_s = sl.cast_f32_f16_schedule(cast_func, input_layout, output_layout)
-        A_data = allocate_hexagon_array(
+        input_data = allocate_hexagon_array(
             hexagon_session.device,
             data=transformed_input_np,
             axis_separators=axis_sep,
             mem_scope=working_scope,
         )
-        M_data = allocate_hexagon_array(
+        output_data = allocate_hexagon_array(
             hexagon_session.device,
             tensor_shape=transformed_expected_output_np.shape,
             dtype=transformed_expected_output_np.dtype,
@@ -179,12 +177,12 @@ class TestCastF32F16Slice2d:
             mem_scope=working_scope,
         )
         with tvm.transform.PassContext(opt_level=3):
-            tir_irm = tvm.lower(tir_s.mod, [A, M], name="cast_f32_f16")
+            tir_irm = tvm.lower(tir_s.mod, [cast_input, cast_output], name="cast_f32_f16")
             runtime_module = tvm.build(tir_irm, target=target, name="cast_f32_f16")
         mod = hexagon_session.load_module(runtime_module)
 
-        mod(A_data, M_data)
-        output_np = M_data.numpy()
+        mod(input_data, output_data)
+        output_np = output_data.numpy()
         tvm.testing.assert_allclose(
             output_np,
             transformed_expected_output_np,
@@ -194,4 +192,4 @@ class TestCastF32F16Slice2d:
 
 
 if __name__ == "__main__":
-    sys.exit(tvm.testing.main())
+    tvm.testing.main()
