@@ -220,6 +220,14 @@ class PoolInfoProperties : public ObjectRef {
 
 /* \brief Represents RW memory area */
 struct WorkspacePoolInfoNode : public PoolInfoNode {
+  void VisitAttrs(tvm::AttrVisitor* v) { PoolInfoNode::VisitAttrs(v); }
+
+  bool SEqualReduce(const WorkspacePoolInfoNode* other, SEqualReducer equal) const {
+    return PoolInfoNode::SEqualReduce(other, equal);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const { PoolInfoNode::SHashReduce(hash_reduce); }
+
   static constexpr const char* _type_key = "ir.WorkspacePoolInfo";
   TVM_DECLARE_FINAL_OBJECT_INFO(WorkspacePoolInfoNode, PoolInfoNode);
 };
@@ -275,6 +283,22 @@ class ConstantInfo : public ObjectRef {
  * data from constant_info_array */
 struct ConstantPoolInfoNode : public PoolInfoNode {
   Array<ConstantInfo> constant_info_array;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    PoolInfoNode::VisitAttrs(v);
+    v->Visit("constant_info_array", &constant_info_array);
+  }
+
+  bool SEqualReduce(const ConstantPoolInfoNode* other, SEqualReducer equal) const {
+    return PoolInfoNode::SEqualReduce(other, equal) &&
+           equal(constant_info_array, other->constant_info_array);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    PoolInfoNode::SHashReduce(hash_reduce);
+    hash_reduce(constant_info_array);
+  }
+
   static constexpr const char* _type_key = "ir.ConstantPoolInfo";
   TVM_DECLARE_FINAL_OBJECT_INFO(ConstantPoolInfoNode, PoolInfoNode);
 };
