@@ -293,6 +293,14 @@ class PyTorchOpConverter:
     def min(self, inputs, input_types):
         return self.min_max_common("minimum", "min", inputs, input_types)
 
+    def maximum(self, inputs, input_types):
+        data0, data1 = self.pytorch_promote_types(inputs[:2], input_types[:2])
+        return _op.maximum(data0, data1)
+
+    def minimum(self, inputs, input_types):
+        data0, data1 = self.pytorch_promote_types(inputs[:2], input_types[:2])
+        return _op.minimum(data0, data1)
+
     def make_unary(self, name):
         def unary(inputs, input_types):
             # this is just to ensure tensor input
@@ -1770,50 +1778,86 @@ class PyTorchOpConverter:
     def none(self, inputs, input_types):
         return None
 
-    def make_pad(self, mode):
-        def pad(inputs, input_types):
-            data = inputs[0]
-            if isinstance(inputs[1], list):
-                pad_list = inputs[1]
-            else:
-                pad_list = list(self.infer_shape(inputs[1]))
+    def pad_common(self, mode, pad_value, inputs, input_types):
+        data = inputs[0]
+        if isinstance(inputs[1], list):
+            pad_list = inputs[1]
+        else:
+            pad_list = list(self.infer_shape(inputs[1]))
 
-            # initialize paddings based on input len
-            pad_len = len(self.infer_shape(data)) * 2
-            paddings = [0] * pad_len
+        # initialize paddings based on input len
+        pad_len = len(self.infer_shape(data)) * 2
+        paddings = [pad_value] * pad_len
 
-            if len(pad_list) >= 2:
-                paddings[-1] = pad_list[1]
-                paddings[-2] = pad_list[0]
-            if len(pad_list) >= 4:
-                paddings[-3] = pad_list[3]
-                paddings[-4] = pad_list[2]
-            if len(pad_list) >= 6:
-                paddings[-5] = pad_list[5]
-                paddings[-6] = pad_list[4]
+        if len(pad_list) >= 2:
+            paddings[-1] = pad_list[1]
+            paddings[-2] = pad_list[0]
+        if len(pad_list) >= 4:
+            paddings[-3] = pad_list[3]
+            paddings[-4] = pad_list[2]
+        if len(pad_list) >= 6:
+            paddings[-5] = pad_list[5]
+            paddings[-6] = pad_list[4]
 
-            # group into tuple of 2 ints
-            paddings = [paddings[i : i + 2] for i in range(0, len(paddings), 2)]
+        # group into tuple of 2 ints
+        paddings = [paddings[i : i + 2] for i in range(0, len(paddings), 2)]
 
-            const_paddings = []
-            non_zero_found = False
-            for pad in paddings:
-                const_paddings.append([])
-                for p in pad:
-                    if not isinstance(p, int):
-                        p = int(_infer_value(p, {}).numpy())
-                    const_paddings[-1].append(p)
-                    if p != 0:
-                        non_zero_found = True
+        const_paddings = []
+        non_zero_found = False
+        for pad in paddings:
+            const_paddings.append([])
+            for p in pad:
+                if not isinstance(p, int):
+                    p = int(_infer_value(p, {}).numpy())
+                const_paddings[-1].append(p)
+                if p != 0:
+                    non_zero_found = True
 
-            if not non_zero_found:
-                return data
-            elif mode == "constant":
-                return _op.nn.pad(data, const_paddings, pad_value=inputs[2], pad_mode=mode)
-            else:
-                return _op.nn.pad(data, const_paddings, pad_mode=mode)
+        if not non_zero_found:
+            return data
+        elif mode == "constant":
+            return _op.nn.pad(data, const_paddings, pad_value=inputs[2], pad_mode=mode)
+        else:
+            return _op.nn.pad(data, const_paddings, pad_mode=mode)
 
-        return pad
+    def pad(self, inputs, input_types):
+
+        # mode: Optional default "constant"
+        if len(inputs) > 2 and inputs[2] is not None:
+            mode = inputs[2]
+        else:
+            mode = "constant"
+
+        # pad_value: Optional default 0
+        if len(inputs) == 4 and inputs[3] is not None:
+            pad_value = inputs[3]
+        else:
+            pad_value = 0
+
+        # replicate is edge in TVM's padding mode
+        if mode == "replicate":
+            mode = "edge"
+        elif mode == "circular":
+            raise ValueError("circular mode for torch.nn.functional.pad are not supported in TVM")
+        return self.pad_common(mode, pad_value, inputs, input_types)
+
+    def constant_pad_nd(self, inputs, input_types):
+        return self.pad_common("constant", 0, inputs, input_types)
+
+    def reflection_pad1d(self, inputs, input_types):
+        return self.pad_common("reflect", 0, inputs, input_types)
+
+    def reflection_pad2d(self, inputs, input_types):
+        return self.pad_common("reflect", 0, inputs, input_types)
+
+    def replication_pad1d(self, inputs, input_types):
+        return self.pad_common("edge", 0, inputs, input_types)
+
+    def replication_pad2d(self, inputs, input_types):
+        return self.pad_common("edge", 0, inputs, input_types)
+
+    def replication_pad3d(self, inputs, input_types):
+        return self.pad_common("edge", 0, inputs, input_types)
 
     def clamp_common(self, data, min=None, max=None):
         def get_v(v, default_v):
@@ -1962,6 +2006,13 @@ class PyTorchOpConverter:
         if str(t0) != str(t1):
             target = _op.cast(target, t0)
         return _op.broadcast_to_like(inputs[0], target)
+
+    def broadcast_tensors(self, inputs, input_types):
+        tensor_list = inputs[0]
+        import torch
+
+        res_shape = list(torch.broadcast_shapes(*[self.infer_shape(t) for t in tensor_list]))
+        return [_op.broadcast_to(tensor, res_shape) for tensor in tensor_list]
 
     def Bool(self, inputs, input_types):
         assert len(inputs) == 1
@@ -3020,6 +3071,8 @@ class PyTorchOpConverter:
             "aten::sub": self.sub,
             "aten::max": self.max,
             "aten::min": self.min,
+            "aten::maximum": self.maximum,
+            "aten::minimum": self.minimum,
             "aten::amax": self.max,
             "aten::amin": self.min,
             "aten::stft": self.stft,
@@ -3125,12 +3178,13 @@ class PyTorchOpConverter:
             "prim::NumToTensor": self.numtotensor,
             "prim::ImplicitTensorToNum": self.tensortonum,
             "aten::ScalarImplicit": self.tensortonum,
-            "aten::constant_pad_nd": self.make_pad("constant"),
-            "aten::reflection_pad1d": self.make_pad("reflect"),
-            "aten::reflection_pad2d": self.make_pad("reflect"),
-            "aten::replication_pad1d": self.make_pad("edge"),
-            "aten::replication_pad2d": self.make_pad("edge"),
-            "aten::replication_pad3d": self.make_pad("edge"),
+            "aten::pad": self.pad,
+            "aten::constant_pad_nd": self.constant_pad_nd,
+            "aten::reflection_pad1d": self.reflection_pad1d,
+            "aten::reflection_pad2d": self.reflection_pad2d,
+            "aten::replication_pad1d": self.replication_pad1d,
+            "aten::replication_pad2d": self.replication_pad2d,
+            "aten::replication_pad3d": self.replication_pad3d,
             "aten::permute": self.transpose,
             "aten::sum": self.make_reduce("sum"),
             "aten::prod": self.make_reduce("prod"),
@@ -3179,6 +3233,7 @@ class PyTorchOpConverter:
             "aten::upsample_trilinear3d": self.make_upsample3d("linear"),
             "aten::upsample_nearest3d": self.make_upsample3d("nearest_neighbor"),
             "aten::expand_as": self.expand_as,
+            "aten::broadcast_tensors": self.broadcast_tensors,
             "aten::lt": self.make_elemwise("less"),
             "aten::gt": self.make_elemwise("greater"),
             "aten::le": self.make_elemwise("less_equal"),
@@ -3557,7 +3612,7 @@ def _convert_dtype_value(val):
         3: "torch.int32",
         2: "torch.int16",
         1: "torch.int8",
-        0: "torch.unit8",
+        0: "torch.uint8",
         None: "torch.int64",
     }  # Default is torch.int64
     if val in convert_torch_dtype_map:

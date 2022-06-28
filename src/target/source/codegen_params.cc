@@ -53,7 +53,8 @@ static int ComputeNumElementsPerRow(int one_element_size_bytes, int indent_chars
 }
 
 template <typename T, typename Enable = std::enable_if<std::is_integral<T>::value>>
-void PrintIntegralArray(void* data, size_t num_elements, int indent_chars, std::ostream& os) {
+void PrintIntegralArray(void* data, size_t num_elements, int indent_chars, std::ostream& os,
+                        const std::string& eol) {
   int one_element_size_bytes = (sizeof(T) / 4) + (2 /* "0x" */) + (2 /* ", " */);
   if (std::is_signed<T>::value) {
     one_element_size_bytes += 1;  // sign character
@@ -97,17 +98,18 @@ void PrintIntegralArray(void* data, size_t num_elements, int indent_chars, std::
       os << ", ";
     }
     if ((i % elements_per_row) == elements_per_row - 1) {
-      os << "\n";
+      os << eol;
     }
   }
 
   if ((num_elements % elements_per_row) != 0) {
-    os << "\n";
+    os << eol;
   }
 }
 
 template <typename T, typename Enable = std::enable_if<std::is_floating_point<T>::value>>
-void PrintFloatingPointArray(void* data, size_t num_elements, int indent_chars, std::ostream& os) {
+void PrintFloatingPointArray(void* data, size_t num_elements, int indent_chars, std::ostream& os,
+                             const std::string& eol) {
   // Floats and doubles are printed as hex but casted.
   int one_element_size_bytes = (sizeof(T) / 4) + (2 /* "0x" */) + (2 /* ", " */) + 1 /* sign */ +
                                1 /* decimal point */ + 1 /* exponent sign */;
@@ -149,16 +151,17 @@ void PrintFloatingPointArray(void* data, size_t num_elements, int indent_chars, 
       os << ", ";
     }
     if ((i % elements_per_row) == elements_per_row - 1) {
-      os << "\n";
+      os << eol;
     }
   }
 
   if ((num_elements % elements_per_row) != 0) {
-    os << "\n";
+    os << eol;
   }
 }
 
-void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream& os) {
+void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream& os,
+                    const std::string& eol) {
   auto arr_type = arr.DataType();
   CHECK_EQ(arr_type.lanes(), 1) << "CodegenParams: only support generating 1-lane parameters; saw "
                                 << arr_type.lanes();
@@ -180,13 +183,13 @@ void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream&
           << "CodegenParams: only support generating 8-, 16-, 32-, or 64-bit integer params; saw "
           << arr_type.bits() << "-bit array";
       if (arr_type.bits() == 8) {
-        PrintIntegralArray<int8_t>(arr->data, num_elements, indent_chars, os);
+        PrintIntegralArray<int8_t>(arr->data, num_elements, indent_chars, os, eol);
       } else if (arr_type.bits() == 16) {
-        PrintIntegralArray<int16_t>(arr->data, num_elements, indent_chars, os);
+        PrintIntegralArray<int16_t>(arr->data, num_elements, indent_chars, os, eol);
       } else if (arr_type.bits() == 32) {
-        PrintIntegralArray<int32_t>(arr->data, num_elements, indent_chars, os);
+        PrintIntegralArray<int32_t>(arr->data, num_elements, indent_chars, os, eol);
       } else if (arr_type.bits() == 64) {
-        PrintIntegralArray<int64_t>(arr->data, num_elements, indent_chars, os);
+        PrintIntegralArray<int64_t>(arr->data, num_elements, indent_chars, os, eol);
       } else {
         CHECK(false) << "should not get here";
       }
@@ -199,13 +202,13 @@ void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream&
           << arr_type.bits() << "-bit array";
 
       if (arr_type.bits() == 8) {
-        PrintIntegralArray<uint8_t>(arr->data, num_elements, indent_chars, os);
+        PrintIntegralArray<uint8_t>(arr->data, num_elements, indent_chars, os, eol);
       } else if (arr_type.bits() == 16) {
-        PrintIntegralArray<uint16_t>(arr->data, num_elements, indent_chars, os);
+        PrintIntegralArray<uint16_t>(arr->data, num_elements, indent_chars, os, eol);
       } else if (arr_type.bits() == 32) {
-        PrintIntegralArray<uint32_t>(arr->data, num_elements, indent_chars, os);
+        PrintIntegralArray<uint32_t>(arr->data, num_elements, indent_chars, os, eol);
       } else if (arr_type.bits() == 64) {
-        PrintIntegralArray<uint64_t>(arr->data, num_elements, indent_chars, os);
+        PrintIntegralArray<uint64_t>(arr->data, num_elements, indent_chars, os, eol);
       } else {
         CHECK(false) << "should not get here";
       }
@@ -216,11 +219,11 @@ void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream&
       os.setf(std::ios::left, std::ios::adjustfield);
       if (arr_type.bits() == 16) {
         // NOTE: print types not widely supported by C as uint16_t.
-        PrintIntegralArray<uint16_t>(arr->data, num_elements, indent_chars, os);
+        PrintIntegralArray<uint16_t>(arr->data, num_elements, indent_chars, os, eol);
       } else if (arr_type.bits() == 32) {
-        PrintFloatingPointArray<float>(arr->data, num_elements, indent_chars, os);
+        PrintFloatingPointArray<float>(arr->data, num_elements, indent_chars, os, eol);
       } else if (arr_type.bits() == 64) {
-        PrintFloatingPointArray<double>(arr->data, num_elements, indent_chars, os);
+        PrintFloatingPointArray<double>(arr->data, num_elements, indent_chars, os, eol);
       } else {
         CHECK(false) << "CodegenParams: only support 32- or 64-bit floating point; saw "
                      << arr_type.bits() << "-bit array";
@@ -233,7 +236,7 @@ void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream&
       CHECK(arr_type.bits() == 16)
           << "CodegenParams: only support generating 16-bit bfloat params; saw " << arr_type.bits()
           << "-bit array";
-      PrintIntegralArray<uint16_t>(arr->data, num_elements, indent_chars, os);
+      PrintIntegralArray<uint16_t>(arr->data, num_elements, indent_chars, os, eol);
       break;
     }
 

@@ -113,6 +113,9 @@ def dnnl_conv2d(
     else:
         dilation_h, dilation_w = dilation
 
+    pre_cast = src.dtype == "float32"
+    post_cast = out_dtype == "float32"
+
     if channel_last:
         batch, in_height, in_width, _ = src.shape
         kernel_h, kernel_w, _, num_filter = weights.shape
@@ -150,6 +153,8 @@ def dnnl_conv2d(
             stride[1],
             groups,
             channel_last,
+            pre_cast,
+            post_cast,
         ),
         name="C",
         dtype=out_dtype,

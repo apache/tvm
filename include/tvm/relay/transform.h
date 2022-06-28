@@ -556,6 +556,19 @@ TVM_DLL Pass PlanDevices(CompilationConfig config);
  */
 TVM_DLL Pass FlattenAtrousConv();
 
+/*!
+ * \brief Annotates the minimum required memory of each primitive function callsite by analyzing
+ * the liveness of the input/output tensors at each function callsite and calculating the total
+ * amount of memory these tensors require. This is added as a "used_memory" annotation to the
+ * function in question as a list of the number of bytes for each callsite. In addition, the
+ * containing function is annotated with an "io_used_memory" annotation which refers to the total
+ * memory required for the IO tensors.
+ *
+ * Note: This pass does not support dynamic shapes, it is the users responsibility to check this
+ * pass isn't applied where dynamic shapes may be input.
+ */
+TVM_DLL Pass AnnotateUsedMemory();
+
 }  // namespace transform
 
 /*!

@@ -82,7 +82,32 @@ enable=indexing-exception,old-raise-syntax
 # --enable=similarities". If you want to run only the classes checker, but have
 # no Warning level messages displayed, use"--disable=all --enable=classes
 # --disable=W"
-disable=design,similarities,no-self-use,attribute-defined-outside-init,locally-disabled,star-args,pointless-except,bad-option-value,global-statement,fixme,suppressed-message,useless-suppression,locally-enabled,no-member,no-name-in-module,import-error,unsubscriptable-object,unbalanced-tuple-unpacking,undefined-variable,protected-access,useless-object-inheritance,consider-using-get,bad-continuation,too-many-lines
+disable=
+    attribute-defined-outside-init,
+    bad-continuation,
+    bad-option-value,
+    consider-using-get,
+    design,
+    fixme,
+    global-statement,
+    import-error,
+    locally-disabled,
+    locally-enabled,
+    no-else-return,
+    no-member,
+    no-name-in-module,
+    no-self-use,
+    pointless-except,
+    protected-access,
+    similarities,
+    star-args,
+    suppressed-message,
+    too-many-lines,
+    unbalanced-tuple-unpacking,
+    undefined-variable,
+    unsubscriptable-object,
+    useless-object-inheritance,
+    useless-suppression
 
 [REPORTS]
 

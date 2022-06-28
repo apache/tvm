@@ -528,6 +528,20 @@ def test_concatenate3(target, dev):
         do_concat_test(shapes, t_shape, dtype, axis, dev, target)
 
 
+@tvm.testing.parametrize_targets("llvm")
+def test_concatenate4(target, dev):
+    np.random.seed(7)
+    x_shape = (2, 1)
+    x = relay.var("x", shape=x_shape, dtype="int64")
+    concat = relay.concatenate([x], axis=1)
+    f = relay.Function([x], concat)
+    x_val = np.array([[33], [13]], dtype="int64")
+    graph = relay.create_executor("graph", device=tvm.cpu(), target="llvm")
+    op_res = graph.evaluate(f)(x_val)
+    ref_res = np.concatenate([x_val], axis=1)
+    tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.000001)
+
+
 def test_batch_norm_fold_const():
     axis = 1
     dtype = "float32"

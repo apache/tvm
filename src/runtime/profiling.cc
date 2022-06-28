@@ -414,16 +414,28 @@ ObjectRef AggregateMetric(const std::vector<ObjectRef>& metrics) {
   }
 }
 
+// Try and set the locale of the provided stringstream so that it will print
+// numbers with thousands separators. Sometimes users will have a misconfigured
+// system where an invalid locale is set, so we catch and ignore any locale
+// errors.
+static void set_locale_for_separators(std::stringstream& s) {
+  try {
+    // empty string indicates locale should be the user's default, see man 3 setlocale
+    s.imbue(std::locale(""));
+  } catch (std::runtime_error& e) {
+  }
+}
+
 static String print_metric(ObjectRef metric) {
   std::string val;
   if (metric.as<CountNode>()) {
     std::stringstream s;
-    s.imbue(std::locale());  // for 1000s seperators
+    set_locale_for_separators(s);
     s << std::fixed << metric.as<CountNode>()->value;
     val = s.str();
   } else if (metric.as<DurationNode>()) {
     std::stringstream s;
-    s.imbue(std::locale());  // for 1000s seperators
+    set_locale_for_separators(s);
     s << std::fixed << std::setprecision(2) << metric.as<DurationNode>()->microseconds;
     val = s.str();
   } else if (metric.as<PercentNode>()) {
@@ -432,7 +444,7 @@ static String print_metric(ObjectRef metric) {
     val = s.str();
   } else if (metric.as<RatioNode>()) {
     std::stringstream s;
-    s.imbue(std::locale());  // for 1000s seperators
+    set_locale_for_separators(s);
     s << std::setprecision(2) << metric.as<RatioNode>()->ratio;
     val = s.str();
   } else if (metric.as<StringObj>()) {

@@ -103,12 +103,12 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
     for (int i : this->layout_free_buffer_indices_) {
       indices.push_back(Integer(i));
     }
-    return WithAttr(std::move(func), attr, indices);
+    return WithAttr(std::move(func), tir::attr::layout_free_buffers, indices);
   }
 
   Stmt VisitStmt_(const BlockNode* _block) final {
     Block block = Downcast<Block>(StmtMutator::VisitStmt_(_block));
-    if (Optional<ObjectRef> ann = block->annotations.Get(attr)) {
+    if (Optional<ObjectRef> ann = block->annotations.Get(topi_attr)) {
       Array<Buffer> buffers = Downcast<Array<Buffer>>(ann);
       for (Buffer buffer : buffers) {
         auto it = buffer2index_.find(buffer);
@@ -116,14 +116,14 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
           layout_free_buffer_indices_.insert(it->second);
         }
       }
-      block.CopyOnWrite()->annotations.erase(attr);
+      block.CopyOnWrite()->annotations.erase(topi_attr);
     }
     return block;
   }
 
   std::unordered_map<tir::Buffer, int, ObjectPtrHash, ObjectPtrEqual> buffer2index_;
   std::set<int> layout_free_buffer_indices_;
-  String attr = "layout_free_placeholders";
+  String topi_attr = "layout_free_placeholders";
 };
 
 BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,

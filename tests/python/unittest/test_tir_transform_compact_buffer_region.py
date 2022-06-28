@@ -737,6 +737,21 @@ def test_compact_with_let_binding():
 
     _check(func_with_let_binding, func_with_let_binding)
 
+    @T.prim_func
+    def func_with_non_index_let_binding():
+        x1 = T.call_extern("get", dtype="float16")
+        x2 = T.call_extern("get", dtype="float32")
+        x3 = T.call_extern("get", dtype="float64")
+        x4 = T.call_extern("get", dtype="uint8")
+        x5 = T.call_extern("get", dtype="int32x16")
+        x6 = T.call_extern("get", dtype="handle")
+        x7 = T.call_extern("get", dtype="")
+        A = T.alloc_buffer((64), "float32")
+        for rk in range(64):
+            A[rk] = T.call_extern("load_ptr", x1, x2, x3, x4, x5, x6, x7, dtype="float32")
+
+    _check(func_with_non_index_let_binding, func_with_non_index_let_binding)
+
 
 def test_compact_spatial_tiled_pad_and_pooling():
     @T.prim_func

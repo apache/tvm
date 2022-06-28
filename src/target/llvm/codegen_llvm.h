@@ -23,8 +23,30 @@
  */
 #ifndef TVM_TARGET_LLVM_CODEGEN_LLVM_H_
 #define TVM_TARGET_LLVM_CODEGEN_LLVM_H_
-#include <llvm/IR/GlobalValue.h>
 #ifdef TVM_LLVM_VERSION
+
+#include <llvm/ADT/ArrayRef.h>
+#include <llvm/ADT/StringRef.h>
+#include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/ConstantFolder.h>
+#include <llvm/IR/Constants.h>
+#include <llvm/IR/DerivedTypes.h>
+#if TVM_LLVM_VERSION >= 150
+#include <llvm/IR/FMF.h>
+#else
+#include <llvm/IR/Operator.h>
+#endif
+#include <llvm/IR/GlobalValue.h>
+#include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/IR/Intrinsics.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/Support/Casting.h>
+#if TVM_LLVM_VERSION >= 140
+#include <llvm/MC/TargetRegistry.h>
+#else
+#include <llvm/Support/TargetRegistry.h>
+#endif
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/module.h>
@@ -48,7 +70,25 @@
 #include "../../runtime/thread_storage_scope.h"
 #include "../../tir/transforms/ir_utils.h"
 #include "codegen_params.h"
-#include "llvm_common.h"
+
+namespace llvm {
+class Argument;
+class CallInst;
+class Function;
+class GlobalVariable;
+class Instruction;
+class PassManagerBuilder;
+class TargetMachine;
+class DIFile;
+class DICompileUnit;
+class MDNode;
+
+// Used in std::unique_ptr
+class Module;
+class DataLayout;
+class DIBuilder;
+class MDBuilder;
+}  // namespace llvm
 
 namespace tvm {
 namespace codegen {
@@ -61,6 +101,9 @@ using namespace tir;
 class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
                     public StmtFunctor<void(const Stmt&)> {
  public:
+  CodeGenLLVM();           // Do not make it default here.
+  virtual ~CodeGenLLVM();  // Do not make it default here.
+
   /*!
    * \brief Create new code generator based on target machine.
    * \param tm The target machine
@@ -485,6 +528,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
 
   /*! \brief Helper struct for debug infos. */
   struct DebugInfo {
+    ~DebugInfo();  // Because of the std::unique_ptr.
     std::unique_ptr<llvm::DIBuilder> di_builder_;
     llvm::DICompileUnit* compilation_unit_{nullptr};
     llvm::DIFile* file_{nullptr};

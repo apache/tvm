@@ -16,34 +16,36 @@
 # under the License.
 import tvm
 from tvm import te
+from tvm.script import tir as T
+
+
+@T.prim_func
+def scalar_func(a: T.handle, b: T.handle):
+    m = T.var("int32")
+    n = T.int32(100)
+    A = T.match_buffer(a, (n, m), name="A")
+    B = T.match_buffer(b, (n, m), name="B")
+
+    for i, j in T.grid(n, m):
+        A[i, j] = B[i - 1, j + 1] + A[i - 1, j - 1]
+
+
+@T.prim_func
+def vector_func(a: T.handle, b: T.handle):
+    n = T.var("int32")
+    m = T.int32(128)
+    A = T.match_buffer(a, (n, m), name="A")
+    B = T.match_buffer(b, (n, m), name="B")
+
+    for i in T.serial(n):
+        for j in T.vectorized(m):
+            A[i, j] = A[i, j] + B[i, j]
 
 
 def test_domain_touched():
-    i = te.var("i")
-    j = te.var("j")
-    n = tvm.runtime.convert(100)
-    m = te.var("m")
-
-    a = tvm.tir.decl_buffer((n, m), name="a")
-    b = tvm.tir.decl_buffer((n, m), name="b")
-
-    ir = tvm.tir.For(
-        i,
-        0,
-        n,
-        tvm.tir.ForKind.SERIAL,
-        tvm.tir.For(
-            j,
-            0,
-            m,
-            tvm.tir.ForKind.SERIAL,
-            tvm.tir.BufferStore(
-                a,
-                tvm.tir.BufferLoad(b, [i - 1, j + 1]) + tvm.tir.BufferLoad(a, [i - 1, j - 1]),
-                [i, j],
-            ),
-        ),
-    )
+    func = scalar_func
+    a, b = [func.buffer_map[var] for var in func.params]
+    ir = func.body
 
     a_domain_r = tvm.arith._ffi_api.DomainTouched(ir, a, True, False)
 
@@ -76,6 +78,17 @@ def test_domain_touched():
     b_domain_w = tvm.arith._ffi_api.DomainTouched(ir, b, False, True)
     assert isinstance(b_domain_w, tvm.container.Array)
     assert len(b_domain_w) == 0
+
+
+def test_domain_touched_vector():
+    func = tvm.lower(vector_func)["main"]
+    a, b = [func.buffer_map[var] for var in func.params]
+
+    assert tvm.arith._ffi_api.DomainTouched(func.body, a, True, False)[0].extent.value == 128
+    assert tvm.arith._ffi_api.DomainTouched(func.body, a, True, False)[0].extent.value == 128
+    assert tvm.arith._ffi_api.DomainTouched(func.body, a, True, True)[0].extent.value == 128
+    assert tvm.arith._ffi_api.DomainTouched(func.body, b, True, False)[0].extent.value == 128
+    assert tvm.arith._ffi_api.DomainTouched(func.body, b, True, False)[0].extent.value == 128
 
 
 if __name__ == "__main__":

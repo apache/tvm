@@ -228,7 +228,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
 std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const PrimExpr& constraint) {
   size_t old_literal_size = literal_constraints_.size();
   // we will compare the already simplified result with the constraint,
-  // so simplify the constarint as well
+  // so simplify the constraint as well
   PrimExpr new_constraint = operator()(constraint);
   for (const PrimExpr& subconstraint : ExtractConstraints(new_constraint)) {
     if (SideEffect(subconstraint) <= CallEffectKind::kPure) {
@@ -1673,6 +1673,12 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const VarNode* op) {
   Var var = GetRef<Var>(op);
+  if (op->dtype == DataType::Bool()) {
+    if (auto match = TryMatchLiteralConstraint(var)) {
+      return match.value();
+    }
+  }
+
   auto it = var_map_.find(var);
   if (it != var_map_.end()) {
     return it->second;

@@ -16,6 +16,7 @@
 # under the License.
 
 import tvm
+import tvm.testing
 from tvm.script import tir as T
 
 # fmt: off
@@ -124,5 +125,55 @@ def test_renormalize_split_pattern():
     tvm.ir.assert_structural_equal(after, After_simplified)
 
 
+@T.prim_func
+def impossible_equality(n: T.int32):
+    # Prior to bugfix, this conditional defined the expression "2" as
+    # equal to zero within the then_case. [min_value=2, max_value=0]
+    if 2 == 0:
+        # Then this expression evaluates n/2, using the min/max values
+        # of "2", which is caught as a divide by zero error.
+        if n / 2 >= 16:
+            T.evaluate(0)
+
+
+@T.prim_func
+def impossible_inequality(n: T.int32):
+    # Prior to bugfix, this conditional set up a range of possible
+    # values for the expression "-2" as [0, kPosInf].
+    if -1 < -2:
+        if n / (-2) >= 16:
+            T.evaluate(0)
+
+
+integer_condition = tvm.testing.parameter(
+    impossible_equality,
+    impossible_inequality,
+)
+
+
+def test_analyze_inside_integer_conditional(integer_condition):
+    """Avoid crash occurring in ConstIntBoundAnalyzer.
+
+    Crash occurred when simplifying some expressions with provably
+    false integer expressions.  If the expressions were renormalized
+    before calling Simplify, conditional statements could assign a
+    range of possible values to integers, as if they were variables.
+    This would result in divide by zero throwing an exception,
+    followed by a second exception during stack unwinding causing the
+    program to crash.
+    """
+
+    # Similar issue would occur in most transformations that subclass
+    # IRMutatorWithAnalyzer.  tir.transform.Simplify() is an
+    # exception, as it rewrites the integer conditionals first.  These
+    # tests are written using RenormalizeSplitPattern as it is the
+    # first case identified.
+    transform = tvm.tir.transform.RenormalizeSplitPattern()
+
+    # Issue would result in an error through while applying the transformation.
+    mod = tvm.IRModule.from_expr(integer_condition)
+    transform(mod)
+
+
 if __name__ == "__main__":
-    tesd_renormalize_split_pattern()
+    tvm.testing.main()

@@ -256,49 +256,22 @@ def test_update_branch(tmpdir_factory):
     )
 
 
-def test_skip_ci(tmpdir_factory):
-    """
-    Test that CI is skipped when it should be
-    """
-    skip_ci_script = REPO_ROOT / "tests" / "scripts" / "git_skip_ci.py"
-
-    def test(commands, should_skip, pr_title, why):
-        git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
-        # Jenkins git is too old and doesn't have 'git init --initial-branch'
-        git.run("init")
-        git.run("checkout", "-b", "main")
-        git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
-        git.run("config", "user.name", "ci")
-        git.run("config", "user.email", "email@example.com")
-        git.run("commit", "--allow-empty", "--message", "base commit")
-        for command in commands:
-            git.run(*command)
-        pr_number = "1234"
-        proc = subprocess.run(
-            [str(skip_ci_script), "--pr", pr_number, "--pr-title", pr_title],
-            cwd=git.cwd,
-            check=False,
-        )
-        expected = 0 if should_skip else 1
-        assert proc.returncode == expected, why
-
-    test(
+@parameterize_named(
+    dict(
         commands=[],
         should_skip=False,
         pr_title="[skip ci] test",
-        why="ci should not be skipped",
-    )
-
-    test(
+        why="ci should not be skipped on main",
+    ),
+    dict(
         commands=[
             ["commit", "--allow-empty", "--message", "[skip ci] commit 1"],
         ],
         should_skip=False,
         pr_title="[skip ci] test",
         why="ci should not be skipped on main",
-    )
-
-    test(
+    ),
+    dict(
         commands=[
             ["checkout", "-b", "some_new_branch"],
             ["commit", "--allow-empty", "--message", "[skip ci] commit 1"],
@@ -306,9 +279,8 @@ def test_skip_ci(tmpdir_factory):
         should_skip=True,
         pr_title="[skip ci] test",
         why="ci should be skipped on a branch with [skip ci] in the last commit",
-    )
-
-    test(
+    ),
+    dict(
         commands=[
             ["checkout", "-b", "some_new_branch"],
             ["commit", "--allow-empty", "--message", "[skip ci] commit 1"],
@@ -317,9 +289,8 @@ def test_skip_ci(tmpdir_factory):
         pr_title="[no skip ci] test",
         why="ci should not be skipped on a branch with "
         "[skip ci] in the last commit but not the PR title",
-    )
-
-    test(
+    ),
+    dict(
         commands=[
             ["checkout", "-b", "some_new_branch"],
             ["commit", "--allow-empty", "--message", "[skip ci] commit 1"],
@@ -327,10 +298,9 @@ def test_skip_ci(tmpdir_factory):
         ],
         should_skip=True,
         pr_title="[skip ci] test",
-        why="ci should not be skipped with [skip ci] in the PR title",
-    )
-
-    test(
+        why="ci should be skipped with [skip ci] in the PR title",
+    ),
+    dict(
         commands=[
             ["checkout", "-b", "some_new_branch"],
             ["commit", "--allow-empty", "--message", "[skip ci] commit 1"],
@@ -338,10 +308,9 @@ def test_skip_ci(tmpdir_factory):
         ],
         should_skip=True,
         pr_title="[skip ci] test",
-        why="ci should not be skipped with [skip ci] in the PR title",
-    )
-
-    test(
+        why="ci should be skipped with [skip ci] in the PR title",
+    ),
+    dict(
         commands=[
             ["checkout", "-b", "some_new_branch"],
             ["commit", "--allow-empty", "--message", "commit 1"],
@@ -351,8 +320,48 @@ def test_skip_ci(tmpdir_factory):
         ],
         should_skip=True,
         pr_title="[skip ci] test",
-        why="ci should not be skipped with [skip ci] in the PR title",
+        why="ci should be skipped with [skip ci] in the PR title",
+    ),
+    dict(
+        commands=[
+            ["checkout", "-b", "some_new_branch"],
+        ],
+        should_skip=True,
+        pr_title="[something][skip ci] test",
+        why="skip ci tag should work anywhere in title",
+    ),
+)
+def test_skip_ci(tmpdir_factory, commands, should_skip, pr_title, why):
+    """
+    Test that CI is skipped when it should be
+    """
+    skip_ci_script = REPO_ROOT / "tests" / "scripts" / "git_skip_ci.py"
+
+    git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
+    # Jenkins git is too old and doesn't have 'git init --initial-branch'
+    git.run("init")
+    git.run("checkout", "-b", "main")
+    git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
+    git.run("config", "user.name", "ci")
+    git.run("config", "user.email", "email@example.com")
+    git.run("commit", "--allow-empty", "--message", "base commit")
+    for command in commands:
+        git.run(*command)
+    pr_number = "1234"
+    proc = subprocess.run(
+        [str(skip_ci_script), "--pr", pr_number, "--pr-title", pr_title],
+        cwd=git.cwd,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        encoding="utf-8",
+        check=False,
     )
+    expected = 0 if should_skip else 1
+    if proc.returncode != expected:
+        raise RuntimeError(
+            f"Unexpected return code {proc.returncode} "
+            f"(expected {expected}) in {why}:\n{proc.stdout}"
+        )
 
 
 def test_skip_globs(tmpdir_factory):
