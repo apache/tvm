@@ -28,9 +28,9 @@ from git_utils import git, parse_remote, GitHubRepo
 from cmd_utils import REPO_ROOT, init_log, Sh
 from should_rebuild_docker import docker_api
 
-JENKINSFILE = REPO_ROOT / "jenkins" / "Jenkinsfile.j2"
+JENKINSFILE = REPO_ROOT / "ci" / "jenkins" / "Jenkinsfile.j2"
 GENERATED_JENKINSFILE = REPO_ROOT / "Jenkinsfile"
-GENERATE_SCRIPT = REPO_ROOT / "jenkins" / "generate.py"
+GENERATE_SCRIPT = REPO_ROOT / "ci" / "jenkins" / "generate.py"
 GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
 BRANCH = "nightly-docker-update"
 

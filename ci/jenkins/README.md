@@ -17,7 +17,11 @@
 
 # TVM CI
 
-TVM runs CI jobs on every commit to an open pull request and to branches in the apache/tvm repo (such as `main`). These jobs are essential to keeping the TVM project in a healthy state and preventing breakages. Jenkins does most of the work in running the TVM tests, though some smaller jobs are also run on GitHub Actions.
+TVM runs CI jobs on every commit to an open pull request and to branches in the apache/tvm repo (such as `main`). These jobs are essential to keeping the TVM project in a healthy state and preventing breakages.
+
+## Jenkins
+
+Jenkins runs all of the linux-based TVM CI-enabled regression tests. This includes tests against accelerated hardware such as GPUs. It excludes those regression tests that run against hardware not available in the cloud (those tests aren't currently exercised in TVM CI). The tests run by Jenkins represent most of the merge-blocking tests (and passing Jenkins should mostly correlate with passing the remaining Windows/Mac builds).
 
 ## GitHub Actions
 
@@ -33,17 +37,20 @@ https://github.com/apache/tvm/actions has the logs for each of these workflows. 
 
 ## Keeping CI Green
 
-Developers rely on the TVM CI to get signal on their PRs before merging.
-Occasionally breakages slip through and break `main`, which in turn causes
-the same error to show up on an PR that is based on the broken commit(s). Broken
-commits can be identified [through GitHub](https://github.com/apache/tvm/commits/main>)
-via the commit status icon or via [Jenkins](https://ci.tlcpack.ai/blue/organizations/jenkins/tvm/activity?branch=main>).
-In these situations it is possible to either revert the offending commit or
-submit a forward fix to address the issue. It is up to the committer and commit
-author which option to choose, keeping in mind that a broken CI affects all TVM
-developers and should be fixed as soon as possible.
+Developers rely on the TVM CI to get signal on their PRs before merging.  Occasionally breakages
+slip through and break `main`, which in turn causes the same error to show up on an unrelated PR
+that is based on the broken commit(s). Broken commits can be identified [through
+GitHub](https://github.com/apache/tvm/commits/main>) via the commit status icon or via
+[Jenkins](https://ci.tlcpack.ai/blue/organizations/jenkins/tvm/activity?branch=main>).  In these
+situations it is possible to either revert the offending commit or submit a forward fix to address
+the issue. It is up to the committer and commit author which option to choose. A broken CI affects
+all TVM developers and should be fixed as soon as possible, while a revert may be especially painful
+for the author of the offending PR when that PR is large.
 
-Some tests are also flaky and fail for reasons unrelated to the PR. The [CI monitoring rotation](https://github.com/apache/tvm/wiki/CI-Monitoring-Runbook) watches for these failures and disables tests as necessary. It is the responsibility of those who wrote the test to ultimately fix and re-enable the test.
+Some tests are also flaky and occasionally fail for reasons unrelated to the PR. The [CI monitoring
+rotation](https://github.com/apache/tvm/wiki/CI-Monitoring-Runbook) watches for these failures and
+disables tests as necessary. It is the responsibility of those who wrote the test to ultimately fix
+and re-enable the test.
 
 
 ## Dealing with Flakiness
@@ -85,7 +92,7 @@ a name, hash, and path in S3, using the `workflow_dispatch` event on
 The sha256 must match the file or it will not be uploaded. The upload path is
 user-defined so it can be any path (no trailing or leading slashes allowed) but
 be careful not to collide with existing resources on accident.
-    
+
 ## Skipping CI
 
 For reverts and trivial forward fixes, adding `[skip ci]` to the revert's
@@ -153,88 +160,4 @@ _venv/bin/python3 jenkins/generate.py
 
 # Infrastructure
 
-Jenkins runs in AWS on an EC2 instance fronted by an ELB which makes it available at https://ci.tlcpack.ai. These definitions are declared via Terraform in the [tlc-pack/ci-terraform](https://github.com/tlc-pack/ci-terraform) repository. The Terraform code references custom AMIs built in [tlc-pack/ci-packer](https://github.com/tlc-pack/ci-packer). [tlc-pack/ci](https://github.com/tlc-pack/ci) contains Ansible scripts to deploy the Jenkins head node and set it up to interact with AWS.
-
-The Jenkins head node has a number of autoscaling groups with labels that are used to run jobs (e.g. `CPU`, `GPU` or `ARM`) via the [EC2 Fleet](https://plugins.jenkins.io/ec2-fleet/) plugin.
-
-## Deploying
-
-Deploying Jenkins can disrupt developers so it must be done with care. Jobs that are in-flight will be cancelled and must be manually restarted. Follow the instructions [here](https://github.com/tlc-pack/ci/issues/10) to run a deploy.
-
-## Monitoring
-
-Dashboards of CI data can be found:
-* within Jenkins at https://ci.tlcpack.ai/monitoring (HTTP / JVM stats)
-* at https://monitoring.tlcpack.ai (job status, worker status)
-
-## CI Diagram
-
-This details the individual parts that interact in TVM's CI. For details on operations, see https://github.com/tlc-pack/ci.
-
-```mermaid
-graph TD
-    Commit --> GitHub
-    GitHub --> |`push` webhook| WebhookServer(Webhook Server)
-    JobExecutor(Job Executor)
-    WebhookServer --> JobExecutor
-    JobExecutor -->  EC2Fleet(EC2 Fleet Plugin)
-    EC2Fleet --> |capacity request| EC2(EC2 Autoscaler)
-    JobExecutor --> WorkerEC2Instance
-    Docker --> |build cache, artifacts| S3
-    WorkerEC2Instance --> Docker
-    Docker --> |docker pull| G(Docker Hub)
-    Docker --> |docker push / pull| ECR
-    Docker --> |Execute jobs| CIScripts(CI Scripts)
-    RepoCITerraform(ci-terraform repo) --> |terraform| ECR
-    RepoCITerraform(ci-terraform repo) --> |terraform| EC2
-    RepoCITerraform(ci-terraform repo) --> |terraform| S3
-    RepoCI(ci repo) --> |configuration via Ansible| WorkerEC2Instance
-    RepoCIPacker(ci-packer) --> |AMIs| EC2
-    Monitoring_Scrapers(Jenkins Scraper) --> Monitoring_DB(Postrgres)
-    Grafana --> Monitoring_DB
-    GitHub --> Windows
-    GitHub --> MacOS
-
-    Developers --> |check PR status|JenkinsUI(Jenkins Web UI)
-    Monitoring_Scrapers --> |fetch job data| JenkinsUI
-    Developers --> |git push| Commit
-    Developers --> |create PR| GitHub
-    
-    subgraph Jenkins Head Node
-        WebhookServer
-        JobExecutor
-        EC2Fleet
-        JenkinsUI
-    end
-
-    subgraph GitHub Actions
-        Windows
-        MacOS
-    end
-
-    subgraph Configuration / Terraform
-        RepoCITerraform
-        RepoCI
-        RepoCIPacker
-    end
-
-    subgraph Monitoring
-        Monitoring_DB
-        Grafana
-        Monitoring_Scrapers
-    end
-    
-    subgraph AWS
-        subgraph Jenkins Workers
-            WorkerEC2Instance(Worker EC2 Instance)
-            subgraph "Worker EC2 Instance"
-                Docker
-                CIScripts
-            end
-        end
-        EC2
-        ECR
-        S3
-    end
-
-```
+While all TVM tests are contained within the apache/tvm repository, the infrastructure used to run the tests is donated by the TVM Community. To encourage collaboration, the configuration for TVM's CI infrastructure is stored in a public GitHub repository. TVM community members are encouraged to contribute improvements. The configuration, along with documentation of TVM's CI infrastructure, is in the [tlc-pack/ci](https://github.com/tlc-pack/ci) repo.
