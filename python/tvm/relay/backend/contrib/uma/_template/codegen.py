@@ -14,17 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""UMA codegen for the MyAiHw accelerator"""
+"""UMA codegen for the my_ai_hw accelerator"""
 
 import tvm
 
 
 def gen_includes() -> str:
-    # TODO update for tutorial
     includes = ""
-    includes += "#include <cmem.h>\n"
-    includes += "#include <archi.h>\n"
-    includes += "#include <hal.h>\n"
+    includes += "#include \"conv2dnchw.cpp\""
     return includes
 
 

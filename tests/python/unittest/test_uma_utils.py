@@ -24,22 +24,8 @@ import tvm.testing
 from tvm import te
 
 conv2d_c_code = """
-extern "C" int my_hw_ai_conv2dnchw(float* ifmap, float*  weights, float*  result) {
-  result[0] = 42.0;
-  result[1] = 3.14;  // int iw = 7;
-  // int ih = 7;
-  // int ic = 512;
-  // int oc = 42;
-  // int kh = 3;
-  // int kw = 3;
-
-
-  int ic = 3;
-  int oc = 1;
-  int iw = 224;
-  int ih = 224;
-  int kh = 3;
-  int kw = 3;
+extern "C" int my_hw_ai_conv2dnchw(float* ifmap, float*  weights, float*  result,
+                                   int oc, int iw, int ih, int ic, int kh, int kw) {
 
   int kw_low = kw / 2;
   int kh_low = kh / 2;

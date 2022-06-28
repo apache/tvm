@@ -51,12 +51,23 @@ def main():
     mod = uma_backend.partition(mod)
 
     # Relay build (AOT C target)
-    TARGET = tvm.target.Target("c")
+    TARGET = "c"
     RUNTIME = tvm.relay.backend.Runtime("crt")
-    EXECUTOR = tvm.relay.backend.Executor("aot", {"unpacked-api": True})
+    EXECUTOR = tvm.relay.backend.Executor(
+        "aot",
+        {
+            "workspace-byte-alignment": 8,
+        },
+    )
 
     with tvm.transform.PassContext(
-        opt_level=3, config={"tir.disable_vectorize": True}, disabled_pass=["AlterOpLayout"]
+        opt_level=3,
+        config={"tir.disable_vectorize": True,
+                "tir.disable_storage_rewrite": True,
+                "tir.usmp.enable": True,
+                "tir.usmp.algorithm": "greedy_by_conflicts"
+                },
+        disabled_pass=["AlterOpLayout"]
     ):
         module = relay.build(mod, target=TARGET, runtime=RUNTIME, executor=EXECUTOR, params=params)
 

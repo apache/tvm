@@ -33,16 +33,18 @@ class UMACodegen(object):
 
     def _register_c_codegen(
         self,
-        includes: Callable[[], str],
-        replace_call_extern: Callable[[tvm.ir.container.Array], str],
+        includes: Callable[[], str] = None,
+        replace_call_extern: Callable[[tvm.ir.container.Array], str] = None,
     ) -> None:
-        tvm._ffi.register_func(
-            "relay.ext.uma.codegen_c_includes_{}".format(self.target_name), includes
-        )
-        tvm._ffi.register_func(
-            "relay.ext.uma.codegen_c_replace_call_extern_{}".format(self.target_name),
-            replace_call_extern,
-        )
+        if includes is not None:
+            tvm._ffi.register_func(
+                "relay.ext.uma.codegen_c_includes_{}".format(self.target_name), includes
+            )
+        if replace_call_extern is not None:
+            tvm._ffi.register_func(
+                "relay.ext.uma.codegen_c_replace_call_extern_{}".format(self.target_name),
+                replace_call_extern,
+            )
 
     def register(self) -> None:
         pass

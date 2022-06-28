@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""UMA backend for the MyAiHw accelerator"""
+"""UMA backend for the my_ai_hw accelerator"""
 from .passes import my_ai_hw_conv2d_pass
 from ..api.utils import PassPhase
 from ..backend import UMABackend
@@ -41,14 +41,14 @@ class MyAiHwBackend(UMABackend):
         #######################################################################
         # Relay to TIR function registration
         #######################################################################
-        self._register_tir_pass(PassPhase.TIR_PHASE_0, my_ai_hw_conv2d_pass())
+        #self._register_tir_pass(PassPhase.TIR_PHASE_0, my_ai_hw_conv2d_pass())
 
 
         #######################################################################
         # TIR to runtime function registration
         #######################################################################
         self._register_codegen(
-            fmt="c", includes=gen_includes, replace_call_extern=gen_replace_call_extern
+            fmt="c", includes=gen_includes #, replace_call_extern=gen_replace_call_extern
         )
 
     @property

@@ -17,7 +17,7 @@
 
 import tvm
 from tests.python.unittest.test_uma_utils import _create_schedule, _generate_io_arrays, conv2d_c_code
-from tvm import topi, IRModule
+from tvm import topi
 from tvm.relay.backend.contrib.uma._template.passes import my_ai_hw_conv2d_pass
 import tvm.testing
 from tvm import te
@@ -82,8 +82,6 @@ def test_lower_with_uma():
     dut_results = dut_io_arrays[2].numpy()
     ref_results = reference_io_arrays[2].numpy()
     tvm.testing.assert_allclose(dut_results, ref_results, rtol=1e-5)
-
-
 
 
 if __name__ == "__main__":

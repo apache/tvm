@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Relay graph patterns for the $my_ai_hw accelerator"""
+"""Relay graph patterns for the my_ai_hw accelerator"""
 
 from tvm.relay.dataflow_pattern import is_op, wildcard, has_attr
 
@@ -23,6 +23,7 @@ def conv2d_pattern():
     pattern = is_op("nn.conv2d")(wildcard(), wildcard())
     pattern = pattern.has_attr({"strides": [1, 1]})
     return pattern
+
 
 def dense_pattern():
     pattern = is_op("nn.dense")(wildcard(), wildcard())

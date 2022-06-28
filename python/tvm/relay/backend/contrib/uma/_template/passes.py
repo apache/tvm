@@ -18,9 +18,7 @@
 
 import tvm
 from tvm import relay, tir
-from tvm.topi.utils import prod
-
-from collections import OrderedDict
+from tvm.relay.backend.contrib.uma.api.utils import add_llvm_to_block
 
 
 @tvm.tir.transform.prim_func_pass(opt_level=2)
@@ -33,15 +31,17 @@ class my_ai_hw_conv2d_pass:
     @staticmethod
     def _my_ai_hw_conv2d_pass(func, mod, ctx):
         _found_blocks = []
-        _loops = []
+        _loops = dict()
         _handles = []
         _entry_node = None
         _external_function_name = "my_hw_ai_conv2dnchw"
+        _tvm_block_match_name = "conv2d_nchw"
 
         def _has_block(name: str, func) -> bool:
             """
             Determine of a tir.block with `name` exists in `func`
             """
+
             def _hb(op):
                 if isinstance(op, tvm.tir.Block):
                     _found_blocks.append(op.name_hint)
@@ -50,7 +50,7 @@ class my_ai_hw_conv2d_pass:
             tvm.tir.stmt_functor.post_order_visit(func.body, _hb)
             return name in _found_blocks
 
-        def _transform_function2(
+        def _transform_function(
             func: tvm.tir.PrimFunc, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
         ) -> tvm.tir.PrimFunc:
             def _replace_conv2d(op):
@@ -59,11 +59,14 @@ class my_ai_hw_conv2d_pass:
                     # Collection of buffer address
                     buffers = [b[1].data for b in _handles]
                     # extraction of loop offsets
-                    for i in _loops:
-                        assert i.min.value == 0
-                    offsets = [loop.extent.value for loop in _loops]
-                    args = buffers # + offsets
-                    external_call = tvm.tir.Evaluate(tir_call(irb, True, _external_function_name, *args))
+                    for k, v in _loops.items():
+                        assert v.min.value == 0
+                    offset_order = ["co", "w", "h", "ci", "kh", "kw"]
+                    offsets = [_loops[i].extent.value for i in offset_order]
+                    args = buffers + offsets
+                    external_call = tvm.tir.Evaluate(
+                        tir_call(irb, True, _external_function_name, *args)
+                    )
                     mac_calls = tvm.tir.SeqStmt([external_call])
                     irb.emit(mac_calls)
                     irb_result = irb.get()
@@ -72,22 +75,30 @@ class my_ai_hw_conv2d_pass:
 
             sch = tir.Schedule(func)
 
-            if _has_block("conv2d_nchw", func):
-                conv2d_block = sch.get_block("conv2d_nchw")
+            if _has_block(_tvm_block_match_name, func):
+                conv2d_block = sch.get_block(_tvm_block_match_name)
 
                 rv_loops = sch.get_loops(conv2d_block)
                 assert len(rv_loops) == 7
-                n, co, h, w, ci, kh, hw = rv_loops
+                loops = dict(
+                    n=rv_loops[0],
+                    co=rv_loops[1],
+                    h=rv_loops[2],
+                    w=rv_loops[3],
+                    ci=rv_loops[4],
+                    kh=rv_loops[5],
+                    kw=rv_loops[6],
+                )
                 _entry_node = sch.get(rv_loops[1])
-                _loops = [sch.get(i) for i in rv_loops]
+                _loops = {k: sch.get(v) for k, v in loops.items()}
                 _handles = func.buffer_map.items()
 
                 x = tvm.tir.stmt_functor.ir_transform(func.body, None, _replace_conv2d, ["tir.For"])
                 return func.with_body(x)
             else:
-                return func #sch.mod["main"]
+                return func
 
-        r = _transform_function2(func, mod, ctx)
+        r = _transform_function(func, mod, ctx)
         return r
 
 
@@ -117,7 +128,10 @@ def tir_call(ib: tvm.tir.ir_builder, extern: bool, name: str, *args):
         call = tvm.tir.call_extern("int32", name, *args)
     else:
         args = [
-            buf_from_array(ib, i, "int32") if isinstance(i, (tuple, list, tvm.ir.container.Array)) else i for i in args
+            buf_from_array(ib, i, "int32")
+            if isinstance(i, (tuple, list, tvm.ir.container.Array))
+            else i
+            for i in args
         ]
         call = tvm.tir.call_packed(name, *args)
 

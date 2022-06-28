@@ -19,6 +19,11 @@
 from enum import Enum, auto
 
 # TODO: naming
+import tvm.tir
+from tvm.contrib import utils, clang
+import uuid
+
+
 class PassPhase(Enum):
     """UMA pass phases."""
 
@@ -29,3 +34,19 @@ class PassPhase(Enum):
     TIR_PHASE_1 = auto()
     TIR_PHASE_2 = auto()
     TIR_PHASE_3 = auto()
+
+
+def _c_to_llvm(c_code: str) -> str:
+    unique_filename = str(uuid.uuid4())
+    temp = utils.tempdir()
+    ll_path = temp.relpath(f"{unique_filename}.ll")
+    ll_code = clang.create_llvm([c_code], output=ll_path)
+    return ll_code
+
+
+def add_llvm_to_block(sch: tvm.tir.Schedule, block_name: str, c_code_str: str = "") -> tvm.tir.Schedule:
+    block = sch.get_block(block_name)
+    loops = sch.get_loops(block)
+    assert len(loops) > 0
+    sch.annotate(loops[0], "pragma_import_llvm", _c_to_llvm(c_code_str))
+    return sch
