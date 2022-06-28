@@ -67,6 +67,15 @@ class Function(BaseFunc):
 
 @tvm._ffi.register_func("relay.FunctionWithFields")
 def FunctionWithFields(
-    function, params=None, body=None, ret_type=None, ty_params=None, attrs=None, virtual_device=None, span=None
+    function,
+    params=None,
+    body=None,
+    ret_type=None,
+    ty_params=None,
+    attrs=None,
+    virtual_device=None,
+    span=None,
 ):
-    return _ffi_api.FunctionWithFields(function, params, body, ret_type, ty_params, attrs, virtual_device, span)
+    return _ffi_api.FunctionWithFields(
+        function, params, body, ret_type, ty_params, attrs, virtual_device, span
+    )
