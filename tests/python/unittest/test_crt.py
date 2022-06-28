@@ -15,16 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import numpy as np
 import os
 import pathlib
-import pytest
 import shutil
-import json
+import pytest
 
 pytest.importorskip("pty")
-import sys
 
-import numpy as np
 import pytest
 
 import tvm
@@ -33,9 +31,6 @@ import tvm.testing
 from tvm.target import Target
 from tvm.relay.backend import Runtime
 from tvm.relay.backend import Executor
-
-from tvm.topi.utils import get_const_tuple
-from tvm.topi.testing import conv2d_nchw_python
 
 BUILD = True
 DEBUG = False
@@ -225,6 +220,84 @@ def test_aot_executor():
 
         out = aot_executor.get_output(0)
         assert (out.numpy() == np.array([6, 10])).all()
+
+        B_np_new = np.array([[5, 8]])
+        aot_executor.set_input("b", B_np_new)
+        assert (B_data.numpy() == B_np_new).all()
+
+    with _make_session(temp_dir, factory) as sess:
+        do_test()
+
+
+enable_usmp, expect_exception = tvm.testing.parameters((True, True), (False, False))
+
+
+@tvm.testing.requires_micro
+def test_aot_executor_usmp_const_pool(enable_usmp, expect_exception):
+    """Test the AOT executor with microTVM using usmp.
+    Test should fail if const pool is supplied to executor
+    as these are currently not supported
+    """
+    ws_root = pathlib.Path(os.path.dirname(__file__) + "/micro-workspace-usmp")
+    if ws_root.exists():
+        shutil.rmtree(ws_root)
+    temp_dir = tvm.contrib.utils.tempdir(ws_root.resolve())
+    relay_mod = tvm.parser.fromtext(
+        """
+      #[version = "0.0.5"]
+      def @main(%a : Tensor[(1, 2), uint8], %b : Tensor[(1, 2), uint8], %c : Tensor[(1,2), uint8]) {
+          %0 = %a + %b;
+          %1 = %0 + %c;
+          %1
+      }"""
+    )
+
+    runtime = Runtime("crt", {"system-lib": True})
+    executor = Executor("aot")
+    main_func = relay_mod["main"]
+    type_dict = {p.name_hint: p.checked_type.dtype for p in main_func.params}
+    B_np = np.array([[4, 7]], dtype="uint8").astype(type_dict["b"])
+    C_np = np.array([[8, 9]], dtype="uint8").astype(type_dict["c"])
+    params = {"c": C_np}
+    with tvm.transform.PassContext(
+        opt_level=3, config={"tir.disable_vectorize": True, "tir.usmp.enable": enable_usmp}
+    ):
+        factory = tvm.relay.build(
+            relay_mod,
+            target=TARGET,
+            runtime=runtime,
+            executor=executor,
+            params=params,
+        )
+
+    def do_test():
+        try:
+            aot_executor = tvm.runtime.executor.aot_executor.AotModule(
+                sess._rpc.get_function("tvm.aot_executor.create")(
+                    sess.get_system_lib(), sess.device, "default"
+                )
+            )
+        except tvm._ffi.base.TVMError as e:
+            if expect_exception:
+                return
+            else:
+                raise e
+
+        assert aot_executor.get_input_index("a") == 0
+        assert aot_executor.get_input_index("b") == 1
+
+        assert aot_executor.get_num_inputs() == 2
+        assert aot_executor.get_num_outputs() == 1
+
+        A_np = np.array([[2, 3]], dtype="uint8")
+        B_np = np.array([[4, 7]], dtype="uint8")
+
+        A_data = aot_executor.get_input("a").copyfrom(A_np)
+        B_data = aot_executor.get_input("b").copyfrom(B_np)
+        aot_executor.run()
+
+        out = aot_executor.get_output(0)
+        assert (out.numpy() == np.array([14, 19])).all()
 
         B_np_new = np.array([[5, 8]])
         aot_executor.set_input("b", B_np_new)
