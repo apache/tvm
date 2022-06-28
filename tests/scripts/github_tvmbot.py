@@ -411,7 +411,9 @@ class PR:
             logging.info(f"Dry run, would have merged with url={url} and data={to_json_str(data)}")
             return
 
-        self.github.put(url, data=data)
+        r = self.github.put(url, data=data)
+        logging.info(f"GitHub merge response: {r}")
+        return r
 
     def author(self) -> str:
         return self.raw["author"]["login"]
@@ -439,7 +441,17 @@ class PR:
 
         return missing_expected_jobs
 
-    def merge_if_passed_checks(self) -> None:
+    def trigger_gha_ci(self, sha: str) -> None:
+        logging.info(f"POST-ing a workflow_dispatch event to main.yml")
+        r = self.github.post(
+            url="actions/workflows/main.yml/dispatches",
+            data={
+                "ref": sha,
+            },
+        )
+        logging.info(f"Successful workflow_dispatch: {r}")
+
+    def merge_if_passed_checks(self) -> Optional[Dict[str, Any]]:
         failed_ci_jobs = self.find_failed_ci_jobs()
         all_ci_passed = len(failed_ci_jobs) == 0
         has_one_approval = False
@@ -451,14 +463,14 @@ class PR:
             self.comment(
                 f"Cannot merge, these CI jobs are not successful on {self.head_oid()}:\n{failed_jobs_msg}"
             )
-            return
+            return None
 
         missing_expected_jobs = self.find_missing_expected_jobs()
 
         if len(missing_expected_jobs) > 0:
             missing_jobs_msg = "\n".join([f" * `{name}`" for name in missing_expected_jobs])
             self.comment(f"Cannot merge, missing expected jobs:\n{missing_jobs_msg}")
-            return
+            return None
 
         head_commit_reviews = self.head_commit_reviews()
         for review in head_commit_reviews:
@@ -466,22 +478,22 @@ class PR:
                 self.comment(
                     f"Cannot merge, found [this review]({review['url']}) on {self.head_oid()} with changes requested"
                 )
-                return
+                return None
 
             if review["state"] == "APPROVED":
                 has_one_approval = True
                 logging.info(f"Found approving review: {to_json_str(review)}")
 
         if has_one_approval and all_ci_passed:
-            self.merge()
+            return self.merge()
         elif not has_one_approval:
             self.comment(
                 f"Cannot merge, did not find any approving reviews from users with write access on {self.head_oid()}"
             )
-            return
+            return None
         elif not all_ci_passed:
             self.comment(f"Cannot merge, CI did not pass on on {self.head_oid()}")
-            return
+            return None
 
     def rerun_jenkins_ci(self) -> None:
         url = JENKINS_URL + f"job/tvm/job/PR-{self.number}/buildWithParameters"
@@ -501,8 +513,9 @@ class Merge:
 
     @staticmethod
     def run(pr: PR):
+        info = None
         try:
-            pr.merge_if_passed_checks()
+            info = pr.merge_if_passed_checks()
         except Exception as e:
             if not args.dry_run:
                 msg = traceback.format_exc()
@@ -510,6 +523,17 @@ class Merge:
                     f"Failed to process merge request in {args.run_url}\n\n<details>\n\n```\n{msg}\n```\n\n</details>"
                 )
             raise e
+
+        if info is not None:
+            try:
+                info = pr.trigger_gha_ci(sha=info["sha"])
+            except Exception as e:
+                if not args.dry_run:
+                    msg = traceback.format_exc()
+                    pr.comment(
+                        f"Failed to process merge request in {args.run_url}\n\n<details>\n\n```\n{msg}\n```\n\n</details>"
+                    )
+                raise e
 
 
 class Rerun:
