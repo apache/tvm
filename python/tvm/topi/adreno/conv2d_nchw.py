@@ -291,14 +291,14 @@ def schedule_conv2d_NCHWc_KCRSk(cfg, s, output):
     if latest_blocked == latest and output != latest:
         s[output].compute_inline()
 
-    # create cache stage
-    AT = s.cache_read(pad_data, get_texture_storage(pad_data.shape), [conv])
-    bind_data_copy(s[AT])
     if (
         autotvm.GLOBAL_SCOPE.in_tuning
         or isinstance(kernel.op, tvm.te.ComputeOp)
         and "filter_pack" in kernel.op.tag
     ):
+        # create cache stage
+        AT = s.cache_read(pad_data, get_texture_storage(pad_data.shape), [conv])
+        bind_data_copy(s[AT])
         WT = s.cache_read(kernel, get_texture_storage(kernel.shape), [conv])
         bind_data_copy(s[WT])
 
