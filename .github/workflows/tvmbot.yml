@@ -21,7 +21,7 @@ jobs:
       issues: write
       pull-requests: write
       statuses: write
-    if: ${{ github.event.issue.pull_request && github.repository == 'apache/tvm' }}
+    if: ${{ github.event.issue.pull_request && github.repository == 'driazati/tvm' }}
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
