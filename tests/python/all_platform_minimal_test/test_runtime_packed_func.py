@@ -15,62 +15,66 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test packed function FFI."""
-import tvm
-from tvm import te
-import tvm.testing
 import numpy as np
+import tvm
+import tvm.testing
 
 
 def test_get_global():
+    """Test getting a global funtion."""
     targs = (10, 10.0, "hello")
+
     # register into global function table
     @tvm.register_func
-    def my_packed_func(*args):
+    def my_packed_func(*args):  # pylint: disable=unused-variable
         assert tuple(args) == targs
         return 10
 
     # get it out from global function table
-    f = tvm.get_global_func("my_packed_func")
-    assert isinstance(f, tvm.runtime.PackedFunc)
-    y = f(*targs)
-    assert y == 10
+    func = tvm.get_global_func("my_packed_func")
+    assert isinstance(func, tvm.runtime.PackedFunc)
+    res = func(*targs)
+    assert res == 10
 
 
 def test_get_callback_with_node():
+    """Test callback function with a node."""
     x = tvm.runtime.convert(10)
 
     def test(y):
         assert y.handle != x.handle
         return y
 
-    f2 = tvm.runtime.convert(test)
+    test_func = tvm.runtime.convert(test)
     # register into global function table
     @tvm.register_func
-    def my_callback_with_node(y, f):
+    def my_callback_with_node(y, f):  # pylint: disable=unused-variable
         assert y == x
         return f(y)
 
     # get it out from global function table
-    f = tvm.get_global_func("my_callback_with_node")
-    assert isinstance(f, tvm.runtime.PackedFunc)
-    y = f(x, f2)
-    assert y.value == 10
+    func = tvm.get_global_func("my_callback_with_node")
+    assert isinstance(func, tvm.runtime.PackedFunc)
+    res = func(x, test_func)
+    assert res.value == 10
 
 
 def test_return_func():
-    def addy(y):
-        def add(x):
-            return tvm.runtime.convert(x + y)
+    """Test returning a function across ffi."""
+
+    def add_y(y_in):
+        def add(x_in):
+            return tvm.runtime.convert(x_in + y_in)
 
         return add
 
-    myf = tvm.runtime.convert(addy)
-    f = myf(10)
-    assert f(11).value == 21
+    function_getter = tvm.runtime.convert(add_y)
+    func = function_getter(10)
+    assert func(11).value == 21
 
 
 def test_convert():
-    # convert a function to tvm function
+    """convert a function to tvm function"""
     targs = (10, 10.0, "hello", 10)
 
     def myfunc(*args):
@@ -81,76 +85,86 @@ def test_convert():
 
 
 def test_byte_array():
-    s = "hello"
-    a = bytearray(s, encoding="ascii")
+    """Test using byte arrays."""
+    expected = "hello"
+    byte_arr = bytearray(expected, encoding="ascii")
 
-    def myfunc(ss):
-        assert ss == a
+    def myfunc(input_byte_arr):
+        assert input_byte_arr == byte_arr
 
     f = tvm.runtime.convert(myfunc)
-    f(a)
+    f(byte_arr)
 
 
 def test_empty_array():
-    def myfunc(ss):
-        assert tuple(ss) == ()
+    """Test edge case of empty array."""
 
-    x = tvm.runtime.convert(())
-    tvm.runtime.convert(myfunc)(x)
+    def myfunc(input_arr):
+        assert tuple(input_arr) == ()
+
+    in_x = tvm.runtime.convert(())
+    tvm.runtime.convert(myfunc)(in_x)
 
 
 def test_device():
+    """Test device use."""
+
     def test_device_func(dev):
         assert tvm.cuda(7) == dev
         return tvm.cpu(0)
 
-    x = test_device_func(tvm.cuda(7))
-    assert x == tvm.cpu(0)
-    x = tvm.opencl(10)
-    x = tvm.testing.device_test(x, x.device_type, x.device_id)
-    assert x == tvm.opencl(10)
+    dev = test_device_func(tvm.cuda(7))
+    assert dev == tvm.cpu(0)
+    dev = tvm.opencl(10)
+    dev = tvm.testing.device_test(dev, dev.device_type, dev.device_id)
+    assert dev == tvm.opencl(10)
 
 
 def test_rvalue_ref():
+    """Test rvalue reference mechanism."""
+
     def callback(x, expected_count):
         assert expected_count == tvm.testing.object_use_count(x)
         return x
 
-    f = tvm.runtime.convert(callback)
+    callback_func = tvm.runtime.convert(callback)
 
     def check0():
-        x = tvm.tir.Var("x", "int32")
-        assert tvm.testing.object_use_count(x) == 1
-        f(x, 2)
-        y = f(x._move(), 1)
-        assert x.handle.value == None
+        var_x = tvm.tir.Var("x", "int32")
+        assert tvm.testing.object_use_count(var_x) == 1
+        callback_func(var_x, 2)
+        callback_func(var_x._move(), 1)
+        assert var_x.handle.value is None
 
     def check1():
-        x = tvm.tir.Var("x", "int32")
-        assert tvm.testing.object_use_count(x) == 1
-        y = f(x, 2)
-        z = f(x._move(), 2)
-        assert x.handle.value == None
-        assert y.handle.value is not None
+        var_x = tvm.tir.Var("x", "int32")
+        assert tvm.testing.object_use_count(var_x) == 1
+        res1 = callback_func(var_x, 2)
+        callback_func(var_x._move(), 2)
+        assert var_x.handle.value is None
+        assert res1.handle.value is not None
 
     check0()
     check1()
 
 
 def test_numpy_scalar():
+    """Test comparing tvm against scalar types."""
     maxint = (1 << 63) - 1
     assert tvm.testing.echo(np.int64(maxint)) == maxint
 
 
 def test_ndarray_args():
+    """Test ndaryy args."""
+
     def check(arr):
         assert not arr.is_view
         assert tvm.testing.object_use_count(arr) == 2
 
     fcheck = tvm.runtime.convert(check)
-    x = tvm.nd.array([1, 2, 3])
-    fcheck(x)
-    assert tvm.testing.object_use_count(x) == 1
+    array = tvm.nd.array([1, 2, 3])
+    fcheck(array)
+    assert tvm.testing.object_use_count(array) == 1
 
 
 if __name__ == "__main__":
