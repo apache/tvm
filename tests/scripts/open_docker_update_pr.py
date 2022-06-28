@@ -22,6 +22,7 @@ import logging
 import datetime
 import os
 import json
+import re
 from urllib import error
 from typing import List, Dict, Any, Optional, Callable
 from git_utils import git, parse_remote, GitHubRepo
@@ -52,6 +53,10 @@ def parse_docker_date(d: str) -> datetime.datetime:
     return datetime.datetime.strptime(d, "%Y-%m-%dT%H:%M:%S.%fZ")
 
 
+def check_tag(tag: Dict[str, Any]) -> bool:
+    return re.match(r"^[0-9]+-[0-9]+-[a-z0-9]+$", tag["name"]) is not None
+
+
 def latest_tag(user: str, repo: str) -> List[Dict[str, Any]]:
     """
     Queries Docker Hub and finds the most recent tag for the specified image/repo pair
@@ -63,6 +68,7 @@ def latest_tag(user: str, repo: str) -> List[Dict[str, Any]]:
         result["last_updated"] = parse_docker_date(result["last_updated"])
 
     results = list(sorted(results, key=lambda d: d["last_updated"]))
+    results = [tag for tag in results if check_tag(tag)]
     return results[-1]
 
 

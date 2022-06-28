@@ -832,7 +832,7 @@ def test_github_tag_teams(tmpdir_factory):
             "results": [
                 {
                     "last_updated": "2022-06-01T00:00:00.123456Z",
-                    "name": "abc-abc-123",
+                    "name": "123-123-abc",
                 },
             ]
         },
@@ -840,7 +840,7 @@ def test_github_tag_teams(tmpdir_factory):
             "results": [
                 {
                     "last_updated": "2022-06-01T00:00:00.123456Z",
-                    "name": "abc-abc-123",
+                    "name": "123-123-abc",
                 },
             ]
         },
@@ -851,8 +851,12 @@ def test_github_tag_teams(tmpdir_factory):
         tlcpackstaging_body={
             "results": [
                 {
+                    "last_updated": "2022-06-01T01:00:00.123456Z",
+                    "name": "234-234-abc-staging",
+                },
+                {
                     "last_updated": "2022-06-01T00:00:00.123456Z",
-                    "name": "abc-abc-234-staging",
+                    "name": "456-456-abc",
                 },
             ]
         },
@@ -860,13 +864,13 @@ def test_github_tag_teams(tmpdir_factory):
             "results": [
                 {
                     "last_updated": "2022-06-01T00:00:00.123456Z",
-                    "name": "abc-abc-123",
+                    "name": "123-123-abc",
                 },
             ]
         },
         expected="Using tlcpackstaging tag on tlcpack",
         expected_images=[
-            "ci_arm = 'tlcpack/ci-arm:abc-abc-234-staging'",
+            "ci_arm = 'tlcpack/ci-arm:456-456-abc'",
         ],
     ),
     dict(
@@ -874,7 +878,7 @@ def test_github_tag_teams(tmpdir_factory):
             "results": [
                 {
                     "last_updated": "2022-06-01T00:00:00.123456Z",
-                    "name": "abc-abc-123",
+                    "name": "123-123-abc",
                 },
             ]
         },
@@ -882,13 +886,13 @@ def test_github_tag_teams(tmpdir_factory):
             "results": [
                 {
                     "last_updated": "2022-06-01T00:01:00.123456Z",
-                    "name": "abc-abc-234",
+                    "name": "234-234-abc",
                 },
             ]
         },
         expected="Found newer image, using: tlcpack",
         expected_images=[
-            "ci_arm = 'tlcpack/ci-arm:abc-abc-234'",
+            "ci_arm = 'tlcpack/ci-arm:234-234-abc'",
         ],
     ),
 )
