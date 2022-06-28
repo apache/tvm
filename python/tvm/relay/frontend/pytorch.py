@@ -884,7 +884,7 @@ class PyTorchOpConverter:
             else:
                 reduction = "sum"
             num_class = self.infer_shape(input)[1]
-            if weights == None:
+            if weights is None:
                 weights = _op.full(_expr.const(1), (num_class,), dtype=input_types[0])
             return _op.nn.nll_loss(
                 _op.nn.log_softmax(input), target, weights, reduction, ignore_index
