@@ -199,7 +199,7 @@ class GraphExecutorDebug : public GraphExecutor {
     for (auto& repeat_data : results) {
       os << std::to_string(repeat_data) << ", ";
     }
-    LOG(WARNING) << "Got op timing: " << os.str();
+    LOG(INFO) << "Got op timing: " << os.str();
     return results;
   }
 
