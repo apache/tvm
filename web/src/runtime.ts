@@ -1057,7 +1057,9 @@ export class Instance implements Disposable {
       dev: DLDevice,
       nstep: number,
       repeat: number,
-      minRepeatMs: number
+      minRepeatMs: number,
+      cooldownIntervalMs: number,
+      repeatsToCooldown: number
     ): Promise<Uint8Array> => {
       finvoke(this.scalar(1, "int32"));
       await dev.sync();
@@ -1068,8 +1070,9 @@ export class Instance implements Disposable {
         let durationMs = 0.0;
         do {
           if (durationMs > 0.0) {
+            let golden_ratio = 1.618;
             setupNumber = Math.floor(
-              Math.max(minRepeatMs / (durationMs / setupNumber) + 1, setupNumber * 1.618)
+              Math.max(minRepeatMs / (durationMs / setupNumber) + 1, setupNumber * golden_ratio)
             );
           }
           const tstart: number = perf.now();
@@ -1081,6 +1084,9 @@ export class Instance implements Disposable {
         } while (durationMs < minRepeatMs);
         const speed = durationMs / setupNumber / 1000;
         result.push(speed);
+        if (cooldownIntervalMs > 0.0 && (i % repeatsToCooldown) == 0 ) {
+          await new Promise(r => setTimeout(r, cooldownIntervalMs));
+        }
       }
       const ret = new Float64Array(result.length);
       ret.set(result);
