@@ -696,7 +696,9 @@ def test_custom_algo():
     tir_mod = _assign_poolinfos_to_allocates_in_irmodule(tir_mod, [global_workspace_pool])
     tir_mod = tir_mod.with_attr("executor", tvm.relay.backend.Executor("aot"))
     tir_mod = tir_mod.with_attr("runtime", tvm.relay.backend.Runtime("crt"))
-    tir_mod["__tvm_main__"] = tir_mod["tvmgen_default_fused_cast_subtract_fixed_point_multiply_add_clip_cast_cast"]
+    tir_mod["__tvm_main__"] = tir_mod[
+        "tvmgen_default_fused_cast_subtract_fixed_point_multiply_add_clip_cast_cast"
+    ]
 
     algo_called = False
 
@@ -721,6 +723,8 @@ def test_custom_algo():
 
     assert algo_called
 
-    with pytest.raises(tvm.TVMError, match="The selected custom USMP algorithm : invalid is not defined"):
+    with pytest.raises(
+        tvm.TVMError, match="The selected custom USMP algorithm : invalid is not defined"
+    ):
         with tvm.transform.PassContext(config={"tir.usmp.custom_algorithm": "invalid"}):
             usmp_pass()(tir_mod)
