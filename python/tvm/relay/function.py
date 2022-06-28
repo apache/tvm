@@ -76,6 +76,11 @@ def FunctionWithFields(
     virtual_device=None,
     span=None,
 ):
+    """
+    Returns function with the given properties. A None property denotes 'no change'.
+    Returns function if all properties are unchanged. Otherwise, returns a copy with the new
+    fields.
+    """
     return _ffi_api.FunctionWithFields(
         function, params, body, ret_type, ty_params, attrs, virtual_device, span
     )
