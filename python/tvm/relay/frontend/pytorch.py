@@ -867,6 +867,11 @@ class PyTorchOpConverter:
         data = inputs[0]
         return _op.log(_op.tensor.sigmoid(data))
 
+    def cross_entropy_loss_with_logits(self, inputs, input_types):
+        input = inputs[0]
+        target = inputs[2]
+        return _op.nn.cross_entropy_with_logits(input, target)
+
     def hard_sigmoid(self, inputs, input_types):
         def _relu6(x):
             return _op.tensor.clip(x, 0.0, 6.0)
@@ -3119,6 +3124,7 @@ class PyTorchOpConverter:
             "aten::silu": self.silu,
             "aten::glu": self.glu,
             "aten::log_sigmoid": self.log_sigmoid,
+            "aten::cross_entropy_loss": self.cross_entropy_loss_with_logits,
             "aten::adaptive_avg_pool1d": functools.partial(
                 self.adaptive_avg_pool, _op.nn.adaptive_avg_pool1d
             ),
