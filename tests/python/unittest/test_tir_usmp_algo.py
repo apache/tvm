@@ -687,9 +687,9 @@ def test_resnet_subgraph(algorithm, workspace_size):
 
 def test_custom_algo():
     target = Target("c")
-    global_workspace_pool = usmp_utils.PoolInfo(
-        pool_name="global_workspace",
-        target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS},
+    global_workspace_pool = WorkspacePoolInfo(
+        "global_workspace",
+        [target],
     )
     tir_mod = ResnetStructure
     tir_mod = _assign_targets_to_primfuncs_irmodule(tir_mod, target)
