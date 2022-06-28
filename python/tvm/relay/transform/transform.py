@@ -1422,7 +1422,7 @@ def MarkCompilerFunctionsAsExtern(compiler_filter=""):
     return _ffi_api.MarkCompilerFunctionsAsExtern(compiler_filter)
 
 
-def CaptureIndexInSpans():
+def CapturePostDfsIndexInSpans():
     """Captures the post-dfs index and dominator post-dfs index of (most) expression nodes in
     their span, in the form "index:<post-dfs index>:<dominator post-dfs index>".
 
@@ -1438,7 +1438,7 @@ def CaptureIndexInSpans():
     ret : tvm.transform.Pass
         The pass.
     """
-    return _ffi_api.CaptureIndexInSpans()
+    return _ffi_api.CapturePostDfsIndexInSpans()
 
 
 def InlineCompilerFunctionsBoundTo(global_vars):

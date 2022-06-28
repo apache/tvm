@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License
-"""Unit tests for the CaptureIndexInSpans debugging pass."""
+"""Unit tests for the CapturePostDfsIndexInSpans debugging pass."""
 
 import tvm
 import tvm.testing
@@ -83,7 +83,7 @@ expected_pretty_printed_output_mod = r"""def @main(%x0: Tensor[(1600, 768), floa
 
 
 def test_capture_index_in_spans():
-    output_mod = str(tvm.relay.transform.CaptureIndexInSpans()(input_mod()))
+    output_mod = str(tvm.relay.transform.CapturePostDfsIndexInSpans()(input_mod()))
     assert output_mod == expected_pretty_printed_output_mod
 
 

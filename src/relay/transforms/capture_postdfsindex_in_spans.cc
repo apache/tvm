@@ -34,9 +34,9 @@ namespace transform {
 namespace {
 
 /*! \brief Update all the spans to capture their post-dfs index. */
-class CaptureIndexInSpansRewriter : public ExprRewriter {
+class SpansRewriter : public ExprRewriter {
  public:
-  explicit CaptureIndexInSpansRewriter(const IndexedGraph<Expr>* indexed_graph)
+  explicit SpansRewriter(const IndexedGraph<Expr>* indexed_graph)
       : source_name_(SourceName::Get("index")), indexed_graph_(indexed_graph) {}
 
  private:
@@ -117,16 +117,17 @@ class CaptureIndexInSpansRewriter : public ExprRewriter {
 
 }  // namespace
 
-tvm::transform::Pass CaptureIndexInSpans() {
+tvm::transform::Pass CapturePostDfsIndexInSpans() {
   auto pass_func = [](Function f, IRModule m, transform::PassContext ctxt) {
     std::unique_ptr<IndexedGraph<Expr>> indexed_graph = CreateIndexedGraph(f);
-    CaptureIndexInSpansRewriter rewriter(indexed_graph.get());
+    SpansRewriter rewriter(indexed_graph.get());
     return Downcast<Function>(PostOrderRewrite(f, &rewriter));
   };
-  return CreateFunctionPass(pass_func, 0, "CaptureIndexInSpans", {});
+  return CreateFunctionPass(pass_func, 0, "CapturePostDfsIndexInSpans", {});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.CaptureIndexInSpans").set_body_typed(CaptureIndexInSpans);
+TVM_REGISTER_GLOBAL("relay._transform.CapturePostDfsIndexInSpans")
+    .set_body_typed(CapturePostDfsIndexInSpans);
 
 }  // namespace transform
 }  // namespace relay
