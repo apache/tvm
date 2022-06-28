@@ -83,7 +83,6 @@ def concatenate(data: tvm.te.Tensor, axis: Optional[int] = 0):
 
     if (
         len(data[0].shape) == 1
-        or right_val == 1
         or (left_val == 1 and axis == len(data[0].shape) - 1)
         or (left_val == 1 and right_val == 1)
     ):
