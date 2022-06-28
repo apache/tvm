@@ -202,7 +202,7 @@ def main():
         graph_time = mod.run_individual(number=10, repeat=1, min_repeat_ms=5000)
         print("|graph_nodes| = ", len(graph_nodes))
         print("|graph_time| = ", len(graph_time))
-        graph_nodes_time = {k: float(v) for k, v in zip(graph_nodes, graph_time)}
+        graph_nodes_time = {k: float(np.mean(v)) for k, v in zip(graph_nodes, graph_time)}
         for k, v in graph_nodes_time.items():
             print(f"{k} : {v:.3f}")
 
