@@ -139,5 +139,54 @@ def test_networks_with_usmp_and_cascader_wo_striping(accel_type, model_url, work
     assert allocated_pool_info.allocated_size == workspace_size
 
 
+@pytest.mark.parametrize(
+    "accel_type, model_url, workspace_size",
+    [
+        ("ethos-u55-256", MOBILENET_V1_URL, 1010000),
+        ("ethos-u55-256", MOBILENET_V2_URL, 1180000),
+    ],
+)
+def test_networks_with_usmp_and_cascader_with_striping(accel_type, model_url, workspace_size):
+    np.random.seed(23)
+
+    pool_name = "my_memory_pool"
+    host_target = tvm.target.Target("c")
+    ethosu_target = tvm.target.Target("ethos-u")
+    workspace_pools = WorkspaceMemoryPools(
+        [
+            WorkspacePoolInfo(
+                pool_name,
+                [host_target, ethosu_target],
+                PoolInfoProperties(
+                    size_hint_bytes=workspace_size,
+                    read_bandwidth_bytes_per_cycle=16,
+                    write_bandwidth_bytes_per_cycle=16,
+                    target_burst_bytes={ethosu_target: 1},
+                ),
+            )
+        ]
+    )
+    tflite_model_buf = infra.get_tflite_model(model_url)
+    input_data, output_data = infra.generate_ref_data_tflite(tflite_model_buf)
+    mod, params = convert_to_relay(tflite_model_buf)
+    mod = partition_for_ethosu(mod, params)
+    test_runner = infra.create_test_runner(
+        accel_type,
+        enable_usmp=True,
+        enable_cascader=True,
+        enable_striping=True,
+        workspace_pools=workspace_pools,
+    )
+    compiled_models = infra.build_source(
+        mod, input_data, output_data, test_runner, workspace_pools=workspace_pools
+    )
+    infra.verify_source(compiled_models, test_runner)
+
+    allocated_pool_info = list(
+        dict(compiled_models[0].executor_factory.executor_codegen_metadata.pool_inputs).values()
+    )[0]
+    assert allocated_pool_info.allocated_size <= workspace_size
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
