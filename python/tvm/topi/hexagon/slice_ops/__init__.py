@@ -26,3 +26,4 @@ from .cast import (
     cast_f32_f16_schedule,
 )
 from .softmax_slice import *
+from .clip import *

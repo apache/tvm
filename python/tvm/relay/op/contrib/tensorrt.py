@@ -26,7 +26,7 @@ from tvm.ir import Op
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.dataflow_pattern import is_op, wildcard, is_constant, is_tuple, is_tuple_get_item
-from tvm.relay.expr import Call, Constant, GlobalVar, TupleGetItem
+from tvm.relay.expr import Call, Constant, TupleGetItem
 from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 from tvm.relay.op.contrib.register import register_pattern_table
 
@@ -864,7 +864,11 @@ def pattern_table() -> List[
             binary_op_pattern_with_const("nn.dense"),
             make_predicate(dense_checker),
         ),
-        ("tensorrt.bias_add", binary_op_pattern("nn.bias_add"), make_predicate(bias_add_checker)),
+        (
+            "tensorrt.nn.bias_add",
+            binary_op_pattern("nn.bias_add"),
+            make_predicate(bias_add_checker),
+        ),
         (
             "tensorrt.nn.batch_matmul",
             binary_op_pattern("nn.batch_matmul"),
@@ -1062,7 +1066,6 @@ def is_valid_subgraph(params: List[relay.expr.Var], body: relay.expr.Expr) -> bo
         for var in params:
             # In implicit batch mode, all inputs must have same batch size
             # TODO: (codeislife99) : Fix different dynamic batch size inputs
-
             if isinstance(var.checked_type, relay.TupleType):
                 for tupe_type in var.checked_type.fields:
                     # Scalar inputs not allowed
@@ -1079,64 +1082,32 @@ def is_valid_subgraph(params: List[relay.expr.Var], body: relay.expr.Expr) -> bo
                     return False
                 if not isinstance(var.checked_type.shape[0], tvm.tir.expr.Any):
                     input_batch_sizes.append(int(var.checked_type.shape[0]))
+
         if len(input_batch_sizes) > 1 and len(set(input_batch_sizes)) != 1:
-            logger.info("tensorrt: inputs have different batch sizes")
+            logger.info("tensorrt: inputs have different batch sizes: %s", input_batch_sizes)
             return False
+
     if get_tensorrt_remove_no_mac_subgraphs():
-        return IsComputeIntensiveGraph().is_graph_compute_intensive(body)
+        if not IsComputeIntensiveGraph().is_graph_compute_intensive(body):
+            logger.info("tensorrt: not a compute-intensize sub-graph")
+            return False
+
     return True
 
 
 def prune_tensorrt_subgraphs(mod: tvm.IRModule) -> tvm.IRModule:
     """
-    Removes invalid subgraphs and those with no multiply-accumulates (if remove_no_max_subgraphs
-    is set).
-    """
-
-    class SubgraphRemover(ExprMutator):
-        """
-        Reverts subgraphs in subgraphs_to_remove back to TVM instead of using an external codegen.
-        """
-
-        def __init__(
-            self, subgraphs_to_remove: List[str], mod: tvm.IRModule, new_mod: tvm.IRModule
-        ) -> None:
-            ExprMutator.__init__(self)
-            self.subgraphs_to_remove = subgraphs_to_remove
-            self.mod = mod
-            self.new_mod = new_mod
-
-        def visit_call(self, call: relay.expr.Call) -> relay.expr.Expr:
-            if isinstance(call.op, GlobalVar):
-                name = call.op.name_hint
-                if name in self.subgraphs_to_remove:
-                    # "Inline" the subgraph back into new main function.
-                    func = self.mod[name]
-                    var_map = {}
-                    for arg, param in zip(call.args, func.params):
-                        var_map[param] = super().visit(arg)
-                    new_body = relay.bind(func.body, var_map)
-                    return new_body
-                if name != "main":
-                    args = []
-                    for arg in call.args:
-                        args.append(super().visit(arg))
-                    return call.op(*args)
-            return super().visit_call(call)
-
-    subgraphs_to_remove: List[str] = []
-    # Remove invalid subgraphs
-    for subgraph in mod.get_global_vars():
-        name = subgraph.name_hint
-        if not mod[name].attrs or mod[name].attrs["Compiler"] != "tensorrt":
-            continue
-        if not is_valid_subgraph(mod[name].params, mod[name].body):
-            subgraphs_to_remove.append(name)
-    # Create new pruned module
-    new_mod = tvm.IRModule(mod.functions, mod.type_definitions)
-    new_mod["main"] = SubgraphRemover(subgraphs_to_remove, mod, new_mod).visit(mod["main"])
-    new_mod = transform.RemoveUnusedFunctions()(new_mod)
-    return new_mod
+    Un-partition those partitions which:
+     - have no multiply-accumulates (if remove_no_mac_subgraphs is True)
+     - can't actually be supported by TensorRT now that we see the whole partition."""
+    global_vars_to_inline = [
+        gv
+        for gv in mod.get_global_vars()
+        if mod[gv].attrs
+        and mod[gv].attrs["Compiler"] == "tensorrt"
+        and not is_valid_subgraph(mod[gv].params, mod[gv].body)
+    ]
+    return relay.transform.InlineCompilerFunctionsBoundTo(global_vars_to_inline)(mod)
 
 
 class RemoveDropout(ExprMutator):

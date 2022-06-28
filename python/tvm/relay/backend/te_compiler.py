@@ -20,8 +20,10 @@ from __future__ import absolute_import
 
 import logging
 
+import numpy as np
 import tvm
 from tvm import autotvm, te
+from tvm.ir.transform import PassContext
 from tvm.runtime import Object
 from tvm.support import libinfo
 from tvm.target import Target
@@ -171,12 +173,6 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
     ret : tuple(relay.op.OpImplementation, List[tvm.te.Tensor])
         The best op implementation and the corresponding output tensors.
     """
-    # pylint: disable=import-outside-toplevel
-    from tvm.auto_scheduler import is_auto_scheduler_enabled
-    from tvm.meta_schedule import is_meta_schedule_enabled
-
-    # pylint: enable=import-outside-toplevel
-
     all_impls = get_valid_implementations(op, attrs, inputs, out_type, target)
     if len(all_impls) == 0:
         raise RuntimeError(f"No valid {op} implementations for {target}")
@@ -184,7 +180,7 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
 
     # Disable autotvm if auto_scheduler is enabled.
     # (i.e., always return the implementation with the highest priority for auto-scheduler).
-    if is_auto_scheduler_enabled() or is_meta_schedule_enabled():
+    if PassContext.current().config.get("relay.backend.use_auto_scheduler", False):
         use_autotvm = False
 
     # If not use autotvm, always return the implementation with the highest priority
