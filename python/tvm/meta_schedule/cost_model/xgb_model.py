@@ -335,7 +335,7 @@ class XGBModel(PyCostModel):
         # model-related
         if config.nthread is None:
             # use physical core number
-            config = config._replace(nthread=cpu_count(logical=True))
+            config = config._replace(nthread=cpu_count(logical=False))
         self.config = config
         # behavior of randomness
         self.num_warmup_samples = num_warmup_samples
