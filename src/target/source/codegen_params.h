@@ -27,6 +27,7 @@
 #include <tvm/runtime/ndarray.h>
 
 #include <iostream>
+#include <string>
 
 namespace tvm {
 namespace codegen {
@@ -44,7 +45,8 @@ namespace codegen {
  * \param indent_chars Number of chars to indent
  * \param os Output stream where the array data should be written.
  */
-void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream& os);
+void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream& os,
+                    const std::string& eol = "\n");
 
 }  // namespace codegen
 }  // namespace tvm
