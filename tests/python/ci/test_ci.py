@@ -845,13 +845,14 @@ def test_github_tag_teams(tmpdir_factory):
             ]
         },
         expected="Tag names were the same, no update needed",
+        expected_images=[],
     ),
     dict(
         tlcpackstaging_body={
             "results": [
                 {
                     "last_updated": "2022-06-01T00:00:00.123456Z",
-                    "name": "abc-abc-234",
+                    "name": "abc-abc-234-staging",
                 },
             ]
         },
@@ -864,6 +865,9 @@ def test_github_tag_teams(tmpdir_factory):
             ]
         },
         expected="Using tlcpackstaging tag on tlcpack",
+        expected_images=[
+            "ci_arm = 'tlcpack/ci-arm:abc-abc-234-staging'",
+        ],
     ),
     dict(
         tlcpackstaging_body={
@@ -883,9 +887,14 @@ def test_github_tag_teams(tmpdir_factory):
             ]
         },
         expected="Found newer image, using: tlcpack",
+        expected_images=[
+            "ci_arm = 'tlcpack/ci-arm:abc-abc-234'",
+        ],
     ),
 )
-def test_open_docker_update_pr(tmpdir_factory, tlcpackstaging_body, tlcpack_body, expected):
+def test_open_docker_update_pr(
+    tmpdir_factory, tlcpackstaging_body, tlcpack_body, expected, expected_images
+):
     """Test workflow to open a PR to update Docker images"""
     tag_script = REPO_ROOT / "tests" / "scripts" / "open_docker_update_pr.py"
 
@@ -925,6 +934,10 @@ def test_open_docker_update_pr(tmpdir_factory, tlcpackstaging_body, tlcpack_body
         env={"GITHUB_TOKEN": "1234"},
         check=False,
     )
+
+    for line in expected_images:
+        if line not in proc.stdout:
+            raise RuntimeError(f"Missing line {line} in output:\n{proc.stdout}")
 
     if proc.returncode != 0:
         raise RuntimeError(f"Process failed:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
