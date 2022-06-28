@@ -870,16 +870,17 @@ class PipelineRewriter : public StmtExprMutator {
         stmts.push_back(BlockRealize({}, new_blocks[i].predicate, new_blocks[i].block));
         ++i;
       } else {
-        Array<Stmt> group;
+        Array<Stmt> group_bodies;
         auto stage_id = commit_group_indices[i];
         auto predicate = new_blocks[i].predicate;
         for (; i < commit_group_indices.size() && commit_group_indices[i] == stage_id; ++i) {
           ICHECK(tvm::StructuralEqual()(predicate, new_blocks[i].predicate))
               << "Predicates in the same stage are expected to be identical";
-          group.push_back(new_blocks[i].block->body);
+          group_bodies.push_back(new_blocks[i].block->body);
         }
+	auto body = group_bodies.size() > 1 ? SeqStmt(group_bodies) : group_bodies[0];
         auto commit_queue_scope = AttrStmt(make_zero(DataType::Int(32)),
-                                           tir::attr::async_commit_scope, stage_id, SeqStmt(group));
+                                           tir::attr::async_commit_queue_scope, stage_id, body);
         auto new_block = MakeBlock(commit_queue_scope, buffer_data_to_buffer_);
         stmts.push_back(BlockRealize({}, predicate, new_block));
       }

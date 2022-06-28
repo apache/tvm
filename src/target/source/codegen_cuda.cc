@@ -917,7 +917,7 @@ void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
     const VarNode* buffer = op->node.as<VarNode>();
     const StringImmNode* layout_str = op->value.as<StringImmNode>();
     fragment_layouts[buffer] = layout_str->value;
-  } else if (op->attr_key == tir::attr::async_commit_scope) {
+  } else if (op->attr_key == tir::attr::async_commit_queue_scope) {
     const IntImmNode* queue_id = op->value.as<IntImmNode>();
     ICHECK(queue_id && queue_id->value == 0);
     this->VisitStmt(op->body);
