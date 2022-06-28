@@ -46,6 +46,7 @@ def nhw_32h16w_2d(n, h, w):
     """Return index map for nhw_32h16w 2d layout"""
     return [n, h // 32, w // 16, te.AXIS_SEPARATOR, h % 32, w % 16]
 
+
 def nhwc_4h4w32c_1d(n, h, w, c):
     """Return index map for nhwc_4h4232c 1d layout"""
     return [n, h // 4, w // 4, c // 32, h % 4, w % 4, c % 32]
@@ -64,6 +65,7 @@ def nc_512c_1d(n, c):
 def nc_512c_2d(n, c):
     """Return index map for nc_512c 2d layout"""
     return [n, c // 512, te.AXIS_SEPARATOR, c % 512]
+
 
 def get_layout_transform_fn(layout):
     """Return index map function as per the layout string"""
