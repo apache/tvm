@@ -85,7 +85,7 @@ build-static-runtime = ["tvm-sys/build-static-runtime"]
 
 [dependencies]
 thiserror = "^1.0"
-ndarray = "0.12"
+ndarray = "0.15"
 num-traits = "0.2"
 tvm-macros = { version = "0.1.1-alpha", path = "../tvm-macros" }
 paste = "0.1"

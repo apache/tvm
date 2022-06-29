@@ -33,7 +33,7 @@ thiserror = "1"
 
 itertools = "0.8"
 lazy_static = "1.4"
-ndarray="0.12"
+ndarray="0.15"
 nom = "5.0"
 num_cpus = "1.10"
 serde = { version = "^1.0", features = ["derive"] }
