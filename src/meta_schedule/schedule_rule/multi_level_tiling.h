@@ -81,8 +81,12 @@ struct ReuseConfig {
   }
 };
 
+// Forware declaration
+class State;
+
 /*! \brief The state of auto scheduling for the multi-level tiling rule */
-struct State {
+class StateNode : public Object {
+ public:
   /*! \brief The schedule to date */
   tir::Schedule sch;
   /*! \brief The block to be tiled */
@@ -90,11 +94,22 @@ struct State {
   /*! \brief The loop tiles */
   Array<Array<tir::LoopRV>> tiles;
 
+  /*!
+   * \brief Create a copy of the state. The underlying schedule is copied. Schedule rules that
+   * produce multiple states should use this method to create new states.
+   */
+  virtual State Copy() const;
+
+  static constexpr const char* _type_key = "meta_schedule.State";
+  TVM_DECLARE_BASE_OBJECT_INFO(StateNode, Object);
+};
+
+/*! \brief Managed reference to StateNode */
+class State : public ObjectRef {
+ public:
   /*! \brief Default constructor */
-  explicit State(tir::Schedule sch, tir::BlockRV block_rv,
-                 Optional<tir::BlockRV> write_cache = NullOpt, bool write_cache_is_added = false,
-                 Array<Array<tir::LoopRV>> tiles = {})
-      : sch(sch), block_rv(block_rv), tiles(tiles) {}
+  explicit State(tir::Schedule sch, tir::BlockRV block_rv, Array<Array<tir::LoopRV>> tiles = {});
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(State, ObjectRef, StateNode);
 };
 
 /*!
