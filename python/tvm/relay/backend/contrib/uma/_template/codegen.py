@@ -21,7 +21,7 @@ import tvm
 
 def gen_includes() -> str:
     includes = ""
-    includes += "#include \"conv2dnchw.cpp\""
+    includes += "#include \"../../../python/tvm/relay/backend/contrib/uma/_template/conv2dnchw.cpp\""
     return includes
 
 

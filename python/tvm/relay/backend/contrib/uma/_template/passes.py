@@ -77,7 +77,6 @@ class my_ai_hw_conv2d_pass:
 
             if _has_block(_tvm_block_match_name, func):
                 conv2d_block = sch.get_block(_tvm_block_match_name)
-
                 rv_loops = sch.get_loops(conv2d_block)
                 assert len(rv_loops) == 7
                 loops = dict(
