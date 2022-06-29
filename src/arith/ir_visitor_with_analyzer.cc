@@ -27,9 +27,9 @@
 #include <tvm/tir/op.h>
 
 namespace tvm {
-namespace tir {
+namespace arith {
 
-using namespace arith;
+using namespace tir;
 
 void IRVisitorWithAnalyzer::VisitStmt_(const ForNode* op) {
   analyzer_.Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
@@ -136,5 +136,5 @@ PrimExpr IRVisitorWithAnalyzer::ExtractRealCondition(PrimExpr condition) const {
   return condition;
 }
 
-}  // namespace tir
+}  // namespace arith
 }  // namespace tvm

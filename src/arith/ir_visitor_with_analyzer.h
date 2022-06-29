@@ -30,25 +30,25 @@
 #include <tvm/tir/stmt_functor.h>
 
 namespace tvm {
-namespace tir {
+namespace arith {
 
-class IRVisitorWithAnalyzer : public StmtExprVisitor {
+class IRVisitorWithAnalyzer : public tir::StmtExprVisitor {
  public:
   PrimExpr Simplify(const PrimExpr& expr) { return analyzer_.Simplify(expr); }
 
   using StmtExprVisitor::VisitExpr_;
   using StmtExprVisitor::VisitStmt_;
 
-  void VisitStmt_(const ForNode* op);
-  void VisitStmt_(const BlockNode* op);
-  void VisitStmt_(const LetStmtNode* op);
-  void VisitStmt_(const IfThenElseNode* op);
-  void VisitStmt_(const AttrStmtNode* op);
-  void VisitStmt_(const AssertStmtNode* op);
-  void VisitExpr_(const CallNode* op);
-  void VisitExpr_(const LetNode* op);
-  void VisitExpr_(const SelectNode* op);
-  void VisitExpr_(const ReduceNode* op);
+  void VisitStmt_(const tir::ForNode* op);
+  void VisitStmt_(const tir::BlockNode* op);
+  void VisitStmt_(const tir::LetStmtNode* op);
+  void VisitStmt_(const tir::IfThenElseNode* op);
+  void VisitStmt_(const tir::AttrStmtNode* op);
+  void VisitStmt_(const tir::AssertStmtNode* op);
+  void VisitExpr_(const tir::CallNode* op);
+  void VisitExpr_(const tir::LetNode* op);
+  void VisitExpr_(const tir::SelectNode* op);
+  void VisitExpr_(const tir::ReduceNode* op);
 
  protected:
   /*! \brief internal analyzer field. */
@@ -58,6 +58,6 @@ class IRVisitorWithAnalyzer : public StmtExprVisitor {
   PrimExpr ExtractRealCondition(PrimExpr condition) const;
 };
 
-}  // namespace tir
+}  // namespace arith
 }  // namespace tvm
 #endif  // TVM_ARITH_IR_VISITOR_WITH_ANALYZER_H_
