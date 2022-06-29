@@ -39,11 +39,12 @@ def wrap_topi_compute(topi_compute):
 
 
 def wrap_compute_quantize(topi_compute):
-    """Wrap TOPI compute which use out data type from attrs"""
+    """Wrap TOPI compute which use axis and out data type from attrs"""
 
     def wrapper(attrs, inputs, _out_type):
+        axis = attrs.axis
         out_dtype = attrs.out_dtype
-        args = [*inputs, out_dtype]
+        args = [*inputs, axis, out_dtype]
         return [topi_compute(*args)]
 
     return wrapper
@@ -54,12 +55,13 @@ def wrap_topi_qnn_conv2d(topi_compute):
 
     def wrapper(attrs, inputs, out_type):
         oshape = out_type.shape
-        out_dtype = attrs.out_dtype
+        out_dtype = attrs.rq_out_dtype
         strides = attrs.strides
         padding = attrs.padding
         dilation = attrs.dilation
+        axis = attrs.axis
         if len([*inputs]) == 11:
-            args = [*inputs, strides, padding, dilation, oshape, out_dtype]
+            args = [*inputs, axis, strides, padding, dilation, oshape, out_dtype]
         elif len([*inputs]) == 10:
             args = [  # QNN Conv2d params:
                 inputs[0],
@@ -75,6 +77,8 @@ def wrap_topi_qnn_conv2d(topi_compute):
                 inputs[7],
                 inputs[8],
                 inputs[9],
+                axis,
+                # Conv2d attrs:
                 strides,
                 padding,
                 dilation,
@@ -92,6 +96,7 @@ def wrap_topi_qnn_conv2d(topi_compute):
                 None,
                 None,
                 None,
+                axis,
                 strides,
                 padding,
                 dilation,
@@ -107,9 +112,10 @@ def wrap_topi_qnn_dense(topi_compute):
     """Wrap TOPI compute which use qnn.dense attrs"""
 
     def wrapper(attrs, inputs, _out_type):
-        out_dtype = attrs.out_dtype
+        out_dtype = attrs.rq_out_dtype
+        axis = attrs.axis
         if len([*inputs]) == 11:
-            args = [*inputs, out_dtype]
+            args = [*inputs, axis, out_dtype]
         elif len([*inputs]) == 10:
             args = [  # QNN Dense params:
                 inputs[0],
@@ -125,6 +131,7 @@ def wrap_topi_qnn_dense(topi_compute):
                 inputs[7],
                 inputs[8],
                 inputs[9],
+                axis,
                 out_dtype,
             ]
         else:
@@ -138,6 +145,7 @@ def wrap_topi_qnn_dense(topi_compute):
                 None,
                 None,
                 None,
+                axis,
                 out_dtype,
             ]
         return [topi_compute(*args)]
