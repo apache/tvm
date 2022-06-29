@@ -801,8 +801,7 @@ class PyTorchOpConverter:
     def fill_(self, inputs, input_types):
         data = inputs[0]
         fill_value = inputs[1]
-        dtype = self.infer_type(data)
-        return self.full_impl(data, fill_value, dtype)
+        return self.full_impl(self.infer_shape(data), fill_value, input_types[0])
 
     def linspace(self, inputs, input_types):
         start = inputs[0]
