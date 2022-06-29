@@ -955,7 +955,7 @@ def _leaky_relu(fp32_piggy_back=False):
         alpha = inputs[1]
         output_scale = _expr.const(inputs[3])
         output_zero_point = _expr.const(inputs[4])
-        return relay.qnn.leaky_relu(inputs[0], alpha, output_scale, output_zero_point)
+        return relay.qnn.op.leaky_relu(inputs[0], alpha, output_scale, output_zero_point)
 
     def _impl(inputs, _):
         assert len(inputs) == 7, "Input quant params not found in op inputs"
