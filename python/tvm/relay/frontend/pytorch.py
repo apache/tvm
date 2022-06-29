@@ -867,7 +867,7 @@ class PyTorchOpConverter:
         data = inputs[0]
         return _op.log(_op.tensor.sigmoid(data))
 
-    def cross_entropy_loss(self, inputs, input_types):
+    def cross_entropy_loss_with_logits(self, inputs, input_types):
         input = inputs[0]
         target = inputs[1]
         weights = inputs[2]
