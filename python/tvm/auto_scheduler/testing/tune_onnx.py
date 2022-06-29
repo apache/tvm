@@ -26,7 +26,7 @@ from tvm import auto_scheduler
 from tvm import meta_schedule as ms
 from tvm import relay
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
-from tvm.meta_schedule.testing.utils import generate_input_data, f_timer
+from tvm.meta_schedule.testing.utils import generate_input_data, create_timer
 from tvm.meta_schedule.utils import cpu_count
 from tvm.relay.frontend import from_onnx
 from tvm.support import describe
@@ -225,7 +225,7 @@ def main():
         lib=lib,
         dev_type=ARGS.target.kind.name,
         args=input_data,
-        continuation=f_timer(ARGS.backend),
+        continuation=create_timer(ARGS.backend),
         backend=ARGS.backend,
     )
 

@@ -160,22 +160,17 @@ def run_module_via_rpc(
 
     # pylint: enable=import-outside-toplevel
 
-    try:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            filename = os.path.join(tmp_dir, "tvm_tmp_mod." + tar.output_format)
-            if backend == "vm":
-                code, lib = lib.save()
-            lib.export_library(filename, tar)
-            session = rpc_config.connect_server()
-            session.upload(filename)
-            _, filename = os.path.split(filename)
-            rt_mod = session.load_module(filename)
-            if backend == "vm":
-                rt_mod = session.get_function("runtime.Load_Executable")(code, rt_mod)
-            dev = session.device(dev_type=dev_type, dev_id=0)
-            nd_args = {k: ndarray.array(v, dev) for k, v in args.items()}
-            return continuation(rt_mod, dev, nd_args)
-    except Exception as exc:  # pylint: disable=broad-except
-        print(
-            f"Run module {continuation.__name__} via RPC failed, exception: {exc}",
-        )
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        filename = os.path.join(tmp_dir, "tvm_tmp_mod." + tar.output_format)
+        if backend == "vm":
+            code, lib = lib.save()
+        lib.export_library(filename, tar)
+        session = rpc_config.connect_server()
+        session.upload(filename)
+        _, filename = os.path.split(filename)
+        rt_mod = session.load_module(filename)
+        if backend == "vm":
+            rt_mod = session.get_function("runtime.Load_Executable")(code, rt_mod)
+        dev = session.device(dev_type=dev_type, dev_id=0)
+        nd_args = {k: ndarray.array(v, dev) for k, v in args.items()}
+        return continuation(rt_mod, dev, nd_args)

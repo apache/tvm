@@ -112,7 +112,7 @@ def generate_input_data(input_shape: List[int], input_dtype: str) -> np.ndarray:
     raise ValueError("Unsupported input datatype!")
 
 
-def f_timer(backend: str) -> Callable:
+def create_timer(backend: str) -> Callable:
     """Create a function to run and benchmark the performance of whole given runtime module,
     or Executable in relay vm.
 
@@ -127,7 +127,7 @@ def f_timer(backend: str) -> Callable:
         The function to benchmark the workload.
     """
 
-    def f_timer_func(
+    def f_timer(
         rt_mod: Union[tvm.runtime.Module, tvm.runtime.vm.Executable],
         dev: tvm.device,
         input_data: Dict[str, NDArray],
@@ -146,32 +146,39 @@ def f_timer(backend: str) -> Callable:
         from tvm.contrib.graph_executor import GraphModule  # pylint:disable=import-outside-toplevel
         from tvm.runtime.vm import VirtualMachine  # pylint:disable=import-outside-toplevel
 
-        if backend == "vm":
-            vm = VirtualMachine(rt_mod, dev)  # pylint: disable=invalid-name
-            ftimer = vm.benchmark(
-                dev, min_repeat_ms=500, repeat=5, number=1, end_to_end=False, **input_data
+        try:
+            if backend == "vm":
+                vm = VirtualMachine(rt_mod, dev)  # pylint: disable=invalid-name
+                ftimer = vm.benchmark(
+                    dev, min_repeat_ms=500, repeat=5, number=1, end_to_end=False, **input_data
+                )
+            elif backend == "graph":
+                mod = GraphModule(rt_mod["default"](dev))
+                for input_name, input_value in input_data.items():
+                    mod.set_input(input_name, input_value)
+                ftimer = mod.module.time_evaluator(
+                    "run", dev, min_repeat_ms=500, repeat=5, number=1
+                )()
+            else:
+                raise ValueError(f"Backend {backend} not supported in f_timer!")
+
+            results = list(np.array(ftimer.results) * 1000.0)  # type: ignore
+
+            print("Running time in time_evaluator: ", results)
+            print("-------------------------------")
+            print(f"    Min (ms) : {min(results)}")
+            print(f"    Max (ms) : {max(results)}")
+            print(f" Median (ms) : {median(results)}")
+            print(f"Average (ms) : {sum(results) / len(results)}")
+        except Exception as exc:  # pylint: disable=broad-except
+            print(
+                f"Run module f_timer via RPC failed, exception: {exc}",
             )
-        elif backend == "graph":
-            mod = GraphModule(rt_mod["default"](dev))
-            for input_name, input_value in input_data.items():
-                mod.set_input(input_name, input_value)
-            ftimer = mod.module.time_evaluator("run", dev, min_repeat_ms=500, repeat=5, number=1)()
-        else:
-            raise ValueError(f"Backend {backend} not supported in f_timer!")
 
-        results = list(np.array(ftimer.results) * 1000.0)  # type: ignore
-
-        print("Running time in time_evaluator: ", results)
-        print("-------------------------------")
-        print(f"    Min (ms) : {min(results)}")
-        print(f"    Max (ms) : {max(results)}")
-        print(f" Median (ms) : {median(results)}")
-        print(f"Average (ms) : {sum(results) / len(results)}")
-
-    return f_timer_func
+    return f_timer
 
 
-def f_per_layer(graph: str) -> Callable:
+def create_time_per_layer(graph: str) -> Callable:
     """Create a function to run and benchmark the per-layer performance of given runtime module,
     given the graph output of the module from graph compiler.
 
@@ -186,7 +193,7 @@ def f_per_layer(graph: str) -> Callable:
         The function using the json format graph.
     """
 
-    def f_per_layer_func(
+    def f_time_per_layer(
         rt_mod: tvm.runtime.Module,
         dev: tvm.device,
         input_data: Dict[str, NDArray],
@@ -208,18 +215,23 @@ def f_per_layer(graph: str) -> Callable:
 
         # pylint:enable=import-outside-toplevel
 
-        mod = create(graph, rt_mod, dev)
-        for input_name, input_value in input_data.items():
-            mod.set_input(input_name, input_value)
-        graph_nodes = [n["name"] for n in json.loads(graph)["nodes"]]
-        graph_time = mod.run_individual(number=10, repeat=1, min_repeat_ms=5000)
+        try:
+            mod = create(graph, rt_mod, dev)
+            for input_name, input_value in input_data.items():
+                mod.set_input(input_name, input_value)
+            graph_nodes = [n["name"] for n in json.loads(graph)["nodes"]]
+            graph_time = mod.run_individual(number=10, repeat=1, min_repeat_ms=5000)
 
-        print("Running time of each layer:")
-        print("---------------------------")
-        print("|graph_nodes| = ", len(graph_nodes))
-        print("|graph_time| = ", len(graph_time))
+            print("Running time of each layer:")
+            print("---------------------------")
+            print("|graph_nodes| = ", len(graph_nodes))
+            print("|graph_time| = ", len(graph_time))
 
-        for k, v in zip(graph_nodes, graph_time):
-            print(k, float(v) * 1e6, "us")
+            for k, v in zip(graph_nodes, graph_time):
+                print(k, float(v) * 1e6, "us")
+        except Exception as exc:  # pylint: disable=broad-except
+            print(
+                f"Run module f_time_per_layer via RPC failed, exception: {exc}",
+            )
 
-    return f_per_layer_func
+    return f_time_per_layer
