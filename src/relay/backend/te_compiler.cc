@@ -425,8 +425,8 @@ class TECompilerImpl : public TECompilerNode {
             ICHECK(ttype->dtype == x_ref->dtype && ttype->shape.size() == x_ref->shape.size())
                 << "function parameter does not correspond to prepared tensor";
             binds[x_ref] =
-                BufferWithOffsetAlignment(x_ref->shape, x_ref->dtype, x_ref->op->name, -1, 0, false,
-                                          param->virtual_device()->memory_scope);
+                tir::BufferWithOffsetAlignment(x_ref->shape, x_ref->dtype, x_ref->op->name, -1, 0,
+                                               false, param->virtual_device()->memory_scope);
           }
         }
         i++;
@@ -437,8 +437,9 @@ class TECompilerImpl : public TECompilerNode {
         ICHECK(value->cached_func->outputs.size() == 1)
             << "Expect only one output for defined memory scope";
         te::Tensor x_ref = value->cached_func->outputs[0];
-        binds[x_ref] = BufferWithOffsetAlignment(x_ref->shape, x_ref->dtype, x_ref->op->name, -1, 0,
-                                                 false, key->virtual_device->memory_scope);
+        binds[x_ref] =
+            tir::BufferWithOffsetAlignment(x_ref->shape, x_ref->dtype, x_ref->op->name, -1, 0,
+                                           false, key->virtual_device->memory_scope);
       }
       auto func_name = value->cached_func->prim_fn_var->name_hint;
       VLOG(1) << "scheduling";

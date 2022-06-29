@@ -165,24 +165,6 @@ TVM_DLL runtime::Module build(const Map<Target, IRModule>& input, const Target& 
  * \return The built module that contains code for different processors.
  */
 TVM_DLL runtime::Module build(const Map<String, IRModule>& input, const Target& target_host);
-
-/*!
- * \brief Creates TIR Buffer for provided parameters
- * \param shape shape of the buffer
- * \param dtype data type
- * \param name buffer name
- * \param data_alignment alignment requirement of data pointer in bytes
- * \param offset_factor Factor of elem_offset field, elem_offset is guaranteed to be
- *                      multiple of offset_factor
-                        User can specify data_alignment and offset_factor to be 0
- *                      A default value will be picked.
- * \param compact If the statement has already bound to a compact buffer.
- * \param memory_scope memory scope of the buffer
- */
-TVM_DLL tir::Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape, DataType dtype,
-                                              std::string name, int data_alignment,
-                                              int offset_factor, bool compact,
-                                              std::string memory_scope = "");
 }  // namespace tvm
 
 #endif  // TVM_DRIVER_DRIVER_API_H_
