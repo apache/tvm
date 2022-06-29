@@ -247,4 +247,12 @@ def transform_numpy(arr_np, current_layout: str, new_layout: str):
             return arr_np.reshape([n, 1, 1, c // 1024, 1024])
 
         raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
+
+    if current_layout == "nhw":
+        if new_layout in ["nhw-32h16w-2d"]:
+            n, h, w = arr_np.shape
+            return arr_np.reshape([n, h // 32, 32, w // 16, 16]).transpose(0, 1, 3, 2, 4)
+
+        raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
+
     raise RuntimeError(f"Unexpected current_layout '{current_layout}'")
