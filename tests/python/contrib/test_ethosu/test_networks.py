@@ -142,8 +142,18 @@ def test_networks_with_usmp_and_cascader_wo_striping(accel_type, model_url, work
 @pytest.mark.parametrize(
     "accel_type, model_url, workspace_size",
     [
+        # Checks the same test case multiple times to make sure its not flaky
         ("ethos-u55-256", MOBILENET_V1_URL, 1010000),
-        ("ethos-u55-256", MOBILENET_V2_URL, 1180000),
+        ("ethos-u55-256", MOBILENET_V1_URL, 1010000),
+        ("ethos-u55-256", MOBILENET_V1_URL, 1010000),
+        ("ethos-u55-256", MOBILENET_V1_URL, 1010000),
+        ("ethos-u55-256", MOBILENET_V1_URL, 1010000),
+        # Checks the same test case multiple times to make sure its not flaky
+        ("ethos-u55-256", MOBILENET_V2_URL, 1400000),
+        ("ethos-u55-256", MOBILENET_V2_URL, 1400000),
+        ("ethos-u55-256", MOBILENET_V2_URL, 1400000),
+        ("ethos-u55-256", MOBILENET_V2_URL, 1400000),
+        ("ethos-u55-256", MOBILENET_V2_URL, 1400000),
     ],
 )
 def test_networks_with_usmp_and_cascader_with_striping(accel_type, model_url, workspace_size):
