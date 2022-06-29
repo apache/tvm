@@ -167,7 +167,7 @@ def main():
             verbose=2,
             runner=runner,
         )
-        if ARGS.ARGS.num_trials > 0:
+        if ARGS.num_trials > 0:
             print("Running AutoTuning:")
             task.tune(tune_option, adaptive_training=ARGS.adaptive_training)
 
