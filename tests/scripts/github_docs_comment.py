@@ -25,9 +25,20 @@ from urllib import error
 from git_utils import git, GitHubRepo, parse_remote
 from cmd_utils import init_log
 
+DOCS_BOT_MARKER = "<!---docs-bot-comment-->\n\n"
+GITHUB_ACTIONS_BOT_LOGIN = "github-actions[bot]"
+
 
 def build_docs_url(base_url_docs, pr_number, build_number):
     return f"{base_url_docs}/PR-{str(pr_number)}/{str(build_number)}/docs/index.html"
+
+
+def get_pr_comments(github, url):
+    try:
+        return github.get(url)
+    except error.HTTPError as e:
+        logging.exception(f"Failed to retrieve PR comments: {url}: {e}")
+        return []
 
 
 def get_pr_and_build_numbers(target_url):
@@ -36,6 +47,16 @@ def get_pr_and_build_numbers(target_url):
     pr_number = split[0].strip("PR-")
     build_number = split[1]
     return {"pr_number": pr_number, "build_number": build_number}
+
+
+def search_for_docs_comment(comments):
+    for comment in comments:
+        if (
+            comment["user"]["login"] == GITHUB_ACTIONS_BOT_LOGIN
+            and DOCS_BOT_MARKER in comment["body"]
+        ):
+            return comment
+    return None
 
 
 if __name__ == "__main__":
@@ -65,7 +86,7 @@ if __name__ == "__main__":
     )
 
     url = f'issues/{pr_and_build["pr_number"]}/comments'
-    body = f"Built docs for commit {commit_sha} can be found [here]({docs_url})."
+    body = f"{DOCS_BOT_MARKER}Built docs for commit {commit_sha} can be found [here]({docs_url})."
     if not args.dry_run:
         github = GitHubRepo(token=os.environ["GITHUB_TOKEN"], user=user, repo=repo)
 
@@ -77,9 +98,13 @@ if __name__ == "__main__":
             logging.info(f"Skipping this action for user {author}")
             sys.exit(0)
 
-        try:
+        pr_comments = get_pr_comments(github, url)
+        comment = search_for_docs_comment(pr_comments)
+
+        if comment is not None:
+            comment_url = comment["url"]
+            github.patch(comment_url, {"body": body})
+        else:
             github.post(url, {"body": body})
-        except error.HTTPError as e:
-            logging.exception(f"Failed to add docs comment {docs_url}: {e}")
     else:
         logging.info(f"Dry run, would have posted {url} with data {body}.")
