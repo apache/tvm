@@ -82,10 +82,13 @@ class CCacheKeyNode : public Object {
   Function source_func;
   /*! \brief The hardware target.*/
   Target target;
+  /*! \brief The virtual device constrains.*/
+  VirtualDevice virtual_device;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("source_func", &source_func);
     v->Visit("target", &target);
+    v->Visit("virtual_device", &virtual_device);
   }
   /*! \return The hash value of CCacheKey. */
   inline size_t Hash() const;
@@ -117,7 +120,8 @@ class CCacheKey : public ObjectRef {
    * \param source_func The source function.
    * \param target The target device.
    */
-  TVM_DLL CCacheKey(Function source_func, Target target);
+  TVM_DLL CCacheKey(Function source_func, Target target,
+                    VirtualDevice virtual_device = VirtualDevice::FullyUnconstrained());
 
   const CCacheKeyNode* operator->() const { return static_cast<const CCacheKeyNode*>(get()); }
   // comparator
@@ -244,6 +248,7 @@ inline size_t CCacheKeyNode::Hash() const {
 inline bool CCacheKeyNode::Equal(const CCacheKeyNode* other) const {
   if (Hash() != other->Hash()) return false;
   return this->target->str() == other->target->str() &&
+         this->virtual_device == other->virtual_device &&
          tvm::StructuralEqual()(this->source_func, other->source_func);
 }
 
