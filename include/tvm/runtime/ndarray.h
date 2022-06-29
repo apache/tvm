@@ -73,7 +73,7 @@ class NDArray : public ObjectRef {
   explicit NDArray(ObjectPtr<Object> data) : ObjectRef(data) {}
 
   /*! \brief reset the content of NDArray to be nullptr */
-  inline void reset();
+  inline void reset(){ data_.reset(); }
   /*!
    * \return the reference counter
    * \note this number is approximate in multi-threaded setting.

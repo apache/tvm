@@ -22,6 +22,7 @@
  */
 #include "graph_executor.h"
 
+#include <dlpack/dlpack.h>
 #include <tvm/runtime/container/map.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/data_type.h>
@@ -36,6 +37,7 @@
 #include <functional>
 #include <memory>
 #include <numeric>
+#include <ostream>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -59,10 +61,98 @@ inline size_t GetDataAlignment(const DLTensor& arr) {
 void GraphExecutor::Run() {
   // setup the array and requirements.
   for (size_t i = 0; i < op_execs_.size(); ++i) {
-    if (op_execs_[i]) op_execs_[i]();
+    if (op_execs_[i]) {
+      PerformOp(i);
+    }
   }
 }
 
+void GraphExecutor::RematerializeTensor(size_t nid) { PerformOp(nid); }
+
+void GraphExecutor::PerformOp(size_t nid) {
+  auto node = nodes_[nid];
+  // first we need to get all the input tensors and add the reference count
+  // if they are not in memory, rematerialize them
+  for (const auto& input : node.inputs) {
+    // also we do not care about cpu
+    if (pool_entry_[get_sid(entry_id(input))].device_type == (int)(kDLCPU)) continue;
+    // we do not need to care about input and parameter
+    if (std::find(input_nodes_.begin(), input_nodes_.end(), entry_id(input)) != input_nodes_.end())
+      continue;
+    if (std::find(nodes_not_evicted_.begin(), nodes_not_evicted_.end(), entry_id(input)) != nodes_not_evicted_.end())
+      continue;
+    // otherwise we should rematerialize the input tensors that are not in the memory
+    // and update the reference count at the same time
+
+    if (is_evicted(entry_id(input))) {
+        RematerializeTensor(entry_id(input));
+    }
+    ref_cnt[entry_id(input)] += 1;
+  }
+  // now all of the inputs are recovered, we can set up to compute the location of input/output
+  // compute current input memory location of the tensor
+  std::unordered_set<uint32_t> input_node_eids;
+  for (unsigned int nid_ : input_nodes_) {
+    input_node_eids.insert(entry_id(nid_, 0));
+  }
+  std::unordered_set<uint32_t> output_node_eids;
+  for (auto& output : outputs_) {
+    output_node_eids.insert(entry_id(output));
+  }
+
+  const auto& inode = nodes_[nid];
+  std::vector<DLTensor> args;
+
+  for (const auto& e : inode.inputs) {
+    uint32_t eid = this->entry_id(e);
+    args.push_back(*(data_entry_[eid].operator->()));
+  }
+
+  /*
+   * Note that some output tensors might not be allocated because some op might produce plural
+   * values Thus we should check if the outputs were allocated and set up the data entry as well
+   */
+  for (uint32_t index = 0; index < inode.param.num_outputs; ++index) {
+    uint32_t eid = this->entry_id(nid, index);
+    set_tensor(eid);
+    args.push_back(*(data_entry_[eid].operator->()));
+  }
+
+  // Now we should update the memory location in TVM Operator
+  std::shared_ptr<OpArgs> updated_args = UpdateTVMOp(nid, nodes_[nid].param, args);
+
+  UpdateInputOutputTensors(input_node_eids, output_node_eids, nid, updated_args);
+
+  // now we can execute the operator
+  op_execs_[nid]();
+  // at last, we should perform eviction
+  PerformEviction(nid);
+}
+
+void GraphExecutor::PerformEviction(size_t nid) {
+  auto node = nodes_[nid];
+  for (const auto& input : node.inputs) {
+    // we do not care about cpu
+    if (pool_entry_[get_sid(entry_id(input))].device_type == (int)(kDLCPU)) continue;
+    // Again, continues when meet input and parameters
+    if (std::find(input_nodes_.begin(), input_nodes_.end(), entry_id(input)) != input_nodes_.end())
+      continue;
+    if (std::find(nodes_not_evicted_.begin(), nodes_not_evicted_.end(), entry_id(input)) != nodes_not_evicted_.end())
+      continue;
+    // Decrease the reference count and free when ref_cnt is zero
+    ref_cnt[entry_id(input)] -= 1;
+    // free tensor when ref_cnt is zero
+    if (!ref_cnt[entry_id(input)]) {
+      FreeTensor(entry_id(input));
+    }
+  }
+}
+
+void GraphExecutor::FreeTensor(size_t nid) {
+  data_entry_[nid].reset();
+  if (storage_pool_[get_sid(nid)].use_count() == 1)
+    storage_pool_[get_sid(nid)].reset();
+}
 /*!
  * \brief Initialize the graph executor with graph and device.
  * \param graph_json The execution graph.
@@ -349,6 +439,23 @@ void GraphExecutor::DefaultLookupLinkedParam(TVMArgs args, TVMRetValue* rv) {
   *rv = NDArray(GetObjectPtr<Object>(container));
 }
 
+void GraphExecutor::AllocTensor(size_t sid) {
+  const auto& pit = pool_entry_[sid];
+  // This for loop is very fast since there are usually only a couple of
+  // devices available on the same hardware.
+  const auto& cit = std::find_if(devices_.begin(), devices_.end(), [&pit](const Device& d) {
+    return pit.device_type == static_cast<int>(d.device_type);
+  });
+  Device dev = cit == devices_.end() ? devices_[0] : *cit;
+  if (pit.linked_param.defined()) {
+    storage_pool_[sid] = pit.linked_param;
+  } else {
+    std::vector<int64_t> shape;
+    shape.push_back(static_cast<int64_t>(pit.size + 3) / 4);
+    storage_pool_[sid] = NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, dev);
+  }
+}
+
 void GraphExecutor::SetupStorage() {
   // Grab saved optimization plan from graph.
   std::vector<DLDataType> vtype;
@@ -398,21 +505,19 @@ void GraphExecutor::SetupStorage() {
     pool_entry[sid].size = std::max(pool_entry[sid].size, bytes);
     pool_entry[sid].device_type = device_type;
   }
-
-  // Allocate the space.
-  for (const auto& pit : pool_entry) {
-    // This for loop is very fast since there are usually only a couple of
-    // devices available on the same hardware.
-    const auto& cit = std::find_if(devices_.begin(), devices_.end(), [&pit](const Device& d) {
-      return pit.device_type == static_cast<int>(d.device_type);
-    });
-    Device dev = cit == devices_.end() ? devices_[0] : *cit;
-    if (pit.linked_param.defined()) {
-      storage_pool_.push_back(pit.linked_param);
-    } else {
-      std::vector<int64_t> shape;
-      shape.push_back(static_cast<int64_t>(pit.size + 3) / 4);
-      storage_pool_.push_back(NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, dev));
+  pool_entry_ = std::move(pool_entry);
+  // First we compute the map of sid to input nodes
+  std::unordered_map<int, uint32_t> sid_to_input;
+  for (unsigned int input_node : input_nodes_) {
+    auto input_sid = get_sid(input_node);
+    sid_to_input[input_sid] = input_node;
+  }
+  // Allocate the space for argument tensor
+  storage_pool_.resize(pool_entry_.size());
+  for (size_t sid = 0; sid < pool_entry_.size(); sid++) {
+    // We just allocate tensor for input nodes now
+    if (pool_entry_[sid].device_type == static_cast<int>(kDLCPU)){
+      AllocTensor(sid);
     }
   }
 
@@ -424,14 +529,31 @@ void GraphExecutor::SetupStorage() {
   for (size_t i = 0; i < data_entry_.size(); ++i) {
     int storage_id = attrs_.storage_id[i];
     ICHECK_LT(static_cast<size_t>(storage_id), storage_pool_.size());
-    data_entry_[i] = storage_pool_[storage_id].CreateView(attrs_.shape[i], vtype[i]);
+    // just make view for allocated parameters and tensors in cpu
+    if (pool_entry_[storage_id].device_type == static_cast<int>(kDLCPU)){
+      data_entry_[i] = storage_pool_[storage_id].CreateView(attrs_.shape[i], vtype[i]);
+    }
 
-    const DLTensor* tmp = data_entry_[i].operator->();
-    data_alignment_[i] = details::GetDataAlignment(*tmp);
+    // determine memory usage using grabbed vtype
+    size_t align = (vtype[i].bits / 8) * vtype[i].lanes;
+    data_alignment_[i] = align < kAllocAlignment ? kAllocAlignment : align;
   }
 }
 
 void GraphExecutor::SetupOpExecs() {
+  ref_cnt.resize(num_node_entries(),0);
+  nodes_not_evicted_ = {};
+  for(size_t nid = 0;nid < num_node_entries();nid++){
+    auto slice_node = nodes_[nid];
+    if (slice_node.name.find("slice") != std::string::npos){
+      nodes_not_evicted_.push_back(nid);
+      for (const auto& input:slice_node.inputs){
+        if (std::find(nodes_not_evicted_.begin(),nodes_not_evicted_.end(),entry_id(input)) == nodes_not_evicted_.end()) {
+          nodes_not_evicted_.push_back(entry_id(input));
+        }
+      }
+    }
+  }
   op_execs_.resize(this->GetNumOfNodes());
   input_dltensors_.resize(num_node_entries());
   output_dltensors_.resize(num_node_entries());
@@ -450,66 +572,56 @@ void GraphExecutor::SetupOpExecs() {
   for (uint32_t nid = 0; nid < this->GetNumOfNodes(); ++nid) {
     const auto& inode = nodes_[nid];
     if (inode.op_type == "null") continue;
-    std::vector<DLTensor> args;
-    for (const auto& e : inode.inputs) {
-      uint32_t eid = this->entry_id(e);
-      args.push_back(*(data_entry_[eid].operator->()));
-    }
-    for (uint32_t index = 0; index < inode.param.num_outputs; ++index) {
-      uint32_t eid = this->entry_id(nid, index);
-      args.push_back(*(data_entry_[eid].operator->()));
-    }
-    ICHECK(inode.op_type == "tvm_op") << "Can only take tvm_op as op";
+    std::vector<DLTensor> args = {};
 
     std::shared_ptr<OpArgs> op_args = nullptr;
-    std::tie(op_execs_[nid], op_args) = CreateTVMOp(inode.param, args);
+    std::tie(op_execs_[nid], op_args) = CreateTVMOp(nid, inode.param, args);
+  }
+}
 
-    for (size_t i = 0; i < inode.inputs.size(); i++) {
-      uint32_t input_eid = this->entry_id(inode.inputs[i]);
-      // check if op input is model input
-      if (input_node_eids.count(input_eid) > 0) {
-        input_dltensors_[input_eid].push_back(
-            static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
-      }
-      // check if any model output is the input of the op
-      if (output_node_eids.count(input_eid) > 0) {
-        both_output_opinput_dltensors_[input_eid].push_back(
-            static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
+void GraphExecutor::UpdateInputOutputTensors(const std::unordered_set<uint32_t>& input_node_eids,
+                                             const std::unordered_set<uint32_t>& output_node_eids,
+                                             uint32_t nid,
+                                             std::shared_ptr<GraphExecutor::OpArgs> op_args) {
+  const auto& inode = nodes_[nid];
+  for (size_t i = 0; i < inode.inputs.size(); i++) {
+    uint32_t input_eid = this->entry_id(inode.inputs[i]);
+    // check if op input is model input
+    if (input_node_eids.count(input_eid) > 0) {
+      auto& eid_input = input_dltensors_[input_eid];
+      auto input_tensor = static_cast<DLTensor*>(op_args->arg_values[i].v_handle);
+      if (std::find(eid_input.begin(), eid_input.end(), input_tensor) == eid_input.end()) {
+        eid_input.push_back(input_tensor);
       }
     }
+    // check if any model output is the input of the op
+    if (output_node_eids.count(input_eid) > 0) {
+      auto& eid_both = both_output_opinput_dltensors_[input_eid];
+      auto both_tensor = static_cast<DLTensor*>(op_args->arg_values[i].v_handle);
+      if(std::find(eid_both.begin(), eid_both.end(), both_tensor) == eid_both.end()){
+        eid_both.push_back(both_tensor);
+      }
+    }
+  }
 
-    for (uint32_t i = inode.inputs.size(); i < inode.inputs.size() + inode.param.num_outputs; ++i) {
-      uint32_t output_eid = this->entry_id(nid, i - inode.inputs.size());
-      // check if op output is model output
-      if (output_node_eids.count(output_eid) > 0) {
-        output_dltensors_[output_eid].push_back(
-            static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
+  for (uint32_t i = inode.inputs.size(); i < inode.inputs.size() + inode.param.num_outputs; ++i) {
+    uint32_t output_eid = this->entry_id(nid, i - inode.inputs.size());
+    // check if op output is model output
+    if (output_node_eids.count(output_eid) > 0) {
+      auto& eid_out = output_dltensors_[output_eid];
+      auto out_tensor = static_cast<DLTensor*>(op_args->arg_values[i].v_handle);
+      if(std::find(eid_out.begin(), eid_out.end(), out_tensor) == eid_out.end()){
+        eid_out.push_back(out_tensor);
       }
     }
   }
 }
-
 std::pair<std::function<void()>, std::shared_ptr<GraphExecutor::OpArgs> >
-GraphExecutor::CreateTVMOp(const TVMOpParam& param, const std::vector<DLTensor>& args) {
+GraphExecutor::CreateTVMOp(uint32_t nid, const TVMOpParam& param,
+                           const std::vector<DLTensor>& args) {
   std::shared_ptr<GraphExecutor::OpArgs> arg_ptr = std::make_shared<GraphExecutor::OpArgs>();
-  // setup address.
-  arg_ptr->args = args;
-  if (param.flatten_data) {
-    arg_ptr->shape_data.resize(arg_ptr->args.size());
-  }
-  for (size_t i = 0; i < arg_ptr->args.size(); ++i) {
-    TVMValue v;
-    DLTensor* t = &arg_ptr->args[i];
-    v.v_handle = t;
-    arg_ptr->arg_values.push_back(v);
-    arg_ptr->arg_tcodes.push_back(kTVMDLTensorHandle);
-    if (param.flatten_data) {
-      arg_ptr->shape_data[i] =
-          std::accumulate(t->shape, t->shape + t->ndim, 1, std::multiplies<int64_t>());
-      t->ndim = 1;
-      t->shape = &(arg_ptr->shape_data[i]);
-    }
-  }
+  // set up the memory location map
+  op_mem_location_map_[nid] = arg_ptr;
 
   if (param.func_name == "__nop") {
     return {[]() {}, arg_ptr};
@@ -517,7 +629,8 @@ GraphExecutor::CreateTVMOp(const TVMOpParam& param, const std::vector<DLTensor>&
     // Perform cross device data copy.
     // Directly copy data from the input to the output.
     // TODO(mbs): device_copy cleanup.
-    auto fexec = [arg_ptr]() {
+    auto fexec = [nid, this]() {
+      auto arg_ptr = this->op_mem_location_map_[nid];
       DLTensor* from = static_cast<DLTensor*>(arg_ptr->arg_values[0].v_handle);
       DLTensor* to = static_cast<DLTensor*>(arg_ptr->arg_values[1].v_handle);
       TVM_CCALL(TVMArrayCopyFromTo(from, to, nullptr));
@@ -530,8 +643,9 @@ GraphExecutor::CreateTVMOp(const TVMOpParam& param, const std::vector<DLTensor>&
   tvm::runtime::PackedFunc pf = module_.GetFunction(param.func_name, true);
   ICHECK(pf != nullptr) << "no such function in module: " << param.func_name;
 
-  auto fexec = [arg_ptr, pf]() {
+  auto fexec = [pf, nid, this]() {
     TVMRetValue rv;
+    auto arg_ptr = this->op_mem_location_map_[nid];
     TVMArgs targs(arg_ptr->arg_values.data(), arg_ptr->arg_tcodes.data(),
                   static_cast<int>(arg_ptr->arg_values.size()));
     pf.CallPacked(targs, &rv);
@@ -655,6 +769,33 @@ PackedFunc GraphExecutor::GetFunction(const std::string& name,
   } else {
     return PackedFunc();
   }
+}
+std::shared_ptr<GraphExecutor::OpArgs> GraphExecutor::UpdateTVMOp(
+    uint32_t nid, const TVMOpParam& param, const std::vector<DLTensor>& args) {
+  auto arg_ptr = op_mem_location_map_[nid];
+  if (arg_ptr){
+    arg_ptr->arg_values.clear();
+    arg_ptr->arg_tcodes.clear();
+  }
+  // setup address.
+  arg_ptr->args = args;
+  if (param.flatten_data) {
+    arg_ptr->shape_data.resize(arg_ptr->args.size());
+  }
+  for (size_t i = 0; i < arg_ptr->args.size(); ++i) {
+    TVMValue v;
+    DLTensor* t = &arg_ptr->args[i];
+    v.v_handle = t;
+    arg_ptr->arg_values.push_back(v);
+    arg_ptr->arg_tcodes.push_back(kTVMDLTensorHandle);
+    if (param.flatten_data) {
+      arg_ptr->shape_data[i] =
+          std::accumulate(t->shape, t->shape + t->ndim, 1, std::multiplies<int64_t>());
+      t->ndim = 1;
+      t->shape = &(arg_ptr->shape_data[i]);
+    }
+  }
+  return arg_ptr;
 }
 
 Module GraphExecutorCreate(const std::string& sym_json, const tvm::runtime::Module& m,

@@ -31,6 +31,7 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <tuple>
@@ -416,13 +417,80 @@ class TVM_DLL GraphExecutor : public ModuleNode {
    * \return The created executor.
    */
   std::pair<std::function<void()>, std::shared_ptr<OpArgs>> CreateTVMOp(
-      const TVMOpParam& attrs, const std::vector<DLTensor>& args);
+      uint32_t nid, const TVMOpParam& attrs, const std::vector<DLTensor>& args);
+  /*!
+   *  \brief Update the TVM operator memory location
+   *  \param nid The node id
+   *  \param param The node attributes
+   *  \param args The arguments to the functor, including inputs and outputs
+   *  \return The pointer to arguments
+   */
+  std::shared_ptr<OpArgs> UpdateTVMOp(uint32_t nid, const TVMOpParam& param,
+                                      const std::vector<DLTensor>& args);
+  /*!
+   * \brief update input and output tensors according to the op_args
+   * @param nid current node id
+   * @param op_args operator arguments information
+   * @return
+   */
+  void UpdateInputOutputTensors(const std::unordered_set<uint32_t>& input_node_eids,
+                                const std::unordered_set<uint32_t>& output_node_eids, uint32_t nid,
+                                std::shared_ptr<GraphExecutor::OpArgs> op_args);
+  /*!
+   * \brief Allocate tensor for given sid
+   * @param sid the storage id
+   * @return
+   */
+  void AllocTensor(size_t sid);
+  /*!
+   * \brief Perform the operation associate with this operator.
+   * @param nid the node id associate with this tensor
+   * @param index
+   * @return
+   */
+  void PerformOp(size_t nid);
+  /*!
+   * \brief Rematerialize the input operators
+   * @param nid the node id associate with this input.
+   * @param index
+   * @return
+   */
+  void RematerializeTensor(size_t nid);
+  /*!
+   * \brief Perform eviction of tensor
+   * @param nid the node id associate with this tensor
+   * @param index
+   * @return
+   */
+  void PerformEviction(size_t nid);
+  /*!
+   * \brief Perform tensor deallocaton
+   * @param nid node id to the tensor
+   * @param index
+   * @return
+   */
+  void FreeTensor(size_t nid);
   // Get node entry index.
   uint32_t entry_id(uint32_t nid, uint32_t index) const { return node_row_ptr_[nid] + index; }
   // Get node entry index.
   uint32_t entry_id(const NodeEntry& e) const { return entry_id(e.node_id, e.index); }
   // Number of node entries.
   uint32_t num_node_entries() const { return node_row_ptr_.back(); }
+  // Get sid
+  int get_sid(size_t nid) const { return attrs_.storage_id[nid]; }
+  // Allocate tensor
+  void set_tensor(size_t nid) {
+    // first check storage
+    size_t sid = get_sid(nid);
+    if (!storage_pool_[sid].defined()) AllocTensor(sid);
+
+    // then we can begin to set up the data entry, if it was not set previously
+    if (!data_entry_[nid].defined()) {
+      data_entry_[nid] = storage_pool_[sid].CreateView(
+          attrs_.shape[nid], tvm::runtime::String2DLDataType(attrs_.dltype[nid]));
+    }
+  }
+  bool is_evicted(size_t nid) const { return !data_entry_[nid].defined(); }
   /*! \brief The graph nodes. */
   std::vector<Node> nodes_;
   /*! \brief The argument nodes. */
@@ -433,6 +501,8 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   std::unordered_map<std::string, uint32_t> input_map_;
   /*! \brief Map of output names to output indices. */
   std::unordered_map<std::string, uint32_t> output_map_;
+  /*! \brief Map of node id to corresponding argument memory location of op arguments */
+  std::unordered_map<uint32_t, std::shared_ptr<GraphExecutor::OpArgs>> op_mem_location_map_;
   /*! \brief Used for quick node input DLTensor* lookup given an input eid. */
   std::vector<std::vector<DLTensor*>> input_dltensors_;
   /*! \brief Used for quick node output DLTensor* lookup given an output eid. */
@@ -466,6 +536,14 @@ class TVM_DLL GraphExecutor : public ModuleNode {
    * When the module does not include linked parmeters, module_lookup_linked_param_ will be nullptr.
    */
   bool module_lookup_linked_param_valid_;
+  /*!
+   * \brief size and device type of each storage pool entry
+   */
+  std::vector<PoolEntry> pool_entry_;
+  /*! \brief record runtime memory info */
+  std::vector<size_t> ref_cnt;
+  /*! \brief nodes that should not be evicted */
+  std::vector<size_t> nodes_not_evicted_;
 };
 
 std::vector<Device> GetAllDevice(const TVMArgs& args, int dev_start_arg);
