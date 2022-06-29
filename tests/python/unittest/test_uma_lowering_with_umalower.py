@@ -14,9 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 
 import tvm
-from tests.python.unittest.test_uma_utils import _create_schedule, _generate_io_arrays, conv2d_c_code
+from tests.python.unittest.test_uma_utils import _create_schedule, _generate_io_arrays
 from tvm import topi
 from tvm.relay.backend.contrib.uma._template.passes import my_ai_hw_conv2d_pass
 import tvm.testing
@@ -29,13 +30,14 @@ def _conv2d_te_definition(shapes: dict) -> list:
     n, w, h, ci, kw, kh, co = shapes["n"], shapes["w"], shapes["h"], shapes["ci"], shapes["kw"], shapes["kh"], shapes["co"],
     ifmap = te.placeholder((n, ci, w, h), dtype="float32", name="ifmap")
     weights = te.placeholder((co, ci, kw, kh), dtype="float32", name="weights")
-    result = topi.nn.conv2d_nchw(ifmap, weights, stride=1, padding=1, dilation=1)
+    result = topi.nn.conv2d_nchw(ifmap, weights, stride=1, padding=[kw//2, kh//2], dilation=1)
     return [ifmap, weights, result]
 
 
 def _pepare_conv2d_schedule(shapes, use_external_conv2d_impl=True):
     placeholders = _conv2d_te_definition(shapes)
-    sch_tir = _create_schedule(placeholders, conv2d_c_code, use_external_conv2d_impl=use_external_conv2d_impl)
+    with open("../../../python/tvm/relay/backend/contrib/uma/_template/conv2dnchw.cpp") as f:
+        sch_tir = _create_schedule(placeholders, f, use_external_conv2d_impl=use_external_conv2d_impl)
     return placeholders, sch_tir
 
 
@@ -67,11 +69,21 @@ def _prepare_io_arrays(conv2d_shapes, dev):
     reference_io_arrays = [dut_io_arrays[0], dut_io_arrays[1], ref_result]
     return dut_io_arrays, reference_io_arrays
 
+@pytest.mark.parametrize(
+    "n, w, h, ci, kw, kh, co",
+    [
+        (1, 224, 224, 3, 3, 3, 4),
+        (1, 224, 224, 3, 5, 5, 4),
+        (1, 224, 224, 3, 7, 7, 4),
+        (1, 224, 320, 3, 7, 7, 4),
+        (1, 224, 224, 3, 7, 7, 4),
 
-def test_lower_with_uma():
+    ],
+)
+def test_lower_with_uma(n, w, h, ci, kw, kh, co):
     target = tvm.target.Target(target="llvm", host="llvm")
     dev = tvm.device(target.kind.name, 0)
-    conv2d_shapes = dict(n=1, w=224, h=224, ci=3, kw=3, kh=3, co=1)
+    conv2d_shapes = dict(n=n, w=w, h=h, ci=ci, kw=kw, kh=kh, co=co)
 
     dut_io_arrays, reference_io_arrays = _prepare_io_arrays(conv2d_shapes, dev)
 
@@ -85,4 +97,4 @@ def test_lower_with_uma():
 
 
 if __name__ == "__main__":
-    test_lower_with_uma()
+    test_lower_with_uma(1, 224, 224, 3, 3, 3, 4)
