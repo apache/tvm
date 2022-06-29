@@ -31,6 +31,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "constraint_extract.h"
 #include "interval_set.h"
 #include "pattern_match.h"
 
@@ -509,8 +510,26 @@ class IntSetAnalyzer::Impl {
     return IntervalSetEvaluator(analyzer_, dom_map).Eval(expr);
   }
 
+  IntSet Eval(const PrimExpr& expr) const {
+    return IntervalSetEvaluator(analyzer_, dom_map_).Eval(expr);
+  }
+
+  void Bind(const Var& var, const Range& range, bool allow_override) {
+    IntSet min = Eval(range->min);
+    IntSet extent = Eval(range->extent);
+
+    Bind(var, IntervalSet(min.min(), min.max() + extent.max() - 1), allow_override);
+  }
+
+  void Bind(const Var& var, const IntSet& info, bool override_info);
+  void Bind(const Var& var, const PrimExpr& expr, bool override_info);
+  std::function<void()> EnterConstraint(const PrimExpr& constraint);
+
  private:
+  static std::vector<std::pair<Var, IntSet>> DetectBoundInfo(const PrimExpr& cond);
+
   Analyzer* analyzer_;
+  Map<Var, IntSet> dom_map_;
 };
 
 IntSetAnalyzer::IntSetAnalyzer(Analyzer* parent) : impl_(new Impl(parent)) {}
@@ -519,6 +538,118 @@ IntSetAnalyzer::~IntSetAnalyzer() { delete impl_; }
 
 IntSet IntSetAnalyzer::operator()(const PrimExpr& expr, const Map<Var, IntSet>& dom_map) {
   return impl_->Eval(expr, dom_map);
+}
+
+IntSet IntSetAnalyzer::operator()(const PrimExpr& expr) { return impl_->Eval(expr); }
+
+void IntSetAnalyzer::Update(const Var& var, const IntSet& info, bool allow_override) {
+  impl_->Bind(var, info, allow_override);
+}
+
+void IntSetAnalyzer::Update(const Var& var, const Range& range, bool allow_override) {
+  impl_->Bind(var, range, allow_override);
+}
+
+void IntSetAnalyzer::Impl::Bind(const Var& var, const IntSet& info, bool can_override) {
+  if (!can_override) {
+    auto it = dom_map_.find(var);
+    if (it != dom_map_.end()) {
+      const IntSet& old_info = (*it).second;
+
+      ICHECK(ExprDeepEqual()(old_info.min(), info.min()))
+          << "Trying to update var \'" << var << "\'"
+          << " with a different minimum value: "
+          << "original=" << old_info.min() << ", new=" << info.min();
+
+      ICHECK(ExprDeepEqual()(old_info.max(), info.max()))
+          << "Trying to update var \'" << var << "\'"
+          << " with a different maximum value: "
+          << "original=" << old_info.max() << ", new=" << info.max();
+    }
+  }
+  dom_map_.Set(var, info);
+}
+
+void IntSetAnalyzer::Impl::Bind(const Var& var, const PrimExpr& expr, bool can_override) {
+  Bind(var, Eval(expr), can_override);
+}
+
+std::vector<std::pair<Var, IntSet>> IntSetAnalyzer::Impl::DetectBoundInfo(
+    const PrimExpr& constraint) {
+  PVar<Var> x;
+  PVar<PrimExpr> limit;
+
+  std::vector<std::pair<Var, IntSet>> bounds;
+  for (const PrimExpr& subconstraint : ExtractConstraints(constraint)) {
+    if ((x <= limit).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::Interval(SymbolicLimits::neg_inf_, limit.Eval())});
+    } else if ((x < limit).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::Interval(SymbolicLimits::neg_inf_, limit.Eval() - 1)});
+    } else if ((x >= limit).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::Interval(limit.Eval(), SymbolicLimits::pos_inf_)});
+    } else if ((x > limit).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::Interval(limit.Eval() + 1, SymbolicLimits::pos_inf_)});
+    } else if ((x == limit).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::SinglePoint(limit.Eval())});
+    }
+
+    if ((limit >= x).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::Interval(SymbolicLimits::neg_inf_, limit.Eval())});
+    } else if ((limit > x).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::Interval(SymbolicLimits::neg_inf_, limit.Eval() - 1)});
+    } else if ((limit <= x).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::Interval(limit.Eval(), SymbolicLimits::pos_inf_)});
+    } else if ((limit < x).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::Interval(limit.Eval() + 1, SymbolicLimits::pos_inf_)});
+    } else if ((limit == x).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::SinglePoint(limit.Eval())});
+    }
+  }
+  return bounds;
+}
+
+std::function<void()> IntSetAnalyzer::EnterConstraint(const PrimExpr& constraint) {
+  return impl_->EnterConstraint(constraint);
+}
+
+std::function<void()> IntSetAnalyzer::Impl::EnterConstraint(const PrimExpr& constraint) {
+  Map<Var, IntSet> cached_values;
+
+  auto bounds = DetectBoundInfo(constraint);
+
+  if (bounds.size() == 0) return nullptr;
+
+  // Collect the current values of each var that is changes by this
+  // constraint.
+  for (const auto& pair : bounds) {
+    auto it = dom_map_.find(pair.first);
+    if (it == dom_map_.end()) {
+      cached_values.Set(pair.first, IntSet());
+    } else {
+      cached_values.Set(pair.first, (*it).second);
+    }
+  }
+
+  // Update all constraints
+  for (const auto& pair : bounds) {
+    auto it = dom_map_.find(pair.first);
+    if (it == dom_map_.end()) {
+      dom_map_.Set(pair.first, pair.second);
+    } else {
+      dom_map_.Set(pair.first, Intersect({pair.second, (*it).second}));
+    }
+  }
+
+  auto frecover = [cached_values, this]() {
+    for (const auto& it : cached_values) {
+      if (it.second.defined()) {
+        dom_map_.Set(it.first, it.second);
+      } else {
+        dom_map_.erase(it.first);
+      }
+    }
+  };
+  return frecover;
 }
 
 // Quickly adapt to IntSet interface
