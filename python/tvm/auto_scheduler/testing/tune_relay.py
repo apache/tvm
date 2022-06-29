@@ -15,18 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
+from distutils.util import strtobool
 import argparse
 import json
 import os
 
-from distutils.util import strtobool
 import tvm
 from tvm import auto_scheduler
 from tvm import meta_schedule as ms
 from tvm import relay
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.meta_schedule.testing.relay_workload import get_network
-from tvm.meta_schedule.testing.utils import generate_input_data, f_timer, f_per_layer
+from tvm.meta_schedule.testing.utils import generate_input_data, f_timer
 from tvm.meta_schedule.utils import cpu_count
 from tvm.support import describe
 
@@ -94,24 +94,23 @@ def _parse_args():
         default=100,
     )
     args.add_argument(
-        "--cpu-flush",
-        type=lambda x: bool(strtobool(x)),
-        required=True,
-        help="example: True / False",
-    )
-    args.add_argument(
         "--adaptive-training",
         type=lambda x: bool(strtobool(x)),
-        required=False,
         help="example: True / False",
         default=True,
     )
     args.add_argument(
+        "--cpu-flush",
+        type=lambda x: bool(strtobool(x)),
+        help="example: True / False",
+        required=True,
+    )
+    args.add_argument(
         "--backend",
         type=str,
-        required=True,
         choices=["graph", "vm"],
         help="example: graph / vm",
+        required=True,
     )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
@@ -140,6 +139,7 @@ def main():
         repeat=ARGS.repeat,
         min_repeat_ms=ARGS.min_repeat_ms,
         enable_cpu_cache_flush=ARGS.cpu_flush,
+        timeout=ARGS.rpc_config.session_timeout_sec,
     )
 
     if ARGS.target.kind.name == "llvm":
@@ -175,61 +175,50 @@ def main():
         item["name"]: generate_input_data(item["shape"], item["dtype"]) for item in ARGS.input_shape
     }
     for input_name, input_shape in input_info.items():
-        print(f"  input_name: {input_name}")
+        print(f"  input_name : {input_name}")
         print(f"  input_shape: {input_shape}")
         print(f"  input_dtype: {input_dtype}")
-    tasks, task_weights = auto_scheduler.extract_tasks(
-        mod["main"],
-        params,
-        target=ARGS.target,
-        hardware_params=hardware_params,
-    )
-    for idx, (task, task_weight) in enumerate(zip(tasks, task_weights)):
-        print(f"==== Task {idx}: {task.desc} (weight {task_weight} key: {task.workload_key}) =====")
-        print(task.compute_dag)
 
-    tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
-    tuner.tune(
-        auto_scheduler.TuningOptions(
-            num_measure_trials=ARGS.num_trials,
-            runner=runner,
-            measure_callbacks=[
-                auto_scheduler.RecordToFile(log_file),
-            ],
-        ),
-        adaptive_training=ARGS.adaptive_training,
-    )
-
-    with auto_scheduler.ApplyHistoryBest(log_file):
-        with tvm.transform.PassContext(
-            opt_level=3,
-            config={"relay.backend.use_auto_scheduler": True},
-        ):
-            if ARGS.backend == "vm":
-                lib = relay.vm.compile(
-                    mod,
-                    target=ARGS.target,
-                    params=params,
-                )
-            elif ARGS.backend == "graph":
-                lib = relay.build(
-                    mod,
-                    target=ARGS.target,
-                    params=params,
-                )
-            else:
-                raise ValueError(f"Backend {ARGS.backend} not supported!")
-
-    if ARGS.backend == "graph":
-        graph, rt_mod, params = lib.graph_json, lib.lib, lib.params
-
-        run_module_via_rpc(
-            rpc_config=ARGS.rpc_config,
-            lib=rt_mod,
-            dev_type=ARGS.target.kind.name,
-            args=input_data,
-            continuation=f_per_layer(graph),
+    with ms.Profiler() as profiler:
+        tasks, task_weights = auto_scheduler.extract_tasks(
+            mod["main"],
+            params,
+            target=ARGS.target,
+            hardware_params=hardware_params,
         )
+        for idx, (task, task_weight) in enumerate(zip(tasks, task_weights)):
+            print(
+                f"==== Task {idx}: {task.desc} "
+                f"(weight {task_weight} key: {task.workload_key}) ====="
+            )
+            print(task.compute_dag)
+
+        if ARGS.num_trials > 0:
+            tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
+            tuner.tune(
+                auto_scheduler.TuningOptions(
+                    num_measure_trials=ARGS.num_trials,
+                    runner=runner,
+                    measure_callbacks=[
+                        auto_scheduler.RecordToFile(log_file),
+                    ],
+                ),
+                adaptive_training=ARGS.adaptive_training,
+            )
+
+        relay_build = {"graph": relay.build, "vm": relay.vm.compile}[ARGS.backend]
+        with auto_scheduler.ApplyHistoryBest(log_file):
+            with tvm.transform.PassContext(
+                opt_level=3,
+                config={"relay.backend.use_auto_scheduler": True},
+            ):
+                lib = relay_build(
+                    mod,
+                    target=ARGS.target,
+                    params=params,
+                )
+    print("Tuning Time:")
+    print(profiler.table())
 
     run_module_via_rpc(
         rpc_config=ARGS.rpc_config,

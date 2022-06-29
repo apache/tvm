@@ -127,7 +127,7 @@ def f_timer(backend: str) -> Callable:
         The function to benchmark the workload.
     """
 
-    def func(
+    def f_timer_func(
         rt_mod: Union[tvm.runtime.Module, tvm.runtime.vm.Executable],
         dev: tvm.device,
         input_data: Dict[str, NDArray],
@@ -163,11 +163,12 @@ def f_timer(backend: str) -> Callable:
 
         print("Running time in time_evaluator: ", results)
         print("-------------------------------")
-        print(f"Min    : {min(results)}")
-        print(f"Max    : {max(results)}")
-        print(f"Median : {median(results)}")
+        print(f"    Min (ms) : {min(results)}")
+        print(f"    Max (ms) : {max(results)}")
+        print(f" Median (ms) : {median(results)}")
+        print(f"Average (ms) : {sum(results) / len(results)}")
 
-    return func
+    return f_timer_func
 
 
 def f_per_layer(graph: str) -> Callable:
@@ -185,7 +186,7 @@ def f_per_layer(graph: str) -> Callable:
         The function using the json format graph.
     """
 
-    def func(
+    def f_per_layer_func(
         rt_mod: tvm.runtime.Module,
         dev: tvm.device,
         input_data: Dict[str, NDArray],
@@ -221,4 +222,4 @@ def f_per_layer(graph: str) -> Callable:
         for k, v in zip(graph_nodes, graph_time):
             print(k, float(v) * 1e6, "us")
 
-    return func
+    return f_per_layer_func

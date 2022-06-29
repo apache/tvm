@@ -24,11 +24,10 @@ from typing import Any, Callable, Dict, List, NamedTuple, Optional, Union
 
 from tvm.ir import IRModule
 from tvm.ir.transform import PassContext
-from tvm.runtime import Module, NDArray
+from tvm.runtime import Module, NDArray, vm
 from tvm.target import Target
 from tvm.te import Tensor, create_prim_func
 from tvm.tir import PrimFunc, Schedule
-from tvm import relay
 
 from . import default_config
 from .apply_history_best import ApplyHistoryBest
@@ -529,8 +528,8 @@ def tune_relay(
     postprocs: Optional[FnPostproc] = None,
     mutator_probs: Optional[FnMutatorProb] = None,
     num_threads: Optional[int] = None,
-    backend: Optional[str] = "graph",
-) -> Module:
+    backend: str = "graph",
+) -> Union[Module, vm.Executable]:
     """Tune a TIR IRModule with a given target.
 
     Parameters
@@ -555,15 +554,16 @@ def tune_relay(
         The database to use.
     measure_callbacks : Optional[List[MeasureCallback]]
         The callbacks used during tuning.
+    backend : str = "graph"
+        The backend to use for relay compilation(graph / vm).
 
     Returns
     -------
-    lib : Module
-        The built runtime module for the given relay workload.
+    lib : Module or runtime.vm.Executable
+        The built runtime module or vm Executable for the given relay workload.
     """
     # pylint: disable=import-outside-toplevel
-    from tvm.relay import build as relay_build
-
+    from tvm import relay
     from .relay_integration import extract_task_from_relay
 
     # pylint: disable=protected-access, enable=import-outside-toplevel
@@ -587,14 +587,11 @@ def tune_relay(
         mutator_probs=mutator_probs,
         num_threads=num_threads,
     )
+    relay_build = {"graph": relay.build, "vm": relay.vm.compile}[backend]
     with Profiler.timeit("ApplyHistoryBest"):
         with target, autotvm_silencer(), ApplyHistoryBest(database):
             with PassContext(
                 opt_level=3,
                 config={"relay.backend.use_meta_schedule": True},
             ):
-                if backend == "graph":
-                    return relay_build(mod, target=target, params=params)
-                if backend == "vm":
-                    return relay.vm.compile(mod, target=target, params=params)
-                raise ValueError(f"Backend {backend} not supported in ApplyHistoryBest!")
+                return relay_build(mod, target=target, params=params)
