@@ -24,7 +24,7 @@ import tvm
 from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.meta_schedule.testing.relay_workload import get_network
-from tvm.meta_schedule.testing.utils import generate_input_data, create_timer
+from tvm.meta_schedule.testing.tune_utils import generate_input_data, create_timer
 from tvm.support import describe
 
 

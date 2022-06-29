@@ -26,7 +26,7 @@ from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.relay.frontend import from_onnx
 from tvm.support import describe
-from .utils import generate_input_data, create_timer
+from .tune_utils import generate_input_data, create_timer
 
 
 def _parse_args():
