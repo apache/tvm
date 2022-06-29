@@ -701,6 +701,21 @@ class PyTorchOpConverter:
 
         return out
 
+    def new_ones(self, inputs, input_types):
+        size = inputs[1]
+
+        import torch
+
+        if not isinstance(size, (_expr.Expr, list, tuple, torch.Size, np.ndarray)):
+            msg = "Data type %s could not be parsed in ones op" % (type(size))
+            raise AssertionError(msg)
+
+        if inputs[2] is not None:
+            dtype = _convert_dtype_value(inputs[2])
+        else:
+            dtype = input_types[0]
+        return self.full_impl(size, 1, dtype)
+
     def zeros(self, inputs, input_types):
         data = inputs[0]
 
@@ -764,6 +779,28 @@ class PyTorchOpConverter:
             out = _op.cast(out, dtype)
 
         return out
+
+    def new_full(self, inputs, input_types):
+        data = inputs[1]
+        fill_value = inputs[2]
+        import torch
+
+        if not isinstance(data, (_expr.Expr, list, tuple, torch.Size)):
+            msg = "Data type %s could not be parsed in full op" % (type(data))
+            raise AssertionError(msg)
+
+        if inputs[3] is not None:  # dtype given
+            dtype = _convert_dtype_value(inputs[3])
+        else:
+            # if dtype is None, use the dtype of the input tensor
+            dtype = self.infer_type(input[0])
+
+        return self.full_impl(data, fill_value, dtype)
+
+    def fill_(self, inputs, input_types):
+        data = inputs[0]
+        fill_value = inputs[1]
+        return self.full_impl(self.infer_shape(data), fill_value, input_types[0])
 
     def linspace(self, inputs, input_types):
         start = inputs[0]
@@ -1423,6 +1460,11 @@ class PyTorchOpConverter:
             new_shape = _op.concatenate(new_shape, axis=0)
         else:
             new_shape = tmp_shape
+        return _op.transform.reshape(data, new_shape)
+
+    def reshape_as(self, inputs, input_types):
+        data = inputs[0]
+        new_shape = self.infer_shape(inputs[1])
         return _op.transform.reshape(data, new_shape)
 
     def pixel_shuffle(self, inputs, input_types):
@@ -2400,6 +2442,14 @@ class PyTorchOpConverter:
         shape = inputs[0]
         return _op.zeros(shape, _convert_dtype_value(inputs[1]))
 
+    def empty_like(self, inputs, input_types):
+        shape = self.infer_shape(inputs[0])
+        if inputs[1] is not None:
+            dtype = _convert_dtype_value(inputs[1])
+        else:
+            dtype = input_types[0]
+        return _op.zeros(shape, dtype)
+
     def bincount(self, inputs, input_types):
         data = inputs[0]
         weights = inputs[1]
@@ -3119,8 +3169,11 @@ class PyTorchOpConverter:
             "aten::ones_like": self.ones_like,
             "aten::zeros": self.zeros,
             "aten::zeros_like": self.zeros_like,
+            "aten::new_ones": self.new_ones,
             "aten::full": self.full,
             "aten::full_like": self.full_like,
+            "aten::new_full": self.new_full,
+            "aten::fill_": self.fill_,
             "aten::linspace": self.linspace,
             "aten::reciprocal": self.reciprocal,
             "aten::repeat": self.repeat,
@@ -3186,6 +3239,7 @@ class PyTorchOpConverter:
             "aten::size": self.size,
             "aten::view": self.view,
             "aten::reshape": self.reshape,
+            "aten::reshape_as": self.reshape_as,
             "aten::clone": self.clone,
             "aten::log_softmax": self.log_softmax,
             "aten::sigmoid": self.sigmoid,
@@ -3305,6 +3359,7 @@ class PyTorchOpConverter:
             "aten::tensor": self.identity,  # used for example in tensor(1.0)
             "aten::numel": self.numel,
             "aten::empty": self.empty,
+            "aten::empty_like": self.empty_like,
             "aten::bincount": self.bincount,
             "aten::scatter_add": self.scatter_add,
             "aten::__not__": self.logical_not,
