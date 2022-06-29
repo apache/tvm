@@ -890,7 +890,7 @@ class PyTorchOpConverter:
                 _op.nn.log_softmax(input), target, weights, reduction, ignore_index
             )
         assert reduction == 1, "reduction not supported in cross_entropy_loss"
-        assert ignore_index == -100, "reduce not supported in cross_entropy_loss"
+        assert ignore_index == -100, "ignore_index not supported in cross_entropy_loss"
         assert label_smoothing == 0.0, "label_smoothing not supported in cross_entropy_loss"
         assert weights is None, "weight not supported in cross_entropy_loss"
         return _op.nn.cross_entropy_with_logits(_op.nn.log_softmax(input), target)
