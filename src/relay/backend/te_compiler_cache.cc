@@ -182,41 +182,17 @@ class PatternMatcher {
   // returns whether given Op is last in the pattern sequence.
   bool IsLeafOp(const Op& op) { return op == qnn_requantize_op_; }
 
-  LoweredOutput LowerOps(const CallNode* a_op, const CallNode* leaf_op,
-                         const Array<te::Tensor>& inputs, tvm::Target target) {
-    static auto flower_call = tvm::runtime::Registry::Get("relay.backend.lower_call");
-    ICHECK(flower_call) << "relay.backend.lower_call is not registered.";
-    ICHECK(a_op == anchor_op_);
-
-    // TODO(ibsidorenko):
-    // now this code changes output data type of anchor op on output data type of
-    // requantize op. After lowering it restore previous output data type.
-    // It will be better to pass new data type directly to lowering function.
-    if (auto* pattr = const_cast<Conv2DAttrs*>(a_op->attrs.as<Conv2DAttrs>())) {
-      const auto* requantize_attrs = leaf_op->attrs.as<qnn::RequantizeAttrs>();
-
-      DataType init_dtype = pattr->out_dtype;
-      pattr->out_dtype = requantize_attrs->out_dtype;
-
-      LoweredOutput lowered_out = (*flower_call)(GetRef<Call>(a_op), inputs, target);
-
-      pattr->out_dtype = init_dtype;
-
-      return lowered_out;
-    } else if (auto* pattr = const_cast<DenseAttrs*>(a_op->attrs.as<DenseAttrs>())) {
-      const auto* requantize_attrs = leaf_op->attrs.as<qnn::RequantizeAttrs>();
-
-      DataType init_dtype = pattr->out_dtype;
-      pattr->out_dtype = requantize_attrs->out_dtype;
-
-      LoweredOutput lowered_out = (*flower_call)(GetRef<Call>(a_op), inputs, target);
-
-      pattr->out_dtype = init_dtype;
-
-      return lowered_out;
+  // Copy requantization attributes from one node to another.
+  void CopyAttrs(const CallNode* from, const CallNode* to) {
+    const auto* requantize_attrs = from->attrs.as<qnn::RequantizeAttrs>();
+    if (auto* pattr = const_cast<qnn::QConv2DAttrs*>(to->attrs.as<qnn::QConv2DAttrs>())) {
+      pattr->axis = requantize_attrs->axis;
+      pattr->rq_out_dtype = requantize_attrs->out_dtype;
+    } else if (auto* pattr = const_cast<qnn::QDenseAttrs*>(to->attrs.as<qnn::QDenseAttrs>())) {
+      pattr->axis = requantize_attrs->axis;
+      pattr->rq_out_dtype = requantize_attrs->out_dtype;
     } else {
-      LOG(FATAL) << "Unsupported op: " << PrettyPrint(a_op->op);
-      return LoweredOutput({}, OpImplementation());
+      LOG(FATAL) << "Unsupported op: " << PrettyPrint(to->op);
     }
   }
 
@@ -356,8 +332,8 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
       if (pattern_matcher_.IsLeafOp(op)) {
         // Lower anchor op when pattern leaf op was reached
         auto anchor_op = pattern_matcher_.GetAnchorOp();
-        LoweredOutput lowered_out =
-            pattern_matcher_.LowerOps(anchor_op, call_node, inputs, target_);
+        pattern_matcher_.CopyAttrs(call_node, anchor_op);
+        LoweredOutput lowered_out = (*flower_call)(GetRef<Call>(anchor_op), inputs, target_);
         outputs = lowered_out->outputs;
         Op a_op = Downcast<Op>(anchor_op->op);
         op_implementations_[a_op.operator->()] = lowered_out->implementation;

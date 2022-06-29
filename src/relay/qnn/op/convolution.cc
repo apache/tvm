@@ -38,6 +38,8 @@ namespace tvm {
 namespace relay {
 namespace qnn {
 
+TVM_REGISTER_NODE_TYPE(QConv2DAttrs);
+
 // relay.op.qnn.conv2d
 
 bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
@@ -48,8 +50,8 @@ bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* weight = types[1].as<TensorTypeNode>();
   if (data == nullptr || weight == nullptr) return false;
-  const auto* param = attrs.as<Conv2DAttrs>();
-  ICHECK(param != nullptr) << "Conv2DAttrs cannot be nullptr.";
+  const auto* param = attrs.as<QConv2DAttrs>();
+  ICHECK(param != nullptr) << "QConv2DAttrs cannot be nullptr.";
   ICHECK(data->dtype == DataType::Int(8) || data->dtype == DataType::UInt(8) ||
          data->dtype == DataType::Int(16))
       << "Expected qnn conv2d type(int8, uint8, int16) for input but was " << data->dtype;
@@ -83,10 +85,24 @@ bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                reporter);  // weight_scale
   }
 
+  // Create Conv2DAttrs from QConv2DAttrs
+  auto conv2d_attrs = make_object<Conv2DAttrs>();
+  conv2d_attrs->strides = param->strides;
+  conv2d_attrs->padding = param->padding;
+  conv2d_attrs->dilation = param->dilation;
+  conv2d_attrs->groups = param->groups;
+  conv2d_attrs->channels = param->channels;
+  conv2d_attrs->kernel_size = param->kernel_size;
+  conv2d_attrs->data_layout = param->data_layout;
+  conv2d_attrs->kernel_layout = param->kernel_layout;
+  conv2d_attrs->out_layout = param->out_layout;
+  conv2d_attrs->out_dtype = param->out_dtype;
+  conv2d_attrs->auto_scheduler_rewritten_layout = param->auto_scheduler_rewritten_layout;
+
   // Collect the input tensor and output tensor devoid of scale and zero points to reuse Relay
   // Conv2D infer type function.
   Array<Type> tensor_types = {types[0], types[1], types[6]};
-  return Conv2DRel(tensor_types, 3, attrs, reporter);
+  return Conv2DRel(tensor_types, 3, Attrs(conv2d_attrs), reporter);
 }
 
 InferCorrectLayoutOutput QnnConvInferCorrectLayout(const Attrs& attrs,
@@ -95,7 +111,7 @@ InferCorrectLayoutOutput QnnConvInferCorrectLayout(const Attrs& attrs,
                                                    const Array<tvm::relay::Type>& old_in_types) {
   // Use Relay Conv2D Infer correct layout.
   auto conv_new_layouts =
-      ConvInferCorrectLayout<Conv2DAttrs>(attrs, new_in_layouts, old_in_layouts, old_in_types);
+      ConvInferCorrectLayout<QConv2DAttrs>(attrs, new_in_layouts, old_in_layouts, old_in_types);
 
   // Fill the layouts of remaining input tensors - scales and zero points. The layouts of these
   // tensors can be treated as channel layout.
@@ -110,7 +126,7 @@ InferCorrectLayoutOutput QnnConvInferCorrectLayout(const Attrs& attrs,
   return InferCorrectLayoutOutput(input_layouts, output_layouts, attrs);
 }
 
-bool is_depthwise(const Conv2DAttrs* param) {
+bool is_depthwise(const QConv2DAttrs* param) {
   return param->channels.defined() && tvm::tir::ExprDeepEqual()(param->channels, param->groups) &&
          param->groups != 1;
 }
@@ -124,7 +140,7 @@ using WorkloadType = std::tuple<int, int, int, int, int, int>;
  * \param param The qnn conv2d attributes.
  * \return A tuple of workload.
  */
-WorkloadType GetWorkload(const Array<tvm::relay::Type>& arg_types, const Conv2DAttrs* param) {
+WorkloadType GetWorkload(const Array<tvm::relay::Type>& arg_types, const QConv2DAttrs* param) {
   // Get conv parameters.
   const auto in_shape = get_shape(arg_types[0]);
   int batch_size, in_channels;
@@ -191,7 +207,7 @@ WorkloadType GetWorkload(const Array<tvm::relay::Type>& arg_types, const Conv2DA
  * int32 tensors instead of int8 tensors.
  */
 Expr Conv2DFallBack(const Expr& data, const Expr& weight, const Expr& input_zero_point,
-                    const Expr& kernel_zero_point, const Conv2DAttrs* param) {
+                    const Expr& kernel_zero_point, const QConv2DAttrs* param) {
   // Upcast the parameters to be at least int32 to avoid overflow
   auto upcast_bits = param->out_dtype.bits() < 32 ? 32 : param->out_dtype.bits();
 
@@ -224,7 +240,7 @@ Expr Conv2DFallBack(const Expr& data, const Expr& weight, const Expr& input_zero
  *       cannot be fused with conv in Relay. In case we see performance
  *       degradation, we can change the conv2D API to accept a pad_const value.
  */
-Expr Conv2DPadInput(const Expr& data, const Expr& input_zero_point, const Conv2DAttrs* param) {
+Expr Conv2DPadInput(const Expr& data, const Expr& input_zero_point, const QConv2DAttrs* param) {
   // 1) Pad the input data
   auto padded_data = data;
   auto pad_top_value = get_const_int(param->padding[0]);
@@ -270,7 +286,7 @@ Expr Conv2DPadInput(const Expr& data, const Expr& input_zero_point, const Conv2D
  *       followed by repeat on the C axis by cm times.
  */
 Expr DepthwiseConv2DSecondTerm(const Expr& padded_data, const Expr& kernel_zero_point,
-                               const Conv2DAttrs* param, int kernel_h, int kernel_w,
+                               const QConv2DAttrs* param, int kernel_h, int kernel_w,
                                int channel_multiplier) {
   auto casted_t2 = Cast(padded_data, DataType::Int(32));
 
@@ -343,7 +359,7 @@ Expr DepthwiseConv2DSecondTerm(const Expr& padded_data, const Expr& kernel_zero_
  *       (1, oc, 1, 1) as (oc/m, oc%m) are just contiguous memory locations.
  */
 Expr DepthwiseConv2DThirdTerm(const Expr& weight, const Expr& input_zero_point,
-                              const Conv2DAttrs* param, int out_channels, int channel_multiplier) {
+                              const QConv2DAttrs* param, int out_channels, int channel_multiplier) {
   // Find which dimensions are R, S.
   Array<Integer> axes_t3;
   if (param->kernel_layout == "OIHW") {
@@ -422,7 +438,7 @@ Expr DepthwiseConv2DFourthTerm(const Expr& input_zero_point, const Expr& kernel_
  *       Sigma(c,r,s) QW(k, c, r, s) * QA(n, c, h + r, w + s)
  *       This is just conv2d on int tensors.
  */
-Expr Conv2DFirstTerm(const Expr& padded_data, const Expr& weight, const Conv2DAttrs* param) {
+Expr Conv2DFirstTerm(const Expr& padded_data, const Expr& weight, const QConv2DAttrs* param) {
   // Lowering for Term 1
   Array<IndexExpr> padding({0, 0, 0, 0});
   return Conv2D(padded_data, weight, param->strides, padding, param->dilation, param->groups,
@@ -448,7 +464,7 @@ Expr Conv2DFirstTerm(const Expr& padded_data, const Expr& weight, const Conv2DAt
  *       opportunity to reuse alter_op_layout infrastructure.
  */
 Expr Conv2DSecondTerm(const Expr& padded_data, const Expr& kernel_zero_point,
-                      const Conv2DAttrs* param, int kernel_h, int kernel_w, int out_channels) {
+                      const QConv2DAttrs* param, int kernel_h, int kernel_w, int out_channels) {
   auto casted_t2 = Cast(padded_data, DataType::Int(32));
 
   // We can reduce the H and W axis by using avg_pool2d. However, avg_pool2d averages the sum.
@@ -518,7 +534,7 @@ Expr Conv2DSecondTerm(const Expr& padded_data, const Expr& kernel_zero_point,
  *       a 1D tensor. The tensor is then reshaped to conform to NHWC/NCHW
  *       format.
  */
-Expr Conv2DThirdTerm(const Expr& weight, const Expr& input_zero_point, const Conv2DAttrs* param,
+Expr Conv2DThirdTerm(const Expr& weight, const Expr& input_zero_point, const QConv2DAttrs* param,
                      int out_channels) {
   // Find which dimensions are C, R, S.
   Array<Integer> axes_t3;
@@ -569,7 +585,7 @@ Expr Conv2DThirdTerm(const Expr& weight, const Expr& input_zero_point, const Con
  *
  */
 Expr Conv2DFourthTerm(int input_zero_point_int, int kernel_zero_point_int, int in_channels,
-                      int kernel_h, int kernel_w, const Conv2DAttrs* param) {
+                      int kernel_h, int kernel_w, const QConv2DAttrs* param) {
   auto upcast_bits = param->out_dtype.bits() < 32 ? 32 : param->out_dtype.bits();
   int scalar_term4 =
       input_zero_point_int * kernel_zero_point_int * in_channels * kernel_h * kernel_w;
@@ -592,7 +608,7 @@ Expr Conv2DFourthTerm(int input_zero_point_int, int kernel_zero_point_int, int i
  *
  */
 Expr Conv2DFourthTerm(const Expr& input_zero_point, const Expr& kernel_zero_point, int in_channels,
-                      int kernel_h, int kernel_w, const Conv2DAttrs* param) {
+                      int kernel_h, int kernel_w, const QConv2DAttrs* param) {
   auto upcast_bits = param->out_dtype.bits() < 32 ? 32 : param->out_dtype.bits();
   Expr scalar_term4 =
       MakeConstantScalar(DataType::Int(upcast_bits), in_channels * kernel_h * kernel_w);
@@ -712,7 +728,7 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   Expr weight = new_args[1];
   Expr input_zero_point = new_args[2];
   Expr kernel_zero_point = new_args[3];
-  const auto* param = attrs.as<Conv2DAttrs>();
+  const auto* param = attrs.as<QConv2DAttrs>();
   ICHECK(param != nullptr);
   // Assertion checks for existing support.
   ICHECK(param->data_layout == "NCHW" || param->data_layout == "NHWC")
@@ -817,7 +833,7 @@ Expr MakeQnnConv2D(Expr data, Expr weight, Expr input_zero_point, Expr kernel_ze
                    Array<IndexExpr> padding, Array<IndexExpr> dilation, int groups,
                    IndexExpr channels, Array<IndexExpr> kernel_size, String data_layout,
                    String kernel_layout, String out_layout, DataType out_dtype) {
-  auto attrs = make_object<Conv2DAttrs>();
+  auto attrs = make_object<QConv2DAttrs>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
   attrs->dilation = std::move(dilation);
@@ -828,6 +844,11 @@ Expr MakeQnnConv2D(Expr data, Expr weight, Expr input_zero_point, Expr kernel_ze
   attrs->kernel_layout = std::move(kernel_layout);
   attrs->out_layout = std::move(out_layout);
   attrs->out_dtype = std::move(out_dtype);
+
+  // Optional extra attributes for requantization.
+  attrs->axis = -1;
+  attrs->rq_out_dtype = attrs->out_dtype;
+
   static const Op& op = Op::Get("qnn.conv2d");
   return Call(op, {data, weight, input_zero_point, kernel_zero_point, input_scale, kernel_scale},
               Attrs(attrs), {});
@@ -846,7 +867,7 @@ operator to understand how to scale back the int32 output to (u)int8 or (u)int16
 - **out**:  This depends on the `layout` parameter. Output is 4D array of shape
             (batch_size, channels, out_height, out_width) if `layout` is `NCHW`.
 )code" TVM_ADD_FILELINE)
-    .set_attrs_type<Conv2DAttrs>()
+    .set_attrs_type<QConv2DAttrs>()
     .set_num_inputs(6)
     .add_argument("data", "Tensor", "The quantized input data tensor.")
     .add_argument("weight", "Tensor", "The quantized weight tensor.")

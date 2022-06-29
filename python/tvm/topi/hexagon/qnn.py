@@ -18,27 +18,37 @@
 # pylint: disable=invalid-name
 
 import tvm
-from tvm import te
+from tvm import te, topi
 from ..generic.default import default_schedule as _default_schedule
 from ..utils import get_const_tuple
 from ..nn.utils import get_pad_tuple
 from ..nn.pad import pad
 
 
-def qnn_quantize(data, output_scale, output_zero_point, out_dtype):
+def qnn_quantize(data, output_scale, output_zero_point, axis, out_dtype):
     """Compute for qnn.quantize
     Q_output = clamp((round(input_tensor/output_scale) + output_zero_point),
                      out_dtype::min,
                      out_dtype::max)
-    TODO: Support 'axis' argument.
     """
+
+    assert len(output_scale.shape) == 0 or len(output_scale.shape) == 1
+    assert len(output_zero_point.shape) == 0 or len(output_zero_point.shape) == 1
 
     def _compute(*indices):
         value = data(*indices)
+
+        # Account scalar and 1D quantization parameters:
+        scale_idx = tvm.tir.indexmod(indices[axis], topi.shape(output_scale)[0])
+        scale = output_scale if len(output_scale.shape) == 0 else output_scale[scale_idx]
+
+        zp_idx = tvm.tir.indexmod(indices[axis], topi.shape(output_zero_point)[0])
+        zp = output_zero_point if len(output_zero_point.shape) == 0 else output_zero_point[zp_idx]
+
         const_min = tvm.tir.min_value(out_dtype)
         const_max = tvm.tir.max_value(out_dtype)
-        val = te.add(te.round(te.div(value, output_scale)), output_zero_point)
-        return te.max(tvm.te.min(val, const_max), const_min).astype(out_dtype)
+        val = te.add(te.round(te.div(value, scale)), zp)
+        return te.max(te.min(val, const_max), const_min).astype(out_dtype)
 
     return te.compute(data.shape, _compute)
 
@@ -90,18 +100,26 @@ def schedule_qnn_dequantize(outs):
     return _default_schedule(outs, False)
 
 
-def qnn_requantize(data, input_scale, input_zero_point, output_scale, output_zero_point, out_dtype):
+def qnn_requantize(data, input_scale, input_zp, output_scale, output_zp, axis, out_dtype):
     """Compute for qnn.requantize
     Q_output = zp_output + round((scale_input)/(scale_output) * (Q_input - zp_input))
 
-    TODO: support 'axis', 'rounding' and 'compute_dtype' arguments.
+    TODO: support 'rounding' and 'compute_dtype' arguments.
     """
 
     def _compute(*indices):
         value = data(*indices)
-        sub = te.subtract(value, input_zero_point)
-        mul = te.div(input_scale, output_scale)
-        val = te.add(te.round(te.multiply(mul, sub)), output_zero_point)
+
+        # Account scalar and 1D quantization parameters:
+        iscale_idx = tvm.tir.indexmod(indices[axis], topi.shape(input_scale)[0])
+        iscale = input_scale if len(input_scale.shape) == 0 else input_scale[iscale_idx]
+
+        oscale_idx = tvm.tir.indexmod(indices[axis], topi.shape(output_scale)[0])
+        oscale = output_scale if len(output_scale.shape) == 0 else output_scale[oscale_idx]
+
+        sub = te.subtract(value, input_zp)
+        mul = te.div(iscale, oscale)
+        val = te.add(te.round(te.multiply(mul, sub)), output_zp)
 
         # clip + cast:
         const_min = tvm.tir.min_value(out_dtype)
@@ -187,6 +205,7 @@ def qnn_conv2d(  # Conv2d inputs
     rq_input_zero_point,
     rq_output_scale,
     rq_output_zero_point,
+    axis,
     # Conv2d attributes:
     strides,
     padding,
@@ -244,21 +263,18 @@ def qnn_conv2d(  # Conv2d inputs
         assert bias.shape[2] == 1 and bias.shape[3] == 1
         out = te.compute(out.shape, lambda n, c, h, w: out[n, c, h, w] + bias[n, c, 1, 1])
 
-    def _rq_compute(*indices):
-        value = out(*indices)
-        sub = te.subtract(value, rq_input_zero_point)
-        mul = te.div(rq_input_scale, rq_output_scale)
-        val = te.add(te.round(te.multiply(mul, sub)), rq_output_zero_point)
-
-        # clip + cast:
-        const_min = tvm.tir.min_value(odtype)
-        const_max = tvm.tir.max_value(odtype)
-        return te.max(tvm.te.min(val, const_max), const_min).astype(odtype)
-
     # Requantize output of convolution
     # Q_output = zp_output + round((scale_input)/(scale_output) * (Q_input - zp_input))
     if rq_input_scale is not None and rq_output_scale is not None:
-        return te.compute(out.shape, _rq_compute)
+        return qnn_requantize(
+            out,
+            rq_input_scale,
+            rq_input_zero_point,
+            rq_output_scale,
+            rq_output_zero_point,
+            axis,
+            odtype,
+        )
 
     return out
 
@@ -295,6 +311,7 @@ def qnn_dense(
     rq_input_zero_point,
     rq_output_scale,
     rq_output_zero_point,
+    axis,
     out_dtype,
 ):
     """Compute for qnn.dense"""
@@ -315,21 +332,18 @@ def qnn_dense(
     if bias is not None:
         out = te.compute(out.shape, lambda n, c: out[n, c] + bias[c])
 
-    def _rq_compute(*indices):
-        value = out(*indices)
-        sub = te.subtract(value, rq_input_zero_point)
-        mul = te.div(rq_input_scale, rq_output_scale)
-        val = te.add(te.round(te.multiply(mul, sub)), rq_output_zero_point)
-
-        # clip + cast:
-        const_min = tvm.tir.min_value(out_dtype)
-        const_max = tvm.tir.max_value(out_dtype)
-        return te.max(tvm.te.min(val, const_max), const_min).astype(out_dtype)
-
     # Requantize output of dense
     # Q_output = zp_output + round((scale_input)/(scale_output) * (Q_input - zp_input))
     if rq_input_scale is not None and rq_output_scale is not None:
-        return te.compute(out.shape, _rq_compute)
+        return qnn_requantize(
+            out,
+            rq_input_scale,
+            rq_input_zero_point,
+            rq_output_scale,
+            rq_output_zero_point,
+            axis,
+            out_dtype,
+        )
 
     return out
 
