@@ -41,7 +41,7 @@ class MyAiHwBackend(UMABackend):
         #######################################################################
         # Relay to TIR function registration
         #######################################################################
-        #self._register_tir_pass(PassPhase.TIR_PHASE_0, my_ai_hw_conv2d_pass())
+        self._register_tir_pass(PassPhase.TIR_PHASE_0, my_ai_hw_conv2d_pass())
 
 
         #######################################################################

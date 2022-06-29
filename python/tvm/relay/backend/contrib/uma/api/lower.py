@@ -57,9 +57,33 @@ class UMALower:
             The lowered schedulable TensorIR primitive function.
 
         """
+        def _get_tensors(te_cached_func):
+            outputs = list(te_cached_func.outputs)
+            stack = []
+            visited = set()
+            for o in outputs:
+                if o not in visited:
+                    visited.add(o)
+                    stack.append(o)
+
+            args = []
+            while len(stack) != 0:
+                tensor = stack.pop()
+                if isinstance(tensor.op, tvm.te.tensor.PlaceholderOp):
+                    args.append(tensor)
+                elif isinstance(tensor.op, tvm.te.tensor.ComputeOp):
+                    inputs = tensor.op.input_tensors
+                    for i0 in inputs:
+                        if i0 not in visited:
+                            visited.add(i0)
+                            stack.append(i0)
+
+            return args + outputs
+
         f = tvm._ffi.get_global_func("relay.backend.LowerToTE")
         te_cached_func = f(relay_prim_func)
-        tir_prim_func = te.create_prim_func_from_outputs(te_cached_func.outputs)
+        x = _get_tensors(te_cached_func)
+        tir_prim_func = te.create_prim_func(x)
         tir_prim_func = tir_prim_func.with_attr(
             "global_symbol", relay_prim_func.attrs["global_symbol"]
         )
