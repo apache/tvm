@@ -706,7 +706,7 @@ class PyTorchOpConverter:
 
         import torch
 
-        if not isinstance(size, (_expr.Expr, list, torch.Tensor, np.ndarray)):
+        if not isinstance(size, (_expr.Expr, list, tuple, torch.Size, np.ndarray)):
             msg = "Data type %s could not be parsed in ones op" % (type(size))
             raise AssertionError(msg)
 
@@ -781,20 +781,19 @@ class PyTorchOpConverter:
         return out
 
     def new_full(self, inputs, input_types):
-        data = inputs[0]
-        fill_value = inputs[1]
-
+        data = inputs[1]
+        fill_value = inputs[2]
         import torch
 
-        if not isinstance(fill_value, (_expr.Expr, list, torch.Tensor, np.ndarray)):
+        if not isinstance(data, (_expr.Expr, list, tuple, torch.Size)):
             msg = "Data type %s could not be parsed in full op" % (type(data))
             raise AssertionError(msg)
 
-        if inputs[2] is not None:  # dtype given
-            dtype = _convert_dtype_value(inputs[2])
+        if inputs[3] is not None:  # dtype given
+            dtype = _convert_dtype_value(inputs[3])
         else:
             # if dtype is None, use the dtype of the input tensor
-            dtype = self.infer_type(data)
+            dtype = self.infer_type(input[0])
 
         return self.full_impl(data, fill_value, dtype)
 
@@ -2381,7 +2380,11 @@ class PyTorchOpConverter:
 
     def empty_like(self, inputs, input_types):
         shape = self.infer_shape(inputs[0])
-        return _op.zeros(shape, _convert_dtype_value(inputs[1]))
+        if inputs[1] is not None:
+            dtype = _convert_dtype_value(inputs[1])
+        else:
+            dtype = input_types[0]
+        return _op.zeros(shape, dtype)
 
     def bincount(self, inputs, input_types):
         data = inputs[0]
