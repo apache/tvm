@@ -32,38 +32,30 @@
 namespace tvm {
 namespace tir {
 
-class IRVisitorWithAnalyzer final : public StmtExprVisitor {
+class IRVisitorWithAnalyzer : public StmtExprVisitor {
  public:
   PrimExpr Simplify(const PrimExpr& expr) { return analyzer_.Simplify(expr); }
 
-  void VisitStmt_(const ForNode* op) {
-    analyzer_.Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
-    return StmtExprVisitor::VisitStmt_(op);
-  }
+  using StmtExprVisitor::VisitExpr_;
+  using StmtExprVisitor::VisitStmt_;
 
-  void VisitStmt_(const AttrStmtNode* op) {
-    if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
-      IterVar iv = Downcast<IterVar>(op->node);
-      ICHECK_NE(iv->thread_tag.length(), 0U);
-      analyzer_.Bind(iv->var, Range::FromMinExtent(0, op->value));
-      StmtExprVisitor::VisitStmt_(op);
-    } else {
-      StmtExprVisitor::VisitStmt_(op);
-    }
-  }
-
-  void VisitExpr_(const ReduceNode* op) {
-    // Setup the domain information before simplification.
-    for (const IterVar& iv : op->axis) {
-      analyzer_.Bind(iv->var, iv->dom);
-    }
-    // Recursively call simplification when necessary.
-    StmtExprVisitor::VisitExpr_(op);
-  }
+  void VisitStmt_(const ForNode* op);
+  void VisitStmt_(const BlockNode* op);
+  void VisitStmt_(const LetStmtNode* op);
+  void VisitStmt_(const IfThenElseNode* op);
+  void VisitStmt_(const AttrStmtNode* op);
+  void VisitStmt_(const AssertStmtNode* op);
+  void VisitExpr_(const CallNode* op);
+  void VisitExpr_(const LetNode* op);
+  void VisitExpr_(const SelectNode* op);
+  void VisitExpr_(const ReduceNode* op);
 
  protected:
   /*! \brief internal analyzer field. */
   arith::Analyzer analyzer_;
+
+ private:
+  PrimExpr ExtractRealCondition(PrimExpr condition) const;
 };
 
 }  // namespace tir
