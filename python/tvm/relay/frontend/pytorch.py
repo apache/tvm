@@ -867,6 +867,34 @@ class PyTorchOpConverter:
         data = inputs[0]
         return _op.log(_op.tensor.sigmoid(data))
 
+    def cross_entropy_loss_with_logits(self, inputs, input_types):
+        input = inputs[0]
+        target = inputs[1]
+        weights = inputs[2]
+        reduction = inputs[3]
+        ignore_index = inputs[4]
+        label_smoothing = inputs[5]
+        input_shape = self.infer_shape(input)
+        target_shape = self.infer_shape(target)
+        if input_shape != target_shape:
+            if reduction == 0:
+                reduction = "none"
+            elif reduction == 1:
+                reduction = "mean"
+            else:
+                reduction = "sum"
+            num_class = self.infer_shape(input)[1]
+            if weights is None:
+                weights = _op.full(_expr.const(1), (num_class,), dtype=input_types[0])
+            return _op.nn.nll_loss(
+                _op.nn.log_softmax(input), target, weights, reduction, ignore_index
+            )
+        assert reduction == 1, "reduction not supported in cross_entropy_loss"
+        assert ignore_index == -100, "ignore_index not supported in cross_entropy_loss"
+        assert label_smoothing == 0.0, "label_smoothing not supported in cross_entropy_loss"
+        assert weights is None, "weight not supported in cross_entropy_loss"
+        return _op.nn.cross_entropy_with_logits(_op.nn.log_softmax(input), target)
+
     def hard_sigmoid(self, inputs, input_types):
         def _relu6(x):
             return _op.tensor.clip(x, 0.0, 6.0)
@@ -3119,6 +3147,7 @@ class PyTorchOpConverter:
             "aten::silu": self.silu,
             "aten::glu": self.glu,
             "aten::log_sigmoid": self.log_sigmoid,
+            "aten::cross_entropy_loss": self.cross_entropy_loss_with_logits,
             "aten::adaptive_avg_pool1d": functools.partial(
                 self.adaptive_avg_pool, _op.nn.adaptive_avg_pool1d
             ),

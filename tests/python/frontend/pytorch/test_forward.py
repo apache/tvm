@@ -4083,6 +4083,24 @@ def test_forward_nll_loss():
     verify_model(torch.nn.NLLLoss(reduction="none").eval(), input_data=[predictions, targets])
 
 
+def test_cross_entropy_loss():
+    torch.set_grad_enabled(False)
+    N, C = 10, 3
+    # class indices
+    predictions = torch.rand((N, C)).float()
+    targets = torch.randint(0, 3, (N,))
+    weights = torch.tensor([1, 2, 3]).float()
+    verify_model(torch.nn.CrossEntropyLoss().eval(), input_data=[predictions, targets])
+    verify_model(
+        torch.nn.CrossEntropyLoss(weight=weights).eval(), input_data=[predictions, targets]
+    )
+
+    # class probabilities
+    predictions = torch.randn(N, C).float()
+    targets = torch.randn(N, C)
+    verify_model(torch.nn.CrossEntropyLoss().eval(), input_data=[predictions, targets])
+
+
 @tvm.testing.uses_gpu
 def test_forward_flip():
     torch.set_grad_enabled(False)
