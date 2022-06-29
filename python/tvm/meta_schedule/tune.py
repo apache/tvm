@@ -517,6 +517,7 @@ def tune_relay(
     config: TuneConfig,
     work_dir: str,
     *,
+    backend: str = "graph",
     params: Optional[Dict[str, NDArray]] = None,
     builder: Optional[Builder] = None,
     runner: Optional[Runner] = None,
@@ -528,7 +529,6 @@ def tune_relay(
     postprocs: Optional[FnPostproc] = None,
     mutator_probs: Optional[FnMutatorProb] = None,
     num_threads: Optional[int] = None,
-    backend: str = "graph",
 ) -> Union[Module, vm.Executable]:
     """Tune a TIR IRModule with a given target.
 
@@ -559,7 +559,7 @@ def tune_relay(
 
     Returns
     -------
-    lib : Module or runtime.vm.Executable
+    lib : Union[Module, tvm.runtime.vm.Executable]
         The built runtime module or vm Executable for the given relay workload.
     """
     # pylint: disable=import-outside-toplevel
