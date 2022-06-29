@@ -18,6 +18,7 @@
 from statistics import median
 from typing import Callable, Dict, Optional, Union, List
 import json
+import warnings
 import numpy as np  # type: ignore
 
 import tvm
@@ -83,7 +84,13 @@ def apply_fixed_schedules(
     return database
 
 
-def generate_input_data(input_shape: List[int], input_dtype: str) -> np.ndarray:
+def generate_input_data(
+    input_shape: List[int],
+    input_dtype: str,
+    *,
+    low: Optional[int] = None,
+    high: Optional[int] = None,
+) -> np.ndarray:
     """Generate input date with given shape and data type.
 
     Parameters
@@ -108,7 +115,16 @@ def generate_input_data(input_shape: List[int], input_dtype: str) -> np.ndarray:
             dtype="int32",  # TODO(zxybazh): fix the datatype when int8 / uint8 is supported better
         )
     if input_dtype in ["int32", "int64"]:
-        return np.random.randint(low=0, high=10000, size=input_shape, dtype=input_dtype)
+        if low is None or high is None:
+            warnings.warn(
+                "Model input value range for shape {input_shape} of {input_dtype} is not set!"
+            )
+        return np.random.randint(
+            low=0 if low is None else low,
+            high=10000 if high is None else high,
+            size=input_shape,
+            dtype=input_dtype,
+        )
     raise ValueError("Unsupported input datatype!")
 
 
