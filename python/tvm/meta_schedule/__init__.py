@@ -33,7 +33,11 @@ from . import (
 from .apply_history_best import ApplyHistoryBest
 from .extracted_task import ExtractedTask
 from .profiler import Profiler
-from .relay_integration import extract_task_from_relay, is_meta_schedule_enabled
+from .relay_integration import (
+    extract_task_from_relay,
+    is_meta_schedule_dispatch_enabled,
+    is_meta_schedule_enabled,
+)
 from .search_strategy import MeasureCandidate
 from .tune import TuneConfig, tune_extracted_tasks, tune_relay, tune_te, tune_tir
 from .tune_context import TuneContext
