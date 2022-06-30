@@ -66,6 +66,7 @@ def nc_512c_2d(n, c):
     """Return index map for nc_512c 2d layout"""
     return [n, c // 512, te.AXIS_SEPARATOR, c % 512]
 
+
 def nc_1024c_2d(n, c):
     """Return index map for nc_1024c 2d layout"""
     return [n, c // 1024, te.AXIS_SEPARATOR, c % 1024]
