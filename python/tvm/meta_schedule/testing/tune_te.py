@@ -15,14 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
+from distutils.util import strtobool
 import argparse
 import logging
-from distutils.util import strtobool
 from typing import Optional
 
 import tvm
-from tvm import meta_schedule as ms
 from tvm import tir
+from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.te_workload import create_te_workload
 from tvm.support import describe
 
@@ -80,10 +80,17 @@ def _parse_args():
         default=100,
     )
     args.add_argument(
+        "--adaptive-training",
+        type=lambda x: bool(strtobool(x)),
+        required=False,
+        help="example: True / False",
+        default=True,
+    )
+    args.add_argument(
         "--cpu-flush",
         type=lambda x: bool(strtobool(x)),
+        help="example: True / False",
         required=True,
-        help="example: `True / False",
     )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
@@ -125,13 +132,16 @@ def main():
                 num_trials_per_iter=64,
                 max_trials_per_task=ARGS.num_trials,
                 max_trials_global=ARGS.num_trials,
+                adaptive_training=ARGS.adaptive_training,
             ),
             runner=runner,  # type: ignore
             task_name=ARGS.workload,
             work_dir=ARGS.work_dir,
         )
+
     print("Tuning Time:")
     print(profiler.table())
+
     if sch is None:
         print("No valid schedule found!")
     else:

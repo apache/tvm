@@ -15,10 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Computes and Schedules for Hexagon slice ops. """
+_venv: requirements.txt
+	rm -rf _venv
+	python3 -mvenv _venv
+	_venv/bin/pip3 install -r requirements.txt
 
-from .avg_pool2d import avg_pool2d_compute, avg_pool2d_STIR_schedule
-from .add_subtract_multiply import *
-from .argmax import argmax_compute, argmax_schedule
-from .softmax_slice import *
-from .clip import *
+all: _venv
+	_venv/bin/python3 generate.py
+
+.PHONY: all venv
+.DEFAULT_GOAL=all

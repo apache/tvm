@@ -298,6 +298,8 @@ class XGBModel(PyCostModel):
         The verbose level when doing evaluation.
     average_peak_n : int
         The number to calculate average peak score.
+    adaptive_training : bool
+        Whether use adpative training to reduce tuning time.
     """
 
     # feature extractor
@@ -314,6 +316,9 @@ class XGBModel(PyCostModel):
     data: Dict[str, FeatureGroup]
     data_size: int
     booster: Optional["xgb.Booster"]
+    # adaptive training
+    adaptive_training: bool
+    last_train_size: int
 
     def __init__(
         self,
@@ -328,6 +333,7 @@ class XGBModel(PyCostModel):
         early_stopping_rounds: int = 50,
         verbose_eval: int = 25,
         average_peak_n: int = 32,
+        adaptive_training: bool = True,
     ):
         super().__init__()
         # feature extractor
@@ -347,6 +353,9 @@ class XGBModel(PyCostModel):
         self.data = OrderedDict()
         self.data_size = 0
         self.booster = None
+        # adaptive training
+        self.adaptive_training = adaptive_training
+        self.last_train_size = 0
 
     def load(self, path: str) -> None:
         """Load the cost model from given file location.
@@ -490,6 +499,15 @@ class XGBModel(PyCostModel):
             group.append(new_features, new_mean_costs)
         self.data[new_group_hash] = group
         self.data_size += len(new_features)
+
+        if (
+            self.adaptive_training
+            and self.data_size - self.last_train_size < self.last_train_size / 5
+        ):
+            # Set a training threshold related to `last_train_size` to reduce the training
+            # overhead when there're too many results
+            return
+        self.last_train_size = self.data_size
 
         # Step 5. Re-train the model
         self._train(
