@@ -998,6 +998,41 @@ def sigmoid(x, scale, zero_point, output_scale, output_zero_point):
     )
 
 
+def hardswish(x, scale, zero_point, output_scale, output_zero_point):
+    """Quantized hardswish.
+
+    Parameters
+    ----------
+    x : relay.Expr
+        The quantized input tensor.
+
+    scale: relay.Expr
+        The scale of the quantized expr.
+
+    zero_point: relay.Expr
+       The zero point of quantized expr.
+
+    output_scale: relay.Expr
+        The scale of the output quantized expr.
+
+    output_zero_point: relay.Expr
+       The zero point of output quantized expr.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+
+    """
+    return _make.hardswish(
+        x,
+        scale,
+        zero_point,
+        output_scale,
+        output_zero_point,
+    )
+
+
 def log(x, scale, zero_point, output_scale, output_zero_point):
     """Quantized log.
 

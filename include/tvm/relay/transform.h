@@ -569,6 +569,17 @@ TVM_DLL Pass FlattenAtrousConv();
  */
 TVM_DLL Pass AnnotateUsedMemory();
 
+/*!
+ * \brief Captures the post-dfs index and dominator post-dfs index of (most) expression nodes in
+ * their span, in the form "index:<post-dfs index>:<dominator post-dfs index>". This is useful for
+ * debugging since a) it helps identify pretty-printed sub-expressions within the overall model
+ * and b) the indexes are heavily used by Collage for its compact representation of sub-graphs.
+ *
+ * Note that Op and Constructor nodes are not changed even though they are assigned an
+ * post-dfs index.
+ */
+TVM_DLL Pass CapturePostDfsIndexInSpans();
+
 }  // namespace transform
 
 /*!

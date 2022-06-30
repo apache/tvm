@@ -539,6 +539,25 @@ PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, i
 
 /*!
  * \brief Wrap a timer function to measure the time cost of a given packed function.
+ *
+ * Approximate implementation:
+ * \code{.py}
+ * f() // warmup
+ * for i in range(repeat)
+ *   f_preproc()
+ *   while True:
+ *     start = time()
+ *     for j in range(number):
+ *       f()
+ *     duration_ms = time() - start
+ *     if duration_ms >= min_repeat_ms:
+ *       break
+ *     else:
+ *        number = (min_repeat_ms / (duration_ms / number) + 1
+ *   if cooldown_interval_ms and i % repeats_to_cooldown == 0:
+ *     sleep(cooldown_interval_ms)
+ * \endcode
+ *
  * \param f The function argument.
  * \param dev The device.
  * \param number The number of times to run this function for taking average.
@@ -554,10 +573,16 @@ PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, i
  *        minimum duration requirement of one `repeat`.
  *        i.e., When the run time of one `repeat` falls below this time,
  *        the `number` parameter will be automatically increased.
- * \param f_preproc The function to be executed before we excetute time evaluator.
+ * \param cooldown_interval_ms The cooldown interval in milliseconds between the number of repeats
+ *        defined by `repeats_to_cooldown`.
+ * \param repeats_to_cooldown The number of repeats before the
+ *        cooldown is activated.
+ * \param f_preproc The function to be executed before we execute time
+ *        evaluator.
  * \return f_timer A timer function.
  */
 PackedFunc WrapTimeEvaluator(PackedFunc f, Device dev, int number, int repeat, int min_repeat_ms,
+                             int cooldown_interval_ms, int repeats_to_cooldown,
                              PackedFunc f_preproc = nullptr);
 
 }  // namespace profiling

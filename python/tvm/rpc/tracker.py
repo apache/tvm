@@ -64,6 +64,15 @@ from . import base
 from .base import RPC_TRACKER_MAGIC, TrackerCode
 
 logger = logging.getLogger("RPCTracker")
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(
+    logging.Formatter(
+        fmt="%(asctime)s.%(msecs)03d %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+    )
+)
+logger.addHandler(console_handler)
+logger.setLevel(logging.INFO)
+logger.propagate = False
 
 
 class Scheduler(object):

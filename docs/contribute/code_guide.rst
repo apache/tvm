@@ -139,6 +139,23 @@ If you want your test to run over a variety of targets, use the :py:func:`tvm.te
 
 will run ``test_mytest`` with ``target="llvm"``, ``target="cuda"``, and few others. This also ensures that your test is run on the correct hardware by the CI. If you only want to test against a couple targets use ``@tvm.testing.parametrize_targets("target_1", "target_2")``. If you want to test on a single target, use the associated decorator from :py:func:`tvm.testing`. For example, CUDA tests use the ``@tvm.testing.requires_cuda`` decorator.
 
+
+Network Resources
+-----------------
+
+In CI, downloading files from the Internet is a big source of flaky test failures (e.g. remote
+server can go down or be slow), so try to avoid using the network at all during tests. In some cases
+this isn't a reasonable proposition (e.g. the docs tutorials which need to download models).
+
+In these cases you can re-host files in S3 for fast access in CI. A committer can upload a file,
+specified by a name, hash, and path in S3, using the `workflow_dispatch` event on `the
+upload_ci_resource.yml GitHub Actions workflow
+<https://github.com/apache/tvm/actions/workflows/upload_ci_resource.yml>`_.  The sha256 must match
+the file or it will not be uploaded. The upload path is user-defined so it can be any path (no
+trailing or leading slashes allowed) but be careful not to collide with existing resources on
+accident.
+
+
 Handle Integer Constant Expression
 ----------------------------------
 We often need to handle constant integer expressions in TVM. Before we do so, the first question we want to ask is that is it really necessary to get a constant integer. If symbolic expression also works and let the logic flow, we should use symbolic expression as much as possible. So the generated code works for shapes that are not known ahead of time.

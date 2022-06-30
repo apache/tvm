@@ -1422,6 +1422,25 @@ def MarkCompilerFunctionsAsExtern(compiler_filter=""):
     return _ffi_api.MarkCompilerFunctionsAsExtern(compiler_filter)
 
 
+def CapturePostDfsIndexInSpans():
+    """Captures the post-dfs index and dominator post-dfs index of (most) expression nodes in
+    their span, in the form "index:<post-dfs index>:<dominator post-dfs index>".
+
+    This is useful for debugging since a) it helps identify pretty-printed sub-expressions within
+    the overall model and b) the indexes are heavily used by Collage for its compact representation
+    of sub-graphs.
+
+    Note that Op and Constructor nodes are not changed even though they are assigned an
+    post-dfs index.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The pass.
+    """
+    return _ffi_api.CapturePostDfsIndexInSpans()
+
+
 def InlineCompilerFunctionsBoundTo(global_vars):
     """Inlines all global functions bound to a global var in global_vars.
 

@@ -97,7 +97,14 @@ def _parse_args():
         "--cpu-flush",
         type=lambda x: bool(strtobool(x)),
         required=True,
-        help="example: `True / False",
+        help="example: True / False",
+    )
+    args.add_argument(
+        "--adaptive-training",
+        type=lambda x: bool(strtobool(x)),
+        required=False,
+        help="example: True / False",
+        default=True,
     )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
@@ -106,7 +113,7 @@ def _parse_args():
         tracker_host=parsed.rpc_host,
         tracker_port=parsed.rpc_port,
         tracker_key=parsed.rpc_key,
-        session_timeout_sec=3600,
+        session_timeout_sec=600,
     )
     return parsed
 
@@ -180,7 +187,8 @@ def main():
             measure_callbacks=[
                 auto_scheduler.RecordToFile(log_file),
             ],
-        )
+        ),
+        adaptive_training=ARGS.adaptive_training,
     )
 
     with auto_scheduler.ApplyHistoryBest(log_file):
@@ -240,7 +248,7 @@ def main():
         graph_time = mod.run_individual(number=10, repeat=1, min_repeat_ms=5000)
         print("|graph_nodes| = ", len(graph_nodes))
         print("|graph_time| = ", len(graph_time))
-        graph_nodes_time = {k: float(v) for k, v in zip(graph_nodes, graph_time)}
+        graph_nodes_time = {k: float(np.mean(v)) for k, v in zip(graph_nodes, graph_time)}
         for k, v in graph_nodes_time.items():
             print(f"{k} : {v:.3f}")
 

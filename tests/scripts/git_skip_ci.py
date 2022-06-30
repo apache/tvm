@@ -17,9 +17,11 @@
 # under the License.
 
 import os
+import logging
 import argparse
 
 from git_utils import git, GitHubRepo, parse_remote
+from cmd_utils import tags_from_title, init_log
 
 
 if __name__ == "__main__":
@@ -31,6 +33,7 @@ if __name__ == "__main__":
         "--pr-title", help="(testing) PR title to use instead of fetching from GitHub"
     )
     args = parser.parse_args()
+    init_log()
 
     branch = git(["rev-parse", "--abbrev-ref", "HEAD"])
     log = git(["log", "--format=%s", "-1"])
@@ -46,12 +49,14 @@ if __name__ == "__main__":
             github = GitHubRepo(token=os.environ["TOKEN"], user=user, repo=repo)
             pr = github.get(f"pulls/{args.pr}")
             title = pr["title"]
-        print("pr title:", title)
-        return title.startswith("[skip ci]")
+        logging.info(f"pr title: {title}")
+        tags = tags_from_title(title)
+        logging.info(f"Found title tags: {tags}")
+        return "skip ci" in tags
 
     if args.pr != "null" and args.pr.strip() != "" and branch != "main" and check_pr_title():
-        print("PR title starts with '[skip ci]', skipping...")
+        logging.info("PR title starts with '[skip ci]', skipping...")
         exit(0)
     else:
-        print(f"Not skipping CI:\nargs.pr: {args.pr}\nbranch: {branch}\ncommit: {log}")
+        logging.info(f"Not skipping CI:\nargs.pr: {args.pr}\nbranch: {branch}\ncommit: {log}")
         exit(1)

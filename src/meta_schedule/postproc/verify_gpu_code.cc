@@ -25,9 +25,11 @@ namespace tir {
 
 class ThreadExtentChecker : private StmtVisitor {
  public:
-  static bool Check(const Stmt& stmt) {
+  static bool Check(const Stmt& stmt, int thread_warp_size) {
     try {
-      ThreadExtentChecker().VisitStmt(stmt);
+      ICHECK(thread_warp_size > 0);
+      ThreadExtentChecker checker(thread_warp_size);
+      checker.VisitStmt(stmt);
       return true;
     } catch (const dmlc::Error& e) {
       return false;
@@ -35,6 +37,8 @@ class ThreadExtentChecker : private StmtVisitor {
   }
 
  private:
+  explicit ThreadExtentChecker(int thread_warp_size) : thread_warp_size_(thread_warp_size) {}
+
   void VisitStmt_(const ForNode* loop) {
     runtime::ThreadScope thread_scope = GetThreadScope(loop);
     if (IsThreadIdx(thread_scope)) {
@@ -64,6 +68,10 @@ class ThreadExtentChecker : private StmtVisitor {
   }
 
   void VisitStmt_(const BlockNode* block) {
+    int old_thread_idx_x = thread_idx_x;
+    if (block->annotations.count(attr::warp_execution)) {
+      thread_idx_x = thread_warp_size_;
+    }
     if (Optional<Integer> low_inclusive =
             GetAnn<Integer>(block, attr::meta_schedule_thread_extent_low_inclusive)) {
       if (Optional<Integer> high_inclusive =
@@ -77,11 +85,13 @@ class ThreadExtentChecker : private StmtVisitor {
       }
     }
     StmtVisitor::VisitStmt_(block);
+    thread_idx_x = old_thread_idx_x;
   }
 
   int64_t thread_idx_x = 1;
   int64_t thread_idx_y = 1;
   int64_t thread_idx_z = 1;
+  int thread_warp_size_ = -1;
 };
 
 }  // namespace tir
@@ -104,6 +114,7 @@ Integer Extract(const Target& target, const char* name) {
 class VerifyGPUCodeNode : public PostprocNode {
  public:
   Map<String, PrimExpr> target_constraints_{nullptr};
+  int thread_warp_size_ = -1;
 
   void InitializeWithTuneContext(const TuneContext& context) final {
     ICHECK(context->target.defined());
@@ -114,6 +125,7 @@ class VerifyGPUCodeNode : public PostprocNode {
         {"max_vthread", Integer(8)},
         {"max_vector_bytes", Integer(16)},
     };
+    thread_warp_size_ = Extract(target, "thread_warp_size");
   }
 
   bool Verify(const IRModule& mod) const {
@@ -133,7 +145,7 @@ class VerifyGPUCodeNode : public PostprocNode {
       const GlobalVar& g_var = kv.first;
       const BaseFunc& base_func = kv.second;
       if (const auto* prim_func = base_func.as<tir::PrimFuncNode>()) {
-        if (!tir::ThreadExtentChecker::Check(prim_func->body)) {
+        if (!tir::ThreadExtentChecker::Check(prim_func->body, thread_warp_size_)) {
           return false;
         }
         IRModule lowered{nullptr};
