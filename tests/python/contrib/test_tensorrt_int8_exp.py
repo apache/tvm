@@ -147,5 +147,4 @@ def test_trt_int8():
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_trt_int8()
+    tvm.testing.main()
