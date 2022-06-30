@@ -1526,6 +1526,12 @@ constexpr const char* meta_schedule_auto_tensorize = "meta_schedule.auto_tensori
 constexpr const char* meta_schedule_layout_rewrite_preproc = "meta_schedule.layout_rewrite_preproc";
 
 /*!
+ * \brief Mark that a block is executed by a warp. This implies the extend of threadIdx.x is
+ * warp size.
+ */
+constexpr const char* warp_execution = "warp_execution";
+
+/*!
  * \brief Check if attr_key is a pragma key extension
  * \param attr_key The attr key to be compared
  * \return true if it is a pragma key
