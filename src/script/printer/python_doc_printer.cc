@@ -26,11 +26,25 @@ namespace printer {
 
 namespace {
 
+/*!
+ * \brief Print a Python literal string
+ *
+ * \param string the string to be printed
+ * \param out the output stream
+ */
 void PrintLiteralString(const String& string, std::ostringstream& out) {
   // TODO: Escape and smart quote (choose ' or " automatically)
   out << "\"" << string << "\"";
 }
 
+/*!
+ * \brief Print a tvm::ir::PrimExpr as Python literal
+ *
+ * This only supports IntImm and FloatImm with size of 64 bits
+ *
+ * \param expr the PrimExpr to be printed
+ * \param out the output stream
+ */
 void PrintLiteralPrimExpr(const PrimExpr& expr, std::ostringstream& out) {
   const DataType& dtype = expr->dtype;
 
@@ -59,17 +73,6 @@ class PythonDocPrinter : public DocPrinter {
   using DocPrinter::PrintDoc;
 
   void PrintTypedDoc(const LiteralDoc& doc) final;
-
- private:
-  template <typename ObjType>
-  std::enable_if_t<std::is_base_of<Doc, ObjType>::value, void> PrintObject(const ObjType& obj) {
-    PrintDoc(obj);
-  }
-
-  template <typename ObjType>
-  std::enable_if_t<!std::is_base_of<Doc, ObjType>::value, void> PrintObject(const ObjType& obj) {
-    output_ << obj;
-  }
 };
 
 void PythonDocPrinter::PrintTypedDoc(const LiteralDoc& doc) {
