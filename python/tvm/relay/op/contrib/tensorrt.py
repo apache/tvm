@@ -26,7 +26,7 @@ from tvm.ir import Op
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.dataflow_pattern import is_op, wildcard, is_constant, is_tuple, is_tuple_get_item
-from tvm.relay.expr import Call, Constant, GlobalVar, TupleGetItem
+from tvm.relay.expr import Call, Constant, TupleGetItem
 from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 from tvm.relay.op.contrib.register import register_pattern_table
 
@@ -222,6 +222,9 @@ CheckFunc = Callable[[Any, List[relay.expr.Expr], str], bool]
 
 
 def make_predicate(checker: CheckFunc) -> Callable[[relay.expr.Expr], bool]:
+    """Returns the pattern predicate which performs the standard checks, then invokes the
+    more primitive checker."""
+
     def predicate(expr: relay.expr.Expr) -> bool:
         op_name = get_op_name(expr)
         attrs = get_attrs(expr)
