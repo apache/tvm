@@ -15,12 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
+from distutils.util import strtobool
 import argparse
 import os
-from distutils.util import strtobool
 
 import tvm
 from tvm import auto_scheduler
+from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.te_workload import CONFIGS
 from tvm.meta_schedule.utils import cpu_count
 from tvm.support import describe
@@ -79,20 +80,26 @@ def _parse_args():
         default=100,
     )
     args.add_argument(
-        "--cpu-flush",
-        type=lambda x: bool(strtobool(x)),
-        required=True,
-        help="example: True / False",
-    )
-    args.add_argument(
         "--adaptive-training",
         type=lambda x: bool(strtobool(x)),
         required=False,
         help="example: True / False",
         default=True,
     )
+    args.add_argument(
+        "--cpu-flush",
+        type=lambda x: bool(strtobool(x)),
+        help="example: True / False",
+        required=True,
+    )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
+    parsed.rpc_config = ms.runner.RPCConfig(
+        tracker_host=parsed.rpc_host,
+        tracker_port=parsed.rpc_port,
+        tracker_key=parsed.rpc_key,
+        session_timeout_sec=60,
+    )
     return parsed
 
 
@@ -100,12 +107,19 @@ ARGS = _parse_args()
 
 
 def main():
-    describe()
-    print(f"Workload: {ARGS.workload}")
     log_file = os.path.join(ARGS.work_dir, f"{ARGS.workload}.json")
-    workload_func, params = CONFIGS[ARGS.workload]
-    params = params[0]  # type: ignore
-    workload_func = auto_scheduler.register_workload(workload_func)
+
+    runner = auto_scheduler.RPCRunner(
+        key=ARGS.rpc_key,
+        host=ARGS.rpc_host,
+        port=ARGS.rpc_port,
+        n_parallel=cpu_count(logical=True),
+        number=ARGS.number,
+        repeat=ARGS.repeat,
+        min_repeat_ms=ARGS.min_repeat_ms,
+        enable_cpu_cache_flush=ARGS.cpu_flush,
+        timeout=ARGS.rpc_config.session_timeout_sec,
+    )
 
     if ARGS.target.kind.name == "llvm":
         hardware_params = auto_scheduler.HardwareParams(
@@ -127,37 +141,42 @@ def main():
         )
     else:
         raise NotImplementedError(f"Unsupported target {ARGS.target}")
-    task = auto_scheduler.SearchTask(
-        func=workload_func,
-        args=params,
-        target=ARGS.target,
-        hardware_params=hardware_params,
-    )
-    runner = auto_scheduler.RPCRunner(
-        key=ARGS.rpc_key,
-        host=ARGS.rpc_host,
-        port=ARGS.rpc_port,
-        n_parallel=cpu_count(logical=True),
-        number=ARGS.number,
-        repeat=ARGS.repeat,
-        min_repeat_ms=ARGS.min_repeat_ms,
-        enable_cpu_cache_flush=ARGS.cpu_flush,
-        # todo(zxybazh): set session timeout to 60 same as MS
-    )
 
-    # Inspect the computational graph
-    print("Computational DAG:")
-    print(task.compute_dag)
-    tune_option = auto_scheduler.TuningOptions(
-        num_measure_trials=ARGS.num_trials,
-        measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
-        verbose=2,
-        runner=runner,
-    )
-    print("Running AutoTuning:")
-    task.tune(tune_option, adaptive_training=ARGS.adaptive_training)
+    describe()
+    print(f"Workload: {ARGS.workload}")
+    with ms.Profiler() as profiler:
+        # Same as MetaSchedule Tune TE
+        # Does not count ApplyHistoryBest time
+
+        workload_func, params = CONFIGS[ARGS.workload]
+        params = params[0]  # type: ignore
+        workload_func = auto_scheduler.register_workload(workload_func)
+
+        task = auto_scheduler.SearchTask(
+            func=workload_func,
+            args=params,
+            target=ARGS.target,
+            hardware_params=hardware_params,
+        )
+        # Inspect the computational graph
+        print("Computational DAG:")
+        print(task.compute_dag)
+        tune_option = auto_scheduler.TuningOptions(
+            num_measure_trials=ARGS.num_trials,
+            measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
+            verbose=2,
+            runner=runner,
+        )
+        if ARGS.num_trials > 0:
+            print("Running AutoTuning:")
+            task.tune(tune_option, adaptive_training=ARGS.adaptive_training)
+
+    print("Tuning Time:")
+    print(profiler.table())
+
     print("History Best:")
     print(task.print_best(log_file))
+
     sch, args = task.apply_best(log_file)
     print("Lowered TIR:")
     print(tvm.lower(sch, args, simple_mode=True))
