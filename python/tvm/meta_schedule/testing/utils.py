@@ -16,13 +16,12 @@
 # under the License.
 """Testing utility functions in meta schedule"""
 from typing import Callable, Dict, Optional, Union
-
-from tvm import meta_schedule as ms
 from tvm.ir import IRModule
 from tvm.relay import Function as RelayFunc
 from tvm.runtime import NDArray
 from tvm.target import Target
 from tvm.tir import Schedule
+from tvm import meta_schedule as ms
 
 
 def apply_fixed_schedules(
