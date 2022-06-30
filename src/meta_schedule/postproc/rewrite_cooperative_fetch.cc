@@ -65,6 +65,23 @@ Optional<BlockRV> ParseAnnotate(const Schedule& sch, const Instruction& inst,
   return Downcast<BlockRV>(inst->inputs[0]);
 }
 
+/*!
+ * \brief Parse instruction: sch.annotate(..., attr::warp_execution)
+ * \param sch The schedule
+ * \param inst The instruction to be parsed
+ * \return Whether ths parsing is successful
+ */
+bool ParseWarpExecutionAnn(const Schedule& sch, const Instruction& inst) {
+  static InstructionKind inst_kind_annotate = InstructionKind::Get("Annotate");
+  if (!inst->kind.same_as(inst_kind_annotate)) {
+    return false;
+  }
+  ICHECK_EQ(inst->inputs.size(), 2);
+  ICHECK_EQ(inst->attrs.size(), 1);
+  String ann_key = Downcast<String>(inst->attrs[0]);
+  return ann_key == attr::warp_execution;
+}
+
 }  // namespace tir
 
 namespace meta_schedule {
@@ -76,7 +93,14 @@ namespace meta_schedule {
 class RewriteCooperativeFetchNode : public PostprocNode {
  public:
   // Inherited from PostprocNode
-  void InitializeWithTuneContext(const TuneContext& context) final {}
+  void InitializeWithTuneContext(const TuneContext& context) final {
+    if (Optional<Integer> v = context->target.value()->GetAttr<Integer>("thread_warp_size")) {
+      this->thread_warp_size_ = v.value()->value;
+    } else {
+      TVM_PY_LOG(INFO, context->logging_func) << "'thread_warp_size' is not defined in the target";
+    }
+  }
+
   // Inherited from PostprocNode
   bool Apply(const tir::Schedule& sch) final;
 
@@ -84,6 +108,9 @@ class RewriteCooperativeFetchNode : public PostprocNode {
 
   static constexpr const char* _type_key = "meta_schedule.RewriteCooperativeFetch";
   TVM_DECLARE_FINAL_OBJECT_INFO(RewriteCooperativeFetchNode, PostprocNode);
+
+ private:
+  int thread_warp_size_ = -1;
 };
 
 bool RewriteCooperativeFetchNode::Apply(const tir::Schedule& sch) {
@@ -99,6 +126,10 @@ bool RewriteCooperativeFetchNode::Apply(const tir::Schedule& sch) {
     }
     if (Optional<Integer> new_thread_extent = tir::ParseThreadBinding(sch, inst, "threadIdx.y")) {
       thread_extent_y = new_thread_extent.value()->value;
+      continue;
+    }
+    if (tir::ParseWarpExecutionAnn(sch, inst)) {
+      thread_extent_x = thread_warp_size_;
       continue;
     }
     Optional<tir::BlockRV> opt_block_rv = tir::ParseAnnotate(sch, inst, &vector_lane);
