@@ -1094,7 +1094,7 @@ struct Feature {
       if (p == 0) {
         result = compute_ops[p] / memory_bytes[p];
       } else {
-        double r = feature.lobase = compute_ops[p - 1] / memory_bytes[p - 1];
+        double base = compute_ops[p - 1] / memory_bytes[p - 1];
         double slope =
             (compute_ops[p] / memory_bytes[p] - compute_ops[p - 1] / memory_bytes[p - 1]) /
             (compute_ops[p] - compute_ops[p - 1]);

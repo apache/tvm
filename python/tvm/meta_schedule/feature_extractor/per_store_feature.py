@@ -26,6 +26,7 @@ from .feature_extractor import FeatureExtractor
 @register_object("meta_schedule.PerStoreFeature")
 class PerStoreFeature(FeatureExtractor):
     """PerStoreFeature extracts one feature vector per BufferStoreNode
+
     Parameters
     ----------
     buffers_per_store : int

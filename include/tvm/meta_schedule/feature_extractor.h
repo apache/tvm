@@ -110,7 +110,7 @@ class FeatureExtractor : public runtime::ObjectRef {
                                                   bool extract_workload = false);
   /*!
    * \brief Create a feature extractor with customized methods on the python-side.
-   * \param f_extract_from The packed function of ExtractFrom`.
+   * \param f_extract_from The packed function of `ExtractFrom`.
    * \param f_as_string The packed function of `AsString`.
    * \return The feature extractor created.
    */
