@@ -479,8 +479,10 @@ TVM_DLL String AsText(const ObjectRef& node, bool show_meta_data = true,
 
 namespace attr {
 
+// Following are attributes for IRModule only.
+
 /*!
- * \brief Executor targetted by the module
+ * \brief Executor targeted by the module
  *
  * Type: Executor
  *
@@ -516,9 +518,31 @@ constexpr const char* kWorkspaceMemoryPools = "workspace_memory_pools";
 constexpr const char* kConstantMemoryPools = "constant_memory_pools";
 
 /*
- * \brief Module attribute for tir constants
+ * \brief All the runtime::NDArrays extracted from PrimFunc tir::AllocateConst nodes. The
+ * node will record the index into this array. See also kConstNameToConstant below, which is
+ * the analog for Realy Functions.
+ *
+ * Type: Array<runtime::NDArray>
  */
-constexpr const char* kConstantsArray = "Constants";
+constexpr const char* kConstants = "constants";
+
+/*!
+ * \brief All the runtime::Modules accumulated during compilation by external codegen. These
+ * modules must be either directly linked or captured in the final compilation artifact.
+ *
+ * Type: Array<runtime::Module>
+ */
+constexpr const char* kExternalMods = "external_mods";
+
+/*!
+ * \brief All the named runtime::NDArrays accumulated during compilation by external codegen.
+ * Generally the associated runtime::Module will indicate it requires bindings for these names,
+ * and during module initialization these bindings will be recovered from a ConstLoaderModule.
+ * See also kConstantsArray above, which is the analog for PrimFuncs.
+ *
+ * Type: Map<String, runtime::NDArray>
+ */
+constexpr const char* kConstNameToConstant = "const_name_to_constant";
 
 }  // namespace attr
 }  // namespace tvm
