@@ -27,6 +27,12 @@ convolution has a large batch. We strongly recommend covering the :ref:`opt-conv
 
 """
 
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
+
 ################################################################
 # TensorCore Introduction
 # -----------------------

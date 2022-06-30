@@ -28,6 +28,12 @@ Here, we demonstrate how to load and run models quantized by PyTorch, MXNet, and
 Once loaded, we can run compiled, quantized models on any hardware TVM supports.
 """
 
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
+
 #################################################################################
 # First, necessary imports
 from PIL import Image

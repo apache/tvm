@@ -41,6 +41,12 @@ The goal of this section is to give you an overview of TVM and TVMC's
 capabilities, and set the stage for understanding how TVM works.
 """
 
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
+
 ################################################################################
 # Using TVMC
 # ----------
