@@ -21,16 +21,7 @@ from tvm.script.printer.doc import LiteralDoc
 
 @pytest.mark.parametrize(
     "value",
-    [
-        None,
-        "test",
-        0,
-        1,
-        -2,
-        0.0,
-        1.5,
-        -1.3
-    ],
+    [None, "test", 0, 1, -2, 0.0, 1.5, -1.3],
 )
 def test_literal_doc_construction(value):
     doc = LiteralDoc(value)
