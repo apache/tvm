@@ -53,7 +53,9 @@ def is_tensorrt_runtime_enabled() -> bool:
 def get_tensorrt_target() -> tvm.target.Target:
     """Returns the current Target, which must be of kind "tensorrt"."""
     target = tvm.target.Target.current()
-    assert target.kind.name == "tensorrt"
+    if target is None or target.kind.name != "tensorrt":
+        # Create the default target.
+        return tvm.target.Target("tensorrt")
     return target
 
 
