@@ -54,7 +54,7 @@ struct VMFunction;
  *  used by the virtual machine.
  *  - Code section, handling the VM functions and bytecode.
  */
-class Executable : public ModuleNode {
+class TVM_DLL Executable : public ModuleNode {
  public:
   /*!
    * \brief Get a PackedFunc from an executable module.
