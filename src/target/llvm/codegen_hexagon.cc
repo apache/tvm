@@ -335,8 +335,8 @@ llvm::Value* CodeGenHexagon::VisitExpr_(const BufferLoadNode* op) {
         return vlut;
       }
     }
-    return CodeGenLLVM::VisitExpr_(op);
   }
+  return CodeGenLLVM::VisitExpr_(op);
 }
 
 llvm::Value* CodeGenHexagon::VectorLookupLoad(Buffer buffer, DataType buffer_type,
