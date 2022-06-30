@@ -95,9 +95,10 @@ class ExistingGlobalSymbolCache : public GlobalSymbolCache {
 };
 
 /*!
- * \brief A pass to outline all literal functions in direct call positions which have a "Compiler"
- * attribute. The given \p GlobalSymbolCache is used to determine a unique global symbol for each
- * function, which is also assigned to the "global_symbol" attribute of the new global function.
+ * \brief A pass to outline all let-bound and literal functions in direct call positions which have
+ * a "Compiler" attribute. The given \p GlobalSymbolCache is used to determine a unique global
+ * symbol for each function, which is also assigned to the "global_symbol" attribute of the new
+ * global function.
  *
  * At most one function with the same global symbol is outlined.
  *
@@ -108,9 +109,9 @@ transform::Pass OutlineCompilerFunctions(std::shared_ptr<GlobalSymbolCache> cach
                                          std::string compiler_filter = "");
 
 /*!
- * \brief A pass to outline all literal functions in direct call positions which have a "Compiler"
- * attribute. The functions are bound to unique global vars according to their existing
- * "global_symbol" attribute. At most one function with the same global symbol is outlined.
+ * \brief A pass to outline all let-bound and literal functions in direct call positions which have
+ * a "Compiler" attribute. The functions are bound to unique global vars according to their
+ * existing "global_symbol" attribute. At most one function with the same global symbol is outlined.
  *
  * If \p compiler_filter is non-empty only functions with that as their attribute value are
  * outlined.

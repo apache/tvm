@@ -1386,7 +1386,7 @@ def OutlineCompilerFunctionsWithExistingGlobalSymbols(compiler_filter=""):
     Parameters
     ----------
     compiler_filter : String
-        If non-empty, the 'compiler' attribute to filter on.
+        If non-empty, the "Compiler" attribute to filter on.
 
     Returns
     -------
@@ -1412,7 +1412,7 @@ def MarkCompilerFunctionsAsExtern(compiler_filter=""):
     Parameters
     ----------
     compiler_filter : String
-        If non-empty, the 'compiler' attribute to filter on.
+        If non-empty, the "Compiler" attribute to filter on.
 
     Returns
     -------

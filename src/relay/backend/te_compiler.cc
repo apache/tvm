@@ -1224,7 +1224,7 @@ IRModule LowerTE(const IRModule& module, const String& module_name, ProcessFn pr
   // annotate the module with the resulting runtime modules.
   // TODO(mbs): runtime modules should be first class rather than attributes.
   Array<runtime::Module> external_mods =
-      module->GetAttr<Array<runtime::Module>>("external_mods", Array<runtime::Module>()).value();
+      module->GetAttr<Array<runtime::Module>>(tvm::attr::kExternalMods).value_or({});
   Array<runtime::Module> new_external_mods = compiler->LowerExternalFunctions();
   VLOG(1) << "capturing " << external_mods.size() << " existing and " << new_external_mods.size()
           << " new external modules";
@@ -1246,7 +1246,7 @@ IRModule LowerTE(const IRModule& module, const String& module_name, ProcessFn pr
     device_contexts.Set(kv.first, kv.second);  // copy-on-write.
   }
 
-  updated_module = WithAttrs(updated_module, {{"external_mods", std::move(external_mods)},
+  updated_module = WithAttrs(updated_module, {{tvm::attr::kExternalMods, std::move(external_mods)},
                                               {"device_contexts", std::move(device_contexts)}});
 
   if (backend::IsAutoSchedulerEnabled()) {

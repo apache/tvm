@@ -1166,11 +1166,27 @@ void VMCompiler::Codegen() {
   for (const auto& kv : per_tvm_target_modules) {
     ICHECK(kv.first->kind->device_type != kDLExtDev);
   }
-  Array<runtime::Module> ext_mods =
-      context_.module->GetAttr<Array<runtime::Module>>("external_mods", Array<runtime::Module>())
-          .value();
-  VLOG(0) << "have " << per_tvm_target_modules.size() << " targets to build and " << ext_mods.size()
-          << " external runtime modules";
+
+  // Retrieve all external runtime modules accumulated by external codegen (both function-at-a-time
+  // and IRModule-at-a-time).
+  Array<runtime::Module> external_mods =
+      context_.module->GetAttr<Array<runtime::Module>>(tvm::attr::kExternalMods).value_or({});
+
+  // Retrieve any constant bindings accumulated by external codegen (by IRModule-at-a-time passes).
+  Map<String, runtime::NDArray> const_name_to_constant =
+      context_.module->GetAttr<Map<String, runtime::NDArray>>(tvm::attr::kConstNameToConstant)
+          .value_or({});
+
+  VLOG(0) << "have " << per_tvm_target_modules.size() << " targets to build, "
+          << external_mods.size() << " external runtime modules, " << const_name_to_constant.size()
+          << " external constants, and " << params_.size() << " local constants";
+
+  // Any constant bindings must be merged into the overall 'params' map we've directly accumulated
+  // via the TECompiler callback.
+  for (const auto& kv : const_name_to_constant) {
+    ICHECK_EQ(params_.count(kv.first), 0);
+    params_.emplace(kv.first, kv.second);
+  }
 
   runtime::Module lib;
   if (per_tvm_target_modules.empty()) {
@@ -1183,7 +1199,7 @@ void VMCompiler::Codegen() {
   }
 
   lib =
-      codegen::CreateMetadataModule(params_, lib, ext_mods, config_->host_target,
+      codegen::CreateMetadataModule(params_, lib, external_mods, config_->host_target,
                                     Runtime::Create("cpp"), Executor::Create("graph"),  // DNS HACK
                                     relay::backend::ExecutorCodegenMetadata());
   exec_->SetLib(lib);
