@@ -198,8 +198,9 @@ class VMExecutor(Executor):
     device : :py:class:`~tvm.runtime.Device`
         The runtime device to run the code on.
 
-    target : :py:class:`Target`
-        The target option to build the function.
+    target : any multi-target like object, see Target.canon_multi_target
+        For homogeneous compilation, the unique build target.
+        For heterogeneous compilation, a dictionary or list of possible build targets.
     """
 
     def __init__(self, mod, device, target):

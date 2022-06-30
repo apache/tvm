@@ -20,21 +20,24 @@
 #include <tvm/relay/transform.h>
 #include <tvm/target/target.h>
 
-namespace tvm {
+#include "./codegen_c.h"
 
+namespace tvm {
 namespace relay {
 namespace contrib {
-namespace example_target_hooks {
-tvm::transform::Pass RelayToTIR();
-runtime::Module TIRToRuntime(IRModule mod, Target target);
-}  // namespace example_target_hooks
+
+/*!
+ * \brief This demonstration external codegen target emits C/C++ for compilation by the native c
+ * compiler on CPU.
+ *  - Patterns: None, functions must be explicitly marked as "Primitive" and "Compiler=ccompiler".
+ *  - Custom compiler: relay/backend/contrib/codegen_c/codegen.cc
+ */
+TVM_REGISTER_TARGET_KIND("ccompiler", kDLCPU)
+    .set_attr<Bool>(tvm::attr::kIsExternalCodegen, Bool(true))
+    .set_attr<FTVMRelayToTIR>(tvm::attr::kRelayToTIR, CCompilerPass())
+    // Value is prepended to every output CModule.
+    .add_attr_option<String>("header", String(""));
+
 }  // namespace contrib
 }  // namespace relay
-
-TVM_REGISTER_TARGET_KIND("example_target_hook", kDLCPU)
-    .set_attr<Bool>("use_device_api", Bool(true))
-    .set_attr<FTVMRelayToTIR>(attr::kRelayToTIR, relay::contrib::example_target_hooks::RelayToTIR())
-    .set_attr<FTVMTIRToRuntime>("TIRToRuntime", relay::contrib::example_target_hooks::TIRToRuntime)
-    .add_attr_option<Integer>("example_attribute", Integer(0));
-
 }  // namespace tvm

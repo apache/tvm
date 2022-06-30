@@ -223,7 +223,11 @@ struct LoweredOutput {
   Map<Target, IRModule> lowered_funcs;
   Array<tvm::runtime::Module> external_mods;
   Map<String, FunctionInfo> function_metadata;
-  std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>> params;
+  /*!
+   * \brief Map from constant names (allocated by the codegen as constants are encountered)
+   * to the constant's value.
+   */
+  std::unordered_map<std::string, tvm::runtime::NDArray> params;
   ExecutorCodegenMetadata metadata;
 };
 
@@ -249,7 +253,7 @@ struct ConstantUpdater : public ExprVisitor {
 
   void VisitExpr_(const ConstantNode* cn) final {
     std::string name = symbol_ + "_const_" + std::to_string(const_idx_++);
-    VLOG(1) << "Binding " << name << " to constant of type " << PrettyPrint(cn->checked_type());
+    VLOG(1) << "binding '" << name << "' to constant of type " << PrettyPrint(cn->checked_type());
     (*params_)[name] = cn->data;
   }
 

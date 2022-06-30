@@ -148,7 +148,7 @@ class TargetHookVisitor : public MixedModeVisitor {
 
 Pass RelayToTIRTargetHook(CompilationConfig config) {
   auto pass_func = [config = std::move(config)](IRModule mod, const PassContext& pass_ctx) {
-    VLOG(1) << "Before:" << std::endl << PrettyPrint(mod);
+    VLOG(1) << "RelayToTIRTargetHook before:" << std::endl << PrettyPrint(mod);
     TargetHookVisitor target_hook_visitor(mod, config);
     std::vector<CustomPass> custom_passes = target_hook_visitor.Visit();
     for (const auto& custom_pass : custom_passes) {
@@ -161,11 +161,14 @@ Pass RelayToTIRTargetHook(CompilationConfig config) {
         mod = custom_pass.pass(mod);
       } else {
         // Invoke the pass.
+        // Note that there may be a non-external codegen target in scope. Each custom pass
+        // must be prepared to handle this, eg by creating a default target instance if the
+        // current target is either null or of a generic kind such as 'cuda' or 'llvm'.
         VLOG(0) << "Invoking custom pass for target kind '" << custom_pass.target_kind_name << "'";
         mod = custom_pass.pass(mod);
       }
     }
-    VLOG(1) << "After:" << std::endl << PrettyPrint(mod);
+    VLOG(1) << "RelayToTIRTargetHook after:" << std::endl << PrettyPrint(mod);
     return mod;
   };
   return tvm::transform::CreateModulePass(pass_func, 0, "RelayToTIRTargetHook", {});
