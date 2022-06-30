@@ -184,18 +184,10 @@ class Hsigmoid(nn.Module):
 class Hswish(nn.Module):
     def __init__(self, add_stub=False):
         super().__init__()
-        self.quant = QuantStub()
-        self.dequant = DeQuantStub()
-        self.add_stub = add_stub
-        self.hswish = nn.Hardswish()
+        self.hswish = QuantWrapper(nn.Hardswish())
 
     def forward(self, x):
-        if self.add_stub:
-            x = self.quant(x)
-        x = self.hswish(x)
-        if self.add_stub:
-            x = self.dequant(x)
-        return x
+        return self.hswish(x)
 
     def fuse_model(self):
         pass
@@ -310,7 +302,7 @@ def test_quantized_modules():
             ("linear_relu" + postfix, (16, 16), Linear(with_relu=True), per_channel),
             ("conv_transpose", imagenet_ishape, ConvTranspose(), False),
             ("hsigmoid", imagenet_ishape, Hsigmoid(add_stub=True), False),
-            ("hswish", imagenet_ishape, Hswish(add_stub=True), False),
+            ("hswish", imagenet_ishape, Hswish(), False),
             ("semodule", (1, 16, 64, 64), SqueezeExcite(16, add_stub=True), False),
             ("semodule, per_channel", (1, 16, 64, 64), SqueezeExcite(16, add_stub=True), True),
             ("mul_scalar negative", imagenet_ishape, MulScalarNegative(), False),
@@ -372,7 +364,8 @@ def test_quantized_modules():
         linear, per_channel 0.0 0.0 1.0
         linear_relu, per_channel 0.0 0.0 1.0
         hsigmoid 0.002614379 0.00020525524 0.9214896896258503
-        hswish 0.0052286386 0.00063522335 0.7587359162414966
+        hswish 0.0026143193 1.7367661e-08 0.9999933567176871
+        hswish, per_channel 0.0 0.0 1.0
         semodule, per_channel 0.0039885044 0.0008620687 0.7838592529296875
         mul_scalar negative 0.0011764616 7.815566e-09 0.9999933567176871
         """

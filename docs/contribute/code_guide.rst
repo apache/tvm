@@ -89,6 +89,41 @@ Python Code Styles
 - Check your code style using ``python tests/scripts/ci.py lint``
 - Stick to language features in ``python 3.7``
 
+- For functions with early returns, prefer ``if``/``elif``/``else`
+  chains for functions with parallel and short bodies to the
+  conditions, such as functions that apply a simple mapping to the
+  arguments.  For more procedural functions, especially where the
+  final ``else`` block would be much longer than the ``if`` and
+  ``elif`` blocks, prefer having the final ``else`` case unindented.
+
+  The pylint check ``no-else-return`` is disabled to allow for this
+  distinction.  See further discussion `here
+  <https://github.com/apache/tvm/pull/11327>`.
+
+  .. code:: python
+
+    # All cases have bodies with similar flow control.  While this could
+    # be expressed as a sequence of if conditions, a reader would need to
+    # inspect the body of each condition to know that only one conditional
+    # body may be reached.
+    def sign(x):
+        if x > 0:
+            return "+"
+        elif x < 0:
+            return "-"
+        else:
+            return ""
+
+    # The initial special case is an early return for a special case,
+    # followed by a more general method.  Using an else block for the
+    # condition would add unnecessary indentation for the remainder of the
+    # function.
+    def num_unique_subsets(values):
+        if len(values)==0:
+            return 1
+
+        # Longer, more general solution here
+        ...
 
 Writing Python Tests
 --------------------
@@ -103,6 +138,23 @@ If you want your test to run over a variety of targets, use the :py:func:`tvm.te
     ...
 
 will run ``test_mytest`` with ``target="llvm"``, ``target="cuda"``, and few others. This also ensures that your test is run on the correct hardware by the CI. If you only want to test against a couple targets use ``@tvm.testing.parametrize_targets("target_1", "target_2")``. If you want to test on a single target, use the associated decorator from :py:func:`tvm.testing`. For example, CUDA tests use the ``@tvm.testing.requires_cuda`` decorator.
+
+
+Network Resources
+-----------------
+
+In CI, downloading files from the Internet is a big source of flaky test failures (e.g. remote
+server can go down or be slow), so try to avoid using the network at all during tests. In some cases
+this isn't a reasonable proposition (e.g. the docs tutorials which need to download models).
+
+In these cases you can re-host files in S3 for fast access in CI. A committer can upload a file,
+specified by a name, hash, and path in S3, using the `workflow_dispatch` event on `the
+upload_ci_resource.yml GitHub Actions workflow
+<https://github.com/apache/tvm/actions/workflows/upload_ci_resource.yml>`_.  The sha256 must match
+the file or it will not be uploaded. The upload path is user-defined so it can be any path (no
+trailing or leading slashes allowed) but be careful not to collide with existing resources on
+accident.
+
 
 Handle Integer Constant Expression
 ----------------------------------

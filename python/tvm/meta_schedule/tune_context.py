@@ -154,7 +154,7 @@ class TuneContext(Object):
         else:
             self.logger = None
         if num_threads is None:
-            num_threads = cpu_count()
+            num_threads = cpu_count(logical=False)
         self.__init_handle_by_constructor__(
             _ffi_api.TuneContext,  # type: ignore # pylint: disable=no-member
             mod,

@@ -161,7 +161,7 @@ class TestAddSubtractMultiplyBroadcast2d:
         input_B_layout,
         op_name,
     ):
-        target_hexagon = tvm.target.hexagon("v68")
+        target_hexagon = tvm.target.hexagon("v69")
         A = te.placeholder(input_shape_A, name="A", dtype=dtype)
         B = te.placeholder(input_shape_B, name="B", dtype=dtype)
         if op_name == "add":
@@ -182,7 +182,7 @@ class TestAddSubtractMultiplyBroadcast2d:
         else:
             raise RuntimeError(f"Unexpected layout '{output_layout}'")
 
-        with tvm.transform.PassContext(opt_level=3, config={"tir.disable_assert": True}):
+        with tvm.transform.PassContext(opt_level=3):
             func = tvm.build(
                 sch,
                 [A, B, M],

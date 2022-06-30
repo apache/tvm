@@ -126,6 +126,7 @@ class SimplifyExplicitPad {
 
     T* new_attrs = const_cast<T*>(attrs.template as<T>());
     new_attrs->auto_scheduler_rewritten_layout = old_attrs->auto_scheduler_rewritten_layout;
+    new_attrs->meta_schedule_original_shape = old_attrs->meta_schedule_original_shape;
     return attrs;
   }
 

@@ -87,31 +87,33 @@ def test_conv2d(enable_usmp, target_kind):
     shape_dict = {p.name_hint: p.checked_type.concrete_shape for p in main_func.params}
     type_dict = {p.name_hint: p.checked_type.dtype for p in main_func.params}
 
-    weight_data = np.ones(shape_dict["weight"]).astype(type_dict["weight"])
+    weight_data = np.random.randint(1, 255, shape_dict["weight"]).astype(type_dict["weight"])
     input_data = np.ones(shape_dict["data"]).astype(type_dict["data"])
-
     params = {"weight": weight_data}
     inputs = {"data": input_data}
     ref_outputs = generate_ref_data(ir_mod, inputs, params)
 
     with tvm.transform.PassContext(
-        opt_level=3, config={"tir.disable_vectorize": True, "tir.usmp.enable": enable_usmp}
+        opt_level=3,
+        config={
+            "tir.disable_vectorize": True,
+            "tir.usmp.enable": enable_usmp,
+        },
     ):
         mod = tvm.relay.build(
             ir_mod,
             params=params,
             target=target_kind,
-            executor=backend.Executor("aot", {"interface-api": "packed"}),
+            executor=backend.Executor("aot", {"interface-api": "packed", "unpacked-api": False}),
         )
-
     temp_dir = tvm.contrib.utils.TempDirectory()
     test_so_path = temp_dir / "test.so"
-    mod.export_library(test_so_path, cc="gcc", options=["-std=c11"])
+    mod.export_library(test_so_path, cc="gcc", options=["-std=c11", "-g3", "-O0"])
     loaded_mod = tvm.runtime.load_module(test_so_path)
     runner = tvm.runtime.executor.AotModule(loaded_mod["default"](tvm.cpu(0)))
     runner.set_input(**inputs)
     runner.run()
-    assert (runner.get_output(0).asnumpy() == list(ref_outputs.values())[0]).all()
+    assert (runner.get_output(0).numpy() == list(ref_outputs.values())[0]).all()
 
 
 @pytest.mark.parametrize("enable_usmp", [True, False])
@@ -136,7 +138,7 @@ def test_mobilenet(enable_usmp, target_kind):
 
     temp_dir = tvm.contrib.utils.TempDirectory()
     test_so_path = temp_dir / "test.so"
-    mod.export_library(test_so_path, cc="gcc", options=["-std=c11"])
+    mod.export_library(test_so_path, cc="c++", options=["-std=gnu++14", "-g3", "-O0"])
     loaded_mod = tvm.runtime.load_module(test_so_path)
     runner = tvm.runtime.executor.AotModule(loaded_mod["default"](tvm.cpu(0)))
     runner.set_input(**inputs)
@@ -188,7 +190,7 @@ def test_pass_wrong_device_arg():
 
     temp_dir = tvm.contrib.utils.TempDirectory()
     test_so_path = temp_dir / "test.so"
-    mod.export_library(test_so_path, cc="gcc", options=["-std=c11"])
+    mod.export_library(test_so_path, cc="gcc", options=["-std=c11", "-g3", "-O0"])
     loaded_mod = tvm.runtime.load_module(test_so_path)
 
     with pytest.raises(tvm.TVMError) as error:

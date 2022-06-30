@@ -151,6 +151,7 @@ def test_end_to_end_graph_simple(graph, n, A, B, s, myadd):
             "Shape",
             "Inputs",
             "Outputs",
+            "Measurements(us)",
         ]
         myadd_lines = split_debug_line(2)
         assert myadd_lines[0] == "add"
@@ -249,6 +250,25 @@ def test_run_single_node(graph, n, A, myadd):
     end = time.time()
     elapsed_time_in_seconds = end - start
     assert elapsed_time_in_seconds >= 0.5
+
+    # Doing `cooldown_interval_ms` should have the execution time increases
+    start = time.time()
+    mod.run_individual_node(1, repeat=2, min_repeat_ms=500, cooldown_interval_ms=1000)
+    end = time.time()
+    elapsed_time_in_seconds_with_def_rep = end - start
+    assert elapsed_time_in_seconds_with_def_rep >= 3
+
+    # Doing with `repeats_to_cooldown` not equal 1 should not trigger
+    # cooldown after each repeat
+    start = time.time()
+    mod.run_individual_node(
+        1, repeat=2, min_repeat_ms=500, cooldown_interval_ms=1000, repeats_to_cooldown=2
+    )
+    end = time.time()
+    elapsed_time_in_seconds_with_rep_2 = end - start
+    assert elapsed_time_in_seconds_with_rep_2 >= 2 and (
+        elapsed_time_in_seconds_with_rep_2 < elapsed_time_in_seconds_with_def_rep
+    )
 
     # Going out of bounds of node index throws a tvm error
     with pytest.raises(TVMError):

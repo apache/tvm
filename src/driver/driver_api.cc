@@ -83,32 +83,6 @@ Target DefaultTargetHost(Target target) {
   }
 }
 
-tir::Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape, DataType dtype, std::string name,
-                                      int data_alignment, int offset_factor, bool compact) {
-  DataType storage_dtype = (dtype == DataType::Bool() ? DataType::Int(8) : dtype);
-  auto data = tir::Var(name, PointerType(PrimType(storage_dtype)));
-  bool has_any = false;
-  if (!compact) {
-    for (const auto& it : shape) {
-      if (it.as<tir::VarNode>()) {
-        has_any = true;
-        break;
-      }
-    }
-  }
-  tir::BufferType buffer_type = has_any ? tir::kAutoBroadcast : tir::kDefault;
-
-  PrimExpr elem_offset;
-  if (offset_factor != 0) {
-    elem_offset = tir::Var(name + "_elem_offset", shape[0].dtype());
-  } else {
-    elem_offset = PrimExpr();
-  }
-
-  return tir::Buffer(data, dtype, shape, Array<PrimExpr>(), elem_offset, name, data_alignment,
-                     offset_factor, buffer_type);
-}
-
 void GetBinds(const Array<ObjectRef>& args, bool compact,
               const std::unordered_map<te::Tensor, tir::Buffer>& binds,
               Map<te::Tensor, tir::Buffer>* out_binds, Array<ObjectRef>* out_arg_list) {
@@ -118,8 +92,8 @@ void GetBinds(const Array<ObjectRef>& args, bool compact,
     if (const te::TensorNode* tensor_node = x.as<te::TensorNode>()) {
       te::Tensor x_ref = GetRef<te::Tensor>(tensor_node);
       if (out_binds->find(x_ref) == out_binds->end()) {
-        tir::Buffer buf =
-            BufferWithOffsetAlignment(x_ref->shape, x_ref->dtype, x_ref->op->name, -1, 0, compact);
+        tir::Buffer buf = tir::BufferWithOffsetAlignment(x_ref->shape, x_ref->dtype,
+                                                         x_ref->op->name, -1, 0, compact);
         out_binds->Set(x_ref, buf);
         out_arg_list->push_back(buf);
       } else {

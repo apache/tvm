@@ -24,6 +24,7 @@
 #include <tvm/runtime/module.h>
 #include <tvm/tir/usmp/utils.h>
 
+using ::testing::ContainsRegex;
 using ::testing::HasSubstr;
 
 namespace tvm {
@@ -116,7 +117,7 @@ TEST(InterfaceAPI, ContainsRunFunctionWithWorkspacePools) {
                << "  struct tvmgen_ultimate_cat_spotter_workspace_pools* workspace_pools\n"
                << ");\n";
 
-  PoolInfo pool_info = PoolInfo("my_memory_pool", {});
+  PoolInfo pool_info = WorkspacePoolInfo("my_memory_pool", {});
   tir::usmp::AllocatedPoolInfo allocated_pool_info =
       tir::usmp::AllocatedPoolInfo(pool_info, 100000);
   runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"},
@@ -124,6 +125,48 @@ TEST(InterfaceAPI, ContainsRunFunctionWithWorkspacePools) {
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(run_function.str()));
+}
+
+TEST(InterfaceAPI, ContainsRunFunctionWithWorkspaceAndConstantPools) {
+  std::stringstream run_function;
+
+  run_function << "/*!\n"
+               << " * \\brief entrypoint function for TVM module \"ultimate_cat_spotter\"\n"
+               << " * \\param inputs Input tensors for the module \n"
+               << " * \\param outputs Output tensors for the module \n"
+               << " * \\param workspace_pools Workspace memory pool pointers for the module \n"
+               << " */\n"
+               << "int32_t tvmgen_ultimate_cat_spotter_run(\n"
+               << "  struct tvmgen_ultimate_cat_spotter_inputs* inputs,\n"
+               << "  struct tvmgen_ultimate_cat_spotter_outputs* outputs,\n"
+               << "  struct tvmgen_ultimate_cat_spotter_workspace_pools* workspace_pools\n"
+               << ");\n";
+
+  PoolInfo pool_info = WorkspacePoolInfo("my_memory_pool", {});
+  PoolInfo const_info = ConstantPoolInfo(
+      "my_constant_pool", {},
+      {{"const1", 0, runtime::NDArray::Empty({1}, DataType::Int(32), {kDLCPU, 0})},
+       {"const2", 16, runtime::NDArray::Empty({1}, DataType::Float(64), {kDLCPU, 0})}});
+  tir::usmp::AllocatedPoolInfo allocated_pool_info =
+      tir::usmp::AllocatedPoolInfo(pool_info, 100000);
+  tir::usmp::AllocatedPoolInfo allocated_const_info =
+      tir::usmp::AllocatedPoolInfo(const_info, 100000);
+  runtime::Module test_module =
+      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"},
+                       {allocated_pool_info, allocated_const_info}, {}, {}, 0);
+  std::string header_source = test_module->GetSource();
+  ASSERT_THAT(header_source, HasSubstr(run_function.str()));
+  ASSERT_THAT(
+      header_source,
+      HasSubstr("#define TVMGEN_ULTIMATE_CAT_SPOTTER_MY_CONSTANT_POOL_CONSTANT_POOL_SIZE 24"));
+  ASSERT_THAT(
+      header_source,
+      ContainsRegex(
+          "#define TVMGEN_ULTIMATE_CAT_SPOTTER_MY_CONSTANT_POOL_CONSTANT_POOL_DATA \\\\\\\n    "
+          "0x\\w\\w, 0x\\w\\w, 0x\\w\\w, 0x\\w\\w, 0x\\w\\w, 0x\\w\\w, 0x\\w\\w, 0x\\w\\w, "
+          "0x\\w\\w, 0x\\w\\w, 0x\\w\\w, 0x\\w\\w, 0x\\w\\w, "
+          "0x\\w\\w, 0x\\w\\w, 0x\\w\\w, \\\\\\\n    0x\\w\\w, 0x\\w\\w, 0x\\w\\w, 0x\\w\\w, "
+          "0x\\w\\w, 0x\\w\\w, 0x\\w\\w, 0x\\w\\w\\\\\\\n"));
 }
 
 TEST(InterfaceAPI, ContainsRunFunctionWithWorkspacePoolsAndDevices) {
@@ -143,7 +186,7 @@ TEST(InterfaceAPI, ContainsRunFunctionWithWorkspacePoolsAndDevices) {
                << "  struct tvmgen_ultimate_cat_spotter_devices* devices\n"
                << ");\n";
 
-  PoolInfo pool_info = PoolInfo("my_memory_pool", {});
+  PoolInfo pool_info = WorkspacePoolInfo("my_memory_pool", {});
   tir::usmp::AllocatedPoolInfo allocated_pool_info =
       tir::usmp::AllocatedPoolInfo(pool_info, 100000);
   runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"},
@@ -183,7 +226,7 @@ TEST(InterfaceAPI, ContainsRunFunctionWithWorkspaceIO) {
       << "  struct tvmgen_ultimate_cat_spotter_workspace_pools* workspace_pools\n"
       << ");\n";
 
-  PoolInfo pool_info = PoolInfo("my_memory_pool", {});
+  PoolInfo pool_info = WorkspacePoolInfo("my_memory_pool", {});
   tir::usmp::AllocatedPoolInfo allocated_pool_info =
       tir::usmp::AllocatedPoolInfo(pool_info, 100000);
   tir::usmp::PoolAllocation pool_allocation_input{pool_info, 1000};
@@ -384,7 +427,7 @@ TEST(InterfaceAPI, ContainsWorkspaceSize) {
 }
 
 TEST(InterfaceAPI, ContainsWorkspacePoolStructSingle) {
-  PoolInfo pool_info = PoolInfo("my_memory_pool", {});
+  PoolInfo pool_info = WorkspacePoolInfo("my_memory_pool", {});
   tir::usmp::AllocatedPoolInfo allocated_pool_info =
       tir::usmp::AllocatedPoolInfo(pool_info, 100000);
 
@@ -413,10 +456,10 @@ TEST(InterfaceAPI, ContainsWorkspacePoolStructSingle) {
 }
 
 TEST(InterfaceAPI, ContainsWorkspacePoolStructMany) {
-  PoolInfo pool_info1 = PoolInfo("my_memory_pool_1", {});
+  PoolInfo pool_info1 = WorkspacePoolInfo("my_memory_pool_1", {});
   tir::usmp::AllocatedPoolInfo allocated_pool_info1 =
       tir::usmp::AllocatedPoolInfo(pool_info1, 100000);
-  PoolInfo pool_info2 = PoolInfo("my_memory_pool_2", {});
+  PoolInfo pool_info2 = WorkspacePoolInfo("my_memory_pool_2", {});
   tir::usmp::AllocatedPoolInfo allocated_pool_info2 =
       tir::usmp::AllocatedPoolInfo(pool_info2, 200000);
 
@@ -454,7 +497,7 @@ TEST(InterfaceAPI, ContainsWorkspacePoolStructMany) {
 }
 
 TEST(InterfaceAPI, ContainsWorkspacePoolStructSanitized) {
-  PoolInfo pool_info = PoolInfo("my_memory_pool+1", {});
+  PoolInfo pool_info = WorkspacePoolInfo("my_memory_pool+1", {});
   tir::usmp::AllocatedPoolInfo allocated_pool_info =
       tir::usmp::AllocatedPoolInfo(pool_info, 100000);
 
@@ -483,10 +526,10 @@ TEST(InterfaceAPI, ContainsWorkspacePoolStructSanitized) {
 }
 
 TEST(InterfaceAPI, ContainsWorkspacePoolStructClash) {
-  PoolInfo pool_info1 = PoolInfo("my_memory_pool+", {});
+  PoolInfo pool_info1 = WorkspacePoolInfo("my_memory_pool+", {});
   tir::usmp::AllocatedPoolInfo allocated_pool_info1 =
       tir::usmp::AllocatedPoolInfo(pool_info1, 100000);
-  PoolInfo pool_info2 = PoolInfo("my_memory_pool-", {});
+  PoolInfo pool_info2 = WorkspacePoolInfo("my_memory_pool-", {});
   tir::usmp::AllocatedPoolInfo allocated_pool_info2 =
       tir::usmp::AllocatedPoolInfo(pool_info2, 200000);
 

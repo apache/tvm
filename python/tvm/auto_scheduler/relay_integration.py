@@ -467,6 +467,11 @@ def rewrite_compute_body(compute_tensor, new_layout):
     return outputs[0] if num == 1 else outputs
 
 
+def rewrite_tensor_shape(tensor, shape):
+    """Rewrite the tensor shape"""
+    _ffi_api.RewriteTensorShape(tensor, shape)
+
+
 def is_auto_scheduler_enabled():
     """Return whether the auto-scheduler is enabled.
 
@@ -477,8 +482,5 @@ def is_auto_scheduler_enabled():
     """
     return PassContext.current().config.get(
         "relay.backend.use_auto_scheduler",
-        False,
-    ) or PassContext.current().config.get(
-        "relay.backend.use_meta_schedule",
         False,
     )

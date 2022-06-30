@@ -2124,18 +2124,21 @@ class EyeLike(OnnxOpConverter):
 
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
-        in_checked_type = infer_type(inputs[0]).checked_type
-        in_dtype = in_checked_type.dtype
-        in_shape = list(get_const_tuple(in_checked_type.shape))
         dtype = attr.get("dtype", None)
         if dtype is None:
+            in_checked_type = infer_type(inputs[0]).checked_type
+            in_dtype = in_checked_type.dtype
             dtype = in_dtype
         else:
             dtype = get_type(dtype)
+
+        in_shape = _op.shape_of(inputs[0])
         zeros = _op.zeros(in_shape, dtype)
-        dim = in_shape[0]
-        indices = _op.arange(_op.const(0), _op.const(dim), dtype="int32")
-        ones = _op.full(_op.const(1), (dim,), dtype=dtype)
+
+        dim = _op.take(in_shape, _op.const(0))
+
+        indices = _op.arange(_op.const(0), dim, dtype="int32")
+        ones = _op.full(_op.const(1), _op.reshape(dim, (1,)), dtype=dtype)
         k = _op.const(attr.get("k", 0), dtype="int32")
         return _op.scatter_nd(zeros, _op.stack([indices, indices + k], axis=0), ones, "update")
 
@@ -5106,6 +5109,61 @@ class Round(OnnxOpConverter):
         return rounded + (bankers_mask * non_even)
 
 
+class SequenceConstruct(OnnxOpConverter):
+    """Operator converter for sequence construction op."""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        # Construct a tuple from input tensors.
+        return _expr.Tuple(inputs)
+
+
+class SequenceInsert(OnnxOpConverter):
+    """Operator converter for sequence insert op."""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        # Insert a new tensor into a tuple of tensors.
+        input_sequence = inputs[0]
+        new_tensor = inputs[1]
+
+        if len(inputs) == 3:
+            position = inputs[2]
+            # Non constant position is not supported.
+            if isinstance(position, _expr.Constant):
+                position = position.data.numpy()
+            elif position.name_hint in params:
+                position = params[position.name_hint].numpy()
+            else:
+                raise NotImplementedError("Position must be a constant.")
+        else:
+            position = -1
+
+        if position < 0:
+            position = len(input_sequence) + position + 1
+        # Convert sequence to a list, insert new tensor, and repackage as Tuple.
+        tensor_list = [input_sequence[i] for i in range(len(input_sequence))]
+        # Insert new tensor.
+        tensor_list.insert(position, new_tensor)
+        # Create new tuple and return.
+        return _expr.Tuple(tensor_list)
+
+
+class ConcatFromSequence(OnnxOpConverter):
+    """Operator converter for sequence concatenation op."""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        axis = attr.get("axis", 0)
+        new_axis = attr.get("new_axis", 0)
+
+        # If a new axis should be created, just stack input tensors.
+        if new_axis == 1:
+            return _op.stack(inputs[0], axis=axis)
+
+        return _op.concatenate(inputs[0], axis=axis)
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -5321,6 +5379,10 @@ def _get_convert_map(opset):
         "Scan": Scan.get_converter(opset),
         # ML
         "LinearRegressor": LinearRegressor.get_converter(opset),
+        # Sequence operators
+        "SequenceConstruct": SequenceConstruct.get_converter(opset),
+        "SequenceInsert": SequenceInsert.get_converter(opset),
+        "ConcatFromSequence": ConcatFromSequence.get_converter(opset),
     }
 
 

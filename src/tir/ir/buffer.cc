@@ -585,6 +585,33 @@ Buffer::Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> 
   data_ = std::move(n);
 }
 
+tir::Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape, DataType dtype, std::string name,
+                                      int data_alignment, int offset_factor, bool compact,
+                                      std::string memory_scope) {
+  DataType storage_dtype = (dtype == DataType::Bool() ? DataType::Int(8) : dtype);
+  auto data = tir::Var(name, PointerType(PrimType(storage_dtype), memory_scope));
+  bool has_any = false;
+  if (!compact) {
+    for (const auto& it : shape) {
+      if (it.as<tir::VarNode>()) {
+        has_any = true;
+        break;
+      }
+    }
+  }
+  tir::BufferType buffer_type = has_any ? tir::kAutoBroadcast : tir::kDefault;
+
+  PrimExpr elem_offset;
+  if (offset_factor != 0) {
+    elem_offset = tir::Var(name + "_elem_offset", shape[0].dtype());
+  } else {
+    elem_offset = PrimExpr();
+  }
+
+  return tir::Buffer(data, dtype, shape, Array<PrimExpr>(), elem_offset, name, data_alignment,
+                     offset_factor, buffer_type);
+}
+
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<BufferNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const BufferNode*>(node.get());

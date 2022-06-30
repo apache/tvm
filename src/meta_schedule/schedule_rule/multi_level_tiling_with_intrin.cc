@@ -45,7 +45,7 @@ class MultiLevelTilingWithIntrinNode : public MultiLevelTilingNode {
   // tile the outerloops.
   virtual std::vector<State> ApplySubRules(std::vector<State> states) {
     states = SubRule(std::move(states), [&](State state) {
-      state.block_rv = TileForIntrin(state.sch, state.block_rv, intrin_name);
+      state->block_rv = TileForIntrin(state->sch, state->block_rv, intrin_name);
       return std::vector<State>(1, state);
     });
     return MultiLevelTilingNode::ApplySubRules(states);
