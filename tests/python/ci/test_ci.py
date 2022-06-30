@@ -33,6 +33,7 @@ def parameterize_named(*values):
     return pytest.mark.parametrize(",".join(keys), [tuple(d.values()) for d in values])
 
 
+@tvm.testing.skip_if_wheel_test
 @pytest.mark.parametrize(
     "target_url,base_url,commit_sha,expected_url,expected_body",
     [
@@ -826,6 +827,7 @@ def test_github_tag_teams(tmpdir_factory):
     )
 
 
+@tvm.testing.skip_if_wheel_test
 @parameterize_named(
     dict(
         tlcpackstaging_body={
