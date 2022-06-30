@@ -76,6 +76,7 @@ import shutil
 import sys
 import time
 
+from pathlib import Path
 from typing import Optional, Callable, Union, List
 
 import pytest
@@ -93,6 +94,7 @@ from tvm.error import TVMError
 
 
 SKIP_SLOW_TESTS = os.getenv("SKIP_SLOW_TESTS", "").lower() in {"true", "1", "yes"}
+IS_IN_CI = os.getenv("CI", "") == "true"
 
 skip_if_wheel_test = pytest.mark.skipif(
     os.getenv("WHEEL_TEST") is not None, reason="Test not supported in wheel."
@@ -1611,6 +1613,51 @@ def is_ampere_or_newer():
     arch = tvm.contrib.nvcc.get_target_compute_version()
     major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
     return major >= 8
+
+
+def install_request_hook(depth: int) -> None:
+    """Add a wrapper around urllib.request for CI tests"""
+    if not IS_IN_CI:
+        return
+
+    # https://sphinx-gallery.github.io/stable/faq.html#why-is-file-not-defined-what-can-i-use
+    base = None
+    msg = ""
+    try:
+        base = __file__
+        msg += f"found file {__file__}\n"
+    except NameError:
+        msg += f"no file\n"
+
+    if base is None:
+        hook_script_dir = Path.cwd().resolve()
+        msg += "used path.cwd()\n"
+    else:
+        hook_script_dir = Path(base).resolve().parent
+        msg += "used base()\n"
+
+    msg += f"using depth {depth}\n"
+    if depth <= 0:
+        raise ValueError(f"depth less than 1 not supported, found: {depth}")
+
+    # Go up the parent directories
+    while depth > 0:
+        msg += f"[depth={depth}] dir={hook_script_dir}\n"
+        hook_script_dir = hook_script_dir.parent
+        depth -= 1
+
+    # Ensure the specified dir is valid
+    hook_script_dir = hook_script_dir / "tests" / "scripts" / "request_hook"
+    if not hook_script_dir.exists():
+        raise RuntimeError(f"Directory {hook_script_dir} does not exist:\n{msg}")
+
+    # Import the hook and start it up (it's not included here directly to avoid
+    # keeping a database of URLs inside the tvm Python package
+    sys.path.append(str(hook_script_dir))
+    # This import is intentionally delayed since it should only happen in CI
+    import request_hook  # pylint: disable=import-outside-toplevel
+
+    request_hook.init()
 
 
 def main():
