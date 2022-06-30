@@ -16,8 +16,6 @@
 # under the License.
 """Test code for convolution."""
 import numpy as np
-import pytest
-import sys
 
 import tvm
 import tvm.testing

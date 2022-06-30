@@ -16,15 +16,11 @@
 # under the License.
 """Test code for reduce"""
 import numpy as np
-import pytest
-import sys
 
 import tvm
-import tvm.testing
 from tvm import topi
 from tvm import te
 from tvm.contrib.hexagon.session import Session
-import tvm.topi.testing
 
 
 in_shape, axis, keepdims, reduce_type, dtype = tvm.testing.parameters(

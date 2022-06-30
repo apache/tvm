@@ -17,7 +17,6 @@
 """Test code for softmax"""
 import numpy as np
 import pytest
-import sys
 
 import tvm
 import tvm.testing

@@ -18,7 +18,6 @@
 import sys
 
 import numpy as np
-import pytest
 
 import tvm
 from tvm.contrib.hexagon.session import Session
@@ -296,3 +295,6 @@ class TestDepthwiseConv2D(BaseDepthwiseConv2D):
 
 
 # TODO(hexagon-team): add TestDepthwiseConv2D_NCHWc test.
+
+if __name__ == "__main__":
+    tvm.testing.main()
