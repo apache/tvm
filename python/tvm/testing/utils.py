@@ -95,7 +95,8 @@ from tvm.error import TVMError
 SKIP_SLOW_TESTS = os.getenv("SKIP_SLOW_TESTS", "").lower() in {"true", "1", "yes"}
 
 skip_if_wheel_test = pytest.mark.skipif(
-    os.getenv("WHEEL_TEST") is not None, reason="Test not supported in wheel."
+    os.getenv("WHEEL_TEST", "").lower() in {"true", "1", "yes"},
+    reason="Test not supported in wheel.",
 )
 
 
