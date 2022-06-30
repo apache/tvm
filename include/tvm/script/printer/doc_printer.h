@@ -21,8 +21,9 @@
 
 #include <tvm/script/printer/doc.h>
 
-#include <string>
 #include <memory>
+#include <ostream>
+#include <string>
 
 namespace tvm {
 namespace script {
@@ -90,8 +91,6 @@ class DocPrinter {
    */
   virtual void PrintTypedDoc(const LiteralDoc& doc) = 0;
 
-  using OutputStream = std::ostringstream;
-
   /*!
    * \brief Increase the indent level of any content to be
    *        printed after this call
@@ -109,7 +108,7 @@ class DocPrinter {
    *
    * \sa output_
    */
-  OutputStream& NewLine() {
+  std::ostream& NewLine() {
     output_ << "\n";
     output_ << std::string(indent_, ' ');
     return output_;
@@ -123,7 +122,7 @@ class DocPrinter {
    *
    * \sa GetString
    */
-  OutputStream output_;
+  std::ostringstream output_;
 
  private:
   /*! \brief the printer options */
