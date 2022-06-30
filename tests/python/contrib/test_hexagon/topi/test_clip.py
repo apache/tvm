@@ -17,7 +17,6 @@
 
 # pylint: disable=invalid-name
 
-import pytest
 import numpy as np
 
 from tvm import te, topi

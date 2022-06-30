@@ -17,7 +17,6 @@
 """Test code for matmul"""
 import numpy as np
 import pytest
-import sys
 
 import tvm
 import tvm.testing
