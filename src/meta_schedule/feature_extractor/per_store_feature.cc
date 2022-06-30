@@ -1094,7 +1094,7 @@ struct Feature {
       if (p == 0) {
         result = compute_ops[p] / memory_bytes[p];
       } else {
-        double base = compute_ops[p - 1] / memory_bytes[p - 1];
+        double r = feature.lobase = compute_ops[p - 1] / memory_bytes[p - 1];
         double slope =
             (compute_ops[p] / memory_bytes[p] - compute_ops[p - 1] / memory_bytes[p - 1]) /
             (compute_ops[p] - compute_ops[p - 1]);
@@ -1343,6 +1343,7 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
   int buffers_per_store;
   int arith_intensity_curve_num_samples;
   int cache_line_bytes;
+  bool extract_workload;
   int feature_vector_length;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -1376,14 +1377,18 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
     bool is_gpu = tune_context->target.value()->kind->name == "cuda";
     std::vector<runtime::NDArray> results;
     results.resize(candidates.size());
-    tir::group6::Feature feature_group6(tune_context->mod.value());
+    std::unique_ptr<tir::group6::Feature> feature_group6 = nullptr;
+    if (extract_workload) {
+      feature_group6 = std::make_unique<tir::group6::Feature>(tune_context->mod.value());
+    }
     auto f = [this, is_gpu, &feature_group6, &candidates, &results](int, int task_id) -> void {
       const auto& candidate = candidates[task_id];
       std::vector<std::vector<double>> features;
       ExtractSingle(DeepCopyIRModule(candidate->sch->mod()), is_gpu, &features);
-      for (auto& feature : features) {
-        feature_group6.Export(&feature);
-        ICHECK_EQ(static_cast<int>(feature.size()), feature_vector_length);
+      if (extract_workload) {
+        for (auto& feature : features) {
+          feature_group6->Export(&feature);
+        }
       }
       results[task_id] = tir::utils::AsNDArray(features);
     };
@@ -1397,16 +1402,20 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
 
 FeatureExtractor FeatureExtractor::PerStoreFeature(int buffers_per_store,
                                                    int arith_intensity_curve_num_samples,
-                                                   int cache_line_bytes) {
+                                                   int cache_line_bytes, bool extract_workload) {
   ObjectPtr<PerStoreFeatureNode> n = make_object<PerStoreFeatureNode>();
   n->buffers_per_store = buffers_per_store;
   n->arith_intensity_curve_num_samples = arith_intensity_curve_num_samples;
   n->cache_line_bytes = cache_line_bytes;
+  n->extract_workload = extract_workload;
   n->feature_vector_length = tir::group1::Feature::kCount +                                  //
                              tir::group2::Feature::SubFeature::kCount * buffers_per_store +  //
                              arith_intensity_curve_num_samples +                             //
                              tir::group4::Feature::kCount +                                  //
-                             tir::group5::Feature::kCount + tir::group6::Feature::kCount;
+                             tir::group5::Feature::kCount;
+  if (extract_workload) {
+    n->feature_vector_length += tir::group6::Feature::kCount;
+  }
   return FeatureExtractor(n);
 }
 

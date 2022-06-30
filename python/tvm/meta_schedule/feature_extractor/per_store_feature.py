@@ -26,7 +26,6 @@ from .feature_extractor import FeatureExtractor
 @register_object("meta_schedule.PerStoreFeature")
 class PerStoreFeature(FeatureExtractor):
     """PerStoreFeature extracts one feature vector per BufferStoreNode
-
     Parameters
     ----------
     buffers_per_store : int
@@ -35,6 +34,8 @@ class PerStoreFeature(FeatureExtractor):
         The number of samples used in the arithmetic intensity curve.
     cache_line_bytes : int
         The number of bytes in a cache line.
+    extract_workload : bool
+        Whether to extract features in the workload in tuning context or not.
     """
 
     buffers_per_store: int
@@ -43,6 +44,8 @@ class PerStoreFeature(FeatureExtractor):
     """The number of samples used in the arithmetic intensity curve."""
     cache_line_bytes: int
     """The number of bytes in a cache line."""
+    extract_workload: bool
+    """Whether to extract features in the workload in tuning context or not."""
     feature_vector_length: int
     """Length of the feature vector."""
 
@@ -51,10 +54,12 @@ class PerStoreFeature(FeatureExtractor):
         buffers_per_store: int = 5,
         arith_intensity_curve_num_samples: int = 10,
         cache_line_bytes: int = 64,
+        extract_workload: bool = False,
     ):
         self.__init_handle_by_constructor__(
             _ffi_api.FeatureExtractorPerStoreFeature,  # type: ignore # pylint: disable=no-member
             buffers_per_store,
             arith_intensity_curve_num_samples,
             cache_line_bytes,
+            extract_workload,
         )
