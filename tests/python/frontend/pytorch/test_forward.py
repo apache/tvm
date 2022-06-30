@@ -3820,6 +3820,7 @@ def test_empty():
     verify_model_with_input(test_func, [])
 
 
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/11967")
 def test_empty_like():
     def test_func(data):
         return torch.empty_like(data)

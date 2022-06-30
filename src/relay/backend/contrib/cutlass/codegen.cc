@@ -43,6 +43,18 @@ namespace cutlass {
 
 namespace {
 
+/*! \brief Return the "cutlass" Target instance to use to guide compilation. */
+Target GetCutlassTarget() {
+  Target target = Target::Current(/*allow_not_defined=*/true);
+  if (!target.defined() || target->kind->name != "cutlass") {
+    // Use the default CUTLASS compilation options if no specific "cutlass" target was given
+    // in the overall targets list. In that case target_hooks.cc will invoke the custom pass
+    // without pushing any target instance onto the implicit target stack.
+    target = Target("cutlass");
+  }
+  return target;
+}
+
 using Str2StrMap = std::unordered_map<std::string, std::string>;
 
 static Str2StrMap dtype_map = {{"float16", "cutlass::half_t"},
@@ -563,7 +575,7 @@ class CodegenCutlass : public backend::MemoizedExprTranslator<std::vector<Output
     this->ExitScope();
     code_stream_ << "}\n";
 
-    this->GenerateBackendCFunc(ext_func_id_, ext_func_args_, const_array_name_, out, true);
+    this->GenerateBackendCFunc(ext_func_id_, ext_func_args_, /*const_arr_name=*/"", out, true);
     return code_stream_.str();
   }
 
@@ -769,7 +781,7 @@ class CodegenCutlass : public backend::MemoizedExprTranslator<std::vector<Output
     return ret;
   }
   /*! \brief The id of the external cutlass ext_func. */
-  std::string ext_func_id_{""};
+  std::string ext_func_id_;
   /*! \brief The attrs of the external cutlass ext_func. */
   Map<String, ObjectRef> attrs_;
   /*!
@@ -781,8 +793,6 @@ class CodegenCutlass : public backend::MemoizedExprTranslator<std::vector<Output
   Array<Var> ext_func_args_;
   /*! \brief Statement of the function that will be compiled using CUTLASS kernels. */
   std::vector<std::string> ext_func_body_;
-  /*! \brief The array declared to store the constant values. */
-  std::string const_array_name_;
   /*! \brief The declaration of intermediate buffers. */
   std::vector<std::string> buf_decl_;
 };  // class CodegenCutlass
@@ -863,14 +873,14 @@ class CutlassModuleCodegen {
     const auto* pf = runtime::Registry::Get("runtime.CSourceModuleCreate");
     ICHECK(pf != nullptr) << "Cannot find CSource module to create the external runtime module";
     VLOG(1) << "Generated CUTLASS code:" << std::endl << code_stream_.str();
-    return (*pf)(code_stream_.str(), "cu", func_names_, const_vars_);
+    return (*pf)(code_stream_.str(), "cu", func_names_, /*const_vars=*/Array<String>());
   }
 
   /*!
    * \brief Returns \p expr as function if it is a \p Function with "Compiler" attribute
    * value "cutlass".
    */
-  const FunctionNode* GetCutlassFunctionNode(const Expr& expr) {
+  static const FunctionNode* GetCutlassFunctionNode(const Expr& expr) {
     if (const auto* function_node = expr.as<FunctionNode>()) {
       Optional<String> opt_compiler = function_node->GetAttr<String>(attr::kCompiler);
       if (opt_compiler.defined() && opt_compiler.value() == "cutlass") {
@@ -886,8 +896,6 @@ class CutlassModuleCodegen {
   std::ostringstream code_stream_;
   /*! \brief The accumulated function names. */
   Array<String> func_names_;
-  /*! \brief The accumulated constant names. */
-  Array<String> const_vars_;
 };  // CutlassModuleCodegen
 
 /*!
@@ -899,14 +907,12 @@ transform::Pass CompileForCutlassImpl() {
     VLOG(1) << "CompileForCutlass input:" << std::endl << PrettyPrint(mod);
     const auto* pf = runtime::Registry::Get("relay.ext.cutlass.compile_for_cutlass");
     ICHECK(pf != nullptr) << "Cannot find compile_for_cutlass function";
-    Optional<Target> opt_cutlass_target = Target::Current();
-    ICHECK(opt_cutlass_target.defined()) << "Expecting Target::Current to be available";
-    ICHECK_EQ(opt_cutlass_target.value()->kind->name, "cutlass");
-    runtime::Module runtime_mod = (*pf)(mod, opt_cutlass_target.value());
+    Target target = GetCutlassTarget();
+    runtime::Module runtime_mod = (*pf)(mod, target);
     Array<runtime::Module> external_mods =
-        mod->GetAttr<Array<runtime::Module>>("external_mods", Array<runtime::Module>()).value();
+        mod->GetAttr<Array<runtime::Module>>(tvm::attr::kExternalMods).value_or({});
     external_mods.push_back(runtime_mod);
-    return WithAttr(mod, "external_mods", external_mods);
+    return WithAttr(mod, tvm::attr::kExternalMods, external_mods);
   };
   return tvm::transform::CreateModulePass(pass_func, 0, "CompileForCutlass", {});
 }

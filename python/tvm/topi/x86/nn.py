@@ -39,7 +39,7 @@ def _schedule_softmax(softmax_op, s, outs):
         delta = None
         max_elem = softmax_op.input_tensors[1]
         expsum = softmax_op.input_tensors[2]
-        axis = 1
+        axis = int(softmax_op.attrs["axis"])
     else:
         raise ValueError(
             "Tag is expected to be softmax_output or log_softmax_output. \

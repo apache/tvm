@@ -20,5 +20,6 @@
 from .avg_pool2d import avg_pool2d_compute, avg_pool2d_STIR_schedule
 from .add_subtract_multiply import *
 from .argmax import argmax_compute, argmax_schedule
+from .batch_flatten import batch_flatten_compute, batch_flatten_stir_schedule
 from .softmax_slice import *
 from .clip import *

@@ -245,6 +245,12 @@ def transform_numpy(arr_np, current_layout: str, new_layout: str):
             n, h, w, c = arr_np.shape
             assert h == 1 and w == 1, "The size of h and w must be 1"
             return arr_np.reshape([n, 1, 1, c // 1024, 1024])
+        if new_layout == "nc-1024-2d":
+            N, C = arr_np.shape
+            return arr_np.reshape([N, C // 1024, 1024])
+        if new_layout == "nhwc-1024c-2d":
+            N, H, W, C = arr_np.shape
+            return arr_np.reshape([N, H, W, C // 1024, 1024])
 
         raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
 
