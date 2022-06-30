@@ -16,26 +16,36 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/runtime/registry.h>
-#include <tvm/script/printer/doc.h>
+
+#include <tvm/script/printer/doc_printer.h>
 
 namespace tvm {
 namespace script {
 namespace printer {
 
-TVM_REGISTER_NODE_TYPE(DocNode);
-TVM_REGISTER_NODE_TYPE(ExprDocNode);
+DocPrinter::DocPrinter(const DocPrinterOptions& options) : options_(options) {}
 
-LiteralDoc::LiteralDoc(ObjectRef value) {
-  ObjectPtr<LiteralDocNode> n = make_object<LiteralDocNode>();
-  n->value = value;
-  this->data_ = std::move(n);
+void DocPrinter::Append(const Doc& doc) { 
+  PrintDoc(doc);
 }
-TVM_REGISTER_NODE_TYPE(LiteralDocNode);
-TVM_REGISTER_GLOBAL("script.printer.LiteralDocNone").set_body_typed(LiteralDoc::None);
-TVM_REGISTER_GLOBAL("script.printer.LiteralDocInt").set_body_typed(LiteralDoc::Int);
-TVM_REGISTER_GLOBAL("script.printer.LiteralDocFloat").set_body_typed(LiteralDoc::Float);
-TVM_REGISTER_GLOBAL("script.printer.LiteralDocStr").set_body_typed(LiteralDoc::Str);
+
+String DocPrinter::GetString() const {
+  std::string text = output_.str();
+  if (!text.empty() && text.back() != '\n') {
+    text.push_back('\n');
+  }
+  return text;
+}
+
+void DocPrinter::PrintDoc(const Doc& doc) {
+  if (const auto* doc_node = doc.as<LiteralDocNode>()) {
+    PrintTypedDoc(GetRef<LiteralDoc>(doc_node));
+  } else {
+    LOG(FATAL) << "Do not know how to print " << doc->GetTypeKey();
+    throw;
+  }
+}
+
 
 }  // namespace printer
 }  // namespace script

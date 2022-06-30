@@ -16,27 +16,55 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/runtime/registry.h>
+#ifndef TVM_SCRIPT_PRINTER_DOC_PRINTER_H_
+#define TVM_SCRIPT_PRINTER_DOC_PRINTER_H_
+
 #include <tvm/script/printer/doc.h>
 
 namespace tvm {
 namespace script {
 namespace printer {
 
-TVM_REGISTER_NODE_TYPE(DocNode);
-TVM_REGISTER_NODE_TYPE(ExprDocNode);
+struct DocPrinterOptions {
+  int indent_spaces = 4;
+};
 
-LiteralDoc::LiteralDoc(ObjectRef value) {
-  ObjectPtr<LiteralDocNode> n = make_object<LiteralDocNode>();
-  n->value = value;
-  this->data_ = std::move(n);
-}
-TVM_REGISTER_NODE_TYPE(LiteralDocNode);
-TVM_REGISTER_GLOBAL("script.printer.LiteralDocNone").set_body_typed(LiteralDoc::None);
-TVM_REGISTER_GLOBAL("script.printer.LiteralDocInt").set_body_typed(LiteralDoc::Int);
-TVM_REGISTER_GLOBAL("script.printer.LiteralDocFloat").set_body_typed(LiteralDoc::Float);
-TVM_REGISTER_GLOBAL("script.printer.LiteralDocStr").set_body_typed(LiteralDoc::Str);
+class DocPrinter {
+ public:
+  explicit DocPrinter(const DocPrinterOptions& options);
+  virtual ~DocPrinter() = default;
+
+  void Append(const Doc& doc);
+  String GetString() const;
+
+ protected:
+  void PrintDoc(const Doc& doc);
+
+  virtual void PrintTypedDoc(const LiteralDoc& doc) = 0;
+
+  using OutputStream = std::ostringstream;
+
+  void IncreaseIndent() { indent_ += options_.indent_spaces; }
+
+  void DecreaseIndent() { indent_ -= options_.indent_spaces; }
+
+  OutputStream& NewLine() {
+    output_ << "\n";
+    output_ << std::string(indent_, ' ');
+    return output_;
+  }
+
+  OutputStream output_;
+
+ private:
+  DocPrinterOptions options_;
+  int indent_ = 0;
+};
+
+std::unique_ptr<DocPrinter> GetPythonDocPrinter(const DocPrinterOptions& options);
 
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm
+
+#endif

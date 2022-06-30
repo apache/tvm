@@ -14,21 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
 
-from tvm.script.printer.doc import LiteralDoc
+from . import _ffi_api
 
-
-@pytest.mark.parametrize("value", [
-    None,
-    "test",
-    1,
-    1.5,
-])
-def test_literal_doc_construction(value):
-    doc = LiteralDoc(value)
-    if isinstance(value, float):
-        # FloatImm isn't unpacked to Python's float automatically
-        assert float(doc.value) == pytest.approx(value)
-    else:
-        assert doc.value == value

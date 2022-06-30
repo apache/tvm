@@ -132,14 +132,12 @@ class LiteralDoc : public ExprDoc {
    * \brief Create a LiteralDoc to represent integer.
    * \param v The integer value.
    */
-  static LiteralDoc Int(const IntImm& v) { return LiteralDoc(v); }
   static LiteralDoc Int(int v) { return LiteralDoc(IntImm(DataType::Int(64), v)); }
 
   /*!
    * \brief Create a LiteralDoc to represent float.
    * \param v The float value.
    */
-  static LiteralDoc Float(const FloatImm& v) { return LiteralDoc(v); }
   static LiteralDoc Float(double v) { return LiteralDoc(FloatImm(DataType::Float(64), v)); }
 
   /*! 

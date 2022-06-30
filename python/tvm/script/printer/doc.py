@@ -18,7 +18,6 @@
 
 import tvm._ffi
 from tvm.runtime import Object
-from tvm.tir import FloatImm, IntImm
 
 from . import _ffi_api
 
@@ -35,8 +34,6 @@ _literal_constructors = [
     (str, _ffi_api.LiteralDocStr),
     (float, _ffi_api.LiteralDocFloat),
     (int, _ffi_api.LiteralDocInt),
-    (IntImm, _ffi_api.LiteralDocIntImm),
-    (FloatImm, _ffi_api.LiteralDocFloatImm)
 ]
 
 
@@ -56,4 +53,3 @@ class LiteralDoc(ExprDoc):
             raise TypeError(f"Unsupported type {type(value)} for LiteralDoc")
 
         self.__init_handle_by_constructor__(constructor, value)
-
