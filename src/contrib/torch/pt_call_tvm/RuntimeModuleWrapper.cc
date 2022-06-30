@@ -87,7 +87,7 @@ tvm::runtime::Module deserialize(SerializationType state) {
                        << " resolved to (" << load_f_name << ") in the global registry."
                        << "Ensure that you have loaded the correct runtime code, and"
                        << "that you are on the correct hardware architecture.";
-  
+
   tvm::runtime::Module ret = (*f)(file_name, "");
 
   return ret;
