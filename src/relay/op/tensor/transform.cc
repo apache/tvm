@@ -792,8 +792,8 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       data_shape_str << (iter != data_shape.begin() ? "," : "") << *iter;
     }
     ICHECK_EQ(oshape_sum, data_shape_sum)
-        << "Input tensor shape(" << oshape_str.str() << ") and reshaped shape("
-        << data_shape_str.str() << ") are not compatible!";
+        << "Input tensor shape(" << data_shape_str.str() << ") and reshaped shape("
+        << oshape_str.str() << ") are not compatible!";
   }
 
   reporter->Assign(types[1], TensorType(oshape, data->dtype));
