@@ -39,15 +39,13 @@ if [ "$use_cache" = false ]; then
     rm -rf build
 fi
 mkdir -p build
-cd build
 
-cmake -DANDROID_ABI=arm64-v8a \
+python3 ../../tests/scripts/task_build.py --use-make \
+    -DANDROID_ABI=arm64-v8a \
     -DANDROID_PLATFORM=android-28 \
     -DUSE_ANDROID_TOOLCHAIN="${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake" \
     -DUSE_HEXAGON_ARCH=v68 \
     -DUSE_HEXAGON_SDK="${HEXAGON_SDK_ROOT}" \
     -DUSE_HEXAGON_TOOLCHAIN="${HEXAGON_TOOLCHAIN}" \
     -DUSE_OUTPUT_BINARY_DIR="${output_directory}" \
-    -DUSE_HEXAGON_GTEST="${HEXAGON_SDK_ROOT}/utils/googletest/gtest" ..
-
-make -j$(nproc)
+    -DUSE_HEXAGON_GTEST="${HEXAGON_SDK_ROOT}/utils/googletest/gtest"

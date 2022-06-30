@@ -42,7 +42,7 @@
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="integration: CPU",
   node="CPU-SMALL",
-  num_shards=6,
+  num_shards=8,
   ws="tvm/integration-python-cpu",
   platform="cpu",
   docker_image="ci_cpu",
@@ -215,6 +215,7 @@ stage('Test') {
       script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh",
       label: 'Run VTA tests in TSIM',
     )
+    sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh", label: 'Rust build and test')
   {% endcall %}
   {% call m.test_step(
     name="test: QEMU",

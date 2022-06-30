@@ -18,6 +18,7 @@
 import argparse
 import shutil
 import os
+import shlex
 import logging
 import multiprocessing
 
@@ -31,15 +32,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="List pytest nodeids for a folder")
     parser.add_argument("--sccache-bucket", required=False, help="sccache bucket name")
     parser.add_argument("--build-dir", default="build", help="build folder")
+    parser.add_argument("--use-make", action="store_true", help="use make instead of Ninja")
     parser.add_argument("--cmake-target", help="optional build target")
-    args = parser.parse_args()
+    args, cmake_flags = parser.parse_known_args()
 
     env = {"VTA_HW_PATH": str(Path(os.getcwd()) / "3rdparty" / "vta-hw")}
     sccache_exe = shutil.which("sccache")
 
     use_sccache = sccache_exe is not None
     build_dir = Path(os.getcwd()) / args.build_dir
-    build_dir = build_dir.relative_to(REPO_ROOT)
 
     if use_sccache:
         if args.sccache_bucket:
@@ -71,17 +72,27 @@ if __name__ == "__main__":
     available_cpus = nproc // executors
     num_cpus = max(available_cpus, 1)
 
-    sh.run("cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo ..", cwd=build_dir)
+    cmd = ["cmake"]
+    if not args.use_make:
+        cmd.append("-GNinja")
+    cmd.append("-DCMAKE_BUILD_TYPE=RelWithDebInfo")
+    cmd += cmake_flags
+    cmd.append("..")
+    cmd = " ".join([shlex.quote(x) for x in cmd])
+    sh.run(cmd, cwd=build_dir)
 
     target = ""
     if args.cmake_target:
         target = args.cmake_target
 
     verbose = os.environ.get("VERBOSE", "true").lower() in {"1", "true", "yes"}
-    ninja_args = [target, f"-j{num_cpus}"]
+    extra_args = [target, f"-j{num_cpus}"]
     if verbose:
-        ninja_args.append("-v")
-    sh.run(f"cmake --build . -- " + " ".join(ninja_args), cwd=build_dir)
+        if args.use_make:
+            extra_args.append("VERBOSE=1")
+        else:
+            extra_args.append("-v")
+    sh.run(f"cmake --build . -- " + " ".join(extra_args), cwd=build_dir)
 
     if use_sccache:
         logging.info("===== sccache stats =====")

@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-06-27T17:30:37.779354
+// Generated at 2022-06-30T12:45:10.483208
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -588,7 +588,7 @@ def fsim_test(image) {
   )
 }
 
-def cmake_build(image, path, make_flag) {
+def cmake_build(image, path) {
   sh (
     script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod",
     label: 'Run cmake build',
@@ -620,10 +620,10 @@ def add_hexagon_permissions() {
 // Run make. First try to do an incremental make from a previous workspace in hope to
 // accelerate the compilation. If something is wrong, clean the workspace and then
 // build from scratch.
-def make(docker_type, path, make_flag) {
+def make(docker_type, path) {
   timeout(time: max_time, unit: 'MINUTES') {
     try {
-      cmake_build(docker_type, path, make_flag)
+      cmake_build(docker_type, path)
     } catch (hudson.AbortException ae) {
       // script exited due to user abort, directly throw instead of retry
       if (ae.getMessage().contains('script returned exit code 143')) {
@@ -634,7 +634,7 @@ def make(docker_type, path, make_flag) {
         script: "${docker_run} ${docker_type} ./tests/scripts/task_clean.sh ${path}",
         label: 'Clear old cmake workspace',
       )
-      cmake_build(docker_type, path, make_flag)
+      cmake_build(docker_type, path)
     }
   }
 }
@@ -653,7 +653,7 @@ stage('Build') {
           docker_init(ci_gpu)
           init_git()
           sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
-          make("${ci_gpu} --no-gpu", 'build', '-j2')
+          make("${ci_gpu} --no-gpu", 'build')
           sh(
             script: """
               set -eux
@@ -673,7 +673,7 @@ stage('Build') {
 
           // compiler test
           sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build2"
-          make("${ci_gpu} --no-gpu", 'build2', '-j2')
+          make("${ci_gpu} --no-gpu", 'build2')
           sh(
             script: """
               set -eux
@@ -703,7 +703,7 @@ stage('Build') {
             script: "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh build",
             label: 'Create CPU cmake config',
           )
-          make(ci_cpu, 'build', '-j2')
+          make(ci_cpu, 'build')
           sh(
             script: """
               set -eux
@@ -721,12 +721,6 @@ stage('Build') {
             label: 'Upload artifacts to S3',
           )
 
-          timeout(time: max_time, unit: 'MINUTES') {
-            ci_setup(ci_cpu)
-            // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
-            // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
-            sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh", label: 'Rust build and test')
-          }
         }
       }
     } else {
@@ -743,7 +737,7 @@ stage('Build') {
             script: "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh build",
             label: 'Create WASM cmake config',
           )
-          make(ci_wasm, 'build', '-j2')
+          make(ci_wasm, 'build')
           cpp_unittest(ci_wasm)
           timeout(time: max_time, unit: 'MINUTES') {
             ci_setup(ci_wasm)
@@ -768,7 +762,7 @@ stage('Build') {
             script: "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh build",
             label: 'Create i386 cmake config',
           )
-          make(ci_i386, 'build', '-j2')
+          make(ci_i386, 'build')
           sh(
             script: """
               set -eux
@@ -834,7 +828,7 @@ stage('Build') {
             script: "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh build",
             label: 'Create QEMU cmake config',
           )
-          make(ci_qemu, 'build', '-j2')
+          make(ci_qemu, 'build')
           sh(
             script: """
               set -eux
@@ -865,7 +859,7 @@ stage('Build') {
             script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_config_build_hexagon.sh build",
             label: 'Create Hexagon cmake config',
           )
-          make(ci_hexagon, 'build', '-j2')
+          make(ci_hexagon, 'build')
           sh (
             script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
             label: 'Build Hexagon API',
@@ -1090,7 +1084,7 @@ def shard_run_unittest_GPU_3_of_3() {
 }
 
 
-def shard_run_integration_CPU_1_of_6() {
+def shard_run_integration_CPU_1_of_8() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
@@ -1100,7 +1094,7 @@ def shard_run_integration_CPU_1_of_6() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TVM_NUM_SHARDS=6',
+              'TVM_NUM_SHARDS=8',
               'TVM_SHARD_INDEX=0'], {
               sh(
                         script: """
@@ -1140,11 +1134,11 @@ def shard_run_integration_CPU_1_of_6() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('integration: CPU 1 of 6')
+    Utils.markStageSkippedForConditional('integration: CPU 1 of 8')
   }
 }
 
-def shard_run_integration_CPU_2_of_6() {
+def shard_run_integration_CPU_2_of_8() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
@@ -1154,7 +1148,7 @@ def shard_run_integration_CPU_2_of_6() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TVM_NUM_SHARDS=6',
+              'TVM_NUM_SHARDS=8',
               'TVM_SHARD_INDEX=1'], {
               sh(
                         script: """
@@ -1194,11 +1188,11 @@ def shard_run_integration_CPU_2_of_6() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('integration: CPU 2 of 6')
+    Utils.markStageSkippedForConditional('integration: CPU 2 of 8')
   }
 }
 
-def shard_run_integration_CPU_3_of_6() {
+def shard_run_integration_CPU_3_of_8() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
@@ -1208,7 +1202,7 @@ def shard_run_integration_CPU_3_of_6() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TVM_NUM_SHARDS=6',
+              'TVM_NUM_SHARDS=8',
               'TVM_SHARD_INDEX=2'], {
               sh(
                         script: """
@@ -1248,11 +1242,11 @@ def shard_run_integration_CPU_3_of_6() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('integration: CPU 3 of 6')
+    Utils.markStageSkippedForConditional('integration: CPU 3 of 8')
   }
 }
 
-def shard_run_integration_CPU_4_of_6() {
+def shard_run_integration_CPU_4_of_8() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
@@ -1262,7 +1256,7 @@ def shard_run_integration_CPU_4_of_6() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TVM_NUM_SHARDS=6',
+              'TVM_NUM_SHARDS=8',
               'TVM_SHARD_INDEX=3'], {
               sh(
                         script: """
@@ -1302,11 +1296,11 @@ def shard_run_integration_CPU_4_of_6() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('integration: CPU 4 of 6')
+    Utils.markStageSkippedForConditional('integration: CPU 4 of 8')
   }
 }
 
-def shard_run_integration_CPU_5_of_6() {
+def shard_run_integration_CPU_5_of_8() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
@@ -1316,7 +1310,7 @@ def shard_run_integration_CPU_5_of_6() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TVM_NUM_SHARDS=6',
+              'TVM_NUM_SHARDS=8',
               'TVM_SHARD_INDEX=4'], {
               sh(
                         script: """
@@ -1356,11 +1350,11 @@ def shard_run_integration_CPU_5_of_6() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('integration: CPU 5 of 6')
+    Utils.markStageSkippedForConditional('integration: CPU 5 of 8')
   }
 }
 
-def shard_run_integration_CPU_6_of_6() {
+def shard_run_integration_CPU_6_of_8() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
@@ -1370,7 +1364,7 @@ def shard_run_integration_CPU_6_of_6() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TVM_NUM_SHARDS=6',
+              'TVM_NUM_SHARDS=8',
               'TVM_SHARD_INDEX=5'], {
               sh(
                         script: """
@@ -1410,7 +1404,115 @@ def shard_run_integration_CPU_6_of_6() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('integration: CPU 6 of 6')
+    Utils.markStageSkippedForConditional('integration: CPU 6 of 8')
+  }
+}
+
+def shard_run_integration_CPU_7_of_8() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
+        try {
+          docker_init(ci_cpu)
+          init_git()
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cpu',
+              'TVM_NUM_SHARDS=8',
+              'TVM_SHARD_INDEX=6'], {
+              sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          md5sum build/libvta_tsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              ci_setup(ci_cpu)
+              sh (
+                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
+                label: 'Run CPU integration tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('integration: CPU 7 of 8')
+  }
+}
+
+def shard_run_integration_CPU_8_of_8() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
+        try {
+          docker_init(ci_cpu)
+          init_git()
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cpu',
+              'TVM_NUM_SHARDS=8',
+              'TVM_SHARD_INDEX=7'], {
+              sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          md5sum build/libvta_tsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              ci_setup(ci_cpu)
+              sh (
+                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
+                label: 'Run CPU integration tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('integration: CPU 8 of 8')
   }
 }
 
@@ -3019,23 +3121,29 @@ stage('Test') {
   'unittest: GPU 3 of 3': {
     shard_run_unittest_GPU_3_of_3()
   },
-  'integration: CPU 1 of 6': {
-    shard_run_integration_CPU_1_of_6()
+  'integration: CPU 1 of 8': {
+    shard_run_integration_CPU_1_of_8()
   },
-  'integration: CPU 2 of 6': {
-    shard_run_integration_CPU_2_of_6()
+  'integration: CPU 2 of 8': {
+    shard_run_integration_CPU_2_of_8()
   },
-  'integration: CPU 3 of 6': {
-    shard_run_integration_CPU_3_of_6()
+  'integration: CPU 3 of 8': {
+    shard_run_integration_CPU_3_of_8()
   },
-  'integration: CPU 4 of 6': {
-    shard_run_integration_CPU_4_of_6()
+  'integration: CPU 4 of 8': {
+    shard_run_integration_CPU_4_of_8()
   },
-  'integration: CPU 5 of 6': {
-    shard_run_integration_CPU_5_of_6()
+  'integration: CPU 5 of 8': {
+    shard_run_integration_CPU_5_of_8()
   },
-  'integration: CPU 6 of 6': {
-    shard_run_integration_CPU_6_of_6()
+  'integration: CPU 6 of 8': {
+    shard_run_integration_CPU_6_of_8()
+  },
+  'integration: CPU 7 of 8': {
+    shard_run_integration_CPU_7_of_8()
+  },
+  'integration: CPU 8 of 8': {
+    shard_run_integration_CPU_8_of_8()
   },
   'python: i386 1 of 5': {
     shard_run_python_i386_1_of_5()
@@ -3161,6 +3269,7 @@ stage('Test') {
                   script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh",
                   label: 'Run VTA tests in TSIM',
                 )
+                sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh", label: 'Rust build and test')
               })
             } finally {
               sh(
