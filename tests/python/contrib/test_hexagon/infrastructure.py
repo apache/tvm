@@ -49,7 +49,7 @@ def allocate_hexagon_array(
 
     boundaries = [0, *axis_separators, len(tensor_shape)]
     physical_shape = [
-        numpy.prod(tensor_shape[dim_i:dim_f])
+        int(numpy.prod(tensor_shape[dim_i:dim_f]))
         for dim_i, dim_f in zip(boundaries[:-1], boundaries[1:])
     ]
 
