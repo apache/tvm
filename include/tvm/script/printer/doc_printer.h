@@ -21,6 +21,9 @@
 
 #include <tvm/script/printer/doc.h>
 
+#include <string>
+#include <memory>
+
 namespace tvm {
 namespace script {
 namespace printer {
@@ -64,7 +67,7 @@ class DocPrinter {
   /*!
    * \brief Get the printed string of all Doc appended
    *
-   * The content of each Doc in the returned string will 
+   * The content of each Doc in the returned string will
    * appear in the same order as they are appended.
    *
    * \sa Append
@@ -75,7 +78,7 @@ class DocPrinter {
   /*!
    * \brief Get the printed string
    *
-   * It will dispatch to the PrintTypedDoc method based on 
+   * It will dispatch to the PrintTypedDoc method based on
    * the actual type of Doc.
    *
    * \sa PrintTypedDoc
@@ -90,13 +93,13 @@ class DocPrinter {
   using OutputStream = std::ostringstream;
 
   /*!
-   * \brief Increase the indent level of any content to be 
+   * \brief Increase the indent level of any content to be
    *        printed after this call
    */
   void IncreaseIndent() { indent_ += options_.indent_spaces; }
 
   /*!
-   * \brief Decrease the indent level of any content to be 
+   * \brief Decrease the indent level of any content to be
    *        printed after this call
    */
   void DecreaseIndent() { indent_ -= options_.indent_spaces; }
@@ -115,7 +118,7 @@ class DocPrinter {
   /*!
    * \brief The output stream of printer
    *
-   * All printed content will be stored in this stream and returned 
+   * All printed content will be stored in this stream and returned
    * when GetString is called.
    *
    * \sa GetString
@@ -142,4 +145,4 @@ std::unique_ptr<DocPrinter> GetPythonDocPrinter(const DocPrinterOptions& options
 }  // namespace script
 }  // namespace tvm
 
-#endif
+#endif  // TVM_SCRIPT_PRINTER_DOC_PRINTER_H_

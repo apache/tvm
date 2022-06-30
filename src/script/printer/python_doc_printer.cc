@@ -33,7 +33,7 @@ namespace {
  * \param out the output stream
  */
 void PrintLiteralString(const String& string, std::ostringstream& out) {
-  // TODO: Escape and smart quote (choose ' or " automatically)
+  // TODO(yelite): Escape and smart quote (choose ' or " automatically)
   out << "\"" << string << "\"";
 }
 
@@ -51,7 +51,7 @@ void PrintLiteralPrimExpr(const PrimExpr& expr, std::ostringstream& out) {
   if (dtype == DataType::Int(64)) {
     out << Downcast<IntImm>(expr)->value;
   } else if (dtype == DataType::Float(64)) {
-    // TODO: make the float printing roundtrippable 
+    // TODO(yelite): make the float printing roundtrippable
     std::ostringstream number_value;
     number_value.precision(17);
     number_value << Downcast<FloatImm>(expr)->value;

@@ -25,9 +25,7 @@ namespace printer {
 
 DocPrinter::DocPrinter(const DocPrinterOptions& options) : options_(options) {}
 
-void DocPrinter::Append(const Doc& doc) { 
-  PrintDoc(doc);
-}
+void DocPrinter::Append(const Doc& doc) { PrintDoc(doc); }
 
 String DocPrinter::GetString() const {
   std::string text = output_.str();
@@ -45,7 +43,6 @@ void DocPrinter::PrintDoc(const Doc& doc) {
     throw;
   }
 }
-
 
 }  // namespace printer
 }  // namespace script

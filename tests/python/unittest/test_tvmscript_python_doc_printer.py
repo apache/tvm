@@ -35,40 +35,22 @@ def print_doc_as_python(doc, indent_spaces=4):
     return format_script(_ffi_api.PrintDocAsPython(doc, indent_spaces))
 
 
-@pytest.mark.parametrize("doc,expected", [
-    (
-        LiteralDoc(None),
-        "None"
-    ),
-    (
-        LiteralDoc("test"),
-        '"test"'
-    ),
-    (
-        LiteralDoc(""),
-        '""'
-    ),
-    # TODO: make the string printing add character escaping
-    pytest.param(LiteralDoc("\""), r'"\""', marks=pytest.mark.xfail),
-    (
-        LiteralDoc(0),
-        "0"
-    ),
-    (
-        LiteralDoc(-1),
-        "-1"
-    ),
-    (
-        LiteralDoc(3.25),
-        "3.25"
-    ),
-    (
-        LiteralDoc(-0.5),
-        "-0.5"
-    ),
-    # TODO: make the float number printing preserve percision and roundtrippable
-    pytest.param(LiteralDoc(0.0), "0.0", marks=pytest.mark.xfail),
-    pytest.param(LiteralDoc(3.14), "3.14", marks=pytest.mark.xfail)
-])
+@pytest.mark.parametrize(
+    "doc,expected",
+    [
+        (LiteralDoc(None), "None"),
+        (LiteralDoc("test"), '"test"'),
+        (LiteralDoc(""), '""'),
+        # TODO: make the string printing add character escaping
+        pytest.param(LiteralDoc('"'), r'"\""', marks=pytest.mark.xfail),
+        (LiteralDoc(0), "0"),
+        (LiteralDoc(-1), "-1"),
+        (LiteralDoc(3.25), "3.25"),
+        (LiteralDoc(-0.5), "-0.5"),
+        # TODO: make the float number printing preserve percision and roundtrippable
+        pytest.param(LiteralDoc(0.0), "0.0", marks=pytest.mark.xfail),
+        pytest.param(LiteralDoc(3.14), "3.14", marks=pytest.mark.xfail),
+    ],
+)
 def test_print_literal_doc(doc, expected):
     assert print_doc_as_python(doc) == format_script(expected)

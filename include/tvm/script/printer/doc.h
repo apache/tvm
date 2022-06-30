@@ -21,6 +21,7 @@
 
 #include <tvm/ir/expr.h>
 #include <tvm/node/node.h>
+
 #include "tvm/runtime/data_type.h"
 
 namespace tvm {
@@ -140,7 +141,7 @@ class LiteralDoc : public ExprDoc {
    */
   static LiteralDoc Float(double v) { return LiteralDoc(FloatImm(DataType::Float(64), v)); }
 
-  /*! 
+  /*!
    * \brief Create a LiteralDoc to represent string.
    * \param v The string value.
    */
@@ -153,4 +154,4 @@ class LiteralDoc : public ExprDoc {
 }  // namespace script
 }  // namespace tvm
 
-#endif
+#endif  // TVM_SCRIPT_PRINTER_DOC_H_
