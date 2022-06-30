@@ -29,62 +29,18 @@
 #endif
 #ifdef TVM_LLVM_VERSION
 
-#include <llvm/Analysis/TargetTransformInfo.h>
-#include <llvm/Bitcode/BitcodeWriter.h>
-#include <llvm/ExecutionEngine/MCJIT.h>
-#include <llvm/IR/InlineAsm.h>
-#include <llvm/IR/Intrinsics.h>
-#include <llvm/IR/Value.h>
-#include <llvm/Support/SourceMgr.h>
-#if TVM_LLVM_VERSION >= 100
-#include <llvm/IR/IntrinsicsAMDGPU.h>
-#include <llvm/IR/IntrinsicsARM.h>
-#include <llvm/IR/IntrinsicsNVPTX.h>
-#include <llvm/IR/IntrinsicsX86.h>
-#endif
-#include <llvm/IR/Argument.h>
-#include <llvm/IR/BasicBlock.h>
-#include <llvm/IR/Constants.h>
-#include <llvm/IR/DIBuilder.h>
-#include <llvm/IR/DerivedTypes.h>
-#include <llvm/IR/Function.h>
-#include <llvm/IR/IRBuilder.h>
-#include <llvm/IR/Instructions.h>
-#include <llvm/IR/LLVMContext.h>
-#include <llvm/IR/LegacyPassManager.h>
-#include <llvm/IR/MDBuilder.h>
-#include <llvm/IR/Module.h>
-#include <llvm/IR/Type.h>
-#include <llvm/IR/Verifier.h>
-#include <llvm/Transforms/IPO.h>
-#include <llvm/Transforms/IPO/PassManagerBuilder.h>
-#include <llvm/Transforms/Utils/Cloning.h>
-#include <llvm/Transforms/Utils/ModuleUtils.h>
-
-#if TVM_LLVM_VERSION >= 100
-#include <llvm/Support/Alignment.h>
-#endif
-#include <llvm/CodeGen/TargetLoweringObjectFileImpl.h>
-#include <llvm/IRReader/IRReader.h>
-#include <llvm/Linker/Linker.h>
-#include <llvm/Support/Casting.h>
-#include <llvm/Support/FileSystem.h>
-#include <llvm/Support/Host.h>
-#include <llvm/Support/MemoryBuffer.h>
-#if TVM_LLVM_VERSION >= 140
-#include <llvm/MC/TargetRegistry.h>
-#else
-#include <llvm/Support/TargetRegistry.h>
-#endif
-#include <llvm/Support/TargetSelect.h>
-#include <llvm/Support/raw_ostream.h>
-#include <llvm/Target/TargetMachine.h>
-#include <llvm/Target/TargetOptions.h>
 #include <tvm/runtime/container/string.h>
 
 #include <memory>
 #include <string>
 #include <utility>
+
+namespace llvm {
+class Module;
+class Target;
+class TargetMachine;
+class TargetOptions;
+}  // namespace llvm
 
 namespace tvm {
 

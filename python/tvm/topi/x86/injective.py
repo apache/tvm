@@ -74,12 +74,11 @@ def schedule_injective(outs):
         The computation schedule for the op.
     """
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
-    x = outs[0]
     s = te.create_schedule([x.op for x in outs])
     te.schedule.AutoInlineInjective(s)
-
-    if not is_empty_shape(x.shape):
-        schedule_injective_from_existing(s, x)
+    for x in outs:
+        if not is_empty_shape(x.shape):
+            schedule_injective_from_existing(s, x)
     return s
 
 

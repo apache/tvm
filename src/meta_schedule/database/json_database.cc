@@ -194,14 +194,19 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
     support::parallel_for_dynamic(
         0, json_objs.size(), num_threads, [&](int thread_id, int task_id) {
           const ObjectRef& json_obj = json_objs[task_id];
+          Workload workload{nullptr};
           try {
             const ArrayNode* arr = json_obj.as<ArrayNode>();
             ICHECK_EQ(arr->size(), 2);
-            records[task_id] = TuningRecord::FromJSON(arr->at(1),  //
-                                                      workloads[Downcast<Integer>(arr->at(0))]);
+            workload = workloads[Downcast<Integer>(arr->at(0))];
+            records[task_id] = TuningRecord::FromJSON(arr->at(1), workload);
           } catch (std::runtime_error& e) {
-            LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
-                       << "\nThe error is: " << e.what();
+            LOG(FATAL) << "ValueError: Unable to parse TuningRecord, on line " << (task_id + 1)
+                       << " of file " << path_tuning_record << ". The workload is:\n"
+                       << (workload.defined() ? tir::AsTVMScript(workload) : "(null)")
+                       << "\nThe JSONObject of TuningRecrod is:\n"
+                       << json_obj << "\nThe error message is:\n"
+                       << e.what();
           }
         });
     for (const TuningRecord& record : records) {

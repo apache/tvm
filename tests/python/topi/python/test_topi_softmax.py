@@ -50,7 +50,7 @@ configs = {
     "log_softmax": {
         "topi": topi.nn.log_softmax,
         "ref": tvm.topi.testing.log_softmax_python,
-        "dimensions": [2],
+        "dimensions": [2, 3],
         "axis": [1],
     },
 }
