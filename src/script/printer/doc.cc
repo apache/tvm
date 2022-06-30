@@ -17,7 +17,6 @@
  * under the License.
  */
 #include <tvm/runtime/registry.h>
-
 #include <tvm/script/printer/doc.h>
 
 namespace tvm {
@@ -33,11 +32,16 @@ LiteralDoc::LiteralDoc(ObjectRef value) {
   this->data_ = std::move(n);
 }
 TVM_REGISTER_NODE_TYPE(LiteralDocNode);
-// Underscore is added to avoid syntax error in Python FFI binding
-TVM_REGISTER_GLOBAL("script.printer.LiteralDoc.None_").set_body_typed(LiteralDoc::None);
-TVM_REGISTER_GLOBAL("script.printer.LiteralDoc.Int").set_body_typed(LiteralDoc::Int);
-TVM_REGISTER_GLOBAL("script.printer.LiteralDoc.Float").set_body_typed(LiteralDoc::Float);
-TVM_REGISTER_GLOBAL("script.printer.LiteralDoc.Str").set_body_typed(LiteralDoc::Str);
+TVM_REGISTER_GLOBAL("script.printer.LiteralDocNone").set_body_typed(LiteralDoc::None);
+TVM_REGISTER_GLOBAL("script.printer.LiteralDocInt")
+    .set_body_typed(static_cast<LiteralDoc (*)(int)>(LiteralDoc::Int));
+TVM_REGISTER_GLOBAL("script.printer.LiteralDocIntImm")
+    .set_body_typed(static_cast<LiteralDoc (*)(const IntImm&)>(LiteralDoc::Int));
+TVM_REGISTER_GLOBAL("script.printer.LiteralDocFloat")
+    .set_body_typed(static_cast<LiteralDoc (*)(double)>(LiteralDoc::Float));
+TVM_REGISTER_GLOBAL("script.printer.LiteralDocFloatImm")
+    .set_body_typed(static_cast<LiteralDoc (*)(const FloatImm&)>(LiteralDoc::Float));
+TVM_REGISTER_GLOBAL("script.printer.LiteralDocStr").set_body_typed(LiteralDoc::Str);
 
 }  // namespace printer
 }  // namespace script
