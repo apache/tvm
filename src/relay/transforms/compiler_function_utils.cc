@@ -24,14 +24,13 @@
 
 #include "./compiler_function_utils.h"
 
-#include "../op/call/call.h"
 #include "tvm/relay/analysis.h"
 #include "tvm/relay/expr_functor.h"
 #include "tvm/relay/transform.h"
 
 namespace tvm {
 namespace relay {
-namespace transforms {
+namespace transform {
 namespace {
 
 /*!
@@ -211,8 +210,8 @@ GlobalVar ExistingGlobalSymbolCache::GetGlobalSymbol(const Function& function) {
   return global_var;
 }
 
-transform::Pass OutlineCompilerFunctions(std::shared_ptr<GlobalSymbolCache> cache,
-                                         std::string compiler_filter) {
+tvm::transform::Pass OutlineCompilerFunctions(std::shared_ptr<GlobalSymbolCache> cache,
+                                              std::string compiler_filter) {
   runtime::TypedPackedFunc<IRModule(IRModule, transform::PassContext)> pass_func =
       [cache = std::move(cache), compiler_filter = std::move(compiler_filter)](
           IRModule mod, transform::PassContext ctx) {
@@ -235,12 +234,13 @@ transform::Pass OutlineCompilerFunctions(std::shared_ptr<GlobalSymbolCache> cach
 }
 
 // Any Java programmers in the house?
-transform::Pass OutlineCompilerFunctionsWithExistingGlobalSymbols(std::string compiler_filter) {
+tvm::transform::Pass OutlineCompilerFunctionsWithExistingGlobalSymbols(
+    std::string compiler_filter) {
   return OutlineCompilerFunctions(std::make_shared<ExistingGlobalSymbolCache>(),
                                   std::move(compiler_filter));
 }
 
-transform::Pass MarkCompilerFunctionsAsExtern(std::string compiler_filter) {
+tvm::transform::Pass MarkCompilerFunctionsAsExtern(std::string compiler_filter) {
   runtime::TypedPackedFunc<IRModule(IRModule, transform::PassContext)> pass_func =
       [compiler_filter = std::move(compiler_filter)](IRModule mod, transform::PassContext ctx) {
         VLOG(1) << "MarkCompilerFunctionsAsExtern input:" << std::endl << PrettyPrint(mod);
@@ -262,7 +262,7 @@ transform::Pass MarkCompilerFunctionsAsExtern(std::string compiler_filter) {
   return tvm::transform::CreateModulePass(pass_func, 0, "MarkCompilerFunctionsAsExtern", {});
 }
 
-transform::Pass InlineCompilerFunctionsBoundTo(Array<GlobalVar> global_vars) {
+tvm::transform::Pass InlineCompilerFunctionsBoundTo(Array<GlobalVar> global_vars) {
   runtime::TypedPackedFunc<IRModule(IRModule, transform::PassContext)> pass_func =
       [global_vars = std::move(global_vars)](IRModule mod, transform::PassContext ctx) {
         VLOG(1) << "InlineCompilerFunctionsBoundTo with global_vars: " << PrettyPrint(global_vars);
@@ -295,6 +295,6 @@ TVM_REGISTER_GLOBAL("relay._transform.MarkCompilerFunctionsAsExtern")
 TVM_REGISTER_GLOBAL("relay._transform.InlineCompilerFunctionsBoundTo")
     .set_body_typed(InlineCompilerFunctionsBoundTo);
 
-}  // namespace transforms
+}  // namespace transform
 }  // namespace relay
 }  // namespace tvm

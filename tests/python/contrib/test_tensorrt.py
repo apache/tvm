@@ -14,31 +14,37 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm.testing
+
 import numpy as np
 import pytest
 import itertools
+import logging
+from typing import Tuple
 
+try:
+    # See issue #9362.
+    import torch
+except:
+    pass
 
 import tvm
+import tvm.testing
 import tvm.relay.testing
 
 from tvm import relay
-from tvm.relay.op.contrib import tensorrt
-
 from tvm.relay import Any, GlobalVar
-
 from tvm.relay.expr_functor import ExprVisitor
-from typing import Tuple
 from tvm.contrib.download import download
 from tvm.relay.op.contrib import tensorrt
-
 
 SUPPORTED_DTYPES = ["float16", "float32"]
 
 has_tensorrt_codegen = pytest.mark.skipif(
-    not tvm.get_global_func("relay.ext.tensorrt", True), reason="TensorRT codegen not available"
+    not tensorrt.is_tensorrt_compiler_enabled(), reason="TensorRT codegen not available"
 )
+
+# CAUTION: Currently always false in CI since adds tens of minutes to test time and depends
+# on TensorRT installation. See https://github.com/apache/tvm/issues/11765
 has_tensorrt_runtime = pytest.mark.skipif(
     not tensorrt.is_tensorrt_runtime_enabled(), reason="TensorRT runtime not available"
 )
@@ -72,11 +78,17 @@ def assert_result_dict_holds(result_dict, dtype="float16"):
                 tvm.testing.assert_allclose(r1, r2, rtol=1e-3, atol=5e-3)
 
 
-def set_func_attr(func, compile_name, symbol_name):
+def set_outer_func_attr(func, compile_name, symbol_name):
     func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
     func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
     func = func.with_attr("Compiler", compile_name)
     func = func.with_attr("global_symbol", symbol_name)
+    return func
+
+
+def set_inner_func_attr(func, pattern_name, composite_name):
+    func = func.with_attr("PartitionedFromPattern", pattern_name)
+    func = func.with_attr("Composite", composite_name)
     return func
 
 
@@ -110,34 +122,31 @@ def run_and_verify_func(config, target="cuda", run_module=True, data_type="float
 
     result_dict = dict()
     for mode in ["vm", "graph"]:
-        for mode in ["graph"]:
-            for use_trt in [True, False]:
-                mod = tvm.IRModule()
-                mod["main"] = f
-                result_key = mode + ("_trt" if use_trt else "")
-                if use_trt:
-                    mod = relay.transform.InferType()(mod)
-                    mod, config = tensorrt.partition_for_tensorrt(
-                        mod, params, use_fp16=data_type == "float16"
-                    )
-                    with tvm.transform.PassContext(
-                        opt_level=3, config={"relay.ext.tensorrt.options": config}
-                    ):
-                        func = relay.create_executor(
-                            mode, mod=mod, device=dev, target=target
-                        ).evaluate()
-                else:
-                    mod = relay.transform.InferType()(mod)
-                    with tvm.transform.PassContext(opt_level=3):
-                        func = relay.create_executor(
-                            mode, mod=mod, device=dev, target=target
-                        ).evaluate()
+        for use_trt in [True, False]:
+            mod = tvm.IRModule()
+            mod["main"] = f
+            result_key = mode + ("_trt" if use_trt else "")
+            if use_trt:
+                use_fp16 = data_type == "float16"
+                trt_target = tvm.target.Target(f"tensorrt -use_fp16={use_fp16}")
+                mod = relay.transform.InferType()(mod)
+                mod = tensorrt.partition_for_tensorrt(mod, params=params, target=trt_target)
+                with tvm.transform.PassContext(opt_level=3):
+                    func = relay.create_executor(
+                        mode, mod=mod, device=dev, target=[target, trt_target]
+                    ).evaluate()
+            else:
+                mod = relay.transform.InferType()(mod)
+                with tvm.transform.PassContext(opt_level=3):
+                    func = relay.create_executor(
+                        mode, mod=mod, device=dev, target=target
+                    ).evaluate()
 
-                if run_module:
-                    result_dict[result_key] = func(**input_dict, **params)
+            if run_module:
+                result_dict[result_key] = func(**input_dict, **params)
 
-                if run_module:
-                    assert_result_dict_holds(result_dict, data_type)
+            if run_module:
+                assert_result_dict_holds(result_dict, data_type)
 
 
 def test_tensorrt_simple(run_module):
@@ -163,10 +172,8 @@ def test_tensorrt_simple(run_module):
                 result_key = mode + ("_trt" if use_trt else "")
                 if use_trt:
                     mod = relay.transform.InferType()(mod)
-                    mod, config = tensorrt.partition_for_tensorrt(mod)
-                    with tvm.transform.PassContext(
-                        opt_level=3, config={"relay.ext.tensorrt.options": config}
-                    ):
+                    mod = tensorrt.partition_for_tensorrt(mod)
+                    with tvm.transform.PassContext(opt_level=3):
                         func = relay.create_executor(
                             mode, mod=mod, device=tvm.cuda(0), target="cuda"
                         ).evaluate()
@@ -212,9 +219,9 @@ def test_tensorrt_not_compatible(run_module):
     f = relay.Function([x], out)
     mod = tvm.IRModule()
     mod["main"] = f
-    mod, config = tensorrt.partition_for_tensorrt(mod)
+    mod = tensorrt.partition_for_tensorrt(mod)
     for mode in ["graph", "vm"]:
-        with tvm.transform.PassContext(opt_level=3, config={"relay.ext.tensorrt.options": config}):
+        with tvm.transform.PassContext(opt_level=3):
             func = relay.create_executor(
                 mode, mod=mod, device=tvm.cuda(0), target="cuda"
             ).evaluate()
@@ -622,26 +629,18 @@ class AreOpsOnGraph(ExprVisitor):
 
 
 def are_ops_on_trt(mod, op_list):
+    op_on_trt = False
+    op_on_tvm = False
     for subgraph in mod.get_global_vars():
         name = subgraph.name_hint
-        op_on_trt = False
-        op_on_tvm = True
-        if name == "main":
-            op_on_tvm = AreOpsOnGraph(op_list).are_ops_on_graph(mod[name].body)
-        elif mod[name].attrs and mod[name].attrs["Compiler"] == "tensorrt":
-            op_on_trt = AreOpsOnGraph(op_list).are_ops_on_graph(mod[name].body)
+        if mod[name].attrs and mod[name].attrs["Compiler"] == "tensorrt":
+            op_on_trt |= AreOpsOnGraph(op_list).are_ops_on_graph(mod[name].body)
         else:
-            op_on_tvm &= AreOpsOnGraph(op_list).are_ops_on_graph(mod[name].body)
+            op_on_tvm |= AreOpsOnGraph(op_list).are_ops_on_graph(mod[name].body)
 
-        if not op_on_trt or op_on_tvm:
-            return False
-
-    return True
+    return op_on_trt and not op_on_tvm
 
 
-@pytest.mark.xfail(
-    reason=("Currently failing test.  See tracking issue https://github.com/apache/tvm/issues/8901")
-)
 def test_dynamic_reshape(run_module):
     def test_run(x_data_list, x_shape, new_shape, should_offload_to_trt):
         result_arr = [{} for _ in range(len(x_data_list))]
@@ -652,9 +651,9 @@ def test_dynamic_reshape(run_module):
             mod = tvm.IRModule()
             mod["main"] = f
             if use_trt:
-                mod, _ = tensorrt.partition_for_tensorrt(
-                    mod, params={}, remove_no_mac_subgraphs=False
-                )
+                logging.info("Before partitioning:\n%s", mod)
+                mod = tensorrt.partition_for_tensorrt(mod)
+                logging.info("After partitioning:\n%s", mod)
                 assert are_ops_on_trt(mod, op_list=["reshape"]) == should_offload_to_trt
             if run_module:
                 with relay.build_config(opt_level=3):
@@ -1051,6 +1050,7 @@ def test_multiple_outputs(run_module):
         run_and_verify_func(get_graph(d_type=type), run_module=run_module, data_type=type)
 
 
+@pytest.mark.skip(reason=("Fails assert_allclose. See https://github.com/apache/tvm/issues/11765"))
 def test_conv3d(run_module):
     def get_graph(
         x_shape=(1, 24, 8, 8, 8),
@@ -1143,11 +1143,7 @@ def test_conv3d_transpose(run_module):
     )
 
 
-@pytest.mark.xfail(
-    reason=("Currently failing test.  See tracking issue https://github.com/apache/tvm/issues/8901")
-)
 @has_tensorrt_codegen
-@tvm.testing.requires_cuda
 def test_dynamic_offload():
     """
     This test checks for proper dynamic offloading of relay graphs. An addition between
@@ -1161,24 +1157,29 @@ def test_dynamic_offload():
 
     x = relay.var("x", shape=(data_shape[0], data_shape[1], Any(), Any()), dtype="float32")
     y = relay.var("y", shape=(data_shape), dtype="float32")
-    kernel = relay.var("kernel", shape=(k_shape), dtype="float32")
+    kernel = relay.const(np.random.rand(*k_shape).astype("float32"))
 
     def get_expected():
         # Create a nested TRT function that matches the expected output
         mod = tvm.IRModule()
-        var1 = relay.var("tensorrt_0_i0", shape=(data_shape), dtype="float32")
-        kernel_trt = relay.var("tensorrt_0_i1", shape=(k_shape), dtype="float32")
-        out1 = relay.nn.conv2d(var1, kernel_trt, channels=k_shape[0], kernel_size=k_shape[2:4])
-        f1 = GlobalVar("tvmgen_default_tensorrt_0")
-        func = relay.Function([var1, kernel_trt], out1)
-        func = set_func_attr(func, "tensorrt", "tvmgen_default_tensorrt_0")
-        mod[f1] = func
+        outer_var = relay.var("tensorrt_0_i0", shape=(data_shape), dtype="float32")
+        inner_var = relay.var("FunctionVar_0_0", shape=(data_shape), dtype="float32")
+        inner_body = relay.nn.conv2d(
+            inner_var, kernel, channels=k_shape[0], kernel_size=k_shape[2:4]
+        )
+        inner_func = relay.Function([inner_var], inner_body)
+        inner_func = set_inner_func_attr(inner_func, "nn.conv2d_", "tensorrt.nn.conv2d")
+        outer_body = inner_func(outer_var)
+        outer_func = relay.Function([outer_var], outer_body)
+        outer_func = set_outer_func_attr(outer_func, "tensorrt", "tvmgen_default_tensorrt_main_0")
+        gv = GlobalVar("tvmgen_default_tensorrt_main_0")
+        mod[gv] = outer_func
         mod = relay.transform.InferType()(mod)
 
         # Create the main function
         out1 = relay.nn.conv2d(x, kernel, channels=k_shape[0], kernel_size=k_shape[2:4])
-        out = relay.add(out1, f1(y, kernel))
-        f = relay.Function([x, y, kernel], out)
+        out = relay.add(out1, gv(y))
+        f = relay.Function([x, y], out)
         mod["main"] = f
         mod = relay.transform.InferType()(mod)
         return mod
@@ -1187,13 +1188,13 @@ def test_dynamic_offload():
     out1 = relay.nn.conv2d(x, kernel, channels=k_shape[0], kernel_size=k_shape[2:4])
     out2 = relay.nn.conv2d(y, kernel, channels=k_shape[0], kernel_size=k_shape[2:4])
     out = relay.add(out1, out2)
-    f = relay.Function([x, y, kernel], out)
+    f = relay.Function([x, y], out)
 
     # Pass the function to TRT compilation
     mod = tvm.IRModule()
     mod["main"] = f
     mod = relay.transform.InferType()(mod)
-    mod_trt, config = tensorrt.partition_for_tensorrt(mod, params={})
+    mod_trt = tensorrt.partition_for_tensorrt(mod)
 
     # Get the expected relay graph and compare
     mod_exp = get_expected()
@@ -1212,7 +1213,7 @@ def test_tensorrt_dynamic_batch(run_module):
         mod = tvm.IRModule()
         mod["main"] = f
         if use_trt:
-            mod, _ = tensorrt.partition_for_tensorrt(mod)
+            mod = tensorrt.partition_for_tensorrt(mod)
 
         if run_module:
             with relay.build_config(opt_level=3):
@@ -1242,17 +1243,17 @@ def test_tensorrt_dynamic_batch_conv(run_module):
             f = relay.Function([x, kernel], out)
             mod = tvm.IRModule()
             mod["main"] = f
+            trt_target = tvm.target.Target(f"tensorrt -use_implicit_batch={use_implicit_batch}")
             if use_trt:
-                mod, config = tensorrt.partition_for_tensorrt(
-                    mod, params, use_implicit_batch=use_implicit_batch
-                )
+                mod = tensorrt.partition_for_tensorrt(mod, params=params, target=trt_target)
             if run_module:
                 for target in ["llvm", "cuda"]:
-                    with tvm.transform.PassContext(
-                        opt_level=3, config={"relay.ext.tensorrt.options": config}
-                    ):
+                    targets = [target]
+                    if use_trt:
+                        targets.append(trt_target)
+                    with tvm.transform.PassContext(opt_level=3):
                         func = relay.create_executor(
-                            "vm", mod=mod, device=tvm.device(target), target=target
+                            "vm", mod=mod, device=tvm.device(target), target=targets
                         ).evaluate()
                     for i, batch_size in enumerate(batches_to_test):
                         result_arr[i][target][use_trt] = func(x_data[:batch_size, ...], **params)
@@ -1281,9 +1282,11 @@ def test_maskrcnn_resnet50(run_module) -> None:
         input_name = "input0"
         shape_list = [(input_name, input_shape)]
         mod, params = relay.frontend.from_pytorch(traced_module, shape_list)
-        mod, config = tensorrt.partition_for_tensorrt(mod, params, remove_no_mac_subgraphs=True)
+        trt_target = tvm.target.Target("tensorrt -remove_no_mac_subgraphs=True")
+        mod = tensorrt.partition_for_tensorrt(mod, params=params, target=trt_target)
+        targets = [target, trt_target]
         with tvm.transform.PassContext(opt_level=3, disabled_pass=["FoldScaleAxis"]):
-            vm_trt_exec = relay.vm.compile(mod, target=target, params=params)
+            vm_trt_exec = relay.vm.compile(mod, target=targets, params=params)
 
         return vm_trt_exec
 
@@ -1381,7 +1384,7 @@ def test_empty_subgraph(run_module):
     var1 = relay.var("tensorrt_0_i0", shape=(x_shape), dtype="float32")
     f1 = GlobalVar("tensorrt_0")
     func = relay.Function([var1], var1)
-    func = set_func_attr(func, "tensorrt", "tvmgen_default_tensorrt_0")
+    func = set_outer_func_attr(func, "tensorrt", "tvmgen_default_tensorrt_0")
     mod[f1] = func
     mod = relay.transform.InferType()(mod)
 
@@ -1402,4 +1405,5 @@ def test_empty_subgraph(run_module):
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     tvm.testing.main()

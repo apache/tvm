@@ -360,8 +360,8 @@ class CodegenCModule {
 };
 
 /*! \brief The actual translation pass. */
-transform::Pass CCompilerImpl() {
-  auto pass_func = [=](IRModule mod, const transform::PassContext& pass_ctx) {
+tvm::transform::Pass CCompilerImpl() {
+  auto pass_func = [=](IRModule mod, const tvm::transform::PassContext& pass_ctx) {
     VLOG(1) << "CCompilerImpl input:" << std::endl << PrettyPrint(mod);
     Target target = GetCCompilerTarget();
 
@@ -388,10 +388,10 @@ transform::Pass CCompilerImpl() {
   return tvm::transform::CreateModulePass(pass_func, 0, "CCompilerImpl", {});
 }
 
-transform::Pass CCompilerPass() {
+tvm::transform::Pass CCompilerPass() {
   return transform::Sequential(
-      {transforms::OutlineCompilerFunctionsWithExistingGlobalSymbols("ccompiler"), CCompilerImpl(),
-       transforms::MarkCompilerFunctionsAsExtern("ccompiler")});
+      {transform::OutlineCompilerFunctionsWithExistingGlobalSymbols("ccompiler"), CCompilerImpl(),
+       transform::MarkCompilerFunctionsAsExtern("ccompiler")});
 }
 
 }  // namespace contrib
