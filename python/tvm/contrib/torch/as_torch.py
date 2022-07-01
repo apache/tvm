@@ -17,7 +17,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-""" 
+# pylint: disable=missing-module-docstring
+# pylint: disable=missing-class-docstring
+# pylint: disable=missing-function-docstring
+"""
 as_torch: a decorator, which is used to wrap the TVMscript code to `torch.nn.module`.
 """
 from typing import Callable, List, Union
@@ -26,6 +29,7 @@ import torch
 import torch.utils.dlpack
 
 import tvm
+
 
 # python wrapper for OperatorModule
 class OperatorModuleWrapper(torch.nn.Module):
@@ -39,11 +43,11 @@ class OperatorModuleWrapper(torch.nn.Module):
     ):
         super().__init__()
         self.rt_module = None  # runtime module
-        self.ir_module = module  # IR moudle
+        self.ir_module = module  # IR modules
 
     def build(self, target=None):
         runtime_module = tvm.build(self.ir_module, target=target)
-        func = tvm.get_global_func("tvmtorch.save_runtime_mod")
+        func = tvm.get_global_func("PyTorch.save_runtime_mod")
         func(runtime_module)
 
         self.rt_module = torch.classes.tvm_torch.OperatorModuleWrapper()
@@ -77,7 +81,7 @@ def as_torch(func: Union[tvm.ir.module.IRModule, tvm.tir.function.PrimFunc, Call
     """
     if isinstance(func, tvm.ir.module.IRModule, tvm.tir.function.PrimFunc):
         return OperatorModuleWrapper(func)
-    elif isinstance(func, Callable):
+    if isinstance(func, Callable):
 
         def func_get_param(*args, **kargs):
             return OperatorModuleWrapper(func(*args, **kargs))

@@ -17,8 +17,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=missing-module-docstring
+# pylint: disable=missing-class-docstring
+# pylint: disable=missing-function-docstring
 """
-optimize_torch: aa function similar to `torch.jit.trace`, 
+optimize_torch: aa function similar to `torch.jit.trace`,
 which is used to optimize the `torch.nn.module` by TVM metaSchedule,
 and returns a custom TorchScript operator
 """
@@ -26,7 +29,7 @@ import base64
 import contextlib
 import tempfile
 from typing import Tuple
-from tvm.meta_schedule.tune import tune_relay
+
 import torch
 import torch.utils.dlpack
 
@@ -34,6 +37,8 @@ import tvm
 from tvm import relay
 from tvm._ffi import get_global_func, register_func
 from tvm.meta_schedule import TuneConfig
+from tvm.meta_schedule.tune import tune_relay
+
 
 # The python wrapper for GraphExecutorFactory
 class GraphExecutorFactoryWrapper(torch.nn.Module):
@@ -45,8 +50,7 @@ class GraphExecutorFactoryWrapper(torch.nn.Module):
         ret = self.inner_module.forward(torch_inputs)
         if len(ret) == 1:
             return ret[0]
-        else:
-            return ret
+        return ret
 
 
 def llvm_target():
