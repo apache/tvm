@@ -3424,6 +3424,42 @@ def test_forward_unary():
 
 
 @tvm.testing.uses_gpu
+def test_forward_tril():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+    input_data = torch.rand(input_shape).float()
+
+    class Tril1(Module):
+        def forward(self, *args):
+            return torch.tril(args[0])
+
+    class Tril2(Module):
+        def forward(self, *args):
+            return torch.tril(args[0], 1)
+
+    verify_model(Tril1().float().eval(), input_data=input_data)
+    verify_model(Tril2().float().eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_triu():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+    input_data = torch.rand(input_shape).float()
+
+    class Triu1(Module):
+        def forward(self, *args):
+            return torch.triu(args[0])
+
+    class Triu2(Module):
+        def forward(self, *args):
+            return torch.triu(args[0], 1)
+
+    verify_model(Triu1().float().eval(), input_data=input_data)
+    verify_model(Triu2().float().eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_where():
     torch.set_grad_enabled(False)
 
