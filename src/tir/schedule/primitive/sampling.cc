@@ -184,7 +184,7 @@ int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState* rand_st
   }
 
   *decision = Integer(i);  // decision is guaranteed not to be nullptr.
-  return candidates[i];
+  return candidates[i].IntValue();
 }
 
 std::function<int32_t()> MakeMultinomialSampler(

@@ -501,10 +501,9 @@ Iterator FuseStepNode::ApplyToState(State* state) const {
     if (i > 0) {
       ICHECK_EQ(fused_ids[i]->value, fused_ids[i - 1]->value + 1);
     }
-
     if (i != fused_ids.size() - 1) {
       const auto& iter_to_attached_stage = (*state)->attach_map->iter_to_attached_stages;
-      if (iter_to_attached_stage.find(std::make_pair(stage_id, fused_ids[i])) !=
+      if (iter_to_attached_stage.find(std::make_pair(stage_id, fused_ids[i].IntValue())) !=
           iter_to_attached_stage.end()) {
         LOG(FATAL) << "Invalid Fuse. Trying to fuse iterators that have been attached by some "
                    << "stages. State before fusion:\n"
@@ -512,7 +511,7 @@ Iterator FuseStepNode::ApplyToState(State* state) const {
       }
     }
 
-    const Iterator& it = stage->iters[fused_ids[i]];
+    const Iterator& it = stage->iters[fused_ids[i].IntValue()];
     orig_iters.push_back(it);
     new_name = new_name + it->name + "@";
 
@@ -543,9 +542,9 @@ Iterator FuseStepNode::ApplyToState(State* state) const {
     new_iters.push_back(new_it);
   } else {
     new_iters.insert(new_iters.end(), stage->iters.begin(),
-                     stage->iters.begin() + fused_ids.front());
+                     stage->iters.begin() + fused_ids.front().IntValue());
     new_iters.push_back(new_it);
-    new_iters.insert(new_iters.end(), stage->iters.begin() + fused_ids.back() + 1,
+    new_iters.insert(new_iters.end(), stage->iters.begin() + fused_ids.back().IntValue() + 1,
                      stage->iters.end());
   }
 
@@ -561,7 +560,7 @@ Iterator FuseStepNode::ApplyToState(State* state) const {
   // The original iterators in AttachMap will be updated with the new iterators
   std::vector<IterKey> from_iters;
   std::vector<IterKey> to_iters;
-  const size_t begin_id = fused_ids.front(), end_id = fused_ids.back();
+  const size_t begin_id = fused_ids.front().IntValue(), end_id = fused_ids.back().IntValue();
   for (size_t i = 0; i < old_iter_size; ++i) {
     if (i <= begin_id) {
       continue;
@@ -587,7 +586,7 @@ IterVar FuseStepNode::ApplyToSchedule(Array<te::Stage>* stages,
 
   Array<IterVar> to_fuse;
   for (const auto& i : fused_ids) {
-    to_fuse.push_back(axes[i]);
+    to_fuse.push_back(axes[i.IntValue()]);
   }
   IterVar fused_axis;
   stage.fuse(to_fuse, &fused_axis);
@@ -596,9 +595,9 @@ IterVar FuseStepNode::ApplyToSchedule(Array<te::Stage>* stages,
   if (fused_ids.empty()) {
     new_axes.push_back(fused_axis);
   } else {
-    new_axes.insert(new_axes.end(), axes.begin(), axes.begin() + fused_ids.front());
+    new_axes.insert(new_axes.end(), axes.begin(), axes.begin() + fused_ids.front().IntValue());
     new_axes.push_back(fused_axis);
-    new_axes.insert(new_axes.end(), axes.begin() + fused_ids.back() + 1, axes.end());
+    new_axes.insert(new_axes.end(), axes.begin() + fused_ids.back().IntValue() + 1, axes.end());
   }
 
   stage_to_axes->Set(stage, std::move(new_axes));
@@ -613,7 +612,8 @@ String FuseStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
   std::stringstream to_fuse;
 
   for (size_t i = 0; i < fused_ids.size(); ++i) {
-    to_fuse << CleanName(stage_to_axes->at(stage)[fused_ids[i]]->var->name_hint, op_name);
+    to_fuse << CleanName(stage_to_axes->at(stage)[fused_ids[i].IntValue()]->var->name_hint,
+                         op_name);
     if (i != fused_ids.size() - 1) {
       to_fuse << ", ";
     }
@@ -773,7 +773,7 @@ void ReorderStepNode::ApplyToState(State* state) const {
   const Stage& stage = (*state)->stages[stage_id];
   Array<Iterator> iters;
   for (auto x : after_ids) {
-    iters.push_back(stage->iters[x]);
+    iters.push_back(stage->iters[x.IntValue()]);
   }
   state->CopyOnWrite()->stages.Set(
       stage_id, Stage(stage->op, stage->op_type, iters, stage->compute_at, stage->attrs));
@@ -788,7 +788,7 @@ void ReorderStepNode::ApplyToSchedule(Array<te::Stage>* stages,
   Array<IterVar> new_axes;
   new_axes.reserve(axes.size());
   for (auto i : after_ids) {
-    new_axes.push_back(axes[i]);
+    new_axes.push_back(axes[i.IntValue()]);
   }
   stage.reorder(new_axes);
 
@@ -804,7 +804,7 @@ String ReorderStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
 
   ss << "s[" << op_name << "].reorder(";
   for (size_t i = 0; i < after_ids.size(); ++i) {
-    ss << CleanName((*stage_to_axes)[stage][after_ids[i]]->var->name_hint, op_name);
+    ss << CleanName((*stage_to_axes)[stage][after_ids[i].IntValue()]->var->name_hint, op_name);
     if (i != after_ids.size() - 1) {
       ss << ", ";
     }
@@ -1180,10 +1180,10 @@ Optional<Integer> FollowFusedSplitStepNode::ExtractSplitLength(
     const Array<Step>& transform_steps) const {
   PrimExpr ret(1);
 
-  for (int src_step_id : src_step_ids) {
+  for (auto src_step_id : src_step_ids) {
     // Make sure the src_step_id is within the range of transform_steps.
-    ICHECK_LT(src_step_id, transform_steps.size());
-    auto ps = transform_steps[src_step_id].as<SplitStepNode>();
+    ICHECK_LT(src_step_id.IntValue(), transform_steps.size());
+    auto ps = transform_steps[src_step_id.IntValue()].as<SplitStepNode>();
     ICHECK(ps != nullptr);
     // Multiple the splitting factor on corresponding splitting level of src_steps.
     if (ps->lengths[level] && ret.defined()) {
@@ -1572,7 +1572,7 @@ te::Tensor CacheReadStepNode::ApplyToSchedule(Array<te::Stage>* stages,
   const te::Stage& stage = (*stages)[stage_id];
   Array<te::Operation> readers;
   for (const auto& i : reader_stage_ids) {
-    readers.push_back((*stages)[i]->origin_op);
+    readers.push_back((*stages)[i.IntValue()]->origin_op);
   }
   auto out = schedule->cache_read(stage->origin_op.output(0), scope_name, readers);
 
@@ -1591,7 +1591,7 @@ String CacheReadStepNode::PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxes
   auto stage = (*stages)[stage_id];
   Array<te::Stage> reader_stages;
   for (size_t i = 0; i < reader_stage_ids.size(); ++i) {
-    reader_stages.push_back((*stages)[reader_stage_ids[i]]);
+    reader_stages.push_back((*stages)[reader_stage_ids[i].IntValue()]);
   }
   auto out = ApplyToSchedule(stages, stage_to_axes, schedule);
 

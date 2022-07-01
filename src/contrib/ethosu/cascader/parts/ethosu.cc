@@ -181,7 +181,10 @@ TVM_REGISTER_GLOBAL("contrib.ethosu.cascader.EthosuPart")
                        Array<BlockConfig> valid_block_configs, int weight_tensor_idx) {
       std::vector<te::Tensor> vsubgraph_inputs(subgraph_inputs.begin(), subgraph_inputs.end());
       std::vector<Propagator> vpropagators(propagators.begin(), propagators.end());
-      std::vector<int> voutput_quantum(output_quantum.begin(), output_quantum.end());
+      std::vector<int> voutput_quantum;
+      std::transform(output_quantum.begin(), output_quantum.end(),
+                     std::back_inserter(voutput_quantum),
+                     [](auto&& val) { return val.IntValue(); });
       TESubgraph subgraph;
       subgraph.input_tensors = vsubgraph_inputs;
       subgraph.output_tensor = subgraph_output;

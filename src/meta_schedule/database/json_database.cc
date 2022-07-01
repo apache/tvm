@@ -198,7 +198,7 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
           try {
             const ArrayNode* arr = json_obj.as<ArrayNode>();
             ICHECK_EQ(arr->size(), 2);
-            workload = workloads[Downcast<Integer>(arr->at(0))];
+            workload = workloads[Downcast<Integer>(arr->at(0)).IntValue()];
             records[task_id] = TuningRecord::FromJSON(arr->at(1), workload);
           } catch (std::runtime_error& e) {
             LOG(FATAL) << "ValueError: Unable to parse TuningRecord, on line " << (task_id + 1)
