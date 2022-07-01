@@ -29,11 +29,11 @@
 #include <string>
 #include <vector>
 
+#include "../../../transforms/compiler_function_utils.h"
 #include "../../utils.h"
 #include "../codegen_json/codegen_json.h"
 
 #if TVM_GRAPH_EXECUTOR_TENSORRT
-#include "../../../transforms/compiler_function_utils.h"
 #include "NvInfer.h"
 #endif
 
