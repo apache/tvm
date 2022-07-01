@@ -71,21 +71,25 @@ def get_tensorrt_version() -> Tuple[int, int, int]:
     ret: Tuple[int, int, int]
         TensorRT version as a tuple of (major, minor, patch).
     """
+    # cf logic in tensorrt/codegen.cc::SaveGlobalAttributes
+    # First check for version in target.
     target = get_tensorrt_target()
     version = target.attrs["tensorrt_version"]
     if len(version) == 3:
         return int(version[0]), int(version[1]), int(version[2])
     assert len(version) == 0
 
-    get_version = tvm.get_global_func("relay.ext.tensorrt.get_version", True)
-    if get_version:
+    # Next, ask runtime for its version.
+    if is_tensorrt_runtime_enabled():
+        get_version = tvm.get_global_func("relay.ext.tensorrt.get_version")
         version = get_version()
         assert len(version) == 3
         return int(version[0]), int(version[1]), int(version[2])
 
+    # Finally, use default.
     logger.warning(
-        "TVM was not built against TensorRT and no version was provided to "
-        "partition_for_tensorrt. Defaulting to 6.0.1"
+        "TVM was not built against TensorRT and no version was provided in the 'tensorrt' target."
+        "Defaulting to 6.0.1."
     )
     return (6, 0, 1)
 

@@ -14,22 +14,26 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm.testing
+
 import numpy as np
 import pytest
 import itertools
 import logging
+from typing import Tuple
+
+try:
+    # See issue #9362.
+    import torch
+except:
+    pass
 
 import tvm
+import tvm.testing
 import tvm.relay.testing
 
 from tvm import relay
-from tvm.relay.op.contrib import tensorrt
-
 from tvm.relay import Any, GlobalVar
-
 from tvm.relay.expr_functor import ExprVisitor
-from typing import Tuple
 from tvm.contrib.download import download
 from tvm.relay.op.contrib import tensorrt
 
@@ -1139,6 +1143,7 @@ def test_conv3d_transpose(run_module):
     )
 
 
+@has_tensorrt_codegen
 def test_dynamic_offload():
     """
     This test checks for proper dynamic offloading of relay graphs. An addition between
@@ -1258,11 +1263,11 @@ def test_tensorrt_dynamic_batch_conv(run_module):
                     assert_result_dict_holds(result_arr[i][target])
 
 
-@pytest.mark.skip(
-    reason=(
-        "Coredumps, possibly due to LLVM and PyTorch version mismatch. See https://github.com/apache/tvm/issues/11765"
-    )
-)
+#@pytest.mark.skip(
+#    reason=(
+#        "Coredumps, possibly due to LLVM and PyTorch version mismatch. See https://github.com/apache/tvm/issues/11765"
+#    )
+#)
 def test_maskrcnn_resnet50(run_module) -> None:
     """
     This function tests the working of pytorch maskrcnn with resnet50 as backbone with

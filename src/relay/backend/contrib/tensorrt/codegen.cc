@@ -278,11 +278,15 @@ class TensorRTJSONSerializer : public JSONSerializer {
   /*! \brief Capture the compilation options as attributes on \p node. */
   void SaveGlobalAttributes(JSONGraphNode* node) {
     {
+      // cf logic in tensorrt.py::get_tensorrt_version.
+      // First check for version in target.
       Array<Integer> target_attr = target_->GetAttr<Array<Integer>>("tensorrt_version").value();
       if (target_attr.empty()) {
+        // Next, ask runtime for its version.
         target_attr = GetVersion();
       }
       if (target_attr.empty()) {
+        // Finally, use default.
         target_attr = {6, 0, 1};
       }
       ICHECK_EQ(target_attr.size(), 3);
