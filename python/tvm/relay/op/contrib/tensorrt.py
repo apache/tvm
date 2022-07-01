@@ -111,7 +111,9 @@ def get_tensorrt_use_fp16() -> bool:
 def partition_for_tensorrt(
     mod: tvm.IRModule,
     params: Optional[Dict[str, tvm.nd.NDArray]] = None,
-    target: tvm.target.Target = tvm.target.Target("tensorrt"),
+    # CAUTION: Can't use default Target("tensorrt") here since the target kind is only available
+    #          if is_tensorrt_compiler_enabled() == True.
+    target: Optional[tvm.target.Target] = None,
 ) -> tvm.IRModule:
     """Partition all functions in mod to greedily offload supported operators to TensorRT.
 
@@ -130,8 +132,13 @@ def partition_for_tensorrt(
         The partitioned module.
 
     """
+    assert is_tensorrt_compiler_enabled(), "Can only partition for TensorRT if it is enabled"
     if params:
         mod["main"] = bind_params_by_name(mod["main"], params)
+    if target is None:
+        # Use a default target. The get_tensorrt_target() function will similarly create an
+        # equivalent default target when compilation continues after partitioning.
+        target = tvm.target.Target("tensorrt")
 
     seq = tvm.transform.Sequential(
         [

@@ -348,8 +348,8 @@ void CollectFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node) {
  * function will require a linear scan of imported runtime modules to find the matching
  * TensorRTRuntimeModule implementing it.
  */
-transform::Pass CompileForTensorRTImpl() {
-  auto pass_func = [](IRModule mod, const transform::PassContext& pass_ctx) {
+tvm::transform::Pass CompileForTensorRTImpl() {
+  auto pass_func = [](IRModule mod, const tvm::transform::PassContext& pass_ctx) {
     VLOG(1) << "CompileForTensorRT input:" << std::endl << PrettyPrint(mod);
     Target target = GetTensorRTTarget();
 
@@ -400,10 +400,10 @@ transform::Pass CompileForTensorRTImpl() {
   return tvm::transform::CreateModulePass(pass_func, 0, "CompileForTensorRT", {});
 }
 
-transform::Pass CompileForTensorRT() {
+tvm::transform::Pass CompileForTensorRT() {
   return transform::Sequential(
-      {transforms::OutlineCompilerFunctionsWithExistingGlobalSymbols("tensorrt"),
-       CompileForTensorRTImpl(), transforms::MarkCompilerFunctionsAsExtern("tensorrt")});
+      {transform::OutlineCompilerFunctionsWithExistingGlobalSymbols("tensorrt"),
+       CompileForTensorRTImpl(), transform::MarkCompilerFunctionsAsExtern("tensorrt")});
 }
 
 }  // namespace tensorrt

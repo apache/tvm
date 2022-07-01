@@ -66,7 +66,7 @@
 
 namespace tvm {
 namespace relay {
-namespace transforms {
+namespace transform {
 
 /*!
  * \brief Abstract class representing a cache of unique global vars keyed by functions. This can
@@ -105,8 +105,8 @@ class ExistingGlobalSymbolCache : public GlobalSymbolCache {
  * If \p compiler_filter is non-empty only functions with that as their attribute value are
  * outlined.
  */
-transform::Pass OutlineCompilerFunctions(std::shared_ptr<GlobalSymbolCache> cache,
-                                         std::string compiler_filter = "");
+tvm::transform::Pass OutlineCompilerFunctions(std::shared_ptr<GlobalSymbolCache> cache,
+                                              std::string compiler_filter = "");
 
 /*!
  * \brief A pass to outline all let-bound and literal functions in direct call positions which have
@@ -119,7 +119,8 @@ transform::Pass OutlineCompilerFunctions(std::shared_ptr<GlobalSymbolCache> cach
  * This pass may be useful for external codegen using the "RelayToTIR" custom pass mechanism
  * to prepare the IRModule before custom lowering.
  */
-transform::Pass OutlineCompilerFunctionsWithExistingGlobalSymbols(std::string compiler_filter = "");
+tvm::transform::Pass OutlineCompilerFunctionsWithExistingGlobalSymbols(
+    std::string compiler_filter = "");
 
 /*!
  * \brief A pass to mark all global functions which have a "Compiler" attribute matching
@@ -132,7 +133,7 @@ transform::Pass OutlineCompilerFunctionsWithExistingGlobalSymbols(std::string co
  * This pass may be useful for external codegen using the "RelayToTIR" custom pass mechanism to
  * cleanup the IRModule after custom lowering.
  */
-transform::Pass MarkCompilerFunctionsAsExtern(std::string compiler_filter = "");
+tvm::transform::Pass MarkCompilerFunctionsAsExtern(std::string compiler_filter = "");
 
 /*!
  * \brief A pass to inline all global "Compiler" functions which are bound to a global var
@@ -142,9 +143,9 @@ transform::Pass MarkCompilerFunctionsAsExtern(std::string compiler_filter = "");
  * This pass may be useful for external codegen which needs to undo partitioning based on
  * properties of the entire partition.
  */
-transform::Pass InlineCompilerFunctionsBoundTo(Array<GlobalVar> global_vars);
+tvm::transform::Pass InlineCompilerFunctionsBoundTo(Array<GlobalVar> global_vars);
 
-}  // namespace transforms
+}  // namespace transform
 }  // namespace relay
 }  // namespace tvm
 
