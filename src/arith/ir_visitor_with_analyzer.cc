@@ -105,20 +105,6 @@ void IRVisitorWithAnalyzer::VisitExpr_(const LetNode* op) {
   this->VisitExpr(op->body);
 }
 
-void IRVisitorWithAnalyzer::VisitExpr_(const SelectNode* op) {
-  this->VisitExpr(op->condition);
-
-  auto real_condition = ExtractRealCondition(op->condition);
-  {
-    With<ConstraintContext> constraint(&analyzer_, real_condition);
-    VisitExpr(op->true_value);
-  }
-  {
-    With<ConstraintContext> constraint(&analyzer_, analyzer_.rewrite_simplify(Not(real_condition)));
-    VisitExpr(op->false_value);
-  }
-}
-
 void IRVisitorWithAnalyzer::VisitExpr_(const ReduceNode* op) {
   for (const IterVar& iv : op->axis) {
     analyzer_.Bind(iv->var, iv->dom);

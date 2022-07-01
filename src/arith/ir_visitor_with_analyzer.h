@@ -47,8 +47,11 @@ class IRVisitorWithAnalyzer : public tir::StmtExprVisitor {
   void VisitStmt_(const tir::AssertStmtNode* op);
   void VisitExpr_(const tir::CallNode* op);
   void VisitExpr_(const tir::LetNode* op);
-  void VisitExpr_(const tir::SelectNode* op);
   void VisitExpr_(const tir::ReduceNode* op);
+
+  // IRVisitorWithAnalyzer deliberately does not handle Select nodes,
+  // because both sides of a Select node are visited regardless of the
+  // condition.
 
  protected:
   /*! \brief internal analyzer field. */
