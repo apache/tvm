@@ -18,6 +18,12 @@ import pytest
 import os
 import numpy as np
 
+try:
+    # See issue #9362.
+    import torch
+except:
+    pass
+
 import tvm
 import tvm.testing
 from tvm import relay
