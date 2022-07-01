@@ -4177,6 +4177,42 @@ def test_cross_entropy_loss():
     verify_model(torch.nn.CrossEntropyLoss().eval(), input_data=[predictions, targets])
 
 
+def test_forward_l1_loss():
+    torch.set_grad_enabled(False)
+    N, C = 10, 3
+    predictions = torch.rand((N, C)).float()
+    targets = torch.rand((N, C)).float()
+    verify_model(torch.nn.L1Loss().eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.L1Loss(reduction="sum").eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.L1Loss(reduction="none").eval(), input_data=[predictions, targets])
+
+    # multidimension l1 loss
+    d1, d2 = 2, 3
+    predictions = torch.rand((N, C, d1, d2)).float()
+    targets = torch.rand((N, C, d1, d2)).float()
+    verify_model(torch.nn.L1Loss().eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.L1Loss(reduction="sum").eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.L1Loss(reduction="none").eval(), input_data=[predictions, targets])
+
+
+def test_forward_mse_loss():
+    torch.set_grad_enabled(False)
+    N, C = 10, 3
+    predictions = torch.rand((N, C)).float()
+    targets = torch.rand((N, C)).float()
+    verify_model(torch.nn.MSELoss().eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.MSELoss(reduction="sum").eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.MSELoss(reduction="none").eval(), input_data=[predictions, targets])
+
+    # multidimension mse loss
+    d1, d2 = 2, 3
+    predictions = torch.rand((N, C, d1, d2)).float()
+    targets = torch.rand((N, C, d1, d2)).float()
+    verify_model(torch.nn.MSELoss().eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.MSELoss(reduction="sum").eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.MSELoss(reduction="none").eval(), input_data=[predictions, targets])
+
+
 @tvm.testing.uses_gpu
 def test_forward_flip():
     torch.set_grad_enabled(False)
