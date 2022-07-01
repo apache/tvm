@@ -29,6 +29,7 @@
 #include <string>
 #include <vector>
 
+#include "../../../transforms/compiler_function_utils.h"
 #include "../../utils.h"
 #include "../codegen_json/codegen_json.h"
 
@@ -39,36 +40,49 @@
 namespace tvm {
 namespace relay {
 namespace contrib {
+namespace tensorrt {
 
-/*! \brief Attributes to store the compiler options for TensorRT. */
-struct TensorRTCompilerConfigNode : public tvm::AttrsNode<TensorRTCompilerConfigNode> {
-  Array<Integer> tensorrt_version;
-  bool use_implicit_batch;
-  size_t max_workspace_size;
-  bool remove_no_mac_subgraphs;
-  bool use_fp16;
-  bool use_uint8;
+/*!
+ * \brief Check whether TensorRT graph executor is enabled.
+ * \return True if enabled, False if not.
+ */
+inline constexpr bool IsRuntimeEnabled() {
+#if TVM_GRAPH_EXECUTOR_TENSORRT
+  return true;
+#else
+  return false;
+#endif  // TVM_GRAPH_EXECUTOR_TENSORRT
+}
 
-  TVM_DECLARE_ATTRS(TensorRTCompilerConfigNode, "ext.attrs.TensorRTCompilerConfigNode") {
-    TVM_ATTR_FIELD(tensorrt_version)
-        .describe("TensorRT version as (major, minor, patch).")
-        .set_default(Array<Integer>({6, 0, 1}));
-    TVM_ATTR_FIELD(use_implicit_batch).set_default(true);
-    TVM_ATTR_FIELD(max_workspace_size).set_default(size_t(1) << 30);
-    TVM_ATTR_FIELD(remove_no_mac_subgraphs).set_default(false);
-    TVM_ATTR_FIELD(use_fp16).set_default(false);
-    TVM_ATTR_FIELD(use_uint8).set_default(false);
+TVM_REGISTER_GLOBAL("relay.ext.tensorrt.is_runtime_enabled").set_body_typed(IsRuntimeEnabled);
+
+/*!
+ * \brief Get TensorRT version that TVM is built against.
+ * \return Array of three integers for major, minor, and patch, or empty array if TensorRT graph
+ * runtime is not enabled.
+ */
+Array<Integer> GetVersion() {
+#if TVM_GRAPH_EXECUTOR_TENSORRT
+  return {Integer(NV_TENSORRT_MAJOR), Integer(NV_TENSORRT_MINOR), Integer(NV_TENSORRT_PATCH)};
+#else
+  return {};
+#endif  // TVM_GRAPH_EXECUTOR_TENSORRT
+}
+
+TVM_REGISTER_GLOBAL("relay.ext.tensorrt.get_version").set_body_typed(GetVersion);
+
+/*!
+ * \brief Returns the "tensorrt" Target instance to use for compilation.
+ */
+Target GetTensorRTTarget() {
+  Target target = Target::Current(/*allow_not_defined=*/true);
+  if (!target.defined() || target->kind->name != "tensorrt") {
+    // Since we allow partition_for_tensorrt to use the default "tensorrt" target, we should
+    // similarly allow the custom pass to execute without a specific "tensorrt" target in scope.
+    target = Target("tensorrt");
   }
-};
-
-class TensorRTCompilerConfig : public Attrs {
- public:
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TensorRTCompilerConfig, Attrs,
-                                            TensorRTCompilerConfigNode);
-};
-
-TVM_REGISTER_NODE_TYPE(TensorRTCompilerConfigNode);
-TVM_REGISTER_PASS_CONFIG_OPTION("relay.ext.tensorrt.options", TensorRTCompilerConfig);
+  return target;
+}
 
 using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
 using JSONGraphNodeEntry = tvm::runtime::json::JSONGraphNodeEntry;
@@ -87,6 +101,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
   explicit CollectFromCompositeFunctionBody(TensorRTJSONSerializer* serializer)
       : serializer_(serializer), node_(std::make_shared<JSONGraphNode>()) {}
 
+  // We'll need to implement these out-of-band since they use the serializer.
   void VisitExpr_(const ConstantNode* constant_node) final;
   void VisitExpr_(const CallNode* call_node) final;
 
@@ -190,6 +205,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
     extractor.Extract(const_cast<Object*>(attr_obj));
   }
 
+  /*! \brief The parent serializer for the overall TensorRT partition. */
   TensorRTJSONSerializer* serializer_;
   /*! \brief Accumulated translated arguments. */
   std::vector<JSONGraphNodeEntry> args_;
@@ -207,9 +223,10 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
  */
 class TensorRTJSONSerializer : public JSONSerializer {
  public:
-  TensorRTJSONSerializer(const std::string& symbol, const Expr& expr)
-      : JSONSerializer(symbol, expr) {}
+  TensorRTJSONSerializer(Target target, const std::string& symbol, const Expr& expr)
+      : JSONSerializer(symbol, expr), target_(std::move(target)) {}
 
+ private:
   using JSONSerializer::VisitExpr_;
 
   std::vector<JSONGraphNodeEntry> VisitExpr_(const CallNode* call_node) final {
@@ -245,40 +262,62 @@ class TensorRTJSONSerializer : public JSONSerializer {
     node->CaptureAttrs(*collector.node_);
 
     // Capture global settings on the JSON node.
-    SaveGlobalAttributes(node);
+    // TODO(mbs): Why on every call?
+    SaveGlobalAttributes(node.get());
 
     VLOG(1) << name << " has " << node->GetInputs().size() << " inputs";
 
     return AddNode(node, GetRef<Expr>(call_node));
   }
 
-  static void SaveGlobalAttributes(std::shared_ptr<JSONGraphNode> node) {
-    auto ctx = transform::PassContext::Current();
-    auto cfg = ctx->GetConfig<TensorRTCompilerConfig>("relay.ext.tensorrt.options");
-    if (!cfg.defined()) {
-      cfg = AttrsWithDefaultValues<TensorRTCompilerConfig>();
-    }
-    ICHECK_EQ(cfg.value()->tensorrt_version.size(), 3);
-    std::vector<std::string> tensorrt_version = {std::to_string(cfg.value()->tensorrt_version[0]),
-                                                 std::to_string(cfg.value()->tensorrt_version[1]),
-                                                 std::to_string(cfg.value()->tensorrt_version[2])};
-    std::vector<std::string> use_implicit_batch = {std::to_string(cfg.value()->use_implicit_batch)};
-    std::vector<std::string> max_workspace_size = {std::to_string(cfg.value()->max_workspace_size)};
-    std::vector<std::string> use_fp16 = {std::to_string(cfg.value()->use_fp16)};
-    std::vector<std::string> use_uint8 = {std::to_string(cfg.value()->use_uint8)};
-    std::vector<dmlc::any> tensorrt_version_attr, use_implicit_batch_attr, max_workspace_size_attr,
-        use_fp16_attr, use_uint8_attr;
-    tensorrt_version_attr.emplace_back(tensorrt_version);
-    use_implicit_batch_attr.emplace_back(use_implicit_batch);
-    max_workspace_size_attr.emplace_back(max_workspace_size);
-    use_fp16_attr.emplace_back(use_fp16);
-    use_uint8_attr.emplace_back(use_uint8);
-    node->SetAttr("tensorrt_version", tensorrt_version_attr);
-    node->SetAttr("use_implicit_batch", use_implicit_batch_attr);
-    node->SetAttr("max_workspace_size", max_workspace_size_attr);
-    node->SetAttr("use_fp16", use_fp16_attr);
-    node->SetAttr("use_uint8", use_uint8_attr);
+  static void SetAttr(JSONGraphNode* node, const std::string& key,
+                      std::vector<std::string> values) {
+    node->SetAttr(key, std::vector<dmlc::any>({std::move(values)}));
   }
+
+  /*! \brief Capture the compilation options as attributes on \p node. */
+  void SaveGlobalAttributes(JSONGraphNode* node) {
+    {
+      // cf logic in tensorrt.py::get_tensorrt_version.
+      // First check for version in target.
+      Array<Integer> target_attr = target_->GetAttr<Array<Integer>>("tensorrt_version").value();
+      if (target_attr.empty()) {
+        // Next, ask runtime for its version.
+        target_attr = GetVersion();
+      }
+      if (target_attr.empty()) {
+        // Finally, use default.
+        target_attr = {6, 0, 1};
+      }
+      ICHECK_EQ(target_attr.size(), 3);
+      SetAttr(node, "tensorrt_version",
+              {std::to_string(target_attr[0]), std::to_string(target_attr[1]),
+               std::to_string(target_attr[2])});
+    }
+
+    {
+      Bool target_attr = target_->GetAttr<Bool>("use_implicit_batch").value();
+      SetAttr(node, "use_implicit_batch", {std::to_string(target_attr->value)});
+    }
+
+    {
+      Integer target_attr = target_->GetAttr<Integer>("max_workspace_size").value();
+      SetAttr(node, "max_workspace_size", {std::to_string(target_attr->value)});
+    }
+
+    {
+      Bool target_attr = target_->GetAttr<Bool>("use_fp16").value();
+      SetAttr(node, "use_fp16", {std::to_string(target_attr->value)});
+    }
+
+    {
+      Bool target_attr = target_->GetAttr<Bool>("use_uint8").value();
+      SetAttr(node, "use_uint8", {std::to_string(target_attr->value)});
+    }
+  }
+
+  /*! \brief The "tensorrt" Target guiding compilation. */
+  Target target_;
 };
 
 void CollectFromCompositeFunctionBody::VisitExpr_(const ConstantNode* constant_node) {
@@ -304,64 +343,74 @@ void CollectFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node) {
 }
 
 /*!
- * \brief Create a runtime module for TensorRT.
- * \param ref The ext_func Relay expression/module to be executed using extern ops.
- * \return A runtime module.
+ * \brief The main TensorRT compiler.
+ *
+ * TODO(mbs): Currently we create a \p TensorRTRuntimeModule for every function with
+ * Compiler="tensorrt" (ie for each partition). Since the TensorRT engine is only designed to
+ * handle a single entry point this is mostly sensible, however there are probably opportunities
+ * for more sharing between functions. However, note this means each call to a TensorRT-compiled
+ * function will require a linear scan of imported runtime modules to find the matching
+ * TensorRTRuntimeModule implementing it.
  */
-runtime::Module TensorRTCompiler(const ObjectRef& ref) {
-  ICHECK(ref->IsInstance<FunctionNode>()) << "The input ref is expected to be a Relay function.";
-  Function func = Downcast<Function>(ref);
-  std::string func_name = backend::GetExtSymbol(func);
+tvm::transform::Pass CompileForTensorRTImpl() {
+  auto pass_func = [](IRModule mod, const tvm::transform::PassContext& pass_ctx) {
+    VLOG(1) << "CompileForTensorRT input:" << std::endl << PrettyPrint(mod);
+    Target target = GetTensorRTTarget();
 
-  VLOG(1) << "TensorRT partition:" << std::endl << PrettyPrint(func);
-  TensorRTJSONSerializer serializer(func_name, func);
-  serializer.serialize();
-  std::string graph_json = serializer.GetJSON();
-  VLOG(1) << "TensorRT JSON:" << std::endl << graph_json;
+    const auto* pf = runtime::Registry::Get("runtime.tensorrt_runtime_create");
+    ICHECK(pf != nullptr) << "Cannot find TensorRT runtime module create function.";
 
-  // Note that serializer.const_name_to_constant() is ignored. Instead the TECompiler invokes
-  // a callback which calls backend::UpdateConstants to capture the map before the function
-  // 'disappears' into lowered form, on the assumption the visit order and thus constant
-  // names match those generated by the JSONSerializer.
+    // The accumulated external runtime modules.
+    Array<runtime::Module> external_mods =
+        mod->GetAttr<Array<runtime::Module>>(tvm::attr::kExternalMods).value_or({});
+    // The accumulated constant bindings.
+    Map<String, runtime::NDArray> const_name_to_constant =
+        mod->GetAttr<Map<String, runtime::NDArray>>(tvm::attr::kConstNameToConstant).value_or({});
 
-  const auto* pf = runtime::Registry::Get("runtime.tensorrt_runtime_create");
-  ICHECK(pf != nullptr) << "Cannot find TensorRT runtime module create function.";
-  VLOG(1) << "Creating tensorrt runtime::Module for '" << func_name << "'";
-  runtime::Module lib = (*pf)(func_name, graph_json, serializer.const_names());
-  return lib;
+    for (const auto& kv : mod->functions) {
+      if (const auto* function_node = kv.second.as<FunctionNode>()) {
+        if (function_node->HasNonzeroAttr(attr::kPrimitive)) {
+          Optional<String> opt_compiler = function_node->GetAttr<String>(attr::kCompiler);
+          if (opt_compiler && opt_compiler.value() == "tensorrt") {
+            // Serialize the function to JSON.
+            TensorRTJSONSerializer serializer(target, kv.first->name_hint,
+                                              GetRef<Function>(function_node));
+            serializer.serialize();
+            std::string graph_json = serializer.GetJSON();
+            VLOG(1) << "TensorRT JSON for '" << kv.first->name_hint << "':" << std::endl
+                    << graph_json;
+
+            // Remember all the constant bindings.
+            for (const auto& kv2 : serializer.const_name_to_constant()) {
+              ICHECK_EQ(const_name_to_constant.count(kv2.first), 0);
+              VLOG(1) << "binding constant '" << kv2.first << "' for function '"
+                      << kv.first->name_hint << "'";
+              const_name_to_constant.Set(kv2.first, kv2.second);
+            }
+
+            // Create the actual runtime module.
+            runtime::Module runtime_mod =
+                (*pf)(kv.first->name_hint, graph_json, serializer.const_names());
+
+            // Remember the runtime module.
+            external_mods.push_back(runtime_mod);
+          }
+        }
+      }
+    }
+    return WithAttrs(mod, {{tvm::attr::kExternalMods, external_mods},
+                           {tvm::attr::kConstNameToConstant, const_name_to_constant}});
+  };
+  return tvm::transform::CreateModulePass(pass_func, 0, "CompileForTensorRT", {});
 }
 
-TVM_REGISTER_GLOBAL("relay.ext.tensorrt").set_body_typed(TensorRTCompiler);
-
-/*!
- * \brief Check whether TensorRT graph executor is enabled.
- * \return True if enabled, False if not.
- */
-inline constexpr bool IsTensorRTRuntimeEnabled() {
-#if TVM_GRAPH_EXECUTOR_TENSORRT
-  return true;
-#else
-  return false;
-#endif  // TVM_GRAPH_EXECUTOR_TENSORRT
+tvm::transform::Pass CompileForTensorRT() {
+  return transform::Sequential(
+      {transform::OutlineCompilerFunctionsWithExistingGlobalSymbols("tensorrt"),
+       CompileForTensorRTImpl(), transform::MarkCompilerFunctionsAsExtern("tensorrt")});
 }
 
-/*!
- * \brief Get TensorRT version that TVM is built against.
- * \return Array of three integers for major, minor, and patch, or empty array if TensorRT graph
- * runtime is not enabled.
- */
-Array<Integer> GetTensorRTVersion() {
-#if TVM_GRAPH_EXECUTOR_TENSORRT
-  return {Integer(NV_TENSORRT_MAJOR), Integer(NV_TENSORRT_MINOR), Integer(NV_TENSORRT_PATCH)};
-#else
-  return {};
-#endif  // TVM_GRAPH_EXECUTOR_TENSORRT
-}
-
-TVM_REGISTER_GLOBAL("relay.op.is_tensorrt_runtime_enabled")
-    .set_body_typed(IsTensorRTRuntimeEnabled);
-TVM_REGISTER_GLOBAL("relay.op.get_tensorrt_version").set_body_typed(GetTensorRTVersion);
-
+}  // namespace tensorrt
 }  // namespace contrib
 }  // namespace relay
 }  // namespace tvm
