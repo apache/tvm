@@ -29,7 +29,7 @@ def print_with_indexes(mod):
     print(mod)
 
 
-def run(in_mod, expected_mod, max_outputs, allow_taps, map):
+def run(in_mod, expected_mod, max_outputs, allow_taps, compiler, map):
     expected_mod = tvm.relay.transform.InferType()(expected_mod)
 
     in_mod = tvm.relay.transform.InferType()(in_mod)
@@ -37,7 +37,7 @@ def run(in_mod, expected_mod, max_outputs, allow_taps, map):
 
     indexes = [i for l, iss in map.items() for i in iss]
     labels = [l for l, iss in map.items() for i in iss]
-    actual_mod = partition_for_testing(max_outputs, allow_taps, indexes, labels)(in_mod)
+    actual_mod = partition_for_testing(max_outputs, allow_taps, compiler, indexes, labels)(in_mod)
 
     if not tvm.ir.structural_equal(actual_mod, expected_mod, True):
         # Print everything in full so we can see what's going on when things fail.
@@ -78,7 +78,7 @@ def test_single_op():
         """
         )
 
-    run(input(), expected(), 1, False, {"": [7]})
+    run(input(), expected(), 1, False, "foo", {"": [7]})
 
 
 def test_multi_output():
@@ -110,9 +110,9 @@ def test_multi_output():
         )
 
     # No rewrite since 2 outputs
-    run(input(), input(), 1, False, {"": [6, 7]})
+    run(input(), input(), 1, False, "foo", {"": [6, 7]})
     # Rewrite
-    run(input(), expected(), 2, False, {"": [6, 7]})
+    run(input(), expected(), 2, False, "foo", {"": [6, 7]})
 
 
 def test_classic_conv2d_add_relu():
@@ -146,7 +146,7 @@ def test_classic_conv2d_add_relu():
         """
         )
 
-    run(input(), expected(), 1, False, {"": [8, 9, 10]})
+    run(input(), expected(), 1, False, "foo", {"": [8, 9, 10]})
 
 
 def test_diamond_single_output():
@@ -180,7 +180,7 @@ def test_diamond_single_output():
         """
         )
 
-    run(input(), expected(), 1, False, {"": [5, 6, 7, 9, 10]})
+    run(input(), expected(), 1, False, "foo", {"": [5, 6, 7, 9, 10]})
 
 
 def test_diamond_multi_output():
@@ -217,7 +217,7 @@ def test_diamond_multi_output():
         """
         )
 
-    run(input(), expected(), 2, False, {"": [5, 6, 7, 9]})
+    run(input(), expected(), 2, False, "foo", {"": [5, 6, 7, 9]})
 
 
 def test_with_tap():
@@ -251,9 +251,9 @@ def test_with_tap():
         )
 
     # No rewrite since has tap
-    run(input(), input(), 2, False, {"": [5, 6]})
+    run(input(), input(), 2, False, "foo", {"": [5, 6]})
     # Rewrite
-    run(input(), expected(), 2, True, {"": [5, 6]})
+    run(input(), expected(), 2, True, "foo", {"": [5, 6]})
 
 
 def test_no_cycles():
@@ -284,9 +284,9 @@ def test_no_cycles():
         )
 
     # No rewrite since would create cycle
-    run(input(), input(), 2, False, {"": [3, 5]})
+    run(input(), input(), 2, False, "foo", {"": [3, 5]})
     # No cycle
-    run(input(), expected(), 2, False, {"": [3, 4, 5]})
+    run(input(), expected(), 2, False, "foo", {"": [3, 4, 5]})
 
 
 def test_labels_direct_connection():
@@ -332,7 +332,7 @@ def test_labels_direct_connection():
         """
         )
 
-    run(input(), expected(), 1, False, {"": [3, 11], "a": [4, 5, 6, 7], "b": [8, 9, 10]})
+    run(input(), expected(), 1, False, "foo", {"": [3, 11], "a": [4, 5, 6, 7], "b": [8, 9, 10]})
 
 
 def test_labels_nested_tap():
@@ -380,7 +380,7 @@ def test_labels_nested_tap():
         """
         )
 
-    run(input(), expected(), 2, True, {"a": [4, 5, 6, 7], "b": [8, 9, 10]})
+    run(input(), expected(), 2, True, "foo", {"a": [4, 5, 6, 7], "b": [8, 9, 10]})
 
 
 if __name__ == "__main__":

@@ -955,9 +955,11 @@ Expr SubGraph::ParallelRewrite(const DataflowGraph& dataflow_graph,
  * This function is intended to support \p SubGraph unit tests and is not used by the regular
  * compilation flow.
  */
-transform::Pass PartitionForTesting(size_t max_exits, bool allow_taps,
-                                    const Array<Integer>& indexes, const Array<String>& labels) {
+transform::Pass PartitionForTesting(Integer max_exits, Bool allow_taps, String compiler,
+                                    Array<Integer> indexes, Array<String> labels) {
   auto pass_func = [=](Function function, IRModule mod, transform::PassContext ctxt) {
+    ICHECK(max_exits.defined() && max_exits->value >= 0);
+    ICHECK(allow_taps.defined());
     ICHECK(indexes.size() == labels.size());
     VLOG(1) << "Partitioning:" << std::endl << PrettyPrint(function);
     DataflowGraph dataflow_graph(function);
@@ -998,13 +1000,13 @@ transform::Pass PartitionForTesting(size_t max_exits, bool allow_taps,
 
     // Push the overall sub-graph into the final "Compiler" function.
     FunctionAttrsMap compiler_attrs;
-    compiler_attrs.Set("Compiler", String("foo"));
+    compiler_attrs.Set("Compiler", compiler);
     SubSubGraph overall_sub_sub_graph(sub_graph, compiler_attrs);
     SubGraph overall_sub_graph(dataflow_graph, inside, kind, label, {overall_sub_sub_graph});
 
     // Check the sub-graph is valid.
     SubGraphConfig config;
-    config.max_exits = max_exits;
+    config.max_exits = static_cast<size_t>(max_exits->value);
     config.allow_taps = allow_taps;
     if (overall_sub_graph->IsValid(dataflow_graph, config)) {
       VLOG(1) << "Sub-graph " << overall_sub_graph->ToString() << " is considered valid";
@@ -1023,11 +1025,7 @@ transform::Pass PartitionForTesting(size_t max_exits, bool allow_taps,
   return transform::CreateFunctionPass(pass_func, /*opt_level=*/0, "PartitionForTesting", {});
 }
 
-TVM_REGISTER_GLOBAL("relay.collage.PartitionForTesting")
-    .set_body_typed([](size_t max_outputs, bool allow_taps, const Array<Integer>& indexes,
-                       const Array<String>& labels) {
-      return PartitionForTesting(max_outputs, allow_taps, indexes, labels);
-    });
+TVM_REGISTER_GLOBAL("relay.collage.PartitionForTesting").set_body_typed(PartitionForTesting);
 
 }  // namespace collage
 }  // namespace relay
