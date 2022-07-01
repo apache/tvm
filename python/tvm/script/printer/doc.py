@@ -30,7 +30,7 @@ class ExprDoc(Object):
     """Base class of all expression Docs"""
 
 
-_literal_constructors = [
+LITERAL_CONSTRUCTORS = [
     (str, _ffi_api.LiteralDocStr),
     (float, _ffi_api.LiteralDocFloat),
     (int, _ffi_api.LiteralDocInt),
@@ -46,7 +46,7 @@ class LiteralDoc(ExprDoc):
             self.__init_handle_by_constructor__(_ffi_api.LiteralDocNone)
             return
 
-        for (cls, constructor) in _literal_constructors:
+        for (cls, constructor) in LITERAL_CONSTRUCTORS:
             if isinstance(value, cls):
                 break
         else:
