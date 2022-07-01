@@ -15,9 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""
+ObjectPath class that represents a path from a root object to one of its descendants
+via attribute access, array indexing etc.
+"""
+
 import tvm._ffi
-from . import _ffi_node_api
 from tvm.runtime import Object
+from . import _ffi_node_api
 
 
 __all__ = (
@@ -34,6 +39,10 @@ __all__ = (
 
 @tvm._ffi.register_object("ObjectPath")
 class ObjectPath(Object):
+    """
+    Path to an object from some root object.
+    """
+
     def __init__(self) -> None:
         super().__init__()
         raise ValueError(
