@@ -456,7 +456,7 @@ if(USE_PIPELINE_EXECUTOR)
 endif(USE_PIPELINE_EXECUTOR)
 
 # Module rules
-include(cmake/modules/VTA.cmake)
+# include(cmake/modules/VTA.cmake)
 include(cmake/modules/StandaloneCrt.cmake)
 include(cmake/modules/Zephyr.cmake)
 include(cmake/modules/Arduino.cmake)
