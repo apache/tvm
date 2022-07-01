@@ -17,11 +17,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-'''
+"""
 optimize_torch: aa function similar to `torch.jit.trace`, 
 which is used to optimize the `torch.nn.module` by TVM metaSchedule,
 and returns a custom TorchScript operator
-'''
+"""
 import base64
 import contextlib
 import tempfile
