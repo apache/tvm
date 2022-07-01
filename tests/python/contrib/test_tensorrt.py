@@ -1263,11 +1263,6 @@ def test_tensorrt_dynamic_batch_conv(run_module):
                     assert_result_dict_holds(result_arr[i][target])
 
 
-#@pytest.mark.skip(
-#    reason=(
-#        "Coredumps, possibly due to LLVM and PyTorch version mismatch. See https://github.com/apache/tvm/issues/11765"
-#    )
-#)
 def test_maskrcnn_resnet50(run_module) -> None:
     """
     This function tests the working of pytorch maskrcnn with resnet50 as backbone with
