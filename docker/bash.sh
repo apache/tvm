@@ -290,7 +290,15 @@ DOCKER_DEVICES=( )
 # If the user gave a shortcut defined in the Jenkinsfile, use it.
 EXPANDED_SHORTCUT=$(lookup_image_spec "${DOCKER_IMAGE_NAME}")
 if [ -n "${EXPANDED_SHORTCUT}" ]; then
-    DOCKER_IMAGE_NAME="${EXPANDED_SHORTCUT}"
+    if [ "${CI+x}" == "true" ]; then
+        DOCKER_IMAGE_NAME="${EXPANDED_SHORTCUT}"
+    else
+        python tests/scripts/determine_docker_images.py "$DOCKER_IMAGE_NAME=$EXPANDED_SHORTCUT" 2> /dev/null
+        DOCKER_IMAGE_NAME=$(cat ".docker-image-names/$DOCKER_IMAGE_NAME")
+        if [[ "$DOCKER_IMAGE_NAME" == *"tlcpackstaging"* ]]; then
+            echo "WARNING: resolved docker image to fallback tag in tlcpackstaging" >&2
+        fi
+    fi
 fi
 
 # Set up working directories
