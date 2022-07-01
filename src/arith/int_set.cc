@@ -515,10 +515,7 @@ class IntSetAnalyzer::Impl {
   }
 
   void Bind(const Var& var, const Range& range, bool allow_override) {
-    IntSet min = Eval(range->min);
-    IntSet extent = Eval(range->extent);
-
-    Bind(var, IntervalSet(min.min(), min.max() + extent.max() - 1), allow_override);
+    Bind(var, IntSet::FromRange(range), allow_override);
   }
 
   void Bind(const Var& var, const IntSet& info, bool override_info);
