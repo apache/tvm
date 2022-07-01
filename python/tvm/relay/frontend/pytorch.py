@@ -321,40 +321,30 @@ class PyTorchOpConverter:
         (dtype,) = input_types
         return _op.power(inputs[0], _expr.const(2, dtype))
 
-    def trilu(self, upper, inputs, input_types):
+    def tril(self, inputs, input_types):
         data = inputs[0]
         if len(inputs) == 2:
             k_value = inputs[1]
         else:
             k_value = 0
-        k_tensor = _op.const(np.asarray(k_value), dtype=np.int64)
-
-        input_shape = _op.shape_of(data, input_types[0])
-        input_dims = _infer_shape(input_shape)[0]
-        data_type = _infer_type(data).checked_type.dtype
-        diag_input = _op.zeros(_fold_constant(input_shape), dtype=data_type)
-
-        if upper == 0:  # tril case
-            k1 = _op.add(k_tensor, _op.const(1, dtype="int64"))
-            k1 = _op.expand_dims(k1, axis=0)
-            k2 = _op.take(input_shape, _op.const(input_dims - 1, dtype="int32"))
-            k2 = _op.expand_dims(k2, axis=0)
-        elif upper == 1:  # triu case
-            k1 = _op.take(input_shape, _op.const(input_dims - 2, dtype="int32"))
-            k1 = _op.multiply(k1, _op.const(-1, dtype="int64"))
-            k1 = _op.subtract(k1, _op.const(1, dtype="int64"))
-            k1 = _op.expand_dims(k1, axis=0)
-            k2 = _op.subtract(k_tensor, _op.const(1, dtype="int64"))
-            k2 = _op.expand_dims(k2, axis=0)
-        else:
-            raise ValueError("Upper argument for trilu can only be 0/1.")
-        return _op.matrix_set_diag(data, diag_input, (k1, k2))
-
-    def tril(self, inputs, input_types):
-        return self.trilu(0, inputs, input_types)
+        input_shape = self.infer_shape(data)
+        k1, k2 = input_shape[-2:]
+        k1 = k_value + 1
+        diag_input = _op.zeros(input_shape, dtype=input_types[0])
+        return _op.matrix_set_diag(data, diag_input, k=(k1, k2))
 
     def triu(self, inputs, input_types):
-        return self.trilu(1, inputs, input_types)
+        data = inputs[0]
+        if len(inputs) == 2:
+            k_value = inputs[1]
+        else:
+            k_value = 0
+        input_shape = self.infer_shape(data)
+        k1, k2 = input_shape[-2:]
+        k1 = (k1 * -1) - 1
+        k2 = k_value - 1
+        diag_input = _op.zeros(input_shape, dtype=input_types[0])
+        return _op.matrix_set_diag(data, diag_input, k=(k1, k2))
 
     def arange(self, inputs, input_types):
         def _get_value(val, dtype):
