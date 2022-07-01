@@ -18,7 +18,8 @@
  */
 
 #include <tvm/runtime/registry.h>
-#include <tvm/script/printer/doc_printer.h>
+
+#include "./doc_printer.h"
 
 namespace tvm {
 namespace script {

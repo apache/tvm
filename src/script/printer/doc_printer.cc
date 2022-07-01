@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include <tvm/script/printer/doc_printer.h>
+#include "./doc_printer.h"
 
 namespace tvm {
 namespace script {
