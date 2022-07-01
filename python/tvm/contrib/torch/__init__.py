@@ -21,6 +21,7 @@ import platform
 import torch
 from tvm._ffi import libinfo
 
+
 def _load_platform_specific_library(lib_name="libpt_tvmdsoop"):
     system = platform.system()
     if system == "Darwin":

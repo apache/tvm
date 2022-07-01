@@ -39,6 +39,7 @@ def matmul(M: int, N: int, K: int, dtype: str):
                 with T.init():
                     C[vi, vj] = T.float32(0)
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
     return f
 
 
@@ -59,6 +60,7 @@ class MyModule:
                 vi = T.axis.spatial(8, i)
                 B[vi] = A[vi] + 1.0
 
+
 @as_torch
 @tvm.script.ir_module
 class ModuleGPU:
@@ -73,6 +75,7 @@ class ModuleGPU:
                         T.reads(A[vi])
                         T.writes(B[vi])
                         B[vi] = A[vi] + T.float32(1)
+
 
 class MinuesOnes(torch.nn.Module):
     def __init__(self):
@@ -110,16 +113,17 @@ def test_tvmscript_torch_decorator():
 
     MyModule(q1, q2)
 
-    tvm.testing.assert_allclose(q2.numpy(), (q1+1).numpy(), atol=1e-5, rtol=1e-5)
-    
+    tvm.testing.assert_allclose(q2.numpy(), (q1 + 1).numpy(), atol=1e-5, rtol=1e-5)
+
+
 def test_tvmscript_torch_gpu():
-    cuda0 = torch.device('cuda:0')
+    cuda0 = torch.device("cuda:0")
     q1 = torch.arange(8, device=cuda0).type(torch.float32)
     q2 = torch.zeros((8,), dtype=torch.float32, device=cuda0)
 
     ModuleGPU(q1, q2)
 
-    tvm.testing.assert_allclose(q2.cpu().numpy(), (q1+1).cpu().numpy(), atol=1e-5, rtol=1e-5)
+    tvm.testing.assert_allclose(q2.cpu().numpy(), (q1 + 1).cpu().numpy(), atol=1e-5, rtol=1e-5)
 
 
 def test_torch_with_tvmscript():

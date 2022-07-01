@@ -26,13 +26,20 @@ import tvm
 
 
 class OperatorModuleWrapper(torch.nn.Module):
-    def __init__(self, module: Union[tvm.ir.module.IRModule, tvm.tir.function.PrimFunc, tvm.contrib.graph_executor.GraphModule]):
+    def __init__(
+        self,
+        module: Union[
+            tvm.ir.module.IRModule,
+            tvm.tir.function.PrimFunc,
+            tvm.contrib.graph_executor.GraphModule,
+        ],
+    ):
         super().__init__()
-        self.rt_module = None # runtime module
-        self.ir_module = module # IR moudle
+        self.rt_module = None  # runtime module
+        self.ir_module = module  # IR moudle
 
-    def build(self, target = None):
-        runtime_module = tvm.build(self.ir_module, target = target)
+    def build(self, target=None):
+        runtime_module = tvm.build(self.ir_module, target=target)
         func = tvm.get_global_func("tvmtorch.save_runtime_mod")
         func(runtime_module)
 
@@ -41,18 +48,16 @@ class OperatorModuleWrapper(torch.nn.Module):
     def forward(self, *torch_inputs: List[torch.Tensor]) -> List[torch.Tensor]:
         if self.rt_module is None:
             if torch_inputs[0].is_cuda:
-                self.build(target = "cuda")
+                self.build(target="cuda")
             elif torch_inputs[0].device.type == "cpu":
                 self.build()
             else:
                 raise Exception(f"the target {torch_inputs[0].device.type} is not supported yet")
-            
+
         return self.rt_module.forward(torch_inputs)
 
 
-def as_torch(
-    func: Union[tvm.ir.module.IRModule, tvm.tir.function.PrimFunc, Callable]
-):
+def as_torch(func: Union[tvm.ir.module.IRModule, tvm.tir.function.PrimFunc, Callable]):
     """A decorator of converting TensorIR to PyTorch nn.Module.
 
     Parameters
@@ -69,6 +74,8 @@ def as_torch(
     if isinstance(func, tvm.ir.module.IRModule) or isinstance(func, tvm.tir.function.PrimFunc):
         return OperatorModuleWrapper(func)
     elif isinstance(func, Callable):
+
         def func_get_param(*args, **kargs):
             return OperatorModuleWrapper(func(*args, **kargs))
+
         return func_get_param

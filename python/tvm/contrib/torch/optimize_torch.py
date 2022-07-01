@@ -33,10 +33,7 @@ from tvm.meta_schedule import TuneConfig
 
 
 class GraphExecutorFactoryWrapper(torch.nn.Module):
-    def __init__(
-        self,
-        module: tvm.runtime.Module
-    ):
+    def __init__(self, module: tvm.runtime.Module):
         super().__init__()
         self.inner_module = module
 
@@ -71,10 +68,10 @@ def optimize_torch(
 
     Parameters
     ----------
-    func : callable or torch.nn.Module 
+    func : callable or torch.nn.Module
         A Python function or nn.Module that could run by TorchScript's trace. (ie: torch.jit.trace(model, input))
 
-    example_inputs : tuple or torch.Tensor 
+    example_inputs : tuple or torch.Tensor
         A tuple of example inputs that
         will run together with `func` by providing the shape information.
 
@@ -118,8 +115,7 @@ def optimize_torch(
     if isinstance(example_inputs, torch.Tensor):
         example_inputs = [example_inputs]
 
-    shape_list = [(f"inp_{idx}", i.shape)
-                  for idx, i in enumerate(example_inputs)]
+    shape_list = [(f"inp_{idx}", i.shape) for idx, i in enumerate(example_inputs)]
     mod, params = relay.frontend.from_pytorch(jit_mod, shape_list)  # IRmodule
     if work_dir:
         cm = contextlib.nullcontext(work_dir)
@@ -127,7 +123,8 @@ def optimize_torch(
         cm = tempfile.TemporaryDirectory()
     with cm as work_dir_path:
         executor_factory = tune_relay(
-            mod=mod, params=params, config=tuning_config, target=target, work_dir=work_dir_path)
+            mod=mod, params=params, config=tuning_config, target=target, work_dir=work_dir_path
+        )
 
     save_runtime_mod = get_global_func("tvmtorch.save_runtime_mod")
     save_runtime_mod(executor_factory.module)
