@@ -25,6 +25,7 @@
 #ifndef TVM_RELAY_COLLAGE_SUB_GRAPH_H_
 #define TVM_RELAY_COLLAGE_SUB_GRAPH_H_
 
+#include <tvm/ir/transform.h>
 #include <tvm/relay/op_attr_types.h>
 
 #include <string>
@@ -441,7 +442,7 @@ struct SubGraphHash {
  * given in an array. Visible for testing from Python only, would never make sense to use
  * as a generic pass!
  */
-transform::Pass PartitionOnIndexesForTesting(Array<Integer> indexes);
+tvm::transform::Pass PartitionOnIndexesForTesting(Array<Integer> indexes);
 
 }  // namespace collage
 }  // namespace relay
