@@ -45,8 +45,6 @@ from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
 from .common import infer_value_simulated as _infer_value_simulated
 from .common import lstm_cell, try_infer_value, unbind
-from .common import infer_type as _infer_type
-from .common import fold_constant as _fold_constant
 from .pytorch_utils import is_version_greater_than, getattr_attr_name
 
 __all__ = ["from_pytorch"]
