@@ -17,11 +17,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+'''
+optimize_torch: aa function similar to `torch.jit.trace`, 
+which is used to optimize the `torch.nn.module` by TVM metaSchedule,
+and returns a custom TorchScript operator
+'''
 import base64
 import contextlib
 import tempfile
-from typing import Callable, Dict, Tuple, Union, List
+from typing import Tuple
 from tvm.meta_schedule.tune import tune_relay
 import torch
 import torch.utils.dlpack
@@ -31,7 +35,7 @@ from tvm import relay
 from tvm._ffi import get_global_func, register_func
 from tvm.meta_schedule import TuneConfig
 
-
+# The python wrapper for GraphExecutorFactory
 class GraphExecutorFactoryWrapper(torch.nn.Module):
     def __init__(self, module: tvm.runtime.Module):
         super().__init__()
@@ -69,7 +73,8 @@ def optimize_torch(
     Parameters
     ----------
     func : callable or torch.nn.Module
-        A Python function or nn.Module that could run by TorchScript's trace. (ie: torch.jit.trace(model, input))
+        A Python function or nn.Module that could run by TorchScript's trace.
+        (ie: torch.jit.trace(model, input))
 
     example_inputs : tuple or torch.Tensor
         A tuple of example inputs that
@@ -77,7 +82,8 @@ def optimize_torch(
 
     tuning_config : tvm.meta_schedule.TuneConfig
         The configuration of tuning by MetaSchedule.
-        We suggest users to provide their own setting, otherwise by default setting a tuning process could be very slow,
+        We suggest users to provide their own setting,
+        otherwise by default setting a tuning process could be very slow,
         sometimes costs a few hours.
 
     target : Optional[Union[str, Target]]
@@ -90,7 +96,8 @@ def optimize_torch(
     Returns
     -------
     mod : GraphExecutorFactoryWrapper
-        It will return an object of GraphExecutorFactoryWrapper, which is the subclass of the original nn.Module.
+        It will return an object of GraphExecutorFactoryWrapper,
+        which is the subclass of the original nn.Module.
     """
 
     if target:
@@ -118,10 +125,10 @@ def optimize_torch(
     shape_list = [(f"inp_{idx}", i.shape) for idx, i in enumerate(example_inputs)]
     mod, params = relay.frontend.from_pytorch(jit_mod, shape_list)  # IRmodule
     if work_dir:
-        cm = contextlib.nullcontext(work_dir)
+        context_manager = contextlib.nullcontext(work_dir)
     else:
-        cm = tempfile.TemporaryDirectory()
-    with cm as work_dir_path:
+        context_manager = tempfile.TemporaryDirectory()
+    with context_manager as work_dir_path:
         executor_factory = tune_relay(
             mod=mod, params=params, config=tuning_config, target=target, work_dir=work_dir_path
         )

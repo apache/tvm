@@ -17,14 +17,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from typing import Callable, List, Tuple, Union
+""" 
+as_torch: a decorator, which is used to wrap the TVMscript code to `torch.nn.module`.
+"""
+from typing import Callable, List, Union
 
 import torch
 import torch.utils.dlpack
 
 import tvm
 
-
+# python wrapper for OperatorModule
 class OperatorModuleWrapper(torch.nn.Module):
     def __init__(
         self,
@@ -69,9 +72,10 @@ def as_torch(func: Union[tvm.ir.module.IRModule, tvm.tir.function.PrimFunc, Call
     Returns
     -------
     mod : OperatorModuleWrapper
-        It will return an object of OperatorModuleWrapper, which is the subclass of the original nn.Module.
+        It will return an object of OperatorModuleWrapper,
+        which is the subclass of the original nn.Module.
     """
-    if isinstance(func, tvm.ir.module.IRModule) or isinstance(func, tvm.tir.function.PrimFunc):
+    if isinstance(func, tvm.ir.module.IRModule, tvm.tir.function.PrimFunc):
         return OperatorModuleWrapper(func)
     elif isinstance(func, Callable):
 

@@ -17,19 +17,21 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test script for tvm torch module"""
-import tvm
+import numpy as np
+
 import torch
+import torch.nn
+
+import tvm
+import tvm.testing
 from tvm.contrib.torch import as_torch
 from tvm.script import tir as T
-import numpy as np
-import torch.nn
-import tvm.testing
 
 
 @as_torch
 def matmul(M: int, N: int, K: int, dtype: str):
     @T.prim_func
-    def f(a: T.handle, b: T.handle, c: T.handle) -> None:
+    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, [M, K], dtype=dtype)
         B = T.match_buffer(b, [N, K], dtype=dtype)
         C = T.match_buffer(c, [M, N], dtype=dtype)
@@ -40,7 +42,7 @@ def matmul(M: int, N: int, K: int, dtype: str):
                     C[vi, vj] = T.float32(0)
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
-    return f
+    return main
 
 
 @as_torch
