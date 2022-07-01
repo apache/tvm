@@ -932,6 +932,35 @@ class PyTorchOpConverter:
         assert weights is None, "weight not supported in cross_entropy_loss"
         return _op.nn.cross_entropy_with_logits(_op.nn.log_softmax(input), target)
 
+    def l1_loss(self, inputs, input_types):
+        assert len(inputs) == 3
+        [predictions, targets, reduction] = inputs
+        delta = _op.abs(_op.subtract(predictions, targets))
+        if reduction == 0:
+            # reduction = "none"
+            return delta
+        elif reduction == 1:
+            # reduction = "mean"
+            return _op.mean(delta)
+        else:
+            # reduction = "sum"
+            return _op.sum(delta)
+
+    def mse_loss(self, inputs, input_types):
+        assert len(inputs) == 3
+        [predictions, targets, reduction] = inputs
+        delta = _op.subtract(predictions, targets)
+        delta = _op.power(delta, _expr.const(2, input_types[0]))
+        if reduction == 0:
+            # reduction = "none"
+            return delta
+        elif reduction == 1:
+            # reduction = "mean"
+            return _op.mean(delta)
+        else:
+            # reduction = "sum"
+            return _op.sum(delta)
+
     def hard_sigmoid(self, inputs, input_types):
         def _relu6(x):
             return _op.tensor.clip(x, 0.0, 6.0)
@@ -3200,7 +3229,6 @@ class PyTorchOpConverter:
             "aten::silu": self.silu,
             "aten::glu": self.glu,
             "aten::log_sigmoid": self.log_sigmoid,
-            "aten::cross_entropy_loss": self.cross_entropy_loss_with_logits,
             "aten::adaptive_avg_pool1d": functools.partial(
                 self.adaptive_avg_pool, _op.nn.adaptive_avg_pool1d
             ),
@@ -3374,6 +3402,9 @@ class PyTorchOpConverter:
             "aten::nll_loss": self.nll_loss,
             "aten::nll_loss2d": self.nll_loss,
             "aten::nll_loss_nd": self.nll_loss,
+            "aten::cross_entropy_loss": self.cross_entropy_loss_with_logits,
+            "aten::l1_loss": self.l1_loss,
+            "aten::mse_loss": self.mse_loss,
             "aten::flip": self.flip,
             "aten::gru": self.gru,
             "aten::lstm": self.lstm,
