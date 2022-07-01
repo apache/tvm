@@ -434,14 +434,14 @@ def _get_targets(target_names=None):
             logging.warning(
                 "None of the following targets are supported by this build of TVM: %s."
                 " Try setting TVM_TEST_TARGETS to a supported target. Defaulting to llvm.",
-                target_str,
+                target_names,
             )
             return _get_targets(["llvm"])
 
         raise TVMError(
             "None of the following targets are supported by this build of TVM: %s."
             " Try setting TVM_TEST_TARGETS to a supported target."
-            " Cannot default to llvm, as it is not enabled." % target_str
+            " Cannot default to llvm, as it is not enabled." % target_names
         )
 
     return targets
