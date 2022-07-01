@@ -44,11 +44,9 @@ BUILD_DIR="build-microtvm-${platform}"
 if [ ! -e "${BUILD_DIR}" ]; then
     mkdir "${BUILD_DIR}"
 fi
-cp cmake/config.cmake "${BUILD_DIR}"
+
+./tests/scripts/task_config_build_qemu.sh "${BUILD_DIR}"
 cd "${BUILD_DIR}"
-sed -i 's/USE_MICRO OFF/USE_MICRO ON/' config.cmake
-sed -i 's/USE_GRAPH_EXECUTOR_DEBUG OFF/USE_GRAPH_EXECUTOR_DEBUG ON/' config.cmake
-sed -i 's/USE_LLVM OFF/USE_LLVM ON/' config.cmake
 cmake ..
 rm -rf standalone_crt host_standalone_crt  # remove stale generated files
 make -j${num_cores}

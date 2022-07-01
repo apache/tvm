@@ -414,6 +414,33 @@ class TECompilerImpl : public TECompilerNode {
       }
       // lower the function
       std::unordered_map<te::Tensor, tir::Buffer> binds;
+
+      // If we have memory scopes, need to create tir::Buffer knowing this info
+      size_t i = 0;  // for corresponding from tensor array
+      for (Var param : key->source_func->params) {
+        if (!param->virtual_device()->memory_scope.empty()) {
+          for (const auto& ttype : FlattenTupleType(param->checked_type())) {
+            te::Tensor x_ref = value->cached_func->inputs[i];
+            // verification if we have synced params and tensors
+            ICHECK(ttype->dtype == x_ref->dtype && ttype->shape.size() == x_ref->shape.size())
+                << "function parameter does not correspond to prepared tensor";
+            binds[x_ref] =
+                tir::BufferWithOffsetAlignment(x_ref->shape, x_ref->dtype, x_ref->op->name, -1, 0,
+                                               false, param->virtual_device()->memory_scope);
+          }
+        }
+        i++;
+      }
+      if (key->virtual_device != VirtualDevice::FullyUnconstrained() &&
+          !key->virtual_device->memory_scope.empty() &&
+          key->virtual_device->memory_scope != "global") {
+        ICHECK(value->cached_func->outputs.size() == 1)
+            << "Expect only one output for defined memory scope";
+        te::Tensor x_ref = value->cached_func->outputs[0];
+        binds[x_ref] =
+            tir::BufferWithOffsetAlignment(x_ref->shape, x_ref->dtype, x_ref->op->name, -1, 0,
+                                           false, key->virtual_device->memory_scope);
+      }
       auto func_name = value->cached_func->prim_fn_var->name_hint;
       VLOG(1) << "scheduling";
       IRModule scheduled_module =
@@ -525,6 +552,7 @@ TECompiler& TECompiler::Global() {
 }
 TVM_REGISTER_PASS_CONFIG_OPTION("relay.backend.use_auto_scheduler", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("relay.backend.use_meta_schedule", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("relay.backend.use_meta_schedule_dispatch", Bool);
 
 TVM_REGISTER_GLOBAL("relay.backend._TECompilerGlobal").set_body_typed([]() {
   return TECompiler::Global();
@@ -895,7 +923,8 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
     } else {
       // Cases 1 and 2: lower the primitive function for the desired target, possibly using external
       // codegen.
-      CCacheKey key(Downcast<Function>(primitive_func), target);
+      CCacheKey key(Downcast<Function>(primitive_func), target,
+                    GetVirtualDevice(GetRef<Call>(call_node)));
       CachedFunc cfunc = compiler_->Lower(key, module_name_);
       ICHECK(cfunc.defined());
       return MakeLoweredCall(primitive_func, cfunc->prim_fn_var, std::move(new_args),
@@ -1196,7 +1225,7 @@ IRModule LowerTE(const IRModule& module, const String& module_name, ProcessFn pr
   // annotate the module with the resulting runtime modules.
   // TODO(mbs): runtime modules should be first class rather than attributes.
   Array<runtime::Module> external_mods =
-      module->GetAttr<Array<runtime::Module>>("external_mods", Array<runtime::Module>()).value();
+      module->GetAttr<Array<runtime::Module>>(tvm::attr::kExternalMods).value_or({});
   Array<runtime::Module> new_external_mods = compiler->LowerExternalFunctions();
   VLOG(1) << "capturing " << external_mods.size() << " existing and " << new_external_mods.size()
           << " new external modules";
@@ -1218,7 +1247,7 @@ IRModule LowerTE(const IRModule& module, const String& module_name, ProcessFn pr
     device_contexts.Set(kv.first, kv.second);  // copy-on-write.
   }
 
-  updated_module = WithAttrs(updated_module, {{"external_mods", std::move(external_mods)},
+  updated_module = WithAttrs(updated_module, {{tvm::attr::kExternalMods, std::move(external_mods)},
                                               {"device_contexts", std::move(device_contexts)}});
 
   if (backend::IsAutoSchedulerEnabled()) {

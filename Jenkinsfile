@@ -45,18 +45,18 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-06-17T13:38:47.940292
+// Generated at 2022-06-27T17:30:37.779354
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = 'tlcpack/ci-lint:20220513-055910-fa834f67e'
-ci_gpu = 'tlcpack/ci-gpu:20220606-055910-bf4b8f5c7'
-ci_cpu = 'tlcpack/ci-cpu:20220519-055908-ddfa1da69'
-ci_wasm = 'tlcpack/ci-wasm:20220513-055910-fa834f67e'
-ci_i386 = 'tlcpack/ci-i386:20220513-055910-fa834f67e'
-ci_qemu = 'tlcpack/ci-qemu:20220517-094028-de21c8f2e'
-ci_arm = 'tlcpack/ci-arm:20220513-055910-fa834f67e'
-ci_hexagon = 'tlcpack/ci-hexagon:20220603-203325-cee74c9f8'
+ci_lint = 'tlcpack/ci-lint:20220630-060117-558ba99c7'
+ci_gpu = 'tlcpack/ci-gpu:20220630-060117-558ba99c7'
+ci_cpu = 'tlcpack/ci-cpu:20220630-060117-558ba99c7'
+ci_wasm = 'tlcpack/ci-wasm:20220630-060117-558ba99c7'
+ci_i386 = 'tlcpack/ci-i386:20220630-060117-558ba99c7'
+ci_qemu = 'tlcpack/ci-qemu:20220630-060117-558ba99c7'
+ci_arm = 'tlcpack/ci-arm:20220630-060117-558ba99c7'
+ci_hexagon = 'tlcpack/ci-hexagon:20220630-060117-558ba99c7'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -244,6 +244,55 @@ def prepare() {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/prepare") {
         init_git()
+
+        if (env.DETERMINE_DOCKER_IMAGES == 'yes') {
+          sh(
+            script: "./tests/scripts/determine_docker_images.py ci_arm=${ci_arm} ci_cpu=${ci_cpu} ci_gpu=${ci_gpu} ci_hexagon=${ci_hexagon} ci_i386=${ci_i386} ci_lint=${ci_lint} ci_qemu=${ci_qemu} ci_wasm=${ci_wasm} ",
+            label: 'Decide whether to use tlcpack or tlcpackstaging for Docker images',
+          )
+          // Pull image names from the results of should_rebuild_docker.py
+          ci_arm = sh(
+            script: "cat .docker-image-names/ci_arm",
+            label: "Find docker image name for ci_arm",
+            returnStdout: true,
+          ).trim()
+          ci_cpu = sh(
+            script: "cat .docker-image-names/ci_cpu",
+            label: "Find docker image name for ci_cpu",
+            returnStdout: true,
+          ).trim()
+          ci_gpu = sh(
+            script: "cat .docker-image-names/ci_gpu",
+            label: "Find docker image name for ci_gpu",
+            returnStdout: true,
+          ).trim()
+          ci_hexagon = sh(
+            script: "cat .docker-image-names/ci_hexagon",
+            label: "Find docker image name for ci_hexagon",
+            returnStdout: true,
+          ).trim()
+          ci_i386 = sh(
+            script: "cat .docker-image-names/ci_i386",
+            label: "Find docker image name for ci_i386",
+            returnStdout: true,
+          ).trim()
+          ci_lint = sh(
+            script: "cat .docker-image-names/ci_lint",
+            label: "Find docker image name for ci_lint",
+            returnStdout: true,
+          ).trim()
+          ci_qemu = sh(
+            script: "cat .docker-image-names/ci_qemu",
+            label: "Find docker image name for ci_qemu",
+            returnStdout: true,
+          ).trim()
+          ci_wasm = sh(
+            script: "cat .docker-image-names/ci_wasm",
+            label: "Find docker image name for ci_wasm",
+            returnStdout: true,
+          ).trim()
+        }
+
         ci_arm = params.ci_arm_param ?: ci_arm
         ci_cpu = params.ci_cpu_param ?: ci_cpu
         ci_gpu = params.ci_gpu_param ?: ci_gpu

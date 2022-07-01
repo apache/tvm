@@ -32,13 +32,16 @@ function shard1 {
   tests/scripts/task_convert_scripts_to_python.sh
 
   echo "Check Jenkinsfile generation"
-  python3 jenkins/generate.py --check
+  python3 ci/jenkins/generate.py --check
 
   echo "Checking file types..."
   python3 tests/lint/check_file_type.py
 
   echo "Checking CMake <-> LibInfo options mirroring"
   python3 tests/lint/check_cmake_options.py
+
+  echo "Checking that all sphinx-gallery docs override urllib.request.Request"
+  python3 tests/lint/check_request_hook.py
 
   echo "black check..."
   tests/lint/git-black.sh
@@ -90,4 +93,3 @@ else
   shard1
   shard2
 fi
-

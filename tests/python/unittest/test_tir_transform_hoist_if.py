@@ -61,6 +61,10 @@ def verify_structure(stmt, expected_struct):
     var_list.clear()
 
 
+def _opaque_eval(var):
+    return tvm.tir.Evaluate(tvm.tir.call_extern("int32", "dummy", var))
+
+
 def test_hoist_top_for():
     ib = tvm.tir.ir_builder.create()
     l = te.var("l")
@@ -72,9 +76,9 @@ def test_hoist_top_for():
         with ib.for_range(0, m, "j") as j:
             with ib.for_range(0, n, "k") as k:
                 with ib.if_scope(ib.likely(i < 2)):
-                    ib.emit(tvm.tir.Evaluate(m))
+                    ib.emit(_opaque_eval(m))
                 with ib.else_scope():
-                    ib.emit(tvm.tir.Evaluate(n))
+                    ib.emit(_opaque_eval(n))
 
     stmt = ib.get()
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
@@ -99,13 +103,14 @@ def test_hoist_multi_var_if():
         with ib.for_range(0, m, "j") as j:
             with ib.for_range(0, n, "k") as k:
                 with ib.if_scope(ib.likely(i + j < 2)):
-                    ib.emit(tvm.tir.Evaluate(m))
+                    ib.emit(_opaque_eval(m))
                 with ib.else_scope():
-                    ib.emit(tvm.tir.Evaluate(n))
+                    ib.emit(_opaque_eval(n))
 
     stmt = ib.get()
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
+    new_mod = tvm.tir.transform.HoistIfThenElse()(mod)
+    new_stmt = new_mod["main"].body
     expected_struct = {
         ("tir.For", "k"): (None,),
         ("tir.IfThenElse", ("i", "j")): (("tir.For", "k"), ("tir.For", "k")),
@@ -127,9 +132,9 @@ def test_hoist_no_match_for():
             data[i * 3 + j] = data[i * 3 + j] + 0.5
             with ib.for_range(0, n, "k") as k:
                 with ib.if_scope(ib.likely(i < 2)):
-                    ib.emit(tvm.tir.Evaluate(m))
+                    ib.emit(_opaque_eval(m))
                 with ib.else_scope():
-                    ib.emit(tvm.tir.Evaluate(n))
+                    ib.emit(_opaque_eval(n))
 
     stmt = ib.get()
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
@@ -153,7 +158,7 @@ def test_no_else():
         with ib.for_range(0, m, "j") as j:
             with ib.for_range(0, n, "k") as k:
                 with ib.if_scope(ib.likely(i < 2)):
-                    ib.emit(tvm.tir.Evaluate(m))
+                    ib.emit(_opaque_eval(m))
 
     stmt = ib.get()
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
@@ -277,13 +282,14 @@ def test_multi_if():
     with ib.for_range(0, 10, "i") as i:
         with ib.for_range(0, 10, "j") as j:
             with ib.for_range(0, 10, "k") as k:
-                with ib.if_scope(i >= 3):
-                    with ib.if_scope(j >= 3):
+                with ib.if_scope(3 <= i):
+                    with ib.if_scope(3 <= j):
                         data[i * 100 + j * 10 + k] = data[i * 100 + j * 10 + k] + 0.5
 
     stmt = ib.get()
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
+    new_mod = tvm.tir.transform.HoistIfThenElse()(mod)
+    new_stmt = new_mod["main"].body
     expected_struct = {
         ("tir.For", "k"): (None,),
         ("tir.IfThenElse", ("j",)): (("tir.For", "k"), None),
@@ -302,7 +308,7 @@ def test_no_hoisting_1():
     with ib.for_range(0, 10, "i") as i:
         with ib.for_range(0, 10, "j") as j:
             with ib.for_range(0, 10, "k") as k:
-                with ib.if_scope(k >= 3):
+                with ib.if_scope(k <= 3):
                     data[i * 100 + j * 10 + k] = data[i * 100 + j * 10 + k] + 0.5
 
     stmt = ib.get()
@@ -326,7 +332,7 @@ def test_no_hoisting_2():
     with ib.for_range(0, 10, "i") as i:
         with ib.for_range(0, 10, "j") as j:
             with ib.for_range(0, 10, "k") as k:
-                with ib.if_scope(i >= 3):
+                with ib.if_scope(i <= 3):
                     data[i * 100 + j * 10 + k] = data[i * 100 + j * 10 + k] + 0.3
                 data[i * 100 + j * 10 + k] = data[i * 100 + j * 10 + k] + 0.5
 
@@ -342,6 +348,7 @@ def test_no_hoisting_2():
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
 
+@pytest.mark.xfail(reason="Inconsistent thread_extent", strict=True)
 def test_no_hoisting_3():
     ib = tvm.tir.ir_builder.create()
     dshape = (32, 64)
@@ -410,6 +417,7 @@ def test_no_hoisting_4():
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
 
+@pytest.mark.xfail(reason="Inconsistent thread_extent", strict=True)
 def test_no_hoisting_5():
     ib = tvm.tir.ir_builder.create()
     dshape = (32, 64)
@@ -522,15 +530,17 @@ def test_hoisting_block_scope_1():
     s[B.op].bind(xi, te.thread_axis("threadIdx.y"))
     s[B].bind(s[B].op.reduce_axis[0], te.thread_axis("threadIdx.x"))
     s[BF].compute_at(s[B], s[B].op.reduce_axis[0])
-    func = tvm.driver.build_module.schedule_to_module(s, [A, B], "main", None)["main"]
-    stmt = func.body
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(tvm.IRModule.from_expr(func))["main"].body
+    mod = tvm.driver.build_module.schedule_to_module(s, [A, B], "main", None)
+    mod = tvm.tir.transform.Simplify()(mod)
+    mod = tvm.tir.transform.RemoveNoOp()(mod)
+    stmt = mod["main"].body
+    new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
     with tvm.transform.PassContext(
         config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
     ):
-        new_stmt = tvm.tir.transform.HoistIfThenElse()(tvm.IRModule.from_expr(func))["main"].body
+        new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
     assert not tvm.ir.structural_equal(new_stmt, stmt)
 
 
@@ -558,6 +568,10 @@ def test_hoisting_block_scope_2():
 
     stmt = ib.get()
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    mod = tvm.tir.transform.Simplify()(mod)
+    mod = tvm.tir.transform.RemoveNoOp()(mod)
+    stmt = mod["main"].body
+
     new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
@@ -565,10 +579,10 @@ def test_hoisting_block_scope_2():
         config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
     ):
         new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
-    # tvm.ir.assert_structural_equal(new_stmt, stmt)
     assert not tvm.ir.structural_equal(new_stmt, stmt)
 
 
+@pytest.mark.xfail(reason="Inconsistent thread_extent", strict=True)
 def test_hoisting_block_scope_3():
     ib = tvm.tir.ir_builder.create()
     dshape = (32, 64)
@@ -601,7 +615,6 @@ def test_hoisting_block_scope_3():
         config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
     ):
         new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
-    # tvm.ir.assert_structural_equal(new_stmt, stmt)
     assert not tvm.ir.structural_equal(new_stmt, stmt)
 
 
@@ -622,15 +635,17 @@ def test_hoisting_block_scope_4():
     s[C].pragma(xo2, "parallel_stride_pattern")
     s[C].pragma(xo2, "parallel_barrier_when_finish")
     s[C].vectorize(xi)
-    func = tvm.driver.build_module.schedule_to_module(s, [A, B, C], "main", None)["main"]
-    stmt = func.body
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(tvm.IRModule.from_expr(func))["main"].body
+    mod = tvm.driver.build_module.schedule_to_module(s, [A, B, C], "main", None)
+    mod = tvm.tir.transform.Simplify()(mod)
+
+    stmt = mod["main"].body
+    new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
     with tvm.transform.PassContext(
         config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
     ):
-        new_stmt = tvm.tir.transform.HoistIfThenElse()(tvm.IRModule.from_expr(func))["main"].body
+        new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
     assert not tvm.ir.structural_equal(new_stmt, stmt)
 
 

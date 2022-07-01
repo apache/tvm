@@ -36,6 +36,7 @@
 #include <iostream>
 #include <map>
 #include <numeric>
+#include <thread>
 
 namespace tvm {
 namespace runtime {
@@ -414,16 +415,28 @@ ObjectRef AggregateMetric(const std::vector<ObjectRef>& metrics) {
   }
 }
 
+// Try and set the locale of the provided stringstream so that it will print
+// numbers with thousands separators. Sometimes users will have a misconfigured
+// system where an invalid locale is set, so we catch and ignore any locale
+// errors.
+static void set_locale_for_separators(std::stringstream& s) {
+  try {
+    // empty string indicates locale should be the user's default, see man 3 setlocale
+    s.imbue(std::locale(""));
+  } catch (std::runtime_error& e) {
+  }
+}
+
 static String print_metric(ObjectRef metric) {
   std::string val;
   if (metric.as<CountNode>()) {
     std::stringstream s;
-    s.imbue(std::locale(""));  // for 1000s seperators
+    set_locale_for_separators(s);
     s << std::fixed << metric.as<CountNode>()->value;
     val = s.str();
   } else if (metric.as<DurationNode>()) {
     std::stringstream s;
-    s.imbue(std::locale(""));  // for 1000s seperators
+    set_locale_for_separators(s);
     s << std::fixed << std::setprecision(2) << metric.as<DurationNode>()->microseconds;
     val = s.str();
   } else if (metric.as<PercentNode>()) {
@@ -432,7 +445,7 @@ static String print_metric(ObjectRef metric) {
     val = s.str();
   } else if (metric.as<RatioNode>()) {
     std::stringstream s;
-    s.imbue(std::locale(""));  // for 1000s seperators
+    set_locale_for_separators(s);
     s << std::setprecision(2) << metric.as<RatioNode>()->ratio;
     val = s.str();
   } else if (metric.as<StringObj>()) {
@@ -835,6 +848,7 @@ TVM_REGISTER_GLOBAL("runtime.profiling.ProfileFunction")
     });
 
 PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, int min_repeat_ms,
+                             int cooldown_interval_ms, int repeats_to_cooldown,
                              PackedFunc f_preproc) {
   ICHECK(pf != nullptr);
 
@@ -844,8 +858,8 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
     return (*get_micro_time_evaluator)(pf, dev, number, repeat);
   }
 
-  auto ftimer = [pf, dev, number, repeat, min_repeat_ms, f_preproc](TVMArgs args,
-                                                                    TVMRetValue* rv) mutable {
+  auto ftimer = [pf, dev, number, repeat, min_repeat_ms, cooldown_interval_ms, repeats_to_cooldown,
+                 f_preproc](TVMArgs args, TVMRetValue* rv) mutable {
     TVMRetValue temp;
     std::ostringstream os;
     // skip first time call, to activate lazy compilation components.
@@ -861,13 +875,14 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
 
       do {
         if (duration_ms > 0.0) {
-          number = static_cast<int>(std::max((min_repeat_ms / (duration_ms / number) + 1),
-                                             number * 1.618));  // 1.618 is chosen by random
+          const double golden_ratio = 1.618;
+          number = static_cast<int>(
+              std::max((min_repeat_ms / (duration_ms / number) + 1), number * golden_ratio));
         }
 
-        Timer t = Timer::Start(dev);
         // start timing
-        for (int i = 0; i < number; ++i) {
+        Timer t = Timer::Start(dev);
+        for (int j = 0; j < number; ++j) {
           pf.CallPacked(args, &temp);
         }
         t->Stop();
@@ -877,6 +892,10 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
 
       double speed = duration_ms / 1e3 / number;
       os.write(reinterpret_cast<char*>(&speed), sizeof(speed));
+
+      if (cooldown_interval_ms > 0 && (i % repeats_to_cooldown) == 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(cooldown_interval_ms));
+      }
     }
 
     std::string blob = os.str();

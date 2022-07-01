@@ -22,7 +22,7 @@ from tvm.script import tir as T
 from tvm.tir import stmt_functor
 from tvm.tir.usmp import utils as usmp_utils
 from tvm.target import Target
-
+from tvm import WorkspacePoolInfo, PoolInfoProperties
 
 # fmt: off
 @tvm.script.ir_module
@@ -97,29 +97,27 @@ class LinearStructure:
 
 def test_create_pool_info():
     target = Target("c")
-    pool_info = usmp_utils.PoolInfo(
-        pool_name="foo_workspace",
-        target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS},
+    pool_info = WorkspacePoolInfo(
+        "foo_workspace",
+        [target],
     )
     assert pool_info.pool_name == "foo_workspace"
-    assert dict(pool_info.target_access) == {target: usmp_utils.PoolInfo.READ_WRITE_ACCESS}
     # default pool size constraint
     assert pool_info.size_hint_bytes == -1
 
-    pool_info = usmp_utils.PoolInfo(
-        pool_name="bar_workspace",
-        target_access={target: usmp_utils.PoolInfo.READ_ONLY_ACCESS},
-        size_hint_bytes=1425,
+    pool_info = WorkspacePoolInfo(
+        "bar_workspace",
+        [target],
+        PoolInfoProperties(size_hint_bytes=1425),
     )
     assert pool_info.pool_name == "bar_workspace"
-    assert dict(pool_info.target_access) == {target: usmp_utils.PoolInfo.READ_ONLY_ACCESS}
     assert pool_info.size_hint_bytes == 1425
 
 
 def test_create_buffer_info():
-    global_ws_pool = usmp_utils.PoolInfo(
-        pool_name="global_workspace",
-        target_access={Target("c"): usmp_utils.PoolInfo.READ_WRITE_ACCESS},
+    global_ws_pool = WorkspacePoolInfo(
+        "global_workspace",
+        [Target("c")],
     )
     buffer_info_obj = tvm.tir.usmp.BufferInfo(
         name_hint="buf1", size_bytes=256, pool_candidates=[global_ws_pool]
@@ -138,9 +136,9 @@ def test_create_buffer_info():
 
 
 def test_create_pool_allocation():
-    pool_info = usmp_utils.PoolInfo(
-        pool_name="foo_workspace",
-        target_access={Target("c"): usmp_utils.PoolInfo.READ_WRITE_ACCESS},
+    pool_info = WorkspacePoolInfo(
+        "foo_workspace",
+        [Target("c")],
     )
     pool_allocation = usmp_utils.PoolAllocation(pool_info=pool_info, byte_offset=64)
     assert pool_allocation.pool_info == pool_info
@@ -184,9 +182,9 @@ def _assign_targets_to_primfuncs_irmodule(mod, target):
 
 def test_create_array_buffer_info():
     target = Target("c")
-    global_ws_pool = usmp_utils.PoolInfo(
-        pool_name="global_workspace",
-        target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS},
+    global_ws_pool = WorkspacePoolInfo(
+        "global_workspace",
+        [target],
     )
     fcreate_array_bi = tvm.get_global_func("tir.usmp.CreateArrayBufferInfo")
     tir_mod = LinearStructure

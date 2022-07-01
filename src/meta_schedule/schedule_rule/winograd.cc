@@ -49,8 +49,16 @@ inline LoopRV ScheduleDataPack(Schedule sch, BlockRV block) {
   Array<LoopRV> t1 = sch->Split(loops[3], {factors.begin(), factors.end()});
   ICHECK_EQ(t1.size(), 2);
 
-  sch->Unroll(loops[0]);
-  sch->Unroll(loops[1]);
+  if (const int64_t* i = tir::GetLoopIntExtent(sch->GetSRef(loops[0]))) {
+    if (*i <= 16) {
+      sch->Unroll(loops[0]);
+    }
+  }
+  if (const int64_t* i = tir::GetLoopIntExtent(sch->GetSRef(loops[1]))) {
+    if (*i <= 16) {
+      sch->Unroll(loops[1]);
+    }
+  }
   sch->Unroll(loops[4]);
   sch->Unroll(loops[5]);
   sch->Reorder({

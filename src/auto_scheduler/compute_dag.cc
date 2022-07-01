@@ -1517,6 +1517,16 @@ TVM_REGISTER_GLOBAL("auto_scheduler.RewriteIndexForNewLayout")
       return index_rewriter.Rewrite(body);
     });
 
+TVM_REGISTER_GLOBAL("auto_scheduler.RewriteTensorShape")
+    .set_body_typed([](te::Tensor tensor, Array<PrimExpr> new_shape) -> void {
+      ICHECK(tensor->op->IsInstance<te::PlaceholderOpNode>());
+      te::PlaceholderOpNode* op =
+          const_cast<te::PlaceholderOpNode*>(tensor->op.as<te::PlaceholderOpNode>());
+      te::TensorNode* t = const_cast<te::TensorNode*>(tensor.get());
+      op->shape = new_shape;
+      t->shape = new_shape;
+    });
+
 TVM_REGISTER_GLOBAL("auto_scheduler.GetShapeFromRewrittenLayout")
     .set_body_typed(GetShapeFromRewrittenLayout);
 

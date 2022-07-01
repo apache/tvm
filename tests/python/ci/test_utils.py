@@ -14,7 +14,28 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+"""
+Constants used in various CI tests
+"""
+import subprocess
 import pathlib
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent.parent
+
+
+class TempGit:
+    """
+    A wrapper to run commands in a directory
+    """
+
+    def __init__(self, cwd):
+        self.cwd = cwd
+
+    def run(self, *args, **kwargs):
+        proc = subprocess.run(
+            ["git"] + list(args), encoding="utf-8", cwd=self.cwd, check=False, **kwargs
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"git command failed: '{args}'")
+
+        return proc

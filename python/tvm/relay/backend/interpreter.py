@@ -195,7 +195,7 @@ class Interpreter(Executor):
         The runtime device to run the code on.
 
     target : tvm.Target
-        The target option to build the function.
+        The target option to build the function. Only homogeneous execution is supported.
 
     CAUTION: Despite the API the module is prepared upon each call to evaluate
     rather than once in create_executor.

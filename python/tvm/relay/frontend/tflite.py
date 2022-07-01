@@ -1448,11 +1448,7 @@ class OperatorConverter(object):
 
     def convert_equal(self, op):
         """Convert TFLite EQUAL"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized EQUAL operator is not supported yet."
-            )
-        return self._convert_elemwise(_op.equal, op)
+        return self._convert_elemwise(_op.equal, op, self.is_quantized(op))
 
     def convert_not_equal(self, op):
         """Convert TFLite NOT_EQUAL"""

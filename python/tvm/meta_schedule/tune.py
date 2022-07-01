@@ -24,7 +24,7 @@ from typing import Any, Callable, Dict, List, NamedTuple, Optional, Union
 
 from tvm.ir import IRModule
 from tvm.ir.transform import PassContext
-from tvm.runtime import Module, NDArray
+from tvm.runtime import Module, NDArray, vm
 from tvm.target import Target
 from tvm.te import Tensor, create_prim_func
 from tvm.tir import PrimFunc, Schedule
@@ -78,6 +78,8 @@ class TuneConfig(NamedTuple):
         Configuration for search strategy.
     logger_config: Optional[Dict[str, Any]] = None
         Configuration for logger.
+    adaptive_training: Optional[bool] = None
+        Whether adpative training is enabled for cost model.
     """
 
     max_trials_global: int
@@ -88,6 +90,7 @@ class TuneConfig(NamedTuple):
     task_scheduler_config: Optional[Dict[str, Any]] = None
     search_strategy_config: Optional[Dict[str, Any]] = None
     logger_config: Optional[Dict[str, Any]] = None
+    adaptive_training: Optional[bool] = None
 
     def create_strategy(self):
         """Create search strategy from configuration"""
@@ -310,7 +313,7 @@ def tune_extracted_tasks(
     database = default_config.database(database, work_dir)
     builder = default_config.builder(builder)
     runner = default_config.runner(runner)
-    cost_model = default_config.cost_model(cost_model)
+    cost_model = default_config.cost_model(cost_model, config.adaptive_training)
     measure_callbacks = default_config.callbacks(measure_callbacks)
     # parse the tuning contexts
     tune_contexts = []
@@ -343,8 +346,9 @@ def tune_extracted_tasks(
         cost_model=cost_model,
         measure_callbacks=measure_callbacks,
     )
-    task_scheduler.tune()
-    cost_model.save(osp.join(work_dir, "cost_model.xgb"))
+    if config.max_trials_global > 0:
+        task_scheduler.tune()
+        cost_model.save(osp.join(work_dir, "cost_model.xgb"))
     return database
 
 
@@ -513,6 +517,7 @@ def tune_relay(
     config: TuneConfig,
     work_dir: str,
     *,
+    backend: str = "graph",
     params: Optional[Dict[str, NDArray]] = None,
     builder: Optional[Builder] = None,
     runner: Optional[Runner] = None,
@@ -524,7 +529,7 @@ def tune_relay(
     postprocs: Optional[FnPostproc] = None,
     mutator_probs: Optional[FnMutatorProb] = None,
     num_threads: Optional[int] = None,
-) -> Module:
+) -> Union[Module, vm.Executable]:
     """Tune a TIR IRModule with a given target.
 
     Parameters
@@ -549,15 +554,16 @@ def tune_relay(
         The database to use.
     measure_callbacks : Optional[List[MeasureCallback]]
         The callbacks used during tuning.
+    backend : str = "graph"
+        The backend to use for relay compilation(graph / vm).
 
     Returns
     -------
-    lib : Module
-        The built runtime module for the given relay workload.
+    lib : Union[Module, tvm.runtime.vm.Executable]
+        The built runtime module or vm Executable for the given relay workload.
     """
     # pylint: disable=import-outside-toplevel
-    from tvm.relay import build as relay_build
-
+    from tvm import relay
     from .relay_integration import extract_task_from_relay
 
     # pylint: disable=protected-access, enable=import-outside-toplevel
@@ -581,10 +587,14 @@ def tune_relay(
         mutator_probs=mutator_probs,
         num_threads=num_threads,
     )
+    relay_build = {"graph": relay.build, "vm": relay.vm.compile}[backend]
     with Profiler.timeit("ApplyHistoryBest"):
         with target, autotvm_silencer(), ApplyHistoryBest(database):
             with PassContext(
                 opt_level=3,
-                config={"relay.backend.use_meta_schedule": True},
+                config={
+                    "relay.backend.use_meta_schedule": True,
+                    "relay.backend.use_meta_schedule_dispatch": target.kind.name != "cuda",
+                },
             ):
                 return relay_build(mod, target=target, params=params)

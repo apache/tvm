@@ -249,46 +249,48 @@ def test_expand_dims_infer_type():
 
 @tvm.testing.uses_gpu
 def test_softmax():
-    for dtype in ["float16", "float32"]:
-        # Softmax accuracy for float16 is poor
-        if dtype == "float16":
-            return
-        shape = (10, 4)
-        x = relay.var("x", shape=shape, dtype=dtype)
-        y = relay.nn.softmax(x, axis=1)
-        assert "nn.softmax" in y.astext()
-        yy = run_infer_type(y)
-        assert yy.checked_type == relay.TensorType(shape, dtype)
-        func = relay.Function([x], y)
-        x_data = np.random.uniform(size=shape).astype(dtype)
-        ref_res = tvm.topi.testing.softmax_python(x_data)
-        for target, dev in tvm.testing.enabled_targets():
-            op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
-                x_data
-            )
-            np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
+    for shape in [(10, 4), (10, 5, 4)]:
+        for dtype in ["float16", "float32"]:
+            # Softmax accuracy for float16 is poor
+            if dtype == "float16":
+                continue
+            x = relay.var("x", shape=shape, dtype=dtype)
+            y = relay.nn.softmax(x, axis=1)
+            assert "nn.softmax" in y.astext()
+            yy = run_infer_type(y)
+            assert yy.checked_type == relay.TensorType(shape, dtype)
+            func = relay.Function([x], y)
+            x_data = np.random.uniform(size=shape).astype(dtype)
+            ref_res = tvm.topi.testing.softmax_python(x_data, axis=1)
+            for target, dev in tvm.testing.enabled_targets():
+                op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                    x_data
+                )
+                np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
 @tvm.testing.uses_gpu
 def test_log_softmax():
-    for dtype in ["float16", "float32"]:
-        # Softmax accuracy for float16 is poor
-        if dtype == "float16":
-            return
-        shape = (10, 4)
-        x = relay.var("x", shape=shape, dtype=dtype)
-        y = relay.nn.log_softmax(x, axis=1)
-        assert "nn.log_softmax" in y.astext()
-        yy = run_infer_type(y)
-        assert yy.checked_type == relay.TensorType(shape, dtype)
-        func = relay.Function([x], y)
-        x_data = np.random.uniform(size=shape).astype(dtype)
-        ref_res = tvm.topi.testing.log_softmax_python(x_data)
-        for target, dev in tvm.testing.enabled_targets():
-            op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
-                x_data
-            )
-            np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
+    for shape in [(10, 4), (10, 5, 4)]:
+        for dtype in ["float16", "float32"]:
+            # Softmax accuracy for float16 is poor
+            if dtype == "float16":
+                continue
+            x = relay.var("x", shape=shape, dtype=dtype)
+            y = relay.nn.log_softmax(x, axis=1)
+            assert "nn.log_softmax" in y.astext()
+            yy = run_infer_type(y)
+            assert yy.checked_type == relay.TensorType(shape, dtype)
+            func = relay.Function([x], y)
+            x_data = np.random.uniform(size=shape).astype(dtype)
+            ref_res = tvm.topi.testing.log_softmax_python(x_data, axis=1)
+            for target, dev in tvm.testing.enabled_targets():
+                if target == "nvptx":
+                    continue
+                op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
+                    x_data
+                )
+                np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -526,6 +528,20 @@ def test_concatenate3(target, dev):
         shapes = [[3, 2, 1, ending], [3, 2, 1, ending]]
         t_shape = [3, 2, 2, ending]
         do_concat_test(shapes, t_shape, dtype, axis, dev, target)
+
+
+@tvm.testing.parametrize_targets("llvm")
+def test_concatenate4(target, dev):
+    np.random.seed(7)
+    x_shape = (2, 1)
+    x = relay.var("x", shape=x_shape, dtype="int64")
+    concat = relay.concatenate([x], axis=1)
+    f = relay.Function([x], concat)
+    x_val = np.array([[33], [13]], dtype="int64")
+    graph = relay.create_executor("graph", device=tvm.cpu(), target="llvm")
+    op_res = graph.evaluate(f)(x_val)
+    ref_res = np.concatenate([x_val], axis=1)
+    tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.000001)
 
 
 def test_batch_norm_fold_const():

@@ -48,17 +48,17 @@
 // Generated at {{ generated_time }}
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
-{% import 'jenkins/macros.j2' as m with context -%}
+{% import 'ci/jenkins/macros.j2' as m with context -%}
 
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = 'tlcpack/ci-lint:20220513-055910-fa834f67e'
-ci_gpu = 'tlcpack/ci-gpu:20220606-055910-bf4b8f5c7'
-ci_cpu = 'tlcpack/ci-cpu:20220519-055908-ddfa1da69'
-ci_wasm = 'tlcpack/ci-wasm:20220513-055910-fa834f67e'
-ci_i386 = 'tlcpack/ci-i386:20220513-055910-fa834f67e'
-ci_qemu = 'tlcpack/ci-qemu:20220517-094028-de21c8f2e'
-ci_arm = 'tlcpack/ci-arm:20220513-055910-fa834f67e'
-ci_hexagon = 'tlcpack/ci-hexagon:20220603-203325-cee74c9f8'
+ci_lint = 'tlcpack/ci-lint:20220630-060117-558ba99c7'
+ci_gpu = 'tlcpack/ci-gpu:20220630-060117-558ba99c7'
+ci_cpu = 'tlcpack/ci-cpu:20220630-060117-558ba99c7'
+ci_wasm = 'tlcpack/ci-wasm:20220630-060117-558ba99c7'
+ci_i386 = 'tlcpack/ci-i386:20220630-060117-558ba99c7'
+ci_qemu = 'tlcpack/ci-qemu:20220630-060117-558ba99c7'
+ci_arm = 'tlcpack/ci-arm:20220630-060117-558ba99c7'
+ci_hexagon = 'tlcpack/ci-hexagon:20220630-060117-558ba99c7'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -106,12 +106,12 @@ s3_prefix = "tvm-jenkins-artifacts-prod/tvm/${env.BRANCH_NAME}/${env.BUILD_NUMBE
 // General note: Jenkins has limits on the size of a method (or top level code)
 // that are pretty strict, so most usage of groovy methods in these templates
 // are purely to satisfy the JVM
-{% include "jenkins/Prepare.groovy.j2" %}
-{% include "jenkins/DockerBuild.groovy.j2" %}
-{% include "jenkins/Lint.groovy.j2" %}
-{% include "jenkins/Build.groovy.j2" %}
-{% include "jenkins/Test.groovy.j2" %}
-{% include "jenkins/Deploy.groovy.j2" %}
+{% include "ci/jenkins/Prepare.groovy.j2" %}
+{% include "ci/jenkins/DockerBuild.groovy.j2" %}
+{% include "ci/jenkins/Lint.groovy.j2" %}
+{% include "ci/jenkins/Build.groovy.j2" %}
+{% include "ci/jenkins/Test.groovy.j2" %}
+{% include "ci/jenkins/Deploy.groovy.j2" %}
 
 
 cancel_previous_build()

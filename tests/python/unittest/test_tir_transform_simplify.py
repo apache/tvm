@@ -391,5 +391,195 @@ class TestLiteralConstraintSplitBooleanOr(BaseBeforeAfter):
                 A[i, j] = 2
 
 
+class TestProveConditionUsingLet(BaseBeforeAfter):
+    """Simplify conditions using non-inlined let bindings
+
+    Not all let bindings are inlined when they occur in later
+    expressions.  However, even if they are not inlined, they may be
+    used to prove the value of a condition.
+    """
+
+    @T.prim_func
+    def before(A: T.Buffer[4, "bool"]):
+        for i in T.serial(4):
+            condition = i < 3
+            if condition or i >= 3:
+                A[i] = condition
+
+    @T.prim_func
+    def expected(A: T.Buffer[4, "bool"]):
+        for i in T.serial(4):
+            condition = i < 3
+            A[i] = condition
+
+
+class TestProveLetCondition(BaseBeforeAfter):
+    """Simplify conditions using non-inlined let bindings
+
+    Not all let bindings are inlined when they occur in later
+    expressions.  However, even if they are not inlined, they may be
+    used to prove the value of a condition.
+    """
+
+    @T.prim_func
+    def before(A: T.Buffer[4, "bool"]):
+        for i in T.serial(4):
+            condition = i < 3
+            if i < 3:
+                if condition:
+                    A[i] = condition
+
+    @T.prim_func
+    def expected(A: T.Buffer[4, "bool"]):
+        for i in T.serial(4):
+            condition = i < 3
+            if i < 3:
+                A[i] = condition
+
+
+class TestProveRepeatedLetCondition(BaseBeforeAfter):
+    """Simplify conditions using non-inlined let bindings
+
+    A variable may be used as a literal constraint, and be recognized
+    as being True within the context of the constraint.
+    """
+
+    @T.prim_func
+    def before(A: T.Buffer[4, "bool"]):
+        for i in T.serial(4):
+            condition = i < 3
+            if condition:
+                if condition:
+                    A[i] = condition
+
+    @T.prim_func
+    def expected(A: T.Buffer[4, "bool"]):
+        for i in T.serial(4):
+            condition = i < 3
+            if condition:
+                A[i] = True
+
+
+class TestIfThenElseExpr(BaseBeforeAfter):
+    @T.prim_func
+    def before(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            if i < 12:
+                A[i] = T.if_then_else(i < 12, 1.0, 2.0, dtype="float32")
+
+    @T.prim_func
+    def expected(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            if i < 12:
+                A[i] = 1.0
+
+
+class TestCeilLog2Int(BaseBeforeAfter):
+    """Simplify expressions resulting from topi.math.ceil_log2"""
+
+    @T.prim_func
+    def before(A: T.Buffer[1, "int32"]):
+        A[0] = T.cast(
+            T.ceil(T.log2(T.cast(14, "float64"), dtype="float64"), dtype="float64"), dtype="int32"
+        )
+
+    @T.prim_func
+    def expected(A: T.Buffer[1, "int32"]):
+        A[0] = 4
+
+
+class TestLeftCeilLog2LowerBound(BaseBeforeAfter):
+    """Integer bounds are propagated through topi.math.ceil_log2"""
+
+    @T.prim_func
+    def before(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            x = T.cast(
+                T.ceil(T.log2(T.cast(i + 1024 + 1, "float64"), dtype="float64"), dtype="float64"),
+                dtype="int32",
+            )
+            if x == 11:
+                A[i] = 0.0
+
+    @T.prim_func
+    def expected(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            A[i] = 0.0
+
+
+class TestLeftShiftLowerBound(BaseBeforeAfter):
+    """Integer bounds are propagated through left shift
+
+    min(1 << i) = 1 << min(i)
+                = 1 << 0
+                = 1
+    """
+
+    @T.prim_func
+    def before(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            if T.shift_left(1, i, dtype="int32") >= 1:
+                A[i] = 0.0
+
+    @T.prim_func
+    def expected(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            A[i] = 0.0
+
+
+class TestLeftShiftUpperBound(BaseBeforeAfter):
+    """Integer bounds are propagated through left shift
+
+    max(31 << i) = 31 << max(i)
+                 = 31 << 15
+                 = 1015808
+    """
+
+    @T.prim_func
+    def before(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            if T.shift_left(31, i, dtype="int32") <= 1015808:
+                A[i] = 0.0
+
+    @T.prim_func
+    def expected(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            A[i] = 0.0
+
+
+class TestLeftShiftOfNegativeValue(BaseBeforeAfter):
+    """No const int bounds of left shift of negative value.
+
+    This is target dependent, and does not currently have a specified
+    behavior in TIR.  For example, in CodeGenC, this generates C code
+    with undefined behavior.
+    """
+
+    @T.prim_func
+    def before(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            if -64 <= T.shift_left(-i, 4, dtype="int32"):
+                A[i] = 0.0
+
+    expected = before
+
+
+class TestLeftShiftByNegativeValue(BaseBeforeAfter):
+    """No const int bounds of left shift by negative bit count.
+
+    This is target dependent, and does not currently have a specified
+    behavior in TIR.  For example, in CodeGenC, this generates C code
+    with undefined behavior.
+    """
+
+    @T.prim_func
+    def before(A: T.Buffer[16, "float32"]):
+        for i in T.serial(16):
+            if T.shift_left(16, -i, dtype="int32") <= 16:
+                A[i] = 0.0
+
+    expected = before
+
+
 if __name__ == "__main__":
     tvm.testing.main()

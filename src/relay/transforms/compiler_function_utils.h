@@ -22,10 +22,10 @@
  * \brief Helper passes for working with functions with the "Compiler" attribute.
  *
  * Those wishing to use the "RelayToTIR" custom pass machinery to do IRModule-at-a-time external
- * codegen may find the following two helper passes useful:
+ * codegen may find the following helpers useful:
  *
- *  - \p OutlineCompilerFunctionsWithExistingGlobalSymbols will lift inline functions with a
- *    matching "Compiler" attribute to be global functions, using the "global_symbol" attribute
+ *  - The \p OutlineCompilerFunctionsWithExistingGlobalSymbols pass will lift inline functions with
+ *    a matching "Compiler" attribute to be global functions, using the "global_symbol" attribute
  *    already assigned. Can be used before custom lowering.
  *
  *    Note that ideally "Compiler" attributed functions would be made global functions as early as
@@ -36,15 +36,22 @@
  *
  *    See also OutlineCompilerFunctionsMutator in src/relay/backend/contrib/ethosu/codegen.cc.
  *
- *  - (\p OutlineCompilerFunctions is a more general version of the above which can use a custom
- *    cache to both allocate "global_symbol" names and ensure two strucurally equal functions are
- *    assigned the same name, and thus lowered only once. This is used by Collage when preparing
- *    the optimally partitioned IRModule).
+ *  - (The \p OutlineCompilerFunctions pass is a more general version of the above which can use
+ *    a custom cache to both allocate "global_symbol" names and ensure two structurally equal
+ *    functions are assigned the same name, and thus lowered only once. This is used by Collage
+ *    when preparing the optimally partitioned IRModule).
  *
- *  - \p MarkCompilerFunctionsAsExtern will replace global functions with a matching "Compiler"
- *    attribute with the same function with just  an "Extern" attribute, signalling the function
- *    has been dealt with. However calls to such functions will be left unchanged.  Can be used
- *    after lowering to cleanup the IRModule.
+ *  - The \p MarkCompilerFunctionsAsExtern pass will update the attributes of global functions
+ *    with a matching "Compiler" attribute to have just the "Extern" attribute. That will signal
+ *    the function has been dealt with. However calls to such functions will be left unchanged.
+ *    Can be used after lowering to cleanup the IRModule.
+ *
+ *  - The \p InlineCompilerFunctions pass can selectively inline global functions with a matching
+ *    "Compiler" attribute who's name appears in the given set. Obviously it's more sensible to
+ *    not create that function in the first place, however some external codegen have rules to
+ *    accept or reject partitionings based on the overall partitioned function body. This pass
+ *    can be used do the legwork, and will take care to not only inline the outer "Compiler"
+ *    annotated funcition, but also any "Composite" annotated functions in its body.
  */
 
 #ifndef TVM_RELAY_TRANSFORMS_COMPILER_FUNCTION_UTILS_H_
@@ -88,9 +95,10 @@ class ExistingGlobalSymbolCache : public GlobalSymbolCache {
 };
 
 /*!
- * \brief A pass to outline all literal functions in direct call positions which have a "Compiler"
- * attribute. The given \p GlobalSymbolCache is used to determine a unique global symbol for each
- * function, which is also assigned to the "global_symbol" attribute of the new global function.
+ * \brief A pass to outline all let-bound and literal functions in direct call positions which have
+ * a "Compiler" attribute. The given \p GlobalSymbolCache is used to determine a unique global
+ * symbol for each function, which is also assigned to the "global_symbol" attribute of the new
+ * global function.
  *
  * At most one function with the same global symbol is outlined.
  *
@@ -101,9 +109,9 @@ transform::Pass OutlineCompilerFunctions(std::shared_ptr<GlobalSymbolCache> cach
                                          std::string compiler_filter = "");
 
 /*!
- * \brief A pass to outline all literal functions in direct call positions which have a "Compiler"
- * attribute. The functions are bound to unique global vars according to their existing
- * "global_symbol" attribute. At most one function with the same global symbol is outlined.
+ * \brief A pass to outline all let-bound and literal functions in direct call positions which have
+ * a "Compiler" attribute. The functions are bound to unique global vars according to their
+ * existing "global_symbol" attribute. At most one function with the same global symbol is outlined.
  *
  * If \p compiler_filter is non-empty only functions with that as their attribute value are
  * outlined.
@@ -125,6 +133,16 @@ transform::Pass OutlineCompilerFunctionsWithExistingGlobalSymbols(std::string co
  * cleanup the IRModule after custom lowering.
  */
 transform::Pass MarkCompilerFunctionsAsExtern(std::string compiler_filter = "");
+
+/*!
+ * \brief A pass to inline all global "Compiler" functions which are bound to a global var
+ * in \p global_vars. Both the global function and any calls to "Composite" functions it its body
+ * are inlined.
+ *
+ * This pass may be useful for external codegen which needs to undo partitioning based on
+ * properties of the entire partition.
+ */
+transform::Pass InlineCompilerFunctionsBoundTo(Array<GlobalVar> global_vars);
 
 }  // namespace transforms
 }  // namespace relay

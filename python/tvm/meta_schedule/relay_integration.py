@@ -70,6 +70,7 @@ def extract_task_from_relay(
         The tasks extracted from this network
     """
     # pylint: disable=import-outside-toplevel
+    from tvm import autotvm
     from tvm.relay import Function as RelayFunc
 
     # pylint: enable=import-outside-toplevel
@@ -97,9 +98,44 @@ def extract_task_from_relay(
             param = nd.array(param)
         relay_params[name] = param
 
-    with autotvm_silencer(), target, transform.PassContext(
+    with target, autotvm_silencer(), transform.PassContext(
         opt_level=opt_level,
         config=pass_config,
         disabled_pass=disabled_pass,
     ):
-        return list(extract_task_func(mod, target, relay_params, te_filter_func))
+        if target.kind.name != "cuda" and isinstance(
+            autotvm.DispatchContext.current, autotvm.FallbackContext
+        ):
+            tophub_context = autotvm.tophub.context(target)
+        else:
+            tophub_context = autotvm.utils.EmptyContext()
+        with tophub_context:
+            return list(extract_task_func(mod, target, relay_params, te_filter_func))
+
+
+def is_meta_schedule_enabled() -> bool:
+    """Return whether the meta-schedule is enabled.
+
+    Returns
+    -------
+    enabled: bool
+        Whether the meta schedule is enabled
+    """
+    return transform.PassContext.current().config.get(
+        "relay.backend.use_meta_schedule",
+        False,
+    )
+
+
+def is_meta_schedule_dispatch_enabled() -> bool:
+    """Return whether the meta-schedule dispatch is enabled.
+
+    Returns
+    -------
+    enabled: bool
+        Whether the meta schedule is enabled
+    """
+    return transform.PassContext.current().config.get(
+        "relay.backend.use_meta_schedule_dispatch",
+        False,
+    )

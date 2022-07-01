@@ -24,32 +24,100 @@
 // Part of the code are adapted from Halide's CodeGen_LLVM
 #include "codegen_llvm.h"
 
+#include <llvm/ADT/ArrayRef.h>
+#include <llvm/ADT/SmallVector.h>
+#include <llvm/ADT/StringRef.h>
+#include <llvm/ADT/Triple.h>
+#include <llvm/Analysis/TargetTransformInfo.h>
+#if TVM_LLVM_VERSION >= 50
+#include <llvm/BinaryFormat/Dwarf.h>
+#else
+#include <llvm/Support/Dwarf.h>
+#endif
+#include <llvm/IR/Argument.h>
+#include <llvm/IR/Attributes.h>
+#include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/CallingConv.h>
+#include <llvm/IR/Constants.h>
+#include <llvm/IR/DIBuilder.h>
+#include <llvm/IR/DataLayout.h>
+#include <llvm/IR/DebugInfoMetadata.h>
+#include <llvm/IR/DerivedTypes.h>
+#if TVM_LLVM_VERSION >= 150
+#include <llvm/IR/FMF.h>
+#else
+#include <llvm/IR/Operator.h>
+#endif
+#include <llvm/IR/Function.h>
+#include <llvm/IR/GlobalVariable.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/IR/Intrinsics.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/IR/MDBuilder.h>
+#include <llvm/IR/Metadata.h>
+#include <llvm/IR/Module.h>
+#include <llvm/IR/Type.h>
+#include <llvm/IRReader/IRReader.h>
+#include <llvm/Linker/Linker.h>
+#include <llvm/Pass.h>
+#if TVM_LLVM_VERSION >= 100
+#include <llvm/Support/Alignment.h>
+#include <llvm/Support/TypeSize.h>
+#endif
+#include <llvm/Support/CodeGen.h>
+#include <llvm/Support/MemoryBuffer.h>
+#include <llvm/Support/SourceMgr.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/Transforms/IPO.h>
+#include <llvm/Transforms/IPO/PassManagerBuilder.h>
+#include <llvm/Transforms/Utils/ModuleUtils.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/error_codes.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/tir/op.h>
 
 #include <algorithm>
+#include <functional>
+#include <memory>
+#include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "../../arith/pattern_match.h"
 #include "../build_common.h"
 #include "../func_registry_generator.h"
-#include "codegen_cpu.h"
 #include "codegen_params.h"
-#include "llvm/Support/raw_os_ostream.h"
 #include "llvm_common.h"
+
 namespace tvm {
 namespace codegen {
 
+// CodeGenLLVM has members of type std::unique_ptr<T>. These members will be
+// instantiated in the constructor, which will requre that the type T is
+// complete at that point. Put the constructor (and destructor) here, since
+// all types should be complete here.
+CodeGenLLVM::CodeGenLLVM() = default;
+CodeGenLLVM::~CodeGenLLVM() = default;
+CodeGenLLVM::DebugInfo::~DebugInfo() = default;
+
 std::unique_ptr<CodeGenLLVM> CodeGenLLVM::Create(llvm::TargetMachine* tm) {
   std::string target = tm->getTarget().getName();
-  std::string factory_name = "tvm.codegen.llvm.target_" + target;
-  const PackedFunc* f = runtime::Registry::Get(factory_name);
-  if (f != nullptr) {
-    void* handle = (*f)();
+  std::string factory_template = "tvm.codegen.llvm.target_";
+  void* handle = nullptr;
+  if (const PackedFunc* f = runtime::Registry::Get(factory_template + target)) {
+    handle = (*f)();
+  } else if (const PackedFunc* f = runtime::Registry::Get(factory_template + "cpu")) {
+    handle = (*f)();
+  } else {
+    LOG(FATAL) << "no factory function for codegen for target " << target;
+  }
+  if (handle) {
     return std::unique_ptr<CodeGenLLVM>(static_cast<CodeGenLLVM*>(handle));
   } else {
-    return std::unique_ptr<CodeGenLLVM>(new CodeGenCPU());
+    LOG(FATAL) << "unable to create codegen for target " << target;
+    return nullptr;  // unreachable
   }
 }
 
@@ -135,10 +203,10 @@ void CodeGenLLVM::AddFunctionInternal(const PrimFunc& f, bool ret_void) {
   auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
   ICHECK(global_symbol.defined())
       << "CodeGenLLVM: Expect PrimFunc to have the global_symbol attribute";
-  function_ = module_->getFunction(static_cast<std::string>(global_symbol.value()));
+  function_ = module_->getFunction(MakeStringRef(global_symbol.value()));
   if (function_ == nullptr) {
     function_ = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
-                                       global_symbol.value().operator std::string(), module_.get());
+                                       MakeStringRef(global_symbol.value()), module_.get());
   }
   function_->setCallingConv(llvm::CallingConv::C);
   function_->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
@@ -319,7 +387,6 @@ void CodeGenLLVM::Optimize() {
     fpass.run(*it);
   }
   fpass.doFinalization();
-  // PrintModule(module_.get());
   mpass.run(*module_);
 }
 
@@ -633,12 +700,11 @@ llvm::Value* CodeGenLLVM::CreateVecConcat(std::vector<llvm::Value*> vecs) {
 
 void CodeGenLLVM::CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Value* stride,
                                   const Var& loop_var, const Stmt& body) {
-  using llvm::BasicBlock;
-  BasicBlock* pre_block = builder_->GetInsertBlock();
+  llvm::BasicBlock* pre_block = builder_->GetInsertBlock();
   std::string loop_var_name = loop_var->name_hint;
-  BasicBlock* for_begin = BasicBlock::Create(*ctx_, "for_begin_" + loop_var_name, function_);
-  BasicBlock* for_body = BasicBlock::Create(*ctx_, "for_body_" + loop_var_name, function_);
-  BasicBlock* for_end = BasicBlock::Create(*ctx_, "for_end_" + loop_var_name, function_);
+  auto* for_begin = llvm::BasicBlock::Create(*ctx_, "for_begin_" + loop_var_name, function_);
+  auto* for_body = llvm::BasicBlock::Create(*ctx_, "for_body_" + loop_var_name, function_);
+  auto* for_end = llvm::BasicBlock::Create(*ctx_, "for_end_" + loop_var_name, function_);
   builder_->CreateBr(for_begin);
   builder_->SetInsertPoint(for_begin);
   llvm::PHINode* loop_value = builder_->CreatePHI(begin->getType(), 2);
@@ -808,10 +874,10 @@ llvm::Value* CodeGenLLVM::CreateCallExtern(Type ret_type, String global_symbol,
     arg_type.push_back(arg_value.back()->getType());
   }
   llvm::FunctionType* ftype = llvm::FunctionType::get(GetLLVMType(ret_type), arg_type, false);
-  llvm::Function* f = module_->getFunction(global_symbol);
+  llvm::Function* f = module_->getFunction(MakeStringRef(global_symbol));
   if (f == nullptr) {
-    f = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
-                               global_symbol.operator llvm::StringRef(), module_.get());
+    f = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage, MakeStringRef(global_symbol),
+                               module_.get());
   }
   llvm::CallInst* call = builder_->CreateCall(f, arg_value);
   return call;
@@ -973,18 +1039,17 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     return llvm::ConstantInt::get(DTypeToLLVMType(op->dtype), val);
   } else if (op->op.same_as(builtin::if_then_else())) {
     ICHECK_EQ(op->args[0].dtype().lanes(), 1) << "if_then_else can only take scalar condition";
-    using llvm::BasicBlock;
-    BasicBlock* then_block = BasicBlock::Create(*ctx_, "if_then", function_);
-    BasicBlock* else_block = BasicBlock::Create(*ctx_, "if_else", function_);
-    BasicBlock* end_block = BasicBlock::Create(*ctx_, "if_end", function_);
+    auto* then_block = llvm::BasicBlock::Create(*ctx_, "if_then", function_);
+    auto* else_block = llvm::BasicBlock::Create(*ctx_, "if_else", function_);
+    auto* end_block = llvm::BasicBlock::Create(*ctx_, "if_end", function_);
     builder_->CreateCondBr(MakeValue(op->args[0]), then_block, else_block);
     builder_->SetInsertPoint(then_block);
     llvm::Value* then_value = MakeValue(op->args[1]);
-    BasicBlock* then_value_block = builder_->GetInsertBlock();
+    llvm::BasicBlock* then_value_block = builder_->GetInsertBlock();
     builder_->CreateBr(end_block);
     builder_->SetInsertPoint(else_block);
     llvm::Value* else_value = MakeValue(op->args[2]);
-    BasicBlock* else_value_block = builder_->GetInsertBlock();
+    llvm::BasicBlock* else_value_block = builder_->GetInsertBlock();
     builder_->CreateBr(end_block);
     builder_->SetInsertPoint(end_block);
     llvm::PHINode* value = builder_->CreatePHI(then_value->getType(), 2);
@@ -1454,10 +1519,9 @@ void CodeGenLLVM::VisitStmt_(const ForNode* op) {
 }
 
 void CodeGenLLVM::VisitStmt_(const WhileNode* op) {
-  using llvm::BasicBlock;
-  BasicBlock* while_cond = BasicBlock::Create(*ctx_, "while_cond", function_);
-  BasicBlock* while_body = BasicBlock::Create(*ctx_, "while_body", function_);
-  BasicBlock* while_merge = BasicBlock::Create(*ctx_, "while_merge", function_);
+  auto* while_cond = llvm::BasicBlock::Create(*ctx_, "while_cond", function_);
+  auto* while_body = llvm::BasicBlock::Create(*ctx_, "while_body", function_);
+  auto* while_merge = llvm::BasicBlock::Create(*ctx_, "while_merge", function_);
   builder_->CreateBr(while_cond);
   builder_->SetInsertPoint(while_cond);
   builder_->CreateCondBr(MakeValue(op->condition), while_body, while_merge);
@@ -1468,12 +1532,11 @@ void CodeGenLLVM::VisitStmt_(const WhileNode* op) {
 }
 
 void CodeGenLLVM::VisitStmt_(const IfThenElseNode* op) {
-  using llvm::BasicBlock;
   llvm::Value* cond = MakeValue(op->condition);
-  BasicBlock* then_block = BasicBlock::Create(*ctx_, "if_then", function_);
-  BasicBlock* end_block = BasicBlock::Create(*ctx_, "if_end", function_);
+  auto* then_block = llvm::BasicBlock::Create(*ctx_, "if_then", function_);
+  auto* end_block = llvm::BasicBlock::Create(*ctx_, "if_end", function_);
   if (op->else_case.defined()) {
-    BasicBlock* else_block = BasicBlock::Create(*ctx_, "if_else", function_);
+    auto* else_block = llvm::BasicBlock::Create(*ctx_, "if_else", function_);
     builder_->CreateCondBr(cond, then_block, else_block);
     builder_->SetInsertPoint(then_block);
     this->VisitStmt(op->then_case);
@@ -1492,7 +1555,7 @@ void CodeGenLLVM::VisitStmt_(const IfThenElseNode* op) {
 
 void CodeGenLLVM::VisitStmt_(const AllocateConstNode* op) {
   auto data = op->data.value();
-  auto array = NDArrayToLLVMArray(ctx_, data);
+  auto array = codegen::NDArrayToLLVMArray(ctx_, data);
   std::string symbol_name = op->buffer_var->name_hint;
   llvm::GlobalVariable* param_symbol = new llvm::GlobalVariable(
       *module_, array->getType(), true, llvm::GlobalValue::InternalLinkage, array, symbol_name);

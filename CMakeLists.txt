@@ -395,7 +395,6 @@ endif()
 if(USE_PROFILER)
   message(STATUS "Build with profiler...")
 
-  add_definitions(-DUSE_PROFILER=1)
   tvm_file_glob(GLOB RUNTIME_GRAPH_EXECUTOR_DEBUG_SRCS src/runtime/graph_executor/debug/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_GRAPH_EXECUTOR_DEBUG_SRCS})
   set_source_files_properties(${RUNTIME_GRAPH_EXECUTOR_SRCS}
@@ -662,6 +661,9 @@ if(GTEST_FOUND)
   add_executable(cpptest ${TEST_SRCS})
   # include runtime files for unit testing
   target_link_libraries(cpptest PRIVATE ${TVM_TEST_LIBRARY_NAME} GTest::GTest GTest::Main GTest::gmock pthread dl)
+  if(DEFINED LLVM_LIBS)
+    target_link_libraries(cpptest PRIVATE ${LLVM_LIBS})
+  endif()
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_ALL 1)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
   if(USE_RELAY_DEBUG)
