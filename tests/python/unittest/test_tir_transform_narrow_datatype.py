@@ -305,6 +305,34 @@ def test_ramp_dtype_consistency():
     lower_sch(s, [A], 32, extra_passes=[tvm.tir.transform.VectorizeLoop()])
 
 
+def test_condition():
+    @T.prim_func
+    def before(A: T.Buffer[(128,), "float32"], B: T.Buffer[(130,), "float32"]):
+        for i, j in T.grid(T.int64(2), T.int64(65)):
+            if i * T.int64(65) + j >= T.int64(0) and i * T.int64(65) + j < T.int64(128):
+                A[i * T.int64(65) + j] = 0.0
+        for i, j in T.grid(T.int64(2), T.int64(65)):
+            B[i * T.int64(65) + j] = T.if_then_else(
+                i * T.int64(65) + j >= T.int64(0) and i * T.int64(65) + j < T.int64(128),
+                A[i * T.int64(65) + j],
+                0.0,
+                dtype="float32",
+            )
+
+    @T.prim_func
+    def expected_after(A: T.Buffer[128, "float32"], B: T.Buffer[130, "float32"]):
+        for i, j in T.grid(2, 65):
+            if i * 65 + j >= 0 and i * 65 + j < 128:
+                A[i * 65 + j] = T.float32(0)
+        for i, j in T.grid(2, 65):
+            B[i * 65 + j] = T.if_then_else(
+                i * 65 + j >= 0 and i * 65 + j < 128, A[i * 65 + j], T.float32(0), dtype="float32"
+            )
+
+    after = tvm.tir.transform.NarrowDataType(32)(tvm.IRModule.from_expr(before))["main"]
+    tvm.ir.assert_structural_equal(after, expected_after)
+
+
 if __name__ == "__main__":
     test_basic()
     test_thread_axis()
@@ -315,3 +343,4 @@ if __name__ == "__main__":
     test_relay_basic()
     test_relay_take()
     test_ramp_dtype_consistency()
+    test_condition()

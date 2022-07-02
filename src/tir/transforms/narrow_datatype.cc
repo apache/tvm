@@ -264,6 +264,17 @@ class DataTypeRewriter : public StmtExprMutator {
                op->thread_binding, op->annotations);
   }
 
+  Stmt VisitStmt_(const IfThenElseNode* op) final {
+    IfThenElse updated = Downcast<IfThenElse>(StmtExprMutator::VisitStmt_(op));
+    is_condition_ = true;
+    PrimExpr cond = VisitExpr(op->condition);
+    is_condition_ = false;
+    if (!cond.same_as(op->condition)) {
+      return std::move(IfThenElse(cond, updated->then_case, updated->else_case));
+    }
+    return std::move(updated);
+  }
+
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
       Stmt s = StmtExprMutator::VisitStmt_(op);
@@ -393,8 +404,10 @@ class DataTypeRewriter : public StmtExprMutator {
   // a map from IterVar before rewrite to that after rewrite,
   // ensures one old IterVar maps to exactly one new IterVar
   std::unordered_map<const IterVarNode*, IterVar> ivmap_;
-  // indicator of LoadNode::index and StoreNode::index
+  // indicator of index expr to rewrite
   bool is_index_{false};
+  // indicator of condition
+  bool is_condition_{false};
   // cached ops
   const Op& builtin_pow_ = Op::Get("tir.pow");
 };
@@ -410,6 +423,23 @@ class DataTypeRewriter : public StmtExprMutator {
     }                                                     \
   }
 
+#define DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)                          \
+  PrimExpr DataTypeRewriter::VisitExpr_(const OP* op) {                             \
+    bool is_index = is_index_;                                                      \
+    bool rewrite = is_condition_ && op->a->dtype.is_int() && op->b->dtype.is_int(); \
+    if (rewrite) {                                                                  \
+      is_index_ = true;                                                             \
+    }                                                                               \
+    PrimExpr a = this->VisitExpr(op->a);                                            \
+    PrimExpr b = this->VisitExpr(op->b);                                            \
+    is_index_ = is_index;                                                           \
+    if (a.same_as(op->a) && b.same_as(op->b)) {                                     \
+      return GetRef<PrimExpr>(op);                                                  \
+    } else {                                                                        \
+      return FUNC(a, b);                                                            \
+    }                                                                               \
+  }
+
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(AddNode, operator+);
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(SubNode, operator-);
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MulNode, operator*);
@@ -419,22 +449,28 @@ DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(FloorDivNode, floordiv);
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(FloorModNode, floormod);
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MinNode, min);
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MaxNode, max);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(EQNode, operator==);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(NENode, operator!=);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(LENode, operator<=);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(LTNode, operator<);  // NOLINT(*)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GTNode, operator>);  // NOLINT(*)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=);
+DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(EQNode, operator==);
+DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(NENode, operator!=);
+DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(LENode, operator<=);
+DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(LTNode, operator<);  // NOLINT(*)
+DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(GTNode, operator>);  // NOLINT(*)
+DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=);
 
 PrimExpr DataTypeRewriter::VisitExpr_(const CallNode* op) {
+  // handle if_then_else condition
+  if (op->op.same_as(builtin::if_then_else())) {
+    bool is_condition = is_condition_;
+    is_condition_ = true;
+    PrimExpr cond = VisitExpr(op->args[0]);
+    is_condition_ = is_condition;
+    return if_then_else(cond, VisitExpr(op->args[1]), VisitExpr(op->args[2]));
+  }
+
   PrimExpr e = StmtExprMutator::VisitExpr_(op);
   op = e.as<CallNode>();
   ICHECK(op != nullptr) << "Expected type to be CallNode"
                         << ", but get " << e->GetTypeKey();
-
-  if (op->op.same_as(builtin::if_then_else())) {
-    return if_then_else(op->args[0], op->args[1], op->args[2]);
-  } else if (op->op.same_as(builtin::shift_right())) {
+  if (op->op.same_as(builtin::shift_right())) {
     return op->args[0] >> op->args[1];
   } else if (op->op.same_as(builtin::shift_left())) {
     return op->args[0] << op->args[1];
