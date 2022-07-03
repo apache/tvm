@@ -194,7 +194,15 @@ if include_libs:
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
     for i, path in enumerate(LIB_LIST):
         LIB_LIST[i] = os.path.relpath(path, curr_path)
-    setup_kwargs = {"include_package_data": True, "data_files": [("tvm", LIB_LIST)]}
+    LIB_DATA_FILES = []
+    if os.path.isfile(path):
+        LIB_DATA_FILES.append(os.path.relpath(path, curr_path))
+    if os.path.isdir(path):
+        for root, dirs, files in os.walk(path):
+            for filename in files:
+                file_path = os.path.join(root, filename)
+                LIB_DATA_FILES.append(os.path.relpath(file_path, curr_path))
+    setup_kwargs = {"include_package_data": True, "data_files": [("tvm", LIB_DATA_FILES)]}
 
 
 def get_package_data_files():
