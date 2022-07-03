@@ -49,6 +49,47 @@ const PrimFuncNode* GetRootPrimFunc(const IRModule& mod, const StmtNode* root_bl
   throw;
 }
 
+const PrimFuncNode* FindEntryFunc(const IRModule& mod, GlobalVar* result_g_var) {
+  GlobalVar result = NullValue<GlobalVar>();
+  // Priority 1: PrimFunc marked as `tir::attr::kIsEntryFunc`
+  int num_prim_func = 0;
+  const tir::PrimFuncNode* main_func = nullptr;
+  const tir::PrimFuncNode* last_func = nullptr;
+  for (const auto& kv : mod->functions) {
+    GlobalVar gv = kv.first;
+    BaseFunc base_func = kv.second;
+    if (const auto* func = base_func.as<tir::PrimFuncNode>()) {
+      last_func = func;
+      if (func->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
+        if (result_g_var != nullptr) {
+          *result_g_var = gv;
+        }
+        return func;
+      }
+      if (gv->name_hint == "main") {
+        main_func = func;
+        result = gv;
+      }
+      ++num_prim_func;
+    }
+  }
+  // Priority 2: PrimFunc whose name is `main`
+  if (main_func != nullptr) {
+    if (result_g_var != nullptr) {
+      *result_g_var = result;
+    }
+    return main_func;
+  }
+  // Priority 3: The only PrimFunc in the IRModule
+  if (num_prim_func == 1) {
+    if (result_g_var != nullptr) {
+      *result_g_var = result;
+    }
+    return last_func;
+  }
+  return nullptr;
+}
+
 /******** Scope ********/
 
 StmtSRef GetScopeRoot(const ScheduleState& self, const StmtSRef& sref,
