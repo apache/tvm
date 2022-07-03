@@ -201,7 +201,7 @@ class Schedule(Object):
         func_name : str
             The name of the function to work on.
         """
-        _ffi_api.ScheduleWorkOn(self, func_name)
+        _ffi_api.ScheduleWorkOn(self, func_name)  # type: ignore # pylint: disable=no-member
 
     def copy(self) -> "Schedule":
         """Returns a copy of the schedule, including both the state and the symbol table,
