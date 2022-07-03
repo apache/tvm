@@ -56,6 +56,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSeed")  //
     .set_body_method<Schedule>(&ScheduleNode::Seed);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleForkSeed")  //
     .set_body_method<Schedule>(&ScheduleNode::ForkSeed);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleWorkOn")  //
+    .set_body_method<Schedule>(&ScheduleNode::WorkOn);
 
 /**************** (FFI) Constructor ****************/
 

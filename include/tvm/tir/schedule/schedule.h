@@ -116,6 +116,21 @@ class ScheduleNode : public runtime::Object {
   /*! \return The internally maintained trace of scheduling program execution */
   virtual Optional<Trace> trace() const = 0;
   /*!
+   * \brief Instruct the schedule to work on a function in the IRModule.
+   *
+   * By default, the schedule works on the function with the name "main", or the only function in
+   * the IRModule if there is only one. If there is multiple functions in the IRModule, and none of
+   * their names are "main", users will have to call this method to explicitly specify which
+   * function to work on.
+   *
+   * This sugar function will guide the `GetBlock` method if its `func_name` is not specified.
+   *
+   * \param func_name The name of the function to be working on
+   *
+   * \sa GetBlock
+   */
+  virtual void WorkOn(const String& func_name) = 0;
+  /*!
    * \brief Returns a copy of the schedule, including both its state and its symbol table,
    * guaranteeing that
    * 1) SRef tree is completely reconstructed;
@@ -231,12 +246,19 @@ class ScheduleNode : public runtime::Object {
   /******** Schedule: Get blocks & loops ********/
   /*!
    * \brief Retrieve a block in a specific function with its name
+   *
+   * By default, if `func_name` is not specified, the schedule will search for the block in the
+   * function that is currently being "worked on". To switch the function to be worked on, use
+   * `WorkOn` before calling this method.
+   *
    * \param name The name of the block to be retrieved
    * \param func_name The name of the function
    * \return The block retrieved
    * \note Indexing error is raised if 0 or multiple blocks exist with the specific name
+   *
+   * \sa WorkOn
    */
-  virtual BlockRV GetBlock(const String& name, const String& func_name = "main") = 0;
+  virtual BlockRV GetBlock(const String& name, const Optional<String>& func_name = NullOpt) = 0;
   /*!
    * \brief Get the parent loops of the block in its scope, from outer to inner
    * \param block_rv The query block

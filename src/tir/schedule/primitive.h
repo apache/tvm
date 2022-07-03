@@ -116,10 +116,10 @@ TVM_DLL tir::StmtSRef SampleComputeLocation(
  * \brief Retrieves blocks in a specific function with its name
  * \param self The schedule state
  * \param name The name of the blocks to be retrieved
- * \param func_name The name of the function
+ * \param gvar The function to be retrieved
  * \return A list of blocks with the specific name
  */
-Array<StmtSRef> GetBlocks(const ScheduleState& self, const String& name, const String& func_name);
+Array<StmtSRef> GetBlocks(const ScheduleState& self, const String& name, const GlobalVar& gv);
 /*!
  * \brief Gets the parent loops of the block in its scope, from outer to inner
  * \param self The schedule state
