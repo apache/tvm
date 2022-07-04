@@ -321,13 +321,12 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     // Similarly, Weight OC should match with destination OC.
     // Example dst: [1, 1000, 7, 7] with layout NCHW
     //         wgh: [1000, 1024, 1, 1] with layout OIHW48o -> [21, 1024, 1, 1, 48]
-    if (wgh_tr.dims()[0] != groups
-        || wgh_tr.dims()[1] != dst_tr.dims()[1] / groups
-        || wgh_tr.dims()[2] != src_tr.dims()[1] / groups) {
+    if (wgh_tr.dims()[0] != groups || wgh_tr.dims()[1] != dst_tr.dims()[1] / groups ||
+        wgh_tr.dims()[2] != src_tr.dims()[1] / groups) {
       auto wgh_croped_dims = wgh_tr.dims();
       wgh_croped_dims[0] = groups;
-      wgh_croped_dims[1] = dst_tr.dims()[1] / groups; // wgh_OC = dst_OC / groups
-      wgh_croped_dims[2] = src_tr.dims()[1] / groups; // wgh_IC = src_IC / groups
+      wgh_croped_dims[1] = dst_tr.dims()[1] / groups;  // wgh_OC = dst_OC / groups
+      wgh_croped_dims[2] = src_tr.dims()[1] / groups;  // wgh_IC = src_IC / groups
       auto zero_offset = dnnl::memory::dims(wgh_tr.dims().size(), 0);
       wgh_tr = wgh_tr.Crop(wgh_croped_dims, zero_offset);
     }
