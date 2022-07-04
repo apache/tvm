@@ -588,9 +588,11 @@ Expr ConvForwardRewrite(const Call& ref_call, const ATTRS* param, const Array<Ex
 Array<Message> PreConvForwardPrep(const Call& call, const Message& out_message) {
   if (backend::IsOp(call.as<CallNode>(), "nn.conv2d")) {
     const auto* param = call->attrs.as<Conv2DAttrs>();
+    ICHECK(param != nullptr);
     return ConvForwardPrep(call, param, out_message);
   }
   const auto* param = call->attrs.as<Conv3DAttrs>();
+  ICHECK(param != nullptr);
   return ConvForwardPrep(call, param, out_message);
 }
 
@@ -598,9 +600,11 @@ Expr PreConvForwardRewrite(const Call& ref_call, const Array<Expr>& new_args,
                            const Message& message) {
   if (backend::IsOp(ref_call.as<CallNode>(), "nn.conv2d")) {
     const auto* param = ref_call->attrs.as<Conv2DAttrs>();
+    ICHECK(param != nullptr);
     return ConvForwardRewrite(ref_call, param, new_args, message);
   }
   const auto* param = ref_call->attrs.as<Conv3DAttrs>();
+  ICHECK(param != nullptr);
   return ConvForwardRewrite(ref_call, param, new_args, message);
 }
 
@@ -1040,9 +1044,11 @@ Expr ConvBackwardTransform(const Call& call, const ATTRS* param, const Message& 
 Message PreConvBackwardPrep(const Call& call, const Array<Message>& in_messages) {
   if (backend::IsOp(call.as<CallNode>(), "nn.conv2d")) {
     const auto* param = call->attrs.as<Conv2DAttrs>();
+    ICHECK(param != nullptr);
     return ConvBackwardPrep(call, param, in_messages);
   }
   const auto* param = call->attrs.as<Conv3DAttrs>();
+  ICHECK(param != nullptr);
   return ConvBackwardPrep(call, param, in_messages);
 }
 
@@ -1050,9 +1056,11 @@ Expr PreConvBackwardTransform(const Call& call, const Message& message, const Ex
                               const BackwardTransformer& transformer) {
   if (backend::IsOp(call.as<CallNode>(), "nn.conv2d")) {
     const auto* param = call->attrs.as<Conv2DAttrs>();
+    ICHECK(param != nullptr);
     return ConvBackwardTransform(call, param, message, scale, transformer);
   }
   const auto* param = call->attrs.as<Conv3DAttrs>();
+  ICHECK(param != nullptr);
   return ConvBackwardTransform(call, param, message, scale, transformer);
 }
 
