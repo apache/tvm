@@ -190,6 +190,8 @@ class PatternMatcher {
 
   const CallNode* GetAnchorOp() { return anchor_op_; }
 
+  void Clear() { registered_ops_.clear(); }
+
  private:
   const Op& qnn_conv2d_op_;
   const Op& qnn_dense_op_;
@@ -330,6 +332,8 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
         outputs = lowered_out->outputs;
         Op a_op = Downcast<Op>(anchor_op->op);
         op_implementations_[a_op.operator->()] = lowered_out->implementation;
+
+        pattern_matcher_.Clear();
       } else {
         // Forward inputs as "outputs" for successor.
         readable_name_stream_ << '_' << op->name;

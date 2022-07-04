@@ -23,6 +23,7 @@ from ..generic.default import default_schedule as _default_schedule
 from ..utils import get_const_tuple
 from ..nn.utils import get_pad_tuple
 from ..nn.pad import pad
+from .. import tag
 
 
 def qnn_quantize(data, output_scale, output_zero_point, axis, out_dtype):
@@ -50,7 +51,7 @@ def qnn_quantize(data, output_scale, output_zero_point, axis, out_dtype):
         val = te.add(te.round(te.div(value, scale)), zp)
         return te.max(te.min(val, const_max), const_min).astype(out_dtype)
 
-    return te.compute(data.shape, _compute)
+    return te.compute(data.shape, _compute, tag=tag.ELEMWISE)
 
 
 def schedule_qnn_quantize(outs):
@@ -80,7 +81,7 @@ def qnn_dequantize(data, input_scale, input_zero_point):
         value = data(*indices)
         return te.multiply(input_scale, te.subtract(value, input_zero_point))
 
-    return te.compute(data.shape, _compute)
+    return te.compute(data.shape, _compute, tag=tag.ELEMWISE)
 
 
 def schedule_qnn_dequantize(outs):
@@ -164,11 +165,16 @@ def qnn_add(
         rvalue = rhs(*indices)
         q_lv = te.round(
             te.multiply(te.div(lhs_scale, output_scale), te.subtract(lvalue, lhs_zero_point))
-        ).astype(dtype)
+        ).astype("int32")
         q_rv = te.round(
             te.multiply(te.div(rhs_scale, output_scale), te.subtract(rvalue, rhs_zero_point))
-        ).astype(dtype)
-        return te.add(te.add(q_lv, q_rv), output_zero_point).astype(dtype)
+        ).astype("int32")
+        val = te.add(te.add(q_lv, q_rv), output_zero_point)
+
+        # clip + cast:
+        const_min = tvm.tir.min_value(dtype)
+        const_max = tvm.tir.max_value(dtype)
+        return te.max(tvm.te.min(val, const_max), const_min).astype(dtype)
 
     return te.compute(lhs.shape, _compute)
 
