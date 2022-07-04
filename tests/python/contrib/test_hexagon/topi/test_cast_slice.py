@@ -73,6 +73,8 @@ class TestCastF16F32Slice2d:
         """
         Top level testing function for cast fp16 to fp32
         """
+        if hexagon_session._launcher._serial_number != "simulator":
+            pytest.skip(msg="Due to https://github.com/apache/tvm/issues/11957")
         target_hexagon = tvm.target.hexagon("v68")
         target = tvm.target.Target(target_hexagon, host=target_hexagon)
         cast_input = te.placeholder(input_shape, name="A", dtype=dtype)
@@ -156,6 +158,8 @@ class TestCastF32F16Slice2d:
         """
         Top level testing function for cast fp32 to fp16
         """
+        if hexagon_session._launcher._serial_number != "simulator":
+            pytest.skip(msg="Due to https://github.com/apache/tvm/issues/11957")
 
         target_hexagon = tvm.target.hexagon("v68")
         target = tvm.target.Target(target_hexagon, host=target_hexagon)
