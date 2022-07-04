@@ -14,17 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
 import pytest
 import numpy as np
-from tvm import te, topi
 
-import tvm.testing
-from tvm.topi import testing
-from tvm.contrib.hexagon.build import HexagonLauncher
-
+import tvm
+from tvm import te
+from tvm.topi.testing import softmax_python
 import tvm.topi.hexagon.slice_ops as sl
-from .infrastructure import allocate_hexagon_array
+from ..infrastructure import allocate_hexagon_array
 
 
 def transform_numpy(arr_np, layout):
@@ -63,7 +60,7 @@ class TestSoftmax2d(Basesoftmax2d):
     @tvm.testing.fixture
     def expected_output_np(self, input_np):
         if len(input_np.shape) == 2:
-            ref_np_2d = tvm.topi.testing.softmax_python(input_np)
+            ref_np_2d = softmax_python(input_np)
             return ref_np_2d
         raise RuntimeError(f"Unexpected input shape '{input_np.shape}'")
 
@@ -82,6 +79,8 @@ class TestSoftmax2d(Basesoftmax2d):
         axis_sep,
         hexagon_session,
     ):
+        if hexagon_session._launcher._serial_number != "simulator":
+            pytest.skip(msg="Due to https://github.com/apache/tvm/issues/11957")
 
         target_hexagon = tvm.target.hexagon(
             "v69",
@@ -136,5 +135,4 @@ class TestSoftmax2d(Basesoftmax2d):
 
 
 if __name__ == "__main__":
-
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

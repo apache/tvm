@@ -31,7 +31,7 @@ Jenkins is the only CI step that is codified to block merging. TVM is also teste
 against Windows and MacOS using GitHub Actions.
 
 This page describes how contributors and committers can use TVM's CI to verify their code. You can
-read more about the design of TVM CI in the
+read more about the design of TVM CI in the `tlc-pack/ci <https://github.com/tlc-pack/ci>`_ repo.
 
 For Contributors
 ----------------
@@ -163,6 +163,30 @@ be re-triggered by another ``git push``).
    git commit --allow-empty --message "[skip ci] Trigger skipped CI"
    git push my_repo
 
+
+Docker Images
+^^^^^^^^^^^^^
+
+Each CI job runs most of its work inside a Docker container, built from files
+in the `docker/ <https://github.com/apache/tvm/tree/main/docker>`_ folder. These
+files are built nightly in Jenkins via the `docker-images-ci <https://ci.tlcpack.ai/job/docker-images-ci/>`_ job.
+The images for these containers are hosted in the `tlcpack Docker Hub <https://hub.docker.com/u/tlcpack>`_
+and referenced in the `Jenkinsfile.j2 <https://github.com/apache/tvm/tree/main/Jenkinsfile.j2>`_. These can be inspected and run
+locally via standard Docker commands.
+
+
+``ci-docker-staging``
+^^^^^^^^^^^^^^^^^^^^^
+
+The `ci-docker-staging <https://github.com/apache/tvm/tree/ci-docker-staging>`_
+branch is typically used to test updates to Docker images and ``Jenkinsfile`` changes. When
+running a build for a normal PR from a forked repository, Jenkins uses the code
+from the PR except for the ``Jenkinsfile`` itself, which comes from the base branch.
+When branches are built, the ``Jenkinsfile`` in the branch is used, so a committer
+with write access must push PRs to a branch in apache/tvm to properly test
+``Jenkinsfile`` changes. If your PR makes changes to the ``Jenkinsfile``, make sure
+to @ a `committer <https://github.com/apache/tvm/tree/main/CONTRIBUTORS.md>`_
+and ask them to push your PR as a branch to test the changes.
 
 
 CI Monitoring Rotation

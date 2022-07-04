@@ -18,8 +18,7 @@
 import pytest
 import numpy as np
 
-from tvm import te, topi
-
+from tvm import te
 import tvm.testing
 from tvm.topi import testing
 from tvm.contrib.hexagon.build import HexagonLauncher
@@ -369,4 +368,4 @@ class TestAvgPool2dSlice:
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

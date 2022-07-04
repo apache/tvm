@@ -23,6 +23,12 @@ Deploy Single Shot Multibox Detector(SSD) model
 This article is an introductory tutorial to deploy SSD models with TVM.
 We will use GluonCV pre-trained SSD model and convert it to Relay IR
 """
+
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
 import tvm
 from tvm import te
 

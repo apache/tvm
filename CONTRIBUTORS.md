@@ -115,6 +115,7 @@ We do encourage everyone to work anything they are interested in.
 - [Chenfan Jia](https://github.com/jcf94): @jcf94
 - [Hua Jiang](https://github.com/huajsj): @huajsj
 - [Ziheng Jiang](https://github.com/ZihengJiang): @ZihengJiang
+- [Hongyi Jin](https://github.com/jinhongyii): @jinhongyii
 - [Manupa Karunaratne](https://github.com/manupa-arm): @manupa-arm
 - [Elen Kalda](https://github.com/ekalda): @ekalda
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame

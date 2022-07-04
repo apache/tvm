@@ -409,7 +409,7 @@ class CodegenCBase {
    *
    * \return The created reference
    */
-  std::string CreateDataReference(const std::string& symbol, int const_id) const {
+  std::string CreateDataReference(const std::string& symbol, size_t const_id) const {
     return "(float*)(" + symbol + "_consts[" + std::to_string(const_id) + "]->data)";
   }
 
@@ -421,8 +421,8 @@ class CodegenCBase {
    *
    * \return The created variable name
    */
-  std::string CreateConstVar(const std::string& symbol, int const_id) const {
-    return symbol + "_const_" + std::to_string(const_id++);
+  std::string CreateConstVar(const std::string& symbol, size_t const_id) const {
+    return symbol + "_const_" + std::to_string(const_id);
   }
 
   /*! \brief The external function source code stream. */
@@ -433,7 +433,14 @@ class CodegenCBase {
   int indent_{0};
 };
 
+/*!
+ * \brief A pass to translate all "Primitive" Relay functions with "Compiler=ccompiler" to
+ * a \p CSourceModule.
+ */
+transform::Pass CCompilerPass();
+
 }  // namespace contrib
 }  // namespace relay
 }  // namespace tvm
+
 #endif  // TVM_RELAY_BACKEND_CONTRIB_CODEGEN_C_CODEGEN_C_H_

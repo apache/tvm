@@ -38,6 +38,8 @@ class ConcreteScheduleNode : public ScheduleNode {
  protected:
   /*! \brief The internal state of scheduling */
   ScheduleState state_;
+  /*! \brief The function to be worked on. */
+  Optional<GlobalVar> func_working_on_;
   /*! \brief The level of error rendering */
   ScheduleErrorRenderLevel error_render_level_;
   /*! \brief A symbol table that maps random variables to concrete StmtSRef/Integers */
@@ -50,10 +52,11 @@ class ConcreteScheduleNode : public ScheduleNode {
  public:
   void VisitAttrs(tvm::AttrVisitor* v) {
     // `state_` is not visited
+    // `func_working_on_` is not visited
     // `error_render_level_` is not visited
     // `symbol_table_` is not visited
     // `analyzer_` is not visited
-    // `rand_state_` is not visited
+    // `rgnd_state_` is not visited
   }
 
   virtual ~ConcreteScheduleNode() = default;
@@ -61,6 +64,7 @@ class ConcreteScheduleNode : public ScheduleNode {
  public:
   ScheduleState state() const final { return state_; }
   Optional<Trace> trace() const override { return NullOpt; }
+  void WorkOn(const String& func_name) final;
   Schedule Copy() override;
   void Seed(support::LinearCongruentialEngine::TRandState seed) final;
   support::LinearCongruentialEngine::TRandState ForkSeed() final;
@@ -89,7 +93,7 @@ class ConcreteScheduleNode : public ScheduleNode {
   LoopRV SampleComputeLocation(const BlockRV& block_rv,
                                Optional<Integer> decision = NullOpt) override;
   /******** Schedule: Get blocks & loops ********/
-  BlockRV GetBlock(const String& name, const String& func_name = "main") override;
+  BlockRV GetBlock(const String& name, const Optional<String>& func_name) override;
   Array<LoopRV> GetLoops(const BlockRV& block_rv) override;
   Array<BlockRV> GetChildBlocks(const BlockRV& block_rv) override;
   Array<BlockRV> GetChildBlocks(const LoopRV& loop_rv) override;
