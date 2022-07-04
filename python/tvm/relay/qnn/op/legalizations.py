@@ -228,7 +228,8 @@ def helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay_op):
             -relay.cast(kernel_zero_point, dtype="int16"),
             output_axis,
         )
-    new_attrs = {k: attrs[k] for k in attrs.keys()}
+    # Skip optional extra attributes:
+    new_attrs = {k: attrs[k] for k in attrs.keys() if k not in ("axis", "rq_out_dtype")}
     return relay_op(shift_data, shift_kernel, **new_attrs)
 
 
