@@ -368,7 +368,8 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   // new_in2, new_out = op.infer(new_in)
   if (new_call->op->IsInstance<OpNode>()) {
     success = false;
-    std::tie(infer_out, success) = InferCorrectLayouts(new_call, new_in_inferred, old_in_inferred, types);
+    std::tie(infer_out, success) =
+        InferCorrectLayouts(new_call, new_in_inferred, old_in_inferred, types);
     new_in2 = infer_out->input_layouts;
     new_out = infer_out->output_layouts;
     if (!success) {
