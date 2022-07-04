@@ -360,7 +360,7 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   // new_in2, new_out = op.infer(new_in)
   if (new_call->op->IsInstance<OpNode>()) {
     success = false;
-    std::tie(infer_out, success) = InferCorrectLayouts(new_call, new_in_tmp, old_in2, types);
+    std::tie(infer_out, success) = InferCorrectLayouts(new_call, new_in_tmp, old_in, types);
     new_in2 = infer_out->input_layouts;
     new_out = infer_out->output_layouts;
     if (!success) {
@@ -385,6 +385,12 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
     }
     return arg_item;
   };
+
+  DLOG(INFO) << "Transforming layout for `" << ref_call->op << "`";
+  DLOG(INFO) << " old_in=" << old_in;
+  DLOG(INFO) << " new_in=" << new_in;
+  DLOG(INFO) << " old_in2=" << old_in2;
+  DLOG(INFO) << " new_in2=" << new_in2;
 
   // if (new_in != new_in2): insert transform (new_in -> new_in2)
   Array<Expr> transformed_args;
