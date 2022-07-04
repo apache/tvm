@@ -16,7 +16,6 @@
 # under the License.
 
 import numpy as np
-import pytest
 
 import tvm
 import tvm.contrib.hexagon
@@ -92,3 +91,7 @@ def test_elemwise_sum_parallel(hexagon_session: Session):
     (a, b, c, n) = generate_add_test_data(hexagon_session)
     mod["elemwise_sum_parallel"](a, b, c, n)
     tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

@@ -47,8 +47,15 @@ def _check_call_verbose(cmd, **kwargs) -> None:
     the stdout/stderr provided by the subprocess.
     """
     try:
-        subprocess.run(cmd, capture_output=True, check=True, text=True, **kwargs)
-    except Exception as err:
+        subprocess.run(
+            cmd,
+            check=True,
+            encoding="UTF-8",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            **kwargs,
+        )
+    except subprocess.CalledProcessError as err:
         error_msg = f"{err}\nstdout:\n{err.stdout}\nstderr:\n{err.stderr}"
         raise Exception(error_msg)
 

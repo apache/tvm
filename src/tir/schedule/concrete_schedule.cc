@@ -31,6 +31,12 @@ Schedule Schedule::Concrete(IRModule mod, support::LinearCongruentialEngine::TRa
   n->symbol_table_ = {};
   n->analyzer_ = std::make_unique<arith::Analyzer>();
   n->Seed(seed);
+  GlobalVar gv = NullValue<GlobalVar>();
+  if (FindEntryFunc(mod, &gv) != nullptr) {
+    n->func_working_on_ = gv;
+  } else {
+    n->func_working_on_ = NullOpt;
+  }
   return Schedule(std::move(n));
 }
 
@@ -177,6 +183,10 @@ class ScheduleCopier {
   std::unordered_map<const StmtSRefNode*, StmtSRef> old2new_;
 };
 
+void ConcreteScheduleNode::WorkOn(const String& func_name) {
+  this->func_working_on_ = this->state_->mod->GetGlobalVar(func_name);
+}
+
 void ConcreteScheduleNode::Copy(ScheduleState* new_state, TSymbolTable* new_symbol_table) const {
   ScheduleCopier::Copy(this, new_state, new_symbol_table);
   new_state->get()->DebugVerify();
@@ -184,6 +194,7 @@ void ConcreteScheduleNode::Copy(ScheduleState* new_state, TSymbolTable* new_symb
 
 Schedule ConcreteScheduleNode::Copy() {
   ObjectPtr<ConcreteScheduleNode> n = make_object<ConcreteScheduleNode>();
+  n->func_working_on_ = this->func_working_on_;
   n->error_render_level_ = this->error_render_level_;
   ConcreteScheduleNode::Copy(&n->state_, &n->symbol_table_);
   n->analyzer_ = std::make_unique<arith::Analyzer>();  // new analyzer needed because it is stateful
@@ -251,7 +262,7 @@ LoopRV ConcreteScheduleNode::SampleComputeLocation(const BlockRV& block_rv,
 
 /******** Schedule: Get blocks & loops ********/
 
-BlockRV ConcreteScheduleNode::GetBlock(const String& name, const String& func_name) {
+BlockRV ConcreteScheduleNode::GetBlock(const String& name, const Optional<String>& func_name) {
   class NotSingleResult : public ScheduleError {
    public:
     explicit NotSingleResult(String name, IRModule mod, const Array<StmtSRef>& blocks)
@@ -286,7 +297,17 @@ BlockRV ConcreteScheduleNode::GetBlock(const String& name, const String& func_na
     IRModule mod_;
     Array<Block> blocks_;
   };
-  Array<StmtSRef> blocks = tir::GetBlocks(this->state_, name, func_name);
+  GlobalVar gv = NullValue<GlobalVar>();
+  if (func_name.defined()) {
+    gv = state_->mod->GetGlobalVar(func_name.value());
+  } else if (func_working_on_.defined()) {
+    gv = this->func_working_on_.value();
+  } else {
+    LOG(FATAL) << "ValueError: `get_block` does not know which function to be working on. Please "
+                  "specify the function name explicitly, or call `work_on` to specify the function "
+                  "before using `get_block`.";
+  }
+  Array<StmtSRef> blocks = tir::GetBlocks(this->state_, name, gv);
   if (blocks.size() != 1) {
     TVM_TIR_SCHEDULE_BEGIN();
     throw NotSingleResult(name, this->state_->mod, blocks);

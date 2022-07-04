@@ -613,7 +613,7 @@ class AvgPool2DParams:
 
     composite_name = "ethos-u.avgpool2d"
     # The hardware only supports padding upto the numbers as follows
-    padding_bounds = [127, 127, 128, 128]
+    padding_bounds = [3, 3, 4, 4]
 
     def __init__(self, func_body: Call):
         clip = None
@@ -632,6 +632,7 @@ class AvgPool2DParams:
         self.pool_shape = attrs.pool_size
         self.strides = attrs.strides
         self.padding = attrs.padding
+        self.count_include_pad = attrs.count_include_pad
         self.activation = clip
         self.pooling_type = "AVG"
 
@@ -648,9 +649,16 @@ class AvgPool2DParams:
             return False
         if not check_batch_size(self.ifm):
             return False
+        if self.count_include_pad:
+            return False
         if not check_padding(self.padding, self.padding_bounds):
             return False
         if not check_pool_shape(self.pool_shape):
+            return False
+        # Averge pool with padding only supports 1 <= pool_shape <= 8
+        if list(self.padding) != [0, 0, 0, 0] and (
+            self.pool_shape[0] > 8 or self.pool_shape[1] > 8
+        ):
             return False
         return True
 

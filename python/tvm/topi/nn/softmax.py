@@ -129,12 +129,12 @@ def log_softmax(x, axis=-1):
     Parameters
     ----------
     data : tvm.te.Tensor
-        2-D input data
+        N-D input data
 
     Returns
     -------
     output : tvm.te.Tensor
-        2-D output with same shape
+        N-D output with same shape
     """
     shape = x.shape
     if axis < 0:

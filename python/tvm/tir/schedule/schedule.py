@@ -186,6 +186,23 @@ class Schedule(Object):
         """Returns the internally maintained trace of scheduling program execution"""
         return _ffi_api.ScheduleGetTrace(self)  # type: ignore # pylint: disable=no-member
 
+    def work_on(self, func_name: str) -> None:
+        """Instruct the schedule to work on a function in the IRModule.
+
+        By default, the schedule works on the function with the name "main", or the only function in
+        the IRModule if there is only one. If there is multiple functions in the IRModule, and none
+        of their names are "main", users will have to call this method to explicitly specify which
+        function to work on.
+
+        This sugar function will guide the `GetBlock` method if its `func_name` is not specified.
+
+        Parameters
+        ----------
+        func_name : str
+            The name of the function to work on.
+        """
+        _ffi_api.ScheduleWorkOn(self, func_name)  # type: ignore # pylint: disable=no-member
+
     def copy(self) -> "Schedule":
         """Returns a copy of the schedule, including both the state and the symbol table,
         * guaranteeing that
@@ -403,15 +420,19 @@ class Schedule(Object):
     def get_block(
         self,
         name: str,
-        func_name: str = "main",
+        func_name: Optional[str] = None,
     ) -> BlockRV:
         """Retrieve a block in a specific function with its name
+
+        By default, if `func_name` is not specified, the schedule will search for the block in the
+        function that is currently being "worked on". To switch the function to be worked on, use
+        `work_on` before calling this method.
 
         Parameters
         ----------
         name : str
             The name of the block
-        func_name : str = "main"
+        func_name : Optional[str] = None
             The name of the function
 
         Returns

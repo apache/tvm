@@ -21,6 +21,7 @@ import numpy as np
 import pytest
 import tvm
 import tvm.topi.testing
+import tvm.testing
 from tvm import relay
 from tvm.relay.testing.layers import batch_norm_infer
 from tvm.target.datatype import (
@@ -560,4 +561,4 @@ def test_posites2():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()
