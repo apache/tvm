@@ -346,11 +346,19 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   }
   ICHECK_EQ(old_in2.size(), new_in.size());
 
-  Array<Layout> new_in_tmp = new_in;  // for backward compatibility of InferCorrectLayouts
-  // if new_in_tmp == 'undef':  new_in_tmp = old_in2
-  for (size_t i = 0; i < new_in_tmp.size(); ++i) {
-    if (!new_in_tmp[i].defined()) {
-      new_in_tmp.Set(i, old_in2[i]);
+  Array<Layout> new_in_inferred = new_in;  // for backward compatibility of InferCorrectLayouts
+  // if new_in_inferred == 'undef':  new_in_inferred = old_in2
+  for (size_t i = 0; i < new_in_inferred.size(); ++i) {
+    if (!new_in_inferred[i].defined()) {
+      new_in_inferred.Set(i, old_in2[i]);
+    }
+  }
+
+  Array<Layout> old_in_inferred = old_in;  // for backward compatibility of InferCorrectLayouts
+  // if old_in_inferred == 'undef':  old_in_inferred = old_in2
+  for (size_t i = 0; i < old_in_inferred.size(); ++i) {
+    if (!old_in_inferred[i].defined()) {
+      old_in_inferred.Set(i, old_in2[i]);
     }
   }
 
@@ -360,7 +368,7 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   // new_in2, new_out = op.infer(new_in)
   if (new_call->op->IsInstance<OpNode>()) {
     success = false;
-    std::tie(infer_out, success) = InferCorrectLayouts(new_call, new_in_tmp, old_in, types);
+    std::tie(infer_out, success) = InferCorrectLayouts(new_call, new_in_inferred, old_in_inferred, types);
     new_in2 = infer_out->input_layouts;
     new_out = infer_out->output_layouts;
     if (!success) {
