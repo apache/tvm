@@ -77,7 +77,7 @@ def dense_compute(tensor_a, tensor_b, bias=None, out_dtype=None):
     if bias is not None:
         mat = te.compute(
             (batch, 1, 1, out_dim),
-            lambda i, j: mat[i, j] + bias[j].astype(out_dtype),
+            lambda i, j: mat[i, h, w, j] + bias[j].astype(out_dtype),
             tag=tag.BROADCAST,
         )
 
