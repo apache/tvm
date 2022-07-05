@@ -138,6 +138,12 @@ class LiteralDoc : public ExprDoc {
   static LiteralDoc Int(int v) { return LiteralDoc(IntImm(DataType::Int(64), v)); }
 
   /*!
+   * \brief Create a LiteralDoc to represent boolean.
+   * \param v The boolean value.
+   */
+  static LiteralDoc Boolean(bool v) { return LiteralDoc(IntImm(DataType::Bool(), v)); }
+
+  /*!
    * \brief Create a LiteralDoc to represent float.
    * \param v The float value.
    */

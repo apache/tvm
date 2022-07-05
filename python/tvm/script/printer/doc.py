@@ -39,6 +39,8 @@ class LiteralDoc(ExprDoc):
             self.__init_handle_by_constructor__(_ffi_api.LiteralDocStr, value)  # type: ignore
         elif isinstance(value, float):
             self.__init_handle_by_constructor__(_ffi_api.LiteralDocFloat, value)  # type: ignore
+        elif isinstance(value, bool):
+            self.__init_handle_by_constructor__(_ffi_api.LiteralDocBoolean, value)  # type: ignore
         elif isinstance(value, int):
             self.__init_handle_by_constructor__(_ffi_api.LiteralDocInt, value)  # type: ignore
         elif value is None:

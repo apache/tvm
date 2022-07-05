@@ -16,17 +16,18 @@
 # under the License.
 import pytest
 
+from tvm.tir import IntImm
 from tvm.script.printer.doc import LiteralDoc
 
 
 @pytest.mark.parametrize(
     "value",
-    [None, "test", 0, 1, -2, 0.0, 1.5, -1.3],
+    [None, "test", 0, 1, -2, 0.0, 1.5, -1.3, True, False],
 )
 def test_literal_doc_construction(value):
     doc = LiteralDoc(value)
     if isinstance(value, float):
-        # FloatImm isn't unpacked to Python's float automatically
+        # FloatImm cannot be compared with Python's float directly
         assert float(doc.value) == pytest.approx(value)
     else:
         assert doc.value == value

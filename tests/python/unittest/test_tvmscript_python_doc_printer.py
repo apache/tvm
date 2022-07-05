@@ -39,6 +39,8 @@ def print_doc_as_python(doc, indent_spaces=4):
     "doc,expected",
     [
         (LiteralDoc(None), "None"),
+        (LiteralDoc(True), "True"),
+        (LiteralDoc(False), "False"),
         (LiteralDoc("test"), '"test"'),
         (LiteralDoc(""), '""'),
         (LiteralDoc('""'), r'"\"\""'),
