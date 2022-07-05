@@ -157,4 +157,4 @@ def test_extract_memory_info():
     )
 
     sram = extract_memory_info(memory_pool, memory_pressure)
-    assert sram == initial_pool_size - memory_pressure
+    assert sram.size == initial_pool_size - memory_pressure
