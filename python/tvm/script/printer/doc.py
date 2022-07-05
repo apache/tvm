@@ -36,12 +36,12 @@ class LiteralDoc(ExprDoc):
 
     def __init__(self, value):
         if isinstance(value, str):
-            self.__init_handle_by_constructor__(_ffi_api.LiteralDocStr(), value)  # type: ignore
+            self.__init_handle_by_constructor__(_ffi_api.LiteralDocStr, value)  # type: ignore
         elif isinstance(value, float):
-            self.__init_handle_by_constructor__(_ffi_api.LiteralDocFloat(), value)  # type: ignore
+            self.__init_handle_by_constructor__(_ffi_api.LiteralDocFloat, value)  # type: ignore
         elif isinstance(value, int):
-            self.__init_handle_by_constructor__(_ffi_api.LiteralDocInt(), value)  # type: ignore
+            self.__init_handle_by_constructor__(_ffi_api.LiteralDocInt, value)  # type: ignore
         elif value is None:
-            self.__init_handle_by_constructor__(_ffi_api.LiteralDocNone())  # type: ignore
+            self.__init_handle_by_constructor__(_ffi_api.LiteralDocNone)  # type: ignore
         else:
             raise TypeError(f"Unsupported type {type(value)} for LiteralDoc")
