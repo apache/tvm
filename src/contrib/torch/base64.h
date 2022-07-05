@@ -22,8 +22,8 @@
  * \brief Util functions for converting plain bytes back to plain bytes
  */
 
-#ifndef TVM_SUPPORT_BASE64_RT_H_
-#define TVM_SUPPORT_BASE64_RT_H_
+#ifndef TVM_CONTRIB_TORCH_BASE64_H_
+#define TVM_CONTRIB_TORCH_BASE64_H_
 
 #include <tvm/runtime/logging.h>
 
@@ -36,7 +36,7 @@
 namespace tvm {
 namespace support {
 
-size_t b64strlen(std::string& b64str) {
+size_t b64strlen(const std::string b64str) {
   ICHECK(b64str.size() % 4 == 0) << "invalid base64 encoding";
   size_t length = b64str.size() / 4 * 3;
   if (b64str[b64str.size() - 2] == '=') {
@@ -47,7 +47,7 @@ size_t b64strlen(std::string& b64str) {
   return length;
 }
 
-void b64decode(std::string& b64str, u_char* ret) {
+void b64decode(const std::string b64str, u_char* ret) {
   size_t index = 0;
   const auto length = b64str.size();
   for (size_t i = 0; i < length; i += 4) {
@@ -66,11 +66,10 @@ void b64decode(std::string& b64str, u_char* ret) {
       }
     }
   }
-  ret[index] = '\0';
   ICHECK(b64strlen(b64str) == index) << "base64 decoding fails";
 }
 
 }  // namespace support
 }  // namespace tvm
 
-#endif  // TVM_SUPPORT_BASE64_RT_H_
+#endif  // TVM_CONTRIB_TORCH_BASE64_H_

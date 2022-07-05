@@ -47,7 +47,7 @@ class OperatorModuleWrapper(torch.nn.Module):
 
     def build(self, target=None):
         runtime_module = tvm.build(self.ir_module, target=target)
-        func = tvm.get_global_func("PyTorch.save_runtime_mod")
+        func = tvm.get_global_func("tvmtorch.save_runtime_mod")
         func(runtime_module)
 
         self.rt_module = torch.classes.tvm_torch.OperatorModuleWrapper()
@@ -79,7 +79,7 @@ def as_torch(func: Union[tvm.ir.module.IRModule, tvm.tir.function.PrimFunc, Call
         It will return an object of OperatorModuleWrapper,
         which is the subclass of the original nn.Module.
     """
-    if isinstance(func, tvm.ir.module.IRModule, tvm.tir.function.PrimFunc):
+    if isinstance(func, (tvm.ir.module.IRModule, tvm.tir.function.PrimFunc)):
         return OperatorModuleWrapper(func)
     if isinstance(func, Callable):
 

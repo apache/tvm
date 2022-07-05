@@ -59,26 +59,25 @@ SerializationType serialize(tvm::runtime::Module module) {
 }
 
 struct Deleter {  // deleter
-  Deleter(std::string file_name) { this->file_name = file_name; };
+  explicit Deleter(std::string file_name) { this->file_name = file_name; }
   void operator()(FILE* p) const {
     fclose(p);
     ICHECK(remove(file_name.c_str()) == 0)
         << "remove temporary file (" << file_name << ") unsuccessfully";
-  };
+  }
   std::string file_name;
 };
 
 tvm::runtime::Module deserialize(SerializationType state) {
   auto length = tvm::support::b64strlen(state);
 
-  u_char bytes[length];
-  memset(bytes, 0, sizeof(bytes));
-  tvm::support::b64decode(state, bytes);
+  std::vector<u_char> bytes(length);
+  tvm::support::b64decode(state, bytes.data());
 
   const std::string name = tmpnam(NULL);
   auto file_name = name + ".so";
   std::unique_ptr<FILE, Deleter> pFile(fopen(file_name.c_str(), "wb"), Deleter(file_name));
-  fwrite(bytes, sizeof(u_char), length, pFile.get());
+  fwrite(bytes.data(), sizeof(u_char), length, pFile.get());
   fflush(pFile.get());
 
   std::string load_f_name = "runtime.module.loadfile_so";
@@ -128,7 +127,7 @@ class OperatorModuleWrapper : public torch::jit::CustomClassHolder {
 
   SerializationType Serialize() { return serialize(runtime_module); }
 
-  OperatorModuleWrapper(SerializationType state) { runtime_module = deserialize(state); }
+  explicit OperatorModuleWrapper(SerializationType state) { runtime_module = deserialize(state); }
 
  private:
   tvm::runtime::Module runtime_module;
@@ -165,7 +164,7 @@ tvm::Device getDevice(const at::Tensor& tensor) {
  */
 class GraphExecutorFactoryWrapper : public torch::jit::CustomClassHolder {
  public:
-  GraphExecutorFactoryWrapper(tvm::runtime::Module executor_factory)
+  explicit GraphExecutorFactoryWrapper(tvm::runtime::Module executor_factory)
       : executor_factory_(executor_factory) {
     CHECK(executor_factory_->IsInstance<runtime::GraphExecutorFactory>())
         << "module is not an instance of GraphExecutorFactory";
@@ -220,7 +219,9 @@ class GraphExecutorFactoryWrapper : public torch::jit::CustomClassHolder {
 
   SerializationType Serialize() { return serialize(executor_factory_); }
 
-  GraphExecutorFactoryWrapper(SerializationType state) { executor_factory_ = deserialize(state); }
+  explicit GraphExecutorFactoryWrapper(SerializationType state) {
+    executor_factory_ = deserialize(state);
+  }
 
  private:
   tvm::runtime::Module executor_factory_;
