@@ -54,12 +54,20 @@ def transformed_input_np(input_np, input_layout):
 class TestDenseSlice:
     # NOTE: input_layout is always assumed to be "n11c-1024c-2d"
     (
+        input_shape,
         output_shape,
         output_layout,
         dtype,
     ) = tvm.testing.parameters(
         (
             [1, 1, 1, 1024],
+            [1, 1, 1, 1024],
+            "n11c-1024c-2d",
+            "float16",
+        ),
+        (
+            [1, 1, 1, 1024],
+            [1, 1, 1, 9*1024],
             "n11c-1024c-2d",
             "float16",
         ),
@@ -73,14 +81,10 @@ class TestDenseSlice:
     ):
         ref_np = tvm.topi.testing.dense(
             input_np,
-            weight_np,
+            np.swapaxes(weight_np, 0, 1), # Testing swaps axes internally...
             None,
         )
         return ref_np
-
-    @tvm.testing.fixture
-    def input_shape(self, output_shape):
-        return output_shape
 
     @tvm.testing.fixture
     def weight_shape(self, input_shape, output_shape):
@@ -155,7 +159,7 @@ class TestDenseSlice:
         else:
             raise RuntimeError(f"Unexpected layout '{output_layout}'")
 
-        np.testing.assert_allclose(output_np, transformed_expected_output_np, rtol=1, atol=1)
+        np.testing.assert_allclose(output_np, transformed_expected_output_np, rtol=0.1, atol=0.1)
 
 
 if __name__ == "__main__":
