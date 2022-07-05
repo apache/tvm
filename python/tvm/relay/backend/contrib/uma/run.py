@@ -1,8 +1,10 @@
+import torch
+
 import tvm
 from tvm import relay
 from tvm.relay.backend.contrib.uma.ultra_trail.backend import UltraTrailBackend
 
-import torch
+
 import tarfile
 from pathlib import Path
 
