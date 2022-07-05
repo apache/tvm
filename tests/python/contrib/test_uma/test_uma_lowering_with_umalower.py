@@ -17,9 +17,9 @@
 import pytest
 
 import tvm
-from tests.python.unittest.test_uma_utils import _create_schedule, _generate_io_arrays
+from tests.python.contrib.test_uma.test_uma_utils import _create_schedule, _generate_io_arrays
 from tvm import topi
-from tvm.relay.backend.contrib.uma._template.passes import my_ai_hw_conv2d_pass
+from tvm.relay.backend.contrib.uma._template.passes import MyAiHwConv2dPass
 import tvm.testing
 from tvm import te
 from tvm.relay.backend.contrib.uma.api.lower import UMALower
@@ -36,7 +36,7 @@ def _conv2d_te_definition(shapes: dict) -> list:
 
 def _pepare_conv2d_schedule(shapes, use_external_conv2d_impl=True):
     placeholders = _conv2d_te_definition(shapes)
-    with open("../../../python/tvm/relay/backend/contrib/uma/_template/conv2dnchw.cpp") as f:
+    with open("../../../../python/tvm/relay/backend/contrib/uma/_template/conv2dnchw.cpp") as f:
         sch_tir = _create_schedule(placeholders, f, use_external_conv2d_impl=use_external_conv2d_impl)
     return placeholders, sch_tir
 
@@ -46,7 +46,7 @@ def _run_external_conv2d(dut_io_arrays, conv2d_shapes, target):
     placeholders, schedule = _pepare_conv2d_schedule(conv2d_shapes)
 
     uma_lower = UMALower("lower_test")
-    uma_lower._tir_passes.append((PassPhase.TIR_PHASE_0, my_ai_hw_conv2d_pass()))
+    uma_lower._tir_passes.append((PassPhase.TIR_PHASE_0, MyAiHwConv2dPass()))
     with tvm.transform.PassContext():
         tir_mod = uma_lower._lower_stir_to_nstir(schedule.mod["main"])
 
