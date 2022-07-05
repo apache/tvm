@@ -51,7 +51,7 @@ def transformed_input_np(input_np, input_layout):
     return transform_numpy(input_np, "nhwc", input_layout)
 
 
-class TestAvgPool2dSlice:
+class TestDenseSlice:
     # NOTE: input_layout is always assumed to be "n11c-1024c-2d"
     (
         output_shape,
@@ -113,7 +113,6 @@ class TestAvgPool2dSlice:
         # tir schedule
         tir_schedule = sl.dense_schedule([M], [A,W], output_layout, input_layout)
         sch = tir_schedule.mod
-        print(tvm.lower(sch, [A, W, M]))
 
         input_axis_separator = [4]
         if output_layout == "n11c-1024c-2d":

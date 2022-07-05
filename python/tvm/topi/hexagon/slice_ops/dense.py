@@ -112,16 +112,8 @@ def dense_schedule(outs, ins, output_layout: str, input_layout: str):
     s.transform_layout(matmul, ("read", 0), input_transform_fn)
     s.transform_layout(matmul, ("write", 0), output_transform_fn)
 
-    # bn, bh, bw, bc, rx, ry = s.get_loops(Sum)
-    # bco, bci = s.split(bc, [None, 1024])
-    # bcio, bcii = s.split(bci, [None, 64])
-    # s.reorder(bn, bh, bw, bco, bcio, rx, ry, bcii)  # --- DOESN'T do anything
-    # s.vectorize(bcii) # --- DOESN'T WORK -- errors out
+    bn, bh, bw, bc, rc = s.get_loops(matmul)
+    bco, bci = s.split(bc, [None, 1024])
+    s.vectorize(bci)
 
-    # n, h, w, c = s.get_loops(Avg)
-    # co, ci = s.split(c, [None, 1024])
-    # cio, cii = s.split(ci, [None, 64])
-    # s.vectorize(cii)
-
-    # s.compute_at(Sum, cio)
     return s
