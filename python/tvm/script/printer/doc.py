@@ -30,26 +30,18 @@ class ExprDoc(Object):
     """Base class of all expression Docs"""
 
 
-LITERAL_CONSTRUCTORS = [
-    (str, _ffi_api.LiteralDocStr),
-    (float, _ffi_api.LiteralDocFloat),
-    (int, _ffi_api.LiteralDocInt),
-]
-
-
 @tvm._ffi.register_object("script.printer.LiteralDoc")
 class LiteralDoc(ExprDoc):
     """Doc that represents literal value"""
 
     def __init__(self, value):
-        if value is None:
-            self.__init_handle_by_constructor__(_ffi_api.LiteralDocNone)
-            return
-
-        for (cls, constructor) in LITERAL_CONSTRUCTORS:
-            if isinstance(value, cls):
-                break
+        if isinstance(value, str):
+            self.__init_handle_by_constructor__(_ffi_api.LiteralDocStr(), value)  # type: ignore
+        elif isinstance(value, float):
+            self.__init_handle_by_constructor__(_ffi_api.LiteralDocFloat(), value)  # type: ignore
+        elif isinstance(value, int):
+            self.__init_handle_by_constructor__(_ffi_api.LiteralDocInt(), value)  # type: ignore
+        elif value is None:
+            self.__init_handle_by_constructor__(_ffi_api.LiteralDocNone())  # type: ignore
         else:
             raise TypeError(f"Unsupported type {type(value)} for LiteralDoc")
-
-        self.__init_handle_by_constructor__(constructor, value)
