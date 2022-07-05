@@ -23,14 +23,14 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-TVM_REGISTER_NODE_TYPE(DocNode);
-TVM_REGISTER_NODE_TYPE(ExprDocNode);
-
 LiteralDoc::LiteralDoc(ObjectRef value) {
   ObjectPtr<LiteralDocNode> n = make_object<LiteralDocNode>();
   n->value = value;
   this->data_ = std::move(n);
 }
+
+TVM_REGISTER_NODE_TYPE(DocNode);
+TVM_REGISTER_NODE_TYPE(ExprDocNode);
 TVM_REGISTER_NODE_TYPE(LiteralDocNode);
 TVM_REGISTER_GLOBAL("script.printer.LiteralDocNone").set_body_typed(LiteralDoc::None);
 TVM_REGISTER_GLOBAL("script.printer.LiteralDocInt").set_body_typed(LiteralDoc::Int);
