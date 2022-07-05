@@ -29,9 +29,6 @@ import tvm
 import tvm.testing
 from tvm.contrib.download import download_testdata
 
-from ..zephyr.test_utils import ZEPHYR_BOARDS
-from ..arduino.test_utils import ARDUINO_BOARDS
-
 TVMC_COMMAND = [sys.executable, "-m", "tvm.driver.tvmc"]
 
 MODEL_URL = "https://github.com/tensorflow/tflite-micro/raw/main/tensorflow/lite/micro/examples/micro_speech/micro_speech.tflite"
@@ -47,22 +44,8 @@ def _run_tvmc(cmd_args: list, *args, **kwargs):
     return subprocess.check_call(cmd_args_list, *args, **kwargs)
 
 
-def _get_target_and_platform(board: str):
-    if board in ZEPHYR_BOARDS.keys():
-        target_model = ZEPHYR_BOARDS[board]
-        platform = "zephyr"
-    elif board in ARDUINO_BOARDS.keys():
-        target_model = ARDUINO_BOARDS[board]
-        platform = "arduino"
-    else:
-        raise ValueError(f"Board {board} is not supported.")
-
-    target = tvm.target.target.micro(target_model)
-    return str(target), platform
-
-
 @tvm.testing.requires_micro
-def test_tvmc_exist(board):
+def test_tvmc_exist(platform, board):
     cmd_result = _run_tvmc(["micro", "-h"])
     assert cmd_result == 0
 
@@ -72,8 +55,8 @@ def test_tvmc_exist(board):
     "output_dir,",
     [pathlib.Path("./tvmc_relative_path_test"), pathlib.Path(tempfile.mkdtemp())],
 )
-def test_tvmc_model_build_only(board, output_dir):
-    target, platform = _get_target_and_platform(board)
+def test_tvmc_model_build_only(platform, board, output_dir):
+    target = tvm.micro.testing.get_target(platform, board)
 
     if not os.path.isabs(output_dir):
         out_dir_temp = os.path.abspath(output_dir)
@@ -138,8 +121,8 @@ def test_tvmc_model_build_only(board, output_dir):
     "output_dir,",
     [pathlib.Path("./tvmc_relative_path_test"), pathlib.Path(tempfile.mkdtemp())],
 )
-def test_tvmc_model_run(board, output_dir):
-    target, platform = _get_target_and_platform(board)
+def test_tvmc_model_run(platform, board, output_dir):
+    target = tvm.micro.testing.get_target(platform, board)
 
     if not os.path.isabs(output_dir):
         out_dir_temp = os.path.abspath(output_dir)
