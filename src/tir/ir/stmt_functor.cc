@@ -22,6 +22,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/function.h>
+#include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include <functional>
@@ -646,9 +647,11 @@ class IRSubstitute : public StmtExprMutator {
 
   PrimExpr VisitExpr_(const VarNode* op) final {
     Var var = GetRef<Var>(op);
-    auto ret = vmap_(var);
-    if (ret.defined()) return ret.value();
-    return std::move(var);
+    if (Optional<PrimExpr> ret = vmap_(var)) {
+      return tvm::cast(var.dtype(), ret.value());
+    } else {
+      return std::move(var);
+    }
   }
 
   PrimExpr VisitExpr_(const LoadNode* op) final {
