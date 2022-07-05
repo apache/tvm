@@ -396,9 +396,7 @@ def generate_command(
         # Add named test suites
         for option_name, (_, extra_scripts) in options.items():
             if kwargs.get(option_name, False):
-                scripts.extend(
-                    script.format(build_dir=build_dir) for script in extra_scripts
-                )
+                scripts.extend(script.format(build_dir=build_dir) for script in extra_scripts)
 
         docker(
             name=gen_name(f"ci-{name}"),
