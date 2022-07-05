@@ -41,6 +41,12 @@ def pytest_addoption(parser):
         default=False,
         help="If set true, enable a debug session while the test is running. Before running the test, in a separate shell, you should run: <python -m tvm.exec.microtvm_debug_shell>",
     )
+    parser.addoption(
+        "--use-fvp",
+        action="store_true",
+        default=False,
+        help="If set true, use the FVP emulator to run the test",
+    )
 
 
 def pytest_generate_tests(metafunc):
@@ -56,6 +62,11 @@ def west_cmd(request):
 @pytest.fixture
 def tvm_debug(request):
     return request.config.getoption("--tvm-debug")
+
+
+@pytest.fixture
+def use_fvp(request):
+    return request.config.getoption("--use-fvp")
 
 
 @pytest.fixture
@@ -89,8 +100,19 @@ def skip_by_board(request, board):
             pytest.skip("skipped on this board: {}".format(board))
 
 
+@pytest.fixture(autouse=True)
+def xfail_by_platform(request):
+    """mark the tests as xfail if running on fvp."""
+    if request.node.get_closest_marker("xfail_on_fvp"):
+        request.node.add_marker(pytest.mark.xfail(reason="checking corstone300 reliability on CI"))
+
+
 def pytest_configure(config):
     config.addinivalue_line(
         "markers",
         "skip_boards(board): skip test for the given board",
+    )
+    config.addinivalue_line(
+        "markers",
+        "xfail_by_platform(): mark test as xfail on fvp",
     )
