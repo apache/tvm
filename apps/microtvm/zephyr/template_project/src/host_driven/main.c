@@ -38,6 +38,7 @@
 #include <sys/printk.h>
 #include <sys/reboot.h>
 #include <sys/ring_buffer.h>
+#include <timing/timing.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/microtvm_rpc_server.h>
 #include <unistd.h>
@@ -144,11 +145,7 @@ tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
   return kTvmErrorNoError;
 }
 
-#define MILLIS_TIL_EXPIRY 200
-#define TIME_TIL_EXPIRY (K_MSEC(MILLIS_TIL_EXPIRY))
-K_TIMER_DEFINE(g_microtvm_timer, /* expiry func */ NULL, /* stop func */ NULL);
-
-uint32_t g_microtvm_start_time;
+volatile timing_t g_microtvm_start_time, g_microtvm_end_time;
 int g_microtvm_timer_running = 0;
 
 // Called to start system timer.
@@ -161,8 +158,7 @@ tvm_crt_error_t TVMPlatformTimerStart() {
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 1);
 #endif
-  k_timer_start(&g_microtvm_timer, TIME_TIL_EXPIRY, TIME_TIL_EXPIRY);
-  g_microtvm_start_time = k_cycle_get_32();
+  g_microtvm_start_time = timing_counter_get();
   g_microtvm_timer_running = 1;
   return kTvmErrorNoError;
 }
@@ -174,43 +170,14 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
     return kTvmErrorSystemErrorMask | 2;
   }
 
-  uint32_t stop_time = k_cycle_get_32();
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 0);
 #endif
 
-  // compute how long the work took
-  uint32_t cycles_spent = stop_time - g_microtvm_start_time;
-  if (stop_time < g_microtvm_start_time) {
-    // we rolled over *at least* once, so correct the rollover it was *only*
-    // once, because we might still use this result
-    cycles_spent = ~((uint32_t)0) - (g_microtvm_start_time - stop_time);
-  }
-
-  uint32_t ns_spent = (uint32_t)k_cyc_to_ns_floor64(cycles_spent);
-  double hw_clock_res_us = ns_spent / 1000.0;
-
-  // need to grab time remaining *before* stopping. when stopped, this function
-  // always returns 0.
-  int32_t time_remaining_ms = k_timer_remaining_get(&g_microtvm_timer);
-  k_timer_stop(&g_microtvm_timer);
-  // check *after* stopping to prevent extra expiries on the happy path
-  if (time_remaining_ms < 0) {
-    TVMLogf("negative time remaining");
-    return kTvmErrorSystemErrorMask | 3;
-  }
-  uint32_t num_expiries = k_timer_status_get(&g_microtvm_timer);
-  uint32_t timer_res_ms = ((num_expiries * MILLIS_TIL_EXPIRY) + time_remaining_ms);
-  double approx_num_cycles =
-      (double)k_ticks_to_cyc_floor32(1) * (double)k_ms_to_ticks_ceil32(timer_res_ms);
-  // if we approach the limits of the HW clock datatype (uint32_t), use the
-  // coarse-grained timer result instead
-  if (approx_num_cycles > (0.5 * (~((uint32_t)0)))) {
-    *elapsed_time_seconds = timer_res_ms / 1000.0;
-  } else {
-    *elapsed_time_seconds = hw_clock_res_us / 1e6;
-  }
-
+  g_microtvm_end_time = timing_counter_get();
+  uint64_t cycles = timing_cycles_get(&g_microtvm_start_time, &g_microtvm_end_time);
+  uint64_t ns_spent = timing_cycles_to_ns(cycles);
+  *elapsed_time_seconds = ns_spent / (double)1e9;
   g_microtvm_timer_running = 0;
   return kTvmErrorNoError;
 }
@@ -277,6 +244,11 @@ void main(void) {
   // Claim console device.
   tvm_uart = device_get_binding(DT_LABEL(DT_CHOSEN(zephyr_console)));
   uart_rx_init(&uart_rx_rbuf, tvm_uart);
+
+  // Initialize system timing. We could stop and start it every time, but we'll
+  // be using it enough we should just keep it enabled.
+  timing_init();
+  timing_start();
 
   // Initialize microTVM RPC server, which will receive commands from the UART and execute them.
   microtvm_rpc_server_t server = MicroTVMRpcServerInit(write_serial, NULL);
