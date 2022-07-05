@@ -176,6 +176,7 @@ class OperatorConverter(object):
             "UNIDIRECTIONAL_SEQUENCE_LSTM": self.convert_unidirectional_sequence_lstm,
             "WHERE": self.convert_select,
             "ZEROS_LIKE": self.convert_zeros_like,
+            "NON_MAX_SUPPRESSION_V5": self.convert_nms_v5,
         }
 
     def check_unsupported_ops(self):
@@ -3346,6 +3347,69 @@ class OperatorConverter(object):
         boxes = _op.concatenate([ret[3], ret[2], ret[5], ret[4]], axis=2)
         ret = _expr.TupleWrapper(_expr.Tuple([boxes, cls_ids, scores, valid_count]), size=4)
         return ret
+
+    def convert_nms_v5(self, op):
+        """Convert TFLite NonMaxSuppressionV5"""
+        # https://www.tensorflow.org/api_docs/cc/class/tensorflow/ops/non-max-suppression-v5
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 6, "input tensor length should be 6"
+        boxes = self.get_expr(input_tensors[0].tensor_idx)
+        scores = self.get_expr(input_tensors[1].tensor_idx)
+        max_output_size = self.get_tensor_value(input_tensors[2])
+        iou_threshold = self.get_tensor_value(input_tensors[3])
+        score_threshold = self.get_tensor_value(input_tensors[4])
+        soft_nms_sigma = self.get_tensor_value(input_tensors[5])
+
+        if isinstance(max_output_size, np.ndarray):
+            assert max_output_size.size == 1, "only one value is expected."
+            max_output_size = int(max_output_size)
+
+        if isinstance(iou_threshold, np.ndarray):
+            assert iou_threshold.size == 1, "only one value is expected."
+            iou_threshold = float(iou_threshold)
+
+        if isinstance(score_threshold, np.ndarray):
+            assert score_threshold.size == 1, "only one value is expected."
+            score_threshold = float(score_threshold)
+
+        if isinstance(soft_nms_sigma, np.ndarray):
+            assert soft_nms_sigma.size == 1, "only one value is expected."
+            soft_nms_sigma = float(soft_nms_sigma)
+        if soft_nms_sigma != 0.0:
+            raise tvm.error.OpNotImplemented(
+                "It is soft_nms when soft_nms_sigma != 0, which is not supported!"
+            )
+
+        scores_expand = _op.expand_dims(scores, axis=-1, num_newaxis=1)
+        data = _op.concatenate([scores_expand, boxes], -1)
+        data = _op.expand_dims(data, axis=0, num_newaxis=1)
+
+        count, data, indices = _op.vision.get_valid_counts(
+            data, score_threshold=score_threshold, id_index=-1, score_index=0
+        )
+
+        nms_ret = _op.vision.non_max_suppression(
+            data=data,
+            valid_count=count,
+            indices=indices,
+            max_output_size=max_output_size,
+            iou_threshold=iou_threshold,
+            force_suppress=True,
+            top_k=-1,
+            coord_start=1,
+            score_index=0,
+            id_index=-1,
+            return_indices=True,
+            invalid_to_bottom=False,
+        )
+
+        selected_indices = _op.squeeze(nms_ret[0], axis=[0])
+        selected_indices = _op.strided_slice(selected_indices, [0], [max_output_size])
+        valide_num = _op.squeeze(nms_ret[1], axis=[1])
+        selected_scores = _op.take(scores, selected_indices, axis=0)
+        out = _expr.TupleWrapper(_expr.Tuple([selected_indices, selected_scores, valide_num]), 3)
+        return out
 
     def convert_expand_dims(self, op):
         """Convert TFLite EXPAND_DIMS"""
