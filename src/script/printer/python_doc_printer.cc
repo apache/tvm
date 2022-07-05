@@ -19,6 +19,7 @@
 
 #include <tvm/runtime/registry.h>
 
+#include "../../support/str_escape.h"
 #include "./doc_printer.h"
 
 namespace tvm {
@@ -34,8 +35,7 @@ namespace {
  * \param out the output stream
  */
 void PrintLiteralString(const String& string, std::ostringstream& out) {
-  // TODO(yelite): Escape and smart quote (choose ' or " automatically)
-  out << "\"" << string << "\"";
+  out << "\"" << support::StrEscape(string->data, string->size) << "\"";
 }
 
 /*!

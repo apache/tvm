@@ -41,8 +41,10 @@ def print_doc_as_python(doc, indent_spaces=4):
         (LiteralDoc(None), "None"),
         (LiteralDoc("test"), '"test"'),
         (LiteralDoc(""), '""'),
-        # TODO: make the string printing add character escaping
-        pytest.param(LiteralDoc('"'), r'"\""', marks=pytest.mark.xfail),
+        (LiteralDoc('""'), r'"\"\""'),
+        (LiteralDoc('\n\t\\test\r'), r'"\n\t\\test\r"'),
+        # TODO: make the roundatrippable problem caused by utf8
+        pytest.param(LiteralDoc('\x88'), r'"\x88"', marks=pytest.mark.xfail),
         (LiteralDoc(0), "0"),
         (LiteralDoc(-1), "-1"),
         (LiteralDoc(3.25), "3.25"),
