@@ -29,6 +29,7 @@ from .utils import (
     add_pad,
     bind_data_copy,
     get_texture_storage,
+    get_default_conv2d_config,
 )
 
 
@@ -260,6 +261,10 @@ def schedule_conv2d_NHWC(cfg, s, output):
     cfg.define_split("tile_rx", rx, num_outputs=2)
     cfg.define_knob("auto_unroll_max_step", [0, 512, 1500])
     cfg.define_knob("unroll_explicit", [0, 1])
+
+    if cfg.is_fallback:
+        get_default_conv2d_config(cfg, conv.shape[3], conv.shape[1], conv.shape[2])
+    ##### space definition end #####
 
     pad_data, kernel = s[conv].op.input_tensors
     if (
