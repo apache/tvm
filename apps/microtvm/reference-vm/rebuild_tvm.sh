@@ -15,28 +15,33 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+#
 
-set -ex
+set -e
 
-# TVM
-# NOTE: TVM is presumed to be mounted already by Vagrantfile.
-cd "${TVM_HOME}"
+if [ "$1" == "--help" ]; then
+    echo "Usage ./apps/microtvm/reference-vm/rebuild_tvm.sh"
+    exit -1
+fi
 
-platform="arduino"
-apps/microtvm/reference-vm/rebuild-tvm.sh ${platform}
+# Get number of cores for build
+if [ -n "${TVM_CI_NUM_CORES}" ]; then
+  num_cores=${TVM_CI_NUM_CORES}
+else
+  # default setup for Vagrantfile
+  num_cores=2
+fi
 
-# Build poetry
-cd apps/microtvm/reference-vm/arduino
+cd "$(dirname $0)"
+cd "$(git rev-parse --show-toplevel)"
+BUILD_DIR="build-microtvm"
 
-poetry env use 3.7
+if [ ! -e "${BUILD_DIR}" ]; then
+    mkdir "${BUILD_DIR}"
+fi
 
-# importers
-poetry install -E importer-onnx
-poetry install -E importer-tflite
-poetry install -E importer-mxnet
-
-poetry install
-
-echo "export TVM_LIBRARY_PATH=\"$TVM_HOME\"/build-microtvm-${platform}" >>~/.profile
-echo "VENV_PATH=\$((cd \"$TVM_HOME\"/apps/microtvm/reference-vm/arduino && poetry env list --full-path) | sed -E 's/^(.*)[[:space:]]\(Activated\)\$/\1/g')" >>~/.profile
-echo "source \$VENV_PATH/bin/activate" >>~/.profile
+./tests/scripts/task_config_build_qemu.sh "${BUILD_DIR}"
+cd "${BUILD_DIR}"
+cmake ..
+rm -rf standalone_crt host_standalone_crt  # remove stale generated files
+make -j${num_cores}

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,19 +16,14 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-# Usage: apps/microtvm/reference-vm/scripts/reference_vm_build.sh <PLATFORM>
-#
 
-if [ "$#" -lt 1 -o "$1" == "--help" -o "$1" == "-h" ]; then
-    echo "Usage: apps/microtvm/reference-vm/scripts/reference_vm_build.sh <PLATFORM>"
+if [ "$1" == "--help" -o "$1" == "-h" ]; then
+    echo "Usage: apps/microtvm/reference-vm/scripts/reference_vm_build.sh"
     exit -1
 fi
-
-PLATFORM=$1
-shift
 
 cd "$(dirname "$0")"
 source "./utils.sh" || exit 2
 cd ${RVM_BASE_PATH}
 
-${BASE_BOX_TOOL} --provider=virtualbox build ${PLATFORM}
+${BASE_BOX_TOOL} --provider=virtualbox build

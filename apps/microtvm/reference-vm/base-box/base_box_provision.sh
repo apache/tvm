@@ -20,12 +20,23 @@
 #   virtual machine similar to CI QEMU setup.
 #
 
-set -e
 set -x
 
 source ~/.profile
 
+# Init Zephyr
+cd ~
+~/ubuntu_init_zephyr_project.sh ~/zephyr
+
+# Install CMSIS
+cd ~
+~/ubuntu_install_cmsis.sh ~/cmsis
+
+# Cleanup
+rm -f ubuntu_init_zephyr_project.sh ubuntu_install_cmsis.sh
+
 # Init Arduino
+source ~/.profile
 cd ~
 
 sudo apt-get install -y ca-certificates
@@ -68,6 +79,3 @@ arduino-cli core install SPRESENSE:spresense@2.5.0 --additional-urls $SPRESENSE_
 # The below sed command avoids the bug, and will be removed when no longer needed.
 PORTENTA_H7_BUGFIX_PATH=~/.arduino15/packages/arduino/hardware/mbed_portenta/3.1.1/cores/arduino/api/Common.h
 sed -i '3 i #include <stdbool.h>' $PORTENTA_H7_BUGFIX_PATH
-
-# Cleanup
-rm -f *.sh
