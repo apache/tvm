@@ -20,6 +20,7 @@
 import copy
 import math
 import warnings
+import hashlib
 from typing import Optional
 
 import numpy as np
@@ -6122,7 +6123,7 @@ class GraphProto:
 
 
 def from_onnx(
-    model, shape=None, dtype="float32", opset=None, freeze_params=True, convert_config=None
+    model, shape=None, dtype="float32", opset=None, freeze_params=True, convert_config=None, get_hash=False
 ):
     """Convert a ONNX model into an equivalent Relay Function.
 
@@ -6167,6 +6168,11 @@ def from_onnx(
             use_nt_batch_matmul : bool = True
                 True to convert qualified onnx `matmul` to `nn.batch_matmul` strict to NT format
                 (transpose_a=False, transpose_b=True).
+
+    get_hash : bool
+        If parameter is true the string from onnx model file is hashed by sha256 algorithm
+        and saved in mod. It is needed for handshake mechanism to check that tuned model and
+        model used tuning statistics are the same. The parameter is False by default.
 
     Returns
     -------
@@ -6224,5 +6230,9 @@ def from_onnx(
 
     if freeze_params:
         mod = relay.transform.DynamicToStatic()(mod)
+
+    if (get_hash):
+        onnx_model_hash = hashlib.sha256(model.SerializeToString()).hexdigest()
+        mod.with_attr("onnx_model_hash", onnx_model_hash)
 
     return mod, params
