@@ -328,6 +328,12 @@ PROJECT_OPTIONS = [
         type="str",
         help="Path to the CMSIS directory.",
     ),
+    server.ProjectOption(
+        "arm_fvp_path",
+        optional=["generate_project"],
+        type="str",
+        help="Path to the FVP binary to invoke.",
+    ),
 ]
 
 
@@ -490,6 +496,8 @@ class Handler(server.ProjectAPIHandler):
 
         if self._is_qemu(options):
             shutil.copytree(API_SERVER_DIR / "qemu-hack", project_dir / "qemu-hack")
+        elif self._is_fvp(options):
+            shutil.copytree(API_SERVER_DIR / "fvp-hack", project_dir / "fvp-hack")
 
         # Populate CRT.
         crt_path = project_dir / "crt"
@@ -542,7 +550,7 @@ class Handler(server.ProjectAPIHandler):
     def build(self, options):
         BUILD_DIR.mkdir()
 
-        cmake_args = ["cmake", ".."]
+        cmake_args = ["cmake", "..", "-GNinja"]
         if options.get("verbose"):
             cmake_args.append("-DCMAKE_VERBOSE_MAKEFILE:BOOL=TRUE")
 
@@ -552,23 +560,37 @@ class Handler(server.ProjectAPIHandler):
         if options.get("west_cmd"):
             cmake_args.append(f"-DWEST={options['west_cmd']}")
 
+        env = dict(os.environ)
         if self._is_qemu(options):
             # Some boards support more than one emulator, so ensure QEMU is set.
-            cmake_args.append(f"-DEMU_PLATFORM=qemu")
+            cmake_args.append("-DEMU_PLATFORM=qemu")
+        elif self._is_fvp(options):
+            cmake_args.append("-DEMU_PLATFORM=armfvp")
+            cmake_args.append("-DARMFVP_FLAGS=-I")
+            env["ARMFVP_BIN_PATH"] = str(API_SERVER_DIR / "fvp-hack")
 
         cmake_args.append(f"-DBOARD:STRING={options['zephyr_board']}")
 
-        check_call(cmake_args, cwd=BUILD_DIR)
+        print("ENV", env)
+        check_call(cmake_args, cwd=BUILD_DIR, env=env)
 
-        args = ["make", "-j2"]
+        args = ["ninja"]
         if options.get("verbose"):
-            args.append("VERBOSE=1")
-        check_call(args, cwd=BUILD_DIR)
+            args.append("-v")
+        check_call(args, cwd=BUILD_DIR, env=env)
 
     # A list of all zephyr_board values which are known to launch using QEMU. Many platforms which
     # launch through QEMU by default include "qemu" in their name. However, not all do. This list
     # includes those tested platforms which do not include qemu.
-    _KNOWN_QEMU_ZEPHYR_BOARDS = ("mps2_an521", "mps3_an547")
+    _KNOWN_QEMU_ZEPHYR_BOARDS = ("mps2_an521")
+
+    # A list of all zephyr_board values which are known to launch using ARM FVP (this script configures
+    # Zephyr to use that launch method).
+    _KNOWN_FVP_ZEPHYR_BOARDS = ("mps3_an547")
+
+    @classmethod
+    def _is_fvp(cls, options):
+        return options["zephyr_board"] in cls._KNOWN_FVP_ZEPHYR_BOARDS
 
     @classmethod
     def _is_qemu(cls, options):
@@ -583,7 +605,7 @@ class Handler(server.ProjectAPIHandler):
         return zephyr_board in fpu_boards
 
     def flash(self, options):
-        if self._is_qemu(options):
+        if self._is_qemu(options) or self._is_fvp(options):
             return  # NOTE: qemu requires no flash step--it is launched from open_transport.
 
         zephyr_board = options["zephyr_board"]
@@ -598,11 +620,13 @@ class Handler(server.ProjectAPIHandler):
             recover_args.extend(_get_nrf_device_args(options))
             check_call(recover_args, cwd=API_SERVER_DIR / "build")
 
-        check_call(["make", "flash"], cwd=API_SERVER_DIR / "build")
+        check_call(["ninja", "flash"], cwd=API_SERVER_DIR / "build")
 
     def open_transport(self, options):
         if self._is_qemu(options):
             transport = ZephyrQemuTransport(options)
+        elif self._is_fvp(options):
+            transport = ZephyrFvpTransport(options)
         else:
             transport = ZephyrSerialTransport(options)
 
@@ -789,7 +813,7 @@ class ZephyrQemuTransport:
             env["TVM_QEMU_GDBSERVER_PORT"] = self.options["gdbserver_port"]
 
         self.proc = subprocess.Popen(
-            ["make", "run", f"QEMU_PIPE={self.pipe}"],
+            ["ninja", "run", f"QEMU_PIPE={self.pipe}"],
             cwd=BUILD_DIR,
             env=env,
             stdout=subprocess.PIPE,
@@ -883,6 +907,153 @@ class ZephyrQemuTransport:
                 raise RuntimeError("QEMU setup failed.")
 
             raise ValueError(f"{item} not expected.")
+
+
+class ZephyrFvpMakeResult(enum.Enum):
+    FVP_STARTED = "fvp_started"
+    MAKE_FAILED = "make_failed"
+    EOF = "eof"
+
+
+class BlockingStream:
+    """Reimplementation of Stream class from Iris with blocking semantics."""
+
+    def __init__(self, name):
+        self.name = name
+        self.q = queue.Queue()
+        self.unread = None
+
+    def read(self, n=-1, timeout_sec=None):
+        print(self.name, "READ", n)
+        assert n != -1, "expect firmware to open stdin using raw mode, and therefore expect sized read requests"
+
+        data = b''
+        if self.unread is not None:
+            data = data + self.unread
+
+        while len(data) < n:
+            try:
+                data += self.q.get(timeout=timeout_sec)
+            except queue.Empty:
+                break
+
+        if len(data) > n:
+            self.unread = data[n:]
+            data = data[:n]
+
+        return data
+
+    readline = read
+
+    def write(self, data):
+        print(self.name, "WRITE", data)
+        self.q.put(data)
+
+
+class ZephyrFvpTransport:
+    """A transport class that communicates with the ARM FVP via Iris server."""
+
+    def __init__(self, options):
+        self.options = options
+        self.proc = None
+        self._queue = queue.Queue()
+
+        self._import_iris()
+
+    def _import_iris(self):
+        # Location as seen in the FVP_Corstone_SSE-300_11.15_24 tar.
+        iris_lib_path = pathlib.Path(self.options["arm_fvp_path"]).parent.parent.parent / "Iris" / "Python" / "iris"
+
+        sys.path.insert(0, str(iris_lib_path.parent))
+        try:
+            import iris.NetworkModelInitializer
+        finally:
+            sys.path.pop(0)
+
+        self._iris_lib = iris
+
+    def open(self):
+        args = ["ninja"]
+        if self.options.get("verbose"):
+            args.append("-v")
+        args.append("run")
+        env = dict(os.environ)
+        env["FVP_BIN_PATH"] = str(pathlib.Path(self.options["arm_fvp_path"]).parent)
+        self.proc = subprocess.Popen(
+            args,
+            cwd=BUILD_DIR,
+            env=env,
+            stdout=subprocess.PIPE,
+        )
+        self.iris_port = self._wait_for_fvp()
+        _LOG.info("IRIS started on port %d", self.iris_port)
+        NetworkModelInitializer = self._iris_lib.NetworkModelInitializer.NetworkModelInitializer
+        self._model_init = NetworkModelInitializer(host="localhost", port=self.iris_port, timeout_in_ms=1000)
+        self._model_init.start()
+        self._model = self._model_init.network_model
+#        targets = list(model.get_targets())
+#        _LOG.info("Iris server reports %d targets: %r", len(targets), [t.instName for t in targets])
+        self._target = self._model.get_target("component.FVP_MPS3_Corstone_SSE_300.cpu0")
+
+        self._target.handle_semihost_io()
+        self._target._stdout = BlockingStream("stdout")
+        self._target._stdin = BlockingStream("stdin")
+        print(self._target.is_running)
+        print(self._target.get_pc())
+        while True:
+            try:
+                self._model.run(blocking=False, timeout=100)
+                break
+            except TimeoutError:
+                pass
+
+        print(self._target.is_running)
+
+        return server.TransportTimeouts(
+            session_start_retry_timeout_sec=2.0,
+            session_start_timeout_sec=10.0,
+            session_established_timeout_sec=10.0,
+        )
+
+    def _fvp_check_stdout(self):
+        for line in self.proc.stdout:
+            line = str(line, "utf-8")
+            _LOG.info("ninja: %s", line)
+            m = re.match(r'Iris server started listening to port ([0-9]+)\n', line)
+            if m:
+                self._queue.put((ZephyrFvpMakeResult.FVP_STARTED, int(m.group(1))))
+            else:
+                line = re.sub("[^a-zA-Z0-9 \n]", "", line)
+                pattern = r"recipe for target (\w*) failed"
+                if re.search(pattern, line, re.IGNORECASE):
+                    self._queue.put((ZephyrFvpMakeResult.MAKE_FAILED, None))
+
+        self._queue.put((ZephyrFvpMakeResult.EOF, None))
+
+    def _wait_for_fvp(self):
+        threading.Thread(target=self._fvp_check_stdout, daemon=True).start()
+        while True:
+            try:
+                item = self._queue.get(timeout=120)
+            except Exception:
+                raise TimeoutError("FVP setup timeout.")
+
+            if item[0] == ZephyrFvpMakeResult.FVP_STARTED:
+                return item[1]
+
+            if item[0] in [ZephyrFvpMakeResult.MAKE_FAILED, ZephyrFvpMakeResult.EOF]:
+                raise RuntimeError("FVP setup failed.")
+
+            raise ValueError(f"{item} not expected.")
+
+    def close(self):
+        self._model.release()
+
+    def read(self, n, timeout_sec):
+        return self._target.stdout.read(n)
+
+    def write(self, data, timeout_sec):
+        self._target.stdin.write(data)
 
 
 if __name__ == "__main__":

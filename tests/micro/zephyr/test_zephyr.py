@@ -61,6 +61,7 @@ def _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config):
         "west_cmd": west_cmd,
         "verbose": bool(build_config.get("debug")),
         "zephyr_board": zephyr_board,
+        "arm_fvp_path": "/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4/FVP_Corstone_SSE-300_Ethos-U55",
     }
     if config_main_stack_size is not None:
         project_options["config_main_stack_size"] = config_main_stack_size
