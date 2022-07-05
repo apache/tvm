@@ -511,7 +511,7 @@ class IntSetAnalyzer::Impl {
   }
 
   IntSet Eval(const PrimExpr& expr) const {
-    return IntervalSetEvaluator(analyzer_, dom_map_).Eval(expr);
+    return IntervalSetEvaluator(analyzer_, GetCurrentBounds()).Eval(expr);
   }
 
   void Bind(const Var& var, const Range& range, bool allow_override) {
@@ -523,10 +523,24 @@ class IntSetAnalyzer::Impl {
   std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
  private:
+  // Get the current variable bounds, including both global bounds and
+  // scope-dependent bounds.
+  Map<Var, IntSet> GetCurrentBounds() const;
+
+  // Utility function to split a boolean condition into the domain
+  // bounds implied by that condition.
   static std::vector<std::pair<Var, IntSet>> DetectBoundInfo(const PrimExpr& cond);
 
+  // The parent arith::Analyzer
   Analyzer* analyzer_;
+
+  // Map of variables to global variable bounds (e.g. loop iterator
+  // ranges)
   Map<Var, IntSet> dom_map_;
+
+  // Map of variables to implicit scope-dependent bounds (e.g. inside
+  // the body of an if-statement)
+  Map<Var, IntSet> constraints_;
 };
 
 IntSetAnalyzer::IntSetAnalyzer(Analyzer* parent) : impl_(new Impl(parent)) {}
@@ -569,6 +583,29 @@ void IntSetAnalyzer::Impl::Bind(const Var& var, const IntSet& info, bool can_ove
 
 void IntSetAnalyzer::Impl::Bind(const Var& var, const PrimExpr& expr, bool can_override) {
   Bind(var, Eval(expr), can_override);
+}
+
+Map<Var, IntSet> IntSetAnalyzer::Impl::GetCurrentBounds() const {
+  // If either constraints_ or dom_map_ is empty, return the other to
+  // avoid constructing a new map.
+  if (constraints_.empty()) {
+    return dom_map_;
+  } else if (dom_map_.empty()) {
+    return constraints_;
+  }
+
+  // If neither is empty, construct a merged domain map with
+  // information from both sources.
+  Map<Var, IntSet> merged = dom_map_;
+  for (const auto& pair : constraints_) {
+    auto it = merged.find(pair.first);
+    if (it == merged.end()) {
+      merged.Set(pair.first, pair.second);
+    } else {
+      merged.Set(pair.first, Intersect({pair.second, (*it).second}));
+    }
+  }
+  return merged;
 }
 
 std::vector<std::pair<Var, IntSet>> IntSetAnalyzer::Impl::DetectBoundInfo(
@@ -619,8 +656,8 @@ std::function<void()> IntSetAnalyzer::Impl::EnterConstraint(const PrimExpr& cons
   // Collect the current values of each var that is changes by this
   // constraint.
   for (const auto& pair : bounds) {
-    auto it = dom_map_.find(pair.first);
-    if (it == dom_map_.end()) {
+    auto it = constraints_.find(pair.first);
+    if (it == constraints_.end()) {
       cached_values.Set(pair.first, IntSet());
     } else {
       cached_values.Set(pair.first, (*it).second);
@@ -629,20 +666,20 @@ std::function<void()> IntSetAnalyzer::Impl::EnterConstraint(const PrimExpr& cons
 
   // Update all constraints
   for (const auto& pair : bounds) {
-    auto it = dom_map_.find(pair.first);
-    if (it == dom_map_.end()) {
-      dom_map_.Set(pair.first, pair.second);
+    auto it = constraints_.find(pair.first);
+    if (it == constraints_.end()) {
+      constraints_.Set(pair.first, pair.second);
     } else {
-      dom_map_.Set(pair.first, Intersect({pair.second, (*it).second}));
+      constraints_.Set(pair.first, Intersect({pair.second, (*it).second}));
     }
   }
 
   auto frecover = [cached_values, this]() {
     for (const auto& it : cached_values) {
       if (it.second.defined()) {
-        dom_map_.Set(it.first, it.second);
+        constraints_.Set(it.first, it.second);
       } else {
-        dom_map_.erase(it.first);
+        constraints_.erase(it.first);
       }
     }
   };
