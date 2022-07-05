@@ -20,7 +20,7 @@
 #include <tvm/runtime/registry.h>
 
 #include "../../support/str_escape.h"
-#include "./doc_printer.h"
+#include "./base_doc_printer.h"
 
 namespace tvm {
 namespace script {
@@ -28,7 +28,7 @@ namespace printer {
 
 class PythonDocPrinter : public DocPrinter {
  public:
-  explicit PythonDocPrinter(const DocPrinterOptions& options) : DocPrinter(options) {}
+  explicit PythonDocPrinter(const DocPrintingOptions& options) : DocPrinter(options) {}
 
  protected:
   using DocPrinter::PrintDoc;
@@ -57,16 +57,20 @@ void PythonDocPrinter::PrintTypedDoc(const LiteralDoc& doc) {
   }
 }
 
-std::unique_ptr<DocPrinter> GetPythonDocPrinter(const DocPrinterOptions& options) {
-  return std::make_unique<PythonDocPrinter>(options);
+String DocToPythonScript(Doc doc, DocPrintingOptions options) {
+  PythonDocPrinter printer(options);
+  printer.Append(doc);
+  return printer.GetString();
 }
 
-TVM_REGISTER_GLOBAL("script.printer.PrintDocAsPython")
-    .set_body_typed([](Doc doc, int indent_spaces = 4) {
-      PythonDocPrinter printer({.indent_spaces = indent_spaces});
-      printer.Append(doc);
-      return printer.GetString();
-    });
+String DocToPythonScript(Doc doc, int indent_spaces) {
+  DocPrintingOptions options;
+  options.indent_spaces = indent_spaces;
+  return DocToPythonScript(doc, options);
+}
+
+TVM_REGISTER_GLOBAL("script.printer.DocToPythonScript")
+    .set_body_typed<String(Doc, int)>(DocToPythonScript);
 
 }  // namespace printer
 }  // namespace script

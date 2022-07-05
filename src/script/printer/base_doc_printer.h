@@ -16,10 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SCRIPT_PRINTER_DOC_PRINTER_H_
-#define TVM_SCRIPT_PRINTER_DOC_PRINTER_H_
+#ifndef TVM_SCRIPT_PRINTER_BASE_DOC_PRINTER_H_
+#define TVM_SCRIPT_PRINTER_BASE_DOC_PRINTER_H_
 
 #include <tvm/script/printer/doc.h>
+#include <tvm/script/printer/doc_printer.h>
 
 #include <memory>
 #include <ostream>
@@ -28,15 +29,6 @@
 namespace tvm {
 namespace script {
 namespace printer {
-
-/*!
- * \brief Configurable options for DocPrinter
- *
- * \sa DocPrinter
- */
-struct DocPrinterOptions {
-  int indent_spaces = 4;
-};
 
 /*!
  * \brief DocPrinter is responsible for printing Doc tree into text format
@@ -53,7 +45,7 @@ class DocPrinter {
    *
    * \param options the option for printer
    */
-  explicit DocPrinter(const DocPrinterOptions& options);
+  explicit DocPrinter(const DocPrintingOptions& options);
   virtual ~DocPrinter() = default;
 
   /*!
@@ -125,23 +117,15 @@ class DocPrinter {
   std::ostringstream output_;
 
  private:
-  /*! \brief the printer options */
-  DocPrinterOptions options_;
+  /*! \brief the printing options */
+  DocPrintingOptions options_;
 
   /*! \brief the current level of indent */
   int indent_ = 0;
 };
 
-/*!
- * \brief Get a doc printer to print Doc into Python code
- *
- * \param options the option for printer
- * \return A pointer to the printer
- */
-std::unique_ptr<DocPrinter> GetPythonDocPrinter(const DocPrinterOptions& options);
-
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm
 
-#endif  // TVM_SCRIPT_PRINTER_DOC_PRINTER_H_
+#endif  // TVM_SCRIPT_PRINTER_BASE_DOC_PRINTER_H_

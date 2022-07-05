@@ -16,34 +16,41 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#ifndef TVM_SCRIPT_PRINTER_DOC_PRINTER_H_
+#define TVM_SCRIPT_PRINTER_DOC_PRINTER_H_
 
-#include "./doc_printer.h"
+#include <tvm/script/printer/doc.h>
 
 namespace tvm {
 namespace script {
 namespace printer {
 
-DocPrinter::DocPrinter(const DocPrinterOptions& options) : options_(options) {}
+/*!
+ * \brief Configurable options for converting Doc into text format
+ */
+struct DocPrintingOptions {
+  int indent_spaces = 4;
+};
 
-void DocPrinter::Append(const Doc& doc) { PrintDoc(doc); }
+/*!
+ * \brief Convert Doc into Python script.
+ *
+ * \param options the option for printer
+ */
+String DocToPythonScript(Doc doc, DocPrintingOptions options);
 
-String DocPrinter::GetString() const {
-  std::string text = output_.str();
-  if (!text.empty() && text.back() != '\n') {
-    text.push_back('\n');
-  }
-  return text;
-}
-
-void DocPrinter::PrintDoc(const Doc& doc) {
-  if (const auto* doc_node = doc.as<LiteralDocNode>()) {
-    PrintTypedDoc(GetRef<LiteralDoc>(doc_node));
-  } else {
-    LOG(FATAL) << "Do not know how to print " << doc->GetTypeKey();
-    throw;
-  }
-}
+/*!
+ * \brief Convert Doc into Python script.
+ *
+ * This function unpacks the DocPrinterOptions into function arguments
+ * to be FFI friendly.
+ *
+ * \param indent_spaces the number of spaces used for indention
+ */
+String DocToPythonScript(Doc doc, int indent_spaces = 4);
 
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm
+
+#endif  // TVM_SCRIPT_PRINTER_DOC_PRINTER_H_

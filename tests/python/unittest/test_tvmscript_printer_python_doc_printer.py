@@ -16,7 +16,7 @@
 # under the License.
 import pytest
 
-from tvm.script.printer import _ffi_api
+from tvm.script.printer.doc_printer import to_python_script
 from tvm.script.printer.doc import LiteralDoc
 
 
@@ -29,10 +29,6 @@ def format_script(s: str) -> str:
     line_indents = [len(line) - len(line.lstrip(" ")) for line in non_empty_lines]
     spaces_to_remove = min(line_indents)
     return "\n".join(line[spaces_to_remove:] for line in s.splitlines())
-
-
-def print_doc_as_python(doc, indent_spaces=4):
-    return format_script(_ffi_api.PrintDocAsPython(doc, indent_spaces))
 
 
 @pytest.mark.parametrize(
@@ -57,4 +53,4 @@ def print_doc_as_python(doc, indent_spaces=4):
     ],
 )
 def test_print_literal_doc(doc, expected):
-    assert print_doc_as_python(doc) == format_script(expected)
+    assert to_python_script(doc) == format_script(expected)
