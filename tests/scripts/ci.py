@@ -397,7 +397,7 @@ def generate_command(
         for option_name, (_, extra_scripts) in options.items():
             if kwargs.get(option_name, False):
                 scripts.extend(
-                    script.format(name=name, build_dir=build_dir) for script in extra_scripts
+                    script.format(build_dir=build_dir) for script in extra_scripts
                 )
 
         docker(
