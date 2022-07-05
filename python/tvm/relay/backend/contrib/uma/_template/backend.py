@@ -48,7 +48,7 @@ class MyAiHwBackend(UMABackend):
         # TIR to runtime function registration
         #######################################################################
         self._register_codegen(
-            fmt="c", includes=gen_includes #, replace_call_extern=gen_replace_call_extern
+            fmt="c", includes=gen_includes
         )
 
     @property
