@@ -53,4 +53,4 @@ def format_script(s: str) -> str:
     ],
 )
 def test_print_literal_doc(doc, expected):
-    assert to_python_script(doc) == format_script(expected)
+    assert to_python_script(doc).rstrip("\n") == format_script(expected)

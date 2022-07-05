@@ -36,4 +36,4 @@ def to_python_script(doc: Doc, indent_spaces: int = 4) -> str:
     script : str
         The text representation of Doc in Python syntax
     """
-    return _ffi_api.DocToScriptPython(doc, indent_spaces)  # type: ignore
+    return _ffi_api.DocToPythonScript(doc, indent_spaces)  # type: ignore
