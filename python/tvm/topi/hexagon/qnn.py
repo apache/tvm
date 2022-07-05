@@ -267,7 +267,7 @@ def qnn_conv2d(  # Conv2d inputs
     if bias is not None:
         assert len(out.shape) == len(bias.shape)
         assert bias.shape[2] == 1 and bias.shape[3] == 1
-        out = te.compute(out.shape, lambda n, c, h, w: out[n, c, h, w] + bias[n, c, 1, 1])
+        out = te.compute(out.shape, lambda n, c, h, w: out[n, c, h, w] + bias[n, c, 0, 0])
 
     # Requantize output of convolution
     # Q_output = zp_output + round((scale_input)/(scale_output) * (Q_input - zp_input))
