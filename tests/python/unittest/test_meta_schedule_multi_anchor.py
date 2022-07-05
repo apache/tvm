@@ -41,8 +41,7 @@ def get_dense_dense(data_shape, weight_shape):
 
 
 def get_ref(data_np, weight1_np, weight2_np):
-    dense1 = np.dot(data_np, np.transpose(weight1_np))
-    return np.dot(dense1, np.transpose(weight2_np))
+    return np.linalg.multi_dot([data_np, np.transpose(weight1_np), np.transpose(weight2_np)])
 
 
 def schedule_dense_dense(sch):
