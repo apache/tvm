@@ -28,7 +28,7 @@ namespace printer {
 
 class PythonDocPrinter : public DocPrinter {
  public:
-  PythonDocPrinter(const DocPrinterOptions& options) : DocPrinter(options) {}
+  explicit PythonDocPrinter(const DocPrinterOptions& options) : DocPrinter(options) {}
 
  protected:
   using DocPrinter::PrintDoc;
