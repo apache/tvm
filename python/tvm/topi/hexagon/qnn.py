@@ -234,6 +234,9 @@ def qnn_conv2d(  # Conv2d inputs
         get_const_tuple(padding), (dilated_kernel_h, dilated_kernel_w)
     )
 
+    # Subtract zero point from input and then do padding with 0 value
+    data = te.compute(data.shape, lambda *indices: te.subtract(data(*indices), input_zero_point))
+
     # DOPAD
     if pad_top != 0 or pad_down != 0 or pad_left != 0 or pad_right != 0:
         pad_before = (0, 0, pad_top, pad_left)
@@ -249,15 +252,12 @@ def qnn_conv2d(  # Conv2d inputs
     out = te.compute(
         oshape,
         lambda n, oc, oh, ow: te.sum(
-            te.subtract(
-                data_pad[
-                    n,
-                    ic,
-                    oh * height_stride + kh * dilation_h,
-                    ow * width_stride + kw * dilation_w,
-                ],
-                input_zero_point,
-            ).astype("int32")
+            data_pad[
+                n,
+                ic,
+                oh * height_stride + kh * dilation_h,
+                ow * width_stride + kw * dilation_w,
+            ].astype("int32")
             * te.subtract(weight[oc, ic, kh, kw], kernel_zero_point).astype("int32"),
             axis=[ic, kh, kw],
         ),
