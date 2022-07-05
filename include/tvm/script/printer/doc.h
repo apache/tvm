@@ -21,8 +21,7 @@
 
 #include <tvm/ir/expr.h>
 #include <tvm/node/node.h>
-
-#include "tvm/runtime/data_type.h"
+#include <tvm/runtime/data_type.h>
 
 namespace tvm {
 namespace script {
@@ -100,8 +99,11 @@ class LiteralDocNode : public ExprDocNode {
   /*!
    * \brief the internal representation of the literal value.
    *
-   * The actual type is union of IntImm, FloatImm and String, or a
-   * null ObjectRef.
+   * Possible actual types:
+   * - IntImm (integer or boolean)
+   * - FloatImm
+   * - String
+   * - null
    */
   ObjectRef value;
 
