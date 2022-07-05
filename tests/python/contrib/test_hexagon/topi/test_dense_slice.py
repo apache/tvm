@@ -123,8 +123,7 @@ class TestDenseSlice:
         with tvm.transform.PassContext(opt_level=3):
             func = tvm.build(
                 sch,
-                [A, W, M],
-                tvm.target.Target(target_hexagon, host=target_hexagon),
+                target=tvm.target.Target(target_hexagon, host=target_hexagon),
                 name="dense",
             )
 
