@@ -20,6 +20,7 @@ The Relay Virtual Machine runtime.
 
 Implements a Python interface to executing the compiled VM object.
 """
+import os
 import numpy as np
 
 import tvm
@@ -91,6 +92,7 @@ class Executable(object):
         self._get_late_bound_consts = self.mod["get_late_bound_consts"]
         self._load_late_bound_consts = self.mod["load_late_bound_consts"]
         self._load_late_bound_consts_from_map = self.mod["load_late_bound_consts_from_map"]
+        self.hash = ""
 
     def save(self):
         """Save the Relay VM Executable.
@@ -157,6 +159,22 @@ class Executable(object):
             print(res.numpy())
         """
         return self._save(), self._get_lib()
+
+    def set_hash(self, vm_hash):
+        self.hash = vm_hash
+
+    def save_hash(self, dir):
+        """Save hash of the onnx model in the file with path dir/hash.txt.
+
+        Parameters
+        ----------
+
+        dir: str
+            The path to directory where file with hash will be saved
+        """
+        hash_path = os.path.join(dir, "hash.txt")
+        with open(hash_path, "wb") as fh:
+            fh.write(self.hash)
 
     @staticmethod
     def load_exec(bytecode, lib):
