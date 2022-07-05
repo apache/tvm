@@ -53,6 +53,11 @@ set(DATA_FILES
 )
 set(CMSIS_SOURCES
     ${CMSIS_PATH}/CMSIS/NN/Source/SoftmaxFunctions/arm_softmax_s8.c
+    ${CMSIS_PATH}/CMSIS/NN/Source/ConvolutionFunctions/arm_depthwise_conv_wrapper_s8.c
+    ${CMSIS_PATH}/CMSIS/NN/Source/ConvolutionFunctions/arm_depthwise_conv_s8.c
+    ${CMSIS_PATH}/CMSIS/NN/Source/ConvolutionFunctions/arm_depthwise_conv_s8_opt.c
+    ${CMSIS_PATH}/CMSIS/NN/Source/NNSupportFunctions/arm_nn_depthwise_conv_nt_t_s8.c
+    ${CMSIS_PATH}/CMSIS/NN/Source/NNSupportFunctions/arm_nn_depthwise_conv_nt_t_padded_s8.c
     ${CMSIS_PATH}/CMSIS/NN/Source/ConvolutionFunctions/arm_convolve_wrapper_s8.c
     ${CMSIS_PATH}/CMSIS/NN/Source/ConvolutionFunctions/arm_convolve_1_x_n_s8.c
     ${CMSIS_PATH}/CMSIS/NN/Source/ConvolutionFunctions/arm_convolve_1x1_s8_fast.c
