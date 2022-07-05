@@ -35,6 +35,7 @@ struct DocPrintingOptions {
 /*!
  * \brief Convert Doc into Python script.
  *
+ * \param doc the doc to be converted
  * \param options the option for printer
  */
 String DocToPythonScript(Doc doc, DocPrintingOptions options);
@@ -45,6 +46,7 @@ String DocToPythonScript(Doc doc, DocPrintingOptions options);
  * This function unpacks the DocPrinterOptions into function arguments
  * to be FFI friendly.
  *
+ * \param doc the doc to be converted
  * \param indent_spaces the number of spaces used for indention
  */
 String DocToPythonScript(Doc doc, int indent_spaces = 4);
