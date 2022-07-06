@@ -328,7 +328,7 @@ struct ThreadedTraceApply {
  * \return The number of cores.
  */
 inline int GetTargetNumCores(const Target& target) {
-  int num_cores = target->GetAttr<Integer>("num-cores").value_or(-1);
+  int num_cores = target->GetAttr<Integer>("num-cores").value_or(-1).IntValue();
   if (num_cores == -1) {
     static const auto* f_cpu_count = runtime::Registry::Get("meta_schedule.cpu_count");
     ICHECK(f_cpu_count)

@@ -291,8 +291,8 @@ class TensorRTJSONSerializer : public JSONSerializer {
       }
       ICHECK_EQ(target_attr.size(), 3);
       SetAttr(node, "tensorrt_version",
-              {std::to_string(target_attr[0]), std::to_string(target_attr[1]),
-               std::to_string(target_attr[2])});
+              {std::to_string(target_attr[0]->value), std::to_string(target_attr[1]->value),
+               std::to_string(target_attr[2]->value)});
     }
 
     {

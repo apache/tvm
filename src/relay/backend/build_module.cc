@@ -334,7 +334,9 @@ class RelayBuildModule : public runtime::ModuleNode {
     if (config_->optional_homogeneous_target.defined()) {
       // This pass currently only supports the homogeneous case.
       pass_seqs.push_back(transform::SplitArgs(
-          config_->optional_homogeneous_target->GetAttr<Integer>("max_function_args", -1).value()));
+          config_->optional_homogeneous_target->GetAttr<Integer>("max_function_args", -1)
+              .value()
+              .IntValue()));
     }
 
     // Always plan devices so the remaining passes don't need to distinguish homogeneous vs
