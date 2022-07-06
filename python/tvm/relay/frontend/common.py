@@ -701,13 +701,13 @@ def rnn_cell(
     hidden_state : relay.Expr
         Hidden state. shape = (batch_size, hidden_size)
     w_inp, w_hid: relay.Expr
-        weight matrices. shape = (hidden_size, feature_size)
+        weight matrices. shape = (hidden_size, feature_size), (hidden_size, feature_size)
     b_inp, b_hid : relay.Expr
         bias matrices. The same order of internal parts as for weights. shape = (1 * hidden_size)
-    act : relay.op
-        activation function. It is tanh by default.
     backwards : bool
         Flag for reverse pass of RNN
+    act : relay.op
+        activation function. It is tanh by default.
 
     Returns
     -------
