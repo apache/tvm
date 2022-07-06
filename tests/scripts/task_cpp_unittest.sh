@@ -20,7 +20,7 @@ set -euxo pipefail
 
 if [ $# -gt 0 ]; then
     BUILD_DIR="$1"
-elif [ -n "${TVM_BUILD_PATH}" ]; then
+elif [ -n "${TVM_BUILD_PATH:-}" ]; then
     # TVM_BUILD_PATH may contain multiple space-separated paths.  If
     # so, use the first one.
     BUILD_DIR=$(IFS=" "; set -- $TVM_BUILD_PATH; echo $1)
