@@ -20,6 +20,7 @@
 from tvm import topi
 from .generic import *
 from ... import op as _op
+from ...op.strategy.generic import is_depthwise_conv2d
 
 
 # TODO: This is POC code. Change it on "hexagon" instead of "cpu"
@@ -78,16 +79,29 @@ def qnn_add_strategy_hexagon(attrs, inputs, out_type, target):
 @qnn_conv2d_strategy.register("cpu")
 def qnn_conv2d_strategy_hexagon(attrs, inputs, out_type, target):
     """qnn.conv2d strategy for Hexagon"""
+    data = inputs[0]
+    kernel = inputs[1]
     data_layout = attrs.data_layout
+    kernel_layout = attrs.kernel_layout
     groups = attrs.groups
     strategy = _op.OpStrategy()
     if groups == 1:
-        if data_layout == "NCHW":
+        if data_layout == "NCHW" and kernel_layout == "OIHW":
             strategy.add_implementation(
                 wrap_topi_qnn_conv2d(topi.hexagon.qnn_conv2d),
                 wrap_topi_schedule(topi.hexagon.schedule_qnn_conv2d),
                 name="qnn_conv2d.hexagon",
             )
+    elif is_depthwise_conv2d(data.shape, data_layout, kernel.shape, kernel_layout, groups):
+        if data_layout == "NCHW" and kernel_layout == "OIHW":
+            strategy.add_implementation(
+                wrap_topi_qnn_conv2d(topi.hexagon.qnn_depthwise_conv2d),
+                wrap_topi_schedule(topi.hexagon.schedule_qnn_depthwise_conv2d),
+                name="qnn_depthwise_conv2d.hexagon",
+            )
+    else:
+        raise RuntimeError("Unsupported strategy for group qnn.conv2d")
+
     return strategy
 
 
