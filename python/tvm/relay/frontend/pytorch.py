@@ -2679,7 +2679,7 @@ class PyTorchOpConverter:
         return _op.stack(input_seqs, 0), output_hiddens
 
     def rnn(self, inputs, input_types, nonlinearity):
-        """ 
+        """
         Description of RNN in pytorch:
         https://pytorch.org/docs/stable/generated/torch.nn.RNN.html#torch.nn.RNN
         Description of inputs:
