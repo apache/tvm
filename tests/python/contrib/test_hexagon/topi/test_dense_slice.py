@@ -42,6 +42,13 @@ def weight_np(weight_shape, dtype):
     return np.random.random(weight_shape).astype(dtype)
 
 @tvm.testing.fixture
+def bias_np(bias_shape, bias, dtype):
+    if bias:
+        return np.random.random(bias_shape).astype(dtype)
+    else:
+        return None
+
+@tvm.testing.fixture
 def transformed_expected_output_np(expected_output_np, output_layout):
     return transform_numpy(expected_output_np, "nhwc", output_layout)
 
@@ -57,18 +64,21 @@ class TestDenseSlice:
         input_shape,
         output_shape,
         output_layout,
+        bias,
         dtype,
     ) = tvm.testing.parameters(
         (
             [1, 1, 1, 1024],
             [1, 1, 1, 1024],
             "n11c-1024c-2d",
+            False,
             "float16",
         ),
         (
             [1, 1, 1, 1024],
-            [1, 1, 1, 9*1024],
+            [1, 1, 1, 1024],
             "n11c-1024c-2d",
+            True,
             "float16",
         ),
     )
@@ -77,23 +87,31 @@ class TestDenseSlice:
     def expected_output_np(
         self,
         input_np,
-        weight_np
+        weight_np,
+        bias_np,
+        bias
     ):
         ref_np = tvm.topi.testing.dense(
             input_np,
-            np.swapaxes(weight_np, 0, 1), # Testing swaps axes internally...
-            None,
+            weight_np,
+            bias_np,
+            use_bias=bias
         )
         return ref_np
 
     @tvm.testing.fixture
     def weight_shape(self, input_shape, output_shape):
-        return (input_shape[-1], output_shape[-1])
+        return (output_shape[-1], input_shape[-1])
+
+    @tvm.testing.fixture
+    def bias_shape(self, output_shape):
+        return (output_shape[-1],)
 
     @tvm.testing.requires_hexagon
     def test_dense_slice(
         self,
         dtype,
+        bias_np,
         input_layout,
         output_layout,
         output_shape,
@@ -110,12 +128,18 @@ class TestDenseSlice:
 
         target_hexagon = tvm.target.hexagon("v69")
         A = te.placeholder(input_shape, name="A", dtype=dtype)
-        W = te.placeholder((input_shape[-1], output_shape[-1]), dtype=dtype)
+        W = te.placeholder((input_shape[-1], output_shape[-1]), name="W", dtype=dtype)
+        if bias_np is not None:
+            B = te.placeholder((output_shape[-1],), name="B", dtype=dtype)
+            args = [A,W,B]
+        else:
+            B = None
+            args = [A,W]
 
-        M = sl.dense_compute(A, W, None)
+        M = sl.dense_compute(*args)
 
         # tir schedule
-        tir_schedule = sl.dense_schedule([M], [A,W], output_layout, input_layout)
+        tir_schedule = sl.dense_schedule([M], args, output_layout, input_layout)
         sch = tir_schedule.mod
 
         input_axis_separator = [4]
@@ -140,7 +164,7 @@ class TestDenseSlice:
         weight_arr = allocate_hexagon_array(
             hexagon_session.device,
             data=weight_np,
-            axis_separators=[2],
+            axis_separators=[1],
             mem_scope="global",
         )
         output_arr = allocate_hexagon_array(
@@ -150,17 +174,27 @@ class TestDenseSlice:
             axis_separators=output_axis_separator,
             mem_scope="global.vtcm",
         )
+        if bias_np is not None:
+            bias_arr = allocate_hexagon_array(
+                hexagon_session.device,
+                data=bias_np,
+                axis_separators=[0],
+                mem_scope="global",
+            )
+            arrs = (input_arr, weight_arr, bias_arr, output_arr)
+        else:
+            arrs = (input_arr, weight_arr, output_arr)
 
         mod = hexagon_session.load_module(func)
-        mod(input_arr, weight_arr, output_arr)
+        mod(*arrs)
         b, h, w, c = output_shape
         if output_layout == "n11c-1024c-2d":
             output_np = output_arr.numpy().reshape([b, 1, 1, c // 1024, 1024])
         else:
             raise RuntimeError(f"Unexpected layout '{output_layout}'")
 
-        np.testing.assert_allclose(output_np, transformed_expected_output_np, rtol=0.1, atol=0.1)
+        np.testing.assert_allclose(output_np, transformed_expected_output_np, rtol=5E-2, atol=0)
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()
