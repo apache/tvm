@@ -214,7 +214,7 @@ tvm::transform::Pass CopyComputeReordering(Optional<Integer> max_copy_movements)
            "pass in conjunction with the LowerToTIR() pass.";
     auto value = max_copy_movements.value_or(
         ctx->GetConfig(kCopyComputeReorderingMaxCopyMovements, Integer(1)).value());
-    return CopyComputeReorderingMutator(value)(f);
+    return CopyComputeReorderingMutator(value.IntValue())(f);
   };
   return tvm::tir::transform::CreatePrimFuncPass(pass_func, 0,
                                                  "tir.contrib.ethos-u.CopyComputeReordering", {});

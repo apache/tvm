@@ -87,6 +87,18 @@ def nc_1024_2d(n, c):
     return [n, c // 1024, te.AXIS_SEPARATOR, c % 1024]
 
 
+def iohw_16i32o2i_1d(height, width, in_channel, out_channel):
+    return [
+        in_channel // 32,
+        out_channel // 32,
+        height,
+        width,
+        (in_channel % 32) // 2,
+        out_channel % 32,
+        in_channel % 2,
+    ]
+
+
 def get_layout_transform_fn(layout):
     """Return index map function as per the layout string"""
     if layout == "nhwc-8h2w32c2w-2d":
@@ -115,4 +127,6 @@ def get_layout_transform_fn(layout):
         return nhwc_4h2w32c2w_2d
     if layout == "nc-1024c-2d":
         return nc_1024c_2d
+    if layout == "iohw-16i32o2i-1d":
+        return iohw_16i32o2i_1d
     raise RuntimeError(f"Unexpected layout '{layout}'")

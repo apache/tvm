@@ -177,14 +177,14 @@ class InterfaceCNode : public runtime::ModuleNode {
                   return a->byte_offset->value < b->byte_offset->value;
                 });
       int64_t accumulated_pool_len =
-          const_info_vec.back()->byte_offset +
+          const_info_vec.back()->byte_offset.IntValue() +
           runtime::GetDataSize(*const_info_vec.back()->data.operator->());
       const auto& accumulated_pool = runtime::NDArray::Empty(
           {accumulated_pool_len}, DataType::UInt(8), const_info_vec.back()->data->device);
       for (const auto& const_info : const_info_vec) {
         const auto& data = const_info->data;
         const auto& offs = const_info->byte_offset;
-        data.CopyToBytes(static_cast<uint8_t*>(accumulated_pool->data) + offs,
+        data.CopyToBytes(static_cast<uint8_t*>(accumulated_pool->data) + offs.IntValue(),
                          runtime::GetDataSize(*data.operator->()));
       }
 

@@ -28,13 +28,12 @@ from tvm.micro import model_library_format as mlf
 from tvm.relay.op.contrib.ethosu import partition_for_ethosu
 import tvm
 from tvm import WorkspaceMemoryPools, WorkspacePoolInfo, PoolInfoProperties
+from tvm.relay.backend.contrib.ethosu.codegen import extract_memory_info
 
 from .. import infra
 
 
-def _get_ethosu_workspace_size(
-    mod, params, accel_type, pool_size, enable_cascader, enable_striping
-):
+def _get_compilation_config(accel_type, enable_cascader, enable_striping):
     enable_usmp = True
 
     target = tvm.target.Target("c")
@@ -60,6 +59,17 @@ def _get_ethosu_workspace_size(
         "tir.usmp.algorithm": "hill_climb",
         "tir.disable_storage_rewrite": enable_usmp,
     }
+
+    return target, ethosu_target, runtime, executor, pass_config
+
+
+def _get_ethosu_workspace_size(
+    mod, params, accel_type, pool_size, enable_cascader, enable_striping
+):
+
+    target, ethosu_target, runtime, executor, pass_config = _get_compilation_config(
+        accel_type, enable_cascader, enable_striping
+    )
 
     workspace_memory_pools = WorkspaceMemoryPools(
         [
@@ -234,3 +244,150 @@ def test_depthwise2d_conv2d_pooling(
 
     assert workspace_size_cascader_disabled == expected_ws_size_without_striping
     assert workspace_size_cascader_enabled_striping_enabled == expected_ws_size_with_striping
+
+
+def test_multiple_memory_pools():
+    """
+    The cascader does not support multiple workspace memory
+    pools. Check the correct error is thrown.
+    """
+    np.random.seed(2)
+    ifm_shape = (1, 80, 75, 3)
+
+    target, ethosu_target, runtime, executor, pass_config = _get_compilation_config(
+        "ethos-u55-256", True, True
+    )
+    workspace_memory_pools = WorkspaceMemoryPools(
+        [
+            WorkspacePoolInfo(
+                "SRAM",
+                [target, ethosu_target],
+                PoolInfoProperties(
+                    size_hint_bytes=1,
+                    read_bandwidth_bytes_per_cycle=16,
+                    write_bandwidth_bytes_per_cycle=16,
+                    target_burst_bytes={ethosu_target: 1},
+                ),
+            ),
+            WorkspacePoolInfo(
+                "SRAM",
+                [target, ethosu_target],
+                PoolInfoProperties(
+                    size_hint_bytes=1,
+                    read_bandwidth_bytes_per_cycle=16,
+                    write_bandwidth_bytes_per_cycle=16,
+                    target_burst_bytes={ethosu_target: 1},
+                ),
+            ),
+        ]
+    )
+
+    @tf.function
+    def tf_graph(x):
+        return tf.nn.max_pool(x, (3, 3), (1, 1), "SAME")
+
+    _, tflite_graph = infra.get_tflite_graph(tf_graph, [ifm_shape])
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+    relay_module, params = relay.frontend.from_tflite(tflite_model)
+    mod = partition_for_ethosu(relay_module, params)
+
+    with pytest.raises(ValueError) as e:
+        with tvm.transform.PassContext(opt_level=3, config=pass_config):
+            tvm.relay.build(
+                mod,
+                target,
+                executor=executor,
+                runtime=runtime,
+                workspace_memory_pools=workspace_memory_pools,
+                params=params,
+            )
+
+    expected_reason = "Exactly one workspace pool needs to be provided for the U55 cascader"
+    on_error = "A ValueError was caught but its reason is not the expected one."
+    assert expected_reason in str(e.value), on_error
+
+
+def test_missing_memory_pools():
+    """
+    The cascader requires memory pools to be present, check the correct error
+    is thrown when there aren't any.
+    """
+    np.random.seed(2)
+    ifm_shape = (1, 80, 75, 3)
+
+    target, _, runtime, executor, pass_config = _get_compilation_config("ethos-u55-256", True, True)
+
+    @tf.function
+    def tf_graph(x):
+        return tf.nn.max_pool(x, (3, 3), (1, 1), "SAME")
+
+    _, tflite_graph = infra.get_tflite_graph(tf_graph, [ifm_shape])
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+    relay_module, params = relay.frontend.from_tflite(tflite_model)
+    mod = partition_for_ethosu(relay_module, params)
+
+    with pytest.raises(ValueError) as e:
+        with tvm.transform.PassContext(opt_level=3, config=pass_config):
+            tvm.relay.build(
+                mod,
+                target,
+                executor=executor,
+                runtime=runtime,
+                workspace_memory_pools=None,
+                params=params,
+            )
+
+    expected_reason = "Workspace memory pool needs to be provided for the U55 cascader"
+    on_error = "A ValueError was caught but its reason is not the expected one."
+    assert expected_reason in str(e.value), on_error
+
+
+def test_invalid_accelerator():
+    """
+    Check an error is thrown when an unsupported accelerator configuration
+    is used.
+    """
+    np.random.seed(2)
+    ifm_shape = (1, 80, 75, 3)
+
+    target, ethosu_target, runtime, executor, pass_config = _get_compilation_config(
+        "ethos-u65-256", True, True
+    )
+    workspace_memory_pools = WorkspaceMemoryPools(
+        [
+            WorkspacePoolInfo(
+                "SRAM",
+                [target, ethosu_target],
+                PoolInfoProperties(
+                    size_hint_bytes=1,
+                    read_bandwidth_bytes_per_cycle=16,
+                    write_bandwidth_bytes_per_cycle=16,
+                    target_burst_bytes={ethosu_target: 1},
+                ),
+            ),
+        ]
+    )
+
+    @tf.function
+    def tf_graph(x):
+        return tf.nn.max_pool(x, (3, 3), (1, 1), "SAME")
+
+    _, tflite_graph = infra.get_tflite_graph(tf_graph, [ifm_shape])
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+    relay_module, params = relay.frontend.from_tflite(tflite_model)
+    mod = partition_for_ethosu(relay_module, params)
+
+    with pytest.raises(ValueError) as e:
+        with tvm.transform.PassContext(opt_level=3, config=pass_config):
+            tvm.relay.build(
+                mod,
+                target,
+                executor=executor,
+                runtime=runtime,
+                workspace_memory_pools=workspace_memory_pools,
+                params=params,
+            )
+
+    expected_reason = "Cascading is not supported for the U65 accelerator"
+    on_error = "A ValueError was caught but its reason is not the expected one."
+    assert expected_reason in str(e.value), on_error

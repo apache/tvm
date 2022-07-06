@@ -118,7 +118,9 @@ std::vector<State> MultiLevelTilingNode::AddWriteReuse(State state) const {
   if (Optional<Array<Integer>> ann = tir::GetAnn<Array<Integer>>(
           state->sch->GetSRef(state->block_rv), "meta_schedule.write_cache_level")) {
     req = ReuseType::kMustReuse;
-    levels = std::vector<int>(ann.value().begin(), ann.value().end());
+    levels.clear();
+    std::transform(ann.value().begin(), ann.value().end(), std::back_inserter(levels),
+                   [](auto&& v) { return v.IntValue(); });
   }
   std::vector<State> results;
   if (req == ReuseType::kMayReuse) {

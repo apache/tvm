@@ -438,7 +438,7 @@ class Integer : public IntImm {
   /*!
    * \brief convert to int64_t
    */
-  operator int64_t() const {
+  int64_t IntValue() const {
     ICHECK(data_ != nullptr) << " Trying to reference a null Integer";
     return (*this)->value;
   }
