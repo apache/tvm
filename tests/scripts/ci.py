@@ -372,12 +372,14 @@ def generate_command(
         if precheck is not None:
             precheck()
 
+        build_dir = get_build_dir(name)
+
         if skip_build:
             scripts = []
         else:
             scripts = [
-                f"./tests/scripts/task_config_build_{name}.sh {get_build_dir(name)}",
-                f"./tests/scripts/task_build.py --build-dir {get_build_dir(name)}",
+                f"./tests/scripts/task_config_build_{name}.sh {build_dir}",
+                f"./tests/scripts/task_build.py --build-dir {build_dir}",
             ]
 
         if post_build is not None:
@@ -394,7 +396,7 @@ def generate_command(
         # Add named test suites
         for option_name, (_, extra_scripts) in options.items():
             if kwargs.get(option_name, False):
-                scripts += extra_scripts
+                scripts.extend(script.format(build_dir=build_dir) for script in extra_scripts)
 
         docker(
             name=gen_name(f"ci-{name}"),
@@ -553,7 +555,7 @@ def add_subparser(
     return subparser
 
 
-CPP_UNITTEST = ("run c++ unitests", ["./tests/scripts/task_cpp_unittest.sh"])
+CPP_UNITTEST = ("run c++ unitests", ["./tests/scripts/task_cpp_unittest.sh {build_dir}"])
 
 generated = [
     generate_command(
@@ -610,7 +612,10 @@ generated = [
     generate_command(
         name="wasm",
         help="Run WASM build and test(s)",
-        options={"test": ("run WASM tests", ["./tests/scripts/task_web_wasm.sh"])},
+        options={
+            "cpp": CPP_UNITTEST,
+            "test": ("run WASM tests", ["./tests/scripts/task_web_wasm.sh"]),
+        },
     ),
     generate_command(
         name="qemu",

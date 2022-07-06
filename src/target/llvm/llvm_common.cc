@@ -159,7 +159,7 @@ std::unique_ptr<llvm::TargetMachine> GetLLVMTargetMachine(const Target& target, 
     return nullptr;
   }
 
-  Integer llvm_opt_level = target->GetAttr<Integer>("opt-level").value_or(Integer(3));
+  int llvm_opt_level = target->GetAttr<Integer>("opt-level").value_or(Integer(3)).IntValue();
   llvm::CodeGenOpt::Level llvm_opt;
   if (llvm_opt_level <= 0) {
     llvm_opt = llvm::CodeGenOpt::None;

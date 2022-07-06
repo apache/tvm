@@ -67,7 +67,7 @@ nvinfer1::ITensor* TensorRTOpConverter::Transpose(TensorRTOpConverterParams* par
     // Batch dimension cannot be modified.
     ICHECK_EQ(input->getDimensions().nbDims, order.size() - 1);
     ICHECK_EQ(order[0], 0);
-    for (size_t i = 0; i < order.size(); ++i) {
+    for (size_t i = 0; i + 1 < order.size(); ++i) {
       perm.order[i] = order[i + 1] - 1;
     }
   } else {
@@ -880,7 +880,7 @@ class ConcatOpConverter : public TensorRTOpConverter {
     const int input_rank = params->inputs[0].tensor->getDimensions().nbDims;
     std::vector<nvinfer1::ITensor*> input_tensors;
     for (auto input : params->inputs) {
-      ICHECK(input.type == kTensor);
+      ICHECK_EQ(input.type, kTensor);
       ICHECK_EQ(input_rank, input.tensor->getDimensions().nbDims);
       input_tensors.push_back(input.tensor);
     }

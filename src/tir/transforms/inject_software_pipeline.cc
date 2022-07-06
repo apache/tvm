@@ -772,7 +772,7 @@ class PipelineInjector : private StmtExprMutator {
 
     auto it = op->annotations.find(attr::double_buffer_scope);
     if (it != op->annotations.end()) {
-      int buffer_index = Downcast<Integer>((*it).second);
+      int buffer_index = Downcast<Integer>((*it).second).IntValue();
       CHECK(buffer_index >= 0 && static_cast<size_t>(buffer_index) < op->writes.size())
           << "ValueError: Index of the buffer exceeds the size of the write regions of the block. ("
           << buffer_index << " vs. " << op->writes.size() << ")";

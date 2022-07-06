@@ -240,6 +240,86 @@ class SoftmaxAfterInline:
                 T_softmax_norm[i0_4, i1_1] = T.exp(A[i0_4, i1_1] - T_softmax_maxelem[i0_4], dtype="float32") / T_softmax_expsum[i0_4]
 
 
+@tvm.script.ir_module
+class BeforePureSpatial:
+    @T.prim_func
+    def main(
+        placeholder: T.Buffer[(1, 384), "int64"],
+        placeholder_1: T.Buffer[(30522, 768), "float32"],
+        placeholder_2: T.Buffer[(1, 384, 768), "float32"],
+        T_add: T.Buffer[(1, 384, 768), "float32"],
+    ) -> None:
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        compile_engine_const = T.alloc_buffer([], dtype="int64")
+        T_less = T.alloc_buffer([1, 384], dtype="bool")
+        compile_engine_const_1 = T.alloc_buffer([], dtype="int64")
+        T_add_1 = T.alloc_buffer([1, 384], dtype="int64")
+        T_where = T.alloc_buffer([1, 384], dtype="int64")
+        T_take = T.alloc_buffer([1, 384, 768], dtype="float32")
+        with T.block("compile_engine_const"):
+            vi = T.axis.spatial(1, 0)
+            T.reads()
+            T.writes(compile_engine_const[()])
+            compile_engine_const[()] = T.int64(0)
+        for i0, i1 in T.grid(1, 384):
+            with T.block("T_less"):
+                ax0, ax1 = T.axis.remap("SS", [i0, i1])
+                T.reads(placeholder[ax0, ax1], compile_engine_const[()])
+                T.writes(T_less[ax0, ax1])
+                T_less[ax0, ax1] = placeholder[ax0, ax1] < compile_engine_const[()]
+        with T.block("compile_engine_const_1"):
+            vi = T.axis.spatial(1, 0)
+            T.reads()
+            T.writes(compile_engine_const_1[()])
+            compile_engine_const_1[()] = T.int64(30522)
+        for i0, i1 in T.grid(1, 384):
+            with T.block("T_add"):
+                ax0, ax1 = T.axis.remap("SS", [i0, i1])
+                T.reads(placeholder[ax0, ax1], compile_engine_const_1[()])
+                T.writes(T_add_1[ax0, ax1])
+                T_add_1[ax0, ax1] = placeholder[ax0, ax1] + compile_engine_const_1[()]
+        for i0, i1 in T.grid(1, 384):
+            with T.block("T_where"):
+                ax0, ax1 = T.axis.remap("SS", [i0, i1])
+                T.reads(T_less[ax0, ax1], T_add_1[ax0, ax1], placeholder[ax0, ax1])
+                T.writes(T_where[ax0, ax1])
+                T_where[ax0, ax1] = T.Select(
+                    T.cast(T_less[ax0, ax1], "int32") != 0, T_add_1[ax0, ax1], placeholder[ax0, ax1]
+                )
+        for i0, i1, i2 in T.grid(1, 384, 768):
+            with T.block("T_take"):
+                ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
+                T.reads(
+                    placeholder_1[T.min(T.max(T.int64(0), T_where[ax0, ax1]), T.int64(30521)), ax2],
+                    T_where[ax0, ax1],
+                )
+                T.writes(T_take[ax0, ax1, ax2])
+                T_take[ax0, ax1, ax2] = placeholder_1[
+                    T.min(T.max(T.int64(0), T_where[ax0, ax1]), T.int64(30521)), ax2
+                ]
+        for i0, i1, i2 in T.grid(1, 384, 768):
+            with T.block("T_add_1"):
+                ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
+                T.reads(T_take[ax0, ax1, ax2], placeholder_2[ax0, ax1, ax2])
+                T.writes(T_add[ax0, ax1, ax2])
+                T_add[ax0, ax1, ax2] = T_take[ax0, ax1, ax2] + placeholder_2[ax0, ax1, ax2]
+
+
+@tvm.script.ir_module
+class AfterPureSpatial:
+    @T.prim_func
+    def main(placeholder: T.Buffer[(1, 384), "int64"], placeholder_1: T.Buffer[(30522, 768), "float32"], placeholder_2: T.Buffer[(1, 384, 768), "float32"], T_add: T.Buffer[(1, 384, 768), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        # with T.block("root")
+        for i0, i1, i2 in T.grid(1, 384, 768):
+            with T.block("T_add_1"):
+                ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
+                T.reads(placeholder[ax0, ax1], placeholder_1[T.min(T.max(T.int64(0), placeholder[ax0, ax1]), T.int64(30521)) : T.min(T.max(T.int64(0), placeholder[ax0, ax1] + T.int64(30522)), T.int64(30521)) + T.int64(1), ax2], placeholder_2[ax0, ax1, ax2])
+                T.writes(T_add[ax0, ax1, ax2])
+                T_add[ax0, ax1, ax2] = placeholder_1[T.min(T.max(T.int64(0), T.Select(T.cast(placeholder[ax0, ax1] < T.int64(0), "int32") != 0, placeholder[ax0, ax1] + T.int64(30522), placeholder[ax0, ax1])), T.int64(30521)), ax2] + placeholder_2[ax0, ax1, ax2]
+
 # pylint: enable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
 # fmt: on
 
@@ -291,7 +371,20 @@ def test_inline_into_multiple_consumers():
     tvm.ir.assert_structural_equal(lhs=space.mod, rhs=SoftmaxAfterInline)
 
 
+def test_inline_pure_spatial():
+    mod = BeforePureSpatial
+    target = Target("llvm")
+    ctx = _create_context(
+        mod=mod,
+        target=target,
+        rule=auto_inline(target=target),
+    )
+    (space,) = ctx.space_generator.generate_design_space(mod=mod)
+    tvm.ir.assert_structural_equal(lhs=space.mod, rhs=AfterPureSpatial)
+
+
 if __name__ == "__main__":
     test_inline_consumer_chain()
     test_inline_into_cache()
     test_inline_into_multiple_consumers()
+    test_inline_pure_spatial()

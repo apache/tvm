@@ -319,6 +319,31 @@ class PyTorchOpConverter:
         (dtype,) = input_types
         return _op.power(inputs[0], _expr.const(2, dtype))
 
+    def tril(self, inputs, input_types):
+        data = inputs[0]
+        if len(inputs) == 2:
+            k_value = inputs[1]
+        else:
+            k_value = 0
+        input_shape = self.infer_shape(data)
+        k1, k2 = input_shape[-2:]
+        k1 = k_value + 1
+        diag_input = _op.zeros(input_shape, dtype=input_types[0])
+        return _op.matrix_set_diag(data, diag_input, k=(k1, k2))
+
+    def triu(self, inputs, input_types):
+        data = inputs[0]
+        if len(inputs) == 2:
+            k_value = inputs[1]
+        else:
+            k_value = 0
+        input_shape = self.infer_shape(data)
+        k1, k2 = input_shape[-2:]
+        k1 = (k1 * -1) - 1
+        k2 = k_value - 1
+        diag_input = _op.zeros(input_shape, dtype=input_types[0])
+        return _op.matrix_set_diag(data, diag_input, k=(k1, k2))
+
     def arange(self, inputs, input_types):
         def _get_value(val, dtype):
             # dtype is a tvm dtype
@@ -2479,6 +2504,14 @@ class PyTorchOpConverter:
             dtype = input_types[0]
         return _op.zeros(shape, dtype)
 
+    def randn(self, inputs, input_types):
+        import time  # use current time as seed
+
+        shape = inputs[0]
+        output = _op.random.normal(_op.random.threefry_key(int(time.time())), shape)
+        _, values = _expr.TupleWrapper(output, 2)
+        return values
+
     def bincount(self, inputs, input_types):
         data = inputs[0]
         weights = inputs[1]
@@ -3328,6 +3361,8 @@ class PyTorchOpConverter:
             "aten::sqrt": self.make_unary("sqrt"),
             "aten::rsqrt": self.make_unary("rsqrt"),
             "aten::square": self.square,
+            "aten::tril": self.tril,
+            "aten::triu": self.triu,
             "aten::ceil": self.make_unary("ceil"),
             "aten::floor": self.make_unary("floor"),
             "aten::round": self.make_unary("round"),
@@ -3388,6 +3423,7 @@ class PyTorchOpConverter:
             "aten::numel": self.numel,
             "aten::empty": self.empty,
             "aten::empty_like": self.empty_like,
+            "aten::randn": self.randn,
             "aten::bincount": self.bincount,
             "aten::scatter_add": self.scatter_add,
             "aten::__not__": self.logical_not,

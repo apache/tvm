@@ -902,8 +902,8 @@ class CutlassModuleCodegen {
  * \brief A small shim to redirect to the 'relay.ext.cutlass.compile_for_cutlass' Python
  * function which does the main CUTLASS training, c-code generation and compilation steps.
  */
-transform::Pass CompileForCutlassImpl() {
-  auto pass_func = [=](IRModule mod, const transform::PassContext& pass_ctx) {
+tvm::transform::Pass CompileForCutlassImpl() {
+  auto pass_func = [=](IRModule mod, const tvm::transform::PassContext& pass_ctx) {
     VLOG(1) << "CompileForCutlass input:" << std::endl << PrettyPrint(mod);
     const auto* pf = runtime::Registry::Get("relay.ext.cutlass.compile_for_cutlass");
     ICHECK(pf != nullptr) << "Cannot find compile_for_cutlass function";
@@ -926,10 +926,10 @@ runtime::Module CreateCSourceModule(const IRModule& mod) {
 
 TVM_REGISTER_GLOBAL("relay.ext.cutlass.create_c_source_module").set_body_typed(CreateCSourceModule);
 
-transform::Pass CompileForCutlass() {
+tvm::transform::Pass CompileForCutlass() {
   return transform::Sequential(
-      {transforms::OutlineCompilerFunctionsWithExistingGlobalSymbols("cutlass"),
-       CompileForCutlassImpl(), transforms::MarkCompilerFunctionsAsExtern("cutlass")});
+      {transform::OutlineCompilerFunctionsWithExistingGlobalSymbols("cutlass"),
+       CompileForCutlassImpl(), transform::MarkCompilerFunctionsAsExtern("cutlass")});
 }
 
 }  // namespace cutlass

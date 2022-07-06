@@ -401,7 +401,7 @@ TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple,
   if (!unchanged) {
     TupleGetItemNode* cow_tuple_get_item_node = tuple_get_item.CopyOnWrite();
     cow_tuple_get_item_node->tuple = tuple;
-    cow_tuple_get_item_node->index = index;
+    cow_tuple_get_item_node->index = index.IntValue();
     cow_tuple_get_item_node->span = span;
     cow_tuple_get_item_node->virtual_device_ = virtual_device;
   }

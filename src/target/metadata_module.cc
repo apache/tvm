@@ -118,7 +118,7 @@ static runtime::metadata::Metadata ConvertMetaData(
     if (api->pool_info.as<WorkspacePoolInfoNode>()) {
       pools.push_back(
           runtime::metadata::TensorInfo(make_object<target::metadata::InMemoryTensorInfoNode>(
-              var->name_hint, std::vector<int64_t>{api->allocated_size},
+              var->name_hint, std::vector<int64_t>{api->allocated_size.IntValue()},
               tvm::runtime::DataType{kDLUInt, 8, 1})));
     }
   }
@@ -215,8 +215,6 @@ runtime::Module CreateMetadataModule(
       String symbol = pf_sym();
       Array<String> variables = pf_var();
       for (size_t i = 0; i < variables.size(); i++) {
-        VLOG(1) << "From module of type '" << mod->type_key() << "' found const var '"
-                << variables[i] << "' for symbol '" << symbol << "'";
         symbol_const_vars.push_back(variables[i].operator std::string());
       }
       ICHECK_EQ(const_vars_by_symbol.count(symbol), 0U) << "Found duplicated symbol: " << symbol;

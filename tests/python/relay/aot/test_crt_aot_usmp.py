@@ -18,6 +18,8 @@
 
 from collections import OrderedDict
 import re
+
+import random
 import numpy as np
 import pytest
 
@@ -100,23 +102,47 @@ def test_synthetic(interface_api, use_unpacked_api, test_runner):
 
 
 @pytest.mark.parametrize(
-    "workspace_byte_alignment,constant_byte_alignment,main_workspace_size,main_constant_size",
+    "workspace_byte_alignment,constant_byte_alignment,"
+    "main_workspace_size,main_constant_size,usmp_algo",
     [
-        (8, 8, 17280, 948),
-        (16, 8, 17280, 948),
-        (256, 8, 17792, 948),
-        (8, 16, 17280, 956),
-        (16, 16, 17280, 956),
-        (256, 16, 17792, 956),
-        (8, 256, 17280, 1804),
-        (16, 256, 17280, 1804),
-        (256, 256, 17792, 1804),
+        (8, 8, 17280, 948, "greedy_by_conflicts"),
+        (16, 8, 17280, 948, "greedy_by_conflicts"),
+        (256, 8, 17792, 948, "greedy_by_conflicts"),
+        (8, 16, 17280, 956, "greedy_by_conflicts"),
+        (16, 16, 17280, 956, "greedy_by_conflicts"),
+        (256, 16, 17792, 956, "greedy_by_conflicts"),
+        (8, 256, 17280, 1804, "greedy_by_conflicts"),
+        (16, 256, 17280, 1804, "greedy_by_conflicts"),
+        (256, 256, 17792, 1804, "greedy_by_conflicts"),
+        (8, 8, 22032, 948, "greedy_by_size"),
+        (16, 8, 22032, 948, "greedy_by_size"),
+        (256, 8, 22976, 948, "greedy_by_size"),
+        (8, 16, 22032, 956, "greedy_by_size"),
+        (16, 16, 22032, 956, "greedy_by_size"),
+        (256, 16, 22976, 956, "greedy_by_size"),
+        (8, 256, 22032, 1804, "greedy_by_size"),
+        (16, 256, 22032, 1804, "greedy_by_size"),
+        (256, 256, 22976, 1804, "greedy_by_size"),
+        (8, 8, 11424, 948, "hill_climb"),
+        (16, 8, 11424, 948, "hill_climb"),
+        (256, 8, 11920, 948, "hill_climb"),
+        (8, 16, 11424, 956, "hill_climb"),
+        (16, 16, 11424, 956, "hill_climb"),
+        (256, 16, 11920, 956, "hill_climb"),
+        (8, 256, 11424, 1804, "hill_climb"),
+        (16, 256, 11424, 1804, "hill_climb"),
+        (256, 256, 11920, 1804, "hill_climb"),
     ],
 )
 def test_memory_planning(
-    workspace_byte_alignment, constant_byte_alignment, main_workspace_size, main_constant_size
+    workspace_byte_alignment,
+    constant_byte_alignment,
+    main_workspace_size,
+    main_constant_size,
+    usmp_algo,
 ):
     """Checks calculated workspace against known values"""
+    random.seed(0)
     mod, params = tvm.relay.testing.synthetic.get_workload()
     target = "c"
     runtime = Runtime("crt")
@@ -133,7 +159,7 @@ def test_memory_planning(
             "tir.disable_vectorize": True,
             "tir.disable_storage_rewrite": True,
             "tir.usmp.enable": True,
-            "tir.usmp.algorithm": "greedy_by_conflicts",
+            "tir.usmp.algorithm": usmp_algo,
         },
     ):
         lib = tvm.relay.build(mod, target, executor=executor, runtime=runtime, params=params)
