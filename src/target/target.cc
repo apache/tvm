@@ -846,10 +846,10 @@ std::unordered_map<String, ObjectRef> TargetInternal::QueryDevice(int device_id,
 
   TVMRetValue ret;
   api->GetAttr(device, runtime::kExist, &ret);
-  if (!ret) {
-    ICHECK(ret) << "Requested reading the parameters for " << target->kind->name
-                << " from device_id " << device_id << ", but device_id " << device_id
-                << " doesn't exist.  Using default target parameters.";
+  if (!bool(ret)) {
+    ICHECK(bool(ret)) << "Requested reading the parameters for " << target->kind->name
+                      << " from device_id " << device_id << ", but device_id " << device_id
+                      << " doesn't exist.  Using default target parameters.";
     return output;
   }
 
