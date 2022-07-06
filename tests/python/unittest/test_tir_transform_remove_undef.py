@@ -55,5 +55,16 @@ class TestKeepOtherCallNodes(BaseBeforeAfter):
     expected = before
 
 
+class TestRemoveStoreUndef(BaseBeforeAfter):
+    """Remove a store a store whose value is bound to T.undef()"""
+
+    def before(A: T.Buffer[1, "int32"]):
+        val = T.undef(dtype="int32")
+        A[0] = val
+
+    def expected(A: T.Buffer[1, "int32"]):
+        T.evaluate(0)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
