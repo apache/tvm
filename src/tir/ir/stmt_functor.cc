@@ -641,17 +641,49 @@ Stmt IRTransform(Stmt ir_node, const runtime::PackedFunc& f_preorder,
   return transform(std::move(ir_node));
 }
 
+#define DEFINE_BIOP_EXPR_PROMOTABLE_MUTATE_(OP)                                           \
+  PrimExpr VisitExpr_(const OP##Node* op) override {                                      \
+    PrimExpr a = this->VisitExpr(op->a);                                                  \
+    PrimExpr b = this->VisitExpr(op->b);                                                  \
+    if (a.same_as(op->a) && b.same_as(op->b)) {                                           \
+      return GetRef<PrimExpr>(op);                                                        \
+    } else {                                                                              \
+      if (a.dtype().code() == b.dtype().code() && a.dtype().bits() != b.dtype().bits()) { \
+        int bits = std::max(a.dtype().bits(), b.dtype().bits());                          \
+        DataType dtype = a.dtype().with_bits(bits);                                       \
+        return OP(cast(dtype, a), cast(dtype, b));                                        \
+      }                                                                                   \
+      return OP(a, b);                                                                    \
+    }                                                                                     \
+  }
+
 class IRSubstitute : public StmtExprMutator {
  public:
   explicit IRSubstitute(std::function<Optional<PrimExpr>(const Var&)> vmap) : vmap_(vmap) {}
 
+  DEFINE_BIOP_EXPR_PROMOTABLE_MUTATE_(Add);
+  DEFINE_BIOP_EXPR_PROMOTABLE_MUTATE_(Sub);
+  DEFINE_BIOP_EXPR_PROMOTABLE_MUTATE_(Mul);
+  DEFINE_BIOP_EXPR_PROMOTABLE_MUTATE_(Div);
+  DEFINE_BIOP_EXPR_PROMOTABLE_MUTATE_(Mod);
+  DEFINE_BIOP_EXPR_PROMOTABLE_MUTATE_(FloorDiv);
+  DEFINE_BIOP_EXPR_PROMOTABLE_MUTATE_(FloorMod);
+  DEFINE_BIOP_EXPR_PROMOTABLE_MUTATE_(Min);
+  DEFINE_BIOP_EXPR_PROMOTABLE_MUTATE_(Max);
+  DEFINE_BIOP_EXPR_PROMOTABLE_MUTATE_(EQ);
+  DEFINE_BIOP_EXPR_PROMOTABLE_MUTATE_(NE);
+  DEFINE_BIOP_EXPR_PROMOTABLE_MUTATE_(LT);
+  DEFINE_BIOP_EXPR_PROMOTABLE_MUTATE_(LE);
+  DEFINE_BIOP_EXPR_PROMOTABLE_MUTATE_(GT);
+  DEFINE_BIOP_EXPR_PROMOTABLE_MUTATE_(GE);
+  DEFINE_BIOP_EXPR_PROMOTABLE_MUTATE_(And);
+  DEFINE_BIOP_EXPR_PROMOTABLE_MUTATE_(Or);
+
   PrimExpr VisitExpr_(const VarNode* op) final {
     Var var = GetRef<Var>(op);
-    if (Optional<PrimExpr> ret = vmap_(var)) {
-      return tvm::cast(var.dtype(), ret.value());
-    } else {
-      return std::move(var);
-    }
+    auto ret = vmap_(var);
+    if (ret.defined()) return ret.value();
+    return std::move(var);
   }
 
   PrimExpr VisitExpr_(const LoadNode* op) final {
