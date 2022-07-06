@@ -305,9 +305,7 @@ def build_command(args):
     if box_package_exists:
         sys.exit("One or more box packages exist (see list above). To rebuild use '--force'")
 
-    subprocess.check_call(
-        packer_args, cwd=THIS_DIR / "base-box", env=env
-    )
+    subprocess.check_call(packer_args, cwd=THIS_DIR / "base-box", env=env)
 
 
 REQUIRED_TEST_CONFIG_KEYS = {
@@ -365,7 +363,6 @@ def do_build_release_test_vm(
             if not m:
                 f.write(line)
                 continue
-
 
             box_package = os.path.join(
                 base_box_dir, f"output-packer-{provider_name}", "package.box"
@@ -515,7 +512,7 @@ def release_command(args):
                 vm_name,
                 args.release_version,
                 provider_name,
-                str(THIS_DIR / "base-box" / f"output-packer-{provider_name}/package.box")
+                str(THIS_DIR / "base-box" / f"output-packer-{provider_name}/package.box"),
             ]
         )
 
