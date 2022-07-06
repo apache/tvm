@@ -134,6 +134,9 @@ ssize_t write_serial(void* unused_context, const uint8_t* data, size_t size) {
   write_req.file_handle = stdout_fd;
   write_req.data = data;
   write_req.size = size;
+  char msg[30];
+  snprintf(msg, 30, "write %d bytes\n", size);
+  uart_log(msg);
   uint32_t ret_val = semihost_cmd(0x05, &write_req);
   return size - ret_val;
 }
@@ -292,6 +295,24 @@ void uart_rx_init(struct ring_buf* rbuf, const struct device* dev) {
   uart_irq_rx_enable(dev);
 }
 
+static void hexdump(void* data, size_t size) {
+  for (size_t h = 0; h < size / 8; h++) {
+    size_t num = 8;
+    if ((8 * h + num) > size) {
+      num = size % 8;
+    }
+    char msg[2 * 8 + 7 + 1 + 1];
+    char* ptr = msg;
+    for (size_t i = 0; i < num; i++) {
+      ptr += snprintf(ptr, 4, "%02x ", ((char*) data)[h * 8 + i]);
+    }
+    *ptr = '\n';
+    ptr++;
+    *ptr = 0;
+    uart_log(msg);
+  }
+}
+
 // The main function of this application.
 extern void __stdout_hook_install(int (*hook)(int));
 void main(void) {
@@ -331,14 +352,21 @@ void main(void) {
   // The main application loop. We continuously read commands from the UART
   // and dispatch them to MicroTVMRpcServerLoop().
   while (true) {
-    uint8_t* data[128];
+    uint8_t data[32];
     uart_log("about to read\n");
     uint32_t bytes_read = read_serial(data, 128);
+    {
+      char msg[30];
+      snprintf(msg, 30, "Read %d bytes\n", bytes_read);
+      uart_log(msg);
+    }
+    hexdump(data, bytes_read);
     if (bytes_read > 0) {
+      uint8_t* ptr = data;
       size_t bytes_remaining = bytes_read;
       while (bytes_remaining > 0) {
         // Pass the received bytes to the RPC server.
-        tvm_crt_error_t err = MicroTVMRpcServerLoop(server, &data, &bytes_remaining);
+        tvm_crt_error_t err = MicroTVMRpcServerLoop(server, &ptr, &bytes_remaining);
         if (err != kTvmErrorNoError && err != kTvmErrorFramingShortPacket) {
           TVMPlatformAbort(err);
         }

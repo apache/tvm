@@ -29,6 +29,7 @@ import queue
 import re
 import shlex
 import shutil
+import struct
 import subprocess
 import sys
 import tarfile
@@ -924,16 +925,18 @@ class BlockingStream:
         self.unread = None
 
     def read(self, n=-1, timeout_sec=None):
-        print(self.name, "READ", n)
         assert n != -1, "expect firmware to open stdin using raw mode, and therefore expect sized read requests"
 
         data = b''
-        if self.unread is not None:
+        if self.unread:
             data = data + self.unread
+            self.unread = None
 
         while len(data) < n:
             try:
-                data += self.q.get(timeout=timeout_sec)
+                # When there is some data to return, fetch as much as possible, then return what we can.
+                # When there is no data yet to return, block.
+                data += self.q.get(block=not len(data), timeout=timeout_sec)
             except queue.Empty:
                 break
 
@@ -941,6 +944,7 @@ class BlockingStream:
             self.unread = data[n:]
             data = data[:n]
 
+        print(self.name, "READ", n, "->", len(data), data)
         return data
 
     readline = read
@@ -1065,7 +1069,7 @@ class ZephyrFvpTransport:
         self._model.release()
 
     def read(self, n, timeout_sec):
-        return self._target.stdout.read(n)
+        return self._target.stdout.read(n, timeout_sec)
 
     def write(self, data, timeout_sec):
         self._target.stdin.write(data)
