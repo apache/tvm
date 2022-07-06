@@ -20,11 +20,11 @@
 import tvm
 from tvm import topi, te, tir
 from ..utils import get_layout_transform_fn
+from tvm.topi import tag
 
 def dense_compute(tensor_a, tensor_b, bias=None, out_dtype=None):
-    """The default implementation of dense in topi.
-    This is an alias of matmul_nt operator for data tensor in non-transposed format and weight
-    tensor in transposed format.
+    """Hexagon's implementation of a sliced dense operator in Topi.
+    Uses matmul.
 
     Parameters
     ----------
@@ -40,9 +40,6 @@ def dense_compute(tensor_a, tensor_b, bias=None, out_dtype=None):
     out_dtype : Optional[str]
         The output type. This is used for mixed precision.
 
-    auto_scheduler_rewritten_layout: str = ""
-        The layout after auto-scheduler's layout rewrite pass.
-
     Returns
     -------
     output : tvm.te.Tensor
@@ -53,17 +50,20 @@ def dense_compute(tensor_a, tensor_b, bias=None, out_dtype=None):
         assert len(bias.shape) == 1
     if out_dtype is None:
         out_dtype = tensor_a.dtype
-    batch, _, _, in_dim = tensor_a.shape
-    red_dim, out_dim = tensor_b.shape
+
+    batch, height, width, in_dim = tensor_a.shape
+    out_dim, red_dim = tensor_b.shape
+    assert height == 1
+    assert width == 1
 
     # cmp should be done by values
     assert int(in_dim) == int(red_dim)
 
     k = te.reduce_axis((0, in_dim), name="k")
     compute_lambda = lambda i, h, w, j: te.sum(
-        tensor_a[i, h, w, k].astype(out_dtype) * tensor_b[k, j].astype(out_dtype), axis=k
+        tensor_a[i, h, w, k].astype(out_dtype) * tensor_b[j, k].astype(out_dtype), axis=k
     )
-    compute_name = "T_matmul_sliced"
+    compute_name = "matmul_sliced"
     compute_tag = "matmul"
 
     mat = te.compute(
@@ -77,8 +77,9 @@ def dense_compute(tensor_a, tensor_b, bias=None, out_dtype=None):
     if bias is not None:
         mat = te.compute(
             (batch, 1, 1, out_dim),
-            lambda i, j: mat[i, h, w, j] + bias[j].astype(out_dtype),
+            lambda i, h, w, j: mat[i, h, w, j] + bias[j].astype(out_dtype),
             tag=tag.BROADCAST,
+            name="bias",
         )
 
     return mat
@@ -91,6 +92,15 @@ def dense_schedule(outs, ins, output_layout: str, input_layout: str):
     outs: Array of Tensor
         The computation graph description of dense in the format
         of an array of tensors.
+
+    ins: Array of Tensor
+        Input tensors into graph.
+
+    output_layout: str
+        Descriptor string for physical layout
+
+    input_layout: str
+        Descriptor string for physical layout
 
     Returns
     -------
@@ -105,15 +115,28 @@ def dense_schedule(outs, ins, output_layout: str, input_layout: str):
     func = te.create_prim_func([*ins, *outs])
     s = tir.Schedule(func)
 
-    matmul = s.get_block("T_matmul_sliced")
+    matmul = s.get_block("matmul_sliced")
+    try:
+        bias = s.get_block("bias")
+    except:
+        bias = None
 
     input_transform_fn = get_layout_transform_fn(input_layout)
     output_transform_fn = get_layout_transform_fn(output_layout)
-    s.transform_layout(matmul, ("read", 0), input_transform_fn)
-    s.transform_layout(matmul, ("write", 0), output_transform_fn)
+
+    # No bias
+    if bias is None:
+        s.transform_layout(matmul, ("read", 0), input_transform_fn)
+        s.transform_layout(matmul, ("write", 0), output_transform_fn)
+    else:
+        s.transform_layout(matmul, ("read", 0), input_transform_fn)
+        s.transform_layout(bias, ("write", 0), output_transform_fn)
 
     bn, bh, bw, bc, rc = s.get_loops(matmul)
     bco, bci = s.split(bc, [None, 1024])
     s.vectorize(bci)
+
+    #if bias is not None:
+    #    s.compute_at(matmul, bco)
 
     return s
