@@ -729,6 +729,14 @@ TVM_DLL const Op& mem_copy();
  */
 TVM_DLL const Op& assume();
 
+/*!
+ * \brief Returns an initialized but arbitrary value
+ *
+ * Compile-time representation of memory locations whose values may be
+ * altered as a result of optimizations.
+ */
+TVM_DLL const Op& undef();
+
 /*! \brief The kind of structure field info used in intrinsic */
 enum TVMStructFieldKind : int {
   // array head address
