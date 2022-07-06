@@ -18,6 +18,7 @@
 import tvm
 import tvm.testing
 from tvm.script import tir as T
+from tvm import TVMError
 
 
 class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
@@ -55,8 +56,8 @@ class TestKeepOtherCallNodes(BaseBeforeAfter):
     expected = before
 
 
-class TestRemoveStoreUndef(BaseBeforeAfter):
-    """Remove a store a store whose value is bound to T.undef()"""
+class TestRemoveLetUndef(BaseBeforeAfter):
+    """Remove a store whose value is bound to T.undef()"""
 
     def before(A: T.Buffer[1, "int32"]):
         val = T.undef(dtype="int32")
@@ -64,6 +65,29 @@ class TestRemoveStoreUndef(BaseBeforeAfter):
 
     def expected(A: T.Buffer[1, "int32"]):
         T.evaluate(0)
+
+
+class TestRaiseErrorForUndefAsStoreIndices(BaseBeforeAfter):
+    """Use of T.undef() as buffer indices is an error"""
+
+    def before(A: T.Buffer[1, "int32"]):
+        val = T.undef(dtype="int32")
+        A[val] = 5
+
+    expected = TVMError
+
+
+class TestRaiseErrorForUndefAsLoadIndices(BaseBeforeAfter):
+    """Use of T.undef() as buffer indices is an error
+
+    Even though this occurs as part of the BufferStore's value, the
+    T.undef() may not appear in a buffer's indices.
+    """
+
+    def before(A: T.Buffer[1, "int32"], B: T.Buffer[1, "int32"]):
+        B[0] = A[T.undef(dtype="int32")]
+
+    expected = TVMError
 
 
 if __name__ == "__main__":
