@@ -42,7 +42,7 @@ want to integrate a new platform, please raise a discussion on
 
 ## Reference VM Organization
 
-Reference VM is organized in this directory as follows:
+The Reference VM is organized in this directory as follows:
 
 ```
 .
@@ -112,6 +112,6 @@ $ ./base-box-tool.py [--provider=PROVIDER] release --release-version=RELEASE_VER
    tool.
 
 ## Versioning
-We use semantic versioning as it is recommended by [Vagrant](https://www.vagrantup.com/docs/boxes/versioning). We use `X.Y.Z` version where we maintain the same major version `X` it has minor changes and newer version is still compatible with older versions and we increase minor version `Y`. However, We increase the major version `X` when new RVM is not compatible with older onces. Updating Zephyr SDK is considered a major change and it requires incrementing major version `X`.
+We use semantic versioning as it is recommended by [Vagrant](https://www.vagrantup.com/docs/boxes/versioning). We use `X.Y.Z` version where we maintain the same major version `X` it has minor changes and newer version is still compatible with older versions and we increase minor version `Y`. However, We increase the major version `X` when new RVM is not compatible with older onces. Updates to the Zephyr SDK or Arduino board SDKs are considered major changes and require incrementing major version `X`. In this versioning, `Z` is barely used but we kept it since Vagrant requires this format.
 
-**Note**: We will release all microTVM RVM boxes under [microtvm](https://app.vagrantup.com/tlcpack/boxes/microtvm) and use box versioning in Vagrant file. Previous versions like `microtvm-zephyr`, `microtvm-arduino`, `microtvm-zephyr-2.5` and etc are not continued and will be removed in future.
+**Note**: We will release all microTVM RVM boxes under [microtvm](https://app.vagrantup.com/tlcpack/boxes/microtvm) and use box versioning in Vagrant file. Previous versions like `microtvm-zephyr`, `microtvm-arduino`, `microtvm-zephyr-2.5`, etc. are deprecated and will be removed in the future.

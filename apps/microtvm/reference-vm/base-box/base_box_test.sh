@@ -25,7 +25,7 @@ if [ "$#" -lt 1 ]; then
 fi
 
 platform=$1
-board=$1
+board=$2
 
 if [ "${platform}" == "zephyr" ]; then
     pytest tests/micro/zephyr --zephyr-board=${board}

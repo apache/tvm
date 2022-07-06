@@ -33,7 +33,7 @@ import pathlib
 _LOG = logging.getLogger(__name__)
 
 
-THIS_DIR = pathlib.Path(os.path.realpath(os.path.dirname(__file__) or "."))
+THIS_DIR = pathlib.Path(os.path.realpath(os.path.dirname(__file__)))
 
 # List of vagrant providers supported by this tool
 ALL_PROVIDERS = (
@@ -358,6 +358,7 @@ def do_build_release_test_vm(
             tvm_home_m = VM_TVM_HOME_RE.match(line)
 
             if tvm_home_m:
+                # Adjust tvm home for testing step
                 f.write(f'{tvm_home_m.group(1)} = "../../../.."\n')
                 continue
             if not m:
@@ -400,7 +401,7 @@ def do_run_release_test(release_test_dir, provider_name, test_config, test_devic
             pid_hex=test_config["pid_hex"],
             serial=test_device_serial,
         )
-    tvm_home = os.path.realpath(os.path.join(THIS_DIR, "..", "..", ".."))
+    tvm_home = os.path.realpath(THIS_DIR / ".." / ".." / "..")
 
     def _quote_cmd(cmd):
         return " ".join(shlex.quote(a) for a in cmd)
