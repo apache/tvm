@@ -47,9 +47,7 @@ def test_uma_target(target_name, target_attrs, target_args):
     for attr in target_attrs.keys():
         assert my_target.attrs[attr] == target_attrs[attr]
 
-
     # Test with parameters overwritten
-
     args = " ".join((F"--{k}={v}" for k,v in target_args.items()))
     my_target = tvm.target.Target(f"{target_name} {args}")
 
