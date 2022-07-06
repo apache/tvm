@@ -55,7 +55,8 @@ size_t WorkspaceCalculator<T>::operator()(const PrimFunc& func) {
 template <typename T>
 size_t WorkspaceCalculator<T>::GetByteAlignedSize(Integer non_aligned_size) {
   return non_aligned_size.defined()
-             ? ((non_aligned_size + byte_alignment - 1) / byte_alignment) * byte_alignment
+             ? ((non_aligned_size.IntValue() + byte_alignment - 1) / byte_alignment) *
+                   byte_alignment
              : 0;
 }
 

@@ -425,13 +425,13 @@ def schedule_conv2d_winograd(cfg, s, output, pre_computed):
     alpha = get_const_int(b1.dom.extent)
 
     cfg.define_split(
-        "tile_y", y, num_outputs=3, filter=lambda entry: entry.size[2] <= 64 and entry.size[1] <= 8
+        "tile_y", y, num_outputs=3, filter=lambda entry: entry.size[2] <= 64 and entry.size[1] <= 16
     )
     cfg.define_split(
         "tile_x",
         x,
         num_outputs=3,
-        filter=lambda entry: entry.size[2] <= 64 and entry.size[1] >= 4 and entry.size[1] <= 8,
+        filter=lambda entry: entry.size[2] <= 64 and entry.size[1] >= 4 and entry.size[1] <= 16,
     )
     cfg.define_split("tile_rc", rcc, num_outputs=2)
     # TODO: Uncomment the following lines when multi_filter will be introduced

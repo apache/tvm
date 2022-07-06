@@ -43,6 +43,9 @@ def _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config):
     if test_utils.qemu_boards(zephyr_board):
         # fyi: qemu_riscv64 seems to be the greediest stack user
         config_main_stack_size = 4096
+    else:
+        # increase stack size for HW platforms
+        config_main_stack_size = 2048
 
     project_options = {
         "project_type": "host_driven",

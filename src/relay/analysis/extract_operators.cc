@@ -54,7 +54,7 @@ class OperatorExtractorWrapper : private MixedModeVisitor {
       auto it = operator_freqs_.find(op->name);
       ICHECK(it != operator_freqs_.end())
           << "Call's OpNode must be visited and registered before access";
-      operator_freqs_.Set(op->name, 1 + operator_freqs_.at(op->name));
+      operator_freqs_.Set(op->name, 1 + operator_freqs_.at(op->name).IntValue());
     }
 
     MixedModeVisitor::VisitExpr_(n);

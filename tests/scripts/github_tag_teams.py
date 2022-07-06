@@ -25,6 +25,7 @@ from typing import Dict, Any, List, Tuple
 
 
 from git_utils import git, GitHubRepo, parse_remote, find_ccs
+from cmd_utils import tags_from_title
 
 
 GITHUB_NAME_REGEX = r"@[a-zA-Z0-9-]+"
@@ -123,12 +124,6 @@ def parse_teams(r: Dict[str, Any], issue_number: int) -> Dict[str, str]:
         result[tag] = list(set(result[tag]))
 
     return {k.lower(): v for k, v in result.items() if k.strip()}
-
-
-def tags_from_title(title: str) -> List[str]:
-    tags = re.findall(r"\[(.*?)\]", title)
-    tags = [t.strip() for t in tags]
-    return tags
 
 
 def tags_from_labels(labels: List[Dict[str, Any]]) -> List[str]:

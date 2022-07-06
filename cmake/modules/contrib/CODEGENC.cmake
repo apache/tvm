@@ -15,6 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-tvm_file_glob(GLOB CSOURCE_RELAY_CONTRIB_SRC src/relay/backend/contrib/codegen_c/codegen.cc)
+tvm_file_glob(GLOB CSOURCE_RELAY_CONTRIB_SRC src/relay/backend/contrib/codegen_c/*.cc)
 list(APPEND COMPILER_SRCS ${CSOURCE_RELAY_CONTRIB_SRC})
 

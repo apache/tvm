@@ -393,6 +393,7 @@ class Handler(server.ProjectAPIHandler):
 
             if options["project_type"] == "host_driven":
                 f.write(
+                    "CONFIG_TIMING_FUNCTIONS=y\n"
                     "# For RPC server C++ bindings.\n"
                     "CONFIG_CPLUSPLUS=y\n"
                     "CONFIG_LIB_CPLUSPLUS=y\n"

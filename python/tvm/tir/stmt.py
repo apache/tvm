@@ -358,7 +358,7 @@ class AllocateConst(Stmt):
     data_or_idx : Union[NDArray, int]
         If an NDArray, this is the const data associated with the
         constant.  If an integer, this is the index into the
-        "Constants" attribute of the `IRModule` that contains the
+        "constants" attribute of the `IRModule` that contains the
         `AllocateConst`.
 
     body : Stmt

@@ -74,10 +74,6 @@ def Move_PUV0(a: T.handle, b: T.handle) -> None:
 class Fused_NN_Dense:
     @T.prim_func
     def main(placeholder: T.Buffer[(64, 768), "float32"], placeholder_1: T.Buffer[(768, 768), "float32"], T_matmul_NT: T.Buffer[(64, 768), "float32"]) -> None:
-        # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_placeholders": [1]})
-        # body
-        # with T.block("root")
         for i0, i1, i2 in T.grid(64, 768, 768):
             with T.block("T_matmul_NT"):
                 i, j, k = T.axis.remap("SSR", [i0, i1, i2])
@@ -93,7 +89,6 @@ def before_matmul_vectorize(
     placeholder_1: T.Buffer[(768, 768), "float32"],
     T_matmul_NT: T.Buffer[(64, 768), "float32"],
 ) -> None:
-    T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_placeholders": [1]})
     with T.block("root"):
         T.reads()
         T.writes()
@@ -124,7 +119,6 @@ def after_matmul_vectorize(
     placeholder_1: T.Buffer[(768, 768), "float32"],
     T_matmul_NT: T.Buffer[(64, 768), "float32"],
 ) -> None:
-    T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_placeholders": [1]})
     T_matmul_NT_global = T.alloc_buffer([64, 768], dtype="float32")
     for i0_0, i1_0, i0_1, i1_1 in T.grid(1, 16, 1, 3):
         for i2_0, i0_2, i1_2, i2_1, i0_3 in T.grid(48, 8, 1, 16, 8):

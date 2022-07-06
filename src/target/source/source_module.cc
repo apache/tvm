@@ -292,7 +292,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
   }
 
   void GenerateConstantBuffer(const ConstantPoolInfoNode* pool_info, size_t allocated_size) {
-    size_t offset = 0;
+    size_t ord = 0;
     if (pool_info->constant_info_array.size() > 0) {
       // Pool is RO, form an initialized struct
       code_ << "__attribute__((section(\".rodata.tvm\"), ";
@@ -312,8 +312,8 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
                                                std::multiplies<int64_t>());
         code_ << "  ";
         codegen_c_base_.PrintType(data.DataType(), code_);
-        code_ << " " << const_info->name_hint << "[" << num_elements
-              << "] __attribute__((packed, aligned(" << metadata_->constant_alignment << ")));";
+        code_ << " " << const_info->name_hint << "[" << num_elements << "] __attribute__(("
+              << (ord++ ? "packed, " : "") << "aligned(" << metadata_->constant_alignment << ")));";
         code_ << " // " << num_elements * data.DataType().bytes()
               << " bytes, aligned offset: " << offs << "\n";
       }
@@ -326,7 +326,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
         code_ << "  },\n";
       }
       code_ << "};";
-      code_ << "// of total size " << allocated_size << " bytes, aligned: " << offset << " bytes\n";
+      code_ << "// of total size " << allocated_size << " bytes\n";
     } else {
       LOG(FATAL) << "No constant data in constant pool found "
                  << PrettyPrint(GetRef<ObjectRef>(pool_info));
@@ -469,8 +469,8 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
           String pool_name_tvmv = GenerateDLTensorStructWrapper(pool_name);
           code_ << "tensors[" << i << "] = " << pool_name_tvmv << ";\n";
         } else {
-          code_ << "tensors[" << i << "] = ((TVMValue*)args)["
-                << run_func_to_entry_point_args[Integer(i)] << "];\n";
+          code_ << "tensors[" << i << "] = ((TVMValue*)args)[" << run_func_to_entry_point_args[i]
+                << "];\n";
         }
       }
     }
@@ -733,7 +733,7 @@ class MetadataSerializer : public AttrVisitor {
 
       switch (array->kind) {
         case MetadataKind::kUint64: {
-          int64_t i = Downcast<Integer>(o);
+          int64_t i = Downcast<Integer>(o).IntValue();
           CHECK_GT(i, 0)
               << "Metadata is of type uint64_t, but array type contains a negative number";
           uint64_t ui = static_cast<uint64_t>(i);
@@ -741,7 +741,7 @@ class MetadataSerializer : public AttrVisitor {
           continue;
         }
         case MetadataKind::kInt64: {
-          int64_t i = Downcast<Integer>(o);
+          int64_t i = Downcast<Integer>(o).IntValue();
           Visit(nullptr, &i);
           continue;
         }

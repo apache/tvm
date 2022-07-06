@@ -683,3 +683,48 @@ def test_resnet_subgraph(algorithm, workspace_size):
     )
 
     _check_max_workspace_size(buffer_pool_allocations, global_workspace_pool, workspace_size)
+
+
+def test_custom_algo():
+    target = Target("c")
+    global_workspace_pool = WorkspacePoolInfo(
+        "global_workspace",
+        [target],
+    )
+    tir_mod = ResnetStructure
+    tir_mod = _assign_targets_to_primfuncs_irmodule(tir_mod, target)
+    tir_mod = _assign_poolinfos_to_allocates_in_irmodule(tir_mod, [global_workspace_pool])
+    tir_mod = tir_mod.with_attr("executor", tvm.relay.backend.Executor("aot"))
+    tir_mod = tir_mod.with_attr("runtime", tvm.relay.backend.Runtime("crt"))
+    tir_mod["__tvm_main__"] = tir_mod[
+        "tvmgen_default_fused_cast_subtract_fixed_point_multiply_add_clip_cast_cast"
+    ]
+
+    algo_called = False
+
+    @tvm.register_func("tir.usmp.algo.trivial")
+    def _trivial_algo(buf_infos, mem_pressure):
+        nonlocal algo_called
+        algo_called = True
+        out_layout = {}
+        offset = 0
+        for buf_info in buf_infos:
+            pool_info = buf_info.pool_candidates[0]
+            out_layout[buf_info] = usmp_utils.PoolAllocation(pool_info, offset)
+            offset += buf_info.size_bytes
+        return out_layout
+
+    usmp_pass = tvm.get_global_func("tir.transform.UnifiedStaticMemoryPlanner")
+    usmp_pass()(tir_mod)
+    assert not algo_called
+
+    with tvm.transform.PassContext(config={"tir.usmp.custom_algorithm": "trivial"}):
+        usmp_pass()(tir_mod)
+
+    assert algo_called
+
+    with pytest.raises(
+        tvm.TVMError, match="The selected custom USMP algorithm : invalid is not defined"
+    ):
+        with tvm.transform.PassContext(config={"tir.usmp.custom_algorithm": "invalid"}):
+            usmp_pass()(tir_mod)

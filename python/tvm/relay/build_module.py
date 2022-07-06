@@ -22,7 +22,6 @@ import warnings
 
 import numpy as np
 from tvm.ir import IRModule
-from tvm.ir.transform import PassContext
 from tvm.target import Target
 
 from .. import autotvm
@@ -139,20 +138,23 @@ class BuildModule(object):
         params : dict
             The parameters of the final graph.
         """
+        # pylint: disable=import-outside-toplevel
+        from tvm.auto_scheduler import is_auto_scheduler_enabled
+        from tvm.meta_schedule import is_meta_schedule_enabled
 
+        # pylint: enable=import-outside-toplevel
         # Setup the params.
         if params:
             self._set_params(params)
 
         # Build the IR module. If auto_scheduler is not enabled,
         # then use the TOPI-defined schedule.
-        use_auto_scheduler = PassContext.current().config.get(
-            "relay.backend.use_auto_scheduler", False
-        )
 
         # Turn off AutoTVM config not found warnings if auto_scheduler is enabled.
         old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
-        autotvm.GLOBAL_SCOPE.silent = use_auto_scheduler or old_autotvm_silent
+        autotvm.GLOBAL_SCOPE.silent = (
+            is_auto_scheduler_enabled() or is_meta_schedule_enabled() or old_autotvm_silent
+        )
 
         mod_name = mangle_module_name(mod_name)
 
@@ -568,8 +570,9 @@ class GraphExecutor(_interpreter.Executor):
     device : :py:class:`Device`
         The runtime device to run the code on.
 
-    target : :py:class:`Target`
-        The target option to build the function.
+    target : any multi-target like object, see Target.canon_multi_target
+        For homogeneous compilation, the unique build target.
+        For heterogeneous compilation, a dictionary or list of possible build targets.
     """
 
     def __init__(self, mod, device, target):
@@ -628,8 +631,9 @@ class AotExecutor(_interpreter.Executor):
     device : :py:class:`Device`
         The runtime device to run the code on.
 
-    target : :py:class:`Target`
-        The target option to build the function.
+    target : any multi-target like object, see Target.canon_multi_target
+        For homogeneous compilation, the unique build target.
+        For heterogeneous compilation, a dictionary or list of possible build targets.
     """
 
     def __init__(self, mod, device, target):
@@ -637,7 +641,6 @@ class AotExecutor(_interpreter.Executor):
         self.mod = mod
         self.device = device
         self.target = target
-        assert target.attrs.get("executor", "graph") == "aot"
 
     def _make_executor(self, expr=None):
         if expr:
@@ -717,8 +720,11 @@ def create_executor(kind="debug", mod=None, device=None, target="llvm", params=N
     device : :py:class:`Device`
         The device to execute the code.
 
-    target : :py:class:`tvm.Target`
-        The corresponding context
+    target : any multi-target like object, see Target.canon_multi_target
+        For homogeneous compilation, the unique build target.
+        For heterogeneous compilation, a dictionary or list of possible build targets.
+        CAUTION: Though this API allows multiple targets, it does not allow multiple devices, so
+        heterogenous compilation is not yet supported.
 
     params : dict of str to NDArray
          Input parameters to the graph that do not change
@@ -728,24 +734,31 @@ def create_executor(kind="debug", mod=None, device=None, target="llvm", params=N
     -------
     executor : :py:class:`~tvm.relay.backend.interpreter.Executor`
     """
+    raw_targets = Target.canon_multi_target(target)
     if mod is None:
         mod = IRModule()
     if device is not None:
-        assert device.device_type == _nd.device(str(target), 0).device_type
+        assert device.device_type == raw_targets[0].kind.device_type
     else:
-        device = _nd.device(str(target), 0)
+        # Derive the default device from the first target.
+        device = _nd.device(raw_targets[0].kind.device_type, 0)
 
     if params is not None:
         mod = IRModule.from_expr(bind_params_by_name(mod["main"], params))
 
-    if isinstance(target, str):
-        target = Target(target)
+    assert "executor" not in raw_targets[0].attrs or raw_targets[0].attrs["executor"] == kind
+
     if kind == "debug":
-        return _interpreter.Interpreter(mod, device, target)
+        assert len(raw_targets) == 1, "The interpreter currently only supports a single target"
+        return _interpreter.Interpreter(mod, device, raw_targets[0])
     if kind == "graph":
-        return GraphExecutor(mod, device, target)
+        return GraphExecutor(mod, device, raw_targets)
     if kind == "vm":
-        return VMExecutor(mod, device, target)
+        return VMExecutor(mod, device, raw_targets)
     if kind == "aot":
-        return AotExecutor(mod, device, target)
+        # The AOT requires the executor as a target attribute.
+        # (The compilation paths for the other executors currently do not always provide this
+        # attribute, hence the above generic assert is more forgiving).
+        assert "executor" in raw_targets[0].attrs
+        return AotExecutor(mod, device, raw_targets)
     raise RuntimeError("unknown execution strategy: {0}".format(kind))

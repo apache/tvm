@@ -26,6 +26,12 @@ TOPI provides numpy-style generic operations and schedules with higher abstracti
 In this tutorial, we will see how TOPI can save us from writing boilerplate code in TVM.
 """
 
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
+
 import tvm
 import tvm.testing
 from tvm import te

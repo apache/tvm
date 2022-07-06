@@ -49,6 +49,15 @@ from . import testing
 from .base import TrackerCode
 
 logger = logging.getLogger("RPCServer")
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(
+    logging.Formatter(
+        fmt="%(asctime)s.%(msecs)03d %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+    )
+)
+logger.addHandler(console_handler)
+logger.setLevel(logging.INFO)
+logger.propagate = False
 
 
 def _server_env(load_library, work_path=None):

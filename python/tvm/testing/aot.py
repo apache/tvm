@@ -286,8 +286,11 @@ def _emit_main_workspace_pool_structs(main_file, workspace_pool_names, mod_name)
             f"struct {_mangle_name(mod_name, 'workspace_pools')} "
             f"{_mangle_name(mod_name, 'workspace_pools')} = {{"
         )
-        for workspace_pool_name in workspace_pool_names:
-            main_file.write(f"\t.{workspace_pool_name} = {workspace_pool_name},\n")
+        for workspace_pool_name in workspace_pool_names.keys():
+            main_file.write(
+                f"\t.{workspace_pool_name} = {workspace_pool_names[workspace_pool_name]}"
+                f"{workspace_pool_name},\n"
+            )
         main_file.write("};\n")
 
 
@@ -507,19 +510,27 @@ def _create_main(
                     compiled_model.executor_factory.executor_codegen_metadata
                 )
                 devices = compiled_model.executor_factory.get_devices()
-                workspace_pool_names = None
+                workspace_pool_names = {}
                 if executor_codegen_metadata.pool_inputs:
-                    workspace_pool_names = [
-                        allocated_pool.pool_info.pool_name
+                    workspace_pool_names = {
+                        allocated_pool.pool_info.pool_name: "&"
+                        if isinstance(
+                            allocated_pool.pool_info, tvm.ir.memory_pools.ConstantPoolInfo
+                        )
+                        else ""
                         for allocated_pool in dict(executor_codegen_metadata.pool_inputs).values()
                         if not allocated_pool.pool_info.is_internal
-                    ]
+                    }
                 _emit_main_device_structs(main_file, devices, model.name)
                 if not use_workspace_io:
                     _emit_main_workspace_pool_structs(main_file, workspace_pool_names, model.name)
                     _emit_main_data_structs(main_file, model.inputs, model.outputs, model.name)
                 _emit_main_c_interface_call(
-                    main_file, devices, workspace_pool_names, model.name, use_workspace_io
+                    main_file,
+                    devices,
+                    list(workspace_pool_names.keys()),
+                    model.name,
+                    use_workspace_io,
                 )
         else:
             _emit_main_fake_packed_values(main_file)

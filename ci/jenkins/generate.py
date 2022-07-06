@@ -25,8 +25,8 @@ import textwrap
 from pathlib import Path
 
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-JENKINSFILE_TEMPLATE = REPO_ROOT / "jenkins" / "Jenkinsfile.j2"
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+JENKINSFILE_TEMPLATE = REPO_ROOT / "ci" / "jenkins" / "Jenkinsfile.j2"
 JENKINSFILE = REPO_ROOT / "Jenkinsfile"
 
 
@@ -111,10 +111,10 @@ if __name__ == "__main__":
                 Newly generated Jenkinsfile did not match the one on disk! If you have made
                 edits to the Jenkinsfile, move them to 'jenkins/Jenkinsfile.j2' and
                 regenerate the Jenkinsfile from the template with
-                
+
                     python3 -m pip install -r jenkins/requirements.txt
                     python3 jenkins/generate.py
-                
+
                 Diffed changes:
             """
                 ).strip()

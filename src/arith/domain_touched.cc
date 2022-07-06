@@ -65,11 +65,14 @@ class BufferTouchedDomain final : public StmtExprVisitor {
   }
 
   Region FindUnion(const Buffer& buffer, bool consider_loads, bool consider_stores) {
-    auto kv = buffer_access_map_.find(buffer.get());
-    CHECK(kv != buffer_access_map_.end())
-        << "The requested buffer is not contained in the provided stmt body.";
-
     Region ret;
+    auto kv = buffer_access_map_.find(buffer.get());
+    if (kv == buffer_access_map_.end()) {
+      LOG(WARNING) << "[arith::BufferDomainTouched] "
+                   << "The requested buffer is not contained in the provided stmt body: " << buffer;
+      return ret;
+    }
+
     Range none;
     BufferTouches bounds;
     if (consider_loads && consider_stores) {
@@ -131,13 +134,16 @@ class BufferTouchedDomain final : public StmtExprVisitor {
   }
 
  private:
-  template <typename ArrayType>
-  void Touch(BufferTouches* bounds, const ArrayType& args) const {
+  void Touch(BufferTouches* bounds, const Array<PrimExpr>& args) const {
     if (args.size() > bounds->size()) {
       bounds->resize(args.size());
     }
     for (size_t i = 0; i < args.size(); ++i) {
-      (*bounds)[i].emplace_back(EvalSet(args[i], dom_map_));
+      if (args[i].as<RampNode>()) {
+        (*bounds)[i].emplace_back(IntSet::Vector(args[i]));
+      } else {
+        (*bounds)[i].emplace_back(EvalSet(args[i], dom_map_));
+      }
     }
   }
 

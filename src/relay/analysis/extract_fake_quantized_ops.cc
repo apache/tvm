@@ -55,7 +55,7 @@ class ExtractFakeQuantizedOpsWrapper : private MixedModeVisitor {
         if (op != dequantize_op_) {
           if (fake_quantized_op_freqs_.find(op->name) != fake_quantized_op_freqs_.end()) {
             fake_quantized_op_freqs_.Set(op->name,
-                                         int64_t(fake_quantized_op_freqs_.at(op->name)) + 1);
+                                         fake_quantized_op_freqs_.at(op->name).IntValue() + 1);
           } else {
             fake_quantized_op_freqs_.Set(op->name, 1);
           }

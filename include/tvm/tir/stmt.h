@@ -599,9 +599,9 @@ class AllocateConstNode : public StmtNode {
   /*! \brief The optional data associated to the constant.
    */
   Optional<runtime::NDArray> data;
-  /*! \brief If the PrimFunc containing the Stmt is added to IRModule,
-       this is an optional index to indicate the index within
-       "Constants" attribute, that is a Array<NDArray> of IRModule.
+  /*!
+   * \brief If the PrimFunc containing the Stmt is added to IRModule, this is an optional index
+   * to indicate the index within "constants" attribute, that is a Array<NDArray> of IRModule.
    */
   Optional<Integer> irmod_storage_idx;
   /*! \brief The type of the buffer. */
@@ -1483,6 +1483,9 @@ constexpr const char* software_pipeline_stage = "software_pipeline_stage";
 /*! \brief Mark the order of a statement in the software pipeline */
 constexpr const char* software_pipeline_order = "software_pipeline_order";
 
+/*! \brief Mark the buffers which is const access and can be transformed layout. */
+constexpr const char* layout_free_buffers = "layout_free_buffers";
+
 /*! \brief Mark the tiling structure of blocks that are applied by rule Multi-Level-Tiling */
 constexpr const char* meta_schedule_tiling_structure = "meta_schedule.tiling_structure";
 
@@ -1516,10 +1519,17 @@ constexpr const char* meta_schedule_unroll_explicit = "meta_schedule.unroll_expl
 /*! \brief Mark auto-unroll setting on the block. */
 constexpr const char* meta_schedule_unroll_implicit = "meta_schedule.unroll_implicit";
 
-/*!
- * \brief Mark that a block should be further rewritten using tensorization.
- */
+/*! \brief Mark that a block should be further rewritten using tensorization. */
 constexpr const char* meta_schedule_auto_tensorize = "meta_schedule.auto_tensorize";
+
+/*! \brief Mark that a block is a preprocessor block for layout rewrite. */
+constexpr const char* meta_schedule_layout_rewrite_preproc = "meta_schedule.layout_rewrite_preproc";
+
+/*!
+ * \brief Mark that a block is executed by a warp. This implies the extend of threadIdx.x is
+ * warp size.
+ */
+constexpr const char* warp_execution = "warp_execution";
 
 /*!
  * \brief Check if attr_key is a pragma key extension

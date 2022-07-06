@@ -45,6 +45,11 @@ constexpr const char* kUSMPAlgorithmOption = "tir.usmp.algorithm";
  * \brief PassContext option to enable placing I/O tensors in the workspace
  */
 constexpr const char* kUSMPUseWorkspaceIO = "tir.usmp.use_workspace_io";
+/*!
+ * \brief PassContext option to specify a custom memory planning algorithm in USMP.
+ * The algorithm should be provided as registered PackedFunc with the name tir.usmp.algorithm.NAME
+ */
+constexpr const char* kUSMPCustomAlgorithmOption = "tir.usmp.custom_algorithm";
 
 namespace tir {
 namespace usmp {
