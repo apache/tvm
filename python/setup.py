@@ -164,6 +164,7 @@ class BinaryDistribution(Distribution):
         return False
 
 
+setup_kwargs = {}
 if not CONDA_BUILD:
     with open("MANIFEST.in", "w") as fo:
         for path in LIB_LIST:
