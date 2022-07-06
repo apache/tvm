@@ -29,6 +29,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/target/target.h>
 #include <tvm/te/tensor.h>
+#include <tvm/tir/schedule/schedule.h>
 
 namespace tvm {
 namespace meta_schedule {
@@ -65,6 +66,7 @@ class ApplyHistoryBestNode : public runtime::Object {
    * \param target The target to be queried
    * \param dispatched The IRs after dispatch
    * \param f_take_tuning_record A callback function that takes a tuning record and does something
+   *   with it.
    * \param f_direct_dispatch A function that directly dispatches a schedule to the given workload
    *   as result if available, skipping the database query.
    */
