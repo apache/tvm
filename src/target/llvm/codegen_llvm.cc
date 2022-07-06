@@ -89,7 +89,7 @@
 #include "../build_common.h"
 #include "../func_registry_generator.h"
 #include "codegen_params.h"
-#include "llvm_target.h"
+#include "llvm_scope.h"
 
 namespace tvm {
 namespace codegen {
@@ -102,8 +102,8 @@ CodeGenLLVM::CodeGenLLVM() = default;
 CodeGenLLVM::~CodeGenLLVM() = default;
 CodeGenLLVM::DebugInfo::~DebugInfo() = default;
 
-std::unique_ptr<CodeGenLLVM> CodeGenLLVM::Create(LLVMTarget* llvm_target) {
-  std::string target = llvm_target->GetOrCreateTargetMachine()->getTarget().getName();
+std::unique_ptr<CodeGenLLVM> CodeGenLLVM::Create(LLVMScope* llvm_scope) {
+  std::string target = llvm_scope->GetOrCreateTargetMachine()->getTarget().getName();
   std::string factory_template = "tvm.codegen.llvm.target_";
   void* handle = nullptr;
   if (const PackedFunc* f = runtime::Registry::Get(factory_template + target)) {
@@ -121,10 +121,10 @@ std::unique_ptr<CodeGenLLVM> CodeGenLLVM::Create(LLVMTarget* llvm_target) {
   }
 }
 
-void CodeGenLLVM::Init(const std::string& module_name, LLVMTarget* llvm_target, bool system_lib,
+void CodeGenLLVM::Init(const std::string& module_name, LLVMScope* llvm_scope, bool system_lib,
                        bool dynamic_lookup, bool target_c_runtime) {
-  llvm_target_ = llvm_target;
-  auto ctx = llvm_target_->GetOrCreateContext();
+  llvm_scope_ = llvm_scope;
+  auto ctx = llvm_scope_->GetOrCreateContext();
   builder_.reset(new IRBuilder(*ctx));
   module_.reset(new llvm::Module(module_name, *ctx));
   md_builder_.reset(new llvm::MDBuilder(*ctx));
@@ -148,7 +148,7 @@ void CodeGenLLVM::Init(const std::string& module_name, LLVMTarget* llvm_target, 
 void CodeGenLLVM::SetFastMathFlag(llvm::FastMathFlags fmf) { builder_->setFastMathFlags(fmf); }
 
 void CodeGenLLVM::InitTarget() {
-  auto tm = llvm_target_->GetOrCreateTargetMachine();
+  auto tm = llvm_scope_->GetOrCreateTargetMachine();
   module_->setTargetTriple(tm->getTargetTriple().str());
   module_->setDataLayout(tm->createDataLayout());
   data_layout_.reset(new llvm::DataLayout(module_.get()));
@@ -229,7 +229,7 @@ void CodeGenLLVM::AddFunctionInternal(const PrimFunc& f, bool ret_void) {
       }
     }
   }
-  auto ctx = llvm_target_->GetOrCreateContext();
+  auto ctx = llvm_scope_->GetOrCreateContext();
   llvm::BasicBlock* entry = llvm::BasicBlock::Create(*ctx, "entry", function_);
   builder_->SetInsertPoint(entry);
   this->VisitStmt(f->body);
@@ -272,15 +272,15 @@ void CodeGenLLVM::HandleImport(const std::string& code) {
   llvm::StringRef code_str(code);
   std::unique_ptr<llvm::Module> mlib;
   if (code_str.endswith(".ll") || code_str.endswith(".bc")) {
-    LLVMTarget::ModuleData p = LLVMTarget::LoadIR(code, llvm_target_->GetOrCreateContext());
+    LLVMScope::ModuleData p = LLVMScope::LoadIR(code, llvm_scope_->GetOrCreateContext());
     mlib = std::move(p.first);
   } else {
-    LLVMTarget::ModuleData p = LLVMTarget::ParseIR(code, llvm_target_->GetOrCreateContext());
+    LLVMScope::ModuleData p = LLVMScope::ParseIR(code, llvm_scope_->GetOrCreateContext());
     mlib = std::move(p.first);
   }
 
-  mlib->setTargetTriple(llvm_target_->GetTargetTriple());
-  mlib->setDataLayout(llvm_target_->GetOrCreateTargetMachine()->createDataLayout());
+  mlib->setTargetTriple(llvm_scope_->GetTargetTriple());
+  mlib->setDataLayout(llvm_scope_->GetOrCreateTargetMachine()->createDataLayout());
   // mark all the functions as force inline
   for (llvm::Function& f : mlib->functions()) {
     f.removeFnAttr(llvm::Attribute::NoInline);
@@ -328,7 +328,7 @@ void CodeGenLLVM::Optimize() {
   // pass manager
   FPassManager fpass(module_.get());
   MPassManager mpass;
-  auto tm = llvm_target_->GetOrCreateTargetMachine();
+  auto tm = llvm_scope_->GetOrCreateTargetMachine();
   mpass.add(llvm::createTargetTransformInfoWrapperPass(tm->getTargetIRAnalysis()));
   fpass.add(llvm::createTargetTransformInfoWrapperPass(tm->getTargetIRAnalysis()));
 
@@ -336,7 +336,7 @@ void CodeGenLLVM::Optimize() {
   llvm::PassManagerBuilder builder;
 
   // Use the same opt-level as specified in TargetMachine for running passes
-  llvm::CodeGenOpt::Level opt_level = llvm_target_->GetOptLevel();
+  llvm::CodeGenOpt::Level opt_level = llvm_scope_->GetOptLevel();
 
   switch (opt_level) {
     case llvm::CodeGenOpt::Level::None:
@@ -394,7 +394,7 @@ llvm::Type* CodeGenLLVM::DTypeToLLVMType(const DataType& dtype) const {
     return t_void_;
   }
   llvm::Type* etype = nullptr;
-  auto ctx = llvm_target_->GetOrCreateContext();
+  auto ctx = llvm_scope_->GetOrCreateContext();
   if (dtype.is_int() || dtype.is_uint()) {
     etype = llvm::Type::getIntNTy(*ctx, dtype.bits());
   } else if (dtype.is_float()) {
@@ -692,7 +692,7 @@ void CodeGenLLVM::CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Va
                                   const Var& loop_var, const Stmt& body) {
   llvm::BasicBlock* pre_block = builder_->GetInsertBlock();
   std::string loop_var_name = loop_var->name_hint;
-  auto ctx = llvm_target_->GetOrCreateContext();
+  auto ctx = llvm_scope_->GetOrCreateContext();
   auto* for_begin = llvm::BasicBlock::Create(*ctx, "for_begin_" + loop_var_name, function_);
   auto* for_body = llvm::BasicBlock::Create(*ctx, "for_body_" + loop_var_name, function_);
   auto* for_end = llvm::BasicBlock::Create(*ctx, "for_end_" + loop_var_name, function_);
@@ -768,7 +768,7 @@ llvm::Constant* CodeGenLLVM::GetGlobalConstant(llvm::Constant* const_data, const
 llvm::Constant* CodeGenLLVM::GetConstString(const std::string& str) {
   auto it = str_map_.find(str);
   if (it != str_map_.end()) return it->second;
-  auto llvm_str = llvm::ConstantDataArray::getString(*llvm_target_->GetOrCreateContext(), str);
+  auto llvm_str = llvm::ConstantDataArray::getString(*llvm_scope_->GetOrCreateContext(), str);
   auto ptr = GetGlobalConstant(llvm_str, ".str", llvm::GlobalValue::PrivateLinkage);
   str_map_[str] = ptr;
   return ptr;
@@ -941,11 +941,11 @@ llvm::Function* CodeGenLLVM::GetIntrinsicDecl(llvm::Intrinsic::ID id, llvm::Type
 }
 
 void CodeGenLLVM::SetTargetAttributes(llvm::Function* func) {
-  const std::string& cpu = llvm_target_->GetCPU();
+  const std::string& cpu = llvm_scope_->GetCPU();
   if (!cpu.empty()) {
     func->addFnAttr("target-cpu", cpu);
   }
-  const std::string& features = llvm_target_->GetTargetFeatureString();
+  const std::string& features = llvm_scope_->GetTargetFeatureString();
   if (!features.empty()) {
     func->addFnAttr("target-features", features);
   }
@@ -1030,7 +1030,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     return llvm::ConstantInt::get(DTypeToLLVMType(op->dtype), val);
   } else if (op->op.same_as(builtin::if_then_else())) {
     ICHECK_EQ(op->args[0].dtype().lanes(), 1) << "if_then_else can only take scalar condition";
-    auto ctx = llvm_target_->GetOrCreateContext();
+    auto ctx = llvm_scope_->GetOrCreateContext();
     auto* then_block = llvm::BasicBlock::Create(*ctx, "if_then", function_);
     auto* else_block = llvm::BasicBlock::Create(*ctx, "if_else", function_);
     auto* end_block = llvm::BasicBlock::Create(*ctx, "if_end", function_);
@@ -1058,7 +1058,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     // LLVM allows exactly one terminator in a single basic block
     // append a new dummy basic block to avoid error.
     llvm::BasicBlock* ret_dummy =
-        llvm::BasicBlock::Create(*llvm_target_->GetOrCreateContext(), "ret_dummy", function_);
+        llvm::BasicBlock::Create(*llvm_scope_->GetOrCreateContext(), "ret_dummy", function_);
     builder_->SetInsertPoint(ret_dummy);
     return ret_dummy;
   } else if (op->op.same_as(builtin::reinterpret())) {
@@ -1512,7 +1512,7 @@ void CodeGenLLVM::VisitStmt_(const ForNode* op) {
 }
 
 void CodeGenLLVM::VisitStmt_(const WhileNode* op) {
-  auto ctx = llvm_target_->GetOrCreateContext();
+  auto ctx = llvm_scope_->GetOrCreateContext();
   auto* while_cond = llvm::BasicBlock::Create(*ctx, "while_cond", function_);
   auto* while_body = llvm::BasicBlock::Create(*ctx, "while_body", function_);
   auto* while_merge = llvm::BasicBlock::Create(*ctx, "while_merge", function_);
@@ -1527,7 +1527,7 @@ void CodeGenLLVM::VisitStmt_(const WhileNode* op) {
 
 void CodeGenLLVM::VisitStmt_(const IfThenElseNode* op) {
   llvm::Value* cond = MakeValue(op->condition);
-  auto ctx = llvm_target_->GetOrCreateContext();
+  auto ctx = llvm_scope_->GetOrCreateContext();
   auto* then_block = llvm::BasicBlock::Create(*ctx, "if_then", function_);
   auto* end_block = llvm::BasicBlock::Create(*ctx, "if_end", function_);
   if (op->else_case.defined()) {
@@ -1550,7 +1550,7 @@ void CodeGenLLVM::VisitStmt_(const IfThenElseNode* op) {
 
 void CodeGenLLVM::VisitStmt_(const AllocateConstNode* op) {
   auto data = op->data.value();
-  auto array = NDArrayToLLVMArray(llvm_target_->GetOrCreateContext().get(), data);
+  auto array = NDArrayToLLVMArray(llvm_scope_->GetOrCreateContext().get(), data);
   std::string symbol_name = op->buffer_var->name_hint;
   llvm::GlobalVariable* param_symbol = new llvm::GlobalVariable(
       *module_, array->getType(), true, llvm::GlobalValue::InternalLinkage, array, symbol_name);

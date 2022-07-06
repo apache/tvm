@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#ifndef TVM_TARGET_LLVM_LLVM_TARGET_H_
-#define TVM_TARGET_LLVM_LLVM_TARGET_H_
+#ifndef TVM_TARGET_LLVM_LLVM_SCOPE_H_
+#define TVM_TARGET_LLVM_LLVM_SCOPE_H_
 
 #ifdef TVM_LLVM_VERSION
 
@@ -43,13 +43,13 @@
 namespace tvm {
 namespace codegen {
 
-class LLVMTarget {
+class LLVMScope {
  public:
-  explicit LLVMTarget(const Target& target);
-  explicit LLVMTarget(const std::string& target_str);
-  ~LLVMTarget();  // Must not be "= default" here in the header file.
+  explicit LLVMScope(const Target& target);
+  explicit LLVMScope(const std::string& target_str);
+  ~LLVMScope();  // Must not be "= default" here in the header file.
 
-  LLVMTarget& operator=(LLVMTarget&& llvm_target);
+  LLVMScope& operator=(LLVMScope&& llvm_scope);
 
   std::string str() const;
   std::shared_ptr<llvm::LLVMContext> GetOrCreateContext();
@@ -63,7 +63,7 @@ class LLVMTarget {
   llvm::FastMathFlags GetFastMathFlags() const { return fast_math_flags_; }
   llvm::CodeGenOpt::Level GetOptLevel() const { return opt_level_; }
 
-  using ModuleData = std::pair<std::unique_ptr<llvm::Module>, std::unique_ptr<LLVMTarget>>;
+  using ModuleData = std::pair<std::unique_ptr<llvm::Module>, std::unique_ptr<LLVMScope>>;
   static ModuleData ParseIR(const std::string& llvm_ir,
                             std::shared_ptr<llvm::LLVMContext> ctx = {});
   static ModuleData LoadIR(const std::string& file_name,
@@ -86,7 +86,7 @@ class LLVMTarget {
   std::unique_ptr<llvm::TargetMachine> target_machine_;
 
  private:
-  LLVMTarget(const std::string& target_str, std::shared_ptr<llvm::LLVMContext> ctx);
+  LLVMScope(const std::string& target_str, std::shared_ptr<llvm::LLVMContext> ctx);
   static ModuleData ParseBuffer(const llvm::MemoryBuffer& buffer,
                                 std::shared_ptr<llvm::LLVMContext> ctx_or_null);
 };
@@ -95,4 +95,4 @@ class LLVMTarget {
 }  // namespace tvm
 
 #endif  // TVM_LLVM_VERSION
-#endif  // TVM_TARGET_LLVM_LLVM_TARGET_H_
+#endif  // TVM_TARGET_LLVM_LLVM_SCOPE_H_

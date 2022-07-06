@@ -60,7 +60,7 @@
 
 #include "../func_registry_generator.h"
 #include "../metadata_utils.h"
-#include "llvm_target.h"
+#include "llvm_scope.h"
 
 namespace tvm {
 namespace codegen {
@@ -70,9 +70,9 @@ namespace codegen {
 CodeGenCPU::CodeGenCPU() = default;
 CodeGenCPU::~CodeGenCPU() = default;
 
-void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target, bool system_lib,
+void CodeGenCPU::Init(const std::string& module_name, LLVMScope* llvm_scope, bool system_lib,
                       bool dynamic_lookup, bool target_c_runtime) {
-  CodeGenLLVM::Init(module_name, llvm_target, system_lib, dynamic_lookup, target_c_runtime);
+  CodeGenLLVM::Init(module_name, llvm_scope, system_lib, dynamic_lookup, target_c_runtime);
   dbg_info_ = CreateDebugInfo(module_.get());
   static_assert(sizeof(TVMValue) == sizeof(double), "invariant");
   func_handle_map_.clear();
@@ -81,7 +81,7 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target, b
   // Runtime types.
 
   t_tvm_shape_index_ =
-      llvm::Type::getIntNTy(*llvm_target_->GetOrCreateContext(), DataType::ShapeIndex().bits());
+      llvm::Type::getIntNTy(*llvm_scope_->GetOrCreateContext(), DataType::ShapeIndex().bits());
   // Defined in 3rdparty/dlpack/include/dlpack/dlpack.h:
   // typedef struct { DLDeviceType device_type; int device_id; } DLDevice;
   t_tvm_device_ = llvm::StructType::create({t_int_, t_int_});
@@ -274,7 +274,7 @@ void CodeGenCPU::AddDebugInformation(PrimFunc f_tir, llvm::Function* f_llvm) {
 llvm::DIType* CodeGenCPU::GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm) {
   if (ty_llvm == t_void_) {
     return nullptr;
-  } else if (ty_llvm == llvm::Type::getFloatTy(*llvm_target_->GetOrCreateContext())) {
+  } else if (ty_llvm == llvm::Type::getFloatTy(*llvm_scope_->GetOrCreateContext())) {
     return dbg_info_->di_builder_->createBasicType("float", 32, llvm::dwarf::DW_ATE_float);
   } else if (ty_llvm == t_int8_) {
     return dbg_info_->di_builder_->createBasicType("int8", 8, llvm::dwarf::DW_ATE_signed);
@@ -312,14 +312,14 @@ void CodeGenCPU::AddMainFunction(const std::string& entry_func_name) {
 #endif
   // comdat is needed for windows select any linking to work
   // set comdat to Any(weak linking)
-  if (llvm_target_->GetOrCreateTargetMachine()->getTargetTriple().isOSWindows()) {
+  if (llvm_scope_->GetOrCreateTargetMachine()->getTargetTriple().isOSWindows()) {
     llvm::Comdat* comdat = module_->getOrInsertComdat(runtime::symbol::tvm_module_main);
     comdat->setSelectionKind(llvm::Comdat::Any);
     global->setComdat(comdat);
   }
 
   global->setInitializer(
-      llvm::ConstantDataArray::getString(*llvm_target_->GetOrCreateContext(), entry_func_name));
+      llvm::ConstantDataArray::getString(*llvm_scope_->GetOrCreateContext(), entry_func_name));
   global->setDLLStorageClass(llvm::GlobalVariable::DLLExportStorageClass);
 }
 
@@ -477,7 +477,7 @@ llvm::GlobalVariable* CodeGenCPU::InitContextPtr(llvm::Type* p_type, std::string
   gv->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
   // comdat is needed for windows select any linking to work
   // set comdat to Any(weak linking)
-  if (llvm_target_->GetOrCreateTargetMachine()->getTargetTriple().isOSWindows()) {
+  if (llvm_scope_->GetOrCreateTargetMachine()->getTargetTriple().isOSWindows()) {
     llvm::Comdat* comdat = module_->getOrInsertComdat(name);
     comdat->setSelectionKind(llvm::Comdat::Any);
     gv->setComdat(comdat);
@@ -527,7 +527,7 @@ void CodeGenCPU::InitGlobalContext(bool dynamic_lookup) {
 
 llvm::BasicBlock* CodeGenCPU::CheckCallSuccess(llvm::Value* retcode) {
   // create emit codes that checks and load the function.
-  auto ctx = llvm_target_->GetOrCreateContext();
+  auto ctx = llvm_scope_->GetOrCreateContext();
   auto* fail_block = llvm::BasicBlock::Create(*ctx, "call_fail", function_);
   auto* end_block = llvm::BasicBlock::Create(*ctx, "call_end", function_);
   auto* succ = builder_->CreateICmpEQ(retcode, llvm::ConstantInt::get(t_int_, 0));
@@ -587,7 +587,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   SetTargetAttributes(fcompute);
 
   llvm::BasicBlock* compute_call_end = CheckCallSuccess(builder_->CreateCall(fcompute, arg_values));
-  auto ctx = llvm_target_->GetOrCreateContext();
+  auto ctx = llvm_scope_->GetOrCreateContext();
   // enter compute scope and setup compute function.
   With<ComputeScopeStates> scope_states_guard(this);
   size_t idx = 0;
@@ -684,7 +684,7 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task, std::strin
       {f, builder_->CreatePointerCast(cdata.addr, t_void_p_), ConstInt32(num_task)}));
   // Setup the closure function.
   auto* lambda_entry =
-      llvm::BasicBlock::Create(*llvm_target_->GetOrCreateContext(), "parallel_closure_entry", f);
+      llvm::BasicBlock::Create(*llvm_scope_->GetOrCreateContext(), "parallel_closure_entry", f);
   builder_->SetInsertPoint(lambda_entry);
   auto it = f->arg_begin();
   llvm::Value* task_id = &(*it++);
@@ -752,7 +752,7 @@ void CodeGenCPU::CreateStaticInit(const std::string& init_fname, const Stmt& bod
   llvm::BasicBlock* init_end = CheckCallSuccess(builder_->CreateCall(
       finit, {gv, f, builder_->CreatePointerCast(cdata.addr, t_void_p_), ConstInt32(nbytes)}));
   // Setup the closure function.
-  auto* lambda_entry = llvm::BasicBlock::Create(*llvm_target_->GetOrCreateContext(), "entry", f);
+  auto* lambda_entry = llvm::BasicBlock::Create(*llvm_scope_->GetOrCreateContext(), "entry", f);
   builder_->SetInsertPoint(lambda_entry);
   auto it = f->arg_begin();
   cdata.addr = builder_->CreatePointerCast(&(*it++), cdata.addr->getType());
@@ -798,7 +798,7 @@ llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
     hptr = it->second;
   }
   // create emit codes that checks and load the function.
-  auto ctx = llvm_target_->GetOrCreateContext();
+  auto ctx = llvm_scope_->GetOrCreateContext();
   llvm::BasicBlock* pre_block = builder_->GetInsertBlock();
   auto* init_block = llvm::BasicBlock::Create(*ctx, "handle_init", function_);
   auto* end_block = llvm::BasicBlock::Create(*ctx, "handle_init_end", function_);
@@ -952,7 +952,7 @@ llvm::Value* CodeGenCPU::CreateCallTracePacked(const CallNode* op) {
   ICHECK_EQ(op->args.size(), 6U);
   PackedCall pc = MakeCallPackedLowered(op->args, op->dtype, op->args[3].as<IntImmNode>()->value,
                                         op->args[4].as<IntImmNode>()->value, true);
-  auto ctx = llvm_target_->GetOrCreateContext();
+  auto ctx = llvm_scope_->GetOrCreateContext();
   // Get traced value.
   llvm::Value* traced_value = MakeValue(op->args[5]);
   // The update_block handles case when we need to update the return value.
@@ -1261,7 +1261,7 @@ class MetadataSerializerLLVM : public AttrVisitor {
 };
 
 void CodeGenCPU::DefineMetadata(runtime::metadata::Metadata metadata) {
-  auto ctx = llvm_target_->GetOrCreateContext();
+  auto ctx = llvm_scope_->GetOrCreateContext();
   MetadataLlvmTypes llvm_types{
       t_float64_ /* t_float64 */,
       llvm::Type::getInt8Ty(*ctx) /* t_uint8 */,
@@ -1359,7 +1359,7 @@ void CodeGenCPU::DefineFunctionRegistry(Array<String> func_names) {
                                      "TVMSystemLibEntryPoint", module_.get());
   SetTargetAttributes(function_);
   llvm::BasicBlock* entry_point_entry =
-      llvm::BasicBlock::Create(*llvm_target_->GetOrCreateContext(), "entry", function_);
+      llvm::BasicBlock::Create(*llvm_scope_->GetOrCreateContext(), "entry", function_);
   builder_->SetInsertPoint(entry_point_entry);
   builder_->CreateRet(builder_->CreateBitCast(module, t_void_p_));
 }
@@ -1371,7 +1371,7 @@ void CodeGenCPU::AddStartupFunction() {
                                        "__tvm_module_startup", module_.get());
     SetTargetAttributes(function_);
     llvm::BasicBlock* startup_entry =
-        llvm::BasicBlock::Create(*llvm_target_->GetOrCreateContext(), "entry", function_);
+        llvm::BasicBlock::Create(*llvm_scope_->GetOrCreateContext(), "entry", function_);
     builder_->SetInsertPoint(startup_entry);
     for (const auto& kv : export_system_symbols_) {
       llvm::Value* name = GetConstString(kv.first);
@@ -1395,7 +1395,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
   } else if (op->op.same_as(builtin::tvm_throw_last_error())) {
     builder_->CreateRet(ConstInt32(-1));
     auto next_block = std::next(builder_->GetInsertBlock()->getIterator());
-    llvm::BasicBlock* new_bb = llvm::BasicBlock::Create(*llvm_target_->GetOrCreateContext(), "cont",
+    llvm::BasicBlock* new_bb = llvm::BasicBlock::Create(*llvm_scope_->GetOrCreateContext(), "cont",
                                                         function_, &*next_block);
     builder_->SetInsertPoint(new_bb);
     return ConstInt32(-1);
@@ -1454,7 +1454,7 @@ void CodeGenCPU::VisitStmt_(const AssertStmtNode* op) {
     os << ", " << op->message.as<StringImmNode>()->value;
   }
   llvm::Value* msg = GetConstString(os.str());
-  auto ctx = llvm_target_->GetOrCreateContext();
+  auto ctx = llvm_scope_->GetOrCreateContext();
   auto* fail_block = llvm::BasicBlock::Create(*ctx, "assert_fail", function_);
   auto* end_block = llvm::BasicBlock::Create(*ctx, "assert_end", function_);
   builder_->CreateCondBr(cond, end_block, fail_block, md_very_likely_branch_);

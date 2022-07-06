@@ -28,7 +28,7 @@
 
 #include <string>
 
-#include "llvm_target.h"
+#include "llvm_scope.h"
 
 namespace tvm {
 namespace codegen {
@@ -41,8 +41,8 @@ namespace codegen {
  *
  * \return LLVM module and LLVM context
  */
-LLVMTarget::ModuleData CodeGenBlob(const std::string& data, bool system_lib,
-                                   const std::string& llvm_target_string);
+LLVMScope::ModuleData CodeGenBlob(const std::string& data, bool system_lib,
+                                  const std::string& llvm_target_string);
 
 }  // namespace codegen
 }  // namespace tvm
