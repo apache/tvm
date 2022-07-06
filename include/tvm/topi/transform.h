@@ -790,8 +790,8 @@ inline Tensor strided_slice_with_axes(const Tensor& x, const Array<Integer>& beg
         for (size_t i = 0; i < out_shape.size(); ++i) real_indices.push_back(indices[i]);
         for (size_t i = 0; i < axes.size(); ++i) {
           auto stride = make_const(strides[i].dtype(), strides_vec[i]);
-          PrimExpr ind = indices[axes[i]] * stride + begin_expr[i];
-          real_indices.Set(axes[i], ind);
+          PrimExpr ind = indices[axes[i].IntValue()] * stride + begin_expr[i];
+          real_indices.Set(axes[i].IntValue(), ind);
         }
         return x(real_indices);
       },

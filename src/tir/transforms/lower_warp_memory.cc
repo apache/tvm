@@ -472,7 +472,7 @@ Pass LowerWarpMemory() {
     auto* n = f.CopyOnWrite();
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     ICHECK(target.defined()) << "LowerWarpMemory: Require the target attribute";
-    int warp_size = target.value()->GetAttr<Integer>("thread_warp_size", 1).value();
+    int warp_size = target.value()->GetAttr<Integer>("thread_warp_size", 1).value().IntValue();
     WarpMemoryRewriter warp_memory_rewriter(warp_size);
     auto stmt = warp_memory_rewriter.Rewrite(std::move(n->body));
     n->body = UpdatePointerStorageScope(warp_memory_rewriter.new_storage_scopes_)(stmt);

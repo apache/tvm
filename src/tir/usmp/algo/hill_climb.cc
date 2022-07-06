@@ -105,7 +105,8 @@ class HillClimbAllocator : public GreedyBase {
       for (const auto* conflict_buf_info : buf_conf) {
         size_t next_offset = 0;
         auto pool_allocation = pool_allocations[conflict_buf_info];
-        next_offset = pool_allocation->byte_offset + conflict_buf_info->size_bytes;
+        next_offset =
+            pool_allocation->byte_offset.IntValue() + conflict_buf_info->size_bytes.IntValue();
         next_offset = round_up_to_byte_alignment(next_offset, conflict_buf_info->alignment->value);
         if (!pool_offset_candidates.count(pool_allocation->pool_info)) {
           continue;
@@ -114,8 +115,8 @@ class HillClimbAllocator : public GreedyBase {
                              buf_info->size_bytes->value)) {
           if (next_offset > pool_offset_candidates[pool_allocation->pool_info] &&
               pool_offset_candidates[pool_allocation->pool_info] +
-                      static_cast<size_t>(buf_info->size_bytes) >
-                  static_cast<size_t>(pool_allocation->byte_offset)) {
+                      static_cast<size_t>(buf_info->size_bytes.IntValue()) >
+                  static_cast<size_t>(pool_allocation->byte_offset.IntValue())) {
             pool_offset_candidates[pool_allocation->pool_info] = next_offset;
           }
         } else {
@@ -138,7 +139,7 @@ class HillClimbAllocator : public GreedyBase {
     for (const auto& it : *pool_allocations) {
       const BufferInfoNode* buf = it.first;
       const PoolAllocation& pa = it.second;
-      size_t high_sz = pa->byte_offset + buf->size_bytes;
+      size_t high_sz = pa->byte_offset.IntValue() + buf->size_bytes.IntValue();
       if (pool_sizes[pa->pool_info] <= high_sz) {
         pool_sizes[pa->pool_info] = high_sz;
       }
@@ -277,7 +278,7 @@ class HillClimbAllocator : public GreedyBase {
       for (const auto& it : pool_allocations) {
         const auto* buf = it.first;
         const auto pa = it.second;
-        size_t high_sz = pa->byte_offset + buf->size_bytes;
+        size_t high_sz = pa->byte_offset.IntValue() + buf->size_bytes.IntValue();
         if (pool_sizes[pa->pool_info] == high_sz) {
           max_pool_buf.push_back(buf);
         }
@@ -325,7 +326,7 @@ class HillClimbAllocator : public GreedyBase {
 
 Map<BufferInfo, PoolAllocation> HillClimb(const Array<BufferInfo>& buffer_info_arr,
                                           const Integer& memory_pressure) {
-  return HillClimbAllocator(memory_pressure).PlanMemory(buffer_info_arr);
+  return HillClimbAllocator(memory_pressure.IntValue()).PlanMemory(buffer_info_arr);
 }
 
 TVM_REGISTER_GLOBAL("tir.usmp.algo.hill_climb")

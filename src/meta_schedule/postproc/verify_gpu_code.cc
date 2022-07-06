@@ -125,7 +125,7 @@ class VerifyGPUCodeNode : public PostprocNode {
         {"max_vthread", Integer(8)},
         {"max_vector_bytes", Integer(16)},
     };
-    thread_warp_size_ = Extract(target, "thread_warp_size");
+    thread_warp_size_ = Extract(target, "thread_warp_size").IntValue();
   }
 
   bool Verify(const IRModule& mod) const {
