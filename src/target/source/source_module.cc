@@ -469,8 +469,8 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
           String pool_name_tvmv = GenerateDLTensorStructWrapper(pool_name);
           code_ << "tensors[" << i << "] = " << pool_name_tvmv << ";\n";
         } else {
-          code_ << "tensors[" << i << "] = ((TVMValue*)args)["
-                << run_func_to_entry_point_args[Integer(i)] << "];\n";
+          code_ << "tensors[" << i << "] = ((TVMValue*)args)[" << run_func_to_entry_point_args[i]
+                << "];\n";
         }
       }
     }
@@ -733,7 +733,7 @@ class MetadataSerializer : public AttrVisitor {
 
       switch (array->kind) {
         case MetadataKind::kUint64: {
-          int64_t i = Downcast<Integer>(o);
+          int64_t i = Downcast<Integer>(o).IntValue();
           CHECK_GT(i, 0)
               << "Metadata is of type uint64_t, but array type contains a negative number";
           uint64_t ui = static_cast<uint64_t>(i);
@@ -741,7 +741,7 @@ class MetadataSerializer : public AttrVisitor {
           continue;
         }
         case MetadataKind::kInt64: {
-          int64_t i = Downcast<Integer>(o);
+          int64_t i = Downcast<Integer>(o).IntValue();
           Visit(nullptr, &i);
           continue;
         }

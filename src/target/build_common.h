@@ -57,7 +57,7 @@ inline std::unordered_map<std::string, runtime::FunctionInfo> ExtractFuncInfo(co
       }
     }
     if (auto opt = f->GetAttr<Integer>(tir::attr::kDeviceUseDynSharedMemory)) {
-      if (opt.value()) {
+      if (opt.value().IntValue() != 0) {
         info.launch_param_tags.push_back(runtime::launch_param::kUseDynamicSharedMemoryTag);
       }
     }
