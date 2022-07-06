@@ -972,6 +972,21 @@ class ZephyrFvpTransport:
 
         self._iris_lib = iris
 
+        # TODO cleanup.
+        def _convertStringToU64Array(strValue):
+            numBytes = len(strValue)
+            if numBytes == 0:
+                return []
+
+            numU64 = (numBytes + 7) // 8
+            # Extend the string ending with '\0', so that the string length is multiple of 8.
+            # E.g. 'hello' is extended to: 'hello'+\0\0\0
+            strExt = strValue.ljust(8 * numU64, b'\0')
+            # Convert the string to a list of uint64_t in little endian
+            return struct.unpack('<{}Q'.format(numU64), strExt)
+
+        iris.iris.convertStringToU64Array = _convertStringToU64Array
+
     def open(self):
         args = ["ninja"]
         if self.options.get("verbose"):
