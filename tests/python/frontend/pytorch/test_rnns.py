@@ -45,7 +45,6 @@ rnn_feature_size = 8
 rnn_hidden_size = 16
 
 
-
 class RNN_Model(nn.Module):
     """
     It is base class for RNN layer classes.
@@ -97,8 +96,10 @@ class RNN_Model(nn.Module):
     def get_tvm_inputs(self, dtype):
         raise NotImplementedError("subclasses must override get_tvm_inputs(dtype)!")
 
+
 class RNN_Model_Impl(RNN_Model):
-    def __init__(self,         
+    def __init__(
+        self,
         seq_len=seqs_length,
         batch_size=batch_size,
         feature_size=rnn_feature_size,
@@ -108,8 +109,9 @@ class RNN_Model_Impl(RNN_Model):
         bidirectional=False,
         use_bias=True,
         rnd_weights_init=False,
-        nonlinearity='tanh',
-        dropout=0.0):
+        nonlinearity="tanh",
+        dropout=0.0,
+    ):
         super().__init__()
         # Shapes
         self.shape = [seq_len, batch_size, feature_size]
@@ -117,7 +119,7 @@ class RNN_Model_Impl(RNN_Model):
             self.shape = [batch_size, seq_len, feature_size]
         layers_num = 2 * layer_num if bidirectional else layer_num
         self.h0_shape = [layers_num, batch_size, hidden_size]
-         # Dummy inputs
+        # Dummy inputs
         self.dummy_inputs = (torch.rand(self.shape), torch.zeros(self.h0_shape))
 
         self.model = nn.RNN(
@@ -128,7 +130,7 @@ class RNN_Model_Impl(RNN_Model):
             bias=use_bias,
             batch_first=batch_first,
             dropout=dropout,
-            bidirectional=bidirectional
+            bidirectional=bidirectional,
         )
 
         if rnd_weights_init:
@@ -403,7 +405,6 @@ def check_rnn(rnn_type, rnn_mod, target=tvm.target.Target("llvm -mcpu=core-avx2"
             args["nonlinearity"] = "tanh"
         if "relu" in rnn_mod:
             args["nonlinearity"] = "relu"
-        
 
         if rnn_type == "GRU":
             RNN_Model_selector = GRU_Model
