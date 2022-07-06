@@ -64,7 +64,7 @@ IntervalSet Intersect(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
   PrimExpr min_value = max(a->min_value, b->min_value);
   if ((max_value.dtype().is_int() || max_value.dtype().is_uint()) &&
       (min_value.dtype().is_int() || min_value.dtype().is_uint()) &&
-      analyzer->CanProveGreaterEqual(min_value - max_value, 1)) {
+      analyzer->CanProve(max_value < min_value)) {
     return IntervalSet::Empty();
   } else {
     return IntervalSet(min_value, max_value);
