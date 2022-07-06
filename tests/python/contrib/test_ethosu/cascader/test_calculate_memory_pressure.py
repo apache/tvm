@@ -98,8 +98,8 @@ def _parallel_npu_functions():
 
     # NPU function 2
     x = relay.var("x", shape=(1, 2, 2, 4), dtype="int8")
-    max_pool = relay.abs(x)
-    composite_func = relay.Function([x], max_pool)
+    abs_op = relay.abs(x)
+    composite_func = relay.Function([x], abs_op)
     composite_func = composite_func.with_attr("Composite", "ethos-u.unary_elementwise")
     inp = relay.var("input", shape=(1, 2, 2, 4), dtype="int8")
     compiler_func = relay.Function([inp], composite_func)
@@ -119,6 +119,30 @@ def _parallel_npu_functions():
     return mod
 
 
+def _full_offload():
+    mod = tvm.IRModule({})
+
+    # NPU function
+    x = relay.var("x", shape=(1, 4, 4, 16), dtype="int8")
+    max_pool = relay.nn.max_pool2d(x)
+    composite_func = relay.Function([x], max_pool)
+    composite_func = composite_func.with_attr("Composite", "ethos-u.pooling")
+    inp = relay.var("input", shape=(1, 4, 4, 16), dtype="int8")
+    compiler_func = relay.Function([inp], composite_func)
+    compiler_func = compiler_func.with_attr("used_memory", [256 + 256])
+    npu_compiler_func = compiler_func.with_attr("Compiler", "ethos-u")
+    g1 = relay.GlobalVar("g1")
+    mod[g1] = npu_compiler_func
+
+    # Main
+    inp = relay.var("main_input", shape=(1, 4, 4, 16), dtype="int8")
+    call = relay.Call(g1, [inp])
+    main_func = relay.Function([inp], call)
+    main_func = main_func.with_attr("io_used_memory", 256 + 256)
+    mod["main"] = main_func
+    return mod
+
+
 @pytest.mark.parametrize(
     "model_func,use_workspace_io,expected_memory_pressure",
     [
@@ -126,6 +150,8 @@ def _parallel_npu_functions():
         (_npu_and_non_npu_functions, False, (16 + 16) + (16 + 16) - (16 + 16)),
         (_parallel_npu_functions, True, (16 + 16) + (16 + 16 + 16)),
         (_parallel_npu_functions, False, (16 + 16) + (16 + 16 + 16) - (16 + 16)),
+        (_full_offload, True, (256 + 256)),
+        (_full_offload, False, (256 + 256) - (256 + 256)),
     ],
 )
 def test_calculate_memory_pressure_pass(model_func, use_workspace_io, expected_memory_pressure):

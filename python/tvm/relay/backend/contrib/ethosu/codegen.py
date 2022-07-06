@@ -387,6 +387,16 @@ def _calculate_memory_pressure(mod: tvm.ir.IRModule) -> int:
     each microNPU function. This value can be used as a hint to guide the cascader,
     indicating how aggressively it will need to optimize the input module to fit
     into the memory that remains in the memory workspace.
+
+    Parameters
+    ----------
+    mod : tvm.ir.IRModule
+        The input module
+
+    Returns
+    -------
+    int
+        Memory pressure value for the module.
     """
     memory_pressure = 0
 
