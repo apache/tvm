@@ -23,7 +23,7 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-DocPrinter::DocPrinter(const DocPrintingOptions& options) : options_(options) {}
+DocPrinter::DocPrinter(int indent_spaces) : indent_spaces_(indent_spaces) {}
 
 void DocPrinter::Append(const Doc& doc) { PrintDoc(doc); }
 

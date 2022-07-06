@@ -28,7 +28,7 @@ namespace printer {
 
 class PythonDocPrinter : public DocPrinter {
  public:
-  explicit PythonDocPrinter(const DocPrintingOptions& options) : DocPrinter(options) {}
+  explicit PythonDocPrinter(int indent_spaces = 4) : DocPrinter(indent_spaces) {}
 
  protected:
   using DocPrinter::PrintDoc;
@@ -57,20 +57,13 @@ void PythonDocPrinter::PrintTypedDoc(const LiteralDoc& doc) {
   }
 }
 
-String DocToPythonScript(Doc doc, DocPrintingOptions options) {
-  PythonDocPrinter printer(options);
+String DocToPythonScript(Doc doc, int indent_spaces) {
+  PythonDocPrinter printer(indent_spaces);
   printer.Append(doc);
   return printer.GetString();
 }
 
-String DocToPythonScript(Doc doc, int indent_spaces) {
-  DocPrintingOptions options;
-  options.indent_spaces = indent_spaces;
-  return DocToPythonScript(doc, options);
-}
-
-TVM_REGISTER_GLOBAL("script.printer.DocToPythonScript")
-    .set_body_typed<String(Doc, int)>(DocToPythonScript);
+TVM_REGISTER_GLOBAL("script.printer.DocToPythonScript").set_body_typed(DocToPythonScript);
 
 }  // namespace printer
 }  // namespace script

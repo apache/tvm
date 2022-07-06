@@ -26,21 +26,6 @@ namespace script {
 namespace printer {
 
 /*!
- * \brief Configurable options for converting Doc into text format
- */
-struct DocPrintingOptions {
-  int indent_spaces = 4;
-};
-
-/*!
- * \brief Convert Doc into Python script.
- *
- * \param doc the doc to be converted
- * \param options the option for printer
- */
-String DocToPythonScript(Doc doc, DocPrintingOptions options);
-
-/*!
  * \brief Convert Doc into Python script.
  *
  * This function unpacks the DocPrinterOptions into function arguments

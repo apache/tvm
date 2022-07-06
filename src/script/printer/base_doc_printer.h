@@ -45,7 +45,7 @@ class DocPrinter {
    *
    * \param options the option for printer
    */
-  explicit DocPrinter(const DocPrintingOptions& options);
+  explicit DocPrinter(int indent_spaces = 4);
   virtual ~DocPrinter() = default;
 
   /*!
@@ -87,13 +87,13 @@ class DocPrinter {
    * \brief Increase the indent level of any content to be
    *        printed after this call
    */
-  void IncreaseIndent() { indent_ += options_.indent_spaces; }
+  void IncreaseIndent() { indent_ += indent_spaces_; }
 
   /*!
    * \brief Decrease the indent level of any content to be
    *        printed after this call
    */
-  void DecreaseIndent() { indent_ -= options_.indent_spaces; }
+  void DecreaseIndent() { indent_ -= indent_spaces_; }
 
   /*!
    * \brief Add a new line into the output stream
@@ -117,8 +117,8 @@ class DocPrinter {
   std::ostringstream output_;
 
  private:
-  /*! \brief the printing options */
-  DocPrintingOptions options_;
+  /*! \brief the number of spaces for one level of indentation */
+  int indent_spaces_ = 4;
 
   /*! \brief the current level of indent */
   int indent_ = 0;
