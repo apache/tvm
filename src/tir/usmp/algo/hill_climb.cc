@@ -44,6 +44,7 @@ namespace algo {
  * Works by continiously invoking 'greedy-by-size' allocation,
  * assessing the result, and introducing permutations to the allocation
  * order which hopefully will led to more 'compact' memory allocation.
+ * Do not forget to use srand for repeatable results
  */
 class HillClimbAllocator : public GreedyBase {
  private:
@@ -59,18 +60,18 @@ class HillClimbAllocator : public GreedyBase {
   /*
    * Initial sorting routine
    */
-  void sort_vector(std::vector<BufferInfo>* buffer_info_vec) {
-    std::sort(buffer_info_vec->begin(), buffer_info_vec->end(),
-              [](const BufferInfo& a, const BufferInfo& b) {
-                if (a->size_bytes->value == b->size_bytes->value) {
-                  if (a->conflicts.size() == b->conflicts.size()) {
-                    return std::string(a->name_hint->data) > std::string(b->name_hint->data);
-                  } else {
-                    return a->conflicts.size() > b->conflicts.size();
-                  }
-                }
-                return a->size_bytes->value > b->size_bytes->value;
-              });
+  template <typename T>
+  void sort_vector(std::vector<T>* buffer_info_vec) {
+    std::sort(buffer_info_vec->begin(), buffer_info_vec->end(), [](const T& a, const T& b) {
+      if (a->size_bytes->value == b->size_bytes->value) {
+        if (a->conflicts.size() == b->conflicts.size()) {
+          return std::string(a->name_hint->data) > std::string(b->name_hint->data);
+        } else {
+          return a->conflicts.size() > b->conflicts.size();
+        }
+      }
+      return a->size_bytes->value > b->size_bytes->value;
+    });
   }
 
   /*
@@ -156,32 +157,20 @@ class HillClimbAllocator : public GreedyBase {
   void collect_neighbor_lists(const BufferInfoNode* buf,
                               std::vector<const BufferInfoNode*>* first_level,
                               std::vector<const BufferInfoNode*>* second_level, const TPos& _pos) {
-    std::unordered_map<int, const BufferInfoNode*> first_level_set;
-    std::unordered_map<int, const BufferInfoNode*> second_level_set;
-
     auto buf_pos = _pos(buf);
     for (const auto& c1 : buf->conflicts) {
       const auto* c1_buf = c1.as<BufferInfoNode>();
       int c1_pos = _pos(c1_buf);
       if (buf_pos > c1_pos) {
-        first_level_set[c1_pos] = c1_buf;
+        first_level->push_back(c1_buf);
       }
       int c2_pos = -1;
       for (const auto& c2 : c1_buf->conflicts) {
         const auto c2_buf = c2.as<BufferInfoNode>();
         if (c1_pos > (c2_pos = _pos(c2_buf))) {
-          second_level_set[c2_pos] = c2_buf;
+          second_level->push_back(c2_buf);
         }
       }
-    }
-
-    // std::vector<const BufferInfoNode*> first_level;
-    for (const auto& i : first_level_set) {
-      first_level->push_back(i.second);
-    }
-    // std::vector<const BufferInfoNode*> second_level;
-    for (const auto& i : second_level_set) {
-      second_level->push_back(i.second);
     }
   }
 
@@ -202,7 +191,7 @@ class HillClimbAllocator : public GreedyBase {
       buffer_info_vec.push_back(std::move(buffer_info));
     }
 
-    sort_vector(&buffer_info_vec);
+    sort_vector<BufferInfo>(&buffer_info_vec);
 
     // populate positional index map
     std::unordered_map<const BufferInfoNode*, int> _pos_map;
@@ -283,12 +272,17 @@ class HillClimbAllocator : public GreedyBase {
           max_pool_buf.push_back(buf);
         }
       }
-
+      sort(max_pool_buf.begin(), max_pool_buf.end(),
+           [&_pos](const auto* a, const auto* b) { return _pos(a) < _pos(b); });
       // pick highest
       const BufferInfoNode* node = max_pool_buf[rnd_func() % max_pool_buf.size()];
       std::vector<const BufferInfoNode*> first_level;
       std::vector<const BufferInfoNode*> second_level;
       collect_neighbor_lists(node, &first_level, &second_level, _pos);
+      sort(first_level.begin(), first_level.end(),
+           [&_pos](const auto* a, const auto* b) { return _pos(a) < _pos(b); });
+      sort(second_level.begin(), second_level.end(),
+           [&_pos](const auto* a, const auto* b) { return _pos(a) < _pos(b); });
 
       // retry if no first level neightbors were collected
       if (!first_level.size()) {
