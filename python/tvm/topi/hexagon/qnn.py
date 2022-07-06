@@ -302,6 +302,110 @@ def schedule_qnn_conv2d(outs):
     return _default_schedule(outs, False)
 
 
+def qnn_depthwise_conv2d(  # Conv2d inputs
+    data,
+    weight,
+    # Conv2d quantization params:
+    input_zero_point,
+    kernel_zero_point,
+    _input_scale,
+    _kernel_scale,
+    # bias
+    bias,
+    # Requantization params:
+    rq_input_scale,
+    rq_input_zero_point,
+    rq_output_scale,
+    rq_output_zero_point,
+    axis,
+    # Conv2d attributes:
+    strides,
+    padding,
+    dilation,
+    oshape,
+    odtype,
+):
+    """Compute for qnn.conv2d with NCHW layout"""
+    kernel_height = weight.shape[2]  # OIHW layout
+    kernel_width = weight.shape[3]  # OIHW layout
+
+    height_stride, width_stride = strides
+    dilation_h, dilation_w = dilation
+
+    dilated_kernel_h = (kernel_height - 1) * dilation_h + 1
+    dilated_kernel_w = (kernel_width - 1) * dilation_w + 1
+
+    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
+        get_const_tuple(padding), (dilated_kernel_h, dilated_kernel_w)
+    )
+
+    # Subtract zero point from input and then do padding with 0 value
+    data = te.compute(data.shape, lambda *indices: te.subtract(data(*indices), input_zero_point))
+
+    # DOPAD
+    if pad_top != 0 or pad_down != 0 or pad_left != 0 or pad_right != 0:
+        pad_before = (0, 0, pad_top, pad_left)
+        pad_after = (0, 0, pad_down, pad_right)
+        data_pad = pad(data, pad_before, pad_after, name="data_pad")
+    else:
+        data_pad = data
+
+    kh = te.reduce_axis((0, kernel_height), name="kh")
+    kw = te.reduce_axis((0, kernel_width), name="kw")
+
+    out = te.compute(
+        oshape,
+        lambda n, oc, oh, ow: te.sum(
+            data_pad[
+                n,
+                oc,
+                oh * height_stride + kh * dilation_h,
+                ow * width_stride + kw * dilation_w,
+            ].astype("int32")
+            * te.subtract(weight[oc, 0, kh, kw], kernel_zero_point).astype("int32"),
+            axis=[kh, kw],
+        ),
+    )
+
+    # Add bias
+    if bias is not None:
+        assert len(out.shape) == len(bias.shape)
+        assert bias.shape[2] == 1 and bias.shape[3] == 1
+        out = te.compute(out.shape, lambda n, c, h, w: out[n, c, h, w] + bias[n, c, 0, 0])
+
+    # Requantize output of convolution
+    # Q_output = zp_output + round((scale_input)/(scale_output) * (Q_input - zp_input))
+    if rq_input_scale is not None and rq_output_scale is not None:
+        return qnn_requantize(
+            out,
+            rq_input_scale,
+            rq_input_zero_point,
+            rq_output_scale,
+            rq_output_zero_point,
+            axis,
+            odtype,
+        )
+
+    return out
+
+
+def schedule_qnn_depthwise_conv2d(outs):
+    """Schedule for depthwise qnn.conv2d
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of qnn.conv2d
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
 def qnn_dense(
     data,
     weight,
