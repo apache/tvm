@@ -29,7 +29,6 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/target/target.h>
 #include <tvm/te/tensor.h>
-#include <tvm/tir/schedule/schedule.h>
 
 namespace tvm {
 namespace meta_schedule {
@@ -45,7 +44,7 @@ class ApplyHistoryBestNode : public runtime::Object {
       runtime::TypedPackedFunc<Optional<tir::PrimFunc>(const Array<te::Tensor, void>&)>;
   /*! \brief  A callback function that takes a tuning record and does something with it */
   using FTakeTuningRecord = runtime::TypedPackedFunc<void(const TuningRecord&)>;
-  using FDirectDispatch = runtime::TypedPackedFunc<Optional<tir::Schedule>(const IRModule&)>;
+  using FDirectDispatch = runtime::TypedPackedFunc<Optional<IRModule>(const IRModule&)>;
 
   /*! \brief The database to be queried from */
   Database database{nullptr};
@@ -67,7 +66,7 @@ class ApplyHistoryBestNode : public runtime::Object {
    * \param dispatched The IRs after dispatch
    * \param f_take_tuning_record A callback function that takes a tuning record and does something
    *   with it.
-   * \param f_direct_dispatch A function that directly dispatches a schedule to the given workload
+   * \param f_direct_dispatch A function that directly dispatches an IRModule to the given workload
    *   as result if available, skipping the database query.
    */
   Optional<IRModule> Query(runtime::String task_name, IRModule mod, Target target,

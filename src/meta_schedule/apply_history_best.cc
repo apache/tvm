@@ -121,10 +121,10 @@ Optional<IRModule> ApplyHistoryBestNode::Query(runtime::String task_name, IRModu
   prim_mod = (*parse_mod_func)(prim_mod);
 
   if (f_direct_dispatch != nullptr) {
-    Optional<tir::Schedule> sch = f_direct_dispatch(prim_mod);
-    if (sch.defined()) {
+    Optional<IRModule> mod = f_direct_dispatch(prim_mod);
+    if (mod.defined()) {
       TVM_PY_LOG(INFO, logging_func) << "Direct dispatch applied for workload: " << task_name;
-      return IRModule(sch.value()->mod());
+      return mod.value();
     }
   }
   if (database->HasWorkload(prim_mod)) {

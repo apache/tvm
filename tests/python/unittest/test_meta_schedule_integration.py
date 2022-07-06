@@ -290,9 +290,9 @@ def test_meta_schedule_integration_apply_history_best():
 
 @requires_torch
 def test_meta_schedule_integration_apply_history_best_direct_dispatch():
-    def direct_dispatch(mod: IRModule) -> Optional[Schedule]:
+    def direct_dispatch(mod: IRModule) -> Optional[IRModule]:
         if tvm.ir.structural_equal(mod, MockModule):
-            return Schedule(MockModule)
+            return MockModule
         return None
 
     mod, _, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
