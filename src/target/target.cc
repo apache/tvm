@@ -804,7 +804,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(std::unordered_map<String, ObjectRe
   // If requested, query attributes from the device.  User-specified
   // parameters take precedence over queried parameters.
   if (attrs.count("from_device")) {
-    int device_id = Downcast<Integer>(attrs.at("from_device"));
+    int device_id = Downcast<Integer>(attrs.at("from_device")).IntValue();
     attrs.erase("from_device");
     auto device_params = QueryDevice(device_id, target.get());
 
