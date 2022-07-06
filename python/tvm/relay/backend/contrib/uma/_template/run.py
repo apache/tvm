@@ -16,7 +16,7 @@
 # under the License.
 
 import tvm
-from tvm import relay
+from tvm import relay, IRModule
 from tvm.contrib.download import download_testdata
 from tvm.relay.backend.contrib.uma._template.backend import MyAiHwBackend
 
@@ -27,16 +27,31 @@ from pathlib import Path
 import onnx
 
 
-def main():
+def import_mnist12() -> [IRModule, dict]:
+    model_url = "".join(
+        ["https://github.com/onnx/models/raw/main/vision/classification/mnist/model/mnist-12.onnx"])
+    model_path = download_testdata(model_url, "mnist-12.onnx", module="onnx")
+    onnx_model = onnx.load(model_path)
+    input_name = "Input3"
+    shape_dict = {input_name: (1, 1, 28, 28)}
+    mod, params = relay.frontend.from_onnx(onnx_model, shape_dict)
+    return mod, params
+
+
+def import_restnet50() -> [IRModule, dict]:
     model_url = "".join(
         ["https://github.com/onnx/models/raw/main/vision/classification/resnet/model/resnet50-v2-7.onnx"])
     model_path = download_testdata(model_url, "resnet50-v2-7.onnx", module="onnx")
-    # now you have the onnx model on disk
     onnx_model = onnx.load(model_path)
-
     input_name = "data"
     shape_dict = {input_name: (1, 3, 224, 224)}
     mod, params = relay.frontend.from_onnx(onnx_model, shape_dict)
+    return mod, params
+
+
+def main():
+
+    mod, params = import_mnist12()
 
     print(mod)
 
@@ -58,13 +73,14 @@ def main():
         "aot",
         {
             "workspace-byte-alignment": 8,
+            #"unpacked-api": True
         },
     )
 
     with tvm.transform.PassContext(
         opt_level=3,
         config={"tir.disable_vectorize": True,
-                "tir.disable_storage_rewrite": True,
+                #"tir.disable_storage_rewrite": True,
                 "tir.usmp.enable": True,
                 "tir.usmp.algorithm": "greedy_by_conflicts"
                 },
@@ -82,6 +98,9 @@ def main():
     with tarfile.open(model_library_format_tar_path, "r:*") as tar_f:
         print("\n".join(f" - {m.name}" for m in tar_f.getmembers()))
         tar_f.extractall(model_library_format_tar_path.parent)
+
+
+
 
 
 if __name__ == "__main__":

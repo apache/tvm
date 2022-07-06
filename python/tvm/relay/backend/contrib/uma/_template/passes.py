@@ -22,7 +22,7 @@ from tvm.relay.backend.contrib.uma.api.utils import add_llvm_to_block
 
 
 @tvm.tir.transform.prim_func_pass(opt_level=2)
-class my_ai_hw_conv2d_pass:
+class MyAiHwConv2dPass:
     def transform_function(
         self, func: tvm.tir.PrimFunc, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
     ) -> tvm.tir.PrimFunc:
@@ -34,7 +34,7 @@ class my_ai_hw_conv2d_pass:
         _loops = dict()
         _handles = []
         _entry_node = None
-        _external_function_name = "my_hw_ai_conv2dnchw"
+        _external_function_name = "my_ai_hw_conv2dnchw"
         _tvm_block_match_name = "conv2d_nchw"
 
         def _has_block(name: str, func) -> bool:

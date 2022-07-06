@@ -20,7 +20,7 @@
 #ifdef __cplusplus
 extern "C"
 #endif
-int my_hw_ai_conv2dnchw(float* ifmap, float*  weights, float*  result,
+int my_ai_hw_conv2dnchw(float* ifmap, float*  weights, float*  result,
                                    int oc, int iw, int ih, int ic, int kh, int kw) {
 
   int kw_low = kw / 2;

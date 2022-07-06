@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """UMA backend for the my_ai_hw accelerator"""
-from .passes import my_ai_hw_conv2d_pass
+from .passes import MyAiHwConv2dPass
 from ..api.utils import PassPhase
 from ..backend import UMABackend
 from .codegen import gen_includes, gen_replace_call_extern
@@ -41,7 +41,7 @@ class MyAiHwBackend(UMABackend):
         #######################################################################
         # Relay to TIR function registration
         #######################################################################
-        self._register_tir_pass(PassPhase.TIR_PHASE_0, my_ai_hw_conv2d_pass())
+        self._register_tir_pass(PassPhase.TIR_PHASE_0, MyAiHwConv2dPass())
 
 
         #######################################################################
