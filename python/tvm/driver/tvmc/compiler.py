@@ -175,7 +175,7 @@ def drive_compile(args):
     dump_code = [x.strip() for x in args.dump_code.split(",")] if args.dump_code else None
 
     additional_targets = reconstruct_target_args(args)
-    workspace_pools_target, _ = target_from_cli(args.target, additional_targets)
+    workspace_pools_target, extra_targets = target_from_cli(args.target, additional_targets)
 
     compile_model(
         tvmc_model,
@@ -195,7 +195,9 @@ def drive_compile(args):
         pass_context_configs=args.pass_config,
         mod_name=args.module_name,
         additional_target_options=additional_targets,
-        workspace_pools=workspace_pools_recombobulate(args, [workspace_pools_target]),
+        workspace_pools=workspace_pools_recombobulate(
+            args, [workspace_pools_target], extra_targets
+        ),
     )
 
     return 0

@@ -24,7 +24,7 @@ from unittest import mock
 import pytest
 
 import tvm
-from tvm.ir.memory_pools import PoolInfo, WorkspaceMemoryPools
+from tvm.ir.memory_pools import WorkspacePoolInfo, WorkspaceMemoryPools
 from tvm.target import Target
 import tvm.testing
 from tvm.relay.op.contrib.ethosn import ethosn_available
@@ -682,15 +682,13 @@ def test_compile_tflite_module_with_mod_name_and_ethosu(
 def test_compile_check_workspace_pools(mock_pkg, mock_fe, mock_relay):
     mock_fe.return_value = mock.MagicMock()
     mock_relay.return_value = mock.MagicMock()
-
     memory_pools = WorkspaceMemoryPools(
-        [PoolInfo(pool_name="sram", target_access={Target("llvm"): "rw"})]
+        [WorkspacePoolInfo(pool_name="sram", targets=[Target("llvm")])]
     )
-
     tvmc_model = tvmc.load("no_file_needed")
     tvmc.compile(
         tvmc_model,
-        target="llvm",
+        target="llvm,c",
         workspace_pools=memory_pools,
     )
 

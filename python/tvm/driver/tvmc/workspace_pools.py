@@ -23,7 +23,8 @@ import logging
 import re
 
 from tvm.driver.tvmc import TVMCException
-from tvm.ir.memory_pools import PoolInfo, WorkspaceMemoryPools
+from tvm.target import Target
+from tvm.ir.memory_pools import PoolInfoProperties, WorkspaceMemoryPools, WorkspacePoolInfo
 
 
 # pylint: disable=invalid-name
@@ -38,53 +39,58 @@ def generate_workspace_pools_args(parser):
                 Example usage: --workspace-pools=flash""",
     )
     parser.add_argument(
+        "--workspace-pools-targets",
+        help="""The name of the targets specified for the memory pool
+                Example usage: --workspace-pools-targets=flash:llvm""",
+        action="append",
+    )
+    parser.add_argument(
         "--workspace-pools-size-hint-bytes",
         nargs="?",
         help="""The expected size hint to be used by the allocator.
                 Example usage: --workspace-pools-size-hint-bytes=flash:8""",
-    )
-    parser.add_argument(
-        "--workspace-pools-target-access",
-        help="""A dictionary where keys describe which targets could
-                access the pool where value could take the values :
-                a) "rw" : read-write access
-                b) "ro" : write-only access
-                Example usage: --workspace-pools-target-access=flash:accel:ro""",
+        action="append",
     )
     parser.add_argument(
         "--workspace-pools-clock-frequency-hz",
         nargs="?",
         help="""The clock frequency that the memory pool runs at in Hz.
                 Example usage: --workspace-pools-clock-frequency-hz=flash:70000000""",
+        action="append",
     )
     parser.add_argument(
         "--workspace-pools-read-bandwidth-bytes-per-cycle",
         nargs="?",
         help="""The read bandwidth of the memory pool in bytes/cycle.
                 Example usage: --workspace-pools-read-bandwidth-bytes-per-cycle=flash:4""",
+        action="append",
     )
     parser.add_argument(
         "--workspace-pools-write-bandwidth-bytes-per-cycle",
         nargs="?",
         help="""The write bandwidth of the memory pool in bytes/cycle.
                 Example usage: --workspace-pools-write-bandwidth-bytes-per-cycle=flash:8""",
+        action="append",
     )
     parser.add_argument(
         "--workspace-pools-read-latency-cycles",
         nargs="?",
         help="""The read latency of the memory pool in cycles.
                 Example usage: --workspace-pools-read-latency-cycles=flash:4""",
+        action="append",
     )
     parser.add_argument(
         "--workspace-pools-write-latency-cycles",
         nargs="?",
         help="""The write latency of the memory pool in cycles.
                 Example usage: --workspace-pools-write-latency-cycles=flash:8""",
+        action="append",
     )
     parser.add_argument(
         "--workspace-pools-target-burst-bytes",
         help="""The burst length of the memory pool in bytes per target.
                 Example usage: --workspace-pools-target-burst-bytes=flash:accel:1""",
+        action="append",
     )
 
 
@@ -95,11 +101,15 @@ def _parse_target_burst(attr, pool_name):
     return {target: int(attr[pool_name][target]) for target in attr[pool_name]}
 
 
-def _parse_target_access(attr, pool_name):
-    try:
-        return attr[pool_name]
-    except:
-        raise TVMCException(f'Workspace Pool "{pool_name}" using undefined Target.')
+def _parse_target_access(attr, targets, pool_name):
+    if attr is None:
+        raise TVMCException(f'No target specified for Workspace Pool "{pool_name}"')
+    target_name = attr
+    matched_targets = [target for target in targets if target_name == target.kind.name]
+    if not matched_targets:
+        raise TVMCException(f'Workspace Pool "{pool_name}" using undefined Target "{target_name}"')
+
+    return matched_targets
 
 
 def _split_pools(attr):
@@ -111,7 +121,7 @@ def _target_attributes_to_pools(attr, targets):
         return {}
 
     target_attributes = {}
-    for pool_values in re.split(",", attr):
+    for pool_values in re.split(",", attr[0]):
         pool_name, target_name, target_value = re.split(":", pool_values)
         if pool_name not in target_attributes:
             target_attributes[pool_name] = {}
@@ -121,40 +131,48 @@ def _target_attributes_to_pools(attr, targets):
             target_attributes[pool_name][matched_targets[0]] = target_value
         else:
             raise TVMCException(
-                "The workspace pool target specification for target access "
-                "needs to be the same TVM target as when specifying targets to use."
+                "The workspace pool target specification "
+                "needs to contain a subset of the same TVM "
+                "targets as when specifying targets to use."
             )
-
     return target_attributes
 
 
 def _attribute_to_pools(attr):
-    return dict(pool.split(":", maxsplit=1) for pool in re.split(",", attr)) if attr else {}
+    return dict(pool.split(":", maxsplit=1) for pool in re.split(",", attr[-1])) if attr else {}
 
 
-def workspace_pools_recombobulate(parsed, targets):
+def workspace_pools_recombobulate(parsed, targets, extra_target):
     """Reconstructs the Workspace Pools args and returns a WorkspaceMemoryPool object"""
     WORKSPACE_POOL_PARAMS = [
         "workspace_pools_size_hint_bytes",
-        "workspace_pools_target_access",
+        "workspace_pools_targets",
         "workspace_pools_clock_frequency_hz",
         "workspace_pools_read_bandwidth_bytes_per_cycle",
         "workspace_pools_write_bandwidth_bytes_per_cycle",
         "workspace_pools_read_latency_cycles",
         "workspace_pools_write_latency_cycles",
-        "workspace_pools_target_burst_bytes",
     ]
     WORKSPACE_POOL_TARGET_PARAMS = [
-        "workspace_pools_target_access",
         "workspace_pools_target_burst_bytes",
     ]
+
+    # Load extra targets from CLI
+    additional_targets = []
+
+    for t in extra_target:
+        additional_targets.append(Target(t["raw"], host=targets[0].host or targets[0]))
+
+    target = targets + additional_targets
+    if targets[0].host:
+        target.append(targets[0].host)
 
     workspace_pools = _split_pools(parsed.workspace_pools)
     pool_to_attributes = {
         workspace_pool_param: _attribute_to_pools(getattr(parsed, workspace_pool_param))
         for workspace_pool_param in WORKSPACE_POOL_PARAMS
     }
-    pool_to_target_attributes = {
+    pool_to_target_burst_bytes = {
         workspace_pool_param: _target_attributes_to_pools(
             getattr(parsed, workspace_pool_param), targets
         )
@@ -163,35 +181,37 @@ def workspace_pools_recombobulate(parsed, targets):
 
     return WorkspaceMemoryPools(
         [
-            PoolInfo(
+            WorkspacePoolInfo(
                 pool_name,
-                target_access=_parse_target_access(
-                    pool_to_target_attributes["workspace_pools_target_access"], pool_name
+                targets=_parse_target_access(
+                    pool_to_attributes["workspace_pools_targets"].get(pool_name), target, pool_name
                 ),
-                size_hint_bytes=int(
-                    pool_to_attributes["workspace_pools_size_hint_bytes"].get(pool_name, -1)
-                ),
-                clock_frequency_hz=int(
-                    pool_to_attributes["workspace_pools_clock_frequency_hz"].get(pool_name, -1)
-                ),
-                read_bandwidth_bytes_per_cycle=int(
-                    pool_to_attributes["workspace_pools_read_bandwidth_bytes_per_cycle"].get(
-                        pool_name, -1
-                    )
-                ),
-                write_bandwidth_bytes_per_cycle=int(
-                    pool_to_attributes["workspace_pools_write_bandwidth_bytes_per_cycle"].get(
-                        pool_name, -1
-                    )
-                ),
-                read_latency_cycles=int(
-                    pool_to_attributes["workspace_pools_read_latency_cycles"].get(pool_name, 0)
-                ),
-                write_latency_cycles=int(
-                    pool_to_attributes["workspace_pools_write_latency_cycles"].get(pool_name, 0)
-                ),
-                target_burst_bytes=_parse_target_burst(
-                    pool_to_target_attributes["workspace_pools_target_burst_bytes"], pool_name
+                pool_info_properties=PoolInfoProperties(
+                    size_hint_bytes=int(
+                        pool_to_attributes["workspace_pools_size_hint_bytes"].get(pool_name, -1)
+                    ),
+                    clock_frequency_hz=int(
+                        pool_to_attributes["workspace_pools_clock_frequency_hz"].get(pool_name, -1)
+                    ),
+                    read_bandwidth_bytes_per_cycle=int(
+                        pool_to_attributes["workspace_pools_read_bandwidth_bytes_per_cycle"].get(
+                            pool_name, -1
+                        )
+                    ),
+                    write_bandwidth_bytes_per_cycle=int(
+                        pool_to_attributes["workspace_pools_write_bandwidth_bytes_per_cycle"].get(
+                            pool_name, -1
+                        )
+                    ),
+                    read_latency_cycles=int(
+                        pool_to_attributes["workspace_pools_read_latency_cycles"].get(pool_name, 0)
+                    ),
+                    write_latency_cycles=int(
+                        pool_to_attributes["workspace_pools_write_latency_cycles"].get(pool_name, 0)
+                    ),
+                    target_burst_bytes=_parse_target_burst(
+                        pool_to_target_burst_bytes["workspace_pools_target_burst_bytes"], pool_name
+                    ),
                 ),
             )
             for pool_name in workspace_pools

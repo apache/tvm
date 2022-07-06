@@ -171,7 +171,7 @@ def test_tvmc_workspace_pools_check(mock_pkg, mock_relay, keras_simple, tmpdir_f
     package_path = os.path.join(tmpdir, "keras-tvm.tar")
     compile_str = (
         f"tvmc compile --target=llvm --workspace-pools=sram "
-        f"--workspace-pools-target-access=sram:llvm:rw "
+        f"--workspace-pools-targets=sram:llvm "
         f"--output={package_path} {keras_simple}"
     )
     compile_args = compile_str.split(" ")[1:]
@@ -179,9 +179,6 @@ def test_tvmc_workspace_pools_check(mock_pkg, mock_relay, keras_simple, tmpdir_f
     assert os.path.exists(package_path)
     assert mock_relay.call_count == 1
     assert mock_relay.call_args_list[0][1]["workspace_memory_pools"].pools[0].pool_name == "sram"
-    assert (
-        len(mock_relay.call_args_list[0][1]["workspace_memory_pools"].pools[0].target_access) == 1
-    )
 
 
 @pytest.fixture
