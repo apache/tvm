@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+import pathlib
 
 import tvm
 from tests.python.contrib.test_uma.test_uma_utils import _create_schedule, _generate_io_arrays
@@ -36,7 +37,11 @@ def _conv2d_te_definition(shapes: dict) -> list:
 
 def _pepare_conv2d_schedule(shapes, use_external_conv2d_impl=True):
     placeholders = _conv2d_te_definition(shapes)
-    with open("../../../../python/tvm/relay/backend/contrib/uma/_template/conv2dnchw.cpp") as f:
+
+    uma_path = pathlib.Path(str(tvm.relay.backend.contrib.uma.__file__)).parent.absolute()
+    conv2d_file = uma_path / "_template" / "conv2dnchw.cpp"
+
+    with conv2d_file.open() as f:
         sch_tir = _create_schedule(placeholders, f, use_external_conv2d_impl=use_external_conv2d_impl)
     return placeholders, sch_tir
 

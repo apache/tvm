@@ -17,11 +17,13 @@
 """UMA codegen for the my_ai_hw accelerator"""
 
 import tvm
-
+import pathlib
 
 def gen_includes() -> str:
+    topdir = pathlib.Path(__file__).parent.absolute()
+    
     includes = ""
-    includes += "#include \"../../../python/tvm/relay/backend/contrib/uma/_template/conv2dnchw.cpp\""
+    includes += f"#include \"{topdir}/conv2dnchw.cpp\""
     return includes
 
 
