@@ -347,7 +347,7 @@ class ConstraintContext {
   /*! \brief The constraint */
   PrimExpr constraint_;
   /*! \brief function to be called in recovery */
-  std::function<void()> exit_;
+  std::vector<std::function<void()>> recovery_functions_;
 };
 
 /*!

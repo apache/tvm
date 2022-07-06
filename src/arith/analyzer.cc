@@ -66,24 +66,22 @@ void Analyzer::Bind(const Map<Var, Range>& variables, bool allow_override) {
 }
 
 void ConstraintContext::EnterWithScope() {
-  ICHECK(exit_ == nullptr);
+  ICHECK(recovery_functions_.size() == 0);
   // entering the scope.
-  auto f0 = analyzer_->const_int_bound.EnterConstraint(constraint_);
-  auto f1 = analyzer_->modular_set.EnterConstraint(constraint_);
-  auto f2 = analyzer_->rewrite_simplify.EnterConstraint(constraint_);
-  auto f3 = analyzer_->int_set.EnterConstraint(constraint_);
-  // recovery function.
-  exit_ = [f0, f1, f2, f3]() {
-    if (f3 != nullptr) f3();
-    if (f2 != nullptr) f2();
-    if (f1 != nullptr) f1();
-    if (f0 != nullptr) f0();
-  };
+  recovery_functions_.push_back(analyzer_->const_int_bound.EnterConstraint(constraint_));
+  recovery_functions_.push_back(analyzer_->modular_set.EnterConstraint(constraint_));
+  recovery_functions_.push_back(analyzer_->rewrite_simplify.EnterConstraint(constraint_));
+  recovery_functions_.push_back(analyzer_->int_set.EnterConstraint(constraint_));
 }
 
 void ConstraintContext::ExitWithScope() {
-  ICHECK(exit_ != nullptr);
-  exit_();
+  while (recovery_functions_.size()) {
+    auto& func = recovery_functions_.back();
+    if (func) {
+      func();
+    }
+    recovery_functions_.pop_back();
+  }
 }
 
 bool Analyzer::CanProveGreaterEqual(const PrimExpr& expr, int64_t lower_bound) {
