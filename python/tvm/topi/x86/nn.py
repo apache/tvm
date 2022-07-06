@@ -48,28 +48,26 @@ def _schedule_softmax(softmax_op, s, outs):
             )
         )
 
+    output = outs[0]
+
     # only parallelize outer dimensions up to axis
-    outer_axes = [s[softmax_op].op.axis[i] for i in range(0, axis)]
-    fused_outer_axes = s[softmax_op].fuse(*outer_axes)
-    s[softmax_op].parallel(fused_outer_axes)
+    outer_axes = [s[output].op.axis[i] for i in range(0, axis)]
+    fused_outer_axes = s[output].fuse(*outer_axes)
+    s[output].parallel(fused_outer_axes)
+
+    if softmax_op != outs[0].op:
+        # fuse softmax output with following elemwise ops.
+        s[softmax_op].compute_at(s[output], fused_outer_axes)
 
     # move computations with the same outer dimensions under the same root
-    s[max_elem].compute_at(s[softmax_op], fused_outer_axes)
-    s[expsum].compute_at(s[softmax_op], fused_outer_axes)
+    s[max_elem].compute_at(s[output], fused_outer_axes)
+    s[expsum].compute_at(s[output], fused_outer_axes)
 
     if delta is not None:
         s[exp].compute_inline()
         s[delta].compute_inline()
     if exp is not None:
-        s[exp].compute_at(s[softmax_op], fused_outer_axes)
-
-    if softmax_op != outs[0].op:
-        # fuse softmax output with following elemwise ops.
-        output = outs[0]
-        outer_axes = [s[output].op.axis[i] for i in range(0, axis)]
-        fused_outer_axes = s[output].fuse(*outer_axes)
-        s[output].parallel(fused_outer_axes)
-        s[softmax_op].compute_at(s[output], fused_outer_axes)
+        s[exp].compute_at(s[output], fused_outer_axes)
 
 
 def schedule_softmax(outs):
