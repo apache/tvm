@@ -15,5 +15,31 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
+import tvm
 
-# TODO: cgerum
+@pytest.mark.parametrize(
+    "target_name,target_attrs,target_args",
+    [("my_hwa", {}, {}),
+     ("my_hwa2", {"local_memory_size": 128*1024}, {"local_memory_size": 256*1024})]
+)
+def test_uma_target(target_name, target_attrs, target_args):
+    registration_func = tvm.get_global_func("relay.backend.contrib.uma.RegisterTarget")
+    registration_func(target_name, target_attrs)
+
+    # Test Defaults
+    my_target = tvm.target.Target(target_name)
+
+    assert str(my_target.kind) == target_name
+    
+    for attr in target_attrs.keys():
+        assert my_target.attrs[attr] == target_attrs[attr]
+
+
+    # Test with parameters overwritten
+
+    args = " ".join((F"--{k}={v}" for k,v in target_args.items()))
+    my_target = tvm.target.Target(f"{target_name} {args}")
+
+    for attr in target_args.keys():
+        assert my_target.attrs[attr] == target_args[attr]
