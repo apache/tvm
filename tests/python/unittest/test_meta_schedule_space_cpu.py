@@ -48,11 +48,11 @@ def test_cpu_c1d():
             for i0_0, i1_0, i2_0, i0_1_1, i1_1_1, i2_1_1 in T.grid(1, 1, 2, 1, 1, 8):
                 for i3_0, i4_0, i0_2, i1_2, i2_2, i3_1, i4_1, i0_3, i1_3, i2_3 in T.grid(1, 64, 1, 64, 8, 3, 1, 1, 2, 1):
                     with T.block("conv1d_nlc"):
-                        n = T.axis.spatial(1, i0_0 + i0_1_1 + i0_2 + i0_3)
-                        l = T.axis.spatial(128, i1_1_1 * 128 + i1_0 * 128 + i1_2 * 2 + i1_3)
-                        co = T.axis.spatial(128, (i2_0 * 8 + i2_1_1) * 8 + i2_2 + i2_3)
+                        n = T.axis.spatial(1, i0_1_1 + i0_2 + i0_3 + i0_0)
+                        l = T.axis.spatial(128, i1_0 * 128 + i1_1_1 * 128 + i1_2 * 2 + i1_3)
+                        co = T.axis.spatial(128, i2_3 + i2_0 * 64 + i2_1_1 * 8 + i2_2)
                         rl = T.axis.reduce(3, i3_0 * 3 + i3_1)
-                        rc = T.axis.reduce(64, i4_0 + i4_1)
+                        rc = T.axis.reduce(64, i4_1 + i4_0)
                         T.reads(PadInput[n, l * 2 + rl, co // 128 * 64 + rc], weight[rl, rc, co])
                         T.writes(conv1d_nlc_global[n, l, co])
                         T.block_attr({"meta_schedule.tiling_structure":"SSRSRS"})
@@ -89,11 +89,11 @@ def test_cpu_c1d():
                             PadInput[i0, i1, i2] = T.if_then_else(1 <= i1 and i1 < 257, inputs[i0, i1 - 1, i2], T.float32(0), dtype="float32")
                     for i3_0, i4_0, i0_2, i1_2, i2_2, i3_1, i4_1, i0_3, i1_3, i2_3 in T.grid(1, 64, 1, 64, 8, 3, 1, 1, 2, 1):
                         with T.block("conv1d_nlc"):
-                            n = T.axis.spatial(1, i0_0 + i0_1 + i0_2 + i0_3)
-                            l = T.axis.spatial(128, i1_1 * 128 + i1_0 * 128 + i1_2 * 2 + i1_3)
-                            co = T.axis.spatial(128, (i2_0 * 8 + i2_1) * 8 + i2_2 + i2_3)
+                            n = T.axis.spatial(1, i0_1 + i0_2 + i0_3 + i0_0)
+                            l = T.axis.spatial(128, i1_0 * 128 + i1_1 * 128 + i1_2 * 2 + i1_3)
+                            co = T.axis.spatial(128, i2_3 + i2_0 * 64 + i2_1 * 8 + i2_2)
                             rl = T.axis.reduce(3, i3_0 * 3 + i3_1)
-                            rc = T.axis.reduce(64, i4_0 + i4_1)
+                            rc = T.axis.reduce(64, i4_1 + i4_0)
                             T.reads(PadInput[n, l * 2 + rl, co // 128 * 64 + rc], weight[rl, rc, co])
                             T.writes(conv1d_nlc_global[n, l, co])
                             T.block_attr({"meta_schedule.tiling_structure":"SSRSRS"})
@@ -107,7 +107,7 @@ def test_cpu_c1d():
                         T.reads(conv1d_nlc_global[v0, v1, v2])
                         T.writes(conv1d_nlc[v0, v1, v2])
                         conv1d_nlc[v0, v1, v2] = conv1d_nlc_global[v0, v1, v2]
-                        
+
     @T.prim_func
     def c1d_2(inputs: T.Buffer[(1, 256, 64), "float32"], weight: T.Buffer[(3, 64, 128), "float32"], conv1d_nlc: T.Buffer[(1, 128, 128), "float32"]) -> None:
         # function attr dict
@@ -119,11 +119,11 @@ def test_cpu_c1d():
             T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":16, "meta_schedule.vectorize":64})
             for i0_0, i1_0, i2_0, i0_1, i1_1, i2_1, i3_0, i4_0, i0_2, i1_2, i2_2, i3_1, i4_1, i0_3, i1_3, i2_3 in T.grid(1, 1, 2, 1, 1, 8, 1, 64, 1, 64, 8, 3, 1, 1, 2, 1):
                 with T.block("conv1d_nlc"):
-                    n = T.axis.spatial(1, i0_0 + i0_1 + i0_2 + i0_3)
-                    l = T.axis.spatial(128, i1_1 * 128 + i1_0 * 128 + i1_2 * 2 + i1_3)
-                    co = T.axis.spatial(128, (i2_0 * 8 + i2_1) * 8 + i2_2 + i2_3)
+                    n = T.axis.spatial(1, i0_1 + i0_2 + i0_3 + i0_0)
+                    l = T.axis.spatial(128, i1_0 * 128 + i1_1 * 128 + i1_2 * 2 + i1_3)
+                    co = T.axis.spatial(128, i2_3 + i2_0 * 64 + i2_1 * 8 + i2_2)
                     rl = T.axis.reduce(3, i3_0 * 3 + i3_1)
-                    rc = T.axis.reduce(64, i4_0 + i4_1)
+                    rc = T.axis.reduce(64, i4_1 + i4_0)
                     T.reads(inputs[n, l * 2 + rl - 1, co // 128 * 64 + rc], weight[rl, rc, co])
                     T.writes(conv1d_nlc[n, l, co])
                     T.block_attr({"meta_schedule.tiling_structure":"SSRSRS"})
