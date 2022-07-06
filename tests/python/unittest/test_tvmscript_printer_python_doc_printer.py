@@ -47,9 +47,6 @@ def format_script(s: str) -> str:
         (LiteralDoc(-1), "-1"),
         (LiteralDoc(3.25), "3.25"),
         (LiteralDoc(-0.5), "-0.5"),
-        # TODO: make the float number printing preserve percision and roundtrippable
-        pytest.param(LiteralDoc(0.0), "0.0", marks=pytest.mark.xfail),
-        pytest.param(LiteralDoc(3.14), "3.14", marks=pytest.mark.xfail),
     ],
 )
 def test_print_literal_doc(doc, expected):
