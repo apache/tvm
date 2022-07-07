@@ -2862,6 +2862,14 @@ def test_forward_embedding():
     verify_model(torch.nn.Embedding(4, 5, sparse=True).float().eval(), input_data=input_data)
 
 
+def test_embedding_bag():
+    embedding_matrix = torch.rand(10, 3)
+    inp = torch.tensor([[1, 2, 4, 5], [4, 3, 2, 9], [6, 7, 8, 9]])
+    verify_model(
+        F.embedding_bag,
+        [inp, embedding_matrix],
+    )
+
 @tvm.testing.uses_gpu
 def test_forward_onehot():
     torch.set_grad_enabled(False)

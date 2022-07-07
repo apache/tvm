@@ -43,6 +43,7 @@ from . import qnn_torch
 from .common import AttrCvt, get_relay_op, gru_cell, logger, rnn_cell
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
+from .common import fold_constant as _fold_constant
 from .common import infer_value_simulated as _infer_value_simulated
 from .common import lstm_cell, try_infer_value, unbind
 from .pytorch_utils import is_version_greater_than, getattr_attr_name
@@ -2247,6 +2248,61 @@ class PyTorchOpConverter:
 
         return _op.take(weight, indices.astype("int32"), axis=0)
 
+    def embedding_bag(self, inputs, _):
+        assert len(inputs) == 9, "embedding_bag needs 9 arguments"
+        (
+            weights,
+            indices,
+            offsets_1d,
+            scale_grad_by_freq,
+            mode,
+            sparse,
+            per_sample_weights,
+            include_last_offset,
+            padding_idx,
+        ) = inputs
+
+        assert scale_grad_by_freq == 0, "scale_grad_by_freq not supported in embedding_bag."
+        assert padding_idx == None, "padding_idx not supported in embedding_bag."
+
+        assert len(infer_shape(indices)) == 1, "Expects 1D indices for aten::embedding_bag."
+
+        offsets_const_fold = fold_constant(offsets_1d)
+
+        assert isinstance(
+            offsets_const_fold, _expr.Constant
+        ), "Only constant offsets are supported."
+
+        offsets_np = offsets_const_fold.data.numpy()
+        if include_last_offset == 1:
+            offsets_np = offsets_np[..., 0]  # exclude last dimension
+        offsets_diff = np.diff(offsets_np)
+
+        assert np.all(offsets_diff[1:] == offsets_diff[0]), "Only 2D cases supported for now."
+
+        indices_2d = _op.reshape(indices, (-1, offsets_diff[0]))
+
+        mode_map = {0: _op.sum, 1: _op.mean, 2: _op.max}
+        assert mode in mode_map, "unsupported reduction op mode %d." % mode
+
+        reduce_op = mode_map[mode]
+
+        # TOOD(masahi): Implementing embedding_bag in terms of gather and reduce defeats the
+        # purpose of using this op. Implement Relay / topi op for fused gather and reduce.
+        gather = _op.take(weights, indices_2d, axis=0)
+        if per_sample_weights is not None:
+            if mode != 0:
+                raise NotImplementedError(
+                    "Only mode 'sum' is supported when per_sample_weights is passed."
+                )
+            gather = gather * per_sample_weights
+        reduced = reduce_op(gather, 1)
+        # pytorch/aten/src/ATen/native/EmbeddingBag.cpp shows that aten::embedding_bag returns
+        # 4 outputs: output, offset2bag, bag_size, max_indices
+        # The Python version of the op only returns the first output, so we also support only the
+        # first output. If the model uses other outputs, the conversion would fail.
+        return reduced, None, None, None
+
     def one_hot(self, inputs, input_types):
         indices = inputs[0].astype("int32")
         num_classes = inputs[1]
@@ -2490,6 +2546,12 @@ class PyTorchOpConverter:
         )
 
     def numel(self, inputs, input_types):
+        shape = self.infer_shape(inputs[0])
+        if isinstance(shape, tuple):
+            res = 1
+            for s in shape:
+                res *= s
+            return _op.const(res, dtype="int32")
         return _op.ndarray_size(inputs[0])
 
     def empty(self, inputs, input_types):
@@ -3579,6 +3641,7 @@ class PyTorchOpConverter:
             "aten::Float": self.Float,
             "aten::rsub": self.rsub,
             "aten::embedding": self.embedding,
+            "aten::embedding_bag": self.embedding_bag,
             "aten::one_hot": self.one_hot,
             "aten::mm": self.matmul,
             "aten::add": self.add,
