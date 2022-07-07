@@ -20,6 +20,7 @@ from typing import List, Optional, Tuple
 from tvm.ir import IRModule, structural_equal
 from tvm.tir import Schedule
 from tvm.tir.schedule import Trace
+from tvm.tir.schedule.testing import verify_trace_roundtrip
 
 
 def check_trace(spaces: List[Schedule], expected: List[List[str]]):
@@ -58,6 +59,7 @@ def _find_match_sketch_id(
             decisions=new_decisions,
         ).apply_to_schedule(sch, remove_postproc=True)
         if structural_equal(sch.mod, expected_mod):
+            verify_trace_roundtrip(sch=sch, mod=mod)
             return sketch_id
     return None
 
