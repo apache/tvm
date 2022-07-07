@@ -23,7 +23,7 @@ from tvm.ir import IRModule
 from tvm.runtime import Object
 from tvm.target import Target
 from tvm.te import Tensor
-from tvm.tir import PrimFunc, Schedule
+from tvm.tir import PrimFunc
 
 from . import _ffi_api
 from .database import Database, TuningRecord
