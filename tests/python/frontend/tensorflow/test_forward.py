@@ -37,6 +37,20 @@ import tvm
 import tvm.relay.testing.tf as tf_testing
 import tvm.testing
 
+from tensorflow.python.framework import constant_op
+from tensorflow.python.framework import graph_util
+from tensorflow.python.ops import nn_ops
+from tensorflow.python.ops import nn
+from tensorflow.python.ops import array_ops
+from tensorflow.python.ops import math_ops
+from tensorflow.python.ops import variable_scope
+from tensorflow.python.ops import variables
+from tensorflow.python.ops import init_ops
+from tensorflow.python.framework import function
+from tensorflow.python.framework import ops
+from tensorflow.python.framework import dtypes
+from tensorflow.python.ops import gen_functional_ops
+
 try:
     import tensorflow.compat.v1 as tf
 
@@ -4703,7 +4717,7 @@ def test_forward_reduce():
             compare_tf_with_tvm([np_data], ["in_data:0"], reduce_op.name)
 
     def _test_math_op(op, dtypes=["int32", "float32"]):
-        # pylint: disable=dangerous-default-value
+        # pylint: disable=dangerous-default-value, redefined-outer-name
         for dtype in dtypes:
             _check_op(op, (3, 10), axis=(-1), keepdims=False, dtype=dtype)
             _check_op(op, (8, 16, 32), axis=(-1), keepdims=False, dtype=dtype)
@@ -4747,7 +4761,7 @@ def test_forward_raw_reduce():
             compare_tf_with_tvm([np_data], ["in_data:0"], reduce_op.name)
 
     def _test_raw_reduce_op(op, dtypes=["int32", "float32"]):
-        # pylint: disable=dangerous-default-value
+        # pylint: disable=dangerous-default-value, redefined-outer-name
         for dtype in dtypes:
             _check_op(op, (3, 10), axis=(-1), keepdims=False, dtype=dtype)
             _check_op(op, (8, 16, 32), axis=(-1), keepdims=False, dtype=dtype)
