@@ -562,13 +562,9 @@ class IntImm(ConstExpr):
         return self.value != 0
 
     def __eq__(self, other):
-        if not isinstance(other, IntImm):
-            return False
         return _ffi_api._OpEQ(self, other, None)  # type: ignore
 
     def __ne__(self, other):
-        if not isinstance(other, IntImm):
-            return True
         return _ffi_api._OpNE(self, other, None)  # type: ignore
 
     def __bool__(self):
