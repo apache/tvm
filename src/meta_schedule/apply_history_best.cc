@@ -104,7 +104,8 @@ ApplyHistoryBest::ApplyHistoryBest(Database database,
 
 Optional<IRModule> ApplyHistoryBestNode::Query(runtime::String task_name, IRModule mod,
                                                Target target, Optional<Array<IRModule>> dispatched,
-                                               FTakeTuningRecord f_take_tuning_record) {
+                                               FTakeTuningRecord f_take_tuning_record,
+                                               FDirectDispatch f_direct_dispatch) {
   ICHECK(dispatched.defined());
   ICHECK_EQ(dispatched.value().size(), 1);
   ICHECK(HasOnlyOneFunction<relay::Function>(mod)) << mod;
@@ -119,6 +120,13 @@ Optional<IRModule> ApplyHistoryBestNode::Query(runtime::String task_name, IRModu
   ICHECK(parse_mod_func) << "Parse mod function not defined!";
   prim_mod = (*parse_mod_func)(prim_mod);
 
+  if (f_direct_dispatch != nullptr) {
+    Optional<IRModule> mod = f_direct_dispatch(prim_mod);
+    if (mod.defined()) {
+      TVM_PY_LOG(INFO, logging_func) << "Direct dispatch applied for workload: " << task_name;
+      return mod.value();
+    }
+  }
   if (database->HasWorkload(prim_mod)) {
     Array<TuningRecord> records = database->GetTopK(database->CommitWorkload(prim_mod), 1);
     if (records.size() == 1) {
