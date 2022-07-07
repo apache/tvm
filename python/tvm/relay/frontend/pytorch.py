@@ -2287,7 +2287,7 @@ class PyTorchOpConverter:
 
         reduce_op = mode_map[mode]
 
-        # TOOD(masahi): Implementing embedding_bag in terms of gather and reduce defeats the
+        # TODO(masahi): Implementing embedding_bag in terms of gather and reduce defeats the
         # purpose of using this op. Implement Relay / topi op for fused gather and reduce.
         gather = _op.take(weights, indices_2d, axis=0)
         if per_sample_weights is not None:
