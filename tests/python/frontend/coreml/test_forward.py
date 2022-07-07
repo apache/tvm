@@ -21,6 +21,7 @@ CoreML testcases
 This article is a test script to test CoreML operator with Relay.
 """
 from os import path
+from enum import Enum
 import tempfile
 import numpy as np
 
@@ -580,7 +581,6 @@ def test_forward_unary():
 @tvm.testing.uses_gpu
 def test_forward_reduce():
     """Reduce"""
-    from enum import Enum
 
     class ReduceAxis(Enum):
         CHW = 0
