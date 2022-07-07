@@ -2286,16 +2286,28 @@ def _test_elemwise(
                 out = math_op(inq_data[0], inq_data[1])
                 out = with_fused_activation_function(out, fused_activation_function)
 
-            # Note same_qnn_params uses experimental_new_converter as toco failed
-            compare_tflite_with_tvm(
-                [x[1] for x in zip(in_data, data) if x[0] is not None],
-                [x + ":0" for x in input_range.keys()],
-                [x[1] for x in zip(in_data, inq_data) if x[0] is not None],
-                [out],
-                quantized=True,
-                input_range=input_range,
-                experimental_new_converter=same_qnn_params,
-            )
+                compare_tflite_with_tvm(
+                    [x[1] for x in zip(in_data, data) if x[0] is not None],
+                    [x + ":0" for x in input_range.keys()],
+                    [x[1] for x in zip(in_data, inq_data) if x[0] is not None],
+                    [out],
+                )
+            else:
+                out = math_op(inq_data[0], inq_data[1])
+                out = with_fused_activation_function(out, fused_activation_function)
+                out = tf.quantization.fake_quant_with_min_max_args(
+                    out, min=out_min, max=out_max, name="out"
+                )
+                # Note same_qnn_params uses experimental_new_converter as toco failed
+                compare_tflite_with_tvm(
+                    [x[1] for x in zip(in_data, data) if x[0] is not None],
+                    [x + ":0" for x in input_range.keys()],
+                    [x[1] for x in zip(in_data, inq_data) if x[0] is not None],
+                    [out],
+                    quantized=True,
+                    input_range=input_range,
+                    experimental_new_converter=same_qnn_params,
+                )
         else:
             out = math_op(
                 in_data[0]
@@ -5055,6 +5067,8 @@ def test_forward_nms_v5():
 # Main
 # ----
 if __name__ == "__main__":
+    test_all_elemwise()
+    assert 0
     # BatchToSpaceND
     test_forward_batch_to_space_nd()
 
