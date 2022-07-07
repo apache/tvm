@@ -16,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 */
+#include <stdlib.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -31,9 +32,9 @@ int my_ai_hw_conv2dnchw(float* ifmap, float*  weights, float*  result,
   int padded_iw = iw + 2 * kw_low;
   int padded_ih = ih + 2 * kh_low;
 
-  float* pad_temp = new float[(((ic * padded_iw * padded_ih) + (padded_ih * padded_iw)) + padded_iw)];
+  float* pad_temp = (float*) malloc((((ic * padded_iw * padded_ih) + (padded_ih * padded_iw)) + padded_iw) * sizeof(float));
 
-  if (pad_temp == nullptr) {
+  if (pad_temp == NULL) {
     return -1;
   }
 
@@ -64,6 +65,6 @@ int my_ai_hw_conv2dnchw(float* ifmap, float*  weights, float*  result,
       }
     }
   }
-  delete[] pad_temp;
+  free(pad_temp);
   return 0;
 }

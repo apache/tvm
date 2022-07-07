@@ -1,25 +1,26 @@
 Making your hardware accelerator TVM-ready with UMA 
 =============================================
+
+**Disclaimer**: *This is an early preliminary version of this tutorial. Feel free to aks questions or give feedback via the UMA thread in the TVM
+discussion forum [[link](https://discuss.tvm.apache.org/t/rfc-uma-universal-modular-accelerator-interface/12039)].*
+
+
 This tutorial will give you step-by-step guidance how to use UMA to
 make your hardware accelerator TVM-ready.
 While there is no one-fits-all solution for this problem, UMA targets to provide a stable and Python-only
 API to integrate a number of hardware accelerator classes into TVM.
 
 In this tutorial you will get to know the UMA API in three use cases of increasing complexity.
-We call the accelerators in these cases **Vanilla**, **Strawberry** and **Chocolate**. 
+In these use case the three mock-accelerators
+**Vanilla**, **Strawberry** and **Chocolate** are introduced and
+integrated into TVM using UMA. 
 
-Prerequisites
----
-
-```
-git clone https://github.com/apache/tvm.git
-pip install 
-```
 
 Vanilla
 ===
-**Vanilla** is a simple accelerator consisting of a MAC array, that can ONLY process Conv2D layers.
-All other layers are executed on a CPU, that also orchestrates **Vanilla**.
+**Vanilla** is a simple accelerator consisting of a MAC array and has no internal memory.
+It is can ONLY process Conv2D layers, all other layers are executed on a CPU, that also orchestrates **Vanilla**.
+Both the CPU and Vanilla use a shared memory.
 
 For this purpose **Vanilla** has a C interface `vanilla_conv2dnchw`, that accepts pointers to input data *if_map*,
 *weights* and *result* data, as well as the parameters of `Conv2D`: `oc`, `iw`, `ih`, `ic`, `kh`, `kw`.
@@ -27,21 +28,24 @@ For this purpose **Vanilla** has a C interface `vanilla_conv2dnchw`, that accept
 int vanilla_conv2dnchw(float* ifmap, float*  weights, float*  result, int oc, int iw, int ih, int ic, int kh, int kw);
 ```
 
-The script `uma_cli` creates you code skeletons with API-calls into the UMA-API for your accelerator.
+The script `uma_cli` creates code skeletons with API-calls into the UMA-API for new accelerators.
+For **Vanilla** we use it like this:
 
 ```
 cd tvm/python/tvm/relay/backend/contrib/uma
-python uma_cli.py --add-accelerator vanilla_accelerator --template vanilla
+python uma_cli.py --add-accelerator vanilla_accelerator --tutorial vanilla
 ```
-The option `--template vanilla` adds all the additional files required for this tutorial.
+The option `--tutorial vanilla` adds all the additional files required for this part of the tutorial.
 
 ```
 $ ls tvm/python/tvm/relay/backend/contrib/uma/vanilla_accelerator
 
 backend.py
 codegen.py
+conv2dnchw.cpp
 passes.py
 patterns.py
+run.py
 strategies.py
 ```
 
@@ -49,7 +53,7 @@ Step 1: Vanilla backend
 ---
 This snippet is a full backed for **Vanilla**:
 ```python
-class VanillaAccelerator(UMABackend):
+class VanillaAcceleratorBackend(UMABackend):
     """UMA backend for VanillaAccelerator."""
 
     def __init__(self):
@@ -79,9 +83,10 @@ def conv2d_pattern():
     return pattern
 ```
 
-To map Conv2D operations from Tensorflow input files to **Vanilla**'s 
-low level function call, we are using the TIR pass 
-*VanillaAcceleratorConv2DPass* (that will be discussed later in this tutorial).
+To map **Conv2D** operations from input graph  to **Vanilla**'s 
+low level function call, TIR pass 
+*VanillaAcceleratorConv2DPass* (that will be discussed later in this tutorial)
+is registered in `VanillaAcceleratorBackend`.
 
 Step 3: Modify Codegen
 ---
@@ -90,8 +95,8 @@ self._register_codegen(fmt="c", includes=gen_includes)
 ```
 
 We tell TVM to create C code using ``fmt="c"`` via 
-`self._register_codegen`. Since we specified `Conv2D` layers to be called via our 
-own implementation `vanilla_conv2dnchw(...)`, the TVM generated C code also require an
+`self._register_codegen`. As `Conv2D` layers should be executed via Vanilla's
+C interface `vanilla_conv2dnchw(...)`, the TVM generated C code also require an
 `#include` statement.
 
 This is done by providing the include-string like this:
@@ -105,13 +110,26 @@ def gen_includes() -> str:
 ```        
 
 
-Step 4: Build the NN
+Step 4: Building the Neural Network and run it on Vanilla
 ---
-Now we are going to generate C code for an MNIST-12 NN using.
-For this, run `vanilla_accelerator/run.py`.
-This creates the directory `build` that contains the generated data in the model library format (MLF).
+In this step we generate C code for a single Conv2D layer and run it on
+the Vanilla accelerator.
+The file `vanilla_accelerator/run.py` provides a demo running a Conv2D layer 
+making use of Vanilla's C-API.
+
+By running `vanilla_accelerator/run.py` the output files are generated in the model library format (MLF).
+
+
+Output:
 ```
-$cd build/
+Generated files are in /tmp/tvm-debug-mode-tempdirs/2022-07-13T13-26-22___x5u76h0p/00000
+```
+
+Let's examine the generated files:
+
+```
+$ cd /tmp/tvm-debug-mode-tempdirs/2022-07-13T13-26-22___x5u76h0p/00000
+$ cd build/
 $ ls -1
 codegen
 lib.tar
@@ -120,17 +138,31 @@ parameters
 runtime
 src
 ```
-To evaluate the generated C code go to 
+To evaluate the generated C code go to `codegen/host/src/`
 ```
 $ cd codegen/host/src/
 $ ls -1
 default_lib0.c
 default_lib1.c
 default_lib2.c
-default_lib3.c
+```
+In `default_lib2.c` you can now see that the generated code calls
+into Vanilla's C-API
+```c
+TVM_DLL int32_t tvmgen_default_vanilla_accelerator_main_0(float* placeholder, float* placeholder1, float* conv2d_nchw, uint8_t* global_workspace_1_var) {
+  vanilla_accelerator_conv2dnchw(placeholder, placeholder1, conv2d_nchw, 32, 14, 14, 32, 3, 3);
+  return 0;
+}
 ```
 
-Run a 
+
+Strawberry
+---
+TBD
+
+Chocolate
+---
+TBD
 
 More
 ---

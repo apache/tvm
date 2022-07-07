@@ -14,27 +14,44 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+import pytest
 from tvm.micro.testing.aot_test_utils import AOT_DEFAULT_RUNNER
-
-from tvm.testing.aot import compile_and_run, AOTTestModel, AOTTestRunner
-
-import tvm
-from tvm import relay
-from tvm.relay.backend.contrib.uma._template.backend import MyAiHwBackend
 from tvm.relay import transform
-from collections import OrderedDict
-
-import numpy as np
-import tarfile
-from pathlib import Path
-import onnx
-
 from tvm.testing.aot import (
     AOTTestModel,
     AOTTestRunner,
     generate_ref_data,
     compile_and_run,
 )
+
+import tvm
+from test_uma_vanilla_accelerator import VanillaAcceleratorBackend
+from tvm import relay
+import numpy as np
+from collections import OrderedDict
+
+
+@pytest.mark.parametrize(
+    "interface_api,use_unpacked_api,test_runner,groups,weight_shape",
+    [("c", True, AOT_DEFAULT_RUNNER, 1, 32)],
+)
+def test_conv2d(interface_api, use_unpacked_api, test_runner, groups, weight_shape):
+    """Test a subgraph with a single conv2d operator."""
+    mod, inputs, output_list, test_runner = create_conv2d(groups, test_runner, weight_shape)
+
+    uma_backend = VanillaAcceleratorBackend()
+    uma_backend.register()
+    mod = uma_backend.partition(mod)
+    target = tvm.target.Target("vanilla_accelerator", host=tvm.target.Target("c"))
+
+    compile_and_run(
+        AOTTestModel(module=mod, inputs=inputs, outputs=output_list),
+        test_runner,
+        interface_api,
+        use_unpacked_api,
+        target=target
+    )
 
 
 def create_conv2d(groups=1, test_runner=AOT_DEFAULT_RUNNER, weight_shape=32):
@@ -64,25 +81,23 @@ def create_conv2d(groups=1, test_runner=AOT_DEFAULT_RUNNER, weight_shape=32):
     return mod, inputs, output_list, test_runner
 
 
-def main():
-    mod, inputs, output_list, test_runner = create_conv2d()
+def _generate_runtime_data(
+    input_shapes: dict, output_shapes: dict
+) -> [OrderedDict, OrderedDict]:
+    assert len(input_shapes) == 1
+    assert len(output_shapes) == 1
 
-    uma_backend = MyAiHwBackend()
-    uma_backend.register()
-    mod = uma_backend.partition(mod)
-    target = tvm.target.Target("my_ai_hw", host=tvm.target.Target("c"))
-
-    export_directory = tvm.contrib.utils.tempdir(keep_for_debug=True).path
-    print(f"Generated files are in {export_directory}")
-    compile_and_run(
-        AOTTestModel(module=mod, inputs=inputs, outputs=output_list),
-        test_runner,
-        interface_api="c",
-        use_unpacked_api=True,
-        target=target,
-        test_dir=str(export_directory)
-    )
+    iname = list(input_shapes.keys())[0]
+    oname = list(output_shapes.keys())[0]
+    ishape = input_shapes[iname]
+    oshape = output_shapes[oname]
+    i_data = np.random.uniform(0, 1, ishape).astype("float32")
+    o_data = np.random.uniform(0, 1, oshape).astype("float32")
+    oname = "output"  # name set by relay.build in executor_codegen_metadata.outputs
+    inputs = OrderedDict([(iname, i_data)])
+    outputs = OrderedDict([(oname, o_data)])
+    return inputs, outputs
 
 
 if __name__ == "__main__":
-    main()
+    test_conv2d()
