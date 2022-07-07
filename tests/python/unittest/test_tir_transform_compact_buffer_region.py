@@ -26,8 +26,6 @@ def _check(original, transformed):
     mod = tvm.tir.transform.CompactBufferAllocation()(mod)
     mod = tvm.tir.transform.Simplify()(mod)
     transformed = tvm.tir.transform.Simplify()(tvm.IRModule.from_expr(transformed))["main"]
-
-    print(mod.script())
     tvm.ir.assert_structural_equal(mod["main"], transformed)
 
 
