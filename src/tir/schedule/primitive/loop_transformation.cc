@@ -398,16 +398,20 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref, const Array
   CheckLoopStartsWithZero(self, loop_sref, &analyzer);
 
   // Find the most common dtype
-  DataType dtype = loop->loop_var.dtype();
+  DataType dtype;
+  {
+    int bits = loop->loop_var.dtype().bits();
+    for (const PrimExpr& factor : factors) {
+      bits = std::max(bits, factor.dtype().bits());
+    }
+    dtype = DataType::Int(bits);
+  }
   int n = factors.size();
   PrimExpr substitute_value = make_const(dtype, 0);
   std::vector<Var> new_loop_vars;
   new_loop_vars.reserve(n);
   for (int i = 0; i < n; i++) {
-    PrimExpr factor = factors[i];
-    if (factor.dtype().bits() > dtype.bits()) {
-      factor = IntImm(dtype, factors[i].as<IntImmNode>()->value);
-    }
+    const PrimExpr& factor = factors[i];
     Var var = loop->loop_var.copy_with_suffix("_" + std::to_string(i)).copy_with_dtype(dtype);
     substitute_value = substitute_value * factor + var;
     analyzer.Bind(var, Range::FromMinExtent(make_const(dtype, 0), tvm::cast(dtype, factor)));
@@ -431,11 +435,7 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref, const Array
   }
   // Step 4. Generate nested loops to replace the original loop and simplify the binding
   for (int i = n - 1; i >= 0; i--) {
-    PrimExpr factor = factors[i];
-    if (factor.dtype().bits() > dtype.bits()) {
-      factor = IntImm(dtype, factors[i].as<IntImmNode>()->value);
-    }
-    new_stmt = For(new_loop_vars[i], 0, factor, ForKind::kSerial, new_stmt);
+    new_stmt = For(new_loop_vars[i], 0, factors[i], ForKind::kSerial, new_stmt);
   }
   new_stmt = IterMapSimplifyBlockBinding::SimplifyBindings(std::move(new_stmt), GetLoops(loop_sref),
                                                            opaque_block_reuse.CopyOnWrite(),
