@@ -2870,6 +2870,7 @@ def test_embedding_bag():
         [inp, embedding_matrix],
     )
 
+
 @tvm.testing.uses_gpu
 def test_forward_onehot():
     torch.set_grad_enabled(False)
