@@ -281,6 +281,7 @@ tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
     src/parser/*.cc
     src/printer/*.cc
     src/support/*.cc
+    src/script/*.cc
     )
 
 tvm_file_glob(GLOB CODEGEN_SRCS
