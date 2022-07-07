@@ -357,7 +357,7 @@ class MergeConstantsMutator : public StmtExprMutator {
         }
       }
     }
-    return seq_stmt;
+    return std::move(seq_stmt);
   }
 
   Stmt rewrite_prim_func_body(Stmt body) {
@@ -465,7 +465,7 @@ class MergeConstantsMutator : public StmtExprMutator {
   int64_t get_stmt_cycle_counts(const Stmt& stmt) {
     auto attr{stmt.as<AttrStmtNode>()};
     if (attr && attr->attr_key == "pragma_compute_cycles_hint") {
-      int64_t cycle_count = Downcast<Integer>(attr->value);
+      int64_t cycle_count{Downcast<Integer>(attr->value)->value};
       return cycle_count;
     }
     return 0;
@@ -593,7 +593,7 @@ class MergeConstantsMutator : public StmtExprMutator {
       PrimExpr value = cycle_counts.value_or(attr->value);
       return AttrStmt{attr->node, attr->attr_key, value, new_eval, attr->span};
     } else {
-      return new_eval;
+      return std::move(new_eval);
     }
   }
 
