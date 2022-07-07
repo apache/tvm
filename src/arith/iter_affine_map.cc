@@ -2163,7 +2163,9 @@ class InverseAffineIterMapTransformer {
    *        descending order of lower_factor.
    */
   void CheckFusePattern(const IterSumExpr sum_expr) {
-    ICHECK(sum_expr->args.size());
+    if (sum_expr->args.empty()) {
+      return;
+    }
     PrimExpr expected_scale = sum_expr->args.back()->scale;
     for (size_t i = sum_expr->args.size(); i > 0; i--) {
       ICHECK(analyzer_->CanProveEqual(sum_expr->args[i - 1]->scale, expected_scale));
