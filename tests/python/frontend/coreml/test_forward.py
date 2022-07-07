@@ -210,7 +210,7 @@ def test_forward_concat_layer_params():
     verify_concat_layer_params((1, 2, 4, 4), (1, 3, 4, 4))
 
 
-def _verify_UpsampleLayerParams(input_dim, scale, mode):
+def _verify_upsample_layer_params(input_dim, scale, mode):
     dtype = "float32"
 
     a_np = np.full(input_dim, 1, dtype=dtype)
