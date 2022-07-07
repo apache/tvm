@@ -511,7 +511,7 @@ class IntSetAnalyzer::Impl {
   }
 
   IntSet Eval(const PrimExpr& expr) const {
-    return IntervalSetEvaluator(analyzer_, GetCurrentBounds()).Eval(expr);
+    return IntervalSetEvaluator(analyzer_, GetCurrentBounds(), true).Eval(expr);
   }
 
   void Bind(const Var& var, const Range& range, bool allow_override) {
