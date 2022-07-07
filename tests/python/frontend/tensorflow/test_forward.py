@@ -14,16 +14,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=import-self, invalid-name, unused-argument
+# pylint: disable=import-self, invalid-name, unused-argument, unused-variable, redefined-builtin
 """
 Tensorflow testcases
 ====================
 This article is a test script to test tensorflow operator with Relay.
 """
 from __future__ import print_function
+from distutils.version import LooseVersion
+
 import threading
 import numpy as np
 import pytest
+
+from packaging import version as package_version
+from tvm import relay
+from tvm.runtime.vm import VirtualMachine
+from tvm.relay.frontend.tensorflow import from_tensorflow
+
+import tvm
+import tvm.relay.testing.tf as tf_testing
+import tvm.testing
 
 try:
     import tensorflow.compat.v1 as tf
@@ -35,32 +46,9 @@ except ImportError:
 # Only allow TF to run on half the GPU RAM to save the other half
 # For TVM
 gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.5)
-sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
-sess.close()
+gpu_sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
+gpu_sess.close()
 
-from tensorflow.python.framework import constant_op
-from tensorflow.python.framework import graph_util
-from tensorflow.python.ops import nn_ops
-from tensorflow.python.ops import nn
-from tensorflow.python.ops import array_ops
-from tensorflow.python.ops import math_ops
-from tensorflow.python.ops import variable_scope
-from tensorflow.python.ops import variables
-from tensorflow.python.ops import init_ops
-from tensorflow.python.framework import function
-from tensorflow.python.framework import ops
-from tensorflow.python.framework import dtypes
-from tensorflow.python.ops import gen_functional_ops
-from distutils.version import LooseVersion
-import tvm
-from tvm import te
-from tvm import relay
-import tvm.relay.testing.tf as tf_testing
-from tvm.runtime.vm import VirtualMachine
-from tvm.relay.frontend.tensorflow import from_tensorflow
-from packaging import version as package_version
-
-import tvm.testing
 
 #######################################################################
 # Generic run functions for TVM & tensorflow
@@ -87,6 +75,7 @@ tf_dtypes = {
 
 
 def vmobj_to_list(o):
+    """Converts TVM objects returned by VM execution to Python List."""
     if isinstance(o, tvm.nd.NDArray):
         return [o.numpy()]
     elif isinstance(o, tvm.runtime.container.ADT):
@@ -281,9 +270,9 @@ def compare_tf_with_tvm(
             )
             # since the names from tensorflow and relay runs are not exactly same,
             # first len(tf_output) will be compared
-            for i in range(len(tf_output)):
+            for i, _ in enumerate(tf_output):
                 if not isinstance(tf_output[i], np.ndarray):
-                    assert len(tvm_output[i].shape) == 0
+                    assert len(tvm_output[i].shape) == 0  # pylint: disable=len-as-condition
                 tvm.testing.assert_allclose(tf_output[i], tvm_output[i], atol=1e-5, rtol=1e-5)
 
         sess.close()
@@ -294,7 +283,7 @@ def is_gpu_available():
 
     local_device_protos = device_lib.list_local_devices()
     gpu_list = [x.name for x in local_device_protos if x.device_type == "GPU"]
-    if len(gpu_list) > 0:
+    if len(gpu_list) > 0:  # pylint: disable=len-as-condition
         print("Tensorflow GPU:", gpu_list)
         return True
     else:
@@ -498,7 +487,7 @@ def _test_convolution(
     add_shapes_to_graph_def=True,
 ):
     """One iteration of convolution with given shapes and attributes"""
-
+    # pylint: disable=dangerous-default-value
     total_size_1 = np.prod(tensor_in_sizes)
     total_size_2 = np.prod(filter_in_sizes)
     # Initializes the input tensor with array containing incrementing
@@ -569,6 +558,7 @@ def _test_convolution(
 @pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/10275")
 @tvm.testing.uses_gpu
 def test_forward_convolution():
+    """Convolution"""
     if is_gpu_available():
         _test_convolution("conv", [4, 176, 8, 8], [1, 1, 176, 32], [1, 1], [1, 1], "SAME", "NCHW")
         _test_convolution("conv", [4, 19, 17, 17], [3, 3, 19, 19], [1, 1], [2, 2], "VALID", "NCHW")
@@ -945,7 +935,7 @@ def _test_convolution3d(
     add_shapes_to_graph_def=True,
 ):
     """One iteration of 3D convolution with given shapes and attributes"""
-
+    # pylint: disable=dangerous-default-value
     total_size_1 = np.prod(tensor_in_sizes)
     total_size_2 = np.prod(filter_in_sizes)
     # Initializes the input tensor with array containing incrementing
@@ -984,6 +974,7 @@ def _test_convolution3d(
 
 @tvm.testing.uses_gpu
 def test_forward_convolution3d():
+    """Convolution3d"""
     if is_gpu_available():
         _test_convolution3d(
             "conv", [4, 176, 8, 8, 8], [1, 1, 1, 176, 32], [1, 1, 1], [1, 1, 1], "SAME", "NCDHW"
@@ -1070,6 +1061,7 @@ def _test_convolution3d_transpose(
 
 @tvm.testing.uses_gpu
 def test_forward_convolution3d_transpose():
+    """Convolution3d transpose"""
     if is_gpu_available():
         _test_convolution3d_transpose(
             data_shape=[1, 10, 8, 8, 8],
@@ -1181,6 +1173,7 @@ def _test_biasadd(tensor_in_sizes, data_format):
 
 @tvm.testing.uses_gpu
 def test_forward_biasadd():
+    """Bias add"""
     if is_gpu_available():
         _test_biasadd([4, 176, 8, 8], "NCHW")
         _test_biasadd([1, 100, 1, 1], "NCHW")
@@ -1241,6 +1234,7 @@ def _test_space_to_batch_nd_infer_paddings(input_shape, block_shape, dtype="int3
 
 
 def test_forward_space_to_batch_nd():
+    """SpaceToBatchNd"""
     # test cases: https://www.tensorflow.org/api_docs/cc/class/tensorflow/ops/space-to-batch-n-d
     _test_space_to_batch_nd(input_shape=[1, 2, 2, 1], block_shape=[2, 2], paddings=[[0, 0], [0, 0]])
 
@@ -1279,6 +1273,7 @@ def _test_batch_to_space_nd(input_shape, block_shape, crops, dtype="int32"):
 
 
 def test_forward_batch_to_space_nd():
+    """BatchToSpaceNd"""
     # test cases: https://www.tensorflow.org/api_docs/cc/class/tensorflow/ops/batch-to-space-n-d
     _test_batch_to_space_nd(input_shape=[4, 1, 1, 1], block_shape=[2, 2], crops=[[0, 0], [0, 0]])
 
@@ -1355,6 +1350,7 @@ def _test_reshape_symbolic(data, a_data, b_data):
 
 
 def test_forward_reshape():
+    """Reshape"""
     _test_reshape(np.arange(6.0), [2, 3])
     _test_reshape(np.arange(6), [-1, 2])
     _test_reshape(np.arange(6), [3, -1])
@@ -1457,6 +1453,8 @@ def test_forward_squeeze():
 # TensorArray
 # -----------
 def test_tensor_array_write_read():
+    """Tensor array write read"""
+
     def run(dtype_str, infer_shape, element_shape):
         with tf.Graph().as_default():
             dtype = tf_dtypes[dtype_str]
@@ -1480,6 +1478,8 @@ def test_tensor_array_write_read():
 
 
 def test_tensor_array_scatter():
+    """Tensor array scatter"""
+
     def run(dtype_str, infer_shape):
         with tf.Graph().as_default():
             dtype = tf_dtypes[dtype_str]
@@ -1517,6 +1517,8 @@ def test_tensor_array_scatter():
 
 
 def test_tensor_array_gather():
+    """tensor array gather"""
+
     def run(dtype_str, infer_shape):
         with tf.Graph().as_default():
             dtype = tf_dtypes[dtype_str]
@@ -1534,6 +1536,8 @@ def test_tensor_array_gather():
 
 
 def test_tensor_array_split():
+    """tensor array split"""
+
     def run(dtype_str, infer_shape):
         with tf.Graph().as_default():
             dtype = tf_dtypes[dtype_str]
@@ -1562,6 +1566,8 @@ def test_tensor_array_split():
 
 
 def test_tensor_array_concat():
+    """Tensor array concat"""
+
     def run(dtype_str, infer_shape):
         with tf.Graph().as_default():
             dtype = tf_dtypes[dtype_str]
@@ -1584,6 +1590,7 @@ def test_tensor_array_concat():
 
 
 def test_tensor_array_size():
+    """Tensor array size"""
     if package_version.parse(tf.VERSION) >= package_version.parse("1.15.0"):
         pytest.skip("Needs fixing for tflite >= 1.15.0")
 
@@ -1607,6 +1614,8 @@ def test_tensor_array_size():
 
 
 def test_tensor_array_stack():
+    """Tensor array stack"""
+
     def run(dtype_str, infer_shape):
         if package_version.parse(tf.VERSION) >= package_version.parse("1.15.0"):
             pytest.skip("Needs fixing for tflite >= 1.15.0")
@@ -1628,6 +1637,8 @@ def test_tensor_array_stack():
 
 
 def test_tensor_array_unstack():
+    """Tensor array unstack"""
+
     def run(dtype_str, input_shape, infer_shape):
         if package_version.parse(tf.VERSION) >= package_version.parse("1.15.0"):
             pytest.skip("Needs fixing for tflite >= 1.15.0")
@@ -1796,7 +1807,7 @@ def test_read_variable_op(target, dev):
             out_names=out_name,
             num_output=len(out_name),
         )
-        for i in range(len(tf_output)):
+        for i, _ in enumerate(tf_output):
             tvm.testing.assert_allclose(tf_output[i], tvm_output[i], atol=1e-4, rtol=1e-5)
 
         sess.close()
@@ -1909,6 +1920,7 @@ def test_forward_batch_matmul():
 
 
 def test_forward_batch_matmul_dynamic():
+    """Dynamic batch matmul"""
     _test_batch_matmul_dynamic((None, 5, 4), (None, 4, 5), (3, 5, 4), (3, 4, 5), "int32")
     _test_batch_matmul_dynamic(
         (None, 5, 4), (None, 4, 5), (3, 5, 4), (3, 4, 5), "float32", True, True
@@ -2423,7 +2435,7 @@ def _test_sparse_to_dense(sparse_indices, sparse_values, default_value, output_s
         oshape = tf.constant(output_shape, shape=output_shape.shape, dtype=str(output_shape.dtype))
 
         # Output shape depends on a dynamic input, use VM.
-        if default_value == None:
+        if default_value is None:
             output = tf.sparse_to_dense(indices, oshape, values)
             compare_tf_with_tvm(
                 [sparse_indices, sparse_values], ["indices:0", "values:0"], output.name, mode="vm"
@@ -2440,6 +2452,7 @@ def _test_sparse_to_dense(sparse_indices, sparse_values, default_value, output_s
 
 
 def test_forward_sparse_to_dense():
+    """Sparse to dense"""
     # scalar
     _test_sparse_to_dense(
         sparse_indices=np.int32(1),
@@ -2586,7 +2599,7 @@ def _test_stridedslice(
     tf.reset_default_graph()
     np_data = np.random.uniform(size=ip_shape).astype(dtype)
     with tf.Graph().as_default():
-        if len(ip_shape) == 0:
+        if len(ip_shape) == 0:  # pylint: disable=len-as-condition
             in_data = tf.constant(np_data, dtype)
         else:
             in_data = tf.placeholder(dtype, ip_shape, name="in_data")
@@ -2602,7 +2615,7 @@ def _test_stridedslice(
             ellipsis_mask=ellipsis_mask,
             name="strided_slice",
         )
-        if len(ip_shape) == 0:
+        if len(ip_shape) == 0:  # pylint: disable=len-as-condition
             compare_tf_with_tvm(None, "", "strided_slice:0")
         else:
             compare_tf_with_tvm(np_data, "in_data:0", "strided_slice:0")
@@ -2896,9 +2909,9 @@ def test_forward_bias_add():
 
 
 def _test_split(in_shape, axis, num_or_size_splits, dtype):
+    """One iteration of a Split"""
     np_data = np.random.uniform(-5, 5, size=in_shape).astype(dtype)
 
-    """ One iteration of a Split """
     tf.reset_default_graph()
     with tf.Graph().as_default():
         in_data = tf.placeholder(dtype, in_shape, name="in_data")
@@ -3048,6 +3061,7 @@ def test_forward_clip_by_value():
 
 
 def test_forward_multi_input():
+    """Multi Input"""
     with tf.Graph().as_default():
         in1 = tf.placeholder(tf.int32, shape=[3, 3], name="in1")
         in2 = tf.placeholder(tf.int32, shape=[3, 3], name="in2")
@@ -3070,6 +3084,7 @@ def test_forward_multi_input():
 
 
 def test_forward_multi_output():
+    """Multi Output"""
     with tf.Graph().as_default():
         in1 = tf.placeholder(tf.int32, shape=[3, 3], name="in1")
         in2 = tf.placeholder(tf.int32, shape=[3, 3], name="in2")
@@ -3095,7 +3110,7 @@ def test_forward_multi_output():
             tvm_output = run_tvm_graph(
                 final_graph_def, in_data, in_node, target="llvm", out_names=out_node, num_output=2
             )
-            for i in range(len(tf_output)):
+            for i, _ in enumerate(tf_output):
                 tvm.testing.assert_allclose(tf_output[i], tvm_output[i], atol=1e-5, rtol=1e-5)
 
 
@@ -3664,7 +3679,7 @@ def test_forward_range():
             tf.range(1, 18, 3, name="range", dtype=dtype)
             compare_tf_with_tvm([], [], "range:0")
 
-    """test type assignment for operator Range"""
+    # test type assignment for operator Range
     tf.reset_default_graph()
     with tf.Graph().as_default():
         tf.range(1, 256 + 1, 1, dtype=tf.float32)
@@ -4015,7 +4030,7 @@ def test_forward_placeholder():
 try:
     # Load contrib for running ptb model in tf version before 2.0
     import tensorflow.contrib
-except:
+except ImportError:
     pass
 
 
@@ -4444,6 +4459,8 @@ def test_forward_pow_exp():
 
 
 def test_forward_unary():
+    """Unary"""
+
     def _test_forward_unary(op, a_min=1, a_max=5, dtype=np.float32):
         """test unary operators"""
         np_data = np.random.uniform(a_min, a_max, size=(2, 3, 5)).astype(dtype)
@@ -4621,6 +4638,8 @@ def test_forward_left_shift():
 
 
 def test_forward_mean():
+    """Mean"""
+
     def check_mean(ishape, **kwargs):
         inp_array = np.random.uniform(size=ishape).astype(np.float32)
         with tf.Graph().as_default():
@@ -4639,6 +4658,8 @@ def test_forward_mean():
 
 
 def test_forward_size():
+    """Size"""
+
     def check_size(ishape):
         np_input = np.random.uniform(size=ishape).astype(np.float32)
 
@@ -4661,6 +4682,8 @@ def test_forward_size():
 
 
 def test_forward_reduce():
+    """Reduce"""
+
     def _check_op(tf_op, ishape, axis, keepdims, dtype="float32"):
         tf.reset_default_graph()
         if dtype == "bool":
@@ -4676,6 +4699,7 @@ def test_forward_reduce():
             compare_tf_with_tvm([np_data], ["in_data:0"], reduce_op.name)
 
     def _test_math_op(op, dtypes=["int32", "float32"]):
+        # pylint: disable=dangerous-default-value
         for dtype in dtypes:
             _check_op(op, (3, 10), axis=(-1), keepdims=False, dtype=dtype)
             _check_op(op, (8, 16, 32), axis=(-1), keepdims=False, dtype=dtype)
@@ -4700,6 +4724,8 @@ def test_forward_reduce():
 
 
 def test_forward_raw_reduce():
+    """Raw reduce"""
+
     def _check_op(tf_op, ishape, axis, keepdims, range_axis=False, dtype="float32"):
         tf.reset_default_graph()
         if dtype == "bool":
@@ -4717,6 +4743,7 @@ def test_forward_raw_reduce():
             compare_tf_with_tvm([np_data], ["in_data:0"], reduce_op.name)
 
     def _test_raw_reduce_op(op, dtypes=["int32", "float32"]):
+        # pylint: disable=dangerous-default-value
         for dtype in dtypes:
             _check_op(op, (3, 10), axis=(-1), keepdims=False, dtype=dtype)
             _check_op(op, (8, 16, 32), axis=(-1), keepdims=False, dtype=dtype)
@@ -4820,6 +4847,7 @@ def test_forward_minimum():
 # PlaceholderWithDefault
 # ----------------------
 def test_placeholder():
+    """Placeholder"""
     with tf.Graph().as_default():
         in_data1 = np.random.uniform(-5, 5, size=(3, 4, 5)).astype(np.float32)
         var1 = tf.Variable(in_data1, name="in1")
@@ -4874,6 +4902,7 @@ def _test_forward_add_n(inputs):
 
 
 def test_forward_add_n():
+    """Add n"""
     x = np.random.randint(1, 100, size=(3, 3, 3), dtype=np.int32)
     y = np.random.randint(1, 100, size=(3, 3, 3), dtype=np.int32)
     z = np.random.randint(1, 100, size=(3, 3, 3), dtype=np.int32)
@@ -4932,6 +4961,7 @@ def _test_forward_unravel_index_scalar(x, y, dtype="int32"):
 
 
 def test_forward_unravel_index():
+    """Unravel index"""
     x = np.array([0, 1, 2, 3])
     y = np.array([2, 2])
     _test_forward_unravel_index([x, y])
@@ -4984,6 +5014,7 @@ def _test_dilation2d(tensor_in_sizes, filter_in_sizes, strides, dilations, paddi
 
 
 def test_forward_dilation():
+    """Dilation2d"""
     _test_dilation2d([1, 18, 18, 32], [4, 4, 32], [1, 1, 1, 1], [1, 2, 1, 1], "VALID")
     _test_dilation2d([1, 15, 15, 32], [4, 4, 32], [1, 1, 1, 1], [1, 2, 1, 1], "SAME")
     _test_dilation2d([1, 5, 5, 1], [2, 2, 1], [1, 1, 1, 1], [1, 1, 1, 1], "VALID")
@@ -5049,6 +5080,7 @@ def _test_identityn(data_np_list):
     ],
 )
 def test_forward_identityn(data_np_list):
+    """Identityn"""
     _test_identityn(data_np_list)
 
 
@@ -5060,7 +5092,7 @@ def _verify_infiniteness_ops(tf_op, name):
 
     # Only float types are allowed in Tensorflow for isfinite and isinf
     # float16 is failing on cuda
-    tf_dtypes = ["float32", "float64"]
+    tf_dtypes = ["float32", "float64"]  # pylint: disable=redefined-outer-name
     for tf_dtype in tf_dtypes:
         shape = (8, 8)
         data = np.random.uniform(size=shape).astype(tf_dtype)
@@ -5433,6 +5465,7 @@ def _test_spop_resource_variables():
 
 
 def test_forward_spop():
+    """Spop"""
     _test_spop_stateful()
     _test_spop_device_assignment()
     # tensorflow version upgrade support
@@ -5465,6 +5498,7 @@ def test_forward_spop():
 # Dynamic input shape
 # -------------------
 def test_forward_dynamic_input_shape():
+    """Dynamic input shape"""
     tf.reset_default_graph()
 
     with tf.Graph().as_default():
@@ -5497,6 +5531,7 @@ def test_forward_dynamic_input_shape():
 
 
 def test_forward_dynmaic_rnn_lstmblockcell():
+    """Dynmaic rnn lstmblockcell"""
     if package_version.parse(tf.VERSION) >= package_version.parse("2.0.0"):
         return
 
@@ -5588,7 +5623,7 @@ def test_forward_dynmaic_rnn_lstmblockcell():
         )
 
         # Compare result
-        for i in range(len(tf_output)):
+        for i, _ in enumerate(tf_output):
             tvm.testing.assert_allclose(tf_output[i], tvm_output[i], atol=1e-5, rtol=1e-5)
 
 
@@ -5666,6 +5701,7 @@ def test_forward_unique_with_counts():
 
 
 def test_moments():
+    """NN.moments"""
     g = tf.Graph()
     shape = [4, 176, 8, 8]
     dtype = "float32"
