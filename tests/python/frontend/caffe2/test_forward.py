@@ -14,15 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=no-else-return
+"""
+Caffe2 testcases
+====================
+This article is a test script to test Caffe2 operator with Relay.
+"""
+from collections import namedtuple
 import numpy as np
-import tvm
-from tvm import te
-from tvm.contrib import graph_executor
-from tvm import relay
-from model_zoo import c2_squeezenet, c2_resnet50, c2_vgg19
+
 from caffe2.python import workspace, core
 from caffe2.proto import caffe2_pb2
-from collections import namedtuple
+from model_zoo import c2_squeezenet, c2_resnet50, c2_vgg19
+import tvm
+from tvm.contrib import graph_executor
+from tvm import relay
+
 import tvm.testing
 
 
@@ -103,6 +110,7 @@ Model = namedtuple("Model", ["init_net", "predict_net"])
 
 @tvm.testing.uses_gpu
 def test_elementwise_add():
+    """Elewise_add"""
     data_shape = (1, 16, 9, 9)
     init_net = caffe2_pb2.NetDef()
     init_net.name = "test_init_net"
@@ -146,6 +154,7 @@ def test_elementwise_add():
 
 @tvm.testing.uses_gpu
 def test_elementwise_add_with_broadcast():
+    """Elewise_add_with_broadcast"""
     data_shape = (1, 16, 9, 9)
     init_net = caffe2_pb2.NetDef()
     init_net.name = "test_init_net"
@@ -190,6 +199,7 @@ def test_elementwise_add_with_broadcast():
 
 @tvm.testing.uses_gpu
 def test_normalize_yuv():
+    """Normalize_yuv"""
     data_shape = (1, 3, 96, 96)
     init_net = caffe2_pb2.NetDef()
     init_net.name = "test_init_net"
