@@ -134,3 +134,4 @@ if __name__ == "__main__":
     test_ret_const()
     test_control_flow_jump()
     test_exception()
+    test_eq_ops()
