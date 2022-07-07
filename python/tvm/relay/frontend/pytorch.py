@@ -40,7 +40,11 @@ from ..loops import while_loop
 from ..prelude import Prelude, StaticTensorArrayOps
 from ..ty import Any, TensorType, TupleType
 from . import qnn_torch
+<<<<<<< HEAD
 from .common import AttrCvt, get_relay_op, gru_cell, logger, rnn_cell
+=======
+from .common import AttrCvt, get_relay_op, gru_cell, logger
+>>>>>>> d9690c3cd (fix lint)
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
 from .common import fold_constant as _fold_constant
@@ -2263,11 +2267,11 @@ class PyTorchOpConverter:
         ) = inputs
 
         assert scale_grad_by_freq == 0, "scale_grad_by_freq not supported in embedding_bag."
-        assert padding_idx == None, "padding_idx not supported in embedding_bag."
+        assert padding_idx is None, "padding_idx not supported in embedding_bag."
 
-        assert len(infer_shape(indices)) == 1, "Expects 1D indices for aten::embedding_bag."
+        assert len(_infer_shape(indices)) == 1, "Expects 1D indices for aten::embedding_bag."
 
-        offsets_const_fold = fold_constant(offsets_1d)
+        offsets_const_fold = _fold_constant(offsets_1d)
 
         assert isinstance(
             offsets_const_fold, _expr.Constant
