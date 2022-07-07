@@ -869,6 +869,19 @@ def test_inverse_affine_iter_map():
     assert analyzer.can_prove_equal(res[l0[0]], l0_inverse)
 
 
+def test_inverse_affine_map_trivial_iter():
+    analyzer = tvm.arith.Analyzer()
+    l0 = create_iter("l0", 64)
+    l1 = create_iter("l1", 64)
+    iter_map = tvm.arith.detect_iter_map([0, l0[0], l1[0]], var_dom([l0, l1])).indices
+    outputs = [tvm.tir.Var("output_{}".format(i), "int32") for i in range(len(iter_map))]
+    res = tvm.arith.inverse_affine_iter_map(iter_map, outputs)
+    # output_0 is expected to be constant and it is not included in the inverse map
+    assert len(res) == 2
+    assert analyzer.can_prove_equal(res[l0[0]], outputs[1])
+    assert analyzer.can_prove_equal(res[l1[0]], outputs[2])
+
+
 def test_free_variables():
     x = tvm.tir.Var("x", "int32")
     y = tvm.tir.Var("y", "int32")
