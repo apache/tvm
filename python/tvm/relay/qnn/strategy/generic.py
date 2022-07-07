@@ -50,6 +50,16 @@ def wrap_compute_quantize(topi_compute):
     return wrapper
 
 
+def wrap_compute_dequantize(topi_compute):
+    """Wrap TOPI compute which use axis from attrs"""
+
+    def wrapper(attrs, inputs, _out_type):
+        args = [*inputs, attrs.axis]
+        return [topi_compute(*args)]
+
+    return wrapper
+
+
 def wrap_topi_qnn_conv2d(topi_compute):
     """Wrap TOPI compute which use conv2d attrs and output data type"""
 
