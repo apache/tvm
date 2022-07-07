@@ -45,18 +45,18 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-06-27T17:30:37.779354
+// Generated at 2022-07-01T12:43:52.727636
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = 'tlcpack/ci-lint:20220513-055910-fa834f67e'
-ci_gpu = 'tlcpack/ci-gpu:20220619-055908-9bba7580b'
-ci_cpu = 'tlcpack/ci-cpu:20220519-055908-ddfa1da69'
-ci_wasm = 'tlcpack/ci-wasm:20220513-055910-fa834f67e'
-ci_i386 = 'tlcpack/ci-i386:20220513-055910-fa834f67e'
-ci_qemu = 'tlcpack/ci-qemu:20220517-094028-de21c8f2e'
-ci_arm = 'tlcpack/ci-arm:20220513-055910-fa834f67e'
-ci_hexagon = 'tlcpack/ci-hexagon:20220603-203325-cee74c9f8'
+ci_lint = 'tlcpack/ci-lint:20220630-060117-558ba99c7'
+ci_gpu = 'tlcpack/ci-gpu:20220630-060117-558ba99c7'
+ci_cpu = 'tlcpack/ci-cpu:20220630-060117-558ba99c7'
+ci_wasm = 'tlcpack/ci-wasm:20220630-060117-558ba99c7'
+ci_i386 = 'tlcpack/ci-i386:20220630-060117-558ba99c7'
+ci_qemu = 'tlcpack/ci-qemu:20220630-060117-558ba99c7'
+ci_arm = 'tlcpack/ci-arm:20220630-060117-558ba99c7'
+ci_hexagon = 'tlcpack/ci-hexagon:20220630-060117-558ba99c7'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -85,14 +85,6 @@ docker_build = 'docker/build.sh'
 // timeout in minutes
 max_time = 180
 rebuild_docker_images = false
-
-// skips builds from branch indexing; sourced from https://www.jvt.me/posts/2020/02/23/jenkins-multibranch-skip-branch-index/
-// execute this before anything else, including requesting any time on an agent
-if (currentBuild.getBuildCauses().toString().contains('BranchIndexingCause')) {
-  print "INFO: Build skipped due to trigger being Branch Indexing"
-  currentBuild.result = 'ABORTED' // optional, gives a better hint to the user that it's been skipped, rather than the default which shows it's successful
-  return
-}
 
 // Filenames for stashing between build and test steps
 s3_prefix = "tvm-jenkins-artifacts-prod/tvm/${env.BRANCH_NAME}/${env.BUILD_NUMBER}"

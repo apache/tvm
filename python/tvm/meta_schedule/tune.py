@@ -592,6 +592,9 @@ def tune_relay(
         with target, autotvm_silencer(), ApplyHistoryBest(database):
             with PassContext(
                 opt_level=3,
-                config={"relay.backend.use_meta_schedule": True},
+                config={
+                    "relay.backend.use_meta_schedule": True,
+                    "relay.backend.use_meta_schedule_dispatch": target.kind.name != "cuda",
+                },
             ):
                 return relay_build(mod, target=target, params=params)

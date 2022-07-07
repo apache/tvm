@@ -28,7 +28,7 @@ from PIL import Image
 import os
 
 from . import _infrastructure
-from tvm.relay.op.contrib import get_pattern_table
+from tvm.relay.op.contrib import partition_for_ethosn
 
 
 def get_real_image(im_height, im_width):
@@ -155,17 +155,7 @@ def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
     ):
         with tvm.target.Target("llvm"):
             if npu:
-                f = relay.build_module.bind_params_by_name(mod["main"], params)
-                mod = tvm.IRModule()
-                mod["main"] = f
-                pattern = get_pattern_table("ethos-n")
-                mod = relay.transform.InferType()(mod)
-                mod = relay.transform.MergeComposite(pattern)(mod)
-                mod = relay.transform.AnnotateTarget("ethos-n")(mod)
-                mod = relay.transform.InferType()(mod)
-                mod = relay.transform.MergeCompilerRegions()(mod)
-                mod = relay.transform.InferType()(mod)
-                mod = relay.transform.PartitionGraph()(mod)
+                mod = partition_for_ethosn(mod, params, variant="n78")
                 host_op_count = get_host_op_count(mod)
                 assert (
                     host_op_count == expected_host_ops

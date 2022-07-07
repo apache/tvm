@@ -22,16 +22,27 @@ from ..arduino.test_utils import ARDUINO_BOARDS
 
 def pytest_addoption(parser):
     parser.addoption(
+        "--platform",
+        required=True,
+        choices=["arduino", "zephyr"],
+        help="Platform to run tests with",
+    )
+    parser.addoption(
         "--board",
         required=True,
         choices=list(ARDUINO_BOARDS.keys()) + list(ZEPHYR_BOARDS.keys()),
-        help="microTVM boards for tests.",
+        help="microTVM boards for tests",
     )
     parser.addoption(
         "--test-build-only",
         action="store_true",
         help="Only run tests that don't require physical hardware.",
     )
+
+
+@pytest.fixture
+def platform(request):
+    return request.config.getoption("--platform")
 
 
 @pytest.fixture

@@ -86,17 +86,6 @@ struct ExecutorCodegen {
     return ret;
   }
 
-  std::unordered_map<std::string, int64_t> GetParamIds() {
-    std::unordered_map<std::string, int64_t> ret;
-    auto names = CallFunc<Array<runtime::String>>("list_params_name", nullptr);
-    for (const auto& expr : names) {
-      // Implicit cast from runtime::String to std::string
-      std::string key = expr;
-      ret[key] = CallFunc<int64_t>("get_param_id", key);
-    }
-    return ret;
-  }
-
   Array<tvm::runtime::Module> GetExternalModules() {
     return CallFunc<Array<tvm::runtime::Module>>("get_external_modules", nullptr);
   }
@@ -345,7 +334,9 @@ class RelayBuildModule : public runtime::ModuleNode {
     if (config_->optional_homogeneous_target.defined()) {
       // This pass currently only supports the homogeneous case.
       pass_seqs.push_back(transform::SplitArgs(
-          config_->optional_homogeneous_target->GetAttr<Integer>("max_function_args", -1).value()));
+          config_->optional_homogeneous_target->GetAttr<Integer>("max_function_args", -1)
+              .value()
+              .IntValue()));
     }
 
     // Always plan devices so the remaining passes don't need to distinguish homogeneous vs
@@ -478,6 +469,7 @@ class RelayBuildModule : public runtime::ModuleNode {
         for (size_t i = 0; i < variables.size(); i++) {
           auto it = ret_.params.find(variables[i].operator std::string());
           if (it != ret_.params.end()) {
+            VLOG(1) << "constant '" << variables[i] << "' has been captured in external module";
             ret_.params.erase(it);
           }
         }

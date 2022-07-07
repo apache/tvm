@@ -31,6 +31,12 @@ platforms. In this tutorial, we will use the Raspberry Pi for a CPU example
 and the Firefly-RK3399 for an OpenCL example.
 """
 
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
+
 ######################################################################
 # Build TVM Runtime on Device
 # ---------------------------

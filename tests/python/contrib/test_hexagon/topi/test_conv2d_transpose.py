@@ -154,3 +154,7 @@ class TestConv2DTranspose(BaseConv2DTransposeTests):
 
     padding = tvm.testing.parameter((0, 0, 0, 0))
     output_padding = tvm.testing.parameter((0, 0))
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

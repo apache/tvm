@@ -14,16 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-
 import pytest
 import numpy as np
 
-from tvm import te, topi
-
-import tvm.testing
-from tvm.topi import testing
-from tvm.contrib.hexagon.build import HexagonLauncher
+import tvm
+from tvm import te
+from tvm.topi.testing import resize2d_python
 import tvm.topi.hexagon as s1
 from ..infrastructure import allocate_hexagon_array, transform_numpy
 
@@ -34,9 +30,7 @@ def expected_output_np(
 ):
     scale_h = out_height / in_height
     scale_w = out_width / in_width
-    return tvm.topi.testing.resize2d_python(
-        input_np, (scale_h, scale_w), layout, method, coord_trans
-    )
+    return resize2d_python(input_np, (scale_h, scale_w), layout, method, coord_trans)
 
 
 @tvm.testing.fixture
@@ -108,6 +102,9 @@ class TestResize2d:
         method,
         hexagon_session,
     ):
+        if hexagon_session._launcher._serial_number != "simulator":
+            pytest.skip(msg="Due to https://github.com/apache/tvm/issues/11957")
+
         target_hexagon = tvm.target.hexagon("v69")
         A = te.placeholder(input_shape, name="A", dtype=dtype)
 

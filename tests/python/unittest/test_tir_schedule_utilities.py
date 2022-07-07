@@ -20,7 +20,6 @@ import sys
 import pytest
 import tvm
 import tvm.testing
-
 from tvm import tir
 from tvm.ir import IRModule
 from tvm.script import tir as T
@@ -102,6 +101,29 @@ def matmul_relu_ann2(a: T.handle, b: T.handle, d: T.handle) -> None:
             D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
+@tvm.script.ir_module
+class ModuleWithMultipleFuncs:
+    @T.prim_func
+    def vector_add(
+        A: T.Buffer[128, "float32"],
+        B: T.Buffer[128, "float32"],
+    ) -> None:
+        for i in range(128):
+            with T.block("init"):
+                vi = T.axis.remap("S", [i])
+                B[vi] = A[vi]
+
+    @T.prim_func
+    def vector_add_2(
+        A: T.Buffer[128, "float32"],
+        B: T.Buffer[128, "float32"],
+    ) -> None:
+        for i in range(128):
+            with T.block("init"):
+                vi = T.axis.remap("S", [i])
+                B[vi] = A[vi]
+
+
 # pylint: enable=no-member,invalid-name,unused-variable
 
 use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
@@ -131,6 +153,14 @@ def test_tir_schedule_get_block():
     assert block_sref.stmt.same_as(block)
     assert sch.state.get_sref(block).same_as(block_sref)
     assert block.same_as(matmul.body.block.body.body.body[1].body.block)
+
+
+def test_tir_schedule_work_on():
+    sch = tir.Schedule(ModuleWithMultipleFuncs, debug_mask="all")
+    with pytest.raises(ValueError, match="does not know which function to be working on"):
+        sch.get_block(name="init")
+    sch.work_on(func_name="vector_add")
+    sch.get_block(name="init")
 
 
 def test_tir_schedule_get_loops(use_block_name):

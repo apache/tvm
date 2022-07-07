@@ -67,6 +67,7 @@ import copy
 import copyreg
 import ctypes
 import functools
+import hashlib
 import itertools
 import logging
 import os
@@ -76,7 +77,8 @@ import shutil
 import sys
 import time
 
-from typing import Optional, Callable, Union, List
+from pathlib import Path
+from typing import Optional, Callable, Union, List, Tuple
 
 import pytest
 import numpy as np
@@ -89,13 +91,16 @@ import tvm._ffi
 
 from tvm.contrib import nvcc, cudnn
 import tvm.contrib.hexagon._ci_env_check as hexagon
+from tvm.driver.tvmc.frontends import load_model
 from tvm.error import TVMError
 
 
 SKIP_SLOW_TESTS = os.getenv("SKIP_SLOW_TESTS", "").lower() in {"true", "1", "yes"}
+IS_IN_CI = os.getenv("CI", "") == "true"
 
 skip_if_wheel_test = pytest.mark.skipif(
-    os.getenv("WHEEL_TEST") is not None, reason="Test not supported in wheel."
+    os.getenv("WHEEL_TEST", "").lower() in {"true", "1", "yes"},
+    reason="Test not supported in wheel.",
 )
 
 
@@ -431,14 +436,14 @@ def _get_targets(target_names=None):
             logging.warning(
                 "None of the following targets are supported by this build of TVM: %s."
                 " Try setting TVM_TEST_TARGETS to a supported target. Defaulting to llvm.",
-                target_str,
+                target_names,
             )
             return _get_targets(["llvm"])
 
         raise TVMError(
             "None of the following targets are supported by this build of TVM: %s."
             " Try setting TVM_TEST_TARGETS to a supported target."
-            " Cannot default to llvm, as it is not enabled." % target_str
+            " Cannot default to llvm, as it is not enabled." % target_names
         )
 
     return targets
@@ -1611,6 +1616,92 @@ def is_ampere_or_newer():
     arch = tvm.contrib.nvcc.get_target_compute_version()
     major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
     return major >= 8
+
+
+def install_request_hook(depth: int) -> None:
+    """Add a wrapper around urllib.request for CI tests"""
+    if not IS_IN_CI:
+        return
+
+    # https://sphinx-gallery.github.io/stable/faq.html#why-is-file-not-defined-what-can-i-use
+    base = None
+    msg = ""
+    try:
+        base = __file__
+        msg += f"found file {__file__}\n"
+    except NameError:
+        msg += f"no file\n"
+
+    if base is None:
+        hook_script_dir = Path.cwd().resolve()
+        msg += "used path.cwd()\n"
+    else:
+        hook_script_dir = Path(base).resolve().parent
+        msg += "used base()\n"
+
+    msg += f"using depth {depth}\n"
+    if depth <= 0:
+        raise ValueError(f"depth less than 1 not supported, found: {depth}")
+
+    # Go up the parent directories
+    while depth > 0:
+        msg += f"[depth={depth}] dir={hook_script_dir}\n"
+        hook_script_dir = hook_script_dir.parent
+        depth -= 1
+
+    # Ensure the specified dir is valid
+    hook_script_dir = hook_script_dir / "tests" / "scripts" / "request_hook"
+    if not hook_script_dir.exists():
+        raise RuntimeError(f"Directory {hook_script_dir} does not exist:\n{msg}")
+
+    # Import the hook and start it up (it's not included here directly to avoid
+    # keeping a database of URLs inside the tvm Python package
+    sys.path.append(str(hook_script_dir))
+    # This import is intentionally delayed since it should only happen in CI
+    import request_hook  # pylint: disable=import-outside-toplevel
+
+    request_hook.init()
+
+
+def fetch_model_from_url(
+    url: str,
+    model_format: str,
+    sha256: str,
+) -> Tuple[tvm.ir.module.IRModule, dict]:
+    """Testing function to fetch a model from a URL and return it as a Relay
+    model. Downloaded files are cached for future re-use.
+
+    Parameters
+    ----------
+    url : str
+        The URL or list of URLs to try downloading the model from.
+
+    model_format: str
+        The file extension of the model format used.
+
+    sha256 : str
+        The sha256 hex hash to compare the downloaded model against.
+
+    Returns
+    -------
+    (mod, params) : object
+        The Relay representation of the downloaded model.
+    """
+
+    rel_path = f"model_{sha256}.{model_format}"
+    file = tvm.contrib.download.download_testdata(url, rel_path, overwrite=False)
+
+    # Check SHA-256 hash
+    file_hash = hashlib.sha256()
+    with open(file, "rb") as f:
+        for block in iter(lambda: f.read(2**24), b""):
+            file_hash.update(block)
+
+    if file_hash.hexdigest() != sha256:
+        raise FileNotFoundError("SHA-256 hash for model does not match")
+
+    tvmc_model = load_model(file, model_format)
+    return tvmc_model.mod, tvmc_model.params
 
 
 def main():

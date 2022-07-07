@@ -23,7 +23,7 @@ from tvm.tir.usmp.utils import BufferInfo
 from tvm import WorkspacePoolInfo, PoolInfoProperties
 
 
-def _check_max_workspace_size(buffer_pool_allocations, pool_info, size):
+def _check_max_workspace_size(buffer_pool_allocations, pool_info, size, tolerance=0):
     """Helper to check maximum allocated memory size"""
     max_workspace_size = 0
     for buffer_info, pool_allocation in buffer_pool_allocations.items():
@@ -33,7 +33,7 @@ def _check_max_workspace_size(buffer_pool_allocations, pool_info, size):
                 max_workspace_size = size_candidate
     _diff = max_workspace_size.value - size
     return (
-        (max_workspace_size.value == size),
+        (max_workspace_size.value == size if tolerance == 0 else tolerance > 100 * _diff / size),
         "'{}': expected {} got {}, diff {:0.2f}% ({} bytes)".format(
             pool_info.pool_name, size, max_workspace_size, 100 * _diff / size, _diff
         ),
@@ -335,7 +335,7 @@ def find_maximum_from_intervals(intervals):
 def test_intervals(intervals):
     """Tests supplied intervals"""
     random.seed(0)
-    result = run_intervals(intervals)
+    result = run_intervals(intervals, 5)
     assert result["tir.usmp.algo.hill_climb"] == True, f" {result}"
 
 
@@ -355,7 +355,7 @@ def test_random_intervals(interval_len=16):
     return run_intervals(intervals)
 
 
-def run_intervals(intervals):
+def run_intervals(intervals, tolerance=0):
     """Helper to run intervals"""
     expected_mem = find_maximum_from_intervals(intervals)
     pools = [WorkspacePoolInfo("default", [])]
@@ -391,7 +391,9 @@ def run_intervals(intervals):
         print()
 
         _verify_all_conflicts(buffer_info_arr)
-        result[alg], msg = _check_max_workspace_size(buffer_info_arr, pools[0], expected_mem)
+        result[alg], msg = _check_max_workspace_size(
+            buffer_info_arr, pools[0], expected_mem, tolerance
+        )
         if not result[alg]:
             print(alg, msg)
 

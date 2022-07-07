@@ -85,11 +85,8 @@ def build_relay_with_tensorrt(
     from tvm.relay.op.contrib import tensorrt
     from tvm.runtime import Module
 
-    mod, config = tensorrt.partition_for_tensorrt(mod, params)
-    with PassContext(
-        opt_level=3,
-        config={"relay.ext.tensorrt.options": config},
-    ):
+    mod = tensorrt.partition_for_tensorrt(mod, params)
+    with PassContext(opt_level=3):
         result = relay_build(mod, target=target, target_host=None, params=params)
     assert isinstance(result, Module)
     return result

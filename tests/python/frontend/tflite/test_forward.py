@@ -44,6 +44,7 @@ from tensorflow.python.framework import constant_op
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import array_ops
+from tensorflow.python.ops import image_ops
 from tensorflow.python.ops import gen_array_ops
 from tensorflow.python.ops import nn_impl
 from tensorflow.python.ops import variables
@@ -4937,6 +4938,42 @@ def test_prevent_tensorflow_dynamic_range():
         tvm_output = run_tvm_graph(tflite_model, data_array, data_in.name.replace(":0", ""))
 
 
+def _test_nms_v5(
+    bx_shape, score_shape, iou_threshold, score_threshold, max_output_size, dtype="float32"
+):
+    """One iteration of nms_v5 with given attributes"""
+    boxes = np.random.uniform(0, 10, size=bx_shape).astype(dtype)
+    scores = np.random.uniform(size=score_shape).astype(dtype)
+
+    tf.reset_default_graph()
+    tf.compat.v1.disable_eager_execution()
+    in_data_1 = array_ops.placeholder(dtype, boxes.shape, name="in_data_1")
+    in_data_2 = array_ops.placeholder(dtype, scores.shape, name="in_data_2")
+    out = image_ops.non_max_suppression_with_scores(
+        boxes=in_data_1,
+        scores=in_data_2,
+        max_output_size=max_output_size,
+        iou_threshold=iou_threshold,
+        score_threshold=score_threshold,
+        name="nms",
+    )
+
+    compare_tflite_with_tvm(
+        [boxes, scores],
+        ["in_data_1:0", "in_data_2:0"],
+        [in_data_1, in_data_2],
+        [out[0], out[1]],
+        out_names=[out[0].name, out[1].name],
+        experimental_new_converter=True,
+    )
+
+
+def test_forward_nms_v5():
+    """test nms_v5"""
+    _test_nms_v5((10000, 4), (10000,), 0.5, 0.4, 100)
+    _test_nms_v5((1000, 4), (1000,), 0.7, 0.3, 50)
+
+
 #######################################################################
 # Main
 # ----
@@ -5030,6 +5067,9 @@ if __name__ == "__main__":
 
     # Detection_PostProcess
     test_detection_postprocess()
+
+    # NonMaxSuppressionV5
+    test_forward_nms_v5()
 
     # Overwrite Converter
     test_custom_op_converter()

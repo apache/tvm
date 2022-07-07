@@ -51,15 +51,24 @@ class ConstLoaderModuleNode : public ModuleNode {
       const std::unordered_map<std::string, NDArray>& const_var_ndarray,
       const std::unordered_map<std::string, std::vector<std::string>>& const_vars_by_symbol)
       : const_var_ndarray_(const_var_ndarray), const_vars_by_symbol_(const_vars_by_symbol) {
+    VLOG(1) << "Creating ConstLoaderModule";
     // Only the related submodules are cached to reduce the number of runtime
     // symbol lookup for initialization. Otherwise, symbols/primitives in the
     // DSO module will also be cached but they never need to be initialized.
-    for (const auto& it : const_vars_by_symbol_) {
-      initialized_[it.first] = false;
+    for (const auto& kv : const_vars_by_symbol_) {
+      for (const auto& var : kv.second) {
+        VLOG(1) << "ConstLoaderModuleNode has constant '" << var << "' for function '" << kv.first
+                << "'";
+        ICHECK_GT(const_var_ndarray_.count(var), 0)
+            << "ConstLoaderModuleNode is missing entry for constant '" << var << "' for function '"
+            << kv.first << "'";
+      }
+      initialized_[kv.first] = false;
     }
   }
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+    VLOG(1) << "ConstLoaderModuleNode::GetFunction(" << name << ")";
     // Initialize and memoize the module.
     // Usually, we have some warmup runs. The module initialization should be
     // done at this stage. Therefore, runtime overhead is not a concern.
@@ -88,11 +97,13 @@ class ConstLoaderModuleNode : public ModuleNode {
    */
   Array<NDArray> GetRequiredConstants(const std::string& symbol) {
     Array<NDArray> ret;
-    ICHECK_GT(const_vars_by_symbol_.count(symbol), 0U) << "No symbol is recorded for " << symbol;
+    ICHECK_GT(const_vars_by_symbol_.count(symbol), 0U)
+        << "No constants known for function '" << symbol << "'";
     std::vector<std::string> vars = const_vars_by_symbol_[symbol];
-    for (const auto& it : vars) {
-      ICHECK_GT(const_var_ndarray_.count(it), 0U) << "Found not recorded constant variable: " << it;
-      ret.push_back(const_var_ndarray_[it]);
+    for (const auto& var : vars) {
+      ICHECK_GT(const_var_ndarray_.count(var), 0U)
+          << "No such constant variable '" << var << "' for function '" << symbol << "'";
+      ret.push_back(const_var_ndarray_[var]);
     }
     return ret;
   }
@@ -229,5 +240,6 @@ TVM_REGISTER_GLOBAL("runtime.module.loadbinary_metadata")
     .set_body_typed(ConstLoaderModuleNode::LoadFromBinary);
 TVM_REGISTER_GLOBAL("runtime.module.loadbinary_const_loader")
     .set_body_typed(ConstLoaderModuleNode::LoadFromBinary);
+
 }  // namespace runtime
 }  // namespace tvm
