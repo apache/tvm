@@ -4382,7 +4382,7 @@ def test_custom_op_converter():
         output_tensors = [out]
         in_node = [0] * len(in_name)
         for i, _ in enumerate(in_name):
-            in_node[i] = in_name[i].split(":")[0] if ":" in in_name[i] else in_name[i]
+            in_node[i] = in_name[i].split(":")[0]
 
         with tf.Session() as sess:
             converter = tf.lite.TFLiteConverter.from_session(sess, input_tensors, output_tensors)
