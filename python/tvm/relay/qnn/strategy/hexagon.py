@@ -42,7 +42,7 @@ def qnn_dequantize_strategy_hexagon(attrs, inputs, out_type, target):
     """qnn.dequantize strategy for Hexagon"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_topi_compute(topi.hexagon.qnn_dequantize),
+        wrap_compute_dequantize(topi.hexagon.qnn_dequantize),
         wrap_topi_schedule(topi.hexagon.schedule_qnn_dequantize),
         name="qnn_dequantize.hexagon",
     )

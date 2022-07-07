@@ -71,15 +71,22 @@ def schedule_qnn_quantize(outs):
     return _default_schedule(outs, False)
 
 
-def qnn_dequantize(data, input_scale, input_zero_point):
+def qnn_dequantize(data, input_scale, input_zero_point, axis):
     """Compute for qnn.dequantize
     fp_output = input_scale * (Q_input - input_zero_point)
-    TODO: Support 'axis' argument.
     """
 
     def _compute(*indices):
         value = data(*indices)
-        return te.multiply(input_scale, te.subtract(value, input_zero_point))
+
+        # Account scalar and 1D quantization parameters:
+        scale_idx = tvm.tir.indexmod(indices[axis], topi.shape(input_scale)[0])
+        scale = input_scale if len(input_scale.shape) == 0 else input_scale[scale_idx]
+
+        zp_idx = tvm.tir.indexmod(indices[axis], topi.shape(input_zero_point)[0])
+        zp = input_zero_point if len(input_zero_point.shape) == 0 else input_zero_point[zp_idx]
+
+        return te.multiply(scale, te.subtract(value, zp))
 
     return te.compute(data.shape, _compute, tag=tag.ELEMWISE)
 
