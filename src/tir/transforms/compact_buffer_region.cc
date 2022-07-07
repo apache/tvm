@@ -69,7 +69,7 @@ Region SimplifyAndNarrowBufferRegionFromNDIntSet(
         extent = make_const(extent->dtype, upperbound);
       } else {
         // or else we have to fallback to full region
-        min = 0;
+        min = make_zero(original_shape[i]->dtype);
         extent = original_shape[i];
       }
     }
