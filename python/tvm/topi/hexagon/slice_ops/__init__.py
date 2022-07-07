@@ -24,3 +24,4 @@ from .batch_flatten import batch_flatten_compute, batch_flatten_stir_schedule
 from .softmax_slice import *
 from .clip import *
 from .conv2d import *
+from .reshape import reshape_compute, reshape_stir_schedule
