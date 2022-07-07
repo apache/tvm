@@ -244,10 +244,10 @@ def _verify_upsample_layer_params(input_dim, scale, mode):
 
 
 @tvm.testing.uses_gpu
-def test_forward_UpsampleLayerParams():
+def test_forward_upsample_layer_params():
     """UpsampleLayerParams"""
-    _verify_UpsampleLayerParams((1, 16, 32, 32), 2, "NN")
-    _verify_UpsampleLayerParams((1, 4, 6, 6), 3, "BILINEAR")
+    _verify_upsample_layer_params((1, 16, 32, 32), 2, "NN")
+    _verify_upsample_layer_params((1, 4, 6, 6), 3, "BILINEAR")
 
 
 def _verify_l2_normalize(input_dim, eps):
@@ -845,10 +845,10 @@ def test_can_build_keras_to_coreml_to_relay():
 
 
 if __name__ == "__main__":
-    test_forward_AddLayerParams()
+    test_forward_add_layer_params
     test_forward_concat_layer_params()
-    test_forward_MultiplyLayerParams()
-    test_forward_UpsampleLayerParams()
+    test_forward_multiply_layer_params()
+    test_forward_upsample_layer_params()
     test_forward_l2_normalize()
     test_forward_lrn()
     test_forward_average()
