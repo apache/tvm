@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=unused-argument, invalid-name
 """
 Test Darknet Models
 ===================
@@ -23,15 +24,15 @@ by the script.
 """
 import numpy as np
 import tvm
-from tvm import te
 from tvm.contrib import graph_executor
 from tvm.contrib.download import download_testdata
 
-download_testdata.__test__ = False
 from tvm.relay.testing.darknet import LAYERTYPE
 from tvm.relay.testing.darknet import __darknetffi__
 from tvm.relay.frontend.darknet import ACTIVATION
 from tvm import relay
+
+download_testdata.__test__ = False
 
 REPO_URL = "https://github.com/dmlc/web-data/blob/main/darknet/"
 DARKNET_LIB = "libdarknet2.0.so"
@@ -75,7 +76,6 @@ def _get_tvm_output(net, data, build_dtype="float32", states=None):
     astext(mod)
 
     target = "llvm"
-    shape_dict = {"data": data.shape}
     lib = relay.build(mod, target, params=params)
 
     # Execute on TVM
