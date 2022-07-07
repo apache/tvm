@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=import-self, invalid-name, unused-argument, unused-variable, singleton-comparison
+# pylint: disable=import-self, invalid-name, unused-argument, unused-variable
 # pylint: disable=redefined-builtin, no-else-return, inconsistent-return-statements, import-outside-toplevel
 """
 TFLite testcases
@@ -2261,14 +2261,14 @@ def _test_elemwise(
                 tf.quantization.fake_quant_with_min_max_args(
                     in_data[0], min=out_min, max=out_max, name="inq_0"
                 )
-                if in_data[0] != None
+                if in_data[0] is not None
                 else tf.quantization.fake_quant_with_min_max_args(
                     data[0], min=out_min, max=out_max, name="const_tensor0"
                 ),
                 tf.quantization.fake_quant_with_min_max_args(
                     in_data[1], min=out_min, max=out_max, name="inq_1"
                 )
-                if in_data[1] != None
+                if in_data[1] is not None
                 else tf.quantization.fake_quant_with_min_max_args(
                     data[1], min=out_min, max=out_max, name="const_tensor1"
                 ),
@@ -2279,7 +2279,7 @@ def _test_elemwise(
                 for x in zip(
                     in_data, (("inq_0", (inq0_min, inq0_max)), ("inq_1", (inq1_min, inq1_max)))
                 )
-                if x[0] != None
+                if x[0] is not None
             }
 
             if math_op is math_ops.equal:
@@ -2288,9 +2288,9 @@ def _test_elemwise(
 
             # Note same_qnn_params uses experimental_new_converter as toco failed
             compare_tflite_with_tvm(
-                [x[1] for x in zip(in_data, data) if x[0] != None],
+                [x[1] for x in zip(in_data, data) if x[0] is not None],
                 [x + ":0" for x in input_range.keys()],
-                [x[1] for x in zip(in_data, inq_data) if x[0] != None],
+                [x[1] for x in zip(in_data, inq_data) if x[0] is not None],
                 [out],
                 quantized=True,
                 input_range=input_range,
@@ -2299,17 +2299,17 @@ def _test_elemwise(
         else:
             out = math_op(
                 in_data[0]
-                if in_data[0] != None
+                if in_data[0] is not None
                 else ops.convert_to_tensor(data[0], dtype=data[0].dtype),
                 in_data[1]
-                if in_data[1] != None
+                if in_data[1] is not None
                 else ops.convert_to_tensor(data[1], dtype=data[1].dtype),
             )
             out = with_fused_activation_function(out, fused_activation_function)
             compare_tflite_with_tvm(
-                [x[1] for x in zip(in_data, data) if x[0] != None],
-                [x[1] for x in zip(in_data, ("in_0:0", "in_1:0")) if x[0] != None],
-                [x for x in in_data if x != None],
+                [x[1] for x in zip(in_data, data) if x[0] is not None],
+                [x[1] for x in zip(in_data, ("in_0:0", "in_1:0")) if x[0] is not None],
+                [x for x in in_data if x is not None],
                 [out],
             )
 
@@ -3953,7 +3953,7 @@ def _test_sparse_to_dense(sparse_indices, sparse_values, default_value, output_s
                 output_shape, shape=output_shape.shape, dtype=str(output_shape.dtype)
             )
 
-            if default_value == None:
+            if default_value is None:
                 output = tf.sparse_to_dense(indices, oshape, values)
                 compare_tflite_with_tvm(
                     [sparse_indices, sparse_values],
