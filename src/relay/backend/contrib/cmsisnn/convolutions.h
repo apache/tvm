@@ -18,12 +18,12 @@
  */
 
 /*!
- * \file src/relay/backend/contrib/cmsisnn/utils.h
- * \brief CMSIS-NN utility functions
+ * \file src/relay/backend/contrib/cmsisnn/convolutions.h
+ * \brief CMSIS-NN utility functions for Convolutions
  */
 
-#ifndef TVM_RELAY_BACKEND_CONTRIB_CMSISNN_UTILS_H_
-#define TVM_RELAY_BACKEND_CONTRIB_CMSISNN_UTILS_H_
+#ifndef TVM_RELAY_BACKEND_CONTRIB_CMSISNN_CONVOLUTIONS_H_
+#define TVM_RELAY_BACKEND_CONTRIB_CMSISNN_CONVOLUTIONS_H_
 
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/attrs/transform.h>
@@ -49,12 +49,12 @@ namespace cmsisnn {
  * attributes
  */
 
-bool is_cmsisnn_depthwise(const Conv2DAttrs* conv2d_attrs, const Array<PrimExpr>& input_shape,
-                          const Array<PrimExpr>& kernel_shape);
+bool IsCMSISNNDepthwise(const Conv2DAttrs* conv2d_attrs, const Array<PrimExpr>& input_shape,
+                        const Array<PrimExpr>& kernel_shape);
 
 }  // namespace cmsisnn
 }  // namespace contrib
 }  // namespace relay
 }  // namespace tvm
 
-#endif  // TVM_RELAY_BACKEND_CONTRIB_CMSISNN_UTILS_H_
+#endif  // TVM_RELAY_BACKEND_CONTRIB_CMSISNN_CONVOLUTIONS_H_

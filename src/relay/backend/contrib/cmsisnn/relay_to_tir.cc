@@ -30,7 +30,7 @@
 #include "../../../transforms/pattern_utils.h"
 #include "buffer_size.h"
 #include "compiler_attrs.h"
-#include "utils.h"
+#include "convolutions.h"
 
 namespace tvm {
 namespace relay {
@@ -206,7 +206,7 @@ class RelayToTIRVisitor : public MixedModeMutator {
     int32_t output_c = qnn::get_const_int(output_shape[3]);
 
     int32_t depth_multiplier = -1;
-    if (is_cmsisnn_depthwise(conv2d_attrs, input_shape, filter_shape)) {
+    if (IsCMSISNNDepthwise(conv2d_attrs, input_shape, filter_shape)) {
       // Refer to TVM frontend to know how depth multiplier and out_channels are related
       // https://github.com/apache/tvm/blob/6ed3ab3e33f8eafa4acaf53b7a671831de7587e9/python/tvm/relay/frontend/tflite.py#L2129
       int kernel_pos_i = kernel_layout.find("I");

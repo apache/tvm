@@ -23,8 +23,13 @@ import tvm
 from tvm import relay
 from tvm.relay.op.contrib import cmsisnn
 
-from tvm.testing.aot import generate_ref_data, AOTTestModel, compile_models, compile_and_run
-
+from tvm.testing.aot import (
+    generate_ref_data,
+    AOTTestModel,
+    compile_models,
+    compile_and_run,
+    run_and_check,
+)
 from tvm.micro.testing.aot_test_utils import AOT_USMP_CORSTONE300_RUNNER
 from .utils import (
     make_module,
@@ -211,7 +216,7 @@ def test_conv2d_number_primfunc_args(
     cmsisnn_func = cmsisnn_tir_mod["tvmgen_default_cmsis_nn_main_0"]
     assert (
         len(cmsisnn_func.params) == expected_num_params
-    ), "Generated unexpected number of function arguments"
+    ), "Generated unexpected number of function arguments."
 
 
 @tvm.testing.requires_cmsisnn
@@ -629,11 +634,13 @@ def test_relay_conv2d_cmsisnn_depthwise_int8(
     # validate pattern matching
     assert_partitioned_function(orig_mod, cmsisnn_mod)
 
-    # validate the output
+    # generate reference output
     rng = np.random.default_rng(12345)
     inputs = {"input": rng.integers(in_min, high=in_max, size=ifm_shape, dtype=dtype)}
     output_list = generate_ref_data(orig_mod["main"], inputs, params)
-    compile_and_run(
+
+    # validate presence of depthwise convolution
+    compiled_models = compile_models(
         AOTTestModel(
             module=cmsisnn_mod,
             inputs=inputs,
@@ -641,9 +648,31 @@ def test_relay_conv2d_cmsisnn_depthwise_int8(
             params=params,
             output_tolerance=1,
         ),
-        test_runner,
         interface_api,
         use_unpacked_api,
+        pass_config=test_runner.pass_config,
+    )
+
+    cmsisnn_tir_mod = None
+    for target, mod in compiled_models[0].executor_factory.lowered_ir_mods.items():
+        if target.kind.name == "cmsis-nn":
+            cmsisnn_tir_mod = mod
+
+    cmsisnn_func = cmsisnn_tir_mod["tvmgen_default_cmsis_nn_main_0"]
+    call_extern = None
+    if isinstance(cmsisnn_func.body, tvm.tir.stmt.Evaluate):
+        call_extern = cmsisnn_func.body.value
+    else:
+        call_extern = cmsisnn_func.body.body.value
+    assert (
+        call_extern.args[0].value == "arm_depthwise_conv_wrapper_s8"
+    ), "Relay Conv2D should be mapped to CMSIS-NN Depthwise Convolution."
+
+    # validate the output
+    run_and_check(
+        models=compiled_models,
+        runner=test_runner,
+        interface_api=interface_api,
     )
 
 
