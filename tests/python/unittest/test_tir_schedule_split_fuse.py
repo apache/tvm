@@ -86,6 +86,7 @@ def elementwise_symbolic_split(a: T.handle, b: T.handle, n: T.int32) -> None:
             T.writes([B[vi, vj, vk]])
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
+
 @T.prim_func
 def elementwise_with_seq(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
@@ -636,11 +637,12 @@ def test_split_int64_extent_with_int32_factors():
         ],
     )
 
+
 def test_split_int64_factors():
     sch = tir.Schedule(elementwise_symbolic, debug_mask="all")
     block_b = sch.get_block("B")
     _, _, k = sch.get_loops(block_b)
-    sch.split(k, factors=[IntImm(dtype="int64", value = 10), None])
+    sch.split(k, factors=[IntImm(dtype="int64", value=10), None])
     tvm.ir.assert_structural_equal(elementwise_symbolic_split, sch.mod["main"])
 
 
