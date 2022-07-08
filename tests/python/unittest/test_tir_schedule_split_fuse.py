@@ -20,6 +20,7 @@ import tvm
 import tvm.testing
 from tvm import te, tir
 from tvm.script import tir as T
+from tvm.tir.expr import IntImm
 from tvm.tir.schedule.testing import verify_trace_roundtrip
 
 # pylint: disable=no-member,invalid-name,unused-variable
@@ -85,6 +86,18 @@ def elementwise_symbolic_split(a: T.handle, b: T.handle, n: T.int32) -> None:
             T.writes([B[vi, vj, vk]])
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
+@T.prim_func
+def elementwise_symbolic_split_dtype_cast(a: T.handle, b: T.handle, n: T.int32) -> None:
+    A = T.match_buffer(a, (128, 128, n))
+    B = T.match_buffer(b, (128, 128, n))
+    for i, j, k0, k1 in T.grid(128, 128, T.cast(T.int64(10), "int32"), T.floordiv((n + 9), 10)):
+        with T.block("B"):
+            T.where((((k0 * T.floordiv((n + 9), 10)) + k1) < n))
+            vi, vj = T.axis.remap("SS", [i, j])
+            vk = T.axis.S(n, k0 * T.floordiv(n + 9, 10) + k1)
+            T.reads([A[vi, vj, vk]])
+            T.writes([B[vi, vj, vk]])
+            B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 @T.prim_func
 def elementwise_with_seq(a: T.handle, b: T.handle) -> None:
@@ -635,6 +648,13 @@ def test_split_int64_extent_with_int32_factors():
             te.const(4, "int32"),
         ],
     )
+
+def test_split_int64_factors():
+    sch = tir.Schedule(elementwise_symbolic, debug_mask="all")
+    block_b = sch.get_block("B")
+    _, _, k = sch.get_loops(block_b)
+    sch.split(k, factors=[IntImm(dtype="int64", value = 10), None])
+    tvm.ir.assert_structural_equal(elementwise_symbolic_split_dtype_cast, sch.mod["main"])    
 
 
 if __name__ == "__main__":
