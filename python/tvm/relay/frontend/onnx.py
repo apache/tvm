@@ -1870,11 +1870,7 @@ class Split(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         splits = attr.get("split", None)
         if splits is not None and len(splits) > 1:
-            indices = []
-            index = 0
-            for i in splits[:-1]:
-                index += i
-                indices.append(index)
+            indices = np.cumsum(splits[:-1]).tolist()
         # When splits isnt specified divide evenly over axis.
         else:
             indices = attr["tvm_custom"]["num_outputs"]
@@ -1893,11 +1889,7 @@ class Split(OnnxOpConverter):
         if splits is not None and splits_rank > 0:
             if isinstance(splits, _expr.Constant):
                 splits = splits.data.asnumpy()
-                indices = []
-                index = 0
-                for i in splits[:-1]:
-                    index += i
-                    indices.append(index)
+                indices = np.cumsum(splits[:-1]).tolist()
             else:
                 raise ValueError("Dynamic Split not yet supported")
         # When splits isnt specified divide evenly over axis.
