@@ -168,6 +168,9 @@ def workspace_pools_recombobulate(parsed, targets, extra_target):
         target.append(targets[0].host)
 
     workspace_pools = _split_pools(parsed.workspace_pools)
+    if not workspace_pools:
+        return None
+
     pool_to_attributes = {
         workspace_pool_param: _attribute_to_pools(getattr(parsed, workspace_pool_param))
         for workspace_pool_param in WORKSPACE_POOL_PARAMS

@@ -195,8 +195,8 @@ def drive_compile(args):
         pass_context_configs=args.pass_config,
         mod_name=args.module_name,
         additional_target_options=additional_targets,
-        workspace_pools=workspace_pools_recombobulate(
-            args, [workspace_pools_target], extra_targets
+        workspace_pools=(
+            workspace_pools_recombobulate(args, [workspace_pools_target], extra_targets)
         ),
     )
 
@@ -274,6 +274,9 @@ def compile_model(
         Whether to use the VM to compile the model as opposed to the graph executor
     mod_name: str, optional
         The module name
+    workspace_pools: WorkspaceMemoryPools, optional
+        Specification of WorkspacePoolInfo objects to be used as workspace memory in the
+        compilation.
 
     Returns
     -------

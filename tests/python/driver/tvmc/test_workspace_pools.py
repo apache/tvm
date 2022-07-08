@@ -61,6 +61,16 @@ def test_workspace_pools_argparse():
     assert unparsed == ["--workspace-pools-is-internal=sram:0"]
 
 
+def test_workspace_pools_recombobulate_empty():
+    parser = argparse.ArgumentParser()
+    generate_workspace_pools_args(parser)
+    parsed, _ = parser.parse_known_args([])
+
+    targets = [Target("llvm")]
+    memory_pools = workspace_pools_recombobulate(parsed, targets, _)
+    assert memory_pools is None
+
+
 def test_workspace_pools_recombobulate():
     parser = argparse.ArgumentParser()
     generate_workspace_pools_args(parser)
