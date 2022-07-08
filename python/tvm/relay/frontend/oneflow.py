@@ -1208,12 +1208,8 @@ class Split(OneFlowOpConverter):
     def _impl_v1(cls, inputs, attrs, params):
         splits = attrs.get("split", None)
         if splits is not None:
-            indices = []
+            indices = np.cumsum(splits[:-1]).tolist()
             attrs["indices_or_sections"] = []
-            index = 0
-            for i in splits[:-1]:
-                index += i
-                indices.append(index)
         output = _op.split(inputs[0], indices, attrs.get("axis", 0))
         # If the output of split is a single value, unpack if from the TupleWrapper
         if len(output) == 1:
