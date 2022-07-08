@@ -163,6 +163,15 @@ def wrap_topi_qnn_dense(topi_compute):
     return wrapper
 
 
+def wrap_topi_concatenate(topi_compute):
+    """Wrap TOPI compute which use qnn.concatenate attrs"""
+
+    def wrapper(attrs, inputs, out_type):
+        return [topi_compute(inputs, attrs.axis, out_type.dtype)]
+
+    return wrapper
+
+
 @override_native_generic_func("qnn_quantize_strategy")
 def qnn_quantize_strategy(attrs, inputs, out_type, target):
     """qnn.quantize generic strategy"""
@@ -195,6 +204,15 @@ def qnn_add_strategy(attrs, inputs, out_type, target):
     """qnn.add generic strategy"""
     raise RuntimeError(
         "qnn.add is currently only supported with Hexagon. "
+        "Please run QNN Canonicalize pass to decompose this op into supported ops."
+    )
+
+
+@override_native_generic_func("qnn_concatenate_strategy")
+def qnn_concatenate_strategy(attrs, inputs, out_type, target):
+    """qnn.concatenate generic strategy"""
+    raise RuntimeError(
+        "qnn.concatenate is currently only supported with Hexagon. "
         "Please run QNN Canonicalize pass to decompose this op into supported ops."
     )
 

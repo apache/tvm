@@ -24,6 +24,14 @@ from ..utils import get_const_tuple
 from ..nn.utils import get_pad_tuple
 from ..nn.pad import pad
 from .. import tag
+from ..x86.concat import concatenate
+
+
+def clip_cast(val, dtype):
+    # clip + cast:
+    const_min = tvm.tir.min_value(dtype)
+    const_max = tvm.tir.max_value(dtype)
+    return te.max(tvm.te.min(val, const_max), const_min).astype(dtype)
 
 
 def qnn_quantize(data, output_scale, output_zero_point, axis, out_dtype):
@@ -188,6 +196,84 @@ def qnn_add(
 
 def schedule_qnn_add(outs):
     """Schedule for qnn.add
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of qnn.add
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+def requantize_tensor(tensor, i_scale, i_zp, o_scale, o_zp, out_dtype):
+    """Requantize tensor"""
+
+    def _compute(*indices):
+        value = tensor(*indices)
+        mul_value = te.round(
+            te.multiply(te.div(i_scale, o_scale), te.subtract(value, i_zp))
+        ).astype("int32")
+        rq_value = te.add(mul_value, o_zp)
+
+        return clip_cast(rq_value, out_dtype)
+
+    return te.compute(tensor.shape, _compute)
+
+
+def qnn_concatenate(data, axis, out_dtype):
+    """Compute for qnn.concatenate
+
+    Parameters
+    ----------
+    data: Array of Tensor
+          The computation graph description of qnn.concatenate
+          in the format of an array of tensors.
+
+    axis: int
+          The axis along which the tensors are concatenated.
+
+    out_dtype: string
+          Data type of output tensor
+
+    Returns
+    -------
+    out: Tensor
+        The computation for the op.
+    """
+
+    # Get output quantization parameters.
+    o_scale = data[-2]
+    o_zp = data[-1]
+
+    # Initially qnn.concatenate had 3 tuples: (1) tuple with input tensors, (2) tuple with input
+    # scales and (3) tuple with input zero points.
+    # Last 2 elements in data represent output scale and zero point.
+    num_of_tuples = 3
+    assert ((len(data) - 2) % num_of_tuples) == 0
+    args_num = (len(data) - 2) // num_of_tuples
+
+    args = []
+    for i in range(args_num):
+        # Get next tensor and its quantization parameters.
+        tensor = data[i]
+        i_scale = data[i + args_num]
+        i_zp = data[i + args_num * 2]
+
+        # Requantize tensors and add them to the list.
+        args.append(requantize_tensor(tensor, i_scale, i_zp, o_scale, o_zp, out_dtype))
+
+    # Call x86 implementation of concatenate.
+    return concatenate(args, axis)
+
+
+def schedule_qnn_concatenate(outs):
+    """Schedule for qnn.concatenate
 
     Parameters
     ----------

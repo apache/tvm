@@ -309,12 +309,6 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
       }
     }
 
-    if (count_tuple) {
-      ICHECK_EQ(call_node->args.size(), 1U)
-          << "Only functions with a single tuple input are allowed, but " << count_tuple
-          << " were provided.";
-    }
-
     ICHECK(call_node->op.as<OpNode>()) << "Primitive function only allows call into primitive ops";
     Op op = Downcast<Op>(call_node->op);
 
