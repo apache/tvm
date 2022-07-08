@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=import-self, invalid-name
+# pylint: disable=import-self, invalid-name, consider-using-f-string
 # pylint: disable=arguments-differ, unused-argument, unused-import
 """Unit tests for various models and operators"""
 import os
@@ -81,6 +81,7 @@ def get_oneflow_output(model, inputs):
 
 
 def get_tvm_output(graph, model_path, inputs: flow.tensor, target="llvm", dtype="float32"):
+    """Generic function to execute and get tvm output"""
     inputs_numpy = inputs.numpy()
     if target == "llvm":
         device = tvm.cpu(0)
@@ -105,6 +106,7 @@ def verify_model(
     ),
     device="llvm",
 ):
+    """Generic function to generate and compare oneflow and TVM output"""
     if device == "cuda":
         model.to(device)
         inputs = inputs.to(device)
@@ -125,6 +127,7 @@ def verify_model(
 
 @tvm.testing.uses_gpu
 def test_vision_models():
+    """Vision models test"""
 
     if os.path.exists(MODEL_HOME):
         rmdir(MODEL_HOME)
