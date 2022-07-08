@@ -98,7 +98,7 @@ std::string CodeGenOpenCL::Finish() {
                    "#pragma OPENCL EXTENSION cl_amd_fp16 : enable\n"
                    "#else\n"
                    "#error \"Half precision floating point not supported"
-                   "by OpenCL implementation on your device.\" \n"
+                   " by OpenCL implementation on your device.\" \n"
                    "#endif\n\n";
   }
 
@@ -109,7 +109,7 @@ std::string CodeGenOpenCL::Finish() {
                    "#pragma OPENCL EXTENSION cl_amd_fp64 : enable\n"
                    "#else\n"
                    "#error \"Double precision floating point not supported"
-                   "by OpenCL implementation on your device.\" \n"
+                   " by OpenCL implementation on your device.\" \n"
                    "#endif\n\n";
   }
 
