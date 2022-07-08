@@ -26,7 +26,7 @@
 
 #include <functional>
 
-#include "./functor_common.h"
+#include "functor_common.h"
 
 namespace tvm {
 namespace tir {
@@ -647,6 +647,11 @@ class IRSubstitute : public StmtExprMutator {
   PrimExpr VisitExpr_(const VarNode* op) final {
     Var var = GetRef<Var>(op);
     auto ret = vmap_(var);
+    if (ret.defined()) {
+      PrimExpr ret_ex = Downcast<PrimExpr>(ret.value());
+      ICHECK(ret_ex.dtype() == var.dtype()) << "substituting " << var << ":" << var.dtype()
+                                            << " -> " << ret_ex << ":" << ret_ex.dtype();
+    }
     if (ret.defined()) return ret.value();
     return std::move(var);
   }
