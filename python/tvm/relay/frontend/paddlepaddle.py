@@ -1948,14 +1948,12 @@ def convert_split(g, op, block):
     else:
         sections = op.attr("sections")
     if sections:
-        indices = []
+        indices = np.cumsum(sections[:-1]).tolist()
         split_index = 0
         for i in sections[:-1]:
             if i == -1:
                 input_shape = infer_shape(x)[axis]
                 i = input_shape - np.sum(sections) - 1
-            split_index += i
-            indices.append(split_index)
     else:
         indices = op.attr("num")
 
