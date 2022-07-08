@@ -29,7 +29,7 @@ def _target():
 def test_cuda_c1d():
     # fmt: off
     @T.prim_func
-    def mod_0(inputs: T.Buffer[(1, 256, 64), "float32"], weight: T.Buffer[(3, 64, 128), "float32"], conv1d_nlc: T.Buffer[(1, 128, 128), "float32"]) -> None:
+    def c1d_0(inputs: T.Buffer[(1, 256, 64), "float32"], weight: T.Buffer[(3, 64, 128), "float32"], conv1d_nlc: T.Buffer[(1, 128, 128), "float32"]) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
@@ -106,7 +106,7 @@ def test_cuda_c1d():
     check_sketches(
         mod,
         sketches=actual,
-        expected_mods=[mod_0],
+        expected_mods=[c1d_0],
         expected_decisions=[decision_0],
     )
 
