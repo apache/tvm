@@ -648,11 +648,15 @@ class IRSubstitute : public StmtExprMutator {
     Var var = GetRef<Var>(op);
     auto ret = vmap_(var);
     if (ret.defined()) {
-      PrimExpr ret_ex = Downcast<PrimExpr>(ret.value());
-      ICHECK(ret_ex.dtype() == var.dtype()) << "substituting " << var << ":" << var.dtype()
-                                            << " -> " << ret_ex << ":" << ret_ex.dtype();
+      // Allow substitution of void variables with any expression. The TVM script parser
+      // uses void variables for lambda parameters (since exact types are not known yet).
+      if (!var.dtype().is_void()) {
+        PrimExpr ret_ex = Downcast<PrimExpr>(ret.value());
+        ICHECK(ret_ex.dtype() == var.dtype()) << "substituting " << var << ":" << var.dtype()
+                                              << " -> " << ret_ex << ":" << ret_ex.dtype();
+      }
+      return ret.value();
     }
-    if (ret.defined()) return ret.value();
     return std::move(var);
   }
 
