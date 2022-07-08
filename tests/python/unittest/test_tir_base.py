@@ -118,8 +118,20 @@ def test_exception():
         x = tir.Var(name=1, dtype="int")
 
 
+def test_eq_ops():
+    a = tir.IntImm("int8", 1)
+    with pytest.raises(ValueError):
+        assert a != None
+    with pytest.raises(ValueError):
+        assert not a == None
+    b = tir.StringImm("abc")
+    assert b != None
+    assert not b == None
+
+
 if __name__ == "__main__":
     test_scalar_add()
     test_ret_const()
     test_control_flow_jump()
     test_exception()
+    test_eq_ops()
