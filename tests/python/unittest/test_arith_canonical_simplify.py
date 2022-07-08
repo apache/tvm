@@ -161,7 +161,7 @@ def test_reduce_combiner_simplify():
     )
     sum_and_prod = comm_reducer(
         lambda x, y: (x[0] + y[0], x[1] * y[1]),
-        lambda t0, t1: (tvm.tir.const(0, t0), tvm.tir.const(5, t0) - tvm.tir.const(4, t0)),
+        lambda t0, t1: (tvm.tir.const(0, t0), tvm.tir.const(5, t1) - tvm.tir.const(4, t1)),
     )
     some_reducer1 = comm_reducer(
         lambda x, y: (
