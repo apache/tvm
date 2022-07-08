@@ -277,8 +277,8 @@ class CodegenCModule {
       // constant copying process used packed imports in other external
       // codegen. Moreover, in microTVM we dont expect this part to be generated.
       os << "#ifdef __cplusplus\n";
-      os << "#include <tvm/runtime/ndarray.h>\n";
-      os << "#include <tvm/runtime/packed_func.h>\n";
+      os << "#include <tvm/runtime/crt/internal/common/ndarray.h>\n";
+      os << "#include <tvm/runtime/crt/packed_func.h>\n";
       os << "#endif\n";
     }
 
