@@ -14,19 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=import-self, invalid-name
-# pylint: disable=arguments-differ, unused-argument, unused-import
+# pylint: disable=import-self, invalid-name, missing-function-docstring
+# pylint: disable=arguments-differ, unused-argument, consider-using-f-string
 """Unit tests for various models and operators"""
 import os
-import sys
 
 import numpy as np
-import pytest
 import tvm
 import tvm.testing
 import tvm.topi.testing
 from tvm import relay
-from tvm.contrib import graph_executor
 
 import oneflow as flow
 
@@ -679,9 +676,6 @@ def test_activation():
             return x
 
     class TensorSoftmax(flow.nn.Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x):
             x = x.softmax(dim=-1)
             return x
@@ -690,7 +684,7 @@ def test_activation():
         rmdir(MODEL_HOME)
 
     model1 = Softmax().eval()
-    model2 = Softplus().eval()
+    model2 = Softplus().eval()  # pylint: disable=unused-variable
     model3 = Softsign().eval()
     model4 = Tanh().eval()
     model5 = ReLU().eval()
