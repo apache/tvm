@@ -68,6 +68,10 @@ register_pattern("qnn.requantize", OpPattern.ELEMWISE)
 register_strategy("qnn.add", strategy.qnn_add_strategy)
 register_pattern("qnn.add", OpPattern.BROADCAST)
 
+# qnn.concatenate
+register_strategy("qnn.concatenate", strategy.qnn_concatenate_strategy)
+register_pattern("qnn.concatenate", OpPattern.INJECTIVE)
+
 # qnn.conv2d
 register_strategy("qnn.conv2d", strategy.qnn_conv2d_strategy)
 register_pattern("qnn.conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)

@@ -76,6 +76,19 @@ def qnn_add_strategy_hexagon(attrs, inputs, out_type, target):
 
 
 # TODO: This is POC code. Change it on "hexagon" instead of "cpu"
+@qnn_concatenate_strategy.register("cpu")
+def qnn_concatenate_strategy_hexagon(attrs, inputs, out_type, target):
+    """qnn.concatenate strategy for Hexagon"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_topi_concatenate(topi.hexagon.qnn_concatenate),
+        wrap_topi_schedule(topi.hexagon.schedule_qnn_concatenate),
+        name="qnn_concatenate.hexagon",
+    )
+    return strategy
+
+
+# TODO: This is POC code. Change it on "hexagon" instead of "cpu"
 @qnn_conv2d_strategy.register("cpu")
 def qnn_conv2d_strategy_hexagon(attrs, inputs, out_type, target):
     """qnn.conv2d strategy for Hexagon"""
