@@ -29,6 +29,8 @@
 #include <tvm/tir/transform.h>
 
 #include <algorithm>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace tvm {
 
@@ -42,6 +44,62 @@ TVM_REGISTER_PASS_CONFIG_OPTION(kCopyComputeReorderingMaxCopyMovements, Integer)
 namespace tir {
 namespace contrib {
 namespace ethosu {
+
+namespace {
+
+/*! Returns the arguments of the given statement */
+Array<PrimExpr> GetStmtArgs(const Stmt& stmt) {
+  auto attr{stmt.as<AttrStmtNode>()};
+  Stmt eval_stmt{attr ? attr->body : stmt};
+  auto eval{eval_stmt.as<EvaluateNode>()};
+  ICHECK(eval) << "Expected statement to be an evaluate node, but was " << eval_stmt->GetTypeKey();
+  auto call{eval->value.as<CallNode>()};
+  ICHECK(call) << "Expected expression to be a call node, but was " << eval->value->GetTypeKey();
+  return call->args;
+}
+
+enum class StmtType { global_copy, local_copy, compute };
+
+/*! Returns the type of the given statement */
+StmtType GetStmtType(const Stmt& stmt) {
+  Array<PrimExpr> args{GetStmtArgs(stmt)};
+  if (args[0].as<StringImmNode>()->value == "ethosu_copy") {
+    if (args[3].as<BufferLoadNode>()->buffer.scope() == "global") {
+      return StmtType::global_copy;
+    } else {
+      return StmtType::local_copy;
+    }
+  }
+  return StmtType::compute;
+}
+/*! Returns the buffer read my the given copy statement */
+Buffer GetCopyReadBuffer(const Stmt& stmt) {
+  Array<PrimExpr> args{GetStmtArgs(stmt)};
+  return args[1].as<BufferLoadNode>()->buffer;
+}
+
+/*! Returns the buffer written my the given copy statement */
+Buffer GetCopyWriteBuffer(const Stmt& stmt) {
+  Array<PrimExpr> args{GetStmtArgs(stmt)};
+  return args[3].as<BufferLoadNode>()->buffer;
+}
+
+/*! Returns the length of the given copy statement */
+int64_t GetCopyLength(const Stmt& stmt) {
+  Array<PrimExpr> args{GetStmtArgs(stmt)};
+  return args[2].as<IntImmNode>()->value;
+}
+
+/*! Returns the cycles of the given statement */
+int64_t GetStmtCycles(const Stmt& stmt) {
+  auto attr{stmt.as<AttrStmtNode>()};
+  if (attr && attr->attr_key == "pragma_compute_cycles_hint") {
+    int64_t cycles{Downcast<Integer>(attr->value)->value};
+    return cycles;
+  }
+  return 0;
+}
+}  // namespace
 
 /*!
  * \brief This mutator moves allocates to the top of the body of the main
@@ -155,9 +213,9 @@ class CopyComputeReorderingMutator : public StmtExprMutator {
     // Each copy statement to a buffer with global scope is moved up
     // at most `_max_copy_movements` times.
     for (size_t index = 0; index < new_seq.size(); ++index) {
-      if (stmt_is_global_copy(new_seq[index])) {
+      if (GetStmtType(new_seq[index]) == StmtType::global_copy) {
         int lower = std::max(0, static_cast<int>(index) - _max_copy_movements);
-        for (int i = index; i > lower && !stmt_is_copy(new_seq[i - 1]); --i) {
+        for (int i = index; i > lower && (GetStmtType(new_seq[i - 1]) == StmtType::compute); --i) {
           std::swap(new_seq[i - 1], new_seq[i]);
         }
       }
@@ -166,32 +224,6 @@ class CopyComputeReorderingMutator : public StmtExprMutator {
     auto seq_stmt_node{CopyOnWrite(op)};
     seq_stmt_node->seq = std::move(new_seq);
     return Stmt{seq_stmt_node};
-  }
-
-  tvm::runtime::Array<tvm::PrimExpr> get_stmt_args(const Stmt& stmt) {
-    Stmt eval_stmt = stmt;
-    if (const auto* attr_stmt = eval_stmt.as<AttrStmtNode>()) {
-      eval_stmt = attr_stmt->body;
-    }
-
-    auto eval_node{eval_stmt.as<EvaluateNode>()};
-    ICHECK(eval_node) << "Expected statement to be an evaluate node, but was "
-                      << eval_stmt->GetTypeKey();
-    auto call_node{eval_node->value.as<CallNode>()};
-    ICHECK(call_node) << "Expected expression to be a call node, but was "
-                      << eval_node->value->GetTypeKey();
-    return call_node->args;
-  }
-
-  bool stmt_is_copy(const Stmt& stmt) {
-    auto args{get_stmt_args(stmt)};
-    return args[0].as<StringImmNode>()->value == "ethosu_copy";
-  }
-
-  bool stmt_is_global_copy(const Stmt& stmt) {
-    auto args{get_stmt_args(stmt)};
-    return args[0].as<StringImmNode>()->value == "ethosu_copy" &&
-           args[3].as<BufferLoadNode>()->buffer.scope() == "global";
   }
 
   /*! The maximum number of movements allowed for a copy. */
@@ -225,30 +257,144 @@ TVM_REGISTER_GLOBAL("tir.contrib.ethos-u.CopyComputeReordering")
     .set_body_typed(CopyComputeReordering);
 
 /*!
- * \brief This pass looks for the constants used by each compute operator
+ * \brief This mutator removes all allocates.
+ */
+class RemoveAllocatesMutator : public StmtExprMutator {
+ public:
+  PrimFunc operator()(PrimFunc main_func) {
+    auto prim_func_node{main_func.CopyOnWrite()};
+    prim_func_node->body = this->VisitStmt(main_func->body);
+    return GetRef<PrimFunc>(prim_func_node);
+  }
+
+ private:
+  Stmt VisitStmt_(const AllocateNode* op) override { return VisitStmt(op->body); }
+};
+
+/*!
+ * \brief This extractor collects information used by the MergeConstantsMutator
+ */
+class MergeConstantsInfoExtractor : public StmtExprVisitor {
+ public:
+  class Info {
+   public:
+    /*! A stack to store allocates as they are visited. */
+    std::vector<Allocate> allocates{};
+
+    /*! A list that contains in the i-th position the write buffer of the i-th statement
+     * if that statement is a copy to a buffer with global scope  */
+    std::vector<Optional<Buffer>> copy_write_buffers{};
+
+    /*! Maps a copy's write buffer to an index representing the
+     * new buffer and an offset in that buffer */
+    std::unordered_map<const BufferNode*, std::pair<int /* new buffer index */, int /* offset */>>
+        old_to_new_write_buffer{};
+
+    /*! Maps an index representing a new buffer to the length of that buffer */
+    std::unordered_map<int /* new buffer index */, int /* length */> new_buffers_length{};
+
+    /*! Maps an index representing a new buffer to the cycless needed to copy that buffer */
+    std::unordered_map<int /* new buffer index */, int64_t> cycless{};
+  };
+
+  Info operator()(PrimFunc main_func) {
+    this->VisitStmt(main_func->body);
+    return std::move(_info);
+  }
+
+ private:
+  /*! The information collected by this extractor */
+  Info _info{};
+
+  void VisitStmt_(const AllocateNode* op) override {
+    _info.allocates.push_back(GetRef<Allocate>(op));
+    VisitStmt(op->body);
+  }
+
+  void VisitStmt_(const SeqStmtNode* op) override {
+    if (op->size() <= 1) {
+      StmtExprVisitor::VisitStmt_(op);
+      return;
+    }
+
+    auto seq_stmt{GetRef<SeqStmt>(op)};
+    for (size_t i = 0; i < seq_stmt.size(); ++i) {
+      Stmt stmt{seq_stmt[i]};
+      switch (GetStmtType(stmt)) {
+        case StmtType::global_copy: {
+          Buffer write_buffer{GetCopyWriteBuffer(stmt)};
+          _info.copy_write_buffers.push_back(write_buffer);
+          _info.old_to_new_write_buffer[write_buffer.as<BufferNode>()] = std::make_pair(-1, -1);
+          break;
+        }
+        case StmtType::local_copy: {
+          _info.copy_write_buffers.push_back(Optional<Buffer>{});
+          break;
+        }
+        case StmtType::compute: {
+          _info.copy_write_buffers.push_back(Optional<Buffer>{});
+          std::vector<Buffer> buffers{GetCopiedBuffersUsedByStmt(stmt)};
+          if (buffers.empty()) {
+            continue;
+          }
+          _info.new_buffers_length[i] = 0;
+          for (Buffer buffer : buffers) {
+            for (size_t j{i - 1}; j >= 0; --j) {
+              if (_info.copy_write_buffers[j] == buffer) {
+                _info.old_to_new_write_buffer[buffer.as<BufferNode>()] =
+                    std::make_pair(i, _info.new_buffers_length[i]);
+                _info.new_buffers_length[i] += GetCopyLength(seq_stmt[j]);
+                _info.cycless[i] += GetStmtCycles(seq_stmt[j]);
+                break;
+              }
+            }
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  /*! Get all buffers written by copies and used by a given statement */
+  std::vector<Buffer> GetCopiedBuffersUsedByStmt(const Stmt& stmt) {
+    std::vector<Buffer> buffers{};
+    for (PrimExpr arg : GetStmtArgs(stmt)) {
+      if (auto buffer_load = arg.as<BufferLoadNode>()) {
+        Buffer buffer{buffer_load->buffer};
+        // Check if the buffer has already been added
+        if (std::find(buffers.begin(), buffers.end(), buffer) == buffers.end()) {
+          // Check if the buffer is copied
+          if (_info.old_to_new_write_buffer.count(buffer.as<BufferNode>())) {
+            buffers.push_back(buffer);
+          }
+        }
+      }
+    }
+    return buffers;
+  }
+};
+
+/*!
+ * \brief This mutator looks for the constants used by each compute operator
  * and merges them into a single buffer.
  * Constants written to a buffer with local scope are not merged.
  */
 class MergeConstantsMutator : public StmtExprMutator {
  public:
-  MergeConstantsMutator() {}
+  MergeConstantsMutator(MergeConstantsInfoExtractor::Info info) : _info{std::move(info)} {}
 
   PrimFunc operator()(PrimFunc main_func, const Map<IntImm, runtime::NDArray>& const_dict) {
-    // Analyze
-    Stmt new_body{this->VisitStmt(main_func->body)};
-
     // Rewrite
-    analyze = false;
-    new_body = rewrite_prim_func_body(new_body);
-    std::set<ObjectRef> params_to_delete{};
-    auto new_buffer_map{make_new_buffer_map(main_func->buffer_map, &params_to_delete)};
-    auto new_params{make_new_params(main_func->params, params_to_delete)};
+    Stmt new_body = RewritePrimFuncBody(main_func->body);
+    std::unordered_set<const VarNode*> params_to_delete{};
+    Map<Var, Buffer> new_buffer_map{MakeNewBufferMap(main_func->buffer_map, &params_to_delete)};
+    Array<Var> new_params{MakeNewParams(main_func->params, params_to_delete)};
 
     // Make the new const dict
-    auto args_to_merge{get_args_to_merge(main_func->buffer_map, main_func->params)};
-    auto buffers_to_merge{
-        get_args_to_merge_without_args_not_in_const_dict(args_to_merge, const_dict)};
-    auto new_const_dict{make_new_const_dict(buffers_to_merge, const_dict)};
+    Array<Array<IntImm>> args_to_merge{GetArgsToMerge(main_func->buffer_map, main_func->params)};
+    Array<Array<IntImm>> buffers_to_merge{
+        GetArgsToMergeWithoutArgsNotInConstDict(args_to_merge, const_dict)};
+    Map<IntImm, runtime::NDArray> new_const_dict{MakeNewConstDict(buffers_to_merge, const_dict)};
 
     // Make the new prim func
     auto prim_func_node{main_func.CopyOnWrite()};
@@ -259,135 +405,57 @@ class MergeConstantsMutator : public StmtExprMutator {
     PrimFunc f{GetRef<PrimFunc>(prim_func_node)};
 
     // Add the new const dict as an attribute
-    f = WithAttr(std::move(f), "ethos-u.const-dict", new_const_dict);
+    f = WithAttr(std::move(f), "ethos-u.const_dict", new_const_dict);
 
     return f;
   }
 
  private:
-  /*! Indicates whether the pass is analyzing or rewriting */
-  bool analyze = true;
-
-  /*! A stack to store allocates as they are visited. */
-  std::vector<Allocate> allocates{};
-
-  /*! A list that contains in the i-th position the write buffer of the i-th statement
-   * if that statement is a copy to a buffer with global scope  */
-  std::vector<Optional<Buffer>> copy_write_buffers{};
-
-  /*! Maps a copy's write buffer to an index representing the
-   * new buffer and an offset in that buffer */
-  std::map<Buffer, std::pair<int /* new buffer index */, int /* offset */>>
-      old_to_new_write_buffer{};
-
-  /*! Maps an index representing a new buffer to the length of that buffer */
-  std::map<int /* new buffer index */, int /* length */> new_buffers_length{};
+  /*! The information collected by the MergeConstantsInfoExtractor */
+  MergeConstantsInfoExtractor::Info _info;
 
   /*! Maps an index representing a new buffer to the new buffer */
-  std::map<int /* new buffer index */, Buffer> new_buffers{};
-
-  /*! Maps an index representing a new buffer to the cycle_counts needed to copy that buffer */
-  std::map<int /* new buffer index */, int64_t> cycle_counts{};
+  std::unordered_map<int /* new buffer index */, Buffer> new_buffers{};
 
   /*! Maps a copy's read buffer to the new copy's read buffer */
-  std::map<Buffer, Buffer> old_to_new_read_buffers{};
+  std::unordered_map<const BufferNode*, Buffer> old_to_new_read_buffers{};
 
   /*! Maps an index representing a new buffer to the list of buffers to be merged in the new buffer
    */
-  std::map<int /* new buffer index */, std::vector<Buffer>> buffers_to_merge{};
+  std::unordered_map<int /* new buffer index */, std::vector<Buffer>> buffers_to_merge{};
 
   /*! A set of buffers to delete */
-  std::set<Buffer> buffers_to_delete{};
+  std::unordered_set<const BufferNode*> buffers_to_delete{};
 
-  // Visit
-
-  Stmt VisitStmt_(const AllocateNode* op) override {
-    if (analyze) {
-      allocates.push_back(GetRef<Allocate>(op));
-      return VisitStmt(op->body);
-    } else {
-      auto allocate{CopyOnWrite(op)};
-      allocate->body = this->VisitStmt(op->body);
-      return Stmt(allocate);
-    }
-  }
-
-  Stmt VisitStmt_(const SeqStmtNode* op) override {
-    if (op->size() <= 1) {
-      return StmtExprMutator::VisitStmt_(op);
-    }
-    return analyze ? analyze_seq_stmt(op) : rewrite_seq_stmt(op);
-  }
-
-  Stmt analyze_seq_stmt(const SeqStmtNode* op) {
-    auto seq_stmt{GetRef<SeqStmt>(op)};
-
-    for (size_t i = 0; i < seq_stmt.size(); ++i) {
-      Stmt stmt{seq_stmt[i]};
-
-      switch (get_stmt_type(stmt)) {
-        case StmtType::global_copy: {
-          Buffer write_buffer{get_copy_write_buffer(stmt)};
-          copy_write_buffers.push_back(write_buffer);
-          old_to_new_write_buffer[write_buffer] = std::make_pair(-1, -1);
-          break;
-        }
-        case StmtType::local_copy: {
-          copy_write_buffers.push_back(Optional<Buffer>{});
-          break;
-        }
-        case StmtType::compute: {
-          copy_write_buffers.push_back(Optional<Buffer>{});
-          auto buffers{get_copied_buffers_used_by_stmt(stmt)};
-          if (buffers.empty()) {
-            continue;
-          }
-          new_buffers_length[i] = 0;
-          for (auto buffer : buffers) {
-            for (size_t j{i - 1}; j >= 0; --j) {
-              if (copy_write_buffers[j] == buffer) {
-                old_to_new_write_buffer[buffer] = std::make_pair(i, new_buffers_length[i]);
-                new_buffers_length[i] += get_copy_length(seq_stmt[j]);
-                cycle_counts[i] += get_stmt_cycle_counts(seq_stmt[j]);
-                break;
-              }
-            }
-          }
-          break;
-        }
-      }
-    }
-    return std::move(seq_stmt);
-  }
-
-  Stmt rewrite_prim_func_body(Stmt body) {
-    std::map<const VarNode*, Allocate> var_to_allocate{};
+  Stmt RewritePrimFuncBody(Stmt body) {
+    std::unordered_map<const VarNode*, Allocate> var_to_allocate{};
 
     // Rewrite old allocates
-    std::set<ObjectRef> buffer_vars{get_vars_for_written_copy_buffers()};
-    for (auto it{allocates.rbegin()}; it != allocates.rend(); ++it) {
+    std::unordered_set<const VarNode*> buffer_vars{GetVarsForWrittenCopyBuffers()};
+    for (auto it{_info.allocates.rbegin()}; it != _info.allocates.rend(); ++it) {
       Allocate alloc{*it};
       var_to_allocate[alloc->buffer_var.get()] = alloc;
-      if (buffer_vars.count(alloc->buffer_var) == 0) {
+      if (buffer_vars.count(alloc->buffer_var.as<VarNode>()) == 0) {
         body = Allocate(alloc->buffer_var, alloc->dtype, alloc->extents, alloc->condition, body,
                         alloc->annotations, alloc->span);
       }
     }
 
     // Rewrite new allocates
-    for (auto it{copy_write_buffers.rbegin()}; it != copy_write_buffers.rend(); ++it) {
-      if (auto buffer_opt = *it) {
+    for (auto it{_info.copy_write_buffers.rbegin()}; it != _info.copy_write_buffers.rend(); ++it) {
+      if (Optional<Buffer> buffer_opt = *it) {
         Buffer old_write_buffer{buffer_opt.value()};
-        int new_buffer_index{old_to_new_write_buffer[old_write_buffer].first};
+        int new_buffer_index{
+            _info.old_to_new_write_buffer[old_write_buffer.as<BufferNode>()].first};
 
         // Check if the allocate has already been created
         if (new_buffers.count(new_buffer_index) == 0) {
           BufferNode* new_buffer{old_write_buffer.CopyOnWrite()};
-          new_buffer->shape = {new_buffers_length[new_buffer_index]};
+          new_buffer->shape = {_info.new_buffers_length[new_buffer_index]};
 
           new_buffers[new_buffer_index] = GetRef<Buffer>(new_buffer);
 
-          auto old_allocate{var_to_allocate[old_write_buffer->data.get()]};
+          Allocate old_allocate{var_to_allocate[old_write_buffer->data.get()]};
           body = Allocate(new_buffer->data, new_buffer->dtype, new_buffer->shape, tir::const_true(),
                           body, old_allocate->annotations, old_allocate->span);
         }
@@ -398,25 +466,35 @@ class MergeConstantsMutator : public StmtExprMutator {
     return this->VisitStmt(body);
   }
 
-  Stmt rewrite_seq_stmt(const SeqStmtNode* op) {
-    Array<Stmt> new_seq{};
+  Stmt VisitStmt_(const AllocateNode* op) override {
+    auto allocate{CopyOnWrite(op)};
+    allocate->body = this->VisitStmt(op->body);
+    return Stmt(allocate);
+  }
 
-    auto seq_stmt{GetRef<SeqStmt>(op)};
+  Stmt VisitStmt_(const SeqStmtNode* op) override {
+    if (op->size() <= 1) {
+      return StmtExprMutator::VisitStmt_(op);
+    }
+
+    Array<Stmt> new_seq{};
+    SeqStmt seq_stmt{GetRef<SeqStmt>(op)};
     for (size_t i{0}; i < seq_stmt.size(); ++i) {
       Stmt stmt{seq_stmt[i]};
 
-      switch (get_stmt_type(stmt)) {
+      switch (GetStmtType(stmt)) {
         case StmtType::global_copy: {
-          Buffer old_write_buffer{copy_write_buffers[i].value()};
-          auto pair{old_to_new_write_buffer[old_write_buffer]};
-          auto new_buffer_index{pair.first};
-          auto new_buffer_offset{pair.second};
-          update_buffers_to_merge_and_delete(stmt, new_buffer_index, new_buffer_offset);
+          Buffer old_write_buffer{_info.copy_write_buffers[i].value()};
+          std::pair<int, int> pair{
+              _info.old_to_new_write_buffer[old_write_buffer.as<BufferNode>()]};
+          int new_buffer_index{pair.first};
+          int new_buffer_offset{pair.second};
+          UpdateBuffersToMergeAndDelete(stmt, new_buffer_index, new_buffer_offset);
 
-          if (!is_copy_to_be_deleted(new_buffer_offset)) {
-            auto cycle_counts{get_merged_cycle_counts(new_buffer_index)};
-            new_seq.push_back(make_new_stmt(
-                stmt, make_new_copy_args(stmt, old_write_buffer, new_buffer_index), cycle_counts));
+          if (!IsCopyToBeDeleted(new_buffer_offset)) {
+            Optional<PrimExpr> cycless{GetMergedCycles(new_buffer_index)};
+            new_seq.push_back(MakeNewStmt(
+                stmt, MakeNewCopyArgs(stmt, old_write_buffer, new_buffer_index), cycless));
           }
           break;
         }
@@ -425,7 +503,7 @@ class MergeConstantsMutator : public StmtExprMutator {
           break;
         }
         case StmtType::compute: {
-          new_seq.push_back(make_new_stmt(stmt, make_new_compute_args(stmt)));
+          new_seq.push_back(MakeNewStmt(stmt, MakeNewComputeArgs(stmt)));
           break;
         }
       }
@@ -433,101 +511,40 @@ class MergeConstantsMutator : public StmtExprMutator {
     return SeqStmt(new_seq, op->span);
   }
 
-  enum class StmtType { global_copy, local_copy, compute };
-
-  StmtType get_stmt_type(const Stmt& stmt) {
-    auto args{get_stmt_args(stmt)};
-    if (args[0].as<StringImmNode>()->value == "ethosu_copy") {
-      if (args[3].as<BufferLoadNode>()->buffer.scope() == "global") {
-        return StmtType::global_copy;
-      } else {
-        return StmtType::local_copy;
-      }
-    }
-    return StmtType::compute;
-  }
-
-  Buffer get_copy_read_buffer(const Stmt& stmt) {
-    auto args{get_stmt_args(stmt)};
-    return args[1].as<BufferLoadNode>()->buffer;
-  }
-
-  Buffer get_copy_write_buffer(const Stmt& stmt) {
-    auto args{get_stmt_args(stmt)};
-    return args[3].as<BufferLoadNode>()->buffer;
-  }
-
-  int64_t get_copy_length(const Stmt& stmt) {
-    auto args{get_stmt_args(stmt)};
-    return args[2].as<IntImmNode>()->value;
-  }
-
-  int64_t get_stmt_cycle_counts(const Stmt& stmt) {
-    auto attr{stmt.as<AttrStmtNode>()};
-    if (attr && attr->attr_key == "pragma_compute_cycles_hint") {
-      int64_t cycle_count{Downcast<Integer>(attr->value)->value};
-      return cycle_count;
-    }
-    return 0;
-  }
-
-  std::vector<Buffer> get_copied_buffers_used_by_stmt(const Stmt& stmt) {
-    std::vector<Buffer> buffers{};
-    for (auto arg : get_stmt_args(stmt)) {
-      if (auto buffer_load = arg.as<BufferLoadNode>()) {
-        auto buffer{buffer_load->buffer};
-        // Check if the buffer has already been added
-        if (std::find(buffers.begin(), buffers.end(), buffer) == buffers.end()) {
-          // Check if the buffer is copied
-          if (old_to_new_write_buffer.count(buffer)) {
-            buffers.push_back(buffer);
-          }
-        }
-      }
-    }
-    return buffers;
-  }
-
-  std::set<ObjectRef> get_vars_for_written_copy_buffers() {
-    std::set<ObjectRef> buffer_vars{};
-    std::transform(old_to_new_write_buffer.begin(), old_to_new_write_buffer.end(),
+  /*! Returns the variables of the buffers written by copies */
+  std::unordered_set<const VarNode*> GetVarsForWrittenCopyBuffers() {
+    std::unordered_set<const VarNode*> buffer_vars{};
+    std::transform(_info.old_to_new_write_buffer.begin(), _info.old_to_new_write_buffer.end(),
                    std::inserter(buffer_vars, buffer_vars.begin()),
-                   [](auto pair) -> Var { return pair.first->data; });
+                   [](std::pair<const BufferNode*, std::pair<int, int>> pair) -> const VarNode* {
+                     return pair.first->data.as<VarNode>();
+                   });
     return buffer_vars;
   }
 
-  tvm::runtime::Array<tvm::PrimExpr> get_stmt_args(const Stmt& stmt) {
-    auto attr{stmt.as<AttrStmtNode>()};
-    Stmt eval_stmt{attr ? attr->body : stmt};
-    auto eval{eval_stmt.as<EvaluateNode>()};
-    ICHECK(eval) << "Expected statement to be an evaluate node, but was "
-                 << eval_stmt->GetTypeKey();
-    auto call{eval->value.as<CallNode>()};
-    ICHECK(call) << "Expected expression to be a call node, but was " << eval->value->GetTypeKey();
-    return call->args;
-  }
-
-  Optional<PrimExpr> get_merged_cycle_counts(int new_buffer_index) {
-    auto it = cycle_counts.find(new_buffer_index);
-    if (it != cycle_counts.end()) {
+  /*! Returns the cycles of the new buffer at the given index */
+  Optional<PrimExpr> GetMergedCycles(int new_buffer_index) {
+    auto it = _info.cycless.find(new_buffer_index);
+    if (it != _info.cycless.end()) {
       return Integer(it->second);
     }
     return Optional<PrimExpr>{};
   }
 
-  bool is_copy_to_be_deleted(int new_buffer_offset) { return new_buffer_offset > 0; }
+  /*! Returns true if a copy must be deleted, false otherwise */
+  bool IsCopyToBeDeleted(int new_buffer_offset) { return new_buffer_offset > 0; }
 
-  Array<PrimExpr> make_new_copy_args(const Stmt& stmt, const Buffer& old_write_buffer,
-                                     int new_buffer_index) {
-    Array<PrimExpr> args{get_stmt_args(stmt)};
-    auto new_length{new_buffers_length[new_buffer_index]};
+  Array<PrimExpr> MakeNewCopyArgs(const Stmt& stmt, const Buffer& old_write_buffer,
+                                  int new_buffer_index) {
+    Array<PrimExpr> args{GetStmtArgs(stmt)};
+    int new_length{_info.new_buffers_length[new_buffer_index]};
 
     Array<PrimExpr> new_args{};
     for (size_t i = 0; i < args.size(); ++i) {
       switch (i) {
         case 1: /* read_address */ {
           auto buffer_load = args[1].as<BufferLoadNode>();
-          auto buffer{buffer_load->buffer};
+          Buffer buffer{buffer_load->buffer};
           Buffer new_buffer{buffer->data,
                             buffer->dtype,
                             {new_length},
@@ -539,7 +556,7 @@ class MergeConstantsMutator : public StmtExprMutator {
                             buffer->buffer_type,
                             buffer->axis_separators,
                             buffer->span};
-          old_to_new_read_buffers[buffer] = new_buffer;
+          old_to_new_read_buffers[buffer.as<BufferNode>()] = new_buffer;
           new_args.push_back(BufferLoad(new_buffer, buffer_load->indices, buffer_load->span));
           break;
         }
@@ -548,7 +565,7 @@ class MergeConstantsMutator : public StmtExprMutator {
           break;
         }
         case 3: /* write_address */ {
-          new_args.push_back(make_new_buffer_load(old_write_buffer, 0, true).value());
+          new_args.push_back(MakeNewBufferLoad(old_write_buffer, 0, true).value());
           break;
         }
         default:
@@ -559,13 +576,13 @@ class MergeConstantsMutator : public StmtExprMutator {
     return new_args;
   }
 
-  Array<PrimExpr> make_new_compute_args(const Stmt& stmt) {
-    Array<PrimExpr> args{get_stmt_args(stmt)};
+  Array<PrimExpr> MakeNewComputeArgs(const Stmt& stmt) {
+    Array<PrimExpr> args{GetStmtArgs(stmt)};
     Array<PrimExpr> new_args{};
     for (size_t i = 0; i < args.size(); ++i) {
       if (auto buffer_load = args[i].as<BufferLoadNode>()) {
-        auto new_buffer_load{
-            make_new_buffer_load(buffer_load->buffer, buffer_load->indices[0], false)
+        BufferLoad new_buffer_load{
+            MakeNewBufferLoad(buffer_load->buffer, buffer_load->indices[0], false)
                 .value_or(GetRef<BufferLoad>(buffer_load))};
         new_args.push_back(new_buffer_load);
       } else {
@@ -575,8 +592,8 @@ class MergeConstantsMutator : public StmtExprMutator {
     return new_args;
   }
 
-  Stmt make_new_stmt(const Stmt& stmt, const Array<PrimExpr>& new_args,
-                     Optional<PrimExpr> cycle_counts = Optional<PrimExpr>{}) {
+  Stmt MakeNewStmt(const Stmt& stmt, const Array<PrimExpr>& new_args,
+                   Optional<PrimExpr> cycless = Optional<PrimExpr>{}) {
     auto attr{stmt.as<AttrStmtNode>()};
     Stmt eval_stmt{attr ? attr->body : stmt};
     auto eval{eval_stmt.as<EvaluateNode>()};
@@ -590,36 +607,36 @@ class MergeConstantsMutator : public StmtExprMutator {
 
     if (attr) {
       ICHECK(attr->attr_key == "pragma_compute_cycles_hint");
-      PrimExpr value = cycle_counts.value_or(attr->value);
+      PrimExpr value = cycless.value_or(attr->value);
       return AttrStmt{attr->node, attr->attr_key, value, new_eval, attr->span};
     } else {
       return std::move(new_eval);
     }
   }
 
-  Optional<BufferLoad> make_new_buffer_load(const Buffer& write_buffer, const PrimExpr& old_index,
-                                            bool only_old_index) {
-    auto it = old_to_new_write_buffer.find(write_buffer);
-    if (it != old_to_new_write_buffer.end()) {
-      auto pair{it->second};
-      auto new_buffer_index{pair.first};
-      auto new_index{only_old_index ? old_index : (pair.second + old_index)};
+  Optional<BufferLoad> MakeNewBufferLoad(const Buffer& write_buffer, const PrimExpr& old_index,
+                                         bool only_old_index) {
+    auto it = _info.old_to_new_write_buffer.find(write_buffer.as<BufferNode>());
+    if (it != _info.old_to_new_write_buffer.end()) {
+      std::pair<int, int> pair{it->second};
+      int new_buffer_index{pair.first};
+      PrimExpr new_index{only_old_index ? old_index : (pair.second + old_index)};
       return BufferLoad{new_buffers[new_buffer_index], {new_index}};
     }
     return Optional<BufferLoad>{};
   }
 
-  Map<tir::Var, Buffer> make_new_buffer_map(const Map<tir::Var, Buffer>& buffer_map,
-                                            std::set<ObjectRef>* params_to_delete) {
+  Map<tir::Var, Buffer> MakeNewBufferMap(const Map<tir::Var, Buffer>& buffer_map,
+                                         std::unordered_set<const VarNode*>* params_to_delete) {
     Map<tir::Var, Buffer> new_buffer_map{};
-    for (auto pair : buffer_map) {
+    for (std::pair<Var, Buffer> pair : buffer_map) {
       Var var{pair.first};
       Buffer buffer{pair.second};
 
-      if (buffers_to_delete.count(buffer) == 1) {
-        params_to_delete->insert(var);
-      } else if (old_to_new_read_buffers.count(buffer) == 1) {
-        new_buffer_map.Set(var, old_to_new_read_buffers[buffer]);
+      if (buffers_to_delete.count(buffer.as<BufferNode>()) == 1) {
+        params_to_delete->insert(var.as<VarNode>());
+      } else if (old_to_new_read_buffers.count(buffer.as<BufferNode>()) == 1) {
+        new_buffer_map.Set(var, old_to_new_read_buffers[buffer.as<BufferNode>()]);
       } else {
         new_buffer_map.Set(var, buffer);
       }
@@ -627,21 +644,21 @@ class MergeConstantsMutator : public StmtExprMutator {
     return new_buffer_map;
   }
 
-  Array<tir::Var> make_new_params(const Array<tir::Var>& params,
-                                  const std::set<ObjectRef>& params_to_delete) {
+  Array<tir::Var> MakeNewParams(const Array<tir::Var>& params,
+                                const std::unordered_set<const VarNode*>& params_to_delete) {
     std::vector<Var> new_params{};
-    for (auto var : params) {
-      if (params_to_delete.count(var) == 0) {
+    for (Var var : params) {
+      if (params_to_delete.count(var.as<VarNode>()) == 0) {
         new_params.push_back(var);
       }
     }
     return new_params;
   }
 
-  void update_buffers_to_merge_and_delete(const Stmt& stmt, int new_buffer_index,
-                                          int new_buffer_offset) {
-    Array<PrimExpr> args{get_stmt_args(stmt)};
-    Buffer read_buffer{get_copy_read_buffer(stmt)};
+  void UpdateBuffersToMergeAndDelete(const Stmt& stmt, int new_buffer_index,
+                                     int new_buffer_offset) {
+    Array<PrimExpr> args{GetStmtArgs(stmt)};
+    Buffer read_buffer{GetCopyReadBuffer(stmt)};
 
     if (buffers_to_merge.count(new_buffer_index) == 0) {
       buffers_to_merge[new_buffer_index] = std::vector<Buffer>{read_buffer};
@@ -650,30 +667,30 @@ class MergeConstantsMutator : public StmtExprMutator {
     }
 
     if (new_buffer_offset > 0) {
-      buffers_to_delete.insert(read_buffer);
+      buffers_to_delete.insert(read_buffer.as<BufferNode>());
     }
   }
 
   /*! Returns an array whose elements are the indices of the function arguments to be merged.
    * Example: if a function has three arguments and the second and the third ones must
    * be merged then the array is: [[0], [1, 2], [3]] */
-  Array<Array<IntImm>> get_args_to_merge(const Map<Var, Buffer>& buffer_map,
-                                         const Array<Var>& params) {
-    std::map<Buffer, Var> buffer_to_var{};
-    for (auto var_buffer : buffer_map) {
-      buffer_to_var[var_buffer.second] = var_buffer.first;
+  Array<Array<IntImm>> GetArgsToMerge(const Map<Var, Buffer>& buffer_map,
+                                      const Array<Var>& params) {
+    std::unordered_map<const BufferNode*, Var> buffer_to_var{};
+    for (std::pair<Var, Buffer> var_buffer : buffer_map) {
+      buffer_to_var[var_buffer.second.as<BufferNode>()] = var_buffer.first;
     }
 
-    std::map<ObjectRef, int> var_to_index{};
+    std::unordered_map<const VarNode*, int> var_to_index{};
     for (int i = 0; i < static_cast<int>(params.size()); ++i) {
-      var_to_index[params[i]] = i;
+      var_to_index[params[i].as<VarNode>()] = i;
     }
 
     std::vector<Array<IntImm>> vector{};
-    for (auto index_vector : buffers_to_merge) {
+    for (std::pair<int, std::vector<Buffer>> index_vector : buffers_to_merge) {
       std::vector<IntImm> indices{};
-      for (auto buffer : index_vector.second) {
-        auto var{buffer_to_var[buffer]};
+      for (Buffer buffer : index_vector.second) {
+        const VarNode* var{buffer_to_var[buffer.as<BufferNode>()].as<VarNode>()};
         IntImm index{DataType::Int(64), var_to_index[var]};
         var_to_index.erase(var);
         auto it = std::find_if(indices.begin(), indices.end(),
@@ -685,7 +702,7 @@ class MergeConstantsMutator : public StmtExprMutator {
       vector.push_back(Array<IntImm>{indices});
     }
 
-    for (auto var_index : var_to_index) {
+    for (std::pair<const VarNode*, int> var_index : var_to_index) {
       vector.push_back(Array<IntImm>{IntImm(DataType::Int(64), var_index.second)});
     }
     std::sort(vector.begin(), vector.end(),
@@ -693,10 +710,10 @@ class MergeConstantsMutator : public StmtExprMutator {
     return vector;
   }
 
-  Array<Array<IntImm>> get_args_to_merge_without_args_not_in_const_dict(
+  Array<Array<IntImm>> GetArgsToMergeWithoutArgsNotInConstDict(
       const Array<Array<IntImm>>& args_to_merge, const Map<IntImm, runtime::NDArray>& const_dict) {
     Array<Array<IntImm>> new_args_to_merge{};
-    for (auto args : args_to_merge) {
+    for (Array<IntImm> args : args_to_merge) {
       IntImm key{args[0]};
       auto it = std::find_if(const_dict.begin(), const_dict.end(),
                              [&](std::pair<tvm::IntImm, runtime::NDArray> pair) {
@@ -709,30 +726,30 @@ class MergeConstantsMutator : public StmtExprMutator {
     return new_args_to_merge;
   }
 
-  Map<IntImm, runtime::NDArray> make_new_const_dict(const Array<Array<IntImm>>& args_to_merge,
-                                                    Map<IntImm, runtime::NDArray> const_dict) {
+  Map<IntImm, runtime::NDArray> MakeNewConstDict(const Array<Array<IntImm>>& args_to_merge,
+                                                 Map<IntImm, runtime::NDArray> const_dict) {
     Map<IntImm, runtime::NDArray> new_const_dict{};
     if (args_to_merge.size() == 0) {
       return new_const_dict;
     }
 
     int64_t key = args_to_merge[0][0]->value;
-    for (auto args : args_to_merge) {
+    for (Array<IntImm> args : args_to_merge) {
       int64_t size = 0;
-      for (auto arg : args) {
+      for (IntImm arg : args) {
         auto it = std::find_if(const_dict.begin(), const_dict.end(),
                                [&](auto pair) { return pair.first->value == arg->value; });
-        auto arg_constant{(*it).second};
+        runtime::NDArray arg_constant{(*it).second};
         size += runtime::GetDataSize(*arg_constant.operator->());
       }
 
       runtime::NDArray constant = runtime::NDArray::Empty({size}, DataType::UInt(8), {kDLCPU, 0});
 
       size_t offset = 0;
-      for (auto arg : args) {
+      for (IntImm arg : args) {
         auto it = std::find_if(const_dict.begin(), const_dict.end(),
                                [&](auto pair) { return pair.first->value == arg->value; });
-        auto arg_constant{(*it).second};
+        runtime::NDArray arg_constant{(*it).second};
         size_t nbytes = runtime::GetDataSize(*arg_constant.operator->());
         arg_constant.CopyToBytes(static_cast<uint8_t*>(constant->data) + offset, nbytes);
         offset += nbytes;
@@ -755,10 +772,13 @@ tvm::transform::Pass MergeConstants() {
     ICHECK(mod->GetGlobalVars().size() == 1 && mod->ContainGlobalVar("main"))
         << "Expected a single primitive function called 'main'. Please run the "
            "MergeConstants pass in conjunction with the LowerToTIR() pass.";
-    auto const_dict{
-        f->attrs.GetAttr("ethos-u.const-dict", Optional<Map<IntImm, runtime::NDArray>>{})};
-    ICHECK(const_dict) << "Expected a ethos-u.const-dict attribute";
-    return MergeConstantsMutator()(f, const_dict.value());
+    Optional<Map<IntImm, runtime::NDArray>> const_dict{
+        f->attrs.GetAttr("ethos-u.const_dict", Optional<Map<IntImm, runtime::NDArray>>{})};
+    ICHECK(const_dict) << "Expected a ethos-u.const_dict attribute";
+
+    MergeConstantsInfoExtractor::Info info{MergeConstantsInfoExtractor()(f)};
+    f = RemoveAllocatesMutator()(f);
+    return MergeConstantsMutator(info)(f, const_dict.value());
   };
   return tvm::tir::transform::CreatePrimFuncPass(pass_func, 0, "tir.contrib.ethos-u.MergeConstants",
                                                  {});
@@ -767,7 +787,7 @@ tvm::transform::Pass MergeConstants() {
 TVM_REGISTER_GLOBAL("tir.contrib.ethos-u.MergeConstants").set_body_typed(MergeConstants);
 
 /*!
- * \brief This pass removes the ethos-u.const-dict attribute
+ * \brief This pass removes the ethos-u.const_dict attribute
  * \return tvm::transform::Pass
  */
 class RemoveConstDictAttributeMutator : public StmtExprMutator {
@@ -775,7 +795,7 @@ class RemoveConstDictAttributeMutator : public StmtExprMutator {
   RemoveConstDictAttributeMutator() {}
 
   PrimFunc operator()(PrimFunc main_func) {
-    return WithoutAttr(std::move(main_func), "ethos-u.const-dict");
+    return WithoutAttr(std::move(main_func), "ethos-u.const_dict");
   }
 };
 

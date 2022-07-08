@@ -947,7 +947,7 @@ def MergeConstants(const_dict):
     Constants written to a buffer with local scope are not merged.
     """
 
-    def mergeConstantsPass(mod):
+    def _merge_constants(mod):
         nonlocal const_dict
         try:
             mod["main"]
@@ -960,10 +960,10 @@ def MergeConstants(const_dict):
         new_const_dict = {}
         for param in const_dict.keys():
             new_const_dict[tvm.tir.IntImm("int64", param)] = tvm.nd.array(const_dict[param])
-        mod["main"] = mod["main"].with_attr("ethos-u.const-dict", new_const_dict)
+        mod["main"] = mod["main"].with_attr("ethos-u.const_dict", new_const_dict)
 
         mod = _ffi_api.MergeConstants()(mod)
-        const_dict = mod["main"].attrs["ethos-u.const-dict"]
+        const_dict = mod["main"].attrs["ethos-u.const_dict"]
         mod = _ffi_api.RemoveConstDictAttribute()(mod)
 
         new_const_dict = {}
@@ -972,4 +972,4 @@ def MergeConstants(const_dict):
 
         return mod, new_const_dict
 
-    return mergeConstantsPass
+    return _merge_constants
