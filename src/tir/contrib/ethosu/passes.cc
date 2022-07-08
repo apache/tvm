@@ -381,7 +381,7 @@ class MergeConstantsInfoExtractor : public StmtExprVisitor {
  */
 class MergeConstantsMutator : public StmtExprMutator {
  public:
-  MergeConstantsMutator(MergeConstantsInfoExtractor::Info info) : _info{std::move(info)} {}
+  explicit MergeConstantsMutator(MergeConstantsInfoExtractor::Info info) : _info{std::move(info)} {}
 
   PrimFunc operator()(PrimFunc main_func, const Map<IntImm, runtime::NDArray>& const_dict) {
     // Rewrite
