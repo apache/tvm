@@ -14,16 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=import-self, invalid-name, unused-argument, unused-variable, missing-function-docstring, redefined-builtin, consider-using-f-string
+"""
+ONNX testcases
+================
+This article is a test script to test ONNX operator with Relay.
+"""
 import glob
 import os
 import platform
 import re
-
-import numpy as np
+import copy
+import tempfile
 import pytest
 import scipy
-import torch
-import torchvision
+import numpy as np
+
 import tvm
 import tvm.testing
 import tvm.topi.testing
@@ -31,7 +37,13 @@ from tvm import relay
 from tvm.contrib import graph_executor
 
 import onnx
+import onnxruntime.backend
 from onnx import TensorProto, helper, mapping, numpy_helper
+from onnxruntime.quantization import CalibrationDataReader, quantize_static
+
+import torch
+import torchvision
+from torch.nn import Linear, Module, Sequential
 
 
 def get_input_data_shape_dict(graph_def, input_data):
@@ -106,13 +118,11 @@ def get_tvm_output(
     m = graph_executor.create(graph, lib, dev)
     # set inputs
     if isinstance(input_data, list):
-        for i, e in enumerate(input_names):
+        for i, _ in enumerate(input_names):
             # Its possible for some onnx inputs to not be needed in the tvm
             # module, confirm its present before setting.
-            try:
-                m.set_input(input_names[i], tvm.nd.array(input_data[i].astype(input_data[i].dtype)))
-            except:
-                continue
+            # pylint: disable=unnecessary-list-index-lookup
+            m.set_input(input_names[i], tvm.nd.array(input_data[i].astype(input_data[i].dtype)))
     else:
         m.set_input(input_names, tvm.nd.array(input_data.astype(input_data.dtype)))
 
@@ -132,8 +142,6 @@ def get_tvm_output(
 
 
 def get_onnxruntime_output(model, inputs):
-    import onnxruntime.backend
-
     rep = onnxruntime.backend.prepare(model.SerializeToString(), "CPU")
     if isinstance(inputs, list) and len(inputs) == 1:
         inp = inputs[0]
@@ -233,11 +241,10 @@ def verify_with_ort(
 def quantize_and_verify_with_ort(
     onnx_model, input_names, input_shapes, target, dev, rtol=1e-5, atol=1e-5
 ):
-    from onnxruntime.quantization import CalibrationDataReader, QuantType, quantize_static
-
     input_arrays = [np.random.random(shape).astype("float32") for shape in input_shapes]
 
     class RandomDataReader(CalibrationDataReader):
+        # pylint: disable=missing-class-docstring
         def __init__(self, n=10):
             input_dict = dict(zip(input_names, input_shapes))
             self.data = iter(
@@ -257,7 +264,9 @@ def quantize_and_verify_with_ort(
     model_fp32 = os.path.join(d.temp_dir, "model.onnx")
     onnx.save_model(onnx_model, model_fp32)
     model_quant = os.path.join(d.temp_dir, "model.quant.onnx")
-    quantized_model = quantize_static(model_fp32, model_quant, RandomDataReader())
+    quantized_model = quantize_static(
+        model_fp32, model_quant, RandomDataReader()
+    )  # pylint: disable=assignment-from-no-return
     # opt_level=1 will cause error with qnn lowering
     model = onnx.load(model_quant)
     verify_with_ort_with_inputs(
@@ -377,7 +386,7 @@ def test_expand(target, dev):
                 ),
             )
         else:
-            raise "Invalid dtype"
+            raise TypeError("Invalid dtype")
         expand_node = helper.make_node("Expand", ["in", "shape"], ["out"])
 
         graph = helper.make_graph(
@@ -1443,7 +1452,7 @@ def test_lrn(target, dev):
     def verify_lrn(shape, nsize, dtype, alpha=None, beta=None, bias=None):
         in_array = np.random.uniform(size=shape).astype(dtype)
 
-        if alpha == None and beta == None and bias == None:
+        if alpha is None and beta is None and bias is None:
             alpha = 0.0001
             beta = 0.75
             bias = 1.0
@@ -1779,7 +1788,7 @@ def test_forward_arg_min_max(target, dev):
         a_np1 = np.random.uniform(-10, 10, input_dim).astype(np.int32)
         out_shape = list(a_np1.shape)
         def_axis = axis if axis is not None else 0
-        if keepdims == 1 or keepdims == None:
+        if keepdims == 1 or keepdims is None:
             out_shape[def_axis] = 1
         else:
             out_shape.pop(def_axis)
@@ -1803,7 +1812,7 @@ def test_forward_arg_min_max(target, dev):
         model = helper.make_model(graph, producer_name="argreduce_test")
         verify_with_ort_with_inputs(model, [a_np1], target=target, dev=dev)
 
-    """Verify argmin and argmax"""
+    # Verify argmin and argmax
     verify_argreduce([3, 4, 4], "ArgMin")
     verify_argreduce([3, 4, 4], "ArgMax")
     verify_argreduce([3, 4, 4], "ArgMin", axis=1)
@@ -2721,9 +2730,9 @@ def test_conv(target, dev):
         elif padding is None:
             ## autopadding with unset default attributes
             kwargs = {}
-            if not all([s == 1 for s in strides]):
+            if not all(list(s == 1 for s in strides)):
                 kwargs["strides"] = strides
-            if not all([d == 1 for d in dilations]):
+            if not all(list(d == 1 for d in dilations)):
                 kwargs["dilations"] = dilations
 
             node = helper.make_node(
@@ -2770,7 +2779,7 @@ def test_conv(target, dev):
         )
 
     def repeat(N, D):
-        return tuple([N for _ in range(D)])
+        return tuple(N for _ in range(D))
 
     for D in [1, 2, 3]:
         # Convolution with padding
@@ -3007,7 +3016,7 @@ def test_convtranspose(target, dev):
         verify_convtranspose((1, 10, 3, 3), (10, 1, 3, 3), (1, 5, 7, 3), [1, 2, 1, 2], group=5)
 
     def repeat(N, D):
-        return tuple([N for _ in range(D)])
+        return tuple(N for _ in range(D))
 
     # Once onnxruntime update is complete
     for D in [1, 2, 3]:
@@ -3105,13 +3114,9 @@ def test_convtranspose(target, dev):
 
 @tvm.testing.parametrize_targets
 def test_unsqueeze_constant(target, dev):
-    from torch.nn import Linear, Module, Sequential
-
     class Flatten(Module):
         def forward(self, input):
             return input.view(input.size(0), -1)
-
-    import tempfile
 
     with tempfile.NamedTemporaryFile() as fp:
         file_name = fp.name
@@ -3805,7 +3810,7 @@ def verify_rnn(
             register(b_np, "B")
 
         if use_initial_state:
-            assert use_bias == True, "Initial states must have bias specified."
+            assert use_bias is True, "Initial states must have bias specified."
             sequence_np = np.repeat(seq_length, batch_size).astype("int32")
             register(sequence_np, "sequence_lens")
 
@@ -3821,7 +3826,7 @@ def verify_rnn(
                 register(initial_c_np, "initial_c")
 
         if use_peep and rnn_type == "LSTM":
-            assert use_initial_state == True, "Peepholes require initial state to be specified."
+            assert use_initial_state is True, "Peepholes require initial state to be specified."
             p_np = np.random.uniform(size=(directions, 3 * hidden_size)).astype("float32")
             register(p_np, "P")
 
@@ -4870,8 +4875,10 @@ def test_if(target, dev):
         tvm_out = get_tvm_output_with_vm(if_model, [cond], target, dev, freeze_params=True)
         if not isinstance(tvm_out, list):
             tvm_out = [tvm_out]
-        for i in range(len(tvm_out)):
-            tvm.testing.assert_allclose(correct_out[i], tvm_out[i], rtol=1e-05, atol=1e-05)
+        for i, _ in enumerate(tvm_out):
+            tvm.testing.assert_allclose(
+                correct_out[i], tvm_out[i], rtol=1e-05, atol=1e-05
+            )  # pylint: disable=unnecessary-list-index-lookup
 
     # Confirm that if works with cond as an array or scalar.
     verify_if(cond_array=False, num_outputs=1)
@@ -5131,13 +5138,11 @@ def test_eyelike(target, dev):
     verify_eyelike(input_data, True)
 
 
-"""
-  The following parametrized tests loads the tests that ONNX ships as
-  serialized ONNX files, inputs, and outputs. The goal of this test
-  is to ensure the ONNX importer is in line with the ONNX specification.
-  To allow these tests to run in CI before all pass, a number of tests that
-  are not yet supported are skipped.
-"""
+# The following parametrized tests loads the tests that ONNX ships as
+# serialized ONNX files, inputs, and outputs. The goal of this test
+# is to ensure the ONNX importer is in line with the ONNX specification.
+# To allow these tests to run in CI before all pass, a number of tests
+# that are not yet supported are skipped.
 
 onnx_test_node_dir = os.path.join(os.path.dirname(onnx.__file__), "backend", "test", "data", "node")
 
@@ -5386,7 +5391,7 @@ def test_aten(target, dev):
 def test_index_put(target, dev):
     class _index_put_model(torch.nn.Module):
         def __init__(self, indices, values, accumulate):
-            super(_index_put_model, self).__init__()
+            super().__init__()
             self.indices = indices
             self.values = values
             self.accumulate = accumulate
@@ -5436,8 +5441,8 @@ def test_index_put(target, dev):
         indices = []
         index_shape = [1] * len(value_shape)
         index_shape[0] = -1
-        for i in range(len(value_shape)):
-            indices.append(torch.arange(0, value_shape[i]).reshape(tuple(index_shape)))
+        for _, v_shape in enumerate(value_shape):
+            indices.append(torch.arange(0, v_shape).reshape(tuple(index_shape)))
             index_shape.pop()
         values = torch.rand(value_shape)
 
@@ -5837,9 +5842,9 @@ def test_qlinearconv(target, dev):
         if padding is None:
             ## autopadding with unset default attributes
             kwargs = {}
-            if not all([s == 1 for s in strides]):
+            if not all(list(s == 1 for s in strides)):
                 kwargs["strides"] = strides
-            if not all([d == 1 for d in dilations]):
+            if not all(list(d == 1 for d in dilations)):
                 kwargs["dilations"] = dilations
 
             node = helper.make_node(
@@ -5875,7 +5880,7 @@ def test_qlinearconv(target, dev):
         verify_with_ort_with_inputs(model, input_values, opt_level=2, target=target, dev=dev)
 
     def repeat(N, D):
-        return tuple([N for _ in range(D)])
+        return tuple(N for _ in range(D))
 
     # only support QLinearConv2d because only support qnn.conv2d
     D = 2
@@ -5985,9 +5990,8 @@ def test_qlinearconcat(target, dev):
         input_names = []
         input_values = []
         input_nodes = []
-        for i in range(len(shapes)):
+        for i, shape in enumerate(shapes):
             tensor_name = chr(ord("a") + i)
-            shape = shapes[i]
             node = helper.make_tensor_value_info(tensor_name, TensorProto.FLOAT, list(shape))
 
             input_names.append(tensor_name)
@@ -6027,7 +6031,6 @@ def test_qlinearadd(target, dev):
             "a",
             "b",
         ]
-        input_values = [a_array, b_array]
 
         node = helper.make_node("Add", ["a", "b"], ["C"])
         graph = helper.make_graph(
@@ -6059,7 +6062,6 @@ def test_qlinearmul(target, dev):
             "a",
             "b",
         ]
-        input_values = [a_array, b_array]
 
         node = helper.make_node("Mul", input_names, ["C"])
         graph = helper.make_graph(
@@ -6111,8 +6113,6 @@ def test_qlinearsigmoid(target, dev):
         a_array = np.random.random(a_shape).astype("float32")
 
         input_nodes = [helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape))]
-
-        input_values = [a_array]
 
         node = helper.make_node("Sigmoid", ["a"], ["B"])
         graph = helper.make_graph(
@@ -6364,9 +6364,9 @@ def test_convinteger(target, dev):
         if padding is None:
             ## autopadding with unset default attributes
             kwargs = {}
-            if not all([s == 1 for s in strides]):
+            if not all(list(s == 1 for s in strides)):
                 kwargs["strides"] = strides
-            if not all([d == 1 for d in dilations]):
+            if not all(list(d == 1 for d in dilations)):
                 kwargs["dilations"] = dilations
 
             node = helper.make_node(
@@ -6402,7 +6402,7 @@ def test_convinteger(target, dev):
         verify_with_ort_with_inputs(model, input_values, target=target, dev=dev, opt_level=2)
 
     def repeat(N, D):
-        return tuple([N for _ in range(D)])
+        return tuple(N for _ in range(D))
 
     # only support 2D ConvInteger because we only support qnn.conv2d for now.
     D = 2
@@ -6495,7 +6495,6 @@ def test_scan(target, dev):
         scan_output_directions,
         opset,
     ):
-        import copy
 
         body_input_shapes = copy.deepcopy(input_shapes)
         num_state_inputs = len(input_shapes) - num_scan_inputs
@@ -6529,9 +6528,6 @@ def test_scan(target, dev):
         )
         scan_out0 = onnx.helper.make_tensor_value_info(
             "scan_out0", onnx.TensorProto.FLOAT, body_input_shapes[0]
-        )
-        matmul_out = onnx.helper.make_tensor_value_info(
-            "matmul_out", onnx.TensorProto.FLOAT, body_input_shapes[1]
         )
         state1 = onnx.helper.make_tensor_value_info(
             "state1", onnx.TensorProto.FLOAT, body_input_shapes[1]
