@@ -453,7 +453,7 @@ Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
         throw NonPositiveFactorError(state_->mod, factor.as<IntImmNode>()->value, i);
       }
       if (factor.dtype().bits() > loop->extent.dtype().bits()) {
-        factor = tir::Cast(loop->extent.dtype(), factor);
+        factor = cast(loop->extent.dtype(), factor);
       }
       factors.push_back(factor);
       tot_length *= factor;
