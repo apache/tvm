@@ -14,13 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name, redefined-outer-name, missing-function-docstring
+"""Unit tests for various models and operators"""
 import numpy as np
 import tvm
-from tvm import te
 from tvm import relay
 from tvm.contrib import graph_executor
-import keras
 import tvm.testing
+import keras
 
 try:
     import tensorflow.compat.v1 as tf
@@ -28,7 +29,6 @@ except ImportError:
     import tensorflow as tf
 
 from tensorflow import keras as tf_keras
-from packaging import version as package_version
 
 # prevent Keras from using up all gpu memory
 if tf.executing_eagerly():
@@ -81,7 +81,7 @@ def verify_keras_frontend(keras_model, need_transpose=True, layout="NCHW"):
                 tuple(dim.value if dim.value is not None else 1 for dim in layer.input.shape)
             )
 
-    def get_keras_output(xs, dtype="float32"):
+    def get_keras_output(xs):
         return keras_model.predict(xs)
 
     def get_tvm_output(xs, target, dev, dtype="float32"):
@@ -125,7 +125,7 @@ def get_mobilenet(keras):
 
 
 @tvm.testing.uses_gpu
-class TestKeras:
+class TestKeras:  # pylint: disable=missing-class-docstring
     scenarios = [using_classic_keras, using_tensorflow_keras]
 
     def test_forward_merge(self, keras):
