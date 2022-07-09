@@ -83,6 +83,7 @@ def create_aot_session(
     params,
     build_dir=Path(tempfile.mkdtemp()),
     tune_logs=None,
+    timeout_override=None,
     use_cmsis_nn=False,
 ):
     """AOT-compiles and uploads a model to a microcontroller, and returns the RPC session"""
@@ -121,7 +122,7 @@ def create_aot_session(
     project.build()
     project.flash()
 
-    return tvm.micro.Session(project.transport())
+    return tvm.micro.Session(project.transport(), timeout_override=timeout_override)
 
 
 # This utility functions was designed ONLY for one input / one output models
