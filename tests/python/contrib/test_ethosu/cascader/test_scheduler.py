@@ -60,6 +60,7 @@ def test_compute_cycles_annotation(SRAM, FLASH, TwoConv2DTE):
         always_copy_size=1024,
         disable_pareto_plans=False,
         disable_pareto_proposals=False,
+        enable_striping=False,
     )
     sch, te_graph, const_dict = TwoConv2DTE
     cs.cascade(sch, te_graph, const_dict, options, SRAM, FLASH, [SRAM], device_config)
@@ -68,7 +69,7 @@ def test_compute_cycles_annotation(SRAM, FLASH, TwoConv2DTE):
     # [copy, copy, conv2d, copy, conv2d]
     stages = [6, 8, 9, 18, 19]
     # Expected hints for each operation
-    compute_cycles_hints = [4096, 5120, 1632, 2560, 3072]
+    compute_cycles_hints = [4096, 5120, 1440, 2560, 3072]
 
     for stage, compute_cycles_hint in zip(stages, compute_cycles_hints):
         op = sch.stages[stage]

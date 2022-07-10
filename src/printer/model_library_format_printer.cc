@@ -35,7 +35,7 @@ class ModelLibraryFormatPrinter : public ::tvm::runtime::ModuleNode {
                             bool show_warning)
       : text_printer_{show_meta_data, annotate, show_warning} {}
 
-  const char* type_key() const override { return "model_library_format_printer"; }
+  const char* type_key() const final { return "model_library_format_printer"; }
 
   std::string Print(const ObjectRef& node) {
     Doc doc;

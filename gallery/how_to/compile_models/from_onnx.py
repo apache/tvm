@@ -32,6 +32,12 @@ A quick solution is to install protobuf compiler, and
 or please refer to official site.
 https://github.com/onnx/onnx
 """
+
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
 import onnx
 import numpy as np
 import tvm

@@ -40,6 +40,12 @@ Before reading this tutorial, we assume readers have already known these topics 
   take a look at ``python/tvm/build_module.py`` to get some basics.
 
 """
+
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
 import tvm
 from tvm import te
 import numpy as np
@@ -129,7 +135,7 @@ def vectorize(f, mod, ctx):
     tvm.tir.stmt_functor.post_order_visit(f.body, find_width8)
 
     if not loops:
-        return sf
+        return f
 
     # The last list arugment indicates what kinds of nodes will be transformed.
     # Thus, in this case only `For` nodes will call `vectorize8`

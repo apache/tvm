@@ -67,10 +67,11 @@ inline Tensor softmax(const Tensor& x, int axis = -1, std::string name = "tensor
     Array<PrimExpr> eval_range;
     int arg_counter = 0;
     for (size_t i = 0; i < ndim; ++i) {
-      if (static_cast<int>(i) == axis)
+      if (static_cast<int>(i) == axis) {
         eval_range.push_back(reduce_index);
-      else
+      } else {
         eval_range.push_back(indices[arg_counter++]);
+      }
     }
     return eval_range;
   };

@@ -26,6 +26,7 @@ endif()
 # Alernatively, use cmake -DOPTION=VALUE through command-line.
 tvm_option(USE_CUDA "Build with CUDA" OFF)
 tvm_option(USE_OPENCL "Build with OpenCL" OFF)
+tvm_option(USE_OPENCL_GTEST "Path to OpenCL specific gtest version for runtime cpp tests." /path/to/opencl/gtest)
 tvm_option(USE_VULKAN "Build with Vulkan" OFF)
 
 
@@ -83,12 +84,12 @@ tvm_option(PICOJSON_PATH "Path to PicoJSON" "3rdparty/picojson")
 tvm_option(USE_BYODT_POSIT "Build with BYODT software emulated posit custom datatype" OFF)
 tvm_option(USE_BLAS "The blas library to be linked" none)
 tvm_option(USE_MKL "MKL root path when use MKL blas" OFF)
-tvm_option(USE_MKLDNN "Build with MKLDNN" OFF)
-tvm_option(USE_DNNL_CODEGEN "Enable MKLDNN (DNNL) codegen" OFF)
+tvm_option(USE_DNNL "Enable DNNL codegen" OFF)
 tvm_option(USE_CUDNN "Build with cuDNN" OFF)
 tvm_option(USE_CUBLAS "Build with cuBLAS" OFF)
 tvm_option(USE_CUTLASS "Build with CUTLASS" OFF)
 tvm_option(USE_THRUST "Build with Thrust" OFF)
+tvm_option(USE_CURAND "Build with cuRAND" OFF)
 tvm_option(USE_MIOPEN "Build with ROCM:MIOpen" OFF)
 tvm_option(USE_ROCBLAS "Build with ROCM:RoCBLAS" OFF)
 tvm_option(USE_SORT "Build with sort support" ON)
@@ -110,6 +111,8 @@ tvm_option(USE_TENSORRT_RUNTIME "Build with TensorRT runtime" OFF)
 tvm_option(USE_RUST_EXT "Build with Rust based compiler extensions, STATIC, DYNAMIC, or OFF" OFF)
 tvm_option(USE_VITIS_AI "Build with VITIS-AI Codegen support" OFF)
 tvm_option(SUMMARIZE "Print CMake option summary after configuring" OFF)
+tvm_option(USE_CLML "Build with CLML Codegen support" OFF)
+tvm_option(USE_CLML_GRAPH_EXECUTOR "Build with CLML graph runtime" OFF)
 
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
@@ -278,6 +281,7 @@ tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
     src/parser/*.cc
     src/printer/*.cc
     src/support/*.cc
+    src/script/*.cc
     )
 
 tvm_file_glob(GLOB CODEGEN_SRCS
@@ -392,7 +396,6 @@ endif()
 if(USE_PROFILER)
   message(STATUS "Build with profiler...")
 
-  add_definitions(-DUSE_PROFILER=1)
   tvm_file_glob(GLOB RUNTIME_GRAPH_EXECUTOR_DEBUG_SRCS src/runtime/graph_executor/debug/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_GRAPH_EXECUTOR_DEBUG_SRCS})
   set_source_files_properties(${RUNTIME_GRAPH_EXECUTOR_SRCS}
@@ -492,6 +495,7 @@ include(cmake/modules/contrib/ArmComputeLib.cmake)
 include(cmake/modules/contrib/TensorRT.cmake)
 include(cmake/modules/contrib/VitisAI.cmake)
 include(cmake/modules/contrib/Verilator.cmake)
+include(cmake/modules/contrib/CLML.cmake)
 include(cmake/modules/Git.cmake)
 include(cmake/modules/LibInfo.cmake)
 include(cmake/modules/RustExt.cmake)
@@ -609,6 +613,18 @@ if(BUILD_FOR_HEXAGON AND DEFINED USE_HEXAGON_GTEST AND EXISTS ${USE_HEXAGON_GTES
   include_directories("${USE_HEXAGON_GTEST}/include")
 endif()
 
+if(USE_OPENCL AND DEFINED USE_OPENCL_GTEST AND EXISTS ${USE_OPENCL_GTEST})
+  include(FetchContent)
+  FetchContent_Declare(googletest SOURCE_DIR "${USE_OPENCL_GTEST}")
+  set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(googletest)
+  target_link_libraries(tvm_runtime PUBLIC gtest)
+  target_link_libraries(tvm PUBLIC gtest)
+  include_directories("${USE_OPENCL_GTEST}/include")
+  include_directories("${USE_OPENCL_GTEST}/googletest/include")
+  message(STATUS "Found OpenCL gtest at ${USE_OPENCL_GTEST}")
+endif()
+
 # Set flags for clang
 include(cmake/modules/ClangFlags.cmake)
 set(CRC16_INCLUDE_PATH "3rdparty/libcrc/include")
@@ -646,6 +662,9 @@ if(GTEST_FOUND)
   add_executable(cpptest ${TEST_SRCS})
   # include runtime files for unit testing
   target_link_libraries(cpptest PRIVATE ${TVM_TEST_LIBRARY_NAME} GTest::GTest GTest::Main GTest::gmock pthread dl)
+  if(DEFINED LLVM_LIBS)
+    target_link_libraries(cpptest PRIVATE ${LLVM_LIBS})
+  endif()
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_ALL 1)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
   if(USE_RELAY_DEBUG)
@@ -666,6 +685,9 @@ add_custom_target(runtime DEPENDS tvm_runtime)
 install(TARGETS tvm EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
 install(TARGETS tvm_runtime EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
 if(BUILD_FOR_HEXAGON AND DEFINED USE_HEXAGON_GTEST AND EXISTS ${USE_HEXAGON_GTEST})
+  install(TARGETS gtest EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
+endif()
+if(USE_OPENCL AND DEFINED USE_OPENCL_GTEST AND EXISTS ${USE_OPENCL_GTEST})
   install(TARGETS gtest EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
 endif()
 

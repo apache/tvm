@@ -31,6 +31,15 @@ enum class InlineType : int32_t {
   kInlineIntoProducer = 2,
 };
 
+bool IsInSpatialPrimFunc(const tir::Schedule& sch, const tir::StmtSRef& block_sref) {
+  using namespace tvm::tir;
+  const StmtSRefNode* sref = block_sref.get();
+  for (; sref->parent != nullptr; sref = sref->parent) {
+  }
+  ICHECK(sref->stmt != nullptr && sref->stmt->IsInstance<BlockNode>());
+  return IsSpatialPrimFunc(GetRef<PrimFunc>(GetRootPrimFunc(sch->mod(), sref->stmt, nullptr)));
+}
+
 /*! \brief The rule that inlines spatial blocks if it satisfies some conditions. */
 class AutoInlineNode : public ScheduleRuleNode {
  public:
@@ -85,6 +94,7 @@ inline InlineType AutoInlineNode::CheckInline(const tir::Schedule& sch,
                                               const tir::BlockRV& block_rv) {
   using namespace tvm::tir;
   StmtSRef block_sref = sch->GetSRef(block_rv);
+  bool is_pure_sptial = IsInSpatialPrimFunc(sch, block_sref);
   ScheduleState state = sch->state();
   const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
   BlockRealize realize = GetBlockRealize(state, block_sref);
@@ -97,15 +107,15 @@ inline InlineType AutoInlineNode::CheckInline(const tir::Schedule& sch,
     return InlineType::kInlineIntoConsumer;
   }
   // Cond 3. The block doesn't contain any disallowed operators
-  if (!disallow_op.empty() && HasOp(realize, disallow_op)) {
+  if (!is_pure_sptial && !disallow_op.empty() && HasOp(realize, disallow_op)) {
     return InlineType::kNoInline;
   }
   // Cond 4. The block doesn't have any if-then-else-like constructs
-  if (disallow_if_then_else && HasIfThenElse(realize)) {
+  if (!is_pure_sptial && disallow_if_then_else && HasIfThenElse(realize)) {
     return InlineType::kNoInline;
   }
   // Cond 5. The mapping from read indices to write indices are injective and ordered
-  if (require_injective || require_ordered) {
+  if (!is_pure_sptial && (require_injective || require_ordered)) {
     const BufferRegion& write_region = block->writes[0];
     for (const BufferRegion& read_region : block->reads) {
       bool injective, ordered;

@@ -44,6 +44,7 @@ from tensorflow.python.framework import constant_op
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import array_ops
+from tensorflow.python.ops import image_ops
 from tensorflow.python.ops import gen_array_ops
 from tensorflow.python.ops import nn_impl
 from tensorflow.python.ops import variables
@@ -1693,6 +1694,20 @@ def test_all_resize():
             align_corners=False,
             half_pixel_centers=False,
         )
+        _test_resize(
+            tf.image.resize_nearest_neighbor,
+            images_data_float32,
+            size_data,
+            align_corners=True,
+            half_pixel_centers=False,
+        )
+        _test_resize(
+            tf.image.resize_nearest_neighbor,
+            images_data_float32,
+            size_data,
+            align_corners=False,
+            half_pixel_centers=True,
+        )
 
 
 #######################################################################
@@ -1867,7 +1882,7 @@ def _unary_elewise_create_model(math_op, data, offset=0, int_quant_dtype=tf.int8
         model,
         export_dir,
         signatures=model.tf_function.get_concrete_function(
-            tf.TensorSpec(data.shape, tf.float32, name="input"),
+            tf.TensorSpec(data.shape, tf.float32, name="input")
         ),
     )
 
@@ -2200,22 +2215,33 @@ def _test_elemwise(
                 if None != x[0]
             }
 
-            out = math_op(inq_data[0], inq_data[1])
-            out = with_fused_activation_function(out, fused_activation_function)
-            out = tf.quantization.fake_quant_with_min_max_args(
-                out, min=out_min, max=out_max, name="out"
-            )
+            if math_op is math_ops.equal:
+                out = math_op(inq_data[0], inq_data[1])
+                out = with_fused_activation_function(out, fused_activation_function)
 
-            # Note same_qnn_params uses experimental_new_converter as toco failed
-            compare_tflite_with_tvm(
-                [x[1] for x in zip(in_data, data) if None != x[0]],
-                [x + ":0" for x in input_range.keys()],
-                [x[1] for x in zip(in_data, inq_data) if None != x[0]],
-                [out],
-                quantized=True,
-                input_range=input_range,
-                experimental_new_converter=same_qnn_params,
-            )
+                compare_tflite_with_tvm(
+                    [x[1] for x in zip(in_data, data) if None != x[0]],
+                    [x + ":0" for x in input_range.keys()],
+                    [x[1] for x in zip(in_data, inq_data) if None != x[0]],
+                    [out],
+                )
+            else:
+                out = math_op(inq_data[0], inq_data[1])
+                out = with_fused_activation_function(out, fused_activation_function)
+                out = tf.quantization.fake_quant_with_min_max_args(
+                    out, min=out_min, max=out_max, name="out"
+                )
+
+                # Note same_qnn_params uses experimental_new_converter as toco failed
+                compare_tflite_with_tvm(
+                    [x[1] for x in zip(in_data, data) if None != x[0]],
+                    [x + ":0" for x in input_range.keys()],
+                    [x[1] for x in zip(in_data, inq_data) if None != x[0]],
+                    [out],
+                    quantized=True,
+                    input_range=input_range,
+                    experimental_new_converter=same_qnn_params,
+                )
         else:
             out = math_op(
                 in_data[0]
@@ -2372,9 +2398,16 @@ def _test_less_equal(data):
 # -----
 
 
-def _test_equal(data):
+def _test_equal(data, fused_activation_function=None, quantized=False, qnn_op=None):
     """One iteration of equal"""
-    return _test_elemwise(math_ops.equal, data)
+    return _test_elemwise(
+        math_ops.equal,
+        data,
+        fused_activation_function,
+        quantized,
+        qnn_op,
+        same_qnn_params=True,
+    )
 
 
 #######################################################################
@@ -2440,14 +2473,25 @@ def _test_forward_elemwise(testop):
 
 
 def _test_forward_elemwise_quantized(testop):
-    testop(
-        [
-            np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8),
-            np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8),
-        ],
-        quantized=True,
-        qnn_op=testop,
-    )
+    if testop is not _test_equal:
+        testop(
+            [
+                np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8),
+                np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8),
+            ],
+            quantized=True,
+            qnn_op=testop,
+        )
+    else:
+        # no need for fake_quant to hold tensors in float32 until conversion
+        testop(
+            [
+                np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.float32),
+                np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.float32),
+            ],
+            quantized=True,
+            qnn_op=testop,
+        )
 
 
 def _test_elemwise_qnn_out_range(qnn_op):
@@ -2458,6 +2502,7 @@ def _test_elemwise_qnn_out_range(qnn_op):
         _test_mul: (-5e3, 5e3),
         _test_maximum: (-112, 111),
         _test_minimum: (-128, 127),
+        _test_equal: (-150, 150),
     }
 
     return qnn_out_range[qnn_op]
@@ -2492,6 +2537,7 @@ def test_all_elemwise():
     _test_forward_elemwise(_test_less)
     _test_forward_elemwise(_test_less_equal)
     _test_forward_elemwise(_test_equal)
+    _test_forward_elemwise_quantized(_test_equal)
     _test_forward_elemwise(_test_not_equal)
     if package_version.parse(tf.VERSION) >= package_version.parse("1.14.0"):
         _test_forward_elemwise(_test_floor_divide)
@@ -3759,8 +3805,7 @@ def test_forward_prelu():
         np.full((32, 3), 0.2, dtype="float32"),
     )
     _test_prelu(
-        np.random.uniform(-5, 5, size=(32, 3)).astype("float32"),
-        np.full((3), 0.2, dtype="float32"),
+        np.random.uniform(-5, 5, size=(32, 3)).astype("float32"), np.full((3), 0.2, dtype="float32")
     )
 
 
@@ -4694,6 +4739,36 @@ def test_forward_mobilenet_int16():
 
 
 #######################################################################
+# Unidirectional Sequence LSTM
+# ---------------------
+def test_forward_unidirectional_sequence_lstm():
+    """Test the UnidirectionalSequenceLSTM TFLite"""
+    if package_version.parse(tf.VERSION) >= package_version.parse("2.1.0"):
+        tflite_model_file = download_testdata(
+            "https://github.com/SebastianBoblestETAS/nn_models/blob/ce49c5de64889493161ca4194a20e0fd5eb707e6/lstm_1_in_3_out_2_ts_4.tflite?raw=true",
+            "lstm_1_in_3_out_2_ts_4.tflite",
+        )
+        with open(tflite_model_file, "rb") as f:
+            tflite_model_buf = f.read()
+
+        data = np.array(
+            [
+                [
+                    [0.5488135, 0.71518934, 0.60276335],
+                    [0.5448832, 0.4236548, 0.6458941],
+                    [0.4375872, 0.891773, 0.96366274],
+                    [0.3834415, 0.79172504, 0.5288949],
+                ]
+            ],
+            dtype="float32",
+        )
+
+        tflite_output = run_tflite_graph(tflite_model_buf, data)
+        tvm_output = run_tvm_graph(tflite_model_buf, data, "serving_default_input_1:0")
+        tvm.testing.assert_allclose(tflite_output, tvm_output)
+
+
+#######################################################################
 # Quantized SSD Mobilenet
 # -----------------------
 
@@ -4863,6 +4938,42 @@ def test_prevent_tensorflow_dynamic_range():
         tvm_output = run_tvm_graph(tflite_model, data_array, data_in.name.replace(":0", ""))
 
 
+def _test_nms_v5(
+    bx_shape, score_shape, iou_threshold, score_threshold, max_output_size, dtype="float32"
+):
+    """One iteration of nms_v5 with given attributes"""
+    boxes = np.random.uniform(0, 10, size=bx_shape).astype(dtype)
+    scores = np.random.uniform(size=score_shape).astype(dtype)
+
+    tf.reset_default_graph()
+    tf.compat.v1.disable_eager_execution()
+    in_data_1 = array_ops.placeholder(dtype, boxes.shape, name="in_data_1")
+    in_data_2 = array_ops.placeholder(dtype, scores.shape, name="in_data_2")
+    out = image_ops.non_max_suppression_with_scores(
+        boxes=in_data_1,
+        scores=in_data_2,
+        max_output_size=max_output_size,
+        iou_threshold=iou_threshold,
+        score_threshold=score_threshold,
+        name="nms",
+    )
+
+    compare_tflite_with_tvm(
+        [boxes, scores],
+        ["in_data_1:0", "in_data_2:0"],
+        [in_data_1, in_data_2],
+        [out[0], out[1]],
+        out_names=[out[0].name, out[1].name],
+        experimental_new_converter=True,
+    )
+
+
+def test_forward_nms_v5():
+    """test nms_v5"""
+    _test_nms_v5((10000, 4), (10000,), 0.5, 0.4, 100)
+    _test_nms_v5((1000, 4), (1000,), 0.7, 0.3, 50)
+
+
 #######################################################################
 # Main
 # ----
@@ -4930,10 +5041,11 @@ if __name__ == "__main__":
     test_forward_leaky_relu()
     test_forward_relu_n1_to_1()
     test_forward_log_softmax()
-    test_forward_prelu()
     test_forward_fully_connected()
     test_forward_l2_normalization()
     test_forward_local_response_normalization()
+    test_forward_prelu()
+    test_forward_unidirectional_sequence_lstm()
 
     # Elemwise
     test_all_elemwise()
@@ -4955,6 +5067,9 @@ if __name__ == "__main__":
 
     # Detection_PostProcess
     test_detection_postprocess()
+
+    # NonMaxSuppressionV5
+    test_forward_nms_v5()
 
     # Overwrite Converter
     test_custom_op_converter()

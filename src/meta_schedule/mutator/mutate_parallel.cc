@@ -79,7 +79,8 @@ const BlockRVNode* GetInstGetBlockOutput(const Instruction& inst) {
 std::vector<std::vector<int64_t>> AnalyzeParallel(const ScheduleState& self,
                                                   const String& block_name, const String& func_name,
                                                   int64_t limit) {
-  Array<StmtSRef> block_srefs = tir::GetBlocks(self, block_name, func_name);
+  Array<StmtSRef> block_srefs =
+      tir::GetBlocks(self, block_name, self->mod->GetGlobalVar(func_name));
   ICHECK_EQ(block_srefs.size(), 1);
   const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_srefs[0]);
   ScopeBlockLoopInfo info = GetScopeBlockLoopInfo(GetRef<Block>(block));

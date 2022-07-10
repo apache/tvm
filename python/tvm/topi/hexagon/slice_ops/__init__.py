@@ -25,4 +25,4 @@ from .softmax_slice import *
 from .clip import *
 from .conv2d import *
 from .reshape import reshape_compute, reshape_stir_schedule
-from .relu import relu_te_compute, relu_stir_schedule 
+from .relu import relu_te_compute, relu_stir_schedule

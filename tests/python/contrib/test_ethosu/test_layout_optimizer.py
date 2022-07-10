@@ -76,11 +76,12 @@ def _compile_and_compare_model(tflite_graph, ifm_shape, dtype):
     # Generate reference data
     input_data, output_data = infra.generate_ref_data_tflite(tflite_graph)
 
+    test_runner = infra.create_test_runner("ethos-u55-256")
     compiled_models = infra.build_source(
         mod,
         input_data,
         output_data,
-        "ethos-u55-256",
+        test_runner,
         output_tolerance=0,
     )
 
@@ -92,7 +93,7 @@ def _compile_and_compare_model(tflite_graph, ifm_shape, dtype):
     compilation_artifacts = get_artifacts(ethosu_module)
     cmms = bytes.fromhex(compilation_artifacts[0].command_stream)
     infra.print_payload(cmms)
-    infra.verify_source(compiled_models, "ethos-u55-256")
+    infra.verify_source(compiled_models, test_runner)
 
 
 def test_single_convolution():

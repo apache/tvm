@@ -28,10 +28,12 @@
 
 #include <dmlc/io.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>
 
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -111,7 +113,7 @@ class Module : public ObjectRef {
 class TVM_DLL ModuleNode : public Object {
  public:
   /*! \brief virtual destructor */
-  virtual ~ModuleNode() {}
+  virtual ~ModuleNode() = default;
   /*!
    * \return The per module type key.
    * \note This key is used to for serializing custom modules.
@@ -190,6 +192,33 @@ class TVM_DLL ModuleNode : public Object {
   /*! \return The module it imports from */
   const std::vector<Module>& imports() const { return imports_; }
 
+  /*!
+   * \brief Returns true if this module is 'DSO exportable'.
+   *
+   * A DSO exportable module (eg a CSourceModuleNode of type_key 'c') can be incorporated into the
+   * final runtime artifact (ie shared library) by compilation and/or linking using the external
+   * compiler (llvm, nvcc, etc). DSO exportable modules must implement SaveToFile.
+   *
+   * By contrast, non-DSO exportable modules (eg CUDAModuleNode of type_key 'cuda') typically must
+   * be incorporated into the final runtime artifact by being serialized as data into the
+   * artifact, then deserialized at runtime. Non-DSO exportable modules must implement SaveToBinary,
+   * and have a matching deserializer registered as 'runtime.module.loadbinary_<type_key>'.
+   *
+   * The default implementation returns false.
+   */
+  virtual bool IsDSOExportable() const;
+
+  /*!
+   * \brief Returns true if this module has a definition for a function of \p name. If
+   * \p query_imports is true, also search in any imported modules.
+   *
+   * Note that even if this function returns true the corresponding \p GetFunction result may be
+   * nullptr if the function is not yet callable without further compilation.
+   *
+   * The default implementation just checkis if \p GetFunction is non-null.
+   */
+  virtual bool ImplementsFunction(const String& name, bool query_imports = false);
+
   // integration with the existing components.
   static constexpr const uint32_t _type_index = TypeIndex::kRuntimeModule;
   static constexpr const char* _type_key = "runtime.Module";
@@ -206,6 +235,7 @@ class TVM_DLL ModuleNode : public Object {
  private:
   /*! \brief Cache used by GetImport */
   std::unordered_map<std::string, std::shared_ptr<PackedFunc> > import_cache_;
+  std::mutex mutex_;
 };
 
 /*!

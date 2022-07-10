@@ -50,7 +50,7 @@ TVM_REGISTER_NODE_TYPE(VarianceAttrs);
  */
 inline std::vector<int64_t> GetReduceAxes(const uint32_t indim, const Array<Integer>& inaxis,
                                           bool exclude) {
-  if (!inaxis.defined()) {
+  if (!inaxis.defined() || inaxis.empty()) {
     std::vector<int64_t> r_axes(indim);
     std::iota(r_axes.begin(), r_axes.end(), 0);
     return r_axes;

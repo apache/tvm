@@ -114,15 +114,28 @@ static runtime::metadata::Metadata ConvertMetaData(
   std::vector<runtime::metadata::TensorInfo> pools;
   for (size_t i = 0; i < metadata->pools.size(); ++i) {
     auto var = metadata->pools[i];
-    pools.push_back(
-        runtime::metadata::TensorInfo(make_object<target::metadata::InMemoryTensorInfoNode>(
-            var->name_hint,
-            std::vector<int64_t>{metadata->pool_inputs.value()[var]->allocated_size},
-            tvm::runtime::DataType{kDLUInt, 8, 1})));
+    auto api = metadata->pool_inputs.value()[var];
+    if (api->pool_info.as<WorkspacePoolInfoNode>()) {
+      pools.push_back(
+          runtime::metadata::TensorInfo(make_object<target::metadata::InMemoryTensorInfoNode>(
+              var->name_hint, std::vector<int64_t>{api->allocated_size.IntValue()},
+              tvm::runtime::DataType{kDLUInt, 8, 1})));
+    }
   }
 
+  std::vector<ConstantInfo> consts;
+  for (const auto& kv : metadata->pool_inputs.value()) {
+    const auto& api = kv.second;
+    if (const auto* pi = api->pool_info.as<ConstantPoolInfoNode>()) {
+      if (pi->is_internal) {
+        for (const auto ci : pi->constant_info_array) {
+          consts.emplace_back(ci->name_hint, ci->byte_offset, ci->data);
+        }
+      }
+    }
+  }
   auto n = make_object<target::metadata::InMemoryMetadataNode>(
-      runtime::metadata::kMetadataVersion, inputs, outputs, pools, metadata->mod_name);
+      runtime::metadata::kMetadataVersion, inputs, outputs, pools, consts, metadata->mod_name);
 
   return runtime::metadata::Metadata(std::move(n));
 }
@@ -190,10 +203,6 @@ runtime::Module CreateMetadataModule(
   Array<runtime::Module> crt_exportable_modules;
   Array<runtime::Module> non_crt_exportable_modules;
 
-  auto DSOExportable = [](tvm::runtime::Module& mod) {
-    return !std::strcmp(mod->type_key(), "llvm") || !std::strcmp(mod->type_key(), "c");
-  };
-
   bool is_targeting_crt = runtime->name == "crt";
 
   // Wrap all submodules in the initialization wrapper.
@@ -219,7 +228,7 @@ runtime::Module CreateMetadataModule(
 
     // TODO(@manupa-arm) : we should be able to use csource_metadata
     // if the variables are empty when all the runtime modules implement get_func_names
-    if (symbol_const_vars.empty() && is_targeting_crt && DSOExportable(mod) &&
+    if (symbol_const_vars.empty() && is_targeting_crt && mod->IsDSOExportable() &&
         (target->kind->name == "c" || target->kind->name == "llvm")) {
       crt_exportable_modules.push_back(mod);
     } else {

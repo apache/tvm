@@ -20,7 +20,6 @@ import sys
 import pytest
 import tvm
 import tvm.testing
-
 from tvm import tir
 from tvm.ir import IRModule
 from tvm.script import tir as T
@@ -102,7 +101,32 @@ def matmul_relu_ann2(a: T.handle, b: T.handle, d: T.handle) -> None:
             D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
+@tvm.script.ir_module
+class ModuleWithMultipleFuncs:
+    @T.prim_func
+    def vector_add(
+        A: T.Buffer[128, "float32"],
+        B: T.Buffer[128, "float32"],
+    ) -> None:
+        for i in range(128):
+            with T.block("init"):
+                vi = T.axis.remap("S", [i])
+                B[vi] = A[vi]
+
+    @T.prim_func
+    def vector_add_2(
+        A: T.Buffer[128, "float32"],
+        B: T.Buffer[128, "float32"],
+    ) -> None:
+        for i in range(128):
+            with T.block("init"):
+                vi = T.axis.remap("S", [i])
+                B[vi] = A[vi]
+
+
 # pylint: enable=no-member,invalid-name,unused-variable
+
+use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
 
 
 def test_tir_schedule_creation():
@@ -131,24 +155,32 @@ def test_tir_schedule_get_block():
     assert block.same_as(matmul.body.block.body.body.body[1].body.block)
 
 
-def test_tir_schedule_get_loops():
+def test_tir_schedule_work_on():
+    sch = tir.Schedule(ModuleWithMultipleFuncs, debug_mask="all")
+    with pytest.raises(ValueError, match="does not know which function to be working on"):
+        sch.get_block(name="init")
+    sch.work_on(func_name="vector_add")
+    sch.get_block(name="init")
+
+
+def test_tir_schedule_get_loops(use_block_name):
     # Tests:
     # - Schedule.get_loops
     # - Schedule.get
     sch = tir.Schedule(matmul, debug_mask="all")
-    block_rv = sch.get_block(name="update")
-    i, j, k = sch.get_loops(block_rv)
+    block = "update" if use_block_name else sch.get_block(name="update")
+    i, j, k = sch.get_loops(block)
     assert sch.get(i).loop_var.name == "i"
     assert sch.get(j).loop_var.name == "j"
     assert sch.get(k).loop_var.name == "k"
 
 
-def test_tir_schedule_copy_1():
+def test_tir_schedule_copy_1(use_block_name):
     # Tests:
     # - Schedule.copy
     sch_1 = tir.Schedule(matmul, debug_mask="all")
     block_rv = sch_1.get_block(name="update")
-    i, j, k = sch_1.get_loops(block_rv)
+    i, j, k = sch_1.get_loops(block="update" if use_block_name else block_rv)
     assert sch_1.get(i).loop_var.name == "i"
     assert sch_1.get(j).loop_var.name == "j"
     assert sch_1.get(k).loop_var.name == "k"
@@ -218,9 +250,9 @@ def test_get_child_blocks():
     assert s.get(update) == s.get(blocks[1])
 
 
-def test_get_producers():
+def test_get_producers(use_block_name):
     sch = tir.Schedule(mod=matmul_relu, debug_mask="all")
-    block = sch.get_block("relu")
+    block = "relu" if use_block_name else sch.get_block("relu")
     (producer,) = sch.get_producers(block)
     assert tvm.ir.structural_equal(
         sch.get_sref(producer).stmt,
@@ -229,9 +261,9 @@ def test_get_producers():
     verify_trace_roundtrip(sch, mod=matmul_relu)
 
 
-def test_get_consumers():
+def test_get_consumers(use_block_name):
     sch = tir.Schedule(mod=matmul_relu, debug_mask="all")
-    block = sch.get_block("matmul")
+    block = "matmul" if use_block_name else sch.get_block("matmul")
     (consumer,) = sch.get_consumers(block)
     assert tvm.ir.structural_equal(
         sch.get_sref(consumer).stmt,

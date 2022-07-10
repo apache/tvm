@@ -145,7 +145,7 @@ struct VMFrame {
  * multiple threads, or serialize them to disk or over the
  * wire.
  */
-class VirtualMachine : public runtime::ModuleNode {
+class TVM_DLL VirtualMachine : public runtime::ModuleNode {
  public:
   /*!
    * \brief Get a PackedFunc from module.

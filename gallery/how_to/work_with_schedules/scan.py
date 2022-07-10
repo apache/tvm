@@ -24,6 +24,12 @@ Recurrent computing is a typical pattern in neural networks.
 """
 from __future__ import absolute_import, print_function
 
+
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
 import tvm
 import tvm.testing
 from tvm import te
@@ -60,7 +66,7 @@ s_scan = tvm.te.scan(s_init, s_update, s_state, inputs=[X])
 # Schedule the Scan Cell
 # ----------------------
 # We can schedule the body of the scan by scheduling the update and
-# init part seperately. Note that it is invalid to schedule the
+# init part separately. Note that it is invalid to schedule the
 # first iteration dimension of the update part.
 # To split on the time iteration, user can schedule on scan_op.scan_axis instead.
 #

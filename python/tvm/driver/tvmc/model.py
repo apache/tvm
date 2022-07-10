@@ -391,9 +391,20 @@ class TVMCPackage(object):
             with open(temp.relpath("metadata.json")) as metadata_json:
                 metadata = json.load(metadata_json)
 
-            has_graph_executor = "graph" in metadata["executors"]
-            graph = temp.relpath("executor-config/graph/graph.json") if has_graph_executor else None
-            params = temp.relpath(f'parameters/{metadata["model_name"]}.params')
+            all_module_names = []
+            for name in metadata["modules"].keys():
+                all_module_names.append(name)
+            assert len(all_module_names) == 1, "Multiple modules in MLF is not supported."
+
+            module_name = all_module_names[0]
+            module_metdata = metadata["modules"][module_name]
+            has_graph_executor = "graph" in module_metdata["executors"]
+            graph = (
+                temp.relpath(f"executor-config/graph/{module_name}.graph")
+                if has_graph_executor
+                else None
+            )
+            params = temp.relpath(f"parameters/{module_name}.params")
 
             self.type = "mlf"
         else:

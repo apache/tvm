@@ -495,8 +495,12 @@ Target::Target(TargetKind kind, Optional<ObjectRef> host, String tag, Array<Stri
 }
 
 bool Target::IsExternalCodegen() const {
-  TargetKindAttrMap<Bool> attr_map = TargetKind::GetAttrMap<Bool>(::tvm::attr::kIsExternalCodegen);
-  return attr_map.get(get()->kind, Bool(false));
+  TargetKindAttrMap<Bool> is_external_codegen_map =
+      TargetKind::GetAttrMap<Bool>(tvm::attr::kIsExternalCodegen);
+  TargetKindAttrMap<FTVMRelayToTIR> relay_to_tir_map =
+      TargetKind::GetAttrMap<FTVMRelayToTIR>(tvm::attr::kRelayToTIR);
+  return is_external_codegen_map.get(get()->kind, Bool(false)) ||
+         relay_to_tir_map.count(get()->kind);
 }
 
 bool Target::IsExternalCodegenFor(const Target& that) const {
@@ -800,7 +804,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(std::unordered_map<String, ObjectRe
   // If requested, query attributes from the device.  User-specified
   // parameters take precedence over queried parameters.
   if (attrs.count("from_device")) {
-    int device_id = Downcast<Integer>(attrs.at("from_device"));
+    int device_id = Downcast<Integer>(attrs.at("from_device")).IntValue();
     attrs.erase("from_device");
     auto device_params = QueryDevice(device_id, target.get());
 

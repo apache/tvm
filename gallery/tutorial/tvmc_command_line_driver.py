@@ -41,6 +41,12 @@ The goal of this section is to give you an overview of TVM and TVMC's
 capabilities, and set the stage for understanding how TVM works.
 """
 
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
+
 ################################################################################
 # Using TVMC
 # ----------
@@ -88,7 +94,7 @@ capabilities, and set the stage for understanding how TVM works.
 #
 # .. code-block:: bash
 #
-#   wget https://github.com/onnx/models/raw/main/vision/classification/resnet/model/resnet50-v2-7.onnx
+#   wget https://github.com/onnx/models/raw/652f4e4af7975c8e7a505c4b6e0f8ac72d8260ea/vision/classification/resnet/model/resnet50-v2-7.onnx
 #
 
 ################################################################################
@@ -125,6 +131,7 @@ capabilities, and set the stage for understanding how TVM works.
 #   # This may take several minutes depending on your machine
 #   tvmc compile \
 #   --target "llvm" \
+#   --input-shapes "data:[1,3,224,224]" \
 #   --output resnet50-v2-7-tvm.tar \
 #   resnet50-v2-7.onnx
 #

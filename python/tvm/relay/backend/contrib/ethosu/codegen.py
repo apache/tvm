@@ -381,6 +381,46 @@ def _ethos_u55_cascader(sram, enable_striping) -> Callable:
     )
 
 
+def _calculate_memory_pressure(mod: tvm.ir.IRModule) -> int:
+    """
+    Calculates a worst-case estimate of the memory consumed at the callsite of
+    each microNPU function. This value can be used as a hint to guide the cascader,
+    indicating how aggressively it will need to optimize the input module to fit
+    into the memory that remains in the memory workspace.
+
+    Parameters
+    ----------
+    mod : tvm.ir.IRModule
+        The input module
+
+    Returns
+    -------
+    int
+        Memory pressure value for the module.
+    """
+    memory_pressure = 0
+
+    @util.create_npu_function_pass(opt_level=1)
+    class CalculateMemoryPressure:
+        """
+        Traverse the module and get total memory used by external NPU functions.
+        """
+
+        def transform_npu_function(self, _, func: relay.Function) -> relay.Function:
+            nonlocal memory_pressure
+            max_val = max(func.attrs["used_memory"])
+            memory_pressure += max_val
+            return func
+
+    CalculateMemoryPressure()(mod)  # pylint: disable=not-callable
+
+    io_used_memory = 0
+    if not tvm.tir.usmp.utils.use_workspace_io_is_enabled():
+        io_used_memory = int(mod["main"].attrs["io_used_memory"])
+
+    return memory_pressure - io_used_memory
+
+
 @tvm._ffi.register_func("relay.ext.ethos-u.relay_to_tir")
 def relay_to_tir(mod: tvm.ir.IRModule) -> tvm.ir.IRModule:
     """
@@ -413,21 +453,18 @@ def relay_to_tir(mod: tvm.ir.IRModule) -> tvm.ir.IRModule:
     # Use the cascader if it is enabled for the U55 accelerator, otherwise use copy_constants
     # scheduler
     if util.is_cascader_enabled():
-        assert (
-            util.get_accelerator_config() != "ethos-u65-256"
-        ), "Cascading is not supported for the U65 accelerator"
+        if util.get_accelerator_config() == "ethos-u65-256":
+            raise ValueError("Cascading is not supported for the U65 accelerator")
 
         workspace_memory_pools = mod.attrs["workspace_memory_pools"]
 
-        assert (
-            workspace_memory_pools
-        ), "Workspace memory pool needs to be provided for the U55 cascader"
+        if not workspace_memory_pools:
+            raise ValueError("Workspace memory pool needs to be provided for the U55 cascader")
+        if len(workspace_memory_pools.pools) != 1:
+            raise ValueError("Exactly one workspace pool needs to be provided for the U55 cascader")
 
-        assert (
-            len(workspace_memory_pools.pools) == 1
-        ), "Exactly one workspace pool needs to be provided for the U55 cascader"
-
-        sram = extract_memory_info(workspace_memory_pools.pools[0])
+        memory_pressure = _calculate_memory_pressure(mod)
+        sram = extract_memory_info(workspace_memory_pools.pools[0], memory_pressure)
         tir_mod = LowerToTIR(_ethos_u55_cascader(sram, util.is_striping_enabled()))(mod)
     else:
         tir_mod = LowerToTIR(copy_constants())(mod)

@@ -17,20 +17,22 @@
 """ Test Meta Schedule SpaceGenerator """
 # pylint: disable=missing-function-docstring
 
-import sys
 import math
+import sys
 
 import pytest
-
 import tvm
 import tvm.testing
-from tvm.meta_schedule.utils import derived_object
-from tvm.meta_schedule.space_generator import ScheduleFn, PySpaceGenerator, SpaceGeneratorUnion
-from tvm.meta_schedule.tune_context import TuneContext
 from tvm._ffi.base import TVMError
+from tvm.meta_schedule.space_generator import (
+    PySpaceGenerator,
+    ScheduleFn,
+    SpaceGeneratorUnion,
+)
+from tvm.meta_schedule.tune_context import TuneContext
+from tvm.meta_schedule.utils import derived_object
 from tvm.script import tir as T
 from tvm.tir.schedule import Schedule
-
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 # fmt: off
@@ -98,7 +100,7 @@ def test_meta_schedule_design_space_generator_NIE():
         TVMError, match="PySpaceGenerator's InitializeWithTuneContext method not implemented!"
     ):
         generator = TestPySpaceGenerator()
-        generator.initialize_with_tune_context(TuneContext())
+        generator._initialize_with_tune_context(TuneContext())
 
 
 if __name__ == "__main__":

@@ -54,7 +54,9 @@ class JSONRuntimeBase : public ModuleNode {
     LoadGraph(graph_json_);
   }
 
-  const char* type_key() const override { return "json"; }
+  ~JSONRuntimeBase() override = default;
+
+  const char* type_key() const override { return "json"; }  // May be overridden
 
   /*! \brief Initialize a specific json runtime. */
   virtual void Init(const Array<NDArray>& consts) = 0;

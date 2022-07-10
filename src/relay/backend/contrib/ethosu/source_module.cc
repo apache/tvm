@@ -114,11 +114,20 @@ class EthosUModuleNode : public ModuleNode {
     return PackedFunc();
   }
 
-  const char* type_key() const override { return "c"; }
+  const char* type_key() const final { return "c"; }
 
   static Module Create(Array<CompilationArtifact> compilation_artifacts) {
     auto n = make_object<EthosUModuleNode>(compilation_artifacts);
     return Module(n);
+  }
+
+  bool IsDSOExportable() const final { return true; }
+
+  bool ImplementsFunction(const String& name, bool query_imports) final {
+    return std::find_if(compilation_artifacts_.begin(), compilation_artifacts_.end(),
+                        [&name](const CompilationArtifact& artifact) {
+                          return artifact->function_name == name;
+                        }) != compilation_artifacts_.end();
   }
 
  private:
@@ -190,7 +199,7 @@ class EthosUModuleNode : public ModuleNode {
     std::unordered_map<int, relay::contrib::ethosu::BaseAddress> param_idx_to_base_address;
     for (const relay::contrib::ethosu::BaseAddress& base_address : artifact->base_addresses) {
       if (base_address->primfunc_param_idx.defined()) {
-        param_idx_to_base_address[base_address->primfunc_param_idx] = base_address;
+        param_idx_to_base_address[base_address->primfunc_param_idx.IntValue()] = base_address;
       }
     }
     for (unsigned int i = 0; i < param_idx_to_base_address.size(); i++) {

@@ -260,7 +260,8 @@ def docs(
             "tlcpack-sphinx-addon==0.2.1",
             "synr==0.5.0",
             "image==1.5.33",
-            "sphinx-gallery==0.4.0",
+            # Temporary git link until a release is published
+            "git+https://github.com/sphinx-gallery/sphinx-gallery.git@6142f1791151849b5bec4bf3959f75697ba226cd",
             "sphinx-rtd-theme==1.0.0",
             "matplotlib==3.3.4",
             "commonmark==0.9.1",
@@ -342,6 +343,7 @@ def generate_command(
     options: Dict[str, Option],
     help: str,
     precheck: Optional[Callable[[], None]] = None,
+    post_build: Optional[List[str]] = None,
 ):
     """
     Helper to generate CLIs that:
@@ -370,13 +372,18 @@ def generate_command(
         if precheck is not None:
             precheck()
 
+        build_dir = get_build_dir(name)
+
         if skip_build:
             scripts = []
         else:
             scripts = [
-                f"./tests/scripts/task_config_build_{name}.sh {get_build_dir(name)}",
-                f"./tests/scripts/task_build.py --build-dir {get_build_dir(name)}",
+                f"./tests/scripts/task_config_build_{name}.sh {build_dir}",
+                f"./tests/scripts/task_build.py --build-dir {build_dir}",
             ]
+
+        if post_build is not None:
+            scripts += post_build
 
         # Check that a test suite was not used alongside specific test names
         if any(v for v in kwargs.values()) and tests is not None:
@@ -389,7 +396,7 @@ def generate_command(
         # Add named test suites
         for option_name, (_, extra_scripts) in options.items():
             if kwargs.get(option_name, False):
-                scripts += extra_scripts
+                scripts.extend(script.format(build_dir=build_dir) for script in extra_scripts)
 
         docker(
             name=gen_name(f"ci-{name}"),
@@ -548,7 +555,7 @@ def add_subparser(
     return subparser
 
 
-CPP_UNITTEST = ("run c++ unitests", ["./tests/scripts/task_cpp_unittest.sh"])
+CPP_UNITTEST = ("run c++ unitests", ["./tests/scripts/task_cpp_unittest.sh {build_dir}"])
 
 generated = [
     generate_command(
@@ -605,7 +612,10 @@ generated = [
     generate_command(
         name="wasm",
         help="Run WASM build and test(s)",
-        options={"test": ("run WASM tests", ["./tests/scripts/task_web_wasm.sh"])},
+        options={
+            "cpp": CPP_UNITTEST,
+            "test": ("run WASM tests", ["./tests/scripts/task_web_wasm.sh"]),
+        },
     ),
     generate_command(
         name="qemu",
@@ -624,12 +634,12 @@ generated = [
     generate_command(
         name="hexagon",
         help="Run Hexagon build and test(s)",
+        post_build=["./tests/scripts/task_build_hexagon_api.sh --output build-hexagon"],
         options={
             "cpp": CPP_UNITTEST,
             "test": (
                 "run Hexagon API/Python tests",
                 [
-                    "./tests/scripts/task_build_hexagon_api.sh",
                     "./tests/scripts/task_python_hexagon.sh",
                 ],
             ),

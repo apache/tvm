@@ -19,6 +19,7 @@
 
 from typing import Optional, List
 
+import tvm
 from tvm._ffi import register_object
 from tvm.runtime import Object
 from . import _ffi_api
@@ -29,6 +30,14 @@ from ...ir.memory_pools import PoolInfo
 # This needs to be kept in sync with CANDIDATE_MEMORY_POOL_ATTR in
 # include/tvm/tir/usmp/utils.h
 CANDIDATE_MEMORY_POOL_ATTR = "candidate_memory_pools"
+
+
+def use_workspace_io_is_enabled() -> bool:
+    """
+    Check whether placing I/O tensors in the workspace is enabled.
+    """
+    ctx = tvm.transform.PassContext.current()
+    return bool(ctx.config.get("tir.usmp.use_workspace_io", False))
 
 
 @register_object("tir.usmp.BufferInfo")

@@ -260,9 +260,10 @@ class GlobalVarNode : public RelayExprNode {
  */
 class GlobalVar : public RelayExpr {
  public:
-  TVM_DLL explicit GlobalVar(String name_hint, Type type = {});
+  TVM_DLL explicit GlobalVar(String name_hint, Type type = {}, Span span = {});
 
   TVM_DEFINE_OBJECT_REF_METHODS(GlobalVar, RelayExpr, GlobalVarNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(GlobalVarNode);
 };
 
 // PrimExprs that are useful as runtime containers.
@@ -437,7 +438,7 @@ class Integer : public IntImm {
   /*!
    * \brief convert to int64_t
    */
-  operator int64_t() const {
+  int64_t IntValue() const {
     ICHECK(data_ != nullptr) << " Trying to reference a null Integer";
     return (*this)->value;
   }

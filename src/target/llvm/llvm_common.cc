@@ -24,12 +24,29 @@
 
 #include "llvm_common.h"
 
+#if TVM_LLVM_VERSION >= 140
+#include <llvm/MC/TargetRegistry.h>
+#else
+#include <llvm/Support/TargetRegistry.h>
+#endif
+#include <llvm/Support/CodeGen.h>
+#include <llvm/Support/Host.h>
+#include <llvm/Support/TargetSelect.h>
+#include <llvm/Support/raw_ostream.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/Target/TargetOptions.h>
+#include <tvm/ir/expr.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/optional.h>
+#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/target/target.h>
 
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <sstream>
+#include <string>
 
 namespace tvm {
 namespace codegen {
@@ -142,7 +159,7 @@ std::unique_ptr<llvm::TargetMachine> GetLLVMTargetMachine(const Target& target, 
     return nullptr;
   }
 
-  Integer llvm_opt_level = target->GetAttr<Integer>("opt-level").value_or(Integer(3));
+  int llvm_opt_level = target->GetAttr<Integer>("opt-level").value_or(Integer(3)).IntValue();
   llvm::CodeGenOpt::Level llvm_opt;
   if (llvm_opt_level <= 0) {
     llvm_opt = llvm::CodeGenOpt::None;
@@ -187,13 +204,6 @@ std::string LLVMTargetToString(const Target& target) {
     os << " -mabi=" << mabi.value();
   }
   return os.str();
-}
-
-void PrintModule(const llvm::Module* mod) {
-  std::string modpe_str;
-  llvm::raw_string_ostream rso(modpe_str);
-  mod->print(rso, nullptr);
-  LOG(INFO) << rso.str();
 }
 
 }  // namespace codegen

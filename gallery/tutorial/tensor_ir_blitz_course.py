@@ -25,9 +25,15 @@ TensorIR is a domain specific language for deep learning programs serving two br
 
 - An implementation for transforming and optimizing programs on various hardware backends.
 
-- An abstraction for automatic tensorized program optimization.
+- An abstraction for automatic _tensorized_ program optimization.
 
 """
+
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
 
 import tvm
 from tvm.ir.module import IRModule
@@ -145,7 +151,7 @@ print(b)
 # sequence of schedule primitives will help to improve the performance. And at last, we can lower
 # and build it into a runnable module.
 #
-# Here we just demostrate a very simple tranformation. First we create schedule on the input `ir_module`.
+# Here we just demonstrate a very simple transformation. First we create schedule on the input `ir_module`.
 
 sch = tvm.tir.Schedule(ir_module)
 print(type(sch))
@@ -155,7 +161,7 @@ print(type(sch))
 
 # Get block by its name
 block_b = sch.get_block("B")
-# Get loops surronding the block
+# Get loops surrounding the block
 (i,) = sch.get_loops(block_b)
 # Tile the loop nesting.
 i_0, i_1, i_2 = sch.split(i, factors=[2, 2, 2])

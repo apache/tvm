@@ -116,6 +116,21 @@ class ScheduleNode : public runtime::Object {
   /*! \return The internally maintained trace of scheduling program execution */
   virtual Optional<Trace> trace() const = 0;
   /*!
+   * \brief Instruct the schedule to work on a function in the IRModule.
+   *
+   * By default, the schedule works on the function with the name "main", or the only function in
+   * the IRModule if there is only one. If there is multiple functions in the IRModule, and none of
+   * their names are "main", users will have to call this method to explicitly specify which
+   * function to work on.
+   *
+   * This sugar function will guide the `GetBlock` method if its `func_name` is not specified.
+   *
+   * \param func_name The name of the function to be working on
+   *
+   * \sa GetBlock
+   */
+  virtual void WorkOn(const String& func_name) = 0;
+  /*!
    * \brief Returns a copy of the schedule, including both its state and its symbol table,
    * guaranteeing that
    * 1) SRef tree is completely reconstructed;
@@ -231,12 +246,19 @@ class ScheduleNode : public runtime::Object {
   /******** Schedule: Get blocks & loops ********/
   /*!
    * \brief Retrieve a block in a specific function with its name
+   *
+   * By default, if `func_name` is not specified, the schedule will search for the block in the
+   * function that is currently being "worked on". To switch the function to be worked on, use
+   * `WorkOn` before calling this method.
+   *
    * \param name The name of the block to be retrieved
    * \param func_name The name of the function
    * \return The block retrieved
    * \note Indexing error is raised if 0 or multiple blocks exist with the specific name
+   *
+   * \sa WorkOn
    */
-  virtual BlockRV GetBlock(const String& name, const String& func_name = "main") = 0;
+  virtual BlockRV GetBlock(const String& name, const Optional<String>& func_name = NullOpt) = 0;
   /*!
    * \brief Get the parent loops of the block in its scope, from outer to inner
    * \param block_rv The query block
@@ -277,9 +299,10 @@ class ScheduleNode : public runtime::Object {
    * 3) All loops must start with 0.
    * 4) The domain of a loop to be fused cannot depend on another loop to be fused.
    * \param loop_rvs The loops to be fused
+   * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
    * \return The new loop after fusion
    */
-  virtual LoopRV Fuse(const Array<LoopRV>& loop_rvs) = 0;
+  virtual LoopRV Fuse(const Array<LoopRV>& loop_rvs, bool preserve_unit_iters = true) = 0;
   /*!
    * \brief Split a loop into a list of consecutive loops. It requires:
    * 1) The loop can't have annotation or thread binding.
@@ -287,9 +310,11 @@ class ScheduleNode : public runtime::Object {
    * \param loop_rv The loop to be split
    * \param factors The positive tiling factors, and at most one of which is `NullOpt`, which means
    * that factor is inferred.
+   * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
    * \return The new loops after split
    */
-  virtual Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors) = 0;
+  virtual Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors,
+                              bool preserve_unit_iters = true) = 0;
   /*!
    * \brief Reorder a list of loops. It doesn't require the loops to be consecutive.
    * It requires:
@@ -303,6 +328,18 @@ class ScheduleNode : public runtime::Object {
    * \param ordered_loop_rvs The loops in the new order
    */
   virtual void Reorder(const Array<LoopRV>& ordered_loop_rvs) = 0;
+  /*!
+   * \brief Create a new unit loop on top of the specific block.
+   * \param block_rv The block above which the new loop is created
+   * \return The new loop created
+   */
+  virtual LoopRV AddUnitLoop(const BlockRV& block_rv) = 0;
+  /*!
+   * \brief Create a new unit loop on top of the specific loop.
+   * \param loop_rv The loop above which the new loop is created
+   * \return The new loop created
+   */
+  virtual LoopRV AddUnitLoop(const LoopRV& loop_rv) = 0;
   /******** Schedule: Manipulate ForKind ********/
   /*!
    * \brief Parallelize the input loop. It requires:
@@ -364,6 +401,19 @@ class ScheduleNode : public runtime::Object {
    */
   virtual BlockRV CacheWrite(const BlockRV& block_rv, int write_buffer_index,
                              const String& storage_scope) = 0;
+  /*!
+   * \brief Create a block that read/write a buffer region into a read/write cache with reindexing.
+   * The layout of the cache will be the same as by the iterators of the block that reads/writes the
+   * buffer. It requires:
+   * 1) There is only one block who reads/writes the target buffer
+   * 2) There is only one buffer load/store of this buffer in the block
+   * \param block_rv The block operates on the target buffer.
+   * \param buffer_index The index of the buffer in block's read or write region.
+   * \param buffer_index_type The type of the buffer index, kRead or kWrite.
+   * \return The reindex stage block.
+   */
+  virtual BlockRV ReIndex(const BlockRV& block_rv, int buffer_index,
+                          BufferIndexType buffer_index_type) = 0;
   /******** Schedule: Compute location ********/
   /*!
    * \brief Move a producer block under the specific loop, and regenerate the
@@ -544,6 +594,16 @@ class ScheduleNode : public runtime::Object {
    */
   virtual void TransformLayout(const BlockRV& block_rv, int buffer_index,
                                BufferIndexType buffer_index_type, const IndexMap& index_map) = 0;
+
+  /*!
+   * \brief Apply a transformation represented by IndexMap to block
+   * \details The block iters and the block body are transformed by the given index_map.
+   * Outer loops corresponding to each new block iter are regenerated.
+   * The index_map is required to be bijective affine since we need its inverse mapping.
+   * \param block_rv The block to be transformed
+   * \param index_map The transformation to apply.
+   */
+  virtual void TransformBlockLayout(const BlockRV& block_rv, const IndexMap& index_map) = 0;
 
   /*!
    * \brief Set the axis separator of a buffer, where the buffer is specified by a block and a read

@@ -18,8 +18,14 @@ import pytest
 import os
 import numpy as np
 
+try:
+    # See issue #9362.
+    import torch
+except:
+    pass
+
 import tvm
-import tvm.relay.testing
+import tvm.testing
 from tvm import relay
 from tvm.contrib.download import download_testdata
 from tvm.relay.op.contrib.tensorrt import partition_for_tensorrt
@@ -31,9 +37,10 @@ def skip_codegen_test():
     if not tvm.runtime.enabled("cuda") or not tvm.cuda(0).exist:
         print("Skip because CUDA is not enabled.")
         return True
-    if not tvm.get_global_func("relay.ext.tensorrt", True):
-        print("Skip because TensorRT codegen is not available.")
+    if not tensorrt.is_tensorrt_compiler_enabled():
+        print("Skip because TensorRT compiler is not available.")
         return True
+    print("TensorRT compiler is available!")
     return False
 
 
@@ -44,6 +51,7 @@ def skip_runtime_test():
     if not tensorrt.is_tensorrt_runtime_enabled():
         print("Skip because TensorRT runtime is not available.")
         return True
+    print("TensorRT runtime is available!")
     return False
 
 
@@ -102,12 +110,11 @@ def test_trt_int8():
 
     # compile the model
     target = "cuda"
-    dev = tvm.cuda(1)
-    mod, config = partition_for_tensorrt(mod, params)
-    with tvm.transform.PassContext(opt_level=3, config={"relay.ext.tensorrt.options": config}):
+    dev = tvm.cuda()
+    mod = partition_for_tensorrt(mod, params)
+    with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target=target, params=params)
 
-    dtype = "float32"
     gen_module = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
 
     num_cali_int8 = int(os.environ["TENSORRT_NUM_CALI_INT8"])
@@ -146,4 +153,4 @@ def test_trt_int8():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

@@ -38,8 +38,7 @@ trap cleanup 0
 
 # Ubuntu 18.04 dependencies
 apt-get update
-
-apt-get install -y \
+apt-install-and-clear -y \
     bsdmainutils \
     build-essential \
     cpp \

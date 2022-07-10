@@ -140,7 +140,6 @@ ALLOW_SPECIFIC_FILE = {
     "tests/micro/testdata/mnist/digit-2.jpg",
     "tests/micro/testdata/mnist/digit-9.jpg",
     "tests/micro/testdata/mnist/mnist-8.onnx",
-    "tests/micro/testdata/kws/yes_no.tflite",
     # microTVM Zephyr runtime
     "apps/microtvm/zephyr/template_project/CMakeLists.txt.template",
     "apps/microtvm/zephyr/template_project/qemu-hack/qemu-system-arm",
@@ -149,6 +148,7 @@ ALLOW_SPECIFIC_FILE = {
     "apps/microtvm/zephyr/template_project/qemu-hack/qemu-system-riscv32",
     "apps/microtvm/zephyr/template_project/qemu-hack/qemu-system-riscv64",
     # microTVM Virtual Machines
+    "apps/microtvm/poetry.lock",
     "apps/microtvm/reference-vm/arduino/Vagrantfile",
     "apps/microtvm/reference-vm/arduino/base-box/Vagrantfile.packer-template",
     "apps/microtvm/reference-vm/zephyr/Vagrantfile",

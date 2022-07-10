@@ -203,6 +203,8 @@ class PVar : public Pattern<PVar<T>> {
     return value_;
   }
 
+  T EvalOr(const T& default_value) const { return filled_ ? value_ : default_value; }
+
  protected:
   /*! \brief The matched value */
   mutable T value_;

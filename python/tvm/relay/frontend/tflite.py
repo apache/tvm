@@ -33,7 +33,7 @@ from .. import qnn as _qnn
 from ..backend.name_transforms import sanitize_name
 from .common import ExprTable
 from .common import infer_shape as _infer_shape
-from .common import to_int_list, shape_of
+from .common import lstm_cell, to_int_list, shape_of
 from .tflite_flexbuffer import FlexBufferDecoder
 
 __all__ = ["from_tflite"]
@@ -173,8 +173,10 @@ class OperatorConverter(object):
             "TRANSPOSE_CONV": self.convert_transpose_conv,
             "TRANSPOSE": self.convert_transpose,
             "UNPACK": self.convert_unpack,
+            "UNIDIRECTIONAL_SEQUENCE_LSTM": self.convert_unidirectional_sequence_lstm,
             "WHERE": self.convert_select,
             "ZEROS_LIKE": self.convert_zeros_like,
+            "NON_MAX_SUPPRESSION_V5": self.convert_nms_v5,
         }
 
     def check_unsupported_ops(self):
@@ -219,6 +221,41 @@ class OperatorConverter(object):
 
         if len(raise_msg) > 0:
             raise tvm.error.OpNotImplemented(raise_msg)
+
+    def unbind(self, data, axis=1):
+        """
+        This is a modified version compared to the one in common.py.
+        The onnx version takes a relay.Expr.Call, the tflite
+        version a TensorWrapper. Also this version by default splits
+        along axis 1 and not axis 0 as the onnx version.
+
+         Parameters
+         ----------
+         data : tvm.relay.frontend.tflite.TensorWrapper
+             Input tensor
+         axis : int
+             Axis along which tensor is split.
+         Returns
+         -------
+         result : List[relay.Expr]
+             The sequence of computed tensors
+        """
+        shape = to_int_list(self.get_tensor_shape(data))
+        if axis >= len(shape):
+            msg = "Please check input dim, it shouldn't be greater than or equal to rank."
+            raise AttributeError(msg)
+
+        selections = shape[axis]
+        shape.pop(axis)
+        timestep = 0  # Reshape to make time step as the first dim
+        shape.insert(timestep, selections)
+        res_split = _op.split(
+            _op.reshape(self.get_expr(data.tensor_idx), tuple(shape)), selections, timestep
+        )
+        ret = []
+        for i in range(selections):
+            ret.append(_op.squeeze(res_split[i], axis=[timestep]))
+        return _expr.TupleWrapper(_expr.Tuple(ret), selections)
 
     def convert_op_to_relay(self):
         """Convert TFLite ops to relay ops"""
@@ -659,10 +696,15 @@ class OperatorConverter(object):
         coord_trans = "align_corners" if align_corners else "asymmetric"
         coord_trans = "half_pixel" if half_pixel_centers else coord_trans
 
+        rounding_method = ""
+        if method == "nearest_neighbor":
+            if not align_corners and half_pixel_centers:
+                rounding_method = "round_prefer_ceil"
+
         if bilinear_method and input_tensor.qnn_params:
             in_expr = self.dequantize(in_expr, input_tensor)
         out = _op.image.resize2d(
-            in_expr, target_size, None, "NHWC", method, coordinate_transformation_mode=coord_trans
+            in_expr, target_size, None, "NHWC", method, coord_trans, rounding_method
         )
         if bilinear_method and output_tensor.qnn_params:
             out = self.quantize(out, output_tensor)
@@ -1407,11 +1449,7 @@ class OperatorConverter(object):
 
     def convert_equal(self, op):
         """Convert TFLite EQUAL"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized EQUAL operator is not supported yet."
-            )
-        return self._convert_elemwise(_op.equal, op)
+        return self._convert_elemwise(_op.equal, op, self.is_quantized(op))
 
     def convert_not_equal(self, op):
         """Convert TFLite NOT_EQUAL"""
@@ -1959,9 +1997,8 @@ class OperatorConverter(object):
         # Change the output shape calculation based on keep_dim option
         if keep_num_dims:
             input_shape = _infer_shape(self.get_tensor_expr(input_tensor))
-            output_shape = list(input_shape)
-            output_shape[-1] = weight_tensor_shape[0]
-            out = _op.reshape(out, tuple(output_shape))
+            output_shape = input_shape[:-1] + tuple([weight_tensor_shape[0]])
+            out = _op.reshape(out, output_shape)
 
         return out
 
@@ -2715,6 +2752,148 @@ class OperatorConverter(object):
 
         return squeezed
 
+    def convert_unidirectional_sequence_lstm(self, op):
+        """Long Short Term Memory for TFLite implementation."""
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                "TFlite quantized UNIDIRECTIONALSEQUENCELSTM operator is not supported yet."
+            )
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 24, "input tensors length should be == 24"
+
+        # Extract input tensor from saved model
+        input_tensor = input_tensors[0]
+
+        # Extract tensors from input tensors from saved model
+        # Input weights
+        input_input_weights = input_tensors[1]
+        input_forget_weights = input_tensors[2]
+        input_cell_weights = input_tensors[3]
+        input_output_weights = input_tensors[4]
+        # Recurrent weights
+        recurrent_input_weights = input_tensors[5]
+        recurrent_forget_weights = input_tensors[6]
+        recurrent_cell_weights = input_tensors[7]
+        recurrent_output_weights = input_tensors[8]
+        # inputs 9, 10, 11, 16, 17, 20, 21, 22, 23 are not occupied
+        # there locations are -1 in the flatbuffer
+        # Bias weights
+        input_gate_bias = input_tensors[12]
+        forget_gate_bias = input_tensors[13]
+        cell_gate_bias = input_tensors[14]
+        output_gate_bias = input_tensors[15]
+
+        # State input
+        output_state_in = input_tensors[18]
+        cell_state_in = input_tensors[19]
+
+        # Extract output tensor from saved model
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        X_steps = self.unbind(input_tensor, axis=1)
+        weights_dict = {}
+
+        # hidden_state_weights is equivalent to output_state_in in tflite model
+        out_state_in_shape = tuple(self.get_tensor_shape(output_state_in))
+        out_state_in_dtype = self.get_tensor_type_str(output_state_in.tensor.Type())
+        out_state_in_expr = _op.zeros(out_state_in_shape, dtype=out_state_in_dtype)
+        weights_dict["hidden_state"] = _op.split(out_state_in_expr, 1)[0]
+
+        # cell_state_weights is equivalent to output_state_in tflite model
+        cell_state_in_shape = tuple(self.get_tensor_shape(cell_state_in))
+        cell_state_in_dtype = self.get_tensor_type_str(cell_state_in.tensor.Type())
+        cell_state_in_expr = _op.zeros(cell_state_in_shape, dtype=cell_state_in_dtype)
+        weights_dict["cell_state"] = _op.split(cell_state_in_expr, 1)[0]
+
+        # Process weight matrix of input: w_inp
+        # Concatenate of [input_input_weight, input_forget_weights,
+        # input_cell_weights, input_output_weights]
+        input_input_weights_default_values = self.get_tensor_value(input_input_weights)
+        input_input_weights_op = _op.split(
+            _op.const(input_input_weights_default_values.tolist()), 1
+        )
+        input_output_weights_default_values = self.get_tensor_value(input_output_weights)
+        input_output_weights_op = _op.split(
+            _op.const(input_output_weights_default_values.tolist()), 1
+        )
+        input_forget_weights_default_values = self.get_tensor_value(input_forget_weights)
+        input_forget_weights_op = _op.split(
+            _op.const(input_forget_weights_default_values.tolist()), 1
+        )
+        input_cell_weights_default_values = self.get_tensor_value(input_cell_weights)
+        input_cell_weights_op = _op.split(_op.const(input_cell_weights_default_values.tolist()), 1)
+        weights_dict["w_inp"] = _op.concatenate(
+            [
+                _op.squeeze(input_input_weights_op[0]),
+                _op.squeeze(input_forget_weights_op[0]),
+                _op.squeeze(input_cell_weights_op[0]),
+                _op.squeeze(input_output_weights_op[0]),
+            ],
+            axis=0,
+        )
+
+        # Process weight matrix of hidden state:
+        # w_hid to support lstm_cell function. Not used in tflite
+        recurrent_input_weights_values = self.get_tensor_value(recurrent_input_weights)
+        recurrent_input_weights_op = _op.split(
+            _op.const(recurrent_input_weights_values.tolist()), 1
+        )
+        recurrent_output_weights_values = self.get_tensor_value(recurrent_output_weights)
+        recurrent_output_weights_op = _op.split(
+            _op.const(recurrent_output_weights_values.tolist()), 1
+        )
+        recurrent_forget_weights_values = self.get_tensor_value(recurrent_forget_weights)
+        recurrent_forget_weights_op = _op.split(
+            _op.const(recurrent_forget_weights_values.tolist()), 1
+        )
+        recurrent_cell_weights_values = self.get_tensor_value(recurrent_cell_weights)
+        recurrent_cell_weights_op = _op.split(_op.const(recurrent_cell_weights_values.tolist()), 1)
+        weights_dict["w_hid"] = _op.concatenate(
+            [
+                recurrent_input_weights_op[0],
+                recurrent_forget_weights_op[0],
+                recurrent_cell_weights_op[0],
+                recurrent_output_weights_op[0],
+            ],
+            axis=0,
+        )
+
+        # Process weight matrix of bias: b_inp
+        input_gate_bias_values = self.get_tensor_value(input_gate_bias)
+        input_gate_bias_op = _op.split(_op.const(input_gate_bias_values.tolist()), 1)
+        output_gate_bias_values = self.get_tensor_value(output_gate_bias)
+        output_gate_bias_op = _op.split(_op.const(output_gate_bias_values.tolist()), 1)
+        forget_gate_bias_values = self.get_tensor_value(forget_gate_bias)
+        forget_gate_bias_op = _op.split(_op.const(forget_gate_bias_values.tolist()), 1)
+        cell_gate_bias_values = self.get_tensor_value(cell_gate_bias)
+        cell_gate_bias_op = _op.split(_op.const(cell_gate_bias_values.tolist()), 1)
+        weights_dict["b_inp"] = _op.concatenate(
+            [
+                input_gate_bias_op[0],
+                forget_gate_bias_op[0],
+                cell_gate_bias_op[0],
+                output_gate_bias_op[0],
+            ],
+            axis=0,
+        )
+
+        # Process weight matrix of hidden bias:
+        # b_hid (with the same shape as b_inp)
+        gate_bias_dtype = self.get_tensor_type_str(input_gate_bias.tensor.Type())
+        weights_dict["b_hid"] = _op.split(
+            _op.const(
+                np.zeros(_infer_shape(weights_dict["b_inp"]), dtype=gate_bias_dtype),
+                dtype=gate_bias_dtype,
+            ),
+            1,
+        )[0]
+
+        outputs, _, _ = lstm_cell(input_seqs=X_steps, **weights_dict)
+
+        output = _op.stack(outputs, axis=1)
+        return output
+
     def convert_batch_to_space_nd(self, op):
         """batch_to_space_nd implementation."""
 
@@ -3168,6 +3347,69 @@ class OperatorConverter(object):
         boxes = _op.concatenate([ret[3], ret[2], ret[5], ret[4]], axis=2)
         ret = _expr.TupleWrapper(_expr.Tuple([boxes, cls_ids, scores, valid_count]), size=4)
         return ret
+
+    def convert_nms_v5(self, op):
+        """Convert TFLite NonMaxSuppressionV5"""
+        # https://www.tensorflow.org/api_docs/cc/class/tensorflow/ops/non-max-suppression-v5
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 6, "input tensor length should be 6"
+        boxes = self.get_expr(input_tensors[0].tensor_idx)
+        scores = self.get_expr(input_tensors[1].tensor_idx)
+        max_output_size = self.get_tensor_value(input_tensors[2])
+        iou_threshold = self.get_tensor_value(input_tensors[3])
+        score_threshold = self.get_tensor_value(input_tensors[4])
+        soft_nms_sigma = self.get_tensor_value(input_tensors[5])
+
+        if isinstance(max_output_size, np.ndarray):
+            assert max_output_size.size == 1, "only one value is expected."
+            max_output_size = int(max_output_size)
+
+        if isinstance(iou_threshold, np.ndarray):
+            assert iou_threshold.size == 1, "only one value is expected."
+            iou_threshold = float(iou_threshold)
+
+        if isinstance(score_threshold, np.ndarray):
+            assert score_threshold.size == 1, "only one value is expected."
+            score_threshold = float(score_threshold)
+
+        if isinstance(soft_nms_sigma, np.ndarray):
+            assert soft_nms_sigma.size == 1, "only one value is expected."
+            soft_nms_sigma = float(soft_nms_sigma)
+        if soft_nms_sigma != 0.0:
+            raise tvm.error.OpNotImplemented(
+                "It is soft_nms when soft_nms_sigma != 0, which is not supported!"
+            )
+
+        scores_expand = _op.expand_dims(scores, axis=-1, num_newaxis=1)
+        data = _op.concatenate([scores_expand, boxes], -1)
+        data = _op.expand_dims(data, axis=0, num_newaxis=1)
+
+        count, data, indices = _op.vision.get_valid_counts(
+            data, score_threshold=score_threshold, id_index=-1, score_index=0
+        )
+
+        nms_ret = _op.vision.non_max_suppression(
+            data=data,
+            valid_count=count,
+            indices=indices,
+            max_output_size=max_output_size,
+            iou_threshold=iou_threshold,
+            force_suppress=True,
+            top_k=-1,
+            coord_start=1,
+            score_index=0,
+            id_index=-1,
+            return_indices=True,
+            invalid_to_bottom=False,
+        )
+
+        selected_indices = _op.squeeze(nms_ret[0], axis=[0])
+        selected_indices = _op.strided_slice(selected_indices, [0], [max_output_size])
+        valide_num = _op.squeeze(nms_ret[1], axis=[1])
+        selected_scores = _op.take(scores, selected_indices, axis=0)
+        out = _expr.TupleWrapper(_expr.Tuple([selected_indices, selected_scores, valide_num]), 3)
+        return out
 
     def convert_expand_dims(self, op):
         """Convert TFLite EXPAND_DIMS"""

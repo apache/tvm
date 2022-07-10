@@ -30,11 +30,12 @@ void BindBlockThreadIdx(const tir::Schedule& sch, const tir::BlockRV& block_rv,
                         int64_t max_threadblocks, int64_t max_threads_per_block,
                         std::function<tir::ExprRV(int64_t)> get_factor) {
   using namespace tvm::tir;
-  Array<StmtSRef> loops = tir::GetLoops(sch->GetSRef(block_rv));
-  int n = loops.size();
-  if (n == 0) {
+  StmtSRef block_sref = sch->GetSRef(block_rv);
+  if (block_sref->parent == nullptr) {
     return;
   }
+  Array<StmtSRef> loops = tir::GetLoops(block_sref);
+  int n = loops.size();
   int i_block_idx = -1;
   int i_thread_idx = -1;
   int i_multi_child = -1;
@@ -72,7 +73,7 @@ void BindBlockThreadIdx(const tir::Schedule& sch, const tir::BlockRV& block_rv,
   if (i_multi_child == -1) {
     i_multi_child = n;
   }
-  if ((i_block_idx != -1 && i_thread_idx != -1) || i_spatial_loop == -1) {
+  if (i_block_idx != -1 && i_thread_idx != -1) {
     return;
   }
   if (i_block_idx != -1 && i_thread_idx == -1) {
@@ -80,16 +81,37 @@ void BindBlockThreadIdx(const tir::Schedule& sch, const tir::BlockRV& block_rv,
     throw;
   }
   LoopRV loop_rv{nullptr};
-  if (i_block_idx == -1 && i_thread_idx != -1) {
-    int num_fuse = std::min(std::min(i_multi_child, i_thread_idx), i_spatial_loop + 1);
+  {
     Array<LoopRV> loop_rvs = sch->GetLoops(block_rv);
-    loop_rv = sch->Fuse({loop_rvs.begin(), loop_rvs.begin() + num_fuse});
-    sch->Bind(loop_rv, "blockIdx.x");
-    return;
-  } else {  // i_block_idx == -1 && i_thread_idx == -1
-    Array<LoopRV> loop_rvs = sch->GetLoops(block_rv);
-    int num_fuse = std::min(i_multi_child, i_spatial_loop + 1);
-    loop_rv = sch->Fuse({loop_rvs.begin(), loop_rvs.begin() + num_fuse});
+    if (i_spatial_loop == -1) {
+      LoopRV spatial_loop_rv{nullptr};
+      if (loop_rvs.empty()) {
+        spatial_loop_rv = sch->AddUnitLoop(block_rv);
+      } else {
+        spatial_loop_rv = sch->AddUnitLoop(loop_rvs[0]);
+      }
+      loop_rvs.insert(loop_rvs.begin(), spatial_loop_rv);
+      i_spatial_loop = 0;
+      if (i_block_idx != -1) {
+        i_block_idx += 1;
+      }
+      if (i_thread_idx != -1) {
+        i_thread_idx += 1;
+      }
+      if (i_multi_child != -1) {
+        i_multi_child += 1;
+      }
+    }
+    if (i_block_idx == -1 && i_thread_idx != -1) {
+      int num_fuse = std::min(std::min(i_multi_child, i_thread_idx), i_spatial_loop + 1);
+      Array<LoopRV> loop_rvs = sch->GetLoops(block_rv);
+      loop_rv = sch->Fuse({loop_rvs.begin(), loop_rvs.begin() + num_fuse});
+      sch->Bind(loop_rv, "blockIdx.x");
+      return;
+    } else {  // i_block_idx == -1 && i_thread_idx == -1
+      int num_fuse = std::min(i_multi_child, i_spatial_loop + 1);
+      loop_rv = sch->Fuse({loop_rvs.begin(), loop_rvs.begin() + num_fuse});
+    }
   }
   int64_t extent = -1;
   if (const int64_t* e = GetLoopIntExtent(sch->Get(loop_rv).get())) {
@@ -146,7 +168,7 @@ class AutoBindNode : public ScheduleRuleNode {
         context->target.value()->GetAttr<Integer>("max_threads_per_block");
     CHECK(max_threads_per_block.defined())
         << "ValueError: missing attribute `max_threads_per_block` in the target";
-    this->max_threads_per_block_ = max_threads_per_block.value();
+    this->max_threads_per_block_ = max_threads_per_block.value().IntValue();
   }
 
   // Inherited from ScheduleRuleNode

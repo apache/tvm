@@ -22,27 +22,27 @@ import os
 from os import path as osp
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Union
 
-from tvm._ffi.registry import register_func
 from tvm.ir import IRModule
 from tvm.ir.transform import PassContext
-from tvm.runtime import Module, NDArray
+from tvm.runtime import Module, NDArray, vm
 from tvm.target import Target
 from tvm.te import Tensor, create_prim_func
 from tvm.tir import PrimFunc, Schedule
 
+from . import default_config
 from .apply_history_best import ApplyHistoryBest
-from .builder import Builder, LocalBuilder
-from .cost_model import CostModel, XGBModel
-from .database import Database, JSONDatabase, TuningRecord
+from .builder import Builder
+from .cost_model import CostModel
+from .database import Database, TuningRecord
 from .extracted_task import ExtractedTask
-from .feature_extractor import PerStoreFeature
 from .measure_callback import MeasureCallback
 from .mutator import Mutator
 from .postproc import Postproc
-from .runner import LocalRunner, Runner
+from .profiler import Profiler
+from .runner import Runner
 from .schedule_rule import ScheduleRule
 from .search_strategy import EvolutionarySearch, ReplayFunc, ReplayTrace
-from .space_generator import PostOrderApply, SpaceGenerator
+from .space_generator import SpaceGenerator
 from .task_scheduler import GradientBased, RoundRobin
 from .tune_context import TuneContext
 from .utils import autotvm_silencer, batch_parameterize_config
@@ -53,295 +53,6 @@ FnSpaceGenerator = Callable[[], SpaceGenerator]
 FnScheduleRule = Callable[[], List[ScheduleRule]]
 FnPostproc = Callable[[], List[Postproc]]
 FnMutatorProb = Callable[[], Dict[Mutator, float]]
-
-
-class DefaultLLVM:
-    """Default tuning configuration for LLVM."""
-
-    @staticmethod
-    def _sch_rules() -> List[ScheduleRule]:
-        from tvm.meta_schedule import schedule_rule as M
-
-        return [
-            M.AutoInline(
-                into_producer=False,
-                into_consumer=True,
-                inline_const_tensor=True,
-                disallow_if_then_else=True,
-                require_injective=True,
-                require_ordered=True,
-                disallow_op=["tir.exp"],
-            ),
-            M.AddRFactor(max_jobs_per_core=16, max_innermost_factor=64),
-            M.MultiLevelTiling(
-                structure="SSRSRS",
-                tile_binds=None,
-                max_innermost_factor=64,
-                vector_load_lens=None,
-                reuse_read=None,
-                reuse_write=M.ReuseType(
-                    req="may",
-                    levels=[1, 2],
-                    scope="global",
-                ),
-            ),
-            M.ParallelizeVectorizeUnroll(
-                max_jobs_per_core=16,
-                max_vectorize_extent=64,
-                unroll_max_steps=[0, 16, 64, 512],
-                unroll_explicit=True,
-            ),
-            M.RandomComputeLocation(),
-        ]
-
-    @staticmethod
-    def _postproc() -> List[Postproc]:
-        from tvm.meta_schedule import postproc as M
-
-        return [
-            M.DisallowDynamicLoop(),
-            M.RewriteParallelVectorizeUnroll(),
-            M.RewriteReductionBlock(),
-        ]
-
-    @staticmethod
-    def _mutator_probs() -> Dict[Mutator, float]:
-        from tvm.meta_schedule import mutator as M
-
-        return {
-            M.MutateTileSize(): 0.9,
-            M.MutateComputeLocation(): 0.05,
-            M.MutateUnroll(): 0.03,
-            M.MutateParallel(max_jobs_per_core=16): 0.02,
-        }
-
-
-class DefaultCUDA:
-    """Default tuning configuration for CUDA."""
-
-    @staticmethod
-    def _sch_rules() -> List[ScheduleRule]:
-        from tvm.meta_schedule import schedule_rule as M
-
-        return [
-            M.MultiLevelTiling(
-                structure="SSSRRSRS",
-                tile_binds=["blockIdx.x", "vthread.x", "threadIdx.x"],
-                max_innermost_factor=64,
-                vector_load_lens=[1, 2, 3, 4],
-                reuse_read=M.ReuseType(
-                    req="must",
-                    levels=[4],
-                    scope="shared",
-                ),
-                reuse_write=M.ReuseType(
-                    req="must",
-                    levels=[3],
-                    scope="local",
-                ),
-            ),
-            M.AutoInline(
-                into_producer=True,
-                into_consumer=True,
-                inline_const_tensor=True,
-                disallow_if_then_else=False,
-                require_injective=False,
-                require_ordered=False,
-                disallow_op=None,
-            ),
-            M.CrossThreadReduction(thread_extents=[4, 8, 16, 32, 64, 128, 256, 512]),
-            M.ParallelizeVectorizeUnroll(
-                max_jobs_per_core=-1,  # disable parallelize
-                max_vectorize_extent=-1,  # disable vectorize
-                unroll_max_steps=[0, 16, 64, 512, 1024],
-                unroll_explicit=True,
-            ),
-            M.AutoBind(
-                max_threadblocks=256,
-                thread_extents=[32, 64, 128, 256, 512, 1024],
-            ),
-        ]
-
-    @staticmethod
-    def _postproc() -> List[Postproc]:
-        from tvm.meta_schedule import postproc as M
-
-        return [
-            M.DisallowDynamicLoop(),
-            M.RewriteCooperativeFetch(),
-            M.RewriteUnboundBlock(),
-            M.RewriteParallelVectorizeUnroll(),
-            M.RewriteReductionBlock(),
-            M.VerifyGPUCode(),
-        ]
-
-    @staticmethod
-    def _mutator_probs() -> Dict[Mutator, float]:
-        from tvm.meta_schedule import mutator as M
-
-        return {
-            M.MutateTileSize(): 0.9,
-            M.MutateUnroll(): 0.08,
-            M.MutateThreadBinding(): 0.02,
-        }
-
-
-class Parse:
-    """Parse tuning configuration from user inputs."""
-
-    @staticmethod
-    @register_func("tvm.meta_schedule.tune.parse_mod")  # for use in ApplyHistoryBest
-    def _mod(mod: Union[PrimFunc, IRModule]) -> IRModule:
-        if isinstance(mod, PrimFunc):
-            mod = mod.with_attr("global_symbol", "main")
-            mod = mod.with_attr("tir.noalias", True)
-            mod = IRModule({"main": mod})
-        if not isinstance(mod, IRModule):
-            raise TypeError(f"Expected `mod` to be PrimFunc or IRModule, but gets: {mod}")
-        # in order to make sure the mod can be found in ApplyHistoryBest
-        # different func name can cause structural unequal
-        func_names = mod.get_global_vars()
-        (func_name,) = func_names
-        if len(func_names) == 1 and func_name != "main":
-            mod = IRModule({"main": mod[func_name]})
-        return mod
-
-    @staticmethod
-    def _target(target: Union[str, Target]) -> Target:
-        if isinstance(target, str):
-            target = Target(target)
-        if not isinstance(target, Target):
-            raise TypeError(f"Expected `target` to be str or Target, but gets: {target}")
-        return target
-
-    @staticmethod
-    def _builder(builder: Optional[Builder]) -> Builder:
-        if builder is None:
-            builder = LocalBuilder()  # type: ignore
-        if not isinstance(builder, Builder):
-            raise TypeError(f"Expected `builder` to be Builder, but gets: {builder}")
-        return builder
-
-    @staticmethod
-    def _runner(runner: Optional[Runner]) -> Runner:
-        if runner is None:
-            runner = LocalRunner()  # type: ignore
-        if not isinstance(runner, Runner):
-            raise TypeError(f"Expected `runner` to be Runner, but gets: {runner}")
-        return runner
-
-    @staticmethod
-    def _database(database: Union[None, Database], path: str) -> Database:
-        if database is None:
-            path_workload = osp.join(path, "database_workload.json")
-            path_tuning_record = osp.join(path, "database_tuning_record.json")
-            logger.info(
-                "Creating JSONDatabase. Workload at: %s. Tuning records at: %s",
-                path_workload,
-                path_tuning_record,
-            )
-            database = JSONDatabase(
-                path_workload=path_workload,
-                path_tuning_record=path_tuning_record,
-            )
-        if not isinstance(database, Database):
-            raise TypeError(f"Expected `database` to be Database, but gets: {database}")
-        return database
-
-    @staticmethod
-    def _callbacks(
-        measure_callbacks: Optional[List[MeasureCallback]],
-    ) -> List[MeasureCallback]:
-        if measure_callbacks is None:
-            from tvm.meta_schedule import measure_callback as M
-
-            return [
-                M.AddToDatabase(),
-                M.RemoveBuildArtifact(),
-                M.EchoStatistics(),
-                M.UpdateCostModel(),
-            ]
-        if not isinstance(measure_callbacks, (list, tuple)):
-            raise TypeError(
-                f"Expected `measure_callbacks` to be List[MeasureCallback], "
-                f"but gets: {measure_callbacks}"
-            )
-        measure_callbacks = list(measure_callbacks)
-        for i, callback in enumerate(measure_callbacks):
-            if not isinstance(callback, MeasureCallback):
-                raise TypeError(
-                    f"Expected `measure_callbacks` to be List[MeasureCallback], "
-                    f"but measure_callbacks[{i}] is: {callback}"
-                )
-        return measure_callbacks
-
-    @staticmethod
-    def _cost_model(cost_model: Optional[CostModel]) -> CostModel:
-        if cost_model is None:
-            return XGBModel(extractor=PerStoreFeature())  # type: ignore
-        if not isinstance(cost_model, CostModel):
-            raise TypeError(f"Expected `cost_model` to be CostModel, but gets: {cost_model}")
-        return cost_model
-
-    @staticmethod
-    def _space_generator(space_generator: Optional[FnSpaceGenerator]) -> SpaceGenerator:
-        if space_generator is None:
-            return PostOrderApply()
-        if callable(space_generator):
-            space_generator = space_generator()
-        if not isinstance(space_generator, SpaceGenerator):
-            raise TypeError(
-                f"Expected `space_generator` to return SpaceGenerator, "
-                f"but gets: {space_generator}"
-            )
-        return space_generator
-
-    @staticmethod
-    def _sch_rules(sch_rules: Optional[FnScheduleRule], target: Target) -> List[ScheduleRule]:
-        if callable(sch_rules):
-            return sch_rules()
-        if sch_rules is not None:
-            raise TypeError(f"Expected `sch_rules` to be None or callable, but gets: {sch_rules}")
-        # pylint: disable=protected-access
-        if target.kind.name == "llvm":
-            return DefaultLLVM._sch_rules()
-        if target.kind.name in ["cuda", "rocm", "vulkan"]:
-            return DefaultCUDA._sch_rules()
-        # pylint: enable=protected-access
-        raise ValueError(f"Unsupported target: {target}")
-
-    @staticmethod
-    def _postproc(postproc: Optional[FnPostproc], target: Target) -> List[Postproc]:
-        if callable(postproc):
-            return postproc()
-        if postproc is not None:
-            raise TypeError(f"Expected `postproc` to be None or callable, but gets: {postproc}")
-        # pylint: disable=protected-access
-        if target.kind.name == "llvm":
-            return DefaultLLVM._postproc()
-        if target.kind.name in ["cuda", "rocm", "vulkan"]:
-            return DefaultCUDA._postproc()
-        # pylint: enable=protected-access
-        raise ValueError(f"Unsupported target: {target}")
-
-    @staticmethod
-    def _mutator_probs(
-        mutator_probs: Optional[FnMutatorProb],
-        target: Target,
-    ) -> Dict[Mutator, float]:
-        if callable(mutator_probs):
-            return mutator_probs()
-        if mutator_probs is not None:
-            raise TypeError(
-                f"Expected `mutator_probs` to be None or callable, but gets: {mutator_probs}"
-            )
-        # pylint: disable=protected-access
-        if target.kind.name == "llvm":
-            return DefaultLLVM._mutator_probs()
-        if target.kind.name in ["cuda", "rocm", "vulkan"]:
-            return DefaultCUDA._mutator_probs()
-        # pylint: enable=protected-access
-        raise ValueError(f"Unsupported target: {target}")
 
 
 class TuneConfig(NamedTuple):
@@ -367,6 +78,8 @@ class TuneConfig(NamedTuple):
         Configuration for search strategy.
     logger_config: Optional[Dict[str, Any]] = None
         Configuration for logger.
+    adaptive_training: Optional[bool] = None
+        Whether adpative training is enabled for cost model.
     """
 
     max_trials_global: int
@@ -377,8 +90,9 @@ class TuneConfig(NamedTuple):
     task_scheduler_config: Optional[Dict[str, Any]] = None
     search_strategy_config: Optional[Dict[str, Any]] = None
     logger_config: Optional[Dict[str, Any]] = None
+    adaptive_training: Optional[bool] = None
 
-    def create_strategy(self, **kwargs):
+    def create_strategy(self):
         """Create search strategy from configuration"""
         cls_tbl = {
             "evolutionary": EvolutionarySearch,
@@ -401,7 +115,6 @@ class TuneConfig(NamedTuple):
         return cls_tbl[self.strategy](
             num_trials_per_iter=self.num_trials_per_iter,
             max_trials_per_task=max_trials_per_task,
-            **kwargs,
             **config,
         )
 
@@ -544,7 +257,7 @@ def tune_extracted_tasks(
     Parameters
     ----------
     extracted_tasks : List[ExtractedTask]
-        The list of extraced tasks.
+        The list of extracted tasks.
     config : TuneConfig
         The search strategy config.
     work_dir : Optional[str]
@@ -597,24 +310,24 @@ def tune_extracted_tasks(
     )
 
     logger.info("Working directory: %s", work_dir)
-    database = Parse._database(database, work_dir)
-    builder = Parse._builder(builder)
-    runner = Parse._runner(runner)
-    cost_model = Parse._cost_model(cost_model)
-    measure_callbacks = Parse._callbacks(measure_callbacks)
+    database = default_config.database(database, work_dir)
+    builder = default_config.builder(builder)
+    runner = default_config.runner(runner)
+    cost_model = default_config.cost_model(cost_model, config.adaptive_training)
+    measure_callbacks = default_config.callbacks(measure_callbacks)
     # parse the tuning contexts
     tune_contexts = []
     for i, task in enumerate(extracted_tasks):
         assert len(task.dispatched) == 1, "Only size 1 dispatched task list is supported for now"
         tune_contexts.append(
             TuneContext(
-                mod=Parse._mod(task.dispatched[0]),
+                mod=default_config.mod(task.dispatched[0]),
                 target=task.target,
-                space_generator=Parse._space_generator(space),
+                space_generator=default_config.space_generator(space),
                 search_strategy=config.create_strategy(),
-                sch_rules=Parse._sch_rules(sch_rules, task.target),
-                postprocs=Parse._postproc(postprocs, task.target),
-                mutator_probs=Parse._mutator_probs(mutator_probs, task.target),
+                sch_rules=default_config.schedule_rules(sch_rules, task.target),
+                postprocs=default_config.postproc(postprocs, task.target),
+                mutator_probs=default_config.mutator_probs(mutator_probs, task.target),
                 task_name=task.task_name,
                 logger=logging.getLogger(
                     logger_name_pattern.format(task_id=i, task_name=task.task_name)
@@ -633,8 +346,9 @@ def tune_extracted_tasks(
         cost_model=cost_model,
         measure_callbacks=measure_callbacks,
     )
-    task_scheduler.tune()
-    cost_model.save(osp.join(work_dir, "cost_model.xgb"))
+    if config.max_trials_global > 0:
+        task_scheduler.tune()
+        cost_model.save(osp.join(work_dir, "cost_model.xgb"))
     return database
 
 
@@ -694,8 +408,8 @@ def tune_tir(
     )
 
     # pylint: disable=protected-access
-    mod = Parse._mod(mod)
-    target = Parse._target(target)
+    mod = default_config.mod(mod)
+    target = default_config.target(target)
     # pylint: enable=protected-access
     database = tune_extracted_tasks(
         extracted_tasks=[
@@ -720,15 +434,13 @@ def tune_tir(
         mutator_probs=mutator_probs,
         num_threads=num_threads,
     )
-    bests: List[TuningRecord] = database.get_top_k(
-        database.commit_workload(mod),
-        top_k=1,
-    )
-    if not bests:
-        return None
-    assert len(bests) == 1
-    sch = Schedule(mod)
-    bests[0].trace.apply_to_schedule(sch, remove_postproc=False)
+    with Profiler.timeit("ApplyHistoryBest"):
+        bests: List[TuningRecord] = database.get_top_k(database.commit_workload(mod), top_k=1)
+        if not bests:
+            return None
+        assert len(bests) == 1
+        sch = Schedule(mod)
+        bests[0].trace.apply_to_schedule(sch, remove_postproc=False)
     return sch
 
 
@@ -778,8 +490,10 @@ def tune_te(
     sch : Optional[Schedule]
         The tuned schedule.
     """
+    with Profiler.timeit("CreatePrimFunc"):
+        func = create_prim_func(tensors)
     return tune_tir(
-        mod=create_prim_func(tensors),
+        mod=func,
         target=target,
         config=config,
         work_dir=work_dir,
@@ -803,6 +517,7 @@ def tune_relay(
     config: TuneConfig,
     work_dir: str,
     *,
+    backend: str = "graph",
     params: Optional[Dict[str, NDArray]] = None,
     builder: Optional[Builder] = None,
     runner: Optional[Runner] = None,
@@ -814,7 +529,7 @@ def tune_relay(
     postprocs: Optional[FnPostproc] = None,
     mutator_probs: Optional[FnMutatorProb] = None,
     num_threads: Optional[int] = None,
-) -> Module:
+) -> Union[Module, vm.Executable]:
     """Tune a TIR IRModule with a given target.
 
     Parameters
@@ -839,22 +554,24 @@ def tune_relay(
         The database to use.
     measure_callbacks : Optional[List[MeasureCallback]]
         The callbacks used during tuning.
+    backend : str = "graph"
+        The backend to use for relay compilation(graph / vm).
 
     Returns
     -------
-    lib : Module
-        The built runtime module for the given relay workload.
+    lib : Union[Module, tvm.runtime.vm.Executable]
+        The built runtime module or vm Executable for the given relay workload.
     """
     # pylint: disable=import-outside-toplevel
-    from tvm.relay import build as relay_build
-
+    from tvm import relay
     from .relay_integration import extract_task_from_relay
 
     # pylint: disable=protected-access, enable=import-outside-toplevel
-    target = Parse._target(target)
+    target = default_config.target(target)
     # pylint: enable=protected-access,
     # parse the tuning contexts
-    extracted_tasks = extract_task_from_relay(mod, target, params)
+    with Profiler.timeit("TaskExtraction"):
+        extracted_tasks = extract_task_from_relay(mod, target, params)
     database = tune_extracted_tasks(
         extracted_tasks,
         config,
@@ -870,9 +587,14 @@ def tune_relay(
         mutator_probs=mutator_probs,
         num_threads=num_threads,
     )
-    with target, autotvm_silencer(), ApplyHistoryBest(database):
-        with PassContext(
-            opt_level=3,
-            config={"relay.backend.use_meta_schedule": True},
-        ):
-            return relay_build(mod, target=target, params=params)
+    relay_build = {"graph": relay.build, "vm": relay.vm.compile}[backend]
+    with Profiler.timeit("ApplyHistoryBest"):
+        with target, autotvm_silencer(), ApplyHistoryBest(database):
+            with PassContext(
+                opt_level=3,
+                config={
+                    "relay.backend.use_meta_schedule": True,
+                    "relay.backend.use_meta_schedule_dispatch": target.kind.name != "cuda",
+                },
+            ):
+                return relay_build(mod, target=target, params=params)

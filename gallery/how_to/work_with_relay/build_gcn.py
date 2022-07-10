@@ -118,6 +118,12 @@ infeat_dim: int
 num_classes: int
     dimension of model output (Number of classes)
 """
+
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
 dataset = "cora"
 g, data = load_dataset(dataset)
 
@@ -314,7 +320,7 @@ output = layers[-1]
 # Compile and run with TVM
 # ------------------------
 #
-# Export the weigths from PyTorch model to Python Dict
+# Export the weights from PyTorch model to Python Dict
 model_params = {}
 for param_tensor in torch_model.state_dict():
     model_params[param_tensor] = torch_model.state_dict()[param_tensor].numpy()
