@@ -14,9 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-from tvm import te
-import tvm.testing
+"""Test runtime RPC"""
+
 import multiprocessing
 import os
 import stat
@@ -25,6 +24,10 @@ import time
 
 import pytest
 import numpy as np
+
+import tvm
+from tvm import te
+import tvm.testing
 from tvm import rpc
 from tvm.relay.backend import Runtime
 from tvm.contrib import utils, cc
@@ -45,14 +48,16 @@ if __name__ == "__main__":
 # server. I believe this is because pytest is also using multiprocessing to
 # run individual functions. Somewhere along the way, the imports are being
 # lost, so the server ends up not registering the functions.
+# pylint: disable=invalid-name
 pytestmark = pytest.mark.skipif(
     # Windows does not support fork so we can enable Windows for testing
-    sys.platform.startswith("win") == False and multiprocessing.get_start_method() != "fork",
+    sys.platform.startswith("win") is False and multiprocessing.get_start_method() != "fork",
     reason=(
         "pytest + multiprocessing spawn method causes tvm.register_func to "
         "not work on the rpc.Server."
     ),
 )
+# pylint: enable=invalid-name
 
 # NOTE: When writing tests, wrap remote related checking in a sub-function
 # to ensure all the remote resources destructs before the server terminates
@@ -67,6 +72,7 @@ def test_bigendian_rpc():
         return
 
     def verify_rpc(remote, target, shape, dtype):
+        # pylint: disable=invalid-name
         A = te.placeholder(shape, dtype=dtype)
         B = te.compute(A.shape, lambda i: A[i] + tvm.tir.const(1, A.dtype))
         s = te.create_schedule(B.op)
@@ -92,44 +98,47 @@ def test_bigendian_rpc():
 
 @tvm.testing.requires_rpc
 def test_rpc_simple():
+    """Test RPC simple"""
     server = rpc.Server(key="x1")
     client = rpc.connect("127.0.0.1", server.port, key="x1")
 
     def check_remote():
-        f1 = client.get_function("rpc.test.addone")
-        assert f1(10) == 11
-        f3 = client.get_function("rpc.test.except")
+        func1 = client.get_function("rpc.test.addone")
+        assert func1(10) == 11
+        func3 = client.get_function("rpc.test.except")
 
         with pytest.raises(tvm._ffi.base.TVMError):
-            f3("abc")
+            func3("abc")
 
-        f2 = client.get_function("rpc.test.strcat")
-        assert f2("abc", 11) == "abc:11"
+        func2 = client.get_function("rpc.test.strcat")
+        assert func2("abc", 11) == "abc:11"
 
     check_remote()
 
 
 @tvm.testing.requires_rpc
 def test_rpc_simple_wlog():
+    """Test RPC simple wlog"""
     server = rpc.Server(key="x1")
     client = rpc.connect("127.0.0.1", server.port, key="x1", enable_logging=True)
 
     def check_remote():
-        f1 = client.get_function("rpc.test.addone")
-        assert f1(10) == 11
-        f3 = client.get_function("rpc.test.except")
+        func1 = client.get_function("rpc.test.addone")
+        assert func1(10) == 11
+        func3 = client.get_function("rpc.test.except")
 
         with pytest.raises(tvm._ffi.base.TVMError):
-            f3("abc")
+            func3("abc")
 
-        f2 = client.get_function("rpc.test.strcat")
-        assert f2("abc", 11) == "abc:11"
+        func2 = client.get_function("rpc.test.strcat")
+        assert func2("abc", 11) == "abc:11"
 
     check_remote()
 
 
 @tvm.testing.requires_rpc
 def test_rpc_runtime_string():
+    """Test RPC runtime string"""
     server = rpc.Server(key="x1")
     client = rpc.connect("127.0.0.1", server.port, key="x1")
 
@@ -144,6 +153,7 @@ def test_rpc_runtime_string():
 
 @tvm.testing.requires_rpc
 def test_rpc_array():
+    """Test RPC array"""
     server = rpc.Server()
     remote = rpc.connect("127.0.0.1", server.port)
 
@@ -160,6 +170,7 @@ def test_rpc_array():
 
 @tvm.testing.requires_rpc
 def test_rpc_large_array():
+    """Test RPC large array"""
     # testcase of large array creation
     server = rpc.Server()
     remote = rpc.connect("127.0.0.1", server.port)
@@ -178,6 +189,8 @@ def test_rpc_large_array():
 
 @tvm.testing.requires_rpc
 def test_rpc_echo():
+    """Test RPC echo"""
+
     def check(remote):
         fecho = remote.get_function("testing.echo")
         assert fecho(1, 2, 3) == 1
@@ -191,9 +204,9 @@ def test_rpc_echo():
 
         remote.cpu().sync()
         with pytest.raises(AttributeError):
-            f3 = remote.system_lib()["notexist"]
+            func3 = remote.system_lib()["notexist"]  # pylint: disable=unused-variable
 
-    temp = rpc.server._server_env([])
+    rpc.server._server_env([])
     server = rpc.Server()
     client = rpc.connect("127.0.0.1", server.port)
     check(rpc.LocalSession())
@@ -222,6 +235,7 @@ def test_rpc_echo():
 
 @tvm.testing.requires_rpc
 def test_rpc_file_exchange():
+    """Test RPC file exchange"""
     server = rpc.Server()
     remote = rpc.connect("127.0.0.1", server.port)
 
@@ -237,6 +251,8 @@ def test_rpc_file_exchange():
 @tvm.testing.requires_rpc
 @tvm.testing.requires_llvm
 def test_rpc_remote_module():
+    """Test RPC remote module"""
+    # pylint: disable=invalid-name
     # graph
     n = tvm.runtime.convert(102)
     A = te.placeholder((n,), name="A")
@@ -302,7 +318,7 @@ def test_rpc_remote_module():
         a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), dev)
         b = tvm.nd.array(np.zeros(102, dtype=A.dtype), dev)
         time_f = f1.time_evaluator("myadd", remote.cpu(0), number=1)
-        cost = time_f(a, b).mean
+        cost = time_f(a, b).mean  # pylint: disable=unused-variable
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
         # change to not executable
@@ -310,7 +326,7 @@ def test_rpc_remote_module():
         with pytest.raises(RuntimeError):
             rpc.PopenSession(path_minrpc)
 
-    def check_remote_link_cl(remote):
+    def check_remote_link_cl(remote):  # pylint: disable=unused-variable
         """Test function to run remote code such as cl
 
         This is not enabled because there is forking issue
@@ -362,12 +378,13 @@ def test_rpc_remote_module():
 
 @tvm.testing.requires_rpc
 def test_rpc_return_func():
+    """Test RPC return function"""
     server = rpc.Server(key="x1")
     client = rpc.connect("127.0.0.1", server.port, key="x1")
 
     def check_remote():
-        f1 = client.get_function("rpc.test.add_to_lhs")
-        fadd = f1(10)
+        func1 = client.get_function("rpc.test.add_to_lhs")
+        fadd = func1(10)
         assert fadd(12) == 22
 
     check_remote()
@@ -375,6 +392,7 @@ def test_rpc_return_func():
 
 @tvm.testing.requires_rpc
 def test_rpc_session_constructor_args():
+    """Test RPC session constructor arguments"""
     # start server
     server0 = rpc.Server(key="x0")
     server1 = rpc.Server(key="x1")
@@ -394,12 +412,12 @@ def test_rpc_session_constructor_args():
         assert fecho("xyz") == "xyz"
         assert bytes(fecho(bytearray(b"123"))) == b"123"
 
-        nd = tvm.nd.array([1, 2, 3], device=client.cpu(0))
-        assert nd.numpy()[1] == 2
+        ndarr = tvm.nd.array([1, 2, 3], device=client.cpu(0))
+        assert ndarr.numpy()[1] == 2
 
     def check_error_handling():
         with pytest.raises(tvm.error.RPCError):
-            client = rpc.connect(
+            rpc.connect(
                 "127.0.0.1",
                 server0.port,
                 key="x0",
@@ -412,13 +430,14 @@ def test_rpc_session_constructor_args():
 
 @tvm.testing.requires_rpc
 def test_rpc_return_ndarray():
+    """Test RPC return NDArray"""
     # start server
     server = rpc.Server(key="x1")
     client = rpc.connect("127.0.0.1", server.port, key="x1")
 
     m = client.get_function("rpc.test.remote_return_nd")
     get_arr = m("get_arr")
-    ref_count = m("ref_count")
+    ref_count = m("ref_count")  # pylint: disable=unused-variable
     get_elem = m("get_elem")
     get_arr_elem = m("get_arr_elem")
     # array test
@@ -432,11 +451,12 @@ def test_rpc_return_ndarray():
 
 @tvm.testing.requires_rpc
 def test_local_func():
+    """Test local function"""
     client = rpc.LocalSession()
 
     def check_remote():
-        f1 = client.get_function("rpc.test.add_to_lhs")
-        fadd = f1(10)
+        func1 = client.get_function("rpc.test.add_to_lhs")
+        fadd = func1(10)
         assert fadd(12) == 22
 
         blob = bytearray(np.random.randint(0, 10, size=(10)))
@@ -449,6 +469,7 @@ def test_local_func():
 
 @tvm.testing.requires_rpc
 def test_rpc_tracker_register():
+    """Test RPC tracker register"""
     # test registration
     tracker = Tracker(port=9000, port_end=10000)
     device_key = "test_device"
@@ -522,6 +543,7 @@ def _target(host, port, device_key, timeout):
 
 @tvm.testing.requires_rpc
 def test_rpc_tracker_request():
+    """Test RPC tracker request"""
     # test concurrent request
     tracker = Tracker(port=9000, port_end=10000)
     device_key = "test_device"
