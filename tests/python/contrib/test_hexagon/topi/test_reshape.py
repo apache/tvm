@@ -88,7 +88,6 @@ def reshape_helper(
     )
 
     mod(a_tvm, output)
-
     np.testing.assert_allclose(output.numpy(), ref_np_transformed, atol=1e-07, rtol=0)
 
 

@@ -47,7 +47,7 @@ def stir_sched_nhwc_2d_op(
     in_layout: str,
     c_split: int,
 ) -> tir.Schedule:
-    """Schedule for output layout: nhwc-1024c-2d"""
+    """Schedule for output layout: nc-1024-2d, nc-2048-2d"""
     reshape_func = te.create_prim_func([inp, out])
     sch = tir.Schedule(reshape_func, debug_mask="all")
     compute = sch.get_block("T_reshape")
