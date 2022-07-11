@@ -120,7 +120,8 @@ RELAY_REGISTER_OP("nn.sparse_dense")
     .add_argument("sparse_indices", "1D Tensor", "Sparse indices matrix.")
     .add_argument("sparse_indptr", "1D Tensor", "Sparse indptr matrix.")
     .set_support_level(1)
-    .add_type_rel("SparseDense", SparseDenseRel);
+    .add_type_rel("SparseDense", SparseDenseRel)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable);
 
 Expr MakeSparseDensePadded(Expr data, Expr weight_data, Expr weight_indices, Expr weight_indptr) {
   auto attrs = make_object<SparseDenseAttrs>();
@@ -151,7 +152,8 @@ which will be converted to this op when running on the GPU.
     .add_argument("weight_indices", "1D Tensor", "Weight indices matrix.")
     .add_argument("weight_indptr", "1D Tensor", "Weight indptr matrix.")
     .set_support_level(1)
-    .add_type_rel("SparseDense", SparseDenseRel);
+    .add_type_rel("SparseDense", SparseDenseRel)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable);
 
 // relay.nn.sparse_transpose
 TVM_REGISTER_NODE_TYPE(SparseTransposeAttrs);
@@ -195,7 +197,8 @@ RELAY_REGISTER_OP("nn.sparse_transpose")
     .add_argument("sparse_indices", "1D Tensor", "Sparse indices matrix.")
     .add_argument("sparse_indptr", "1D Tensor", "Sparse index pointer matrix.")
     .set_support_level(1)
-    .add_type_rel("SparseTranspose", SparseTransposeRel);
+    .add_type_rel("SparseTranspose", SparseTransposeRel)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable);
 
 // relay.nn.sparse_add
 bool SparseAddRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
@@ -300,7 +303,8 @@ RELAY_REGISTER_OP("nn.sparse_conv2d")
     .add_argument("sparse_indices", "1D Tensor", "Sparse indices matrix.")
     .add_argument("sparse_indptr", "1D Tensor", "Sparse indptr matrix.")
     .set_support_level(1)
-    .add_type_rel("SparseConv2d", SparseConv2dRel);
+    .add_type_rel("SparseConv2d", SparseConv2dRel)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable);
 
 }  // namespace relay
 }  // namespace tvm
