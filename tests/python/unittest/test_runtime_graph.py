@@ -14,11 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Test runtime graph"""
+
+import json
+import numpy as np
+
 import tvm
 import tvm.testing
 from tvm import te, runtime
-import numpy as np
-import json
 from tvm import rpc
 from tvm import relay
 from tvm.contrib import utils, graph_executor
@@ -26,9 +29,11 @@ from tvm.contrib import utils, graph_executor
 
 @tvm.testing.requires_llvm
 def test_graph_simple():
+    """Test simple graph"""
+    # pylint: disable:invalid-name
     n = 4
-    A = te.placeholder((n,), name="A")
-    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
+    A = te.placeholder((n,), name="A")  # pylint: disable=invalid-name
+    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")  # pylint: disable=invalid-name
     s = te.create_schedule(B.op)
 
     node0 = {"op": "null", "name": "x", "inputs": []}
@@ -82,6 +87,7 @@ def test_graph_simple():
         np.testing.assert_equal(out.numpy(), a + 1)
 
     def check_sharing():
+        # pylint: disable=invalid-name
         x = relay.var("x", shape=(1, 10))
         y = relay.var("y", shape=(1, 10))
         z = relay.add(x, y)
@@ -119,13 +125,14 @@ def test_graph_simple():
 
 
 def test_load_unexpected_params():
+    """Test loading unexpected parameters"""
     # Test whether graph_executor.load_params works if parameters
     # are provided that are not an expected input.
     mod = tvm.IRModule()
     params = {}
     x = relay.var("x", shape=(1, 10))
     y = relay.var("y", shape=(1, 10))
-    z = relay.add(x, y)
+    z = relay.add(x, y)  # pylint: disable=invalid-name
     mod["main"] = relay.Function([x, y], z)
 
     graph_module = relay.build(mod, target="llvm", params=params)
