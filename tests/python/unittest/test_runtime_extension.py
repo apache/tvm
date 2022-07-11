@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Test runtime extensions"""
+
 import tvm
 from tvm import te
 import numpy as np
@@ -32,17 +34,18 @@ class MyTensorView(object):
 
 
 def test_dltensor_compatible():
+    "Test DLTensor compatibility"
     dtype = "int64"
     n = te.var("n")
-    Ab = tvm.tir.decl_buffer((n,), dtype)
+    a_b = tvm.tir.decl_buffer((n,), dtype)
     i = te.var("i")
-    ib = tvm.tir.ir_builder.create()
-    A = ib.buffer_ptr(Ab)
-    with ib.for_range(0, n - 1, "i") as i:
-        A[i + 1] = A[i] + 1
-    stmt = ib.get()
+    i_b = tvm.tir.ir_builder.create()
+    a = i_b.buffer_ptr(a_b)
+    with i_b.for_range(0, n - 1, "i") as i:
+        a[i + 1] = a[i] + 1
+    stmt = i_b.get()
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", "arange"))
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([a_b], stmt).with_attr("global_symbol", "arange"))
     f = tvm.build(mod, target="stackvm")
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     aview = MyTensorView(a)
