@@ -70,7 +70,7 @@ namespace codegen {
 // Hexagon code generation
 class CodeGenHexagon final : public CodeGenCPU {
  public:
-  void Init(const std::string& module_name, LLVMScope* llvm_scope, bool system_lib,
+  void Init(const std::string& module_name, LLVMTarget* llvm_target, bool system_lib,
             bool dynamic_lookup, bool target_c_runtime) override;
   void InitTarget() final;
 
@@ -102,15 +102,15 @@ class CodeGenHexagon final : public CodeGenCPU {
   llvm::Value* Intrinsic(llvm::Intrinsic::ID, llvm::ArrayRef<llvm::Value*> args);
 };
 
-void CodeGenHexagon::Init(const std::string& module_name, LLVMScope* llvm_scope, bool system_lib,
+void CodeGenHexagon::Init(const std::string& module_name, LLVMTarget* llvm_target, bool system_lib,
                           bool dynamic_lookup, bool target_c_runtime) {
-  CodeGenCPU::Init(module_name, llvm_scope, system_lib, dynamic_lookup, target_c_runtime);
+  CodeGenCPU::Init(module_name, llvm_target, system_lib, dynamic_lookup, target_c_runtime);
 }
 
 void CodeGenHexagon::InitTarget() {
   native_vector_bits_ = 64;                       // Assume "scalar" vectors at first.
   const auto hvx_length_feature = "+hvx-length";  // +hvx-length{64|128}b
-  for (const std::string& f : llvm_scope_->GetTargetFeatures()) {
+  for (const std::string& f : llvm_target_->GetTargetFeatures()) {
     llvm::StringRef fs(f);
     if (!fs.startswith(hvx_length_feature)) continue;
 
@@ -452,7 +452,8 @@ void ProcessLLVMOptions(const std::vector<std::string>& llvm_vec) {
 }  // namespace
 
 runtime::Module BuildHexagon(IRModule mod, Target target) {
-  LLVMScope llvm_scope(target);
+  LLVMScope llvm_scope;
+  With<LLVMTarget> llvm_target(llvm_scope, target);
 
   auto split = [](const std::string& str, char delim = ' ') {
     std::vector<std::string> vec;
@@ -512,7 +513,7 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
     funcs.emplace_back(f);
   }
 
-  cg->Init("TVMHexagonModule", &llvm_scope, false, false, false);
+  cg->Init("TVMHexagonModule", llvm_target.operator->(), false, false, false);
   cg->AddFunctionsOrdered(funcs.begin(), funcs.end());
   if (entry_func.length() != 0) {
     cg->AddMainFunction(entry_func);
@@ -524,7 +525,7 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
 
   enum CodeGenFileType { Asm, Obj, IR, BC };
 
-  auto EmitToString = [&llvm_scope](const llvm::Module& m, CodeGenFileType cgft) {
+  auto EmitToString = [&llvm_target](const llvm::Module& m, CodeGenFileType cgft) {
     std::string out;
 
     if (cgft == IR || cgft == BC) {
@@ -545,7 +546,7 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
       llvm::raw_svector_ostream os(ss);
       std::unique_ptr<llvm::Module> cm = llvm::CloneModule(m);
       llvm::legacy::PassManager pass;
-      llvm::TargetMachine* tm = llvm_scope.GetOrCreateTargetMachine();
+      llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
       ICHECK(tm->addPassesToEmitFile(pass, os, nullptr, ft) == 0) << "Cannot emit target code";
       pass.run(*cm.get());
       out.assign(ss.c_str(), ss.size());

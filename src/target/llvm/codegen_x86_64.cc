@@ -92,7 +92,7 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
   const auto to = op->dtype;
   if (from.is_float() && to.is_float() && from.bits() == 16 && to.bits() == 32) {
     ICHECK_EQ(from.lanes(), to.lanes());
-    llvm::TargetMachine* tm = llvm_scope_->GetOrCreateTargetMachine();
+    llvm::TargetMachine* tm = llvm_target_->GetOrCreateTargetMachine();
 
     const auto has_avx512 = TargetHasFeature(*tm, "avx512f");
 

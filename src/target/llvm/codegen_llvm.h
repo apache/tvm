@@ -92,7 +92,7 @@ class MDBuilder;
 namespace tvm {
 namespace codegen {
 
-class LLVMScope;
+class LLVMTarget;
 
 using namespace tir;
 
@@ -110,7 +110,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \param tm The target machine
    * \return The created llvm generator.
    */
-  static std::unique_ptr<CodeGenLLVM> Create(LLVMScope* llvm_scope);
+  static std::unique_ptr<CodeGenLLVM> Create(LLVMTarget* llvm_target);
   /*!
    * \brief Initialize the code generator with given context
    * \param module_name The name of the module.
@@ -122,7 +122,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \param target_c_runtime If true, generate a module to be executed by the C runtime. In practice
    *                       this option influences whether global ctors are used.
    */
-  virtual void Init(const std::string& module_name, LLVMScope* llvm_scope, bool system_lib,
+  virtual void Init(const std::string& module_name, LLVMTarget* llvm_target, bool system_lib,
                     bool dynamic_lookup, bool target_c_runtime);
 
   /*!
@@ -474,8 +474,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   std::unique_ptr<llvm::DataLayout> data_layout_;
   // Internal metabuilder
   std::unique_ptr<llvm::MDBuilder> md_builder_;
-  // llvm scope/target info
-  LLVMScope* llvm_scope_{nullptr};
+  // llvm target info
+  LLVMTarget* llvm_target_{nullptr};
   // helpful data types
   llvm::Type* t_void_{nullptr};
   llvm::PointerType* t_void_p_{nullptr};

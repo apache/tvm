@@ -48,6 +48,7 @@
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
 #include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/map.h>
 #include <tvm/runtime/container/optional.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/logging.h>
@@ -97,10 +98,50 @@ std::string Join(std::string sep, llvm::ArrayRef<std::string> strings) {
 
 }  // namespace
 
-LLVMScope::LLVMScope(const Target& target) {
-  static const bool DMLC_ATTRIBUTE_UNUSED init_llvm = InitializeLLVM();
+// LLVMScope
 
+LLVMScope::LLVMScope() {
+  // Call InitializeLLVM before anything else.
+  static const bool DMLC_ATTRIBUTE_UNUSED init_llvm = InitializeLLVM();
+  ctx_ = std::make_shared<llvm::LLVMContext>();
+}
+
+LLVMScope::~LLVMScope() = default;
+
+std::unique_ptr<llvm::Module> LLVMScope::ParseIR(const std::string& llvm_ir) const {
+  auto buffer = llvm::MemoryBuffer::getMemBuffer(llvm_ir, /*BufferName=*/"",
+                                                 /*RequiresNullTerminator=*/false);
+  return ParseBuffer(*buffer);
+}
+
+std::unique_ptr<llvm::Module> LLVMScope::LoadIR(const std::string& file_name) const {
+  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> maybe_buffer =
+      llvm::MemoryBuffer::getFileAsStream(file_name);
+  if (std::error_code ec = maybe_buffer.getError()) {
+    LOG(FATAL) << ec.message();
+  }
+  return ParseBuffer(**maybe_buffer);
+}
+
+std::unique_ptr<llvm::Module> LLVMScope::ParseBuffer(const llvm::MemoryBuffer& buffer) const {
+  llvm::SMDiagnostic error;
+  std::unique_ptr<llvm::Module> module = llvm::parseIR(buffer.getMemBufferRef(), error, *ctx_);
+  if (module == nullptr) {
+    std::string message;
+    llvm::raw_string_ostream ostream(message);
+    error.print(/*ProgName=*/nullptr, ostream, /*ShowColors=*/false, /*ShowKindLabel=*/true);
+    LOG(FATAL) << ostream.str();
+  }
+
+  return module;
+}
+
+// LLVMTarget
+
+LLVMTarget::LLVMTarget(LLVMScope& scope, const Target& target)
+    : scope_(scope), ctx_(scope.GetContext()) {
   triple_ = target->GetAttr<String>("mtriple").value_or("default");
+
   if (triple_.empty() || triple_ == "default") {
     triple_ = llvm::sys::getDefaultTargetTriple();
   }
@@ -160,16 +201,16 @@ LLVMScope::LLVMScope(const Target& target) {
 
   // Fast math options
 
-  if (target->GetAttr<Bool>("fast-math").value_or(Bool(false))) {
+  auto GetBoolFlag = [&target](llvm::StringRef flag) -> bool {
+    return target->GetAttr<Bool>(flag.str()).value_or(Bool(false));
+  };
+  if (GetBoolFlag("fast-math")) {
 #if TVM_LLVM_VERSION >= 60
     fast_math_flags_.setFast();
 #else
     fast_math_flags_.setUnsafeAlgebra();
 #endif
   } else {
-    auto GetBoolFlag = [&target](llvm::StringRef flag) -> bool {
-      return target->GetAttr<Bool>(flag.str()).value_or(Bool(false));
-    };
 #if TVM_LLVM_VERSION >= 50
     // This option was added in 5.x, and has a boolean argument,
     // unlike the rest of options at the time.
@@ -195,28 +236,19 @@ LLVMScope::LLVMScope(const Target& target) {
 #endif
 #endif
   }
-
-  // Do not create the LLVMContext in this constructor!
-  ICHECK(ctx_ == nullptr) << "LLVMContext should not be created in public LLVMScope constructors";
 }
 
-LLVMScope::LLVMScope(const std::string& target_str) : LLVMScope(Target(target_str)) {}
+LLVMTarget::LLVMTarget(LLVMScope& scope, const std::string& target_str)
+    : LLVMTarget(scope, Target(target_str)) {}
 
-LLVMScope::LLVMScope(const std::string& target_str, std::shared_ptr<llvm::LLVMContext> ctx)
-    : LLVMScope(Target(target_str)) {
-  // We're setting the context explicitly in this (private) constructor. Make sure that
-  // the context has not yet been created. Overwriting an existing one would cause it
-  // to be deleted prematurely, and since llvm::Module holds a reference to a context,
-  // the actual context object needs to live at least as long as the module.
-  ICHECK(ctx_ == nullptr) << "LLVMContext should not be created in public LLVMScope constructors";
-  ctx_ = ctx;
+LLVMTarget::~LLVMTarget() = default;
+
+llvm::LLVMContext* LLVMTarget::GetContext() const {
+  ICHECK(!ctx_.expired()) << "LLVM scope has been deleted";
+  return ctx_.lock().get();
 }
 
-LLVMScope::~LLVMScope() = default;
-
-LLVMScope& LLVMScope::operator=(LLVMScope&& llvm_scope) = default;
-
-llvm::TargetMachine* LLVMScope::GetOrCreateTargetMachine(bool allow_missing) {
+llvm::TargetMachine* LLVMTarget::GetOrCreateTargetMachine(bool allow_missing) {
   if (target_machine_) return target_machine_.get();
 
   std::string error;
@@ -232,18 +264,11 @@ llvm::TargetMachine* LLVMScope::GetOrCreateTargetMachine(bool allow_missing) {
   return target_machine_.get();
 }
 
-std::shared_ptr<llvm::LLVMContext> LLVMScope::GetOrCreateContext() {
-  if (!ctx_) {
-    ctx_ = std::make_shared<llvm::LLVMContext>();
-  }
-  return ctx_;
-}
-
-std::string LLVMScope::GetTargetFeatureString() const {  //
+std::string LLVMTarget::GetTargetFeatureString() const {  //
   return Join(",", attrs_);
 }
 
-std::string LLVMScope::str() const {
+std::string LLVMTarget::str() const {
   std::ostringstream os;
   os << "llvm";
   if (!triple_.empty()) {
@@ -318,7 +343,7 @@ std::string LLVMScope::str() const {
   return os.str();
 }
 
-std::string LLVMScope::GetTargetMetadata(const llvm::Module& module) {
+std::string LLVMTarget::GetTargetMetadata(const llvm::Module& module) {
   if (llvm::Metadata* tvm_target = module.getModuleFlag("tvm_target")) {
     auto* mdstr = llvm::cast<llvm::MDString>(tvm_target);
     llvm::StringRef meta = mdstr->getString();
@@ -329,44 +354,13 @@ std::string LLVMScope::GetTargetMetadata(const llvm::Module& module) {
   return "llvm -mtriple " + module.getTargetTriple();
 }
 
-void LLVMScope::SetTargetMetadata(llvm::Module* module) const {
-  module->addModuleFlag(llvm::Module::Warning, "tvm_target", llvm::MDString::get(*ctx_, str()));
+void LLVMTarget::SetTargetMetadata(llvm::Module* module) const {
+  module->addModuleFlag(llvm::Module::Warning, "tvm_target",
+                        llvm::MDString::get(*GetContext(), str()));
 }
 
-LLVMScope::ModuleData LLVMScope::ParseIR(const std::string& llvm_ir,
-                                         std::shared_ptr<llvm::LLVMContext> ctx) {
-  auto buffer = llvm::MemoryBuffer::getMemBuffer(llvm_ir, /*BufferName=*/"",
-                                                 /*RequiresNullTerminator=*/false);
-  return ParseBuffer(*buffer, ctx);
-}
-
-LLVMScope::ModuleData LLVMScope::LoadIR(const std::string& file_name,
-                                        std::shared_ptr<llvm::LLVMContext> ctx) {
-  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> maybe_buffer =
-      llvm::MemoryBuffer::getFileAsStream(file_name);
-  if (std::error_code ec = maybe_buffer.getError()) {
-    LOG(FATAL) << ec.message();
-  }
-  return ParseBuffer(**maybe_buffer, ctx);
-}
-
-LLVMScope::ModuleData LLVMScope::ParseBuffer(const llvm::MemoryBuffer& buffer,
-                                             std::shared_ptr<llvm::LLVMContext> ctx_or_null) {
-  llvm::SMDiagnostic error;
-  auto ctx = ctx_or_null ? std::move(ctx_or_null) : std::make_shared<llvm::LLVMContext>();
-  std::unique_ptr<llvm::Module> module = llvm::parseIR(buffer.getMemBufferRef(), error, *ctx);
-  if (module == nullptr) {
-    std::string message;
-    llvm::raw_string_ostream ostream(message);
-    error.print(/*ProgName=*/nullptr, ostream, /*ShowColors=*/false, /*ShowKindLabel=*/true);
-    LOG(FATAL) << ostream.str();
-  }
-
-  std::string target_str = GetTargetMetadata(*module);
-  // Cannot use make_unique, because this LLVMScope constructor is private.
-  auto llvm_scope = std::unique_ptr<LLVMScope>(new LLVMScope(target_str, ctx));
-  return std::make_pair(std::move(module), std::move(llvm_scope));
-}
+void LLVMTarget::EnterWithScope() {}
+void LLVMTarget::ExitWithScope() {}
 
 }  // namespace codegen
 }  // namespace tvm

@@ -56,7 +56,7 @@ class Module;
 namespace tvm {
 namespace codegen {
 
-class LLVMScope;
+class LLVMTarget;
 
 // CPU host code generation
 class CodeGenCPU : public CodeGenLLVM {
@@ -64,7 +64,7 @@ class CodeGenCPU : public CodeGenLLVM {
   CodeGenCPU();
   virtual ~CodeGenCPU();
 
-  void Init(const std::string& module_name, LLVMScope* llvm_scope, bool system_lib,
+  void Init(const std::string& module_name, LLVMTarget* llvm_target, bool system_lib,
             bool dynamic_lookup, bool target_c_runtime) override;
   void AddFunction(const PrimFunc& f) override;
   void AddMainFunction(const std::string& entry_func_name) override;

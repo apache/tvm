@@ -246,8 +246,9 @@ class CodeGenAMDGPU : public CodeGenLLVM {
 };
 
 runtime::Module BuildAMDGPU(IRModule mod, Target target) {
-  LLVMScope llvm_scope(target);
+  LLVMScope llvm_scope;
 
+  With<LLVMTarget> llvm_target(llvm_scope, target);
 #if TVM_LLVM_VERSION < 90
   LOG(FATAL) << "AMDGPU backend requires at least LLVM 9";
   // Lower versions will crash when loading the bitcode, see
@@ -255,7 +256,7 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
 #endif
   std::unique_ptr<CodeGenAMDGPU> cg(new CodeGenAMDGPU());
 
-  cg->Init("TVMAMDGPUModule", &llvm_scope, false, false, false);
+  cg->Init("TVMAMDGPUModule", llvm_target.operator->(), false, false, false);
 
   cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end(), [](auto& kv) {
     ICHECK(kv.second->template IsInstance<PrimFuncNode>())
@@ -263,14 +264,13 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
     return Downcast<PrimFunc>(kv.second);
   });
 
-  llvm::TargetMachine* tm = llvm_scope.GetOrCreateTargetMachine();
+  llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
   const auto* find_rocm_bitcodes = tvm::runtime::Registry::Get("tvm_callback_rocm_bitcode_path");
   Array<runtime::String> bitcode_files = (*find_rocm_bitcodes)();
 
   for (auto& bitcode_path : bitcode_files) {
-    LLVMScope::ModuleData p = LLVMScope::LoadIR(bitcode_path, llvm_scope.GetOrCreateContext());
-    std::unique_ptr<llvm::Module> mlib = std::move(p.first);
-    mlib->setTargetTriple(llvm_scope.GetTargetTriple());
+    std::unique_ptr<llvm::Module> mlib = llvm_scope.LoadIR(bitcode_path);
+    mlib->setTargetTriple(llvm_target->GetTargetTriple());
     mlib->setDataLayout(tm->createDataLayout());
 
     for (llvm::Function& f : mlib->functions()) {

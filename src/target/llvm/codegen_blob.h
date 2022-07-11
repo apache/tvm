@@ -26,9 +26,12 @@
 
 #ifdef TVM_LLVM_VERSION
 
+#include <memory>
 #include <string>
 
-#include "llvm_scope.h"
+namespace llvm {
+class Module;
+}
 
 namespace tvm {
 namespace codegen {
@@ -41,8 +44,8 @@ namespace codegen {
  *
  * \return LLVM module and LLVM context
  */
-LLVMScope::ModuleData CodeGenBlob(const std::string& data, bool system_lib,
-                                  const std::string& llvm_target_string);
+std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_lib,
+                                          const std::string& llvm_target_string);
 
 }  // namespace codegen
 }  // namespace tvm

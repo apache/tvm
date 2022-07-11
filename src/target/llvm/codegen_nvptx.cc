@@ -68,7 +68,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
     // add function as void return value
     CodeGenLLVM::AddFunctionInternal(f, true);
     // annotate as kernel function
-    auto ctx = llvm_scope_->GetOrCreateContext();
+    auto ctx = llvm_target_->GetContext();
     module_->getOrInsertNamedMetadata("nvvm.annotations")
         ->addOperand(llvm::MDNode::get(
             *ctx, {llvm::ValueAsMetadata::get(function_), llvm::MDString::get(*ctx, "kernel"),
@@ -299,12 +299,13 @@ int GetCUDAComputeVersion(const Target& target) {
 }
 
 runtime::Module BuildNVPTX(IRModule mod, Target target) {
-  LLVMScope llvm_scope(target);
+  LLVMScope llvm_scope;
+  With<LLVMTarget> llvm_target(llvm_scope, target);
 
   int compute_ver = GetCUDAComputeVersion(target);
   std::unique_ptr<CodeGenNVPTX> cg(new CodeGenNVPTX());
 
-  cg->Init("TVMPTXModule", &llvm_scope, false, false, false);
+  cg->Init("TVMPTXModule", llvm_target.operator->(), false, false, false);
 
   cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end(), [](auto& kv) {
     ICHECK(kv.second->template IsInstance<PrimFuncNode>())
@@ -312,14 +313,13 @@ runtime::Module BuildNVPTX(IRModule mod, Target target) {
     return Downcast<PrimFunc>(kv.second);
   });
 
-  llvm::TargetMachine* tm = llvm_scope.GetOrCreateTargetMachine();
+  llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
   const auto* flibdevice_path = tvm::runtime::Registry::Get("tvm_callback_libdevice_path");
   if (flibdevice_path != nullptr) {
     std::string path = (*flibdevice_path)(compute_ver);
     if (path.length() != 0) {
-      LLVMScope::ModuleData p = LLVMScope::LoadIR(path, llvm_scope.GetOrCreateContext());
-      std::unique_ptr<llvm::Module> mlib = std::move(p.first);
-      mlib->setTargetTriple(llvm_scope.GetTargetTriple());
+      std::unique_ptr<llvm::Module> mlib = llvm_scope.LoadIR(path);
+      mlib->setTargetTriple(llvm_target->GetTargetTriple());
       mlib->setDataLayout(tm->createDataLayout());
       cg->AddLinkModule(std::move(mlib));
     }

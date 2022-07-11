@@ -28,11 +28,12 @@
 #else
 #include <llvm/IR/Operator.h>
 #endif
-#include <llvm/IR/LLVMContext.h>
-#include <llvm/IR/Module.h>
 #include <llvm/Support/CodeGen.h>
-#include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
+#include <tvm/ir/expr.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/optional.h>
+#include <tvm/runtime/container/string.h>
 #include <tvm/target/target.h>
 
 #include <memory>
@@ -40,19 +41,44 @@
 #include <utility>
 #include <vector>
 
+namespace llvm {
+class LLVMContext;
+class MemoryBuffer;
+class Module;
+class TargetMachine;
+}  // namespace llvm
+
 namespace tvm {
 namespace codegen {
 
+class LLVMTarget;
+
 class LLVMScope {
  public:
-  explicit LLVMScope(const Target& target);
-  explicit LLVMScope(const std::string& target_str);
+  LLVMScope();
   ~LLVMScope();  // Must not be "= default" here in the header file.
 
-  LLVMScope& operator=(LLVMScope&& llvm_scope);
+  std::shared_ptr<llvm::LLVMContext> GetContext() const { return ctx_; }
+
+  std::unique_ptr<llvm::Module> ParseIR(const std::string& llvm_ir) const;
+  std::unique_ptr<llvm::Module> LoadIR(const std::string& file_name) const;
+
+ private:
+  std::unique_ptr<llvm::Module> ParseBuffer(const llvm::MemoryBuffer& buffer) const;
+
+  std::shared_ptr<llvm::LLVMContext> ctx_;
+};
+
+class LLVMTarget {
+ public:
+  LLVMTarget(LLVMScope& scope, const Target& target);           // NOLINT(runtime/references)
+  LLVMTarget(LLVMScope& scope, const std::string& target_str);  // NOLINT(runtime/references)
+  ~LLVMTarget();
 
   std::string str() const;
-  std::shared_ptr<llvm::LLVMContext> GetOrCreateContext();
+
+  const LLVMScope& GetScope() const { return scope_; }
+  llvm::LLVMContext* GetContext() const;
   llvm::TargetMachine* GetOrCreateTargetMachine(bool allow_missing = false);
 
   const std::string& GetTargetTriple() const { return triple_; }
@@ -63,17 +89,15 @@ class LLVMScope {
   llvm::FastMathFlags GetFastMathFlags() const { return fast_math_flags_; }
   llvm::CodeGenOpt::Level GetOptLevel() const { return opt_level_; }
 
-  using ModuleData = std::pair<std::unique_ptr<llvm::Module>, std::unique_ptr<LLVMScope>>;
-  static ModuleData ParseIR(const std::string& llvm_ir,
-                            std::shared_ptr<llvm::LLVMContext> ctx = {});
-  static ModuleData LoadIR(const std::string& file_name,
-                           std::shared_ptr<llvm::LLVMContext> ctx = {});
-
   static std::string GetTargetMetadata(const llvm::Module& module);
   void SetTargetMetadata(llvm::Module* module) const;
 
- protected:
-  std::shared_ptr<llvm::LLVMContext> ctx_;
+  void EnterWithScope();
+  void ExitWithScope();
+
+ private:
+  const LLVMScope& scope_;
+  std::weak_ptr<llvm::LLVMContext> ctx_;
 
   std::string triple_;
   std::string cpu_;
@@ -83,12 +107,7 @@ class LLVMScope {
   llvm::CodeGenOpt::Level opt_level_;
   llvm::Reloc::Model reloc_model_ = llvm::Reloc::PIC_;
   llvm::CodeModel::Model code_model_ = llvm::CodeModel::Small;
-  std::unique_ptr<llvm::TargetMachine> target_machine_;
-
- private:
-  LLVMScope(const std::string& target_str, std::shared_ptr<llvm::LLVMContext> ctx);
-  static ModuleData ParseBuffer(const llvm::MemoryBuffer& buffer,
-                                std::shared_ptr<llvm::LLVMContext> ctx_or_null);
+  std::shared_ptr<llvm::TargetMachine> target_machine_;
 };
 
 }  // namespace codegen

@@ -57,16 +57,17 @@
 namespace tvm {
 namespace codegen {
 
-LLVMScope::ModuleData CodeGenBlob(const std::string& data, bool system_lib,
-                                  const std::string& llvm_target_string) {
-  auto llvm_scope = std::make_unique<LLVMScope>(llvm_target_string);
-  llvm::TargetMachine* tm = llvm_scope->GetOrCreateTargetMachine();
-  auto triple = tm->getTargetTriple();
-  std::shared_ptr<llvm::LLVMContext> ctx = llvm_scope->GetOrCreateContext();
+std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_lib,
+                                          const std::string& llvm_target_string) {
+  auto llvm_scope = std::make_unique<LLVMScope>();
+  With<LLVMTarget> llvm_target(*llvm_scope, llvm_target_string);
+  llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
+  const llvm::Triple& triple = tm->getTargetTriple();
+  llvm::LLVMContext* ctx = llvm_target->GetContext();
   std::string module_name = "devc";
   auto module = std::make_unique<llvm::Module>(module_name, *ctx);
   module->setTargetTriple(triple.str());
-  llvm_scope->SetTargetMetadata(module.get());
+  llvm_target->SetTargetMetadata(module.get());
   module->setDataLayout(tm->createDataLayout());
   auto* blob_value = llvm::ConstantDataArray::getString(*ctx, data, false);
   auto* tvm_dev_mblob = new llvm::GlobalVariable(
@@ -184,7 +185,7 @@ LLVMScope::ModuleData CodeGenBlob(const std::string& data, bool system_lib,
     ir_builder.CreateRetVoid();
   }
 
-  return std::make_pair(std::move(module), std::move(llvm_scope));
+  return module;
 }
 
 }  // namespace codegen
