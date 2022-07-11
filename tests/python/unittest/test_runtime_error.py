@@ -15,38 +15,42 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test runtime error handling"""
+
 import tvm
-from tvm import te
 import tvm.testing
 
 
 def test_op_translation():
+    """Test operator translation"""
+
     ferror = tvm.testing.test_raise_error_callback("OpNotImplemented: myop")
     try:
         ferror()
         assert False
-    except tvm.error.OpNotImplemented as e:
-        msg = str(e)
-        assert isinstance(e, NotImplementedError)
+    except tvm.error.OpNotImplemented as excpt:
+        msg = str(excpt)
+        assert isinstance(excpt, NotImplementedError)
         assert msg.find("ffi_testing.cc") != -1
 
     fchk_eq = tvm.testing.test_check_eq_callback("InternalError: myop")
     try:
         fchk_eq(0, 1)
         assert False
-    except tvm.error.InternalError as e:
-        msg = str(e)
+    except tvm.error.InternalError as excpt:
+        msg = str(excpt)
         assert msg.find("ffi_testing.cc") != -1
 
     try:
         tvm.testing.ErrorTest(0, 1)
         assert False
-    except ValueError as e:
-        msg = str(e)
+    except ValueError as excpt:
+        msg = str(excpt)
         assert msg.find("ffi_testing.cc") != -1
 
 
 def test_deep_callback():
+    """Test deep callback"""
+
     def error_callback():
         raise ValueError("callback error")
 
@@ -65,8 +69,8 @@ def test_deep_callback():
     try:
         wrap3()
         assert False
-    except ValueError as e:
-        msg = str(e)
+    except ValueError as excpt:
+        msg = str(excpt)
         idx2 = msg.find("in flevel2")
         idx3 = msg.find("in flevel3")
         assert idx2 != -1 and idx3 != -1
