@@ -16,6 +16,7 @@
 # under the License.
 """Pseudorandom number kernels."""
 import math
+from matplotlib.pyplot import close
 import numpy as np
 
 import tvm
@@ -602,3 +603,56 @@ def normal(gen, mean, scale, out_shape, out_dtype):
     )
 
     return new_gen, random_values
+
+
+def multinomial(gen, probs, num_samples):
+    """Draw samples from a multinomial distribution defined by the input tensor.
+
+    Parameters
+    ----------
+    gen : ThreefryKey
+        Generator state. Can be create with :py:func:`tvm.relay.threefry_key`. This should not be
+        reused in another function, otherwise random numbers will be repeated.
+
+    probs: Tensor[(input_rows, indices), float]
+        A tensor containing the probabilities to sample from. Each value represents the
+        probability of choosing its corresonding index. If a matrix is provided, rows
+        are treated independently.
+
+    num_samples: int
+        Number of samples to draw from each row.
+
+    out_dtype : str
+        The output dtype.
+
+    Returns
+    -------
+    new_gen : ThreefryKey
+        New generator state that is distinct from `gen`.
+
+    out : Tensor[(input_rows, num_samples), int64]
+        Tensor of sampled indices with shape `input_rows x num_samples` and type `out_dtype`.
+    """
+    # Normalize input probabilities.
+    probs = tvm.topi.divide(probs, tvm.topi.sum(probs, axis=0))
+    # Convert probability to cumulative sum.
+    cumulative_probs = tvm.topi.cumsum(probs, axis=0)
+    # Sample a set of uniform values.
+    new_gen, uniform_values = uniform(
+        gen,
+        tvm.tir.const(0.0, "float32"),
+        tvm.tir.const(1.0, "float32"),
+        [num_samples],
+        "float32",
+    )
+    # Find index corresponding to sampled values.
+    # Start by creating a row for each sample.
+    cumulative_probs = tvm.topi.broadcast_to(cumulative_probs, [num_samples] + list(probs.shape))
+    closest_prob = tvm.topi.subtract(cumulative_probs, tvm.topi.expand_dims(uniform_values, axis=1))
+    zeros = tvm.topi.full_like(closest_prob, 0)
+    ones = tvm.topi.full_like(closest_prob, 1)
+    # Find the smallest positive index.
+    cond = tvm.topi.greater(closest_prob, zeros)
+    closest_non_neg = tvm.topi.where(cond, closest_prob, ones)
+    sampled_indices = tvm.topi.argmin(closest_non_neg, axis=1, select_last_index=True)
+    return new_gen, sampled_indices

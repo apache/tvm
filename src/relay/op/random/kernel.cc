@@ -179,5 +179,40 @@ RELAY_REGISTER_OP("random.normal")
     .add_argument("scale", "Tensor", "Standard deviation of the distribution")
     .add_type_rel("Normal", NormalRel);
 
+TVM_REGISTER_NODE_TYPE(MultinomialAttrs);
+
+bool MultinomialRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                    const TypeReporter& reporter) {
+  const MultinomialAttrs* param = attrs.as<MultinomialAttrs>();
+  ICHECK_EQ(types.size(), 3) << "Normal should have two inputs and one output";
+
+  std::vector<IndexExpr> oshape;
+  oshape.push_back(param->num_samples);
+  DataType out_dtype = tvm::DataType::Int(32);
+
+  reporter->Assign(types[0], ThreefryKeyType());
+  // generate returns the next key and an array of random values
+  reporter->Assign(types[2], TupleType({ThreefryKeyType(), TensorType(oshape, out_dtype)}));
+  return true;
+}
+
+Expr MakeMultinomial(Expr key, Expr probs, Integer num_samples) {
+  auto attrs = make_object<MultinomialAttrs>();
+  attrs->num_samples = num_samples;
+  static const Op& op = Op::Get("random.multinomial");
+  return Call(op, {key, probs}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.random._make.multinomial").set_body_typed(MakeMultinomial);
+
+RELAY_REGISTER_OP("random.multinomial")
+    .describe(
+        R"doc(Generate an array of random numbers under normal distribution.)doc" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .set_attrs_type<MultinomialAttrs>()
+    .add_argument("key", "Tensor", "Input Threefry key")
+    .add_argument("probs", "Tensor", "Array of probabilities for each corresponding index.")
+    .add_type_rel("Multinomial", MultinomialRel);
+
 }  // namespace relay
 }  // namespace tvm

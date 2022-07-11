@@ -60,6 +60,22 @@ def uniform(target, dev, gen, low, high, size, dtype):
     return out_gen.numpy(), rands.asnumpy()
 
 
+def multinomial(target, dev, gen, probs, num_samples):
+    gen_placeholder = tvm.te.placeholder(gen.shape, name="gen", dtype="uint64")
+    probs_placeholder = tvm.te.placeholder(probs.shape, name="probs", dtype="float32")
+    new_gen_placeholder, indices_placeholder = tvm.topi.random.multinomial(
+        gen_placeholder, probs_placeholder, num_samples 
+    )
+    s = tvm.topi.generic.schedule_extern([new_gen_placeholder, indices_placeholder])
+    f = tvm.build(
+        s, [gen_placeholder, probs_placeholder, new_gen_placeholder, indices_placeholder]
+    )
+    out_gen = tvm.nd.array(np.zeros(gen.shape, dtype="uint64"))
+    indices = tvm.nd.array(np.zeros((num_samples,), dtype="int32"))
+    f(tvm.nd.array(gen), tvm.nd.array(probs), out_gen, indices)
+    return out_gen.numpy(), indices.asnumpy()
+
+
 @tvm.testing.parametrize_targets
 def test_threefry_split(target, dev):
     # test that results of split do not equal eachother or the input
@@ -157,8 +173,20 @@ def test_uniform(target, dev):
         assert np.max(rands) <= 10.0
 
 
+@tvm.testing.parametrize_targets
+def test_multinomial(target, dev):
+    gen = tvm.relay.random.threefry_key(0).data.numpy()
+    probs = np.asarray([3, 10, 5], dtype="float32")
+    num_samples = 2
+    new_gen, indices = multinomial(target, dev, gen, probs, num_samples)
+    assert (gen != new_gen).any()
+    assert np.min(indices) >= 0
+    assert np.max(indices) < len(probs)
+
+
 if __name__ == "__main__":
-    test_threefry_split(tvm.target.Target("llvm"), tvm.device("cpu"))
-    test_threefry_generate(tvm.target.Target("llvm"), tvm.device("cpu"))
-    test_threefry_wrapping(tvm.target.Target("llvm"), tvm.device("cpu"))
-    test_uniform(tvm.target.Target("llvm"), tvm.device("cpu"))
+    #test_threefry_split(tvm.target.Target("llvm"), tvm.device("cpu"))
+    #test_threefry_generate(tvm.target.Target("llvm"), tvm.device("cpu"))
+    #test_threefry_wrapping(tvm.target.Target("llvm"), tvm.device("cpu"))
+    #test_uniform(tvm.target.Target("llvm"), tvm.device("cpu"))
+    test_multinomial(tvm.target.Target("llvm"), tvm.device("cpu"))
