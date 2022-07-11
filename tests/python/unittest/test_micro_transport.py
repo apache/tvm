@@ -18,13 +18,15 @@
 """Tests for common micro transports."""
 
 import logging
-import sys
-import unittest
-
 import pytest
 
+import tvm
 import tvm.testing
 
+# Currently, there isn't a reasonable way to use @tvm.testing.fixture and not
+# incur the redefined-outer-name pylint warning, so we need to disable it for
+# the whole file.
+# pylint: disable=redefined-outer-name
 
 # Implementing as a fixture so that the tvm.micro import doesn't occur
 # until fixture setup time.  This is necessary for pytest's collection
@@ -32,24 +34,28 @@ import tvm.testing
 # tests as skipped.
 @tvm.testing.fixture
 def transport():
-    import tvm.micro
+    """transport"""
 
-    class MockTransport_Impl(tvm.micro.transport.Transport):
+    class MockTransportImpl(tvm.micro.transport.Transport):
+        """Mock transport implementation"""
+
         def __init__(self):
             self.exc = None
             self.to_return = None
 
         def _raise_or_return(self):
+
             if self.exc is not None:
                 to_raise = self.exc
                 self.exc = None
-                raise to_raise
-            elif self.to_return is not None:
-                to_return = self.to_return
-                self.to_return = None
-                return to_return
-            else:
+                raise to_raise  # pylint: disable=raising-bad-type
+
+            if self.to_return is None:
                 assert False, "should not get here"
+
+            to_return = self.to_return
+            self.to_return = None
+            return to_return
 
         def open(self):
             pass
@@ -66,7 +72,7 @@ def transport():
         def write(self, data, timeout_sec):
             return self._raise_or_return()
 
-    return MockTransport_Impl()
+    return MockTransportImpl()
 
 
 @tvm.testing.fixture
