@@ -361,7 +361,7 @@ class TVMScriptParser(Transformer):
         """
         if len(node.funcs) == 1:
             return self.transform(next(iter(node.funcs.values())))
-        elif len(node.func) == 0:
+        elif len(node.funcs) == 0:
             self.report_error(
                 "You must supply at least one class or function definition", node.span
             )
