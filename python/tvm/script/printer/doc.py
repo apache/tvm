@@ -150,7 +150,7 @@ class CallDoc(ExprDoc):
         kwargs_keys = list(kwargs.keys())
         kwargs_values = list(kwargs.values())
         self.__init_handle_by_constructor__(
-            _ffi_api.CallDoc, callee, args, kwargs_keys, kwargs_values   # type: ignore
+            _ffi_api.CallDoc, callee, args, kwargs_keys, kwargs_values  # type: ignore
         )
 
 
@@ -161,6 +161,9 @@ class OperationKind(IntEnum):
 
     It's mirrored from OperationDocNode::Kind at include/tvm/script/printer/doc.h
     """
+
+    # The name convention follows https://docs.python.org/3/library/ast.html
+    # pylint: disable=invalid-name
 
     _UnaryStart = 0
     USub = auto()
@@ -190,6 +193,8 @@ class OperationKind(IntEnum):
 
     _SpecialStart = auto()
     Assert = auto()
+
+    # pylint: enable=invalid-name
 
 
 @tvm._ffi.register_object("script.printer.OperationDoc")
