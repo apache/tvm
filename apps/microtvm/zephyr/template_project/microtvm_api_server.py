@@ -37,6 +37,7 @@ import tempfile
 import threading
 from typing import Union
 import usb
+import psutil
 
 import serial
 import serial.tools.list_ports
@@ -1067,6 +1068,11 @@ class ZephyrFvpTransport:
 
     def close(self):
         self._model.release()
+        parent = psutil.Process(self.proc.pid)
+        if parent:
+            for child in parent.children(recursive=True):
+                child.kill()
+            parent.kill()
 
     def read(self, n, timeout_sec):
         return self._target.stdout.read(n, timeout_sec)
