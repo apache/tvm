@@ -66,9 +66,6 @@ class CodegenC : public backend::MemoizedExprTranslator<std::vector<Output>>, pu
    * \return The emitted code.
    */
   std::string JIT(const std::vector<Output>& out) override {
-    if (!ext_func_args_.empty()) {
-      *needs_extra_headers_ = true;
-    }
     // Write function macros
     for (auto decl : func_decl_) {
       code_stream_ << decl << "\n";
@@ -109,6 +106,9 @@ class CodegenC : public backend::MemoizedExprTranslator<std::vector<Output>>, pu
   }
 
   std::vector<Output> VisitExpr_(const ConstantNode* cn) override {
+    // Remember we'll need some extra headers to support the runtime constants array.
+    *needs_extra_headers_ = true;
+
     std::ostringstream decl_stream;
     std::ostringstream buf_stream;
 
@@ -215,7 +215,10 @@ class CodegenC : public backend::MemoizedExprTranslator<std::vector<Output>>, pu
   std::unordered_map<std::string, runtime::NDArray>* const_name_to_constant_;
   /*! \brief The accumulated constant names, in the order they were generated. */
   Array<String>* const_names_;
-  /*! \brief Set to true if the ndarray and packed function headers are required. */
+  /*!
+   * \brief Set to true if the ndarray and packed function headers are required to declare and
+   * manage the constants array.
+   */
   bool* needs_extra_headers_;
   /*! \brief Name of the global function currently being compiled. */
   std::string ext_func_id_;
