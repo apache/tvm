@@ -19,8 +19,11 @@
 
 #include <tvm/runtime/registry.h>
 
+#include <regex>
+
 #include "../../support/str_escape.h"
 #include "./base_doc_printer.h"
+#include "tvm/runtime/logging.h"
 
 namespace tvm {
 namespace script {
@@ -34,6 +37,33 @@ class PythonDocPrinter : public DocPrinter {
   using DocPrinter::PrintDoc;
 
   void PrintTypedDoc(const LiteralDoc& doc) final;
+  void PrintTypedDoc(const IdDoc& doc) final;
+  void PrintTypedDoc(const AttrAccessDoc& doc) final;
+  void PrintTypedDoc(const IndexDoc& doc) final;
+  void PrintTypedDoc(const OperationDoc& doc) final;
+  void PrintTypedDoc(const CallDoc& doc) final;
+  void PrintTypedDoc(const LambdaDoc& doc) final;
+  void PrintTypedDoc(const ListDoc& doc) final;
+  void PrintTypedDoc(const DictDoc& doc) final;
+  void PrintTypedDoc(const TupleDoc& doc) final;
+  void PrintTypedDoc(const SliceDoc& doc) final;
+
+ private:
+  template <typename DocType>
+  void PrintJoinedElements(const std::string& left, const Array<DocType>& elements,
+                           const std::string& separator, const std::string& right) {
+    output_ << left;
+    bool is_first = true;
+    for (auto& element : elements) {
+      if (is_first) {
+        is_first = false;
+      } else {
+        output_ << separator;
+      }
+      PrintDoc(element);
+    }
+    output_ << right;
+  }
 };
 
 void PythonDocPrinter::PrintTypedDoc(const LiteralDoc& doc) {
@@ -54,6 +84,190 @@ void PythonDocPrinter::PrintTypedDoc(const LiteralDoc& doc) {
     output_ << "\"" << support::StrEscape(string_obj->data, string_obj->size) << "\"";
   } else {
     LOG(FATAL) << "TypeError: Unsupported literal value type: " << value->GetTypeKey();
+  }
+}
+
+/*
+ * This function checks whether an input string is a valid
+ * identifier. Invalid identifier name can make the result
+ * still parsable but into a different IR tree. So we want
+ * to fail as soon as possible.
+ */
+bool IsValidPythonIdentifier(const std::string& id) {
+  // This regex is just an approximation of the Python identifier
+  // rule. This doesn't exclude the reserved keywords. But it should
+  // be good enough for roundtrippable TVMScript printing and parsing.
+  const static std::regex id_pattern(R"(^[^\d\W]\w*$)");
+  return std::regex_match(id, id_pattern);
+}
+
+void PythonDocPrinter::PrintTypedDoc(const IdDoc& doc) {
+  CHECK(IsValidPythonIdentifier(doc->name))
+      << "ValueError: " << doc->name << " is not a valid identifier.";
+  output_ << doc->name;
+}
+
+void PythonDocPrinter::PrintTypedDoc(const AttrAccessDoc& doc) {
+  CHECK(IsValidPythonIdentifier(doc->attr))
+      << "ValueError: " << doc->attr << " is not a valid attribute.";
+  PrintDoc(doc->value);
+  output_ << "." << doc->attr;
+}
+
+void PythonDocPrinter::PrintTypedDoc(const IndexDoc& doc) {
+  PrintDoc(doc->value);
+  if (doc->indices.size() == 0) {
+    output_ << "[()]";
+  } else {
+    PrintJoinedElements("[", doc->indices, ", ", "]");
+  }
+}
+
+constexpr int OP_STR_TABLE_SIZE = static_cast<int>(OperationDocNode::Kind::kSpecialEnd) + 1;
+static const std::array<const char*, OP_STR_TABLE_SIZE> OP_STR_TABLE = []() {
+  using OpKind = OperationDocNode::Kind;
+  std::array<const char*, OP_STR_TABLE_SIZE> table;
+  auto set_op = [&table](auto op, const char* str) { table[static_cast<int>(op)] = str; };
+
+  set_op(OpKind::kUSub, "-");
+  set_op(OpKind::kInvert, "~");
+  set_op(OpKind::kAdd, "+");
+  set_op(OpKind::kSub, "-");
+  set_op(OpKind::kMult, "*");
+  set_op(OpKind::kDiv, "/");
+  set_op(OpKind::kFloorDiv, "//");
+  set_op(OpKind::kMod, "%");
+  set_op(OpKind::kPow, "**");
+  set_op(OpKind::kLShift, "<<");
+  set_op(OpKind::kRShift, ">>");
+  set_op(OpKind::kBitAnd, "&");
+  set_op(OpKind::kBitOr, "|");
+  set_op(OpKind::kBitXor, "^");
+  set_op(OpKind::kLt, "<");
+  set_op(OpKind::kLtE, "<=");
+  set_op(OpKind::kEq, "==");
+  set_op(OpKind::kNotEq, "!=");
+  set_op(OpKind::kGt, ">");
+  set_op(OpKind::kGtE, ">=");
+
+  return table;
+}();
+
+const char* OperatorToString(OperationDocNode::Kind operation_kind) {
+  auto op_index = static_cast<int>(operation_kind);
+  ICHECK_LT(op_index, OP_STR_TABLE_SIZE);
+  const char* str = OP_STR_TABLE[static_cast<int>(operation_kind)];
+  if (str == nullptr) {
+    LOG(FATAL) << "OperationDocNode::Kind " << static_cast<int>(operation_kind)
+               << " cannot be converted to operator token in Python directly.";
+    throw;
+  }
+  return str;
+}
+
+void PythonDocPrinter::PrintTypedDoc(const OperationDoc& doc) {
+  using OpKind = OperationDocNode::Kind;
+  if (doc->kind < OpKind::kUnaryEnd) {
+    // Unary Operators
+    ICHECK_EQ(doc->operands.size(), 1);
+    output_ << OperatorToString(doc->kind);
+    PrintDoc(doc->operands[0]);
+  } else if (doc->kind < OpKind::kBinaryEnd) {
+    // Binary Operator
+    ICHECK_EQ(doc->operands.size(), 2);
+    PrintDoc(doc->operands[0]);
+    output_ << " " << OperatorToString(doc->kind) << " ";
+    PrintDoc(doc->operands[1]);
+  } else if (doc->kind == OpKind::kAssert) {
+    // Special Operator: Assert
+    output_ << "assert ";
+    PrintDoc(doc->operands[0]);
+    if (doc->operands.size() > 1) {
+      output_ << ", ";
+      PrintDoc(doc->operands[1]);
+    }
+  } else {
+    LOG(FATAL) << "Unknown OperationDocNode::Kind " << static_cast<int>(doc->kind);
+    throw;
+  }
+}
+
+void PythonDocPrinter::PrintTypedDoc(const CallDoc& doc) {
+  PrintDoc(doc->callee);
+
+  output_ << "(";
+
+  // Print positional args
+  bool is_first = true;
+  for (const ExprDoc& arg : doc->args) {
+    if (is_first) {
+      is_first = false;
+    } else {
+      output_ << ", ";
+    }
+    PrintDoc(arg);
+  }
+
+  // Print keyword args
+  for (size_t i = 0; i < doc->kwargs_keys.size(); i++) {
+    if (is_first) {
+      is_first = false;
+    } else {
+      output_ << ", ";
+    }
+    const String& keyword = doc->kwargs_keys[i];
+    CHECK(IsValidPythonIdentifier(keyword))
+        << "ValueError: " << keyword << " is not a valid name for keyword parameter.";
+    output_ << keyword;
+    output_ << "=";
+    PrintDoc(doc->kwargs_values[i]);
+  }
+
+  output_ << ")";
+}
+
+void PythonDocPrinter::PrintTypedDoc(const LambdaDoc& doc) {
+  output_ << "lambda ";
+  PrintJoinedElements("", doc->args, ", ", ": ");
+  PrintDoc(doc->body);
+}
+
+void PythonDocPrinter::PrintTypedDoc(const ListDoc& doc) {
+  PrintJoinedElements("[", doc->elements, ", ", "]");
+}
+
+void PythonDocPrinter::PrintTypedDoc(const TupleDoc& doc) {
+  if (doc->elements.size() == 1) {
+    output_ << "(";
+    PrintDoc(doc->elements[0]);
+    output_ << ",)";
+  } else {
+    PrintJoinedElements("(", doc->elements, ", ", ")");
+  }
+}
+
+void PythonDocPrinter::PrintTypedDoc(const DictDoc& doc) {
+  output_ << "{";
+  size_t idx = 0;
+  for (const ExprDoc& key : doc->keys) {
+    if (idx > 0) {
+      output_ << ", ";
+    }
+    PrintDoc(key);
+    output_ << ": ";
+    PrintDoc(doc->values[idx]);
+    idx++;
+  }
+  output_ << "}";
+}
+
+void PythonDocPrinter::PrintTypedDoc(const SliceDoc& doc) {
+  if (doc->start != nullptr) {
+    PrintDoc(doc->start.value());
+  }
+  output_ << ":";
+  if (doc->stop != nullptr) {
+    PrintDoc(doc->stop.value());
   }
 }
 

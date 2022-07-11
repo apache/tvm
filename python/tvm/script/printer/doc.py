@@ -168,7 +168,7 @@ class OperationKind(IntEnum):
     _UnaryStart = 0
     USub = auto()
     Invert = auto()
-    UnaryEnd = auto()
+    _UnaryEnd = auto()
 
     _BinaryStart = auto()
     Add = auto()
@@ -193,6 +193,7 @@ class OperationKind(IntEnum):
 
     _SpecialStart = auto()
     Assert = auto()
+    _SpecialEnd = auto()
 
     # pylint: enable=invalid-name
 
@@ -268,5 +269,5 @@ class SliceDoc(ExprDoc):
     start: Optional[ExprDoc]
     stop: Optional[ExprDoc]
 
-    def __init__(self, start: Optional[ExprDoc], stop: Optional[ExprDoc] = None):
+    def __init__(self, start: Optional[ExprDoc] = None, stop: Optional[ExprDoc] = None):
         self.__init_handle_by_constructor__(_ffi_api.SliceDoc, start, stop)  # type: ignore

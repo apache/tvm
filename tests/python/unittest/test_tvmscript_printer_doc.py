@@ -187,6 +187,7 @@ def test_dict_doc(content):
         (LiteralDoc(1), LiteralDoc(2)),
         (LiteralDoc(1), None),
         (None, LiteralDoc(2)),
+        (None, None),
     ],
 )
 def test_slice_doc(start, stop):

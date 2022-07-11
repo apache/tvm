@@ -398,6 +398,7 @@ class OperationDocNode : public ExprDocNode {
     // Special
     kSpecialStart,
     kAssert,
+    kSpecialEnd
   };
 
   /*! \brief The kind of operation (operator) */
