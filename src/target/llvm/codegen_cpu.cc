@@ -196,7 +196,7 @@ void CodeGenCPU::AddFunction(const PrimFunc& f) {
 
 // Following Glow |DebugInfo::generateFunctionDebugInfo|, https://git.io/fjadv
 void CodeGenCPU::AddDebugInformation(PrimFunc f_tir, llvm::Function* f_llvm) {
-#if TVM_LLVM_VERSION >= 50 && TVM_LLVM_VERSION < 70
+#if TVM_LLVM_VERSION >= 50
   ICHECK(!f_llvm->getSubprogram());
   llvm::SmallVector<llvm::Metadata*, 4> paramTys;
   // Functions in TIR can only return void or an int.
@@ -244,9 +244,10 @@ void CodeGenCPU::AddDebugInformation(PrimFunc f_tir, llvm::Function* f_llvm) {
         GetDebugType(GetType(f_tir->params[i]), f_llvm->getFunctionType()->getParamType(i)),
         /*alwaysPreserve=*/true);
     auto* store = builder.CreateStore(f_llvm->arg_begin() + i, paramAlloca);
+    auto* di_loc = llvm::DILocation::get(*ctx_, 0, 0, DIFunction);
     dbg_info_->di_builder_->insertDeclare(paramAlloca, param,
                                           dbg_info_->di_builder_->createExpression(),
-                                          llvm::DebugLoc::get(0, 0, DIFunction), store);
+                                          llvm::DebugLoc(di_loc), store);
   }
   dbg_info_->di_builder_->finalizeSubprogram(f_llvm->getSubprogram());
   auto* scope = f_llvm->getSubprogram();
@@ -258,7 +259,8 @@ void CodeGenCPU::AddDebugInformation(PrimFunc f_tir, llvm::Function* f_llvm) {
       if (I.getDebugLoc()) {
         continue;
       }
-      I.setDebugLoc(llvm::DebugLoc::get(0, 0, scope));
+      auto* di_loc = llvm::DILocation::get(*ctx_, 0, 0, scope);
+      I.setDebugLoc(llvm::DebugLoc(di_loc));
     }
   }
 #endif
