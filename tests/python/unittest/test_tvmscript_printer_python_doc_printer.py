@@ -137,7 +137,7 @@ def test_print_invalid_attr_doc(attr):
 
 
 @pytest.mark.parametrize(
-    "indices,expected",
+    "indices, expected",
     [
         (
             [],
@@ -261,7 +261,7 @@ def test_operation_doc_test_exhaustive():
             # Special Op
             assert op_kind in special_op_covered, (
                 f"{op_kind.name} not covered in test_print_special_operation_doc. "
-                f"Please add the expected token to SPECIAL_OP_CASES"
+                f"Please add the test cases for it to SPECIAL_OP_CASES"
             )
 
 
