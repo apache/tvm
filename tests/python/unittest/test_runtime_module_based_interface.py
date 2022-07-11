@@ -154,8 +154,7 @@ def test_cpu_get_graph_params_compare():
     func = relay.Function(args, conv)
 
     mod, params = relay.testing.init.create_workload(
-        func,
-        initializer=relay.testing.init.Constant()
+        func, initializer=relay.testing.init.Constant()
     )
 
     with tvm.transform.PassContext(opt_level=3):
@@ -382,6 +381,7 @@ def test_mod_export():
 @tvm.testing.uses_gpu
 def test_remove_package_params():
     """Test removing package parameters"""
+
     def verify_cpu_remove_package_params(obj_format):
         mod, params = relay.testing.synthetic.get_workload()
         with relay.build_config(opt_level=3):
