@@ -14,34 +14,31 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import json
-import os
-import re
-import sys
-import time
+"""Test runtime CUDA graph"""
 
-import pytest
+import json
+
+import numpy as np
 
 import tvm
 import tvm.testing
 from tvm import te
-import numpy as np
-
-from tvm.contrib import utils, graph_executor
 from tvm.contrib.cuda_graph import cuda_graph_executor
-
-
-bx = te.thread_axis("blockIdx.x")
-tx = te.thread_axis("threadIdx.x")
 
 
 @tvm.testing.requires_cudagraph
 def test_graph_simple():
+    """Test simple graph"""
+    # pylint: disable=invalid-name
     n = 32
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
     s = te.create_schedule(B.op)
     xo, xi = s[B].split(B.op.axis[0], factor=8)
+
+    bx = te.thread_axis("blockIdx.x")
+    tx = te.thread_axis("threadIdx.x")
+
     s[B].bind(xo, bx)
     s[B].bind(xi, tx)
 
@@ -79,7 +76,7 @@ def test_graph_simple():
         except ValueError:
             return
 
-        for i in range(3):
+        for _ in range(3):
             a = np.random.uniform(size=(n,)).astype(A.dtype)
             mod.run(x=a)  # The first run captured a CUDA graph
             out = mod.get_output(0, tvm.nd.empty((n,)))
