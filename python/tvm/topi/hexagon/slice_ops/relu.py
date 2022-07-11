@@ -17,26 +17,20 @@
 # pylint: disable=invalid-name
 """Hexagon slice relu op"""
 
-import tvm
-from tvm import te, tir
+from tvm import te, tir, topi
+from ..utils import get_layout_transform_fn
 
 
-def relu_te_compute(Input, dtype):
-    """
-    Compute assumes the input layout to be NHWC
-    """
-    x = tvm.tir.const(0, dtype)
-    Output = te.compute(
-        Input.shape, lambda n, h, w, c: tvm.te.max(Input[n, h, w, c], x), name="reluf16"
-    )
-    return Output
+def relu_compute(Input):
+    """Relu topi compute"""
+    return topi.nn.relu(Input)
 
 
-def reluf16_te_sched(Output, Input, layout):
+def relu_te_sched(Output, Input, layout):
     """
     Schedule assumes the layout function to be bijective
     """
-    s = tvm.te.create_schedule(Output.op)
+    s = te.create_schedule(Output.op)
     s[Input].transform_layout(layout)
     out_axes = s[Output].transform_layout(layout)
     fused = s[Output].fuse(out_axes[6], out_axes[7])
@@ -44,20 +38,28 @@ def reluf16_te_sched(Output, Input, layout):
     return s
 
 
-def reluf16_stir_sched(func, layout):
+def relu_stir_schedule(Input, Output, input_layout, output_layout):
     """
     Schedule assumes the layout function to be bijective
     """
-    sch = tir.Schedule(func, debug_mask="all")
-    block = sch.get_block("reluf16")
+    if (input_layout != output_layout) or (output_layout != "nhwc-8h2w32c2w-2d"):
+        raise RuntimeError(
+            f"Unexpected input_layout, output_layout '{input_layout, output_layout}'"
+        )
+    relu_func = te.create_prim_func([Input, Output])
+    sch = tir.Schedule(relu_func, debug_mask="all")
+    block = sch.get_block("compute")
+    sch.transform_layout(block, Input.name, get_layout_transform_fn(input_layout))
+    sch.transform_layout(block, Output.name, get_layout_transform_fn(output_layout))
+
     n, h, w, c = sch.get_loops(block)
-    ho, hi = sch.split(h, [None, 8])
-    wo, wi = sch.split(w, [None, 4])
-    co, ci = sch.split(c, [None, 32])
-    wio, wii = sch.split(wi, [None, 2])
-    sch.reorder(n, ho, wo, co, hi, wio, ci, wii)
-    sch.transform_layout(block, ("read", 0), layout)
-    sch.transform_layout(block, ("write", 0), layout)
-    fused = sch.fuse(ci, wii)
+    h_o, h_i = sch.split(h, [None, 8])
+    w_o, w_i = sch.split(w, [None, 4])
+    c_o, c_i = sch.split(c, [None, 32])
+    wio, wii = sch.split(w_i, [None, 2])
+
+    sch.reorder(n, h_o, w_o, c_o, h_i, wio, c_i, wii)
+
+    fused = sch.fuse(c_i, wii)
     sch.vectorize(fused)
     return sch
