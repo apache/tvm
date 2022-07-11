@@ -14,15 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import numpy as np
+"""Test runtime module-based interface"""
+
 import os
-from tvm import relay, runtime
-from tvm.relay import testing
+
+import numpy as np
+
 import tvm
+import tvm.relay.testing
+from tvm import relay, runtime
 from tvm.contrib import graph_executor
 from tvm.contrib.debugger import debug_executor
 from tvm.contrib.cuda_graph import cuda_graph_executor
-import tvm.testing
 
 
 def input_shape(mod):
@@ -30,9 +33,11 @@ def input_shape(mod):
 
 
 def verify(data):
+    """verify data"""
     if not tvm.runtime.enabled("llvm"):
         print("Skip because llvm is not enabled")
-        return
+        return None
+
     mod, params = relay.testing.synthetic.get_workload()
     with relay.build_config(opt_level=3):
         graph, lib, graph_params = relay.build_module.build(mod, "llvm", params=params)
@@ -49,6 +54,7 @@ def verify(data):
 
 @tvm.testing.requires_llvm
 def test_legacy_compatibility():
+    """Test legacy compatibility"""
     mod, params = relay.testing.synthetic.get_workload()
     with relay.build_config(opt_level=3):
         graph, lib, graph_params = relay.build_module.build(mod, "llvm", params=params)
@@ -64,6 +70,7 @@ def test_legacy_compatibility():
 
 @tvm.testing.requires_llvm
 def test_cpu():
+    """Test CPU"""
     mod, params = relay.testing.synthetic.get_workload()
     with relay.build_config(opt_level=3):
         complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
@@ -89,31 +96,31 @@ def test_cpu():
 
 @tvm.testing.requires_llvm
 def test_cpu_get_graph_json():
+    """Test CPU get graph JSON"""
     mod, params = relay.testing.synthetic.get_workload()
     with relay.build_config(opt_level=3):
         complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
-    from tvm.contrib import utils
 
-    temp = utils.tempdir()
+    temp = tvm.contrib.utils.tempdir()
     file_name = "deploy_lib.so"
     path_lib = temp.relpath(file_name)
     complied_graph_lib.export_library(path_lib)
     loaded_lib = tvm.runtime.load_module(path_lib)
     json = loaded_lib["get_graph_json"]()
-    assert isinstance(json, str) == True
+    assert isinstance(json, str) is True
     assert json.find("tvmgen_default_fused_nn_softmax_add") > -1
 
 
 @tvm.testing.requires_llvm
 def test_cpu_get_graph_params_run():
+    """Test CPU get graph parameters and run"""
     mod, params = relay.testing.synthetic.get_workload()
     with tvm.transform.PassContext(opt_level=3):
         complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
     data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
     dev = tvm.cpu()
-    from tvm.contrib import utils
 
-    temp = utils.tempdir()
+    temp = tvm.contrib.utils.tempdir()
     file_name = "deploy_lib.so"
     path_lib = temp.relpath(file_name)
     complied_graph_lib.export_library(path_lib)
@@ -130,8 +137,8 @@ def test_cpu_get_graph_params_run():
 
 @tvm.testing.requires_llvm
 def test_cpu_get_graph_params_compare():
+    """Test CPU get graph parameters and compare"""
     # Create sample net
-    from tvm.relay.testing.init import create_workload, Constant
 
     inp_shape = (1, 3, 24, 12)
     dtype = "float32"
@@ -146,13 +153,15 @@ def test_cpu_get_graph_params_compare():
     args = relay.analysis.free_vars(conv)
     func = relay.Function(args, conv)
 
-    mod, params = create_workload(func, initializer=Constant())
+    mod, params = relay.testing.init.create_workload(
+        func,
+        initializer=relay.testing.init.Constant()
+    )
 
     with tvm.transform.PassContext(opt_level=3):
         complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
-    from tvm.contrib import utils
 
-    temp = utils.tempdir()
+    temp = tvm.contrib.utils.tempdir()
     file_name = "deploy_lib.so"
     path_lib = temp.relpath(file_name)
     complied_graph_lib.export_library(path_lib)
@@ -168,6 +177,7 @@ def test_cpu_get_graph_params_compare():
 @tvm.testing.requires_cuda
 @tvm.testing.requires_gpu
 def test_gpu():
+    """Test GPU"""
     mod, params = relay.testing.synthetic.get_workload()
     with relay.build_config(opt_level=3):
         complied_graph_lib = relay.build_module.build(mod, "cuda", params=params)
@@ -194,14 +204,14 @@ def test_gpu():
 
 @tvm.testing.uses_gpu
 def test_mod_export():
+    """Test module export"""
+
     def verify_cpu_export(obj_format):
         mod, params = relay.testing.synthetic.get_workload()
         with relay.build_config(opt_level=3):
             complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
 
-        from tvm.contrib import utils
-
-        temp = utils.tempdir()
+        temp = tvm.contrib.utils.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
         else:
@@ -244,9 +254,7 @@ def test_mod_export():
         with relay.build_config(opt_level=3):
             complied_graph_lib = relay.build_module.build(mod, "cuda", params=params)
 
-        from tvm.contrib import utils
-
-        temp = utils.tempdir()
+        temp = tvm.contrib.utils.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
         else:
@@ -288,9 +296,7 @@ def test_mod_export():
         with relay.build_config(opt_level=3):
             complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
 
-        from tvm.contrib import utils
-
-        temp = utils.tempdir()
+        temp = tvm.contrib.utils.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
         else:
@@ -299,9 +305,7 @@ def test_mod_export():
         path_lib = temp.relpath(file_name)
         complied_graph_lib.export_library(path_lib)
 
-        from tvm import rpc
-
-        remote = rpc.LocalSession()
+        remote = tvm.rpc.LocalSession()
         remote.upload(path_lib)
         loaded_lib = remote.load_module(path_lib)
         data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
@@ -332,9 +336,7 @@ def test_mod_export():
         with relay.build_config(opt_level=3):
             complied_graph_lib = relay.build_module.build(mod, "cuda", params=params)
 
-        from tvm.contrib import utils
-
-        temp = utils.tempdir()
+        temp = tvm.contrib.utils.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
         else:
@@ -343,10 +345,8 @@ def test_mod_export():
         path_lib = temp.relpath(file_name)
         complied_graph_lib.export_library(path_lib)
 
-        from tvm import rpc
-
         def check_remote(server):
-            remote = rpc.connect(server.host, server.port)
+            remote = tvm.rpc.connect(server.host, server.port)
             remote.upload(path_lib)
             loaded_lib = remote.load_module(path_lib)
             data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
@@ -381,14 +381,13 @@ def test_mod_export():
 @tvm.testing.requires_llvm
 @tvm.testing.uses_gpu
 def test_remove_package_params():
+    """Test removing package parameters"""
     def verify_cpu_remove_package_params(obj_format):
         mod, params = relay.testing.synthetic.get_workload()
         with relay.build_config(opt_level=3):
             complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
 
-        from tvm.contrib import utils
-
-        temp = utils.tempdir()
+        temp = tvm.contrib.utils.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
         else:
@@ -397,8 +396,8 @@ def test_remove_package_params():
         path_lib = temp.relpath(file_name)
         complied_graph_lib_no_params = complied_graph_lib["remove_params"]()
         complied_graph_lib_no_params.export_library(path_lib)
-        with open(temp.relpath("deploy_param.params"), "wb") as fo:
-            fo.write(runtime.save_param_dict(complied_graph_lib.get_params()))
+        with open(temp.relpath("deploy_param.params"), "wb") as fout:
+            fout.write(runtime.save_param_dict(complied_graph_lib.get_params()))
         loaded_lib = tvm.runtime.load_module(path_lib)
         data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
         dev = tvm.cpu(0)
@@ -433,9 +432,7 @@ def test_remove_package_params():
         with relay.build_config(opt_level=3):
             complied_graph_lib = relay.build_module.build(mod, "cuda", params=params)
 
-        from tvm.contrib import utils
-
-        temp = utils.tempdir()
+        temp = tvm.contrib.utils.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
         else:
@@ -444,8 +441,8 @@ def test_remove_package_params():
         path_lib = temp.relpath(file_name)
         complied_graph_lib_no_params = complied_graph_lib["remove_params"]()
         complied_graph_lib_no_params.export_library(path_lib)
-        with open(temp.relpath("deploy_param.params"), "wb") as fo:
-            fo.write(runtime.save_param_dict(complied_graph_lib.get_params()))
+        with open(temp.relpath("deploy_param.params"), "wb") as fout:
+            fout.write(runtime.save_param_dict(complied_graph_lib.get_params()))
         loaded_lib = tvm.runtime.load_module(path_lib)
         data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
         dev = tvm.cuda(0)
@@ -478,9 +475,7 @@ def test_remove_package_params():
         with relay.build_config(opt_level=3):
             complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
 
-        from tvm.contrib import utils
-
-        temp = utils.tempdir()
+        temp = tvm.contrib.utils.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
         else:
@@ -490,12 +485,10 @@ def test_remove_package_params():
         complied_graph_lib_no_params = complied_graph_lib["remove_params"]()
         complied_graph_lib_no_params.export_library(path_lib)
         path_params = temp.relpath("deploy_param.params")
-        with open(path_params, "wb") as fo:
-            fo.write(runtime.save_param_dict(complied_graph_lib.get_params()))
+        with open(path_params, "wb") as fout:
+            fout.write(runtime.save_param_dict(complied_graph_lib.get_params()))
 
-        from tvm import rpc
-
-        remote = rpc.LocalSession()
+        remote = tvm.rpc.LocalSession()
         remote.upload(path_lib)
         loaded_lib = remote.load_module(path_lib)
         data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
@@ -531,9 +524,7 @@ def test_remove_package_params():
         with relay.build_config(opt_level=3):
             complied_graph_lib = relay.build_module.build(mod, "cuda", params=params)
 
-        from tvm.contrib import utils
-
-        temp = utils.tempdir()
+        temp = tvm.contrib.utils.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
         else:
@@ -543,12 +534,10 @@ def test_remove_package_params():
         complied_graph_lib_no_params = complied_graph_lib["remove_params"]()
         complied_graph_lib_no_params.export_library(path_lib)
         path_params = temp.relpath("deploy_param.params")
-        with open(path_params, "wb") as fo:
-            fo.write(runtime.save_param_dict(complied_graph_lib.get_params()))
+        with open(path_params, "wb") as fout:
+            fout.write(runtime.save_param_dict(complied_graph_lib.get_params()))
 
-        from tvm import rpc
-
-        remote = rpc.LocalSession()
+        remote = tvm.rpc.LocalSession()
         remote.upload(path_lib)
         loaded_lib = remote.load_module(path_lib)
         data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
@@ -585,6 +574,7 @@ def test_remove_package_params():
 
 @tvm.testing.requires_llvm
 def test_debug_graph_executor():
+    """Test debug graph executor"""
     mod, params = relay.testing.synthetic.get_workload()
     with relay.build_config(opt_level=3):
         complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
@@ -594,7 +584,7 @@ def test_debug_graph_executor():
     dev = tvm.cpu()
     try:
         gmod = complied_graph_lib["debug_create"]("default", dev)
-    except:
+    except:  # pylint: disable=bare-except
         print("Skip because debug graph_executor not enabled")
         return
     set_input = gmod["set_input"]
@@ -620,6 +610,7 @@ def test_debug_graph_executor():
 
 @tvm.testing.requires_cudagraph
 def test_cuda_graph_executor():
+    """Test CUDA graph executor"""
     mod, params = relay.testing.synthetic.get_workload()
     with tvm.transform.PassContext(opt_level=3):
         complied_graph_lib = relay.build_module.build(mod, "cuda", params=params)
@@ -628,7 +619,7 @@ def test_cuda_graph_executor():
     dev = tvm.cuda()
     try:
         gmod = complied_graph_lib["cuda_graph_create"](dev)
-    except:
+    except:  # pylint: disable=bare-except
         print("Skip because cuda_graph not enabled")
         return
     set_input = gmod["set_input"]
@@ -648,18 +639,20 @@ def test_cuda_graph_executor():
 
 
 def test_multiple_imported_modules():
+    """Test multiple imported modules"""
+
     def make_func(symbol):
         n = tvm.te.size_var("n")
-        Ab = tvm.tir.decl_buffer((n,), dtype="float32")
+        a_b = tvm.tir.decl_buffer((n,), dtype="float32")
         i = tvm.te.var("i")
         stmt = tvm.tir.For(
             i,
             0,
             n - 1,
             tvm.tir.ForKind.SERIAL,
-            tvm.tir.BufferStore(Ab, tvm.tir.BufferLoad(Ab, [i]) + 1, [i + 1]),
+            tvm.tir.BufferStore(a_b, tvm.tir.BufferLoad(a_b, [i]) + 1, [i + 1]),
         )
-        return tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", symbol)
+        return tvm.tir.PrimFunc([a_b], stmt).with_attr("global_symbol", symbol)
 
     def make_module(mod):
         mod = tvm.IRModule(mod)
@@ -676,6 +669,7 @@ def test_multiple_imported_modules():
 
 
 def test_num_threads():
+    """Test number of threads"""
     reported = tvm.runtime.num_threads()
     env_threads = os.getenv("TVM_NUM_THREADS")
     omp_env_threads = os.getenv("OMP_NUM_THREADS")
@@ -685,7 +679,7 @@ def test_num_threads():
         assert reported == omp_env_threads
     else:
         hardware_threads = os.cpu_count()
-        assert reported == hardware_threads or reported == hardware_threads // 2
+        assert reported in (hardware_threads, hardware_threads // 2)
 
 
 if __name__ == "__main__":
