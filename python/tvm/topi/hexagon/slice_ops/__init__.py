@@ -30,3 +30,4 @@ from .cast import (
     cast_f32_f16_schedule,
 )
 from .conv2d import *
+from .reshape import reshape_compute, reshape_stir_schedule

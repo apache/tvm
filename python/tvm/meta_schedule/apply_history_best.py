@@ -71,7 +71,8 @@ class ApplyHistoryBest(Object):
         mod: IRModule,
         target: Target,
         dispatched: Optional[List[IRModule]],
-        f_take_tuning_record: Callable[[TuningRecord], None] = None,
+        f_take_tuning_record: Optional[Callable[[TuningRecord], None]] = None,
+        f_direct_dispatch: Optional[Callable[[IRModule], Optional[IRModule]]] = None,
     ) -> Union[IRModule, None]:
         """The entry point of the integration
 
@@ -85,8 +86,11 @@ class ApplyHistoryBest(Object):
             Target Info
         dispatched : Optional[List[IRModule]]
             A list of low-level IRs that the high-level IR could potentially dispatch to
-        f_take_tuning_record : Callable[[TuningRecord], None] = None
+        f_take_tuning_record : Optional[Callable[[TuningRecord], None]] = None
             A callback function that takes a tuning record and does something with it
+        f_direct_dispatch : Optional[Callable[[IRModule], Optional[IRModule]]] = None
+            A function that directly dispatches an IRModule to the given workload as result if
+            available, skipping the database query.
 
         Returns
         -------
@@ -101,6 +105,7 @@ class ApplyHistoryBest(Object):
             target,
             dispatched,
             f_take_tuning_record,
+            f_direct_dispatch,
         )
 
     @staticmethod

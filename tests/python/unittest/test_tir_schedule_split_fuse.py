@@ -20,6 +20,7 @@ import tvm
 import tvm.testing
 from tvm import te, tir
 from tvm.script import tir as T
+from tvm.tir.expr import IntImm
 from tvm.tir.schedule.testing import verify_trace_roundtrip
 
 # pylint: disable=no-member,invalid-name,unused-variable
@@ -635,6 +636,14 @@ def test_split_int64_extent_with_int32_factors():
             te.const(4, "int32"),
         ],
     )
+
+
+def test_split_int64_factors():
+    sch = tir.Schedule(elementwise_symbolic, debug_mask="all")
+    block_b = sch.get_block("B")
+    _, _, k = sch.get_loops(block_b)
+    sch.split(k, factors=[IntImm(dtype="int64", value=10), None])
+    tvm.ir.assert_structural_equal(elementwise_symbolic_split, sch.mod["main"])
 
 
 if __name__ == "__main__":

@@ -190,7 +190,7 @@ class PyCostModel:
         raise NotImplementedError
 
     def predict(self, context: TuneContext, candidates: List[MeasureCandidate]) -> np.ndarray:
-        """Update the cost model given running results.
+        """Predict given the measure candidates.
 
         Parameters
         ----------

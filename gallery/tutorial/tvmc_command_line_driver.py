@@ -94,7 +94,7 @@ testing.utils.install_request_hook(depth=3)
 #
 # .. code-block:: bash
 #
-#   wget https://github.com/onnx/models/raw/main/vision/classification/resnet/model/resnet50-v2-7.onnx
+#   wget https://github.com/onnx/models/raw/652f4e4af7975c8e7a505c4b6e0f8ac72d8260ea/vision/classification/resnet/model/resnet50-v2-7.onnx
 #
 
 ################################################################################
@@ -131,6 +131,7 @@ testing.utils.install_request_hook(depth=3)
 #   # This may take several minutes depending on your machine
 #   tvmc compile \
 #   --target "llvm" \
+#   --input-shapes "data:[1,3,224,224]" \
 #   --output resnet50-v2-7-tvm.tar \
 #   resnet50-v2-7.onnx
 #
