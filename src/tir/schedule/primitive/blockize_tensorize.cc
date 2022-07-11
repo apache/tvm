@@ -33,6 +33,11 @@ Range RangeFromExtent(const PrimExpr& extent) {
   return Range::FromMinExtent(make_zero(extent->dtype), extent);
 }
 
+template <class T>
+T DeepCopy(const T& stmt) {
+  return Downcast<T>(LoadJSON(SaveJSON(stmt)));
+}
+
 /*!
  * \brief ScheduleError that the bindings of the inner block are not divisible by the subspace
  * represented by the outer loops.
@@ -104,7 +109,7 @@ Array<Array<arith::IterMark>> TrivialSubspaceDivision(const Array<IterVar>& iter
   auto use_inner_loop_vars = make_uses_var(inner_iters);
   arith::IterMark unit_iter_mark(arith::IterSumExpr({}, 0), 1);
 
-  for (size_t i = 0; i < bindings.size(); ++i) {
+  for (int i = 0, n = bindings.size(); i < n; ++i) {
     bool outer = use_outer_loop_vars(bindings[i]);
     bool inner = use_inner_loop_vars(bindings[i]);
     arith::IterMark iter_mark;
@@ -418,9 +423,9 @@ Stmt MakeLoopNest(Stmt stmt, const std::vector<const ForNode*>& loops) {
   return stmt;
 }
 
-StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref) {
+BlockRealize BlockizeImpl(const ScheduleState& self, const StmtSRef& loop_sref,
+                          Map<Block, Block>* block_sref_reuse, arith::Analyzer* analyzer) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
-  arith::Analyzer analyzer;
   // Step 1: Check and get the only block under `loop`.
   BlockRealize block_realize = CheckGetSingleChildBlockRealizeOnSRefTree(self, loop_sref);
   Block block = block_realize->block;
@@ -428,7 +433,7 @@ StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref) {
   // Step 2: Derive subspace division
   std::vector<const ForNode*> loops;
   Array<Array<arith::IterMark>> division =
-      SubspaceDivide(block_realize, block_sref, loop_sref, &loops, &analyzer);
+      SubspaceDivide(block_realize, block_sref, loop_sref, &loops, analyzer);
   if (division.empty()) {
     throw SubspaceNotDivisibleError(self->mod, GetRef<For>(loops.back()), block);
   }
@@ -444,14 +449,13 @@ StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref) {
                          &outer_iter_vars, &outer_bindings,  //
                          &inner_iter_vars, &inner_bindings);
   // Step 4: Do var substitution to adjust to the new block bindings
-  Map<Block, Block> block_sref_reuse;
   Map<Var, arith::IntSet> inner_iter_dom;
   for (const IterVar& iter : inner_iter_vars) {
     inner_iter_dom.Set(iter->var, arith::IntSet::FromRange(iter->dom));
-    analyzer.Bind(iter->var, iter->dom);
+    analyzer->Bind(iter->var, iter->dom);
   }
   Block block_subst =
-      Downcast<Block>(Substitute(block, block_var_subst, &block_sref_reuse, &analyzer));
+      Downcast<Block>(Substitute(block, block_var_subst, block_sref_reuse, analyzer));
   // Step 5: Generate the inner block. The write regions of the inner blocks will be reduction if
   // 1. The original block has init stmt.
   // 2. There are outer reduction iter vars.
@@ -469,9 +473,9 @@ StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref) {
                                              /*iter_values*/ inner_bindings,
                                              /*predicate=*/inner_predicate,
                                              /*block=*/block_subst);
-  block_sref_reuse.Set(block, inner_realize->block);
+  block_sref_reuse->Set(block, inner_realize->block);
   // Step 6: Generate the outer block.
-  BlockRealize outer_realize(
+  return BlockRealize(
       /*iter_values=*/std::move(outer_bindings),
       /*predicate=*/std::move(outer_predicate),
       /*block=*/
@@ -485,125 +489,108 @@ StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref) {
                 ? GenerateOuterInit(block_subst->init.value(), inner_realize, loops,
                                     block_subst->name_hint + "_init")
                 : Optional<Stmt>(NullOpt)));
-  // Step 7: Do the actual replacement
-  self->Replace(loop_sref, outer_realize, block_sref_reuse);
-  // Step 8: Update the cached flags
-  StmtSRef outer_block_sref = self->stmt2ref.at(outer_realize->block.get());
-  StmtSRef scope_root = tir::GetScopeRoot(self, outer_block_sref, /*require_stage_pipeline=*/false);
+}
+
+StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref) {
+  arith::Analyzer analyzer;
+  Map<Block, Block> block_sref_reuse;
+  BlockRealize blockized = BlockizeImpl(self, loop_sref, &block_sref_reuse, &analyzer);
+  self->Replace(loop_sref, blockized, block_sref_reuse);
+  StmtSRef result = self->stmt2ref.at(blockized->block.get());
+  StmtSRef scope_root = tir::GetScopeRoot(self, result, /*require_stage_pipeline=*/false);
   bool scope_block_affine_binding = self->IsAffineBlockBinding(scope_root);
   self->UpdateScopeBlockInfo(tir::GetBlockRealize(self, scope_root));
   self->block_info[scope_root].affine_binding = scope_block_affine_binding;
-  return outer_block_sref;
+  return result;
 }
 
-/*!
- * \brief Update the map from the buffers in the desc to the impl of the tensor
- * intrinsic.
- * \param intrinsic The tensor intrinsic.
- * \param buffer_map The map to be updated.
- */
-void RemapTensorIntrinBuffers(
-    const TensorIntrin& intrinsic,
-    std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>* buffer_map) {
-  ICHECK_EQ(intrinsic->desc->params.size(), intrinsic->impl->params.size());
-  for (size_t i = 0; i < intrinsic->desc->params.size(); ++i) {
-    const Var& lhs_var = intrinsic->desc->params[i];
-    const Buffer& lhs_buffer = intrinsic->desc->buffer_map[lhs_var];
-    const Var& rhs_var = intrinsic->impl->params[i];
-    const Buffer& rhs_buffer = intrinsic->impl->buffer_map[rhs_var];
-    (*buffer_map)[rhs_buffer] = lhs_buffer;
-  }
-}
-
-void Tensorize(ScheduleState self, const StmtSRef& block_or_loop_sref,
-               const TensorIntrin& intrinsic) {
-  /*!
-   * Check:
-   *   - Check buffer binding, including type, alignment, shape and etc.
-   *   - Check the sub AST is equal to the desc function.
-   *
-   * Mutate:
-   *   - Blockize the sub AST (please refer blockize for details)
-   *   - Bind buffers
-   *   - Mutate the impl of the tensor intrinsic by replacing its buffers with new
-   *     buffers created via match buffer region.
-   *   - Replace the sub tree with the mutated function.
-   */
-  const BlockRealize& desc_block_realize = Downcast<BlockRealize>(intrinsic->desc->body);
-  const BlockRealize& impl_block_realize = Downcast<BlockRealize>(intrinsic->impl->body);
-  Block impl_block = impl_block_realize->block;
-
+void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& intrin) {
   // Step 1: Blockize the subtree rooted at the given loop if needed
-  StmtSRef block_sref{nullptr};
-  if (block_or_loop_sref->StmtAs<ForNode>()) {
-    block_sref = Blockize(self, block_or_loop_sref);
+  BlockRealize block_realize{nullptr};
+  Optional<Block> old_block = NullOpt;
+  if (sref->stmt->IsInstance<BlockNode>()) {
+    block_realize = GetBlockRealize(self, sref);
+    old_block = block_realize->block;
+  } else if (sref->stmt->IsInstance<ForNode>()) {
+    arith::Analyzer analyzer;
+    Map<Block, Block> block_sref_reuse;
+    block_realize = BlockizeImpl(self, sref, &block_sref_reuse, &analyzer);
   } else {
-    ICHECK(block_or_loop_sref->StmtAs<BlockNode>());
-    block_sref = block_or_loop_sref;
+    LOG(FATAL) << "TypeError: Tensorize only support For or Block, but gets: "
+               << GetRef<Stmt>(sref->stmt);
+    throw;
   }
-  const BlockRealize& block_realize = GetBlockRealize(self, block_sref);
-
-  // Step 2: Compare the block with the desc of the tensor intrinsic, find the correspondence
-  // between buffers in the block and the desc.
+  PrimFunc intrin_desc = intrin->desc;
+  PrimFunc intrin_impl = DeepCopy(intrin->impl);
+  // Step 2: Structural pattern matching
   TensorizeComparator comparator(self->mod, /*assert_mode=*/true);
-  comparator.VisitStmt(block_realize, desc_block_realize);
-
-  // Step 3: Find the correspondence between buffers in the current AST and the impl of
-  // the tensor intrinsic
-  // Step 3.1: Map from intrinsic func buffer to desc func buffer
-  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> intrin_buffer_map;
-  RemapTensorIntrinBuffers(intrinsic, &intrin_buffer_map);
-  // Step 3.2: Map form intrinsic func buffer to current AST buffer
-  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_map;
-  for (const auto& pair : intrin_buffer_map) {
-    auto it = comparator.rhs_buffer_map_.find(pair.second);
-    ICHECK(it != comparator.rhs_buffer_map_.end()) << pair.second;
-    buffer_map[pair.first] = it->second;
+  comparator.VisitStmt(block_realize, intrin_desc->body);
+  // Step 3: Prepare necessary mapping
+  // 1) Buffer mapping from intrin impl buffers to intrin desc buffers.
+  // 2) Buffer mapping from intrin impl buffers to AST buffers.
+  // 3) Mapping impl buffers to their accessed regions.
+  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> impl2desc;
+  ICHECK_EQ(intrin_desc->params.size(), intrin_impl->params.size());
+  for (int i = 0, n = intrin_desc->params.size(); i < n; ++i) {
+    const Buffer& desc = intrin_desc->buffer_map[intrin_desc->params[i]];
+    const Buffer& impl = intrin_impl->buffer_map[intrin_impl->params[i]];
+    impl2desc[impl] = desc;
   }
-
-  // Step 4: Create MatchBufferRegion for the params of the impl function of the tensor
-  // intrin to make them subregions of the buffer in the original IR.
-  std::unordered_map<Buffer, Array<Range>, ObjectPtrHash, ObjectPtrEqual> buffer_region_map;
+  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> impl2ast;
+  for (const auto& pair : impl2desc) {
+    const Buffer& impl = pair.first;
+    const Buffer& desc = pair.second;
+    ICHECK(comparator.rhs_buffer_map_.count(desc));
+    impl2ast[impl] = comparator.rhs_buffer_map_[desc];
+  }
+  std::unordered_map<Buffer, Array<Range>, ObjectPtrHash, ObjectPtrEqual> impl2region;
+  Block impl_block = Downcast<BlockRealize>(intrin_impl->body)->block;
   for (const BufferRegion& read : impl_block->reads) {
-    buffer_region_map.emplace(read->buffer, read->region);
+    impl2region.emplace(read->buffer, read->region);
   }
   for (const BufferRegion& write : impl_block->writes) {
-    buffer_region_map.emplace(write->buffer, write->region);
+    impl2region.emplace(write->buffer, write->region);
   }
+  // Step 4: Create MatchBufferRegion for the params of the impl function of the tensor
+  // intrin to make them subregions of the buffer in the original IR.
   Array<MatchBufferRegion> match_buffer_regions;
-  match_buffer_regions.reserve(intrinsic->impl->params.size());
-  for (size_t i = 0; i < intrinsic->impl->params.size(); ++i) {
-    const auto& param = intrinsic->impl->params[i];
-    const auto& buffer = intrinsic->impl->buffer_map.at(param);
-    const auto& source = buffer_map.at(buffer);
-    // add the detected base indices to each buffer access region of the tensor intrinsic
-    Region old_region = buffer_region_map.at(buffer);
-    const auto& indices_base = comparator.buffer_indices_.at(source);
+  match_buffer_regions.reserve(intrin_impl->params.size());
+  for (int i = 0, n = intrin_impl->params.size(); i < n; ++i) {
+    const Buffer& impl = intrin_impl->buffer_map.at(intrin_impl->params[i]);
+    const Buffer& ast = impl2ast.at(impl);
+    const Array<Range>& old_region = impl2region.at(impl);
+    const std::vector<PrimExpr>& indices_base = comparator.buffer_indices_.at(ast);
     int offset = static_cast<int>(indices_base.size()) - static_cast<int>(old_region.size());
     ICHECK(offset >= 0);
-    Region new_region;
-    new_region.reserve(source->shape.size());
+    Array<Range> new_region;
+    new_region.reserve(ast->shape.size());
     for (int i = 0; i < offset; i++) {
-      new_region.push_back(Range::FromMinExtent(indices_base[i], 1));
+      PrimExpr min = indices_base[i];
+      PrimExpr extent = make_const(min.dtype(), 1);
+      new_region.push_back(Range::FromMinExtent(min, extent));
     }
     for (int i = 0; i < static_cast<int>(old_region.size()); i++) {
-      new_region.push_back(Range::FromMinExtent(indices_base[i + offset], old_region[i]->extent));
+      PrimExpr min = indices_base[i + offset];
+      PrimExpr extent = old_region[i]->extent;
+      new_region.push_back(Range::FromMinExtent(min, extent));
     }
-    match_buffer_regions.push_back(MatchBufferRegion(buffer, BufferRegion(source, new_region)));
+    match_buffer_regions.push_back(MatchBufferRegion(impl, BufferRegion(ast, new_region)));
   }
-
   // Step 5: Replace the subtree in the original IR with the tensor intrin impl.
-  ObjectPtr<BlockNode> new_block_ptr = make_object<BlockNode>(*block_realize->block.get());
-  new_block_ptr->body = impl_block->body;
-  ICHECK(new_block_ptr->match_buffers.empty());
-  new_block_ptr->match_buffers = std::move(match_buffer_regions);
-  Block new_block(new_block_ptr);
-
-  self->Replace(block_sref, new_block, {{block_realize->block, new_block}});
-
+  {
+    BlockNode* block = block_realize.CopyOnWrite()->block.CopyOnWrite();
+    block->body = impl_block->body;
+    block->match_buffers = std::move(match_buffer_regions);
+  }
+  if (old_block.defined()) {
+    self->Replace(sref, block_realize, {{old_block.value(), block_realize->block}});
+  } else {
+    self->Replace(sref, block_realize, {});
+  }
   // Step 6: Update the cached flags.
-  StmtSRef scope_root = tir::GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
-  self->UpdateScopeBlockInfo(static_cast<const BlockNode*>(scope_root->stmt)->body);
+  StmtSRef result = self->stmt2ref.at(block_realize->block.get());
+  StmtSRef scope_root = tir::GetScopeRoot(self, result, /*require_stage_pipeline=*/false);
+  self->UpdateScopeBlockInfo(scope_root->StmtAs<BlockNode>()->body);
 }
 
 /******** InstructionKind Registration ********/
