@@ -66,7 +66,7 @@ class DataflowGraph {
   Expr expr_;
   /*! \brief The indexed graph which captures the main dataflow. */
   std::unique_ptr<IndexedGraph<Expr>> indexed_graph_;
-  /*! \brief Map from a node's PostDfsIndex to the set of it's downstream dataflow node indexes. */
+  /*! \brief Map from a node's PostDfsIndex to the set of its downstream dataflow node indexes. */
   std::vector<IndexSet> downstream_map_;
 };
 

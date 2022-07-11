@@ -46,7 +46,7 @@ namespace collage {
 std::string KindToString(OpPatternKind kind);
 
 /*!
- * \brief Returns a kind and label for the single \p sub_expr, ignoring it's sub-sub expressions.
+ * \brief Returns a kind and label for the single \p sub_expr, ignoring its nested sub expressions.
  */
 std::pair<OpPatternKind, std::string> SubExprKindAndLabel(const Expr& sub_expr);
 
@@ -74,9 +74,9 @@ struct SubGraphConfig {
    */
   bool allow_taps = false;
   /*!
-   * \brief Maximum allowed maximum depth, or zero if no-limit.
+   * \brief Maximum allowed sub-graph depth, or zero if no-limit.
    */
-  size_t max_max_depth = 0;
+  size_t max_depth = 0;
 
   std::string ToString() const;
 };
@@ -85,7 +85,7 @@ class SubGraph;
 using FunctionAttrsMap = Map<String, ObjectRef>;
 
 /*!
- * \brief A sub-sub graph is a sub-graph which is to be nested inside a function as part of some
+ * \brief A nested sub-graph is a sub-graph which is to be nested inside a function as part of some
  * enclosing sub-graph.
  *
  * Extraction yields a function with input nodes replaced by parameters and exit nodes in the
@@ -96,7 +96,7 @@ using FunctionAttrsMap = Map<String, ObjectRef>;
  * However we found the implementation was easier to understand in this form since it makes
  * the result of \p Extract unambiguous.)
  */
-class SubSubGraphNode : public Object {
+class NestedSubGraphNode : public Object {
  public:
   /*! \brief The nested sub-graph. */
   ObjectRef /* actually SubGraph */ sub_graph_obj_;
@@ -107,15 +107,15 @@ class SubSubGraphNode : public Object {
 
   SubGraph sub_graph() const;
 
-  bool operator==(const SubSubGraphNode& that) const;
-  bool operator!=(const SubSubGraphNode& that) const { return !(*this == that); }
-  bool operator<(const SubSubGraphNode& that) const;
+  bool operator==(const NestedSubGraphNode& that) const;
+  bool operator!=(const NestedSubGraphNode& that) const { return !(*this == that); }
+  bool operator<(const NestedSubGraphNode& that) const;
   size_t hash() const;
 
   std::string ToString() const;
 
   /*!
-   * \brief Returns the function representing this sub-sub-graph within the overall expression
+   * \brief Returns the function representing this nested sub-graph within the overall expression
    * represented by \p dataflow_graph:
    *  - All sub-graph inputs become parameters.
    *  - All sub-graph outputs become function results (either directly or as a field in a tuple).
@@ -125,55 +125,56 @@ class SubSubGraphNode : public Object {
   Function Extract(const DataflowGraph& dataflow_graph) const;
 
   /*!
-   * \brief Returns \p expr rewritten to encode the partitioning implied by this sub-sub-graph.
+   * \brief Returns \p expr rewritten to encode the partitioning implied by this nested sub-graph.
    *
    * It is valid for \p expr to not be the same as \p dataflow_graph.expr(), however all nodes
-   * inside this sub-sub-graph must correspond to nodes shared between \p dataflow_graph.expr() and
-   * \p expr. See \p SubGraph::ParallelRewrite below.
+   * inside this nested sub-graph must correspond to nodes shared between \p dataflow_graph.expr()
+   * and \p expr. See \p SubGraph::ParallelRewrite below.
    */
   Expr Rewrite(const DataflowGraph& dataflow_graph, const Expr& expr) const;
 
-  static constexpr const char* _type_key = "relay.collage.SubSubGraph";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SubSubGraphNode, Object);
+  static constexpr const char* _type_key = "relay.collage.NestedSubGraph";
+  TVM_DECLARE_FINAL_OBJECT_INFO(NestedSubGraphNode, Object);
 };
 
-class SubSubGraph : public ObjectRef {
+class NestedSubGraph : public ObjectRef {
  public:
-  SubSubGraph(SubGraph sub_graph, FunctionAttrsMap attrs);
+  NestedSubGraph(SubGraph sub_graph, FunctionAttrsMap attrs);
 
   /*!
-   * \brief Returns copy of this sub-sub-graph with all indexes substituted according to \p subst,
-   * whose range is w.r.t. \p new_dataflow_graph.
+   * \brief Returns copy of this nested sub-graph with all indexes substituted according to
+   * \p subst, whose range is w.r.t. \p new_dataflow_graph.
    */
-  SubSubGraph Subst(const DataflowGraph& new_dataflow_graph,
-                    const std::unordered_map<PostDfsIndex, PostDfsIndex>& subst) const;
+  NestedSubGraph Subst(const DataflowGraph& new_dataflow_graph,
+                       const std::unordered_map<PostDfsIndex, PostDfsIndex>& subst) const;
 
   /*!
    * \brief Returns true if this can be safely unioned.
    */
-  bool TriviallyUnionable(const SubSubGraph& that) const;
+  bool TriviallyUnionable(const NestedSubGraph& that) const;
 
   /*!
-   * \brief Returns the disjoin union of this and \p that sub-sub graphs, which must agree on
+   * \brief Returns the disjoint union of this and \p that nested sub-graphs, which must agree on
    * their attributes.
    */
-  SubSubGraph DisjointUnion(const DataflowGraph& dataflow_graph, const SubSubGraph& that) const;
+  NestedSubGraph DisjointUnion(const DataflowGraph& dataflow_graph,
+                               const NestedSubGraph& that) const;
 
   /*!
-   * \brief Returns \p expr rewritten according to all the given sub-sub-graphs. The sub-sub-graphs
-   * can be given in any order, but must be disjoint.
+   * \brief Returns \p expr rewritten according to all the given nested sub-graphs. The
+   * nested sub-graphs can be given in any order, but must be disjoint.
    *
    * It is valid for \p expr to not be the same as \p dataflow_graph.expr(), however all nodes
-   * inside the sub-sub-graphs must correspond to nodes shared between \p dataflow_graph.expr() and
-   * \p expr. See \p SubGraph::ParallelRewrite below.
+   * inside the nested sub-graphs must correspond to nodes shared between \p dataflow_graph.expr()
+   * and \p expr. See \p SubGraph::ParallelRewrite below.
    */
   static Expr ParallelRewrite(const DataflowGraph& dataflow_graph, const Expr& expr,
-                              std::vector<SubSubGraph> sub_sub_graphs);
+                              std::vector<NestedSubGraph> nested_sub_graphs);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(SubSubGraph, ObjectRef, SubSubGraphNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(NestedSubGraph, ObjectRef, NestedSubGraphNode);
 };
 
-using SubSubGraphs = Array<SubSubGraph>;
+using NestedSubGraphs = Array<NestedSubGraph>;
 
 /*!
  * \brief A compact representation of a sub-graph within an (implied) overall Relay expression.
@@ -184,7 +185,7 @@ using SubSubGraphs = Array<SubSubGraph>;
  * the overall Relay expression since only a tiny subset of candidate partitions will end up being
  * needed after Collage has completed its search.
  *
- * We expect O(thousands) of sub-graphs to be in flight while processing a given model, so are
+ * We expect O(thousands) of sub-graphs to be in flight while processing a given model, so we are
  * mindful of space overhead.
  *
  * A sub-graph classifies every dataflow node of the overall expression as either 'inside' or
@@ -213,7 +214,7 @@ using SubSubGraphs = Array<SubSubGraph>;
  *
  * Sub-graphs are closed under:
  *  - Disjoint union.
- *  - Wrapping by a function with given attributes (see \p SubSubGraph above). This can be used
+ *  - Wrapping by a function with given attributes (see \p NestedSubGraph above). This can be used
  *    to encode "Composite" functions, or to represent a candidate kernel within a "Primitive"
  *    function. (By combining 'wrapping' with 'union' we can encode, eg, 'this sub-graph should
  *    be placed inside a primitive function which itself may have calls to composite functions).
@@ -259,7 +260,7 @@ class SubGraphNode : public Object {
    *
    * Cached for performance, uniquely determined by inside_.
    */
-  size_t max_depth_ = 0;
+  size_t depth_ = 0;
 
   /*!
    * \brief The \p OpPatternKind summarizing the input/output behavior of the sub-graph.
@@ -286,10 +287,10 @@ class SubGraphNode : public Object {
   String label_;
 
   /*!
-   * \brief Sub-sub-graphs of this sub-graph which must be represented by functions. These must
-   * be disjoint, but it's ok for this sub-graph to have nodes not inside any sub-sub-graph.
+   * \brief Nested sub-graphs of this sub-graph which must be represented by functions. These must
+   * be disjoint, but it's ok for this sub-graph to have nodes not inside any nested sub-graph.
    */
-  SubSubGraphs sub_sub_graphs_;
+  NestedSubGraphs nested_sub_graphs_;
 
   void VisitAttrs(AttrVisitor* v);
 
@@ -321,7 +322,7 @@ class SubGraphNode : public Object {
    *  - all inputs and outputs of the sub-graph are in the same scope, ie not separated by
    *    control flow (otherwise there'd be no consistent program point at which to eval the
    *    partitioned function).
-   *  - no more than config.max_outputs outputs are require.
+   *  - no more than config.max_outputs outputs are required.
    *  - if config.allow_taps is false, no inside node has outputs to nodes both inside and
    *    outside the sub-graph.
    */
@@ -354,9 +355,9 @@ class SubGraphNode : public Object {
   void Init(const DataflowGraph& dataflow_graph);
 
   /*! \brief Calculates and returns the maximum path depth. */
-  size_t MaxDepth(const DataflowGraph& dataflow_graph) const;
+  size_t Depth(const DataflowGraph& dataflow_graph) const;
 
-  /*! \brief Return's true if any (input/output) of node is (outside/inside) the sub-graph. */
+  /*! \brief Returns true if any (input/output) of node is (outside/inside) the sub-graph. */
   bool AnyInputOutside(const DataflowGraph::Node* node) const;
   bool AnyInputInside(const DataflowGraph::Node* node) const;
   bool AnyOutputOutside(const DataflowGraph::Node* node) const;
@@ -373,7 +374,7 @@ class SubGraph : public ObjectRef {
  public:
   /*! \brief Primitive constructor. The following constructors are generally more convenient. */
   SubGraph(const DataflowGraph& dataflow_graph, IndexSet inside, OpPatternKind kind = kOpaque,
-           String label = {}, std::vector<SubSubGraph> sub_sub_graphs = {});
+           String label = {}, std::vector<NestedSubGraph> nested_sub_graphs = {});
 
   /*! \brief Constructs the empty sub-graph for \p dataflow_graph. */
   explicit SubGraph(const DataflowGraph& dataflow_graph);
@@ -405,7 +406,7 @@ class SubGraph : public ObjectRef {
   SubGraph DisjointUnion(const DataflowGraph& dataflow_graph, const SubGraph& that) const;
 
   /*!
-   * \brief Returns copy of this sub-graph with all nodes placed inside a sub-sub-graph with
+   * \brief Returns copy of this sub-graph with all nodes placed inside a nested sub-graph with
    * given attributes.
    */
   SubGraph WithAttrs(const DataflowGraph& dataflow_graph, FunctionAttrsMap attrs) const;

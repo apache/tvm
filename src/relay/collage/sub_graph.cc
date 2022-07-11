@@ -119,16 +119,16 @@ class Extractor : public ExprMutator {
       body = outputs_.front();
     }
 
-    // Re-express all the sub-sub-graphs in terms of the body.
+    // Re-express all the nested sub-graphs in terms of the body.
     DataflowGraph body_dataflow_graph(body);
-    std::vector<SubSubGraph> sub_sub_graphs;
+    std::vector<NestedSubGraph> nested_sub_graphs;
     IndexSubst subst = MakeIndexSubst(body_dataflow_graph);
-    for (const auto& sub_sub_graph : sub_graph_->sub_sub_graphs_) {
-      sub_sub_graphs.emplace_back(sub_sub_graph.Subst(body_dataflow_graph, subst));
+    for (const auto& nested_sub_graph : sub_graph_->nested_sub_graphs_) {
+      nested_sub_graphs.emplace_back(nested_sub_graph.Subst(body_dataflow_graph, subst));
     }
 
-    // Sweep backwards through the body, rewriting to account for each sub-sub-graph.
-    body = SubSubGraph::ParallelRewrite(body_dataflow_graph, body, std::move(sub_sub_graphs));
+    // Sweep backwards through the body, rewriting to account for each nested sub-graph.
+    body = NestedSubGraph::ParallelRewrite(body_dataflow_graph, body, std::move(nested_sub_graphs));
 
     if (for_function) {
       // Rewrite so all input nodes are now conveyed via call arguments to a new function.
@@ -477,68 +477,69 @@ IndexSet MatcherToIndexSet(const DFPatternMatcher& matcher) {
 std::string SubGraphConfig::ToString() const {
   std::ostringstream os;
   os << "{max_exits=" << max_exits;
-  os << ",allow_taps=" << allow_taps;
-  os << ",max_max_depth=" << max_max_depth;
+  os << ", allow_taps=" << allow_taps;
+  os << ", max_depth=" << max_depth;
   os << "}";
   return os.str();
 }
 
-TVM_REGISTER_NODE_TYPE(SubSubGraphNode);
+TVM_REGISTER_NODE_TYPE(NestedSubGraphNode);
 
-void SubSubGraphNode::VisitAttrs(AttrVisitor* v) {
+void NestedSubGraphNode::VisitAttrs(AttrVisitor* v) {
   // TODO(mbs)
 }
 
-SubGraph SubSubGraphNode::sub_graph() const { return Downcast<SubGraph>(sub_graph_obj_); }
+SubGraph NestedSubGraphNode::sub_graph() const { return Downcast<SubGraph>(sub_graph_obj_); }
 
-bool SubSubGraphNode::operator==(const SubSubGraphNode& that) const {
+bool NestedSubGraphNode::operator==(const NestedSubGraphNode& that) const {
   return *sub_graph().get() == *that.sub_graph().get();
 }
 
-bool SubSubGraphNode::operator<(const SubSubGraphNode& that) const {
+bool NestedSubGraphNode::operator<(const NestedSubGraphNode& that) const {
   return *sub_graph().get() < *that.sub_graph().get();
 }
 
-size_t SubSubGraphNode::hash() const {
+size_t NestedSubGraphNode::hash() const {
   size_t h = StructuralHash()(attrs_);
   h ^= sub_graph()->hash() + 0x9e3779b9 + (h << 6) + (h >> 2);
   return h;
 }
 
-std::string SubSubGraphNode::ToString() const {
+std::string NestedSubGraphNode::ToString() const {
   std::ostringstream os;
   os << "{sub_graph=" << sub_graph()->ToString();
-  os << ",attrs=" << PrettyPrint(attrs_);
+  os << ", attrs=" << PrettyPrint(attrs_);
   os << "}";
   return os.str();
 }
 
-Function SubSubGraphNode::Extract(const DataflowGraph& dataflow_graph) const {
+Function NestedSubGraphNode::Extract(const DataflowGraph& dataflow_graph) const {
   Extractor extractor(&dataflow_graph, sub_graph().get(), attrs_);
   extractor.Extract();
   return Downcast<Function>(extractor.extracted());
 }
 
-Expr SubSubGraphNode::Rewrite(const DataflowGraph& dataflow_graph, const Expr& expr) const {
+Expr NestedSubGraphNode::Rewrite(const DataflowGraph& dataflow_graph, const Expr& expr) const {
   Extractor extractor(&dataflow_graph, sub_graph().get(), attrs_);
   extractor.Extract();
   Rewriter rewriter(&extractor);
   return rewriter.VisitExpr(expr);
 }
 
-SubSubGraph::SubSubGraph(SubGraph sub_graph, FunctionAttrsMap attrs) {
-  auto data = runtime::make_object<SubSubGraphNode>();
+NestedSubGraph::NestedSubGraph(SubGraph sub_graph, FunctionAttrsMap attrs) {
+  auto data = runtime::make_object<NestedSubGraphNode>();
   data->sub_graph_obj_ = std::move(sub_graph);
   data->attrs_ = std::move(attrs);
   data_ = std::move(data);
 }
 
-SubSubGraph SubSubGraph::Subst(const DataflowGraph& new_dataflow_graph,
-                               const std::unordered_map<PostDfsIndex, PostDfsIndex>& subst) const {
-  return SubSubGraph(get()->sub_graph().Subst(new_dataflow_graph, subst), get()->attrs_);
+NestedSubGraph NestedSubGraph::Subst(
+    const DataflowGraph& new_dataflow_graph,
+    const std::unordered_map<PostDfsIndex, PostDfsIndex>& subst) const {
+  return NestedSubGraph(get()->sub_graph().Subst(new_dataflow_graph, subst), get()->attrs_);
 }
 
-bool SubSubGraph::TriviallyUnionable(const SubSubGraph& that) const {
+bool NestedSubGraph::TriviallyUnionable(const NestedSubGraph& that) const {
   if (get()->attrs_.size() != that->attrs_.size()) {
     return false;
   }
@@ -560,25 +561,25 @@ bool SubSubGraph::TriviallyUnionable(const SubSubGraph& that) const {
   return true;
 }
 
-SubSubGraph SubSubGraph::DisjointUnion(const DataflowGraph& dataflow_graph,
-                                       const SubSubGraph& that) const {
+NestedSubGraph NestedSubGraph::DisjointUnion(const DataflowGraph& dataflow_graph,
+                                             const NestedSubGraph& that) const {
   ICHECK(TriviallyUnionable(that));
-  return SubSubGraph(get()->sub_graph().DisjointUnion(dataflow_graph, that->sub_graph()),
-                     get()->attrs_);
+  return NestedSubGraph(get()->sub_graph().DisjointUnion(dataflow_graph, that->sub_graph()),
+                        get()->attrs_);
 }
 
 /*static*/
-Expr SubSubGraph::ParallelRewrite(const DataflowGraph& dataflow_graph, const Expr& expr,
-                                  std::vector<SubSubGraph> sub_sub_graphs) {
+Expr NestedSubGraph::ParallelRewrite(const DataflowGraph& dataflow_graph, const Expr& expr,
+                                     std::vector<NestedSubGraph> nested_sub_graphs) {
   // IMPORTANT: See the corresponding comment in SubGraph::ParallelRewrite.
-  std::sort(sub_sub_graphs.begin(), sub_sub_graphs.end(),
-            [](const SubSubGraph& left, const SubSubGraph& right) {
+  std::sort(nested_sub_graphs.begin(), nested_sub_graphs.end(),
+            [](const NestedSubGraph& left, const NestedSubGraph& right) {
               return left->sub_graph()->last_inside_index_ > right->sub_graph()->last_inside_index_;
             });
 
   Expr result = expr;
-  for (const auto& sub_sub_graph : sub_sub_graphs) {
-    result = sub_sub_graph->Rewrite(dataflow_graph, result);
+  for (const auto& nested_sub_graph : nested_sub_graphs) {
+    result = nested_sub_graph->Rewrite(dataflow_graph, result);
   }
   return result;
 }
@@ -607,9 +608,9 @@ bool SubGraphNode::IsValid(const DataflowGraph& dataflow_graph,
   }
 
   // Check the maximum path depth is in limit.
-  if (config.max_max_depth > 0 && max_depth_ > config.max_max_depth) {
-    VLOG(1) << "Subgraph " << ToString() << " is invalid: maximum depth " << max_depth_
-            << " exceeds limit " << config.max_max_depth;
+  if (config.max_depth > 0 && depth_ > config.max_depth) {
+    VLOG(1) << "Subgraph " << ToString() << " is invalid: maximum depth " << depth_
+            << " exceeds limit " << config.max_depth;
     return false;
   }
 
@@ -626,16 +627,16 @@ bool SubGraphNode::IsValid(const DataflowGraph& dataflow_graph,
     }
   }
 
-  // The sub-sub-graphs must be subsets and non-overlapping.
+  // The nested sub-graphs must be subsets and non-overlapping.
   IndexSet union_inside(dataflow_graph.size());
-  for (const auto& sub_sub_graph : sub_sub_graphs_) {
-    if (!sub_sub_graph->sub_graph()->inside_.AreDisjoint(union_inside)) {
-      VLOG(1) << "Subgraph " << ToString() << " is invalid: sub-sub-graphs overlap";
+  for (const auto& nested_sub_graph : nested_sub_graphs_) {
+    if (!nested_sub_graph->sub_graph()->inside_.AreDisjoint(union_inside)) {
+      VLOG(1) << "Subgraph " << ToString() << " is invalid: nested sub-graphs overlap";
       return false;
     }
-    if (!sub_sub_graph->sub_graph()->inside_.IsSubset(inside_)) {
+    if (!nested_sub_graph->sub_graph()->inside_.IsSubset(inside_)) {
       VLOG(1) << "Subgraph " << ToString()
-              << " is invalid: sub-sub-graph is not subset of overall sub-graph";
+              << " is invalid: nested sub-graph is not subset of overall sub-graph";
       return false;
     }
   }
@@ -667,12 +668,12 @@ bool SubGraphNode::IsValid(const DataflowGraph& dataflow_graph,
 }
 
 Function SubGraphNode::ExtractAsFunction(const DataflowGraph& dataflow_graph) const {
-  SubSubGraph sub_sub_graph(GetRef<SubGraph>(this), FunctionAttrsMap());
-  return sub_sub_graph->Extract(dataflow_graph);
+  NestedSubGraph nested_sub_graph(GetRef<SubGraph>(this), FunctionAttrsMap());
+  return nested_sub_graph->Extract(dataflow_graph);
 }
 
 Expr SubGraphNode::Rewrite(const DataflowGraph& dataflow_graph, const Expr& expr) const {
-  if (sub_sub_graphs_.empty()) {
+  if (nested_sub_graphs_.empty()) {
     // Nothing to rewrite.
     return expr;
   }
@@ -685,17 +686,17 @@ Expr SubGraphNode::Rewrite(const DataflowGraph& dataflow_graph, const Expr& expr
 std::string SubGraphNode::ToString() const {
   std::ostringstream os;
   os << "{inside=" << inside_.ToString();
-  os << ",entry=" << entry_.ToString();
-  os << ",exit=" << exit_.ToString();
-  os << ",input=" << input_.ToString();
-  os << ",output=" << output_.ToString();
-  os << ",max_depth=" << max_depth_;
-  os << ",kind=" << KindToString(kind_);
+  os << ", entry=" << entry_.ToString();
+  os << ", exit=" << exit_.ToString();
+  os << ", input=" << input_.ToString();
+  os << ", output=" << output_.ToString();
+  os << ", depth=" << depth_;
+  os << ", kind=" << KindToString(kind_);
   if (!label_.empty()) {
-    os << ",label=" << label_;
+    os << ", label=" << label_;
   }
-  for (const auto& sub_sub_graph : sub_sub_graphs_) {
-    os << ",sub_sub_graph=" << sub_sub_graph->ToString();
+  for (const auto& nested_sub_graph : nested_sub_graphs_) {
+    os << ", nested_sub_graph=" << nested_sub_graph->ToString();
   }
   os << "}";
   return os.str();
@@ -706,11 +707,11 @@ bool SubGraphNode::operator==(const SubGraphNode& that) const {
   if (inside_ != that.inside_) {
     return false;
   }
-  if (sub_sub_graphs_.size() != that.sub_sub_graphs_.size()) {
+  if (nested_sub_graphs_.size() != that.nested_sub_graphs_.size()) {
     return false;
   }
-  for (size_t i = 0; i < sub_sub_graphs_.size(); ++i) {
-    if (*sub_sub_graphs_[i].get() != *that.sub_sub_graphs_[i].get()) {
+  for (size_t i = 0; i < nested_sub_graphs_.size(); ++i) {
+    if (*nested_sub_graphs_[i].get() != *that.nested_sub_graphs_[i].get()) {
       return false;
     }
   }
@@ -729,8 +730,8 @@ bool SubGraphNode::operator<(const SubGraphNode& that) const {
 
 size_t SubGraphNode::hash() const {
   size_t h = inside_.hash();
-  for (const auto& sub_sub_graph : sub_sub_graphs_) {
-    h ^= sub_sub_graph->hash() + 0x9e3779b9 + (h << 6) + (h >> 2);
+  for (const auto& nested_sub_graph : nested_sub_graphs_) {
+    h ^= nested_sub_graph->hash() + 0x9e3779b9 + (h << 6) + (h >> 2);
   }
   return h;
 }
@@ -754,10 +755,10 @@ void SubGraphNode::Init(const DataflowGraph& dataflow_graph) {
       }
     }
   }
-  max_depth_ = MaxDepth(dataflow_graph);
+  depth_ = Depth(dataflow_graph);
 }
 
-size_t SubGraphNode::MaxDepth(const DataflowGraph& dataflow_graph) const {
+size_t SubGraphNode::Depth(const DataflowGraph& dataflow_graph) const {
   std::unordered_map<const DataflowGraph::Node*, size_t> max_depths;
   std::vector<const DataflowGraph::Node*> stack;
   size_t max_depth = 0;
@@ -794,7 +795,7 @@ size_t SubGraphNode::MaxDepth(const DataflowGraph& dataflow_graph) const {
   return max_depth;
 }
 
-/*! \brief Return's true if any (input/output) of node is (outside/inside) the sub-graph.  */
+/*! \brief Returns true if any (input/output) of node is (outside/inside) the sub-graph.  */
 bool SubGraphNode::AnyInputOutside(const DataflowGraph::Node* node) const {
   return std::any_of(node->inputs_.begin(), node->inputs_.end(),
                      [this](const DataflowGraph::Node* sub_node) {
@@ -821,10 +822,11 @@ bool SubGraphNode::AnyOutputInside(const DataflowGraph::Node* node) const {
 }
 
 SubGraph::SubGraph(const DataflowGraph& dataflow_graph, IndexSet inside, OpPatternKind kind,
-                   String label, std::vector<SubSubGraph> sub_sub_graphs) {
-  std::sort(
-      sub_sub_graphs.begin(), sub_sub_graphs.end(),
-      [](const SubSubGraph& left, const SubSubGraph& right) { return *left.get() < *right.get(); });
+                   String label, std::vector<NestedSubGraph> nested_sub_graphs) {
+  std::sort(nested_sub_graphs.begin(), nested_sub_graphs.end(),
+            [](const NestedSubGraph& left, const NestedSubGraph& right) {
+              return *left.get() < *right.get();
+            });
   auto node = runtime::make_object<SubGraphNode>();
   node->inside_ = std::move(inside);
   node->first_inside_index_ = node->inside_.FirstInsideIndex();
@@ -835,7 +837,7 @@ SubGraph::SubGraph(const DataflowGraph& dataflow_graph, IndexSet inside, OpPatte
   node->output_ = IndexSet(node->inside_.end_index());
   node->kind_ = kind;
   node->label_ = std::move(label);
-  node->sub_sub_graphs_ = sub_sub_graphs;
+  node->nested_sub_graphs_ = nested_sub_graphs;
   node->Init(dataflow_graph);
   data_ = std::move(node);
 }
@@ -883,40 +885,40 @@ bool SubGraph::AreSelfContained(const SubGraph& that) const {
 SubGraph SubGraph::DisjointUnion(const DataflowGraph& dataflow_graph, const SubGraph& that) const {
   ICHECK(AreDisjoint(that));
   IndexSet inside = get()->inside_ | that->inside_;
-  std::vector<SubSubGraph> sub_sub_graphs;
-  for (const auto& sub_sub_graph : get()->sub_sub_graphs_) {
-    sub_sub_graphs.push_back(sub_sub_graph);
+  std::vector<NestedSubGraph> nested_sub_graphs;
+  for (const auto& nested_sub_graph : get()->nested_sub_graphs_) {
+    nested_sub_graphs.push_back(nested_sub_graph);
   }
-  for (const auto& sub_sub_graph : that->sub_sub_graphs_) {
-    auto existing_itr = std::find_if(sub_sub_graphs.begin(), sub_sub_graphs.end(),
-                                     [&sub_sub_graph](const SubSubGraph& existing) {
-                                       return existing.TriviallyUnionable(sub_sub_graph);
+  for (const auto& nested_sub_graph : that->nested_sub_graphs_) {
+    auto existing_itr = std::find_if(nested_sub_graphs.begin(), nested_sub_graphs.end(),
+                                     [&nested_sub_graph](const NestedSubGraph& existing) {
+                                       return existing.TriviallyUnionable(nested_sub_graph);
                                      });
-    if (existing_itr != sub_sub_graphs.end()) {
-      *existing_itr = existing_itr->DisjointUnion(dataflow_graph, sub_sub_graph);
+    if (existing_itr != nested_sub_graphs.end()) {
+      *existing_itr = existing_itr->DisjointUnion(dataflow_graph, nested_sub_graph);
     } else {
-      sub_sub_graphs.push_back(sub_sub_graph);
+      nested_sub_graphs.push_back(nested_sub_graph);
     }
   }
   return SubGraph(dataflow_graph, std::move(inside), CombineKinds(get()->kind_, that->kind_),
-                  UnionLabels(get()->label_, that->label_), std::move(sub_sub_graphs));
+                  UnionLabels(get()->label_, that->label_), std::move(nested_sub_graphs));
 }
 
 SubGraph SubGraph::WithAttrs(const DataflowGraph& dataflow_graph, FunctionAttrsMap attrs) const {
-  std::vector<SubSubGraph> sub_sub_graphs;
-  sub_sub_graphs.push_back(SubSubGraph(*this, attrs));
+  std::vector<NestedSubGraph> nested_sub_graphs;
+  nested_sub_graphs.push_back(NestedSubGraph(*this, attrs));
   return SubGraph(dataflow_graph, get()->inside_, get()->kind_, get()->label_,
-                  std::move(sub_sub_graphs));
+                  std::move(nested_sub_graphs));
 }
 
 SubGraph SubGraph::Subst(const DataflowGraph& new_dataflow_graph, const IndexSubst& subst) const {
   IndexSet new_inside = get()->inside_.Subst(new_dataflow_graph.size(), subst);
-  std::vector<SubSubGraph> new_sub_sub_graphs;
-  for (const auto& sub_sub_graph : get()->sub_sub_graphs_) {
-    new_sub_sub_graphs.push_back(sub_sub_graph.Subst(new_dataflow_graph, subst));
+  std::vector<NestedSubGraph> new_nested_sub_graphs;
+  for (const auto& nested_sub_graph : get()->nested_sub_graphs_) {
+    new_nested_sub_graphs.push_back(nested_sub_graph.Subst(new_dataflow_graph, subst));
   }
   return SubGraph(new_dataflow_graph, std::move(new_inside), get()->kind_, get()->label_,
-                  std::move(new_sub_sub_graphs));
+                  std::move(new_nested_sub_graphs));
 }
 
 /*static*/
@@ -943,11 +945,11 @@ Expr SubGraph::ParallelRewrite(const DataflowGraph& dataflow_graph,
 
 /*!
  * \brief A pass which partitions (the unique) global function in the module according to the
- * post-dfs indexes in \p indexes. The partiting must respect the configuration with \p max_exits
+ * post-dfs indexes in \p indexes. The partitioning must respect the configuration with \p max_exits
  * and \p allow_taps.
  *
  * Each index is also paired with a label. A non-empty label denotes the index should also be
- * included in a sub-sub-graph which will be extracted as a function with the label as its
+ * included in a nested sub-graph which will be extracted as a function with the label as its
  * "Composite" attribute. An empty label denotes the index should go into the overall partitioned
  * "Compiler" function. In this way we can simulate the usual partitioning needed by external
  * codegen integrations.
@@ -965,9 +967,9 @@ transform::Pass PartitionForTesting(Integer max_exits, Bool allow_taps, String c
     DataflowGraph dataflow_graph(function);
     VLOG(1) << "Dataflow graph is:" << std::endl << dataflow_graph.indexed_graph().ToString();
 
-    // Collect the 'inside' indexes and any sub-sub-graph indexes and labels.
+    // Collect the 'inside' indexes and any nested sub-graph indexes and labels.
     std::vector<PostDfsIndex> node_indexes;
-    std::unordered_map<String, std::vector<PostDfsIndex>> sub_sub_graph_indexes;
+    std::unordered_map<String, std::vector<PostDfsIndex>> nested_sub_graph_indexes;
     node_indexes.reserve(indexes.size());
     for (size_t i = 0; i < indexes.size(); ++i) {
       const Integer& index = indexes[i];
@@ -977,16 +979,16 @@ transform::Pass PartitionForTesting(Integer max_exits, Bool allow_taps, String c
       node_indexes.push_back(index_int);
       const String& label = labels[i];
       if (!label.empty()) {
-        sub_sub_graph_indexes[label].push_back(index_int);
+        nested_sub_graph_indexes[label].push_back(index_int);
       }
     }
 
-    // Build the sub-sub-graphs representing the "Composite" functions (if any).
-    std::vector<SubSubGraph> sub_sub_graphs;
-    for (const auto& kv : sub_sub_graph_indexes) {
+    // Build the nested sub-graphs representing the "Composite" functions (if any).
+    std::vector<NestedSubGraph> nested_sub_graphs;
+    for (const auto& kv : nested_sub_graph_indexes) {
       FunctionAttrsMap composite_attrs;
       composite_attrs.Set("Composite", kv.first);
-      sub_sub_graphs.emplace_back(
+      nested_sub_graphs.emplace_back(
           SubGraph(dataflow_graph, IndexSet(dataflow_graph.size(), kv.second)), composite_attrs);
     }
 
@@ -996,13 +998,13 @@ transform::Pass PartitionForTesting(Integer max_exits, Bool allow_taps, String c
     OpPatternKind kind;
     String label;
     std::tie(kind, label) = SubGraphKindAndLabel(dataflow_graph, inside);
-    SubGraph sub_graph(dataflow_graph, inside, kind, label, std::move(sub_sub_graphs));
+    SubGraph sub_graph(dataflow_graph, inside, kind, label, std::move(nested_sub_graphs));
 
     // Push the overall sub-graph into the final "Compiler" function.
     FunctionAttrsMap compiler_attrs;
     compiler_attrs.Set("Compiler", compiler);
-    SubSubGraph overall_sub_sub_graph(sub_graph, compiler_attrs);
-    SubGraph overall_sub_graph(dataflow_graph, inside, kind, label, {overall_sub_sub_graph});
+    NestedSubGraph overall_nested_sub_graph(sub_graph, compiler_attrs);
+    SubGraph overall_sub_graph(dataflow_graph, inside, kind, label, {overall_nested_sub_graph});
 
     // Check the sub-graph is valid.
     SubGraphConfig config;
