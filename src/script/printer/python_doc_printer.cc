@@ -50,19 +50,16 @@ class PythonDocPrinter : public DocPrinter {
 
  private:
   template <typename DocType>
-  void PrintJoinedElements(const std::string& left, const Array<DocType>& elements,
-                           const std::string& separator, const std::string& right) {
-    output_ << left;
+  void PrintJoinedDocs(const Array<DocType>& docs, const std::string& separator) {
     bool is_first = true;
-    for (auto& element : elements) {
+    for (auto& doc : docs) {
       if (is_first) {
         is_first = false;
       } else {
         output_ << separator;
       }
-      PrintDoc(element);
+      PrintDoc(doc);
     }
-    output_ << right;
   }
 };
 
@@ -119,7 +116,9 @@ void PythonDocPrinter::PrintTypedDoc(const IndexDoc& doc) {
   if (doc->indices.size() == 0) {
     output_ << "[()]";
   } else {
-    PrintJoinedElements("[", doc->indices, ", ", "]");
+    output_ << "[";
+    PrintJoinedDocs(doc->indices, ", ");
+    output_ << "]";
   }
 }
 
@@ -228,22 +227,26 @@ void PythonDocPrinter::PrintTypedDoc(const CallDoc& doc) {
 
 void PythonDocPrinter::PrintTypedDoc(const LambdaDoc& doc) {
   output_ << "lambda ";
-  PrintJoinedElements("", doc->args, ", ", ": ");
+  PrintJoinedDocs(doc->args, ", ");
+  output_ << ": ";
   PrintDoc(doc->body);
 }
 
 void PythonDocPrinter::PrintTypedDoc(const ListDoc& doc) {
-  PrintJoinedElements("[", doc->elements, ", ", "]");
+  output_ << "[";
+  PrintJoinedDocs(doc->elements, ", ");
+  output_ << "]";
 }
 
 void PythonDocPrinter::PrintTypedDoc(const TupleDoc& doc) {
+  output_ << "(";
   if (doc->elements.size() == 1) {
-    output_ << "(";
     PrintDoc(doc->elements[0]);
-    output_ << ",)";
+    output_ << ",";
   } else {
-    PrintJoinedElements("(", doc->elements, ", ", ")");
+    PrintJoinedDocs(doc->elements, ", ");
   }
+  output_ << ")";
 }
 
 void PythonDocPrinter::PrintTypedDoc(const DictDoc& doc) {
