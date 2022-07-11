@@ -269,6 +269,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
           Binary(nid, dnnl::algorithm::binary_mul);
         } else if ("nn.layer_norm" == op_name) {
           LayerNorm(nid);
+        } else if ("nn.batch_matmul" == op_name) {
+          BatchMatMul(nid);
         } else {
           LOG(FATAL) << "Unsupported op: " << op_name;
         }
@@ -481,6 +483,52 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
             {DNNL_ARG_SCRATCHPAD, scratchpad_tr},
             {DNNL_ARG_DST, dst_tr}},
            {sum_in_tr, DNNL_ARG_DST});
+  }
+
+  void BatchMatMul(const size_t& nid) {
+    auto node = nodes_[nid];
+
+    // Setup attributes.
+    auto src_tr = GetInput(nid, 0);
+    auto wgh_tr = GetInput(nid, 1);
+    auto dst_tr = GetOutput(nid, 0);
+    auto bias_tr = TensorRequisite{};
+
+    auto attr = ParseAttrs(nid, &bias_tr);
+    attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+
+    bool transpose_a = GetNodeAttr<bool>(node, "transpose_a");
+    bool transpose_b = GetNodeAttr<bool>(node, "transpose_b");
+
+    if (transpose_a) {
+      src_tr = src_tr.Permute({0, 2, 1});
+    }
+    if (transpose_b) {
+      wgh_tr = wgh_tr.Permute({0, 2, 1});
+    }
+
+    // Assumption that bias is correct and can be squeezed to 1D
+    bias_tr = bias_tr.Reshape({dst_tr.dims()[1]});
+
+    // Matmul description.
+    auto bmm_desc = dnnl::matmul::desc(src_tr.LayoutAny().desc(), wgh_tr.LayoutAny().desc(),
+                                       bias_tr.LayoutAny().desc(), dst_tr.LayoutAny().desc());
+
+    // Enable elementwise post-ops.
+    auto bmm_prim_desc = dnnl::matmul::primitive_desc(bmm_desc, attr, engine_);
+
+    src_tr = src_tr.RequestLayout(bmm_prim_desc.src_desc());
+    wgh_tr = wgh_tr.RequestLayout(bmm_prim_desc.weights_desc());
+    dst_tr = dst_tr.RequestLayout(bmm_prim_desc.dst_desc());
+    bias_tr = bias_tr.RequestLayout(bmm_prim_desc.bias_desc());
+
+    auto scratchpad_tr = TensorRequisite::AsIs(bmm_prim_desc.scratchpad_desc());
+
+    Submit(dnnl::matmul(bmm_prim_desc), {{DNNL_ARG_SRC, src_tr},
+                                         {DNNL_ARG_WEIGHTS, wgh_tr},
+                                         {DNNL_ARG_BIAS, bias_tr},
+                                         {DNNL_ARG_SCRATCHPAD, scratchpad_tr},
+                                         {DNNL_ARG_DST, dst_tr}});
   }
 
   void BatchNorm(const size_t& nid) {
@@ -755,7 +803,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
   TensorRequisite GetOutput(const size_t& nid, const int idx) {
     if (idx == -1) return {};  // -1 reserved value for empty input.
-
     const JSONGraphNode& node = nodes_[nid];
 
     ICHECK_LT(idx, node.GetNumOutput());
@@ -764,6 +811,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     auto eid = node_row_ptr_[nid] + static_cast<uint32_t>(idx);
 
     ICHECK(data_entry_[eid] == nullptr);
+
     auto desc = MakePlainDesc(shape, dtype);
 
     return TensorRequisite::AsIs(desc, eid).Backward();

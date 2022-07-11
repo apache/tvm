@@ -556,6 +556,35 @@ def get_dense(
     return out, dic, param_lst
 
 
+def get_bmm(
+    x_shape=(1, 16, 8), k_shape=(1, 4, 8), dtype="float32", transpose_a=False, transpose_b=True
+):
+    x = relay.var("x", shape=(x_shape), dtype=dtype)
+    kernel = relay.var("kernel", shape=(k_shape), dtype=dtype)
+    out = relay.nn.batch_matmul(
+        x, kernel, out_dtype=dtype, transpose_a=transpose_a, transpose_b=transpose_b
+    )
+    dic = {"x": x_shape, "kernel": k_shape}
+    param_lst = ["kernel"]
+    return out, dic, param_lst
+
+
+def test_bmm(run_module, dtype="float32"):
+    x_shape = (1, 2, 4)
+    k_shape = (1, 3, 4)
+
+    dense, dic, param_lst = get_bmm(x_shape, k_shape, dtype=dtype)
+    dense = tvm.IRModule.from_expr(dense)
+    config = dense, dic, param_lst
+    run_and_verify_func(config, run_module=run_module, dtype=dtype)
+
+    k_shape_t = (1, 4, 3)
+    dense, dic, param_lst = get_bmm(x_shape, k_shape_t, dtype=dtype, transpose_b=False)
+    dense = tvm.IRModule.from_expr(dense)
+    config = dense, dic, param_lst
+    run_and_verify_func(config, run_module=run_module, dtype=dtype)
+
+
 def get_dense_bias(
     x_shape=(1, 16),
     k_shape=(32, 16),

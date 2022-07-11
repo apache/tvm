@@ -105,6 +105,7 @@ _register_external_op_helper("nn.softmax")
 _register_external_op_helper("add")
 _register_external_op_helper("multiply")
 _register_external_op_helper("nn.layer_norm")
+_register_external_op_helper("nn.batch_matmul")
 
 
 def make_conv_pattern(conv_name, with_bias=True, with_eltwise=None):
@@ -563,6 +564,7 @@ class IsComputeIntensiveGraph(ExprVisitor):
                 "nn.conv3d_transpose",
                 "nn.dense",
                 "nn.layer_norm",
+                "nn.batch_matmul",
             ]
         )
         if isinstance(call.op, tvm.tir.op.Op):
@@ -679,7 +681,7 @@ class LayerNormRewrite(DFPatternCallback):
         const_two = is_expr(relay.const(2)) | is_expr(relay.const(2.0))
         p1 = is_op("power")(cdiff, const_two)
         mp1 = is_op("mean")(p1) | is_op("variance")(self.data, mu)
-        eps = is_expr(relay.const(1e-5))
+        eps = is_expr(relay.const(1e-5)) | is_expr(relay.const(1e-6))
         added_eps = is_op("add")(mp1, eps)
         deno = is_op("sqrt")(added_eps)
         div_out = is_op("divide")(diff, deno)
