@@ -14,12 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Test runtime trace"""
+
 import tvm
 from tvm import te
 import numpy as np
 
 
 def test_trace_default_action():
+    """Test trace default action"""
     n = 2
     x = te.placeholder((n, n, n), name="X", dtype="float32")
     y = te.compute(x.shape, lambda i, j, k: tvm.tir.trace([i, j, k, x[i][j][k]]))
@@ -31,11 +34,14 @@ def test_trace_default_action():
 
 
 def test_trace_expr_assign():
+    "Test trace expression assignment"
+
     @tvm.register_func("tvm.tir.trace_callback2")
-    def trace_buffer(x):
+    def trace_buffer(_):  # pylint: disable=unused-variable
         return
 
     def check_assign(dtype):
+        # pylint: disable=invalid-name
         n = 4
         x = te.placeholder((n, n, n), name="X", dtype=dtype)
         y = te.compute(
@@ -61,8 +67,10 @@ def test_trace_expr_assign():
 
 
 def test_trace_expr_sum_generated():
+    """Test trace expression sum generated"""
+
     @tvm.register_func("tvm.tir.trace_callback3")
-    def trace_buffer(x):
+    def trace_buffer(_):  # pylint: disable=unused-variable
         return
 
     def check_expr_sum(dtype):
@@ -87,11 +95,14 @@ def test_trace_expr_sum_generated():
 
 
 def test_trace_expr_sum_args():
+    """Test trace expression sum arguments"""
+
     @tvm.register_func("tvm.tir.trace_silent")
-    def silent(*args):
+    def silent(*_args):  # pylint: disable=unused-variable
         return
 
     def check_expr_sum(dtype):
+        # pylint: disable=invalid-name
         n = 4
         a = te.placeholder((n, n, n), name="a", dtype=dtype)
         b = te.placeholder((n, n, n), name="b", dtype=dtype)
@@ -122,8 +133,10 @@ def test_trace_expr_sum_args():
 
 
 def test_trace_expr_sum_custom():
+    """Test trace expression sum custom"""
+
     @tvm.register_func("tvm.tir.trace_callback4")
-    def trace_buffer(x):
+    def trace_buffer(_):  # pylint: disable=unused-variable
         return
 
     def check_expr_sum_custom(dtype):
@@ -150,15 +163,18 @@ def test_trace_expr_sum_custom():
 
 
 def test_trace_can_change_traced_value_int():
+    """Test trace can change traced integer value"""
+
     @tvm.register_func("tvm.tir.trace_change_int_first")
-    def trace_buffer(x):
+    def trace_buffer1(_):  # pylint: disable=unused-variable
         return 13
 
     @tvm.register_func("tvm.tir.trace_change_int_second")
-    def trace_buffer(x):
+    def trace_buffer2(_):  # pylint: disable=unused-variable
         return 14
 
     def check_assign(dtype):
+        # pylint: disable=invalid-name
         n = 4
         x = te.placeholder((n,), name="X", dtype=dtype)
         y = te.compute(x.shape, lambda i: tvm.tir.trace([x[i]], "tvm.tir.trace_change_int_first"))
@@ -180,15 +196,18 @@ def test_trace_can_change_traced_value_int():
 
 
 def test_trace_can_change_traced_value_float():
+    """Test trace can change traced float value"""
+
     @tvm.register_func("tvm.tir.trace_change_float_first")
-    def trace_buffer(x):
+    def trace_buffer1(_):  # pylint: disable=unused-variable
         return 13.0
 
     @tvm.register_func("tvm.tir.trace_change_float_second")
-    def trace_buffer(x):
+    def trace_buffer2(_):  # pylint: disable=unused-variable
         return 14.0
 
     def check_assign(dtype):
+        # pylint: disable=invalid-name
         n = 4
         x = te.placeholder((n,), name="X", dtype=dtype)
         y = te.compute(x.shape, lambda i: tvm.tir.trace([x[i]], "tvm.tir.trace_change_float_first"))
