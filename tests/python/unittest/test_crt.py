@@ -219,12 +219,7 @@ def test_aot_executor():
         do_test()
 
 
-# pylint: disable=redefined-outer-name
-# pylint: disable=invalid-name
-enable_usmp, expect_exception = tvm.testing.parameters((True, True), (False, False))
-# pylint: enable=invalid-name
-
-
+@pytest.mark.parametrize("enable_usmp,expect_exception", [(True, True), (False, False)])
 @tvm.testing.requires_micro
 def test_aot_executor_usmp_const_pool(enable_usmp, expect_exception):
     """Test the AOT executor with microTVM using usmp.
@@ -297,9 +292,6 @@ def test_aot_executor_usmp_const_pool(enable_usmp, expect_exception):
 
     with _make_session(temp_dir, factory) as sess:
         do_test()
-
-
-# pylint: enable=redefined-outer-name
 
 
 @tvm.testing.requires_micro
