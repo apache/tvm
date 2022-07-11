@@ -82,7 +82,6 @@ def test_path_missing_map_entry():
     "a, b, expected",
     [
         (ObjectPath.root(), ObjectPath.root(), True),
-        (ObjectPath.root(), None, False),
         (ObjectPath.root(), ObjectPath.root().attr("foo"), True),
         (ObjectPath.root().attr("foo"), ObjectPath.root(), False),
         (ObjectPath.root().attr("foo"), ObjectPath.root().attr("foo"), True),
@@ -135,23 +134,19 @@ def test_path_get_prefix():
     assert p2.parent == p1
     assert p1.parent is None
 
-    assert p2[:0] is None
     assert p2[:1] == p1
-    assert p2[:-2] is None
     assert p2[:-1] == p1
 
-    assert p3[:0] is None
     assert p3[:1] == p1
     assert p3[:2] == p2
     assert p3[:3] == p3
-    assert p3[:-3] is None
     assert p3[:-2] == p1
     assert p3[:-1] == p2
 
-    with pytest.raises(tvm._ffi.base.TVMError) as e:
+    with pytest.raises(IndexError) as e:
         p3[:-4]
-    assert "Prefix length can't be negative" in str(e.value)
+    assert "Prefix length must be at least 1" in str(e.value)
 
-    with pytest.raises(tvm._ffi.base.TVMError) as e:
+    with pytest.raises(IndexError) as e:
         p3[:4]
     assert "Attempted to get a prefix longer than the path itself" in str(e.value)

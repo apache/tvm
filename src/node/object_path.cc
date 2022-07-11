@@ -31,12 +31,18 @@ namespace tvm {
 
 // ============== ObjectPathNode ==============
 
-ObjectPathNode::ObjectPathNode(ObjectPathNode* parent)
+ObjectPathNode::ObjectPathNode(const ObjectPathNode* parent)
     : parent_(GetRef<ObjectRef>(parent)), length_(parent == nullptr ? 1 : parent->length_ + 1) {}
 
 // --- GetParent ---
 
-ObjectPath ObjectPathNode::GetParent() const { return Downcast<ObjectPath>(parent_); }
+Optional<ObjectPath> ObjectPathNode::GetParent() const {
+  if (parent_ == nullptr) {
+    return NullOpt;
+  } else {
+    return Downcast<ObjectPath>(parent_);
+  }
+}
 
 TVM_REGISTER_GLOBAL("node.ObjectPathGetParent").set_body_typed([](const ObjectPath& path) {
   return path->GetParent();
@@ -44,22 +50,21 @@ TVM_REGISTER_GLOBAL("node.ObjectPathGetParent").set_body_typed([](const ObjectPa
 
 // --- Length ---
 
-size_t ObjectPathNode::Length() const { return length_; }
+int32_t ObjectPathNode::Length() const { return length_; }
 
 TVM_REGISTER_GLOBAL("node.ObjectPathLength").set_body_typed([](const ObjectPath& path) {
-  return static_cast<int64_t>(path->Length());
+  return path->Length();
 });
 
 // --- GetPrefix ---
 
-ObjectPath ObjectPathNode::GetPrefix(size_t length) const {
-  if (length > Length()) {
-    throw std::out_of_range("Attempted to get a prefix longer than the path itself");
-  }
+ObjectPath ObjectPathNode::GetPrefix(int32_t length) const {
+  CHECK_GE(length, 1) << "IndexError: Prefix length must be at least 1";
+  CHECK_LE(length, Length()) << "IndexError: Attempted to get a prefix longer than the path itself";
 
   const ObjectPathNode* node = this;
-  size_t suffix_len = Length() - length;
-  for (size_t i = 0; i < suffix_len; ++i) {
+  int32_t suffix_len = Length() - length;
+  for (int32_t i = 0; i < suffix_len; ++i) {
     node = node->ParentNode();
   }
 
@@ -67,21 +72,12 @@ ObjectPath ObjectPathNode::GetPrefix(size_t length) const {
 }
 
 TVM_REGISTER_GLOBAL("node.ObjectPathGetPrefix")
-    .set_body_typed([](const ObjectPath& path, int64_t length) {
-      if (length < 0) {
-        throw std::out_of_range("Prefix length can't be negative");
-      }
-      return path->GetPrefix(static_cast<size_t>(length));
-    });
+    .set_body_typed([](const ObjectPath& path, int64_t length) { return path->GetPrefix(length); });
 
 // --- IsPrefixOf ---
 
 bool ObjectPathNode::IsPrefixOf(const ObjectPath& other) const {
-  if (!other.defined()) {
-    return false;
-  }
-
-  size_t this_len = Length();
+  int32_t this_len = Length();
   if (this_len > other->Length()) {
     return false;
   }
@@ -93,7 +89,7 @@ TVM_REGISTER_GLOBAL("node.ObjectPathIsPrefixOf")
 
 // --- Attr ---
 
-ObjectPath ObjectPathNode::Attr(const char* attr_key) {
+ObjectPath ObjectPathNode::Attr(const char* attr_key) const {
   if (attr_key != nullptr) {
     return ObjectPath(make_object<AttributeAccessPathNode>(this, attr_key));
   } else {
@@ -101,9 +97,9 @@ ObjectPath ObjectPathNode::Attr(const char* attr_key) {
   }
 }
 
-ObjectPath ObjectPathNode::Attr(String attr_key) {
+ObjectPath ObjectPathNode::Attr(Optional<String> attr_key) const {
   if (attr_key.defined()) {
-    return ObjectPath(make_object<AttributeAccessPathNode>(this, attr_key));
+    return ObjectPath(make_object<AttributeAccessPathNode>(this, attr_key.value()));
   } else {
     return ObjectPath(make_object<UnknownAttributeAccessPathNode>(this));
   }
@@ -116,27 +112,27 @@ TVM_REGISTER_GLOBAL("node.ObjectPathAttr")
 
 // --- ArrayIndex ---
 
-ObjectPath ObjectPathNode::ArrayIndex(size_t index) {
+ObjectPath ObjectPathNode::ArrayIndex(int32_t index) const {
   return ObjectPath(make_object<ArrayIndexPathNode>(this, index));
 }
 
 TVM_REGISTER_GLOBAL("node.ObjectPathArrayIndex")
-    .set_body_typed([](const ObjectPath& path, size_t index) { return path->ArrayIndex(index); });
+    .set_body_typed([](const ObjectPath& path, int32_t index) { return path->ArrayIndex(index); });
 
 // --- MissingArrayElement ---
 
-ObjectPath ObjectPathNode::MissingArrayElement(size_t index) {
+ObjectPath ObjectPathNode::MissingArrayElement(int32_t index) const {
   return ObjectPath(make_object<MissingArrayElementPathNode>(this, index));
 }
 
 TVM_REGISTER_GLOBAL("node.ObjectPathMissingArrayElement")
-    .set_body_typed([](const ObjectPath& path, size_t index) {
+    .set_body_typed([](const ObjectPath& path, int32_t index) {
       return path->MissingArrayElement(index);
     });
 
 // --- MapValue ---
 
-ObjectPath ObjectPathNode::MapValue(ObjectRef key) {
+ObjectPath ObjectPathNode::MapValue(ObjectRef key) const {
   return ObjectPath(make_object<MapValuePathNode>(this, std::move(key)));
 }
 
@@ -147,7 +143,7 @@ TVM_REGISTER_GLOBAL("node.ObjectPathMapValue")
 
 // --- MissingMapEntry ---
 
-ObjectPath ObjectPathNode::MissingMapEntry() {
+ObjectPath ObjectPathNode::MissingMapEntry() const {
   return ObjectPath(make_object<MissingMapEntryPathNode>(this));
 }
 
@@ -229,7 +225,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<RootPathNode>(PrintObjec
 
 // ----- AttributeAccess -----
 
-AttributeAccessPathNode::AttributeAccessPathNode(ObjectPathNode* parent, String attr_key)
+AttributeAccessPathNode::AttributeAccessPathNode(const ObjectPathNode* parent, String attr_key)
     : ObjectPathNode(parent), attr_key(std::move(attr_key)) {}
 
 bool AttributeAccessPathNode::LastNodeEqual(const ObjectPathNode* other) const {
@@ -244,7 +240,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // ----- UnknownAttributeAccess -----
 
-UnknownAttributeAccessPathNode::UnknownAttributeAccessPathNode(ObjectPathNode* parent)
+UnknownAttributeAccessPathNode::UnknownAttributeAccessPathNode(const ObjectPathNode* parent)
     : ObjectPathNode(parent) {}
 
 bool UnknownAttributeAccessPathNode::LastNodeEqual(const ObjectPathNode* other) const {
@@ -261,7 +257,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // ----- ArrayIndexPath -----
 
-ArrayIndexPathNode::ArrayIndexPathNode(ObjectPathNode* parent, size_t index)
+ArrayIndexPathNode::ArrayIndexPathNode(const ObjectPathNode* parent, int32_t index)
     : ObjectPathNode(parent), index(index) {}
 
 bool ArrayIndexPathNode::LastNodeEqual(const ObjectPathNode* other) const {
@@ -275,7 +271,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<ArrayIndexPathNode>(Prin
 
 // ----- MissingArrayElement -----
 
-MissingArrayElementPathNode::MissingArrayElementPathNode(ObjectPathNode* parent, size_t index)
+MissingArrayElementPathNode::MissingArrayElementPathNode(const ObjectPathNode* parent,
+                                                         int32_t index)
     : ObjectPathNode(parent), index(index) {}
 
 bool MissingArrayElementPathNode::LastNodeEqual(const ObjectPathNode* other) const {
@@ -292,7 +289,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // ----- MapValue -----
 
-MapValuePathNode::MapValuePathNode(ObjectPathNode* parent, ObjectRef key)
+MapValuePathNode::MapValuePathNode(const ObjectPathNode* parent, ObjectRef key)
     : ObjectPathNode(parent), key(std::move(key)) {}
 
 bool MapValuePathNode::LastNodeEqual(const ObjectPathNode* other) const {
@@ -310,7 +307,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<MapValuePathNode>(PrintO
 
 // ----- MissingMapEntry -----
 
-MissingMapEntryPathNode::MissingMapEntryPathNode(ObjectPathNode* parent) : ObjectPathNode(parent) {}
+MissingMapEntryPathNode::MissingMapEntryPathNode(const ObjectPathNode* parent)
+    : ObjectPathNode(parent) {}
 
 bool MissingMapEntryPathNode::LastNodeEqual(const ObjectPathNode* other) const { return true; }
 

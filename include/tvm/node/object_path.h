@@ -26,6 +26,7 @@
 #ifndef TVM_NODE_OBJECT_PATH_H_
 #define TVM_NODE_OBJECT_PATH_H_
 
+#include <tvm/runtime/container/optional.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/object.h>
 
@@ -54,20 +55,20 @@ class ObjectPath;
 class ObjectPathNode : public Object {
  public:
   /*! \brief Get the parent path */
-  ObjectPath GetParent() const;
+  Optional<ObjectPath> GetParent() const;
   /*!
    * \brief Get the length of the path.
    *
    * For example, the path returned by `ObjectPath::Root()` has length 1.
    */
-  size_t Length() const;
+  int32_t Length() const;
 
   /*!
    * \brief Get a path prefix of the given length.
    *
    * Provided `length` must not exceed the `Length()` of this path.
    */
-  ObjectPath GetPrefix(size_t length) const;
+  ObjectPath GetPrefix(int32_t length) const;
 
   /*!
    * \brief Check if this path is a prefix of another path.
@@ -80,28 +81,28 @@ class ObjectPathNode : public Object {
   bool PathsEqual(const ObjectPath& other) const;
 
   /*! \brief Extend this path with access to an object attribute. */
-  ObjectPath Attr(const char* attr_key);
+  ObjectPath Attr(const char* attr_key) const;
 
   /*! \brief Extend this path with access to an object attribute. */
-  ObjectPath Attr(String attr_key);
+  ObjectPath Attr(Optional<String> attr_key) const;
 
   /*! \brief Extend this path with access to an array element. */
-  ObjectPath ArrayIndex(size_t index);
+  ObjectPath ArrayIndex(int32_t index) const;
 
   /*! \brief Extend this path with access to a missing array element. */
-  ObjectPath MissingArrayElement(size_t index);
+  ObjectPath MissingArrayElement(int32_t index) const;
 
   /*! \brief Extend this path with access to a map value. */
-  ObjectPath MapValue(ObjectRef key);
+  ObjectPath MapValue(ObjectRef key) const;
 
   /*! \brief Extend this path with access to a missing map entry. */
-  ObjectPath MissingMapEntry();
+  ObjectPath MissingMapEntry() const;
 
   static constexpr const char* _type_key = "ObjectPath";
   TVM_DECLARE_BASE_OBJECT_INFO(ObjectPathNode, Object);
 
  protected:
-  explicit ObjectPathNode(ObjectPathNode* parent);
+  explicit ObjectPathNode(const ObjectPathNode* parent);
 
   friend class ObjectPath;
   friend std::string GetObjectPathRepr(const ObjectPathNode* node);
@@ -114,8 +115,8 @@ class ObjectPathNode : public Object {
   virtual std::string LastNodeString() const = 0;
 
  private:
-  ObjectRef parent_;
-  size_t length_;
+  Optional<ObjectRef> parent_;
+  int32_t length_;
 };
 
 class ObjectPath : public ObjectRef {
@@ -123,7 +124,7 @@ class ObjectPath : public ObjectRef {
   /*! \brief Create a path that represents the root object itself. */
   static ObjectPath Root();
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ObjectPath, ObjectRef, ObjectPathNode);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ObjectPath, ObjectRef, ObjectPathNode);
 };
 
 //-------------------------------------------------------------------------
@@ -156,7 +157,7 @@ class AttributeAccessPathNode final : public ObjectPathNode {
   /*! \brief Name of the attribute being accessed. Must be a static string. */
   String attr_key;
 
-  explicit AttributeAccessPathNode(ObjectPathNode* parent, String attr_key);
+  explicit AttributeAccessPathNode(const ObjectPathNode* parent, String attr_key);
 
   static constexpr const char* _type_key = "AttributeAccessPath";
   TVM_DECLARE_FINAL_OBJECT_INFO(AttributeAccessPathNode, ObjectPathNode);
@@ -175,7 +176,7 @@ class AttributeAccessPath : public ObjectPath {
 
 class UnknownAttributeAccessPathNode final : public ObjectPathNode {
  public:
-  explicit UnknownAttributeAccessPathNode(ObjectPathNode* parent);
+  explicit UnknownAttributeAccessPathNode(const ObjectPathNode* parent);
 
   static constexpr const char* _type_key = "UnknownAttributeAccessPath";
   TVM_DECLARE_FINAL_OBJECT_INFO(UnknownAttributeAccessPathNode, ObjectPathNode);
@@ -196,9 +197,9 @@ class UnknownAttributeAccessPath : public ObjectPath {
 class ArrayIndexPathNode : public ObjectPathNode {
  public:
   /*! \brief Index of the array element that is being accessed. */
-  size_t index;
+  int32_t index;
 
-  explicit ArrayIndexPathNode(ObjectPathNode* parent, size_t index);
+  explicit ArrayIndexPathNode(const ObjectPathNode* parent, int32_t index);
 
   static constexpr const char* _type_key = "ArrayIndexPath";
   TVM_DECLARE_FINAL_OBJECT_INFO(ArrayIndexPathNode, ObjectPathNode);
@@ -218,9 +219,9 @@ class ArrayIndexPath : public ObjectPath {
 class MissingArrayElementPathNode : public ObjectPathNode {
  public:
   /*! \brief Index of the array element that is missing. */
-  size_t index;
+  int32_t index;
 
-  explicit MissingArrayElementPathNode(ObjectPathNode* parent, size_t index);
+  explicit MissingArrayElementPathNode(const ObjectPathNode* parent, int32_t index);
 
   static constexpr const char* _type_key = "MissingArrayElementPath";
   TVM_DECLARE_FINAL_OBJECT_INFO(MissingArrayElementPathNode, ObjectPathNode);
@@ -242,7 +243,7 @@ class MapValuePathNode : public ObjectPathNode {
   /*! \brief Key of the map entry that is being accessed */
   ObjectRef key;
 
-  explicit MapValuePathNode(ObjectPathNode* parent, ObjectRef key);
+  explicit MapValuePathNode(const ObjectPathNode* parent, ObjectRef key);
 
   static constexpr const char* _type_key = "MapValuePath";
   TVM_DECLARE_FINAL_OBJECT_INFO(MapValuePathNode, ObjectPathNode);
@@ -261,7 +262,7 @@ class MapValuePath : public ObjectPath {
 
 class MissingMapEntryPathNode : public ObjectPathNode {
  public:
-  explicit MissingMapEntryPathNode(ObjectPathNode* parent);
+  explicit MissingMapEntryPathNode(const ObjectPathNode* parent);
 
   static constexpr const char* _type_key = "MissingMapEntryPath";
   TVM_DECLARE_FINAL_OBJECT_INFO(MissingMapEntryPathNode, ObjectPathNode);
