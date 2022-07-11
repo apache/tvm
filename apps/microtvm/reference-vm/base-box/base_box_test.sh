@@ -16,22 +16,27 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-#   Using this script we can reuse docker/install scripts to configure the reference 
-#   virtual machine similar to CI QEMU setup.
-#
 
-set -e
 set -x
 
-source ~/.profile
+if [ "$#" -lt 1 ]; then
+    echo "Usage: base_box_test.sh <PLATFORM> <BOARD>"
+    exit -1
+fi
 
-# Init Zephyr
-cd ~
-~/ubuntu_init_zephyr_project.sh ~/zephyr
+platform=$1
+board=$2
 
-# Install CMSIS
-cd ~
-~/ubuntu_install_cmsis.sh ~/cmsis
+if [ "${platform}" == "zephyr" ]; then
+    pytest tests/micro/zephyr --zephyr-board=${board}
+fi
 
-# Cleanup
-rm -f ubuntu_init_zephyr_project.sh ubuntu_install_cmsis.sh
+if [ "${platform}" == "arduino" ]; then
+    pytest tests/micro/arduino/test_arduino_workflow.py --arduino-board=${board}
+    if [ $board == "nano33ble" ]; then
+        # https://github.com/apache/tvm/issues/8730
+        echo "NOTE: skipped test_arduino_rpc_server.py on $board -- known failure"
+    else
+        pytest tests/micro/arduino/test_arduino_rpc_server.py --arduino-board=${board}
+    fi
+fi
