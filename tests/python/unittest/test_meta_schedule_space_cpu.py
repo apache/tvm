@@ -741,8 +741,169 @@ def test_cpu_cap():
     )
 
 
+def test_cpu_dep():
+    # fmt: off
+    @T.prim_func
+    def dep_0(placeholder: T.Buffer[(1, 112, 112, 32), "float32"], placeholder_1: T.Buffer[(1, 3, 3, 32), "float32"], depth_conv2d_nhwc: T.Buffer[(1, 112, 112, 32), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":64, "meta_schedule.vectorize":64})
+            PadInput = T.alloc_buffer([1, 114, 114, 32], dtype="float32")
+            depth_conv2d_nhwc_global = T.alloc_buffer([1, 112, 112, 32], dtype="float32")
+            for i0, i1, i2, i3 in T.grid(1, 114, 114, 32):
+                with T.block("PadInput"):
+                    i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    T.reads(placeholder[i0_1, i1_1 - 1, i2_1 - 1, i3_1])
+                    T.writes(PadInput[i0_1, i1_1, i2_1, i3_1])
+                    PadInput[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(1 <= i1_1 and i1_1 < 113 and 1 <= i2_1 and i2_1 < 113, placeholder[i0_1, i1_1 - 1, i2_1 - 1, i3_1], T.float32(0), dtype="float32")
+            for i0_0, i1_0, i2_0, i3_0, i0_1_1, i1_1_1, i2_1_1, i3_1_1 in T.grid(1, 1, 1, 1, 1, 4, 4, 8):
+                for i4_0, i5_0, i0_2, i1_2, i2_2, i3_2, i4_1, i5_1, i0_3, i1_3, i2_3, i3_3 in T.grid(1, 1, 1, 2, 7, 2, 3, 3, 1, 14, 4, 2):
+                    with T.block("depth_conv2d_nhwc"):
+                        n = T.axis.spatial(1, i0_0 + i0_1_1 + i0_2 + i0_3)
+                        h = T.axis.spatial(112, i1_0 * 112 + i1_1_1 * 28 + i1_2 * 14 + i1_3)
+                        w = T.axis.spatial(112, i2_0 * 112 + i2_1_1 * 28 + i2_2 * 4 + i2_3)
+                        c = T.axis.spatial(32, i3_0 * 32 + i3_1_1 * 4 + i3_2 * 2 + i3_3)
+                        rh = T.axis.reduce(3, i4_0 * 3 + i4_1)
+                        rw = T.axis.reduce(3, i5_0 * 3 + i5_1)
+                        T.reads(PadInput[n, h + rh, w + rw, c], placeholder_1[0, rh, rw, c])
+                        T.writes(depth_conv2d_nhwc_global[n, h, w, c])
+                        T.block_attr({"meta_schedule.tiling_structure":"SSRSRS"})
+                        with T.init():
+                            depth_conv2d_nhwc_global[n, h, w, c] = T.float32(0)
+                        depth_conv2d_nhwc_global[n, h, w, c] = depth_conv2d_nhwc_global[n, h, w, c] + PadInput[n, h + rh, w + rw, c] * placeholder_1[0, rh, rw, c]
+                for ax0, ax1, ax2, ax3 in T.grid(1, 28, 28, 4):
+                    with T.block("depth_conv2d_nhwc_global"):
+                        v0 = T.axis.spatial(1, ax0)
+                        v1 = T.axis.spatial(112, i1_1_1 * 28 + ax1)
+                        v2 = T.axis.spatial(112, i2_1_1 * 28 + ax2)
+                        v3 = T.axis.spatial(32, i3_1_1 * 4 + ax3)
+                        T.reads(depth_conv2d_nhwc_global[v0, v1, v2, v3])
+                        T.writes(depth_conv2d_nhwc[v0, v1, v2, v3])
+                        depth_conv2d_nhwc[v0, v1, v2, v3] = depth_conv2d_nhwc_global[v0, v1, v2, v3]
+    @T.prim_func
+    def dep_1(placeholder: T.Buffer[(1, 112, 112, 32), "float32"], placeholder_1: T.Buffer[(1, 3, 3, 32), "float32"], depth_conv2d_nhwc: T.Buffer[(1, 112, 112, 32), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":16, "meta_schedule.vectorize":64})
+            PadInput = T.alloc_buffer([1, 114, 114, 32], dtype="float32")
+            depth_conv2d_nhwc_global = T.alloc_buffer([1, 112, 112, 32], dtype="float32")
+            for i0, i1, i2, i3 in T.grid(1, 114, 114, 32):
+                with T.block("PadInput"):
+                    i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    T.reads(placeholder[i0_1, i1_1 - 1, i2_1 - 1, i3_1])
+                    T.writes(PadInput[i0_1, i1_1, i2_1, i3_1])
+                    PadInput[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(1 <= i1_1 and i1_1 < 113 and 1 <= i2_1 and i2_1 < 113, placeholder[i0_1, i1_1 - 1, i2_1 - 1, i3_1], T.float32(0), dtype="float32")
+            for i0_0, i1_0, i2_0, i3_0 in T.grid(1, 1, 1, 1):
+                for i0_1_1, i1_1_1, i2_1_1, i3_1_1, i4_0, i5_0, i0_2, i1_2, i2_2, i3_2, i4_1, i5_1, i0_3, i1_3, i2_3, i3_3 in T.grid(1, 4, 4, 8, 1, 1, 1, 2, 7, 2, 3, 3, 1, 14, 4, 2):
+                    with T.block("depth_conv2d_nhwc"):
+                        n = T.axis.spatial(1, i0_0 + i0_1_1 + i0_2 + i0_3)
+                        h = T.axis.spatial(112, i1_0 * 112 + i1_1_1 * 28 + i1_2 * 14 + i1_3)
+                        w = T.axis.spatial(112, i2_0 * 112 + i2_1_1 * 28 + i2_2 * 4 + i2_3)
+                        c = T.axis.spatial(32, i3_0 * 32 + i3_1_1 * 4 + i3_2 * 2 + i3_3)
+                        rh = T.axis.reduce(3, i4_0 * 3 + i4_1)
+                        rw = T.axis.reduce(3, i5_0 * 3 + i5_1)
+                        T.reads(PadInput[n, h + rh, w + rw, c], placeholder_1[0, rh, rw, c])
+                        T.writes(depth_conv2d_nhwc_global[n, h, w, c])
+                        T.block_attr({"meta_schedule.tiling_structure":"SSRSRS"})
+                        with T.init():
+                            depth_conv2d_nhwc_global[n, h, w, c] = T.float32(0)
+                        depth_conv2d_nhwc_global[n, h, w, c] = depth_conv2d_nhwc_global[n, h, w, c] + PadInput[n, h + rh, w + rw, c] * placeholder_1[0, rh, rw, c]
+                for ax0, ax1, ax2, ax3 in T.grid(1, 112, 112, 32):
+                    with T.block("depth_conv2d_nhwc_global"):
+                        v0, v1, v2, v3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                        T.reads(depth_conv2d_nhwc_global[v0, v1, v2, v3])
+                        T.writes(depth_conv2d_nhwc[v0, v1, v2, v3])
+                        depth_conv2d_nhwc[v0, v1, v2, v3] = depth_conv2d_nhwc_global[v0, v1, v2, v3]
+    @T.prim_func
+    def dep_2(placeholder: T.Buffer[(1, 112, 112, 32), "float32"], placeholder_1: T.Buffer[(1, 3, 3, 32), "float32"], depth_conv2d_nhwc: T.Buffer[(1, 112, 112, 32), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":0, "meta_schedule.vectorize":64})
+            PadInput = T.alloc_buffer([1, 114, 114, 32], dtype="float32")
+            for i0_0, i1_0, i2_0, i3_0, i0_1, i1_1 in T.grid(1, 1, 1, 1, 1, 4):
+                for ax0, ax1, ax2, ax3 in T.grid(1, 30, 114, 32):
+                    with T.block("PadInput"):
+                        i0 = T.axis.spatial(1, ax0)
+                        i1 = T.axis.spatial(114, i1_1 * 28 + ax1)
+                        i2, i3 = T.axis.remap("SS", [ax2, ax3])
+                        T.reads(placeholder[i0, i1 - 1, i2 - 1, i3])
+                        T.writes(PadInput[i0, i1, i2, i3])
+                        PadInput[i0, i1, i2, i3] = T.if_then_else(1 <= i1 and i1 < 113 and 1 <= i2 and i2 < 113, placeholder[i0, i1 - 1, i2 - 1, i3], T.float32(0), dtype="float32")
+                for i2_1, i3_1, i4_0, i5_0, i0_2, i1_2, i2_2, i3_2, i4_1, i5_1, i0_3, i1_3, i2_3, i3_3 in T.grid(4, 8, 1, 1, 1, 2, 7, 2, 3, 3, 1, 14, 4, 2):
+                    with T.block("depth_conv2d_nhwc"):
+                        n = T.axis.spatial(1, i0_0 + i0_1 + i0_2 + i0_3)
+                        h = T.axis.spatial(112, i1_0 * 112 + i1_1 * 28 + i1_2 * 14 + i1_3)
+                        w = T.axis.spatial(112, i2_0 * 112 + i2_1 * 28 + i2_2 * 4 + i2_3)
+                        c = T.axis.spatial(32, i3_0 * 32 + i3_1 * 4 + i3_2 * 2 + i3_3)
+                        rh = T.axis.reduce(3, i4_0 * 3 + i4_1)
+                        rw = T.axis.reduce(3, i5_0 * 3 + i5_1)
+                        T.reads(PadInput[n, h + rh, w + rw, c], placeholder_1[0, rh, rw, c])
+                        T.writes(depth_conv2d_nhwc[n, h, w, c])
+                        T.block_attr({"meta_schedule.tiling_structure":"SSRSRS"})
+                        with T.init():
+                            depth_conv2d_nhwc[n, h, w, c] = T.float32(0)
+                        depth_conv2d_nhwc[n, h, w, c] = depth_conv2d_nhwc[n, h, w, c] + PadInput[n, h + rh, w + rw, c] * placeholder_1[0, rh, rw, c]
+    # fmt: on
+    decision_0 = [
+        ("SamplePerfectTile", [1, 1, 1, 1]),
+        ("SamplePerfectTile", [1, 4, 2, 14]),
+        ("SamplePerfectTile", [1, 4, 7, 4]),
+        ("SamplePerfectTile", [1, 8, 2, 2]),
+        ("SamplePerfectTile", [1, 3]),
+        ("SamplePerfectTile", [1, 3]),
+        ("SampleCategorical", 2),
+        ("SampleComputeLocation", -1),
+    ]
+    decision_1 = [
+        ("SamplePerfectTile", [1, 1, 1, 1]),
+        ("SamplePerfectTile", [1, 4, 2, 14]),
+        ("SamplePerfectTile", [1, 4, 7, 4]),
+        ("SamplePerfectTile", [1, 8, 2, 2]),
+        ("SamplePerfectTile", [1, 3]),
+        ("SamplePerfectTile", [1, 3]),
+        ("SampleCategorical", 1),
+        ("SampleComputeLocation", -1),
+    ]
+    decision_2 = [
+        ("SamplePerfectTile", [1, 1, 1, 1]),
+        ("SamplePerfectTile", [1, 4, 2, 14]),
+        ("SamplePerfectTile", [1, 4, 7, 4]),
+        ("SamplePerfectTile", [1, 8, 2, 2]),
+        ("SamplePerfectTile", [1, 3]),
+        ("SamplePerfectTile", [1, 3]),
+        ("SampleCategorical", 0),
+        ("SampleComputeLocation", 5),
+    ]
+    mod = create_te_workload("DEP", 0)
+    actual = ms.TuneContext(
+        mod=mod,
+        target=_target(),
+        space_generator=ms.space_generator.PostOrderApply(),
+        sch_rules="default",
+    ).generate_design_space()
+    check_sketches(
+        mod,
+        sketches=actual,
+        expected_mods=[dep_0, dep_1, dep_2],
+        expected_decisions=[decision_0, decision_1, decision_2],
+    )
+
+
 if __name__ == "__main__":
     test_cpu_c1d()
     test_cpu_c2d()
     test_cpu_c3d()
     test_cpu_cap()
+    test_cpu_dep()
