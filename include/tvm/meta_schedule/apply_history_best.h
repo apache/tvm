@@ -44,6 +44,7 @@ class ApplyHistoryBestNode : public runtime::Object {
       runtime::TypedPackedFunc<Optional<tir::PrimFunc>(const Array<te::Tensor, void>&)>;
   /*! \brief  A callback function that takes a tuning record and does something with it */
   using FTakeTuningRecord = runtime::TypedPackedFunc<void(const TuningRecord&)>;
+  using FDirectDispatch = runtime::TypedPackedFunc<Optional<IRModule>(const IRModule&)>;
 
   /*! \brief The database to be queried from */
   Database database{nullptr};
@@ -64,11 +65,14 @@ class ApplyHistoryBestNode : public runtime::Object {
    * \param target The target to be queried
    * \param dispatched The IRs after dispatch
    * \param f_take_tuning_record A callback function that takes a tuning record and does something
-   * with it
+   *   with it.
+   * \param f_direct_dispatch A function that directly dispatches an IRModule to the given workload
+   *   as result if available, skipping the database query.
    */
   Optional<IRModule> Query(runtime::String task_name, IRModule mod, Target target,
                            Optional<Array<IRModule>> dispatched,
-                           FTakeTuningRecord f_take_tuning_record);
+                           FTakeTuningRecord f_take_tuning_record,
+                           FDirectDispatch f_direct_dispatch = nullptr);
 
   static constexpr const char* _type_key = "meta_schedule.ApplyHistoryBest";
   TVM_DECLARE_FINAL_OBJECT_INFO(ApplyHistoryBestNode, runtime::Object);

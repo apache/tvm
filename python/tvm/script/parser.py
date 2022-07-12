@@ -361,7 +361,7 @@ class TVMScriptParser(Transformer):
         """
         if len(node.funcs) == 1:
             return self.transform(next(iter(node.funcs.values())))
-        elif len(node.func) == 0:
+        elif len(node.funcs) == 0:
             self.report_error(
                 "You must supply at least one class or function definition", node.span
             )
@@ -526,7 +526,10 @@ class TVMScriptParser(Transformer):
         # add parameters of the lambda
         arg_vars = []
         for arg in node.params:
-            arg_var = tvm.te.var(arg.name)
+            # Use "void" for dtype here. The actual type is not yet known and will be
+            # determined later. Using void type will allow IRSubstitute to do the
+            # replacement without flagging a type-mismatch error.
+            arg_var = tvm.te.var(arg.name, dtype="")
             arg_vars.append(arg_var)
             self.context.update_symbol(arg.name, arg_var, node)
 

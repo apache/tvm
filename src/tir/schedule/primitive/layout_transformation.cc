@@ -548,7 +548,7 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
 
   static void UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv, Integer buffer_index,
                                       Integer buffer_index_type, IndexMap index_map) {
-    return sch->TransformLayout(block_rv, buffer_index,
+    return sch->TransformLayout(block_rv, buffer_index.IntValue(),
                                 static_cast<BufferIndexType>(buffer_index_type->value), index_map);
   }
 
@@ -639,7 +639,7 @@ struct SetAxisSeparatorTraits : public UnpackedInstTraits<SetAxisSeparatorTraits
 
   static void UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv, Integer buffer_index,
                                       Integer buffer_index_type, Array<IntImm> axis_separators) {
-    return sch->SetAxisSeparator(block_rv, buffer_index,
+    return sch->SetAxisSeparator(block_rv, buffer_index.IntValue(),
                                  static_cast<BufferIndexType>(buffer_index_type->value),
                                  axis_separators);
   }

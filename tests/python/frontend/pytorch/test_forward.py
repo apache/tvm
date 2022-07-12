@@ -3895,6 +3895,18 @@ def test_empty_like():
     verify_model_with_input(test_func, [torch.rand([1, 3, 10, 10]).float()], assert_shape_only=True)
 
 
+def test_randn():
+    def test_func():
+        return torch.randn([1, 3, 10, 10])
+
+    verify_model_with_input(test_func, [], assert_shape_only=True)
+
+    def test_func1():
+        return torch.randn(1, 3, 10, 10)
+
+    verify_model_with_input(test_func1, [], assert_shape_only=True)
+
+
 def test_forward_pretrained_bert_base_uncased():
     ######################################################################
     # This is an example how to run BERT models using TVM

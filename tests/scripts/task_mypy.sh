@@ -32,6 +32,9 @@ mypy  --check-untyped-defs python/tvm/tir/analysis/
 echo "Checking MyPy Type defs in the transform package."
 mypy  --check-untyped-defs python/tvm/tir/transform/
 
+echo "Checking MyPy Type defs in the tvmscript printer package."
+mypy  --check-untyped-defs python/tvm/script/printer
+
 echo "Checking MyPy Type defs in the TIR package with unittest"
 MYPYPATH=$TVM_PATH/python mypy --check-untyped-defs tests/python/unittest/test_tvmscript_type.py
 

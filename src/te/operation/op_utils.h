@@ -51,12 +51,12 @@ using tir::MergeNest;
  * \param p_value_map The result value of each IterVar.
  * \param debug_keep_trivial_loop Whether keep trivial loops with extent of 1
  */
-std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
-                                             const std::unordered_map<IterVar, Range>& dom_map,
-                                             size_t begin_iter_pos, bool new_loop_var,
-                                             const std::unordered_set<IterVar>& skip_iter,
-                                             std::unordered_map<IterVar, PrimExpr>* p_value_map,
-                                             bool debug_keep_trivial_loop);
+std::vector<std::vector<Stmt>> MakeLoopNest(const Stage& stage,
+                                            const std::unordered_map<IterVar, Range>& dom_map,
+                                            size_t begin_iter_pos, bool new_loop_var,
+                                            const std::unordered_set<IterVar>& skip_iter,
+                                            std::unordered_map<IterVar, PrimExpr>* p_value_map,
+                                            bool debug_keep_trivial_loop);
 
 /*!
  * \brief Create a nest of if checking the predicates.

@@ -57,10 +57,10 @@ class PoolAllocationToOffsetConverter : public StmtExprMutator {
       size_t extent_size = -1;
       if (kv.first->IsInstance<AllocateNode>()) {
         Allocate allocate_node = Downcast<Allocate>(kv.first);
-        extent_size = CalculateExtentsSize(allocate_node.operator->());
+        extent_size = CalculateExtentsSize(allocate_node.operator->()).IntValue();
       } else if (kv.first->IsInstance<AllocateConstNode>()) {
         AllocateConst allocate_const_node = Downcast<AllocateConst>(kv.first);
-        extent_size = CalculateExtentsSize(allocate_const_node.operator->());
+        extent_size = CalculateExtentsSize(allocate_const_node.operator->()).IntValue();
       } else {
         ICHECK(false) << "Not supported node type " << kv.first->GetTypeKey();
       }

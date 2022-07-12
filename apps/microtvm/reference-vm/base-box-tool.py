@@ -18,7 +18,6 @@
 
 
 import argparse
-from ast import arg
 import copy
 import json
 import logging
@@ -34,7 +33,7 @@ import pathlib
 _LOG = logging.getLogger(__name__)
 
 
-THIS_DIR = os.path.realpath(os.path.dirname(__file__) or ".")
+THIS_DIR = pathlib.Path(os.path.realpath(os.path.dirname(__file__)))
 
 # List of vagrant providers supported by this tool
 ALL_PROVIDERS = (
@@ -52,31 +51,26 @@ ALL_PLATFORMS = (
 
 # Extra scripts required to execute on provisioning
 # in [platform]/base-box/base_box_provision.sh
-COMMON_SCRIPTS = [
-    "apps/microtvm/reference-vm/base_box_setup_common.sh",
+EXTRA_SCRIPTS = [
+    "apps/microtvm/reference-vm/base-box/base_box_setup_common.sh",
     "docker/install/ubuntu_install_core.sh",
     "docker/install/ubuntu_install_python.sh",
     "docker/utils/apt-install-and-clear.sh",
     "docker/install/ubuntu1804_install_llvm.sh",
+    # Zephyr
+    "docker/install/ubuntu_init_zephyr_project.sh",
+    "docker/install/ubuntu_install_zephyr_sdk.sh",
+    "docker/install/ubuntu_install_cmsis.sh",
 ]
-
-EXTRA_SCRIPTS = {
-    "arduino": [],
-    "zephyr": [
-        "docker/install/ubuntu_init_zephyr_project.sh",
-        "docker/install/ubuntu_install_zephyr_sdk.sh",
-        "docker/install/ubuntu_install_cmsis.sh",
-    ],
-}
 
 PACKER_FILE_NAME = "packer.json"
 
 
 # List of identifying strings for microTVM boards for testing.
-with open(pathlib.Path(THIS_DIR) / ".." / "zephyr" / "template_project" / "boards.json") as f:
+with open(THIS_DIR / ".." / "zephyr" / "template_project" / "boards.json") as f:
     zephyr_boards = json.load(f)
 
-with open(pathlib.Path(THIS_DIR) / ".." / "arduino" / "template_project" / "boards.json") as f:
+with open(THIS_DIR / ".." / "arduino" / "template_project" / "boards.json") as f:
     arduino_boards = json.load(f)
 
 ALL_MICROTVM_BOARDS = {
@@ -232,7 +226,7 @@ ATTACH_USB_DEVICE = {
 }
 
 
-def generate_packer_config(platform, file_path, providers):
+def generate_packer_config(file_path, providers):
     builders = []
     provisioners = []
     for provider_name in providers:
@@ -253,7 +247,7 @@ def generate_packer_config(platform, file_path, providers):
         ["git", "rev-parse", "--show-toplevel"], encoding="utf-8"
     ).strip()
 
-    scripts_to_copy = COMMON_SCRIPTS + EXTRA_SCRIPTS[platform]
+    scripts_to_copy = EXTRA_SCRIPTS
     for script in scripts_to_copy:
         script_path = os.path.join(repo_root, script)
         filename = os.path.basename(script_path)
@@ -285,11 +279,9 @@ def generate_packer_config(platform, file_path, providers):
 
 
 def build_command(args):
-    this_dir = pathlib.Path(THIS_DIR)
-    base_box_dir = this_dir / args.platform / "base-box"
+    base_box_dir = THIS_DIR / "base-box"
 
     generate_packer_config(
-        args.platform,
         os.path.join(base_box_dir, PACKER_FILE_NAME),
         args.provider or ALL_PROVIDERS,
     )
@@ -313,9 +305,7 @@ def build_command(args):
     if box_package_exists:
         sys.exit("One or more box packages exist (see list above). To rebuild use '--force'")
 
-    subprocess.check_call(
-        packer_args, cwd=os.path.join(THIS_DIR, args.platform, "base-box"), env=env
-    )
+    subprocess.check_call(packer_args, cwd=THIS_DIR / "base-box", env=env)
 
 
 REQUIRED_TEST_CONFIG_KEYS = {
@@ -325,10 +315,10 @@ REQUIRED_TEST_CONFIG_KEYS = {
 
 
 VM_BOX_RE = re.compile(r'(.*\.vm\.box) = "(.*)"')
-
+VM_TVM_HOME_RE = re.compile(r'(.*tvm_home) = "(.*)"')
 
 # Paths, relative to the platform box directory, which will not be copied to release-test dir.
-SKIP_COPY_PATHS = [".vagrant", "base-box"]
+SKIP_COPY_PATHS = [".vagrant", "base-box", "scripts"]
 
 
 def do_build_release_test_vm(
@@ -365,6 +355,12 @@ def do_build_release_test_vm(
             if "config.vm.box_version" in line:
                 continue
             m = VM_BOX_RE.match(line)
+            tvm_home_m = VM_TVM_HOME_RE.match(line)
+
+            if tvm_home_m:
+                # Adjust tvm home for testing step
+                f.write(f'{tvm_home_m.group(1)} = "../../../.."\n')
+                continue
             if not m:
                 f.write(line)
                 continue
@@ -391,7 +387,7 @@ def do_build_release_test_vm(
     return True
 
 
-def do_run_release_test(release_test_dir, platform, provider_name, test_config, test_device_serial):
+def do_run_release_test(release_test_dir, provider_name, test_config, test_device_serial):
     with open(
         os.path.join(release_test_dir, ".vagrant", "machines", "default", provider_name, "id")
     ) as f:
@@ -405,7 +401,7 @@ def do_run_release_test(release_test_dir, platform, provider_name, test_config, 
             pid_hex=test_config["pid_hex"],
             serial=test_device_serial,
         )
-    tvm_home = os.path.realpath(os.path.join(THIS_DIR, "..", "..", ".."))
+    tvm_home = os.path.realpath(THIS_DIR / ".." / ".." / "..")
 
     def _quote_cmd(cmd):
         return " ".join(shlex.quote(a) for a in cmd)
@@ -415,7 +411,7 @@ def do_run_release_test(release_test_dir, platform, provider_name, test_config, 
         + " && "
         + _quote_cmd(
             [
-                f"apps/microtvm/reference-vm/{platform}/base-box/base_box_test.sh",
+                f"apps/microtvm/reference-vm/base-box/base_box_test.sh",
                 test_config["microtvm_board"],
             ]
         )
@@ -424,9 +420,9 @@ def do_run_release_test(release_test_dir, platform, provider_name, test_config, 
 
 
 def test_command(args):
-    user_box_dir = pathlib.Path(THIS_DIR) / args.platform
+    user_box_dir = THIS_DIR
     base_box_dir = user_box_dir / "base-box"
-    boards_file = pathlib.Path(THIS_DIR) / ".." / args.platform / "template_project" / "boards.json"
+    boards_file = THIS_DIR / ".." / args.platform / "template_project" / "boards.json"
     with open(boards_file) as f:
         test_config = json.load(f)
 
@@ -444,7 +440,7 @@ def test_command(args):
 
     providers = args.provider
 
-    release_test_dir = os.path.join(THIS_DIR, f"release-test-{args.platform}")
+    release_test_dir = THIS_DIR / f"release-test"
 
     if args.skip_build or args.skip_destroy:
         assert (
@@ -460,7 +456,6 @@ def test_command(args):
                 )
             do_run_release_test(
                 release_test_dir,
-                args.platform,
                 provider_name,
                 microtvm_test_config,
                 args.test_device_serial,
@@ -492,7 +487,7 @@ def release_command(args):
     if args.release_full_name:
         vm_name = args.release_full_name
     else:
-        vm_name = f"tlcpack/microtvm-{args.platform}"
+        vm_name = "tlcpack/microtvm"
 
     if not args.skip_creating_release_version:
         subprocess.check_call(
@@ -518,12 +513,7 @@ def release_command(args):
                 vm_name,
                 args.release_version,
                 provider_name,
-                os.path.join(
-                    THIS_DIR,
-                    args.platform,
-                    "base-box",
-                    f"output-packer-{provider_name}/package.box",
-                ),
+                str(THIS_DIR / "base-box" / f"output-packer-{provider_name}/package.box"),
             ]
         )
 
@@ -550,7 +540,6 @@ def parse_args():
     # Options for build subcommand
     parser_build = subparsers.add_parser("build", help="Build a base box.")
     parser_build.set_defaults(func=build_command)
-    parser_build.add_argument("platform", help=platform_help_str, choices=ALL_PLATFORMS)
     parser_build.add_argument(
         "--debug-packer",
         action="store_true",
@@ -606,7 +595,6 @@ def parse_args():
     # Options for release subcommand
     parser_release = subparsers.add_parser("release", help="Release base box to cloud.")
     parser_release.set_defaults(func=release_command)
-    parser_release.add_argument("platform", help=platform_help_str, choices=ALL_PLATFORMS)
     parser_release.add_argument(
         "--release-version",
         required=True,
@@ -634,10 +622,6 @@ def parse_args():
 
 def main():
     args = parse_args()
-
-    if os.path.sep in args.platform or not os.path.isdir(os.path.join(THIS_DIR, args.platform)):
-        sys.exit(f"<platform> must be a sub-direcotry of {THIS_DIR}; got {args.platform}")
-
     args.func(args)
 
 

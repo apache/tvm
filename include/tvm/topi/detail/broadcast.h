@@ -42,6 +42,12 @@ struct BroadcastHelper {
   std::deque<tvm::tir::Var> vars2;
 };
 
+static inline DataType CommonType(DataType type1, DataType type2) {
+  ICHECK(type1.is_scalar() && type2.is_scalar());
+  ICHECK(type1.code() == type2.code());
+  return DataType(type1.code(), std::max(type1.bits(), type2.bits()), /*lanes=*/1);
+}
+
 inline BroadcastHelper BroadcastShape(const tvm::Array<tvm::PrimExpr>& shape1,
                                       const tvm::Array<tvm::PrimExpr>& shape2) {
   BroadcastHelper bh;
@@ -49,32 +55,40 @@ inline BroadcastHelper BroadcastShape(const tvm::Array<tvm::PrimExpr>& shape1,
   int s2_size = shape2.size();
   tvm::PrimExpr one(1);
   int i;
+
+  auto cast_if_needed = [](DataType to_type, PrimExpr expr) {
+    return to_type != expr.dtype() ? cast(to_type, expr) : expr;
+  };
+
   for (i = 1; i <= std::min(s1_size, s2_size); ++i) {
     // TODO(@icemelon9): Need to revisit this part
     const IntImmNode* static_size1 = shape1[s1_size - i].as<IntImmNode>();
     const IntImmNode* static_size2 = shape2[s2_size - i].as<IntImmNode>();
-    bh.all_vars.push_front(tvm::tir::Var());
+    DataType common_type = CommonType(shape1[s1_size - i].dtype(), shape2[s2_size - i].dtype());
+
+    bh.all_vars.push_front(tvm::tir::Var("dim", common_type));
     if (topi::detail::EqualCheck(shape1[s1_size - i], shape2[s2_size - i])) {
-      bh.common_shape.push_front(shape1[s1_size - i]);
+      bh.common_shape.push_front(cast_if_needed(common_type, shape1[s1_size - i]));
       bh.vars1.push_front(bh.all_vars[0]);
       bh.vars2.push_front(bh.all_vars[0]);
     } else if (topi::detail::EqualCheck(one, shape1[s1_size - i])) {
       ICHECK(!topi::detail::EqualCheck(one, shape2[s2_size - i]));
-      bh.common_shape.push_front(shape2[s2_size - i]);
+      bh.common_shape.push_front(cast_if_needed(common_type, shape2[s2_size - i]));
       bh.vars2.push_front(bh.all_vars[0]);
     } else if (topi::detail::EqualCheck(one, shape2[s2_size - i])) {
-      bh.common_shape.push_front(shape1[s1_size - i]);
+      bh.common_shape.push_front(cast_if_needed(common_type, shape1[s1_size - i]));
       bh.vars1.push_front(bh.all_vars[0]);
     } else if (!static_size1 && !static_size2) {
-      bh.common_shape.push_front(max(shape1[s1_size - i], shape2[s2_size - i]));
+      bh.common_shape.push_front(
+          cast_if_needed(common_type, max(shape1[s1_size - i], shape2[s2_size - i])));
       bh.vars1.push_front(bh.all_vars[0]);
       bh.vars2.push_front(bh.all_vars[0]);
     } else if (!static_size1) {
-      bh.common_shape.push_front(shape2[s2_size - i]);
+      bh.common_shape.push_front(cast_if_needed(common_type, shape2[s2_size - i]));
       bh.vars2.push_front(bh.all_vars[0]);
       bh.vars1.push_front(bh.all_vars[0]);
     } else if (!static_size2) {
-      bh.common_shape.push_front(shape1[s1_size - i]);
+      bh.common_shape.push_front(cast_if_needed(common_type, shape1[s1_size - i]));
       bh.vars1.push_front(bh.all_vars[0]);
       bh.vars2.push_front(bh.all_vars[0]);
     } else {
@@ -89,7 +103,7 @@ inline BroadcastHelper BroadcastShape(const tvm::Array<tvm::PrimExpr>& shape1,
   auto& shape = (s1_size > s2_size) ? shape1 : shape2;
   auto& vars = (s1_size > s2_size) ? bh.vars1 : bh.vars2;
   for (; i <= max_size; ++i) {
-    bh.all_vars.push_front(tvm::tir::Var());
+    bh.all_vars.push_front(tvm::tir::Var("v", shape[max_size - 1].dtype()));
     bh.common_shape.push_front(shape[max_size - i]);
     vars.push_front(bh.all_vars[0]);
   }

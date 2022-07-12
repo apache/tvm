@@ -42,8 +42,9 @@ class SPIRVTools {
  public:
   explicit SPIRVTools(Target target) {
     uint32_t vulkan_version =
-        target->GetAttr<Integer>("vulkan_api_version").value_or(VK_API_VERSION_1_0);
-    uint32_t spirv_version = target->GetAttr<Integer>("max_spirv_version").value_or(0x10000);
+        target->GetAttr<Integer>("vulkan_api_version").value_or(VK_API_VERSION_1_0).IntValue();
+    uint32_t spirv_version =
+        target->GetAttr<Integer>("max_spirv_version").value_or(0x10000).IntValue();
 
     spv_target_env validation_version;
     if (vulkan_version >= VK_API_VERSION_1_2) {

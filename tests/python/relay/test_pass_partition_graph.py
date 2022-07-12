@@ -919,6 +919,7 @@ def test_mixed_single_multiple_outputs():
 
 def test_dnnl_fuse():
     dnnl_patterns = get_pattern_table("dnnl")
+    dnnl_pat_dic = dict(dnnl_patterns)
     (
         conv2d_bias_relu_pat,
         conv2d_bias_sigmoid_pat,
@@ -926,11 +927,26 @@ def test_dnnl_fuse():
         conv2d_relu_pat,
         conv2d_sigmoid_pat,
     ) = (
-        dnnl_patterns[3],
-        dnnl_patterns[15],
-        dnnl_patterns[22],
-        dnnl_patterns[28],
-        dnnl_patterns[40],
+        (
+            "dnnl.conv2d_bias_relu",
+            dnnl_pat_dic["dnnl.conv2d_bias_relu"],
+        ),
+        (
+            "dnnl.conv2d_bias_sigmoid",
+            dnnl_pat_dic["dnnl.conv2d_bias_sigmoid"],
+        ),
+        (
+            "dnnl.conv2d_bias",
+            dnnl_pat_dic["dnnl.conv2d_bias"],
+        ),
+        (
+            "dnnl.conv2d_relu",
+            dnnl_pat_dic["dnnl.conv2d_relu"],
+        ),
+        (
+            "dnnl.conv2d_sigmoid",
+            dnnl_pat_dic["dnnl.conv2d_sigmoid"],
+        ),
     )
 
     def get_blocks(

@@ -1233,7 +1233,7 @@ struct ReIndexTraits : public UnpackedInstTraits<ReIndexTraits> {
 
   static BlockRV UnpackedApplyToSchedule(Schedule sch, BlockRV block, Integer buffer_index,
                                          Integer buffer_index_type) {
-    return sch->ReIndex(block, buffer_index,
+    return sch->ReIndex(block, buffer_index.IntValue(),
                         static_cast<BufferIndexType>(buffer_index_type->value));
   }
 

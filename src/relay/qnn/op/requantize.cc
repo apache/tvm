@@ -91,7 +91,7 @@ InferCorrectLayoutOutput RequantizeInferCorrectLayout(const Attrs& attrs,
     Layout channel_layout = Layout("C");
     input_layouts = {new_layout, channel_layout, channel_layout, channel_layout, channel_layout};
     output_layouts = {new_layout};
-    param->axis = new_axis;
+    param->axis = new_axis.IntValue();
   } else if (old_in_layouts.defined()) {
     // If the new layout is undefined, set the old layout as the inferred layout.
     ICHECK_EQ(old_in_layouts.size(), 5);

@@ -168,7 +168,7 @@ class AutoBindNode : public ScheduleRuleNode {
         context->target.value()->GetAttr<Integer>("max_threads_per_block");
     CHECK(max_threads_per_block.defined())
         << "ValueError: missing attribute `max_threads_per_block` in the target";
-    this->max_threads_per_block_ = max_threads_per_block.value();
+    this->max_threads_per_block_ = max_threads_per_block.value().IntValue();
   }
 
   // Inherited from ScheduleRuleNode

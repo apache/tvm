@@ -18,6 +18,16 @@
 
 set -euxo pipefail
 
+if [ $# -gt 0 ]; then
+    BUILD_DIR="$1"
+elif [ -n "${TVM_BUILD_PATH:-}" ]; then
+    # TVM_BUILD_PATH may contain multiple space-separated paths.  If
+    # so, use the first one.
+    BUILD_DIR=$(IFS=" "; set -- $TVM_BUILD_PATH; echo $1)
+else
+    BUILD_DIR=build
+fi
+
 # Python is required by apps/bundle_deploy
 source tests/scripts/setup-pytest-env.sh
 
@@ -32,16 +42,17 @@ export OMP_NUM_THREADS=1
 # Build cpptest suite
 python3 tests/scripts/task_build.py \
     --sccache-bucket tvm-sccache-prod \
-    --cmake-target cpptest
+    --cmake-target cpptest \
+    --build-dir "${BUILD_DIR}"
 
 # crttest requires USE_MICRO to be enabled, which is currently the case
 # with all CI configs
-pushd build
+pushd "${BUILD_DIR}"
 ninja crttest
 popd
 
 
-pushd build
+pushd "${BUILD_DIR}"
 ctest --gtest_death_test_style=threadsafe
 popd
 
