@@ -1767,6 +1767,7 @@ def test_forward_range():
 # Shape
 # -----
 
+
 def _test_shape(dtype):
     # tflite 1.13 convert method does not accept empty shapes
     if package_version.parse(tf.VERSION) >= package_version.parse("1.14.0"):
