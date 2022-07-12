@@ -571,6 +571,14 @@ def quantized_relu(data, input_zero_point):
     return _op.tensor.maximum(data, zp)
 
 
+def quantized_sigmoid(data, input_scale, input_zero_point):
+    output_scale = input_scale
+    output_zero_point = input_zero_point
+    return relay.qnn.op.sigmoid(
+        data, input_scale, input_zero_point, output_scale, output_zero_point
+    )
+
+
 def _quantize_per_tensor():
     def _impl(inputs, _):
         dim = len(infer_shape(inputs[0]))

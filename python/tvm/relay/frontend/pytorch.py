@@ -1567,7 +1567,7 @@ class PyTorchOpConverter:
             assert len(inputs) == 3, "Input quant param not found in op inputs"
             input_scale = _expr.const(inputs[1])
             input_zero_point = _expr.const(inputs[2])
-            return qnn_torch.apply_with_fp32_fallback(data, input_scale, input_zero_point, func)
+            return qnn_torch.quantized_sigmoid(data, input_scale, input_zero_point)
 
         return func(data)
 
