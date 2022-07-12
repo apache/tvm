@@ -112,20 +112,14 @@ def multi_level_tiling(target: Target) -> ScheduleRule:
     raise NotImplementedError(f"{target.kind.name} is not supported")
 
 
-def multi_level_tiling_tensor_core(target: Target, scope="shared") -> ScheduleRule:
+def multi_level_tiling_tensor_core(
+    target: Target, scope="shared", in_dtype="float16", out_dtype="float32", trans_b=False
+) -> ScheduleRule:
     """Default schedule rules for with multi-level tiling reuse for tensor core"""
     assert scope in ["shared", "global"]
     if target.kind.name == "cuda":
         return MultiLevelTilingTensorCore(
-            intrin_group={
-                "init": tensor_intrin.WMMA_FILL_16x16x16_F32_INTRIN,
-                "load_a": tensor_intrin.WMMA_LOAD_16x16x16_F16_A_INTRIN,
-                "load_b": tensor_intrin.WMMA_LOAD_16x16x16_F16_B_INTRIN,
-                "compute": tensor_intrin.WMMA_SYNC_16x16x16_f16f16f32_INTRIN,
-                "store": tensor_intrin.WMMA_STORE_16x16x16_F32_SHARED_INTRIN
-                if scope == "shared"
-                else tensor_intrin.WMMA_STORE_16x16x16_F32_GLOBAL_INTRIN,
-            },
+            intrin_group=tensor_intrin.get_wmma_intrin_group(scope, in_dtype, out_dtype, trans_b),
             structure="SSSRRSRS",
             tile_binds=["blockIdx.y", "blockIdx.x", "threadIdx.y"],
             max_innermost_factor=4,  # 64 // tensor intrin size

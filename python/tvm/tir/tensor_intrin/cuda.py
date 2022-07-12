@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name,missing-function-docstring
 """Intrinsics for tensorization on NVIDIA GPU."""
-from typing import Tuple
+from typing import Tuple, Dict
 from tvm.script import tir as T
 from tvm.tir.function import PrimFunc
 from .. import IntImm, Cast
@@ -806,3 +806,66 @@ WMMA_STORE_16x16x16_F16_GLOBAL_INTRIN = "wmma_store_16x16x16_f16_global"
 TensorIntrin.register(
     WMMA_STORE_16x16x16_F16_GLOBAL_INTRIN, *get_wmma_store_intrin(16, 16, 16, "float16", "global")
 )
+
+
+def get_wmma_intrin_group(
+    scope: str, in_dtype: str, out_dtype: str, trans_b: bool
+) -> Dict[str, str]:
+    """Get a group of intrinsics for wmma tensor core with the given configurations
+
+    Parameters
+    ----------
+    scope : str
+        Must be one of ["global", "shared"]. The memory scope of the result buffer.
+
+    in_dtype : str
+        The input data type.
+
+    out_dtype : str
+        The output data dtype.
+
+    trans_b : bool
+        Whether the input matrix B is transposed.
+
+    Returns
+    -------
+    ret : Dict[str, str]
+        A group of tensor intrinsics.
+    """
+    assert scope in ["global", "shared"]
+    assert in_dtype in ["float16"]
+    assert out_dtype in ["float16", "float32"]
+
+    load_a_intrins = {"float16": WMMA_LOAD_16x16x16_F16_A_INTRIN}
+    load_b_intrins = {
+        "float16": WMMA_LOAD_16x16x16_F16_B_TRANS_INTRIN
+        if trans_b
+        else WMMA_LOAD_16x16x16_F16_B_INTRIN
+    }
+    compute_intrins = {
+        "float16": WMMA_SYNC_16x16x16_f16f16f16_TRANS_INTRIN
+        if trans_b
+        else WMMA_SYNC_16x16x16_f16f16f16_INTRIN,
+        "float32": WMMA_SYNC_16x16x16_f16f16f32_TRANS_INTRIN
+        if trans_b
+        else WMMA_SYNC_16x16x16_f16f16f32_INTRIN,
+    }
+    init_intrins = {
+        "float16": WMMA_FILL_16x16x16_F16_INTRIN,
+        "float32": WMMA_FILL_16x16x16_F32_INTRIN,
+    }
+    store_intrins = {
+        "float16": WMMA_STORE_16x16x16_F16_SHARED_INTRIN
+        if scope == "shared"
+        else WMMA_STORE_16x16x16_F16_GLOBAL_INTRIN,
+        "float32": WMMA_STORE_16x16x16_F32_SHARED_INTRIN
+        if scope == "shared"
+        else WMMA_STORE_16x16x16_F32_GLOBAL_INTRIN,
+    }
+    return {
+        "init": init_intrins[out_dtype],
+        "load_a": load_a_intrins[in_dtype],
+        "load_b": load_b_intrins,
+        "compute": compute_intrins[out_dtype],
+        "store": store_intrins[out_dtype],
+    }

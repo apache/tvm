@@ -63,7 +63,6 @@ class TensorCoreState : public State {
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(TensorCoreState, State, TensorCoreStateNode);
 };
 
-
 TVM_REGISTER_OBJECT_TYPE(TensorCoreStateNode);
 
 TensorCoreState::TensorCoreState(Schedule sch, BlockRV block_rv, Array<Array<LoopRV>> tiles) {
