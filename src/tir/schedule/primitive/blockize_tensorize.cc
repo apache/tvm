@@ -78,9 +78,9 @@ class SubspaceNotDivisibleError : public ScheduleError {
  *
  * \param iter_vars The input iterators
  * \param bindings The values of iter_vars
- * \param outer_loops Iterators outside the subspace.
- * \param loops Iterators of the subspace
  * \param predicate The predicate constraint on the input iterators.
+ * \param outer_iters The iters of the outer space
+ * \param inner_iters The iters of the inner space
  * \return The result of the subspace division.
  */
 Array<Array<arith::IterMark>> TrivialSubspaceDivision(const Array<IterVar>& iter_vars,
@@ -246,6 +246,7 @@ Map<Var, PrimExpr> DeriveBlockBinding(const Array<IterVar>& iter_vars,          
 
 /*!
  * \brief Generate the inner block for blockization
+ * \param is_write_reduction Whether the write regions of the inner block are actually reduction.
  * \param iter_vars IterVars used in the inner block.
  * \param iter_values IterVar bindings used in the inner block.
  * \param predicate The predicate of the inner block.
