@@ -37,9 +37,11 @@ input_layout = tvm.testing.parameter(
 def input_np(input_shape, dtype):
     return np.random.random(input_shape).astype(dtype)
 
+
 @tvm.testing.fixture
 def weight_np(weight_shape, dtype):
     return np.random.random(weight_shape).astype(dtype)
+
 
 @tvm.testing.fixture
 def bias_np(bias_shape, bias, dtype):
@@ -48,9 +50,11 @@ def bias_np(bias_shape, bias, dtype):
     else:
         return None
 
+
 @tvm.testing.fixture
 def transformed_expected_output_np(expected_output_np, output_layout):
     return transform_numpy(expected_output_np, "nhwc", output_layout)
+
 
 @tvm.testing.fixture
 def transformed_input_np(input_np, input_layout):
@@ -59,13 +63,7 @@ def transformed_input_np(input_np, input_layout):
 
 class TestDenseSlice:
     # NOTE: input_layout is always assumed to be "n11c-1024c-2d"
-    (
-        input_shape,
-        output_shape,
-        output_layout,
-        bias,
-        dtype,
-    ) = tvm.testing.parameters(
+    (input_shape, output_shape, output_layout, bias, dtype,) = tvm.testing.parameters(
         (
             [1, 1, 1, 1024],
             [1, 1, 1, 1024],
@@ -76,20 +74,6 @@ class TestDenseSlice:
         (
             [1, 1, 1, 1024],
             [1, 1, 1, 1024],
-            "n11c-1024c-2d",
-            True,
-            "float16",
-        ),
-        (
-            [1, 1, 1, 2*1024],
-            [1, 1, 1, 2*1024],
-            "n11c-1024c-2d",
-            False,
-            "float16",
-        ),
-        (
-            [1, 1, 1, 2*1024],
-            [1, 1, 1, 2*1024],
             "n11c-1024c-2d",
             True,
             "float16",
@@ -97,18 +81,12 @@ class TestDenseSlice:
     )
 
     @tvm.testing.fixture
-    def expected_output_np(
-        self,
-        input_np,
-        weight_np,
-        bias_np,
-        bias
-    ):
+    def expected_output_np(self, input_np, weight_np, bias_np, bias):
         ref_np = tvm.topi.testing.dense(
-            np.reshape(input_np, (input_np.shape[0], input_np.shape[-1])), # Only batch and channel
+            np.reshape(input_np, (input_np.shape[0], input_np.shape[-1])),  # Only batch and channel
             weight_np,
             bias_np,
-            use_bias=bias
+            use_bias=bias,
         )
         return np.reshape(ref_np, (ref_np.shape[0], 1, 1, ref_np.shape[-1]))
 
@@ -144,10 +122,10 @@ class TestDenseSlice:
         W = te.placeholder((output_shape[-1], input_shape[-1]), name="W", dtype=dtype)
         if bias_np is not None:
             B = te.placeholder((output_shape[-1],), name="B", dtype=dtype)
-            args = [A,W,B]
+            args = [A, W, B]
         else:
             B = None
-            args = [A,W]
+            args = [A, W]
 
         M = sl.dense_compute(*args)
 

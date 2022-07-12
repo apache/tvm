@@ -22,6 +22,7 @@ from tvm import topi, te, tir
 from ..utils import get_layout_transform_fn
 from tvm.topi import tag
 
+
 def dense_compute(tensor_a, tensor_b, bias=None, out_dtype=None):
     """Hexagon's implementation of a sliced dense operator in Topi.
     Uses matmul.
@@ -84,6 +85,7 @@ def dense_compute(tensor_a, tensor_b, bias=None, out_dtype=None):
 
     return mat
 
+
 def dense_schedule(outs, ins, output_layout: str, input_layout: str):
     """Schedule for dense op.
 
@@ -137,7 +139,7 @@ def dense_schedule(outs, ins, output_layout: str, input_layout: str):
     s.vectorize(mci)
 
     if bias is not None:
-      bn, bh, bw, bc = s.get_loops(bias)
-      s.compute_at(matmul, bc)
+        bn, bh, bw, bc = s.get_loops(bias)
+        s.compute_at(matmul, bc)
 
     return s
