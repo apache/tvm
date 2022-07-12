@@ -17,8 +17,7 @@
 
 """Schedule for dense operator"""
 
-import tvm
-from tvm import topi, te, tir
+from tvm import te, tir
 from ..utils import get_layout_transform_fn
 from tvm.topi import tag
 
@@ -134,12 +133,12 @@ def dense_schedule(outs, ins, output_layout: str, input_layout: str):
         s.transform_layout(matmul, ("read", 0), input_transform_fn)
         s.transform_layout(bias, ("write", 0), output_transform_fn)
 
-    mn, mh, mw, mc, rc = s.get_loops(matmul)
-    mco, mci = s.split(mc, [None, 1024])
-    s.vectorize(mci)
+    _, _, _, matmul_c, _ = s.get_loops(matmul)
+    _, matmul_c_inner = s.split(matmul_c, [None, 1024])
+    s.vectorize(matmul_c_inner)
 
     if bias is not None:
-        bn, bh, bw, bc = s.get_loops(bias)
-        s.compute_at(matmul, bc)
+        _, _, _, bias_c = s.get_loops(bias)
+        s.compute_at(matmul, bias_c)
 
     return s
