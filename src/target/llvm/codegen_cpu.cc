@@ -203,11 +203,12 @@ void CodeGenCPU::AddDebugInformation(PrimFunc f_tir, llvm::Function* f_llvm) {
   ICHECK(f_llvm->getReturnType() == t_void_ || f_llvm->getReturnType() == t_int_)
       << "Unexpected return type";
   auto ret_type_tir = f_llvm->getReturnType() == t_int_ ? DataType::Int(32) : DataType::Void();
-  llvm::DIType* returnTy = GetDebugType(ret_type_tir, f_llvm->getReturnType());
+  llvm::DIType* returnTy =
+      GetDebugType(GetTypeFromRuntimeDataType(ret_type_tir), f_llvm->getReturnType());
   paramTys.push_back(returnTy);
   for (size_t i = 0; i < f_llvm->arg_size(); ++i) {
     paramTys.push_back(
-        GetDebugType(GetType(f_tir->args[i]), f_llvm->getFunctionType()->getParamType(i)));
+        GetDebugType(GetType(f_tir->params[i]), f_llvm->getFunctionType()->getParamType(i)));
   }
   auto* DIFunctionTy = dbg_info_->di_builder_->createSubroutineType(
       dbg_info_->di_builder_->getOrCreateTypeArray(paramTys));
@@ -240,7 +241,7 @@ void CodeGenCPU::AddDebugInformation(PrimFunc f_tir, llvm::Function* f_llvm) {
     std::string paramName = "arg" + std::to_string(i + 1);
     auto param = dbg_info_->di_builder_->createParameterVariable(
         DIFunction, paramName, i + 1, dbg_info_->file_, 0,
-        GetDebugType(GetType(f_tir->args[i]), f_llvm->getFunctionType()->getParamType(i)),
+        GetDebugType(GetType(f_tir->params[i]), f_llvm->getFunctionType()->getParamType(i)),
         /*alwaysPreserve=*/true);
     auto* store = builder.CreateStore(f_llvm->arg_begin() + i, paramAlloca);
     dbg_info_->di_builder_->insertDeclare(paramAlloca, param,
