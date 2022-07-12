@@ -25,11 +25,19 @@ import tvm
 from tvm import te
 import numpy as np
 from tvm.contrib import graph_executor as runtime
+from tvm.relay.op.contrib.cutlass import partition_for_cutlass
 from tvm import relay
 from tvm.relay import testing
 import tvm.testing
 import time
+from tvm.contrib.cutlass import (
+    has_cutlass,
+    num_cutlass_partitions,
+    finalize_modules,
+    finalize_modules_vm,
+)
 
+img_size = 8
 #######################################################################
 # Create a simple network, this network can be a pre-trained model too.
 # ---------------------------------------------------------------------
@@ -38,7 +46,10 @@ import time
 def get_network():
     out_channels = 16
     batch_size = 1
-    data = relay.var("data", relay.TensorType((batch_size, 3, 224, 224), "float32"))
+    data = relay.var("data", relay.TensorType((batch_size, 3, img_size, img_size), "float32"))
+    dense_weight = relay.var(
+        "data", relay.TensorType((batch_size, 16 * img_size * img_size), "float32")
+    )
     weight = relay.var("weight")
     second_weight = relay.var("second_weight")
     bn_gamma = relay.var("bn_gamma")
@@ -50,15 +61,10 @@ def get_network():
     )
     simple_net = relay.nn.batch_norm(simple_net, bn_gamma, bn_beta, bn_mmean, bn_mvar)[0]
     simple_net = relay.nn.relu(simple_net)
-    simple_net = relay.nn.conv2d(
-        data=simple_net,
-        weight=second_weight,
-        kernel_size=(3, 3),
-        channels=out_channels,
-        padding=(1, 1),
-    )
+    simple_net = relay.nn.batch_flatten(simple_net)
+    simple_net = relay.nn.dense(simple_net, dense_weight)
     simple_net = relay.Function(relay.analysis.free_vars(simple_net), simple_net)
-    data_shape = (batch_size, 3, 224, 224)
+    data_shape = (batch_size, 3, img_size, img_size)
     net, params = testing.create_workload(simple_net)
     return net, params, data_shape
 
@@ -86,19 +92,19 @@ subgraphs = graph_split(net["main"], split_config, params)
 """
 #subgraphs[0])
 
- def @main(%data: Tensor[(1, 3, 224, 224), float32]) {
-  %0 = nn.conv2d(%data, meta[relay.Constant][0] /* ty=Tensor[(16, 3, 3, 3), float32] */, padding=[1, 1, 1, 1], channels=16, kernel_size=[3, 3]) /* ty=Tensor[(1, 16, 224, 224), float32] */;
-  %1 = nn.batch_norm(%0, meta[relay.Constant][1] /* ty=Tensor[(16), float32] */, meta[relay.Constant][2] /* ty=Tensor[(16), float32]*/, meta[relay.Constant][3] /* ty=Tensor[(16), float32] */, meta[relay.Constant][4] /* ty=Tensor[(16), float32] */) /* ty=(Tensor[(1,16, 224, 224), float32], Tensor[(16), float32], Tensor[(16), float32]) */;
+ def @main(%data: Tensor[(1, 3, img_size, img_size), float32]) {
+  %0 = nn.conv2d(%data, meta[relay.Constant][0] /* ty=Tensor[(16, 3, 3, 3), float32] */, padding=[1, 1, 1, 1], channels=16, kernel_size=[3, 3]) /* ty=Tensor[(1, 16, img_size, img_size), float32] */;
+  %1 = nn.batch_norm(%0, meta[relay.Constant][1] /* ty=Tensor[(16), float32] */, meta[relay.Constant][2] /* ty=Tensor[(16), float32]*/, meta[relay.Constant][3] /* ty=Tensor[(16), float32] */, meta[relay.Constant][4] /* ty=Tensor[(16), float32] */) /* ty=(Tensor[(1,16, img_size, img_size), float32], Tensor[(16), float32], Tensor[(16), float32]) */;
   %2 = %1.0;
-  nn.relu(%2) /* ty=Tensor[(1, 16, 224, 224), float32] */
+  nn.relu(%2) /* ty=Tensor[(1, 16, img_size, img_size), float32] */
  }
 
 peline-tutorial
 
 #subgraphs[1]
 
- def @main(%data_n_0: Tensor[(1, 16, 224, 224), float32]) {
-  nn.conv2d(%data_n_0, meta[relay.Constant][0] /* ty=Tensor[(16, 16, 3, 3), float32] */, padding=[1, 1, 1, 1], channels=16, kernel_size=[3, 3]) /* ty=Tensor[(1, 16, 224, 224), float32] */
+ def @main(%data_n_0: Tensor[(1, 16, img_size, img_size), float32]) {
+  nn.conv2d(%data_n_0, meta[relay.Constant][0] /* ty=Tensor[(16, 16, 3, 3), float32] */, padding=[1, 1, 1, 1], channels=16, kernel_size=[3, 3]) /* ty=Tensor[(1, 16, img_size, img_size), float32] */
  }
 """
 
@@ -123,9 +129,11 @@ def run_pipeline():
     # Using BYOC to set the codegen of the second subgraph module.
     # To use dnnl the 'USE_DNNL_CODEGEN' should set as ON in config.cmake and installing MKL-DNN.
     mod0, mod1 = subgraphs[0], subgraphs[1]
-    mod0 = relay.transform.AnnotateTarget(["dnnl"])(mod0)
-    mod0 = relay.transform.MergeCompilerRegions()(mod0)
-    mod0 = relay.transform.PartitionGraph()(mod0)
+    # mod0 = relay.transform.AnnotateTarget(["dnnl"])(mod0)
+    # mod0 = relay.transform.AnnotateTarget(["cutlass"])(mod0)
+    # mod0 = relay.transform.MergeCompilerRegions()(mod0)
+    # mod0 = relay.transform.PartitionGraph()(mod0)
+    mod1 = partition_for_cutlass(mod1)
     #################################################
     # Get the pipeline executor configuration object.
     pipe_config = pipeline_executor_build.PipelineConfig()
@@ -138,8 +146,8 @@ def run_pipeline():
     pipe_config[mod1].cpu_affinity = "0"
     ##############################################################
     # Set the compile target of the second subgraph module as LLVM.
-    pipe_config[mod1].target = "llvm"
-    pipe_config[mod1].dev = tvm.cpu(0)
+    pipe_config[mod1].target = "cuda"
+    pipe_config[mod1].dev = tvm.device("cuda", 0)
     #################################################################################
     # Set the cpu afinity for control flow, for example using cpu 1 for control flow.
     pipe_config[mod1].cpu_affinity = "1"
@@ -208,7 +216,7 @@ def run_pipeline():
     module1 = runtime.GraphModule(lib1["default"](dev))
     module0.set_input("data", data)
     module0.run()
-    out_shape = (1, 16, 224, 224)
+    out_shape = (1, 16, img_size, img_size)
     out = module0.get_output(0, tvm.nd.empty(out_shape))
     module1.set_input("data_n_0", out)
     module1.run()
@@ -216,3 +224,6 @@ def run_pipeline():
     ####################
     # Verify the result.
     tvm.testing.assert_allclose(outputs[0].numpy(), out.numpy())
+
+
+run_pipeline()
