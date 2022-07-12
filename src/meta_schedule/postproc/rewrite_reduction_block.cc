@@ -140,15 +140,17 @@ bool RewriteReductionBlockNode::Apply(const tir::Schedule& sch) {
       if (tir::GetAnn<String>(block_sref, tir::attr::meta_schedule_auto_tensorize).defined()) {
         // Remove tensorization annotation as it shouldn't be propagated to the init block.
         sch->Unannotate(init_block_rv, tir::attr::meta_schedule_auto_tensorize);
-      }
-      if (Optional<String> tensorize_init =
-              tir::GetAnn<String>(block_sref, tir::attr::meta_schedule_auto_tensorize_init)) {
+        Optional<String> tensorize_init =
+            tir::GetAnn<String>(block_sref, tir::attr::meta_schedule_auto_tensorize_init);
         // The annotation of tensorization of the init statement should be moved to the init block
         // after 'DecomposeReduction'.
+        // Annotate to hint `RewriteTensorize` postprocessor even if tensorize_init is NullOpt.
         sch->Annotate(init_block_rv, tir::attr::meta_schedule_auto_tensorize,
-                      tensorize_init.value());
-        sch->Unannotate(block_rv, tir::attr::meta_schedule_auto_tensorize_init);
-        sch->Unannotate(init_block_rv, tir::attr::meta_schedule_auto_tensorize_init);
+                      tensorize_init.value_or(""));
+        if (tensorize_init.defined()) {
+          sch->Unannotate(block_rv, tir::attr::meta_schedule_auto_tensorize_init);
+          sch->Unannotate(init_block_rv, tir::attr::meta_schedule_auto_tensorize_init);
+        }
       }
       ++rewritten;
     }

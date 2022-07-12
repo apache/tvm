@@ -148,11 +148,9 @@ class MultiLevelTilingTensorCore(ScheduleRule):
         TensorIntrin.register(...) beforehand
     structure : str
         The tiling structure. Recommended:
-        - 'SSRSRS' on CPU
         - 'SSSRRSRS' on GPU
     tile_bind : Optional[List[str]]
         For each level of tiles, which thread axis it is bound to. Recommended:
-        - None on CPU
         - [blockIdx.y, vthread.x, threadIdx.y] on GPU
     max_innermost_factor : Optional[int]
         The maximum size of the innermost factor. None means no limit

@@ -40,6 +40,30 @@ struct TensorCoreIntrinGroup {
   String store_intrin;
 };
 
+class TensorCoreStateNode : public StateNode {
+ public:
+  /*! \brief The Tensor Core reindex block A for Tensor Core computation */
+  tir::BlockRV tensor_core_reindex_A;
+  /*! \brief The Tensor Core reindex block B for Tensor Core computation */
+  tir::BlockRV tensor_core_reindex_B;
+  /*! \brief The Tensor Core reindex store block for Tensor Core computation */
+  tir::BlockRV tensor_core_reindex_store;
+
+  State Copy() const final;
+
+  static constexpr const char* _type_key = "meta_schedule.TensorCoreState";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TensorCoreStateNode, StateNode);
+};
+
+class TensorCoreState : public State {
+ public:
+  explicit TensorCoreState(tir::Schedule sch, tir::BlockRV block_rv,
+                           Array<Array<tir::LoopRV>> tiles = {});
+
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(TensorCoreState, State, TensorCoreStateNode);
+};
+
+
 TVM_REGISTER_OBJECT_TYPE(TensorCoreStateNode);
 
 TensorCoreState::TensorCoreState(Schedule sch, BlockRV block_rv, Array<Array<LoopRV>> tiles) {

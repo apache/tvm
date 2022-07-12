@@ -38,21 +38,23 @@ void CollectTensorizationJobs(
       std::string block_name = block_sref->StmtAs<tir::BlockNode>()->name_hint;
       if (Optional<String> intrin_name =
               tir::GetAnn<String>(block_sref, tir::attr::meta_schedule_auto_tensorize)) {
-        jobs->emplace_back(block_name, func_name, [sch, intrin_name](tir::BlockRV block) {
-          try {
-            sch->Tensorize(block, intrin_name.value());
-          } catch (const std::exception& e) {
-            LOG(WARNING) << "Tensorize failed with error " << e.what();
-          }
-        });
-      } else if (block_name.find("init") && vectorize_init_loop) {
-        jobs->emplace_back(block_name, func_name, [sch](tir::BlockRV block) {
-          Array<BlockRV> child_blocks = sch->GetChildBlocks(block);
-          ICHECK(child_blocks.size() == 1);
-          Array<LoopRV> init_loops = sch->GetLoops(child_blocks[0]);
-          ICHECK(init_loops.size() == 1);
-          sch->Vectorize(init_loops[0]);
-        });
+        if (intrin_name.value() != "") {
+          jobs->emplace_back(block_name, func_name, [sch, intrin_name](tir::BlockRV block) {
+            try {
+              sch->Tensorize(block, intrin_name.value());
+            } catch (const std::exception& e) {
+              LOG(WARNING) << "Tensorize failed with error " << e.what();
+            }
+          });
+        } else if (block_name.find("init") && vectorize_init_loop) {
+          jobs->emplace_back(block_name, func_name, [sch](tir::BlockRV block) {
+            Array<BlockRV> child_blocks = sch->GetChildBlocks(block);
+            ICHECK(child_blocks.size() == 1);
+            Array<LoopRV> init_loops = sch->GetLoops(child_blocks[0]);
+            ICHECK(init_loops.size() == 1);
+            sch->Vectorize(init_loops[0]);
+          });
+        }
       }
     }
   });

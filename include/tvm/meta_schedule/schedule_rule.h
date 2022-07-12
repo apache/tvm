@@ -182,10 +182,8 @@ class ScheduleRule : public runtime::ObjectRef {
    * the map should be names of tensor intrinsics, must be registerd via TensorIntrin.register(...)
    * beforehand
    * \param structure The tiling structure. Recommended:
-   * - 'SSRSRS' on CPU
    * - 'SSSRRSRS' on GPU
    * \param tile_binds For each level of tiles, which thread axis it is bound to. Recommended:
-   * - NullOpt on CPU
    * - [blockIdx.y, blockIdx.x, threadIdx.y] on GPU
    * \param max_innermost_factor The maximum size of the innermost factor. NullOpt means no limit
    * \param vector_load_lens The length of vector lane in vectorized cooperative fetching.
