@@ -396,8 +396,97 @@ def test_cuda_cap():
     )
 
 
+def test_cuda_dep():
+    # fmt: off
+    @T.prim_func
+    def dep_0(placeholder: T.Buffer[(1, 112, 112, 32), "float32"], placeholder_1: T.Buffer[(1, 3, 3, 32), "float32"], depth_conv2d_nhwc: T.Buffer[(1, 112, 112, 32), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.unroll_explicit":16})
+            depth_conv2d_nhwc_local = T.alloc_buffer([1, 112, 112, 32], dtype="float32", scope="local")
+            PadInput_shared = T.alloc_buffer([1, 114, 114, 32], dtype="float32", scope="shared")
+            placeholder_shared = T.alloc_buffer([1, 3, 3, 32], dtype="float32", scope="shared")
+            for i0_0_i1_0_i2_0_i3_0_fused in T.thread_binding(1, thread="blockIdx.x"):
+                for i0_1_i1_1_i2_1_i3_1_fused in T.thread_binding(8, thread="vthread.x"):
+                    for i0_2_i1_2_i2_2_i3_2_fused in T.thread_binding(14, thread="threadIdx.x"):
+                        for i4_0, i5_0 in T.grid(1, 1):
+                            for ax0_ax1_ax2_ax3_fused in T.serial(415872):
+                                with T.block("PadInput_shared"):
+                                    v0 = T.axis.spatial(1, 0)
+                                    v1 = T.axis.spatial(114, ax0_ax1_ax2_ax3_fused // 3648)
+                                    v2 = T.axis.spatial(114, ax0_ax1_ax2_ax3_fused % 3648 // 32)
+                                    v3 = T.axis.spatial(32, ax0_ax1_ax2_ax3_fused % 32)
+                                    T.reads(placeholder[v0, v1 - 1, v2 - 1, v3])
+                                    T.writes(PadInput_shared[v0, v1, v2, v3])
+                                    T.block_attr({"meta_schedule.cooperative_fetch":3})
+                                    PadInput_shared[v0, v1, v2, v3] = T.if_then_else(1 <= v1 and v1 < 113 and 1 <= v2 and v2 < 113, placeholder[v0, v1 - 1, v2 - 1, v3], T.float32(0), dtype="float32")
+                            for ax0_ax1_ax2_ax3_fused in T.serial(288):
+                                with T.block("placeholder_shared"):
+                                    v0 = T.axis.spatial(1, 0)
+                                    v1 = T.axis.spatial(3, ax0_ax1_ax2_ax3_fused // 96)
+                                    v2 = T.axis.spatial(3, ax0_ax1_ax2_ax3_fused % 96 // 32)
+                                    v3 = T.axis.spatial(32, ax0_ax1_ax2_ax3_fused % 32)
+                                    T.reads(placeholder_1[v0, v1, v2, v3])
+                                    T.writes(placeholder_shared[v0, v1, v2, v3])
+                                    T.block_attr({"meta_schedule.cooperative_fetch":3})
+                                    placeholder_shared[v0, v1, v2, v3] = placeholder_1[v0, v1, v2, v3]
+                            for i4_1, i5_1, i0_3, i1_3, i2_3, i3_3, i4_2, i5_2, i0_4, i1_4, i2_4, i3_4 in T.grid(3, 1, 1, 4, 16, 8, 1, 3, 1, 7, 1, 1):
+                                with T.block("depth_conv2d_nhwc"):
+                                    n = T.axis.spatial(1, i0_4 + i0_3 + 0 + 0 + 0)
+                                    h = T.axis.spatial(112, ((0 * 4 + i0_1_i1_1_i2_1_i3_1_fused % 8 // 2 + 0) * 4 + i1_3) * 7 + i1_4)
+                                    w = T.axis.spatial(112, ((0 + 0) * 7 + i0_2_i1_2_i2_2_i3_2_fused % 14 // 2) * 16 + i2_3 + i2_4)
+                                    c = T.axis.spatial(32, ((0 * 2 + i0_1_i1_1_i2_1_i3_1_fused % 2) * 2 + i0_2_i1_2_i2_2_i3_2_fused % 2) * 8 + i3_3 + i3_4)
+                                    rh = T.axis.reduce(3, i4_0 * 3 + i4_1 + i4_2)
+                                    rw = T.axis.reduce(3, (i5_0 + i5_1) * 3 + i5_2)
+                                    T.reads(PadInput_shared[n, h + rh, w + rw, c], placeholder_shared[0, rh, rw, c])
+                                    T.writes(depth_conv2d_nhwc_local[n, h, w, c])
+                                    T.block_attr({"meta_schedule.thread_extent_high_inclusive":1024, "meta_schedule.thread_extent_low_inclusive":32, "meta_schedule.tiling_structure":"SSSRRSRS"})
+                                    with T.init():
+                                        depth_conv2d_nhwc_local[n, h, w, c] = T.float32(0)
+                                    depth_conv2d_nhwc_local[n, h, w, c] = depth_conv2d_nhwc_local[n, h, w, c] + PadInput_shared[n, h + rh, w + rw, c] * placeholder_shared[0, rh, rw, c]
+                        for ax0, ax1, ax2, ax3 in T.grid(1, 28, 16, 8):
+                            with T.block("depth_conv2d_nhwc_local"):
+                                v0 = T.axis.spatial(1, ax0)
+                                v1 = T.axis.spatial(112, i0_1_i1_1_i2_1_i3_1_fused // 2 * 28 + ax1)
+                                v2 = T.axis.spatial(112, i0_2_i1_2_i2_2_i3_2_fused // 2 * 16 + ax2)
+                                v3 = T.axis.spatial(32, i0_1_i1_1_i2_1_i3_1_fused % 2 * 16 + i0_2_i1_2_i2_2_i3_2_fused % 2 * 8 + ax3)
+                                T.reads(depth_conv2d_nhwc_local[v0, v1, v2, v3])
+                                T.writes(depth_conv2d_nhwc[v0, v1, v2, v3])
+                                depth_conv2d_nhwc[v0, v1, v2, v3] = depth_conv2d_nhwc_local[v0, v1, v2, v3]
+    # fmt: on
+    decision_0 = [
+        ("SamplePerfectTile", [1, 1, 1, 1, 1]),
+        ("SamplePerfectTile", [1, 4, 1, 4, 7]),
+        ("SamplePerfectTile", [1, 1, 7, 16, 1]),
+        ("SamplePerfectTile", [1, 2, 2, 8, 1]),
+        ("SamplePerfectTile", [1, 3, 1]),
+        ("SamplePerfectTile", [1, 1, 3]),
+        ("SampleCategorical", 2),
+        ("SampleCategorical", 2),
+        ("SampleCategorical", 1),
+    ]
+    mod = create_te_workload("DEP", 0)
+    actual = ms.TuneContext(
+        mod=mod,
+        target=_target(),
+        space_generator=ms.space_generator.PostOrderApply(),
+        sch_rules="default",
+    ).generate_design_space()
+    check_sketches(
+        mod,
+        sketches=actual,
+        expected_mods=[dep_0],
+        expected_decisions=[decision_0],
+    )
+
+
 if __name__ == "__main__":
     test_cuda_c1d()
     test_cuda_c2d()
     test_cuda_c3d()
     test_cuda_cap()
+    test_cuda_dep()
