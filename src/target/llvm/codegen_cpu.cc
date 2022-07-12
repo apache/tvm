@@ -277,10 +277,13 @@ llvm::DIType* CodeGenCPU::GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm) 
     return dbg_info_->di_builder_->createBasicType("int32", 32, llvm::dwarf::DW_ATE_signed);
   } else if (ty_llvm->isPointerTy()) {
     auto* ptr_type = ty_tir.as<PointerTypeNode>();
-    ICHECK(ptr_type != nullptr) << "Got LLVM pointer type from non-pointer IR type: " << ty_tir;
-    Type elem_type = ptr_type->element_type;
-    return dbg_info_->di_builder_->createPointerType(
-        GetDebugType(elem_type, GetLLVMType(elem_type)), ty_llvm->getPrimitiveSizeInBits());
+    ICHECK(ptr_type != nullptr || GetRuntimeDataType(ty_tir).is_handle())
+        << "Got LLVM pointer type from non-pointer IR type: " << ty_tir;
+    auto* pointee_type = ptr_type != nullptr ? GetDebugType(ptr_type->element_type,
+                                                            GetLLVMType(ptr_type->element_type))
+                                             : nullptr;
+    return dbg_info_->di_builder_->createPointerType(pointee_type,
+                                                     ty_llvm->getPrimitiveSizeInBits());
   } else {
     std::string type_str;
     llvm::raw_string_ostream rso(type_str);
