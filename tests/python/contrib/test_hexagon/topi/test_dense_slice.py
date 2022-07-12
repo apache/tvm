@@ -52,7 +52,6 @@ def bias_np(bias_shape, bias, dtype):
 def transformed_expected_output_np(expected_output_np, output_layout):
     return transform_numpy(expected_output_np, "nhwc", output_layout)
 
-
 @tvm.testing.fixture
 def transformed_input_np(input_np, input_layout):
     return transform_numpy(input_np, "nhwc", input_layout)
@@ -81,6 +80,20 @@ class TestDenseSlice:
             True,
             "float16",
         ),
+        (
+            [1, 1, 1, 2*1024],
+            [1, 1, 1, 2*1024],
+            "n11c-1024c-2d",
+            False,
+            "float16",
+        ),
+        (
+            [1, 1, 1, 2*1024],
+            [1, 1, 1, 2*1024],
+            "n11c-1024c-2d",
+            True,
+            "float16",
+        ),
     )
 
     @tvm.testing.fixture
@@ -92,12 +105,12 @@ class TestDenseSlice:
         bias
     ):
         ref_np = tvm.topi.testing.dense(
-            input_np,
+            np.reshape(input_np, (input_np.shape[0], input_np.shape[-1])), # Only batch and channel
             weight_np,
             bias_np,
             use_bias=bias
         )
-        return ref_np
+        return np.reshape(ref_np, (ref_np.shape[0], 1, 1, ref_np.shape[-1]))
 
     @tvm.testing.fixture
     def weight_shape(self, input_shape, output_shape):
@@ -128,7 +141,7 @@ class TestDenseSlice:
 
         target_hexagon = tvm.target.hexagon("v69")
         A = te.placeholder(input_shape, name="A", dtype=dtype)
-        W = te.placeholder((input_shape[-1], output_shape[-1]), name="W", dtype=dtype)
+        W = te.placeholder((output_shape[-1], input_shape[-1]), name="W", dtype=dtype)
         if bias_np is not None:
             B = te.placeholder((output_shape[-1],), name="B", dtype=dtype)
             args = [A,W,B]
@@ -178,8 +191,8 @@ class TestDenseSlice:
             bias_arr = allocate_hexagon_array(
                 hexagon_session.device,
                 data=bias_np,
-                axis_separators=[0],
-                mem_scope="global",
+                axis_separators=None,
+                mem_scope="global.vtcm",
             )
             arrs = (input_arr, weight_arr, bias_arr, output_arr)
         else:
@@ -193,7 +206,7 @@ class TestDenseSlice:
         else:
             raise RuntimeError(f"Unexpected layout '{output_layout}'")
 
-        np.testing.assert_allclose(output_np, transformed_expected_output_np, rtol=5E-2, atol=0)
+        np.testing.assert_allclose(output_np, transformed_expected_output_np, rtol=1e-1, atol=0)
 
 
 if __name__ == "__main__":

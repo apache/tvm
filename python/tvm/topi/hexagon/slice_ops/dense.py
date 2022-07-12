@@ -132,11 +132,12 @@ def dense_schedule(outs, ins, output_layout: str, input_layout: str):
         s.transform_layout(matmul, ("read", 0), input_transform_fn)
         s.transform_layout(bias, ("write", 0), output_transform_fn)
 
-    bn, bh, bw, bc, rc = s.get_loops(matmul)
-    bco, bci = s.split(bc, [None, 1024])
-    s.vectorize(bci)
+    mn, mh, mw, mc, rc = s.get_loops(matmul)
+    mco, mci = s.split(mc, [None, 1024])
+    s.vectorize(mci)
 
-    #if bias is not None:
-    #    s.compute_at(matmul, bco)
+    if bias is not None:
+      bn, bh, bw, bc = s.get_loops(bias)
+      s.compute_at(matmul, bc)
 
     return s
