@@ -111,6 +111,13 @@ void init_semihosting() {
     snprintf(err, 30, "stdin open: %x", stdin_fd);
     uart_log(err);
   }
+
+  for (int i=0; i<200; ++i) {
+    // char err[10];
+    // snprintf(err, 10, "%d :", i);
+    // uart_log(err);
+    uart_log("dummy log...\n");
+  }
 }
 
 // Called by TVM to write serial data to the UART.
@@ -134,9 +141,9 @@ ssize_t write_serial(void* unused_context, const uint8_t* data, size_t size) {
   write_req.file_handle = stdout_fd;
   write_req.data = data;
   write_req.size = size;
-  char msg[30];
-  snprintf(msg, 30, "write %d bytes\n", size);
-  uart_log(msg);
+  // char msg[30];
+  // snprintf(msg, 30, "write %d bytes\n", size);
+  // uart_log(msg);
   uint32_t ret_val = semihost_cmd(0x05, &write_req);
   return size - ret_val;
 }
@@ -295,27 +302,28 @@ void uart_rx_init(struct ring_buf* rbuf, const struct device* dev) {
   uart_irq_rx_enable(dev);
 }
 
-static void hexdump(void* data, size_t size) {
-  for (size_t h = 0; h < size / 8; h++) {
-    size_t num = 8;
-    if ((8 * h + num) > size) {
-      num = size % 8;
-    }
-    char msg[2 * 8 + 7 + 1 + 1];
-    char* ptr = msg;
-    for (size_t i = 0; i < num; i++) {
-      ptr += snprintf(ptr, 4, "%02x ", ((char*) data)[h * 8 + i]);
-    }
-    *ptr = '\n';
-    ptr++;
-    *ptr = 0;
-    uart_log(msg);
-  }
-}
+// static void hexdump(void* data, size_t size) {
+//   for (size_t h = 0; h < size / 8; h++) {
+//     size_t num = 8;
+//     if ((8 * h + num) > size) {
+//       num = size % 8;
+//     }
+//     char msg[2 * 8 + 7 + 1 + 1];
+//     char* ptr = msg;
+//     for (size_t i = 0; i < num; i++) {
+//       ptr += snprintf(ptr, 4, "%02x ", ((char*) data)[h * 8 + i]);
+//     }
+//     *ptr = '\n';
+//     ptr++;
+//     *ptr = 0;
+//     uart_log(msg);
+//   }
+// }
 
 // The main function of this application.
 extern void __stdout_hook_install(int (*hook)(int));
 void main(void) {
+
 #ifdef CONFIG_LED
   int ret;
   led0_pin = device_get_binding(LED0);
@@ -342,8 +350,10 @@ void main(void) {
   // Initialize microTVM RPC server, which will receive commands from the UART and execute them.
   uart_log("init for a long time...\n");
   init_semihosting();
+  uart_log("microTVM Zephyr runtime - running\n");
+
   microtvm_rpc_server_t server = MicroTVMRpcServerInit(write_serial, NULL);
-  uart_log("logf...\n");
+
   TVMLogf("microTVM Zephyr runtime - running");
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 0);
@@ -352,15 +362,15 @@ void main(void) {
   // The main application loop. We continuously read commands from the UART
   // and dispatch them to MicroTVMRpcServerLoop().
   while (true) {
-    uint8_t data[32];
-    uart_log("about to read\n");
+    uint8_t data[128];
+    // uart_log("about to read\n");
     uint32_t bytes_read = read_serial(data, 128);
-    {
-      char msg[30];
-      snprintf(msg, 30, "Read %d bytes\n", bytes_read);
-      uart_log(msg);
-    }
-    hexdump(data, bytes_read);
+    // {
+    //   char msg[30];
+    //   snprintf(msg, 30, "Read %d bytes\n", bytes_read);
+    //   uart_log(msg);
+    // }
+    // hexdump(data, bytes_read);
     if (bytes_read > 0) {
       uint8_t* ptr = data;
       size_t bytes_remaining = bytes_read;

@@ -25,6 +25,7 @@ import logging
 import os
 import os.path
 import pathlib
+from pickle import NONE
 import queue
 import re
 import shlex
@@ -913,6 +914,7 @@ class ZephyrQemuTransport:
 
 class ZephyrFvpMakeResult(enum.Enum):
     FVP_STARTED = "fvp_started"
+    FVP_INIT = "fvp_initialized"
     MAKE_FAILED = "make_failed"
     EOF = "eof"
 
@@ -945,13 +947,13 @@ class BlockingStream:
             self.unread = data[n:]
             data = data[:n]
 
-        print(self.name, "READ", n, "->", len(data), data)
+        # print(self.name, "READ", n, "->", len(data), data)
         return data
 
     readline = read
 
     def write(self, data):
-        print(self.name, "WRITE", data)
+        # print(self.name, "WRITE", data)
         self.q.put(data)
 
 
@@ -1005,12 +1007,12 @@ class ZephyrFvpTransport:
             env=env,
             stdout=subprocess.PIPE,
         )
+        threading.Thread(target=self._fvp_check_stdout, daemon=True).start()
         self.iris_port = self._wait_for_fvp()
         _LOG.info("IRIS started on port %d", self.iris_port)
         NetworkModelInitializer = self._iris_lib.NetworkModelInitializer.NetworkModelInitializer
         self._model_init = NetworkModelInitializer(host="localhost", port=self.iris_port, timeout_in_ms=1000)
-        self._model_init.start()
-        self._model = self._model_init.network_model
+        self._model = self._model_init.start()
 #        targets = list(model.get_targets())
 #        _LOG.info("Iris server reports %d targets: %r", len(targets), [t.instName for t in targets])
         self._target = self._model.get_target("component.FVP_MPS3_Corstone_SSE_300.cpu0")
@@ -1019,13 +1021,14 @@ class ZephyrFvpTransport:
         self._target._stdout = BlockingStream("stdout")
         self._target._stdin = BlockingStream("stdin")
         print(self._target.is_running)
-        print(self._target.get_pc())
-        while True:
-            try:
-                self._model.run(blocking=False, timeout=100)
-                break
-            except TimeoutError:
-                pass
+        # while True:
+        #     try:
+        #         self._model.run(blocking=False, timeout=100)
+        #         break
+        #     except TimeoutError:
+        #         pass
+        self._model.run(blocking=False, timeout=100)
+        self._wait_for_semihost_init()
 
         print(self._target.is_running)
 
@@ -1040,8 +1043,11 @@ class ZephyrFvpTransport:
             line = str(line, "utf-8")
             _LOG.info("ninja: %s", line)
             m = re.match(r'Iris server started listening to port ([0-9]+)\n', line)
+            n = re.match("microTVM Zephyr runtime - running", line)
             if m:
                 self._queue.put((ZephyrFvpMakeResult.FVP_STARTED, int(m.group(1))))
+            elif n:
+                self._queue.put((ZephyrFvpMakeResult.FVP_INIT, NONE))
             else:
                 line = re.sub("[^a-zA-Z0-9 \n]", "", line)
                 pattern = r"recipe for target (\w*) failed"
@@ -1051,7 +1057,6 @@ class ZephyrFvpTransport:
         self._queue.put((ZephyrFvpMakeResult.EOF, None))
 
     def _wait_for_fvp(self):
-        threading.Thread(target=self._fvp_check_stdout, daemon=True).start()
         while True:
             try:
                 item = self._queue.get(timeout=120)
@@ -1066,13 +1071,25 @@ class ZephyrFvpTransport:
 
             raise ValueError(f"{item} not expected.")
 
+    def _wait_for_semihost_init(self):
+        while True:
+            try:
+                item = self._queue.get(timeout=120)
+            except Exception:
+                raise TimeoutError("semihost init timeout.")
+
+            if item[0] == ZephyrFvpMakeResult.FVP_INIT:
+                return 
+
+            raise ValueError(f"{item} not expected.")
+
     def close(self):
         self._model.release()
         parent = psutil.Process(self.proc.pid)
         if parent:
             for child in parent.children(recursive=True):
-                child.kill()
-            parent.kill()
+                child.terminate()
+            parent.terminate()
 
     def read(self, n, timeout_sec):
         return self._target.stdout.read(n, timeout_sec)

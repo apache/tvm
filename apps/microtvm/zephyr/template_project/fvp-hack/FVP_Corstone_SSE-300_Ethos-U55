@@ -28,7 +28,17 @@ if [ "${FVP_BIN_PATH}"  != "" ]; then
     ARGS=( ${FVP_BIN_PATH}/${ARGS[0]} )
 fi
 
-ARGS=( "${ARGS[@]}" --iris-server --print-port-number -C cpu0.semihosting-enable=1 )
+ARGS=( "${ARGS[@]}" 
+    --iris-server 
+    --print-port-number 
+    -C cpu0.semihosting-enable=1 
+    -C mps3_board.telnetterminal0.mode=raw
+    -C mps3_board.telnetterminal1.mode=raw
+    -C mps3_board.telnetterminal2.mode=raw
+    -C mps3_board.telnetterminal0.start_telnet=0
+    -C mps3_board.telnetterminal1.start_telnet=0
+    -C mps3_board.telnetterminal2.start_telnet=0
+    )
 
 while [ "$#" -gt 0 ]; do
     ARGS=( "${ARGS[@]}" "$1" )
