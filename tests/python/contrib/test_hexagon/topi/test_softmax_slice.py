@@ -79,9 +79,6 @@ class TestSoftmax2d(Basesoftmax2d):
         axis_sep,
         hexagon_session,
     ):
-        if hexagon_session._launcher._serial_number != "simulator":
-            pytest.skip(msg="Due to https://github.com/apache/tvm/issues/11957")
-
         target_hexagon = tvm.target.hexagon(
             "v69",
             llvm_options="--disable-loop-unrolling-pass",
