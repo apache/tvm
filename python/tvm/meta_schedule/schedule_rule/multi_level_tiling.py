@@ -173,6 +173,7 @@ class MultiLevelTilingTensorCore(ScheduleRule):
         reuse_read: Optional[ReuseType] = None,
         reuse_write: Optional[ReuseType] = None,
     ) -> None:
+        print(intrin_group)
         self.__init_handle_by_constructor__(
             _ffi_api.ScheduleRuleMultiLevelTilingTensorCore,  # type: ignore # pylint: disable=no-member
             intrin_group,

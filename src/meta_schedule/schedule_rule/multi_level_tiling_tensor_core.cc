@@ -106,16 +106,6 @@ class MultiLevelTilingTensorCoreNode : public MultiLevelTilingNode {
   Optional<LoopRV> TransformWithTensorIntrin(TensorCoreStateNode* state,
                                              const String& intrin_name) const;
 
-  using BufferTypeIndex = std::pair<tir::BufferIndexType, int>;
-
-  /*!
-   * \brief Extract buffer index and its type from block reads/writes
-   * \param block_sref The sref to the block to extract
-   * \return The mapping from buffer to its type and and index
-   */
-  std::unordered_map<tir::Buffer, BufferTypeIndex, ObjectPtrHash, ObjectPtrEqual>
-  ExtractBufferIndex(const tir::StmtSRef& block_sref) const;
-
   /*!
    * \brief Tile, blockize and annotate for tensorization with the given intrin
    * \param block_rv The block to be tensorized
@@ -231,31 +221,15 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddReadReuseTensorCore(
   return {state};
 }
 
-std::unordered_map<tir::Buffer, MultiLevelTilingTensorCoreNode::BufferTypeIndex, ObjectPtrHash,
-                   ObjectPtrEqual>
-MultiLevelTilingTensorCoreNode::ExtractBufferIndex(const tir::StmtSRef& block_sref) const {
-  const tir::BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
-  // Collect buffer info before
-  std::unordered_map<tir::Buffer, BufferTypeIndex, ObjectPtrHash, ObjectPtrEqual> buffer_index_info;
-  for (int i = 0; i < static_cast<int>(block->reads.size()); ++i) {
-    buffer_index_info[block->reads[i]->buffer] = {tir::BufferIndexType::kRead, i};
-  }
-  for (int i = 0; i < static_cast<int>(block->writes.size()); ++i) {
-    buffer_index_info[block->writes[i]->buffer] = {tir::BufferIndexType::kWrite, i};
-  }
-  return buffer_index_info;
-}
-
 Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
     TensorCoreStateNode* state, const String& intrin_name) const {
   BlockRV block_rv = state->block_rv;
   tir::StmtSRef block_sref = state->sch->GetSRef(state->block_rv);
 
-  std::unordered_map<tir::Buffer, BufferTypeIndex, ObjectPtrHash, ObjectPtrEqual>
-      buffer_index_info = ExtractBufferIndex(block_sref);
-
   // Add reindex stages
   const tir::BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  // Hold the reference of the block before reindex
+  const tir::Block block_before_reindex = GetRef<tir::Block>(block);
   if (block->reads.size() != 2 || block->writes.size() != 1) {
     // only matmul-like computation is allowed
     return NullOpt;
@@ -320,17 +294,28 @@ Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
     return tir::IndexMap(sub_index_map_src, sub_index_map_tgt);
   };
 
-  for (const auto& it : buffer_index_info) {
-    const tir::Buffer& lhs_buffer = it.first;
-    const tir::BufferIndexType buffer_type = it.second.first;
-    int buffer_index = it.second.second;
+  std::unordered_set<tir::Buffer, ObjectPtrHash, ObjectPtrEqual> visited_buffers;
+
+  auto f_transform_buffer_layout = [&](tir::BufferIndexType index_type, int buffer_index) {
+    const tir::Buffer& lhs_buffer = tir::GetNthAccessBuffer(
+        state->sch->state(), block_before_reindex, buffer_index, index_type);
+    if (visited_buffers.count(lhs_buffer)) {
+      return;
+    }
+    visited_buffers.insert(lhs_buffer);
     // Refresh block pointer (block sref is not invalidated)
     block = TVM_SREF_TO_BLOCK(block, block_sref);
-    const tir::BufferRegion& reindexed_buffer_region = buffer_type == tir::BufferIndexType::kRead
-                                                           ? block->reads[buffer_index]
-                                                           : block->writes[buffer_index];
+    const tir::BufferRegion& reindexed_buffer_region = tir::GetNthAccessBufferRegion(
+        state->sch->state(), GetRef<tir::Block>(block), buffer_index, index_type);
     auto sub_index_map = f_get_sub_index_map(lhs_buffer, reindexed_buffer_region->region);
-    state->sch->TransformLayout(state->block_rv, buffer_index, buffer_type, sub_index_map);
+    state->sch->TransformLayout(state->block_rv, buffer_index, index_type, sub_index_map);
+  };
+
+  for (int i = 0, n = block_before_reindex->reads.size(); i < n; ++i) {
+    f_transform_buffer_layout(tir::BufferIndexType::kRead, i);
+  }
+  for (int i = 0, n = block_before_reindex->writes.size(); i < n; ++i) {
+    f_transform_buffer_layout(tir::BufferIndexType::kWrite, i);
   }
 
   // Transform the layout of current block and reindex blocks

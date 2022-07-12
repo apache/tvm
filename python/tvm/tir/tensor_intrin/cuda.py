@@ -865,7 +865,7 @@ def get_wmma_intrin_group(
     return {
         "init": init_intrins[out_dtype],
         "load_a": load_a_intrins[in_dtype],
-        "load_b": load_b_intrins,
+        "load_b": load_b_intrins[in_dtype],
         "compute": compute_intrins[out_dtype],
         "store": store_intrins[out_dtype],
     }
