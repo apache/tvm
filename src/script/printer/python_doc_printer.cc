@@ -94,7 +94,7 @@ bool IsValidPythonIdentifier(const std::string& id) {
   // This regex is just an approximation of the Python identifier
   // rule. This doesn't exclude the reserved keywords. But it should
   // be good enough for roundtrippable TVMScript printing and parsing.
-  const static std::regex id_pattern(R"(^[^\d\W]\w*$)");
+  static const std::regex id_pattern(R"(^[^\d\W]\w*$)");
   return std::regex_match(id, id_pattern);
 }
 
@@ -122,37 +122,37 @@ void PythonDocPrinter::PrintTypedDoc(const IndexDoc& doc) {
   }
 }
 
-constexpr int OP_STR_TABLE_SIZE = static_cast<int>(OperationDocNode::Kind::kSpecialEnd) + 1;
-static const std::array<const char*, OP_STR_TABLE_SIZE> OP_STR_TABLE = []() {
-  using OpKind = OperationDocNode::Kind;
-  std::array<const char*, OP_STR_TABLE_SIZE> table;
-  auto set_op = [&table](auto op, const char* str) { table[static_cast<int>(op)] = str; };
-
-  set_op(OpKind::kUSub, "-");
-  set_op(OpKind::kInvert, "~");
-  set_op(OpKind::kAdd, "+");
-  set_op(OpKind::kSub, "-");
-  set_op(OpKind::kMult, "*");
-  set_op(OpKind::kDiv, "/");
-  set_op(OpKind::kFloorDiv, "//");
-  set_op(OpKind::kMod, "%");
-  set_op(OpKind::kPow, "**");
-  set_op(OpKind::kLShift, "<<");
-  set_op(OpKind::kRShift, ">>");
-  set_op(OpKind::kBitAnd, "&");
-  set_op(OpKind::kBitOr, "|");
-  set_op(OpKind::kBitXor, "^");
-  set_op(OpKind::kLt, "<");
-  set_op(OpKind::kLtE, "<=");
-  set_op(OpKind::kEq, "==");
-  set_op(OpKind::kNotEq, "!=");
-  set_op(OpKind::kGt, ">");
-  set_op(OpKind::kGtE, ">=");
-
-  return table;
-}();
-
 const char* OperatorToString(OperationDocNode::Kind operation_kind) {
+  constexpr int OP_STR_TABLE_SIZE = static_cast<int>(OperationDocNode::Kind::kSpecialEnd) + 1;
+  static const std::array<const char*, OP_STR_TABLE_SIZE> OP_STR_TABLE = []() {
+    using OpKind = OperationDocNode::Kind;
+    std::array<const char*, OP_STR_TABLE_SIZE> table;
+    auto set_op = [&table](auto op, const char* str) { table[static_cast<int>(op)] = str; };
+
+    set_op(OpKind::kUSub, "-");
+    set_op(OpKind::kInvert, "~");
+    set_op(OpKind::kAdd, "+");
+    set_op(OpKind::kSub, "-");
+    set_op(OpKind::kMult, "*");
+    set_op(OpKind::kDiv, "/");
+    set_op(OpKind::kFloorDiv, "//");
+    set_op(OpKind::kMod, "%");
+    set_op(OpKind::kPow, "**");
+    set_op(OpKind::kLShift, "<<");
+    set_op(OpKind::kRShift, ">>");
+    set_op(OpKind::kBitAnd, "&");
+    set_op(OpKind::kBitOr, "|");
+    set_op(OpKind::kBitXor, "^");
+    set_op(OpKind::kLt, "<");
+    set_op(OpKind::kLtE, "<=");
+    set_op(OpKind::kEq, "==");
+    set_op(OpKind::kNotEq, "!=");
+    set_op(OpKind::kGt, ">");
+    set_op(OpKind::kGtE, ">=");
+
+    return table;
+  }();
+
   auto op_index = static_cast<int>(operation_kind);
   ICHECK_LT(op_index, OP_STR_TABLE_SIZE);
   const char* str = OP_STR_TABLE[static_cast<int>(operation_kind)];
