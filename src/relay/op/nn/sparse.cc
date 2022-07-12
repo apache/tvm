@@ -239,7 +239,8 @@ RELAY_REGISTER_OP("nn.sparse_add")
     .add_argument("sparse_indices", "1D Tensor", "Sparse indices vector.")
     .add_argument("sparse_indptr", "1D Tensor", "Sparse index pointer vector.")
     .set_support_level(1)
-    .add_type_rel("SparseAdd", SparseAddRel);
+    .add_type_rel("SparseAdd", SparseAddRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
 TVM_REGISTER_NODE_TYPE(SparseConv2DAttrs);
 

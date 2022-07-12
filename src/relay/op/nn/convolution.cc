@@ -1357,7 +1357,8 @@ weight transformation in advance.
     .set_num_inputs(1)
     .add_argument("weight", "Tensor", "The weight tensor.")
     .set_support_level(10)
-    .add_type_rel("Conv2DWinogradNNPACKWeightTransform", Conv2DWinogradNNPACKWeightTransformRel);
+    .add_type_rel("Conv2DWinogradNNPACKWeightTransform", Conv2DWinogradNNPACKWeightTransformRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
 // relay.nn.contrib_conv2d_gemm_without_weight_transform
 TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_gemm_without_weight_transform")

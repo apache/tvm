@@ -161,7 +161,8 @@ Useful for
     .add_argument("data", "Tensor", "Latest input")
     .add_argument("buffer", "Tensor", "Buffer storing latest [length_buffer] inputs")
     .set_support_level(3)
-    .add_type_rel("FIFOBuffer", FIFOBufferRel);
+    .add_type_rel("FIFOBuffer", FIFOBufferRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
 // ------------------- relay.nn.matmul
 TVM_REGISTER_NODE_TYPE(MatmulAttrs);
@@ -638,7 +639,8 @@ centered at that value (zero padding is added where necessary).
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_support_level(2)
-    .add_type_rel("Identity", IdentityRel);
+    .add_type_rel("Identity", IdentityRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
 // Positional relay function to create L2Normalize operator used by frontend FFI.
 TVM_REGISTER_NODE_TYPE(L2NormalizeAttrs);
@@ -1137,7 +1139,8 @@ Do log on the data - do not accept logits.
     .add_argument("x", "1D Tensor", "Predictions.")
     .add_argument("y", "1D Tensor", "Targets.")
     .set_support_level(10)
-    .add_type_rel("CrossEntropy", CrossEntropyRel);
+    .add_type_rel("CrossEntropy", CrossEntropyRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
 // relay.nn.dilate
 TVM_REGISTER_NODE_TYPE(DilateAttrs);
@@ -1203,7 +1206,8 @@ Accept logits.
     .add_argument("x", "1D Tensor", "Predictions.")
     .add_argument("y", "1D Tensor", "Targets.")
     .set_support_level(10)
-    .add_type_rel("CrossEntropy", CrossEntropyRel);
+    .add_type_rel("CrossEntropy", CrossEntropyRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
 // Depth to space and space to depth
 TVM_REGISTER_NODE_TYPE(SubPixelAttrs);
