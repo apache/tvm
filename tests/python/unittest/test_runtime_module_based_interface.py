@@ -22,6 +22,7 @@ import numpy as np
 
 import tvm
 import tvm.relay.testing
+import tvm.rpc
 from tvm import relay, runtime
 from tvm.contrib import graph_executor
 from tvm.contrib.debugger import debug_executor

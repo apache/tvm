@@ -30,10 +30,10 @@ from tvm.contrib import utils, graph_executor
 @tvm.testing.requires_llvm
 def test_graph_simple():
     """Test simple graph"""
-    # pylint: disable:invalid-name
+    # pylint: disable=invalid-name
     n = 4
-    A = te.placeholder((n,), name="A")  # pylint: disable=invalid-name
-    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")  # pylint: disable=invalid-name
+    A = te.placeholder((n,), name="A")
+    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
     s = te.create_schedule(B.op)
 
     node0 = {"op": "null", "name": "x", "inputs": []}
