@@ -134,19 +134,16 @@ def test_path_get_prefix():
     assert p2.parent == p1
     assert p1.parent is None
 
-    assert p2[:1] == p1
-    assert p2[:-1] == p1
+    assert p2.get_prefix(1) == p1
 
-    assert p3[:1] == p1
-    assert p3[:2] == p2
-    assert p3[:3] == p3
-    assert p3[:-2] == p1
-    assert p3[:-1] == p2
+    assert p3.get_prefix(1) == p1
+    assert p3.get_prefix(2) == p2
+    assert p3.get_prefix(3) == p3
 
     with pytest.raises(IndexError) as e:
-        p3[:-4]
+        p3.get_prefix(0)
     assert "Prefix length must be at least 1" in str(e.value)
 
     with pytest.raises(IndexError) as e:
-        p3[:4]
+        p3.get_prefix(4)
     assert "Attempted to get a prefix longer than the path itself" in str(e.value)

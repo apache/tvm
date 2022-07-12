@@ -67,15 +67,8 @@ class ObjectPath(Object):
     def __len__(self) -> int:
         return _ffi_node_api.ObjectPathLength(self)
 
-    def __getitem__(self, slc) -> "ObjectPath":
-        if not isinstance(slc, slice):
-            raise TypeError("ObjectPath can only be indexed with a slice")
-        if slc.start is not None or slc.step is not None:
-            raise ValueError(
-                "ObjectPath can only be indexed with a slice" " of the form [:prefix_len]"
-            )
-        prefix_len = slc.stop if slc.stop >= 0 else len(self) + slc.stop
-        return _ffi_node_api.ObjectPathGetPrefix(self, prefix_len)
+    def get_prefix(self, length) -> "ObjectPath":
+        return _ffi_node_api.ObjectPathGetPrefix(self, length)
 
     def is_prefix_of(self, other) -> "ObjectPath":
         return _ffi_node_api.ObjectPathIsPrefixOf(self, other)
