@@ -109,9 +109,8 @@ def test_single_conv_compute_cycles_hint():
     for single convolution.
     """
     primfunc = _compile_model(_create_single_conv2d())
-    ops = primfunc.body.body.body.seq
-
-    compute_cycles_hints = [2304, 640, 320]
+    ops = primfunc.body.body.seq
+    compute_cycles_hints = [2944, 320]
     for op, compute_cycle_hint in zip(ops, compute_cycles_hints):
         assert op.attr_key == "pragma_compute_cycles_hint"
         assert op.value == compute_cycle_hint
@@ -123,9 +122,8 @@ def test_double_conv_compute_cycles_hint():
     for double convolution.
     """
     primfunc = _compile_model(_create_double_conv2d())
-    ops = primfunc.body.body.body.body.body.body.seq
-
-    compute_cycles_hints = [2304, 640, 768, 640, 320, 240]
+    ops = primfunc.body.body.body.body.seq
+    compute_cycles_hints = [2944, 1408, 320, 240]
     for op, compute_cycle_hint in zip(ops, compute_cycles_hints):
         assert op.attr_key == "pragma_compute_cycles_hint"
         assert op.value == compute_cycle_hint
