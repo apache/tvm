@@ -22,7 +22,6 @@ import numpy as np
 
 import tvm
 import tvm.relay.testing
-import tvm.rpc
 from tvm import relay, runtime
 from tvm.contrib import graph_executor
 from tvm.contrib.debugger import debug_executor
@@ -369,7 +368,7 @@ def test_mod_export():
             out = gmod.get_output(0).numpy()
             tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
-        check_remote(rpc.Server("127.0.0.1"))
+        check_remote(tvm.rpc.Server("127.0.0.1"))
 
     for obj_format in [".so", ".tar"]:
         verify_cpu_export(obj_format)
