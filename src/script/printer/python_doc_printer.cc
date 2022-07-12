@@ -19,6 +19,7 @@
 
 #include <tvm/runtime/registry.h>
 
+#include <array>
 #include <regex>
 
 #include "../../support/str_escape.h"
