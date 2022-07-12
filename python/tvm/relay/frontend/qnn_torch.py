@@ -937,10 +937,9 @@ def _relu6():
     return _impl
 
 
-def _leaky_relu():
+def _leaky_relu(fp32_piggy_back=False):
     # refer to src/ATen/native/quantized/cpu/qrelu.cpp
-    def _impl(inputs, _):
-        assert len(inputs) == 7, "Input quant params not found in op inputs"
+    def _impl_fp32(inputs, _):
         alpha = inputs[1]
         output_scale = _expr.const(inputs[3])
         output_zero_point = _expr.const(inputs[4])
@@ -951,6 +950,18 @@ def _leaky_relu():
         return relay.qnn.op.quantize(
             dequantized, output_scale, output_zero_point, out_dtype="uint8"
         )
+
+    def _impl_int8(inputs, _):
+        alpha = inputs[1]
+        output_scale = _expr.const(inputs[3])
+        output_zero_point = _expr.const(inputs[4])
+        return relay.qnn.op.leaky_relu(inputs[0], alpha, output_scale, output_zero_point)
+
+    def _impl(inputs, _):
+        assert len(inputs) == 7, "Input quant params not found in op inputs"
+        if fp32_piggy_back:
+            return _impl_fp32(inputs, _)
+        return _impl_int8(inputs, _)
 
     return _impl
 
