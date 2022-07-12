@@ -18,8 +18,8 @@
 """Schedule for dense operator"""
 
 from tvm import te, tir
-from ..utils import get_layout_transform_fn
 from tvm.topi import tag
+from ..utils import get_layout_transform_fn
 
 
 def dense_compute(tensor_a, tensor_b, bias=None, out_dtype=None):
@@ -119,7 +119,7 @@ def dense_schedule(outs, ins, output_layout: str, input_layout: str):
     matmul = s.get_block("matmul_sliced")
     try:
         bias = s.get_block("bias")
-    except:
+    except tir.schedule.schedule.ScheduleError:
         bias = None
 
     input_transform_fn = get_layout_transform_fn(input_layout)
