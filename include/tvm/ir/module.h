@@ -27,6 +27,7 @@
 #include <tvm/ir/adt.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
+#include <tvm/ir/global_var_supply.h>
 #include <tvm/ir/type.h>
 #include <tvm/parser/source_map.h>
 #include <tvm/runtime/container/array.h>
@@ -63,6 +64,8 @@ class IRModuleNode : public Object {
   parser::SourceMap source_map;
   /* \brief Additional attributes storing meta-data about the module. */
   DictAttrs attrs;
+
+  GlobalVarSupply global_var_supply;
 
   /*!
    * \brief Get a module attribute.
@@ -125,6 +128,7 @@ class IRModuleNode : public Object {
     v->Visit("global_type_var_map_", &global_type_var_map_);
     v->Visit("source_map", &source_map);
     v->Visit("attrs", &attrs);
+    v->Visit("global_var_supply", &global_var_supply);
   }
 
   TVM_DLL bool SEqualReduce(const IRModuleNode* other, SEqualReducer equal) const;
@@ -323,14 +327,6 @@ class IRModuleNode : public Object {
   /*! \brief Helper function for registering a typedef's constructors */
   void RegisterConstructors(const GlobalTypeVar& var, const TypeData& type);
 
-  /*!
-   * \brief Returns a version of \p name which is unique amongst all function definitions in module.
-   *
-   * \param name The original name.
-   * \return Updated name which is unique.
-   */
-  String GetUniqueName(const String& name);
-
   /*! \brief A map from string names to global variables that
    * ensures global uniqueness.
    */
@@ -362,12 +358,14 @@ class IRModule : public ObjectRef {
   /*!
    * \brief constructor
    * \param functions Functions in the module.
+   * \param global_var_supply The GlobalVarSupply to be used in the module.
    * \param type_definitions Type definitions in the module.
    * \param import_set Set of imported files in the module.
    * \param map The module source map.
    * \param attrs The module attributes.
    */
   TVM_DLL explicit IRModule(Map<GlobalVar, BaseFunc> functions,
+                            GlobalVarSupply global_var_supply = GlobalVarSupply::EmptySupply(),
                             Map<GlobalTypeVar, TypeData> type_definitions = {},
                             std::unordered_set<String> import_set = {}, parser::SourceMap map = {},
                             DictAttrs attrs = {});
@@ -403,6 +401,7 @@ class IRModule : public ObjectRef {
    *
    * \param expr The expression to set as the main function to the module.
    * \param global_funcs The global function map. Default empty.
+   * \param global_var_supply The GlobalVarSupply to be used in the module.
    * \param type_definitions The global type definition map. Default empty.
    * \param import_set Set of external modules already imported. Default empty.
    *
@@ -413,6 +412,7 @@ class IRModule : public ObjectRef {
    */
   static std::pair<IRModule, GlobalVar> FromExprInContext(
       const RelayExpr& expr, const Map<GlobalVar, BaseFunc>& global_funcs = {},
+      GlobalVarSupply global_var_supply = GlobalVarSupply::EmptySupply(),
       const Map<GlobalTypeVar, TypeData>& type_definitions = {},
       std::unordered_set<String> import_set = {});
 
@@ -420,9 +420,10 @@ class IRModule : public ObjectRef {
    * \brief As for \p FromExprInContext, but assuming \p expr is bound to 'main' and no
    * imports.
    */
-  TVM_DLL static IRModule FromExpr(const RelayExpr& expr,
-                                   const Map<GlobalVar, BaseFunc>& global_funcs = {},
-                                   const Map<GlobalTypeVar, TypeData>& type_definitions = {});
+  TVM_DLL static IRModule FromExpr(
+      const RelayExpr& expr, const Map<GlobalVar, BaseFunc>& global_funcs = {},
+      GlobalVarSupply global_var_supply = GlobalVarSupply::EmptySupply(),
+      const Map<GlobalTypeVar, TypeData>& type_definitions = {});
 
   /*!
    * \brief Parse text format source file into an IRModule.

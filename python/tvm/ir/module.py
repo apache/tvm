@@ -19,6 +19,7 @@ from typing import Optional
 
 from tvm._ffi.base import string_types
 import tvm._ffi
+from tvm.ir.supply import GlobalVarSupply
 
 from .base import Node
 from . import expr as _expr
@@ -38,7 +39,7 @@ class IRModule(Node):
         Map of global var to BaseFunc
     """
 
-    def __init__(self, functions=None, type_definitions=None):
+    def __init__(self, functions=None, type_definitions=None, globar_var_supply=None):
         if functions is None:
             functions = {}
         elif isinstance(functions, dict):
@@ -61,7 +62,11 @@ class IRModule(Node):
                     raise TypeError("Expect type_definitions to be Dict[GlobalTypeVar, Type]")
                 mapped_type_defs[k] = v
             type_definitions = mapped_type_defs
-        self.__init_handle_by_constructor__(_ffi_api.IRModule, functions, type_definitions)
+        if globar_var_supply is None:
+            globar_var_supply = GlobalVarSupply()
+        self.__init_handle_by_constructor__(
+            _ffi_api.IRModule, functions, type_definitions, globar_var_supply
+        )
 
     def __setitem__(self, var, val):
         """Add a mapping to the module.
@@ -219,7 +224,7 @@ class IRModule(Node):
         return tuple([ty_var] + list(ty_data.constructors))
 
     @staticmethod
-    def from_expr(expr, functions=None, type_defs=None):
+    def from_expr(expr, functions=None, type_defs=None, global_var_supply=None):
         """Construct a module from a standalone expression.
 
         Parameters
@@ -240,9 +245,12 @@ class IRModule(Node):
             where expr is set as the entry point
             (wrapped in a function if necessary)
         """
+        global_var_supply = (
+            global_var_supply if global_var_supply is not None else GlobalVarSupply()
+        )
         funcs = functions if functions is not None else {}
         defs = type_defs if type_defs is not None else {}
-        return _ffi_api.Module_FromExpr(expr, funcs, defs)
+        return _ffi_api.Module_FromExpr(expr, funcs, global_var_supply, defs)
 
     def _import(self, file_to_import):
         return _ffi_api.Module_Import(self, file_to_import)

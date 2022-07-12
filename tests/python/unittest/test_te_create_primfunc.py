@@ -29,7 +29,7 @@ def test_unique_name_complete_block():
     func = te.create_prim_func([A, C])
     s = tir.Schedule(func, debug_mask="all")
     assert isinstance(s.get_sref(s.get_block("main")), tir.schedule.StmtSRef)
-    assert isinstance(s.get_sref(s.get_block("main_1")), tir.schedule.StmtSRef)
+    assert isinstance(s.get_sref(s.get_block("main1")), tir.schedule.StmtSRef)
 
 
 def test_unique_name_reduction_block():
@@ -41,7 +41,7 @@ def test_unique_name_reduction_block():
     func = te.create_prim_func([A, C])
     s = tir.Schedule(func, debug_mask="all")
     assert isinstance(s.get_sref(s.get_block("sum")), tir.schedule.StmtSRef)
-    assert isinstance(s.get_sref(s.get_block("sum_1")), tir.schedule.StmtSRef)
+    assert isinstance(s.get_sref(s.get_block("sum1")), tir.schedule.StmtSRef)
 
 
 def _check_workload(te_workload, tir_workload):

@@ -47,7 +47,7 @@ def get_ref(data_np, weight1_np, weight2_np):
 
 def schedule_dense_dense(sch):
     dense1 = sch.get_block("T_matmul_NT")
-    dense2 = sch.get_block("T_matmul_NT_1")
+    dense2 = sch.get_block("T_matmul_NT1")
     _y1, _x1, _k1 = sch.get_loops(dense1)
     _y2, _x2, _k2 = sch.get_loops(dense2)
 

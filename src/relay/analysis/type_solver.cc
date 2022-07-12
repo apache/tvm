@@ -639,7 +639,7 @@ TVM_REGISTER_GLOBAL("relay.analysis._test_type_solver")
     .set_body([](runtime::TVMArgs args, runtime::TVMRetValue* ret) {
       using runtime::PackedFunc;
       using runtime::TypedPackedFunc;
-      auto module = IRModule({}, {});
+      auto module = IRModule({}, GlobalVarSupply::EmptySupply(), {});
       DiagnosticContext diag_ctx = DiagnosticContext::Default(module);
       auto dummy_fn_name = GlobalVar("test");
       module->Add(dummy_fn_name, Function({}, Tuple(tvm::Array<relay::Expr>({})), Type(), {}, {}));

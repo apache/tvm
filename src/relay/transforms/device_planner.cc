@@ -911,8 +911,8 @@ class DeviceCapturer : public ExprMutator {
 
   IRModule Capture() {
     VLOG_CONTEXT << "CaptureDevices";
-    IRModule result(/*functions=*/{}, mod_->type_definitions, mod_->Imports(), mod_->source_map,
-                    mod_->attrs);
+    IRModule result(/*functions=*/{}, mod_->global_var_supply, mod_->type_definitions,
+                    mod_->Imports(), mod_->source_map, mod_->attrs);
     for (const auto& kv : mod_->functions) {
       if (const auto* function_node = AsOptimizableFunctionNode(kv.second)) {
         VLOG(2) << "capturing devices for Relay Function '" << kv.first->name_hint << "'";

@@ -183,7 +183,7 @@ Kind KindCheck(const Type& t, const IRModule& mod, Optional<DiagnosticContext> d
 
 TVM_REGISTER_GLOBAL("relay.analysis.check_kind").set_body([](TVMArgs args, TVMRetValue* ret) {
   if (args.size() == 1) {
-    *ret = KindCheck(args[0], IRModule({}, {}));
+    *ret = KindCheck(args[0], IRModule({}, GlobalVarSupply::EmptySupply(), {}));
   } else if (args.size() == 2) {
     *ret = KindCheck(args[0], args[1], Optional<DiagnosticContext>());
   } else {

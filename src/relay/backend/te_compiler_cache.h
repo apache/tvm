@@ -24,6 +24,7 @@
 #ifndef TVM_RELAY_BACKEND_TE_COMPILER_CACHE_H_
 #define TVM_RELAY_BACKEND_TE_COMPILER_CACHE_H_
 
+#include <tvm/ir/name_supply.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
 #include <tvm/relay/analysis.h>
@@ -227,13 +228,10 @@ std::pair<Array<te::Tensor>, std::string> LowerTECompute(const Function& source_
  *  The funcs field in cache is not yet populated.
  */
 CachedFunc PrimFuncFor(const Function& source_func, const Target& target,
-                       std::function<std::string(std::string)> renamer);
+                       GlobalVarSupply global_var_supply);
 
 CachedFunc ShapeFuncFor(const Function& prim_func, const Target& target,
-                        std::function<std::string(std::string)> renamer);
-
-// TODO(mbs): Bring name uniqification under control -- this is replicated in quite a few places.
-std::string GetUniqueName(std::string name, std::unordered_map<std::string, int>* name_map);
+                        GlobalVarSupply global_var_supply);
 
 // implementations
 inline size_t CCacheKeyNode::Hash() const {

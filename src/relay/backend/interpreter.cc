@@ -1049,8 +1049,8 @@ TypedPackedFunc<ObjectRef(Array<Expr>)> EvalFunction(IRModule mod, Expr expr, De
       transform::PassContext pass_ctx = transform::PassContext::Current();
       With<transform::PassContext> ctx(pass_ctx);
       mod = transform::InferType()(mod);
-      mod_and_global =
-          IRModule::FromExprInContext(expr, mod->functions, mod->type_definitions, mod->Imports());
+      mod_and_global = IRModule::FromExprInContext(expr, mod->functions, mod->global_var_supply,
+                                                   mod->type_definitions, mod->Imports());
     } else {
       mod_and_global = IRModule::FromExprInContext(expr);
     }
@@ -1104,14 +1104,14 @@ TypedPackedFunc<ObjectRef(Array<Expr>)> EvalFunction(IRModule mod, Expr expr, De
 }
 
 ObjectRef Eval(Expr expr, Map<GlobalTypeVar, TypeData> type_definitions,
-               std::unordered_set<String> import_set, Device device, Target target,
-               Map<String, ObjectRef> attrs) {
+               GlobalVarSupply global_var_supply, std::unordered_set<String> import_set,
+               Device device, Target target, Map<String, ObjectRef> attrs) {
   ICHECK_EQ(device.device_type, target->kind->device_type);
   Array<Target> raw_targets = {target};
   CompilationConfig config(transform::PassContext::Current(), raw_targets);
 
-  std::pair<IRModule, GlobalVar> mod_and_global =
-      IRModule::FromExprInContext(expr, /*global_funcs=*/{}, type_definitions, import_set);
+  std::pair<IRModule, GlobalVar> mod_and_global = IRModule::FromExprInContext(
+      expr, /*global_funcs=*/{}, global_var_supply, type_definitions, import_set);
 
   IRModule mod = Prepare(WithAttrs(mod_and_global.first, {attrs}), config);
 

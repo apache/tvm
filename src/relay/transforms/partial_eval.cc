@@ -899,7 +899,9 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   PStatic ConstEvaluate(const Expr& expr, LetList* ll) {
     // use a fresh build context in case we are already in a build context.
     With<transform::PassContext> fresh_build_ctx(transform::PassContext::Create());
-    return Reify(Eval(expr, mod_->type_definitions, mod_->Imports(), CPUDevice(), CPUTarget()), ll);
+    return Reify(Eval(expr, mod_->type_definitions, mod_->global_var_supply, mod_->Imports(),
+                      CPUDevice(), CPUTarget()),
+                 ll);
   }
 
   Func ConstEvaluateFunc(const Expr& expr) {
