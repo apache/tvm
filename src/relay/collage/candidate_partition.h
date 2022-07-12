@@ -167,6 +167,12 @@ struct CandidatePartitionEquals {
   }
 };
 
+struct CandidatePartitionCompare {
+  bool operator()(const CandidatePartition& left, const CandidatePartition& right) const {
+    return *left->sub_graph_.get() < *right->sub_graph_.get();
+  }
+};
+
 }  // namespace collage
 }  // namespace relay
 }  // namespace tvm
