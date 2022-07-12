@@ -213,16 +213,20 @@ void CodeGenCPU::AddDebugInformation(PrimFunc f_tir, llvm::Function* f_llvm) {
   auto* DIFunctionTy = dbg_info_->di_builder_->createSubroutineType(
       dbg_info_->di_builder_->getOrCreateTypeArray(paramTys));
 
+  bool local_to_unit = llvm::GlobalValue::isLocalLinkage(f_llvm->getLinkage());
+
 #if TVM_LLVM_VERSION >= 80
+  auto SPFlags =
+      llvm::DISubprogram::toSPFlags(local_to_unit, /*IsDefinition=*/true, /*IsOptimized=*/true);
   auto* DIFunction = dbg_info_->di_builder_->createFunction(
       /*Scope=*/dbg_info_->file_, /*Name=*/f_llvm->getName(), /*LinkageName=*/"",
       /*File=*/dbg_info_->file_, /*LineNo=*/0, /*Ty=*/DIFunctionTy,
-      /*ScopeLine=*/0);
+      /*ScopeLine=*/0, /*Flags=*/llvm::DINode::FlagZero, /*SPFlags=*/SPFlags);
 #else
   auto* DIFunction = dbg_info_->di_builder_->createFunction(
       /*Scope=*/dbg_info_->file_, /*Name=*/f_llvm->getName(), /*LinkageName=*/"",
       /*File=*/dbg_info_->file_, /*LineNo=*/0, /*Ty=*/DIFunctionTy,
-      /*isLocalToUnit=*/false, /*isDefinition=*/true, /*ScopeLine=*/0,
+      /*isLocalToUnit=*/local_to_unit, /*isDefinition=*/true, /*ScopeLine=*/0,
       /*Flags=*/llvm::DINode::FlagPrototyped, /*isOptimized=*/true);
 #endif
 
