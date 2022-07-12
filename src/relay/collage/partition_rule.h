@@ -33,6 +33,7 @@
 
 #include "../../printer/doc.h"
 #include "./candidate_partition.h"
+#include "./combiner_rule.h"
 #include "./sub_graph.h"
 
 namespace tvm {
@@ -88,6 +89,15 @@ bool DefaultPatternPredicate(const Expr& matched_sub_expr);
  *    delineate a partition (or kernel).
  *  - \p UnionPartitionRule: Simply unions all the candidates from all sub-rules together. Used to
  *    combine individual \p DFPatternPartitionRules.
+ *  - \p CombinePartitionRule: Given a sub-rule and a list of 'combiner' rules, finds
+ *    all possible ways of combining the sub-rule's candidates to yield even larger candidates.
+ *    Note that the sub-rule's candidates may also be directly included in the results. The
+ *    'combiner' rules allow combining by \p OpPatternKinds, combining the arguments to tuples
+ *    which themselves are arguments to Relay operator calls, and so on. This rule is intended to
+ *    mimic the existing TVM \p FuseOps pass, though:
+ *    i) all candidates are found rather than just the largest, ii) the starting set of candidates
+ *    can be provided by any other rule, and iii) we rely on \p SubGraph validity checking to weed
+ *    out infeasible candidates.
  *  - \p OnlyValidPartitionRule: Given a \p SubGraphConfig, ignores candidates with 'invalid'
  *    sub-graphs. Used to limit the maximum candidate depth, the number of independent outputs,
  *    and whether intermediate 'taps' are allowed.
@@ -100,6 +110,54 @@ bool DefaultPatternPredicate(const Expr& matched_sub_expr);
  * partition on more primitive candidates. Note that the \p SubGraph machinery supports
  * multiple-input and -output sub-graphs and their validation, so horizontal partition is easy
  * implement.)
+ *
+ * Here are some typical ways to combine \p PartitionRules for different partition/fusion
+ * strategies:
+ *
+ *  - Classic pattern-based BYOC with \p MergeComposite/AnnotateTarget/PartitionGraph passes:
+ *    \code
+ *    PrimitivePartitionRule
+ *      OnlyValidPartitionRule
+ *        CombinePartitionRule (with join-anything combiner rule)
+ *          UnionPartitionRule
+ *            CompositePartitionRule(label1)
+ *              DFPatternPartitionRule(pattern1)
+ *                        :
+ *            CompositePartitionRule(labeln)
+ *              DFPatternPartitionRule(patternn)
+ *    \endcode
+ *
+ *  - "Consider this library implementation for these sub-expressions", using \p DFPatterns to
+ *    pick out which Relay operators are supported:
+ *    \code
+ *    OnlyValidPartitionRule
+ *      CombinePartitionRule (with default TVM combiner rules)
+ *        UnionPartitionRule
+ *          OpCallByKindPartitionRule
+ *          CompositePartitionRule(lable1)
+ *            DFPatternPartitionRule(pattern1)
+ *                       :
+ *          CompositePartitionRule(lablen)
+ *            DFPatternPartitionRule(patternn)
+ *    \endcode
+ *
+ *  - Classic TVM \p FuseOps
+ *    \code
+ *    PrimitivePartitionRule
+ *      OnlyValidPartitionRule
+ *        CombinePartitionRule (with default TVM combiner rules)
+ *          OpCallByKindPartitionRule
+ *    \endcode
+ *
+ *  - "Just fuse what I tell you to fuse", using \p DFPatterns to directly select candidates:
+ *    \code
+ *    PrimitivePartitionRule
+ *      OnlyValidPartitionRule
+ *        UnionPartitionRule
+ *          DFPatternPartitionRule(pattern1)
+ *                       :
+ *          DFPatternPartitionRule(patternn)
+ *    \endcode
  */
 class PartitionRuleNode : public Object {
  public:
@@ -291,6 +349,80 @@ class OpCallByKindPartitionRule : public PartitionRule {
 
   TVM_DEFINE_OBJECT_REF_METHODS(OpCallByKindPartitionRule, PartitionRule,
                                 OpCallByKindPartitionRuleNode);
+};
+
+/*!
+ * \brief Partition rule which combines sub-graphs to exploit optimizations commonly available in
+ * backends (including the TVM lowering backend). Those optimization rules are in turn described by
+ * one or more primitive \p CombinerRules.
+ *
+ * For TVM these primitive combiner rules are guided by the \p OpPatternKind associated with every
+ * sub-graph. That in turn is the maximum of the kind of each expression node in the sub-graph,
+ * using the rules:
+ *  - Constants are \p kElemwise.
+ *  - A call to a Relay operator has the kind of its callee.
+ *  - Tuple construction and projection are injective provided all tuple fields are of tensor type.
+ *  - All other sub-expressions are opaque.
+ *
+ * The available \p OpPatternKinds (and our abbreviations for them) are:
+ *  - E: kElemWise, eg nn.relu
+ *  - B: kBroadcast, eg add
+ *  - I: kInjective, eg concatenate
+ *  - R: kCommReduce, eg sum
+ *  - A: kOutEWiseFusable, eg nn.conv2d (often called 'anchor nodes', hence the A abbreviation)
+ *  - O: kOpaque, everything else
+ * (The kTuple kind is not used by this machinery.)
+ *
+ * Kinds are ordered as above from least- to most-constraining w.r.t. possible partition
+ * opportunities. When we write a kind abbreviation below we intend it to mean that kind *or less*.
+ * And when when write 'kl -> kr' we mean it to match a sub-expression of kind kr or less who's
+ * dataflow inputs are all of kind kl or less.
+ *
+ * We can then mimic the classic \p FuseOps TVM Pass with the following more primitive combiner
+ * rules:
+ *  - Sub-groups cannot have taps. In the classic \p FuseOps pass taps are avoided by construction
+ *    by always considering all node->dominator paths. Here we naively allow taps on all candidates,
+ *    but reject them using SubGraph::IsValid with a SubGraphConfig with allow_taps = false.
+ *  - Combine A -> B
+ *  - Combine B -> R
+ *  - Combine I -> I
+ *  - Combine I -> tuple -> I. That is, if an I sub-graph has a tuple as input, and at least one
+ *    tuple field can be provided by an I sub-graph exit, then both the tuple and all such fields
+ *    may be joined.
+ gt*
+ * Note that \p FuseOps only considers the largest possible sub-graphs. However this partition rule
+ * considers all possibilities so as to 'make room' for other targets supplying other
+ * overlapping candidates.
+ *
+ * See combiner_rule.h for the more primitive combiner rules which implement the above.
+ */
+class CombinePartitionRuleNode : public PartitionRuleNode {
+ public:
+  /*! \brief The sub-rule supplying the initial set of candidates. */
+  PartitionRule sub_rule_;
+  /*! \brief The more primitive rules to use to combine the candidates found by the above rule. */
+  Array<CombinerRule> combiner_rules_;
+  /*! \brief Maximum max_depth for candidates. */
+  size_t max_depth_;
+
+  void VisitAttrs(AttrVisitor* v);
+
+  std::vector<CandidatePartition> AllCandidates(const DataflowGraph& dataflow_graph,
+                                                const PartitionSpec& spec) const override;
+
+  void AppendBodyItems(std::vector<Doc>* body_items) const override;
+
+ public:
+  static constexpr const char* _type_key = "relay.collage.CombinePartitionRule";
+  TVM_DECLARE_FINAL_OBJECT_INFO(CombinePartitionRuleNode, PartitionRuleNode);
+};
+
+class CombinePartitionRule : public PartitionRule {
+ public:
+  CombinePartitionRule(String rule_name, PartitionRule sub_rule, Array<CombinerRule> combiner_rules,
+                       size_t max_depth_);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(CombinePartitionRule, PartitionRule, CombinePartitionRuleNode);
 };
 
 /*!

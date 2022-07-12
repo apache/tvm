@@ -24,8 +24,12 @@
 
 #include "./candidate_partition.h"
 
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/memory.h>
+#include <tvm/relay/transform.h>
 
+#include "../transforms/compiler_function_utils.h"
+#include "./candidate_function_cache.h"
 #include "./candidate_set.h"
 #include "./partition_rule.h"
 #include "./partition_spec.h"
@@ -104,6 +108,102 @@ std::string CandidatePartitionNode::ToString() const {
   }
   os << "}";
   return os.str();
+}
+
+namespace {
+/*!
+ * \brief If function's body is a call to an inlined "Primitive" function, return it.
+ * Otherwise return function directly.
+ */
+Function GetPrimitiveFunction(const Function& function) {
+  if (const auto* call_node = function->body.as<CallNode>()) {
+    if (const auto* function_node = call_node->op.as<FunctionNode>()) {
+      if (function_node->HasNonzeroAttr(attr::kPrimitive)) {
+        return GetRef<Function>(function_node);
+      }
+    }
+  }
+  return function;
+}
+
+/*!
+ * \brief Eta-expand any tuple arguments of \p function. Ie rewrite:
+ * \code
+ *   f(x: (t1, t2)) { ... x ... }
+ * \endcode
+ * to
+ * \code
+ *   f(x_1: t1, x_2: t2) { ... (x_1, x_2) ... }
+ * \endcode
+ */
+Function EtaExpandTuples(const Function& function) {
+  Map<Var, Expr> subst;
+  Array<Var> new_params;
+  for (const auto& param : function->params) {
+    std::vector<TensorType> tensor_types = FlattenTupleType(param->type_annotation);
+    if (tensor_types.size() == 1) {
+      new_params.push_back(param);
+    } else {
+      Array<Expr> fields;
+      for (size_t i = 0; i < tensor_types.size(); ++i) {
+        Var new_param(param->name_hint() + "_" + std::to_string(i), tensor_types[i], param->span);
+        new_param->checked_type_ = tensor_types[i];
+        new_params.push_back(new_param);
+        fields.push_back(new_param);
+      }
+      Tuple new_tuple(fields);
+      subst.Set(param, new_tuple);
+    }
+  }
+  if (subst.empty()) {
+    return function;
+  }
+  return WithFields(function, new_params, Bind(function->body, subst));
+}
+
+}  // namespace
+
+Cost CandidatePartitionNode::EstimatedCost(
+    const DataflowGraph& dataflow_graph, const CostEstimator& cost_estimator,
+    const std::shared_ptr<CandidateFunctionCache>& cache) const {
+  if (cost_.is_unknown()) {
+    VLOG_CONTEXT << "spec " << partition_spec_name();
+    Function extracted_function = sub_graph_->ExtractAsFunction(dataflow_graph);
+    VLOG(2) << "Extracted function:" << std::endl << PrettyPrint(extracted_function);
+    extracted_function = EtaExpandTuples(extracted_function);
+    VLOG(2) << "Validating function:" << std::endl << PrettyPrint(extracted_function);
+    String error = partition_spec()->validate_sub_graph_func_(extracted_function);
+    if (!error.empty()) {
+      cost_ = Cost::Invalid();
+      VLOG(1) << "Unable to rewrite function: " << error;
+    } else {
+      // The extracted function may be the eta-expansion of a "Primitive" function.
+      // If so we want the cached external name and cost to be w.r.t. that function
+      // rather than the outer so that we'll get a cache hit when we outline functions
+      // in the final program.
+      Function primitive_function = GetPrimitiveFunction(extracted_function);
+      CandidateFunctionCache::Entry& entry =
+          cache->GetEntry(sub_graph_->label_, primitive_function);
+      if (entry.cost.is_unknown()) {
+        IRModule mod = IRModule::FromExpr(extracted_function);
+        VLOG(1) << "Outlining:" << std::endl << PrettyPrint(mod);
+        mod = OutlineCompilerFunctions(cache)(mod);
+        VLOG(1) << "Estimating cost of:" << std::endl
+                << PrettyPrint(mod) << std::endl
+                << "using target " << target()->ToDebugString();
+        entry.cost = cost_estimator->Estimate(mod, target(),
+                                              /*needs_tvm_tuning=*/!target().IsExternalCodegen());
+        VLOG(1) << "Measured cost as " << entry.cost.ToString();
+      } else {
+        VLOG(1) << "Reusing cost " << entry.cost.ToString()
+                << " cached in candidate function cache";
+      }
+      cost_ = entry.cost;
+    }
+  } else {
+    VLOG(1) << "Reusing cost " << cost_.ToString() << " cached in candidate";
+  }
+  return cost_;
 }
 
 CandidatePartition::CandidatePartition(String rule_name, SubGraph sub_graph,

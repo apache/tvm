@@ -71,6 +71,11 @@ class Cost {
 
   bool is_value() const { return !std::isnan(value_) && !std::isinf(value_); }
 
+  double value() const {
+    ICHECK(is_value());
+    return value_;
+  }
+
   /*! \brief Return true if the less-than relation is defined for this and that. */
   bool are_comparable(Cost that) const { return !std::isnan(value_) && !std::isnan(that.value_); }
 
