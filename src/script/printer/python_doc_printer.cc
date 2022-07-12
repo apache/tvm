@@ -123,43 +123,46 @@ void PythonDocPrinter::PrintTypedDoc(const IndexDoc& doc) {
   }
 }
 
-const char* OperatorToString(OperationDocNode::Kind operation_kind) {
-  constexpr int OP_STR_TABLE_SIZE = static_cast<int>(OperationDocNode::Kind::kSpecialEnd) + 1;
-  using OpStrTable = std::array<const char*, OP_STR_TABLE_SIZE>;
-  // Add explicit return type to satisfy MSVC
-  static const OpStrTable OP_STR_TABLE = [&]() -> OpStrTable {
+const std::string OperatorToString(OperationDocNode::Kind operation_kind) {
+  static const std::vector<std::string> OP_STR_TABLE = []() {
     using OpKind = OperationDocNode::Kind;
-    OpStrTable table;
-    auto set_op = [&table](auto op, const char* str) { table[static_cast<int>(op)] = str; };
+    std::map<OpKind, std::string> raw_table = {
+        {OpKind::kUSub, "-"},       //
+        {OpKind::kInvert, "~"},     //
+        {OpKind::kAdd, "+"},        //
+        {OpKind::kSub, "-"},        //
+        {OpKind::kMult, "*"},       //
+        {OpKind::kDiv, "/"},        //
+        {OpKind::kFloorDiv, "//"},  //
+        {OpKind::kMod, "%"},        //
+        {OpKind::kPow, "**"},       //
+        {OpKind::kLShift, "<<"},    //
+        {OpKind::kRShift, ">>"},    //
+        {OpKind::kBitAnd, "&"},     //
+        {OpKind::kBitOr, "|"},      //
+        {OpKind::kBitXor, "^"},     //
+        {OpKind::kLt, "<"},         //
+        {OpKind::kLtE, "<="},       //
+        {OpKind::kEq, "=="},        //
+        {OpKind::kNotEq, "!="},     //
+        {OpKind::kGt, ">"},         //
+        {OpKind::kGtE, ">="},       //
+    };
 
-    set_op(OpKind::kUSub, "-");
-    set_op(OpKind::kInvert, "~");
-    set_op(OpKind::kAdd, "+");
-    set_op(OpKind::kSub, "-");
-    set_op(OpKind::kMult, "*");
-    set_op(OpKind::kDiv, "/");
-    set_op(OpKind::kFloorDiv, "//");
-    set_op(OpKind::kMod, "%");
-    set_op(OpKind::kPow, "**");
-    set_op(OpKind::kLShift, "<<");
-    set_op(OpKind::kRShift, ">>");
-    set_op(OpKind::kBitAnd, "&");
-    set_op(OpKind::kBitOr, "|");
-    set_op(OpKind::kBitXor, "^");
-    set_op(OpKind::kLt, "<");
-    set_op(OpKind::kLtE, "<=");
-    set_op(OpKind::kEq, "==");
-    set_op(OpKind::kNotEq, "!=");
-    set_op(OpKind::kGt, ">");
-    set_op(OpKind::kGtE, ">=");
+    std::vector<std::string> table;
+    table.resize(static_cast<int>(OperationDocNode::Kind::kSpecialEnd) + 1);
+
+    for (const auto& kv : raw_table) {
+      table[static_cast<int>(kv.first)] = kv.second;
+    }
 
     return table;
   }();
 
   auto op_index = static_cast<int>(operation_kind);
-  ICHECK_LT(op_index, OP_STR_TABLE_SIZE);
-  const char* str = OP_STR_TABLE[static_cast<int>(operation_kind)];
-  if (str == nullptr) {
+  ICHECK_LT(op_index, OP_STR_TABLE.size());
+  const std::string str = OP_STR_TABLE[op_index];
+  if (str.empty()) {
     LOG(FATAL) << "OperationDocNode::Kind " << static_cast<int>(operation_kind)
                << " cannot be converted to operator token in Python directly.";
     throw;
