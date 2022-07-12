@@ -77,7 +77,7 @@ def ref_data(dtype, batch, in_channel, in_size, num_filter, kernel, stride, padd
     return a_np, w_np, b_np
 
 
-def test_conv2d_nhwc(target, dev, ref_data, dtype, stride, padding, dilation):
+def test_conv2d_nhwc_hwio(target, dev, ref_data, dtype, stride, padding, dilation):
     a_np, w_np, b_np = ref_data
 
     A = te.placeholder(a_np.shape, name="A", dtype=dtype)
@@ -89,6 +89,35 @@ def test_conv2d_nhwc(target, dev, ref_data, dtype, stride, padding, dilation):
         s = fschedule([B])
     a = tvm.nd.array(a_np, dev)
     w = tvm.nd.array(w_np, dev)
+    b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
+    func = tvm.build(s, [A, W, B], target)
+    func(a, w, b)
+    tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
+
+
+def test_conv2d_nhwc_ohwi(ref_data, dtype, stride, padding, dilation):
+    # only test on CPU target because topi doesn't have schedules for this layout
+    target = "llvm"
+    dev = tvm.device(target, 0)
+    a_np, w_np_hwio, b_np = ref_data
+    w_np_ohwi = w_np_hwio.transpose(3, 0, 1, 2)  # HWIO -> OHWI
+
+    A = te.placeholder(a_np.shape, name="A", dtype=dtype)
+    W = te.placeholder(w_np_ohwi.shape, name="W", dtype=dtype)
+
+    B = topi.nn.conv2d(
+        A,
+        W,
+        stride,
+        padding,
+        dilation,
+        data_layout="NHWC",
+        kernel_layout="OHWI",
+        out_dtype="float32",
+    )
+    s = tvm.te.create_schedule(B.op)
+    a = tvm.nd.array(a_np, dev)
+    w = tvm.nd.array(w_np_ohwi, dev)
     b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
     func = tvm.build(s, [A, W, B], target)
     func(a, w, b)

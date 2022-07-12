@@ -57,16 +57,18 @@ Workload = namedtuple(
 )
 
 
-def conv2d(input, filter, strides, padding, dilation, layout="NCHW", out_dtype=None):
+def conv2d(
+    input, filter, strides, padding, dilation, data_layout="NCHC", kernel_layout="", out_dtype=None
+):
     """Conv2D operator.
 
     Parameters
     ----------
     input : tvm.te.Tensor
-        4-D with shape [batch, in_channel, in_height, in_width]
+        4-D with shape [batch, in_channel, in_height, in_width] in data_layout
 
     filter : tvm.te.Tensor
-        4-D with shape [num_filter, in_channel, filter_height, filter_width]
+        4-D with shape [num_filter, in_channel, filter_height, filter_width] in kernel_layout
 
     strides : int or a list/tuple of two ints
         stride size, or [stride_height, stride_width]
@@ -79,8 +81,12 @@ def conv2d(input, filter, strides, padding, dilation, layout="NCHW", out_dtype=N
     dilation: int or a list/tuple of two ints
         dilation size, or [dilation_height, dilation_width]
 
-    layout : str
+    data_layout : str
         layout of data
+
+    kernel_layout : Optional[str]
+        layout of kernel. If unspecified, use default layout inferred from data_layout. "OHWI" if
+        data_layout == "NCHW", "HWIO" if data_layout == "NHWC".
 
     Returns
     -------
@@ -89,7 +95,7 @@ def conv2d(input, filter, strides, padding, dilation, layout="NCHW", out_dtype=N
     """
     # search platform specific declaration first
     # default declaration
-    return conv(input, filter, strides, padding, dilation, 1, layout, "", out_dtype)
+    return conv(input, filter, strides, padding, dilation, 1, data_layout, kernel_layout, out_dtype)
 
 
 @tvm.target.generic_func
@@ -239,7 +245,7 @@ def conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=None):
     Output : tvm.te.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
-    return conv(Input, Filter, stride, padding, dilation, 1, "NCHW", "", out_dtype=out_dtype)
+    return conv(Input, Filter, stride, padding, dilation, 1, "NCHW", "OIHW", out_dtype=out_dtype)
 
 
 def conv2d_hwcn(Input, Filter, stride, padding, dilation, out_dtype=None):
@@ -269,7 +275,7 @@ def conv2d_hwcn(Input, Filter, stride, padding, dilation, out_dtype=None):
     output : tvm.te.Tensor
         4-D with shape [out_height, out_width, out_channel, batch]
     """
-    return conv(Input, Filter, stride, padding, dilation, 1, "HWCN", "", out_dtype=out_dtype)
+    return conv(Input, Filter, stride, padding, dilation, 1, "HWCN", "HWIO", out_dtype=out_dtype)
 
 
 def conv2d_nhwc(
@@ -325,7 +331,7 @@ def conv2d_nhwc(
         dilation,
         1,
         "NHWC",
-        "",
+        "HWIO",
         out_dtype,
         auto_scheduler_rewritten_layout,
         meta_schedule_original_shape,
@@ -709,7 +715,9 @@ def group_conv2d_nchw(Input, Filter, stride, padding, dilation, groups, out_dtyp
     Output : tvm.te.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
-    return conv(Input, Filter, stride, padding, dilation, groups, "NCHW", "", out_dtype=out_dtype)
+    return conv(
+        Input, Filter, stride, padding, dilation, groups, "NCHW", "OIHW", out_dtype=out_dtype
+    )
 
 
 def conv(
@@ -943,7 +951,9 @@ def group_conv2d_nhwc(Input, Filter, stride, padding, dilation, groups, out_dtyp
     Output : tvm.te.Tensor
         4-D with shape [batch, out_height, out_width, out_channel]
     """
-    return conv(Input, Filter, stride, padding, dilation, groups, "NHWC", "", out_dtype=out_dtype)
+    return conv(
+        Input, Filter, stride, padding, dilation, groups, "NHWC", "HWIO", out_dtype=out_dtype
+    )
 
 
 def unpack_NCHWc_to_nchw(packed_out, out_dtype):
