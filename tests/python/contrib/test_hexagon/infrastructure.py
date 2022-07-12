@@ -241,6 +241,11 @@ def transform_numpy(arr_np, current_layout: str, new_layout: str):
             return arr_np.reshape([n, h // 8, 8, w // 4, 2, 2, c // 32, 32]).transpose(
                 0, 1, 3, 6, 2, 4, 7, 5
             )
+        if new_layout in ["nhwc-4h2w32c2w-2d"]:
+            n, h, w, c = arr_np.shape
+            return arr_np.reshape([n, h // 4, 4, w // 4, 2, 2, c // 32, 32]).transpose(
+                0, 1, 3, 6, 2, 4, 7, 5
+            )
         if new_layout in ["n11c-1024c-2d", "n11c-1024c-1d"]:
             n, h, w, c = arr_np.shape
             assert h == 1 and w == 1, "The size of h and w must be 1"
@@ -251,7 +256,14 @@ def transform_numpy(arr_np, current_layout: str, new_layout: str):
         if new_layout == "nhwc-1024c-2d":
             N, H, W, C = arr_np.shape
             return arr_np.reshape([N, H, W, C // 1024, 1024])
+        raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
 
+    if current_layout == "nc":
+        n, c = arr_np.shape
+        if new_layout in ["nc-1024c-2d"]:
+            return arr_np.reshape([n, c // 1024, 1024])
+        if new_layout in ["nc-512c-2d"]:
+            return arr_np.reshape([n, c // 512, 512])
         raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
 
     if current_layout == "nhw":
