@@ -54,7 +54,7 @@ SerializationType serialize(tvm::runtime::Module module) {
   static const runtime::PackedFunc* f_to_str =
       runtime::Registry::Get("script_torch.save_to_base64");
   ICHECK(f_to_str) << "IndexError: Cannot find the packed function "
-                      "`script_torch.save_to_tar` in the global registry";
+                      "`script_torch.save_to_base64` in the global registry";
   return (*f_to_str)(module);
 }
 
@@ -63,7 +63,7 @@ struct Deleter {  // deleter
   void operator()(FILE* p) const {
     fclose(p);
     ICHECK(remove(file_name.c_str()) == 0)
-        << "remove temporary file (" << file_name << ") unsuccessfully";
+        << "Failed to  remove temporary file (" << file_name << ")";
   }
   std::string file_name;
 };

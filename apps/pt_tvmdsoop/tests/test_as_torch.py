@@ -90,17 +90,15 @@ class MinuesOnes(torch.nn.Module):
 
 
 def test_tvmscript_torch_matmul():
-    s1 = np.ones((128, 128)).astype("float32")
-    s2 = np.ones((128, 128)).astype("float32")
-    s3 = np.zeros((128, 128)).astype("float32")
-    s1[0, 0] = 0
-    s2[4, 4] = 0
+    s1 = np.random.rand(128, 128).astype("float32")
+    s2 = np.random.rand(128, 128).astype("float32")
+    s3 = np.random.rand(128, 128).astype("float32")
 
     q1 = torch.from_numpy(s1)
     q2 = torch.from_numpy(s2)
     q3 = torch.from_numpy(s3)
 
-    numpy_result = np.matmul(s1, s2)
+    numpy_result = np.matmul(s1, np.transpose(s2))
 
     nn_module = matmul(128, 128, 128, "float32")
 

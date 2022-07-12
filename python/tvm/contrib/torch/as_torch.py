@@ -38,7 +38,6 @@ class OperatorModuleWrapper(torch.nn.Module):
         module: Union[
             tvm.ir.module.IRModule,
             tvm.tir.function.PrimFunc,
-            tvm.contrib.graph_executor.GraphModule,
         ],
     ):
         super().__init__()

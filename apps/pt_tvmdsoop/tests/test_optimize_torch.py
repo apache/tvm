@@ -29,14 +29,6 @@ import tvm.testing
 from tvm.contrib.torch import optimize_torch
 from tvm.meta_schedule import TuneConfig
 
-# default config for testing
-config = TuneConfig(
-    strategy="evolutionary",
-    num_trials_per_iter=4,
-    max_trials_per_task=8,
-    max_trials_global=16,
-)
-
 
 def test_matmul_tuning_relay():
     def matmul(x, w):
@@ -119,6 +111,14 @@ class JitModule(torch.nn.Module):
     def forward(self, input):
         return self.resnet(input - self.means)
 
+
+# default config for testing
+config = TuneConfig(
+    strategy="evolutionary",
+    num_trials_per_iter=4,
+    max_trials_per_task=8,
+    max_trials_global=16,
+)
 
 if torch.cuda.is_available():
     target_cuda = "nvidia/geforce-rtx-3070"

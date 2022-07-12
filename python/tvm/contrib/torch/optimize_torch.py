@@ -81,8 +81,7 @@ def optimize_torch(
         (ie: torch.jit.trace(model, input))
 
     example_inputs : tuple or torch.Tensor
-        A tuple of example inputs that
-        will run together with `func` by providing the shape information.
+        Inputs to `torch.jit.trace`.
 
     tuning_config : tvm.meta_schedule.TuneConfig
         The configuration of tuning by MetaSchedule.
@@ -92,7 +91,7 @@ def optimize_torch(
 
     target : Optional[Union[str, Target]]
         The target of the compilation.
-        If user doesn't set the target, the module is built upon the LLVM.
+        If user doesn't set the target, the module will be built for the CPU target.
 
     work_dir : Optional[str]
         The working directory to save intermediate results.
@@ -104,14 +103,10 @@ def optimize_torch(
         which is the subclass of the original nn.Module.
     """
 
-    if target:
-        pass
-    else:
+    if target is None:
         target = llvm_target()
 
-    if tuning_config:
-        pass
-    else:
+    if tuning_config is None:
         # Default setting. For a better tuning result the number could be set large.
         tuning_config = TuneConfig(
             strategy="evolutionary",
