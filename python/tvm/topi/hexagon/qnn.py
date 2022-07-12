@@ -34,6 +34,15 @@ def clip_cast(val, dtype):
     return te.max(tvm.te.min(val, const_max), const_min).astype(dtype)
 
 
+def get_qnn_param(param, indices, axis):
+    # Account scalar and 1D quantization parameters:
+    if len(param.shape) == 0:
+        return param
+
+    param_idx = tvm.tir.indexmod(indices[axis], topi.shape(param)[0])
+    return param[param_idx]
+
+
 def qnn_quantize(data, output_scale, output_zero_point, axis, out_dtype):
     """Compute for qnn.quantize
     Q_output = clamp((round(input_tensor/output_scale) + output_zero_point),
@@ -46,18 +55,11 @@ def qnn_quantize(data, output_scale, output_zero_point, axis, out_dtype):
 
     def _compute(*indices):
         value = data(*indices)
+        scale = get_qnn_param(output_scale, indices, axis)
+        zp = get_qnn_param(output_zero_point, indices, axis)
 
-        # Account scalar and 1D quantization parameters:
-        scale_idx = tvm.tir.indexmod(indices[axis], topi.shape(output_scale)[0])
-        scale = output_scale if len(output_scale.shape) == 0 else output_scale[scale_idx]
-
-        zp_idx = tvm.tir.indexmod(indices[axis], topi.shape(output_zero_point)[0])
-        zp = output_zero_point if len(output_zero_point.shape) == 0 else output_zero_point[zp_idx]
-
-        const_min = tvm.tir.min_value(out_dtype)
-        const_max = tvm.tir.max_value(out_dtype)
         val = te.add(te.round(te.div(value, scale)), zp)
-        return te.max(te.min(val, const_max), const_min).astype(out_dtype)
+        return clip_cast(val, out_dtype)
 
     return te.compute(data.shape, _compute, tag=tag.ELEMWISE)
 
@@ -86,13 +88,8 @@ def qnn_dequantize(data, input_scale, input_zero_point, axis):
 
     def _compute(*indices):
         value = data(*indices)
-
-        # Account scalar and 1D quantization parameters:
-        scale_idx = tvm.tir.indexmod(indices[axis], topi.shape(input_scale)[0])
-        scale = input_scale if len(input_scale.shape) == 0 else input_scale[scale_idx]
-
-        zp_idx = tvm.tir.indexmod(indices[axis], topi.shape(input_zero_point)[0])
-        zp = input_zero_point if len(input_zero_point.shape) == 0 else input_zero_point[zp_idx]
+        scale = get_qnn_param(input_scale, indices, axis)
+        zp = get_qnn_param(input_zero_point, indices, axis)
 
         return te.multiply(scale, te.subtract(value, zp))
 
