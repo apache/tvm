@@ -671,5 +671,29 @@ def test_access_in_let_value():
     tvm.ir.assert_structural_equal(mod["main"], func_rewritten)
 
 
+def test_variable_buffer_access():
+    @T.prim_func
+    def func(out: T.Buffer[16, "int32"]):
+        for i, j in T.grid(16, 16):
+            buf = T.allocate([1024 * j], "int32", "global")
+            for k in T.grid(16):
+                buf[i] = 0
+            for k in T.grid(16):
+                out[k] = buf[k]
+
+    @T.prim_func
+    def func_rewritten(out: T.Buffer[16, "int32"]) -> None:
+        buf = T.allocate([15360], "int32", "global")
+        buf_1 = T.buffer_decl([15360], dtype="int32", data=buf.data)
+        for i, j in T.grid(16, 16):
+            for k in T.serial(16):
+                buf_1[i] = 0
+            for k in T.serial(16):
+                out[k] = buf_1[k]
+
+    mod = tvm.tir.transform.StorageRewrite()(tvm.IRModule.from_expr(func))
+    tvm.ir.assert_structural_equal(mod["main"], func_rewritten)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

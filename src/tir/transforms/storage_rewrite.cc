@@ -36,6 +36,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "../../arith/ir_visitor_with_analyzer.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../ir/buffer_common.h"
 #include "ir_utils.h"
@@ -60,7 +61,10 @@ using runtime::StorageScope;
 // The storage need to be kept alive between allocate and last access.
 // The free point is only inserted at the same scope of allocate.
 //
-class LinearAccessPatternFinder final : public StmtExprVisitor {
+class LinearAccessPatternFinder final : public arith::IRVisitorWithAnalyzer {
+  using arith::IRVisitorWithAnalyzer::VisitExpr_;
+  using arith::IRVisitorWithAnalyzer::VisitStmt_;
+
  public:
   /*! \brief record the touch hist of statment. */
   struct StmtEntry {
@@ -82,6 +86,8 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     size_t level{0};
     // allocation stmt
     const AllocateNode* alloc{nullptr};
+    // allocation size
+    arith::IntSet size_elements;
   };
 
   void VisitStmt_(const AllocateNode* op) final {
@@ -91,13 +97,17 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     AllocEntry entry;
     entry.alloc = op;
     entry.level = level;
+    // We want an upper bound on how large a allocation we need
+    ICHECK_EQ(op->extents.size(), 1)
+        << "Multiple physical dimensions not supported in StorageRewrite";
+    entry.size_elements = analyzer_.int_set(op->extents[0]);
     // Since StorageRewrite occurs after StorageFlatten/FlattenBuffer,
     // all allocations specify the extent of physical dimensions, and
     // is 1 for flat memory spaces.
     entry.num_physical_dimensions = op->extents.size();
     alloc_info_[buf] = entry;
 
-    StmtExprVisitor::VisitStmt_(op);
+    IRVisitorWithAnalyzer::VisitStmt_(op);
   }
 
   void VisitStmt_(const StoreNode* op) final {
@@ -107,7 +117,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   void VisitStmt_(const BufferStoreNode* op) final {
     scope_.push_back(StmtEntry());
     // visit subexpr
-    StmtExprVisitor::VisitStmt_(op);
+    IRVisitorWithAnalyzer::VisitStmt_(op);
     // Add write access.
     const VarNode* buf = op->buffer->data.get();
     auto it = alloc_info_.find(buf);
@@ -135,7 +145,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
 
   void VisitExpr_(const BufferLoadNode* op) final {
     // Add write access.
-    StmtExprVisitor::VisitExpr_(op);
+    IRVisitorWithAnalyzer::VisitExpr_(op);
     const VarNode* buf = op->buffer->data.get();
     auto it = alloc_info_.find(buf);
     if (it != alloc_info_.end() && it->second.alloc) {
@@ -153,7 +163,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   void VisitStmt_(const EvaluateNode* op) final {
     scope_.push_back(StmtEntry());
     // visit subexpr
-    StmtExprVisitor::VisitStmt_(op);
+    IRVisitorWithAnalyzer::VisitStmt_(op);
     StmtEntry e = scope_.back();
     scope_.pop_back();
     if (e.touched.size() != 0) {
@@ -190,7 +200,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     int64_t begin_index = static_cast<int64_t>(linear_seq_.size());
     // before scope.
     linear_seq_.push_back(e);
-    StmtExprVisitor::VisitStmt_(op);
+    IRVisitorWithAnalyzer::VisitStmt_(op);
     // after scope.
     e.touched = std::move(scope_.back().touched);
     scope_.pop_back();
@@ -214,7 +224,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     } else if (op->attr_key == attr::virtual_thread) {
       VisitNewScope(op);
     } else {
-      StmtExprVisitor::VisitStmt_(op);
+      IRVisitorWithAnalyzer::VisitStmt_(op);
     }
   }
 
@@ -552,6 +562,8 @@ class StoragePlanRewriter : public StmtExprMutator {
     const Object* attach_scope_{nullptr};
     // The constant size of the buffer in bits, only used if it is constant
     uint64_t const_nbits{0};
+    // The size of the allocation
+    PrimExpr size_elements;
     // The storage scope.
     StorageScope scope;
     // The physical dimensionality of the allocations.  Since
@@ -655,9 +667,7 @@ class StoragePlanRewriter : public StmtExprMutator {
 
         if (e->allocs.size() == 1) {
           // simply use the original allocation.
-          PrimExpr sz = foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
-                              make_const(DataType::Int(32), 1), e->allocs[0]->extents);
-          e->new_alloc = Allocate(e->alloc_var, alloc_type, e->allocs[0]->extents,
+          e->new_alloc = Allocate(e->alloc_var, alloc_type, {e->size_elements},
                                   e->allocs[0]->condition, Evaluate(0));
           if (IsSpecialTaggedMemory(e->scope)) {
             MemoryInfo info = GetMemoryInfo(e->scope.to_string());
@@ -677,7 +687,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                 << " physical dimensions.  "
                 << "Currently, only flat 1-d memory spaces should be identified as re-usable "
                    "allocations.";
-            PrimExpr sz = op->extents[0];
+            PrimExpr sz = e->size_elements;
             auto nbits = op->dtype.bits() * op->dtype.lanes();
             if (const auto* imm = sz.as<IntImmNode>()) {
               if (imm->value > std::numeric_limits<int>::max() / nbits) {
@@ -843,8 +853,12 @@ class StoragePlanRewriter : public StmtExprMutator {
                     src_entry->attach_scope_ == thread_scope_ &&
                     src_entry->elem_type == alloc->dtype.element_of() &&
                     visitor.Check(s.stmt, var, src)) {
-                  uint64_t const_nbits = static_cast<uint64_t>(alloc->ConstantAllocationSize()) *
-                                         alloc->dtype.bits() * alloc->dtype.lanes();
+                  uint64_t const_nbits = 0;
+                  if (entry.size_elements.HasConstUpperBound()) {
+                    const_nbits =
+                        static_cast<uint64_t>(Downcast<IntImm>(entry.size_elements.max())->value) *
+                        alloc->dtype.bits() * alloc->dtype.lanes();
+                  }
                   if (src_entry->const_nbits == const_nbits && !inplace_found) {
                     // successfully inplace
                     dst_entry = src_entry;
@@ -856,8 +870,11 @@ class StoragePlanRewriter : public StmtExprMutator {
             }
           }
           if (dst_entry == nullptr) {
-            dst_entry =
-                FindAlloc(alloc, thread_scope_, storage_scope, entry.num_physical_dimensions);
+            dst_entry = FindAlloc(alloc, thread_scope_, storage_scope,
+                                  entry.num_physical_dimensions, entry.size_elements);
+          } else {
+            dst_entry->size_elements =
+                tir::Max(entry.size_elements.max(), dst_entry->size_elements);
           }
           dst_entry->allocs.emplace_back(alloc);
           alloc_map_[var] = dst_entry;
@@ -896,7 +913,7 @@ class StoragePlanRewriter : public StmtExprMutator {
   }
   // Allocate new storage entry.
   StorageEntry* NewAlloc(const AllocateNode* op, const Object* attach_scope,
-                         const StorageScope& scope, size_t const_nbits) {
+                         const StorageScope& scope, size_t const_nbits, PrimExpr size_elements) {
     ICHECK(op != nullptr);
     // Re-use not successful, allocate a new buffer.
     std::unique_ptr<StorageEntry> entry(new StorageEntry());
@@ -904,19 +921,24 @@ class StoragePlanRewriter : public StmtExprMutator {
     entry->scope = scope;
     entry->elem_type = op->dtype.element_of();
     entry->const_nbits = const_nbits;
+    entry->size_elements = size_elements;
     StorageEntry* e = entry.get();
     alloc_vec_.emplace_back(std::move(entry));
     return e;
   }
 
   StorageEntry* FindAlloc(const AllocateNode* op, const Object* attach_scope,
-                          const StorageScope& scope, size_t num_physical_dimensions) {
+                          const StorageScope& scope, size_t num_physical_dimensions,
+                          arith::IntSet size_elements) {
     ICHECK(op != nullptr);
     // skip plan for local variable,
     // compiler can do a better job with register allocation.
     const uint64_t match_range = 16;
     uint64_t op_elem_bits = op->dtype.bits() * op->dtype.lanes();
-    uint64_t const_nbits = static_cast<uint64_t>(op->ConstantAllocationSize() * op_elem_bits);
+    uint64_t const_nbits = 0;
+    if (size_elements.HasConstUpperBound()) {
+      const_nbits = Downcast<IntImm>(size_elements.max())->value * op_elem_bits;
+    }
 
     // If the size of the array isn't known at compile-time, it must
     // have its own allocation with size determined at runtime.
@@ -934,7 +956,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                                       (is_known_size && const_nbits <= 32));
 
     if (is_small_array || !is_flat_memory_space) {
-      return NewAlloc(op, attach_scope, scope, const_nbits);
+      return NewAlloc(op, attach_scope, scope, const_nbits, size_elements.max());
     }
 
     if (is_known_size) {
@@ -975,7 +997,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         return e;
       }
     }
-    return NewAlloc(op, attach_scope, scope, const_nbits);
+    return NewAlloc(op, attach_scope, scope, const_nbits, size_elements.max());
   }
   // simulated free.
   void Free(const VarNode* var) {
@@ -1096,7 +1118,11 @@ struct BufferVarInfo {
  * function.
  *
  */
-class VectorTypeAccessChecker : public StmtExprVisitor {
+class VectorTypeAccessChecker : public arith::IRVisitorWithAnalyzer {
+  using arith::IRVisitorWithAnalyzer::VisitExpr_;
+  using arith::IRVisitorWithAnalyzer::VisitStmt_;
+  using Parent = arith::IRVisitorWithAnalyzer;
+
  public:
   /* Constructor
    *
@@ -1143,12 +1169,12 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
 
   void VisitExpr_(const BufferLoadNode* op) final {
     OnArrayAccess(op->dtype, op->buffer->data.get(), op->indices);
-    StmtExprVisitor::VisitExpr_(op);
+    Parent::VisitExpr_(op);
   }
 
   void VisitStmt_(const BufferStoreNode* op) final {
     OnArrayAccess(op->value.dtype(), op->buffer->data.get(), op->indices);
-    StmtExprVisitor::VisitStmt_(op);
+    Parent::VisitStmt_(op);
   }
 
   void VisitExpr_(const CallNode* op) final {
@@ -1158,33 +1184,35 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
       PrimExpr index = op->args[2];
       OnArrayAccess(dtype, buffer, {index});
     }
-    StmtExprVisitor::VisitExpr_(op);
+    Parent::VisitExpr_(op);
   }
 
   void VisitStmt_(const AllocateNode* op) final {
     const Array<PrimExpr>& extents = op->extents;
     PrimExpr extent = extents[extents.size() - 1];
-    OnArrayDeclaration(op->buffer_var, op->dtype, extent, BufferVarInfo::kAllocateNode);
+    OnArrayDeclaration(op->buffer_var, op->dtype, analyzer_.int_set(extent).max(),
+                       BufferVarInfo::kAllocateNode);
 
-    StmtExprVisitor::VisitStmt_(op);
+    Parent::VisitStmt_(op);
   }
 
   void VisitStmt_(const AllocateConstNode* op) final {
     const Array<PrimExpr>& extents = op->extents;
     PrimExpr extent = extents.size() ? extents[extents.size() - 1] : NullValue<PrimExpr>();
-    OnArrayDeclaration(op->buffer_var, op->dtype, extent, BufferVarInfo::kAllocateConstNode);
+    OnArrayDeclaration(op->buffer_var, op->dtype, analyzer_.int_set(extent).max(),
+                       BufferVarInfo::kAllocateConstNode);
 
-    StmtExprVisitor::VisitStmt_(op);
+    Parent::VisitStmt_(op);
   }
 
   void VisitExpr_(const LetNode* op) final {
     HandleLetNode(op->var);
-    StmtExprVisitor::VisitExpr_(op);
+    Parent::VisitExpr_(op);
   }
 
   void VisitStmt_(const LetStmtNode* op) final {
     HandleLetNode(op->var);
-    StmtExprVisitor::VisitStmt_(op);
+    Parent::VisitStmt_(op);
   }
 
   void HandleLetNode(Var let_var) {
@@ -1382,18 +1410,18 @@ class VectorTypeRewriter : public StmtExprMutator {
       rewrite_mask |= BufferVarInfo::kAllocateConstNode;
     }
 
-    // Rewrite any buffer variables whose preferred type isn't their current type.
+    // Rewrite all buffers so that their extent matches the new extent of the associated allocation
     for (const auto& pair : info_map) {
       const auto& var_info = pair.second;
       DataType preferred = var_info.get_preferred_dtype();
-      if (preferred != var_info.element_dtype && (rewrite_mask & var_info.declaration_location)) {
+      if (rewrite_mask & var_info.declaration_location) {
         Var old_buffer_var = var_info.var;
         Var new_buffer_var(old_buffer_var->name_hint,
                            PointerType(PrimType(preferred), GetPtrStorageScope(old_buffer_var)),
                            old_buffer_var->span);
 
         rewrite_map_[var_info.var.get()] = {var_info.var, new_buffer_var, var_info.element_dtype,
-                                            preferred};
+                                            preferred, var_info.extent};
       }
     }
   }
@@ -1473,7 +1501,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     if (info_it != rewrite_map_.end()) {
       auto& info = info_it->second;
 
-      Array<PrimExpr> shape = buf->shape;
+      Array<PrimExpr> shape = {info.upper_bound_shape};
       PrimExpr last_dim = shape[shape.size() - 1];
       shape.Set(shape.size() - 1, last_dim / make_const(last_dim.dtype(), info.factor()));
 
@@ -1611,6 +1639,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     Var new_buffer_var;
     DataType old_element_dtype;
     DataType new_element_dtype;
+    PrimExpr upper_bound_shape;
 
     int factor() const {
       int old_lanes = old_element_dtype.lanes();

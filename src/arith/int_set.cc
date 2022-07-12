@@ -785,6 +785,20 @@ bool IntSet::HasUpperBound() const {
   return false;
 }
 
+bool IntSet::HasConstLowerBound() const {
+  if (const IntervalSetNode* s_int = (*this).as<IntervalSetNode>()) {
+    return s_int->HasConstLowerBound();
+  }
+  return false;
+}
+
+bool IntSet::HasConstUpperBound() const {
+  if (const IntervalSetNode* s_int = (*this).as<IntervalSetNode>()) {
+    return s_int->HasConstUpperBound();
+  }
+  return false;
+}
+
 SignType IntSet::GetSignType() const {
   if (CanProvePositive()) {
     return kPositive;

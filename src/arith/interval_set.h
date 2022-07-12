@@ -58,6 +58,14 @@ class IntervalSetNode : public IntSetNode {
   bool HasUpperBound() const { return !is_pos_inf(max_value) && !IsEmpty(); }
   /*! \return Whether the interval has lower bound. */
   bool HasLowerBound() const { return !is_neg_inf(min_value) && !IsEmpty(); }
+  /*! \return Whether the interval has a non-variable upper bound. */
+  bool HasConstUpperBound() const {
+    return HasUpperBound() && max_value.as<IntImmNode>() != nullptr;
+  }
+  /*! \return Whether the interval has a non-variable lower bound. */
+  bool HasConstLowerBound() const {
+    return HasLowerBound() && min_value.as<IntImmNode>() != nullptr;
+  }
   /*! \return Whether the interval is a single point. */
   bool IsSinglePoint() const {
     if (min_value.same_as(max_value)) {

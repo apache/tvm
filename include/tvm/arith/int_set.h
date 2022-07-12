@@ -97,6 +97,10 @@ class IntSet : public ObjectRef {
   bool HasUpperBound() const;
   /*! \return Whether the set has lower bound. */
   bool HasLowerBound() const;
+  /*! \return Whether the set has a non-variable upper bound. */
+  bool HasConstUpperBound() const;
+  /*! \return Whether the set has a non-variable lower bound. */
+  bool HasConstLowerBound() const;
 
   /*!
    * \brief The single point value, call only if IsSinglePoint is true
