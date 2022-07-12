@@ -983,7 +983,8 @@ class FuseMutator : private MixedModeMutator {
       }
 
       void VisitExpr_(const VarNode* vn) final {
-        if (!vn->type_annotation.defined() || !(vn->type_annotation->IsInstance<TensorTypeNode>() || vn->type_annotation->IsInstance<TupleTypeNode>())) {
+        if (!vn->type_annotation.defined() || !(vn->type_annotation->IsInstance<TensorTypeNode>() ||
+                                                vn->type_annotation->IsInstance<TupleTypeNode>())) {
           this->reshape_only = false;
         }
       }
