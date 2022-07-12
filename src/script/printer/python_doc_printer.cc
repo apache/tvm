@@ -125,9 +125,11 @@ void PythonDocPrinter::PrintTypedDoc(const IndexDoc& doc) {
 
 const char* OperatorToString(OperationDocNode::Kind operation_kind) {
   constexpr int OP_STR_TABLE_SIZE = static_cast<int>(OperationDocNode::Kind::kSpecialEnd) + 1;
-  static const std::array<const char*, OP_STR_TABLE_SIZE> OP_STR_TABLE = []() {
+  using OpStrTable = std::array<const char*, OP_STR_TABLE_SIZE>;
+  // Add explicit return type to satisfy MSVC
+  static const OpStrTable OP_STR_TABLE = [&]() -> OpStrTable {
     using OpKind = OperationDocNode::Kind;
-    std::array<const char*, OP_STR_TABLE_SIZE> table;
+    OpStrTable table;
     auto set_op = [&table](auto op, const char* str) { table[static_cast<int>(op)] = str; };
 
     set_op(OpKind::kUSub, "-");
