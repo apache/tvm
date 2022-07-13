@@ -19,8 +19,6 @@
 
 #include <tvm/runtime/registry.h>
 
-#include <regex>
-
 #include "../../support/str_escape.h"
 #include "./base_doc_printer.h"
 #include "tvm/runtime/logging.h"
@@ -84,29 +82,9 @@ void PythonDocPrinter::PrintTypedDoc(const LiteralDoc& doc) {
   }
 }
 
-/*
- * This function checks whether an input string is a valid
- * identifier. Invalid identifier name can make the result
- * still parsable but into a different IR tree. So we want
- * to fail as soon as possible.
- */
-bool IsValidPythonIdentifier(const std::string& id) {
-  // This regex is just an approximation of the Python identifier
-  // rule. This doesn't exclude the reserved keywords. But it should
-  // be good enough for roundtrippable TVMScript printing and parsing.
-  static const std::regex id_pattern(R"(^[^\d\W]\w*$)");
-  return std::regex_match(id, id_pattern);
-}
-
-void PythonDocPrinter::PrintTypedDoc(const IdDoc& doc) {
-  CHECK(IsValidPythonIdentifier(doc->name))
-      << "ValueError: " << doc->name << " is not a valid identifier.";
-  output_ << doc->name;
-}
+void PythonDocPrinter::PrintTypedDoc(const IdDoc& doc) { output_ << doc->name; }
 
 void PythonDocPrinter::PrintTypedDoc(const AttrAccessDoc& doc) {
-  CHECK(IsValidPythonIdentifier(doc->attr))
-      << "ValueError: " << doc->attr << " is not a valid attribute.";
   PrintDoc(doc->value);
   output_ << "." << doc->attr;
 }
@@ -220,8 +198,6 @@ void PythonDocPrinter::PrintTypedDoc(const CallDoc& doc) {
       output_ << ", ";
     }
     const String& keyword = doc->kwargs_keys[i];
-    CHECK(IsValidPythonIdentifier(keyword))
-        << "ValueError: " << keyword << " is not a valid name for keyword parameter.";
     output_ << keyword;
     output_ << "=";
     PrintDoc(doc->kwargs_values[i]);

@@ -79,29 +79,6 @@ def test_print_id_doc(name):
     assert to_python_script(doc) == format_script(name)
 
 
-INVALID_IDENTIFIERS = [
-    "",
-    "123",
-    "@test",
-    "test@",
-    "test case",
-    "test, case",
-    "test[0]",
-    "test.case",
-]
-
-
-@pytest.mark.parametrize(
-    "name",
-    INVALID_IDENTIFIERS,
-)
-def test_print_invalid_id_doc(name):
-    doc = IdDoc(name)
-    with pytest.raises(ValueError) as e:
-        to_python_script(doc)
-    assert "IsValidPythonIdentifier" in str(e.value)
-
-
 @pytest.mark.parametrize(
     "attr",
     [
@@ -114,26 +91,6 @@ def test_print_invalid_id_doc(name):
 def test_print_attr_doc(attr):
     doc = IdDoc("x").attr_access(attr)
     assert to_python_script(doc) == format_script(f"x.{attr}")
-
-
-@pytest.mark.parametrize(
-    "attr",
-    [
-        "",
-        "123",
-        "@attr",
-        "attr@",
-        "attr with space",
-        "attr, with dot",
-        "attr[0]",
-        "attr.dot",
-    ],
-)
-def test_print_invalid_attr_doc(attr):
-    doc = IdDoc("x").attr_access(attr)
-    with pytest.raises(ValueError) as e:
-        to_python_script(doc)
-    assert "IsValidPythonIdentifier" in str(e.value)
 
 
 @pytest.mark.parametrize(
@@ -318,28 +275,6 @@ def test_operation_doc_test_exhaustive():
 def test_print_call_doc(args, kwargs, expected):
     doc = CallDoc(IdDoc("f"), *args, **kwargs)
     assert to_python_script(doc) == format_script(f"f{expected}")
-
-
-@pytest.mark.parametrize(
-    "args, kwargs",
-    [
-        *[((), {invalid_name: IdDoc("u")}) for invalid_name in INVALID_IDENTIFIERS],
-        *[
-            ((), {"valid_key": IdDoc("v"), invalid_name: IdDoc("u")})
-            for invalid_name in INVALID_IDENTIFIERS
-        ],
-        *[((IdDoc("x"),), {invalid_name: IdDoc("u")}) for invalid_name in INVALID_IDENTIFIERS],
-        *[
-            ((IdDoc("x"),), {"valid_key": IdDoc("v"), invalid_name: IdDoc("u")})
-            for invalid_name in INVALID_IDENTIFIERS
-        ],
-    ],
-)
-def test_print_call_doc_invalid_kwarg_key(args, kwargs):
-    doc = CallDoc(IdDoc("f"), *args, **kwargs)
-    with pytest.raises(ValueError) as e:
-        to_python_script(doc)
-    assert "IsValidPythonIdentifier" in str(e.value)
 
 
 @pytest.mark.parametrize(
