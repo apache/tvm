@@ -20,10 +20,10 @@
 set -eux
 
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
-if [ "$BRANCH" == "main" ]; then
+if [ "$BRANCH" == "v0.9.0" ]; then
     changed_files=$(git diff --no-commit-id --name-only -r HEAD~1)
 else
-    changed_files=$(git diff --no-commit-id --name-only -r origin/main)
+    changed_files=$(git diff --no-commit-id --name-only -r origin/v0.9.0)
 fi
 
 for file in $changed_files; do

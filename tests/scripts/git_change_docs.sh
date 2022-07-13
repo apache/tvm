@@ -22,7 +22,7 @@ set -eux
 FOUND_ONE_FILE=0
 SAW_NON_DOC_CHANGES=0
 
-changed_files=$(git diff --no-commit-id --name-only -r origin/main)
+changed_files=$(git diff --no-commit-id --name-only -r origin/v0.9.0)
 
 for file in $changed_files; do
     FOUND_ONE_FILE=1
