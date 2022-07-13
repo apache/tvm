@@ -5067,8 +5067,6 @@ def test_forward_nms_v5():
 # Main
 # ----
 if __name__ == "__main__":
-    test_all_elemwise()
-    assert 0
     # BatchToSpaceND
     test_forward_batch_to_space_nd()
 
