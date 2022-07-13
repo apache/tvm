@@ -122,7 +122,7 @@ def run_tvm_graph(
 
 
 def verify_add_layer_params(input_dim, alpha=2):
-    """Add_layer_params"""
+    """Verify add layer params"""
     dtype = "float32"
 
     a_np1 = np.random.uniform(size=input_dim).astype(dtype)
@@ -151,7 +151,7 @@ def test_forward_add_layer_params():
 
 
 def verify_multiply_layer_params(input_dim, alpha):
-    """Multiply_layer_params"""
+    """Verify multiply layer params"""
     dtype = "float32"
 
     a_np1 = np.random.uniform(size=input_dim).astype(dtype)
@@ -184,7 +184,7 @@ def test_forward_multiply_layer_params():
 
 
 def verify_concat_layer_params(input1_dim, input2_dim):
-    """Concat_layer_params"""
+    """Verify concat layer params"""
     dtype = "float32"
 
     a_np1 = np.random.uniform(size=input1_dim).astype(dtype)
@@ -245,7 +245,7 @@ def _verify_upsample_layer_params(input_dim, scale, mode):
 
 @tvm.testing.uses_gpu
 def test_forward_upsample_layer_params():
-    """UpsampleLayerParams"""
+    """Upsample Layer Params"""
     _verify_upsample_layer_params((1, 16, 32, 32), 2, "NN")
     _verify_upsample_layer_params((1, 4, 6, 6), 3, "BILINEAR")
 
@@ -410,7 +410,7 @@ def test_forward_min():
 
 
 def verify_unary_sqrt(input_dim):
-    """Unary sqrt"""
+    """Verify unary sqrt"""
     dtype = "float32"
 
     a_np = np.random.uniform(size=input_dim).astype(dtype)
@@ -428,7 +428,7 @@ def verify_unary_sqrt(input_dim):
 
 
 def verify_unary_rsqrt(input_dim, epsilon=0):
-    """Unary rsqrt"""
+    """Verify unary rsqrt"""
     dtype = "float32"
 
     a_np = np.random.uniform(size=input_dim).astype(dtype)
@@ -448,7 +448,7 @@ def verify_unary_rsqrt(input_dim, epsilon=0):
 
 
 def verify_unary_inverse(input_dim, epsilon=0):
-    """Unary inverse"""
+    """Verify unary inverse"""
     dtype = "float32"
 
     a_np = np.random.uniform(size=input_dim).astype(dtype)
@@ -468,7 +468,7 @@ def verify_unary_inverse(input_dim, epsilon=0):
 
 
 def verify_unary_power(input_dim, alpha):
-    """Unary power"""
+    """Verify unary power"""
     dtype = "float32"
 
     a_np = np.random.uniform(size=input_dim).astype(dtype)
@@ -488,7 +488,7 @@ def verify_unary_power(input_dim, alpha):
 
 
 def verify_unary_exp(input_dim):
-    """Unary exp"""
+    """Verify unary exp"""
     dtype = "float32"
 
     a_np = np.random.uniform(size=input_dim).astype(dtype)
@@ -506,7 +506,7 @@ def verify_unary_exp(input_dim):
 
 
 def verify_unary_log(input_dim):
-    """Unary log"""
+    """Verify unary log"""
     dtype = "float32"
 
     a_np = np.random.uniform(size=input_dim).astype(dtype)
@@ -524,7 +524,7 @@ def verify_unary_log(input_dim):
 
 
 def verify_unary_abs(input_dim):
-    """Unary abs"""
+    """Verify unary abs"""
     dtype = "float32"
 
     a_np = np.random.uniform(-100.0, 100.0, size=input_dim).astype(dtype)
@@ -542,7 +542,7 @@ def verify_unary_abs(input_dim):
 
 
 def verify_unary_threshold(input_dim, alpha):
-    """Unary threshold"""
+    """Verify unary threshold"""
     dtype = "float32"
 
     a_np = np.random.uniform(-100.0, 100.0, size=input_dim).astype(dtype)
@@ -766,7 +766,7 @@ def test_forward_image_scaler():
 
 
 def verify_convolution(input_dim, filter, padding):
-    """Convolution"""
+    """Verify convolution"""
     dtype = "float32"
     _, c, h, w = input_dim
     oc, _, kh, kw = filter
@@ -807,8 +807,7 @@ def test_forward_convolution():
 
 
 def test_can_build_keras_to_coreml_to_relay():
-    """Test multiple conversion paths and importing from
-    a saved file."""
+    """Test multiple conversion paths and importing from a saved file."""
     model = keras.models.Sequential()
     model.add(
         keras.layers.Conv2D(
