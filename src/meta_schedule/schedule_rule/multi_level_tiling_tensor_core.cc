@@ -80,7 +80,8 @@ State TensorCoreStateNode::Copy() const {
 }
 
 /*!
- * \brief Extension of MultiLevelTiling for auto-tensorizing with a single intrinsic.
+ * \brief Extension of MultiLevelTiling for auto-tensorizing with a single group of tensor core
+ * intrinsics.
  */
 class MultiLevelTilingTensorCoreNode : public MultiLevelTilingNode {
  private:
@@ -216,8 +217,18 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddReadReuseTensorCore(
   sch->ComputeInline(state->tensor_core_reindex_A);
   sch->ComputeInline(state->tensor_core_reindex_B);
 
-  sch->StorageAlign(state->read_reuse.at(0), 0, -2, 32, 8);
-  sch->StorageAlign(state->read_reuse.at(1), 0, -2, 32, 8);
+  for (int i = 0; i < 2; ++i) {
+    const tir::BlockRV cache_read = state->read_reuse.at(i);
+    const tir::BlockNode* cache_read_block = sch->GetSRef(cache_read)->StmtAs<tir::BlockNode>();
+    tir::Buffer cache_read_buffer = tir::GetNthAccessBuffer(
+        sch->state(), GetRef<tir::Block>(cache_read_block), 0, tir::BufferIndexType::kWrite);
+    const DataType& dtype = cache_read_buffer->dtype;
+    if (dtype.is_float16()) {
+      sch->StorageAlign(cache_read, 0, -2, 32, 8);
+    } else if (dtype.is_int() && dtype.bits() == 8) {
+      sch->StorageAlign(cache_read, 0, -2, 32, 16);
+    }
+  }
   return {state};
 }
 
@@ -324,7 +335,7 @@ Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
   state->sch->TransformBlockLayout(state->tensor_core_reindex_B, index_map);
   state->sch->TransformBlockLayout(state->block_rv, index_map);
 
-  return tir::TileWithTensorIntrin(state->sch, state->block_rv, intrin_group.compute_intrin);
+  return tir::TileWithTensorIntrin(state->sch, state->block_rv, intrin_name);
 }
 
 inline std::vector<State> MultiLevelTilingTensorCoreNode::TransformForTensorization(

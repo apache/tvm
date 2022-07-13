@@ -113,13 +113,19 @@ def multi_level_tiling(target: Target) -> ScheduleRule:
 
 
 def multi_level_tiling_tensor_core(
-    target: Target, scope="shared", in_dtype="float16", out_dtype="float32", trans_b=False
+    target: Target,
+    write_reuse_scope="shared",
+    in_dtype="float16",
+    out_dtype="float32",
+    trans_b=False,
 ) -> ScheduleRule:
     """Default schedule rules for with multi-level tiling reuse for tensor core"""
-    assert scope in ["shared", "global"]
+    assert write_reuse_scope in ["shared", "global"]
     if target.kind.name == "cuda":
         return MultiLevelTilingTensorCore(
-            intrin_group=tensor_intrin.get_wmma_intrin_group(scope, in_dtype, out_dtype, trans_b),
+            intrin_group=tensor_intrin.get_wmma_intrin_group(
+                write_reuse_scope, in_dtype, out_dtype, trans_b
+            ),
             structure="SSSRRSRS",
             tile_binds=["blockIdx.y", "blockIdx.x", "threadIdx.y"],
             max_innermost_factor=4,  # 64 // tensor intrin size
@@ -130,9 +136,9 @@ def multi_level_tiling_tensor_core(
                 scope="shared",
             ),
             reuse_write=ReuseType(
-                req="must" if scope == "shared" else "no",
+                req="must" if write_reuse_scope == "shared" else "no",
                 levels=[2],
-                scope="shared",
+                scope=write_reuse_scope,
             ),
         )
     raise NotImplementedError(f"{target.kind.name} is not supported")

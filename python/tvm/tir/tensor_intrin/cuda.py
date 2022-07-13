@@ -809,13 +809,13 @@ TensorIntrin.register(
 
 
 def get_wmma_intrin_group(
-    scope: str, in_dtype: str, out_dtype: str, trans_b: bool
+    store_scope: str, in_dtype: str, out_dtype: str, trans_b: bool
 ) -> Dict[str, str]:
     """Get a group of intrinsics for wmma tensor core with the given configurations
 
     Parameters
     ----------
-    scope : str
+    store_scope : str
         Must be one of ["global", "shared"]. The memory scope of the result buffer.
 
     in_dtype : str
@@ -832,7 +832,7 @@ def get_wmma_intrin_group(
     ret : Dict[str, str]
         A group of tensor intrinsics.
     """
-    assert scope in ["global", "shared"]
+    assert store_scope in ["global", "shared"]
     assert in_dtype in ["float16"]
     assert out_dtype in ["float16", "float32"]
 
@@ -856,10 +856,10 @@ def get_wmma_intrin_group(
     }
     store_intrins = {
         "float16": WMMA_STORE_16x16x16_F16_SHARED_INTRIN
-        if scope == "shared"
+        if store_scope == "shared"
         else WMMA_STORE_16x16x16_F16_GLOBAL_INTRIN,
         "float32": WMMA_STORE_16x16x16_F32_SHARED_INTRIN
-        if scope == "shared"
+        if store_scope == "shared"
         else WMMA_STORE_16x16x16_F32_GLOBAL_INTRIN,
     }
     return {
