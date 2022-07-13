@@ -53,3 +53,7 @@ def test_uma_target(target_name, target_attrs, target_args):
 
     for attr in target_args.keys():
         assert my_target.attrs[attr] == target_args[attr]
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

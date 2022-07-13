@@ -16,7 +16,7 @@
 # under the License.
 """Partitioner base class of the Universal Modular Accelerator Interface (UMA)"""
 
-from typing import Dict, List, Tuple, Optional
+from typing import Callable, Dict, List, Tuple, Optional
 
 import tvm
 from tvm import relay
@@ -24,6 +24,8 @@ from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.op.contrib.register import register_pattern_table
 from .utils import PassPhase
 
+
+PatternTable = List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]
 
 class UMAPartitioner():
     """Partitioner base class of the Universal Modular Accelerator Interface (UMA)."""
@@ -33,10 +35,17 @@ class UMAPartitioner():
         self.merge_compiler_regions = merge_compiler_regions
 
         self._relay_passes: List[Tuple[PassPhase, tvm.transform.Pass]] = []
-        self._patterns: List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern]] = []
+        self._patterns: PatternTable = []
 
-    def _pattern_table(self):
-        return [(self.target_name + "." + pattern[0], pattern[1]) for pattern in self._patterns]
+    def add_pattern(self, name : str, pattern : tvm.relay.dataflow_pattern.DFPattern, predicate : Optional[Callable] = None) -> None:
+        name = self.target_name + "." + name
+        if predicate:
+            self._patterns.append((name, pattern, predicate))
+        else:
+            self._patterns.append((name, pattern))
+
+    def _pattern_table(self) -> PatternTable:
+        return self._patterns
 
     def register(self) -> None:
         """Register all relevant relay-to-relay functions."""

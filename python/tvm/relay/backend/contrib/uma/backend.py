@@ -115,6 +115,7 @@ class UMABackend(ABC):
         self,
         name: str,
         pattern: tvm.relay.dataflow_pattern.DFPattern,
+        predicate: Optional[Callable] = None,
     ) -> None:
         """Registers a dataflow pattern that is used to partition the relay graph.
 
@@ -125,6 +126,8 @@ class UMABackend(ABC):
 
         pattern: tvm.relay.dataflow_pattern.DFPattern
             The dataflow pattern.
+
+        predicate: Callable Receiving the matched pattern and 
 
         Example
         -------
@@ -145,7 +148,7 @@ class UMABackend(ABC):
             optional_relu = lambda x: is_op("nn.relu")(x)
             conv1d_pattern = conv1d_pattern.optional(optional_bias).optional(optional_relu)
         """
-        self._relay_to_relay._patterns.append((name, pattern))
+        self._relay_to_relay.add_pattern(name, pattern, predicate)
 
     ############################################################################
     # Relay to TIR function registration
