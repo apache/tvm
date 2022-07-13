@@ -888,10 +888,22 @@ class OperatorConverter(object):
 
     def convert_shape(self, op):
         """Convert TFLite Shape"""
+        try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.ShapeOptions import ShapeOptions
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
 
-        out = shape_of(self.get_tensor_expr(input_tensors[0]))
+        assert op.BuiltinOptionsType() == BuiltinOptions.ShapeOptions
+        op_options = op.BuiltinOptions()
+        shape_options = ShapeOptions()
+        shape_options.Init(op_options.Bytes, op_options.Pos)
+
+        out_type = self.get_tensor_type_str(shape_options.OutType())
+        out = shape_of(self.get_tensor_expr(input_tensors[0]), dtype=out_type)
 
         return out
 
@@ -3010,11 +3022,14 @@ class OperatorConverter(object):
 
         input_tensor = input_tensors[0]
         alpha_tensor = input_tensors[1]
-        alpha_tensor_type = alpha_tensor.tensor.Type()
-        alpha_tensor_type_str = self.get_tensor_type_str(alpha_tensor_type)
-        alpha_expr = self.exp_tab.new_const(
-            self.get_tensor_value(alpha_tensor), dtype=alpha_tensor_type_str
-        )
+        if self.has_expr(alpha_tensor.tensor_idx):
+            alpha_expr = self.get_expr(alpha_tensor.tensor_idx)
+        else:
+            alpha_tensor_type = alpha_tensor.tensor.Type()
+            alpha_tensor_type_str = self.get_tensor_type_str(alpha_tensor_type)
+            alpha_expr = self.exp_tab.new_const(
+                self.get_tensor_value(alpha_tensor), dtype=alpha_tensor_type_str
+            )
         in_expr = self.get_expr(input_tensor.tensor_idx)
         data_shape = to_int_list(self.get_tensor_shape(input_tensor))
 

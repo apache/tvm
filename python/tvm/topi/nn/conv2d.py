@@ -977,9 +977,9 @@ def _conv2d_winograd_nhwc_impl(
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         4-D with shape [batch, in_height, in_width, in_channel]
-    weight : tvm.Tensor
+    weight : tvm.te.Tensor
         4-D with shape [filter_height, filter_width, in_channel, num_filter]
     strides : int or a list/tuple of two ints
         stride size, or [stride_height, stride_width]
@@ -1000,7 +1000,7 @@ def _conv2d_winograd_nhwc_impl(
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         4-D with shape [batch, out_height, out_width, out_channel]
     """
     N, H, W, CI = get_const_tuple(data.shape)
@@ -1159,9 +1159,9 @@ def conv2d_winograd_nhwc(
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         4-D with shape [batch, in_height, in_width, in_channel]
-    weight : tvm.Tensor
+    weight : tvm.te.Tensor
         4-D with shape [filter_height, filter_width, in_channel, num_filter]
     strides : int or a list/tuple of two ints
         stride size, or [stride_height, stride_width]
@@ -1180,7 +1180,7 @@ def conv2d_winograd_nhwc(
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         4-D with shape [batch, out_height, out_width, out_channel]
     """
     tile_size = 4
@@ -1214,9 +1214,9 @@ def conv2d_winograd_nhwc_without_weight_transform(
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         4-D with shape [batch, in_height, in_width, in_channel]
-    weight : tvm.Tensor
+    weight : tvm.te.Tensor
         4-D with shape [filter_height, filter_width, in_channel, num_filter]
     strides : int or a list/tuple of two ints
         stride size, or [stride_height, stride_width]
@@ -1233,7 +1233,7 @@ def conv2d_winograd_nhwc_without_weight_transform(
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         4-D with shape [batch, out_height, out_width, out_channel]
     """
 

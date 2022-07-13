@@ -1,4 +1,3 @@
-#!/bin/bash -e
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,28 +14,4 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-set -ex
-
-# TVM
-# NOTE: TVM is presumed to be mounted already by Vagrantfile.
-cd "${TVM_HOME}"
-
-platform="arduino"
-apps/microtvm/reference-vm/rebuild-tvm.sh ${platform}
-
-# Build poetry
-cd apps/microtvm/reference-vm/arduino
-
-poetry env use 3.7
-
-# importers
-poetry install -E importer-onnx
-poetry install -E importer-tflite
-poetry install -E importer-mxnet
-
-poetry install
-
-echo "export TVM_LIBRARY_PATH=\"$TVM_HOME\"/build-microtvm-${platform}" >>~/.profile
-echo "VENV_PATH=\$((cd \"$TVM_HOME\"/apps/microtvm/reference-vm/arduino && poetry env list --full-path) | sed -E 's/^(.*)[[:space:]]\(Activated\)\$/\1/g')" >>~/.profile
-echo "source \$VENV_PATH/bin/activate" >>~/.profile
+"""Infrastructure and tests for e2e integration tests."""

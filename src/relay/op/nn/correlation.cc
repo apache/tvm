@@ -129,7 +129,8 @@ where :math:`i` and :math:`j` enumerate spatial locations in :math:`f_{1}`, and 
     .add_argument("data2", "Tensor", "Input data2 to the correlation.")
     .set_support_level(2)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", CorrelationInferCorrectLayout)
-    .add_type_rel("Correlation", CorrelationRel);
+    .add_type_rel("Correlation", CorrelationRel)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable);
 
 }  // namespace relay
 }  // namespace tvm

@@ -158,9 +158,6 @@ class TestAddSubtractMultiplyBroadcast2d:
         input_B_layout,
         op_name,
     ):
-        if hexagon_session._launcher._serial_number != "simulator":
-            pytest.skip(msg="Due to https://github.com/apache/tvm/issues/11957")
-
         target_hexagon = tvm.target.hexagon("v69")
         A = te.placeholder(input_shape_A, name="A", dtype=dtype)
         B = te.placeholder(input_shape_B, name="B", dtype=dtype)

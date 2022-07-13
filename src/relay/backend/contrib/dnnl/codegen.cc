@@ -470,6 +470,8 @@ class DNNLJSONSerializer : public backend::contrib::JSONSerializer {
       {"relu", "nn.relu"},
       {"tanh", "tanh"},
       {"sigmoid", "sigmoid"},
+      {"clip", "clip"},
+      {"mul", "multiply"},
       {"nn.deconv2d", "nn.conv2d_transpose"},
       {"nn.deconv3d", "nn.conv3d_transpose"},
   };
@@ -566,6 +568,13 @@ class DNNLJSONSerializer : public backend::contrib::JSONSerializer {
                                                 "kernel", /* op_type_ */
                                                 inputs, 1 /* num_outputs_ */);
     SetCallNodeAttribute(node, call);
+    // If has post-op `clip`. Assume the last op is clip, add clip's attrs to the pattern attrs.
+    if (name.find("_clip") != std::string::npos) {
+      auto clip_call = cn->op.as<FunctionNode>()->body.as<CallNode>();
+      ICHECK(IsOp(clip_call, "clip"));
+      SetCallNodeAttribute(node, clip_call);
+    }
+    // For QNN.
     for (const auto& kvp : extra_attrs) node->SetAttr(kvp.first, kvp.second);
 
     return AddNode(node, GetRef<Expr>(cn));

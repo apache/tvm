@@ -16,22 +16,32 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-#   Using this script we can reuse docker/install scripts to configure the reference 
-#   virtual machine similar to CI QEMU setup.
-#
 
 set -e
-set -x
 
-source ~/.profile
+if [ "$1" == "--help" ]; then
+    echo "Usage ./apps/microtvm/reference-vm/rebuild_tvm.sh"
+    exit -1
+fi
 
-# Init Zephyr
-cd ~
-~/ubuntu_init_zephyr_project.sh ~/zephyr
+# Get number of cores for build
+if [ -n "${TVM_CI_NUM_CORES}" ]; then
+  num_cores=${TVM_CI_NUM_CORES}
+else
+  # default setup for Vagrantfile
+  num_cores=2
+fi
 
-# Install CMSIS
-cd ~
-~/ubuntu_install_cmsis.sh ~/cmsis
+cd "$(dirname $0)"
+cd "$(git rev-parse --show-toplevel)"
+BUILD_DIR="build-microtvm"
 
-# Cleanup
-rm -f ubuntu_init_zephyr_project.sh ubuntu_install_cmsis.sh
+if [ ! -e "${BUILD_DIR}" ]; then
+    mkdir "${BUILD_DIR}"
+fi
+
+./tests/scripts/task_config_build_qemu.sh "${BUILD_DIR}"
+cd "${BUILD_DIR}"
+cmake ..
+rm -rf standalone_crt host_standalone_crt  # remove stale generated files
+make -j${num_cores}

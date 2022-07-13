@@ -16,18 +16,27 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-# Usage: base_box_test.sh <ZEPHYR_BOARD>
-#     Execute microTVM Zephyr tests.
-#
 
-set -e
 set -x
 
 if [ "$#" -lt 1 ]; then
-    echo "Usage: base_box_test.sh <ZEPHYR_BOARD>"
+    echo "Usage: base_box_test.sh <PLATFORM> <BOARD>"
     exit -1
 fi
 
-board=$1
+platform=$1
+board=$2
 
-pytest tests/micro/zephyr --zephyr-board=${board}
+if [ "${platform}" == "zephyr" ]; then
+    pytest tests/micro/zephyr --zephyr-board=${board}
+fi
+
+if [ "${platform}" == "arduino" ]; then
+    pytest tests/micro/arduino/test_arduino_workflow.py --arduino-board=${board}
+    if [ $board == "nano33ble" ]; then
+        # https://github.com/apache/tvm/issues/8730
+        echo "NOTE: skipped test_arduino_rpc_server.py on $board -- known failure"
+    else
+        pytest tests/micro/arduino/test_arduino_rpc_server.py --arduino-board=${board}
+    fi
+fi
