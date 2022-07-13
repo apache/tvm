@@ -96,7 +96,7 @@ set(USE_SPIRV_KHR_INTEGER_DOT_PRODUCT OFF)
 set(USE_OPENGL OFF)
 
 # Whether enable MicroTVM runtime
-set(USE_MICRO ON)
+set(USE_MICRO OFF)
 
 # Whether enable RPC runtime
 set(USE_RPC ON)
@@ -133,7 +133,7 @@ set(USE_MICRO_STANDALONE_RUNTIME OFF)
 # - OFF: disable llvm, note this will disable CPU codegen
 #        which is needed for most cases
 # - /path/to/llvm-config: enable specific LLVM when multiple llvm-dev is available.
-set(USE_LLVM ON)
+set(USE_LLVM OFF)
 
 #---------------------------------------------
 # Contrib libraries
@@ -382,4 +382,4 @@ set(SUMMARIZE OFF)
 set(USE_LIBTORCH OFF)
 
 # Whether to use the Universal Modular Accelerator Interface
-set(USE_UMA ON)
+set(USE_UMA OFF)
