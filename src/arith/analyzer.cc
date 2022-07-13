@@ -53,7 +53,7 @@ void Analyzer::Bind(const Var& var, const Range& range, bool allow_override) {
     this->Bind(var, range->min, allow_override);
   } else {
     this->const_int_bound.Bind(var, range, allow_override);
-    this->int_set.Update(var, range, allow_override);
+    this->int_set.Bind(var, range, allow_override);
   }
   // skip modular_set
   // skip rewrite simplify

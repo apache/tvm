@@ -529,10 +529,10 @@ class IntSetAnalyzer::Impl {
   }
 
   void Bind(const Var& var, const Range& range, bool allow_override) {
-    Bind(var, IntSet::FromRange(range), allow_override);
+    Update(var, IntSet::FromRange(range), allow_override);
   }
 
-  void Bind(const Var& var, const IntSet& info, bool override_info);
+  void Update(const Var& var, const IntSet& info, bool override_info);
   void Bind(const Var& var, const PrimExpr& expr, bool override_info);
   std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
@@ -568,14 +568,14 @@ IntSet IntSetAnalyzer::operator()(const PrimExpr& expr, const Map<Var, IntSet>& 
 IntSet IntSetAnalyzer::operator()(const PrimExpr& expr) { return impl_->Eval(expr); }
 
 void IntSetAnalyzer::Update(const Var& var, const IntSet& info, bool allow_override) {
-  impl_->Bind(var, info, allow_override);
+  impl_->Update(var, info, allow_override);
 }
 
-void IntSetAnalyzer::Update(const Var& var, const Range& range, bool allow_override) {
+void IntSetAnalyzer::Bind(const Var& var, const Range& range, bool allow_override) {
   impl_->Bind(var, range, allow_override);
 }
 
-void IntSetAnalyzer::Impl::Bind(const Var& var, const IntSet& info, bool can_override) {
+void IntSetAnalyzer::Impl::Update(const Var& var, const IntSet& info, bool can_override) {
   if (!can_override) {
     auto it = dom_map_.find(var);
     if (it != dom_map_.end()) {
@@ -596,7 +596,7 @@ void IntSetAnalyzer::Impl::Bind(const Var& var, const IntSet& info, bool can_ove
 }
 
 void IntSetAnalyzer::Impl::Bind(const Var& var, const PrimExpr& expr, bool can_override) {
-  Bind(var, Eval(expr), can_override);
+  Update(var, Eval(expr), can_override);
 }
 
 Map<Var, IntSet> IntSetAnalyzer::Impl::GetCurrentBounds() const {

@@ -397,7 +397,7 @@ class IntSetAnalyzer {
    * \param new_range The range of allowed values for this var.
    * \param allow_override whether we allow override of existing information.
    */
-  TVM_DLL void Update(const Var& var, const Range& new_range, bool allow_override = false);
+  TVM_DLL void Bind(const Var& var, const Range& new_range, bool allow_override = false);
 
   std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
