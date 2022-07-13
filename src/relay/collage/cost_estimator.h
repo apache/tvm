@@ -52,7 +52,7 @@ class CostEstimatorNode : public Object {
    * running "main" in \p mod using \p target, which represents a possible partitioning of
    * some overall Relay expression.
    */
-  virtual Cost Estimate(const IRModule& mod, const Target& target, bool needs_tvm_tuning) const;
+  virtual Cost Estimate(const IRModule& mod, const Target& target) const;
 
   static constexpr const char* _type_key = "relay.collage.CostEstimator";
   TVM_DECLARE_BASE_OBJECT_INFO(CostEstimatorNode, Object);
@@ -75,7 +75,7 @@ class CostEstimator : public ObjectRef {
  */
 class MockEstimatorNode : public CostEstimatorNode {
  public:
-  Cost Estimate(const IRModule& mod, const Target& target, bool needs_tvm_tuning) const override;
+  Cost Estimate(const IRModule& mod, const Target& target) const override;
 
   static constexpr const char* _type_key = "relay.collage.MockEstimator";
   TVM_DECLARE_FINAL_OBJECT_INFO(MockEstimatorNode, CostEstimatorNode);

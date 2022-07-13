@@ -191,8 +191,7 @@ Cost CandidatePartitionNode::EstimatedCost(
         VLOG(1) << "Estimating cost of:" << std::endl
                 << PrettyPrint(mod) << std::endl
                 << "using target " << target()->ToDebugString();
-        entry.cost = cost_estimator->Estimate(mod, target(),
-                                              /*needs_tvm_tuning=*/!target().IsExternalCodegen());
+        entry.cost = cost_estimator->Estimate(mod, target());
         VLOG(1) << "Measured cost as " << entry.cost.ToString();
       } else {
         VLOG(1) << "Reusing cost " << entry.cost.ToString()
