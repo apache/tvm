@@ -267,6 +267,12 @@ class RewriteSimplifier {
    */
   TVM_DLL void Update(const Var& var, const PrimExpr& new_expr, bool allow_override = false);
 
+  /*!
+   * \brief Update the internal state to enter constraint.
+   * \param constraint A constraint expression.
+   *
+   * \return an exit function that must be called to cleanup the constraint can be nullptr.
+   */
   std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
  private:
