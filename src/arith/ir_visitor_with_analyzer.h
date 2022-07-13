@@ -34,8 +34,8 @@ namespace arith {
 
 class IRVisitorWithAnalyzer : public tir::StmtExprVisitor {
  public:
-   using StmtExprVisitor::VisitExpr_;
-   using StmtExprVisitor::VisitStmt_;
+  using StmtExprVisitor::VisitExpr_;
+  using StmtExprVisitor::VisitStmt_;
   PrimExpr Simplify(const PrimExpr& expr) { return analyzer_.Simplify(expr); }
 
   void VisitStmt_(const tir::ForNode* op);
