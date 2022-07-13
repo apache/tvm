@@ -196,7 +196,7 @@ void CodeGenCPU::AddFunction(const PrimFunc& f) {
 
 // Following Glow |DebugInfo::generateFunctionDebugInfo|, https://git.io/fjadv
 void CodeGenCPU::AddDebugInformation(PrimFunc f_tir, llvm::Function* f_llvm) {
-#if TVM_LLVM_VERSION >= 50 && TVM_LLVM_VERSION < 70
+#if TVM_LLVM_VERSION >= 50
   ICHECK(!f_llvm->getSubprogram());
   llvm::SmallVector<llvm::Metadata*, 4> paramTys;
   // Functions in TIR can only return void or an int.
@@ -213,16 +213,20 @@ void CodeGenCPU::AddDebugInformation(PrimFunc f_tir, llvm::Function* f_llvm) {
   auto* DIFunctionTy = dbg_info_->di_builder_->createSubroutineType(
       dbg_info_->di_builder_->getOrCreateTypeArray(paramTys));
 
+  bool local_to_unit = llvm::GlobalValue::isLocalLinkage(f_llvm->getLinkage());
+
 #if TVM_LLVM_VERSION >= 80
+  auto SPFlags =
+      llvm::DISubprogram::toSPFlags(local_to_unit, /*IsDefinition=*/true, /*IsOptimized=*/true);
   auto* DIFunction = dbg_info_->di_builder_->createFunction(
       /*Scope=*/dbg_info_->file_, /*Name=*/f_llvm->getName(), /*LinkageName=*/"",
       /*File=*/dbg_info_->file_, /*LineNo=*/0, /*Ty=*/DIFunctionTy,
-      /*ScopeLine=*/0);
+      /*ScopeLine=*/0, /*Flags=*/llvm::DINode::FlagZero, /*SPFlags=*/SPFlags);
 #else
   auto* DIFunction = dbg_info_->di_builder_->createFunction(
       /*Scope=*/dbg_info_->file_, /*Name=*/f_llvm->getName(), /*LinkageName=*/"",
       /*File=*/dbg_info_->file_, /*LineNo=*/0, /*Ty=*/DIFunctionTy,
-      /*isLocalToUnit=*/false, /*isDefinition=*/true, /*ScopeLine=*/0,
+      /*isLocalToUnit=*/local_to_unit, /*isDefinition=*/true, /*ScopeLine=*/0,
       /*Flags=*/llvm::DINode::FlagPrototyped, /*isOptimized=*/true);
 #endif
 
@@ -244,9 +248,10 @@ void CodeGenCPU::AddDebugInformation(PrimFunc f_tir, llvm::Function* f_llvm) {
         GetDebugType(GetType(f_tir->params[i]), f_llvm->getFunctionType()->getParamType(i)),
         /*alwaysPreserve=*/true);
     auto* store = builder.CreateStore(f_llvm->arg_begin() + i, paramAlloca);
+    auto* di_loc = llvm::DILocation::get(*ctx_, 0, 0, DIFunction);
     dbg_info_->di_builder_->insertDeclare(paramAlloca, param,
                                           dbg_info_->di_builder_->createExpression(),
-                                          llvm::DebugLoc::get(0, 0, DIFunction), store);
+                                          llvm::DebugLoc(di_loc), store);
   }
   dbg_info_->di_builder_->finalizeSubprogram(f_llvm->getSubprogram());
   auto* scope = f_llvm->getSubprogram();
@@ -258,7 +263,8 @@ void CodeGenCPU::AddDebugInformation(PrimFunc f_tir, llvm::Function* f_llvm) {
       if (I.getDebugLoc()) {
         continue;
       }
-      I.setDebugLoc(llvm::DebugLoc::get(0, 0, scope));
+      auto* di_loc = llvm::DILocation::get(*ctx_, 0, 0, scope);
+      I.setDebugLoc(llvm::DebugLoc(di_loc));
     }
   }
 #endif
@@ -275,10 +281,13 @@ llvm::DIType* CodeGenCPU::GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm) 
     return dbg_info_->di_builder_->createBasicType("int32", 32, llvm::dwarf::DW_ATE_signed);
   } else if (ty_llvm->isPointerTy()) {
     auto* ptr_type = ty_tir.as<PointerTypeNode>();
-    ICHECK(ptr_type != nullptr) << "Got LLVM pointer type from non-pointer IR type: " << ty_tir;
-    Type elem_type = ptr_type->element_type;
-    return dbg_info_->di_builder_->createPointerType(
-        GetDebugType(elem_type, GetLLVMType(elem_type)), ty_llvm->getPrimitiveSizeInBits());
+    ICHECK(ptr_type != nullptr || GetRuntimeDataType(ty_tir).is_handle())
+        << "Got LLVM pointer type from non-pointer IR type: " << ty_tir;
+    auto* pointee_type = ptr_type != nullptr ? GetDebugType(ptr_type->element_type,
+                                                            GetLLVMType(ptr_type->element_type))
+                                             : nullptr;
+    return dbg_info_->di_builder_->createPointerType(pointee_type,
+                                                     ty_llvm->getPrimitiveSizeInBits());
   } else {
     std::string type_str;
     llvm::raw_string_ostream rso(type_str);
