@@ -528,7 +528,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   comparator.VisitStmt(block_realize, intrin_desc->body);
   // Step 3: Prepare necessary mapping
   // 1) Buffer mapping from intrin impl buffers to intrin desc buffers.
-  // 2) Buffer mapping from intrin impl buffers to AST buffers.
+  // 2) Buffer mapping from intrin impl buffers to buffers in the current AST.
   // 3) Mapping impl buffers to their accessed regions.
   std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> impl2desc;
   ICHECK_EQ(intrin_desc->params.size(), intrin_impl->params.size());
@@ -537,12 +537,12 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
     const Buffer& impl = intrin_impl->buffer_map[intrin_impl->params[i]];
     impl2desc[impl] = desc;
   }
-  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> impl2ast;
+  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> impl2cur;
   for (const auto& pair : impl2desc) {
     const Buffer& impl = pair.first;
     const Buffer& desc = pair.second;
     ICHECK(comparator.rhs_buffer_map_.count(desc));
-    impl2ast[impl] = comparator.rhs_buffer_map_[desc];
+    impl2cur[impl] = comparator.rhs_buffer_map_[desc];
   }
   std::unordered_map<Buffer, Array<Range>, ObjectPtrHash, ObjectPtrEqual> impl2region;
   Block impl_block = Downcast<BlockRealize>(intrin_impl->body)->block;
@@ -558,13 +558,13 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   match_buffer_regions.reserve(intrin_impl->params.size());
   for (int i = 0, n = intrin_impl->params.size(); i < n; ++i) {
     const Buffer& impl = intrin_impl->buffer_map.at(intrin_impl->params[i]);
-    const Buffer& ast = impl2ast.at(impl);
+    const Buffer& cur = impl2cur.at(impl);
     const Array<Range>& old_region = impl2region.at(impl);
-    const std::vector<PrimExpr>& indices_base = comparator.buffer_indices_.at(ast);
+    const std::vector<PrimExpr>& indices_base = comparator.buffer_indices_.at(cur);
     int offset = static_cast<int>(indices_base.size()) - static_cast<int>(old_region.size());
     ICHECK(offset >= 0);
     Array<Range> new_region;
-    new_region.reserve(ast->shape.size());
+    new_region.reserve(cur->shape.size());
     for (int i = 0; i < offset; i++) {
       PrimExpr min = indices_base[i];
       PrimExpr extent = make_const(min.dtype(), 1);
@@ -575,7 +575,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
       PrimExpr extent = old_region[i]->extent;
       new_region.push_back(Range::FromMinExtent(min, extent));
     }
-    match_buffer_regions.push_back(MatchBufferRegion(impl, BufferRegion(ast, new_region)));
+    match_buffer_regions.push_back(MatchBufferRegion(impl, BufferRegion(cur, new_region)));
   }
   // Step 5: Replace the subtree in the original IR with the tensor intrin impl.
   {
