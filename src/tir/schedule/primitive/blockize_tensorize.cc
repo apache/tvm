@@ -584,7 +584,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
     block->match_buffers = std::move(match_buffer_regions);
   }
   if (old_block.defined()) {
-    self->Replace(sref, block_realize, {{old_block.value(), block_realize->block}});
+    self->Replace(sref, block_realize->block, {{old_block.value(), block_realize->block}});
   } else {
     self->Replace(sref, block_realize, {});
   }
