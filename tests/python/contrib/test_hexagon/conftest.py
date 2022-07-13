@@ -19,11 +19,6 @@
     values from testing parameters """
 
 
-import pytest
-
-import tvm
-import tvm.testing
-
 pytest_plugins = [
     "tvm.contrib.hexagon.pytest_plugin",
 ]
