@@ -884,9 +884,9 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
         mem_bytes += touched_size * buffer_dtypes.at(t).bytes();
       }
 
-      mem_bytes_list->push_back(std::log2(mem_bytes));
+      mem_bytes_list->push_back(mem_bytes);
       *cur_compute_ops *= GetLoopExtent(for_loop_stack_[i], local_analyzer);
-      compute_ops_list->push_back(std::log2(*cur_compute_ops));
+      compute_ops_list->push_back(*cur_compute_ops);
     }
 
     //  Buffer access related features (per buffer)
