@@ -243,9 +243,6 @@ TORCH_LIBRARY(tvm_torch, m) {
           [](SerializationType state) {
             return c10::make_intrusive<OperatorModuleWrapper>(state);
           });
-}
-
-TORCH_LIBRARY(tvm_tuning, m) {
   m.class_<GraphExecutorFactoryWrapper>("GraphExecutorFactoryWrapper")
       .def(torch::init<>())
       .def("forward", &GraphExecutorFactoryWrapper::forward)
