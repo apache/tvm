@@ -54,7 +54,7 @@ class CostEstimatorNode : public Object {
    */
   virtual Cost Estimate(const IRModule& mod, const Target& target, bool needs_tvm_tuning) const;
 
-  static constexpr const char* _type_key = "collage.CostEstimator";
+  static constexpr const char* _type_key = "relay.collage.CostEstimator";
   TVM_DECLARE_BASE_OBJECT_INFO(CostEstimatorNode, Object);
 };
 
@@ -77,7 +77,7 @@ class MockEstimatorNode : public CostEstimatorNode {
  public:
   Cost Estimate(const IRModule& mod, const Target& target, bool needs_tvm_tuning) const override;
 
-  static constexpr const char* _type_key = "collage.MockEstimator";
+  static constexpr const char* _type_key = "relay.collage.MockEstimator";
   TVM_DECLARE_FINAL_OBJECT_INFO(MockEstimatorNode, CostEstimatorNode);
 
  protected:
