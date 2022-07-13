@@ -14,34 +14,33 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=import-self, invalid-name, unused-argument
+# pylint: disable=import-self, invalid-name, unused-argument, missing-function-docstring
 """Unit tests for various models and operators"""
-from contextlib import suppress
 import os
 import sys
-from time import time
 
+from packaging import version as package_version
+
+import pytest
 import numpy as np
-import torch
-import torchvision
 import tvm
 import tvm.testing
-from packaging import version as package_version
-from scipy.stats import t as tdistr
-from torch.nn import Module
-from torch.nn import functional as F
 from tvm import relay
 from tvm.contrib import graph_executor
 from tvm.contrib.nvcc import have_fp16
 from tvm.contrib import cudnn
-import pytest
+
+import torch
+from torch.nn import Module
+from torch.nn import functional as F
+import torchvision
 
 sys.setrecursionlimit(10000)
 if torch.cuda.is_available():
     torch.backends.cuda.matmul.allow_tf32 = False
     torch.backends.cudnn.allow_tf32 = False
 
-
+# pylint: disable=arguments-renamed
 def list_ops(expr):
     class OpLister(tvm.relay.ExprVisitor):
         def visit_op(self, expr):
@@ -93,6 +92,7 @@ def load_torchvision(model_name):
 def load_pretrainedmodels(model_name):
     """Given a model name, returns a pretrainedmodels.pytorch model in eval
     mode as well as an example input."""
+    # pylint: disable=import-outside-toplevel
     import pretrainedmodels  # https://github.com/Cadene/pretrained-models.pytorch
 
     model = getattr(pretrainedmodels, model_name)().float().eval()
@@ -108,16 +108,18 @@ def load_model(model_name):
     """Given a model name, returns a model as well as an example input."""
     if hasattr(torchvision.models, model_name):
         return load_torchvision(model_name)
+    # pylint: disable=import-outside-toplevel
     try:
         import pretrainedmodels
 
         if hasattr(pretrainedmodels, model_name):
             return load_pretrainedmodels(model_name)
-    except ModuleNotFoundError:
-        raise ModuleNotFoundError("Please install pretrainedmodels.pytorch")
+    except ModuleNotFoundError as e:
+        raise ModuleNotFoundError("Please install pretrainedmodels.pytorch") from e
     raise RuntimeError("Model not supported")
 
 
+# pylint: disable=dangerous-default-value
 def verify_model(
     model_name, input_data=[], custom_convert_map={}, rtol=1e-5, atol=1e-5, expected_ops=[]
 ):
@@ -156,7 +158,7 @@ def verify_model(
         else:
             trace = trace.cpu()
 
-    input_names = ["input{}".format(idx) for idx, inp in enumerate(baseline_input)]
+    input_names = [f"input{idx}" for idx, _ in enumerate(baseline_input)]
     input_shapes = list(zip(input_names, [inp.shape for inp in baseline_input]))
     mod, params = relay.frontend.from_pytorch(trace, input_shapes, custom_convert_map)
     for arg in mod["main"].params[: len(input_names)]:
@@ -209,9 +211,10 @@ def verify_model_with_input(
     atol=1e-5,
     assert_shape_only=False,
 ):
+    """Generic function to generate and compare Pytorch and TVM output"""
     baseline_outputs = test_func(*input_data)
     trace = torch.jit.trace(test_func, [input.clone() for input in input_data])
-    input_names = ["input{}".format(idx) for idx, inp in enumerate(input_data)]
+    input_names = [f"input{idx}" for idx, _ in enumerate(input_data)]
     input_shapes = list(zip(input_names, [inp.shape for inp in input_data]))
     mod, params = relay.frontend.from_pytorch(trace, input_shapes, custom_convert_map)
     with tvm.transform.PassContext(opt_level=3):
@@ -227,13 +230,14 @@ def verify_model_with_input(
 
             compiled_output = relay_model.get_output(0).numpy()
             assert_shapes_match(baseline_outputs, compiled_output)
-            if assert_shape_only == False:
+            if assert_shape_only is False:
                 tvm.testing.assert_allclose(baseline_outputs, compiled_output, rtol=rtol, atol=atol)
 
 
 # Single operator tests
 @tvm.testing.uses_gpu
 def test_forward_pixel_shuffle():
+    """PixelShuffle"""
     torch.set_grad_enabled(False)
     input_shape = [1, 144, 16, 16]
 
@@ -805,18 +809,18 @@ def test_forward_maxpool2d():
 
     class MaxPool2DWithIndices(Module):
         def __init__(self):
-            super(MaxPool2DWithIndices, self).__init__()
+            super().__init__()
             self.pool = torch.nn.MaxPool2d(kernel_size=[1, 1], return_indices=True)
 
         def forward(self, *args):
-            output, indices = self.pool(args[0])
+            output, _ = self.pool(args[0])
             return output
 
     class MaxPool2DWithIntStrides(Module):
         def forward(self, *args):
             # Makes kernel_size and strides a Relay expr to test converting back to int
             x_shape = args[0].shape
-            kernel_size = [torch.tensor(x_shape[1]).int(), torch.tensor(x_shape[1]).int()]
+            # kernel_size = [torch.tensor(x_shape[1]).int(), torch.tensor(x_shape[1]).int()]
             strides = [torch.tensor(x_shape[0]).int(), torch.tensor(x_shape[0]).int()]
             return torch.nn.functional.max_pool2d(args[0], kernel_size=[4, 4], stride=strides)
 
@@ -869,7 +873,7 @@ def test_forward_split():
 
     class Split(Module):
         def __init__(self, split_size_or_sections, dim):
-            super(Split, self).__init__()
+            super().__init__()
             self.split_size_or_sections = split_size_or_sections
             self.dim = dim
 
@@ -959,7 +963,7 @@ def test_forward_conv():
 
     class Conv2D1(Module):
         def __init__(self):
-            super(Conv2D1, self).__init__()
+            super().__init__()
             self.conv = torch.nn.Conv2d(3, 6, 7, bias=True)
             self.softmax = torch.nn.Softmax()
 
@@ -968,7 +972,7 @@ def test_forward_conv():
 
     class Conv2D2(Module):
         def __init__(self):
-            super(Conv2D2, self).__init__()
+            super().__init__()
             self.conv = torch.nn.Conv2d(3, 6, 7, bias=False)
             self.softmax = torch.nn.Softmax()
 
@@ -977,7 +981,7 @@ def test_forward_conv():
 
     class Conv2D3(Module):
         def __init__(self):
-            super(Conv2D3, self).__init__()
+            super().__init__()
             self.conv = torch.nn.Conv2d(3, 6, 7, groups=3, bias=False)
             self.softmax = torch.nn.Softmax()
 
@@ -986,7 +990,7 @@ def test_forward_conv():
 
     class Conv1D1(Module):
         def __init__(self):
-            super(Conv1D1, self).__init__()
+            super().__init__()
             self.conv = torch.nn.Conv1d(3, 6, 7)
             self.softmax = torch.nn.Softmax()
 
@@ -995,7 +999,7 @@ def test_forward_conv():
 
     class Conv1D2(Module):
         def __init__(self):
-            super(Conv1D2, self).__init__()
+            super().__init__()
             self.conv = torch.nn.Conv1d(3, 6, 7, bias=False)
             self.softmax = torch.nn.Softmax()
 
@@ -1004,7 +1008,7 @@ def test_forward_conv():
 
     class Conv1D3(Module):
         def __init__(self):
-            super(Conv1D3, self).__init__()
+            super().__init__()
             self.conv = torch.nn.Conv1d(3, 6, 7, groups=3, bias=False)
             self.softmax = torch.nn.Softmax()
 
@@ -1418,7 +1422,8 @@ def test_type_as():
             # Only check half precision on supported hardwares.
             if have_fp16(tvm.cuda(0).compute_version):
                 check_fp16 = True
-        except Exception as e:
+        # pylint: disable=broad-except
+        except Exception:
             # If GPU is not enabled in TVM, skip the fp16 test.
             pass
 
@@ -1655,7 +1660,7 @@ def test_forward_dense():
 
     class Dense1(Module):
         def __init__(self):
-            super(Dense1, self).__init__()
+            super().__init__()
             self.linear = torch.nn.Linear(10, 7, bias=True)
 
         def forward(self, *args):
@@ -1663,7 +1668,7 @@ def test_forward_dense():
 
     class Dense2(Module):
         def __init__(self):
-            super(Dense2, self).__init__()
+            super().__init__()
             self.linear = torch.nn.Linear(10, 7, bias=False)
 
         def forward(self, *args):
@@ -1674,11 +1679,11 @@ def test_forward_dense():
     verify_model(Dense2().float().eval(), input_data=input_data)
 
     trace = torch.jit.trace(Dense1(), [input_data])
-    mod, params = relay.frontend.from_pytorch(
+    mod, _ = relay.frontend.from_pytorch(
         trace,
         [("input", input_shape)],
     )
-    assert not any([op.name == "multiply" for op in list_ops(mod["main"])])
+    assert not any(list(op.name == "multiply" for op in list_ops(mod["main"])))
 
 
 @tvm.testing.uses_gpu
@@ -1686,17 +1691,14 @@ def test_forward_linear():
     torch.set_grad_enabled(False)
 
     class Linear(Module):
-        def forward(self, input, weight, bias):
-            return F.linear(input, weight, bias)
+        def forward(self, inputs, weight, bias):
+            return F.linear(inputs, weight, bias)
 
     class LinearNoBias(Module):
-        def forward(self, input, weight):
-            return F.linear(input, weight)
+        def forward(self, inputs, weight):
+            return F.linear(inputs, weight)
 
     class LinearNested(torch.nn.Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x, y, z):
             return F.linear(x, F.linear(y, z))
 
@@ -2149,8 +2151,8 @@ def test_forward_roi_align():
 def test_conv3d():
     for ishape in [(1, 32, 16, 16, 16), (1, 32, 9, 15, 15), (1, 32, 13, 7, 7)]:
         inp = torch.rand(ishape)
-        verify_model(torch.nn.Conv3d(32, 16, (3, 3, 3), padding=(1, 1, 1)).eval(), inp),
-        verify_model(torch.nn.Conv3d(32, 16, (5, 5, 5), padding=(2, 2, 2)).eval(), inp),
+        verify_model(torch.nn.Conv3d(32, 16, (3, 3, 3), padding=(1, 1, 1)).eval(), inp)
+        verify_model(torch.nn.Conv3d(32, 16, (5, 5, 5), padding=(2, 2, 2)).eval(), inp)
         verify_model(torch.nn.Conv3d(32, 16, kernel_size=1).eval(), inp)
         # downsample
         verify_model(torch.nn.Conv3d(32, 16, kernel_size=1, stride=2).eval(), inp)
@@ -2165,7 +2167,7 @@ def test_conv3d_transpose():
                 in_channels=8, out_channels=33, kernel_size=3, stride=2
             ).eval(),
             inp,
-        ),
+        )
         verify_model(
             torch.nn.ConvTranspose3d(
                 in_channels=8,
@@ -2175,7 +2177,7 @@ def test_conv3d_transpose():
                 padding=(0, 4, 2),
             ).eval(),
             inp,
-        ),
+        )
         verify_model(
             torch.nn.ConvTranspose3d(in_channels=8, out_channels=20, kernel_size=1).eval(), inp
         )
@@ -2234,6 +2236,7 @@ def test_mobilenet_v2():
     verify_model("mobilenet_v2", atol=1e-4, rtol=1e-4)
 
 
+# pylint: disable=pointless-string-statement
 """
 #TODO: Fix VGG and AlexNet issues (probably due to pooling)
 @tvm.testing.uses_gpu
@@ -2355,15 +2358,16 @@ def convert_pt_to_tvm_type(idtype):
     elif idtype == torch.bool:
         curr_dtype = "bool"
     else:
-        raise NotImplementedError("Unsupported dtype: {}".format(idtype))
+        raise NotImplementedError(f"Unsupported dtype: {idtype}")
     return curr_dtype
 
 
+# pylint: disable=dangerous-default-value
 def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=["llvm"]):
     if not idtype:
         idtype = torch.float
 
-    input_names = ["i{}".format(idx) for idx, ish in enumerate(ishapes)]
+    input_names = [f"i{idx}" for idx, _ in enumerate(ishapes)]
     tvm_dtype = convert_pt_to_tvm_type(idtype)
     input_dtypes = [tvm_dtype] * len(input_names)
     input_shapes = list(zip(input_names, list(zip(ishapes, input_dtypes))))
@@ -2376,8 +2380,8 @@ def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=["llv
             input_data = [
                 torch.Tensor.bool(torch.randint(low=0, high=2, size=shape)) for shape in ishapes
             ]
-        # Torch dtype can be float, complex, int, or Bool. Complex not supported, so if not float or Bool,
-        # dtype must be int!
+        # Torch dtype can be float, complex, int, or Bool. Complex not supported,
+        # so if not float or Bool, dtype must be int!
         elif not idtype.is_floating_point:
             input_data = [
                 torch.randint(low=0, high=10, size=shape, dtype=idtype) for shape in ishapes
@@ -2409,9 +2413,9 @@ def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=["llv
         # Verify the accuracy
         if isinstance(pt_result, tuple):
             # handle multiple outputs
-            for i in range(len(pt_result)):
+            for i, pt_result in enumerate(pt_result):
                 tvm_res = vm_res[i].numpy()
-                tvm.testing.assert_allclose(tvm_res, pt_result[i].numpy(), rtol=1e-5, atol=1e-5)
+                tvm.testing.assert_allclose(tvm_res, pt_result.numpy(), rtol=1e-5, atol=1e-5)
         elif not isinstance(pt_result, torch.Tensor):
             tvm_res = vm_res.numpy().item()
             assert pt_result == tvm_res
@@ -2468,7 +2472,7 @@ def test_control_flow():
     class SimpleLoop(torch.nn.Module):
         def forward(self, inp):
             a = inp
-            for i in range(inp.size(0)):
+            for _ in range(inp.size(0)):
                 b = a * 2.0
                 c = a + b
                 a += c
@@ -2477,7 +2481,7 @@ def test_control_flow():
     class LoopWithIf(torch.nn.Module):
         def forward(self, inp):
             a = inp
-            for i in range(inp.size(0)):
+            for _ in range(inp.size(0)):
                 b = a * 2.0
                 b = a + b
                 if b.sum() > 0.0:
@@ -2546,7 +2550,7 @@ def test_simple_rnn():
 
     class Cell(torch.nn.Module):
         def __init__(self, dg):
-            super(Cell, self).__init__()
+            super().__init__()
             self.dg = dg
             self.linear = torch.nn.Linear(4, 4)
 
@@ -2968,17 +2972,17 @@ def test_forward_clamp_():
     torch.set_grad_enabled(False)
 
     class ClampInPlace(Module):
-        def __init__(self, min, max):
-            super(ClampInPlace, self).__init__()
-            self.min = min
-            self.max = max
+        def __init__(self, i_min, i_max):
+            super().__init__()
+            self.min = i_min
+            self.max = i_max
 
         def forward(self, *args):
             return torch.clamp_(args[0], self.min, self.max)
 
-    for ishape, min, max in (([4, 8], 0.1, 0.9), ([7, 6], 0.2, 0.5)):
+    for ishape, i_min, i_max in (([4, 8], 0.1, 0.9), ([7, 6], 0.2, 0.5)):
         input_data = torch.rand(ishape).float()
-        verify_model(ClampInPlace(min, max).float().eval(), input_data=input_data)
+        verify_model(ClampInPlace(i_min, i_max).float().eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -3663,8 +3667,8 @@ def test_forward_dtypes():
 @tvm.testing.uses_gpu
 def test_weight_names():
     tm = torch.jit.trace(torch.nn.Linear(3, 4), [torch.randn(2, 3)])
-    mod, params = relay.frontend.from_pytorch(tm, [("input", (2, 3))])
-    assert set(params.keys()) == set(n for n, p in tm.named_parameters())
+    _, params = relay.frontend.from_pytorch(tm, [("input", (2, 3))])
+    assert set(params.keys()) == set(n for n, _ in tm.named_parameters())
 
 
 @tvm.testing.uses_gpu
@@ -3933,10 +3937,10 @@ def test_forward_pretrained_bert_base_uncased():
         # install bert package
         pip install pytorch_pretrained_bert==0.6.2 --user
     """
-
+    # pylint: disable=import-outside-toplevel
     try:
         from pytorch_pretrained_bert import BertForMaskedLM, BertTokenizer
-    except:
+    except ImportError:
         print("Torch pretrained bert package must be installed to run this script.")
         return
 
@@ -4056,8 +4060,8 @@ def test_forward_pretrained_bert_base_uncased():
     assert torch_pred_token == tvm_pred_token
 
     # Print the outputs
-    print("Torch top-1 id: {}, token: {}".format(torch_pred_idx, torch_pred_token))
-    print("TVM   top-1 id: {}, token: {}".format(tvm_pred_idx, tvm_pred_token))
+    print(f"Torch top-1 id: {torch_pred_idx}, token: {torch_pred_idx}")
+    print(f"TVM   top-1 id: {tvm_pred_idx}, token: {tvm_pred_token}")
 
 
 def test_convert_torch_script_with_input_types():
@@ -4090,7 +4094,7 @@ def test_convert_torch_script_with_input_types():
         return mod["main"]
 
     input_infos = [("input0", (ishape, "float")), ("input1", (ishape, "int"))]
-    mod, params = relay.frontend.from_pytorch(loaded, input_infos)
+    mod, _ = relay.frontend.from_pytorch(loaded, input_infos)
 
     expected_mod = expected(ishape, ishape)
 
@@ -4111,16 +4115,16 @@ def test_bincount():
 
 def test_hard_swish():
     examples = [torch.rand(8).float(), torch.rand(8, 10).float(), torch.rand(1, 1, 10).float()]
-    for input in examples:
-        verify_model(torch.nn.Hardswish().eval(), input_data=input)
-        verify_model(torch.nn.Hardswish(inplace=True).eval(), input_data=input)
+    for input_data in examples:
+        verify_model(torch.nn.Hardswish().eval(), input_data=input_data)
+        verify_model(torch.nn.Hardswish(inplace=True).eval(), input_data=input_data)
 
 
 def test_hard_sigmoid():
     examples = [torch.rand(8).float(), torch.rand(8, 10).float(), torch.rand(1, 1, 10).float()]
-    for input in examples:
-        verify_model(torch.nn.Hardsigmoid().eval(), input_data=input)
-        verify_model(torch.nn.Hardsigmoid(inplace=True).eval(), input_data=input)
+    for input_data in examples:
+        verify_model(torch.nn.Hardsigmoid().eval(), input_data=input_data)
+        verify_model(torch.nn.Hardsigmoid(inplace=True).eval(), input_data=input_data)
 
 
 def test_cumsum():
@@ -4316,18 +4320,18 @@ def test_forward_flip():
         def forward(self, x):
             return x.flip([self.axis])
 
-    input = torch.randn(2, 3, 4)
-    verify_model(Flip(axis=0), input_data=input)
-    verify_model(Flip(axis=1), input_data=input)
-    verify_model(Flip(axis=2), input_data=input)
-    verify_model(Flip(axis=-1), input_data=input)
+    input_t = torch.randn(2, 3, 4)
+    verify_model(Flip(axis=0), input_data=input_t)
+    verify_model(Flip(axis=1), input_data=input_t)
+    verify_model(Flip(axis=2), input_data=input_t)
+    verify_model(Flip(axis=-1), input_data=input_t)
 
 
 def test_annotate_span():
     model = torchvision.models.resnet18().eval()
     inp = torch.randn([1, 3, 224, 224])
     trace = torch.jit.trace(model, inp).eval()
-    mod, params = relay.frontend.from_pytorch(
+    mod, _ = relay.frontend.from_pytorch(
         trace, [("input", inp.shape)], use_parser_friendly_name=True
     )
     relay.transform.AnnotateSpans()(mod)
@@ -4412,21 +4416,21 @@ def test_stft():
             onesided=onesided,
         )
 
-    input = torch.rand([1, 12]).float()
+    input_t = torch.rand([1, 12]).float()
     window = torch.tensor([2, 3, 4], dtype=torch.int32)
     targets = ["llvm", "cuda"]
-    verify_trace_model(test_fn(3, 3, 3, False, "constant", False, True), [input, window], targets)
-    verify_trace_model(test_fn(3, 3, 3, True, "constant", False, True), [input, window], targets)
-    verify_trace_model(test_fn(3, 3, 3, False, "reflect", False, True), [input, window], targets)
-    verify_trace_model(test_fn(3, 3, 3, True, "reflect", False, True), [input, window], targets)
-    verify_trace_model(test_fn(3, 3, 3, True, "reflect", True, True), [input, window], targets)
-    verify_trace_model(test_fn(3, 3, 3, True, "reflect", False, False), [input, window], targets)
-    input = torch.rand([2, 12]).float()
+    verify_trace_model(test_fn(3, 3, 3, False, "constant", False, True), [input_t, window], targets)
+    verify_trace_model(test_fn(3, 3, 3, True, "constant", False, True), [input_t, window], targets)
+    verify_trace_model(test_fn(3, 3, 3, False, "reflect", False, True), [input_t, window], targets)
+    verify_trace_model(test_fn(3, 3, 3, True, "reflect", False, True), [input_t, window], targets)
+    verify_trace_model(test_fn(3, 3, 3, True, "reflect", True, True), [input_t, window], targets)
+    verify_trace_model(test_fn(3, 3, 3, True, "reflect", False, False), [input_t, window], targets)
+    input_t = torch.rand([2, 12]).float()
     window = torch.tensor([2, 3, 4], dtype=torch.int32)
-    verify_trace_model(test_fn(3, 3, 3, False, "reflect", False, True), [input, window], targets)
+    verify_trace_model(test_fn(3, 3, 3, False, "reflect", False, True), [input_t, window], targets)
     window = torch.tensor([1, 3], dtype=torch.int32)
-    verify_trace_model(test_fn(2, 1, 2, False, "reflect", False, True), [input, window], targets)
-    verify_trace_model(test_fn(2, 1, 2, False, "reflect", False, True), [input], targets)
+    verify_trace_model(test_fn(2, 1, 2, False, "reflect", False, True), [input_t, window], targets)
+    verify_trace_model(test_fn(2, 1, 2, False, "reflect", False, True), [input_t], targets)
 
 
 @tvm.testing.uses_gpu
@@ -4510,6 +4514,7 @@ def test_list_tuple():
     relay.frontend.from_pytorch(script_module, [("x", x.shape)])
 
 
+# pylint: disable=unnecessary-dunder-call
 @tvm.testing.uses_gpu
 def test_binary_bitwise():
     def test_ior(x, y):
@@ -4612,4 +4617,4 @@ def test_lerp():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()
