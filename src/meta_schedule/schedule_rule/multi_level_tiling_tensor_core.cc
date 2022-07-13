@@ -227,6 +227,9 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddReadReuseTensorCore(
       sch->StorageAlign(cache_read, 0, -2, 32, 8);
     } else if (dtype.is_int() && dtype.bits() == 8) {
       sch->StorageAlign(cache_read, 0, -2, 32, 16);
+    } else {
+      LOG(WARNING) << "StorageAlign is not applied for data type " << dtype
+                   << ", shared memory accesses might be inefficient.";
     }
   }
   return {state};

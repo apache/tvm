@@ -423,7 +423,7 @@ struct ProducerConsumerSplit {
  * \param self The schedule state.
  * \param block The queried block.
  * \param n The index of the queried buffer.
- * \param buffer_index_type The type of the buffer index, kRead or kWrite.
+ * \param index_type The type of the buffer index, kRead or kWrite.
  * \return The buffer of the n-th read/write region of the block.
  * \throw ScheduleError If the buffer index is out of bound.
  */
@@ -435,7 +435,7 @@ Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n,
  * \param self The schedule state.
  * \param block The queried block.
  * \param n The index of the queried buffer.
- * \param buffer_index_type The type of the buffer index, kRead or kWrite.
+ * \param index_type The type of the buffer index, kRead or kWrite.
  * \return The n-th read/write region of the block.
  * \throw ScheduleError If the buffer index is out of bound.
  */

@@ -572,7 +572,7 @@ def test_cuda_tensor_core_conv2d():
             )
         ),
         target,
-        multi_level_tiling_tensor_core(target=target, scope="shared"),
+        multi_level_tiling_tensor_core(target=target, write_reuse_scope="shared"),
     )
     spaces = ctx.space_generator.generate_design_space(mod=ctx.mod)
     assert len(spaces) == 1
@@ -594,7 +594,10 @@ def test_cuda_tensor_core_matmul_relu():
             )
         ),
         target=target,
-        rule=[multi_level_tiling_tensor_core(target=target, scope="shared"), auto_inline(target)],
+        rule=[
+            multi_level_tiling_tensor_core(target=target, write_reuse_scope="shared"),
+            auto_inline(target),
+        ],
     )
     spaces = ctx.space_generator.generate_design_space(mod=ctx.mod)
     assert len(spaces) == 1
@@ -703,7 +706,7 @@ sch.reverse_compute_inline(block=b1)""".split(
         ),
         target=target,
         rule=[
-            multi_level_tiling_tensor_core(target=target, scope="shared"),
+            multi_level_tiling_tensor_core(target=target, write_reuse_scope="shared"),
             multi_level_tiling(target=target),
             auto_inline(target),
         ],
@@ -725,7 +728,10 @@ def test_cuda_tensor_core_matmul_relu_global():
             ),
         ),
         target=target,
-        rule=[multi_level_tiling_tensor_core(target=target, scope="global"), auto_inline(target)],
+        rule=[
+            multi_level_tiling_tensor_core(target=target, write_reuse_scope="global"),
+            auto_inline(target),
+        ],
     )
     spaces = ctx.space_generator.generate_design_space(mod=ctx.mod)
     assert len(spaces) == 1
@@ -831,7 +837,7 @@ def test_multi_level_tiling_non_tensorizable():
             )
         ),
         target=target,
-        rule=multi_level_tiling_tensor_core(target=target, scope="global"),
+        rule=multi_level_tiling_tensor_core(target=target, write_reuse_scope="global"),
     )
     spaces = ctx.space_generator.generate_design_space(mod=ctx.mod)
     assert len(spaces) == 1
@@ -852,7 +858,7 @@ def test_cuda_tensor_core_conv2d():
             )
         ),
         target=target,
-        rule=multi_level_tiling_tensor_core(target=target, scope="shared"),
+        rule=multi_level_tiling_tensor_core(target=target, write_reuse_scope="shared"),
     )
     spaces = ctx.space_generator.generate_design_space(mod=ctx.mod)
     assert len(spaces) == 1
