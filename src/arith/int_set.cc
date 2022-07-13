@@ -31,6 +31,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "constraint_extract.h"
 #include "interval_set.h"
 #include "pattern_match.h"
 
@@ -63,7 +64,7 @@ IntervalSet Intersect(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
   PrimExpr min_value = max(a->min_value, b->min_value);
   if ((max_value.dtype().is_int() || max_value.dtype().is_uint()) &&
       (min_value.dtype().is_int() || min_value.dtype().is_uint()) &&
-      analyzer->CanProveGreaterEqual(min_value - max_value, 1)) {
+      analyzer->CanProve(max_value < min_value)) {
     return IntervalSet::Empty();
   } else {
     return IntervalSet(min_value, max_value);
@@ -105,14 +106,14 @@ TVM_DECLARE_LOGICAL_OP(Not);
  * \note this can possibly relax the set.
  */
 template <typename Op>
-inline IntervalSet Combine(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine(Analyzer* analyzer, IntervalSet a, IntervalSet b, DataType dtype) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     PrimExpr res = TryConstFold<Op>(a->min_value, b->min_value);
     if (!res.defined()) res = Op(a->min_value, b->min_value);
     return IntervalSet::SinglePoint(res);
   }
   if (is_logical_op<Op>::value) {
-    return IntervalSet(make_const(a->min_value.dtype(), 0), make_const(a->min_value.dtype(), 1));
+    return IntervalSet(make_const(dtype, 0), make_const(dtype, 1));
   }
   if (a->IsEmpty()) return a;
   if (b->IsEmpty()) return b;
@@ -122,7 +123,8 @@ inline IntervalSet Combine(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
 }
 
 template <>
-inline IntervalSet Combine<tir::Add>(Analyzer* analyer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine<tir::Add>(Analyzer* analyer, IntervalSet a, IntervalSet b,
+                                     DataType /* dtype */) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(a->min_value + b->min_value);
   }
@@ -136,7 +138,8 @@ inline IntervalSet Combine<tir::Add>(Analyzer* analyer, IntervalSet a, IntervalS
 }
 
 template <>
-inline IntervalSet Combine<tir::Sub>(Analyzer* analyer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine<tir::Sub>(Analyzer* analyer, IntervalSet a, IntervalSet b,
+                                     DataType /* dtype */) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(a->min_value - b->min_value);
   }
@@ -150,7 +153,8 @@ inline IntervalSet Combine<tir::Sub>(Analyzer* analyer, IntervalSet a, IntervalS
 }
 
 template <>
-inline IntervalSet Combine<tir::Mul>(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine<tir::Mul>(Analyzer* analyzer, IntervalSet a, IntervalSet b,
+                                     DataType /* dtype */) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(a->min_value * b->min_value);
   }
@@ -183,7 +187,8 @@ inline IntervalSet Combine<tir::Mul>(Analyzer* analyzer, IntervalSet a, Interval
 }
 
 template <>
-inline IntervalSet Combine<tir::Div>(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine<tir::Div>(Analyzer* analyzer, IntervalSet a, IntervalSet b,
+                                     DataType /* dtype */) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(a->min_value / b->min_value);
   }
@@ -216,7 +221,8 @@ inline IntervalSet Combine<tir::Div>(Analyzer* analyzer, IntervalSet a, Interval
 }
 
 template <>
-inline IntervalSet Combine<tir::Mod>(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine<tir::Mod>(Analyzer* analyzer, IntervalSet a, IntervalSet b,
+                                     DataType /* dtype */) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(truncmod(a->min_value, b->min_value));
   }
@@ -244,7 +250,8 @@ inline IntervalSet Combine<tir::Mod>(Analyzer* analyzer, IntervalSet a, Interval
 }
 
 template <>
-inline IntervalSet Combine<tir::FloorDiv>(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine<tir::FloorDiv>(Analyzer* analyzer, IntervalSet a, IntervalSet b,
+                                          DataType /* dtype */) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(floordiv(a->min_value, b->min_value));
   }
@@ -277,7 +284,8 @@ inline IntervalSet Combine<tir::FloorDiv>(Analyzer* analyzer, IntervalSet a, Int
 }
 
 template <>
-inline IntervalSet Combine<tir::FloorMod>(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine<tir::FloorMod>(Analyzer* analyzer, IntervalSet a, IntervalSet b,
+                                          DataType /* dtype */) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(floormod(a->min_value, b->min_value));
   }
@@ -294,7 +302,10 @@ inline IntervalSet Combine<tir::FloorMod>(Analyzer* analyzer, IntervalSet a, Int
         // a mod b = a - (a / b) * b if a_max / b == a_min / b
         auto qmax = a->HasUpperBound() ? floordiv(a->max_value, divisor) : pos_inf();
         auto qmin = a->HasLowerBound() ? floordiv(a->min_value, divisor) : neg_inf();
-        if (analyzer->CanProve(qmax == qmin)) {
+        // We can compare +/- inf against each other, but cannot use
+        // operator== between the symbolic limits and an integer.
+        bool compatible_dtypes = !(qmin.dtype().is_handle() ^ qmax.dtype().is_handle());
+        if (compatible_dtypes && analyzer->CanProve(qmax == qmin)) {
           auto tmax = a->max_value - divisor * qmin;
           auto tmin = a->min_value - divisor * qmin;
           return IntervalSet(tmin, tmax);
@@ -311,7 +322,8 @@ inline IntervalSet Combine<tir::FloorMod>(Analyzer* analyzer, IntervalSet a, Int
 }
 
 template <>
-inline IntervalSet Combine<tir::Max>(Analyzer* analzyer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine<tir::Max>(Analyzer* analzyer, IntervalSet a, IntervalSet b,
+                                     DataType /* dtype */) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(max(a->min_value, b->min_value));
   }
@@ -321,7 +333,8 @@ inline IntervalSet Combine<tir::Max>(Analyzer* analzyer, IntervalSet a, Interval
 }
 
 template <>
-inline IntervalSet Combine<tir::Min>(Analyzer* analzyer, IntervalSet a, IntervalSet b) {
+inline IntervalSet Combine<tir::Min>(Analyzer* analzyer, IntervalSet a, IntervalSet b,
+                                     DataType /* dtype */) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(min(a->min_value, b->min_value));
   }
@@ -423,10 +436,12 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
       int64_t vstride = stride.Eval()->value;
       if (vstride > 0) {
         return Combine<Add>(analyzer_, base,
-                            IntervalSet(make_zero(t), make_const(t, vstride * op->lanes - 1)));
+                            IntervalSet(make_zero(t), make_const(t, vstride * op->lanes - 1)),
+                            op->dtype);
       } else {
         return Combine<Add>(analyzer_, base,
-                            IntervalSet(make_const(t, vstride * op->lanes + 1), make_zero(t)));
+                            IntervalSet(make_const(t, vstride * op->lanes + 1), make_zero(t)),
+                            op->dtype);
       }
     }
     DLOG(WARNING) << "cannot evaluate set on expression " << GetRef<PrimExpr>(op);
@@ -490,7 +505,7 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
     if (MatchPoint(a, op->a) && MatchPoint(b, op->b)) {
       return IntervalSet::SinglePoint(GetRef<PrimExpr>(op));
     }
-    return Combine<TOp>(analyzer_, a, b);
+    return Combine<TOp>(analyzer_, a, b, op->dtype);
   }
 
   // recursive depth
@@ -509,8 +524,37 @@ class IntSetAnalyzer::Impl {
     return IntervalSetEvaluator(analyzer_, dom_map).Eval(expr);
   }
 
+  IntSet Eval(const PrimExpr& expr) const {
+    return IntervalSetEvaluator(analyzer_, GetCurrentBounds(), true).Eval(expr);
+  }
+
+  void Bind(const Var& var, const Range& range, bool allow_override) {
+    Update(var, IntSet::FromRange(range), allow_override);
+  }
+
+  void Update(const Var& var, const IntSet& info, bool override_info);
+  void Bind(const Var& var, const PrimExpr& expr, bool override_info);
+  std::function<void()> EnterConstraint(const PrimExpr& constraint);
+
  private:
+  // Get the current variable bounds, including both global bounds and
+  // scope-dependent bounds.
+  Map<Var, IntSet> GetCurrentBounds() const;
+
+  // Utility function to split a boolean condition into the domain
+  // bounds implied by that condition.
+  static std::vector<std::pair<Var, IntSet>> DetectBoundInfo(const PrimExpr& cond);
+
+  // The parent arith::Analyzer
   Analyzer* analyzer_;
+
+  // Map of variables to global variable bounds (e.g. loop iterator
+  // ranges)
+  Map<Var, IntSet> dom_map_;
+
+  // Map of variables to implicit scope-dependent bounds (e.g. inside
+  // the body of an if-statement)
+  Map<Var, IntSet> constraints_;
 };
 
 IntSetAnalyzer::IntSetAnalyzer(Analyzer* parent) : impl_(new Impl(parent)) {}
@@ -519,6 +563,141 @@ IntSetAnalyzer::~IntSetAnalyzer() { delete impl_; }
 
 IntSet IntSetAnalyzer::operator()(const PrimExpr& expr, const Map<Var, IntSet>& dom_map) {
   return impl_->Eval(expr, dom_map);
+}
+
+IntSet IntSetAnalyzer::operator()(const PrimExpr& expr) { return impl_->Eval(expr); }
+
+void IntSetAnalyzer::Update(const Var& var, const IntSet& info, bool allow_override) {
+  impl_->Update(var, info, allow_override);
+}
+
+void IntSetAnalyzer::Bind(const Var& var, const Range& range, bool allow_override) {
+  impl_->Bind(var, range, allow_override);
+}
+
+void IntSetAnalyzer::Impl::Update(const Var& var, const IntSet& info, bool can_override) {
+  if (!can_override) {
+    auto it = dom_map_.find(var);
+    if (it != dom_map_.end()) {
+      const IntSet& old_info = (*it).second;
+
+      ICHECK(ExprDeepEqual()(old_info.min(), info.min()))
+          << "Trying to update var \'" << var << "\'"
+          << " with a different minimum value: "
+          << "original=" << old_info.min() << ", new=" << info.min();
+
+      ICHECK(ExprDeepEqual()(old_info.max(), info.max()))
+          << "Trying to update var \'" << var << "\'"
+          << " with a different maximum value: "
+          << "original=" << old_info.max() << ", new=" << info.max();
+    }
+  }
+  dom_map_.Set(var, info);
+}
+
+void IntSetAnalyzer::Impl::Bind(const Var& var, const PrimExpr& expr, bool can_override) {
+  Update(var, Eval(expr), can_override);
+}
+
+Map<Var, IntSet> IntSetAnalyzer::Impl::GetCurrentBounds() const {
+  // If either constraints_ or dom_map_ is empty, return the other to
+  // avoid constructing a new map.
+  if (constraints_.empty()) {
+    return dom_map_;
+  } else if (dom_map_.empty()) {
+    return constraints_;
+  }
+
+  // If neither is empty, construct a merged domain map with
+  // information from both sources.
+  Map<Var, IntSet> merged = dom_map_;
+  for (const auto& pair : constraints_) {
+    auto it = merged.find(pair.first);
+    if (it == merged.end()) {
+      merged.Set(pair.first, pair.second);
+    } else {
+      merged.Set(pair.first, Intersect({pair.second, (*it).second}));
+    }
+  }
+  return merged;
+}
+
+std::vector<std::pair<Var, IntSet>> IntSetAnalyzer::Impl::DetectBoundInfo(
+    const PrimExpr& constraint) {
+  PVar<Var> x;
+  PVar<PrimExpr> limit;
+
+  std::vector<std::pair<Var, IntSet>> bounds;
+  for (const PrimExpr& subconstraint : ExtractConstraints(constraint)) {
+    if ((x <= limit).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::Interval(SymbolicLimits::neg_inf_, limit.Eval())});
+    } else if ((x < limit).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::Interval(SymbolicLimits::neg_inf_, limit.Eval() - 1)});
+    } else if ((x >= limit).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::Interval(limit.Eval(), SymbolicLimits::pos_inf_)});
+    } else if ((x > limit).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::Interval(limit.Eval() + 1, SymbolicLimits::pos_inf_)});
+    } else if ((x == limit).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::SinglePoint(limit.Eval())});
+    }
+
+    if ((limit >= x).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::Interval(SymbolicLimits::neg_inf_, limit.Eval())});
+    } else if ((limit > x).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::Interval(SymbolicLimits::neg_inf_, limit.Eval() - 1)});
+    } else if ((limit <= x).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::Interval(limit.Eval(), SymbolicLimits::pos_inf_)});
+    } else if ((limit < x).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::Interval(limit.Eval() + 1, SymbolicLimits::pos_inf_)});
+    } else if ((limit == x).Match(subconstraint)) {
+      bounds.push_back({x.Eval(), IntSet::SinglePoint(limit.Eval())});
+    }
+  }
+  return bounds;
+}
+
+std::function<void()> IntSetAnalyzer::EnterConstraint(const PrimExpr& constraint) {
+  return impl_->EnterConstraint(constraint);
+}
+
+std::function<void()> IntSetAnalyzer::Impl::EnterConstraint(const PrimExpr& constraint) {
+  Map<Var, IntSet> cached_values;
+
+  auto bounds = DetectBoundInfo(constraint);
+
+  if (bounds.size() == 0) return nullptr;
+
+  // Collect the current values of each var that is changes by this
+  // constraint.
+  for (const auto& pair : bounds) {
+    auto it = constraints_.find(pair.first);
+    if (it == constraints_.end()) {
+      cached_values.Set(pair.first, IntSet());
+    } else {
+      cached_values.Set(pair.first, (*it).second);
+    }
+  }
+
+  // Update all constraints
+  for (const auto& pair : bounds) {
+    auto it = constraints_.find(pair.first);
+    if (it == constraints_.end()) {
+      constraints_.Set(pair.first, pair.second);
+    } else {
+      constraints_.Set(pair.first, Intersect({pair.second, (*it).second}));
+    }
+  }
+
+  auto frecover = [cached_values, this]() {
+    for (const auto& it : cached_values) {
+      if (it.second.defined()) {
+        constraints_.Set(it.first, it.second);
+      } else {
+        constraints_.erase(it.first);
+      }
+    }
+  };
+  return frecover;
 }
 
 // Quickly adapt to IntSet interface

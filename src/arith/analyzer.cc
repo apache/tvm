@@ -44,6 +44,7 @@ void Analyzer::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {
   this->modular_set.Update(var, this->modular_set(new_expr), allow_override);
   this->rewrite_simplify.Update(var, new_expr, allow_override);
   this->canonical_simplify.Update(var, new_expr, allow_override);
+  this->int_set.Update(var, this->int_set(new_expr), allow_override);
 }
 
 void Analyzer::Bind(const Var& var, const Range& range, bool allow_override) {
@@ -52,6 +53,7 @@ void Analyzer::Bind(const Var& var, const Range& range, bool allow_override) {
     this->Bind(var, range->min, allow_override);
   } else {
     this->const_int_bound.Bind(var, range, allow_override);
+    this->int_set.Bind(var, range, allow_override);
   }
   // skip modular_set
   // skip rewrite simplify
@@ -64,22 +66,22 @@ void Analyzer::Bind(const Map<Var, Range>& variables, bool allow_override) {
 }
 
 void ConstraintContext::EnterWithScope() {
-  ICHECK(exit_ == nullptr);
+  ICHECK(recovery_functions_.size() == 0);
   // entering the scope.
-  auto f0 = analyzer_->const_int_bound.EnterConstraint(constraint_);
-  auto f1 = analyzer_->modular_set.EnterConstraint(constraint_);
-  auto f2 = analyzer_->rewrite_simplify.EnterConstraint(constraint_);
-  // recovery function.
-  exit_ = [f0, f1, f2]() {
-    if (f2 != nullptr) f2();
-    if (f1 != nullptr) f1();
-    if (f0 != nullptr) f0();
-  };
+  recovery_functions_.push_back(analyzer_->const_int_bound.EnterConstraint(constraint_));
+  recovery_functions_.push_back(analyzer_->modular_set.EnterConstraint(constraint_));
+  recovery_functions_.push_back(analyzer_->rewrite_simplify.EnterConstraint(constraint_));
+  recovery_functions_.push_back(analyzer_->int_set.EnterConstraint(constraint_));
 }
 
 void ConstraintContext::ExitWithScope() {
-  ICHECK(exit_ != nullptr);
-  exit_();
+  while (recovery_functions_.size()) {
+    auto& func = recovery_functions_.back();
+    if (func) {
+      func();
+    }
+    recovery_functions_.pop_back();
+  }
 }
 
 bool Analyzer::CanProveGreaterEqual(const PrimExpr& expr, int64_t lower_bound) {
