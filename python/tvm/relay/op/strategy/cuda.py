@@ -316,7 +316,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
         ):
             assert kernel_layout == "OIHW4o4i"
             strategy.add_implementation(
-                wrap_compute_conv2d(topi.cuda.conv2d_NCHWc_int8, True),
+                wrap_compute_conv2d(topi.cuda.conv2d_NCHWc_int8, need_data_layout=True),
                 wrap_topi_schedule(topi.cuda.schedule_conv2d_NCHWc_int8),
                 name="conv2d_NCHWc_int8.cuda",
             )

@@ -137,7 +137,7 @@ def conv2d_NCHWc_strategy_hls(attrs, inputs, out_type, target):
     """conv2d_NCHWc hls strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_conv2d(topi.nn.conv2d_NCHWc, True, True),
+        wrap_compute_conv2d(topi.nn.conv2d_NCHWc, need_data_layout=True, need_out_layout=True),
         wrap_topi_schedule(topi.hls.schedule_conv2d_NCHWc),
         name="conv2d_NCHWc.hls",
     )
