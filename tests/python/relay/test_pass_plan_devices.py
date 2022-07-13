@@ -269,23 +269,35 @@ def test_left_add_on_cpu_via_copy_as_map():
     actual_mod = relay.transform.PlanDevices(config)(actual_mod)
     actual_mod = relay.transform.CapturePostDfsIndexInSpans()(actual_mod)
 
-    # Actual looks like:
-    #   def @main(%a {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], // index 0
-    #             %b {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], // index 1
-    #             %c {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], // index 2
-    #             %d {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], // index 3
-    #             virtual_device=meta[VirtualDevice][1]) {
-    #     %0 = add(%a, %b);                                                            // index 8
-    #     %1 = on_device(%0,
-    #                    virtual_device=meta[VirtualDevice][0],
-    #                    constrain_result=True);                                       // index 9
-    #     %2 = device_copy(%1,
-    #                      src_virtual_device=meta[VirtualDevice][0],
-    #                      dst_virtual_device=meta[VirtualDevice][1]);                 // index 10
-    #     %3 = add(%c, %d);                                                            // index 11
-    #     subtract(%2, %3)                                                             // index 12
-    #  }                                                                               // index 13
-    # (tested by test_left_add_on_cpu_via_copy above).
+    # Same expected result as for test_left_add_on_cpu, but we'll include indexes to help
+    # the test make sense.
+    def expected():
+        return tvm.parser.parse(
+            """
+            #[version = "0.0.5"]
+            def @main(%a {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], // index 0
+                      %b {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], // index 1
+                      %c {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], // index 2
+                      %d {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], // index 3
+                      virtual_device=meta[VirtualDevice][1]) {
+              %0 = add(%a, %b);                                                            // index 8
+              %1 = on_device(%0,
+                             virtual_device=meta[VirtualDevice][0],
+                             constrain_result=True);                                       // index 9
+              %2 = device_copy(%1,
+                               src_virtual_device=meta[VirtualDevice][0],
+                               dst_virtual_device=meta[VirtualDevice][1]);                 // index 10
+              %3 = add(%c, %d);                                                            // index 11
+              subtract(%2, %3)                                                             // index 12
+            }                                                                              // index 13
+        """,
+            "from_string",
+            None,
+            metatable,
+        )
+
+    # Make sure actual matches.
+    tvm.ir.assert_structural_equal(actual_mod, expected(), True)
 
     # Recover all the inferred virtual devices in map form
     raw_map = recover_virtual_device_map(actual_mod, actual_mod["main"])
