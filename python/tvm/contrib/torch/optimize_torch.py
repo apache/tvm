@@ -146,7 +146,8 @@ def optimize_torch(
     tuning_config : tvm.meta_schedule.TuneConfig
         The configuration for tuning by MetaSchedule.
         If user doesn't set the config, the tuning will run with a default setting.
-        Here, the total number of trials is proportional to the number of tunable tasks in the input module.
+        Here, the total number of trials is proportional
+        to the number of tunable tasks in the input module.
 
     target : Optional[Union[str, Target]]
         The target of the compilation.
@@ -166,9 +167,13 @@ def optimize_torch(
         target = llvm_target()
 
     if tuning_config is None:
-        logging.warning(
-            "Using the default tuning parameters. The default number of trials is set to a small value to let tuning finish quickly.  For optimal performance, it is recommended to provide the `tuning_config` argument with a bigger number of trials."
+        warning_msg = (
+            "Using the default tuning parameters.",
+            "The default number of trials is set to a small value to let tuning finish quickly.",
+            "For optimal performance, it is recommended to provide",
+            "the `tuning_config` argument with a bigger number of trials.",
         )
+        logging.warning(" ".join(warning_msg))
 
     # If `func` is already a traced module this statement makes no effect
     jit_mod = torch.jit.trace(func, example_inputs)
