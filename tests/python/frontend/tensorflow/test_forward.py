@@ -3700,8 +3700,8 @@ def test_forward_einsum():
         _test_einsum("i,j->ij", dtype, [3], [5])  # Outer produce
         _test_einsum("ij->ji", dtype, [2, 3])  # Transpose
         _test_einsum("ii->i", dtype, [3, 3])  # Diag
-        _test_einsum("ii", dtype, [3, 3])  # Trace of a square matrix 
-        _test_einsum("bij,bjk->bik", dtype, [7, 5, 3], [7, 3, 2]) # Batch matmul
+        _test_einsum("ii", dtype, [3, 3])  # Trace of a square matrix
+        _test_einsum("bij,bjk->bik", dtype, [7, 5, 3], [7, 3, 2])  # Batch matmul
 
 
 #######################################################################
