@@ -28,7 +28,7 @@ and returns a custom TorchScript operator
 import base64
 import contextlib
 import tempfile
-from typing import Tuple
+from typing import Dict, Optional, Tuple, Union
 
 import torch
 import torch.utils.dlpack
@@ -36,8 +36,17 @@ import torch.utils.dlpack
 import tvm
 from tvm import relay
 from tvm._ffi import get_global_func, register_func
-from tvm.meta_schedule import TuneConfig
-from tvm.meta_schedule.tune import tune_relay
+from tvm.ir.module import IRModule
+from tvm.ir.transform import PassContext
+from tvm.meta_schedule import TuneConfig, default_config
+from tvm.meta_schedule.apply_history_best import ApplyHistoryBest
+from tvm.meta_schedule.relay_integration import extract_task_from_relay
+from tvm.meta_schedule.tune import tune_extracted_tasks
+from tvm.meta_schedule.utils import autotvm_silencer
+from tvm.runtime import vm
+from tvm.runtime.module import Module
+from tvm.runtime.ndarray import NDArray
+from tvm.target.target import Target
 
 
 # The python wrapper for GraphExecutorFactory
@@ -65,6 +74,56 @@ def save_to_base64(obj) -> bytes:
             return base64.b64encode(tfile.read())
 
 
+def tune_relay_auto(
+    mod: IRModule,
+    target: Union[str, Target],
+    config: TuneConfig,
+    work_dir: str,
+    backend: str = "graph",
+    params: Optional[Dict[str, NDArray]] = None,
+) -> Union[Module, vm.Executable]:
+    """A wrapper of `tune_relay` but provide a default setting for the config.
+
+    Parameters
+    ----------
+    mod : IRModule
+        The module to tune.
+    target : Union[str, Target]
+        The target to tune for.
+    config : TuneConfig
+        The search strategy config.
+    params : Optional[Dict[str, tvm.runtime.NDArray]]
+        The associated parameters of the program
+    work_dir : Optional[str]
+        The working directory to save intermediate results.
+    backend : str = "graph"
+        The backend to use for relay compilation(graph / vm).
+
+    Returns
+    -------
+    lib : Union[Module, tvm.runtime.vm.Executable]
+        The built runtime module or vm Executable for the given relay workload.
+    """
+    target = default_config.target(target)
+    extracted_tasks = extract_task_from_relay(mod, target, params)
+    if config is None:
+        config = TuneConfig(
+            num_trials_per_iter=16,
+            max_trials_global=16 * len(extracted_tasks),
+        )
+    database = tune_extracted_tasks(extracted_tasks, config, work_dir)
+    relay_build = {"graph": relay.build, "vm": relay.vm.compile}[backend]
+    with target, autotvm_silencer(), ApplyHistoryBest(database):
+        with PassContext(
+            opt_level=3,
+            config={
+                "relay.backend.use_meta_schedule": True,
+                "relay.backend.use_meta_schedule_dispatch": target.kind.name != "cuda",
+            },
+        ):
+            return relay_build(mod, target=target, params=params)
+
+
 def optimize_torch(
     func,
     example_inputs,
@@ -84,10 +143,9 @@ def optimize_torch(
         Inputs to `torch.jit.trace`.
 
     tuning_config : tvm.meta_schedule.TuneConfig
-        The configuration of tuning by MetaSchedule.
-        We suggest users to provide their own setting,
-        otherwise by default setting a tuning process could be very slow,
-        sometimes costs a few hours.
+        The configuration for tuning by MetaSchedule.
+        If user doesn't set the config, the tuning will run with a default setting,
+        a number proportional to the tasks of the module.
 
     target : Optional[Union[str, Target]]
         The target of the compilation.
@@ -106,15 +164,6 @@ def optimize_torch(
     if target is None:
         target = llvm_target()
 
-    if tuning_config is None:
-        # Default setting. For a better tuning result the number could be set large.
-        tuning_config = TuneConfig(
-            strategy="evolutionary",
-            num_trials_per_iter=64,
-            max_trials_per_task=2000,
-            max_trials_global=2000,
-        )
-
     # If `func` is already a traced module this statement makes no effect
     jit_mod = torch.jit.trace(func, example_inputs)
 
@@ -128,7 +177,7 @@ def optimize_torch(
     else:
         context_manager = tempfile.TemporaryDirectory()
     with context_manager as work_dir_path:
-        executor_factory = tune_relay(
+        executor_factory = tune_relay_auto(
             mod=mod, params=params, config=tuning_config, target=target, work_dir=work_dir_path
         )
 
