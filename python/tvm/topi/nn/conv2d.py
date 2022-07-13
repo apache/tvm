@@ -58,7 +58,7 @@ Workload = namedtuple(
 
 
 def conv2d(
-    input, filter, strides, padding, dilation, data_layout="NCHC", kernel_layout="", out_dtype=None
+    input, filter, strides, padding, dilation, data_layout="NCHW", kernel_layout="", out_dtype=None
 ):
     """Conv2D operator.
 
@@ -85,7 +85,7 @@ def conv2d(
         layout of data
 
     kernel_layout : Optional[str]
-        layout of kernel. If unspecified, use default layout inferred from data_layout. "OHWI" if
+        layout of kernel. If unspecified, use default layout inferred from data_layout. "OIHW" if
         data_layout == "NCHW", "HWIO" if data_layout == "NHWC".
 
     Returns
@@ -771,7 +771,7 @@ def conv(
         Layout of the filter. I indicates input channels, O indicates output channels,
         any other character indicates HW dimension of the filter (or H or HWD for 1D and 3D).
         If kernel_layout is empty, use data_layout to infer the default kernel_layout. Default
-        kernel_layout is OHWI for NCHW data layout, HWIO for NHWC data layout.
+        kernel_layout is OIHW for NCHW data layout, HWIO for NHWC data layout.
 
     out_dtype : str
         Elements are converted to this type before elementwise multiplication
