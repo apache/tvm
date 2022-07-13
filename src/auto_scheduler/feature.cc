@@ -1232,7 +1232,7 @@ void GetPerStoreFeature(const PrimFunc& func, int cache_line_size, int max_n_buf
 
     /***** Group 3: Arithmetic intensity related features *****/
     for (size_t i = 0; i < ARITH_INTENSITY_CURVE_SAMPLE_N; ++i) {
-      ret->push_back(fea_set.arith_intensity_curve[i]);
+      ret->push_back(slog(fea_set.arith_intensity_curve[i]));
     }
 
     /***** Group 4: Allocation related features *****/
