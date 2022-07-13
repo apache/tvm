@@ -845,21 +845,4 @@ def test_can_build_keras_to_coreml_to_relay():
 
 
 if __name__ == "__main__":
-    test_forward_add_layer_params
-    test_forward_concat_layer_params()
-    test_forward_multiply_layer_params()
-    test_forward_upsample_layer_params()
-    test_forward_l2_normalize()
-    test_forward_lrn()
-    test_forward_average()
-    test_forward_max()
-    test_forward_min()
-    test_forward_unary()
-    test_forward_reduce()
-    test_forward_reshape()
-    test_forward_split()
-    test_mobilenet_checkonly()
-    test_resnet50_checkonly()
-    test_forward_image_scaler()
-    test_forward_convolution()
-    test_can_build_keras_to_coreml_to_relay()
+    tvm.testing.main()
