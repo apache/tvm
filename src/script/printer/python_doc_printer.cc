@@ -17,11 +17,11 @@
  * under the License.
  */
 
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
 
 #include "../../support/str_escape.h"
 #include "./base_doc_printer.h"
-#include "tvm/runtime/logging.h"
 
 namespace tvm {
 namespace script {
