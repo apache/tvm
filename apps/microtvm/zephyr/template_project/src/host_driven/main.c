@@ -28,7 +28,6 @@
  * intended to be a demonstration, since typically you will want to incorporate
  * this logic into your own application.
  */
-
 #include <drivers/gpio.h>
 #include <drivers/uart.h>
 #include <fatal.h>
@@ -43,6 +42,10 @@
 #include <tvm/runtime/crt/microtvm_rpc_server.h>
 #include <unistd.h>
 #include <zephyr.h>
+
+#ifdef FVP
+#include <irq.h>
+#endif
 
 #ifdef CONFIG_ARCH_POSIX
 #include "posix_board_if.h"
@@ -64,7 +67,7 @@ static size_t g_num_bytes_requested = 0;
 static size_t g_num_bytes_written = 0;
 static size_t g_num_bytes_in_rx_buffer = 0;
 
-
+#ifdef FVP
 void uart_log(const char* c) {
   while (*c) {
     uart_poll_out(tvm_uart, *c);
@@ -120,19 +123,23 @@ void init_semihosting() {
   }
 }
 
+ssize_t read_serial(uint8_t* data, size_t size) {
+  struct {
+    uint32_t file_handle;
+    const uint8_t* data;
+    uint32_t size;
+  } read_req;
+  read_req.file_handle = stdin_fd;
+  read_req.data = data;
+  read_req.size = size;
+  uint32_t ret_val = semihost_cmd(0x06, &read_req);
+  return size - ret_val;
+}
+#endif
+
 // Called by TVM to write serial data to the UART.
 ssize_t write_serial(void* unused_context, const uint8_t* data, size_t size) {
-/*   for (int i = 0; i < size; i++) { */
-/*     semihost_cmd(0x03, &data[i]); */
-/*     if (ret_val != 3) { */
-/*       char errcode[30]; */
-/*       snprintf(errcode, 30, "SEMI-fail (%d): %x\n", i, ret_val); */
-/*       uart_log(errcode); */
-/*     } */
-/*   } */
-
-/*   return size; */
-/* } */
+#ifdef FVP
   struct {
     uint32_t file_handle;
     const uint8_t* data;
@@ -146,19 +153,23 @@ ssize_t write_serial(void* unused_context, const uint8_t* data, size_t size) {
   // uart_log(msg);
   uint32_t ret_val = semihost_cmd(0x05, &write_req);
   return size - ret_val;
-}
+#else
+#ifdef CONFIG_LED
+  gpio_pin_set(led0_pin, LED0_PIN, 1);
+#endif
+  g_num_bytes_requested += size;
 
-ssize_t read_serial(uint8_t* data, size_t size) {
-  struct {
-    uint32_t file_handle;
-    const uint8_t* data;
-    uint32_t size;
-  } read_req;
-  read_req.file_handle = stdin_fd;
-  read_req.data = data;
-  read_req.size = size;
-  uint32_t ret_val = semihost_cmd(0x06, &read_req);
-  return size - ret_val;
+  for (size_t i = 0; i < size; i++) {
+    uart_poll_out(tvm_uart, data[i]);
+    g_num_bytes_written++;
+  }
+
+#ifdef CONFIG_LED
+  gpio_pin_set(led0_pin, LED0_PIN, 0);
+#endif
+
+  return size;
+#endif
 }
 
 // This is invoked by Zephyr from an exception handler, which will be invoked
@@ -296,34 +307,48 @@ void uart_irq_cb(const struct device* dev, void* user_data) {
   }
 }
 
+#ifdef FVP
+#define UART0_BASE 0x59303000
+#define UART0_STATE (UART0_BASE+0x04)
+#define UART0_CTRL (UART0_BASE+0x08)
+#define UART0_INTCLEAR (UART0_BASE+0x0C)
+#define UART0_BAUDDIV (UART0_BASE+0x10)
+#define OVERRUN_IRQ  48       /* device uses IRQ 48 */
+#define OVERRUN_PRIO  2       /* device uses interrupt priority 2 */
+#define OVERRUN_ARG  0        /* argument passed to isr()*/
+#define OVERRUN_FLAGS 0       /* IRQ flags. Unused on non-x86 */
+
+void overrun_isr(void *arg)
+{
+  *(uint32_t *)(UART0_STATE) = (uint32_t) 0x00; // clear overrun
+  *(uint32_t *)(UART0_INTCLEAR) = (uint32_t) 0x08; // clear overrun
+}
+
+void overrun_init(void)
+{
+  *(uint32_t *)(UART0_CTRL) = (uint32_t) 0x2b; // enable overrun interrupt
+   IRQ_CONNECT(OVERRUN_IRQ, OVERRUN_PRIO, overrun_isr, OVERRUN_ARG, OVERRUN_FLAGS);
+   irq_enable(OVERRUN_IRQ);
+}
+
+// Used to initialize the UART receiver.
+void uart_rx_init(struct ring_buf* rbuf, const struct device* dev) {
+  *(uint32_t *)(UART0_BAUDDIV) = (uint32_t) 0xFF; // set baudrate
+  uart_irq_callback_user_data_set(dev, uart_irq_cb, (void*)rbuf);
+  uart_irq_rx_enable(dev);
+  overrun_init();
+}
+#else
 // Used to initialize the UART receiver.
 void uart_rx_init(struct ring_buf* rbuf, const struct device* dev) {
   uart_irq_callback_user_data_set(dev, uart_irq_cb, (void*)rbuf);
   uart_irq_rx_enable(dev);
 }
-
-// static void hexdump(void* data, size_t size) {
-//   for (size_t h = 0; h < size / 8; h++) {
-//     size_t num = 8;
-//     if ((8 * h + num) > size) {
-//       num = size % 8;
-//     }
-//     char msg[2 * 8 + 7 + 1 + 1];
-//     char* ptr = msg;
-//     for (size_t i = 0; i < num; i++) {
-//       ptr += snprintf(ptr, 4, "%02x ", ((char*) data)[h * 8 + i]);
-//     }
-//     *ptr = '\n';
-//     ptr++;
-//     *ptr = 0;
-//     uart_log(msg);
-//   }
-// }
+#endif
 
 // The main function of this application.
 extern void __stdout_hook_install(int (*hook)(int));
 void main(void) {
-
 #ifdef CONFIG_LED
   int ret;
   led0_pin = device_get_binding(LED0);
@@ -347,13 +372,15 @@ void main(void) {
   timing_init();
   timing_start();
 
-  // Initialize microTVM RPC server, which will receive commands from the UART and execute them.
+#ifdef FVP
+  //initialize semihosting
   uart_log("init for a long time...\n");
   init_semihosting();
   uart_log("microTVM Zephyr runtime - running\n");
+#endif
 
+  // Initialize microTVM RPC server, which will receive commands from the UART and execute them.
   microtvm_rpc_server_t server = MicroTVMRpcServerInit(write_serial, NULL);
-
   TVMLogf("microTVM Zephyr runtime - running");
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 0);
@@ -362,15 +389,14 @@ void main(void) {
   // The main application loop. We continuously read commands from the UART
   // and dispatch them to MicroTVMRpcServerLoop().
   while (true) {
+    #ifdef FVP
     uint8_t data[128];
-    // uart_log("about to read\n");
     uint32_t bytes_read = read_serial(data, 128);
-    // {
-    //   char msg[30];
-    //   snprintf(msg, 30, "Read %d bytes\n", bytes_read);
-    //   uart_log(msg);
-    // }
-    // hexdump(data, bytes_read);
+    #else
+    uint8_t* data;
+    unsigned int key = irq_lock();
+    uint32_t bytes_read = ring_buf_get_claim(&uart_rx_rbuf, &data, RING_BUF_SIZE_BYTES);
+    #endif
     if (bytes_read > 0) {
       uint8_t* ptr = data;
       size_t bytes_remaining = bytes_read;
@@ -380,8 +406,26 @@ void main(void) {
         if (err != kTvmErrorNoError && err != kTvmErrorFramingShortPacket) {
           TVMPlatformAbort(err);
         }
+    #ifdef FVP
       }
     }
+    #else
+      g_num_bytes_in_rx_buffer -= bytes_read;
+      if (g_num_bytes_written != 0 || g_num_bytes_requested != 0) {
+          if (g_num_bytes_written != g_num_bytes_requested) {
+            TVMPlatformAbort((tvm_crt_error_t)0xbeef5);
+          }
+          g_num_bytes_written = 0;
+          g_num_bytes_requested = 0;
+        }
+      }
+      int err = ring_buf_get_finish(&uart_rx_rbuf, bytes_read);
+      if (err != 0) {
+        TVMPlatformAbort((tvm_crt_error_t)0xbeef6);
+      }
+    }
+    irq_unlock(key);
+    #endif
   }
 
 #ifdef CONFIG_ARCH_POSIX

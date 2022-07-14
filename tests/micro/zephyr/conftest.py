@@ -41,6 +41,12 @@ def pytest_addoption(parser):
         default=False,
         help="If set true, enable a debug session while the test is running. Before running the test, in a separate shell, you should run: <python -m tvm.exec.microtvm_debug_shell>",
     )
+    parser.addoption(
+        "--use-fvp",
+        action="store_true",
+        default=False,
+        help="If set true, use the FVP emulator to run the test",
+    )
 
 
 def pytest_generate_tests(metafunc):
@@ -57,6 +63,9 @@ def west_cmd(request):
 def tvm_debug(request):
     return request.config.getoption("--tvm-debug")
 
+@pytest.fixture
+def use_fvp(request):
+    return request.config.getoption("--use-fvp")
 
 @pytest.fixture
 def temp_dir(board, tvm_debug):

@@ -337,6 +337,12 @@ PROJECT_OPTIONS = [
         type="str",
         help="Path to the FVP binary to invoke.",
     ),
+    server.ProjectOption(
+        "use_fvp",
+        optional=["generate_project"],
+        type="bool",
+        help="Run on the FVP emulator instead of hardware.",
+    ),
 ]
 
 
@@ -358,6 +364,8 @@ class Handler(server.ProjectAPIHandler):
     def __init__(self):
         super(Handler, self).__init__()
         self._proc = None
+        # self.qemu_pipe_dir = None
+
 
     def server_info_query(self, tvm_version):
         return server.ServerInfo(
@@ -429,6 +437,7 @@ class Handler(server.ProjectAPIHandler):
 
     API_SERVER_CRT_LIBS_TOKEN = "<API_SERVER_CRT_LIBS>"
     ENABLE_CMSIS_TOKEN = "<ENABLE_CMSIS>"
+    QEMU_PIPE_TOKEN = "<QEMU_PIPE>"
 
     CRT_LIBS_BY_PROJECT_TYPE = {
         "host_driven": "microtvm_rpc_server microtvm_rpc_common aot_executor_module aot_executor common",
@@ -525,12 +534,19 @@ class Handler(server.ProjectAPIHandler):
                         enable_cmsis = self._cmsis_required(extract_path)
                         line = line.replace(self.ENABLE_CMSIS_TOKEN, str(enable_cmsis).upper())
 
+                    if self.QEMU_PIPE_TOKEN in line:
+                        self.qemu_pipe_dir = pathlib.Path(tempfile.mkdtemp())
+                        line = line.replace(self.QEMU_PIPE_TOKEN, str(self.qemu_pipe_dir / "fifo"))
+
                     cmake_f.write(line)
 
                 if options.get("compile_definitions"):
                     flags = options.get("compile_definitions")
                     for item in flags:
                         cmake_f.write(f"target_compile_definitions(app PUBLIC {item})\n")
+                
+                if self._is_fvp(options):
+                    cmake_f.write(f"target_compile_definitions(app PUBLIC -DFVP=1)\n")
 
         self._create_prj_conf(project_dir, options)
 
@@ -554,6 +570,7 @@ class Handler(server.ProjectAPIHandler):
         BUILD_DIR.mkdir()
 
         cmake_args = ["cmake", "..", "-GNinja"]
+        # cmake_args = ["cmake", ".."]
         if options.get("verbose"):
             cmake_args.append("-DCMAKE_VERBOSE_MAKEFILE:BOOL=TRUE")
 
@@ -580,12 +597,15 @@ class Handler(server.ProjectAPIHandler):
         args = ["ninja"]
         if options.get("verbose"):
             args.append("-v")
+        # args = ["make"]
+        # if options.get("verbose"):
+        #     args.append("-v")
         check_call(args, cwd=BUILD_DIR, env=env)
 
     # A list of all zephyr_board values which are known to launch using QEMU. Many platforms which
     # launch through QEMU by default include "qemu" in their name. However, not all do. This list
     # includes those tested platforms which do not include qemu.
-    _KNOWN_QEMU_ZEPHYR_BOARDS = ("mps2_an521")
+    _KNOWN_QEMU_ZEPHYR_BOARDS = ("mps2_an521", "mps3_an547")
 
     # A list of all zephyr_board values which are known to launch using ARM FVP (this script configures
     # Zephyr to use that launch method).
@@ -593,13 +613,13 @@ class Handler(server.ProjectAPIHandler):
 
     @classmethod
     def _is_fvp(cls, options):
-        return options["zephyr_board"] in cls._KNOWN_FVP_ZEPHYR_BOARDS
+        return (options["zephyr_board"] in cls._KNOWN_FVP_ZEPHYR_BOARDS and options["use_fvp"] == True)
 
     @classmethod
     def _is_qemu(cls, options):
         return (
             "qemu" in options["zephyr_board"]
-            or options["zephyr_board"] in cls._KNOWN_QEMU_ZEPHYR_BOARDS
+            or (options["zephyr_board"] in cls._KNOWN_QEMU_ZEPHYR_BOARDS and not cls._is_fvp(options))
         )
 
     @classmethod
@@ -624,6 +644,7 @@ class Handler(server.ProjectAPIHandler):
             check_call(recover_args, cwd=API_SERVER_DIR / "build")
 
         check_call(["ninja", "flash"], cwd=API_SERVER_DIR / "build")
+        # check_call(["make", "flash"], cwd=API_SERVER_DIR / "build")
 
     def open_transport(self, options):
         if self._is_qemu(options):
@@ -803,8 +824,12 @@ class ZephyrQemuTransport:
         self._queue = queue.Queue()
 
     def open(self):
-        self.pipe_dir = pathlib.Path(tempfile.mkdtemp())
-        self.pipe = self.pipe_dir / "fifo"
+        with open(BUILD_DIR / "CMakeCache.txt", "r") as cmake_cache_f:
+            for line in cmake_cache_f:
+                if "QEMU_PIPE:" in line:
+                    self.pipe = pathlib.Path(line[line.find('=')+1:])
+                    break
+        self.pipe_dir = self.pipe.parents[0]
         self.write_pipe = self.pipe_dir / "fifo.in"
         self.read_pipe = self.pipe_dir / "fifo.out"
         os.mkfifo(self.write_pipe)
@@ -816,7 +841,8 @@ class ZephyrQemuTransport:
             env["TVM_QEMU_GDBSERVER_PORT"] = self.options["gdbserver_port"]
 
         self.proc = subprocess.Popen(
-            ["ninja", "run", f"QEMU_PIPE={self.pipe}"],
+            ["ninja", "run"],
+            # ["make", "run", f"QEMU_PIPE={self.pipe}"],
             cwd=BUILD_DIR,
             env=env,
             stdout=subprocess.PIPE,
@@ -922,13 +948,13 @@ class ZephyrFvpMakeResult(enum.Enum):
 class BlockingStream:
     """Reimplementation of Stream class from Iris with blocking semantics."""
 
-    def __init__(self, name):
-        self.name = name
+    def __init__(self):
         self.q = queue.Queue()
         self.unread = None
 
     def read(self, n=-1, timeout_sec=None):
-        assert n != -1, "expect firmware to open stdin using raw mode, and therefore expect sized read requests"
+        assert n != -1, \
+        "expect firmware to open stdin using raw mode, and therefore expect sized read requests"
 
         data = b''
         if self.unread:
@@ -947,13 +973,11 @@ class BlockingStream:
             self.unread = data[n:]
             data = data[:n]
 
-        # print(self.name, "READ", n, "->", len(data), data)
         return data
 
     readline = read
 
     def write(self, data):
-        # print(self.name, "WRITE", data)
         self.q.put(data)
 
 
@@ -979,7 +1003,6 @@ class ZephyrFvpTransport:
 
         self._iris_lib = iris
 
-        # TODO cleanup.
         def _convertStringToU64Array(strValue):
             numBytes = len(strValue)
             if numBytes == 0:
@@ -998,6 +1021,7 @@ class ZephyrFvpTransport:
         args = ["ninja"]
         if self.options.get("verbose"):
             args.append("-v")
+        # args = ["make"]
         args.append("run")
         env = dict(os.environ)
         env["FVP_BIN_PATH"] = str(pathlib.Path(self.options["arm_fvp_path"]).parent)
@@ -1008,29 +1032,19 @@ class ZephyrFvpTransport:
             stdout=subprocess.PIPE,
         )
         threading.Thread(target=self._fvp_check_stdout, daemon=True).start()
+        
         self.iris_port = self._wait_for_fvp()
         _LOG.info("IRIS started on port %d", self.iris_port)
         NetworkModelInitializer = self._iris_lib.NetworkModelInitializer.NetworkModelInitializer
         self._model_init = NetworkModelInitializer(host="localhost", port=self.iris_port, timeout_in_ms=1000)
         self._model = self._model_init.start()
-#        targets = list(model.get_targets())
-#        _LOG.info("Iris server reports %d targets: %r", len(targets), [t.instName for t in targets])
         self._target = self._model.get_target("component.FVP_MPS3_Corstone_SSE_300.cpu0")
 
         self._target.handle_semihost_io()
-        self._target._stdout = BlockingStream("stdout")
-        self._target._stdin = BlockingStream("stdin")
-        print(self._target.is_running)
-        # while True:
-        #     try:
-        #         self._model.run(blocking=False, timeout=100)
-        #         break
-        #     except TimeoutError:
-        #         pass
+        self._target._stdout = BlockingStream()
+        self._target._stdin = BlockingStream()
         self._model.run(blocking=False, timeout=100)
         self._wait_for_semihost_init()
-
-        print(self._target.is_running)
 
         return server.TransportTimeouts(
             session_start_retry_timeout_sec=2.0,
@@ -1041,7 +1055,7 @@ class ZephyrFvpTransport:
     def _fvp_check_stdout(self):
         for line in self.proc.stdout:
             line = str(line, "utf-8")
-            _LOG.info("ninja: %s", line)
+            _LOG.info("%s", line)
             m = re.match(r'Iris server started listening to port ([0-9]+)\n', line)
             n = re.match("microTVM Zephyr runtime - running", line)
             if m:
