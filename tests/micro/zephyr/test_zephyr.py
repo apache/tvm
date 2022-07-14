@@ -138,7 +138,9 @@ def test_add_float(temp_dir, board, west_cmd, tvm_debug, use_fvp):
         system_lib.get_function("add")(A_data, B_data, C_data)
         assert (C_data.numpy() == np.array([7, 8])).all()
 
-    with _make_add_sess(temp_dir, model, board, west_cmd, build_config, use_fvp, dtype="float32") as sess:
+    with _make_add_sess(
+        temp_dir, model, board, west_cmd, build_config, use_fvp, dtype="float32"
+    ) as sess:
         test_basic_add(sess)
 
 
@@ -258,7 +260,16 @@ def test_onnx(temp_dir, board, west_cmd, tvm_debug, use_fvp):
 
 
 def check_result(
-    temp_dir, relay_mod, model, zephyr_board, west_cmd, map_inputs, out_shape, result, build_config, use_fvp
+    temp_dir,
+    relay_mod,
+    model,
+    zephyr_board,
+    west_cmd,
+    map_inputs,
+    out_shape,
+    result,
+    build_config,
+    use_fvp,
 ):
     """Helper function to verify results"""
     TOL = 1e-5
@@ -347,11 +358,13 @@ def test_byoc_microtvm(temp_dir, board, west_cmd, tvm_debug, use_fvp):
         zephyr_board=board,
         west_cmd=west_cmd,
         build_config=build_config,
-        use_fvp = use_fvp
+        use_fvp=use_fvp,
     )
 
 
-def _make_add_sess_with_shape(temp_dir, model, zephyr_board, west_cmd, shape, build_config, use_fvp):
+def _make_add_sess_with_shape(
+    temp_dir, model, zephyr_board, west_cmd, shape, build_config, use_fvp
+):
     A = tvm.te.placeholder(shape, dtype="int8")
     C = tvm.te.compute(A.shape, lambda i: A[i] + A[i], name="C")
     sched = tvm.te.create_schedule(C.op)
@@ -384,7 +397,9 @@ def test_rpc_large_array(temp_dir, board, west_cmd, tvm_debug, shape, use_fvp):
         C_data = tvm.nd.array(np.zeros(shape, dtype="int8"), device=sess.device)
         assert (C_data.numpy() == np.zeros(shape)).all()
 
-    with _make_add_sess_with_shape(temp_dir, model, board, west_cmd, shape, build_config, use_fvp) as sess:
+    with _make_add_sess_with_shape(
+        temp_dir, model, board, west_cmd, shape, build_config, use_fvp
+    ) as sess:
         test_tensors(sess)
 
 
@@ -439,7 +454,7 @@ def test_autotune_conv2d(temp_dir, board, west_cmd, tvm_debug, use_fvp):
         "west_cmd": west_cmd,
         "verbose": 1,
         "project_type": "host_driven",
-        "use_fvp": bool(use_fvp)
+        "use_fvp": bool(use_fvp),
     }
     if config_main_stack_size is not None:
         project_options["config_main_stack_size"] = config_main_stack_size
@@ -557,7 +572,7 @@ def test_schedule_build_with_cmsis_dependency(temp_dir, board, west_cmd, tvm_deb
         "verbose": bool(build_config.get("debug")),
         "zephyr_board": board,
         "cmsis_path": os.getenv("CMSIS_PATH"),
-        "use_fvp": bool(use_fvp)
+        "use_fvp": bool(use_fvp),
     }
 
     project_dir = temp_dir / "project"

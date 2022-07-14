@@ -366,7 +366,6 @@ class Handler(server.ProjectAPIHandler):
         self._proc = None
         # self.qemu_pipe_dir = None
 
-
     def server_info_query(self, tvm_version):
         return server.ServerInfo(
             platform_name="zephyr",
@@ -544,7 +543,7 @@ class Handler(server.ProjectAPIHandler):
                     flags = options.get("compile_definitions")
                     for item in flags:
                         cmake_f.write(f"target_compile_definitions(app PUBLIC {item})\n")
-                
+
                 if self._is_fvp(options):
                     cmake_f.write(f"target_compile_definitions(app PUBLIC -DFVP=1)\n")
 
@@ -609,17 +608,18 @@ class Handler(server.ProjectAPIHandler):
 
     # A list of all zephyr_board values which are known to launch using ARM FVP (this script configures
     # Zephyr to use that launch method).
-    _KNOWN_FVP_ZEPHYR_BOARDS = ("mps3_an547")
+    _KNOWN_FVP_ZEPHYR_BOARDS = "mps3_an547"
 
     @classmethod
     def _is_fvp(cls, options):
-        return (options["zephyr_board"] in cls._KNOWN_FVP_ZEPHYR_BOARDS and options["use_fvp"] == True)
+        return (
+            options["zephyr_board"] in cls._KNOWN_FVP_ZEPHYR_BOARDS and options["use_fvp"] == True
+        )
 
     @classmethod
     def _is_qemu(cls, options):
-        return (
-            "qemu" in options["zephyr_board"]
-            or (options["zephyr_board"] in cls._KNOWN_QEMU_ZEPHYR_BOARDS and not cls._is_fvp(options))
+        return "qemu" in options["zephyr_board"] or (
+            options["zephyr_board"] in cls._KNOWN_QEMU_ZEPHYR_BOARDS and not cls._is_fvp(options)
         )
 
     @classmethod
@@ -827,7 +827,7 @@ class ZephyrQemuTransport:
         with open(BUILD_DIR / "CMakeCache.txt", "r") as cmake_cache_f:
             for line in cmake_cache_f:
                 if "QEMU_PIPE:" in line:
-                    self.pipe = pathlib.Path(line[line.find('=')+1:])
+                    self.pipe = pathlib.Path(line[line.find("=") + 1 :])
                     break
         self.pipe_dir = self.pipe.parents[0]
         self.write_pipe = self.pipe_dir / "fifo.in"
@@ -842,7 +842,6 @@ class ZephyrQemuTransport:
 
         self.proc = subprocess.Popen(
             ["ninja", "run"],
-            # ["make", "run", f"QEMU_PIPE={self.pipe}"],
             cwd=BUILD_DIR,
             env=env,
             stdout=subprocess.PIPE,
@@ -953,10 +952,11 @@ class BlockingStream:
         self.unread = None
 
     def read(self, n=-1, timeout_sec=None):
-        assert n != -1, \
-        "expect firmware to open stdin using raw mode, and therefore expect sized read requests"
+        assert (
+            n != -1
+        ), "expect firmware to open stdin using raw mode, and therefore expect sized read requests"
 
-        data = b''
+        data = b""
         if self.unread:
             data = data + self.unread
             self.unread = None
@@ -993,7 +993,12 @@ class ZephyrFvpTransport:
 
     def _import_iris(self):
         # Location as seen in the FVP_Corstone_SSE-300_11.15_24 tar.
-        iris_lib_path = pathlib.Path(self.options["arm_fvp_path"]).parent.parent.parent / "Iris" / "Python" / "iris"
+        iris_lib_path = (
+            pathlib.Path(self.options["arm_fvp_path"]).parent.parent.parent
+            / "Iris"
+            / "Python"
+            / "iris"
+        )
 
         sys.path.insert(0, str(iris_lib_path.parent))
         try:
@@ -1011,9 +1016,9 @@ class ZephyrFvpTransport:
             numU64 = (numBytes + 7) // 8
             # Extend the string ending with '\0', so that the string length is multiple of 8.
             # E.g. 'hello' is extended to: 'hello'+\0\0\0
-            strExt = strValue.ljust(8 * numU64, b'\0')
+            strExt = strValue.ljust(8 * numU64, b"\0")
             # Convert the string to a list of uint64_t in little endian
-            return struct.unpack('<{}Q'.format(numU64), strExt)
+            return struct.unpack("<{}Q".format(numU64), strExt)
 
         iris.iris.convertStringToU64Array = _convertStringToU64Array
 
@@ -1032,11 +1037,13 @@ class ZephyrFvpTransport:
             stdout=subprocess.PIPE,
         )
         threading.Thread(target=self._fvp_check_stdout, daemon=True).start()
-        
+
         self.iris_port = self._wait_for_fvp()
         _LOG.info("IRIS started on port %d", self.iris_port)
         NetworkModelInitializer = self._iris_lib.NetworkModelInitializer.NetworkModelInitializer
-        self._model_init = NetworkModelInitializer(host="localhost", port=self.iris_port, timeout_in_ms=1000)
+        self._model_init = NetworkModelInitializer(
+            host="localhost", port=self.iris_port, timeout_in_ms=1000
+        )
         self._model = self._model_init.start()
         self._target = self._model.get_target("component.FVP_MPS3_Corstone_SSE_300.cpu0")
 
@@ -1056,7 +1063,7 @@ class ZephyrFvpTransport:
         for line in self.proc.stdout:
             line = str(line, "utf-8")
             _LOG.info("%s", line)
-            m = re.match(r'Iris server started listening to port ([0-9]+)\n', line)
+            m = re.match(r"Iris server started listening to port ([0-9]+)\n", line)
             n = re.match("microTVM Zephyr runtime - running", line)
             if m:
                 self._queue.put((ZephyrFvpMakeResult.FVP_STARTED, int(m.group(1))))
@@ -1093,7 +1100,7 @@ class ZephyrFvpTransport:
                 raise TimeoutError("semihost init timeout.")
 
             if item[0] == ZephyrFvpMakeResult.FVP_INIT:
-                return 
+                return
 
             raise ValueError(f"{item} not expected.")
 

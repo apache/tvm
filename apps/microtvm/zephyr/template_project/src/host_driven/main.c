@@ -78,11 +78,13 @@ void uart_log(const char* c) {
 static uint32_t semihost_cmd(uint32_t opcode, void* arg) {
   uint32_t ret_val;
   __asm__ volatile(
-    "mov r0, %[opcode]\n\t"
-    "mov r1, %[arg]\n\t"
-    "bkpt #0xab\n\r"
-    "mov %[ret_val], r0"
-    : [ret_val] "=r" (ret_val) : [opcode] "r" (opcode), [arg] "r" (arg) : "r1", "memory");
+      "mov r0, %[opcode]\n\t"
+      "mov r1, %[arg]\n\t"
+      "bkpt #0xab\n\r"
+      "mov %[ret_val], r0"
+      : [ ret_val ] "=r"(ret_val)
+      : [ opcode ] "r"(opcode), [ arg ] "r"(arg)
+      : "r1", "memory");
 
   return ret_val;
 }
@@ -115,7 +117,7 @@ void init_semihosting() {
     uart_log(err);
   }
 
-  for (int i=0; i<200; ++i) {
+  for (int i = 0; i < 200; ++i) {
     // char err[10];
     // snprintf(err, 10, "%d :", i);
     // uart_log(err);
@@ -309,31 +311,29 @@ void uart_irq_cb(const struct device* dev, void* user_data) {
 
 #ifdef FVP
 #define UART0_BASE 0x59303000
-#define UART0_STATE (UART0_BASE+0x04)
-#define UART0_CTRL (UART0_BASE+0x08)
-#define UART0_INTCLEAR (UART0_BASE+0x0C)
-#define UART0_BAUDDIV (UART0_BASE+0x10)
-#define OVERRUN_IRQ  48       /* device uses IRQ 48 */
-#define OVERRUN_PRIO  2       /* device uses interrupt priority 2 */
-#define OVERRUN_ARG  0        /* argument passed to isr()*/
-#define OVERRUN_FLAGS 0       /* IRQ flags. Unused on non-x86 */
+#define UART0_STATE (UART0_BASE + 0x04)
+#define UART0_CTRL (UART0_BASE + 0x08)
+#define UART0_INTCLEAR (UART0_BASE + 0x0C)
+#define UART0_BAUDDIV (UART0_BASE + 0x10)
+#define OVERRUN_IRQ 48  /* device uses IRQ 48 */
+#define OVERRUN_PRIO 2  /* device uses interrupt priority 2 */
+#define OVERRUN_ARG 0   /* argument passed to isr()*/
+#define OVERRUN_FLAGS 0 /* IRQ flags. Unused on non-x86 */
 
-void overrun_isr(void *arg)
-{
-  *(uint32_t *)(UART0_STATE) = (uint32_t) 0x00; // clear overrun
-  *(uint32_t *)(UART0_INTCLEAR) = (uint32_t) 0x08; // clear overrun
+void overrun_isr(void* arg) {
+  *(uint32_t*)(UART0_STATE) = (uint32_t)0x00;     // clear overrun
+  *(uint32_t*)(UART0_INTCLEAR) = (uint32_t)0x08;  // clear overrun
 }
 
-void overrun_init(void)
-{
-  *(uint32_t *)(UART0_CTRL) = (uint32_t) 0x2b; // enable overrun interrupt
-   IRQ_CONNECT(OVERRUN_IRQ, OVERRUN_PRIO, overrun_isr, OVERRUN_ARG, OVERRUN_FLAGS);
-   irq_enable(OVERRUN_IRQ);
+void overrun_init(void) {
+  *(uint32_t*)(UART0_CTRL) = (uint32_t)0x2b;  // enable overrun interrupt
+  IRQ_CONNECT(OVERRUN_IRQ, OVERRUN_PRIO, overrun_isr, OVERRUN_ARG, OVERRUN_FLAGS);
+  irq_enable(OVERRUN_IRQ);
 }
 
 // Used to initialize the UART receiver.
 void uart_rx_init(struct ring_buf* rbuf, const struct device* dev) {
-  *(uint32_t *)(UART0_BAUDDIV) = (uint32_t) 0xFF; // set baudrate
+  *(uint32_t*)(UART0_BAUDDIV) = (uint32_t)0xFF;  // set baudrate
   uart_irq_callback_user_data_set(dev, uart_irq_cb, (void*)rbuf);
   uart_irq_rx_enable(dev);
   overrun_init();
@@ -373,7 +373,7 @@ void main(void) {
   timing_start();
 
 #ifdef FVP
-  //initialize semihosting
+  // initialize semihosting
   uart_log("init for a long time...\n");
   init_semihosting();
   uart_log("microTVM Zephyr runtime - running\n");
@@ -389,14 +389,14 @@ void main(void) {
   // The main application loop. We continuously read commands from the UART
   // and dispatch them to MicroTVMRpcServerLoop().
   while (true) {
-    #ifdef FVP
+#ifdef FVP
     uint8_t data[128];
     uint32_t bytes_read = read_serial(data, 128);
-    #else
+#else
     uint8_t* data;
     unsigned int key = irq_lock();
     uint32_t bytes_read = ring_buf_get_claim(&uart_rx_rbuf, &data, RING_BUF_SIZE_BYTES);
-    #endif
+#endif
     if (bytes_read > 0) {
       uint8_t* ptr = data;
       size_t bytes_remaining = bytes_read;
@@ -406,12 +406,12 @@ void main(void) {
         if (err != kTvmErrorNoError && err != kTvmErrorFramingShortPacket) {
           TVMPlatformAbort(err);
         }
-    #ifdef FVP
+#ifdef FVP
       }
     }
-    #else
-      g_num_bytes_in_rx_buffer -= bytes_read;
-      if (g_num_bytes_written != 0 || g_num_bytes_requested != 0) {
+#else
+        g_num_bytes_in_rx_buffer -= bytes_read;
+        if (g_num_bytes_written != 0 || g_num_bytes_requested != 0) {
           if (g_num_bytes_written != g_num_bytes_requested) {
             TVMPlatformAbort((tvm_crt_error_t)0xbeef5);
           }
@@ -425,7 +425,7 @@ void main(void) {
       }
     }
     irq_unlock(key);
-    #endif
+#endif
   }
 
 #ifdef CONFIG_ARCH_POSIX

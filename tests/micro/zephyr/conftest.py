@@ -63,9 +63,11 @@ def west_cmd(request):
 def tvm_debug(request):
     return request.config.getoption("--tvm-debug")
 
+
 @pytest.fixture
 def use_fvp(request):
     return request.config.getoption("--use-fvp")
+
 
 @pytest.fixture
 def temp_dir(board, tvm_debug):
