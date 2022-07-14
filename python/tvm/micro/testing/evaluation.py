@@ -30,6 +30,9 @@ import tempfile
 import tvm
 
 
+AOT_PLATFORM_SPECIFIC_OPTIONS = {"arduino": {}, "zephyr": {"config_main_stack_size": 4096}}
+
+
 def tune_model(
     platform, board, target, mod, params, num_trials, tuner_cls=tvm.autotvm.tuner.GATuner
 ):
@@ -117,6 +120,7 @@ def create_aot_session(
         {
             f"{platform}_board": board,
             "project_type": "host_driven",
+            **(AOT_PLATFORM_SPECIFIC_OPTIONS[platform]),
         },
     )
     project.build()
