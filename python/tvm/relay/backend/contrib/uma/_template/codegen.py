@@ -19,11 +19,12 @@
 import tvm
 import pathlib
 
+
 def gen_includes() -> str:
     topdir = pathlib.Path(__file__).parent.absolute()
-    
+
     includes = ""
-    includes += f"#include \"{topdir}/conv2dnchw.cpp\""
+    includes += f'#include "{topdir}/conv2dnchw.cc"'
     return includes
 
 

@@ -43,13 +43,10 @@ class MyAiHwBackend(UMABackend):
         #######################################################################
         self._register_tir_pass(PassPhase.TIR_PHASE_0, MyAiHwConv2dPass())
 
-
         #######################################################################
         # TIR to runtime function registration
         #######################################################################
-        self._register_codegen(
-            fmt="c", includes=gen_includes
-        )
+        self._register_codegen(fmt="c", includes=gen_includes)
 
     @property
     def target_name(self):

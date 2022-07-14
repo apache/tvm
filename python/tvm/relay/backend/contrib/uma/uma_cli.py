@@ -47,6 +47,9 @@ def _parse_args():
 def replace_template_name(
     files: list, template_name: str, add_hw_name: str, template_source: str = "_template"
 ) -> None:
+    """
+    Replace names in template skeleton code by new name
+    """
     for f in files:
         with open(f) as read_file:
             data = read_file.read()
@@ -59,7 +62,7 @@ def replace_template_name(
 
 def main():
     """
-        UMA Command Line Interface (CLI)
+    UMA Command Line Interface (CLI)
     """
     args = _parse_args()
     add_hw_name = args.add_hardware

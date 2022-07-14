@@ -80,7 +80,7 @@ def main():
         interface_api="c",
         use_unpacked_api=True,
         target=target,
-        test_dir=str(export_directory)
+        test_dir=str(export_directory),
     )
 
 
