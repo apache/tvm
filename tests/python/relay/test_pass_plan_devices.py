@@ -1810,7 +1810,9 @@ def test_primitive():
             add(%a, %b)
           };
           %6 = %5(%1, %3);
-          %10 = fn (%a, Primitive=1) {
+          %10 = fn (%a, 
+                    virtual_device=meta[VirtualDevice][0],
+                    Primitive=1) {
             layout_transform(%a, src_layout="NCHW4c", dst_layout="NCHW")
           };
           %10(%6)
