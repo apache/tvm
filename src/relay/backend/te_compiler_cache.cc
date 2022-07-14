@@ -364,8 +364,8 @@ class ScheduleBuilder : public ExprVisitor {
         Array<te::Tensor> te_args = Concat(fn_inputs, tensor_outs);
         if (Optional<tir::PrimFunc> tir_func =
                 meta_schedule_ctx_.value()->te_filter_func(te_args)) {
-          IRModule relay_mod({{prim_fn_var, relay_func}}, global_var_supply);
-          IRModule tir_mod({{prim_fn_var, tir_func.value()}}, global_var_supply);
+          IRModule relay_mod({{prim_fn_var, relay_func}});
+          IRModule tir_mod({{prim_fn_var, tir_func.value()}});
           if (Optional<IRModule> opt_scheduled_mod = meta_schedule_ctx_.value()->Query(
                   /*task_name=*/prim_fn_var->name_hint,     //
                   /*mod=*/relay_mod,                        //
@@ -401,7 +401,7 @@ class ScheduleBuilder : public ExprVisitor {
       }
     }
 
-    IRModule funcs = IRModule(Map<GlobalVar, BaseFunc>({}), global_var_supply);
+    IRModule funcs = IRModule(Map<GlobalVar, BaseFunc>({}));
     return CachedFunc(target_, prim_fn_var, fn_inputs, tensor_outs, schedule, prim_func, {}, funcs,
                       lower_te_compute.constant_tensors_);
   }

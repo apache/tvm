@@ -437,7 +437,7 @@ Expr InferType(const Expr& expr) {
 }
 
 Expr InferTypeWithModule(const Expr& expr, const IRModule& m) {
-  IRModule mod(m->functions, m->global_var_supply, m->type_definitions, m->Imports());
+  IRModule mod(m->functions, m->type_definitions, m->Imports());
   int idx = 0;
   std::string gv_name;
   do {

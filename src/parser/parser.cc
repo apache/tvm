@@ -1889,7 +1889,7 @@ Parser InitParser(const std::string& file_name, const std::string& file_content,
   IRModule module;
   if (!init_module) {
     SourceMap source_map;
-    module = IRModule({}, GlobalVarSupply::EmptySupply(), {}, {}, source_map);
+    module = IRModule({}, {}, {}, source_map);
   } else {
     module = init_module.value();
   }

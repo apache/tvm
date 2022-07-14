@@ -43,6 +43,15 @@ GlobalVarSupply GlobalVarSupply::EmptySupply() {
   return GlobalVarSupplyFromNameSupply(NameSupply::NameSupplyWithPrefix(""));
 }
 
+void GlobalVarSupplyNode::ReserveGlobalVar(const GlobalVar& var, bool allow_conflict) {
+  name_supply_->ReserveName(var->name_hint, false);
+  if (!allow_conflict) {
+    ICHECK(name_to_var_map_.count(var->name_hint) == 0)
+        << "GlobalVar " << var << " conflicts by name in this supply.";
+  }
+  name_to_var_map_[var->name_hint] = var;
+}
+
 GlobalVarSupplyNode::GlobalVarSupplyNode(NameSupply name_supply)
     : name_supply_(std::move(name_supply)) {}
 

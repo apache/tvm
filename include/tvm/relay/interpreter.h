@@ -181,7 +181,6 @@ TypedPackedFunc<ObjectRef(Array<Expr>)> EvalFunction(IRModule mod, Expr expr, De
  *
  * \param expr An expression to evaluate.
  * \param type_definitions Global type definitions which \p expr may references.
- * \param global_var_supply The GlobalVarSupply to be used during evaluation.
  * \param import_set Already imported external modules.
  * \param device The device on which all primitives will be executed.
  * \param target The compiler target flag for compiling primitives.
@@ -189,8 +188,8 @@ TypedPackedFunc<ObjectRef(Array<Expr>)> EvalFunction(IRModule mod, Expr expr, De
  * @return The object representing the result.
  */
 ObjectRef Eval(Expr expr, Map<GlobalTypeVar, TypeData> type_definitions,
-               GlobalVarSupply global_var_supply, std::unordered_set<String> import_set,
-               Device device, Target target, Map<String, ObjectRef> attrs = {});
+               std::unordered_set<String> import_set, Device device, Target target,
+               Map<String, ObjectRef> attrs = {});
 
 }  // namespace relay
 }  // namespace tvm

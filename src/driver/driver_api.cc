@@ -291,7 +291,7 @@ IRModule ScheduleToModule(te::Schedule sch, const Array<ObjectRef>& args, const 
     f = WithAttr(std::move(f), "tir.noalias", Bool(true));
   }
   GlobalVar global_var = global_var_supply->UniqueGlobalFor(name, false);
-  return IRModule(Map<GlobalVar, BaseFunc>({{global_var, f}}), global_var_supply);
+  return IRModule(Map<GlobalVar, BaseFunc>({{global_var, f}}));
 }
 
 TVM_REGISTER_GLOBAL("driver.schedule_to_module")
@@ -433,9 +433,7 @@ runtime::Module TIRToRuntime(const Map<Target, IRModule>& inputs_arg,
   // Take the attrs from the first module so the eventual modules have them.
   // Ideally this would just be one unified module all the way through;
   IRModule first_module = (*inputs.begin()).second;
-  GlobalVarSupply global_var_supply = GlobalVarSupply::EmptySupply();
-  IRModule mhost_all =
-      IRModule(Map<GlobalVar, BaseFunc>(), global_var_supply, {}, {}, {}, first_module->attrs);
+  IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>(), {}, {}, {}, first_module->attrs);
 
   ICHECK(mhost_all.defined()) << "The host module must be defined";
 

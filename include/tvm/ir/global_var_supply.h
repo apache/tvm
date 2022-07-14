@@ -38,6 +38,8 @@ class GlobalVarSupplyNode : public Object {
 
   GlobalVar UniqueGlobalFor(const String& name, bool add_prefix = true);
 
+  void ReserveGlobalVar(const GlobalVar& var, bool allow_conflict = false);
+
   void VisitAttrs(AttrVisitor* v) { v->Visit("name_supply", &name_supply_); }
 
   NameSupply name_supply_;

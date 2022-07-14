@@ -311,8 +311,7 @@ Array<Pattern> UnmatchedCases(const Match& match, const IRModule& mod) {
 // expose for testing only
 TVM_REGISTER_GLOBAL("relay.analysis.unmatched_cases")
     .set_body_typed([](const Match& match, const Optional<IRModule>& mod_ref) {
-      IRModule call_mod =
-          mod_ref.defined() ? mod_ref.value() : IRModule({}, GlobalVarSupply::EmptySupply(), {});
+      IRModule call_mod = mod_ref.defined() ? mod_ref.value() : IRModule({}, {});
       return UnmatchedCases(match, call_mod);
     });
 

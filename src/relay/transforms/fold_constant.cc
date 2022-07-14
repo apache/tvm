@@ -268,8 +268,8 @@ class ConstantFolder : public MixedModeMutator {
     // always use graph executor with no link-params
     dict.Set(tvm::attr::kExecutor,
              relay::Executor::Create("graph", {{"link-params", Bool(false)}}));
-    Expr result = ObjectToExpr(Eval(expr, module_->type_definitions, module_->global_var_supply,
-                                    module_->Imports(), eval_cpu_dev_, eval_cpu_target_, dict));
+    Expr result = ObjectToExpr(Eval(expr, module_->type_definitions, module_->Imports(),
+                                    eval_cpu_dev_, eval_cpu_target_, dict));
     VLOG(1) << "Evaluated to constant:" << std::endl << PrettyPrint(result);
     return result;
   }

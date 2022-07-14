@@ -369,7 +369,7 @@ class TECompilerImpl : public TECompilerNode {
     if (opt_compiler.defined()) {
       // Don't compile now since we don't have anywhere to put the resulting runtime module.
       // Instead place the original definition in the cache and wait for LowerExternalFunctions.
-      IRModule ir_module({}, global_var_supply);
+      IRModule ir_module({}, {});
       Optional<String> opt_global_symbol =
           key->source_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
       ICHECK(opt_global_symbol.defined()) << "External function has not been attached a name yet.";
@@ -1279,7 +1279,7 @@ Map<Target, IRModule> GetPerTargetModules(IRModule mod) {
       // Put the function in per_target_modules
       if (!per_target_modules.count(target.value())) {
         // Initialize the IRModule for this target with the attributes from the input IRModule
-        IRModule target_module = IRModule({}, mod->global_var_supply, {}, {}, {}, mod->attrs);
+        IRModule target_module = IRModule({}, {}, {}, {}, mod->attrs);
         // Add the function to the IRModule
         target_module->Add(var, func);
         per_target_modules[target.value()] = target_module;
