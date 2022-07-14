@@ -25,8 +25,8 @@
 #include <tvm/relay/function.h>
 #include <tvm/relay/transform.h>
 
-#include "../../../src/relay/collage/partition_spec.h"
 #include "../../../../src/relay/collage/mock_cost_estimator.h"
+#include "../../../src/relay/collage/partition_spec.h"
 
 namespace tvm {
 namespace relay {
