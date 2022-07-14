@@ -39,12 +39,11 @@ CostEstimator::CostEstimator() {
   data_ = std::move(node);
 }
 
-Cost CostEstimatorNode::Estimate(const IRModule& mod, const Target& target,
-                                 bool needs_tvm_turning) const {
+Cost CostEstimatorNode::Estimate(const IRModule& mod, const Target& target) const {
   static const runtime::PackedFunc* estimate_seconds =
       runtime::Registry::Get("tvm.relay.collage.estimate_seconds");
   ICHECK(estimate_seconds);
-  const double value = (*estimate_seconds)(mod, target, needs_tvm_turning);
+  const double value = (*estimate_seconds)(mod, target);
   if (std::isinf(value)) {
     return Cost::Invalid();
   } else if (std::isnan(value)) {
@@ -95,8 +94,7 @@ class MockEstimationVisitor : private ExprVisitor {
   }
 };
 
-Cost MockEstimatorNode::Estimate(const IRModule& mod, const Target& target,
-                                 bool needs_tvm_tuning) const {
+Cost MockEstimatorNode::Estimate(const IRModule& mod, const Target& target) const {
   double op_cost = static_cast<double>(target_costs_.at(target->kind->name)->value);
   double cost = 0.0;
   for (const auto& kv : mod->functions) {
