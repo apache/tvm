@@ -114,26 +114,15 @@ def estimate_seconds(mod, target):
     return profile.median  # seconds
 
 
-MakeLabelledDFPatternPartitionRule = tvm._ffi.get_global_func(
-    "relay.collage.MakeLabelledDFPatternPartitionRule"
-)
-MakeLabelledDFPatternPartitionRuleWithPredicate = tvm._ffi.get_global_func(
-    "relay.collage.MakeLabelledDFPatternPartitionRuleWithPredicate"
-)
-MakePatternBYOCPartitionRule = tvm._ffi.get_global_func(
-    "relay.collage.MakePatternBYOCPartitionRule"
-)
-
-
 def make_labelled_dfpattern_partition_rule_wrapper(compiler, pattern_tuple):
     """Returns a DFPatternPartitionRule representing one (label, pattern, predicate) entry from
     the pattern table for external codegen compiler"""
     if len(pattern_tuple) == 2:
         rule_name, dataflow_pattern = pattern_tuple
-        return MakeLabelledDFPatternPartitionRule(compiler, rule_name, dataflow_pattern)
+        return _ffi_api.MakeLabelledDFPatternPartitionRule(compiler, rule_name, dataflow_pattern)
     else:
         rule_name, dataflow_pattern, predicate = pattern_tuple
-        return MakeLabelledDFPatternPartitionRuleWithPredicate(
+        return _ffi_api.MakeLabelledDFPatternPartitionRuleWithPredicate(
             compiler, rule_name, dataflow_pattern, predicate
         )
 
@@ -154,4 +143,4 @@ def make_byoc_partition_rule(compiler):
         make_labelled_dfpattern_partition_rule_wrapper(compiler, pattern_tuple)
         for pattern_tuple in pattern_table
     ]
-    return MakePatternBYOCPartitionRule(compiler, sub_rules)
+    return _ffi_api.MakePatternBYOCPartitionRule(compiler, sub_rules)
