@@ -324,6 +324,11 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
                   attrs->kernel_layout == "OIHW4o")) {
         supports_texture_storage = true;
       }
+    } else if (auto attrs = call->attrs.as<Conv2DWinogradAttrs>()) {
+      if ((attrs->data_layout == "NCHW4c" || attrs->data_layout == "NHWC4c") &&
+         (attrs->kernel_layout == "OIHW4o" || attrs->kernel_layout == "HWIO4o")) {
+        supports_texture_storage = true;
+      }
     } else if (auto attrs = call->attrs.as<GlobalPool2DAttrs>()) {
       if (attrs->layout == "NCHW4c") {
         supports_texture_storage = true;
