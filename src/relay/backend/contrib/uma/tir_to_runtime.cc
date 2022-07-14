@@ -48,9 +48,9 @@ class UMACodegen : public codegen::CodeGenCHost {
   }
 
   /*!
-   * \brief Emit code that offloads a subgraph to the Cortex-M
+   * \brief Emit code that offloads a subgraph to the UMA target
    *
-   * \return string of code that offloads a subgraph to the Cortex-M
+   * \return string of code that offloads a subgraph to the UMA target
    */
   void AddFunction(const PrimFunc& prim_func) { CodeGenC::AddFunction(prim_func); }
 
