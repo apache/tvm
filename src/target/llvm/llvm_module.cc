@@ -117,9 +117,10 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   // execution engine
   llvm::ExecutionEngine* ee_{nullptr};
   // The raw pointer to the module.
-  llvm::Module* mptr_{nullptr};
-  // The module, can be moved to ee if JIT is enabled.
-  std::unique_ptr<llvm::Module> module_;
+  llvm::Module* module_{nullptr};
+  // The unique_ptr owning the module. This becomes empty once JIT has been initialized
+  // (EngineBuilder takes ownership of the module).
+  std::unique_ptr<llvm::Module> module_owning_ptr_;
   /* \brief names of the functions declared in this module */
   Array<String> function_names_;
 };
@@ -129,13 +130,13 @@ LLVMModuleNode::~LLVMModuleNode() {
     ee_->runStaticConstructorsDestructors(true);
     delete ee_;
   }
-  module_.reset();
+  module_owning_ptr_.reset();
 }
 
 PackedFunc LLVMModuleNode::GetFunction(const std::string& name,
                                        const ObjectPtr<Object>& sptr_to_self) {
   if (name == "__tvm_is_system_module") {
-    bool flag = (mptr_->getFunction("__tvm_module_startup") != nullptr);
+    bool flag = (module_->getFunction("__tvm_module_startup") != nullptr);
     return PackedFunc([flag](TVMArgs args, TVMRetValue* rv) { *rv = flag; });
   } else if (name == "get_func_names") {
     return PackedFunc(
@@ -179,9 +180,9 @@ void LLVMModuleNode::SaveToFile(const std::string& file_name, const std::string&
   if (fmt == "o" || fmt == "obj") {
     With<LLVMTarget> llvm_target(*llvm_scope_, LLVMTarget::GetTargetMetadata(*module_));
 #if TVM_LLVM_VERSION <= 60
-    std::unique_ptr<llvm::Module> m = llvm::CloneModule(mptr_);
+    std::unique_ptr<llvm::Module> m = llvm::CloneModule(module_);
 #else
-    std::unique_ptr<llvm::Module> m = llvm::CloneModule(*mptr_);
+    std::unique_ptr<llvm::Module> m = llvm::CloneModule(*module_);
 #endif
     llvm::legacy::PassManager pass;
     llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
@@ -199,9 +200,9 @@ void LLVMModuleNode::SaveToFile(const std::string& file_name, const std::string&
   } else if (fmt == "s" || fmt == "asm") {
     With<LLVMTarget> llvm_target(*llvm_scope_, LLVMTarget::GetTargetMetadata(*module_));
 #if TVM_LLVM_VERSION <= 60
-    std::unique_ptr<llvm::Module> m = llvm::CloneModule(mptr_);
+    std::unique_ptr<llvm::Module> m = llvm::CloneModule(module_);
 #else
-    std::unique_ptr<llvm::Module> m = llvm::CloneModule(*mptr_);
+    std::unique_ptr<llvm::Module> m = llvm::CloneModule(*module_);
 #endif
     llvm::legacy::PassManager pass;
     llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
@@ -218,12 +219,12 @@ void LLVMModuleNode::SaveToFile(const std::string& file_name, const std::string&
 #endif
     pass.run(*m);
   } else if (fmt == "ll") {
-    mptr_->print(dest, nullptr);
+    module_->print(dest, nullptr);
   } else if (fmt == "bc") {
 #if TVM_LLVM_VERSION <= 60
-    llvm::WriteBitcodeToFile(mptr_, dest);
+    llvm::WriteBitcodeToFile(module_, dest);
 #else
-    llvm::WriteBitcodeToFile(*mptr_, dest);
+    llvm::WriteBitcodeToFile(*module_, dest);
 #endif
   } else {
     LOG(FATAL) << "Do not know how to save file " << file_name << " with format=\'" << format
@@ -245,9 +246,9 @@ std::string LLVMModuleNode::GetSource(const std::string& format) {
   if (fmt == "s" || fmt == "asm") {
     With<LLVMTarget> llvm_target(*llvm_scope_, LLVMTarget::GetTargetMetadata(*module_));
 #if TVM_LLVM_VERSION <= 60
-    std::unique_ptr<llvm::Module> m = llvm::CloneModule(mptr_);
+    std::unique_ptr<llvm::Module> m = llvm::CloneModule(module_);
 #else
-    std::unique_ptr<llvm::Module> m = llvm::CloneModule(*mptr_);
+    std::unique_ptr<llvm::Module> m = llvm::CloneModule(*module_);
 #endif
     llvm::legacy::PassManager pass;
     llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
@@ -266,8 +267,8 @@ std::string LLVMModuleNode::GetSource(const std::string& format) {
   } else if (fmt == "" || fmt == "ll") {
     std::string type_str;
     llvm::raw_string_ostream rso(type_str);
-    ICHECK(mptr_ != nullptr);
-    mptr_->print(rso, nullptr);
+    ICHECK(module_ != nullptr);
+    module_->print(rso, nullptr);
     return rso.str();
   } else {
     LOG(FATAL) << "Do not know how to get source code with format: " << format << "\'";
@@ -315,8 +316,10 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
     cg->AddMainFunction(entry_func);
   }
 
-  module_ = cg->Finish();
-  llvm_target->SetTargetMetadata(module_.get());
+  module_owning_ptr_ = cg->Finish();
+  module_ = module_owning_ptr_.get();
+
+  llvm_target->SetTargetMetadata(module_);
   module_->addModuleFlag(llvm::Module::Override, "Debug Info Version",
                          llvm::DEBUG_METADATA_VERSION);
 
@@ -329,13 +332,12 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
   LOG_IF(FATAL, llvm::verifyModule(*module_, &verify_errors))
       << "LLVM module verification failed with the following errors: \n"
       << verify_errors.str();
-  mptr_ = module_.get();
 }
 
 void LLVMModuleNode::Init(std::unique_ptr<llvm::Module> module,
                           std::unique_ptr<LLVMScope> llvm_scope) {
-  module_ = std::move(module);
-  mptr_ = module_.get();
+  module_owning_ptr_ = std::move(module);
+  module_ = module_owning_ptr_.get();
   llvm_scope_ = std::move(llvm_scope);
 }
 
@@ -355,7 +357,7 @@ void LLVMModuleNode::LazyInitJIT() {
     return;
   }
   With<LLVMTarget> llvm_target(*llvm_scope_, LLVMTarget::GetTargetMetadata(*module_));
-  llvm::EngineBuilder builder(std::move(module_));
+  llvm::EngineBuilder builder(std::move(module_owning_ptr_));
   builder.setEngineKind(llvm::EngineKind::JIT);
   builder.setOptLevel(llvm::CodeGenOpt::Aggressive);
   builder.setMCPU(llvm_target->GetCPU());
@@ -366,12 +368,12 @@ void LLVMModuleNode::LazyInitJIT() {
     LOG(FATAL) << "Cannot run module, architecture mismatch";
   }
   llvm::DataLayout layout(tm->createDataLayout());
-  ICHECK(layout == mptr_->getDataLayout())
-      << "Data layout mismatch between module(" << mptr_->getDataLayout().getStringRepresentation()
-      << ")"
+  ICHECK(layout == module_->getDataLayout())
+      << "Data layout mismatch between module("
+      << module_->getDataLayout().getStringRepresentation() << ")"
       << " and ExecutionEngine (" << layout.getStringRepresentation() << ")";
   ee_ = builder.create(tm.release());
-  ICHECK(ee_ != nullptr) << "Failed to initialize jit engine for " << mptr_->getTargetTriple();
+  ICHECK(ee_ != nullptr) << "Failed to initialize jit engine for " << module_->getTargetTriple();
   ee_->runStaticConstructorsDestructors(false);
 
   if (void** ctx_addr =
@@ -396,7 +398,7 @@ bool LLVMModuleNode::IsCompatibleWithHost(const llvm::TargetMachine* tm) const {
 // Get global address from execution engine.
 void* LLVMModuleNode::GetGlobalAddr(const std::string& name, const LLVMTarget& llvm_target) const {
   // first verifies if GV exists.
-  if (mptr_->getGlobalVariable(name) != nullptr) {
+  if (module_->getGlobalVariable(name) != nullptr) {
     return reinterpret_cast<void*>(ee_->getGlobalValueAddress(name));
   } else {
     return nullptr;
@@ -406,7 +408,7 @@ void* LLVMModuleNode::GetGlobalAddr(const std::string& name, const LLVMTarget& l
 void* LLVMModuleNode::GetFunctionAddr(const std::string& name,
                                       const LLVMTarget& llvm_target) const {
   // first verifies if GV exists.
-  if (mptr_->getFunction(name) != nullptr) {
+  if (module_->getFunction(name) != nullptr) {
     return reinterpret_cast<void*>(ee_->getFunctionAddress(name));
   } else {
     return nullptr;
