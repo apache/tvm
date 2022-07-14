@@ -162,20 +162,13 @@ PartitionRule MakePatternBYOCPartitionRule(const std::string& compiler,
   return PrimitivePartitionRule("", std::move(valid));
 }
 
-TVM_REGISTER_GLOBAL("relay.collage.make_labelled_dfpattern_partition_rule")
-    .set_body_typed([](String compiler, String rule_name, DFPattern dataflow_pattern) {
-      return MakeLabelledDFPatternPartitionRule(std::move(compiler), std::move(rule_name),
-                                                std::move(dataflow_pattern));
-    });
+TVM_REGISTER_GLOBAL("relay.collage.MakeLabelledDFPatternPartitionRule")
+    .set_body_typed(MakeLabelledDFPatternPartitionRule);
 
-TVM_REGISTER_GLOBAL("relay.collage.make_labelled_dfpattern_partition_rule_with_predicate")
-    .set_body_typed([](String compiler, String rule_name, DFPattern dataflow_pattern,
-                       TPatternPredicate predicate) {
-      return MakeLabelledDFPatternPartitionRule(std::move(compiler), std::move(rule_name),
-                                                std::move(dataflow_pattern), std::move(predicate));
-    });
+TVM_REGISTER_GLOBAL("relay.collage.MakeLabelledDFPatternPartitionRuleWithPredicate")
+    .set_body_typed(MakeLabelledDFPatternPartitionRule);
 
-TVM_REGISTER_GLOBAL("relay.collage.make_pattern_byoc_partition_rule")
+TVM_REGISTER_GLOBAL("relay.collage.MakePatternBYOCPartitionRule")
     .set_body_typed(MakePatternBYOCPartitionRule);
 
 /*!

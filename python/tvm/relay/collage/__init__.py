@@ -14,4 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from .collage import MEASURE_NUMBER, MEASURE_REPEAT, WARMUP_MIN_REPEAT_MS, CostEstimator
+"""relay.collage exports"""
+from .collage import MEASURE_NUMBER, MEASURE_REPEAT, WARMUP_MIN_REPEAT_MS, CostEstimator, \
+    MockEstimator
