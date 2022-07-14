@@ -1784,6 +1784,8 @@ def test_stack_overflow():
 
 
 def test_primitive():
+    """Annotations on Primitive functions should be accepted, even though the body
+    of the Primitive function is not considered during PlanDevices."""
     metatable = {
         "VirtualDevice": [
             GPU_SCOPE_GLOBAL,
@@ -1791,8 +1793,6 @@ def test_primitive():
         ]
     }
 
-    # This module should pass PlanDevices without failure thanks to the annotations
-    # the Primitive functions.
     mod = tvm.parser.parse(
         """
         #[version = "0.0.5"]
@@ -1825,8 +1825,8 @@ def test_primitive():
 
     config = tvm.target.make_compilation_config(CTXT, GPU_TARGET)
     mod = relay.transform.InferType()(mod)
+    # PlanDevices should succeed.
     mod = relay.transform.PlanDevices(config)(mod)
-    mod = relay.transform.InferType()(mod)
     print(mod)
 
 
