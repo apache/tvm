@@ -15,5 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """relay.collage exports"""
-from .collage import MEASURE_NUMBER, MEASURE_REPEAT, WARMUP_MIN_REPEAT_MS, CostEstimator, \
-    MockEstimator
+from .collage import (
+    MEASURE_NUMBER,
+    MEASURE_REPEAT,
+    WARMUP_MIN_REPEAT_MS,
+    CostEstimator,
+    MockEstimator,
+)
