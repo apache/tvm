@@ -23,6 +23,8 @@ from tvm import IRModule, parser, relay, te
 from tvm.relay import analysis, op, transform
 from tvm.relay.op import op as _op
 
+import numpy as np
+
 
 def infer_mod(mod, annotate_spans=True):
     if annotate_spans:
@@ -542,6 +544,42 @@ def test_repeat_register():
     with pytest.raises(tvm.error.TVMError) as cm:
         _op.register(op_name)
         assert "Operator custom_log3 is registered before" in str(cm.execption)
+
+
+def test_argreduce_infer_return_type():
+    x_shape = (1, 1)
+    broadcast_shape = [1, 1]
+    shape_dtypes = [("int32", lambda x: np.int32(x)), ("int64", lambda x: np.int64(x))]
+
+    # Testing with argmax
+    for (sdtype, conv) in shape_dtypes:
+        x = relay.var("data", relay.TensorType(x_shape, "float32"))
+        broadcast_to = relay.op.broadcast_to(x, relay.const(broadcast_shape, dtype=sdtype))
+        argmax = relay.op.argmax(broadcast_to, axis=[1])
+
+        f = relay.Function([x], argmax)
+        assert_has_type(
+            f,
+            relay.FuncType(
+                [relay.TensorType(broadcast_shape, "float32")],
+                relay.TensorType([conv(1)], dtype=sdtype),
+            ),
+        )
+
+    # Testing with argmin
+    for (sdtype, conv) in shape_dtypes:
+        x = relay.var("data", relay.TensorType(x_shape, "float32"))
+        broadcast_to = relay.op.broadcast_to(x, relay.const(broadcast_shape, dtype=sdtype))
+        argmin = relay.op.argmin(broadcast_to, axis=[1])
+
+        f = relay.Function([x], argmin)
+        assert_has_type(
+            f,
+            relay.FuncType(
+                [relay.TensorType(broadcast_shape, "float32")],
+                relay.TensorType([conv(1)], dtype=sdtype),
+            ),
+        )
 
 
 if __name__ == "__main__":
