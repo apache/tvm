@@ -134,6 +134,12 @@ class CompilationConfigNode : public Object {
   Optional<Target> FindPrimitiveTargetForKind(const std::string& kind_name) const;
 
   /*!
+   * \brief Returns a \p Target structurally equal to \p target, however prefer a structually equal
+   * known host or primitive target if the configuration has one.
+   */
+  Target CanonicalTarget(const Target& target) const;
+
+  /*!
    * \brief Returns a \p VirtualDevice agreeing with \p virtual_device on all its constrained
    * fields, however:
    * - If the target is null then it is filled in using \p FindPrimitiveTargetOrFail to match

@@ -550,7 +550,8 @@ Optional<Target> TargetNode::GetHost() const {
 String TargetNode::ToDebugString() const {
   std::ostringstream os;
   os << "Target(";
-  os << "kind='" << kind->name << "'";
+  os << "id=" << std::hex << reinterpret_cast<size_t>(this);
+  os << ", kind='" << kind->name << "'";
   if (!tag.empty()) {
     os << ", tag='" << tag << "'";
   }

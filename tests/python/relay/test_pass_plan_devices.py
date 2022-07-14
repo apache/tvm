@@ -1797,8 +1797,7 @@ def test_primitive():
         """
         #[version = "0.0.5"]
         def @main(%data1: Tensor[(1, 32, 40, 40), float32],
-                  %data2: Tensor[(1, 32, 40, 40), float32],
-                  virtual_device=meta[VirtualDevice][1]) {
+                  %data2: Tensor[(1, 32, 40, 40), float32]) {
           %0 = fn (%a, Primitive=1) {
             layout_transform(%a, src_layout="NCHW", dst_layout="NCHW4c")
           };
