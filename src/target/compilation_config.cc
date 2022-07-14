@@ -107,7 +107,7 @@ VirtualDevice CompilationConfigNode::CanonicalVirtualDevice(
     // TODO(mbs): Proper diagnostics.
     CHECK(device_type != kInvalidDeviceType)
         << "VirtualDevice annotations must include at least a device_type";
-    target = FindPrimitiveTargetForDeviceOrFail(virtual_device->device_type());
+    target = FindPrimitiveTargetForDeviceOrFail(device_type);
   }
   return virtual_device_cache_.Unique(VirtualDevice(device_type, virtual_device->virtual_device_id,
                                                     target, virtual_device->memory_scope));
