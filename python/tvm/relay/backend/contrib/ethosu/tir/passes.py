@@ -938,3 +938,38 @@ def CopyComputeReordering(max_copy_movements: Optional[int] = None) -> tvm.IRMod
         The new module with copy and compute nodes reordered.
     """
     return _ffi_api.CopyComputeReordering(max_copy_movements)
+
+
+def MergeConstants(const_dict):
+    """
+    This pass looks for the constants used by each compute operator
+    and merges them into a single buffer.
+    Constants written to a buffer with local scope are not merged.
+    """
+
+    def _merge_constants(mod):
+        nonlocal const_dict
+        try:
+            mod["main"]
+        except:
+            raise tvm.TVMError(
+                "Expected a single primitive function called 'main'. "
+                "Please run the MergeConstants pass in conjunction with the LowerToTIR() pass."
+            )
+
+        new_const_dict = {}
+        for param in const_dict.keys():
+            new_const_dict[tvm.tir.IntImm("int64", param)] = tvm.nd.array(const_dict[param])
+        mod["main"] = mod["main"].with_attr("ethos-u.const_dict", new_const_dict)
+
+        mod = _ffi_api.MergeConstants()(mod)
+        const_dict = mod["main"].attrs["ethos-u.const_dict"]
+        mod = _ffi_api.RemoveConstDictAttribute()(mod)
+
+        new_const_dict = {}
+        for param in const_dict.keys():
+            new_const_dict[int(param)] = const_dict[param].numpy()
+
+        return mod, new_const_dict
+
+    return _merge_constants

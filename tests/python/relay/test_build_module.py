@@ -40,24 +40,29 @@ from tvm.relay.build_module import _reconstruct_from_deprecated_options
         ],
         [
             Target("c -executor=aot -unpacked-api=1"),
-            Executor("aot", {"unpacked-api": True}),
+            Executor("aot", {"unpacked-api": 1}),
             None,
         ],
         [Target("c -executor=aot -link-params=1"), Executor("aot"), None],
-        [Target("c -link-params=1"), Executor("graph", {"link-params": True}), None],
+        [Target("c -link-params=1"), Executor("graph", {"link-params": 1}), None],
         [
             Target(
                 "c -executor=aot -link-params=1 -interface-api=c"
                 "  -unpacked-api=1 -runtime=c -system-lib"
             ),
-            Executor("aot", {"unpacked-api": True, "interface-api": "c"}),
+            Executor("aot", {"unpacked-api": 1, "interface-api": "c"}),
             Runtime("crt", {"system-lib": True}),
         ],
     ],
 )
 def test_deprecated_target_parameters(target, executor, runtime):
     actual_executor, actual_runtime = _reconstruct_from_deprecated_options(target)
-    assert executor == actual_executor
+
+    assert (executor is None and actual_executor is None) or (executor.name == actual_executor.name)
+    # sort as TVM Map cannot guarantee round-trip order.
+    assert (executor is None and actual_executor is None) or (
+        sorted(executor.attrs.items()) == sorted(actual_executor.attrs.items())
+    )
     assert runtime == actual_runtime
 
 

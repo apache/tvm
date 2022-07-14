@@ -197,7 +197,7 @@ def test_export_model_library_format_c(
             )
             assert (datetime.datetime.now() - export_datetime) < datetime.timedelta(seconds=60 * 5)
             assert metadata["modules"][module_name]["target"] == [str(target)]
-            if str(executor) == "graph":
+            if executor.name == "graph":
                 assert metadata["modules"][module_name]["memory"]["sids"] == [
                     {"storage_id": 0, "size_bytes": 2, "input_binding": "a"},
                     {"storage_id": 1, "size_bytes": 8, "input_binding": "b"},
@@ -228,7 +228,7 @@ def test_export_model_library_format_c(
             os.path.join(extract_dir, "codegen", "host", "include", "tvmgen_add.h")
         )
 
-        if str(executor) == "graph":
+        if executor.name == "graph":
             validate_graph_json(extract_dir, factory)
 
         with open(os.path.join(extract_dir, "src", f"{module_name}.relay")) as relay_f:

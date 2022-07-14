@@ -23,8 +23,13 @@ import tvm
 from tvm import relay
 from tvm.relay.op.contrib import cmsisnn
 
-from tvm.testing.aot import generate_ref_data, AOTTestModel, compile_models, compile_and_run
-
+from tvm.testing.aot import (
+    generate_ref_data,
+    AOTTestModel,
+    compile_models,
+    compile_and_run,
+    run_and_check,
+)
 from tvm.micro.testing.aot_test_utils import AOT_USMP_CORSTONE300_RUNNER
 from .utils import (
     make_module,
@@ -84,13 +89,14 @@ def make_model(
         )
     )
     weight_const = relay.const(weight, kernel_dtype)
+    conv2d_kernel_sc = kernel_scale[0] if out_channels == 1 else kernel_scale
     conv = relay.qnn.op.conv2d(
         invar,
         weight_const,
         input_zero_point=relay.const(input_zero_point, "int32"),
         kernel_zero_point=relay.const(kernel_zero_point, "int32"),
         input_scale=relay.const(input_scale, "float32"),
-        kernel_scale=relay.const(kernel_scale, "float32"),
+        kernel_scale=relay.const(conv2d_kernel_sc, "float32"),
         kernel_size=(kernel_h, kernel_w),
         data_layout="NHWC",
         kernel_layout=weight_format,
@@ -105,6 +111,7 @@ def make_model(
     bias_const = relay.const(bias, "int32")
     last_op = relay.nn.bias_add(conv, bias_const, axis=3) if enable_bias else conv
     requant_input_sc = [sc * input_scale for sc in kernel_scale]
+    requant_input_sc = requant_input_sc[0] if out_channels == 1 else requant_input_sc
     last_op = relay.qnn.op.requantize(
         last_op,
         relay.const(requant_input_sc, "float32"),
@@ -209,7 +216,7 @@ def test_conv2d_number_primfunc_args(
     cmsisnn_func = cmsisnn_tir_mod["tvmgen_default_cmsis_nn_main_0"]
     assert (
         len(cmsisnn_func.params) == expected_num_params
-    ), "Generated unexpected number of function arguments"
+    ), "Generated unexpected number of function arguments."
 
 
 @tvm.testing.requires_cmsisnn
@@ -537,6 +544,135 @@ def test_depthwise_int8(
         test_runner,
         interface_api,
         use_unpacked_api,
+    )
+
+
+@tvm.testing.requires_cmsisnn
+@pytest.mark.parametrize("padding", ["SAME", "VALID"])
+@pytest.mark.parametrize("strides, dilation", [((1, 1), (1, 1))])
+@pytest.mark.parametrize("relu_type", ["RELU", "NONE"])
+@pytest.mark.parametrize("depth_multiplier", [1, 3])
+@pytest.mark.parametrize(
+    "input_zero_point, input_scale, kernel_scale",
+    [
+        (
+            10,
+            0.0128,
+            [0.11, 0.22],
+        ),
+        (
+            -64,
+            1,
+            [1, 0.0256, 1.37],
+        ),
+    ],
+)
+def test_relay_conv2d_cmsisnn_depthwise_int8(
+    padding,
+    strides,
+    dilation,
+    relu_type,
+    input_zero_point,
+    input_scale,
+    kernel_scale,
+    depth_multiplier,
+):
+    """Tests QNN Depthwise int8 op via CMSIS-NN"""
+    interface_api = "c"
+    use_unpacked_api = True
+    test_runner = AOT_USMP_CORSTONE300_RUNNER
+
+    dtype = "int8"
+    in_min, in_max = get_range_for_dtype_str(dtype)
+
+    ifm_shape = (1, 24, 24, 1)
+    groups = ifm_shape[3]
+    weight_format = "HWIO"
+    (kernel_h, kernel_w) = (3, 3)
+    kernel_shape = (kernel_h, kernel_w, ifm_shape[3], depth_multiplier)
+    out_channels = ifm_shape[3] * depth_multiplier
+    enable_bias = True
+    ks_len = len(kernel_scale)
+    kernel_zero_point = 0
+    kernel_scale = [kernel_scale[i % ks_len] for i in range(out_channels)]
+
+    output_scale, output_zero_point = get_conv2d_qnn_params(
+        kernel_shape,
+        input_scale,
+        input_zero_point,
+        kernel_scale,
+        kernel_zero_point,
+        dtype,
+        dtype,
+        dtype,
+        True,
+    )
+
+    model, params = make_model(
+        ifm_shape,
+        kernel_shape,
+        input_zero_point,
+        input_scale,
+        kernel_zero_point,
+        kernel_scale,
+        output_zero_point,
+        output_scale,
+        padding,
+        strides,
+        dilation,
+        groups,
+        dtype,
+        dtype,
+        out_channels,
+        weight_format,
+        enable_bias,
+        relu_type,
+    )
+    orig_mod = make_module(model)
+    cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
+
+    # validate pattern matching
+    assert_partitioned_function(orig_mod, cmsisnn_mod)
+
+    # generate reference output
+    rng = np.random.default_rng(12345)
+    inputs = {"input": rng.integers(in_min, high=in_max, size=ifm_shape, dtype=dtype)}
+    output_list = generate_ref_data(orig_mod["main"], inputs, params)
+
+    # validate presence of depthwise convolution
+    compiled_models = compile_models(
+        AOTTestModel(
+            module=cmsisnn_mod,
+            inputs=inputs,
+            outputs=output_list,
+            params=params,
+            output_tolerance=1,
+        ),
+        interface_api,
+        use_unpacked_api,
+        pass_config=test_runner.pass_config,
+    )
+
+    cmsisnn_tir_mod = None
+    for target, mod in compiled_models[0].executor_factory.lowered_ir_mods.items():
+        if target.kind.name == "cmsis-nn":
+            cmsisnn_tir_mod = mod
+
+    cmsisnn_func = cmsisnn_tir_mod["tvmgen_default_cmsis_nn_main_0"]
+    call_extern = None
+    if isinstance(cmsisnn_func.body, tvm.tir.stmt.Evaluate):
+        call_extern = cmsisnn_func.body.value
+    else:
+        call_extern = cmsisnn_func.body.body.value
+    assert (
+        call_extern.args[0].value == "arm_depthwise_conv_wrapper_s8"
+    ), "Relay Conv2D should be mapped to CMSIS-NN Depthwise Convolution."
+
+    # validate the output
+    run_and_check(
+        models=compiled_models,
+        runner=test_runner,
+        interface_api=interface_api,
     )
 
 

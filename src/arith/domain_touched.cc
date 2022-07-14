@@ -30,6 +30,8 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "ir_visitor_with_analyzer.h"
+
 namespace tvm {
 namespace arith {
 
@@ -56,7 +58,7 @@ using BufferDomainAccess = std::tuple<LoadAccess, StoreAccess, CombinedAccess>;
 }  // namespace
 
 // Find Read region of the tensor in the stmt.
-class BufferTouchedDomain final : public StmtExprVisitor {
+class BufferTouchedDomain final : public IRVisitorWithAnalyzer {
  public:
   BufferTouchedDomain(const Stmt& stmt) { operator()(stmt); }
 
@@ -90,39 +92,17 @@ class BufferTouchedDomain final : public StmtExprVisitor {
     return ret;
   }
 
-  void VisitStmt_(const ForNode* op) final {
-    const VarNode* var = op->loop_var.get();
-    dom_map_[var] = IntSet::FromRange(Range::FromMinExtent(op->min, op->extent));
-    StmtExprVisitor::VisitStmt_(op);
-    dom_map_.erase(var);
-  }
-
-  void VisitStmt_(const LetStmtNode* op) final {
-    dom_map_[op->var.get()] = arith::EvalSet(op->value, dom_map_);
-    StmtExprVisitor::VisitStmt_(op);
-    dom_map_.erase(op->var.get());
-  }
-
-  /* TODO: Thread extent unitest not generated.*/
-  void VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == tir::attr::thread_extent) {
-      const IterVarNode* thread_axis = op->node.as<IterVarNode>();
-      ICHECK(thread_axis);
-      const VarNode* var = thread_axis->var.get();
-      dom_map_[var] = IntSet::FromRange(Range(make_zero(op->value.dtype()), op->value));
-      StmtExprVisitor::VisitStmt_(op);
-      dom_map_.erase(var);
-    } else {
-      StmtExprVisitor::VisitStmt_(op);
-    }
-  }
+ private:
+  using Parent = IRVisitorWithAnalyzer;
+  using Parent::VisitExpr_;
+  using Parent::VisitStmt_;
 
   void VisitExpr_(const BufferLoadNode* op) final {
     // Record load-exclusive buffer access
     Touch(&std::get<LoadAccess>(buffer_access_map_[op->buffer.get()]).set, op->indices);
     // Record load-store inclusive buffer access
     Touch(&std::get<CombinedAccess>(buffer_access_map_[op->buffer.get()]).set, op->indices);
-    StmtExprVisitor::VisitExpr_(op);
+    Parent::VisitExpr_(op);
   }
 
   void VisitStmt_(const BufferStoreNode* op) final {
@@ -130,11 +110,11 @@ class BufferTouchedDomain final : public StmtExprVisitor {
     Touch(&std::get<StoreAccess>(buffer_access_map_[op->buffer.get()]).set, op->indices);
     // Record load-store inclusive buffer access
     Touch(&std::get<CombinedAccess>(buffer_access_map_[op->buffer.get()]).set, op->indices);
-    StmtExprVisitor::VisitStmt_(op);
+    Parent::VisitStmt_(op);
   }
 
  private:
-  void Touch(BufferTouches* bounds, const Array<PrimExpr>& args) const {
+  void Touch(BufferTouches* bounds, const Array<PrimExpr>& args) {
     if (args.size() > bounds->size()) {
       bounds->resize(args.size());
     }
@@ -142,13 +122,12 @@ class BufferTouchedDomain final : public StmtExprVisitor {
       if (args[i].as<RampNode>()) {
         (*bounds)[i].emplace_back(IntSet::Vector(args[i]));
       } else {
-        (*bounds)[i].emplace_back(EvalSet(args[i], dom_map_));
+        (*bounds)[i].emplace_back(analyzer_.int_set(args[i]));
       }
     }
   }
 
   std::unordered_map<const BufferNode*, BufferDomainAccess> buffer_access_map_;
-  std::unordered_map<const VarNode*, IntSet> dom_map_;
 };
 
 Region DomainTouched(const Stmt& stmt, const Buffer& buffer, bool consider_loads,

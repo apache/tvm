@@ -113,7 +113,8 @@ efficient implementation of bitserial operations.
     .set_attrs_type<BitPackAttrs>()
     .add_argument("data", "Tensor", "Input data.")
     .set_support_level(2)
-    .add_type_rel("BitPack", BitPackRel);
+    .add_type_rel("BitPack", BitPackRel)
+    .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 // relay.nn.bitserial_conv2d
 TVM_REGISTER_NODE_TYPE(BinaryConv2DAttrs);
@@ -192,7 +193,8 @@ on some platforms.
     .set_support_level(2)
     .add_type_rel("BinaryConv2D", BinaryConv2DRel)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-                                   BinaryConv2DInferCorrectLayout<BinaryConv2DAttrs>);
+                                   BinaryConv2DInferCorrectLayout<BinaryConv2DAttrs>)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable);
 
 // relay.nn.bitserial_dense
 TVM_REGISTER_NODE_TYPE(BinaryDenseAttrs);
@@ -251,7 +253,8 @@ RELAY_REGISTER_OP("nn.bitserial_dense")
     .add_argument("data", "2D Tensor", "Input data.")
     .add_argument("weight", "2D Tensor", "Weight matrix.")
     .set_support_level(1)
-    .add_type_rel("BinaryDense", BinaryDenseRel);
+    .add_type_rel("BinaryDense", BinaryDenseRel)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable);
 
 }  // namespace relay
 }  // namespace tvm

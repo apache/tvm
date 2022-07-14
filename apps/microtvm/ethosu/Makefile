@@ -78,6 +78,7 @@ endif
 CODEGEN_SRCS = $(wildcard $(abspath $(BUILD_DIR))/codegen/host/src/*.c)
 CODEGEN_OBJS = $(subst .c,.o,$(CODEGEN_SRCS))
 CMSIS_STARTUP_SRCS = $(wildcard ${CMSIS_PATH}/Device/ARM/${ARM_CPU}/Source/*.c)
+CMSIS_NN_SOFTMAX_SRCS = $(shell find ${CMSIS_PATH}/CMSIS/NN/Source/SoftmaxFunctions/*.c)
 UART_SRCS = $(wildcard ${CORSTONE_300_PATH}/*.c)
 
 demo: $(BUILD_DIR)/demo
@@ -109,33 +110,16 @@ ${BUILD_DIR}/ethosu_core_driver/libethosu_core_driver.a:
 	$(QUIET)cd $(ETHOSU_DRIVER_PATH) && $(CMAKE) -B $(abspath $(BUILD_DIR)/ethosu_core_driver) $(DRIVER_CMAKE_FLAGS)
 	$(QUIET)cd $(abspath $(BUILD_DIR)/ethosu_core_driver) && $(MAKE)
 
-
-CMSIS_SHA_FILE=${CMSIS_PATH}/977abe9849781a2e788b02282986480ff4e25ea6.sha
-ifneq ("$(wildcard $(CMSIS_SHA_FILE))","")
-# Build CMSIS-NN
-${BUILD_DIR}/cmsis_nn/Source/libcmsis-nn.a:
-	$(QUIET)mkdir -p $(@D)
-	$(QUIET)cd $(CMSIS_PATH)/CMSIS/NN && $(CMAKE) -B $(abspath $(BUILD_DIR)/cmsis_nn) $(CMSIS_NN_CMAKE_FLAGS)
-	$(QUIET)cd $(abspath $(BUILD_DIR)/cmsis_nn) && $(MAKE) all
-else
 # Build CMSIS-NN Softmax
-${BUILD_DIR}/cmsis_nn/Source/SoftmaxFunctions/libCMSISNNSoftmax.a:
-	$(QUIET)mkdir -p $(@D)
-	$(QUIET)cd $(CMSIS_PATH)/CMSIS/NN && $(CMAKE) -B $(abspath $(BUILD_DIR)/cmsis_nn) $(CMSIS_NN_CMAKE_FLAGS)
-	$(QUIET)cd $(abspath $(BUILD_DIR)/cmsis_nn) && $(MAKE) CMSISNNSoftmax
-endif
+${BUILD_DIR}/libcmsis_nn_softmax.a: $(CMSIS_NN_SOFTMAX_SRCS)
+	$(QUIET)mkdir -p $(abspath $(BUILD_DIR)/libcmsis_nn)
+	$(QUIET)cd $(abspath $(BUILD_DIR)/libcmsis_nn) && $(CC) -c $(PKG_CFLAGS) -D${ARM_CPU} $^
+	$(QUIET)$(AR) -cr $(abspath $(BUILD_DIR)/libcmsis_nn_softmax.a) $(abspath $(BUILD_DIR))/libcmsis_nn/*.o
+	$(QUIET)$(RANLIB) $(abspath $(BUILD_DIR)/libcmsis_nn_softmax.a)
 
-
-# Build demo application
-ifneq ("$(wildcard $(CMSIS_SHA_FILE))","")
-$(BUILD_DIR)/demo: $(DEMO_MAIN) src/tvm_ethosu_runtime.c $(FREERTOS_SOURCES) $(UART_SRCS) $(BUILD_DIR)/stack_allocator.o $(BUILD_DIR)/crt_backend_api.o ${BUILD_DIR}/libcodegen.a ${BUILD_DIR}/libcmsis_startup.a ${BUILD_DIR}/ethosu_core_driver/libethosu_core_driver.a ${BUILD_DIR}/cmsis_nn/Source/libcmsis-nn.a
+$(BUILD_DIR)/demo: $(DEMO_MAIN) src/tvm_ethosu_runtime.c $(FREERTOS_SOURCES) $(UART_SRCS) $(BUILD_DIR)/stack_allocator.o $(BUILD_DIR)/crt_backend_api.o ${BUILD_DIR}/libcodegen.a ${BUILD_DIR}/libcmsis_startup.a ${BUILD_DIR}/ethosu_core_driver/libethosu_core_driver.a ${BUILD_DIR}/libcmsis_nn_softmax.a
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) $(PKG_CFLAGS) $(FREERTOS_FLAGS) -o $@ $^ $(PKG_LDFLAGS)
-else
-$(BUILD_DIR)/demo: $(DEMO_MAIN) src/tvm_ethosu_runtime.c $(FREERTOS_SOURCES) $(UART_SRCS) $(BUILD_DIR)/stack_allocator.o $(BUILD_DIR)/crt_backend_api.o ${BUILD_DIR}/libcodegen.a ${BUILD_DIR}/libcmsis_startup.a ${BUILD_DIR}/ethosu_core_driver/libethosu_core_driver.a ${BUILD_DIR}/cmsis_nn/Source/SoftmaxFunctions/libCMSISNNSoftmax.a
-	$(QUIET)mkdir -p $(@D)
-	$(QUIET)$(CC) $(PKG_CFLAGS) $(FREERTOS_FLAGS) -o $@ $^ $(PKG_LDFLAGS)
-endif
 
 clean:
 	$(QUIET)rm -rf $(BUILD_DIR)/codegen

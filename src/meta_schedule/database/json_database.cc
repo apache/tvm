@@ -203,7 +203,7 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
           } catch (std::runtime_error& e) {
             LOG(FATAL) << "ValueError: Unable to parse TuningRecord, on line " << (task_id + 1)
                        << " of file " << path_tuning_record << ". The workload is:\n"
-                       << (workload.defined() ? tir::AsTVMScript(workload) : "(null)")
+                       << (workload.defined() ? tir::AsTVMScript(workload->mod) : "(null)")
                        << "\nThe JSONObject of TuningRecord is:\n"
                        << json_obj << "\nThe error message is:\n"
                        << e.what();

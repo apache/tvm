@@ -958,7 +958,9 @@ def test_llvm_target_attributes():
     functions_with_target = []
 
     for line in llvm_ir_lines:
-        func_def = re.match("define.* @(?P<func_name>[^(]*)\(.* #(?P<attr_num>[0-9]+) {$", line)
+        func_def = re.match(
+            "define.* @(?P<func_name>[^(]*)[(].* #(?P<attr_num>[0-9]+) (!.* |){$", line
+        )
         if func_def:
             functions_with_target.append(func_def.group("func_name"))
             attributes_with_target[func_def.group("attr_num")] = True
@@ -969,7 +971,7 @@ def test_llvm_target_attributes():
 
     for k in list(attributes_with_target.keys()):
         assert re.match('.*"target-cpu"="skylake".*', attribute_definitions[k])
-        assert re.match('.*"target-features"=".*\+avx512f.*".*', attribute_definitions[k])
+        assert re.match('.*"target-features"=".*[+]avx512f.*".*', attribute_definitions[k])
 
     expected_functions = ["test_func", "test_func_compute_", "__tvm_parallel_lambda"]
     for n in expected_functions:

@@ -52,6 +52,8 @@ CTXT = tvm.transform.PassContext(config={"relay.fallback_device_type": DEFAULT.d
 core = tvm.IRModule()
 core.import_from_std("core.rly")
 
+recover_virtual_device_map = tvm._ffi.get_global_func("relay.transform.RecoverVirtualDeviceMap")
+
 
 def rewrite_and_assert(in_mod, expected_mod):
     """Manually run the pass and assert it's structurally equals to the expected."""
@@ -239,6 +241,82 @@ def test_left_add_on_cpu_via_copy():
         return np.subtract(np.add(a, b), np.add(c, d))
 
     exercise(input(), expected(), ref, rands((5, 7), 4))
+
+
+def test_left_add_on_cpu_via_copy_as_map():
+    metatable = {"VirtualDevice": [CPU, GPU]}
+
+    # As for test_left_add_on_cpu, but with an explicit device_copy.
+    def input():
+        return tvm.parser.parse(
+            """
+            #[version = "0.0.5"]
+            def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
+                      %c: Tensor[(5, 7), float32], %d: Tensor[(5, 7), float32]) {
+              %0 = add(%a, %b);
+              %1 = device_copy(%0, src_virtual_device=meta[VirtualDevice][0], dst_virtual_device=meta[VirtualDevice][1]);
+              %2 = add(%c, %d);
+              subtract(%1, %2)
+            }
+        """,
+            "from_string",
+            None,
+            metatable,
+        )
+
+    config = tvm.target.make_compilation_config(CTXT, TARGETS, HOST_TARGET)
+    actual_mod = relay.transform.InferType()(input())
+    actual_mod = relay.transform.PlanDevices(config)(actual_mod)
+    actual_mod = relay.transform.CapturePostDfsIndexInSpans()(actual_mod)
+
+    # Same expected result as for test_left_add_on_cpu, but we'll include indexes to help
+    # the test make sense.
+    def expected():
+        return tvm.parser.parse(
+            """
+            #[version = "0.0.5"]
+            def @main(%a {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], // index 0
+                      %b {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], // index 1
+                      %c {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], // index 2
+                      %d {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], // index 3
+                      virtual_device=meta[VirtualDevice][1]) {
+              %0 = add(%a, %b);                                                            // index 8
+              %1 = on_device(%0,
+                             virtual_device=meta[VirtualDevice][0],
+                             constrain_result=True);                                       // index 9
+              %2 = device_copy(%1,
+                               src_virtual_device=meta[VirtualDevice][0],
+                               dst_virtual_device=meta[VirtualDevice][1]);                 // index 10
+              %3 = add(%c, %d);                                                            // index 11
+              subtract(%2, %3)                                                             // index 12
+            }                                                                              // index 13
+        """,
+            "from_string",
+            None,
+            metatable,
+        )
+
+    # Make sure actual matches.
+    tvm.ir.assert_structural_equal(actual_mod, expected(), True)
+
+    # Recover all the inferred virtual devices in map form
+    raw_map = recover_virtual_device_map(actual_mod, actual_mod["main"])
+    # Rewrite the map to be from post-dfs indexes to device types
+    map = {e.span.line: d.device_type for e, d in raw_map.items()}
+    # Now we can express the expected map
+    expected_map = {
+        0: CPU.device_type,  # %a
+        1: CPU.device_type,  # %b
+        2: GPU.device_type,  # %c
+        3: GPU.device_type,  # %d
+        8: CPU.device_type,  # first add
+        9: CPU.device_type,  # on_device
+        10: GPU.device_type,  # device_copy
+        11: GPU.device_type,  # second add
+        12: GPU.device_type,  # subtract
+        13: GPU.device_type,  # @main
+    }
+    assert map == expected_map
 
 
 def test_both_adds_on_cpu():

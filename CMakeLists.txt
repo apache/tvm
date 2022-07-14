@@ -296,6 +296,7 @@ tvm_file_glob(GLOB_RECURSE RELAY_OP_SRCS
     )
 tvm_file_glob(GLOB_RECURSE RELAY_PASS_SRCS
     src/relay/analysis/*.cc
+    src/relay/collage/*.cc
     src/relay/transforms/*.cc
     src/relay/quantize/*.cc
     )
