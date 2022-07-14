@@ -278,14 +278,14 @@ class CopyComputeReorderingMutator : public StmtExprMutator {
       for (size_t idx = ops.size() - 1; idx > 0; --idx) {
         if (ops[idx].global_copy.as<AttrStmtNode>()) {
           // Check whether the copy is hidden
-          int64_t copy_cycles{get_cycles(ops[idx].global_copy)};
-          int64_t compute_cycles{get_cycles(ops[idx].compute_op)};
+          int64_t copy_cycles{GetStmtCycles(ops[idx].global_copy)};
+          int64_t compute_cycles{GetStmtCycles(ops[idx].compute_op)};
           bool is_hidden = compute_cycles >= copy_cycles;
 
           // If the previous compute op is not already hiding another copy, move the copy back, so
           // that it would be hidden by multiple computes
           while (!is_hidden && !ops[idx - 1].global_copy.as<AttrStmtNode>() && (idx > 0)) {
-            int64_t new_compute_cycles{get_cycles(ops[idx - 1].compute_op)};
+            int64_t new_compute_cycles{GetStmtCycles(ops[idx - 1].compute_op)};
             ops[idx - 1].global_copy = ops[idx].global_copy;
             ops[idx].global_copy = {};
             compute_cycles += new_compute_cycles;
@@ -317,7 +317,8 @@ class CopyComputeReorderingMutator : public StmtExprMutator {
       for (size_t index = 0; index < new_seq.size(); ++index) {
         if (GetStmtType(new_seq[index]) == StmtType::global_copy) {
           int lower = std::max(0, static_cast<int>(index) - _max_copy_movements);
-          for (int i = index; i > lower && (GetStmtType(new_seq[i - 1]) == StmtType::compute); --i) {
+          for (int i = index; i > lower && (GetStmtType(new_seq[i - 1]) == StmtType::compute);
+               --i) {
             std::swap(new_seq[i - 1], new_seq[i]);
           }
         }
@@ -329,44 +330,11 @@ class CopyComputeReorderingMutator : public StmtExprMutator {
     return Stmt{seq_stmt_node};
   }
 
-  int64_t get_cycles(const Stmt& stmt) {
-    auto attr_node{stmt.as<AttrStmtNode>()};
-    ICHECK(attr_node) << "The cycle count attribute is missing";
-    return attr_node->value.as<IntImmNode>()->value;
-  }
+  bool stmt_is_global_copy(const Stmt& stmt) { return GetStmtType(stmt) == StmtType::global_copy; }
 
-  tvm::runtime::Array<tvm::PrimExpr> get_stmt_args(const Stmt& stmt) {
-    Stmt eval_stmt = stmt;
-    if (const auto* attr_stmt = eval_stmt.as<AttrStmtNode>()) {
-      eval_stmt = attr_stmt->body;
-    }
+  bool stmt_is_local_copy(const Stmt& stmt) { return GetStmtType(stmt) == StmtType::local_copy; }
 
-    auto eval_node{eval_stmt.as<EvaluateNode>()};
-    ICHECK(eval_node) << "Expected statement to be an evaluate node, but was "
-                      << eval_stmt->GetTypeKey();
-    auto call_node{eval_node->value.as<CallNode>()};
-    ICHECK(call_node) << "Expected expression to be a call node, but was "
-                      << eval_node->value->GetTypeKey();
-    return call_node->args;
-  }
-
-  bool stmt_is_global_copy(const Stmt& stmt) {
-    auto args{get_stmt_args(stmt)};
-    return args[0].as<StringImmNode>()->value == "ethosu_copy" &&
-           args[3].as<BufferLoadNode>()->buffer.scope() == "global";
-  }
-
-  bool stmt_is_local_copy(const Stmt& stmt) {
-    auto args{get_stmt_args(stmt)};
-    return args[0].as<StringImmNode>()->value == "ethosu_copy" &&
-           args[3].as<BufferLoadNode>()->buffer.scope() == "local";
-  }
-
-  bool stmt_is_copy(const Stmt& stmt) {
-    return stmt_is_global_copy(stmt) || stmt_is_local_copy(stmt);
-  }
-
-  bool stmt_is_compute_op(const Stmt& stmt) { return !stmt_is_copy(stmt); }
+  bool stmt_is_compute_op(const Stmt& stmt) { return GetStmtType(stmt) == StmtType::compute; }
 
   /*! The maximum number of movements allowed for a copy. */
   int _max_copy_movements;
@@ -401,7 +369,7 @@ tvm::transform::Pass CopyComputeReordering(Optional<Integer> max_copy_movements,
         ctx->GetConfig(kCopyComputeReorderingMaxCopyMovements, Integer(1)).value());
     auto reorder = reorder_by_cycles.value_or(
         ctx->GetConfig(kCopyComputeReorderingReorderByCycles, Bool(false)).value());
-    return CopyComputeReorderingMutator(copy_movements, reorder)(f);
+    return CopyComputeReorderingMutator(copy_movements.IntValue(), reorder)(f);
   };
   return tvm::tir::transform::CreatePrimFuncPass(pass_func, 0,
                                                  "tir.contrib.ethos-u.CopyComputeReordering", {});
