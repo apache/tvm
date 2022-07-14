@@ -44,7 +44,9 @@ def conv2d_strategy_intel_graphics(attrs, inputs, out_type, target):
             # conv2d_NCHWc won't work without alter op layout pass
             # TODO(@Laurawly): fix this
             strategy.add_implementation(
-                wrap_compute_conv2d(topi.intel_graphics.conv2d_NCHWc, True, True),
+                wrap_compute_conv2d(
+                    topi.intel_graphics.conv2d_NCHWc, need_data_layout=True, need_out_layout=True
+                ),
                 wrap_topi_schedule(topi.intel_graphics.schedule_conv2d_NCHWc),
                 name="conv2d_NCHWc.intel_graphics",
                 plevel=5,
@@ -71,7 +73,9 @@ def conv2d_NCHWc_strategy_intel_graphics(attrs, inputs, out_type, target):
     """conv2d_NCHWc intel_graphics strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_conv2d(topi.intel_graphics.conv2d_NCHWc, True, True),
+        wrap_compute_conv2d(
+            topi.intel_graphics.conv2d_NCHWc, need_data_layout=True, need_out_layout=True
+        ),
         wrap_topi_schedule(topi.intel_graphics.schedule_conv2d_NCHWc),
         name="conv2d_NCHWc.intel_graphics",
     )
