@@ -29,6 +29,7 @@
 
 #include "../../arith/pattern_match.h"
 #include "codegen_params.h"
+#include "tvm/tir/stmt.h"
 
 namespace tvm {
 namespace codegen {
@@ -658,6 +659,10 @@ void CodeGenC::VisitStmt_(const AllocateConstNode* op) {
               << "}  // extern \"C\"\n"
               << "#endif\n";
   var_idmap_[op->buffer_var.operator->()] = symbol_name;
+  this->PrintStmt(op->body);
+}
+
+void CodeGenC::VisitStmt_(const DeclBufferNode* op) {
   this->PrintStmt(op->body);
 }
 
