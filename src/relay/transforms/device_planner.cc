@@ -553,18 +553,9 @@ class DeviceAnalyzer : public MixedModeVisitor {
   }
 
   void VisitExpr_(const FunctionNode* function_node) final {
-    // No need to step into fused primitive functions as they are lowered individually according
-    // to the devices of all their call sites.
-    if (function_node->HasNonzeroAttr(attr::kPrimitive)) {
-      return;
-    }
-
     auto function = GetRef<Function>(function_node);
     auto func_domain = domains_->DomainFor(function);  // higher-order
-
-    // The function body domain must match the function result domain.
-    domains_->UnifyExprExact(function_node->body,
-                             func_domain->function_result());  // may be higher-order
+    ICHECK_EQ(func_domain->function_arity(), function_node->params.size());
 
     VLOG(2) << "initial function domain:" << std::endl
             << domains_->ToString(func_domain) << std::endl
@@ -573,39 +564,33 @@ class DeviceAnalyzer : public MixedModeVisitor {
             << "for function:" << std::endl
             << PrettyPrint(function);
 
-    ICHECK_EQ(func_domain->function_arity(), function_node->params.size());
-    for (size_t i = 0; i < function_node->params.size(); ++i) {
-      // The parameter domains must match the function argument domains.
-      domains_->UnifyExprExact(function_node->params[i],
-                               func_domain->function_param(i));  // may be higher-order
-      VisitExpr(function_node->params[i]);
-    }
-
-    // If the function already has VirtualDevice attributes then we can further constrain the
-    // function's domain to match them.
+    // The function body domain must match the function result domain.
+    domains_->UnifyExprExact(function_node->body,
+                             func_domain->function_result());  // may be higher-order
     if (!function_node->virtual_device()->IsFullyUnconstrained()) {
-      std::vector<DeviceDomainPtr> args_and_result;
-      for (auto param : function_node->params) {
-        args_and_result.emplace_back(
-            domains_->ForVirtualDevice(param->checked_type(), param->virtual_device()));
-      }
-      args_and_result.emplace_back(domains_->ForVirtualDevice(function_node->body->checked_type(),
-                                                              function_node->virtual_device()));
-      auto annotation_domain = domains_->MakeHigherOrderDomain(std::move(args_and_result));
-      if (domains_->UnifyOrNull(func_domain, annotation_domain) == nullptr) {  // higher-order
-        // TODO(mbs): Proper diagnostics.
-        LOG(FATAL) << "Function VirtualDevices are incompatible with its \"on_device\" annotation. "
-                      "Function:"
-                   << std::endl
-                   << PrettyPrint(function) << std::endl
-                   << "with function virtual devices:" << std::endl
-                   << domains_->ToString(func_domain) << std::endl
-                   << "and annotation virtual devices:" << std::endl
-                   << domains_->ToString(annotation_domain);
-      }
+      // The function body domain must match any existing virtual device annotation.
+      domains_->UnifyExprExact(function_node->body,
+                               domains_->ForVirtualDevice(function_node->body->checked_type(),
+                                                          function_node->virtual_device()));
     }
 
-    VisitExpr(function_node->body);
+    for (size_t i = 0; i < function_node->params.size(); ++i) {
+      const auto& param = function_node->params[i];
+      // The parameter domain must match the function argument domain.
+      domains_->UnifyExprExact(param,
+                               func_domain->function_param(i));  // may be higher-order
+      if (!param->virtual_device()->IsFullyUnconstrained()) {
+        // The parameter domain must match any existing virtual device annotation.
+        domains_->UnifyExprExact(
+            param, domains_->ForVirtualDevice(param->checked_type(), param->virtual_device()));
+      }
+      VisitExpr(param);
+    }
+
+    // No need to step into the body of Primitive functions.
+    if (!function_node->HasNonzeroAttr(attr::kPrimitive)) {
+      VisitExpr(function_node->body);
+    }
 
     VLOG(2) << "final function domain:" << std::endl
             << domains_->ToString(func_domain) << std::endl
@@ -839,10 +824,16 @@ class DeviceDefaulter : public ExprVisitor {
       // For calls to Relay functions this step is identical to that for VisitExpr_(FunctionNode*)
       // above. But for calls to primitives we may still need to force free domains to be
       // defaulted.
-      VLOG(2) << "before defaulting callee:" << std::endl << domains_->ToString(func_domain);
+      VLOG(2) << "before defaulting callee:" << std::endl
+              << PrettyPrint(call_node->op) << std::endl
+              << "of domain:" << std::endl
+              << domains_->ToString(func_domain);
       domains_->SetResultDefaultThenParams(func_domain,
                                            domains_->config()->default_primitive_virtual_device);
-      VLOG(2) << "after defaulting callee:" << std::endl << domains_->ToString(func_domain);
+      VLOG(2) << "after defaulting callee:" << std::endl
+              << PrettyPrint(call_node->op) << std::endl
+              << "of domain:" << std::endl
+              << domains_->ToString(func_domain);
     }
     return ExprVisitor::VisitExpr_(call_node);
   }
