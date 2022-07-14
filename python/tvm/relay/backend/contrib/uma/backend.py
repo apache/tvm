@@ -171,12 +171,14 @@ class UMABackend(ABC):
         op: str
            The name of the operator for which this strategy will be registered.
 
-        strategy: Callable[[tvm.ir.Attrs, tvm.ir.Array, tvm.ir.TensorType, tvm.target.Target], tvm.relay.op.op.OpStrategy]
+        strategy: Callable[[tvm.ir.Attrs, tvm.ir.Array, tvm.ir.TensorType, tvm.target.Target],
+                            tvm.relay.op.op.OpStrategy]
             The strategy function.
 
         plevel: Optional[int] = 11
             The priority level of the strategy. Higher plevel equals higher priorization.
-            The TVM default for topi strategies is 10 so by default new UMA strategies are always used.
+            The TVM default for topi strategies is 10 so by default new UMA strategies are
+            always used.
 
         Example
         -------
@@ -261,9 +263,11 @@ class UMABackend(ABC):
                 fmt="c", includes=gen_includes, replace_call_extern=gen_replace_call_extern
             )
 
-        The C-codegen provides two hooks which allows the user to insert code through the python API.
+        The C-codegen provides two hooks which allows the user to insert code through
+        the python API.
             - `includes` hooks into the include stream and allows insertion of custom includes.
-            - `replace_call_extern` hooks into the expression visitor and allows the user to insert custom code for a given extern call.
+            - `replace_call_extern` hooks into the expression visitor and allows the user to insert
+            custom code for a given extern call.
 
         The code generation functions can look like this:
 

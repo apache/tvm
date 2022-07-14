@@ -73,7 +73,7 @@ def main():
     uma_template_path = "_template"
     uma_files = ["backend.py", "codegen.py", "passes.py", "patterns.py", "run.py", "strategies.py"]
     if args.tutorial == "vanilla":
-        uma_files.append("conv2dnchw.cpp")
+        uma_files.append("conv2dnchw.cc")
 
     source_files = [os.path.join(uma_template_path, f) for f in uma_files]
     destination_files = [os.path.join(add_hw_path, f) for f in uma_files]

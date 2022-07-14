@@ -47,7 +47,7 @@ def _pepare_conv2d_schedule(shapes, use_external_conv2d_impl=True):
     placeholders = _conv2d_te_definition(shapes)
 
     uma_path = pathlib.Path(str(tvm.relay.backend.contrib.uma.__file__)).parent.absolute()
-    conv2d_file = uma_path / "_template" / "conv2dnchw.cpp"
+    conv2d_file = uma_path / "_template" / "conv2dnchw.cc"
 
     with conv2d_file.open() as f:
         sch_tir = _create_schedule(

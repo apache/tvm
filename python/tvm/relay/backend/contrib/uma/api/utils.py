@@ -17,11 +17,9 @@
 """Utility methods for the Universal Modular Accelerator Interface (UMA)"""
 
 from enum import Enum, auto
-
-# TODO: naming
+import uuid
 import tvm.tir
 from tvm.contrib import utils, clang
-import uuid
 
 
 class PassPhase(Enum):

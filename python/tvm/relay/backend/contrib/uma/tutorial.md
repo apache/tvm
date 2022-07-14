@@ -42,7 +42,7 @@ $ ls tvm/python/tvm/relay/backend/contrib/uma/vanilla_accelerator
 
 backend.py
 codegen.py
-conv2dnchw.cpp
+conv2dnchw.cc
 passes.py
 patterns.py
 run.py
@@ -106,7 +106,7 @@ self._register_codegen(fmt="c", includes=gen_includes)
 
 # in vanilla_accelerator/codegen.py
 def gen_includes() -> str:
-    return "#include \"conv2dnchw.cpp\""
+    return "#include \"conv2dnchw.cc\""
 ```        
 
 
