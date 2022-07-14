@@ -104,6 +104,7 @@ We do encourage everyone to work anything they are interested in.
 - [Haozheng Fan](https://github.com/hzfan): @hzfan
 - [Siyuan Feng](https://github.com/Hzfengsy): @Hzfengsy
 - [Josh Fromm](https://github.com/jwfromm): @jwfromm
+- [Alexey Gladyshev](https://github.com/KJlaccHoeUM9l): @KJlaccHoeUM9l
 - [Sergei Grechanik](https://github.com/sgrechanik-h): @sgrechanik-h
 - [Altan Haan](https://github.com/altanh): @altanh
 - [Mehrdad Hessar](https://github.com/mehrdadh): @mehrdadh
