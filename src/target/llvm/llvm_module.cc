@@ -480,7 +480,8 @@ TVM_REGISTER_GLOBAL("codegen.codegen_blob")
                        std::string llvm_target_string) -> runtime::Module {
       auto n = make_object<LLVMModuleNode>();
       auto llvm_scope = std::make_unique<LLVMScope>();
-      std::unique_ptr<llvm::Module> blob = CodeGenBlob(data, system_lib, llvm_target_string);
+      With<LLVMTarget> llvm_target(*llvm_scope, llvm_target_string);
+      std::unique_ptr<llvm::Module> blob = CodeGenBlob(data, system_lib, llvm_target.operator->());
       n->Init(std::move(blob), std::move(llvm_scope));
       return runtime::Module(n);
     });

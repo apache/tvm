@@ -58,9 +58,7 @@ namespace tvm {
 namespace codegen {
 
 std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_lib,
-                                          const std::string& llvm_target_string) {
-  auto llvm_scope = std::make_unique<LLVMScope>();
-  With<LLVMTarget> llvm_target(*llvm_scope, llvm_target_string);
+                                          LLVMTarget* llvm_target) {
   llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
   const llvm::Triple& triple = tm->getTargetTriple();
   llvm::LLVMContext* ctx = llvm_target->GetContext();

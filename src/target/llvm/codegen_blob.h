@@ -35,6 +35,9 @@ class Module;
 
 namespace tvm {
 namespace codegen {
+
+class LLVMTarget;
+
 /**
  * \brief Code Generation of blob data
  *
@@ -45,7 +48,7 @@ namespace codegen {
  * \return LLVM module and LLVM context
  */
 std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_lib,
-                                          const std::string& llvm_target_string);
+                                          LLVMTarget* llvm_target);
 
 }  // namespace codegen
 }  // namespace tvm
