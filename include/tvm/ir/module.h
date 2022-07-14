@@ -42,6 +42,7 @@
 namespace tvm {
 
 class IRModule;
+const std::string IRMODULE_MODEL_HASH = "model_hash";
 
 /*!
  * \brief IRModule that holds functions and type definitions.
@@ -61,7 +62,7 @@ class IRModuleNode : public Object {
   Map<GlobalTypeVar, TypeData> type_definitions;
   /*! \brief The source map for the module. */
   parser::SourceMap source_map;
-  /* \brief Additional attributes storing meta-data about the module. */
+  /*! \brief Additional attributes storing meta-data about the module. */
   DictAttrs attrs;
 
   /*!

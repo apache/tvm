@@ -6231,8 +6231,8 @@ def from_onnx(
     if freeze_params:
         mod = relay.transform.DynamicToStatic()(mod)
 
-    if (get_hash):
+    if get_hash:
         onnx_model_hash = hashlib.sha256(model.SerializeToString()).hexdigest()
-        mod.with_attr("onnx_model_hash", onnx_model_hash)
+        mod = mod.set_hash(onnx_model_hash)
 
     return mod, params

@@ -64,10 +64,10 @@ def compile(mod, target=None, target_host=None, params=None):
     compiler = VMCompiler()
     if params:
         compiler.set_params(params)
+    vm_hash = mod.get_hash()
     compiler.lower(mod, target, target_host)
     compiler.codegen()
     vm_exec = compiler.get_exec()
-    vm_hash = mod.get_attr("onnx_model_hash")
     if vm_hash:
         vm_exec.set_hash(vm_hash)
     return vm_exec

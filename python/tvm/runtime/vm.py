@@ -163,6 +163,9 @@ class Executable(object):
     def set_hash(self, vm_hash):
         self.hash = vm_hash
 
+    def get_hash(self):
+        return self.hash
+
     def save_hash(self, dir):
         """Save hash of the onnx model in the file with path dir/hash.txt.
 
@@ -174,7 +177,7 @@ class Executable(object):
         """
         hash_path = os.path.join(dir, "hash.txt")
         with open(hash_path, "wb") as fh:
-            fh.write(self.hash)
+            fh.write(self.hash.encode())
 
     @staticmethod
     def load_exec(bytecode, lib):

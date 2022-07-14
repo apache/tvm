@@ -531,6 +531,15 @@ TVM_REGISTER_GLOBAL("ir.Module_GetAttr").set_body_typed([](IRModule mod, String 
   return mod->GetAttr<ObjectRef>(key);
 });
 
+TVM_REGISTER_GLOBAL("ir.Module_SetHash")
+    .set_body_typed([](IRModule mod, String hash) -> IRModule {
+      return WithAttr(std::move(mod), String(IRMODULE_MODEL_HASH), Downcast<ObjectRef>(hash));
+    });
+
+TVM_REGISTER_GLOBAL("ir.Module_GetHash").set_body_typed([](IRModule mod) -> ObjectRef {
+  return mod->GetAttr<ObjectRef>(String(IRMODULE_MODEL_HASH));
+});
+
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<IRModuleNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const IRModuleNode*>(ref.get());
