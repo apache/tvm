@@ -44,6 +44,21 @@ class UMAPartitioner:
         pattern: tvm.relay.dataflow_pattern.DFPattern,
         predicate: Optional[Callable] = None,
     ) -> None:
+        """Add pattern to UMA partitioner
+
+        Parameters
+        ----------
+        name : str
+            relay name of pattern
+
+        pattern: tvm.relay.dataflow_pattern.DFPattern
+            pattern description as DFPattern
+
+        predicate: Optional[Callable]
+            Optional predicate
+
+        """
+
         name = self.target_name + "." + name
         if predicate:
             self._patterns.append((name, pattern, predicate))
@@ -66,6 +81,8 @@ class UMAPartitioner:
         ----------
         mod : tvm.IRModule
             The relay module to be partitioned.
+
+        params: Optional[Dict[str, tvm.runtime.NDArray]]
 
         Returns
         -------
@@ -92,8 +109,8 @@ class UMAPartitioner:
         )(mod)
         mod = relay.transform.InferType()(mod)
         # Defunctionalize the partitioned functions to allow lowering
-        for gv, func in mod.functions.items():
-            mod.update_func(gv, relay.transform.Defunctionalization(func, mod))
+        for gvar, func in mod.functions.items():
+            mod.update_func(gvar, relay.transform.Defunctionalization(func, mod))
         mod = tvm.transform.Sequential(
             [p[1] for p in self._relay_passes if p[0] == PassPhase.POST_PARTITIONING_1]
         )(mod)

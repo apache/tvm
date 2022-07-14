@@ -28,6 +28,7 @@ from tvm.relay.backend.contrib.uma.api.utils import PassPhase
 
 class UMABackend(ABC):
     """Backend base class of the Universal Modular Accelerator Interface (UMA)"""
+
     def __init__(self, merge_compiler_regions: bool = True) -> None:
         self._target_attrs: Dict = {}
         self._target_preprocessor: Callable[[str], Dict[str, Any]] = None
@@ -128,7 +129,7 @@ class UMABackend(ABC):
         pattern: tvm.relay.dataflow_pattern.DFPattern
             The dataflow pattern.
 
-        predicate: Callable Receiving the matched pattern and 
+        predicate: Callable Receiving the matched pattern and
 
         Example
         -------
@@ -201,7 +202,9 @@ class UMABackend(ABC):
         """
         self._relay_to_tir._operator_strategies.append((op, strategy, plevel))
 
-    def _register_tir_pass(self, phase: PassPhase, tir_pass: tvm.tir.transform.PrimFuncPass) -> None:
+    def _register_tir_pass(
+        self, phase: PassPhase, tir_pass: tvm.tir.transform.PrimFuncPass
+    ) -> None:
         """Registers a TIR pass at the given phase in the lowering process.
 
         Parameters

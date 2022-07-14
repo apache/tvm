@@ -25,6 +25,7 @@
 import argparse
 import os
 import shutil
+import sys
 from inflection import camelize, underscore
 
 
@@ -43,7 +44,9 @@ def _parse_args():
     return args
 
 
-def replace_template_name(files: list, template_name: str, add_hw_name: str, template_source: str = "_template") -> None:
+def replace_template_name(
+    files: list, template_name: str, add_hw_name: str, template_source: str = "_template"
+) -> None:
     for f in files:
         with open(f) as read_file:
             data = read_file.read()
@@ -55,11 +58,15 @@ def replace_template_name(files: list, template_name: str, add_hw_name: str, tem
 
 
 def main():
+    """
+        UMA Command Line Interface (CLI)
+    """
     args = _parse_args()
     add_hw_name = args.add_hardware
     add_hw_path = os.path.join(os.getcwd(), add_hw_name)
     if os.path.exists(add_hw_path):
-        raise ValueError(f"Hardware with name {add_hw_name} already exists in UMA file structure")
+        print(f"Hardware with name {add_hw_name} already exists in UMA file structure")
+        sys.exit(-1)
     else:
         os.mkdir(add_hw_name)
 

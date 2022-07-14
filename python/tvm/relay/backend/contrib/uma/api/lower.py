@@ -19,9 +19,9 @@
 from typing import List, Tuple, Callable, Optional
 
 import tvm
-from . import _ffi_api
 from tvm import relay, te
 from tvm.relay.op.op import register_strategy
+from . import _ffi_api
 from .utils import PassPhase
 
 
@@ -62,10 +62,10 @@ class UMALower:
             outputs = list(te_cached_func.outputs)
             stack = []
             visited = set()
-            for o in outputs:
-                if o not in visited:
-                    visited.add(o)
-                    stack.append(o)
+            for output_ in outputs:
+                if output_ not in visited:
+                    visited.add(output_)
+                    stack.append(output_)
 
             args = []
             while len(stack) != 0:
@@ -74,10 +74,10 @@ class UMALower:
                     args.append(tensor)
                 elif isinstance(tensor.op, tvm.te.tensor.ComputeOp):
                     inputs = tensor.op.input_tensors
-                    for i0 in inputs:
-                        if i0 not in visited:
-                            visited.add(i0)
-                            stack.append(i0)
+                    for input_ in inputs:
+                        if input_ not in visited:
+                            visited.add(input_)
+                            stack.append(input_)
 
             return args + outputs
 
@@ -145,11 +145,11 @@ class UMALower:
             The Relay module with scheduled NPU external functions.
         """
         mod = _ffi_api.OutlineCompilerFunctions(self.target_name)(mod)
-        for gv, func in mod.functions.items():
+        for gvar, func in mod.functions.items():
             if "Compiler" in func.attrs and func.attrs["Compiler"] == self.target_name:
                 func = self._lower_relay_to_tir(func)
                 func = self._lower_stir_to_nstir(func)
-                mod.update_func(gv, func)
+                mod.update_func(gvar, func)
         return mod
 
     def register(self) -> None:

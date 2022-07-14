@@ -23,7 +23,6 @@ import re
 import shutil
 import subprocess
 import tarfile
-import tempfile
 import logging
 from typing import Any, NamedTuple, Union, Optional, List, Dict
 import numpy as np
