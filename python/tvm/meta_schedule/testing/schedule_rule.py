@@ -26,6 +26,8 @@ from tvm.meta_schedule.schedule_rule import (
     ReuseType,
     ScheduleRule,
 )
+from tvm.meta_schedule.schedule_rule.multi_level_tiling import MultiLevelTilingTensorCore
+from tvm.tir import tensor_intrin
 from tvm.target import Target
 
 
@@ -105,6 +107,38 @@ def multi_level_tiling(target: Target) -> ScheduleRule:
                 req="must",
                 levels=[3],
                 scope="local",
+            ),
+        )
+    raise NotImplementedError(f"{target.kind.name} is not supported")
+
+
+def multi_level_tiling_tensor_core(
+    target: Target,
+    write_reuse_scope="shared",
+    in_dtype="float16",
+    out_dtype="float32",
+    trans_b=False,
+) -> ScheduleRule:
+    """Default schedule rules for with multi-level tiling reuse for tensor core"""
+    assert write_reuse_scope in ["shared", "global"]
+    if target.kind.name == "cuda":
+        return MultiLevelTilingTensorCore(
+            intrin_group=tensor_intrin.get_wmma_intrin_group(
+                write_reuse_scope, in_dtype, out_dtype, trans_b
+            ),
+            structure="SSSRRSRS",
+            tile_binds=["blockIdx.y", "blockIdx.x", "threadIdx.y"],
+            max_innermost_factor=4,  # 64 // tensor intrin size
+            vector_load_lens=[1, 2, 3, 4],
+            reuse_read=ReuseType(
+                req="must",
+                levels=[4],
+                scope="shared",
+            ),
+            reuse_write=ReuseType(
+                req="must" if write_reuse_scope == "shared" else "no",
+                levels=[2],
+                scope=write_reuse_scope,
             ),
         )
     raise NotImplementedError(f"{target.kind.name} is not supported")
