@@ -348,6 +348,14 @@ class DeviceAwareExprMutator : public ExprMutator, public LexicalOnDeviceMixin {
   virtual Expr PostVisitLetBlock_(const LetNode* pre_let_node, const LetNode* post_let_node);
 };
 
+/*!
+ * \brief Returs a map from Relay expression node to its virtual device using the annotations
+ * and \p virtual_device fields of \p expr. The map's lifetime must not exceed that of
+ * \p expr itself.
+ */
+std::unordered_map<const ExprNode*, VirtualDevice> RecoverVirtualDeviceMap(const IRModule& mod,
+                                                                           const Expr& expr);
+
 }  // namespace transform
 }  // namespace relay
 }  // namespace tvm
