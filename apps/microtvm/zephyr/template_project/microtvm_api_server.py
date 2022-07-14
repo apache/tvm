@@ -613,7 +613,7 @@ class Handler(server.ProjectAPIHandler):
     @classmethod
     def _is_fvp(cls, options):
         return (
-            options["zephyr_board"] in cls._KNOWN_FVP_ZEPHYR_BOARDS and options["use_fvp"] == True
+            options["zephyr_board"] in cls._KNOWN_FVP_ZEPHYR_BOARDS and "use_fvp" in options and options["use_fvp"] == True
         )
 
     @classmethod
@@ -842,6 +842,7 @@ class ZephyrQemuTransport:
 
         self.proc = subprocess.Popen(
             ["ninja", "run"],
+            # ["make", "run"],
             cwd=BUILD_DIR,
             env=env,
             stdout=subprocess.PIPE,
@@ -1062,7 +1063,7 @@ class ZephyrFvpTransport:
     def _fvp_check_stdout(self):
         for line in self.proc.stdout:
             line = str(line, "utf-8")
-            _LOG.info("%s", line)
+            # _LOG.info("%s", line)
             m = re.match(r"Iris server started listening to port ([0-9]+)\n", line)
             n = re.match("microTVM Zephyr runtime - running", line)
             if m:

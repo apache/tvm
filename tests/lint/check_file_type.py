@@ -239,7 +239,7 @@ def main():
     if error_list:
         report = "------File type check report----\n"
         report += "\n".join(error_list)
-        report += "\nFound %d files that are now allowed\n" % len(error_list)
+        report += "\nFound %d files that are not allowed\n" % len(error_list)
         report += (
             "We do not check in binary files into the repo.\n"
             "If necessary, please discuss with committers and"
