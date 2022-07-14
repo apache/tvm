@@ -126,9 +126,7 @@ def test_qemu_make_fail(temp_dir, board, west_cmd, tvm_debug):
     # file_path_make = (
     #     pathlib.Path(project_dir) / "build" / "zephyr" / "CMakeFiles" / "run.dir" / "build.make"
     # )
-    file_path = (
-        pathlib.Path(project_dir) / "build" / "build.ninja"
-    )
+    file_path = pathlib.Path(project_dir) / "build" / "build.ninja"
     assert file_path.is_file(), f"[{file_path}] does not exist."
 
     # Remove a file to create make failure.

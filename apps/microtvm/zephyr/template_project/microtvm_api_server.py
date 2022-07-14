@@ -613,7 +613,9 @@ class Handler(server.ProjectAPIHandler):
     @classmethod
     def _is_fvp(cls, options):
         return (
-            options["zephyr_board"] in cls._KNOWN_FVP_ZEPHYR_BOARDS and "use_fvp" in options and options["use_fvp"] == True
+            options["zephyr_board"] in cls._KNOWN_FVP_ZEPHYR_BOARDS
+            and "use_fvp" in options
+            and options["use_fvp"] == True
         )
 
     @classmethod
