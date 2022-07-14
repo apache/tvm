@@ -22,7 +22,9 @@ from tvm import tir
 from tvm.relay.dataflow_pattern import is_op, wildcard
 from tvm.relay.backend.contrib.uma.api.utils import PassPhase
 from tvm.relay.backend.contrib.uma.backend import UMABackend
-from tvm.relay.backend.contrib.uma._template.passes import MyAiHwConv2dPass as VanillaAcceleratorConv2dPass
+from tvm.relay.backend.contrib.uma._template.passes import (
+    MyAiHwConv2dPass as VanillaAcceleratorConv2dPass,
+)
 from tvm.relay.backend.contrib.uma._template.codegen import gen_includes
 
 from tvm.relay.backend.contrib.uma._template.patterns import conv2d_pattern
@@ -40,11 +42,6 @@ class VanillaAcceleratorBackend(UMABackend):
         super().__init__()
 
         #######################################################################
-        # Target configuration
-        #######################################################################
-        #self._register_target_attr("dimension")
-
-        #######################################################################
         # Relay to Relay function registration
         #######################################################################
         self._register_pattern("conv2d", conv2d_pattern())
@@ -54,13 +51,10 @@ class VanillaAcceleratorBackend(UMABackend):
         #######################################################################
         self._register_tir_pass(PassPhase.TIR_PHASE_0, VanillaAcceleratorConv2dPass())
 
-
         #######################################################################
         # TIR to runtime function registration
         #######################################################################
-        self._register_codegen(
-            fmt="c", includes=gen_includes
-        )
+        self._register_codegen(fmt="c", includes=gen_includes)
 
     @property
     def target_name(self):

@@ -25,9 +25,11 @@ from tvm import te
 from typing import Union
 
 
-def _create_schedule(placeholder: list,
-                     c_code: Union[str, io.TextIOWrapper] = "",
-                     use_external_conv2d_impl: bool = True):
+def _create_schedule(
+    placeholder: list,
+    c_code: Union[str, io.TextIOWrapper] = "",
+    use_external_conv2d_impl: bool = True,
+):
     # How to do the same with TE
     # Add pragma TE
     # s = te.create_schedule(result.op)
@@ -45,8 +47,12 @@ def _create_schedule(placeholder: list,
     else:
         raise TypeError()
 
-    assert use_external_conv2d_impl and c_code_str != "" \
-           or not use_external_conv2d_impl and c_code_str == ""
+    assert (
+        use_external_conv2d_impl
+        and c_code_str != ""
+        or not use_external_conv2d_impl
+        and c_code_str == ""
+    )
 
     def _c_to_llvm(c_code: str) -> str:
         temp = utils.tempdir()
@@ -65,7 +71,15 @@ def _create_schedule(placeholder: list,
 
 
 def _generate_io_arrays(shapes: dict, dev):
-    n, w, h, ci, kw, kh, co = shapes["n"], shapes["w"], shapes["h"], shapes["ci"], shapes["kw"], shapes["kh"], shapes["co"],
+    n, w, h, ci, kw, kh, co = (
+        shapes["n"],
+        shapes["w"],
+        shapes["h"],
+        shapes["ci"],
+        shapes["kw"],
+        shapes["kh"],
+        shapes["co"],
+    )
 
     ifmap_data = tvm.nd.array(np.random.uniform(size=(n, ci, w, h)).astype("float32"), dev)
     weight_data = tvm.nd.array(np.random.uniform(size=(co, ci, kh, kw)).astype("float32"), dev)

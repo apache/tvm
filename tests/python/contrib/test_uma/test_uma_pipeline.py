@@ -50,7 +50,7 @@ def test_conv2d(interface_api, use_unpacked_api, test_runner, groups, weight_sha
         test_runner,
         interface_api,
         use_unpacked_api,
-        target=target
+        target=target,
     )
 
 
@@ -81,9 +81,7 @@ def create_conv2d(groups=1, test_runner=AOT_DEFAULT_RUNNER, weight_shape=32):
     return mod, inputs, output_list, test_runner
 
 
-def _generate_runtime_data(
-    input_shapes: dict, output_shapes: dict
-) -> [OrderedDict, OrderedDict]:
+def _generate_runtime_data(input_shapes: dict, output_shapes: dict) -> [OrderedDict, OrderedDict]:
     assert len(input_shapes) == 1
     assert len(output_shapes) == 1
 

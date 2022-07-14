@@ -28,10 +28,18 @@ from tvm.relay.backend.contrib.uma.api.utils import PassPhase
 
 
 def _conv2d_te_definition(shapes: dict) -> list:
-    n, w, h, ci, kw, kh, co = shapes["n"], shapes["w"], shapes["h"], shapes["ci"], shapes["kw"], shapes["kh"], shapes["co"],
+    n, w, h, ci, kw, kh, co = (
+        shapes["n"],
+        shapes["w"],
+        shapes["h"],
+        shapes["ci"],
+        shapes["kw"],
+        shapes["kh"],
+        shapes["co"],
+    )
     ifmap = te.placeholder((n, ci, w, h), dtype="float32", name="ifmap")
     weights = te.placeholder((co, ci, kw, kh), dtype="float32", name="weights")
-    result = topi.nn.conv2d_nchw(ifmap, weights, stride=1, padding=[kw//2, kh//2], dilation=1)
+    result = topi.nn.conv2d_nchw(ifmap, weights, stride=1, padding=[kw // 2, kh // 2], dilation=1)
     return [ifmap, weights, result]
 
 
@@ -42,7 +50,9 @@ def _pepare_conv2d_schedule(shapes, use_external_conv2d_impl=True):
     conv2d_file = uma_path / "_template" / "conv2dnchw.cpp"
 
     with conv2d_file.open() as f:
-        sch_tir = _create_schedule(placeholders, f, use_external_conv2d_impl=use_external_conv2d_impl)
+        sch_tir = _create_schedule(
+            placeholders, f, use_external_conv2d_impl=use_external_conv2d_impl
+        )
     return placeholders, sch_tir
 
 
@@ -74,6 +84,7 @@ def _prepare_io_arrays(conv2d_shapes, dev):
     reference_io_arrays = [dut_io_arrays[0], dut_io_arrays[1], ref_result]
     return dut_io_arrays, reference_io_arrays
 
+
 @pytest.mark.parametrize(
     "n, w, h, ci, kw, kh, co",
     [
@@ -82,7 +93,6 @@ def _prepare_io_arrays(conv2d_shapes, dev):
         (1, 224, 224, 3, 7, 7, 4),
         (1, 224, 320, 3, 7, 7, 4),
         (1, 224, 224, 3, 7, 7, 4),
-
     ],
 )
 def test_lower_with_uma(n, w, h, ci, kw, kh, co):

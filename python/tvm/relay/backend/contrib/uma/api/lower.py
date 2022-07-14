@@ -57,6 +57,7 @@ class UMALower:
             The lowered schedulable TensorIR primitive function.
 
         """
+
         def _get_tensors(te_cached_func):
             outputs = list(te_cached_func.outputs)
             stack = []

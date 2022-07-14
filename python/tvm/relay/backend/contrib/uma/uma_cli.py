@@ -15,6 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""
+    UMA Command Line Interface (CLI)
+
+    Tool to create code skeletons for an easy integration of
+    new AI hardware accelerators/libraries into TVM using UMA
+"""
+
 import argparse
 import os
 import shutil

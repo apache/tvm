@@ -44,7 +44,9 @@ def _c_to_llvm(c_code: str) -> str:
     return ll_code
 
 
-def add_llvm_to_block(sch: tvm.tir.Schedule, block_name: str, c_code_str: str = "") -> tvm.tir.Schedule:
+def add_llvm_to_block(
+    sch: tvm.tir.Schedule, block_name: str, c_code_str: str = ""
+) -> tvm.tir.Schedule:
     block = sch.get_block(block_name)
     loops = sch.get_loops(block)
     assert len(loops) > 0

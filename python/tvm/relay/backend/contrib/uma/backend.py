@@ -27,6 +27,7 @@ from tvm.relay.backend.contrib.uma.api.utils import PassPhase
 
 
 class UMABackend(ABC):
+    """Backend base class of the Universal Modular Accelerator Interface (UMA)"""
     def __init__(self, merge_compiler_regions: bool = True) -> None:
         self._target_attrs: Dict = {}
         self._target_preprocessor: Callable[[str], Dict[str, Any]] = None

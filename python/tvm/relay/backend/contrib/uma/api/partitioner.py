@@ -27,7 +27,8 @@ from .utils import PassPhase
 
 PatternTable = List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]
 
-class UMAPartitioner():
+
+class UMAPartitioner:
     """Partitioner base class of the Universal Modular Accelerator Interface (UMA)."""
 
     def __init__(self, target_name: str, merge_compiler_regions: bool = True) -> None:
@@ -37,7 +38,12 @@ class UMAPartitioner():
         self._relay_passes: List[Tuple[PassPhase, tvm.transform.Pass]] = []
         self._patterns: PatternTable = []
 
-    def add_pattern(self, name : str, pattern : tvm.relay.dataflow_pattern.DFPattern, predicate : Optional[Callable] = None) -> None:
+    def add_pattern(
+        self,
+        name: str,
+        pattern: tvm.relay.dataflow_pattern.DFPattern,
+        predicate: Optional[Callable] = None,
+    ) -> None:
         name = self.target_name + "." + name
         if predicate:
             self._patterns.append((name, pattern, predicate))

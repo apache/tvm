@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""UMA: Universal Modular Accelerator Interface API"""
+
 from .codegen import UMACodegen
 from .lower import UMALower
 from .partitioner import UMAPartitioner

@@ -16,12 +16,15 @@
 # under the License.
 """Codegen base class of the Universal Modular Accelerator Interface (UMA)"""
 
-import tvm
-
 from typing import Callable
+import tvm
 
 
 class UMACodegen(object):
+    """
+    Codegen base class of the Universal Modular Accelerator Interface (UMA)
+    """
+
     def __init__(self, target_name: str) -> None:
         self.target_name = target_name
 
