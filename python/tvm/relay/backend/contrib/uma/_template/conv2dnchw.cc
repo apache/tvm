@@ -21,8 +21,9 @@
 #ifdef __cplusplus
 extern "C"
 #endif
-int my_ai_hw_conv2dnchw(float* ifmap, float*  weights, float*  result,
-                                   int oc, int iw, int ih, int ic, int kh, int kw) {
+    int
+    my_ai_hw_conv2dnchw(float* ifmap, float* weights, float* result, int oc, int iw, int ih, int ic,
+                        int kh, int kw) {
 
   int kw_low = kw / 2;
   int kh_low = kh / 2;
@@ -32,7 +33,8 @@ int my_ai_hw_conv2dnchw(float* ifmap, float*  weights, float*  result,
   int padded_iw = iw + 2 * kw_low;
   int padded_ih = ih + 2 * kh_low;
 
-  float* pad_temp = (float*) malloc((((ic * padded_iw * padded_ih) + (padded_ih * padded_iw)) + padded_iw) * sizeof(float));
+  float* pad_temp = (float*)malloc(
+      (((ic * padded_iw * padded_ih) + (padded_ih * padded_iw)) + padded_iw) * sizeof(float));
 
   if (pad_temp == NULL) {
     return -1;
@@ -42,7 +44,9 @@ int my_ai_hw_conv2dnchw(float* ifmap, float*  weights, float*  result,
     for (int i2 = 0; i2 < padded_ih; ++i2) {
       for (int i3 = 0; i3 < padded_iw; ++i3) {
         ((float*)pad_temp)[(((i1 * padded_iw * padded_ih) + (i2 * padded_iw)) + i3)] =
-           (((((kh_low <= i2) && (i2 < kh_high)) && (kw_low <= i3)) && (i3 < kw_high)) ? ifmap[((((i1 * iw * ih) + ((i2-kh_low) * iw)) + i3 - kw_low) )] : 0.000000e+00f);
+            (((((kh_low <= i2) && (i2 < kh_high)) && (kw_low <= i3)) && (i3 < kw_high))
+                 ? ifmap[((((i1 * iw * ih) + ((i2 - kh_low) * iw)) + i3 - kw_low))]
+                 : 0.000000e+00f);
       }
     }
   }
@@ -52,13 +56,15 @@ int my_ai_hw_conv2dnchw(float* ifmap, float*  weights, float*  result,
         for (int i4 = 0; i4 < ic; ++i4) {
           for (int i5 = 0; i5 < kh; ++i5) {
             for (int i6 = 0; i6 < kw; ++i6) {
-              int cse_var_1 = (((i11 * iw*ih) + (i21 * iw)) + i31);
+              int cse_var_1 = (((i11 * iw * ih) + (i21 * iw)) + i31);
               if (((i4 == 0) && (i5 == 0)) && (i6 == 0)) {
                 result[cse_var_1] = 0.000000e+00f;
               }
-              result[cse_var_1] = (result[cse_var_1]
-              + (((float*)pad_temp)[i4 * padded_iw * padded_ih + (i21+i5) * padded_iw + i31 + i6]
-              * weights[((((i11 * ic * kh * kw) + (i4 * kh * kw)) + (i5 * kw)) + i6)]));
+              result[cse_var_1] =
+                  (result[cse_var_1] +
+                   (((float*)
+                         pad_temp)[i4 * padded_iw * padded_ih + (i21 + i5) * padded_iw + i31 + i6] *
+                    weights[((((i11 * ic * kh * kw) + (i4 * kh * kw)) + (i5 * kw)) + i6)]));
             }
           }
         }

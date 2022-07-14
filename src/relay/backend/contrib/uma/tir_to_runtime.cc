@@ -35,10 +35,11 @@ namespace uma {
 
 class UMACodegen : public codegen::CodeGenCHost {
  public:
-  UMACodegen(String target_str) : target_str_(target_str) {}
+  explicit UMACodegen(String target_str) : target_str_(target_str) {}
 
   void Init(bool output_ssa, bool emit_asserts) {
-    auto includes_pf = tvm::runtime::Registry::Get("relay.ext.uma.codegen_c_includes_" + target_str_);
+    auto includes_pf =
+        tvm::runtime::Registry::Get("relay.ext.uma.codegen_c_includes_" + target_str_);
     ICHECK(includes_pf);
     String includes = (*includes_pf)();
     decl_stream << includes;
@@ -65,13 +66,15 @@ class UMACodegen : public codegen::CodeGenCHost {
       CodeGenCHost::VisitExpr_(op, os);
       return;
     }
-    auto replace_call_extern_pf = tvm::runtime::Registry::Get("relay.ext.uma.codegen_c_replace_call_extern_" + target_str_);
+    auto replace_call_extern_pf =
+        tvm::runtime::Registry::Get("relay.ext.uma.codegen_c_replace_call_extern_" + target_str_);
     if (replace_call_extern_pf == nullptr) {
       CodeGenCHost::VisitExpr_(op, os);
     } else {
-      // TODO:
-      // - funtion type (void) still gets printed before CallNode if extern call is wrapped in EvaluateNode
-      // - VarNode arguments might have "wrong" name_hints. The correct variable name is determined in C++ through GetVarID
+      // - funtion type (void) still gets printed before CallNode if extern call is wrapped in
+      // EvaluateNode
+      // - VarNode arguments might have "wrong" name_hints. The correct variable name is determined
+      // in C++ through GetVarID
       String api_string = (*replace_call_extern_pf)(op->args);
       os << api_string;
     }
@@ -82,7 +85,7 @@ class UMACodegen : public codegen::CodeGenCHost {
 runtime::Module TIRToRuntime(IRModule mod, Target target) {
   bool output_ssa = false;
   bool emit_asserts = false;
-  UMACodegen codegen (target->kind->name);
+  UMACodegen codegen(target->kind->name);
   Array<String> function_names;
   codegen.Init(output_ssa, emit_asserts);
   for (auto kv : mod->functions) {

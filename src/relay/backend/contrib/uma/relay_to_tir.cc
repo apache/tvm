@@ -146,8 +146,8 @@ tvm::transform::Pass OutlineCompilerFunctions(const std::string& compiler_name) 
         }
         return mod;
       };
-  return tvm::transform::CreateModulePass(
-      pass_func, 0, "relay.backend.contrib.uma.OutlineCompilerFunctions", {});
+  return tvm::transform::CreateModulePass(pass_func, 0,
+                                          "relay.backend.contrib.uma.OutlineCompilerFunctions", {});
 }
 
 TVM_REGISTER_GLOBAL("relay.ext.uma.OutlineCompilerFunctions")
@@ -159,7 +159,8 @@ TVM_REGISTER_GLOBAL("relay.ext.uma.OutlineCompilerFunctions")
 tvm::transform::Pass RelayToTIR(String target_name) {
   runtime::TypedPackedFunc<IRModule(IRModule, transform::PassContext)> pass_func =
       [=](IRModule ir_module, transform::PassContext pass_context) {
-        auto relay_to_tir_pf = tvm::runtime::Registry::Get("relay.ext.uma." + target_name + ".relay_to_tir");
+        auto relay_to_tir_pf =
+            tvm::runtime::Registry::Get("relay.ext.uma." + target_name + ".relay_to_tir");
         ICHECK(relay_to_tir_pf);
         ir_module = (*relay_to_tir_pf)(ir_module);
         return ir_module;

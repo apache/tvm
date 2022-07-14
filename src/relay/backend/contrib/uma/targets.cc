@@ -31,44 +31,50 @@ namespace tvm {
 namespace relay {
 namespace contrib {
 namespace uma {
-    tvm::transform::Pass RelayToTIR(String target_name);
-    runtime::Module TIRToRuntime(IRModule mod, Target target);
+tvm::transform::Pass RelayToTIR(String target_name);
+runtime::Module TIRToRuntime(IRModule mod, Target target);
 }  // namespace uma
 }  // namespace contrib
 }  // namespace relay
 
 TVM_REGISTER_GLOBAL("relay.backend.contrib.uma.RegisterTarget")
-    .set_body_typed([](String target_name, Map<String, ObjectRef> attr_options){
-        auto target_kind = ::tvm::TargetKindRegEntry::RegisterOrGet(target_name)
-        .set_name()
-        .set_device_type(kDLCPU)
-        .add_attr_option<Array<String>>("keys")
-        .add_attr_option<String>("tag")
-        .add_attr_option<String>("device")
-        .add_attr_option<String>("model")
-        .add_attr_option<Array<String>>("libs")
-        .add_attr_option<Target>("host")
-        .add_attr_option<Integer>("from_device")
-        .set_attr<FTVMRelayToTIR>("RelayToTIR", relay::contrib::uma::RelayToTIR(target_name))
-        .set_attr<FTVMTIRToRuntime>("TIRToRuntime", relay::contrib::uma::TIRToRuntime);
+    .set_body_typed([](String target_name, Map<String, ObjectRef> attr_options) {
+      auto target_kind =
+          ::tvm::TargetKindRegEntry::RegisterOrGet(target_name)
+              .set_name()
+              .set_device_type(kDLCPU)
+              .add_attr_option<Array<String>>("keys")
+              .add_attr_option<String>("tag")
+              .add_attr_option<String>("device")
+              .add_attr_option<String>("model")
+              .add_attr_option<Array<String>>("libs")
+              .add_attr_option<Target>("host")
+              .add_attr_option<Integer>("from_device")
+              .set_attr<FTVMRelayToTIR>(tvm::attr::kRelayToTIR,
+                                        relay::contrib::uma::RelayToTIR(target_name))
+              .set_attr<FTVMTIRToRuntime>("TIRToRuntime", relay::contrib::uma::TIRToRuntime);
 
-        for (auto &attr_option : attr_options) {
-          try {
-            target_kind.add_attr_option<String>(attr_option.first, Downcast<String>(attr_option.second));
-            continue;
-          } catch (...) {}
-          try {
-            target_kind.add_attr_option<Bool>(attr_option.first, Downcast<Bool>(attr_option.second));
-            continue;
-          } catch (...) {}
-          try {
-            target_kind.add_attr_option<Integer>(attr_option.first, Downcast<Integer>(attr_option.second));
-            continue;
-          } catch (...) {
-            LOG(FATAL) << "Attribute option of type " << attr_option.second->GetTypeKey() 
-                       << " can not be added. Only String, Integer, or Bool are supported.";
-          }
+      for (auto& attr_option : attr_options) {
+        try {
+          target_kind.add_attr_option<String>(attr_option.first,
+                                              Downcast<String>(attr_option.second));
+          continue;
+        } catch (...) {
         }
+        try {
+          target_kind.add_attr_option<Bool>(attr_option.first, Downcast<Bool>(attr_option.second));
+          continue;
+        } catch (...) {
+        }
+        try {
+          target_kind.add_attr_option<Integer>(attr_option.first,
+                                               Downcast<Integer>(attr_option.second));
+          continue;
+        } catch (...) {
+          LOG(FATAL) << "Attribute option of type " << attr_option.second->GetTypeKey()
+                     << " can not be added. Only String, Integer, or Bool are supported.";
+        }
+      }
     });
 
 }  // namespace tvm
