@@ -188,7 +188,7 @@ SPECIAL_OP_CASES = [
     (
         OperationKind.IfThenElse,
         [IdDoc("x"), LiteralDoc(None), LiteralDoc(1)],
-        'None if x else 1',
+        "None if x else 1",
     ),
 ]
 
