@@ -24,15 +24,13 @@
 
 #include "./cost_estimator.h"
 
-#include <math.h>
-#include <tvm/relay/expr_functor.h>
+#include <cmath>
 
 namespace tvm {
 namespace relay {
 namespace collage {
 
 TVM_REGISTER_OBJECT_TYPE(CostEstimatorNode);
-TVM_REGISTER_OBJECT_TYPE(MockEstimatorNode);
 
 CostEstimator::CostEstimator() {
   auto node = make_object<CostEstimatorNode>();
@@ -40,6 +38,7 @@ CostEstimator::CostEstimator() {
 }
 
 Cost CostEstimatorNode::Estimate(const IRModule& mod, const Target& target) const {
+  // TODO(mbs): Eventually should be abstract. For now bounce to the Python local impl.
   static const runtime::PackedFunc* estimate_seconds =
       runtime::Registry::Get("tvm.relay.collage.estimate_seconds");
   ICHECK(estimate_seconds);
@@ -53,77 +52,7 @@ Cost CostEstimatorNode::Estimate(const IRModule& mod, const Target& target) cons
   }
 }
 
-/*!
- * \brief Visitor to accumulate the costs of all calls to operators in an expression.
- */
-class MockEstimationVisitor : private ExprVisitor {
- public:
-  MockEstimationVisitor(double op_cost, double fusion_benefit)
-      : op_cost_(op_cost), fusion_benefit_(fusion_benefit) {}
-
-  double EstimateCost(const Expr& body) {
-    this->VisitExpr(body);
-    return cost_;
-  }
-
- private:
-  /*! \brief The assumed baseline cost of each operator call. */
-  double op_cost_;
-  /*!
-   * \brief The factor by which each operator call cost is to be changed for every other
-   * operator call in the same group.
-   */
-  double fusion_benefit_;
-  /*! \brief The number of operator calls seen so far. */
-  size_t num_ops_ = 0;
-  /*! \brief Accumulate overall cost. */
-  double cost_ = 0.0;
-
-  void VisitExpr_(const CallNode* call_node) final {
-    if (call_node->op->IsInstance<OpNode>()) {
-      cost_ += op_cost_ * pow(fusion_benefit_, num_ops_);
-      num_ops_++;
-    }
-    ExprVisitor::VisitExpr_(call_node);
-  }
-
-  void VisitExpr_(const FunctionNode* function_node) final {
-    // No "Compiler" functions can be inlined.
-    ICHECK(!function_node->GetAttr<String>(attr::kCompiler).defined());
-    ExprVisitor::VisitExpr_(function_node);
-  }
-};
-
-Cost MockEstimatorNode::Estimate(const IRModule& mod, const Target& target) const {
-  double op_cost = static_cast<double>(target_costs_.at(target->kind->name)->value);
-  double cost = 0.0;
-  for (const auto& kv : mod->functions) {
-    if (const auto* function_node = kv.second.as<FunctionNode>()) {
-      auto function = GetRef<Function>(function_node);
-      if (kv.first->name_hint == "main") {
-        // Only tensor args are allowed to main.
-        for (const auto& param : function->params) {
-          ICHECK(param->type_annotation->IsInstance<TensorTypeNode>());
-        }
-      }
-      cost += MockEstimationVisitor(op_cost, /*fusion_benefit=*/0.9).EstimateCost(function->body);
-    }
-  }
-  return Cost::Value(cost);
-}
-
-MockEstimator::MockEstimator(Map<String, Integer> target_costs) {
-  auto node = make_object<MockEstimatorNode>();
-  node->target_costs_ = std::move(target_costs);
-  data_ = std::move(node);
-}
-
 TVM_REGISTER_GLOBAL("relay.collage.CostEstimator").set_body_typed([]() { return CostEstimator(); });
-
-TVM_REGISTER_GLOBAL("relay.collage.MockEstimator")
-    .set_body_typed([](Map<String, Integer> target_costs) {
-      return MockEstimator(std::move(target_costs));
-    });
 
 }  // namespace collage
 }  // namespace relay

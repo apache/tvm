@@ -44,12 +44,12 @@ class CostEstimator(Object):
         self.__init_handle_by_constructor__(_ffi_api.CostEstimator)
 
 
-@register_object("relay.collage.MockEstimator")
-class MockEstimator(Object):
+@register_object("relay.collage.MockCostEstimator")
+class MockCostEstimator(Object):
     """MockEstimator class"""
 
-    def __init__(self, target_costs):
-        self.__init_handle_by_constructor__(_ffi_api.MockEstimator, target_costs)
+    def __init__(self, target_costs, max_estimates=0):
+        self.__init_handle_by_constructor__(_ffi_api.MockCostEstimator, target_costs, max_estimates)
 
 
 def arg_for(arg_type, device):

@@ -20,5 +20,5 @@ from .collage import (
     MEASURE_REPEAT,
     WARMUP_MIN_REPEAT_MS,
     CostEstimator,
-    MockEstimator,
+    MockCostEstimator,
 )
