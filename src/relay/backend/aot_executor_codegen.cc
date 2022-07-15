@@ -494,7 +494,6 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     }
 
     tir::Stmt body = tir::SeqStmt({func_call});
-    LOG(INFO) << "CreateFuncCall: " << call_lowered_props.lowered_func->name_hint << " -> " << body;
     stmts_.push_back(body);
   }
 

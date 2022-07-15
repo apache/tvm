@@ -23,6 +23,7 @@ import numpy as np
 
 import tvm
 from tvm import relay
+from tvm.testing.aot import AOTTestRunner
 
 
 def skip_if_no_reference_system(func):
@@ -225,3 +226,44 @@ def make_qnn_relu(expr, fused_activation_fn, scale, zero_point, dtype):
     if fused_activation_fn == "RELU":
         return tvm.relay.op.clip(expr, a_min=max(qmin, quantize(0.0)), a_max=qmax)
     raise ValueError("Invalid argument provided with fused_activation_fn")
+
+
+def create_test_runner(compiler_cpu="cortex-m55", cpu_flags=""):
+    """
+    Creates AOT test runner for CMSIS-NN tests.
+
+    Parameters
+    ----------
+    compiler_cpu : str
+       Equivalent of gcc option mcpu
+       Options:  cortex-m55, cortex-m7
+    cpu_flags: str
+        Disable Arm(R) Cortex(R)-M profile vector extension (mve)
+        Options:
+        Arm(R) Cortex(R)-M55: when null +mve is set by default.
+            +nomve disables vector extensions.
+        Arm(R) Cortex(R)-M7 does not support mve.
+    """
+    # cmsis_cpu is used to find out start up code inside CMSIS package
+    cmsis_cpu = "ARMCM7" if compiler_cpu == "cortex-m7" else "ARMCM55"
+    mfloat_abi = "soft" if compiler_cpu == "cortex-m7" else "hard"
+    return AOTTestRunner(
+        makefile="corstone300",
+        prologue="""
+        uart_init();
+        """,
+        includes=["uart.h"],
+        pass_config={
+            "relay.ext.cmsisnn.options": {
+                "mcpu": compiler_cpu + cpu_flags,
+            },
+            "tir.usmp.enable": True,
+            "tir.disable_storage_rewrite": True,
+        },
+        parameters={
+            "ARM_CPU": cmsis_cpu,
+            "MCPU": compiler_cpu,
+            "MCPU_FLAGS": cpu_flags,
+            "MFLOAT_ABI": mfloat_abi,
+        },
+    )

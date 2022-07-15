@@ -69,7 +69,7 @@ TEST_P(CMSISNNFlagsMVECPUs, CheckMVESet) {
 TEST_P(CMSISNNFlagsMVECPUs, CheckMVEOverrideCPU) {
   std::string mcpu = GetParam();
   CMSISNNFlags flags = GetFlagsWithCompilerAttrs(mcpu + "+nomve", "");
-  ASSERT_EQ(flags.dsp, false);
+  ASSERT_EQ(flags.dsp, true);
   ASSERT_EQ(flags.mve, false);
 }
 
@@ -92,7 +92,7 @@ TEST_P(CMSISNNFlagsMVECPUs, CheckCombinedOverrideCPU) {
 
 TEST_P(CMSISNNFlagsMVECPUs, CheckMVEOverrideMAttr) {
   CMSISNNFlags flags = GetFlagsWithCompilerAttrs(GetParam(), "+nomve");
-  ASSERT_EQ(flags.dsp, false);
+  ASSERT_EQ(flags.dsp, true);
   ASSERT_EQ(flags.mve, false);
 }
 
