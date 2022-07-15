@@ -1350,6 +1350,26 @@ def floormod(a, b, span=None):
     return _ffi_api._OpFloorMod(a, b, span)  # type: ignore
 
 
+def ceildiv(lhs, rhs, span=None):
+    """Generic ceildiv operator.
+
+    Parameters
+    ----------
+    lhs : object
+        The left operand.
+    rhs : object
+        The right operand.
+    span : Optional[Span]
+        The location of this operator in the source.
+
+    Returns
+    -------
+    op : tvm.Expr
+        The result Expr of ceildiv operaton.
+    """
+    return _ffi_api._OpCeilDiv(lhs, rhs, span)  # type: ignore
+
+
 def comm_reducer(fcombine, fidentity, name="reduce"):
     """Create a commutative reducer for reduction.
 
