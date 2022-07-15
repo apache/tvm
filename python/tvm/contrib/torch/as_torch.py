@@ -43,31 +43,45 @@ class OperatorModuleWrapper(torch.nn.Module):
             tvm.ir.module.IRModule,
             tvm.tir.function.PrimFunc,
         ],
-        config: TuneConfig = None,
     ):
         super().__init__()
         self.rt_module = None  # runtime module
         self.ir_module = module  # IR modules
-        self.config = config
 
-    def tune_tir_auto(self, mod, target):
+    def tune(self, config: TuneConfig = None, target: Union[str, Target] = None):
+        """
+        Tune the TVMscript code.
+
+        Parameters
+        ----------
+        config: Optional[TuneConfig]
+            The tuning configuration.
+
+        target : Optional[str, Target]
+            The target to tune for.
+        """
+        if config is None:
+            config = TuneConfig(
+                # Default setting
+                strategy="replay_trace",
+                num_trials_per_iter=32,
+                max_trials_per_task=32,
+                max_trials_global=32,
+            )
         if target is None:
             target = Target("llvm --num-cores=16")
         with tempfile.TemporaryDirectory() as work_dir:
             sch: Schedule = tune_tir(
-                mod=mod,
+                mod=self.ir_module,
                 target=target,
-                config=self.config,
+                config=config,
                 work_dir=work_dir,
             )
-            return sch.mod
+            self.ir_module = sch.mod
+            self.build(target)
 
     def build(self, target=None):
-        if self.config is not None:
-            module = self.tune_tir_auto(self.ir_module, target)
-        else:
-            module = self.ir_module
-        runtime_module = tvm.build(module, target=target)
+        runtime_module = tvm.build(self.ir_module, target=target)
         func = tvm.get_global_func("tvmtorch.save_runtime_mod")
         func(runtime_module)
 
@@ -76,7 +90,7 @@ class OperatorModuleWrapper(torch.nn.Module):
     def forward(self, *torch_inputs: List[torch.Tensor]) -> List[torch.Tensor]:
         if self.rt_module is None:
             if torch_inputs[0].is_cuda:
-                self.build(target=Target("nvidia/geforce-rtx-3070"))
+                self.build(target="cuda")
             elif torch_inputs[0].device.type == "cpu":
                 self.build()
             else:
@@ -85,14 +99,13 @@ class OperatorModuleWrapper(torch.nn.Module):
         return self.rt_module.forward(torch_inputs)
 
 
-def as_torch(inp):
+def as_torch(func: Union[tvm.ir.module.IRModule, tvm.tir.function.PrimFunc, Callable]):
     """A decorator of converting TensorIR to PyTorch nn.Module.
 
     Parameters
     ----------
-    config: Optional[TuneConfig]
-        The configuration for tuning by MetaSchedule.
-        If user doesn't set the config, the tuning will run with a default setting.
+    func: Optional[tvm.ir.module.IRModule, tvm.tir.function.PrimFunc, Callable]
+        The function written by TVMscript.
 
     Returns
     -------
@@ -101,22 +114,11 @@ def as_torch(inp):
         which is the subclass of the original nn.Module.
 
     """
+    if isinstance(func, (tvm.ir.module.IRModule, tvm.tir.function.PrimFunc)):
+        return OperatorModuleWrapper(func)
+    if isinstance(func, Callable):
 
-    def as_torch_inner(func):
-        if isinstance(inp, TuneConfig):
-            config = inp
-        else:
-            config = None
-        if isinstance(func, (tvm.ir.module.IRModule, tvm.tir.function.PrimFunc)):
-            return OperatorModuleWrapper(func, config)
-        if isinstance(func, Callable):
+        def func_get_param(*args, **kargs):
+            return OperatorModuleWrapper(func(*args, **kargs))
 
-            def func_get_param(*args, **kargs):
-                return OperatorModuleWrapper(func(*args, **kargs), config)
-
-            return func_get_param
-        raise Exception("Incorrect `as_torch` formatting.")
-
-    if isinstance(inp, TuneConfig):
-        return as_torch_inner
-    return as_torch_inner(inp)
+        return func_get_param

@@ -24,6 +24,7 @@ import torch.nn
 
 import tvm
 from tvm.meta_schedule.tune import TuneConfig
+from tvm.target.target import Target
 import tvm.testing
 from tvm.contrib.torch import as_torch
 from tvm.script import tir as T
@@ -91,7 +92,7 @@ config = TuneConfig(
 )
 
 
-@as_torch(config)
+@as_torch
 @tvm.script.ir_module
 class MyModule:
     @T.prim_func
@@ -109,7 +110,7 @@ class MyModule:
                 B[vi] = A[vi] + 1.0
 
 
-@as_torch(config)
+@as_torch
 @T.prim_func
 def loop_split(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], dtype="float32")
@@ -126,7 +127,7 @@ def loop_split(a: T.handle, b: T.handle) -> None:
                 B[vi] = B[vi] + A[vi, vk]
 
 
-@as_torch(config)
+@as_torch
 def elementwise_with_root(M: int, N: int, dtype: str):
     @T.prim_func
     def f(a: T.handle, b: T.handle, c: T.handle) -> None:
@@ -214,6 +215,7 @@ def test_tvmscript_torch_func_with_part_access_region():
 
     result = a1 + 2
 
+    func_with_part_access_region.tune()
     func_with_part_access_region(a1, a2, a3)
 
     tvm.testing.assert_allclose(a3.numpy(), result.numpy(), atol=1e-5, rtol=1e-5)
@@ -225,6 +227,7 @@ def test_tvmscript_torch_loop_split():
 
     result = torch.sum(x.cpu(), dim=1).numpy()
 
+    loop_split.tune(config, Target("nvidia/geforce-rtx-3070"))
     loop_split(x, y)
 
     tvm.testing.assert_allclose(y.cpu().numpy(), result, atol=1e-5, rtol=1e-5)
@@ -238,6 +241,7 @@ def test_tvmscript_torch_elementwise_with_root():
     result = a1 + 2
 
     func = elementwise_with_root(128, 128, "float32")
+    func.tune(config)
     func(a1, a2, a3)
 
     tvm.testing.assert_allclose(a3.numpy(), result.numpy(), atol=1e-5, rtol=1e-5)

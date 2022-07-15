@@ -173,7 +173,7 @@ def optimize_torch(
             "For optimal performance, it is recommended to provide",
             "the `tuning_config` argument with a bigger number of trials.",
         )
-        warnings.warn(" ".join(warning_msg))
+        warnings.warn(" ".join(warning_msg), stacklevel=2)
 
     # If `func` is already a traced module this statement makes no effect
     jit_mod = torch.jit.trace(func, example_inputs)
