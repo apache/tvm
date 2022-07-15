@@ -34,5 +34,6 @@ echo set\(USE_VTA_FSIM ON\) >> config.cmake
 echo set\(USE_VTA_TSIM ON\) >> config.cmake
 echo set\(USE_VERILATOR ON\) >> config.cmake
 echo set\(USE_CCACHE OFF\) >> config.cmake
+echo set\(USE_UMA ON\) >> config.cmake
 echo set\(SUMMARIZE ON\) >> config.cmake
 
