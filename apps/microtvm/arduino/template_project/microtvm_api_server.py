@@ -528,7 +528,7 @@ class Handler(server.ProjectAPIHandler):
         return self._serial.read(n)
 
     def write_transport(self, data, timeout_sec):
-        self._serial.timeout = timeout_sec
+        self._serial.write_timeout = timeout_sec
         if self._serial is None:
             raise server.TransportClosedError()
         return self._serial.write(data)
