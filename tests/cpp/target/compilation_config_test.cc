@@ -335,14 +335,21 @@ TEST(CompilationConfig, CanonicalVirtualDevice) {
     VirtualDevice actual = config->CanonicalVirtualDevice(in);
     ASSERT_EQ(actual->target, config->FindPrimitiveTargetForKind("cuda"));
   }
-}
-
-TEST(CompilationConfig, CanonicalVirtualDevice_NoDevice) {
-  CompilationConfig config = TestCompilationConfig();
-  VirtualDevice fully_unconstrained;
-  EXPECT_ANY_THROW(config->CanonicalVirtualDevice(fully_unconstrained));
-  VirtualDevice missing_device(kInvalidDeviceType, 3, {}, "local");
-  EXPECT_ANY_THROW(config->CanonicalVirtualDevice(missing_device));
+  {
+    VirtualDevice in = VirtualDevice::ForMemoryScope("scope");
+    VirtualDevice actual = config->CanonicalVirtualDevice(in);
+    EXPECT_EQ(config->CanonicalVirtualDevice(in), actual);
+  }
+  {
+    VirtualDevice in = VirtualDevice::FullyUnconstrained();
+    VirtualDevice actual = config->CanonicalVirtualDevice(in);
+    EXPECT_EQ(config->CanonicalVirtualDevice(in), actual);
+  }
+  {
+    VirtualDevice in = VirtualDevice();  // ie structurally equal to FullyUnconstrained.
+    VirtualDevice actual = config->CanonicalVirtualDevice(in);
+    EXPECT_EQ(config->CanonicalVirtualDevice(in), VirtualDevice::FullyUnconstrained());
+  }
 }
 
 TEST(CompilationConfig, CanonicalVirtualDevice_NoMatchingTarget) {

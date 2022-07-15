@@ -47,9 +47,6 @@ DEFAULT = GPU
 CPU_SCOPE_A = tvm.target.VirtualDevice(CPU_DEVICE, CPU_TARGET, memory_scope="scopeA")
 CPU_SCOPE_B = tvm.target.VirtualDevice(CPU_DEVICE, CPU_TARGET, memory_scope="scopeB")
 
-GPU_SCOPE_GLOBAL = tvm.target.VirtualDevice(GPU_DEVICE, GPU_TARGET, memory_scope="global")
-GPU_SCOPE_TEXTURE = tvm.target.VirtualDevice(GPU_DEVICE, GPU_TARGET, memory_scope="global.texture")
-
 CTXT = tvm.transform.PassContext(config={"relay.fallback_device_type": DEFAULT.device_type_int})
 
 core = tvm.IRModule()
@@ -1786,10 +1783,12 @@ def test_stack_overflow():
 def test_primitive():
     """Annotations on Primitive functions should be accepted, even though the body
     of the Primitive function is not considered during PlanDevices."""
+    global_virtual_device = tvm.target.VirtualDevice(memory_scope="global")
+    texture_virtual_device = tvm.target.VirtualDevice(memory_scope="global.texture")
     metatable = {
         "VirtualDevice": [
-            GPU_SCOPE_GLOBAL,
-            GPU_SCOPE_TEXTURE,
+            global_virtual_device,
+            texture_virtual_device,
         ]
     }
 
@@ -1803,15 +1802,15 @@ def test_primitive():
           };
           %1 = %0(%data1);
           %3 = %0(%data2);
-          %5 = fn (%a {virtual_device=meta[VirtualDevice][0]},
-                   %b {virtual_device=meta[VirtualDevice][0]},
-                   virtual_device=meta[VirtualDevice][1],
+          %5 = fn (%a {virtual_device=meta[VirtualDevice][0]},  // global
+                   %b {virtual_device=meta[VirtualDevice][0]},  // global
+                   virtual_device=meta[VirtualDevice][1],       // texture 
                    Primitive=1) {
             add(%a, %b)
           };
           %6 = %5(%1, %3);
           %10 = fn (%a, 
-                    virtual_device=meta[VirtualDevice][0],
+                    virtual_device=meta[VirtualDevice][0],      // global 
                     Primitive=1) {
             layout_transform(%a, src_layout="NCHW4c", dst_layout="NCHW")
           };
