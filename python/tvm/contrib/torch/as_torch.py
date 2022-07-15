@@ -46,10 +46,21 @@ class OperatorModuleWrapper(torch.nn.Module):
             tvm.ir.module.IRModule,
             tvm.tir.function.PrimFunc,
         ],
+        config: TuneConfig = None,
     ):
         super().__init__()
         self.rt_module = None  # runtime module
         self.ir_module = module  # IR modules
+        if config is None:
+            self.config = TuneConfig(
+                # Default setting
+                strategy="replay_trace",
+                num_trials_per_iter=32,
+                max_trials_per_task=32,
+                max_trials_global=32,
+            )
+        else:
+            self.config = config
 
     def tune_tir_auto(self, mod: Union[tvm.ir.module.IRModule, tvm.tir.function.PrimFunc]):
         with tempfile.TemporaryDirectory() as work_dir:
@@ -92,15 +103,8 @@ class OperatorModuleWrapper(torch.nn.Module):
             target=target,
             weight=1,
         )
-        config = TuneConfig(
-            # Default setting
-            strategy="replay_trace",
-            num_trials_per_iter=32,
-            max_trials_per_task=32,
-            max_trials_global=32,
-        )
         database = tune_extracted_tasks(
-            extracted_tasks=[extracted_task], config=config, work_dir=work_dir
+            extracted_tasks=[extracted_task], config=self.config, work_dir=work_dir
         )
         bests: List[TuningRecord] = database.get_top_k(database.commit_workload(mod), top_k=1)
         if not bests:
@@ -131,26 +135,37 @@ class OperatorModuleWrapper(torch.nn.Module):
         return self.rt_module.forward(torch_inputs)
 
 
-def as_torch(func: Union[tvm.ir.module.IRModule, tvm.tir.function.PrimFunc, Callable]):
+def as_torch(inp):
     """A decorator of converting TensorIR to PyTorch nn.Module.
 
     Parameters
     ----------
-    func : Union[tvm.ir.module.IRModule, tvm.tir.function.PrimFunc, Callable]
-        The function to be parsed.
-
+    config: Optional[TuneConfig]
+        A configuration for MetaSchedular tuning.
 
     Returns
     -------
-    mod : OperatorModuleWrapper
-        It will return an object of OperatorModuleWrapper,
+    mod : Union[OperatorModuleWrapper, Callable]
+        It will return an object, or a templated function of OperatorModuleWrapper,
         which is the subclass of the original nn.Module.
+
     """
-    if isinstance(func, (tvm.ir.module.IRModule, tvm.tir.function.PrimFunc)):
-        return OperatorModuleWrapper(func)
-    if isinstance(func, Callable):
 
-        def func_get_param(*args, **kargs):
-            return OperatorModuleWrapper(func(*args, **kargs))
+    def as_torch_inner(func):
+        if isinstance(inp, TuneConfig):
+            config = inp
+        else:
+            config = None
+        if isinstance(func, (tvm.ir.module.IRModule, tvm.tir.function.PrimFunc)):
+            return OperatorModuleWrapper(func, config)
+        if isinstance(func, Callable):
 
-        return func_get_param
+            def func_get_param(*args, **kargs):
+                return OperatorModuleWrapper(func(*args, **kargs), config)
+
+            return func_get_param
+        raise Exception("Incorrect `as_torch` formatting.")
+
+    if isinstance(inp, TuneConfig):
+        return as_torch_inner
+    return as_torch_inner(inp)
