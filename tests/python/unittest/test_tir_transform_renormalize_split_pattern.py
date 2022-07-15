@@ -132,7 +132,7 @@ def impossible_equality(n: T.int32):
     if 2 == 0:
         # Then this expression evaluates n/2, using the min/max values
         # of "2", which is caught as a divide by zero error.
-        if n / 2 >= 16:
+        if n // 2 >= 16:
             T.evaluate(0)
 
 
@@ -141,7 +141,7 @@ def impossible_inequality(n: T.int32):
     # Prior to bugfix, this conditional set up a range of possible
     # values for the expression "-2" as [0, kPosInf].
     if -1 < -2:
-        if n / (-2) >= 16:
+        if n // (-2) >= 16:
             T.evaluate(0)
 
 

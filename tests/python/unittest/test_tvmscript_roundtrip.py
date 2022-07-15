@@ -3036,7 +3036,6 @@ def func_div_mod():
         b = T.var("int32")
         T.evaluate(a // b)
         T.evaluate(a % b)
-        T.evaluate(a / b)
         T.evaluate(T.truncmod(a, b))
 
     return func_div_mod
