@@ -100,6 +100,31 @@ class ExprDoc(Object):
         raise RuntimeError(f"{self.__class__} cannot be used as iterable.")
 
 
+class StmtDoc(Doc):
+    """Base class of statement doc"""
+
+    @property
+    def comment(self) -> Optional[str]:
+        # It has to call the dunder method to avoid infinite recursion
+        # pylint: disable=unnecessary-dunder-call
+        return self.__getattr__("comment")
+        # pylint: enable=unnecessary-dunder-call
+
+    @comment.setter
+    def comment(self, value):
+        return _ffi_api.StmtDocSetComment(self, value)  # type: ignore
+
+
+@tvm._ffi.register_object("script.printer.StmtBlockDoc")
+class StmtBlockDoc(Doc):
+    """The container doc that holds a list of StmtDoc."""
+
+    stmts: Sequence[StmtDoc]
+
+    def __init__(self, stmts: List[StmtDoc]):
+        self.__init_handle_by_constructor__(_ffi_api.StmtBlockDoc, stmts)  # type: ignore
+
+
 @tvm._ffi.register_object("script.printer.LiteralDoc")
 class LiteralDoc(ExprDoc):
     """Doc that represents literal value"""
@@ -293,3 +318,141 @@ class SliceDoc(ExprDoc):
         step: Optional[ExprDoc] = None,
     ):
         self.__init_handle_by_constructor__(_ffi_api.SliceDoc, start, stop, step)  # type: ignore
+
+
+@tvm._ffi.register_object("script.printer.AssignDoc")
+class AssignDoc(StmtDoc):
+    """Doc that represents assign statement."""
+
+    lhs: ExprDoc
+    rhs: Optional[ExprDoc]
+    annotation: Optional[ExprDoc]
+
+    def __init__(self, lhs: ExprDoc, rhs: Optional[ExprDoc], annotation: Optional[ExprDoc] = None):
+        # pylint: disable=line-too-long
+        self.__init_handle_by_constructor__(_ffi_api.AssignDoc, lhs, rhs, annotation)  # type: ignore
+        # pylint: enable=line-too-long
+
+
+@tvm._ffi.register_object("script.printer.IfDoc")
+class IfDoc(StmtDoc):
+    """Doc that represent if-then-else statement."""
+
+    predicate: ExprDoc
+    then_branch: Sequence[StmtDoc]
+    else_branch: Sequence[StmtDoc]
+
+    def __init__(self, predicate: ExprDoc, then_branch: List[StmtDoc], else_branch: List[StmtDoc]):
+        # pylint: disable=line-too-long
+        self.__init_handle_by_constructor__(_ffi_api.IfDoc, predicate, then_branch, else_branch)  # type: ignore
+        # pylint: enable=line-too-long
+
+
+@tvm._ffi.register_object("script.printer.WhileDoc")
+class WhileDoc(StmtDoc):
+    """Doc that represents while statement."""
+
+    predicate: ExprDoc
+    body: Sequence[StmtDoc]
+
+    def __init__(self, predicate: ExprDoc, body: List[StmtDoc]):
+        self.__init_handle_by_constructor__(_ffi_api.WhileDoc, predicate, body)  # type: ignore
+
+
+@tvm._ffi.register_object("script.printer.ForDoc")
+class ForDoc(StmtDoc):
+    """Doc that represents for statement."""
+
+    lhs: ExprDoc
+    rhs: ExprDoc
+    body: Sequence[StmtDoc]
+
+    def __init__(self, lhs: ExprDoc, rhs: ExprDoc, body: List[StmtDoc]):
+        self.__init_handle_by_constructor__(_ffi_api.ForDoc, lhs, rhs, body)  # type: ignore
+
+
+@tvm._ffi.register_object("script.printer.ScopeDoc")
+class ScopeDoc(StmtDoc):
+    """
+    Doc that represents special scopes.
+
+    Specificially, this means the with statment in Python:
+
+    with <rhs> as <lhs>:
+        <body...>
+    """
+
+    lhs: Optional[ExprDoc]
+    rhs: ExprDoc
+    body: Sequence[StmtDoc]
+
+    def __init__(self, lhs: Optional[ExprDoc], rhs: ExprDoc, body: List[StmtDoc]):
+        self.__init_handle_by_constructor__(_ffi_api.ScopeDoc, lhs, rhs, body)  # type: ignore
+
+
+@tvm._ffi.register_object("script.printer.ExprStmtDoc")
+class ExprStmtDoc(StmtDoc):
+    """Doc that represents an expression as statement."""
+
+    expr: ExprDoc
+
+    def __init__(self, expr: ExprDoc):
+        self.__init_handle_by_constructor__(_ffi_api.ExprStmtDoc, expr)  # type: ignore
+
+
+@tvm._ffi.register_object("script.printer.AssertDoc")
+class AssertDoc(StmtDoc):
+    """Doc that represents assert statement."""
+
+    test: ExprDoc
+    msg: Optional[ExprDoc]
+
+    def __init__(self, test: ExprDoc, msg: Optional[ExprDoc] = None):
+        self.__init_handle_by_constructor__(_ffi_api.AssertDoc, test, msg)  # type: ignore
+
+
+@tvm._ffi.register_object("script.printer.ReturnDoc")
+class ReturnDoc(StmtDoc):
+    """Doc that represents return statement."""
+
+    value: ExprDoc
+
+    def __init__(self, value: ExprDoc):
+        self.__init_handle_by_constructor__(_ffi_api.ReturnDoc, value)  # type: ignore
+
+
+@tvm._ffi.register_object("script.printer.FunctionDoc")
+class FunctionDoc(StmtDoc):
+    """Doc that represents function definition."""
+
+    name: IdDoc
+    args: Sequence[AssignDoc]
+    decorators: Sequence[ExprDoc]
+    return_type: ExprDoc
+    body: Sequence[StmtDoc]
+
+    def __init__(
+        self,
+        name: IdDoc,
+        args: List[AssignDoc],
+        decorators: List[ExprDoc],
+        return_type: ExprDoc,
+        body: List[StmtDoc],
+    ):
+        # pylint: disable=line-too-long
+        self.__init_handle_by_constructor__(_ffi_api.FunctionDoc, name, args, decorators, return_type, body)  # type: ignore
+        # pylint: enable=line-too-long
+
+
+@tvm._ffi.register_object("script.printer.ClassDoc")
+class ClassDoc(StmtDoc):
+    """Doc that represents class definition."""
+
+    name: IdDoc
+    decorators: Sequence[ExprDoc]
+    body: Sequence[StmtDoc]
+
+    def __init__(self, name: IdDoc, decorators: List[ExprDoc], body: List[StmtDoc]):
+        # pylint: disable=line-too-long
+        self.__init_handle_by_constructor__(_ffi_api.ClassDoc, name, decorators, body)  # type: ignore
+        # pylint: enable=line-too-long
