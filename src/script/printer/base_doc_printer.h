@@ -84,22 +84,22 @@ class DocPrinter {
   virtual void PrintTypedDoc(const LiteralDoc& doc) = 0;
 
   /*!
-   * \brief Virtual method to print a IdDoc
+   * \brief Virtual method to print an IdDoc
    */
   virtual void PrintTypedDoc(const IdDoc& doc) = 0;
 
   /*!
-   * \brief Virtual method to print a AttrAccessDoc
+   * \brief Virtual method to print an AttrAccessDoc
    */
   virtual void PrintTypedDoc(const AttrAccessDoc& doc) = 0;
 
   /*!
-   * \brief Virtual method to print a IndexDoc
+   * \brief Virtual method to print an IndexDoc
    */
   virtual void PrintTypedDoc(const IndexDoc& doc) = 0;
 
   /*!
-   * \brief Virtual method to print a OperationDoc
+   * \brief Virtual method to print an OperationDoc
    */
   virtual void PrintTypedDoc(const OperationDoc& doc) = 0;
 
@@ -132,6 +132,61 @@ class DocPrinter {
    * \brief Virtual method to print a SliceDoc
    */
   virtual void PrintTypedDoc(const SliceDoc& doc) = 0;
+
+  /*!
+   * \brief Virtual method to print a StmtBlockDoc
+   */
+  virtual void PrintTypedDoc(const StmtBlockDoc& doc) = 0;
+
+  /*!
+   * \brief Virtual method to print an AssignDoc
+   */
+  virtual void PrintTypedDoc(const AssignDoc& doc) = 0;
+
+  /*!
+   * \brief Virtual method to print an IfDoc
+   */
+  virtual void PrintTypedDoc(const IfDoc& doc) = 0;
+
+  /*!
+   * \brief Virtual method to print a WhileDoc
+   */
+  virtual void PrintTypedDoc(const WhileDoc& doc) = 0;
+
+  /*!
+   * \brief Virtual method to print a ForDoc
+   */
+  virtual void PrintTypedDoc(const ForDoc& doc) = 0;
+
+  /*!
+   * \brief Virtual method to print a ScopeDoc
+   */
+  virtual void PrintTypedDoc(const ScopeDoc& doc) = 0;
+
+  /*!
+   * \brief Virtual method to print an ExprStmtDoc
+   */
+  virtual void PrintTypedDoc(const ExprStmtDoc& doc) = 0;
+
+  /*!
+   * \brief Virtual method to print an AssertDoc
+   */
+  virtual void PrintTypedDoc(const AssertDoc& doc) = 0;
+
+  /*!
+   * \brief Virtual method to print a ReturnDoc
+   */
+  virtual void PrintTypedDoc(const ReturnDoc& doc) = 0;
+
+  /*!
+   * \brief Virtual method to print a FunctionDoc
+   */
+  virtual void PrintTypedDoc(const FunctionDoc& doc) = 0;
+
+  /*!
+   * \brief Virtual method to print a ClassDoc
+   */
+  virtual void PrintTypedDoc(const ClassDoc& doc) = 0;
 
   /*!
    * \brief Increase the indent level of any content to be
