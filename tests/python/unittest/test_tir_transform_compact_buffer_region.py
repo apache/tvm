@@ -372,7 +372,7 @@ def compacted_storage_align_func(a: T.handle, c: T.handle) -> None:
         with T.block():
             T.reads(A[i, 0:16])
             T.writes(C[i, 0:16])
-            B = T.alloc_buffer((1, 16), strides=(31, 1), dtypes="float32")
+            B = T.alloc_buffer((1, 16), strides=(31, 1), dtype="float32")
             for j in range(0, 16):
                 with T.block():
                     T.reads(A[i, j])
@@ -391,7 +391,7 @@ def padding_pattern_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
     C = T.match_buffer(c, (20, 20), "float32")
     with T.block():
-        B = T.alloc_buffer((20, 20), dtypes="float32")
+        B = T.alloc_buffer((20, 20), dtype="float32")
         for i, j in T.grid(16, 16):
             with T.block():
                 B[i, j] = A[i, j]
@@ -473,10 +473,10 @@ def compacted_padding_pattern_inlined(
 def mem_access_in_branch_func(a: T.handle) -> None:
     A = T.match_buffer(a, (224, 224), "float32")
     with T.block():
-        B1 = T.alloc_buffer((224, 224), dtypes="float32")
-        B2 = T.alloc_buffer((224, 224), dtypes="float32")
-        B3 = T.alloc_buffer((224, 224), dtypes="float32")
-        B4 = T.alloc_buffer((224, 224), dtypes="float32")
+        B1 = T.alloc_buffer((224, 224), dtype="float32")
+        B2 = T.alloc_buffer((224, 224), dtype="float32")
+        B3 = T.alloc_buffer((224, 224), dtype="float32")
+        B4 = T.alloc_buffer((224, 224), dtype="float32")
         for i in range(0, 224):
             for j in range(0, 224):
                 with T.block():
@@ -519,8 +519,8 @@ def compacted_mem_access_in_branch_func(a: T.handle) -> None:
 def opaque_access_annotated_func(a: T.handle) -> None:
     A = T.match_buffer(a, (1024,), "float32")
     with T.block():
-        B = T.alloc_buffer((1024,), dtypes="float32")
-        C = T.alloc_buffer((1024,), dtypes="float32")
+        B = T.alloc_buffer((1024,), dtype="float32")
+        C = T.alloc_buffer((1024,), dtype="float32")
         for i in range(0, 512):
             with T.block():
                 # no annotation, opaque access will cover full region
@@ -541,8 +541,8 @@ def opaque_access_annotated_func(a: T.handle) -> None:
 def compacted_opaque_access_annotated_func(a: T.handle) -> None:
     A = T.match_buffer(a, (1024,), "float32")
     with T.block():
-        B = T.alloc_buffer((1024,), dtypes="float32")
-        C = T.alloc_buffer((520,), dtypes="float32")
+        B = T.alloc_buffer((1024,), dtype="float32")
+        C = T.alloc_buffer((520,), dtype="float32")
         for i in range(0, 512):
             with T.block():
                 # no annotation, opaque access will cover full region

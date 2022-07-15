@@ -142,7 +142,7 @@ def test_flatten_let_buffer():
             A_data: T.Ptr[T.int32] = T.call_extern("dummy_extern_function", dtype="handle")
 
             # and a buffer is backed by that pointer,
-            A: T.Buffer = T.buffer_decl([1], dtype="float32", data=A_data)
+            A = T.buffer_decl([1], dtype="float32", data=A_data)
             T.evaluate(A[0])
 
     # then the call to StorageFlatten would result in an exception
