@@ -30,10 +30,7 @@ import torch
 import torch.utils.dlpack
 
 import tvm
-from tvm.meta_schedule import default_config
-from tvm.meta_schedule.database.database import TuningRecord
-from tvm.meta_schedule.extracted_task import ExtractedTask
-from tvm.meta_schedule.tune import TuneConfig, tune_extracted_tasks
+from tvm.meta_schedule.tune import TuneConfig, tune_tir
 from tvm.target.target import Target
 from tvm.tir.schedule.schedule import Schedule
 
@@ -51,73 +48,26 @@ class OperatorModuleWrapper(torch.nn.Module):
         super().__init__()
         self.rt_module = None  # runtime module
         self.ir_module = module  # IR modules
-        if config is None:
-            self.config = TuneConfig(
-                # Default setting
-                strategy="replay_trace",
-                num_trials_per_iter=32,
-                max_trials_per_task=32,
-                max_trials_global=32,
-            )
-        else:
-            self.config = config
+        self.config = config
 
-    def tune_tir_auto(self, mod: Union[tvm.ir.module.IRModule, tvm.tir.function.PrimFunc]):
+    def tune_tir_auto(self, mod, target):
+        if target is None:
+            target = Target("llvm --num-cores=16")
         with tempfile.TemporaryDirectory() as work_dir:
-            sch: Schedule = self.tune_tir_inner(
+            sch: Schedule = tune_tir(
                 mod=mod,
-                target=Target("llvm --num-cores=16"),
+                target=target,
+                config=self.config,
                 work_dir=work_dir,
             )
             return sch.mod
 
-    def tune_tir_inner(
-        self,
-        mod: Union[tvm.ir.module.IRModule, tvm.tir.function.PrimFunc],
-        target: Union[str, Target],
-        work_dir: str,
-    ):
-        """Tune a TIR IRModule with a given target.
-
-        Parameters
-        ----------
-        mod : Union[IRModule, PrimFunc]
-            The module to tune.
-        target : Union[str, Target]
-            The target to tune for.
-        work_dir : Optional[str]
-            The working directory to save intermediate results.
-
-        Returns
-        -------
-        sch : Optional[Schedule]
-            The tuned schedule.
-        """
-        mod = default_config.mod(mod)
-        target = default_config.target(target)
-
-        extracted_task = ExtractedTask(
-            task_name="main",
-            mod=mod,
-            dispatched=[mod],
-            target=target,
-            weight=1,
-        )
-        database = tune_extracted_tasks(
-            extracted_tasks=[extracted_task], config=self.config, work_dir=work_dir
-        )
-        bests: List[TuningRecord] = database.get_top_k(database.commit_workload(mod), top_k=1)
-        if not bests:
-            return None
-        assert len(bests) == 1
-        sch = Schedule(mod)
-        bests[0].trace.apply_to_schedule(sch, remove_postproc=False)
-
-        return sch
-
     def build(self, target=None):
-        tuned_module = self.tune_tir_auto(self.ir_module)
-        runtime_module = tvm.build(tuned_module, target=target)
+        if self.config is not None:
+            module = self.tune_tir_auto(self.ir_module, target)
+        else:
+            module = self.ir_module
+        runtime_module = tvm.build(module, target=target)
         func = tvm.get_global_func("tvmtorch.save_runtime_mod")
         func(runtime_module)
 
@@ -126,7 +76,7 @@ class OperatorModuleWrapper(torch.nn.Module):
     def forward(self, *torch_inputs: List[torch.Tensor]) -> List[torch.Tensor]:
         if self.rt_module is None:
             if torch_inputs[0].is_cuda:
-                self.build(target="cuda")
+                self.build(target=Target("nvidia/geforce-rtx-3070"))
             elif torch_inputs[0].device.type == "cpu":
                 self.build()
             else:
@@ -141,7 +91,8 @@ def as_torch(inp):
     Parameters
     ----------
     config: Optional[TuneConfig]
-        A configuration for MetaSchedular tuning.
+        The configuration for tuning by MetaSchedule.
+        If user doesn't set the config, the tuning will run with a default setting.
 
     Returns
     -------

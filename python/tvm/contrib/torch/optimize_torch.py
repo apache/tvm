@@ -27,9 +27,9 @@ and returns a custom TorchScript operator
 """
 import base64
 import contextlib
-import logging
 import tempfile
 from typing import Dict, Optional, Tuple, Union
+import warnings
 
 import torch
 import torch.utils.dlpack
@@ -173,7 +173,7 @@ def optimize_torch(
             "For optimal performance, it is recommended to provide",
             "the `tuning_config` argument with a bigger number of trials.",
         )
-        logging.warning(" ".join(warning_msg))
+        warnings.warn(" ".join(warning_msg))
 
     # If `func` is already a traced module this statement makes no effect
     jit_mod = torch.jit.trace(func, example_inputs)

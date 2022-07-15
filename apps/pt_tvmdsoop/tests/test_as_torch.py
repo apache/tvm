@@ -47,47 +47,6 @@ def matmul(M: int, N: int, K: int, dtype: str):
 
 
 @as_torch
-@T.prim_func
-def matmul_original(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
-
-    for i, j in T.grid(32, 32):
-        with T.block("init"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            for ii, jj in T.grid(4, 4):
-                C[vi * 4 + ii, vj * 4 + jj] = T.float32(0)
-
-        for k in range(0, 32):
-            with T.block("update"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                for ii, jj, kk in T.grid(4, 4, 4):
-                    C[vi * 4 + ii, vj * 4 + jj] = (
-                        C[vi * 4 + ii, vj * 4 + jj]
-                        + A[vi * 4 + ii, vk * 4 + kk] * B[vj * 4 + jj, vk * 4 + kk]
-                    )
-
-
-@as_torch
-@tvm.script.ir_module
-class MyModule:
-    @T.prim_func
-    def main(a: T.handle, b: T.handle):
-        # We exchange data between function by handles, which are similar to pointer.
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        # Create buffer from handles.
-        A = T.match_buffer(a, (8,), dtype="float32")
-        B = T.match_buffer(b, (8,), dtype="float32")
-        for i in range(8):
-            # A block is an abstraction for computation.
-            with T.block("B"):
-                # Define a spatial block iterator and bind it to value i.
-                vi = T.axis.spatial(8, i)
-                B[vi] = A[vi] + 1.0
-
-
-@as_torch
 @tvm.script.ir_module
 class ModuleGPU:
     @T.prim_func
@@ -133,53 +92,59 @@ config = TuneConfig(
 
 
 @as_torch(config)
-def softmax(M: int, N: int, dtype: str):
+@tvm.script.ir_module
+class MyModule:
     @T.prim_func
-    def f(a: T.handle, b: T.handle) -> None:
-        A = T.match_buffer(a, [M, N], dtype=dtype)
-        B = T.match_buffer(b, [M, N], dtype=dtype)
-        C = T.alloc_buffer((M), dtype=dtype, scope="local")
-        for i in T.thread_binding(0, M, thread="threadIdx.x"):
-            with T.block("row1"):
-                for j in T.parallel(N):
-                    with T.block("column1"):
-                        C[i] = T.max(C[i], A[i, j])
-        for i in T.thread_binding(0, M, thread="blockIdx.x"):
-            with T.block("row2"):
-                for j in T.thread_binding(0, N, thread="threadIdx.x"):
-                    with T.block("column2"):
-                        B[i, j] = tvm.tir.exp(A[i, j] - C[i])
-        for i in T.thread_binding(0, M, thread="blockIdx.x"):
-            with T.block("row3"):
-                C[i] = 0
-                for j in T.parallel(N):
-                    with T.block("column3"):
-                        C[i] = C[i] + B[i, j]
-        for i in T.thread_binding(0, M, thread="blockIdx.x"):
-            with T.block("row4"):
-                for j in T.thread_binding(0, N, thread="threadIdx.x"):
-                    with T.block("column4"):
-                        B[i, j] = B[i, j] / C[i]
-
-    return f
+    def main(a: T.handle, b: T.handle):
+        # We exchange data between function by handles, which are similar to pointer.
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # Create buffer from handles.
+        A = T.match_buffer(a, (8,), dtype="float32")
+        B = T.match_buffer(b, (8,), dtype="float32")
+        for i in range(8):
+            # A block is an abstraction for computation.
+            with T.block("B"):
+                # Define a spatial block iterator and bind it to value i.
+                vi = T.axis.spatial(8, i)
+                B[vi] = A[vi] + 1.0
 
 
 @as_torch(config)
 @T.prim_func
-def elementwise_with_root(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
+def loop_split(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128], dtype="float32")
+    B = T.match_buffer(b, [128], dtype="float32")
+    for i, ko in T.grid(128, 4):
+        for ki in T.thread_binding(0, 32, thread="threadIdx.x"):
+            with T.block("B"):
+                vi = T.axis.S(128, i)
+                vk = T.axis.R(128, ko * 32 + ki)
+                T.reads([B[vi], A[vi, vk]])
+                T.writes([B[vi]])
+                with T.init():
+                    B[vi] = T.float32(0)
+                B[vi] = B[vi] + A[vi, vk]
 
-    with T.block():
-        for i, j in T.grid(128, 128):
-            with T.block("s1"):
-                vi, vj = T.axis.remap("SS", [i, j])
-                B[vi, vj] = A[vi, vj] + T.float32(1)
-        for i, j in T.grid(128, 128):
-            with T.block("s2"):
-                vi, vj = T.axis.remap("SS", [i, j])
-                C[vi, vj] = B[vi, vj] + T.float32(1)
+
+@as_torch(config)
+def elementwise_with_root(M: int, N: int, dtype: str):
+    @T.prim_func
+    def f(a: T.handle, b: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, [M, N])
+        B = T.match_buffer(b, [M, N])
+        C = T.match_buffer(c, [M, N])
+
+        with T.block():
+            for i, j in T.grid(M, N):
+                with T.block("s1"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    B[vi, vj] = A[vi, vj] + T.float32(1)
+            for i, j in T.grid(M, N):
+                with T.block("s2"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    C[vi, vj] = B[vi, vj] + T.float32(1)
+
+    return f
 
 
 class MinuesOnes(torch.nn.Module):
@@ -254,14 +219,13 @@ def test_tvmscript_torch_func_with_part_access_region():
     tvm.testing.assert_allclose(a3.numpy(), result.numpy(), atol=1e-5, rtol=1e-5)
 
 
-def test_tvmscript_torch_softmax():
-    x = torch.rand(300, 200).cuda()
-    y = torch.zeros(300, 200).cuda()
+def test_tvmscript_torch_loop_split():
+    x = torch.rand(128, 128).cuda()
+    y = torch.zeros(128).cuda()
 
-    result = torch.softmax(x, axis=1).cpu().numpy()
+    result = torch.sum(x.cpu(), dim=1).numpy()
 
-    func = softmax(300, 200, "float32")
-    func(x, y)
+    loop_split(x, y)
 
     tvm.testing.assert_allclose(y.cpu().numpy(), result, atol=1e-5, rtol=1e-5)
 
@@ -273,7 +237,8 @@ def test_tvmscript_torch_elementwise_with_root():
 
     result = a1 + 2
 
-    elementwise_with_root(a1, a2, a3)
+    func = elementwise_with_root(128, 128, "float32")
+    func(a1, a2, a3)
 
     tvm.testing.assert_allclose(a3.numpy(), result.numpy(), atol=1e-5, rtol=1e-5)
 
@@ -284,5 +249,5 @@ if __name__ == "__main__":
     test_tvmscript_torch_gpu()
     test_torch_with_tvmscript()
     test_tvmscript_torch_func_with_part_access_region()
-    test_tvmscript_torch_softmax()
+    test_tvmscript_torch_loop_split()
     test_tvmscript_torch_elementwise_with_root()
