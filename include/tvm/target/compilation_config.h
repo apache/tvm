@@ -140,12 +140,14 @@ class CompilationConfigNode : public Object {
   Target CanonicalTarget(const Target& target) const;
 
   /*!
-   * \brief Returns a \p VirtualDevice agreeing with \p virtual_device on all its constrained
-   * fields, however:
-   * - If the target is null then it is filled in using \p FindPrimitiveTargetOrFail to match
-   *   the device type.
-   * - The returned object is unique for the field values w.r.t. all other \p VirtualDevices
-   *   returned by this method.
+   * \brief Returns a \p VirtualDevice which is structurally equal to \p virtual_device on all its
+   * constrained fields, however:
+   * - If \p virtual_device has a device type but not a target, fill in a target using
+   *   \p FindPrimitiveTargetOrFail. This is the one place we allow targets to be defaulted
+   *   from device types alone.
+   * - If \p virtual_device has a target, also canonicalize it using \p CanonicalTarget.
+   * The returned object will be unique for the adjusted virtual device w.r.t. all other
+   * \p VirtualDevices returned by this method.
    *
    * We call the result the 'canonical' \p VirtualDevice. Two canonical \p VirtualDevices are
    * structurally equal if and only if they are pointer equal. In this way we can build maps

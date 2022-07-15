@@ -98,19 +98,30 @@ Target CompilationConfigNode::CanonicalTarget(const Target& target) const {
 
 VirtualDevice CompilationConfigNode::CanonicalVirtualDevice(
     const VirtualDevice& virtual_device) const {
-  DLDeviceType device_type = virtual_device->device_type();
+  // Targets need special handling.
   Target target = virtual_device->target;
   if (target.defined()) {
-    target = CanonicalTarget(target);
-  } else {
-    // Find the (unique) target matching the device's device type.
-    // TODO(mbs): Proper diagnostics.
-    CHECK(device_type != kInvalidDeviceType)
-        << "VirtualDevice annotations must include at least a device_type";
-    target = FindPrimitiveTargetForDeviceOrFail(device_type);
+    // It is possible the given target object was constructed by the user, but was then
+    // rewritten on the way into the CompilationConfig. So 'canonicalize' it by replacing
+    // the given target with one structurally equal to one already known in the config if
+    // possible.
+    Target canon_target = CanonicalTarget(target);
+    if (canon_target != target) {
+      VLOG(1) << "Canonicalized target " << canon_target->ToDebugString();
+    }
+    target = canon_target;
+  } else if (virtual_device->device_type() != kInvalidDeviceType) {
+    // Since no target was given, choose one with a matching device type.
+    // This is the one place where we allow device types to imply targets.
+    target = FindPrimitiveTargetForDeviceOrFail(virtual_device->device_type());
+    VLOG(1) << "Defaulted to target " << target->ToDebugString();
   }
-  return virtual_device_cache_.Unique(VirtualDevice(device_type, virtual_device->virtual_device_id,
-                                                    target, virtual_device->memory_scope));
+  // else: the target will remain unknown.
+
+  // Redirect to an existing structurally equal virtual device.
+  return virtual_device_cache_.Unique(VirtualDevice(virtual_device->device_type(),
+                                                    virtual_device->virtual_device_id, target,
+                                                    virtual_device->memory_scope));
 }
 
 void CompilationConfigNode::Init(const transform::PassContext& pass_ctx,
