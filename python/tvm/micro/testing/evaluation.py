@@ -30,9 +30,6 @@ import tempfile
 import tvm
 
 
-AOT_PLATFORM_SPECIFIC_OPTIONS = {"arduino": {}, "zephyr": {"config_main_stack_size": 4096}}
-
-
 def tune_model(
     platform, board, target, mod, params, num_trials, tuner_cls=tvm.autotvm.tuner.GATuner
 ):
@@ -88,6 +85,7 @@ def create_aot_session(
     tune_logs=None,
     timeout_override=None,
     use_cmsis_nn=False,
+    project_options=None,
 ):
     """AOT-compiles and uploads a model to a microcontroller, and returns the RPC session"""
 
@@ -112,7 +110,6 @@ def create_aot_session(
     parameter_size = len(tvm.runtime.save_param_dict(lowered.get_params()))
     print(f"Model parameter size: {parameter_size}")
 
-    # Once the project has been uploaded, we don't need to keep it
     project = tvm.micro.generate_project(
         str(tvm.micro.get_microtvm_template_projects(platform)),
         lowered,
@@ -120,7 +117,9 @@ def create_aot_session(
         {
             f"{platform}_board": board,
             "project_type": "host_driven",
-            **(AOT_PLATFORM_SPECIFIC_OPTIONS[platform]),
+            # {} shouldn't be the default value for project options ({}
+            # is mutable), so we use this workaround
+            **(project_options or {}),
         },
     )
     project.build()
