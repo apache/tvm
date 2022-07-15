@@ -96,8 +96,8 @@ class ExprDocNode : public DocNode {
    * \param kwargs_keys Keys of keywords arguments of the function call.
    * \param kwargs_values Values of keywords arguments of the function call.
    */
-  ExprDoc Call(Array<ExprDoc, void> args,        //
-               Array<String, void> kwargs_keys,  //
+  ExprDoc Call(Array<ExprDoc, void> args,  //
+               Array<String> kwargs_keys,  //
                Array<ExprDoc, void> kwargs_values) const;
 
   void VisitAttrs(AttrVisitor* v) { DocNode::VisitAttrs(v); }
