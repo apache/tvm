@@ -345,6 +345,11 @@ TEST(CompilationConfig, CanonicalVirtualDevice) {
     VirtualDevice actual = config->CanonicalVirtualDevice(in);
     EXPECT_EQ(config->CanonicalVirtualDevice(in), actual);
   }
+  {
+    VirtualDevice in = VirtualDevice();  // ie structurally equal to FullyUnconstrained.
+    VirtualDevice actual = config->CanonicalVirtualDevice(in);
+    EXPECT_EQ(config->CanonicalVirtualDevice(in), VirtualDevice::FullyUnconstrained());
+  }
 }
 
 TEST(CompilationConfig, CanonicalVirtualDevice_NoMatchingTarget) {

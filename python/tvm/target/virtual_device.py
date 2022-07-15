@@ -29,6 +29,7 @@ class VirtualDevice(Object):
 
     def __init__(self, device=None, target=None, memory_scope="") -> None:
         if device is None:
+            # The 'unconstrained' device has device type -1 and device id -1.
             device = tvm.device(-1, -1)
         self.__init_handle_by_constructor__(
             _ffi_api.VirtualDevice_ForDeviceTargetAndMemoryScope, device, target, memory_scope
