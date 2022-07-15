@@ -181,14 +181,14 @@ def test_print_binary_operation_doc(op_kind, expected_token):
 
 SPECIAL_OP_CASES = [
     (
-        OperationKind.Assert,
-        [LiteralDoc(True), LiteralDoc("assert_message")],
-        'assert True, "assert_message"',
+        OperationKind.IfThenElse,
+        [LiteralDoc(True), LiteralDoc("true"), LiteralDoc("false")],
+        '"true" if True else "false"',
     ),
     (
-        OperationKind.Assert,
-        [LiteralDoc(True)],
-        "assert True",
+        OperationKind.IfThenElse,
+        [IdDoc("x"), LiteralDoc(None), LiteralDoc(1)],
+        'None if x else 1',
     ),
 ]
 

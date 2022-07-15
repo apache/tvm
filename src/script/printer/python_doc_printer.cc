@@ -160,14 +160,14 @@ void PythonDocPrinter::PrintTypedDoc(const OperationDoc& doc) {
     PrintDoc(doc->operands[0]);
     output_ << " " << OperatorToString(doc->kind) << " ";
     PrintDoc(doc->operands[1]);
-  } else if (doc->kind == OpKind::kAssert) {
-    // Special Operator: Assert
-    output_ << "assert ";
+  } else if (doc->kind == OpKind::kIfThenElse) {
+    CHECK_EQ(doc->operands.size(), 3)
+        << "ValueError: IfThenElse requires 3 operands, but got " << doc->operands.size();
+    PrintDoc(doc->operands[1]);
+    output_ << " if ";
     PrintDoc(doc->operands[0]);
-    if (doc->operands.size() > 1) {
-      output_ << ", ";
-      PrintDoc(doc->operands[1]);
-    }
+    output_ << " else ";
+    PrintDoc(doc->operands[2]);
   } else {
     LOG(FATAL) << "Unknown OperationDocNode::Kind " << static_cast<int>(doc->kind);
     throw;

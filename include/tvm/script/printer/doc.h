@@ -397,7 +397,7 @@ class OperationDocNode : public ExprDocNode {
 
     // Special
     kSpecialStart,
-    kAssert,
+    kIfThenElse,  // <operands[1]> if <operands[0]> else <operands[2]>
     kSpecialEnd
   };
 

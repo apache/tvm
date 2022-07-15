@@ -192,7 +192,7 @@ class OperationKind(IntEnum):
     _BinaryEnd = auto()
 
     _SpecialStart = auto()
-    Assert = auto()
+    IfThenElse = auto()
     _SpecialEnd = auto()
 
     # pylint: enable=invalid-name
