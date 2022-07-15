@@ -18,8 +18,17 @@
 
 from enum import Enum, auto
 import uuid
+
+import tvm
 import tvm.tir
 from tvm.contrib import utils, clang
+
+
+def uma_available() -> bool:
+    registration_func = tvm.get_global_func(
+        "relay.backend.contrib.uma.RegisterTarget", allow_missing=True
+    )
+    return registration_func is not None
 
 
 class PassPhase(Enum):

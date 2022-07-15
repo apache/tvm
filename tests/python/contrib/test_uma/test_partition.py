@@ -22,6 +22,9 @@ import tvm
 from tvm.relay.backend.contrib.uma.api import UMAPartitioner
 from tvm.relay.op.contrib.register import get_pattern_table
 from tvm.relay.testing import resnet, mlp
+from tvm.relay.backend.contrib.uma import uma_available
+
+pytestmark = pytest.mark.skipif(not uma_available(), reason="UMA not available")
 
 
 def test_partition_table():

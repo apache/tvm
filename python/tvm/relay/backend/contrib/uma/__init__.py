@@ -14,3 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+from .backend import UMABackend
+from .api.utils import uma_available
+
+__all__ = ["UMABackend", "uma_available"]

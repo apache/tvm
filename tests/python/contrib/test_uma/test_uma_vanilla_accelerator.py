@@ -28,6 +28,9 @@ from tvm.relay.backend.contrib.uma._template.passes import (
 from tvm.relay.backend.contrib.uma._template.codegen import gen_includes
 
 from tvm.relay.backend.contrib.uma._template.patterns import conv2d_pattern
+from tvm.relay.backend.contrib.uma import uma_available
+
+pytestmark = pytest.mark.skipif(not uma_available(), reason="UMA not available")
 
 
 class VanillaAcceleratorBackend(UMABackend):

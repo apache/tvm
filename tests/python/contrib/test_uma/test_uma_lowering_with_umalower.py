@@ -25,6 +25,10 @@ import tvm.testing
 from tvm import te
 from tvm.relay.backend.contrib.uma.api.lower import UMALower
 from tvm.relay.backend.contrib.uma.api.utils import PassPhase
+from tvm.relay.backend.contrib.uma import uma_available
+
+
+pytestmark = pytest.mark.skipif(not uma_available(), reason="UMA not available")
 
 
 def _conv2d_te_definition(shapes: dict) -> list:

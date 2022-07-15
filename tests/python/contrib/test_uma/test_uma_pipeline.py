@@ -31,6 +31,10 @@ from tvm import relay
 import numpy as np
 from collections import OrderedDict
 
+from tvm.relay.backend.contrib.uma import uma_available
+
+pytestmark = pytest.mark.skipif(not uma_available(), reason="UMA not available")
+
 
 @pytest.mark.parametrize(
     "interface_api,use_unpacked_api,test_runner,groups,weight_shape",
