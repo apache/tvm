@@ -1033,6 +1033,7 @@ class ZephyrFvpTransport:
         args.append("run")
         env = dict(os.environ)
         env["FVP_BIN_PATH"] = str(pathlib.Path(self.options["arm_fvp_path"]).parent)
+        env["ARMFVP_BIN_PATH"] = str(API_SERVER_DIR / "fvp-hack")
         self.proc = subprocess.Popen(
             args,
             cwd=BUILD_DIR,
