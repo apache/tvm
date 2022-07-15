@@ -38,10 +38,42 @@ struct TensorCoreIntrinGroup {
   String load_b_intrin;
   String compute_intrin;
   String store_intrin;
+
+  /*! \brief Create TensorCoreIntrinGroup from config in a map. The map should contains the
+   * following keys:
+   *  - init
+   *  - load_a
+   *  - load_b
+   *  - compute
+   *  - store
+   * The values of the keys should be the names of the corresponding intrinsics and should be
+   * registered via TensorIntrin.Register beforehand.
+   */
+  static TensorCoreIntrinGroup FromConfig(const Map<String, String>& config);
 };
+
+TensorCoreIntrinGroup TensorCoreIntrinGroup::FromConfig(const Map<String, String>& config) {
+  auto f_initialize_intrin = [&config](String key_name, String* intrin_name) {
+    CHECK(config.count(key_name)) << "ValueError: " << key_name << " is not set.";
+    *intrin_name = config.at(key_name);
+    // Check the existence of the intrin
+    tir::TensorIntrin::Get(*intrin_name);
+  };
+  TensorCoreIntrinGroup intrin_group;
+  f_initialize_intrin("init", &intrin_group.init_intrin);
+  f_initialize_intrin("load_a", &intrin_group.load_a_intrin);
+  f_initialize_intrin("load_b", &intrin_group.load_b_intrin);
+  f_initialize_intrin("compute", &intrin_group.compute_intrin);
+  f_initialize_intrin("store", &intrin_group.store_intrin);
+  return intrin_group;
+}
 
 class TensorCoreStateNode : public StateNode {
  public:
+  /*! \brief The tensor core intrinsic group. */
+  TensorCoreIntrinGroup intrin_group;
+  /*! \brief The auto tensorization maping info. */
+  tir::AutoTensorizeMappingInfo mapping_info{nullptr};
   /*! \brief The Tensor Core reindex block A for Tensor Core computation */
   tir::BlockRV tensor_core_reindex_A;
   /*! \brief The Tensor Core reindex block B for Tensor Core computation */
@@ -57,16 +89,21 @@ class TensorCoreStateNode : public StateNode {
 
 class TensorCoreState : public State {
  public:
-  explicit TensorCoreState(tir::Schedule sch, tir::BlockRV block_rv,
-                           Array<Array<tir::LoopRV>> tiles = {});
+  explicit TensorCoreState(TensorCoreIntrinGroup intrin_group,
+                           tir::AutoTensorizeMappingInfo mapping_info, Schedule sch,
+                           BlockRV block_rv, Array<Array<tir::LoopRV>> tiles = {});
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(TensorCoreState, State, TensorCoreStateNode);
 };
 
 TVM_REGISTER_OBJECT_TYPE(TensorCoreStateNode);
 
-TensorCoreState::TensorCoreState(Schedule sch, BlockRV block_rv, Array<Array<LoopRV>> tiles) {
+TensorCoreState::TensorCoreState(TensorCoreIntrinGroup intrin_group,
+                                 tir::AutoTensorizeMappingInfo mapping_info, Schedule sch,
+                                 BlockRV block_rv, Array<Array<LoopRV>> tiles) {
   ObjectPtr<TensorCoreStateNode> node = make_object<TensorCoreStateNode>();
+  node->intrin_group = intrin_group;
+  node->mapping_info = mapping_info;
   node->sch = std::move(sch);
   node->block_rv = std::move(block_rv);
   node->tiles = std::move(tiles);
@@ -116,16 +153,12 @@ class MultiLevelTilingTensorCoreNode : public MultiLevelTilingNode {
                                 const String& intrin_name) const;
 
  public:
-  /*! \brief The tensor core intrin group to apply */
-  TensorCoreIntrinGroup intrin_group;
+  /*! \brief The candidate tensor core intrin groups to apply */
+  std::vector<TensorCoreIntrinGroup> intrin_groups;
   static constexpr const char* _type_key = "meta_schedule.MultiLevelTilingTensorCore";
   TVM_DECLARE_FINAL_OBJECT_INFO(MultiLevelTilingTensorCoreNode, MultiLevelTilingNode);
 
  private:
-  /*!
-   * \brief The mapping info for auto tensorization
-   */
-  tir::AutoTensorizeMappingInfo mapping_info_{nullptr};
 };
 
 // Entry of the mega rule; Inherited from ScheduleRuleNode
@@ -135,21 +168,36 @@ Array<Schedule> MultiLevelTilingTensorCoreNode::Apply(const Schedule& sch,
     return {sch};
   }
 
-  Optional<tir::AutoTensorizeMappingInfo> mapping_info =
-      tir::GetAutoTensorizeMappingInfo(sch->state(), sch->GetSRef(block_rv),
-                                       tir::TensorIntrin::Get(intrin_group.compute_intrin)->desc);
-  if (!mapping_info.defined()) {
+  std::unordered_map<int, tir::AutoTensorizeMappingInfo> intrin_group_to_mapping_info;
+  for (int i = 0, n = intrin_groups.size(); i < n; ++i) {
+    TensorCoreIntrinGroup intrin_group = intrin_groups[i];
+    Optional<tir::AutoTensorizeMappingInfo> mapping_info = tir::GetAutoTensorizeMappingInfo(
+        sch->state(), sch->GetSRef(block_rv),
+        tir::TensorIntrin::Get(intrin_groups[i].compute_intrin)->desc);
+    if (mapping_info.defined()) {
+      intrin_group_to_mapping_info.emplace(i, mapping_info.value());
+    }
+  }
+
+  if (intrin_group_to_mapping_info.empty()) {
+    // No tensor intrinsics can be applied.
     return {sch};
   }
-  mapping_info_ = mapping_info.value();
 
-  // Create a copy of the schedule so that we can roll back transformations if tensorization
+  // Save the original schedule so that we can roll back transformations if tensorization
   // fail.
-  Schedule original_sch = sch->Copy();
-  sch->Annotate(block_rv, tir::attr::meta_schedule_tiling_structure, structure);
+  Schedule original_sch = sch;
 
+  std::vector<State> initial_states;
+  for (const auto& kv : intrin_group_to_mapping_info) {
+    const TensorCoreIntrinGroup& intrin_group = intrin_groups[kv.first];
+    const tir::AutoTensorizeMappingInfo& mapping_info = kv.second;
+    Schedule new_sch = sch->Copy();
+    new_sch->Annotate(block_rv, tir::attr::meta_schedule_tiling_structure, structure);
+    initial_states.push_back(TensorCoreState(intrin_group, mapping_info, new_sch, block_rv));
+  }
   Array<Schedule> results;
-  for (auto&& state : ApplySubRules({TensorCoreState(sch, block_rv)})) {
+  for (auto&& state : ApplySubRules(initial_states)) {
     results.push_back(std::move(state->sch));
   }
   if (results.empty()) {
@@ -196,7 +244,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddWriteReuseTensorCore(
     AnnotateCooperativeFetching(&sch, state->write_reuse[0]);
   }
   sch->ReverseComputeInline(state->tensor_core_reindex_store);
-  TileAndAnnotateTensorize(&sch, cache_write, intrin_group.store_intrin);
+  TileAndAnnotateTensorize(&sch, cache_write, state->intrin_group.store_intrin);
   return {state};
 }
 
@@ -212,8 +260,8 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddReadReuseTensorCore(
     TileAndAnnotateTensorize(&sch, cache_read, intrin_name);
   };
 
-  f_tensorize_load(0, "wmma.matrix_a", intrin_group.load_a_intrin);
-  f_tensorize_load(1, "wmma.matrix_b", intrin_group.load_b_intrin);
+  f_tensorize_load(0, "wmma.matrix_a", state->intrin_group.load_a_intrin);
+  f_tensorize_load(1, "wmma.matrix_b", state->intrin_group.load_b_intrin);
   sch->ComputeInline(state->tensor_core_reindex_A);
   sch->ComputeInline(state->tensor_core_reindex_B);
 
@@ -238,6 +286,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddReadReuseTensorCore(
 Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
     TensorCoreStateNode* state, const String& intrin_name) const {
   BlockRV block_rv = state->block_rv;
+  const tir::AutoTensorizeMappingInfo& mapping_info = state->mapping_info;
   tir::StmtSRef block_sref = state->sch->GetSRef(state->block_rv);
 
   // Add reindex stages
@@ -258,24 +307,24 @@ Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
   // Transform the layout of reindex buffers accordingly.
   // The index map defines the mapping for the computation block. We need to extract the sub index
   // map to transform the load and store block.
-  ICHECK_EQ(mapping_info_->mappings.size(), 1U);  // assume only one mapping is present
-  const tir::IndexMap& index_map = mapping_info_->mappings[0];
+  ICHECK_EQ(mapping_info->mappings.size(), 1U);  // assume only one mapping is present
+  const tir::IndexMap& index_map = mapping_info->mappings[0];
 
   // Find the correspondence between block iters and the iters in the index map.
   std::unordered_map<tir::Var, tir::Var, ObjectPtrHash, ObjectPtrEqual> lhs_to_index_map_src;
   std::unordered_map<tir::Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> rhs_to_index_map_tgt;
   std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> unmapped_index_map_src;
-  ICHECK_EQ(mapping_info_->lhs_iters.size(), index_map->initial_indices.size());
-  for (int i = 0; i < static_cast<int>(mapping_info_->lhs_iters.size()); ++i) {
-    lhs_to_index_map_src[mapping_info_->lhs_iters[i]->var] = index_map->initial_indices[i];
+  ICHECK_EQ(mapping_info->lhs_iters.size(), index_map->initial_indices.size());
+  for (int i = 0; i < static_cast<int>(mapping_info->lhs_iters.size()); ++i) {
+    lhs_to_index_map_src[mapping_info->lhs_iters[i]->var] = index_map->initial_indices[i];
   }
   // The number of result iters in the index map is equal or more than the number of rhs (the
-  // tensor intrin) iters. When there are extra iters, these iters represent unmapped iters from the
-  // lhs. They will be skipped during pattern matching for tensorization.
-  // An example of such case is batch matmul, the batch dimension is kept after layout
-  // transformations and it will be kept as a outer loop after tensorization.
+  // tensor intrin) iters. When there are extra iters, these iters represent unmapped iters from
+  // the lhs. They will be skipped during pattern matching for tensorization. An example of such
+  // case is batch matmul, the batch dimension is kept after layout transformations and it will be
+  // kept as a outer loop after tensorization.
   int offset = static_cast<int>(index_map->final_indices.size()) -
-               static_cast<int>(mapping_info_->rhs_iters.size());
+               static_cast<int>(mapping_info->rhs_iters.size());
   ICHECK_GE(offset, 0);
   for (int i = 0; i < offset; ++i) {
     const tir::VarNode* var_ptr = index_map->final_indices[i].as<tir::VarNode>();
@@ -283,13 +332,13 @@ Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
     unmapped_index_map_src.insert(GetRef<tir::Var>(var_ptr));
   }
   for (int i = offset; i < static_cast<int>(index_map->final_indices.size()); ++i) {
-    rhs_to_index_map_tgt[mapping_info_->rhs_iters[i - offset]->var] = index_map->final_indices[i];
+    rhs_to_index_map_tgt[mapping_info->rhs_iters[i - offset]->var] = index_map->final_indices[i];
   }
 
   auto f_get_sub_index_map = [&](const tir::Buffer& lhs_buffer, const tir::Region& lhs_region) {
     std::vector<tir::Var> sub_index_map_src;
     std::vector<PrimExpr> sub_index_map_tgt;
-    const tir::Buffer& rhs_buffer = mapping_info_->lhs_buffer_map[lhs_buffer];
+    const tir::Buffer& rhs_buffer = mapping_info->lhs_buffer_map[lhs_buffer];
     for (const Range& range : lhs_region) {
       ICHECK(tir::is_one(range->extent));
       const tir::VarNode* var_ptr = range->min.as<tir::VarNode>();
@@ -300,8 +349,8 @@ Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
         sub_index_map_tgt.push_back(lhs_representer);
       }
     }
-    for (size_t i = 0; i < mapping_info_->rhs_buffer_indices[rhs_buffer].size(); ++i) {
-      const tir::VarNode* var = mapping_info_->rhs_buffer_indices[rhs_buffer][i].as<tir::VarNode>();
+    for (size_t i = 0; i < mapping_info->rhs_buffer_indices[rhs_buffer].size(); ++i) {
+      const tir::VarNode* var = mapping_info->rhs_buffer_indices[rhs_buffer][i].as<tir::VarNode>();
       ICHECK(var != nullptr);
       sub_index_map_tgt.push_back(rhs_to_index_map_tgt[GetRef<tir::Var>(var)]);
     }
@@ -345,7 +394,7 @@ inline std::vector<State> MultiLevelTilingTensorCoreNode::TransformForTensorizat
     TensorCoreState state) const {
   // Do reindex and layout transformations.
   Optional<LoopRV> transformed_loop_rv =
-      TransformWithTensorIntrin(state.operator->(), intrin_group.compute_intrin);
+      TransformWithTensorIntrin(state.operator->(), state->intrin_group.compute_intrin);
   if (!transformed_loop_rv.defined()) {
     // The workload can't be tensorized.
     return {};
@@ -356,32 +405,24 @@ inline std::vector<State> MultiLevelTilingTensorCoreNode::TransformForTensorizat
 
   // Add annotations for post processors.
   state->sch->Annotate(state->block_rv, tir::attr::meta_schedule_auto_tensorize,
-                       intrin_group.compute_intrin);
+                       state->intrin_group.compute_intrin);
   state->sch->Annotate(state->block_rv, tir::attr::meta_schedule_auto_tensorize_init,
-                       intrin_group.init_intrin);
+                       state->intrin_group.init_intrin);
   state->sch->Annotate(state->block_rv, tir::attr::warp_execution, Bool(true));
   return {std::move(state)};
 }
 
 ScheduleRule ScheduleRule::MultiLevelTilingTensorCore(
-    Map<String, String> intrin_group, String structure, Optional<Array<String>> tile_binds,
+    Array<Map<String, String>> intrin_groups, String structure, Optional<Array<String>> tile_binds,
     Optional<Integer> max_innermost_factor, Optional<Array<Integer>> vector_load_lens,
     Optional<Map<String, ObjectRef>> reuse_read, Optional<Map<String, ObjectRef>> reuse_write) {
   auto node = MultiLevelTilingInitCommon<MultiLevelTilingTensorCoreNode>(
       structure, tile_binds, max_innermost_factor, vector_load_lens, reuse_read, reuse_write);
 
-  auto f_initialize_intrin = [&intrin_group](String key_name, String* intrin_name) {
-    CHECK(intrin_group.count(key_name)) << "ValueError: " << key_name << " is not set.";
-    *intrin_name = intrin_group.at(key_name);
-    // Check the existence of the intrin
-    tir::TensorIntrin::Get(*intrin_name);
-  };
-  f_initialize_intrin("init", &node->intrin_group.init_intrin);
-  f_initialize_intrin("load_a", &node->intrin_group.load_a_intrin);
-  f_initialize_intrin("load_b", &node->intrin_group.load_b_intrin);
-  f_initialize_intrin("compute", &node->intrin_group.compute_intrin);
-  f_initialize_intrin("store", &node->intrin_group.store_intrin);
-
+  node->intrin_groups.reserve(intrin_groups.size());
+  for (const auto& intrin_group_config : intrin_groups) {
+    node->intrin_groups.emplace_back(TensorCoreIntrinGroup::FromConfig(intrin_group_config));
+  }
   return ScheduleRule(node);
 }
 

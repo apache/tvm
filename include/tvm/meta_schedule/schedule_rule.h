@@ -174,13 +174,13 @@ class ScheduleRule : public runtime::ObjectRef {
       Optional<Map<String, ObjectRef>> reuse_read, Optional<Map<String, ObjectRef>> reuse_write);
 
   /*!
-   * \brief Extension of MultiLevelTiling for auto-tensorizing with a single group of tensor core
-   * intrinsics
-   * \param intrin_group A group of tensor core intrinsics. The map should contains key "init",
-   * "load_a", "load_b", "compute", "store", which represent the tensor intrin for initialization,
-   * loading operand A, loading operand B, tensor core computation, storing the result. The value of
-   * the map should be names of tensor intrinsics, must be registerd via TensorIntrin.register(...)
-   * beforehand
+   * \brief Extension of MultiLevelTiling for auto-tensorizing with multiple groups of candidate
+   * tensor core intrinsics
+   * \param intrin_groups A list of groups of tensor core intrinsics. The map should contains key
+   * "init", "load_a", "load_b", "compute", "store", which represent the tensor intrin for
+   * initialization, loading operand A, loading operand B, tensor core computation, storing the
+   * result. The value of the map should be names of tensor intrinsics, must be registerd via
+   * TensorIntrin.register(...) beforehand
    * \param structure The tiling structure. Recommended:
    * - 'SSSRRSRS' on GPU
    * \param tile_binds For each level of tiles, which thread axis it is bound to. Recommended:
@@ -193,9 +193,10 @@ class ScheduleRule : public runtime::ObjectRef {
    * \return The schedule rule created
    */
   TVM_DLL static ScheduleRule MultiLevelTilingTensorCore(
-      Map<String, String> intrin_group, String structure, Optional<Array<String>> tile_binds,
-      Optional<Integer> max_innermost_factor, Optional<Array<Integer>> vector_load_lens,
-      Optional<Map<String, ObjectRef>> reuse_read, Optional<Map<String, ObjectRef>> reuse_write);
+      Array<Map<String, String>> intrin_groups, String structure,
+      Optional<Array<String>> tile_binds, Optional<Integer> max_innermost_factor,
+      Optional<Array<Integer>> vector_load_lens, Optional<Map<String, ObjectRef>> reuse_read,
+      Optional<Map<String, ObjectRef>> reuse_write);
 
   /*!
    * \brief Create a rule: add-rfactor to some blocks if needed

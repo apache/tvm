@@ -135,15 +135,15 @@ class MultiLevelTilingWithIntrin(ScheduleRule):
 
 @register_object("meta_schedule.MultiLevelTilingTensorCore")
 class MultiLevelTilingTensorCore(ScheduleRule):
-    """Extension of MultiLevelTiling for auto-tensorizing with a single group of tensor core
-    intrinsics.
+    """Extension of MultiLevelTiling for auto-tensorizing with multiple groups of candidate tensor
+    core intrinsics.
 
     Parameters
     ----------
-    intrin_group : Mapping[str, str]
-        A group of tensor core intrinsics. The map should contains key "init", "load_a", "load_b",
-        "compute", "store", which represent the tensor intrin for initialization, loading operand A,
-        loading operand B, tensor core computation, storing the result.
+    intrin_groups : List[Mapping[str, str]]
+        A list of groups of tensor core intrinsics. The map should contains key "init", "load_a",
+        "load_b", "compute", "store", which represent the tensor intrin for initialization,
+        loading operand A, loading operand B, tensor core computation, storing the result.
         The value of the map should be names of tensor intrinsics, must be registerd via
         TensorIntrin.register(...) beforehand
     structure : str
@@ -165,7 +165,7 @@ class MultiLevelTilingTensorCore(ScheduleRule):
 
     def __init__(
         self,
-        intrin_group: Mapping[str, str],
+        intrin_groups: List[Mapping[str, str]],
         structure: str,
         tile_binds: Optional[List[str]] = None,
         max_innermost_factor: Optional[int] = None,
@@ -175,7 +175,7 @@ class MultiLevelTilingTensorCore(ScheduleRule):
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.ScheduleRuleMultiLevelTilingTensorCore,  # type: ignore # pylint: disable=no-member
-            intrin_group,
+            intrin_groups,
             structure,
             tile_binds,
             max_innermost_factor,
