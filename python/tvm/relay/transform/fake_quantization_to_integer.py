@@ -368,7 +368,8 @@ def leaky_relu(expr, type_map):
     out_t = type_map[expr]
     alpha = expr.attrs.alpha
     output = relay.qnn.op.leaky_relu(
-        expr, alpha, x_t.scale, x_t.zero_point, out_t.scale, out_t.zero_point)
+        expr, alpha, x_t.scale, x_t.zero_point, out_t.scale, out_t.zero_point
+    )
     return [output, x_t]
 
 

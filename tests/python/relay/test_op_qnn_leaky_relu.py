@@ -51,7 +51,7 @@ def test_qnn_leaky_relu():
         scale=relay.const(scale, "float32"),
         zero_point=relay.const(zero_point, "int32"),
         output_scale=relay.const(output_scale, "float32"),
-        output_zero_point=relay.const(output_zero_point, "int32")
+        output_zero_point=relay.const(output_zero_point, "int32"),
     )
 
     func = relay.Function([x], y)
@@ -63,7 +63,8 @@ def test_qnn_leaky_relu():
     x_data = np.array((255, 133, 0, 9)).reshape((1, 4))
     x_dequantized = dequantize(x_data, scale, zero_point)
     golden_output = generate_golden_output(
-        x_data, x_dequantized, alpha, output_scale, output_zero_point, zero_point)
+        x_data, x_dequantized, alpha, output_scale, output_zero_point, zero_point
+    )
 
     op_res = relay.create_executor("graph", device=tvm.cpu(0), target="llvm").evaluate(func)(x_data)
 

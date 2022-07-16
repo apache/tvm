@@ -1201,11 +1201,4 @@ def leaky_relu(x, alpha, scale, zero_point, output_scale, output_zero_point):
     result : relay.Expr
         The computed result.
     """
-    return _make.leaky_relu(
-        x,
-        alpha,
-        scale,
-        zero_point,
-        output_scale,
-        output_zero_point
-    )
+    return _make.leaky_relu(x, alpha, scale, zero_point, output_scale, output_zero_point)
