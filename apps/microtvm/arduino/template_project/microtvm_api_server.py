@@ -469,6 +469,9 @@ class Handler(server.ProjectAPIHandler):
 
         return self._port
 
+    FLASH_TIMEOUT_SEC = 60
+    FLASH_MAX_RETRIES = 5
+
     def flash(self, options):
         self._check_platform_version(options)
         port = self._get_arduino_port(options)
@@ -488,7 +491,21 @@ class Handler(server.ProjectAPIHandler):
         if options.get("verbose"):
             upload_cmd.append("--verbose")
 
-        subprocess.run(upload_cmd, check=True)
+        for i in range(self.FLASH_MAX_RETRIES):
+            try:
+                subprocess.run(upload_cmd, check=True, timeout=self.FLASH_TIMEOUT_SEC)
+                break
+
+            # We only catch timeout errors - a subprocess.CalledProcessError
+            # (caused by subprocess.run returning non-zero code) will not
+            # be caught.
+            except subprocess.TimeoutExpired:
+                _LOG.warning(
+                    "Upload attempt to port {port} timed out after {self.FLASH_TIMEOUT_SEC} seconds"
+                )
+
+        else:
+            raise RuntimeError("Unable to flash Arduino board after {self.FLASH_MAX_RETRIES} attempts")
 
     def open_transport(self, options):
         import serial
