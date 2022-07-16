@@ -256,7 +256,17 @@ def transform_numpy(arr_np, current_layout: str, new_layout: str):
         if new_layout == "nhwc-1024c-2d":
             N, H, W, C = arr_np.shape
             return arr_np.reshape([N, H, W, C // 1024, 1024])
-        raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
+        if new_layout == "nc-2048-2d":
+            N, C = arr_np.shape
+            return arr_np.reshape([N, C // 2048, 2048])
+        if new_layout == "nhwc-2048c-2d":
+            N, H, W, C = arr_np.shape
+            return arr_np.reshape([N, H, W, C // 2048, 2048])
+        if new_layout in ["nhwc-8h8w32c-2d"]:
+            n, h, w, c = arr_np.shape
+            return arr_np.reshape([n, h // 8, 8, w // 8, 8, c // 32, 32]).transpose(
+                0, 1, 3, 5, 2, 4, 6
+            )
 
     if current_layout == "nc":
         n, c = arr_np.shape
