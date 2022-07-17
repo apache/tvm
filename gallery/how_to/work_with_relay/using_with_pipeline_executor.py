@@ -240,20 +240,6 @@ target = "llvm"
 dev0 = tvm.device(target, 0)
 lib0 = relay.build_module.build(mod0, target, params=params)
 module0 = runtime.GraphModule(lib0["default"](dev0))
-cutlass = tvm.target.Target(
-    {
-        "kind": "cutlass",
-        "sm": 75,
-        "use_3xtf32": True,
-        "split_k_slices": [1],
-        "profile_all_alignments": False,
-        "find_first_valid": True,
-        "use_multiprocessing": True,
-        "use_fast_math": False,
-        "tmp_dir": "./tmp",
-    },
-    host=tvm.target.Target("llvm"),
-)
 cuda = tvm.target.Target("cuda", host=tvm.target.Target("llvm"))
 lib1 = relay.build_module.build(mod1, [cuda, cutlass], params=params)
 lib1 = finalize_modules(lib1, "compile.so", "./tmp")
