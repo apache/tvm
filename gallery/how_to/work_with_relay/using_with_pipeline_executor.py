@@ -115,9 +115,10 @@ from tvm import testing
 
 testing.utils.install_request_hook(depth=3)
 # sphinx_gallery_end_ignore
+
 #########################################
 # Build the subgraph with cutlass target.
-#----------------------------------------
+# ---------------------------------------
 
 cutlass = tvm.target.Target(
     {
@@ -172,7 +173,7 @@ pipe_config[mod1].cpu_affinity = "0"
 pipe_config[mod1].export_cc = None
 ##############################################################
 # Set the compile target of the second subgraph module as LLVM.
-pipe_config[mod1].target = "cuda"  # tvm.target.Target("cuda", host=tvm.target.Target("llvm"))
+pipe_config[mod1].target = "cuda"
 pipe_config[mod1].dev = tvm.device("cuda", 0)
 pipe_config[mod1].build_func = cutlass_build
 pipe_config[mod1].export_cc = "nvcc"
