@@ -46,9 +46,9 @@ img_size = 8
 def get_network():
     out_channels = 16
     batch_size = 1
-    data = relay.var("data", relay.TensorType((batch_size, 3, img_size, img_size), "float32"))
+    data = relay.var("data", relay.TensorType((batch_size, 3, img_size, img_size), "float16"))
     dense_weight = relay.var(
-        "data", relay.TensorType((batch_size, 16 * img_size * img_size), "float32")
+        "dweight", relay.TensorType((batch_size, 16 * img_size * img_size), "float16")
     )
     weight = relay.var("weight")
     second_weight = relay.var("second_weight")
@@ -92,20 +92,22 @@ subgraphs = graph_split(net["main"], split_config, params)
 """
 #subgraphs[0])
 
- def @main(%data: Tensor[(1, 3, img_size, img_size), float32]) {
-  %0 = nn.conv2d(%data, meta[relay.Constant][0] /* ty=Tensor[(16, 3, 3, 3), float32] */, padding=[1, 1, 1, 1], channels=16, kernel_size=[3, 3]) /* ty=Tensor[(1, 16, img_size, img_size), float32] */;
-  %1 = nn.batch_norm(%0, meta[relay.Constant][1] /* ty=Tensor[(16), float32] */, meta[relay.Constant][2] /* ty=Tensor[(16), float32]*/, meta[relay.Constant][3] /* ty=Tensor[(16), float32] */, meta[relay.Constant][4] /* ty=Tensor[(16), float32] */) /* ty=(Tensor[(1,16, img_size, img_size), float32], Tensor[(16), float32], Tensor[(16), float32]) */;
+ def @main(%data: Tensor[(1, 3, img_size, img_size), float16]) {
+  %0 = nn.conv2d(%data, meta[relay.Constant][0] /* ty=Tensor[(16, 3, 3, 3), float16] */, padding=[1, 1, 1, 1], channels=16, kernel_size=[3, 3]) /* ty=Tensor[(1, 16, img_size, img_size), float16] */;
+  %1 = nn.batch_norm(%0, meta[relay.Constant][1] /* ty=Tensor[(16), float16] */, meta[relay.Constant][2] /* ty=Tensor[(16), float16]*/, meta[relay.Constant][3] /* ty=Tensor[(16), float16] */, meta[relay.Constant][4] /* ty=Tensor[(16), float16] */) /* ty=(Tensor[(1,16, img_size, img_size), float16], Tensor[(16), float16], Tensor[(16), float16]) */;
   %2 = %1.0;
-  nn.relu(%2) /* ty=Tensor[(1, 16, img_size, img_size), float32] */
+  nn.relu(%2) /* ty=Tensor[(1, 16, img_size, img_size), float16] */
  }
 
 peline-tutorial
 
 #subgraphs[1]
 
- def @main(%data_n_0: Tensor[(1, 16, img_size, img_size), float32]) {
-  nn.conv2d(%data_n_0, meta[relay.Constant][0] /* ty=Tensor[(16, 16, 3, 3), float32] */, padding=[1, 1, 1, 1], channels=16, kernel_size=[3, 3]) /* ty=Tensor[(1, 16, img_size, img_size), float32] */
+ def @main(%data_n_0: Tensor[(1, 16, 8, 8), float16] /* ty=Tensor[(1, 16, 8, 8), float16] */) {
+  %0 = nn.batch_flatten(%data_n_0) /* ty=Tensor[(1, 1024), float16] */;
+  nn.dense(%0, meta[relay.Constant][0] /* ty=Tensor[(1, 1024), float16] */, units=None) /* ty=Tensor[(1, 1), float16] */
  }
+
 """
 
 # sphinx_gallery_start_ignore
@@ -113,13 +115,40 @@ from tvm import testing
 
 testing.utils.install_request_hook(depth=3)
 # sphinx_gallery_end_ignore
+#########################################
+# Build the subgraph with cutlass target.
+# ---------------------------------------
+#########################################
+cutlass = tvm.target.Target(
+    {
+        "kind": "cutlass",
+        "sm": 80,
+        "use_3xtf32": True,
+        "split_k_slices": [1],
+        "profile_all_alignments": False,
+        "find_first_valid": True,
+        "use_multiprocessing": True,
+        "use_fast_math": False,
+        "tmp_dir": "./tmp",
+    },
+    host=tvm.target.Target("llvm"),
+)
+
+
+def cutlass_build(mod, target, params=None, target_host=None, mod_name="default"):
+    target = [target, cutlass]
+    lib = relay.build_module.build(
+        mod, target=target, params=params, target_host=target_host, mod_name=mod_name
+    )
+    return lib
+
 
 ###########################################################
 # Run the two subgraphs in pipeline with pipeline executor.
 # ---------------------------------------------------------
 # Define a function to do all the codegen and pipeline executor works.
 # To run pipeline executor with dnnl, USE_PIPELINE_EXECUTOR need to get set as ON.
-# and the 'USE_DNNL_CODEGEN' should set as ON in config.cmake and installing MKL-DNN.
+# and the 'USE_CUTLASS' should set as ON in config.cmake.
 def run_pipeline():
     from tvm.contrib import graph_executor, pipeline_executor, pipeline_executor_build
 
@@ -127,12 +156,9 @@ def run_pipeline():
     # Create subgraph pipeline configuration.
     # Associate the subgraph module with a target.
     # Using BYOC to set the codegen of the second subgraph module.
-    # To use dnnl the 'USE_DNNL_CODEGEN' should set as ON in config.cmake and installing MKL-DNN.
+    # To use cutlass the 'USE_CUTLASS' should set as ON.
     mod0, mod1 = subgraphs[0], subgraphs[1]
-    # mod0 = relay.transform.AnnotateTarget(["dnnl"])(mod0)
-    # mod0 = relay.transform.AnnotateTarget(["cutlass"])(mod0)
-    # mod0 = relay.transform.MergeCompilerRegions()(mod0)
-    # mod0 = relay.transform.PartitionGraph()(mod0)
+    # Apply cutlass as the codegen.
     mod1 = partition_for_cutlass(mod1)
     #################################################
     # Get the pipeline executor configuration object.
@@ -144,10 +170,13 @@ def run_pipeline():
     ###############################################################################
     # Set the cpu afinity for control flow, for example using cpu 0 for control flow.
     pipe_config[mod1].cpu_affinity = "0"
+    pipe_config[mod1].export_cc = None
     ##############################################################
     # Set the compile target of the second subgraph module as LLVM.
-    pipe_config[mod1].target = "cuda"
+    pipe_config[mod1].target = "cuda"  # tvm.target.Target("cuda", host=tvm.target.Target("llvm"))
     pipe_config[mod1].dev = tvm.device("cuda", 0)
+    pipe_config[mod1].build_func = cutlass_build
+    pipe_config[mod1].export_cc = "nvcc"
     #################################################################################
     # Set the cpu afinity for control flow, for example using cpu 1 for control flow.
     pipe_config[mod1].cpu_affinity = "1"
@@ -171,7 +200,7 @@ def run_pipeline():
     # sphinx_gallery_start_ignore
     from tvm import testing
 
-    testing.utils.install_request_hook(depth=3)
+    # testing.utils.install_request_hook(depth=3)
     # sphinx_gallery_end_ignore
     ##############################
     # Build the pipeline executor.
@@ -195,7 +224,7 @@ def run_pipeline():
     # Run the pipeline executor.
     # --------------------------
     # Allocated a input data.
-    data = np.random.uniform(-1, 1, size=data_shape).astype("float32")
+    data = np.random.uniform(-1, 1, size=data_shape).astype("float16")
     pipeline_module.set_input("data", tvm.nd.array(data))
     ##########################################################################
     # Run the two subgraph in pipeline mode and get the output asynchronously.
@@ -209,18 +238,39 @@ def run_pipeline():
     # ------------------------------------
     # Run these two subgraphs in sequence with graph_executor to get the output.
     target = "llvm"
-    dev = tvm.device(target, 0)
+    dev0 = tvm.device(target, 0)
     lib0 = relay.build_module.build(mod0, target, params=params)
-    lib1 = relay.build_module.build(mod1, target, params=params)
-    module0 = runtime.GraphModule(lib0["default"](dev))
-    module1 = runtime.GraphModule(lib1["default"](dev))
+    module0 = runtime.GraphModule(lib0["default"](dev0))
+    cutlass = tvm.target.Target(
+        {
+            "kind": "cutlass",
+            "sm": 75,
+            "use_3xtf32": True,
+            "split_k_slices": [1],
+            "profile_all_alignments": False,
+            "find_first_valid": True,
+            "use_multiprocessing": True,
+            "use_fast_math": False,
+            "tmp_dir": "./tmp",
+        },
+        host=tvm.target.Target("llvm"),
+    )
+    cuda = tvm.target.Target("cuda", host=tvm.target.Target("llvm"))
+    lib1 = relay.build_module.build(mod1, [cuda, cutlass], params=params)
+    lib1 = finalize_modules(lib1, "compile.so", "./tmp")
+
+    dev1 = tvm.device("cuda", 0)
+
+    module1 = runtime.GraphModule(lib1["default"](dev1))
+
     module0.set_input("data", data)
     module0.run()
     out_shape = (1, 16, img_size, img_size)
-    out = module0.get_output(0, tvm.nd.empty(out_shape))
+    out = module0.get_output(0, tvm.nd.empty(out_shape, "float16"))
     module1.set_input("data_n_0", out)
     module1.run()
-    out = module1.get_output(0, tvm.nd.empty(out_shape))
+    out_shape = (1, 1)
+    out = module1.get_output(0, tvm.nd.empty(out_shape, "float16"))
     ####################
     # Verify the result.
     tvm.testing.assert_allclose(outputs[0].numpy(), out.numpy())

@@ -86,7 +86,12 @@ def build(pipe_configs):
         # Use "mod_idx" as the key to create a "module_connection" map which is not only
         # for the module index but also for the module connection used to build the pipeline.
         module_string_config[mod_idx] = pipe_config
-        libs[mod_idx] = {"lib": lib, "dev": dev, "fcompile": mod_config["fcompile"]}
+        libs[mod_idx] = {
+            "lib": lib,
+            "dev": dev,
+            "fcompile": mod_config["fcompile"],
+            "export_cc": mod_config["export_cc"],
+        }
 
     # Creating a text form configuration to record the "input_connection" and the
     # "module_connection" information. The "input_connection" is used to record the
@@ -132,10 +137,7 @@ def export_library(factory, directory_path):
         mconfig["json_name"] = "{}/json{}".format(directory_path, lib_index)
         mconfig["params_name"] = "{}/params{}".format(directory_path, lib_index)
         lib_config = factory.pipeline_mods[lib_index]
-        mconfig["dev"] = "{},{}".format(
-            lib_config["dev"].device_type,
-            lib_config["dev"].device_id,
-        )
+        mconfig["dev"] = "{},{}".format(lib_config["dev"].device_type, lib_config["dev"].device_id)
         fcompile = lib_config["fcompile"]
         if not fcompile:
             fcompile = False
@@ -413,6 +415,7 @@ class PipelineConfig(object):
             self.fcompile = None
             self.name = None
             self.dev = None
+            self.export_cc = None
             self.cpu_affinity = ""
             self.idx = None
             self.mod = mod
@@ -601,6 +604,7 @@ class PipelineConfig(object):
                 "target": module.target,
                 "fcompile": module.fcompile,
                 "dev": module.dev,
+                "export_cc": module.export_cc,
             }
 
         # Creating a map including pipeline inputs and subgraph inputs.

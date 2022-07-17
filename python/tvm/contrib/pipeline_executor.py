@@ -302,11 +302,16 @@ class PipelineExecutorFactoryModule(object):
                 self.pipeline_mods[lib_index]["dev"].device_type,
                 self.pipeline_mods[lib_index]["dev"].device_id,
             )
-
             # Get the graph, lib, and parameters from GraphExecutorFactoryModule.
             lib = self.pipeline_mods[lib_index]["lib"]
             # Export the lib, graph, and parameters to disk.
-            lib.export_library(mconfig["lib_name"])
+            if self.pipeline_mods[lib_index]["export_cc"]:
+                lib.export_library(
+                    mconfig["lib_name"], cc=self.pipeline_mods[lib_index]["export_cc"]
+                )
+            else:
+                lib.export_library(mconfig["lib_name"])
+
             with open(mconfig["json_name"], "w") as file_handle:
                 file_handle.write(lib.graph_json)
             with open(mconfig["params_name"], "wb") as file_handle:
