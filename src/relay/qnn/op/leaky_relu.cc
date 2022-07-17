@@ -103,7 +103,7 @@ Expr QnnLeakyReluCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   Expr data = Cast(new_args[0], DataType::Int(32));
   Expr input_scale = new_args[1];
   Expr input_zero_point = Cast(new_args[2], DataType::Int(32));
-  Expr output_scale = new_args[3]
+  Expr output_scale = new_args[3];
   Expr output_zero_point = Cast(new_args[4], DataType::Int(32));
 
   const auto* q_attrs = attrs.as<LeakyReluAttrs>();
