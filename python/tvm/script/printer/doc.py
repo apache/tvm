@@ -17,7 +17,7 @@
 """Doc types for TVMScript Unified Printer"""
 
 from typing import List, Dict, Tuple, Optional, Union
-from enum import IntEnum, auto, unique
+from enum import IntEnum, unique
 
 import tvm._ffi
 import tvm.ir.container
@@ -166,34 +166,34 @@ class OperationKind(IntEnum):
     # pylint: disable=invalid-name
 
     _UnaryStart = 0
-    USub = auto()
-    Invert = auto()
-    _UnaryEnd = auto()
+    USub = 1
+    Invert = 2
+    _UnaryEnd = 3
 
-    _BinaryStart = auto()
-    Add = auto()
-    Sub = auto()
-    Mult = auto()
-    Div = auto()
-    FloorDiv = auto()
-    Mod = auto()
-    Pow = auto()
-    LShift = auto()
-    RShift = auto()
-    BitAnd = auto()
-    BitOr = auto()
-    BitXor = auto()
-    Lt = auto()
-    LtE = auto()
-    Eq = auto()
-    NotEq = auto()
-    Gt = auto()
-    GtE = auto()
-    _BinaryEnd = auto()
+    _BinaryStart = 4
+    Add = 5
+    Sub = 6
+    Mult = 7
+    Div = 8
+    FloorDiv = 9
+    Mod = 10
+    Pow = 11
+    LShift = 12
+    RShift = 13
+    BitAnd = 14
+    BitOr = 15
+    BitXor = 16
+    Lt = 17
+    LtE = 18
+    Eq = 19
+    NotEq = 20
+    Gt = 21
+    GtE = 22
+    _BinaryEnd = 23
 
-    _SpecialStart = auto()
-    IfThenElse = auto()
-    _SpecialEnd = auto()
+    _SpecialStart = 24
+    IfThenElse = 25
+    _SpecialEnd = 26
 
     # pylint: enable=invalid-name
 

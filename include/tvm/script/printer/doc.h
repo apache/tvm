@@ -368,37 +368,37 @@ class OperationDocNode : public ExprDocNode {
  public:
   enum class Kind : int32_t {
     // Unary operators
-    kUnaryStart,
-    kUSub,    // -x
-    kInvert,  // ~x
-    kUnaryEnd,
+    kUnaryStart = 0,
+    kUSub = 1,    // -x
+    kInvert = 2,  // ~x
+    kUnaryEnd = 3,
 
     // Binary operators
-    kBinaryStart,
-    kAdd,       // +
-    kSub,       // -
-    kMult,      // *
-    kDiv,       // /
-    kFloorDiv,  // // in Python
-    kMod,       // % in Python
-    kPow,       // ** in Python
-    kLShift,    // <<
-    kRShift,    // >>
-    kBitAnd,    // &
-    kBitOr,     // |
-    kBitXor,    // ^
-    kLt,        // <
-    kLtE,       // <=
-    kEq,        // ==
-    kNotEq,     // !=
-    kGt,        // >
-    kGtE,       // >=
-    kBinaryEnd,
+    kBinaryStart = 4,
+    kAdd = 5,       // +
+    kSub = 6,       // -
+    kMult = 7,      // *
+    kDiv = 8,       // /
+    kFloorDiv = 9,  // // in Python
+    kMod = 10,      // % in Python
+    kPow = 11,      // ** in Python
+    kLShift = 12,   // <<
+    kRShift = 13,   // >>
+    kBitAnd = 14,   // &
+    kBitOr = 15,    // |
+    kBitXor = 16,   // ^
+    kLt = 17,       // <
+    kLtE = 18,      // <=
+    kEq = 19,       // ==
+    kNotEq = 20,    // !=
+    kGt = 21,       // >
+    kGtE = 22,      // >=
+    kBinaryEnd = 23,
 
     // Special
-    kSpecialStart,
-    kIfThenElse,  // <operands[1]> if <operands[0]> else <operands[2]>
-    kSpecialEnd
+    kSpecialStart = 24,
+    kIfThenElse = 25,  // <operands[1]> if <operands[0]> else <operands[2]>
+    kSpecialEnd = 26
   };
 
   /*! \brief The kind of operation (operator) */
