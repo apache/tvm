@@ -3297,6 +3297,14 @@ def let_expression():
     return func
 
 
+def void_ptr():
+    @T.prim_func
+    def func(out_ret_value: T.Ptr[T.void]):
+        T.evaluate(out_ret_value)
+
+    return func
+
+
 ir_generator = tvm.testing.parameter(
     opt_gemm_normalize,
     opt_gemm_lower,
@@ -3335,6 +3343,7 @@ ir_generator = tvm.testing.parameter(
     buffer_axis_separator,
     buffer_ramp_access_as_slice_index,
     let_expression,
+    void_ptr,
 )
 
 
