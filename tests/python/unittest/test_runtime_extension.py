@@ -34,7 +34,7 @@ class MyTensorView(object):
 
 
 def test_dltensor_compatible():
-    "Test DLTensor compatibility"
+    """Test DLTensor compatibility"""
     dtype = "int64"
     n = te.var("n")
     a_b = tvm.tir.decl_buffer((n,), dtype)
