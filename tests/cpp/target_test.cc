@@ -38,6 +38,7 @@ TargetJSON TestTargetParser(TargetJSON target) {
   String mcpu = Downcast<String>(target.at("mcpu"));
   target.Set("mcpu", String("super_") + mcpu);
   target.Set("keys", Array<String>({"super"}));
+  target.Set("features", Map<String, ObjectRef>{{"test", Bool(true)}});
   return target;
 }
 
@@ -174,13 +175,32 @@ TEST(TargetCreation, TargetParser) {
   ASSERT_EQ(test_target->keys[1], "cpu");
 }
 
+TEST(TargetCreation, TargetFeatures) {
+  Target test_target_with_parser("TestTargetParser -mcpu=woof");
+  ASSERT_EQ(test_target_with_parser->GetFeature<Bool>("test").value(), true);
+
+  Target test_target_no_parser("TestTargetKind");
+  ASSERT_EQ(test_target_no_parser->GetFeature<Bool>("test"), nullptr);
+  ASSERT_EQ(test_target_no_parser->GetFeature<Bool>("test", Bool(true)).value(), true);
+}
+
+TEST(TargetCreation, TargetFeaturesBeforeParser) {
+  Map<String, ObjectRef> features = {{"test", Bool(true)}};
+  Map<String, ObjectRef> config = {
+      {"kind", String("TestTargetParser")},
+      {"mcpu", String("woof")},
+      {"features", features},
+  };
+  EXPECT_THROW(Target test(config), InternalError);
+}
+
 TEST(TargetCreation, TargetAttrsPreProcessor) {
   Target test_target("TestAttrsPreprocessor -mattr=cake");
   ASSERT_EQ(test_target->GetAttr<String>("mattr").value(), "woof");
 }
 
 TEST(TargetCreation, ClashingTargetProcessing) {
-  EXPECT_THROW(Target("TestClashingPreprocessor -mcpu=woof -mattr=cake"), InternalError);
+  EXPECT_THROW(Target test("TestClashingPreprocessor -mcpu=woof -mattr=cake"), InternalError);
 }
 
 TVM_REGISTER_TARGET_KIND("test_external_codegen_0", kDLCUDA)
