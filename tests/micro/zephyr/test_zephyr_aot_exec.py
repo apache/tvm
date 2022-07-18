@@ -175,7 +175,7 @@ def test_strategy(temp_dir, board, west_cmd, tvm_debug, use_fvp):
     kernel_size = 3
     num_filter = 12
     strides = 1
-    padding = 0 
+    padding = 0
     dilation = 1
 
     ishape = data_shape
@@ -233,11 +233,12 @@ def test_strategy(temp_dir, board, west_cmd, tvm_debug, use_fvp):
         aot_executor = tvm.runtime.executor.aot_executor.AotModule(session.create_aot_executor())
         print("NUM_INPUTS", aot_executor.get_num_inputs())
         print("NUM_OUTPUTS", aot_executor.get_num_outputs())
-        
+
         aot_executor.run(test_input=inputs["input"])
         result = aot_executor.get_output(0).numpy()
         tvm.testing.assert_allclose(aot_executor.get_input(0).numpy(), inputs["input"])
         tvm.testing.assert_allclose(result, output_list["output"])
+
 
 if __name__ == "__main__":
     tvm.testing.main()

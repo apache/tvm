@@ -590,7 +590,7 @@ class Handler(server.ProjectAPIHandler):
             env["ARMFVP_BIN_PATH"] = os.path.realpath(env["ARMFVP_BIN_PATH"])
 
         cmake_args.append(f"-DBOARD:STRING={options['zephyr_board']}")
-        
+
         print("ENV", env)
         check_call(["/bin/ls", "-l", env["ARMFVP_BIN_PATH"]])
         assert os.path.exists(env["ARMFVP_BIN_PATH"] + "/FVP_Corstone_SSE-300_Ethos-U55")
@@ -615,8 +615,11 @@ class Handler(server.ProjectAPIHandler):
 
     @classmethod
     def _is_fvp(cls, options):
-        if "use_fvp" in options and options["use_fvp"] == True and \
-            options["zephyr_board"] not in cls._KNOWN_FVP_ZEPHYR_BOARDS:
+        if (
+            "use_fvp" in options
+            and options["use_fvp"] == True
+            and options["zephyr_board"] not in cls._KNOWN_FVP_ZEPHYR_BOARDS
+        ):
             raise ValueError(f"FVP does not support this board")
         return (
             options["zephyr_board"] in cls._KNOWN_FVP_ZEPHYR_BOARDS
