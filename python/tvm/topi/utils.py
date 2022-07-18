@@ -67,6 +67,7 @@ def traverse_inline(s, final_op, callback):
     visited = set()
 
     def _traverse(op):
+        print("traverse_op: ", op)
         if op in visited:
             return
         visited.add(op)

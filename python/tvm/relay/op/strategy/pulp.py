@@ -1,6 +1,9 @@
 
 from .generic import *
 from .. import op as _op
+import logging
+
+logger = logging.getLogger(__name__)
 
 @conv1d_strategy.register("pulp")
 def conv1d_strategy(attrs, inputs, out_type, target):
@@ -40,6 +43,15 @@ def conv1d_strategy(attrs, inputs, out_type, target):
 @conv2d_strategy.register("pulp")
 def conv2d_strategy(attrs, inputs, out_type, target):
     """conv2d pulp strategy"""
+
+    logger.info("Registering strategy for conv2d")
+    logger.info("attrs:")
+    for k in attrs.keys():
+        logger.info("  %s: %s", str(k), str(attrs[k]))
+    logger.info("inputs: %s", str(inputs))
+    logger.info("out_type: %s", str(out_type))
+    logger.info("target: %s", str(target))
+
     strategy = _op.OpStrategy()
     data, kernel = inputs
     dilation = get_const_tuple(attrs.dilation)

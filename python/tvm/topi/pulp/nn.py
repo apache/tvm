@@ -691,22 +691,23 @@ def schedule_conv2d_nhwc_ohwi(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if op.tag == "conv1d_nhwc_ohwi":
+        if op.tag == "conv2d_nhwc_ohwi":
             data, weight = op.input_tensors
-            out = op.output[0]
-            s = te.create_schedule([out.op])
+            out = op.output(0)
             n, h, w, c = op.axis
             ry, rx, rc = op.reduce_axis
 
-            s[data.op.input_tensors[0]].compute_inline()
-            s[data].compute_at(s[out], rc)
-            s[weight].compute_at(s[out], rc)
+    
+            #s[data.op.input_tensors[0]].compute_inline()
+            #s[data].compute_at(s[out], rc)
+            #s[weight].compute_at(s[out], rc)
 
             vec_length = get_vec_length(out.dtype, data.dtype, weight.dtype)
 
             if vec_length != 1:
                 t = sdotp(data.dtype, weight.dtype, out.dtype, vec_length)
                 rco, rci = s[out].split(rc, vec_length)
+                
                 s[out].tensorize(rci, t)
 
                 cfg.define_split("tile_c", c, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
@@ -798,8 +799,9 @@ def conv2d_nhwc_ohwi(
 
     # Apply padding for tensorization
     pad_tensorize = -in_channel % get_vec_length(out_dtype, Input.dtype, Filter.dtype)
-    PaddedInput = pad(PaddedInput, (0, 0, 0, 0), (0, 0, 0, pad_tensorize))
-    Filter = pad(Filter, (0, 0, 0, 0), (0, 0, 0, pad_tensorize))
+    if pad_tensorize != 0:
+        PaddedInput = pad(PaddedInput, (0, 0, 0, 0), (0, 0, 0, pad_tensorize))
+        Filter = pad(Filter, (0, 0, 0, 0), (0, 0, 0, pad_tensorize))
 
     rc = te.reduce_axis((0, in_channel + pad_tensorize), name="rc")
     ry = te.reduce_axis((0, kernel_h), name="ry")
