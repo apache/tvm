@@ -1460,6 +1460,34 @@ def wrap_compute_stft(topi_compute):
     return _compute_stft
 
 
+# trilu
+@override_native_generic_func("trilu_strategy")
+def trilu_strategy(attrs, outs, out_type, target):
+    """trilu generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_trilu(topi.trilu),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="trilu.generic",
+    )
+    return strategy
+
+
+def wrap_compute_trilu(topi_compute):
+    """Wrap trilu compute"""
+
+    def _compute_trilu(attrs, inputs, output_type):
+        return [
+            topi_compute(
+                inputs[0],
+                inputs[1],
+                attrs.upper,
+            )
+        ]
+
+    return _compute_trilu
+
+
 # roi_pool
 @generic_func
 def schedule_roi_pool(attrs, outs, target):

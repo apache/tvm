@@ -191,6 +191,10 @@ def stft_shape_func(attrs, inputs, _):
     ]
 
 
+# trilu
+_reg.register_strategy("trilu", strategy.trilu_strategy)
+
+
 # scatter_add
 @_reg.register_compute("scatter_add")
 def compute_scatter_add(attrs, inputs, output_type):

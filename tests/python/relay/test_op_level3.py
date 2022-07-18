@@ -2207,5 +2207,34 @@ class TestSTFT:
         )
 
 
+def test_trilu(target="llvm", dev=tvm.cpu()):
+    def verify_trilu(data_shape, upper=True, k=0):
+        data = relay.var("data", relay.TensorType(data_shape, "float32"))
+        y = relay.trilu(data, k, upper)
+        mod = tvm.ir.IRModule.from_expr(y)
+
+        data_np = np.random.normal(size=data_shape).astype("float32")
+        tvm_res = (
+            relay.create_executor("graph", mod=mod, device=dev, target=target)
+            .evaluate()(data_np)
+            .numpy()
+        )
+        if upper:
+            np_res = np.triu(data_np, k)
+        else:
+            np_res = np.tril(data_np, k)
+        tvm.testing.assert_allclose(tvm_res, np_res)
+
+    # Test upper and lower triangle
+    verify_trilu((3, 3), True, 0)
+    verify_trilu((3, 3), False, 0)
+    # Test larger matrices with offset.
+    verify_trilu((6, 6), True, 1)
+    verify_trilu((6, 6), False, 2)
+    verify_trilu((6, 6), False, -2)
+    # Test batch size
+    verify_trilu((8, 6, 6), False, -2)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

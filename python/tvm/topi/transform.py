@@ -1003,24 +1003,25 @@ def sliding_window(data, axis, window_shape, strides):
     return cpp.sliding_window(data, axis, window_shape, strides)
 
 
-def trilu(x, upper, k):
+def trilu(data, k, upper):
     """
     Given a 2-D matrix or batches of 2-D matrices, returns the
     upper or lower triangular part of the tensor.
 
     Parameters
     ----------
-    x: tvm.te.Tensor
+    data: tvm.te.Tensor
         The tensor that trilu will be applied to. Must be either
         a 2D matrix or a tensor of batches of 2D matrices.
+
+    k: tvm.te.Tensor
+        The number of diagonals above or below the main diagonal
+        to exclude or include.
 
     upper: bool
         If True, only upper triangular values of input are kept,
         if False, the lower triangular values are kept.
 
-    k: int
-        The number of diagonals above or below the main diagonal
-        to exclude or include.
 
     Returns
     -------
@@ -1040,6 +1041,10 @@ def trilu(x, upper, k):
              [0, 4, 5],
              [0, 0, 8]]
     """
+    # Make sure datatype is consistent.
+    if k.dtype != "int32":
+        k = tvm.tir.Cast("int32", k)
+
     # Check either above or below diagonal depending on upper.
     check_op = tvm.tir.GE
     if upper:
@@ -1050,7 +1055,7 @@ def trilu(x, upper, k):
         col_index = indices[-1]
         other_indices = indices[:-2]
         check_position = check_op(row_index, col_index - k)
-        value = x(*other_indices, row_index, col_index)
-        return tvm.tir.Select(check_position, value, tvm.tir.const(0, x.dtype))
+        value = data(*other_indices, row_index, col_index)
+        return tvm.tir.Select(check_position, value, tvm.tir.const(0, data.dtype))
 
-    return te.compute(x.shape, _apply_trilu, name="trilu")
+    return te.compute(data.shape, _apply_trilu, name="trilu")

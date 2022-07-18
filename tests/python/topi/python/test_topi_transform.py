@@ -814,7 +814,7 @@ def verify_adv_index(data_shape, index_shapes, indice_dtype="int64"):
 
 def verify_trilu(input_shape, upper, k=0):
     x = te.placeholder(shape=input_shape, name="x", dtype="float32")
-    trilu_result = topi.transform.trilu(x, upper, k)
+    trilu_result = topi.transform.trilu(x, k, upper)
 
     def check_device(target, dev):
         print("Running on target: %s" % target)
@@ -885,10 +885,10 @@ def test_reinterpret():
         (1000,), "int16", "uint16", lambda shape: np.random.randint(-1000, 1000, size=shape)
     )
     verify_reinterpret(
-        (1000,), "uint32", "int32", lambda shape: np.random.randint(0, 2 ** 32 - 1, size=shape)
+        (1000,), "uint32", "int32", lambda shape: np.random.randint(0, 2**32 - 1, size=shape)
     )
     verify_reinterpret(
-        (1000,), "uint32", "int32", lambda shape: np.random.randint(0, 2 ** 32 - 1, size=shape)
+        (1000,), "uint32", "int32", lambda shape: np.random.randint(0, 2**32 - 1, size=shape)
     )
 
 
