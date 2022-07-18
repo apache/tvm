@@ -42,7 +42,6 @@ namespace tvm {
 
 // Most common operators can be overloaded by argument type(PrimExpr).
 // So we put them under the root namespace.
-// It is also necessary to overload operators for PrimExpr.
 //
 // We put more developer oriented APIs -- make_const and is_const under tir
 // as they are more specific to the tir namespace.
@@ -144,16 +143,6 @@ TVM_DLL PrimExpr reinterpret(const DataType& t, PrimExpr value, Span span = Span
  */
 TVM_DLL PrimExpr add(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
- * \brief add operator
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator+(PrimExpr a, PrimExpr b);
-/*!
  * \brief subtraction operator
  *
  * \param a left operand
@@ -165,16 +154,6 @@ TVM_DLL PrimExpr operator+(PrimExpr a, PrimExpr b);
  */
 TVM_DLL PrimExpr sub(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
- * \brief subtraction operator
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator-(PrimExpr a, PrimExpr b);
-/*!
  * \brief negation.
  *
  * \param a input.
@@ -184,15 +163,6 @@ TVM_DLL PrimExpr operator-(PrimExpr a, PrimExpr b);
  *       index types(int32, int64) when possible.
  */
 TVM_DLL PrimExpr neg(PrimExpr a, Span span = Span());
-/*!
- * \brief negation.
- *
- * \param a input.
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator-(PrimExpr a);
 /*!
  * \brief multiplication operator
  *
@@ -205,26 +175,6 @@ TVM_DLL PrimExpr operator-(PrimExpr a);
  */
 TVM_DLL PrimExpr mul(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
- * \brief multiplication operator
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator*(PrimExpr a, PrimExpr b);
-/*!
- * \brief division operator
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator/(PrimExpr a, PrimExpr b);
-/*!
  * \brief left shift operator
  *
  * \param a left operand
@@ -235,16 +185,6 @@ TVM_DLL PrimExpr operator/(PrimExpr a, PrimExpr b);
  *       index types(int32, int64) when possible.
  */
 TVM_DLL PrimExpr left_shift(PrimExpr a, PrimExpr b, Span span = Span());
-/*!
- * \brief left shift operator
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator<<(PrimExpr a, PrimExpr b);
 /*!
  * \brief right shift operator
  *
@@ -257,16 +197,6 @@ TVM_DLL PrimExpr operator<<(PrimExpr a, PrimExpr b);
  */
 TVM_DLL PrimExpr right_shift(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
- * \brief right shift operator
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator>>(PrimExpr a, PrimExpr b);
-/*!
  * \brief greater
  *
  * \param a left operand
@@ -277,16 +207,6 @@ TVM_DLL PrimExpr operator>>(PrimExpr a, PrimExpr b);
  *       index types(int32, int64) when possible.
  */
 TVM_DLL PrimExpr greater(PrimExpr a, PrimExpr b, Span span = Span());
-/*!
- * \brief greater
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator>(PrimExpr a, PrimExpr b);
 /*!
  * \brief greater_equal
  *
@@ -299,16 +219,6 @@ TVM_DLL PrimExpr operator>(PrimExpr a, PrimExpr b);
  */
 TVM_DLL PrimExpr greater_equal(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
- * \brief greater_equal
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator>=(PrimExpr a, PrimExpr b);
-/*!
  * \brief less
  *
  * \param a left operand
@@ -319,16 +229,6 @@ TVM_DLL PrimExpr operator>=(PrimExpr a, PrimExpr b);
  *       index types(int32, int64) when possible.
  */
 TVM_DLL PrimExpr less(PrimExpr a, PrimExpr b, Span span = Span());
-/*!
- * \brief less
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator<(PrimExpr a, PrimExpr b);
 /*!
  * \brief less_equal
  *
@@ -341,16 +241,6 @@ TVM_DLL PrimExpr operator<(PrimExpr a, PrimExpr b);
  */
 TVM_DLL PrimExpr less_equal(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
- * \brief less_equal
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator<=(PrimExpr a, PrimExpr b);
-/*!
  * \brief equal
  *
  * \param a left operand
@@ -361,16 +251,6 @@ TVM_DLL PrimExpr operator<=(PrimExpr a, PrimExpr b);
  *       index types(int32, int64) when possible.
  */
 TVM_DLL PrimExpr equal(PrimExpr a, PrimExpr b, Span span = Span());
-/*!
- * \brief equal
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator==(PrimExpr a, PrimExpr b);
 /*!
  * \brief not_equal
  *
@@ -383,16 +263,6 @@ TVM_DLL PrimExpr operator==(PrimExpr a, PrimExpr b);
  */
 TVM_DLL PrimExpr not_equal(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
- * \brief not_equal
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator!=(PrimExpr a, PrimExpr b);
-/*!
  * \brief and
  *
  * \param a left operand
@@ -402,15 +272,6 @@ TVM_DLL PrimExpr operator!=(PrimExpr a, PrimExpr b);
  * \note This operator does eager constant folding.
  */
 TVM_DLL PrimExpr logical_and(PrimExpr a, PrimExpr b, Span span = Span());
-/*!
- * \brief and
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note This operator does eager constant folding.
- */
-TVM_DLL PrimExpr operator&&(PrimExpr a, PrimExpr b);
 /*!
  * \brief or
  *
@@ -422,15 +283,6 @@ TVM_DLL PrimExpr operator&&(PrimExpr a, PrimExpr b);
  */
 TVM_DLL PrimExpr logical_or(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
- * \brief or
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note This operator does eager constant folding.
- */
-TVM_DLL PrimExpr operator||(PrimExpr a, PrimExpr b);
-/*!
  * \brief not
  *
  * \param a left operand
@@ -439,14 +291,6 @@ TVM_DLL PrimExpr operator||(PrimExpr a, PrimExpr b);
  * \note This operator does eager constant folding.
  */
 TVM_DLL PrimExpr logical_not(PrimExpr a, Span span = Span());
-/*!
- * \brief not
- *
- * \param a left operand
- * \return The result expression.
- * \note This operator does eager constant folding.
- */
-TVM_DLL PrimExpr operator!(PrimExpr a);
 /*!
  * \brief compute division in C semantics.
  *
@@ -602,16 +446,6 @@ TVM_DLL PrimExpr min(PrimExpr a, PrimExpr b, Span span = Span());
  */
 TVM_DLL PrimExpr bitwise_and(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
- * \brief take bitwise and of two values
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator&(PrimExpr a, PrimExpr b);
-/*!
  * \brief take bitwise or of two values
  *
  * \param a left operand
@@ -622,16 +456,6 @@ TVM_DLL PrimExpr operator&(PrimExpr a, PrimExpr b);
  *       index types(int32, int64) when possible.
  */
 TVM_DLL PrimExpr bitwise_or(PrimExpr a, PrimExpr b, Span span = Span());
-/*!
- * \brief take bitwise or of two values
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator|(PrimExpr a, PrimExpr b);
 /*!
  * \brief take bitwise xor of two values
  *
@@ -644,16 +468,6 @@ TVM_DLL PrimExpr operator|(PrimExpr a, PrimExpr b);
  */
 TVM_DLL PrimExpr bitwise_xor(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
- * \brief take bitwise xor of two values
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator^(PrimExpr a, PrimExpr b);
-/*!
  * \brief take bitwise negation of two values
  *
  * \param a the input expression.
@@ -663,15 +477,6 @@ TVM_DLL PrimExpr operator^(PrimExpr a, PrimExpr b);
  *       index types(int32, int64) when possible.
  */
 TVM_DLL PrimExpr bitwise_neg(PrimExpr a, Span span = Span());
-/*!
- * \brief take bitwise negation of two values
- *
- * \param a the input expression.
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator~(PrimExpr a);
 /*!
  * \brief Conditional expression.
  *
