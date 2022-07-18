@@ -597,6 +597,7 @@ class Handler(server.ProjectAPIHandler):
                 env["ARMFVP_BIN_PATH"] + "/FVP_Corstone_SSE-300_Ethos-U55",
                 st.st_mode | stat.S_IEXEC,
             )
+            check_call(["/bin/ls", "-l", env["ARMFVP_BIN_PATH"]])
 
         cmake_args.append(f"-DBOARD:STRING={options['zephyr_board']}")
 
