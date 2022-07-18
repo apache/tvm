@@ -34,6 +34,13 @@ from tvm.tir.stmt_functor import post_order_visit
 
 from .infrastructure import allocate_hexagon_array
 
+# Disabling invalid name as pylint assumes global variables as constants and
+# expects them to be all upper-case. Since these are used as
+# tvm.testing.parameters, if they are made upper-case, the functions which take
+# them as arguments would also need to be upper-case, and pylint would complain
+# there as well
+# pylint: disable=invalid-name
+
 dtype = tvm.testing.parameter("int8")
 batch_size = tvm.testing.parameter(
     16,
@@ -65,6 +72,8 @@ working_layout, working_scope = tvm.testing.parameters(
     # 2-d memory may only occur in vtcm memory
     ("nchw-8h8w32c-2d", "global.vtcm"),
 )
+
+# pylint: enable=invalid-name
 
 
 @tvm.testing.fixture
