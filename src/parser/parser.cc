@@ -1540,7 +1540,7 @@ class Parser {
         }
         case TokenType::kBoolean: {
           Consume(TokenType::kBoolean);
-          int64_t value = Downcast<tvm::Integer>(next->data);
+          int64_t value = Downcast<tvm::Integer>(next->data).IntValue();
           Expr e = Constant(support::BoolToNDArray(value), next->span);
           ICHECK(e->span.defined()) << "constant spans must be defined";
           return e;

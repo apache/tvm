@@ -550,7 +550,8 @@ Optional<Target> TargetNode::GetHost() const {
 String TargetNode::ToDebugString() const {
   std::ostringstream os;
   os << "Target(";
-  os << "kind='" << kind->name << "'";
+  os << "id=" << std::hex << reinterpret_cast<size_t>(this);
+  os << ", kind='" << kind->name << "'";
   if (!tag.empty()) {
     os << ", tag='" << tag << "'";
   }
@@ -804,7 +805,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(std::unordered_map<String, ObjectRe
   // If requested, query attributes from the device.  User-specified
   // parameters take precedence over queried parameters.
   if (attrs.count("from_device")) {
-    int device_id = Downcast<Integer>(attrs.at("from_device"));
+    int device_id = Downcast<Integer>(attrs.at("from_device")).IntValue();
     attrs.erase("from_device");
     auto device_params = QueryDevice(device_id, target.get());
 
@@ -846,10 +847,11 @@ std::unordered_map<String, ObjectRef> TargetInternal::QueryDevice(int device_id,
 
   TVMRetValue ret;
   api->GetAttr(device, runtime::kExist, &ret);
-  if (!ret) {
-    ICHECK(ret) << "Requested reading the parameters for " << target->kind->name
-                << " from device_id " << device_id << ", but device_id " << device_id
-                << " doesn't exist.  Using default target parameters.";
+  bool device_exists = ret;
+  if (!device_exists) {
+    ICHECK(device_exists) << "Requested reading the parameters for " << target->kind->name
+                          << " from device_id " << device_id << ", but device_id " << device_id
+                          << " doesn't exist.  Using default target parameters.";
     return output;
   }
 

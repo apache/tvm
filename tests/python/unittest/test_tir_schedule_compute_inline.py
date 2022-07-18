@@ -556,11 +556,11 @@ def exp_exp_opaque_access_with_tvm_access_ptr(
     for i0 in T.serial(16):
         with T.block("compute_1"):
             i0_2 = T.axis.spatial(16, i0)
-            T.reads(compute_1[i0_2], lookup_table[0:1024])
+            T.reads(lookup_table[0:1024], compute_1[i0_2])
             T.writes(compute[i0_2])
+            T.evaluate(lookup_table.access_ptr("r"))
             compute[i0_2] = T.exp(
                 compute_1[i0_2],
-                lookup_table.access_ptr("r"),
                 dtype="float16",
             )
 
@@ -576,11 +576,11 @@ def exp_exp_opaque_access_with_tvm_access_ptr_inlined(
             i0_1 = T.axis.spatial(16, i0)
             # Do not put the opaque access to new write region when opaque access
             # wrapped with a tvm_access_ptr and the access mask set to "read only"
-            T.reads(x[i0_1], lookup_table[0:1024])
+            T.reads(lookup_table[0:1024], x[i0_1])
             T.writes(compute[i0_1])
+            T.evaluate(lookup_table.access_ptr("r"))
             compute[i0_1] = T.exp(
                 T.exp(x[i0_1], dtype="float16"),
-                lookup_table.access_ptr("r"),
                 dtype="float16",
             )
 

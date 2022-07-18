@@ -319,14 +319,23 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
     }
   }
 
-  // old_in, new_in = state[inputs]
-  // naming rule:
-  // old_in, new_in: the input layouts given by downstream node.
-  // old_in2, new_in2: the input layouts inferred by the current node.
-  Array<Layout> old_in, old_in2, old_out, new_in, new_out, new_in2;
+  // old_prd, new_prd = state[inputs]
+  // different ops can view a tensor with different layouts, e.g. conv_1->transpose(H, W)->conv_2
+  // transpose view its output having NCWH layout, but conv_2 still views it as NCHW to operate
+  // old_prd, new_prd: the input layouts from the perspective of the producer (transpose)
+  // old_cur, new_cur: the input layouts from the perspective of the current node (conv_2)
+  // old_prd->new_prd tells how producer changed the layout
+  // old_cur->new_cur tells what change the current node wants to see
+  // No layout transforms are needed when they mean the same (NCHW->NCHW4c == NCWH->NCWH4c)
+
+  // The workflow:
+  // 1. Run InferCorrectLayouts(NULL, old_prd) to get old_cur
+  // 2. Run InferCorrectLayouts(new_prd, old_prd) to get new_cur and rewrite the current op
+
+  Array<Layout> old_prd, old_cur, old_out, new_prd, new_out, new_cur;
   for (auto inp : inputs) {
-    old_in.push_back(inp->old_layout);
-    new_in.push_back(inp->new_layout);
+    old_prd.push_back(inp->old_layout);
+    new_prd.push_back(inp->new_layout);
   }
 
   // Collect input types to pass on to Infer Correct Layout.
@@ -338,30 +347,39 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   bool success = false;
   InferCorrectLayoutOutput infer_out;
   std::tie(infer_out, success) =
-      InferCorrectLayouts(ref_call, Array<Layout>(nullptr), old_in, types);
-  old_in2 = infer_out->input_layouts;
+      InferCorrectLayouts(ref_call, Array<Layout>(nullptr), old_prd, types);
+  old_cur = infer_out->input_layouts;
   old_out = infer_out->output_layouts;
   if (!success) {
     return Expr(nullptr);
   }
-  ICHECK_EQ(old_in2.size(), new_in.size());
+  ICHECK_EQ(old_cur.size(), new_prd.size());
 
-  Array<Layout> new_in_tmp = new_in;  // for backward compatibility of InferCorrectLayouts
-  // if new_in_tmp == 'undef':  new_in_tmp = old_in2
-  for (size_t i = 0; i < new_in_tmp.size(); ++i) {
-    if (!new_in_tmp[i].defined()) {
-      new_in_tmp.Set(i, old_in2[i]);
+  // for backward compatibility of InferCorrectLayouts
+  Array<Layout> new_prd_inferred = new_prd;
+  // if new_prd_inferred == 'undef':  new_prd_inferred = old_cur
+  for (size_t i = 0; i < new_prd_inferred.size(); ++i) {
+    if (!new_prd_inferred[i].defined()) {
+      new_prd_inferred.Set(i, old_cur[i]);
+    }
+  }
+  Array<Layout> old_prd_inferred = old_prd;
+  // if old_prd_inferred == 'undef':  old_prd_inferred = old_cur
+  for (size_t i = 0; i < old_prd_inferred.size(); ++i) {
+    if (!old_prd_inferred[i].defined()) {
+      old_prd_inferred.Set(i, old_cur[i]);
     }
   }
 
   // new_op = alter(op)
   Call new_call = memorizer->CallWithNewLayouts(ref_call, infer_out->new_attrs, normal_new_args);
 
-  // new_in2, new_out = op.infer(new_in)
+  // new_cur, new_out = op.infer(new_prd)
   if (new_call->op->IsInstance<OpNode>()) {
     success = false;
-    std::tie(infer_out, success) = InferCorrectLayouts(new_call, new_in_tmp, old_in2, types);
-    new_in2 = infer_out->input_layouts;
+    std::tie(infer_out, success) =
+        InferCorrectLayouts(new_call, new_prd_inferred, old_prd_inferred, types);
+    new_cur = infer_out->input_layouts;
     new_out = infer_out->output_layouts;
     if (!success) {
       return Expr(nullptr);
@@ -372,21 +390,27 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
 
   ICHECK_EQ(new_out.size(), old_out.size())
       << "The number of output nodes should keep the same during alter_op_layout";
-  ICHECK_EQ(new_in.size(), new_in2.size())
+  ICHECK_EQ(new_prd.size(), new_cur.size())
       << "The number of input nodes should keep the same during alter_op_layout";
 
-  auto transform_layout = [&memorizer](Expr arg_item, const Layout& old_in, const Layout& old_in2,
-                                       const Layout& new_in, const Layout& new_in2) {
-    if (old_in2.Equals(old_in)) {  // the two transforms can be fused to one
-      arg_item = memorizer.Transform(arg_item, new_in, new_in2);
+  auto transform_layout = [&memorizer](Expr arg_item, const Layout& old_prd, const Layout& old_cur,
+                                       const Layout& new_prd, const Layout& new_cur) {
+    if (old_cur.Equals(old_prd)) {  // the two transforms can be fused to one
+      arg_item = memorizer.Transform(arg_item, new_prd, new_cur);
     } else {
-      if (old_in.defined()) arg_item = memorizer.Transform(arg_item, new_in, old_in);
-      arg_item = memorizer.Transform(arg_item, old_in2, new_in2);
+      if (old_prd.defined()) arg_item = memorizer.Transform(arg_item, new_prd, old_prd);
+      arg_item = memorizer.Transform(arg_item, old_cur, new_cur);
     }
     return arg_item;
   };
 
-  // if (new_in != new_in2): insert transform (new_in -> new_in2)
+  DLOG(INFO) << "Transforming layout for `" << ref_call->op << "`";
+  DLOG(INFO) << " old_prd=" << old_prd;
+  DLOG(INFO) << " new_prd=" << new_prd;
+  DLOG(INFO) << " old_cur=" << old_cur;
+  DLOG(INFO) << " new_cur=" << new_cur;
+
+  // if (new_prd != new_cur): insert transform (new_prd -> new_cur)
   Array<Expr> transformed_args;
   size_t pt = 0;
   for (auto arg : new_call->args) {
@@ -396,13 +420,13 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
       transformed_tuple_arg.reserve(tuple_arg->fields.size());
       for (auto arg_item : tuple_arg->fields) {
         transformed_tuple_arg.push_back(
-            transform_layout(arg_item, old_in[pt], old_in2[pt], new_in[pt], new_in2[pt]));
+            transform_layout(arg_item, old_prd[pt], old_cur[pt], new_prd[pt], new_cur[pt]));
         pt++;
       }
       transformed_args.push_back(WithFields(tuple_arg, transformed_tuple_arg));
     } else {
       transformed_args.push_back(
-          transform_layout(arg, old_in[pt], old_in2[pt], new_in[pt], new_in2[pt]));
+          transform_layout(arg, old_prd[pt], old_cur[pt], new_prd[pt], new_cur[pt]));
       pt++;
     }
   }

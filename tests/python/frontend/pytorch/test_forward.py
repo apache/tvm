@@ -3895,6 +3895,18 @@ def test_empty_like():
     verify_model_with_input(test_func, [torch.rand([1, 3, 10, 10]).float()], assert_shape_only=True)
 
 
+def test_randn():
+    def test_func():
+        return torch.randn([1, 3, 10, 10])
+
+    verify_model_with_input(test_func, [], assert_shape_only=True)
+
+    def test_func1():
+        return torch.randn(1, 3, 10, 10)
+
+    verify_model_with_input(test_func1, [], assert_shape_only=True)
+
+
 def test_forward_pretrained_bert_base_uncased():
     ######################################################################
     # This is an example how to run BERT models using TVM
@@ -4530,6 +4542,46 @@ def test_mod():
     for test_fn in [test_fmod, test_remainder]:
         verify_model(test_fn, [torch.tensor([-3.0, -2, -1, 1, 2, 3]), torch.tensor(2)])
         verify_model(test_fn, [torch.tensor([1, 2, 3, 4, 5]), torch.tensor(-1.5)])
+
+
+def test_softmax_fuse():
+    # https://github.com/apache/tvm/issues/12001
+    class Model(torch.nn.Module):
+        def __init__(self, nchwc_post_op=False) -> None:
+            super().__init__()
+            self.conv = torch.nn.Conv2d(3, 3, (1, 1), 1)
+            self.nchwc_post_op = nchwc_post_op
+
+        @torch.no_grad()
+        def forward(self, x):
+            t0a = self.conv(x)
+            t0b = torch.floor(x)
+            t2b = torch.softmax(t0a, dim=2)
+
+            if self.nchwc_post_op:
+                t3a = t0a - t0b
+                t4a = t2b - t0b
+                t6a = t3a + t4a
+                return t6a
+
+            return t2b + 1
+
+    sh = [3, 3, 10, 1]
+    inp = torch.ones(*sh, dtype=torch.float32)
+
+    for model in [Model(nchwc_post_op=False).eval(), Model(nchwc_post_op=True).eval()]:
+        output_torch = model(inp).numpy()
+
+        mod, params = relay.frontend.from_pytorch(torch.jit.trace(model, inp), [("inp0", sh)])
+
+        with tvm.transform.PassContext(opt_level=4):
+            out = (
+                relay.create_executor("graph", mod, params=params)
+                .evaluate()(inp0=inp.numpy())
+                .numpy()
+            )
+
+        tvm.testing.assert_allclose(out, output_torch, rtol=1e-5, atol=1e-5)
 
 
 if __name__ == "__main__":

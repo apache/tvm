@@ -73,7 +73,7 @@ TVM_REGISTER_GLOBAL("relay.ir.StorageInfo")
       std::vector<int64_t> sids_v;
       sids_v.reserve(sids.size());
       for (auto s : sids) {
-        sids_v.push_back(s);
+        sids_v.push_back(s.IntValue());
       }
       std::vector<VirtualDevice> virtual_devices_v;
       virtual_devices_v.reserve(device_types.size());
@@ -83,7 +83,7 @@ TVM_REGISTER_GLOBAL("relay.ir.StorageInfo")
       std::vector<int64_t> size_in_bytes_v;
       size_in_bytes_v.reserve(sizes_in_bytes.size());
       for (auto s : sizes_in_bytes) {
-        size_in_bytes_v.push_back(s);
+        size_in_bytes_v.push_back(s.IntValue());
       }
       return StorageInfo(std::move(sids_v), std::move(virtual_devices_v),
                          std::move(size_in_bytes_v));

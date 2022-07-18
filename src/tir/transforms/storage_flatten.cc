@@ -47,6 +47,7 @@
 namespace tvm {
 namespace tir {
 
+using arith::IRVisitorWithAnalyzer;
 using runtime::StorageRank;
 using runtime::StorageScope;
 using runtime::ThreadScope;

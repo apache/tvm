@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Integration test for MetaSchedule"""
+from typing import Optional
 import numpy as np
 import pytest
 import tvm
@@ -283,6 +284,28 @@ def test_meta_schedule_integration_apply_history_best():
         mod=mod,
         target=target,
         dispatched=[MockModule],
+    )
+    assert tvm.ir.structural_equal(mod, workload.mod)
+
+
+@requires_torch
+def test_meta_schedule_integration_apply_history_best_direct_dispatch():
+    def direct_dispatch(mod: IRModule) -> Optional[IRModule]:
+        if tvm.ir.structural_equal(mod, MockModule):
+            return MockModule
+        return None
+
+    mod, _, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
+    database = ms.database.MemoryDatabase()
+    env = ms.ApplyHistoryBest(database)
+    target = Target("llvm")
+    workload = database.commit_workload(MockModule)
+    mod = env.query(
+        task_name="mock-task-direct-dispatch",
+        mod=mod,
+        target=target,
+        dispatched=[MockModule],
+        f_direct_dispatch=direct_dispatch,
     )
     assert tvm.ir.structural_equal(mod, workload.mod)
 

@@ -154,7 +154,7 @@ class InMemoryMetadataNode : public ::tvm::target::metadata::VisitableMetadataNo
     storage_.num_constant_pools = constant_pools.size();
     for (size_t i = 0; i < constant_pools.size(); ++i) {
       constant_pools_.get()[i].name_hint = constant_pools[i]->name_hint.c_str();
-      constant_pools_.get()[i].byte_offset = constant_pools[i]->byte_offset;
+      constant_pools_.get()[i].byte_offset = constant_pools[i]->byte_offset.IntValue();
 
       std::string bytes;
       dmlc::MemoryStringStream stream(&bytes);

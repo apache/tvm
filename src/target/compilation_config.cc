@@ -72,18 +72,56 @@ Optional<Target> CompilationConfigNode::FindPrimitiveTargetForKind(
   return *itr;
 }
 
+Target CompilationConfigNode::CanonicalTarget(const Target& target) const {
+  // Fast path -- object identity.
+  if (target == host_target) {
+    return target;
+  }
+  for (const auto& primitive_target : primitive_targets) {
+    if (target == primitive_target) {
+      return target;
+    }
+  }
+  // Slow path -- structural equality. We have so few targets it does not seem worth building an
+  // index.
+  if (StructuralEqual()(target, host_target)) {
+    return host_target;
+  }
+  for (const auto& primitive_target : primitive_targets) {
+    if (StructuralEqual()(target, primitive_target)) {
+      return primitive_target;
+    }
+  }
+  // No match.
+  return target;
+}
+
 VirtualDevice CompilationConfigNode::CanonicalVirtualDevice(
     const VirtualDevice& virtual_device) const {
-  if (virtual_device->target.defined()) {
-    return virtual_device_cache_.Unique(virtual_device);
+  // Targets need special handling.
+  Target target = virtual_device->target;
+  if (target.defined()) {
+    // It is possible the given target object was constructed by the user, but was then
+    // rewritten on the way into the CompilationConfig. So 'canonicalize' it by replacing
+    // the given target with one structurally equal to one already known in the config if
+    // possible.
+    Target canon_target = CanonicalTarget(target);
+    if (canon_target != target) {
+      VLOG(1) << "Canonicalized target " << canon_target->ToDebugString();
+    }
+    target = canon_target;
+  } else if (virtual_device->device_type() != kInvalidDeviceType) {
+    // Since no target was given, choose one with a matching device type.
+    // This is the one place where we allow device types to imply targets.
+    target = FindPrimitiveTargetForDeviceOrFail(virtual_device->device_type());
+    VLOG(1) << "Defaulted to target " << target->ToDebugString();
   }
-  DLDeviceType device_type = virtual_device->device_type();
-  // TODO(mbs): Proper diagnostics.
-  CHECK(device_type != kInvalidDeviceType)
-      << "VirtualDevice annotations must include at least a device_type";
-  Target target = FindPrimitiveTargetForDeviceOrFail(virtual_device->device_type());
-  return virtual_device_cache_.Unique(VirtualDevice(device_type, virtual_device->virtual_device_id,
-                                                    target, virtual_device->memory_scope));
+  // else: the target will remain unknown.
+
+  // Redirect to an existing structurally equal virtual device.
+  return virtual_device_cache_.Unique(VirtualDevice(virtual_device->device_type(),
+                                                    virtual_device->virtual_device_id, target,
+                                                    virtual_device->memory_scope));
 }
 
 void CompilationConfigNode::Init(const transform::PassContext& pass_ctx,
@@ -222,9 +260,8 @@ void CompilationConfigNode::Init(const transform::PassContext& pass_ctx,
   // Establish the default primitive VirtualDevice, choosing a known Target to match the device
   // type. We do not create a default target, it must already exist as a primitive target.
   //
-  default_primitive_virtual_device = virtual_device_cache_.Unique(VirtualDevice(
-      default_primitive_device_type,
-      /*virtual_device_id=*/0, FindPrimitiveTargetForDeviceOrFail(default_primitive_device_type)));
+  default_primitive_virtual_device = CanonicalVirtualDevice(
+      VirtualDevice::ForDeviceType(default_primitive_device_type, /*virtual_device_id=*/0));
 
   ICHECK(default_primitive_virtual_device.defined());
   ICHECK(default_primitive_virtual_device->target.defined());

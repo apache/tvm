@@ -1935,5 +1935,17 @@ def test_alter_with_subfunc():
     assert tvm.ir.structural_equal(relay.transform.AlterOpLayout()(mod), mod)
 
 
+def test_alter_with_reduce():
+    x = relay.var("x", shape=(1, 1, 1, 1))
+    y = relay.image.resize2d(x, (2, 4))
+    z = relay.mean(y, axis=0)
+    a = relay.image.resize1d(z, (1,))
+    func = relay.Function((x,), a)
+    mod = tvm.IRModule.from_expr(func)
+    mod = relay.transform.InferType()(mod)
+    with tvm.transform.PassContext(opt_level=4):
+        relay.build(mod, target="llvm")
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

@@ -51,6 +51,7 @@ from .register import register_pattern_table
 
 
 logger = logging.getLogger("DNNL")
+supported_post_elts = ["nn.relu", "tanh", "sigmoid", "clip", "gelu", "swish", None]
 
 
 def _register_external_op_helper(op_name, supported=True):
@@ -104,6 +105,38 @@ _register_external_op_helper("nn.softmax")
 _register_external_op_helper("add")
 _register_external_op_helper("multiply")
 _register_external_op_helper("nn.layer_norm")
+_register_external_op_helper("nn.batch_matmul")
+
+
+def append_eltwise_ops(op, eltwise):
+    """Append element-wise post-ops to conv / conv_transpose / dense
+
+    Parameters
+    ----------
+    op : str
+        The op name to be attached with element-wise post-op.
+    eltwise : str
+        The attached elementwise post-op name.
+    Returns
+    -------
+    pattern : CallPattern
+        Call node sequence.
+    """
+    if eltwise == "gelu":
+        const1 = wildcard()
+        const2 = wildcard()
+        const3 = wildcard()
+        div = is_op("divide")(op, const1)
+        erf_val = is_op("erf")(div)
+        added_erf_val = is_op("add")(erf_val, const2)
+        mul_val = is_op("multiply")(op, added_erf_val)
+        op = is_op("multiply")(mul_val, const3)
+    elif eltwise == "swish":
+        sig_out = is_op("sigmoid")(op)
+        op = is_op("multiply")(op, sig_out)
+    elif eltwise:
+        op = is_op(eltwise)(op)
+    return op
 
 
 def make_conv_pattern(conv_name, with_bias=True, with_eltwise=None):
@@ -120,6 +153,8 @@ def make_conv_pattern(conv_name, with_bias=True, with_eltwise=None):
     conv_out : CallPattern
         Call node sequence.
     """
+    if with_eltwise not in supported_post_elts:
+        raise ValueError("Unsupported eltwise post-op: %s" % with_eltwise)
     data = wildcard()
     weight = wildcard()
     bias = wildcard()
@@ -128,9 +163,7 @@ def make_conv_pattern(conv_name, with_bias=True, with_eltwise=None):
         conv_out = is_op("add")(conv, bias)
     else:
         conv_out = conv
-    if with_eltwise:
-        return is_op(with_eltwise)(conv_out)
-    return conv_out
+    return append_eltwise_ops(conv_out, with_eltwise)
 
 
 def make_dense_pattern(with_bias=True, with_eltwise=None):
@@ -147,6 +180,8 @@ def make_dense_pattern(with_bias=True, with_eltwise=None):
     dense_out : CallPattern
         Call node sequence.
     """
+    if with_eltwise not in supported_post_elts:
+        raise ValueError("Unsupported eltwise post-op: %s" % with_eltwise)
     data = wildcard()
     weight = wildcard()
     bias = wildcard()
@@ -156,18 +191,7 @@ def make_dense_pattern(with_bias=True, with_eltwise=None):
         dense_out = is_op("add")(dense, bias)
     else:
         dense_out = dense
-    if with_eltwise == "gelu":
-        const1 = wildcard()
-        const2 = wildcard()
-        const3 = wildcard()
-        div = is_op("divide")(dense_out, const1)
-        erf_val = is_op("erf")(div)
-        added_erf_val = is_op("add")(erf_val, const2)
-        mul_val = is_op("multiply")(dense_out, added_erf_val)
-        dense_out = is_op("multiply")(mul_val, const3)
-    elif with_eltwise:
-        dense_out = is_op(with_eltwise)(dense_out)
-    return dense_out
+    return append_eltwise_ops(dense_out, with_eltwise)
 
 
 def make_dnnl_pattern(op_name, with_bias, with_eltwise):
@@ -282,7 +306,7 @@ def pattern_table():
     dnnl_patterns.append(make_qnn_conv2d_pattern())
     dnnl_patterns.append(make_qnn_dense_pattern())
 
-    elt_list = ["nn.relu", "tanh", "sigmoid", "gelu", None]
+    elt_list = ["nn.relu", "tanh", "sigmoid", "clip", "gelu", "swish", None]
     for with_bias in [True, False]:
         for elt in elt_list:
             if not with_bias and not elt:
@@ -294,8 +318,7 @@ def pattern_table():
                 "nn.conv2d_transpose",
                 "nn.conv3d_transpose",
             ]:
-                if elt != "gelu":
-                    dnnl_patterns.append(make_dnnl_pattern(conv_name, with_bias, elt))
+                dnnl_patterns.append(make_dnnl_pattern(conv_name, with_bias, elt))
             dnnl_patterns.append(make_dnnl_pattern("nn.dense", with_bias, elt))
     return dnnl_patterns
 
@@ -380,6 +403,8 @@ def get_shape(tensor):
     if isinstance(tensor, tvm.ir.container.Array):
         return tensor[-1].shape
     if isinstance(tensor, relay.expr.Call):
+        if tensor.op.name == "multiply":
+            return tensor.type_args[0].shape
         return tensor.checked_type.shape
     raise TypeError("Unsupport data type: %s" % type(tensor))
 
@@ -395,6 +420,8 @@ def get_dtype(tensor):
     if isinstance(tensor, tvm.ir.container.Array):
         return tensor[-1].dtype
     if isinstance(tensor, relay.expr.Call):
+        if tensor.op.name == "multiply":
+            return tensor.type_args[0].dtype
         return tensor.checked_type.dtype
     raise TypeError("Unsupport data type: %s" % type(tensor))
 
@@ -547,6 +574,7 @@ class IsComputeIntensiveGraph(ExprVisitor):
                 "nn.conv3d_transpose",
                 "nn.dense",
                 "nn.layer_norm",
+                "nn.batch_matmul",
             ]
         )
         if isinstance(call.op, tvm.tir.op.Op):
@@ -663,7 +691,7 @@ class LayerNormRewrite(DFPatternCallback):
         const_two = is_expr(relay.const(2)) | is_expr(relay.const(2.0))
         p1 = is_op("power")(cdiff, const_two)
         mp1 = is_op("mean")(p1) | is_op("variance")(self.data, mu)
-        eps = is_expr(relay.const(1e-5))
+        eps = is_expr(relay.const(1e-5)) | is_expr(relay.const(1e-6))
         added_eps = is_op("add")(mp1, eps)
         deno = is_op("sqrt")(added_eps)
         div_out = is_op("divide")(diff, deno)

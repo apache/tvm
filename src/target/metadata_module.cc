@@ -118,7 +118,7 @@ static runtime::metadata::Metadata ConvertMetaData(
     if (api->pool_info.as<WorkspacePoolInfoNode>()) {
       pools.push_back(
           runtime::metadata::TensorInfo(make_object<target::metadata::InMemoryTensorInfoNode>(
-              var->name_hint, std::vector<int64_t>{api->allocated_size},
+              var->name_hint, std::vector<int64_t>{api->allocated_size.IntValue()},
               tvm::runtime::DataType{kDLUInt, 8, 1})));
     }
   }

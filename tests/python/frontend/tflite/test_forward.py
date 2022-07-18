@@ -1767,7 +1767,9 @@ def test_forward_range():
 #######################################################################
 # Shape
 # -----
-def test_forward_shape():
+
+
+def _test_shape(dtype):
     # tflite 1.13 convert method does not accept empty shapes
     if package_version.parse(tf.VERSION) >= package_version.parse("1.14.0"):
         tf.reset_default_graph()
@@ -1777,7 +1779,8 @@ def test_forward_shape():
             limit = tf.placeholder(dtype=tf.int32, shape=[], name="limit")
             delta = tf.placeholder(dtype=tf.int32, shape=[], name="delta")
             r = tf.range(start, limit, delta, tf.int32, name="range")
-            out = tf.shape(r, out_type=tf.dtypes.int32)
+            out = tf.shape(r, out_type=dtype)
+            out = tf.add(out, tf.constant([1], dtype=dtype))
             compare_tflite_with_tvm(
                 [x for x in np.nditer(data)],
                 ["start", "limit", "delta"],
@@ -1785,6 +1788,11 @@ def test_forward_shape():
                 [out],
                 mode="vm",
             )
+
+
+def test_forward_shape():
+    _test_shape(tf.int32)
+    _test_shape(tf.int64)
 
 
 #######################################################################

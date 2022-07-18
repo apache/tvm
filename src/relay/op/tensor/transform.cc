@@ -370,7 +370,7 @@ bool StackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const int ndim = static_cast<int>(first->shape.size());
 
   // Sanity check: axis
-  int axis = param->axis;
+  int axis = param->axis.IntValue();
   ICHECK(-(ndim + 1) <= axis && axis < ndim + 1)
       << "stack only accepts `axis` in [-(ndim+1), ndim+1)"
       << ", but got axis = " << axis << ", and ndim = " << ndim;
@@ -414,7 +414,7 @@ Array<te::Tensor> StackCompute(const Attrs& attrs, const Array<te::Tensor>& inpu
                                const Type& out_type) {
   const StackAttrs* param = attrs.as<StackAttrs>();
   ICHECK(param != nullptr);
-  return {topi::stack(inputs, param->axis)};
+  return {topi::stack(inputs, param->axis.IntValue())};
 }
 
 Expr MakeStack(Expr data, int axis) {
@@ -473,7 +473,7 @@ bool TransposeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   } else {
     std::vector<int> axis_used(ndim, 0);
     for (const Integer& e : axes) {
-      int64_t axis = e;
+      int64_t axis = e.IntValue();
       // sanity check for axis and ndim
       ICHECK(-ndim <= axis && axis < ndim)
           << "transpose only allows each `axis` in `axes` in range [-data.ndim, data.ndim)"
@@ -1337,10 +1337,11 @@ Array<te::Tensor> TakeCompute(const Attrs& attrs, const Array<te::Tensor>& input
   const auto* param = attrs.as<TakeAttrs>();
   ICHECK(param != nullptr);
   if (!param->axis.defined()) {
-    return Array<te::Tensor>{topi::take(inputs[0], inputs[1], param->batch_dims, param->mode)};
-  } else {
     return Array<te::Tensor>{
-        topi::take(inputs[0], inputs[1], param->batch_dims, param->axis, param->mode)};
+        topi::take(inputs[0], inputs[1], param->batch_dims.IntValue(), param->mode)};
+  } else {
+    return Array<te::Tensor>{topi::take(inputs[0], inputs[1], param->batch_dims.IntValue(),
+                                        param->axis.IntValue(), param->mode)};
   }
 }
 
@@ -1658,8 +1659,8 @@ bool RepeatRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   }
   const auto* param = attrs.as<RepeatAttrs>();
   const int ndim = static_cast<int>(data->shape.size());
-  const int repeats = param->repeats;
-  const int axis = param->axis;
+  const int repeats = param->repeats.IntValue();
+  const int axis = param->axis.IntValue();
   ICHECK(repeats >= 1) << "repeat only accepts `repeats >= 1`"
                        << ", but got repeats = " << repeats;
   ICHECK(-ndim - 1 <= axis && axis <= ndim)
@@ -1687,7 +1688,7 @@ Array<te::Tensor> RepeatCompute(const Attrs& attrs, const Array<te::Tensor>& inp
                                 const Type& out_type) {
   const RepeatAttrs* param = attrs.as<RepeatAttrs>();
   ICHECK(param != nullptr);
-  return {topi::repeat(inputs[0], param->repeats, param->axis)};
+  return {topi::repeat(inputs[0], param->repeats.IntValue(), param->axis.IntValue())};
 }
 
 Expr MakeRepeat(Expr data, int repeats, int axis) {
@@ -2068,7 +2069,7 @@ bool ReverseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   }
   const auto* param = attrs.as<ReverseAttrs>();
   const int ndim = static_cast<int>(data->shape.size());
-  const int axis = param->axis;
+  const int axis = param->axis.IntValue();
   ICHECK(-ndim <= axis && axis < ndim)
       << "reverse only accepts `axis` in [-data.ndim, data.ndim - 1]"
       << ", but got axis = " << axis << ", and data.ndim = " << ndim;
@@ -2081,7 +2082,7 @@ Array<te::Tensor> ReverseCompute(const Attrs& attrs, const Array<te::Tensor>& in
   const ReverseAttrs* param = attrs.as<ReverseAttrs>();
   ICHECK(param != nullptr);
   // pass empty seq_length tensor to reverse_sequence
-  return {topi::reverse_sequence(inputs[0], te::Tensor(), param->axis)};
+  return {topi::reverse_sequence(inputs[0], te::Tensor(), param->axis.IntValue())};
 }
 
 Expr MakeReverse(Expr data, int axis) {
@@ -2136,7 +2137,7 @@ bool ReverseSequenceRel(const Array<Type>& types, int num_inputs, const Attrs& a
 
   const auto* param = attrs.as<ReverseSequenceAttrs>();
   const int ndim = static_cast<int>(data->shape.size());
-  int batch_axis = param->batch_axis;
+  int batch_axis = param->batch_axis.IntValue();
   ICHECK(-ndim <= batch_axis && batch_axis < ndim)
       << "reverse_sequence only accepts `batch_axis` in [-data.ndim, data.ndim - 1]"
       << ", but got batch_axis = " << batch_axis << ", and data.ndim = " << ndim;
@@ -2149,7 +2150,7 @@ bool ReverseSequenceRel(const Array<Type>& types, int num_inputs, const Attrs& a
       << ", but got dimension of batch_axis = " << data->shape[batch_axis]
       << ", and seq_length size = " << seq_lengths->shape[0];
 
-  const int seq_axis = param->seq_axis;
+  const int seq_axis = param->seq_axis.IntValue();
   ICHECK(-ndim <= seq_axis && seq_axis < ndim)
       << "reverse_sequnece only accepts `seq_axis` in [-data.ndim, data.ndim - 1]"
       << ", but got seq_axis = " << seq_axis << ", and data.ndim = " << ndim;
@@ -2162,7 +2163,8 @@ Array<te::Tensor> ReverseSequenceCompute(const Attrs& attrs, const Array<te::Ten
                                          const Type& out_type) {
   const ReverseSequenceAttrs* param = attrs.as<ReverseSequenceAttrs>();
   ICHECK(param != nullptr);
-  return {topi::reverse_sequence(inputs[0], inputs[1], param->seq_axis, param->batch_axis)};
+  return {topi::reverse_sequence(inputs[0], inputs[1], param->seq_axis.IntValue(),
+                                 param->batch_axis.IntValue())};
 }
 
 Expr MakeReverseSequence(Expr data, Expr seq_lengths, int seq_axis, int batch_axis) {
@@ -2374,7 +2376,7 @@ InferCorrectLayoutOutput SqueezeInferCorrectLayout(const Attrs& attrs,
   if (new_in_layouts.defined() && old_in_layouts.defined()) {
     Array<Integer> new_axis;
     for (const auto& e : axis) {
-      const auto& dim = old_in_layouts[0][e];
+      const auto& dim = old_in_layouts[0][e.IntValue()];
       new_axis.push_back((new_in_layouts[0]).IndexOf(dim));
     }
     params->axis = new_axis;
@@ -2714,7 +2716,7 @@ InferCorrectLayoutOutput StridedSliceInferCorrectLayout(
           Array<Integer> new_axes;
 
           for (size_t i = 0; i < axes.size(); ++i) {
-            auto old_idx = axes[i];
+            auto old_idx = axes[i].IntValue();
             auto new_idx = new_layout.IndexOf(layout[old_idx]);
             new_begin.push_back(begin[i]);
             new_end.push_back(end[i]);
@@ -2765,7 +2767,7 @@ InferCorrectLayoutOutput StridedSliceInferCorrectLayout(
         auto axes = params->axes.value();
         Array<Integer> new_axes;
         for (size_t i = 0; i < axes.size(); ++i) {
-          auto old_idx = axes[i];
+          auto old_idx = axes[i].IntValue();
           auto new_idx = new_layout.IndexOf(layout[old_idx]);
           new_axes.push_back(new_idx);
 
@@ -2783,8 +2785,8 @@ InferCorrectLayoutOutput StridedSliceInferCorrectLayout(
                 return out_default;
               }
             }
-            int64_t bg = begin[i];
-            int64_t ed = end[i];
+            int64_t bg = begin[i].IntValue();
+            int64_t ed = end[i].IntValue();
             if (bg % factor || ed % factor) {
               // transform to original layout
               return out_default;
@@ -2801,8 +2803,8 @@ InferCorrectLayoutOutput StridedSliceInferCorrectLayout(
           ICHECK(axis.IsPrimal());
           auto factor = new_layout.FactorOf(axis);
           if (factor == -1) {
-            new_begin.push_back(IntImm(begin[i]->dtype, begin[i]));
-            new_end.push_back(IntImm(end[i]->dtype, end[i]));
+            new_begin.push_back(IntImm(begin[i]->dtype, begin[i].IntValue()));
+            new_end.push_back(IntImm(end[i]->dtype, end[i].IntValue()));
           } else {
             if (strides.defined() && i < strides.size()) {
               auto stride = strides[i];
@@ -3251,17 +3253,17 @@ Array<te::Tensor> SliceLikeCompute(const Attrs& attrs, const Array<te::Tensor>& 
       }
     }
   } else {
-    for (int axis : param->axes) {
-      if (axis < 0) {
-        axis = static_cast<int>(src_shape.size()) + axis;
+    for (Integer axis : param->axes) {
+      int a = axis.IntValue();
+      if (a < 0) {
+        a = static_cast<int>(src_shape.size()) + a;
       }
-      ICHECK(target_shape[axis]->IsInstance<tvm::IntImmNode>())
+      ICHECK(target_shape[a]->IsInstance<tvm::IntImmNode>())
           << "slice_like does not support dynamic output shape";
-      end_idx.Set(axis, topi::GetConstInt(target_shape[axis]));
-      ICHECK_LE(topi::GetConstInt(end_idx[axis]), topi::GetConstInt(src_shape[axis]))
-          << "End index of axis " << axis
-          << " exceeds input shape: " << topi::GetConstInt(end_idx[axis]) << " vs "
-          << topi::GetConstInt(src_shape[axis]);
+      end_idx.Set(a, topi::GetConstInt(target_shape[a]));
+      ICHECK_LE(topi::GetConstInt(end_idx[a]), topi::GetConstInt(src_shape[a]))
+          << "End index of axis " << a << " exceeds input shape: " << topi::GetConstInt(end_idx[a])
+          << " vs " << topi::GetConstInt(src_shape[a]);
     }
   }
   return Array<te::Tensor>{topi::strided_slice(inputs[0], begin_idx, end_idx, strides, "end")};
@@ -3515,7 +3517,7 @@ bool GatherRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 Array<te::Tensor> GatherCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                 const Type& out_type) {
   const auto* param = attrs.as<GatherAttrs>();
-  return {topi::gather(inputs[0], param->axis, inputs[1])};
+  return {topi::gather(inputs[0], param->axis.IntValue(), inputs[1])};
 }
 
 Expr MakeGather(Expr data, Integer axis, Expr indices) {
@@ -3594,7 +3596,7 @@ Array<te::Tensor> GatherNDCompute(const Attrs& attrs, const Array<te::Tensor>& i
                                   const Type& out_type) {
   const auto* param = attrs.as<GatherNDAttrs>();
   ICHECK(param);
-  return {topi::gather_nd(inputs[0], inputs[1], param->batch_dims)};
+  return {topi::gather_nd(inputs[0], inputs[1], param->batch_dims.IntValue())};
 }
 
 Expr MakeGatherND(Expr data, Expr indices, int batch_dims = 0,

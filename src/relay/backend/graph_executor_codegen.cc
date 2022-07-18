@@ -326,6 +326,12 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     if (num_unknown_devices == 0) {
       node->attrs_["device_index"] = device_types;
     }
+    // storage scope
+    std::vector<std::string> storage_scope;
+    for (const auto& virtual_device : storage_info->virtual_devices) {
+      storage_scope.push_back(std::string(virtual_device->memory_scope));
+    }
+    node->attrs_["storage_scope"] = std::move(storage_scope);
     auto node_id = nodes_.size();
     nodes_.push_back(node);
     // Tuple return value, flatten as tuple
@@ -442,7 +448,6 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
         return AddNode(node, call);
       }
     } else if (!call_node->attrs.defined()) {  // Call is an extern function
-      std::cout << "call_node: \n" << PrettyPrint(call) << std::endl;
       const auto* func = call_node->op.as<GlobalVarNode>();
       ICHECK(func) << "Expected the operator to be a global var, but got "
                    << call_node->op->GetTypeKey();  // getting a relay fn here, not sure why.
@@ -539,12 +544,15 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     size_t num_entry = 0;
     ShapeVector shapes;
     std::vector<size_t> storage_ids;
+    std::vector<std::string> storage_scopes;
     std::vector<size_t> device_types;
     std::vector<std::string> dltypes;
     std::vector<size_t> node_row_ptr{0};
     for (auto node : nodes_) {
       const auto& shape_vec = dmlc::get<ShapeVector>(node->attrs_["shape"]);
       const auto& storage_id = dmlc::get<std::vector<int64_t>>(node->attrs_["storage_id"]);
+      const auto& storage_scope =
+          dmlc::get<std::vector<std::string>>(node->attrs_["storage_scope"]);
       const auto& dtype_vec = dmlc::get<std::vector<std::string>>(node->attrs_["dtype"]);
 
       ICHECK_EQ(node->num_outputs_, shape_vec.size());
@@ -553,11 +561,24 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
       shapes.insert(shapes.end(), shape_vec.begin(), shape_vec.end());
       dltypes.insert(dltypes.end(), dtype_vec.begin(), dtype_vec.end());
       storage_ids.insert(storage_ids.end(), storage_id.begin(), storage_id.end());
+      storage_scopes.insert(storage_scopes.end(), storage_scope.begin(), storage_scope.end());
       if (node->attrs_.count("device_index")) {
         const auto& dev_types = dmlc::get<std::vector<int64_t>>(node->attrs_["device_index"]);
         device_types.insert(device_types.end(), dev_types.begin(), dev_types.end());
       }
       node_row_ptr.push_back(num_entry);
+    }
+
+    // verification if storage_scope contains any non global memory scope
+    // in other case it's better not to write scopes to the JSON at all
+    bool global_only_scope = true;
+    for (const auto& ss : storage_scopes) {
+      if (!(ss.empty() || ss == "global")) {
+        global_only_scope = false;
+      }
+    }
+    if (global_only_scope) {
+      storage_scopes.clear();
     }
     writer->BeginObject();
     writer->WriteObjectKeyValue("nodes", nodes_);
@@ -571,6 +592,10 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     if (device_types.size()) {
       attrs["device_index"].emplace_back(std::string("list_int"));
       attrs["device_index"].emplace_back(device_types);
+    }
+    if (storage_scopes.size()) {
+      attrs["storage_scope"].emplace_back(std::string("list_str"));
+      attrs["storage_scope"].emplace_back(storage_scopes);
     }
     attrs["dltype"].emplace_back(std::string("list_str"));
     attrs["dltype"].emplace_back(dltypes);

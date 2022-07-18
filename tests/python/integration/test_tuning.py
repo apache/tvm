@@ -19,11 +19,8 @@ Test the tuner
 """
 import logging
 import multiprocessing as mp
-import sys
 import textwrap
-import time
 
-import pytest
 import tvm
 import tvm.relay
 import tvm.testing
@@ -34,100 +31,138 @@ from tvm.contrib import tar
 from tvm.ir.instrument import pass_instrument
 from tvm.ir.transform import PassContext
 from tvm.target import Target
+from tvm.tir.analysis import _ffi_api as _analysis_ffi_api
 
 
 def setup_module():
+    """Setup the module used for testing."""
+
     @autotvm.template("testing/conv2d_no_batching")
-    def conv2d_no_batching(N, H, W, CI, CO, KH, KW):
+    def conv2d_no_batching(  # pylint: disable=unused-variable
+        batch_size, input_h, input_w, channels_in, channels_out, kernel_h, kernel_w
+    ):
         """An example template for testing"""
-        assert N == 1, "Only consider batch_size = 1 in this template"
+        assert batch_size == 1, "Only consider batch_size = 1 in this template"
 
-        data = te.placeholder((N, CI, H, W), name="data")
-        kernel = te.placeholder((CO, CI, KH, KW), name="kernel")
+        data = te.placeholder((batch_size, channels_in, input_h, input_w), name="data")
+        kernel = te.placeholder((channels_out, channels_in, kernel_h, kernel_w), name="kernel")
 
-        rc = te.reduce_axis((0, CI), name="rc")
-        ry = te.reduce_axis((0, KH), name="ry")
-        rx = te.reduce_axis((0, KW), name="rx")
+        axis_rc = te.reduce_axis((0, channels_in), name="rc")
+        axis_ry = te.reduce_axis((0, kernel_h), name="ry")
+        axis_rx = te.reduce_axis((0, kernel_w), name="rx")
 
         conv = te.compute(
-            (N, CO, H - KH + 1, W - KW + 1),
+            (batch_size, channels_out, input_h - kernel_h + 1, input_w - kernel_w + 1),
             lambda nn, ff, yy, xx: te.sum(
-                data[nn, rc, yy + ry, xx + rx] * kernel[ff, rc, ry, rx], axis=[rc, ry, rx]
+                data[nn, axis_rc, yy + axis_ry, xx + axis_rx]
+                * kernel[ff, axis_rc, axis_ry, axis_rx],
+                axis=[axis_rc, axis_ry, axis_rx],
             ),
             tag="conv2d_nchw",
         )
 
-        s = te.create_schedule([conv.op])
+        schedule = te.create_schedule([conv.op])
 
         output = conv
-        OL = s.cache_write(conv, "local")
+        cache_write_ol = schedule.cache_write(conv, "local")
 
         # create cache stage
-        AA = s.cache_read(data, "shared", [OL])
-        WW = s.cache_read(kernel, "shared", [OL])
-        AL = s.cache_read(AA, "local", [OL])
-        WL = s.cache_read(WW, "local", [OL])
+        cache_read_aa = schedule.cache_read(data, "shared", [cache_write_ol])
+        cache_read_ww = schedule.cache_read(kernel, "shared", [cache_write_ol])
+        cache_read_al = schedule.cache_read(cache_read_aa, "local", [cache_write_ol])
+        cache_read_wl = schedule.cache_read(cache_read_ww, "local", [cache_write_ol])
 
         # tile and bind spatial axes
-        n, f, y, x = s[output].op.axis
+        axis_n, axis_f, axis_y, axis_x = schedule[output].op.axis
         cfg = autotvm.get_config()
-        cfg.define_split("tile_f", cfg.axis(f), num_outputs=4)
-        cfg.define_split("tile_y", cfg.axis(y), num_outputs=4)
-        cfg.define_split("tile_x", cfg.axis(x), num_outputs=4)
-        bf, vf, tf, fi = cfg["tile_f"].apply(s, output, f)
-        by, vy, ty, yi = cfg["tile_y"].apply(s, output, y)
-        bx, vx, tx, xi = cfg["tile_x"].apply(s, output, x)
-        kernel_scope = n  # this is the scope to attach global config inside this kernel
+        cfg.define_split("tile_f", cfg.axis(axis_f), num_outputs=4)
+        cfg.define_split("tile_y", cfg.axis(axis_y), num_outputs=4)
+        cfg.define_split("tile_x", cfg.axis(axis_x), num_outputs=4)
+        axis_bf, axis_vf, axis_tf, axis_fi = cfg["tile_f"].apply(schedule, output, axis_f)
+        axis_by, axis_vy, axis_ty, axis_yi = cfg["tile_y"].apply(schedule, output, axis_y)
+        axis_bx, axis_vx, axis_tx, axis_xi = cfg["tile_x"].apply(schedule, output, axis_x)
+        kernel_scope = axis_n  # this is the scope to attach global config inside this kernel
 
-        s[output].bind(bf, te.thread_axis("blockIdx.z"))
-        s[output].bind(by, te.thread_axis("blockIdx.y"))
-        s[output].bind(bx, te.thread_axis("blockIdx.x"))
-        s[output].bind(vf, te.thread_axis("vthread"))
-        s[output].bind(vy, te.thread_axis("vthread"))
-        s[output].bind(vx, te.thread_axis("vthread"))
-        s[output].bind(tf, te.thread_axis("threadIdx.z"))
-        s[output].bind(ty, te.thread_axis("threadIdx.y"))
-        s[output].bind(tx, te.thread_axis("threadIdx.x"))
-        s[output].reorder(n, bf, by, bx, vf, vy, vx, tf, ty, tx, fi, yi, xi)
-        s[OL].compute_at(s[output], tx)
+        schedule[output].bind(axis_bf, te.thread_axis("blockIdx.z"))
+        schedule[output].bind(axis_by, te.thread_axis("blockIdx.y"))
+        schedule[output].bind(axis_bx, te.thread_axis("blockIdx.x"))
+        schedule[output].bind(axis_vf, te.thread_axis("vthread"))
+        schedule[output].bind(axis_vy, te.thread_axis("vthread"))
+        schedule[output].bind(axis_vx, te.thread_axis("vthread"))
+        schedule[output].bind(axis_tf, te.thread_axis("threadIdx.z"))
+        schedule[output].bind(axis_ty, te.thread_axis("threadIdx.y"))
+        schedule[output].bind(axis_tx, te.thread_axis("threadIdx.x"))
+        schedule[output].reorder(
+            axis_n,
+            axis_bf,
+            axis_by,
+            axis_bx,
+            axis_vf,
+            axis_vy,
+            axis_vx,
+            axis_tf,
+            axis_ty,
+            axis_tx,
+            axis_fi,
+            axis_yi,
+            axis_xi,
+        )
+        schedule[cache_write_ol].compute_at(schedule[output], axis_tx)
 
         # tile and bind reduction axes
-        n, f, y, x = s[OL].op.axis
-        rc, ry, rx = s[OL].op.reduce_axis
-        cfg.define_split("tile_rc", cfg.axis(rc), num_outputs=3)
-        cfg.define_split("tile_ry", cfg.axis(ry), num_outputs=3)
-        cfg.define_split("tile_rx", cfg.axis(rx), num_outputs=3)
-        rco, rcm, rci = cfg["tile_rc"].apply(s, OL, rc)
-        ryo, rym, ryi = cfg["tile_rx"].apply(s, OL, ry)
-        rxo, rxm, rxi = cfg["tile_ry"].apply(s, OL, rx)
-        s[OL].reorder(rco, ryo, rxo, rcm, rym, rxm, rci, ryi, rxi, n, f, y, x)
+        axis_n, axis_f, axis_y, axis_x = schedule[cache_write_ol].op.axis
+        axis_rc, axis_ry, axis_rx = schedule[cache_write_ol].op.reduce_axis
+        cfg.define_split("tile_rc", cfg.axis(axis_rc), num_outputs=3)
+        cfg.define_split("tile_ry", cfg.axis(axis_ry), num_outputs=3)
+        cfg.define_split("tile_rx", cfg.axis(axis_rx), num_outputs=3)
+        axis_rco, axis_rcm, axis_rci = cfg["tile_rc"].apply(schedule, cache_write_ol, axis_rc)
+        axis_ryo, axis_rym, axis_ryi = cfg["tile_rx"].apply(schedule, cache_write_ol, axis_ry)
+        axis_rxo, axis_rxm, axis_rxi = cfg["tile_ry"].apply(schedule, cache_write_ol, axis_rx)
+        schedule[cache_write_ol].reorder(
+            axis_rco,
+            axis_ryo,
+            axis_rxo,
+            axis_rcm,
+            axis_rym,
+            axis_rxm,
+            axis_rci,
+            axis_ryi,
+            axis_rxi,
+            axis_n,
+            axis_f,
+            axis_y,
+            axis_x,
+        )
 
-        s[AA].compute_at(s[OL], rxo)
-        s[WW].compute_at(s[OL], rxo)
-        s[AL].compute_at(s[OL], rxm)
-        s[WL].compute_at(s[OL], rxm)
+        schedule[cache_read_aa].compute_at(schedule[cache_write_ol], axis_rxo)
+        schedule[cache_read_ww].compute_at(schedule[cache_write_ol], axis_rxo)
+        schedule[cache_read_al].compute_at(schedule[cache_write_ol], axis_rxm)
+        schedule[cache_read_wl].compute_at(schedule[cache_write_ol], axis_rxm)
 
         # cooperative fetching
-        for load in [AA, WW]:
-            n, f, y, x = s[load].op.axis
-            fused = s[load].fuse(n, f, y, x)
-            tz, fused = s[load].split(fused, nparts=cfg["tile_f"].size[2])
-            ty, fused = s[load].split(fused, nparts=cfg["tile_y"].size[2])
-            tx, fused = s[load].split(fused, nparts=cfg["tile_x"].size[2])
-            s[load].bind(tz, te.thread_axis("threadIdx.z"))
-            s[load].bind(ty, te.thread_axis("threadIdx.y"))
-            s[load].bind(tx, te.thread_axis("threadIdx.x"))
+        for load in [cache_read_aa, cache_read_ww]:
+            axis_n, axis_f, axis_y, axis_x = schedule[load].op.axis
+            fused = schedule[load].fuse(axis_n, axis_f, axis_y, axis_x)
+            axis_tz, fused = schedule[load].split(fused, nparts=cfg["tile_f"].size[2])
+            axis_ty, fused = schedule[load].split(fused, nparts=cfg["tile_y"].size[2])
+            axis_tx, fused = schedule[load].split(fused, nparts=cfg["tile_x"].size[2])
+            schedule[load].bind(axis_tz, te.thread_axis("threadIdx.z"))
+            schedule[load].bind(axis_ty, te.thread_axis("threadIdx.y"))
+            schedule[load].bind(axis_tx, te.thread_axis("threadIdx.x"))
 
         # tune unroll
         cfg.define_knob("auto_unroll_max_step", [0, 512, 1500])
         cfg.define_knob("unroll_explicit", [0, 1])
-        s[output].pragma(kernel_scope, "auto_unroll_max_step", cfg["auto_unroll_max_step"].val)
-        s[output].pragma(kernel_scope, "unroll_explicit", cfg["unroll_explicit"].val)
+        schedule[output].pragma(
+            kernel_scope, "auto_unroll_max_step", cfg["auto_unroll_max_step"].val
+        )
+        schedule[output].pragma(kernel_scope, "unroll_explicit", cfg["unroll_explicit"].val)
 
-        return s, [data, kernel, conv]
+        return schedule, [data, kernel, conv]
 
 
 def teardown_module():
+    """Remove the module from the autotvm task tables."""
     # TODO(areusch): Tasks should not be registered into a global.
     del autotvm.task.task.TASK_TABLE["testing/conv2d_no_batching"]
 
@@ -158,8 +193,10 @@ def run_test_with_all_multiprocessing(func, *args, **kwargs):
 
 
 @tvm.testing.parametrize_targets("cuda", "opencl")
-def test_tuning_gpu(target, dev):
-    def runner(target, dev):
+def test_tuning_gpu(target):
+    """Test gpu tuning."""
+
+    def runner(target):
         # init task
         task, target = get_sample_task(target, None)
         logging.info("task config space: %s", task.config_space)
@@ -181,22 +218,21 @@ def test_tuning_gpu(target, dev):
             r
             for r in results
             if r.error_no == autotvm.MeasureErrorNo.NO_ERROR
-            # Autotvm can filter some records before building if we know they won't work ahead of time.
-            # We can't guarantee we sample at least one good record so we count these as success too
+            # We filter records before building if we know they won't work ahead of time.
+            # We can't guarantee we get one good record so we count these as success too
             or r.error_no == autotvm.MeasureErrorNo.INSTANTIATION_ERROR
         ]
         assert len(successful_results) > 0, f"No successful tuning runs: {results!r}"
 
-    run_test_with_all_multiprocessing(runner, target, dev)
+    run_test_with_all_multiprocessing(runner, target)
 
 
 @tvm.testing.parametrize_targets("cuda", "opencl")
-def test_tuning_gpu_inherits_pass_context(target, dev):
+def test_tuning_gpu_inherits_pass_context(target):
     """Autotvm tuner inherits PassContexts but also adds a gpu verification pass by default.
 
     Test that using PassContext inherits passes properly but also runs gpu verification pass.
     """
-    from tvm.tir.analysis import _ffi_api as _analysis_ffi_api
 
     @pass_instrument
     class PassInstrumentChecker:
@@ -205,7 +241,7 @@ def test_tuning_gpu_inherits_pass_context(target, dev):
         def __init__(self):
             self.has_been_run = False
 
-        def run_after_pass(self, mod, info):
+        def run_after_pass(self, *_):
             self.has_been_run = True
 
     class GPUVerifyPassMocked:
@@ -274,10 +310,12 @@ def test_tuning_gpu_inherits_pass_context(target, dev):
             do_fork=False,
             runtime=None,
         ):
+            # pylint: disable=too-many-function-args
             super().__init__(timeout, n_parallel, build_kwargs, build_func, do_fork, runtime)
+
             self.build_func = OverwrittenBuildFunc(tar.tar, runtime)
 
-    def runner(target, dev):
+    def runner(target):
         task, target = get_sample_task(target, None)
         logging.info("task config space: %s", task.config_space)
 
@@ -295,10 +333,12 @@ def test_tuning_gpu_inherits_pass_context(target, dev):
 
         assert len(results) == 1
 
-    run_test_with_all_multiprocessing(runner, target, dev)
+    run_test_with_all_multiprocessing(runner, target)
 
 
 def test_tuning_cpu():
+    """Test tuning on cpu."""
+
     def runner():
         ir_mod = tvm.parser.fromtext(
             textwrap.dedent(

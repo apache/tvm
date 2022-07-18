@@ -361,7 +361,7 @@ class DenseDP4ATensorized:
                             )
                             T.reads()
                             T.writes(compute_local[i, j])
-                            T.block_attr({"meta_schedule.auto_tensorize": "dp4a"})
+                            T.block_attr({"meta_schedule.auto_tensorize": ""})
                             with T.block("compute_init"):
                                 T.reads()
                                 T.writes(compute_local[i, j])

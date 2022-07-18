@@ -458,8 +458,8 @@ void ResetThreadPool() { tvm::runtime::ThreadPool::ThreadLocal()->Reset(); }
  * \param cpus cpus A list of CPUs is used to set the 'cpu affinity' for the worker threads.
  *
  */
-void Configure(tvm::runtime::threading::ThreadGroup::AffinityMode mode, int nthreads,
-               std::vector<unsigned int> cpus) {
+TVM_DLL void Configure(tvm::runtime::threading::ThreadGroup::AffinityMode mode, int nthreads,
+                       std::vector<unsigned int> cpus) {
   tvm::runtime::threading::SetMaxConcurrency(cpus.size());
 #if !TVM_THREADPOOL_USE_OPENMP
   tvm::runtime::ThreadPool::ThreadLocal()->UpdateWorkerConfiguration(mode, nthreads, cpus);

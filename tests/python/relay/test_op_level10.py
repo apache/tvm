@@ -262,6 +262,23 @@ def test_broadcast_concat_shape_int64(executor_kind):
         tvm.testing.assert_allclose(op_res.numpy(), ref_res)
 
 
+def test_broadcast_pool2d_shape_int64(executor_kind):
+    x_shape = (1, 3, 32, 32)
+    out_shape = (2, 3, 32, 32)
+    x = relay.var("data", shape=x_shape, dtype="float32")
+    broadcast_to = relay.broadcast_to(x, shape=relay.const([2, 3, 32, 32], dtype="int64"))
+    pool2d = relay.nn.max_pool2d(broadcast_to, pool_size=(3, 3), padding=(1, 1, 1, 1))
+    sub = relay.subtract(broadcast_to, pool2d)
+
+    f = relay.Function([x], sub)
+    x = np.ones(x_shape).astype("float32")
+    ref_res = np.zeros(out_shape).astype("float32")
+
+    for target, dev in tvm.testing.enabled_targets():
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(f)(x)
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res)
+
+
 @tvm.testing.uses_gpu
 def test_broadcast_to_like(executor_kind):
     shape = (4, 1, 6)

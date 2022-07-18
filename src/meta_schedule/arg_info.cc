@@ -142,7 +142,10 @@ TensorInfo TensorInfo::FromJSON(const ObjectRef& json_obj) {
     LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
                << "\nThe error is: " << e.what();
   }
-  return TensorInfo(DataType(dtype), ShapeTuple(shape.begin(), shape.end()));
+  std::vector<int64_t> s;
+  std::transform(shape.begin(), shape.end(), std::back_inserter(s),
+                 [](Integer i) { return i.IntValue(); });
+  return TensorInfo(DataType(dtype), ShapeTuple(s.begin(), s.end()));
 }
 
 /******** Repr ********/
