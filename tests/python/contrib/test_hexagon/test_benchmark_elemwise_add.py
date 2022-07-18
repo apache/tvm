@@ -119,19 +119,24 @@ def _get_irmod_elemwise_add(shape: list, dtype: str, mem_scope: str) -> tvm.ir.m
         # Also: The VTCM budget is a very rough estimate, based only on experience.
         # Assuming that it's even reasonable to use a hard-coded estimate AT ALL, this number
         # may need tweaking.
-        # pylint: disable=unreachable
-        estimated_vtcm_budget_bytes = HVX_VECTOR_BYTES * 1024
 
-        dtype_bits = tvm._ffi.runtime_ctypes.DataType(dtype).bits
-        assert dtype_bits % 8 == 0
-        dtype_bytes = dtype_bits // 8
+        # The below code is commented is commented to avoid unreachable error
+        # with pylint. Please enable this once the kernel starts supporting
+        # VTCM buffers
 
-        num_vtcm_tensors = 3
-        estimated_vtcm_needed_bytes = shape[0] * shape[1] * dtype_bytes * num_vtcm_tensors
+        # Code starts below:
+        # ---- ------ -----
+        # estimated_vtcm_budget_bytes = HVX_VECTOR_BYTES * 1024
 
-        if estimated_vtcm_needed_bytes > estimated_vtcm_budget_bytes:
-            raise bu.UnsupportedException("Expect to exceed VTCM budget.")
-        # pylint: enable=unreachable
+        # dtype_bits = tvm._ffi.runtime_ctypes.DataType(dtype).bits
+        # assert dtype_bits % 8 == 0
+        # dtype_bytes = dtype_bits // 8
+
+        # num_vtcm_tensors = 3
+        # estimated_vtcm_needed_bytes = shape[0] * shape[1] * dtype_bytes * num_vtcm_tensors
+
+        # if estimated_vtcm_needed_bytes > estimated_vtcm_budget_bytes:
+        #     raise bu.UnsupportedException("Expect to exceed VTCM budget.")
 
     @tvm.script.ir_module
     class BenchmarkModule:
@@ -151,7 +156,8 @@ def _get_irmod_elemwise_add(shape: list, dtype: str, mem_scope: str) -> tvm.ir.m
                 for j in range(dim1_size):
                     C[i, j] = A[i, j] + B[i, j]
 
-    # pylint: enable=no-self-argument,invalid-name,missing-function-docstring
+        # pylint: enable=no-self-argument,invalid-name,missing-function-docstring
+
     return BenchmarkModule
 
 

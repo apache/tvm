@@ -208,15 +208,14 @@ class TestElementWise:
         write_cache = schedule.cache_write(output_tensor, working_scope)
         read_cache = schedule.cache_read(input_tensor, working_scope, [write_cache])
 
-        def apply_transform(tensor, layout):  # pylint: disable=inconsistent-return-statements
+        def apply_transform(tensor, layout):
             if layout == "nhwc":
-                pass
-            elif layout == "nchw-8h8w32c-1d":
+                return None
+            if layout == "nchw-8h8w32c-1d":
                 return schedule[tensor].transform_layout(layout_transform_1d)
-            elif layout == "nchw-8h8w32c-2d":
+            if layout == "nchw-8h8w32c-2d":
                 return schedule[tensor].transform_layout(layout_transform_2d)
-            else:
-                raise RuntimeError(f"Unexpected layout '{layout}'")
+            raise RuntimeError(f"Unexpected layout '{layout}'")
 
         apply_transform(input_tensor, input_layout)
         compute_loopnest = apply_transform(output_tensor, output_layout) or output_tensor.op.axis
