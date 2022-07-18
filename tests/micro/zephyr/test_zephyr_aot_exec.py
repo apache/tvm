@@ -199,7 +199,7 @@ def test_strategy(temp_dir, board, west_cmd, tvm_debug, use_fvp):
     )
     ref_mod = tvm.IRModule.from_expr(relay.Function([input0], out0))
 
-    input1 = relay.var("input", relay.TensorType(ishape, dtype))
+    input1 = relay.var("test_input", relay.TensorType(ishape, dtype))
     weight1 = relay.const(weight_data)
 
     out1 = relay.op.nn.conv1d(
@@ -231,8 +231,10 @@ def test_strategy(temp_dir, board, west_cmd, tvm_debug, use_fvp):
     with _make_session(temp_dir, board, west_cmd, mod, build_config, use_fvp) as session:
 
         aot_executor = tvm.runtime.executor.aot_executor.AotModule(session.create_aot_executor())
+        print("NUM_INPUTS", aot_executor.get_num_inputs())
+        print("NUM_OUTPUTS", aot_executor.get_num_outputs())
         
-        aot_executor.run(input1=inputs["input"])
+        aot_executor.run(test_input=inputs["input"])
         result = aot_executor.get_output(0).numpy()
         tvm.testing.assert_allclose(aot_executor.get_input(0).numpy(), inputs["input"])
         tvm.testing.assert_allclose(result, output_list["output"])

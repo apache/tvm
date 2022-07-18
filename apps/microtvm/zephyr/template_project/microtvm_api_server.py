@@ -587,10 +587,13 @@ class Handler(server.ProjectAPIHandler):
             cmake_args.append("-DEMU_PLATFORM=armfvp")
             cmake_args.append("-DARMFVP_FLAGS=-I")
             env["ARMFVP_BIN_PATH"] = str(API_SERVER_DIR / "fvp-hack")
+            env["ARMFVP_BIN_PATH"] = os.path.realpath(env["ARMFVP_BIN_PATH"])
 
         cmake_args.append(f"-DBOARD:STRING={options['zephyr_board']}")
-
+        
         print("ENV", env)
+        check_call(["/bin/ls", "-l", env["ARMFVP_BIN_PATH"]])
+        assert os.path.exists(env["ARMFVP_BIN_PATH"] + "/FVP_Corstone_SSE-300_Ethos-U55")
         check_call(cmake_args, cwd=BUILD_DIR, env=env)
 
         args = ["ninja"]
