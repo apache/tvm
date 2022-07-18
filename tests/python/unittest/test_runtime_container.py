@@ -57,7 +57,6 @@ def test_tuple_object():
 
 def test_string():
     """Test string"""
-    # pylint: disable=invalid-name
     s = tvm.runtime.String("xyz")
 
     assert isinstance(s, tvm.runtime.String)

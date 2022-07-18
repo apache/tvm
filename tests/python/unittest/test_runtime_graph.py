@@ -87,7 +87,6 @@ def test_graph_simple():
         np.testing.assert_equal(out.numpy(), a + 1)
 
     def check_sharing():
-        # pylint: disable=invalid-name
         x = relay.var("x", shape=(1, 10))
         y = relay.var("y", shape=(1, 10))
         z = relay.add(x, y)
@@ -132,7 +131,7 @@ def test_load_unexpected_params():
     params = {}
     x = relay.var("x", shape=(1, 10))
     y = relay.var("y", shape=(1, 10))
-    z = relay.add(x, y)  # pylint: disable=invalid-name
+    z = relay.add(x, y)
     mod["main"] = relay.Function([x, y], z)
 
     graph_module = relay.build(mod, target="llvm", params=params)

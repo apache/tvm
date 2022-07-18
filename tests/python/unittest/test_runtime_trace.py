@@ -41,7 +41,6 @@ def test_trace_expr_assign():
         return
 
     def check_assign(dtype):
-        # pylint: disable=invalid-name
         n = 4
         x = te.placeholder((n, n, n), name="X", dtype=dtype)
         y = te.compute(
@@ -102,7 +101,6 @@ def test_trace_expr_sum_args():
         return
 
     def check_expr_sum(dtype):
-        # pylint: disable=invalid-name
         n = 4
         a = te.placeholder((n, n, n), name="a", dtype=dtype)
         b = te.placeholder((n, n, n), name="b", dtype=dtype)
@@ -174,7 +172,6 @@ def test_trace_can_change_traced_value_int():
         return 14
 
     def check_assign(dtype):
-        # pylint: disable=invalid-name
         n = 4
         x = te.placeholder((n,), name="X", dtype=dtype)
         y = te.compute(x.shape, lambda i: tvm.tir.trace([x[i]], "tvm.tir.trace_change_int_first"))
@@ -207,7 +204,6 @@ def test_trace_can_change_traced_value_float():
         return 14.0
 
     def check_assign(dtype):
-        # pylint: disable=invalid-name
         n = 4
         x = te.placeholder((n,), name="X", dtype=dtype)
         y = te.compute(x.shape, lambda i: tvm.tir.trace([x[i]], "tvm.tir.trace_change_float_first"))

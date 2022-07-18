@@ -60,7 +60,6 @@ def test_minmax_value():
 
 def test_make_smap():
     """Test make smap"""
-    # pylint: disable=invalid-name
     # save load json
     x = tvm.tir.const(1, "int32")
     y = tvm.tir.const(10, "int32")
