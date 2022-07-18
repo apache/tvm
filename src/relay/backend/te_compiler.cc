@@ -499,8 +499,7 @@ class TECompilerImpl : public TECompilerNode {
 
     using tvm::transform::PassContext;
     With<PassContext> fresh_pass_ctx_scope(PassContext::Create());
-    value->cached_func =
-        ShapeFuncFor(key->source_func, key->target, GlobalVarSupply::EmptySupply());
+    value->cached_func = ShapeFuncFor(key->source_func, key->target, global_var_supply);
 
     ICHECK(
         value->cached_func->funcs->Lookup(value->cached_func->prim_fn_var).as<tir::PrimFuncNode>());
