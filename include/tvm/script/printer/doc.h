@@ -254,7 +254,7 @@ class AttrAccessDoc : public ExprDoc {
   /*!
    * \brief Constructor of AttrAccessDoc
    * \param value The target expression of attribute access.
-   * \param attr The name of attribute to access.
+   * \param name The name of attribute to access.
    */
   explicit AttrAccessDoc(ExprDoc value, String name);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(AttrAccessDoc, ExprDoc, AttrAccessDocNode);

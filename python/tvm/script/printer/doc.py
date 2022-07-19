@@ -34,20 +34,20 @@ class Doc(Object):
 class ExprDoc(Object):
     """Base class of all expression Docs"""
 
-    def attr(self, attr: str) -> "AttrAccessDoc":
+    def attr(self, name: str) -> "AttrAccessDoc":
         """
         Create a doc that represents attribute access on self.
 
         Parameters
         ----------
-        attr : str
+        name : str
             The attribute name to access
 
         Returns
         -------
         doc : AttrAccessDoc
         """
-        return _ffi_api.ExprDocAttr(self, attr)  # type: ignore
+        return _ffi_api.ExprDocAttr(self, name)  # type: ignore
 
     def call(self, *args: Tuple["ExprDoc"], **kwargs: Dict[str, "ExprDoc"]) -> "CallDoc":
         """
@@ -136,10 +136,10 @@ class AttrAccessDoc(ExprDoc):
     """Doc that represents attribute access on an expression"""
 
     value: ExprDoc
-    attr: str
+    name: str
 
-    def __init__(self, value: ExprDoc, attr: str):
-        self.__init_handle_by_constructor__(_ffi_api.AttrAccessDoc, value, attr)  # type: ignore
+    def __init__(self, value: ExprDoc, name: str):
+        self.__init_handle_by_constructor__(_ffi_api.AttrAccessDoc, value, name)  # type: ignore
 
 
 @tvm._ffi.register_object("script.printer.IndexDoc")
