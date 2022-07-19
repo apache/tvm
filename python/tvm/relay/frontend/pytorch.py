@@ -40,11 +40,7 @@ from ..loops import while_loop
 from ..prelude import Prelude, StaticTensorArrayOps
 from ..ty import Any, TensorType, TupleType
 from . import qnn_torch
-<<<<<<< HEAD
 from .common import AttrCvt, get_relay_op, gru_cell, logger, rnn_cell
-=======
-from .common import AttrCvt, get_relay_op, gru_cell, logger
->>>>>>> d9690c3cd (fix lint)
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
 from .common import fold_constant as _fold_constant
@@ -2551,7 +2547,7 @@ class PyTorchOpConverter:
 
     def numel(self, inputs, input_types):
         shape = self.infer_shape(inputs[0])
-        if isinstance(shape, tuple):
+        if isinstance(shape, tuple) and isinstance(shape[0], int):
             res = 1
             for s in shape:
                 res *= s
