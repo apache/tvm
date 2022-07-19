@@ -634,6 +634,7 @@ class SliceDoc : public Doc {
    * \brief Constructor of SliceDoc
    * \param start The start of slice.
    * \param stop The exclusive end of slice.
+   * \param step The step of slice.
    */
   explicit SliceDoc(Optional<ExprDoc> start, Optional<ExprDoc> stop, Optional<ExprDoc> step);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(SliceDoc, Doc, SliceDocNode);
