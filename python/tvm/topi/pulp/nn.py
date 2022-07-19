@@ -1,5 +1,5 @@
-
 from __future__ import absolute_import as _abs
+import logging
 from os import wait
 from tvm import te, tir, autotvm
 from tvm.target import Target
@@ -9,6 +9,7 @@ from ..utils import simplify, get_const_tuple, traverse_inline
 from ..nn.utils import get_pad_tuple1d, get_pad_tuple
 from .. import tag
 
+logger = logging.getLogger(__name__)
 
 def sdotp(data_dtype, kernel_dtype, out_dtype, vec_length, data_is_last_axis=True, kernel_is_last_axis=True, dilation=1):
 
@@ -686,7 +687,7 @@ def conv2d_nhwc(
 
 
 @autotvm.register_topi_schedule("conv2d_nhwc_ohwi.pulp")
-def schedule_conv2d_nhwc_ohwi(cfg, outs):
+def schedule_conv2d_nhwc_ohwi(cfg : autotvm.ConfigSpace, outs):
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = te.create_schedule([x.op for x in outs])
 
@@ -697,18 +698,24 @@ def schedule_conv2d_nhwc_ohwi(cfg, outs):
             n, h, w, c = op.axis
             ry, rx, rc = op.reduce_axis
 
+
     
             #s[data.op.input_tensors[0]].compute_inline()
             #s[data].compute_at(s[out], rc)
             #s[weight].compute_at(s[out], rc)
 
             vec_length = get_vec_length(out.dtype, data.dtype, weight.dtype)
-
-            if vec_length != 1:
+            from tvm.target import codegen
+            llvm_id = codegen.llvm_lookup_intrinsic_id(llvm.riscv.pulp.sdotsp4)
+            if llvm_id == 0:
+                logger.critical("llvm version does not support llvm intrinsics")
+            if vec_length != 1 and llvm_id != 0:
                 t = sdotp(data.dtype, weight.dtype, out.dtype, vec_length)
                 rco, rci = s[out].split(rc, vec_length)
                 
+                
                 s[out].tensorize(rci, t)
+
 
                 cfg.define_split("tile_c", c, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
                 co, ci = cfg["tile_c"].apply(s, out, c)
@@ -716,9 +723,11 @@ def schedule_conv2d_nhwc_ohwi(cfg, outs):
                 rcoo, rcoi = cfg["tile_rco"].apply(s, out, rco)
 
                 s[out].reorder(n, co, rcoo, h, w, ry, rx, ci, rcoi)
+                cfg.define_reorder("axis_order", [co, rcoo, h, w, ry, rx], policy="all")
+                
 
-                s[data].compute_at(s[out], rcoi)
-                s[weight].compute_at(s[out], rcoi)
+                #s[data].compute_at(s[out], ci)
+                #s[weight].compute_at(s[out], co)
 
     traverse_inline(s, outs[0].op, _callback)
 
