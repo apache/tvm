@@ -345,7 +345,6 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     // Fuse the operations if it is needed.
     pass_seqs.push_back(transform::FuseOps());
-    pass_seqs.push_back(transform::PlanDevices(config_));
 
     // Create a sequential pass and perform optimizations.
     transform::Pass seq = transform::Sequential(pass_seqs);
