@@ -82,7 +82,7 @@ class ExprDocNode : public DocNode {
    * \brief Create a doc representing index access on the current ExprDoc
    * \param indices The indices to access.
    */
-  ExprDoc Index(Array<Doc> indices) const;
+  ExprDoc operator[](Array<Doc> indices) const;
 
   /*!
    * \brief Create a doc representing calling the current ExprDoc
@@ -232,12 +232,12 @@ class AttrAccessDocNode : public ExprDocNode {
   /*! \brief The target expression to be accessed */
   ExprDoc value{nullptr};
   /*! \brief The attribute to be accessed */
-  String attr;
+  String name;
 
   void VisitAttrs(AttrVisitor* v) {
     ExprDocNode::VisitAttrs(v);
     v->Visit("value", &value);
-    v->Visit("attr", &attr);
+    v->Visit("name", &name);
   }
 
   static constexpr const char* _type_key = "script.printer.AttrAccessDoc";
@@ -256,7 +256,7 @@ class AttrAccessDoc : public ExprDoc {
    * \param value The target expression of attribute access.
    * \param attr The name of attribute to access.
    */
-  explicit AttrAccessDoc(ExprDoc value, String attr);
+  explicit AttrAccessDoc(ExprDoc value, String name);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(AttrAccessDoc, ExprDoc, AttrAccessDocNode);
 };
 

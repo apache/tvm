@@ -86,7 +86,7 @@ void PythonDocPrinter::PrintTypedDoc(const IdDoc& doc) { output_ << doc->name; }
 
 void PythonDocPrinter::PrintTypedDoc(const AttrAccessDoc& doc) {
   PrintDoc(doc->value);
-  output_ << "." << doc->attr;
+  output_ << "." << doc->name;
 }
 
 void PythonDocPrinter::PrintTypedDoc(const IndexDoc& doc) {

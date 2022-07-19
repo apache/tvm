@@ -89,7 +89,7 @@ def test_print_id_doc(name):
     ],
 )
 def test_print_attr_doc(attr):
-    doc = IdDoc("x").attr_access(attr)
+    doc = IdDoc("x").attr(attr)
     assert to_python_script(doc) == format_script(f"x.{attr}")
 
 
@@ -97,37 +97,37 @@ def test_print_attr_doc(attr):
     "indices, expected",
     [
         (
-            [],
+            (),
             "[()]",
         ),
         (
-            [LiteralDoc(1)],
+            (LiteralDoc(1),),
             "[1]",
         ),
         (
-            [LiteralDoc(2), IdDoc("x")],
+            (LiteralDoc(2), IdDoc("x")),
             "[2, x]",
         ),
         (
-            [SliceDoc(LiteralDoc(1), LiteralDoc(2))],
+            (SliceDoc(LiteralDoc(1), LiteralDoc(2)),),
             "[1:2]",
         ),
         (
-            [SliceDoc(LiteralDoc(1)), IdDoc("y")],
+            (SliceDoc(LiteralDoc(1)), IdDoc("y")),
             "[1:, y]",
         ),
         (
-            [SliceDoc(), IdDoc("y")],
+            (SliceDoc(), IdDoc("y")),
             "[:, y]",
         ),
         (
-            [IdDoc("x"), IdDoc("y"), IdDoc("z")],
+            (IdDoc("x"), IdDoc("y"), IdDoc("z")),
             "[x, y, z]",
         ),
     ],
 )
 def test_print_index_doc(indices, expected):
-    doc = IdDoc("x").index_access(indices)
+    doc = IdDoc("x")[indices]
     assert to_python_script(doc) == format_script(f"x{expected}")
 
 
@@ -423,5 +423,5 @@ def test_print_dict_doc(content, expected):
     ],
 )
 def test_print_slice_doc(slice_doc, expected):
-    doc = IdDoc("x").index_access([slice_doc])
+    doc = IdDoc("x")[slice_doc]
     assert to_python_script(doc) == format_script(f"x[{expected}]")

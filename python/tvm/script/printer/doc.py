@@ -34,7 +34,7 @@ class Doc(Object):
 class ExprDoc(Object):
     """Base class of all expression Docs"""
 
-    def attr_access(self, attr: str) -> "AttrAccessDoc":
+    def attr(self, attr: str) -> "AttrAccessDoc":
         """
         Create a doc that represents attribute access on self.
 
@@ -49,22 +49,7 @@ class ExprDoc(Object):
         """
         return _ffi_api.ExprDocAttr(self, attr)  # type: ignore
 
-    def index_access(self, indices: List[Union["ExprDoc", "SliceDoc"]]) -> "IndexDoc":
-        """
-        Create a doc that represents index access on self.
-
-        Parameters
-        ----------
-        indices : List[Union["ExprDoc", "SliceDoc"]]
-            The indices to access
-
-        Returns
-        -------
-        doc : IndexDoc
-        """
-        return _ffi_api.ExprDocIndex(self, indices)  # type: ignore
-
-    def call_with(self, *args: Tuple["ExprDoc"], **kwargs: Dict[str, "ExprDoc"]) -> "CallDoc":
+    def call(self, *args: Tuple["ExprDoc"], **kwargs: Dict[str, "ExprDoc"]) -> "CallDoc":
         """
         Create a doc that represents function call, with self as callee.
 
@@ -82,6 +67,37 @@ class ExprDoc(Object):
         kwargs_keys = list(kwargs.keys())
         kwargs_values = list(kwargs.values())
         return _ffi_api.ExprDocCall(self, args, kwargs_keys, kwargs_values)  # type: ignore
+
+    _IndexType = Union["ExprDoc", "SliceDoc"]
+
+    def __getitem__(self, indices: Union[Tuple[_IndexType], _IndexType]) -> "IndexDoc":
+        """
+        Create a doc that represents index access on self.
+
+        Parameters
+        ----------
+        indices : Union[Tuple[Union["ExprDoc", "SliceDoc"]], Union["ExprDoc", "SliceDoc"]]
+            The indices to access
+
+        Returns
+        -------
+        doc : IndexDoc
+        """
+        if not isinstance(indices, tuple):
+            indices = (indices,)
+        return _ffi_api.ExprDocIndex(self, indices)  # type: ignore
+
+    def __iter__(self):
+        """
+        This is implemented to prevent confusing error message when trying to use ExprDoc
+        as iterable. According to PEP-234, An object can be iterated over if it
+        implements __iter__() or __getitem__(). If an object has only __getitem__
+        but not __iter__, interpreter will iterate the object by calling
+        __getitem__ with 0, 1, 2, ..., until an IndexError is raised.
+
+        https://peps.python.org/pep-0234/#python-api-specification
+        """
+        raise RuntimeError(f"{self.__class__} cannot be used as iterable.")
 
 
 @tvm._ffi.register_object("script.printer.LiteralDoc")

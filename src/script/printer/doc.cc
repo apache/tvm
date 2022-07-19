@@ -25,7 +25,7 @@ namespace printer {
 
 ExprDoc ExprDocNode::Attr(String attr) const { return AttrAccessDoc(GetRef<ExprDoc>(this), attr); }
 
-ExprDoc ExprDocNode::Index(Array<Doc> indices) const {
+ExprDoc ExprDocNode::operator[](Array<Doc> indices) const {
   return IndexDoc(GetRef<ExprDoc>(this), indices);
 }
 
@@ -50,10 +50,10 @@ IdDoc::IdDoc(String name) {
   this->data_ = std::move(n);
 }
 
-AttrAccessDoc::AttrAccessDoc(ExprDoc value, String attr) {
+AttrAccessDoc::AttrAccessDoc(ExprDoc value, String name) {
   ObjectPtr<AttrAccessDocNode> n = make_object<AttrAccessDocNode>();
   n->value = value;
-  n->attr = attr;
+  n->name = name;
   this->data_ = std::move(n);
 }
 
@@ -119,7 +119,8 @@ TVM_REGISTER_NODE_TYPE(DocNode);
 
 TVM_REGISTER_NODE_TYPE(ExprDocNode);
 TVM_REGISTER_GLOBAL("script.printer.ExprDocAttr").set_body_method<ExprDoc>(&ExprDocNode::Attr);
-TVM_REGISTER_GLOBAL("script.printer.ExprDocIndex").set_body_method<ExprDoc>(&ExprDocNode::Index);
+TVM_REGISTER_GLOBAL("script.printer.ExprDocIndex")
+    .set_body_method<ExprDoc>(&ExprDocNode::operator[]);
 TVM_REGISTER_GLOBAL("script.printer.ExprDocCall")
     .set_body_method<ExprDoc, ExprDocNode, ExprDoc, Array<ExprDoc>, Array<String>, Array<ExprDoc>>(
         &ExprDocNode::Call);

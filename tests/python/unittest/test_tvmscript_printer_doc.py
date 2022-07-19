@@ -58,7 +58,7 @@ def test_attr_access_doc():
     doc = AttrAccessDoc(target, "attribute")
 
     assert doc.value == target
-    assert doc.attr == "attribute"
+    assert doc.name == "attribute"
 
 
 @pytest.mark.parametrize(
@@ -195,29 +195,33 @@ def test_expr_doc_attr_access():
     target = IdDoc("x")
     attr = "test"
 
-    doc = target.attr_access(attr)
+    doc = target.attr(attr)
 
     assert doc.value == target
-    assert doc.attr == attr
+    assert doc.name == attr
 
 
 @pytest.mark.parametrize(
     "indices",
     [
-        [],
-        [LiteralDoc(1)],
-        [LiteralDoc(2), IdDoc("x")],
-        [SliceDoc(LiteralDoc(1), LiteralDoc(2))],
-        [SliceDoc(LiteralDoc(1)), IdDoc("y")],
+        (),
+        LiteralDoc(1),
+        SliceDoc(LiteralDoc(1), LiteralDoc(2)),
+        (LiteralDoc(1),),
+        (LiteralDoc(2), IdDoc("x")),
+        (SliceDoc(LiteralDoc(1), LiteralDoc(2)),),
+        (SliceDoc(LiteralDoc(1)), IdDoc("y")),
     ],
 )
-def test_expr_doc_index_access(indices):
+def test_expr_doc_get_item(indices):
     target = IdDoc("x")
 
-    doc = target.index_access(indices)
+    doc = target[indices]
 
     assert doc.value == target
-    assert list(doc.indices) == indices
+    if not isinstance(indices, tuple):
+        indices = (indices,)
+    assert tuple(doc.indices) == indices
 
 
 @pytest.mark.parametrize(
@@ -235,7 +239,7 @@ def test_expr_doc_index_access(indices):
 def test_expr_doc_call_with(args, kwargs):
     target = IdDoc("x")
 
-    doc = target.call_with(*args, **kwargs)
+    doc = target.call(*args, **kwargs)
 
     assert doc.callee == target
     assert list(doc.args) == args
