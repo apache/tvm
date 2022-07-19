@@ -957,8 +957,6 @@ reg.register_schedule("nn.bitpack", strategy.schedule_bitpack)
 
 # bitserial_conv1d
 reg.register_strategy("nn.bitserial_conv1d", strategy.bitserial_conv1d_strategy)
-reg.register_pattern("nn.bitserial_conv1d", OpPattern.OUT_ELEMWISE_FUSABLE)
-
 
 @reg.register_legalize("nn.bitserial_conv1d")
 def legalize_bitserial_conv1d(attrs, inputs, types):

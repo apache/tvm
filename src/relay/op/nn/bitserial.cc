@@ -272,7 +272,7 @@ on some platforms.
     .set_support_level(2)
     .add_type_rel("BinaryConv2D", BinaryConv2DRel)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-                                   BinaryConv2DInferCorrectLayout<BinaryConv2DAttrs>)
+                                   BinaryConvInferCorrectLayout<BinaryConv2DAttrs>)
     .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable);
 
 
