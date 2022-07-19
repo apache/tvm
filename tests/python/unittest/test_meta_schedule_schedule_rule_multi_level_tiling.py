@@ -568,10 +568,12 @@ def test_cuda_tensor_core_matmul_relu():
     target = Target("cuda", host="llvm")
     ctx = _create_context(
         create_prim_func(
-            te_workload.matmul_relu_fp16(
+            te_workload.matmul_relu(
                 n=n,
                 m=m,
                 k=k,
+                in_dtype="float16",
+                out_dtype="float32",
             )
         ),
         target=target,
@@ -679,10 +681,12 @@ sch.reverse_compute_inline(block=b1)""".split(
     # to use multi_level_tiling as a fallback when the workload can't be tensorized
     ctx = _create_context(
         create_prim_func(
-            te_workload.matmul_relu_fp16(
+            te_workload.matmul_relu(
                 n=n,
                 m=m,
                 k=k,
+                in_dtype="float16",
+                out_dtype="float32",
             )
         ),
         target=target,
@@ -701,10 +705,12 @@ def test_cuda_tensor_core_matmul_relu_global():
     m = n = k = 128
     target = Target("cuda", host="llvm")
     workload = create_prim_func(
-        te_workload.matmul_relu_fp16(
+        te_workload.matmul_relu(
             n=n,
             m=m,
             k=k,
+            in_dtype="float16",
+            out_dtype="float32",
         ),
     )
     ctx = _create_context(
@@ -933,8 +939,17 @@ def test_multi_level_tiling_non_tensorizable():
 def test_cuda_tensor_core_conv2d():
     target = Target("cuda", host="llvm")
     workload = create_prim_func(
-        te_workload.conv2d_nhwc_f16(
-            N=1, H=16, W=16, CI=32, CO=32, kernel_size=3, stride=1, padding=1
+        te_workload.conv2d_nhwc(
+            N=1,
+            H=16,
+            W=16,
+            CI=32,
+            CO=32,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+            in_dtype="float16",
+            out_dtype="float32",
         )
     )
     ctx = _create_context(
