@@ -507,7 +507,7 @@ class Handler(server.ProjectAPIHandler):
                 break
             time.sleep(0.5)
 
-        self._serial = serial.Serial(port, baudrate=115200, timeout=5)
+        self._serial = serial.Serial(port, baudrate=115200, timeout=10)
 
         return server.TransportTimeouts(
             session_start_retry_timeout_sec=2.0,
@@ -522,13 +522,13 @@ class Handler(server.ProjectAPIHandler):
         self._serial = None
 
     def read_transport(self, n, timeout_sec):
-        # It's hard to set timeout_sec, so we just throw it away
-        # TODO fix this
+        self._serial.timeout = timeout_sec
         if self._serial is None:
             raise server.TransportClosedError()
         return self._serial.read(n)
 
     def write_transport(self, data, timeout_sec):
+        self._serial.write_timeout = timeout_sec
         if self._serial is None:
             raise server.TransportClosedError()
         return self._serial.write(data)
