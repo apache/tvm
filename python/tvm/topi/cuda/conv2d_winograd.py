@@ -82,7 +82,6 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_
         (0, 0, pt, pl),
         (0, 0, pb, pr),
         name="data_pad",
-        attrs={"schedule_rule": "None"},
     )
 
     r = KW
@@ -118,7 +117,6 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_
             idxmod(idxdiv(p, nW), nH) * m + eps
         ][idxmod(p, nW) * m + nu],
         name="d",
-        attrs={"schedule_rule": "None"},
     )
 
     # transform data
@@ -141,6 +139,7 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_
             kernel_pack[eps][nu][ci][co] * data_pack[eps][nu][ci][p], axis=[ci]
         ),
         name="bgemm",
+        attrs={"schedule_rule": "meta_schedule.winograd_bgemm.cuda"},
     )
 
     # inverse transform
@@ -163,6 +162,7 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_
         ],
         name="output",
         tag="conv2d_nchw_winograd",
+        attrs={"schedule_rule": "meta_schedule.winograd_output.cuda"},
     )
 
     if isinstance(N, int):
