@@ -29,6 +29,7 @@
 
 #include <stack>
 
+#include "../backend/supply_provider.h"
 #include "dataflow_matcher_impl.h"
 
 namespace tvm {
@@ -438,15 +439,8 @@ Expr InferType(const Expr& expr) {
 
 Expr InferTypeWithModule(const Expr& expr, const IRModule& m) {
   IRModule mod(m->functions, m->type_definitions, m->Imports());
-  int idx = 0;
-  std::string gv_name;
-  do {
-    std::ostringstream oss;
-    oss << "_tmp" << idx;
-    gv_name = oss.str();
-    ++idx;
-  } while (mod->ContainGlobalVar(gv_name));
-  GlobalVar gvar(gv_name);
+  GlobalVarSupply global_var_supply = tvm::BuildGlobalVarSupply(mod);
+  GlobalVar gvar = global_var_supply->FreshGlobal("_tmp", false);
   BaseFunc func;
   if (expr.as<FunctionNode>()) {
     func = Downcast<Function>(expr);

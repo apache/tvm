@@ -24,7 +24,6 @@
 
 namespace tvm {
 
-// TODO(gigiblender): move this method
 std::string GetModuleName(const IRModule& module) {
   return module->GetAttr<String>(tvm::attr::kModuleName).value_or("tvmgen_default");
 }
