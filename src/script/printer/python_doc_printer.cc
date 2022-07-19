@@ -101,7 +101,7 @@ void PythonDocPrinter::PrintTypedDoc(const IndexDoc& doc) {
 }
 
 const std::string OperatorToString(OperationDocNode::Kind operation_kind) {
-  static const std::vector<std::string> OP_STR_TABLE = []() {
+  static const std::vector<std::string> op_kind2str = []() {
     using OpKind = OperationDocNode::Kind;
     std::map<OpKind, std::string> raw_table = {
         {OpKind::kUSub, "-"},       //
@@ -137,13 +137,10 @@ const std::string OperatorToString(OperationDocNode::Kind operation_kind) {
   }();
 
   auto op_index = static_cast<int>(operation_kind);
-  ICHECK_LT(op_index, OP_STR_TABLE.size());
-  const std::string str = OP_STR_TABLE[op_index];
-  if (str.empty()) {
-    LOG(FATAL) << "OperationDocNode::Kind " << static_cast<int>(operation_kind)
-               << " cannot be converted to operator token in Python directly.";
-    throw;
-  }
+  ICHECK_LT(op_index, op_kind2str.size());
+  const std::string str = op_kind2str[op_index];
+  ICHECK(!str.empty()) << "OperationDocNode::Kind " << static_cast<int>(operation_kind)
+                       << " cannot be converted to operator token in Python directly.";
   return str;
 }
 
@@ -161,7 +158,7 @@ void PythonDocPrinter::PrintTypedDoc(const OperationDoc& doc) {
     output_ << " " << OperatorToString(doc->kind) << " ";
     PrintDoc(doc->operands[1]);
   } else if (doc->kind == OpKind::kIfThenElse) {
-    CHECK_EQ(doc->operands.size(), 3)
+    ICHECK_EQ(doc->operands.size(), 3)
         << "ValueError: IfThenElse requires 3 operands, but got " << doc->operands.size();
     PrintDoc(doc->operands[1]);
     output_ << " if ";
@@ -191,6 +188,8 @@ void PythonDocPrinter::PrintTypedDoc(const CallDoc& doc) {
   }
 
   // Print keyword args
+  ICHECK_EQ(doc->kwargs_keys.size(), doc->kwargs_values.size())
+      << "CallDoc should have equal number of elements in kwargs_keys and kwargs_values.";
   for (size_t i = 0; i < doc->kwargs_keys.size(); i++) {
     if (is_first) {
       is_first = false;
@@ -231,6 +230,8 @@ void PythonDocPrinter::PrintTypedDoc(const TupleDoc& doc) {
 }
 
 void PythonDocPrinter::PrintTypedDoc(const DictDoc& doc) {
+  ICHECK_EQ(doc->keys.size(), doc->values.size())
+      << "DictDoc should have equal number of elements in keys and values.";
   output_ << "{";
   size_t idx = 0;
   for (const ExprDoc& key : doc->keys) {
