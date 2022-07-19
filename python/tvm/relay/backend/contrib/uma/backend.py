@@ -287,11 +287,11 @@ class UMABackend(ABC):
     ############################################################################
     def register(self) -> None:
         registration_func = tvm.get_global_func("relay.backend.contrib.uma.RegisterTarget")
-        registration_func(self.target_name, self._target_attrs)
 
-        self._relay_to_relay.register()
-        self._relay_to_tir.register()
-        self._tir_to_runtime.register()
+        if registration_func(self.target_name, self._target_attrs):
+            self._relay_to_relay.register()
+            self._relay_to_tir.register()
+            self._tir_to_runtime.register()
 
     def partition(
         self, mod: tvm.IRModule, params: Optional[Dict[str, tvm.runtime.NDArray]] = None
