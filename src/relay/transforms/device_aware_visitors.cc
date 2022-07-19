@@ -315,6 +315,41 @@ Expr DeviceAwareExprMutator::PostVisitLetBlock_(const LetNode* pre_let_node,
   }
 }
 
+std::unordered_map<const ExprNode*, VirtualDevice> RecoverVirtualDeviceMap(const IRModule& mod,
+                                                                           const Expr& expr) {
+  class Visitor : public DeviceAwareExprVisitor {
+   public:
+    explicit Visitor(const Optional<IRModule>& maybe_mod) : DeviceAwareExprVisitor(maybe_mod) {}
+
+    void VisitExpr(const Expr& expr) final {
+      if (expr->IsInstance<OpNode>() || expr->IsInstance<ConstructorNode>()) {
+        // Don't record for ops or constructors since they are 'device polymorphic'.
+      } else {
+        map_[expr.get()] = GetVirtualDevice(expr);
+      }
+      DeviceAwareExprVisitor::VisitExpr(expr);
+    }
+
+    std::unordered_map<const ExprNode*, VirtualDevice> map_;
+  };
+
+  Visitor visitor(mod);
+  visitor.VisitExpr(expr);
+  return std::move(visitor.map_);
+}
+
+// Export the helper function for testing.
+TVM_REGISTER_GLOBAL("relay.transform.RecoverVirtualDeviceMap")
+    .set_body_typed([](const IRModule& mod, const Expr& expr) {
+      std::unordered_map<const ExprNode*, VirtualDevice> raw_map =
+          RecoverVirtualDeviceMap(mod, expr);
+      Map<Expr, VirtualDevice> map;
+      for (const auto& kv : raw_map) {
+        map.Set(GetRef<Expr>(kv.first), kv.second);
+      }
+      return map;
+    });
+
 }  // namespace transform
 }  // namespace relay
 }  // namespace tvm

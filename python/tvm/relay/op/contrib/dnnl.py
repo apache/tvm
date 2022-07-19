@@ -108,6 +108,37 @@ _register_external_op_helper("nn.layer_norm")
 _register_external_op_helper("nn.batch_matmul")
 
 
+def append_eltwise_ops(op, eltwise):
+    """Append element-wise post-ops to conv / conv_transpose / dense
+
+    Parameters
+    ----------
+    op : str
+        The op name to be attached with element-wise post-op.
+    eltwise : str
+        The attached elementwise post-op name.
+    Returns
+    -------
+    pattern : CallPattern
+        Call node sequence.
+    """
+    if eltwise == "gelu":
+        const1 = wildcard()
+        const2 = wildcard()
+        const3 = wildcard()
+        div = is_op("divide")(op, const1)
+        erf_val = is_op("erf")(div)
+        added_erf_val = is_op("add")(erf_val, const2)
+        mul_val = is_op("multiply")(op, added_erf_val)
+        op = is_op("multiply")(mul_val, const3)
+    elif eltwise == "swish":
+        sig_out = is_op("sigmoid")(op)
+        op = is_op("multiply")(op, sig_out)
+    elif eltwise:
+        op = is_op(eltwise)(op)
+    return op
+
+
 def make_conv_pattern(conv_name, with_bias=True, with_eltwise=None):
     """Create patterns related to conv and conv_transpose.
 
@@ -132,12 +163,7 @@ def make_conv_pattern(conv_name, with_bias=True, with_eltwise=None):
         conv_out = is_op("add")(conv, bias)
     else:
         conv_out = conv
-    if with_eltwise == "swish":
-        sig_out = is_op("sigmoid")(conv_out)
-        conv_out = is_op("multiply")(conv_out, sig_out)
-    elif with_eltwise:
-        conv_out = is_op(with_eltwise)(conv_out)
-    return conv_out
+    return append_eltwise_ops(conv_out, with_eltwise)
 
 
 def make_dense_pattern(with_bias=True, with_eltwise=None):
@@ -165,21 +191,7 @@ def make_dense_pattern(with_bias=True, with_eltwise=None):
         dense_out = is_op("add")(dense, bias)
     else:
         dense_out = dense
-    if with_eltwise == "gelu":
-        const1 = wildcard()
-        const2 = wildcard()
-        const3 = wildcard()
-        div = is_op("divide")(dense_out, const1)
-        erf_val = is_op("erf")(div)
-        added_erf_val = is_op("add")(erf_val, const2)
-        mul_val = is_op("multiply")(dense_out, added_erf_val)
-        dense_out = is_op("multiply")(mul_val, const3)
-    elif with_eltwise == "swish":
-        sig_out = is_op("sigmoid")(dense_out)
-        dense_out = is_op("multiply")(dense_out, sig_out)
-    elif with_eltwise:
-        dense_out = is_op(with_eltwise)(dense_out)
-    return dense_out
+    return append_eltwise_ops(dense_out, with_eltwise)
 
 
 def make_dnnl_pattern(op_name, with_bias, with_eltwise):
@@ -203,7 +215,6 @@ def make_dnnl_pattern(op_name, with_bias, with_eltwise):
         pat_name = "dnnl.deconv" + op_name.split("_")[0][-2::]
     pat_name += "_bias" if with_bias else ""
     pat_name += ("_" + with_eltwise.split(".")[-1]) if with_eltwise else ""
-    pat_name = pat_name.replace("_swish", "_sigmoid_mul")
     if "conv" in op_name:
         dnnl_pattern = (pat_name, make_conv_pattern(op_name, with_bias, with_eltwise))
     elif op_name == "nn.dense":
@@ -307,8 +318,7 @@ def pattern_table():
                 "nn.conv2d_transpose",
                 "nn.conv3d_transpose",
             ]:
-                if elt != "gelu":
-                    dnnl_patterns.append(make_dnnl_pattern(conv_name, with_bias, elt))
+                dnnl_patterns.append(make_dnnl_pattern(conv_name, with_bias, elt))
             dnnl_patterns.append(make_dnnl_pattern("nn.dense", with_bias, elt))
     return dnnl_patterns
 

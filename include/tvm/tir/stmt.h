@@ -1524,6 +1524,10 @@ constexpr const char* meta_schedule_auto_tensorize = "meta_schedule.auto_tensori
 
 /*! \brief Mark that a block is a preprocessor block for layout rewrite. */
 constexpr const char* meta_schedule_layout_rewrite_preproc = "meta_schedule.layout_rewrite_preproc";
+/*!
+ * \brief Mark that the init statement of a block should be further rewritten using tensorization.
+ */
+constexpr const char* meta_schedule_auto_tensorize_init = "meta_schedule.auto_tensorize_init";
 
 /*!
  * \brief Mark that a block is executed by a warp. This implies the extend of threadIdx.x is

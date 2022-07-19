@@ -86,7 +86,7 @@ def verify_conv2d_nchw(
                 stride,
                 padding,
                 dilation,
-                layout="NCHW",
+                data_layout="NCHW",
                 out_dtype=dtype,
             )
             if add_bias:

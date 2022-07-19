@@ -36,6 +36,7 @@ pip3 install --upgrade \
     git+https://github.com/tlc-pack/tlcpack-sphinx-addon.git@7f69989f1c6a6713d0bd7c27f8da2b48344117d3 \
     pytest-profiling \
     pytest-xdist \
+    pytest-rerunfailures==10.2 \
     requests \
     scipy \
     Jinja2 \

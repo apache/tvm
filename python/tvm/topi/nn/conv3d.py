@@ -53,7 +53,7 @@ def conv3d_ncdhw(Input, Filter, stride, padding, dilation, groups, out_dtype=Non
     Output : tvm.te.Tensor
         5-D with shape [batch, out_channel, out_depth, out_height, out_width]
     """
-    return conv(Input, Filter, stride, padding, dilation, groups, "NCDHW", out_dtype)
+    return conv(Input, Filter, stride, padding, dilation, groups, "NCDHW", "OIDHW", out_dtype)
 
 
 def conv3d_ndhwc(
@@ -111,6 +111,7 @@ def conv3d_ndhwc(
         dilation,
         groups,
         "NDHWC",
+        "DHWIO",
         out_dtype,
         auto_scheduler_rewritten_layout,
         meta_schedule_origin_shape,

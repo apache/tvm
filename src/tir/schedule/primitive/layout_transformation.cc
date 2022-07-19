@@ -136,8 +136,7 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
                      BufferIndexType buffer_index_type, const IndexMap& index_map) {
   const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_ptr, block_sref);
   Buffer old_buffer =
-      GetNthAccessBuffer(self, GetRef<Block>(block_ptr), buffer_index,
-                         buffer_index_type == BufferIndexType::kRead ? false : true);
+      GetNthAccessBuffer(self, GetRef<Block>(block_ptr), buffer_index, buffer_index_type);
   Optional<StmtSRef> defining_site_sref;
   bool is_alloc;
   std::tie(defining_site_sref, is_alloc) = GetBufferDefiningSite(block_sref, old_buffer);
@@ -491,8 +490,8 @@ class BufferAxisSeparatorMutator : private ReplaceBufferMutator {
 void SetAxisSeparator(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                       BufferIndexType buffer_index_type, const Array<IntImm>& axis_separators) {
   const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_ptr, block_sref);
-  Buffer old_buffer = GetNthAccessBuffer(self, GetRef<Block>(block_ptr), buffer_index,
-                                         buffer_index_type == BufferIndexType::kWrite);
+  Buffer old_buffer =
+      GetNthAccessBuffer(self, GetRef<Block>(block_ptr), buffer_index, buffer_index_type);
   Optional<StmtSRef> defining_site_sref;
   bool is_alloc;
   std::tie(defining_site_sref, is_alloc) = GetBufferDefiningSite(block_sref, old_buffer);

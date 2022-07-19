@@ -52,7 +52,7 @@ class TargetInternal {
   static ObjectPtr<Object> FromString(const String& tag_or_config_or_target_str);
   static ObjectPtr<Object> FromConfigString(const String& config_str);
   static ObjectPtr<Object> FromRawString(const String& target_str);
-  static ObjectPtr<Object> FromConfig(std::unordered_map<String, ObjectRef> config);
+  static ObjectPtr<Object> FromConfig(Map<String, ObjectRef> config);
   static void ConstructorDispatcher(TVMArgs args, TVMRetValue* rv);
   static Target WithHost(const Target& target, const Target& target_host) {
     ObjectPtr<TargetNode> n = make_object<TargetNode>(*target.get());
@@ -550,7 +550,8 @@ Optional<Target> TargetNode::GetHost() const {
 String TargetNode::ToDebugString() const {
   std::ostringstream os;
   os << "Target(";
-  os << "kind='" << kind->name << "'";
+  os << "id=" << std::hex << reinterpret_cast<size_t>(this);
+  os << ", kind='" << kind->name << "'";
   if (!tag.empty()) {
     os << ", tag='" << tag << "'";
   }
@@ -715,17 +716,27 @@ ObjectPtr<Object> TargetInternal::FromRawString(const String& target_str) {
   return TargetInternal::FromConfig(config);
 }
 
-ObjectPtr<Object> TargetInternal::FromConfig(std::unordered_map<String, ObjectRef> config) {
+ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ObjectRef> config) {
   const String kKind = "kind";
   const String kTag = "tag";
   const String kKeys = "keys";
   const String kDeviceName = "device";
   const String kHost = "host";
   ObjectPtr<TargetNode> target = make_object<TargetNode>();
+
   // parse 'kind'
   if (config.count(kKind)) {
     if (const auto* kind = config[kKind].as<StringObj>()) {
       target->kind = GetTargetKind(GetRef<String>(kind));
+      ICHECK(!(target->kind->preprocessor != nullptr && target->kind->target_parser != nullptr))
+          << "Cannot use both set_attrs_preprocessor and set_target_parser";
+
+      // Run JSON Parser over JSON input
+      if (target->kind->target_parser != nullptr) {
+        VLOG(9) << "TargetInternal::FromConfig - Running target_parser";
+        config = target->kind->target_parser(config);
+      }
+
       config.erase(kKind);
     } else {
       throw Error(": Expect type of field \"kind\" is String, but get type: " +
@@ -827,8 +838,9 @@ ObjectPtr<Object> TargetInternal::FromConfig(std::unordered_map<String, ObjectRe
   } else {
     target->attrs = attrs;
   }
+
   return target;
-}
+}  // namespace tvm
 
 std::unordered_map<String, ObjectRef> TargetInternal::QueryDevice(int device_id,
                                                                   const TargetNode* target) {
@@ -846,10 +858,11 @@ std::unordered_map<String, ObjectRef> TargetInternal::QueryDevice(int device_id,
 
   TVMRetValue ret;
   api->GetAttr(device, runtime::kExist, &ret);
-  if (!ret) {
-    ICHECK(ret) << "Requested reading the parameters for " << target->kind->name
-                << " from device_id " << device_id << ", but device_id " << device_id
-                << " doesn't exist.  Using default target parameters.";
+  bool device_exists = ret;
+  if (!device_exists) {
+    ICHECK(device_exists) << "Requested reading the parameters for " << target->kind->name
+                          << " from device_id " << device_id << ", but device_id " << device_id
+                          << " doesn't exist.  Using default target parameters.";
     return output;
   }
 

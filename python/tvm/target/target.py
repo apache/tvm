@@ -197,7 +197,7 @@ class Target(Object):
     def supports_integer_dot_product(self):
         if self.attrs.get("supports_integer_dot_product", []):
             return bool(self.attrs["supports_integer_dot_product"])
-        if self.kind == "cuda":
+        if self.kind.name == "cuda":
             sm_version = int(self.arch.split("_")[1])
             if sm_version >= 61:
                 return True

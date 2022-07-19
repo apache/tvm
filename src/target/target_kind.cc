@@ -145,15 +145,15 @@ void CheckOrSetAttr(Map<String, ObjectRef>* attrs, const String& name, const Str
 
 /*!
  * \brief Update the attributes in the CUDA target.
- * \param attrs The original attributes
+ * \param target The Target to update
  * \return The updated attributes
  */
-Map<String, ObjectRef> UpdateCUDAAttrs(Map<String, ObjectRef> attrs) {
+TargetJSON UpdateCUDAAttrs(TargetJSON target) {
   // Update -arch=sm_xx
   int archInt;
-  if (attrs.count("arch")) {
+  if (target.count("arch")) {
     // If -arch has been specified, validate the correctness
-    String archStr = Downcast<String>(attrs.at("arch"));
+    String archStr = Downcast<String>(target.at("arch"));
     archInt = ExtractIntWithPrefix(archStr, "sm_");
     ICHECK(archInt != -1) << "ValueError: CUDA target gets an invalid CUDA arch: -arch=" << archStr;
   } else {
@@ -165,23 +165,23 @@ Map<String, ObjectRef> UpdateCUDAAttrs(Map<String, ObjectRef> attrs) {
     } else {
       archInt = std::stod(version.operator std::string()) * 10 + 0.1;
     }
-    attrs.Set("arch", String("sm_") + std::to_string(archInt));
+    target.Set("arch", String("sm_") + std::to_string(archInt));
   }
-  return attrs;
+  return target;
 }
 
 /*!
  * \brief Update the attributes in the LLVM NVPTX target.
- * \param attrs The original attributes
+ * \param target The Target to update
  * \return The updated attributes
  */
-Map<String, ObjectRef> UpdateNVPTXAttrs(Map<String, ObjectRef> attrs) {
-  CheckOrSetAttr(&attrs, "mtriple", "nvptx64-nvidia-cuda");
+TargetJSON UpdateNVPTXAttrs(TargetJSON target) {
+  CheckOrSetAttr(&target, "mtriple", "nvptx64-nvidia-cuda");
   // Update -mcpu=sm_xx
   int arch;
-  if (attrs.count("mcpu")) {
+  if (target.count("mcpu")) {
     // If -mcpu has been specified, validate the correctness
-    String mcpu = Downcast<String>(attrs.at("mcpu"));
+    String mcpu = Downcast<String>(target.at("mcpu"));
     arch = ExtractIntWithPrefix(mcpu, "sm_");
     ICHECK(arch != -1) << "ValueError: NVPTX target gets an invalid CUDA arch: -mcpu=" << mcpu;
   } else {
@@ -193,22 +193,22 @@ Map<String, ObjectRef> UpdateNVPTXAttrs(Map<String, ObjectRef> attrs) {
     } else {
       arch = std::stod(version.operator std::string()) * 10 + 0.1;
     }
-    attrs.Set("mcpu", String("sm_") + std::to_string(arch));
+    target.Set("mcpu", String("sm_") + std::to_string(arch));
   }
-  return attrs;
+  return target;
 }
 
 /*!
  * \brief Update the attributes in the LLVM ROCm target.
- * \param attrs The original attributes
+ * \param target The Target to update
  * \return The updated attributes
  */
-Map<String, ObjectRef> UpdateROCmAttrs(Map<String, ObjectRef> attrs) {
-  CheckOrSetAttr(&attrs, "mtriple", "amdgcn-amd-amdhsa-hcc");
+TargetJSON UpdateROCmAttrs(TargetJSON target) {
+  CheckOrSetAttr(&target, "mtriple", "amdgcn-amd-amdhsa-hcc");
   // Update -mcpu=gfx
   int arch;
-  if (attrs.count("mcpu")) {
-    String mcpu = Downcast<String>(attrs.at("mcpu"));
+  if (target.count("mcpu")) {
+    String mcpu = Downcast<String>(target.at("mcpu"));
     arch = ExtractIntWithPrefix(mcpu, "gfx");
     ICHECK(arch != -1) << "ValueError: ROCm target gets an invalid GFX version: -mcpu=" << mcpu;
   } else {
@@ -219,7 +219,7 @@ Map<String, ObjectRef> UpdateROCmAttrs(Map<String, ObjectRef> attrs) {
     } else {
       arch = val.operator int();
     }
-    attrs.Set("mcpu", String("gfx") + std::to_string(arch));
+    target.Set("mcpu", String("gfx") + std::to_string(arch));
   }
   // Update -mattr before ROCm 3.5:
   //   Before ROCm 3.5 we needed code object v2, starting
@@ -235,13 +235,13 @@ Map<String, ObjectRef> UpdateROCmAttrs(Map<String, ObjectRef> attrs) {
   }
   if (version < 305) {
     Array<String> mattr;
-    if (attrs.count("mattr")) {
-      mattr = Downcast<Array<String>>(attrs.at("mattr"));
+    if (target.count("mattr")) {
+      mattr = Downcast<Array<String>>(target.at("mattr"));
     }
     mattr.push_back("-code-object-v3");
-    attrs.Set("mattr", mattr);
+    target.Set("mattr", mattr);
   }
-  return attrs;
+  return target;
 }
 
 /**********  Register Target kinds and attributes  **********/
@@ -295,7 +295,7 @@ TVM_REGISTER_TARGET_KIND("cuda", kDLCUDA)
     .add_attr_option<Integer>("registers_per_block")
     .add_attr_option<Integer>("max_num_threads", Integer(1024))  // TODO(@zxybazh): deprecate it
     .set_default_keys({"cuda", "gpu"})
-    .set_attrs_preprocessor(UpdateCUDAAttrs);
+    .set_target_parser(UpdateCUDAAttrs);
 
 TVM_REGISTER_TARGET_KIND("nvptx", kDLCUDA)
     .add_attr_option<String>("mcpu")
@@ -304,7 +304,7 @@ TVM_REGISTER_TARGET_KIND("nvptx", kDLCUDA)
     .add_attr_option<Integer>("max_num_threads", Integer(1024))
     .add_attr_option<Integer>("thread_warp_size", Integer(32))
     .set_default_keys({"cuda", "gpu"})
-    .set_attrs_preprocessor(UpdateNVPTXAttrs);
+    .set_target_parser(UpdateNVPTXAttrs);
 
 TVM_REGISTER_TARGET_KIND("rocm", kDLROCM)
     .add_attr_option<String>("mcpu")
@@ -318,7 +318,7 @@ TVM_REGISTER_TARGET_KIND("rocm", kDLROCM)
     .add_attr_option<Integer>("max_shared_memory_per_block", Integer(65536))
     .add_attr_option<Integer>("thread_warp_size", Integer(64))
     .set_default_keys({"rocm", "gpu"})
-    .set_attrs_preprocessor(UpdateROCmAttrs);
+    .set_target_parser(UpdateROCmAttrs);
 
 TVM_REGISTER_TARGET_KIND("opencl", kDLOpenCL)
     .add_attr_option<Bool>("system-lib")

@@ -45,7 +45,7 @@ else:
 
 def pytest_generate_tests(metafunc):
     # This function generates the list of tests for pytest, based
-    # on scenatios that will change the parameters in which the
+    # on scenarios that will change the parameters in which the
     # tests use to run.
     # https://docs.pytest.org/en/latest/example/parametrize.html
     idlist = []

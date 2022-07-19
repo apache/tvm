@@ -342,7 +342,7 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
 
     // Emit CMSIS-NN API
     PrintIndent();
-    stream << "arm_status status = ";
+    stream << "arm_cmsis_nn_status status = ";
     stream << cmsis_func_name << "(";
     stream << "&" << context << ", ";
     stream << "&" << conv_params << ", ";
@@ -352,7 +352,7 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     stream << "&" << bias_dim << ", " << bias_data << ", ";
     stream << "&" << output_dim << ", " << output_data << ");\n";
     PrintIndent();
-    stream << "if (status != ARM_MATH_SUCCESS) {\n";
+    stream << "if (status != ARM_CMSIS_NN_SUCCESS) {\n";
     PrintIndent();
     PrintIndent();
     stream << "return -1;\n";
@@ -411,7 +411,7 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     std::string output_dim = EmitCMSISNNDims(stream, "output", output_dims);
 
     PrintIndent();
-    stream << "arm_status status = ";
+    stream << "arm_cmsis_nn_status status = ";
     stream << cmsis_func_name << "(";
     stream << "&" << context << ", ";
     stream << "&" << cmsisnn_fc_params << ", ";
@@ -421,7 +421,7 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     stream << "&" << bias_dim << ", " << bias_data << ", ";
     stream << "&" << output_dim << ", " << output_data << ");\n";
     PrintIndent();
-    stream << "if (status != ARM_MATH_SUCCESS) {\n";
+    stream << "if (status != ARM_CMSIS_NN_SUCCESS) {\n";
     PrintIndent();
     PrintIndent();
     stream << "return -1;\n";
@@ -467,7 +467,7 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     std::string output_dim = EmitCMSISNNDims(stream, "output", output_dims);
 
     PrintIndent();
-    stream << "arm_status status = ";
+    stream << "arm_cmsis_nn_status status = ";
     stream << cmsis_func_name << "(";
     stream << "&" << context << ", ";
     stream << "&" << cmsisnn_pool_params << ", ";
@@ -475,7 +475,7 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     stream << "&" << filter_dim << ", ";
     stream << "&" << output_dim << ", " << output_data << ");\n";
     PrintIndent();
-    stream << "if (status != ARM_MATH_SUCCESS) {\n";
+    stream << "if (status != ARM_CMSIS_NN_SUCCESS) {\n";
     PrintIndent();
     PrintIndent();
     stream << "return -1;\n";

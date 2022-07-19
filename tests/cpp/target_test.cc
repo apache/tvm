@@ -34,6 +34,36 @@ TVM_REGISTER_TARGET_KIND("TestTargetKind", kDLCPU)
     .add_attr_option<Array<String>>("your_names")
     .add_attr_option<Map<String, Integer>>("her_maps");
 
+TargetJSON TestTargetParser(TargetJSON target) {
+  String mcpu = Downcast<String>(target.at("mcpu"));
+  target.Set("mcpu", String("super_") + mcpu);
+  target.Set("keys", Array<String>({"super"}));
+  return target;
+}
+
+Map<String, ObjectRef> TestAttrsPreProcessor(Map<String, ObjectRef> attrs) {
+  attrs.Set("mattr", String("woof"));
+  return attrs;
+}
+
+TVM_REGISTER_TARGET_KIND("TestTargetParser", kDLCPU)
+    .add_attr_option<String>("mattr")
+    .add_attr_option<String>("mcpu")
+    .set_default_keys({"cpu"})
+    .set_target_parser(TestTargetParser);
+
+TVM_REGISTER_TARGET_KIND("TestAttrsPreprocessor", kDLCPU)
+    .add_attr_option<String>("mattr")
+    .set_default_keys({"cpu"})
+    .set_attrs_preprocessor(TestAttrsPreProcessor);
+
+TVM_REGISTER_TARGET_KIND("TestClashingPreprocessor", kDLCPU)
+    .add_attr_option<String>("mattr")
+    .add_attr_option<String>("mcpu")
+    .set_default_keys({"cpu"})
+    .set_attrs_preprocessor(TestAttrsPreProcessor)
+    .set_target_parser(TestTargetParser);
+
 TEST(TargetKind, GetAttrMap) {
   auto map = tvm::TargetKind::GetAttrMap<std::string>("Attr1");
   auto target_kind = tvm::TargetKind::Get("TestTargetKind").value();
@@ -134,6 +164,23 @@ TEST(TargetCreationFail, TargetKindNotFound) {
     failed = true;
   }
   ASSERT_EQ(failed, true);
+}
+
+TEST(TargetCreation, TargetParser) {
+  Target test_target("TestTargetParser -mcpu=woof");
+  ASSERT_EQ(test_target->GetAttr<String>("mcpu").value(), "super_woof");
+  ASSERT_EQ(test_target->keys.size(), 2);
+  ASSERT_EQ(test_target->keys[0], "super");
+  ASSERT_EQ(test_target->keys[1], "cpu");
+}
+
+TEST(TargetCreation, TargetAttrsPreProcessor) {
+  Target test_target("TestAttrsPreprocessor -mattr=cake");
+  ASSERT_EQ(test_target->GetAttr<String>("mattr").value(), "woof");
+}
+
+TEST(TargetCreation, ClashingTargetProcessing) {
+  EXPECT_THROW(Target("TestClashingPreprocessor -mcpu=woof -mattr=cake"), InternalError);
 }
 
 TVM_REGISTER_TARGET_KIND("test_external_codegen_0", kDLCUDA)
