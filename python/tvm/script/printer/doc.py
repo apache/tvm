@@ -268,6 +268,7 @@ class SliceDoc(ExprDoc):
 
     start: Optional[ExprDoc]
     stop: Optional[ExprDoc]
+    step: Optional[ExprDoc]
 
-    def __init__(self, start: Optional[ExprDoc] = None, stop: Optional[ExprDoc] = None):
-        self.__init_handle_by_constructor__(_ffi_api.SliceDoc, start, stop)  # type: ignore
+    def __init__(self, start: Optional[ExprDoc] = None, stop: Optional[ExprDoc] = None, step: Optional[ExprDoc] = None):
+        self.__init_handle_by_constructor__(_ffi_api.SliceDoc, start, stop, step)  # type: ignore

@@ -181,16 +181,10 @@ def test_dict_doc(content):
     assert dict(zip(doc.keys, doc.values)) == content
 
 
-@pytest.mark.parametrize(
-    "start,stop",
-    [
-        (LiteralDoc(1), LiteralDoc(2)),
-        (LiteralDoc(1), None),
-        (None, LiteralDoc(2)),
-        (None, None),
-    ],
-)
-def test_slice_doc(start, stop):
+@pytest.mark.parametrize("start", [LiteralDoc(1), None])
+@pytest.mark.parametrize("stop", [LiteralDoc(2), None])
+@pytest.mark.parametrize("step", [LiteralDoc(3), None])
+def test_slice_doc(start, stop, step):
     doc = SliceDoc(start, stop)
 
     assert doc.start == start

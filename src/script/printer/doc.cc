@@ -107,10 +107,11 @@ DictDoc::DictDoc(Array<ExprDoc> keys, Array<ExprDoc> values) {
   this->data_ = std::move(n);
 }
 
-SliceDoc::SliceDoc(Optional<ExprDoc> start, Optional<ExprDoc> stop) {
+SliceDoc::SliceDoc(Optional<ExprDoc> start, Optional<ExprDoc> stop, Optional<ExprDoc> step) {
   ObjectPtr<SliceDocNode> n = make_object<SliceDocNode>();
   n->start = start;
   n->stop = stop;
+  n->step = step;
   this->data_ = std::move(n);
 }
 
@@ -180,8 +181,8 @@ TVM_REGISTER_GLOBAL("script.printer.DictDoc")
 
 TVM_REGISTER_NODE_TYPE(SliceDocNode);
 TVM_REGISTER_GLOBAL("script.printer.SliceDoc")
-    .set_body_typed([](Optional<ExprDoc> start, Optional<ExprDoc> stop) {
-      return SliceDoc(start, stop);
+    .set_body_typed([](Optional<ExprDoc> start, Optional<ExprDoc> stop, Optional<ExprDoc> step) {
+      return SliceDoc(start, stop, step);
     });
 }  // namespace printer
 }  // namespace script

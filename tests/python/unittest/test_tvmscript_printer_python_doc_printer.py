@@ -404,6 +404,22 @@ def test_print_dict_doc(content, expected):
             SliceDoc(LiteralDoc(1), LiteralDoc(2)),
             "1:2",
         ),
+        (
+            SliceDoc(None, None, LiteralDoc(3)),
+            "::3",
+        ),
+        (
+            SliceDoc(LiteralDoc(1), None, LiteralDoc(3)),
+            "1::3",
+        ),
+        (
+            SliceDoc(None, LiteralDoc(2), LiteralDoc(3)),
+            ":2:3",
+        ),
+        (
+            SliceDoc(LiteralDoc(1), LiteralDoc(2), LiteralDoc(3)),
+            "1:2:3",
+        ),
     ],
 )
 def test_print_slice_doc(slice_doc, expected):

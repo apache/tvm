@@ -253,6 +253,10 @@ void PythonDocPrinter::PrintTypedDoc(const SliceDoc& doc) {
   if (doc->stop != nullptr) {
     PrintDoc(doc->stop.value());
   }
+  if (doc->step != nullptr) {
+    output_ << ":";
+    PrintDoc(doc->step.value());
+  }
 }
 
 String DocToPythonScript(Doc doc, int indent_spaces) {

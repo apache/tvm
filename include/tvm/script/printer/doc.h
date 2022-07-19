@@ -609,11 +609,14 @@ class SliceDocNode : public DocNode {
   Optional<ExprDoc> start;
   /*! \brief The exclusive end of slice */
   Optional<ExprDoc> stop;
+  /*! \brief The step of slice */
+  Optional<ExprDoc> step;
 
   void VisitAttrs(AttrVisitor* v) {
     DocNode::VisitAttrs(v);
     v->Visit("start", &start);
     v->Visit("stop", &stop);
+    v->Visit("step", &step);
   }
 
   static constexpr const char* _type_key = "script.printer.SliceDoc";
@@ -632,7 +635,7 @@ class SliceDoc : public Doc {
    * \param start The start of slice.
    * \param stop The exclusive end of slice.
    */
-  explicit SliceDoc(Optional<ExprDoc> start, Optional<ExprDoc> stop);
+  explicit SliceDoc(Optional<ExprDoc> start, Optional<ExprDoc> stop, Optional<ExprDoc> step);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(SliceDoc, Doc, SliceDocNode);
 };
 
