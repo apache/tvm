@@ -16,7 +16,7 @@
 # under the License.
 """Doc types for TVMScript Unified Printer"""
 
-from typing import List, Dict, Tuple, Optional, Union
+from typing import List, Dict, Tuple, Optional, Union, Sequence
 from enum import IntEnum, unique
 
 import tvm._ffi
@@ -131,7 +131,7 @@ class IndexDoc(ExprDoc):
     """Doc that represents index access on an expression"""
 
     value: ExprDoc
-    indices: tvm.ir.container.Array  # actual type:  List[Union[ExprDoc, "SliceDoc"]]
+    indices: Sequence[Union[ExprDoc, "SliceDoc"]]
 
     def __init__(self, value: ExprDoc, indices: List[Union[ExprDoc, "SliceDoc"]]):
         self.__init_handle_by_constructor__(_ffi_api.IndexDoc, value, indices)  # type: ignore
@@ -142,9 +142,9 @@ class CallDoc(ExprDoc):
     """Doc that represents function call"""
 
     callee: ExprDoc
-    args: tvm.ir.container.Array  # actual type: List[ExprDoc]
-    kwargs_keys: tvm.ir.container.Array  # actual type: List[str]
-    kwargs_values: tvm.ir.container.Array  # actual type: List[ExprDoc]
+    args: Sequence[ExprDoc]
+    kwargs_keys: Sequence[str]
+    kwargs_values: Sequence[ExprDoc]
 
     def __init__(self, callee: ExprDoc, *args: Tuple[ExprDoc], **kwargs: Dict[str, ExprDoc]):
         kwargs_keys = list(kwargs.keys())
@@ -208,7 +208,7 @@ class OperationDoc(ExprDoc):
     """
 
     kind: OperationKind
-    operands: tvm.ir.container.Array  # actual type: List[ExprDoc]
+    operands: Sequence[ExprDoc]
 
     def __init__(self, kind: OperationKind, operands: List[ExprDoc]):
         self.__init_handle_by_constructor__(_ffi_api.OperationDoc, kind, operands)  # type: ignore
@@ -218,7 +218,7 @@ class OperationDoc(ExprDoc):
 class LambdaDoc(ExprDoc):
     """Doc that represents lambda function"""
 
-    args: tvm.ir.container.Array  # actual type: List[IdDoc]
+    args: Sequence[IdDoc]
     body: ExprDoc
 
     def __init__(self, args: List[IdDoc], body: ExprDoc):
@@ -229,7 +229,7 @@ class LambdaDoc(ExprDoc):
 class TupleDoc(ExprDoc):
     """Doc that represents tuple literal"""
 
-    elements: tvm.ir.container.Array  # actual type: List[ExprDoc]
+    elements: Sequence[ExprDoc]
 
     def __init__(self, elements: List[ExprDoc]):
         self.__init_handle_by_constructor__(_ffi_api.TupleDoc, elements)  # type: ignore
@@ -239,7 +239,7 @@ class TupleDoc(ExprDoc):
 class ListDoc(ExprDoc):
     """Doc that represents list literal"""
 
-    elements: tvm.ir.container.Array  # actual type: List[ExprDoc]
+    elements: Sequence[ExprDoc]
 
     def __init__(self, elements: List[ExprDoc]):
         self.__init_handle_by_constructor__(_ffi_api.ListDoc, elements)  # type: ignore
@@ -249,8 +249,8 @@ class ListDoc(ExprDoc):
 class DictDoc(ExprDoc):
     """Doc that represents dict literal"""
 
-    keys: tvm.ir.container.Array  # actual type: List[ExprDoc]
-    values: tvm.ir.container.Array  # actual type: List[ExprDoc]
+    keys: Sequence[ExprDoc]
+    values: Sequence[ExprDoc]
 
     def __init__(self, content: Dict[ExprDoc, ExprDoc]):
         keys = list(content.keys())
@@ -270,5 +270,10 @@ class SliceDoc(ExprDoc):
     stop: Optional[ExprDoc]
     step: Optional[ExprDoc]
 
-    def __init__(self, start: Optional[ExprDoc] = None, stop: Optional[ExprDoc] = None, step: Optional[ExprDoc] = None):
+    def __init__(
+        self,
+        start: Optional[ExprDoc] = None,
+        stop: Optional[ExprDoc] = None,
+        step: Optional[ExprDoc] = None,
+    ):
         self.__init_handle_by_constructor__(_ffi_api.SliceDoc, start, stop, step)  # type: ignore
