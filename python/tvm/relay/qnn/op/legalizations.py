@@ -489,3 +489,18 @@ def _qnn_dense_legalize_cuda(attrs, inputs, types):
         # CUDA prefers both datatypes to be the int8.
         return helper_change_dtypes_to_int8(attrs, inputs, types, relay.qnn.op.dense)
     return None
+
+
+
+#######################
+# Pulp Legalizations
+#######################
+
+@qnn_conv2d_legalize.register(["pulp"])
+def _qnn_conv2d_legalize_pulp(attrs, inputs, types):
+    return None
+
+
+@qnn_dense_legalize.register(["pulp"])
+def _qnn_dense_legalize_pulp(attrs, inputs, types):
+    return None
