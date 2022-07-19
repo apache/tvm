@@ -106,6 +106,12 @@ def test_guess_frontend_paddle():
     assert type(sut) is tvmc.frontends.PaddleFrontend
 
 
+def test_guess_frontend_relay():
+
+    sut = tvmc.frontends.guess_frontend("relay.relay")
+    assert type(sut) is tvmc.frontends.RelayFrontend
+
+
 def test_guess_frontend_invalid():
     with pytest.raises(TVMCException):
         tvmc.frontends.guess_frontend("not/a/file.txt")
@@ -188,6 +194,13 @@ def test_load_model__paddle(paddle_resnet50):
     pytest.importorskip("paddle")
 
     tvmc_model = tvmc.load(paddle_resnet50, model_format="paddle")
+    assert type(tvmc_model) is TVMCModel
+    assert type(tvmc_model.mod) is IRModule
+    assert type(tvmc_model.params) is dict
+
+
+def test_load_model__relay(relay_text_conv2d):
+    tvmc_model = tvmc.load(relay_text_conv2d, model_format="relay")
     assert type(tvmc_model) is TVMCModel
     assert type(tvmc_model.mod) is IRModule
     assert type(tvmc_model.params) is dict
