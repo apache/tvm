@@ -147,7 +147,6 @@ TVM_REGISTER_GLOBAL("meta_schedule.winograd_bgemm.cuda")
       sch->SetScope(bgemm, /*buffer_index=*/0, /*storage_scope=*/"local");
       BlockRV data_pack = GetOnlyProducer(sch, bgemm);
 
-      BlockRV OL = sch->CacheWrite(bgemm, /*buffer_index=*/0, /*storage_scope=*/"local");
       BlockRV AA = sch->CacheRead(bgemm, /*buffer_index=*/0, /*storage_scope=*/"shared");
       BlockRV BB = sch->CacheRead(bgemm, /*buffer_index=*/1, /*storage_scope=*/"shared");
 
@@ -181,11 +180,6 @@ TVM_REGISTER_GLOBAL("meta_schedule.winograd_bgemm.cuda")
       sch->Reorder(
           {t0[0], t1[0], t2[0], t0[1], t1[1], t2[1], t0[2], t1[2], t2[2], t0[3], t1[3], t2[3]});
 
-      // tile reduction axes
-      loops = sch->GetLoops(OL);
-      ICHECK_EQ(loops.size(), 4);  // SSSS
-      fused = sch->Fuse({loops[0], loops[1]});
-      sch->ReverseComputeAt(OL, t2[2], /*preserve_unit_loops=*/true);
       sch->ComputeAt(AA, t3[1], /*preserve_unit_loops=*/true);
       sch->ComputeAt(BB, t3[1], /*preserve_unit_loops=*/true);
 
@@ -208,10 +202,7 @@ TVM_REGISTER_GLOBAL("meta_schedule.winograd_data_pack.cuda")
       sch->SetScope(data_pack, /*buffer_index=*/0, /*storage_scope=*/"local");
       BlockRV input_tile = GetOnlyProducer(sch, data_pack);
       BlockRV data_pad = GetOnlyProducer(sch, input_tile);
-      BlockRV data_pack_local =
-          sch->CacheWrite(data_pack, /*buffer_index=*/0, /*storage_scope=*/"local");
       LoopRV loop = ScheduleDataPack(sch, data_pack);
-      sch->ReverseComputeAt(data_pack_local, /*loop_rv=*/loop, /*preserve_unit_loops=*/true);
       sch->ComputeAt(input_tile, /*loop_rv=*/loop, /*preserve_unit_loops=*/true);
       sch->ComputeInline(data_pad);
       int64_t max_threadblocks = 256;
