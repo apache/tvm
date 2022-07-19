@@ -228,7 +228,7 @@ class TensorIntrin(Object):
         return _ffi_api.TensorIntrinRegister(name, TensorIntrin(desc, impl))  # type: ignore
 
     @staticmethod
-    def get(name: str):
+    def get(name: str, allow_missing: bool = False):
         """Look up a tensor intrinsic by its name.
 
         Parameters
@@ -236,12 +236,16 @@ class TensorIntrin(Object):
         name : str
             The name of the TensorIntrin to look up.
 
+        allow_missing : bool
+            Whether to allow missing tensor intrin. If False, raise an error if the tensor intrin
+        doesn't exist.
+
         Returns
         -------
         result : TensorIntrin
-            The TensorIntrin with the specified name.
+            The TensorIntrin with the specified name, or None if not found.
         """
-        return _ffi_api.TensorIntrinGet(name)  # pylint: type: ignore
+        return _ffi_api.TensorIntrinGet(name, allow_missing)  # pylint: type: ignore
 
 
 @tvm._ffi.register_object("tir.IndexMap")
