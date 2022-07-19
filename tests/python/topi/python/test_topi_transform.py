@@ -814,7 +814,8 @@ def verify_adv_index(data_shape, index_shapes, indice_dtype="int64"):
 
 def verify_trilu(input_shape, upper, k=0):
     x = te.placeholder(shape=input_shape, name="x", dtype="float32")
-    trilu_result = topi.transform.trilu(x, k, upper)
+    k_tir = tvm.tir.const(k, dtype="int32")
+    trilu_result = topi.transform.trilu(x, k_tir, upper)
 
     def check_device(target, dev):
         print("Running on target: %s" % target)
