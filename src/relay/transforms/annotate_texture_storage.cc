@@ -504,7 +504,11 @@ Map<Expr, Array<String>> CollectStorageInfo(const Expr& expr) {
 
 Expr AnnotateMemoryScopeExpr(const Expr& expr, const IRModule& mod, CompilationConfig config) {
   auto storage_scope = CollectStorageInfo(expr);
-  return VDRewriter(storage_scope).Rewrite(expr);
+  if (storage_scope.size()) {
+    return VDRewriter(storage_scope).Rewrite(expr);
+  } else {
+    return expr;
+  }
 }
 
 namespace transform {
