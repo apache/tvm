@@ -65,6 +65,7 @@ struct PoolInfoNode : public Object {
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("pool_name", &pool_name);
+    v->Visit("targets", &targets);
     v->Visit("size_hint_bytes", &size_hint_bytes);
     v->Visit("clock_frequency_hz", &clock_frequency_hz);
     v->Visit("read_bandwidth_bytes_per_cycle", &read_bandwidth_bytes_per_cycle);

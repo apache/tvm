@@ -32,8 +32,7 @@ def test_workspace_pools_argparse():
     parsed, unparsed = parser.parse_known_args(
         [
             "--workspace-pools=sram,flash",
-            "--workspace-pools-targets=sram:c",
-            "--workspace-pools-targets=sram:llvm",
+            "--workspace-pools-targets=sram:c,llvm",
             "--workspace-pools-targets=flash:c",
             "--workspace-pools-size-hint-bytes=sram:400",
             "--workspace-pools-size-hint-bytes=sram:500",
@@ -49,7 +48,7 @@ def test_workspace_pools_argparse():
     )
 
     assert parsed.workspace_pools == "sram,flash"
-    assert parsed.workspace_pools_targets == ["sram:c", "sram:llvm", "flash:c"]
+    assert parsed.workspace_pools_targets == ["sram:c,llvm", "flash:c"]
     assert parsed.workspace_pools_size_hint_bytes == ["sram:400", "sram:500"]
     assert parsed.workspace_pools_clock_frequency_hz == ["sram:500"]
     assert parsed.workspace_pools_read_bandwidth_bytes_per_cycle == ["sram:200"]
@@ -182,14 +181,22 @@ def test_workspace_pools_recombobulate_multi_fields_multi_pools():
     parsed, _ = parser.parse_known_args(
         [
             "--workspace-pools=sram,flash",
-            "--workspace-pools-targets=sram:c,flash:c",
-            "--workspace-pools-size-hint-bytes=sram:1024,flash:2048",
-            "--workspace-pools-clock-frequency-hz=sram:4000000,flash:2000000",
-            "--workspace-pools-read-bandwidth-bytes-per-cycle=sram:8,flash:4",
-            "--workspace-pools-write-bandwidth-bytes-per-cycle=sram:4,flash:1",
-            "--workspace-pools-read-latency-cycles=sram:250,flash:2000",
-            "--workspace-pools-write-latency-cycles=sram:500,flash:1000",
-            "--workspace-pools-target-burst-bytes=sram:c:8,flash:c:4",
+            "--workspace-pools-targets=sram:c",
+            "--workspace-pools-targets=flash:c",
+            "--workspace-pools-size-hint-bytes=sram:1024",
+            "--workspace-pools-size-hint-bytes=flash:2048",
+            "--workspace-pools-clock-frequency-hz=sram:4000000",
+            "--workspace-pools-clock-frequency-hz=flash:2000000",
+            "--workspace-pools-read-bandwidth-bytes-per-cycle=sram:8",
+            "--workspace-pools-read-bandwidth-bytes-per-cycle=flash:4",
+            "--workspace-pools-write-bandwidth-bytes-per-cycle=sram:4",
+            "--workspace-pools-write-bandwidth-bytes-per-cycle=flash:1",
+            "--workspace-pools-read-latency-cycles=sram:250",
+            "--workspace-pools-read-latency-cycles=flash:2000",
+            "--workspace-pools-write-latency-cycles=sram:500",
+            "--workspace-pools-write-latency-cycles=flash:1000",
+            "--workspace-pools-target-burst-bytes=sram:c:8",
+            "--workspace-pools-target-burst-bytes=flash:c:4",
         ]
     )
 
@@ -224,14 +231,22 @@ def test_workspace_pools_recombobulate_multi_fields_ordering():
     parsed, _ = parser.parse_known_args(
         [
             "--workspace-pools=sram,flash",
-            "--workspace-pools-targets=flash:c,sram:c",
-            "--workspace-pools-size-hint-bytes=flash:2048,sram:1024",
-            "--workspace-pools-clock-frequency-hz=sram:4000000,flash:2000000",
-            "--workspace-pools-read-bandwidth-bytes-per-cycle=sram:8,flash:4",
-            "--workspace-pools-write-bandwidth-bytes-per-cycle=sram:4,flash:1",
-            "--workspace-pools-read-latency-cycles=sram:250,flash:2000",
-            "--workspace-pools-write-latency-cycles=flash:1000,sram:500",
-            "--workspace-pools-target-burst-bytes=sram:c:8,flash:c:4",
+            "--workspace-pools-targets=flash:c",
+            "--workspace-pools-targets=sram:c",
+            "--workspace-pools-size-hint-bytes=flash:2048",
+            "--workspace-pools-size-hint-bytes=sram:1024",
+            "--workspace-pools-clock-frequency-hz=sram:4000000",
+            "--workspace-pools-clock-frequency-hz=flash:2000000",
+            "--workspace-pools-read-bandwidth-bytes-per-cycle=sram:8",
+            "--workspace-pools-read-bandwidth-bytes-per-cycle=flash:4",
+            "--workspace-pools-write-bandwidth-bytes-per-cycle=sram:4",
+            "--workspace-pools-write-bandwidth-bytes-per-cycle=flash:1",
+            "--workspace-pools-read-latency-cycles=sram:250",
+            "--workspace-pools-read-latency-cycles=flash:2000",
+            "--workspace-pools-write-latency-cycles=flash:1000",
+            "--workspace-pools-write-latency-cycles=sram:500",
+            "--workspace-pools-target-burst-bytes=sram:c:8",
+            "--workspace-pools-target-burst-bytes=flash:c:4",
         ]
     )
 
@@ -254,9 +269,9 @@ def test_workspace_pools_recombobulate_multi_target():
     parsed, _ = parser.parse_known_args(
         [
             "--workspace-pools=sram",
-            "--workspace-pools-targets=sram:c",
-            "--workspace-pools-targets=sram:llvm",
-            "--workspace-pools-target-burst-bytes=sram:c:8,sram:llvm:4",
+            "--workspace-pools-targets=sram:c,llvm",
+            "--workspace-pools-target-burst-bytes=sram:c:8",
+            "--workspace-pools-target-burst-bytes=sram:llvm:4",
         ]
     )
 
@@ -315,9 +330,9 @@ def test_workspace_pools_recombobulate_multi_target_multi_pool():
     parsed, _ = parser.parse_known_args(
         [
             "--workspace-pools=sram",
-            "--workspace-pools-targets=sram:c",
-            "--workspace-pools-targets=sram:llvm",
-            "--workspace-pools-target-burst-bytes=sram:c:8,sram:llvm:4",
+            "--workspace-pools-targets=sram:c,llvm",
+            "--workspace-pools-target-burst-bytes=sram:c:8",
+            "--workspace-pools-target-burst-bytes=sram:llvm:4",
         ]
     )
 
@@ -357,3 +372,33 @@ def test_workspace_pools_recombobulate_parameter_overrides():
 
     assert memory_pools.pools[0].size_hint_bytes == 400
     assert memory_pools.pools[0].clock_frequency_hz == 3600000
+
+
+def test_workspace_pools_recombobulate_single_pool_overrides():
+    parser = argparse.ArgumentParser()
+    generate_workspace_pools_args(parser)
+    parsed, _ = parser.parse_known_args(
+        [
+            "--workspace-pools=sram,flash",
+            "--workspace-pools-targets=sram:c",
+            "--workspace-pools-targets=flash:c",
+            "--workspace-pools-targets=sram:c,llvm",  # Override on one pool
+            "--workspace-pools-size-hint-bytes=sram:800",
+            "--workspace-pools-size-hint-bytes=flash:1200",
+            "--workspace-pools-size-hint-bytes=sram:400",  # Override on one pool
+        ]
+    )
+
+    c_target = Target("c")
+    llvm_target = Target("llvm")
+
+    targets = [c_target, llvm_target]
+    memory_pools = workspace_pools_recombobulate(parsed, targets, _)
+
+    assert len(memory_pools.pools) == 2
+
+    assert memory_pools.pools[0].size_hint_bytes == 400
+    assert memory_pools.pools[1].size_hint_bytes == 1200
+
+    assert len(memory_pools.pools[0].targets) == 2
+    assert len(memory_pools.pools[1].targets) == 1
