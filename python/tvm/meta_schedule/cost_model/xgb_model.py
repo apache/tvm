@@ -22,7 +22,7 @@ import os
 import tempfile
 from collections import OrderedDict
 from itertools import chain as itertools_chain
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, NamedTuple, Optional, Tuple
 
 import numpy as np  # type: ignore
 
@@ -36,7 +36,7 @@ from ..utils import cpu_count, derived_object, shash2hex
 from .metric import max_curve
 
 try:
-    from xgboost.callback import TrainingCallback
+    from xgboost.callback import TrainingCallback  # type: ignore
 except ImportError:
 
     class TrainingCallback:
@@ -791,7 +791,7 @@ class XGBoostCustomCallback(XGBoostCallback):
         fevals: List[Callable],
         evals: List[Tuple["xgb.DMatrix", str]],
         focused_metric: str = "tr-p-rmse",
-        cvfolds: Sequence["xgb.training.CVPack"] = None,
+        cvfolds: List["xgb.training.CVPack"] = None,
     ):
         self.early_stopping_rounds = early_stopping_rounds
         self.verbose_eval = verbose_eval
