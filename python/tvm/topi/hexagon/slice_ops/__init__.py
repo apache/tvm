@@ -31,3 +31,4 @@ from .cast import (
 )
 from .conv2d import *
 from .reshape import reshape_compute, reshape_stir_schedule
+from .relu import relu_compute, relu_stir_schedule
