@@ -55,6 +55,9 @@ class TargetNode : public Object {
   Array<String> keys;
   /*! \brief Collection of attributes */
   Map<String, ObjectRef> attrs;
+  /*! \brief Target features */
+  Map<String, ObjectRef> features;
+
   /*!
    * \brief The raw string representation of the target
    * \return the full device string to pass to codegen::Build
@@ -80,6 +83,7 @@ class TargetNode : public Object {
     v->Visit("tag", &tag);
     v->Visit("keys", &keys);
     v->Visit("attrs", &attrs);
+    v->Visit("features", &features);
     v->Visit("host", &host);
   }
 
@@ -114,6 +118,42 @@ class TargetNode : public Object {
   Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
     return GetAttr<TObjectRef>(attr_key, Optional<TObjectRef>(default_value));
   }
+
+  /*!
+   * \brief Get a Target feature
+   *
+   * \param feature_key The feature key.
+   * \param default_value The default value if the key does not exist, defaults to nullptr.
+   *
+   * \return The result
+   *
+   * \tparam TOBjectRef the expected object type.
+   * \throw Error if the key exists but the value does not match TObjectRef
+   *
+   * \code
+   *
+   *  void GetTargetFeature(const Target& target) {
+   *    Bool has_feature = target->GetFeature<Bool>("has_feature", false).value();
+   *  }
+   *
+   * \endcode
+   */
+  template <typename TObjectRef>
+  Optional<TObjectRef> GetFeature(
+      const std::string& feature_key,
+      Optional<TObjectRef> default_value = Optional<TObjectRef>(nullptr)) const {
+    Optional<TObjectRef> feature = Downcast<Optional<TObjectRef>>(features.Get(feature_key));
+    if (!feature) {
+      return default_value;
+    }
+    return feature;
+  }
+  // variant that uses TObjectRef to enable implicit conversion to default value.
+  template <typename TObjectRef>
+  Optional<TObjectRef> GetFeature(const std::string& attr_key, TObjectRef default_value) const {
+    return GetFeature<TObjectRef>(attr_key, Optional<TObjectRef>(default_value));
+  }
+
   /*! \brief Get the keys for this target as a vector of string */
   TVM_DLL std::vector<std::string> GetKeys() const;
   /*! \brief Get the keys for this target as an unordered_set of string */
