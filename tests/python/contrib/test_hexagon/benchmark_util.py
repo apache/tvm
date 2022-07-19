@@ -15,11 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
+""" Utility functions used for benchmarks """
+
 import csv
 import os
-import pytest
 import tempfile
-import collections
+
+import pytest
 
 
 def skip_bencharks_flag_and_reason():
@@ -37,22 +39,8 @@ def skip_bencharks_flag_and_reason():
 
     if asn == "simulator":
         return (True, "Skipping benchmarks when  ANDROID_SERIAL_NUMBER='simluator'")
-    else:
-        return (False, "")
 
-
-class UnsupportedException(Exception):
-    """
-    Indicates that the specified benchmarking configuration is known to
-    currently be unsupported.  The Exception message may provide more detail.
-    """
-
-
-class NumericalAccuracyException(Exception):
-    """
-    Indicates that the benchmarking configuration appeared to run successfully,
-    but the output data didn't have the expected accuracy.
-    """
+    return (False, "")
 
 
 class UnsupportedException(Exception):
@@ -183,9 +171,10 @@ class BenchmarksTable:
             ]:
                 if col_name in csv_line_dict:
                     old_value = csv_line_dict[col_name]
-                    assert isinstance(
-                        old_value, float
-                    ), f"Formatting code assumes that column {col_name} is some col_nameind of float, but its actual type is {type(old_value)}"
+                    assert isinstance(old_value, float), (
+                        f"Formatting code assumes that column {col_name} is"
+                        f" some col_nameind of float, but its actual type is {type(old_value)}"
+                    )
                     str_value = f"{old_value:>0.{timing_decimal_places}f}"
                     csv_line_dict[col_name] = str_value
 
@@ -204,16 +193,16 @@ def get_benchmark_id(keys_dict):
     Note that the insertion order for `keys_dict` affects the computed name.
     """
     # Creat a copy, because we might be modifying it.
-    d = dict(keys_dict)
+    keys_dict_copy = dict(keys_dict)
 
     # Sniff for shape-like lists, because we want them in a form that's both
     # readable and filesystem-friendly...
-    for k, v in d.items():
-        if isinstance(v, list) or isinstance(v, tuple):
-            v2 = "_".join([str(x) for x in v])
-            d[k] = v2
+    for k, v in keys_dict_copy.items():
+        if isinstance(v, (list, tuple)):
+            v_str = "_".join([str(x) for x in v])
+            keys_dict_copy[k] = v_str
 
-    return "-".join([f"{k}:{v}" for k, v in d.items()])
+    return "-".join([f"{k}:{v}" for k, v in keys_dict_copy.items()])
 
 
 def get_benchmark_decription(keys_dict):
@@ -226,44 +215,44 @@ def get_benchmark_decription(keys_dict):
     return " ".join([f"{k}={v}" for k, v in keys_dict.items()])
 
 
-# This fixture provides some initialization / finalization logic for groups of related
-# benchmark runs.
-# See the fixture implementation below for details.
-#
-# The fixture's mechanics are described here: https://stackoverflow.com/a/63047695
-#
-# TODO: There may be cleaner ways to let each class that uses this fixture provide its
-# own value for `csv_column_order`.
-#
-# TODO: In the future we may wish to break this fixture up in to several smaller ones.
-#
-# The overall contract for a class (e.g. `MyTest`) using this fixture is as follows:
-#
-#    https://stackoverflow.com/a/63047695
-#
-#    @pytest.mark.usefixtures("benchmark_group")
-#    class MyTest:
-#
-#       # The fixture requires that this class variable is defined before
-#       # the fixture's finalizer-logic executes.
-#       #
-#       # This is used as an argument to BenchmarkTable.print_csv(...) after
-#       # all of MyTest's unit tests have executed.
-#       csv_column_order = [
-#          ...
-#          ]
-#
-#       # Before the MyTest's first unit test executes, the fixture will populate the
-#       # following class variables:
-#       MyTest.working_dir     : str
-#       MyTest.benchmark_table : BenchmarkTable
 @pytest.fixture(scope="class")
 def benchmark_group(request):
+    """This fixture provides some initialization / finalization logic for groups of related
+    benchmark runs.
+    See the fixture implementation below for details.
+
+    The fixture's mechanics are described here: https://stackoverflow.com/a/63047695
+
+    TODO: There may be cleaner ways to let each class that uses this fixture provide its
+    own value for `csv_column_order`.
+
+    TODO: In the future we may wish to break this fixture up in to several smaller ones.
+
+    The overall contract for a class (e.g. `MyTest`) using this fixture is as follows:
+
+        https://stackoverflow.com/a/63047695
+
+        @pytest.mark.usefixtures("benchmark_group")
+        class MyTest:
+
+        # The fixture requires that this class variable is defined before
+        # the fixture's finalizer-logic executes.
+        #
+        # This is used as an argument to BenchmarkTable.print_csv(...) after
+        # all of MyTest's unit tests have executed.
+        csv_column_order = [
+            ...
+            ]
+
+        # Before the MyTest's first unit test executes, the fixture will populate the
+        # following class variables:
+        MyTest.working_dir     : str
+        MyTest.benchmark_table : BenchmarkTable"""
     working_dir = tempfile.mkdtemp()
-    bt = BenchmarksTable()
+    table = BenchmarksTable()
 
     request.cls.working_dir = working_dir
-    request.cls.benchmark_table = bt
+    request.cls.benchmark_table = table
 
     yield
 
@@ -272,8 +261,8 @@ def benchmark_group(request):
     if not hasattr(request.cls, "csv_column_order"):
         raise Exception('Classes using this fixture must have a member named "csv_column_order"')
 
-    with open(tabular_output_filename, "w") as csv_file:
-        bt.print_csv(csv_file, request.cls.csv_column_order)
+    with open(tabular_output_filename, "w", encoding="UTF-8") as csv_file:
+        table.print_csv(csv_file, request.cls.csv_column_order)
 
     print()
     print("*" * 80)
@@ -281,5 +270,5 @@ def benchmark_group(request):
     print("*" * 80)
     print()
 
-    if bt.has_fail() > 0:
+    if table.has_fail() > 0:
         pytest.fail("At least one benchmark configuration failed", pytrace=False)
