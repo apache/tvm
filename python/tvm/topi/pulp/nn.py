@@ -11,6 +11,21 @@ from .. import tag
 
 logger = logging.getLogger(__name__)
 
+def sdot_available() -> bool:
+    """Checks if pulp sdot intrinsics are available
+
+    Returns:
+        bool: True if available else otherwise
+    """
+
+    from tvm.target import codegen
+    llvm_id = codegen.llvm_lookup_intrinsic_id("llvm.riscv.pulp.sdotsp4")
+    if llvm_id == 0:
+        logger.warning("llvm version does not support llvm intrinsics")
+
+    return llvm_id != 0
+
+    
 def sdotp(data_dtype, kernel_dtype, out_dtype, vec_length, data_is_last_axis=True, kernel_is_last_axis=True, dilation=1):
 
     flip = False
@@ -705,11 +720,8 @@ def schedule_conv2d_nhwc_ohwi(cfg : autotvm.ConfigSpace, outs):
             #s[weight].compute_at(s[out], rc)
 
             vec_length = get_vec_length(out.dtype, data.dtype, weight.dtype)
-            from tvm.target import codegen
-            llvm_id = codegen.llvm_lookup_intrinsic_id(llvm.riscv.pulp.sdotsp4)
-            if llvm_id == 0:
-                logger.critical("llvm version does not support llvm intrinsics")
-            if vec_length != 1 and llvm_id != 0:
+            
+            if vec_length != 1 and sdot_available():
                 t = sdotp(data.dtype, weight.dtype, out.dtype, vec_length)
                 rco, rci = s[out].split(rc, vec_length)
                 
