@@ -22,7 +22,7 @@ import os
 import tempfile
 from collections import OrderedDict
 from itertools import chain as itertools_chain
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, NamedTuple, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 import numpy as np  # type: ignore
 
@@ -34,6 +34,14 @@ from ..runner import RunnerResult
 from ..search_strategy import MeasureCandidate
 from ..utils import cpu_count, derived_object, shash2hex
 from .metric import max_curve
+
+try:
+    from xgboost.callback import TrainingCallback
+except ImportError:
+
+    class TrainingCallback:
+        pass
+
 
 if TYPE_CHECKING:
     import xgboost as xgb  # type: ignore
@@ -573,22 +581,19 @@ class XGBModel(PyCostModel):
         def avg_peak_score(ys_pred: np.ndarray, d_train: "xgb.DMatrix"):  # type: ignore # pylint: disable = unused-argument
             return self.d_train.average_peak_score(ys_pred, self.average_peak_n)
 
+        xgb_custom_callback = XGBoostCustomCallback(
+            early_stopping_rounds=self.early_stopping_rounds,
+            verbose_eval=self.verbose_eval,
+            fevals=[rmse, avg_peak_score],
+            evals=[(self.d_train.dmatrix, "tr")],
+            cvfolds=None,
+        )
         self.booster = xgb.train(
             self.config.to_dict(),
             self.d_train.dmatrix,
             num_boost_round=10000,
             obj=obj,
-            callbacks=[
-                custom_callback(
-                    early_stopping_rounds=self.early_stopping_rounds,
-                    verbose_eval=self.verbose_eval,
-                    fevals=[
-                        rmse,
-                        avg_peak_score,
-                    ],
-                    evals=[(self.d_train.dmatrix, "tr")],
-                )
-            ],
+            callbacks=[xgb_custom_callback],
         )
 
         del self.d_train
@@ -763,3 +768,158 @@ def custom_callback(
             raise EarlyStopException(best_iteration)
 
     return callback
+
+
+class XGBoostCallback(TrainingCallback):
+    """Base class for XGBoost callbacks."""
+
+    def __call__(self, env: "xgb.core.CallbackEnv"):
+        """Compatibility with xgboost<1.3"""
+        return self.after_iteration(env.model, env.iteration, env.evaluation_result_list)
+
+    def after_iteration(self, model: "xgb.Booster", epoch: int, evals_log: Dict):
+        raise NotImplementedError
+
+
+class XGBoostCustomCallback(XGBoostCallback):
+    """Custom callback class for xgboost to support multiple custom evaluation functions"""
+
+    def __init__(
+        self,
+        early_stopping_rounds: int,
+        verbose_eval: int,
+        fevals: List[Callable],
+        evals: List[Tuple["xgb.DMatrix", str]],
+        focused_metric: str = "tr-p-rmse",
+        cvfolds: Sequence["xgb.training.CVPack"] = None,
+    ):
+        self.early_stopping_rounds = early_stopping_rounds
+        self.verbose_eval = verbose_eval
+        self.fevals = fevals
+        self.evals = evals
+        self.state: Dict[str, Any] = {}
+        self.focused_metric = focused_metric
+        self.sort_key = make_metric_sorter(focused_metric=focused_metric)
+        self.cvfolds = cvfolds
+        if cvfolds is not None:
+            self.aggregated_cv = None
+
+    def init(self, model: "xgb.Booster"):
+        booster: "xgb.Booster" = model
+        self.state["best_iteration"] = 0
+        self.state["best_score"] = float("inf")
+        if booster is None:
+            assert self.cvfolds is not None
+            return
+        if booster.attr("best_score") is not None:
+            self.state["best_score"] = float(booster.attr("best_score"))
+            self.state["best_iteration"] = int(booster.attr("best_iteration"))
+            self.state["best_msg"] = booster.attr("best_msg")
+        else:
+            booster.set_attr(best_iteration=str(self.state["best_iteration"]))
+            booster.set_attr(best_score=str(self.state["best_score"]))
+
+    def after_iteration(self, model: "xgb.Booster", epoch: int, evals_log: Dict):
+        try:
+            from xgboost.callback import _fmt_metric  # type: ignore
+        except ImportError:
+            """Compatibility with xgboost>=1.6"""
+
+            def _fmt_metric(value, show_stdv=True):
+                if len(value) == 2:
+                    return f"{value[0]}:{value[1]:.5f}"
+                if len(value) == 3:
+                    if show_stdv:
+                        return f"{value[0]}:{value[1]:.5f}+{value[2]:.5f}"
+                    return f"{value[0]}:{value[1]:.5f}"
+                raise ValueError("wrong metric value", value)
+
+        from xgboost import rabit  # type: ignore
+
+        try:
+            from xgboost.training import aggcv  # type: ignore
+        except ImportError:
+            from xgboost.callback import _aggcv as aggcv  # type: ignore
+        if not self.state:
+            self.init(model)
+        booster: xgb.Booster = model
+        iteration: int = epoch
+        cvfolds: List[xgb.training.CVPack] = self.cvfolds
+        ##### Evaluation #####
+        # `eval_result` is a list of (key, score)
+        eval_result: List[Tuple[str, float]] = []
+        if cvfolds is None:
+            eval_result = list(
+                itertools_chain.from_iterable(
+                    [
+                        (key, float(value))
+                        for key, value in map(
+                            lambda x: x.split(":"),
+                            booster.eval_set(
+                                evals=self.evals,
+                                iteration=iteration,
+                                feval=feval,
+                            ).split()[1:],
+                        )
+                    ]
+                    for feval in self.fevals
+                )
+            )
+        else:
+            eval_result = list(
+                itertools_chain.from_iterable(
+                    [
+                        (key, score)
+                        for key, score, _std in aggcv(
+                            fold.eval(
+                                iteration=iteration,
+                                feval=feval,
+                            )
+                            for fold in cvfolds
+                        )
+                    ]
+                    for feval in self.fevals
+                )
+            )
+        eval_result = list(eval_result)
+        eval_result.sort(key=self.sort_key)
+
+        ##### Print eval result #####
+        if self.verbose_eval and iteration % self.verbose_eval == 0:
+            info = []
+            for key, score in eval_result:
+                if "null" not in key:
+                    info.append(f"{key}: {score:.6f}")
+            logger.debug("XGB iter %3d: %s", iteration, "\t".join(info))
+
+        ##### Choose score and do early stopping #####
+        score = None
+        for key, _score in eval_result:
+            if key == self.focused_metric:
+                score = _score
+                break
+        assert score is not None
+
+        best_score = self.state["best_score"]
+        best_iteration = self.state["best_iteration"]
+        if score < best_score:
+            tab = "\t"  # to work with f-string
+            msg = f"[{epoch}] {tab.join([_fmt_metric(x) for x in eval_result])}"
+            self.state["best_msg"] = msg
+            self.state["best_score"] = score
+            self.state["best_iteration"] = epoch
+            # save the property to attributes, so they will occur in checkpoint.
+            if model is not None:
+                model.set_attr(
+                    best_score=str(self.state["best_score"]),
+                    best_iteration=str(self.state["best_iteration"]),
+                    best_msg=self.state["best_msg"],
+                )
+        elif epoch - best_iteration >= self.early_stopping_rounds:
+            best_msg = self.state["best_msg"]
+
+            if self.verbose_eval and rabit.get_rank() == 0:
+                logger.debug("XGB stopped. Best iteration: %s ", best_msg)
+            return True  # instead of raising EarlyStopException, returning True to end the training
+        # False to indicate training should not stop.
+        return False
