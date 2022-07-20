@@ -529,7 +529,7 @@ class PipelineRewriter : public StmtExprMutator {
   // Per-stage states that are local to each of pipeline prologue, body, and epilogue.
   struct AsyncStateLocal {
     struct {
-      // The index into a list of blocks, where async_wait_queue should be inserted at the
+      // The index into a list of blocks, where async_wait_queue should be attached at the
       // beginning.
       int insert_before;
       // in_flight_count would be a more precise name, but the implementation uses wait_count for
@@ -556,10 +556,9 @@ class PipelineRewriter : public StmtExprMutator {
     Optional<PrimExpr> producer_head;
     // The predicate of BlockRealize containing the async operation of this stage.
     Optional<PrimExpr> predicate;
-    // (TODO) needs update
-    // The indices into a list of blocks, where async_commit_queue should be inserted at the end.
+    // Indices into a list of blocks, where async_commit_queue scope should be attached.
     // If multiple async producers are interleaved with their consumer in between, we need separate
-    // async_commit_queue for each producer.
+    // async_commit_queue for each producer. Thus, we need multiple sets of indices.
     std::vector<std::vector<size_t>> commit_groups;
   };
 
@@ -719,18 +718,20 @@ class PipelineRewriter : public StmtExprMutator {
       //
       // for i in range(13):
       //     # Stage 0
-      //     async_scope:
-      //        A_shared[(i + 3) % 4] = A[...]
-      //        async_commit_queue(0)
+      //     async_commit_queue(0):
+      //        async_scope:
+      //           A_shared[(i + 3) % 4] = A[...]
+      //
       //
       //     # Stage 1
-      //     async_wait_queue(0, 5)
-      //     compute(A_shared[i], B_shared[i])
+      //     async_wait_queue(0, 5):
+      //        compute(A_shared[i], B_shared[i])
       //
       //     # Stage 0
-      //     async_scope:
-      //        B_shared[(i + 3) % 4] = B[...]
-      //        async_commit_queue(0)
+      //     async_commit_queue(0)
+      //        async_scope:
+      //           B_shared[(i + 3) % 4] = B[...]
+      //
       //
       // Here, multiple async producers in the same stage are interleaved with their consumer in
       // between. Since each buffer is associated with different commit groups, the wait_count
@@ -738,14 +739,14 @@ class PipelineRewriter : public StmtExprMutator {
       //
       // for i in range(13):
       //     # Stage 0
-      //     async_scope:
-      //        A_shared[(i + 3) % 4] = A[...]
-      //        B_shared[(i + 3) % 4] = B[...]
-      //        async_commit_queue(0)
+      //     async_commit_queue(0):
+      //        async_scope:
+      //           A_shared[(i + 3) % 4] = A[...]
+      //           B_shared[(i + 3) % 4] = B[...]
       //
       //     # Stage 1
-      //     async_wait_queue(0, 3)
-      //     compute(A_shared[i], B_shared[i])
+      //     async_wait_queue(0, 3):
+      //        compute(A_shared[i], B_shared[i])
       //
       // The correct wait_count can be determined by considering each commit group separately, and
       // summing "per-commit" wait_counts.
@@ -790,9 +791,9 @@ class PipelineRewriter : public StmtExprMutator {
         auto sum = PrimExpr(0);
         for (auto producer_head : producer_head_per_commit) {
           if (producer_head && ana_normalized.CanProve(producer_head.value() >= 0)) {
-            // Here, normalized_access_index corresponds to "consumer_head".
-            // The difference of producer_head and consumer_head is precisely the number
-            // async commit groups can still be in flight after this wait.
+            // Here, new_blocks[i].access_index corresponds to "consumer_head".
+            // The difference of producer_head and consumer_head is precisely the number of
+            // async commit groups that can still be in flight after this wait.
             sum += analyzer_.Simplify(producer_head.value() - new_blocks[i].access_index);
           } else {
             // The precise count cannot be determined, give up.
@@ -828,28 +829,25 @@ class PipelineRewriter : public StmtExprMutator {
       }
 
       if (state.pending_wait.valid()) {
-        auto make_intrin = [](Op intrin, Array<PrimExpr> args) {
-          return Evaluate(Call(DataType::Void(), intrin, args));
-        };
-
-        auto wait_queue =
-            make_intrin(builtin::async_wait_queue(), {stage_id, state.pending_wait.wait_count});
-
-        auto insert_wait_before = [&new_blocks](int i, Stmt wait) {
+        auto attach_wait_scope = [&new_blocks](int i, int stage_id, PrimExpr wait_count) {
           auto& block = new_blocks[i].block;
           BlockNode* n = block.CopyOnWrite();
-          n->body = SeqStmt({wait, n->body});
+          auto zero = make_zero(DataType::Int(32));
+          n->body =
+              AttrStmt(zero, tir::attr::async_wait_queue_scope, stage_id,
+                       AttrStmt(zero, tir::attr::async_wait_inflight_count, wait_count, n->body));
         };
 
         if (state.predicate && !ana_normalized.CanProve(state.predicate.value())) {
           // If the async operation that this wait_queue is waiting on is predicated, and we cannot
           // prove that the predicate is always true, the precise wait count is only valid
           // at iterations where the predicate is true;
-          auto wait_queue_false = make_intrin(builtin::async_wait_queue(), {stage_id, 0});
-          insert_wait_before(state.pending_wait.insert_before,
-                             IfThenElse(state.predicate.value(), wait_queue, wait_queue_false));
+          auto wait_count = Call(DataType::Int(32), builtin::if_then_else(),
+                                 {state.predicate.value(), state.pending_wait.wait_count, 0});
+          attach_wait_scope(state.pending_wait.insert_before, stage_id, wait_count);
         } else {
-          insert_wait_before(state.pending_wait.insert_before, wait_queue);
+          attach_wait_scope(state.pending_wait.insert_before, stage_id,
+                            state.pending_wait.wait_count);
         }
       }
 
@@ -878,7 +876,7 @@ class PipelineRewriter : public StmtExprMutator {
               << "Predicates in the same stage are expected to be identical";
           group_bodies.push_back(new_blocks[i].block->body);
         }
-	auto body = group_bodies.size() > 1 ? SeqStmt(group_bodies) : group_bodies[0];
+        auto body = group_bodies.size() > 1 ? SeqStmt(group_bodies) : group_bodies[0];
         auto commit_queue_scope = AttrStmt(make_zero(DataType::Int(32)),
                                            tir::attr::async_commit_queue_scope, stage_id, body);
         auto new_block = MakeBlock(commit_queue_scope, buffer_data_to_buffer_);
@@ -1080,7 +1078,7 @@ class PipelineInjector : private StmtExprMutator {
       auto pipeline_async_stage_indices =
           Downcast<Array<Integer>>(op->annotations.at("software_pipeline_async_stages"));
       for (auto i : pipeline_async_stage_indices) {
-        pipeline_info[original_order[i]].async = true;
+        pipeline_info[original_order[i->value]].async = true;
       }
     }
 

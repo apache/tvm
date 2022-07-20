@@ -23,10 +23,8 @@
  */
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/op_attr_types.h>
-#include <tvm/arith/analyzer.h>
 
 #include "../intrin_rule.h"
-
 
 namespace tvm {
 namespace codegen {
@@ -135,32 +133,6 @@ static PrimExpr DispatchCUDAShuffle(const PrimExpr& e) {
   return Call(call->dtype, T()(call->dtype, Downcast<Op>(call->op)), cuda_args);
 }
 
-struct CUDAAsyncIntrinsic {
-  const Op operator()(DataType t, const Op& orig_op) const {
-    if (orig_op.same_as(builtin::async_wait_queue())) {
-      return tvm::tir::builtin::ptx_wait_group();
-    } else {
-      LOG(FATAL) << "Unknown intrinsic: " << orig_op;
-      return orig_op;
-    }
-  }
-};
-
-static PrimExpr DispatchCUDAAsync(const PrimExpr& e) {
-  const CallNode* call = e.as<CallNode>();
-  ICHECK(call != nullptr);
-  PrimExpr stage_idx = call->args[0];
-  arith::Analyzer ana;
-  ICHECK(ana.CanProve(stage_idx) == 0)
-      << "CUDA can have only one async stage, and only the first stage can be made async for now";
-
-  Array<PrimExpr> args;
-  for (size_t i = 1; i < call->args.size(); ++i) {
-    args.push_back(call->args[i]);
-  }
-  return Call(call->dtype, CUDAAsyncIntrinsic()(call->dtype, Downcast<Op>(call->op)), args);
-}
-
 TVM_REGISTER_OP("tir.floor")
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);
 
@@ -238,9 +210,6 @@ TVM_REGISTER_OP("tir.tvm_warp_shuffle_down")
 
 TVM_REGISTER_OP("tir.tvm_warp_activemask")
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchCUDAWarpActiveMask);
-
-TVM_REGISTER_OP("tir.async_wait_queue")
-    .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchCUDAAsync);
 
 TVM_REGISTER_OP("tir.fmod")
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);

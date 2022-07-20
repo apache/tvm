@@ -924,6 +924,14 @@ void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
     auto commit_group = Call(DataType::Void(), builtin::ptx_commit_group(), {});
     this->VisitExpr(commit_group, this->stream);
     return;
+  } else if (op->attr_key == tir::attr::async_wait_queue_scope) {
+    auto wait_attrs = GetAsyncWaitAttributes(op);
+    auto queue_id = wait_attrs.first.as<IntImmNode>();
+    ICHECK(queue_id && queue_id->value == 0) << "For CUDA, the index of an async queue must be 0.";
+    auto wait_cnt = wait_attrs.second;
+    auto wait_group = Call(DataType::Void(), builtin::ptx_wait_group(), {wait_cnt});
+    this->VisitExpr(wait_group, this->stream);
+    return;
   }
   CodeGenC::VisitStmt_(op);
 }

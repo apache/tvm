@@ -33,6 +33,7 @@
 #include "../../runtime/thread_storage_scope.h"
 #include "ir_utils.h"
 #include "storage_access.h"
+#include "tvm/tir/stmt.h"
 
 namespace tvm {
 namespace tir {
@@ -237,15 +238,15 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
 //
 // // Pipeline prologue
 // for i in range(125):
-//    async_scope:
-//      shared[(i + 3) % 4] = ...
-//      async_commit_queue(0)
-//    ...
+//    async_commit_queue(0):
+//       async_scope:
+//          shared[(i + 3) % 4] = ...
+// ...
 //
 // // Pipeline Epilogue
 // for i in range(3):
-//    async_wait_queue(0, 2 - i)
-//    local[...] = shared[(i + 125) % 4]
+//    async_wait_queue(0, 2 - i):
+//       local[...] = shared[(i + 125) % 4]
 
 // This class adds syncthreads after all async_wait_queue. That include syncthreads that
 // can be inserted by ThreadSyncInserter as well, but ThreadSyncInserter will not insert
@@ -254,14 +255,11 @@ class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
  public:
   explicit ThreadSyncAfterWaitQueueInserter(StorageScope sync_scope) : sync_scope_(sync_scope) {}
 
-  Stmt VisitStmt_(const EvaluateNode* op) final {
-    if (op->value->IsInstance<CallNode>()) {
-      Call call = Downcast<Call>(op->value);
-      if (call->op.same_as(builtin::async_wait_queue())) {
-        auto sync = Evaluate(Call(DataType::Int(32), builtin::tvm_storage_sync(),
-                                  {StringImm(sync_scope_.to_string())}));
-        return SeqStmt({GetRef<Evaluate>(op), sync});
-      }
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
+    if (op->attr_key == attr::async_wait_queue_scope) {
+      auto sync = Evaluate(Call(DataType::Int(32), builtin::tvm_storage_sync(),
+				{StringImm(sync_scope_.to_string())}));
+      return SeqStmt({GetRef<AttrStmt>(op), sync});
     }
     return StmtExprMutator::VisitStmt_(op);
   }

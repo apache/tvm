@@ -24,11 +24,12 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/analysis.h>
-#include <tvm/tir/builtin.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
+
+#include "ir_utils.h"
 
 #include <unordered_map>
 
@@ -46,7 +47,18 @@ class NoOpRemover : public StmtMutator {
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == "pragma_debug_skip_region") {
       return MakeEvaluate(0);
+    } else if (op->attr_key == attr::async_wait_queue_scope) {
+      auto wait_attrs = GetAsyncWaitAttributes(op);
+      auto wait_cnt = wait_attrs.second;
+      arith::Analyzer ana;
+      if (ana.CanProve(wait_cnt < 0)) {
+	// A negative wait count can arise if it depends on a loop variable.
+	// For example, a wait count 1 - i can be negative after loop unrolling.
+	// We assume that such wait is a nop.
+        return Evaluate(0);
+      }
     }
+
     Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<AttrStmtNode>();
     return is_no_op(op->body) ? MakeEvaluate(op->value) : stmt;
@@ -91,20 +103,7 @@ class NoOpRemover : public StmtMutator {
     op = stmt.as<ProducerRealizeNode>();
     return is_no_op(op->body) ? op->body : stmt;
   }
-
   Stmt VisitStmt_(const EvaluateNode* op) final {
-    if (op->value->IsInstance<CallNode>()) {
-      Call call = Downcast<Call>(op->value);
-      if (call->op.same_as(builtin::async_wait_queue())) {
-        // Turn wait_group with negative wait count to a nop.
-        auto wait_cnt = call->args[0];
-        arith::Analyzer ana;
-        if (ana.CanProve(wait_cnt < 0)) {
-          return Evaluate(0);
-        }
-      }
-    }
-
     if (SideEffect(op->value) > CallEffectKind::kReadState) return GetRef<Stmt>(op);
     return Evaluate(0);
   }

@@ -1452,6 +1452,8 @@ constexpr const char* async_scope = "async_scope";
  * \brief TODO
  */
 constexpr const char* async_commit_queue_scope = "async_commit_queue_scope";
+constexpr const char* async_wait_queue_scope = "async_wait_queue_scope";
+constexpr const char* async_wait_inflight_count = "async_wait_inflight_count";
 
 /*!
  * \brief Mark that the shape of TensorCore fragment

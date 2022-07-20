@@ -652,33 +652,6 @@ TVM_DLL const Op& ptx_commit_group();
 TVM_DLL const Op& ptx_wait_group();
 
 /*!
- * (TODO) need update
- * \brief Intrinsics for invoking and synchronizing asynchronous operations.
-
- * Synchronization is done in terms of "queue": It is an abstract entity associated
- * with each asynchronous unit, and it tracks invocations and completions of asynchronous
- * operations in the FIFO order.
- *
- * Similarly to PTX instructions commit_group and wait_group, these intrinsics express
- * synchronization by "counting":
- *
- * async_commit_queue(int i): Group one or more invocation of async operations, and "commit"
- * them to the i-th queue. The exact interpretation of "committing" can be up to each backend, but
- * informally it signifies that a group of async operations are now in-flight. The group of
- * operations committed together is awaited as one chunk, and thus they constitute the granularity
- * at which the synchronization intrinsic below operates on. Groups committed to the same queue
- * complete in the FIFO order.
- *
- * async_wait_queue(int i, int N): Block until only N most recent committed groups are still
- * in-flight in the queue i. In other words, if there are M committed groups in-flight in the
- * queue i, at the invocation of async_wait_queue(i, N), M - N oldest committed groups would be
- * forced to complete. N does not have to be a constant, but some backends may require a constant
- * count (e.g. PTX)
- *
- */
-TVM_DLL const Op& async_wait_queue();
-
-/*!
  * \brief tvm intrinsic for storing the result of PTX MMA into a destination pointer.
  *        For example, if each thread in a warp of size 32 has 4 elements from the result of
  *        m16xn8xk16 MMA in its registers, this intrinsic can be used to store the result in a
