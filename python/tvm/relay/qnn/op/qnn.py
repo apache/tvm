@@ -1179,7 +1179,7 @@ reg.register_pattern("qnn.quantize", OpPattern.OPAQUE)
 reg.register_pattern("qnn.dequantize", OpPattern.OPAQUE)
 
 
-def leaky_relu(x, alpha, scale, zero_point, output_scale, output_zero_point):
+def leaky_relu(x, alpha, input_scale, input_zero_point, output_scale, output_zero_point):
     """Quantized leaky relu.
 
     Parameters
@@ -1188,10 +1188,10 @@ def leaky_relu(x, alpha, scale, zero_point, output_scale, output_zero_point):
         The quantized input tensor.
     alpha: double
         The alpha value.
-    scale: relay.Expr
-        The scale of the quantized expr.
-    zero_point: relay.Expr
-       The zero point of quantized expr.
+    input_scale: relay.Expr
+        The scale of the input quantized expr.
+    input_zero_point: relay.Expr
+       The zero point of input quantized expr.
     output_scale: relay.Expr
         The scale of the output quantized expr.
     output_zero_point: relay.Expr
@@ -1201,4 +1201,10 @@ def leaky_relu(x, alpha, scale, zero_point, output_scale, output_zero_point):
     result : relay.Expr
         The computed result.
     """
-    return _make.leaky_relu(x, alpha, scale, zero_point, output_scale, output_zero_point)
+    return _make.leaky_relu(x,
+        alpha,
+        input_scale,
+        input_zero_point,
+        output_scale,
+        output_zero_point,
+    )
