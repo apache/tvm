@@ -27,8 +27,10 @@ from tvm import meta_schedule as ms
 from tvm import relay
 from tvm.meta_schedule import ApplyHistoryBest, postproc, schedule_rule
 from tvm.meta_schedule.relay_integration import extract_task_from_relay
+from tvm.meta_schedule.testing import relay_workload
 from tvm.meta_schedule.testing.tlcbench import load_quantized_bert_base
-from tvm.meta_schedule.tune import tune_extracted_tasks
+from tvm.meta_schedule.tune import TuneConfig, tune_extracted_tasks, tune_relay
+from tvm.tir.tensor_intrin import get_wmma_intrin_group
 from tvm.tir.tensor_intrin import AMDGPU_SDOT4_INTRIN, DP4A_INTRIN
 from tvm.tir.tensor_intrin import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 
@@ -337,10 +339,91 @@ def test_dp4a_bert_int8():
     # _test_bert_int8("rocm", sch_rules_for_sdot4, postprocs_for_dp4a)
 
 
+@tvm.testing.requires_gpu
+# @pytest.mark.skip("Slow on CI")
+@pytest.mark.parametrize(
+    ["model_name", "input_shape"],
+    [("bert_base", (8, 128)), ("resnet_18", (16, 3, 224, 224)), ("resnet_50", (16, 3, 224, 224))],
+)
+def test_cuda_tensor_core(model_name, input_shape):
+    target = tvm.target.Target("nvidia/geforce-rtx-3070")
+    dev = tvm.cuda()
+    if model_name.startswith("bert"):
+        data = tvm.nd.array(np.random.randint(0, 30521, size=input_shape), dev)  # embedding size
+    else:
+        data = tvm.nd.array(np.random.randn(*input_shape).astype("float32"), dev)
+
+    mod, params, (input_name, input_shape, input_dtype) = relay_workload.get_network(
+        model_name, input_shape
+    )
+    seq = tvm.transform.Sequential(
+        [
+            relay.transform.ToMixedPrecision(),
+        ]
+    )
+
+    with tvm.transform.PassContext(opt_level=3):
+        mod = seq(mod)
+
+    def convert_layout(mod):
+        seq = tvm.transform.Sequential(
+            [relay.transform.ConvertLayout({"nn.conv2d": ["NHWC", "OHWI"]})]
+        )
+        with tvm.transform.PassContext(opt_level=3):
+            mod = seq(mod)
+        return mod
+
+    with tempfile.TemporaryDirectory() as work_dir:
+        with ms.Profiler() as profiler:
+            # tasks = ms.extract_task_from_relay(mod=mod, params=params, target=target)
+            import pickle
+
+            # pickle.dump(tasks, open('tasks.pkl', 'wb'))
+            # tasks = pickle.load(open('tasks.pkl', 'rb'))
+            # #tasks = [tasks[7]]
+            # ms.tune_extracted_tasks(
+            #     tasks,
+            #     config=ms.TuneConfig(
+            #         num_trials_per_iter=32,
+            #         max_trials_per_task=200,
+            #         max_trials_global=200,
+            #     ),
+            #     work_dir=work_dir,
+            #     sch_rules=ms.default_config._DefaultCUDATensorCore.schedule_rules,
+            #     postprocs=ms.default_config._DefaultCUDATensorCore.postprocs,
+            # )
+
+            rt_mod1: tvm.runtime.Module = ms.tune_relay(
+                mod=convert_layout(mod),
+                params=params,
+                target=target,
+                config=ms.TuneConfig(
+                    num_trials_per_iter=32,
+                    max_trials_per_task=200,
+                    max_trials_global=3000,
+                ),
+                sch_rules=ms.default_config._DefaultCUDATensorCore.schedule_rules,
+                postprocs=ms.default_config._DefaultCUDATensorCore.postprocs,
+                work_dir=work_dir,
+            )
+        print(profiler.table())
+
+        # Compile without meta-scheduler for correctness check
+        with tvm.transform.PassContext(opt_level=0):
+            rt_mod2 = relay.build(mod, target=target, params=params)
+
+        def get_output(data, lib):
+            module = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+            module.set_input(input_name, data)
+            module.run()
+            return module.get_output(0).numpy()
+
+        # Check correctness
+        actual_output = get_output(data, rt_mod1)
+        expected_output = get_output(data, rt_mod2)
+        assert np.allclose(actual_output, expected_output, rtol=1e-2, atol=2e-2)
+
+
 if __name__ == "__main__":
-    test_vnni_dense()
-    test_vnni_conv2d()
-    test_vnni_bert_int8()
-    test_dp4a_dense()
-    test_dp4a_conv2d()
-    test_dp4a_bert_int8()
+    # tvm.testing.main()
+    test_cuda_tensor_core("bert_base", (8, 128))
