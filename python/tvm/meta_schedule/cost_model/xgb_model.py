@@ -39,7 +39,7 @@ try:
     from xgboost.callback import TrainingCallback  # type: ignore
 except ImportError:
 
-    class TrainingCallback:
+    class TrainingCallback:  # type: ignore
         pass
 
 
