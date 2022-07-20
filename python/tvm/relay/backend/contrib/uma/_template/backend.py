@@ -34,7 +34,7 @@ class MyAiHwBackend(UMABackend):
         self._register_target_attr("dimension")
 
         #######################################################################
-        # Relay to Relay function registration
+        # Relay Pattern registration
         #######################################################################
         self._register_pattern("conv2d", conv2d_pattern())
 

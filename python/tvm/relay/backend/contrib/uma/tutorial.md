@@ -50,7 +50,7 @@ For **Vanilla** we use it like this:
 
 ```
 cd tvm/python/tvm/relay/backend/contrib/uma
-python uma_cli.py --add-accelerator vanilla_accelerator --tutorial vanilla
+python uma_cli.py --add-hardware vanilla_accelerator --tutorial vanilla
 ```
 The option `--tutorial vanilla` adds all the additional files required for this part of the tutorial.
 
