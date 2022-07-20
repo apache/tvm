@@ -5168,6 +5168,7 @@ if __name__ == "__main__":
     test_forward_qnn_coco_ssd_mobilenet_v1()
 
     # TFLite 2.1.0 quantized tests
+    test_forward_quantized_convolution()
     test_forward_quantized_depthwise_convolution()
     test_forward_tflite2_qnn_resnet50()
     test_forward_tflite2_qnn_inception_v1()
