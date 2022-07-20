@@ -44,7 +44,6 @@
 
 #include "../analysis/annotated_region_set.h"
 #include "../backend/name_transforms.h"
-#include "../backend/supply_provider.h"
 #include "../backend/utils.h"
 #include "pass_utils.h"
 
@@ -334,7 +333,7 @@ class Partitioner : public MixedModeMutator {
         WithAttr(std::move(global_region_func), attr::kCompiler, tvm::runtime::String(target));
     global_region_func = WithAttr(std::move(global_region_func), attr::kInline, tvm::Integer(1));
 
-    GlobalVarSupply global_var_supply = tvm::BuildGlobalVarSupply(module_);
+    GlobalVarSupply global_var_supply = GlobalVarSupply(module_);
     GlobalVar glob_func = global_var_supply->FreshGlobal(name, false);
     ICHECK(!module_->ContainGlobalVar(glob_func->name_hint))
         << "Global function " << glob_func->name_hint << " already exists";

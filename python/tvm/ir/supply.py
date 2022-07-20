@@ -16,7 +16,7 @@
 # under the License.
 """Suppliers that are used to guarantee uniqueness of names and GlobalVars."""
 import tvm
-from tvm import Object
+from tvm import Object, IRModule
 from . import _ffi_api
 
 
@@ -38,6 +38,12 @@ class NameSupply(Object):
     def reserve_name(self, name, add_prefix=True):
         return _ffi_api.NameSupply_ReserveName(self, name, add_prefix)
 
+    def contains_name(self, name, add_prefix=True):
+        return _ffi_api.NameSupply_ContainsName(self, name, add_prefix)
+
+    def clear(self):
+        return _ffi_api.NameSupply_Clear(self)
+
 
 @tvm._ffi.register_object("GlobalVarSupply")
 class GlobalVarSupply(Object):
@@ -48,15 +54,24 @@ class GlobalVarSupply(Object):
 
     Parameters
     ----------
-    name_supply: The NameSupply to be used by this GlobalVarSupply.
+    value: Union[List[IRModule], IRModule, NameSupply]
+        The IRModules used to build this GlobalVarSupply or a NameSupply.
     """
 
-    def __init__(self, name_supply=None):
-        name_supply = name_supply if name_supply is not None else NameSupply("")
-        self.__init_handle_by_constructor__(_ffi_api.GlobalVarSupply, name_supply)
+    def __init__(self, value=None):
+        if value is None:
+            name_supply = NameSupply("")
+            self.__init_handle_by_constructor__(_ffi_api.GlobalVarSupply_NameSupply, name_supply)
+        elif isinstance(value, (list, tvm.container.Array)):
+            self.__init_handle_by_constructor__(_ffi_api.GlobalVarSupply_IRModules, value)
+        elif isinstance(value, IRModule):
+            self.__init_handle_by_constructor__(_ffi_api.GlobalVarSupply_IRModule, value)
 
     def fresh_global(self, name, add_prefix=True):
         return _ffi_api.GlobalVarSupply_FreshGlobal(self, name, add_prefix)
 
     def unique_global_for(self, name, add_prefix=True):
         return _ffi_api.GlobalVarSupply_UniqueGlobalFor(self, name, add_prefix)
+
+    def reserve_global(self, global_var, allow_conflict=False):
+        return _ffi_api.GlobalVarSupply_ReserveGlobalVar(self, global_var, allow_conflict)

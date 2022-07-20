@@ -18,6 +18,7 @@
  */
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ir/name_supply.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
@@ -62,7 +63,7 @@ struct CreateFuncInfo {
   /*! \brief The buffers should be allocated at function root. */
   Array<Buffer> root_alloc;
   /*! \brief The NameSupply to make block name unique. */
-  NameSupply name_supply = NameSupply::EmptySupply();
+  NameSupply name_supply = NameSupply();
 
   String FreshName(String base_name) { return name_supply->FreshName(base_name); }
 

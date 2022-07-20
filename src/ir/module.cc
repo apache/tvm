@@ -40,7 +40,7 @@
 #include <sstream>
 #include <unordered_set>
 
-#include "../relay/backend/supply_provider.h"
+#include "tvm/ir/global_var_supply.h"
 
 namespace tvm {
 
@@ -386,7 +386,7 @@ std::pair<IRModule, GlobalVar> IRModule::FromExprInContext(
   }
 
   GlobalVar main_gv;
-  auto global_var_supply = tvm::BuildGlobalVarSupply(mod);
+  auto global_var_supply = GlobalVarSupply(mod);
   if (gv_name.empty()) {
     // Bind function to 'main' (though rename if would clash with existing 'main').
     main_gv = global_var_supply->FreshGlobal("main", false);

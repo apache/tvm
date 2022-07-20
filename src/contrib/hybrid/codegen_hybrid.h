@@ -24,6 +24,7 @@
 #ifndef TVM_CONTRIB_HYBRID_CODEGEN_HYBRID_H_
 #define TVM_CONTRIB_HYBRID_CODEGEN_HYBRID_H_
 
+#include <tvm/ir/name_supply.h>
 #include <tvm/target/codegen.h>
 #include <tvm/te/operation.h>
 #include <tvm/te/schedule.h>
@@ -146,7 +147,7 @@ class CodeGenHybrid : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   /*! \brief Print the current indent spaces. */
   inline void PrintIndent();
   /*! \brief NameSupply for allocated ids.  */
-  NameSupply ids_allocated = NameSupply::EmptySupply();
+  NameSupply ids_allocated = NameSupply();
   /*!
    * \brief Keys are either (tensors, value_index) or (variables, 0).
    *        Values are the corresponding IDs.*/

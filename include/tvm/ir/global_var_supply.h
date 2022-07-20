@@ -24,6 +24,7 @@
 #include <unordered_map>
 
 #include "tvm/ir/expr.h"
+#include "tvm/ir/module.h"
 #include "tvm/ir/name_supply.h"
 
 namespace tvm {
@@ -57,13 +58,12 @@ class GlobalVarSupplyNode : public Object {
 
 class GlobalVarSupply : public ObjectRef {
  public:
-  TVM_DLL explicit GlobalVarSupply(
-      const NameSupply& name_supply = NameSupply::NameSupplyWithPrefix(""),
-      std::unordered_map<std::string, GlobalVar> name_to_var_map = {});
+  TVM_DLL explicit GlobalVarSupply(const NameSupply& name_supply = NameSupply(),
+                                   std::unordered_map<std::string, GlobalVar> name_to_var_map = {});
 
-  TVM_DLL static GlobalVarSupply GlobalVarSupplyFromNameSupply(const NameSupply& name_supply);
+  TVM_DLL explicit GlobalVarSupply(const Array<IRModule>& modules);
 
-  TVM_DLL static GlobalVarSupply EmptySupply();
+  TVM_DLL explicit GlobalVarSupply(const IRModule module);
 
   explicit GlobalVarSupply(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*! \return mutable pointers to the node. */

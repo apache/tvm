@@ -630,7 +630,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
   /*! \brief function metadata */
   Map<String, FunctionInfo> function_metadata_;
   /*! \brief NameSupply */
-  NameSupply name_supply_ = NameSupply::EmptySupply();
+  NameSupply name_supply_ = NameSupply();
 };
 
 class GraphExecutorCodegenModule : public runtime::ModuleNode {

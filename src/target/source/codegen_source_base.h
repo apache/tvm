@@ -25,6 +25,7 @@
 #ifndef TVM_TARGET_SOURCE_CODEGEN_SOURCE_BASE_H_
 #define TVM_TARGET_SOURCE_CODEGEN_SOURCE_BASE_H_
 
+#include <tvm/ir/name_supply.h>
 #include <tvm/runtime/metadata.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tir/expr.h>
@@ -122,7 +123,7 @@ class CodeGenSourceBase {
   /*! \brief name of each variable */
   std::unordered_map<const tir::VarNode*, std::string> var_idmap_;
   /*! \brief NameSupply for allocation */
-  NameSupply name_supply_ = NameSupply::EmptySupply();
+  NameSupply name_supply_ = NameSupply();
 
  private:
   /*! \brief assignment map of ssa */

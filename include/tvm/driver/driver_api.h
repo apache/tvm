@@ -29,6 +29,7 @@
 #ifndef TVM_DRIVER_DRIVER_API_H_
 #define TVM_DRIVER_DRIVER_API_H_
 
+#include <tvm/ir/global_var_supply.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/transform.h>
 #include <tvm/runtime/packed_func.h>

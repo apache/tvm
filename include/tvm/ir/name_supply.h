@@ -64,14 +64,10 @@ class NameSupplyNode : public Object {
 
 class NameSupply : public ObjectRef {
  public:
-  TVM_DLL NameSupply();
+  TVM_DLL explicit NameSupply();
 
   TVM_DLL explicit NameSupply(const String& prefix,
                               std::unordered_map<std::string, int> name_map = {});
-
-  TVM_DLL static NameSupply NameSupplyWithPrefix(const String& prefix = "");
-
-  TVM_DLL static NameSupply EmptySupply();
 
   explicit NameSupply(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*! \return mutable pointers to the node. */

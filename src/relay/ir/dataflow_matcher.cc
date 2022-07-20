@@ -22,6 +22,7 @@
  * \brief The dataflow pattern matcher for Relay.
  */
 
+#include <tvm/ir/global_var_supply.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/dataflow_matcher.h>
 #include <tvm/relay/expr_functor.h>
@@ -29,7 +30,6 @@
 
 #include <stack>
 
-#include "../backend/supply_provider.h"
 #include "dataflow_matcher_impl.h"
 
 namespace tvm {
@@ -439,7 +439,7 @@ Expr InferType(const Expr& expr) {
 
 Expr InferTypeWithModule(const Expr& expr, const IRModule& m) {
   IRModule mod(m->functions, m->type_definitions, m->Imports());
-  GlobalVarSupply global_var_supply = tvm::BuildGlobalVarSupply(mod);
+  GlobalVarSupply global_var_supply = GlobalVarSupply(mod);
   GlobalVar gvar = global_var_supply->FreshGlobal("_tmp", false);
   BaseFunc func;
   if (expr.as<FunctionNode>()) {

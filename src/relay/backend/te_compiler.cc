@@ -142,8 +142,8 @@ class TECompilerImpl : public TECompilerNode {
     } else {
       mod_name = opt_mod_name.value();
     }
-    NameSupply name_supply = NameSupply::NameSupplyWithPrefix(mod_name);
-    global_var_supply = GlobalVarSupply::GlobalVarSupplyFromNameSupply(name_supply);
+    NameSupply name_supply = NameSupply(mod_name);
+    global_var_supply = GlobalVarSupply(name_supply);
     // Make sure we don't collide with any existing globals in the module.
     if (opt_mod) {
       for (const auto& kv : opt_mod.value()->functions) {
@@ -166,7 +166,7 @@ class TECompilerImpl : public TECompilerNode {
 
   // For now, build one module per function.
   PackedFunc JIT(const CCacheKey& key) final {
-    CCacheValue value = LowerInternal(key, GlobalVarSupply::EmptySupply());
+    CCacheValue value = LowerInternal(key, GlobalVarSupply());
     if (value->packed_func != nullptr) {
       return value->packed_func;
     }

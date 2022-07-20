@@ -21,6 +21,7 @@
  * \file split_host_device.cc
  * \brief Split device function from host.
  */
+#include <tvm/ir/global_var_supply.h>
 #include <tvm/ir/transform.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
@@ -33,7 +34,6 @@
 
 #include <unordered_map>
 
-#include "../../relay/backend/supply_provider.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "ir_utils.h"
 
@@ -303,7 +303,7 @@ class HostDeviceSplitter : public StmtMutator {
         arguments.push_back(var);
       }
     }
-    GlobalVarSupply global_var_supply = tvm::BuildGlobalVarSupply(*device_mod_);
+    GlobalVarSupply global_var_supply = GlobalVarSupply(*device_mod_);
     GlobalVar kernel_symbol_global = global_var_supply->FreshGlobal(kernel_symbol, false);
 
     PrimFunc device_func(params, Substitute(body, remap_vars));

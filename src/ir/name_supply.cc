@@ -25,20 +25,13 @@
 
 namespace tvm {
 
-NameSupply::NameSupply() { NameSupply("", {}); }
+NameSupply::NameSupply() : NameSupply("") {}
 
 NameSupply::NameSupply(const String& prefix, std::unordered_map<std::string, int> name_map) {
   auto n = make_object<NameSupplyNode>(prefix);
   n->name_map = std::move(name_map);
   data_ = std::move(n);
 }
-
-NameSupply NameSupply::NameSupplyWithPrefix(const String& prefix) {
-  auto name_supply = NameSupply(prefix);
-  return name_supply;
-}
-
-NameSupply NameSupply::EmptySupply() { return NameSupply::NameSupplyWithPrefix(""); }
 
 NameSupplyNode::NameSupplyNode(const String& prefix) : prefix_(prefix) {}
 
@@ -113,5 +106,10 @@ TVM_REGISTER_GLOBAL("ir.NameSupply_FreshName")
 
 TVM_REGISTER_GLOBAL("ir.NameSupply_ReserveName")
     .set_body_method<NameSupply>(&NameSupplyNode::ReserveName);
+
+TVM_REGISTER_GLOBAL("ir.NameSupply_ContainsName")
+    .set_body_method<NameSupply>(&NameSupplyNode::ContainsName);
+
+TVM_REGISTER_GLOBAL("ir.NameSupply_Clear").set_body_method<NameSupply>(&NameSupplyNode::Clear);
 
 }  // namespace tvm
