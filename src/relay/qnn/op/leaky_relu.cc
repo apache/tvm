@@ -71,8 +71,8 @@ Expr MakeQuantizedLeakyRelu(Expr x, double alpha, Expr input_scale, Expr input_z
   auto attrs = make_object<LeakyReluAttrs>();
   attrs->alpha = alpha;
   static const Op& op = Op::Get("qnn.leaky_relu");
-  return Call(op, {x, input_scale, input_zero_point, output_scale, output_zero_point},
-              Attrs(attrs), {});
+  return Call(op, {x, input_scale, input_zero_point, output_scale, output_zero_point}, Attrs(attrs),
+              {});
 }
 
 /*

@@ -352,10 +352,7 @@ def test_quantized_modules():
         # sample outputs
         """
         relu 0.0039215684 2.6052087e-08 0.9999933567176871
-        when _leaky_relu(fp32_piggy_back=True) in qnn_torch.py
-            leaky_relu 0.0 0.0 1.0
-        when _leaky_relu(fp32_piggy_back=False) in qnn_torch.py
-            leaky_relu 0.0039215535 2.6051987e-08 0.9999933567176871
+        leaky_relu 0.0 0.0 1.0
         upsample bilinear 0.0 0.0 1.0
         conv_bn 0.22062653 0.011478779 0.6909348115006899
         conv_bn_relu 0.3700896 0.010921672 0.7489366477964451
