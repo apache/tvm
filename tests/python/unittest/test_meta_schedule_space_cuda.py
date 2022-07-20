@@ -47,7 +47,7 @@ def test_cuda_c1d():
                             for ax0_ax1_ax2_fused in T.serial(260):
                                 with T.block("PadInput_shared"):
                                     v0 = T.axis.spatial(1, 0)
-                                    v1 = T.axis.spatial(258, i0_0_i1_0_i2_0_fused * 64 + ax0_ax1_ax2_fused % 260 // 4)
+                                    v1 = T.axis.spatial(258, i0_0_i1_0_i2_0_fused * 64 + ax0_ax1_ax2_fused // 4)
                                     v2 = T.axis.spatial(64, i4_0 * 4 + ax0_ax1_ax2_fused % 4)
                                     T.reads(inputs[v0, v1 - 1, v2])
                                     T.writes(PadInput_shared[v0, v1, v2])
@@ -64,11 +64,11 @@ def test_cuda_c1d():
                                     weight_shared[v0, v1, v2] = weight[v0, v1, v2]
                             for i3_1, i4_1, i0_3, i1_3, i2_3, i3_2, i4_2, i0_4, i1_4, i2_4 in T.grid(1, 2, 1, 1, 2, 3, 2, 1, 4, 8):
                                 with T.block("conv1d_nlc"):
-                                    n = T.axis.spatial(1, i0_4 + i0_3 + 0 + 0 + 0)
-                                    l = T.axis.spatial(128, (i0_0_i1_0_i2_0_fused % 4 * 8 + i0_1_i1_1_i2_1_fused % 16 // 2 + 0 + i1_3) * 4 + i1_4)
-                                    co = T.axis.spatial(128, (((0 * 2 + i0_1_i1_1_i2_1_fused % 2) * 4 + i0_2_i1_2_i2_2_fused % 4) * 2 + i2_3) * 8 + i2_4)
-                                    rl = T.axis.reduce(3, (i3_0 + i3_1) * 3 + i3_2)
-                                    rc = T.axis.reduce(64, (i4_0 * 2 + i4_1) * 2 + i4_2)
+                                    n = T.axis.spatial(1, i0_4 + i0_3)
+                                    l = T.axis.spatial(128, i0_0_i1_0_i2_0_fused * 32 + i0_1_i1_1_i2_1_fused // 2 * 4 + i1_3 * 4 + i1_4)
+                                    co = T.axis.spatial(128, i0_1_i1_1_i2_1_fused % 2 * 64 + i0_2_i1_2_i2_2_fused * 16 + i2_3 * 8 + i2_4)
+                                    rl = T.axis.reduce(3, i3_0 * 3 + i3_1 * 3 + i3_2)
+                                    rc = T.axis.reduce(64, i4_0 * 4 + i4_1 * 2 + i4_2)
                                     T.reads(PadInput_shared[n, l * 2 + rl, co // 128 * 64 + rc], weight_shared[rl, rc, co])
                                     T.writes(conv1d_nlc_local[n, l, co])
                                     T.block_attr({"meta_schedule.thread_extent_high_inclusive":1024, "meta_schedule.thread_extent_low_inclusive":32, "meta_schedule.tiling_structure":"SSSRRSRS"})
@@ -130,7 +130,7 @@ def test_cuda_c2d():
                             for ax0_ax1_ax2_ax3_fused in T.serial(80379):
                                 with T.block("PadInput_shared"):
                                     v0 = T.axis.spatial(1, 0)
-                                    v1 = T.axis.spatial(230, ax0_ax1_ax2_ax3_fused % 80379 // 351)
+                                    v1 = T.axis.spatial(230, ax0_ax1_ax2_ax3_fused // 351)
                                     v2 = T.axis.spatial(230, i0_0_i1_0_i2_0_i3_0_fused // 8 * 112 + ax0_ax1_ax2_ax3_fused % 351 // 3)
                                     v3 = T.axis.spatial(3, ax0_ax1_ax2_ax3_fused % 3)
                                     T.reads(inputs[v0, v1 - 3, v2 - 3, v3])
@@ -149,13 +149,13 @@ def test_cuda_c2d():
                                     weight_shared[v0, v1, v2, v3] = weight[v0, v1, v2, v3]
                             for i4_1, i5_1, i6_1, i0_3, i1_3, i2_3, i3_3, i4_2, i5_2, i6_2, i0_4, i1_4, i2_4, i3_4 in T.grid(1, 7, 1, 1, 8, 4, 1, 7, 1, 3, 1, 1, 1, 2):
                                 with T.block("conv2d_nhwc"):
-                                    n = T.axis.spatial(1, i0_4 + i0_3 + 0 + 0 + 0)
-                                    h = T.axis.spatial(112, ((0 + 0) * 14 + i0_2_i1_2_i2_2_i3_2_fused % 14) * 8 + i1_3 + i1_4)
-                                    w = T.axis.spatial(112, (i0_0_i1_0_i2_0_i3_0_fused % 16 // 8 * 14 + i0_1_i1_1_i2_1_i3_1_fused % 56 // 4 + 0) * 4 + i2_3 + i2_4)
-                                    co = T.axis.spatial(64, (i0_0_i1_0_i2_0_i3_0_fused % 8 * 4 + i0_1_i1_1_i2_1_i3_1_fused % 4 + 0 + i3_3) * 2 + i3_4)
-                                    rh = T.axis.reduce(7, (i4_0 + i4_1) * 7 + i4_2)
-                                    rw = T.axis.reduce(7, i5_0 * 7 + i5_1 + i5_2)
-                                    rc = T.axis.reduce(3, (i6_0 + i6_1) * 3 + i6_2)
+                                    n = T.axis.spatial(1, i0_3 + i0_4)
+                                    h = T.axis.spatial(112, i1_4 + i0_2_i1_2_i2_2_i3_2_fused * 8 + i1_3)
+                                    w = T.axis.spatial(112, i0_0_i1_0_i2_0_i3_0_fused // 8 * 56 + i0_1_i1_1_i2_1_i3_1_fused // 4 * 4 + i2_3 + i2_4)
+                                    co = T.axis.spatial(64, i0_0_i1_0_i2_0_i3_0_fused % 8 * 8 + i0_1_i1_1_i2_1_i3_1_fused % 4 * 2 + i3_3 * 2 + i3_4)
+                                    rh = T.axis.reduce(7, i4_0 * 7 + i4_1 * 7 + i4_2)
+                                    rw = T.axis.reduce(7, i5_2 + i5_0 * 7 + i5_1)
+                                    rc = T.axis.reduce(3, i6_0 * 3 + i6_1 * 3 + i6_2)
                                     T.reads(PadInput_shared[n, h * 2 + rh, w * 2 + rw, co // 64 * 3 + rc], weight_shared[rh, rw, rc, co])
                                     T.writes(conv2d_nhwc_local[n, h, w, co])
                                     T.block_attr({"meta_schedule.thread_extent_high_inclusive":1024, "meta_schedule.thread_extent_low_inclusive":32, "meta_schedule.tiling_structure":"SSSRRSRS"})
@@ -219,7 +219,7 @@ def test_cuda_c3d():
                             for ax0_ax1_ax2_ax3_ax4_fused in T.serial(1687959):
                                 with T.block("PadInput_shared"):
                                     v0 = T.axis.spatial(1, 0)
-                                    v1 = T.axis.spatial(22, ax0_ax1_ax2_ax3_ax4_fused % 1687959 // 80379)
+                                    v1 = T.axis.spatial(22, ax0_ax1_ax2_ax3_ax4_fused // 80379)
                                     v2 = T.axis.spatial(230, ax0_ax1_ax2_ax3_ax4_fused % 80379 // 351)
                                     v3 = T.axis.spatial(230, i0_0_i1_0_i2_0_i3_0_i4_0_fused * 112 + ax0_ax1_ax2_ax3_ax4_fused % 351 // 3)
                                     v4 = T.axis.spatial(3, ax0_ax1_ax2_ax3_ax4_fused % 3)
@@ -240,14 +240,14 @@ def test_cuda_c3d():
                                     weight_shared[v0, v1, v2, v3, v4] = weight[v0, v1, v2, v3, v4]
                             for i5_1, i6_1, i7_1, i8_1, i0_3, i1_3, i2_3, i3_3, i4_3, i5_2, i6_2, i7_2, i8_2, i0_4, i1_4, i2_4, i3_4, i4_4 in T.grid(7, 7, 1, 3, 1, 2, 2, 1, 32, 1, 1, 7, 1, 1, 1, 2, 4, 1):
                                 with T.block("conv3d_ndhwc"):
-                                    n = T.axis.spatial(1, i0_4 + i0_3 + 0 + 0 + 0)
-                                    d = T.axis.spatial(8, ((0 + 0) * 4 + i0_2_i1_2_i2_2_i3_2_i4_2_fused % 392 // 98) * 2 + i1_3 + i1_4)
-                                    h = T.axis.spatial(112, (((0 * 4 + i0_1_i1_1_i2_1_i3_1_i4_1_fused % 8 // 2) * 7 + i0_2_i1_2_i2_2_i3_2_i4_2_fused % 98 // 14) * 2 + i2_3) * 2 + i2_4)
-                                    w = T.axis.spatial(112, ((i0_0_i1_0_i2_0_i3_0_i4_0_fused % 2 * 2 + i0_1_i1_1_i2_1_i3_1_i4_1_fused % 2) * 7 + i0_2_i1_2_i2_2_i3_2_i4_2_fused % 14 // 2 + i3_3) * 4 + i3_4)
-                                    co = T.axis.spatial(64, ((0 + 0) * 2 + i0_2_i1_2_i2_2_i3_2_i4_2_fused % 2) * 32 + i4_3 + i4_4)
-                                    rd = T.axis.reduce(7, i5_0 * 7 + i5_1 + i5_2)
+                                    n = T.axis.spatial(1, i0_4 + i0_3)
+                                    d = T.axis.spatial(8, i1_4 + i0_2_i1_2_i2_2_i3_2_i4_2_fused // 98 * 2 + i1_3)
+                                    h = T.axis.spatial(112, i0_1_i1_1_i2_1_i3_1_i4_1_fused // 2 * 28 + i0_2_i1_2_i2_2_i3_2_i4_2_fused % 98 // 14 * 4 + i2_3 * 2 + i2_4)
+                                    w = T.axis.spatial(112, i0_0_i1_0_i2_0_i3_0_i4_0_fused * 56 + i0_1_i1_1_i2_1_i3_1_i4_1_fused % 2 * 28 + i0_2_i1_2_i2_2_i3_2_i4_2_fused % 14 // 2 * 4 + i3_3 * 4 + i3_4)
+                                    co = T.axis.spatial(64, i0_2_i1_2_i2_2_i3_2_i4_2_fused % 2 * 32 + i4_3 + i4_4)
+                                    rd = T.axis.reduce(7, i5_2 + i5_0 * 7 + i5_1)
                                     rh = T.axis.reduce(7, i6_0 * 7 + i6_1 + i6_2)
-                                    rw = T.axis.reduce(7, (i7_0 + i7_1) * 7 + i7_2)
+                                    rw = T.axis.reduce(7, i7_0 * 7 + i7_1 * 7 + i7_2)
                                     rc = T.axis.reduce(3, i8_0 * 3 + i8_1 + i8_2)
                                     T.reads(PadInput_shared[n, d * 2 + rd, h * 2 + rh, w * 2 + rw, co // 64 * 3 + rc], weight_shared[rd, rh, rw, rc, co])
                                     T.writes(conv3d_ndhwc_local[n, d, h, w, co])
@@ -338,15 +338,15 @@ def test_cuda_cap():
                                     weight_shared[v0, v1, v2, v3, v4, v5] = weight[v0, v1, v2, v3, v4, v5]
                             for i6_1, i7_1, i8_1, i9_1, i0_3, i1_3, i2_3, i3_3, i4_3, i5_3, i6_2, i7_2, i8_2, i9_2, i0_4, i1_4, i2_4, i3_4, i4_4, i5_4 in T.grid(1, 1, 1, 4, 1, 2, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 2, 8):
                                 with T.block("conv2d_capsule_nhwijc"):
-                                    n = T.axis.spatial(1, i0_4 + i0_3 + 0 + 0 + 0)
-                                    h = T.axis.spatial(8, (i0_0_i1_0_i2_0_i3_0_i4_0_i5_0_fused % 256 // 64 + 0 + 0) * 2 + i1_3 + i1_4)
-                                    w = T.axis.spatial(8, i0_0_i1_0_i2_0_i3_0_i4_0_i5_0_fused % 64 // 8 + 0 + 0 + i2_3 + i2_4)
-                                    cap_i = T.axis.spatial(4, (i0_0_i1_0_i2_0_i3_0_i4_0_i5_0_fused % 8 // 4 + 0) * 2 + i0_2_i1_2_i2_2_i3_2_i4_2_i5_2_fused % 4 // 2 + i3_3 + i3_4)
-                                    cap_j = T.axis.spatial(4, ((0 + 0) * 2 + i0_2_i1_2_i2_2_i3_2_i4_2_i5_2_fused % 2 + i4_3) * 2 + i4_4)
-                                    co = T.axis.spatial(32, (i0_0_i1_0_i2_0_i3_0_i4_0_i5_0_fused % 4 + 0 + 0 + i5_3) * 8 + i5_4)
-                                    rh = T.axis.reduce(3, i6_0 + i6_1 + i6_2)
+                                    n = T.axis.spatial(1, i0_4 + i0_3)
+                                    h = T.axis.spatial(8, i0_0_i1_0_i2_0_i3_0_i4_0_i5_0_fused // 64 * 2 + i1_3 + i1_4)
+                                    w = T.axis.spatial(8, i2_3 + i2_4 + i0_0_i1_0_i2_0_i3_0_i4_0_i5_0_fused % 64 // 8)
+                                    cap_i = T.axis.spatial(4, i3_3 + i3_4 + i0_0_i1_0_i2_0_i3_0_i4_0_i5_0_fused % 8 // 4 * 2 + i0_2_i1_2_i2_2_i3_2_i4_2_i5_2_fused // 2)
+                                    cap_j = T.axis.spatial(4, i0_2_i1_2_i2_2_i3_2_i4_2_i5_2_fused % 2 * 2 + i4_3 * 2 + i4_4)
+                                    co = T.axis.spatial(32, i0_0_i1_0_i2_0_i3_0_i4_0_i5_0_fused % 4 * 8 + i5_3 * 8 + i5_4)
+                                    rh = T.axis.reduce(3, i6_1 + i6_2 + i6_0)
                                     rw = T.axis.reduce(3, i7_0 + i7_1 + i7_2)
-                                    cap_k = T.axis.reduce(4, (i8_0 + i8_1) * 2 + i8_2)
+                                    cap_k = T.axis.reduce(4, i8_0 * 2 + i8_1 * 2 + i8_2)
                                     rc = T.axis.reduce(32, i9_0 * 4 + i9_1 + i9_2)
                                     T.reads(PadInput_shared[n, h * 2 + rh, w * 2 + rw, cap_i, cap_k, rc], weight_shared[rh, rw, cap_k, cap_j, rc, co])
                                     T.writes(conv2d_capsule_nhwijc_local[n, h, w, cap_i, cap_j, co])
@@ -436,12 +436,12 @@ def test_cuda_dep():
                                     placeholder_shared[v0, v1, v2, v3] = placeholder_1[v0, v1, v2, v3]
                             for i4_1, i5_1, i0_3, i1_3, i2_3, i3_3, i4_2, i5_2, i0_4, i1_4, i2_4, i3_4 in T.grid(3, 1, 1, 4, 16, 8, 1, 3, 1, 7, 1, 1):
                                 with T.block("depth_conv2d_nhwc"):
-                                    n = T.axis.spatial(1, i0_4 + i0_3 + 0 + 0 + 0)
-                                    h = T.axis.spatial(112, ((0 * 4 + i0_1_i1_1_i2_1_i3_1_fused % 8 // 2 + 0) * 4 + i1_3) * 7 + i1_4)
-                                    w = T.axis.spatial(112, ((0 + 0) * 7 + i0_2_i1_2_i2_2_i3_2_fused % 14 // 2) * 16 + i2_3 + i2_4)
-                                    c = T.axis.spatial(32, ((0 * 2 + i0_1_i1_1_i2_1_i3_1_fused % 2) * 2 + i0_2_i1_2_i2_2_i3_2_fused % 2) * 8 + i3_3 + i3_4)
-                                    rh = T.axis.reduce(3, i4_0 * 3 + i4_1 + i4_2)
-                                    rw = T.axis.reduce(3, (i5_0 + i5_1) * 3 + i5_2)
+                                    n = T.axis.spatial(1, i0_4 + i0_3)
+                                    h = T.axis.spatial(112, i0_1_i1_1_i2_1_i3_1_fused // 2 * 28 + i1_3 * 7 + i1_4)
+                                    w = T.axis.spatial(112, i2_4 + i0_2_i1_2_i2_2_i3_2_fused // 2 * 16 + i2_3)
+                                    c = T.axis.spatial(32, i0_1_i1_1_i2_1_i3_1_fused % 2 * 16 + i0_2_i1_2_i2_2_i3_2_fused % 2 * 8 + i3_3 + i3_4)
+                                    rh = T.axis.reduce(3, i4_2 + i4_0 * 3 + i4_1)
+                                    rw = T.axis.reduce(3, i5_0 * 3 + i5_1 * 3 + i5_2)
                                     T.reads(PadInput_shared[n, h + rh, w + rw, c], placeholder_shared[0, rh, rw, c])
                                     T.writes(depth_conv2d_nhwc_local[n, h, w, c])
                                     T.block_attr({"meta_schedule.thread_extent_high_inclusive":1024, "meta_schedule.thread_extent_low_inclusive":32, "meta_schedule.tiling_structure":"SSSRRSRS"})
@@ -522,13 +522,13 @@ def test_cuda_dil():
                                     weight_shared[v0, v1, v2, v3] = weight[v0, v1, v2, v3]
                             for i4_1, i5_1, i6_1, i0_3, i1_3, i2_3, i3_3, i4_2, i5_2, i6_2, i0_4, i1_4, i2_4, i3_4 in T.grid(1, 1, 1, 1, 1, 1, 8, 1, 1, 1, 1, 1, 1, 4):
                                 with T.block("conv2d_nhwc"):
-                                    n = T.axis.spatial(1, i0_4 + i0_3 + 0 + 0 + 0)
-                                    h = T.axis.spatial(109, i0_0_i1_0_i2_0_i3_0_fused % 218 // 2 + 0 + 0 + i1_3 + i1_4)
-                                    w = T.axis.spatial(109, 0 * 109 + i0_1_i1_1_i2_1_i3_1_fused % 109 + 0 + i2_3 + i2_4)
-                                    co = T.axis.spatial(64, ((i0_0_i1_0_i2_0_i3_0_fused % 2 + 0 + 0) * 8 + i3_3) * 4 + i3_4)
+                                    n = T.axis.spatial(1, i0_3 + i0_4)
+                                    h = T.axis.spatial(109, i1_4 + i0_0_i1_0_i2_0_i3_0_fused // 2 + i1_3)
+                                    w = T.axis.spatial(109, i0_1_i1_1_i2_1_i3_1_fused + i2_3 + i2_4)
+                                    co = T.axis.spatial(64, i0_0_i1_0_i2_0_i3_0_fused % 2 * 32 + i3_3 * 4 + i3_4)
                                     rh = T.axis.reduce(7, i4_0 + i4_1 + i4_2)
-                                    rw = T.axis.reduce(7, i5_0 + i5_1 + i5_2)
-                                    rc = T.axis.reduce(3, i6_0 + i6_1 + i6_2)
+                                    rw = T.axis.reduce(7, i5_2 + i5_0 + i5_1)
+                                    rc = T.axis.reduce(3, i6_1 + i6_2 + i6_0)
                                     T.reads(PadInput_shared[n, h * 2 + rh * 2, w * 2 + rw * 2, co // 64 * 3 + rc], weight_shared[rh, rw, rc, co])
                                     T.writes(conv2d_nhwc_local[n, h, w, co])
                                     T.block_attr({"meta_schedule.thread_extent_high_inclusive":1024, "meta_schedule.thread_extent_low_inclusive":32, "meta_schedule.tiling_structure":"SSSRRSRS"})
