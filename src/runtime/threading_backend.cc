@@ -41,6 +41,8 @@
 #include <stdlib.h>
 #define HEXAGON_STACK_SIZE 65536
 #define HEXAGON_STACK_ALIGNMENT 32
+#elif defined(_WIN32)
+#include <windows.h>
 #else
 #include <sys/syscall.h>
 #include <unistd.h>
@@ -344,7 +346,13 @@ class ThreadGroup::Impl {
   }
 
 #ifndef __hexagon__
-  pid_t Tid() { return syscall(SYS_gettid); }
+  pid_t Tid() {
+#if defined(_WIN32)
+    return GetCurentThreadId();
+#else
+    return syscall(SYS_gettid);
+#endif
+  }
   void SetTid(size_t index) { threads_tid_[index] = Tid(); }
   pid_t GetTid(size_t thread_index) { return threads_tid_[thread_index]; }
 #endif  // __hexagon__
