@@ -216,7 +216,8 @@ def _type_check(v: Any, name: str, type_: Any) -> Optional[str]:
     return _TYPE_CHECK[key](v, name, *subtypes)
 
 
-_F_TYPE = TypeVar('_F_TYPE', bound=Callable[..., Any])
+_F_TYPE = TypeVar("_F_TYPE", bound=Callable[..., Any])
+
 
 def type_checked(func: _F_TYPE) -> _F_TYPE:
     """Type check the input arguments of a function."""
