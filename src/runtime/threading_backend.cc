@@ -345,12 +345,8 @@ class ThreadGroup::Impl {
 
 #ifndef __hexagon__
   pid_t Tid() { return syscall(SYS_gettid); }
-  void SetTid(size_t index) {
-    threads_tid_[index] = Tid();
-  }
-  pid_t GetTid(size_t thread_index) {
-    return threads_tid_[thread_index];
-  }
+  void SetTid(size_t index) { threads_tid_[index] = Tid(); }
+  pid_t GetTid(size_t thread_index) { return threads_tid_[thread_index]; }
 #endif  // __hexagon__
 
   int num_workers_;
