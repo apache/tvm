@@ -62,6 +62,8 @@ class GlobalVarSupply(Object):
         if value is None:
             name_supply = NameSupply("")
             self.__init_handle_by_constructor__(_ffi_api.GlobalVarSupply_NameSupply, name_supply)
+        elif isinstance(value, NameSupply):
+            self.__init_handle_by_constructor__(_ffi_api.GlobalVarSupply_NameSupply, value)
         elif isinstance(value, (list, tvm.container.Array)):
             self.__init_handle_by_constructor__(_ffi_api.GlobalVarSupply_IRModules, value)
         elif isinstance(value, IRModule):

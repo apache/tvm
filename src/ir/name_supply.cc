@@ -40,7 +40,7 @@ String NameSupplyNode::ReserveName(const String& name, bool add_prefix) {
   if (add_prefix) {
     final_name = prefix_module_name(name);
   }
-  name_map[final_name] = 1;
+  name_map[final_name] = 0;
   return final_name;
 }
 
