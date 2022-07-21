@@ -72,8 +72,8 @@ net, params, data_shape = get_network()
 ###########################################
 # Splitting the network into two subgraphs.
 # -----------------------------------------
-# It is an example that the graph splitting function comes from a unit test. User can create  a
-# customized function to split the graph.
+# This function called 'graph_split' from a unit test is just an example. User can create a customized logic
+# to split the graph.
 import inspect
 import os
 
@@ -162,9 +162,8 @@ pipe_config = pipeline_executor_build.PipelineConfig()
 pipe_config[mod0].target = "llvm"
 pipe_config[mod0].dev = tvm.cpu(0)
 ###############################################################################
-# Set the cpu afinity for control flow, for example using cpu 0 for control flow.
+# Set the cpu affinity for control flow, for example using cpu 0 for control flow.
 pipe_config[mod1].cpu_affinity = "0"
-pipe_config[mod1].export_cc = None
 ##############################################################
 # Set the compile target of the second subgraph module as cuda.
 pipe_config[mod1].target = "cuda"
