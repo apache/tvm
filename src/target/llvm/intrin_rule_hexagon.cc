@@ -40,7 +40,7 @@ namespace codegen {
 namespace llvm {
 using tir::FLowerIntrinsic;
 
-inline PrimExpr TVMExternCall(const tir::CallNode* call, std::string& fname) {
+inline PrimExpr TVMExternCall(const tir::CallNode* call, const std::string& fname) {
   Array<PrimExpr> new_args = {tir::StringImm(fname)};
   for (PrimExpr arg : call->args) {
     new_args.push_back(arg);
@@ -77,7 +77,7 @@ inline PrimExpr DispatchTVMQHLWrapperFp16(const PrimExpr& e) {
   new_args.insert(new_args.end(), call->args.begin(), call->args.end());
   return tir::Call(call->dtype, tir::builtin::call_llvm_pure_intrin(), new_args);
 }
- 
+
 TVM_REGISTER_OP("tir.fma").set_attr<FLowerIntrinsic>(
     "hexagon.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::fmuladd, 3>);
 

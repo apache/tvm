@@ -78,7 +78,7 @@ class CodeGenHexagon final : public CodeGenCPU {
   llvm::Value* VisitExpr_(const BufferLoadNode* op) override;
 
   llvm::Module* GetModulePtr() const { return module_.get(); }
-  
+
   llvm::Value* CreateCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
             bool skip_first_arg) override;
 
@@ -105,7 +105,7 @@ class CodeGenHexagon final : public CodeGenCPU {
   llvm::Value* GetContextPtr(llvm::GlobalVariable* gv);
 
   bool IsQHLFunction(const std::string& func);
-  
+
   std::vector<std::string> fqhl_list_ = {
       "tvm_vect_qhmath_hvx_cos_ahf",     "tvm_vect_qhmath_hvx_tanh_ahf",
       "tvm_vect_qhmath_hvx_sigmoid_ahf", "tvm_vect_qhmath_hvx_sin_ahf",
