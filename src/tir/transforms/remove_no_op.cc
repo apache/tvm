@@ -55,7 +55,9 @@ class NoOpRemover : public StmtMutator {
         // A negative wait count can arise if it depends on a loop variable.
         // For example, a wait count 1 - i can be negative after loop unrolling.
         // We assume that such wait is a nop.
-        return Evaluate(0);
+        auto inner = op->body.as<AttrStmtNode>();
+	ICHECK(inner);
+        return StmtMutator::VisitStmt(inner->body);
       }
     }
 
