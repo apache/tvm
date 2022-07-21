@@ -239,4 +239,4 @@ def type_checked(func: _F_TYPE) -> _F_TYPE:
                     raise TypeError(error_msg)
         return func(*args, **kwargs)
 
-    return wrap
+    return wrap  # type: ignore
