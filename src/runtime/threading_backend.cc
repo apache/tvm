@@ -57,7 +57,7 @@ namespace runtime {
 namespace threading {
 
 #if defined(_WIN32)
-using pid_t = long;
+using pid_t = DWORD;
 #endif
 
 #ifdef __hexagon__
