@@ -131,14 +131,26 @@ class PipelineModule(object):
         """
         return self._get_input(key)
 
-    def get_output(self):
+    def get_output(self, synchronize=True, sleep_interval=0.001):
         """Get the output.
         Returns
         -------
         data : Array[NDArray]
             A list of output data.
+        synchronize : BOOL
+            Whether to do a synchronize poll.
+        sleep_interval : Float32
+            When doing the synchronize loop poll, how many seconds the loop should sleep for yield.
         """
-        return self._get_output()
+        outputs = []
+        if not synchronize:
+            outputs = self._get_output()
+        else:
+            while not outputs:
+                outputs = pipeline_module.get_output()
+                time.sleep(sleep_interval)
+
+        return outputs
 
     @property
     def num_executing_pipeline(self):

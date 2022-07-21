@@ -145,7 +145,7 @@ def cutlass_build(mod, target, params=None, target_host=None, mod_name="default"
 ###########################################################
 # Run the two subgraphs in pipeline with pipeline executor.
 # ---------------------------------------------------------
-# Set 'USE_PIPELINE_EXECUTOR' as ON, and set USE_CUTLASS' as ON.
+# Set 'USE_PIPELINE_EXECUTOR' as ON, and set USE_CUTLASS' as ON  in cmake.
 from tvm.contrib import graph_executor, pipeline_executor, pipeline_executor_build
 
 #########################################
@@ -205,8 +205,6 @@ with tvm.transform.PassContext(opt_level=3):
 ###############################################
 # Export the parameter configuration to a file.
 directory_path = tvm.contrib.utils.tempdir().temp_dir
-#############################################
-# If the directory does not exist, create it.
 os.makedirs(directory_path, exist_ok=True)
 config_file_name = pipeline_mod_factory.export_library(directory_path)
 ################################################################
@@ -221,12 +219,10 @@ pipeline_module = pipeline_executor.PipelineModule.load_library(config_file_name
 data = np.random.uniform(-1, 1, size=data_shape).astype("float16")
 pipeline_module.set_input("data", tvm.nd.array(data))
 ##########################################################################
-# Run the two subgraph in pipeline mode and get the output asynchronously.
+# Run the two subgraph in the pipeline mode to get the output asynchronously
+# or synchronously. In the following example, it is synchronous.
 pipeline_module.run()
-outputs = []
-while not outputs:
-    outputs = pipeline_module.get_output()
-    time.sleep(0.001)
+outputs = pipeline_module.get_output()
 ######################################
 # Use graph_executor for verification.
 # ------------------------------------
