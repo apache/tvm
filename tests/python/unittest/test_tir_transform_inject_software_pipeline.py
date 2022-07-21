@@ -1389,7 +1389,6 @@ def get_mma_schedule():
 
 
 def build_and_run(sch):
-    return
     if tvm.testing.is_ampere_or_newer():
         with tvm.transform.PassContext(config={"tir.use_ptx_async_copy": 1}):
             f = tvm.build(sch.mod["main"], target="cuda")
@@ -1405,10 +1404,10 @@ def build_and_run(sch):
         tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-3)
         print("ok")
 
-        # evaluator = f.time_evaluator(f.entry_name, dev, number=500)
-        # gflops = (N * M * K) * 2 / 1e9
-        # time_ms = evaluator(a, b, c).mean * 1e3
-        # print("matmul with tensor core: %f ms, %f GFLOPS" % (time_ms, gflops / (time_ms / 1e3)))
+        evaluator = f.time_evaluator(f.entry_name, dev, number=500)
+        gflops = (N * M * K) * 2 / 1e9
+        time_ms = evaluator(a, b, c).mean * 1e3
+        print("matmul with tensor core: %f ms, %f GFLOPS" % (time_ms, gflops / (time_ms / 1e3)))
 
 
 @tvm.testing.requires_cuda
@@ -1499,45 +1498,6 @@ def test_async_nested_pipeline_mma_gemm_ideal_annotation():
     build_and_run(sch)
 
 
-@tvm.testing.requires_cuda
-def test_async_nested_pipeline_mma_gemm_bad_annotation():
-    sch = get_mma_schedule()
-
-    k0 = sch.get_loops(sch.get_block("C_o_update"))[3]
-    k1 = sch.get_loops(sch.get_block("C_o_update"))[4]
-
-    # This puts ldmatrix, the consumer of async copy, in the same stage as async copy
-    # So we need to put wait_queue(0) before ldmatrix, to force all async copies to
-    # complete immediately.
-    sch.annotate(k0, ann_key="software_pipeline_stage", ann_val=[0, 0, 0, 3, 3])
-    sch.annotate(k0, ann_key="software_pipeline_order", ann_val=[0, 1, 3, 2, 4])
-    sch.annotate(k0, ann_key="software_pipeline_async_stages", ann_val=[0])
-
-    sch.annotate(k1, ann_key="software_pipeline_stage", ann_val=[0, 0, 1])
-    sch.annotate(k1, ann_key="software_pipeline_order", ann_val=[0, 1, 2])
-
-    seq = tvm.transform.Sequential(
-        [
-            tvm.tir.transform.PlanAndUpdateBufferAllocationLocation(),
-            tvm.tir.transform.ConvertBlocksToOpaque(),
-            tvm.tir.transform.UnifyThreadBinding(),
-            tvm.tir.transform.LowerMatchBuffer(),
-            tvm.tir.transform.InjectSoftwarePipeline(),
-        ]
-    )
-    mod = seq(sch.mod)
-
-    pipeline = mod["main"].body.block.body.body.body.body.body.block.body[1].block.body
-    body = pipeline[1]
-
-    assert body.block.body.body[1].block.body.body.attr_key == "async_wait_inflight_count"
-    assert body.block.body.body[1].block.body.body.value == 0
-
-    build_and_run(sch)
-
-
 if __name__ == "__main__":
-    tvm.testing.main()
-    test_async_pipelined_mma_gemm_simple()
+    # tvm.testing.main()
     test_async_nested_pipeline_mma_gemm_ideal_annotation()
-    test_async_nested_pipeline_mma_gemm_bad_annotation()
