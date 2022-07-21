@@ -439,7 +439,7 @@ class FunctionDoc(StmtDoc):
     name: IdDoc
     args: Sequence[AssignDoc]
     decorators: Sequence[ExprDoc]
-    return_type: ExprDoc
+    return_type: Optional[ExprDoc]
     body: Sequence[StmtDoc]
 
     def __init__(
@@ -447,7 +447,7 @@ class FunctionDoc(StmtDoc):
         name: IdDoc,
         args: List[AssignDoc],
         decorators: List[ExprDoc],
-        return_type: ExprDoc,
+        return_type: Optional[ExprDoc],
         body: List[StmtDoc],
     ):
         self.__init_handle_by_constructor__(
