@@ -29,11 +29,6 @@ from tvm.relay.backend.contrib.uma._template.codegen import gen_includes
 
 from tvm.relay.backend.contrib.uma._template.patterns import conv2d_pattern
 
-# def conv2d_pattern():
-#     pattern = is_op("nn.conv2d")(wildcard(), wildcard())
-#     pattern = pattern.has_attr({"strides": [1, 1]})
-#     return pattern
-
 
 class VanillaAcceleratorBackend(UMABackend):
     """UMA backend for the VanillaAccelerator accelerator."""

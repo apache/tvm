@@ -296,6 +296,9 @@ set(USE_VTA_FPGA OFF)
 # Whether use Thrust
 set(USE_THRUST OFF)
 
+# Whether use cuRAND
+set(USE_CURAND OFF)
+
 # Whether to build the TensorFlow TVMDSOOp module
 set(USE_TF_TVMDSOOP OFF)
 

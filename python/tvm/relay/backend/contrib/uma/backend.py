@@ -124,10 +124,10 @@ class UMABackend(ABC):
         Parameters
         ----------
         name: str
-           The name of the pattern.
+           The name of the pattern
 
         pattern: tvm.relay.dataflow_pattern.DFPattern
-            The dataflow pattern.
+            Relay DFPattern
 
         predicate: Callable Receiving the matched pattern and
 
