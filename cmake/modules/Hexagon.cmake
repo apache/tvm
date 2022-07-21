@@ -89,6 +89,10 @@ endif()
 
 # From here on, USE_HEXAGON is assumed to be TRUE.
 
+if(BUILD_FOR_HOST AND USE_HEXAGON_QHL)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DENABLE_QHL")
+endif()
+
 function(add_android_paths)
   get_hexagon_sdk_property("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}"
     SDK_INCLUDE SDK_INCLUDE_DIRS
@@ -148,8 +152,27 @@ if(BUILD_FOR_HEXAGON)
   include_directories(SYSTEM ${SDK_INCLUDE_DIRS} ${QURT_INCLUDE_DIRS})
 
   set(USE_CUSTOM_LOGGING ON) # To use a custom logger
-endif()
 
+# QHL support.
+  if(USE_HEXAGON_QHL)
+    file_glob_append(TVM_QHL_WRAPPER_SRCS
+      "${TVMRT_SOURCE_DIR}/hexagon/qhl/*.cc"
+    )
+
+    include_directories(
+      "${USE_HEXAGON_SDK}/libs/qhl_hvx/inc/qhmath_hvx"
+      "${USE_HEXAGON_SDK}/libs/qhl_hvx/inc/internal/"
+
+      "${USE_HEXAGON_SDK}/libs/qhl/inc/qhmath"
+      "${USE_HEXAGON_SDK}/libs/qhl/src/internal/"
+      )
+    set_property(SOURCE ${TVM_QHL_WRAPPER_SRCS} APPEND_STRING  PROPERTY COMPILE_FLAGS "-Wno-narrowing -mhvx -mhvx-length=128B")
+
+    list(APPEND TVM_RUNTIME_LINKER_LIBS -Wl,--whole-archive ${USE_HEXAGON_SDK}/libs/qhl_hvx/prebuilt/hexagon_toolv84_v68/libqhmath_hvx.a -Wl,--no-whole-archive)
+    list(APPEND TVM_RUNTIME_LINKER_LIBS -Wl,--whole-archive ${USE_HEXAGON_SDK}/libs/qhl/prebuilt/hexagon_toolv84_v68/libqhmath.a -Wl,--no-whole-archive)
+
+  endif()
+endif()
 
 if(USE_HEXAGON_RPC)
   function(build_rpc_idl)
@@ -238,5 +261,4 @@ if(USE_HEXAGON_RPC)
   endif()
 endif()   # USE_HEXAGON_RPC
 
-
-list(APPEND RUNTIME_SRCS ${RUNTIME_HEXAGON_SRCS})
+list(APPEND RUNTIME_SRCS ${RUNTIME_HEXAGON_SRCS} ${TVM_QHL_WRAPPER_SRCS})
