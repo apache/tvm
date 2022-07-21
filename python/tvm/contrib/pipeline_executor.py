@@ -17,10 +17,10 @@
 """Pipeline executor that executes a series of modules in a pipeline fashion."""
 import json
 import os
+import time
 from tvm import runtime
 from tvm._ffi import get_global_func
 from tvm.contrib import graph_executor
-import time
 
 
 def pipeline_executor_enabled():
