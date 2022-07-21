@@ -30,10 +30,8 @@
 // QHL functions with 2 input args
 #define TVM_QHL_WRAPPER_DECL_2IP(NAME) HVX_Vector tvm_vect_##NAME(HVX_Vector ip1, HVX_Vector ip2);
 
-#define TVM_QHL_WRAPPER_AHF_1IP(NAME)               \
-  HVX_Vector tvm_vect_##NAME(HVX_Vector input) {    \
-    return wrapper_api<__fp16>(input, NAME, #NAME); \
-  }
+#define TVM_QHL_WRAPPER_AHF_1IP(NAME) \
+  HVX_Vector tvm_vect_##NAME(HVX_Vector input) { return wrapper_api<__fp16>(input, NAME, #NAME); }
 
 #define TVM_QHL_WRAPPER_AHF_2IP(NAME)                          \
   HVX_Vector tvm_vect_##NAME(HVX_Vector ip1, HVX_Vector ip2) { \

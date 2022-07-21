@@ -24,9 +24,6 @@ from tvm import relay
 from tvm.relay.op.contrib import cmsisnn
 
 from tvm.testing.aot import generate_ref_data, AOTTestModel, compile_and_run
-from tvm.micro.testing.aot_test_utils import (
-    AOT_USMP_CORSTONE300_RUNNER,
-)
 from .utils import (
     make_module,
     get_range_for_dtype_str,
@@ -34,6 +31,7 @@ from .utils import (
     make_qnn_relu,
     assert_partitioned_function,
     assert_no_external_function,
+    create_test_runner,
 )
 
 
@@ -100,6 +98,9 @@ def make_model(
     "input_zero_point, input_scale, kernel_scale",
     [(10, 0.0128, 0.11), (-64, 0.0256, 1.37)],
 )
+@pytest.mark.parametrize(
+    "compiler_cpu, cpu_flags", [("cortex-m55", "+nomve"), ("cortex-m55", ""), ("cortex-m7", "")]
+)
 def test_op_int8(
     in_shape,
     enable_bias,
@@ -107,11 +108,12 @@ def test_op_int8(
     input_scale,
     kernel_scale,
     out_channels,
+    compiler_cpu,
+    cpu_flags,
 ):
     """Test QNN fully connected layer"""
     interface_api = "c"
     use_unpacked_api = True
-    test_runner = AOT_USMP_CORSTONE300_RUNNER
 
     dtype = "int8"
     kernel_zero_point = 0
@@ -160,7 +162,7 @@ def test_op_int8(
             params=params,
             output_tolerance=1,
         ),
-        test_runner,
+        create_test_runner(compiler_cpu, cpu_flags),
         interface_api,
         use_unpacked_api,
     )
