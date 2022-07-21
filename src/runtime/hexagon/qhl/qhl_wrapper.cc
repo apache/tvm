@@ -17,24 +17,21 @@
  * under the License.
  */
 #if defined(__hexagon__)
-#include <stdio.h>
 #include <hexagon_types.h>
+#include <stdio.h>
 #include <tvm/runtime/logging.h>
 
 #define restrict __restrict__
 #define LOG2VLEN 7
 
 // QHL functions with 1 input arg
-#define TVM_QHL_WRAPPER_DECL_1IP(NAME) \
-  HVX_Vector tvm_vect_##NAME(HVX_Vector input);
+#define TVM_QHL_WRAPPER_DECL_1IP(NAME) HVX_Vector tvm_vect_##NAME(HVX_Vector input);
 
 // QHL functions with 2 input args
-#define TVM_QHL_WRAPPER_DECL_2IP(NAME) \
-  HVX_Vector tvm_vect_##NAME(HVX_Vector ip1, HVX_Vector ip2);
+#define TVM_QHL_WRAPPER_DECL_2IP(NAME) HVX_Vector tvm_vect_##NAME(HVX_Vector ip1, HVX_Vector ip2);
 
 #define TVM_QHL_WRAPPER_AHF_1IP(NAME)               \
   HVX_Vector tvm_vect_##NAME(HVX_Vector input) {    \
-    printf("\nin qhl wrapper of tanh\n");           \
     return wrapper_api<__fp16>(input, NAME, #NAME); \
   }
 
@@ -63,24 +60,19 @@ TVM_QHL_WRAPPER_DECL_1IP(qhmath_hvx_tanh_ahf)
 TVM_QHL_WRAPPER_DECL_2IP(qhmath_hvx_pow_ahf)
 }
 template <typename T>
-HVX_Vector wrapper_api(HVX_Vector input, qhlFptr qhl_api,
-                       const char* qhl_api_name) {
+HVX_Vector wrapper_api(HVX_Vector input, qhlFptr qhl_api, const char* qhl_api_name) {
   HVX_Vector output;
-  int32_t res =
-      qhl_api(reinterpret_cast<T*>(&input), reinterpret_cast<T*>(&output), 64);
-  if (res != 0)
-    LOG(FATAL) << "Error. Failed execution of " << qhl_api_name << "  Error=" << res;
+  int32_t res = qhl_api(reinterpret_cast<T*>(&input), reinterpret_cast<T*>(&output), 64);
+  if (res != 0) LOG(FATAL) << "Error. Failed execution of " << qhl_api_name << "  Error=" << res;
   return output;
 }
 
 template <typename T>
-HVX_Vector wrapper_api(HVX_Vector ip1, HVX_Vector ip2, qhlFptr2 qhl_api,
-                       const char* qhl_api_name) {
+HVX_Vector wrapper_api(HVX_Vector ip1, HVX_Vector ip2, qhlFptr2 qhl_api, const char* qhl_api_name) {
   HVX_Vector output;
   int32_t res = qhl_api(reinterpret_cast<T*>(&ip1), reinterpret_cast<T*>(&ip2),
                         reinterpret_cast<T*>(&output), 64);
-  if (res != 0)
-    LOG(FATAL) << "Error. Failed execution of " << qhl_api_name << "Error=" << res;
+  if (res != 0) LOG(FATAL) << "Error. Failed execution of " << qhl_api_name << "Error=" << res;
   return output;
 }
 

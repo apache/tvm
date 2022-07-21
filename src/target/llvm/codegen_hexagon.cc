@@ -80,10 +80,10 @@ class CodeGenHexagon final : public CodeGenCPU {
   llvm::Module* GetModulePtr() const { return module_.get(); }
 
   llvm::Value* CreateCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
-            bool skip_first_arg) override;
+                                bool skip_first_arg) override;
 
   llvm::Value* CreateCallExternQHL(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
-            bool skip_first_arg);
+                                   bool skip_first_arg);
 
   uint64_t GetTypeSizeInBits(llvm::Type* type) const {
 #if TVM_LLVM_VERSION >= 100

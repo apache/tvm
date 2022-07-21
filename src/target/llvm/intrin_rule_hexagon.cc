@@ -20,9 +20,7 @@
 #ifdef TVM_LLVM_VERSION
 
 #include <llvm/IR/Intrinsics.h>
-
 #include <tvm/tir/op.h>
-
 #include <tvm/tir/op_attr_types.h>
 
 #include "intrin_rule_llvm.h"
