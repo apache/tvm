@@ -1072,8 +1072,8 @@ class PipelineInjector : private StmtExprMutator {
     std::unordered_set<int> pipeline_async_stages;
     if (op->annotations.count("software_pipeline_async_stages")) {
       auto annot = op->annotations.at("software_pipeline_async_stages");
-      for (auto s: Downcast<Array<Integer>>(annot)) {
-	pipeline_async_stages.insert(s->value);
+      for (auto s : Downcast<Array<Integer>>(annot)) {
+        pipeline_async_stages.insert(s->value);
       }
     }
 
@@ -1081,7 +1081,8 @@ class PipelineInjector : private StmtExprMutator {
       int stage = static_cast<int>(pipeline_stages[i]->value);
       bool is_async = pipeline_async_stages.find(stage) != pipeline_async_stages.end();
       PipelineAnnotation stage_order{stage,
-                                     /*order=*/static_cast<int>(pipeline_orders[i]->value), is_async};
+                                     /*order=*/static_cast<int>(pipeline_orders[i]->value),
+                                     is_async};
       pipeline_info.emplace(original_order[i], stage_order);
     }
 

@@ -56,7 +56,7 @@ class NoOpRemover : public StmtMutator {
         // For example, a wait count 1 - i can be negative after loop unrolling.
         // We assume that such wait is a nop.
         auto inner = op->body.as<AttrStmtNode>();
-	ICHECK(inner);
+        ICHECK(inner);
         return StmtMutator::VisitStmt(inner->body);
       }
     }
