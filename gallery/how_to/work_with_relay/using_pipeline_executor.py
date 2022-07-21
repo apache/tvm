@@ -72,8 +72,8 @@ net, params, data_shape = get_network()
 ###########################################
 # Splitting the network into two subgraphs.
 # -----------------------------------------
-# The graph splitting function comming from a uinit test is an example. User can create  a
-# customized function for graph splitting.
+# It is an example that the graph splitting function comes from a unit test. User can create  a
+# customized function to split the graph.
 import inspect
 import os
 
