@@ -20,6 +20,7 @@ import os
 from tvm import runtime
 from tvm._ffi import get_global_func
 from tvm.contrib import graph_executor
+import time
 
 
 def pipeline_executor_enabled():
@@ -147,7 +148,7 @@ class PipelineModule(object):
             outputs = self._get_output()
         else:
             while not outputs:
-                outputs = pipeline_module.get_output()
+                outputs = self._get_output()
                 time.sleep(sleep_interval)
 
         return outputs

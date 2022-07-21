@@ -29,7 +29,6 @@ from tvm.relay.op.contrib.cutlass import partition_for_cutlass
 from tvm import relay
 from tvm.relay import testing
 import tvm.testing
-import time
 from tvm.contrib.cutlass import (
     has_cutlass,
     num_cutlass_partitions,
