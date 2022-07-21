@@ -349,6 +349,19 @@ class EthosnCompiler {
       NetworkWithIDs network, const std::unique_ptr<sl::CompiledNetwork>& compiled_network);
 
   /*!
+   * \brief Determine the input and output sizes of a compiled network.
+   *
+   * These need to be queried from the compiled network as the compiler can choose
+   * to add additional padding on the input/output in certain cases.
+   *
+   * \param compiled_network The network compiled by the NPU compiler.
+   * \return Pair of vectors of buffer sizes for both the inputs and outputs of the
+   * network.
+   */
+  static std::pair<std::vector<uint32_t>, std::vector<uint32_t>> GetIOSizes(
+      const std::unique_ptr<sl::CompiledNetwork>& compiled_network);
+
+  /*!
    * \brief Query interface used to determine if the Ethos-N hardware supports an operation
    * with the supplied parameters.
    */
