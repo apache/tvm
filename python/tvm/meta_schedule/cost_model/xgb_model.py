@@ -774,7 +774,7 @@ class XGBoostCallback(TrainingCallback):
     """Base class for XGBoost callbacks."""
 
     def __call__(self, env: "xgb.core.CallbackEnv"):
-        """Compatibility with xgboost<1.3"""
+        # Compatibility with xgboost < 1.3
         return self.after_iteration(env.model, env.iteration, env.evaluation_result_list)
 
     def after_iteration(self, model: "xgb.Booster", epoch: int, evals_log: Dict):
@@ -805,6 +805,7 @@ class XGBoostCustomCallback(XGBoostCallback):
             self.aggregated_cv = None
 
     def init(self, model: "xgb.Booster"):
+        """Internal function for intialization"""
         booster: "xgb.Booster" = model
         self.state["best_iteration"] = 0
         self.state["best_score"] = float("inf")
@@ -820,10 +821,12 @@ class XGBoostCustomCallback(XGBoostCallback):
             booster.set_attr(best_score=str(self.state["best_score"]))
 
     def after_iteration(self, model: "xgb.Booster", epoch: int, evals_log: Dict):
+        """Internal function for after_iteration"""
+        # pylint:disable = import-outside-toplevel
         try:
             from xgboost.callback import _fmt_metric  # type: ignore
         except ImportError:
-            """Compatibility with xgboost>=1.6"""
+            # Compatibility with xgboost >= 1.6
 
             def _fmt_metric(value, show_stdv=True):
                 if len(value) == 2:
@@ -834,6 +837,7 @@ class XGBoostCustomCallback(XGBoostCallback):
                     return f"{value[0]}:{value[1]:.5f}"
                 raise ValueError("wrong metric value", value)
 
+        import xgboost as xgb
         from xgboost import rabit  # type: ignore
 
         try:
