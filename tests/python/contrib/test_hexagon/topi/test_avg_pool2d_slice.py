@@ -17,6 +17,8 @@
 
 import pytest
 import numpy as np
+from typing import *
+import collections
 
 from tvm import te
 import tvm.testing
@@ -25,6 +27,7 @@ from tvm.contrib.hexagon.build import HexagonLauncher
 from tvm.contrib.hexagon.session import Session
 import tvm.topi.hexagon.slice_ops as sl
 from ..infrastructure import allocate_hexagon_array, transform_numpy
+from ..pytest_util import get_multitest_ids
 
 
 input_layout = tvm.testing.parameter(
@@ -48,18 +51,19 @@ def transformed_input_np_padded(input_np_padded, input_layout):
 
 
 class TestAvgPool2dSlice:
-    # NOTE: input_layout is always assumed to be "nhwc-8h2w32c2w-2d"
-    (
-        output_shape,
-        kernel,
-        stride,
-        dilation,
-        padding,
-        ceil_mode,
-        count_include_pad,
-        output_layout,
-        dtype,
-    ) = tvm.testing.parameters(
+    _param_descs = [
+        "out_shape",  # output_shape
+        "kernel",  # kernel
+        "stride",  # stride
+        "dil",  # dilation
+        "pad",  # padding
+        "ceil",  # ceil_mode
+        "cnt_padded",  # count_include_pad
+        "out_layout",  # output_layout
+        None,  # dtype
+    ]
+
+    _multitest_params = [
         (
             [1, 8, 8, 32],
             [3, 3],
@@ -217,7 +221,22 @@ class TestAvgPool2dSlice:
             "n11c-1024c-2d",
             "float16",
         ),
-    )
+    ]
+
+    _param_ids = get_multitest_ids(_multitest_params, _param_descs)
+
+    # NOTE: input_layout is always assumed to be "nhwc-8h2w32c2w-2d"
+    (
+        output_shape,
+        kernel,
+        stride,
+        dilation,
+        padding,
+        ceil_mode,
+        count_include_pad,
+        output_layout,
+        dtype,
+    ) = tvm.testing.parameters(*_multitest_params, ids=_param_ids)
 
     @tvm.testing.fixture
     def expected_output_np(
