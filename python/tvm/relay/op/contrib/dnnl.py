@@ -166,6 +166,19 @@ def make_conv_pattern(conv_name, with_bias=True, with_eltwise=None):
     return append_eltwise_ops(conv_out, with_eltwise)
 
 
+def make_conv_add_sum_relu_pattern(conv_type, has_relu=True):
+    data1 = wildcard()
+    weight = wildcard()
+    bias = wildcard()
+    data2 = wildcard()
+    out = is_op(conv_type)(data1, weight)
+    out = is_op("add")(out, bias)
+    out = is_op("add")(out, data2)
+    if has_relu:
+        out = is_op("nn.relu")(out)
+    return out
+
+
 def make_dense_pattern(with_bias=True, with_eltwise=None):
     """Create patterns related to nn.dense.
 
@@ -305,6 +318,10 @@ def pattern_table():
     dnnl_patterns = list()
     dnnl_patterns.append(make_qnn_conv2d_pattern())
     dnnl_patterns.append(make_qnn_dense_pattern())
+    dnnl_patterns.append(("dnnl.conv2d_bias_sum_relu",
+                          make_conv_add_sum_relu_pattern("nn.conv2d"))),
+    dnnl_patterns.append(("dnnl.conv2d_bias_sum",
+                          make_conv_add_sum_relu_pattern("nn.conv2d", False))),
 
     elt_list = ["nn.relu", "tanh", "sigmoid", "clip", "gelu", "swish", None]
     for with_bias in [True, False]:
