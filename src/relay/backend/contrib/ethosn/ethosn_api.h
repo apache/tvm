@@ -50,9 +50,10 @@ namespace sl = ::ethosn::support_library;
 
 struct ConvolutionParams {
   sl::ConvolutionInfo conv_info;
-  sl::TensorInfo activation_info;
+  sl::TensorInfo input_info;
   sl::TensorInfo weights_info;
   sl::TensorInfo bias_info;
+  sl::TensorInfo output_info;
   void* raw_weights = nullptr;
   void* raw_bias = nullptr;
   bool is_depthwise = false;
@@ -63,6 +64,7 @@ struct FullyConnectedParams {
   sl::TensorInfo input_info;
   sl::TensorInfo weights_info;
   sl::TensorInfo bias_info;
+  sl::TensorInfo output_info;
   void* raw_weights = nullptr;
   void* raw_bias = nullptr;
 };
@@ -70,60 +72,72 @@ struct FullyConnectedParams {
 struct MaxPool2DParams {
   sl::PoolingInfo pool_info = sl::PoolingInfo(0, 0, 0, 0, sl::Padding(), sl::PoolingType::MAX);
   sl::TensorInfo input_info;
+  sl::TensorInfo output_info;
 };
 
 struct AvgPool2DParams {
   sl::PoolingInfo pool_info = sl::PoolingInfo(0, 0, 0, 0, sl::Padding(), sl::PoolingType::AVG);
   sl::TensorInfo input_info;
+  sl::TensorInfo output_info;
 };
 
 struct ReshapeParams {
   sl::TensorShape new_shape{};
   sl::TensorInfo input_info;
+  sl::TensorInfo output_info;
 };
 
 struct AdditionParams {
   sl::QuantizationInfo output_quantization_info;
   sl::TensorInfo lhs_info;
   sl::TensorInfo rhs_info;
+  sl::TensorInfo output_info;
 };
 
 struct SigmoidParams {
   sl::TensorInfo input_info;
+  sl::TensorInfo output_info;
 };
 
 struct MeanParams {
   sl::TensorInfo input_info;
+  sl::TensorInfo output_info;
 };
 
 struct TanhParams {
   sl::TensorInfo input_info;
+  sl::TensorInfo output_info;
 };
 
 struct LeakyReLUParams {
   sl::LeakyReluInfo leaky_relu_info;
   sl::TensorInfo input_info;
+  sl::TensorInfo output_info;
 };
 
 struct ConcatenateParams {
   sl::QuantizationInfo qInfo;
   sl::ConcatenationInfo concat_info = sl::ConcatenationInfo(1, qInfo);
   std::vector<sl::TensorInfo> input_infos;
+  sl::TensorInfo output_info;
 };
 
 struct SplitParams {
   sl::SplitInfo split_info = sl::SplitInfo(0, {});
   sl::TensorInfo input_info;
+  std::vector<sl::TensorInfo> output_infos;
 };
 
 struct DepthToSpaceParams {
   sl::DepthToSpaceInfo depth_info = sl::DepthToSpaceInfo(0);
   sl::TensorInfo input_info;
+  sl::TensorInfo output_info;
 };
 
 struct ReluParams {
   sl::ReluInfo relu_info;
   sl::TensorInfo input_info;
+  sl::TensorInfo output_info;
 };
 
 /*!
@@ -242,10 +256,14 @@ class EthosnAPI {
   static EthosnError Tvm2Npu(const Array<Array<Integer>>& padding, sl::Padding* npu_padding);
   /*! \brief Convert a TVM Integer array to a SL tensor shape */
   static EthosnError Tvm2Npu(const Array<Integer>& shape, sl::TensorShape* npu_shape);
+  /*! \brief Convert a TVM Type to SL tensor info. */
+  static EthosnError Tvm2Npu(const tvm::Type& type, sl::TensorInfo* npu_tinfo);
+
   /*! \brief Convert a TVM pooling call to SL pooling information */
-  static EthosnError Pool2d(const Call& pool, Array<IndexExpr> size, Array<IndexExpr> strides,
-                            Array<IndexExpr> padding, sl::PoolingType pooling_type,
-                            sl::PoolingInfo* pool_info, sl::TensorInfo* input_info,
+  static EthosnError Pool2d(const Call& input, const Call& output, Array<IndexExpr> size,
+                            Array<IndexExpr> strides, Array<IndexExpr> padding,
+                            sl::PoolingType pooling_type, sl::PoolingInfo* pool_info,
+                            sl::TensorInfo* input_info, sl::TensorInfo* output_info,
                             std::string layout);
 
   // Convert an array of IntImmNodes into ValueT
