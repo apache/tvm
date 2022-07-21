@@ -2319,10 +2319,10 @@ class Schedule(Object):
         self, block: BlockRV, buffer: Union[Tuple[str, int], str, Buffer]
     ) -> Tuple[str, int, Buffer]:
 
-        block_name = self.get(block).name_hint
+        block_obj: Block = self.get(block)
+        block_name = block_obj.name_hint
 
         def iter_buffers():
-            block_obj = self.get(block)
             for i, read in enumerate(block_obj.reads):
                 yield "read", i, read.buffer
             for i, write in enumerate(block_obj.writes):
@@ -2358,9 +2358,7 @@ class Schedule(Object):
                 f"Expected 'read' or 'write', "
                 f"but received {buffer_index_type}"
             )
-            buffer_list = (
-                self.get(block).reads if buffer_index_type == "read" else self.get(block).writes
-            )
+            buffer_list = block_obj.reads if buffer_index_type == "read" else block_obj.writes
             assert 0 <= buffer_index < len(buffer_list), (
                 f"Invalid buffer_index {buffer_index}.  "
                 f"Block {block_name} has only "
