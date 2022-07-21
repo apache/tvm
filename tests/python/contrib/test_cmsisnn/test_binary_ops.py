@@ -37,6 +37,7 @@ from .utils import (
     get_range_for_dtype_str,
     assert_partitioned_function,
     assert_no_external_function,
+    create_test_runner,
 )
 
 
@@ -98,13 +99,22 @@ def make_model(
     ],
     [[0.256, 33, 0.256, 33], [0.0128, -64, 0.0128, -64], [0.0128, -64, 0.256, 33]],
 )
+@pytest.mark.parametrize(
+    "compiler_cpu, cpu_flags", [("cortex-m55", "+nomve"), ("cortex-m55", ""), ("cortex-m7", "")]
+)
 def test_op_int8(
-    op, relu_type, input_0_scale, input_0_zero_point, input_1_scale, input_1_zero_point
+    op,
+    relu_type,
+    input_0_scale,
+    input_0_zero_point,
+    input_1_scale,
+    input_1_zero_point,
+    compiler_cpu,
+    cpu_flags,
 ):
     """Tests QNN binary operator for CMSIS-NN"""
     interface_api = "c"
     use_unpacked_api = True
-    test_runner = AOT_USMP_CORSTONE300_RUNNER
 
     dtype = "int8"
     shape = [1, 16, 16, 3]
@@ -139,7 +149,7 @@ def test_op_int8(
             outputs=output_list,
             output_tolerance=1,
         ),
-        test_runner,
+        create_test_runner(compiler_cpu, cpu_flags),
         interface_api,
         use_unpacked_api,
     )
