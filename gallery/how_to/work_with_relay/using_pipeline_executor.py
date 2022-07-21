@@ -42,7 +42,7 @@ img_size = 8
 # Create a simple network, this network can be a pre-trained model too.
 # ---------------------------------------------------------------------
 # Let's create a very simple network for demonstration.
-# It consists of convolution, batch normalization, and ReLU activation.
+# It consists of convolution, batch normalization, dense, and ReLU activation.
 def get_network():
     out_channels = 16
     batch_size = 1
@@ -73,8 +73,8 @@ net, params, data_shape = get_network()
 ###########################################
 # Splitting the network into two subgraphs.
 # -----------------------------------------
-# We use an testing linear graph splitting function as a example. User also can create their
-# own splitting function logic.
+# The graph splitting function comming from a uinit test is an example. User can create  a
+# customized function for graph splitting.
 import inspect
 import os
 
@@ -98,8 +98,6 @@ subgraphs = graph_split(net["main"], split_config, params)
   %2 = %1.0;
   nn.relu(%2) /* ty=Tensor[(1, 16, img_size, img_size), float16] */
  }
-
-peline-tutorial
 
 #subgraphs[1]
 
@@ -147,16 +145,13 @@ def cutlass_build(mod, target, params=None, target_host=None, mod_name="default"
 ###########################################################
 # Run the two subgraphs in pipeline with pipeline executor.
 # ---------------------------------------------------------
-# Define a function to do all the codegen and pipeline executor works.
-# To run pipeline executor with dnnl, USE_PIPELINE_EXECUTOR need to get set as ON.
-# and the 'USE_CUTLASS' should set as ON in config.cmake.
+# Set 'USE_PIPELINE_EXECUTOR' as ON, and set USE_CUTLASS' as ON.
 from tvm.contrib import graph_executor, pipeline_executor, pipeline_executor_build
 
 #########################################
 # Create subgraph pipeline configuration.
-# Associate the subgraph module with a target.
-# Using BYOC to set the codegen of the second subgraph module.
-# To use cutlass the 'USE_CUTLASS' should set as ON.
+# Associate a subgraph module with a target.
+# Use CUTLASS BYOC to build the second subgraph module.
 mod0, mod1 = subgraphs[0], subgraphs[1]
 # Use cutlass as the codegen.
 mod1 = partition_for_cutlass(mod1)
@@ -164,7 +159,7 @@ mod1 = partition_for_cutlass(mod1)
 # Get the pipeline executor configuration object.
 pipe_config = pipeline_executor_build.PipelineConfig()
 ###########################################################################
-# Set the compile target of the second subgraph module for example as LLVM.
+# Set the compile target of the subgraph module.
 pipe_config[mod0].target = "llvm"
 pipe_config[mod0].dev = tvm.cpu(0)
 ###############################################################################
@@ -172,7 +167,7 @@ pipe_config[mod0].dev = tvm.cpu(0)
 pipe_config[mod1].cpu_affinity = "0"
 pipe_config[mod1].export_cc = None
 ##############################################################
-# Set the compile target of the second subgraph module as LLVM.
+# Set the compile target of the second subgraph module as cuda.
 pipe_config[mod1].target = "cuda"
 pipe_config[mod1].dev = tvm.device("cuda", 0)
 pipe_config[mod1].build_func = cutlass_build
@@ -212,8 +207,7 @@ with tvm.transform.PassContext(opt_level=3):
 directory_path = tvm.contrib.utils.tempdir().temp_dir
 #############################################
 # If the directory does not exist, create it.
-if not os.path.exists(directory_path):
-    os.makedirs(directory_path)
+os.makedirs(directory_path, exist_ok=True)
 config_file_name = pipeline_mod_factory.export_library(directory_path)
 ################################################################
 # Use the load function to create and initialize PipelineModule.
@@ -223,7 +217,7 @@ pipeline_module = pipeline_executor.PipelineModule.load_library(config_file_name
 ############################
 # Run the pipeline executor.
 # --------------------------
-# Allocated a input data.
+# Allocate input data.
 data = np.random.uniform(-1, 1, size=data_shape).astype("float16")
 pipeline_module.set_input("data", tvm.nd.array(data))
 ##########################################################################
