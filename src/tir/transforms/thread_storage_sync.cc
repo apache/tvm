@@ -258,7 +258,7 @@ class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::async_wait_queue_scope) {
       auto sync = Evaluate(Call(DataType::Int(32), builtin::tvm_storage_sync(),
-				{StringImm(sync_scope_.to_string())}));
+                                {StringImm(sync_scope_.to_string())}));
       return SeqStmt({GetRef<AttrStmt>(op), sync});
     }
     return StmtExprMutator::VisitStmt_(op);

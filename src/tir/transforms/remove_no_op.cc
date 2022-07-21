@@ -29,9 +29,9 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
-#include "ir_utils.h"
-
 #include <unordered_map>
+
+#include "ir_utils.h"
 
 namespace tvm {
 namespace tir {
@@ -52,9 +52,9 @@ class NoOpRemover : public StmtMutator {
       auto wait_cnt = wait_attrs.second;
       arith::Analyzer ana;
       if (ana.CanProve(wait_cnt < 0)) {
-	// A negative wait count can arise if it depends on a loop variable.
-	// For example, a wait count 1 - i can be negative after loop unrolling.
-	// We assume that such wait is a nop.
+        // A negative wait count can arise if it depends on a loop variable.
+        // For example, a wait count 1 - i can be negative after loop unrolling.
+        // We assume that such wait is a nop.
         return Evaluate(0);
       }
     }

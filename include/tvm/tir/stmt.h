@@ -1449,8 +1449,22 @@ constexpr const char* device_scope = "device_scope";
 constexpr const char* async_scope = "async_scope";
 
 /*!
- * \brief TODO
- */
+ * \brief Annotations for invoking and synchronizing asynchronous operations.
+
+ * Synchronization is done in terms of "queue": It is an abstract entity associated
+ * with each asynchronous unit, and it tracks invocations and completions of asynchronous
+ * operations in the FIFO order.
+ *
+ * Similarly to PTX instructions commit_group and wait_group, these annotations express
+ * synchronization by "counting":
+ *
+ * async_commit_queue(i): Group one or more invocations of async operations in the given scope,
+ * and "commit" (or push) them to the queue i. A group of operations committed together is
+ * awaited as one chunk. Groups committed to the same queue complete in the FIFO order.
+ *
+ * async_wait_queue(i, N): Block until only N most recent committed groups are still in-flight at
+ * the queue i. N does not have to be a constant, but some backends may require a constant count.
+*/
 constexpr const char* async_commit_queue_scope = "async_commit_queue_scope";
 constexpr const char* async_wait_queue_scope = "async_wait_queue_scope";
 constexpr const char* async_wait_inflight_count = "async_wait_inflight_count";
