@@ -1068,18 +1068,21 @@ class PipelineInjector : private StmtExprMutator {
         Downcast<Array<Integer>>(op->annotations.at(attr::software_pipeline_order));
     CHECK_EQ(pipeline_stages.size(), original_order.size());
     CHECK_EQ(pipeline_orders.size(), original_order.size());
-    for (size_t i = 0; i < pipeline_stages.size(); i++) {
-      PipelineAnnotation stage_order{/*stage=*/static_cast<int>(pipeline_stages[i]->value),
-                                     /*order=*/static_cast<int>(pipeline_orders[i]->value), false};
-      pipeline_info.emplace(original_order[i], stage_order);
+
+    std::unordered_set<int> pipeline_async_stages;
+    if (op->annotations.count("software_pipeline_async_stages")) {
+      auto annot = op->annotations.at("software_pipeline_async_stages");
+      for (auto s: Downcast<Array<Integer>>(annot)) {
+	pipeline_async_stages.insert(s->value);
+      }
     }
 
-    if (op->annotations.count("software_pipeline_async_stages")) {
-      auto pipeline_async_stage_indices =
-          Downcast<Array<Integer>>(op->annotations.at("software_pipeline_async_stages"));
-      for (auto i : pipeline_async_stage_indices) {
-        pipeline_info[original_order[i->value]].async = true;
-      }
+    for (size_t i = 0; i < pipeline_stages.size(); i++) {
+      int stage = static_cast<int>(pipeline_stages[i]->value);
+      bool is_async = pipeline_async_stages.find(stage) != pipeline_async_stages.end();
+      PipelineAnnotation stage_order{stage,
+                                     /*order=*/static_cast<int>(pipeline_orders[i]->value), is_async};
+      pipeline_info.emplace(original_order[i], stage_order);
     }
 
     ValidatePipelineBody(pipeline_info, original_order);
