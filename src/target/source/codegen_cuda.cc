@@ -931,6 +931,9 @@ void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
     auto wait_cnt = wait_attrs.second;
     auto wait_group = Call(DataType::Void(), builtin::ptx_wait_group(), {wait_cnt});
     this->VisitExpr(wait_group, this->stream);
+    auto inner = op->body.as<AttrStmtNode>();
+    ICHECK(inner);
+    this->VisitStmt(inner->body);
     return;
   }
   CodeGenC::VisitStmt_(op);
