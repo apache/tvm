@@ -41,9 +41,7 @@
 #include <stdlib.h>
 #define HEXAGON_STACK_SIZE 65536
 #define HEXAGON_STACK_ALIGNMENT 32
-#elif defined(_WIN32)
-#include <windows.h>
-#else
+#elif defined(__linux__) || defined(__ANDROID__)
 #include <sys/syscall.h>
 #include <unistd.h>
 #endif
@@ -120,7 +118,7 @@ class ThreadGroup::Impl {
     threads_tid_.resize(num_workers_ - exclude_worker0);
     for (int i = exclude_worker0; i < num_workers_; ++i) {
       threads_.emplace_back([worker_callback, i, exclude_worker0, this] {
-#ifndef __hexagon__
+#if defined(__linux__) || defined(__ANDROID__)
         SetTid(i - exclude_worker0);
 #endif
         worker_callback(i);
@@ -345,14 +343,8 @@ class ThreadGroup::Impl {
     }
   }
 
-#ifndef __hexagon__
-  pid_t Tid() {
-#if defined(_WIN32)
-    return GetCurentThreadId();
-#else
-    return syscall(SYS_gettid);
-#endif
-  }
+#if defined(__linux__) || defined(__ANDROID__)
+  pid_t Tid() { return syscall(SYS_gettid); }
   void SetTid(size_t index) { threads_tid_[index] = Tid(); }
   pid_t GetTid(size_t thread_index) { return threads_tid_[thread_index]; }
 #endif  // __hexagon__
