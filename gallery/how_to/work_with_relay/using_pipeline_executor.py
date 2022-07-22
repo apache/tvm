@@ -77,8 +77,8 @@ net, params, data_shape = get_network()
 import inspect
 import os
 
-test_path = os.path.dirname(inspect.getfile(lambda: None))
-os.sys.path.append(os.path.join(test_path, "../../../tests/python/relay"))
+tutorial_dir = os.path.dirname(inspect.getfile(lambda: None))
+os.sys.path.append(os.path.join(tutorial_dir, "../../../tests/python/relay"))
 from test_pipeline_executor import graph_split
 
 ###########################################
@@ -161,21 +161,19 @@ pipe_config = pipeline_executor_build.PipelineConfig()
 # Set the compile target of the subgraph module.
 pipe_config[mod0].target = "llvm"
 pipe_config[mod0].dev = tvm.cpu(0)
-###############################################################################
-# Set the cpu affinity for control flow, for example using cpu 0 for control flow.
-pipe_config[mod1].cpu_affinity = "0"
 ##############################################################
 # Set the compile target of the second subgraph module as cuda.
 pipe_config[mod1].target = "cuda"
 pipe_config[mod1].dev = tvm.device("cuda", 0)
 pipe_config[mod1].build_func = cutlass_build
 pipe_config[mod1].export_cc = "nvcc"
-#################################################################################
-# Set the cpu afinity for control flow, for example using cpu 1 for control flow.
-pipe_config[mod1].cpu_affinity = "1"
+# Create the pipeline by connecting the subgraphs module.
+# The global input will be forwarded to the input interface of the first moudle named mod0
 pipe_config["input"]["data"].connect(pipe_config[mod0]["input"]["data"])
+# The first output of mod0 will be forwarded to the input interface of mod1
 pipe_config[mod0]["output"][0].connect(pipe_config[mod1]["input"]["data_n_0"])
-pipe_config[mod1]["output"]["0"].connect(pipe_config["output"][0])
+# the first output of mod1 will be the first global output.
+pipe_config[mod1]["output"][0].connect(pipe_config["output"][0])
 ######################################
 # The pipeline configuration as below.
 """
