@@ -18,7 +18,6 @@
 import pytest
 import numpy as np
 from typing import *
-import collections
 
 from tvm import te
 import tvm.testing
@@ -27,7 +26,14 @@ from tvm.contrib.hexagon.build import HexagonLauncher
 from tvm.contrib.hexagon.session import Session
 import tvm.topi.hexagon.slice_ops as sl
 from ..infrastructure import allocate_hexagon_array, transform_numpy
-from ..pytest_util import get_multitest_ids
+from ..pytest_util import (
+    get_multitest_ids,
+    create_populated_numpy_ndarray,
+    TensorContentConstant,
+    TensorContentRandom,
+    TensorContentDtypeMin,
+    TensorContentDtypeMax,
+)
 
 
 input_layout = tvm.testing.parameter(
@@ -36,8 +42,8 @@ input_layout = tvm.testing.parameter(
 
 
 @tvm.testing.fixture
-def input_np(input_shape, dtype):
-    return np.random.random(input_shape).astype(dtype)
+def input_np(input_shape, dtype: str, input_tensor_populator):
+    return create_populated_numpy_ndarray(input_shape, dtype, input_tensor_populator)
 
 
 @tvm.testing.fixture
@@ -61,6 +67,7 @@ class TestAvgPool2dSlice:
         "cnt_padded",  # count_include_pad
         "out_layout",  # output_layout
         None,  # dtype
+        None,  # input_tensor_populator
     ]
 
     _multitest_params = [
@@ -74,6 +81,7 @@ class TestAvgPool2dSlice:
             True,
             "nhwc-8h2w32c2w-2d",
             "float16",
+            TensorContentRandom(),
         ),
         (
             [1, 16, 16, 32],
@@ -85,6 +93,7 @@ class TestAvgPool2dSlice:
             True,
             "nhwc-8h2w32c2w-2d",
             "float16",
+            TensorContentRandom(),
         ),
         (
             [1, 8, 8, 32],
@@ -96,6 +105,7 @@ class TestAvgPool2dSlice:
             True,
             "nhwc-8h2w32c2w-2d",
             "float16",
+            TensorContentRandom(),
         ),
         # Test non-one stride and dilation
         (
@@ -108,6 +118,7 @@ class TestAvgPool2dSlice:
             True,
             "nhwc-8h2w32c2w-2d",
             "float16",
+            TensorContentRandom(),
         ),
         (
             [1, 8, 8, 32],
@@ -119,6 +130,7 @@ class TestAvgPool2dSlice:
             True,
             "nhwc-8h2w32c2w-2d",
             "float16",
+            TensorContentRandom(),
         ),
         (
             [1, 8, 8, 32],
@@ -130,6 +142,7 @@ class TestAvgPool2dSlice:
             True,
             "nhwc-8h2w32c2w-2d",
             "float16",
+            TensorContentRandom(),
         ),
         # Test non-zero padding
         (
@@ -142,6 +155,7 @@ class TestAvgPool2dSlice:
             True,
             "nhwc-8h2w32c2w-2d",
             "float16",
+            TensorContentRandom(),
         ),
         (
             [1, 8, 8, 32],
@@ -153,6 +167,7 @@ class TestAvgPool2dSlice:
             True,
             "nhwc-8h2w32c2w-2d",
             "float16",
+            TensorContentRandom(),
         ),
         (
             [1, 8, 8, 32],
@@ -164,6 +179,7 @@ class TestAvgPool2dSlice:
             True,
             "nhwc-8h2w32c2w-2d",
             "float16",
+            TensorContentRandom(),
         ),
         (
             [1, 8, 8, 32],
@@ -175,6 +191,7 @@ class TestAvgPool2dSlice:
             True,
             "nhwc-8h2w32c2w-2d",
             "float16",
+            TensorContentRandom(),
         ),
         # Test n11c-1024c-2d layout which will require input and output to have different layout
         (
@@ -187,6 +204,7 @@ class TestAvgPool2dSlice:
             True,
             "n11c-1024c-2d",
             "float16",
+            TensorContentRandom(),
         ),
         (
             [1, 1, 1, 2048],
@@ -198,6 +216,7 @@ class TestAvgPool2dSlice:
             True,
             "n11c-1024c-2d",
             "float16",
+            TensorContentRandom(),
         ),
         (
             [1, 1, 1, 2048],
@@ -209,6 +228,7 @@ class TestAvgPool2dSlice:
             True,
             "n11c-1024c-2d",
             "float16",
+            TensorContentRandom(),
         ),
         (
             [1, 1, 1, 2048],
@@ -220,6 +240,7 @@ class TestAvgPool2dSlice:
             True,
             "n11c-1024c-2d",
             "float16",
+            TensorContentRandom(),
         ),
     ]
 
@@ -236,6 +257,7 @@ class TestAvgPool2dSlice:
         count_include_pad,
         output_layout,
         dtype,
+        input_tensor_populator,
     ) = tvm.testing.parameters(*_multitest_params, ids=_param_ids)
 
     @tvm.testing.fixture
