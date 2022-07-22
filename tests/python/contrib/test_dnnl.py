@@ -789,8 +789,8 @@ def test_conv2d_pattern(run_module, dtype="float32"):
 
 
 def test_conv2d_bias_sum_relu(run_module, dtype="float32"):
-    x_shape=(1, 32, 8, 8)
-    k_shape=(16, 32, 3, 3)
+    x_shape = (1, 32, 8, 8)
+    k_shape = (16, 32, 3, 3)
     def get_conv2d_bn_sum_relu(x_shape=(1, 32, 8, 8), k_shape=(16, 32, 3, 3), dtype="float32"):
         out, dic, param_lst = get_conv2d_bias(x_shape=x_shape, k_shape=k_shape, dtype=dtype)
         beta = relay.const(np.zeros(k_shape[0]).astype(dtype))
@@ -813,6 +813,7 @@ def test_conv2d_bias_sum_relu(run_module, dtype="float32"):
         dic["data1"] = (1, 16, 6, 6)
         param_lst += ["data1"]
         return relay.nn.relu(out), dic, param_lst
+
     conv2d_bn_sum_relu, dic, param_lst = get_conv2d_bn_sum_relu(x_shape, k_shape, dtype=dtype)
     conv2d_bn_sum_relu = tvm.IRModule.from_expr(conv2d_bn_sum_relu)
     config = conv2d_bn_sum_relu, dic, param_lst
