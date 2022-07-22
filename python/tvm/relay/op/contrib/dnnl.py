@@ -33,7 +33,7 @@ it is supported. For example:
 check the attributes of the op and decide if it should be offloaded to DNNL.
 """
 import logging
-from typing import Tuple, List, Dict, Union, Optional, Any, Callable
+from functools import reduce
 
 import tvm.ir
 from tvm.ir import Op
@@ -46,9 +46,8 @@ from tvm.relay.expr import const
 from tvm.relay.analysis import analysis as _analysis
 from tvm.relay import expr as _expr
 
-
+from tvm.relay.expr import Call, TupleGetItem
 from ... import _ffi_api
-from tvm.relay.expr import Call, Constant, TupleGetItem
 from ...dataflow_pattern import wildcard, is_op, is_constant, is_expr, rewrite, DFPatternCallback
 from .register import register_pattern_table
 
@@ -195,7 +194,7 @@ def make_conv_bias_sum_relu_pattern(conv_type, has_relu=True):
     return out
 
 
-def get_op_name(expr: relay.expr.Expr) -> str:
+def get_op_name(expr):
     """Get the operator name from an expression."""
     if isinstance(expr, Op):
         return expr.name
@@ -208,7 +207,7 @@ def get_op_name(expr: relay.expr.Expr) -> str:
     return ""
 
 
-def get_args(expr: relay.expr.Expr) -> List[relay.expr.Expr]:
+def get_args(expr):
     """Get the arguments from an expression."""
     if isinstance(expr, Call):
         return expr.args
@@ -219,7 +218,7 @@ def get_args(expr: relay.expr.Expr) -> List[relay.expr.Expr]:
     return []
 
 
-def get_attrs(expr: relay.expr.Expr) -> Any:
+def get_attrs(expr):
     """Get the attributes from an expression."""
     if isinstance(expr, Call):
         return expr.attrs
@@ -228,29 +227,33 @@ def get_attrs(expr: relay.expr.Expr) -> Any:
     return {}
 
 
-def checker() -> Callable[[relay.expr.Expr], bool]:
+def make_predicate(checker):
     """Check whether the conv_bias_add_sum pattern is as expected."""
 
-    def check_sum_pattern(expr: relay.expr.Expr) -> bool:
-        op_name = get_op_name(expr)
-        if op_name == "nn.relu":
+    def predicate(expr):
+        if get_op_name(expr) == "nn.relu":
             expr = expr.args[0]
-        # elementwise add
-        args = get_args(expr)
-        if get_shape(args[0]) != get_shape(args[1]):
-            return False
-        # bias_add
-        expr = expr.args[0]
-        args = get_args(expr)
-        conv_attrs = get_attrs(expr.args[0])
-        channel = dict(conv_attrs)["channels"]
-        const_shape = get_shape(args[1])
-        from functools import reduce
-        if channel != reduce(lambda x, y: x * y, const_shape):
-            return False
+        for e, op_name in zip([expr, expr.args[0]], ["sum", "bias_add"]):
+            args = get_args(e)
+            attrs = get_attrs(e.args[0])
+            if not checker(attrs, args, op_name):
+                return False
         return True
 
-    return check_sum_pattern
+    return predicate
+
+
+def add_checker(attrs, args, op_name):
+    """Check if add is supported by DNNL."""
+    if op_name == "sum":
+        if tuple(get_shape(args[0])) != tuple(get_shape(args[1])):
+            return False
+    if op_name == "bias_add":
+        channel = dict(attrs)["channels"]
+        const_shape = get_shape(args[1])
+        if channel != reduce(lambda x, y: x * y, const_shape):
+            return False
+    return True
 
 
 def make_dense_pattern(with_bias=True, with_eltwise=None):
@@ -393,10 +396,10 @@ def pattern_table():
     dnnl_patterns.append(make_qnn_conv2d_pattern())
     dnnl_patterns.append(make_qnn_dense_pattern())
     dnnl_patterns.append(
-        ("dnnl.conv2d_bias_sum_relu", make_conv_bias_sum_relu_pattern("nn.conv2d"), checker())
+        ("dnnl.conv2d_bias_sum_relu", make_conv_bias_sum_relu_pattern("nn.conv2d"), make_predicate(add_checker))
     ),
     dnnl_patterns.append(
-        ("dnnl.conv2d_bias_sum", make_conv_bias_sum_relu_pattern("nn.conv2d", False), checker())
+        ("dnnl.conv2d_bias_sum", make_conv_bias_sum_relu_pattern("nn.conv2d", False), make_predicate(add_checker))
     ),
 
     elt_list = ["nn.relu", "tanh", "sigmoid", "clip", "gelu", "swish", None]
