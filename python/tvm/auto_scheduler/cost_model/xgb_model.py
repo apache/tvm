@@ -20,9 +20,8 @@
 import multiprocessing
 import logging
 from collections import defaultdict
-
-import numpy as np
 from typing import Dict
+import numpy as np
 from tvm.autotvm.tuner.metric import max_curve
 from .cost_model import PythonBasedModel
 from ..feature import get_per_store_features_from_measure_pairs, get_per_store_features_from_states
@@ -587,7 +586,7 @@ class CustomCallback(XGBoostCallback):
         self.skip_every = skip_every
         self.state = {}
 
-    def after_iteration(self, model, epoch, _evals_log):
+    def after_iteration(self, model: "xgb.Booster", epoch: int, evals_log: Dict):
         """Run after each iteration.  Return True when training should stop."""
         # pylint:disable = import-outside-toplevel
         try:
