@@ -17,11 +17,16 @@
 
 """Split tests for Arm(R) Ethos(TM)-N"""
 
+from distutils.version import LooseVersion
+
 import numpy as np
 import pytest
+
 import tvm
 from tvm import relay
 from tvm.testing import requires_ethosn
+from tvm.relay.op.contrib.ethosn import ethosn_api_version
+
 from . import infrastructure as tei
 
 
@@ -32,8 +37,8 @@ def _get_model(shape, dtype, splits, axis):
 
 
 @pytest.mark.skipif(
-    tei.get_ethosn_api_version() == 2205,
-    reason="Split is not supported by the 22.05 release of the driver stack",
+    ethosn_api_version() >= LooseVersion("3.0.1"),
+    reason="Split is not supported by this release of the driver stack",
 )
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
@@ -42,8 +47,6 @@ def test_split(dtype):
         ((1, 16, 16, 32), (2, 7, 10), 2),
         ((1, 12, 8, 16), 3, 1),
     ]
-    if tei.get_ethosn_api_version() < 2111:
-        trials.append(((1, 66), 11, 1))
 
     np.random.seed(0)
     for shape, splits, axis in trials:
@@ -65,8 +68,8 @@ def test_split(dtype):
 
 
 @pytest.mark.skipif(
-    tei.get_ethosn_api_version() == 2205,
-    reason="Split is not supported by the 22.05 release of the driver stack",
+    ethosn_api_version() >= LooseVersion("3.0.1"),
+    reason="Split is not supported by this release of the driver stack",
 )
 @requires_ethosn
 def test_split_failure():

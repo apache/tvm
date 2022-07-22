@@ -18,6 +18,7 @@
 """Arm(R) Ethos(TM)-N NPU supported operators."""
 from enum import Enum
 import warnings
+from distutils.version import LooseVersion
 
 import tvm.ir
 from tvm.relay import transform
@@ -79,6 +80,14 @@ def partition_for_ethosn(mod, params=None, **opts):
         )
     elif opts["variant"] != "n78":
         raise ValueError("When targeting Ethos(TM)-N78, -variant=n78 should be set.")
+
+    api_version = ethosn_api_version()
+    expected_api_version = "3.0.1"
+    if api_version != LooseVersion(expected_api_version):
+        raise ValueError(
+            f"Driver stack version {api_version} unsupported. "
+            f"Please use version {expected_api_version}."
+        )
 
     if params:
         mod["main"] = bind_params_by_name(mod["main"], params)
@@ -298,7 +307,7 @@ def split(expr):
     """Check if a split is supported by Ethos-N."""
     if not ethosn_available():
         return False
-    if ethosn_api_version() == 2205:
+    if ethosn_api_version() != LooseVersion("3.0.1"):
         return False
     if not support.split(expr):
         return False
