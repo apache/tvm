@@ -167,12 +167,12 @@ pipe_config[mod1].target = "cuda"
 pipe_config[mod1].dev = tvm.device("cuda", 0)
 pipe_config[mod1].build_func = cutlass_build
 pipe_config[mod1].export_cc = "nvcc"
-# Create the pipeline by connecting the subgraphs module.
-# The global input will be forwarded to the input interface of the first moudle named mod0
+# Create the pipeline by connecting the subgraph modules.
+# The global input will be forwarded to the input interface of the first module named mod0
 pipe_config["input"]["data"].connect(pipe_config[mod0]["input"]["data"])
 # The first output of mod0 will be forwarded to the input interface of mod1
 pipe_config[mod0]["output"][0].connect(pipe_config[mod1]["input"]["data_n_0"])
-# the first output of mod1 will be the first global output.
+# The first output of mod1 will be the first global output.
 pipe_config[mod1]["output"][0].connect(pipe_config["output"][0])
 ######################################
 # The pipeline configuration as below.
