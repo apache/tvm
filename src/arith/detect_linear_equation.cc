@@ -245,7 +245,8 @@ void SplitCommExpr(const PrimExpr& e, std::vector<PrimExpr>* ret) {
 // e must be connected by and.
 Array<PrimExpr> DetectClipBound(const PrimExpr& e, const Array<Var>& vars) {
   std::vector<PrimExpr> splits;
-  SplitCommExpr<tir::AndNode>(e, &splits);
+  Analyzer analyzer;
+  SplitCommExpr<tir::AndNode>(analyzer.Simplify(e), &splits);
   std::unordered_map<const VarNode*, IntervalEntry> rmap;
   for (Var v : vars) {
     rmap[v.get()] = IntervalEntry();
@@ -253,7 +254,6 @@ Array<PrimExpr> DetectClipBound(const PrimExpr& e, const Array<Var>& vars) {
   for (PrimExpr cond : splits) {
     if (!DetectClipBound(cond, &rmap)) return Array<PrimExpr>();
   }
-  Analyzer analyzer;
   Array<PrimExpr> ret;
   for (Var v : vars) {
     IntervalEntry e = rmap[v.get()];
