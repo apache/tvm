@@ -59,6 +59,22 @@ def get_test_id(*test_params, test_param_descs: List[Optional[str]] = None) -> s
                 val_str = "F"
             need_prefix_separator = True
 
+        elif type(param_val) == TensorContentConstant:
+            val_str = f"const({param_val.elem_value})"
+            need_prefix_separator = True
+
+        elif type(param_val) == TensorContentDtypeMin:
+            val_str = "min"
+            need_prefix_separator = True
+
+        elif type(param_val) == TensorContentDtypeMax:
+            val_str = "max"
+            need_prefix_separator = True
+
+        elif type(param_val) == TensorContentRandom:
+            val_str = "random"
+            need_prefix_separator = True
+
         else:
             val_str = str(param_val)
             need_prefix_separator = True
@@ -91,3 +107,53 @@ def get_multitest_ids(
         get_test_id(*single_test_param_list, test_param_descs=param_descs)
         for single_test_param_list in multitest_params_list
     ]
+
+
+def get_numpy_dtype_info(np_dtype_name: str) -> Union[np.finfo, np.iinfo]:
+    """
+    Return an appropriate 'np.iinfo' or 'np.finfo' object corresponding to
+    the specified dtype.
+    """
+    np_dtype = np.dtype(np_dtype_name)
+    kind = np_dtype.kind
+
+    if kind == "f":
+        return np.finfo(np_dtype_name)
+    elif kind == "i":
+        return np.iinfo(np_dtype_name)
+    else:
+        raise TypeError(
+            f"np_dtype_name ({np_dtype_name}) must indicate some floating-point or integral data type"
+        )
+
+
+TensorContentConstant = collections.namedtuple("TensorContentConstant", ["elem_value"])
+TensorContentRandom = collections.namedtuple("TensorContentRandom", [])
+TensorContentDtypeMin = collections.namedtuple("TensorContentDtypeMin", [])
+TensorContentDtypeMax = collections.namedtuple("TensorContentDtypeMax", [])
+
+
+def create_populated_numpy_ndarray(
+    input_shape: Union[list, tuple], dtype: str, input_tensor_populator
+) -> np.ndarray:
+    """
+    Create a numpy tensor with the specified shape, dtype, and content.
+    """
+    itp = input_tensor_populator  # just for brevity
+
+    if type(itp) == TensorContentConstant:
+        return np.full(tuple(input_shape), itp.elem_value, dtype=dtype)
+
+    elif type(itp) == TensorContentDtypeMin:
+        info = get_numpy_dtype_info(dtype)
+        return np.full(tuple(input_shape), info.min, dtype=dtype)
+
+    elif type(itp) == TensorContentDtypeMax:
+        info = get_numpy_dtype_info(dtype)
+        return np.full(tuple(input_shape), info.max, dtype=dtype)
+
+    elif type(itp) == TensorContentRandom:
+        return np.random.random(input_shape).astype(dtype)
+
+    else:
+        raise ValueError(f"Unexpected input_tensor_populator type: {type(itp)}")
