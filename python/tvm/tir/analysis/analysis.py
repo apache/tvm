@@ -311,7 +311,7 @@ def verify_well_formed(func: PrimFunc, assert_mode: bool = True) -> bool:
     func: tvm.tir.PrimFunc
         The function to be verified.
 
-    assert_mod: bool
+    assert_mode: bool
         The indicator if it raises an error when the function is not well-formed.
 
     Returns
