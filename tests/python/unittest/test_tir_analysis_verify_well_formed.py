@@ -53,24 +53,5 @@ def test_fail_use_out_loop_var():
     assert not tvm.tir.analysis.verify_well_formed(element_wise, assert_mode=False)
 
 
-def test_fail_use_out_block_var():
-    @T.prim_func
-    def element_wise(
-        A: T.Buffer[(128, 128), "float32"],
-        B: T.Buffer[(128, 128), "float32"],
-    ):
-        for i in range(128):
-            with T.block():
-                vi = T.axis.remap("S", [i])
-                for j in range(128):
-                    with T.block("B"):
-                        vii = T.axis.S(128, vi)
-                        vj = T.axis.S(128, j)
-                        # we cannot use `vi` since it's defined outside the block
-                        B[vii, vj] = A[vi, vj] * 2.0
-
-    assert not tvm.tir.analysis.verify_well_formed(element_wise, assert_mode=False)
-
-
 if __name__ == "__main__":
     tvm.testing.main()
