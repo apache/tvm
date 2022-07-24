@@ -337,6 +337,7 @@ def test_meta_schedule_task_scheduler_override_next_task_id_only():  # pylint: d
         )
 
 
+@pytest.mark.skip("Does array access OOB")
 def test_meta_schedule_task_scheduler_multiple_gradient_based():
     num_trials_per_iter = 6
     max_trials_per_task = 101
