@@ -451,7 +451,6 @@ class OpenCLTimerNode : public TimerNode {
     if (event_start_idxs.size() < count_timer_execs) {
       event_start_idxs.push_back(0);
     }
-
   }
   // Timer stop
   virtual void Stop() {
@@ -473,12 +472,10 @@ class OpenCLTimerNode : public TimerNode {
     // update event index for current call nesting
     event_start_idxs[count_timer_execs - 1] = evt_queue.size();
     --count_timer_execs;
-
   }
   virtual int64_t SyncAndGetElapsedNanos() { return this->duration; }
   // destructor
   virtual ~OpenCLTimerNode() {
-
     // Profiling session ends, recreate clCommandQueue in non-profiling mode
     // This will disable collection of cl_events in case of executing inference after profile
     if (count_timer_execs == 0) {

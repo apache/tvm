@@ -485,7 +485,6 @@ TVM_REGISTER_GLOBAL("device_api.opencl").set_body([](TVMArgs args, TVMRetValue* 
   *rv = static_cast<void*>(ptr);
 });
 
-
 TVM_REGISTER_OBJECT_TYPE(OpenCLTimerNode);
 
 TVM_REGISTER_GLOBAL("profiling.timer.opencl").set_body_typed([](Device dev) {
