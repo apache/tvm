@@ -29,8 +29,7 @@ from tvm.meta_schedule import ApplyHistoryBest, postproc, schedule_rule
 from tvm.meta_schedule.relay_integration import extract_task_from_relay
 from tvm.meta_schedule.testing import relay_workload
 from tvm.meta_schedule.testing.tlcbench import load_quantized_bert_base
-from tvm.meta_schedule.tune import TuneConfig, tune_extracted_tasks, tune_relay
-from tvm.tir.tensor_intrin import get_wmma_intrin_group
+from tvm.meta_schedule.tune import tune_extracted_tasks
 from tvm.tir.tensor_intrin import AMDGPU_SDOT4_INTRIN, DP4A_INTRIN
 from tvm.tir.tensor_intrin import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 
@@ -340,12 +339,13 @@ def test_dp4a_bert_int8():
 
 
 @tvm.testing.requires_gpu
-# @pytest.mark.skip("Slow on CI")
+@pytest.mark.skip("Slow on CI")
 @pytest.mark.parametrize(
     ["model_name", "input_shape"],
     [("bert_base", (8, 128)), ("resnet_18", (16, 3, 224, 224)), ("resnet_50", (16, 3, 224, 224))],
 )
 def test_cuda_tensor_core(model_name, input_shape):
+    """Integration tests of auto tensorization with CUDA tensor core"""
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
     dev = tvm.cuda()
     if model_name.startswith("bert"):
@@ -353,9 +353,7 @@ def test_cuda_tensor_core(model_name, input_shape):
     else:
         data = tvm.nd.array(np.random.randn(*input_shape).astype("float32"), dev)
 
-    mod, params, (input_name, input_shape, input_dtype) = relay_workload.get_network(
-        model_name, input_shape
-    )
+    mod, params, (input_name, _, _) = relay_workload.get_network(model_name, input_shape)
     seq = tvm.transform.Sequential(
         [
             relay.transform.ToMixedPrecision(),
@@ -375,24 +373,6 @@ def test_cuda_tensor_core(model_name, input_shape):
 
     with tempfile.TemporaryDirectory() as work_dir:
         with ms.Profiler() as profiler:
-            # tasks = ms.extract_task_from_relay(mod=mod, params=params, target=target)
-            import pickle
-
-            # pickle.dump(tasks, open('tasks.pkl', 'wb'))
-            # tasks = pickle.load(open('tasks.pkl', 'rb'))
-            # #tasks = [tasks[7]]
-            # ms.tune_extracted_tasks(
-            #     tasks,
-            #     config=ms.TuneConfig(
-            #         num_trials_per_iter=32,
-            #         max_trials_per_task=200,
-            #         max_trials_global=200,
-            #     ),
-            #     work_dir=work_dir,
-            #     sch_rules=ms.default_config._DefaultCUDATensorCore.schedule_rules,
-            #     postprocs=ms.default_config._DefaultCUDATensorCore.postprocs,
-            # )
-
             rt_mod1: tvm.runtime.Module = ms.tune_relay(
                 mod=convert_layout(mod),
                 params=params,
@@ -425,5 +405,4 @@ def test_cuda_tensor_core(model_name, input_shape):
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_cuda_tensor_core("bert_base", (8, 128))
+    tvm.testing.main()
