@@ -75,6 +75,10 @@ def get_test_id(*test_params, test_param_descs: List[Optional[str]] = None) -> s
             val_str = "random"
             need_prefix_separator = True
 
+        elif type(param_val) == TensorContentSequentialCOrder:
+            val_str = f"seqC(start:{param_val.start_value},inc:{param_val.increment})"
+            need_prefix_separator = True
+
         else:
             val_str = str(param_val)
             need_prefix_separator = True
@@ -109,25 +113,28 @@ def get_multitest_ids(
     ]
 
 
-def get_numpy_dtype_info(np_dtype_name: str) -> Union[np.finfo, np.iinfo]:
+def get_numpy_dtype_info(dtype) -> Union[np.finfo, np.iinfo]:
     """
     Return an appropriate 'np.iinfo' or 'np.finfo' object corresponding to
-    the specified dtype.
+    the specified Numpy dtype.
+
+    'dtype' must be a value that 'numpy.dtype(...)' can handle.
     """
-    np_dtype = np.dtype(np_dtype_name)
+    np_dtype = np.dtype(dtype)
     kind = np_dtype.kind
 
     if kind == "f":
-        return np.finfo(np_dtype_name)
+        return np.finfo(np_dtype)
     elif kind == "i":
-        return np.iinfo(np_dtype_name)
+        return np.iinfo(np_dtype)
     else:
-        raise TypeError(
-            f"np_dtype_name ({np_dtype_name}) must indicate some floating-point or integral data type"
-        )
+        raise TypeError(f"dtype ({dtype}) must indicate some floating-point or integral data type")
 
 
 TensorContentConstant = collections.namedtuple("TensorContentConstant", ["elem_value"])
+TensorContentSequentialCOrder = collections.namedtuple(
+    "TensorContentSequentialCOrder", ["start_value", "increment"]
+)
 TensorContentRandom = collections.namedtuple("TensorContentRandom", [])
 TensorContentDtypeMin = collections.namedtuple("TensorContentDtypeMin", [])
 TensorContentDtypeMax = collections.namedtuple("TensorContentDtypeMax", [])
@@ -154,6 +161,16 @@ def create_populated_numpy_ndarray(
 
     elif type(itp) == TensorContentRandom:
         return np.random.random(input_shape).astype(dtype)
+
+    elif type(itp) == TensorContentSequentialCOrder:
+        a = np.empty(tuple(input_shape), dtype)
+
+        with np.nditer(a, op_flags=["writeonly"], order="C") as it:
+            next_elem_val = itp.start_value
+            for elem in it:
+                elem[...] = next_elem_val
+                next_elem_val += itp.increment
+        return a
 
     else:
         raise ValueError(f"Unexpected input_tensor_populator type: {type(itp)}")
