@@ -115,6 +115,7 @@ def test_buffer_vload_nullptr():
             [
                 tvm.tir.transform.PlanAndUpdateBufferAllocationLocation(),
                 tvm.tir.transform.CompactBufferAllocation(),
+                tvm.tir.transform.LowerOpaqueBlock(),
                 tvm.tir.transform.FlattenBuffer(),
             ]
         )(mod)

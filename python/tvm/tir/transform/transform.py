@@ -769,10 +769,20 @@ def LowerMatchBuffer():
     return _ffi_api.LowerMatchBuffer()  # type: ignore
 
 
+def LowerOpaqueBlock():
+    """Remove the block to ensure that the TIR can not be scheduled again.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerOpaqueBlock()  # type: ignore
+
+
 def FlattenBuffer():
-    """Flatten the multi-dimensional BufferLoad and BufferStore
-    to single dimensional Load/Store. Also remove Block to
-    ensure that the flattened TIR can not be scheduled again.
+    """Flatten the multi-dimensional BufferLoad and BufferStore to single dimensional
+    BufferLoad/BufferStore for the TIR not contains opaque block.
 
     Returns
     -------
