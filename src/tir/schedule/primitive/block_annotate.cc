@@ -240,7 +240,7 @@ void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int buffer_ind
                   int factor, int offset) {
   const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_ptr, block_sref);
   Buffer buffer =
-      GetNthAccessBuffer(self, GetRef<Block>(block_ptr), buffer_index, /*is_write=*/true);
+      GetNthAccessBuffer(self, GetRef<Block>(block_ptr), buffer_index, BufferIndexType::kWrite);
   StorageAlignInvalidFactorError::Check(self->mod, factor);
   axis = StorageAlignAxisOutOfRangeError::CheckAndUpdate(self->mod, buffer, axis);
   NonAllocatedBufferError::CheckAndGetBufferAllocationSite(self->mod, block_sref, buffer);
@@ -275,7 +275,8 @@ void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int buffer_ind
 void SetScope(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
               const String& storage_scope) {
   const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
-  Buffer buffer = GetNthAccessBuffer(self, GetRef<Block>(block), buffer_index, true);
+  Buffer buffer =
+      GetNthAccessBuffer(self, GetRef<Block>(block), buffer_index, BufferIndexType::kWrite);
 
   // Step 1. If `storage_scope` equals the original storage scope of the buffer, just return.
   if (buffer.scope() == storage_scope) {

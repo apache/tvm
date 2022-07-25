@@ -43,6 +43,14 @@ class TargetKind(Object):
         return dict(_ffi_api.ListTargetKindOptionsFromName(kind_name))
 
 
+class TargetFeatures:
+    def __init__(self, target):
+        self.target = target
+
+    def __getattr__(self, name: str):
+        return _ffi_api.TargetGetFeature(self.target, name)
+
+
 @tvm._ffi.register_object
 class Target(Object):
     """Target device information, use through TVM API.
@@ -197,7 +205,7 @@ class Target(Object):
     def supports_integer_dot_product(self):
         if self.attrs.get("supports_integer_dot_product", []):
             return bool(self.attrs["supports_integer_dot_product"])
-        if self.kind == "cuda":
+        if self.kind.name == "cuda":
             sm_version = int(self.arch.split("_")[1])
             if sm_version >= 61:
                 return True
@@ -206,6 +214,10 @@ class Target(Object):
     @property
     def libs(self):
         return list(self.attrs.get("libs", []))
+
+    @property
+    def features(self):
+        return TargetFeatures(self)
 
     def get_kind_attr(self, attr_name):
         """Get additional attribute about the target kind.

@@ -17,6 +17,7 @@
 import os
 import pytest
 import tarfile
+import textwrap
 
 import numpy as np
 
@@ -229,3 +230,41 @@ def tflite_cnn_s_quantized(tmpdir_factory):
         "{}/{}".format(base_url, file_to_download), file_to_download, module=["tvmc"]
     )
     return model_file
+
+
+@pytest.fixture(scope="session")
+def relay_text_conv2d(tmpdir_factory):
+    file_path = os.path.join(tmpdir_factory.mktemp("model"), "relay.txt")
+
+    RELAY_MODEL = textwrap.dedent(
+        """\
+        #[version = "0.0.5"]
+        def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(3, 3, 5, 5), int8]) {
+            %1 = nn.conv2d(
+                 %data,
+                 %weight,
+                 padding=[2, 2],
+                 channels=3,
+                 kernel_size=[5, 5],
+                 data_layout="NCHW",
+                 kernel_layout="OIHW",
+                 out_dtype="int32");
+            %2 = cast(nn.max_pool2d(%1, pool_size=[3, 3]), dtype="int8");
+            %3 = nn.conv2d(
+                 %2,
+                 %weight,
+                 padding=[2, 2],
+                 channels=3,
+                 kernel_size=[5, 5],
+                 data_layout="NCHW",
+                 kernel_layout="OIHW",
+                 out_dtype="int32");
+            %4 = nn.max_pool2d(%3, pool_size=[3, 3]);
+            %4
+        }
+    """
+    )
+
+    with open(file_path, "w") as relay_text:
+        relay_text.write(RELAY_MODEL)
+    return file_path

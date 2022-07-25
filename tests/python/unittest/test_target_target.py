@@ -470,5 +470,15 @@ def test_target_attr_bool_value():
     assert target3.attrs["supports_float16"] == 0
 
 
+def test_target_features():
+    target_no_features = Target("cuda")
+    assert target_no_features.features
+    assert not target_no_features.features.is_test
+
+    target_with_features = Target("test")
+    assert target_with_features.features.is_test
+    assert not target_with_features.features.is_missing
+
+
 if __name__ == "__main__":
     tvm.testing.main()

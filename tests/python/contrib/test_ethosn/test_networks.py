@@ -143,7 +143,6 @@ def test_mobilenet_v1():
     )
 
 
-@pytest.mark.skip(reason="very slow test")
 @requires_ethosn
 def test_resnet_50_int8():
     # If this test is failing due to a hash mismatch, please notify @mbaret and
@@ -153,7 +152,7 @@ def test_resnet_50_int8():
     # on hardware that isn't available in CI.
     if tei.get_ethosn_api_version() > 2011:
         if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
-            _compile_hash = {"de6723dc69f5f3015c4ab5cb8f288221", "dc2ed339583a59f0c3d38dc5ff069ec9"}
+            _compile_hash = {"c0a01c547ed1b2e3308094508fa1bfea", "434f0c65c41e24d5482142c88b3438fe"}
             _test_image_network(
                 model_url="https://raw.githubusercontent.com/dmlc/web-data/main/tensorflow/"
                 "models/Quantized/resnet_50_quantized.tflite",
@@ -163,7 +162,6 @@ def test_resnet_50_int8():
                 output_count=1,
                 host_ops=11,
                 npu_partitions=2,
-                run=True,
             )
 
 

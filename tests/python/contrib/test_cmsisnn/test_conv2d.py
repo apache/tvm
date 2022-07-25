@@ -39,6 +39,7 @@ from .utils import (
     make_qnn_relu,
     assert_partitioned_function,
     assert_no_external_function,
+    create_test_runner,
 )
 
 
@@ -227,6 +228,9 @@ def test_conv2d_number_primfunc_args(
     "input_zero_point, input_scale, kernel_scale, out_channels",
     [(10, 0.0128, [0.11, 0.22], 2), (-64, 1, [1, 0.0256, 1.37], 3)],
 )
+@pytest.mark.parametrize(
+    "compiler_cpu, cpu_flags", [("cortex-m55", "+nomve"), ("cortex-m55", ""), ("cortex-m7", "")]
+)
 def test_conv2d_symmetric_padding_int8(
     padding,
     enable_bias,
@@ -235,11 +239,12 @@ def test_conv2d_symmetric_padding_int8(
     input_scale,
     kernel_scale,
     out_channels,
+    compiler_cpu,
+    cpu_flags,
 ):
     """Tests QNN Conv2D where the padding is symmetric on both sides of input"""
     interface_api = "c"
     use_unpacked_api = True
-    test_runner = AOT_USMP_CORSTONE300_RUNNER
 
     ifm_shape = (1, 64, 100, 4)
     kernel_size = (3, 3)
@@ -303,7 +308,7 @@ def test_conv2d_symmetric_padding_int8(
             params=params,
             output_tolerance=1,
         ),
-        test_runner,
+        create_test_runner(compiler_cpu, cpu_flags),
         interface_api,
         use_unpacked_api,
     )
@@ -456,6 +461,9 @@ def test_conv2d_int8_tflite(ifm_shape, kernel_shape, strides, dilation, padding,
     "input_zero_point, input_scale, kernel_scale, out_channels",
     [(10, 0.0128, [0.11, 0.22], 2), (-64, 1, [1, 0.0256, 1.37], 3)],
 )
+@pytest.mark.parametrize(
+    "compiler_cpu, cpu_flags", [("cortex-m55", "+nomve"), ("cortex-m55", ""), ("cortex-m7", "")]
+)
 def test_depthwise_int8(
     ifm_shape,
     kernel_size,
@@ -469,11 +477,12 @@ def test_depthwise_int8(
     kernel_scale,
     out_channels,
     depth_multiplier,
+    compiler_cpu,
+    cpu_flags,
 ):
     """Tests QNN Depthwise int8 op via CMSIS-NN"""
     interface_api = "c"
     use_unpacked_api = True
-    test_runner = AOT_USMP_CORSTONE300_RUNNER
 
     dtype = "int8"
     groups = 1
@@ -541,7 +550,7 @@ def test_depthwise_int8(
             params=params,
             output_tolerance=1,
         ),
-        test_runner,
+        create_test_runner(compiler_cpu, cpu_flags),
         interface_api,
         use_unpacked_api,
     )

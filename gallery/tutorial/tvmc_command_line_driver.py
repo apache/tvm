@@ -94,7 +94,7 @@ testing.utils.install_request_hook(depth=3)
 #
 # .. code-block:: bash
 #
-#   wget https://github.com/onnx/models/raw/652f4e4af7975c8e7a505c4b6e0f8ac72d8260ea/vision/classification/resnet/model/resnet50-v2-7.onnx
+#   wget https://github.com/onnx/models/raw/b9a54e89508f101a1611cd64f4ef56b9cb62c7cf/vision/classification/resnet/model/resnet50-v2-7.onnx
 #
 
 ################################################################################

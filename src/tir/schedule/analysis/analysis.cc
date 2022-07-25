@@ -1142,17 +1142,19 @@ ProducerConsumerSplit ProducerConsumerSplit::Find(
 
 /******** Block-buffer relation ********/
 
-Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n, bool is_write) {
+BufferRegion GetNthAccessBufferRegion(const ScheduleState& self, const Block& block, int n,
+                                      BufferIndexType index_type) {
   class BufferIndexOutOfRangeError : public ScheduleError {
    public:
-    explicit BufferIndexOutOfRangeError(IRModule mod, Block block, int buffer_index, bool is_write)
+    explicit BufferIndexOutOfRangeError(IRModule mod, Block block, int buffer_index,
+                                        BufferIndexType index_type)
         : mod_(std::move(mod)),
           block_(std::move(block)),
           buffer_index_(buffer_index),
-          is_write_(is_write) {}
+          index_type_(index_type) {}
 
     String FastErrorString() const final {
-      if (is_write_) {
+      if (index_type_ == BufferIndexType::kWrite) {
         return "ScheduleError: The input `buffer_index` is out of range. It is required to be in "
                "range "
                "[0, num_write_regions) where `num_write_regions` is the number of buffer regions "
@@ -1167,9 +1169,9 @@ Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n, 
 
     String DetailRenderTemplate() const final {
       std::ostringstream os;
-      size_t num = is_write_ ? block_->writes.size() : block_->reads.size();
-      std::string access_type = is_write_ ? "write" : "read";
-      os << "The block {0} has " << num << " " << access_type
+      size_t num =
+          index_type_ == BufferIndexType::kWrite ? block_->writes.size() : block_->reads.size();
+      os << "The block {0} has " << num << " " << BufferIndexType2Str(index_type_)
          << " regions, so `buffer_index` is required to be in [0, " << num
          << "). However, the input `buffer_index` is " << buffer_index_
          << ", which is out of the expected range.";
@@ -1183,15 +1185,21 @@ Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n, 
     IRModule mod_;
     Block block_;
     int buffer_index_;
-    bool is_write_;
+    BufferIndexType index_type_;
   };
 
-  const Array<BufferRegion>& access_region = is_write ? block->writes : block->reads;
+  const Array<BufferRegion>& access_region =
+      index_type == BufferIndexType::kWrite ? block->writes : block->reads;
 
   if (n < 0 || static_cast<int>(access_region.size()) <= n) {
-    throw BufferIndexOutOfRangeError(self->mod, block, n, is_write);
+    throw BufferIndexOutOfRangeError(self->mod, block, n, index_type);
   }
-  return access_region[n]->buffer;
+  return access_region[n];
+}
+
+Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n,
+                          BufferIndexType index_type) {
+  return GetNthAccessBufferRegion(self, block, n, index_type)->buffer;
 }
 
 std::pair<Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& block_sref,
@@ -1942,6 +1950,9 @@ bool IsTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref) {
 }
 
 bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref) {
+  if (HasBeenMultiLevelTiled(block_sref)) {
+    return false;
+  }
   const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
   if (block->writes.size() != 1 || block->reads.empty() || IsSpatial(block_sref) ||
       !IsTrivialBinding(self, block_sref)) {

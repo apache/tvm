@@ -1461,3 +1461,26 @@ def InlineCompilerFunctionsBoundTo(global_vars):
         The pass.
     """
     return _ffi_api.InlineCompilerFunctionsBoundTo(global_vars)
+
+
+def CollagePartition(config, cost_estimator=None):
+    """Partition the bodies of all functions according to the available targets so as to
+    minimize model latency. See https://github.com/apache/tvm-rfcs/blob/main/rfcs/0062-collage.md.
+
+    Parameters
+    ----------
+    config : CompilationConfig
+        The available targets.
+    cost_estimator : CostEstimator, optional
+        The custom cost estimator to use for costing each candidate partition.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The pass.
+
+    """
+    if cost_estimator is None:
+        cost_estimator = relay.collage.CostEstimator()
+
+    return _ffi_api.CollagePartition(config, cost_estimator)

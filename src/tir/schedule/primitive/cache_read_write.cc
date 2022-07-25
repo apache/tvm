@@ -981,7 +981,7 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
   // Step 1. Check index, getting the target buffer and the parent scope
   const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
   Buffer read_buffer =
-      GetNthAccessBuffer(self, GetRef<Block>(block), read_buffer_index, /*is_write=*/false);
+      GetNthAccessBuffer(self, GetRef<Block>(block), read_buffer_index, BufferIndexType::kRead);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
   const BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_block, scope_sref);
 
@@ -1052,7 +1052,7 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
   // Step 1. Checking index, getting the target buffer and the parent scope
   const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
   Buffer write_buffer =
-      GetNthAccessBuffer(self, GetRef<Block>(block), write_buffer_index, /*is_write=*/true);
+      GetNthAccessBuffer(self, GetRef<Block>(block), write_buffer_index, BufferIndexType::kWrite);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
 
   // Step 2. Creating CacheStageInfo
@@ -1094,8 +1094,7 @@ StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buffer_inde
                  BufferIndexType buffer_index_type) {
   const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_ptr, block_sref);
   Block block = GetRef<Block>(block_ptr);
-  Buffer buffer =
-      GetNthAccessBuffer(self, block, buffer_index, buffer_index_type == BufferIndexType::kWrite);
+  Buffer buffer = GetNthAccessBuffer(self, block, buffer_index, buffer_index_type);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
   arith::Analyzer analyzer;
 

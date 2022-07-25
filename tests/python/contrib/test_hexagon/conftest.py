@@ -18,12 +18,8 @@
 """ Hexagon testing fixtures used to deduce testing argument
     values from testing parameters """
 
-
-import pytest
-
-import tvm
-import tvm.testing
-
+# Disabling invalid-name check as the name is expected to be exactly this by pytest
+# pylint: disable=invalid-name
 pytest_plugins = [
     "tvm.contrib.hexagon.pytest_plugin",
 ]

@@ -114,6 +114,14 @@ TVM_REGISTER_GLOBAL("relay.ir.StorageInfoStorageSizes").set_body_typed([](Storag
   return storage_sizes_in_bytes;
 });
 
+TVM_REGISTER_GLOBAL("relay.ir.StorageInfoVirtualDevices").set_body_typed([](StorageInfo si) {
+  Array<VirtualDevice> virtual_devices;
+  for (auto id : si->virtual_devices) {
+    virtual_devices.push_back(id);
+  }
+  return virtual_devices;
+});
+
 TVM_REGISTER_NODE_TYPE(StaticMemoryPlanNode);
 
 StaticMemoryPlan::StaticMemoryPlan(Map<Expr, StorageInfo> expr_to_storage_info) {

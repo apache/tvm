@@ -24,7 +24,7 @@ python3 -m pylint tests/python/relay/aot/*.py --rcfile="$(dirname "$0")"/pylintr
 python3 -m pylint tests/python/ci --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint tests/python/integration/ --rcfile="$(dirname "$0")"/pylintrc
 
-# tests/python/unitest/
+# tests/python/unittest/
 python3 -m pylint \
     tests/python/unittest/test_micro_model_library_format.py \
     tests/python/unittest/test_crt.py \
@@ -49,3 +49,10 @@ python3 -m pylint \
     tests/python/unittest/test_tvmscript_type.py \
     --rcfile="$(dirname "$0")"/pylintrc
 
+# tests/python/contrib/test_hexagon tests
+python3 -m pylint tests/python/contrib/test_hexagon/benchmark_util.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/contrib/test_hexagon/conftest.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/contrib/test_hexagon/conv2d/test_conv2d_blocked.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/contrib/test_hexagon/conv2d/test_conv2d_conv2d.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/contrib/test_hexagon/infrastructure.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/contrib/test_hexagon/test_2d_physical_buffers.py --rcfile="$(dirname "$0")"/pylintrc

@@ -820,6 +820,21 @@ def test_tflite_tanh(accel_type):
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize("ifm_shape", [(1, 5, 5, 3), (1, 12, 9, 1)])
+def test_tflite_hard_swish(accel_type, ifm_shape):
+    np.random.seed(0)
+
+    @tf.function
+    def hard_swish_func(x):
+        op = tf.keras.layers.Lambda(
+            lambda x: x * tf.keras.activations.relu(x + 3.0, max_value=6.0) / 6.0
+        )(x)
+        return op
+
+    infra.compare_tvm_with_tflite(hard_swish_func, [ifm_shape], accel_type, ranges=[(-1, 1)])
+
+
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize(
     "shapes, axis",
     [

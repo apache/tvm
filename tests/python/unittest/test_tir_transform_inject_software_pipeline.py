@@ -1051,7 +1051,9 @@ def test_three_stage_gemm():
             *shared_16x16_to_ldmatrix_32x8_layout(i % 16, j % 16),
         )
 
-    workload = te.create_prim_func(te_workload.matmul_fp16(N, M, K))
+    workload = te.create_prim_func(
+        te_workload.matmul(N, M, K, in_dtype="float16", out_dtype="float32")
+    )
 
     sch = mma_schedule(
         workload,

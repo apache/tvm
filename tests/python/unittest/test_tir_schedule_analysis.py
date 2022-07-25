@@ -270,7 +270,9 @@ def check_index_map(workload, block_name, intrin_name, expected_index_map):
 
 
 def test_get_auto_tensorize_mapping_info_conv2d():
-    conv2d = create_prim_func(te_workload.conv2d_nhwc_f16(4, 16, 16, 64, 64, 3, 1, 1))
+    conv2d = create_prim_func(
+        te_workload.conv2d_nhwc(4, 16, 16, 64, 64, 3, 1, 1, in_dtype="float16", out_dtype="float32")
+    )
     check_index_map(
         conv2d,
         "conv2d_nhwc",
@@ -280,7 +282,9 @@ def test_get_auto_tensorize_mapping_info_conv2d():
 
 
 def test_get_auto_tensorize_mapping_info_conv2d_unit_batch():
-    conv2d = create_prim_func(te_workload.conv2d_nhwc_f16(1, 16, 16, 64, 64, 3, 1, 1))
+    conv2d = create_prim_func(
+        te_workload.conv2d_nhwc(1, 16, 16, 64, 64, 3, 1, 1, in_dtype="float16", out_dtype="float32")
+    )
     check_index_map(
         conv2d,
         "conv2d_nhwc",
@@ -292,7 +296,9 @@ def test_get_auto_tensorize_mapping_info_conv2d_unit_batch():
 
 @pytest.mark.parametrize("b,m,n,k", [(1, 512, 512, 512), (16, 32, 32, 32)])
 def test_get_auto_tensorize_mapping_info_batch_matmul(b, m, n, k):
-    matmul = create_prim_func(te_workload.batch_matmul_nkkm_f16(b, m, n, k))
+    matmul = create_prim_func(
+        te_workload.batch_matmul_nkkm(b, m, n, k, in_dtype="float16", out_dtype="float32")
+    )
     check_index_map(
         matmul, "Z", WMMA_SYNC_16x16x16_f16f16f32_INTRIN, lambda b, m, n, k: (b, m, n, k)
     )

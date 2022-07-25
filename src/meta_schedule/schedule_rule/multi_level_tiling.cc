@@ -61,6 +61,8 @@ using tir::IterVarType;
 using tir::LoopRV;
 using tir::Schedule;
 
+TVM_REGISTER_OBJECT_TYPE(StateNode);
+
 State::State(tir::Schedule sch, tir::BlockRV block_rv, Array<Array<tir::LoopRV>> tiles) {
   ObjectPtr<StateNode> node = make_object<StateNode>();
   node->sch = std::move(sch);
@@ -133,6 +135,7 @@ std::vector<State> MultiLevelTilingNode::AddWriteReuse(State state) const {
         new_state->sch->ReverseComputeAt(consumer_rvs[0], loop_rv, true);
         results.push_back(std::move(new_state));
       }
+      state->write_reuse.emplace(0, consumer_rvs[0]);
       results.push_back(state);
       return results;
     } else {
@@ -146,6 +149,7 @@ std::vector<State> MultiLevelTilingNode::AddWriteReuse(State state) const {
   BlockRV write_cache =
       state->sch->CacheWrite(/*block_rv=*/state->block_rv, /*read_buffer_index=*/0,
                              /*storage_scope=*/config.scope);
+  state->write_reuse.emplace(0, write_cache);
   for (int level : levels) {
     State new_state = state->Copy();
     const LoopRV& loop_rv = new_state->tiles[level - 1].back();
@@ -247,20 +251,24 @@ std::vector<State> MultiLevelTilingNode::AddReadReuse(State state) const {
       Array<LoopRV> buffer_loops = sch->GetLoops(cache_read_block);
       LoopRV fused = sch->Fuse(Array<LoopRV>{buffer_loops.end() - buffer_ndim,  //
                                              buffer_loops.end()});
-      // Annotate cooperative fetching
-      if (!vector_load_lens.empty()) {
-        int n = vector_load_lens.size();
-        double prob = 1.0 / n;
-        tir::ExprRV vector_load_len =
-            sch->SampleCategorical(support::AsArray<int, Integer>(vector_load_lens),
-                                   Array<FloatImm>(n, FloatImm(DataType::Float(64), prob)));
-        sch->Annotate(cache_read_block, tir::attr::meta_schedule_cooperative_fetch,
-                      vector_load_len);
-      }
+      AnnotateCooperativeFetching(&sch, cache_read_block);
+      new_state->read_reuse.emplace(i, cache_read_block);
     }
     results.push_back(std::move(new_state));
   }
   return results;
+}
+
+void MultiLevelTilingNode::AnnotateCooperativeFetching(Schedule* sch,
+                                                       const tir::BlockRV& block) const {
+  if (!vector_load_lens.empty()) {
+    int n = vector_load_lens.size();
+    double prob = 1.0 / n;
+    tir::ExprRV vector_load_len =
+        (*sch)->SampleCategorical(support::AsArray<int, Integer>(vector_load_lens),
+                                  Array<FloatImm>(n, FloatImm(DataType::Float(64), prob)));
+    (*sch)->Annotate(block, tir::attr::meta_schedule_cooperative_fetch, vector_load_len);
+  }
 }
 
 // Constructor

@@ -102,9 +102,6 @@ class TestResize2d:
         method,
         hexagon_session,
     ):
-        if hexagon_session._launcher._serial_number != "simulator":
-            pytest.skip(msg="Due to https://github.com/apache/tvm/issues/11957")
-
         target_hexagon = tvm.target.hexagon("v69")
         A = te.placeholder(input_shape, name="A", dtype=dtype)
 

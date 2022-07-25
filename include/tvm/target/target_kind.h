@@ -38,6 +38,16 @@ namespace tvm {
 class Target;
 
 /*!
+ * \brief TargetParser to apply on instantiation of a given TargetKind
+ *
+ * \param target_json Target in JSON format to be transformed during parsing.
+ *
+ * \return The transformed Target JSON object.
+ */
+using TargetJSON = Map<String, ObjectRef>;
+using FTVMTargetParser = TypedPackedFunc<TargetJSON(TargetJSON)>;
+
+/*!
  * \brief RelayToTIR tvm::transform::Pass specific to a TargetKind
  *
  * Called before the default lowering passes.
@@ -82,6 +92,8 @@ class TargetKindNode : public Object {
   Array<String> default_keys;
   /*! \brief Function used to preprocess on target creation */
   PackedFunc preprocessor;
+  /*! \brief Function used to parse a JSON target during creation */
+  FTVMTargetParser target_parser;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
@@ -207,6 +219,11 @@ class TargetKindRegEntry {
    */
   template <typename FLambda>
   inline TargetKindRegEntry& set_attrs_preprocessor(FLambda f);
+  /*!
+   * \brief Set the parsing function applied upon target creation
+   * \param parser The Target parsing function
+   */
+  inline TargetKindRegEntry& set_target_parser(FTVMTargetParser parser);
   /*!
    * \brief Register a valid configuration option and its ValueType for validation
    * \param key The configuration key
@@ -353,8 +370,14 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_default_keys(std::vector<Stri
 
 template <typename FLambda>
 inline TargetKindRegEntry& TargetKindRegEntry::set_attrs_preprocessor(FLambda f) {
+  LOG(WARNING) << "set_attrs_preprocessor is deprecated please use set_target_parser instead";
   using FType = typename tvm::runtime::detail::function_signature<FLambda>::FType;
   kind_->preprocessor = tvm::runtime::TypedPackedFunc<FType>(std::move(f)).packed();
+  return *this;
+}
+
+inline TargetKindRegEntry& TargetKindRegEntry::set_target_parser(FTVMTargetParser parser) {
+  kind_->target_parser = parser;
   return *this;
 }
 
