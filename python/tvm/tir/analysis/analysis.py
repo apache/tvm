@@ -300,3 +300,23 @@ def apply_prim_func_arg_and_result_memory_constraints(
     return _ffi_api.ApplyPrimFuncArgAndResultMemoryConstraints(  # type: ignore # pylint: disable=no-member
         func, relay_func_type, arg_and_result_memory_scopes
     )
+
+
+def verify_well_formed(func: PrimFunc, assert_mode: bool = True) -> bool:
+    """Verify if the given TIR is well-formed. The verification includes:
+        - Check if expressions not contain vars that is defined outside the block.
+
+    Parameters
+    ----------
+    func: tvm.tir.PrimFunc
+        The function to be verified.
+
+    assert_mode: bool
+        The indicator if it raises an error when the function is not well-formed.
+
+    Returns
+    -------
+    result: bool
+        Whether it is a well-formed TIR function.
+    """
+    return _ffi_api.VerifyWellFormed(func, assert_mode)  # type: ignore # pylint: disable=no-member
