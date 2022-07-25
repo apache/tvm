@@ -23,6 +23,7 @@ from typing import Set
 import pytest
 import tvm
 import tvm.testing
+from tvm.support import libinfo
 from tvm import meta_schedule as ms
 from tvm._ffi.base import TVMError
 from tvm.meta_schedule.testing.dummy_object import DummyBuilder, DummyRunner
@@ -337,7 +338,18 @@ def test_meta_schedule_task_scheduler_override_next_task_id_only():  # pylint: d
         )
 
 
-@pytest.mark.skip("Does array access OOB")
+def should_skip_oob_test():
+    flags = libinfo()
+    # TODO(gigiblender) This combination of flags should be enabled only in the ci_minimal CI configuration.
+    #  Remove this once the OOB test is fixed.
+    return (
+        flags["USE_RELAY_DEBUG"] == "ON"
+        and flags["USE_LLVM"] == "llvm-config"
+        and flags["USE_MICRO"] != "ON"
+    )
+
+
+@pytest.mark.skipif(should_skip_oob_test(), reason="Does array access OOB. Remove once fixed.")
 def test_meta_schedule_task_scheduler_multiple_gradient_based():
     num_trials_per_iter = 6
     max_trials_per_task = 101

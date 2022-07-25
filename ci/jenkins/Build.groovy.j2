@@ -33,6 +33,13 @@ def cpp_unittest(image) {
   )
 }
 
+def cpp_micro_unittest(image) {
+  sh (
+    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_cpp_unittest_micro.sh",
+    label: 'Build and run Micro C++ tests',
+  )
+}
+
 
 def add_microtvm_permissions() {
   {% for folder in microtvm_template_projects %}
@@ -123,6 +130,24 @@ stage('Build') {
       Utils.markStageSkippedForConditional('BUILD: CPU')
     }
   },
+  'BUILD: CPU MINIMAL': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU-SMALL') {
+        ws({{ m.per_exec_ws('tvm/build-cpu-minimal') }}) {
+          docker_init(ci_minimal)
+          init_git()
+          sh (
+            script: "${docker_run} ${ci_minimal} ./tests/scripts/task_config_build_minimal.sh build",
+            label: 'Create CPU minimal cmake config',
+          )
+          make(ci_minimal, 'build', '-j2')
+          {{ m.upload_artifacts(tag='cpu-minimal', filenames=tvm_lib) }}
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('BUILD: CPU MINIMAL')
+    }
+  },
   'BUILD: WASM': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
@@ -135,6 +160,7 @@ stage('Build') {
           )
           make(ci_wasm, 'build', '-j2')
           cpp_unittest(ci_wasm)
+          cpp_micro_unittest(ci_wasm)
           timeout(time: max_time, unit: 'MINUTES') {
             ci_setup(ci_wasm)
             sh (

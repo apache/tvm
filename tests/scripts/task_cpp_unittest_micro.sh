@@ -45,7 +45,14 @@ python3 tests/scripts/task_build.py \
     --cmake-target cpptest \
     --build-dir "${BUILD_DIR}"
 
+# crttest
 pushd "${BUILD_DIR}"
-ctest --gtest_death_test_style=threadsafe
+ninja crttest
+popd
+
+# Test MISRA-C runtime.
+pushd apps/bundle_deploy
+rm -rf build
+make test_dynamic test_static
 popd
 

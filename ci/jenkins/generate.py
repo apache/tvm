@@ -41,6 +41,10 @@ data = {
             "platform": "CPU",
         },
         {
+            "name": "ci_minimal",
+            "platform": "CPU",
+        },
+        {
             "name": "ci_gpu",
             "platform": "CPU",
         },
