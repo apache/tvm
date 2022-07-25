@@ -136,37 +136,32 @@ TVM_REGISTER_OBJECT_TYPE(TECompilerNode);
 class TECompilerImpl : public TECompilerNode {
  public:
   explicit TECompilerImpl(Optional<IRModule> opt_mod, Optional<String> opt_mod_name) {
-    String mod_name;
-    if (!opt_mod_name) {
-      mod_name = "";
-    } else {
-      mod_name = opt_mod_name.value();
-    }
-    NameSupply name_supply = NameSupply(mod_name);
-    global_var_supply = GlobalVarSupply(name_supply);
+    String mod_name = opt_mod_name.value_or("");
+    NameSupply name_supply = NameSupply(mod_name /* prefix */);
+    global_var_supply_ = GlobalVarSupply(name_supply);
     // Make sure we don't collide with any existing globals in the module.
     if (opt_mod) {
       for (const auto& kv : opt_mod.value()->functions) {
-        global_var_supply->name_supply_->ReserveName(kv.first->name_hint, false);
+        global_var_supply_->name_supply_->ReserveName(kv.first->name_hint, false);
       }
     }
   }
 
   // Lower the function.
   CachedFunc Lower(const CCacheKey& key) {
-    return LowerInternal(key, global_var_supply)->cached_func;
+    return LowerInternal(key, global_var_supply_)->cached_func;
   }
 
-  // TODO(gigiblender): Only to be called by the GlobalTECompiler.
-  //  Remove this when the GlobalTECompiler is removed.
+  // TODO(gigiblender): Only to be called by the global TE compiler.
+  //  Remove this when the global TE compiler is removed.
   CachedFunc Lower(const CCacheKey& key, const String mod_name) {
-    global_var_supply->name_supply_->prefix_ = mod_name;
-    return LowerInternal(key, global_var_supply)->cached_func;
+    global_var_supply_->name_supply_->prefix_ = mod_name;
+    return LowerInternal(key, global_var_supply_)->cached_func;
   }
 
   // For now, build one module per function.
   PackedFunc JIT(const CCacheKey& key) final {
-    CCacheValue value = LowerInternal(key, GlobalVarSupply());
+    CCacheValue value = LowerInternal(key, GlobalVarSupply(NameSupply("")));
     if (value->packed_func != nullptr) {
       return value->packed_func;
     }
@@ -499,7 +494,7 @@ class TECompilerImpl : public TECompilerNode {
 
     using tvm::transform::PassContext;
     With<PassContext> fresh_pass_ctx_scope(PassContext::Create());
-    value->cached_func = ShapeFuncFor(key->source_func, key->target, global_var_supply);
+    value->cached_func = ShapeFuncFor(key->source_func, key->target, global_var_supply_);
 
     ICHECK(
         value->cached_func->funcs->Lookup(value->cached_func->prim_fn_var).as<tir::PrimFuncNode>());
@@ -527,7 +522,7 @@ class TECompilerImpl : public TECompilerNode {
   /*! \brief compiler cache lock*/
   std::mutex mutex_;
   /*! \brief internal GlobalVarSupply to get unique GlobalVars  */
-  GlobalVarSupply global_var_supply;
+  GlobalVarSupply global_var_supply_;
   /*! \brief internal compiler cache */
   std::unordered_map<CCacheKey, CCacheValue> cache_;
   /*! \brief internal compiler cache for shape funcs */

@@ -17,6 +17,10 @@
  * under the License.
  */
 
+/*!
+ * \file global_var_supply.cc
+ * \brief GlobalVarSupply that can be used to generate unique GlobalVars.
+ */
 #include "tvm/ir/global_var_supply.h"
 
 #include <tvm/runtime/registry.h>
@@ -28,8 +32,7 @@
 namespace tvm {
 GlobalVarSupply::GlobalVarSupply(const NameSupply& name_supply,
                                  std::unordered_map<std::string, GlobalVar> name_to_var_map) {
-  auto n = make_object<GlobalVarSupplyNode>(name_supply);
-  n->name_to_var_map_ = std::move(name_to_var_map);
+  auto n = make_object<GlobalVarSupplyNode>(name_supply, name_to_var_map);
   data_ = std::move(n);
 }
 
@@ -37,7 +40,7 @@ std::string GetModuleName(const IRModule& module) {
   return module->GetAttr<String>(tvm::attr::kModuleName).value_or("tvmgen_default");
 }
 
-GlobalVarSupply::GlobalVarSupply(const Array<IRModule>& modules) : GlobalVarSupply() {
+GlobalVarSupply::GlobalVarSupply(const Array<IRModule>& modules) : GlobalVarSupply(NameSupply("")) {
   if (!modules.empty()) {
     IRModule first_mod = modules.front();
     this->operator->()->name_supply_->prefix_ = GetModuleName(first_mod);
@@ -61,8 +64,9 @@ void GlobalVarSupplyNode::ReserveGlobalVar(const GlobalVar& var, bool allow_conf
   name_to_var_map_[var->name_hint] = var;
 }
 
-GlobalVarSupplyNode::GlobalVarSupplyNode(NameSupply name_supply)
-    : name_supply_(std::move(name_supply)) {}
+GlobalVarSupplyNode::GlobalVarSupplyNode(NameSupply name_supply,
+                                         std::unordered_map<std::string, GlobalVar> name_to_var_map)
+    : name_supply_(std::move(name_supply)), name_to_var_map_(std::move(name_to_var_map)) {}
 
 GlobalVar GlobalVarSupplyNode::UniqueGlobalFor(const String& name, bool add_prefix) {
   String final_name = name_supply_->ReserveName(name, add_prefix);
@@ -72,7 +76,7 @@ GlobalVar GlobalVarSupplyNode::UniqueGlobalFor(const String& name, bool add_pref
     return it->second;
   } else {
     GlobalVar var = GlobalVar(final_name);
-    name_to_var_map_[final_name] = var;
+    name_to_var_map_.emplace(final_name, var);
     return var;
   }
 }
@@ -82,7 +86,7 @@ GlobalVar GlobalVarSupplyNode::FreshGlobal(String name, bool add_prefix) {
   ICHECK(name_to_var_map_.find(final_name) == name_to_var_map_.end())
       << "GlobalVar already exists for name " << final_name;
   GlobalVar var = GlobalVar(final_name);
-  name_to_var_map_[final_name] = var;
+  name_to_var_map_.emplace(final_name, var);
   return var;
 }
 

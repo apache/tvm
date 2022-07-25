@@ -28,7 +28,7 @@ namespace tvm {
 namespace codegen {
 
 void CodeGenSourceBase::ClearFuncState() {
-  name_supply_->Clear();
+  name_supply_ = NameSupply("");
   ssa_assign_map_.clear();
   var_idmap_.clear();
   scope_mark_.clear();

@@ -28,10 +28,10 @@ def test_name_supply():
     name_supply.reserve_name("test")
 
     assert name_supply.contains_name("test")
-    assert name_supply.fresh_name("test") == "prefix_test1"
-    assert name_supply.contains_name("test1")
-    assert not name_supply.contains_name("test1", False)
-    assert not name_supply.contains_name("test2")
+    assert name_supply.fresh_name("test") == "prefix_test_1"
+    assert name_supply.contains_name("test_1")
+    assert not name_supply.contains_name("test_1", False)
+    assert not name_supply.contains_name("test_2")
 
 
 def test_global_var_supply_from_none():

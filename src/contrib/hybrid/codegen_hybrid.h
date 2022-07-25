@@ -147,7 +147,7 @@ class CodeGenHybrid : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   /*! \brief Print the current indent spaces. */
   inline void PrintIndent();
   /*! \brief NameSupply for allocated ids.  */
-  NameSupply ids_allocated = NameSupply();
+  NameSupply ids_allocated = NameSupply("");
   /*!
    * \brief Keys are either (tensors, value_index) or (variables, 0).
    *        Values are the corresponding IDs.*/

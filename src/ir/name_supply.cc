@@ -17,6 +17,10 @@
  * under the License.
  */
 
+/*!
+ * \file name_supply.cc
+ * \brief NameSupply that can be used to generate unique variable names.
+ */
 #include "tvm/ir/name_supply.h"
 
 #include <tvm/runtime/registry.h>
@@ -25,20 +29,15 @@
 
 namespace tvm {
 
-NameSupply::NameSupply() : NameSupply("") {}
-
 NameSupply::NameSupply(const String& prefix, std::unordered_map<std::string, int> name_map) {
-  auto n = make_object<NameSupplyNode>(prefix);
-  n->name_map = std::move(name_map);
+  auto n = make_object<NameSupplyNode>(prefix, std::move(name_map));
   data_ = std::move(n);
 }
-
-NameSupplyNode::NameSupplyNode(const String& prefix) : prefix_(prefix) {}
 
 String NameSupplyNode::ReserveName(const String& name, bool add_prefix) {
   String final_name = name;
   if (add_prefix) {
-    final_name = prefix_module_name(name);
+    final_name = add_prefix_to_name(name);
   }
   name_map[final_name] = 0;
   return final_name;
@@ -47,7 +46,7 @@ String NameSupplyNode::ReserveName(const String& name, bool add_prefix) {
 String NameSupplyNode::FreshName(const String& name, bool add_prefix) {
   String unique_name = name;
   if (add_prefix) {
-    unique_name = prefix_module_name(name);
+    unique_name = add_prefix_to_name(name);
   }
   unique_name = GetUniqueName(unique_name);
   return unique_name;
@@ -56,43 +55,39 @@ String NameSupplyNode::FreshName(const String& name, bool add_prefix) {
 bool NameSupplyNode::ContainsName(const String& name, bool add_prefix) {
   String unique_name = name;
   if (add_prefix) {
-    unique_name = prefix_module_name(name);
+    unique_name = add_prefix_to_name(name);
   }
 
   return name_map.count(unique_name);
 }
 
-void NameSupplyNode::Clear() { name_map.clear(); }
-
-String NameSupplyNode::prefix_module_name(const String& name) {
+String NameSupplyNode::add_prefix_to_name(const String& name) {
   if (prefix_.empty()) {
     return name;
   }
 
-  std::stringstream ss;
+  std::ostringstream ss;
   ICHECK(name.defined());
   ss << prefix_ << "_" << name;
   return ss.str();
 }
 
-std::string NameSupplyNode::GetUniqueName(std::string prefix) {
-  for (size_t i = 0; i < prefix.size(); ++i) {
-    if (prefix[i] == '.') prefix[i] = '_';
+std::string NameSupplyNode::GetUniqueName(std::string name) {
+  for (size_t i = 0; i < name.size(); ++i) {
+    if (name[i] == '.') name[i] = '_';
   }
-  auto it = name_map.find(prefix);
+  auto it = name_map.find(name);
   if (it != name_map.end()) {
-    while (true) {
+    auto new_name = name;
+    while (!name_map.insert({new_name, 0}).second) {
       std::ostringstream os;
-      os << prefix << (++it->second);
-      std::string name = os.str();
-      if (name_map.count(name) == 0) {
-        prefix = name;
-        break;
-      }
+      os << name << "_" << (++it->second);
+      new_name = os.str();
     }
+    return new_name;
   }
-  name_map[prefix] = 0;
-  return prefix;
+  name_map[name] = 0;
+  return name;
 }
 
 TVM_REGISTER_NODE_TYPE(NameSupplyNode);
@@ -109,7 +104,5 @@ TVM_REGISTER_GLOBAL("ir.NameSupply_ReserveName")
 
 TVM_REGISTER_GLOBAL("ir.NameSupply_ContainsName")
     .set_body_method<NameSupply>(&NameSupplyNode::ContainsName);
-
-TVM_REGISTER_GLOBAL("ir.NameSupply_Clear").set_body_method<NameSupply>(&NameSupplyNode::Clear);
 
 }  // namespace tvm

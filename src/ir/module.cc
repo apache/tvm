@@ -21,6 +21,7 @@
  * \file  module.cc
  * \brief The global module in Relay.
  */
+#include <tvm/ir/global_var_supply.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/runtime/registry.h>
@@ -39,8 +40,6 @@
 #include <fstream>
 #include <sstream>
 #include <unordered_set>
-
-#include "tvm/ir/global_var_supply.h"
 
 namespace tvm {
 

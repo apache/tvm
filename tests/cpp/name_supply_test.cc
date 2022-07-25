@@ -36,14 +36,29 @@ TEST(NameSupply, FreshName) {
   NameSupply name_supply = preambleNameSupply();
   String fresh = name_supply->FreshName("test");
 
-  EXPECT_EQ(fresh.compare("prefix_test1"), 0);
+  EXPECT_EQ(fresh.compare("prefix_test_1"), 0);
+}
+
+TEST(NameSupply, FreshNameNoConflict) {
+  NameSupply name_supply = preambleNameSupply();
+  String fresh = name_supply->FreshName("name_2");
+  EXPECT_EQ(fresh.compare("prefix_name_2"), 0);
+
+  fresh = name_supply->FreshName("name");
+  EXPECT_EQ(fresh.compare("prefix_name"), 0);
+
+  fresh = name_supply->FreshName("name");
+  EXPECT_EQ(fresh.compare("prefix_name_1"), 0);
+
+  fresh = name_supply->FreshName("name");
+  EXPECT_EQ(fresh.compare("prefix_name_3"), 0);
 }
 
 TEST(NameSupply, ContainsName) {
   NameSupply name_supply = preambleNameSupply();
 
   EXPECT_TRUE(name_supply->ContainsName("test"));
-  EXPECT_FALSE(name_supply->ContainsName("test1"));
+  EXPECT_FALSE(name_supply->ContainsName("test_1"));
 }
 
 TEST(NameSupply, ReserveName) {
@@ -52,10 +67,14 @@ TEST(NameSupply, ReserveName) {
 
   EXPECT_TRUE(name_supply->ContainsName("otherTest", false));
   EXPECT_FALSE(name_supply->ContainsName("otherTest"));
+
+  name_supply->ReserveName("otherTest");
+  EXPECT_TRUE(name_supply->ContainsName("prefix_otherTest", false));
+  EXPECT_TRUE(name_supply->ContainsName("otherTest"));
 }
 
 GlobalVarSupply preambleVarSupply() {
-  GlobalVarSupply global_var_supply = GlobalVarSupply();
+  GlobalVarSupply global_var_supply = GlobalVarSupply(NameSupply(""));
   global_var_supply->FreshGlobal("test");
   return global_var_supply;
 }
@@ -66,8 +85,8 @@ TEST(GlobalVarSupply, FreshGlobal) {
   GlobalVar second_var = global_var_supply->FreshGlobal("test");
 
   EXPECT_FALSE(tvm::StructuralEqual()(first_var, second_var));
-  EXPECT_EQ(first_var->name_hint.compare("test1"), 0);
-  EXPECT_EQ(second_var->name_hint.compare("test2"), 0);
+  EXPECT_EQ(first_var->name_hint.compare("test_1"), 0);
+  EXPECT_EQ(second_var->name_hint.compare("test_2"), 0);
 }
 
 TEST(GlobalVarSupply, UniqueGlobalFor) {
@@ -90,7 +109,7 @@ TEST(GlobalVarSupply, ReserveGlobal) {
   EXPECT_TRUE(tvm::StructuralEqual()(var, second_var));
   EXPECT_FALSE(tvm::StructuralEqual()(var, third_var));
   EXPECT_EQ(second_var->name_hint.compare("someName"), 0);
-  EXPECT_EQ(third_var->name_hint.compare("someName1"), 0);
+  EXPECT_EQ(third_var->name_hint.compare("someName_1"), 0);
 }
 
 TEST(GlobalVarSupply, BuildIRModule) {
@@ -106,5 +125,5 @@ TEST(GlobalVarSupply, BuildIRModule) {
   EXPECT_TRUE(tvm::StructuralEqual()(var, second_var));
   EXPECT_FALSE(tvm::StructuralEqual()(var, third_var));
   EXPECT_EQ(second_var->name_hint.compare("test"), 0);
-  EXPECT_EQ(third_var->name_hint.compare("test1"), 0);
+  EXPECT_EQ(third_var->name_hint.compare("test_1"), 0);
 }

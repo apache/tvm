@@ -123,7 +123,7 @@ class CodeGenSourceBase {
   /*! \brief name of each variable */
   std::unordered_map<const tir::VarNode*, std::string> var_idmap_;
   /*! \brief NameSupply for allocation */
-  NameSupply name_supply_ = NameSupply();
+  NameSupply name_supply_ = NameSupply("");
 
  private:
   /*! \brief assignment map of ssa */

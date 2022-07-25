@@ -480,7 +480,7 @@ namespace attr {
  *
  * \sa tvm::runtime::String
  */
-constexpr const char* kModuleName = "name";
+constexpr const char* kModuleName = "mod_name";
 
 /*!
  * \brief Executor targeted by the module
