@@ -72,7 +72,7 @@ class MyAiHwConv2dPass:
                     irb_result = irb.get()
                     return irb_result
                 elif isinstance(op, tvm.tir.SeqStmt):
-                    # Remove that pad block of TOPI's conv2DNCHW by only returning the 2nd statement 
+                    # Remove that pad block of TOPI's conv2DNCHW by only returning the 2nd statement
                     return op.seq[1]
                 return op
 
@@ -95,7 +95,9 @@ class MyAiHwConv2dPass:
                 _loops = {k: sch.get(v) for k, v in loops.items()}
                 _handles = func.buffer_map.items()
 
-                x = tvm.tir.stmt_functor.ir_transform(func.body, None, _replace_conv2d, ["tir.For", "tir.SeqStmt"])
+                x = tvm.tir.stmt_functor.ir_transform(
+                    func.body, None, _replace_conv2d, ["tir.For", "tir.SeqStmt"]
+                )
                 return func.with_body(x)
             else:
                 return func

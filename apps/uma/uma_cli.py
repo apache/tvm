@@ -72,7 +72,9 @@ def main():
 
     add_hw_path = os.path.join(uma_template_path.parent, add_hw_name)
     if os.path.exists(add_hw_path):
-        print(f"Hardware with name {add_hw_name} already exists in UMA file structure: {add_hw_path}")
+        print(
+            f"Hardware with name {add_hw_name} already exists in UMA file structure: {add_hw_path}"
+        )
         sys.exit(-1)
     else:
         os.mkdir(add_hw_path)
