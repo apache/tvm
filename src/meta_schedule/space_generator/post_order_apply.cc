@@ -55,8 +55,10 @@ class BlockCollector : public tir::StmtVisitor {
     CHECK(block_names_.count(block->name_hint) == 0)
         << "Duplicated block name " << block->name_hint << " in function " << func_name_
         << " not supported!";
-    block_names_.insert(block->name_hint);
-    blocks_to_collect_.push_back(block->name_hint);
+    if (block->name_hint != "root") {
+      block_names_.insert(block->name_hint);
+      blocks_to_collect_.push_back(block->name_hint);
+    }
   }
 
   /*! \brief The schedule to be collected */

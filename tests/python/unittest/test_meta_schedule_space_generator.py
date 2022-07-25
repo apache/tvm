@@ -17,17 +17,19 @@
 """ Test Meta Schedule SpaceGenerator """
 # pylint: disable=missing-function-docstring
 
+from typing import List
 import math
-import sys
 
 import pytest
 import tvm
 import tvm.testing
 from tvm._ffi.base import TVMError
+from tvm import meta_schedule as ms
 from tvm.meta_schedule.space_generator import (
     PySpaceGenerator,
     ScheduleFn,
     SpaceGeneratorUnion,
+    PostOrderApply,
 )
 from tvm.meta_schedule.tune_context import TuneContext
 from tvm.meta_schedule.utils import derived_object
@@ -51,6 +53,19 @@ class Matmul:
                 with T.init():
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+
+@tvm.script.ir_module
+class Module:
+    @T.prim_func
+    def main(
+        B: T.Buffer[(64), "float32"],
+        B_pack: T.Buffer[(8, 8), "float32"],
+    ):
+        with T.block("root"):
+            for jo, ji in T.grid(8, 8):
+                    with T.block("remap"):
+                        vo, vi = T.axis.remap("SS", [jo, ji])
+                        B_pack[vo, vi] = B[vo * 8 + vi]
 
 # fmt: on
 # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
@@ -101,6 +116,25 @@ def test_meta_schedule_design_space_generator_NIE():
     ):
         generator = TestPySpaceGenerator()
         generator._initialize_with_tune_context(TuneContext())
+
+
+def test_meta_schedule_post_order_apply_avoid_root_block():
+    @derived_object
+    class TestScheduleRule(ms.schedule_rule.PyScheduleRule):
+        def _initialize_with_tune_context(self, context: "TuneContext") -> None:
+            pass
+
+        def apply(self, sch: Schedule, block: tvm.tir.schedule.BlockRV) -> List[Schedule]:
+            if sch.get(block).name_hint == "root":
+                raise Exception("Root block should be excluded!")
+            print(sch.get(block).name_hint)
+            return [sch]
+
+    mod = Module
+    sch_rules = [TestScheduleRule()]
+    generator = PostOrderApply()
+    _ = TuneContext(mod=mod, sch_rules=sch_rules, space_generator=generator)
+    generator.generate_design_space(mod)
 
 
 if __name__ == "__main__":
