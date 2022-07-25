@@ -1384,6 +1384,10 @@ class PyTorchOpConverter:
             axes = inputs[1]
         return _op.transform.transpose(data, axes)
 
+    def numpy_T(self, inputs, input_types):
+        data = inputs[0]
+        return _op.transform.transpose(inputs[0])
+
     def flatten(self, inputs, input_types):
         data = inputs[0]
         start = int(inputs[1])
@@ -3480,6 +3484,7 @@ class PyTorchOpConverter:
             "aten::group_norm": self.group_norm,
             "aten::transpose": self.transpose,
             "aten::t": self.transpose,
+            "aten::numpy_T": self.numpy_T,
             "aten::flatten": self.flatten,
             "aten::addmm": self.addmm,
             "aten::size": self.size,
