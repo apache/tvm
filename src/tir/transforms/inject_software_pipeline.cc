@@ -518,8 +518,8 @@ class PipelineRewriter : public StmtExprMutator {
     std::unordered_set<const BufferNode*> dst_buffers;
     // An imaginary index that the latest async operation associated with this stage has written
     // into. Only valid if all associated predicates are true, so that we can count the number of
-    // async operation invocations exactly. When it is valid, it is the "sum of extents of loops
-    // that have been executed" - 1, e.g. for epilogue it is prologue extent + body extent - 1. This
+    // async invocations exactly. When it is valid, it is the "sum of extents of loops that have
+    // been executed" - 1, e.g. for epilogue it is prologue extent + body extent - 1. This
     // is only needed to compute wait count for epilogue without async producers.
     Optional<PrimExpr> producer_head{PrimExpr(-1)};
 
@@ -681,9 +681,9 @@ class PipelineRewriter : public StmtExprMutator {
 
       for (auto read_region : new_block->reads) {
         for (auto kv : async_states) {
-          int dep_stage_id = kv.first;
-          if (dep_stage_id <= stage && kv.second.writes(read_region->buffer)) {
-            consumed[dep_stage_id] = true;
+          int producer_stage_id = kv.first;
+          if (producer_stage_id <= stage && kv.second.writes(read_region->buffer)) {
+            consumed[producer_stage_id] = true;
           }
         }
       }
@@ -700,19 +700,19 @@ class PipelineRewriter : public StmtExprMutator {
         }
       }
 
-      int dep_stage_idx = -1;
+      int producer_stage_idx = -1;
       for (auto read_region : new_blocks[i].block->reads) {
         for (auto kv : async_states) {
           if (kv.first <= new_blocks[i].stage && kv.second.writes(read_region->buffer)) {
             // Found an earlier stage where read_region->buffer was asynchronously written
-            ICHECK(dep_stage_idx == -1 || dep_stage_idx == kv.first)
+            ICHECK(producer_stage_idx == -1 || producer_stage_idx == kv.first)
                 << "A dependency on multiple async stages is not supported";
-            dep_stage_idx = kv.first;
+            producer_stage_idx = kv.first;
           }
         }
       }
 
-      if (dep_stage_idx == -1) continue;
+      if (producer_stage_idx == -1) continue;
 
       // The following logic has become complicated to handle case like this:
       //
@@ -756,21 +756,21 @@ class PipelineRewriter : public StmtExprMutator {
       // the previous iteration, so its wait_count is calculated as ((i - 1) + 3) - i.
       // The sum of the two wait_counts gives 5.
 
-      auto dep_local_state = async_states_local[dep_stage_idx];
-      auto num_commit_group = dep_local_state.commit_groups.size();
+      auto dep_local_state = async_states_local[producer_stage_idx];
+      const auto num_commit_group = dep_local_state.commit_groups.size();
       std::vector<Optional<PrimExpr>> producer_head_per_commit;
 
       if (num_commit_group == 0) {
         // Epilogue, no async producer. Since "local" producer_head is not available, use
         // "global" producer_head.
         ICHECK(!dep_local_state.producer_head);
-        producer_head_per_commit.push_back(async_states[dep_stage_idx].producer_head);
+        producer_head_per_commit.push_back(async_states[producer_stage_idx].producer_head);
       } else {
         ICHECK(dep_local_state.producer_head);
         std::vector<bool> need_wait_count(num_commit_group, true);
 
         for (auto read_region : new_blocks[i].block->reads) {
-          if (!async_states[dep_stage_idx].writes(read_region->buffer)) continue;
+          if (!async_states[producer_stage_idx].writes(read_region->buffer)) continue;
           auto commit_group_id = buffer_to_commit_group.at(read_region->buffer.get());
           if (!need_wait_count[commit_group_id]) continue;
 
@@ -803,7 +803,7 @@ class PipelineRewriter : public StmtExprMutator {
         return sum;
       }();
 
-      auto& pending_wait = async_states_local[dep_stage_idx].pending_wait;
+      auto& pending_wait = async_states_local[producer_stage_idx].pending_wait;
 
       if (!pending_wait.valid()) {
         pending_wait = {static_cast<int>(i), wait_count};
@@ -865,6 +865,7 @@ class PipelineRewriter : public StmtExprMutator {
 
     for (size_t i = 0; i < new_blocks.size();) {
       if (commit_group_indices[i] == -1) {
+        // A synchrnous block, not part of any commit group
         stmts.push_back(BlockRealize({}, new_blocks[i].predicate, new_blocks[i].block));
         ++i;
       } else {
@@ -1070,6 +1071,9 @@ class PipelineInjector : private StmtExprMutator {
     CHECK_EQ(pipeline_orders.size(), original_order.size());
 
     std::unordered_set<int> pipeline_async_stages;
+    // The software_pipeline_async_stages annotation provides a list of stages that should run
+    // asynchronously. All statements in the provided stages are assumed to have asynchronous
+    // semantics (e.g. CUDA async global to shared memory copy).
     if (op->annotations.count("software_pipeline_async_stages")) {
       auto annot = op->annotations.at("software_pipeline_async_stages");
       for (auto s : Downcast<Array<Integer>>(annot)) {

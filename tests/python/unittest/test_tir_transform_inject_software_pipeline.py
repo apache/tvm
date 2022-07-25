@@ -1402,12 +1402,6 @@ def build_and_run(sch):
         c = tvm.nd.array(np.zeros((N, M), dtype="float32"), dev)
         f(a, b, c)
         tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-3)
-        print("ok")
-
-        evaluator = f.time_evaluator(f.entry_name, dev, number=500)
-        gflops = (N * M * K) * 2 / 1e9
-        time_ms = evaluator(a, b, c).mean * 1e3
-        print("matmul with tensor core: %f ms, %f GFLOPS" % (time_ms, gflops / (time_ms / 1e3)))
 
 
 @tvm.testing.requires_cuda
@@ -1499,5 +1493,4 @@ def test_async_nested_pipeline_mma_gemm_ideal_annotation():
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_async_nested_pipeline_mma_gemm_ideal_annotation()
+    tvm.testing.main()

@@ -33,7 +33,6 @@
 #include "../../runtime/thread_storage_scope.h"
 #include "ir_utils.h"
 #include "storage_access.h"
-#include "tvm/tir/stmt.h"
 
 namespace tvm {
 namespace tir {
@@ -248,7 +247,7 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
 //    async_wait_queue(0, 2 - i):
 //       local[...] = shared[(i + 125) % 4]
 
-// This class adds syncthreads after all async_wait_queue. That include syncthreads that
+// This class adds syncthreads after all async_wait_queue. That includes syncthreads that
 // can be inserted by ThreadSyncInserter as well, but ThreadSyncInserter will not insert
 // duplicate syncthreads if it finds an existing one at the synchronization point.
 class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
