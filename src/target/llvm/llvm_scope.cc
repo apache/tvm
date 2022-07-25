@@ -359,9 +359,6 @@ void LLVMTarget::SetTargetMetadata(llvm::Module* module) const {
                         llvm::MDString::get(*GetContext(), str()));
 }
 
-void LLVMTarget::EnterWithScope() {}
-void LLVMTarget::ExitWithScope() {}
-
 }  // namespace codegen
 }  // namespace tvm
 
