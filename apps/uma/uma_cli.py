@@ -26,7 +26,9 @@ import argparse
 import os
 import shutil
 import sys
+import pathlib
 from inflection import camelize, underscore
+import tvm.relay.backend.contrib.uma._template.backend as template_backend
 
 
 def _parse_args():
@@ -66,14 +68,15 @@ def main():
     """
     args = _parse_args()
     add_hw_name = args.add_hardware
-    add_hw_path = os.path.join(os.getcwd(), add_hw_name)
+    uma_template_path = pathlib.Path(template_backend.__file__).parent.absolute()
+
+    add_hw_path = os.path.join(uma_template_path.parent, add_hw_name)
     if os.path.exists(add_hw_path):
-        print(f"Hardware with name {add_hw_name} already exists in UMA file structure")
+        print(f"Hardware with name {add_hw_name} already exists in UMA file structure: {add_hw_path}")
         sys.exit(-1)
     else:
-        os.mkdir(add_hw_name)
+        os.mkdir(add_hw_path)
 
-    uma_template_path = "_template"
     uma_files = ["backend.py", "codegen.py", "passes.py", "patterns.py", "run.py", "strategies.py"]
     if args.tutorial == "vanilla":
         uma_files.append("conv2dnchw.cc")
@@ -86,6 +89,8 @@ def main():
 
     template_name = "my_ai_hw"
     replace_template_name(destination_files, template_name, add_hw_name)
+
+    print(f"Success: added {add_hw_name} to {add_hw_path}")
 
 
 if __name__ == "__main__":

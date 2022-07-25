@@ -83,7 +83,8 @@ from tvm.relay.backend.contrib.uma._template.codegen import gen_includes
 #
 # .. code-block:: bash
 #
-#   cd $TVM_HOME/apps
+#   pip install inflection
+#   cd $TVM_HOME/apps/uma
 #   python uma_cli.py --add_hardware vanilla_accelerator --tutorial vanilla
 #
 
