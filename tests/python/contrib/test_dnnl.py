@@ -991,6 +991,15 @@ def test_pool2d(run_module, dtype="float32"):
                     )
 
 
+def test_global_avg_pooling2d(run_module, dtype="float32"):
+    x_shape = (1, 3, 32, 32)
+    x = relay.var("x", shape=(x_shape), dtype=dtype)
+    out = relay.nn.global_avg_pool2d(x)
+    out = tvm.IRModule.from_expr(out)
+    config = out, {"x": x_shape}, []
+    run_and_verify_func(config, run_module=run_module)
+
+
 def test_pool3d(run_module, dtype="float32"):
     def get_graph(
         op,
@@ -1186,6 +1195,22 @@ def test_resnetv1_rewrite(run_module, dtype="float32"):
         out = relay.add(left_conv6, right_conv7)
         out = relay.nn.relu(out)
 
+        dic = {"x": data_shape}
+        param_lst = []
+        return out, dic, param_lst
+
+    net, dic, param_lst = get_graph()
+    net = tvm.IRModule.from_expr(net)
+    config = net, dic, param_lst
+    run_and_verify_func(config, run_module=run_module, dtype=dtype)
+
+
+def test_fuse_pad_avg_pool(run_module, dtype="float32"):
+    def get_graph():
+        data_shape = (1, 768, 17, 17)
+        x = relay.var("x", shape=data_shape, dtype=dtype)
+        out = relay.nn.pad(x, pad_width=[[0, 0], [0, 0], [1, 1], [1, 1]])
+        out = relay.nn.avg_pool2d(out, pool_size=[3, 3])
         dic = {"x": data_shape}
         param_lst = []
         return out, dic, param_lst

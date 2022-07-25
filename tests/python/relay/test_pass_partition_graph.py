@@ -1055,8 +1055,8 @@ def test_dnnl_fuse():
     def test_partition_mobilenet():
         mod, params = relay.testing.mobilenet.get_workload()
         mod = get_partitoned_mod(mod, params, dnnl_patterns)
-        # 27 fused conv + bn + relu, one dense and one softmax
-        assert len(mod.functions) - 1 == 29  # -1 for main
+        # 27 fused conv + bn + relu, one dense, one softmax and one global_avg_pooling
+        assert len(mod.functions) - 1 == 30  # -1 for main
 
     def test_exec(mod, params, ref_mod, ref_params, out_shape):
         ishape = (1, 3, 224, 224)

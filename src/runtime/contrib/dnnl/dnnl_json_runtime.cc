@@ -624,32 +624,46 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
   void Pooling(const size_t& nid, dnnl::algorithm algo) {
     auto node = nodes_[nid];
+    auto op_name = node.GetOpName();
+    bool is_global = op_name.find("global") != std::string::npos;
 
     auto src_tr = GetInput(nid, 0);
     auto dst_tr = GetOutput(nid, 0);
 
-    // Setup attributes.
-    auto strides = GetNodeAttr<std::vector<int64_t>>(node, "strides");
-    auto dilates = GetNodeAttr<std::vector<int64_t>>(node, "dilation");
-    auto padding = GetNodeAttr<std::vector<int64_t>>(node, "padding");
-    std::vector<int64_t> padding_l(padding.begin(), padding.begin() + padding.size() / 2);
-    std::vector<int64_t> padding_r(padding.begin() + padding.size() / 2, padding.end());
-    auto kernel = GetNodeAttr<std::vector<int64_t>>(node, "pool_size");
+    // Get layout.
     auto src_layout = GetNodeAttr<std::string>(node, "layout");
     auto dst_layout = GetNodeAttr<std::string>(node, "out_layout");
 
     // dst_layout == "" means to use data_layout
     if (dst_layout.empty()) dst_layout = src_layout;
 
-    // Minus one for DNNL representation. No dilation for DNNL is 0, for relay is 1.
-    for (auto& d : dilates) d--;
-
     // Take into account provided layout strings
     src_tr = src_tr.TreatAs(src_layout);
     dst_tr = dst_tr.TreatAs(dst_layout);
 
+    ICHECK(src_tr.dims().size() > 2);
+
+    std::vector<int64_t> feature_size;
+    for (size_t i = 2; i < src_tr.dims().size(); i++) {
+      feature_size.push_back(int64_t(src_tr.dims()[i]));
+    }
+
+    // Set attributes.
+    auto kernel = is_global ? feature_size : GetNodeAttr<std::vector<int64_t>>(node, "pool_size");
+    auto strides = is_global ? std::vector<int64_t>(src_tr.dims().size() - 2, 1)
+                             : GetNodeAttr<std::vector<int64_t>>(node, "strides");
+    auto dilates = is_global ? std::vector<int64_t>(src_tr.dims().size() - 2, 1)
+                             : GetNodeAttr<std::vector<int64_t>>(node, "dilation");
+    auto padding = is_global ? std::vector<int64_t>((src_tr.dims().size() - 2) * 2, 0)
+                             : GetNodeAttr<std::vector<int64_t>>(node, "padding");
+    std::vector<int64_t> padding_l(padding.begin(), padding.begin() + padding.size() / 2);
+    std::vector<int64_t> padding_r(padding.begin() + padding.size() / 2, padding.end());
+
+    // Minus one for DNNL representation. No dilation for DNNL is 0, for relay is 1.
+    for (auto& d : dilates) d--;
+
     // Attributes related to AvgPool
-    if (algo == dnnl::algorithm::pooling_avg) {
+    if (!is_global && algo == dnnl::algorithm::pooling_avg) {
       auto include_pad = GetNodeAttr<bool>(node, "count_include_pad");
       algo = include_pad ? dnnl::algorithm::pooling_avg_include_padding
                          : dnnl::algorithm::pooling_avg_exclude_padding;
