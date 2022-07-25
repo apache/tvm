@@ -138,8 +138,9 @@ CONTAINER_NAME=
 # "${REPO_DIR}".  The consistent directory for Jenkins is currently
 # necessary to allow cmake build commands to run in CI after the build
 # steps.
-# TODO(oss-team): Figure out a better way to keep the same path
-# between build and testing stages: https://github.com/apache/tvm/issues/11952
+# TODO(https://github.com/apache/tvm/issues/11952): 
+# Figure out a better way to keep the same path
+# between build and testing stages.
 if [[ -n "${JENKINS_HOME:-}" ]]; then
     REPO_MOUNT_POINT=/workspace
 else
