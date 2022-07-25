@@ -585,6 +585,12 @@ TVM_DLL Pass CapturePostDfsIndexInSpans();
  * expr->memory_scope and annotates expressions by VirtualDevice with required memory_scope
  */
 TVM_DLL Pass AnnotateMemoryScope(CompilationConfig config);
+
+/*!
+ * \brief Removes standalone reshapes after lowering the graph.
+ */
+TVM_DLL Pass RemoveStandaloneReshapes();
+
 }  // namespace transform
 
 /*!
