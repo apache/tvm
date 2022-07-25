@@ -413,6 +413,7 @@ class StateCreator : private StmtVisitor {
     for (const auto& kv : n->mod->functions) {
       const BaseFunc& base_func = kv.second;
       if (const auto* func = base_func.as<PrimFuncNode>()) {
+        VerifyWellFormed(GetRef<PrimFunc>(func));
         creator.VisitStmt(func->body);
         BlockInfoCollector::Collect(self, func->body);
       }

@@ -216,6 +216,7 @@ class Device(ctypes.Structure):
         "stackvm": 1,
         "cpu": 1,
         "c": 1,
+        "test": 1,
         "hybrid": 1,
         "composite": 1,
         "cuda": 2,

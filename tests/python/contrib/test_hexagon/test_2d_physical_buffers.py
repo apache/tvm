@@ -17,24 +17,29 @@
 # specific language governing permissions and limitations
 # under the License.
 
+""" Test 2d physical buffers """
+
 import contextlib
-import sys
 
-import pytest
 import numpy as np
-
+import pytest
 import tvm
-import tvm.testing
-from tvm import te
-from tvm.tir.stmt_functor import post_order_visit
-from tvm.contrib.hexagon.build import HexagonLauncher
-
-from tvm.contrib.hexagon.pytest_plugin import requires_hexagon_toolchain
-from .infrastructure import allocate_hexagon_array
 
 # Needed to register the link_shared packedfunc.
 import tvm.contrib.hexagon
+import tvm.testing
+from tvm import te
+from tvm.contrib.hexagon.pytest_plugin import requires_hexagon_toolchain
+from tvm.tir.stmt_functor import post_order_visit
 
+from .infrastructure import allocate_hexagon_array
+
+# Disabling invalid name as pylint assumes global variables as constants and
+# expects them to be all upper-case. Since these are used as
+# tvm.testing.parameters, if they are made upper-case, the functions which take
+# them as arguments would also need to be upper-case, and pylint would complain
+# there as well
+# pylint: disable=invalid-name
 
 dtype = tvm.testing.parameter("int8")
 batch_size = tvm.testing.parameter(
@@ -68,9 +73,12 @@ working_layout, working_scope = tvm.testing.parameters(
     ("nchw-8h8w32c-2d", "global.vtcm"),
 )
 
+# pylint: enable=invalid-name
+
 
 @tvm.testing.fixture
 def target_host(target):
+    """Return tvm target.Target with host attached"""
     target = tvm.target.Target(target)
 
     if target.kind.name == "hexagon":
@@ -84,6 +92,12 @@ def target_host(target):
     return tvm.target.Target(target, host=host)
 
 
+# Disabling redefined-outer-name for the whole file as there isn't any easy
+# solution yet to refactor tvm.testing.fixture fixtures that avoid redefining
+# outer variable names
+# pylint: disable=redefined-outer-name
+
+
 @tvm.testing.fixture
 def input_shape(batch_size, input_channels, input_image_shape):
     return [batch_size, *input_image_shape, input_channels]
@@ -92,21 +106,21 @@ def input_shape(batch_size, input_channels, input_image_shape):
 def transform_shape(shape, layout):
     if layout == "nhwc":
         return shape
-    elif layout in ["nchw-8h8w32c-1d", "nchw-8h8w32c-2d"]:
-        N, H, W, C = shape
-        return [N, (C + 31) // 32, (H + 7) // 8, (W + 7) // 8, 8, 8, 32]
-    else:
-        raise RuntimeError(f"Unexpected layout '{layout}'")
+    if layout in ["nchw-8h8w32c-1d", "nchw-8h8w32c-2d"]:
+        batch, height, width, channel = shape
+        return [batch, (channel + 31) // 32, (height + 7) // 8, (width + 7) // 8, 8, 8, 32]
+    raise RuntimeError(f"Unexpected layout '{layout}'")
 
 
 def transform_numpy(arr_np, layout):
     if layout == "nhwc":
         return arr_np
-    elif layout in ["nchw-8h8w32c-1d", "nchw-8h8w32c-2d"]:
-        N, H, W, C = arr_np.shape
-        return arr_np.reshape([N, H // 8, 8, W // 8, 8, C // 32, 32]).transpose(0, 5, 1, 3, 2, 4, 6)
-    else:
-        raise RuntimeError(f"Unexpected layout '{layout}'")
+    if layout in ["nchw-8h8w32c-1d", "nchw-8h8w32c-2d"]:
+        batch, height, width, channel = arr_np.shape
+        return arr_np.reshape([batch, height // 8, 8, width // 8, 8, channel // 32, 32]).transpose(
+            0, 5, 1, 3, 2, 4, 6
+        )
+    raise RuntimeError(f"Unexpected layout '{layout}'")
 
 
 @tvm.testing.fixture
@@ -134,28 +148,28 @@ def transformed_expected_output_np(expected_output_np, output_layout):
     return transform_numpy(expected_output_np, output_layout)
 
 
-def layout_transform_1d(n, h, w, c):
+def layout_transform_1d(batch, height, width, channel):
     return [
-        n,
-        c // 32,
-        h // 8,
-        w // 8,
-        h % 8,
-        w % 8,
-        c % 32,
+        batch,
+        channel // 32,
+        height // 8,
+        width // 8,
+        height % 8,
+        width % 8,
+        channel % 32,
     ]
 
 
-def layout_transform_2d(n, h, w, c):
+def layout_transform_2d(batch, height, width, channel):
     return [
-        n,
-        c // 32,
-        h // 8,
-        w // 8,
+        batch,
+        channel // 32,
+        height // 8,
+        width // 8,
         te.AXIS_SEPARATOR,
-        h % 8,
-        w % 8,
-        c % 32,
+        height % 8,
+        width % 8,
+        channel % 32,
     ]
 
 
@@ -171,6 +185,8 @@ def extract_buffers(stmt):
 
 
 class TestElementWise:
+    """TestElementWise"""
+
     @tvm.testing.fixture
     def expected_output_np(self, input_np):
         return 2 * input_np
@@ -189,35 +205,35 @@ class TestElementWise:
         working_layout,
         working_scope,
     ):
-        InputTensor = te.placeholder(input_shape, dtype, name="Input")
-        OutputTensor = te.compute(
-            shape=InputTensor.shape,
-            fcompute=lambda *indices: (2 * InputTensor[indices]).astype(dtype),
+        """Create and return the schedule and input args after applying layout transform"""
+        input_tensor = te.placeholder(input_shape, dtype, name="Input")
+        output_tensor = te.compute(
+            shape=input_tensor.shape,
+            fcompute=lambda *indices: (2 * input_tensor[indices]).astype(dtype),
             name="Output",
         )
-        schedule = te.create_schedule(OutputTensor.op)
+        schedule = te.create_schedule(output_tensor.op)
 
-        WriteCache = schedule.cache_write(OutputTensor, working_scope)
-        ReadCache = schedule.cache_read(InputTensor, working_scope, [WriteCache])
+        write_cache = schedule.cache_write(output_tensor, working_scope)
+        read_cache = schedule.cache_read(input_tensor, working_scope, [write_cache])
 
         def apply_transform(tensor, layout):
             if layout == "nhwc":
-                pass
-            elif layout == "nchw-8h8w32c-1d":
+                return None
+            if layout == "nchw-8h8w32c-1d":
                 return schedule[tensor].transform_layout(layout_transform_1d)
-            elif layout == "nchw-8h8w32c-2d":
+            if layout == "nchw-8h8w32c-2d":
                 return schedule[tensor].transform_layout(layout_transform_2d)
-            else:
-                raise RuntimeError(f"Unexpected layout '{layout}'")
+            raise RuntimeError(f"Unexpected layout '{layout}'")
 
-        apply_transform(InputTensor, input_layout)
-        compute_loopnest = apply_transform(OutputTensor, output_layout) or OutputTensor.op.axis
-        schedule[WriteCache].compute_at(schedule[OutputTensor], compute_loopnest[0])
+        apply_transform(input_tensor, input_layout)
+        compute_loopnest = apply_transform(output_tensor, output_layout) or output_tensor.op.axis
+        schedule[write_cache].compute_at(schedule[output_tensor], compute_loopnest[0])
 
-        apply_transform(ReadCache, working_layout)
-        apply_transform(WriteCache, working_layout)
+        apply_transform(read_cache, working_layout)
+        apply_transform(write_cache, working_layout)
 
-        return [schedule, [InputTensor, OutputTensor]]
+        return [schedule, [input_tensor, output_tensor]]
 
     @tvm.testing.fixture
     def ir_module(self, schedule_args):
@@ -229,7 +245,7 @@ class TestElementWise:
             return tvm.lower(*schedule_args)
 
     @tvm.testing.fixture
-    def uses_unsupported_physical_dimensions(
+    def uses_unsupported_physical_dimensions(  # pylint: disable=invalid-name
         self, target_host, input_layout, working_layout, output_layout
     ):
         uses_2d_memory = "nchw-8h8w32c-2d" in [input_layout, working_layout, output_layout]
@@ -246,6 +262,7 @@ class TestElementWise:
         assert primfunc_output_shape == transformed_output_shape
 
     def test_cache_shape(self, ir_module, input_layout, working_layout, output_layout):
+        """Test function to check expected_physical_dimensions for cached buffers"""
         func = ir_module["main"]
         for buffer in extract_buffers(func.body):
             buffer_layout = {
@@ -306,6 +323,7 @@ class TestElementWise:
         output_layout,
         hexagon_session,
     ):
+        """Test execution of computes with 2d physical buffers"""
         if input_layout == "nchw-8h8w32c-2d":
             input_axis_separators = [4]
         else:

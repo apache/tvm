@@ -31,6 +31,7 @@ from .utils import (
     make_qnn_relu,
     assert_partitioned_function,
     assert_no_external_function,
+    create_test_runner,
 )
 
 
@@ -75,7 +76,6 @@ def make_model(
     return op
 
 
-@tvm.testing.requires_corstone300
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize("in_shape", [(1, 28, 28, 12), (1, 64, 100, 4)])
 @pytest.mark.parametrize(
@@ -84,6 +84,9 @@ def make_model(
 @pytest.mark.parametrize("relu_type", ["NONE", "RELU"])
 @pytest.mark.parametrize("pool_type", [relay.nn.max_pool2d, relay.nn.avg_pool2d])
 @pytest.mark.parametrize("zero_point, scale", [(-34, 0.0256)])
+@pytest.mark.parametrize(
+    "compiler_cpu, cpu_flags", [("cortex-m55", "+nomve"), ("cortex-m55", ""), ("cortex-m7", "")]
+)
 def test_op_int8(
     in_shape,
     pool_size,
@@ -93,11 +96,12 @@ def test_op_int8(
     pool_type,
     zero_point,
     scale,
+    compiler_cpu,
+    cpu_flags,
 ):
     """Tests QNN pooling op for int8 inputs"""
     interface_api = "c"
     use_unpacked_api = True
-    test_runner = AOT_USMP_CORSTONE300_RUNNER
 
     dtype = "int8"
 
@@ -133,7 +137,7 @@ def test_op_int8(
             params=None,
             output_tolerance=1,
         ),
-        test_runner,
+        create_test_runner(compiler_cpu, cpu_flags),
         interface_api,
         use_unpacked_api,
     )

@@ -41,8 +41,11 @@ def get_supported_boards(platform: str):
 
 
 def get_target(platform: str, board: str):
+    """Intentionally simple function for making target strings for microcontrollers.
+    If you need more complex arguments, one should call target.micro directly. Note
+    that almost all, but not all, supported microcontrollers are Arm-based."""
     model = get_supported_boards(platform)[board]["model"]
-    return str(tvm.target.target.micro(model))
+    return str(tvm.target.target.micro(model, options=["-device=arm_cpu"]))
 
 
 def check_tune_log(log_path: Union[Path, str]):

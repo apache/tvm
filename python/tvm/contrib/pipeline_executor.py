@@ -17,6 +17,7 @@
 """Pipeline executor that executes a series of modules in a pipeline fashion."""
 import json
 import os
+import time
 from tvm import runtime
 from tvm._ffi import get_global_func
 from tvm.contrib import graph_executor
@@ -131,14 +132,26 @@ class PipelineModule(object):
         """
         return self._get_input(key)
 
-    def get_output(self):
+    def get_output(self, synchronize=True, sleep_interval=0.001):
         """Get the output.
         Returns
         -------
         data : Array[NDArray]
             A list of output data.
+        synchronize : BOOL
+            Whether to do a synchronize poll.
+        sleep_interval : Float32
+            When doing the synchronize loop poll, how many seconds the loop should sleep for yield.
         """
-        return self._get_output()
+        outputs = []
+        if not synchronize:
+            outputs = self._get_output()
+        else:
+            while not outputs:
+                outputs = self._get_output()
+                time.sleep(sleep_interval)
+
+        return outputs
 
     @property
     def num_executing_pipeline(self):
@@ -302,11 +315,16 @@ class PipelineExecutorFactoryModule(object):
                 self.pipeline_mods[lib_index]["dev"].device_type,
                 self.pipeline_mods[lib_index]["dev"].device_id,
             )
-
             # Get the graph, lib, and parameters from GraphExecutorFactoryModule.
             lib = self.pipeline_mods[lib_index]["lib"]
             # Export the lib, graph, and parameters to disk.
-            lib.export_library(mconfig["lib_name"])
+            if self.pipeline_mods[lib_index]["export_cc"]:
+                lib.export_library(
+                    mconfig["lib_name"], cc=self.pipeline_mods[lib_index]["export_cc"]
+                )
+            else:
+                lib.export_library(mconfig["lib_name"])
+
             with open(mconfig["json_name"], "w") as file_handle:
                 file_handle.write(lib.graph_json)
             with open(mconfig["params_name"], "wb") as file_handle:

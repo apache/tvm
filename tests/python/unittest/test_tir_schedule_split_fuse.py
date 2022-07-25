@@ -177,7 +177,7 @@ def elementwise_split_case0(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [128, 128, 128])
     for i1, i2, i3, j1, j2, k1, k2 in T.grid(2, 1, 64, 4, 32, 16, 8):
         with T.block("B"):
-            vi = T.axis.S(128, (i1 + i2) * 64 + i3)
+            vi = T.axis.S(128, i1 * 64 + i2 * 64 + i3)
             vj = T.axis.S(128, j1 * 32 + j2)
             vk = T.axis.S(128, k1 * 8 + k2)
             T.reads([A[vi, vj, vk]])
@@ -191,9 +191,9 @@ def elementwise_split_case1(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [128, 128, 128])
     for i1, i2, i3, j1, j2, j3, k1, k2, k3 in T.grid(2, 1, 64, 2, 1, 64, 2, 1, 64):
         with T.block("B"):
-            vi = T.axis.S(128, (i1 + i2) * 64 + i3)
-            vj = T.axis.S(128, (j1 + j2) * 64 + j3)
-            vk = T.axis.S(128, (k1 + k2) * 64 + k3)
+            vi = T.axis.S(128, i1 * 64 + i2 * 64 + i3)
+            vj = T.axis.S(128, j1 * 64 + j2 * 64 + j3)
+            vk = T.axis.S(128, k1 * 64 + k2 * 64 + k3)
             T.reads([A[vi, vj, vk]])
             T.writes([B[vi, vj, vk]])
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0

@@ -79,6 +79,12 @@ class CodeGenHexagon final : public CodeGenCPU {
 
   llvm::Module* GetModulePtr() const { return module_.get(); }
 
+  llvm::Value* CreateCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
+                                bool skip_first_arg) override;
+
+  llvm::Value* CreateCallExternQHL(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
+                                   bool skip_first_arg);
+
   uint64_t GetTypeSizeInBits(llvm::Type* type) const {
 #if TVM_LLVM_VERSION >= 100
     return data_layout_->getTypeSizeInBits(type).getFixedSize();
@@ -97,6 +103,15 @@ class CodeGenHexagon final : public CodeGenCPU {
 
   llvm::GlobalVariable* InitContextPtr(llvm::Type* type, std::string name);
   llvm::Value* GetContextPtr(llvm::GlobalVariable* gv);
+
+  bool IsQHLFunction(const std::string& func);
+
+  std::vector<std::string> fqhl_list_ = {
+      "tvm_vect_qhmath_hvx_cos_ahf",     "tvm_vect_qhmath_hvx_tanh_ahf",
+      "tvm_vect_qhmath_hvx_sigmoid_ahf", "tvm_vect_qhmath_hvx_sin_ahf",
+      "tvm_vect_qhmath_hvx_sqrt_ahf",    "tvm_vect_qhmath_hvx_exp_ahf",
+      "tvm_vect_qhmath_hvx_tan_ahf",     "tvm_vect_qhmath_hvx_floor_ahf",
+      "tvm_vect_qhmath_hvx_ceil_ahf",    "tvm_vect_qhmath_hvx_pow_ahf"};
 
   llvm::Value* VectorLookupLoad(Buffer buffer, DataType buffer_type, Array<PrimExpr> index);
   llvm::Value* Intrinsic(llvm::Intrinsic::ID, llvm::ArrayRef<llvm::Value*> args);
@@ -125,6 +140,50 @@ void CodeGenHexagon::InitTarget(llvm::TargetMachine* tm) {
     native_vector_bits_ = hvx_bytes * 8;
   }
   CodeGenLLVM::InitTarget(tm);
+}
+
+llvm::Value* CodeGenHexagon::CreateCallExternQHL(Type ret_type, String global_symbol,
+                                                 const Array<PrimExpr>& args, bool skip_first_arg) {
+  int num_lanes = args[1].dtype().lanes();
+  int vector_length = native_vector_bits_ / args[1].dtype().bits();
+  num_lanes = ((num_lanes + vector_length - 1) / vector_length) * vector_length;
+  std::vector<llvm::Value*> vect_split;
+  for (int i = 0; i < num_lanes / vector_length; ++i) {
+    std::vector<llvm::Value*> sub_vect_val;
+    std::vector<llvm::Type*> arg_types;
+    for (size_t k = skip_first_arg; k < args.size(); ++k)
+      sub_vect_val.push_back(
+          CodeGenLLVM::CreateVecSlice(MakeValue(args[k]), i * vector_length, vector_length));
+    for (llvm::Value* v : sub_vect_val) {
+      arg_types.push_back(v->getType());
+    }
+    llvm::FunctionType* ftype = llvm::FunctionType::get(arg_types[0], arg_types, false);
+    llvm::Function* f = module_->getFunction(MakeStringRef(global_symbol));
+    if (f == nullptr) {
+      f = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
+                                 MakeStringRef(global_symbol), module_.get());
+    }
+#if TVM_LLVM_VERSION >= 90
+    auto ext_callee = llvm::FunctionCallee(f);
+#else
+    auto ext_callee = f;
+#endif
+    vect_split.push_back(builder_->CreateCall(ext_callee, sub_vect_val));
+  }
+  return CodeGenLLVM::CreateVecConcat(vect_split);
+}
+
+bool CodeGenHexagon::IsQHLFunction(const std::string& func) {
+  return std::find(fqhl_list_.begin(), fqhl_list_.end(), func) != fqhl_list_.end();
+}
+
+llvm::Value* CodeGenHexagon::CreateCallExtern(Type ret_type, String global_symbol,
+                                              const Array<PrimExpr>& args, bool skip_first_arg) {
+  int num_lanes = args[1].dtype().lanes();
+  int vector_length = native_vector_bits_ / args[1].dtype().bits();
+  if (IsQHLFunction(global_symbol) && (num_lanes > vector_length))
+    return CreateCallExternQHL(ret_type, global_symbol, args, skip_first_arg);
+  return CodeGenCPU::CreateCallExtern(ret_type, global_symbol, args, skip_first_arg);
 }
 
 llvm::GlobalVariable* CodeGenHexagon::InitContextPtr(llvm::Type* p_type, std::string name) {

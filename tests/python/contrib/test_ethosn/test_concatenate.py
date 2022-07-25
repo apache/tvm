@@ -99,7 +99,7 @@ def test_concatenate_failure():
             "batch size=2, batch size must = 1; batch size=2, batch size must = 1;",
         ),
         (
-            [(1, 4, 4, 4), (1, 4, 4, 4)],
+            [(1, 4, 4, 4)],
             "uint8",
             0,
             "Concatenation cannot be performed along batch axis (axis 0);",

@@ -2071,8 +2071,6 @@ class Schedule(Object):
                         vk = T.axis.reduce(128, k_0 * 16 + k_1)
                         T.reads(C[vi, vj], A[vi, vk], B[vj, vk])
                         T.writes(C[vi, vj])
-                        with T.init():
-                            C[vi, vj] = T.float32(0)
                         C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
         Declare and register the tensor intrinsic:
@@ -2168,13 +2166,6 @@ class Schedule(Object):
                             dtype="float32",
                             offset_factor=1,
                         )
-                        with T.init():
-                            for i_1, j_1 in T.grid(16, 16):
-                                with T.block("update_init"):
-                                    vi_init, vj_init = T.axis.remap("SS", [i_1, j_1])
-                                    T.reads()
-                                    T.writes(C[vio * 16 + vi_init, vjo * 16 + vj_init])
-                                    C[vio * 16 + vi_init, vjo * 16 + vj_init] = T.float32(0)
                         T.evaluate(
                             T.tvm_mma_sync(
                                 C_1.data,
@@ -2328,10 +2319,10 @@ class Schedule(Object):
         self, block: BlockRV, buffer: Union[Tuple[str, int], str, Buffer]
     ) -> Tuple[str, int, Buffer]:
 
-        block_name = self.get(block).name_hint
+        block_obj: Block = self.get(block)
+        block_name = block_obj.name_hint
 
         def iter_buffers():
-            block_obj = self.get(block)
             for i, read in enumerate(block_obj.reads):
                 yield "read", i, read.buffer
             for i, write in enumerate(block_obj.writes):
@@ -2367,9 +2358,7 @@ class Schedule(Object):
                 f"Expected 'read' or 'write', "
                 f"but received {buffer_index_type}"
             )
-            buffer_list = (
-                self.get(block).reads if buffer_index_type == "read" else self.get(block).writes
-            )
+            buffer_list = block_obj.reads if buffer_index_type == "read" else block_obj.writes
             assert 0 <= buffer_index < len(buffer_list), (
                 f"Invalid buffer_index {buffer_index}.  "
                 f"Block {block_name} has only "

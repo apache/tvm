@@ -17,10 +17,6 @@
 
 from io import StringIO
 import json
-from pathlib import Path
-import sys
-import tempfile
-from typing import Union
 
 import numpy as np
 import pytest
@@ -50,18 +46,15 @@ def test_kws_autotune_workflow(platform, board, tmp_path):
 
     str_logs = str_io_logs.getvalue().rstrip().split("\n")
     logs = list(map(json.loads, str_logs))
-    assert len(logs) == 2 * TUNING_RUNS_PER_OPERATOR  # Two operators
+    assert len(logs) == 1 * TUNING_RUNS_PER_OPERATOR  # One operator
 
     # Check we tested both operators
     op_names = list(map(lambda x: x["input"][1], logs))
-    assert op_names[0] == op_names[1] == "dense_nopack.x86"
-    assert op_names[2] == op_names[3] == "dense_pack.x86"
+    assert op_names[0] == op_names[1] == "conv2d_nhwc_spatial_pack.arm_cpu"
 
     # Make sure we tested different code. != does deep comparison in Python 3
     assert logs[0]["config"]["index"] != logs[1]["config"]["index"]
     assert logs[0]["config"]["entity"] != logs[1]["config"]["entity"]
-    assert logs[2]["config"]["index"] != logs[3]["config"]["index"]
-    assert logs[2]["config"]["entity"] != logs[3]["config"]["entity"]
 
     # Compile the best model with AOT and connect to it
     with tvm.micro.testing.create_aot_session(
@@ -82,7 +75,7 @@ def test_kws_autotune_workflow(platform, board, tmp_path):
         labels = [0, 0, 0]
 
         # Validate perforance across random runs
-        time, acc = tvm.micro.testing.evaluate_model_accuracy(
+        time, _ = tvm.micro.testing.evaluate_model_accuracy(
             session, aot_executor, samples, labels, runs_per_sample=20
         )
         # `time` is the average time taken to execute model inference on the

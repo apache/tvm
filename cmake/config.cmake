@@ -322,6 +322,9 @@ set(USE_HEXAGON_RPC OFF)
 # Valid values are v65, v66, v68, v69.
 set(USE_HEXAGON_ARCH "v66")
 
+# Whether to use QHL library
+set(USE_HEXAGON_QHL OFF)
+
 # Whether to use ONNX codegen
 set(USE_TARGET_ONNX OFF)
 
