@@ -3048,8 +3048,7 @@ def test_div_mod():
 
     assert isinstance(func.body[0].value, tvm.tir.FloorDiv)
     assert isinstance(func.body[1].value, tvm.tir.FloorMod)
-    assert isinstance(func.body[2].value, tvm.tir.Div)
-    assert isinstance(func.body[3].value, tvm.tir.Mod)
+    assert isinstance(func.body[2].value, tvm.tir.Mod)
 
 
 def loop_extent_dependent():
