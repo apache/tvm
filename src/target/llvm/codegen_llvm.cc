@@ -145,7 +145,7 @@ void CodeGenLLVM::Init(const std::string& module_name, LLVMTarget* llvm_target, 
   InitTarget();
 }
 
-void CodeGenLLVM::SetFastMathFlag(llvm::FastMathFlags fmf) { builder_->setFastMathFlags(fmf); }
+void CodeGenLLVM::SetFastMathFlags(llvm::FastMathFlags fmf) { builder_->setFastMathFlags(fmf); }
 
 void CodeGenLLVM::InitTarget() {
   llvm::TargetMachine* tm = llvm_target_->GetOrCreateTargetMachine();

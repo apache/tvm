@@ -309,7 +309,7 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
   // TODO(tqchen): remove the entry function behavior as it does not
   // makes sense when we start to use multiple modules.
   cg->Init("TVMMod", llvm_target.get(), system_lib, system_lib, target_c_runtime);
-  cg->SetFastMathFlag(llvm_target->GetFastMathFlags());
+  cg->SetFastMathFlags(llvm_target->GetFastMathFlags());
 
   cg->AddFunctionsOrdered(funcs.begin(), funcs.end());
   if (entry_func.length() != 0) {
