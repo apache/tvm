@@ -23,7 +23,6 @@ import functools
 import itertools
 import math
 import sys
-import logging
 
 import numpy as np
 import tvm
@@ -1384,6 +1383,16 @@ class PyTorchOpConverter:
             axes = inputs[1]
         return _op.transform.transpose(data, axes)
 
+    def numpy_T(self, inputs, input_types):
+        data = inputs[0]
+        shape = self.infer_shape(data)
+        if len(shape) != 2:
+            logger.warning(
+                "The use of Tensor.T on tensors of dimensions != 2 is deprecated"
+                "and will be removed in a future release of PyTorch."
+            )
+        return _op.transform.transpose(data)
+
     def flatten(self, inputs, input_types):
         data = inputs[0]
         start = int(inputs[1])
@@ -2347,7 +2356,7 @@ class PyTorchOpConverter:
         if len(inputs) > 12:
             strides_offset = 5
             bias = inputs[4]
-            logging.warning("mask argument in deformable conv2d is not supported and ignored")
+            logger.warning("mask argument in deformable conv2d is not supported and ignored")
         else:
             strides_offset = 4
             bias = inputs[3]
@@ -3480,6 +3489,7 @@ class PyTorchOpConverter:
             "aten::group_norm": self.group_norm,
             "aten::transpose": self.transpose,
             "aten::t": self.transpose,
+            "aten::numpy_T": self.numpy_T,
             "aten::flatten": self.flatten,
             "aten::addmm": self.addmm,
             "aten::size": self.size,
