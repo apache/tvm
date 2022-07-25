@@ -67,10 +67,13 @@ class MyAiHwConv2dPass:
                     external_call = tvm.tir.Evaluate(
                         tir_call(irb, True, _external_function_name, *args)
                     )
-                    mac_calls = tvm.tir.SeqStmt([external_call])
-                    irb.emit(mac_calls)
+                    ext_calls = tvm.tir.SeqStmt([external_call])
+                    irb.emit(ext_calls)
                     irb_result = irb.get()
                     return irb_result
+                elif isinstance(op, tvm.tir.SeqStmt):
+                    # Remove that pad block of TOPI's conv2DNCHW by only returning the 2nd statement 
+                    return op.seq[1]
                 return op
 
             sch = tir.Schedule(func)
@@ -92,7 +95,7 @@ class MyAiHwConv2dPass:
                 _loops = {k: sch.get(v) for k, v in loops.items()}
                 _handles = func.buffer_map.items()
 
-                x = tvm.tir.stmt_functor.ir_transform(func.body, None, _replace_conv2d, ["tir.For"])
+                x = tvm.tir.stmt_functor.ir_transform(func.body, None, _replace_conv2d, ["tir.For", "tir.SeqStmt"])
                 return func.with_body(x)
             else:
                 return func
