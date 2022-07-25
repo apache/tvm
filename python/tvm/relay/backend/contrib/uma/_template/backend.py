@@ -28,24 +28,16 @@ class MyAiHwBackend(UMABackend):
     def __init__(self):
         super().__init__()
 
-        #######################################################################
         # Target configuration
-        #######################################################################
         self._register_target_attr("dimension")
 
-        #######################################################################
         # Relay Pattern registration
-        #######################################################################
         self._register_pattern("conv2d", conv2d_pattern())
 
-        #######################################################################
         # Relay to TIR function registration
-        #######################################################################
         self._register_tir_pass(PassPhase.TIR_PHASE_0, MyAiHwConv2dPass())
 
-        #######################################################################
         # TIR to runtime function registration
-        #######################################################################
         self._register_codegen(fmt="c", includes=gen_includes)
 
     @property

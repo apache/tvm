@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""UMA modules for Relay."""
+
 from .backend import UMABackend
 from .api.utils import uma_available
 

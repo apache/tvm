@@ -46,8 +46,10 @@ import tvm
 from tvm.relay.backend.contrib.uma.backend import UMABackend
 from tvm.relay.dataflow_pattern import is_op, wildcard
 from tvm.relay.backend.contrib.uma.api.utils import PassPhase
-from tvm.relay.backend.contrib.uma._template.passes import MyAiHwConv2dPass as VanillaAcceleratorConv2DPass
-from tvm.relay.backend.contrib.uma._template.codegen import gen_includes 
+from tvm.relay.backend.contrib.uma._template.passes import (
+    MyAiHwConv2dPass as VanillaAcceleratorConv2DPass,
+)
+from tvm.relay.backend.contrib.uma._template.codegen import gen_includes
 
 
 ######################################################################
@@ -65,15 +67,13 @@ from tvm.relay.backend.contrib.uma._template.codegen import gen_includes
 #
 
 ######################################################################
-# **Vanilla** has a C interface ``vanilla_conv2dnchw(...)``` for carrying out a Conv2D operation (including same-padding), 
+# **Vanilla** has a C interface ``vanilla_conv2dnchw(...)``` for carrying out a Conv2D operation (including same-padding),
 # that accepts pointers to input feature map, weights and result,
 # as well as the dimensions of `Conv2D`: `oc`, `iw`, `ih`, `ic`, `kh`, `kw`.
 #
 # .. code-block:: c++
 #
 #   int vanilla_conv2dnchw(float* ifmap, float*  weights, float*  result, int oc, int iw, int ih, int ic, int kh, int kw);
-
-
 
 
 ################################################################################
@@ -103,8 +103,9 @@ from tvm.relay.backend.contrib.uma._template.codegen import gen_includes
 
 ################################################################################
 # Vanilla backend
-# 
+#
 #  The generated backend for vanilla is found in `vanilla_accelerator/backend.py`:
+
 
 class VanillaAcceleratorBackend(UMABackend):
     """UMA backend for VanillaAccelerator."""
@@ -119,7 +120,6 @@ class VanillaAcceleratorBackend(UMABackend):
     @property
     def target_name(self):
         return "vanilla_accelerator"
-
 
 
 ################################################################################
@@ -164,10 +164,9 @@ def conv2d_pattern():
 # As shown above in `VanillaAcceleratorBackend` it is registered to UMA with
 # the `self._register_codegen`
 #
-# .. code-block:: python 
+# .. code-block:: python
 #
 #   self._register_codegen(fmt="c", includes=gen_includes)
-
 
 
 ###########################################################
@@ -181,6 +180,7 @@ def conv2d_pattern():
 # Excerpt from vanilla_accelerator/run.py:
 from tvm.relay.backend.contrib.uma._template.run import create_conv2d
 from tvm.testing.aot import AOTTestModel as AOTModel, compile_and_run
+
 
 def main():
     mod, inputs, output_list, runner = create_conv2d()
@@ -200,6 +200,8 @@ def main():
         target=target,
         test_dir=str(export_directory),
     )
+
+
 main()
 
 ############################################################
@@ -243,7 +245,7 @@ main()
 #   default_lib0.c
 #   default_lib1.c
 #   default_lib2.c
-# 
+#
 
 ###########################################################
 # In `default_lib2.c` you can now see that the generated code calls

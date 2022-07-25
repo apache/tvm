@@ -21,6 +21,23 @@
 #ifdef __cplusplus
 extern "C"
 #endif
+
+  /*!
+   * \brief Conv2D function for mock-accelerator examples. Limited to same-padded Conv2D with stride (1,1) and datatype float.
+   * \param ifmap Pointer to input feature map data of size iw*ih*ic*sizeof(float).
+   * \param weights Pointer to weight data of size kh*kw*ic**oc*sizeof(float).
+   * \param result Pointer to output feature map data of size iw*ih*oc*sizeof(float).
+   * \param oc Number of channels of output feature map.
+   * \param iw Width of input feature map, ifmap.
+   * \param ih Height of input feature map, ifmap.
+   * \param ic Number of channels of input feature map.
+   * \param kh Height of convolution kernels.
+   * \param kw Wifth of convolution kernels.
+   * 
+   * \
+   * \return error code
+   *
+   */
     int
     my_ai_hw_conv2dnchw(float* ifmap, float* weights, float* result, int oc, int iw, int ih, int ic,
                         int kh, int kw) {

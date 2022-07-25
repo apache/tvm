@@ -48,9 +48,7 @@ class UMABackend(ABC):
         """
         ...
 
-    ############################################################################
     # Target configuration
-    ############################################################################
     def _register_target_attr(
         self,
         name: str,
@@ -77,9 +75,7 @@ class UMABackend(ABC):
         """
         self._target_attrs[name] = default
 
-    ############################################################################
     # Relay to Relay function registration
-    ############################################################################
     def _register_relay_pass(self, phase: PassPhase, relay_pass: tvm.transform.Pass) -> None:
         """Registers a relay pass at the given phase in the lowering process.
 
@@ -129,8 +125,8 @@ class UMABackend(ABC):
         pattern: tvm.relay.dataflow_pattern.DFPattern
             Relay DFPattern
 
-        predicate: Callable Receiving the matched pattern and
-
+        predicate: Optional[Callable]
+            Optional predicate for Relay DFPattern
         Example
         -------
         Here is an example of how two dataflow patterns are registered.
@@ -152,9 +148,7 @@ class UMABackend(ABC):
         """
         self._relay_to_relay.add_pattern(name, pattern, predicate)
 
-    ############################################################################
     # Relay to TIR function registration
-    ############################################################################
     def _register_operator_strategy(
         self,
         op: str,
@@ -238,9 +232,7 @@ class UMABackend(ABC):
         """
         self._relay_to_tir._tir_passes.append((phase, tir_pass))
 
-    ############################################################################
     # TIR to runtime function registration
-    ############################################################################
     def _register_codegen(self, fmt: str = "c", **kwargs) -> None:
         """Registers a codegen which is used in place of the default C-codegen.
 
@@ -282,9 +274,7 @@ class UMABackend(ABC):
         """
         self._tir_to_runtime._register_codegen(fmt, **kwargs)
 
-    ############################################################################
     # Backend functions
-    ############################################################################
     def register(self) -> None:
         registration_func = tvm.get_global_func("relay.backend.contrib.uma.RegisterTarget")
 
