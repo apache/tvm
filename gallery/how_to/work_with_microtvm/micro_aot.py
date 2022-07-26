@@ -24,8 +24,10 @@ microTVM Host-Driven AoT
 `Alan MacDonald <https://github.com/alanmacd>`_
 
 This tutorial is showcasing microTVM host-driven AoT compilation with
-a TFLite model. This tutorial can be executed on a X86 CPU using C runtime (CRT)
-or on Zephyr plarform on a microcontroller that supports Zephyr platform.
+a TFLite model. AoTExecutor reduces the overhead of parsing graph at runtime 
+compared to GraphExecutor. Also, we can have better memory management using Ahead 
+of time compilation. This tutorial can be executed on a x86 CPU using C runtime (CRT)
+or on Zephyr platform on a microcontroller that supports Zephyr platform.
 """
 
 # sphinx_gallery_start_ignore
@@ -48,9 +50,11 @@ from tvm.contrib.download import download_testdata
 # Import a TFLite model
 # ---------------------
 #
-# To begin with, download and import a TFLite model from TinyMLPerf models.
+# To begin with, download and import a Keyword Spotting TFLite model.
+# This model is originally from `MLPerf Tiny repository <https://github.com/mlcommons/tiny>`_.
+# To test this model, we use samples from `KWS dataset provided by Google <https://ai.googleblog.com/2017/08/launching-speech-commands-dataset.html>`_.
 #
-# **Note:** By default this tutorial runs on X86 CPU using CRT, if you would like to run on Zephyr platform
+# **Note:** By default this tutorial runs on x86 CPU using CRT, if you would like to run on Zephyr platform
 # you need to export `TVM_MICRO_USE_HW` environment variable.
 #
 use_physical_hw = bool(os.getenv("TVM_MICRO_USE_HW"))
@@ -81,20 +85,27 @@ relay_mod, params = relay.frontend.from_tflite(
 #
 # Now we need to define the target, runtime and executor. In this tutorial, we focused on
 # using AOT host driven executor. We use the host micro target which is for running a model
-# on X86 CPU using CRT runtime or running a model with Zephyr platform on qemu_x86 simulator
-# board. In the case of a physical microcontoller, we get the target model for the physical
-# board (E.g. nucleo_f746zg) and pass it to `tvm.target.target.micro` to create a full
+# on x86 CPU using CRT runtime or running a model with Zephyr platform on qemu_x86 simulator
+# board. In the case of a physical microcontroller, we get the target model for the physical
+# board (E.g. nucleo_l4r5zi) and pass it to `tvm.target.target.micro` to create a full
 # micro target.
 #
+
+# Use the C runtime (crt) and enable static linking by setting system-lib to True
 RUNTIME = Runtime("crt", {"system-lib": True})
+
+# Simulate a microcontroller on the host machine. Uses the main() from `src/runtime/crt/host/main.cc <https://github.com/apache/tvm/blob/main/src/runtime/crt/host/main.cc>`_.
+# To use physical hardware, replace "host" with something matching your hardware.
 TARGET = tvm.target.target.micro("host")
+
+# Use the AOT executor rather than graph or vm executors. Don't use unpacked API or C calling style.
 EXECUTOR = Executor("aot")
 
 if use_physical_hw:
     boards_file = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr")) / "boards.json"
     with open(boards_file) as f:
         boards = json.load(f)
-    BOARD = os.getenv("TVM_MICRO_BOARD", default="nucleo_f746zg")
+    BOARD = os.getenv("TVM_MICRO_BOARD", default="nucleo_l4r5zi")
     TARGET = tvm.target.target.micro(boards[BOARD]["model"])
 
 ######################################################################
@@ -110,11 +121,11 @@ with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": Tru
 
 ######################################################################
 # Create a microTVM project
-# -----------------------
+# -------------------------
 #
-# Now that we have the comipled model as an IRModule, we need to create a project
-# with the compiled model in microTVM. To do this, we use Project API. We have defined
-# CRT and Zephyr microTVM template projects which are used for X86 CPU and Zephyr platforms
+# Now that we have the compiled model as an IRModule, we need to create a firmware project
+# to use the compiled model with microTVM. To do this, we use Project API. We have defined
+# CRT and Zephyr microTVM template projects which are used for x86 CPU and Zephyr platforms
 # respectively.
 #
 template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("crt"))
@@ -132,11 +143,12 @@ project = tvm.micro.generate_project(
 
 ######################################################################
 # Build, flash and execute the model
-# -----------------------
+# ----------------------------------
 # Next, we build the microTVM project and flash it. Flash step is specific to
-# physical microcontrollers and it is skipped if it is using CRT runtime or running
-# on Zephyr simulator. Next, we define the labels for the model output and execute
-# the model with a sample with expected value of 6 (label: left).
+# physical microcontrollers and it is skipped if it is simulating a microcontroller
+# via the host main.cc or if a Zephyr emulated board is selected as the target.
+# Next, we define the labels for the model output and execute the model with a
+# sample with expected value of 6 (label: left).
 #
 project.build()
 project.flash()
