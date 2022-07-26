@@ -505,12 +505,10 @@ def test_residual_block():
     filter_shape2 = (32, 32, 1, 1)
     filter_shape3 = (32, 32, 2, 2)
     bias_shape1 = (1, 32, 1, 1)
-    # bias_shape2 = (1, 32, 1, 1)
     A = relay.var("data", shape=input_shape, dtype=dtype)
     W1 = relay.var("weight1", shape=filter_shape1, dtype=dtype)
     B1 = relay.var("bias1", shape=bias_shape1, dtype=dtype)
     W2 = relay.var("weight2", shape=filter_shape2, dtype=dtype)
-    # B2 = relay.var("bias2", shape=bias_shape2, dtype=dtype)
     W3 = relay.var("weight3", shape=filter_shape3, dtype=dtype)
 
     conv1 = relay.nn.conv2d(
@@ -563,16 +561,13 @@ def test_residual_block():
     initializer("weight", filter_data1)
     initializer("bias", bias_data1)
     filter_data2 = np.zeros(filter_shape2).astype(dtype)
-    # bias_data2 = np.zeros(bias_shape2).astype(dtype)
     initializer("weight", filter_data2)
-    # initializer("bias", bias_data2)
     filter_data3 = np.zeros(filter_shape3).astype(dtype)
     initializer("weight", filter_data3)
     params1 = {
         "weight1": tvm.nd.array(filter_data1),
         "bias1": tvm.nd.array(bias_data1),
         "weight2": tvm.nd.array(filter_data2),
-        # "bias2": tvm.nd.array(bias_data2),
         "weight3": tvm.nd.array(filter_data3),
     }
 
