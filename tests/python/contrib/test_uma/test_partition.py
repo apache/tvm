@@ -59,6 +59,8 @@ def test_existing_pattern_tables(workload, backend, merge, expected_partitions):
         net = resnet.get_net(1, 10)
     elif workload == "mlp":
         net = mlp.get_net(1, 10)
+    else:
+        assert False, f"don't know how to find workload for {workload}"
 
     mod = tvm.ir.IRModule()
     mod["main"] = net

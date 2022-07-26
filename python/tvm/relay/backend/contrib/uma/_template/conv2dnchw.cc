@@ -32,9 +32,8 @@ extern "C"
    * \param ih Height of input feature map, ifmap.
    * \param ic Number of channels of input feature map.
    * \param kh Height of convolution kernels.
-   * \param kw Wifth of convolution kernels.
+   * \param kw Width of convolution kernels.
    * 
-   * \
    * \return error code
    *
    */
@@ -50,6 +49,7 @@ extern "C"
   int padded_iw = iw + 2 * kw_low;
   int padded_ih = ih + 2 * kh_low;
 
+  // This is only example code. A real hardware accelerator would call a device specific malloc function.
   float* pad_temp = (float*)malloc(
       (((ic * padded_iw * padded_ih) + (padded_ih * padded_iw)) + padded_iw) * sizeof(float));
 
@@ -88,6 +88,8 @@ extern "C"
       }
     }
   }
+
+  // This is only example code. A real hardware accelerator would call a device specific free function.
   free(pad_temp);
   return 0;
 }

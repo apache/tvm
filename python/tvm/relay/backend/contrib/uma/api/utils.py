@@ -32,7 +32,19 @@ def uma_available() -> bool:
 
 
 class PassPhase(Enum):
-    """UMA pass phases."""
+    """
+    UMA pass phases:
+
+    PRE_PARTITIONING: prior to UMA partitioning
+    POST_PARTITIONING_0: after UMA partitioning, before Defunctionalization
+    POST_PARTITIONING_1: after UMA partitioning and after Defunctionalization
+    TIR_PHASE_0: Generates the raw IR and loop levels.
+    TIR_PHASE_1: Flattens the array storage.
+    TIR_PHASE_2: Transforms loops, like unroll, vectorization and thread-binding.
+    TIR_PHASE_3: Does some cleanup work.
+
+    Reference to TIR phases: src/driver/driver_api.c
+    """
 
     PRE_PARTITIONING = auto()
     POST_PARTITIONING_0 = auto()

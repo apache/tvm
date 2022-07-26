@@ -23,6 +23,9 @@ from tvm.relay.backend.contrib.uma.api.utils import add_llvm_to_block
 
 @tvm.tir.transform.prim_func_pass(opt_level=2)
 class MyAiHwConv2dPass:
+    _EXTERNAL_FUNCTION_NAME = "my_ai_hw_conv2dnchw"
+    _TVM_BLOCK_MATCH_NAME = "conv2d_nchw"
+
     def transform_function(
         self, func: tvm.tir.PrimFunc, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
     ) -> tvm.tir.PrimFunc:
@@ -34,10 +37,8 @@ class MyAiHwConv2dPass:
         _loops = dict()
         _handles = []
         _entry_node = None
-        _external_function_name = "my_ai_hw_conv2dnchw"
-        _tvm_block_match_name = "conv2d_nchw"
 
-        def _has_block(name: str, func) -> bool:
+        def _has_block(name: str, func: tvm.tir.PrimFunc) -> bool:
             """
             Determine of a tir.block with `name` exists in `func`
             """
@@ -65,7 +66,7 @@ class MyAiHwConv2dPass:
                     offsets = [_loops[i].extent.value for i in offset_order]
                     args = buffers + offsets
                     external_call = tvm.tir.Evaluate(
-                        tir_call(irb, True, _external_function_name, *args)
+                        tir_call(irb, True, MyAiHwConv2dPass._EXTERNAL_FUNCTION_NAME, *args)
                     )
                     ext_calls = tvm.tir.SeqStmt([external_call])
                     irb.emit(ext_calls)
@@ -78,8 +79,8 @@ class MyAiHwConv2dPass:
 
             sch = tir.Schedule(func)
 
-            if _has_block(_tvm_block_match_name, func):
-                conv2d_block = sch.get_block(_tvm_block_match_name)
+            if _has_block(_TVM_BLOCK_MATCH_NAME, func):
+                conv2d_block = sch.get_block(_TVM_BLOCK_MATCH_NAME)
                 rv_loops = sch.get_loops(conv2d_block)
                 assert len(rv_loops) == 7
                 loops = dict(

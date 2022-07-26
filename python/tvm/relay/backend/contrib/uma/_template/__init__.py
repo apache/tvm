@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,10 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""
 
-set -euxo pipefail
+Template files for UMA tutorial
 
-source tests/scripts/setup-pytest-env.sh
+Do not import
 
-run_pytest ctypes test_uma tests/python/contrib/test_uma
-run_pytest cython3 test_uma  tests/python/contrib/test_uma
+"""
