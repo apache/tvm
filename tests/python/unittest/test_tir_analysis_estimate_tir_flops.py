@@ -58,7 +58,8 @@ def flops_with_let(a: T.Buffer[16, "float32"]):
 
 
 def test_flops_with_let():
-    estimate_tir_flops(IRModule({"main": flops_with_let}))
+    flops = estimate_tir_flops(IRModule({"main": flops_with_let}))
+    assert flops == 8
 
 
 if __name__ == "__main__":
