@@ -111,44 +111,42 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
 
   void DeviceAwareVisitExpr_(const CallNode* call) final {
     // Check the contents of this primitive function
-    if (DeviceSupportsTextureStorage(GetRef<Expr>(call))) {
-      if (const auto* fn = call->op.as<FunctionNode>()) {
-        if (fn->HasNonzeroAttr(attr::kPrimitive)) {
-          primitive_supports_texture_ = false;
-          Visit(call->op);
-          if (primitive_supports_texture_) {
-            if (call->checked_type().as<TensorTypeNode>()) {
-              std::string scope = "global.texture";
-              if (const auto* ttype = call->checked_type().as<TensorTypeNode>()) {
-                if (ttype->shape.size() == 5) {
-                  scope = Scope(ttype->shape, GetVirtualDevice(GetRef<Expr>(call)));
-                }
-              }
-              storage_scope_[call].push_back(scope);
-            } else {
-              const auto* tuple_type = call->type_as<TupleTypeNode>();
-              ICHECK(tuple_type);
-              // TODO(csullivan): Add support for mixed output storage scope.
-              // In current adreno storage planner all outputs of a
-              // primitive function are assumed to be of the same storage
-              // type. This should be easy to extend in the future.
-              for (size_t i = 0; i < tuple_type->fields.size(); i++) {
-                storage_scope_[call].push_back("global.texture");
+    if (const auto* fn = call->op.as<FunctionNode>()) {
+      if (fn->HasNonzeroAttr(attr::kPrimitive)) {
+        primitive_supports_texture_ = false;
+        Visit(call->op);
+        if (primitive_supports_texture_) {
+          if (call->checked_type().as<TensorTypeNode>()) {
+            std::string scope = "global.texture";
+            if (const auto* ttype = call->checked_type().as<TensorTypeNode>()) {
+              if (ttype->shape.size() == 5) {
+                scope = Scope(ttype->shape, GetVirtualDevice(GetRef<Expr>(call)));
               }
             }
-            for (size_t i = 0; i < fn->params.size(); i++) {
-              args_to_vars_[call->args[i]].push_back(fn->params[i]);
+            storage_scope_[call].push_back(scope);
+          } else {
+            const auto* tuple_type = call->type_as<TupleTypeNode>();
+            ICHECK(tuple_type);
+            // TODO(csullivan): Add support for mixed output storage scope.
+            // In current adreno storage planner all outputs of a
+            // primitive function are assumed to be of the same storage
+            // type. This should be easy to extend in the future.
+            for (size_t i = 0; i < tuple_type->fields.size(); i++) {
+              storage_scope_[call].push_back("global.texture");
             }
           }
-          // Add consumer storage scope information for call arguments
-          for (auto& arg : call->args) {
-            if (storage_scope_.count(call)) {
-              ICHECK(!HasMixedStorageOutputs(call))
-                  << "Mixed output storage scopes are not currently supported";
-              consumer_storage_scopes_[arg.operator->()].push_back("global.texture");
-            } else {
-              consumer_storage_scopes_[arg.operator->()].push_back("global");
-            }
+          for (size_t i = 0; i < fn->params.size(); i++) {
+            args_to_vars_[call->args[i]].push_back(fn->params[i]);
+          }
+        }
+        // Add consumer storage scope information for call arguments
+        for (auto& arg : call->args) {
+          if (storage_scope_.count(call)) {
+            ICHECK(!HasMixedStorageOutputs(call))
+                << "Mixed output storage scopes are not currently supported";
+            consumer_storage_scopes_[arg.operator->()].push_back("global.texture");
+          } else {
+            consumer_storage_scopes_[arg.operator->()].push_back("global");
           }
         }
       }
@@ -262,20 +260,6 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
     }
   }
 
-  bool DeviceSupportsTextureStorage(const Expr& expr) {
-    auto vd = GetVirtualDevice(expr);
-    if (vd != VirtualDevice::FullyUnconstrained()) {
-      if (Optional<String> t_device = vd->target->GetAttr<String>("device")) {
-        if (vd->target->kind->device_type == kDLOpenCL && t_device.defined()) {
-          if (t_device.value() == "adreno") {
-            return true;
-          }
-        }
-      }
-    }
-    return false;
-  }
-
   std::string GetConsumerScope(const std::vector<std::string>& consumer_scopes) const {
     if (!consumer_scopes.size()) {
       return "global";
@@ -290,9 +274,6 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
   }
 
   bool CanConsumeTextures(const std::vector<std::string>& consumer_scopes) const {
-    if (!consumer_scopes.size()) {
-      return false;
-    }
     std::string texture_tag = "global.texture";
     for (auto& consumer_scope : consumer_scopes) {
       if (consumer_scope.find(texture_tag) == 0) {
