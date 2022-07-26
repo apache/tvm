@@ -17,7 +17,7 @@
 """
 Using Pipeline Executor in Relay
 =================================
-**Author**: `Hua Jiang <https://https://github.com/huajsj>`_
+**Author**: `Hua Jiang <https://github.com/huajsj>`_
 
 This is a short tutorial on how to use "Pipeline Executor" with Relay.
 """
