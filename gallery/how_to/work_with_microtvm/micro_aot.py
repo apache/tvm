@@ -25,9 +25,9 @@ microTVM Host-Driven AoT
 
 This tutorial is showcasing microTVM host-driven AoT compilation with
 a TFLite model. AoTExecutor reduces the overhead of parsing graph at runtime 
-compared to GraphExecutor. Also, we can have better memory management using Ahead 
+compared to GraphExecutor. Also, we can have better memory management using ahead 
 of time compilation. This tutorial can be executed on a x86 CPU using C runtime (CRT)
-or on Zephyr platform on a microcontroller that supports Zephyr platform.
+or on Zephyr platform on a microcontroller/board supported by Zephyr.
 """
 
 # sphinx_gallery_start_ignore
@@ -125,7 +125,7 @@ with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": Tru
 #
 # Now that we have the compiled model as an IRModule, we need to create a firmware project
 # to use the compiled model with microTVM. To do this, we use Project API. We have defined
-# CRT and Zephyr microTVM template projects which are used for x86 CPU and Zephyr platforms
+# CRT and Zephyr microTVM template projects which are used for x86 CPU and Zephyr boards
 # respectively.
 #
 template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("crt"))
