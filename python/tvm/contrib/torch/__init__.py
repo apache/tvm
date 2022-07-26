@@ -39,17 +39,6 @@ def _load_platform_specific_library(lib_name="libpt_tvmdsoop"):
 _load_platform_specific_library()
 
 
-from . import module
-
-GraphModule = module.GraphModule
-VMModule = module.VMModule
-TraceTvmModule = module.TraceTvmModule
-
-from . import pytorch_tvm
-
-PyTorchTVMModule = pytorch_tvm.PyTorchTVMModule
-compile = pytorch_tvm.compile
-
 from . import as_torch
 
 TVMScriptIRModule = as_torch.OperatorModuleWrapper
