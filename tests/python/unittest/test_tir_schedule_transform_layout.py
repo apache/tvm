@@ -103,7 +103,7 @@ def elementwise(A: T.Buffer[(128, 128), "float32"], B: T.Buffer[(128, 128), "flo
 def elementwise_transformed(A: T.Buffer[(128, 128), "float32"], B: T.Buffer[(128, 128), "float32"]) -> None:
     for i in range(16384):
         with T.block("B"):
-            vi, = T.axis.remap("S", [i])
+            vi = T.axis.remap("S", [i])
             B[vi // 128, vi % 128] = A[vi // 128, vi % 128] * 2.0
 
 
