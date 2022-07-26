@@ -29,11 +29,10 @@ using namespace tvm::runtime::cl;
 #define NUM_REPEAT 10
 
 TEST(OpenCLTimerNode, nested_timers) {
-  
   OpenCLWorkspace* workspace = OpenCLWorkspace::Global();
   OpenCLThreadEntry* thr = workspace->GetThreadEntry();
   cl_command_queue queue = workspace->GetQueue(thr->device);
-  
+
   int err;
   cl_int* tmp_buf = new cl_int[BUFF_SIZE];
   int64_t nested_time_sum = 0;
@@ -41,12 +40,14 @@ TEST(OpenCLTimerNode, nested_timers) {
   Timer init_timer = Timer::Start(thr->device);
   for (int i = 0; i < NUM_REPEAT; ++i) {
     Timer nested_timer = Timer::Start(thr->device);
-    //create some events
+    // create some events
     cl_event ev = clCreateUserEvent(workspace->context, &err);
     OPENCL_CHECK_ERROR(err);
-    cl_mem cl_buf = clCreateBuffer(workspace->context, CL_MEM_READ_ONLY, BUFF_SIZE * sizeof(cl_int), NULL, &err);
+    cl_mem cl_buf = clCreateBuffer(workspace->context, CL_MEM_READ_ONLY, BUFF_SIZE * sizeof(cl_int),
+                                   NULL, &err);
     OPENCL_CHECK_ERROR(err);
-    OPENCL_CALL(clEnqueueWriteBuffer(queue, cl_buf, false, 0, BUFF_SIZE * sizeof(cl_int), tmp_buf, 0, NULL, &ev));
+    OPENCL_CALL(clEnqueueWriteBuffer(queue, cl_buf, false, 0, BUFF_SIZE * sizeof(cl_int), tmp_buf,
+                                     0, NULL, &ev));
     OPENCL_CALL(clReleaseMemObject(cl_buf));
     workspace->events[thr->device.device_id].push_back(ev);
     nested_timer->Stop();
