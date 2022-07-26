@@ -107,9 +107,9 @@ class BufferFlattener : public StmtExprMutator {
           << "Expected int8 backing array for boolean tensor";
       auto writer = store.CopyOnWrite();
       writer->value = tvm::cast(DataType::Int(8), store->value);
-      return store;
+      return std::move(store);
     }
-    return store;
+    return std::move(store);
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
