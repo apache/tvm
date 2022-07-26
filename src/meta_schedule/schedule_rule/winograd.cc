@@ -144,9 +144,9 @@ TVM_REGISTER_GLOBAL("meta_schedule.winograd_inverse.cuda")
 
 TVM_REGISTER_GLOBAL("meta_schedule.winograd_bgemm.cuda")
     .set_body_typed([](Schedule sch, BlockRV bgemm) -> Array<Schedule> {
-      sch->SetScope(bgemm, /*buffer_index=*/0, /*storage_scope=*/"local");
       BlockRV data_pack = GetOnlyProducer(sch, bgemm);
 
+      BlockRV OL = sch->CacheWrite(bgemm, /*buffer_index=*/0, /*storage_scope=*/"local");
       BlockRV AA = sch->CacheRead(bgemm, /*buffer_index=*/0, /*storage_scope=*/"shared");
       BlockRV BB = sch->CacheRead(bgemm, /*buffer_index=*/1, /*storage_scope=*/"shared");
 
@@ -171,15 +171,21 @@ TVM_REGISTER_GLOBAL("meta_schedule.winograd_bgemm.cuda")
       sch->Bind(t0[0], "blockIdx.z");
       sch->Bind(t1[0], "blockIdx.y");
       sch->Bind(t2[0], "blockIdx.x");
-      sch->Bind(t0[1], "vthread.z");
-      sch->Bind(t1[1], "vthread.y");
-      sch->Bind(t2[1], "vthread.x");
       sch->Bind(t0[2], "threadIdx.z");
       sch->Bind(t1[2], "threadIdx.y");
       sch->Bind(t2[2], "threadIdx.x");
       sch->Reorder(
           {t0[0], t1[0], t2[0], t0[1], t1[1], t2[1], t0[2], t1[2], t2[2], t0[3], t1[3], t2[3]});
 
+      // tile reduction axes
+      loops = sch->GetLoops(OL);
+      // tile reduction axes
+      loops = sch->GetLoops(OL);
+      // tile reduction axes
+      loops = sch->GetLoops(OL);
+      ICHECK_EQ(loops.size(), 4);  // SSSS
+      fused = sch->Fuse({loops[0], loops[1]});
+      sch->ReverseComputeAt(OL, t2[2], /*preserve_unit_loops=*/true);
       sch->ComputeAt(AA, t3[1], /*preserve_unit_loops=*/true);
       sch->ComputeAt(BB, t3[1], /*preserve_unit_loops=*/true);
 
@@ -199,10 +205,11 @@ TVM_REGISTER_GLOBAL("meta_schedule.winograd_bgemm.cuda")
 
 TVM_REGISTER_GLOBAL("meta_schedule.winograd_data_pack.cuda")
     .set_body_typed([](Schedule sch, BlockRV data_pack) -> Array<Schedule> {
-      sch->SetScope(data_pack, /*buffer_index=*/0, /*storage_scope=*/"local");
+      BlockRV data_l = sch->CacheWrite(data_pack, /*buffer_index=*/0, /*storage_scope=*/"local");
       BlockRV input_tile = GetOnlyProducer(sch, data_pack);
       BlockRV data_pad = GetOnlyProducer(sch, input_tile);
       LoopRV loop = ScheduleDataPack(sch, data_pack);
+      sch->ReverseComputeAt(data_l, loop, /*preserve_unit_loops=*/true);
       sch->ComputeAt(input_tile, /*loop_rv=*/loop, /*preserve_unit_loops=*/true);
       sch->ComputeInline(data_pad);
       int64_t max_threadblocks = 256;
