@@ -14,19 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=import-self, invalid-name, consider-using-f-string
-# pylint: disable=arguments-differ, unused-argument, unused-import
+# pylint: disable=import-self, invalid-name
+# pylint: disable=arguments-differ, unused-argument
 """Unit tests for various models and operators"""
 import os
-import sys
 
 import numpy as np
-import pytest
 import tvm
 import tvm.testing
 import tvm.topi.testing
 from tvm import relay
-from tvm.contrib import graph_executor
 
 import oneflow as flow
 from flowvision.models.alexnet import alexnet

@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=import-self, invalid-name, unused-argument, unused-variable, redefined-builtin
+# pylint: disable=import-self, invalid-name, unused-argument, unused-variable
 """
 Tensorflow testcases
 ====================
@@ -297,7 +297,7 @@ def is_gpu_available():
 
     local_device_protos = device_lib.list_local_devices()
     gpu_list = [x.name for x in local_device_protos if x.device_type == "GPU"]
-    if len(gpu_list) > 0:  # pylint: disable=len-as-condition
+    if gpu_list:
         print("Tensorflow GPU:", gpu_list)
         return True
     else:
@@ -501,7 +501,6 @@ def _test_convolution(
     add_shapes_to_graph_def=True,
 ):
     """One iteration of convolution with given shapes and attributes"""
-    # pylint: disable=dangerous-default-value
     total_size_1 = np.prod(tensor_in_sizes)
     total_size_2 = np.prod(filter_in_sizes)
     # Initializes the input tensor with array containing incrementing
@@ -4682,8 +4681,8 @@ def test_forward_size():
         tf_input_shape[0] = None
 
         with tf.Graph().as_default():
-            input = tf.placeholder(shape=tf_input_shape, dtype=np_input.dtype, name="input")
-            tf.size(input, name="size")
+            tf_input = tf.placeholder(shape=tf_input_shape, dtype=np_input.dtype, name="input")
+            tf.size(tf_input, name="size")
             compare_tf_with_tvm([np_input], ["input:0"], "size:0")
 
     check_size((10, 8, 16, 32))

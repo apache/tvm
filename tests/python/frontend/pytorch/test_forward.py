@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=import-self, invalid-name, unused-argument, missing-function-docstring
+# pylint: disable=import-self, invalid-name, unused-argument, missing-docstring
 """Unit tests for various models and operators"""
 import os
 import sys
@@ -40,13 +40,12 @@ if torch.cuda.is_available():
     torch.backends.cuda.matmul.allow_tf32 = False
     torch.backends.cudnn.allow_tf32 = False
 
-# pylint: disable=arguments-renamed
 def list_ops(expr):
     class OpLister(tvm.relay.ExprVisitor):
-        def visit_op(self, expr):
-            if expr not in self.node_set:
-                self.node_list.append(expr)
-            return super().visit_op(expr)
+        def visit_op(self, op):
+            if op not in self.node_set:
+                self.node_list.append(op)
+            return super().visit_op(op)
 
         def list_nodes(self, expr):
             self.node_set = {}
@@ -130,7 +129,7 @@ def verify_model(
     elif isinstance(input_data, list):
         baseline_model = model_name
         baseline_input = input_data
-    elif isinstance(input_data, torch.Tensor) or len(input_data.shape) == 0:
+    elif isinstance(input_data, torch.Tensor) or not input_data.shape:
         baseline_model = model_name
         baseline_input = [input_data]
     else:
