@@ -21,7 +21,7 @@
 # pylint: disable=missing-class-docstring
 # pylint: disable=missing-function-docstring
 """
-optimize_torch: aa function similar to `torch.jit.trace`,
+optimize_torch: a function similar to `torch.jit.trace`,
 which is used to optimize the `torch.nn.module` by TVM metaSchedule,
 and returns a custom TorchScript operator
 """
