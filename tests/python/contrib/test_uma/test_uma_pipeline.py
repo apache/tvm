@@ -102,4 +102,4 @@ def _generate_runtime_data(input_shapes: dict, output_shapes: dict) -> [OrderedD
 
 
 if __name__ == "__main__":
-    test_conv2d()
+    tvm.testing.main()

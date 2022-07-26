@@ -116,4 +116,4 @@ def test_lower_with_uma(n, w, h, ci, kw, kh, co):
 
 
 if __name__ == "__main__":
-    test_lower_with_uma(1, 224, 224, 3, 3, 3, 4)
+    tvm.testing.main()
