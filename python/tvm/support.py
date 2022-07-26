@@ -20,6 +20,8 @@ import textwrap
 import ctypes
 import os
 import sys
+import io
+from typing import Optional
 
 import tvm
 import tvm._ffi
@@ -85,6 +87,61 @@ class FrontendTestModule(Module):
 
     def __setitem__(self, key, value):
         self.add_function(key, value)
+
+
+def dump_for_debug(obj, obj_name: Optional[str] = "obj", io_tensors: Optional = None) -> str:
+    """
+    Return a multi-line, human-readable dump of various details about the TVM
+    object 'obj'.  Intended for debugging and/or exposition.
+
+    'obj_name': optionally provides the caller's identifier name for the 'obj'
+       argument, for nicer text output.
+
+    'io_tensors': If 'obj' (or some related object) is suitable for lowering by
+       'tvm.lower(...)', this is the list of placeholder I/O tensors to be provided
+       to 'tvm.lower(...)'.
+    """
+    output = io.StringIO()
+
+    def handle_primfunc(name_prefix: str, func: tvm.tir.function.PrimFunc) -> None:
+        output.write(f"type({name_prefix}): {type(func)}\n")
+        output.write(f"{name_prefix}:\n{func}\n")
+
+        script = str(func.script())
+        output.write(f"{name_prefix}.script():\n{script}\n")
+
+    def handle_irmodule(
+        name_prefix: str, mod: tvm.ir.module.IRModule, already_lowered: bool
+    ) -> None:
+        output.write(f"type({name_prefix}): {type(mod)}\n")
+        output.write(f"{name_prefix}:\n{mod}\n")
+
+        if (not already_lowered) and (io_tensors is not None):
+            lmod = tvm.lower(mod, io_tensors)
+            lname_prefix = f"tvm.lower({name_prefix}, io_tensors)"
+            handle_irmodule(lname_prefix, lmod, True)
+
+    def handle_schedule(name_prefix: str, sched: tvm.tir.schedule.schedule.Schedule) -> None:
+        output.write(f"type({name_prefix}): {type(sched)}\n")
+        output.write(f"{name_prefix}:\n{sched}\n")
+
+        # Note: We're assuming that this module hasn't yet been lowered.
+        mod = sched.mod
+        handle_irmodule(f"{name_prefix}.mod", mod, False)
+
+    if isinstance(obj, tvm.tir.function.PrimFunc):
+        handle_primfunc(obj_name, obj)
+    elif isinstance(obj, tvm.tir.schedule.schedule.Schedule):
+        handle_schedule(obj_name, obj)
+    elif isinstance(obj, tvm.ir.module.IRModule):
+        # Note: We're assuming that this module hasn't yet been lowered.
+        handle_irmodule(obj_name, obj, False)
+    else:
+        # catch-all logic...
+        output.write(f"type({obj_name}): {type(obj)}\n")
+        output.write(f"{obj_name}:\n{obj}\n")
+
+    return output.getvalue()
 
 
 tvm._ffi._init_api("support", __name__)
