@@ -1504,6 +1504,12 @@ constexpr const char* software_pipeline_stage = "software_pipeline_stage";
 /*! \brief Mark the order of a statement in the software pipeline */
 constexpr const char* software_pipeline_order = "software_pipeline_order";
 
+/*! \brief List stages in the software pipeline that should run asynchronously
+ * \note All statements in the provided stages are assumed to have asynchronous
+ *       semantics (e.g. CUDA async global to shared memory copy).
+ */
+constexpr const char* software_pipeline_async_stages = "software_pipeline_async_stages";
+
 /*! \brief Mark the buffers which is const access and can be transformed layout. */
 constexpr const char* layout_free_buffers = "layout_free_buffers";
 

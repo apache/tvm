@@ -1071,11 +1071,7 @@ class PipelineInjector : private StmtExprMutator {
     CHECK_EQ(pipeline_orders.size(), original_order.size());
 
     std::unordered_set<int> pipeline_async_stages;
-    // The software_pipeline_async_stages annotation provides a list of stages that should run
-    // asynchronously. All statements in the provided stages are assumed to have asynchronous
-    // semantics (e.g. CUDA async global to shared memory copy).
-    if (op->annotations.count("software_pipeline_async_stages")) {
-      auto annot = op->annotations.at("software_pipeline_async_stages");
+    if (auto annot = op->annotations.Get(attr::software_pipeline_async_stages)) {
       for (auto s : Downcast<Array<Integer>>(annot)) {
         pipeline_async_stages.insert(s->value);
       }
