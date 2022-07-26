@@ -636,13 +636,13 @@ def test_plan_device_issue1():
     }
 
     static_memory_scope = [
-          "",
-          "global",
-          "global.texture-weight",
-          "global.texture",
-          "global.texture-weight",
-          "",
-          ""
+        "",
+        "global",
+        "global.texture-weight",
+        "global.texture",
+        "global.texture-weight",
+        "",
+        "",
     ]
 
     static_memory_scope = []
@@ -734,18 +734,18 @@ def test_branch_textures():
     }
 
     static_memory_scope = [
-          "",
-          "global",
-          "global.texture-weight",
-          "global.texture-weight",
-          "global",
-          "global.texture-weight",
-          "global.texture-weight",
-          "",
-          "",
-          "",
-          "",
-          ""
+        "",
+        "global",
+        "global.texture-weight",
+        "global.texture-weight",
+        "global",
+        "global.texture-weight",
+        "global.texture-weight",
+        "",
+        "",
+        "",
+        "",
+        "",
     ]
 
     static_memory_scope = []
@@ -859,7 +859,7 @@ def test_branch1_texture_params():
         "global.texture-weight",
         "global.texture",
         "",
-        ""
+        "",
     ]
 
     build_run_compare(mod, params1, {"data": input_shape}, dtype, target, static_memory_scope)
@@ -976,8 +976,8 @@ def test_branch2_texture_params():
         "global.texture-weight",
         "global.texture",
         "",
-        ""
-   ]
+        "",
+    ]
 
     build_run_compare(mod, params1, {"data": input_shape}, dtype, target, static_memory_scope)
 
@@ -1044,7 +1044,7 @@ def test_conv2d_different_param_scope():
         "global.texture",
         "global.texture",
         "",
-        ""
+        "",
     ]
 
     build_run_compare(mod, params1, {"data": input_shape}, dtype, target, static_memory_scope)
