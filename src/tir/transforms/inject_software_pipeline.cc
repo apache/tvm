@@ -560,6 +560,9 @@ class PipelineRewriter : public StmtExprMutator {
     // If multiple async producers are interleaved with their consumer in between, we need separate
     // async_commit_queue for each producer. Thus, we need multiple sets of indices.
     std::vector<std::vector<size_t>> commit_groups;
+
+    // TODO
+    bool consumed{false};
   };
 
   struct RewrittenBlockInfo {
@@ -733,7 +736,6 @@ class PipelineRewriter : public StmtExprMutator {
     // Async related
     std::map<int, AsyncStateLocal> async_states_local;
     std::unordered_map<const BufferNode*, int> buffer_to_commit_group;
-    std::vector<bool> consumed(max_stage_ + 1, false);
 
     for (const Block& block : ordered_stmts_) {
       int stage = pipeline_info_.at(block).stage;
@@ -767,8 +769,8 @@ class PipelineRewriter : public StmtExprMutator {
         auto& local_state = async_states_local[stage];
 
         int commit_group_id = -1;
-        if (local_state.commit_groups.empty() || consumed[stage]) {
-          // consumed[stage] == true means there is already a consumer stage waiting for an
+        if (local_state.commit_groups.empty() || local_state.consumed) {
+          // consumed == true means there is already a consumer stage waiting for an
           // eariler async operation of this stage. In such cases, we make multiple commit_queue
           // for this stage.
           commit_group_id = local_state.commit_groups.size();
@@ -809,7 +811,7 @@ class PipelineRewriter : public StmtExprMutator {
         for (auto kv : async_states) {
           int producer_stage_id = kv.first;
           if (producer_stage_id <= stage && kv.second.writes(read_region->buffer)) {
-            consumed[producer_stage_id] = true;
+	    async_states_local[producer_stage_id].consumed = true;
           }
         }
       }
