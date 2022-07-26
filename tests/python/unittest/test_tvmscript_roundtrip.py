@@ -206,29 +206,29 @@ def opt_gemm_mod_host():
 
             A_data: T.Ptr[T.int32] = T.tvm_struct_get(arg0, 0, 1, dtype="handle")
             T.attr(A_data, "storage_alignment", 128)
-            A: T.Buffer = T.buffer_decl([1024 * 1024], dtype="int32", data=A_data)
+            A = T.buffer_decl([1024 * 1024], dtype="int32", data=A_data)
             buf0_shape_data: T.Ptr[T.int32] = T.tvm_struct_get(arg0, 0, 2, dtype="handle")
-            buf0_shape: T.Buffer = T.buffer_decl([2], dtype="int32", data=buf0_shape_data)
+            buf0_shape = T.buffer_decl([2], dtype="int32", data=buf0_shape_data)
             buf0_strides_data: T.Ptr[T.int32] = T.tvm_struct_get(arg0, 0, 3, dtype="handle")
-            buf0_strides: T.Buffer = T.buffer_decl([2], dtype="int32", data=buf0_strides_data)
+            buf0_strides = T.buffer_decl([2], dtype="int32", data=buf0_strides_data)
 
             dev_id: T.int32 = T.tvm_struct_get(arg0, 0, 9, dtype="int32")
 
             B_data: T.Ptr[T.int32] = T.tvm_struct_get(arg1, 0, 1, dtype="handle")
             T.attr(B_data, "storage_alignment", 128)
-            B: T.Buffer = T.buffer_decl([1024 * 1024], dtype="int32", data=B_data)
+            B = T.buffer_decl([1024 * 1024], dtype="int32", data=B_data)
             buf1_shape_data: T.Ptr[T.int32] = T.tvm_struct_get(arg1, 0, 2, dtype="handle")
-            buf1_shape: T.Buffer = T.buffer_decl([2], dtype="int32", data=buf1_shape_data)
+            buf1_shape = T.buffer_decl([2], dtype="int32", data=buf1_shape_data)
             buf1_strides_data: T.Ptr[T.int32] = T.tvm_struct_get(arg1, 0, 3, dtype="handle")
-            buf1_strides: T.Buffer = T.buffer_decl([2], dtype="int32", data=buf1_strides_data)
+            buf1_strides = T.buffer_decl([2], dtype="int32", data=buf1_strides_data)
 
             C_data: T.Ptr[T.int32] = T.tvm_struct_get(arg2, 0, 1, dtype="handle")
             T.attr(C_data, "storage_alignment", 128)
-            C: T.Buffer = T.buffer_decl([1024 * 1024], dtype="int32", data=C_data)
+            C = T.buffer_decl([1024 * 1024], dtype="int32", data=C_data)
             buf2_shape_data: T.Ptr[T.int32] = T.tvm_struct_get(arg2, 0, 2, dtype="handle")
-            buf2_shape: T.Buffer = T.buffer_decl([2], dtype="int32", data=buf2_shape_data)
+            buf2_shape = T.buffer_decl([2], dtype="int32", data=buf2_shape_data)
             buf2_strides_data: T.Ptr[T.int32] = T.tvm_struct_get(arg2, 0, 3, dtype="handle")
-            buf2_strides: T.Buffer = T.buffer_decl([2], dtype="int32", data=buf2_strides_data)
+            buf2_strides = T.buffer_decl([2], dtype="int32", data=buf2_strides_data)
 
             assert (((arg0_code == 3) or (arg0_code == 13)) or (arg0_code == 7)) or (
                 arg0_code == 4
@@ -3036,7 +3036,6 @@ def func_div_mod():
         b = T.var("int32")
         T.evaluate(a // b)
         T.evaluate(a % b)
-        T.evaluate(a / b)
         T.evaluate(T.truncmod(a, b))
 
     return func_div_mod
@@ -3049,8 +3048,7 @@ def test_div_mod():
 
     assert isinstance(func.body[0].value, tvm.tir.FloorDiv)
     assert isinstance(func.body[1].value, tvm.tir.FloorMod)
-    assert isinstance(func.body[2].value, tvm.tir.Div)
-    assert isinstance(func.body[3].value, tvm.tir.Mod)
+    assert isinstance(func.body[2].value, tvm.tir.Mod)
 
 
 def loop_extent_dependent():
