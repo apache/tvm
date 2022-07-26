@@ -98,6 +98,7 @@ bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   conv2d_attrs->out_layout = param->out_layout;
   conv2d_attrs->out_dtype = param->out_dtype;
   conv2d_attrs->auto_scheduler_rewritten_layout = param->auto_scheduler_rewritten_layout;
+  conv2d_attrs->meta_schedule_original_shape = param->meta_schedule_original_shape;
 
   // Collect the input tensor and output tensor devoid of scale and zero points to reuse Relay
   // Conv2D infer type function.

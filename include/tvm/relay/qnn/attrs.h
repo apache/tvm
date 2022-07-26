@@ -137,7 +137,8 @@ struct QConv2DAttrs : public tvm::AttrsNode<QConv2DAttrs> {
   tvm::String data_layout;
   tvm::String kernel_layout;
   tvm::String out_layout;
-  tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
+  tvm::String auto_scheduler_rewritten_layout;   // The layout after auto-scheduler's layout rewrite
+  Array<PrimExpr> meta_schedule_original_shape;  // The original shape of the weights
   DataType out_dtype;
 
   // Optional extra attributes for Hexagon target. Describes requantization parameters.
@@ -214,6 +215,7 @@ struct QConv2DAttrs : public tvm::AttrsNode<QConv2DAttrs> {
 struct QDenseAttrs : public tvm::AttrsNode<QDenseAttrs> {
   IndexExpr units;
   tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
+  Array<PrimExpr> meta_schedule_original_shape;  // The original shape of the weights
   DataType out_dtype;
 
   // Optional extra attributes for Hexagon target. Describes requantization parameters.
