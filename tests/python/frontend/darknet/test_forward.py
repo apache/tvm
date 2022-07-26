@@ -32,7 +32,6 @@ from tvm.relay.testing.darknet import __darknetffi__
 from tvm.relay.frontend.darknet import ACTIVATION
 from tvm import relay
 
-download_testdata.__test__ = False
 
 REPO_URL = "https://github.com/dmlc/web-data/blob/main/darknet/"
 DARKNET_LIB = "libdarknet2.0.so"

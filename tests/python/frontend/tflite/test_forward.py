@@ -1839,7 +1839,7 @@ def _test_shape(dtype):
             out = tf.shape(r, out_type=dtype)
             out = tf.add(out, tf.constant([1], dtype=dtype))
             compare_tflite_with_tvm(
-                [x for x in np.nditer(data)],  # pylint: disable=unnecessary-comprehension
+                list(np.nditer(data)),
                 ["start", "limit", "delta"],
                 [start, limit, delta],
                 [out],
@@ -1894,9 +1894,8 @@ def test_forward_concatenation():
 # --------------
 
 
-def _test_unary_elemwise(math_op, data, quantized, quant_range=[-6, 6], int_quant_dtype=tf.int8):
+def _test_unary_elemwise(math_op, data, quantized, quant_range=(-6, 6), int_quant_dtype=tf.int8):
     """One iteration of unary elemwise"""
-    # pylint: disable= dangerous-default-value
     if quantized:
         with tf.Graph().as_default():
             quant_min, quant_max = quant_range
@@ -2624,9 +2623,9 @@ def _test_forward_add_n(inputs):
             temp.append(tf.placeholder(shape=each.shape, dtype=each.dtype))
         output = tf.add_n(temp)
         compare_tflite_with_tvm(
-            [each for each in inputs],  # pylint: disable=unnecessary-comprehension
+            list(inputs),
             [each.name for each in temp],
-            [each for each in temp],  # pylint: disable=unnecessary-comprehension
+            list(temp),
             [output],
         )
 
