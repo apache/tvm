@@ -121,26 +121,31 @@ jobs:
           make jvmpkg
       - name: Build android_rpc
         working-directory: apps/android_rpc
+        continue-on-error: true
         run: |
           export PATH="${ANDROID_NDK_HOME}:$PATH"
           gradle clean build
       - name: Upload android_rpc APK
         uses: actions/upload-artifact@v2
+        continue-on-error: true
         with:
           name: android_rpc-debug.apk
           path: ./apps/android_rpc/app/build/outputs/apk/debug/app-debug.apk
       - name: Build android_deploy
         working-directory: apps/android_deploy
+        continue-on-error: true
         run: |
           export PATH="${ANDROID_NDK_HOME}:$PATH"
           gradle clean build
       - name: Upload android_deploy APK
         uses: actions/upload-artifact@v2
+        continue-on-error: true
         with:
           name: android_deploy-debug.apk
           path: ./apps/android_deploy/app/build/outputs/apk/debug/app-debug.apk
       - name: Build android_camera
         working-directory: apps/android_camera
+        continue-on-error: true
         run: |
           mkdir -p app/src/main/assets/models/
           export TVM_NDK_CC=${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++
@@ -156,6 +161,7 @@ jobs:
           gradle clean build
       - name: Upload android_camera APK
         uses: actions/upload-artifact@v2
+        continue-on-error: true
         with:
           name: android_camera-debug.apk
           path: ./apps/android_camera/app/build/outputs/apk/debug/app-debug.apk
