@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """IRModule that holds the functions and type definitions."""
+from typing import Optional
+
 from tvm._ffi.base import string_types
 import tvm._ffi
 
@@ -276,7 +278,7 @@ class IRModule(Node):
             self, tir_prefix, show_meta
         )  # type: ignore
 
-    def show(self, style: str = "light") -> None:
+    def show(self, style: Optional[str] = None) -> None:
         """
         A sugar for print highlighted TVM script.
         Parameters

@@ -195,7 +195,7 @@ class PrimFunc(BaseFunc):
             self, tir_prefix, show_meta
         )  # type: ignore
 
-    def show(self, style: str = "light") -> None:
+    def show(self, style: Optional[str] = None) -> None:
         """
         A sugar for print highlighted TVM script.
         Parameters

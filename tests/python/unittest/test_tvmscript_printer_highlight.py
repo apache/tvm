@@ -42,3 +42,6 @@ def test_highlight_script():
 
     Module.show()
     Module["main"].show()
+    Module["main"].show(style="light")
+    Module["main"].show(style="dark")
+    Module["main"].show(style="ansi")
