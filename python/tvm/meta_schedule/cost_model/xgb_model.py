@@ -36,7 +36,8 @@ from ..utils import cpu_count, derived_object, shash2hex
 from .metric import max_curve
 
 
-def optional_xgboost_callback(XGBoostCustomCallback):
+def optional_xgboost_callback(cls):
+    """Decorator for importing TraningCallback from xgboost"""
     # pylint:disable = import-outside-toplevel
     try:
         from xgboost.callback import TrainingCallback  # type: ignore
@@ -46,7 +47,7 @@ def optional_xgboost_callback(XGBoostCustomCallback):
         class TrainingCallback:  # type: ignore
             pass
 
-    class OptXGBoostCustomCallback(XGBoostCustomCallback, TrainingCallback):  # type: ignore
+    class OptXGBoostCustomCallback(cls, TrainingCallback):  # type: ignore
         pass
 
     return OptXGBoostCustomCallback
