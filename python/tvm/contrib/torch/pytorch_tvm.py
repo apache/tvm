@@ -225,7 +225,10 @@ def compile(script_module, option):
     pytorch_tvm_module = compile(script_module, option)
     pytorch_tvm_module("model_tvm.pt")
     """
-    warnings.warn("We suggest users to use `optimized_torch` for tuning Torch modules instead", DeprecationWarning)
+    warnings.warn(
+        "We suggest users to use `optimized_torch` for tuning Torch modules instead",
+        DeprecationWarning,
+    )
     input_infos = option["input_infos"]
     default_dtype = option.get("default_dtype", "float32")
     export_dir = option.get("export_dir", "pytorch_compiled")
