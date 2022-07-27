@@ -19,7 +19,9 @@
 import json
 import subprocess
 import re
-from urllib import request
+import base64
+import logging
+from urllib import request, error
 from typing import Dict, Tuple, Any, Optional, List
 
 
@@ -27,6 +29,26 @@ def compress_query(query: str) -> str:
     query = query.replace("\n", "")
     query = re.sub("\s+", " ", query)
     return query
+
+
+def post(url: str, body: Optional[Any] = None, auth: Optional[Tuple[str, str]] = None):
+    print(f"Requesting POST to", url, "with", body)
+    headers = {}
+    req = request.Request(url, headers=headers, method="POST")
+    if auth is not None:
+        auth_str = base64.b64encode(f"{auth[0]}:{auth[1]}".encode())
+        req.add_header("Authorization", f"Basic {auth_str.decode()}")
+
+    if body is None:
+        body = ""
+
+    req.add_header("Content-Type", "application/json; charset=utf-8")
+    data = json.dumps(body)
+    data = data.encode("utf-8")
+    req.add_header("Content-Length", len(data))
+
+    with request.urlopen(req, data) as response:
+        return response.read()
 
 
 class GitHubRepo:
@@ -45,28 +67,41 @@ class GitHubRepo:
         query = compress_query(query)
         if variables is None:
             variables = {}
-        response = self._post(
-            "https://api.github.com/graphql", {"query": query, "variables": variables}
+        response = self._request(
+            "https://api.github.com/graphql",
+            {"query": query, "variables": variables},
+            method="POST",
         )
         if "data" not in response:
             msg = f"Error fetching data with query:\n{query}\n\nvariables:\n{variables}\n\nerror:\n{json.dumps(response, indent=2)}"
             raise RuntimeError(msg)
         return response
 
-    def _post(self, full_url: str, body: Dict[str, Any]) -> Dict[str, Any]:
-        print("Requesting POST to", full_url, "with", body)
-        req = request.Request(full_url, headers=self.headers(), method="POST")
+    def _request(self, full_url: str, body: Dict[str, Any], method: str) -> Dict[str, Any]:
+        print(f"Requesting {method} to", full_url, "with", body)
+        req = request.Request(full_url, headers=self.headers(), method=method.upper())
         req.add_header("Content-Type", "application/json; charset=utf-8")
         data = json.dumps(body)
         data = data.encode("utf-8")
         req.add_header("Content-Length", len(data))
 
-        with request.urlopen(req, data) as response:
-            response = json.loads(response.read())
+        try:
+            with request.urlopen(req, data) as response:
+                response = json.loads(response.read())
+        except error.HTTPError as e:
+            logging.info(f"Error response: {e.read().decode()}")
+            raise e
+
         return response
 
+    def put(self, url: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        return self._request(self.base + url, data, method="PUT")
+
+    def patch(self, url: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        return self._request(self.base + url, data, method="PATCH")
+
     def post(self, url: str, data: Dict[str, Any]) -> Dict[str, Any]:
-        return self._post(self.base + url, data)
+        return self._request(self.base + url, data, method="POST")
 
     def get(self, url: str) -> Dict[str, Any]:
         url = self.base + url

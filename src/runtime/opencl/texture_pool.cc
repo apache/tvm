@@ -29,107 +29,112 @@
 namespace tvm {
 namespace runtime {
 
-class TexturePool::Pool {
- public:
-  Pool() = default;
-  void* Alloc(Device dev, DeviceAPI* device, size_t width, size_t height, DLDataType type_hint) {
-    Entry e;
-    e.data = nullptr;
-    if (free_list_.size() != 0) {
-      int64_t req_size = height * width;
-      Entry new_mem;
-      int64_t min_added_size = std::numeric_limits<int64_t>::max();
-      int64_t min_wasted_size = std::numeric_limits<int64_t>::max();
-      std::vector<Entry>::iterator best_mem;
-      for (auto it = free_list_.begin(); it != free_list_.end(); ++it) {
-        if (it->type.code != type_hint.code) {
-          continue;
-        }
-        int64_t old_size = it->x * it->y;
-        new_mem.x = std::max(it->x, width);
-        new_mem.y = std::max(it->y, height);
-        int64_t new_size = new_mem.x * new_mem.y;
-        int64_t added_size = new_size - old_size;
-        int64_t wasted_size = new_size - req_size;
-        // Minimize added size first and wasted size thereafter
-        if ((min_added_size > 0 && added_size < min_added_size) ||
-            (min_added_size == 0 && wasted_size < min_wasted_size)) {
-          min_added_size = added_size;
-          min_wasted_size = wasted_size;
-          best_mem = it;
-        }
+void* Pool2D::Alloc(Device dev, DeviceAPI* device, size_t width, size_t height,
+                    DLDataType type_hint) {
+  Entry e;
+  Entry new_mem;
+  // Processed several experiments and found that when we are trying to fit
+  // small texture to too big texture then it may lead to the performance
+  // degradation.
+  // Coefficient at 5 looks like robust variant for reusing textures.
+  const int64_t max_ratio = 5;
+  e.data = nullptr;
+  std::vector<Entry>::iterator best_mem;
+  if (free_list_.size() != 0) {
+    int64_t min_added_size_x = std::numeric_limits<int64_t>::max();
+    int64_t min_added_size_y = std::numeric_limits<int64_t>::max();
+    int64_t min_wasted_size_x = std::numeric_limits<int64_t>::max();
+    int64_t min_wasted_size_y = std::numeric_limits<int64_t>::max();
+    for (auto it = free_list_.begin(); it != free_list_.end(); ++it) {
+      if (it->type.code != type_hint.code) {
+        continue;
       }
-
-      if (min_added_size == 0) {
-        // use existing block
-        e = *best_mem;
-        free_list_.erase(best_mem);
-      } else if (min_added_size <= req_size) {
-        // if added size is less or equal to
-        // what is needed by alloc, then grow entry
-        device->FreeDataSpace(dev, best_mem->data);
-        free_list_.erase(best_mem);
-        new_mem.type = type_hint;
-        std::vector<int64_t> shape{int64_t(new_mem.y), int64_t(new_mem.x), 4};
-        new_mem.data = device->AllocDataSpace(dev, shape.size(), shape.data(), new_mem.type,
-                                              Optional<String>("global.texture"));
-        e = new_mem;
+      // avoid reusing too small and too big textures
+      if (width / it->x > max_ratio || it->x / width > max_ratio || height / it->y > max_ratio ||
+          it->y / height > max_ratio) {
+        continue;
+      }
+      int64_t new_width = std::max(it->x, width);
+      int64_t new_height = std::max(it->y, height);
+      int64_t added_size_x = new_width - it->x;
+      int64_t added_size_y = new_height - it->y;
+      int64_t wasted_size_x = new_width - width;
+      int64_t wasted_size_y = new_height - height;
+      // Minimize added size first and wasted size thereafter
+      if ((min_added_size_x > 0 && added_size_x < min_added_size_x) ||
+          (min_added_size_y > 0 && added_size_y < min_added_size_y) ||
+          (min_added_size_x == added_size_x && wasted_size_x < min_wasted_size_x) ||
+          (min_added_size_y == added_size_y && wasted_size_y < min_wasted_size_y)) {
+        min_added_size_x = added_size_x;
+        min_added_size_y = added_size_y;
+        min_wasted_size_x = wasted_size_x;
+        min_wasted_size_y = wasted_size_y;
+        best_mem = it;
+        new_mem.x = new_width;
+        new_mem.y = new_height;
       }
     }
 
-    if (e.data == nullptr) {
-      // create new block
-      std::vector<int64_t> shape{int64_t(height), int64_t(width), 4};
-      e.data = device->AllocDataSpace(dev, shape.size(), shape.data(), type_hint,
-                                      Optional<String>("global.texture"));
-      e.x = width;
-      e.y = height;
-      e.type = type_hint;
+    if (min_added_size_x == 0 && min_added_size_y == 0) {
+      // use existing block
+      e = *best_mem;
+      free_list_.erase(best_mem);
+    } else if (static_cast<size_t>(min_added_size_x) <= width ||
+               static_cast<size_t>(min_added_size_y) <= height) {
+      // if added size is less or equal to
+      // what is needed by alloc, then grow entry
+      device->FreeDataSpace(dev, best_mem->data);
+      free_list_.erase(best_mem);
+      new_mem.type = type_hint;
+      std::vector<int64_t> shape{int64_t(new_mem.y), int64_t(new_mem.x), 4};
+      new_mem.data = device->AllocDataSpace(dev, shape.size(), shape.data(), new_mem.type,
+                                            Optional<String>("global.texture"));
+      e = new_mem;
     }
-
-    allocated_.push_back(e);
-    return e.data;
   }
 
-  void Free(void* data) {
-    Entry e;
-    if (allocated_.back().data == data) {
-      // quick path, last allocated.
-      e = allocated_.back();
-      allocated_.pop_back();
-    } else {
-      int index = static_cast<int>(allocated_.size()) - 2;
-      for (; index >= 0 && allocated_[index].data != data; --index) {
-      }
-      ICHECK_GE(index, 0) << "Attempt to free texture that has not been allocated";
-      e = allocated_[index];
-      allocated_.erase(allocated_.begin() + index);
-    }
-    free_list_.push_back(e);
+  if (e.data == nullptr) {
+    // create new block
+    std::vector<int64_t> shape{int64_t(height), int64_t(width), 4};
+    e.data = device->AllocDataSpace(dev, shape.size(), shape.data(), type_hint,
+                                    Optional<String>("global.texture"));
+    e.x = width;
+    e.y = height;
+    e.type = type_hint;
   }
 
-  // Release all resources immediately
-  void Release(Device dev, DeviceAPI* device) {
-    for (auto& e : allocated_) {
-      device->FreeDataSpace(dev, e.data);
-    }
-    for (auto& e : free_list_) {
-      device->FreeDataSpace(dev, e.data);
-    }
-    allocated_.clear();
-    free_list_.clear();
-  }
+  allocated_.push_back(e);
+  return e.data;
+}
 
- private:
-  struct Entry {
-    void* data;
-    size_t x;
-    size_t y;
-    DLDataType type;
-  };
-  std::vector<Entry> free_list_;
-  std::vector<Entry> allocated_;
-};
+void Pool2D::Free(void* data) {
+  Entry e;
+  if (allocated_.back().data == data) {
+    // quick path, last allocated.
+    e = allocated_.back();
+    allocated_.pop_back();
+  } else {
+    int index = static_cast<int>(allocated_.size()) - 2;
+    for (; index >= 0 && allocated_[index].data != data; --index) {
+    }
+    ICHECK_GE(index, 0) << "Attempt to free texture that has not been allocated";
+    e = allocated_[index];
+    allocated_.erase(allocated_.begin() + index);
+  }
+  free_list_.push_back(e);
+}
+
+// Release all resources immediately
+void Pool2D::Release(Device dev, DeviceAPI* device) {
+  for (auto& e : allocated_) {
+    device->FreeDataSpace(dev, e.data);
+  }
+  for (auto& e : free_list_) {
+    device->FreeDataSpace(dev, e.data);
+  }
+  allocated_.clear();
+  free_list_.clear();
+}
 
 TexturePool::TexturePool(DLDeviceType device_type, DeviceAPI* device)
     : device_type_(device_type), device_(device) {}
@@ -151,7 +156,7 @@ void* TexturePool::AllocTexture(Device dev, size_t width, size_t height, DLDataT
     array_.resize(dev.device_id + 1, nullptr);
   }
   if (array_[dev.device_id] == nullptr) {
-    array_[dev.device_id] = new Pool();
+    array_[dev.device_id] = new Pool2D();
   }
   return array_[dev.device_id]->Alloc(dev, device_, width, height, type_hint);
 }

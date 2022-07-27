@@ -24,7 +24,7 @@ if [[ ! -z $CI_PYTEST_ADD_OPTIONS ]]; then
 else
     export PYTEST_ADDOPTS="-s -vv $PYTEST_ADDOPTS"
 fi
-set -u
+set -ux
 
 export TVM_PATH=`pwd`
 export PYTHONPATH="${TVM_PATH}/python"
@@ -39,10 +39,7 @@ function cleanup() {
     set +x
     if [ "${#pytest_errors[@]}" -gt 0 ]; then
         echo "These pytest invocations failed, the results can be found in the Jenkins 'Tests' tab or by scrolling up through the raw logs here."
-        echo ""
-        for e in "${pytest_errors[@]}"; do
-            echo "  ${e}"
-        done
+        python3 tests/scripts/pytest_wrapper.py "${pytest_errors[@]}"
         exit 1
     fi
     set -x
@@ -54,10 +51,16 @@ function run_pytest() {
     shift
     local test_suite_name="$1"
     shift
+    extra_args=( "$@" )
     if [ -z "${ffi_type}" -o -z "${test_suite_name}" ]; then
-        echo "error: run_pytest called incorrectly: run_pytest ${ffi_type} ${test_suite_name} $@"
+        echo "error: run_pytest called incorrectly: run_pytest ${ffi_type} ${test_suite_name}" "${extra_args[@]}"
         echo "usage: run_pytest <FFI_TYPE> <TEST_SUITE_NAME> [pytest args...]"
         exit 2
+    fi
+
+    has_reruns=$(python3 -m pytest --help 2>&1 | grep 'reruns=' || true)
+    if [ -n "$has_reruns" ]; then
+        extra_args+=('--reruns=3')
     fi
 
     suite_name="${test_suite_name}-${ffi_type}"
@@ -66,7 +69,7 @@ function run_pytest() {
            -o "junit_suite_name=${suite_name}" \
            "--junit-xml=${TVM_PYTEST_RESULT_DIR}/${suite_name}.xml" \
            "--junit-prefix=${ffi_type}" \
-           "$@" || exit_code=$?
+           "${extra_args[@]}" || exit_code=$?
     if [ "$exit_code" -ne "0" ]; then
         pytest_errors+=("${suite_name}: $@")
     fi

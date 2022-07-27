@@ -167,7 +167,16 @@ def test_opencl_type_casting():
         fun = tvm.build(s, [C], target)
 
         c = tvm.nd.empty((n,), dtype, ctx)
-        # Only need to test compiling here
+        assembly = fun.imported_modules[0].get_source()
+        false_branch = "((float4)(0.000000e+00f, 0.000000e+00f, 0.000000e+00f, 0.000000e+00f))"
+        true_branch = "((float4)(1.000000e+00f, 1.000000e+00f, 1.000000e+00f, 1.000000e+00f))"
+        lcond = "(convert_uint4(((uint4)((((int)get_local_id(0)) == 3), (((int)get_local_id(0)) == 3), (((int)get_local_id(0)) == 3), (((int)get_local_id(0)) == 3)))))"
+        rcond = "(convert_uint4((((int4)((0)+(1*0), (0)+(1*1), (0)+(1*2), (0)+(1*3))) == ((int4)(3, 3, 3, 3)))))"
+        cond = "({} && {})".format(lcond, rcond)
+        select = "select({}, {}, {})".format(false_branch, true_branch, cond)
+        count = assembly.count(select)
+        assert count == 1
+
         fun(c)
 
     dev = tvm.device(target, 0)

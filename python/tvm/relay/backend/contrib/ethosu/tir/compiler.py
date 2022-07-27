@@ -78,6 +78,7 @@ def lower_ethosu(sch, args, const_dict, name="main"):
 
         mod = tvm.tir.transform.Simplify()(mod)
         mod = ethosu_passes.RemoveConcatenates()(mod)
+        mod = tvm.tir.transform.InjectRollingBuffer()(mod)
         mod = tvm.tir.transform.StorageFlatten(64)(mod)
         mod = tvm.tir.transform.UnrollLoop()(mod)
         mod = tvm.tir.transform.Simplify()(mod)
@@ -89,9 +90,20 @@ def lower_ethosu(sch, args, const_dict, name="main"):
         mod = tvm.tir.transform.RemoveNoOp()(mod)
         mod, const_dict = ethosu_passes.EncodeConstants(const_dict)(mod)
         mod = ethosu_passes.HoistAllocates()(mod)
+        #  MergeConstant pass currently does not support striped schedules.
+        #  It requires further investigation.
+        if not util.is_striping_enabled():
+            mod, const_dict = ethosu_passes.MergeConstants(const_dict)(mod)
+        mod = ethosu_passes.CopyComputeReordering()(mod)
+
+        # When striping is enabled and if storage_rewrite is not run
+        # the striping results in incorrect code generation. This needs
+        # further investigation. Until such a time that is fixed, disable_storage_rewrite
+        # user directive will be overridden if striping is enabled.
         disable_storage_rewrite = curr_cfg.get("tir.disable_storage_rewrite", False)
-        if not disable_storage_rewrite:
+        if not disable_storage_rewrite or util.is_striping_enabled():
             mod = tvm.tir.transform.StorageRewrite()(mod)
+
         mod = tvm.tir.transform.RemoveNoOp()(mod)
         mod = ethosu_passes.AnnotateAllocates()(mod)
         mod, const_dict = ethosu_passes.CreatePrimFuncWithoutConstants(const_dict)(mod)
@@ -193,7 +205,7 @@ class LowerToTIR:
     def transform_npu_function(self, _, func: relay.Function) -> relay.Function:
         """Lower NPU functions to TIR."""
 
-        tir_mod, const_dict = _lower_to_tir(func, self.scheduler())
+        tir_mod, const_dict = _lower_to_tir(func, self.scheduler)
 
         for param in const_dict.keys():
             const_dict[param] = tvm.nd.array(const_dict[param])

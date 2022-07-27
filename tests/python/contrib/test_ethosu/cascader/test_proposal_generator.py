@@ -134,6 +134,27 @@ if ethosu_enabled:
             assert min_sram < proposal.memory_usage < max_sram
             assert proposal.cycles > 0
 
+    def test_generate_proposals_mobilenetv1_disable_striping(FLASH, SRAM, MobileNetv1Graph):
+        graph = MobileNetv1Graph
+        home_map = make_simple_home_map(graph, SRAM, FLASH)
+        options = make_options(
+            cascade_region=SRAM,
+            max_proposals=32,
+            stripe_factors=5,
+            max_plan_size=10,
+            enable_striping=False,
+        )
+
+        proposals = generate_proposals(graph, home_map, options)
+        assert len(proposals) == 1
+        proposal = proposals[0]
+        for plan in proposal.plans:
+            for stripe_config in plan.output_config.stripe_configs:
+                for shape_dim, stride_dim in list(zip(stripe_config.shape, stripe_config.strides)):
+                    # The striding and shape sizes in each dimension should be the same
+                    # if striping is disabled
+                    assert int(shape_dim) == int(stride_dim)
+
 
 if __name__ == "__main__":
     pytest.main([__file__])

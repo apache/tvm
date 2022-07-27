@@ -121,6 +121,8 @@ class ContextMaintainer:
     """Dict[Var, Range]: The dict from loop var to its domain outside the block"""
     symbols: List[Dict[str, Union[Var, Buffer]]] = []
     """List[Dict[str, Union[Var, Buffer]]]: Symbol map from name to object for the current scope"""
+    closure_vars: Dict[str, Object] = {}
+    """ClosureVars: The closure vars defined in Python interpreter"""
 
     # function context
     func_params: List[Var] = []
@@ -144,12 +146,17 @@ class ContextMaintainer:
     root_alloc_buffers: List[Buffer] = []
     """List[Buffer]: The buffers allocated under root block"""
 
-    def __init__(self, _report_error: Callable[[str, Union[Span, synr.ast.Span]], None]):
+    def __init__(
+        self,
+        _report_error: Callable[[str, Union[Span, synr.ast.Span]], None],
+        closure_vars: Dict[str, Object],
+    ):
         # scope context
         self.node_stack = []
         self.block_info_stack = []
         self.loop_stack = {}
         self.symbols = []
+        self.closure_vars = closure_vars
         # function context
         self.func_params = []
         self.func_buffer_map = {}
@@ -233,7 +240,7 @@ class ContextMaintainer:
         for symbols in reversed(self.symbols):
             if name in symbols:
                 return symbols[name]
-        return None
+        return self.closure_vars.get(name)
 
     def report_error(self, message: str, span: Union[Span, synr.ast.Span]):
         self._report_error(message, span)

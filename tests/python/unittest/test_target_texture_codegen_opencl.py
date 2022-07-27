@@ -20,6 +20,7 @@ import numpy as np
 import pytest
 
 import tvm
+import tvm.testing
 from tvm import autotvm
 from tvm import te
 from tvm.topi import testing
@@ -1397,4 +1398,4 @@ class TestDepthwiseConv2dNCHWcKCRSk(BaseConv2DValidator):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

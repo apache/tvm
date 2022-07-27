@@ -43,10 +43,9 @@ using InputMap =
  */
 class PackedCallLegalizer : public StmtExprMutator {
  public:
-  Stmt Legalize(const InputMap& params, tir::Stmt body) {
-    inputs_ = params;
-    return StmtExprMutator::VisitStmt(body);
-  }
+  PackedCallLegalizer(IRModule m, const InputMap& inputs) : mod_{m}, inputs_{inputs} {}
+
+  Stmt Legalize(tir::Stmt body) { return StmtExprMutator::VisitStmt(body); }
 
   Stmt VisitStmt_(const EvaluateNode* op) final {
     if (tir::is_const_int(op->value)) return StmtExprMutator::VisitStmt_(op);
@@ -56,51 +55,63 @@ class PackedCallLegalizer : public StmtExprMutator {
     // let B_packed = set_struct(tvm_value2, B)
     // let C_packed = set_struct(tvm_value3, C)
     // call_packed(f, A_packed, B_packed, C_packed)
-    std::vector<Stmt> new_stmts;
     if (call) {
       if (call->op.same_as(builtin::tvm_call_cpacked())) {
         Array<PrimExpr> packed_args{call->args[0]};
-        std::vector<tir::Var> tvm_values;
-        for (unsigned i = 1; i < call->args.size(); i++) {
+        VLOG(2) << "Legalize call:" << call;
+        BaseFunc base_func = mod_->Lookup(Downcast<StringImm>(call->args[0])->value);
+        const PrimFuncNode* prim_func = base_func.as<PrimFuncNode>();
+        VLOG(2) << " to func " << base_func;
+        for (unsigned i = 1; i < call->args.size() - 1; i++) {
           // No need to pack inputs of the prim_func
           if (inputs_[call->args[i]] == true) {
             packed_args.push_back(call->args[i]);
           } else {
-            // Pack the argument inside a TVMValue
-            std::stringstream ss;
-            ss << "tvm_value_" << tvm_value_index_++;
-            auto sid_array = tir::Var(ss.str(), DataType::Handle());
-            tvm_values.push_back(sid_array);
-
-            new_stmts.push_back(tir::Evaluate(
-                tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
-                               {sid_array, 0, tir::builtin::kArrData, call->args[i]})));
-            new_stmts.push_back(tir::Evaluate(
-                tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
-                               {sid_array, 0, tir::builtin::kArrDeviceType, kDLCPU})));
-            new_stmts.push_back(tir::Evaluate(
-                tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_struct_set(),
-                               {sid_array, 0, tir::builtin::kArrDeviceId, 0})));
-            packed_args.push_back(sid_array);
+            // Stack-allocate a DLTensor for this parameter. Note that LowerTVMBuiltin will collect
+            // all such stack-allocated tensors and minimize the storage needed by reusing
+            // DLTensors.
+            Array<PrimExpr> call_args{call->args[i]};
+            tvm::runtime::Map<tvm::tir::Var, tvm::tir::Buffer>::iterator param_buf_it;
+            if (prim_func != nullptr) {
+              auto param_var = prim_func->params[i - 1];
+              param_buf_it = prim_func->preflattened_buffer_map.find(param_var);
+            }
+            if (prim_func != nullptr && param_buf_it != prim_func->preflattened_buffer_map.end()) {
+              Buffer param = (*param_buf_it).second;
+              PrimExpr shape = tvm::tir::Call(
+                  DataType::Handle(), tvm::tir::builtin::tvm_stack_make_shape(), param->shape);
+              Cast var_type(param->dtype, IntImm(DataType::Int(32), 0));
+              call_args.push_back(shape /* shape */);
+              call_args.push_back(make_zero(DataType::Handle()) /* strides */);
+              call_args.push_back(tvm::IntImm(DataType::UInt(32), param->shape.size()) /* ndim */);
+              call_args.push_back(var_type /* carries dtype */);
+              call_args.push_back(param->elem_offset /* elem_offset */);
+            } else {
+              // When the PrimFunc cannot be found, most DLTensor information cannot be populated.
+              PrimExpr shape = tvm::tir::Call(
+                  DataType::Handle(), tvm::tir::builtin::tvm_stack_make_shape(), Array<PrimExpr>());
+              Cast var_type(DataType::Handle(), IntImm(DataType::Int(32), 0));
+              call_args.push_back(shape /* shape */);
+              call_args.push_back(make_zero(DataType::Handle()) /* strides */);
+              call_args.push_back(tvm::IntImm(DataType::UInt(32), 0) /* ndim */);
+              call_args.push_back(var_type /* carries dtype */);
+              call_args.push_back(tvm::IntImm(DataType::UInt(64), 0) /* elem_offset */);
+            }
+            packed_args.push_back(tvm::tir::Call(
+                DataType::Handle(), tvm::tir::builtin::tvm_stack_make_array(), call_args));
           }
         }
+        packed_args.push_back(call->args[call->args.size() - 1]);  // push device_context
         // Evaluate the packed call
-        new_stmts.push_back(tir::Evaluate(tir::Call(call->dtype, call->op, packed_args)));
-        tir::Stmt call_stmt = tir::SeqStmt(new_stmts);
-
-        // Allocate the TVMValues on the stack and define the variables
-        for (auto v : tvm_values) {
-          call_stmt = LetStmt(v, StackAlloca("array", 1), call_stmt);
-        }
-        return call_stmt;
+        return tir::Evaluate(tir::Call(call->dtype, call->op, packed_args));
       }
     }
     return StmtExprMutator::VisitStmt_(op);
   }
 
  private:
-  InputMap inputs_;      // Store the inputs to the primfunc that don't need to be packed.
-  int tvm_value_index_;  // Index of the actual tvm_value variable
+  IRModule mod_;
+  InputMap inputs_;  // Store the inputs to the primfunc that don't need to be packed.
 };
 
 namespace transform {
@@ -109,12 +120,12 @@ Pass LegalizePackedCalls() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
 
-    // Create the
+    // Note which Var are inputs and exclude them from packing.
     InputMap inputs;
     for (auto i : f->params) {
       inputs[i] = true;
     }
-    n->body = PackedCallLegalizer().Legalize(inputs, std::move(n->body));
+    n->body = PackedCallLegalizer(m, inputs).Legalize(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LegalizePackedCalls", {});

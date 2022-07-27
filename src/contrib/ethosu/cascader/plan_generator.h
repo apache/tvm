@@ -51,9 +51,12 @@ using HomeMap =
  * \brief Generate possible output StripeConfigs that could be applied to a Part's output.
  * \param part The Part to generate StripeConfigs for.
  * \param stripe_factors How many striping factors to try per axis.
+ * \param enable_striping Whether striping is enabled
+ * \param multi_dimensional Whether to stripe in more than one dimension.
  * \return The generated StripeConfigs for the Part's output.
  */
-std::vector<StripeConfig> GenerateOutputStripeConfigs(const Part& part, int stripe_factors);
+std::vector<StripeConfig> GenerateOutputStripeConfigs(const Part& part, int stripe_factors,
+                                                      bool enable_striping, bool multi_dimensional);
 
 /*!
  * \brief Generate single-Part Plans for a Part for a given list of output StripeConfigs.

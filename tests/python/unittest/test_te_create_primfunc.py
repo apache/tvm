@@ -371,6 +371,46 @@ def test_tensor_attr():
     tvm.ir.assert_structural_equal(func, rt_func)
 
 
+@T.prim_func
+def expected_layout_attr(
+    A: T.Buffer[(128, 128), "float32"],
+    B: T.Buffer[(128, 128), "float32"],
+    D: T.Buffer[(128, 128), "float32"],
+) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
+    C = T.alloc_buffer([128, 128], dtype="float32")
+    for i0, i1, i2 in T.grid(128, 128, 128):
+        with T.block("C"):
+            x, y, k = T.axis.remap("SSR", [i0, i1, i2])
+            with T.init():
+                C[x, y] = T.float32(0)
+            C[x, y] = C[x, y] + A[x, k] * B[y, k]
+    for i0, i1 in T.grid(128, 128):
+        with T.block("D"):
+            x, y = T.axis.remap("SS", [i0, i1])
+            D[x, y] = C[x, y] + T.float32(1)
+
+
+def test_tensor_layout_attr():
+    k = te.reduce_axis((0, 128), "k")
+    A = te.placeholder((128, 128), name="A")
+    B = te.placeholder((128, 128), name="B")
+    C = te.compute(
+        (128, 128),
+        lambda x, y: te.sum(A[x, k] * B[y, k], axis=k),
+        name="C",
+        attrs={"layout_free_placeholders": [B]},
+    )
+    D = te.compute(
+        (128, 128),
+        lambda x, y: C[x, y] + 1,
+        name="D",
+        attrs={"layout_free_placeholders": [C]},
+    )
+    func = te.create_prim_func([A, B, D])
+    tvm.ir.assert_structural_equal(func, expected_layout_attr)
+
+
 def te_argmax_idx_val():
     def f_combine(x, y):
         lhs = tvm.tir.Select((x[1] >= y[1]), x[0], y[0])
@@ -484,6 +524,32 @@ def test_int64_indices():
     assert loop.extent.dtype == "int64"
 
 
+def test_zero_dim_add():
+    def te_func():
+        a = te.placeholder((), name="a", dtype="int32")
+        b = te.placeholder((), name="b", dtype="int32")
+        c = te.compute(a.shape, lambda *i: a(*i) + b(*i), name="c")
+        return [a, b, c]
+
+    @T.prim_func
+    def expected(
+        a: T.Buffer[(), "int32"],
+        b: T.Buffer[(), "int32"],
+        c: T.Buffer[(), "int32"],
+    ) -> None:
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            with T.block("c"):
+                vi = T.axis.spatial(1, 0)
+                T.reads(a[()], b[()])
+                T.writes(c[()])
+                c[()] = a[()] + b[()]
+
+    _check_workload(te_func, expected)
+
+
 if __name__ == "__main__":
     test_unique_name_complete_block()
     test_unique_name_reduction_block()
@@ -497,6 +563,8 @@ if __name__ == "__main__":
     test_constant()
     test_select_simplify()
     test_tensor_attr()
+    test_tensor_layout_attr()
     test_argmax_idx_val()
     test_argmax_val_idx()
     test_int64_indices()
+    test_zero_dim_add()

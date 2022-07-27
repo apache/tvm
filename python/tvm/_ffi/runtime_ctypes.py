@@ -216,6 +216,7 @@ class Device(ctypes.Structure):
         "stackvm": 1,
         "cpu": 1,
         "c": 1,
+        "test": 1,
         "hybrid": 1,
         "composite": 1,
         "cuda": 2,
@@ -428,6 +429,17 @@ class Device(ctypes.Structure):
         -------
         version : str or None
             The version string in `major.minor.patch` format.
+
+        """
+        return self._GetDeviceAttr(self.device_type, self.device_id, 12)
+
+    def texture_spatial_limit(self):
+        """Returns limits for textures by spatial dimensions
+
+        Returns
+        -------
+        limit : int or None
+            Maximum size of the texture by spatial dimensions
 
         """
         return self._GetDeviceAttr(self.device_type, self.device_id, 12)

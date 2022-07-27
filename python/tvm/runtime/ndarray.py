@@ -127,7 +127,7 @@ class NDArray(NDArrayBase):
             raise TypeError("type %s not supported" % str(type(value)))
 
     def copyfrom(self, source_array):
-        """Perform an synchronize copy from the array.
+        """Perform a synchronous copy from the array.
 
         Parameters
         ----------
@@ -218,6 +218,8 @@ class NDArray(NDArrayBase):
             dtype = str(t)
         if dtype == "int4":
             dtype = "int8"
+        if dtype == "bfloat16":
+            dtype = "uint16"
         np_arr = np.empty(shape, dtype=dtype)
         assert np_arr.flags["C_CONTIGUOUS"]
         data = np_arr.ctypes.data_as(ctypes.c_void_p)
@@ -234,18 +236,21 @@ class NDArray(NDArrayBase):
             return np_arr_ret.reshape(shape)
         return np_arr
 
-    def copyto(self, target):
+    def copyto(self, target, mem_scope=None):
         """Copy array to target
 
         Parameters
         ----------
         target : NDArray
             The target array to be copied, must have same shape as this array.
+
+        mem_scope : Optional[str]
+            The memory scope of the array.
         """
         if isinstance(target, NDArrayBase):
             return self._copyto(target)
         if isinstance(target, Device):
-            res = empty(self.shape, self.dtype, target)
+            res = empty(self.shape, self.dtype, target, mem_scope)
             return self._copyto(res)
         raise ValueError("Unsupported target type %s" % str(type(target)))
 
@@ -572,7 +577,7 @@ cl = opencl
 mtl = metal
 
 
-def array(arr, device=cpu(0)):
+def array(arr, device=cpu(0), mem_scope=None):
     """Create an array from source arr.
 
     Parameters
@@ -582,6 +587,9 @@ def array(arr, device=cpu(0)):
 
     device : Device, optional
         The device device to create the array
+
+    mem_scope : Optional[str]
+        The memory scope of the array
 
     Returns
     -------
@@ -593,7 +601,7 @@ def array(arr, device=cpu(0)):
 
     if not isinstance(arr, (np.ndarray, NDArray)):
         arr = np.array(arr)
-    return empty(arr.shape, arr.dtype, device).copyfrom(arr)
+    return empty(arr.shape, arr.dtype, device, mem_scope).copyfrom(arr)
 
 
 # Register back to FFI

@@ -399,10 +399,13 @@ void DeviceDomains::SetDefault(DeviceDomainPtr domain,
   ICHECK(!default_virtual_device->IsFullyUnconstrained());
   domain = Lookup(domain);
   if (domain->args_and_result_.empty()) {
-    DeviceDomainPtr defaulted_domain_ptr = UnifyOrNull(
-        domain, MakeFirstOrderDomain(config_->CanonicalVirtualDevice(
-                    VirtualDevice::Default(domain->virtual_device_, default_virtual_device))));
-    ICHECK_NOTNULL(defaulted_domain_ptr);
+    DeviceDomainPtr default_domain = MakeFirstOrderDomain(config_->CanonicalVirtualDevice(
+        VirtualDevice::Default(domain->virtual_device_, default_virtual_device)));
+    DeviceDomainPtr defaulted_domain_ptr = UnifyOrNull(domain, default_domain);
+    ICHECK(defaulted_domain_ptr != nullptr) << "domain:" << std::endl
+                                            << ToString(domain) << std::endl
+                                            << "default domain:" << std::endl
+                                            << ToString(default_domain);
   } else {
     for (const auto& sub_domain : domain->args_and_result_) {
       SetDefault(sub_domain, default_virtual_device);

@@ -17,20 +17,22 @@
 import logging
 import os
 import pathlib
-import sys
 import logging
 
 import pytest
 import numpy as np
+
 import onnx
 from PIL import Image
 
 import tvm
+import tvm.testing
 import tvm.relay as relay
 from tvm.relay.backend import Executor, Runtime
 from tvm.relay.testing import byoc
 from tvm.contrib import utils
-from tvm.micro.testing import check_tune_log
+from tvm.micro.testing.utils import check_tune_log
+from tvm.target import arm_isa
 
 import test_utils
 
@@ -86,6 +88,7 @@ def _make_add_sess(temp_dir, model, zephyr_board, west_cmd, build_config, dtype=
 
 # The same test code can be executed on both the QEMU simulation and on real hardware.
 @tvm.testing.requires_micro
+@pytest.mark.skip_boards(["mps2_an521"])
 def test_add_uint(temp_dir, board, west_cmd, tvm_debug):
     """Test compiling the on-device runtime."""
 
@@ -111,6 +114,7 @@ def test_add_uint(temp_dir, board, west_cmd, tvm_debug):
 
 # The same test code can be executed on both the QEMU simulation and on real hardware.
 @tvm.testing.requires_micro
+@pytest.mark.skip_boards(["mps2_an521"])
 def test_add_float(temp_dir, board, west_cmd, tvm_debug):
     """Test compiling the on-device runtime."""
     model = test_utils.ZEPHYR_BOARDS[board]
@@ -137,6 +141,7 @@ def test_add_float(temp_dir, board, west_cmd, tvm_debug):
 
 
 @tvm.testing.requires_micro
+@pytest.mark.skip_boards(["mps2_an521"])
 def test_platform_timer(temp_dir, board, west_cmd, tvm_debug):
     """Test compiling the on-device runtime."""
 
@@ -166,6 +171,7 @@ def test_platform_timer(temp_dir, board, west_cmd, tvm_debug):
 
 
 @tvm.testing.requires_micro
+@pytest.mark.skip_boards(["mps2_an521"])
 def test_relay(temp_dir, board, west_cmd, tvm_debug):
     """Testing a simple relay graph"""
     model = test_utils.ZEPHYR_BOARDS[board]
@@ -198,6 +204,7 @@ def test_relay(temp_dir, board, west_cmd, tvm_debug):
 
 
 @tvm.testing.requires_micro
+@pytest.mark.skip_boards(["mps2_an521"])
 def test_onnx(temp_dir, board, west_cmd, tvm_debug):
     """Testing a simple ONNX model."""
     model = test_utils.ZEPHYR_BOARDS[board]
@@ -278,6 +285,7 @@ def check_result(
 
 
 @tvm.testing.requires_micro
+@pytest.mark.skip_boards(["mps2_an521"])
 def test_byoc_microtvm(temp_dir, board, west_cmd, tvm_debug):
     """This is a simple test case to check BYOC capabilities of microTVM"""
     model = test_utils.ZEPHYR_BOARDS[board]
@@ -358,6 +366,7 @@ def _make_add_sess_with_shape(temp_dir, model, zephyr_board, west_cmd, shape, bu
     ],
 )
 @tvm.testing.requires_micro
+@pytest.mark.skip_boards(["mps2_an521"])
 def test_rpc_large_array(temp_dir, board, west_cmd, tvm_debug, shape):
     """Test large RPC array transfer."""
     model = test_utils.ZEPHYR_BOARDS[board]
@@ -503,5 +512,66 @@ def test_autotune_conv2d(temp_dir, board, west_cmd, tvm_debug):
     tvm.testing.assert_allclose(output, expected_output, rtol=1e-4, atol=1e-5)
 
 
+@tvm.testing.requires_micro
+def test_schedule_build_with_cmsis_dependency(temp_dir, board, west_cmd, tvm_debug):
+    """Test Relay schedule with CMSIS dependency. This test shows if microTVM Auto tuning
+    with Zephyr breaks if CMSIS dependency was required for a schedule.
+    """
+    model = test_utils.ZEPHYR_BOARDS[board]
+    build_config = {"debug": tvm_debug}
+    target = tvm.target.target.micro(model, options=["-keys=arm_cpu,cpu"])
+
+    isa = arm_isa.IsaAnalyzer(target)
+    if not isa.has_dsp_support:
+        pytest.skip(f"ISA does not support DSP. target: {target}")
+
+    # Create a Relay conv2d
+    data_shape = (1, 16, 16, 3)
+    weight_shape = (5, 5, 8, 3)
+    data = relay.var("data", relay.TensorType(data_shape, "int8"))
+    weight = relay.var("weight", relay.TensorType(weight_shape, "int8"))
+    y = relay.nn.conv2d(
+        data,
+        weight,
+        padding=(2, 2),
+        kernel_size=(5, 5),
+        data_layout="NHWC",
+        kernel_layout="HWOI",
+        out_dtype="int32",
+    )
+    func = relay.Function([data, weight], y)
+    ir_mod = tvm.IRModule.from_expr(func)
+
+    runtime = Runtime("crt", {"system-lib": True})
+
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        mod = tvm.relay.build(ir_mod, target=target, runtime=runtime)
+
+    project_options = {
+        "project_type": "host_driven",
+        "west_cmd": west_cmd,
+        "verbose": bool(build_config.get("debug")),
+        "zephyr_board": board,
+        "cmsis_path": os.getenv("CMSIS_PATH"),
+    }
+
+    project_dir = temp_dir / "project"
+    project = tvm.micro.generate_project(
+        str(test_utils.TEMPLATE_PROJECT_DIR),
+        mod,
+        project_dir,
+        project_options,
+    )
+    project.build()
+
+    with open(project_dir / "CMakeLists.txt", "r") as cmake_f:
+        cmake_content = cmake_f.read()
+
+    assert "CMSIS/DSP/Include" in cmake_content
+    assert "CMSIS/DSP/Include/dsp" in cmake_content
+    assert "CMSIS/DSP/Include" in cmake_content
+    assert "CMSIS/NN/Include" in cmake_content
+
+
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

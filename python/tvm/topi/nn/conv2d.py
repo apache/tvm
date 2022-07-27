@@ -57,16 +57,18 @@ Workload = namedtuple(
 )
 
 
-def conv2d(input, filter, strides, padding, dilation, layout="NCHW", out_dtype=None):
+def conv2d(
+    input, filter, strides, padding, dilation, data_layout="NCHW", kernel_layout="", out_dtype=None
+):
     """Conv2D operator.
 
     Parameters
     ----------
     input : tvm.te.Tensor
-        4-D with shape [batch, in_channel, in_height, in_width]
+        4-D with shape [batch, in_channel, in_height, in_width] in data_layout
 
     filter : tvm.te.Tensor
-        4-D with shape [num_filter, in_channel, filter_height, filter_width]
+        4-D with shape [num_filter, in_channel, filter_height, filter_width] in kernel_layout
 
     strides : int or a list/tuple of two ints
         stride size, or [stride_height, stride_width]
@@ -79,8 +81,12 @@ def conv2d(input, filter, strides, padding, dilation, layout="NCHW", out_dtype=N
     dilation: int or a list/tuple of two ints
         dilation size, or [dilation_height, dilation_width]
 
-    layout : str
+    data_layout : str
         layout of data
+
+    kernel_layout : Optional[str]
+        layout of kernel. If unspecified, use default layout inferred from data_layout. "OIHW" if
+        data_layout == "NCHW", "HWIO" if data_layout == "NHWC".
 
     Returns
     -------
@@ -89,7 +95,7 @@ def conv2d(input, filter, strides, padding, dilation, layout="NCHW", out_dtype=N
     """
     # search platform specific declaration first
     # default declaration
-    return conv(input, filter, strides, padding, dilation, 1, layout, out_dtype)
+    return conv(input, filter, strides, padding, dilation, 1, data_layout, kernel_layout, out_dtype)
 
 
 @tvm.target.generic_func
@@ -239,7 +245,7 @@ def conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=None):
     Output : tvm.te.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
-    return conv(Input, Filter, stride, padding, dilation, 1, "NCHW", out_dtype=out_dtype)
+    return conv(Input, Filter, stride, padding, dilation, 1, "NCHW", "OIHW", out_dtype=out_dtype)
 
 
 def conv2d_hwcn(Input, Filter, stride, padding, dilation, out_dtype=None):
@@ -269,7 +275,7 @@ def conv2d_hwcn(Input, Filter, stride, padding, dilation, out_dtype=None):
     output : tvm.te.Tensor
         4-D with shape [out_height, out_width, out_channel, batch]
     """
-    return conv(Input, Filter, stride, padding, dilation, 1, "HWCN", out_dtype=out_dtype)
+    return conv(Input, Filter, stride, padding, dilation, 1, "HWCN", "HWIO", out_dtype=out_dtype)
 
 
 def conv2d_nhwc(
@@ -280,6 +286,7 @@ def conv2d_nhwc(
     dilation,
     out_dtype="float32",
     auto_scheduler_rewritten_layout="",
+    meta_schedule_original_shape=None,
 ):
     """Convolution operator in NHWC layout.
 
@@ -308,6 +315,9 @@ def conv2d_nhwc(
     auto_scheduler_rewritten_layout: str = ""
         The layout after auto-scheduler's layout rewrite pass.
 
+    meta_schedule_original_shape: Optional[List[PrimExpr]] = None
+        The original shape of the input tensor.
+
     Returns
     -------
     output : tvm.te.Tensor
@@ -321,8 +331,10 @@ def conv2d_nhwc(
         dilation,
         1,
         "NHWC",
+        "HWIO",
         out_dtype,
         auto_scheduler_rewritten_layout,
+        meta_schedule_original_shape,
         auto_scheduler_should_rewrite_layout=True,
     )
 
@@ -703,7 +715,9 @@ def group_conv2d_nchw(Input, Filter, stride, padding, dilation, groups, out_dtyp
     Output : tvm.te.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
-    return conv(Input, Filter, stride, padding, dilation, groups, "NCHW", out_dtype=out_dtype)
+    return conv(
+        Input, Filter, stride, padding, dilation, groups, "NCHW", "OIHW", out_dtype=out_dtype
+    )
 
 
 def conv(
@@ -713,9 +727,11 @@ def conv(
     padding: Union[int, Sequence[int]],
     dilation: Union[int, Sequence[int]],
     groups: int,
-    order: str,
+    data_layout: str,
+    kernel_layout: str = "",
     out_dtype: Union[str, None] = None,
     auto_scheduler_rewritten_layout: Optional[str] = None,
+    meta_schedule_original_shape=None,
     auto_scheduler_should_rewrite_layout: bool = False,
 ):
     """Convolution operator in NCHW or NHWC layout.
@@ -725,11 +741,11 @@ def conv(
     Parameters
     ----------
     inp : tvm.te.Tensor
-        N-D with shape [batch, in_channel, in_height, in_width, ...] ordered by `order`
+        N-D with shape [batch, in_channel, in_height, in_width, ...] in `data_layout`
 
     filt : tvm.te.Tensor
-        N-D with shape [num_filter, in_channel // groups, filter_height, filter_width, ...]
-        for NCHW or [filter_height, filter_width, ..., in_channel // groups, num_filter] for NHWC
+        N-D with shape [num_filter, in_channel // groups, filter_height, filter_width, ...] in
+        `kernel_layout`
 
     stride : int or a list/tuple of dim ints
         (where dim=2 for NCHW, dim=1 for NCH, etc.)
@@ -747,26 +763,35 @@ def conv(
     groups : int
         number of groups
 
-    order : str
-        Ordering of dimensions. N indicates batch dimension, C indicates
+    data_layout : str
+        Layout of the input. N indicates batch dimension, C indicates
         channels, any other character indicates HW (or H or HWD for 1D and 3D).
+
+    kernel_layout: Optional[str]
+        Layout of the filter. I indicates input channels, O indicates output channels,
+        any other character indicates HW dimension of the filter (or H or HWD for 1D and 3D).
+        If kernel_layout is empty, use data_layout to infer the default kernel_layout. Default
+        kernel_layout is OIHW for NCHW data layout, HWIO for NHWC data layout.
 
     out_dtype : str
         Elements are converted to this type before elementwise multiplication
         and summation.
+
+    auto_scheduler_rewritten_layout: str
+        Layout from autoscheduler's layout rewritting.
+
+    meta_schedule_original_shape : Optional[List[PrimExpr]]
+        The original shape of the input tensor.
 
     auto_scheduler_should_rewrite_layout : bool
         Should auto scheduler be allowed to rewrite the layout of the filter
         tensor. Defaults to false. This can cause errors if used with grouped
         convs.
 
-    auto_scheduler_rewritten_layout: str
-        Layout from autoscheduler's layout rewritting.
-
     Returns
     -------
     Output : tvm.te.Tensor
-        N-D with shape [batch, out_channel, out_height, out_width, ...] ordered by `order`.
+        N-D with shape [batch, out_channel, out_height, out_width, ...] in `data_layout`
     """
     dim = len(inp.shape) - 2
     if out_dtype is None:
@@ -783,28 +808,41 @@ def conv(
     else:
         dilations = list(dilation)
 
-    # transform from order to NCHW
-    permutation_to = [order.find("N"), order.find("C")] + [
-        x.span()[0] for x in re.finditer("[^NC]", order)
+    # transform from data_layout to NCHW
+    data_permutation_to = [data_layout.find("N"), data_layout.find("C")] + [
+        x.span()[0] for x in re.finditer("[^NC]", data_layout)
     ]
-    # transform from NCHW to order
-    permutation_from = np.argsort(permutation_to)
-    # transform from CHW to order
-    permutation_from_reductions = permutation_from[1:].copy()
-    permutation_from_reductions[permutation_from_reductions > permutation_from[0]] -= 1
+    # transform from NCHW to data_layout
+    data_permutation_from = np.argsort(data_permutation_to)
+    # transform from CHW to data_layout
+    data_permutation_from_reductions = data_permutation_from[1:].copy()
+    data_permutation_from_reductions[
+        data_permutation_from_reductions > data_permutation_from[0]
+    ] -= 1
 
-    # kernel permutation, if C appears before HW then num_filter is first, otherwise it is last
-    # tkonolige: I don't really understand kernel ordering for NHWC, it seems
-    # like num_filters should match the N dimension
-    if order.find("C") < re.search("[^NC]", order).span()[0]:
-        permutation_to_kernel = [0, 1] + list(range(2, dim + 2))
+    if kernel_layout == "":
+        # kernel permutation, if C appears before HW then num_filter is first, otherwise it is last
+        # tkonolige: I don't really understand kernel ordering for NHWC, it seems
+        # like num_filters should match the N dimension
+        if data_layout.find("C") < re.search("[^NC]", data_layout).span()[0]:
+            kernel_permutation_to = [0, 1] + list(range(2, dim + 2))
+        else:
+            kernel_permutation_to = [dim + 1, dim] + list(range(dim))
     else:
-        permutation_to_kernel = [dim + 1, dim] + list(range(dim))
-    permutation_from_kernel = np.argsort(permutation_to_kernel)
+        # transform from kernel_layout to OIHW
+        kernel_permutation_to = [kernel_layout.find("O"), kernel_layout.find("I")] + [
+            x.span()[0] for x in re.finditer("[^OI]", kernel_layout)
+        ]
+    # transform from OIHW to kernel_layout
+    kernel_permutation_from = np.argsort(kernel_permutation_to)
 
-    batch, in_channel, *dimensions = np.array(get_const_tuple(inp.shape))[permutation_to].tolist()
+    if meta_schedule_original_shape:
+        auto_scheduler.rewrite_tensor_shape(filt, meta_schedule_original_shape)
+    batch, in_channel, *dimensions = np.array(get_const_tuple(inp.shape))[
+        data_permutation_to
+    ].tolist()
     num_filter, _, *kernel_dimensions = np.array(get_const_tuple(filt.shape))[
-        permutation_to_kernel
+        kernel_permutation_to
     ].tolist()
 
     # Autoscheduler may have messed with the input layout, so we extract the
@@ -830,14 +868,14 @@ def conv(
         )
     ]
     # compute graph
-    pad_before = list(np.array([0, 0] + pad_begin)[permutation_from])
-    pad_after = list(np.array([0, 0] + pad_end)[permutation_from])
+    pad_before = list(np.array([0, 0] + pad_begin)[data_permutation_from])
+    pad_after = list(np.array([0, 0] + pad_end)[data_permutation_from])
     temp = pad(inp, pad_before, pad_after, name="pad_temp")
     rc = te.reduce_axis((0, in_channel // groups), name="rc")
     rs = [te.reduce_axis((0, k), name=f"r{i}") for i, k in zip(["y", "x", "z"], kernel_dimensions)]
 
     def compute(*args):
-        nn, ff, *dim_indices = list(np.array(args)[permutation_to])
+        nn, ff, *dim_indices = list(np.array(args)[data_permutation_to])
 
         if groups == 1:
             simplified_channel_index = rc
@@ -853,25 +891,25 @@ def conv(
                             di * stride + r * dil
                             for di, stride, r, dil in zip(dim_indices, strides, rs, dilations)
                         ]
-                    )[permutation_from]
+                    )[data_permutation_from]
                 )
             ).astype(out_dtype)
-            * filt.__getitem__(tuple(np.array([ff, rc] + rs)[permutation_from_kernel])).astype(
+            * filt.__getitem__(tuple(np.array([ff, rc] + rs)[kernel_permutation_from])).astype(
                 out_dtype
             ),
             # Schedules depend on reduction axes being in the same order as the
             # layout, so we reorder here.
-            axis=np.array([rc, *rs])[permutation_from_reductions].tolist(),
+            axis=np.array([rc, *rs])[data_permutation_from_reductions].tolist(),
         )
 
     out = te.compute(
-        list(np.array([batch, out_channel] + out_dimensions)[permutation_from]),
+        list(np.array([batch, out_channel] + out_dimensions)[data_permutation_from]),
         compute,
         # tag is expected to be lowercase
-        tag=f"{'group_' if groups > 1 else ''}conv{dim}d_{order.lower()}",
-        name=f"{'group_' if groups > 1 else ''}conv{dim}d_{order.lower()}",
+        tag=f"{'group_' if groups > 1 else ''}conv{dim}d_{data_layout.lower()}",
+        name=f"{'group_' if groups > 1 else ''}conv{dim}d_{data_layout.lower()}",
         attrs={"layout_free_placeholders": [filt]} if auto_scheduler_should_rewrite_layout else {},
-        varargs_names=list(np.array(["nn", "ff", "yy", "xx", "zz"])[permutation_from]),
+        varargs_names=list(np.array(["nn", "ff", "yy", "xx", "zz"])[data_permutation_from]),
     )
     # if we used autoscheduler's changed layout we need to rewrite the ordering
     # of the output dimensions
@@ -913,7 +951,9 @@ def group_conv2d_nhwc(Input, Filter, stride, padding, dilation, groups, out_dtyp
     Output : tvm.te.Tensor
         4-D with shape [batch, out_height, out_width, out_channel]
     """
-    return conv(Input, Filter, stride, padding, dilation, groups, "NHWC", out_dtype=out_dtype)
+    return conv(
+        Input, Filter, stride, padding, dilation, groups, "NHWC", "HWIO", out_dtype=out_dtype
+    )
 
 
 def unpack_NCHWc_to_nchw(packed_out, out_dtype):
@@ -959,15 +999,16 @@ def _conv2d_winograd_nhwc_impl(
     tile_size,
     pre_computed=False,
     auto_scheduler_rewritten_layout="",
+    meta_schedule_original_shape=None,
 ):
     """Conv2D Winograd implementation in NHWC layout.
     This is a clean version to be used by the auto-scheduler for both CPU and GPU.
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         4-D with shape [batch, in_height, in_width, in_channel]
-    weight : tvm.Tensor
+    weight : tvm.te.Tensor
         4-D with shape [filter_height, filter_width, in_channel, num_filter]
     strides : int or a list/tuple of two ints
         stride size, or [stride_height, stride_width]
@@ -983,10 +1024,12 @@ def _conv2d_winograd_nhwc_impl(
         Whether the kernel is precomputed
     auto_scheduler_rewritten_layout: str = ""
         The layout after auto-scheduler's layout rewrite pass.
+    meta_schedule_original_shape: Optional[List[PrimExpr]] = None
+        The original shape of the input tensor.
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         4-D with shape [batch, out_height, out_width, out_channel]
     """
     N, H, W, CI = get_const_tuple(data.shape)
@@ -994,6 +1037,8 @@ def _conv2d_winograd_nhwc_impl(
         dilation_h = dilation_w = dilation
     else:
         dilation_h, dilation_w = dilation
+    if meta_schedule_original_shape:
+        auto_scheduler.rewrite_tensor_shape(weight, meta_schedule_original_shape)
 
     assert (dilation_h, dilation_w) == (1, 1), "Does not support dilation"
     if not pre_computed:
@@ -1096,6 +1141,11 @@ def _conv2d_winograd_nhwc_impl(
         bgemm = auto_scheduler.rewrite_compute_body(bgemm, auto_scheduler_rewritten_layout)
 
     # inverse transform
+    if target is not None:
+        target_kind = "meta_schedule.winograd_inverse." + target.kind.name
+    else:
+        target_kind = "None"
+
     r_a = te.reduce_axis((0, alpha), "r_a")
     r_b = te.reduce_axis((0, alpha), "r_b")
     inverse = te.compute(
@@ -1106,7 +1156,7 @@ def _conv2d_winograd_nhwc_impl(
         name="inverse",
         attrs={
             "auto_scheduler_simplify_const_tensor_indices": ["vh", "vw", "r_a", "r_b"],
-            "schedule_rule": "meta_schedule.winograd_inverse",
+            "schedule_rule": target_kind,
         },
         # the attrs are necessary hints for the auto-scheduler
     )
@@ -1131,15 +1181,16 @@ def conv2d_winograd_nhwc(
     out_dtype,
     pre_computed=False,
     auto_scheduler_rewritten_layout="",
+    meta_schedule_original_shape=None,
 ):
     """Conv2D Winograd in NHWC layout.
     This is a clean version to be used by the auto-scheduler for both CPU and GPU.
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         4-D with shape [batch, in_height, in_width, in_channel]
-    weight : tvm.Tensor
+    weight : tvm.te.Tensor
         4-D with shape [filter_height, filter_width, in_channel, num_filter]
     strides : int or a list/tuple of two ints
         stride size, or [stride_height, stride_width]
@@ -1153,10 +1204,12 @@ def conv2d_winograd_nhwc(
         Whether the kernel is precomputed
     auto_scheduler_rewritten_layout: str = ""
         The layout after auto-scheduler's layout rewrite pass.
+    meta_schedule_original_shape: Optional[List[PrimExpr]] = None
+        The original shape of the input tensor.
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         4-D with shape [batch, out_height, out_width, out_channel]
     """
     tile_size = 4
@@ -1171,6 +1224,7 @@ def conv2d_winograd_nhwc(
         tile_size,
         pre_computed,
         auto_scheduler_rewritten_layout,
+        meta_schedule_original_shape,
     )
 
 
@@ -1182,15 +1236,16 @@ def conv2d_winograd_nhwc_without_weight_transform(
     dilation,
     out_dtype,
     auto_scheduler_rewritten_layout="",
+    meta_schedule_original_shape=None,
 ):
     """Conv2D Winograd without layout transform in NHWC layout.
     This is a clean version to be used by the auto-scheduler for both CPU and GPU.
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         4-D with shape [batch, in_height, in_width, in_channel]
-    weight : tvm.Tensor
+    weight : tvm.te.Tensor
         4-D with shape [filter_height, filter_width, in_channel, num_filter]
     strides : int or a list/tuple of two ints
         stride size, or [stride_height, stride_width]
@@ -1202,10 +1257,12 @@ def conv2d_winograd_nhwc_without_weight_transform(
         Specifies the output data type.
     auto_scheduler_rewritten_layout: str = ""
         The layout after auto-scheduler's layout rewrite pass.
+    meta_schedule_original_shape: Optional[List[PrimExpr]] = None
+        The original shape of the input tensor.
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         4-D with shape [batch, out_height, out_width, out_channel]
     """
 
@@ -1218,4 +1275,5 @@ def conv2d_winograd_nhwc_without_weight_transform(
         out_dtype,
         pre_computed=True,
         auto_scheduler_rewritten_layout=auto_scheduler_rewritten_layout,
+        meta_schedule_original_shape=meta_schedule_original_shape,
     )

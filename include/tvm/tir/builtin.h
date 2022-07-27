@@ -632,6 +632,52 @@ TVM_DLL const Op& ptx_mma_sp();
  */
 TVM_DLL const Op& ptx_ldmatrix();
 
+/*!
+ * \brief tvm intrinsics for ptx async copy from global to shared memory
+ *
+ * void ptx_cp_async(Var shared_ptr, Expr shared_offset, Var global_ptr, Expr global_offset, size_t
+ * bytes);
+ *
+ */
+TVM_DLL const Op& ptx_cp_async();
+
+/*!
+ * \brief tvm intrinsics for ptx async copy commit and wait.
+ *
+ * void ptx_commit_group();
+ * void ptx_wait_group(int num);
+ *
+ */
+TVM_DLL const Op& ptx_commit_group();
+TVM_DLL const Op& ptx_wait_group();
+
+/*!
+ * \brief tvm intrinsic for storing the result of PTX MMA into a destination pointer.
+ *        For example, if each thread in a warp of size 32 has 4 elements from the result of
+ *        m16xn8xk16 MMA in its registers, this intrinsic can be used to store the result in a
+ *        16x8 region in shared or global memory.
+ *
+ *        There is no real PTX instruction that does that, but we want to hide details of
+ *        complex index manipulation behind this intrinsic to simplify TIR lowering passes (e.g.
+ *        LowerWarpMemory).
+ *
+ * void mma_store(IntImm m, IntImm n, Var dst_ptr, Var src_ptr, Expr src_offset, Var dst_stride);
+ */
+TVM_DLL const Op& mma_store();
+
+/*!
+ * \brief tvm intrinsic for zero-initalizing an MMA accumulation registor.
+ *        For example, if each thread in a warp of size 32 has 8 elements from the A matrix in
+ *        m16xn8xk16 MMA in its registers, this intrinsic can be used to zero-initialize its
+ *        4 accumulation registers.
+ *
+ *        There is no real PTX instruction that does that, but we introduce this intrinsic for the
+ *        same reason as mma_store above.
+ *
+ * void mma_fill(IntImm local_size, Var local_ptr, Expr offset);
+ */
+TVM_DLL const Op& mma_fill();
+
 // TODO(tvm-team) replace the usage of the vector operations by Shuffle.
 /*!
  * \brief Get the high level half of the vector

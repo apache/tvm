@@ -564,6 +564,10 @@ class StorageInfo(Node):
     def storage_sizes(self):
         return _ffi_api.StorageInfoStorageSizes(self)
 
+    @property
+    def virtual_devices(self):
+        return _ffi_api.StorageInfoVirtualDevices(self)
+
 
 @tvm._ffi.register_object("relay.StaticMemoryPlan")
 class StaticMemoryPlan(Node):

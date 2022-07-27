@@ -116,10 +116,10 @@ TVM_DLL tir::StmtSRef SampleComputeLocation(
  * \brief Retrieves blocks in a specific function with its name
  * \param self The schedule state
  * \param name The name of the blocks to be retrieved
- * \param func_name The name of the function
+ * \param gvar The function to be retrieved
  * \return A list of blocks with the specific name
  */
-Array<StmtSRef> GetBlocks(const ScheduleState& self, const String& name, const String& func_name);
+Array<StmtSRef> GetBlocks(const ScheduleState& self, const String& name, const GlobalVar& gv);
 /*!
  * \brief Gets the parent loops of the block in its scope, from outer to inner
  * \param self The schedule state
@@ -156,10 +156,11 @@ Array<StmtSRef> GetConsumers(const ScheduleState& self, const StmtSRef& block_sr
  * \param self The state of the schedule
  * \param loop_sref The sref to the loop being split
  * \param factors The splitting factors
+ * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
  * \return An array of srefs to the loops after splitting
  */
 TVM_DLL Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
-                              const Array<PrimExpr>& factors);
+                              const Array<PrimExpr>& factors, bool preserve_unit_iters);
 /*!
  * \brief Fuse a list of consecutive loops into one. It requires:
  * 1) The loops can't have annotations or thread bindings.
@@ -168,9 +169,11 @@ TVM_DLL Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
  * 4) The domain of a loop to be fused cannot depend on another loop to be fused.
  * \param self The state of the schedule
  * \param loop_srefs An array of srefs to the loops to be fused
+ * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
  * \return The sref to the fused loop
  */
-TVM_DLL StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs);
+TVM_DLL StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs,
+                      bool preserve_unit_loops);
 /*!
  * \brief Reorder a list of loops. It doesn't require the loops to be consecutive.
  * It requires:
@@ -185,6 +188,16 @@ TVM_DLL StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs);
  * \param ordered_loop_srefs An array of srefs which indicates the new order of loops
  */
 TVM_DLL void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs);
+
+/*!
+ * \brief Create a new unit loop on top of the specific block or loop.
+ * \param sref The block/loop above which the new thread_binding loop is created
+ * \param extent The extent of the new thread_binding loop
+ * \param thread_axis The thread axis of the new thread_binding loop
+ * \param attrs Extra loop attributes
+ * \return The new thread_binding loop
+ */
+TVM_DLL StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref);
 
 /******** Schedule: Manipulate ForKind ********/
 /*!
@@ -253,6 +266,21 @@ TVM_DLL StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int r
  */
 TVM_DLL StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_buffer_index,
                             const String& storage_scope);
+/*!
+ *!
+ * \brief Create a block that read/write a buffer region into a read/write cache with reindexing.
+ * The layout of the cache will be the same as by the iterators of the block that reads/writes the
+ * buffer. It requires:
+ * 1) There is only one block who reads/writes the target buffer
+ * 2) There is only one buffer load/store of this buffer in the block
+ * \param self The state of the schedule
+ * \param block_rv The block operates on the target buffer.
+ * \param buffer_index The index of the buffer in block's read or write region.
+ * \param buffer_index_type The type of the buffer index, kRead or kWrite.
+ * \return The reindex stage block.
+ */
+TVM_DLL StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
+                         BufferIndexType buffer_index_type);
 /******** Schedule: Compute location ********/
 /*!
  * \brief Move a producer block under the specific loop, and regenerate the
@@ -377,6 +405,17 @@ TVM_DLL void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int bu
  */
 TVM_DLL void SetScope(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                       const String& storage_scope);
+/*!
+ * \brief Set the axis separator of a buffer, where the buffer is specified by a block and a read
+ * or write index
+ * \param block_rv The block that accesses the target buffer.
+ * \param buffer_index The index of the buffer in block's read or write region.
+ * \param buffer_index_type The type of the buffer index, kRead or kWrite.
+ * \param axis_separators The axis separator of the buffer
+ */
+TVM_DLL void SetAxisSeparator(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
+                              BufferIndexType buffer_index_type,
+                              const Array<IntImm>& axis_separators);
 
 /******** Schedule: Blockize & Tensorize ********/
 
@@ -430,6 +469,18 @@ TVM_DLL void Unannotate(ScheduleState self, const StmtSRef& sref, const String& 
  */
 TVM_DLL void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                              BufferIndexType buffer_index_type, const IndexMap& index_map);
+
+/*!
+ * \brief Apply a transformation represented by IndexMap to block
+ * \details The block iters and the block body are transformed by the given index_map.
+ * Outer loops corresponding to each new block iter are regenerated.
+ * The index_map is required to be bijective affine since we need its inverse mapping.
+ * \param self The state of the schedule
+ * \param block_sref The block sref that refers to the block to be transformed
+ * \param index_map The transformation to apply.
+ */
+TVM_DLL void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
+                                  const IndexMap& index_map);
 
 /******** Schedule: Misc ********/
 

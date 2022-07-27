@@ -364,10 +364,13 @@ def relu(expr, type_map):
 def leaky_relu(expr, type_map):
     """Rewrite a leaky relu op"""
     arg = expr.args[0]
-    t = type_map[arg]
+    x_t = type_map[arg]
+    out_t = type_map[expr]
     alpha = expr.attrs.alpha
-    output = relay.qnn.op.leaky_relu(expr, alpha, t.scale, t.zero_point)
-    return [output, t]
+    output = relay.qnn.op.leaky_relu(
+        expr, alpha, x_t.scale, x_t.zero_point, out_t.scale, out_t.zero_point
+    )
+    return [output, x_t]
 
 
 @register_fake_quantization_to_integer("nn.pad")
@@ -541,4 +544,6 @@ register_unary_qnn("rsqrt", relay.qnn.op.rsqrt)
 register_unary_qnn("exp", relay.qnn.op.exp)
 register_unary_qnn("erf", relay.qnn.op.erf)
 register_unary_qnn("sigmoid", relay.qnn.op.sigmoid)
+register_unary_qnn("hardswish", relay.qnn.op.hardswish)
 register_unary_qnn("tanh", relay.qnn.op.tanh)
+register_unary_qnn("log", relay.qnn.op.log)

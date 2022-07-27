@@ -55,6 +55,7 @@ inline Tensor lrn(const Tensor& data, int size, int axis = 1, float alpha = 0.00
   ICHECK_EQ(data->shape.size(), 4) << "LRN requires 4-D input";
   ICHECK_EQ(size % 2, 1) << "size should be odd number";
   ICHECK(axis == 1 || axis == 3) << "axis should be 1 or 3 for NCHW and NHWC";
+  ICHECK(data->dtype.is_float()) << "datatype should be float";
   auto input_shape = data->shape;
   Array<PrimExpr> pad_before{0, 0, 0, 0};
   Array<PrimExpr> pad_after{0, 0, 0, 0};
@@ -78,10 +79,13 @@ inline Tensor lrn(const Tensor& data, int size, int axis = 1, float alpha = 0.00
         },
         "tensor", "sqr_sum");
   }
+  PrimExpr alpha_imm = tvm::te::make_const(data->dtype, alpha);
+  PrimExpr beta_imm = tvm::te::make_const(data->dtype, beta);
+  PrimExpr bias_imm = tvm::te::make_const(data->dtype, bias);
   auto sqrt_sum_up = tvm::te::compute(
       input_shape,
       [&](Var i, Var j, Var k, Var l) {
-        return tvm::pow(bias + (div(alpha * sqr_sum(i, j, k, l), size)), beta);
+        return tvm::pow(bias_imm + (div(alpha_imm * sqr_sum(i, j, k, l), size)), beta_imm);
       },
       "tensor", kElementWise);
   return topi::divide(data, sqrt_sum_up);

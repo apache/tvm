@@ -20,7 +20,15 @@
 #ifndef TVM_META_SCHEDULE_COST_MODEL_H_
 #define TVM_META_SCHEDULE_COST_MODEL_H_
 
-#include <tvm/meta_schedule/search_strategy.h>
+#include <tvm/meta_schedule/arg_info.h>
+#include <tvm/meta_schedule/measure_candidate.h>
+#include <tvm/meta_schedule/runner.h>
+#include <tvm/node/reflection.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/string.h>
+#include <tvm/runtime/object.h>
+#include <tvm/runtime/packed_func.h>
+#include <tvm/tir/schedule/schedule.h>
 
 #include <vector>
 
@@ -126,28 +134,12 @@ class PyCostModelNode : public CostModelNode {
     // `f_as_string` is not visited
   }
 
-  void Load(const String& path) {
-    ICHECK(f_load != nullptr) << "PyCostModel's Load method not implemented!";
-    f_load(path);
-  }
-
-  void Save(const String& path) {
-    ICHECK(f_save != nullptr) << "PyCostModel's Save method not implemented!";
-    f_save(path);
-  }
+  void Load(const String& path);
+  void Save(const String& path);
   void Update(const TuneContext& context, const Array<MeasureCandidate>& candidates,
-              const Array<RunnerResult>& results) {
-    ICHECK(f_update != nullptr) << "PyCostModel's Update method not implemented!";
-    f_update(context, candidates, results);
-  }
-
+              const Array<RunnerResult>& results);
   std::vector<double> Predict(const TuneContext& context,
-                              const Array<MeasureCandidate>& candidates) {
-    ICHECK(f_predict != nullptr) << "PyCostModel's Predict method not implemented!";
-    std::vector<double> result(candidates.size(), 0.0);
-    f_predict(context, candidates, result.data());
-    return result;
-  }
+                              const Array<MeasureCandidate>& candidates);
 
   static constexpr const char* _type_key = "meta_schedule.PyCostModel";
   TVM_DECLARE_FINAL_OBJECT_INFO(PyCostModelNode, CostModelNode);

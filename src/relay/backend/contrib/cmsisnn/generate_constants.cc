@@ -31,6 +31,7 @@
 #include "../../../op/make_op.h"
 #include "../../../qnn/utils.h"
 #include "../../../transforms/pattern_utils.h"
+#include "convolutions.h"
 
 namespace tvm {
 namespace relay {
@@ -111,11 +112,7 @@ class GenerateConstantsMutator : public MixedModeMutator {
 
     Array<PrimExpr> input_shape = conv2d_call->args[0]->type_as<TensorTypeNode>()->shape;
     Array<PrimExpr> kernel_shape = conv2d_call->args[1]->type_as<TensorTypeNode>()->shape;
-    std::string kernel_layout = conv2d_attrs->kernel_layout.c_str();
-    int kernel_pos_o = kernel_layout.find("O");
-    int groups = conv2d_attrs->groups;
-    if (groups != qnn::get_const_int(input_shape[3]) ||
-        groups != qnn::get_const_int(kernel_shape[kernel_pos_o])) {
+    if (!IsCMSISNNDepthwise(conv2d_attrs, input_shape, kernel_shape)) {
       // Transpose weights: HWIO -> OHWI for Conv2D
       conv2d_kernel = ConvertKernelLayout(conv2d_call->args[1], conv2d_attrs, &new_conv2d_attrs);
     }

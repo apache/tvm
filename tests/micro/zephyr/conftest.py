@@ -30,7 +30,7 @@ def pytest_addoption(parser):
         "--zephyr-board",
         required=True,
         choices=test_utils.ZEPHYR_BOARDS.keys(),
-        help=("Zephyr board for test."),
+        help="Zephyr board for test.",
     )
     parser.addoption(
         "--west-cmd", default="west", help="Path to `west` command for flashing device."
@@ -59,7 +59,7 @@ def tvm_debug(request):
 
 
 @pytest.fixture
-def temp_dir(board):
+def temp_dir(board, tvm_debug):
     parent_dir = pathlib.Path(os.path.dirname(__file__))
     filename = os.path.splitext(os.path.basename(__file__))[0]
     board_workspace = (
@@ -76,4 +76,21 @@ def temp_dir(board):
     if not os.path.exists(board_workspace.parent):
         os.makedirs(board_workspace.parent)
 
-    return tempdir(board_workspace)
+    keep_for_debug = tvm_debug if tvm_debug else None
+    test_temp_dir = tempdir(custom_path=board_workspace, keep_for_debug=keep_for_debug)
+    return test_temp_dir
+
+
+@pytest.fixture(autouse=True)
+def skip_by_board(request, board):
+    """Skip test if board is in the list."""
+    if request.node.get_closest_marker("skip_boards"):
+        if board in request.node.get_closest_marker("skip_boards").args[0]:
+            pytest.skip("skipped on this board: {}".format(board))
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "skip_boards(board): skip test for the given board",
+    )

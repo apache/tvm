@@ -787,6 +787,16 @@ static inline Expr BroadCastTo(Expr data, Array<IndexExpr> shape) {
   return MakeBroadCastTo(data, CheckConstantShapeArrayInteger(shape));
 }
 
+inline Expr Hardswish(Expr x) {
+  auto three = MakeConstantScalar(DataType::Float(32), 3.0);
+  auto six = MakeConstantScalar(DataType::Float(32), 6.0);
+  auto x2 = Add(x, three);
+  x2 = Clip(x2, 0.0, 6.0);
+  x2 = Multiply(x, x2);
+  x2 = Divide(x2, six);
+  return x2;
+}
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_TRANSFORMS_PATTERN_UTILS_H_

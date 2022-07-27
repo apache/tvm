@@ -25,7 +25,7 @@ import tvm.target.target
 from tvm.micro import project
 from tvm import relay
 from tvm.relay.backend import Executor, Runtime
-
+from tvm.testing.utils import fetch_model_from_url
 
 TEMPLATE_PROJECT_DIR = pathlib.Path(tvm.micro.get_microtvm_template_projects("arduino"))
 
@@ -66,20 +66,12 @@ def make_kws_project(board, arduino_cli_cmd, tvm_debug, workspace_dir):
     model = ARDUINO_BOARDS[board]
     build_config = {"debug": tvm_debug}
 
-    with open(this_dir.parent / "testdata" / "kws" / "yes_no.tflite", "rb") as f:
-        tflite_model_buf = f.read()
+    mod, params = fetch_model_from_url(
+        url="https://github.com/tensorflow/tflite-micro/raw/main/tensorflow/lite/micro/examples/micro_speech/micro_speech.tflite",
+        model_format="tflite",
+        sha256="09e5e2a9dfb2d8ed78802bf18ce297bff54281a66ca18e0c23d69ca14f822a83",
+    )
 
-    # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
-    try:
-        import tflite.Model
-
-        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
-    except AttributeError:
-        import tflite
-
-        tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
-
-    mod, params = relay.frontend.from_tflite(tflite_model)
     target = tvm.target.target.micro(model)
     runtime = Runtime("crt")
     executor = Executor("aot", {"unpacked-api": True})

@@ -14,36 +14,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+"""AOT with C++ Runtime Tests"""
 
 import re
-import sys
 import textwrap
 
 import numpy as np
 import pytest
 
 import tvm
-from tvm import relay, TVMError
-from tvm.ir.module import IRModule
-from tvm.relay import backend, testing, transform
-from tvm.relay.testing import byoc
-from tvm.relay.op.annotation import compiler_begin, compiler_end
-from aot_test_utils import (
-    AOTTestModel,
-    AOT_DEFAULT_RUNNER,
-    generate_ref_data,
-    convert_to_relay,
-    compile_and_run,
-    compile_models,
-    parametrize_aot_options,
-)
+from tvm import IRModule
+from tvm import relay
+from tvm.relay import backend, testing
+from tvm.testing.aot import generate_ref_data
 
 
 def test_error_c_interface():
-    interface_api = "c"
-    use_unpacked_api = False
-    test_runner = AOT_DEFAULT_RUNNER
+    """Checks that an error occurs when using the packed API in combination with C interface"""
 
     two = relay.add(relay.const(1), relay.const(1))
     func = relay.Function([], two)
@@ -51,26 +38,22 @@ def test_error_c_interface():
     with pytest.raises(
         tvm.TVMError,
         match=re.escape(
-            'Either need interface_api == "packed" (got: c) or '
-            "unpacked-api == true (got: (bool)0) when targeting "
-            "c runtime"
+            'Need unpacked-api == false (got: 0) and interface-api == "packed" (got: c) when '
+            "targeting c++ runtime"
         ),
     ):
-        compile_and_run(
-            AOTTestModel(
-                module=IRModule.from_expr(func), inputs={}, outputs=generate_ref_data(func, {})
-            ),
-            test_runner,
-            interface_api,
-            use_unpacked_api,
+        tvm.relay.build(
+            IRModule.from_expr(func),
+            target="llvm",
+            executor=backend.Executor("aot", {"interface-api": "c"}),
         )
 
 
-enable_usmp = tvm.testing.parameter(True, False)
-
-
-def test_conv2d(enable_usmp):
-    RELAY_MODEL = textwrap.dedent(
+@pytest.mark.parametrize("enable_usmp", [True, False])
+@pytest.mark.parametrize("target_kind", ["c", "llvm"])
+def test_conv2d(enable_usmp, target_kind):
+    """Tests compilation of convolutions"""
+    relay_model = textwrap.dedent(
         """\
         #[version = "0.0.5"]
         def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(3, 3, 5, 5), int8]) {
@@ -98,17 +81,49 @@ def test_conv2d(enable_usmp):
         }
     """
     )
-    ir_mod = tvm.parser.fromtext(RELAY_MODEL)
+    ir_mod = tvm.parser.fromtext(relay_model)
 
     main_func = ir_mod["main"]
     shape_dict = {p.name_hint: p.checked_type.concrete_shape for p in main_func.params}
     type_dict = {p.name_hint: p.checked_type.dtype for p in main_func.params}
 
-    weight_data = np.ones(shape_dict["weight"]).astype(type_dict["weight"])
+    weight_data = np.random.randint(1, 255, shape_dict["weight"]).astype(type_dict["weight"])
     input_data = np.ones(shape_dict["data"]).astype(type_dict["data"])
-
     params = {"weight": weight_data}
     inputs = {"data": input_data}
+    ref_outputs = generate_ref_data(ir_mod, inputs, params)
+
+    with tvm.transform.PassContext(
+        opt_level=3,
+        config={
+            "tir.disable_vectorize": True,
+            "tir.usmp.enable": enable_usmp,
+        },
+    ):
+        mod = tvm.relay.build(
+            ir_mod,
+            params=params,
+            target=target_kind,
+            executor=backend.Executor("aot", {"interface-api": "packed", "unpacked-api": False}),
+        )
+    temp_dir = tvm.contrib.utils.TempDirectory()
+    test_so_path = temp_dir / "test.so"
+    mod.export_library(test_so_path, cc="gcc", options=["-std=c11", "-g3", "-O0"])
+    loaded_mod = tvm.runtime.load_module(test_so_path)
+    runner = tvm.runtime.executor.AotModule(loaded_mod["default"](tvm.cpu(0)))
+    runner.set_input(**inputs)
+    runner.run()
+    assert (runner.get_output(0).numpy() == list(ref_outputs.values())[0]).all()
+
+
+@pytest.mark.parametrize("enable_usmp", [True, False])
+@pytest.mark.parametrize("target_kind", ["c", "llvm"])
+def test_mobilenet(enable_usmp, target_kind):
+    """Full network test with Mobilenet"""
+    ir_mod, params = testing.mobilenet.get_workload(batch_size=1)
+    data_shape = [int(x) for x in ir_mod["main"].checked_type.arg_types[0].shape]
+    data = np.random.uniform(size=data_shape).astype("float32")
+    inputs = {"data": data}
     ref_outputs = generate_ref_data(ir_mod, inputs, params)
 
     with tvm.transform.PassContext(
@@ -117,13 +132,13 @@ def test_conv2d(enable_usmp):
         mod = tvm.relay.build(
             ir_mod,
             params=params,
-            target="c",
+            target=target_kind,
             executor=backend.Executor("aot", {"interface-api": "packed"}),
         )
 
     temp_dir = tvm.contrib.utils.TempDirectory()
     test_so_path = temp_dir / "test.so"
-    mod.export_library(test_so_path, cc="gcc", options=["-std=c11"])
+    mod.export_library(test_so_path, cc="c++", options=["-std=gnu++14", "-g3", "-O0"])
     loaded_mod = tvm.runtime.load_module(test_so_path)
     runner = tvm.runtime.executor.AotModule(loaded_mod["default"](tvm.cpu(0)))
     runner.set_input(**inputs)
@@ -131,29 +146,23 @@ def test_conv2d(enable_usmp):
     assert (runner.get_output(0).asnumpy() == list(ref_outputs.values())[0]).all()
 
 
-def test_mobilenet():
-    ir_mod, params = testing.mobilenet.get_workload(batch_size=1)
-    data_shape = [int(x) for x in ir_mod["main"].checked_type.arg_types[0].shape]
-    data = np.random.uniform(size=data_shape).astype("float32")
-    inputs = {"data": data}
-    ref_outputs = generate_ref_data(ir_mod, inputs, params)
-
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.relay.build(
-            ir_mod,
-            params=params,
-            target="c",
-            executor=backend.Executor("aot", {"interface-api": "packed"}),
-        )
-
+def test_module_list():
+    """Checks the correct list of module names is generated"""
+    input_x = tvm.relay.var("x", tvm.relay.TensorType([1], dtype="float32"))
+    expr = tvm.relay.add(input_x, tvm.relay.Constant(tvm.nd.array(np.array([1], dtype="float32"))))
+    mod = tvm.relay.build(
+        tvm.IRModule.from_expr(tvm.relay.Function([input_x], expr)),
+        target="c",
+        executor=tvm.relay.backend.Executor("aot", {"interface-api": "packed"}),
+        mod_name="unusual_module_name_fred",
+    )
     temp_dir = tvm.contrib.utils.TempDirectory()
     test_so_path = temp_dir / "test.so"
     mod.export_library(test_so_path, cc="gcc", options=["-std=c11"])
     loaded_mod = tvm.runtime.load_module(test_so_path)
-    runner = tvm.runtime.executor.AotModule(loaded_mod["default"](tvm.cpu(0)))
-    runner.set_input(**inputs)
-    runner.run()
-    assert (runner.get_output(0).asnumpy() == list(ref_outputs.values())[0]).all()
+    list_module_names = loaded_mod.get_function("list_module_names")
+    names_expected = ["unusual_module_name_fred"]
+    assert list(sorted(names_expected)) == list(sorted(list_module_names()))
 
 
 def test_create_executor():
@@ -169,6 +178,7 @@ def test_create_executor():
 
 
 def test_pass_wrong_device_arg():
+    """Ensure an error is generated if the incorrect number of devices are passed"""
     x = tvm.relay.var("x", tvm.relay.TensorType([1], dtype="float32"))
     expr = tvm.relay.add(x, tvm.relay.Constant(tvm.nd.array(np.array([1], dtype="float32"))))
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
@@ -180,18 +190,18 @@ def test_pass_wrong_device_arg():
 
     temp_dir = tvm.contrib.utils.TempDirectory()
     test_so_path = temp_dir / "test.so"
-    mod.export_library(test_so_path, cc="gcc", options=["-std=c11"])
+    mod.export_library(test_so_path, cc="gcc", options=["-std=c11", "-g3", "-O0"])
     loaded_mod = tvm.runtime.load_module(test_so_path)
 
-    with pytest.raises(tvm.TVMError) as cm:
+    with pytest.raises(tvm.TVMError) as error:
         tvm.runtime.executor.AotModule(loaded_mod["default"](tvm.cpu(0), tvm.cpu(0)))
 
         assert (
             "Check failed: devices_.size() == 1 (2 vs. 1) : Expect exactly 1 device passed."
-            in str(cm.exception)
+            in str(error.exception)
         )
     # TODO write asserts for # and type of device.
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

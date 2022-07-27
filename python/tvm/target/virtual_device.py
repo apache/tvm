@@ -27,7 +27,10 @@ class VirtualDevice(Object):
     """A compile time representation for where data is to be stored at runtime,
     and how to compile code to compute it."""
 
-    def __init__(self, device, target=None, memory_scope="") -> None:
+    def __init__(self, device=None, target=None, memory_scope="") -> None:
+        if device is None:
+            # The 'unconstrained' device has device type -1 and device id -1.
+            device = tvm.device(-1, -1)
         self.__init_handle_by_constructor__(
             _ffi_api.VirtualDevice_ForDeviceTargetAndMemoryScope, device, target, memory_scope
         )

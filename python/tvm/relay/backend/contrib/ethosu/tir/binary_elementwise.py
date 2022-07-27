@@ -16,11 +16,12 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument
 """Extract information from the binary_elementwise operators in TIR."""
-from typing import Dict, Tuple
+from typing import Tuple
 import tvm
 from .utils import get_outer_loops, get_op_attrs
 from .dma import get_ifm_params, get_ofm_params
 from .spec import SerialActivation, SerialBinaryElementwise
+from .producers_consumers import ProducersConsumers
 
 
 def ignore_cast(tir_load: tvm.tir.expr.Load) -> tvm.tir.Var:
@@ -42,9 +43,7 @@ def ignore_cast(tir_load: tvm.tir.expr.Load) -> tvm.tir.Var:
 
 
 def get_binary_elementwise_params(
-    stmt: tvm.tir.AttrStmt,
-    producers: Dict[tvm.tir.Var, tvm.tir.AttrStmt],
-    consumers: Dict[tvm.tir.Var, tvm.tir.AttrStmt],
+    stmt: tvm.tir.AttrStmt, producers_consumers: ProducersConsumers
 ) -> Tuple[SerialBinaryElementwise, tvm.tir.Var, tvm.tir.Var]:
     """Get the parameters necessary to construct a call_extern for a binary_elementwise.
 
@@ -52,12 +51,9 @@ def get_binary_elementwise_params(
     ----------
     stmt : tvm.tir.AttrStmt
         The outermost attribute statement of a binary elementwise loop nest.
-    producers : Dict[tvm.tir.Var, tvm.tir.AttrStmt]
-        A dictionary to associate pointers with the loop nest
-        that produces their values.
-    consumers : Dict[tvm.tir.Var, tvm.tir.AttrStmt]
-        A dictionary to associate pointers with the loop nest
-        that consumes their values.
+    producers_consumers: ProducersConsumers
+        It associates pointers with the loop nest that produces
+        their values and with the loop nest that consumes their values.
 
     Returns
     -------
@@ -84,10 +80,10 @@ def get_binary_elementwise_params(
         input_pointer, input_pointer1 = input_pointer1, input_pointer
     output_pointer = inner.buffer.data
     # Get feature map info
-    serial_ifm, _ = get_ifm_params(input_pointer, producers)
-    serial_ifm2, _ = get_ifm_params(input_pointer1, producers)
+    serial_ifm, _ = get_ifm_params(input_pointer, producers_consumers, stmt)
+    serial_ifm2, _ = get_ifm_params(input_pointer1, producers_consumers, stmt)
     serial_ofm, serial_block_config, replace_pointer, is_allocator = get_ofm_params(
-        output_pointer, consumers, producers
+        output_pointer, producers_consumers, stmt
     )
     # Get activation info
     serial_activation = SerialActivation(

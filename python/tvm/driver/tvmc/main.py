@@ -26,7 +26,10 @@ import sys
 import tvm
 
 from tvm.driver.tvmc import TVMCException, TVMCImportError
-
+from tvm.driver.tvmc.config_options import (
+    read_and_convert_json_into_dict,
+    convert_config_json_to_cli,
+)
 
 REGISTERED_PARSER = []
 
@@ -64,12 +67,19 @@ def _main(argv):
         # so it doesn't interfere with the creation of the dynamic subparsers.
         add_help=False,
     )
+
+    parser.add_argument("--config", default="default", help="configuration json file")
+    config_arg, argv = parser.parse_known_args(argv)
+
+    json_param_dict = read_and_convert_json_into_dict(config_arg)
+    json_config_values = convert_config_json_to_cli(json_param_dict)
+
     parser.add_argument("-v", "--verbose", action="count", default=0, help="increase verbosity")
     parser.add_argument("--version", action="store_true", help="print the version and exit")
 
     subparser = parser.add_subparsers(title="commands")
     for make_subparser in REGISTERED_PARSER:
-        make_subparser(subparser, parser)
+        make_subparser(subparser, parser, json_config_values)
 
     # Finally, add help for the main parser.
     parser.add_argument("-h", "--help", action="help", help="show this help message and exit.")

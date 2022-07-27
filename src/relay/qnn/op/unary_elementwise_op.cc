@@ -36,13 +36,22 @@ QNN_CREATE_UNARY_ELEMENTWISE_OP("exp").set_attr<FTVMLegalize>(
 
 QNN_CREATE_UNARY_ELEMENTWISE_OP("sqrt").set_attr<FTVMLegalize>(
     "FTVMQnnCanonicalize", QNN_UNARY_OP_DEFAULT_CANONICALIZATION(Sqrt));
+
 QNN_CREATE_UNARY_ELEMENTWISE_OP("rsqrt").set_attr<FTVMLegalize>(
     "FTVMQnnCanonicalize", QNN_UNARY_OP_DEFAULT_CANONICALIZATION(Rsqrt));
 
 QNN_CREATE_UNARY_ELEMENTWISE_OP("erf").set_attr<FTVMLegalize>(
     "FTVMQnnCanonicalize", QNN_UNARY_OP_DEFAULT_CANONICALIZATION(Erf));
+
 QNN_CREATE_UNARY_ELEMENTWISE_OP("sigmoid").set_attr<FTVMLegalize>(
     "FTVMQnnCanonicalize", QNN_UNARY_OP_DEFAULT_CANONICALIZATION(Sigmoid));
+
+QNN_CREATE_UNARY_ELEMENTWISE_OP("hardswish")
+    .set_attr<FTVMLegalize>("FTVMQnnCanonicalize",
+                            QNN_UNARY_OP_DEFAULT_CANONICALIZATION(Hardswish));
+
+QNN_CREATE_UNARY_ELEMENTWISE_OP("log").set_attr<FTVMLegalize>(
+    "FTVMQnnCanonicalize", QNN_UNARY_OP_DEFAULT_CANONICALIZATION(Log));
 
 }  // namespace qnn
 }  // namespace relay

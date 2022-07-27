@@ -67,12 +67,20 @@ def register_qnn_unary_op_legalize(op_name, floating_point_func):
     return reg.register_qnn_legalize(op_name, legalize_qnn_unary_op)
 
 
+def hardswish_func(x):
+    x2 = x + 3.0
+    x2 = np.clip(x2, 0.0, 6.0)
+    return x * x2 / 6.0
+
+
 register_qnn_unary_op_legalize("qnn.sqrt", np.sqrt)
 register_qnn_unary_op_legalize("qnn.rsqrt", lambda arr: 1 / np.sqrt(arr))
 register_qnn_unary_op_legalize("qnn.exp", np.exp)
 register_qnn_unary_op_legalize("qnn.erf", special.erf)
 register_qnn_unary_op_legalize("qnn.sigmoid", lambda arr: 1 / (1 + np.exp(-arr)))
+register_qnn_unary_op_legalize("qnn.hardswish", hardswish_func)
 register_qnn_unary_op_legalize("qnn.tanh", np.tanh)
+register_qnn_unary_op_legalize("qnn.log", np.log)
 
 
 # Default to None. If overridden by target, this will not be run.
@@ -92,12 +100,30 @@ def qnn_conv2d_transpose_legalize(attrs, inputs, types):
     # Collect the input exprs.
     data, kernel, input_zero_point, kernel_zero_point, _, _ = inputs
 
-    shift_data = relay.subtract(
-        relay.cast(data, dtype="int16"), relay.cast(input_zero_point, "int16")
-    )
-    shift_kernel = relay.subtract(
-        relay.cast(kernel, dtype="int16"), relay.cast(kernel_zero_point, "int16")
-    )
+    # If input zero point is a scalar, we can directly subtract it.
+    if len(types[2].shape) == 0:
+        shift_data = relay.subtract(
+            relay.cast(data, dtype="int16"), relay.cast(input_zero_point, "int16")
+        )
+    # Otherwise it needs to be broadcast.
+    else:
+        shift_data = relay.nn.bias_add(
+            relay.cast(data, dtype="int16"),
+            -relay.cast(input_zero_point, dtype="int16"),
+        )
+
+    # If kernel zero point is a scalar, we can directly subtract it.
+    if len(types[3].shape) == 0:
+        shift_kernel = relay.subtract(
+            relay.cast(kernel, dtype="int16"), relay.cast(kernel_zero_point, "int16")
+        )
+    # Otherwise it needs to be broadcast.
+    else:
+        shift_kernel = relay.nn.bias_add(
+            relay.cast(kernel, dtype="int16"),
+            -relay.cast(kernel_zero_point, dtype="int16"),
+        )
+
     return relay.nn.conv2d_transpose(shift_data, shift_kernel, **attrs)
 
 

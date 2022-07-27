@@ -170,6 +170,25 @@ A sample output JSON from running the Inception V3 model may look like
 }
 ```
 
+When using AoT, the `target` needs to be `llvm`:
+```
+aot_target = "llvm -keys=hexagon -link-params=0 -mattr=+hvxv69,+hvx-length128b,+hvx-qfloat,-hvx-ieee-fp -mcpu=hexagonv69 -mtriple=hexagon"
+aot_host_target = aot_target
+```
+
+Build the relay module specifying AoT as executor and CPP as runtime, and save it via `export_library`:
+```
+lowered = tvm.relay.build(
+    relay_mod,
+    params=params,
+    target=tvm.target.Target(aot_target, host=aot_host_target),
+    runtime=Runtime("cpp"),
+    executor=Executor("aot", {"unpacked-api": False, "interface-api": "packed"}),
+)
+
+lowered.export_library("model-aot.so", tvm.contrib.hexagon.link_shared)
+```
+
 # Disclaimer
 
 The launcher does not perform any correctness verification. In order to verify

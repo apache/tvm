@@ -138,6 +138,11 @@ def truncmod(x, y, span):
 
 
 @register
+def ceildiv(x, y, span):
+    return tvm.tir.ceildiv(x, y, span)
+
+
+@register
 def abs(x, span):
     return tvm.tir.abs(x, span)
 

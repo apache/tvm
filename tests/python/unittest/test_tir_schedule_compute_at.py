@@ -15,12 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
-import sys
-
 import pytest
-
 import tvm
-from tvm import tir
+import tvm.testing
+from tvm import te, tir
 from tvm.script import tir as T
 from tvm.tir.schedule.testing import verify_trace_roundtrip
 
@@ -583,6 +581,40 @@ def tiled_after_reverse_compute_at(a: T.handle, c: T.handle) -> None:
 
 
 @T.prim_func
+def tiled_trivial_binding(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [1, 128, 128], "float32")
+    B = T.alloc_buffer([1, 128, 128], "float32")
+    C = T.match_buffer(c, [1, 128, 128], "float32")
+    for i_0, j_0, i_1, j_1 in T.grid(8, 8, 16, 16):
+        with T.block("B"):
+            vi = T.axis.S(128, i_0 * 16 + i_1)
+            vj = T.axis.S(128, j_0 * 16 + j_1)
+            B[0, vi, vj] = A[0, vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[0, vi, vj] = B[0, vi, vj] + 1.0
+
+
+@T.prim_func
+def tiled_trivial_binding_after_reverse_compute_at(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [1, 128, 128], "float32")
+    B = T.alloc_buffer([1, 128, 128], "float32")
+    C = T.match_buffer(c, [1, 128, 128], "float32")
+    for i_0, j_0, i_1 in T.grid(8, 8, 16):
+        for j_1 in T.serial(0, 16):
+            with T.block("B"):
+                vi = T.axis.S(128, i_0 * 16 + i_1)
+                vj = T.axis.S(128, j_0 * 16 + j_1)
+                B[0, vi, vj] = A[0, vi, vj] * 2.0
+        for j_1 in T.serial(0, 16):
+            with T.block("C"):
+                vi = T.axis.S(128, i_0 * 16 + i_1)
+                vj = T.axis.S(128, j_0 * 16 + j_1)
+                C[0, vi, vj] = B[0, vi, vj] + 1.0
+
+
+@T.prim_func
 def factorized(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [16, 16, 16], "float32")
     B = T.match_buffer(b, [16], "float32")
@@ -1020,17 +1052,19 @@ def static_bound_after_compute_at(A: T.Buffer[(32, 1), "float32"], C: T.Buffer[(
 # pylint: enable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 # fmt: on
 
+use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
 
-def test_compute_at_two_elementwise():
+
+def test_compute_at_two_elementwise(use_block_name):
     sch = tir.Schedule(two_elementwise, debug_mask="all")
-    block = sch.get_block("B")
-    loop, _ = sch.get_loops(sch.get_block("C"))
+    block = "B" if use_block_name else sch.get_block("B")
+    loop, _ = sch.get_loops("C" if use_block_name else sch.get_block("C"))
     sch.compute_at(block, loop, preserve_unit_loops=True)
     tvm.ir.assert_structural_equal(two_elementwise_after_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=two_elementwise)
 
 
-def test_compute_at_blockized_1():
+def test_compute_at_blockized_1(use_block_name):
     sch = tir.Schedule(blockized_1, debug_mask="all")
     block = sch.get_block("B")
     _, loop = sch.get_loops(sch.get_block("C_outer"))
@@ -1039,7 +1073,7 @@ def test_compute_at_blockized_1():
     verify_trace_roundtrip(sch=sch, mod=blockized_1)
 
 
-def test_compute_at_blockized_2():
+def test_compute_at_blockized_2(use_block_name):
     sch = tir.Schedule(blockized_2, debug_mask="all")
     block = sch.get_block("B_outer")
     _, loop, _, _ = sch.get_loops(sch.get_block("C"))
@@ -1048,7 +1082,7 @@ def test_compute_at_blockized_2():
     verify_trace_roundtrip(sch=sch, mod=blockized_2)
 
 
-def test_compute_at_cuda_matmul_0():
+def test_compute_at_cuda_matmul_0(use_block_name):
     sch = tir.Schedule(cuda_matmul_0, debug_mask="all")
     block = sch.get_block("C")
     _, _, _, _, _, loop, _, _ = sch.get_loops(sch.get_block("C_local"))
@@ -1057,7 +1091,7 @@ def test_compute_at_cuda_matmul_0():
     verify_trace_roundtrip(sch=sch, mod=cuda_matmul_0)
 
 
-def test_compute_at_cuda_matmul_1():
+def test_compute_at_cuda_matmul_1(use_block_name):
     sch = tir.Schedule(cuda_matmul_1, debug_mask="all")
     block = sch.get_block("A_shared_local")
     _, _, _, _, _, _, _, loop, _, _, _ = sch.get_loops(sch.get_block("C"))
@@ -1066,7 +1100,7 @@ def test_compute_at_cuda_matmul_1():
     verify_trace_roundtrip(sch=sch, mod=cuda_matmul_1)
 
 
-def test_compute_at_cuda_matmul_2():
+def test_compute_at_cuda_matmul_2(use_block_name):
     sch = tir.Schedule(cuda_matmul_2, debug_mask="all")
     block = sch.get_block("B_shared_local")
     _, _, _, _, _, _, _, loop, _, _, _ = sch.get_loops(sch.get_block("C"))
@@ -1075,7 +1109,7 @@ def test_compute_at_cuda_matmul_2():
     verify_trace_roundtrip(sch=sch, mod=cuda_matmul_2)
 
 
-def test_compute_at_cuda_matmul_3():
+def test_compute_at_cuda_matmul_3(use_block_name):
     sch = tir.Schedule(cuda_matmul_3, debug_mask="all")
     block = sch.get_block("A_shared")
     _, _, _, _, _, _, loop, _, _, _, _ = sch.get_loops(sch.get_block("C"))
@@ -1084,7 +1118,7 @@ def test_compute_at_cuda_matmul_3():
     verify_trace_roundtrip(sch=sch, mod=cuda_matmul_3)
 
 
-def test_compute_at_cuda_matmul_4():
+def test_compute_at_cuda_matmul_4(use_block_name):
     sch = tir.Schedule(cuda_matmul_4, debug_mask="all")
     block = sch.get_block("B_shared")
     _, _, _, _, _, _, loop, _, _, _, _ = sch.get_loops(sch.get_block("C"))
@@ -1093,7 +1127,7 @@ def test_compute_at_cuda_matmul_4():
     verify_trace_roundtrip(sch=sch, mod=cuda_matmul_4)
 
 
-def test_compute_at_reduction_block():
+def test_compute_at_reduction_block(use_block_name):
     sch = tir.Schedule(multi_reduction, debug_mask="all")
     block = sch.get_block("B")
     (loop,) = sch.get_loops(sch.get_block("C"))
@@ -1102,7 +1136,7 @@ def test_compute_at_reduction_block():
     verify_trace_roundtrip(sch=sch, mod=multi_reduction)
 
 
-def test_compute_at_tiled_pooling_read_cache():
+def test_compute_at_tiled_pooling_read_cache(use_block_name):
     sch = tir.Schedule(tiled_pooling_read_cache, debug_mask="all")
     compute = sch.get_block("compute")
     _, w_o, _, _, _, _ = sch.get_loops(compute)
@@ -1112,7 +1146,7 @@ def test_compute_at_tiled_pooling_read_cache():
     verify_trace_roundtrip(sch=sch, mod=tiled_pooling_read_cache)
 
 
-def test_compute_at_non_uniform_tiled_conv():
+def test_compute_at_non_uniform_tiled_conv(use_block_name):
     sch = tir.Schedule(non_uniform_tiled_conv, debug_mask="all")
     compute = sch.get_block("compute")
     sch.compute_at(sch.get_block("cache"), sch.get_loops(compute)[1])
@@ -1120,7 +1154,7 @@ def test_compute_at_non_uniform_tiled_conv():
     verify_trace_roundtrip(sch=sch, mod=non_uniform_tiled_conv)
 
 
-def test_compute_at_concat():
+def test_compute_at_concat(use_block_name):
     sch = tir.Schedule(concat_two_elemwise, debug_mask="all")
     concat = sch.get_block("T_concat")
     add1 = sch.get_block("T_add_1")
@@ -1132,7 +1166,7 @@ def test_compute_at_concat():
     verify_trace_roundtrip(sch=sch, mod=concat_two_elemwise)
 
 
-def test_compute_at_tiled_repeat_op():
+def test_compute_at_tiled_repeat_op(use_block_name):
     sch = tir.Schedule(tiled_repeat_op, debug_mask="all")
     outer_ax, _ = sch.get_loops(sch.get_block("T_repeat"))
     sch.compute_at(sch.get_block("T_add"), outer_ax)
@@ -1140,7 +1174,7 @@ def test_compute_at_tiled_repeat_op():
     verify_trace_roundtrip(sch=sch, mod=tiled_repeat_op)
 
 
-def test_reverse_compute_at_tiled():
+def test_reverse_compute_at_tiled(use_block_name):
     sch = tir.Schedule(tiled, debug_mask="all")
     block = sch.get_block("C")
     _, _, loop, _ = sch.get_loops(sch.get_block("B"))
@@ -1149,7 +1183,16 @@ def test_reverse_compute_at_tiled():
     verify_trace_roundtrip(sch=sch, mod=tiled)
 
 
-def test_reverse_compute_at_blockized_2():
+def test_reverse_compute_at_tiled_trivial_binding(use_block_name):
+    sch = tir.Schedule(tiled_trivial_binding, debug_mask="all")
+    block = sch.get_block("C")
+    _, _, loop, _ = sch.get_loops(sch.get_block("B"))
+    sch.reverse_compute_at(block, loop, preserve_unit_loops=False)
+    tvm.ir.assert_structural_equal(tiled_trivial_binding_after_reverse_compute_at, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=tiled_trivial_binding)
+
+
+def test_reverse_compute_at_blockized_2(use_block_name):
     sch = tir.Schedule(blockized_2, debug_mask="all")
     block = sch.get_block("C")
     _, loop = sch.get_loops(sch.get_block("B_outer"))
@@ -1158,7 +1201,7 @@ def test_reverse_compute_at_blockized_2():
     verify_trace_roundtrip(sch=sch, mod=blockized_2)
 
 
-def test_reverse_compute_at_factorized():
+def test_reverse_compute_at_factorized(use_block_name):
     sch = tir.Schedule(factorized, debug_mask="all")
     block = sch.get_block("B")
     _, loop, _, _ = sch.get_loops(sch.get_block("B_rf"))
@@ -1167,7 +1210,7 @@ def test_reverse_compute_at_factorized():
     verify_trace_roundtrip(sch=sch, mod=factorized)
 
 
-def test_reverse_compute_at_floordiv_and_floormod_indices():
+def test_reverse_compute_at_floordiv_and_floormod_indices(use_block_name):
     sch = tir.Schedule(floordiv_and_floormod_indices, debug_mask="all")
     A = sch.get_block("A")
     B = sch.get_block("B")
@@ -1178,7 +1221,7 @@ def test_reverse_compute_at_floordiv_and_floormod_indices():
     verify_trace_roundtrip(sch=sch, mod=floordiv_and_floormod_indices)
 
 
-def test_read_out_of_bound():
+def test_read_out_of_bound(use_block_name):
     sch = tir.Schedule(read_out_of_bound, debug_mask="all")
     block = sch.get_block("B")
     (loop,) = sch.get_loops(sch.get_block("C"))
@@ -1187,7 +1230,7 @@ def test_read_out_of_bound():
     verify_trace_roundtrip(sch=sch, mod=read_out_of_bound)
 
 
-def test_compact_dataflow():
+def test_compact_dataflow(use_block_name):
     sch = tir.Schedule(not_all_compact_data_flow, debug_mask="all")
     block = sch.get_block("B")
     _, loop = sch.get_loops(sch.get_block("C_1"))
@@ -1196,7 +1239,7 @@ def test_compact_dataflow():
     verify_trace_roundtrip(sch=sch, mod=not_all_compact_data_flow)
 
 
-def test_compute_at_simplify_static_bound():
+def test_compute_at_simplify_static_bound(use_block_name):
     sch = tir.Schedule(static_bound, debug_mask="all")
     block = sch.get_block("B")
     loop, _ = sch.get_loops(sch.get_block("C"))
@@ -1205,7 +1248,45 @@ def test_compute_at_simplify_static_bound():
     verify_trace_roundtrip(sch=sch, mod=static_bound)
 
 
-def test_fail_subtree_complete_block():
+def test_compute_at_non_perfect_channel_group(use_block_name):
+    @T.prim_func
+    def grouped_channel_bias(
+        X: T.Buffer[(720, 8, 8), "float32"], Y: T.Buffer[(720, 8, 8), "float32"]
+    ):
+        B = T.alloc_buffer([45], dtype="float32", scope="")
+        for i in T.grid(45):
+            with T.block("init"):
+                vi = T.axis.remap("S", [i])
+                B[vi] = vi
+        for c_o, h, w, c_i in T.grid(2, 8, 8, 360):
+            with T.block("compute"):
+                hh, ww = T.axis.remap("SS", [h, w])
+                cc = T.axis.spatial(720, c_o * 360 + c_i)
+                Y[cc, hh, ww] = X[cc, hh, ww] + B[cc // 16]
+
+    @T.prim_func
+    def grouped_channel_bias_non_perfect_tiled(
+        X: T.Buffer[(720, 8, 8), "float32"], Y: T.Buffer[(720, 8, 8), "float32"]
+    ):
+        B = T.alloc_buffer([45], dtype="float32")
+        for c_o in range(2):
+            for ax0 in range(23):
+                with T.block("init"):
+                    vi = T.axis.spatial(45, c_o * 22 + ax0)
+                    B[vi] = vi
+            for h, w, c_i in T.grid(8, 8, 360):
+                with T.block("compute"):
+                    hh, ww = T.axis.remap("SS", [h, w])
+                    cc = T.axis.spatial(720, c_o * 360 + c_i)
+                    Y[cc, hh, ww] = X[cc, hh, ww] + B[cc // 16]
+
+    sch = tir.Schedule(grouped_channel_bias, debug_mask="all")
+    loop = sch.get_loops(sch.get_block("compute"))[0]
+    sch.compute_at(sch.get_block("init"), loop)
+    tvm.ir.assert_structural_equal(sch.mod["main"], grouped_channel_bias_non_perfect_tiled)
+
+
+def test_fail_subtree_complete_block(use_block_name):
     sch = tir.Schedule(fail_subtree_compact_dataflow, debug_mask="all")
     block = sch.get_block("B_0")
     loop, _ = sch.get_loops(sch.get_block("C"))
@@ -1213,45 +1294,64 @@ def test_fail_subtree_complete_block():
         sch.compute_at(block, loop)
 
 
-def test_fail_not_in_same_scope():
+def test_fail_not_in_same_scope(use_block_name):
     sch = tir.Schedule(blockized_1, debug_mask="all")
-    block = sch.get_block("B")
+    block = "B" if use_block_name else sch.get_block("B")
     loop, _ = sch.get_loops(sch.get_block("C_inner"))
     with pytest.raises(tvm.tir.ScheduleError, match="same block scope"):
         sch.compute_at(block, loop)
 
 
-def test_fail_loop_is_ancestor_of_block():
+def test_fail_loop_is_ancestor_of_block(use_block_name):
     sch = tir.Schedule(two_elementwise, debug_mask="all")
-    block = sch.get_block("B")
+    block = "B" if use_block_name else sch.get_block("B")
     loop, _ = sch.get_loops(sch.get_block("B"))
     with pytest.raises(tvm.tir.ScheduleError, match="ancestor of block"):
         sch.compute_at(block, loop)
 
 
-def test_fail_output_block():
+def test_fail_output_block(use_block_name):
     sch = tir.Schedule(tiled, debug_mask="all")
-    block = sch.get_block("C")
+    block = "C" if use_block_name else sch.get_block("C")
     loop, _, _, _ = sch.get_loops(sch.get_block("B"))
     with pytest.raises(tvm.tir.ScheduleError, match="output block"):
         sch.compute_at(block, loop)
 
 
-def test_fail_all_consumers_under_loop():
+def test_fail_all_consumers_under_loop(use_block_name):
     sch = tir.Schedule(fail_all_consumers_under_loop, debug_mask="all")
-    block = sch.get_block("B")
+    block = "B" if use_block_name else sch.get_block("B")
     loop, _ = sch.get_loops(sch.get_block("C"))
     with pytest.raises(tvm.tir.ScheduleError, match="requires all the consumer"):
         sch.compute_at(block, loop)
 
 
-def test_fail_all_producers_under_loop():
+def test_fail_all_producers_under_loop(use_block_name):
     sch = tir.Schedule(fail_all_producers_under_loop, debug_mask="all")
-    block = sch.get_block("D")
+    block = "D" if use_block_name else sch.get_block("D")
     loop, _ = sch.get_loops(sch.get_block("C"))
     with pytest.raises(tvm.tir.ScheduleError, match="requires all the producer"):
         sch.reverse_compute_at(block, loop)
 
 
+def test_compute_at_int64_loop(use_block_name):
+    def _create_prim_func():
+        n = te.var("n", dtype="int64")
+        m = te.var("m", dtype="int64")
+        A = te.placeholder((n, m), name="A", dtype="float32")
+        B = te.placeholder((n, m), name="B", dtype="float32")
+        C = te.compute((n, m), lambda i, j: A[i, j] + B[i, j], name="C")
+        D = te.compute((n, m), lambda i, j: C[i, j] + 1.0, name="D")
+        return te.create_prim_func([A, B, D])
+
+    mod = _create_prim_func()
+    sch = tir.Schedule(mod, debug_mask="all")
+    block_c = "C" if use_block_name else sch.get_block("C")
+    block_d = "D" if use_block_name else sch.get_block("D")
+    i, _ = sch.get_loops(block_d)
+    sch.compute_at(block_c, i)
+    verify_trace_roundtrip(sch=sch, mod=mod)
+
+
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

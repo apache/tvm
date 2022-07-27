@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument
 """Extract information from the identity operator in TIR."""
-from typing import Dict, Tuple
+from typing import Tuple
 import tvm
 from .spec import (
     SerialBlockConfig,
@@ -27,6 +27,7 @@ from .spec import (
     SerialFeatureMap,
 )
 from .utils import get_op_attrs, get_base_address, get_strides, get_loads
+from .producers_consumers import ProducersConsumers
 
 
 def _get_feature_map(stmt: tvm.tir.AttrStmt, fm_type: str) -> Tuple[SerialFeatureMap, tvm.tir.Var]:
@@ -101,9 +102,7 @@ def _get_feature_map(stmt: tvm.tir.AttrStmt, fm_type: str) -> Tuple[SerialFeatur
 
 
 def get_identity_params(
-    stmt: tvm.tir.AttrStmt,
-    producers: Dict[tvm.tir.Var, tvm.tir.AttrStmt],
-    consumers: Dict[tvm.tir.Var, tvm.tir.AttrStmt],
+    stmt: tvm.tir.AttrStmt, producers_consumers: ProducersConsumers
 ) -> Tuple[SerialPooling, tvm.tir.Var, tvm.tir.Var]:
     """Get the parameters necessary to construct a call_extern for an identity pooling.
 
@@ -111,12 +110,9 @@ def get_identity_params(
     ----------
     stmt : tvm.tir.AttrStmt
         The outermost attribute statement of an identity pooling loop nest.
-    producers : Dict[tvm.tir.Var, tvm.tir.AttrStmt]
-        A dictionary to associate pointers with the loop nest
-        that produces their values.
-    consumers : Dict[tvm.tir.Var, tvm.tir.AttrStmt]
-        A dictionary to associate pointers with the loop nest
-        that consumes their values.
+    producers_consumers: ProducersConsumers
+        It associates pointers with the loop nest that produces
+        their values and with the loop nest that consumes their values.
 
     Returns
     -------
@@ -133,17 +129,18 @@ def get_identity_params(
     """
     attrs, _ = get_op_attrs(stmt)
     # Find the inner loop
-    while hasattr(stmt, "body"):
-        stmt = stmt.body
+    store = stmt
+    while hasattr(store, "body"):
+        store = store.body
 
     # loads = [input, LUT, LUT]
-    loads = get_loads(stmt)
+    loads = get_loads(store)
 
     input_pointer = loads[0].buffer.data
-    output_pointer = stmt.buffer.data
+    output_pointer = store.buffer.data
 
-    read = producers[input_pointer]
-    write = consumers[output_pointer]
+    read = producers_consumers.get_producer(input_pointer, stmt)
+    write = producers_consumers.get_consumer(output_pointer, stmt)
 
     serial_ifm, _ = _get_feature_map(read, "ifm")
     serial_ofm, write_output_pointer = _get_feature_map(write, "ofm")
@@ -151,9 +148,8 @@ def get_identity_params(
     replace_pointer = write_output_pointer
 
     is_allocator = True
-    if write_output_pointer not in producers:
-        is_allocator = False
-    elif producers[write_output_pointer] != write:
+    producer = producers_consumers.get_producer(write_output_pointer, write)
+    if producer is None or producer != write:
         is_allocator = False
 
     # TODO: We might want to support stand alone ReLU in the future by adding clip_min and

@@ -20,24 +20,6 @@ import tvm
 from tvm import arith
 
 
-# TODO(@mbaret): Formalise this with a specification
-def get_weights_buffer(tir_extern_call):
-    """Get the weights pointer from a NPU extern call if it exists"""
-    supported_ops = ["ethosu_conv2d", "ethosu_depthwise_conv2d"]
-    if tir_extern_call.args[0] in supported_ops:
-        return tir_extern_call.args[41].buffer
-    return None
-
-
-# TODO(@mbaret): Formalise this with a specification
-def get_scale_bias_buffer(tir_extern_call):
-    """Get the scale_bias pointer from a NPU extern call if it exists"""
-    supported_ops = ["ethosu_conv2d", "ethosu_depthwise_conv2d"]
-    if tir_extern_call.args[0] in supported_ops:
-        return tir_extern_call.args[44].buffer
-    return None
-
-
 def get_op_attrs(stmt):
     """Iterate through nested attribute statements accumulating their values
     in an attribute dictionary.

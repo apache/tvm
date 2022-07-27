@@ -22,6 +22,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/op.h>
 #include <tvm/tir/index_map.h>
+#include <tvm/tir/schedule/schedule.h>
 #include <tvm/tir/schedule/state.h>
 
 #include <tuple>
@@ -70,6 +71,15 @@ const PrimFuncNode* GetRootPrimFunc(const IRModule& mod, const StmtNode* root_bl
  * \return The root node of the sref tree which contains the given node.
  */
 StmtSRef GetSRefTreeRoot(const StmtSRef& sref);
+
+/*!
+ * \brief Find the entry function of the given IRModule, i.e, functions marked by
+ * `tir::attr::kIsEntryFunc`, whose name is `main` or being the only PrimeFunc.
+ * \param mod The IRModule to find the entry function.
+ * \param result_g_var The result GlobalVar of the entry function.
+ * \return The entry function.
+ */
+const PrimFuncNode* FindEntryFunc(const IRModule& mod, GlobalVar* result_g_var);
 
 /******** Scope ********/
 /*!
@@ -277,6 +287,17 @@ bool GetVarsTouchedByBlockIters(const BlockRealize& block_realize,
                                 std::unordered_set<const VarNode*>* data_par_vars,
                                 std::unordered_set<const VarNode*>* reduce_vars);
 
+/******** Loop properties ********/
+/*!
+ * \brief Check the loop starts with zero.
+ * \param self The schedule state
+ * \param loop_sref The StmtSRef that points to the loop to be checked
+ * \param analyzer The arithmetic analyzer
+ * \throw ScheduleError If the loop doesn't starts with zero.
+ */
+void CheckLoopStartsWithZero(const ScheduleState& self, const StmtSRef& loop_sref,
+                             arith::Analyzer* analyzer);
+
 /******** Block-loop relation ********/
 
 /*!
@@ -402,11 +423,24 @@ struct ProducerConsumerSplit {
  * \param self The schedule state.
  * \param block The queried block.
  * \param n The index of the queried buffer.
- * \param is_write A boolean flag to indicate querying write buffer or read buffer.
+ * \param index_type The type of the buffer index, kRead or kWrite.
  * \return The buffer of the n-th read/write region of the block.
  * \throw ScheduleError If the buffer index is out of bound.
  */
-Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n, bool is_write);
+Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n,
+                          BufferIndexType index_type);
+
+/*!
+ * \brief Get the n-th read or write buffer of the given block.
+ * \param self The schedule state.
+ * \param block The queried block.
+ * \param n The index of the queried buffer.
+ * \param index_type The type of the buffer index, kRead or kWrite.
+ * \return The n-th read/write region of the block.
+ * \throw ScheduleError If the buffer index is out of bound.
+ */
+BufferRegion GetNthAccessBufferRegion(const ScheduleState& self, const Block& block, int n,
+                                      BufferIndexType index_type);
 
 /*!
  * \brief Find the defining site of the buffer in the given block and its ancestors
@@ -615,6 +649,13 @@ bool IsTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref);
 bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref);
 
 /*!
+ * \brief Checks if all the blocks in the PrimFunc is spatial
+ * \param func The PrimFunc to be checked
+ * \return A boolean indicating whether all the blocks in the PrimFunc is spatial
+ */
+bool IsSpatialPrimFunc(const PrimFunc& func);
+
+/*!
  * \brief Checks if the rfactor or cross thread reduction is beneficial to the given block.
  * \param self The schedule state.
  * \param block_sref The block to be checked.
@@ -655,6 +696,89 @@ Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region, const P
                                              const StmtSRef& dom_low_inclusive,
                                              const StmtSRef& dom_high_exclusive,
                                              arith::Analyzer* analyzer);
+
+/*! \brief Necessary information used for tensorization */
+class TensorizeInfoNode : public Object {
+ public:
+  /*! \brief Maps loops in a target block to the ones in an intrinsic description */
+  Map<tir::StmtSRef, tir::For> loop_map;
+  /*! \brief Maps loops in an intrinsic description to its index, outer to inner */
+  Map<tir::For, Integer> desc_loop_indexer;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("loop_map", &loop_map);
+    v->Visit("desc_loop_indexer", &desc_loop_indexer);
+  }
+
+  static constexpr const char* _type_key = "tir.schedule.TensorizeInfo";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TensorizeInfoNode, Object);
+};
+
+class TensorizeInfo : public ObjectRef {
+ public:
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TensorizeInfo, ObjectRef, TensorizeInfoNode);
+};
+
+/*!
+ * \brief Establish a mapping between loops in a target block and an intrinsic description
+ * \param self The schedule state to be tensorized
+ * \param block_sref The target block to match against
+ * \param desc_func The prim func describing the computation to be tensorized
+ * \return TensorizeInfo structure if a valid mapping is found, NullOpt otherwise
+ */
+Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
+                                                const tir::StmtSRef& block_sref,
+                                                const tir::PrimFunc& desc_func);
+
+/*！\brief Necessary information used to perform transformations for tensorization */
+class AutoTensorizeMappingInfoNode : public Object {
+ public:
+  /*! \brief Possible mappings to apply to block iters */
+  Array<IndexMap> mappings;
+
+  /* Additional information from AutoTensorizeComparator */
+
+  /*! \brief Mapping from LHS buffer to RHS buffer */
+  Map<Buffer, Buffer> lhs_buffer_map;
+  /*! \brief Buffer indices on RHS */
+  Map<Buffer, Array<PrimExpr>> rhs_buffer_indices;
+  /*! \brief Block iters on LHS */
+  Array<IterVar> lhs_iters;
+  /*! \brief Block iters on RHS */
+  Array<IterVar> rhs_iters;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("mappings", &mappings);
+    v->Visit("lhs_buffer_map", &lhs_buffer_map);
+    v->Visit("rhs_buffer_indices", &rhs_buffer_indices);
+    v->Visit("lhs_iters", &lhs_iters);
+    v->Visit("rhs_iters", &rhs_iters);
+  }
+
+  static constexpr const char* _type_key = "tir.schedule.AutoTensorizeMappingInfo";
+  TVM_DECLARE_FINAL_OBJECT_INFO(AutoTensorizeMappingInfoNode, Object);
+};
+
+class AutoTensorizeMappingInfo : public ObjectRef {
+ public:
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(AutoTensorizeMappingInfo, ObjectRef,
+                                            AutoTensorizeMappingInfoNode);
+};
+
+/*!
+ * \brief Get mapping info between a target block and an intrinsic description including layout
+ * transformations to apply.
+ * \param self The schedule state
+ * \param block_sref The compute block for auto tensorization
+ * \param desc_func The prim func describing the computation to be tensorized
+ * \return AutoTensorizeMappingInfo structure if a potential mapping is found, NullOpt otherwise.
+ * \note Returning a valid AutoTensorizeMappingInfo doesn't guarantee the block can be tensorized.
+ * We will need to apply the suggested layout transformations and then match against the tensor
+ * intrinsics.
+ */
+Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(const ScheduleState& self,
+                                                               const StmtSRef& block_sref,
+                                                               const PrimFunc& desc_func);
 
 }  // namespace tir
 }  // namespace tvm

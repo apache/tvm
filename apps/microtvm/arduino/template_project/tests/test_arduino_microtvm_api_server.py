@@ -20,7 +20,10 @@ import sys
 from pathlib import Path
 from unittest import mock
 
+from packaging import version
 import pytest
+
+from tvm.micro.project_api import server
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import microtvm_api_server
@@ -63,53 +66,126 @@ class TestGenerateProject:
         )
         assert valid_output == valid_arduino_import
 
-    BOARD_CONNECTED_OUTPUT = bytes(
+    # Format for arduino-cli v0.18.2
+    BOARD_CONNECTED_V18 = (
         "Port         Type              Board Name          FQBN                        Core             \n"
         "/dev/ttyACM0 Serial Port (USB) Arduino Nano 33 BLE arduino:mbed_nano:nano33ble arduino:mbed_nano\n"
         "/dev/ttyACM1 Serial Port (USB) Arduino Nano 33     arduino:mbed_nano:nano33    arduino:mbed_nano\n"
         "/dev/ttyS4   Serial Port       Unknown                                                          \n"
-        "\n",
-        "utf-8",
+        "\n"
     )
-    BOARD_DISCONNECTED_OUTPUT = bytes(
-        "Port       Type        Board Name FQBN Core\n"
-        "/dev/ttyS4 Serial Port Unknown             \n"
-        "\n",
-        "utf-8",
+    # Format for arduino-cli v0.21.1 and above
+    BOARD_CONNECTED_V21 = (
+        "Port         Protocol Type Board Name FQBN                        Core             \n"
+        "/dev/ttyACM0 serial                   arduino:mbed_nano:nano33ble arduino:mbed_nano\n"
+        "\n"
+    )
+    BOARD_DISCONNECTED_V21 = (
+        "Port       Protocol Type        Board Name FQBN Core\n"
+        "/dev/ttyS4 serial   Serial Port Unknown\n"
+        "\n"
     )
 
+    def test_parse_connected_boards(self):
+        h = microtvm_api_server.Handler()
+        boards = h._parse_connected_boards(self.BOARD_CONNECTED_V21)
+        assert list(boards) == [
+            {
+                "port": "/dev/ttyACM0",
+                "protocol": "serial",
+                "type": "",
+                "board name": "",
+                "fqbn": "arduino:mbed_nano:nano33ble",
+                "core": "arduino:mbed_nano",
+            }
+        ]
+
     @mock.patch("subprocess.run")
-    def test_auto_detect_port(self, mock_subprocess_run):
+    def test_auto_detect_port(self, mock_run):
         process_mock = mock.Mock()
         handler = microtvm_api_server.Handler()
 
         # Test it returns the correct port when a board is connected
-        mock_subprocess_run.return_value.stdout = self.BOARD_CONNECTED_OUTPUT
+        mock_run.return_value.stdout = bytes(self.BOARD_CONNECTED_V18, "utf-8")
+        assert handler._auto_detect_port(self.DEFAULT_OPTIONS) == "/dev/ttyACM0"
+
+        # Should work with old or new arduino-cli version
+        mock_run.return_value.stdout = bytes(self.BOARD_CONNECTED_V21, "utf-8")
         assert handler._auto_detect_port(self.DEFAULT_OPTIONS) == "/dev/ttyACM0"
 
         # Test it raises an exception when no board is connected
-        mock_subprocess_run.return_value.stdout = self.BOARD_DISCONNECTED_OUTPUT
+        mock_run.return_value.stdout = bytes(self.BOARD_DISCONNECTED_V21, "utf-8")
         with pytest.raises(microtvm_api_server.BoardAutodetectFailed):
             handler._auto_detect_port(self.DEFAULT_OPTIONS)
 
         # Test that the FQBN needs to match EXACTLY
         handler._get_fqbn = mock.MagicMock(return_value="arduino:mbed_nano:nano33")
-        mock_subprocess_run.return_value.stdout = self.BOARD_CONNECTED_OUTPUT
+        mock_run.return_value.stdout = bytes(self.BOARD_CONNECTED_V18, "utf-8")
         assert (
             handler._auto_detect_port({**self.DEFAULT_OPTIONS, "arduino_board": "nano33"})
             == "/dev/ttyACM1"
         )
 
+    BAD_CLI_VERSION = "arduino-cli  Version: 0.7.1 Commit: 7668c465 Date: 2019-12-31T18:24:32Z\n"
+    GOOD_CLI_VERSION = "arduino-cli  Version: 0.21.1 Commit: 9fcbb392 Date: 2022-02-24T15:41:45Z\n"
+
     @mock.patch("subprocess.run")
-    def test_flash(self, mock_subprocess_run):
+    def test_auto_detect_port(self, mock_run):
+        handler = microtvm_api_server.Handler()
+        mock_run.return_value.stdout = bytes(self.GOOD_CLI_VERSION, "utf-8")
+        handler._check_platform_version(self.DEFAULT_OPTIONS)
+        assert handler._version == version.parse("0.21.1")
+
+        handler = microtvm_api_server.Handler()
+        mock_run.return_value.stdout = bytes(self.BAD_CLI_VERSION, "utf-8")
+        with pytest.raises(server.ServerError) as error:
+            handler._check_platform_version({"warning_as_error": True})
+        mock_run.reset_mock()
+
+    @mock.patch("subprocess.run")
+    def test_flash_retry(self, mock_run):
+        mock_run.return_value.stdout = bytes(self.GOOD_CLI_VERSION, "utf-8")
+
+        def side_effect(cmd, *args, **kwargs):
+            if cmd[1] == "upload":
+                raise subprocess.TimeoutExpired(cmd, kwargs["timeout"])
+            return mock.DEFAULT
+
+        mock_run.side_effect = side_effect
+
+        handler = microtvm_api_server.Handler()
+        handler._port = "/dev/ttyACM0"
+
+        # handler.flash will try flashing `handler.FLASH_MAX_RETRIES` times,
+        # after which it will raise a TimeoutExpired exception of its own
+        with pytest.raises(RuntimeError):
+            handler.flash(self.DEFAULT_OPTIONS)
+
+        # Test we checked version then called upload once per retry attempt,
+        # plus once to verify arduino-cli version.
+        assert mock_run.call_count == handler.FLASH_MAX_RETRIES + 1
+
+    @mock.patch("subprocess.run")
+    def test_flash(self, mock_run):
+        mock_run.return_value.stdout = bytes(self.GOOD_CLI_VERSION, "utf-8")
+
         handler = microtvm_api_server.Handler()
         handler._port = "/dev/ttyACM0"
 
         # Test no exception thrown when command works
         handler.flash(self.DEFAULT_OPTIONS)
-        mock_subprocess_run.assert_called_once()
+
+        # Test we checked version then called upload
+        assert mock_run.call_count == 2
+        assert mock_run.call_args_list[0][0] == (["arduino-cli", "version"],)
+        assert mock_run.call_args_list[1][0][0][0:2] == ["arduino-cli", "upload"]
+        mock_run.reset_mock()
 
         # Test exception raised when `arduino-cli upload` returns error code
-        mock_subprocess_run.side_effect = subprocess.CalledProcessError(2, [])
+        mock_run.side_effect = subprocess.CalledProcessError(2, [])
         with pytest.raises(subprocess.CalledProcessError):
             handler.flash(self.DEFAULT_OPTIONS)
+
+        # Version information should be cached and not checked again
+        mock_run.assert_called_once()
+        assert mock_run.call_args[0][0][0:2] == ["arduino-cli", "upload"]

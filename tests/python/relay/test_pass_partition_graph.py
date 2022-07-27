@@ -37,9 +37,9 @@ from tvm.relay.op.contrib.register import get_pattern_table
 from tvm.relay.build_module import bind_params_by_name
 
 
-# Leverage the pass manager to write a simple white list based annotator
+# Leverage the pass manager to write a simple allowed list based annotator
 @transform.function_pass(opt_level=0)
-class WhiteListAnnotator:
+class AllowedListAnnotator:
     def __init__(self, op_list, compiler):
         assert isinstance(op_list, (list, tuple, set))
         self.op_list = op_list
@@ -323,7 +323,7 @@ def test_extern_ccompiler_default_ops():
     f = relay.Function([x, y], concat)
     mod = tvm.IRModule()
     mod["main"] = f
-    mod = WhiteListAnnotator(["add", "subtract", "multiply"], "ccompiler")(mod)
+    mod = AllowedListAnnotator(["add", "subtract", "multiply"], "ccompiler")(mod)
     mod = transform.PartitionGraph()(mod)
     fused_mod = transform.FuseOps(2)(mod)
     expected_mod = expected()
@@ -372,7 +372,7 @@ def test_extern_compiler_sanitized_ops():
     f = relay.Function([x, y], concat)
     mod = tvm.IRModule()
     mod["main"] = f
-    mod = WhiteListAnnotator(["add", "subtract", "multiply"], "unsanitary-name++")(mod)
+    mod = AllowedListAnnotator(["add", "subtract", "multiply"], "unsanitary-name++")(mod)
     mod = transform.PartitionGraph()(mod)
     fused_mod = transform.FuseOps(2)(mod)
     expected_mod = expected()
@@ -446,7 +446,7 @@ def test_extern_ccompiler_multiple_functions():
     concat = relay.concatenate([log, exp], axis=0)
     f2 = relay.Function([a, b], concat)
     mod["subfunction"] = f2
-    mod = WhiteListAnnotator(["add", "subtract", "multiply"], "ccompiler")(mod)
+    mod = AllowedListAnnotator(["add", "subtract", "multiply"], "ccompiler")(mod)
     mod = transform.PartitionGraph()(mod)
 
     fused_mod = transform.FuseOps(2)(mod)
@@ -470,7 +470,7 @@ def test_extern_ccompiler():
     y_data = np.random.rand(2, 2).astype("float32")
     mod = tvm.IRModule()
     mod["main"] = f
-    mod = WhiteListAnnotator(["add", "subtract", "multiply"], "ccompiler")(mod)
+    mod = AllowedListAnnotator(["add", "subtract", "multiply"], "ccompiler")(mod)
     mod = transform.PartitionGraph()(mod)
 
     check_result(mod, {"x": x_data, "y": y_data}, (2, 2), (y_data * y_data) - (x_data + x_data))
@@ -587,7 +587,7 @@ def test_function_lifting():
         mod["main"] = func
         mod = relay.transform.InferType()(mod)
         op_list = ["nn.batch_norm", "nn.conv2d"]
-        mod = WhiteListAnnotator(op_list, "test_compiler")(mod)
+        mod = AllowedListAnnotator(op_list, "test_compiler")(mod)
 
         opt_pass = tvm.transform.Sequential(
             [
@@ -667,7 +667,7 @@ def test_function_lifting_inline():
         mod = tvm.IRModule()
         mod["main"] = func
         op_list = ["nn.batch_norm", "nn.conv2d"]
-        mod = WhiteListAnnotator(op_list, "test_compiler")(mod)
+        mod = AllowedListAnnotator(op_list, "test_compiler")(mod)
 
         opt_pass = tvm.transform.Sequential(
             [
@@ -745,7 +745,7 @@ def test_constant_propagation():
     f = bind_params_by_name(f, {"x": tvm.nd.array(ones)})
     mod = tvm.IRModule()
     mod["main"] = f
-    mod = WhiteListAnnotator(["add"], "ccompiler")(mod)
+    mod = AllowedListAnnotator(["add"], "ccompiler")(mod)
     mod = transform.PartitionGraph()(mod)
     mod = relay.transform.InferType()(mod)
 
@@ -919,6 +919,7 @@ def test_mixed_single_multiple_outputs():
 
 def test_dnnl_fuse():
     dnnl_patterns = get_pattern_table("dnnl")
+    dnnl_pat_dic = dict(dnnl_patterns)
     (
         conv2d_bias_relu_pat,
         conv2d_bias_sigmoid_pat,
@@ -926,11 +927,26 @@ def test_dnnl_fuse():
         conv2d_relu_pat,
         conv2d_sigmoid_pat,
     ) = (
-        dnnl_patterns[1],
-        dnnl_patterns[13],
-        dnnl_patterns[19],
-        dnnl_patterns[25],
-        dnnl_patterns[37],
+        (
+            "dnnl.conv2d_bias_relu",
+            dnnl_pat_dic["dnnl.conv2d_bias_relu"],
+        ),
+        (
+            "dnnl.conv2d_bias_sigmoid",
+            dnnl_pat_dic["dnnl.conv2d_bias_sigmoid"],
+        ),
+        (
+            "dnnl.conv2d_bias",
+            dnnl_pat_dic["dnnl.conv2d_bias"],
+        ),
+        (
+            "dnnl.conv2d_relu",
+            dnnl_pat_dic["dnnl.conv2d_relu"],
+        ),
+        (
+            "dnnl.conv2d_sigmoid",
+            dnnl_pat_dic["dnnl.conv2d_sigmoid"],
+        ),
     )
 
     def get_blocks(
@@ -1039,8 +1055,8 @@ def test_dnnl_fuse():
     def test_partition_mobilenet():
         mod, params = relay.testing.mobilenet.get_workload()
         mod = get_partitoned_mod(mod, params, dnnl_patterns)
-        # 27 fused conv + bn + relu, one dense and one softmax
-        assert len(mod.functions) - 1 == 29  # -1 for main
+        # 27 fused conv + bn + relu, one dense, one softmax and one global_avg_pooling
+        assert len(mod.functions) - 1 == 30  # -1 for main
 
     def test_exec(mod, params, ref_mod, ref_params, out_shape):
         ishape = (1, 3, 224, 224)
@@ -1144,7 +1160,7 @@ def test_multiple_use_of_an_output():
 
     def test_same_output_region():
         mod = get_mod()
-        mod = WhiteListAnnotator(["subtract", "log", "multiply"], "ccompiler")(mod)
+        mod = AllowedListAnnotator(["subtract", "log", "multiply"], "ccompiler")(mod)
         mod = transform.MergeCompilerRegions()(mod)
         mod = transform.PartitionGraph()(mod)
 
@@ -1153,7 +1169,7 @@ def test_multiple_use_of_an_output():
 
     def test_different_output_region():
         mod = get_mod()
-        mod = WhiteListAnnotator(["subtract", "log"], "ccompiler")(mod)
+        mod = AllowedListAnnotator(["subtract", "log"], "ccompiler")(mod)
         mod = transform.MergeCompilerRegions()(mod)
         mod = transform.PartitionGraph()(mod)
 

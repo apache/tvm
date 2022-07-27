@@ -19,20 +19,35 @@
 set -e
 set -u
 
+output_directory_parent=$(realpath ${PWD}/build)
+if [ $# -ge 1 ] && [[ "$1" == "--output" ]]; then
+    shift 1
+    output_directory_parent=$(realpath $1)
+    shift 1
+fi
+output_directory="${output_directory_parent}/hexagon_api_output"
+rm -rf ${output_directory}
+
+use_cache=false
+if [ $# -ge 1 ] && [[ "$1" == "--use-cache" ]]; then
+    use_cache=true
+    shift 1
+fi
+
 cd apps/hexagon_api
-rm -rf build
+if [ "$use_cache" = false ]; then
+    rm -rf build
+fi
 mkdir -p build
 cd build
-
-output_binary_directory=$(realpath ${PWD}/../../../build/hexagon_api_output)
-rm -rf ${output_binary_directory}
 
 cmake -DANDROID_ABI=arm64-v8a \
     -DANDROID_PLATFORM=android-28 \
     -DUSE_ANDROID_TOOLCHAIN="${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake" \
     -DUSE_HEXAGON_ARCH=v68 \
-    -DUSE_HEXAGON_SDK="${HEXAGON_SDK_PATH}" \
+    -DUSE_HEXAGON_SDK="${HEXAGON_SDK_ROOT}" \
     -DUSE_HEXAGON_TOOLCHAIN="${HEXAGON_TOOLCHAIN}" \
-    -DUSE_OUTPUT_BINARY_DIR="${output_binary_directory}" ..
+    -DUSE_OUTPUT_BINARY_DIR="${output_directory}" \
+    -DUSE_HEXAGON_GTEST="${HEXAGON_SDK_ROOT}/utils/googletest/gtest" ..
 
 make -j$(nproc)

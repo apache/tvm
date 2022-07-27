@@ -38,6 +38,8 @@
 #include <tvm/runtime/crt/graph_executor_module.h>
 #endif
 
+#include <tvm/runtime/crt/aot_executor_module.h>
+
 using namespace std::chrono;
 
 extern "C" {

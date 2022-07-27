@@ -62,7 +62,8 @@ class UpdatePointerStorageScopeAllReduce final : public UpdatePointerStorageScop
 class ThreadAllreduceBuilder final : public StmtExprMutator {
  public:
   explicit ThreadAllreduceBuilder(const TargetNode* target)
-      : target_(target), warp_size_(target->GetAttr<Integer>("thread_warp_size", 1).value()) {}
+      : target_(target),
+        warp_size_(target->GetAttr<Integer>("thread_warp_size", 1).value().IntValue()) {}
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent) {

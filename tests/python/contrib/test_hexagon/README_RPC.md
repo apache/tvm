@@ -144,7 +144,7 @@ void ArrayCopyFromBytes(DLTensor* handle, const void* data, size_t nbytes) {
 }
 ```
 
-The answer: `RPCDeviceAPI` defined below, not `HexagonDeviceAPIv2`.
+The answer: `RPCDeviceAPI` defined below, not `HexagonDeviceAPI`.
 
 [https://github.com/apache/tvm/blob/899bc064e1bf8df915bcadc979a6f37210cdce33/src/runtime/rpc/rpc_device_api.cc#L34](https://github.com/apache/tvm/blob/899bc064e1bf8df915bcadc979a6f37210cdce33/src/runtime/rpc/rpc_device_api.cc#L34)
 
@@ -173,7 +173,7 @@ GetSess(dev_from)->GetDeviceAPI(remote_dev)->CopyDataFromTo(&from_tensor, &to_te
 
 [https://github.com/apache/tvm/blob/899bc064e1bf8df915bcadc979a6f37210cdce33/src/runtime/rpc/rpc_device_api.cc#L94](https://github.com/apache/tvm/blob/899bc064e1bf8df915bcadc979a6f37210cdce33/src/runtime/rpc/rpc_device_api.cc#L94)
 
-At first, it is not obvious where this `CopyDataFromTo` jumps to (initially I thought it would jump to `HexagonDeviceAPIv2`). Since `GetSess(dev_from)` returns the client RPC connection between x86 and android, created during initialization in
+At first, it is not obvious where this `CopyDataFromTo` jumps to (initially I thought it would jump to `HexagonDeviceAPI`). Since `GetSess(dev_from)` returns the client RPC connection between x86 and android, created during initialization in
 
 [https://github.com/apache/tvm/blob/2cca934aad1635e3a83b712958ea83ff65704316/src/runtime/rpc/rpc_socket_impl.cc#L107](https://github.com/apache/tvm/blob/2cca934aad1635e3a83b712958ea83ff65704316/src/runtime/rpc/rpc_socket_impl.cc#L107)
 
@@ -275,7 +275,7 @@ class HexagonTransportChannel : public RPCChannel {
   }
 ```
 
-On construction, `hexagon_rpc_open` is called, which will initialize the TVM MinRPC server on Hexagon and overwrites `device_api.hexagon` registry to point to the call to `HexagonDeviceAPIv2`. [https://github.com/apache/tvm/blob/c20cbc55c03f9f048b151a1221469b9888123608/src/runtime/hexagon/rpc/hexagon/rpc_server.cc#L210-L213](https://github.com/apache/tvm/blob/c20cbc55c03f9f048b151a1221469b9888123608/src/runtime/hexagon/rpc/hexagon/rpc_server.cc#L210-L213)
+On construction, `hexagon_rpc_open` is called, which will initialize the TVM MinRPC server on Hexagon and overwrites `device_api.hexagon` registry to point to the call to `HexagonDeviceAPI`. [https://github.com/apache/tvm/blob/c20cbc55c03f9f048b151a1221469b9888123608/src/runtime/hexagon/rpc/hexagon/rpc_server.cc#L210-L213](https://github.com/apache/tvm/blob/c20cbc55c03f9f048b151a1221469b9888123608/src/runtime/hexagon/rpc/hexagon/rpc_server.cc#L210-L213)
 
 The endpoint routes each RPC packet by `Send` function, which in turn calls `hexagon_rpc_send(...)` defined in:
 
@@ -351,7 +351,7 @@ void HandleCopyFromRemote() {
   }
 ```
 
-And finally we see a call to `DeviceAPIManager::Get(dev)->CopyDataFromTo` which translates to `HexagonDeviceAPIv2::CopyDataFromTo` .
+And finally we see a call to `DeviceAPIManager::Get(dev)->CopyDataFromTo` which translates to `HexagonDeviceAPI::CopyDataFromTo` .
 
 [https://github.com/apache/tvm/blob/f929b0fc8e7a600978c9ac0418469bd70d046446/src/runtime/c_runtime_api.cc#L623-L630](https://github.com/apache/tvm/blob/f929b0fc8e7a600978c9ac0418469bd70d046446/src/runtime/c_runtime_api.cc#L623-L630)
 

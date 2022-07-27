@@ -22,7 +22,7 @@ from tvm import te
 from tvm.contrib import cublas
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 from .. import nn, generic
-from ..utils import traverse_inline, get_const_tuple, get_max_power2_factor, is_target
+from ..utils import traverse_inline, get_const_tuple, get_max_power2_factor
 from .tensor_intrin import dp4a
 
 
@@ -367,10 +367,7 @@ def _schedule_batch_matmul_int8(cfg, s, output):
     # dp4a tensorize
 
     target = tvm.target.Target.current(allow_none=False)
-    do_tensorize = True
-
-    if is_target(["vulkan", "rocm"]):
-        do_tensorize = "+dotprod" in target.mattr or target.supports_integer_dot_product
+    do_tensorize = "+dotprod" in target.mattr or target.supports_integer_dot_product
 
     if do_tensorize:
         dtypes = (input_x.dtype, input_y.dtype)

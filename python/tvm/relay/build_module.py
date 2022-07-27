@@ -22,9 +22,7 @@ import warnings
 
 import numpy as np
 from tvm.ir import IRModule
-from tvm.ir.transform import PassContext
 from tvm.target import Target
-from tvm.tir import expr as tvm_expr
 
 from .. import autotvm
 from .. import nd as _nd
@@ -44,44 +42,6 @@ from .backend import interpreter as _interpreter
 from .backend.utils import mangle_module_name
 from .backend.vm import VMExecutor
 from .transform import InferType
-
-
-def build_target_by_device_type_map(target):
-    """Build a map from DLDevice device_type to a Target used with that device.
-
-    At runtime, TVM assigns target code to DLDevices by determining a device_type for each Target.
-    This function handles this process at compile time and, as a side effect, validates that exactly
-    one target maps to one device_type.
-
-    Parameters
-    ----------
-    target : Target or str or dict
-       If a Target or str: assumes that exactly one device type is present in the model.
-       If a dict: keys are tvm.ndarray.device, values are the targets used for each device.
-
-    Returns
-    -------
-
-    """
-    target = target if target else Target.current()
-    if target is None:
-        raise ValueError("Target is not set in env or passed as argument.")
-
-    tgts = {}
-    if isinstance(target, (str, Target)):
-        dev_type = tvm_expr.IntImm("int32", _nd.device(str(target)).device_type)
-        tgts[dev_type] = Target(target)
-    elif isinstance(target, dict):
-        for dev, tgt in target.items():
-            dev_type = tvm_expr.IntImm("int32", _nd.device(dev).device_type)
-            tgts[dev_type] = Target(tgt)
-    else:
-        raise TypeError(
-            "target is expected to be str or "
-            + "tvm.target.Target, but received "
-            + "{}".format(type(target))
-        )
-    return tgts
 
 
 def _convert_param_map(params):
@@ -119,6 +79,7 @@ class BuildModule(object):
         executor=Executor("graph"),
         runtime=Runtime("cpp"),
         workspace_memory_pools=None,
+        constant_memory_pools=None,
         params=None,
         mod_name=None,
     ):
@@ -128,12 +89,11 @@ class BuildModule(object):
         mod : :py:class:`~tvm.IRModule`
             The IRModule to build.
 
-        target : str, :any:`tvm.target.Target`, or dict of str(i.e.
-        device/context name) to str/tvm.target.Target, optional
-            For heterogeneous compilation, it is a dictionary indicating context
-            to target mapping. For homogeneous compilation, it is a build target.
+        target : any multi-target like object, see Target.canon_multi_target
+            For homogeneous compilation, the unique build target.
+            For heterogeneous compilation, a dictionary or list of possible build targets.
 
-        target_host : str or :any:`tvm.target.Target`, optional
+        target_host : None, or any target-like object, see Target.canon_target
             Host compilation target, if target is device.
             When TVM compiles device specific program such as CUDA,
             we also need host(CPU) side code to interact with the driver
@@ -151,8 +111,13 @@ class BuildModule(object):
             Defaults to "cpp" if no runtime specified.
 
         workspace_memory_pools : Optional[WorkspaceMemoryPools]
-            The object that contains an Array of PoolInfo objects
-            that hold properties of workspace pools that could be
+            The object that contains an Array of WorkspacePoolInfo objects
+            that hold properties of read-write workspace pools that could be
+            used by the inference.
+
+        constant_memory_pools : Optional[ConstantMemoryPools]
+            The object that contains an Array of ConstantPoolInfo objects
+            that hold properties of read-only memory pools that could be
             used by the inference.
 
         params : dict of str to NDArray
@@ -173,53 +138,58 @@ class BuildModule(object):
         params : dict
             The parameters of the final graph.
         """
-        if target_host is not None:
-            warnings.warn(
-                "target_host parameter is going to be deprecated. "
-                "Please pass in tvm.target.Target(target, host=target_host) instead."
-            )
-        target = build_target_by_device_type_map(target)
-        target, target_host = Target.check_and_update_host_consist(
-            target, target_host, target_is_dict_key=False
-        )
+        # pylint: disable=import-outside-toplevel
+        from tvm.auto_scheduler import is_auto_scheduler_enabled
+        from tvm.meta_schedule import is_meta_schedule_enabled
 
+        # pylint: enable=import-outside-toplevel
         # Setup the params.
         if params:
             self._set_params(params)
 
         # Build the IR module. If auto_scheduler is not enabled,
         # then use the TOPI-defined schedule.
-        use_auto_scheduler = PassContext.current().config.get(
-            "relay.backend.use_auto_scheduler", False
-        )
 
         # Turn off AutoTVM config not found warnings if auto_scheduler is enabled.
         old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
-        autotvm.GLOBAL_SCOPE.silent = use_auto_scheduler or old_autotvm_silent
+        autotvm.GLOBAL_SCOPE.silent = (
+            is_auto_scheduler_enabled() or is_meta_schedule_enabled() or old_autotvm_silent
+        )
 
         mod_name = mangle_module_name(mod_name)
 
-        self._build(mod, target, target_host, executor, runtime, workspace_memory_pools, mod_name)
+        self._build(
+            mod,
+            target,
+            target_host,
+            executor,
+            runtime,
+            workspace_memory_pools,
+            constant_memory_pools,
+            mod_name,
+        )
         autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
         # Get artifacts
         mod = self.get_module()
         params = self.get_params()
-        executor_config = self.get_graph_json() if str(executor) == "graph" else None
+        executor_config = self.get_graph_json() if executor.name == "graph" else None
 
         return executor_config, mod, params
 
-    def optimize(self, mod, target=None, params=None):
+    def optimize(self, mod, target=None, target_host=None, params=None):
         """
         Parameters
         ----------
         mod : :py:class:`~tvm.IRModule`
             The IR module to build.
 
-        target : str, :any:`tvm.target.Target`, or dict of str(i.e.
-        device/context name) to str/tvm.target.Target, optional
-            For heterogeneous compilation, it is a dictionary indicating context
-            to target mapping. For homogeneous compilation, it is a build target.
+        target : any multi-target like object, see Target.canon_multi_target.
+            For homogeneous compilation, the unique build target.
+            For heterogeneous compilation, a dictionary or list of possible build targets.
+
+        target_host : None, or any target-like object, see Target.canon_target
+            Host compilation target, if target is device.
 
         params : dict of str to NDArray
             Input parameters to the graph that do not change
@@ -233,12 +203,12 @@ class BuildModule(object):
         params : dict
             The parameters of the final graph.
         """
-        target = build_target_by_device_type_map(target)
+        raw_targets = Target.canon_multi_target_and_host(target, target_host)
 
         # Setup the params.
         if params:
             self._set_params(params)
-        mod = self._optimize(mod, target)
+        mod = self._optimize(mod, raw_targets)
         # Get artifacts
         params = self.get_params()
 
@@ -280,7 +250,7 @@ class BuildModule(object):
         return ret
 
     def get_irmodule(self):
-        """Returns the Target IRModule's post-lowering"""
+        """Returns the TargetIRModule's post-lowering"""
         return self._get_irmodule()
 
 
@@ -291,8 +261,9 @@ def _module_export(module, file_name):  # fcompile, addons, kwargs?
 
 @register_func("tvm.relay.build")
 def _build_module_no_factory_impl(mod, target, target_host, params, mod_name):
-    target, target_host = Target.check_and_update_host_consist(target, target_host)
-    return build(mod, target, params=params, mod_name=mod_name).module
+    return build(
+        mod, target=target, target_host=target_host, params=params, mod_name=mod_name
+    ).module
 
 
 def _build_module_no_factory(mod, target=None, target_host=None, params=None, mod_name="default"):
@@ -373,6 +344,7 @@ def build(
     executor=Executor("graph"),
     runtime=Runtime("cpp"),
     workspace_memory_pools=None,
+    constant_memory_pools=None,
     params=None,
     mod_name="default",
 ):
@@ -385,18 +357,13 @@ def build(
     ir_mod : :py:class:`~tvm.IRModule`
         The IR module to build. Using relay.Function is deprecated.
 
-    target : str, :any:`tvm.target.Target`, or dict of str(i.e. device/context name) to str/tvm.target.Target, optional
-        For heterogeneous compilation, it is a dictionary indicating context to
-        target mapping. For homogeneous compilation, it is a build target.
+    target : None, or any multi-target like object, see Target.canon_multi_target
+        For homogeneous compilation, the unique build target.
+        For heterogeneous compilation, a dictionary or list of possible build targets.
+        Defaults to the current target in the environment if None.
 
-    target_host : str or :any:`tvm.target.Target`, optional
+    target_host : None, or any target like object, see Target.canon_target
         Host compilation target, if target is device.
-        When TVM compiles device specific program such as CUDA,
-        we also need host(CPU) side code to interact with the driver
-        setup the dimensions and parameters correctly.
-        target_host is used to specify the host side codegen target.
-        By default, llvm is used if it is enabled,
-        otherwise a stackvm interpreter is used.
 
     executor : Optional[Executor]
         The executor configuration with which to build the model.
@@ -407,8 +374,13 @@ def build(
         Defaults to "cpp" if no runtime specified.
 
     workspace_memory_pools : Optional[WorkspaceMemoryPools]
-        The object that contains an Array of PoolInfo objects
-        that hold properties of workspace pools that could be
+        The object that contains an Array of WorkspacePoolInfo objects
+        that hold properties of read-write workspace pools that could be
+        used by the inference.
+
+    constant_memory_pools : Optional[ConstantMemoryPools]
+        The object that contains an Array of ConstantPoolInfo objects
+        that hold properties of read-only pools that could be
         used by the inference.
 
     params : dict of str to NDArray
@@ -439,25 +411,13 @@ def build(
             DeprecationWarning,
         )
 
-    if target_host is not None:
-        warnings.warn(
-            "target_host parameter is going to be deprecated. "
-            "Please pass in tvm.target.Target(target, host=target_host) instead."
-        )
-
-    target, target_host = Target.check_and_update_host_consist(
-        target, target_host, target_is_dict_key=False
-    )
-
-    target = build_target_by_device_type_map(target)
-    if isinstance(target_host, (str, Target)):
-        target_host = Target(target_host)
-    elif target_host:
-        raise ValueError("target host must be the type of str, " + "tvm.target.Target, or None")
+    raw_targets = Target.canon_multi_target_and_host(Target.target_or_current(target), target_host)
+    assert len(raw_targets) > 0
+    target_host = raw_targets[0].host
 
     # All of this logic is to raise deprecation warnings for various parameters
     # TODO(Mousius) Remove these after some time
-    deprecated_params_target = target_host or list(target.values())[0]
+    deprecated_params_target = target_host or list(raw_targets)[0]
     deprecated_executor, deprecated_runtime = _reconstruct_from_deprecated_options(
         deprecated_params_target
     )
@@ -469,7 +429,7 @@ def build(
     # If current dispatch context is fallback context (the default root context),
     # then load pre-tuned parameters from TopHub
     if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
-        tophub_context = autotvm.tophub.context(list(target.values()))
+        tophub_context = autotvm.tophub.context(list(raw_targets))
     else:
         tophub_context = autotvm.utils.EmptyContext()
 
@@ -477,11 +437,12 @@ def build(
         bld_mod = BuildModule()
         graph_json, runtime_mod, params = bld_mod.build(
             mod=ir_mod,
-            target=target,
+            target=raw_targets,
             params=params,
             executor=executor,
             runtime=runtime,
             workspace_memory_pools=workspace_memory_pools,
+            constant_memory_pools=constant_memory_pools,
             mod_name=mod_name,
         )
         func_metadata = bld_mod.get_function_metadata()
@@ -489,11 +450,11 @@ def build(
         lowered_ir_mods = bld_mod.get_irmodule()
         executor_codegen_metadata = bld_mod.get_executor_codegen_metadata()
 
-        if str(executor) == "aot":
+        if executor.name == "aot":
             executor_factory = _executor_factory.AOTExecutorFactoryModule(
                 ir_mod,
                 lowered_ir_mods,
-                target,
+                raw_targets,
                 executor,
                 runtime,
                 runtime_mod,
@@ -503,9 +464,16 @@ def build(
                 executor_codegen_metadata,
                 devices,
             )
-        elif str(executor) == "graph":
+        elif executor.name == "graph":
             executor_factory = _executor_factory.GraphExecutorFactoryModule(
-                ir_mod, target, executor, graph_json, runtime_mod, mod_name, params, func_metadata
+                ir_mod,
+                raw_targets,
+                executor,
+                graph_json,
+                runtime_mod,
+                mod_name,
+                params,
+                func_metadata,
             )
         else:
             assert False, "Executor " + executor + " not supported"
@@ -521,10 +489,10 @@ def optimize(mod, target=None, params=None):
     mod : :py:class:`~tvm.IRModule`
         The module to build. Using relay.Function is deprecated.
 
-    target : str, :any:`tvm.target.Target`, or dict of str(i.e. device/context
-    name) to str/tvm.target.Target, optional
-        For heterogeneous compilation, it is a dictionary indicating context to
-        target mapping. For homogeneous compilation, it is a build target.
+    target : None, or any multi-target like object, see Target.canon_multi_target
+        For homogeneous compilation, the unique build target.
+        For heterogeneous compilation, a dictionary or list of possible build targets.
+        Defaults to the current target in the environment if None.
 
     params : dict of str to NDArray
         Input parameters to the graph that do not change
@@ -551,18 +519,18 @@ def optimize(mod, target=None, params=None):
             DeprecationWarning,
         )
 
-    target = build_target_by_device_type_map(target)
+    raw_targets = Target.canon_multi_target_and_host(Target.target_or_current(target))
 
     # If current dispatch context is fallback context (the default root context),
     # then load pre-tuned parameters from TopHub
     if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
-        tophub_context = autotvm.tophub.context(list(target.values()))
+        tophub_context = autotvm.tophub.context(raw_targets)
     else:
         tophub_context = autotvm.utils.EmptyContext()
 
     with tophub_context:
         bld_mod = BuildModule()
-        mod, params = bld_mod.optimize(mod, target, params)
+        mod, params = bld_mod.optimize(mod, target=raw_targets, params=params)
     return mod, params
 
 
@@ -602,8 +570,9 @@ class GraphExecutor(_interpreter.Executor):
     device : :py:class:`Device`
         The runtime device to run the code on.
 
-    target : :py:class:`Target`
-        The target option to build the function.
+    target : any multi-target like object, see Target.canon_multi_target
+        For homogeneous compilation, the unique build target.
+        For heterogeneous compilation, a dictionary or list of possible build targets.
     """
 
     def __init__(self, mod, device, target):
@@ -662,8 +631,9 @@ class AotExecutor(_interpreter.Executor):
     device : :py:class:`Device`
         The runtime device to run the code on.
 
-    target : :py:class:`Target`
-        The target option to build the function.
+    target : any multi-target like object, see Target.canon_multi_target
+        For homogeneous compilation, the unique build target.
+        For heterogeneous compilation, a dictionary or list of possible build targets.
     """
 
     def __init__(self, mod, device, target):
@@ -671,7 +641,6 @@ class AotExecutor(_interpreter.Executor):
         self.mod = mod
         self.device = device
         self.target = target
-        assert target.attrs.get("executor", "graph") == "aot"
 
     def _make_executor(self, expr=None):
         if expr:
@@ -751,8 +720,11 @@ def create_executor(kind="debug", mod=None, device=None, target="llvm", params=N
     device : :py:class:`Device`
         The device to execute the code.
 
-    target : :py:class:`tvm.Target`
-        The corresponding context
+    target : any multi-target like object, see Target.canon_multi_target
+        For homogeneous compilation, the unique build target.
+        For heterogeneous compilation, a dictionary or list of possible build targets.
+        CAUTION: Though this API allows multiple targets, it does not allow multiple devices, so
+        heterogenous compilation is not yet supported.
 
     params : dict of str to NDArray
          Input parameters to the graph that do not change
@@ -762,24 +734,31 @@ def create_executor(kind="debug", mod=None, device=None, target="llvm", params=N
     -------
     executor : :py:class:`~tvm.relay.backend.interpreter.Executor`
     """
+    raw_targets = Target.canon_multi_target(target)
     if mod is None:
         mod = IRModule()
     if device is not None:
-        assert device.device_type == _nd.device(str(target), 0).device_type
+        assert device.device_type == raw_targets[0].kind.device_type
     else:
-        device = _nd.device(str(target), 0)
+        # Derive the default device from the first target.
+        device = _nd.device(raw_targets[0].kind.device_type, 0)
 
     if params is not None:
         mod = IRModule.from_expr(bind_params_by_name(mod["main"], params))
 
-    if isinstance(target, str):
-        target = Target(target)
+    assert "executor" not in raw_targets[0].attrs or raw_targets[0].attrs["executor"] == kind
+
     if kind == "debug":
-        return _interpreter.Interpreter(mod, device, target)
+        assert len(raw_targets) == 1, "The interpreter currently only supports a single target"
+        return _interpreter.Interpreter(mod, device, raw_targets[0])
     if kind == "graph":
-        return GraphExecutor(mod, device, target)
+        return GraphExecutor(mod, device, raw_targets)
     if kind == "vm":
-        return VMExecutor(mod, device, target)
+        return VMExecutor(mod, device, raw_targets)
     if kind == "aot":
-        return AotExecutor(mod, device, target)
+        # The AOT requires the executor as a target attribute.
+        # (The compilation paths for the other executors currently do not always provide this
+        # attribute, hence the above generic assert is more forgiving).
+        assert "executor" in raw_targets[0].attrs
+        return AotExecutor(mod, device, raw_targets)
     raise RuntimeError("unknown execution strategy: {0}".format(kind))

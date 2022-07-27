@@ -47,7 +47,7 @@ logger = logging.getLogger("TVMC")
 
 
 @register_parser
-def add_tune_parser(subparsers, _):
+def add_tune_parser(subparsers, _, json_params):
     """Include parser for 'tune' subcommand"""
 
     parser = subparsers.add_parser("tune", help="auto-tune a model")
@@ -224,6 +224,9 @@ def add_tune_parser(subparsers, _):
         type=parse_shape_string,
     )
 
+    for one_entry in json_params:
+        parser.set_defaults(**one_entry)
+
 
 def drive_tune(args):
     """Invoke auto-tuning with command line arguments
@@ -233,6 +236,11 @@ def drive_tune(args):
     args: argparse.Namespace
         Arguments from command line parser.
     """
+    if not os.path.isfile(args.FILE):
+        raise TVMCException(
+            f"Input file '{args.FILE}' doesn't exist, is a broken symbolic link, or a directory."
+        )
+
     tvmc_model = frontends.load_model(args.FILE, args.model_format, shape_dict=args.input_shapes)
 
     # Specify hardware parameters, although they'll only be used if autoscheduling.
@@ -376,7 +384,7 @@ def tune_model(
         The path to the produced tuning log file.
     """
     target, extra_targets = target_from_cli(target, additional_target_options)
-    target, target_host = Target.check_and_update_host_consist(target, target_host)
+    target, target_host = Target.canon_target_and_host(target, target_host)
     # TODO(jwfromm) Remove this deepcopy once AlterOpLayout bug that mutates source
     # model is fixed. For now, creating a clone avoids the issue.
     mod = deepcopy(tvmc_model.mod)
@@ -516,7 +524,7 @@ def autotvm_get_tuning_tasks(
     tasks : list of autotvm.Tasks
         list of tasks to be tuned
     """
-    target, target_host = Target.check_and_update_host_consist(target, target_host)
+    target, target_host = Target.canon_target_and_host(target, target_host)
 
     if alter_layout:
         mod = convert_graph_layout(mod, alter_layout)
@@ -565,7 +573,7 @@ def autoscheduler_get_tuning_tasks(
     weights : List[int]
         the weight (i.e. the number of appearance) of extracted tasks
     """
-    target, target_host = Target.check_and_update_host_consist(target, target_host)
+    target, target_host = Target.canon_target_and_host(target, target_host)
 
     if alter_layout:
         mod = convert_graph_layout(mod, alter_layout)

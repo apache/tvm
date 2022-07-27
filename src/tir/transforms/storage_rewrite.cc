@@ -226,6 +226,8 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
 
   void VisitStmt_(const AssertStmtNode* op) final { VisitNewScope(op); }
 
+  void VisitStmt_(const LetStmtNode* op) final { VisitNewScope(op); }
+
   // linearized access sequence.
   std::vector<StmtEntry> linear_seq_;
   // The storage scope of each buffer
@@ -659,9 +661,11 @@ class StoragePlanRewriter : public StmtExprMutator {
                                   e->allocs[0]->condition, Evaluate(0));
           if (IsSpecialTaggedMemory(e->scope)) {
             MemoryInfo info = GetMemoryInfo(e->scope.to_string());
-            uint64_t total_elem = e->const_nbits / e->elem_type.bits();
-            ICHECK_LE(total_elem * e->elem_type.bits(), info->max_num_bits)
-                << "Allocation exceed bound of memory tag " << e->scope.to_string();
+            if (info.defined()) {
+              uint64_t total_elem = e->const_nbits / e->elem_type.bits();
+              ICHECK_LE(total_elem * e->elem_type.bits(), info->max_num_bits)
+                  << "Allocation exceed bound of memory tag " << e->scope.to_string();
+            }
           }
         } else {
           // Build a merged allocation
@@ -705,9 +709,11 @@ class StoragePlanRewriter : public StmtExprMutator {
               Allocate(e->alloc_var, alloc_type, {combo_size}, const_true(), Evaluate(0));
           if (IsSpecialTaggedMemory(e->scope)) {
             MemoryInfo info = GetMemoryInfo(e->scope.to_string());
-            uint64_t total_elem = e->const_nbits / e->elem_type.bits();
-            ICHECK_LE(total_elem * e->elem_type.bits(), info->max_num_bits)
-                << "Allocation exceed bound of memory tag " << e->scope.to_string();
+            if (info.defined()) {
+              uint64_t total_elem = e->const_nbits / e->elem_type.bits();
+              ICHECK_LE(total_elem * e->elem_type.bits(), info->max_num_bits)
+                  << "Allocation exceed bound of memory tag " << e->scope.to_string();
+            }
           }
         }
       }

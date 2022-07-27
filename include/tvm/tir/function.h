@@ -334,16 +334,6 @@ constexpr const char* kNoAlias = "tir.noalias";
 constexpr const char* kIsEntryFunc = "tir.is_entry_func";
 
 /*!
- * \brief Parameters used in the module that should be linked by the codegen.
- *
- * Type: Map<String, LinkableParam>
- *
- * \note This should be present only on a function named
- *     tvm::target::packed_func::kLookupLinkedParam.
- */
-constexpr const char* kLinkedParams = "tir.linked_params";
-
-/*!
  * \brief Mark the function as the global function called from the host.
  *
  * Type: Integer

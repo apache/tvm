@@ -31,8 +31,10 @@ tvm::transform::Pass RelayToTIR();
 runtime::Module TIRToRuntime(IRModule mod, Target target);
 
 TVM_REGISTER_TARGET_KIND("cmsis-nn", kDLCPU)
-    .set_attr<FTVMRelayToTIR>("RelayToTIR", RelayToTIR())
-    .set_attr<FTVMTIRToRuntime>("TIRToRuntime", TIRToRuntime);
+    .set_attr<FTVMRelayToTIR>(tvm::attr::kRelayToTIR, RelayToTIR())
+    .set_attr<FTVMTIRToRuntime>("TIRToRuntime", TIRToRuntime)
+    .add_attr_option<Array<String>>("mattr")
+    .add_attr_option<String>("mcpu");
 
 }  // namespace cmsisnn
 }  // namespace contrib

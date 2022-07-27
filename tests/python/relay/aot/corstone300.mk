@@ -32,13 +32,17 @@ NPU_VARIANT ?= U55
 
 MODEL = FVP_Corstone_SSE-300_Ethos-$(NPU_VARIANT)
 
-ARM_CPU=ARMCM55
+ARM_CPU ?= ARMCM55
+MCPU ?= cortex-m55
+MCPU_FLAGS ?=
+MFLOAT_ABI ?= hard
+
 DMLC_CORE=${TVM_ROOT}/3rdparty/dmlc-core
 ETHOSU_PATH=/opt/arm/ethosu
 DRIVER_PATH=${ETHOSU_PATH}/core_driver
 CMSIS_PATH=${ETHOSU_PATH}/cmsis
 PLATFORM_PATH=${ETHOSU_PATH}/core_platform/targets/corstone-300
-PKG_COMPILE_OPTS = -g -Wall -O2 -Wno-incompatible-pointer-types -Wno-format -mcpu=cortex-m55 -mthumb -mfloat-abi=hard -std=gnu99
+PKG_COMPILE_OPTS = -g -Wall -O2 -Wno-incompatible-pointer-types -Wno-format -mcpu=${MCPU}${MCPU_FLAGS} -mthumb -mfloat-abi=${MFLOAT_ABI} -std=gnu99
 CMAKE = /opt/arm/cmake/bin/cmake
 CC = arm-none-eabi-gcc
 AR = arm-none-eabi-ar
@@ -74,9 +78,8 @@ CC_CODEGEN_SRCS = $(shell find $(abspath $(CODEGEN_ROOT)/host/src/*.cc))
 C_CODEGEN_OBJS = $(subst .c,.o,$(C_CODEGEN_SRCS))
 CC_CODEGEN_OBJS = $(subst .cc,.o,$(CC_CODEGEN_SRCS))
 CMSIS_STARTUP_SRCS = $(shell find ${CMSIS_PATH}/Device/ARM/${ARM_CPU}/Source/*.c)
+CMSIS_NN_SRCS = $(shell find ${CMSIS_PATH}/CMSIS/NN/Source/*/*.c)
 UART_SRCS = $(shell find ${PLATFORM_PATH}/*.c)
-
-CMSIS_NN_LIBS = $(wildcard ${CMSIS_PATH}/CMSIS/NN/build/Source/*/*.a)
 
 ifdef ETHOSU_TEST_ROOT
 ETHOSU_DRIVER_LIBS = $(wildcard ${DRIVER_PATH}/build/*.a)
@@ -109,13 +112,19 @@ ${build_dir}/libcmsis_startup.a: $(CMSIS_STARTUP_SRCS)
 	$(QUIET)$(AR) -cr $(abspath $(build_dir)/libcmsis_startup.a) $(abspath $(build_dir))/libcmsis_startup/*.o
 	$(QUIET)$(RANLIB) $(abspath $(build_dir)/libcmsis_startup.a)
 
+${build_dir}/libcmsis_nn.a: $(CMSIS_NN_SRCS)
+	$(QUIET)mkdir -p $(abspath $(build_dir)/libcmsis_nn)
+	$(QUIET)cd $(abspath $(build_dir)/libcmsis_nn) && $(CC) -c $(PKG_CFLAGS) -D${ARM_CPU} $^
+	$(QUIET)$(AR) -cr $(abspath $(build_dir)/libcmsis_nn.a) $(abspath $(build_dir))/libcmsis_nn/*.o
+	$(QUIET)$(RANLIB) $(abspath $(build_dir)/libcmsis_nn.a)
+
 ${build_dir}/libuart.a: $(UART_SRCS)
 	$(QUIET)mkdir -p $(abspath $(build_dir)/libuart)
 	$(QUIET)cd $(abspath $(build_dir)/libuart) && $(CC) -c $(PKG_CFLAGS) $^
 	$(QUIET)$(AR) -cr $(abspath $(build_dir)/libuart.a) $(abspath $(build_dir))/libuart/*.o
 	$(QUIET)$(RANLIB) $(abspath $(build_dir)/libuart.a)
 
-$(build_dir)/aot_test_runner: $(build_dir)/test.c $(build_dir)/crt_backend_api.o $(build_dir)/stack_allocator.o ${build_dir}/libcmsis_startup.a ${build_dir}/libuart.a $(build_dir)/libcodegen.a $(CMSIS_NN_LIBS) $(ETHOSU_DRIVER_LIBS) $(ETHOSU_RUNTIME)
+$(build_dir)/aot_test_runner: $(build_dir)/test.c $(build_dir)/crt_backend_api.o $(build_dir)/stack_allocator.o $(build_dir)/libcodegen.a ${build_dir}/libcmsis_startup.a ${build_dir}/libcmsis_nn.a ${build_dir}/libuart.a $(ETHOSU_DRIVER_LIBS) $(ETHOSU_RUNTIME)
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) $(PKG_CFLAGS) $(ETHOSU_INCLUDE) -o $@ -Wl,--whole-archive $^ -Wl,--no-whole-archive $(PKG_LDFLAGS)
 

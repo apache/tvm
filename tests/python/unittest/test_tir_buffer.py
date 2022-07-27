@@ -76,6 +76,12 @@ def test_buffer_access_ptr_extent():
     aptr = Ab.access_ptr("rw", offset=100)
     assert tvm.ir.structural_equal(aptr.args[3], Ab.strides[0] * m - 100)
 
+    # Test extent from input params
+    aptr = Ab.access_ptr("rw", extent=200)
+    assert tvm.ir.structural_equal(aptr.args[3], 200)
+    aptr = Ab.access_ptr("rw", offset=100, extent=100)
+    assert tvm.ir.structural_equal(aptr.args[3], 100)
+
 
 def test_buffer_vload():
     m = te.size_var("m")
@@ -131,6 +137,7 @@ def test_buffer_index_merge_mult_mod():
 
     idxd = tvm.tir.indexdiv
     idxm = tvm.tir.indexmod
+
     # Test Case1
     index_simplified = A_stride.offset_of(
         (idxd(idxm(k0, k1), s), idxm(idxm(k0, k1), s) + idxd(k0, k1) * k1)
@@ -168,7 +175,7 @@ def test_buffer_index_merge_mult_mod():
     j = te.size_var("j")
     k = te.size_var("k")
 
-    index_simplified = B.offset_of(
+    index_simplified1 = B.offset_of(
         (
             idxd(idxd(idxd((i * 50176 + j * 28672 + k), 1024), 14), 14),
             idxm(idxd(idxd((i * 50176 + j * 28672 + k), 1024), 14), 14),
@@ -176,8 +183,17 @@ def test_buffer_index_merge_mult_mod():
             idxm((i * 50176 + j * 28672 + k), 1024),
         )
     )
+    index_simplified2 = B.offset_of(
+        (
+            idxd(idxd(i * 49 + j * 28 + idxd(k, 1024), 14), 14),
+            idxm(idxd(i * 49 + j * 28 + idxd(k, 1024), 14), 14),
+            idxm(i * 7 + idxd(k, 1024), 14),
+            idxm(k, 1024),
+        )
+    )
     index_direct = B.offset_of((0, 0, 0, (i * 50176 + j * 28672 + k)))
-    assert_simplified_equal(index_simplified, index_direct)
+    assert_simplified_equal(index_simplified1, index_direct)
+    assert_simplified_equal(index_simplified2, index_direct)
 
 
 @tvm.testing.requires_llvm

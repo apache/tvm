@@ -30,12 +30,8 @@ class IntSetChecker:
         def err_msg():
             return "\ndata={}\ndmap={}\nres={}\nexpected={}".format(data, dmap, res, expected)
 
-        def equal(x, y):
-            res = self.analyzer.simplify(x - y)
-            return tvm.tir.analysis.expr_deep_equal(res, 0)
-
-        assert equal(res.min_value, expected[0]), err_msg()
-        assert equal(res.max_value, expected[1]), err_msg()
+        assert self.analyzer.can_prove_equal(res.min_value, expected[0]), err_msg()
+        assert self.analyzer.can_prove_equal(res.max_value, expected[1]), err_msg()
 
 
 def test_basic():
@@ -324,6 +320,20 @@ def test_region_lower_bound_for_non_perfect_tile():
         },
         expect=None,
     )
+
+
+def test_region_lower_bound_unfusable():
+    var_dom = {
+        tvm.tir.Var("i", "int32"): tvm.ir.Range(8),
+        tvm.tir.Var("j", "int32"): tvm.ir.Range(4),
+    }
+    i, j = var_dom
+    region = [
+        tvm.ir.Range.from_min_extent((i + j) // 2, 1),
+    ]
+    result = tvm.arith.estimate_region_lower_bound(region, var_dom, predicate=True)
+    assert result[0].min_value == 0
+    assert result[0].max_value == 5
 
 
 def test_union_lower_bound():

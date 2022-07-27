@@ -26,6 +26,9 @@
 #   LAUNCHER_RPC_SKEL_C
 #   LAUNCHER_RPC_STUB_C
 
+if(USE_CUSTOM_LOGGING)
+  add_definitions(-DTVM_LOG_CUSTOMIZE=1)
+endif()
 if(NOT DEFINED USE_HEXAGON_SDK)
   message(SEND_ERROR "Please set USE_HEXAGON_SDK to the location of Hexagon SDK")
 endif()

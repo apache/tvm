@@ -254,6 +254,19 @@ def test_get_optimal_block_config():
         assert vela_api._get_optimal_block_config(test_case["test"]) == test_case["ref"]
 
 
+@pytest.mark.parametrize(
+    "block_config_str, expected_block_config",
+    [("4x4x8", vapi.NpuShape3D(4, 4, 8)), ("3x7x16", vapi.NpuShape3D(3, 7, 16))],
+)
+def test_force_block_config(block_config_str, expected_block_config):
+    config = {
+        "dev_force_block_config": block_config_str,
+    }
+    with tvm.transform.PassContext(config={"relay.ext.ethos-u.options": config}):
+        block_config = vela_api.get_optimal_block_config(None, vapi.NpuAccelerator.Ethos_U55_128)
+        assert block_config == expected_block_config
+
+
 def test_compress_weights():
     test_vecs = [
         {

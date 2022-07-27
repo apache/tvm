@@ -152,7 +152,7 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_
             bgemm[r_a][r_b][co][p] * A[r_a][vh] * A[r_b][vw], axis=[r_a, r_b]
         ),
         name="inverse",
-        attrs={"schedule_rule": "meta_schedule.winograd_inverse"},
+        attrs={"schedule_rule": "meta_schedule.winograd_inverse.cuda"},
     )
 
     # output
@@ -379,6 +379,7 @@ def conv2d_winograd_nhwc_cuda(
     out_dtype,
     pre_computed=False,
     auto_scheduler_rewritten_layout="",
+    meta_schedule_original_shape=None,
 ):
     """Conv2D Winograd in NHWC layout.
     This is a clean version to be used by the auto-scheduler for both CPU and GPU.

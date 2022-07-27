@@ -20,7 +20,8 @@ We use [synr](https://synr.readthedocs.io) to get an AST that is stable over
 different python versions. Synr also provides an error handling context that we
 use for error reporting.
 """
-# pylint: disable=invalid-name, inconsistent-return-statements, no-else-return
+# pylint: disable=invalid-name, inconsistent-return-statements, no-else-return, broad-except
+import types
 import json
 import operator
 import inspect
@@ -158,18 +159,22 @@ class TVMScriptParser(Transformer):
 
     # pylint gets confused here with synr.Transformer which doesn't have a
     # custom init, so just disable it
-    def __init__(self, base_lineno, tir_namespace):  # pylint: disable=super-init-not-called
+    def __init__(
+        self, base_lineno, tir_namespace, closure_vars
+    ):  # pylint: disable=super-init-not-called
         self.context = None
 
         self.base_lineno = base_lineno
         self.current_lineno = 0
         self.current_col_offset = 0
         self.tir_namespace = tir_namespace
+        self.closure_vars = closure_vars
         self.meta = None
+        self._inside_buffer_sugar = False
 
     def init_function_parsing_env(self):
         """Initialize function parsing environment"""
-        self.context = ContextMaintainer(self.report_error)  # scope emitter
+        self.context = ContextMaintainer(self.report_error, self.closure_vars)  # scope emitter
 
     def init_meta(self, meta_dict):
         if meta_dict is not None:
@@ -206,7 +211,7 @@ class TVMScriptParser(Transformer):
         ----------
         message : str
             Error message
-        span : Union[synr.ast.Span, tvm.ir.Span】
+        span : Union[synr.ast.Span, tvm.ir.Span]
             Location of the error
         """
         if isinstance(span, tvm.ir.Span):
@@ -356,7 +361,7 @@ class TVMScriptParser(Transformer):
         """
         if len(node.funcs) == 1:
             return self.transform(next(iter(node.funcs.values())))
-        elif len(node.func) == 0:
+        elif len(node.funcs) == 0:
             self.report_error(
                 "You must supply at least one class or function definition", node.span
             )
@@ -430,11 +435,23 @@ class TVMScriptParser(Transformer):
                 T.evaluate(0)  # 4. This function returns 0
         """
 
+        def check_as_torch_decorator(decorator: Union[ast.Call, ast.Var]):
+            if isinstance(decorator, ast.Call):
+                if len(decorator.params) != 1:
+                    return False
+                func_name = decorator.func_name
+            else:
+                func_name = decorator
+            if isinstance(func_name, ast.Var):
+                return func_name.id.name == "as_torch"
+
         def check_decorator(decorators: List[ast.Expr]) -> bool:
             """Check the decorator is `T.prim_func"""
-            if len(decorators) != 1:
+            if len(decorators) > 2 or len(decorators) == 0:
                 return False
-            d: ast.Expr = decorators[0]
+            if len(decorators) == 2 and not check_as_torch_decorator(decorators[0]):
+                return False
+            d: ast.Expr = decorators[-1]
             return (
                 isinstance(d, ast.Attr)
                 and isinstance(d.object, ast.Var)
@@ -521,7 +538,10 @@ class TVMScriptParser(Transformer):
         # add parameters of the lambda
         arg_vars = []
         for arg in node.params:
-            arg_var = tvm.te.var(arg.name)
+            # Use "void" for dtype here. The actual type is not yet known and will be
+            # determined later. Using void type will allow IRSubstitute to do the
+            # replacement without flagging a type-mismatch error.
+            arg_var = tvm.te.var(arg.name, dtype="")
             arg_vars.append(arg_var)
             self.context.update_symbol(arg.name, arg_var, node)
 
@@ -540,7 +560,7 @@ class TVMScriptParser(Transformer):
         AST abstract grammar:
             Assign(expr* targets, expr value, string? type_comment)
 
-        By now 3 patterns of Assign is supported:
+        By now 5 patterns of Assign is supported:
             1. special stmts with return value
                 1.1 Buffer = T.match_buffer()/T.buffer_decl()
                 1.2 Var = T.var()
@@ -549,6 +569,9 @@ class TVMScriptParser(Transformer):
             3. (Store)       Var[PrimExpr] = PrimExpr
             4. with scope handlers with concise scoping and var def
                 4.1 var = T.allocate()
+            5. A call to a pure python function, consuming and producing TVMScript values.
+               The outputs are inlined into the following body (no variable is created).
+               x, y = f(...)
         """
 
         if isinstance(node.rhs, ast.Call):
@@ -574,35 +597,65 @@ class TVMScriptParser(Transformer):
                 arg_list = self.parse_arg_list(func, node.rhs)
                 func.handle(node, self.context, arg_list, node.rhs.func_name.span)
                 return self.parse_body(node)
-            else:
-                value = self.transform(node.rhs)
-                if len(node.lhs) == 1 and not isinstance(node.lhs[0], ast.Var):
-                    # This is a little confusing because it only is true when
-                    # we have taken this branch. We might need to clarify what
-                    # exectly is allowed in Assignments in tvmscript.
+            elif isinstance(func, types.FunctionType):
+                # Pattern 5
+                args = [self.transform(arg) for arg in node.rhs.params]
+                try:
+                    out = func(*args)
+                except Exception as e:
                     self.report_error(
-                        "Left hand side of assignment must be an unqualified variable",
-                        node.span,
+                        "Error occured when invoking the function "
+                        + func.__name__
+                        + ": \n"
+                        + str(e),
+                        node.rhs.span,
                     )
-                ast_var = node.lhs[0]
 
-                if node.ty is None and hasattr(value, "dtype"):
-                    var_ty = value.dtype
-                else:
-                    var_ty = self.parse_type(node.ty, ast_var)
+                if len(node.lhs) == 1 and not isinstance(out, list):
+                    out = [out]
 
-                var = tvm.te.var(
-                    ast_var.id.name,
-                    var_ty,
-                    span=tvm_span_from_synr(ast_var.span),
-                )
-                self.context.update_symbol(var.name, var, node)
+                assert len(out) == len(node.lhs)
+
+                for var, value in zip(node.lhs, out):
+                    self.context.update_symbol(var.id.name, value, node)
+
                 body = self.parse_body(node)
-                self.context.remove_symbol(var.name)
-                return tvm.tir.LetStmt(var, value, body, span=tvm_span_from_synr(node.span))
+
+                for var, value in zip(node.lhs, out):
+                    self.context.remove_symbol(var.id.name)
+
+                return body
+
+        if isinstance(node.rhs, (ast.Call, ast.Constant)):
+            # Pattern 4 of let binding
+            value = self.transform(node.rhs)
+            if len(node.lhs) == 1 and not isinstance(node.lhs[0], ast.Var):
+                # This is a little confusing because it only is true when
+                # we have taken this branch. We might need to clarify what
+                # exectly is allowed in Assignments in tvmscript.
+                self.report_error(
+                    "Left hand side of assignment must be an unqualified variable",
+                    node.span,
+                )
+            ast_var = node.lhs[0]
+
+            if node.ty is None and hasattr(value, "dtype"):
+                var_ty = value.dtype
+            else:
+                var_ty = self.parse_type(node.ty, ast_var)
+
+            var = tvm.te.var(
+                ast_var.id.name,
+                var_ty,
+                span=tvm_span_from_synr(ast_var.span),
+            )
+            self.context.update_symbol(var.name, var, node)
+            body = self.parse_body(node)
+            self.context.remove_symbol(var.name)
+            return tvm.tir.LetStmt(var, value, body, span=tvm_span_from_synr(node.span))
 
         self.report_error(
-            """Assignments should be either
+            """Assignments should be one of:
             1. A "special statement" with return value
                 1.1 Buffer = T.match_buffer()/T.buffer_decl()
                 1.2 Var = T.var()
@@ -610,7 +663,10 @@ class TVMScriptParser(Transformer):
             2. A store into a buffer: Buffer[PrimExpr, PrimExpr, ..., PrimExpr] = PrimExpr
             3. A store into a variable: Var[PrimExpr] = PrimExpr
             4. A with scope handler with concise scoping and var def
-                4.1 var = T.allocate()""",
+                4.1 var = T.allocate()
+            5. The right-hand side being a call to a pure python function, consuming and
+               producing TVMScript values.
+               x, y = f(...)""",
             node.span,
         )
 
@@ -627,7 +683,14 @@ class TVMScriptParser(Transformer):
                     f"cannot be indexed by {len(indexes)}-dimensional indices.",
                     node.params[1].span,
                 )
+
+            def __convert_index(x):
+                if isinstance(x, Slice):
+                    return x.as_index_expr(self.report_error)
+                return x
+
             # BufferStore
+            indexes = [__convert_index(x) for x in indexes]
             return tvm.tir.BufferStore(
                 symbol,
                 tvm.runtime.convert(rhs, span=rhs_span),
@@ -708,7 +771,7 @@ class TVMScriptParser(Transformer):
         self.context.enter_scope(nodes=node.body.stmts)
         # for scope handler process the scope
         arg_list = [
-            tvm.runtime.convert(arg, span=node.rhs.span)
+            tvm.runtime.convert(arg, span=tvm_span_from_synr(node.rhs.span))
             for arg in self.parse_arg_list(func, node.rhs)
         ]
         func.enter_scope(node, self.context, arg_list, node.rhs.func_name.span)
@@ -739,9 +802,9 @@ class TVMScriptParser(Transformer):
             withitem = (expr context_expr, expr? optional_vars)
         By now 2 patterns of With is supported:
             1. with scope handler with symbol def
-                with T.block(*axes)/T.allocate() as targets:
+                with T.allocate() as targets:
             2. with scope handler without symbol def
-                with T.let()/T.Assert()/T.attr()/T.realize()
+                with T.block(*axes)/T.let()/T.Assert()/T.attr()/T.realize()
         """
 
         if not isinstance(node.rhs, ast.Call):
@@ -944,11 +1007,18 @@ class TVMScriptParser(Transformer):
         )
 
     def transform_Slice(self, node):
+        """Index slice visitor."""
         start = self.transform(node.start)
         end = self.transform(node.end)
-        if not (isinstance(node.step, ast.Constant) and node.step.value == 1):
-            self.report_error("Only step size 1 is supported for slices.", node.step.span)
-        return Slice(start, end)
+        if not (
+            isinstance(node.step, ast.Constant)
+            and isinstance(node.step.value, int)
+            and node.step.value > 0
+        ):
+            self.report_error(
+                "Only positive integer step size is supported for slices.", node.step.span
+            )
+        return Slice(start, end, node.step.value, tvm_span_from_synr(node.span))
 
     def transform_Subscript(self, node):
         """Array access visitor.
@@ -1162,6 +1232,9 @@ class TVMScriptParser(Transformer):
 
         See `transform_Constant`.
         """
+        if self._inside_buffer_sugar:
+            return self.transform_Constant(node)
+
         return node.value
 
     def transform_TypeTuple(self, node):
@@ -1170,6 +1243,22 @@ class TVMScriptParser(Transformer):
         Mostly used in `transform_TypeCall` and `transform_TypeApply`.
         """
         return [self.transform(value) for value in node.values]
+
+    def transform_TypeCall(self, node):
+        """TypeCall visitor
+
+        This occurs when an expression is used inside a T.Buffer
+        parameter annotation.
+        """
+
+        # ast.Call has the BuiltinOp as node.func_name.name, where
+        # ast.TypeCall has the BuiltinOp as node.func_name.  So we can
+        # delegate to self.transform_Call, but the error messages for
+        # unsupported operations will highlight the entire expression
+        # and not just the function itself.
+        op = ast.Op(node.span, node.func_name)
+        call = ast.Call(node.span, op, node.params, node.keyword_params)
+        return self.transform_Call(call)
 
     def transform_TypeApply(self, node):
         """Visitor for Type[Type] expressions.
@@ -1186,10 +1275,14 @@ class TVMScriptParser(Transformer):
             )
 
         param_types = []
-        for param in node.params:
+        for idx, param in enumerate(node.params):
             param_type = self.transform(param)
-            if not isinstance(param_type, ty.TypeGeneric):
-                self.report_error(f"Expected a type but found {type(param).__name__}", param.span)
+            if not isinstance(param_type, ty.TypeGeneric) and func.require_type_generic_at(idx):
+                self.report_error(
+                    f"Expected a type but found {type(param).__name__} "
+                    f"at {idx}th type argument",
+                    param.span,
+                )
 
             param_types.append(param_type)
 
@@ -1207,7 +1300,12 @@ class TVMScriptParser(Transformer):
         assert isinstance(func, SpecialStmt)
 
         # parse args and kwargs for TypeCall and TypeApply
-        arg_list = self.parse_arg_list(func, node)
+        self._inside_buffer_sugar = True
+        try:
+            arg_list = self.parse_arg_list(func, node)
+        finally:
+            self._inside_buffer_sugar = False
+
         # Note that the third element in arg_list would always be the 'name'
         # TODO: This index is hardcoded as a workaround. Better to make it programmatic
         if arg_list[2] is None:
@@ -1252,12 +1350,14 @@ def from_source(
     """
     if isinstance(input_func, str):
         tir_prefix = ["T", "tir"] if tir_prefix is None else tir_prefix
-        return to_ast(input_func, TVMDiagnosticCtx(), TVMScriptParser(0, tir_prefix))
+        return to_ast(input_func, TVMDiagnosticCtx(), TVMScriptParser(0, tir_prefix, {}))
     elif inspect.isfunction(input_func):
         _, start_line = inspect.getsourcelines(input_func)
         env: Dict[str, Any] = input_func.__globals__
         namespace = [key for key in env.keys() if env[key] is tir]
-        parser = TVMScriptParser(start_line, namespace)
+        _closure_vars = inspect.getclosurevars(input_func)
+        closure_vars = {**_closure_vars.nonlocals, **_closure_vars.globals}
+        parser = TVMScriptParser(start_line, namespace, closure_vars)
         result = to_ast(input_func, TVMDiagnosticCtx(), parser)
         return result
     else:

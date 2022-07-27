@@ -95,7 +95,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
    *
    * \return module type key.
    */
-  const char* type_key() const override { return "tensorrt"; }
+  const char* type_key() const final { return "tensorrt"; }
 
   /*!
    * \brief Initialize runtime. Create TensorRT layer from JSON
@@ -127,7 +127,9 @@ class TensorRTRuntime : public JSONRuntimeBase {
           max_workspace_size_ =
               std::stoul(nodes_[i].GetAttr<std::vector<std::string>>("max_workspace_size")[0]);
         }
-        return;
+      }
+      if (nodes_[i].HasAttr("use_fp16")) {
+        use_fp16_ = std::stoi(nodes_[i].GetAttr<std::vector<std::string>>("use_fp16")[0]);
       }
     }
   }
@@ -136,13 +138,21 @@ class TensorRTRuntime : public JSONRuntimeBase {
   /*! \brief Destroy engines and contexts. */
   void DestroyEngines() {
     for (auto& it : trt_engine_cache_) {
+      VLOG(1) << "Destroying TensorRT context for function '" << it.first.first << "' (batch size "
+              << it.first.second << ")";
       it.second.context->destroy();
+      VLOG(1) << "Destroying TensorRT engine for function '" << it.first.first << "' (batch size "
+              << it.first.second << ")";
       it.second.engine->destroy();
     }
     trt_engine_cache_.clear();
   }
 
-  ~TensorRTRuntime() { DestroyEngines(); }
+  ~TensorRTRuntime() override {
+    VLOG(1) << "Destroying TensorRT runtime";
+    DestroyEngines();
+    VLOG(1) << "Destroyed TensorRT runtime";
+  }
 
   /*! \brief Run inference using built engine. */
   void Run() override {
@@ -163,12 +173,14 @@ class TensorRTRuntime : public JSONRuntimeBase {
           const std::string name = nodes_[nid].GetOpName() + "_" + std::to_string(j);
           int binding_index = engine->getBindingIndex(name.c_str());
           ICHECK_NE(binding_index, -1);
+#if TRT_VERSION_GE(6, 0, 1)
           if (!use_implicit_batch_) {
             std::vector<int64_t> shape(data_entry_[eid]->shape,
                                        data_entry_[eid]->shape + data_entry_[eid]->ndim);
             auto dims = VectorToTrtDims(shape);
             ICHECK(context->setBindingDimensions(binding_index, dims));
           }
+#endif
           if (data_entry_[eid]->device.device_type == kDLCUDA) {
             bindings[binding_index] = data_entry_[eid]->data;
           } else {
@@ -298,8 +310,8 @@ class TensorRTRuntime : public JSONRuntimeBase {
       }
     }
 
-    LOG(INFO) << "Finished building TensorRT engine for subgraph " << symbol_name_
-              << " with batch size " << batch_size;
+    VLOG(1) << "Finished building TensorRT engine for subgraph " << symbol_name_
+            << " with batch size " << batch_size;
     CacheEngineToDisk();
     return trt_engine_cache_.at(std::make_pair(symbol_name_, batch_size));
   }
@@ -372,7 +384,8 @@ class TensorRTRuntime : public JSONRuntimeBase {
     helper.DeclareField("batch_size", &batch_size);
     helper.ReadAllFields(&reader);
     trt_engine_cache_[std::make_pair(symbol_name_, batch_size)] = engine_and_context;
-    LOG(INFO) << "finished saving engine and context ... ";
+    max_batch_size_ = batch_size;
+    LOG(INFO) << "finished loading engine and context ... ";
     return true;
   }
 
@@ -462,7 +475,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
   /*! \brief TensorRT logger. */
   TensorRTLogger logger_;
 
-#else
+#else   // TVM_GRAPH_EXECUTOR_TENSORRT
   void Run() override {
     LOG(FATAL) << "TensorRT runtime is not enabled. "
                << "Please build with USE_TENSORRT_RUNTIME.";
@@ -476,7 +489,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
   bool GetCachedEnginesFromDisk() { return false; }
 
   void CacheEngineToDisk() {}
-#endif
+#endif  // TVM_GRAPH_EXECUTOR_TENSORRT
 
   bool use_implicit_batch_;
 

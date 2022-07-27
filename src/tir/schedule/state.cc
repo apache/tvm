@@ -109,6 +109,7 @@ bool ProducerCoversConsumer(const Array<PrimExpr>& buffer_shape,
                                 analyzer->canonical_simplify(consumed_region[i].max()));
     produced = arith::Intersect({produced, buffer_size});
     consumed = arith::Intersect({consumed, buffer_size});
+
     if (!analyzer->CanProve((analyzer->canonical_simplify(produced.min() - consumed.min()) <= 0) &&
                             (analyzer->canonical_simplify(consumed.max() - produced.max()) <= 0))) {
       return false;
@@ -412,6 +413,7 @@ class StateCreator : private StmtVisitor {
     for (const auto& kv : n->mod->functions) {
       const BaseFunc& base_func = kv.second;
       if (const auto* func = base_func.as<PrimFuncNode>()) {
+        VerifyWellFormed(GetRef<PrimFunc>(func));
         creator.VisitStmt(func->body);
         BlockInfoCollector::Collect(self, func->body);
       }

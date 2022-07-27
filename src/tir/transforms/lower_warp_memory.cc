@@ -101,7 +101,7 @@ namespace tir {
 
 // Visitor to find m in pattern
 // store warp_mem[m * warp_index + (width * m) * y + x]
-class WarpStoreCoeffFinder : private StmtVisitor {
+class WarpStoreCoeffFinder : private StmtExprVisitor {
  public:
   WarpStoreCoeffFinder(const VarNode* buffer, Var warp_index, arith::Analyzer* analyzer)
       : buffer_(buffer), warp_index_(warp_index), analyzer_(analyzer) {}
@@ -113,6 +113,18 @@ class WarpStoreCoeffFinder : private StmtVisitor {
 
  private:
   /// Visitor implementation
+  void VisitExpr_(const CallNode* op) final {
+    if (op->op.same_as(builtin::ptx_ldmatrix()) && op->args[3].as<VarNode>() == buffer_) {
+      UpdatePattern(op->args[4]);
+    } else if (op->op.same_as(builtin::mma_fill()) && op->args[1].as<VarNode>() == buffer_) {
+      auto* local_size = op->args[0].as<IntImmNode>();
+      ICHECK(local_size) << "Integer expected for the first argument of mma_fill";
+      warp_coeff_ = local_size->value;
+    }
+
+    StmtExprVisitor::VisitExpr_(op);
+  }
+
   void VisitStmt_(const StoreNode* op) final {
     LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
   }
@@ -245,6 +257,37 @@ class WarpAccessRewriter : protected StmtExprMutator {
   }
 
  protected:
+  PrimExpr RewriteIndicesAt(const CallNode* op, const std::vector<int>& indices) {
+    Array<PrimExpr> new_args = op->args;
+    for (int i : indices) {
+      if (op->args[i].get() == buffer_) {
+        PrimExpr local_index = SplitIndexByGroup(op->args[i + 1]).first;
+        new_args.Set(i + 1, local_index);
+      }
+    }
+    return Call(op->dtype, op->op, new_args);
+  }
+
+  PrimExpr VisitExpr_(const CallNode* op) override {
+    if (op->op.same_as(builtin::ptx_mma())) {
+      return RewriteIndicesAt(op, {6, 8, 10});
+    }
+
+    if (op->op.same_as(builtin::ptx_ldmatrix())) {
+      return RewriteIndicesAt(op, {3});
+    }
+
+    if (op->op.same_as(builtin::mma_store())) {
+      return RewriteIndicesAt(op, {3});
+    }
+
+    if (op->op.same_as(builtin::mma_fill())) {
+      return RewriteIndicesAt(op, {1});
+    }
+
+    return StmtExprMutator::VisitExpr_(op);
+  }
+
   PrimExpr VisitExpr_(const VarNode* op) override {
     ICHECK(op != buffer_) << "Cannot access address of warp memory directly";
     return StmtExprMutator::VisitExpr_(op);
@@ -429,7 +472,7 @@ Pass LowerWarpMemory() {
     auto* n = f.CopyOnWrite();
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     ICHECK(target.defined()) << "LowerWarpMemory: Require the target attribute";
-    int warp_size = target.value()->GetAttr<Integer>("thread_warp_size", 1).value();
+    int warp_size = target.value()->GetAttr<Integer>("thread_warp_size", 1).value().IntValue();
     WarpMemoryRewriter warp_memory_rewriter(warp_size);
     auto stmt = warp_memory_rewriter.Rewrite(std::move(n->body));
     n->body = UpdatePointerStorageScope(warp_memory_rewriter.new_storage_scopes_)(stmt);

@@ -29,7 +29,8 @@ namespace contrib {
 namespace cmsisnn {
 
 static const char* mveCPUs[] = {"cortex-m55"};
-static const char* dspCPUs[] = {"cortex-m4", "cortex-m7", "cortex-m33", "cortex-m35p"};
+static const char* dspCPUs[] = {"cortex-m55", "cortex-m4", "cortex-m7", "cortex-m33",
+                                "cortex-m35p"};
 
 TVM_REGISTER_NODE_TYPE(CMSISNNCompilerConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("relay.ext.cmsisnn.options", CMSISNNCompilerConfig);

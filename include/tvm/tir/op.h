@@ -42,7 +42,6 @@ namespace tvm {
 
 // Most common operators can be overloaded by argument type(PrimExpr).
 // So we put them under the root namespace.
-// It is also necessary to overload operators for PrimExpr.
 //
 // We put more developer oriented APIs -- make_const and is_const under tir
 // as they are more specific to the tir namespace.
@@ -59,6 +58,15 @@ namespace tvm {
  * \sa tvm/ir/type.h for discussion about the relation between Type and runtime::DataType.
  */
 TVM_DLL Type GetType(const PrimExpr& expr);
+
+/*!
+ * \brief Get the type corresponding to DataType
+ * \param dtype The data type
+ * \return The result type
+ *
+ * \sa tvm/ir/type.h for discussion about the relation between Type and runtime::DataType.
+ */
+TVM_DLL Type GetTypeFromRuntimeDataType(const DataType& dtype);
 
 /*!
  * \brief Get the implied DataType for storing values with type during runtime.
@@ -135,16 +143,6 @@ TVM_DLL PrimExpr reinterpret(const DataType& t, PrimExpr value, Span span = Span
  */
 TVM_DLL PrimExpr add(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
- * \brief add operator
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator+(PrimExpr a, PrimExpr b);
-/*!
  * \brief subtraction operator
  *
  * \param a left operand
@@ -156,16 +154,6 @@ TVM_DLL PrimExpr operator+(PrimExpr a, PrimExpr b);
  */
 TVM_DLL PrimExpr sub(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
- * \brief subtraction operator
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator-(PrimExpr a, PrimExpr b);
-/*!
  * \brief negation.
  *
  * \param a input.
@@ -175,15 +163,6 @@ TVM_DLL PrimExpr operator-(PrimExpr a, PrimExpr b);
  *       index types(int32, int64) when possible.
  */
 TVM_DLL PrimExpr neg(PrimExpr a, Span span = Span());
-/*!
- * \brief negation.
- *
- * \param a input.
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator-(PrimExpr a);
 /*!
  * \brief multiplication operator
  *
@@ -196,26 +175,6 @@ TVM_DLL PrimExpr operator-(PrimExpr a);
  */
 TVM_DLL PrimExpr mul(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
- * \brief multiplication operator
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator*(PrimExpr a, PrimExpr b);
-/*!
- * \brief division operator
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator/(PrimExpr a, PrimExpr b);
-/*!
  * \brief left shift operator
  *
  * \param a left operand
@@ -226,16 +185,6 @@ TVM_DLL PrimExpr operator/(PrimExpr a, PrimExpr b);
  *       index types(int32, int64) when possible.
  */
 TVM_DLL PrimExpr left_shift(PrimExpr a, PrimExpr b, Span span = Span());
-/*!
- * \brief left shift operator
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator<<(PrimExpr a, PrimExpr b);
 /*!
  * \brief right shift operator
  *
@@ -248,16 +197,6 @@ TVM_DLL PrimExpr operator<<(PrimExpr a, PrimExpr b);
  */
 TVM_DLL PrimExpr right_shift(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
- * \brief right shift operator
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator>>(PrimExpr a, PrimExpr b);
-/*!
  * \brief greater
  *
  * \param a left operand
@@ -268,16 +207,6 @@ TVM_DLL PrimExpr operator>>(PrimExpr a, PrimExpr b);
  *       index types(int32, int64) when possible.
  */
 TVM_DLL PrimExpr greater(PrimExpr a, PrimExpr b, Span span = Span());
-/*!
- * \brief greater
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator>(PrimExpr a, PrimExpr b);
 /*!
  * \brief greater_equal
  *
@@ -290,16 +219,6 @@ TVM_DLL PrimExpr operator>(PrimExpr a, PrimExpr b);
  */
 TVM_DLL PrimExpr greater_equal(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
- * \brief greater_equal
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator>=(PrimExpr a, PrimExpr b);
-/*!
  * \brief less
  *
  * \param a left operand
@@ -310,16 +229,6 @@ TVM_DLL PrimExpr operator>=(PrimExpr a, PrimExpr b);
  *       index types(int32, int64) when possible.
  */
 TVM_DLL PrimExpr less(PrimExpr a, PrimExpr b, Span span = Span());
-/*!
- * \brief less
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator<(PrimExpr a, PrimExpr b);
 /*!
  * \brief less_equal
  *
@@ -332,16 +241,6 @@ TVM_DLL PrimExpr operator<(PrimExpr a, PrimExpr b);
  */
 TVM_DLL PrimExpr less_equal(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
- * \brief less_equal
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator<=(PrimExpr a, PrimExpr b);
-/*!
  * \brief equal
  *
  * \param a left operand
@@ -352,16 +251,6 @@ TVM_DLL PrimExpr operator<=(PrimExpr a, PrimExpr b);
  *       index types(int32, int64) when possible.
  */
 TVM_DLL PrimExpr equal(PrimExpr a, PrimExpr b, Span span = Span());
-/*!
- * \brief equal
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator==(PrimExpr a, PrimExpr b);
 /*!
  * \brief not_equal
  *
@@ -374,16 +263,6 @@ TVM_DLL PrimExpr operator==(PrimExpr a, PrimExpr b);
  */
 TVM_DLL PrimExpr not_equal(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
- * \brief not_equal
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator!=(PrimExpr a, PrimExpr b);
-/*!
  * \brief and
  *
  * \param a left operand
@@ -393,15 +272,6 @@ TVM_DLL PrimExpr operator!=(PrimExpr a, PrimExpr b);
  * \note This operator does eager constant folding.
  */
 TVM_DLL PrimExpr logical_and(PrimExpr a, PrimExpr b, Span span = Span());
-/*!
- * \brief and
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note This operator does eager constant folding.
- */
-TVM_DLL PrimExpr operator&&(PrimExpr a, PrimExpr b);
 /*!
  * \brief or
  *
@@ -413,15 +283,6 @@ TVM_DLL PrimExpr operator&&(PrimExpr a, PrimExpr b);
  */
 TVM_DLL PrimExpr logical_or(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
- * \brief or
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note This operator does eager constant folding.
- */
-TVM_DLL PrimExpr operator||(PrimExpr a, PrimExpr b);
-/*!
  * \brief not
  *
  * \param a left operand
@@ -430,14 +291,6 @@ TVM_DLL PrimExpr operator||(PrimExpr a, PrimExpr b);
  * \note This operator does eager constant folding.
  */
 TVM_DLL PrimExpr logical_not(PrimExpr a, Span span = Span());
-/*!
- * \brief not
- *
- * \param a left operand
- * \return The result expression.
- * \note This operator does eager constant folding.
- */
-TVM_DLL PrimExpr operator!(PrimExpr a);
 /*!
  * \brief compute division in C semantics.
  *
@@ -593,16 +446,6 @@ TVM_DLL PrimExpr min(PrimExpr a, PrimExpr b, Span span = Span());
  */
 TVM_DLL PrimExpr bitwise_and(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
- * \brief take bitwise and of two values
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator&(PrimExpr a, PrimExpr b);
-/*!
  * \brief take bitwise or of two values
  *
  * \param a left operand
@@ -613,16 +456,6 @@ TVM_DLL PrimExpr operator&(PrimExpr a, PrimExpr b);
  *       index types(int32, int64) when possible.
  */
 TVM_DLL PrimExpr bitwise_or(PrimExpr a, PrimExpr b, Span span = Span());
-/*!
- * \brief take bitwise or of two values
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator|(PrimExpr a, PrimExpr b);
 /*!
  * \brief take bitwise xor of two values
  *
@@ -635,16 +468,6 @@ TVM_DLL PrimExpr operator|(PrimExpr a, PrimExpr b);
  */
 TVM_DLL PrimExpr bitwise_xor(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
- * \brief take bitwise xor of two values
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator^(PrimExpr a, PrimExpr b);
-/*!
  * \brief take bitwise negation of two values
  *
  * \param a the input expression.
@@ -654,15 +477,6 @@ TVM_DLL PrimExpr operator^(PrimExpr a, PrimExpr b);
  *       index types(int32, int64) when possible.
  */
 TVM_DLL PrimExpr bitwise_neg(PrimExpr a, Span span = Span());
-/*!
- * \brief take bitwise negation of two values
- *
- * \param a the input expression.
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL PrimExpr operator~(PrimExpr a);
 /*!
  * \brief Conditional expression.
  *
@@ -862,18 +676,18 @@ TVM_DLL PrimExpr q_multiply_shift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr s
                                   Span span = Span());
 
 // Intrinsic operators
-#define TVM_DECLARE_INTRIN_UNARY(OpName)                       \
-  inline PrimExpr OpName(PrimExpr x, Span span = Span()) {     \
-    static const Op& op = Op::Get("tir." #OpName);             \
-    if (x.dtype().is_bfloat16()) {                             \
-      DataType srcType = x.dtype();                            \
-      DataType dstType(kDLFloat, 32, srcType.lanes());         \
-      PrimExpr castX = tir::Cast(dstType, {x}, span);          \
-      PrimExpr result = tir::Call(dstType, op, {castX}, span); \
-      return tir::Cast(srcType, {result}, span);               \
-    } else {                                                   \
-      return tir::Call(x.dtype(), op, {x}, span);              \
-    }                                                          \
+#define TVM_DECLARE_INTRIN_UNARY(OpName)                                \
+  inline PrimExpr OpName(PrimExpr x, Span span = Span()) {              \
+    static const Op& op = Op::Get("tir." #OpName);                      \
+    if (x.dtype().is_bfloat16()) {                                      \
+      DataType bf16_dtype = x.dtype();                                  \
+      DataType fp32_dtype(kDLFloat, 32, bf16_dtype.lanes());            \
+      PrimExpr x_fp32 = tir::Cast(fp32_dtype, {x}, span);               \
+      PrimExpr result_fp32 = tir::Call(fp32_dtype, op, {x_fp32}, span); \
+      return tir::Cast(bf16_dtype, {result_fp32}, span);                \
+    } else {                                                            \
+      return tir::Call(x.dtype(), op, {x}, span);                       \
+    }                                                                   \
   }
 
 TVM_DECLARE_INTRIN_UNARY(exp);
@@ -977,9 +791,9 @@ inline const int64_t* as_const_int(const PrimExpr& x) {
   if (!x.defined()) return nullptr;
   if (const tir::IntImmNode* op = x.as<tir::IntImmNode>()) {
     return &(op->value);
-  } else {
-    return nullptr;
   }
+
+  return nullptr;
 }
 
 /*!
@@ -1051,17 +865,7 @@ inline PrimExpr foldl(FReduce freduce, PrimExpr init_value, const Array<PrimExpr
 TVM_DLL bool is_const_power_of_two_integer(const PrimExpr& x, int* shift);
 
 // Implementation details after this
-inline bool is_const_int(const PrimExpr& x) {
-  if (x.as<tir::IntImmNode>()) {
-    return true;
-  } else if (const auto* op = x.as<tir::BroadcastNode>()) {
-    const PrimExpr& val = op->value;
-    if (val.as<tir::IntImmNode>()) {
-      return true;
-    }
-  }
-  return false;
-}
+inline bool is_const_int(const PrimExpr& x) { return as_const_int(x); }
 
 inline bool is_const_number(const PrimExpr& x) {
   if (x.as<tir::IntImmNode>()) {
@@ -1075,31 +879,18 @@ inline bool is_const_number(const PrimExpr& x) {
 }
 
 inline bool is_positive_const(const PrimExpr& a) {
-  if (const tir::IntImmNode* op = a.as<tir::IntImmNode>()) {
-    return op->value > 0;
-  } else {
-    return false;
-  }
+  const int64_t* as_int = as_const_int(a);
+  return as_int && (*as_int > 0);
 }
 
 inline bool is_negative_const(const PrimExpr& a) {
-  if (const tir::IntImmNode* op = a.as<tir::IntImmNode>()) {
-    return op->value < 0;
-  } else {
-    return false;
-  }
+  const int64_t* as_int = as_const_int(a);
+  return as_int && (*as_int < 0);
 }
 
 inline bool is_const_int(const PrimExpr& x, int64_t value) {
-  if (const auto* op = x.as<tir::IntImmNode>()) {
-    return op->value == value;
-  } else if (const auto* op = x.as<tir::BroadcastNode>()) {
-    const PrimExpr& val = op->value;
-    if (const auto* opv = val.as<tir::IntImmNode>()) {
-      return opv->value == value;
-    }
-  }
-  return false;
+  const int64_t* as_int = as_const_int(x);
+  return as_int && (*as_int == value);
 }
 
 inline bool is_no_op(const tir::Stmt& stmt) {

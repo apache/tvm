@@ -34,7 +34,6 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
-using ssize_t = int;
 #ifdef _MSC_VER
 #pragma comment(lib, "Ws2_32.lib")
 #endif
@@ -57,6 +56,7 @@ using ssize_t = int;
 #include <unordered_map>
 #include <vector>
 
+#include "../support/ssize.h"
 #include "../support/utils.h"
 
 #if defined(_WIN32)

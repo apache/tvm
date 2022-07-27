@@ -26,6 +26,7 @@
 
 #include <dmlc/json.h>
 #include <tvm/driver/driver_api.h>
+#include <tvm/relay/executor.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
@@ -81,8 +82,14 @@ class ExecutorCodegenMetadataNode : public Object {
   String interface_api;
   /*! \brief The internal API (packed or unpacked) in use */
   bool unpacked_api;
+  /*! \brief Alginment of the workspace in bytes */
+  Integer workspace_alignment;
+  /*! \brief Alginment of the constants in bytes */
+  Integer constant_alignment;
   /*! \brief the input var names that correspond to pool_inputs */
   Optional<Map<tir::Var, tir::usmp::AllocatedPoolInfo>> pool_inputs;
+  /*! \brief the I/O tensor to PoolAllocations if any*/
+  Map<String, tir::usmp::PoolAllocation> io_pool_allocations;
 
   String mod_name = "";
 
@@ -95,7 +102,10 @@ class ExecutorCodegenMetadataNode : public Object {
     v->Visit("devices", &devices);
     v->Visit("executor", &executor);
     v->Visit("unpacked_api", &unpacked_api);
+    v->Visit("workspace_alignment", &workspace_alignment);
+    v->Visit("constant_alignment", &constant_alignment);
     v->Visit("pool_inputs", &pool_inputs);
+    v->Visit("io_pool_allocations", &io_pool_allocations);
   }
 
   static constexpr const char* _type_key = "MetadataObj";
@@ -111,10 +121,11 @@ class ExecutorCodegenMetadata : public ObjectRef {
                                   Array<String> outputs, Array<TensorType> output_tensor_types,
                                   Array<tir::Var> pools, Array<String> devices, String executor,
                                   String mod_name, String interface_api = "packed",
-                                  bool unpacked_api = false,
+                                  bool unpacked_api = false, Integer workspace_alignment = 16,
+                                  Integer constant_alignment = 16,
                                   Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs =
-                                      Map<tir::Var, tir::usmp::AllocatedPoolInfo>());
-
+                                      Map<tir::Var, tir::usmp::AllocatedPoolInfo>(),
+                                  Map<String, tir::usmp::PoolAllocation> io_pool_allocations = {});
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ExecutorCodegenMetadata, ObjectRef,
                                         ExecutorCodegenMetadataNode);
 };
@@ -212,7 +223,11 @@ struct LoweredOutput {
   Map<Target, IRModule> lowered_funcs;
   Array<tvm::runtime::Module> external_mods;
   Map<String, FunctionInfo> function_metadata;
-  std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>> params;
+  /*!
+   * \brief Map from constant names (allocated by the codegen as constants are encountered)
+   * to the constant's value.
+   */
+  std::unordered_map<std::string, tvm::runtime::NDArray> params;
   ExecutorCodegenMetadata metadata;
 };
 
@@ -238,6 +253,7 @@ struct ConstantUpdater : public ExprVisitor {
 
   void VisitExpr_(const ConstantNode* cn) final {
     std::string name = symbol_ + "_const_" + std::to_string(const_idx_++);
+    VLOG(1) << "binding '" << name << "' to constant of type " << PrettyPrint(cn->checked_type());
     (*params_)[name] = cn->data;
   }
 
@@ -454,6 +470,10 @@ inline const CallNode* GetRootCall(const CallNode* current_call, int depth,
          current_call->args[valid_node_idx].as<VarNode>()) {
     valid_node_idx++;
   }
+  while (valid_node_idx < current_call->args.size() &&
+         !(IsOp(current_call->args[valid_node_idx].as<CallNode>(), expected_op_names[depth - 1]))) {
+    valid_node_idx++;
+  }
   const auto* next_call = current_call->args[valid_node_idx].as<CallNode>();
   return GetRootCall(next_call, depth - 1, expected_op_names);
 }
@@ -474,6 +494,38 @@ inline const CallNode* GetRootCall(const CallNode* current_call, const std::stri
 
   const auto* next_call = current_call->args[0].as<CallNode>();
   return GetRootCall(next_call, op_name);
+}
+
+/*!
+ * \brief Retrieve the expected "root" op nested inside a fused call, such as conv2d in
+ *        relu(add(conv2d))
+ * \param call A Relay call node. Typically nn.relu when called the first time.
+ * \param max_depth The maximum number of calls before the root op, counting from current_call.
+ * \param op_name The name of expected "root" op in this fused call.
+ * \return A CallNode corresponding to the root op
+ */
+inline const CallNode* GetRootCall(const CallNode* current_call, int max_depth,
+                                   const std::string& op_name) {
+  ICHECK(current_call && max_depth >= 0);
+
+  if (max_depth == 0) {
+    ICHECK(current_call && IsOp(current_call, op_name));
+    return current_call;
+  }
+  if (IsOp(current_call, op_name)) {
+    return current_call;
+  }
+
+  ICHECK_GT(current_call->args.size(), 0);
+
+  size_t valid_node_idx = 0;
+  while (valid_node_idx < current_call->args.size() &&
+         current_call->args[valid_node_idx].as<VarNode>()) {
+    valid_node_idx++;
+  }
+
+  const auto* next_call = current_call->args[valid_node_idx].as<CallNode>();
+  return GetRootCall(next_call, max_depth - 1, op_name);
 }
 
 /*!
@@ -512,11 +564,11 @@ inline bool IsMetaScheduleEnabled() {
  * difference. This function unifies the shared optimization pass prefix between vm and graph
  * runtime, and returns the pass prefix given the backend type.
  *
- * \param is_homogenous True if all primitives are to be executed on the same device and target.
+ * \param is_homogeneous True if all primitives are to be executed on the same device and target.
  * \param is_vm True if passes are to be used for the vm executor.
  * \return An array of passes.
  */
-Array<Pass> GetPassPrefix(bool is_homogenous, bool is_vm);
+Array<Pass> GetPassPrefix(bool is_homogeneous, bool is_vm);
 
 /*! \brief Target hash function */
 struct TargetStrHash {

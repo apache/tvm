@@ -24,7 +24,6 @@ fvp_dir="/opt/arm/FVP_Corstone_SSE-300"
 cmake_dir="/opt/arm/cmake"
 ethosu_dir="/opt/arm/ethosu"
 ethosu_driver_ver="21.11"
-cmsis_ver="5.8.0"
 
 mkdir -p /opt/arm
 
@@ -39,8 +38,7 @@ trap cleanup 0
 
 # Ubuntu 18.04 dependencies
 apt-get update
-
-apt-get install -y \
+apt-install-and-clear -y \
     bsdmainutils \
     build-essential \
     cpp \
@@ -76,7 +74,7 @@ curl --retry 64 -sSL ${gcc_arm_url} | tar -C /opt/arm/gcc-arm-none-eabi --strip-
 export PATH="/opt/arm/gcc-arm-none-eabi/bin:${PATH}"
 
 # Clone Arm(R) Ethos(TM)-U NPU driver stack
-mkdir "${ethosu_dir}"
+mkdir -p "${ethosu_dir}"
 cd "${ethosu_dir}"
 git clone "https://review.mlplatform.org/ml/ethos-u/ethos-u-core-driver" core_driver
 cd core_driver
@@ -87,18 +85,12 @@ git clone "https://review.mlplatform.org/ml/ethos-u/ethos-u-core-platform" core_
 cd core_platform
 git checkout tags/${ethosu_driver_ver}
 
-# Clone CMSIS
-cd "${ethosu_dir}"
-git clone "https://github.com/ARM-software/CMSIS_5.git" cmsis
-cd cmsis
-git checkout -f tags/${cmsis_ver}
-
 # Build Driver
 mkdir ${ethosu_dir}/core_driver/build && cd ${ethosu_dir}/core_driver/build
 cmake -DCMAKE_TOOLCHAIN_FILE=${ethosu_dir}/core_platform/cmake/toolchain/arm-none-eabi-gcc.cmake -DETHOSU_LOG_SEVERITY=debug -DTARGET_CPU=cortex-m55 ..
 make
 
 # Build NN Library
-mkdir ${ethosu_dir}/cmsis/CMSIS/NN/build/ && cd ${ethosu_dir}/cmsis/CMSIS/NN/build/
+mkdir ${CMSIS_PATH}/CMSIS/NN/build/ && cd ${CMSIS_PATH}/CMSIS/NN/build/
 cmake .. -DCMAKE_TOOLCHAIN_FILE=${ethosu_dir}/core_platform/cmake/toolchain/arm-none-eabi-gcc.cmake -DTARGET_CPU=cortex-m55 -DBUILD_CMSIS_NN_FUNCTIONS=YES
 make

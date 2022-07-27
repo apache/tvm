@@ -26,7 +26,7 @@
 
 #include <functional>
 
-#include "./functor_common.h"
+#include "functor_common.h"
 
 namespace tvm {
 namespace tir {
@@ -647,7 +647,16 @@ class IRSubstitute : public StmtExprMutator {
   PrimExpr VisitExpr_(const VarNode* op) final {
     Var var = GetRef<Var>(op);
     auto ret = vmap_(var);
-    if (ret.defined()) return ret.value();
+    if (ret.defined()) {
+      // Allow substitution of void variables with any expression. The TVM script parser
+      // uses void variables for lambda parameters (since exact types are not known yet).
+      if (!var.dtype().is_void()) {
+        PrimExpr ret_ex = Downcast<PrimExpr>(ret.value());
+        ICHECK(ret_ex.dtype() == var.dtype()) << "substituting " << var << ":" << var.dtype()
+                                              << " -> " << ret_ex << ":" << ret_ex.dtype();
+      }
+      return ret.value();
+    }
     return std::move(var);
   }
 
@@ -690,9 +699,10 @@ class IRSubstitute : public StmtExprMutator {
       return it->second;
     }
 
-    if (auto mapped_var = vmap_(buf->data)) {
+    auto new_buffer_var = vmap_(buf->data);
+    if (new_buffer_var.defined() && !new_buffer_var.value().same_as(buf->data)) {
       auto writer = buf.CopyOnWrite();
-      writer->data = Downcast<Var>(mapped_var);
+      writer->data = Downcast<Var>(new_buffer_var);
     }
 
     buf_remap_[key] = buf;
@@ -790,6 +800,10 @@ TVM_REGISTER_GLOBAL("tir.IRTransform").set_body_typed(IRTransform);
 
 TVM_REGISTER_GLOBAL("tir.PostOrderVisit").set_body_typed([](ObjectRef node, PackedFunc f) {
   tir::PostOrderVisit(node, [f](const ObjectRef& n) { f(n); });
+});
+
+TVM_REGISTER_GLOBAL("tir.PreOrderVisit").set_body_typed([](ObjectRef node, PackedFunc f) {
+  tir::PreOrderVisit(node, [f](const ObjectRef& n) { return f(n); });
 });
 
 TVM_REGISTER_GLOBAL("tir.Substitute")

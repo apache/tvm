@@ -19,10 +19,10 @@
 
 from typing import Optional, Union, List, Callable
 import synr
-
+from tvm.arith import Analyzer
 from tvm.runtime import ObjectGeneric, convert
-from tvm.tir import PrimExpr, Buffer, BufferLoad
-from tvm.ir import Span
+from tvm.tir import PrimExpr, Buffer, BufferLoad, IntImm, Ramp, BufferRegion
+from tvm.ir import Span, Range
 
 
 class Slice:
@@ -36,23 +36,48 @@ class Slice:
     stop : Optional[Union[PrimExpr, int]]
         The stop index, None means the Slice is an element-wise index
 
+    step : int
+        The slice step
+
     span : Optional[Span]
         The location of the slice in the source.
     """
 
     start: Union[PrimExpr, int]
     stop: Optional[Union[PrimExpr, int]]
+    step: int
     span: Optional[Span]
 
     def __init__(
         self,
         start: Union[PrimExpr, int],
         stop: Optional[Union[PrimExpr, int]] = None,
+        step: int = 1,
         span: Optional[Span] = None,
     ):
         self.start = start
         self.stop = stop
+        self.step = step
         self.span = span
+
+    def as_index_expr(self, report_error: Callable[[str, Union[Span, synr.ast.Span]], None]):
+        """Helper to create index PrimExpr from slice object
+        Parameters
+        ----------
+        report_error: Callable[[str, Union[Span, synr.ast.Span]], None]
+            The error report func
+        """
+        if self.stop is None:
+            # scalar index
+            return self.start
+        if self.step < 1:
+            report_error("Slice's step should be positive integer", self.span)
+        lanes = Analyzer().simplify((self.stop - self.start + self.step - 1) // self.step)
+        if not isinstance(lanes, (int, IntImm)):
+            report_error("Slice's lanes should be constant for buffer indices", self.span)
+        if lanes == 1:
+            return self.start
+        return Ramp(self.start, self.step, int(lanes), self.span)
 
 
 class BufferSlice(ObjectGeneric):
@@ -148,12 +173,46 @@ class BufferSlice(ObjectGeneric):
 
     def asobject(self) -> BufferLoad:
         """Convert object."""
-        for s in self.slices:
-            if s.stop is not None:
-                self.report_error("BufferLoad only accepts elementwise access", self.span)
-
-        indices = [s.start for s in self.slices]
+        indices = [s.as_index_expr(self.report_error) for s in self.slices]
         return BufferLoad(self.buffer, indices, span=self.span)
+
+    def as_buffer_region(self, analyzer: Optional[Analyzer] = None) -> BufferRegion:
+        """Construct BufferRegion from BufferSlice
+
+        Parameters
+        ----------
+        analyzer : Optional[tvm.arith.Analyzer]
+            The analyzer for simplifying. If not provided, the method will construct a new one
+
+        Returns
+        -------
+        buffer_region : BufferRegion
+            The constructed BufferRegion.
+        """
+        region: List[Range] = []
+        for s in self.slices:
+            start = s.start if isinstance(s.start, PrimExpr) else IntImm("int32", s.start)
+            extent = IntImm(start.dtype, 1) if s.stop is None else s.stop - s.start
+            if not analyzer:
+                analyzer = Analyzer()
+            if isinstance(extent, PrimExpr):
+                extent = analyzer.simplify(extent)
+            if s.step != 1:
+                self.report_error("BufferRegion do not support non-trivial stride", s.span)
+            region.append(Range.from_min_extent(start, extent, span=s.span))
+        return BufferRegion(self.buffer, region)
 
     def astype(self, dtype: str, span: Optional[Span] = None) -> PrimExpr:
         return self.asobject().astype(dtype, span)
+
+    @property
+    def dtype(self) -> str:
+        """Return the dtype referenced by the slice.
+
+        Implemented as a property so that ``slice.dtype`` has the same
+        calling convention as ``primexpr.dtype``.  This allows a
+        BufferSlice object can be assigned to a variable without
+        requiring a type annotation on the variable, similar to other
+        expressions.
+        """
+        return self.asobject().dtype

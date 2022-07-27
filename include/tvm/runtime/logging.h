@@ -286,7 +286,8 @@ namespace detail {
  *
  * \sa TVM_LOG_CUSTOMIZE
  */
-TVM_DLL void LogFatalImpl(const std::string& file, int lineno, const std::string& message);
+[[noreturn]] TVM_DLL void LogFatalImpl(const std::string& file, int lineno,
+                                       const std::string& message);
 
 /*!
  * \brief Custom implementations of LogMessage.
@@ -306,7 +307,7 @@ class LogFatal {
 #pragma disagnostic push
 #pragma warning(disable : 4722)
 #endif
-  ~LogFatal() TVM_THROW_EXCEPTION { LogFatalImpl(file_, lineno_, stream_.str()); }
+  [[noreturn]] ~LogFatal() TVM_THROW_EXCEPTION { LogFatalImpl(file_, lineno_, stream_.str()); }
 #ifdef _MSC_VER
 #pragma disagnostic pop
 #endif

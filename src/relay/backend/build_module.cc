@@ -61,7 +61,9 @@ struct BuildOutput {
 };
 
 struct ExecutorCodegen {
-  void Init(runtime::Module* m, TargetMap targets) { CallFunc("init", m, targets); }
+  void Init(runtime::Module* m, const Array<Target>& raw_targets) {
+    CallFunc("init", m, raw_targets);
+  }
 
   void Codegen(IRModule mod, const Function& func, String mod_name) {
     CallFunc("codegen", mod, func, mod_name);
@@ -80,17 +82,6 @@ struct ExecutorCodegen {
       // Implicit cast from runtime::String to std::string
       std::string key = expr;
       ret[key] = CallFunc<runtime::NDArray>("get_param_by_name", key);
-    }
-    return ret;
-  }
-
-  std::unordered_map<std::string, int64_t> GetParamIds() {
-    std::unordered_map<std::string, int64_t> ret;
-    auto names = CallFunc<Array<runtime::String>>("list_params_name", nullptr);
-    for (const auto& expr : names) {
-      // Implicit cast from runtime::String to std::string
-      std::string key = expr;
-      ret[key] = CallFunc<int64_t>("get_param_id", key);
     }
     return ret;
   }
@@ -190,8 +181,8 @@ class RelayBuildModule : public runtime::ModuleNode {
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetModule(); });
     } else if (name == "build") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        ICHECK_EQ(args.num_args, 7);
-        this->Build(args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+        ICHECK_EQ(args.num_args, 8);
+        this->Build(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]);
       });
     } else if (name == "list_params") {
       return PackedFunc(
@@ -296,20 +287,22 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \brief Build relay IRModule for graph executor
    *
    * \param mod Relay IRModule
-   * \param targets Target devices
-   * \param target_host Host target device
+   * \param raw_targets List of available targets for kernels.
    * \param executor Executor to target
    * \param runtime Runtime to codegen for
    * \param mod_name Name of the module
    */
-  void Build(IRModule mod, const TargetMap& targets, const tvm::Target& target_host,
+  void Build(IRModule mod, const Array<Target>& raw_targets, const tvm::Target& target_host,
              const Executor& executor, const Runtime& runtime,
-             const WorkspaceMemoryPools& workspace_memory_pools, const String mod_name) {
+             const WorkspaceMemoryPools& workspace_memory_pools,
+             const ConstantMemoryPools& constant_memory_pools, const String mod_name) {
     VLOG_CONTEXT << "Build";
     executor_ = executor;
     runtime_ = runtime;
     workspace_memory_pools_ = workspace_memory_pools;
-    config_ = CompilationConfig(PassContext::Current(), targets, target_host);
+    constant_memory_pools_ = constant_memory_pools;
+    config_ = CompilationConfig(PassContext::Current(), raw_targets);
+    VLOG(1) << "Using compilation config:" << std::endl << config_;
     BuildRelay(std::move(mod), mod_name);
   }
 
@@ -318,16 +311,14 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \brief Optimize a Relay IRModule.
    *
    * \param relay_module The input IRModule where optmization will be applied on.
-   * \param targets The device type to `Target` mapping.
+   * \param raw_targets List of available targets for kernels.
    *
    * \return relay::IRModule The updated Relay IR module after optimization.
    */
-  IRModule Optimize(IRModule relay_module, const TargetMap& targets) {
+  IRModule Optimize(IRModule relay_module, const Array<Target>& raw_targets) {
     VLOG_CONTEXT << "Optimize";
-    // TODO(mbs): executor_ will be whatever was left over from last Build. Note that
-    // the empty executor string will CHECK fail, so how are folks using this API?
-    config_ = CompilationConfig(transform::PassContext::Current(), targets,
-                                /*optional_host_target=*/Target());
+    config_ = CompilationConfig(PassContext ::Current(), raw_targets);
+    VLOG(1) << "Using compilation config:" << std::endl << config_;
     return OptimizeImpl(std::move(relay_module));
   }
 
@@ -336,14 +327,16 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     backend::BindParamsInModule(relay_module, params_);
 
-    Array<Pass> pass_seqs = GetPassPrefix(
-        /*is_homogenous=*/config_->optional_homogeneous_target.defined(), /*is_vm=*/false);
+    Array<Pass> pass_seqs =
+        GetPassPrefix(/*is_homogenous=*/config_->primitive_targets.size() == 1, /*is_vm=*/false);
     transform::PassContext pass_ctx = PassContext::Current();
 
     if (config_->optional_homogeneous_target.defined()) {
       // This pass currently only supports the homogeneous case.
       pass_seqs.push_back(transform::SplitArgs(
-          config_->optional_homogeneous_target->GetAttr<Integer>("max_function_args", -1).value()));
+          config_->optional_homogeneous_target->GetAttr<Integer>("max_function_args", -1)
+              .value()
+              .IntValue()));
     }
 
     // Always plan devices so the remaining passes don't need to distinguish homogeneous vs
@@ -365,6 +358,20 @@ class RelayBuildModule : public runtime::ModuleNode {
     // Do layout rewrite for auto-scheduler.
     if (backend::IsAutoSchedulerEnabled() && config_->optional_homogeneous_target.defined()) {
       Pass major_pass = transform::AutoSchedulerLayoutRewrite();
+      bool enable_layout_rewrite_targets =
+          config_->optional_homogeneous_target->kind->device_type == kDLCPU ||
+          config_->optional_homogeneous_target->GetAttr<String>("device", "") == "mali";
+      if (enable_layout_rewrite_targets && pass_ctx.PassEnabled(major_pass->Info())) {
+        With<Target> tctx(config_->optional_homogeneous_target);
+        relay_module = major_pass(relay_module);
+        // Defuse ops to fold constants, then fuse them again
+        relay_module = transform::DefuseOps()(relay_module);
+        relay_module = transform::FoldConstant()(relay_module);
+        relay_module = transform::FuseOps()(relay_module);
+      }
+    }
+    if (backend::IsMetaScheduleEnabled() && config_->optional_homogeneous_target.defined()) {
+      Pass major_pass = transform::MetaScheduleLayoutRewrite();
       bool enable_layout_rewrite_targets =
           config_->optional_homogeneous_target->kind->device_type == kDLCPU ||
           config_->optional_homogeneous_target->GetAttr<String>("device", "") == "mali";
@@ -414,11 +421,12 @@ class RelayBuildModule : public runtime::ModuleNode {
     IRModule func_module = WithAttrs(IRModule::FromExpr(func),
                                      {{tvm::attr::kExecutor, executor_},
                                       {tvm::attr::kRuntime, runtime_},
-                                      {tvm::attr::kWorkspaceMemoryPools, workspace_memory_pools_}});
+                                      {tvm::attr::kWorkspaceMemoryPools, workspace_memory_pools_},
+                                      {tvm::attr::kConstantMemoryPools, constant_memory_pools_}});
 
     // Generate code for the updated function.
     executor_codegen_ = MakeExecutorCodegen(executor_->name);
-    executor_codegen_->Init(nullptr, config_->legacy_target_map);
+    executor_codegen_->Init(nullptr, config_->primitive_targets);
     executor_codegen_->Codegen(func_module, func, mod_name);
     executor_codegen_->UpdateOutput(&ret_);
     ret_.params = executor_codegen_->GetParams();
@@ -450,9 +458,9 @@ class RelayBuildModule : public runtime::ModuleNode {
     }
 
     auto ext_mods = executor_codegen_->GetExternalModules();
-    ret_.mod =
-        tvm::codegen::CreateMetadataModule(ret_.params, ret_.mod, ext_mods, host_target, runtime_,
-                                           executor_codegen_->GetExecutorCodegenMetadata());
+    ret_.mod = tvm::codegen::CreateMetadataModule(ret_.params, ret_.mod, ext_mods, host_target,
+                                                  runtime_, executor_,
+                                                  executor_codegen_->GetExecutorCodegenMetadata());
     // Remove external params which were stored in metadata module.
     for (tvm::runtime::Module mod : ext_mods) {
       auto pf_var = mod.GetFunction("get_const_vars");
@@ -461,6 +469,7 @@ class RelayBuildModule : public runtime::ModuleNode {
         for (size_t i = 0; i < variables.size(); i++) {
           auto it = ret_.params.find(variables[i].operator std::string());
           if (it != ret_.params.end()) {
+            VLOG(1) << "constant '" << variables[i] << "' has been captured in external module";
             ret_.params.erase(it);
           }
         }
@@ -476,6 +485,8 @@ class RelayBuildModule : public runtime::ModuleNode {
   Runtime runtime_;
   /*! \brief Workspace memory pools to codegen for */
   WorkspaceMemoryPools workspace_memory_pools_;
+  /*! \brief Constant memory pools to codegen for */
+  ConstantMemoryPools constant_memory_pools_;
   /*! \brief parameters */
   std::unordered_map<std::string, runtime::NDArray> params_;
   /*! \brief building output */

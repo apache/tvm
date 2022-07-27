@@ -387,7 +387,9 @@ Token::Token(Span span, TokenType token_type, ObjectRef data) {
 
 Token Token::Null() { return Token(Span(SourceName(), 0, 0, 0, 0), TokenType::kNull); }
 
-int64_t Token::ToNumber() const { return Downcast<tvm::Integer>(this->operator->()->data); }
+int64_t Token::ToNumber() const {
+  return Downcast<tvm::Integer>(this->operator->()->data).IntValue();
+}
 
 std::string Token::ToString() const { return Downcast<tvm::String>(this->operator->()->data); }
 

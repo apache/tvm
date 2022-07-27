@@ -18,18 +18,23 @@
 """Scheduler for cascader which converts Proposals into Schedules."""
 from typing import Tuple, List, Dict, DefaultDict
 from collections import defaultdict
+import time
 import numpy as np
 
+import tvm
 from tvm import te
 from tvm import tir
+from tvm import PoolInfo
 from .cascader_options import CascaderOptions
 from .graph import CascaderGraph, Part, Tensor, TESubgraph
 from .parts import EthosuPart
 from .tensor_config import MemoryRegion
 from .proposal import Proposal
 from .proposal_generator import generate_proposals
+from .plan_generator import get_copy_cycles_hint
 from .graph import create_cascader_graph
 from .device_config import EthosuDeviceConfig
+from .logging import Logging
 
 
 def tile_nd(
@@ -44,7 +49,7 @@ def tile_nd(
     tensor : te.Tensor
         The tensor to apply the tiling to.
     tile : Tuple[int, ...]
-        The N-dimensional tile size.
+        The N-dimensional tile size
 
     Returns
     -------
@@ -78,8 +83,8 @@ def stripe_part(
         include_inputs=False,
     )
     g.compute_at(sch[te_output_tensor], outer_indices[-1])
-    for ax in outer_indices:
-        sch[te_output_tensor].unroll(ax)
+    for axis in outer_indices:
+        sch[te_output_tensor].unroll(axis)
 
     return sch[te_output_tensor], outer_indices[-1]
 
@@ -130,7 +135,11 @@ def apply_proposal(proposal: Proposal, sch: te.Schedule) -> None:
             if isinstance(part, EthosuPart):
                 tensor_config = plan.tensor_configs[part.output_tensor]
                 stripe_config = tensor_config.stripe_configs[0]
+                buffer_mode = tensor_config.buffer_mode
                 block_config = part.get_block_config(stripe_config)
+                compute_cycles = part.get_performance_info(
+                    stripe_config, buffer_mode
+                ).compute_cycles
                 iv = part.subgraph.output_tensor.op.axis[0]
                 block_shape = block_config.output_shape
                 if len(block_shape) == 4:
@@ -143,6 +152,10 @@ def apply_proposal(proposal: Proposal, sch: te.Schedule) -> None:
                 sch[part.subgraph.output_tensor].pragma(iv, "block_config_width", width)
                 sch[part.subgraph.output_tensor].pragma(iv, "block_config_depth", depth)
 
+                # Attach AttrStmt directly to npu op so it isn't removed by ReplaceOperators
+                npu_op = part.subgraph.output_tensor.op.input_tensors[0].op.input_tensors[0]
+                sch[npu_op].pragma(npu_op.op.axis[0], "compute_cycles_hint", compute_cycles)
+
         output_tensor_config = plan.output_config
         output_tensor = output_tensor_config.tensor
         output_part = output_tensor.producers[0]
@@ -152,6 +165,7 @@ def apply_proposal(proposal: Proposal, sch: te.Schedule) -> None:
         stripe_shape = [int(x) for x in stripe_config.shape]
         stripe_stage, stripe_axis = stripe_part(output_part, stripe_shape, sch)
         copy_te_tensors = []
+        compute_cycles_hints = []
         readers = defaultdict(list)
         for part in plan.part_group:
             if part != output_part:
@@ -163,8 +177,14 @@ def apply_proposal(proposal: Proposal, sch: te.Schedule) -> None:
                 if tensor_config.home_region != tensor_config.copy_region:
                     copy_te_tensors.append(part.subgraph.input_tensors[i])
 
-        for te_tensor in copy_te_tensors:
+                    compute_cycles_hint, _ = get_copy_cycles_hint(tensor_config)
+                    compute_cycles_hints.append(compute_cycles_hint)
+
+        for te_tensor, compute_cycles_hint in zip(copy_te_tensors, compute_cycles_hints):
             copy_stage = sch.cache_read(te_tensor, "global", readers[te_tensor])
+            sch[copy_stage].pragma(
+                copy_stage.op.axis[0], "compute_cycles_hint", compute_cycles_hint
+            )
             sch[copy_stage].compute_at(stripe_stage, stripe_axis)
 
 
@@ -187,15 +207,51 @@ def create_home_map(
     return home_map
 
 
-def choose_proposal(proposals: List[Proposal], cascade_region: MemoryRegion):
+def choose_proposal(
+    proposals: List[Proposal], cascade_region: MemoryRegion, select_proposal_idx: int
+):
     """Choose the best performing Proposal that doesn't overflow the cascade region."""
-    proposal_choice = proposals[0]
-    for proposal in reversed(proposals):
-        if proposal.memory_usage < cascade_region.size:
-            proposal_choice = proposal
-            break
+    if select_proposal_idx != -1:
+        # Manually select proposal based on index, take modulus the total number of proposals to
+        # ensure that some proposal is always selected.
+        proposal_choice = proposals[select_proposal_idx % len(proposals)]
+    else:
+        proposal_choice = proposals[0]
+        for proposal in reversed(proposals):
+            if proposal.memory_usage < cascade_region.size:
+                proposal_choice = proposal
+                break
 
     return proposal_choice
+
+
+def extract_memory_info(memory_pool: PoolInfo, memory_pressure: int) -> MemoryRegion:
+    "Create a MemoryRegion based on the info in the memory pool"
+    size = int(memory_pool.size_hint_bytes - memory_pressure)
+    read_bandwidth = int(memory_pool.read_bandwidth_bytes_per_cycle)
+    write_bandwidth = int(memory_pool.write_bandwidth_bytes_per_cycle)
+
+    for param in (size, read_bandwidth, write_bandwidth):
+        assert param != -1, f"{param} needs to be specified for the cascader."
+
+    name_to_burst_length = {
+        target.kind.name: burst for target, burst in memory_pool.target_burst_bytes.items()
+    }
+
+    try:
+        burst_length = int(name_to_burst_length["ethos-u"])
+    except KeyError:
+        burst_length = 1
+
+    return MemoryRegion(
+        name=memory_pool.pool_name,
+        size=size,
+        read_bandwidth=read_bandwidth,
+        write_bandwidth=write_bandwidth,
+        read_latency=int(memory_pool.read_latency_cycles),
+        write_latency=int(memory_pool.write_latency_cycles),
+        burst_length=burst_length,
+    )
 
 
 def cascade(
@@ -241,6 +297,17 @@ def cascade(
         Target device configuration.
 
     """
+    tvmc_options = tvm.transform.PassContext.current().config.get("relay.ext.ethos-u.options", None)
+    log = Logging() if tvmc_options and tvmc_options.dev_cascader_logging else None
+    select_proposal_idx = (
+        int(tvmc_options.dev_select_proposal_idx)
+        if tvmc_options and tvmc_options.dev_select_proposal_idx
+        else -1
+    )
+
+    if log:
+        start = time.time()
+
     assert options.cascade_region in working_regions
     # First convert the Tensor Expression graph into a CascaderGraph
     casc_graph = create_cascader_graph(te_graph, const_dict, device_config)
@@ -249,6 +316,16 @@ def cascade(
     # Generate Proposals for Pareto-optimal ways to cascade the CascaderGraph
     proposals = generate_proposals(casc_graph, home_map, options)
     # Select the best Proposal subject to the memory constraints
-    proposal_choice = choose_proposal(proposals, options.cascade_region)
+    proposal_choice = choose_proposal(proposals, options.cascade_region, select_proposal_idx)
+
+    if log:
+        for idx, proposal in enumerate(proposals):
+            log.add_proposal(idx, proposal.memory_usage, proposal.cycles)
+            if proposal == proposal_choice:
+                log.selected_proposal_idx = idx
+
+        log.cascader_runtime = time.time() - start
+        log.dump_json()
+
     # Apply the selected Proposal to the Tensor Expression Schedule
     apply_proposal(proposal_choice, sch)

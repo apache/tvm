@@ -16,6 +16,7 @@
 # under the License.
 """Unit tests for annotations."""
 import tvm
+import tvm.testing
 from tvm import relay
 import pytest
 
@@ -62,6 +63,4 @@ def test_on_device_free():
 
 
 if __name__ == "__main__":
-    import sys
-
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

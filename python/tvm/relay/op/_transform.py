@@ -68,7 +68,12 @@ _reg.register_injective_schedule("adv_index")
 
 
 # concatenate
-_reg.register_schedule("concatenate", strategy.schedule_concatenate)
+@_reg.register_compute("concatenate")
+def compute_concat(attrs, inputs, output_type):
+    return [topi.concatenate(inputs, attrs.axis)]
+
+
+_reg.register_strategy("concatenate", strategy.concatenate_strategy)
 
 # sliding_window
 @_reg.register_compute("sliding_window")
@@ -93,6 +98,8 @@ _reg.register_injective_schedule("layout_transform")
 _reg.register_pattern("layout_transform", OpPattern.INJECTIVE)
 _reg.register_injective_schedule("auto_scheduler_layout_transform")
 _reg.register_pattern("auto_scheduler_layout_transform", OpPattern.INJECTIVE)
+_reg.register_injective_schedule("meta_schedule_layout_transform")
+_reg.register_pattern("meta_schedule_layout_transform", OpPattern.INJECTIVE)
 
 # argwhere
 _reg.register_strategy("argwhere", strategy.argwhere_strategy)
@@ -139,6 +146,50 @@ def compute_reshape(attrs, inputs, output_type):
 
 
 _reg.register_strategy("sparse_reshape", strategy.sparse_reshape_strategy)
+
+# stft
+@_reg.register_compute("stft")
+def compute_stft(attrs, inputs, output_type):
+    """Compute definition of stft"""
+    return topi.stft(
+        inputs[0],
+        attrs.n_fft,
+        attrs.hop_length,
+        attrs.win_length,
+        attrs.window,
+        attrs.normalized,
+        attrs.onesided,
+        output_type.shape,
+    )
+
+
+_reg.register_strategy("stft", strategy.stft_strategy)
+
+
+@script
+def _stft_shape_func(data, n_fft, hop_length, onesided):
+    output_shape = output_tensor((4,), "int64")
+    output_shape[0] = int64(data.shape[0])
+    if onesided:
+        output_shape[1] = int64(int64(n_fft) // int64(2)) + int64(1)
+    else:
+        output_shape[1] = int64(n_fft)
+    output_shape[2] = int64(int64(data.shape[1] - n_fft) // int64(hop_length)) + int64(1)
+    output_shape[3] = int64(2)
+    return output_shape
+
+
+@_reg.register_shape_func("stft", True)
+def stft_shape_func(attrs, inputs, _):
+    """
+    Shape func for stft.
+    """
+    return [
+        _stft_shape_func(
+            inputs[0], convert(attrs.n_fft), convert(attrs.hop_length), convert(attrs.onesided)
+        )
+    ]
+
 
 # scatter_add
 @_reg.register_compute("scatter_add")
@@ -395,7 +446,7 @@ def concatenate_shape_func(attrs, inputs, _):
 
 
 @script
-def _reshape_shape_func_input_shape(data_shape, newshape, ndim):
+def _reshape_shape_func_input_shape(data_shape, newshape, ndim, allowzero):
     out = output_tensor((ndim,), "int64")
     src_idx = 0
     dst_idx = 0
@@ -410,7 +461,10 @@ def _reshape_shape_func_input_shape(data_shape, newshape, ndim):
             src_idx += 1
             dst_idx += 1
         elif newshape[i] == 0:
-            out[dst_idx] = data_shape[src_idx]
+            if allowzero:
+                out[dst_idx] = int64(newshape[i])
+            else:
+                out[dst_idx] = data_shape[src_idx]
             src_idx += 1
             dst_idx += 1
         elif newshape[i] == -1:
@@ -466,7 +520,12 @@ def _reshape_shape_func_input_shape(data_shape, newshape, ndim):
 @_reg.register_shape_func("reshape", False)
 def reshape_shape_func(attrs, inputs, out_ndims):
     newshape = get_const_tuple(attrs.newshape)
-    return [_reshape_shape_func_input_shape(inputs[0], convert(newshape), out_ndims[0])]
+    allowzero = attrs.allowzero
+    return [
+        _reshape_shape_func_input_shape(
+            inputs[0], convert(newshape), out_ndims[0], convert(allowzero)
+        )
+    ]
 
 
 @script
@@ -618,6 +677,7 @@ def argwhere_shape_func(attrs, inputs, out_ndims):
 
 _reg.register_shape_func("scatter", False, elemwise_shape_func)
 _reg.register_shape_func("scatter_add", False, elemwise_shape_func)
+_reg.register_shape_func("scatter_nd", False, elemwise_shape_func)
 
 
 @script

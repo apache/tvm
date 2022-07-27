@@ -13,6 +13,7 @@ include(ExternalProject)
 #   USE_HEXAGON_TOOLCHAIN (Path to Hexagon toolchain ending with "Tools")
 # Optional variable:
 #   USE_OUTPUT_BINARY_DIR (Path to copy the output binaries to)
+#   USE_HEXAGON_GTEST (Path to Hexagon specific gtest version)
 
 set(TVM_SOURCE_DIR "${CMAKE_SOURCE_DIR}/../..")
 
@@ -23,6 +24,15 @@ else()
 endif()
 file(MAKE_DIRECTORY ${HEXAGON_API_BINARY_DIR})
 
+if(DEFINED USE_HEXAGON_GTEST)
+  if(EXISTS ${USE_HEXAGON_GTEST})
+    message(STATUS "Found Hexagon gtest at ${USE_HEXAGON_GTEST}")
+  else()
+    message(WARNING "Could not find Hexagon gtest at ${USE_HEXAGON_GTEST}. Disabling Hexagon gtest support.")
+    unset(USE_HEXAGON_GTEST)
+  endif()
+endif()
+
 # Build X86 binaries:
 # - tvm_rpc_x86
 
@@ -30,11 +40,16 @@ ExternalProject_Add(x86_tvm_runtime_rpc
   SOURCE_DIR "${TVM_SOURCE_DIR}"
   BUILD_COMMAND $(MAKE) runtime tvm_rpc
   CMAKE_ARGS
+    "-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}"
+    "-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
+    "-DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}"
+    "-DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}"
     "-DUSE_HEXAGON_TOOLCHAIN=${USE_HEXAGON_TOOLCHAIN}"
     "-DCMAKE_CXX_STANDARD=14"
     "-DUSE_LIBBACKTRACE=OFF"
     "-DUSE_RPC=ON"
     "-DUSE_CPP_RPC=ON"
+    "-DUSE_HEXAGON=ON"
     "-DUSE_HEXAGON_RPC=ON"
     "-DBUILD_STATIC_RUNTIME=ON"
     "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
@@ -57,6 +72,8 @@ ExternalProject_Add(android_tvm_runtime_rpc
   SOURCE_DIR "${TVM_SOURCE_DIR}"
   BUILD_COMMAND $(MAKE) runtime tvm_rpc
   CMAKE_ARGS
+    "-DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}"
+    "-DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}"
     "-DCMAKE_TOOLCHAIN_FILE=${USE_ANDROID_TOOLCHAIN}"
     "-DANDROID_PLATFORM=${ANDROID_PLATFORM}"
     "-DANDROID_ABI=${ANDROID_ABI}"
@@ -66,12 +83,14 @@ ExternalProject_Add(android_tvm_runtime_rpc
     "-DUSE_LIBBACKTRACE=OFF"
     "-DUSE_RPC=ON"
     "-DUSE_CPP_RPC=ON"
+    "-DUSE_HEXAGON=ON"
     "-DUSE_HEXAGON_RPC=ON"
     "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
     "-DUSE_ALTERNATIVE_LINKER=OFF"
   INSTALL_COMMAND ""
   BUILD_ALWAYS ON
 )
+
 ExternalProject_Get_Property(android_tvm_runtime_rpc BINARY_DIR)
 ExternalProject_Add_Step(android_tvm_runtime_rpc copy_runtime
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -90,22 +109,30 @@ ExternalProject_Add_Step(android_tvm_runtime_rpc copy_rpc_server
 # Build Hexagon binaries:
 # - libhexagon_rpc_skel.so
 # - libtvm_runtime.a
+if(DEFINED USE_HEXAGON_GTEST)
+  set(GTEST_FLAG "-DUSE_HEXAGON_GTEST=${USE_HEXAGON_GTEST}")
+endif()
 
 ExternalProject_Add(hexagon_tvm_runtime_rpc
   SOURCE_DIR "${TVM_SOURCE_DIR}"
   BUILD_COMMAND $(MAKE) runtime hexagon_rpc_sim
   CMAKE_ARGS
+    "-DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}"
+    "-DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}"
     "-DCMAKE_C_COMPILER=${USE_HEXAGON_TOOLCHAIN}/bin/hexagon-clang"
     "-DCMAKE_CXX_COMPILER=${USE_HEXAGON_TOOLCHAIN}/bin/hexagon-clang++"
     "-DUSE_HEXAGON_SDK=${USE_HEXAGON_SDK}"
     "-DUSE_HEXAGON_ARCH=${USE_HEXAGON_ARCH}"
     "-DUSE_LIBBACKTRACE=OFF"
     "-DUSE_RPC=OFF"
+    "-DUSE_HEXAGON=ON"
     "-DUSE_HEXAGON_RPC=ON"
     "-DBUILD_STATIC_RUNTIME=ON"
     "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
     "-DUSE_ALTERNATIVE_LINKER=OFF"
     "-DUSE_CUSTOM_LOGGING=ON"
+    "-DUSE_HEXAGON_QHL=ON"
+    "${GTEST_FLAG}"
   INSTALL_COMMAND ""
   BUILD_ALWAYS ON
 )

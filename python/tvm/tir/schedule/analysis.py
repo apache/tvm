@@ -17,12 +17,16 @@
 """Analysis used in TensorIR scheduling"""
 from typing import List, Optional
 
+import tvm._ffi
+from tvm.runtime import Object
+
 from ..buffer import Buffer
 from ..stmt import For
 from ..expr import PrimExpr
-from ..function import IndexMap
+from ..function import IndexMap, PrimFunc
 
 from . import _ffi_api
+from .schedule import Schedule, BlockRV
 
 
 def suggest_index_map(
@@ -56,3 +60,64 @@ def suggest_index_map(
         loops,
         predicate,
     )
+
+
+@tvm._ffi.register_object("tir.schedule.TensorizeInfo")
+class TensorizeInfo(Object):
+    """Necessary information used for tensorization."""
+
+
+def get_tensorize_loop_mapping(
+    sch: Schedule, block: BlockRV, desc_func: PrimFunc
+) -> Optional[TensorizeInfo]:
+    """Establish a mapping between loops in a target block and an intrinsic description
+
+    Parameters
+    ----------
+    sch : Schedule
+        The schedule to be tensorized
+    block : BlockRV
+        The target block to match against
+    desc_func : PrimFunc
+        The prim func describing the computation to be tensorized
+
+    Returns
+    -------
+    tensorize_info : Optional[TensorizeInfo]
+        TensorizeInfo structure if a valid mapping is found, None otherwise
+    """
+    return _ffi_api.GetTensorizeLoopMapping(sch, block, desc_func)  # type: ignore
+
+
+@tvm._ffi.register_object("tir.schedule.AutoTensorizeMappingInfo")
+class AutoTensorizeMappingInfo(Object):
+    """Necessary information used to perform transformations for tensorization."""
+
+
+def get_auto_tensorize_mapping_info(
+    sch: Schedule, block: BlockRV, desc_func: PrimFunc
+) -> Optional[AutoTensorizeMappingInfo]:
+    """Get mapping info between a target block and an intrinsic description including layout
+    transformations to apply.
+
+    Parameters
+    ----------
+    sch : Schedule
+        The schedule to be tensorized
+    block : BlockRV
+        The compute block for auto tensorization
+    desc_func : PrimFunc
+        The prim func describing the computation to be tensorized
+
+    Returns
+    -------
+    auto_tensorize_mapping_info : Optional[AutoTensorizeMappingInfo]
+        AutoTensorizeMappingInfo structure if potential mappings found, None otherwise.
+
+    Note
+    ----
+    Returning a valid AutoTensorizeMappingInfo doesn't guarantee the block can be tensorized.
+    We will need to apply the suggested layout transformations and then match against the tensor
+    intrinsics.
+    """
+    return _ffi_api.GetAutoTensorizeMappingInfo(sch, block, desc_func)  # type: ignore

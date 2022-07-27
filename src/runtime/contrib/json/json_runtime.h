@@ -54,7 +54,9 @@ class JSONRuntimeBase : public ModuleNode {
     LoadGraph(graph_json_);
   }
 
-  const char* type_key() const override { return "json"; }
+  ~JSONRuntimeBase() override = default;
+
+  const char* type_key() const override { return "json"; }  // May be overridden
 
   /*! \brief Initialize a specific json runtime. */
   virtual void Init(const Array<NDArray>& consts) = 0;
@@ -88,8 +90,11 @@ class JSONRuntimeBase : public ModuleNode {
       // The function to initialize constant tensors.
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         ICHECK_EQ(args.size(), 1U);
-        this->Init(args[0]);
-        this->initialized_ = true;
+        std::lock_guard<std::mutex> guard(this->initialize_mutex_);
+        if (!this->initialized_) {
+          this->Init(args[0]);
+          this->initialized_ = true;
+        }
         *rv = 0;
       });
     } else {
@@ -270,6 +275,8 @@ class JSONRuntimeBase : public ModuleNode {
   std::vector<uint32_t> const_idx_;
   /*! \brief Indicate if the engine has been initialized. */
   bool initialized_{false};
+  /*! \brief Initializer mutex*/
+  std::mutex initialize_mutex_;
 };
 
 }  // namespace json

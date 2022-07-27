@@ -3672,6 +3672,39 @@ def test_forward_range():
 
 
 #######################################################################
+# Einsum
+# -----
+
+
+def _test_einsum(equation, dtype, *shape_of_input_tensors):
+    """Test Einsum Op"""
+
+    with tf.Graph().as_default():
+        inputs_placeholders = []
+        input_data = []
+        for idx, shape in enumerate(shape_of_input_tensors):
+            input_name = f"input_{idx}"
+            inputs_placeholders.append(tf.placeholder(shape=shape, dtype=dtype, name=input_name))
+            input_data.append(np.random.normal(size=shape).astype(dtype))
+
+        result = tf.einsum(equation, *inputs_placeholders)
+
+        compare_tf_with_tvm(input_data, [ph.name for ph in inputs_placeholders], result.name)
+
+
+def test_forward_einsum():
+    for dtype in ["float32"]:
+        _test_einsum("ij,jk->ik", dtype, [2, 3], [3, 5])  # Matmul
+        _test_einsum("ij,jk", dtype, [2, 3], [3, 5])  # Matmul
+        _test_einsum("i,i->", dtype, [2], [2])  # Dot product
+        _test_einsum("i,j->ij", dtype, [3], [5])  # Outer produce
+        _test_einsum("ij->ji", dtype, [2, 3])  # Transpose
+        _test_einsum("ii->i", dtype, [3, 3])  # Diag
+        _test_einsum("ii", dtype, [3, 3])  # Trace of a square matrix
+        _test_einsum("bij,bjk->bik", dtype, [7, 5, 3], [7, 3, 2])  # Batch matmul
+
+
+#######################################################################
 # Pad
 # ---
 

@@ -31,6 +31,14 @@
 #include <tvm/runtime/object.h>
 #include <tvm/tir/var.h>
 
+#include <utility>
+
+namespace tvm {
+namespace arith {
+class Analyzer;
+}
+}  // namespace tvm
+
 namespace tvm {
 namespace tir {
 
@@ -76,10 +84,14 @@ class IndexMapNode : public Object {
    * \param indices The indices in the input space.  Should contain
    * one value for each variable in `initial_indices`.
    *
+   * \param analyzer An optional analyzer to be used to simplify the
+   * resulting expressions.  If null, will use a fresh analyzer.
+   *
    * \returns The indices in the output space.  Contains one value for
    * each expression in `final_indices`.
    */
-  Array<PrimExpr> MapIndices(const Array<PrimExpr>& indices) const;
+  Array<PrimExpr> MapIndices(const Array<PrimExpr>& indices,
+                             arith::Analyzer* analyzer = nullptr) const;
 
   /*! \brief Map a memory range to the output space
    *
@@ -91,20 +103,26 @@ class IndexMapNode : public Object {
    * \param ranges The ranges in the input space.  Should contain one
    * value for each variable in `initial_indices`.
    *
+   * \param analyzer An optional analyzer to be used to simplify the
+   * resulting expressions.  If null, will use a fresh analyzer.
+   *
    * \returns The ranges in the output space.  Contains one value for
    * each expression in `final_indices`.
    */
-  Array<Range> MapRanges(const Array<Range>& ranges) const;
+  Array<Range> MapRanges(const Array<Range>& ranges, arith::Analyzer* analyzer = nullptr) const;
 
   /*! \brief Map a buffer shape to the output space
    *
    * \param shape The buffer shape in the input space.  Should contain
    * one value for each variable in `initial_indices`.
    *
+   * \param analyzer An optional analyzer to be used to simplify the
+   * resulting expressions.  If null, will use a fresh analyzer.
+   *
    * \returns The buffer shape in the output space.  Contains one
    * value for each expression in `final_indices`.
    */
-  Array<PrimExpr> MapShape(const Array<PrimExpr>& shape) const;
+  Array<PrimExpr> MapShape(const Array<PrimExpr>& shape, arith::Analyzer* analyzer = nullptr) const;
 
   /*!
    * \brief Convert to string representation in Python.
@@ -117,8 +135,19 @@ class IndexMapNode : public Object {
     v->Visit("final_indices", &final_indices);
   }
 
-  static constexpr const char* _type_key = "tir.IndexMap";
+  bool SEqualReduce(const IndexMapNode* other, SEqualReducer equal) const {
+    return equal.DefEqual(initial_indices, other->initial_indices) &&
+           equal(final_indices, other->final_indices);
+  }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce.DefHash(initial_indices);
+    hash_reduce(final_indices);
+  }
+
+  static constexpr const char* _type_key = "tir.IndexMap";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(IndexMapNode, Object);
 };
 
@@ -141,11 +170,23 @@ class IndexMap : public ObjectRef {
    *
    * TODO(Lunderberg): Look into allowing non-bijective
    * transformations.  If injective, the inverse mapping could still
-   * be generated with some predicate.  If non-injective, could
-   * simplify the implementation of other optimizations (e.g. double
-   * buffering as a map `lambda *indices: [buffer_loop%2, *indices]`).
+   * be generated with some predicate (see NonSurjectiveInverse).  If
+   * non-injective, could simplify the implementation of other
+   * optimizations (e.g. double buffering as a map `lambda *indices:
+   * [buffer_loop%2, *indices]`).
    */
   IndexMap Inverse(Array<Range> initial_ranges) const;
+
+  /*! \brief Generate the inverse mapping.
+   *
+   * Determine the inverse, where the output range may contain
+   * addresses that do not correspond to an address in the input
+   * range.
+   *
+   * \return The inverted index map, along with the predicate for
+   * which the inverse maps to a valid range.
+   */
+  std::pair<IndexMap, PrimExpr> NonSurjectiveInverse(Array<Range> initial_ranges) const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(IndexMap, ObjectRef, IndexMapNode);
 };

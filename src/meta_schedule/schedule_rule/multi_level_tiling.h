@@ -22,6 +22,7 @@
 #include <tvm/meta_schedule/schedule_rule.h>
 #include <tvm/tir/schedule/schedule.h>
 
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -81,20 +82,39 @@ struct ReuseConfig {
   }
 };
 
+// Forware declaration
+class State;
+
 /*! \brief The state of auto scheduling for the multi-level tiling rule */
-struct State {
+class StateNode : public Object {
+ public:
   /*! \brief The schedule to date */
   tir::Schedule sch;
   /*! \brief The block to be tiled */
   tir::BlockRV block_rv;
   /*! \brief The loop tiles */
   Array<Array<tir::LoopRV>> tiles;
+  /*! \brief The mapping from buffer index to read cache block. */
+  std::unordered_map<int, tir::BlockRV> read_reuse;
+  /*! \brief The mapping from buffer index to write cache block. */
+  std::unordered_map<int, tir::BlockRV> write_reuse;
 
+  /*!
+   * \brief Create a copy of the state. The underlying schedule is copied. Schedule rules that
+   * produce multiple states should use this method to create new states.
+   */
+  virtual State Copy() const;
+
+  static constexpr const char* _type_key = "meta_schedule.State";
+  TVM_DECLARE_BASE_OBJECT_INFO(StateNode, Object);
+};
+
+/*! \brief Managed reference to StateNode */
+class State : public ObjectRef {
+ public:
   /*! \brief Default constructor */
-  explicit State(tir::Schedule sch, tir::BlockRV block_rv,
-                 Optional<tir::BlockRV> write_cache = NullOpt, bool write_cache_is_added = false,
-                 Array<Array<tir::LoopRV>> tiles = {})
-      : sch(sch), block_rv(block_rv), tiles(tiles) {}
+  explicit State(tir::Schedule sch, tir::BlockRV block_rv, Array<Array<tir::LoopRV>> tiles = {});
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(State, ObjectRef, StateNode);
 };
 
 /*!
@@ -133,10 +153,13 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   void InitializeWithTuneContext(const TuneContext& context) final;
 
   // Entry of the mega rule; Inherited from ScheduleRuleNode
-  Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final;
+  Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) override;
 
  protected:
   virtual std::vector<State> ApplySubRules(std::vector<State> states);
+
+  // Annotate a block to use cooperative fetching
+  void AnnotateCooperativeFetching(tir::Schedule* sch, const tir::BlockRV& block) const;
 
  public:
   /*!
@@ -180,6 +203,36 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   static constexpr const char* _type_key = "meta_schedule.MultiLevelTiling";
   TVM_DECLARE_BASE_OBJECT_INFO(MultiLevelTilingNode, ScheduleRuleNode);
 };
+
+template <typename NodeType>
+ObjectPtr<NodeType> MultiLevelTilingInitCommon(String structure, Optional<Array<String>> tile_binds,
+                                               Optional<Integer> max_innermost_factor,
+                                               Optional<Array<Integer>> vector_load_lens,
+                                               Optional<Map<String, ObjectRef>> reuse_read,
+                                               Optional<Map<String, ObjectRef>> reuse_write) {
+  ObjectPtr<NodeType> n = make_object<NodeType>();
+  n->structure = structure;
+  n->tile_binds = tile_binds.value_or({});
+  n->max_innermost_factor = max_innermost_factor.value_or(Integer(-1))->value;
+  n->vector_load_lens = vector_load_lens.defined()
+                            ? support::AsVector<Integer, int>(vector_load_lens.value())
+                            : std::vector<int>();
+  n->reuse_read_ = reuse_read.defined() ? ReuseConfig(reuse_read.value()) : ReuseConfig();
+  n->reuse_write_ = reuse_write.defined() ? ReuseConfig(reuse_write.value()) : ReuseConfig();
+  for (int i = 0, len = structure.size(); i < len; ++i) {
+    char c = structure.data()[i];
+    if (c == 'S') {
+      n->s_indices_.push_back(i);
+    } else if (c == 'R') {
+      n->r_indices_.push_back(i);
+    } else {
+      LOG(FATAL) << "ValueError: Invalid tiling structure: " << structure;
+    }
+  }
+  n->thread_warp_size_ = -1;
+  n->max_threads_per_block_ = -1;
+  return n;
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm

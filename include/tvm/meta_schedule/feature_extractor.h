@@ -20,7 +20,13 @@
 #ifndef TVM_META_SCHEDULE_FEATURE_EXTRACTOR_H_
 #define TVM_META_SCHEDULE_FEATURE_EXTRACTOR_H_
 
-#include <tvm/meta_schedule/search_strategy.h>
+#include <tvm/meta_schedule/measure_candidate.h>
+#include <tvm/node/reflection.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/string.h>
+#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/object.h>
+#include <tvm/runtime/packed_func.h>
 
 namespace tvm {
 namespace meta_schedule {
@@ -76,10 +82,7 @@ class PyFeatureExtractorNode : public FeatureExtractorNode {
   }
 
   Array<tvm::runtime::NDArray> ExtractFrom(const TuneContext& context,
-                                           const Array<MeasureCandidate>& candidates) {
-    ICHECK(f_extract_from != nullptr) << "PyFeatureExtractor's ExtractFrom method not implemented!";
-    return f_extract_from(context, candidates);
-  }
+                                           const Array<MeasureCandidate>& candidates) final;
 
   static constexpr const char* _type_key = "meta_schedule.PyFeatureExtractor";
   TVM_DECLARE_FINAL_OBJECT_INFO(PyFeatureExtractorNode, FeatureExtractorNode);
@@ -98,11 +101,13 @@ class FeatureExtractor : public runtime::ObjectRef {
    * \param arith_intensity_curve_num_samples The number of samples used in the arithmetic intensity
    * curve.
    * \param cache_line_bytes The number of bytes in a cache line.
+   * \param extract_workload Whether to extract features in the workload in tuning context or not.
    * \return The feature extractor created.
    */
   TVM_DLL static FeatureExtractor PerStoreFeature(int buffers_per_store = 5,
                                                   int arith_intensity_curve_num_samples = 10,
-                                                  int cache_line_bytes = 64);
+                                                  int cache_line_bytes = 64,
+                                                  bool extract_workload = false);
   /*!
    * \brief Create a feature extractor with customized methods on the python-side.
    * \param f_extract_from The packed function of `ExtractFrom`.

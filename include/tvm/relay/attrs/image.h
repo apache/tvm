@@ -276,23 +276,44 @@ struct GridSampleAttrs : public tvm::AttrsNode<GridSampleAttrs> {
   String method;
   String layout;
   String padding_mode;
+  bool align_corners;
 
   TVM_DECLARE_ATTRS(GridSampleAttrs, "relay.attrs.GridSampleAttrs") {
     TVM_ATTR_FIELD(method)
         .set_default("bilinear")
         .describe(
             "Specify the mode to use for scaling."
-            "bilinear - Bilinear Interpolation");
+            "nearest - 2D or 3D Nearest Interpolation."
+            "bilinear - '2D Bilinear' or '3D Trilinear' Interpolation."
+            "bicubic - 2D Bicubic Interpolation.");
     TVM_ATTR_FIELD(layout).set_default("NCHW").describe(
-        "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
-        "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
-        "dimensions respectively. Resize is applied on the 'H' and"
-        "'W' dimensions.");
+        "Dimension ordering of input data. Can be 'NCHW', 'NCDHW', etc."
+        "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+        "dimensions respectively."
+        "2D Resize is applied on the 'H' and 'W' dimensions."
+        "3D Resize is applied on the 'D' and 'H' and 'W' dimensions.");
     TVM_ATTR_FIELD(padding_mode)
         .set_default("zeros")
         .describe(
-            "Specify the padding mode to use."
-            "zeros, border etc.");
+            "If :attr:'grid' has values outside the range of '[-1, 1]', the corresponding"
+            "outputs are handled as defined by padding_mode. Options are"
+            "padding_mode='zeros': use '0' for out-of-bound grid locations,"
+            "padding_mode='border': use border values for out-of-bound grid locations"
+            "padding_mode='reflection': use values at locations reflected by"
+            "the border for out-of-bound grid locations. For location far away"
+            "from the border, it will keep being reflected until becoming in bound,"
+            "e.g., (normalized) pixel location 'x = -3.5' reflects by border '-1'"
+            "and becomes 'x' = 1.5, then reflects by border '1' and becomes"
+            "'x' = -0.5");
+    TVM_ATTR_FIELD(align_corners)
+        .set_default(true)
+        .describe(
+            "Geometrically, we consider the pixels of the"
+            "input as squares rather than points."
+            "If set to True, the extrema (-1 and 1) are considered as referring"
+            "to the center points of the input's corner pixels. If set to False, they"
+            "are instead considered as referring to the corner points of the input's corner"
+            "pixels, making the sampling more resolution agnostic.");
   }
 };
 

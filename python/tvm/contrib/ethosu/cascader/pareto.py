@@ -35,5 +35,7 @@ def _thin_vector(vec: List[Object], max_size: int) -> List[Object]:
     return list(_ffi_api.ThinVector(vec, max_size))
 
 
-def _pareto_cull_plans(plans: List[Plan], max_plans: int) -> List[Plan]:
-    return list(_ffi_api.ParetoCullPlans(plans, max_plans))
+def _pareto_cull_plans(
+    plans: List[Plan], max_plans: int, disable_pareto_metric: bool
+) -> List[Plan]:
+    return list(_ffi_api.ParetoCullPlans(plans, max_plans, disable_pareto_metric))

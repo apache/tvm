@@ -21,19 +21,16 @@ from .spec import SerialCopy
 from .utils import get_base_address, get_op_attrs
 
 
-def get_copy_params(stmt, producers, consumers):
+def get_copy_params(stmt, producers_consumers):
     """Get the parameters necessary to construct a call_extern for a copy.
 
     Parameters
     ----------
     stmt : tvm.tir.AttrStmt
         The outermost attribute statement of a copy loop nest.
-    producers : dict of tvm.tir.Var to tvm.tir.AttrStmt
-        A dictionary to associate pointers with the loop nest
-        that produces their values.
-    consumers : dict of tvm.tir.Var to tvm.tir.AttrStmt
-        A dictionary to associate pointers with the loop nest
-        that consumes their values.
+    producers_consumers: ProducersConsumers
+        It associates pointers with the loop nest that produces
+        their values and with the loop nest that consumes their values.
 
     Returns
     -------

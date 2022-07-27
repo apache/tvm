@@ -14,17 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 
 """ Hexagon testing infrastructure """
 
+import numpy
 import tvm
 from tvm import te
-import numpy
 
 
 def allocate_hexagon_array(
     dev, tensor_shape=None, dtype=None, data=None, axis_separators=None, mem_scope=None
 ):
+    """
+    Allocate a hexagon array which could be a 2D array
+    on physical memory defined by axis_separators
+    """
     if tensor_shape is None:
         assert data is not None, "Must provide either tensor shape or numpy data array"
         tensor_shape = data.shape
@@ -48,7 +53,7 @@ def allocate_hexagon_array(
         for dim_i, dim_f in zip(boundaries[:-1], boundaries[1:])
     ]
 
-    arr = tvm.nd.empty(physical_shape, dtype=dtype, device=dev)
+    arr = tvm.nd.empty(physical_shape, dtype=dtype, device=dev, mem_scope=mem_scope)
 
     if data is not None:
         arr.copyfrom(data.reshape(physical_shape))
@@ -97,9 +102,19 @@ def get_logical_shape(physical_shape_nhwc8h8w32c):
     return logical_shape_nhwc
 
 
-# input: logical shape in oihw layout
-# output: physical packed shape in oihw8i3204i layout
 def get_packed_filter_shape(logical_shape_oihw):
+    """return packed filter shape
+
+    Parameters
+    ----------
+    logical_shape_oihw :
+       logical shape in oihw layout
+
+    Returns
+    -------
+    physical_shape_oihw8i32o4i :
+        physical packed shape in oihw8i3204i layout
+    """
     assert len(logical_shape_oihw) == 4
     filter_block_shape = get_filter_block_shape()
     filter_Cio, filter_Ki, filter_Cii = filter_block_shape
@@ -114,6 +129,7 @@ def get_packed_filter_shape(logical_shape_oihw):
 
 
 def build_and_run(inputs, func, target, target_host, *args, **kwargs):
+    """build and run the function func"""
     schedule, placeholders, binds = func(*args, **kwargs)
 
     func = tvm.build(
@@ -148,6 +164,7 @@ def get_conv2d_nhwc_shape(shape_nhwc, kernel_size, strides, padding, dilation, o
 
 
 def conv2d_verify(output, ref_output, dtype):
+    """transpose and reshape output and compare with ref_output"""
     # nhwc8h8w32c -> nhwc
     logical_output_shape = get_logical_shape(output.shape)
     output = output.transpose(0, 1, 4, 2, 5, 3, 6).reshape(logical_output_shape)
@@ -170,10 +187,11 @@ def conv2d_verify(output, ref_output, dtype):
 
 
 def conv2d_compute(X, filt, pad, stride, dilation):
+    """Define conv2d compute"""
     block_shape = get_block_shape()
     block_H, block_W, block_C = block_shape
-    filter_Cio, filter_Ki, filter_Cii = get_filter_block_shape()
-    filter_Ci = filter_Cio * filter_Cii
+    filter_c_io, _, filter_c_ii = get_filter_block_shape()
+    filter_c_i = filter_c_io * filter_c_ii
 
     shape_filter = filt.shape
     kernel_size = tuple(shape_filter[2:4])
@@ -190,7 +208,6 @@ def conv2d_compute(X, filt, pad, stride, dilation):
     )
 
     output_shape = get_packed_shape(logical_output_shape)
-    n, ho, wo, ko, hi, wi, ki = output_shape
     rh = te.reduce_axis((0, kernel_size[0]), name="rh")
     rw = te.reduce_axis((0, kernel_size[1]), name="rw")
     rc = te.reduce_axis((0, logical_input_shape[3]), name="rc")
@@ -209,9 +226,9 @@ def conv2d_compute(X, filt, pad, stride, dilation):
         c_block_id = rc // block_C
         c_block_offset = rc % block_C
 
-        rco = rc // filter_Ci
-        rcio = (rc % filter_Ci) // filter_Cii
-        rcii = rc % filter_Cii
+        rco = rc // filter_c_i
+        rcio = (rc % filter_c_i) // filter_c_ii
+        rcii = rc % filter_c_ii
 
         return te.sum(
             X[
@@ -228,3 +245,58 @@ def conv2d_compute(X, filt, pad, stride, dilation):
         )
 
     return output_shape, compute
+
+
+def transform_numpy(arr_np, current_layout: str, new_layout: str):
+    """Reshape and transpose numpy array according to the specified layout"""
+    if current_layout == "nhwc":
+        if new_layout == "nhwc":
+            return arr_np
+        if new_layout in ["nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-1d"]:
+            n, h, w, c = arr_np.shape
+            return arr_np.reshape([n, h // 8, 8, w // 4, 2, 2, c // 32, 32]).transpose(
+                0, 1, 3, 6, 2, 4, 7, 5
+            )
+        if new_layout in ["nhwc-4h2w32c2w-2d"]:
+            n, h, w, c = arr_np.shape
+            return arr_np.reshape([n, h // 4, 4, w // 4, 2, 2, c // 32, 32]).transpose(
+                0, 1, 3, 6, 2, 4, 7, 5
+            )
+        if new_layout in ["n11c-1024c-2d", "n11c-1024c-1d"]:
+            n, h, w, c = arr_np.shape
+            assert h == 1 and w == 1, "The size of h and w must be 1"
+            return arr_np.reshape([n, 1, 1, c // 1024, 1024])
+        if new_layout == "nc-1024-2d":
+            N, C = arr_np.shape
+            return arr_np.reshape([N, C // 1024, 1024])
+        if new_layout == "nhwc-1024c-2d":
+            N, H, W, C = arr_np.shape
+            return arr_np.reshape([N, H, W, C // 1024, 1024])
+        if new_layout == "nc-2048-2d":
+            N, C = arr_np.shape
+            return arr_np.reshape([N, C // 2048, 2048])
+        if new_layout == "nhwc-2048c-2d":
+            N, H, W, C = arr_np.shape
+            return arr_np.reshape([N, H, W, C // 2048, 2048])
+        if new_layout in ["nhwc-8h8w32c-2d"]:
+            n, h, w, c = arr_np.shape
+            return arr_np.reshape([n, h // 8, 8, w // 8, 8, c // 32, 32]).transpose(
+                0, 1, 3, 5, 2, 4, 6
+            )
+
+    if current_layout == "nc":
+        n, c = arr_np.shape
+        if new_layout in ["nc-1024c-2d"]:
+            return arr_np.reshape([n, c // 1024, 1024])
+        if new_layout in ["nc-512c-2d"]:
+            return arr_np.reshape([n, c // 512, 512])
+        raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
+
+    if current_layout == "nhw":
+        if new_layout in ["nhw-32h16w-2d"]:
+            n, h, w = arr_np.shape
+            return arr_np.reshape([n, h // 32, 32, w // 16, 16]).transpose(0, 1, 3, 2, 4)
+
+        raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
+
+    raise RuntimeError(f"Unexpected current_layout '{current_layout}'")

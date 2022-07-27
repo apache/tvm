@@ -102,6 +102,16 @@ def get_type(elem_type):
     except ImportError as e:
         raise ImportError("Unable to import onnx which is required {}".format(e))
 
+    try:
+        from onnx import TensorProto
+    except ImportError as e:
+        raise ImportError("Unable to import TensorProto from onnx {}".format(e))
+
+    # Onnx mapping converts bfloat16 to float16 because
+    # numpy does not have a bfloat16 data type. However,
+    # tvm has one, so we force the return type to be bfloat16
+    if elem_type == int(TensorProto.BFLOAT16):
+        return "bfloat16"
     return str(TENSOR_TYPE_TO_NP_TYPE[elem_type])
 
 
@@ -249,23 +259,39 @@ def matmul_out_dtype(inputs, out_dtype):
             return out
 
         # Determine the output batch dimension.
+        new_a_shape = a_shape
+        new_b_shape = b_shape
         if a_rank > b_rank:
-            out_batch = _op.strided_slice(a_shape, [0], [a_rank - 2])
-        elif a_rank < b_rank:
-            out_batch = _op.strided_slice(b_shape, [0], [b_rank - 2])
-        # If its unclear how broadcasting should be applied, the output
-        # shape is determined by choosing the maximum value from each input.
-        else:
-            out_batch = _op.concatenate(
+            rank_diff = a_rank - b_rank
+            new_b_shape = _op.concatenate(
                 [
-                    _op.maximum(
-                        _op.strided_slice(a_shape, [i], [i + 1]),
-                        _op.strided_slice(b_shape, [i], [i + 1]),
-                    )
-                    for i in range(a_rank - 2)
+                    _expr.const([1] * rank_diff, dtype=infer_type(b_shape).checked_type.dtype),
+                    b_shape,
                 ],
                 0,
             )
+        elif a_rank < b_rank:
+            rank_diff = b_rank - a_rank
+            new_a_shape = _op.concatenate(
+                [
+                    _expr.const([1] * rank_diff, dtype=infer_type(a_shape).checked_type.dtype),
+                    a_shape,
+                ],
+                0,
+            )
+        else:
+            pass
+
+        out_batch = _op.concatenate(
+            [
+                _op.maximum(
+                    _op.strided_slice(new_b_shape, [i], [i + 1]),
+                    _op.strided_slice(new_a_shape, [i], [i + 1]),
+                )
+                for i in range(max(a_rank, b_rank) - 2)
+            ],
+            0,
+        )
 
         b_type = infer_type(inputs[1])
         # Convert to dense if the second matrix is 2d and non-dynamic
@@ -324,6 +350,10 @@ def matmul_out_dtype(inputs, out_dtype):
             0,
         )
         return _op.reshape(output, fold_constant(final_shape))
+
+    if a_rank == 1:
+        return _op.squeeze(_op.nn.matmul(_op.expand_dims(inputs[0], axis=0), inputs[1]), axis=[0])
+
     # Otherwise a simple dense op will get the job done.
     input_1_t = _op.transpose(inputs[1], axes=(1, 0))
     return _op.nn.dense(inputs[0], input_1_t, out_dtype=out_dtype)
@@ -410,8 +440,16 @@ class Pool(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        data = inputs[0]
+        input_shape = infer_shape(data)
+        ndim = len(input_shape)
+
         attr_cvt, data = cls._run_calculation(inputs, attr, params)
-        return attr_cvt([data], attr, params)
+        out = attr_cvt([data], attr, params)
+
+        if ndim - len(attr["kernel_shape"]) == 1:
+            out = _op.squeeze(out, axis=[0])
+        return out
 
     @classmethod
     def _run_calculation(cls, inputs, attr, params):
@@ -463,6 +501,10 @@ class Pool(OnnxOpConverter):
                 attr["storage_order"], dims=(len(input_shape) - 2), op_name=cls.name
             )
         else:
+            if ndim - len(attr["kernel_shape"]) == 1:
+                data = _op.expand_dims(data, axis=0)
+                input_shape = [1] + list(input_shape)
+
             attr["layout"] = onnx_default_layout(dims=(len(input_shape) - 2), op_name=cls.name)
 
         return (
@@ -622,19 +664,45 @@ class ConvTranspose(OnnxOpConverter):
         data = inputs[0]
         input_shape = infer_shape(data)
         ndim = len(input_shape)
-        if "auto_pad" in attr:
-            attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
-            if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
+        if "auto_pad" in attr or "output_shape" in attr:
+            if "auto_pad" in attr:
+                attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
+            if "output_shape" in attr or attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
                 # Warning: Convolution does not yet support dynamic shapes,
                 # one will need to run dynamic_to_static on this model after import
-                data = autopad(
-                    data,
-                    attr.get("strides", [1] * (ndim - 2)),
-                    attr["kernel_shape"],
-                    attr.get("dilations", [1] * (ndim - 2)),
-                    deconv=True,
-                    mode=attr["auto_pad"],
-                )
+                kernel_shape = attr["kernel_shape"]
+                kndim = len(kernel_shape)
+                dilations = attr.get("dilations", [1] * kndim)
+                output_padding = attr.get("output_padding", [0] * kndim)
+                strides = attr["strides"]
+                total_pad = [0] * kndim
+                # https://github.com/onnx/onnx/blob/main/docs/Operators.md#ConvTranspose
+                if "output_shape" in attr:
+                    for i in range(kndim):
+                        total_pad[i] = (
+                            strides[i] * (input_shape[ndim - kndim + i] - 1)
+                            + output_padding[i]
+                            + ((kernel_shape[i] - 1) * dilations[i] + 1)
+                            - attr["output_shape"][i]
+                        )
+                    left = [p // 2 for p in total_pad]
+                    right = [total_pad[i] - left[i] for i in range(kndim)]
+                    if "output_shape" in attr and "auto_pad" not in attr:
+                        pad = right + left
+                    elif "LOWER" in attr["auto_pad"]:
+                        pad = left + right
+                    else:
+                        pad = right + left
+                    attr["pads"] = pad
+                else:
+                    data = autopad(
+                        data,
+                        attr.get("strides", [1] * (ndim - 2)),
+                        attr["kernel_shape"],
+                        attr.get("dilations", [1] * (ndim - 2)),
+                        deconv=True,
+                        mode=attr["auto_pad"],
+                    )
             elif attr["auto_pad"] == "VALID":
                 attr["pads"] = tuple([0 for i in range(ndim - 2)])
             elif attr["auto_pad"] == "NOTSET":
@@ -642,7 +710,8 @@ class ConvTranspose(OnnxOpConverter):
             else:
                 msg = 'Value {} in attribute "auto_pad" of operator Conv is invalid.'
                 raise tvm.error.OpAttributeInvalid(msg.format(attr["auto_pad"]))
-            attr.pop("auto_pad")
+            if "auto_pad" in attr:
+                attr.pop("auto_pad")
 
         out = AttrCvt(
             op_name=dimension_picker("conv", "_transpose"),
@@ -677,9 +746,10 @@ class ConvTranspose(OnnxOpConverter):
         data = inputs[0]
         input_shape = infer_shape(data)
         ndim = len(input_shape)
-        if "auto_pad" in attr:
-            attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
-            if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
+        if "auto_pad" in attr or "output_shape" in attr:
+            if "auto_pad" in attr:
+                attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
+            if "output_shape" in attr or attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
                 # Warning: Convolution does not yet support dynamic shapes,
                 # one will need to run dynamic_to_static on this model after import
                 kernel_shape = attr["kernel_shape"]
@@ -688,13 +758,27 @@ class ConvTranspose(OnnxOpConverter):
                 output_padding = attr.get("output_padding", [0] * kndim)
                 strides = attr["strides"]
                 total_pad = [0] * kndim
-                for i in range(kndim):
-                    total_pad[i] = (
-                        output_padding[i] + ((kernel_shape[i] - 1) * dilations[i] + 1) - strides[i]
-                    )
+                # https://github.com/onnx/onnx/blob/main/docs/Operators.md#ConvTranspose
+                if "output_shape" in attr:
+                    for i in range(kndim):
+                        total_pad[i] = (
+                            strides[i] * (input_shape[ndim - kndim + i] - 1)
+                            + output_padding[i]
+                            + ((kernel_shape[i] - 1) * dilations[i] + 1)
+                            - attr["output_shape"][i]
+                        )
+                else:
+                    for i in range(kndim):
+                        total_pad[i] = (
+                            output_padding[i]
+                            + ((kernel_shape[i] - 1) * dilations[i] + 1)
+                            - strides[i]
+                        )
                 left = [p // 2 for p in total_pad]
                 right = [total_pad[i] - left[i] for i in range(kndim)]
-                if "LOWER" in attr["auto_pad"]:
+                if "output_shape" in attr and "auto_pad" not in attr:
+                    pad = right + left
+                elif "LOWER" in attr["auto_pad"]:
                     pad = left + right
                 else:
                     pad = right + left
@@ -706,7 +790,8 @@ class ConvTranspose(OnnxOpConverter):
             else:
                 msg = 'Value {} in attribute "auto_pad" of operator Conv is invalid.'
                 raise tvm.error.OpAttributeInvalid(msg.format(attr["auto_pad"]))
-            attr.pop("auto_pad")
+            if "auto_pad" in attr:
+                attr.pop("auto_pad")
 
         out = AttrCvt(
             op_name=dimension_picker("conv", "_transpose"),
@@ -880,7 +965,7 @@ class EmbedLayerNormalization(OnnxOpConverter):
             assert segment_emb
 
         if pos_ids is None:
-            pos_ids = _op.const([list(range(seq_len))] * seq_len, dtype="int32")
+            pos_ids = _op.const([list(range(seq_len))] * batch_size, dtype="int32")
 
         word_vec = _op.take(word_emb, input_ids, axis=0)
         segment_vec = _op.take(segment_emb, segment_ids, axis=0)
@@ -1415,11 +1500,12 @@ class Reshape(OnnxOpConverter):
 
     @classmethod
     def _impl_v5(cls, inputs, attr, params):
+        allowzero = attr.get("allowzero", False)
         if get_name(inputs[1]) in params:
             shape = tuple(params[inputs[1].name_hint].numpy().astype("int32"))
-            out = _op.reshape(inputs[0], shape)
+            out = _op.reshape(inputs[0], shape, allowzero=allowzero)
         else:
-            out = _op.reshape(*inputs)
+            out = _op.reshape(*inputs, allowzero=allowzero)
         return out
 
 
@@ -1686,11 +1772,21 @@ class Cast(OnnxOpConverter):
     @classmethod
     def _impl_v5(cls, inputs, attr, params):
         try:
-            from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
-
-            attr["to"] = str(TENSOR_TYPE_TO_NP_TYPE[attr["to"]])
+            from onnx import TensorProto
         except ImportError as e:
-            raise ImportError("Unable to import onnx.mapping which is required {}".format(e))
+            raise ImportError("Unable to import TensorProto from onnx {}".format(e))
+
+        # If onnx mapping is used, bfloat16 gets converted to float16
+        # which is not the desired behavior
+        if attr["to"] == int(TensorProto.BFLOAT16):
+            attr["to"] = "bfloat16"
+        else:
+            try:
+                from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
+
+                attr["to"] = str(TENSOR_TYPE_TO_NP_TYPE[attr["to"]])
+            except ImportError as e:
+                raise ImportError("Unable to import onnx.mapping which is required {}".format(e))
         return AttrCvt(op_name="cast", transforms={"to": "dtype"})(inputs, attr)
 
 
@@ -2028,18 +2124,21 @@ class EyeLike(OnnxOpConverter):
 
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
-        in_checked_type = infer_type(inputs[0]).checked_type
-        in_dtype = in_checked_type.dtype
-        in_shape = list(get_const_tuple(in_checked_type.shape))
         dtype = attr.get("dtype", None)
         if dtype is None:
+            in_checked_type = infer_type(inputs[0]).checked_type
+            in_dtype = in_checked_type.dtype
             dtype = in_dtype
         else:
             dtype = get_type(dtype)
+
+        in_shape = _op.shape_of(inputs[0])
         zeros = _op.zeros(in_shape, dtype)
-        dim = in_shape[0]
-        indices = _op.arange(_op.const(0), _op.const(dim), dtype="int32")
-        ones = _op.full(_op.const(1), (dim,), dtype=dtype)
+
+        dim = _op.take(in_shape, _op.const(0))
+
+        indices = _op.arange(_op.const(0), dim, dtype="int32")
+        ones = _op.full(_op.const(1), _op.reshape(dim, (1,)), dtype=dtype)
         k = _op.const(attr.get("k", 0), dtype="int32")
         return _op.scatter_nd(zeros, _op.stack([indices, indices + k], axis=0), ones, "update")
 
@@ -2097,6 +2196,19 @@ class Mean(OnnxOpConverter):
         # avoid overflow
         concat = _op.concatenate([_op.expand_dims(x, axis=0) for x in inputs], axis=0)
         return _op.mean(concat, axis=0, keepdims=False)
+
+
+class MeanVarianceNormalization(OnnxOpConverter):
+    """Operator converter for MeanVarianceNormalization."""
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        axis = attr.get("axes", (0, 2, 3))
+        data_mean = _op.mean(inputs[0], axis=axis, keepdims=True)
+        data_mean_squared = _op.power(data_mean, _expr.const(2, "float32"))
+        data_squared = _op.power(inputs[0], _expr.const(2, "float32"))
+        data_squared_mean = _op.mean(data_squared, axis=axis, keepdims=True)
+        return (inputs[0] - data_mean) / _op.sqrt(data_squared_mean - data_mean_squared)
 
 
 class HardSigmoid(OnnxOpConverter):
@@ -2158,6 +2270,32 @@ class Reduce(OnnxOpConverter):
                 return cls.run_calculation([inputs[0]], constant_axis, attr.get("keepdims", True))
 
             raise ValueError("Dynamic Reduce is not supported yet!")
+
+        return cls._impl_v1(inputs, attr, params)
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        if not infer_shape(inputs[0]):  # promote scalar to 1-D tensor
+            inputs[0] = _op.expand_dims(inputs[0], axis=0)
+
+        noop_with_empty_axes = attr.get("noop_with_empty_axes", 0)
+        num_axis = int(infer_type(inputs[1]).checked_type.shape[0]) if inputs[1] is not None else 0
+
+        if noop_with_empty_axes and num_axis == 0:
+            return inputs[0]
+
+        if len(inputs) == 2:
+            if isinstance(inputs[1], _expr.Constant):
+                # Get axis and unpack scalar
+                constant_axis = int(inputs[1].data.numpy()[0])
+                return cls.run_calculation([inputs[0]], constant_axis, attr.get("keepdims", True))
+
+            if num_axis > 0:
+                raise ValueError("Dynamic Reduce is not supported yet!")
+
+            axis_len = len(infer_shape(inputs[0]))
+            axis = list(range(axis_len))
+            return cls.run_calculation([inputs[0]], axis, attr.get("keepdims", True))
 
         return cls._impl_v1(inputs, attr, params)
 
@@ -2305,19 +2443,21 @@ class Softmax(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         axis = attr.get("axis", 1)
-        ndim = len(infer_shape(inputs[0]))
+        in_shape = infer_shape(inputs[0])
+        ndim = len(in_shape)
         if axis < 0:
             axis += ndim
-        # Older ONNX Softmax op does not properly support inputs of dimension > 2
-        # But we can use our softmax when the axis is -1
-        if axis == ndim - 1:
+        if axis == 0:
+            reshape_shape = [-1]
+        elif axis == ndim - 1:
             return _op.nn.softmax(inputs[0], axis=axis)
-
-        axes = list(range(axis, ndim))
-        x = inputs[0]
-        m = _op.max(x, axes, keepdims=True)
-        e = _op.exp(x - m)
-        return e / _op.sum(e, axes, keepdims=True)
+        else:
+            axis_val = [in_shape[i] for i in range(axis)]
+            reshape_shape = [np.prod(axis_val)] + [-1]
+        data_reshape = _op.reshape(inputs[0], newshape=reshape_shape)
+        out = _op.nn.softmax(data_reshape, axis=-1)
+        out = _op.reshape(out, newshape=in_shape)
+        return out
 
     @classmethod
     def _impl_v13(cls, inputs, attr, _):
@@ -2332,30 +2472,18 @@ class LogSoftmax(OnnxOpConverter):
     """Operator converter for Softmax."""
 
     @classmethod
-    def run_calculation(cls, x, axes):
+    def run_calculation(cls, inputs, attr, params, opset):
         """Run the calculation for Log Softmax calculation."""
-        m = _op.max(x, axes, keepdims=True)
-        e = _op.exp(x - m)
-        s = _op.sum(e, axes, keepdims=True)
-        return x - m - _op.log(s)
+        res = Softmax.get_converter(opset)(inputs, attr, params)
+        return _op.log(res)
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        axis = attr.get("axis", 1)
-        ndim = len(infer_shape(inputs[0]))
-        if axis < 0:
-            axis += ndim
-        axes = list(range(axis, ndim))
-        return cls.run_calculation(inputs[0], axes)
+        return cls.run_calculation(inputs, attr, params, opset=1)
 
     @classmethod
     def _impl_v13(cls, inputs, attr, params):
-        axis = attr.get("axis", -1)
-        ndim = len(infer_shape(inputs[0]))
-        if axis < 0:
-            axis += ndim
-        axes = [axis]
-        return cls.run_calculation(inputs[0], axes)
+        return cls.run_calculation(inputs, attr, params, opset=13)
 
 
 class Hardmax(OnnxOpConverter):
@@ -2573,7 +2701,7 @@ class Expand(OnnxOpConverter):
                     ],
                     axis=0,
                 )
-            elif new_dims > in_dims:
+            elif new_dims < in_dims:
                 shape = _op.concatenate(
                     [
                         _expr.const(
@@ -4772,7 +4900,8 @@ class SoftmaxCrossEntropyLoss(OnnxOpConverter):
             weight_tensor = None
 
         get_log_prob = attr["tvm_custom"]["num_outputs"] == 2
-        log_softmax_tensor = LogSoftmax.run_calculation(input_tensor, axes=[1])
+        log_softmax_attr = {"axis": 1}
+        log_softmax_tensor = LogSoftmax.get_converter(13)([input_tensor], log_softmax_attr, None)
 
         loss, weight_total = NegativeLogLikelihoodLoss.run_calculation(
             log_softmax_tensor,
@@ -4961,9 +5090,82 @@ class Momentum(OnnxOpConverter):
         return _expr.TupleWrapper(_expr.Tuple(result), len(result))
 
 
+class Round(OnnxOpConverter):
+    """Operator converter for round op."""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        # Onnx round uses Banker's rounding which rounds .5 to the nearest even integer
+
+        x = inputs[0]
+        dtype = infer_type(x).checked_type.dtype
+        half = _expr.const(0.5, dtype=dtype)
+        one = _expr.const(1, dtype=dtype)
+        two = _expr.const(2, dtype=dtype)
+
+        rounded = _op.ceil(x - half)
+        bankers_mask = one - (_op.ceil(x + half) - _op.floor(x + half))
+        non_even = _op.abs(_op.mod(rounded, two))
+        return rounded + (bankers_mask * non_even)
+
+
+class SequenceConstruct(OnnxOpConverter):
+    """Operator converter for sequence construction op."""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        # Construct a tuple from input tensors.
+        return _expr.Tuple(inputs)
+
+
+class SequenceInsert(OnnxOpConverter):
+    """Operator converter for sequence insert op."""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        # Insert a new tensor into a tuple of tensors.
+        input_sequence = inputs[0]
+        new_tensor = inputs[1]
+
+        if len(inputs) == 3:
+            position = inputs[2]
+            # Non constant position is not supported.
+            if isinstance(position, _expr.Constant):
+                position = position.data.numpy()
+            elif position.name_hint in params:
+                position = params[position.name_hint].numpy()
+            else:
+                raise NotImplementedError("Position must be a constant.")
+        else:
+            position = -1
+
+        if position < 0:
+            position = len(input_sequence) + position + 1
+        # Convert sequence to a list, insert new tensor, and repackage as Tuple.
+        tensor_list = [input_sequence[i] for i in range(len(input_sequence))]
+        # Insert new tensor.
+        tensor_list.insert(position, new_tensor)
+        # Create new tuple and return.
+        return _expr.Tuple(tensor_list)
+
+
+class ConcatFromSequence(OnnxOpConverter):
+    """Operator converter for sequence concatenation op."""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        axis = attr.get("axis", 0)
+        new_axis = attr.get("new_axis", 0)
+
+        # If a new axis should be created, just stack input tensors.
+        if new_axis == 1:
+            return _op.stack(inputs[0], axis=axis)
+
+        return _op.concatenate(inputs[0], axis=axis)
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
-
 
 # _convert_map defines maps of name to converter functor(callable)
 # for 1 to 1 mapping, use Renamer if nothing but name is different
@@ -4987,7 +5189,7 @@ def _get_convert_map(opset):
         # 'GRUUnit'
         # 'ATen'
         # 'ImageScaler'
-        # 'MeanVarianceNormalization'
+        "MeanVarianceNormalization": MeanVarianceNormalization.get_converter(opset),
         # 'Crop'
         # 'Embedding'
         "Upsample": Upsample.get_converter(opset),
@@ -5009,7 +5211,7 @@ def _get_convert_map(opset):
         "Reciprocal": Reciprocal.get_converter(opset),
         "Floor": Renamer("floor"),
         "Ceil": Renamer("ceil"),
-        "Round": Renamer("round"),
+        "Round": Round.get_converter(opset),
         "IsInf": IsInf.get_converter(opset),
         "IsNaN": Renamer("isnan"),
         "Sqrt": Renamer("sqrt"),
@@ -5177,6 +5379,10 @@ def _get_convert_map(opset):
         "Scan": Scan.get_converter(opset),
         # ML
         "LinearRegressor": LinearRegressor.get_converter(opset),
+        # Sequence operators
+        "SequenceConstruct": SequenceConstruct.get_converter(opset),
+        "SequenceInsert": SequenceInsert.get_converter(opset),
+        "ConcatFromSequence": ConcatFromSequence.get_converter(opset),
     }
 
 

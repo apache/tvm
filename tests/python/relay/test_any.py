@@ -18,6 +18,7 @@ import os
 
 import numpy as np
 import tvm
+import tvm.testing
 import tvm.topi.testing
 from tvm import relay, te
 from tvm.relay.loops import while_loop
@@ -2149,7 +2150,4 @@ def test_searchsorted():
 
 
 if __name__ == "__main__":
-    import sys
-    import pytest
-
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

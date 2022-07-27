@@ -80,10 +80,16 @@ std::vector<T> ThinVector(const std::vector<T>& vec, size_t max_size) {
   return thin_vec;
 }
 
-std::vector<Plan> ParetoCullPlans(std::vector<Plan> plans, size_t max_plans) {
+std::vector<Plan> ParetoCullPlans(std::vector<Plan> plans, size_t max_plans,
+                                  bool disable_pareto_metric) {
   if (plans.size() <= max_plans) {
     return plans;
   }
+  if (disable_pareto_metric) {
+    // Sample from all plans
+    return ThinVector(plans, max_plans);
+  }
+
   std::sort(plans.begin(), plans.end(), [](const Plan& a, const Plan& b) -> bool {
     return a->GetMemoryUsage() < b->GetMemoryUsage();
   });
@@ -108,7 +114,13 @@ std::vector<Plan> ParetoCullPlans(std::vector<Plan> plans, size_t max_plans) {
   return ThinVector(optimal_plans, max_plans);
 }
 
-std::vector<Proposal> ParetoCullProposals(std::vector<Proposal> proposals, size_t max_proposals) {
+std::vector<Proposal> ParetoCullProposals(std::vector<Proposal> proposals, size_t max_proposals,
+                                          bool disable_pareto_metric) {
+  if (disable_pareto_metric) {
+    // Sample from all Proposals
+    return ThinVector(proposals, max_proposals);
+  }
+
   std::sort(proposals.begin(), proposals.end(), [](const Proposal& a, const Proposal& b) -> bool {
     return a->GetMemoryUsage() < b->GetMemoryUsage();
   });
@@ -156,9 +168,9 @@ TVM_REGISTER_GLOBAL("contrib.ethosu.cascader.ThinVector")
     });
 
 TVM_REGISTER_GLOBAL("contrib.ethosu.cascader.ParetoCullPlans")
-    .set_body_typed([](Array<Plan> plans, int max_size) {
+    .set_body_typed([](Array<Plan> plans, int max_size, bool disable_pareto_metric) {
       std::vector<Plan> vplans(plans.begin(), plans.end());
-      return Array<Plan>(ParetoCullPlans(vplans, max_size));
+      return Array<Plan>(ParetoCullPlans(vplans, max_size, disable_pareto_metric));
     });
 
 }  // namespace cascader

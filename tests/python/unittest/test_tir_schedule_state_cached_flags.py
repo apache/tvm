@@ -19,6 +19,7 @@ import sys
 
 import pytest
 import tvm
+import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
 from tvm.tir.schedule.state import CachedFlags
@@ -757,7 +758,7 @@ def test_non_perfect_tiling_cache():
     s = tir.ScheduleState(non_perfect_tiling_cache, debug_mask="all")
     # pylint: disable=protected-access
     assert s._get_cached_flags(_get_block(s, "cache")) == CachedFlags(
-        affine_binding=False,
+        affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
@@ -781,4 +782,4 @@ def test_uncovered_producer_region():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

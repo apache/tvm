@@ -201,10 +201,10 @@ void ParseCmdArgs(int argc, char* argv[], struct RpcServerArgs& args) {
     args.port = stoi(port);
   }
 
-  const string port_end = GetCmdOption(argc, argv, "--port_end=");
+  const string port_end = GetCmdOption(argc, argv, "--port-end=");
   if (!port_end.empty()) {
     if (!IsNumber(port_end) || stoi(port_end) > 65535) {
-      LOG(WARNING) << "Wrong port_end number.";
+      LOG(WARNING) << "Wrong port-end number.";
       LOG(INFO) << kUsage;
       exit(1);
     }
@@ -226,7 +226,7 @@ void ParseCmdArgs(int argc, char* argv[], struct RpcServerArgs& args) {
     args.key = key;
   }
 
-  const string custom_addr = GetCmdOption(argc, argv, "--custom_addr=");
+  const string custom_addr = GetCmdOption(argc, argv, "--custom-addr=");
   if (!custom_addr.empty()) {
     if (!ValidateIP(custom_addr)) {
       LOG(WARNING) << "Wrong custom address format.";

@@ -19,7 +19,9 @@ import subprocess
 import os
 import logging
 import sys
+import re
 from pathlib import Path
+from typing import List
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -44,18 +46,27 @@ def init_log():
 
 
 class Sh:
-    def __init__(self, env=None):
+    def __init__(self, env=None, cwd=None):
         self.env = os.environ.copy()
         if env is not None:
             self.env.update(env)
+        self.cwd = cwd
 
     def run(self, cmd: str, **kwargs):
         logging.info(f"+ {cmd}")
-        if "check" not in kwargs:
-            kwargs["check"] = True
-        if "shell" not in kwargs:
-            kwargs["shell"] = True
-        if "env" not in kwargs:
-            kwargs["env"] = self.env
+        defaults = {
+            "check": True,
+            "shell": True,
+            "env": self.env,
+            "encoding": "utf-8",
+            "cwd": self.cwd,
+        }
+        defaults.update(kwargs)
 
-        subprocess.run(cmd, **kwargs)
+        return subprocess.run(cmd, **defaults)
+
+
+def tags_from_title(title: str) -> List[str]:
+    tags = re.findall(r"\[(.*?)\]", title)
+    tags = [t.strip() for t in tags]
+    return tags

@@ -70,6 +70,7 @@ from .target import (
     bifrost,
     riscv_cpu,
     hexagon,
+    stm32,
 )
 from .virtual_device import VirtualDevice
 from .compilation_config import make_compilation_config

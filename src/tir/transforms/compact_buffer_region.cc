@@ -45,16 +45,36 @@ using support::NDIntSet;
  * \brief simplify and return the region collected by NDIntSet. return the original
  * buffer shape if the int_set is empty.
  */
-Region SimplifyAndNarrowBufferRegionFromNDIntSet(const NDIntSet& nd_int_set,
-                                                 const Array<PrimExpr>& original_shape,
-                                                 arith::Analyzer* analyzer) {
+Region SimplifyAndNarrowBufferRegionFromNDIntSet(
+    const NDIntSet& nd_int_set, const Array<PrimExpr>& original_shape, arith::Analyzer* analyzer,
+    const std::vector<const ForNode*>& ancestor_loops) {
   Array<Range> result;
   result.reserve(nd_int_set.size());
   for (size_t i = 0; i < nd_int_set.size(); ++i) {
     const arith::IntSet& int_set = nd_int_set[i];
     Range range = int_set.CoverRange(Range(/*begin=*/0, /*end=*/original_shape[i]));
-    result.push_back(Range::FromMinExtent(
-        range->min, analyzer->Simplify(min(original_shape[i], range->extent))));
+    PrimExpr min = analyzer->Simplify(tvm::max(0, range->min));
+    PrimExpr extent = analyzer->Simplify(tvm::min(original_shape[i], range->extent));
+
+    // Check the buffer region is not loop dependent, since loop dependent
+    // allocation is not supported yet.
+    auto is_loop_var = [&ancestor_loops](const VarNode* v) {
+      return std::any_of(ancestor_loops.begin(), ancestor_loops.end(),
+                         [v](const ForNode* n) { return n->loop_var.get() == v; });
+    };
+    if (UsesVar(extent, is_loop_var)) {
+      // try estimate a constant upperbound on region's extent
+      int64_t upperbound = analyzer->const_int_bound(extent)->max_value;
+      if (upperbound != arith::ConstIntBound::kPosInf) {
+        extent = make_const(extent->dtype, upperbound);
+      } else {
+        // or else we have to fallback to full region
+        min = make_zero(original_shape[i]->dtype);
+        extent = original_shape[i];
+      }
+    }
+
+    result.push_back(Range::FromMinExtent(min, extent));
   }
   return result;
 }
@@ -70,9 +90,7 @@ NDIntSet NDIntSetEval(Region region, PrimExpr predicate,
   Optional<Array<arith::IntSet>> eval_res =
       arith::EstimateRegionLowerBound(region, var_dom, predicate, analyzer);
   if (eval_res.defined()) {
-    NDIntSet res(0);
-    for (const auto& it : eval_res.value()) res.push_back(it);
-    return res;
+    return NDIntSet(eval_res.value().begin(), eval_res.value().end());
   }
   return support::NDIntSetEval(support::NDIntSetFromRegion(region), dom_map);
 }
@@ -132,6 +150,30 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
     dom_map_.erase(op->loop_var.get());
     ancestor_loops_.pop_back();
+  }
+
+  void VisitStmt_(const LetStmtNode* op) final {
+    StmtExprVisitor::VisitExpr(op->value);
+    if (arith::IsIndexType(op->value->dtype)) {
+      dom_analyzer_.Bind(op->var, op->value);
+      dom_map_.emplace(op->var.get(), arith::IntSet::SinglePoint(op->value));
+    }
+    StmtExprVisitor::VisitStmt(op->body);
+    if (arith::IsIndexType(op->value->dtype)) {
+      dom_map_.erase(op->var.get());
+    }
+  }
+
+  void VisitExpr_(const LetNode* op) final {
+    StmtExprVisitor::VisitExpr(op->value);
+    if (arith::IsIndexType(op->value->dtype)) {
+      dom_analyzer_.Bind(op->var, op->value);
+      dom_map_.emplace(op->var.get(), arith::IntSet::SinglePoint(op->value));
+    }
+    StmtExprVisitor::VisitExpr(op->body);
+    if (arith::IsIndexType(op->value->dtype)) {
+      dom_map_.erase(op->var.get());
+    }
   }
 
   void VisitStmt_(const IfThenElseNode* op) final {
@@ -209,8 +251,8 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       ICHECK(it != relaxed_accesses_.end())
           << buffer << " is allocated but not accessed within block scope";
       const NDIntSet& nd_int_set = it->second;
-      buffer_access_region_[buffer] =
-          SimplifyAndNarrowBufferRegionFromNDIntSet(nd_int_set, buffer->shape, &dom_analyzer_);
+      buffer_access_region_[buffer] = SimplifyAndNarrowBufferRegionFromNDIntSet(
+          nd_int_set, buffer->shape, &dom_analyzer_, ancestor_loops_);
     }
   }
 

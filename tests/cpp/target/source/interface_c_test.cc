@@ -24,6 +24,7 @@
 #include <tvm/runtime/module.h>
 #include <tvm/tir/usmp/utils.h>
 
+using ::testing::ContainsRegex;
 using ::testing::HasSubstr;
 
 namespace tvm {
@@ -31,6 +32,7 @@ namespace codegen {
 
 runtime::Module InterfaceCCreate(std::string module_name, Array<String> inputs,
                                  Array<String> outputs, Array<tir::usmp::AllocatedPoolInfo> pools,
+                                 Map<String, tir::usmp::PoolAllocation> io_pool_allocations,
                                  Array<String> devices, int workspace_size);
 
 namespace {
@@ -52,7 +54,7 @@ TEST(InterfaceAPI, ContainsHeaderGuards) {
                      << "#endif // TVMGEN_ULTIMATE_CAT_SPOTTER_H_\n";
 
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, 0);
+      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, {}, 0);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(upper_header_guard.str()));
@@ -73,7 +75,7 @@ TEST(InterfaceAPI, ContainsRunFunction) {
                << ");\n";
 
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, 0);
+      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, {}, 0);
   std::string header_source = test_module->GetSource();
   ASSERT_THAT(header_source, HasSubstr(run_function.str()));
 }
@@ -94,7 +96,7 @@ TEST(InterfaceAPI, ContainsRunFunctionWithDevices) {
                << ");\n";
 
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {"device"}, 0);
+      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, {"device"}, 0);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(run_function.str()));
@@ -115,14 +117,126 @@ TEST(InterfaceAPI, ContainsRunFunctionWithWorkspacePools) {
                << "  struct tvmgen_ultimate_cat_spotter_workspace_pools* workspace_pools\n"
                << ");\n";
 
-  PoolInfo pool_info = PoolInfo("my_memory_pool", {});
+  PoolInfo pool_info = WorkspacePoolInfo("my_memory_pool", {});
   tir::usmp::AllocatedPoolInfo allocated_pool_info =
       tir::usmp::AllocatedPoolInfo(pool_info, 100000);
-  runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {allocated_pool_info}, {}, 0);
+  runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"},
+                                                 {allocated_pool_info}, {}, {}, 0);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(run_function.str()));
+}
+
+TEST(InterfaceAPI, ContainsRunFunctionWithWorkspaceAndConstantPools) {
+  std::stringstream run_function;
+
+  run_function << "/*!\n"
+               << " * \\brief entrypoint function for TVM module \"ultimate_cat_spotter\"\n"
+               << " * \\param inputs Input tensors for the module \n"
+               << " * \\param outputs Output tensors for the module \n"
+               << " * \\param workspace_pools Workspace memory pool pointers for the module \n"
+               << " */\n"
+               << "int32_t tvmgen_ultimate_cat_spotter_run(\n"
+               << "  struct tvmgen_ultimate_cat_spotter_inputs* inputs,\n"
+               << "  struct tvmgen_ultimate_cat_spotter_outputs* outputs,\n"
+               << "  struct tvmgen_ultimate_cat_spotter_workspace_pools* workspace_pools\n"
+               << ");\n";
+
+  PoolInfo pool_info = WorkspacePoolInfo("my_memory_pool", {});
+  PoolInfo const_info = ConstantPoolInfo(
+      "my_constant_pool", {},
+      {{"const1", 0, runtime::NDArray::Empty({1}, DataType::Int(32), {kDLCPU, 0})},
+       {"const2", 16, runtime::NDArray::Empty({1}, DataType::Float(64), {kDLCPU, 0})}});
+  tir::usmp::AllocatedPoolInfo allocated_pool_info =
+      tir::usmp::AllocatedPoolInfo(pool_info, 100000);
+  tir::usmp::AllocatedPoolInfo allocated_const_info =
+      tir::usmp::AllocatedPoolInfo(const_info, 100000);
+  runtime::Module test_module =
+      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"},
+                       {allocated_pool_info, allocated_const_info}, {}, {}, 0);
+  std::string header_source = test_module->GetSource();
+  ASSERT_THAT(header_source, HasSubstr(run_function.str()));
+  ASSERT_THAT(
+      header_source,
+      HasSubstr("#define TVMGEN_ULTIMATE_CAT_SPOTTER_MY_CONSTANT_POOL_CONSTANT_POOL_SIZE 24"));
+  ASSERT_THAT(
+      header_source,
+      ContainsRegex(
+          "#define TVMGEN_ULTIMATE_CAT_SPOTTER_MY_CONSTANT_POOL_CONSTANT_POOL_DATA \\\\\\\n    "
+          "0x\\w\\w, 0x\\w\\w, 0x\\w\\w, 0x\\w\\w, 0x\\w\\w, 0x\\w\\w, 0x\\w\\w, 0x\\w\\w, "
+          "0x\\w\\w, 0x\\w\\w, 0x\\w\\w, 0x\\w\\w, 0x\\w\\w, "
+          "0x\\w\\w, 0x\\w\\w, 0x\\w\\w, \\\\\\\n    0x\\w\\w, 0x\\w\\w, 0x\\w\\w, 0x\\w\\w, "
+          "0x\\w\\w, 0x\\w\\w, 0x\\w\\w, 0x\\w\\w\\\\\\\n"));
+}
+
+TEST(InterfaceAPI, ContainsRunFunctionWithWorkspacePoolsAndDevices) {
+  std::stringstream run_function;
+
+  run_function << "/*!\n"
+               << " * \\brief entrypoint function for TVM module \"ultimate_cat_spotter\"\n"
+               << " * \\param inputs Input tensors for the module \n"
+               << " * \\param outputs Output tensors for the module \n"
+               << " * \\param workspace_pools Workspace memory pool pointers for the module \n"
+               << " * \\param devices Device context pointers for the module \n"
+               << " */\n"
+               << "int32_t tvmgen_ultimate_cat_spotter_run(\n"
+               << "  struct tvmgen_ultimate_cat_spotter_inputs* inputs,\n"
+               << "  struct tvmgen_ultimate_cat_spotter_outputs* outputs,\n"
+               << "  struct tvmgen_ultimate_cat_spotter_workspace_pools* workspace_pools,\n"
+               << "  struct tvmgen_ultimate_cat_spotter_devices* devices\n"
+               << ");\n";
+
+  PoolInfo pool_info = WorkspacePoolInfo("my_memory_pool", {});
+  tir::usmp::AllocatedPoolInfo allocated_pool_info =
+      tir::usmp::AllocatedPoolInfo(pool_info, 100000);
+  runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"},
+                                                 {allocated_pool_info}, {}, {"device"}, 0);
+  std::string header_source = test_module->GetSource();
+
+  ASSERT_THAT(header_source, HasSubstr(run_function.str()));
+}
+
+TEST(InterfaceAPI, ContainsRunFunctionWithWorkspaceIO) {
+  std::stringstream run_function_with_map_functions;
+
+  run_function_with_map_functions
+      << "/*!\n"
+      << " * \\brief Maps I/O inside the workspace pools for TVM module \"ultimate_cat_spotter\"\n"
+      << " * \\param workspace_pools Workspace memory pool struct for the module \n"
+      << " * \\return I/O tensor struct for the module \n"
+      << " */\n"
+      << "struct tvmgen_ultimate_cat_spotter_inputs tvmgen_ultimate_cat_spotter_map_inputs(\n"
+      << "  struct tvmgen_ultimate_cat_spotter_workspace_pools* workspace_pools\n"
+      << ");\n"
+      << "\n"
+      << "/*!\n"
+      << " * \\brief Maps I/O inside the workspace pools for TVM module \"ultimate_cat_spotter\"\n"
+      << " * \\param workspace_pools Workspace memory pool struct for the module \n"
+      << " * \\return I/O tensor struct for the module \n"
+      << " */\n"
+      << "struct tvmgen_ultimate_cat_spotter_outputs tvmgen_ultimate_cat_spotter_map_outputs(\n"
+      << "  struct tvmgen_ultimate_cat_spotter_workspace_pools* workspace_pools\n"
+      << ");\n"
+      << "\n"
+      << "/*!\n"
+      << " * \\brief entrypoint function for TVM module \"ultimate_cat_spotter\"\n"
+      << " * \\param workspace_pools Workspace memory pool pointers for the module \n"
+      << " */\n"
+      << "int32_t tvmgen_ultimate_cat_spotter_run(\n"
+      << "  struct tvmgen_ultimate_cat_spotter_workspace_pools* workspace_pools\n"
+      << ");\n";
+
+  PoolInfo pool_info = WorkspacePoolInfo("my_memory_pool", {});
+  tir::usmp::AllocatedPoolInfo allocated_pool_info =
+      tir::usmp::AllocatedPoolInfo(pool_info, 100000);
+  tir::usmp::PoolAllocation pool_allocation_input{pool_info, 1000};
+  tir::usmp::PoolAllocation pool_allocation_output{pool_info, 2000};
+  runtime::Module test_module = InterfaceCCreate(
+      "ultimate_cat_spotter", {"input"}, {"output"}, {allocated_pool_info},
+      {{"input", pool_allocation_input}, {"output", pool_allocation_output}}, {}, 0);
+  std::string header_source = test_module->GetSource();
+  std::cout << header_source << "\n";
+  ASSERT_THAT(header_source, HasSubstr(run_function_with_map_functions.str()));
 }
 
 TEST(InterfaceAPI, ContainsInputStructSingle) {
@@ -136,7 +250,7 @@ TEST(InterfaceAPI, ContainsInputStructSingle) {
                << "};\n\n";
 
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, 0);
+      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, {}, 0);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(input_struct.str()));
@@ -151,7 +265,7 @@ TEST(InterfaceAPI, ContainsInputStructMany) {
                << "};\n\n";
 
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input1", "input2"}, {"output"}, {}, {}, 0);
+      InterfaceCCreate("ultimate_cat_spotter", {"input1", "input2"}, {"output"}, {}, {}, {}, 0);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(input_struct.str()));
@@ -166,7 +280,7 @@ TEST(InterfaceAPI, ContainsInputStructSanitised) {
                << "};\n\n";
 
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input+1", "input+2"}, {"output"}, {}, {}, 0);
+      InterfaceCCreate("ultimate_cat_spotter", {"input+1", "input+2"}, {"output"}, {}, {}, {}, 0);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(input_struct.str()));
@@ -174,7 +288,7 @@ TEST(InterfaceAPI, ContainsInputStructSanitised) {
 
 TEST(InterfaceAPI, ContainsInputStructClash) {
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input+", "input-"}, {"output"}, {}, {}, 0);
+      InterfaceCCreate("ultimate_cat_spotter", {"input+", "input-"}, {"output"}, {}, {}, {}, 0);
   ASSERT_THROW(test_module->GetSource(), InternalError);
 }
 
@@ -189,7 +303,7 @@ TEST(InterfaceAPI, ContainsOutputStructSingle) {
                 << "};\n\n";
 
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, 0);
+      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, {}, 0);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(output_struct.str()));
@@ -204,7 +318,7 @@ TEST(InterfaceAPI, ContainsOutputStructMany) {
                 << "};\n\n";
 
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output1", "output2"}, {}, {}, 0);
+      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output1", "output2"}, {}, {}, {}, 0);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(output_struct.str()));
@@ -219,7 +333,7 @@ TEST(InterfaceAPI, ContainsOutputStructSanitised) {
                 << "};\n\n";
 
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output+1", "output-2"}, {}, {}, 0);
+      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output+1", "output-2"}, {}, {}, {}, 0);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(output_struct.str()));
@@ -227,7 +341,7 @@ TEST(InterfaceAPI, ContainsOutputStructSanitised) {
 
 TEST(InterfaceAPI, ContainsOutputStructClash) {
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output+", "output-"}, {}, {}, 0);
+      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output+", "output-"}, {}, {}, {}, 0);
   ASSERT_THROW(test_module->GetSource(), InternalError);
 }
 
@@ -241,7 +355,7 @@ TEST(InterfaceAPI, NoDeviceAPIStructIfNoDevices) {
                 << "};\n\n";
 
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, 0);
+      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, {}, 0);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, Not(HasSubstr(device_struct.str())));
@@ -258,7 +372,7 @@ TEST(InterfaceAPI, ContainsDeviceStructSingle) {
                 << "};\n\n";
 
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {"device"}, 0);
+      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, {"device"}, 0);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(device_struct.str()));
@@ -273,7 +387,7 @@ TEST(InterfaceAPI, ContainsDeviceStructMany) {
                 << "};\n\n";
 
   runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {},
-                                                 {"device1", "device2"}, 0);
+                                                 {}, {"device1", "device2"}, 0);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(device_struct.str()));
@@ -288,7 +402,7 @@ TEST(InterfaceAPI, ContainsDeviceStructSanitised) {
                 << "};\n\n";
 
   runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {},
-                                                 {"device+1", "device+2"}, 0);
+                                                 {}, {"device+1", "device+2"}, 0);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(device_struct.str()));
@@ -296,13 +410,13 @@ TEST(InterfaceAPI, ContainsDeviceStructSanitised) {
 
 TEST(InterfaceAPI, ContainsDeviceStructClash) {
   runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {},
-                                                 {"device+", "device-"}, 0);
+                                                 {}, {"device+", "device-"}, 0);
   ASSERT_THROW(test_module->GetSource(), InternalError);
 }
 
 TEST(InterfaceAPI, ContainsWorkspaceSize) {
   runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, 765432);
+      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {}, {}, {}, 765432);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source,
@@ -313,7 +427,7 @@ TEST(InterfaceAPI, ContainsWorkspaceSize) {
 }
 
 TEST(InterfaceAPI, ContainsWorkspacePoolStructSingle) {
-  PoolInfo pool_info = PoolInfo("my_memory_pool", {});
+  PoolInfo pool_info = WorkspacePoolInfo("my_memory_pool", {});
   tir::usmp::AllocatedPoolInfo allocated_pool_info =
       tir::usmp::AllocatedPoolInfo(pool_info, 100000);
 
@@ -327,8 +441,8 @@ TEST(InterfaceAPI, ContainsWorkspacePoolStructSingle) {
       << "  void* my_memory_pool;\n"
       << "};\n\n";
 
-  runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {allocated_pool_info}, {}, 0);
+  runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"},
+                                                 {allocated_pool_info}, {}, {}, 0);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(workspace_struct.str()));
@@ -342,10 +456,10 @@ TEST(InterfaceAPI, ContainsWorkspacePoolStructSingle) {
 }
 
 TEST(InterfaceAPI, ContainsWorkspacePoolStructMany) {
-  PoolInfo pool_info1 = PoolInfo("my_memory_pool_1", {});
+  PoolInfo pool_info1 = WorkspacePoolInfo("my_memory_pool_1", {});
   tir::usmp::AllocatedPoolInfo allocated_pool_info1 =
       tir::usmp::AllocatedPoolInfo(pool_info1, 100000);
-  PoolInfo pool_info2 = PoolInfo("my_memory_pool_2", {});
+  PoolInfo pool_info2 = WorkspacePoolInfo("my_memory_pool_2", {});
   tir::usmp::AllocatedPoolInfo allocated_pool_info2 =
       tir::usmp::AllocatedPoolInfo(pool_info2, 200000);
 
@@ -362,7 +476,7 @@ TEST(InterfaceAPI, ContainsWorkspacePoolStructMany) {
 
   runtime::Module test_module =
       InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"},
-                       {allocated_pool_info1, allocated_pool_info2}, {}, 0);
+                       {allocated_pool_info1, allocated_pool_info2}, {}, {}, 0);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(workspace_struct.str()));
@@ -383,7 +497,7 @@ TEST(InterfaceAPI, ContainsWorkspacePoolStructMany) {
 }
 
 TEST(InterfaceAPI, ContainsWorkspacePoolStructSanitized) {
-  PoolInfo pool_info = PoolInfo("my_memory_pool+1", {});
+  PoolInfo pool_info = WorkspacePoolInfo("my_memory_pool+1", {});
   tir::usmp::AllocatedPoolInfo allocated_pool_info =
       tir::usmp::AllocatedPoolInfo(pool_info, 100000);
 
@@ -397,8 +511,8 @@ TEST(InterfaceAPI, ContainsWorkspacePoolStructSanitized) {
       << "  void* my_memory_pool_1;\n"
       << "};\n\n";
 
-  runtime::Module test_module =
-      InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"}, {allocated_pool_info}, {}, 0);
+  runtime::Module test_module = InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"},
+                                                 {allocated_pool_info}, {}, {}, 0);
   std::string header_source = test_module->GetSource();
 
   ASSERT_THAT(header_source, HasSubstr(workspace_struct.str()));
@@ -412,16 +526,16 @@ TEST(InterfaceAPI, ContainsWorkspacePoolStructSanitized) {
 }
 
 TEST(InterfaceAPI, ContainsWorkspacePoolStructClash) {
-  PoolInfo pool_info1 = PoolInfo("my_memory_pool+", {});
+  PoolInfo pool_info1 = WorkspacePoolInfo("my_memory_pool+", {});
   tir::usmp::AllocatedPoolInfo allocated_pool_info1 =
       tir::usmp::AllocatedPoolInfo(pool_info1, 100000);
-  PoolInfo pool_info2 = PoolInfo("my_memory_pool-", {});
+  PoolInfo pool_info2 = WorkspacePoolInfo("my_memory_pool-", {});
   tir::usmp::AllocatedPoolInfo allocated_pool_info2 =
       tir::usmp::AllocatedPoolInfo(pool_info2, 200000);
 
   runtime::Module test_module =
       InterfaceCCreate("ultimate_cat_spotter", {"input"}, {"output"},
-                       {allocated_pool_info1, allocated_pool_info2}, {}, 0);
+                       {allocated_pool_info1, allocated_pool_info2}, {}, {}, 0);
   ASSERT_THROW(test_module->GetSource(), InternalError);
 }
 

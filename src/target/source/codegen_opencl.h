@@ -70,10 +70,9 @@ class CodeGenOpenCL final : public CodeGenC {
   // overload min and max to avoid ambiguous call errors
   void VisitExpr_(const MinNode* op, std::ostream& os) final;
   void VisitExpr_(const MaxNode* op, std::ostream& os) final;
-
-  // Binary vector op.
-  void PrintVecBinaryOp(const std::string& op, DataType op_type, PrimExpr lhs, PrimExpr rhs,
-                        std::ostream& os) final;
+  void VisitExpr_(const AndNode* op, std::ostream& os) final;
+  void VisitExpr_(const OrNode* op, std::ostream& os) final;
+  void VisitExpr_(const SelectNode* op, std::ostream& os) final;
 
  private:
   // whether enable fp16 and fp64 extension

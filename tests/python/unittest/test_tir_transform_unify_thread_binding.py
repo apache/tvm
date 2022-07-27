@@ -18,6 +18,7 @@ import pytest
 import sys
 
 import tvm
+import tvm.testing
 from tvm import te
 from tvm.script import tir as T
 
@@ -68,6 +69,43 @@ def unified_element_wise_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None
                 with T.block(""):
                     C[blockIdx_x, threadIdx_x * 32 + j1_1] = (
                         B[blockIdx_x, threadIdx_x * 32 + j1_1] + 1.0
+                    )
+
+
+@T.prim_func
+def element_wise_thread_x_different_dtype(
+    A: T.Buffer[(128, 128), "float32"],
+    B: T.Buffer[(128, 128), "float32"],
+    C: T.Buffer[(128, 128), "float32"],
+) -> None:
+    for i in T.thread_binding(128, "blockIdx.x"):
+        for j0_0 in T.thread_binding(4, "threadIdx.x"):
+            for j0_1 in T.serial(0, 32):
+                with T.block(""):
+                    B[i, j0_0 * 32 + j0_1] = A[i, j0_0 * 32 + j0_1] * 2.0
+        for j1_0 in T.thread_binding(T.int64(4), "threadIdx.x"):
+            for j1_1 in T.serial(T.int64(32)):
+                with T.block(""):
+                    C[i, j1_0 * T.int64(32) + j1_1] = B[i, j1_0 * T.int64(32) + j1_1] + 1.0
+
+
+@T.prim_func
+def unified_element_wise_thread_x_different_dtype(
+    A: T.Buffer[(128, 128), "float32"],
+    B: T.Buffer[(128, 128), "float32"],
+    C: T.Buffer[(128, 128), "float32"],
+) -> None:
+    for blockIdx_x in T.thread_binding(128, "blockIdx.x"):
+        for threadIdx_x in T.thread_binding(4, "threadIdx.x"):
+            for j0_1 in T.serial(0, 32):
+                with T.block(""):
+                    B[blockIdx_x, threadIdx_x * 32 + j0_1] = (
+                        A[blockIdx_x, threadIdx_x * 32 + j0_1] * 2.0
+                    )
+            for j1_1 in T.serial(T.int64(32)):
+                with T.block(""):
+                    C[blockIdx_x, T.cast(threadIdx_x, "int64") * T.int64(32) + j1_1] = (
+                        B[blockIdx_x, T.cast(threadIdx_x, "int64") * T.int64(32) + j1_1] + 1.0
                     )
 
 
@@ -222,6 +260,10 @@ def test_thread_x():
     _check(element_wise_thread_x, unified_element_wise_thread_x)
 
 
+def test_thread_x_different_dtype():
+    _check(element_wise_thread_x_different_dtype, unified_element_wise_thread_x_different_dtype)
+
+
 def test_env_thread_x():
     _check(element_wise_env_thread_x, unified_element_wise_env_thread_x)
 
@@ -256,4 +298,4 @@ def test_lower_te():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

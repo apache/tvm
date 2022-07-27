@@ -21,7 +21,12 @@ import re
 
 from tvm import _ffi, ir, te, topi
 from tvm.target import generic_func, override_native_generic_func
-from tvm.topi.utils import get_const_float, get_const_int, get_const_tuple, get_float_tuple
+from tvm.topi.utils import (
+    get_const_float,
+    get_const_int,
+    get_const_tuple,
+    get_float_tuple,
+)
 
 from .. import op as _op
 
@@ -211,14 +216,20 @@ def schedule_bitpack(attrs, outs, target):
 get_auto_scheduler_rewritten_layout = _ffi.get_global_func(
     "relay.attrs.get_auto_scheduler_rewritten_layout"
 )
+get_meta_schedule_original_shape = _ffi.get_global_func(
+    "relay.attrs.get_meta_schedule_original_shape"
+)
 
 # conv2d
 def wrap_compute_conv2d(
     topi_compute,
+    *,
     need_data_layout=False,
+    need_kernel_layout=False,
     need_out_layout=False,
     has_groups=False,
     need_auto_scheduler_layout=False,
+    need_meta_schedule_layout=False,
 ):
     """Wrap conv2d topi compute"""
 
@@ -227,6 +238,7 @@ def wrap_compute_conv2d(
         strides = get_const_tuple(attrs.strides)
         dilation = get_const_tuple(attrs.dilation)
         data_layout = attrs.get_str("data_layout")
+        kernel_layout = attrs.get_str("kernel_layout")
         out_layout = attrs.get_str("out_layout")
         out_dtype = attrs.out_dtype
         out_dtype = inputs[0].dtype if out_dtype in ("same", "") else out_dtype
@@ -235,11 +247,16 @@ def wrap_compute_conv2d(
             args.append(attrs.groups)
         if need_data_layout:
             args.append(data_layout)
+        if need_kernel_layout:
+            args.append(kernel_layout)
         if need_out_layout:
             args.append(out_layout)
         args.append(out_dtype)
         if need_auto_scheduler_layout:
             args.append(get_auto_scheduler_rewritten_layout(attrs))
+        elif need_meta_schedule_layout:
+            args.append("")
+            args.append(get_meta_schedule_original_shape(attrs))
         return [topi_compute(*args)]
 
     return _compute_conv2d
@@ -328,13 +345,15 @@ def conv2d_NCHWc_strategy(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     if inputs[0].dtype == "int8" or inputs[0].dtype == "uint8":
         strategy.add_implementation(
-            wrap_compute_conv2d(topi.nn.conv2d_NCHWc_int8, True, True),
+            wrap_compute_conv2d(
+                topi.nn.conv2d_NCHWc_int8, need_data_layout=True, need_out_layout=True
+            ),
             wrap_topi_schedule(topi.generic.schedule_conv2d_NCHWc_int8),
             name="conv2d_NCHWc_int8.generic",
         )
     else:
         strategy.add_implementation(
-            wrap_compute_conv2d(topi.nn.conv2d_NCHWc, True, True),
+            wrap_compute_conv2d(topi.nn.conv2d_NCHWc, need_data_layout=True, need_out_layout=True),
             wrap_topi_schedule(topi.generic.schedule_conv2d_NCHWc),
             name="conv2d_NCHWc.generic",
         )
@@ -348,7 +367,9 @@ def depthwise_conv2d_NCHWc_strategy(attrs, inputs, out_type, target):
     logger.warning("depthwise_conv2d_NCHWc is not optimized for this platform.")
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_conv2d(topi.nn.depthwise_conv2d_NCHWc, True, True),
+        wrap_compute_conv2d(
+            topi.nn.depthwise_conv2d_NCHWc, need_data_layout=True, need_out_layout=True
+        ),
         wrap_topi_schedule(topi.generic.schedule_depthwise_conv2d_NCHWc),
         name="depthwise_conv2d_NCHWc.generic",
     )
@@ -530,7 +551,12 @@ def conv3d_transpose_strategy(attrs, inputs, out_type, target):
 
 
 # conv3d
-def wrap_compute_conv3d(topi_compute, need_layout=False, need_auto_scheduler_layout=False):
+def wrap_compute_conv3d(
+    topi_compute,
+    need_layout=False,
+    need_auto_scheduler_layout=False,
+    need_meta_schedule_layout=False,
+):
     """wrap conv3d topi compute"""
 
     def _compute_conv3d(attrs, inputs, out_type):
@@ -552,6 +578,9 @@ def wrap_compute_conv3d(topi_compute, need_layout=False, need_auto_scheduler_lay
         args.append(out_dtype)
         if need_auto_scheduler_layout:
             args.append(get_auto_scheduler_rewritten_layout(attrs))
+        elif need_meta_schedule_layout:
+            args.append("")
+            args.append(get_meta_schedule_original_shape(attrs))
         return [topi_compute(*args)]
 
     return _compute_conv3d
@@ -782,7 +811,11 @@ def copy_if_identical(tensor_a, tensor_b):
 
 
 # matmul
-def wrap_compute_matmul(topi_compute, need_auto_scheduler_layout=False):
+def wrap_compute_matmul(
+    topi_compute,
+    need_auto_scheduler_layout=False,
+    need_meta_schedule_layout=False,
+):
     """wrap matmul topi compute"""
 
     def _compute_matmul(attrs, inputs, out_type):
@@ -799,6 +832,9 @@ def wrap_compute_matmul(topi_compute, need_auto_scheduler_layout=False):
         ]
         if need_auto_scheduler_layout:
             args.append(get_auto_scheduler_rewritten_layout(attrs))
+        elif need_meta_schedule_layout:
+            args.append("")
+            args.append(get_meta_schedule_original_shape(attrs))
         args[1] = copy_if_identical(inputs[0], inputs[1])
         return [topi_compute(*args)]
 
@@ -819,7 +855,11 @@ def matmul_strategy(attrs, inputs, out_type, target):
 
 
 # dense
-def wrap_compute_dense(topi_compute, need_auto_scheduler_layout=False):
+def wrap_compute_dense(
+    topi_compute,
+    need_auto_scheduler_layout=False,
+    need_meta_schedule_layout=False,
+):
     """wrap dense topi compute"""
 
     def _compute_dense(attrs, inputs, out_type):
@@ -829,6 +869,9 @@ def wrap_compute_dense(topi_compute, need_auto_scheduler_layout=False):
         args = [inputs[0], inputs[1], None, out_dtype]
         if need_auto_scheduler_layout:
             args.append(get_auto_scheduler_rewritten_layout(attrs))
+        elif need_meta_schedule_layout:
+            args.append("")
+            args.append(get_meta_schedule_original_shape(attrs))
         args[1] = copy_if_identical(inputs[0], inputs[1])
         return [topi_compute(*args)]
 
@@ -862,7 +905,13 @@ def dense_pack_strategy(attrs, inputs, out_type, target):
 
 
 # batch_matmul
-def wrap_compute_batch_matmul(topi_compute, need_auto_scheduler_layout=False, need_out_dtype=False):
+def wrap_compute_batch_matmul(
+    topi_compute,
+    *,
+    need_auto_scheduler_layout=False,
+    need_meta_schedule_layout=False,
+    need_out_dtype=False,
+):
     """wrap batch_matmul topi compute"""
 
     def _compute_batch_matmul(attrs, inputs, out_type):
@@ -872,6 +921,9 @@ def wrap_compute_batch_matmul(topi_compute, need_auto_scheduler_layout=False, ne
         args.append(attrs.transpose_b)
         if need_auto_scheduler_layout:
             args.append(get_auto_scheduler_rewritten_layout(attrs))
+        elif need_meta_schedule_layout:
+            args.append("")
+            args.append(get_meta_schedule_original_shape(attrs))
         args[1] = copy_if_identical(inputs[0], inputs[1])
         return [topi_compute(*args)]
 
@@ -1375,6 +1427,39 @@ def wrap_compute_sparse_reshape(topi_compute):
     return _compute_sparse_reshape
 
 
+# stft
+@override_native_generic_func("stft_strategy")
+def stft_strategy(attrs, outs, out_type, target):
+    """stft generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_stft(topi.stft),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="stft.generic",
+    )
+    return strategy
+
+
+def wrap_compute_stft(topi_compute):
+    """Wrap stft compute"""
+
+    def _compute_stft(attrs, inputs, output_type):
+        return [
+            topi_compute(
+                inputs[0],
+                attrs.n_fft,
+                attrs.hop_length,
+                attrs.win_length,
+                inputs[1],
+                attrs.normalized,
+                attrs.onesided,
+                output_type.shape,
+            )
+        ]
+
+    return _compute_stft
+
+
 # roi_pool
 @generic_func
 def schedule_roi_pool(attrs, outs, target):
@@ -1748,6 +1833,15 @@ def wrap_compute_scanop(topi_compute):
     return _compute_scanop
 
 
+def wrap_compute_concat(topi_compute):
+    """Wrap concatenate topi compute"""
+
+    def _compute_concat(attrs, inputs, _):
+        return [topi_compute(inputs, attrs.axis)]
+
+    return _compute_concat
+
+
 @override_native_generic_func("cumsum_strategy")
 def cumsum_strategy(attrs, inputs, out_type, target):
     """cumsum generic strategy"""
@@ -1756,6 +1850,18 @@ def cumsum_strategy(attrs, inputs, out_type, target):
         wrap_compute_scanop(topi.cumsum),
         wrap_topi_schedule(topi.generic.schedule_extern),
         name="cumsum.generic",
+    )
+    return strategy
+
+
+@override_native_generic_func("concat_strategy")
+def concatenate_strategy(attrs, inputs, out_type, target):
+    """concatenate generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_concat(topi.concatenate),
+        wrap_topi_schedule(topi.generic.schedule_injective),
+        name="concatenate",
     )
     return strategy
 

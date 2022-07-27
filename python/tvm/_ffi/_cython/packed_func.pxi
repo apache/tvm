@@ -46,7 +46,7 @@ cdef int tvm_callback(TVMValue* args,
             tcode == kTVMNDArrayHandle or
             tcode == kTVMObjectRefArg or
             tcode > kTVMExtBegin):
-            CALL(TVMCbArgToReturn(&value, &tcode))
+            CHECK_CALL(TVMCbArgToReturn(&value, &tcode))
 
         if tcode != kTVMDLTensorHandle:
             pyargs.append(make_ret(value, tcode))
@@ -64,7 +64,7 @@ cdef int tvm_callback(TVMValue* args,
             raise ValueError("PackedFunction can only support one return value")
         temp_args = []
         make_arg(rv, &value, &tcode, temp_args)
-        CALL(TVMCFuncSetReturn(ret, &value, &tcode, 1))
+        CHECK_CALL(TVMCFuncSetReturn(ret, &value, &tcode, 1))
     return 0
 
 
@@ -90,10 +90,10 @@ def convert_to_tvm_func(object pyfunc):
     """
     cdef TVMPackedFuncHandle chandle
     Py_INCREF(pyfunc)
-    CALL(TVMFuncCreateFromCFunc(tvm_callback,
-                                <void*>(pyfunc),
-                                tvm_callback_finalize,
-                                &chandle))
+    CHECK_CALL(TVMFuncCreateFromCFunc(tvm_callback,
+                                      <void*>(pyfunc),
+                                      tvm_callback_finalize,
+                                      &chandle))
     return make_packed_func(chandle, False)
 
 
@@ -243,8 +243,12 @@ cdef inline int FuncCall3(void* chandle,
     temp_args = []
     for i in range(nargs):
         make_arg(args[i], &values[i], &tcodes[i], temp_args)
-    CALL(TVMFuncCall(chandle, &values[0], &tcodes[0],
-                     nargs, ret_val, ret_tcode))
+
+    with nogil:
+        c_api_ret_code = TVMFuncCall(chandle, &values[0], &tcodes[0],
+                                     nargs, ret_val, ret_tcode)
+
+    CHECK_CALL(c_api_ret_code)
     return 0
 
 cdef inline int FuncCall(void* chandle,
@@ -252,6 +256,7 @@ cdef inline int FuncCall(void* chandle,
                          TVMValue* ret_val,
                          int* ret_tcode) except -1:
     cdef int nargs
+    cdef int c_api_ret_code
     nargs = len(args)
     if nargs <= 3:
         FuncCall3(chandle, args, nargs, ret_val, ret_tcode)
@@ -264,8 +269,11 @@ cdef inline int FuncCall(void* chandle,
     temp_args = []
     for i in range(nargs):
         make_arg(args[i], &values[i], &tcodes[i], temp_args)
-    CALL(TVMFuncCall(chandle, &values[0], &tcodes[0],
-                     nargs, ret_val, ret_tcode))
+
+    with nogil:
+        c_api_ret_code = TVMFuncCall(chandle, &values[0], &tcodes[0],
+                                     nargs, ret_val, ret_tcode)
+    CHECK_CALL(c_api_ret_code)
     return 0
 
 
@@ -314,7 +322,7 @@ cdef class PackedFuncBase:
 
     def __dealloc__(self):
         if self.is_global == 0:
-            CALL(TVMFuncFree(self.chandle))
+            CHECK_CALL(TVMFuncFree(self.chandle))
 
     def __call__(self, *args):
         cdef TVMValue ret_val
@@ -326,7 +334,7 @@ cdef class PackedFuncBase:
 
 def _get_global_func(name, allow_missing):
     cdef TVMPackedFuncHandle chandle
-    CALL(TVMFuncGetGlobal(c_str(name), &chandle))
+    CHECK_CALL(TVMFuncGetGlobal(c_str(name), &chandle))
     if chandle != NULL:
         return make_packed_func(chandle, True)
 

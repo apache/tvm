@@ -860,6 +860,7 @@ def test_llvm_order_functions():
 
 
 @tvm.testing.requires_llvm
+@tvm.testing.skip_if_32bit
 def test_llvm_import():
     """all-platform-minimal-test: check shell dependent clang behavior."""
     # extern "C" is necessary to get the correct signature
@@ -932,5 +933,50 @@ def test_raise_exception_during_codegen():
     assert msg.find("Nested parallel loop is not supported") != -1
 
 
+@tvm.testing.requires_llvm
+def test_llvm_target_attributes():
+    """Check that when LLVM codegen creates new functions, they get the same target
+    attributes as the original function.
+    """
+    n = te.var()
+    A = te.placeholder((n,), name="A", dtype="float32")
+    B = te.compute((n,), lambda i: A[i], name="B")
+    C = te.compute((n,), lambda i: B[i] + tvm.tir.const(1, A.dtype), name="C")
+    s = te.create_schedule(C.op)
+    xo, xi = s[C].split(C.op.axis[0], nparts=2)
+    s[C].parallel(xo)
+
+    target_llvm = "llvm -mcpu=skylake -mattr=+avx512f"
+    target = tvm.target.Target(target_llvm, host=target_llvm)
+    module = tvm.build(s, [A, B, C, n], target=target, name="test_func")
+
+    llvm_ir = module.get_source()
+    llvm_ir_lines = llvm_ir.split("\n")
+
+    attribute_definitions = dict()
+    attributes_with_target = dict()
+    functions_with_target = []
+
+    for line in llvm_ir_lines:
+        func_def = re.match(
+            "define.* @(?P<func_name>[^(]*)[(].* #(?P<attr_num>[0-9]+) (!.* |){$", line
+        )
+        if func_def:
+            functions_with_target.append(func_def.group("func_name"))
+            attributes_with_target[func_def.group("attr_num")] = True
+            continue
+        attr_def = re.match("attributes #(?P<attr_num>[0-9]+) = {(?P<attr_list>.*)}", line)
+        if attr_def:
+            attribute_definitions[attr_def.group("attr_num")] = attr_def.group("attr_list")
+
+    for k in list(attributes_with_target.keys()):
+        assert re.match('.*"target-cpu"="skylake".*', attribute_definitions[k])
+        assert re.match('.*"target-features"=".*[+]avx512f.*".*', attribute_definitions[k])
+
+    expected_functions = ["test_func", "test_func_compute_", "__tvm_parallel_lambda"]
+    for n in expected_functions:
+        assert n in functions_with_target
+
+
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

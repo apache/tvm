@@ -18,10 +18,6 @@
 include(ExternalProject)
 include(cmake/modules/HexagonSDK.cmake)
 
-set(PICK_SIM  "sim")
-set(PICK_HW   "target")
-set(PICK_NONE "OFF")
-
 set(FOUND_HEXAGON_TOOLCHAIN FALSE)
 
 function(find_hexagon_toolchain)
@@ -56,27 +52,17 @@ endmacro()
 
 set(TVMRT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime")
 
-# First, verify that USE_HEXAGON_DEVICE has a valid value.
 if(DEFINED USE_HEXAGON_DEVICE)
-  if(NOT USE_HEXAGON_DEVICE STREQUAL "${PICK_SIM}" AND
-     NOT USE_HEXAGON_DEVICE STREQUAL "${PICK_HW}" AND
-     NOT USE_HEXAGON_DEVICE STREQUAL "${PICK_NONE}")
-    message(SEND_ERROR "USE_HEXAGON_DEVICE must be one of "
-            "[${PICK_NONE}|${PICK_SIM}|${PICK_HW}]")
-    set(USE_HEXAGON_DEVICE OFF)
-  endif()
+  message(WARNING "USE_HEXAGON_DEVICE is deprecated, use USE_HEXAGON instead")
 endif()
 
 # This .cmake file is included when building any part of TVM for any
-# architecture. It shouldn't require any Hexagon-specific parameters
-# (like the path to the SDK), unless it's needed.
+# architecture. It shouldn't require any Hexagon-specific parameters (like
+# the path to the SDK), unless it's needed. The flag USE_HEXAGON decides
+# whether any Hexagon-related functionality is enabled. Specifically,
+# setting USE_HEXAGON=OFF, disables any form of Hexagon support.
 #
-# Aside from building the code for Hexagon, two flags can enable some
-# Hexagon-related functionality:
-# - USE_HEXAGON_DEVICE
-# - USE_HEXAGON_RPC
-#
-# USE_HEXAGON_RPC:
+# Note on the function of USE_HEXAGON_RPC:
 # - When building for Hexagon, this will build the Hexagon endpoint of the
 #   RPC server: the FastRPC skel library (with TVM runtime built into it),
 #   and the standalone RPC server for simulator.
@@ -91,19 +77,21 @@ if(NOT BUILD_FOR_HEXAGON AND NOT BUILD_FOR_ANDROID)
 endif()
 
 
-if(NOT USE_HEXAGON_DEVICE AND NOT USE_HEXAGON_RPC AND NOT BUILD_FOR_HEXAGON)
+if(NOT USE_HEXAGON)
   # If nothing related to Hexagon is enabled, add phony Hexagon codegen,
   # and some stuff needed by cpptests (this part is a temporary workaround
   # until e2e support for Hexagon is enabled).
   if(BUILD_FOR_HOST)
     list(APPEND COMPILER_SRCS src/target/opt/build_hexagon_off.cc)
   endif()
-  list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon/hexagon_buffer.cc)
-  list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon/hexagon_common.cc)
-  list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon/hexagon_user_dma.cc)
   return()
 endif()
 
+# From here on, USE_HEXAGON is assumed to be TRUE.
+
+if(BUILD_FOR_HOST AND USE_HEXAGON_QHL)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DENABLE_QHL")
+endif()
 
 function(add_android_paths)
   get_hexagon_sdk_property("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}"
@@ -132,14 +120,23 @@ function(add_hexagon_wrapper_paths)
   link_directories("${HEXAGON_TOOLCHAIN}/lib/iss")
 endfunction()
 
-# Common sources for TVM runtime with Hexagon support
-file_glob_append(RUNTIME_HEXAGON_COMMON_SRCS
-  "${TVMRT_SOURCE_DIR}/hexagon/hexagon_module.cc"
-  "${TVMRT_SOURCE_DIR}/hexagon/hexagon/*.cc"
-)
-
+if(BUILD_FOR_HEXAGON)
+  # Common sources for TVM runtime with Hexagon support
+  file_glob_append(RUNTIME_HEXAGON_SRCS
+    "${TVMRT_SOURCE_DIR}/hexagon/*.cc"
+  )
+else()
+  file_glob_append(RUNTIME_HEXAGON_SRCS
+    "${TVMRT_SOURCE_DIR}/hexagon/hexagon_module.cc"
+  )
+endif()
 
 if(BUILD_FOR_HEXAGON)
+  if(DEFINED USE_HEXAGON_GTEST AND EXISTS ${USE_HEXAGON_GTEST})
+    file_glob_append(RUNTIME_HEXAGON_SRCS
+      "${CMAKE_SOURCE_DIR}/tests/cpp-runtime/hexagon/*.cc"
+    )
+  endif()
   get_hexagon_sdk_property("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}"
     SDK_INCLUDE   SDK_INCLUDE_DIRS
     QURT_INCLUDE  QURT_INCLUDE_DIRS
@@ -154,60 +151,28 @@ if(BUILD_FOR_HEXAGON)
   # Add SDK and QuRT includes when building for Hexagon.
   include_directories(SYSTEM ${SDK_INCLUDE_DIRS} ${QURT_INCLUDE_DIRS})
 
-  list(APPEND RUNTIME_HEXAGON_SRCS ${RUNTIME_HEXAGON_COMMON_SRCS})
   set(USE_CUSTOM_LOGGING ON) # To use a custom logger
-endif()
 
-
-if(USE_HEXAGON_DEVICE)
-  function(invalid_device_value_for BUILD_TARGET)
-    message(SEND_ERROR
-      "USE_HEXAGON_DEVICE=${USE_HEXAGON_DEVICE} is not supported when "
-      "building for ${BUILD_TARGET}"
-    )
-  endfunction()
-
-  list(APPEND RUNTIME_HEXAGON_SRCS ${RUNTIME_HEXAGON_COMMON_SRCS})
-
-  if(BUILD_FOR_HOST)
-    if(NOT USE_HEXAGON_DEVICE STREQUAL "${PICK_SIM}")
-      invalid_device_value_for("host")
-    endif()
-    find_hexagon_toolchain()
-    add_hexagon_wrapper_paths()
-    file_glob_append(RUNTIME_HEXAGON_SRCS
-      "${TVMRT_SOURCE_DIR}/hexagon/android/*.cc"
-      "${TVMRT_SOURCE_DIR}/hexagon/android/sim/*.cc"
-    )
-    list(APPEND TVM_RUNTIME_LINKER_LIBS "-lwrapper")
-
-    ExternalProject_Add(sim_dev
-      SOURCE_DIR "${TVMRT_SOURCE_DIR}/hexagon/android/sim/driver"
-      CMAKE_ARGS
-        "-DCMAKE_C_COMPILER=${HEXAGON_TOOLCHAIN}/bin/hexagon-clang"
-        "-DCMAKE_CXX_COMPILER=${HEXAGON_TOOLCHAIN}/bin/hexagon-clang++"
-        "-DHEXAGON_ARCH=${USE_HEXAGON_ARCH}"
-      INSTALL_COMMAND "true"
+# QHL support.
+  if(USE_HEXAGON_QHL)
+    file_glob_append(TVM_QHL_WRAPPER_SRCS
+      "${TVMRT_SOURCE_DIR}/hexagon/qhl/*.cc"
     )
 
-  elseif(BUILD_FOR_ANDROID)
-    if(NOT USE_HEXAGON_DEVICE STREQUAL "${PICK_HW}")
-      invalid_device_value_for("Android")
-    endif()
-    find_hexagon_toolchain()
-    add_android_paths()
-    file_glob_append(RUNTIME_HEXAGON_SRCS
-      "${TVMRT_SOURCE_DIR}/hexagon/android/*.cc"
-      "${TVMRT_SOURCE_DIR}/hexagon/android/target/*.cc"
-    )
-    # Hexagon runtime uses __android_log_print, which is in liblog.
-    list(APPEND TVM_RUNTIME_LINKER_LIBS dl log cdsprpc)
+    include_directories(
+      "${USE_HEXAGON_SDK}/libs/qhl_hvx/inc/qhmath_hvx"
+      "${USE_HEXAGON_SDK}/libs/qhl_hvx/inc/internal/"
 
-  elseif(BUILD_FOR_HEXAGON)
-    invalid_device_value_for("Hexagon")
+      "${USE_HEXAGON_SDK}/libs/qhl/inc/qhmath"
+      "${USE_HEXAGON_SDK}/libs/qhl/src/internal/"
+      )
+    set_property(SOURCE ${TVM_QHL_WRAPPER_SRCS} APPEND_STRING  PROPERTY COMPILE_FLAGS "-Wno-narrowing -mhvx -mhvx-length=128B")
+
+    list(APPEND TVM_RUNTIME_LINKER_LIBS -Wl,--whole-archive ${USE_HEXAGON_SDK}/libs/qhl_hvx/prebuilt/hexagon_toolv84_v68/libqhmath_hvx.a -Wl,--no-whole-archive)
+    list(APPEND TVM_RUNTIME_LINKER_LIBS -Wl,--whole-archive ${USE_HEXAGON_SDK}/libs/qhl/prebuilt/hexagon_toolv84_v68/libqhmath.a -Wl,--no-whole-archive)
+
   endif()
-endif()   # USE_HEXAGON_DEVICE
-
+endif()
 
 if(USE_HEXAGON_RPC)
   function(build_rpc_idl)
@@ -230,16 +195,21 @@ if(USE_HEXAGON_RPC)
           -o "${TVMRT_SOURCE_DIR}/hexagon/rpc"
       MAIN_DEPENDENCY "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc.idl"
     )
-  endfunction()
 
-  list(APPEND RUNTIME_HEXAGON_SRCS ${RUNTIME_HEXAGON_COMMON_SRCS})
+    if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
+        # We can't easily fix this at the source-code level, because the .c file is generated
+        # by the qaic program.  But it should be safe to ignore the warning:
+        # https://stackoverflow.com/questions/13905200/is-it-wise-to-ignore-gcc-clangs-wmissing-braces-warning
+        set_source_files_properties("${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc_stub.c"
+            PROPERTY COMPILE_FLAGS "-Wno-missing-braces")
+    endif()
+  endfunction()
 
   if(BUILD_FOR_ANDROID)
     # Android part
     add_android_paths()
     build_rpc_idl()
     file_glob_append(RUNTIME_HEXAGON_SRCS
-      "${TVMRT_SOURCE_DIR}/hexagon/host/*.cc"
       "${TVMRT_SOURCE_DIR}/hexagon/rpc/android/*.cc"
     )
     # Add this file separately, because it's auto-generated, and glob won't
@@ -285,12 +255,10 @@ if(USE_HEXAGON_RPC)
     find_hexagon_toolchain()
     add_hexagon_wrapper_paths()
     file_glob_append(RUNTIME_HEXAGON_SRCS
-      "${TVMRT_SOURCE_DIR}/hexagon/host/*.cc"
       "${TVMRT_SOURCE_DIR}/hexagon/rpc/simulator/session.cc"
     )
     list(APPEND TVM_RUNTIME_LINKER_LIBS "-lwrapper")
   endif()
 endif()   # USE_HEXAGON_RPC
 
-
-list(APPEND RUNTIME_SRCS ${RUNTIME_HEXAGON_SRCS})
+list(APPEND RUNTIME_SRCS ${RUNTIME_HEXAGON_SRCS} ${TVM_QHL_WRAPPER_SRCS})

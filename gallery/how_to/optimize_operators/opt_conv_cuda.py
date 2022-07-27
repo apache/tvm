@@ -30,6 +30,12 @@ channel, batch.
 
 """
 
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
+
 ################################################################
 # Preparation and Algorithm
 # -------------------------
@@ -97,7 +103,7 @@ B = te.compute(
 #      :width: 271px
 #
 # In this example, we load both Apad and W into buffer AA and WW, which are
-# stored in the shared memory. These bufferes will be later shared by all
+# stored in the shared memory. These buffers will be later shared by all
 # threads within the same thread block to compute the convolution. Each thread
 # then loads its own part from shared buffer into their local registers, AL and
 # WL. BL is a local cache of output B, which is also stored in the thread local

@@ -21,99 +21,33 @@
 namespace tvm {
 namespace meta_schedule {
 
-/*!
- * \brief Send the measure candidates to builder.
- * \param builder The builder to send the candidates to.
- * \param context The tuning context.
- * \param candidates The measure candidates.
- */
-void SendToBuilder(const Builder& builder, const TuneContext& context) {
-  Array<MeasureCandidate> candidates = context->measure_candidates.value();
-  LOG(INFO) << "Sending " << candidates.size() << " sample(s) to builder";
-  Target target = context->target.value();
-  Array<BuilderInput> inputs;
-  inputs.reserve(candidates.size());
-  for (const MeasureCandidate& candidate : candidates) {
-    ICHECK(candidate.defined()) << "Undefined MeasureCandidate found";
-    inputs.push_back(BuilderInput(candidate->sch->mod(), target));
-  }
-  context->builder_results = builder->Build(inputs);
-}
-
-/*!
- * \brief Send the built measure candidates to runner.
- * \param runner The runner to send the candidates to.
- * \param context The tuning context.
- * \param candidates The measure candidates.
- * \param builder_results The builder results.
- * \return An array of the runner results.
- */
-void SendToRunner(const Runner& runner, const TuneContext& context) {
-  Array<MeasureCandidate> candidates = context->measure_candidates.value();
-  Array<BuilderResult> builder_results = context->builder_results.value();
-  LOG(INFO) << "Sending " << candidates.size() << " sample(s) to runner";
-  Target target = context->target.value();
-  ICHECK_EQ(candidates.size(), builder_results.size());
-  int n = candidates.size();
-  int n_build_errors = 0;
-  Array<RunnerInput> inputs;
-  inputs.reserve(n);
-  for (int i = 0; i < n; ++i) {
-    const MeasureCandidate& candidate = candidates[i];
-    const BuilderResult& builder_result = builder_results[i];
-    if (builder_result->error_msg.defined()) {
-      ++n_build_errors;
-      continue;
-    }
-    inputs.push_back(RunnerInput(/*artifact_path=*/builder_result->artifact_path.value(),
-                                 /*device_type=*/target->kind->name,
-                                 /*args_info=*/candidate->args_info));
-  }
-  Array<RunnerFuture> futures = runner->Run(inputs);
-  if (n_build_errors == 0) {
-    context->runner_futures = futures;
-    return;
-  }
-  Array<RunnerFuture> results;
-  results.reserve(n);
-  for (int i = 0, j = 0; i < n; ++i) {
-    const BuilderResult& builder_result = builder_results[i];
-    if (builder_result->error_msg.defined()) {
-      results.push_back(RunnerFuture(
-          /*f_done=*/[]() -> bool { return true; },
-          /*f_result=*/
-          [msg = builder_result->error_msg]() -> RunnerResult {
-            return RunnerResult(NullOpt, msg);
-          }));
-    } else {
-      results.push_back(futures[j++]);
-    }
-  }
-  context->runner_futures = results;
-}
-
 void TaskSchedulerNode::InitializeTask(int task_id) {
+  auto _ = Profiler::TimedScope("InitializeTask");
   TuneContext task = this->tasks[task_id];
-  LOG(INFO) << "Initializing Task #" << task_id << ": " << task->task_name;
+  TVM_PY_LOG(INFO, this->logging_func)
+      << "Initializing Task #" << task_id << ": " << task->task_name;
+  TVM_PY_LOG(INFO, task->logging_func)
+      << "Initializing Task #" << task_id << ": " << task->task_name;
   CHECK(task->mod.defined()) << "ValueError: Require `context.mod`, but it is not defined";
   CHECK(task->space_generator.defined())
       << "ValueError: Require `context.space_generator`, but it is not defined";
   CHECK(task->search_strategy.defined())
       << "ValueError: Require `context.search_strategy`, but it is not defined";
-  LOG(INFO) << "\n" << tir::AsTVMScript(task->mod);
+  TVM_PY_LOG(INFO, task->logging_func) << "\n" << tir::AsTVMScript(task->mod);
   task->Initialize();
   Array<tir::Schedule> design_spaces =
       task->space_generator.value()->GenerateDesignSpace(task->mod.value());
-  LOG(INFO) << "Total " << design_spaces.size() << " design space(s) generated";
+  TVM_PY_LOG(INFO, task->logging_func)
+      << "Total " << design_spaces.size() << " design space(s) generated";
   for (int i = 0, n = design_spaces.size(); i < n; ++i) {
     tir::Schedule sch = design_spaces[i];
     tir::Trace trace = sch->trace().value();
     trace = trace->Simplified(true);
-    LOG(INFO) << "Design space #" << i << ":\n"
-              << tir::AsTVMScript(sch->mod()) << "\n"
-              << Concat(trace->AsPython(false), "\n");
+    TVM_PY_LOG(INFO, task->logging_func) << "Design space #" << i << ":\n"
+                                         << tir::AsTVMScript(sch->mod()) << "\n"
+                                         << Concat(trace->AsPython(false), "\n");
   }
-  task->search_strategy.value()->PreTuning(design_spaces);
+  task->search_strategy.value()->PreTuning(design_spaces, database, cost_model);
 }
 
 void TaskSchedulerNode::Tune() {
@@ -123,20 +57,28 @@ void TaskSchedulerNode::Tune() {
   }
   int running_tasks = tasks.size();
   for (int task_id; num_trials_already < max_trials && (task_id = NextTaskId()) != -1;) {
-    LOG(INFO) << "Scheduler picks Task #" << task_id << ": " << tasks[task_id]->task_name;
+    TVM_PY_LOG(INFO, this->logging_func)
+        << "Scheduler picks Task #" << task_id << ": " << tasks[task_id]->task_name;
     TuneContext task = tasks[task_id];
     ICHECK(!task->is_terminated);
     ICHECK(!task->runner_futures.defined());
-    SearchStrategy strategy = task->search_strategy.value();
-    if ((task->measure_candidates = strategy->GenerateMeasureCandidates()).defined()) {
-      num_trials_already += task->measure_candidates.value().size();
-      SendToBuilder(this->builder, task);
-      SendToRunner(this->runner, task);
+    if (Optional<Array<MeasureCandidate>> candidates =
+            task->search_strategy.value()->GenerateMeasureCandidates()) {
+      int num_candidates = candidates.value().size();
+      task->_SetMeasureCandidates(candidates.value());
+      num_trials_already += num_candidates;
+      TVM_PY_LOG(INFO, this->logging_func)
+          << "Sending " << num_candidates << " sample(s) to builder";
+      task->_SendToBuilder(this->builder);
+      TVM_PY_LOG(INFO, this->logging_func)
+          << "Sending " << num_candidates << " sample(s) to runner";
+      task->_SendToRunner(this->runner);
     } else {
       ICHECK(!task->is_terminated);
       task->is_terminated = true;
       --running_tasks;
-      LOG(INFO) << "Task #" << task_id << " has finished. Remaining task(s): " << running_tasks;
+      TVM_PY_LOG(INFO, this->logging_func)
+          << "Task #" << task_id << " has finished. Remaining task(s): " << running_tasks;
     }
   }
   for (int task_id = 0; task_id < n_tasks; ++task_id) {
@@ -147,7 +89,8 @@ void TaskSchedulerNode::Tune() {
       }
       task->is_terminated = true;
       --running_tasks;
-      LOG(INFO) << "Task #" << task_id << " has finished. Remaining task(s): " << running_tasks;
+      TVM_PY_LOG(INFO, this->logging_func)
+          << "Task #" << task_id << " has finished. Remaining task(s): " << running_tasks;
     }
     task->search_strategy.value()->PostTuning();
   }
@@ -167,39 +110,61 @@ void TaskSchedulerNode::TouchTask(int task_id) {
 
 Array<RunnerResult> TaskSchedulerNode::JoinRunningTask(int task_id) {
   TuneContext task = tasks[task_id];
-  ICHECK(task->runner_futures.defined());
-  Array<RunnerFuture> futures = task->runner_futures.value();
-  int n = futures.size();
-  Array<RunnerResult> results;
-  results.reserve(n);
-  for (RunnerFuture future : futures) {
-    results.push_back(future->Result());
-  }
-  task->search_strategy.value()->NotifyRunnerResults(task, task->measure_candidates.value(),
-                                                     results);
-  // Invoke the callbacks
-  ICHECK(task->measure_candidates.defined());
-  ICHECK(task->builder_results.defined());
-  ICHECK_EQ(results.size(), task->measure_candidates.value().size());
-  ICHECK_EQ(results.size(), task->builder_results.value().size());
+  Array<RunnerResult> results = task->_Join();
   for (const MeasureCallback& callback : this->measure_callbacks) {
     callback->Apply(GetRef<TaskScheduler>(this), task_id, task->measure_candidates.value(),
                     task->builder_results.value(), results);
   }
-  task->measure_candidates = NullOpt;
-  task->builder_results = NullOpt;
-  task->runner_futures = NullOpt;
+  task->_ClearMeasureState();
   return results;
+}
+
+void PyTaskSchedulerNode::Tune() {
+  if (f_tune == nullptr) {
+    TaskSchedulerNode::Tune();
+  } else {
+    f_tune();
+  }
+}
+
+void PyTaskSchedulerNode::InitializeTask(int task_id) {
+  if (f_initialize_task == nullptr) {
+    TaskSchedulerNode::InitializeTask(task_id);
+  } else {
+    f_initialize_task(task_id);
+  }
+}
+
+void PyTaskSchedulerNode::TouchTask(int task_id) {
+  if (f_touch_task == nullptr) {
+    return TaskSchedulerNode::TouchTask(task_id);
+  } else {
+    return f_touch_task(task_id);
+  }
+}
+
+Array<RunnerResult> PyTaskSchedulerNode::JoinRunningTask(int task_id) {
+  if (f_join_running_task == nullptr) {
+    return TaskSchedulerNode::JoinRunningTask(task_id);
+  } else {
+    return f_join_running_task(task_id);
+  }
+}
+
+int PyTaskSchedulerNode::NextTaskId() {
+  ICHECK(f_next_task_id != nullptr) << "PyTaskScheduler's NextTaskId method not implemented!";
+  return f_next_task_id();
 }
 
 TaskScheduler TaskScheduler::PyTaskScheduler(
     Array<TuneContext> tasks,                                   //
     Builder builder,                                            //
     Runner runner,                                              //
-    Database database,                                          //
-    int max_trials,                                             //
+    Optional<Database> database,                                //
     Optional<CostModel> cost_model,                             //
     Optional<Array<MeasureCallback>> measure_callbacks,         //
+    int max_trials,                                             //
+    PackedFunc logging_func,                                    //
     PyTaskSchedulerNode::FTune f_tune,                          //
     PyTaskSchedulerNode::FInitializeTask f_initialize_task,     //
     PyTaskSchedulerNode::FTouchTask f_touch_task,               //
@@ -217,6 +182,7 @@ TaskScheduler TaskScheduler::PyTaskScheduler(
   } else {
     n->measure_callbacks = {};
   }
+  n->logging_func = logging_func;
   n->num_trials_already = 0;
   n->f_tune = f_tune;
   n->f_initialize_task = f_initialize_task;

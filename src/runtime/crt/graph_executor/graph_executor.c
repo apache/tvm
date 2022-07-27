@@ -1014,7 +1014,7 @@ int TVMGraphExecutor_SetupStorage(TVMGraphExecutor* executor) {
     executor->storage_pool_count++;
   }
 
-  // Assign the pooled entries. A unified memory pool is used to simplifiy
+  // Assign the pooled entries. A unified memory pool is used to simplify
   // memory assignment for each node entry. The allocated memory on each device
   // is mapped to this pool.
   executor->data_entry_count = executor->node_row_ptr[executor->node_row_ptr_count - 1];
@@ -1031,6 +1031,8 @@ int TVMGraphExecutor_SetupStorage(TVMGraphExecutor* executor) {
                                        attrs->shape + idx * TVM_CRT_MAX_NDIM, attrs->ndim[idx],
                                        vtype[idx], &executor->data_entry[idx]);
     CHECK_EQ(status, 0, "fail to create for node with idx=%d, storage_id=%u\n", idx, storage_id);
+
+    TVMNDArray_IncrementReference(&executor->data_entry[idx]);
   }
 
   // Release memory

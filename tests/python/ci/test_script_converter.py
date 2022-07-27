@@ -14,14 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""
+Test the conversion of bash to rst
+"""
 
 import sys
 
-import pytest
-
+import tvm
 from tvm.contrib import utils
 
-from test_utils import REPO_ROOT
+# this has to be after the sys.path patching, so ignore pylint
+# pylint: disable=wrong-import-position,wrong-import-order
+from .test_utils import REPO_ROOT
 
 sys.path.insert(0, str(REPO_ROOT / "docs"))
 from script_convert import (
@@ -32,8 +36,11 @@ from script_convert import (
     BASH_MULTILINE_COMMENT_END,
 )
 
+# pylint: enable=wrong-import-position,wrong-import-order
+
 
 def test_bash_cmd():
+    """Test that a bash command gets turned into a rst code block"""
     temp = utils.tempdir()
     src_path = temp / "src.sh"
     dest_path = temp / "dest.py"
@@ -56,6 +63,7 @@ def test_bash_cmd():
 
 
 def test_bash_ignore_cmd():
+    """Test that ignored bash commands are not turned into code blocks"""
     temp = utils.tempdir()
     src_path = temp / "src.sh"
     dest_path = temp / "dest.py"
@@ -79,6 +87,7 @@ def test_bash_ignore_cmd():
 
 
 def test_no_command():
+    """Test a file with no code blocks"""
     temp = utils.tempdir()
     src_path = temp / "src.sh"
     dest_path = temp / "dest.py"
@@ -98,6 +107,7 @@ def test_no_command():
 
 
 def test_text_and_bash_command():
+    """Test a file with a bash code block"""
     temp = utils.tempdir()
     src_path = temp / "src.sh"
     dest_path = temp / "dest.py"
@@ -122,6 +132,7 @@ def test_text_and_bash_command():
 
 
 def test_last_line_break():
+    """Test that line endings are correct"""
     temp = utils.tempdir()
     src_path = temp / "src.sh"
     dest_path = temp / "dest.py"
@@ -141,6 +152,7 @@ def test_last_line_break():
 
 
 def test_multiline_comment():
+    """Test that bash comments are inserted correctly"""
     temp = utils.tempdir()
     src_path = temp / "src.sh"
     dest_path = temp / "dest.py"
@@ -160,3 +172,7 @@ def test_multiline_comment():
     expected_cmd = '"""\n' "comment\n" '"""\n'
 
     assert generated_cmd == expected_cmd
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

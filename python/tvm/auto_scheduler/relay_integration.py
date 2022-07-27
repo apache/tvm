@@ -26,7 +26,6 @@ import json
 import logging
 import threading
 import traceback
-import warnings
 
 import tvm
 from tvm import autotvm, transform
@@ -115,13 +114,7 @@ def extract_tasks(
         The weight (i.e. the number of appearance) of extracted tasks
     """
     # pylint: disable=import-outside-toplevel
-    if target_host is not None:
-        warnings.warn(
-            "target_host parameter is going to be deprecated. "
-            "Please pass in tvm.target.Target(target, host=target_host) instead."
-        )
-
-    target, target_host = Target.check_and_update_host_consist(target, target_host)
+    target, target_host = Target.canon_target_and_host(target, target_host)
 
     # Run the compiler to collect all TOPI calls during compilation.
     env = TracingEnvironment(
@@ -474,6 +467,11 @@ def rewrite_compute_body(compute_tensor, new_layout):
     return outputs[0] if num == 1 else outputs
 
 
+def rewrite_tensor_shape(tensor, shape):
+    """Rewrite the tensor shape"""
+    _ffi_api.RewriteTensorShape(tensor, shape)
+
+
 def is_auto_scheduler_enabled():
     """Return whether the auto-scheduler is enabled.
 
@@ -484,8 +482,5 @@ def is_auto_scheduler_enabled():
     """
     return PassContext.current().config.get(
         "relay.backend.use_auto_scheduler",
-        False,
-    ) or PassContext.current().config.get(
-        "relay.backend.use_meta_schedule",
         False,
     )

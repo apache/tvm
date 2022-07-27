@@ -34,15 +34,16 @@
 #include <regex>
 #include <sstream>
 
+#include "../../../../runtime/contrib/dnnl/dnnl_utils.h"
 #include "../../utils.h"
 #include "dnnl.hpp"
-
-using dim_t = dnnl_dim_t;
-using dims_t = dnnl_dims_t;
-
 namespace tvm {
 namespace relay {
 namespace contrib {
+
+using dim_t = dnnl_dim_t;
+using dims_t = dnnl_dims_t;
+using tvm::runtime::contrib::dtype_dl2dnnl;
 
 template <typename T, typename U>
 inline void array_set(T* arr, const U& val, size_t size) {
@@ -192,7 +193,7 @@ void check_layout(bool var, bool ref) {
 std::string get_optimal_layout_for_conv(std::string data_layout, std::string kernel_layout,
                                         std::string weight_shape, std::string out_shape,
                                         std::string paddings, std::string strides,
-                                        std::string dilates, std::string G) {
+                                        std::string dilates, std::string G, std::string dtype) {
   check_layout(std::regex_match(data_layout, std::regex("NC(D?)(H?)W")), true);
   check_layout(std::regex_match(kernel_layout, std::regex("(G?)OI(D?)(H?)W")), true);
   check_shapes({weight_shape, out_shape, paddings, strides, dilates, G});
@@ -200,7 +201,6 @@ std::string get_optimal_layout_for_conv(std::string data_layout, std::string ker
   dnnl::engine eng(dnnl::engine::kind::cpu, 0);
   dnnl::stream s(eng);
   using tag = dnnl::memory::format_tag;
-  using dt = dnnl::memory::data_type;
 
   dnnl::memory::dim groups = std::stoi(G);
   dnnl::memory::dims weight_dims_ = str2dims(weight_shape);
@@ -249,9 +249,10 @@ std::string get_optimal_layout_for_conv(std::string data_layout, std::string ker
   dnnl::memory::dims conv_padding_l = padding_dims_l;
   dnnl::memory::dims conv_padding_r = padding_dims_r;
 
-  auto conv_src_md = dnnl::memory::desc({conv_src_dims}, dt::f32, tag::any);
-  auto conv_weights_md = dnnl::memory::desc({conv_weights_dims}, dt::f32, tag::any);
-  auto conv_dst_md = dnnl::memory::desc({conv_dst_dims}, dt::f32, tag::any);
+  auto dnnl_dtype = dtype_dl2dnnl(tvm::runtime::String2DLDataType(dtype));
+  auto conv_src_md = dnnl::memory::desc({conv_src_dims}, dnnl_dtype, tag::any);
+  auto conv_weights_md = dnnl::memory::desc({conv_weights_dims}, dnnl_dtype, tag::any);
+  auto conv_dst_md = dnnl::memory::desc({conv_dst_dims}, dnnl_dtype, tag::any);
 
   auto conv_desc = dnnl::convolution_forward::desc(
       dnnl::prop_kind::forward_inference, dnnl::algorithm::convolution_direct, conv_src_md,
@@ -276,7 +277,7 @@ std::string get_optimal_layout_for_conv_transpose(std::string data_layout,
                                                   std::string weight_shape, std::string out_shape,
                                                   std::string paddings, std::string output_paddings,
                                                   std::string strides, std::string dilates,
-                                                  std::string G) {
+                                                  std::string G, std::string dtype) {
   check_layout(std::regex_match(data_layout, std::regex("NC(D?)(H?)W")), true);
   check_layout(std::regex_match(kernel_layout, std::regex("(G?)((IO)|(OI))(D?)(H?)W")), true);
   check_shapes({weight_shape, out_shape, paddings, output_paddings, strides, dilates, G});
@@ -284,7 +285,6 @@ std::string get_optimal_layout_for_conv_transpose(std::string data_layout,
   dnnl::engine eng(dnnl::engine::kind::cpu, 0);
   dnnl::stream s(eng);
   using tag = dnnl::memory::format_tag;
-  using dt = dnnl::memory::data_type;
 
   dnnl::memory::dim groups = std::stoi(G);
   dnnl::memory::dims weight_dims_ = str2dims(weight_shape);
@@ -338,9 +338,10 @@ std::string get_optimal_layout_for_conv_transpose(std::string data_layout,
   dnnl::memory::dims deconv_padding_l = padding_dims_l;
   dnnl::memory::dims deconv_padding_r = padding_dims_r;
 
-  auto deconv_src_md = dnnl::memory::desc({deconv_src_dims}, dt::f32, tag::any);
-  auto deconv_weights_md = dnnl::memory::desc({deconv_weights_dims}, dt::f32, tag::any);
-  auto deconv_dst_md = dnnl::memory::desc({deconv_dst_dims}, dt::f32, tag::any);
+  auto dnnl_dtype = dtype_dl2dnnl(tvm::runtime::String2DLDataType(dtype));
+  auto deconv_src_md = dnnl::memory::desc({deconv_src_dims}, dnnl_dtype, tag::any);
+  auto deconv_weights_md = dnnl::memory::desc({deconv_weights_dims}, dnnl_dtype, tag::any);
+  auto deconv_dst_md = dnnl::memory::desc({deconv_dst_dims}, dnnl_dtype, tag::any);
 
   auto deconv_desc = dnnl::deconvolution_forward::desc(
       dnnl::prop_kind::forward_inference, dnnl::algorithm::deconvolution_direct, deconv_src_md,
@@ -364,13 +365,13 @@ std::string get_optimal_layout_for_conv_transpose(std::string data_layout,
 TVM_REGISTER_GLOBAL("relay.ir.get_optimal_layout_for_conv")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
       *rv = get_optimal_layout_for_conv(args[0], args[1], args[2], args[3], args[4], args[5],
-                                        args[6], args[7]);
+                                        args[6], args[7], args[8]);
     });
 
 TVM_REGISTER_GLOBAL("relay.ir.get_optimal_layout_for_conv_transpose")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
       *rv = get_optimal_layout_for_conv_transpose(args[0], args[1], args[2], args[3], args[4],
-                                                  args[5], args[6], args[7], args[8]);
+                                                  args[5], args[6], args[7], args[8], args[9]);
     });
 
 }  // namespace contrib

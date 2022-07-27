@@ -36,6 +36,8 @@
 #include <tvm/te/schedule.h>
 #include <tvm/te/schedule_pass.h>
 #include <tvm/tir/function.h>
+#include <tvm/tir/index_map.h>
+#include <tvm/tir/transform.h>
 #include <tvm/topi/tags.h>
 
 #include <functional>
@@ -47,6 +49,7 @@
 
 #include "../../te/operation/create_primfunc.h"
 #include "../op/memory/memory.h"
+#include "../transforms/meta_schedule_layout_rewrite.h"
 #include "../transforms/pass_utils.h"
 #include "utils.h"
 
@@ -59,6 +62,16 @@ TVM_REGISTER_NODE_TYPE(CachedFuncNode);
 TVM_REGISTER_NODE_TYPE(CCacheKeyNode);
 TVM_REGISTER_NODE_TYPE(CCacheValueNode);
 
+void ExtractTransformLayout(const meta_schedule::TuningRecord& record) {
+  static tir::InstructionKind kind_transform_layout = tir::InstructionKind::Get("TransformLayout");
+  for (const tir::Instruction& inst : record->trace->insts) {
+    if (inst->kind.same_as(kind_transform_layout)) {
+      ICHECK_EQ(inst->attrs.size(), 3);
+      relay::MetaScheduleLayoutRewriter::LayoutQueuePush(Downcast<tir::IndexMap>(inst->attrs[2]));
+    }
+  }
+}
+
 LoweredOutput::LoweredOutput(tvm::Array<te::Tensor> outputs, OpImplementation impl) {
   auto n = make_object<LoweredOutputNode>();
   n->outputs = std::move(outputs);
@@ -66,10 +79,11 @@ LoweredOutput::LoweredOutput(tvm::Array<te::Tensor> outputs, OpImplementation im
   data_ = std::move(n);
 }
 
-CCacheKey::CCacheKey(Function source_func, Target target) {
+CCacheKey::CCacheKey(Function source_func, Target target, VirtualDevice vd) {
   auto n = make_object<CCacheKeyNode>();
   n->source_func = std::move(source_func);
   n->target = std::move(target);
+  n->virtual_device = std::move(vd);
   data_ = std::move(n);
 }
 
@@ -193,7 +207,9 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
     } else {
       const auto* ttype = op->checked_type().as<TensorTypeNode>();
       std::stringstream ss;
-      ss << "constant_" << const_index++;
+      std::string s = readable_name_stream_.str();
+      std::replace(s.begin(), s.end(), '.', '_');
+      ss << s << "_constant_" << const_index++;
       tvm::te::Tensor tensor = tvm::te::placeholder(GetShape(ttype->shape), ttype->dtype, ss.str());
       constant_tensors_[op] = tensor;
       return {tensor};
@@ -313,7 +329,7 @@ class ScheduleBuilder : public ExprVisitor {
 
   CachedFunc Create(const Function& relay_func, std::function<std::string(std::string)> renamer) {
     LowerToTECompute lower_te_compute(target_);
-    Array<te::Tensor> outputs = lower_te_compute.Lower(relay_func, renamer);
+    Array<te::Tensor> tensor_outs = lower_te_compute.Lower(relay_func, renamer);
     Array<te::Tensor> fn_inputs = lower_te_compute.fn_inputs_;
     VisitExpr(relay_func->body);
 
@@ -323,12 +339,11 @@ class ScheduleBuilder : public ExprVisitor {
     prim_fn_var->checked_type_ = relay_func->checked_type();
 
     // Fusion over tupled results may leave identity relationships
-    // between inputs and outputs, and those should not be scheduled.
-    // Hence schedule only non PlaceholderOp outputs.
-    tvm::Array<te::Tensor> tensor_outs;
-    for (const auto& tensor : outputs) {
-      if (!tensor->op.as<te::PlaceholderOpNode>()) {
-        tensor_outs.push_back(tensor);
+    // between inputs and outputs, copy identity output tensors,
+    // since tir lowering do not support aliasing output to input buffer.
+    for (size_t i = 0; i < tensor_outs.size(); ++i) {
+      if (tensor_outs[i]->op.as<te::PlaceholderOpNode>()) {
+        tensor_outs.Set(i, topi::identity(tensor_outs[i]));
       }
     }
 
@@ -347,20 +362,36 @@ class ScheduleBuilder : public ExprVisitor {
         }
       }
       if (meta_schedule_ctx_) {
-        IRModule relay_mod({{prim_fn_var, relay_func}});
-        IRModule tir_mod({{prim_fn_var, tir::CreatePrimFunc(Concat(fn_inputs, tensor_outs))}});
-        if (Optional<IRModule> scheduled_mod = meta_schedule_ctx_.value()->Query(
-                prim_fn_var->name_hint, relay_mod, target_, Array<IRModule>{tir_mod})) {
-          ICHECK_EQ(scheduled_mod.value()->functions.count(prim_fn_var), 1);
-          prim_func = Downcast<tir::PrimFunc>(scheduled_mod.value()->functions[prim_fn_var]);
+        Array<te::Tensor> te_args = Concat(fn_inputs, tensor_outs);
+        if (Optional<tir::PrimFunc> tir_func =
+                meta_schedule_ctx_.value()->te_filter_func(te_args)) {
+          IRModule relay_mod({{prim_fn_var, relay_func}});
+          IRModule tir_mod({{prim_fn_var, tir_func.value()}});
+          if (Optional<IRModule> opt_scheduled_mod = meta_schedule_ctx_.value()->Query(
+                  /*task_name=*/prim_fn_var->name_hint,     //
+                  /*mod=*/relay_mod,                        //
+                  /*target=*/target_,                       //
+                  /*dispatched=*/Array<IRModule>{tir_mod},  //
+                  /*f_take_tuning_record=*/ExtractTransformLayout)) {
+            IRModule scheduled_mod =
+                tir::transform::RemoveWeightLayoutRewriteBlock()(opt_scheduled_mod.value());
+            ICHECK_EQ(scheduled_mod->functions.count(prim_fn_var), 1);
+            prim_func = Downcast<tir::PrimFunc>(scheduled_mod->functions[prim_fn_var]);
+          }
         }
       }
-
       // Use TOPI schedule if user specificed, or the function has no auto_scheduler schedule.
       if (!schedule.defined() && !prim_func.defined()) {
-        auto anchor_impl = lower_te_compute.op_implementations_.find(anchor_op_.operator->());
-        ICHECK(anchor_impl != lower_te_compute.op_implementations_.end());
-        schedule = anchor_impl->second.Schedule(anchor_attrs_, tensor_outs, target_);
+        if (anchor_op_.defined()) {
+          auto anchor_impl = lower_te_compute.op_implementations_.find(anchor_op_.operator->());
+          ICHECK(anchor_impl != lower_te_compute.op_implementations_.end());
+          schedule = anchor_impl->second.Schedule(anchor_attrs_, tensor_outs, target_);
+        } else {
+          auto default_sched = GenericFunc::Get("schedule_injective");
+          ICHECK(default_sched.defined()) << "schedule_injective not registered for " << target_;
+          With<Target> tctx(target_);
+          schedule = default_sched(tensor_outs);
+        }
       }
       if (schedule.defined()) {
         for (const auto& scalar : lower_te_compute.scalars_) {
@@ -371,7 +402,7 @@ class ScheduleBuilder : public ExprVisitor {
       }
     }
 
-    return CachedFunc(target_, prim_fn_var, fn_inputs, outputs, schedule, prim_func, {},
+    return CachedFunc(target_, prim_fn_var, fn_inputs, tensor_outs, schedule, prim_func, {},
                       IRModule(Map<GlobalVar, BaseFunc>({})), lower_te_compute.constant_tensors_);
   }
 

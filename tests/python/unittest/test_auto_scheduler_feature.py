@@ -21,7 +21,7 @@ import math
 import tempfile
 
 import tvm
-from tvm import te, auto_scheduler
+from tvm import te, auto_scheduler, relay
 from tvm.script import tir as T
 
 from tvm.testing.auto_scheduler import matmul_auto_scheduler_test
@@ -239,6 +239,27 @@ def test_primfunc_lowered():
     assert abs(features["float_mul"][0] - 128 * 128 * 128) < 10
     for i in range(0, 3):
         assert abs(features[f"B{i}.unique_bytes"][0] - 128 * 128 * 4) < 10  # 4 bytes per float32
+
+
+def test_dense_lowered():
+    a = relay.var("a", relay.TensorType((128, 128), "float32"))
+    b = relay.var("b", relay.TensorType((128, 128), "float32"))
+    c = relay.nn.dense(a, b)
+    mod = tvm.IRModule.from_expr(relay.Function([a, b], c))
+    target = "llvm"
+    comp = relay.vm.VMCompiler()
+    mod, params = comp.optimize(mod, params={}, target=target)
+    for name, func in mod.functions.items():
+        if name.name_hint != "main":
+            break
+    features = auto_scheduler.feature.named_features_from_primfunc(func)
+    # featurization does not handle multiple-add right now, so they are split out
+    assert features["float_addsub"].sum() >= 128 * 128 * 128
+    assert features["float_mul"].sum() >= 128 * 128 * 128
+    total_bytes_loaded = 0
+    for i in range(0, 4):
+        total_bytes_loaded += features[f"B{i}.unique_bytes"].sum()
+    assert total_bytes_loaded > 2 * 128 * 128 * 4  # 4 bytes per float32
 
 
 if __name__ == "__main__":

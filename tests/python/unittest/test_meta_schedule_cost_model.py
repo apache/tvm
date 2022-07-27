@@ -25,6 +25,7 @@ from typing import List
 import numpy as np
 import pytest
 import tvm
+import tvm.testing
 from tvm.meta_schedule.cost_model import PyCostModel, RandomModel, XGBModel
 from tvm.meta_schedule.feature_extractor import RandomFeatureExtractor
 from tvm.meta_schedule.runner import RunnerResult
@@ -228,4 +229,4 @@ def test_meta_schedule_xgb_model_reupdate():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

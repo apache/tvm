@@ -15,7 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import tir, te
+import tvm.testing
+from tvm import te
 from tvm.script import tir as T
 
 
@@ -38,12 +39,12 @@ def elementwise_func(a: T.handle, c: T.handle) -> None:
             T.writes(C[i, 0:16])
             B = T.alloc_buffer((16, 16), "float32")
             for j in range(0, 16):
-                with T.block() as []:
+                with T.block():
                     T.reads(A[i, j])
                     T.writes(B[i, j])
                     B[i, j] = A[i, j] + 1.0
             for j in range(0, 16):
-                with T.block() as []:
+                with T.block():
                     T.reads(B[i, j])
                     T.writes(C[i, j])
                     C[i, j] = B[i, j] * 2.0
@@ -59,12 +60,12 @@ def compacted_elementwise_func(a: T.handle, c: T.handle) -> None:
             T.writes(C[i, 0:16])
             B = T.alloc_buffer((1, 16), "float32")
             for j in range(0, 16):
-                with T.block() as []:
+                with T.block():
                     T.reads(A[i, j])
                     T.writes(B[0, j])
                     B[0, j] = A[i, j] + 1.0
             for j in range(0, 16):
-                with T.block() as []:
+                with T.block():
                     T.reads(B[0, j])
                     T.writes(C[i, j])
                     C[i, j] = B[0, j] * 2.0
@@ -95,7 +96,7 @@ def param_buffer_access_func(a: T.handle, c: T.handle) -> None:
             T.reads(A[i, 0:16])
             T.writes(B[i, 0:16])
             for j in range(0, 16):
-                with T.block() as []:
+                with T.block():
                     T.reads(A[i, j])
                     T.writes(B[i, j])
                     B[i, j] = A[i, j] + 1.0
@@ -113,12 +114,12 @@ def shared_mem_func(a: T.handle, c: T.handle) -> None:
                     T.writes(C[i0 * 8 + i1 * 4 + i2, 0:16])
                     B = T.alloc_buffer((16, 16), "float32", scope="shared")
                     for j in range(0, 16):
-                        with T.block() as []:
+                        with T.block():
                             T.reads(A[i0 * 8 + i1 * 4 + i2, j])
                             T.writes(B[i0 * 8 + i1 * 4 + i2, j])
                             B[i0 * 8 + i1 * 4 + i2, j] = A[i0 * 8 + i1 * 4 + i2, j] + 1.0
                     for j in range(0, 16):
-                        with T.block() as []:
+                        with T.block():
                             T.reads(B[i0 * 8 + i1 * 4 + i2, j])
                             T.writes(C[i0 * 8 + i1 * 4 + i2, j])
                             C[i0 * 8 + i1 * 4 + i2, j] = B[i0 * 8 + i1 * 4 + i2, j] * 2.0
@@ -136,12 +137,12 @@ def compacted_shared_mem_func(a: T.handle, c: T.handle) -> None:
                     T.writes(C[i0 * 8 + i1 * 4 + i2, 0:16])
                     B = T.alloc_buffer((8, 16), "float32", scope="shared")
                     for j in range(0, 16):
-                        with T.block() as []:
+                        with T.block():
                             T.reads(A[i0 * 8 + i1 * 4 + i2, j])
                             T.writes(B[i1 * 4 + i2, j])
                             B[i1 * 4 + i2, j] = A[i0 * 8 + i1 * 4 + i2, j] + 1.0
                     for j in range(0, 16):
-                        with T.block() as []:
+                        with T.block():
                             T.reads(B[i1 * 4 + i2, j])
                             T.writes(C[i0 * 8 + i1 * 4 + i2, j])
                             C[i0 * 8 + i1 * 4 + i2, j] = B[i1 * 4 + i2, j] * 2.0
@@ -159,12 +160,12 @@ def warp_mem_func(a: T.handle, c: T.handle) -> None:
                     T.writes(C[i0 * 8 + i1 * 4 + i2, 0:16])
                     B = T.alloc_buffer((16, 16), "float32", scope="warp")
                     for j in range(0, 16):
-                        with T.block() as []:
+                        with T.block():
                             T.reads(A[i0 * 8 + i1 * 4 + i2, j])
                             T.writes(B[i0 * 8 + i1 * 4 + i2, j])
                             B[i0 * 8 + i1 * 4 + i2, j] = A[i0 * 8 + i1 * 4 + i2, j] + 1.0
                     for j in range(0, 16):
-                        with T.block() as []:
+                        with T.block():
                             T.reads(B[i0 * 8 + i1 * 4 + i2, j])
                             T.writes(C[i0 * 8 + i1 * 4 + i2, j])
                             C[i0 * 8 + i1 * 4 + i2, j] = B[i0 * 8 + i1 * 4 + i2, j] * 2.0
@@ -182,12 +183,12 @@ def compacted_warp_mem_func(a: T.handle, c: T.handle) -> None:
                     T.writes(C[i0 * 8 + i1 * 4 + i2, 0:16])
                     B = T.alloc_buffer((4, 16), "float32", scope="warp")
                     for j in range(0, 16):
-                        with T.block() as []:
+                        with T.block():
                             T.reads(A[i0 * 8 + i1 * 4 + i2, j])
                             T.writes(B[i2, j])
                             B[i2, j] = A[i0 * 8 + i1 * 4 + i2, j] + 1.0
                     for j in range(0, 16):
-                        with T.block() as []:
+                        with T.block():
                             T.reads(B[i2, j])
                             T.writes(C[i0 * 8 + i1 * 4 + i2, j])
                             C[i0 * 8 + i1 * 4 + i2, j] = B[i2, j] * 2.0
@@ -203,12 +204,12 @@ def symbolic_func(a: T.handle, c: T.handle, n: T.int32) -> None:
             T.writes(C[i * 8 : i * 8 + 8])
             B = T.alloc_buffer((n * 8,), "float32")
             for j in range(0, 8):
-                with T.block() as []:
+                with T.block():
                     T.reads(A[i * 8 + j])
                     T.writes(B[i * 8 + j])
                     B[i * 8 + j] = A[i * 8 + j] + 1.0
             for j in range(0, 8):
-                with T.block() as []:
+                with T.block():
                     T.reads(B[i * 8 + j])
                     T.writes(C[i * 8 + j])
                     C[i * 8 + j] = B[i * 8 + j] * 2.0
@@ -224,12 +225,12 @@ def compacted_symbolic_func(a: T.handle, c: T.handle, n: T.int32) -> None:
             T.writes(C[i * 8 : i * 8 + 8])
             B = T.alloc_buffer((T.min(n, 1) * 8,), "float32")
             for j in range(0, 8):
-                with T.block() as []:
+                with T.block():
                     T.reads(A[i * 8 + j])
                     T.writes(B[j])
                     B[j] = A[i * 8 + j] + 1.0
             for j in range(0, 8):
-                with T.block() as []:
+                with T.block():
                     T.reads(B[j])
                     T.writes(C[i * 8 + j])
                     C[i * 8 + j] = B[j] * 2.0
@@ -245,7 +246,7 @@ def complex_func(a: T.handle, c: T.handle, n: T.int32) -> None:
             T.writes(C[0, 8])
             B = T.alloc_buffer((8, 8), "float32")
             for j in range(0, 4):
-                with T.block() as []:
+                with T.block():
                     D = T.alloc_buffer((8, 8), "float32")
                     T.reads(A[i, j])
                     T.writes(B[i, j])
@@ -254,12 +255,12 @@ def complex_func(a: T.handle, c: T.handle, n: T.int32) -> None:
                     for k in range(2, 4):
                         B[i, j] = A[i, j] + D[k, j]
             for j in range(3, 5):
-                with T.block() as []:
+                with T.block():
                     T.reads(B[i, j])
                     T.writes(C[i, j])
                     C[i, j] = B[i, j]
             for j in range(6, 8):
-                with T.block() as []:
+                with T.block():
                     T.reads(B[i, j])
                     T.writes(C[i, j])
                     C[i, j] = B[i, j]
@@ -275,7 +276,7 @@ def compacted_complex_func(a: T.handle, c: T.handle, n: T.int32) -> None:
             T.writes(C[0, 8])
             B = T.alloc_buffer((1, 8), "float32")
             for j in range(0, 4):
-                with T.block() as []:
+                with T.block():
                     D = T.alloc_buffer((6, 1), "float32")
                     T.reads(A[i, j])
                     T.writes(B[0, j])
@@ -284,12 +285,12 @@ def compacted_complex_func(a: T.handle, c: T.handle, n: T.int32) -> None:
                     for k in range(2, 4):
                         B[0, j] = A[i, j] + D[k - 2, 0]
             for j in range(3, 5):
-                with T.block() as []:
+                with T.block():
                     T.reads(B[0, j])
                     T.writes(C[i, j])
                     C[i, j] = B[0, j]
             for j in range(6, 8):
-                with T.block() as []:
+                with T.block():
                     T.reads(B[0, j])
                     T.writes(C[i, j])
                     C[i, j] = B[0, j]
@@ -307,12 +308,12 @@ def match_buffer_func(a: T.handle, c: T.handle) -> None:
             with T.block():
                 B0 = T.match_buffer(B[i, 0:16], (16))
                 for j in range(0, 16):
-                    with T.block() as []:
+                    with T.block():
                         A1 = T.match_buffer(A0[j], ())
                         B1 = T.match_buffer(B0[j], ())
                         B1[()] = A1[()] + 1.0
             for j in range(0, 16):
-                with T.block() as []:
+                with T.block():
                     C1 = T.match_buffer(C0[j], ())
                     B2 = T.match_buffer(B[i, j], ())
                     C1[()] = B2[()] * 2.0
@@ -330,12 +331,12 @@ def compacted_match_buffer_func(a: T.handle, c: T.handle) -> None:
             with T.block():
                 B0 = T.match_buffer(B[0, 0:16], (16))
                 for j in range(0, 16):
-                    with T.block() as []:
+                    with T.block():
                         A1 = T.match_buffer(A0[j], ())
                         B1 = T.match_buffer(B0[j], ())
                         B1[()] = A1[()] + 1.0
             for j in range(0, 16):
-                with T.block() as []:
+                with T.block():
                     C1 = T.match_buffer(C0[j], ())
                     B2 = T.match_buffer(B[0, j], ())
                     C1[()] = B2[()] * 2.0
@@ -351,13 +352,13 @@ def storage_align_func(a: T.handle, c: T.handle) -> None:
             T.writes(C[i, 0:16])
             B = T.alloc_buffer((16, 16), "float32")
             for j in range(0, 16):
-                with T.block() as []:
+                with T.block():
                     T.reads(A[i, j])
                     T.writes(B[i, j])
                     T.block_attr({"buffer_dim_align": [[0, 0, 16, 15]]})
                     B[i, j] = A[i, j] + 1.0
             for j in range(0, 16):
-                with T.block() as []:
+                with T.block():
                     T.reads(B[i, j])
                     T.writes(C[i, j])
                     C[i, j] = B[i, j] * 2.0
@@ -371,15 +372,15 @@ def compacted_storage_align_func(a: T.handle, c: T.handle) -> None:
         with T.block():
             T.reads(A[i, 0:16])
             T.writes(C[i, 0:16])
-            B = T.alloc_buffer((1, 16), strides=(31, 1), dtypes="float32")
+            B = T.alloc_buffer((1, 16), strides=(31, 1), dtype="float32")
             for j in range(0, 16):
-                with T.block() as []:
+                with T.block():
                     T.reads(A[i, j])
                     T.writes(B[0, j])
                     T.block_attr({"buffer_dim_align": [[0, 0, 16, 15]]})
                     B[0, j] = A[i, j] + 1.0
             for j in range(0, 16):
-                with T.block() as []:
+                with T.block():
                     T.reads(B[0, j])
                     T.writes(C[i, j])
                     C[i, j] = B[0, j] * 2.0
@@ -390,7 +391,7 @@ def padding_pattern_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
     C = T.match_buffer(c, (20, 20), "float32")
     with T.block():
-        B = T.alloc_buffer((20, 20), dtypes="float32")
+        B = T.alloc_buffer((20, 20), dtype="float32")
         for i, j in T.grid(16, 16):
             with T.block():
                 B[i, j] = A[i, j]
@@ -421,13 +422,61 @@ def compacted_padding_pattern_func(a: T.handle, c: T.handle) -> None:
 
 
 @T.prim_func
+def padding_pattern_inlined(a: T.handle, b: T.handle) -> None:
+    X = T.match_buffer(a, [224, 224], dtype="float32")
+    Y = T.match_buffer(b, [224, 224], dtype="float32")
+    cache = T.alloc_buffer([224, 224], dtype="float32")
+    for h, w in T.grid(224, 224):
+        with T.block("cache"):
+            cache[h, w] = X[h, w]
+    for h, w, kh, kw in T.grid(224, 224, 3, 3):
+        with T.block("compute"):
+            Y[h, w] = T.max(
+                Y[h, w],
+                T.if_then_else(
+                    T.likely(1 <= h + kh, dtype="bool")
+                    and T.likely(h + kh < 225, dtype="bool")
+                    and T.likely(1 <= w + kw, dtype="bool")
+                    and T.likely(w + kw < 225, dtype="bool"),
+                    cache[h + kh - 1, w + kw - 1],
+                    0.0,
+                    dtype="float32",
+                ),
+            )
+
+
+@T.prim_func
+def compacted_padding_pattern_inlined(
+    X: T.Buffer[(224, 224), "float32"], Y: T.Buffer[(224, 224), "float32"]
+) -> None:
+    cache = T.alloc_buffer([224, 224], dtype="float32")
+    for h, w in T.grid(224, 224):
+        with T.block("cache"):
+            cache[h, w] = X[h, w]
+    for h, w, kh, kw in T.grid(224, 224, 3, 3):
+        with T.block("compute"):
+            Y[h, w] = T.max(
+                Y[h, w],
+                T.if_then_else(
+                    T.likely(1 <= h + kh, dtype="bool")
+                    and T.likely(h + kh < 225, dtype="bool")
+                    and T.likely(1 <= w + kw, dtype="bool")
+                    and T.likely(w + kw < 225, dtype="bool"),
+                    cache[h + kh - 1, w + kw - 1],
+                    0.0,
+                    dtype="float32",
+                ),
+            )
+
+
+@T.prim_func
 def mem_access_in_branch_func(a: T.handle) -> None:
     A = T.match_buffer(a, (224, 224), "float32")
     with T.block():
-        B1 = T.alloc_buffer((224, 224), dtypes="float32")
-        B2 = T.alloc_buffer((224, 224), dtypes="float32")
-        B3 = T.alloc_buffer((224, 224), dtypes="float32")
-        B4 = T.alloc_buffer((224, 224), dtypes="float32")
+        B1 = T.alloc_buffer((224, 224), dtype="float32")
+        B2 = T.alloc_buffer((224, 224), dtype="float32")
+        B3 = T.alloc_buffer((224, 224), dtype="float32")
+        B4 = T.alloc_buffer((224, 224), dtype="float32")
         for i in range(0, 224):
             for j in range(0, 224):
                 with T.block():
@@ -470,8 +519,8 @@ def compacted_mem_access_in_branch_func(a: T.handle) -> None:
 def opaque_access_annotated_func(a: T.handle) -> None:
     A = T.match_buffer(a, (1024,), "float32")
     with T.block():
-        B = T.alloc_buffer((1024,), dtypes="float32")
-        C = T.alloc_buffer((1024,), dtypes="float32")
+        B = T.alloc_buffer((1024,), dtype="float32")
+        C = T.alloc_buffer((1024,), dtype="float32")
         for i in range(0, 512):
             with T.block():
                 # no annotation, opaque access will cover full region
@@ -492,8 +541,8 @@ def opaque_access_annotated_func(a: T.handle) -> None:
 def compacted_opaque_access_annotated_func(a: T.handle) -> None:
     A = T.match_buffer(a, (1024,), "float32")
     with T.block():
-        B = T.alloc_buffer((1024,), dtypes="float32")
-        C = T.alloc_buffer((520,), dtypes="float32")
+        B = T.alloc_buffer((1024,), dtype="float32")
+        C = T.alloc_buffer((520,), dtype="float32")
         for i in range(0, 512):
             with T.block():
                 # no annotation, opaque access will cover full region
@@ -568,12 +617,12 @@ def compacted_sparse_read_cache(
                     A_data_local = T.alloc_buffer([1], dtype="float32", scope="local")
                     with T.block("A_data_cache_read"):
                         T.reads(A_indptr[i], A_data[A_indptr[i] + k])
-                        T.writes(A_data_local[A_indptr[i] + k - (A_indptr[i] + k)])
-                        A_data_local[A_indptr[i] + k - (A_indptr[i] + k)] = A_data[A_indptr[i] + k]
+                        T.writes(A_data_local[T.min(A_indptr[i] + k, 0)])
+                        A_data_local[T.min(A_indptr[i] + k, 0)] = A_data[A_indptr[i] + k]
                     with T.block("rowsum_inner"):
                         T.reads(B[i], A_indptr[i], A_data[A_indptr[i] + k])
                         T.writes(B[i])
-                        B[i] = B[i] + A_data_local[A_indptr[i] + k - (A_indptr[i] + k)]
+                        B[i] = B[i] + A_data_local[T.min(A_indptr[i] + k, 0)]
 
 
 @T.prim_func
@@ -652,6 +701,10 @@ def test_padding_pattern():
     _check(padding_pattern_func, compacted_padding_pattern_func)
 
 
+def test_padding_pattern_inlined():
+    _check(padding_pattern_inlined, compacted_padding_pattern_inlined)
+
+
 def test_mem_access_in_branch_func():
     _check(mem_access_in_branch_func, compacted_mem_access_in_branch_func)
 
@@ -668,19 +721,193 @@ def test_narrow_shape():
     _check(narrow_shape, compacted_narrow_shape)
 
 
+def test_compact_with_let_binding():
+    @T.prim_func
+    def func_with_let_binding():
+        A = T.alloc_buffer((64, 8), "float32")
+        B = T.alloc_buffer((64, 8), "float32")
+        C = T.alloc_buffer((8, 8), "float32")
+        for rk in range(64):
+            for rii, rjj in T.grid(8, 8):
+                C[rii, rjj] = T.float32(0)
+            for riijj in T.serial(8 * 8):
+                rii: T.int32 = riijj // 8
+                rjj: T.int32 = riijj % 8
+                C[rii, rjj] += A[rk, rii] * B[rk, rjj]
+
+    _check(func_with_let_binding, func_with_let_binding)
+
+    @T.prim_func
+    def func_with_non_index_let_binding():
+        A = T.alloc_buffer((64), "float32")
+        x1 = T.call_extern("get", dtype="float16")
+        x2 = T.call_extern("get", dtype="float32")
+        x3 = T.call_extern("get", dtype="float64")
+        x4 = T.call_extern("get", dtype="uint8")
+        x5 = T.call_extern("get", dtype="int32x16")
+        x6 = T.call_extern("get", dtype="handle")
+        x7 = T.call_extern("get", dtype="")
+        for rk in range(64):
+            A[rk] = T.call_extern("load_ptr", x1, x2, x3, x4, x5, x6, x7, dtype="float32")
+
+    _check(func_with_non_index_let_binding, func_with_non_index_let_binding)
+
+
+def test_compact_spatial_tiled_pad_and_pooling():
+    @T.prim_func
+    def spatial_tiled_pad_and_pooling(
+        X: T.Buffer[(64, 112, 112), "int32"], Y: T.Buffer[(64, 56, 56), "int32"]
+    ) -> None:
+        for h_o, w_o in T.grid(14, 14):
+            with T.block():
+                X_cache = T.alloc_buffer([112, 112, 64], dtype="int32")
+                for ax0, ax1, ax2 in T.grid(64, 9, 9):
+                    with T.block("cache"):
+                        T.where(1 <= h_o * 8 + ax1 and 1 <= w_o * 8 + ax2)
+                        T.reads(X[ax0, h_o * 8 - 1 + ax1, w_o * 8 - 1 + ax2])
+                        T.writes(X_cache[h_o * 8 - 1 + ax1, w_o * 8 - 1 + ax2, ax0])
+                        X_cache[h_o * 8 - 1 + ax1, w_o * 8 - 1 + ax2, ax0] = X[
+                            ax0, h_o * 8 - 1 + ax1, w_o * 8 - 1 + ax2
+                        ]
+                for h_i, w_i, kh, kw, c in T.grid(4, 4, 3, 3, 64):
+                    with T.block("compute"):
+                        T.reads(
+                            X_cache[(h_o * 4 + h_i) * 2 + kh - 1, (w_o * 4 + w_i) * 2 + kw - 1, c]
+                        )
+                        T.writes(Y[h_o * 4 + h_i, w_o * 4 + w_i, c])
+                        if kh == 0 and kw == 0:
+                            Y[h_o * 4 + h_i, w_o * 4 + w_i, c] = 0
+                        Y[h_o * 4 + h_i, w_o * 4 + w_i, c] = T.max(
+                            Y[h_o * 4 + h_i, w_o * 4 + w_i, c],
+                            T.if_then_else(
+                                T.likely(1 <= (h_o * 4 + h_i) * 2 + kh, dtype="bool")
+                                and T.likely((h_o * 4 + h_i) * 2 + kh < 113, dtype="bool")
+                                and T.likely(1 <= (w_o * 4 + w_i) * 2 + kw, dtype="bool")
+                                and T.likely((w_o * 4 + w_i) * 2 + kw < 113, dtype="bool"),
+                                X_cache[
+                                    (h_o * 4 + h_i) * 2 + kh - 1,
+                                    (w_o * 4 + w_i) * 2 + kw - 1,
+                                    c,
+                                ],
+                                0,
+                                dtype="int32",
+                            ),
+                        )
+
+    @T.prim_func
+    def compacted_spatial_tiled_pad_and_pooling(
+        X: T.Buffer[(64, 112, 112), "int32"], Y: T.Buffer[(64, 56, 56), "int32"]
+    ) -> None:
+        for h_o, w_o in T.grid(14, 14):
+            with T.block():
+                T.reads(X[0:64, h_o * 8 - 1 : h_o * 8 + 8, w_o * 8 - 1 : w_o * 8 + 8])
+                T.writes(Y[h_o * 4 : h_o * 4 + 4, w_o * 4 : w_o * 4 + 4, 0:64])
+                X_cache = T.alloc_buffer([9, 9, 64], dtype="int32")
+                for ax0, ax1, ax2 in T.grid(64, 9, 9):
+                    with T.block("cache"):
+                        T.where(1 <= h_o * 8 + ax1 and 1 <= w_o * 8 + ax2)
+                        T.reads(X[ax0, h_o * 8 + ax1 - 1, w_o * 8 + ax2 - 1])
+                        T.writes(
+                            X_cache[
+                                h_o * 8 + ax1 - T.max(0, h_o * 8 - 1) - 1,
+                                w_o * 8 + ax2 - T.max(0, w_o * 8 - 1) - 1,
+                                ax0,
+                            ]
+                        )
+                        X_cache[
+                            h_o * 8 + ax1 - T.max(0, h_o * 8 - 1) - 1,
+                            w_o * 8 + ax2 - T.max(0, w_o * 8 - 1) - 1,
+                            ax0,
+                        ] = X[ax0, h_o * 8 + ax1 - 1, w_o * 8 + ax2 - 1]
+                for h_i, w_i, kh, kw, c in T.grid(4, 4, 3, 3, 64):
+                    with T.block("compute"):
+                        T.reads(
+                            X_cache[
+                                h_o * 8 + h_i * 2 + kh - T.max(0, h_o * 8 - 1) - 1,
+                                w_o * 8 + w_i * 2 + kw - T.max(0, w_o * 8 - 1) - 1,
+                                c,
+                            ]
+                        )
+                        T.writes(Y[h_o * 4 + h_i, w_o * 4 + w_i, c])
+                        if kh == 0 and kw == 0:
+                            Y[h_o * 4 + h_i, w_o * 4 + w_i, c] = 0
+                        Y[h_o * 4 + h_i, w_o * 4 + w_i, c] = T.max(
+                            Y[h_o * 4 + h_i, w_o * 4 + w_i, c],
+                            T.if_then_else(
+                                T.likely(1 <= h_o * 8 + h_i * 2 + kh, dtype="bool")
+                                and T.likely(1 <= w_o * 8 + w_i * 2 + kw, dtype="bool"),
+                                X_cache[
+                                    h_o * 8 + h_i * 2 + kh - T.max(0, h_o * 8 - 1) - 1,
+                                    w_o * 8 + w_i * 2 + kw - T.max(0, w_o * 8 - 1) - 1,
+                                    c,
+                                ],
+                                0,
+                                dtype="int32",
+                            ),
+                        )
+
+    _check(spatial_tiled_pad_and_pooling, compacted_spatial_tiled_pad_and_pooling)
+
+
+def test_complex_case_1():
+    """Meta-schedule matmul case for compact shared A, B matrix"""
+
+    # fmt: off
+    @T.prim_func
+    def func(A: T.Buffer[(960, 770), "float32"], B: T.Buffer[(770, 2304), "float32"], C: T.Buffer[(960, 2304), "float32"]) -> None:
+        for bx in T.thread_binding(144, thread="blockIdx.x"):
+            for vx in T.thread_binding(2, thread="vthread.x"):
+                for tx_p in T.thread_binding(256, thread="threadIdx.x"):
+                    with T.block():
+                        for k_0 in T.serial(193):
+                            with T.block():
+                                A_shared = T.alloc_buffer([960, 770], dtype="float32", scope="shared")
+                                B_shared = T.alloc_buffer([770, 2304], dtype="float32", scope="shared")
+                                for _u in T.serial(1):
+                                    for tx in T.thread_binding(256, thread="threadIdx.x"):
+                                        for vec in T.vectorized(3):
+                                            with T.block("A_shared"):
+                                                T.where(bx // 18 * 128 + ((_u * 256 + tx) * 3 + vec) // 4 < 960 and k_0 * 4 + ((_u * 256 + tx) * 3 + vec) % 4 < 770 and (_u * 256 + tx) * 3 + vec < 512)
+                                                A_shared[bx // 18 * 128 + (_u * 768 + tx * 3 + vec) // 4, k_0 * 4 + (_u * 768 + tx * 3 + vec) % 4] = A[bx // 18 * 128 + (_u * 768 + tx * 3 + vec) // 4, k_0 * 4 + (_u * 768 + tx * 3 + vec) % 4]
+                                for _u in T.serial(1):
+                                    for tx in T.thread_binding(256, thread="threadIdx.x"):
+                                        for vec in T.vectorized(4):
+                                            with T.block("B_shared"):
+                                                T.where(k_0 * 4 + ((_u * 256 + tx) * 4 + vec) // 128 < 770 and (_u * 256 + tx) * 4 + vec < 512)
+                                                B_shared[k_0 * 4 + (_u * 1024 + tx * 4 + vec) // 128, bx % 18 * 128 + (_u * 1024 + tx * 4 + vec) % 128] = B[k_0 * 4 + (_u * 1024 + tx * 4 + vec) // 128, bx % 18 * 128 + (_u * 1024 + tx * 4 + vec) % 128]
+                                for k_1, i_3, j_3, k_2, i_4, j_4 in T.grid(1, 8, 1, 4, 2, 2):
+                                    with T.block("update_update"):
+                                        C[(((bx // 18 + 0) * 8 + tx_p // 32) * 8 + i_3) * 2 + i_4, ((bx % 18 * 2 + vx % 2) * 32 + tx_p % 32 + j_3) * 2 + j_4] = C[(((bx // 18 + 0) * 8 + tx_p // 32) * 8 + i_3) * 2 + i_4, ((bx % 18 * 2 + vx % 2) * 32 + tx_p % 32 + j_3) * 2 + j_4] + A_shared[(((bx // 18 + 0) * 8 + tx_p // 32) * 8 + i_3) * 2 + i_4, (k_0 + k_1) * 4 + k_2] * B_shared[(k_0 + k_1) * 4 + k_2, ((bx % 18 * 2 + vx % 2) * 32 + tx_p % 32 + j_3) * 2 + j_4]
+    
+    @T.prim_func
+    def compacted_func(A: T.Buffer[(960, 770), "float32"], B: T.Buffer[(770, 2304), "float32"], C: T.Buffer[(960, 2304), "float32"]) -> None:
+        for bx in T.thread_binding(144, thread="blockIdx.x"):
+            for vx in T.thread_binding(2, thread="vthread.x"):
+                for tx_p in T.thread_binding(256, thread="threadIdx.x"):
+                    with T.block():
+                        for k_0 in T.serial(193):
+                            with T.block():
+                                A_shared = T.alloc_buffer([128, 4], dtype="float32", scope="shared")
+                                B_shared = T.alloc_buffer([4, 128], dtype="float32", scope="shared")
+                                for v_u in T.serial(1):
+                                    for tx in T.thread_binding(256, thread="threadIdx.x"):
+                                        for vec in T.vectorized(3):
+                                            with T.block("A_shared"):
+                                                T.where(bx // 18 * 128 + (tx * 3 + vec) // 4 < 960 and k_0 * 4 + (tx * 3 + vec) % 4 < 770 and tx * 3 + vec < 512)
+                                                A_shared[(tx * 3 + vec) // 4, (tx * 3 + vec) % 4] = A[bx // 18 * 128 + (tx * 3 + vec) // 4, k_0 * 4 + (tx * 3 + vec) % 4]
+                                for v_u in T.serial(1):
+                                    for tx in T.thread_binding(256, thread="threadIdx.x"):
+                                        for vec in T.vectorized(4):
+                                            with T.block("B_shared"):
+                                                T.where(k_0 * 4 + tx // 32 < 770 and tx * 4 + vec < 512)
+                                                B_shared[tx // 32, tx % 32 * 4 + vec] = B[k_0 * 4 + tx // 32, bx % 18 * 128 + tx % 32 * 4 + vec]
+                                for k_1, i_3, j_3, k_2, i_4, j_4 in T.grid(1, 8, 1, 4, 2, 2):
+                                    with T.block("update_update"):
+                                        C[bx // 18 * 128 + tx_p // 32 * 16 + i_3 * 2 + i_4, bx % 18 * 128 + vx * 64 + tx_p % 32 * 2 + j_4] = C[bx // 18 * 128 + tx_p // 32 * 16 + i_3 * 2 + i_4, bx % 18 * 128 + vx * 64 + tx_p % 32 * 2 + j_4] + A_shared[tx_p // 32 * 16 + i_3 * 2 + i_4, k_2] * B_shared[k_2, vx * 64 + tx_p % 32 * 2 + j_4]
+    # fmt: on
+
+    _check(func, compacted_func)
+
+
 if __name__ == "__main__":
-    test_elementwise()
-    test_unschedulable_block()
-    test_param_access()
-    test_shared_mem()
-    test_warp_mem()
-    test_symbolic()
-    test_complex()
-    test_match_buffer()
-    test_storage_align()
-    test_lower_te()
-    test_padding_pattern()
-    test_mem_access_in_branch_func()
-    test_opaque_access_annotated_func()
-    test_sparse_read_cache()
-    test_narrow_shape()
+    tvm.testing.main()

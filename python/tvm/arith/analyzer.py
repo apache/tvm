@@ -90,6 +90,7 @@ class Analyzer:
         self._canonical_simplify = _mod("canonical_simplify")
         self._int_set = _mod("int_set")
         self._enter_constraint_context = _mod("enter_constraint_context")
+        self._can_prove_equal = _mod("can_prove_equal")
 
     def const_int_bound(self, expr):
         """Find constant integer bound for expr.
@@ -251,3 +252,21 @@ class Analyzer:
             self._const_int_bound_update(var, info, override)
         else:
             raise TypeError("Do not know how to handle type {}".format(type(info)))
+
+    def can_prove_equal(self, lhs: "PrimExpr", rhs: "PrimExpr"):
+        """Whether we can prove that lhs == rhs
+
+        Parameters
+        ----------
+        lhs: PrimExpr
+            The left-hand side of the comparison
+
+        rhs: PrimExpr
+            The right-hand side of the comparison
+
+        Returns
+        -------
+        result: bool
+            Whether we can prove that lhs == rhs
+        """
+        return self._can_prove_equal(lhs, rhs)

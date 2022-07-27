@@ -52,6 +52,11 @@ PackedFunc AotExecutorFactory::GetFunction(
       }
       *rv = this->ExecutorCreate(devices);
     });
+  } else if (name == "list_module_names") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      Array<String> names = {module_name_};
+      *rv = names;
+    });
   } else if (name == "remove_params") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       std::unordered_map<std::string, tvm::runtime::NDArray> empty_params{};

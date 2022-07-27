@@ -42,7 +42,7 @@ class Buffer(Object):
     READ = 1
     WRITE = 2
 
-    def access_ptr(self, access_mask, ptr_type="handle", content_lanes=1, offset=0):
+    def access_ptr(self, access_mask, ptr_type="handle", content_lanes=1, offset=0, extent=None):
         """Get an access pointer to the head of buffer.
 
         This is the recommended method to get buffer data
@@ -66,6 +66,9 @@ class Buffer(Object):
             The offset of pointer. We can use it to offset by
             the number of elements from the address of ptr.
 
+        extent: Expr, optional
+            The extent of pointer.
+
         Examples
         --------
         .. code-block:: python
@@ -78,6 +81,8 @@ class Buffer(Object):
           buffer.access_ptr("rw")
           # Get access ptr for read with offset
           buffer.access_ptr("r", offset = 100)
+          # Get access ptr for read with extent
+          buffer.access_ptr("r", extent = 100)
         """
         if isinstance(access_mask, string_types):
             mask = 0
@@ -90,8 +95,9 @@ class Buffer(Object):
                     raise ValueError("Unknown access_mask %s" % access_mask)
             access_mask = mask
         offset = convert(offset)
+        extent = convert(extent)
         return _ffi_api.BufferAccessPtr(
-            self, access_mask, ptr_type, content_lanes, offset  # type: ignore
+            self, access_mask, ptr_type, content_lanes, offset, extent  # type: ignore
         )
 
     def vload(self, begin, dtype=None):

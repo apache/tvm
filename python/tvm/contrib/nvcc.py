@@ -229,10 +229,18 @@ def find_libdevice_path(arch):
         for fn in os.listdir(lib_path):
             if not fn.startswith("libdevice"):
                 continue
-            ver = int(fn.split(".")[-3].split("_")[-1])
-            if selected_ver < ver <= arch:
-                selected_ver = ver
+
+            try:
+                # expected pattern: libdevice.${ARCH}.10.bc
+                #             e.g., libdevice.compute_20.10.bc
+                ver = int(fn.split(".")[-3].split("_")[-1])
+                if selected_ver < ver <= arch:
+                    selected_ver = ver
+                    selected_path = fn
+            except ValueError:
+                # it can just be `libdevice.10.bc` in CUDA 10
                 selected_path = fn
+
         if selected_path is None:
             raise RuntimeError("Cannot find libdevice for arch {}".format(arch))
         path = os.path.join(lib_path, selected_path)

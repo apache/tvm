@@ -73,6 +73,10 @@ Type GetType(const PrimExpr& expr) {
   }
   // Default: return the type indicated by the dtype.
   runtime::DataType dtype = expr.dtype();
+  return GetTypeFromRuntimeDataType(dtype);
+}
+
+Type GetTypeFromRuntimeDataType(const DataType& dtype) {
   if (dtype.is_void()) {
     return VoidType();
   }
@@ -95,6 +99,8 @@ PrimExpr q_multiply_shift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr s, Span s
 
 // The public function with a quick checking path.
 void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
+  CHECK(lhs.defined()) << "ValueError: `lhs` is null in the binary operator";
+  CHECK(rhs.defined()) << "ValueError: `rhs` is null in the binary operator";
   if (lhs.dtype() == rhs.dtype()) return;
   DataType ltype = lhs.dtype();
   DataType rtype = rhs.dtype();
@@ -973,6 +979,7 @@ REGISTER_MAKE_BINARY_OP(_OpFloorDiv, floordiv);
 REGISTER_MAKE_BINARY_OP(_OpFloorMod, floormod);
 REGISTER_MAKE_BINARY_OP(_OpTruncDiv, truncdiv);
 REGISTER_MAKE_BINARY_OP(_OpTruncMod, truncmod);
+REGISTER_MAKE_BINARY_OP(_OpCeilDiv, ceildiv);
 REGISTER_MAKE_BINARY_OP(_OpPow, pow);
 REGISTER_MAKE_BINARY_OP(_OpMin, min);
 REGISTER_MAKE_BINARY_OP(_OpMax, max);

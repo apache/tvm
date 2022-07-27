@@ -279,8 +279,7 @@ def match_ethosu_depthwise_conv2d(output_tensor, device_config):
     ifm_dtype = input_tensors[0].dtype
     ofm_dtype = output_tensor.dtype
 
-    ifm_channels = int(input_tensors[0].shape[3])
-    ofm_channels, kernel_height, kernel_width = (int(axis) for axis in input_tensors[1].shape[0:3])
+    channels, kernel_height, kernel_width = (int(axis) for axis in input_tensors[1].shape[0:3])
 
     subkernels = len(
         device_config.get_kernel_steps(depthwise2d.op.name, kernel_height, kernel_width, ifm_dtype)
@@ -294,8 +293,8 @@ def match_ethosu_depthwise_conv2d(output_tensor, device_config):
         propagators[0],
         depthwise2d.op.attrs,
         output_tensor.shape,
-        ofm_channels,
-        ifm_channels,
+        channels,
+        channels,
         output_layout,
         input_layout,
         ifm_dtype,

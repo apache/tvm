@@ -16,6 +16,7 @@
 # under the License.
 """Auto-tuning Task Scheduler"""
 
+import logging
 from typing import Callable, List, Optional
 
 from tvm._ffi import register_object
@@ -28,6 +29,9 @@ from ..database import Database
 from ..measure_callback import MeasureCallback
 from ..runner import Runner, RunnerResult
 from ..tune_context import TuneContext
+from ..utils import make_logging_func
+
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 @register_object("meta_schedule.TaskScheduler")
@@ -148,6 +152,7 @@ class _PyTaskScheduler(TaskScheduler):
             max_trials,
             cost_model,
             measure_callbacks,
+            make_logging_func(logger),
             f_tune,
             f_initialize_task,
             f_touch_task,
@@ -171,9 +176,9 @@ class PyTaskScheduler:
             "builder",
             "runner",
             "database",
-            "max_trials",
             "cost_model",
             "measure_callbacks",
+            "max_trials",
         ],
         "methods": [
             "tune",
@@ -189,18 +194,19 @@ class PyTaskScheduler:
         tasks: List[TuneContext],
         builder: Builder,
         runner: Runner,
-        database: Database,
-        max_trials: int,
+        *,
+        database: Optional[Database] = None,
         cost_model: Optional[CostModel] = None,
         measure_callbacks: Optional[List[MeasureCallback]] = None,
+        max_trials: int,
     ):
         self.tasks = tasks
         self.builder = builder
         self.runner = runner
         self.database = database
-        self.max_trials = max_trials
         self.cost_model = cost_model
         self.measure_callbacks = measure_callbacks
+        self.max_trials = max_trials
 
     def tune(self) -> None:
         """Auto-tuning."""

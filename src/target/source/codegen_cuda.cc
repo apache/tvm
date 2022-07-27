@@ -25,6 +25,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/index_map.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include <cmath>
@@ -818,9 +819,90 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string local_ptr = this->PrintExpr(op->args[3]);
     std::string local_elem_offset = this->PrintExpr(op->args[4]);
     std::string smem_ptr = this->PrintExpr(op->args[5]);
-    std::string smem_elem_offset = this->PrintExpr(op->args[6]);
-    this->stream << PrintLoadMatrixAssembly(trans, num, type, local_ptr, local_elem_offset,
-                                            smem_ptr, smem_elem_offset);
+    if (trans && op->dtype.bits() == 8) {
+      // Since ldmatrix assumes that a matrix element is 16 bit, it cannot properly transpose an
+      // int8 matrix.
+      std::string smem_stride = this->PrintExpr(op->args[6]);
+      ICHECK(num == 4);
+      os << "for (int i = 0; i < 16; ++i) {\n";
+      os << local_ptr << "[" + local_elem_offset + " + i] = " << smem_ptr
+         << "[(i % 8) / 4 * " + smem_stride + " * 16 + (threadIdx.x % 4) * 4 * " + smem_stride +
+                "+ (i % 4) * " + smem_stride + " + threadIdx.x / 4 +  (i / 8) * 8];\n";
+      os << "}\n";
+    } else {
+      std::string smem_elem_offset = this->PrintExpr(op->args[6]);
+      this->stream << PrintLoadMatrixAssembly(trans, num, type, local_ptr, local_elem_offset,
+                                              smem_ptr, smem_elem_offset);
+    }
+  } else if (op->op.same_as(builtin::mma_store())) {
+    int m = Downcast<Integer>(op->args[0])->value;
+    int n = Downcast<Integer>(op->args[1])->value;
+    std::string dst = this->PrintExpr(op->args[2]);
+    std::string src = this->PrintExpr(op->args[3]);
+    std::string src_offset = this->PrintExpr(op->args[4]);
+    PrimExpr stride = op->args[5];
+
+    ICHECK(m == 16 && n == 16) << "Only m == 16 && n == 16 case supported for now";
+
+    // Each thread in a warp holds a certain number of elements of an MMA output.
+    // For example, if we compute a 16x16 tile using MMA, each thread holds 8 elements
+    // in its registers. So conceptually, a warp memory is organized as a 32x8 block.
+    // A map from a 16x16 tile to a 32x8 block of memory is specified by the index map below.
+
+    // To store the 32x8 output back to a 16x16 tile in shared or global memory, we invert this map
+    // to determine the output location for each 8 element.
+
+    const auto* index_map_func =
+        runtime::Registry::Get("tir.index_map.shared_16x16_to_ldmatrix_32x8_layout");
+    ICHECK(index_map_func);
+
+    auto inverse_index_map =
+        IndexMap::FromFunc(2, *index_map_func).Inverse({Range(0, m), Range(0, n)});
+    auto indices_16x16 = inverse_index_map->final_indices;
+
+    // "//" and "%" in the index map are translated to FloorDiv/Mod, but the plain Div/Mod are fine.
+    // FloorDiv/Mod are supposed to be lowered before they reach codegen, so manually replace them
+    // to the plain ones here.
+    class LowerFloorDivMod : public ExprMutator {
+     public:
+      PrimExpr VisitExpr_(const FloorDivNode* op) {
+        return tir::Div(this->VisitExpr(op->a), this->VisitExpr(op->b));
+      }
+      PrimExpr VisitExpr_(const FloorModNode* op) {
+        return tir::Mod(this->VisitExpr(op->a), this->VisitExpr(op->b));
+      }
+    };
+
+    auto dst_ind = LowerFloorDivMod()(indices_16x16[0] * stride + indices_16x16[1]);
+
+    var_idmap_[inverse_index_map->initial_indices[0].get()] = "threadIdx.x";
+    var_idmap_[inverse_index_map->initial_indices[1].get()] = "local_id";
+
+    os << "for (int local_id = 0; local_id < 8; ++local_id) {\n";
+    os << dst << "[" + this->PrintExpr(dst_ind) + "]"
+       << " = " << src << "[" << src_offset << " + local_id];\n";
+    os << "}\n";
+
+  } else if (op->op.same_as(builtin::mma_fill())) {
+    std::string num_elem = this->PrintExpr(op->args[0]);
+    std::string dst = this->PrintExpr(op->args[1]);
+    std::string dst_offset = this->PrintExpr(op->args[2]);
+
+    os << "for (int i = 0; i < " << num_elem << "; ++i) {\n";
+    os << dst << "[" << dst_offset << " + i] = 0.0;";
+    os << "}\n";
+  } else if (op->op.same_as(builtin::ptx_cp_async())) {
+    std::string dst = this->PrintExpr(op->args[0]);
+    std::string dst_offset = this->PrintExpr(op->args[1]);
+    std::string src = this->PrintExpr(op->args[2]);
+    std::string src_offset = this->PrintExpr(op->args[3]);
+    std::string size = this->PrintExpr(op->args[4]);
+    this->stream << PrintCpAsyncAssembly(dst, dst_offset, src, src_offset, size);
+  } else if (op->op.same_as(builtin::ptx_commit_group())) {
+    this->stream << "__asm__ __volatile__(\"cp.async.commit_group;\");\n\n";
+  } else if (op->op.same_as(builtin::ptx_wait_group())) {
+    std::string N = this->PrintExpr(op->args[0]);
+    this->stream << "__asm__ __volatile__(\"cp.async.wait_group " + N + ";\");\n\n";
   } else {
     CodeGenC::VisitExpr_(op, os);
   }

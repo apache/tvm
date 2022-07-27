@@ -188,7 +188,7 @@ MaybeRange<T> to_range(const MaybeString& str) {
 
 class SimulatorRPCChannel final : public RPCChannel {
  public:
-  SimulatorRPCChannel(std::string args);
+  SimulatorRPCChannel(int stack_size, std::string args);
   ~SimulatorRPCChannel() final;
   size_t Send(const void* data, size_t size) final;
   size_t Recv(void* data, size_t size) final;
@@ -212,6 +212,11 @@ class SimulatorRPCChannel final : public RPCChannel {
     std::string qurt_root;  // sdk_root/rtos/qurt/computevNN.
     std::string runelf;     // Path to runelf.pbn.
     std::string runmain;    // Path to run_main_on_hexagon.
+  };
+
+  struct Message_ {
+    Message msg;
+    std::string str() const;
   };
 
   Message SendMsg(Message msg);
@@ -461,6 +466,48 @@ std::string SimulatorRPCChannel::Cpu_::str() const {
   return default_cpu_;
 }
 
+// LOG(FATAL) always throws an exception or terminates the
+// process, but the compiler doesn't know that.
+#if (__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wreturn-type"
+#endif
+
+#if (__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wreturn-type"
+#endif
+
+std::string SimulatorRPCChannel::Message_::str() const {
+  switch (msg.code) {
+    case Message::kNone:
+      return "kNone";
+    case Message::kAck:
+      return "kAck";
+    case Message::kTerminate:
+      return "kTerminate";
+    case Message::kReceiveStart:
+      return "kReceiveStart";
+    case Message::kReceiveEnd:
+      return "kReceiveEnd";
+    case Message::kSendStart:
+      return "kSendStart";
+    case Message::kSendEnd:
+      return "kSendEnd";
+    default:
+      LOG(FATAL) << "Internal error: Unrecognized code value: " << msg.code;
+      break;
+  }
+}
+
+#if (__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+
+#if (__clang__)
+#pragma GCC diagnostic pop
+#endif
+
 SimulatorRPCChannel::SDKInfo_::SDKInfo_(const std::string& sdk_root, const std::string& cpu)
     : root(sdk_root) {
   // For v69 chips, still look for v68 in the directory names.
@@ -520,11 +567,7 @@ detail::Optional<HEXAPI_Cpu> SimulatorRPCChannel::GetCPU(const detail::MaybeStri
       .Default(none);
 }
 
-SimulatorRPCChannel::SimulatorRPCChannel(std::string args) {
-  const auto* api_v2 = tvm::runtime::Registry::Get("device_api.hexagon.v2");
-  ICHECK(api_v2 != nullptr);
-  tvm::runtime::Registry::Register("device_api.hexagon", true).set_body(*api_v2);
-
+SimulatorRPCChannel::SimulatorRPCChannel(int stack_size, std::string args) {
   const char* sdk_root_env = std::getenv("HEXAGON_SDK_ROOT");
   ICHECK(sdk_root_env != nullptr) << "Please set HEXAGON_SDK_ROOT";
   const char* toolchain_env = std::getenv("HEXAGON_TOOLCHAIN");
@@ -573,7 +616,9 @@ SimulatorRPCChannel::SimulatorRPCChannel(std::string args) {
   CHECKED_CALL(ConfigureCosim, cosim_file_);
   CHECKED_CALL(ConfigureExecutableBinary, sdk.runelf.c_str());
 
-  std::string cmdline = sdk.runelf + " " + sdk.runmain + " -- libhexagon_rpc_sim.so";
+  std::string stack_arg =
+      stack_size > 0 ? std::string(" -stack_size=") + std::to_string(stack_size) : "";
+  std::string cmdline = sdk.runelf + " " + sdk.runmain + stack_arg + " -- libhexagon_rpc_sim.so";
   char* parg = &cmdline[0];
   CHECKED_CALL(ConfigureAppCommandLine, 1, &parg);
 
@@ -649,8 +694,13 @@ Message SimulatorRPCChannel::SendMsg(Message msg) {
     HEX_4u_t result;
 
     core = sim_->Run(&result);
-    ICHECK_EQ(core, HEX_CORE_BREAKPOINT);
+    Core_ core_ = {core};
+    ICHECK_EQ(core, HEX_CORE_BREAKPOINT)
+        << "Expecting HEX_CORE_BREAKPOINT, received: " << core_.str();
   };
+
+  Message_ msg_ = {msg};
+  LOG(INFO) << "Sending message: " << msg_.str();
 
   WriteToProcess(message_buffer_v_, &msg, sizeof msg);
   run();
@@ -1311,10 +1361,12 @@ detail::Optional<HEXAPI_Nullptr> SimulatorRPCChannel::to_nullptr(const detail::M
 
 TVM_REGISTER_GLOBAL("tvm.contrib.hexagon.create_hexagon_session")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
+      ICHECK(args.size() >= 4) << args.size() << " is less than 4";
+
       std::string session_name = args[0];
-      // For target, the second parameter is remote_stack_size_bytes, ignore it.
+      int stack_size = args[1];
       std::string sim_args = args[2];
-      auto channel = std::make_unique<SimulatorRPCChannel>(sim_args);
+      auto channel = std::make_unique<SimulatorRPCChannel>(stack_size, sim_args);
       std::shared_ptr<RPCEndpoint> endpoint =
           RPCEndpoint::Create(std::move(channel), session_name, "", nullptr);
       std::shared_ptr<RPCSession> session = CreateClientSession(endpoint);

@@ -73,7 +73,7 @@ class CostModel(Object):
         _ffi_api.CostModelUpdate(self, context, candidates, results)  # type: ignore # pylint: disable=no-member
 
     def predict(self, context: TuneContext, candidates: List[MeasureCandidate]) -> np.ndarray:
-        """Update the cost model given running results.
+        """Predict normalized score with the cost model.
 
         Parameters
         ----------
@@ -190,7 +190,7 @@ class PyCostModel:
         raise NotImplementedError
 
     def predict(self, context: TuneContext, candidates: List[MeasureCandidate]) -> np.ndarray:
-        """Update the cost model given running results.
+        """Predict given the measure candidates.
 
         Parameters
         ----------

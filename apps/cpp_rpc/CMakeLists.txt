@@ -45,7 +45,7 @@ target_include_directories(
   PUBLIC DMLC_PATH
 )
 
-if (BUILD_FOR_ANDROID AND USE_HEXAGON_SDK)
+if (BUILD_FOR_ANDROID AND USE_HEXAGON)
   get_hexagon_sdk_property("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}"
     DSPRPC_LIB DSPRPC_LIB_DIRS
   )
@@ -55,6 +55,14 @@ if (BUILD_FOR_ANDROID AND USE_HEXAGON_SDK)
     message(WARNING "Could not locate some Hexagon SDK components")
   endif()
   list(APPEND TVM_RPC_LINKER_LIBS cdsprpc log)
+endif()
+
+if(USE_ETHOSN)
+  if (ETHOSN_RUNTIME_LIBRARY)
+    list(APPEND TVM_RPC_LINKER_LIBS ${ETHOSN_RUNTIME_LIBRARY})
+  else()
+    message(WARNING "Could not locate Arm(R) Ethos(TM)-N runtime library components")
+  endif()
 endif()
 
 if(BUILD_STATIC_RUNTIME)

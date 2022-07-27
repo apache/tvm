@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 from tvm import te
 from tvm.driver.build_module import schedule_to_module
 from tvm.script import tir as T
@@ -141,7 +142,7 @@ def test_flatten_let_buffer():
             A_data: T.Ptr[T.int32] = T.call_extern("dummy_extern_function", dtype="handle")
 
             # and a buffer is backed by that pointer,
-            A: T.Buffer = T.buffer_decl([1], dtype="float32", data=A_data)
+            A = T.buffer_decl([1], dtype="float32", data=A_data)
             T.evaluate(A[0])
 
     # then the call to StorageFlatten would result in an exception
@@ -165,4 +166,4 @@ def test_flatten_tir():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

@@ -81,7 +81,7 @@ Pass LowerInitBlock() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     return LowerInitBlock(std::move(f));
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.LowerReduction", {});
+  return CreatePrimFuncPass(pass_func, 0, "tir.LowerInitBlock", {});
 }
 
 TVM_REGISTER_GLOBAL("tir.transform.LowerInitBlock").set_body_typed(LowerInitBlock);

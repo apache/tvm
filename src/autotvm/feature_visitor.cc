@@ -61,14 +61,14 @@ void FeatureVisitor::VisitStmt_(const ForNode* op) {
 
 // parallel axis, virtual thread
 void FeatureVisitor::VisitStmt_(const AttrStmtNode* op) {
-  if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
+  if (op->attr_key == tir::attr::thread_extent || op->attr_key == tir::attr::virtual_thread) {
     Var var = op->node.as<tir::IterVarNode>()->var;
     const auto* extent = op->value.as<IntImmNode>();
     ICHECK(extent);
 
     std::string name = var.get()->name_hint;
     AnnotationType ann = kParallel;
-    if (op->attr_key == attr::thread_extent) {
+    if (op->attr_key == tir::attr::thread_extent) {
       if (name == "blockIdx.x")
         ann = kBlockX;
       else if (name == "blockIdx.y")

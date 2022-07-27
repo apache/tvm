@@ -20,8 +20,8 @@ Inception V3, suitable for images with around 299 x 299
 Reference:
 Szegedy, Christian, et al. "Rethinking the Inception Architecture for Computer Vision." arXiv preprint arXiv:1512.00567 (2015).
 
-Adopted from https://github.com/apache/incubator-mxnet/blob/
-             master/example/image-classification/symbols/inception-v3.py
+Adopted from https://github.com/apache/incubator-mxnet/blob/master/
+             example/image-classification/symbols/inception-v3.py
 """
 import mxnet as mx
 import numpy as np

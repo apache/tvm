@@ -24,8 +24,10 @@ from unittest import mock
 import pytest
 
 import tvm
+from tvm.ir.memory_pools import WorkspacePoolInfo, WorkspaceMemoryPools
+from tvm.target import Target
 import tvm.testing
-from tvm.testing.utils import ethosn_available
+from tvm.relay.op.contrib.ethosn import ethosn_available
 from tvm.relay.backend import Runtime, Executor
 
 from tvm.contrib.target.vitis_ai import vitis_ai_available
@@ -378,24 +380,6 @@ def test_compile_opencl(tflite_mobilenet_v1_0_25_128):
     assert os.path.exists(dumps_path)
 
 
-@pytest.mark.skipif(
-    not ethosn_available(),
-    reason="--target=Ethos(TM)-N78 is not available. TVM built with 'USE_ETHOSN OFF'",
-)
-def test_compile_tflite_module_with_external_codegen_ethos_n77(tflite_mobilenet_v1_1_quant):
-    pytest.importorskip("tflite")
-    tvmc_model = tvmc.load(tflite_mobilenet_v1_1_quant)
-    tvmc_package = tvmc.compile(tvmc_model, target="ethos-n77, llvm", dump_code="relay")
-    dumps_path = tvmc_package.package_path + ".relay"
-
-    # check for output types
-    assert type(tvmc_package) is TVMCPackage
-    assert type(tvmc_package.graph) is str
-    assert type(tvmc_package.lib_path) is str
-    assert type(tvmc_package.params) is bytearray
-    assert os.path.exists(dumps_path)
-
-
 @tvm.testing.requires_cmsisnn
 def test_compile_tflite_module_with_external_codegen_cmsisnn(
     tmpdir_factory, tflite_cnn_s_quantized
@@ -427,19 +411,14 @@ def test_compile_tflite_module_with_external_codegen_cmsisnn(
             for name in mlf_package.getnames()
             if re.match(r"\./codegen/host/src/\D+\d+\.c", name)
         ]
-        assert len(c_source_files) == 3
+        assert len(c_source_files) == 4
 
 
-@pytest.mark.skipif(
-    not ethosn_available(),
-    reason="--target=Ethos(TM)-N78 is not available. TVM built with 'USE_ETHOSN OFF'",
-)
+@tvm.testing.requires_ethosn
 def test_compile_tflite_module_with_external_codegen_ethos_n78(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tflite")
     tvmc_model = tvmc.load(tflite_mobilenet_v1_1_quant)
-    tvmc_package = tvmc.compile(
-        tvmc_model, target="ethos-n78 -variant=ethos-n78, llvm", dump_code="relay"
-    )
+    tvmc_package = tvmc.compile(tvmc_model, target="ethos-n -variant=n78, llvm", dump_code="relay")
     dumps_path = tvmc_package.package_path + ".relay"
 
     # check for output types
@@ -450,10 +429,7 @@ def test_compile_tflite_module_with_external_codegen_ethos_n78(tflite_mobilenet_
     assert os.path.exists(dumps_path)
 
 
-@pytest.mark.skipif(
-    not vitis_ai_available(),
-    reason="--target=vitis-ai is not available. TVM built with 'USE_VITIS_AI OFF'",
-)
+@tvm.testing.requires_vitis_ai
 def test_compile_tflite_module_with_external_codegen_vitis_ai(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tflite")
 
@@ -510,8 +486,8 @@ def test_compile_tflite_module_with_external_codegen_ethosu(
             # The number of c_source_files depends on the number of fused subgraphs that
             # get offloaded to the NPU, e.g. conv2d->depthwise_conv2d->conv2d gets offloaded
             # as a single subgraph if both of these operators are supported by the NPU.
-            # Currently there are two source files for CPU execution and one offload graph
-            assert len(c_source_files) == 3
+            # Currently there are three source files for CPU execution and one offload graph
+            assert len(c_source_files) == 4
 
 
 @mock.patch("tvm.relay.build")
@@ -700,7 +676,25 @@ def test_compile_tflite_module_with_mod_name_and_ethosu(
             assert b"tvmgen_classify_ethos_u_main_" in content
 
 
-if __name__ == "__main__":
-    import sys
+@mock.patch("tvm.relay.build")
+@mock.patch("tvm.driver.tvmc.load")
+@mock.patch("tvm.driver.tvmc.model.TVMCPackage.__init__", return_value=None)
+def test_compile_check_workspace_pools(mock_pkg, mock_fe, mock_relay):
+    mock_fe.return_value = mock.MagicMock()
+    mock_relay.return_value = mock.MagicMock()
+    memory_pools = WorkspaceMemoryPools(
+        [WorkspacePoolInfo(pool_name="sram", targets=[Target("llvm")])]
+    )
+    tvmc_model = tvmc.load("no_file_needed")
+    tvmc.compile(
+        tvmc_model,
+        target="llvm,c",
+        workspace_pools=memory_pools,
+    )
 
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    assert mock_relay.call_count == 1
+    assert mock_relay.call_args_list[0][1]["workspace_memory_pools"] == memory_pools
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

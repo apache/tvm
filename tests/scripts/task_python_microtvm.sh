@@ -16,9 +16,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
-set -x  # NOTE(areusch): Adding to diagnose flaky timeouts
+set -euxo pipefail
+
 
 source tests/scripts/setup-pytest-env.sh
 
@@ -28,6 +27,7 @@ make cython3
 run_pytest ctypes python-microtvm-zephyr-qemu_x86 tests/micro/zephyr --zephyr-board=qemu_x86
 run_pytest ctypes python-microtvm-zephyr-qemu_riscv32 tests/micro/zephyr --zephyr-board=qemu_riscv32
 run_pytest ctypes python-microtvm-zephyr-qemu_riscv64 tests/micro/zephyr --zephyr-board=qemu_riscv64
+run_pytest ctypes python-microtvm-zephyr-mps2_an521 tests/micro/zephyr --zephyr-board=mps2_an521
 
 # Arduino
 run_pytest ctypes python-microtvm-arduino apps/microtvm/arduino/template_project/tests
@@ -38,8 +38,8 @@ run_pytest ctypes python-microtvm-arduino-due tests/micro/arduino  --test-build-
 run_pytest ctypes python-microtvm-stm32 tests/micro/stm32
 
 # Common Tests
-run_pytest ctypes python-microtvm-common-qemu_x86 tests/micro/common --board=qemu_x86
-run_pytest ctypes python-microtvm-common-due tests/micro/common  --test-build-only --board=due
+run_pytest ctypes python-microtvm-common-qemu_x86 tests/micro/common --platform=zephyr --board=qemu_x86
+run_pytest ctypes python-microtvm-common-due tests/micro/common  --platform=arduino --test-build-only --board=due
 
 # Tutorials
 python3 gallery/how_to/work_with_microtvm/micro_tflite.py
@@ -51,3 +51,5 @@ export TVM_MICRO_USE_HW=1
 export TVM_MICRO_BOARD=qemu_x86
 python3 gallery/how_to/work_with_microtvm/micro_tflite.py
 python3 gallery/how_to/work_with_microtvm/micro_autotune.py
+
+run_pytest ctypes python-relay-strategy-arm_cpu tests/python/relay/strategy/arm_cpu --enable-corstone300-tests

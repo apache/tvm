@@ -180,9 +180,12 @@ void PrintComputationTable(const ComputationTable& table);
 using MaybeValue = dmlc::optional<PrimExpr>;
 
 bool EqualTerms(const PrimExpr& a, const PrimExpr& b);
-bool EquivalentTerms(const PrimExpr& a, const PrimExpr& b);
+// Used for deciding the (decidable) equivalence relation
+PrimExpr NormalizeTerm(const PrimExpr& expr, bool do_normalization);
+// The equivalence relation, which is the syntactical equality when `identify_equiv_terms` is false
+bool EquivalentTerms(const PrimExpr& a, const PrimExpr& b, bool identify_equiv_terms);
 std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
-    const ComputationTable& table);
+    const ComputationTable& table, bool identify_equiv_terms);
 bool PredicateIntroVarForComputation(const PrimExpr& computation, size_t nb_times_seen);
 
 // Polymorphic (functional) map on a vector, which builds a news vector with the same number of
@@ -209,7 +212,8 @@ template std::vector<Var> VectorMap(const std::vector<std::pair<Var, MaybeValue>
 void InsertElemToSortedSemanticComputations(std::vector<std::pair<PrimExpr, size_t>>* sorted_vec,
                                             const std::pair<PrimExpr, size_t>& pair);
 void InsertVectorToSortedSemanticComputations(std::vector<std::pair<PrimExpr, size_t>>* sorted_vec,
-                                              const std::vector<PrimExpr>& vec_to_add);
+                                              const std::vector<PrimExpr>& vec_to_add,
+                                              bool identify_equiv_terms);
 
 }  // namespace tir
 }  // namespace tvm

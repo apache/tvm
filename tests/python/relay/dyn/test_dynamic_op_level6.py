@@ -22,9 +22,11 @@ from tvm import te
 from tvm import relay
 import tvm.testing
 
+executor_kind = tvm.testing.parameter("debug", "vm")
+
 
 @tvm.testing.uses_gpu
-def test_dynamic_topk():
+def test_dynamic_topk(executor_kind):
     def verify_topk(k, axis, ret_type, is_ascend, dtype):
         shape = (20, 100)
         x = relay.var("x", relay.TensorType(shape, "float32"))
@@ -53,18 +55,17 @@ def test_dynamic_topk():
         np_indices = np_indices.astype(dtype)
 
         for target, dev in tvm.testing.enabled_targets():
-            for kind in ["vm", "debug"]:
-                mod = tvm.ir.IRModule.from_expr(func)
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    np_data, np.array([k]).astype("float32")
-                )
-                if ret_type == "both":
-                    tvm.testing.assert_allclose(op_res[0].numpy(), np_values)
-                    tvm.testing.assert_allclose(op_res[1].numpy(), np_indices)
-                elif ret_type == "values":
-                    tvm.testing.assert_allclose(op_res.numpy(), np_values)
-                else:
-                    tvm.testing.assert_allclose(op_res.numpy(), np_indices)
+            mod = tvm.ir.IRModule.from_expr(func)
+            op_res = relay.create_executor(
+                executor_kind, mod=mod, device=dev, target=target
+            ).evaluate()(np_data, np.array([k]).astype("float32"))
+            if ret_type == "both":
+                tvm.testing.assert_allclose(op_res[0].numpy(), np_values)
+                tvm.testing.assert_allclose(op_res[1].numpy(), np_indices)
+            elif ret_type == "values":
+                tvm.testing.assert_allclose(op_res.numpy(), np_values)
+            else:
+                tvm.testing.assert_allclose(op_res.numpy(), np_indices)
 
     np.random.seed(0)
     for k in [0, 1, 5]:

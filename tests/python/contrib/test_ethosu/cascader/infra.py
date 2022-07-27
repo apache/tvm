@@ -31,14 +31,24 @@ def make_options(
     max_proposals: int = 1,
     stripe_factors: int = 1,
     max_plan_size: int = 1,
+    max_open_plans: int = 8,
+    max_closed_plans: int = 32,
     always_copy_size: int = 1024,
+    disable_pareto_plans: bool = False,
+    disable_pareto_proposals: bool = False,
+    enable_striping: bool = True,
 ):
     return cs.CascaderOptions(
         cascade_region=cascade_region,
         max_proposals=max_proposals,
         stripe_factors=stripe_factors,
         max_plan_size=max_plan_size,
+        max_open_plans=max_open_plans,
+        max_closed_plans=max_closed_plans,
         always_copy_size=always_copy_size,
+        disable_pareto_plans=disable_pareto_plans,
+        disable_pareto_proposals=disable_pareto_proposals,
+        enable_striping=enable_striping,
     )
 
 

@@ -21,7 +21,7 @@
 namespace tvm {
 namespace tir {
 
-Array<StmtSRef> GetBlocks(const ScheduleState& self, const String& name, const String& func_name) {
+Array<StmtSRef> GetBlocks(const ScheduleState& self, const String& name, const GlobalVar& gv) {
   struct Finder : public StmtVisitor {
     explicit Finder(const ScheduleState& self, const String& name) : self_(self), name_(name) {}
 
@@ -39,7 +39,7 @@ Array<StmtSRef> GetBlocks(const ScheduleState& self, const String& name, const S
     Array<StmtSRef> results_;
   };
 
-  BaseFunc func = self->mod->Lookup(func_name);
+  BaseFunc func = self->mod->Lookup(gv);
   const auto* prim_func = TVM_TYPE_AS(prim_func, func, PrimFuncNode);
   Finder finder(self, name);
   finder(prim_func->body);

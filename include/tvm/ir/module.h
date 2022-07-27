@@ -40,41 +40,6 @@
 #include <vector>
 
 namespace tvm {
-/*!
- * \brief Describes one parameter that should be linked into the generated module.
- *
- * When parameters are to be linked in with generated code (i.e. on target_host-compatible
- * backends), Relay attaches instances of this object to a global TIR function. Code-generators
- * use the information contained in this node to include the parameter data in the generated
- * module.
- */
-class LinkedParamNode : public Object {
- public:
-  /*! \brief Unique numeric identifier used by runtimes to lookup this parameter. */
-  int64_t id;
-
-  /*! \brief Parameter data which should get linked into the final module. */
-  ::tvm::runtime::NDArray param;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("id", &id);
-    v->Visit("param", &param);
-  }
-
-  static constexpr const char* _type_key = "tir.LinkedParam";
-  TVM_DECLARE_FINAL_OBJECT_INFO(LinkedParamNode, Object);
-};
-
-/*!
- * \brief Managed reference to LinkedParamNode.
- */
-class LinkedParam : public ObjectRef {
- public:
-  TVM_DLL LinkedParam(int64_t id, tvm::runtime::NDArray param);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(LinkedParam, ObjectRef, LinkedParamNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(LinkedParamNode);
-};
 
 class IRModule;
 
@@ -514,8 +479,10 @@ TVM_DLL String AsText(const ObjectRef& node, bool show_meta_data = true,
 
 namespace attr {
 
+// Following are attributes for IRModule only.
+
 /*!
- * \brief Executor targetted by the module
+ * \brief Executor targeted by the module
  *
  * Type: Executor
  *
@@ -541,10 +508,41 @@ constexpr const char* kRuntime = "runtime";
  */
 constexpr const char* kWorkspaceMemoryPools = "workspace_memory_pools";
 
-/*
- * \brief Module attribute for tir constants
+/*!
+ * \brief constant memory pools of the module
+ *
+ * Type: ConstantMemoryPools
+ *
+ * \sa tvm::ConstantMemoryPools
  */
-constexpr const char* kConstantsArray = "Constants";
+constexpr const char* kConstantMemoryPools = "constant_memory_pools";
+
+/*
+ * \brief All the runtime::NDArrays extracted from PrimFunc tir::AllocateConst nodes. The
+ * node will record the index into this array. See also kConstNameToConstant below, which is
+ * the analog for Realy Functions.
+ *
+ * Type: Array<runtime::NDArray>
+ */
+constexpr const char* kConstants = "constants";
+
+/*!
+ * \brief All the runtime::Modules accumulated during compilation by external codegen. These
+ * modules must be either directly linked or captured in the final compilation artifact.
+ *
+ * Type: Array<runtime::Module>
+ */
+constexpr const char* kExternalMods = "external_mods";
+
+/*!
+ * \brief All the named runtime::NDArrays accumulated during compilation by external codegen.
+ * Generally the associated runtime::Module will indicate it requires bindings for these names,
+ * and during module initialization these bindings will be recovered from a ConstLoaderModule.
+ * See also kConstantsArray above, which is the analog for PrimFuncs.
+ *
+ * Type: Map<String, runtime::NDArray>
+ */
+constexpr const char* kConstNameToConstant = "const_name_to_constant";
 
 }  // namespace attr
 }  // namespace tvm

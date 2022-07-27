@@ -41,7 +41,7 @@ from ..._ffi.registry import register_func
 # Subsequent calls to 'link_shared' will use the newly registered linker.
 
 HEXAGON_TOOLCHAIN = os.environ.get("HEXAGON_TOOLCHAIN", default="")  # pylint: disable=invalid-name
-HEXAGON_SDK_PATH = os.environ.get("HEXAGON_SDK_PATH", default="")  # pylint: disable=invalid-name
+HEXAGON_SDK_ROOT = os.environ.get("HEXAGON_SDK_ROOT", default="")  # pylint: disable=invalid-name
 HEXAGON_LINK_MAIN = (
     pathlib.Path(HEXAGON_TOOLCHAIN) / "bin" / "hexagon-link"
 )  # pylint: disable=invalid-name
@@ -49,8 +49,8 @@ HEXAGON_CLANG_PLUS = (
     pathlib.Path(HEXAGON_TOOLCHAIN) / "bin" / "hexagon-clang++"
 )  # pylint: disable=invalid-name
 HEXAGON_SDK_INCLUDE_DIRS = [  # pylint: disable=invalid-name
-    pathlib.Path(HEXAGON_SDK_PATH) / "incs",
-    pathlib.Path(HEXAGON_SDK_PATH) / "incs" / "stddef",
+    pathlib.Path(HEXAGON_SDK_ROOT) / "incs",
+    pathlib.Path(HEXAGON_SDK_ROOT) / "incs" / "stddef",
 ]
 
 
@@ -154,10 +154,10 @@ def create_aot_shared(so_name: Union[str, pathlib.Path], files, hexagon_arch: st
             " The environment variable HEXAGON_TOOLCHAIN is unset. Please export "
             + "HEXAGON_TOOLCHAIN in your environment."
         )
-    if not HEXAGON_SDK_PATH:
+    if not HEXAGON_SDK_ROOT:
         raise Exception(
-            " The environment variable HEXAGON_SDK_PATH is unset. Please export "
-            + "HEXAGON_SDK_PATH in your environment."
+            " The environment variable HEXAGON_SDK_ROOT is unset. Please export "
+            + "HEXAGON_SDK_ROOT in your environment."
         )
 
     # The AOT C codegen uses TVM runtime functions
@@ -180,8 +180,8 @@ def create_aot_shared(so_name: Union[str, pathlib.Path], files, hexagon_arch: st
         f"-I{tvm_dir / 'include'}",
         f"-I{tvm_dir / '3rdparty' / 'dlpack' / 'include'}",
         f"-I{tvm_dir / '3rdparty' / 'dmlc-core' / 'include'}",
-        f"-I{pathlib.Path(HEXAGON_SDK_PATH) / 'rtos' / 'qurt' / compute_arch / 'include'/ 'posix'}",
-        f"-I{pathlib.Path(HEXAGON_SDK_PATH) / 'rtos' / 'qurt' / compute_arch / 'include' / 'qurt'}",
+        f"-I{pathlib.Path(HEXAGON_SDK_ROOT) / 'rtos' / 'qurt' / compute_arch / 'include'/ 'posix'}",
+        f"-I{pathlib.Path(HEXAGON_SDK_ROOT) / 'rtos' / 'qurt' / compute_arch / 'include' / 'qurt'}",
         f"-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>",
         f"-D_MACH_I32=int",
     ]

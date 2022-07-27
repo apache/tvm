@@ -135,7 +135,8 @@ class PipelineOpaqueAccessRewriter {
         } else {
           offset = new_buffer->strides[0];
         }
-        PrimExpr new_index = old_index + floormod(pipeline_loop_->loop_var, 2) * offset;
+        PrimExpr new_index =
+            old_index + floormod(pipeline_loop_->loop_var, new_buffer->shape[0]) * offset;
         new_args.Set(2, new_index);
         return Call(call->dtype, call->op, new_args, call->span);
       }
@@ -534,7 +535,10 @@ class PipelineRewriter : public StmtExprMutator {
         subst_map.Set(pipeline_loop_->loop_var, skewed_loop_var);
       } else {
         // normalize loop range
-        subst_map.Set(pipeline_loop_->loop_var, skewed_loop_var + (start - pipeline_loop_->min));
+        PrimExpr delta = start - pipeline_loop_->min;
+        subst_map.Set(pipeline_loop_->loop_var, skewed_loop_var + delta);
+        Var loop_iter = Downcast<Var>(new_loop_var);
+        inbound = Substitute(inbound, Map<Var, PrimExpr>{{loop_iter, loop_iter + delta}});
       }
       new_block = Downcast<Block>(Substitute(new_block, subst_map));
       stmts.push_back(BlockRealize({}, inbound, new_block));
@@ -570,6 +574,40 @@ class PipelineRewriter : public StmtExprMutator {
   Array<Block> ordered_stmts_;
 };
 
+/*!
+ * \brief Build the dependency graph among a array of blocks.
+ * \param[in] blocks The array of blocks.
+ * \param[out] dep_src2dst Optional, a map to store dependency edges from the source to the
+ * destination.
+ * \param[out] dep_dst2src Optional, a map to store dependency edges from the
+ * destination to the source.
+ */
+void BuildDependencyGraph(
+    const Array<Block>& blocks,
+    std::unordered_map<Block, Array<Block>, ObjectPtrHash, ObjectPtrEqual>* dep_src2dst,
+    std::unordered_map<Block, Array<Block>, ObjectPtrHash, ObjectPtrEqual>* dep_dst2src) {
+  std::unordered_map<Var, Array<Block>, ObjectPtrHash, ObjectPtrEqual> buffer_writers;
+
+  for (const Block& block : blocks) {
+    for (const BufferRegion& read : block->reads) {
+      auto it = buffer_writers.find(read->buffer->data);
+      if (it != buffer_writers.end()) {
+        for (const Block& writer : it->second) {
+          if (dep_src2dst != nullptr) {
+            (*dep_src2dst)[writer].push_back(block);
+          }
+          if (dep_dst2src != nullptr) {
+            (*dep_dst2src)[block].push_back(writer);
+          }
+        }
+      }
+    }
+    for (const BufferRegion& write : block->writes) {
+      buffer_writers[write->buffer->data].push_back(block);
+    }
+  }
+}
+
 class PipelineInjector : private StmtExprMutator {
  public:
   static Stmt Inject(const PrimFunc& func) {
@@ -587,24 +625,43 @@ class PipelineInjector : private StmtExprMutator {
 
   /*!
    * \brief Check the pipeline satisfies the following conditions:
-   * 1) No conflicting order: The order of each statement should be unique.
-   * 2) No reordering with the same stage: Statements in the same stage are not allowed to be
-   * reordered.
+   * 1. No conflicting order: The order of each statement should be unique.
+   * 2. Reordering of statements doesn't break buffer access dependencies. Specifically, for
+   * dependency (e.g. read-after-write) from statement A to statement B, it requires:
+   *   case 1: stage(A) < stage(B)
+   *   case 2: stage(A) == stage(B) and order(A) < order(B)
    */
   void ValidatePipelineBody(const PipelineInfo& pipeline_info, const Array<Block>& original_order) {
     std::unordered_set<int> used_orders;
     std::unordered_map<int, int> stage_max_order;
+    std::unordered_map<int, const Block*> order_to_block;
+    std::unordered_map<const Block*, int> block_to_stage;
     for (const Block& block : original_order) {
       const auto& stmt_info = pipeline_info.at(block);
-      int stage = stmt_info.stage;
       int order = stmt_info.order;
       CHECK(!used_orders.count(order))
           << "ValueError: Two statements in the software pipeline cannot have the same order";
       used_orders.insert(order);
-      CHECK(!stage_max_order.count(stage) || stage_max_order[stage] < order)
-          << "ValueError: Statements in the same stage of the software pipeline must have "
-             "increasing order.";
-      stage_max_order[stage] = order;
+    }
+
+    std::unordered_map<Block, Array<Block>, ObjectPtrHash, ObjectPtrEqual> dep_src2dst;
+    BuildDependencyGraph(original_order, &dep_src2dst, nullptr);
+
+    for (const auto& pair : dep_src2dst) {
+      const Block& src = pair.first;
+      const auto& src_info = pipeline_info.at(src);
+      const Array<Block>& dsts = pair.second;
+      for (const Block& dst : dsts) {
+        const auto& dst_info = pipeline_info.at(dst);
+        CHECK_LE(src_info.stage, dst_info.stage)
+            << "ValueError: statement " << dst << " in stage " << dst_info.stage
+            << " cannot depends on statement " << src << " in a later stage " << src_info.stage;
+        if (src_info.stage == dst_info.stage) {
+          CHECK_LT(src_info.order, dst_info.order) << "ValueError: two statements with buffer "
+                                                      "access dependency in the same stage of the "
+                                                      "software pipeline cannot be reordered";
+        }
+      }
     }
   }
 
@@ -715,7 +772,7 @@ class PipelineInjector : private StmtExprMutator {
 
     auto it = op->annotations.find(attr::double_buffer_scope);
     if (it != op->annotations.end()) {
-      int buffer_index = Downcast<Integer>((*it).second);
+      int buffer_index = Downcast<Integer>((*it).second).IntValue();
       CHECK(buffer_index >= 0 && static_cast<size_t>(buffer_index) < op->writes.size())
           << "ValueError: Index of the buffer exceeds the size of the write regions of the block. ("
           << buffer_index << " vs. " << op->writes.size() << ")";

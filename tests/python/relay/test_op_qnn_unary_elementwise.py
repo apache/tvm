@@ -21,7 +21,9 @@ import numpy as np
 import pytest
 import scipy.special
 import tvm
+import tvm.testing
 from tvm import relay
+from tvm.relay.qnn.op.legalizations import hardswish_func
 
 
 def dequantize(data, scale, zp):
@@ -208,7 +210,13 @@ class TestSigmoid:
         generic_test(relay.qnn.op.sigmoid, lambda x: 1 / (1 + np.exp(-x)), input_dtype="int8")
 
 
-if __name__ == "__main__":
-    import sys
+class TestHardswish:
+    def test_all_numbers_uint8(self):
+        generic_test(relay.qnn.op.hardswish, hardswish_func, input_dtype="uint8")
 
-    sys.exit(pytest.main([__file__]))
+    def test_all_numbers_int8(self):
+        generic_test(relay.qnn.op.hardswish, hardswish_func, input_dtype="int8")
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

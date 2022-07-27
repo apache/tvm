@@ -49,3 +49,14 @@ github:
     - denise-k
     - driazati
     - tvm-bot  # For automated feedback in PR review.
+
+  # See https://cwiki.apache.org/confluence/display/INFRA/Git+-+.asf.yaml+features#Git.asf.yamlfeatures-Branchprotection
+  protected_branches:
+    main:
+      required_status_checks:
+        contexts:
+          # Require a passing run from Jenkins
+          - tvm-ci/pr-head
+
+      required_pull_request_reviews:
+        required_approving_review_count: 1

@@ -35,6 +35,28 @@ class Report(Object):
         Per-device metrics collected over the entire run.
     """
 
+    def __init__(
+        self,
+        calls: Sequence[Dict[str, Object]],
+        device_metrics: Dict[str, Dict[str, Object]],
+        configuration: Dict[str, Object],
+    ):
+        """Construct a profiling report from a list of metrics and per-device metrics.
+
+        Parameters
+        ----------
+        calls : Sequence[Dict[str, Object]]
+            Per function call metrics.
+
+        device_metrics : Dict[str, Dict[str, Object]]
+            Per device metrics.
+
+        configuration : Dict[str, Object]
+            Configuration of TVM for this profiling run. Includes number of
+            threads, executor.
+        """
+        self.__init_handle_by_constructor__(_ffi_api.Report, calls, device_metrics, configuration)
+
     def csv(self):
         """Convert this profiling report into CSV format.
 
@@ -148,6 +170,38 @@ class Report(Object):
             The deserialized report.
         """
         return _ffi_api.FromJSON(s)
+
+
+@_ffi.register_object("runtime.profiling.Count")
+class Count(Object):
+    """A integer count of something"""
+
+    def __init__(self, count: int):
+        self.__init_handle_by_constructor__(_ffi_api.Count, count)
+
+
+@_ffi.register_object("runtime.profiling.Duration")
+class Duration(Object):
+    """A duration of something"""
+
+    def __init__(self, duration: float):
+        self.__init_handle_by_constructor__(_ffi_api.Duration, duration)
+
+
+@_ffi.register_object("runtime.profiling.Percent")
+class Percent(Object):
+    """A Percent of something"""
+
+    def __init__(self, percent: float):
+        self.__init_handle_by_constructor__(_ffi_api.Percent, percent)
+
+
+@_ffi.register_object("runtime.profiling.Ratio")
+class Ratio(Object):
+    """A Ratio of two things"""
+
+    def __init__(self, ratio: float):
+        self.__init_handle_by_constructor__(_ffi_api.Ratio, ratio)
 
 
 @_ffi.register_object("runtime.profiling.MetricCollector")

@@ -50,7 +50,7 @@ TVM_REGISTER_NODE_TYPE(VarianceAttrs);
  */
 inline std::vector<int64_t> GetReduceAxes(const uint32_t indim, const Array<Integer>& inaxis,
                                           bool exclude) {
-  if (!inaxis.defined()) {
+  if (!inaxis.defined() || inaxis.empty()) {
     std::vector<int64_t> r_axes(indim);
     std::iota(r_axes.begin(), r_axes.end(), 0);
     return r_axes;
@@ -338,7 +338,7 @@ bool GenericReduceRel(const Array<Type>& types, int num_inputs, const Attrs& att
 
   // assign output type and shape
   auto oshape = ReduceShapeImpl(in_shape, param, reporter);
-  reporter->Assign(types[1], TensorType(oshape, DataType::Int(32)));
+  reporter->Assign(types[1], TensorType(oshape, data->shape[0].dtype()));
   return true;
 }
 /*!

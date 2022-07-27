@@ -20,6 +20,7 @@ import os
 import shutil
 import sys
 import sysconfig
+import pathlib
 import platform
 
 from setuptools import find_packages
@@ -65,6 +66,13 @@ def get_lib_path():
         # Add microTVM template projects
         for name in lib_path:
             candidate_path = os.path.join(os.path.dirname(name), "microtvm_template_projects")
+            if os.path.isdir(candidate_path):
+                libs.append(candidate_path)
+                break
+
+        # Add tvmc configuration json files
+        for name in lib_path:
+            candidate_path = os.path.abspath(os.path.join(os.path.dirname(name), "..", "configs"))
             if os.path.isdir(candidate_path):
                 libs.append(candidate_path)
                 break
@@ -156,18 +164,8 @@ class BinaryDistribution(Distribution):
         return False
 
 
-include_libs = False
-wheel_include_libs = False
-if not CONDA_BUILD:
-    if "bdist_wheel" in sys.argv:
-        wheel_include_libs = True
-    else:
-        include_libs = True
-
 setup_kwargs = {}
-
-# For bdist_wheel only
-if wheel_include_libs:
+if not CONDA_BUILD:
     with open("MANIFEST.in", "w") as fo:
         for path in LIB_LIST:
             if os.path.isfile(path):
@@ -182,16 +180,17 @@ if wheel_include_libs:
 
     setup_kwargs = {"include_package_data": True}
 
-if include_libs:
-    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    for i, path in enumerate(LIB_LIST):
-        LIB_LIST[i] = os.path.relpath(path, curr_path)
-    setup_kwargs = {"include_package_data": True, "data_files": [("tvm", LIB_LIST)]}
-
 
 def get_package_data_files():
     # Relay standard libraries
     return ["relay/std/prelude.rly", "relay/std/core.rly"]
+
+
+def long_description_contents():
+    with open(pathlib.Path(CURRENT_DIR).resolve().parent / "README.md", encoding="utf-8") as readme:
+        description = readme.read()
+
+    return description
 
 
 # Temporarily add this directory to the path so we can import the requirements generator
@@ -210,6 +209,21 @@ setup(
     name="tvm",
     version=__version__,
     description="TVM: An End to End Tensor IR/DSL Stack for Deep Learning Systems",
+    long_description=long_description_contents(),
+    long_description_content_type="text/markdown",
+    url="https://tvm.apache.org/",
+    download_url="https://github.com/apache/tvm/tags",
+    author="Apache TVM",
+    license="Apache",
+    # See https://pypi.org/classifiers/
+    classifiers=[
+        "License :: OSI Approved :: Apache Software License",
+        "Development Status :: 4 - Beta",
+        "Intended Audience :: Developers",
+        "Intended Audience :: Education",
+        "Intended Audience :: Science/Research",
+    ],
+    keywords="machine learning",
     zip_safe=False,
     entry_points={"console_scripts": ["tvmc = tvm.driver.tvmc.main:main"]},
     install_requires=requirements["core"][1],
@@ -218,13 +232,12 @@ setup(
     package_dir={"tvm": "tvm"},
     package_data={"tvm": get_package_data_files()},
     distclass=BinaryDistribution,
-    url="https://github.com/apache/tvm",
     ext_modules=config_cython(),
     **setup_kwargs,
 )
 
 
-if wheel_include_libs:
+if not CONDA_BUILD:
     # Wheel cleanup
     os.remove("MANIFEST.in")
     for path in LIB_LIST:

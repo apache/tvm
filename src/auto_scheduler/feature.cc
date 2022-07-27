@@ -740,7 +740,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
     // TODO(tkonolige): add arithmetic counts from this statement to counts of inner stores.
     ana_.Bind(node->var, node->value);
     ICHECK(variable_definition_stack_.size() > 0)
-        << "Variable definition out size of a for loop is not handled by feature extraction";
+        << "Variable definition outside of a for loop is not handled by feature extraction";
     variable_definition_stack_.back().push_back(std::make_tuple(node->var, node->value));
     StmtExprVisitor::VisitStmt_(node);
   }
@@ -751,22 +751,22 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
     FeatureSet& fea = buffer_features[buffer];
 
     // Computation related features
-    fea.float_mad = outer_loop_prod_ * math_op_counter.float_mad;
-    fea.float_addsub = outer_loop_prod_ * math_op_counter.float_addsub;
-    fea.float_mul = outer_loop_prod_ * math_op_counter.float_mul;
-    fea.float_divmod = outer_loop_prod_ * math_op_counter.float_divmod;
-    fea.float_cmp = outer_loop_prod_ * math_op_counter.float_cmp;
-    fea.float_math_func = outer_loop_prod_ * math_op_counter.float_math_func;
-    fea.float_other_func = outer_loop_prod_ * math_op_counter.float_other_func;
-    fea.int_mad = outer_loop_prod_ * math_op_counter.int_mad;
-    fea.int_addsub = outer_loop_prod_ * math_op_counter.int_addsub;
-    fea.int_mul = outer_loop_prod_ * math_op_counter.int_mul;
-    fea.int_divmod = outer_loop_prod_ * math_op_counter.int_divmod;
-    fea.int_math_func = outer_loop_prod_ * math_op_counter.int_math_func;
-    fea.int_cmp = outer_loop_prod_ * math_op_counter.int_cmp;
-    fea.int_other_func = outer_loop_prod_ * math_op_counter.int_other_func;
-    fea.bool_op = outer_loop_prod_ * math_op_counter.bool_op;
-    fea.select_op = outer_loop_prod_ * math_op_counter.select_op;
+    fea.float_mad += outer_loop_prod_ * math_op_counter.float_mad;
+    fea.float_addsub += outer_loop_prod_ * math_op_counter.float_addsub;
+    fea.float_mul += outer_loop_prod_ * math_op_counter.float_mul;
+    fea.float_divmod += outer_loop_prod_ * math_op_counter.float_divmod;
+    fea.float_cmp += outer_loop_prod_ * math_op_counter.float_cmp;
+    fea.float_math_func += outer_loop_prod_ * math_op_counter.float_math_func;
+    fea.float_other_func += outer_loop_prod_ * math_op_counter.float_other_func;
+    fea.int_mad += outer_loop_prod_ * math_op_counter.int_mad;
+    fea.int_addsub += outer_loop_prod_ * math_op_counter.int_addsub;
+    fea.int_mul += outer_loop_prod_ * math_op_counter.int_mul;
+    fea.int_divmod += outer_loop_prod_ * math_op_counter.int_divmod;
+    fea.int_math_func += outer_loop_prod_ * math_op_counter.int_math_func;
+    fea.int_cmp += outer_loop_prod_ * math_op_counter.int_cmp;
+    fea.int_other_func += outer_loop_prod_ * math_op_counter.int_other_func;
+    fea.bool_op += outer_loop_prod_ * math_op_counter.bool_op;
+    fea.select_op += outer_loop_prod_ * math_op_counter.select_op;
 
     fea.vec_len = fea.unroll_len = fea.parallel_len = 0.0f;
     fea.vec_type = fea.unroll_type = fea.parallel_type = AnnotationPosType::kPosNone;
@@ -884,9 +884,9 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
         mem_bytes += touched_size * buffer_dtypes.at(t).bytes();
       }
 
-      mem_bytes_list->push_back(std::log2(mem_bytes));
+      mem_bytes_list->push_back(mem_bytes);
       *cur_compute_ops *= GetLoopExtent(for_loop_stack_[i], local_analyzer);
-      compute_ops_list->push_back(std::log2(*cur_compute_ops));
+      compute_ops_list->push_back(*cur_compute_ops);
     }
 
     //  Buffer access related features (per buffer)
@@ -1232,7 +1232,7 @@ void GetPerStoreFeature(const PrimFunc& func, int cache_line_size, int max_n_buf
 
     /***** Group 3: Arithmetic intensity related features *****/
     for (size_t i = 0; i < ARITH_INTENSITY_CURVE_SAMPLE_N; ++i) {
-      ret->push_back(fea_set.arith_intensity_curve[i]);
+      ret->push_back(slog(fea_set.arith_intensity_curve[i]));
     }
 
     /***** Group 4: Allocation related features *****/

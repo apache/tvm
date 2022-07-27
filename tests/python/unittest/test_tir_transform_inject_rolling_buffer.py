@@ -238,11 +238,11 @@ class PostRollingBuffer:
             for ax1 in T.serial(0, 6):
                 for ax2 in T.serial(0, 12):
                     for ax3 in T.serial(0, 16):
-                        if ((ax1_outer < 1) or (ax1 >= 2)):
+                        if T.likely(((ax1_outer < 1) or (ax1 >= 2)), dtype='bool') :
                             tensor_2[0, T.floormod((ax1 + (ax1_outer*4)), 6), ax2, ax3] = T.int8(0)
                         for dh in T.serial(0, 3):
                             for dw in T.serial(0, 3):
-                                if ((ax1_outer < 1) or (ax1 >= 2)):
+                                if T.likely(((ax1_outer < 1) or (ax1 >= 2)), dtype='bool'):
                                     tensor_2[0, T.floormod((ax1 + (ax1_outer*4)), 6), ax2, ax3] = T.max(tensor_2[0, T.floormod((ax1 + (ax1_outer*4)), 6), ax2, ax3], A_1[0, ((ax1 + (ax1_outer*4)) + dh), (ax2 + dw), ax3])
             for ax1_inner in T.serial(0, 4):
                 for ax2_inner in T.serial(0, 8):

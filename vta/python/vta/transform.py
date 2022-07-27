@@ -902,9 +902,6 @@ def InjectALUIntrin():
         analyzer = tvm.arith.Analyzer()
 
         def _do_fold(stmt):
-            def _equal(x, y):
-                return tvm.ir.structural_equal(analyzer.simplify(x - y), 0)
-
             def _flatten_loop(src_coeff, dst_coeff, extents):
                 src_coeff = list(src_coeff)
                 dst_coeff = list(dst_coeff)
@@ -921,7 +918,9 @@ def InjectALUIntrin():
                     next_dst = dst_coeff.pop()
                     next_ext = extents.pop()
 
-                    if _equal(next_src, vsrc * vext) and _equal(next_dst, vdst * vext):
+                    if analyzer.can_prove_equal(next_src, vsrc * vext) and analyzer.can_prove_equal(
+                        next_dst, vdst * vext
+                    ):
                         vext = analyzer.simplify(vext * next_ext)
                     else:
                         rev_src_coeff.append(vsrc)

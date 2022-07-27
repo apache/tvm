@@ -55,5 +55,17 @@ class BlockConfig(Object):
     def output_cycles(self) -> int:
         return int(self._output_cycles)
 
+    def __ge__(self, other: "BlockConfig"):
+        if len(self.output_shape) != len(other.output_shape):
+            return False
+
+        return all(a >= b for a, b in zip(self.output_shape, other.output_shape))
+
+    def __lt__(self, other: "BlockConfig"):
+        if len(self.output_shape) != len(other.output_shape):
+            return False
+
+        return other >= self
+
     def __repr__(self) -> str:
         return f"BlockConfig(output_shape={self.output_shape})"

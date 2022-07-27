@@ -18,6 +18,7 @@
 import pytest
 
 import tvm
+import tvm.testing
 from tvm import relay
 from tvm.target.target import Target
 from tvm.relay.backend import Runtime, Executor, graph_executor_codegen
@@ -39,24 +40,29 @@ from tvm.relay.build_module import _reconstruct_from_deprecated_options
         ],
         [
             Target("c -executor=aot -unpacked-api=1"),
-            Executor("aot", {"unpacked-api": True}),
+            Executor("aot", {"unpacked-api": 1}),
             None,
         ],
         [Target("c -executor=aot -link-params=1"), Executor("aot"), None],
-        [Target("c -link-params=1"), Executor("graph", {"link-params": True}), None],
+        [Target("c -link-params=1"), Executor("graph", {"link-params": 1}), None],
         [
             Target(
                 "c -executor=aot -link-params=1 -interface-api=c"
                 "  -unpacked-api=1 -runtime=c -system-lib"
             ),
-            Executor("aot", {"unpacked-api": True, "interface-api": "c"}),
+            Executor("aot", {"unpacked-api": 1, "interface-api": "c"}),
             Runtime("crt", {"system-lib": True}),
         ],
     ],
 )
 def test_deprecated_target_parameters(target, executor, runtime):
     actual_executor, actual_runtime = _reconstruct_from_deprecated_options(target)
-    assert executor == actual_executor
+
+    assert (executor is None and actual_executor is None) or (executor.name == actual_executor.name)
+    # sort as TVM Map cannot guarantee round-trip order.
+    assert (executor is None and actual_executor is None) or (
+        sorted(executor.attrs.items()) == sorted(actual_executor.attrs.items())
+    )
     assert runtime == actual_runtime
 
 
@@ -64,12 +70,11 @@ def test_build_relay_graph_():
     """Test to build a simple relay graph by using APIs directly"""
 
     def build_graph(mod, target):
-        target = relay.build_module.build_target_by_device_type_map(target)
-        target, target_host = tvm.target.Target.check_and_update_host_consist(target)
-        mod, _ = relay.optimize(mod, target, None)
+        target, target_host = tvm.target.Target.canon_target_and_host(target)
+        mod, _ = relay.optimize(mod, target)
         grc = graph_executor_codegen.GraphExecutorCodegen(None, target)
         _, lowered_funcs, _ = grc.codegen(mod, mod["main"])
-        _ = relay.backend._backend.build(lowered_funcs, target, target_host)
+        _ = relay.backend._backend.build(lowered_funcs, target)
 
     def add(shape, dtype):
         lhs = relay.var("A", shape=shape, dtype=dtype)
@@ -83,4 +88,4 @@ def test_build_relay_graph_():
 
 
 if __name__ == "__main__":
-    pytest.main()
+    tvm.testing.main()

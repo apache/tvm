@@ -18,6 +18,10 @@
 
 set -euxo pipefail
 
+pushd apps/microtvm/cmsisnn
+ timeout 5m ./run_demo.sh
+popd
+
 pushd apps/microtvm/zephyr_cmsisnn
  timeout 5m ./run_demo.sh
 popd

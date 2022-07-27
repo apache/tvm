@@ -20,6 +20,9 @@
 #ifndef TVM_META_SCHEDULE_POSTPROC_H_
 #define TVM_META_SCHEDULE_POSTPROC_H_
 
+#include <tvm/node/reflection.h>
+#include <tvm/runtime/object.h>
+#include <tvm/runtime/packed_func.h>
 #include <tvm/tir/schedule/schedule.h>
 
 namespace tvm {
@@ -88,16 +91,8 @@ class PyPostprocNode : public PostprocNode {
     // `f_as_string` is not visited
   }
 
-  void InitializeWithTuneContext(const TuneContext& context) final {
-    ICHECK(f_initialize_with_tune_context != nullptr)
-        << "PyPostproc's InitializeWithTuneContext method not implemented!";
-    this->f_initialize_with_tune_context(context);
-  }
-
-  bool Apply(const tir::Schedule& sch) final {
-    ICHECK(f_apply != nullptr) << "PyPostproc's Apply method not implemented!";
-    return this->f_apply(sch);
-  }
+  void InitializeWithTuneContext(const TuneContext& context) final;
+  bool Apply(const tir::Schedule& sch) final;
 
   static constexpr const char* _type_key = "meta_schedule.PyPostproc";
   TVM_DECLARE_FINAL_OBJECT_INFO(PyPostprocNode, PostprocNode);
@@ -144,21 +139,28 @@ class Postproc : public runtime::ObjectRef {
   TVM_DLL static Postproc RewriteReductionBlock();
   /*!
    * \brief Create a postprocessor that adds thread binding to unbound blocks
-   * \param max_threadblock The max number of threadblocks in the cuda device.
+   * \param max_threadblocks The max number of threadblocks in the cuda device.
    * \return The postprocessor created.
    */
-  TVM_DLL static Postproc RewriteUnboundBlock(int max_threadblock);
+  TVM_DLL static Postproc RewriteUnboundBlock(int max_threadblocks);
   /*!
-   * \brief Create a postprocessor that tensorize Tensor Core related components
+   * \brief Create a postprocessor that applies tensorization to annotated blocks
+   * \param vectorize_init_loop Whether or not vectorize the initialization loop produced by
+   * DecomposeReduction
    * \return The postprocessor created.
    */
-  TVM_DLL static Postproc RewriteTensorCore();
-
+  TVM_DLL static Postproc RewriteTensorize(bool vectorize_init_loop = false);
   /*!
    * \brief Creates a postprocessor that verifies if the GPU code is correct
    * \return The postprocessor created
    */
   TVM_DLL static Postproc VerifyGPUCode();
+  /*!
+   * \brief Creates a postprocessor that rewrites the layout of input tensor
+   * \note Weight layout rewrite is supported so far, activation layout rewrite will be added.
+   * \return The postprocessor created
+   */
+  TVM_DLL static Postproc RewriteLayout();
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Postproc, ObjectRef, PostprocNode);
 };
 

@@ -127,6 +127,28 @@ class Module(object):
         self._entry = self.get_function(self.entry_name)
         return self._entry
 
+    def implements_function(self, name, query_imports=False):
+        """Returns True if the module has a definition for the global function with name. Note
+        that has_function(name) does not imply get_function(name) is non-null since the module
+        may be, eg, a CSourceModule which cannot supply a packed-func implementation of the function
+        without further compilation. However, get_function(name) non null should always imply
+        has_function(name).
+
+        Parameters
+        ----------
+        name : str
+            The name of the function
+
+        query_imports : bool
+            Whether to also query modules imported by this module.
+
+        Returns
+        -------
+        b : Bool
+            True if module (or one of its imports) has a definition for name.
+        """
+        return _ffi_api.ModuleImplementsFunction(self, name, query_imports)
+
     def get_function(self, name, query_imports=False):
         """Get function from the module.
 
@@ -217,6 +239,18 @@ class Module(object):
         nmod = _ffi_api.ModuleImportsSize(self)
         return [_ffi_api.ModuleGetImport(self, i) for i in range(nmod)]
 
+    @property
+    def is_dso_exportable(self):
+        """Returns true if module is 'DSO exportable', ie can be included in result of
+        export_library by the external compiler directly.
+
+        Returns
+        -------
+        b : Bool
+            True if the module is DSO exportable.
+        """
+        return _ffi_api.ModuleIsDSOExportable(self)
+
     def save(self, file_name, fmt=""):
         """Save the module to file.
 
@@ -236,7 +270,17 @@ class Module(object):
         """
         _ffi_api.ModuleSaveToFile(self, file_name, fmt)
 
-    def time_evaluator(self, func_name, dev, number=10, repeat=1, min_repeat_ms=0, f_preproc=""):
+    def time_evaluator(
+        self,
+        func_name,
+        dev,
+        number=10,
+        repeat=1,
+        min_repeat_ms=0,
+        cooldown_interval_ms=0,
+        repeats_to_cooldown=1,
+        f_preproc="",
+    ):
         """Get an evaluator that measures time cost of running function.
 
         Parameters
@@ -265,6 +309,14 @@ class Module(object):
             minimum duration requirement of one `repeat`.
             i.e., When the run time of one `repeat` falls below this time, the `number` parameter
             will be automatically increased.
+
+        cooldown_interval_ms: int, optional
+            The cooldown interval in milliseconds between the number of repeats defined by
+            `repeats_to_cooldown`.
+
+        repeats_to_cooldown: int, optional
+            The number of repeats before the cooldown is activated.
+
         f_preproc: str, optional
             The preprocess function name we want to execute before executing the time evaluator.
 
@@ -288,6 +340,8 @@ class Module(object):
                 number,
                 repeat,
                 min_repeat_ms,
+                cooldown_interval_ms,
+                repeats_to_cooldown,
                 f_preproc,
             )
 
@@ -332,8 +386,7 @@ class Module(object):
         return dso_modules
 
     def _collect_dso_modules(self):
-        is_dso_exportable = lambda m: (m.type_key == "llvm" or m.type_key == "c")
-        return self._collect_from_import_tree(is_dso_exportable)
+        return self._collect_from_import_tree(lambda m: m.is_dso_exportable)
 
     def export_library(self, file_name, fcompile=None, addons=None, workspace_dir=None, **kwargs):
         """
@@ -403,7 +456,7 @@ class Module(object):
         files = addons if addons else []
         is_system_lib = False
         has_c_module = False
-        llvm_target_triple = None
+        llvm_target_string = None
         for index, module in enumerate(modules):
             if fcompile is not None and hasattr(fcompile, "object_format"):
                 if module.type_key == "c":
@@ -418,10 +471,7 @@ class Module(object):
                 else:
                     object_format = fcompile.object_format
             else:
-                if module.type_key == "llvm":
-                    object_format = "o"
-                else:
-                    assert module.type_key == "c"
+                if module.type_key == "c":
                     if len(module.format) > 0:
                         assert module.format in [
                             "c",
@@ -436,14 +486,17 @@ class Module(object):
                         if kwargs["cc"] == "nvcc":
                             object_format = "cu"
                     has_c_module = True
+                else:
+                    assert module.type_key == "llvm" or module.type_key == "static_library"
+                    object_format = "o"
             path_obj = os.path.join(workspace_dir, f"lib{index}.{object_format}")
             module.save(path_obj)
             files.append(path_obj)
             is_system_lib = (
                 module.type_key == "llvm" and module.get_function("__tvm_is_system_module")()
             )
-            llvm_target_triple = (
-                module.type_key == "llvm" and module.get_function("_get_target_triple")()
+            llvm_target_string = (
+                module.type_key == "llvm" and module.get_function("_get_target_string")()
             )
         if not fcompile:
             if file_name.endswith(".tar"):
@@ -451,16 +504,18 @@ class Module(object):
             else:
                 fcompile = _cc.create_shared
 
-        if llvm_target_triple is None and hasattr(fcompile, "get_target_triple"):
-            llvm_target_triple = fcompile.get_target_triple()
+        if llvm_target_string is None and hasattr(fcompile, "get_target_triple"):
+            triple = fcompile.get_target_triple()
+            assert triple, "Target triple should not be empty"
+            llvm_target_string = "llvm -mtriple " + triple
 
         if getattr(fcompile, "need_system_lib", False) and not is_system_lib:
             raise ValueError("%s need --system-lib option" % str(fcompile))
 
         if self.imported_modules:
-            if enabled("llvm") and llvm_target_triple:
+            if enabled("llvm") and llvm_target_string:
                 path_obj = os.path.join(workspace_dir, f"devc.{object_format}")
-                m = _ffi_api.ModulePackImportsToLLVM(self, is_system_lib, llvm_target_triple)
+                m = _ffi_api.ModulePackImportsToLLVM(self, is_system_lib, llvm_target_string)
                 m.save(path_obj)
                 files.append(path_obj)
             else:
@@ -550,6 +605,13 @@ def load_module(path, fmt=""):
         path += ".so"
     # Redirect to the load API
     return _ffi_api.ModuleLoadFromFile(path, fmt)
+
+
+def load_static_library(path, func_names):
+    """Load the .o library at path which implements functions with func_names.
+    Unlike the generic load_module the result will remain as a static_library
+    and will not be relinked on-the-fly into a .so library."""
+    return _ffi_api.ModuleLoadStaticLibrary(path, func_names)
 
 
 def enabled(target):

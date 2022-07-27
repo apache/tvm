@@ -22,6 +22,8 @@
  */
 #include "codegen_source_base.h"
 
+#include <algorithm>
+
 namespace tvm {
 namespace codegen {
 
@@ -73,6 +75,9 @@ std::string CodeGenSourceBase::AllocVarID(const tir::VarNode* v) {
   ICHECK(!var_idmap_.count(v)) << "Need input to be in SSA form dup " << v->name_hint;
   std::string key = v->name_hint;
   std::string vid = GetUniqueName(key);
+  std::replace(vid.begin(), vid.end(), ':', '_');
+  std::replace(vid.begin(), vid.end(), '-', '_');
+  std::replace(vid.begin(), vid.end(), '.', '_');
   var_idmap_[v] = vid;
   return vid;
 }

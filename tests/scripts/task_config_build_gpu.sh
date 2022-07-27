@@ -16,8 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
+set -euxo pipefail
 
 BUILD_DIR=$1
 mkdir -p "$BUILD_DIR"
@@ -48,3 +47,5 @@ echo set\(USE_LIBBACKTRACE AUTO\) >> config.cmake
 echo set\(USE_CCACHE OFF\) >> config.cmake
 echo set\(SUMMARIZE ON\) >> config.cmake
 echo set\(HIDE_PRIVATE_SYMBOLS ON\) >> config.cmake
+echo set\(USE_PIPELINE_EXECUTOR ON\) >> config.cmake
+echo set\(USE_CUTLASS ON\) >> config.cmake

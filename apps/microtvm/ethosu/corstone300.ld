@@ -251,12 +251,12 @@ SECTIONS
 
   } > DTCM
 
-  .bss.NoInit :
+  .bss.noinit (NOLOAD):
   {
     . = ALIGN(16);
-    *(.bss.NoInit)
+    *(.bss.noinit.*)
     . = ALIGN(16);
-  } > DDR AT > DDR
+  } > SRAM AT > SRAM
 
   .bss :
   {

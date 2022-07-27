@@ -23,11 +23,40 @@
  */
 #ifdef TVM_LLVM_VERSION
 
+#include <llvm/ADT/SmallString.h>
+#include <llvm/IR/Attributes.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/GlobalValue.h>
+#include <llvm/IR/InlineAsm.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/IR/Intrinsics.h>
+#if TVM_LLVM_VERSION >= 100
+#include <llvm/IR/IntrinsicsNVPTX.h>
+#endif
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/IR/Metadata.h>
+#include <llvm/IR/Module.h>
+#include <llvm/IR/Type.h>
+#include <llvm/IRReader/IRReader.h>
+#if TVM_LLVM_VERSION >= 100
+#include <llvm/Support/Alignment.h>
+#endif
+#include <llvm/Support/CodeGen.h>
+#include <llvm/Support/SourceMgr.h>
+#include <llvm/Support/raw_ostream.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <tvm/runtime/device_api.h>
+
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "../../runtime/cuda/cuda_module.h"
 #include "../build_common.h"
 #include "codegen_llvm.h"
+#include "llvm_common.h"
 
 namespace tvm {
 namespace codegen {
@@ -72,7 +101,12 @@ class CodeGenNVPTX : public CodeGenLLVM {
         llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
           return builder_->CreateAlloca(DTypeToLLVMType(op->dtype), ConstInt32(constant_size));
         });
-        if (alloca->getAlignment() < static_cast<uint32_t>(info.alignment)) {
+#if TVM_LLVM_VERSION >= 110
+        auto alignment = static_cast<unsigned>(alloca->getAlign().value());
+#else
+        unsigned alignment = alloca->getAlignment();
+#endif
+        if (alignment < static_cast<unsigned>(info.alignment)) {
 #if TVM_LLVM_VERSION >= 100
           alloca->setAlignment(llvm::Align(info.alignment));
 #else
@@ -98,17 +132,17 @@ class CodeGenNVPTX : public CodeGenLLVM {
   // Return the thread index via intrinsics.
   llvm::Value* GetThreadIndex(const IterVar& iv) final {
     runtime::ThreadScope ts = runtime::ThreadScope::Create(iv->thread_tag);
-    llvm::Intrinsic::ID intrin_id = ::llvm::Intrinsic::nvvm_read_ptx_sreg_tid_x;
+    llvm::Intrinsic::ID intrin_id = llvm::Intrinsic::nvvm_read_ptx_sreg_tid_x;
     if (ts.rank == 1) {
       switch (ts.dim_index) {
         case 0:
-          intrin_id = ::llvm::Intrinsic::nvvm_read_ptx_sreg_tid_x;
+          intrin_id = llvm::Intrinsic::nvvm_read_ptx_sreg_tid_x;
           break;
         case 1:
-          intrin_id = ::llvm::Intrinsic::nvvm_read_ptx_sreg_tid_y;
+          intrin_id = llvm::Intrinsic::nvvm_read_ptx_sreg_tid_y;
           break;
         case 2:
-          intrin_id = ::llvm::Intrinsic::nvvm_read_ptx_sreg_tid_z;
+          intrin_id = llvm::Intrinsic::nvvm_read_ptx_sreg_tid_z;
           break;
         default:
           LOG(FATAL) << "unknown thread idx";
@@ -117,13 +151,13 @@ class CodeGenNVPTX : public CodeGenLLVM {
       ICHECK_EQ(ts.rank, 0);
       switch (ts.dim_index) {
         case 0:
-          intrin_id = ::llvm::Intrinsic::nvvm_read_ptx_sreg_ctaid_x;
+          intrin_id = llvm::Intrinsic::nvvm_read_ptx_sreg_ctaid_x;
           break;
         case 1:
-          intrin_id = ::llvm::Intrinsic::nvvm_read_ptx_sreg_ctaid_y;
+          intrin_id = llvm::Intrinsic::nvvm_read_ptx_sreg_ctaid_y;
           break;
         case 2:
-          intrin_id = ::llvm::Intrinsic::nvvm_read_ptx_sreg_ctaid_z;
+          intrin_id = llvm::Intrinsic::nvvm_read_ptx_sreg_ctaid_z;
           break;
         default:
           LOG(FATAL) << "unknown thread idx";
@@ -140,7 +174,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
       return nullptr;
     } else if (sync == "shared" || sync == "shared.dyn") {
       llvm::Function* f =
-          llvm::Intrinsic::getDeclaration(module_.get(), ::llvm::Intrinsic::nvvm_barrier0);
+          llvm::Intrinsic::getDeclaration(module_.get(), llvm::Intrinsic::nvvm_barrier0);
       return builder_->CreateCall(f, {});
     } else {
       LOG(FATAL) << "Do not support sync " << sync;
@@ -323,6 +357,11 @@ runtime::Module BuildNVPTX(IRModule mod, Target target) {
 }
 
 TVM_REGISTER_GLOBAL("target.build.nvptx").set_body_typed(BuildNVPTX);
+
+TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_nvptx")
+    .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
+      *rv = static_cast<void*>(new CodeGenNVPTX());
+    });
 
 }  // namespace codegen
 }  // namespace tvm

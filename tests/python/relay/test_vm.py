@@ -1292,7 +1292,7 @@ def test_let_bound_constants():
     mod = IRModule.from_expr(f)
 
     compiler = VMCompiler()
-    compiler.optimize(mod, "llvm")
+    compiler.optimize(mod, target="llvm")
 
 
 def test_large_constants():
@@ -1406,6 +1406,4 @@ def test_vm_save_and_load_without_designating_late_bound_consts():
 
 
 if __name__ == "__main__":
-    import sys
-
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

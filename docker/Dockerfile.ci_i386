@@ -20,10 +20,17 @@
 
 FROM i386/ubuntu:18.04
 
-RUN apt-get update --fix-missing && apt-get install -y ca-certificates
+COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
+
+RUN apt-get update --fix-missing
+
+RUN apt-install-and-clear -y ca-certificates
 
 COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
 RUN bash /install/ubuntu_install_core.sh
+
+COPY install/ubuntu_install_googletest.sh /install/ubuntu_install_googletest.sh
+RUN bash /install/ubuntu_install_googletest.sh
 
 COPY install/ubuntu_install_llvm.sh /install/ubuntu_install_llvm.sh
 RUN bash /install/ubuntu_install_llvm.sh
@@ -62,3 +69,4 @@ RUN bash /install/ubuntu_install_verilator.sh
 # sccache
 COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
 RUN bash /install/ubuntu_install_sccache.sh
+ENV PATH /opt/sccache:$PATH

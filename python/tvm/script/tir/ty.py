@@ -20,6 +20,8 @@ This module provides typing class for TVM script type annotation usage, it can b
 a wrapper for uniform Type system in IR
 """
 # pylint: disable=invalid-name
+from numbers import Integral
+
 import tvm
 from .special_stmt import SpecialStmt, convert_to_int
 
@@ -30,6 +32,10 @@ class TypeGeneric:  # pylint: disable=too-few-public-methods
     def evaluate(self):
         """Return an actual ir.Type Object that this Generic class wraps"""
         raise TypeError("Cannot get tvm.Type from a generic type")
+
+    def require_type_generic_at(self, idx):  # pylint: disable=unused-argument
+        """If True, the `idx`th type argument must be TypeGeneric"""
+        return True
 
     # This function is added here to avoid a pylint error
     # for T.int/float below not being callable
@@ -63,16 +69,37 @@ class ConcreteType(TypeGeneric):  # pylint: disable=too-few-public-methods, abst
         return self.type
 
 
+class VoidType(ConcreteType):  # pylint: disable=too-few-public-methods, abstract-method
+    """TVM script typing class for void type"""
+
+    def __init__(self):
+        super().__init__("")
+
+
 class GenericPtrType(TypeGeneric):  # pylint: disable=abstract-method
     """TVM script typing class generator for PtrType
 
-    [] operator is overloaded, accepts a ConcreteType and returns a ConcreteType wrapping PtrType
+    [] operator is overloaded, accepts a ConcreteType and an optional storage scope string,
+    returns a ConcreteType wrapping PtrType
     """
 
-    def __getitem__(self, vtype):
+    def __getitem__(self, args):
+        if isinstance(args, TypeGeneric):
+            args = [args]
+        if len(args) == 1:
+            vtype, scope = args[0], "global"
+        elif len(args) == 2:
+            vtype, scope = args[0], args[1]
+        else:
+            raise TypeError(f"Illegal type argument num for Ptr")
         if not isinstance(vtype, TypeGeneric):
             raise TypeError(f"Ptr expects a type argument, but received {type(vtype).__name__}")
-        return ConcreteType(tvm.ir.PointerType(vtype.evaluate()))
+        if not isinstance(scope, str):
+            raise TypeError(f"Ptr expects storage scope argument be a string")
+        return ConcreteType(tvm.ir.PointerType(vtype.evaluate(), scope))
+
+    def require_type_generic_at(self, idx):
+        return idx != 1  # the second argument is storage scope for Ptr
 
 
 class GenericTupleType(TypeGeneric):  # pylint: disable=abstract-method
@@ -103,6 +130,7 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
             align=-1,
             offset_factor=0,
             buffer_type="default",
+            axis_separators=None,
             span=None,
         ):
             if strides is None:
@@ -122,6 +150,7 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
                 align,
                 offset_factor,
                 buffer_type,
+                axis_separators,
                 span=span,
             )
             return buffer
@@ -142,6 +171,7 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
         align=-1,
         offset_factor=0,
         buffer_type="default",
+        axis_separators=None,
         span=None,
     ):
         """
@@ -156,8 +186,13 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
         """
         if len(args) < 2:
             raise ValueError("T.Buffer[...] needs at least two arguments: shape and dtype.")
+
         shape = args[0]
-        if not isinstance(shape, tuple):
+        dtype = args[1]
+
+        valid_shape = isinstance(shape, (tvm.ir.PrimExpr, Integral, tuple, list))
+        valid_dtype = isinstance(dtype, str)
+        if not (valid_shape and valid_dtype):
             raise ValueError(
                 "The first argument of T.Buffer[...] needs to be a tuple, "
                 "followed by the second argument dtype as a string"
@@ -174,6 +209,7 @@ float32 = ConcreteType("float32")
 float64 = ConcreteType("float64")
 boolean = ConcreteType("bool")
 handle = ConcreteType("handle")
+void = VoidType()
 Ptr = GenericPtrType()
 Tuple = GenericTupleType()
 # we don't have 'buffer' type on the cpp side

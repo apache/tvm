@@ -17,8 +17,6 @@
 
 """CMSIS-NN: testing with networks"""
 
-import sys
-
 import pytest
 import numpy as np
 
@@ -26,22 +24,21 @@ import tvm.testing
 from tvm import relay
 from tvm.contrib.download import download_testdata
 from tvm.relay.op.contrib import cmsisnn
-
-from utils import skip_if_no_reference_system, get_range_for_dtype_str
-from tests.python.relay.aot.aot_test_utils import (
-    AOTTestModel,
+from tvm.testing.aot import AOTTestModel, compile_and_run, generate_ref_data
+from tvm.micro.testing.aot_test_utils import (
     AOT_CORSTONE300_RUNNER,
     AOT_USMP_CORSTONE300_RUNNER,
-    generate_ref_data,
-    compile_and_run,
 )
+from .utils import skip_if_no_reference_system, get_range_for_dtype_str
 
-
-def convert_to_relay(
+# pylint: disable=import-outside-toplevel
+def _convert_to_relay(
     tflite_model_buf,
     input_data,
     input_node,
 ):
+    """Converts TFLite model to Relay module and params"""
+
     def convert_to_list(x):
         if not isinstance(x, list):
             x = [x]
@@ -64,9 +61,9 @@ def convert_to_relay(
 
     shape_dict = {}
     dtype_dict = {}
-    for i, e in enumerate(input_node):
-        shape_dict[e] = input_data[i].shape
-        dtype_dict[e] = input_data[i].dtype.name
+    for i, name in enumerate(input_node):
+        shape_dict[name] = input_data[i].shape
+        dtype_dict[name] = input_data[i].dtype.name
 
     mod, params = relay.frontend.from_tflite(
         tflite_model, shape_dict=shape_dict, dtype_dict=dtype_dict
@@ -80,8 +77,13 @@ def convert_to_relay(
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize("test_runner", [AOT_CORSTONE300_RUNNER, AOT_USMP_CORSTONE300_RUNNER])
 def test_cnn_small(test_runner):
+    """Download a small network and tests TVM via CMSIS-NN output against TFLite output"""
     # download the model
-    base_url = "https://github.com/ARM-software/ML-zoo/raw/48a22ee22325d15d2371a6df24eb7d67e21dcc97/models/keyword_spotting/cnn_small/tflite_int8"
+    base_url = (
+        "https://github.com/ARM-software/ML-zoo/raw/"
+        "48a22ee22325d15d2371a6df24eb7d67e21dcc97"
+        "/models/keyword_spotting/cnn_small/tflite_int8"
+    )
     file_to_download = "cnn_s_quantized.tflite"
     file_saved = "cnn_s_quantized_15Dec2021.tflite"
     model_file = download_testdata("{}/{}".format(base_url, file_to_download), file_saved)
@@ -95,7 +97,7 @@ def test_cnn_small(test_runner):
     rng = np.random.default_rng(12345)
     input_data = rng.integers(in_min, high=in_max, size=input_shape, dtype=dtype)
 
-    orig_mod, params = convert_to_relay(tflite_model_buf, input_data, "input")
+    orig_mod, params = _convert_to_relay(tflite_model_buf, input_data, "input")
     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
 
     # validate CMSIS-NN output against CPU output
@@ -119,4 +121,4 @@ def test_cnn_small(test_runner):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

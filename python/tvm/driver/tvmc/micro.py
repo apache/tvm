@@ -45,7 +45,7 @@ except (ImportError, NameError):
 
 
 @register_parser
-def add_micro_parser(subparsers, main_parser):
+def add_micro_parser(subparsers, main_parser, json_params):
     """Includes parser for 'micro' context and associated subcommands:
     create-project (create), build, and flash.
     """
@@ -230,6 +230,9 @@ def add_micro_parser(subparsers, main_parser):
         action="help",
         help="show this help message which includes platform-specific options and exit.",
     )
+
+    for one_entry in json_params:
+        micro.set_defaults(**one_entry)
 
 
 def drive_micro(args):

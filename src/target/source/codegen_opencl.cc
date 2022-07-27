@@ -98,7 +98,7 @@ std::string CodeGenOpenCL::Finish() {
                    "#pragma OPENCL EXTENSION cl_amd_fp16 : enable\n"
                    "#else\n"
                    "#error \"Half precision floating point not supported"
-                   "by OpenCL implementation on your device.\" \n"
+                   " by OpenCL implementation on your device.\" \n"
                    "#endif\n\n";
   }
 
@@ -109,7 +109,7 @@ std::string CodeGenOpenCL::Finish() {
                    "#pragma OPENCL EXTENSION cl_amd_fp64 : enable\n"
                    "#else\n"
                    "#error \"Double precision floating point not supported"
-                   "by OpenCL implementation on your device.\" \n"
+                   " by OpenCL implementation on your device.\" \n"
                    "#endif\n\n";
   }
 
@@ -386,7 +386,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     // Overload tvm_address_of to add storage scope (e.g. __global).
     const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
     ICHECK(op->args.size() == 1 && load);
-    ICHECK_EQ(load->indices.size(), 0) << "CodeGenOpenCL only supports flat memory allocations.";
+    ICHECK_EQ(load->indices.size(), 1) << "CodeGenOpenCL only supports flat memory allocations.";
     os << "((";
     auto it = alloc_storage_scope_.find(load->buffer->data.get());
     if (it != alloc_storage_scope_.end()) {
@@ -516,28 +516,52 @@ void CodeGenOpenCL::VisitExpr_(const MaxNode* op, std::ostream& os) {
   PrintBinaryExpr(op, "max", os, this);
 }
 
-void CodeGenOpenCL::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs, PrimExpr rhs,
-                                     std::ostream& os) {
+void CodeGenOpenCL::VisitExpr_(const AndNode* op, std::ostream& os) {
   std::ostringstream oss;
-  if (isalpha(op[0])) {
-    os << op << "(";
-    this->PrintExpr(lhs, oss);
-    os << CastTo(oss.str(), t);
-    oss.str("");
-    os << ", ";
-    this->PrintExpr(rhs, oss);
-    os << CastTo(oss.str(), t);
-    os << ")";
+  os << "(";
+  this->PrintExpr(op->a, oss);
+  os << CastTo(oss.str(), op->dtype);
+  oss.str("");
+  os << " && ";
+  this->PrintExpr(op->b, oss);
+  os << CastTo(oss.str(), op->dtype);
+  os << ")";
+}
+
+void CodeGenOpenCL::VisitExpr_(const OrNode* op, std::ostream& os) {
+  std::ostringstream oss;
+  os << "(";
+  this->PrintExpr(op->a, oss);
+  os << CastTo(oss.str(), op->dtype);
+  oss.str("");
+  os << " || ";
+  this->PrintExpr(op->b, oss);
+  os << CastTo(oss.str(), op->dtype);
+  os << ")";
+}
+
+void CodeGenOpenCL::VisitExpr_(const SelectNode* op, std::ostream& os) {
+  std::ostringstream oss;
+  os << "select(";
+  PrintExpr(op->false_value, oss);
+  os << CastFromTo(oss.str(), op->false_value.dtype(), op->dtype);
+  oss.str("");
+  os << ", ";
+  PrintExpr(op->true_value, oss);
+  os << CastFromTo(oss.str(), op->true_value.dtype(), op->dtype);
+  oss.str("");
+  os << ", ";
+  PrintExpr(op->condition, oss);
+  if (op->dtype.is_float()) {
+    if (op->condition.dtype().is_uint() || op->condition.dtype().is_int()) {
+      os << oss.str();
+    } else {
+      os << CastTo(oss.str(), DataType::Int(op->dtype.bits(), op->dtype.lanes()));
+    }
   } else {
-    os << "(";
-    this->PrintExpr(lhs, oss);
-    os << CastTo(oss.str(), t);
-    oss.str("");
-    os << ' ' << op << ' ';
-    this->PrintExpr(rhs, oss);
-    os << CastTo(oss.str(), t);
-    os << ")";
+    os << CastFromTo(oss.str(), op->condition.dtype(), op->dtype);
   }
+  os << ")";
 }
 
 void CodeGenOpenCL::SetTextureScope(
