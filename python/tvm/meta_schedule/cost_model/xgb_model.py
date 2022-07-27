@@ -688,7 +688,9 @@ class XGBoostCustomCallback(TrainingCallback):
             booster.set_attr(best_iteration=str(self.state["best_iteration"]))
             booster.set_attr(best_score=str(self.state["best_score"]))
 
-    def after_iteration(self, model: "xgb.Booster", epoch: int, evals_log: Dict):
+    def after_iteration(
+        self, model: "xgb.Booster", epoch: int, evals_log: Dict
+    ):  # pylint: disable = unused-argument
         """Internal function for after_iteration"""
         # pylint:disable = import-outside-toplevel
         try:
