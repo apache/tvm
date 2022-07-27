@@ -203,6 +203,92 @@ TEST(TargetCreation, ClashingTargetProcessing) {
   EXPECT_THROW(Target test("TestClashingPreprocessor -mcpu=woof -mattr=cake"), InternalError);
 }
 
+TVM_REGISTER_TARGET_KIND("TestStringKind", kDLCPU)
+    .add_attr_option<String>("single")
+    .add_attr_option<Array<String>>("array")
+    .add_attr_option<Array<Array<String>>>("nested-array")
+    .add_attr_option<Array<Array<Array<String>>>>("nested2-array");
+
+TEST(TargetCreation, ProcessStrings) {
+  Target test_target1("TestStringKind -single='\\'string with single quote'");
+  ASSERT_TRUE(test_target1->GetAttr<String>("single"));
+  String string1 = test_target1->GetAttr<String>("single").value();
+  ASSERT_EQ(string1, "'string with single quote");
+
+  Target test_target2("TestStringKind -single='\\\'\\\\\\'blah\\\\\\'\\\''");
+  ASSERT_TRUE(test_target2->GetAttr<String>("single"));
+  String string2 = test_target2->GetAttr<String>("single").value();
+  ASSERT_EQ(string2, "'\\\'blah\\\''");
+
+  Target test_target3("TestStringKind -array=-danny,-sammy=1,-kirby='string with space'");
+  ASSERT_TRUE(test_target3->GetAttr<Array<String>>("array"));
+  Array<String> array3 = test_target3->GetAttr<Array<String>>("array").value();
+  ASSERT_EQ(array3[0], "-danny");
+  ASSERT_EQ(array3[1], "-sammy=1");
+  ASSERT_EQ(array3[2], "-kirby='string with space'");
+
+  Target test_target4("TestStringKind -array='fred, foo, bar',baz");
+  ASSERT_TRUE(test_target4->GetAttr<Array<String>>("array"));
+  Array<String> array4 = test_target4->GetAttr<Array<String>>("array").value();
+  ASSERT_EQ(array4[0], "fred, foo, bar");
+  ASSERT_EQ(array4[1], "baz");
+
+  Target test_target5("TestStringKind -array='fr\\'ed','f\\'oo',' bar,baz '");
+  ASSERT_TRUE(test_target5->GetAttr<Array<String>>("array"));
+  Array<String> array5 = test_target5->GetAttr<Array<String>>("array").value();
+  ASSERT_EQ(array5[0], "fr'ed");
+  ASSERT_EQ(array5[1], "f'oo");
+  ASSERT_EQ(array5[2], "bar,baz");
+
+  Target test_target6("TestStringKind -nested-array='foo0,foo1,foo2','bar0,bar1,bar2','baz0,baz1'");
+  ASSERT_TRUE(test_target6->GetAttr<Array<Array<String>>>("nested-array"));
+  Array<Array<String>> array6 = test_target6->GetAttr<Array<Array<String>>>("nested-array").value();
+  ASSERT_EQ(array6[0][0], "foo0");
+  ASSERT_EQ(array6[0][1], "foo1");
+  ASSERT_EQ(array6[0][2], "foo2");
+  ASSERT_EQ(array6[1][0], "bar0");
+  ASSERT_EQ(array6[1][1], "bar1");
+  ASSERT_EQ(array6[1][2], "bar2");
+  ASSERT_EQ(array6[2][0], "baz0");
+  ASSERT_EQ(array6[2][1], "baz1");
+
+  Target test_target7(
+      "TestStringKind -nested2-array="
+      "'\\'foo0,foo1\\',\\'bar0,bar1\\',\\'baz0,baz1\\'',"
+      "'\\'zing0,zing1\\',\\'fred\\''");
+
+  ASSERT_TRUE(test_target7->GetAttr<Array<Array<Array<String>>>>("nested2-array"));
+  Array<Array<Array<String>>> array7 =
+      test_target7->GetAttr<Array<Array<Array<String>>>>("nested2-array").value();
+  // {
+  //   {foo0, foo1},
+  //   {bar0, bar1},
+  //   {baz0, baz1},
+  // },
+  // {
+  //   {zing0, zing1},
+  //   {fred},
+  // }
+  ASSERT_EQ(array7.size(), 2);
+  ASSERT_EQ(array7[0].size(), 3);
+  ASSERT_EQ(array7[0][0].size(), 2);
+  ASSERT_EQ(array7[0][1].size(), 2);
+  ASSERT_EQ(array7[0][2].size(), 2);
+  ASSERT_EQ(array7[1].size(), 2);
+  ASSERT_EQ(array7[1][0].size(), 2);
+  ASSERT_EQ(array7[1][1].size(), 1);
+
+  ASSERT_EQ(array7[0][0][0], "foo0");
+  ASSERT_EQ(array7[0][0][1], "foo1");
+  ASSERT_EQ(array7[0][1][0], "bar0");
+  ASSERT_EQ(array7[0][1][1], "bar1");
+  ASSERT_EQ(array7[0][2][0], "baz0");
+  ASSERT_EQ(array7[0][2][1], "baz1");
+  ASSERT_EQ(array7[1][0][0], "zing0");
+  ASSERT_EQ(array7[1][0][1], "zing1");
+  ASSERT_EQ(array7[1][1][0], "fred");
+}
+
 TVM_REGISTER_TARGET_KIND("test_external_codegen_0", kDLCUDA)
     .set_attr<Bool>(tvm::attr::kIsExternalCodegen, Bool(true));
 
