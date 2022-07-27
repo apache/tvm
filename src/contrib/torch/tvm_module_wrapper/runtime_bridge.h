@@ -32,21 +32,20 @@ struct DLPackTensorExt {
   bool is_bool;
 };
 
+struct TVMContribTorchRuntimeModule;
 
-struct RuntimeModulePointer;
+TVMContribTorchRuntimeModule* tvm_contrib_torch_get_last_saved_runtime_module();
 
-RuntimeModulePointer* get_last_saved_runtime_module();
+void tvm_contrib_torch_operator_module_forward(TVMContribTorchRuntimeModule* runtime_module,
+                                               TensorList inputs, size_t input_size);
 
-void operator_module_forward(RuntimeModulePointer* runtime_module, TensorList inputs,
-                             size_t input_size);
+int64_t tvm_contrib_torch_graph_executor_module_forward(TVMContribTorchRuntimeModule* graph_module,
+                                                        TensorList inputs, size_t input_size,
+                                                        TensorList* outputs);
 
-int64_t graph_executor_module_forward(RuntimeModulePointer* graph_module, TensorList inputs,
-                                      size_t input_size,
-                                      TensorList* outputs);
+char* tvm_contrib_torch_encode(TVMContribTorchRuntimeModule* runtime_module);
 
-char* encode(RuntimeModulePointer* runtime_module);
-
-RuntimeModulePointer* decode(const char* state);
+TVMContribTorchRuntimeModule* tvm_contrib_torch_decode(const char* state);
 }
 
 #endif  // TVM_CONTRIB_TORCH_RUNTIME_BRIDGE_H_

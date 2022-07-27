@@ -118,18 +118,18 @@ tvm::runtime::NDArray NDArrayFromDlPackExt(DLPackTensorExt dlpack_ext) {
 
 extern "C" {
 
-struct RuntimeModulePointer {
+struct TVMContribTorchRuntimeModule {
   tvm::runtime::Module mod;
 
-  RuntimeModulePointer(tvm::runtime::Module mod) : mod(mod) {}
+  TVMContribTorchRuntimeModule(tvm::runtime::Module mod) : mod(mod) {}
 };
 
-RuntimeModulePointer* get_last_saved_runtime_module() {
-  return new RuntimeModulePointer(ThreadLocalStore::ThreadLocal()->mod);
+TVMContribTorchRuntimeModule* tvm_contrib_torch_get_last_saved_runtime_module() {
+  return new TVMContribTorchRuntimeModule(ThreadLocalStore::ThreadLocal()->mod);
 }
 
-void operator_module_forward(RuntimeModulePointer* runtime_module, TensorList inputs,
-                             size_t input_size) {
+void tvm_contrib_torch_operator_module_forward(TVMContribTorchRuntimeModule* runtime_module,
+                                               TensorList inputs, size_t input_size) {
   tvm::runtime::PackedFunc run = runtime_module->mod.GetFunction("__tvm_main__");
 
   std::vector<TVMValue> tvm_values(input_size);
@@ -149,8 +149,9 @@ tvm::Device getDeviceInfo(DLManagedTensor* input_device) {
           .device_id = input_device->dl_tensor.device.device_id};
 }
 
-int64_t graph_executor_module_forward(RuntimeModulePointer* graph_module, TensorList inputs,
-                                      size_t input_size, TensorList* outputs) {
+int64_t tvm_contrib_torch_graph_executor_module_forward(TVMContribTorchRuntimeModule* graph_module,
+                                                        TensorList inputs, size_t input_size,
+                                                        TensorList* outputs) {
   tvm::runtime::PackedFunc built_module = graph_module->mod.GetFunction("default");
   tvm::runtime::Module runtime_module = built_module(getDeviceInfo(inputs[0]));
   tvm::runtime::PackedFunc run = runtime_module.GetFunction("run");
@@ -178,7 +179,7 @@ int64_t graph_executor_module_forward(RuntimeModulePointer* graph_module, Tensor
   return output_length;
 }
 
-char* encode(RuntimeModulePointer* runtime_module) {
+char* tvm_contrib_torch_encode(TVMContribTorchRuntimeModule* runtime_module) {
   auto std = tvm::contrib::serialize(runtime_module->mod);
   auto* ret = new char[std.length() + 1];
   strcpy(ret, std.c_str());
@@ -186,8 +187,8 @@ char* encode(RuntimeModulePointer* runtime_module) {
   return ret;
 }
 
-RuntimeModulePointer* decode(const char* state) {
+TVMContribTorchRuntimeModule* tvm_contrib_torch_decode(const char* state) {
   auto ret = tvm::contrib::deserialize(state);
-  return new RuntimeModulePointer(ret);
+  return new TVMContribTorchRuntimeModule(ret);
 }
 }

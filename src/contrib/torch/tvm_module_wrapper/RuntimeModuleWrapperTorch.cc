@@ -47,7 +47,7 @@ DLPackTensorExt toDlPackExt(const at::Tensor& src) {
  */
 class OperatorModuleWrapper : public torch::jit::CustomClassHolder {
  public:
-  OperatorModuleWrapper() { runtime_module = get_last_saved_runtime_module(); }
+  OperatorModuleWrapper() { runtime_module = tvm_contrib_torch_get_last_saved_runtime_module(); }
 
   void forward(const c10::List<at::Tensor>& inputs) {
     int input_length = inputs.size();
@@ -56,20 +56,22 @@ class OperatorModuleWrapper : public torch::jit::CustomClassHolder {
 
     for (int i = 0; i < input_length; ++i) tensors.push_back(toDLPack(inputs[i]));
 
-    operator_module_forward(this->runtime_module, static_cast<TensorList>(tensors.data()),
-                            tensors.size());
+    tvm_contrib_torch_operator_module_forward(
+        this->runtime_module, static_cast<TensorList>(tensors.data()), tensors.size());
 
     for (int k = 0; k < input_length; ++k) {
       tensors[k]->deleter(tensors[k]);
     }
   }
 
-  std::string Serialize() { return std::string(encode(runtime_module)); }
+  std::string Serialize() { return std::string(tvm_contrib_torch_encode(runtime_module)); }
 
-  explicit OperatorModuleWrapper(std::string state) { runtime_module = decode(state.c_str()); }
+  explicit OperatorModuleWrapper(std::string state) {
+    runtime_module = tvm_contrib_torch_decode(state.c_str());
+  }
 
  private:
-  RuntimeModulePointer* runtime_module;
+  TVMContribTorchRuntimeModule* runtime_module;
 };
 
 /**
@@ -79,14 +81,15 @@ class OperatorModuleWrapper : public torch::jit::CustomClassHolder {
  */
 class GraphExecutorFactoryWrapper : public torch::jit::CustomClassHolder {
  public:
-  explicit GraphExecutorFactoryWrapper(RuntimeModulePointer* executor_factory)
+  explicit GraphExecutorFactoryWrapper(TVMContribTorchRuntimeModule* executor_factory)
       : executor_factory_(executor_factory) {}
 
-  GraphExecutorFactoryWrapper() : GraphExecutorFactoryWrapper(get_last_saved_runtime_module()) {}
-  std::string Serialize() { return encode(executor_factory_); }
+  GraphExecutorFactoryWrapper()
+      : GraphExecutorFactoryWrapper(tvm_contrib_torch_get_last_saved_runtime_module()) {}
+  std::string Serialize() { return tvm_contrib_torch_encode(executor_factory_); }
 
   explicit GraphExecutorFactoryWrapper(std::string state) {
-    executor_factory_ = decode(state.c_str());
+    executor_factory_ = tvm_contrib_torch_decode(state.c_str());
   }
 
   c10::List<at::Tensor> forward(const c10::List<at::Tensor>& inputs) {
@@ -100,7 +103,7 @@ class GraphExecutorFactoryWrapper : public torch::jit::CustomClassHolder {
 
     TensorList* outputs = new TensorList;
 
-    auto num_outputs = graph_executor_module_forward(
+    auto num_outputs = tvm_contrib_torch_graph_executor_module_forward(
         executor_factory_, static_cast<DLManagedTensor**>(tensors.data()), tensors.size(), outputs);
 
     c10::List<at::Tensor> ret;
@@ -121,7 +124,7 @@ class GraphExecutorFactoryWrapper : public torch::jit::CustomClassHolder {
   }
 
  private:
-  RuntimeModulePointer* executor_factory_;
+  TVMContribTorchRuntimeModule* executor_factory_;
 };
 
 TORCH_LIBRARY(tvm_torch, m) {
