@@ -17,14 +17,12 @@
 """Transform passes for the my_ai_hw accelerator"""
 
 import tvm
-from tvm import relay, tir
+from tvm import tir
 from tvm.relay.backend.contrib.uma.api.utils import add_llvm_to_block
 
 
 @tvm.tir.transform.prim_func_pass(opt_level=2)
 class MyAiHwConv2dPass:
-    _EXTERNAL_FUNCTION_NAME = "my_ai_hw_conv2dnchw"
-    _TVM_BLOCK_MATCH_NAME = "conv2d_nchw"
 
     def transform_function(
         self, func: tvm.tir.PrimFunc, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
@@ -33,10 +31,11 @@ class MyAiHwConv2dPass:
 
     @staticmethod
     def _my_ai_hw_conv2d_pass(func, mod, ctx):
-        _found_blocks = []
         _loops = dict()
         _handles = []
         _entry_node = None
+        _external_function_name = "my_ai_hw_conv2dnchw"
+        _tvm_block_match_name = "conv2d_nchw"
 
         def _has_block(name: str, func: tvm.tir.PrimFunc) -> bool:
             """
@@ -51,7 +50,7 @@ class MyAiHwConv2dPass:
             tvm.tir.stmt_functor.post_order_visit(func.body, _hb)
             return name in _found_blocks
 
-        def _transform_function(
+        def _detect_and_replace_conv2d(
             func: tvm.tir.PrimFunc, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
         ) -> tvm.tir.PrimFunc:
             def _replace_conv2d(op):
@@ -66,7 +65,7 @@ class MyAiHwConv2dPass:
                     offsets = [_loops[i].extent.value for i in offset_order]
                     args = buffers + offsets
                     external_call = tvm.tir.Evaluate(
-                        tir_call(irb, True, MyAiHwConv2dPass._EXTERNAL_FUNCTION_NAME, *args)
+                        tir_call(irb, True, _external_function_name, *args)
                     )
                     ext_calls = tvm.tir.SeqStmt([external_call])
                     irb.emit(ext_calls)
@@ -79,8 +78,8 @@ class MyAiHwConv2dPass:
 
             sch = tir.Schedule(func)
 
-            if _has_block(_TVM_BLOCK_MATCH_NAME, func):
-                conv2d_block = sch.get_block(_TVM_BLOCK_MATCH_NAME)
+            if _has_block(_tvm_block_match_name, func):
+                conv2d_block = sch.get_block(_tvm_block_match_name)
                 rv_loops = sch.get_loops(conv2d_block)
                 assert len(rv_loops) == 7
                 loops = dict(
@@ -103,7 +102,7 @@ class MyAiHwConv2dPass:
             else:
                 return func
 
-        r = _transform_function(func, mod, ctx)
+        r = _detect_and_replace_conv2d(func, mod, ctx)
         return r
 
 
@@ -124,7 +123,7 @@ def tir_call(ib: tvm.tir.ir_builder, extern: bool, name: str, *args):
         var = ib.allocate("int32", (len(arr),), scope="global")
         for i, v in enumerate(arr):
             var[i] = v
-        # Declare a buffer, which is basically a view on the chunk of memory that we allocated previously
+        # Declare a buffer, which is basically a view on the chunk of memory that we allocated
         buf = tvm.tir.decl_buffer((len(arr),), dtype, data=var, scope="global")
         return buf
 

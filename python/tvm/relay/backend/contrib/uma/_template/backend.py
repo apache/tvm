@@ -18,7 +18,7 @@
 from .passes import MyAiHwConv2dPass
 from ..api.utils import PassPhase
 from ..backend import UMABackend
-from .codegen import gen_includes, gen_replace_call_extern
+from .codegen import gen_includes
 from .patterns import conv2d_pattern
 
 

@@ -15,12 +15,3 @@
 # specific language governing permissions and limitations
 # under the License.
 """Strategies for the my_ai_hw accelerator"""
-
-
-from tvm import relay, te
-from tvm.relay.op import op as _op
-from tvm.topi.utils import get_const_tuple
-from tvm.topi.nn.utils import get_pad_tuple1d
-from tvm.relay.op.strategy.generic import wrap_compute_conv1d, wrap_topi_schedule
-
-import logging
