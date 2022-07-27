@@ -3405,6 +3405,12 @@ class PyTorchOpConverter:
             inputs[0], grid, interpolate_str, layout, padding_mode_str, align_corners
         )
 
+    def trilu(self, inputs, input_types, mode):
+        data = inputs[0]
+        k = inputs[1] if inputs[1] else 0
+        upper = True if mode == "triu" else False
+        return _op.trilu(data, k, upper)
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -3661,6 +3667,8 @@ class PyTorchOpConverter:
             "aten::dot": self.dot,
             "aten::mv": self.mv,
             "aten::grid_sampler": self.grid_sampler,
+            "aten::triu": functools.partial(self.trilu, mode="triu"),
+            "aten::tril": functools.partial(self.trilu, mode="tril"),
             "aten::__ior__": self.make_elemwise("bitwise_or"),
             "aten::__iand__": self.make_elemwise("bitwise_and"),
             "aten::__ixor__": self.make_elemwise("bitwise_xor"),
