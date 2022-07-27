@@ -36,13 +36,22 @@ from ..utils import cpu_count, derived_object, shash2hex
 from .metric import max_curve
 
 
-if TYPE_CHECKING:
+def optional_xgboost_callback(XGBoostCustomCallback):
+    # pylint:disable = import-outside-toplevel
     try:
         from xgboost.callback import TrainingCallback  # type: ignore
     except ImportError:
 
         class TrainingCallback:  # type: ignore
             pass
+
+    class OptXGBoostCustomCallback(XGBoostCustomCallback, TrainingCallback):
+        pass
+
+    return OptXGBoostCustomCallback
+
+
+if TYPE_CHECKING:
 
     import xgboost as xgb  # type: ignore
 
@@ -645,7 +654,8 @@ class XGBModel(PyCostModel):
         return eval_result
 
 
-class XGBoostCustomCallback(TrainingCallback):
+@optional_xgboost_callback
+class XGBoostCustomCallback:
     """Custom callback class for xgboost to support multiple custom evaluation functions"""
 
     def __init__(
