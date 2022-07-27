@@ -191,4 +191,6 @@ TVMContribTorchRuntimeModule* tvm_contrib_torch_decode(const char* state) {
   auto ret = tvm::contrib::deserialize(state);
   return new TVMContribTorchRuntimeModule(ret);
 }
+
+void tvm_contrib_torch_delete_raw_pointer(void* ptr) { delete ptr; }
 }
