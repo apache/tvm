@@ -29,7 +29,7 @@ if(NOT USE_PT_TVMDSOOP STREQUAL "OFF")
   string(REGEX REPLACE "\n" "" PT_PATH "${PT_PATH}")
   message(STATUS "PyTorch path: ${PT_PATH}")
 
-  execute_process(COMMAND ${PYTHON_EXECUTE} -c "import torch;print(torch.compiled_with_cxx11_abi())"
+  execute_process(COMMAND ${PYTHON_EXECUTABLE} -c "import torch;print(torch.compiled_with_cxx11_abi())"
     OUTPUT_VARIABLE PT_CXX_FLAG
     RESULT_VARIABLE PT_STATUS)
 
