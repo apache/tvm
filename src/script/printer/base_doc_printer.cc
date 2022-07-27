@@ -38,6 +38,26 @@ String DocPrinter::GetString() const {
 void DocPrinter::PrintDoc(const Doc& doc) {
   if (const auto* doc_node = doc.as<LiteralDocNode>()) {
     PrintTypedDoc(GetRef<LiteralDoc>(doc_node));
+  } else if (const auto* doc_node = doc.as<IdDocNode>()) {
+    PrintTypedDoc(GetRef<IdDoc>(doc_node));
+  } else if (const auto* doc_node = doc.as<AttrAccessDocNode>()) {
+    PrintTypedDoc(GetRef<AttrAccessDoc>(doc_node));
+  } else if (const auto* doc_node = doc.as<IndexDocNode>()) {
+    PrintTypedDoc(GetRef<IndexDoc>(doc_node));
+  } else if (const auto* doc_node = doc.as<OperationDocNode>()) {
+    PrintTypedDoc(GetRef<OperationDoc>(doc_node));
+  } else if (const auto* doc_node = doc.as<CallDocNode>()) {
+    PrintTypedDoc(GetRef<CallDoc>(doc_node));
+  } else if (const auto* doc_node = doc.as<LambdaDocNode>()) {
+    PrintTypedDoc(GetRef<LambdaDoc>(doc_node));
+  } else if (const auto* doc_node = doc.as<ListDocNode>()) {
+    PrintTypedDoc(GetRef<ListDoc>(doc_node));
+  } else if (const auto* doc_node = doc.as<TupleDocNode>()) {
+    PrintTypedDoc(GetRef<TupleDoc>(doc_node));
+  } else if (const auto* doc_node = doc.as<DictDocNode>()) {
+    PrintTypedDoc(GetRef<DictDoc>(doc_node));
+  } else if (const auto* doc_node = doc.as<SliceDocNode>()) {
+    PrintTypedDoc(GetRef<SliceDoc>(doc_node));
   } else {
     LOG(FATAL) << "Do not know how to print " << doc->GetTypeKey();
     throw;
