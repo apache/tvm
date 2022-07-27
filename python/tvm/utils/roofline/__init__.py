@@ -153,21 +153,21 @@ def roofline_from_existing(
 
             flops = np.sum(features["float_addsub"] + features["float_mul"] + features["float_mad"])
             loaded_bytes = 0.0
-            if str(target.kind) == "cuda":
-                # autoscheduler features do not take into account that 1.
-                # global and shared memory have very different performance
-                # characteristics -- both are included in the same bytes
-                # touched count 2. multiple threads accessing the same byte
-                # of memory does not use the same amount of bandwidth as
-                # multiple threads accessing different bytes of memory. We
-                # use unique bytes accessed here to avoid these two issues,
-                # but this does bias results towards being more compute
-                # bound.
-                key = f"B{i}.unique_bytes"
-            else:
-                key = f"B{i}.bytes"
             # assume no more than 100 buffers
             for i in range(100):
+                if str(target.kind) == "cuda":
+                    # autoscheduler features do not take into account that 1.
+                    # global and shared memory have very different performance
+                    # characteristics -- both are included in the same bytes
+                    # touched count 2. multiple threads accessing the same byte
+                    # of memory does not use the same amount of bandwidth as
+                    # multiple threads accessing different bytes of memory. We
+                    # use unique bytes accessed here to avoid these two issues,
+                    # but this does bias results towards being more compute
+                    # bound.
+                    key = f"B{i}.unique_bytes"
+                else:
+                    key = f"B{i}.bytes"
                 if not key in features.keys():
                     break
                 loaded_bytes += np.sum(features[key])
