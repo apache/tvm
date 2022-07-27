@@ -16,4 +16,4 @@
 # under the License.
 """Utilities operating at a graph/model or other "high" level"""
 
-from .roofline import estimate_peak_bandwidth, estimate_peak_fma_flops, roofline_analysis
+from .roofline import roofline_analysis
