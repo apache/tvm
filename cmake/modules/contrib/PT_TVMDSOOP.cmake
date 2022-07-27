@@ -18,7 +18,7 @@
 if(NOT USE_PT_TVMDSOOP STREQUAL "OFF")
   find_package(PythonInterp REQUIRED)
 
-  execute_process(COMMAND ${PYTHON_EXECUTE} -c "import torch; print(torch.__path__[0].strip())"
+  execute_process(COMMAND ${PYTHON_EXECUTABLE} -c "import torch; print(torch.__path__[0].strip())"
     OUTPUT_VARIABLE PT_PATH
     RESULT_VARIABLE PT_STATUS)
 
