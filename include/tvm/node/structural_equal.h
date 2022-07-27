@@ -60,26 +60,22 @@ class BaseValueEqual {
 /*!
  * \brief Pair of `ObjectPath`s, one for each object being tested for structural equality.
  */
-struct ObjectPathPair {
+class ObjectPathPairNode : public Object {
+ public:
   ObjectPath lhs_path;
   ObjectPath rhs_path;
+
+  ObjectPathPairNode(ObjectPath lhs_path, ObjectPath rhs_path);
+
+  static constexpr const char* _type_key = "ObjectPathPair";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ObjectPathPairNode, Object);
 };
 
-// Could be replaced with std::optional<ObjectPathPair>
-class OptionalObjectPathPair {
+class ObjectPathPair : public ObjectRef {
  public:
-  OptionalObjectPathPair() = default;
+  ObjectPathPair(ObjectPath lhs_path, ObjectPath rhs_path);
 
-  OptionalObjectPathPair(const ObjectPathPair& p)  // NOLINT(runtime/explicit)
-      : lhs_path(p.lhs_path), rhs_path(p.rhs_path) {}
-
-  bool defined() const { return lhs_path.defined(); }
-
-  ObjectPathPair value() const { return {lhs_path.value(), rhs_path.value()}; }
-
- private:
-  Optional<ObjectPath> lhs_path;
-  Optional<ObjectPath> rhs_path;
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ObjectPathPair, ObjectRef, ObjectPathPairNode);
 };
 
 /*!
@@ -146,7 +142,7 @@ class SEqualReducer {
      *       stack and try to resolve later.
      */
     virtual bool SEqualReduce(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars,
-                              const OptionalObjectPathPair& current_paths) = 0;
+                              const Optional<ObjectPathPair>& current_paths) = 0;
 
     /*!
      * \brief Mark the comparison as failed, but don't fail immediately.

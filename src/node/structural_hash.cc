@@ -414,8 +414,8 @@ struct ArrayNodeTrait {
     const ObjectPathPair& array_paths = equal.GetCurrentObjectPaths();
 
     for (size_t index = 0; index < min_size; ++index) {
-      ObjectPathPair element_paths = {array_paths.lhs_path->ArrayIndex(index),
-                                      array_paths.rhs_path->ArrayIndex(index)};
+      ObjectPathPair element_paths = {array_paths->lhs_path->ArrayIndex(index),
+                                      array_paths->rhs_path->ArrayIndex(index)};
       if (!equal(lhs->at(index), rhs->at(index), element_paths)) {
         return false;
       }
@@ -453,11 +453,11 @@ struct ArrayNodeTrait {
     //                      ^
     //                  error here
     if (lhs->size() > min_size) {
-      equal->DeferFail({array_paths.lhs_path->ArrayIndex(min_size),
-                        array_paths.rhs_path->MissingArrayElement(min_size)});
+      equal->DeferFail({array_paths->lhs_path->ArrayIndex(min_size),
+                        array_paths->rhs_path->MissingArrayElement(min_size)});
     } else {
-      equal->DeferFail({array_paths.lhs_path->MissingArrayElement(min_size),
-                        array_paths.rhs_path->ArrayIndex(min_size)});
+      equal->DeferFail({array_paths->lhs_path->MissingArrayElement(min_size),
+                        array_paths->rhs_path->ArrayIndex(min_size)});
     }
 
     // Can return `true` pretending that everything is good since we have deferred the failure.
@@ -577,21 +577,21 @@ struct MapNodeTrait {
     // First, check that every key from `lhs` is also in `rhs`,
     // and their values are mapped to each other.
     for (const auto& kv : *lhs) {
-      ObjectPath lhs_path = map_paths.lhs_path->MapValue(kv.first);
+      ObjectPath lhs_path = map_paths->lhs_path->MapValue(kv.first);
 
       ObjectRef rhs_key = equal->MapLhsToRhs(kv.first);
       if (!rhs_key.defined()) {
-        equal.RecordMismatchPaths({lhs_path, map_paths.rhs_path->MissingMapEntry()});
+        equal.RecordMismatchPaths({lhs_path, map_paths->rhs_path->MissingMapEntry()});
         return false;
       }
 
       auto it = rhs->find(rhs_key);
       if (it == rhs->end()) {
-        equal.RecordMismatchPaths({lhs_path, map_paths.rhs_path->MissingMapEntry()});
+        equal.RecordMismatchPaths({lhs_path, map_paths->rhs_path->MissingMapEntry()});
         return false;
       }
 
-      if (!equal(kv.second, it->second, {lhs_path, map_paths.rhs_path->MapValue(it->first)})) {
+      if (!equal(kv.second, it->second, {lhs_path, map_paths->rhs_path->MapValue(it->first)})) {
         return false;
       }
 
@@ -604,7 +604,7 @@ struct MapNodeTrait {
     for (const auto& kv : *rhs) {
       if (!std::binary_search(seen_rhs_keys.begin(), seen_rhs_keys.end(), kv.first.get())) {
         equal.RecordMismatchPaths(
-            {map_paths.lhs_path->MissingMapEntry(), map_paths.rhs_path->MapValue(kv.first)});
+            {map_paths->lhs_path->MissingMapEntry(), map_paths->rhs_path->MapValue(kv.first)});
         return false;
       }
     }
@@ -619,23 +619,23 @@ struct MapNodeTrait {
 
     // First, check that every key from `lhs` is also in `rhs`, and their values are equal.
     for (const auto& kv : *lhs) {
-      ObjectPath lhs_path = map_paths.lhs_path->MapValue(kv.first);
+      ObjectPath lhs_path = map_paths->lhs_path->MapValue(kv.first);
       auto it = rhs->find(kv.first);
       if (it == rhs->end()) {
-        equal.RecordMismatchPaths({lhs_path, map_paths.rhs_path->MissingMapEntry()});
+        equal.RecordMismatchPaths({lhs_path, map_paths->rhs_path->MissingMapEntry()});
         return false;
       }
 
-      if (!equal(kv.second, it->second, {lhs_path, map_paths.rhs_path->MapValue(it->first)})) {
+      if (!equal(kv.second, it->second, {lhs_path, map_paths->rhs_path->MapValue(it->first)})) {
         return false;
       }
     }
 
     // Second, make sure every key from `rhs` is also in `lhs`.
     for (const auto& kv : *rhs) {
-      ObjectPath rhs_path = map_paths.rhs_path->MapValue(kv.first);
+      ObjectPath rhs_path = map_paths->rhs_path->MapValue(kv.first);
       if (!lhs->count(kv.first)) {
-        equal.RecordMismatchPaths({map_paths.lhs_path->MissingMapEntry(), rhs_path});
+        equal.RecordMismatchPaths({map_paths->lhs_path->MissingMapEntry(), rhs_path});
         return false;
       }
     }

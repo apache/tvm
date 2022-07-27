@@ -31,6 +31,25 @@
 
 namespace tvm {
 
+TVM_REGISTER_OBJECT_TYPE(ObjectPathPairNode);
+
+TVM_REGISTER_GLOBAL("node.ObjectPathPairLhsPath")
+    .set_body_typed([](const ObjectPathPair& object_path_pair) {
+      return object_path_pair->lhs_path;
+    });
+
+TVM_REGISTER_GLOBAL("node.ObjectPathPairRhsPath")
+    .set_body_typed([](const ObjectPathPair& object_path_pair) {
+      return object_path_pair->rhs_path;
+    });
+
+ObjectPathPairNode::ObjectPathPairNode(ObjectPath lhs_path, ObjectPath rhs_path)
+    : lhs_path(std::move(lhs_path)), rhs_path(std::move(rhs_path)) {}
+
+ObjectPathPair::ObjectPathPair(ObjectPath lhs_path, ObjectPath rhs_path) {
+  data_ = make_object<ObjectPathPairNode>(std::move(lhs_path), std::move(rhs_path));
+}
+
 // Define the dispatch function here since primary user is in this file.
 bool ReflectionVTable::SEqualReduce(const Object* self, const Object* other,
                                     SEqualReducer equal) const {
@@ -47,12 +66,13 @@ struct SEqualReducer::PathTracingData {
   ObjectPathPair current_paths;
   ObjectRef lhs_object;
   ObjectRef rhs_object;
-  OptionalObjectPathPair* first_mismatch;
+  Optional<ObjectPathPair>* first_mismatch;
 
   ObjectPathPair GetPathsForAttrs(const ObjectRef& lhs, const ObjectRef& rhs) const {
     Optional<String> lhs_attr_key = GetAttrKeyByAddress(lhs_object.get(), &lhs);
     Optional<String> rhs_attr_key = GetAttrKeyByAddress(rhs_object.get(), &rhs);
-    return {current_paths.lhs_path->Attr(lhs_attr_key), current_paths.rhs_path->Attr(rhs_attr_key)};
+    return ObjectPathPair(current_paths->lhs_path->Attr(lhs_attr_key),
+                          current_paths->rhs_path->Attr(rhs_attr_key));
   }
 };
 
@@ -80,8 +100,8 @@ bool SEqualReducer::DefEqual(const ObjectRef& lhs, const ObjectRef& rhs) {
     Optional<String> rhs_attr_key =
         GetAttrKeyByAddress(tracing_data->rhs_object.get(), rhs_address);
     *tracing_data->first_mismatch =
-        ObjectPathPair{tracing_data->current_paths.lhs_path->Attr(lhs_attr_key),
-                       tracing_data->current_paths.rhs_path->Attr(rhs_attr_key)};
+        ObjectPathPair(tracing_data->current_paths->lhs_path->Attr(lhs_attr_key),
+                       tracing_data->current_paths->rhs_path->Attr(rhs_attr_key));
   }
 }
 
@@ -180,11 +200,11 @@ bool SEqualReducer::ObjectAttrsEqual(const ObjectRef& lhs, const ObjectRef& rhs,
  */
 class RemapVarSEqualHandler : public SEqualReducer::Handler {
  public:
-  explicit RemapVarSEqualHandler(bool assert_mode, OptionalObjectPathPair* first_mismatch)
+  explicit RemapVarSEqualHandler(bool assert_mode, Optional<ObjectPathPair>* first_mismatch)
       : assert_mode_(assert_mode), first_mismatch_(first_mismatch) {}
 
   bool SEqualReduce(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars,
-                    const OptionalObjectPathPair& current_paths) final {
+                    const Optional<ObjectPathPair>& current_paths) final {
     // We cannot use check lhs.same_as(rhs) to check equality.
     // if we choose to enable var remapping.
     //
@@ -243,10 +263,10 @@ class RemapVarSEqualHandler : public SEqualReducer::Handler {
     equal_map_lhs_.clear();
     equal_map_rhs_.clear();
 
-    OptionalObjectPathPair current_paths;
+    Optional<ObjectPathPair> current_paths;
     if (IsPathTracingEnabled()) {
       auto root_path = ObjectPath::Root();
-      current_paths = ObjectPathPair{root_path, root_path};
+      current_paths = ObjectPathPair(root_path, root_path);
     }
     if (!SEqualReduce(lhs, rhs, map_free_vars, current_paths)) {
       return false;
@@ -262,7 +282,7 @@ class RemapVarSEqualHandler : public SEqualReducer::Handler {
  protected:
   // Check the result.
   bool CheckResult(bool result, const ObjectRef& lhs, const ObjectRef& rhs,
-                   const OptionalObjectPathPair& current_paths) {
+                   const Optional<ObjectPathPair>& current_paths) {
     if (IsPathTracingEnabled() && !result && !first_mismatch_->defined()) {
       *first_mismatch_ = current_paths;
     }
@@ -331,7 +351,7 @@ class RemapVarSEqualHandler : public SEqualReducer::Handler {
 
   // The default equal as registered in the structural equal vtable.
   bool DispatchSEqualReduce(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars,
-                            const OptionalObjectPathPair& current_paths) {
+                            const Optional<ObjectPathPair>& current_paths) {
     auto compute = [=]() {
       ICHECK(lhs.defined() && rhs.defined() && lhs->type_index() == rhs->type_index());
       // skip entries that already have equality maps.
@@ -363,7 +383,7 @@ class RemapVarSEqualHandler : public SEqualReducer::Handler {
     ObjectRef rhs;
     /*! \brief If path tracing is enabled, paths taken so far from the root to `lhs` and `rhs`
      * objects. */
-    OptionalObjectPathPair current_paths;
+    Optional<ObjectPathPair> current_paths;
     /*! \brief The map free var argument. */
     bool map_free_vars;
     /*! \brief Whether the children has been expanded via SEqualReduce */
@@ -374,9 +394,11 @@ class RemapVarSEqualHandler : public SEqualReducer::Handler {
     bool force_fail{false};
 
     Task() = default;
-    Task(ObjectRef lhs, ObjectRef rhs, bool map_free_vars,
-         const OptionalObjectPathPair& current_paths)
-        : lhs(lhs), rhs(rhs), current_paths(current_paths), map_free_vars(map_free_vars) {}
+    Task(ObjectRef lhs, ObjectRef rhs, bool map_free_vars, Optional<ObjectPathPair> current_paths)
+        : lhs(lhs),
+          rhs(rhs),
+          current_paths(std::move(current_paths)),
+          map_free_vars(map_free_vars) {}
 
     struct ForceFailTag {};  // dispatch tag for the constructor below
     Task(ForceFailTag, const ObjectPathPair& current_paths)
@@ -394,7 +416,7 @@ class RemapVarSEqualHandler : public SEqualReducer::Handler {
   //  If in assert mode, must return true, and will throw error otherwise.
   bool assert_mode_{false};
   // Location to store the paths to the first detected mismatch, or nullptr to disable path tracing.
-  OptionalObjectPathPair* first_mismatch_;
+  Optional<ObjectPathPair>* first_mismatch_;
   // reflection vtable
   ReflectionVTable* vtable_ = ReflectionVTable::Global();
   // map from lhs to rhs
@@ -411,13 +433,10 @@ TVM_REGISTER_GLOBAL("node.StructuralEqual")
 
 TVM_REGISTER_GLOBAL("node.GetFirstStructuralMismatch")
     .set_body_typed([](const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars) {
-      OptionalObjectPathPair first_mismatch;
-      if (RemapVarSEqualHandler(false, &first_mismatch).Equal(lhs, rhs, map_free_vars)) {
-        return Array<ObjectPath>();
-      } else {
-        ObjectPathPair paths = first_mismatch.value();
-        return Array<ObjectPath>({paths.lhs_path, paths.rhs_path});
-      }
+      Optional<ObjectPathPair> first_mismatch;
+      bool equal = RemapVarSEqualHandler(false, &first_mismatch).Equal(lhs, rhs, map_free_vars);
+      ICHECK(equal == !first_mismatch.defined());
+      return first_mismatch;
     });
 
 bool StructuralEqual::operator()(const ObjectRef& lhs, const ObjectRef& rhs) const {

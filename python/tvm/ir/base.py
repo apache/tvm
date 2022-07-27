@@ -233,11 +233,10 @@ def get_first_structural_mismatch(lhs, rhs, map_free_vars=False):
     lhs = tvm.runtime.convert(lhs)
     rhs = tvm.runtime.convert(rhs)
     mismatch = tvm.runtime._ffi_node_api.GetFirstStructuralMismatch(lhs, rhs, map_free_vars)
-    if len(mismatch) == 0:
+    if mismatch is None:
         return None
     else:
-        assert len(mismatch) == 2
-        return tuple(mismatch)
+        return mismatch.lhs_path, mismatch.rhs_path
 
 
 def assert_structural_equal(lhs, rhs, map_free_vars=False):

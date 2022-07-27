@@ -34,7 +34,7 @@ class DeepCmpSEqualHandler : public SEqualReducer::Handler {
  public:
   // use direct recursion.
   bool SEqualReduce(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars,
-                    const OptionalObjectPathPair&) final {
+                    const Optional<ObjectPathPair>&) final {
     if (lhs.same_as(rhs)) return true;
     if (!lhs.defined() && rhs.defined()) return false;
     if (!rhs.defined() && lhs.defined()) return false;

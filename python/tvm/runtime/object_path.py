@@ -34,6 +34,7 @@ __all__ = (
     "MissingArrayElementPath",
     "MapValuePath",
     "MissingMapEntryPath",
+    "ObjectPathPair",
 )
 
 
@@ -122,3 +123,14 @@ class MapValuePath(ObjectPath):
 @tvm._ffi.register_object("MissingMapEntryPath")
 class MissingMapEntryPath(ObjectPath):
     pass
+
+
+@tvm._ffi.register_object("ObjectPathPair")
+class ObjectPathPair(Object):
+    @property
+    def lhs_path(self) -> ObjectPath:
+        return _ffi_node_api.ObjectPathPairLhsPath(self)
+
+    @property
+    def rhs_path(self) -> ObjectPath:
+        return _ffi_node_api.ObjectPathPairRhsPath(self)
