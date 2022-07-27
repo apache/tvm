@@ -69,7 +69,7 @@
         "package": "teensy",
         "architecture": "avr",
         "board": "teensy40",
-        "model": "imxrt1060",
+        "model": "imxrt10xx",
         "vid_hex": "16c0",
         "pid_hex": "0478"
     },
@@ -77,7 +77,7 @@
         "package": "teensy",
         "architecture": "avr",
         "board": "teensy41",
-        "model": "imxrt1060",
+        "model": "imxrt10xx",
         "vid_hex": "16c0",
         "pid_hex": "0478"
     },
