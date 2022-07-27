@@ -111,16 +111,10 @@ class Allocate(WithScopeHandler):
             condition = tvm.runtime.convert(condition)
             scope = tvm.runtime.convert(scope)
 
-            # Currently, allocate nodes should only occur after buffer
-            # flattening has been applied.  This can be simplified in
-            # the future by having the AllocateNode hold a buffer
-            # object directly.
-            flattened = self.buffer.get_flattened_buffer()
-
             return tvm.tir.Allocate(
                 self.buffer.data,
-                flattened.dtype,
-                flattened.shape,
+                self.buffer.dtype,
+                self.buffer.shape,
                 condition,
                 self.body,
                 annotations=annotations,

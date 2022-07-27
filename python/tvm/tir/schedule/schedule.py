@@ -2639,6 +2639,84 @@ class Schedule(Object):
             self, block, buffer_index, buffer_index_type_enum, axis_separators
         )
 
+    ########## Schedule: Padding decomposition #########
+    @type_checked
+    def decompose_padding(self, block: Union[BlockRV, str], loop: LoopRV) -> BlockRV:
+        """Decompose a block of padding computation pattern into two separate blocks.
+
+        a) The block which fill const pad values into full write region;
+
+        b) The block which fill in-bound values into region where pad predicate is true.
+
+        The pad value filling block is inserted right before the given loop.
+
+        The schedule primitive requires:
+
+        1) The input block is a complete block.
+
+        2) The input loop is the ancestor of the block.
+
+        3) The input block is a block which match padding pattern.
+
+        Parameters
+        ----------
+        block : Union[BlockRV, str]
+            The padding block to be decomposed.
+        loop : LoopRV
+            The loop above which the pad value filling block is inserted before.
+
+        Returns
+        -------
+        pad_value_block : BlockRV
+            The block filling const pad values.
+
+        Examples
+        --------
+        Before decompose-padding, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_decompose(x: T.Buffer[128, "int32"], y: T.Buffer[140, "int32"]):
+                for i in range(140):
+                    with T.block("block"):
+                        vi = T.axis.remap("S", [i])
+                        y[vi] = T.if_then_else(vi >= 6 and vi < 134, x[vi - 6], 0, dtype="int32")
+
+        Create the schedule and do decompose-padding with specified loop:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_decompose, debug_mask="all")
+            block = sch.get_block("block")
+            sch.decompose_padding(block, sch.get_loops(block)[0])
+            print(sch.mod["main].script())
+
+        After applying decompose-padding, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_decompose(x: T.Buffer[128, "int32"], y: T.Buffer[140, "int32"]):
+                for i in T.serial(140):
+                    with T.block("block_pad_const"):
+                        vi = T.axis.spatial(140, i)
+                        y[vi] = 0
+                for i in T.serial(128):
+                    with T.block("block"):
+                        vi = T.axis.spatial(128, i)
+                        y[vi + 6] = x[vi]
+        """
+        block = self._normalize_block_arg(block)
+        return _ffi_api.ScheduleDecomposePadding(  # type: ignore # pylint: disable=no-member
+            self, block, loop
+        )
+
+    @type_checked
+    def can_decompose_padding(self, block: Union[BlockRV, str], loop: LoopRV) -> bool:
+        """Check whether the block match padding pattern and can be decomposed."""
+        return _ffi_api.CanDecomposePadding(self, block, loop)  # type: ignore # pylint: disable=no-member
+
     ########## Schedule: Misc ##########
 
     @type_checked
