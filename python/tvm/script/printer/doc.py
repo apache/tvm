@@ -114,7 +114,11 @@ class StmtDoc(Doc):
 
 @register_object("script.printer.StmtBlockDoc")
 class StmtBlockDoc(Doc):
-    """The container doc that holds a list of StmtDoc."""
+    """The container doc that holds a list of StmtDoc.
+
+    Note: `StmtBlockDoc` is never used in the IR, but a temporary container that allows holding a
+    list of StmtDoc.
+    """
 
     stmts: Sequence[StmtDoc]
 

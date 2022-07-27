@@ -160,7 +160,8 @@ class StmtDoc : public Doc {
 
 /*!
  * \brief The container doc that holds a list of StmtDoc.
- *
+ * \note `StmtBlockDoc` is never used in the IR, but a temporary container that allows holding a
+ * list of StmtDoc.
  * \sa StmtBlockDoc
  */
 class StmtBlockDocNode : public DocNode {
@@ -179,7 +180,6 @@ class StmtBlockDocNode : public DocNode {
 
 /*!
  * \brief Reference type of StmtBlockDocNode.
- *
  * \sa StmtBlockDocNode
  */
 class StmtBlockDoc : public Doc {
