@@ -130,8 +130,8 @@ class StmtDocNode : public DocNode {
    * \brief The comment of this doc.
    *
    * The actual position of the comment depends on the type of Doc
-   * and also the DocPrinter implmenetation. It could be on the same
-   * line as the statment, or the line above, or inside the statement
+   * and also the DocPrinter implementation. It could be on the same
+   * line as the statement, or the line above, or inside the statement
    * if it spans over multiple lines.
    * */
   mutable Optional<String> comment{NullOpt};
@@ -754,7 +754,7 @@ class AssignDoc : public StmtDoc {
    * \brief Constructor of AssignDoc.
    * \param lhs The left hand side of the assignment.
    * \param rhs The right hand side of the assignment.
-   * \param annotation The type annotation of this assigment.
+   * \param annotation The type annotation of this assignment.
    */
   explicit AssignDoc(ExprDoc lhs, Optional<ExprDoc> rhs, Optional<ExprDoc> annotation);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(AssignDoc, StmtDoc, AssignDocNode);
@@ -889,7 +889,7 @@ class ForDoc : public StmtDoc {
 /*!
  * \brief Doc that represents special scopes.
  *
- * Specificially, this means the with statment in Python:
+ * Specifically, this means the with statement in Python:
  *
  * with 'rhs' as 'lhs':
  *   'body...'
