@@ -21,35 +21,30 @@ Making your Hardware Accelerator TVM-ready with UMA
 ===================================================
 **Author**: `Michael J. Klaiber <https://github.com/MichaelJKlaiber>`_
 
-This is an introductory tutorial to the **Universal Modular Accelerator Interface** (UMA).
-UMA provides an easy-to-use API to integrate new hardware accelerators into TVM.
-
-This tutorial gives you step-by-step guidance how to use UMA to
-make your hardware accelerator TVM-ready.
-While there is no one-fits-all solution for this problem, UMA targets to provide a stable and Python-only
-API to integrate a number of hardware accelerator classes into TVM.
-
-
-In this tutorial you will get to know the UMA API in three use cases of increasing complexity.
-In these use case the three mock-accelerators
-**Vanilla**, **Strawberry** and **Chocolate** are introduced and
-integrated into TVM using UMA.
 """
+
+
+######################################################################
+# This is an introductory tutorial to the **Universal Modular Accelerator Interface** (UMA).
+# UMA provides an easy-to-use API to integrate new hardware accelerators into TVM.
+#
+# This tutorial gives you step-by-step guidance how to use UMA to
+# make your hardware accelerator TVM-ready.
+# While there is no one-fits-all solution for this problem, UMA targets to provide a stable and Python-only
+# API to integrate a number of hardware accelerator classes into TVM.
+#
+#
+# In this tutorial you will get to know the UMA API in three use cases of increasing complexity.
+# In these use case the three mock-accelerators
+# **Vanilla**, **Strawberry** and **Chocolate** are introduced and
+# integrated into TVM using UMA.
+#
 
 # sphinx_gallery_start_ignore
 from tvm import testing
 
 testing.utils.install_request_hook(depth=3)
 # sphinx_gallery_end_ignore
-
-import tvm
-from tvm.relay.backend.contrib.uma.backend import UMABackend
-from tvm.relay.dataflow_pattern import is_op, wildcard
-from tvm.relay.backend.contrib.uma.api.utils import PassPhase
-from apps.uma._template.passes import (
-    MyAiHwConv2dPass as VanillaAcceleratorConv2DPass,
-)
-from apps.uma._template.codegen import gen_includes
 
 
 ######################################################################
@@ -107,33 +102,40 @@ from apps.uma._template.codegen import gen_includes
 #
 #  The generated backend for vanilla is found in `vanilla_accelerator/backend.py`:
 
-
-class VanillaAcceleratorBackend(UMABackend):
-    """UMA backend for VanillaAccelerator."""
-
-    def __init__(self):
-        super().__init__()
-
-        self._register_pattern("conv2d", conv2d_pattern())
-        self._register_tir_pass(PassPhase.TIR_PHASE_0, VanillaAcceleratorConv2DPass())
-        self._register_codegen(fmt="c", includes=gen_includes)
-
-    @property
-    def target_name(self):
-        return "vanilla_accelerator"
+######################################################################
+#
+# .. code-block:: python
+#
+#  class VanillaAcceleratorBackend(UMABackend):
+#      """UMA backend for VanillaAccelerator."""
+#
+#      def __init__(self):
+#          super().__init__()
+#
+#          self._register_pattern("conv2d", conv2d_pattern())
+#          self._register_tir_pass(PassPhase.TIR_PHASE_0, VanillaAcceleratorConv2DPass())
+#          self._register_codegen(fmt="c", includes=gen_includes)
+#
+#      @property
+#      def target_name(self):
+#          return "vanilla_accelerator"
 
 
 ################################################################################
 # Define offloaded patterns
 #
-# To specify that `Conv2D` is offloaded to **Vanilla**, it is described as Relay dataflow pattern (`DFPattern <https://tvm.apache.org/docs/reference/langref/relay_pattern.html>`_) in
-# `vanilla_accelerator/patterns.py`
+# To specify that `Conv2D` is offloaded to **Vanilla**, it is described as Relay dataflow pattern
+# (`DFPattern <https://tvm.apache.org/docs/reference/langref/relay_pattern.html>`_) in `vanilla_accelerator/patterns.py`
 
 
-def conv2d_pattern():
-    pattern = is_op("nn.conv2d")(wildcard(), wildcard())
-    pattern = pattern.has_attr({"strides": [1, 1]})
-    return pattern
+################################################################################
+#
+# .. code-block:: python
+#
+#  def conv2d_pattern():
+#      pattern = is_op("nn.conv2d")(wildcard(), wildcard())
+#      pattern = pattern.has_attr({"strides": [1, 1]})
+#      return pattern
 
 
 ################################################################################
@@ -178,32 +180,30 @@ def conv2d_pattern():
 # The file ``vanilla_accelerator/run.py`` provides a demo running a Conv2D layer
 # making use of Vanilla's C-API.
 #
-# Excerpt from vanilla_accelerator/run.py:
-from apps.uma._template.run import create_conv2d
-from tvm.testing.aot import AOTTestModel as AOTModel, compile_and_run
-
-
-def main():
-    mod, inputs, output_list, runner = create_conv2d()
-
-    uma_backend = VanillaAcceleratorBackend()
-    uma_backend.register()
-    mod = uma_backend.partition(mod)
-    target = tvm.target.Target("my_ai_hw", host=tvm.target.Target("c"))
-
-    export_directory = tvm.contrib.utils.tempdir(keep_for_debug=True).path
-    print(f"Generated files are in {export_directory}")
-    compile_and_run(
-        AOTModel(module=mod, inputs=inputs, outputs=output_list),
-        runner,
-        interface_api="c",
-        use_unpacked_api=True,
-        target=target,
-        test_dir=str(export_directory),
-    )
-
-
-main()
+#
+# .. code-block:: python
+#
+#  def main():
+#      mod, inputs, output_list, runner = create_conv2d()
+#
+#      uma_backend = VanillaAcceleratorBackend()
+#      uma_backend.register()
+#      mod = uma_backend.partition(mod)
+#      target = tvm.target.Target("vanilla_accelerator", host=tvm.target.Target("c"))
+#
+#      export_directory = tvm.contrib.utils.tempdir(keep_for_debug=True).path
+#      print(f"Generated files are in {export_directory}")
+#      compile_and_run(
+#          AOTModel(module=mod, inputs=inputs, outputs=output_list),
+#          runner,
+#          interface_api="c",
+#          use_unpacked_api=True,
+#          target=target,
+#          test_dir=str(export_directory),
+#      )
+#
+#
+#  main()
 
 ############################################################
 # By running ``vanilla_accelerator/run.py`` the output files are generated in the model library format (MLF).
