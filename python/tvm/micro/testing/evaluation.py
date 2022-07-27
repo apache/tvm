@@ -70,7 +70,9 @@ def tune_model(
             ],
             si_prefix="M",
         )
-        assert tuner.best_flops > 1
+        # Note that we might not find a working schedule at all, in which case
+        # tuner.best_flops would equal zero. This is not good, but checking for
+        # this case will happen elsewhere.
 
     return results
 
