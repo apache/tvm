@@ -26,6 +26,8 @@
 #include <cmath>
 #include <string>
 
+#include "../../../src/target/llvm/llvm_instance.h"
+
 using namespace tvm;
 
 TVM_REGISTER_TARGET_KIND("TestTargetKind", kDLCPU)
@@ -287,6 +289,37 @@ TEST(TargetCreation, ProcessStrings) {
   ASSERT_EQ(array7[1][0][0], "zing0");
   ASSERT_EQ(array7[1][0][1], "zing1");
   ASSERT_EQ(array7[1][1][0], "fred");
+}
+
+TEST(TargetCreation, LLVMCommandLine) {
+  tvm::codegen::LLVMInstance inst;
+  {
+    // Check that malformed options are ignored.
+    Target test_target(
+        "llvm -cl-opt='-heh:,-hah:=,-print-after-all:bool=,"
+        "---unroll-factor=0,\\\'-blah:string=ha ha\\\''");
+    tvm::codegen::LLVMTargetInfo info(inst, test_target);
+    ASSERT_TRUE(info.GetCommandLineOptions().empty());
+  }
+  {
+    // Check that invalid LLVM options are ignored.
+    Target test_target("llvm -cl-opt=-not-an-option:uint=123");
+    tvm::codegen::LLVMTargetInfo info(inst, test_target);
+    ASSERT_TRUE(info.GetCommandLineOptions().empty());
+  }
+  {
+    // Check detection of modified global state
+    Target test_target("llvm -cl-opt=-print-after-all");  // "false" by default
+    tvm::codegen::LLVMTargetInfo info(inst, test_target);
+    ASSERT_FALSE(info.MatchesGlobalState());
+    {
+      // Check that we can modify global state.
+      tvm::codegen::LLVMTarget llvm_target(inst, info);
+      ASSERT_TRUE(info.MatchesGlobalState());
+    }
+    // Check that we restored global state.
+    ASSERT_FALSE(info.MatchesGlobalState());
+  }
 }
 
 TVM_REGISTER_TARGET_KIND("test_external_codegen_0", kDLCUDA)
