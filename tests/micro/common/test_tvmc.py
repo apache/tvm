@@ -108,9 +108,7 @@ def test_tvmc_model_build_only(platform, board, output_dir):
     cmd_result = _run_tvmc(create_project_cmd)
     assert cmd_result == 0, "tvmc micro failed in step: create-project"
 
-    cmd_result = _run_tvmc(
-        ["micro", "build", project_dir, platform, "--project-option", f"{platform}_board={board}"]
-    )
+    cmd_result = _run_tvmc(["micro", "build", project_dir, platform])
     assert cmd_result == 0, "tvmc micro failed in step: build"
     shutil.rmtree(output_dir)
 
@@ -174,9 +172,7 @@ def test_tvmc_model_run(platform, board, output_dir):
     cmd_result = _run_tvmc(create_project_cmd)
     assert cmd_result == 0, "tvmc micro failed in step: create-project"
 
-    cmd_result = _run_tvmc(
-        ["micro", "build", project_dir, platform, "--project-option", f"{platform}_board={board}"]
-    )
+    cmd_result = _run_tvmc(["micro", "build", project_dir, platform])
     assert cmd_result == 0, "tvmc micro failed in step: build"
 
     cmd_result = _run_tvmc(
