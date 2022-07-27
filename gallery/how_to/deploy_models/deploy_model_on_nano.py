@@ -20,6 +20,7 @@
 Deploy the Pretrained Model on Jetson Nano
 ===========================================
 **Author**: `BBuf <https://github.com/BBuf>`_
+
 This is an example of using Relay to compile a ResNet model and deploy
 it on Jetson Nano.
 """
