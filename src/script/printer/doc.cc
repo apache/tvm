@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/script/printer/doc.h>
 
@@ -36,6 +38,12 @@ ExprDoc ExprDocNode::Call(Array<ExprDoc, void> args) const {
 ExprDoc ExprDocNode::Call(Array<ExprDoc, void> args, Array<String, void> kwargs_keys,
                           Array<ExprDoc, void> kwargs_values) const {
   return CallDoc(GetRef<ExprDoc>(this), args, kwargs_keys, kwargs_values);
+}
+
+StmtBlockDoc::StmtBlockDoc(Array<StmtDoc> stmts) {
+  ObjectPtr<StmtBlockDocNode> n = make_object<StmtBlockDocNode>();
+  n->stmts = stmts;
+  this->data_ = std::move(n);
 }
 
 LiteralDoc::LiteralDoc(ObjectRef value) {
@@ -115,6 +123,99 @@ SliceDoc::SliceDoc(Optional<ExprDoc> start, Optional<ExprDoc> stop, Optional<Exp
   this->data_ = std::move(n);
 }
 
+AssignDoc::AssignDoc(ExprDoc lhs, Optional<ExprDoc> rhs, Optional<ExprDoc> annotation) {
+  CHECK(rhs.defined() || annotation.defined())
+      << "ValueError: At least one of rhs and annotation needs to be non-null for AssignDoc.";
+  CHECK(lhs->IsInstance<IdDocNode>() || annotation == nullptr)
+      << "ValueError: annotation can only be nonnull if lhs is an identifier.";
+
+  ObjectPtr<AssignDocNode> n = make_object<AssignDocNode>();
+  n->lhs = lhs;
+  n->rhs = rhs;
+  n->annotation = annotation;
+  this->data_ = std::move(n);
+}
+
+IfDoc::IfDoc(ExprDoc predicate, Array<StmtDoc> then_branch, Array<StmtDoc> else_branch) {
+  CHECK(!then_branch.empty() || !else_branch.empty())
+      << "ValueError: At least one of the then branch or else branch needs to be non-empty.";
+
+  ObjectPtr<IfDocNode> n = make_object<IfDocNode>();
+  n->predicate = predicate;
+  n->then_branch = then_branch;
+  n->else_branch = else_branch;
+  this->data_ = std::move(n);
+}
+
+WhileDoc::WhileDoc(ExprDoc predicate, Array<StmtDoc> body) {
+  ObjectPtr<WhileDocNode> n = make_object<WhileDocNode>();
+  n->predicate = predicate;
+  n->body = body;
+  this->data_ = std::move(n);
+}
+
+ForDoc::ForDoc(ExprDoc lhs, ExprDoc rhs, Array<StmtDoc> body) {
+  ObjectPtr<ForDocNode> n = make_object<ForDocNode>();
+  n->lhs = lhs;
+  n->rhs = rhs;
+  n->body = body;
+  this->data_ = std::move(n);
+}
+
+ScopeDoc::ScopeDoc(Optional<ExprDoc> lhs, ExprDoc rhs, Array<StmtDoc> body) {
+  ObjectPtr<ScopeDocNode> n = make_object<ScopeDocNode>();
+  n->lhs = lhs;
+  n->rhs = rhs;
+  n->body = body;
+  this->data_ = std::move(n);
+}
+
+ScopeDoc::ScopeDoc(ExprDoc rhs, Array<StmtDoc> body) {
+  ObjectPtr<ScopeDocNode> n = make_object<ScopeDocNode>();
+  n->lhs = NullOpt;
+  n->rhs = rhs;
+  n->body = body;
+  this->data_ = std::move(n);
+}
+
+ExprStmtDoc::ExprStmtDoc(ExprDoc expr) {
+  ObjectPtr<ExprStmtDocNode> n = make_object<ExprStmtDocNode>();
+  n->expr = expr;
+  this->data_ = std::move(n);
+}
+
+AssertDoc::AssertDoc(ExprDoc test, Optional<ExprDoc> msg) {
+  ObjectPtr<AssertDocNode> n = make_object<AssertDocNode>();
+  n->test = test;
+  n->msg = msg;
+  this->data_ = std::move(n);
+}
+
+ReturnDoc::ReturnDoc(ExprDoc value) {
+  ObjectPtr<ReturnDocNode> n = make_object<ReturnDocNode>();
+  n->value = value;
+  this->data_ = std::move(n);
+}
+
+FunctionDoc::FunctionDoc(IdDoc name, Array<AssignDoc> args, Array<ExprDoc> decorators,
+                         ExprDoc return_type, Array<StmtDoc> body) {
+  ObjectPtr<FunctionDocNode> n = make_object<FunctionDocNode>();
+  n->name = name;
+  n->args = args;
+  n->decorators = decorators;
+  n->return_type = return_type;
+  n->body = body;
+  this->data_ = std::move(n);
+}
+
+ClassDoc::ClassDoc(IdDoc name, Array<ExprDoc> decorators, Array<StmtDoc> body) {
+  ObjectPtr<ClassDocNode> n = make_object<ClassDocNode>();
+  n->name = name;
+  n->decorators = decorators;
+  n->body = body;
+  this->data_ = std::move(n);
+}
+
 TVM_REGISTER_NODE_TYPE(DocNode);
 
 TVM_REGISTER_NODE_TYPE(ExprDocNode);
@@ -124,6 +225,15 @@ TVM_REGISTER_GLOBAL("script.printer.ExprDocIndex")
 TVM_REGISTER_GLOBAL("script.printer.ExprDocCall")
     .set_body_method<ExprDoc, ExprDocNode, ExprDoc, Array<ExprDoc>, Array<String>, Array<ExprDoc>>(
         &ExprDocNode::Call);
+
+TVM_REGISTER_NODE_TYPE(StmtDocNode);
+TVM_REGISTER_GLOBAL("script.printer.StmtDocSetComment")
+    .set_body_typed([](StmtDoc doc, Optional<String> comment) { doc->comment = comment; });
+
+TVM_REGISTER_NODE_TYPE(StmtBlockDocNode);
+TVM_REGISTER_GLOBAL("script.printer.StmtBlockDoc").set_body_typed([](Array<StmtDoc> stmts) {
+  return StmtBlockDoc(stmts);
+});
 
 TVM_REGISTER_NODE_TYPE(LiteralDocNode);
 TVM_REGISTER_GLOBAL("script.printer.LiteralDocNone").set_body_typed(LiteralDoc::None);
@@ -185,6 +295,66 @@ TVM_REGISTER_GLOBAL("script.printer.SliceDoc")
     .set_body_typed([](Optional<ExprDoc> start, Optional<ExprDoc> stop, Optional<ExprDoc> step) {
       return SliceDoc(start, stop, step);
     });
+
+TVM_REGISTER_NODE_TYPE(AssignDocNode);
+TVM_REGISTER_GLOBAL("script.printer.AssignDoc")
+    .set_body_typed([](ExprDoc lhs, Optional<ExprDoc> rhs, Optional<ExprDoc> annotation) {
+      return AssignDoc(lhs, rhs, annotation);
+    });
+
+TVM_REGISTER_NODE_TYPE(IfDocNode);
+TVM_REGISTER_GLOBAL("script.printer.IfDoc")
+    .set_body_typed([](ExprDoc predicate, Array<StmtDoc> then_branch, Array<StmtDoc> else_branch) {
+      return IfDoc(predicate, then_branch, else_branch);
+    });
+
+TVM_REGISTER_NODE_TYPE(WhileDocNode);
+TVM_REGISTER_GLOBAL("script.printer.WhileDoc")
+    .set_body_typed([](ExprDoc predicate, Array<StmtDoc> body) {
+      return WhileDoc(predicate, body);
+    });
+
+TVM_REGISTER_NODE_TYPE(ForDocNode);
+TVM_REGISTER_GLOBAL("script.printer.ForDoc")
+    .set_body_typed([](ExprDoc lhs, ExprDoc rhs, Array<StmtDoc> body) {
+      return ForDoc(lhs, rhs, body);
+    });
+
+TVM_REGISTER_NODE_TYPE(ScopeDocNode);
+TVM_REGISTER_GLOBAL("script.printer.ScopeDoc")
+    .set_body_typed([](Optional<ExprDoc> lhs, ExprDoc rhs, Array<StmtDoc> body) {
+      return ScopeDoc(lhs, rhs, body);
+    });
+
+TVM_REGISTER_NODE_TYPE(ExprStmtDocNode);
+TVM_REGISTER_GLOBAL("script.printer.ExprStmtDoc").set_body_typed([](ExprDoc expr) {
+  return ExprStmtDoc(expr);
+});
+
+TVM_REGISTER_NODE_TYPE(AssertDocNode);
+TVM_REGISTER_GLOBAL("script.printer.AssertDoc")
+    .set_body_typed([](ExprDoc test, Optional<ExprDoc> msg = NullOpt) {
+      return AssertDoc(test, msg);
+    });
+
+TVM_REGISTER_NODE_TYPE(ReturnDocNode);
+TVM_REGISTER_GLOBAL("script.printer.ReturnDoc").set_body_typed([](ExprDoc value) {
+  return ReturnDoc(value);
+});
+
+TVM_REGISTER_NODE_TYPE(FunctionDocNode);
+TVM_REGISTER_GLOBAL("script.printer.FunctionDoc")
+    .set_body_typed([](IdDoc name, Array<AssignDoc> args, Array<ExprDoc> decorators,
+                       ExprDoc return_type, Array<StmtDoc> body) {
+      return FunctionDoc(name, args, decorators, return_type, body);
+    });
+
+TVM_REGISTER_NODE_TYPE(ClassDocNode);
+TVM_REGISTER_GLOBAL("script.printer.ClassDoc")
+    .set_body_typed([](IdDoc name, Array<ExprDoc> decorators, Array<StmtDoc> body) {
+      return ClassDoc(name, decorators, body);
+    });
+
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

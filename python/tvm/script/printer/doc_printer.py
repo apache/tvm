@@ -21,8 +21,7 @@ from .doc import Doc
 
 
 def to_python_script(doc: Doc, indent_spaces: int = 4) -> str:
-    """
-    Convert Doc into Python script.
+    """Convert Doc into Python script.
 
     Parameters
     ----------
@@ -36,4 +35,4 @@ def to_python_script(doc: Doc, indent_spaces: int = 4) -> str:
     script : str
         The text representation of Doc in Python syntax
     """
-    return _ffi_api.DocToPythonScript(doc, indent_spaces)  # type: ignore
+    return _ffi_api.DocToPythonScript(doc, indent_spaces)  # type: ignore # pylint: disable=no-member
