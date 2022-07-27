@@ -177,6 +177,7 @@ def peak_bandwidth_tir(a: T.handle, b: T.handle, blocks: T.int32, warp_size: T.i
                     # `k` loop and setting `k` to the loop extent.
                     B[i, j, l] += A[i, k, l, j]
 
+
 @registry.estimate_peak_bandwidth.register("cuda")
 def estimate_peak_bandwidth(
     target: Target,
