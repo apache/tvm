@@ -724,6 +724,8 @@ class XGBoostCustomCallback:
             from xgboost.training import aggcv  # type: ignore
         except ImportError:
             from xgboost.callback import _aggcv as aggcv  # type: ignore
+        
+        # pylint:enable = import-outside-toplevel
         if not self.state:
             self.init(model)
         booster: xgb.Booster = model
