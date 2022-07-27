@@ -45,17 +45,10 @@ if(NOT USE_PT_TVMDSOOP STREQUAL "OFF")
   message(STATUS "CXX_ABI_ENABLED: ${CXX_ABI_ENABLED} ")
   set_property(
     SOURCE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/contrib/torch/pt_call_tvm/RuntimeModuleWrapperTorch.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/contrib/torch/tvm_module_wrapper/RuntimeModuleWrapperTorch.cc
     APPEND PROPERTY
     COMPILE_OPTIONS
     "-D_GLIBCXX_USE_CXX11_ABI=${CXX_ABI_ENABLED}"
-    "-I${PT_PATH}/include"
-  )
-  set_property(
-    SOURCE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/contrib/torch/pt_call_tvm/tvm_class.cc
-    APPEND PROPERTY
-    COMPILE_OPTIONS
     "-I${PT_PATH}/include"
   )
   set(PT_LINK_FLAGS_STR "-L${PT_PATH}/lib -l:libtorch.so -l:libtorch_python.so")
@@ -69,7 +62,7 @@ if(NOT USE_PT_TVMDSOOP STREQUAL "OFF")
   separate_arguments(PT_LINK_FLAGS UNIX_COMMAND ${PT_LINK_FLAGS_STR})
 
   set(LIBRARY_NAME pt_tvmdsoop)
-  tvm_file_glob(GLOB_RECURSE PTTVM_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/src/contrib/torch/**/*.cc)
+  tvm_file_glob(GLOB_RECURSE PTTVM_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/src/contrib/torch/tvm_module_wrapper/*.cc)
   add_library(${LIBRARY_NAME} SHARED ${PTTVM_SRCS})
   set(PTTVM_LINK_FLAGS -ltvm -L${CMAKE_CURRENT_BINARY_DIR})
 
