@@ -35,15 +35,15 @@ from ..search_strategy import MeasureCandidate
 from ..utils import cpu_count, derived_object, shash2hex
 from .metric import max_curve
 
-try:
-    from xgboost.callback import TrainingCallback  # type: ignore
-except ImportError:
-
-    class TrainingCallback:  # type: ignore
-        pass
-
 
 if TYPE_CHECKING:
+    try:
+        from xgboost.callback import TrainingCallback  # type: ignore
+    except ImportError:
+
+        class TrainingCallback:  # type: ignore
+            pass
+
     import xgboost as xgb  # type: ignore
 
     from ..tune_context import TuneContext
@@ -674,114 +674,8 @@ def custom_callback(
             booster.set_attr(best_iteration=str(state["best_iteration"]))
             booster.set_attr(best_score=str(state["best_score"]))
 
-    def callback(env: "xgb.core.CallbackEnv"):
-        # pylint:disable = import-outside-toplevel
-        import xgboost as xgb
-        from xgboost.callback import _fmt_metric  # type: ignore
-        from xgboost.core import EarlyStopException  # type: ignore
 
-        try:
-            from xgboost.training import aggcv  # type: ignore
-        except ImportError:
-            from xgboost.callback import _aggcv as aggcv  # type: ignore
-        # pylint:enable = import-outside-toplevel
-
-        if not state:
-            init(env)
-        booster: xgb.Booster = env.model
-        iteration: int = env.iteration
-        cvfolds: List[xgb.training.CVPack] = env.cvfolds
-        ##### Evaluation #####
-        # `eval_result` is a list of (key, score)
-        eval_result: List[Tuple[str, float]] = []
-        if cvfolds is None:
-            eval_result = list(
-                itertools_chain.from_iterable(
-                    [
-                        (key, float(value))
-                        for key, value in map(
-                            lambda x: x.split(":"),
-                            booster.eval_set(
-                                evals=evals,
-                                iteration=iteration,
-                                feval=feval,
-                            ).split()[1:],
-                        )
-                    ]
-                    for feval in fevals
-                )
-            )
-        else:
-            eval_result = list(
-                itertools_chain.from_iterable(
-                    [
-                        (key, score)
-                        for key, score, _std in aggcv(
-                            fold.eval(
-                                iteration=iteration,
-                                feval=feval,
-                            )
-                            for fold in cvfolds
-                        )
-                    ]
-                    for feval in fevals
-                )
-            )
-        eval_result = list(eval_result)
-        eval_result.sort(key=sort_key)
-
-        ##### Print eval result #####
-        if verbose_eval and iteration % verbose_eval == 0:
-            info = []
-            for key, score in eval_result:
-                if "null" not in key:
-                    info.append(f"{key}: {score:.6f}")
-            logger.debug("XGB iter %3d: %s", iteration, "\t".join(info))
-
-        ##### Choose score and do early stopping #####
-        score = None
-        for key, _score in eval_result:
-            if key == focused_metric:
-                score = _score
-                break
-        assert score is not None
-
-        best_score = state["best_score"]
-        best_iteration = state["best_iteration"]
-        if score < best_score:
-            tab = "\t"  # to work with f-string
-            msg = f"[{env.iteration}] {tab.join([_fmt_metric(x) for x in eval_result])}"
-            state["best_msg"] = msg
-            state["best_score"] = score
-            state["best_iteration"] = env.iteration
-            # save the property to attributes, so they will occur in checkpoint.
-            if env.model is not None:
-                env.model.set_attr(
-                    best_score=str(state["best_score"]),
-                    best_iteration=str(state["best_iteration"]),
-                    best_msg=state["best_msg"],
-                )
-        elif env.iteration - best_iteration >= early_stopping_rounds:
-            best_msg = state["best_msg"]
-            if verbose_eval and env.rank == 0:
-                logger.debug("XGB stopped. Best iteration: %s ", best_msg)
-            raise EarlyStopException(best_iteration)
-
-    return callback
-
-
-class XGBoostCallback(TrainingCallback):
-    """Base class for XGBoost callbacks."""
-
-    def __call__(self, env: "xgb.core.CallbackEnv"):
-        # Compatibility with xgboost < 1.3
-        return self.after_iteration(env.model, env.iteration, env.evaluation_result_list)
-
-    def after_iteration(self, model: "xgb.Booster", epoch: int, evals_log: Dict):
-        raise NotImplementedError
-
-
-class XGBoostCustomCallback(XGBoostCallback):
+class XGBoostCustomCallback(TrainingCallback):
     """Custom callback class for xgboost to support multiple custom evaluation functions"""
 
     def __init__(
@@ -803,6 +697,10 @@ class XGBoostCustomCallback(XGBoostCallback):
         self.cvfolds = cvfolds
         if cvfolds is not None:
             self.aggregated_cv = None
+
+    def __call__(self, env: "xgb.core.CallbackEnv"):
+        # Compatibility with xgboost < 1.3
+        return self.after_iteration(env.model, env.iteration, env.evaluation_result_list)
 
     def init(self, model: "xgb.Booster"):
         """Internal function for intialization"""
