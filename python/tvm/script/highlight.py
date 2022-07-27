@@ -20,7 +20,7 @@
 from typing import Union
 
 from pygments import highlight
-from pygments.lexers import Python3Lexer
+from pygments.lexers.python import Python3Lexer
 from pygments.formatters import Terminal256Formatter
 from pygments.style import Style
 from pygments.token import Keyword, Name, Comment, String, Number, Operator
