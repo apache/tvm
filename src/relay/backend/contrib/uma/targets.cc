@@ -63,24 +63,15 @@ TVM_REGISTER_GLOBAL("relay.backend.contrib.uma.RegisterTarget")
               .set_attr<FTVMTIRToRuntime>("TIRToRuntime", relay::contrib::uma::TIRToRuntime);
 
       for (auto& attr_option : attr_options) {
-        try {
-          target_kind.add_attr_option<String>(attr_option.first,
-                                              Downcast<String>(attr_option.second));
-          continue;
-        } catch (...) {
-        }
-        try {
-          target_kind.add_attr_option<Bool>(attr_option.first, Downcast<Bool>(attr_option.second));
-          continue;
-        } catch (...) {
-        }
-        try {
-          target_kind.add_attr_option<Integer>(attr_option.first,
-                                               Downcast<Integer>(attr_option.second));
-          continue;
-        } catch (...) {
+        auto option_name = attr_option.first;
+        auto default_value = attr_option.second;
+        if (default_value->IsInstance<StringObj>()) {
+          target_kind.add_attr_option<String>(option_name, Downcast<String>(default_value));
+        }else if(default_value->IsInstance<IntImmNode>()) {
+          target_kind.add_attr_option<Integer>(option_name, Downcast<Integer>(default_value));
+        } else {
           LOG(FATAL) << "Attribute option of type " << attr_option.second->GetTypeKey()
-                     << " can not be added. Only String, Integer, or Bool are supported.";
+                     << " can not be added. Only String, Integer, or Bool are supported."; 
         }
       }
       return true;
