@@ -55,7 +55,7 @@ TEST(OpenCLTimerNode, nested_timers) {
   }
   init_timer->Stop();
 
-  free(tmp_buf);
+  delete[] tmp_buf;
   int64_t elapsed = init_timer->SyncAndGetElapsedNanos();
   CHECK_EQ(elapsed, nested_time_sum);
 }
