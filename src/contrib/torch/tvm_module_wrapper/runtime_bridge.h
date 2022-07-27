@@ -37,7 +37,7 @@ struct TVMContribTorchRuntimeModule;
 TVMContribTorchRuntimeModule* tvm_contrib_torch_get_last_saved_runtime_module();
 
 void tvm_contrib_torch_operator_module_forward(TVMContribTorchRuntimeModule* runtime_module,
-                                               TensorList inputs, size_t input_size);
+                                               DLPackTensorExt* inputs, size_t input_size);
 
 int64_t tvm_contrib_torch_graph_executor_module_forward(TVMContribTorchRuntimeModule* graph_module,
                                                         TensorList inputs, size_t input_size,
@@ -47,7 +47,7 @@ char* tvm_contrib_torch_encode(TVMContribTorchRuntimeModule* runtime_module);
 
 TVMContribTorchRuntimeModule* tvm_contrib_torch_decode(const char* state);
 
-void tvm_contrib_torch_delete_raw_pointer(void* ptr);
+void tvm_contrib_torch_delete_raw_pointer(TensorList* ptr);
 }
 
 #endif  // TVM_CONTRIB_TORCH_RUNTIME_BRIDGE_H_

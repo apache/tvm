@@ -27,9 +27,9 @@
 namespace tvm {
 namespace contrib {
 
-DLPackTensorExt toDlPackExt(const at::Tensor& src) {
+DLPackTensorExt toDLPackExt(const at::Tensor& src) {
   if (!src.is_contiguous()) {
-    return toDlPackExt(src.contiguous());
+    return toDLPackExt(src.contiguous());
   }
 
   if (src.dtype().isScalarType(torch::kBool)) {
@@ -52,16 +52,16 @@ class OperatorModuleWrapper : public torch::jit::CustomClassHolder {
   void forward(const c10::List<at::Tensor>& inputs) {
     int input_length = inputs.size();
 
-    std::vector<DLManagedTensor*> tensors;
+    std::vector<DLPackTensorExt> tensors;
 
-    for (int i = 0; i < input_length; ++i) tensors.push_back(toDLPack(inputs[i]));
+    for (int i = 0; i < input_length; ++i) tensors.push_back(toDLPackExt(inputs[i]));
 
     tvm_contrib_torch_operator_module_forward(
-        this->runtime_module, static_cast<TensorList>(tensors.data()), tensors.size());
+        this->runtime_module, static_cast<DLPackTensorExt*>(tensors.data()), tensors.size());
 
-    for (int k = 0; k < input_length; ++k) {
-      tensors[k]->deleter(tensors[k]);
-    }
+    // for (int k = 0; k < input_length; ++k) {
+    //   tensors[k]->deleter(tensors[k]);
+    // }
   }
 
   std::string Serialize() { return std::string(tvm_contrib_torch_encode(runtime_module)); }
@@ -118,7 +118,7 @@ class GraphExecutorFactoryWrapper : public torch::jit::CustomClassHolder {
       tensors[k]->deleter(tensors[k]);
     }
 
-    tvm_contrib_torch_delete_raw_pointer(static_cast<void*>(outputs));
+    tvm_contrib_torch_delete_raw_pointer(outputs);
 
     return ret;
   }

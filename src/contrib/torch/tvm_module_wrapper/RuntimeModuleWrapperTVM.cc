@@ -101,6 +101,7 @@ tvm::runtime::NDArray NDArrayFromDlPackExt(DLPackTensorExt dlpack_ext) {
     array = NDArray::FromDLPack(dlpack_ext.dl_managed_tensor);
   } else {
     // Copy if data pointer isn't aligned to the kAllocAlignment of TVM
+    LOG(INFO) << "ndim: " << dl_tensor.ndim;
     array = NDArray::NewFromDLTensor(&dl_tensor, dl_tensor.device);
     dlpack_ext.dl_managed_tensor->deleter(dlpack_ext.dl_managed_tensor);
   }
@@ -129,17 +130,20 @@ TVMContribTorchRuntimeModule* tvm_contrib_torch_get_last_saved_runtime_module() 
 }
 
 void tvm_contrib_torch_operator_module_forward(TVMContribTorchRuntimeModule* runtime_module,
-                                               TensorList inputs, size_t input_size) {
+                                               DLPackTensorExt* inputs, size_t input_size) {
   tvm::runtime::PackedFunc run = runtime_module->mod.GetFunction("__tvm_main__");
 
   std::vector<TVMValue> tvm_values(input_size);
   std::vector<int> tvm_type_codes(input_size);
   tvm::runtime::TVMArgsSetter setter(tvm_values.data(), tvm_type_codes.data());
   for (int k = 0; k < input_size; ++k) {
-    // auto datum = tvm::contrib::NDArrayFromDlPackExt(inputs[k]);
-    setter(k, &inputs[k]->dl_tensor);
+    auto datum = tvm::contrib::NDArrayFromDlPackExt(inputs[k]);
+    LOG(INFO) << "shape: " << datum.Shape();
+    setter(k, datum);
   }
-
+  for (int k = 0; k < input_size; ++k) {
+    LOG(INFO) << tvm_type_codes[k];
+  }
   run.CallPacked(tvm::runtime::TVMArgs(tvm_values.data(), tvm_type_codes.data(), input_size),
                  nullptr);
 }
@@ -192,5 +196,5 @@ TVMContribTorchRuntimeModule* tvm_contrib_torch_decode(const char* state) {
   return new TVMContribTorchRuntimeModule(ret);
 }
 
-void tvm_contrib_torch_delete_raw_pointer(void* ptr) { delete ptr; }
+void tvm_contrib_torch_delete_raw_pointer(TensorList* ptr) { delete ptr; }
 }
