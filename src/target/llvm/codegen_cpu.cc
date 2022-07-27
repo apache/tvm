@@ -637,7 +637,10 @@ CodeGenLLVM::TypedPointer CodeGenCPU::PackClosureData(const Array<Var>& vfields,
   }
   llvm::StructType* ctype = struct_name.size() ? llvm::StructType::create(fields, struct_name)
                                                : llvm::StructType::create(fields);
+  auto cur_pt = builder_->GetInsertBlock();
+  builder_->SetInsertPoint(&(*(function_->getEntryBlock().getFirstInsertionPt())));
   llvm::Value* cvalue = builder_->CreateAlloca(ctype, ConstInt32(1));
+  builder_->SetInsertPoint(cur_pt);
   llvm::Value* zero = ConstInt32(0);
   for (size_t i = 0; i < vfields.size(); ++i) {
     builder_->CreateStore(var_map_.at(vfields[i].get()),
