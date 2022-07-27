@@ -28,6 +28,7 @@ from contextlib import ExitStack
 import tempfile
 
 import tvm
+from tvm.relay.op.contrib import cmsisnn
 
 
 def tune_model(
@@ -94,6 +95,15 @@ def create_aot_session(
     executor = tvm.relay.backend.Executor("aot")
     crt_runtime = tvm.relay.backend.Runtime("crt", {"system-lib": True})
 
+    if use_cmsis_nn:
+        with tvm.transform.PassContext(
+            config={
+                "tir.disable_vectorize": True,
+                "relay.ext.cmsisnn.options": {"mcpu": target.mcpu},
+            }
+        ):
+            mod = cmsisnn.partition_for_cmsisnn(mod, params, mcpu=target.mcpu)
+
     with ExitStack() as stack:
         config = {"tir.disable_vectorize": True}
         if use_cmsis_nn:
@@ -153,4 +163,4 @@ def evaluate_model_accuracy(session, aot_executor, input_data, true_labels, runs
     num_correct = sum(u == v for u, v in zip(true_labels, predicted_labels))
     average_time = sum(aot_runtimes) / len(aot_runtimes)
     accuracy = num_correct / len(predicted_labels)
-    return average_time, accuracy
+    return average_time, accuracy, predicted_labels

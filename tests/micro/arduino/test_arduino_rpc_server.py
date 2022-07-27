@@ -37,11 +37,6 @@ from tvm.relay.backend import Executor, Runtime
 
 import test_utils
 
-# # A new project and workspace dir is created for EVERY test
-@pytest.fixture
-def workspace_dir(board):
-    return test_utils.make_workspace_dir("arduino_rpc_server", board)
-
 
 def _make_session(model, arduino_board, arduino_cli_cmd, workspace_dir, mod, build_config):
     project = tvm.micro.generate_project(

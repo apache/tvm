@@ -24,22 +24,22 @@ source tests/scripts/setup-pytest-env.sh
 make cython3
 
 # Zephyr
-run_pytest ctypes python-microtvm-zephyr-qemu_x86 tests/micro/zephyr --zephyr-board=qemu_x86
-run_pytest ctypes python-microtvm-zephyr-qemu_riscv32 tests/micro/zephyr --zephyr-board=qemu_riscv32
-run_pytest ctypes python-microtvm-zephyr-qemu_riscv64 tests/micro/zephyr --zephyr-board=qemu_riscv64
-run_pytest ctypes python-microtvm-zephyr-mps2_an521 tests/micro/zephyr --zephyr-board=mps2_an521
+run_pytest ctypes python-microtvm-zephyr-qemu_x86 tests/micro/zephyr --board=qemu_x86
+run_pytest ctypes python-microtvm-zephyr-qemu_riscv32 tests/micro/zephyr --board=qemu_riscv32
+run_pytest ctypes python-microtvm-zephyr-qemu_riscv64 tests/micro/zephyr --board=qemu_riscv64
+run_pytest ctypes python-microtvm-zephyr-mps2_an521 tests/micro/zephyr --board=mps2_an521
 
 # Arduino
 run_pytest ctypes python-microtvm-arduino apps/microtvm/arduino/template_project/tests
-run_pytest ctypes python-microtvm-arduino-nano33ble tests/micro/arduino  --test-build-only --arduino-board=nano33ble
-run_pytest ctypes python-microtvm-arduino-due tests/micro/arduino  --test-build-only --arduino-board=due
+run_pytest ctypes python-microtvm-arduino-nano33ble tests/micro/arduino --board=nano33ble --test-build-only
+run_pytest ctypes python-microtvm-arduino-due tests/micro/arduino --board=due --test-build-only
 
 # STM32
 run_pytest ctypes python-microtvm-stm32 tests/micro/stm32
 
 # Common Tests
 run_pytest ctypes python-microtvm-common-qemu_x86 tests/micro/common --platform=zephyr --board=qemu_x86
-run_pytest ctypes python-microtvm-common-due tests/micro/common  --platform=arduino --test-build-only --board=due
+run_pytest ctypes python-microtvm-common-due tests/micro/common --platform=arduino --board=due --test-build-only
 
 # Tutorials
 python3 gallery/how_to/work_with_microtvm/micro_tflite.py

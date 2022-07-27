@@ -37,20 +37,8 @@ This unit test simulates a simple user workflow, where we:
 """
 
 
-# Since these tests are sequential, we'll use the same project/workspace
-# directory for all tests in this file
-@pytest.fixture(scope="module")
-def workspace_dir(request, board):
-    return test_utils.make_workspace_dir("arduino_workflow", board)
-
-
-@pytest.fixture(scope="module")
-def project_dir(workspace_dir):
-    return workspace_dir / "project"
-
-
 # We MUST pass workspace_dir, not project_dir, or the workspace will be dereferenced too soon
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def project(board, arduino_cli_cmd, tvm_debug, workspace_dir):
     return test_utils.make_kws_project(board, arduino_cli_cmd, tvm_debug, workspace_dir)
 
@@ -108,7 +96,7 @@ def test_import_rerouting(project_dir, project):
 # Build on top of the generated project by replacing the
 # top-level .ino fileand adding data input files, much
 # like a user would
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def modified_project(project_dir, project):
     this_dir = pathlib.Path(__file__).parent
     kws_testdata_dir = this_dir.parent / "testdata" / "kws"
@@ -124,7 +112,7 @@ def modified_project(project_dir, project):
     return project
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def compiled_project(modified_project):
     modified_project.build()
     return modified_project
@@ -142,7 +130,7 @@ If we're not running on real hardware, no further tests are run
 ------------------------------------------------------------"""
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def uploaded_project(compiled_project):
     compiled_project.flash()
     return compiled_project
@@ -159,7 +147,7 @@ unknown,56792,-128,-125,-128,125,
 SERIAL_OUTPUT_HEADERS = "category,runtime,yes,no,silence,unknown"
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def serial_output(uploaded_project):
     transport = uploaded_project.transport()
     transport.open()
