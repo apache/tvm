@@ -318,31 +318,6 @@ class PyTorchOpConverter:
         (dtype,) = input_types
         return _op.power(inputs[0], _expr.const(2, dtype))
 
-    def tril(self, inputs, input_types):
-        data = inputs[0]
-        if len(inputs) == 2:
-            k_value = inputs[1]
-        else:
-            k_value = 0
-        input_shape = self.infer_shape(data)
-        k1, k2 = input_shape[-2:]
-        k1 = k_value + 1
-        diag_input = _op.zeros(input_shape, dtype=input_types[0])
-        return _op.matrix_set_diag(data, diag_input, k=(k1, k2))
-
-    def triu(self, inputs, input_types):
-        data = inputs[0]
-        if len(inputs) == 2:
-            k_value = inputs[1]
-        else:
-            k_value = 0
-        input_shape = self.infer_shape(data)
-        k1, k2 = input_shape[-2:]
-        k1 = (k1 * -1) - 1
-        k2 = k_value - 1
-        diag_input = _op.zeros(input_shape, dtype=input_types[0])
-        return _op.matrix_set_diag(data, diag_input, k=(k1, k2))
-
     def lerp(self, inputs, input_types):
         if len(inputs) != 3:
             msg = "Wrong number of arguments (%d) to parse." % (len(inputs))
@@ -3573,8 +3548,8 @@ class PyTorchOpConverter:
             "aten::sqrt": self.make_unary("sqrt"),
             "aten::rsqrt": self.make_unary("rsqrt"),
             "aten::square": self.square,
-            "aten::tril": self.tril,
-            "aten::triu": self.triu,
+            "aten::tril": functools.partial(self.trilu, mode="tril"),
+            "aten::triu": functools.partial(self.trilu, mode="triu"),
             "aten::ceil": self.make_unary("ceil"),
             "aten::floor": self.make_unary("floor"),
             "aten::round": self.make_unary("round"),
@@ -3667,8 +3642,6 @@ class PyTorchOpConverter:
             "aten::dot": self.dot,
             "aten::mv": self.mv,
             "aten::grid_sampler": self.grid_sampler,
-            "aten::triu": functools.partial(self.trilu, mode="triu"),
-            "aten::tril": functools.partial(self.trilu, mode="tril"),
             "aten::__ior__": self.make_elemwise("bitwise_or"),
             "aten::__iand__": self.make_elemwise("bitwise_and"),
             "aten::__ixor__": self.make_elemwise("bitwise_xor"),
