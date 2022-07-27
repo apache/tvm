@@ -118,7 +118,7 @@ class GraphExecutorFactoryWrapper : public torch::jit::CustomClassHolder {
       tensors[k]->deleter(tensors[k]);
     }
 
-    delete outputs;
+    tvm_contrib_torch_delete_raw_pointer(static_cast<void*>(outputs));
 
     return ret;
   }

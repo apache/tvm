@@ -46,6 +46,8 @@ int64_t tvm_contrib_torch_graph_executor_module_forward(TVMContribTorchRuntimeMo
 char* tvm_contrib_torch_encode(TVMContribTorchRuntimeModule* runtime_module);
 
 TVMContribTorchRuntimeModule* tvm_contrib_torch_decode(const char* state);
+
+void tvm_contrib_torch_delete_raw_pointer(void* ptr);
 }
 
 #endif  // TVM_CONTRIB_TORCH_RUNTIME_BRIDGE_H_
