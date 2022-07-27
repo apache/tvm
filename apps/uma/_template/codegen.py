@@ -26,7 +26,3 @@ def gen_includes() -> str:
     includes = ""
     includes += f'#include "{topdir}/conv2dnchw.cc"'
     return includes
-
-
-def gen_replace_call_extern(args: tvm.ir.container.Array) -> str:
-    return "my_custom_api_function({}, {}, {})".format(*args)

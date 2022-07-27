@@ -17,7 +17,7 @@
 from tvm.micro.testing.aot_test_utils import AOT_DEFAULT_RUNNER
 import tvm
 from tvm import relay
-from tvm.relay.backend.contrib.uma._template.backend import MyAiHwBackend
+from backend import MyAiHwBackend
 from tvm.relay import transform
 from collections import OrderedDict
 import numpy as np

@@ -46,10 +46,10 @@ import tvm
 from tvm.relay.backend.contrib.uma.backend import UMABackend
 from tvm.relay.dataflow_pattern import is_op, wildcard
 from tvm.relay.backend.contrib.uma.api.utils import PassPhase
-from tvm.relay.backend.contrib.uma._template.passes import (
+from apps.uma._template.passes import (
     MyAiHwConv2dPass as VanillaAcceleratorConv2DPass,
 )
-from tvm.relay.backend.contrib.uma._template.codegen import gen_includes
+from apps.uma._template.codegen import gen_includes
 
 
 ######################################################################
@@ -179,7 +179,7 @@ def conv2d_pattern():
 # making use of Vanilla's C-API.
 #
 # Excerpt from vanilla_accelerator/run.py:
-from tvm.relay.backend.contrib.uma._template.run import create_conv2d
+from apps.uma._template.run import create_conv2d
 from tvm.testing.aot import AOTTestModel as AOTModel, compile_and_run
 
 

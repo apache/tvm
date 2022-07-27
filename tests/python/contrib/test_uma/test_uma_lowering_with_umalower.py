@@ -20,7 +20,7 @@ import pathlib
 import tvm
 from tests.python.contrib.test_uma.test_uma_utils import _create_schedule, _generate_io_arrays
 from tvm import topi
-from tvm.relay.backend.contrib.uma._template.passes import MyAiHwConv2dPass
+from apps.uma._template.passes import MyAiHwConv2dPass
 import tvm.testing
 from tvm import te
 from tvm.relay.backend.contrib.uma.api.lower import UMALower
@@ -50,8 +50,8 @@ def _conv2d_te_definition(shapes: dict) -> list:
 def _pepare_conv2d_schedule(shapes, use_external_conv2d_impl=True):
     placeholders = _conv2d_te_definition(shapes)
 
-    uma_path = pathlib.Path(str(tvm.relay.backend.contrib.uma.__file__)).parent.absolute()
-    conv2d_file = uma_path / "_template" / "conv2dnchw.cc"
+    apps_path = pathlib.Path(str(__file__)).parent.parent.parent.parent.parent.joinpath("apps").absolute()
+    conv2d_file = apps_path / "uma" / "_template" / "conv2dnchw.cc"
 
     with conv2d_file.open() as f:
         sch_tir = _create_schedule(

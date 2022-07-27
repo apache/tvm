@@ -17,17 +17,14 @@
 """UMA testcase for the vanilla_accelerator accelerator"""
 import pytest
 
-import tvm
-from tvm import tir
-from tvm.relay.dataflow_pattern import is_op, wildcard
 from tvm.relay.backend.contrib.uma.api.utils import PassPhase
 from tvm.relay.backend.contrib.uma.backend import UMABackend
-from tvm.relay.backend.contrib.uma._template.passes import (
+from apps.uma._template.passes import (
     MyAiHwConv2dPass as VanillaAcceleratorConv2dPass,
 )
-from tvm.relay.backend.contrib.uma._template.codegen import gen_includes
+from apps.uma._template.codegen import gen_includes
 
-from tvm.relay.backend.contrib.uma._template.patterns import conv2d_pattern
+from apps.uma._template.patterns import conv2d_pattern
 from tvm.relay.backend.contrib.uma import uma_available
 
 pytestmark = pytest.mark.skipif(not uma_available(), reason="UMA not available")

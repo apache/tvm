@@ -15,11 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """UMA backend for the my_ai_hw accelerator"""
-from .passes import MyAiHwConv2dPass
-from ..api.utils import PassPhase
-from ..backend import UMABackend
-from .codegen import gen_includes
-from .patterns import conv2d_pattern
+from passes import MyAiHwConv2dPass
+from tvm.relay.backend.contrib.uma.api.utils import PassPhase
+from tvm.relay.backend.contrib.uma.backend import UMABackend
+from codegen import gen_includes
+from patterns import conv2d_pattern
 
 
 class MyAiHwBackend(UMABackend):

@@ -28,7 +28,6 @@ import shutil
 import sys
 import pathlib
 from inflection import camelize, underscore
-import tvm.relay.backend.contrib.uma._template.backend as template_backend
 
 
 def _parse_args():
@@ -68,7 +67,7 @@ def main():
     """
     args = _parse_args()
     add_hw_name = args.add_hardware
-    uma_template_path = pathlib.Path(template_backend.__file__).parent.absolute()
+    uma_template_path = pathlib.Path(os.getcwd(), "_template").absolute()
 
     add_hw_path = os.path.join(uma_template_path.parent, add_hw_name)
     if os.path.exists(add_hw_path):
