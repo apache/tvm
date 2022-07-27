@@ -50,7 +50,9 @@ def _conv2d_te_definition(shapes: dict) -> list:
 def _pepare_conv2d_schedule(shapes, use_external_conv2d_impl=True):
     placeholders = _conv2d_te_definition(shapes)
 
-    apps_path = pathlib.Path(str(__file__)).parent.parent.parent.parent.parent.joinpath("apps").absolute()
+    apps_path = (
+        pathlib.Path(str(__file__)).parent.parent.parent.parent.parent.joinpath("apps").absolute()
+    )
     conv2d_file = apps_path / "uma" / "_template" / "conv2dnchw.cc"
 
     with conv2d_file.open() as f:

@@ -23,7 +23,6 @@ from tvm.relay.backend.contrib.uma.api.utils import add_llvm_to_block
 
 @tvm.tir.transform.prim_func_pass(opt_level=2)
 class MyAiHwConv2dPass:
-
     def transform_function(
         self, func: tvm.tir.PrimFunc, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
     ) -> tvm.tir.PrimFunc:
