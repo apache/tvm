@@ -446,6 +446,7 @@ def test_conv2d_vgg16_winograd_4d():
     assert len(matches) > 0
 
 
+@tvm.testing.requires_opencl
 def test_conv2d_winograd_conv():
     target = "opencl --device=adreno"
     dtype = "float16"
