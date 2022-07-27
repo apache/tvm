@@ -163,7 +163,7 @@ SERIAL_OUTPUT_HEADERS = "category,runtime,yes,no,silence,unknown"
 def serial_output(uploaded_project):
     transport = uploaded_project.transport()
     transport.open()
-    out = transport.read(2048, -1)
+    out = transport.read(2048, 60)
     out_str = out.decode("utf-8")
     out_lines = out_str.split("\r\n")
 

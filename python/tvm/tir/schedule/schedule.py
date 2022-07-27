@@ -2071,8 +2071,6 @@ class Schedule(Object):
                         vk = T.axis.reduce(128, k_0 * 16 + k_1)
                         T.reads(C[vi, vj], A[vi, vk], B[vj, vk])
                         T.writes(C[vi, vj])
-                        with T.init():
-                            C[vi, vj] = T.float32(0)
                         C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
         Declare and register the tensor intrinsic:
@@ -2168,13 +2166,6 @@ class Schedule(Object):
                             dtype="float32",
                             offset_factor=1,
                         )
-                        with T.init():
-                            for i_1, j_1 in T.grid(16, 16):
-                                with T.block("update_init"):
-                                    vi_init, vj_init = T.axis.remap("SS", [i_1, j_1])
-                                    T.reads()
-                                    T.writes(C[vio * 16 + vi_init, vjo * 16 + vj_init])
-                                    C[vio * 16 + vi_init, vjo * 16 + vj_init] = T.float32(0)
                         T.evaluate(
                             T.tvm_mma_sync(
                                 C_1.data,
@@ -2328,10 +2319,10 @@ class Schedule(Object):
         self, block: BlockRV, buffer: Union[Tuple[str, int], str, Buffer]
     ) -> Tuple[str, int, Buffer]:
 
-        block_name = self.get(block).name_hint
+        block_obj: Block = self.get(block)
+        block_name = block_obj.name_hint
 
         def iter_buffers():
-            block_obj = self.get(block)
             for i, read in enumerate(block_obj.reads):
                 yield "read", i, read.buffer
             for i, write in enumerate(block_obj.writes):
@@ -2367,9 +2358,7 @@ class Schedule(Object):
                 f"Expected 'read' or 'write', "
                 f"but received {buffer_index_type}"
             )
-            buffer_list = (
-                self.get(block).reads if buffer_index_type == "read" else self.get(block).writes
-            )
+            buffer_list = block_obj.reads if buffer_index_type == "read" else block_obj.writes
             assert 0 <= buffer_index < len(buffer_list), (
                 f"Invalid buffer_index {buffer_index}.  "
                 f"Block {block_name} has only "
@@ -2649,6 +2638,84 @@ class Schedule(Object):
         _ffi_api.ScheduleSetAxisSeparator(  # type: ignore # pylint: disable=no-member
             self, block, buffer_index, buffer_index_type_enum, axis_separators
         )
+
+    ########## Schedule: Padding decomposition #########
+    @type_checked
+    def decompose_padding(self, block: Union[BlockRV, str], loop: LoopRV) -> BlockRV:
+        """Decompose a block of padding computation pattern into two separate blocks.
+
+        a) The block which fill const pad values into full write region;
+
+        b) The block which fill in-bound values into region where pad predicate is true.
+
+        The pad value filling block is inserted right before the given loop.
+
+        The schedule primitive requires:
+
+        1) The input block is a complete block.
+
+        2) The input loop is the ancestor of the block.
+
+        3) The input block is a block which match padding pattern.
+
+        Parameters
+        ----------
+        block : Union[BlockRV, str]
+            The padding block to be decomposed.
+        loop : LoopRV
+            The loop above which the pad value filling block is inserted before.
+
+        Returns
+        -------
+        pad_value_block : BlockRV
+            The block filling const pad values.
+
+        Examples
+        --------
+        Before decompose-padding, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_decompose(x: T.Buffer[128, "int32"], y: T.Buffer[140, "int32"]):
+                for i in range(140):
+                    with T.block("block"):
+                        vi = T.axis.remap("S", [i])
+                        y[vi] = T.if_then_else(vi >= 6 and vi < 134, x[vi - 6], 0, dtype="int32")
+
+        Create the schedule and do decompose-padding with specified loop:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_decompose, debug_mask="all")
+            block = sch.get_block("block")
+            sch.decompose_padding(block, sch.get_loops(block)[0])
+            print(sch.mod["main].script())
+
+        After applying decompose-padding, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_decompose(x: T.Buffer[128, "int32"], y: T.Buffer[140, "int32"]):
+                for i in T.serial(140):
+                    with T.block("block_pad_const"):
+                        vi = T.axis.spatial(140, i)
+                        y[vi] = 0
+                for i in T.serial(128):
+                    with T.block("block"):
+                        vi = T.axis.spatial(128, i)
+                        y[vi + 6] = x[vi]
+        """
+        block = self._normalize_block_arg(block)
+        return _ffi_api.ScheduleDecomposePadding(  # type: ignore # pylint: disable=no-member
+            self, block, loop
+        )
+
+    @type_checked
+    def can_decompose_padding(self, block: Union[BlockRV, str], loop: LoopRV) -> bool:
+        """Check whether the block match padding pattern and can be decomposed."""
+        return _ffi_api.CanDecomposePadding(self, block, loop)  # type: ignore # pylint: disable=no-member
 
     ########## Schedule: Misc ##########
 

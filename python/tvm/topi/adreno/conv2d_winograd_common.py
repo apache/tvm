@@ -427,11 +427,20 @@ def schedule_conv2d_winograd(cfg, s, output, pre_computed):
     cfg.define_split(
         "tile_y", y, num_outputs=3, filter=lambda entry: entry.size[2] <= 64 and entry.size[1] <= 16
     )
+
+    min_x_div = 1
+    for bn in range(4, 0, -1):
+        if bgemm.shape[3] % bn == 0:
+            min_x_div = bn
+            break
+
     cfg.define_split(
         "tile_x",
         x,
         num_outputs=3,
-        filter=lambda entry: entry.size[2] <= 64 and entry.size[1] >= 4 and entry.size[1] <= 16,
+        filter=lambda entry: entry.size[2] <= 64
+        and entry.size[1] >= min_x_div
+        and entry.size[1] <= 16,
     )
     cfg.define_split("tile_rc", rcc, num_outputs=2)
     # TODO: Uncomment the following lines when multi_filter will be introduced

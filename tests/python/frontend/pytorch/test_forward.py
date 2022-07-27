@@ -1367,6 +1367,18 @@ def test_forward_transpose():
 
 
 @tvm.testing.uses_gpu
+def test_forward_numpy_T():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+
+    def test_fn(x):
+        return x.T
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(test_fn, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_size():
     torch.set_grad_enabled(False)
     input_shape = [1, 3]

@@ -26,6 +26,7 @@ import tvm
 from tvm import autotvm, auto_scheduler
 from tvm import relay
 from tvm.driver.tvmc.registry import generate_registry_args, reconstruct_registry_entity
+from tvm.ir.memory_pools import WorkspaceMemoryPools
 from tvm.target import Target
 from tvm.relay.backend import Executor, Runtime
 
@@ -37,6 +38,7 @@ from .pass_config import parse_configs
 from .pass_list import parse_pass_list_str
 from .transform import convert_graph_layout
 from .shape_parser import parse_shape_string
+from .workspace_pools import generate_workspace_pools_args, workspace_pools_recombobulate
 
 # pylint: disable=invalid-name
 logger = logging.getLogger("TVMC")
@@ -142,9 +144,10 @@ def add_compile_parser(subparsers, _, json_params):
         default="default",
         help="The output module name. Defaults to 'default'.",
     )
-
     for one_entry in json_params:
         parser.set_defaults(**one_entry)
+
+    generate_workspace_pools_args(parser)
 
 
 def drive_compile(args):
@@ -161,6 +164,7 @@ def drive_compile(args):
         Zero if successfully completed
 
     """
+
     if not os.path.isfile(args.FILE):
         raise TVMCException(
             f"Input file '{args.FILE}' doesn't exist, is a broken symbolic link, or a directory."
@@ -169,6 +173,9 @@ def drive_compile(args):
     tvmc_model = frontends.load_model(args.FILE, args.model_format, args.input_shapes)
 
     dump_code = [x.strip() for x in args.dump_code.split(",")] if args.dump_code else None
+
+    additional_targets = reconstruct_target_args(args)
+    workspace_pools_target, extra_targets = target_from_cli(args.target, additional_targets)
 
     compile_model(
         tvmc_model,
@@ -186,8 +193,11 @@ def drive_compile(args):
         desired_layout=args.desired_layout,
         disabled_pass=args.disabled_pass,
         pass_context_configs=args.pass_config,
-        additional_target_options=reconstruct_target_args(args),
         mod_name=args.module_name,
+        additional_target_options=additional_targets,
+        workspace_pools=(
+            workspace_pools_recombobulate(args, [workspace_pools_target], extra_targets)
+        ),
     )
 
     return 0
@@ -212,6 +222,7 @@ def compile_model(
     additional_target_options: Optional[Dict[str, Dict[str, Any]]] = None,
     use_vm: bool = False,
     mod_name: Optional[str] = "default",
+    workspace_pools: Optional[WorkspaceMemoryPools] = None,
 ):
     """Compile a model from a supported framework into a TVM module.
 
@@ -263,6 +274,9 @@ def compile_model(
         Whether to use the VM to compile the model as opposed to the graph executor
     mod_name: str, optional
         The module name
+    workspace_pools: WorkspaceMemoryPools, optional
+        Specification of WorkspacePoolInfo objects to be used as workspace memory in the
+        compilation.
 
     Returns
     -------
@@ -313,6 +327,7 @@ def compile_model(
                         params=params,
                         use_vm=use_vm,
                         mod_name=mod_name,
+                        workspace_pools=workspace_pools,
                     )
         else:
             with autotvm.apply_history_best(tuning_records):
@@ -328,6 +343,7 @@ def compile_model(
                         params=params,
                         use_vm=use_vm,
                         mod_name=mod_name,
+                        workspace_pools=workspace_pools,
                     )
     else:
         with tvm.transform.PassContext(
@@ -342,6 +358,7 @@ def compile_model(
                 params=params,
                 use_vm=use_vm,
                 mod_name=mod_name,
+                workspace_pools=workspace_pools,
             )
 
     # Generate output dump files with sources
@@ -380,6 +397,7 @@ def build(
     params: Dict[str, tvm.nd.NDArray],
     use_vm: bool,
     mod_name: str,
+    workspace_pools: Optional[WorkspaceMemoryPools],
 ):
     """
     Builds the model with the provided executor.
@@ -408,7 +426,13 @@ def build(
         return relay.vm.compile(mod, target=tvm_target, params=params)
     logger.debug("building with relay build")
     return relay.build(
-        mod, target=tvm_target, executor=executor, runtime=runtime, params=params, mod_name=mod_name
+        mod,
+        target=tvm_target,
+        executor=executor,
+        runtime=runtime,
+        params=params,
+        mod_name=mod_name,
+        workspace_memory_pools=workspace_pools,
     )
 
 

@@ -1236,7 +1236,12 @@ Doc TVMScriptPrinter::VisitStmt_(const WhileNode* op) {
 
 Doc TVMScriptPrinter::VisitType_(const PrimTypeNode* node) {
   Doc doc;
-  doc << tir_prefix_ << "." << runtime::DLDataType2String(node->dtype);
+  doc << tir_prefix_ << ".";
+  if (node->dtype.is_void()) {
+    doc << "void";
+  } else {
+    doc << runtime::DLDataType2String(node->dtype);
+  }
   return doc;
 }
 

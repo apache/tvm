@@ -89,6 +89,7 @@ _register_external_op_helper("nn.conv3d_transpose")
 _register_external_op_helper("nn.dense")
 _register_external_op_helper("nn.max_pool2d")
 _register_external_op_helper("nn.avg_pool2d")
+_register_external_op_helper("nn.global_avg_pool2d")
 _register_external_op_helper("nn.max_pool3d")
 _register_external_op_helper("nn.avg_pool3d")
 _register_external_op_helper("abs")
@@ -459,6 +460,18 @@ def tag2layout(input_data, is_weight=False, conv_type="Conv1D"):
     return res
 
 
+def legalize_pad_avg_pool(attrs, inputs, types):
+    """Legalize pad->avg_pool2d pattern.
+    Fuse this pattern into one avg_pool2d with padding = (1, 1),
+    and count_include_pad = True"""
+    data = inputs[0]
+    new_attrs = dict(attrs)
+    if isinstance(data, relay.expr.Call) and data.op.name == "nn.pad":
+        new_attrs["padding"] = (1, 1)
+        new_attrs["count_include_pad"] = True
+    return relay.nn.avg_pool2d(data.args[0], **new_attrs)
+
+
 def legalize_group_conv(attrs, inputs, types):
     """Legalize group conv / conv_transpose calculation.
     Alter weight layout from OIHW to GOIHW / IOHW to GIOHW"""
@@ -575,6 +588,7 @@ class IsComputeIntensiveGraph(ExprVisitor):
                 "nn.dense",
                 "nn.layer_norm",
                 "nn.batch_matmul",
+                "nn.global_avg_pool2d",
             ]
         )
         if isinstance(call.op, tvm.tir.op.Op):

@@ -381,6 +381,12 @@ void LLVMModuleNode::LazyInitJIT() {
   }
   runtime::InitContextFunctions(
       [this, &llvm_target](const char* name) { return GetGlobalAddr(name, *llvm_target); });
+  // There is a problem when a JITed function contains a call to a runtime function.
+  // The runtime function (e.g. __truncsfhf2) may not be resolved, and calling it will
+  // lead to a runtime crash.
+  // Do name lookup on a symbol that doesn't exist. This will force MCJIT to finalize
+  // all loaded objects, which will resolve symbols in JITed code.
+  ee_->getFunctionAddress("__some_name_that_hopefully_doesnt_exist__b49f8aaade5877eaba7583b91");
 }
 
 bool LLVMModuleNode::IsCompatibleWithHost(const llvm::TargetMachine* tm) const {

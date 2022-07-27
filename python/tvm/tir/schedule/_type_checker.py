@@ -17,7 +17,7 @@
 """Type checking functionality"""
 import functools
 import inspect
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Union
 import typing
 
 
@@ -216,7 +216,10 @@ def _type_check(v: Any, name: str, type_: Any) -> Optional[str]:
     return _TYPE_CHECK[key](v, name, *subtypes)
 
 
-def type_checked(func: Callable) -> Callable:
+FType = TypeVar("FType", bound=Callable[..., Any])
+
+
+def type_checked(func: FType) -> FType:
     """Type check the input arguments of a function."""
     sig = inspect.signature(func)
 
@@ -236,4 +239,4 @@ def type_checked(func: Callable) -> Callable:
                     raise TypeError(error_msg)
         return func(*args, **kwargs)
 
-    return wrap
+    return wrap  # type: ignore

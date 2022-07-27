@@ -84,6 +84,56 @@ class DocPrinter {
   virtual void PrintTypedDoc(const LiteralDoc& doc) = 0;
 
   /*!
+   * \brief Virtual method to print a IdDoc
+   */
+  virtual void PrintTypedDoc(const IdDoc& doc) = 0;
+
+  /*!
+   * \brief Virtual method to print a AttrAccessDoc
+   */
+  virtual void PrintTypedDoc(const AttrAccessDoc& doc) = 0;
+
+  /*!
+   * \brief Virtual method to print a IndexDoc
+   */
+  virtual void PrintTypedDoc(const IndexDoc& doc) = 0;
+
+  /*!
+   * \brief Virtual method to print a OperationDoc
+   */
+  virtual void PrintTypedDoc(const OperationDoc& doc) = 0;
+
+  /*!
+   * \brief Virtual method to print a CallDoc
+   */
+  virtual void PrintTypedDoc(const CallDoc& doc) = 0;
+
+  /*!
+   * \brief Virtual method to print a LambdaDoc
+   */
+  virtual void PrintTypedDoc(const LambdaDoc& doc) = 0;
+
+  /*!
+   * \brief Virtual method to print a ListDoc
+   */
+  virtual void PrintTypedDoc(const ListDoc& doc) = 0;
+
+  /*!
+   * \brief Virtual method to print a TupleDoc
+   */
+  virtual void PrintTypedDoc(const TupleDoc& doc) = 0;
+
+  /*!
+   * \brief Virtual method to print a DictDoc
+   */
+  virtual void PrintTypedDoc(const DictDoc& doc) = 0;
+
+  /*!
+   * \brief Virtual method to print a SliceDoc
+   */
+  virtual void PrintTypedDoc(const SliceDoc& doc) = 0;
+
+  /*!
    * \brief Increase the indent level of any content to be
    *        printed after this call
    */

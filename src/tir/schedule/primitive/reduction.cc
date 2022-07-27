@@ -102,30 +102,6 @@ class DecomposeReductionBlockReplacer : public StmtMutator {
   Block new_reduction_block_;
 };
 
-class LoopPositionError : public ScheduleError {
- public:
-  explicit LoopPositionError(IRModule mod, For loop, Block block)
-      : mod_(std::move(mod)), loop_(std::move(loop)), block_(std::move(block)) {}
-
-  String FastErrorString() const final {
-    return "ScheduleError: decompose_reduction expect the loop to be an ancestor of block";
-  }
-
-  String DetailRenderTemplate() const final {
-    std::ostringstream os;
-    os << "ScheduleError: The input loop {0} of decompose_reduction is required to be be an "
-          "ancestor of block {1}.";
-    return os.str();
-  }
-
-  IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {loop_, block_}; }
-
-  IRModule mod_;
-  For loop_;
-  Block block_;
-};
-
 class LoopHeightError : public ScheduleError {
  public:
   static void CheckLoopHigherThanReduceLoops(const IRModule& mod, const BlockNode* block,
@@ -214,7 +190,8 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   const BlockRealizeNode* realize = GetBlockRealize(self, block_sref).get();
   // Cond 0. Check loop_sref is an ancestor of block_sref
   if (std::find(loops.begin(), loops.end(), loop_sref) == loops.end()) {
-    throw LoopPositionError(self->mod, GetRef<For>(loop), GetRef<Block>(block));
+    throw LoopPositionError(self->mod, GetRef<For>(loop), GetRef<Block>(block),
+                            "decompose_reduction");
   }
   // Cond 1. Check block is reduction
   StmtSRef scope_root_sref = GetScopeRoot(self, block_sref,

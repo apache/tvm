@@ -23,8 +23,8 @@ from tvm.script import tir as T
 def scalar_func(a: T.handle, b: T.handle):
     m = T.var("int32")
     n = T.int32(100)
-    A = T.match_buffer(a, (n, m), name="A")
-    B = T.match_buffer(b, (n, m), name="B")
+    A = T.match_buffer(a, (n, m))
+    B = T.match_buffer(b, (n, m))
 
     for i, j in T.grid(n, m):
         A[i, j] = B[i - 1, j + 1] + A[i - 1, j - 1]
@@ -34,8 +34,8 @@ def scalar_func(a: T.handle, b: T.handle):
 def vector_func(a: T.handle, b: T.handle):
     n = T.var("int32")
     m = T.int32(128)
-    A = T.match_buffer(a, (n, m), name="A")
-    B = T.match_buffer(b, (n, m), name="B")
+    A = T.match_buffer(a, (n, m))
+    B = T.match_buffer(b, (n, m))
 
     for i in T.serial(n):
         for j in T.vectorized(m):

@@ -17,6 +17,7 @@
 # pylint: disable=missing-function-docstring,missing-module-docstring
 import pytest
 import tvm
+import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
 from tvm.tir.schedule.testing import verify_trace_roundtrip
@@ -59,12 +60,12 @@ def element_wise_subregion_match(A: T.Buffer[(128, 128), "float32"], C: T.Buffer
     for i, j in T.grid(128, 128):
         with T.block("B"):
             vi, vj = T.axis.remap("SS", [i, j])
-            B_subregion0 = T.match_buffer(B[i, j], [], offset_factor=1)
+            B_subregion0 = T.match_buffer(B[vi, vj], [], offset_factor=1)
             B_subregion0[()] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
         with T.block("C"):
             vi, vj = T.axis.remap("SS", [i, j])
-            B_subregion1 = T.match_buffer(B[i, j], [], offset_factor=1)
+            B_subregion1 = T.match_buffer(B[vi, vj], [], offset_factor=1)
             C[vi, vj] = B_subregion1[()] + 1.0
 
 
@@ -75,12 +76,12 @@ def element_wise_subregion_match_set_scope(A: T.Buffer[(128, 128), "float32"], C
     for i, j in T.grid(128, 128):
         with T.block("B"):
             vi, vj = T.axis.remap("SS", [i, j])
-            B_subregion0_shared = T.match_buffer(B_shared[i, j], [], dtype="float32", scope="shared", offset_factor=1)
+            B_subregion0_shared = T.match_buffer(B_shared[vi, vj], [], dtype="float32", scope="shared", offset_factor=1)
             B_subregion0_shared[()] = A[vi, vj] * T.float32(2)
     for i, j in T.grid(128, 128):
         with T.block("C"):
             vi, vj = T.axis.remap("SS", [i, j])
-            B_subregion1_shared = T.match_buffer(B_shared[i, j], [], dtype="float32", scope="shared", offset_factor=1)
+            B_subregion1_shared = T.match_buffer(B_shared[vi, vj], [], dtype="float32", scope="shared", offset_factor=1)
             C[vi, vj] = B_subregion1_shared[()] + T.float32(1)
 
 
@@ -128,8 +129,4 @@ def test_set_scope_subregion():
 
 
 if __name__ == "__main__":
-    test_set_scope()
-    test_set_scope_fail_on_output_buffer()
-    test_set_scope_fail_on_index_out_of_bound()
-    test_set_scope_fail_on_invalid_scope()
-    test_set_scope_subregion()
+    tvm.testing.main()

@@ -611,6 +611,7 @@ def concat_func_3(
 def test_condition_mutually_exclusive():
     mod = IRModule.from_expr(concat_func_3)
     with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
+        mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
         mod = tvm.tir.transform.FlattenBuffer()(mod)
         mod = tvm.tir.transform.LoopPartition()(mod)
         mod = tvm.tir.transform.Simplify()(mod)
