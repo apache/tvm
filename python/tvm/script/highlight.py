@@ -99,16 +99,15 @@ def cprint(printable: Union[IRModule, PrimFunc], style: Optional[str] = None) ->
             """The default style for terminal display with ANSI colors (aka. "ansi")"""
 
             styles = {
-                Keyword: "bold ansimagenta",
-                Keyword.Type: "ansibrightblue",
-                Keyword.Namespace: "ansicyan",
+                Keyword: "bold ansigreen",
+                Keyword.Type: "nobold ansigreen",
                 Name.Class: "bold ansiblue",
-                Name.Function: "bold ansiyellow",
+                Name.Function: "bold ansiblue",
                 Name.Decorator: "italic ansibrightmagenta",
-                String: "ansibrightyellow",
+                String: "ansiyellow",
                 Number: "ansibrightgreen",
-                Operator: "ansired",
-                Operator.Word: "ansibrightcyan",
+                Operator: "bold ansimagenta",
+                Operator.Word: "bold ansigreen",
                 Comment: "italic ansibrightblack",
             }
 
