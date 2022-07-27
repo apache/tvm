@@ -38,14 +38,14 @@ runtime::Module TIRToRuntime(IRModule mod, Target target);
 }  // namespace relay
 
 TVM_REGISTER_GLOBAL("relay.backend.contrib.uma.RegisterTarget")
-    .set_body_typed([](String target_name, Map<String, ObjectRef> attr_options) -> bool{
-        //@todo(cgerum): We probably should get rid of target.register rather sooner than later
-        //               And use a proper registry for uma backends
-        for(const String registered_target_name  : ::tvm::TargetKindRegEntry::ListTargetKinds()){
-          if(registered_target_name == target_name){
-            return false;
-          }
+    .set_body_typed([](String target_name, Map<String, ObjectRef> attr_options) -> bool {
+      // @todo(cgerum): We probably should get rid of target.register rather sooner than later
+      //               And use a proper registry for uma backends
+      for (const String registered_target_name : ::tvm::TargetKindRegEntry::ListTargetKinds()) {
+        if (registered_target_name == target_name) {
+          return false;
         }
+      }
 
       auto target_kind =
           ::tvm::TargetKindRegEntry::RegisterOrGet(target_name)
