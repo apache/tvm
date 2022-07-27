@@ -46,7 +46,7 @@ def optional_xgboost_callback(XGBoostCustomCallback):
         class TrainingCallback:  # type: ignore
             pass
 
-    class OptXGBoostCustomCallback(XGBoostCustomCallback, TrainingCallback):
+    class OptXGBoostCustomCallback(XGBoostCustomCallback, TrainingCallback):  # type: ignore
         pass
 
     return OptXGBoostCustomCallback
