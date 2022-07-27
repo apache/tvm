@@ -645,36 +645,6 @@ class XGBModel(PyCostModel):
         return eval_result
 
 
-def custom_callback(
-    early_stopping_rounds: int,
-    verbose_eval: int,
-    fevals: List[Callable],
-    evals: List[Tuple["xgb.DMatrix", str]],
-    focused_metric: str = "tr-p-rmse",
-):
-    """Callback function for xgboost to support multiple custom evaluation functions"""
-    sort_key = make_metric_sorter(focused_metric=focused_metric)
-
-    state: Dict[str, Any] = {}
-
-    def init(env: "xgb.core.CallbackEnv"):
-        """Internal function"""
-        booster: "xgb.Booster" = env.model
-
-        state["best_iteration"] = 0
-        state["best_score"] = float("inf")
-        if booster is None:
-            assert env.cvfolds is not None
-            return
-        if booster.attr("best_score") is not None:
-            state["best_score"] = float(booster.attr("best_score"))
-            state["best_iteration"] = int(booster.attr("best_iteration"))
-            state["best_msg"] = booster.attr("best_msg")
-        else:
-            booster.set_attr(best_iteration=str(state["best_iteration"]))
-            booster.set_attr(best_score=str(state["best_score"]))
-
-
 class XGBoostCustomCallback(TrainingCallback):
     """Custom callback class for xgboost to support multiple custom evaluation functions"""
 
