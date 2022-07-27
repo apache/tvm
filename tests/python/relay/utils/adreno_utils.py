@@ -46,7 +46,13 @@ def get_cpu_reference(mod, params1, input_shape, inputs):
 
 # build module run with opencl and cpu, compare results
 def build_run_compare(
-    tvm_mod, params1, input_shape, dtype="float32", target="llvm", gpu_preprocess=None, stat_file=None
+    tvm_mod,
+    params1,
+    input_shape,
+    dtype="float32",
+    target="llvm",
+    gpu_preprocess=None,
+    stat_file=None,
 ):
 
     if "TVM_TRACKER_HOST" in os.environ and "TVM_TRACKER_PORT" in os.environ:

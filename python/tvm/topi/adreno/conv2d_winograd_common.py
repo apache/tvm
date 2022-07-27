@@ -496,13 +496,14 @@ def schedule_conv2d_winograd(cfg, s, output, pre_computed):
 
     if len(s[output].op.axis) == 4:
         n, co, h, w = s[output].op.axis
+        cb = None
     else:
         n, co, h, w, cb = s[output].op.axis
     inverse_scope, n = s[output].split(n, nparts=1)
 
     fused = s[output].fuse(n, co, h, w)
     bb, tt = s[output].split(fused, 128)
-    if len(s[output].op.axis) > 4:
+    if cb is not None:
         s[output].reorder(bb, tt, cb)
         s[output].vectorize(cb)
 
