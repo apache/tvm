@@ -23,7 +23,7 @@ from typing import Callable, Dict, List, Optional, Union
 from tvm._ffi.registry import register_func
 from tvm.ir import IRModule
 from tvm.target import Target
-from tvm.tir import PrimFunc, tensor_intrin
+from tvm.tir import PrimFunc
 
 from .builder import Builder, LocalBuilder
 from .cost_model import CostModel, XGBModel
@@ -357,11 +357,12 @@ class _DefaultCUDATensorCore:
     @staticmethod
     def schedule_rules():
         from tvm.meta_schedule import schedule_rule as M
+        from tvm.tir.tensor_intrin import get_wmma_intrin_group
 
         return [
             M.MultiLevelTilingTensorCore(
                 intrin_groups=[
-                    tensor_intrin.get_wmma_intrin_group(
+                    get_wmma_intrin_group(
                         store_scope="shared",
                         in_dtype="float16",
                         out_dtype="float16",
