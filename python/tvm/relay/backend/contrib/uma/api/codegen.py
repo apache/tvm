@@ -36,8 +36,7 @@ class UMACodegen(object):
 
     def _register_c_codegen(
         self,
-        includes: Optional[Callable[[], str]] = None,
-        replace_call_extern: Optional[Callable[[tvm.ir.container.Array], str]] = None,
+        includes: Optional[Callable[[], str]] = None
     ) -> None:
         """Registration of UMA helper functions, e.g. includes and replace_call_extern.
 
@@ -45,19 +44,11 @@ class UMACodegen(object):
         ----------
         includes : OptionalCallable[[], str]]
             user-defined function that adds C-#include statement to UMA C-Code.
-        replace_call_extern:  OptionalCallable[[tvm.ir.container.Array], str]]
-            user-definde function that defines how to replace extern call in UMA C-Code.
         """
         if includes is not None:
             tvm._ffi.register_func(
                 f"relay.ext.uma.codegen_c_includes_{self.target_name}",
                 includes,
-                override=True,
-            )
-        if replace_call_extern is not None:
-            tvm._ffi.register_func(
-                f"relay.ext.uma.codegen_c_replace_call_extern_{self.target_name}",
-                replace_call_extern,
                 override=True,
             )
 

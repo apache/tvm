@@ -58,30 +58,6 @@ class UMACodegen : public codegen::CodeGenCHost {
  private:
   String target_str_;
 
-  using codegen::CodeGenCHost::VisitStmt_;
-
-  /*!  * \brief Emits target specific APIs for every call_extern */
-  void VisitExpr_(const CallNode* op, std::ostream& os) final {
-    if (!op->op.same_as(builtin::call_extern())) {
-      CodeGenCHost::VisitExpr_(op, os);
-      return;
-    }
-    auto replace_call_extern_pf =
-        tvm::runtime::Registry::Get("relay.ext.uma.codegen_c_replace_call_extern_" + target_str_);
-    if (replace_call_extern_pf == nullptr) {
-      CodeGenCHost::VisitExpr_(op, os);
-    } else {
-      // - funtion type (void) still gets printed before CallNode if extern call is wrapped in
-      // EvaluateNode
-      // - VarNode arguments might have "wrong" name_hints. The correct variable name is determined
-      // in C++ through GetVarID
-      String api_string = (*replace_call_extern_pf)(op->args);
-      os << api_string;
-    }
-    return;
-  }
-};
-
 runtime::Module TIRToRuntime(IRModule mod, Target target) {
   bool output_ssa = false;
   bool emit_asserts = false;
