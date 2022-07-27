@@ -14,6 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""
+In this test file, we want to make sure the Python code can construct
+Doc objects, then access and modify their attributes correctly.
+"""
+
 import pytest
 
 from tvm.script.printer.doc import (
@@ -29,6 +34,17 @@ from tvm.script.printer.doc import (
     ListDoc,
     DictDoc,
     SliceDoc,
+    StmtBlockDoc,
+    AssignDoc,
+    IfDoc,
+    WhileDoc,
+    ForDoc,
+    ScopeDoc,
+    ExprStmtDoc,
+    AssertDoc,
+    ReturnDoc,
+    FunctionDoc,
+    ClassDoc,
 )
 
 
@@ -244,3 +260,247 @@ def test_expr_doc_call_with(args, kwargs):
     assert doc.callee == target
     assert list(doc.args) == args
     assert dict(zip(doc.kwargs_keys, doc.kwargs_values)) == kwargs
+
+
+@pytest.mark.parametrize(
+    "stmts",
+    [
+        [],
+        [ExprStmtDoc(IdDoc("x"))],
+        [ExprStmtDoc(IdDoc("x")), ExprStmtDoc(IdDoc("y"))],
+    ],
+)
+def test_stmt_block_doc(stmts):
+    doc = StmtBlockDoc(stmts)
+
+    assert list(doc.stmts) == stmts
+
+
+@pytest.mark.parametrize(
+    "lhs, rhs, annotation",
+    [
+        (IdDoc("x"), IdDoc("y"), None),
+        (IdDoc("x"), None, IdDoc("int")),
+        (IdDoc("x"), IdDoc("y"), IdDoc("int")),
+    ],
+)
+def test_assign_doc(lhs, rhs, annotation):
+    doc = AssignDoc(lhs, rhs, annotation)
+
+    assert doc.lhs == lhs
+    assert doc.rhs == rhs
+    assert doc.annotation == annotation
+
+
+@pytest.mark.parametrize(
+    "lhs, rhs, annotation",
+    [
+        (IdDoc("x"), None, None),
+        (TupleDoc([IdDoc("x"), IdDoc("y")]), None, IdDoc("int")),
+        (TupleDoc([IdDoc("x"), IdDoc("y")]), IdDoc("u"), IdDoc("int")),
+    ],
+)
+def test_invalid_assign_doc(lhs, rhs, annotation):
+    with pytest.raises(ValueError) as e:
+        AssignDoc(lhs, rhs, annotation)
+    assert "AssignDoc" in str(e.value)
+
+
+@pytest.mark.parametrize(
+    "else_branch",
+    [
+        [],
+        [ExprStmtDoc(IdDoc("x"))],
+        [ExprStmtDoc(IdDoc("x")), ExprStmtDoc(IdDoc("y"))],
+    ],
+)
+@pytest.mark.parametrize(
+    "then_branch",
+    [
+        [],
+        [ExprStmtDoc(IdDoc("x"))],
+        [ExprStmtDoc(IdDoc("x")), ExprStmtDoc(IdDoc("y"))],
+    ],
+)
+def test_if_doc(then_branch, else_branch):
+    predicate = IdDoc("x")
+
+    if not then_branch and not else_branch:
+        with pytest.raises(ValueError) as e:
+            IfDoc(predicate, then_branch, else_branch)
+        assert "IfDoc" in str(e.value)
+        return
+    else:
+        doc = IfDoc(predicate, then_branch, else_branch)
+
+    assert doc.predicate == predicate
+    assert list(doc.then_branch) == then_branch
+    assert list(doc.else_branch) == else_branch
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        [],
+        [ExprStmtDoc(IdDoc("x"))],
+        [ExprStmtDoc(IdDoc("x")), ExprStmtDoc(IdDoc("y"))],
+    ],
+)
+def test_while_doc(body):
+    predicate = IdDoc("x")
+
+    doc = WhileDoc(predicate, body)
+
+    assert doc.predicate == predicate
+    assert list(doc.body) == body
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        [],
+        [ExprStmtDoc(IdDoc("x"))],
+        [ExprStmtDoc(IdDoc("x")), ExprStmtDoc(IdDoc("y"))],
+    ],
+)
+def test_for_doc(body):
+    lhs = IdDoc("x")
+    rhs = IdDoc("y")
+
+    doc = ForDoc(lhs, rhs, body)
+
+    assert doc.lhs == lhs
+    assert doc.rhs == rhs
+    assert list(doc.body) == body
+
+
+@pytest.mark.parametrize(
+    "lhs",
+    [
+        None,
+        IdDoc("x"),
+    ],
+)
+@pytest.mark.parametrize(
+    "body",
+    [
+        [],
+        [ExprStmtDoc(IdDoc("x"))],
+        [ExprStmtDoc(IdDoc("x")), ExprStmtDoc(IdDoc("y"))],
+    ],
+)
+def test_scope_doc(lhs, body):
+    rhs = IdDoc("y")
+
+    doc = ScopeDoc(lhs, rhs, body)
+
+    assert doc.lhs == lhs
+    assert doc.rhs == rhs
+    assert list(doc.body) == body
+
+
+def test_expr_stmt_doc():
+    expr = IdDoc("x")
+
+    doc = ExprStmtDoc(expr)
+
+    assert doc.expr == expr
+
+
+@pytest.mark.parametrize(
+    "msg",
+    [
+        None,
+        LiteralDoc("msg"),
+    ],
+)
+def test_assert_doc(msg):
+    test = IdDoc("x")
+
+    doc = AssertDoc(test, msg)
+
+    assert doc.test == test
+    assert doc.msg == msg
+
+
+def test_return_doc():
+    value = IdDoc("x")
+
+    doc = ReturnDoc(value)
+
+    assert doc.value == value
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        [],
+        [AssignDoc(IdDoc("x"), None, IdDoc("int"))],
+        [
+            AssignDoc(IdDoc("x"), None, IdDoc("int")),
+            AssignDoc(IdDoc("y"), LiteralDoc(1), IdDoc("int")),
+        ],
+    ],
+)
+@pytest.mark.parametrize(
+    "decorators",
+    [
+        [],
+        [IdDoc("test")],
+        [IdDoc("test"), IdDoc("test2")],
+    ],
+)
+@pytest.mark.parametrize(
+    "body",
+    [
+        [],
+        [ExprStmtDoc(IdDoc("x"))],
+        [ExprStmtDoc(IdDoc("x")), ExprStmtDoc(IdDoc("y"))],
+    ],
+)
+def test_function_doc(args, decorators, body):
+    name = IdDoc("name")
+    return_type = LiteralDoc(None)
+
+    doc = FunctionDoc(name, args, decorators, return_type, body)
+
+    assert doc.name == name
+    assert list(doc.args) == args
+    assert list(doc.decorators) == decorators
+    assert doc.return_type == return_type
+    assert list(doc.body) == body
+
+
+@pytest.mark.parametrize(
+    "decorators",
+    [
+        [],
+        [IdDoc("test")],
+        [IdDoc("test"), IdDoc("test2")],
+    ],
+)
+@pytest.mark.parametrize(
+    "body",
+    [
+        [],
+        [ExprStmtDoc(IdDoc("x"))],
+        [ExprStmtDoc(IdDoc("x")), ExprStmtDoc(IdDoc("y"))],
+    ],
+)
+def test_class_doc(decorators, body):
+    name = IdDoc("name")
+
+    doc = ClassDoc(name, decorators, body)
+
+    assert doc.name == name
+    assert list(doc.decorators) == decorators
+    assert list(doc.body) == body
+
+
+def test_stmt_doc_comment():
+    doc = ExprStmtDoc(IdDoc("x"))
+    assert doc.comment is None
+
+    comment = "test comment"
+    doc.comment = comment
+    assert doc.comment == comment
