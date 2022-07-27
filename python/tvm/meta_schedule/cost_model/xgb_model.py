@@ -40,6 +40,7 @@ def optional_xgboost_callback(XGBoostCustomCallback):
     # pylint:disable = import-outside-toplevel
     try:
         from xgboost.callback import TrainingCallback  # type: ignore
+    # pylint:enable = import-outside-toplevel
     except ImportError:
 
         class TrainingCallback:  # type: ignore
