@@ -63,6 +63,8 @@ class Doc : public ObjectRef {
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Doc, ObjectRef, DocNode);
 };
 
+class ExprDoc;
+
 /*!
  * \brief The base class of expression doc.
  *
@@ -70,6 +72,34 @@ class Doc : public ObjectRef {
  */
 class ExprDocNode : public DocNode {
  public:
+  /*!
+   * \brief Create a doc representing attribute access on the current ExprDoc
+   * \param attr The attribute to access.
+   */
+  ExprDoc Attr(String attr) const;
+
+  /*!
+   * \brief Create a doc representing index access on the current ExprDoc
+   * \param indices The indices to access.
+   */
+  ExprDoc operator[](Array<Doc> indices) const;
+
+  /*!
+   * \brief Create a doc representing calling the current ExprDoc
+   * \param args The positional arguments of the function call.
+   */
+  ExprDoc Call(Array<ExprDoc, void> args) const;
+
+  /*!
+   * \brief Create a doc representing attribute access on the current ExprDoc
+   * \param args The positional arguments of the function call.
+   * \param kwargs_keys Keys of keywords arguments of the function call.
+   * \param kwargs_values Values of keywords arguments of the function call.
+   */
+  ExprDoc Call(Array<ExprDoc, void> args,  //
+               Array<String> kwargs_keys,  //
+               Array<ExprDoc, void> kwargs_values) const;
+
   void VisitAttrs(AttrVisitor* v) { DocNode::VisitAttrs(v); }
 
   static constexpr const char* _type_key = "script.printer.ExprDoc";
@@ -156,6 +186,458 @@ class LiteralDoc : public ExprDoc {
   static LiteralDoc Str(const String& v) { return LiteralDoc(v); }
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(LiteralDoc, ExprDoc, LiteralDocNode);
+};
+
+/*!
+ * \brief Doc that represents identifier.
+ *
+ * \sa IdDoc
+ */
+class IdDocNode : public ExprDocNode {
+ public:
+  /*! \brief The name of the identifier */
+  String name;
+
+  void VisitAttrs(AttrVisitor* v) {
+    ExprDocNode::VisitAttrs(v);
+    v->Visit("name", &name);
+  }
+
+  static constexpr const char* _type_key = "script.printer.IdDoc";
+  TVM_DECLARE_FINAL_OBJECT_INFO(IdDocNode, ExprDocNode);
+};
+
+/*!
+ * \brief Reference type of IdDocNode.
+ *
+ * \sa IdDocNode
+ */
+class IdDoc : public ExprDoc {
+ public:
+  /*!
+   * \brief Constructor of IdDoc.
+   * \param name The name of identifier.
+   */
+  explicit IdDoc(String name);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(IdDoc, ExprDoc, IdDocNode);
+};
+
+/*!
+ * \brief Doc that represents attribute access on another expression.
+ *
+ * \sa AttrAccessDoc
+ */
+class AttrAccessDocNode : public ExprDocNode {
+ public:
+  /*! \brief The target expression to be accessed */
+  ExprDoc value{nullptr};
+  /*! \brief The attribute to be accessed */
+  String name;
+
+  void VisitAttrs(AttrVisitor* v) {
+    ExprDocNode::VisitAttrs(v);
+    v->Visit("value", &value);
+    v->Visit("name", &name);
+  }
+
+  static constexpr const char* _type_key = "script.printer.AttrAccessDoc";
+  TVM_DECLARE_FINAL_OBJECT_INFO(AttrAccessDocNode, ExprDocNode);
+};
+
+/*!
+ * \brief Reference type of AttrAccessDocNode.
+ *
+ * \sa AttrAccessDocNode
+ */
+class AttrAccessDoc : public ExprDoc {
+ public:
+  /*!
+   * \brief Constructor of AttrAccessDoc
+   * \param value The target expression of attribute access.
+   * \param name The name of attribute to access.
+   */
+  explicit AttrAccessDoc(ExprDoc value, String name);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(AttrAccessDoc, ExprDoc, AttrAccessDocNode);
+};
+
+/*!
+ * \brief Doc that represents index access on another expression.
+ *
+ * \sa IndexDoc
+ */
+class IndexDocNode : public ExprDocNode {
+ public:
+  /*! \brief The container value to be accessed */
+  ExprDoc value{nullptr};
+  /*!
+   * \brief The indices to access
+   *
+   * Possible actual types:
+   * - ExprDoc (single point access like a[1, 2])
+   * - SliceDoc (slice access like a[1:5, 2])
+   */
+  Array<Doc> indices;  // Each element is union of: Slice / ExprDoc
+
+  void VisitAttrs(AttrVisitor* v) {
+    ExprDocNode::VisitAttrs(v);
+    v->Visit("value", &value);
+    v->Visit("indices", &indices);
+  }
+
+  static constexpr const char* _type_key = "script.printer.IndexDoc";
+  TVM_DECLARE_FINAL_OBJECT_INFO(IndexDocNode, ExprDocNode);
+};
+
+/*!
+ * \brief Reference type of IndexDocNode.
+ *
+ * \sa IndexDocNode
+ */
+class IndexDoc : public ExprDoc {
+ public:
+  /*!
+   * \brief Constructor of IndexDoc
+   * \param value The target expression of index access.
+   * \param indices The indices to access.
+   */
+  explicit IndexDoc(ExprDoc value, Array<Doc> indices);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(IndexDoc, ExprDoc, IndexDocNode);
+};
+
+/*!
+ * \brief Doc that represents function call.
+ *
+ * \sa CallDoc
+ */
+class CallDocNode : public ExprDocNode {
+ public:
+  /*! \brief The callee of this function call */
+  ExprDoc callee{nullptr};
+  /*! \brief The positional arguments */
+  Array<ExprDoc> args;
+  /*! \brief The keys of keyword arguments */
+  Array<String> kwargs_keys;
+  /*!
+   * \brief The values of keyword arguments.
+   *
+   * The i-th element is the value of the i-th key in `kwargs_keys`.
+   * It must have the same length as `kwargs_keys`.
+   */
+  Array<ExprDoc> kwargs_values;
+
+  void VisitAttrs(AttrVisitor* v) {
+    ExprDocNode::VisitAttrs(v);
+    v->Visit("callee", &callee);
+    v->Visit("args", &args);
+    v->Visit("kwargs_keys", &kwargs_keys);
+    v->Visit("kwargs_values", &kwargs_values);
+  }
+
+  static constexpr const char* _type_key = "script.printer.CallDoc";
+  TVM_DECLARE_FINAL_OBJECT_INFO(CallDocNode, ExprDocNode);
+};
+
+/*!
+ * \brief Reference type of CallDocNode.
+ *
+ * \sa CallDocNode
+ */
+class CallDoc : public ExprDoc {
+ public:
+  /*!
+   * \brief Constructor of CallDoc
+   * \param callee The callee of this function call.
+   * \param args The positional arguments.
+   * \param kwargs_keys Keys of keyword arguments.
+   * \param kwargs_values Values of keyword arguments, must have the same length as `kwargs_keys.
+   */
+  CallDoc(ExprDoc callee, Array<ExprDoc> args, Array<String> kwargs_keys,
+          Array<ExprDoc> kwargs_values);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(CallDoc, ExprDoc, CallDocNode);
+};
+
+/*!
+ * \brief Doc that represents operation.
+ *
+ * It can be unary, binary and other special operators (for example,
+ * the if-then-else expression).
+ *
+ * \sa OperationDoc
+ */
+class OperationDocNode : public ExprDocNode {
+ public:
+  enum class Kind : int32_t {
+    // Unary operators
+    kUnaryStart = 0,
+    kUSub = 1,    // -x
+    kInvert = 2,  // ~x
+    kUnaryEnd = 3,
+
+    // Binary operators
+    kBinaryStart = 4,
+    kAdd = 5,       // +
+    kSub = 6,       // -
+    kMult = 7,      // *
+    kDiv = 8,       // /
+    kFloorDiv = 9,  // // in Python
+    kMod = 10,      // % in Python
+    kPow = 11,      // ** in Python
+    kLShift = 12,   // <<
+    kRShift = 13,   // >>
+    kBitAnd = 14,   // &
+    kBitOr = 15,    // |
+    kBitXor = 16,   // ^
+    kLt = 17,       // <
+    kLtE = 18,      // <=
+    kEq = 19,       // ==
+    kNotEq = 20,    // !=
+    kGt = 21,       // >
+    kGtE = 22,      // >=
+    kBinaryEnd = 23,
+
+    // Special
+    kSpecialStart = 24,
+    kIfThenElse = 25,  // <operands[1]> if <operands[0]> else <operands[2]>
+    kSpecialEnd = 26
+  };
+
+  /*! \brief The kind of operation (operator) */
+  Kind kind;
+  /*! \brief Operands of this expression */
+  Array<ExprDoc> operands;
+
+  void VisitAttrs(AttrVisitor* v) {
+    ExprDocNode::VisitAttrs(v);
+    v->Visit("kind", &kind);
+    v->Visit("operands", &operands);
+  }
+
+  static constexpr const char* _type_key = "script.printer.OperationDoc";
+  TVM_DECLARE_FINAL_OBJECT_INFO(OperationDocNode, ExprDocNode);
+};
+
+/*!
+ * \brief Reference type of OperationDocNode.
+ *
+ * \sa OperationDocNode
+ */
+class OperationDoc : public ExprDoc {
+ public:
+  /*!
+   * \brief Constructor of OperationDoc
+   * \param kind The kind of operation.
+   * \param operands Operands of this expression.
+   */
+  explicit OperationDoc(OperationDocNode::Kind kind, Array<ExprDoc> operands);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(OperationDoc, ExprDoc, OperationDocNode);
+};
+
+/*!
+ * \brief Doc that represents anonymous function.
+ *
+ * LambdaDoc can only have positional arguments without type annotation,
+ * and a single expression as body.
+ *
+ * \sa LambdaDoc
+ */
+class LambdaDocNode : public ExprDocNode {
+ public:
+  /*! \brief The arguments of this anonymous function */
+  Array<IdDoc> args;
+  /*! \brief The body of this anonymous function */
+  ExprDoc body{nullptr};
+
+  void VisitAttrs(AttrVisitor* v) {
+    ExprDocNode::VisitAttrs(v);
+    v->Visit("args", &args);
+    v->Visit("body", &body);
+  }
+
+  static constexpr const char* _type_key = "script.printer.LambdaDoc";
+  TVM_DECLARE_FINAL_OBJECT_INFO(LambdaDocNode, ExprDocNode);
+};
+
+/*!
+ * \brief Reference type of LambdaDocNode.
+ *
+ * \sa LambdaDocNode
+ */
+class LambdaDoc : public ExprDoc {
+ public:
+  /*!
+   * \brief Constructor of LambdaDoc
+   * \param args Arguments of this function.
+   * \param body Body expression of this function.
+   */
+  explicit LambdaDoc(Array<IdDoc> args, ExprDoc body);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(LambdaDoc, ExprDoc, LambdaDocNode);
+};
+
+/*!
+ * \brief Doc that represents tuple literal.
+ *
+ * \sa TupleDoc
+ */
+class TupleDocNode : public ExprDocNode {
+ public:
+  /*! \brief Elements of tuple */
+  Array<ExprDoc> elements;
+
+  void VisitAttrs(AttrVisitor* v) {
+    ExprDocNode::VisitAttrs(v);
+    v->Visit("elements", &elements);
+  }
+
+  static constexpr const char* _type_key = "script.printer.TupleDoc";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TupleDocNode, ExprDocNode);
+};
+
+/*!
+ * \brief Reference type of TupleDocNode.
+ *
+ * \sa TupleDocNode
+ */
+class TupleDoc : public ExprDoc {
+ public:
+  /*!
+   * \brief Create an empty TupleDoc
+   */
+  TupleDoc() : TupleDoc(runtime::make_object<TupleDocNode>()) {}
+  /*!
+   * \brief Constructor of TupleDoc
+   * \param elements Elements of tuple.
+   */
+  explicit TupleDoc(Array<ExprDoc> elements);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TupleDoc, ExprDoc, TupleDocNode);
+};
+
+/*!
+ * \brief Doc that represents list literal.
+ *
+ * \sa AttrAccessDoc
+ */
+class ListDocNode : public ExprDocNode {
+ public:
+  /*! \brief Elements of list */
+  Array<ExprDoc> elements;
+
+  void VisitAttrs(AttrVisitor* v) {
+    ExprDocNode::VisitAttrs(v);
+    v->Visit("elements", &elements);
+  }
+
+  static constexpr const char* _type_key = "script.printer.ListDoc";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ListDocNode, ExprDocNode);
+};
+
+/*!
+ * \brief Reference type of ListDocNode.
+ *
+ * \sa ListDocNode
+ */
+class ListDoc : public ExprDoc {
+ public:
+  /*!
+   * \brief Create an empty ListDoc
+   */
+  ListDoc() : ListDoc(runtime::make_object<ListDocNode>()) {}
+  /*!
+   * \brief Constructor of ListDoc
+   * \param elements Elements of list.
+   */
+  explicit ListDoc(Array<ExprDoc> elements);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ListDoc, ExprDoc, ListDocNode);
+};
+
+/*!
+ * \brief Doc that represents dictionary literal.
+ *
+ * \sa AttrAccessDoc
+ */
+class DictDocNode : public ExprDocNode {
+ public:
+  /*! \brief keys of dictionary */
+  Array<ExprDoc> keys;
+  /*!
+   * \brief Values of dictionary
+   *
+   * The i-th element is the value of the i-th element of `keys`.
+   * It must have the same length as `keys`.
+   */
+  Array<ExprDoc> values;
+
+  void VisitAttrs(AttrVisitor* v) {
+    ExprDocNode::VisitAttrs(v);
+    v->Visit("keys", &keys);
+    v->Visit("values", &values);
+  }
+
+  static constexpr const char* _type_key = "script.printer.DictDoc";
+  TVM_DECLARE_FINAL_OBJECT_INFO(DictDocNode, ExprDocNode);
+};
+
+/*!
+ * \brief Reference type of DictDocNode.
+ *
+ * \sa DictDocNode
+ */
+class DictDoc : public ExprDoc {
+ public:
+  /*!
+   * \brief Create an empty dictionary
+   */
+  DictDoc() : DictDoc(runtime::make_object<DictDocNode>()) {}
+  /*!
+   * \brief Constructor of DictDoc
+   * \param keys Keys of dictionary.
+   * \param values Values of dictionary, must have same length as `keys`.
+   */
+  explicit DictDoc(Array<ExprDoc> keys, Array<ExprDoc> values);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(DictDoc, ExprDoc, DictDocNode);
+};
+
+/*!
+ * \brief Doc that represents slice in Index expression.
+ *
+ * This doc can only appear in IndexDoc::indices.
+ *
+ * \sa AttrAccessDoc
+ */
+class SliceDocNode : public DocNode {
+ public:
+  /*! \brief The start of slice */
+  Optional<ExprDoc> start;
+  /*! \brief The exclusive end of slice */
+  Optional<ExprDoc> stop;
+  /*! \brief The step of slice */
+  Optional<ExprDoc> step;
+
+  void VisitAttrs(AttrVisitor* v) {
+    DocNode::VisitAttrs(v);
+    v->Visit("start", &start);
+    v->Visit("stop", &stop);
+    v->Visit("step", &step);
+  }
+
+  static constexpr const char* _type_key = "script.printer.SliceDoc";
+  TVM_DECLARE_FINAL_OBJECT_INFO(SliceDocNode, DocNode);
+};
+
+/*!
+ * \brief Reference type of SliceDocNode.
+ *
+ * \sa SliceDocNode
+ */
+class SliceDoc : public Doc {
+ public:
+  /*!
+   * \brief Constructor of SliceDoc
+   * \param start The start of slice.
+   * \param stop The exclusive end of slice.
+   * \param step The step of slice.
+   */
+  explicit SliceDoc(Optional<ExprDoc> start, Optional<ExprDoc> stop, Optional<ExprDoc> step);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(SliceDoc, Doc, SliceDocNode);
 };
 
 }  // namespace printer
