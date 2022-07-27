@@ -439,19 +439,29 @@ class OpenCLTimerNode : public TimerNode {
  public:
   // Timer start
   virtual void Start() {
-    cl::OpenCLWorkspace::Global()->GetEventQueue(dev_).clear();
-    this->duration = 0;
-    // Very first call of Start() leads to the recreation of
-    // OpenCL command queue in profiling mode. This allows to run profile after inference.
-    recreateCommandQueue();
+    if (count_timer_execs == 0) {
+      cl::OpenCLWorkspace::Global()->GetEventQueue(dev_).clear();
+      this->duration = 0;
+      // Very first call of Start() leads to the recreation of
+      // OpenCL command queue in profiling mode. This allows to run profile after inference.
+      recreateCommandQueue();
+    }
+    ++count_timer_execs;
+    // set new first idx in event queue
+    if (event_start_idxs.size() < count_timer_execs) {
+      event_start_idxs.push_back(0);
+    }
   }
   // Timer stop
   virtual void Stop() {
     std::vector<cl_event> evt_queue = cl::OpenCLWorkspace::Global()->GetEventQueue(dev_);
     cl_ulong start, end;
+    int64_t start_idx = event_start_idxs[count_timer_execs - 1];
+
     if (cl::OpenCLWorkspace::Global()->GetEventQueue(dev_).size() > 0) {
       OPENCL_CALL(clWaitForEvents(1, &(cl::OpenCLWorkspace::Global()->GetEventQueue(dev_).back())));
-      for (auto& kevt : evt_queue) {
+      for (int i = start_idx; i < evt_queue.size(); ++i) {
+        auto& kevt = evt_queue[i];
         OPENCL_CALL(clGetEventProfilingInfo(kevt, CL_PROFILING_COMMAND_START, sizeof(cl_ulong),
                                             &start, nullptr));
         OPENCL_CALL(clGetEventProfilingInfo(kevt, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &end,
@@ -459,19 +469,27 @@ class OpenCLTimerNode : public TimerNode {
         this->duration += (end - start);
       }
     }
+    // update event index for current call nesting
+    event_start_idxs[count_timer_execs - 1] = evt_queue.size();
+    --count_timer_execs;
   }
   virtual int64_t SyncAndGetElapsedNanos() { return this->duration; }
   // destructor
   virtual ~OpenCLTimerNode() {
     // Profiling session ends, recreate clCommandQueue in non-profiling mode
     // This will disable collection of cl_events in case of executing inference after profile
-    recreateCommandQueue();
+    if (count_timer_execs == 0) {
+      recreateCommandQueue();
+      event_start_idxs.clear();
+    }
   }
   // constructor
   OpenCLTimerNode() {}
   explicit OpenCLTimerNode(Device dev) : dev_(dev) {}
 
   static constexpr const char* _type_key = "OpenCLTimerNode";
+  static int64_t count_timer_execs;
+  static std::vector<int64_t> event_start_idxs;
   TVM_DECLARE_FINAL_OBJECT_INFO(OpenCLTimerNode, TimerNode);
 
  private:
@@ -480,6 +498,7 @@ class OpenCLTimerNode : public TimerNode {
 
   void recreateCommandQueue() {
     cl_command_queue_properties prop;
+
     if (!cl::OpenCLWorkspace::Global()->IsProfiling(dev_)) {
       prop = CL_QUEUE_PROFILING_ENABLE;
     } else {
