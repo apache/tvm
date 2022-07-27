@@ -118,7 +118,7 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
       }
       block.CopyOnWrite()->annotations.erase(topi_attr);
     }
-    return block;
+    return std::move(block);
   }
 
   std::unordered_map<tir::Buffer, int, ObjectPtrHash, ObjectPtrEqual> buffer2index_;

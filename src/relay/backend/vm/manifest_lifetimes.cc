@@ -201,7 +201,7 @@ class AliasEliminator : public MixedModeMutator {
     if (alias_.count(var)) {
       return alias_[var];
     }
-    return var;
+    return std::move(var);
   }
 
   Expr VisitExpr_(const FunctionNode* func_node) override {

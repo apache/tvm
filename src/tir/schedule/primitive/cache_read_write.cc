@@ -888,7 +888,7 @@ class ReIndexRewriter : public StmtExprMutator {
       n->alloc_buffers.push_back(info_->alloc);
       stmt = Block(n);
       info_->block_reuse.Set(old_stmt, stmt);
-      return stmt;
+      return std::move(stmt);
     }
 
     // Visiting the blokc being reindexed
@@ -917,9 +917,9 @@ class ReIndexRewriter : public StmtExprMutator {
         stmt = Block(n);
       }
       info_->block_reuse.Set(old_stmt, stmt);
-      return stmt;
+      return std::move(stmt);
     }
-    return old_stmt;
+    return std::move(old_stmt);
   }
 
   template <typename Node>
