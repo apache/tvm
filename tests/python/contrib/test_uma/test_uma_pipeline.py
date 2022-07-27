@@ -17,7 +17,7 @@
 
 import pytest
 from tvm.micro.testing.aot_test_utils import AOT_DEFAULT_RUNNER
-from tvm.relay import transform
+from tvm.relay import transform, testing
 from tvm.testing.aot import (
     AOTTestModel,
     AOTTestRunner,
@@ -31,7 +31,7 @@ from tvm import relay
 import numpy as np
 from collections import OrderedDict
 
-from tvm.relay.backend.contrib.uma import uma_available
+from tvm.relay.backend.contrib.uma.api.utils import uma_available
 
 pytestmark = pytest.mark.skipif(not uma_available(), reason="UMA not available")
 
@@ -99,6 +99,37 @@ def _generate_runtime_data(input_shapes: dict, output_shapes: dict) -> [OrderedD
     inputs = OrderedDict([(iname, i_data)])
     outputs = OrderedDict([(oname, o_data)])
     return inputs, outputs
+
+
+def test_mobilenet():
+    """Full network test with Mobilenet"""
+    use_unpacked_api = True
+    interface_api = "c"
+    test_runner = AOT_DEFAULT_RUNNER
+
+    mod, params = testing.mobilenet.get_workload(batch_size=1)
+
+    uma_backend = VanillaAcceleratorBackend()
+    uma_backend.register()
+    target = tvm.target.Target("vanilla_accelerator", host=tvm.target.Target("c"))
+    target_c = tvm.target.Target("c")
+
+    data_shape = [int(x) for x in mod["main"].checked_type.arg_types[0].shape]
+    data = np.random.uniform(size=data_shape).astype("float32")
+    input_list = {"data": data}
+    output_list = generate_ref_data(mod, input_list, params)
+    mod = uma_backend.partition(mod)
+    aot_test_model = AOTTestModel(module=mod, inputs=input_list, outputs=output_list, params=params)
+
+    compile_and_run(
+        aot_test_model,
+        test_runner,
+        interface_api,
+        use_unpacked_api,
+        workspace_byte_alignment=1,
+        debug_calculated_workspaces=False,
+        target=[target_c, target],
+    )
 
 
 if __name__ == "__main__":
