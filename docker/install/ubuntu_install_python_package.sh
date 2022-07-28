@@ -22,7 +22,7 @@ set -o pipefail
 
 # install libraries for python package on ubuntu
 pip3 install --upgrade \
-    Pygments \
+    Pygments>=2.4.0 \
     attrs \
     cloudpickle \
     cython \
