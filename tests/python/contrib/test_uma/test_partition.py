@@ -18,11 +18,13 @@
 import pytest
 
 import tvm
+import tvm.relay as relay
 
 from tvm.relay.backend.contrib.uma.api import UMAPartitioner
 from tvm.relay.op.contrib.register import get_pattern_table
 from tvm.relay.testing import resnet, mlp
 from tvm.relay.backend.contrib.uma import uma_available
+
 
 pytestmark = pytest.mark.skipif(not uma_available(), reason="UMA not available")
 
@@ -37,19 +39,21 @@ def test_partition_table():
 
 
 @pytest.mark.parametrize(
-    "workload,backend,merge,expected_partitions",
+    "workload,backend,merge",
     [
-        ("resnet", "dnnl", False, 17),
-        ("resnet", "dnnl", True, 17),
-        ("mlp", "dnnl", False, 1),
-        ("resnet", "cutlass", False, 2),
-        ("resnet", "cutlass", True, 2),
-        ("mlp", "cutlass", False, 4),
-        ("mlp", "cutlass", True, 2),
+        ("resnet", "dnnl", False),
+        ("resnet", "dnnl", True),
+        ("mlp", "dnnl", False),
+        ("mlp", "dnnl", True),
+        ("resnet", "cutlass", False),
+        ("resnet", "cutlass", True),
+        ("mlp", "cutlass", False),
+        ("mlp", "cutlass", True),
     ],
 )
-def test_existing_pattern_tables(workload, backend, merge, expected_partitions):
-    partitioner = UMAPartitioner(backend + "_uma", merge)
+def test_existing_pattern_tables(workload, backend, merge):
+    """Tests that uma partitioner creates the same partitions than default BYOC partitioning"""
+    partitioner = UMAPartitioner(backend, merge)
     pattern_table = get_pattern_table(backend)
 
     for entry in pattern_table:
@@ -67,9 +71,29 @@ def test_existing_pattern_tables(workload, backend, merge, expected_partitions):
 
     partitioner.register()
     partitioned_mod = partitioner.partition(mod)
-    print(partitioned_mod)
 
-    assert len(partitioned_mod.functions) == expected_partitions
+
+
+    def partition_default(mod):
+        """partitions using default BYOC flow"""
+
+        sequence = [
+            relay.transform.MergeComposite(pattern_table),
+            relay.transform.AnnotateTarget(backend),
+        ]
+
+        if merge:
+            sequence.append(relay.transform.MergeCompilerRegions())
+
+        
+        sequence.append(relay.transform.PartitionGraph())
+        sequential = tvm.transform.Sequential(sequence)
+
+        return sequential(mod)
+
+    default_partitioned_mod = partition_default(mod)
+
+    assert len(partitioned_mod.functions) == len(default_partitioned_mod.functions)
 
 
 if __name__ == "__main__":

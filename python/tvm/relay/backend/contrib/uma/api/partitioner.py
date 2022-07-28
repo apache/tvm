@@ -75,7 +75,7 @@ class UMAPartitioner:
     def partition(
         self, mod: tvm.IRModule, params: Optional[Dict[str, tvm.runtime.NDArray]] = None
     ) -> tvm.IRModule:
-        """Partition the relay graph in by the NPU supported and unsupported parts.
+        """Partition the relay graph in parts supported and unsupported by the target hardware accelerator.
 
         Parameters
         ----------
@@ -94,18 +94,14 @@ class UMAPartitioner:
             mod["main"] = bind_params_by_name(mod["main"], params)
 
         pass_sequence = []
-        pass_sequence.append(relay.transform.InferType())
         pass_sequence.extend([p[1] for p in self._relay_passes if p[0] == PassPhase.PRE_PARTITIONING])
         pass_sequence.append(relay.transform.MergeComposite(self._pattern_table()))
         pass_sequence.append(relay.transform.AnnotateTarget(self.target_name))
         if self.merge_compiler_regions:
             pass_sequence.append(relay.transform.MergeCompilerRegions())
-        pass_sequence.append(relay.transform.InferType())
         pass_sequence.append(relay.transform.PartitionGraph())
-        pass_sequence.append(relay.transform.InferType())
         pass_sequence.extend([p[1] for p in self._relay_passes if p[0] == PassPhase.POST_PARTITIONING_0])
         
-        pass_sequence.append(relay.transform.InferType())
         sequential_passes = tvm.transform.Sequential(pass_sequence)
         mod = sequential_passes(mod)
 
