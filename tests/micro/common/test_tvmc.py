@@ -53,7 +53,10 @@ def test_tvmc_exist(platform, board):
 @tvm.testing.requires_micro
 @pytest.mark.parametrize(
     "output_dir,",
-    [pathlib.Path("./tvmc_relative_path_test"), pathlib.Path(tempfile.mkdtemp())],
+    [
+        pathlib.Path("./tvmc_relative_path_test"),
+        # pathlib.Path(tempfile.mkdtemp())
+    ],
 )
 def test_tvmc_model_build_only(platform, board, output_dir):
     target = tvm.micro.testing.get_target(platform, board)
@@ -108,7 +111,10 @@ def test_tvmc_model_build_only(platform, board, output_dir):
     cmd_result = _run_tvmc(create_project_cmd)
     assert cmd_result == 0, "tvmc micro failed in step: create-project"
 
-    cmd_result = _run_tvmc(["micro", "build", project_dir, platform])
+    build_cmd = ["micro", "build", project_dir, platform]
+    if platform == "arduino":
+        build_cmd += ["--project-option", f"{platform}_board={board}"]
+    cmd_result = _run_tvmc(build_cmd)
     assert cmd_result == 0, "tvmc micro failed in step: build"
     shutil.rmtree(output_dir)
 
@@ -172,22 +178,34 @@ def test_tvmc_model_run(platform, board, output_dir):
     cmd_result = _run_tvmc(create_project_cmd)
     assert cmd_result == 0, "tvmc micro failed in step: create-project"
 
-    cmd_result = _run_tvmc(["micro", "build", project_dir, platform])
+    build_cmd = ["micro", "build", project_dir, platform]
+    if platform == "arduino":
+        build_cmd += ["--project-option", f"{platform}_board={board}"]
+    cmd_result = _run_tvmc(build_cmd)
+
     assert cmd_result == 0, "tvmc micro failed in step: build"
 
-    cmd_result = _run_tvmc(["micro", "flash", project_dir, platform])
+    flash_cmd = ["micro", "flash", project_dir, platform]
+    if platform == "arduino":
+        flash_cmd += ["--project-option", f"{platform}_board={board}"]
+    cmd_result = _run_tvmc(flash_cmd)
     assert cmd_result == 0, "tvmc micro failed in step: flash"
 
-    cmd_result = _run_tvmc(
+    run_cmd = [
+        "run",
+        "--device",
+        "micro",
+        project_dir,
+    ]
+    if platform == "arduino":
+        run_cmd += ["--project-option", f"{platform}_board={board}"]
+    run_cmd.append(
         [
-            "run",
-            "--device",
-            "micro",
-            project_dir,
             "--fill-mode",
             "random",
         ]
     )
+    cmd_result = _run_tvmc()
     assert cmd_result == 0, "tvmc micro failed in step: run"
     shutil.rmtree(output_dir)
 

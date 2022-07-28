@@ -596,9 +596,7 @@ class Handler(server.ProjectAPIHandler):
                     break
 
         if not zephyr_board:
-            raise RuntimeError(
-                f"No Zephyr board set in the {API_SERVER_DIR / CMAKELIST_FILENAME}."
-            )
+            raise RuntimeError(f"No Zephyr board set in the {API_SERVER_DIR / CMAKELIST_FILENAME}.")
         return zephyr_board
 
     def flash(self, options):
