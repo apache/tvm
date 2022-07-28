@@ -3753,7 +3753,9 @@ def verify_rnn(
     target=None,
     dev=None,
 ):
-    if rnn_type == "LSTM":
+    if rnn_type == "RNN":
+        multiplier = 1
+    elif rnn_type == "LSTM":
         multiplier = 4
     elif rnn_type == "GRU":
         multiplier = 3
@@ -3874,6 +3876,133 @@ def verify_rnn(
     verify_with_ort_with_inputs(
         model, input_values, output_shapes, atol=atol, rtol=rtol, target=target, dev=dev
     )
+
+
+@tvm.testing.parametrize_targets
+def test_rnn(target, dev):
+    # Set seed for test reproduction
+    np.random.seed(137)
+    for directions in [1, 2]:
+        # No bias.
+        verify_rnn(
+            seq_length=2,
+            batch_size=1,
+            input_size=16,
+            hidden_size=32,
+            use_bias=False,
+            rnn_type="RNN",
+            directions=directions,
+            target=target,
+            dev=dev,
+        )
+        # Non power of two.
+        verify_rnn(
+            seq_length=3,
+            batch_size=3,
+            input_size=16,
+            hidden_size=40,
+            use_bias=True,
+            rnn_type="RNN",
+            directions=directions,
+            target=target,
+            dev=dev,
+        )
+        # Long sequence.
+        verify_rnn(
+            seq_length=8,
+            batch_size=1,
+            input_size=16,
+            hidden_size=32,
+            use_bias=True,
+            rnn_type="RNN",
+            directions=directions,
+            target=target,
+            dev=dev,
+        )
+        # Large hidden.
+        verify_rnn(
+            seq_length=2,
+            batch_size=1,
+            input_size=16,
+            hidden_size=128,
+            use_bias=True,
+            rnn_type="RNN",
+            directions=directions,
+            target=target,
+            dev=dev,
+        )
+        # Large input.
+        verify_rnn(
+            seq_length=2,
+            batch_size=1,
+            input_size=64,
+            hidden_size=32,
+            use_bias=True,
+            rnn_type="RNN",
+            directions=directions,
+            target=target,
+            dev=dev,
+        )
+
+        # Different activation testing.
+        # Default value hardsigmoid.
+        # TODO: onnxruntime <= v1.12.0 has wrong default value of all activation functions
+        # verify_rnn(
+        #     seq_length=2,
+        #     batch_size=1,
+        #     input_size=16,
+        #     hidden_size=32,
+        #     use_bias=False,
+        #     activations=["HardSigmoid", "Softsign"][0: directions],
+        #     rnn_type="RNN",
+        #     directions=directions,
+        #     target=target,
+        #     dev=dev,
+        # )
+        # Multiple parametrized activations.
+        verify_rnn(
+            seq_length=2,
+            batch_size=1,
+            input_size=16,
+            hidden_size=32,
+            use_bias=False,
+            activations=["HardSigmoid", "LeakyRelu"][0: directions],
+            alphas=[2.0, 0.5][0: directions],
+            betas=[0.3, 0.0][0: directions],
+            rnn_type="RNN",
+            directions=directions,
+            target=target,
+            dev=dev,
+        )
+        # All parametrized with new Affine activation.
+        verify_rnn(
+            seq_length=2,
+            batch_size=1,
+            input_size=16,
+            hidden_size=32,
+            use_bias=False,
+            activations=["HardSigmoid", "Affine"][0: directions],
+            alphas=[2.0, 0.8][0: directions],
+            betas=[0.3, 0.1][0: directions],
+            rnn_type="RNN",
+            directions=directions,
+            target=target,
+            dev=dev,
+        )
+
+        # Testing with initial state
+        verify_rnn(
+            seq_length=2,
+            batch_size=1,
+            input_size=16,
+            hidden_size=32,
+            use_bias=True,
+            use_initial_state=True,
+            rnn_type="RNN",
+            directions=directions,
+            target=target,
+            dev=dev,
+        )
 
 
 @tvm.testing.parametrize_targets
@@ -5212,7 +5341,7 @@ unsupported_onnx_tests = [
     "test_reduce_sum_keepdims_random",
     "test_reduce_sum_negative_axes_keepdims_example",
     "test_reduce_sum_negative_axes_keepdims_random",
-    "test_rnn_seq_length",
+    "test_rnn_batchwise",
     "test_sequence_insert_at_back",
     "test_sequence_insert_at_front",
     "test_simple_rnn_batchwise",

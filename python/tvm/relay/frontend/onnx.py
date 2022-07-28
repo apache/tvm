@@ -53,6 +53,7 @@ from .common import (
     infer_value,
     lstm_cell,
     new_var,
+    rnn_cell,
     shape_of,
     try_resolve_var_to_const,
     unbind,
@@ -2723,7 +2724,7 @@ class Expand(OnnxOpConverter):
 
 
 class RNN(OnnxOpConverter):
-    """Operator converter for RNNs such as LSTM and GRU."""
+    """Operator converter for RNNs such as RNN, LSTM and GRU."""
 
     @classmethod
     def _activation_helper(cls, activation, alpha, beta):
@@ -2755,6 +2756,138 @@ class RNN(OnnxOpConverter):
             "HardSigmoid",
         ]
         return activation.decode("utf-8") in needs_beta
+
+    @classmethod
+    def bidir_rnn_cell(
+        cls,
+        input_seqs,
+        weight_dicts,
+        acts,
+    ):
+        """
+        Bidirectional RNN cell
+        """
+        seq_len = len(input_seqs)
+        forward_outputs, fw_H_t = rnn_cell(
+            input_seqs,
+            **weight_dicts[0],
+            act=acts[0],
+        )
+
+        reverse_outputs, rev_H_t = rnn_cell(
+            input_seqs,
+            **weight_dicts[1],
+            act=acts[1],
+            backwards=True,
+        )
+
+        final_outputs = []
+        for i in range(seq_len):
+            final_outputs.append(
+                _op.stack([forward_outputs[i], reverse_outputs[seq_len - 1 - i]], axis=0)
+            )
+
+        return (
+            _op.stack(final_outputs, axis=0),
+            _op.stack([fw_H_t, rev_H_t], axis=0),
+        )
+
+    @classmethod
+    def _impl_v7(cls, inputs, attr, params):
+        # Unpack inputs, note that if optional and not provided then value will be None.
+        X = inputs[0]
+        Wp = inputs[1]
+        Rp = inputs[2]
+        Bp = inputs[3]
+        # Sequence length currently unused as it can be inferred from shapes.
+        # sequence_lens = inputs['sequence_lens']
+        Hp_0 = inputs[5]
+
+        num_directions = infer_shape(Wp)[0]
+        W_dtype = infer_type(Wp).checked_type.dtype
+
+        if num_directions not in [1, 2]:
+            raise ValueError("num_directions must be either 1 or 2!")
+
+        X_shape = infer_shape(X)
+        hidden_size = infer_shape(Rp)[-1]
+        batch_size = X_shape[1]
+
+        if Hp_0 is None:
+            Hp_0 = _op.zeros((num_directions, batch_size, hidden_size), W_dtype)
+
+        if "activations" in attr:
+            activations = attr["activations"]
+            if len(activations) != num_directions:
+                raise NotImplementedError(
+                    "RNN assumes num_directions activation functions are provided"
+                )
+            alpha_loc = 0
+            alphas = attr.get("activation_alpha", [])
+            if isinstance(alphas, float):
+                alphas = [alphas]
+            beta_loc = 0
+            betas = attr.get("activation_beta", [])
+            if isinstance(betas, float):
+                betas = [betas]
+            acts = []
+            for i in range(num_directions):
+                alpha = None
+                beta = None
+                activation = activations[i]
+                if cls._activation_needs_alpha(activation) and len(alphas) > alpha_loc:
+                    alpha = alphas[alpha_loc]
+                    alpha_loc += 1
+                if cls._activation_needs_beta(activation) and len(betas) > beta_loc:
+                    beta = betas[beta_loc]
+                    beta_loc += 1
+                acts.append(cls._activation_helper(activation, alpha, beta))
+        else:
+            acts = [_op.tanh, _op.tanh]
+
+        # TODO (vvchernov): It can be replaced by _op.split if issue #8412 is resolved
+        X_steps = unbind(X, axis=0)
+
+        H_ts = _op.split(Hp_0, num_directions)
+        Ws = _op.split(Wp, num_directions)
+        Rs = _op.split(Rp, num_directions)
+
+        if Bp is not None:
+            Bs = _op.split(Bp, num_directions)
+
+        weights_dicts = []
+        for i in range(num_directions):
+            weights_dict = {}
+
+            weights_dict["hidden_state"] = _op.squeeze(H_ts[i], axis=[0])
+
+            weights_dict["w_inp"] = _op.squeeze(Ws[i], axis=[0])
+            weights_dict["w_hid"] = _op.squeeze(Rs[i], axis=[0])
+            if Bp is not None:
+                Bi, Bh = _op.split(Bs[i], 2, -1)
+                weights_dict["b_inp"] = _op.squeeze(Bi, axis=[0])
+                weights_dict["b_hid"] = _op.squeeze(Bh, axis=[0])
+            weights_dicts.append(weights_dict)
+
+        if num_directions == 2:
+            output, H = RNN.bidir_rnn_cell(
+                input_seqs=X_steps,
+                weight_dicts=weights_dicts,
+                acts=acts,
+            )
+        else:
+            # outputs shape = [seqs_num, (batch_size, hidden_size)]
+            outputs, H = rnn_cell(
+                input_seqs=X_steps,
+                **weights_dicts[0],
+                act=acts[0],
+            )
+
+            # output shape = (seqs_num, num_directions, batch_size, hidden_size)
+            output = _op.expand_dims(_op.stack(outputs, axis=0), axis=1)
+            H = _op.expand_dims(H, axis=0)
+
+        return _expr.TupleWrapper(_expr.Tuple((output, H)), 2)
 
 
 class LSTM(RNN):
@@ -5287,6 +5420,7 @@ def _get_convert_map(opset):
         "Flatten": Flatten.get_converter(opset),
         "LRN": LRN.get_converter(opset),
         # Recurrent Layers
+        "RNN": RNN.get_converter(opset),
         "LSTM": LSTM.get_converter(opset),
         "GRU": GRU.get_converter(opset),
         # defs/vision
