@@ -73,7 +73,6 @@ import logging
 import os
 import pickle
 import platform
-import shutil
 import sys
 import time
 
@@ -962,9 +961,7 @@ requires_cmsisnn = Feature("cmsisnn", "CMSIS NN", cmake_flag="USE_CMSISNN")
 requires_corstone300 = Feature(
     "corstone300",
     "Corstone-300",
-    compile_time_check=lambda: (
-        (shutil.which("arm-none-eabi-gcc") is None) or "ARM embedded toolchain unavailable"
-    ),
+    compile_time_check=tvm.micro.testing._corstone300_compile_time_check,
     parent_features="cmsisnn",
 )
 
