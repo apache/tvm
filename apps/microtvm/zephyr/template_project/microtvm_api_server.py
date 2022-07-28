@@ -449,7 +449,6 @@ class Handler(server.ProjectAPIHandler):
                     header in lib_content
                     for header in [
                         "<arm_nnsupportfunctions.h>",
-                        "<arm_math.h>",
                         "arm_nn_types.h",
                         "arm_nnfunctions.h",
                     ]
