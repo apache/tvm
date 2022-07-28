@@ -163,8 +163,7 @@ tvmc micro build \
 # bash
 tvmc micro flash \
     project \
-    zephyr \
-    --project-option zephyr_board=qemu_x86
+    zephyr
 # bash
 
 ############################################################
@@ -181,7 +180,6 @@ tvmc micro flash \
 tvmc run \
     --device micro \
     project \
-    --project-option zephyr_board=qemu_x86 \
     --fill-mode ones \
     --print-top 4
 # bash

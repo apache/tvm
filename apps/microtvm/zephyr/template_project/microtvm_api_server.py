@@ -61,6 +61,8 @@ IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 
 BOARDS = API_SERVER_DIR / "boards.json"
 
+CMAKELIST_FILENAME = "CMakeLists.txt"
+
 # Used to check Zephyr version installed on the host.
 # We only check two levels of the version.
 ZEPHYR_VERSION = 2.7
@@ -299,7 +301,7 @@ PROJECT_OPTIONS = [
     ),
     server.ProjectOption(
         "zephyr_board",
-        required=["generate_project", "flash", "open_transport"],
+        required=["generate_project"],
         choices=list(BOARD_PROPERTIES),
         type="str",
         help="Name of the Zephyr board to build for.",
@@ -468,7 +470,7 @@ class Handler(server.ProjectAPIHandler):
         if options.get("west_cmd"):
             cmake_args += f"set(WEST {options['west_cmd']})\n"
 
-        if self._is_qemu(options):
+        if self._is_qemu(options["zephyr_board"]):
             # Some boards support more than one emulator, so ensure QEMU is set.
             cmake_args += f"set(EMU_PLATFORM qemu)\n"
 
@@ -510,7 +512,7 @@ class Handler(server.ProjectAPIHandler):
             os.makedirs(extract_path)
             tf.extractall(path=extract_path)
 
-        if self._is_qemu(options):
+        if self._is_qemu(options["zephyr_board"]):
             shutil.copytree(API_SERVER_DIR / "qemu-hack", project_dir / "qemu-hack")
 
         # Populate CRT.
@@ -525,8 +527,8 @@ class Handler(server.ProjectAPIHandler):
                 shutil.copy2(src_path, dst_path)
 
         # Populate Makefile.
-        with open(project_dir / "CMakeLists.txt", "w") as cmake_f:
-            with open(API_SERVER_DIR / "CMakeLists.txt.template", "r") as cmake_template_f:
+        with open(project_dir / CMAKELIST_FILENAME, "w") as cmake_f:
+            with open(API_SERVER_DIR / f"{CMAKELIST_FILENAME}.template", "r") as cmake_template_f:
                 for line in cmake_template_f:
                     if self.API_SERVER_CRT_LIBS_TOKEN in line:
                         crt_libs = self.CRT_LIBS_BY_PROJECT_TYPE[options["project_type"]]
@@ -576,22 +578,33 @@ class Handler(server.ProjectAPIHandler):
     _KNOWN_QEMU_ZEPHYR_BOARDS = ("mps2_an521", "mps3_an547")
 
     @classmethod
-    def _is_qemu(cls, options):
-        return (
-            "qemu" in options["zephyr_board"]
-            or options["zephyr_board"] in cls._KNOWN_QEMU_ZEPHYR_BOARDS
-        )
+    def _is_qemu(cls, board: str) -> bool:
+        return "qemu" in board or board in cls._KNOWN_QEMU_ZEPHYR_BOARDS
 
     @classmethod
     def _has_fpu(cls, zephyr_board):
         fpu_boards = [name for name, board in BOARD_PROPERTIES.items() if board["fpu"]]
         return zephyr_board in fpu_boards
 
-    def flash(self, options):
-        if self._is_qemu(options):
-            return  # NOTE: qemu requires no flash step--it is launched from open_transport.
+    @classmethod
+    def _find_board_from_cmake_file(cls) -> str:
+        with open(API_SERVER_DIR / CMAKELIST_FILENAME) as cmake_f:
+            for line in cmake_f:
+                if line.startswith("set(BOARD"):
+                    zephyr_board = line.strip("\n").strip("set(BOARD ").strip(")")
+                    break
 
-        zephyr_board = options["zephyr_board"]
+        if not zephyr_board:
+            raise RuntimeError(
+                f"Zephyr Board is not found in the {API_SERVER_DIR / CMAKELIST_FILENAME}"
+            )
+        return zephyr_board
+
+    def flash(self, options):
+        zephyr_board = self._find_board_from_cmake_file()
+
+        if self._is_qemu(zephyr_board):
+            return  # NOTE: qemu requires no flash step--it is launched from open_transport.
 
         # The nRF5340DK requires an additional `nrfjprog --recover` before each flash cycle.
         # This is because readback protection is enabled by default when this device is flashed.
@@ -606,7 +619,9 @@ class Handler(server.ProjectAPIHandler):
         check_call(["make", "flash"], cwd=API_SERVER_DIR / "build")
 
     def open_transport(self, options):
-        if self._is_qemu(options):
+        zephyr_board = self._find_board_from_cmake_file()
+
+        if self._is_qemu(zephyr_board):
             transport = ZephyrQemuTransport(options)
         else:
             transport = ZephyrSerialTransport(options)

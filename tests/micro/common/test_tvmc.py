@@ -175,9 +175,7 @@ def test_tvmc_model_run(platform, board, output_dir):
     cmd_result = _run_tvmc(["micro", "build", project_dir, platform])
     assert cmd_result == 0, "tvmc micro failed in step: build"
 
-    cmd_result = _run_tvmc(
-        ["micro", "flash", project_dir, platform, "--project-option", f"{platform}_board={board}"]
-    )
+    cmd_result = _run_tvmc(["micro", "flash", project_dir, platform])
     assert cmd_result == 0, "tvmc micro failed in step: flash"
 
     cmd_result = _run_tvmc(
@@ -186,8 +184,6 @@ def test_tvmc_model_run(platform, board, output_dir):
             "--device",
             "micro",
             project_dir,
-            "--project-option",
-            f"{platform}_board={board}",
             "--fill-mode",
             "random",
         ]
