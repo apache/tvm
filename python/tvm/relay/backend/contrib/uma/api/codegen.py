@@ -34,10 +34,7 @@ class UMACodegen(object):
         else:
             raise RuntimeError(f'Unsupported codegen format "{fmt}"')
 
-    def _register_c_codegen(
-        self,
-        includes: Optional[Callable[[], str]] = None
-    ) -> None:
+    def _register_c_codegen(self, includes: Optional[Callable[[], str]] = None) -> None:
         """Registration of UMA helper functions, e.g. includes and replace_call_extern.
 
         Parameters

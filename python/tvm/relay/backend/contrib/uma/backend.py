@@ -258,7 +258,7 @@ class UMABackend(ABC):
         The C-codegen currently provides one hook which allows the user to insert code through
         the python API.
             - `includes` hooks into the include stream and allows insertion of custom includes.
-           
+
 
         The code generation functions can look like this:
 

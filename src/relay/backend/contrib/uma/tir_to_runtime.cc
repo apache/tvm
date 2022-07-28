@@ -57,6 +57,7 @@ class UMACodegen : public codegen::CodeGenCHost {
 
  private:
   String target_str_;
+};
 
 runtime::Module TIRToRuntime(IRModule mod, Target target) {
   bool output_ssa = false;
@@ -75,6 +76,6 @@ runtime::Module TIRToRuntime(IRModule mod, Target target) {
 }
 
 }  // namespace uma
-}  // namespace contrib
+};  // namespace contrib
 }  // namespace relay
 }  // namespace tvm

@@ -67,11 +67,11 @@ TVM_REGISTER_GLOBAL("relay.backend.contrib.uma.RegisterTarget")
         auto default_value = attr_option.second;
         if (default_value->IsInstance<StringObj>()) {
           target_kind.add_attr_option<String>(option_name, Downcast<String>(default_value));
-        }else if(default_value->IsInstance<IntImmNode>()) {
+        } else if (default_value->IsInstance<IntImmNode>()) {
           target_kind.add_attr_option<Integer>(option_name, Downcast<Integer>(default_value));
         } else {
           LOG(FATAL) << "Attribute option of type " << attr_option.second->GetTypeKey()
-                     << " can not be added. Only String, Integer, or Bool are supported."; 
+                     << " can not be added. Only String, Integer, or Bool are supported.";
         }
       }
       return true;

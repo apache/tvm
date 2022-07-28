@@ -19,7 +19,8 @@
 
 Making your Hardware Accelerator TVM-ready with UMA
 ===================================================
-**Author**: `Michael J. Klaiber <https://github.com/MichaelJKlaiber>`_
+**Authors**: `Michael J. Klaiber <https://github.com/MichaelJKlaiber>`_, `Christoph Gerum <https://github.com/cgerum>`_,
+`Paul Palomero Bernardo <https://github.com/PaulPalomeroBernardo/>`_
 
 """
 
