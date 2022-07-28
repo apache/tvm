@@ -40,6 +40,7 @@ if torch.cuda.is_available():
     torch.backends.cuda.matmul.allow_tf32 = False
     torch.backends.cudnn.allow_tf32 = False
 
+
 def list_ops(expr):
     class OpLister(tvm.relay.ExprVisitor):
         def visit_op(self, op):
