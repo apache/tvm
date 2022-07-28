@@ -54,6 +54,7 @@ from tensorflow.python.framework import function
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import dtypes
 from tensorflow.python.ops import gen_functional_ops
+from tensorflow.python.client import device_lib
 
 try:
     import tensorflow.compat.v1 as tf
@@ -5113,7 +5114,7 @@ def _verify_infiniteness_ops(tf_op, name):
         tf.reset_default_graph()
         in_data = tf.placeholder(tf_dtype, shape, name="in_data")
         tf_op(in_data, name=name)
-        compare_tf_with_tvm([data], ["in_data:0"], "f{name}:0")
+        compare_tf_with_tvm([data], ["in_data:0"], f"{name}:0")
 
 
 def test_forward_isinf():
