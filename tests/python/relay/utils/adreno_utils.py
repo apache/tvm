@@ -20,6 +20,7 @@ import os
 import tvm
 import numpy as np
 from tvm import relay
+from tvm import autotvm
 from tvm.relay import testing
 from tvm.relay.transform import recast
 from tvm.contrib import graph_runtime
@@ -45,7 +46,13 @@ def get_cpu_reference(mod, params1, input_shape, inputs):
 
 # build module run with opencl and cpu, compare results
 def build_run_compare(
-    tvm_mod, params1, input_shape, dtype="float32", target="llvm", gpu_preprocess=None
+    tvm_mod,
+    params1,
+    input_shape,
+    dtype="float32",
+    target="llvm",
+    gpu_preprocess=None,
+    stat_file=None,
 ):
 
     if "TVM_TRACKER_HOST" in os.environ and "TVM_TRACKER_PORT" in os.environ:
@@ -63,10 +70,18 @@ def build_run_compare(
     else:
         tvm_mod_nchwc = tvm_mod
 
-    with relay.build_config(opt_level=3):
-        graph, lib, params = relay.build(
-            tvm_mod_nchwc, target_host=target_host, target=target, params=params1
-        )
+    if stat_file is not None:
+        with autotvm.apply_history_best(stat_file):
+            with tvm.transform.PassContext(opt_level=3):
+                graph, lib, params = relay.build(
+                    tvm_mod_nchwc, target_host=target_host, target=target, params=params1
+                )
+    else:
+        with tvm.transform.PassContext(opt_level=3):
+            graph, lib, params = relay.build(
+                tvm_mod_nchwc, target_host=target_host, target=target, params=params1
+            )
+
     if run_on_host:
         ctx = tvm.opencl()
         m = graph_runtime.create(graph, lib, ctx)

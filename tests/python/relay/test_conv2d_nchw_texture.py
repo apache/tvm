@@ -20,6 +20,7 @@ import tvm
 import numpy as np
 from tvm import relay
 from tvm.relay import testing
+from tvm.contrib import utils
 from utils.adreno_utils import gpu_preprocess, build_run_compare
 
 
@@ -432,6 +433,63 @@ def test_conv2d_vgg16_winograd_4d():
         "bias": tvm.nd.array(bias_data),
     }
 
-    graph = build_run_compare(mod, params1, {"data": input_shape}, dtype, target)
+    temp = utils.tempdir()
+    stat_file = temp.relpath("stat.log")
+    with open(stat_file, "w") as f:
+        f.write(
+            '{"input": ["opencl -keys=adreno,opencl,gpu -device=adreno -max_num_threads=256", "conv2d_nchw_winograd_acc32.image2d", [["TENSOR", [1, 512, 28, 28], "float16"], ["TENSOR", [512, 512, 3, 3], "float16"], [1, 1], [1, 1, 1, 1], [1, 1], "float16"], {}], "config": {"index": 1591, "code_hash": null, "entity": [["auto_unroll_max_step", "ot", 4], ["tile_y", "sp", [-1, 1, 32]], ["tile_x", "sp", [-1, 4, 2]], ["tile_rc", "sp", [-1, 8]]]}, "result": [[0.0037244], 0, 7.06374192237854, 1653898629.7427933], "version": 0.2, "tvm_version": "0.8.dev0"}\n'
+        )
+    graph = build_run_compare(
+        mod, params1, {"data": input_shape}, dtype, target, stat_file=stat_file
+    )
+    matches = re.findall("winograd", graph)
+    assert len(matches) > 0
+
+
+@tvm.testing.requires_opencl
+def test_conv2d_winograd_conv():
+    target = "opencl --device=adreno"
+    dtype = "float16"
+
+    input_shape = (1, 4, 3, 3)
+    A = relay.var("data", shape=input_shape, dtype=dtype)
+    filter_shape3 = (8, 4, 3, 3)
+    bias_shape3 = (8,)
+    B3 = relay.var("weight3", shape=filter_shape3, dtype=dtype)
+    D = relay.nn.conv2d(
+        A, B3, padding=[1, 1, 1, 1], channels=8, kernel_size=[3, 3], out_dtype=dtype
+    )
+
+    filter_shape4 = (8, 8, 3, 3)
+    bias_shape4 = (8,)
+    B4 = relay.var("weight4", shape=filter_shape4, dtype=dtype)
+    D = relay.nn.conv2d(
+        D, B4, padding=[1, 1, 1, 1], channels=8, kernel_size=[3, 3], out_dtype=dtype
+    )
+    mod = relay.Function([A, B3, B4], D)
+    np.random.seed(1)
+    initializer = relay.testing.init.Xavier()
+    filter_data3 = np.zeros(filter_shape3).astype(dtype)
+    bias_data3 = np.zeros(bias_shape3).astype(dtype)
+    filter_data4 = np.zeros(filter_shape4).astype(dtype)
+    bias_data4 = np.zeros(bias_shape4).astype(dtype)
+    initializer("weight", filter_data3)
+    initializer("bias", bias_data3)
+    initializer("weight", filter_data4)
+    initializer("bias", bias_data4)
+    params1 = {
+        "weight3": tvm.nd.array(filter_data3),
+        "weight4": tvm.nd.array(filter_data4),
+    }
+
+    temp = utils.tempdir()
+    stat_file = temp.relpath("stat.log")
+    with open(stat_file, "w") as f:
+        f.write(
+            '{"input": ["opencl -keys=adreno,opencl,gpu -device=adreno -max_num_threads=256", "conv2d_nchw_winograd_acc32.image2d", [["TENSOR", [1, 4, 3, 3], "float16"], ["TENSOR", [8, 4, 3, 3], "float16"], [1, 1], [1, 1, 1, 1], [1, 1], "float16"], {}], "config": {"index": 1591, "code_hash": null, "entity": [["auto_unroll_max_step", "ot", 4], ["tile_y", "sp", [-1, 1, 32]], ["tile_x", "sp", [-1, 4, 2]], ["tile_rc", "sp", [-1, 8]]]}, "result": [[0.0037244], 0, 7.06374192237854, 1653898629.7427933], "version": 0.2, "tvm_version": "0.8.dev0"}\n'
+        )
+    graph = build_run_compare(
+        mod, params1, {"data": input_shape}, dtype, target, stat_file=stat_file
+    )
     matches = re.findall("winograd", graph)
     assert len(matches) > 0
