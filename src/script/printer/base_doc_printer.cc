@@ -58,6 +58,28 @@ void DocPrinter::PrintDoc(const Doc& doc) {
     PrintTypedDoc(GetRef<DictDoc>(doc_node));
   } else if (const auto* doc_node = doc.as<SliceDocNode>()) {
     PrintTypedDoc(GetRef<SliceDoc>(doc_node));
+  } else if (const auto* doc_node = doc.as<StmtBlockDocNode>()) {
+    PrintTypedDoc(GetRef<StmtBlockDoc>(doc_node));
+  } else if (const auto* doc_node = doc.as<AssignDocNode>()) {
+    PrintTypedDoc(GetRef<AssignDoc>(doc_node));
+  } else if (const auto* doc_node = doc.as<IfDocNode>()) {
+    PrintTypedDoc(GetRef<IfDoc>(doc_node));
+  } else if (const auto* doc_node = doc.as<WhileDocNode>()) {
+    PrintTypedDoc(GetRef<WhileDoc>(doc_node));
+  } else if (const auto* doc_node = doc.as<ForDocNode>()) {
+    PrintTypedDoc(GetRef<ForDoc>(doc_node));
+  } else if (const auto* doc_node = doc.as<ScopeDocNode>()) {
+    PrintTypedDoc(GetRef<ScopeDoc>(doc_node));
+  } else if (const auto* doc_node = doc.as<ExprStmtDocNode>()) {
+    PrintTypedDoc(GetRef<ExprStmtDoc>(doc_node));
+  } else if (const auto* doc_node = doc.as<AssertDocNode>()) {
+    PrintTypedDoc(GetRef<AssertDoc>(doc_node));
+  } else if (const auto* doc_node = doc.as<ReturnDocNode>()) {
+    PrintTypedDoc(GetRef<ReturnDoc>(doc_node));
+  } else if (const auto* doc_node = doc.as<FunctionDocNode>()) {
+    PrintTypedDoc(GetRef<FunctionDoc>(doc_node));
+  } else if (const auto* doc_node = doc.as<ClassDocNode>()) {
+    PrintTypedDoc(GetRef<ClassDoc>(doc_node));
   } else {
     LOG(FATAL) << "Do not know how to print " << doc->GetTypeKey();
     throw;
