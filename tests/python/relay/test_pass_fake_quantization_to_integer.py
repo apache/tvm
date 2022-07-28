@@ -324,16 +324,16 @@ class TestUnaryQNNOp:
 
             zero = -128 if dtype == "int8" else 0
 
-            mid_point = relay.const(np.random.randint(0, 255) + zero)
-            scale = relay.const(np.random.rand())
+            input_mid_point = relay.const(np.random.randint(0, 255) + zero)
+            input_scale = relay.const(np.random.rand())
 
-            x = relay.qnn.op.dequantize(x, scale, mid_point)
+            x = relay.qnn.op.dequantize(x, input_scale, input_mid_point)
             op = fp32_op(x)
 
-            mid_point = relay.const(np.random.randint(0, 255) + zero)
-            scale = relay.const(np.random.rand())
+            output_mid_point = relay.const(np.random.randint(0, 255) + zero)
+            output_scale = relay.const(np.random.rand())
 
-            op = relay.qnn.op.quantize(op, scale, mid_point, out_dtype=dtype)
+            op = relay.qnn.op.quantize(op, output_scale, output_mid_point, out_dtype=dtype)
 
             x_np = np.random.randint(0 + zero, 255 + zero, size=[1, 3, 3, 3], dtype=dtype)
 
