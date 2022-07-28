@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, missing-docstring
 """Unit tests for various models and operators"""
 import numpy as np
 import tvm
@@ -45,10 +44,12 @@ else:
 
 
 def pytest_generate_tests(metafunc):
-    # This function generates the list of tests for pytest, based
-    # on scenarios that will change the parameters in which the
-    # tests use to run.
-    # https://docs.pytest.org/en/latest/example/parametrize.html
+    """
+    This function generates the list of tests for pytest, based
+    on scenarios that will change the parameters in which the
+    tests use to run.
+    https://docs.pytest.org/en/latest/example/parametrize.html
+    """
     idlist = []
     argvalues = []
     for scenario in metafunc.cls.scenarios:
@@ -67,6 +68,7 @@ using_tensorflow_keras = ("tf_keras", {"keras_mod": tf_keras})
 
 
 def verify_keras_frontend(keras_model, need_transpose=True, layout="NCHW"):
+    """Generic function to generate and compare Keras and TVM output"""
     # Keras frontend currently supports tensorflow backend only.
     assert keras.backend.backend() == "tensorflow"
 
@@ -82,16 +84,16 @@ def verify_keras_frontend(keras_model, need_transpose=True, layout="NCHW"):
                 tuple(dim.value if dim.value is not None else 1 for dim in layer.input.shape)
             )
 
-    def get_keras_output(xs):
-        return keras_model.predict(xs)
+    def get_keras_output(in_data):
+        return keras_model.predict(in_data)
 
-    def get_tvm_output(xs, target, dev, dtype="float32"):
-        shape_dict = {name: x.shape for (name, x) in zip(keras_model.input_names, xs)}
+    def get_tvm_output(in_data, target, dev, dtype="float32"):
+        shape_dict = {name: x.shape for (name, x) in zip(keras_model.input_names, in_data)}
         mod, params = relay.frontend.from_keras(keras_model, shape_dict, layout=layout)
         with tvm.transform.PassContext(opt_level=2):
             lib = relay.build(mod, target, params=params)
         m = graph_executor.GraphModule(lib["default"](dev))
-        for name, x in zip(keras_model.input_names, xs):
+        for name, x in zip(keras_model.input_names, in_data):
             m.set_input(name, tvm.nd.array(x.astype(dtype)))
         m.run()
         return [m.get_output(i).numpy() for i in range(m.get_num_outputs())]
@@ -102,11 +104,11 @@ def verify_keras_frontend(keras_model, need_transpose=True, layout="NCHW"):
     def to_channels_last(arr):
         return arr.transpose([0] + list(range(2, arr.ndim)) + [1])
 
-    xs = [np.random.uniform(size=shape, low=-1.0, high=1.0) for shape in in_shapes]
-    keras_out = get_keras_output(xs)
+    in_data = [np.random.uniform(size=shape, low=-1.0, high=1.0) for shape in in_shapes]
+    keras_out = get_keras_output(in_data)
     keras_out = keras_out if isinstance(keras_out, list) else [keras_out]
     for target, dev in tvm.testing.enabled_targets():
-        inputs = [to_channels_first(x) for x in xs] if need_transpose else xs
+        inputs = [to_channels_first(x) for x in in_data] if need_transpose else in_data
         tvm_out = get_tvm_output(inputs, target, dev)
         for kout, tout in zip(keras_out, tvm_out):
             if need_transpose:
@@ -117,12 +119,12 @@ def verify_keras_frontend(keras_model, need_transpose=True, layout="NCHW"):
 def get_mobilenet(keras_mod):
     if hasattr(keras_mod.applications, "MobileNet"):
         # Keras 2.4.x and older
-        MobileNet = keras_mod.applications.MobileNet
+        mobilenet_mod = keras_mod.applications.MobileNet
     else:
         # Keras 2.6.x and newer
-        MobileNet = keras_mod.applications.mobilenet.MobileNet
+        mobilenet_mod = keras_mod.applications.mobilenet.MobileNet
 
-    return MobileNet
+    return mobilenet_mod
 
 
 @tvm.testing.uses_gpu
@@ -132,10 +134,11 @@ class TestKeras:
     scenarios = [using_classic_keras, using_tensorflow_keras]
 
     def test_forward_merge(self, keras_mod):
+        """test_forward_merge"""
         data = keras_mod.layers.Input(shape=(32, 32, 3))
-        x = keras_mod.layers.Conv2D(8, (3, 3), padding="same")(data)
-        y = keras_mod.layers.Conv2D(8, (3, 3), padding="same")(x)
-        z = keras_mod.layers.Conv2D(8, (3, 3), padding="same")(y)
+        conv2d_x = keras_mod.layers.Conv2D(8, (3, 3), padding="same")(data)
+        conv2d_y = keras_mod.layers.Conv2D(8, (3, 3), padding="same")(conv2d_x)
+        conv2d_z = keras_mod.layers.Conv2D(8, (3, 3), padding="same")(conv2d_y)
         merge_funcs = [
             keras_mod.layers.Add(),
             keras_mod.layers.Subtract(),
@@ -148,13 +151,14 @@ class TestKeras:
         for merge_func in merge_funcs:
             class_name = type(merge_func).__name__
             if class_name in ("Subtract", "Dot"):
-                out = merge_func([x, y])
+                out = merge_func([conv2d_x, conv2d_y])
             else:
-                out = merge_func([x, y, z])
+                out = merge_func([conv2d_x, conv2d_y, conv2d_z])
             keras_model = keras_mod.models.Model(data, out)
             verify_keras_frontend(keras_model)
 
     def test_forward_merge_dot(self, keras_mod):
+        """test_forward_merge_dot"""
         data1 = keras_mod.layers.Input(shape=(2, 2))
         data2 = keras_mod.layers.Input(shape=(2, 2))
         merge_funcs = [
@@ -171,6 +175,7 @@ class TestKeras:
             verify_keras_frontend(keras_model)
 
     def test_forward_activations(self, keras_mod):
+        """test_forward_activations"""
         data = keras_mod.layers.Input(shape=(32, 32, 3))
         act_funcs = [
             keras_mod.layers.Activation("softmax"),
@@ -206,6 +211,7 @@ class TestKeras:
             verify_keras_frontend(keras_model, need_transpose=False, layout="NHWC")
 
     def test_forward_dense(self, keras_mod):
+        """test_forward_dense"""
         data = keras_mod.layers.Input(shape=(32, 32, 1))
         x = keras_mod.layers.Flatten()(data)
         x = keras_mod.layers.Dropout(0.5)(x)
@@ -225,6 +231,7 @@ class TestKeras:
         verify_keras_frontend(keras_model, need_transpose=False)
 
     def test_forward_sequential(self, keras_mod):
+        """test_forward_sequential"""
         keras_model = keras_mod.models.Sequential(
             [
                 keras_mod.layers.Dense(16, input_dim=32, activation="relu"),
@@ -248,6 +255,7 @@ class TestKeras:
         verify_keras_frontend(keras_model)
 
     def test_forward_conv1d(self, keras_mod):
+        """test_forward_conv1d"""
         data = keras_mod.layers.Input(shape=(32, 3))
         conv_funcs = [
             keras_mod.layers.Conv1D(filters=10, kernel_size=(3,), strides=(2,), padding="same"),
@@ -265,6 +273,7 @@ class TestKeras:
             verify_keras_frontend(keras_model, layout="NWC")
 
     def test_forward_conv(self, keras_mod):
+        """test_forward_conv"""
         data = keras_mod.layers.Input(shape=(32, 32, 3))
         conv_funcs = [
             keras_mod.layers.Conv2D(filters=10, kernel_size=(3, 3), strides=(2, 2), padding="same"),
@@ -282,6 +291,7 @@ class TestKeras:
             verify_keras_frontend(keras_model)
 
     def test_forward_batch_norm(self, keras_mod):
+        """test_forward_batch_norm"""
         data = keras_mod.layers.Input(shape=(32, 32, 3))
         batch_norm_funcs = [
             keras_mod.layers.BatchNormalization(
@@ -341,6 +351,7 @@ class TestKeras:
         verify_keras_frontend(keras_model)
 
     def test_forward_reshape(self, keras_mod):
+        """test_forward_reshape"""
         # input_shape len is 3, target_shape len is 3
         data = keras_mod.layers.Input(shape=(32, 32, 3))
         x = keras_mod.layers.Reshape(target_shape=(16, 64, 3))(data)
@@ -383,6 +394,7 @@ class TestKeras:
         verify_keras_frontend(keras_model)
 
     def test_forward_crop(self, keras_mod):
+        """test_forward_crop"""
         data = keras_mod.layers.Input(shape=(32, 32, 3))
         x = keras_mod.layers.Cropping2D(cropping=((1, 1), (1, 1)))(data)
         x = keras_mod.layers.Cropping2D(cropping=(1, 1))(x)
@@ -399,9 +411,9 @@ class TestKeras:
         data2 = keras_mod.layers.Input(shape=(32, 32, 3))
         x = keras_mod.layers.Conv2D(8, (3, 3), padding="same")(data1)
         y = keras_mod.layers.Conv2D(8, (3, 3), padding="same")(data2)
-        z = keras_mod.layers.Average()([x, y])
-        z = keras_mod.layers.GlobalAveragePooling2D()(z)
-        keras_model = keras_mod.models.Model([data1, data2], z)
+        average_z = keras_mod.layers.Average()([x, y])
+        out = keras_mod.layers.GlobalAveragePooling2D()(average_z)
+        keras_model = keras_mod.models.Model([data1, data2], out)
         verify_keras_frontend(keras_model)
 
     def test_forward_multi_outputs(self, keras_mod):
@@ -414,14 +426,15 @@ class TestKeras:
         verify_keras_frontend(keras_model)
 
     def test_forward_reuse_layers(self, keras_mod):
+        """test_forward_reuse_layers"""
         # reuse conv2d
         data = keras_mod.layers.Input(shape=(32, 32, 3))
         conv2d = keras_mod.layers.Conv2D(8, (3, 3), padding="same")
         x = conv2d(data)
         y = conv2d(data)
-        z = keras_mod.layers.Add()([x, y])
-        z = keras_mod.layers.GlobalAveragePooling2D()(z)
-        keras_model = keras_mod.models.Model(data, z)
+        add_z = keras_mod.layers.Add()([x, y])
+        out = keras_mod.layers.GlobalAveragePooling2D()(add_z)
+        keras_model = keras_mod.models.Model(data, out)
         verify_keras_frontend(keras_model)
         # reuse add
         data = keras_mod.layers.Input(shape=(32, 32, 3))
@@ -429,11 +442,12 @@ class TestKeras:
         add = keras_mod.layers.Add()
         x = add([x, x])
         x = add([x, x])
-        z = keras_mod.layers.GlobalAveragePooling2D()(x)
-        keras_model = keras_mod.models.Model(data, z)
+        out = keras_mod.layers.GlobalAveragePooling2D()(x)
+        keras_model = keras_mod.models.Model(data, out)
         verify_keras_frontend(keras_model)
 
     def test_forward_lstm(self, keras_mod):
+        """test_forward_lstm"""
         data = keras_mod.layers.Input(shape=(10, 32))
         rnn_funcs = [
             keras_mod.layers.LSTM(16),
@@ -446,6 +460,7 @@ class TestKeras:
             verify_keras_frontend(keras_model, need_transpose=False)
 
     def test_forward_rnn(self, keras_mod):
+        """test_forward_rnn"""
         data = keras_mod.layers.Input(shape=(1, 32))
         rnn_funcs = [
             keras_mod.layers.LSTM(
@@ -484,53 +499,57 @@ class TestKeras:
             verify_keras_frontend(keras_model, need_transpose=False)
 
     def test_forward_vgg16(self, keras_mod, layout="NCHW"):
+        """test_forward_vgg16"""
         if hasattr(keras_mod.applications, "VGG16"):
             # Keras 2.4.x and older
-            VGG16 = keras_mod.applications.VGG16
+            vgg16_mod = keras_mod.applications.VGG16
         else:
             # Keras 2.6.x and newer
-            VGG16 = keras_mod.applications.vgg16.VGG16
+            vgg16_mod = keras_mod.applications.vgg16.VGG16
 
-        keras_model = VGG16(
+        keras_model = vgg16_mod(
             include_top=True, weights="imagenet", input_shape=(224, 224, 3), classes=1000
         )
         verify_keras_frontend(keras_model, layout=layout)
 
     def test_forward_xception(self, keras_mod, layout="NCHW"):
+        """test_forward_vgg16"""
         if hasattr(keras_mod.applications, "Xception"):
             # Keras 2.4.x and older
-            Xception = keras_mod.applications.Xception
+            xception_mod = keras_mod.applications.Xception
         else:
             # Keras 2.6.x and newer
-            Xception = keras_mod.applications.xception.Xception
+            xception_mod = keras_mod.applications.xception.Xception
 
-        keras_model = Xception(
+        keras_model = xception_mod(
             include_top=True, weights="imagenet", input_shape=(299, 299, 3), classes=1000
         )
         verify_keras_frontend(keras_model, layout=layout)
 
     def test_forward_resnet50(self, keras_mod, layout="NCHW"):
+        """test_forward_resnet50"""
         if hasattr(keras_mod.applications, "ResNet50"):
             # Keras 2.4.x and older
-            ResNet50 = keras_mod.applications.ResNet50
+            resnet50_mod = keras_mod.applications.ResNet50
         else:
             # Keras 2.6.x and newer
-            ResNet50 = keras_mod.applications.resnet.ResNet50
+            resnet50_mod = keras_mod.applications.resnet.ResNet50
 
-        keras_model = ResNet50(
+        keras_model = resnet50_mod(
             include_top=True, weights="imagenet", input_shape=(224, 224, 3), classes=1000
         )
         verify_keras_frontend(keras_model, layout=layout)
 
     def test_forward_mobilenet(self, keras_mod, layout="NCHW"):
-        MobileNet = get_mobilenet(keras_mod)
+        mobilenet_mod = get_mobilenet(keras_mod)
 
-        keras_model = MobileNet(
+        keras_model = mobilenet_mod(
             include_top=True, weights="imagenet", input_shape=(224, 224, 3), classes=1000
         )
         verify_keras_frontend(keras_model, layout=layout)
 
     def test_forward_conv3d(self, keras_mod):
+        """test_forward_conv3d"""
         data = keras_mod.layers.Input(shape=(32, 32, 32, 3))
         conv_funcs = [
             keras_mod.layers.Conv3D(
@@ -550,6 +569,7 @@ class TestKeras:
             verify_keras_frontend(keras_model, layout="NDHWC")
 
     def test_forward_conv3d_transpose(self, keras_mod):
+        """test_forward_conv3d_transpose"""
         data = keras_mod.layers.Input(shape=(32, 32, 32, 3))
         conv_funcs = [
             keras_mod.layers.Conv3DTranspose(
@@ -569,6 +589,7 @@ class TestKeras:
             verify_keras_frontend(keras_model, layout="NDHWC")
 
     def test_forward_pool3d(self, keras_mod):
+        """test_forward_pool3d"""
         data = keras_mod.layers.Input(shape=(32, 32, 32, 1))
         pool_funcs = [  # maxpool
             keras_mod.layers.MaxPooling3D(pool_size=(2, 2, 2), strides=(1, 1, 1), padding="same"),
@@ -593,6 +614,7 @@ class TestKeras:
         verify_keras_frontend(keras_model, layout="NDHWC")
 
     def test_forward_zero_padding3d(self, keras_mod):
+        """test_forward_zero_padding3d"""
         data = keras_mod.layers.Input(shape=(32, 32, 32, 3))
         pad_funcs = [  # Integer
             keras_mod.layers.ZeroPadding3D(padding=2),
@@ -609,6 +631,7 @@ class TestKeras:
             verify_keras_frontend(keras_model, layout="NDHWC")
 
     def test_forward_embedding(self, keras_mod):
+        """test_forward_embedding"""
         data = keras_mod.layers.Input(shape=(2, 4), dtype="int32")
         x = keras_mod.layers.Embedding(10, 3)(data)
         keras_model = keras_mod.models.Model(data, x)
@@ -625,6 +648,7 @@ class TestKeras:
         verify_keras_frontend(keras_model, need_transpose=False)
 
     def test_forward_repeat_vector(self, keras_mod):
+        """test_forward_repeat_vector"""
         data = keras_mod.layers.Input(shape=(5,), dtype="float32")
         x = keras_mod.layers.Dense(6)(data)
         x = keras_mod.layers.RepeatVector(2)(x)
@@ -643,6 +667,7 @@ class TestKeras:
         verify_keras_frontend(keras_model, need_transpose=False)
 
     def test_forward_global_pool3d(self, keras_mod):
+        """test_forward_zero_padding3d"""
         data = keras_mod.layers.Input(shape=(32, 32, 32, 1))
         pool_funcs = [  # global maxpool
             keras_mod.layers.GlobalMaxPooling3D(),
@@ -655,9 +680,10 @@ class TestKeras:
             verify_keras_frontend(keras_model, layout="NDHWC")
 
     def test_forward_nested_layers(self, keras_mod):
-        MobileNet = get_mobilenet(keras_mod)
+        """test_forward_nested_layers"""
+        mobilenet_mod = get_mobilenet(keras_mod)
 
-        sub_model = MobileNet(include_top=False, weights="imagenet", input_shape=(224, 224, 3))
+        sub_model = mobilenet_mod(include_top=False, weights="imagenet", input_shape=(224, 224, 3))
         keras_model = keras_mod.Sequential(
             [
                 sub_model,
@@ -669,18 +695,19 @@ class TestKeras:
         verify_keras_frontend(keras_model)
 
     def test_forward_l2_normalize(self, keras_mod):
+        """test_forward_l2_normalize"""
         data = keras_mod.layers.Input(shape=(16, 12, 8))
-        K = keras_mod.backend
+        k_backend = keras_mod.backend
         l2_funcs = [
-            keras_mod.layers.Lambda(lambda v: K.l2_normalize(v, axis=-2)),
-            keras_mod.layers.Lambda(lambda v: K.l2_normalize(x=v, axis=-1)),
-            keras_mod.layers.Lambda(lambda v: K.l2_normalize(axis=1, x=v)),
-            keras_mod.layers.Lambda(lambda v: K.l2_normalize(v, 2)),
-            keras_mod.layers.Lambda(lambda v: K.l2_normalize(v, axis=3)),
-            keras_mod.layers.Lambda(lambda v: K.l2_normalize(v, axis=(2, 3))),
-            keras_mod.layers.Lambda(lambda v: K.l2_normalize(v, (1, 2))),
-            keras_mod.layers.Lambda(lambda v: K.l2_normalize(v, axis=[-2, -1])),
-            keras_mod.layers.Lambda(lambda v: K.l2_normalize(v, [-3, -2])),
+            keras_mod.layers.Lambda(lambda v: k_backend.l2_normalize(v, axis=-2)),
+            keras_mod.layers.Lambda(lambda v: k_backend.l2_normalize(x=v, axis=-1)),
+            keras_mod.layers.Lambda(lambda v: k_backend.l2_normalize(axis=1, x=v)),
+            keras_mod.layers.Lambda(lambda v: k_backend.l2_normalize(v, 2)),
+            keras_mod.layers.Lambda(lambda v: k_backend.l2_normalize(v, axis=3)),
+            keras_mod.layers.Lambda(lambda v: k_backend.l2_normalize(v, axis=(2, 3))),
+            keras_mod.layers.Lambda(lambda v: k_backend.l2_normalize(v, (1, 2))),
+            keras_mod.layers.Lambda(lambda v: k_backend.l2_normalize(v, axis=[-2, -1])),
+            keras_mod.layers.Lambda(lambda v: k_backend.l2_normalize(v, [-3, -2])),
         ]
         for l2_func in l2_funcs:
             x = l2_func(data)
@@ -689,6 +716,7 @@ class TestKeras:
             verify_keras_frontend(keras_model, layout="NHWC")
 
     def test_forward_time_distributed(self, keras_mod):
+        """test_forward_time_distributed"""
         conv2d_inputs = keras_mod.Input(shape=(10, 128, 128, 3))
         conv_2d_layer = keras_mod.layers.Conv2D(64, (3, 3))
         conv2d_model = keras_mod.models.Model(
@@ -707,30 +735,30 @@ class TestKeras:
 if __name__ == "__main__":
     for k in [keras, tf_keras]:
         sut = TestKeras()
-        sut.test_forward_merge_dot(keras_mod=k)
-        sut.test_forward_merge(keras_mod=k)
-        sut.test_forward_activations(keras_mod=k)
-        sut.test_forward_dense(keras_mod=k)
-        sut.test_forward_permute(keras_mod=k)
-        sut.test_forward_sequential(keras_mod=k)
-        sut.test_forward_pool(keras_mod=k)
-        sut.test_forward_conv(keras_mod=k)
-        sut.test_forward_conv1d(keras_mod=k)
-        sut.test_forward_batch_norm(keras_mod=k)
-        sut.test_forward_upsample(keras_mod=k, interpolation="nearest")
-        sut.test_forward_upsample(keras_mod=k, interpolation="bilinear")
-        sut.test_forward_reshape(keras_mod=k)
-        sut.test_forward_crop(keras_mod=k)
-        sut.test_forward_multi_inputs(keras_mod=k)
-        sut.test_forward_multi_outputs(keras_mod=k)
-        sut.test_forward_reuse_layers(keras_mod=k)
-        sut.test_forward_lstm(keras_mod=k)
-        sut.test_forward_rnn(keras_mod=k)
-        sut.test_forward_vgg16(keras_mod=k)
-        sut.test_forward_vgg16(keras_mod=k, layout="NHWC")
-        sut.test_forward_xception(keras_mod=k)
-        sut.test_forward_resnet50(keras_mod=k)
-        sut.test_forward_resnet50(keras_mod=k, layout="NHWC")
+        # sut.test_forward_merge_dot(keras_mod=k)
+        # sut.test_forward_merge(keras_mod=k)
+        # sut.test_forward_activations(keras_mod=k)
+        # sut.test_forward_dense(keras_mod=k)
+        # sut.test_forward_permute(keras_mod=k)
+        # sut.test_forward_sequential(keras_mod=k)
+        # sut.test_forward_pool(keras_mod=k)
+        # sut.test_forward_conv(keras_mod=k)
+        # sut.test_forward_conv1d(keras_mod=k)
+        # sut.test_forward_batch_norm(keras_mod=k)
+        # sut.test_forward_upsample(keras_mod=k, interpolation="nearest")
+        # sut.test_forward_upsample(keras_mod=k, interpolation="bilinear")
+        # sut.test_forward_reshape(keras_mod=k)
+        # sut.test_forward_crop(keras_mod=k)
+        # sut.test_forward_multi_inputs(keras_mod=k)
+        # sut.test_forward_multi_outputs(keras_mod=k)
+        # sut.test_forward_reuse_layers(keras_mod=k)
+        # sut.test_forward_lstm(keras_mod=k)
+        # sut.test_forward_rnn(keras_mod=k)
+        # sut.test_forward_vgg16(keras_mod=k)
+        # sut.test_forward_vgg16(keras_mod=k, layout="NHWC")
+        # sut.test_forward_xception(keras_mod=k)
+        # sut.test_forward_resnet50(keras_mod=k)
+        # sut.test_forward_resnet50(keras_mod=k, layout="NHWC")
         sut.test_forward_mobilenet(keras_mod=k)
         sut.test_forward_mobilenet(keras_mod=k, layout="NHWC")
         sut.test_forward_conv3d(keras_mod=k)
