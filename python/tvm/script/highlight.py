@@ -47,17 +47,25 @@ def cprint(printable: Union[IRModule, PrimFunc], style: Optional[str] = None) ->
 
     try:
         # pylint: disable=import-outside-toplevel
+        import pygments
         from pygments import highlight
         from pygments.lexers.python import Python3Lexer
         from pygments.formatters import Terminal256Formatter
         from pygments.style import Style
         from pygments.token import Keyword, Name, Comment, String, Number, Operator
-    except ImportError:
+        from packaging import version
+
+        if version.parse(pygments.__version__) < version.parse("2.4.0"):
+            raise ImportError("Required Pygments version >= 2.4.0 but got " + pygments.__version__)
+    except ImportError as e:
         with warnings.catch_warnings():
             warnings.simplefilter("once", UserWarning)
-            install_cmd = sys.executable + " -m pip install Pygments --user"
+            install_cmd = sys.executable + ' -m pip install "Pygments>=2.4.0" --upgrade --user'
             warnings.warn(
-                "To print highlighted TVM script, please install Pygments:\n" + install_cmd,
+                str(e)
+                + "\n"
+                + "To print highlighted TVM script, please install Pygments:\n"
+                + install_cmd,
                 category=UserWarning,
             )
         print(printable.script())
