@@ -2460,6 +2460,7 @@ class AutoTensorizeMappingProposer {
     }
 
     // Step 3: Fuse LHS iters mapped to the same RHS iter
+    std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> used_rhs_vars;
     for (size_t i = 0; i < extractor_->lhs_iters_.size(); ++i) {
       const Var& lhs_iter_var = extractor_->lhs_iters_[i]->var;
       const VarSet& rhs_candidates = lhs_feasible_vars_[lhs_iter_var];
@@ -2472,12 +2473,16 @@ class AutoTensorizeMappingProposer {
         PrimExpr updated_fused_lhs =
             fused_lhs * lhs_iter_extents.at(lhs_iter_var) + index_map_src[i];
         fused_lhs_iters.Set(rhs_var, updated_fused_lhs);
+        used_rhs_vars.insert(rhs_var);
       } else {
         // non-unique mapping is not supported
         return {};
       }
     }
     for (const auto& iter : extractor_->rhs_iters_) {
+      if (!used_rhs_vars.count(iter->var)) {
+        return {};
+      }
       index_map_tgt.push_back(analyzer_->Simplify(fused_lhs_iters[iter->var]));
     }
     // At most one mapping is supported.
