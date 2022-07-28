@@ -79,7 +79,7 @@ struct SEqualReducer::PathTracingData {
 bool SEqualReducer::operator()(const ObjectRef& lhs, const ObjectRef& rhs) const {
   if (tracing_data_ == nullptr) {
     // Fast path: no tracing
-    return handler_->SEqualReduce(lhs, rhs, map_free_vars_, {});
+    return handler_->SEqualReduce(lhs, rhs, map_free_vars_, NullOpt);
   }
   return ObjectAttrsEqual(lhs, rhs, map_free_vars_, nullptr);
 }
@@ -87,7 +87,7 @@ bool SEqualReducer::operator()(const ObjectRef& lhs, const ObjectRef& rhs) const
 bool SEqualReducer::DefEqual(const ObjectRef& lhs, const ObjectRef& rhs) {
   if (tracing_data_ == nullptr) {
     // Fast path: no tracing
-    return handler_->SEqualReduce(lhs, rhs, true, {});
+    return handler_->SEqualReduce(lhs, rhs, true, NullOpt);
   }
   return ObjectAttrsEqual(lhs, rhs, true, nullptr);
 }
@@ -172,7 +172,7 @@ bool SEqualReducer::ObjectAttrsEqual(const ObjectRef& lhs, const ObjectRef& rhs,
                                      const ObjectPathPair* paths) const {
   if (tracing_data_ == nullptr) {
     // Fast path: no tracing
-    return handler_->SEqualReduce(lhs, rhs, map_free_vars, {});
+    return handler_->SEqualReduce(lhs, rhs, map_free_vars, NullOpt);
   }
 
   // Slow path: tracing object paths for better error reporting

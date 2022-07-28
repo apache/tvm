@@ -17,6 +17,7 @@
 import pytest
 
 import tvm
+import tvm.testing
 from tvm.ir.base import get_first_structural_mismatch
 from tvm.runtime import ObjectPath
 
@@ -148,3 +149,7 @@ def test_string_structural_equal_to_self(contents):
 # The behavior of structural equality for maps with non-string keys is fairly specific
 # to IR variables because it assumes that map keys have been "mapped" using
 # `SEqualReducer::FreeVarEqualImpl()`. So we leave this case to TIR tests.
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

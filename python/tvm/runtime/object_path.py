@@ -127,6 +127,10 @@ class MissingMapEntryPath(ObjectPath):
 
 @tvm._ffi.register_object("ObjectPathPair")
 class ObjectPathPair(Object):
+    """
+    Pair of `ObjectPath`s, one for each object being tested for structural equality.
+    """
+
     @property
     def lhs_path(self) -> ObjectPath:
         return _ffi_node_api.ObjectPathPairLhsPath(self)
