@@ -587,7 +587,10 @@ TVM_DLL Pass CapturePostDfsIndexInSpans();
 TVM_DLL Pass AnnotateMemoryScope(CompilationConfig config);
 
 /*!
- * \brief Removes standalone reshapes after lowering the graph.
+ * \brief Remove non-fused reshapes after lowering the graph.
+ *
+ *
+ * \return The pass.
  */
 TVM_DLL Pass RemoveStandaloneReshapes();
 

@@ -16,10 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 /*!
- * \file remove_reshapes.cc
- * \brief Relay pass for removing reshapes from lowered graph.
+ * \file remove_standalone_reshapes.cc
+ * \brief This file contains the Relay pass for removing unfused reshapes from lowered graph.
+ * InferType() cannot be invoked after calling this pass as it removes reshapes from the call
+ * graph. Many targets only need buffer addresses irrespective of the shapes of them. This makes
+ * reshapes symbolic once the graph has been lowered. Reshape removal results into smaller code
+ * size and reduced buffer allocations. It opens up opportunities of operator fusion in the target
+ * backend. Thus, consequently, it improves the performance of the inference.
  */
 
 #include <tvm/relay/expr_functor.h>
@@ -31,16 +35,17 @@
 namespace tvm {
 namespace relay {
 
-TVM_REGISTER_PASS_CONFIG_OPTION("relay.RemoveReshapes", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("relay.RemoveStandaloneReshapes.enable", Bool);
 /*! Removes reshapes right after LowerTE. Removes preceding on_device calls
  * while removing reshapes.
  */
-class RemoveReshapesMutator : public MixedModeMutator {
+class RemoveStandaloneReshapesMutator : public MixedModeMutator {
  public:
-  explicit RemoveReshapesMutator(IRModule& mod) : ir_module_(mod) {}
+  explicit RemoveStandaloneReshapesMutator(IRModule& mod) : ir_module_(mod) {}
 
   using MixedModeMutator::VisitExpr_;
 
+  /*!  * \brief Generated map of let variables to preceding CallLowered */
   Expr VisitExpr_(const LetNode* let) final {
     Let ret_let;
     Var var = Downcast<Var>(this->Mutate(let->var));
@@ -58,6 +63,7 @@ class RemoveReshapesMutator : public MixedModeMutator {
     return WithFields(GetRef<Let>(let), var, value, body);
   }
 
+  /*!  * \brief Returns preceding CallLowered when call is a CallLowered(Reshape) */
   Expr Rewrite_(const CallNode* call, const Expr& post) final {
     /*
     %1 = call_lowered(@tvmgen_default_non_reshape_function, %input, ...);
@@ -90,10 +96,10 @@ class RemoveReshapesMutator : public MixedModeMutator {
 
 namespace transform {
 
-Pass RemoveReshapes() {
+Pass RemoveStandaloneReshapes() {
   auto pass_func = [=](IRModule mod, const PassContext& pass_ctx) {
-    VLOG(1) << "RemoveReshapes before:" << std::endl << PrettyPrint(mod);
-    RemoveReshapesMutator remove_reshapes_mutator(mod);
+    VLOG(1) << "RemoveStandaloneReshapes before:" << std::endl << PrettyPrint(mod);
+    RemoveStandaloneReshapesMutator remove_reshapes_mutator(mod);
     Function main_func = Downcast<Function>(mod->Lookup("main"));
     Expr new_main_body = remove_reshapes_mutator.VisitExpr(main_func->body);
     if (!new_main_body.same_as(main_func->body)) {
@@ -105,10 +111,10 @@ Pass RemoveReshapes() {
     Array<runtime::String> entry_functions{"main"};
     mod = RemoveUnusedFunctions(entry_functions)(mod);
 
-    VLOG(1) << "RemoveReshapes after:" << std::endl << PrettyPrint(mod);
+    VLOG(1) << "RemoveStandaloneReshapes after:" << std::endl << PrettyPrint(mod);
     return mod;
   };
-  return tvm::transform::CreateModulePass(pass_func, 0, "RemoveReshapes", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "RemoveStandaloneReshapes", {});
 }
 
 }  // namespace transform
