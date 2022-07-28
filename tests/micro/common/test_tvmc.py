@@ -53,10 +53,7 @@ def test_tvmc_exist(platform, board):
 @tvm.testing.requires_micro
 @pytest.mark.parametrize(
     "output_dir,",
-    [
-        pathlib.Path("./tvmc_relative_path_test"),
-        # pathlib.Path(tempfile.mkdtemp())
-    ],
+    [pathlib.Path("./tvmc_relative_path_test"), pathlib.Path(tempfile.mkdtemp())],
 )
 def test_tvmc_model_build_only(platform, board, output_dir):
     target = tvm.micro.testing.get_target(platform, board)
@@ -205,7 +202,7 @@ def test_tvmc_model_run(platform, board, output_dir):
             "random",
         ]
     )
-    cmd_result = _run_tvmc()
+    cmd_result = _run_tvmc(run_cmd)
     assert cmd_result == 0, "tvmc micro failed in step: run"
     shutil.rmtree(output_dir)
 
