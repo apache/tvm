@@ -343,6 +343,16 @@ class PyTorchOpConverter:
         diag_input = _op.zeros(input_shape, dtype=input_types[0])
         return _op.matrix_set_diag(data, diag_input, k=(k1, k2))
 
+    def lerp(self, inputs, input_types):
+        if len(inputs) != 3:
+            msg = "Wrong number of arguments (%d) to parse." % (len(inputs))
+            raise AssertionError(msg)
+
+        start = inputs[0]
+        end = inputs[1]
+        weight = inputs[2]
+        return start + weight * (end - start)
+
     def arange(self, inputs, input_types):
         def _get_value(val, dtype):
             # dtype is a tvm dtype
@@ -3412,6 +3422,7 @@ class PyTorchOpConverter:
             "aten::stft": self.stft,
             "aten::mul": self.make_elemwise("multiply"),
             "aten::pow": self.make_elemwise("power"),
+            "aten::lerp": self.lerp,
             "aten::arange": self.arange,
             "aten::meshgrid": self.meshgrid,
             "aten::div": self.make_elemwise("divide"),

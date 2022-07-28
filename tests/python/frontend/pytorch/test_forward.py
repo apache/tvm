@@ -4596,5 +4596,20 @@ def test_softmax_fuse():
         tvm.testing.assert_allclose(out, output_torch, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.uses_gpu
+def test_lerp():
+    def test_fn(x, y, w):
+        return torch.lerp(x, y, w)
+
+    input_shape = [16]
+    x = torch.rand(input_shape).float()
+    y = torch.rand(input_shape).float()
+    w = torch.rand(input_shape).float()
+
+    # weight can be tensor or scalar
+    verify_model(test_fn, [x, y, w])
+    verify_model(test_fn, [x, y, w[0]])
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
