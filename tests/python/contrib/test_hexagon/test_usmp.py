@@ -18,6 +18,7 @@
 """USMP tests"""
 
 import numpy as np
+import pytest
 import tvm.testing
 from tvm import relay
 from tvm.contrib.hexagon.session import Session
@@ -25,7 +26,7 @@ from tvm.relay.backend import Executor, Runtime
 from tvm.testing.usmp import is_tvm_backendallocworkspace_calls
 
 
-@pytest.mark.parametrize("enable_usmp", [False, True])
+@pytest.mark.parametrize("usmp_enabled", [False, True])
 @tvm.testing.requires_hexagon
 def test_conv2d(hexagon_session: Session, aot_host_target, aot_target, usmp_enabled):
     """Try conv2d on AOT target with usmp_enabled and check for TVMBackendAllocWorkspace calls"""
