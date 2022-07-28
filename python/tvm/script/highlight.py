@@ -57,12 +57,12 @@ def cprint(printable: Union[IRModule, PrimFunc], style: Optional[str] = None) ->
 
         if version.parse(pygments.__version__) < version.parse("2.4.0"):
             raise ImportError("Required Pygments version >= 2.4.0 but got " + pygments.__version__)
-    except ImportError as e:
+    except ImportError as err:
         with warnings.catch_warnings():
             warnings.simplefilter("once", UserWarning)
             install_cmd = sys.executable + ' -m pip install "Pygments>=2.4.0" --upgrade --user'
             warnings.warn(
-                str(e)
+                str(err)
                 + "\n"
                 + "To print highlighted TVM script, please install Pygments:\n"
                 + install_cmd,
