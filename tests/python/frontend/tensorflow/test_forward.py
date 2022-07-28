@@ -1516,7 +1516,7 @@ def test_tensor_array_scatter():
             compare_tf_with_tvm([], [], ["TensorArrayReadV3_2:0", out4.name], mode="vm")
 
     def _construct_scatter(dtype, dtype_str, element_shape, infer_shape, size):
-        arr = [[float(i)] for i in range(size)] # pylint: disable=unnecessary-comprehension
+        arr = [[float(i)] for i in range(size)]  # pylint: disable=unnecessary-comprehension
         indices_arr = list(range(size - 1, -1, -1))
 
         t = tf.constant(np.array(arr).astype(dtype_str), dtype=dtype)
@@ -2931,9 +2931,7 @@ def _test_split(in_shape, axis, num_or_size_splits, dtype):
     tf.reset_default_graph()
     with tf.Graph().as_default():
         in_data = tf.placeholder(dtype, in_shape, name="in_data")
-        _ = (
-            len(num_or_size_splits) if isinstance(num_or_size_splits, list) else num_or_size_splits
-        )
+        _ = len(num_or_size_splits) if isinstance(num_or_size_splits, list) else num_or_size_splits
         split = tf.split(in_data, num_or_size_splits, axis=axis)
         relu = [tf.nn.relu(i) for i in split]
 
@@ -5380,9 +5378,7 @@ def _test_spop_constants():
 
         a = tf.constant(20000, name="a")
         b = tf.constant(40000, name="b")
-        _ = gen_functional_ops.StatefulPartitionedCall(
-            args=[a, b], Tout=[tf.int32], f=constantsFn
-        )
+        _ = gen_functional_ops.StatefulPartitionedCall(args=[a, b], Tout=[tf.int32], f=constantsFn)
 
         compare_tf_with_tvm(
             [], [], "StatefulPartitionedCall:0", mode="vm", init_global_variables=True
@@ -5572,10 +5568,12 @@ def test_forward_dynmaic_rnn_lstmblockcell():
 
     state_per_layer_list = tf.unstack(init_state, axis=0)
     rnn_tuple_state = tuple(
-            list(tf.nn.rnn_cell.LSTMStateTuple(
+        list(
+            tf.nn.rnn_cell.LSTMStateTuple(
                 state_per_layer_list[idx][0], state_per_layer_list[idx][1]
             )
-            for idx in range(num_layers))
+            for idx in range(num_layers)
+        )
     )
 
     # Forward passes
