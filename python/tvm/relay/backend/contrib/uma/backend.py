@@ -252,14 +252,13 @@ class UMABackend(ABC):
         .. code-block:: python
 
             self._register_codegen(
-                fmt="c", includes=gen_includes, replace_call_extern=gen_replace_call_extern
+                fmt="c", includes=gen_includes
             )
 
-        The C-codegen provides two hooks which allows the user to insert code through
+        The C-codegen currently provides one hook which allows the user to insert code through
         the python API.
             - `includes` hooks into the include stream and allows insertion of custom includes.
-            - `replace_call_extern` hooks into the expression visitor and allows the user to insert
-            custom code for a given extern call.
+           
 
         The code generation functions can look like this:
 
@@ -268,9 +267,6 @@ class UMABackend(ABC):
             def gen_includes() -> str:
                 includes = "#include <my_custom_header.h>\n"
                 return includes
-
-            def gen_replace_call_extern(args: tvm.ir.container.Array) -> str:
-                return "my_custom_api_function({}, {}, {})".format(*args)
         """
         self._tir_to_runtime._register_codegen(fmt, **kwargs)
 
