@@ -606,7 +606,6 @@ def test_residual_block():
     build_run_compare(mod, params1, {"data": input_shape}, dtype, target, static_memory_scope)
 
 
-
 @tvm.testing.requires_opencl
 def test_concat():
     """
@@ -737,7 +736,7 @@ def test_pooling_branching_texture_params():
                       \                  /
                             add                  <- to have  the only one output, will be fused
                              |                   <- buffer
-                    layout_transform (NCHW4c->NCHW) 
+                    layout_transform (NCHW4c->NCHW)
     """
     target = "opencl --device=adreno"
     dtype = "float16"
@@ -865,7 +864,7 @@ def test_branching_texture_params():
                     \                /
                            add                  <- to have  the only one output
                             |                   <- buffer
-                    layout_transform (NCHW4c->NCHW) 
+                    layout_transform (NCHW4c->NCHW)
     """
     target = "opencl --device=adreno"
     dtype = "float16"

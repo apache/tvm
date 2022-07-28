@@ -30,7 +30,7 @@
  *
  *  - AnnotateMemoryScope calls *target.CollectStorageInfo for all target been represented
  *    in the graph and rewrites graph modifying or inserting of VirtualDevice with required
- *    memory_scop collected from the CollectStorageInfo
+ *    memory_scope collected from the CollectStorageInfo
  */
 
 #include <tvm/relay/attrs/nn.h>
@@ -119,9 +119,7 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
           if (call->checked_type().as<TensorTypeNode>()) {
             std::string scope = "global.texture";
             if (const auto* ttype = call->checked_type().as<TensorTypeNode>()) {
-              if (ttype->shape.size() == 5) {
-                scope = Scope(ttype->shape, GetVirtualDevice(GetRef<Expr>(call)));
-              }
+              scope = Scope(ttype->shape, GetVirtualDevice(GetRef<Expr>(call)));
             }
             storage_scope_[call].push_back(scope);
           } else {
@@ -175,8 +173,26 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
     }
   }
 
+  /**
+   * Defines the name of the memory scope which can fit the tensor of required shape
+   *
+   * The scope stands for "global" if tensor does not satisfy current flattening rules for textures
+   * (texture currently has to be 5d tensors with value eq 4 in the last dimension)
+   *
+   * The packing layout inside the texture scope (the part after the dash) is defined
+   * during the shape itself. Hardware can have limitations on the texture spatial dimensions
+   * we must not exceed these sizes. In addition to the fitting of h/w limitation we want to
+   * get balanced packing where final spatial sizes of textures will not be too different
+   * @param shape shape to be analyzed
+   * @param vd VirtualDevice for the tensors determined of memory scope
+   * @return string representing memory scope either "global" or "global.texture-layout"
+   */
   std::string Scope(Array<PrimExpr> shape, const VirtualDevice& vd) {
-    if (vd != VirtualDevice::FullyUnconstrained()) {
+    // currently we support only textures been made from 5d tensors
+    // 5d requirement is not limitation of textures in general, it is limitation how
+    // we are representing memory scopes/layout and flattening of textures in tir
+    if (vd != VirtualDevice::FullyUnconstrained() && shape.size() == 5 &&
+        shape[4].as<IntImmNode>()->value == 4) {
       std::map<int, std::string> diffs;
       int limit =
           vd->target->GetAttr<Integer>("texture_spatial_limit").value_or(Integer(16384))->value;
@@ -220,13 +236,11 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
 
       bool expr_is_rgba_vectorizable = false;
       if (const auto* ttype = expr->checked_type().as<TensorTypeNode>()) {
-        if (ttype->shape.size() == 5) {
-          scope = Scope(ttype->shape, GetVirtualDevice(GetRef<Expr>(expr)));
-          if (scope != "global") {
-            auto inner_dim = ttype->shape.back().as<IntImmNode>();
-            if (inner_dim && inner_dim->value == 4) {
-              expr_is_rgba_vectorizable = true;
-            }
+        scope = Scope(ttype->shape, GetVirtualDevice(GetRef<Expr>(expr)));
+        if (scope != "global") {
+          auto inner_dim = ttype->shape.back().as<IntImmNode>();
+          if (inner_dim && inner_dim->value == 4) {
+            expr_is_rgba_vectorizable = true;
           }
         }
       }
@@ -347,11 +361,11 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
  * Currently this workflow supports analysis and rewriting of VirtualDevice for
  * Constants and function Variables
  */
-class VDRewriter : public transform::DeviceAwareExprMutator {
+class RewriteVDStorageScopes : public transform::DeviceAwareExprMutator {
   using VarMap = std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual>;
 
  public:
-  explicit VDRewriter(const Map<Expr, Array<String>>& storage_scope)
+  explicit RewriteVDStorageScopes(const Map<Expr, Array<String>>& storage_scope)
       : transform::DeviceAwareExprMutator(Optional<IRModule>()), storage_scope_(storage_scope) {}
 
   Function Rewrite(const Expr& expr) { return Downcast<Function>(Mutate(expr)); }
@@ -486,7 +500,7 @@ Map<Expr, Array<String>> CollectStorageInfo(const Expr& expr) {
 Expr AnnotateMemoryScopeExpr(const Expr& expr, const IRModule& mod, CompilationConfig config) {
   auto storage_scope = CollectStorageInfo(expr);
   if (storage_scope.size()) {
-    return VDRewriter(storage_scope).Rewrite(expr);
+    return RewriteVDStorageScopes(storage_scope).Rewrite(expr);
   } else {
     return expr;
   }
