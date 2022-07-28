@@ -65,7 +65,7 @@ namespace codegen {
 
 namespace {
 namespace defaults {
-static const std::string cpu = "generic";  // NOLINT(runtime/string)
+static const char* cpu = "generic";
 static const llvm::CodeGenOpt::Level opt_level = llvm::CodeGenOpt::Aggressive;
 }  // namespace defaults
 }  // namespace
