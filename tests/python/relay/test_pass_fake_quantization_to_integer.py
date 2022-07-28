@@ -318,17 +318,26 @@ def test_fake_quantize_global_avg_pool():
 
 
 class TestUnaryQNNOp:
-    def helper_test_fake_quantize_unary_op(self, fp32_op, scale=0.125):
-        x = relay.var("x", shape=[1, 3, 3, 3], dtype="int8")
-        mid_point = relay.const(-128)
+    def helper_test_fake_quantize_unary_op(self, fp32_op):
+        for dtype in ["int8", "uint8"]:
+            x = relay.var("x", shape=[1, 3, 3, 3], dtype=dtype)
 
-        x = relay.qnn.op.dequantize(x, relay.const(scale), mid_point)
-        op = fp32_op(x)
-        op = relay.qnn.op.quantize(op, relay.const(scale), mid_point)
+            zero = -128 if dtype == "int8" else 0
 
-        x_np = np.random.randint(-128, 127, size=[1, 3, 3, 3], dtype="int8")
+            mid_point = relay.const(np.random.randint(0, 255) + zero)
+            scale = relay.const(np.random.rand())
 
-        compare_fq_to_int(op, [x_np], True)
+            x = relay.qnn.op.dequantize(x, scale, mid_point)
+            op = fp32_op(x)
+
+            mid_point = relay.const(np.random.randint(0, 255) + zero)
+            scale = relay.const(np.random.rand())
+
+            op = relay.qnn.op.quantize(op, scale, mid_point, out_dtype=dtype)
+
+            x_np = np.random.randint(0 + zero, 255 + zero, size=[1, 3, 3, 3], dtype=dtype)
+
+            compare_fq_to_int(op, [x_np], True)
 
     def test_sqrt(self):
         self.helper_test_fake_quantize_unary_op(fp32_op=relay.sqrt)
