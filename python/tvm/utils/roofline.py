@@ -370,7 +370,7 @@ def roofline_from_existing(
 
     new_calls = []
     for call in report.calls:
-        if "Hash" in call.keys():
+        if "Hash" in call.keys() and call["Hash"] in all_features:
             _, features = all_features[call["Hash"]]
 
             flops = np.sum(features["float_addsub"] + features["float_mul"] + features["float_mad"])
@@ -440,7 +440,7 @@ def roofline_analysis(
     Parameters
     ----------
     mod : IRModule
-      Uncompiled input module>
+      Uncompiled input module
 
     params : Dict[str, nd.NDArray]
 
