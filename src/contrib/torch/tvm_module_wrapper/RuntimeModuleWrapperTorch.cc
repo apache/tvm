@@ -34,10 +34,18 @@ DLPackTensorExt toDLPackExt(const at::Tensor& src) {
 
   if (src.dtype().isScalarType(torch::kBool)) {
     auto temp = src.toType(torch::kUInt8);
-    return {.dl_managed_tensor = at::toDLPack(temp), .is_bool = false};
+    return {.dl_managed_tensor = at::toDLPack(temp), .is_bool = true};
   }
 
   return {.dl_managed_tensor = at::toDLPack(src), .is_bool = false};
+}
+
+at::Tensor fromDLPackExt(const DLPackTensorExt& src) {
+  if (src.is_bool) {
+    return at::fromDLPack(src.dl_managed_tensor).toType(torch::kBool);
+  } else {
+    return at::fromDLPack(src.dl_managed_tensor);
+  }
 }
 
 /**
@@ -55,13 +63,12 @@ class OperatorModuleWrapper : public torch::jit::CustomClassHolder {
     std::vector<DLPackTensorExt> tensors;
 
     for (int i = 0; i < input_length; ++i) tensors.push_back(toDLPackExt(inputs[i]));
-
     tvm_contrib_torch_operator_module_forward(
         this->runtime_module, static_cast<DLPackTensorExt*>(tensors.data()), tensors.size());
 
-    // for (int k = 0; k < input_length; ++k) {
-    //   tensors[k]->deleter(tensors[k]);
-    // }
+    for (int k = 0; k < input_length; ++k) {
+      tensors[k].dl_managed_tensor->deleter(tensors[k].dl_managed_tensor);
+    }
   }
 
   std::string Serialize() { return std::string(tvm_contrib_torch_encode(runtime_module)); }
@@ -97,28 +104,28 @@ class GraphExecutorFactoryWrapper : public torch::jit::CustomClassHolder {
 
     TORCH_CHECK(input_length > 0, "Receive empty list of input tensors");
 
-    std::vector<DLManagedTensor*> tensors;
+    std::vector<DLPackTensorExt> tensors;
 
-    for (int i = 0; i < input_length; ++i) tensors.push_back(toDLPack(inputs[i]));
+    for (int i = 0; i < input_length; ++i) tensors.push_back(toDLPackExt(inputs[i]));
 
-    TensorList* outputs = new TensorList;
+    auto outputs = new DLPackTensorExt*;
 
     auto num_outputs = tvm_contrib_torch_graph_executor_module_forward(
-        executor_factory_, static_cast<DLManagedTensor**>(tensors.data()), tensors.size(), outputs);
+        executor_factory_, static_cast<DLPackTensorExt*>(tensors.data()), tensors.size(), outputs);
 
     c10::List<at::Tensor> ret;
     ret.reserve(num_outputs);
 
     for (int k = 0; k < num_outputs; ++k) {
-      at::Tensor atTensor = at::fromDLPack((*outputs)[k]);
+      at::Tensor atTensor = fromDLPackExt((*outputs)[k]);
       ret.emplace_back(atTensor);
     }
 
     for (int k = 0; k < input_length; ++k) {
-      tensors[k]->deleter(tensors[k]);
+      tensors[k].dl_managed_tensor->deleter(tensors[k].dl_managed_tensor);
     }
 
-    tvm_contrib_torch_delete_raw_pointer(outputs);
+    delete outputs;
 
     return ret;
   }

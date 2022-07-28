@@ -85,34 +85,14 @@ tvm::runtime::Module deserialize(std::string state) {
   return ret;
 }
 
+tvm::Device getDeviceInfo(DLManagedTensor* input_device) {
+  return {.device_type = input_device->dl_tensor.device.device_type,
+          .device_id = input_device->dl_tensor.device.device_id};
+}
+
 TVM_REGISTER_GLOBAL("tvmtorch.save_runtime_mod").set_body_typed([](tvm::runtime::Module mod) {
   ThreadLocalStore::ThreadLocal()->mod = mod;
 });
-
-tvm::runtime::NDArray NDArrayFromDlPackExt(DLPackTensorExt dlpack_ext) {
-  using tvm::runtime::NDArray;
-
-  NDArray array;
-  auto& dl_tensor = dlpack_ext.dl_managed_tensor->dl_tensor;
-  bool is_zero_copy =
-      tvm::runtime::NDArray::AbilityOfZeroCopyForDLTensor(&dl_tensor, dl_tensor.device);
-  if (is_zero_copy) {
-    // Zero-copy if data pointer is aligned
-    array = NDArray::FromDLPack(dlpack_ext.dl_managed_tensor);
-  } else {
-    // Copy if data pointer isn't aligned to the kAllocAlignment of TVM
-    LOG(INFO) << "ndim: " << dl_tensor.ndim;
-    array = NDArray::NewFromDLTensor(&dl_tensor, dl_tensor.device);
-    dlpack_ext.dl_managed_tensor->deleter(dlpack_ext.dl_managed_tensor);
-  }
-  if (dlpack_ext.is_bool) {
-    auto result = tvm::runtime::NDArray::Empty(array.Shape(), DataType::Bool(), array->device);
-    result.CopyFrom(array);
-    return result;
-  }
-
-  return array;
-}
 
 }  // namespace contrib
 }  // namespace tvm
@@ -137,47 +117,47 @@ void tvm_contrib_torch_operator_module_forward(TVMContribTorchRuntimeModule* run
   std::vector<int> tvm_type_codes(input_size);
   tvm::runtime::TVMArgsSetter setter(tvm_values.data(), tvm_type_codes.data());
   for (int k = 0; k < input_size; ++k) {
-    auto datum = tvm::contrib::NDArrayFromDlPackExt(inputs[k]);
-    LOG(INFO) << "shape: " << datum.Shape();
-    setter(k, datum);
-  }
-  for (int k = 0; k < input_size; ++k) {
-    LOG(INFO) << tvm_type_codes[k];
+    setter(k, &inputs[k].dl_managed_tensor->dl_tensor);
   }
   run.CallPacked(tvm::runtime::TVMArgs(tvm_values.data(), tvm_type_codes.data(), input_size),
                  nullptr);
 }
 
-tvm::Device getDeviceInfo(DLManagedTensor* input_device) {
-  return {.device_type = input_device->dl_tensor.device.device_type,
-          .device_id = input_device->dl_tensor.device.device_id};
-}
-
 int64_t tvm_contrib_torch_graph_executor_module_forward(TVMContribTorchRuntimeModule* graph_module,
-                                                        TensorList inputs, size_t input_size,
-                                                        TensorList* outputs) {
+                                                        DLPackTensorExt* inputs, size_t input_size,
+                                                        DLPackTensorExt** outputs) {
   tvm::runtime::PackedFunc built_module = graph_module->mod.GetFunction("default");
-  tvm::runtime::Module runtime_module = built_module(getDeviceInfo(inputs[0]));
+  auto device_info = tvm::contrib::getDeviceInfo(inputs[0].dl_managed_tensor);
+  tvm::runtime::Module runtime_module = built_module(device_info);
   tvm::runtime::PackedFunc run = runtime_module.GetFunction("run");
   tvm::runtime::PackedFunc set_input = runtime_module.GetFunction("set_input");
   tvm::runtime::PackedFunc get_output = runtime_module.GetFunction("get_output");
   tvm::runtime::PackedFunc get_num_outputs = runtime_module.GetFunction("get_num_outputs");
 
   for (int k = 0; k < input_size; ++k) {
-    set_input(k, &inputs[k]->dl_tensor);
+    set_input(k, &inputs[k].dl_managed_tensor->dl_tensor);
   }
 
   run();
 
   int64_t output_length = get_num_outputs();
 
-  auto out_ptr = new DLManagedTensor*[output_length];
-  *outputs = out_ptr;
+  auto outputs_ptr = new DLPackTensorExt[output_length];
+  *outputs = outputs_ptr;
 
   for (int k = 0; k < output_length; ++k) {
     tvm::runtime::NDArray results = get_output(k);
-    auto tensor = results.ToDLPack();
-    out_ptr[k] = tensor;
+    auto is_bool = results.DataType().is_bool();
+    DLManagedTensor* tensor;
+    if (is_bool) {
+      auto tmp =
+          tvm::runtime::NDArray::Empty(results.Shape(), DLDataType{kDLInt, 8, 1}, device_info);
+      results.CopyTo(tmp);
+      tensor = tmp.ToDLPack();
+    } else {
+      tensor = results.ToDLPack();
+    }
+    outputs_ptr[k] = {.dl_managed_tensor = tensor, .is_bool = is_bool};
   }
 
   return output_length;

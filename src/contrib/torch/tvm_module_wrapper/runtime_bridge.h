@@ -40,8 +40,8 @@ void tvm_contrib_torch_operator_module_forward(TVMContribTorchRuntimeModule* run
                                                DLPackTensorExt* inputs, size_t input_size);
 
 int64_t tvm_contrib_torch_graph_executor_module_forward(TVMContribTorchRuntimeModule* graph_module,
-                                                        TensorList inputs, size_t input_size,
-                                                        TensorList* outputs);
+                                                        DLPackTensorExt* inputs, size_t input_size,
+                                                        DLPackTensorExt** outputs);
 
 char* tvm_contrib_torch_encode(TVMContribTorchRuntimeModule* runtime_module);
 
