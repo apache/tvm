@@ -101,6 +101,7 @@ def test_roofline_analysis(target, dev):
     dev = remote.device(target)
 
     report = tvm.utils.roofline_analysis(mod, params, target, dev, remote=remote)
+    print(report)
 
     assert "Bound" in report.table()
     assert "Percent of Theoretical Optimal" in report.table()
