@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable, unused-argument, too-many-locals
 
-""" Compute and schedule for avg_pool2d slice op
+""" Compute and schedule for quantized avg_pool2d op
 
 Please note the following assumptions made by the implementation:
 
@@ -33,7 +33,7 @@ Please note the following assumptions made by the implementation:
 
 from tvm import te
 from tvm import tir
-from ..utils import get_layout_transform_fn
+from ..utils import get_layout_transform_fn, get_fixed_point_value
 
 
 def validate_out_shape(out_shape, in_shape, kernel, stride, dilation):
@@ -49,36 +49,73 @@ def validate_out_shape(out_shape, in_shape, kernel, stride, dilation):
         raise RuntimeError("Output width is too large")
 
 
-def avg_pool2d_compute(A, kernel, stride, dilation, oshape, odtype="float16"):
-    """avg_pool2d compute"""
-    if odtype != "float16":
-        RuntimeError(f"Unsupported output dtype '{odtype}'")
+def saturate(x, dtype):
+    """Saturate value for the specified data type"""
+    if dtype == "uint8":
+        return te.max(0, te.min(x, 255))
+    elif dtype == "int8":
+        return te.max(-127, te.min(x, 128))
+    return x
+
+
+def qnn_avg_pool2d_compute(
+    data,
+    kernel,
+    stride,
+    dilation,
+    oshape,
+    odtype,
+    # quantization params:
+    input_zero_point,
+    input_scale,
+    output_zero_point,
+    output_scale,
+):
+    """Compute for quantized avg_pool2d"""
     kh, kw = kernel
     rh = te.reduce_axis((0, kh), name="rh")
     rw = te.reduce_axis((0, kw), name="rw")
     ob, oh, ow, oc = oshape
     if isinstance(ob, int):
-        validate_out_shape(oshape, A.shape, kernel, stride, dilation)
+        validate_out_shape(oshape, data.shape, kernel, stride, dilation)
+
+    if odtype == "uint8":
+        temp_dtype = "uint16"
+    elif odtype == "int8":
+        temp_dtype = "int16"
+    else:
+        raise RuntimeError(f"Unsupported output dtype, {odtype}'")
 
     sh, sw = stride
     dh, dw = dilation
-    InvArea = float(1) / (kh * kw)
+
+    PoolArea = kh * kw
+
+    scale = input_scale / output_scale
+    scale_fixed_point, rsh = get_fixed_point_value(scale, "int16")
+    scale_with_area = scale_fixed_point // PoolArea
+    corr = (output_zero_point << rsh) - input_zero_point * scale_fixed_point
 
     Sum = te.compute(
         oshape,
         lambda b, h, w, c: te.sum(
-            A[b, h * sh + dh * rh, w * sw + dw * rw, c].astype("float32"), axis=[rh, rw]
+            data[b, h * sh + dh * rh, w * sw + dw * rw, c].astype(temp_dtype), axis=[rh, rw]
         ),
         name="sum",
     )
+
     Avg = te.compute(
-        oshape, lambda b, h, w, c: (Sum[b, h, w, c] * InvArea).astype(A.dtype), name="avg"
+        oshape,
+        lambda b, h, w, c: saturate(
+            ((Sum[b, h, w, c] * scale_with_area) + corr) >> rsh, odtype
+        ).astype(odtype),
+        name="avg",
     )
     return Avg
 
 
-def schedule_nhwc_8h2w32c2w(outs, ins, output_layout: str, input_layout: str):
-    """Schedule for input and output layout nhwc-8h2w32c2w"""
+def schedule_nhwc_8h8w32c(outs, ins, output_layout: str, input_layout: str):
+    """Schedule for input and output layout nhwc-8h8w32c"""
     func = te.create_prim_func([ins, outs])
     s = tir.Schedule(func)
     Sum = s.get_block("sum")
@@ -92,12 +129,12 @@ def schedule_nhwc_8h2w32c2w(outs, ins, output_layout: str, input_layout: str):
     # Schedule 'Avg'
     n, h, w, c = s.get_loops(Avg)
     ho, hi = s.split(h, [None, 8])
-    wo, wi = s.split(w, [None, 4])
-    wio, wii = s.split(wi, [None, 2])
+    wo, wi = s.split(w, [None, 8])
+    wio, wii = s.split(wi, [None, 4])
     co, ci = s.split(c, [None, 32])
-    s.reorder(n, ho, wo, co, hi, wio, ci, wii)
-    ci_wii = s.fuse(ci, wii)
-    s.vectorize(ci_wii)
+    s.reorder(n, ho, wo, co, hi, wio, wii, ci)
+    wii_ci = s.fuse(wii, ci)
+    s.vectorize(wii_ci)
 
     # Schedule 'Sum'
     s.compute_at(Sum, wio)
@@ -108,8 +145,8 @@ def schedule_nhwc_8h2w32c2w(outs, ins, output_layout: str, input_layout: str):
     return s
 
 
-def schedule_n11c_1024c(outs, ins, output_layout: str, input_layout: str):
-    """Schedule for output layout: n11c-1024c, input layout: nhwc-8h2w32c2w"""
+def schedule_n11c_2048c(outs, ins, output_layout: str, input_layout: str):
+    """Schedule for output layout: n11c-2048c, input layout: nhwc-8h8w32c"""
     func = te.create_prim_func([ins, outs])
     s = tir.Schedule(func)
     Sum = s.get_block("sum")
@@ -122,8 +159,8 @@ def schedule_n11c_1024c(outs, ins, output_layout: str, input_layout: str):
 
     # Schedule 'Avg'
     n, h, w, c = s.get_loops(Avg)
-    co, ci = s.split(c, [None, 1024])
-    cio, cii = s.split(ci, [None, 64])
+    co, ci = s.split(c, [None, 2048])
+    cio, cii = s.split(ci, [None, 128])
     s.vectorize(cii)
 
     # Schedule 'Sum'
@@ -134,10 +171,10 @@ def schedule_n11c_1024c(outs, ins, output_layout: str, input_layout: str):
     return s
 
 
-def avg_pool2d_schedule(outs, ins, output_layout: str, input_layout: str):
-    """avg_pool2d schedule"""
-    if output_layout == "nhwc-8h2w32c2w-2d":
-        return schedule_nhwc_8h2w32c2w(outs, ins, output_layout, input_layout)
-    if output_layout == "n11c-1024c-2d":
-        return schedule_n11c_1024c(outs, ins, output_layout, input_layout)
+def qnn_avg_pool2d_schedule(outs, ins, output_layout: str, input_layout: str):
+    """Quantized avg_pool2d schedule"""
+    if output_layout == "nhwc-8h8w32c-2d":
+        return schedule_nhwc_8h8w32c(outs, ins, output_layout, input_layout)
+    if output_layout == "n11c-2048c-2d":
+        return schedule_n11c_2048c(outs, ins, output_layout, input_layout)
     raise RuntimeError(f"Unexpected layout '{output_layout}'")

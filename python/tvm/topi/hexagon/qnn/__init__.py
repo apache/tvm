@@ -15,15 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Schedules for Hexagon. """
+""" Computes and schedules for Hexagon quantized ops """
 
-# pylint: disable=wildcard-import
-
-from .batch_matmul import *
-from .conv2d import *
-from .dense import *
-from .injective import *
-from .pooling import *
-from .reduce import *
-from .resize2d import *
-from .qnn import *
+from .avg_pool2d import qnn_avg_pool2d_compute, qnn_avg_pool2d_schedule
