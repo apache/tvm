@@ -246,6 +246,7 @@ def quantize_and_verify_with_ort(
 ):
     """quantize_and_verify_with_ort"""
     input_arrays = [np.random.random(shape).astype("float32") for shape in input_shapes]
+
     class RandomDataReader(CalibrationDataReader):
         # pylint: disable=missing-class-docstring
         def __init__(self, n=10):
@@ -267,7 +268,7 @@ def quantize_and_verify_with_ort(
     model_fp32 = os.path.join(t_dir.temp_dir, "model.onnx")
     onnx.save_model(onnx_model, model_fp32)
     model_quant = os.path.join(t_dir.temp_dir, "model.quant.onnx")
-    _ = quantize_static( # pylint: disable=assignment-from-no-return
+    _ = quantize_static(  # pylint: disable=assignment-from-no-return
         model_fp32, model_quant, RandomDataReader()
     )
     # opt_level=1 will cause error with qnn lowering
@@ -365,6 +366,7 @@ def test_double_reshape(target, dev):
 @tvm.testing.parametrize_targets
 def test_expand(target, dev):
     """test_expand"""
+
     def _test_expand(name, data, shape, ref_data, dtype="int32"):
         shape_array = np.array(shape)
         if dtype == "int32":
@@ -432,6 +434,7 @@ def test_expand(target, dev):
 @tvm.testing.parametrize_targets
 def test_depth_to_space(target, dev):
     """test_depth_to_space"""
+
     def verify_depth_to_space(inshape, outshape, mode, block_size):
         node = onnx.helper.make_node(
             "DepthToSpace", inputs=["x"], outputs=["y"], block_size=block_size
@@ -457,6 +460,7 @@ def test_depth_to_space(target, dev):
 @tvm.testing.parametrize_targets
 def test_space_to_depth(target, dev):
     """test_space_to_depth"""
+
     def verify_space_to_depth(inshape, outshape, block_size):
         node = onnx.helper.make_node(
             "SpaceToDepth", inputs=["x"], outputs=["y"], block_size=block_size
@@ -515,6 +519,7 @@ def test_shape(target, dev):
 @tvm.testing.parametrize_targets
 def test_power(target, dev):
     """test_power"""
+
     def _test_power_iteration(x_shape, y_shape):
         if isinstance(y_shape, int):
             y_shape = [y_shape]
@@ -549,6 +554,7 @@ def test_power(target, dev):
 @tvm.testing.parametrize_targets
 def test_range(target, dev):
     """test_range"""
+
     def verify_range(start, limit, delta, dtype):
         dtype_map = {
             "float32": TensorProto.FLOAT,
@@ -585,6 +591,7 @@ def test_range(target, dev):
 @tvm.testing.parametrize_targets
 def test_squeeze(target, dev):
     """test_squeeze"""
+
     def test_squeeze_once(in_shape, out_shape, axes=None):
         y = helper.make_node("Squeeze", ["in"], ["out"], axes=axes)
 
@@ -607,6 +614,7 @@ def test_squeeze(target, dev):
 @tvm.testing.parametrize_targets
 def test_flatten(target, dev):
     """test_flatten"""
+
     def verify_flatten(in_shape, axis, ref_shape):
         flatten_node = helper.make_node("Flatten", ["in"], ["out"], axis=axis)
 
@@ -646,6 +654,7 @@ def test_unsqueeze(target, dev):
 @tvm.testing.parametrize_targets
 def test_gather(target, dev):
     """test_gather"""
+
     def verify_gather(in_shape, indices, axis, dtype):
         x = np.random.uniform(size=in_shape).astype(dtype)
         indices = np.array(indices, dtype="int64")
@@ -728,6 +737,7 @@ def test_dynamic_gather(target, dev):
 @tvm.testing.parametrize_targets
 def test_gatherelements(target, dev):
     """test_gatherelements"""
+
     def verify_gatherelements(in_shape, indices, axis):
         x = np.random.uniform(size=in_shape).astype("float32")
         indices = np.array(indices, dtype="int32")
@@ -763,6 +773,7 @@ def test_gatherelements(target, dev):
 @tvm.testing.parametrize_targets
 def test_scatter(target, dev):
     """test_scatter"""
+
     def verify_scatter(in_shape, indices, axis):
         x = np.random.uniform(size=in_shape).astype("float32")
         indices = np.array(indices, dtype="int32")
@@ -796,6 +807,7 @@ def test_scatter(target, dev):
 @tvm.testing.parametrize_targets
 def test_slice(target, dev):
     """test_slice"""
+
     def _test_slice_iteration_v1(indata, outdata, starts, ends, axes=None):
         if axes:
             y = helper.make_node("Slice", ["in"], ["out"], axes=axes, starts=starts, ends=ends)
@@ -1141,6 +1153,7 @@ def test_isnan(target, dev):
 @tvm.testing.parametrize_targets
 def test_gather_nd(target, dev):
     """test_gather_nd"""
+
     def verify_gather_nd(in_shape, indices, out_shape, dtype="float32", batch_dims=0, opset=11):
         x = np.random.uniform(size=in_shape).astype(dtype)
         indices = np.array(indices, dtype="int64")
@@ -1221,6 +1234,7 @@ def test_onehot(target, dev):
 @tvm.testing.parametrize_targets
 def test_gemm(target, dev):
     """test_gemm"""
+
     def verify_gemm(a_shape, b_shape, c_shape=None, freeze_params=False, dtype="float32"):
         out_shape = [a_shape[0], b_shape[1]]
         a_array = np.random.uniform(size=a_shape).astype(dtype)
@@ -1273,6 +1287,7 @@ def test_gemm(target, dev):
 @tvm.testing.parametrize_targets
 def test_matmul(target, dev):
     """test_matmul"""
+
     def test_one_matmul(a_shape, b_shape):
         if len(a_shape) == 1:
             out_shape = [b_shape[1]]
@@ -1304,6 +1319,7 @@ def test_matmul(target, dev):
 @tvm.testing.parametrize_targets
 def test_batch_matmul(target, dev):
     """test_batch_matmul"""
+
     def verify_batch_matmul(a_shape, b_shape, out_shape, convert_config=None):
         a_array = np.random.uniform(size=a_shape).astype("float32")
         b_array = np.random.uniform(size=b_shape).astype("float32")
@@ -1387,6 +1403,7 @@ def test_use_nt_batch_matmul(target, dev):
 @tvm.testing.parametrize_targets
 def test_matmulinteger16(target, dev):
     """test_matmulinteger16"""
+
     def verify_matmulinteger16(a_shape, b_shape, out_shape):
         a_dtype = "int16"
         b_dtype = "int16"
@@ -1428,6 +1445,7 @@ def test_matmulinteger16(target, dev):
 
 def verify_simple_dynamic_model(a_shape, b_shape, target, dev):
     """verify_simple_dynamic_model"""
+
     def verify_model(model, a_shape, b_shape):
         a_array = np.random.uniform(size=a_shape).astype("float32")
         b_array = np.random.uniform(size=b_shape).astype("float32")
@@ -1480,6 +1498,7 @@ def test_batch_matmul_dynamic_model(target, dev):
 @tvm.testing.parametrize_targets
 def test_lrn(target, dev):
     """test_lrn"""
+
     def verify_lrn(shape, nsize, dtype, alpha=None, beta=None, bias=None):
         in_array = np.random.uniform(size=shape).astype(dtype)
 
@@ -1509,6 +1528,7 @@ def test_lrn(target, dev):
 @tvm.testing.parametrize_targets
 def test_instance_norm(target, dev):
     """test_instance_norm"""
+
     def verify_instance_norm(shape, axis=1):
         x = np.random.randn(*shape).astype(np.float32)
         gamma = np.random.randn(shape[1]).astype(np.float32)
@@ -1657,6 +1677,7 @@ def test_upsample3d_trilinear(target, dev):
 @tvm.testing.parametrize_targets
 def test_softmax(target, dev):
     """test_softmax"""
+
     def verify_softmax(inshape, axis, opset=None, dynamic=False):
         opname = "Softmax"
         outshape = inshape
@@ -1708,6 +1729,7 @@ def test_softmax(target, dev):
 @tvm.testing.parametrize_targets
 def test_forward_min(target, dev):
     """test_forward_min"""
+
     def verify_min(input_dim):
         dtype = "float32"
 
@@ -1738,6 +1760,7 @@ def test_forward_min(target, dev):
 @tvm.testing.parametrize_targets
 def test_forward_max(target, dev):
     """test_forward_max"""
+
     def verify_max(input_dim):
         dtype = "float32"
 
@@ -1768,6 +1791,7 @@ def test_forward_max(target, dev):
 @tvm.testing.parametrize_targets
 def test_forward_mean(target, dev):
     """test_forward_mean"""
+
     def verify_mean(input_dim):
         dtype = "float32"
 
@@ -1798,6 +1822,7 @@ def test_forward_mean(target, dev):
 @tvm.testing.parametrize_targets
 def test_forward_hardsigmoid(target, dev):
     """test_forward_hardsigmoid"""
+
     def verify_hardsigmoid(input_dim, alpha, beta):
         dtype = "float32"
 
@@ -1826,6 +1851,7 @@ def test_forward_hardsigmoid(target, dev):
 @tvm.testing.parametrize_targets
 def test_forward_arg_min_max(target, dev):
     """test_forward_arg_min_max"""
+
     def verify_argreduce(input_dim, op_name, axis=None, keepdims=None):
         a_np1 = np.random.uniform(-10, 10, input_dim).astype(np.int32)
         out_shape = list(a_np1.shape)
@@ -1870,6 +1896,7 @@ def test_forward_arg_min_max(target, dev):
 @tvm.testing.parametrize_targets
 def test_constantofshape(target, dev):
     """test_constantofshape"""
+
     def verify_constantofshape(input_dim, value, dtype):
         fill_node = helper.make_node(
             "ConstantOfShape",
@@ -1905,6 +1932,7 @@ def test_constantofshape(target, dev):
 @tvm.testing.parametrize_targets
 def test_pad(target, dev):
     """test_pad"""
+
     def verify_pad(indata, pads, mode="constant", value=0.0):
         indata = np.array(indata).astype(np.float32)
         #  numpy expect result
@@ -2007,6 +2035,7 @@ def test_pad(target, dev):
 @tvm.testing.parametrize_targets
 def test_all_reduce_funcs(target, dev):
     """test_all_reduce_funcs"""
+
     def verify_reduce_func(func, data, axis, keepdims):
         inshape = data.shape
         outshape = np.sum(data, axis=axis, keepdims=keepdims == 1).shape
@@ -2083,6 +2112,7 @@ def test_all_reduce_funcs(target, dev):
 @tvm.testing.parametrize_targets
 def test_split(target, dev):
     """test_split"""
+
     def verify_split(indata, outdatas, split, axis=0, pass_split=True, opset=11):
         indata = np.array(indata).astype(np.float32)
         outdatas = [np.array(o).astype(np.float32) for o in outdatas]
@@ -2320,6 +2350,7 @@ def test_selu(target, dev):
 @tvm.testing.parametrize_targets
 def test_prelu(target, dev):
     """test_prelu"""
+
     def verify_prelu(x_shape, a_shape):
         node = helper.make_node("PRelu", inputs=["X", "slope"], outputs=["Y"])
 
@@ -2446,6 +2477,7 @@ def test_sign(target, dev):
 @tvm.testing.parametrize_targets
 def test_not(target, dev):
     """test_not"""
+
     def verify_not(indata, dtype):
         x = indata.astype(dtype)
 
@@ -2476,6 +2508,7 @@ def test_not(target, dev):
 @tvm.testing.parametrize_targets
 def test_and(target, dev):
     """test_and"""
+
     def verify_and(indata, dtype):
         x = indata[0].astype(dtype)
         y = indata[1].astype(dtype)
@@ -2529,6 +2562,7 @@ def test_and(target, dev):
 @tvm.testing.parametrize_targets
 def test_tile(target, dev):
     """test_tile"""
+
     def verify_tile_v6(indata, repeats, outdata):
         node = helper.make_node("Tile", inputs=["input", "repeats"], outputs=["out"])
         graph = helper.make_graph(
@@ -2555,6 +2589,7 @@ def test_tile(target, dev):
 @tvm.testing.parametrize_targets
 def test_erf(target, dev):
     """test_erf"""
+
     def verify_erf(indata, outdata):
         node = helper.make_node("Erf", inputs=["in"], outputs=["out"])
         graph = helper.make_graph(
@@ -2574,6 +2609,7 @@ def test_erf(target, dev):
 @tvm.testing.parametrize_targets
 def test_where(target, dev):
     """test_where"""
+
     def verify_where(condition, x, y, dtype, outdata, dynamic=False):
         node_list = []
         where_inputs = ["condition", "x", "y"]
@@ -2642,6 +2678,7 @@ def test_where(target, dev):
 @tvm.testing.parametrize_targets
 def test_or(target, dev):
     """test_or"""
+
     def verify_or(indata, dtype):
         x = indata[0].astype(dtype)
         y = indata[1].astype(dtype)
@@ -2695,6 +2732,7 @@ def test_or(target, dev):
 @tvm.testing.parametrize_targets
 def test_batch_norm(target, dev):
     """test_batch_norm"""
+
     def verify_batch_norm(in_shape):
         batchnorm = onnx.helper.make_node(
             "BatchNormalization", inputs=["x", "scale", "B", "mean", "var"], outputs=["Y"]
@@ -2728,6 +2766,7 @@ def test_batch_norm(target, dev):
 @tvm.testing.parametrize_targets
 def test_batch_norm_dynamic_subgraph(target, dev):
     """test_batch_norm_dynamic_subgraph"""
+
     def verify_batch_norm_dynamic_subgraph(in_shape, o_shape):
 
         batchnorm = onnx.helper.make_node(
@@ -2762,6 +2801,7 @@ def test_batch_norm_dynamic_subgraph(target, dev):
 @tvm.testing.parametrize_targets
 def test_conv(target, dev):
     """test_conv"""
+
     def verify_conv(
         x_shape,
         w_shape,
@@ -2943,6 +2983,7 @@ def test_conv(target, dev):
 @tvm.testing.parametrize_targets
 def test_convtranspose(target, dev):
     """test_convtranspose"""
+
     def verify_convtranspose_with_output_shape(
         x_shape,
         w_shape,
@@ -3174,6 +3215,7 @@ def test_convtranspose(target, dev):
 @tvm.testing.parametrize_targets
 def test_unsqueeze_constant(target, dev):
     """test_unsqueeze_constant"""
+
     class Flatten(Module):
         def forward(self, input_):
             return input_.view(input_.size(0), -1)
@@ -3192,6 +3234,7 @@ def test_unsqueeze_constant(target, dev):
 @tvm.testing.parametrize_targets
 def test_pooling(target, dev):
     """test_pooling"""
+
     def verify_pooling(x_shape, kernel_shape, strides, pads, out_shape, mode, auto_pad="NOTSET"):
         _ = np.random.uniform(size=x_shape).astype("float32")
 
@@ -3318,6 +3361,7 @@ def test_pooling(target, dev):
 @tvm.testing.parametrize_targets
 def test_global_pooling(target, dev):
     """test_global_pooling"""
+
     def verify_global_pooling(x_shape, mode):
         out_shape = x_shape[:2] + [1] * (len(x_shape) - 2)
 
@@ -3364,6 +3408,7 @@ def test_global_pooling(target, dev):
 @tvm.testing.parametrize_targets
 def test_qlinear_average_pool(target, dev):
     """test_qlinear_average_pool"""
+
     def verify_qlinear_average_pool(
         x_shape, kernel_shape, strides, pads, out_shape, auto_pad="NOTSET"
     ):
@@ -3477,6 +3522,7 @@ def test_qlinear_average_pool(target, dev):
 @tvm.testing.parametrize_targets
 def test_qlinear_global_average_pool(target, dev):
     """test_qlinear_global_average_pool"""
+
     def verify_qlinear_global_average_pool(x_shape):
         out_shape = x_shape[:2] + [1] * (len(x_shape) - 2)
 
@@ -3512,6 +3558,7 @@ def test_qlinear_global_average_pool(target, dev):
 @tvm.testing.parametrize_targets
 def test_mod(target, dev):
     """test_mod"""
+
     def verify_mod(x_shape, y_shape, fmod, out_shape, dtype="float32"):
         x_np = np.random.uniform(-100.0, 100.0, x_shape).astype(dtype)
         y_np = np.random.uniform(-100.0, 100.0, y_shape).astype(dtype)
@@ -3563,6 +3610,7 @@ def test_mod(target, dev):
 @tvm.testing.parametrize_targets
 def test_xor(target, dev):
     """test_xor"""
+
     def verify_xor(x_shape, y_shape):
         x_np = np.random.choice(a=[False, True], size=x_shape).astype("bool")
         y_np = np.random.choice(a=[False, True], size=y_shape).astype("bool")
@@ -3595,6 +3643,7 @@ def test_xor(target, dev):
 @tvm.testing.parametrize_targets
 def test_max_roi_pool(target, dev):
     """test_max_roi_pool"""
+
     def verify_max_roi_pool(x_shape, rois_shape, pooled_shape, spatial_scale, out_shape):
         if spatial_scale is None:
             pool_node = helper.make_node(
@@ -3641,7 +3690,8 @@ def test_max_roi_pool(target, dev):
 
 @tvm.testing.parametrize_targets
 def test_lppool(target, dev):
-    """"test_lppool"""
+    """test_lppool"""
+
     def verify_lppool(x_shape, kernel_shape, p, strides, pads, out_shape, auto_pad="NOTSET"):
         kwargs = {}
         if p is not None:
@@ -4264,6 +4314,7 @@ def test_gru(target, dev):
 @tvm.testing.parametrize_targets
 def test_resize(target, dev):
     """test_resize"""
+
     def verify(ishape, oshape, scales, mode, coord_trans="asymmetric", alpha=0.5, exclude=False):
         nodes = [
             make_constant_node("roi", onnx.TensorProto.FLOAT, (0,), []),
@@ -4412,6 +4463,7 @@ def test_resize(target, dev):
 @tvm.testing.parametrize_targets
 def test_nonzero(target, dev):
     """test_nonzero"""
+
     def verify_nonzero(indata, outdata, dtype):
         node = helper.make_node(
             "NonZero",
@@ -4444,6 +4496,7 @@ def test_nonzero(target, dev):
 @tvm.testing.parametrize_targets
 def test_topk(target, dev):
     """test_topk"""
+
     def verify_topk(input_dims, k, axis=-1):
         output_dims = list(input_dims)
         output_dims[axis] = k
@@ -4491,6 +4544,7 @@ def test_topk(target, dev):
 @tvm.testing.parametrize_targets
 def test_roi_align(target, dev):
     """test_roi_align"""
+
     def verify_roi_align(
         input_dims,
         num_roi,
@@ -4561,6 +4615,7 @@ def test_roi_align(target, dev):
 @tvm.testing.parametrize_targets
 def test_non_max_suppression(target, dev):
     """test_non_max_suppression"""
+
     def verify_nms(
         boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, output_dims
     ):
@@ -4655,6 +4710,7 @@ def test_non_max_suppression(target, dev):
 @tvm.testing.parametrize_targets
 def test_loop(target, dev):
     """test_loop"""
+
     def verify_cond_loop():
         y_in = helper.make_tensor_value_info("y_in", TensorProto.FLOAT, [1])
         y_out = helper.make_tensor_value_info("y_out", TensorProto.FLOAT, [1])
@@ -4893,6 +4949,7 @@ def test_loop(target, dev):
 @tvm.testing.parametrize_targets
 def test_if(target, dev):
     """test_if"""
+
     def verify_if(cond_array, num_outputs):
         # Given a bool scalar input cond.
         # return constant tensor x if cond is True, otherwise return constant tensor y.
@@ -4956,7 +5013,10 @@ def test_if(target, dev):
             tvm_out = [tvm_out]
         for i, _ in enumerate(tvm_out):
             tvm.testing.assert_allclose(
-                correct_out[i], tvm_out[i], rtol=1e-05, atol=1e-05 # pylint: disable=unnecessary-list-index-lookup
+                correct_out[i],
+                tvm_out[i],  # pylint: disable=unnecessary-list-index-lookup
+                rtol=1e-05,
+                atol=1e-05,
             )
 
     # Confirm that if works with cond as an array or scalar.
@@ -4969,6 +5029,7 @@ def test_if(target, dev):
 @tvm.testing.parametrize_targets
 def test_size(target, dev):
     """test_size"""
+
     def verify_size(indata):
         node = helper.make_node(
             "Size",
@@ -4999,6 +5060,7 @@ def test_size(target, dev):
 @tvm.testing.parametrize_targets
 def test_maxunpool(target, dev):
     """test_maxunpool"""
+
     def verify_maxunpool(data, indices, kernel_shape, strides, output_shape=None, pads=None):
         input_names = ["xT", "xI"]
         input_info = [
@@ -5070,6 +5132,7 @@ def test_maxunpool(target, dev):
 @tvm.testing.parametrize_targets
 def test_softplus(target, dev):
     """test_softplus"""
+
     def verify_softplus(indata):
         node = helper.make_node(
             "Softplus",
@@ -5101,6 +5164,7 @@ def test_softplus(target, dev):
 @tvm.testing.parametrize_targets
 def test_cumsum(target, dev):
     """test_cumsum"""
+
     def verify_cumsum(indata, axis, exclusive=0, reverse=0, dtype="float32"):
         cumsum_node = onnx.helper.make_node(
             "CumSum",
@@ -5181,6 +5245,7 @@ def test_cumsum(target, dev):
 @tvm.testing.parametrize_targets
 def test_eyelike(target, dev):
     """test_eyelike"""
+
     def verify_eyelike(indata, dynamic=False):
         node_list = []
         eyelike_inputs = ["X"]
@@ -5490,6 +5555,7 @@ def test_aten(target, dev):
 @tvm.testing.parametrize_targets
 def test_index_put(target, dev):
     """test_index_put"""
+
     class IndexPutModel(torch.nn.Module):
         def __init__(self, indices, values, accumulate):
             super().__init__()
@@ -5562,6 +5628,7 @@ def test_index_put(target, dev):
 @tvm.testing.parametrize_targets
 def test_reverse_sequence(target, dev):
     """test_reverse_sequence"""
+
     def verify_reverse_sequence(x, sequence_lens, batch_axis, time_axis):
         node = onnx.helper.make_node(
             "ReverseSequence",
@@ -5600,6 +5667,7 @@ def test_reverse_sequence(target, dev):
 @tvm.testing.parametrize_targets
 def test_gelu(target, dev):
     """test_gelu"""
+
     def verify_gelu(x):
         node = onnx.helper.make_node(
             "Gelu",
@@ -5627,6 +5695,7 @@ def test_gelu(target, dev):
 @tvm.testing.parametrize_targets
 def test_biasgelu(target, dev):
     """test_biasgelu"""
+
     def verify_biasgelu(x, bias):
         node = onnx.helper.make_node(
             "BiasGelu",
@@ -5660,6 +5729,7 @@ def test_biasgelu(target, dev):
 @tvm.testing.parametrize_targets
 def test_embedlayernormalization(target, dev):
     """test_embedlayernormalization"""
+
     def verify_embedlayernormalization(
         input_ids,
         segment_ids,
@@ -5769,6 +5839,7 @@ def test_embedlayernormalization(target, dev):
 @tvm.testing.parametrize_targets
 def test_attention(target, dev):
     """test_attention"""
+
     def verify_attention(input_, weight, bias, mask_index, num_heads):
         node = onnx.helper.make_node(
             "Attention",
@@ -5831,6 +5902,7 @@ def test_attention(target, dev):
 @tvm.testing.parametrize_targets
 def test_skiplayernormalization(target, dev):
     """test_skiplayernormalization"""
+
     def verify_skiplayernormalization(input_, skip, gamma, beta, bias):
         node = onnx.helper.make_node(
             "SkipLayerNormalization",
@@ -5879,6 +5951,7 @@ def test_skiplayernormalization(target, dev):
 @tvm.testing.parametrize_targets
 def test_qlinearconv(target, dev):
     """test_qlinearconv"""
+
     def verify_qlinearconv(
         x_shape,
         w_shape,
@@ -6095,6 +6168,7 @@ def test_qlinearconv(target, dev):
 @tvm.testing.parametrize_targets
 def test_qlinearconcat(target, dev):
     """test_qlinearconcat"""
+
     def verify_qlinearconcat(shapes, out_shape, axis=None):
         input_names = []
         input_values = []
@@ -6128,6 +6202,7 @@ def test_qlinearconcat(target, dev):
 @tvm.testing.parametrize_targets
 def test_qlinearadd(target, dev):
     """test_qlinearadd"""
+
     def verify_qlinearadd(a_shape, b_shape, c_shape):
 
         _ = np.random.random(a_shape).astype("float32")
@@ -6160,6 +6235,7 @@ def test_qlinearadd(target, dev):
 @tvm.testing.parametrize_targets
 def test_qlinearmul(target, dev):
     """test_qlinearmul"""
+
     def verify_qlinearmul(a_shape, b_shape, c_shape):
 
         _ = np.random.random(a_shape).astype("float32")
@@ -6194,6 +6270,7 @@ def test_qlinearmul(target, dev):
 @tvm.testing.parametrize_targets
 def test_qlinearleakyrelu(target, dev):
     """test_qlinearleakyrelu"""
+
     def verify_qlinearleakyrelu(inshape, kwargs):
 
         in_array = np.random.random(inshape).astype("float32")
@@ -6221,6 +6298,7 @@ def test_qlinearleakyrelu(target, dev):
 @tvm.testing.parametrize_targets
 def test_qlinearsigmoid(target, dev):
     """test_qlinearsigmoid"""
+
     def verify_qlinearsigmoid(a_shape):
 
         _ = np.random.random(a_shape).astype("float32")
@@ -6246,6 +6324,7 @@ def test_qlinearsigmoid(target, dev):
 @tvm.testing.parametrize_targets
 def test_random_uniform(target, dev):
     """test_random_uniform"""
+
     def get_random_uniform(shape, dtype="float32", high=1.0, low=0.0, seed=None):
         ONNX_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
         node = helper.make_node(
@@ -6305,6 +6384,7 @@ def test_random_uniform(target, dev):
 @tvm.testing.parametrize_targets
 def test_random_uniform_like(target, dev):
     """test_random_uniform_like"""
+
     def get_random_uniform_like(input_, shape, dtype=None, high=1.0, low=0.0, seed=None):
         node = helper.make_node("RandomUniformLike", ["in"], ["out"], high=high, low=low)
         if seed is not None:
@@ -6374,6 +6454,7 @@ def test_random_uniform_like(target, dev):
 @tvm.testing.parametrize_targets
 def test_random_normal(target, dev):
     """test_random_normal"""
+
     def get_random_normal(shape, dtype="float32", scale=1.0, mean=0.0, seed=None):
         ONNX_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
         node = helper.make_node(
@@ -6413,6 +6494,7 @@ def test_random_normal(target, dev):
 @tvm.testing.parametrize_targets
 def test_random_normal_like(target, dev):
     """test_random_normal_like"""
+
     def get_random_normal_like(input_, shape, dtype="float32", scale=1.0, mean=0.0, seed=None):
         ONNX_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
         node = helper.make_node(
@@ -6453,6 +6535,7 @@ def test_random_normal_like(target, dev):
 @tvm.testing.parametrize_targets
 def test_convinteger(target, dev):
     """test_convinteger"""
+
     def verify_convinteger(
         x_shape,
         w_shape,
@@ -6606,6 +6689,7 @@ def test_convinteger(target, dev):
 @tvm.testing.parametrize_targets
 def test_scan(target, dev):
     """test_scan"""
+
     def verify_scan(
         input_shapes,
         output_shapes,
@@ -6769,6 +6853,7 @@ def test_scan(target, dev):
 @tvm.testing.parametrize_targets
 def test_linear_regressor(target, dev):
     """test_linear_regressor"""
+
     def verify_linear_regressor(a_shape, c_shape, i_shape, targets=1, batch=1):
         a_array = np.random.uniform(size=a_shape).astype("float32")
         out_shape = (batch, targets)
@@ -6813,6 +6898,7 @@ def test_linear_regressor(target, dev):
 @tvm.testing.parametrize_targets
 def test_sequence(target, dev):
     """test_sequence"""
+
     def verify_sequence_ops(tensor_shape, num_tensors, axis=0, position=None, new_axis=None):
         tensor_shape = list(tensor_shape)
         tensor_values = []
