@@ -196,12 +196,7 @@ def test_tvmc_model_run(platform, board, output_dir):
     ]
     if platform == "arduino":
         run_cmd += ["--project-option", f"{platform}_board={board}"]
-    run_cmd.append(
-        [
-            "--fill-mode",
-            "random",
-        ]
-    )
+    run_cmd += ["--fill-mode", "random"]
     cmd_result = _run_tvmc(run_cmd)
     assert cmd_result == 0, "tvmc micro failed in step: run"
     shutil.rmtree(output_dir)
