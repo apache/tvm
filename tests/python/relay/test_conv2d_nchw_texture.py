@@ -497,6 +497,24 @@ def test_conv2d_winograd_conv():
 
 @tvm.testing.requires_opencl
 def test_residual_block():
+    """
+    - some kind of residual block followed by convolution to have texture after residual block
+    - scalar data type verification which should be mapped to global memory scope
+        layout_transform (NCHW->NCHW4c)
+                  |                      <- buffer
+                conv2d (1)                  <- to get textures as output
+               /         \
+            conv2d (2)    |
+                 \       /
+                    add                     <- add should be fused into conv2d (2)
+                multiply to scalar          <- buffer to the input of multiply scalar value
+                    relu
+                     |                      <- texture in intermediate tensor
+                  conv2d (3)
+                   relu
+                     |                      <- buffer
+               layout_transform (NCHW4c->NCHW)
+    """
     target = "opencl --device=adreno"
     dtype = "float16"
 
@@ -588,70 +606,20 @@ def test_residual_block():
     build_run_compare(mod, params1, {"data": input_shape}, dtype, target, static_memory_scope)
 
 
-@tvm.testing.requires_opencl
-def test_plan_device_issue1():
-    target = "opencl --device=adreno"
-    dtype = "float16"
-
-    input_shape = (1, 32, 40, 40)
-    filter_shape1 = (32, 32, 2, 2)
-    filter_shape2 = (32, 32, 1, 1)
-    A = relay.var("data", shape=input_shape, dtype=dtype)
-    W1 = relay.var("weight1", shape=filter_shape1, dtype=dtype)
-    W2 = relay.var("weight2", shape=filter_shape2, dtype=dtype)
-
-    conv1 = relay.nn.conv2d(
-        A,
-        W1,
-        data_layout="NCHW",
-        kernel_layout="OIHW",
-        padding=[0, 0, 0, 0],
-        strides=[2, 2],
-        out_dtype=dtype,
-        channels=32,
-        kernel_size=(2, 2),
-    )
-    conv2 = relay.nn.conv2d(
-        conv1,
-        W2,
-        data_layout="NCHW",
-        kernel_layout="OIHW",
-        padding=[0, 0, 0, 0],
-        strides=[1, 1],
-        out_dtype=dtype,
-        channels=32,
-        kernel_size=(1, 1),
-    )
-
-    mod = relay.Function([A, W1, W2], conv2)
-    np.random.seed(0)
-    initializer = relay.testing.init.Xavier()
-    filter_data1 = np.zeros(filter_shape1).astype(dtype)
-    initializer("weight", filter_data1)
-    filter_data2 = np.zeros(filter_shape2).astype(dtype)
-    initializer("weight", filter_data2)
-    params1 = {
-        "weight1": tvm.nd.array(filter_data1),
-        "weight2": tvm.nd.array(filter_data2),
-    }
-
-    static_memory_scope = [
-        "",
-        "global",
-        "global.texture-weight",
-        "global.texture",
-        "global.texture-weight",
-        "",
-        "",
-    ]
-
-    static_memory_scope = []
-
-    build_run_compare(mod, params1, {"data": input_shape}, dtype, target, static_memory_scope)
-
 
 @tvm.testing.requires_opencl
-def test_branch_textures():
+def test_concat():
+    """
+        layout_transform (NCHW->NCHW4c)
+                  |                      <- buffer
+                conv2d (1)               <- to get textures as output
+               /         \
+            conv2d (2)    conv2d (3)
+                 \       /               <- concat does not support textures, there we should have buffers
+                concatenation
+                     |                   <- buffer
+               layout_transform (NCHW4c->NCHW)
+    """
     target = "opencl --device=adreno"
     dtype = "float16"
 
@@ -754,7 +722,23 @@ def test_branch_textures():
 
 
 @tvm.testing.requires_opencl
-def test_branch1_texture_params():
+def test_pooling_branching_texture_params():
+    """
+    Verification of the pooling and many branches having textures
+                layout_transform (NCHW->NCHW4c)
+                         |                        <- buffer
+                      conv2d (0)                  <- to get textures
+                         |                        <- textures
+                     pooling
+               /           \           \          <- textures
+            conv2d (1)    conv2d (2)    conv2d (3)
+                \             /           |
+                     add                  |       <- to have  the only one output, will be fused
+                      \                  /
+                            add                  <- to have  the only one output, will be fused
+                             |                   <- buffer
+                    layout_transform (NCHW4c->NCHW) 
+    """
     target = "opencl --device=adreno"
     dtype = "float16"
 
@@ -865,15 +849,24 @@ def test_branch1_texture_params():
     build_run_compare(mod, params1, {"data": input_shape}, dtype, target, static_memory_scope)
 
 
-#                      conv2d <- to get textures
-#               /         \           \         <- here should be textures and textures in params
-#          conv2d       conv2d       conv2d
-#            \             /
-#                  add                          <- tail required to have  the only one output
-#                    \                /
-#                          add
 @tvm.testing.requires_opencl
-def test_branch2_texture_params():
+def test_branching_texture_params():
+    """
+    Verification of passing texture to several consumers markup of relay variables in
+    primary functions + on_device
+
+                layout_transform (NCHW->NCHW4c)
+                         |                      <- buffer
+                      conv2d (0)                <- to get textures
+             /           \           \          <- here should be textures and textures in params
+          conv2d (1)    conv2d (2)    conv2d (3)
+            \             /           |
+                  add                 |         <- to have  the only one output
+                    \                /
+                           add                  <- to have  the only one output
+                            |                   <- buffer
+                    layout_transform (NCHW4c->NCHW) 
+    """
     target = "opencl --device=adreno"
     dtype = "float16"
 
@@ -984,7 +977,23 @@ def test_branch2_texture_params():
 
 # function repeat, params scope are different in reused functions
 @tvm.testing.requires_opencl
-def test_conv2d_different_param_scope():
+def test_conv2d_different_lowering_same_op():
+    """
+    Use case for verification of caching compiled functions
+    Three convolutions following by each other in this case should be
+    compiled in three different entities and lowered differently because
+    they are differ in input param memory scopes and in output memory scope
+
+                layout_transform (NCHW->NCHW4c)
+                         |                      <- buffer
+                      conv2d (1)                <- buffer as input tensor and texture as output
+                         |                      <- texture
+                      conv2d (2)                <- texture as input and texture as output
+                         |                      <- texture
+                      conv2d (3)                <- texture as input and buffer as output
+                         |                      <- buffer
+                    layout_transform (NCHW4c->NCHW)
+    """
     target = "opencl --device=adreno"
     dtype = "float16"
 
