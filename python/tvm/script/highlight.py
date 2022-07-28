@@ -46,6 +46,7 @@ def cprint(printable: Union[IRModule, PrimFunc], style: Optional[str] = None) ->
     """
 
     try:
+        # pylint: disable=import-outside-toplevel
         from pygments import highlight
         from pygments.lexers.python import Python3Lexer
         from pygments.formatters import Terminal256Formatter
