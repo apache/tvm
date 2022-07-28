@@ -122,7 +122,7 @@ tvmc compile magic_wand.tflite \
 # To generate a Zephyr project we use TVM Micro subcommand ``create``. We pass the MLF format and the path
 # for the project to ``create`` subcommand along with project options. Project options for each
 # platform (Zephyr/Arduino) are defined in their Project API server file. To build
-# Zephyr project for a different Zephyr board, change ``zephyr_board`` project option. 
+# Zephyr project for a different Zephyr board, change ``zephyr_board`` project option.
 # To generate Zephyr project, run:
 #
 # bash

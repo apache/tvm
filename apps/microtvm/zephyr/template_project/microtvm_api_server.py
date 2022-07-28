@@ -421,7 +421,7 @@ class Handler(server.ProjectAPIHandler):
             f.write("\n")
 
     API_SERVER_CRT_LIBS_TOKEN = "<API_SERVER_CRT_LIBS>"
-    CMAKE_ARGS = "<CMAKE_ARGS>"
+    CMAKE_ARGS_TOKEN = "<CMAKE_ARGS>"
 
     CRT_LIBS_BY_PROJECT_TYPE = {
         "host_driven": "microtvm_rpc_server microtvm_rpc_common aot_executor_module aot_executor common",
@@ -534,7 +534,7 @@ class Handler(server.ProjectAPIHandler):
                         crt_libs = self.CRT_LIBS_BY_PROJECT_TYPE[options["project_type"]]
                         line = line.replace("<API_SERVER_CRT_LIBS>", crt_libs)
 
-                    if self.CMAKE_ARGS in line:
+                    if self.CMAKE_ARGS_TOKEN in line:
                         line = self._generate_cmake_args(extract_path, options)
 
                     cmake_f.write(line)
@@ -588,6 +588,7 @@ class Handler(server.ProjectAPIHandler):
 
     @classmethod
     def _find_board_from_cmake_file(cls) -> str:
+        zephyr_board = None
         with open(API_SERVER_DIR / CMAKELIST_FILENAME) as cmake_f:
             for line in cmake_f:
                 if line.startswith("set(BOARD"):
@@ -596,7 +597,7 @@ class Handler(server.ProjectAPIHandler):
 
         if not zephyr_board:
             raise RuntimeError(
-                f"Zephyr Board is not found in the {API_SERVER_DIR / CMAKELIST_FILENAME}"
+                f"No Zephyr board set in the {API_SERVER_DIR / CMAKELIST_FILENAME}."
             )
         return zephyr_board
 
