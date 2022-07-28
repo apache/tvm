@@ -40,6 +40,7 @@ function cleanup() {
     if [ "${#pytest_errors[@]}" -gt 0 ]; then
         echo "These pytest invocations failed, the results can be found in the Jenkins 'Tests' tab or by scrolling up through the raw logs here."
         python3 tests/scripts/pytest_wrapper.py "${pytest_errors[@]}"
+        echo "pytest failures found, exiting with error"
         exit 1
     fi
     set -x

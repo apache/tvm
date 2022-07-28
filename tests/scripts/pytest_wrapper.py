@@ -20,7 +20,7 @@ import textwrap
 import junitparser
 import traceback
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 import os
 import urllib.parse
 import logging
@@ -43,24 +43,31 @@ def classname_to_file(classname: str) -> str:
     return classname.replace(".", "/") + ".py"
 
 
-def failed_test_ids() -> List[str]:
+def failed_test_ids() -> Tuple[List[str], List[str]]:
     FAILURE_TYPES = (junitparser.Failure, junitparser.Error)
     junit_dir = REPO_ROOT / "build" / "pytest-results"
     failed_node_ids = []
+    could_not_process = []
     for junit in junit_dir.glob("*.xml"):
-        xml = junitparser.JUnitXml.fromfile(str(junit))
-        for suite in xml:
-            # handle suites
-            for case in suite:
-                if case.result is None:
-                    logging.warn(f"Incorrectly formatted JUnit found, result was None on {case}")
-                    continue
+        try:
+            xml = junitparser.JUnitXml.fromfile(str(junit))
+            for suite in xml:
+                # handle suites
+                for case in suite:
+                    if case.result is None:
+                        logging.warning(
+                            f"Incorrectly formatted JUnit found in {junit}, result was None on {case}"
+                        )
+                        continue
 
-                if len(case.result) > 0 and isinstance(case.result[0], FAILURE_TYPES):
-                    node_id = classname_to_file(case.classname) + "::" + case.name
-                    failed_node_ids.append(node_id)
+                    if len(case.result) > 0 and isinstance(case.result[0], FAILURE_TYPES):
+                        node_id = classname_to_file(case.classname) + "::" + case.name
+                        failed_node_ids.append(node_id)
+        except Exception as e:
+            logging.exception(e)
+            could_not_process.append(str(junit))
 
-    return list(set(failed_node_ids))
+    return list(set(failed_node_ids)), could_not_process
 
 
 def repro_command(build_type: str, failed_node_ids: List[str]) -> Optional[str]:
@@ -94,7 +101,7 @@ def make_issue_url(failed_node_ids: List[str]) -> str:
 
 
 def show_failure_help(failed_suites: List[str]) -> None:
-    failed_node_ids = failed_test_ids()
+    failed_node_ids, could_not_process = failed_test_ids()
 
     if len(failed_node_ids) == 0:
         return
@@ -103,6 +110,12 @@ def show_failure_help(failed_suites: List[str]) -> None:
 
     if build_type is None:
         raise RuntimeError("build type was None, cannot show command")
+
+    if len(could_not_process) > 0:
+        print(
+            "NOTE: These pytest files could not be parsed, please scroll up "
+            f"in the logs to see all failures: {', '.join(could_not_process)}"
+        )
 
     repro = repro_command(build_type=build_type, failed_node_ids=failed_node_ids)
     if repro is None:
