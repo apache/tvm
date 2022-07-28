@@ -396,11 +396,19 @@ def pattern_table():
     dnnl_patterns.append(make_qnn_conv2d_pattern())
     dnnl_patterns.append(make_qnn_dense_pattern())
     dnnl_patterns.append(
-        ("dnnl.conv2d_bias_sum_relu", make_conv_bias_sum_relu_pattern("nn.conv2d"), make_predicate(add_checker))
-    ),
+        (
+            "dnnl.conv2d_bias_sum_relu",
+            make_conv_bias_sum_relu_pattern("nn.conv2d"),
+            make_predicate(add_checker),
+        )
+    )
     dnnl_patterns.append(
-        ("dnnl.conv2d_bias_sum", make_conv_bias_sum_relu_pattern("nn.conv2d", False), make_predicate(add_checker))
-    ),
+        (
+            "dnnl.conv2d_bias_sum",
+            make_conv_bias_sum_relu_pattern("nn.conv2d", False),
+            make_predicate(add_checker),
+        )
+    )
 
     elt_list = ["nn.relu", "tanh", "sigmoid", "clip", "gelu", "swish", None]
     for with_bias in [True, False]:

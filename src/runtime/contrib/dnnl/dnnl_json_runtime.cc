@@ -368,7 +368,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     // TODO(@apeskov): Simulation of inplace primitive. just as PoC.
     auto sum_in_tr = GetInputByName(nid, "sum_idx").TreatAs(dst_layout);
     if (op_name.find("_sum") != std::string::npos) {
-      sum_in_tr = GetInput(nid, node.GetInputs().size()-1);
+      sum_in_tr = GetInput(nid, node.GetInputs().size() - 1);
       sum_in_tr = sum_in_tr.TreatAs(dst_layout);
     }
 

@@ -192,7 +192,6 @@ def run_and_verify(mod, input, params, target, run_module, subgraph_num=None, te
             if use_dnnl:
                 processed_mod = partition_for_dnnl(processed_mod, params, alter_layout)
                 check_dnnl_used(processed_mod)
-                print(processed_mod)
             with tvm.transform.PassContext(opt_level=3):
                 func = relay.create_executor(
                     mode, mod=processed_mod, device=dev, target=target
@@ -816,12 +815,16 @@ def test_conv2d_bias_sum_relu(run_module, dtype="float32"):
         param_lst += ["data1"]
         return relay.nn.relu(out), dic, param_lst
 
-    conv2d_bn_sum_relu, dic, param_lst = get_conv2d_bn_sum_relu(x_shape, k_shape, sum_shape=(1, 16, 6, 6), dtype=dtype)
+    conv2d_bn_sum_relu, dic, param_lst = get_conv2d_bn_sum_relu(
+        x_shape, k_shape, sum_shape=(1, 16, 6, 6), dtype=dtype
+    )
     conv2d_bn_sum_relu = tvm.IRModule.from_expr(conv2d_bn_sum_relu)
     config = conv2d_bn_sum_relu, dic, param_lst
     run_and_verify_func(config, run_module=run_module, dtype=dtype)
 
-    conv2d_bn_sum_relu, dic, param_lst = get_conv2d_bn_sum_relu(x_shape, k_shape, sum_shape=(1, 16, 1, 1), dtype=dtype)
+    conv2d_bn_sum_relu, dic, param_lst = get_conv2d_bn_sum_relu(
+        x_shape, k_shape, sum_shape=(1, 16, 1, 1), dtype=dtype
+    )
     conv2d_bn_sum_relu = tvm.IRModule.from_expr(conv2d_bn_sum_relu)
     config = conv2d_bn_sum_relu, dic, param_lst
     run_and_verify_func(config, run_module=run_module, dtype=dtype)
@@ -1771,5 +1774,4 @@ def test_dense_plus(dense_profiles):
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_conv2d_bias_sum_relu(True)
+    tvm.testing.main()
