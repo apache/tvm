@@ -330,9 +330,7 @@ def compare_tflite_with_tvm(
                 try:
                     quant_scale = 255 / (input_range[i][1] - input_range[i][0])
                 except ZeroDivisionError:
-                    print(
-                        "Min and max of the input range for tensor " + i + " can't be equal"
-                    )
+                    print("Min and max of the input range for tensor " + i + " can't be equal")
                 mean = -input_range[i][0] * quant_scale
                 input_stats[i] = (mean, quant_scale)
             converter.quantized_input_stats = input_stats
@@ -365,11 +363,19 @@ def compare_tflite_with_tvm(
             if quantized and not fp16_quantized:
                 for i, _ in enumerate(tflite_output):
                     # allow absolute tolerance of 1 in the quantized results
-                    tvm.testing.assert_allclose(tflite_output[i], tvm_output[i], atol=1, rtol=1e-5) # pylint: disable=unnecessary-list-index-lookup
+                    tvm.testing.assert_allclose(
+                        tflite_output[i],  # pylint: disable=unnecessary-list-index-lookup
+                        tvm_output[i],
+                        atol=1,
+                        rtol=1e-5,
+                    )
             else:
                 for i, _ in enumerate(tflite_output):
                     tvm.testing.assert_allclose(
-                        tflite_output[i], tvm_output[i], atol=1e-5, rtol=1e-5 # pylint: disable=unnecessary-list-index-lookup
+                        tflite_output[i],  # pylint: disable=unnecessary-list-index-lookup
+                        tvm_output[i],
+                        atol=1e-5,
+                        rtol=1e-5,
                     )
 
 
@@ -4357,6 +4363,7 @@ def test_custom_op_converter():
 
     class DummyOperatorConverter(relay.frontend.tflite.OperatorConverter):
         """Operator Converter for converting TFLite ops to relay ops"""
+
         def __init__(self, model, subgraph, exp_tab):
             super().__init__(model, subgraph, exp_tab)
             self.allow_custom_ops = True
