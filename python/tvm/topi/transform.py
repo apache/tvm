@@ -17,9 +17,12 @@
 # pylint: disable=invalid-name,consider-using-enumerate,redefined-outer-name
 """Injective transformation operators"""
 from __future__ import absolute_import as _abs
+import numpy as np
+from tables import Expr
 import tvm
 from tvm import te
 from tvm import topi
+from tvm.runtime.object_generic import const
 from tvm.te import hybrid
 from . import cpp
 from . import tag
@@ -132,7 +135,7 @@ def flip(a, axis=0):
         The tensor to be expanded.
 
     axis : int, optional
-        The axis along which the tensors will be reveresed.
+        The axis along which the tensors will be reversed.
 
     Returns
     -------
@@ -183,7 +186,7 @@ def strided_slice(a, begin, end, strides=None, axes=None, slice_mode="end"):
         The indices to begin with in the slicing.
 
     end : list of int
-        Indicies indicating end of the slice.
+        Indices indicating end of the slice.
 
     strides : list of int, optional
         Specifies the stride values, it can be negative
@@ -757,7 +760,7 @@ def where(condition, x, y):
 
 def one_hot(indices, on_value, off_value, depth, axis, dtype):
     """
-    Returns a one-hot tensor where the locations repsented by indices take value on_value,
+    Returns a one-hot tensor where the locations represented by indices take value on_value,
     other locations take value off_value.
     Final dimension is <indices outer dimensions> x depth x <indices inner dimensions>.
 
