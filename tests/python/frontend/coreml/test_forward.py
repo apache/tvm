@@ -191,7 +191,7 @@ def verify_concat_layer_params(input1_dim, input2_dim):
 
     b_np = np.concatenate((a_np1, a_np2), axis=1)
     inputs = [("input1", datatypes.Array(*input1_dim)), ("input2", datatypes.Array(*input2_dim))]
-    output = [("output", datatypes.Array(*b_np.shape))]
+    output = [("output", datatypes.Array(*b_np.shape))]  # pylint:disable=not-an-iterable
     builder = NeuralNetworkBuilder(inputs, output)
     builder.add_elementwise(
         name="Concate", input_names=["input1", "input2"], output_name="output", mode="CONCAT"
@@ -774,7 +774,7 @@ def verify_convolution(input_dim, filter_, padding):
     w_np_cm = np.transpose(w_np, axes=(2, 3, 1, 0))
     b_np = conv2d_nchw_python(a_np, w_np, [1, 1], padding)
     inputs = [("input1", datatypes.Array(c, h, width))]
-    output = [("output", datatypes.Array(*b_np.shape))]
+    output = [("output", datatypes.Array(*b_np.shape))]  # pylint:disable=not-an-iterable
     builder = NeuralNetworkBuilder(inputs, output)
     builder.add_convolution(
         name="conv",
