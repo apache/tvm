@@ -41,7 +41,7 @@ python3 -m pylint tests/python/frontend/coreml/*.py --rcfile="$(dirname "$0")"/p
 python3 -m pylint tests/python/frontend/keras/test_forward.py --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint tests/python/frontend/darknet/test_forward.py --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint tests/python/frontend/oneflow/*.py --rcfile="$(dirname "$0")"/pylintrc
-python3 -m pylint tests/python/frontend/tensorflow/test_forward.py --rcfile="$(dirname "$0")"/pylintrc
+# python3 -m pylint tests/python/frontend/tensorflow/test_forward.py --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint tests/python/frontend/pytorch/test_forward.py --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint tests/python/frontend/tflite/test_forward.py --rcfile="$(dirname "$0")"/pylintrc
 
