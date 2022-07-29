@@ -24,7 +24,6 @@ cd "$BUILD_DIR"
 cp ../cmake/config.cmake .
 
 echo set\(USE_SORT ON\) >> config.cmake
-echo set\(USE_MICRO ON\) >> config.cmake
 echo set\(USE_MICRO_STANDALONE_RUNTIME ON\) >> config.cmake
 echo set\(USE_PROFILER ON\) >> config.cmake
 echo set\(USE_DNNL ON\) >> config.cmake
