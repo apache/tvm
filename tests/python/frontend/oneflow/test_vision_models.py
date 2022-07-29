@@ -44,7 +44,7 @@ def mkdir(path):
     if not os.path.exists(path):
         os.makedirs(path)
     else:
-        print("{} is already here".format(path))
+        print(f"{path} is already here")
 
 
 def rmdir(path):

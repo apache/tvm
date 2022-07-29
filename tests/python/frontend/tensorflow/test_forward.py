@@ -5754,5 +5754,4 @@ def test_invert_permutation():
 
 
 if __name__ == "__main__":
-    test_tensor_array_scatter()
     pytest.main([__file__])
