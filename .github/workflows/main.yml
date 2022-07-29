@@ -123,7 +123,8 @@ jobs:
         working-directory: apps/android_rpc
         continue-on-error: true
         run: |
-          export PATH="${ANDROID_NDK_HOME}:$PATH"
+          set -eux
+          export PATH="${ANDROID_NDK_LATEST_HOME}:$PATH"
           gradle clean build
       - name: Upload android_rpc APK
         uses: actions/upload-artifact@v2
@@ -135,7 +136,8 @@ jobs:
         working-directory: apps/android_deploy
         continue-on-error: true
         run: |
-          export PATH="${ANDROID_NDK_HOME}:$PATH"
+          set -eux
+          export PATH="${ANDROID_NDK_LATEST_HOME}:$PATH"
           gradle clean build
       - name: Upload android_deploy APK
         uses: actions/upload-artifact@v2
@@ -147,8 +149,9 @@ jobs:
         working-directory: apps/android_camera
         continue-on-error: true
         run: |
+          set -eux
           mkdir -p app/src/main/assets/models/
-          export TVM_NDK_CC=${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++
+          export TVM_NDK_CC=${ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++
           export TVM_HOME=~/work/tvm/tvm
           export PYTHONPATH=$TVM_HOME/python:${PYTHONPATH}
           python3 ${TVM_HOME}/python/gen_requirements.py
@@ -157,7 +160,7 @@ jobs:
           pip3 install -r requirements.txt
           python3 prepare_model.py
           cd ..
-          export PATH="${ANDROID_NDK_HOME}:$PATH"
+          export PATH="${ANDROID_NDK_LATEST_HOME}:$PATH"
           gradle clean build
       - name: Upload android_camera APK
         uses: actions/upload-artifact@v2
