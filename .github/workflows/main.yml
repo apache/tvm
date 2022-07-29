@@ -122,6 +122,7 @@ jobs:
       - name: Build android_rpc
         working-directory: apps/android_rpc
         run: |
+          set -eux
           export PATH="${ANDROID_NDK_LATEST_HOME}:$PATH"
           gradle clean build
       - name: Upload android_rpc APK
@@ -132,6 +133,7 @@ jobs:
       - name: Build android_deploy
         working-directory: apps/android_deploy
         run: |
+          set -eux
           export PATH="${ANDROID_NDK_LATEST_HOME}:$PATH"
           gradle clean build
       - name: Upload android_deploy APK
@@ -142,6 +144,7 @@ jobs:
       - name: Build android_camera
         working-directory: apps/android_camera
         run: |
+          set -eux
           mkdir -p app/src/main/assets/models/
           export TVM_NDK_CC=${ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++
           export TVM_HOME=~/work/tvm/tvm
