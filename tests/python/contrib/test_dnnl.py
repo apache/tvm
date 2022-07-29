@@ -252,6 +252,13 @@ def add_activation(activation, out, dic, param_lst):
     elif activation == "gelu":
         out = gelu_helper(out)
         return out, dic, param_lst
+    elif activation == "mish":
+        exp = relay.exp(out)
+        add = relay.add(exp, relay.const(1.0))
+        log = relay.log(add)
+        tanh = relay.tanh(log)
+        out = relay.multiply(out, tanh)
+        return out, dic, param_lst
     else:
         return out, dic, param_lst
 
@@ -765,7 +772,7 @@ def test_conv2d_weights_const(run_module, dtype="float32"):
 def test_conv2d_pattern(run_module, dtype="float32"):
     x_shape = (1, 32, 8, 8)
     k_shape = (16, 32, 3, 3)
-    activation_lst = [None, "relu", "tanh", "sigmoid", "clip", "swish", "gelu"]
+    activation_lst = [None, "relu", "tanh", "sigmoid", "clip", "swish", "gelu", "mish"]
     for a in activation_lst:
         conv2d, dic, param_lst = get_conv2d(x_shape, k_shape, activation=a, dtype=dtype)
         conv2d = tvm.IRModule.from_expr(conv2d)
@@ -849,7 +856,7 @@ def test_conv2d_transpose(run_module, dtype="float32"):
 
 
 def test_conv2d_transpose_pattern(run_module, dtype="float32"):
-    activation_lst = [None, "relu", "tanh", "sigmoid", "clip", "swish", "gelu"]
+    activation_lst = [None, "relu", "tanh", "sigmoid", "clip", "swish", "gelu", "mish"]
     for a in activation_lst:
         conv2d, dic, param_lst = get_conv2d_transpose(activation=a, dtype=dtype)
         conv2d = tvm.IRModule.from_expr(conv2d)
@@ -882,7 +889,7 @@ def test_conv3d(run_module, dtype="float32"):
 
 
 def test_conv3d_pattern(run_module, dtype="float32"):
-    activation_lst = [None, "relu", "tanh", "sigmoid", "clip", "swish", "gelu"]
+    activation_lst = [None, "relu", "tanh", "sigmoid", "clip", "swish", "gelu", "mish"]
     for a in activation_lst:
         conv3d, dic, param_lst = get_conv3d(activation=a, dtype=dtype)
         conv3d = tvm.IRModule.from_expr(conv3d)
@@ -915,7 +922,7 @@ def test_conv3d_transpose(run_module, dtype="float32"):
 
 
 def test_conv3d_transpose_pattern(run_module, dtype="float32"):
-    activation_lst = [None, "relu", "tanh", "sigmoid", "clip", "swish", "gelu"]
+    activation_lst = [None, "relu", "tanh", "sigmoid", "clip", "swish", "gelu", "mish"]
     for a in activation_lst:
         conv3d, dic, param_lst = get_conv3d_transpose(activation=a, dtype=dtype)
         conv3d = tvm.IRModule.from_expr(conv3d)

@@ -191,6 +191,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     std::regex gelu_pat(".*_gelu.*");
     std::regex swish_pat(".*_swish.*");
     std::regex sum_pat(".*_sum.*");
+    std::regex mish_pat(".*_mish.*");
 
     // parsing of name to extract attributes
     auto op_name = nodes_[nid].GetOpName();
@@ -219,6 +220,9 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     }
     if (std::regex_match(op_name, gelu_pat)) {
       ops.append_eltwise(1.f, dnnl::algorithm::eltwise_gelu_erf, 0.f, 0.f);
+    }
+    if (std::regex_match(op_name, mish_pat)) {
+      ops.append_eltwise(1.f, dnnl::algorithm::eltwise_mish, 1.f, 0.f);
     }
     if (ops.len() != 0) {
       attr.set_post_ops(ops);
