@@ -153,19 +153,20 @@ def test_resnet_50_int8():
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    if tei.get_ethosn_api_version() > 2011:
-        if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
-            _compile_hash = {"c0a01c547ed1b2e3308094508fa1bfea", "434f0c65c41e24d5482142c88b3438fe"}
-            _test_image_network(
-                model_url="https://raw.githubusercontent.com/dmlc/web-data/main/tensorflow/"
-                "models/Quantized/resnet_50_quantized.tflite",
-                model_sub_path="resnet_50_quantized.tflite",
-                input_dict={"input": (1, 224, 224, 3)},
-                compile_hash=_compile_hash,
-                output_count=1,
-                host_ops=11,
-                npu_partitions=2,
-            )
+    if tei.get_ethosn_api_version() == 2205:
+        _compile_hash = {"c0a01c547ed1b2e3308094508fa1bfea", "64905a4ff2dbde08078ccc9f44ad711d"}
+    else:
+        _compile_hash = {"c0a01c547ed1b2e3308094508fa1bfea", "434f0c65c41e24d5482142c88b3438fe"}
+    _test_image_network(
+        model_url="https://raw.githubusercontent.com/dmlc/web-data/main/tensorflow/"
+        "models/Quantized/resnet_50_quantized.tflite",
+        model_sub_path="resnet_50_quantized.tflite",
+        input_dict={"input": (1, 224, 224, 3)},
+        compile_hash=_compile_hash,
+        output_count=1,
+        host_ops=11,
+        npu_partitions=2,
+    )
 
 
 @requires_ethosn
