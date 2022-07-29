@@ -880,6 +880,44 @@ class GlobalMaxPool(OnnxOpConverter):
         )
 
 
+class GridSample(OnnxOpConverter):
+    """Operator converter for GlobalMaxPool"""
+
+    @classmethod
+    def _impl_v16(cls, inputs, attr, params):
+        X = inputs[0]
+        grid = inputs[1]
+
+        align_corners = attr.get("align_corners", 0)
+        mode = attr.get("mode", b"bilinear").decode("utf-8")
+        padding_mode = attr.get("padding_mode", b"zeros").decode("utf-8")
+
+        data_shape = infer_shape(X)
+        layout = "NCHW"
+        if len(data_shape) != 4:
+            raise NotImplementedError(
+                "GridSample is only implemented for 4D input, got %dD."
+                % (len(data_shape)),
+            )
+
+        if mode not in ("bilinear", "nearest", "bicubic"):
+            raise NotImplementedError(
+                "interpolate_mode %s is not supported" % (mode)
+            )
+
+        if padding_mode not in ("zeros", "border", "reflection"):
+            raise NotImplementedError(
+                "padding_mode %s is not supported" % (padding_mode)
+            )
+
+        axes = [0, 3, 1, 2]
+        grid = _op.transform.transpose(grid, axes)
+
+        return _op.image.grid_sample(
+            X, grid, mode, layout, padding_mode, align_corners
+        )
+
+
 class Div(Elemwise):
     """Operator converter for Divide."""
 
@@ -5282,6 +5320,7 @@ def _get_convert_map(opset):
         "GlobalMaxPool": GlobalMaxPool.get_converter(opset),
         "BatchNormalization": BatchNorm.get_converter(opset),
         "InstanceNormalization": InstanceNorm.get_converter(opset),
+        "GridSample": GridSample.get_converter(opset),
         # 'LpNormalization'
         "Dropout": AttrCvt("dropout", {"ratio": "rate"}, ignores=["is_test"]),
         "Flatten": Flatten.get_converter(opset),

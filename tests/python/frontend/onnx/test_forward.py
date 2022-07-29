@@ -3292,6 +3292,51 @@ def test_global_pooling(target, dev):
         verify_global_pooling([4, 1, 2, 6, 4], mode)
 
 
+@tvm.testing.parametrize_targets
+def test_grid_sample(target, dev):
+    def verify_grid_sample(x, grid, attr_dict):
+        input_names = ["x", "grid"]
+        input_values = [x, grid]
+        input_tensors = [
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x.shape)),
+            helper.make_tensor_value_info("grid", TensorProto.FLOAT, list(grid.shape))
+        ]
+
+        node = helper.make_node(
+            "GridSample",
+            inputs=input_names,
+            outputs=["y"],
+            **attr_dict
+        )
+
+        output_shape = list(x.shape[0:2]) + list(grid.shape[1:3])
+
+        graph = helper.make_graph(
+            [node],
+            "grid_sample_test",
+            inputs=input_tensors,
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(output_shape))],
+        )
+
+        model = helper.make_model(graph, producer_name="grid_sample_test")
+        verify_with_ort_with_inputs(model, [x, grid], [output_shape], target=target, dev=dev)
+
+    modes = ["nearest", "bilinear", "bicubic"]
+    padding_modes = ["zeros", "border", "reflection"]
+    align_corners = [True, False]
+
+    data = np.random.uniform(size=[4, 4, 8, 8]).astype("float32")
+    grid = np.random.uniform(size=[4, 16, 16, 2]).astype("float32") * 2 - 1
+
+    # default test
+    verify_grid_sample(data, grid, {})
+    for mode in modes:
+        for padding_mode in padding_modes:
+            for _align_corners in align_corners:
+                attr = {"mode": mode, "padding_mode": padding_mode, "align_corners": _align_corners}
+                verify_grid_sample(data, grid, attr)
+
+
 @pytest.mark.skip("flaky")
 @tvm.testing.parametrize_targets
 def test_qlinear_average_pool(target, dev):
