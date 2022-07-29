@@ -318,20 +318,24 @@ def test_fake_quantize_global_avg_pool():
 
 
 class TestUnaryQNNOp:
-    def helper_test_fake_quantize_unary_op(self, fp32_op):
+    def helper_test_fake_quantize_unary_op(self, fp32_op, pos_values=False):
         for dtype in ["int8", "uint8"]:
             x = relay.var("x", shape=[1, 3, 3, 3], dtype=dtype)
 
             zero = -128 if dtype == "int8" else 0
+            if pos_values:
+                # Use a positive range for quanitzed ops that only work on positive values
+                input_mid_point = relay.const(zero)
+                output_mid_point = relay.const(zero)
+            else:
+                input_mid_point = relay.const(np.random.randint(0, 255) + zero)
+                output_mid_point = relay.const(np.random.randint(0, 255) + zero)
 
-            input_mid_point = relay.const(np.random.randint(0, 255) + zero)
             input_scale = relay.const(np.random.rand())
+            output_scale = relay.const(np.random.rand())
 
             x = relay.qnn.op.dequantize(x, input_scale, input_mid_point)
             op = fp32_op(x)
-
-            output_mid_point = relay.const(np.random.randint(0, 255) + zero)
-            output_scale = relay.const(np.random.rand())
 
             op = relay.qnn.op.quantize(op, output_scale, output_mid_point, out_dtype=dtype)
 
@@ -340,10 +344,10 @@ class TestUnaryQNNOp:
             compare_fq_to_int(op, [x_np], True)
 
     def test_sqrt(self):
-        self.helper_test_fake_quantize_unary_op(fp32_op=relay.sqrt)
+        self.helper_test_fake_quantize_unary_op(fp32_op=relay.sqrt, pos_values=True)
 
     def test_rsqrt(self):
-        self.helper_test_fake_quantize_unary_op(fp32_op=relay.rsqrt)
+        self.helper_test_fake_quantize_unary_op(fp32_op=relay.rsqrt, pos_values=True)
 
     def test_exp(self):
         self.helper_test_fake_quantize_unary_op(fp32_op=relay.exp)
@@ -358,7 +362,7 @@ class TestUnaryQNNOp:
         self.helper_test_fake_quantize_unary_op(fp32_op=relay.tanh)
 
     def test_log(self):
-        self.helper_test_fake_quantize_unary_op(fp32_op=relay.log)
+        self.helper_test_fake_quantize_unary_op(fp32_op=relay.log, pos_values=True)
 
 
 def test_fake_quantize_reshape():
