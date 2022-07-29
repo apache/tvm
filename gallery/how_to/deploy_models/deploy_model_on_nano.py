@@ -39,10 +39,10 @@ from tvm.contrib import utils, graph_executor as runtime
 from tvm.contrib.download import download_testdata
 
 ######################################################################
-# .. _build-tvm-runtime-on-device:
+# .. _build-tvm-runtime-on-jetson-nano:
 #
-# Build TVM Runtime on Device
-# ---------------------------
+# Build TVM Runtime on Jetson Nano
+# --------------------------------
 #
 # The first step is to build the TVM runtime on the remote device.
 #
