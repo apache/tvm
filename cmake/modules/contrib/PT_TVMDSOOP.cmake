@@ -34,6 +34,7 @@ if(NOT USE_PT_TVMDSOOP STREQUAL "OFF")
     RESULT_VARIABLE PT_STATUS)
 
   string(REGEX REPLACE "\n" "" PT_CXX_FLAG "${PT_CXX_FLAG}")
+  message(STATUS "Found TORCH_BUILT_WITH_CXX_ABI=${PT_CXX_FLAG} ")
 
   if(${PT_CXX_FLAG} STREQUAL "False")
     set(CXX_ABI_ENABLED 0)
@@ -41,7 +42,6 @@ if(NOT USE_PT_TVMDSOOP STREQUAL "OFF")
     set(CXX_ABI_ENABLED 1)
   endif()
 
-  message(STATUS "SET CXX_ABI_ENABLED: ${CXX_ABI_ENABLED} ")
   set_property(
     SOURCE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/contrib/torch/tvm_module_wrapper/RuntimeModuleWrapperTorch.cc

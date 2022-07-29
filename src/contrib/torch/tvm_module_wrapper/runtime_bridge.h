@@ -20,8 +20,8 @@
  * \file runtime_bridge.h
  * \brief Util functions for pytorch tvm interaction.
  */
-#ifndef TVM_CONTRIB_TORCH_RUNTIME_BRIDGE_H_
-#define TVM_CONTRIB_TORCH_RUNTIME_BRIDGE_H_
+#ifndef TVM_CONTRIB_TORCH_TVM_MODULE_WRAPPER_RUNTIME_BRIDGE_H_
+#define TVM_CONTRIB_TORCH_TVM_MODULE_WRAPPER_RUNTIME_BRIDGE_H_
 
 extern "C" {
 
@@ -50,4 +50,4 @@ TVMContribTorchRuntimeModule* tvm_contrib_torch_decode(const char* state);
 void tvm_contrib_torch_delete_raw_pointer(TensorList* ptr);
 }
 
-#endif  // TVM_CONTRIB_TORCH_RUNTIME_BRIDGE_H_
+#endif  // TVM_CONTRIB_TORCH_TVM_MODULE_WRAPPER_RUNTIME_BRIDGE_H_

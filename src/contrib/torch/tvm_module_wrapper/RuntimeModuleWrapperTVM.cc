@@ -102,7 +102,7 @@ extern "C" {
 struct TVMContribTorchRuntimeModule {
   tvm::runtime::Module mod;
 
-  TVMContribTorchRuntimeModule(tvm::runtime::Module mod) : mod(mod) {}
+  explicit TVMContribTorchRuntimeModule(tvm::runtime::Module mod) : mod(mod) {}
 };
 
 TVMContribTorchRuntimeModule* tvm_contrib_torch_get_last_saved_runtime_module() {
@@ -166,8 +166,7 @@ int64_t tvm_contrib_torch_graph_executor_module_forward(TVMContribTorchRuntimeMo
 char* tvm_contrib_torch_encode(TVMContribTorchRuntimeModule* runtime_module) {
   auto std = tvm::contrib::serialize(runtime_module->mod);
   auto* ret = new char[std.length() + 1];
-  strcpy(ret, std.c_str());
-  ret[std.length()] = '\0';
+  snprintf(ret, std.length() + 1, "%s", std.c_str());
   return ret;
 }
 

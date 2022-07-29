@@ -184,6 +184,11 @@ class PyTorchTVMModule:
 
     def build_pytorch_module(self, num_inputs, num_outputs, input_infos=None):
         """Build pytorch module containing TVM Graph Module"""
+        warnings.warn(
+            "We suggest users to use `optimized_torch` for tuning Torch modules instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         assert self.export_dir, "you must build_tvm or load_tvm before"
         input_infos = input_infos or self.input_infos
         assert input_infos
@@ -228,6 +233,7 @@ def compile(script_module, option):
     warnings.warn(
         "We suggest users to use `optimized_torch` for tuning Torch modules instead",
         DeprecationWarning,
+        stacklevel=2,
     )
     input_infos = option["input_infos"]
     default_dtype = option.get("default_dtype", "float32")
