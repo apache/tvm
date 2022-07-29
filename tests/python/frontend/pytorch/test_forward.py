@@ -43,8 +43,10 @@ if torch.cuda.is_available():
 
 def list_ops(expr):
     """list_ops"""
+
     class OpLister(tvm.relay.ExprVisitor):
         """OpLister inherits from ExprVisitor"""
+
         def visit_op(self, op):
             if op not in self.node_set:
                 self.node_list.append(op)
@@ -358,6 +360,7 @@ def test_forward_multiply():
 @tvm.testing.uses_gpu
 def test_min_max():
     """test_min_max"""
+
     class Max(Module):
         def forward(self, inp):
             return torch.max(inp)
@@ -409,6 +412,7 @@ def test_min_max():
 @tvm.testing.uses_gpu
 def test_minimum_maximum():
     """test_minimum_maximum"""
+
     class Maximum(Module):
         def forward(self, lhs, rhs):
             return torch.maximum(lhs, rhs)
@@ -1140,6 +1144,7 @@ def test_forward_conv2d_transpose_group():
 
     class ModulatedConvTranspose2D(torch.nn.Module):
         """ModulatedConvTranspose2D module"""
+
         def forward(self, x, w, s):
             """forward"""
             B, C, H, W = x.shape
@@ -1275,6 +1280,7 @@ def test_forward_contiguous():
 @tvm.testing.uses_gpu
 def test_forward_batchnorm():
     """test_forward_batchnorm"""
+
     def init_weight(m):
         torch.nn.init.normal_(m.weight, 0, 0.01)
         torch.nn.init.normal_(m.bias)
@@ -1303,6 +1309,7 @@ def test_forward_instancenorm():
 @tvm.testing.uses_gpu
 def test_forward_layernorm():
     """test_forward_layernorm"""
+
     def init_weight(m):
         torch.nn.init.normal_(m.weight, 0, 0.01)
         torch.nn.init.normal_(m.bias, 0.02)
@@ -1366,6 +1373,7 @@ def test_forward_reshape():
 @tvm.testing.uses_gpu
 def test_forward_reshape_as():
     """test_forward_reshape_as"""
+
     def test_func(input_tensor, other_tensor):
         return input_tensor.reshape_as(other_tensor)
 
@@ -1377,6 +1385,7 @@ def test_forward_reshape_as():
 @tvm.testing.uses_gpu
 def test_flatten():
     """test_flatten"""
+
     def _test_flatten(start_dim, end_dim):
         return lambda inp: torch.flatten(inp, start_dim, end_dim)
 
@@ -1975,6 +1984,7 @@ def test_forward_chunk():
 @tvm.testing.uses_gpu
 def test_upsample():
     """test_upsample"""
+
     class Upsample(Module):
         def __init__(self, size=None, scale=None, mode="nearest", align_corners=None):
             super().__init__()
@@ -2358,6 +2368,7 @@ def test_vgg11_bn():
 @tvm.testing.uses_gpu
 def test_custom_conversion_map():
     """test_custom_conversion_map"""
+
     def get_roi_align():
         pool_size = 5
         n_channels = 2 * (pool_size**2)
@@ -2394,6 +2405,7 @@ def test_custom_conversion_map():
 @tvm.testing.uses_gpu
 def test_segmentation_models():
     """test_segmentation_models"""
+
     class SegmentationModelWrapper(Module):
         def __init__(self, model):
             super().__init__()
@@ -2532,8 +2544,10 @@ def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=["llv
 @tvm.testing.uses_gpu
 def test_control_flow():
     """test_control_flow"""
+
     class SimpleIf(torch.nn.Module):
         """SimpleIf module"""
+
         def __init__(self, N, M):
             super().__init__()
             self.weight = torch.nn.Parameter(torch.rand(N, M))
@@ -2547,6 +2561,7 @@ def test_control_flow():
 
     class NestedIf(torch.nn.Module):
         """NestedIf module"""
+
         def __init__(self, N, M):
             super().__init__()
             self.weight = torch.nn.Parameter(torch.rand(N, M))
@@ -2568,6 +2583,7 @@ def test_control_flow():
 
     class ScalarLoop(torch.nn.Module):
         """ScalarLoop module"""
+
         def forward(self, inp):
             """forward"""
             a = 0
@@ -2592,6 +2608,7 @@ def test_control_flow():
 
     class LoopWithIf(torch.nn.Module):
         """LoopWithIf module"""
+
         def forward(self, inp):
             a = inp
             for _ in range(inp.size(0)):
@@ -2614,6 +2631,7 @@ def test_control_flow():
 
     class SimpleScalarWhileLoop(torch.nn.Module):
         """SimpleScalarWhileLoop module"""
+
         def forward(self, inp):
             """forward"""
             a = 1
@@ -2676,6 +2694,7 @@ def test_simple_rnn():
 
     class RNNLoop(torch.nn.Module):
         """Pytorch RNNLoop module"""
+
         def __init__(self):
             super().__init__()
             x = torch.rand(10, 4, dtype=torch.float)
@@ -3788,6 +3807,7 @@ def test_forward_is_floating_point():
 @tvm.testing.uses_gpu
 def test_forward_traced_function():
     """test_forward_traced_function"""
+
     def fn(t1, t2):
         return t1 + t2
 
@@ -3799,6 +3819,7 @@ def test_forward_traced_function():
 @tvm.testing.uses_gpu
 def test_forward_dtypes():
     """test_forward_dtypes"""
+
     def fn(t1, t2):
         return 2.5 * t1 + t2
 
@@ -3916,6 +3937,7 @@ def test_forward_index():
 
 def test_logsumexp():
     """test_logsumexp"""
+
     class Logsumexp(Module):
         def __init__(self, dim, keepdim=False):
             super().__init__()
@@ -3936,6 +3958,7 @@ def test_logsumexp():
 
 def test_stack():
     """test_stack"""
+
     class Stack(torch.nn.Module):
         def __init__(self, axis=0):
             super().__init__()
@@ -3953,6 +3976,7 @@ def test_stack():
 
 def test_stack_dynamic():
     """test_stack_dynamic"""
+
     class Stack(torch.nn.Module):
         def forward(self, x):
             tensor_list = []
@@ -3967,6 +3991,7 @@ def test_stack_dynamic():
 
 def test_forward_unbind():
     """test_forward_unbind"""
+
     class Unbind(torch.nn.Module):
         def __init__(self, axis=0):
             super().__init__()
@@ -3983,6 +4008,7 @@ def test_forward_unbind():
 
 def test_forward_nonzero():
     """test_forward_nonzero"""
+
     class Nonzero(Module):
         def __init__(self, as_tuple=False):
             super().__init__()
@@ -4055,6 +4081,7 @@ def test_forward_index_put():
 
 def test_numel():
     """test_numel"""
+
     class Numel(Module):
         def forward(self, data):
             return torch.tensor(torch.numel(data))
@@ -4067,6 +4094,7 @@ def test_numel():
 
 def test_empty():
     """Test for aten::empty"""
+
     def test_func():
         return torch.empty([1, 3, 10, 10])
 
@@ -4075,6 +4103,7 @@ def test_empty():
 
 def test_empty_like():
     """Test for aten::empty_like"""
+
     def test_func(data):
         return torch.empty_like(data)
 
@@ -4083,6 +4112,7 @@ def test_empty_like():
 
 def test_randn():
     """Test for aten::randn"""
+
     def test_func():
         return torch.randn([1, 3, 10, 10])
 
@@ -4237,6 +4267,7 @@ def test_forward_pretrained_bert_base_uncased():
 
 def test_convert_torch_script_with_input_types():
     """test_convert_torch_script_with_input_types"""
+
     def model_fn(x, y):
         x = x.to(dtype=torch.int32)
         y = x + y
@@ -4275,6 +4306,7 @@ def test_convert_torch_script_with_input_types():
 
 def test_bincount():
     """test_bincount"""
+
     def test_fn(x, weights=None):
         return torch.bincount(x, weights=weights)
 
@@ -4304,6 +4336,7 @@ def test_hard_sigmoid():
 
 def test_cumsum():
     """test_cumsum"""
+
     def test_fn(dim, dtype=None):
         return lambda x: torch.cumsum(x, dim=dim, dtype=dtype)
 
@@ -4322,6 +4355,7 @@ def test_cumsum():
 
 def test_masked_fill():
     """test_transformer"""
+
     def test_fn(x, mask):
         return torch.masked_fill(x, mask, 0.0)
 
@@ -4341,6 +4375,7 @@ def test_transformer():
 
 def test_argsort():
     """test_argsort"""
+
     def test_fn(dim, descending):
         return lambda x: torch.argsort(x, dim=dim, descending=descending)
 
@@ -4357,6 +4392,7 @@ def test_argsort():
 
 def test_sort():
     """test_sort"""
+
     def test_fn(dim, descending):
         return lambda x: torch.sort(x, dim=dim, descending=descending)
 
@@ -4373,6 +4409,7 @@ def test_sort():
 
 def test_logical_and():
     """test_logical_and"""
+
     def test_fn(x, y):
         return torch.logical_and(x, y)
 
@@ -4387,6 +4424,7 @@ def test_logical_and():
 
 def test_masked_select():
     """test_masked_select"""
+
     def test_fn(x, mask):
         return torch.masked_select(x, mask)
 
@@ -4398,6 +4436,7 @@ def test_masked_select():
 
 def test_unique():
     """test_unique"""
+
     def test_fn(is_sorted, return_inverse, return_counts):
         return lambda x: torch.unique(x, is_sorted, return_inverse, return_counts)
 
@@ -4529,6 +4568,7 @@ def test_annotate_span():
 @tvm.testing.uses_gpu
 def test_all_any():
     """test_all_any"""
+
     def test_fn(f, dim=None, keepdim=False):
         return lambda x: f(x, dim=dim, keepdim=keepdim)
 
@@ -4542,6 +4582,7 @@ def test_all_any():
 @tvm.testing.uses_gpu
 def test_searchsorted():
     """test_searchsorted"""
+
     def test_fn(out_int32=False, right=False):
         return lambda x, y: torch.searchsorted(x, y, out_int32=out_int32, right=right)
 
@@ -4561,6 +4602,7 @@ def test_searchsorted():
 @tvm.testing.uses_gpu
 def test_bucketize():
     """test_bucketize"""
+
     def test_fn(out_int32=False, right=False):
         return lambda x, y: torch.bucketize(x, y, out_int32=out_int32, right=right)
 
@@ -4574,6 +4616,7 @@ def test_bucketize():
 @tvm.testing.uses_gpu
 def test_roll():
     """Test for aten::roll"""
+
     def test_fn(shifts, dims):
         return lambda x: torch.roll(x, shifts, dims)
 
@@ -4586,6 +4629,7 @@ def test_roll():
 @tvm.testing.uses_gpu
 def test_einsum():
     """test_einsum"""
+
     def test_fn(equation):
         return lambda *x: torch.einsum(equation, *x)
 
@@ -4598,6 +4642,7 @@ def test_einsum():
 
 def test_stft():
     """test_stft"""
+
     def test_fn(n_fft, hop_length, win_length, center, pad_mode, normalized, onesided):
         return lambda input, window=None: torch.stft(
             input=input,
@@ -4631,6 +4676,7 @@ def test_stft():
 @tvm.testing.uses_gpu
 def test_dot():
     """Test for aten::dot"""
+
     def test_fn(x):
         return x.dot(x)
 
@@ -4641,6 +4687,7 @@ def test_dot():
 @tvm.testing.uses_gpu
 def test_mv():
     """Test for aten::mv"""
+
     def test_fn(m, v):
         return m.mv(v)
 
@@ -4651,6 +4698,7 @@ def test_mv():
 
 def test_grid_sample():
     """test_grid_sample"""
+
     class Grid_sample(Module):
         def __init__(self, method, padding_mode, align_corners):
             super().__init__()
@@ -4696,6 +4744,7 @@ def test_list_tuple():
 
     class List_tuple(Module):
         """List_tuple"""
+
         def forward(self, x):
             """forward"""
             merged = []
@@ -4718,6 +4767,7 @@ def test_list_tuple():
 @tvm.testing.uses_gpu
 def test_binary_bitwise():
     """Test for binary bitwise"""
+
     def test_ior(x, y):
         return x.__ior__(y)
 
@@ -4737,6 +4787,7 @@ def test_binary_bitwise():
 @tvm.testing.uses_gpu
 def test_shift():
     """Test for aten::__lshift__, aten::__rshift__"""
+
     def test_lshift(x, y):
         return x << y
 
@@ -4753,6 +4804,7 @@ def test_shift():
 @tvm.testing.uses_gpu
 def test_mod():
     """Test for aten::fmod"""
+
     def test_fmod(x, y):
         return torch.fmod(x, y)
 
@@ -4769,6 +4821,7 @@ def test_softmax_fuse():
     # https://github.com/apache/tvm/issues/12001
     class Model(torch.nn.Module):
         """Pytorch model module"""
+
         def __init__(self, nchwc_post_op=False) -> None:
             super().__init__()
             self.conv = torch.nn.Conv2d(3, 3, (1, 1), 1)
@@ -4810,6 +4863,7 @@ def test_softmax_fuse():
 @tvm.testing.uses_gpu
 def test_lerp():
     """test_lerp"""
+
     def test_fn(x, y, w):
         return torch.lerp(x, y, w)
 
