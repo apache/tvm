@@ -3369,7 +3369,12 @@ def _test_expand_dims(input_shape, input_type, axis, quantized=False):
             out = tf.quantization.fake_quant_with_min_max_args(out, min=-100, max=100, name="out")
 
             compare_tflite_with_tvm(
-                [input], ["q_input"], [inq_input], [out], quantized=True, input_range=input_range
+                [input_array],
+                ["q_input"],
+                [inq_input],
+                [out],
+                quantized=True,
+                input_range=input_range,
             )
         else:
             input_array = np.random.uniform(-100, 100, input_shape).astype(input_type)
