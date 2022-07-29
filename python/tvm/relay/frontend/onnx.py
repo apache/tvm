@@ -6123,7 +6123,13 @@ class GraphProto:
 
 
 def from_onnx(
-    model, shape=None, dtype="float32", opset=None, freeze_params=True, convert_config=None, get_hash=False
+    model,
+    shape=None,
+    dtype="float32",
+    opset=None,
+    freeze_params=True,
+    convert_config=None,
+    get_hash=False,
 ):
     """Convert a ONNX model into an equivalent Relay Function.
 

@@ -218,12 +218,12 @@ class IRModule(Node):
         ty_data = self.type_definitions[ty_var]
         return tuple([ty_var] + list(ty_data.constructors))
 
-    def set_hash(self, hash):
+    def set_hash(self, onnx_model_hash):
         """Add hash attribute to IRModule without copying the latter.
 
         Parameters
         ----------
-        hash : str
+        onnx_model_hash : str
             The hash string.
 
         Returns
@@ -232,14 +232,14 @@ class IRModule(Node):
             The IRModule with the onnx model hash attribute
         """
 
-        return _ffi_api.Module_SetHash(self, hash)
+        return _ffi_api.Module_SetHash(self, onnx_model_hash)
 
     def get_hash(self):
         """Return hash from IRModule attributes if it was stored before
 
         Returns
         -------
-        hash : Any
+        onnx_model_hash : str
             The onnx model hash
         """
         return _ffi_api.Module_GetHash(self)

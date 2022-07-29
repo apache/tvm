@@ -42,7 +42,7 @@
 namespace tvm {
 
 class IRModule;
-const std::string IRMODULE_MODEL_HASH = "model_hash";
+const constexpr char* IRMODULE_MODEL_HASH = "model_hash";
 
 /*!
  * \brief IRModule that holds functions and type definitions.
