@@ -500,10 +500,11 @@ def _test_convolution(
     strides,
     padding,
     data_format,
-    deconv_output_shape=[],
+    deconv_output_shape=None,
     add_shapes_to_graph_def=True,
 ):
     """One iteration of convolution with given shapes and attributes"""
+    deconv_output_shape = deconv_output_shape or []
     total_size_1 = np.prod(tensor_in_sizes)
     total_size_2 = np.prod(filter_in_sizes)
     # Initializes the input tensor with array containing incrementing
@@ -947,11 +948,11 @@ def _test_convolution3d(
     strides,
     padding,
     data_format,
-    deconv_output_shape=[],
+    deconv_output_shape=None,
     add_shapes_to_graph_def=True,
 ):
     """One iteration of 3D convolution with given shapes and attributes"""
-    # pylint: disable=dangerous-default-value
+    deconv_output_shape = deconv_output_shape or []
     total_size_1 = np.prod(tensor_in_sizes)
     total_size_2 = np.prod(filter_in_sizes)
     # Initializes the input tensor with array containing incrementing
