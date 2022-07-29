@@ -582,26 +582,27 @@ def test_forward_reduce():
     """Reduce"""
 
     class ReduceAxis(Enum):
-        AXIS_CHW = 0
-        AXIS_HW = 1
-        AXIS_C = 2
-        AXIS_H = 3
-        AXIS_W = 4
+        # pylint: disable=invalid-name
+        CHW = 0
+        HW = 1
+        C = 2
+        H = 3
+        W = 4
 
     def _verify_reduce(input_dim, mode, axis, ref_func, dtype="float32"):
         print(input_dim, mode, axis)
         a_np = np.random.uniform(size=input_dim).astype(dtype)
 
         # translate to axis from coreml format
-        if axis == ReduceAxis.AXIS_CHW:
+        if axis == ReduceAxis.CHW:
             np_axis = (-3, -2, -1)
-        elif axis == ReduceAxis.AXIS_HW:
+        elif axis == ReduceAxis.HW:
             np_axis = (-2, -1)
-        elif axis == ReduceAxis.AXIS_C:
+        elif axis == ReduceAxis.C:
             np_axis = -3
-        elif axis == ReduceAxis.AXIS_H:
+        elif axis == ReduceAxis.H:
             np_axis = -2
-        elif axis == ReduceAxis.AXIS_W:
+        elif axis == ReduceAxis.W:
             np_axis = -1
 
         if ref_func is np.argmax:
@@ -624,7 +625,7 @@ def test_forward_reduce():
     dshapes = [[10, 10], [1, 10, 10], [1, 3, 10, 10]]
     for dshape in dshapes:
         for axis in ReduceAxis:
-            if len(dshape) < 3 and axis in [ReduceAxis.AXIS_CHW, ReduceAxis.AXIS_C]:
+            if len(dshape) < 3 and axis in [ReduceAxis.CHW, ReduceAxis.C]:
                 # input must have rank at least 3
                 continue
             _verify_reduce(dshape, "sum", axis, np.sum)
@@ -632,7 +633,7 @@ def test_forward_reduce():
             _verify_reduce(dshape, "prod", axis, np.prod)
             _verify_reduce(dshape, "min", axis, np.min)
             _verify_reduce(dshape, "max", axis, np.max)
-            if axis in [ReduceAxis.AXIS_C, ReduceAxis.AXIS_H, ReduceAxis.AXIS_W]:
+            if axis in [ReduceAxis.C, ReduceAxis.H, ReduceAxis.W]:
                 # For mode ArgMax, axis must be [-1] or [-2] or [-3]
                 _verify_reduce(dshape, "argmax", axis, np.argmax, dtype="int32")
 
