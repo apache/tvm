@@ -31,7 +31,7 @@ from tvm.relay.testing.darknet import LAYERTYPE
 from tvm.relay.testing.darknet import __darknetffi__
 from tvm.relay.frontend.darknet import ACTIVATION
 from tvm import relay
-
+from cffi import FFI
 
 REPO_URL = "https://github.com/dmlc/web-data/blob/main/darknet/"
 DARKNET_LIB = "libdarknet2.0.so"
@@ -170,8 +170,6 @@ def _test_rnn_network(net, states):
 
     def get_darknet_network_predict(net, data):
         return LIB.network_predict(net, data)
-
-    from cffi import FFI
 
     ffi = FFI()
     np_arr = np.zeros([1, net.inputs], dtype="float32")
