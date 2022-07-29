@@ -61,6 +61,8 @@ IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 
 BOARDS = API_SERVER_DIR / "boards.json"
 
+CMAKELIST_FILENAME = "CMakeLists.txt"
+
 # Used to check Zephyr version installed on the host.
 # We only check two levels of the version.
 ZEPHYR_VERSION = 2.7
@@ -275,13 +277,13 @@ PROJECT_OPTIONS = [
     ),
     server.ProjectOption(
         "verbose",
-        optional=["build"],
+        optional=["generate_project"],
         type="bool",
         help="Run build with verbose output.",
     ),
     server.ProjectOption(
         "west_cmd",
-        optional=["build"],
+        optional=["generate_project"],
         default=WEST_CMD,
         type="str",
         help=(
@@ -292,14 +294,14 @@ PROJECT_OPTIONS = [
     server.ProjectOption(
         "zephyr_base",
         required=(["generate_project", "open_transport"] if not ZEPHYR_BASE else None),
-        optional=(["generate_project", "open_transport", "build"] if ZEPHYR_BASE else ["build"]),
+        optional=(["generate_project", "open_transport"] if ZEPHYR_BASE else ["build"]),
         default=ZEPHYR_BASE,
         type="str",
         help="Path to the zephyr base directory.",
     ),
     server.ProjectOption(
         "zephyr_board",
-        required=["generate_project", "build", "flash", "open_transport"],
+        required=["generate_project"],
         choices=list(BOARD_PROPERTIES),
         type="str",
         help="Name of the Zephyr board to build for.",
@@ -419,7 +421,7 @@ class Handler(server.ProjectAPIHandler):
             f.write("\n")
 
     API_SERVER_CRT_LIBS_TOKEN = "<API_SERVER_CRT_LIBS>"
-    ENABLE_CMSIS_TOKEN = "<ENABLE_CMSIS>"
+    CMAKE_ARGS_TOKEN = "<CMAKE_ARGS>"
 
     CRT_LIBS_BY_PROJECT_TYPE = {
         "host_driven": "microtvm_rpc_server microtvm_rpc_common aot_executor_module aot_executor common",
@@ -456,6 +458,28 @@ class Handler(server.ProjectAPIHandler):
                     return True
         return False
 
+    def _generate_cmake_args(self, mlf_extracted_path, options) -> str:
+        cmake_args = "\n# cmake args\n"
+        if options.get("verbose"):
+            cmake_args += "set(CMAKE_VERBOSE_MAKEFILE TRUE)\n"
+
+        if options.get("zephyr_base"):
+            cmake_args += f"set(ZEPHYR_BASE {options['zephyr_base']})\n"
+
+        if options.get("west_cmd"):
+            cmake_args += f"set(WEST {options['west_cmd']})\n"
+
+        if self._is_qemu(options["zephyr_board"]):
+            # Some boards support more than one emulator, so ensure QEMU is set.
+            cmake_args += f"set(EMU_PLATFORM qemu)\n"
+
+        cmake_args += f"set(BOARD {options['zephyr_board']})\n"
+
+        enable_cmsis = self._cmsis_required(mlf_extracted_path)
+        cmake_args += f"set(ENABLE_CMSIS {str(enable_cmsis).upper()})\n"
+
+        return cmake_args
+
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
         # Check Zephyr version
         version = self._get_platform_version(get_zephyr_base(options))
@@ -487,7 +511,7 @@ class Handler(server.ProjectAPIHandler):
             os.makedirs(extract_path)
             tf.extractall(path=extract_path)
 
-        if self._is_qemu(options):
+        if self._is_qemu(options["zephyr_board"]):
             shutil.copytree(API_SERVER_DIR / "qemu-hack", project_dir / "qemu-hack")
 
         # Populate CRT.
@@ -502,16 +526,15 @@ class Handler(server.ProjectAPIHandler):
                 shutil.copy2(src_path, dst_path)
 
         # Populate Makefile.
-        with open(project_dir / "CMakeLists.txt", "w") as cmake_f:
-            with open(API_SERVER_DIR / "CMakeLists.txt.template", "r") as cmake_template_f:
+        with open(project_dir / CMAKELIST_FILENAME, "w") as cmake_f:
+            with open(API_SERVER_DIR / f"{CMAKELIST_FILENAME}.template", "r") as cmake_template_f:
                 for line in cmake_template_f:
                     if self.API_SERVER_CRT_LIBS_TOKEN in line:
                         crt_libs = self.CRT_LIBS_BY_PROJECT_TYPE[options["project_type"]]
                         line = line.replace("<API_SERVER_CRT_LIBS>", crt_libs)
 
-                    if self.ENABLE_CMSIS_TOKEN in line:
-                        enable_cmsis = self._cmsis_required(extract_path)
-                        line = line.replace(self.ENABLE_CMSIS_TOKEN, str(enable_cmsis).upper())
+                    if self.CMAKE_ARGS_TOKEN in line:
+                        line = self._generate_cmake_args(extract_path, options)
 
                     cmake_f.write(line)
 
@@ -541,23 +564,7 @@ class Handler(server.ProjectAPIHandler):
     def build(self, options):
         BUILD_DIR.mkdir()
 
-        cmake_args = ["cmake", ".."]
-        if options.get("verbose"):
-            cmake_args.append("-DCMAKE_VERBOSE_MAKEFILE:BOOL=TRUE")
-
-        if options.get("zephyr_base"):
-            cmake_args.append(f"-DZEPHYR_BASE:STRING={options['zephyr_base']}")
-
-        if options.get("west_cmd"):
-            cmake_args.append(f"-DWEST={options['west_cmd']}")
-
-        if self._is_qemu(options):
-            # Some boards support more than one emulator, so ensure QEMU is set.
-            cmake_args.append(f"-DEMU_PLATFORM=qemu")
-
-        cmake_args.append(f"-DBOARD:STRING={options['zephyr_board']}")
-
-        check_call(cmake_args, cwd=BUILD_DIR)
+        check_call(["cmake", ".."], cwd=BUILD_DIR)
 
         args = ["make", "-j2"]
         if options.get("verbose"):
@@ -570,22 +577,32 @@ class Handler(server.ProjectAPIHandler):
     _KNOWN_QEMU_ZEPHYR_BOARDS = ("mps2_an521", "mps3_an547")
 
     @classmethod
-    def _is_qemu(cls, options):
-        return (
-            "qemu" in options["zephyr_board"]
-            or options["zephyr_board"] in cls._KNOWN_QEMU_ZEPHYR_BOARDS
-        )
+    def _is_qemu(cls, board: str) -> bool:
+        return "qemu" in board or board in cls._KNOWN_QEMU_ZEPHYR_BOARDS
 
     @classmethod
     def _has_fpu(cls, zephyr_board):
         fpu_boards = [name for name, board in BOARD_PROPERTIES.items() if board["fpu"]]
         return zephyr_board in fpu_boards
 
-    def flash(self, options):
-        if self._is_qemu(options):
-            return  # NOTE: qemu requires no flash step--it is launched from open_transport.
+    @classmethod
+    def _find_board_from_cmake_file(cls) -> str:
+        zephyr_board = None
+        with open(API_SERVER_DIR / CMAKELIST_FILENAME) as cmake_f:
+            for line in cmake_f:
+                if line.startswith("set(BOARD"):
+                    zephyr_board = line.strip("\n").strip("set(BOARD ").strip(")")
+                    break
 
-        zephyr_board = options["zephyr_board"]
+        if not zephyr_board:
+            raise RuntimeError(f"No Zephyr board set in the {API_SERVER_DIR / CMAKELIST_FILENAME}.")
+        return zephyr_board
+
+    def flash(self, options):
+        zephyr_board = self._find_board_from_cmake_file()
+
+        if self._is_qemu(zephyr_board):
+            return  # NOTE: qemu requires no flash step--it is launched from open_transport.
 
         # The nRF5340DK requires an additional `nrfjprog --recover` before each flash cycle.
         # This is because readback protection is enabled by default when this device is flashed.
@@ -600,7 +617,9 @@ class Handler(server.ProjectAPIHandler):
         check_call(["make", "flash"], cwd=API_SERVER_DIR / "build")
 
     def open_transport(self, options):
-        if self._is_qemu(options):
+        zephyr_board = self._find_board_from_cmake_file()
+
+        if self._is_qemu(zephyr_board):
             transport = ZephyrQemuTransport(options)
         else:
             transport = ZephyrSerialTransport(options)
