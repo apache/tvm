@@ -14,9 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Test node reflection"""
+
 import tvm
 import tvm.testing
-import sys
 import pytest
 from tvm import te
 import numpy as np
@@ -24,6 +25,7 @@ import numpy as np
 
 def test_const_saveload_json():
     # save load json
+    # pylint: disable=invalid-name
     x = tvm.tir.const(1, "int32")
     y = tvm.tir.const(10, "int32")
     z = x + y
@@ -57,6 +59,7 @@ def test_minmax_value():
 
 
 def test_make_smap():
+    """Test make smap"""
     # save load json
     x = tvm.tir.const(1, "int32")
     y = tvm.tir.const(10, "int32")
@@ -70,35 +73,40 @@ def test_make_smap():
 
 
 def test_make_node():
+    """Test make node"""
+    # pylint: disable=invalid-name
     x = tvm.ir.make_node("IntImm", dtype="int32", value=10, span=None)
     assert isinstance(x, tvm.tir.IntImm)
     assert x.value == 10
-    A = te.placeholder((10,), name="A")
-    AA = tvm.ir.make_node(
-        "Tensor", shape=A.shape, dtype=A.dtype, op=A.op, value_index=A.value_index
+    a = te.placeholder((10,), name="a")
+    aa = tvm.ir.make_node(
+        "Tensor", shape=a.shape, dtype=a.dtype, op=a.op, value_index=a.value_index
     )
-    assert AA.op == A.op
-    assert AA.value_index == A.value_index
+    assert aa.op == a.op
+    assert aa.value_index == a.value_index
 
-    y = tvm.ir.make_node("IntImm", dtype=tvm.runtime.String("int32"), value=10, span=None)
+    tvm.ir.make_node("IntImm", dtype=tvm.runtime.String("int32"), value=10, span=None)
 
 
 def test_make_sum():
-    A = te.placeholder((2, 10), name="A")
+    # pylint: disable=invalid-name
+    a = te.placeholder((2, 10), name="a")
     k = te.reduce_axis((0, 10), "k")
-    B = te.compute((2,), lambda i: te.sum(A[i, k], axis=k), name="B")
-    json_str = tvm.ir.save_json(B)
-    BB = tvm.ir.load_json(json_str)
-    assert B.op.body[0].combiner is not None
-    assert BB.op.body[0].combiner is not None
+    b = te.compute((2,), lambda i: te.sum(a[i, k], axis=k), name="b")
+    json_str = tvm.ir.save_json(b)
+    bb = tvm.ir.load_json(json_str)
+    assert b.op.body[0].combiner is not None
+    assert bb.op.body[0].combiner is not None
 
 
 def test_env_func():
+    """Test environment function"""
+
     @tvm.register_func("test.env_func")
-    def test(x):
+    def test(x):  # pylint: disable=unused-variable
         return x + 1
 
-    f = tvm.get_global_func("test.env_func")
+    tvm.get_global_func("test.env_func")
     x = tvm.ir.EnvFunc.get("test.env_func")
     assert x.name == "test.env_func"
     json_str = tvm.ir.save_json([x])
@@ -118,6 +126,8 @@ def test_env_func():
 
 
 def test_string():
+    """test string"""
+    # pylint: disable=invalid-name
     # non printable str, need to store by b64
     s1 = tvm.runtime.String("xy\x01z")
     s2 = tvm.ir.load_json(tvm.ir.save_json(s1))
@@ -130,6 +140,7 @@ def test_string():
 
 
 def test_pass_config():
+    """Test pass config"""
     cfg = tvm.transform.PassContext(
         opt_level=1,
         config={
@@ -138,11 +149,10 @@ def test_pass_config():
             }
         },
     )
-    cfg.opt_level == 1
 
     assert cfg.config["tir.UnrollLoop"].auto_max_step == 10
     # default option
-    assert cfg.config["tir.UnrollLoop"].explicit_unroll == True
+    assert cfg.config["tir.UnrollLoop"].explicit_unroll != 0
 
     # schema checking for specific config key
     with pytest.raises(AttributeError):
@@ -150,7 +160,7 @@ def test_pass_config():
 
     # schema check for un-registered config
     with pytest.raises(AttributeError):
-        cfg = tvm.transform.PassContext(config={"inavlid-opt": True})
+        cfg = tvm.transform.PassContext(config={"invalid-opt": True})
 
     # schema check for wrong type
     with pytest.raises(AttributeError):
@@ -173,15 +183,16 @@ def test_ndarray():
 
 def test_ndarray_dict():
     dev = tvm.cpu(0)
-    m1 = {
+    m_1 = {
         "key1": tvm.nd.array(np.random.rand(4), device=dev),
         "key2": tvm.nd.array(np.random.rand(4), device=dev),
     }
-    m2 = tvm.ir.load_json(tvm.ir.save_json(m1))
-    tvm.ir.assert_structural_equal(m1, m2)
+    m_2 = tvm.ir.load_json(tvm.ir.save_json(m_1))
+    tvm.ir.assert_structural_equal(m_1, m_2)
 
 
 def test_alloc_const():
+    """Test allocate constant"""
     dev = tvm.cpu(0)
     dtype = "float32"
     shape = (16,)

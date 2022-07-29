@@ -14,12 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Test runtime graph debug"""
+
 import json
 import os
 import re
-import sys
 import time
-from distutils.log import debug
 
 import numpy as np
 import pytest
@@ -30,6 +30,7 @@ from tvm._ffi.base import TVMError
 from tvm.contrib import utils
 from tvm.contrib.debugger import debug_executor
 
+# pylint: disable=redefined-outer-name
 
 # Constants for creating simple graphs, fixtures to avoid free globals
 @pytest.fixture
@@ -38,22 +39,22 @@ def n():
 
 
 @pytest.fixture
-def A(n):
+def A(n):  # pylint: disable=invalid-name
     return te.placeholder((n,), name="A")
 
 
 @pytest.fixture
-def B(A):
+def B(A):  # pylint: disable=invalid-name
     return te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
 
 
 @pytest.fixture
-def s(B):
+def s(B):  # pylint: disable=invalid-name
     return te.create_schedule(B.op)
 
 
 @pytest.fixture
-def mlib(s, A, B):
+def mlib(s, A, B):  # pylint: disable=invalid-name
     return tvm.build(s, [A, B], "llvm", name="myadd")
 
 
@@ -69,6 +70,7 @@ def myadd(mlib):
 
 @pytest.fixture
 def graph():
+    """graph"""
     node0 = {"op": "null", "name": "x", "inputs": []}
     node1 = {
         "op": "tvm_op",
@@ -102,7 +104,10 @@ def graph():
 @pytest.mark.skipif(
     tvm.support.libinfo()["USE_PROFILER"] != "ON", reason="TVM was not built with profiler support"
 )
+# pylint: disable=invalid-name
 def test_end_to_end_graph_simple(graph, n, A, B, s, myadd):
+    """Test end-to-end simple graph"""
+
     def check_verify():
         mlib_proxy = tvm.support.FrontendTestModule()
         mlib_proxy["myadd"] = myadd
@@ -116,11 +121,11 @@ def test_end_to_end_graph_simple(graph, n, A, B, s, myadd):
         assert os.path.exists(directory)
 
         # verify graph is there
-        GRAPH_DUMP_FILE_NAME = "_tvmdbg_graph_dump.json"
+        graph_dump_file_name = "_tvmdbg_graph_dump.json"
         assert len(os.listdir(directory)) == 1
 
         # verify the file name is proper
-        graph_dump_path = os.path.join(directory, GRAPH_DUMP_FILE_NAME)
+        graph_dump_path = os.path.join(directory, graph_dump_file_name)
         assert os.path.exists(graph_dump_path)
 
         # verify the graph contains some expected keys
@@ -160,16 +165,16 @@ def test_end_to_end_graph_simple(graph, n, A, B, s, myadd):
 
         # Ensure runtime is at least the sleep time and less than a unit prefix order of magnitude.
         # Here we just care that the prefix is correct.
-        assert runtime_sec > 0.25 and runtime_sec < 0.25 * 1000
+        assert 0.25 < runtime_sec < 0.25 * 1000
 
         total_lines = split_debug_line(3)
         assert total_lines[0] == "Total_time"
         assert total_lines[2] == myadd_lines[2]
 
-        CHROME_TRACE_FILE_NAME = "_tvmdbg_execution_trace.json"
-        assert os.path.exists(os.path.join(directory, CHROME_TRACE_FILE_NAME))
+        chrome_trace_file_name = "_tvmdbg_execution_trace.json"
+        assert os.path.exists(os.path.join(directory, chrome_trace_file_name))
 
-        with open(os.path.join(directory, CHROME_TRACE_FILE_NAME)) as f:
+        with open(os.path.join(directory, chrome_trace_file_name)) as f:
             trace = json.load(f)
         assert trace["displayTimeUnit"] == "ns"
         events = trace["traceEvents"]
@@ -214,11 +219,16 @@ def test_end_to_end_graph_simple(graph, n, A, B, s, myadd):
     check_remote(rpc.Server("127.0.0.1"))
 
 
+# pylint: enable=invalid-name
+
+
 @tvm.testing.requires_llvm
 @pytest.mark.skipif(
     tvm.support.libinfo()["USE_PROFILER"] != "ON", reason="TVM was not built with profiler support"
 )
+# pylint: disable=invalid-name
 def test_run_single_node(graph, n, A, myadd):
+    """Test run single node"""
     mlib_proxy = tvm.support.FrontendTestModule()
     mlib_proxy["myadd"] = myadd
     mod: debug_executor.GraphModuleDebug = debug_executor.create(graph, mlib_proxy, tvm.cpu(0))
@@ -248,15 +258,15 @@ def test_run_single_node(graph, n, A, myadd):
     start = time.time()
     mod.run_individual_node(1, min_repeat_ms=500)
     end = time.time()
-    elapsed_time_in_seconds = end - start
-    assert elapsed_time_in_seconds >= 0.5
+    elapsed_time_in_secs = end - start
+    assert elapsed_time_in_secs >= 0.5
 
     # Doing `cooldown_interval_ms` should have the execution time increases
     start = time.time()
     mod.run_individual_node(1, repeat=2, min_repeat_ms=500, cooldown_interval_ms=1000)
     end = time.time()
-    elapsed_time_in_seconds_with_def_rep = end - start
-    assert elapsed_time_in_seconds_with_def_rep >= 3
+    elapsed_time_in_secs_def_rep = end - start
+    assert elapsed_time_in_secs_def_rep >= 3
 
     # Doing with `repeats_to_cooldown` not equal 1 should not trigger
     # cooldown after each repeat
@@ -265,14 +275,15 @@ def test_run_single_node(graph, n, A, myadd):
         1, repeat=2, min_repeat_ms=500, cooldown_interval_ms=1000, repeats_to_cooldown=2
     )
     end = time.time()
-    elapsed_time_in_seconds_with_rep_2 = end - start
-    assert elapsed_time_in_seconds_with_rep_2 >= 2 and (
-        elapsed_time_in_seconds_with_rep_2 < elapsed_time_in_seconds_with_def_rep
-    )
+    elapsed_time_in_secs_rep_2 = end - start
+    assert 2 <= elapsed_time_in_secs_rep_2 < elapsed_time_in_secs_def_rep
 
     # Going out of bounds of node index throws a tvm error
     with pytest.raises(TVMError):
         mod.run_individual_node(2)
+
+
+# pylint: enable=invalid-name
 
 
 if __name__ == "__main__":

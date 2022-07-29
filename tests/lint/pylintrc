@@ -267,7 +267,7 @@ redefining-builtins-modules=six.moves,future.builtins
 [BASIC]
 
 # Good variable names which should always be accepted, separated by a comma
-good-names=i,j,_,a,b,op,x,y,wd,lr,kv,k,v,s,p,h,c,m,n,X,t,g,f
+good-names=a,b,c,d,e,f,g,h,i,j,k,m,n,p,s,t,v,w,x,y,z,_,kv,lr,op,wd,X
 
 # Bad variable names which should always be refused, separated by a comma
 bad-names=

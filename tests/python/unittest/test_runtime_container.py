@@ -14,30 +14,30 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Test runtime container"""
 
-import numpy as np
+import pickle
 import random
+
 import tvm
 import tvm.testing
-import pickle
-from tvm import te
 from tvm import nd, relay
 from tvm.runtime import container as _container
+import numpy as np
 
 
 def test_adt_constructor():
     arr = nd.array([1, 2, 3])
-    fields = [arr, arr]
     y = _container.ADT(0, [arr, arr])
 
     assert len(y) == 2
     assert isinstance(y, _container.ADT)
-    y[0:1][-1] == arr
     assert y.tag == 0
     assert isinstance(arr, nd.NDArray)
 
 
 def test_tuple_object():
+    """Test tuple object"""
     x = relay.var(
         "x",
         type_annotation=relay.ty.TupleType(
@@ -45,8 +45,8 @@ def test_tuple_object():
         ),
     )
 
-    fn = relay.Function([x], relay.expr.TupleGetItem(x, 0))
-    mod = tvm.IRModule.from_expr(fn)
+    func = relay.Function([x], relay.expr.TupleGetItem(x, 0))
+    mod = tvm.IRModule.from_expr(func)
 
     f = relay.create_executor(kind="vm", mod=mod, device=nd.cpu(), target="llvm").evaluate()
     value_tuple = _container.tuple_object([nd.array(np.array(11)), nd.array(np.array(12))])
@@ -56,6 +56,7 @@ def test_tuple_object():
 
 
 def test_string():
+    """Test string"""
     s = tvm.runtime.String("xyz")
 
     assert isinstance(s, tvm.runtime.String)
@@ -78,9 +79,9 @@ def test_string():
 
 
 def test_shape_tuple():
+    """Test shape tuple"""
     shape = [random.randint(-10, 10) for _ in range(5)]
     stuple = _container.ShapeTuple(shape)
-    len(stuple) == len(shape)
     for a, b in zip(stuple, shape):
         assert a == b
     # ShapleTuple vs. list

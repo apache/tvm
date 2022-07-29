@@ -14,11 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Test runtime graph"""
+
+import json
+import numpy as np
+
 import tvm
 import tvm.testing
 from tvm import te, runtime
-import numpy as np
-import json
 from tvm import rpc
 from tvm import relay
 from tvm.contrib import utils, graph_executor
@@ -26,6 +29,8 @@ from tvm.contrib import utils, graph_executor
 
 @tvm.testing.requires_llvm
 def test_graph_simple():
+    """Test simple graph"""
+    # pylint: disable=invalid-name
     n = 4
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
@@ -119,6 +124,7 @@ def test_graph_simple():
 
 
 def test_load_unexpected_params():
+    """Test loading unexpected parameters"""
     # Test whether graph_executor.load_params works if parameters
     # are provided that are not an expected input.
     mod = tvm.IRModule()

@@ -14,13 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import numpy as np
-import pytest
+"""Test runtime profiling"""
+
 from io import StringIO
 import csv
-import os
 import json
-import platform
+
+import numpy as np
+import pytest
 
 import tvm.testing
 import tvm.utils
@@ -34,7 +35,7 @@ from tvm.runtime.profiling import Report
 from tvm.script import tir as T
 
 
-def read_csv(report):
+def _read_csv(report):
     f = StringIO(report.csv())
     headers = []
     rows = []
@@ -47,8 +48,9 @@ def read_csv(report):
             in_header = False
             rows = [[] for x in headers]
         else:
-            for i in range(len(row)):
-                rows[i].append(row[i])
+            for i, n in enumerate(row):
+                rows[i].append(n)
+
     return dict(zip(headers, rows))
 
 
@@ -56,29 +58,30 @@ def read_csv(report):
 @tvm.testing.skip_if_wheel_test
 @tvm.testing.parametrize_targets
 def test_vm(target, dev):
+    """Test VM"""
     dtype = "float32"
     x = relay.var("x", shape=(relay.Any(), relay.Any()), dtype=dtype)
     y = relay.var("y", shape=(relay.Any(), relay.Any()), dtype=dtype)
     mod = tvm.IRModule()
     mod["main"] = relay.Function([x, y], relay.add(x, y))
     exe = relay.vm.compile(mod, target)
-    vm = profiler_vm.VirtualMachineProfiler(exe, dev)
+    vmp = profiler_vm.VirtualMachineProfiler(exe, dev)
 
     data = np.random.rand(28, 28).astype("float32")
-    report = vm.profile(data, data, func_name="main")
+    report = vmp.profile(data, data, func_name="main")
     assert "fused_add" in str(report)
     assert "Total" in str(report)
     assert "AllocTensorReg" in str(report)
     assert "AllocStorage" in str(report)
     assert report.configuration["Executor"] == "VM"
 
-    csv = read_csv(report)
-    assert "Hash" in csv.keys()
+    csv_dict = _read_csv(report)
+    assert "Hash" in csv_dict.keys()
     # Ops should have a duration greater than zero.
     assert all(
         [
             float(dur) > 0
-            for dur, name in zip(csv["Duration (us)"], csv["Name"])
+            for dur, name in zip(csv_dict["Duration (us)"], csv_dict["Name"])
             if name[:5] == "fused"
         ]
     )
@@ -86,7 +89,7 @@ def test_vm(target, dev):
     assert all(
         [
             float(dur) >= 0
-            for dur, name in zip(csv["Duration (us)"], csv["Name"])
+            for dur, name in zip(csv_dict["Duration (us)"], csv_dict["Name"])
             if name[:5] != "fused"
         ]
     )
@@ -94,13 +97,14 @@ def test_vm(target, dev):
 
 @tvm.testing.parametrize_targets
 def test_graph_executor(target, dev):
+    """Test graph executor"""
     mod, params = mlp.get_workload(1)
 
     exe = relay.build(mod, target, params=params)
-    gr = debug_executor.create(exe.get_graph_json(), exe.lib, dev)
+    graph = debug_executor.create(exe.get_graph_json(), exe.lib, dev)
 
     data = np.random.rand(1, 1, 28, 28).astype("float32")
-    report = gr.profile(data=data)
+    report = graph.profile(data=data)
     assert "fused_nn_softmax" in str(report)
     assert "Total" in str(report)
     assert "Hash" in str(report)
@@ -113,6 +117,7 @@ def test_graph_executor(target, dev):
     reason="PAPI profiling not enabled",
 )
 def test_papi(target, dev):
+    """Test PAPI"""
     target = tvm.target.Target(target)
     if str(target.kind) == "llvm":
         metric = "PAPI_FP_OPS"
@@ -123,30 +128,31 @@ def test_papi(target, dev):
     mod, params = mlp.get_workload(1)
 
     exe = relay.vm.compile(mod, target, params=params)
-    vm = profiler_vm.VirtualMachineProfiler(exe, dev)
+    vmp = profiler_vm.VirtualMachineProfiler(exe, dev)
 
     data = tvm.nd.array(np.random.rand(1, 1, 28, 28).astype("float32"), device=dev)
-    report = vm.profile(
+    report = vmp.profile(
         [data],
         func_name="main",
         collectors=[tvm.runtime.profiling.PAPIMetricCollector({dev: [metric]})],
     )
     assert metric in str(report)
 
-    csv = read_csv(report)
-    assert metric in csv.keys()
-    assert any([float(x) > 0 for x in csv[metric]])
+    csv_dict = _read_csv(report)
+    assert metric in csv_dict.keys()
+    assert any([float(x) > 0 for x in csv_dict[metric]])
 
 
 @tvm.testing.requires_llvm
 def test_json():
+    """Test JSON"""
     mod, params = mlp.get_workload(1)
 
     exe = relay.vm.compile(mod, "llvm", params=params)
-    vm = profiler_vm.VirtualMachineProfiler(exe, tvm.cpu())
+    vmp = profiler_vm.VirtualMachineProfiler(exe, tvm.cpu())
 
     data = np.random.rand(1, 1, 28, 28).astype("float32")
-    report = vm.profile(data, func_name="main")
+    report = vmp.profile(data, func_name="main")
     parsed = json.loads(report.json())
     assert "device_metrics" in parsed
     assert "calls" in parsed
@@ -162,6 +168,7 @@ def test_json():
 
 @tvm.testing.requires_llvm
 def test_rpc_vm():
+    """Test RPC VM"""
     server = rpc.Server(key="profiling")
     remote = rpc.connect("127.0.0.1", server.port, key="profiling")
 
@@ -172,12 +179,15 @@ def test_rpc_vm():
     exe.mod.export_library(path)
     remote.upload(path)
     rexec = remote.load_module("lib.tar")
-    vm = profiler_vm.VirtualMachineProfiler(rexec, remote.cpu())
-    report = vm.profile(tvm.nd.array(np.ones((1, 1, 28, 28), dtype="float32"), device=remote.cpu()))
+    vmp = profiler_vm.VirtualMachineProfiler(rexec, remote.cpu())
+    report = vmp.profile(
+        tvm.nd.array(np.ones((1, 1, 28, 28), dtype="float32"), device=remote.cpu())
+    )
     assert len(report.calls) > 0
 
 
 def test_rpc_graph():
+    """Test RPC graph"""
     server = rpc.Server(key="profiling")
     remote = rpc.connect("127.0.0.1", server.port, key="profiling")
 
@@ -189,21 +199,22 @@ def test_rpc_graph():
     remote.upload(path)
     rexec = remote.load_module("lib.tar")
 
-    gr = debug_executor.create(exe.get_graph_json(), rexec, remote.cpu())
+    graph = debug_executor.create(exe.get_graph_json(), rexec, remote.cpu())
 
     data = np.random.rand(1, 1, 28, 28).astype("float32")
-    report = gr.profile(data=data)
+    report = graph.profile(data=data)
     assert len(report.calls) > 0
 
 
 def test_report_serialization():
+    """Test report serialization"""
     mod, params = mlp.get_workload(1)
 
     exe = relay.vm.compile(mod, "llvm", params=params)
-    vm = profiler_vm.VirtualMachineProfiler(exe, tvm.cpu())
+    vmp = profiler_vm.VirtualMachineProfiler(exe, tvm.cpu())
 
     data = np.random.rand(1, 1, 28, 28).astype("float32")
-    report = vm.profile(data, func_name="main")
+    report = vmp.profile(data, func_name="main")
 
     report2 = Report.from_json(report.json())
     # Equality on reports compares pointers, so we compare the printed
@@ -219,6 +230,7 @@ def test_report_serialization():
 
 @T.prim_func
 def axpy_cpu(a: T.handle, b: T.handle, c: T.handle) -> None:
+    # pylint: disable=invalid-name
     A = T.match_buffer(a, [10], "float64")
     B = T.match_buffer(b, [10], "float64")
     C = T.match_buffer(c, [10], "float64")
@@ -228,6 +240,7 @@ def axpy_cpu(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def axpy_gpu(a: T.handle, b: T.handle, c: T.handle) -> None:
+    # pylint: disable=invalid-name
     A = T.match_buffer(a, [10], "float64")
     B = T.match_buffer(b, [10], "float64")
     C = T.match_buffer(c, [10], "float64")
@@ -241,6 +254,7 @@ def axpy_gpu(a: T.handle, b: T.handle, c: T.handle) -> None:
     reason="PAPI profiling not enabled",
 )
 def test_profile_function(target, dev):
+    """Test profile function"""
     target = tvm.target.Target(target)
     if str(target.kind) == "llvm":
         metric = "PAPI_FP_OPS"
@@ -270,9 +284,7 @@ def test_estimate_peak_fma_flops(target, dev):
         target = "llvm -mattr=+fma,+avx2"
     flops = tvm.utils.estimate_peak_fma_flops(tvm.target.Target(target), dev)
     # Assume we can achieve 1 GFLOP/s per thread, which is 1 FLOP per cycle on a 1GHz cpu.
-    assert (
-        flops > 10**9 and flops < 10**14
-    ), f"FLOP/s should be between 10^9 and 10^14, but it is {flops}"
+    assert 10**9 < flops < 10**14, f"FLOP/s should be between 10^9 and 10^14, but it is {flops}"
 
 
 def test_estimate_peak_fma_flops_rpc():
@@ -282,9 +294,7 @@ def test_estimate_peak_fma_flops_rpc():
     dev = remote.device(target)
     flops = tvm.utils.estimate_peak_fma_flops(tvm.target.Target(target), dev, remote=remote)
     # Assume we can achieve 1 GFLOP/s per thread, which is 1 FLOP per cycle on a 1GHz cpu.
-    assert (
-        flops > 10**9 and flops < 10**14
-    ), f"FLOP/s should be between 10^9 and 10^14, but it is {flops}"
+    assert 10**9 < flops < 10**14, f"FLOP/s should be between 10^9 and 10^14, but it is {flops}"
 
 
 @tvm.testing.skip_if_32bit(reason="Cannot allocate enough memory on i386")
@@ -297,7 +307,7 @@ def test_estimate_peak_bandwidth(target, dev):
     # Assume we can achieve 1 GB/s. DDR2 should transfer somewhere around 6
     # GB/s, so this should leave enough wiggle room.
     assert (
-        bandwidth > 10**9 and bandwidth < 10**12
+        10**9 < bandwidth < 10**12
     ), f"Bandwidth should be between 10^9 and 10^12, but it is {bandwidth}"
 
 
@@ -311,13 +321,14 @@ def test_estimate_peak_bandwidth_rpc():
     # Assume we can achieve 1 GB/s. DDR2 should transfer somewhere around 6
     # GB/s, so this should leave enough wiggle room.
     assert (
-        bandwidth > 10**9 and bandwidth < 10**12
+        10**9 < bandwidth < 10**12
     ), f"Bandwidth should be between 10^9 and 10^12, but it is {bandwidth}"
 
 
 @tvm.testing.skip_if_32bit(reason="Cannot allocate enough memory on i386")
 @tvm.testing.parametrize_targets("llvm")
 def test_roofline_analysis(target, dev):
+    """Test roofline analysis"""
     a = relay.var("a", relay.TensorType((512, 512), "float32"))
     b = relay.var("b", relay.TensorType((512, 512), "float32"))
     c = relay.nn.dense(a, b)
@@ -337,6 +348,7 @@ def test_roofline_analysis(target, dev):
 
 @tvm.testing.skip_if_32bit(reason="Cannot allocate enough memory on i386")
 def test_roofline_analysis_rpc():
+    """Test roofline analysis RPC"""
     target = "llvm"
 
     a = relay.var("a", relay.TensorType((512, 512), "float32"))

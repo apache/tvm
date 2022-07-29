@@ -14,18 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from tvm import relay
-from tvm.relay import testing
+"""Test runtime module export"""
+
+import shutil
+
 import tvm
-from tvm import te
+import tvm.relay.testing
 import tvm.testing
+from tvm import relay
+from tvm import te
 
 from tvm.contrib import utils
 
-header_file_dir_path = utils.tempdir()
+HEADER_FILE_DIR_PATH = utils.tempdir()
 
 
-def gen_engine_header():
+def _generate_engine_header():
     code = r"""
         #ifndef _ENGINE_H_
         #define _ENGINE_H_
@@ -38,12 +42,12 @@ def gen_engine_header():
 
         #endif
         """
-    header_file = header_file_dir_path.relpath("gcc_engine.h")
+    header_file = HEADER_FILE_DIR_PATH.relpath("gcc_engine.h")
     with open(header_file, "w") as f:
         f.write(code)
 
 
-def generate_engine_module():
+def _generate_engine_module():
     code = r"""
         #include <tvm/runtime/c_runtime_api.h>
         #include <dlpack/dlpack.h>
@@ -54,15 +58,16 @@ def generate_engine_module():
             Engine engine;
         }
         """
-    import tvm.runtime._ffi_api
 
-    gen_engine_header()
+    _generate_engine_header()
     csource_module = tvm.runtime._ffi_api.CSourceModuleCreate(code, "cc", [], None)
     return csource_module
 
 
 @tvm.testing.uses_gpu
 def test_mod_export():
+    """Test module export"""
+
     def verify_gpu_mod_export(obj_format):
         for device in ["llvm", "cuda"]:
             if not tvm.testing.device_enabled(device):
@@ -100,11 +105,11 @@ def test_mod_export():
                 print("skip because %s is not enabled..." % device)
                 return
 
-        A = te.placeholder((1024,), name="A")
-        B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
-        s = te.create_schedule(B.op)
-        mod0 = tvm.build(s, [A, B], "llvm", name="myadd0")
-        mod1 = tvm.build(s, [A, B], "llvm", name="myadd1")
+        a = te.placeholder((1024,), name="a")
+        b = te.compute(a.shape, lambda *i: a(*i) + 1.0, name="b")
+        s = te.create_schedule(b.op)
+        mod0 = tvm.build(s, [a, b], "llvm", name="myadd0")
+        mod1 = tvm.build(s, [a, b], "llvm", name="myadd1")
 
         temp = utils.tempdir()
         if obj_format == ".so":
@@ -153,13 +158,13 @@ def test_mod_export():
             f.write(subgraph_json)
 
         # Get Json and module.
-        A = te.placeholder((1024,), name="A")
-        B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
-        s = te.create_schedule(B.op)
-        f = tvm.build(s, [A, B], "llvm", name="myadd")
+        a = te.placeholder((1024,), name="a")
+        b = te.compute(a.shape, lambda *i: a(*i) + 1.0, name="b")
+        s = te.create_schedule(b.op)
+        f = tvm.build(s, [a, b], "llvm", name="myadd")
         try:
             ext_lib = tvm.runtime.load_module(subgraph_path, "examplejson")
-        except:
+        except:  # pylint: disable=bare-except
             print("skip because Loader of examplejson is not presented")
             return
         ext_lib.import_module(f)
@@ -175,9 +180,8 @@ def test_mod_export():
         assert lib.imported_modules[0].type_key == "library"
 
     def verify_multi_c_mod_export():
-        from shutil import which
 
-        if which("gcc") is None:
+        if shutil.which("gcc") is None:
             print("Skip test because gcc is not available.")
 
         for device in ["llvm"]:
@@ -191,18 +195,18 @@ def test_mod_export():
                 synthetic_mod, "llvm", params=synthetic_params
             )
 
-        A = te.placeholder((1024,), name="A")
-        B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
-        s = te.create_schedule(B.op)
-        f = tvm.build(s, [A, B], "c", name="myadd")
-        engine_module = generate_engine_module()
+        a = te.placeholder((1024,), name="a")
+        b = te.compute(a.shape, lambda *i: a(*i) + 1.0, name="b")
+        s = te.create_schedule(b.op)
+        f = tvm.build(s, [a, b], "c", name="myadd")
+        engine_module = _generate_engine_module()
 
         temp = utils.tempdir()
         file_name = "deploy_lib.so"
         path_lib = temp.relpath(file_name)
         synthetic_cpu_lib.import_module(f)
         synthetic_cpu_lib.import_module(engine_module)
-        kwargs = {"options": ["-O2", "-std=c++14", "-I" + header_file_dir_path.relpath("")]}
+        kwargs = {"options": ["-O2", "-std=c++14", "-I" + HEADER_FILE_DIR_PATH.relpath("")]}
         synthetic_cpu_lib.export_library(path_lib, fcompile=False, **kwargs)
         loaded_lib = tvm.runtime.load_module(path_lib)
         assert loaded_lib.type_key == "library"
@@ -219,12 +223,13 @@ def test_mod_export():
 
 @tvm.testing.requires_llvm
 def test_import_static_library():
+    """Test static library import"""
     # Generate two LLVM modules.
-    A = te.placeholder((1024,), name="A")
-    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
-    s = te.create_schedule(B.op)
-    mod0 = tvm.build(s, [A, B], "llvm", name="myadd0")
-    mod1 = tvm.build(s, [A, B], "llvm", name="myadd1")
+    a = te.placeholder((1024,), name="a")
+    b = te.compute(a.shape, lambda *i: a(*i) + 1.0, name="b")
+    s = te.create_schedule(b.op)
+    mod0 = tvm.build(s, [a, b], "llvm", name="myadd0")
+    mod1 = tvm.build(s, [a, b], "llvm", name="myadd1")
 
     assert mod0.implements_function("myadd0")
     assert mod1.implements_function("myadd1")

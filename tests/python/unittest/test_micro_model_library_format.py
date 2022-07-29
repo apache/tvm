@@ -15,18 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import pathlib
-import sys
+"""Test Micro Model Library Format"""
+
 import datetime
 import json
 import os
+import platform
+import sys
 import tarfile
 
 import numpy as np
 import pytest
-import platform
-
-pytest.importorskip("tvm.micro")
 
 import tvm
 import tvm.relay
@@ -40,18 +39,22 @@ from tvm.micro.testing.utils import get_conv2d_relay_module
 import tvm.micro.model_library_format as model_library_format
 from tvm.micro.model_library_format import _GENERATED_VERSION
 
+pytest.importorskip("tvm.micro")
+
 
 @tvm.testing.requires_micro
 def test_export_operator_model_library_format():
+
+    """Test export operator model library format."""
     target = tvm.target.target.micro("host")
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        A = tvm.te.placeholder((2,), dtype="int8")
-        B = tvm.te.placeholder((1,), dtype="int8")
-        C = tvm.te.compute(A.shape, lambda i: A[i] + B[0], name="C")
-        sched = tvm.te.create_schedule(C.op)
+        a = tvm.te.placeholder((2,), dtype="int8")
+        b = tvm.te.placeholder((1,), dtype="int8")
+        c = tvm.te.compute(a.shape, lambda i: a[i] + b[0], name="c")
+        sched = tvm.te.create_schedule(c.op)
         mod = tvm.build(
             sched,
-            [A, B, C],
+            [a, b, c],
             tvm.target.Target(target, target),
             runtime=Runtime("crt", {"system-lib": True}),
             name="add",
@@ -61,11 +64,11 @@ def test_export_operator_model_library_format():
     mlf_tar_path = temp_dir.relpath("lib.tar")
     micro.export_model_library_format(mod, mlf_tar_path)
 
-    tf = tarfile.open(mlf_tar_path)
+    mlf_tar = tarfile.open(mlf_tar_path)
 
     extract_dir = temp_dir.relpath("extract")
     os.mkdir(extract_dir)
-    tf.extractall(extract_dir)
+    mlf_tar.extractall(extract_dir)
 
     with open(os.path.join(extract_dir, "metadata.json")) as json_f:
         metadata = json.load(json_f)
@@ -102,16 +105,17 @@ def test_export_operator_model_library_format():
 
 
 @tvm.testing.requires_micro
-def test_export_multiple_operator_model_library_format():
+def test_export_multi_operator_model_library_format():
+    """Test exporting multiple operator model library format"""
     target = tvm.target.target.micro("host")
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        A = tvm.te.placeholder((2,), dtype="int8")
-        B = tvm.te.placeholder((1,), dtype="int8")
-        C = tvm.te.compute(A.shape, lambda i: A[i] + B[0], name="C")
-        sched = tvm.te.create_schedule(C.op)
+        a = tvm.te.placeholder((2,), dtype="int8")
+        b = tvm.te.placeholder((1,), dtype="int8")
+        c = tvm.te.compute(a.shape, lambda i: a[i] + b[0], name="c")
+        sched = tvm.te.create_schedule(c.op)
         mod = tvm.build(
             sched,
-            [A, B, C],
+            [a, b, c],
             tvm.target.Target(target, target),
             runtime=Runtime("crt", {"system-lib": True}),
             name="add",
@@ -126,7 +130,7 @@ def test_export_multiple_operator_model_library_format():
         assert str(exc.exception) == ("Multiple operator is not supported.")
 
 
-def validate_graph_json(extract_dir, factory):
+def _validate_graph_json(extract_dir, factory):
     with open(
         os.path.join(extract_dir, "executor-config", "graph", f"{factory.libmod_name}.graph")
     ) as graph_f:
@@ -157,13 +161,16 @@ def validate_graph_json(extract_dir, factory):
 def test_export_model_library_format_c(
     executor, runtime, should_generate_interface, json_constants_size_bytes
 ):
+    """Test export model library format in C"""
     target = tvm.target.target.micro("host")
     with utils.TempDirectory.set_keep_for_debug(True):
         with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
             relay_mod = tvm.parser.fromtext(
                 """
             #[version = "0.0.5"]
-            def @main(%a : Tensor[(1, 2), uint8], %b : Tensor[(1, 2), float32], %c : Tensor[(1, 2), float32]) {
+            def @main(%a : Tensor[(1, 2), uint8],
+                      %b : Tensor[(1, 2), float32],
+                      %c : Tensor[(1, 2), float32]) {
             %0 = cast(%a, dtype="float32") + %b * %c;
             %0
             }"""
@@ -181,11 +188,11 @@ def test_export_model_library_format_c(
         mlf_tar_path = temp_dir.relpath("lib.tar")
 
         micro.export_model_library_format(factory, mlf_tar_path)
-        tf = tarfile.open(mlf_tar_path)
+        mlf_tar = tarfile.open(mlf_tar_path)
 
         extract_dir = temp_dir.relpath("extract")
         os.mkdir(extract_dir)
-        tf.extractall(extract_dir)
+        mlf_tar.extractall(extract_dir)
 
         with open(os.path.join(extract_dir, "metadata.json")) as json_f:
             metadata = json.load(json_f)
@@ -229,7 +236,7 @@ def test_export_model_library_format_c(
         )
 
         if executor.name == "graph":
-            validate_graph_json(extract_dir, factory)
+            _validate_graph_json(extract_dir, factory)
 
         with open(os.path.join(extract_dir, "src", f"{module_name}.relay")) as relay_f:
             assert relay_f.read() == str(relay_mod)
@@ -244,6 +251,7 @@ def test_export_model_library_format_c(
 
 @tvm.testing.requires_micro
 def test_export_model_library_format_llvm():
+    """Test export model library format with LLVM"""
     with utils.TempDirectory.set_keep_for_debug(True):
         target = tvm.target.target.micro("host")
         assert str(target)[:2] == "c "
@@ -252,7 +260,9 @@ def test_export_model_library_format_llvm():
             relay_mod = tvm.parser.fromtext(
                 """
             #[version = "0.0.5"]
-            def @main(%a : Tensor[(1, 2), uint8], %b : Tensor[(1, 2), float32], %c : Tensor[(1, 2), float32]) {
+            def @main(%a : Tensor[(1, 2), uint8],
+                      %b : Tensor[(1, 2), float32],
+                      %c : Tensor[(1, 2), float32]) {
             %0 = cast(%a, dtype="float32") + %b * %c;
             %0
             }"""
@@ -269,11 +279,11 @@ def test_export_model_library_format_llvm():
         mlf_tar_path = temp_dir.relpath("lib.tar")
 
         micro.export_model_library_format(factory, mlf_tar_path)
-        tf = tarfile.open(mlf_tar_path)
+        mlf_tar = tarfile.open(mlf_tar_path)
 
         extract_dir = temp_dir.relpath("extract")
         os.mkdir(extract_dir)
-        tf.extractall(extract_dir)
+        mlf_tar.extractall(extract_dir)
 
         with open(os.path.join(extract_dir, "metadata.json")) as json_f:
             metadata = json.load(json_f)
@@ -311,7 +321,7 @@ def test_export_model_library_format_llvm():
 
         assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "lib", "add_lib0.o"))
 
-        validate_graph_json(extract_dir, factory)
+        _validate_graph_json(extract_dir, factory)
 
         with open(os.path.join(extract_dir, "src", f"{module_name}.relay")) as relay_f:
             assert relay_f.read() == str(relay_mod)
@@ -327,15 +337,28 @@ def test_export_model_library_format_llvm():
     [(Executor("graph"), Runtime("crt", {"system-lib": True})), (Executor("aot"), Runtime("crt"))],
 )
 def test_export_model_library_format_workspace(executor, runtime):
+    """Test export model library format workspace"""
     target = tvm.target.target.micro("host")
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         relay_mod = tvm.parser.fromtext(
             """
             #[version = "0.0.5"]
-            def @main(%p0: Tensor[(1, 56, 56, 128), int16], %p1: Tensor[(3, 3, 128, 1), int16], %p2: Tensor[(1, 1, 1, 128), int32]){
-              %0 = nn.conv2d(%p0, %p1, padding=[1, 1, 1, 1], groups=128, channels=128, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="HWOI", out_dtype="int32") /* ty=Tensor[(1, 56, 56, 128), int32] */;
+            def @main(%p0: Tensor[(1, 56, 56, 128), int16],
+                      %p1: Tensor[(3, 3, 128, 1), int16],
+                      %p2: Tensor[(1, 1, 1, 128), int32]){
+              %0 = nn.conv2d(%p0,
+                             %p1,
+                             padding=[1, 1, 1, 1],
+                             groups=128,
+                             channels=128,
+                             kernel_size=[3, 3],
+                             data_layout="NHWC",
+                             kernel_layout="HWOI",
+                             out_dtype="int32") /* ty=Tensor[(1, 56, 56, 128), int32] */;
               %1 = add(%0, %p2) /* ty=Tensor[(1, 56, 56, 128), int32] */;
-              %2 = fixed_point_multiply(%1, multiplier=2080045879, shift=-4) /* ty=Tensor[(1, 56, 56, 128), int32] */;
+              %2 = fixed_point_multiply(%1,
+                                        multiplier=2080045879,
+                                        shift=-4) /* ty=Tensor[(1, 56, 56, 128), int32] */;
               %3 = clip(%2, a_min=0f, a_max=255f) /* ty=Tensor[(1, 56, 56, 128), int32] */;
               cast(%3, dtype="uint8") /* ty=Tensor[(1, 56, 56, 128), uint8] */
             }
@@ -353,11 +376,11 @@ def test_export_model_library_format_workspace(executor, runtime):
     mlf_tar_path = temp_dir.relpath("lib.tar")
 
     micro.export_model_library_format(factory, mlf_tar_path)
-    tf = tarfile.open(mlf_tar_path)
+    mlf_tar = tarfile.open(mlf_tar_path)
 
     extract_dir = temp_dir.relpath("extract")
     os.mkdir(extract_dir)
-    tf.extractall(extract_dir)
+    mlf_tar.extractall(extract_dir)
 
     with open(os.path.join(extract_dir, "metadata.json")) as json_f:
         metadata = json.load(json_f)
@@ -408,6 +431,8 @@ def test_export_byoc_c_module():
 
     NOTE the general BYOC flow is not fully supported by Model Library Format right now.
     """
+    # pylint: disable = invalid-name
+
     x = tvm.relay.var("x", shape=(10, 10))
     w0 = tvm.relay.var("w0", shape=(10, 10))
     w1 = tvm.relay.var("w1", shape=(10, 10))
@@ -433,6 +458,9 @@ def test_export_byoc_c_module():
 
     r = tvm.relay.concatenate((q0, q1, q2), axis=0)
     f = tvm.relay.Function([x, w0, w1, w2, w3, w4, w5, w6, w7], r)
+
+    # pylint: enable=invalid-name
+
     mod = tvm.IRModule()
     ann = byoc.CcompilerAnnotator()
     mod["main"] = ann.visit(f)
@@ -447,11 +475,11 @@ def test_export_byoc_c_module():
 
     micro.export_model_library_format(factory, mlf_tar_path)
 
-    with tarfile.open(mlf_tar_path, "r:*") as tf:
-        tar_members = [ti.name for ti in tf.getmembers()]
+    with tarfile.open(mlf_tar_path, "r:*") as mlf_tar:
+        tar_members = [ti.name for ti in mlf_tar.getmembers()]
         print("tar members", tar_members)
         assert "./metadata.json" in tar_members
-        with tf.extractfile("./metadata.json") as f:
+        with mlf_tar.extractfile("./metadata.json") as f:
             metadata = json.load(f)
         main_md = metadata["modules"][factory.libmod_name]["memory"]["functions"]["main"]
         if platform.architecture()[0] == "64bit":
@@ -476,6 +504,7 @@ def test_export_byoc_c_module():
 
 @tvm.testing.requires_micro
 def test_multiple_relay_modules_same_module_name():
+    """Test multiple relay modules with same module name"""
     mod = get_conv2d_relay_module()
 
     executor = Executor("graph")
@@ -495,6 +524,7 @@ def test_multiple_relay_modules_same_module_name():
 
 @tvm.testing.requires_micro
 def test_multiple_relay_modules_graph():
+    """Test multiple relay modules with graph executor"""
     mod = get_conv2d_relay_module()
 
     executor = Executor("graph")
@@ -509,14 +539,14 @@ def test_multiple_relay_modules_graph():
     mlf_tar_path = temp_dir.relpath("lib.tar")
     micro.export_model_library_format([factory1, factory2], mlf_tar_path)
 
-    with tarfile.open(mlf_tar_path, "r:*") as tf:
-        tar_members = [ti.name for ti in tf.getmembers()]
+    with tarfile.open(mlf_tar_path, "r:*") as mlf_tar:
+        tar_members = [ti.name for ti in mlf_tar.getmembers()]
         print("tar members", tar_members)
         assert "./metadata.json" in tar_members
         assert "./codegen/host/src/mod1_lib0.c" in tar_members
         assert "./codegen/host/src/mod2_lib0.c" in tar_members
 
-        with tf.extractfile("./metadata.json") as f:
+        with mlf_tar.extractfile("./metadata.json") as f:
             metadata = json.load(f)
         mod2_main_md = metadata["modules"]["mod2"]["memory"]["functions"]["main"]
         assert mod2_main_md == [
@@ -533,6 +563,7 @@ def test_multiple_relay_modules_graph():
 
 @tvm.testing.requires_micro
 def test_multiple_relay_modules_c():
+    """Test mutiple relay modules in C"""
     mod = get_conv2d_relay_module()
 
     executor = Executor("aot", {"unpacked-api": True, "interface-api": "c"})
@@ -548,11 +579,11 @@ def test_multiple_relay_modules_c():
 
     micro.export_model_library_format([factory1, factory2], mlf_tar_path)
 
-    tf = tarfile.open(mlf_tar_path)
+    mlf_tar = tarfile.open(mlf_tar_path)
 
     extract_dir = temp_dir.relpath("extract")
     os.mkdir(extract_dir)
-    tf.extractall(extract_dir)
+    mlf_tar.extractall(extract_dir)
 
     assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "src", "mod1_lib0.c"))
     assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "src", "mod1_lib1.c"))
@@ -568,6 +599,7 @@ def test_multiple_relay_modules_c():
 
 @tvm.testing.requires_micro
 def test_multiple_relay_modules_aot_graph():
+    "Test multiple relay modules with AoT graph"
     mod = get_conv2d_relay_module()
 
     executor1 = Executor("graph")
@@ -588,10 +620,10 @@ def test_multiple_relay_modules_aot_graph():
 
     micro.export_model_library_format([factory1, factory2], mlf_tar_path)
 
-    tf = tarfile.open(mlf_tar_path)
+    mlf_tar = tarfile.open(mlf_tar_path)
     extract_dir = temp_dir.relpath("extract")
     os.mkdir(extract_dir)
-    tf.extractall(extract_dir)
+    mlf_tar.extractall(extract_dir)
 
     assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "src", "mod1_lib0.c"))
     assert os.path.exists(os.path.join(extract_dir, "codegen", "host", "src", "mod1_lib1.c"))

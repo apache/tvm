@@ -19,11 +19,35 @@ set -euxo pipefail
 
 python3 -m pylint python/tvm --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint vta/python/vta --rcfile="$(dirname "$0")"/pylintrc
-python3 -m pylint tests/python/unittest/test_tvmscript_type.py --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint tests/python/contrib/test_cmsisnn --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint tests/python/relay/aot/*.py --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint tests/python/ci --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint tests/python/integration/ --rcfile="$(dirname "$0")"/pylintrc
+
+# tests/python/unittest/
+python3 -m pylint \
+    tests/python/unittest/test_micro_model_library_format.py \
+    tests/python/unittest/test_crt.py \
+    tests/python/unittest/test_micro_model_library_format.py \
+    tests/python/unittest/test_micro_project_api.py \
+    tests/python/unittest/test_micro_transport.py \
+    tests/python/unittest/test_node_reflection.py \
+    tests/python/unittest/test_runtime_container.py \
+    tests/python/unittest/test_runtime_error.py \
+    tests/python/unittest/test_runtime_extension.py \
+    tests/python/unittest/test_runtime_graph.py \
+    tests/python/unittest/test_runtime_graph_cuda_graph.py \
+    tests/python/unittest/test_runtime_graph_debug.py \
+    tests/python/unittest/test_runtime_measure.py \
+    tests/python/unittest/test_runtime_module_based_interface.py \
+    tests/python/unittest/test_runtime_module_export.py \
+    tests/python/unittest/test_runtime_module_load.py \
+    tests/python/unittest/test_runtime_profiling.py \
+    tests/python/unittest/test_runtime_rpc.py \
+    tests/python/unittest/test_runtime_trace.py \
+    tests/python/unittest/test_runtime_vm_profiler.py \
+    tests/python/unittest/test_tvmscript_type.py \
+    --rcfile="$(dirname "$0")"/pylintrc
 
 # tests/python/contrib/test_hexagon tests
 python3 -m pylint tests/python/contrib/test_hexagon/benchmark_util.py --rcfile="$(dirname "$0")"/pylintrc

@@ -14,17 +14,21 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Test runtime module loading"""
+
+import ctypes
+import subprocess
+import sys
+
+import numpy as np
+
 import tvm
 from tvm import te
 from tvm.contrib import cc, utils
-import ctypes
-import sys
-import numpy as np
-import subprocess
 import tvm.testing
 from tvm.relay.backend import Runtime
 
-runtime_py = """
+RUNTIME_PY = """
 import os
 import sys
 
@@ -44,6 +48,7 @@ print("Finish runtime checking...")
 
 
 def test_dso_module_load():
+    """Test DSO module load"""
     if not tvm.testing.device_enabled("llvm"):
         return
     dtype = "int64"
@@ -51,7 +56,7 @@ def test_dso_module_load():
 
     def save_object(names):
         n = te.size_var("n")
-        Ab = tvm.tir.decl_buffer((n,), dtype)
+        a_b = tvm.tir.decl_buffer((n,), dtype)
         i = te.var("i")
         # for i in 0 to n-1:
         stmt = tvm.tir.For(
@@ -59,10 +64,10 @@ def test_dso_module_load():
             0,
             n - 1,
             tvm.tir.ForKind.SERIAL,
-            tvm.tir.BufferStore(Ab, tvm.tir.BufferLoad(Ab, [i]) + 1, [i + 1]),
+            tvm.tir.BufferStore(a_b, tvm.tir.BufferLoad(a_b, [i]) + 1, [i + 1]),
         )
         mod = tvm.IRModule.from_expr(
-            tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", "main")
+            tvm.tir.PrimFunc([a_b], stmt).with_attr("global_symbol", "main")
         )
         m = tvm.driver.build(mod, target="llvm")
         for name in names:
@@ -75,29 +80,32 @@ def test_dso_module_load():
     save_object([path_obj, path_ll, path_bc])
     cc.create_shared(path_dso, [path_obj])
 
-    f1 = tvm.runtime.load_module(path_dso)
-    f2 = tvm.runtime.load_module(path_ll)
+    f_dso = tvm.runtime.load_module(path_dso)
+    f_ll = tvm.runtime.load_module(path_ll)
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
-    f1(a)
+    f_dso(a)
     np.testing.assert_equal(a.numpy(), np.arange(a.shape[0]))
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
-    f2(a)
+    f_ll(a)
     np.testing.assert_equal(a.numpy(), np.arange(a.shape[0]))
 
     path_runtime_py = temp.relpath("runtime.py")
-    with open(path_runtime_py, "w") as fo:
-        fo.write(runtime_py)
+    with open(path_runtime_py, "w") as fout:
+        fout.write(RUNTIME_PY)
 
     proc = subprocess.run(
         [sys.executable, path_runtime_py, path_dso, dtype],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
+        check=False,
     )
     assert proc.returncode == 0, f"{proc.args} exited with {proc.returncode}: {proc.stdout}"
 
 
 @tvm.testing.requires_gpu
 def test_device_module_dump():
+    """Test device module dump"""
+    # pylint: disable=invalid-name
     # graph
     n = tvm.runtime.convert(1024)
     A = te.placeholder((n,), name="A")
@@ -148,7 +156,7 @@ def test_device_module_dump():
         f = tvm.build(s, [A, B], device, "stackvm", name=name)
         path_dso = temp.relpath("dev_lib.stackvm")
         f.export_library(path_dso)
-        f1 = tvm.runtime.load_module(path_dso)
+        tvm.runtime.load_module(path_dso)
         a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), dev)
         b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
         f(a, b)
@@ -161,6 +169,7 @@ def test_device_module_dump():
 
 def test_combine_module_llvm():
     """Test combine multiple module into one shared lib."""
+    # pylint: disable=invalid-name
     # graph
     nn = 12
     n = tvm.runtime.convert(nn)
@@ -211,12 +220,12 @@ def test_combine_module_llvm():
         # Load dll, will trigger system library registration
         ctypes.CDLL(path_dso)
         # Load the system wide library
-        mm = tvm.runtime.system_lib()
+        syslib = tvm.runtime.system_lib()
         a = tvm.nd.array(np.random.uniform(size=nn).astype(A.dtype), dev)
         b = tvm.nd.array(np.zeros(nn, dtype=A.dtype), dev)
-        mm["myadd1"](a, b)
+        syslib["myadd1"](a, b)
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)
-        mm["myadd2"](a, b)
+        syslib["myadd2"](a, b)
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
     if sys.platform != "win32":

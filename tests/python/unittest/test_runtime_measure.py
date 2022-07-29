@@ -14,8 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Test runtime measure"""
+
 import time
-import ctypes
 
 import tvm
 from tvm import te
@@ -24,11 +25,12 @@ from tvm.runtime.module import BenchmarkResult
 
 
 def test_min_repeat_ms():
+    """Test minimum repeat ms"""
     tmp = tempdir()
     filename = tmp.relpath("log")
 
     @tvm.register_func
-    def my_debug(filename):
+    def my_debug(filename):  # pylint: disable=unused-variable
         """one call lasts for 100 ms and writes one character to a file"""
         time.sleep(0.1)
         with open(filename, "a") as fout:
@@ -43,27 +45,27 @@ def test_min_repeat_ms():
     ftimer(x)
 
     with open(filename, "r") as fin:
-        ct = len(fin.readline())
+        count = len(fin.readline())
 
-    assert ct == 2
+    assert count == 2
 
     ftimer = func.time_evaluator(func.entry_name, tvm.cpu(), number=1, repeat=1, min_repeat_ms=1000)
     ftimer(x)
 
     # make sure we get more than 10 calls
     with open(filename, "r") as fin:
-        ct = len(fin.readline())
+        count = len(fin.readline())
 
-    assert ct > 10 + 2
+    assert count > 10 + 2
 
 
 def test_benchmark_result():
-    r = BenchmarkResult([1, 2, 2, 5])
-    assert r.mean == 2.5
-    assert r.median == 2.0
-    assert r.min == 1
-    assert r.max == 5
-    assert r.std == 1.5
+    res = BenchmarkResult([1, 2, 2, 5])
+    assert res.mean == 2.5
+    assert res.median == 2.0
+    assert res.min == 1
+    assert res.max == 5
+    assert res.std == 1.5
 
 
 if __name__ == "__main__":
