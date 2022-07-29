@@ -23,7 +23,7 @@ from ...target import Target
 from ...rpc.base import RPC_SESS_MASK
 from ...rpc.client import RPCSession
 from . import registry
-from ...contrib import utils
+from ...contrib import utils, nvcc
 
 
 @registry.estimate_peak_flops.register("cuda")
@@ -50,7 +50,7 @@ def estimate_peak_flops_tensorcore(
     ----------
     target : Target
         Target to run on. This should be as specific to the actual hardware as
-        possible to make sure that LLVM generates the best vector code.
+        possible.
     dev : Device
         Device to run on.
     remote : Optional[RPCSession]
@@ -166,7 +166,7 @@ def peak_bandwidth_tir(a: T.handle, b: T.handle, blocks: T.int32, warp_size: T.i
     # pylint: disable=invalid-name, missing-function-docstring
     N = T.var("int32")
     A = T.match_buffer(a, [blocks, N, 4, warp_size], "float32")
-    B = T.match_buffer(b, [blocks, warp_size, 4], "float32")
+    B = T.match_buffer(b, [blocks, 4, warp_size], "float32")
     for i in T.thread_binding(blocks, "blockIdx.x"):
         for k in T.serial(N):
             for l in T.unroll(4):
@@ -175,7 +175,7 @@ def peak_bandwidth_tir(a: T.handle, b: T.handle, blocks: T.int32, warp_size: T.i
                     # += is necessary to introduce a data dependency for all
                     # elements of A, preventing the backend from removing the
                     # `k` loop and setting `k` to the loop extent.
-                    B[i, j, l] += A[i, k, l, j]
+                    B[i, l, j] += A[i, k, l, j]
 
 
 @registry.estimate_peak_bandwidth.register("cuda")
@@ -206,8 +206,12 @@ def estimate_peak_bandwidth(
     float
         Peak memory bandwidth in bytes/seconds.
     """
-    blocks = 1024
+    assert nvcc.have_tensorcore(
+        dev.compute_version
+    ), "CUDA roofline only works with devices that have tensorcores"
     warp_size = dev.warp_size
+    # These sizes seem large enough to give the card time to hit a fixpoint on memory bandwidth
+    blocks = 1024
     size = 1024
 
     specialized = peak_bandwidth_tir.specialize(
@@ -227,6 +231,6 @@ def estimate_peak_bandwidth(
         f = remote.load_module("peak_bandwidth.tar")
 
     a = nd.empty((blocks, size, 4, warp_size), dtype="float32", device=dev)
-    b = nd.empty((blocks, warp_size, 4), dtype="float32", device=dev)
+    b = nd.empty((blocks, 4, warp_size), dtype="float32", device=dev)
     times = f.time_evaluator(f.entry_name, dev, repeat=10, number=1)(a, b)
     return a.numpy().size * 4 / times.min  # 4 bytes per float32
