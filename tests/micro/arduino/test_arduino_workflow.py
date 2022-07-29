@@ -36,11 +36,22 @@ This unit test simulates a simple user workflow, where we:
 6. Use serial connection to ensure model behaves correctly
 """
 
+# Since these tests are sequential, we'll use the same project/workspace
+# directory for all tests in this file
+@pytest.fixture(scope="module")
+def workflow_workspace_dir(request, board):
+    return test_utils.make_workspace_dir("arduino_workflow", board)
+
+
+@pytest.fixture(scope="module")
+def project_dir(workflow_workspace_dir):
+    return workflow_workspace_dir / "project"
+
 
 # We MUST pass workspace_dir, not project_dir, or the workspace will be dereferenced too soon
-@pytest.fixture()
-def project(board, arduino_cli_cmd, tvm_debug, workspace_dir):
-    return test_utils.make_kws_project(board, arduino_cli_cmd, tvm_debug, workspace_dir)
+@pytest.fixture(scope="module")
+def project(board, arduino_cli_cmd, tvm_debug, workflow_workspace_dir):
+    return test_utils.make_kws_project(board, arduino_cli_cmd, tvm_debug, workflow_workspace_dir)
 
 
 def _get_directory_elements(directory):
@@ -96,7 +107,7 @@ def test_import_rerouting(project_dir, project):
 # Build on top of the generated project by replacing the
 # top-level .ino fileand adding data input files, much
 # like a user would
-@pytest.fixture()
+@pytest.fixture(scope="module")
 def modified_project(project_dir, project):
     this_dir = pathlib.Path(__file__).parent
     kws_testdata_dir = this_dir.parent / "testdata" / "kws"
@@ -112,7 +123,7 @@ def modified_project(project_dir, project):
     return project
 
 
-@pytest.fixture()
+@pytest.fixture(scope="module")
 def compiled_project(modified_project):
     modified_project.build()
     return modified_project
@@ -130,7 +141,7 @@ If we're not running on real hardware, no further tests are run
 ------------------------------------------------------------"""
 
 
-@pytest.fixture()
+@pytest.fixture(scope="module")
 def uploaded_project(compiled_project):
     compiled_project.flash()
     return compiled_project
@@ -147,7 +158,7 @@ unknown,56792,-128,-125,-128,125,
 SERIAL_OUTPUT_HEADERS = "category,runtime,yes,no,silence,unknown"
 
 
-@pytest.fixture()
+@pytest.fixture(scope="module")
 def serial_output(uploaded_project):
     transport = uploaded_project.transport()
     transport.open()

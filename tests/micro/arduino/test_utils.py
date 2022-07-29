@@ -44,6 +44,23 @@ def arduino_boards() -> dict:
 ARDUINO_BOARDS = arduino_boards()
 
 
+def make_workspace_dir(test_name, board):
+    filepath = pathlib.Path(__file__)
+    board_workspace = (
+        filepath.parent
+        / f"workspace_{test_name}_{board}"
+        / datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+    )
+
+    number = 0
+    while board_workspace.exists():
+        number += 1
+        board_workspace = pathlib.Path(str(board_workspace) + f"-{number}")
+    board_workspace.parent.mkdir(exist_ok=True, parents=True)
+    t = tvm.contrib.utils.tempdir(board_workspace)
+    return t
+
+
 def make_kws_project(board, arduino_cli_cmd, tvm_debug, workspace_dir):
     this_dir = pathlib.Path(__file__).parent
     model = ARDUINO_BOARDS[board]

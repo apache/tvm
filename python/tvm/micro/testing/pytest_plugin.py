@@ -72,12 +72,12 @@ def pytest_addoption(parser):
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def board(request):
     return request.config.getoption("--board")
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def tvm_debug(request):
     return request.config.getoption("--tvm-debug")
 
@@ -91,14 +91,11 @@ def pytest_collection_modifyitems(config, items):
 
 
 @pytest.fixture
-def workspace_dir(board, tvm_debug):
+def workspace_dir(request, board, tvm_debug):
     """Creates workspace directory for each test."""
-    parent_dir = pathlib.Path(os.path.dirname(__file__))
-    filename = os.path.splitext(os.path.basename(__file__))[0]
+    parent_dir = pathlib.Path(os.path.dirname(request.module.__file__))
     board_workspace = (
-        parent_dir
-        / f"workspace_{filename}_{board}"
-        / datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+        parent_dir / f"workspace_{board}" / datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
     )
     board_workspace_base = str(board_workspace)
     number = 1

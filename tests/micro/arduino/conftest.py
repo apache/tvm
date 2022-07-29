@@ -36,19 +36,6 @@ def pytest_configure(config):
     )
 
 
-# We might do project generation differently for different boards in the future
-# (to take advantage of multiple cores / external memory / etc.), so all tests
-# are parameterized by board
-# def pytest_generate_tests(metafunc):
-#     board = metafunc.config.getoption("arduino_board")
-#     metafunc.parametrize("board", board, scope="session")
-
-
 @pytest.fixture(scope="session")
 def arduino_cli_cmd(request):
     return request.config.getoption("--arduino-cli-cmd")
-
-
-@pytest.fixture()
-def project_dir(workspace_dir):
-    return workspace_dir / "project"
