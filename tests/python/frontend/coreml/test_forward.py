@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, redefined-builtin
 """
 CoreML testcases
 ====================
@@ -225,9 +224,9 @@ def _verify_upsample_layer_params(input_dim, scale, mode):
 
     b_np = tvm.topi.testing.resize2d_python(a_np, (scale, scale), "NCHW", method, coord_trans)
 
-    input = [("input", datatypes.Array(*input_dim))]
+    input_data = [("input", datatypes.Array(*input_dim))]
     output = [("output", datatypes.Array(*b_np.shape))]
-    builder = NeuralNetworkBuilder(input, output)
+    builder = NeuralNetworkBuilder(input_data, output)
     builder.add_upsample(
         name="Upsample",
         scaling_factor_h=scale,
@@ -256,9 +255,9 @@ def _verify_l2_normalize(input_dim, eps):
     a_np = np.random.uniform(size=input_dim).astype(dtype)
     b_np = tvm.topi.testing.l2_normalize_python(a_np, eps, 1)
 
-    input = [("input", datatypes.Array(*input_dim))]
+    input_data = [("input", datatypes.Array(*input_dim))]
     output = [("output", datatypes.Array(*b_np.shape))]
-    builder = NeuralNetworkBuilder(input, output)
+    builder = NeuralNetworkBuilder(input_data, output)
     builder.add_l2_normalize(name="L2", epsilon=eps, input_name="input", output_name="output")
 
     model = cm.models.MLModel(builder.spec)
@@ -278,9 +277,9 @@ def _verify_lrn(input_dim, size, bias, alpha, beta):
     a_np = np.random.uniform(size=input_dim).astype(dtype)
     b_np = tvm.topi.testing.lrn_python(a_np, size, axis, bias, alpha, beta)
 
-    input = [("input", datatypes.Array(*input_dim))]
+    input_data = [("input", datatypes.Array(*input_dim))]
     output = [("output", datatypes.Array(*b_np.shape))]
-    builder = NeuralNetworkBuilder(input, output)
+    builder = NeuralNetworkBuilder(input_data, output)
     builder.add_lrn(
         name="LRN",
         input_name="input",
@@ -765,24 +764,24 @@ def test_forward_image_scaler():
     )
 
 
-def verify_convolution(input_dim, filter, padding):
+def verify_convolution(input_dim, filter_, padding):
     """Verify convolution"""
     dtype = "float32"
-    _, c, h, w = input_dim
-    oc, _, kh, kw = filter
+    _, c, h, width = input_dim
+    out_c, _, kernel_h, kernel_w = filter_
     a_np = np.random.uniform(size=input_dim).astype(dtype)
-    w_np = np.random.uniform(size=(oc, c, kh, kw)).astype(dtype)
+    w_np = np.random.uniform(size=(out_c, c, kernel_h, kernel_w)).astype(dtype)
     w_np_cm = np.transpose(w_np, axes=(2, 3, 1, 0))
     b_np = conv2d_nchw_python(a_np, w_np, [1, 1], padding)
-    inputs = [("input1", datatypes.Array(c, h, w))]
+    inputs = [("input1", datatypes.Array(c, h, width))]
     output = [("output", datatypes.Array(*b_np.shape))]
     builder = NeuralNetworkBuilder(inputs, output)
     builder.add_convolution(
         name="conv",
         kernel_channels=3,
-        output_channels=oc,
-        height=kh,
-        width=kw,
+        output_channels=out_c,
+        height=kernel_h,
+        width=kernel_w,
         stride_height=1,
         stride_width=1,
         border_mode=padding.lower(),
@@ -802,8 +801,8 @@ def verify_convolution(input_dim, filter, padding):
 
 @tvm.testing.uses_gpu
 def test_forward_convolution():
-    verify_convolution((1, 3, 224, 224), filter=(32, 3, 3, 3), padding="VALID")
-    verify_convolution((1, 3, 224, 224), filter=(32, 3, 3, 3), padding="SAME")
+    verify_convolution((1, 3, 224, 224), filter_=(32, 3, 3, 3), padding="VALID")
+    verify_convolution((1, 3, 224, 224), filter_=(32, 3, 3, 3), padding="SAME")
 
 
 def test_can_build_keras_to_coreml_to_relay():

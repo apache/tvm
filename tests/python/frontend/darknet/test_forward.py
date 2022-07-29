@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-argument, invalid-name
+# pylint: disable=unused-argument
 """
 Test Darknet Models
 ===================
@@ -460,7 +460,7 @@ def test_forward_activation_logistic():
     net = LIB.make_network(1)
     batch = 1
     h = 224
-    w = 224
+    width = 224
     c = 3
     n = 32
     groups = 1
@@ -475,7 +475,7 @@ def test_forward_activation_logistic():
     layer_1 = LIB.make_convolutional_layer(
         batch,
         h,
-        w,
+        width,
         c,
         n,
         groups,
@@ -489,7 +489,7 @@ def test_forward_activation_logistic():
         adam,
     )
     net.layers[0] = layer_1
-    net.w = w
+    net.w = width
     net.h = h
     LIB.resize_network(net, net.w, net.h)
     verify_darknet_frontend(net)
@@ -518,26 +518,4 @@ def test_forward_rnn():
 
 
 if __name__ == "__main__":
-    test_forward_resnet50()
-    test_forward_resnext50()
-    test_forward_alexnet()
-    test_forward_extraction()
-    test_forward_yolov2()
-    test_forward_yolov3()
-    test_forward_convolutional()
-    test_forward_maxpooling()
-    test_forward_avgpooling()
-    test_forward_conv_batch_norm()
-    test_forward_shortcut()
-    test_forward_dense()
-    test_forward_dense_batchnorm()
-    test_forward_softmax()
-    test_forward_softmax_temperature()
-    test_forward_reorg()
-    test_forward_region()
-    test_forward_yolo_op()
-    test_forward_upsample()
-    test_forward_l2normalize()
-    test_forward_elu()
-    test_forward_rnn()
-    test_forward_activation_logistic()
+    tvm.testing.main()

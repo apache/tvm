@@ -89,7 +89,7 @@ def _gen_filename_str(op_name, data_shape, *args, **kwargs):
 def _save_prototxt(n_netspec, f_path):
     """Generate .prototxt file according to caffe.NetSpec"""
     s = n_netspec.to_proto()
-    with open(f_path, "wb") as f:
+    with open(f_path, "w") as f:
         f.write(str(s))
 
 
@@ -109,7 +109,7 @@ def _save_solver(solver_file, proto_file, blob_file):
     s.snapshot = 100000
     s.snapshot_prefix = blob_file_prefix
 
-    with open(solver_file, "wb") as f:
+    with open(solver_file, "w") as f:
         f.write(str(s))
 
 
@@ -181,7 +181,7 @@ def _run_tvm(data, proto_file, blob_file):
     predict_net = pb.NetParameter()
 
     # load model
-    with open(proto_file, "rb") as f:
+    with open(proto_file, "r") as f:
         text_format.Merge(f.read(), predict_net)
     # load blob
     with open(blob_file, "rb") as f:
@@ -1160,38 +1160,4 @@ def test_forward_Inceptionv1():
 
 
 if __name__ == "__main__":
-    # NN
-    test_forward_Convolution()
-    test_forward_Deconvolution()
-    test_forward_Dropout()
-    test_forward_LRN()
-    test_forward_Pooling()
-    test_forward_Scale()
-    test_forward_InnerProduct()
-    test_forward_BatchNorm()
-
-    # Elemwise
-    test_forward_Eltwise()
-
-    # Activation
-    test_forward_PReLU()
-    test_forward_ReLU()
-    test_forward_Sigmoid()
-    test_forward_Softmax()
-    test_forward_TanH()
-
-    # Reshape
-    test_forward_Reshape()
-    test_forward_Flatten()
-    test_forward_Reduction()
-
-    # Math
-    test_forward_Concat()
-    test_forward_Crop()
-    test_forward_Slice()
-
-    # End to End
-    test_forward_Mobilenetv2()
-    test_forward_Alexnet()
-    test_forward_Resnet50()
-    test_forward_Inceptionv1()
+    tvm.testing.main()

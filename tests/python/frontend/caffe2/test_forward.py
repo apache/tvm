@@ -254,9 +254,4 @@ def test_normalize_yuv():
 
 
 if __name__ == "__main__":
-    test_forward_squeezenet1_1()
-    test_forward_resnet50()
-    test_forward_vgg19()
-    test_elementwise_add()
-    test_elementwise_add_with_broadcast()
-    test_normalize_yuv()
+    tvm.testing.main()

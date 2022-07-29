@@ -2964,7 +2964,8 @@ def test_forward_select():
 
 @pytest.mark.parametrize("quant_bits", [2, 4, 8, 16])
 @pytest.mark.parametrize(
-    "value, min, max", [[-10.11, -6, 6], [-3.55, -6, 6], [0, -6, 6], [3.55, -6, 6], [10.11, -6, 6]]
+    "value, min_value, max_value",
+    [[-10.11, -6, 6], [-3.55, -6, 6], [0, -6, 6], [3.55, -6, 6], [10.11, -6, 6]],
 )
 def test_forward_fake_quant(value, min_value, max_value, quant_bits):
     """Fake quant"""
