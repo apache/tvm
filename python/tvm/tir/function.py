@@ -195,6 +195,19 @@ class PrimFunc(BaseFunc):
             self, tir_prefix, show_meta
         )  # type: ignore
 
+    def show(self, style: Optional[str] = None) -> None:
+        """
+        A sugar for print highlighted TVM script.
+        Parameters
+        ----------
+        style : str, optional
+            Pygments styles extended by "light" (default) and "dark", by default "light"
+        """
+        from tvm.script.highlight import cprint  # pylint: disable=import-outside-toplevel
+
+        # Use deferred import to avoid circular import while keeping cprint under tvm/script
+        cprint(self, style=style)
+
 
 @tvm._ffi.register_object("tir.TensorIntrin")
 class TensorIntrin(Object):
