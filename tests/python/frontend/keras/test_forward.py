@@ -32,15 +32,15 @@ from tensorflow import keras as tf_keras
 import keras
 
 if tf.executing_eagerly():
-    gpus = tf.config.experimental.list_physical_devices("GPU")
-    for gpu in gpus:
+    GPUS = tf.config.experimental.list_physical_devices("GPU")
+    for gpu in GPUS:
         tf.config.experimental.set_memory_growth(gpu, True)
 else:
     from keras.backend.tensorflow_backend import set_session
 
-    config = tf.ConfigProto()
-    config.gpu_options.per_process_gpu_memory_fraction = 0.5
-    set_session(tf.Session(config=config))
+    CONFIG = tf.ConfigProto()
+    CONFIG.gpu_options.per_process_gpu_memory_fraction = 0.5
+    set_session(tf.Session(config=CONFIG))
 
 
 def pytest_generate_tests(metafunc):
@@ -63,8 +63,8 @@ def pytest_generate_tests(metafunc):
 # Scenarios:
 # - classic keras, using keras from "import keras"
 # - tensorflow keras, using keras from "from tensorflow import keras as tf_keras"
-using_classic_keras = ("keras", {"keras_mod": keras})
-using_tensorflow_keras = ("tf_keras", {"keras_mod": tf_keras})
+USING_CALSSIC_KERAS = ("keras", {"keras_mod": keras})
+USING_TENSORFLOW_KERAS = ("tf_keras", {"keras_mod": tf_keras})
 
 
 def verify_keras_frontend(keras_model, need_transpose=True, layout="NCHW"):
@@ -131,7 +131,7 @@ def get_mobilenet(keras_mod):
 class TestKeras:
     """Keras test"""
 
-    scenarios = [using_classic_keras, using_tensorflow_keras]
+    scenarios = [USING_CALSSIC_KERAS, USING_TENSORFLOW_KERAS]
 
     def test_forward_merge(self, keras_mod):
         """test_forward_merge"""
