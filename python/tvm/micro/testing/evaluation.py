@@ -95,20 +95,13 @@ def create_aot_session(
     executor = tvm.relay.backend.Executor("aot")
     crt_runtime = tvm.relay.backend.Runtime("crt", {"system-lib": True})
 
-    if use_cmsis_nn:
-        with tvm.transform.PassContext(
-            config={
-                "tir.disable_vectorize": True,
-                "relay.ext.cmsisnn.options": {"mcpu": target.mcpu},
-            }
-        ):
-            mod = cmsisnn.partition_for_cmsisnn(mod, params, mcpu=target.mcpu)
-
     with ExitStack() as stack:
         config = {"tir.disable_vectorize": True}
         if use_cmsis_nn:
             config["relay.ext.cmsisnn.options"] = {"mcpu": target.mcpu}
         stack.enter_context(tvm.transform.PassContext(opt_level=3, config=config))
+        if use_cmsis_nn:
+            mod = cmsisnn.partition_for_cmsisnn(mod, params, mcpu=target.mcpu)
         if tune_logs is not None:
             stack.enter_context(tvm.autotvm.apply_history_best(tune_logs))
 

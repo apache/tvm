@@ -28,6 +28,6 @@ def pytest_addoption(parser):
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def west_cmd(request):
     return request.config.getoption("--west-cmd")

@@ -20,35 +20,13 @@
     values from testing parameters """
 
 import pathlib
-import json
 import os
 import datetime
 import pytest
 
-import tvm
 from tvm.contrib.utils import tempdir
 
-
-def zephyr_boards() -> dict:
-    """Returns a dict mapping board to target model"""
-    with open(
-        pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr")) / "boards.json"
-    ) as f:
-        board_properties = json.load(f)
-
-    boards_model = {board: info["model"] for board, info in board_properties.items()}
-    return boards_model
-
-
-def get_boards(platform: str) -> dict:
-    """Returns a dict mapping board to target model"""
-    with open(
-        pathlib.Path(tvm.micro.get_microtvm_template_projects(platform)) / "boards.json"
-    ) as f:
-        board_properties = json.load(f)
-
-    boards_model = {board: info["model"] for board, info in board_properties.items()}
-    return boards_model
+from .utils import get_supported_boards
 
 
 def pytest_addoption(parser):
@@ -56,8 +34,12 @@ def pytest_addoption(parser):
     parser.addoption(
         "--board",
         required=True,
-        choices=list(get_boards("zephyr").keys()) + list(get_boards("arduino").keys()),
-        help="microTVM boards for tests",
+        choices=list(get_supported_boards("zephyr").keys())
+        + list(get_supported_boards("arduino").keys()),
+        help=(
+            "microTVM boards for tests. Board refers to instances"
+            "of microcontrollers/emulators defined in a platform."
+        ),
     )
     parser.addoption(
         "--test-build-only",
@@ -72,12 +54,12 @@ def pytest_addoption(parser):
     )
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def board(request):
     return request.config.getoption("--board")
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def tvm_debug(request):
     return request.config.getoption("--tvm-debug")
 
@@ -111,7 +93,7 @@ def workspace_dir(request, board, tvm_debug):
     return test_temp_dir
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(autouse=True, scope="session")
 def skip_by_board(request, board):
     """Skip test if board is in the list."""
     if request.node.get_closest_marker("skip_boards"):
