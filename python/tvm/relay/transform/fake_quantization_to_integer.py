@@ -438,14 +438,12 @@ def get_binary_types(expr, type_map):
             left, right_t.scale, right_t.zero_point, out_dtype=right_t.dtype
         )
         left_t = right_t
-        out_t = right_t
     if right_t is None:
         assert isinstance(right, relay.expr.Constant)
         right = relay.qnn.op.quantize(
             right, left_t.scale, left_t.zero_point, out_dtype=left_t.dtype
         )
         right_t = left_t
-        out_t = left_t
 
     # Handle the case of mismatched inputs
     if not left_t.dtype == out_t.dtype:
