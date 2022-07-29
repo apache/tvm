@@ -3299,15 +3299,10 @@ def test_grid_sample(target, dev):
         input_values = [x, grid]
         input_tensors = [
             helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x.shape)),
-            helper.make_tensor_value_info("grid", TensorProto.FLOAT, list(grid.shape))
+            helper.make_tensor_value_info("grid", TensorProto.FLOAT, list(grid.shape)),
         ]
 
-        node = helper.make_node(
-            "GridSample",
-            inputs=input_names,
-            outputs=["y"],
-            **attr_dict
-        )
+        node = helper.make_node("GridSample", inputs=input_names, outputs=["y"], **attr_dict)
 
         output_shape = list(x.shape[0:2]) + list(grid.shape[1:3])
 

@@ -896,26 +896,19 @@ class GridSample(OnnxOpConverter):
         layout = "NCHW"
         if len(data_shape) != 4:
             raise NotImplementedError(
-                "GridSample is only implemented for 4D input, got %dD."
-                % (len(data_shape)),
+                "GridSample is only implemented for 4D input, got %dD." % (len(data_shape)),
             )
 
         if mode not in ("bilinear", "nearest", "bicubic"):
-            raise NotImplementedError(
-                "interpolate_mode %s is not supported" % (mode)
-            )
+            raise NotImplementedError("interpolate_mode %s is not supported" % (mode))
 
         if padding_mode not in ("zeros", "border", "reflection"):
-            raise NotImplementedError(
-                "padding_mode %s is not supported" % (padding_mode)
-            )
+            raise NotImplementedError("padding_mode %s is not supported" % (padding_mode))
 
         axes = [0, 3, 1, 2]
         grid = _op.transform.transpose(grid, axes)
 
-        return _op.image.grid_sample(
-            X, grid, mode, layout, padding_mode, align_corners
-        )
+        return _op.image.grid_sample(X, grid, mode, layout, padding_mode, align_corners)
 
 
 class Div(Elemwise):
