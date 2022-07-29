@@ -438,7 +438,7 @@ def test_depth_to_space(target, dev):
 
     def verify_depth_to_space(inshape, outshape, mode, block_size):
         node = onnx.helper.make_node(
-            "DepthToSpace", inputs=["x"], outputs=["y"], block_size=block_size
+            "DepthToSpace", inputs=["x"], outputs=["y"], blocksize=block_size
         )
 
         graph = helper.make_graph(
@@ -464,7 +464,7 @@ def test_space_to_depth(target, dev):
 
     def verify_space_to_depth(inshape, outshape, block_size):
         node = onnx.helper.make_node(
-            "SpaceToDepth", inputs=["x"], outputs=["y"], block_size=block_size
+            "SpaceToDepth", inputs=["x"], outputs=["y"], blocksize=block_size
         )
 
         graph = helper.make_graph(
@@ -3205,7 +3205,7 @@ def test_convtranspose(target, dev):
             verify_convtranspose_with_output_shape(
                 (1, 1) + repeat(32, dims),
                 (1, 1) + repeat(4, dims),
-                repeat(N, dims),
+                repeat(num, dims),
                 repeat(4, dims),
                 repeat(2, dims),
                 repeat(1, dims),
