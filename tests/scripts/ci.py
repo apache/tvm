@@ -556,10 +556,6 @@ def add_subparser(
 
 
 CPP_UNITTEST = ("run c++ unitests", ["./tests/scripts/task_cpp_unittest.sh {build_dir}"])
-CPP_MICRO_UNITTEST = (
-    "run micro c++ unitests",
-    ["./tests/scripts/task_cpp_unittest_micro.sh {build_dir}"],
-)
 
 generated = [
     generate_command(
@@ -567,7 +563,6 @@ generated = [
         help="Run GPU build and test(s)",
         options={
             "cpp": CPP_UNITTEST,
-            "micro_cpp": CPP_MICRO_UNITTEST,
             "topi": ("run topi tests", ["./tests/scripts/task_python_topi.sh"]),
             "unittest": (
                 "run unit tests",
@@ -585,7 +580,6 @@ generated = [
         help="Run CPU build and test(s)",
         options={
             "cpp": CPP_UNITTEST,
-            "micro_cpp": CPP_MICRO_UNITTEST,
             "integration": (
                 "run integration tests",
                 ["./tests/scripts/task_python_integration.sh"],
@@ -619,7 +613,6 @@ generated = [
         help="Run i386 build and test(s)",
         options={
             "cpp": CPP_UNITTEST,
-            "micro_cpp": CPP_MICRO_UNITTEST,
             "integration": (
                 "run integration tests",
                 [
@@ -634,7 +627,6 @@ generated = [
         help="Run WASM build and test(s)",
         options={
             "cpp": CPP_UNITTEST,
-            "micro_cpp": CPP_MICRO_UNITTEST,
             "test": ("run WASM tests", ["./tests/scripts/task_web_wasm.sh"]),
         },
     ),
@@ -643,7 +635,6 @@ generated = [
         help="Run Cortex-M build and test(s)",
         options={
             "cpp": CPP_UNITTEST,
-            "micro_cpp": CPP_MICRO_UNITTEST,
             "test": (
                 "run microTVM tests",
                 [
@@ -659,7 +650,6 @@ generated = [
         post_build=["./tests/scripts/task_build_hexagon_api.sh --output build-hexagon"],
         options={
             "cpp": CPP_UNITTEST,
-            "micro_cpp": CPP_MICRO_UNITTEST,
             "test": (
                 "run Hexagon API/Python tests",
                 [
@@ -674,7 +664,6 @@ generated = [
         precheck=check_arm_qemu,
         options={
             "cpp": CPP_UNITTEST,
-            "micro_cpp": CPP_MICRO_UNITTEST,
             "python": (
                 "run full Python tests",
                 [

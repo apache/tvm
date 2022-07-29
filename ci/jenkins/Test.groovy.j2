@@ -16,12 +16,10 @@
   {% if shard_index == 1 %}
   {{ m.download_artifacts(tag='gpu2', filenames=tvm_multilib) }}
   cpp_unittest(ci_gpu)
-  cpp_micro_unittest(ci_gpu)
 
   {{ m.download_artifacts(tag='gpu', filenames=tvm_multilib) }}
   ci_setup(ci_gpu)
   cpp_unittest(ci_gpu)
-  cpp_micro_unittest(ci_gpu)
   {% else %}
   {{ m.download_artifacts(tag='gpu', filenames=tvm_multilib) }}
   ci_setup(ci_gpu)
@@ -70,7 +68,6 @@
   ci_setup(ci_i386)
   {% if shard_index == 1 %}
   cpp_unittest(ci_i386)
-  cpp_micro_unittest(ci_i386)
   {% endif %}
   python_unittest(ci_i386)
   sh (
@@ -95,7 +92,6 @@
   ci_setup(ci_hexagon)
   {% if shard_index == 1 %}
   cpp_unittest(ci_hexagon)
-  cpp_micro_unittest(ci_hexagon)
   {% endif %}
   sh (
     script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
@@ -164,7 +160,6 @@
   ci_setup(ci_arm)
   {% if shard_index == 1 %}
   cpp_unittest(ci_arm)
-  cpp_micro_unittest(ci_arm)
   {% endif %}
   sh (
     script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh",
@@ -254,7 +249,6 @@ stage('Test') {
     {{ m.download_artifacts(tag='cpu', filenames=tvm_multilib_tsim) }}
     ci_setup(ci_cpu)
     cpp_unittest(ci_cpu)
-    cpp_micro_unittest(ci_cpu)
     python_unittest(ci_cpu)
     fsim_test(ci_cpu)
     sh (

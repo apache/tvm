@@ -33,14 +33,6 @@ def cpp_unittest(image) {
   )
 }
 
-def cpp_micro_unittest(image) {
-  sh (
-    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_cpp_unittest_micro.sh",
-    label: 'Build and run Micro C++ tests',
-  )
-}
-
-
 def add_microtvm_permissions() {
   {% for folder in microtvm_template_projects %}
   sh(
@@ -160,7 +152,6 @@ stage('Build') {
           )
           make(ci_wasm, 'build', '-j2')
           cpp_unittest(ci_wasm)
-          cpp_micro_unittest(ci_wasm)
           timeout(time: max_time, unit: 'MINUTES') {
             ci_setup(ci_wasm)
             sh (

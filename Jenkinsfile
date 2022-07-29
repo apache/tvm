@@ -500,7 +500,7 @@ def build_docker_images() {
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
             // ci_minimal = build_image('ci_minimal')
-            built_ci_minimal = build_image('ci_minimal')
+            built_ci_minimal = build_image('ci_minimal');
           }
         }
       },
@@ -649,14 +649,6 @@ def cpp_unittest(image) {
     label: 'Build and run C++ tests',
   )
 }
-
-def cpp_micro_unittest(image) {
-  sh (
-    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_cpp_unittest_micro.sh",
-    label: 'Build and run Micro C++ tests',
-  )
-}
-
 
 def add_microtvm_permissions() {
   sh(
@@ -890,7 +882,6 @@ stage('Build') {
           )
           make(ci_wasm, 'build', '-j2')
           cpp_unittest(ci_wasm)
-          cpp_micro_unittest(ci_wasm)
           timeout(time: max_time, unit: 'MINUTES') {
             ci_setup(ci_wasm)
             sh (
@@ -1173,7 +1164,6 @@ def shard_run_unittest_GPU_1_of_3() {
                       )
 
               cpp_unittest(ci_gpu)
-              cpp_micro_unittest(ci_gpu)
 
               sh(
                         script: """
@@ -1212,7 +1202,6 @@ def shard_run_unittest_GPU_1_of_3() {
 
               ci_setup(ci_gpu)
               cpp_unittest(ci_gpu)
-              cpp_micro_unittest(ci_gpu)
               sh (
                 script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh",
                 label: 'Run Python GPU unit tests',
@@ -2188,7 +2177,6 @@ def shard_run_python_i386_1_of_5() {
 
               ci_setup(ci_i386)
               cpp_unittest(ci_i386)
-              cpp_micro_unittest(ci_i386)
               python_unittest(ci_i386)
               sh (
                 script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
@@ -2557,7 +2545,6 @@ def shard_run_test_Hexagon_1_of_7() {
               add_hexagon_permissions()
               ci_setup(ci_hexagon)
               cpp_unittest(ci_hexagon)
-              cpp_micro_unittest(ci_hexagon)
               sh (
                 script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
                 label: 'Run Hexagon tests',
@@ -4079,7 +4066,6 @@ def shard_run_topi_aarch64_1_of_2() {
 
               ci_setup(ci_arm)
               cpp_unittest(ci_arm)
-              cpp_micro_unittest(ci_arm)
               sh (
                 script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh",
                 label: 'Run test_arm_compute_lib test',
@@ -5166,7 +5152,6 @@ stage('Test') {
 
                 ci_setup(ci_cpu)
                 cpp_unittest(ci_cpu)
-                cpp_micro_unittest(ci_cpu)
                 python_unittest(ci_cpu)
                 fsim_test(ci_cpu)
                 sh (
