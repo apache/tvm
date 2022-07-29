@@ -89,7 +89,7 @@ def _gen_filename_str(op_name, data_shape, *args, **kwargs):
 def _save_prototxt(n_netspec, f_path):
     """Generate .prototxt file according to caffe.NetSpec"""
     s = n_netspec.to_proto()
-    with open(f_path, "w") as f:
+    with open(f_path, "wb") as f:
         f.write(str(s))
 
 
@@ -109,7 +109,7 @@ def _save_solver(solver_file, proto_file, blob_file):
     s.snapshot = 100000
     s.snapshot_prefix = blob_file_prefix
 
-    with open(solver_file, "w") as f:
+    with open(solver_file, "wb") as f:
         f.write(str(s))
 
 
@@ -137,8 +137,8 @@ def _miso_op(data_list, func, *args, **kwargs):
     """Create multi input and single output Caffe op"""
     n = caffe.NetSpec()
     if not isinstance(data_list, (tuple, list)):
-        raise TypeError("Need tuple or list but get {}".format(type(data_list)))
-    input_list = list()
+        raise TypeError(f"Need tuple or list but get {type(data_list)}")
+    input_list = []
     for idx, data in enumerate(data_list):
         n["data" + str(idx)] = L.Input(input_param={"shape": {"dim": list(data.shape)}})
         input_list.append(n["data" + str(idx)])
@@ -166,7 +166,7 @@ def _run_caffe(data, proto_file, blob_file):
         net.blobs["data"].data[...] = data
     out = net.forward()
 
-    caffe_output = list()
+    caffe_output = []
     for i in range(len(out.keys())):
         if "output" + str(i) not in out.keys():
             caffe_output.clear()
@@ -181,14 +181,14 @@ def _run_tvm(data, proto_file, blob_file):
     predict_net = pb.NetParameter()
 
     # load model
-    with open(proto_file, "r") as f:
+    with open(proto_file, "rb") as f:
         text_format.Merge(f.read(), predict_net)
     # load blob
     with open(blob_file, "rb") as f:
         init_net.ParseFromString(f.read())
 
-    shape_dict = dict()
-    dtype_dict = dict()
+    shape_dict = {}
+    dtype_dict = {}
     if isinstance(data, (tuple, list)):
         for idx, d in enumerate(data):
             shape_dict["data" + str(idx)] = d.shape
@@ -213,7 +213,7 @@ def _run_tvm(data, proto_file, blob_file):
         m.set_input("data", tvm.nd.array(data.astype(dtype)))
     # execute
     m.run()
-    tvm_output = list()
+    tvm_output = []
     # get outputs
     for i in range(m.get_num_outputs()):
         tvm_output.append(m.get_output(i).numpy())
@@ -229,14 +229,14 @@ def _compare_caffe_tvm(caffe_out, tvm_out, is_network=False):
 
 def _test_op(data, func_op, op_name, **kwargs):
     """Single op testing pipline."""
-    shape_list = list()
+    shape_list = []
     if isinstance(data, (list, tuple)):
         n = _miso_op(data, func_op, **kwargs)
         for d in data:
             shape_list.extend(list(d.shape))
     else:
         output_num = 1
-        if "ntop" in kwargs.keys():
+        if "ntop" in kwargs:
             output_num = kwargs["ntop"]
         if output_num == 1:
             n = _siso_op(data, func_op, **kwargs)
@@ -1084,7 +1084,7 @@ def _test_alexnet(data):
     data_process = data_process.astype(np.float32)
 
     proto_file_url = (
-        "https://github.com/BVLC/caffe/raw/master/models/" "bvlc_alexnet/deploy.prototxt"
+        "https://github.com/BVLC/caffe/raw/master/models/" + "bvlc_alexnet/deploy.prototxt"
     )
     blob_file_url = "http://dl.caffe.berkeleyvision.org/bvlc_alexnet.caffemodel"
     proto_file = download_testdata(proto_file_url, "alexnet.prototxt", module="model")
@@ -1145,7 +1145,7 @@ def _test_inceptionv1(data):
     data_process = data_process.astype(np.float32)
 
     proto_file_url = (
-        "https://github.com/BVLC/caffe/raw/master/models" "/bvlc_googlenet/deploy.prototxt"
+        "https://github.com/BVLC/caffe/raw/master/models" + "/bvlc_googlenet/deploy.prototxt"
     )
     blob_file_url = "http://dl.caffe.berkeleyvision.org/bvlc_googlenet.caffemodel"
     proto_file = download_testdata(proto_file_url, "inceptionv1.prototxt", module="model")
