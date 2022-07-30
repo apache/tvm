@@ -363,6 +363,7 @@ PrimFunc Specialize(PrimFunc func, const Map<Var, ObjectRef>& param_map) {
     } else if (instance->IsInstance<PrimExprNode>()) {
       UpdateSpecializeVarMap(func, param, Downcast<PrimExpr>(instance), &var_map);
     } else {
+      CHECK(instance.defined()) << "Specialize instance is not defined for param " << param;
       LOG(FATAL) << "TypeError: specialize expected instance to be Buffer or PrimExpr, but got "
                  << instance->GetTypeKey();
     }
