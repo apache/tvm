@@ -185,7 +185,12 @@ class PyTorchTVMModule:
     def build_pytorch_module(self, num_inputs, num_outputs, input_infos=None):
         """Build pytorch module containing TVM Graph Module"""
         warnings.warn(
-            "We suggest users to use `optimized_torch` for tuning Torch modules instead",
+            " ".join(
+                (
+                    "This function will be removed at TVM version 0.11,",
+                    "we suggest users to use `optimized_torch` for tuning Torch modules instead.",
+                )
+            ),
             DeprecationWarning,
             stacklevel=2,
         )
@@ -231,7 +236,12 @@ def compile(script_module, option):
     pytorch_tvm_module("model_tvm.pt")
     """
     warnings.warn(
-        "We suggest users to use `optimized_torch` for tuning Torch modules instead",
+        " ".join(
+            (
+                "This function will be removed at TVM version 0.11,",
+                "we suggest users to use `optimized_torch` for tuning Torch modules instead.",
+            )
+        ),
         DeprecationWarning,
         stacklevel=2,
     )

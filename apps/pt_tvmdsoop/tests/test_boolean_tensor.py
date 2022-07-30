@@ -30,8 +30,8 @@ def negate(x):
     return x.logical_not()
 
 
-def sum_up_tensor(x, y):
-    return torch.sum(x[y])
+def sum_up_tensor(x):
+    return x.size(dim=0) - torch.sum(x.int())
 
 
 def test_bool_tensor_negate():
@@ -45,11 +45,11 @@ def test_bool_tensor_negate():
 
 
 def test_sum_up_tensor():
-    x = torch.randint(0, 2, (8,))
+    x = torch.randint(0, 2, (16,))
     y = x.bool()
-    optimized_func = optimize_torch(sum_up_tensor, (x, y))
-    ret1 = torch.sum(x).numpy()
-    ret2 = optimized_func(x, y).numpy()
+    optimized_func = optimize_torch(sum_up_tensor, (y,))
+    ret1 = (x[x == 0]).size(dim=0)
+    ret2 = optimized_func(y).numpy()
     tvm.testing.assert_allclose(ret1, ret2, atol=1e-5, rtol=1e-5)
 
 
