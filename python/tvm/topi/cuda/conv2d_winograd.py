@@ -162,7 +162,10 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_
         ],
         name="output",
         tag="conv2d_nchw_winograd",
-        attrs={"schedule_rule": "meta_schedule.winograd_output.cuda"},
+        attrs={
+            "schedule_rule": "meta_schedule.winograd_output.cuda",
+            "winograd_tile_size": alpha - 3 + 1,
+        },
     )
 
     if isinstance(N, int):
