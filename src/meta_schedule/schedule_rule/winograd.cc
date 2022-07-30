@@ -111,8 +111,13 @@ TVM_REGISTER_GLOBAL("meta_schedule.winograd_output.cuda")
       sch->ComputeAt(inverse, /*loop_rv=*/split1[0],
                      /*preserve_unit_loops=*/true);
       if (OL.defined()) {
-        sch->ComputeAt(OL, /*loop_rv=*/split1[0],
-                       /*preserve_unit_loops=*/true);
+        while (sch->GetConsumers(OL).size() > 0) {
+          BlockRV next_OL = GetOnlyConsumer(sch, OL);
+          sch->ComputeInline(OL);
+          OL = next_OL;
+        }
+        sch->ReverseComputeAt(OL, /*loop_rv=*/split1[0],
+                              /*preserve_unit_loops=*/true);
       }
 
       // fuse
