@@ -50,7 +50,7 @@ def cprint(printable: Union[IRModule, PrimFunc], style: Optional[str] = None) ->
         import pygments
         from pygments import highlight
         from pygments.lexers.python import Python3Lexer
-        from pygments.formatters import Terminal256Formatter
+        from pygments.formatters import Terminal256Formatter, HtmlFormatter
         from pygments.style import Style
         from pygments.token import Keyword, Name, Comment, String, Number, Operator
         from packaging import version
@@ -72,8 +72,9 @@ def cprint(printable: Union[IRModule, PrimFunc], style: Optional[str] = None) ->
     else:
 
         class JupyterLight(Style):
-            """A Jupyter-Notebook-like Pygments style configuration (aka. "dark")"""
+            """A Jupyter-Notebook-like Pygments style configuration (aka. "light")"""
 
+            background_color = ""
             styles = {
                 Keyword: "bold #008000",
                 Keyword.Type: "nobold #008000",
@@ -90,6 +91,7 @@ def cprint(printable: Union[IRModule, PrimFunc], style: Optional[str] = None) ->
         class VSCDark(Style):
             """A VSCode-Dark-like Pygments style configuration (aka. "dark")"""
 
+            background_color = ""
             styles = {
                 Keyword: "bold #c586c0",
                 Keyword.Type: "#82aaff",
@@ -107,6 +109,7 @@ def cprint(printable: Union[IRModule, PrimFunc], style: Optional[str] = None) ->
         class AnsiTerminalDefault(Style):
             """The default style for terminal display with ANSI colors (aka. "ansi")"""
 
+            background_color = ""
             styles = {
                 Keyword: "bold ansigreen",
                 Keyword.Type: "nobold ansigreen",
@@ -120,12 +123,11 @@ def cprint(printable: Union[IRModule, PrimFunc], style: Optional[str] = None) ->
                 Comment: "italic ansibrightblack",
             }
 
+        is_in_notebook = "ipykernel" in sys.modules  # in notebook env (support html display).
+
         if style is None:
             # choose style automatically according to the environment:
-            if "ipykernel" in sys.modules:  # in notebook env.
-                style = JupyterLight
-            else:  # in a terminal or something.
-                style = AnsiTerminalDefault
+            style = JupyterLight if is_in_notebook else AnsiTerminalDefault
         elif style == "light":
             style = JupyterLight
         elif style == "dark":
@@ -133,4 +135,12 @@ def cprint(printable: Union[IRModule, PrimFunc], style: Optional[str] = None) ->
         elif style == "ansi":
             style = AnsiTerminalDefault
 
-        print(highlight(printable.script(), Python3Lexer(), Terminal256Formatter(style=style)))
+        if is_in_notebook:  # print with HTML display
+            from IPython.display import display, HTML  # pylint: disable=import-outside-toplevel
+
+            formatter = HtmlFormatter(style=JupyterLight)
+            formatter.noclasses = True  # inline styles
+            html = highlight(printable.script(), Python3Lexer(), formatter)
+            display(HTML(html))
+        else:
+            print(highlight(printable.script(), Python3Lexer(), Terminal256Formatter(style=style)))
