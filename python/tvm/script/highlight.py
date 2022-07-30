@@ -72,7 +72,7 @@ def cprint(printable: Union[IRModule, PrimFunc], style: Optional[str] = None) ->
     else:
 
         class JupyterLight(Style):
-            """A Jupyter-Notebook-like Pygments style configuration (aka. "dark")"""
+            """A Jupyter-Notebook-like Pygments style configuration (aka. "light")"""
 
             background_color = ""
             styles = {
