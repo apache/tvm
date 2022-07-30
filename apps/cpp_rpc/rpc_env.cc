@@ -153,13 +153,13 @@ RPCEnv::RPCEnv(const std::string& wd) {
 }
 /*!
  * \brief GetPath To get the work path from packed function
- * \param file_name The file name
+ * \param file_path The file path
  * \return The full path of file.
  */
-std::string RPCEnv::GetPath(const std::string& file_name) const {
-  // we assume file_name has "/" means file_name is the exact path
+std::string RPCEnv::GetPath(const std::string& file_path) const {
+  // we assume file_path starts with "/" means file_path is the exact path
   // and does not create /.rpc/
-  return file_name.find('/') != std::string::npos ? file_name : base_ + "/" + file_name;
+  return !file_path.empty() && file_path[0] == '/' ? file_path : base_ + "/" + file_path;
 }
 /*!
  * \brief Remove The RPC Environment cleanup function
