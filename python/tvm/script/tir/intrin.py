@@ -218,6 +218,11 @@ def Select(cond, if_body, else_body, span):  # pylint: disable=invalid-name
 
 
 @register
+def Let(var, value, body, span):  # pylint: disable=invalid-name
+    return tvm.tir.Let(var, value, body, span)
+
+
+@register
 class EvaluateIntrin(Intrin):
     def __init__(self):
         def evaluate(value, span):
