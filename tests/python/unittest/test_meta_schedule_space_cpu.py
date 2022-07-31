@@ -1079,6 +1079,128 @@ def test_cpu_dil():
     )
 
 
+def test_cpu_gmm():
+    # fmt: off
+    @T.prim_func
+    def gmm_0(X: T.Buffer[(1, 128, 128), "float32"], Y: T.Buffer[(1, 128, 128), "float32"], Z: T.Buffer[(1, 128, 128), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":16, "meta_schedule.vectorize":64})
+            Z_global = T.alloc_buffer([1, 128, 128], dtype="float32")
+            for i0_0, i1_0, i2_0, i0_1, i1_1, i2_1 in T.grid(1, 4, 2, 1, 1, 8):
+                for i3_0, i0_2, i1_2, i2_2, i3_1, i0_3, i1_3, i2_3 in T.grid(128, 1, 16, 1, 1, 1, 2, 8):
+                    with T.block("Z"):
+                        b = T.axis.spatial(1, i0_0 + i0_1 + i0_2 + i0_3)
+                        i = T.axis.spatial(128, i1_0 * 32 + i1_1 * 32 + i1_2 * 2 + i1_3)
+                        j = T.axis.spatial(128, i2_0 * 64 + i2_1 * 8 + i2_2 * 8 + i2_3)
+                        k = T.axis.reduce(128, i3_1 + i3_0)
+                        T.reads(X[b, i, k], Y[b, k, j])
+                        T.writes(Z_global[b, i, j])
+                        T.block_attr({"meta_schedule.tiling_structure":"SSRSRS"})
+                        with T.init():
+                            Z_global[b, i, j] = T.float32(0)
+                        Z_global[b, i, j] = Z_global[b, i, j] + X[b, i, k] * Y[b, k, j]
+                for ax0, ax1, ax2 in T.grid(1, 32, 8):
+                    with T.block("Z_global"):
+                        v0 = T.axis.spatial(1, ax0)
+                        v1 = T.axis.spatial(128, i1_0 * 32 + ax1)
+                        v2 = T.axis.spatial(128, i2_0 * 64 + i2_1 * 8 + ax2)
+                        T.reads(Z_global[v0, v1, v2])
+                        T.writes(Z[v0, v1, v2])
+                        Z[v0, v1, v2] = Z_global[v0, v1, v2]
+    @T.prim_func
+    def gmm_1(X: T.Buffer[(1, 128, 128), "float32"], Y: T.Buffer[(1, 128, 128), "float32"], Z: T.Buffer[(1, 128, 128), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":16, "meta_schedule.vectorize":64})
+            Z_global = T.alloc_buffer([1, 128, 128], dtype="float32")
+            for i0_0, i1_0, i2_0 in T.grid(1, 4, 2):
+                for i0_1, i1_1, i2_1, i3_0, i0_2, i1_2, i2_2, i3_1, i0_3, i1_3, i2_3 in T.grid(1, 1, 8, 128, 1, 16, 1, 1, 1, 2, 8):
+                    with T.block("Z"):
+                        b = T.axis.spatial(1, i0_0 + i0_1 + i0_2 + i0_3)
+                        i = T.axis.spatial(128, i1_0 * 32 + i1_1 * 32 + i1_2 * 2 + i1_3)
+                        j = T.axis.spatial(128, i2_0 * 64 + i2_1 * 8 + i2_2 * 8 + i2_3)
+                        k = T.axis.reduce(128, i3_1 + i3_0)
+                        T.reads(X[b, i, k], Y[b, k, j])
+                        T.writes(Z_global[b, i, j])
+                        T.block_attr({"meta_schedule.tiling_structure":"SSRSRS"})
+                        with T.init():
+                            Z_global[b, i, j] = T.float32(0)
+                        Z_global[b, i, j] = Z_global[b, i, j] + X[b, i, k] * Y[b, k, j]
+                for ax0, ax1, ax2 in T.grid(1, 32, 64):
+                    with T.block("Z_global"):
+                        v0 = T.axis.spatial(1, ax0)
+                        v1 = T.axis.spatial(128, i1_0 * 32 + ax1)
+                        v2 = T.axis.spatial(128, i2_0 * 64 + ax2)
+                        T.reads(Z_global[v0, v1, v2])
+                        T.writes(Z[v0, v1, v2])
+                        Z[v0, v1, v2] = Z_global[v0, v1, v2]
+    @T.prim_func
+    def gmm_2(X: T.Buffer[(1, 128, 128), "float32"], Y: T.Buffer[(1, 128, 128), "float32"], Z: T.Buffer[(1, 128, 128), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":16, "meta_schedule.vectorize":64})
+            for i0_0, i1_0, i2_0, i0_1, i1_1, i2_1, i3_0, i0_2, i1_2, i2_2, i3_1, i0_3, i1_3, i2_3 in T.grid(1, 4, 2, 1, 1, 8, 128, 1, 16, 1, 1, 1, 2, 8):
+                with T.block("Z"):
+                    b = T.axis.spatial(1, i0_0 + i0_1 + i0_2 + i0_3)
+                    i = T.axis.spatial(128, i1_0 * 32 + i1_1 * 32 + i1_2 * 2 + i1_3)
+                    j = T.axis.spatial(128, i2_0 * 64 + i2_1 * 8 + i2_2 * 8 + i2_3)
+                    k = T.axis.reduce(128, i3_1 + i3_0)
+                    T.reads(X[b, i, k], Y[b, k, j])
+                    T.writes(Z[b, i, j])
+                    T.block_attr({"meta_schedule.tiling_structure":"SSRSRS"})
+                    with T.init():
+                        Z[b, i, j] = T.float32(0)
+                    Z[b, i, j] = Z[b, i, j] + X[b, i, k] * Y[b, k, j]
+    # fmt: on
+    decision_0 = [
+        ("SamplePerfectTile", [1, 1, 1, 1]),
+        ("SamplePerfectTile", [4, 1, 16, 2]),
+        ("SamplePerfectTile", [2, 8, 1, 8]),
+        ("SamplePerfectTile", [128, 1]),
+        ("SampleCategorical", 1),
+    ]
+    decision_1 = [
+        ("SamplePerfectTile", [1, 1, 1, 1]),
+        ("SamplePerfectTile", [4, 1, 16, 2]),
+        ("SamplePerfectTile", [2, 8, 1, 8]),
+        ("SamplePerfectTile", [128, 1]),
+        ("SampleCategorical", 1),
+    ]
+    decision_2 = [
+        ("SamplePerfectTile", [1, 1, 1, 1]),
+        ("SamplePerfectTile", [4, 1, 16, 2]),
+        ("SamplePerfectTile", [2, 8, 1, 8]),
+        ("SamplePerfectTile", [128, 1]),
+        ("SampleCategorical", 1),
+    ]
+    mod = create_te_workload("GMM", 0)
+    actual = ms.TuneContext(
+        mod=mod,
+        target=_target(),
+        space_generator=ms.space_generator.PostOrderApply(),
+        sch_rules="default",
+    ).generate_design_space()
+    check_sketches(
+        mod,
+        sketches=actual,
+        expected_mods=[gmm_0, gmm_1, gmm_2],
+        expected_decisions=[decision_0, decision_1, decision_2],
+    )
+
+
 if __name__ == "__main__":
     test_cpu_c1d()
     test_cpu_c2d()
@@ -1086,3 +1208,4 @@ if __name__ == "__main__":
     test_cpu_cap()
     test_cpu_dep()
     test_cpu_dil()
+    test_cpu_gmm()
