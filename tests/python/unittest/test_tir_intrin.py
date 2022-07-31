@@ -205,7 +205,7 @@ class Module:
             elem_offset=0,
             align=128,
             offset_factor=1,
-            type="auto",
+            buffer_type="auto",
         )
         B_1 = T.match_buffer(
             B,
@@ -214,7 +214,7 @@ class Module:
             elem_offset=0,
             align=128,
             offset_factor=1,
-            type="auto",
+            buffer_type="auto",
         )
         C_1 = T.match_buffer(
             C,
@@ -223,7 +223,7 @@ class Module:
             elem_offset=0,
             align=128,
             offset_factor=1,
-            type="auto",
+            buffer_type="auto",
         )
         d_1 = T.match_buffer(
             d,
@@ -232,7 +232,7 @@ class Module:
             elem_offset=0,
             align=128,
             offset_factor=1,
-            type="auto",
+            buffer_type="auto",
         )
         # body
         for i in T.serial(0, n):
