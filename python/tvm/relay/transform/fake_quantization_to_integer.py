@@ -534,7 +534,7 @@ def register_unary_qnn(op_name, op):
             out_t.scale,
             out_t.zero_point,
         )
-        return [out, x_t]
+        return [out, out_t]
 
     return register_fake_quantization_to_integer(op_name, unary)
 
