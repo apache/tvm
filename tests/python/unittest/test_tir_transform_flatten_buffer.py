@@ -143,8 +143,8 @@ def flattened_multi_alloc_func(a: T.handle, d: T.handle) -> None:
     T.preflattened_buffer(D, (4, 32), "float32", data=D.data)
 
     for i, j in T.grid(4, 32):
-        B = T.allocate(128, "float32", "global")
-        C = T.allocate(128, "float32", "global")
+        B = T.allocate([128], "float32", "global")
+        C = T.allocate([128], "float32", "global")
         B[i * 32 + j] = A[i * 32 + j] + 1.0
         C[i * 32 + j] = A[i * 32 + j] + B[i * 32 + j]
         D[i * 32 + j] = C[i * 32 + j] * 2.0
