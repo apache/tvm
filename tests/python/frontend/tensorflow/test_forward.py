@@ -3364,7 +3364,7 @@ def test_forward_crop_and_resize():
         box_idx=[0, 1],
         crop_size=[5, 5],
     )
-    
+
     if platform.machine() == "aarch64":
         pytest.skip("Currently failing on AArch64")
     _test_forward_crop_and_resize([1, 224, 224, 3], [[0.1, 0.2, 1, 1]], [0], [9, 9])
