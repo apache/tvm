@@ -98,13 +98,13 @@ print("z: {}".format(z_output))
 #
 # We use the same input variables ``x`` and ``y`` as above, but before adding ``x + y``, we first cast both ``x`` and ``y`` to a custom datatype via the ``relay.cast(...)`` call.
 #
-# Note how we specify the custom datatype: we indicate it using the special ``custom[...]`` syntax.
+# Note how we specify the custom datatype: we indicate it using the special ``custom_<typename>`` syntax.
 # Additionally, note the "32" after the datatype: this is the bitwidth of the custom datatype. This tells TVM that each instance of ``myfloat`` is 32 bits wide.
 
 try:
     with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
-        x_myfloat = relay.cast(x, dtype="custom[myfloat]32")
-        y_myfloat = relay.cast(y, dtype="custom[myfloat]32")
+        x_myfloat = relay.cast(x, dtype="custom_myfloat32")
+        y_myfloat = relay.cast(y, dtype="custom_myfloat32")
         z_myfloat = x_myfloat + y_myfloat
         z = relay.cast(z_myfloat, dtype="float32")
 except tvm.TVMError as e:
@@ -123,8 +123,8 @@ tvm.target.datatype.register("myfloat", 150)
 # See ``TVMTypeCode::kCustomBegin`` in `include/tvm/runtime/c_runtime_api.h <https://github.com/apache/tvm/blob/main/include/tvm/runtime/data_type.h>`_.
 # Now we can generate our program again:
 
-x_myfloat = relay.cast(x, dtype="custom[myfloat]32")
-y_myfloat = relay.cast(y, dtype="custom[myfloat]32")
+x_myfloat = relay.cast(x, dtype="custom_myfloat32")
+y_myfloat = relay.cast(y, dtype="custom_myfloat32")
 z_myfloat = x_myfloat + y_myfloat
 z = relay.cast(z_myfloat, dtype="float32")
 program = relay.Function([x, y], z)
@@ -287,7 +287,7 @@ def convert_ndarray(dst_dtype, array):
 from tvm.relay.frontend.change_datatype import ChangeDatatype
 
 src_dtype = "float32"
-dst_dtype = "custom[myfloat]32"
+dst_dtype = "custom_myfloat32"
 
 module = relay.transform.InferType()(module)
 

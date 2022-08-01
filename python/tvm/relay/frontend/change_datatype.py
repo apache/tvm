@@ -42,13 +42,13 @@ class ChangeDatatype(ExprMutator):
             params = dict((p, tvm.nd.array(params[p].numpy().astype(dst))) for p in params)
             return mod, params
 
-        mod, params = change_dtype(mod, params, "float32", "custom[posites2]32")
+        mod, params = change_dtype(mod, params, "float32", "custom_posit32")
 
     Parameters
     ----------
     src : String
-        The source datatype name, e.g. "float" or "posites2" (but not "float32"
-        or "custom[posites2]32").
+        The source datatype name, e.g. "float" or "posit" (but not "float32"
+        or "custom_posit32").
     dst : String
         The destination datatype name, in the same format.
 

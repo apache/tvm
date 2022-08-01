@@ -1028,5 +1028,35 @@ def test_init_module_and_metatable():
     roundtrip(mod)
 
 
+def test_custom_dtype():
+    tvm.target.datatype.register("myfloat", 150)
+
+    myfloat32 = relay.scalar_type("custom_myfloat32")
+
+    # TODO(@gussmith23) The following doesn't pass
+    # assert_parses_as(
+    #     "let %_ : Tensor[(), custom_myfloat32] = (); ()",
+    #     relay.Let(relay.Var("_", relay.TensorType(
+    #         (), "custom_myfloat32")), UNIT, UNIT),
+    # )
+
+    assert_parses_as(
+        "let %_ : Tensor[(1), custom_myfloat32] = (); ()",
+        relay.Let(relay.Var("_", relay.TensorType((1,), "custom_myfloat32")), UNIT, UNIT),
+    )
+
+    assert_parses_as(
+        "let %_ : Tensor[(1, 1), custom_myfloat32] = (); ()",
+        relay.Let(relay.Var("_", relay.TensorType((1, 1), "custom_myfloat32")), UNIT, UNIT),
+    )
+
+    assert_parses_as(
+        "let %_ : Tensor[(?, 1), custom_myfloat32] = (); ()",
+        relay.Let(
+            relay.Var("_", relay.TensorType((tvm.tir.Any(), 1), "custom_myfloat32")), UNIT, UNIT
+        ),
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()
