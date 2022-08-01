@@ -2244,6 +2244,180 @@ def test_cpu_sfm():
     )
 
 
+def test_cpu_cbr():
+    # fmt: off
+    @T.prim_func
+    def cbr_0(data: T.Buffer[(1, 224, 224, 3), "float32"], kernel: T.Buffer[(7, 7, 3, 64), "float32"], bias: T.Buffer[64, "float32"], bn_offset: T.Buffer[64, "float32"], bn_scale: T.Buffer[64, "float32"], compute: T.Buffer[(1, 112, 112, 64), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":64, "meta_schedule.vectorize":64})
+            Conv2dOutput = T.alloc_buffer([1, 112, 112, 64], dtype="float32")
+            for i0_0, i1_0, i2_0, i3_0, i0_1, i1_1, i2_1, i3_1, i4_0, i5_0, i6_0, i0_2, i1_2, i2_2, i3_2, i4_1, i5_1, i6_1, i0_3, i1_3, i2_3, i3_3 in T.grid(1, 2, 7, 1, 1, 2, 2, 32, 7, 7, 1, 1, 1, 4, 1, 1, 1, 3, 1, 28, 2, 2):
+                with T.block("Conv2dOutput"):
+                    nn = T.axis.spatial(1, i0_3 + i0_0 + i0_1 + i0_2)
+                    yy = T.axis.spatial(112, i1_0 * 56 + i1_1 * 28 + i1_2 * 28 + i1_3)
+                    xx = T.axis.spatial(112, i2_0 * 16 + i2_1 * 8 + i2_2 * 2 + i2_3)
+                    ff = T.axis.spatial(64, i3_0 * 64 + i3_1 * 2 + i3_2 * 2 + i3_3)
+                    ry = T.axis.reduce(7, i4_1 + i4_0)
+                    rx = T.axis.reduce(7, i5_0 + i5_1)
+                    rc = T.axis.reduce(3, i6_0 * 3 + i6_1)
+                    T.reads(data[nn, yy * 2 + ry - 3, xx * 2 + rx - 3, rc], kernel[ry, rx, rc, ff])
+                    T.writes(Conv2dOutput[nn, yy, xx, ff])
+                    T.block_attr({"meta_schedule.tiling_structure":"SSRSRS"})
+                    with T.init():
+                        Conv2dOutput[nn, yy, xx, ff] = T.float32(0)
+                    Conv2dOutput[nn, yy, xx, ff] = Conv2dOutput[nn, yy, xx, ff] + T.if_then_else(3 <= yy * 2 + ry and yy * 2 + ry < 227 and 3 <= xx * 2 + rx and xx * 2 + rx < 227, data[nn, yy * 2 + ry - 3, xx * 2 + rx - 3, rc], T.float32(0), dtype="float32") * kernel[ry, rx, rc, ff]
+            for i0, i1, i2, i3 in T.grid(1, 112, 112, 64):
+                with T.block("compute"):
+                    i0_4, i1_4, i2_4, i3_4 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    T.reads(Conv2dOutput[i0_4, i1_4, i2_4, i3_4], bias[i3_4], bn_scale[i3_4], bn_offset[i3_4])
+                    T.writes(compute[i0_4, i1_4, i2_4, i3_4])
+                    compute[i0_4, i1_4, i2_4, i3_4] = T.max((Conv2dOutput[i0_4, i1_4, i2_4, i3_4] + bias[i3_4]) * bn_scale[i3_4] + bn_offset[i3_4], T.float32(0))
+    @T.prim_func
+    def cbr_1(data: T.Buffer[(1, 224, 224, 3), "float32"], kernel: T.Buffer[(7, 7, 3, 64), "float32"], bias: T.Buffer[64, "float32"], bn_offset: T.Buffer[64, "float32"], bn_scale: T.Buffer[64, "float32"], compute: T.Buffer[(1, 112, 112, 64), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":512, "meta_schedule.vectorize":64})
+            PaddedInput = T.alloc_buffer([1, 230, 230, 3], dtype="float32")
+            Conv2dOutput = T.alloc_buffer([1, 112, 112, 64], dtype="float32")
+            for i0_0, i1_0 in T.grid(1, 2):
+                for ax0, ax1, ax2, ax3 in T.grid(1, 117, 229, 3):
+                    with T.block("PaddedInput"):
+                        i0 = T.axis.spatial(1, ax0)
+                        i1 = T.axis.spatial(230, i1_0 * 112 + ax1)
+                        i2 = T.axis.spatial(230, ax2)
+                        i3 = T.axis.spatial(3, ax3)
+                        T.reads(data[i0, i1 - 3, i2 - 3, i3])
+                        T.writes(PaddedInput[i0, i1, i2, i3])
+                        PaddedInput[i0, i1, i2, i3] = T.if_then_else(3 <= i1 and i1 < 227 and 3 <= i2 and i2 < 227, data[i0, i1 - 3, i2 - 3, i3], T.float32(0), dtype="float32")
+                for i2_0, i3_0, i0_1, i1_1, i2_1, i3_1 in T.grid(7, 1, 1, 2, 2, 32):
+                    for i4_0, i5_0, i6_0, i0_2, i1_2, i2_2, i3_2, i4_1, i5_1, i6_1, i0_3, i1_3, i2_3, i3_3 in T.grid(7, 7, 1, 1, 1, 4, 1, 1, 1, 3, 1, 28, 2, 2):
+                        with T.block("Conv2dOutput"):
+                            nn = T.axis.spatial(1, i0_3 + i0_0 + i0_1 + i0_2)
+                            yy = T.axis.spatial(112, i1_0 * 56 + i1_1 * 28 + i1_2 * 28 + i1_3)
+                            xx = T.axis.spatial(112, i2_0 * 16 + i2_1 * 8 + i2_2 * 2 + i2_3)
+                            ff = T.axis.spatial(64, i3_0 * 64 + i3_1 * 2 + i3_2 * 2 + i3_3)
+                            ry = T.axis.reduce(7, i4_1 + i4_0)
+                            rx = T.axis.reduce(7, i5_0 + i5_1)
+                            rc = T.axis.reduce(3, i6_0 * 3 + i6_1)
+                            T.reads(PaddedInput[nn, yy * 2 + ry, xx * 2 + rx, rc], kernel[ry, rx, rc, ff])
+                            T.writes(Conv2dOutput[nn, yy, xx, ff])
+                            T.block_attr({"meta_schedule.tiling_structure":"SSRSRS"})
+                            with T.init():
+                                Conv2dOutput[nn, yy, xx, ff] = T.float32(0)
+                            Conv2dOutput[nn, yy, xx, ff] = Conv2dOutput[nn, yy, xx, ff] + PaddedInput[nn, yy * 2 + ry, xx * 2 + rx, rc] * kernel[ry, rx, rc, ff]
+                    for ax0, ax1, ax2, ax3 in T.grid(1, 28, 8, 2):
+                        with T.block("compute"):
+                            i0 = T.axis.spatial(1, ax0)
+                            i1 = T.axis.spatial(112, i1_0 * 56 + i1_1 * 28 + ax1)
+                            i2 = T.axis.spatial(112, i2_0 * 16 + i2_1 * 8 + ax2)
+                            i3 = T.axis.spatial(64, i3_1 * 2 + ax3)
+                            T.reads(Conv2dOutput[i0, i1, i2, i3], bias[i3], bn_scale[i3], bn_offset[i3])
+                            T.writes(compute[i0, i1, i2, i3])
+                            compute[i0, i1, i2, i3] = T.max((Conv2dOutput[i0, i1, i2, i3] + bias[i3]) * bn_scale[i3] + bn_offset[i3], T.float32(0))
+    @T.prim_func
+    def cbr_2(data: T.Buffer[(1, 224, 224, 3), "float32"], kernel: T.Buffer[(7, 7, 3, 64), "float32"], bias: T.Buffer[64, "float32"], bn_offset: T.Buffer[64, "float32"], bn_scale: T.Buffer[64, "float32"], compute: T.Buffer[(1, 112, 112, 64), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":64, "meta_schedule.vectorize":64})
+            PaddedInput = T.alloc_buffer([1, 230, 230, 3], dtype="float32")
+            Conv2dOutput = T.alloc_buffer([1, 112, 112, 64], dtype="float32")
+            for i0_0, i1_0 in T.grid(1, 2):
+                for ax0, ax1, ax2, ax3 in T.grid(1, 117, 229, 3):
+                    with T.block("PaddedInput"):
+                        i0 = T.axis.spatial(1, ax0)
+                        i1 = T.axis.spatial(230, i1_0 * 112 + ax1)
+                        i2 = T.axis.spatial(230, ax2)
+                        i3 = T.axis.spatial(3, ax3)
+                        T.reads(data[i0, i1 - 3, i2 - 3, i3])
+                        T.writes(PaddedInput[i0, i1, i2, i3])
+                        PaddedInput[i0, i1, i2, i3] = T.if_then_else(3 <= i1 and i1 < 227 and 3 <= i2 and i2 < 227, data[i0, i1 - 3, i2 - 3, i3], T.float32(0), dtype="float32")
+                for i2_0, i3_0 in T.grid(7, 1):
+                    for i0_1, i1_1, i2_1, i3_1, i4_0, i5_0, i6_0, i0_2, i1_2, i2_2, i3_2, i4_1, i5_1, i6_1, i0_3, i1_3, i2_3, i3_3 in T.grid(1, 2, 2, 32, 7, 7, 1, 1, 1, 4, 1, 1, 1, 3, 1, 28, 2, 2):
+                        with T.block("Conv2dOutput"):
+                            nn = T.axis.spatial(1, i0_3 + i0_0 + i0_1 + i0_2)
+                            yy = T.axis.spatial(112, i1_0 * 56 + i1_1 * 28 + i1_2 * 28 + i1_3)
+                            xx = T.axis.spatial(112, i2_0 * 16 + i2_1 * 8 + i2_2 * 2 + i2_3)
+                            ff = T.axis.spatial(64, i3_0 * 64 + i3_1 * 2 + i3_2 * 2 + i3_3)
+                            ry = T.axis.reduce(7, i4_1 + i4_0)
+                            rx = T.axis.reduce(7, i5_0 + i5_1)
+                            rc = T.axis.reduce(3, i6_0 * 3 + i6_1)
+                            T.reads(PaddedInput[nn, yy * 2 + ry, xx * 2 + rx, rc], kernel[ry, rx, rc, ff])
+                            T.writes(Conv2dOutput[nn, yy, xx, ff])
+                            T.block_attr({"meta_schedule.tiling_structure":"SSRSRS"})
+                            with T.init():
+                                Conv2dOutput[nn, yy, xx, ff] = T.float32(0)
+                            Conv2dOutput[nn, yy, xx, ff] = Conv2dOutput[nn, yy, xx, ff] + PaddedInput[nn, yy * 2 + ry, xx * 2 + rx, rc] * kernel[ry, rx, rc, ff]
+                    for ax0, ax1, ax2, ax3 in T.grid(1, 56, 16, 64):
+                        with T.block("compute"):
+                            i0 = T.axis.spatial(1, ax0)
+                            i1 = T.axis.spatial(112, i1_0 * 56 + ax1)
+                            i2 = T.axis.spatial(112, i2_0 * 16 + ax2)
+                            i3 = T.axis.spatial(64, ax3)
+                            T.reads(Conv2dOutput[i0, i1, i2, i3], bias[i3], bn_scale[i3], bn_offset[i3])
+                            T.writes(compute[i0, i1, i2, i3])
+                            compute[i0, i1, i2, i3] = T.max((Conv2dOutput[i0, i1, i2, i3] + bias[i3]) * bn_scale[i3] + bn_offset[i3], T.float32(0))
+    # fmt: on
+    decision_0 = [
+        ("SamplePerfectTile", [1, 1, 1, 1]),
+        ("SamplePerfectTile", [2, 2, 1, 28]),
+        ("SamplePerfectTile", [7, 2, 4, 2]),
+        ("SamplePerfectTile", [1, 32, 1, 2]),
+        ("SamplePerfectTile", [7, 1]),
+        ("SamplePerfectTile", [7, 1]),
+        ("SamplePerfectTile", [1, 3]),
+        ("SampleCategorical", 2),
+        ("SampleComputeLocation", -2),
+    ]
+    decision_1 = [
+        ("SamplePerfectTile", [1, 1, 1, 1]),
+        ("SamplePerfectTile", [2, 2, 1, 28]),
+        ("SamplePerfectTile", [7, 2, 4, 2]),
+        ("SamplePerfectTile", [1, 32, 1, 2]),
+        ("SamplePerfectTile", [7, 1]),
+        ("SamplePerfectTile", [7, 1]),
+        ("SamplePerfectTile", [1, 3]),
+        ("SampleCategorical", 3),
+        ("SampleComputeLocation", 1),
+    ]
+    decision_2 = [
+        ("SamplePerfectTile", [1, 1, 1, 1]),
+        ("SamplePerfectTile", [2, 2, 1, 28]),
+        ("SamplePerfectTile", [7, 2, 4, 2]),
+        ("SamplePerfectTile", [1, 32, 1, 2]),
+        ("SamplePerfectTile", [7, 1]),
+        ("SamplePerfectTile", [7, 1]),
+        ("SamplePerfectTile", [1, 3]),
+        ("SampleCategorical", 2),
+        ("SampleComputeLocation", 1),
+    ]
+    mod = create_te_workload("CBR", 0)
+    actual = ms.TuneContext(
+        mod=mod,
+        target=_target(),
+        space_generator=ms.space_generator.PostOrderApply(),
+        sch_rules="default",
+    ).generate_design_space()
+    check_sketches(
+        mod,
+        sketches=actual,
+        expected_mods=[cbr_0, cbr_1, cbr_2],
+        expected_decisions=[decision_0, decision_1, decision_2],
+    )
+
+
 if __name__ == "__main__":
     test_cpu_c1d()
     test_cpu_c2d()
@@ -2256,3 +2430,4 @@ if __name__ == "__main__":
     test_cpu_t2d()
     test_cpu_nrm()
     test_cpu_sfm()
+    test_cpu_cbr()
