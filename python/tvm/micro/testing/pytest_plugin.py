@@ -50,7 +50,10 @@ def pytest_addoption(parser):
         "--tvm-debug",
         action="store_true",
         default=False,
-        help="If set true, it will keep the project directory for debugging.",
+        help=(
+            "If set true, it will keep the project directory for debugging."
+            "Also, it will enable debug level logging in project generation."
+        ),
     )
 
 
