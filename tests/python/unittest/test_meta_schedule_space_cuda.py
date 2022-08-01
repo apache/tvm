@@ -1127,6 +1127,96 @@ def test_cuda_sfm():
     )
 
 
+def test_cuda_cbr():
+    # fmt: off
+    @T.prim_func
+    def cbr_0(data: T.Buffer[(1, 224, 224, 3), "float32"], kernel: T.Buffer[(7, 7, 3, 64), "float32"], bias: T.Buffer[64, "float32"], bn_offset: T.Buffer[64, "float32"], bn_scale: T.Buffer[64, "float32"], compute: T.Buffer[(1, 112, 112, 64), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.unroll_explicit":512})
+            Conv2dOutput_local = T.alloc_buffer([1, 112, 112, 64], dtype="float32", scope="local")
+            PaddedInput_shared = T.alloc_buffer([1, 230, 230, 3], dtype="float32", scope="shared")
+            kernel_shared = T.alloc_buffer([7, 7, 3, 64], dtype="float32", scope="shared")
+            for i0_0_i1_0_i2_0_i3_0_fused in T.thread_binding(14, thread="blockIdx.x"):
+                for i0_1_i1_1_i2_1_i3_1_fused in T.thread_binding(4, thread="vthread.x"):
+                    for i0_2_i1_2_i2_2_i3_2_fused in T.thread_binding(128, thread="threadIdx.x"):
+                        for i4_0, i5_0, i6_0 in T.grid(7, 1, 3):
+                            for ax0_ax1_ax2_ax3_fused in T.serial(8251):
+                                with T.block("PaddedInput_shared"):
+                                    v0 = T.axis.spatial(1, 0)
+                                    v1 = T.axis.spatial(230, ax0_ax1_ax2_ax3_fused // 37 + i4_0)
+                                    v2 = T.axis.spatial(230, i0_0_i1_0_i2_0_i3_0_fused // 2 * 32 + ax0_ax1_ax2_ax3_fused % 37)
+                                    v3 = T.axis.spatial(3, i6_0)
+                                    T.reads(data[v0, v1 - 3, v2 - 3, v3])
+                                    T.writes(PaddedInput_shared[v0, v1, v2, v3])
+                                    T.block_attr({"meta_schedule.cooperative_fetch":1})
+                                    PaddedInput_shared[v0, v1, v2, v3] = T.if_then_else(3 <= v1 and v1 < 227 and 3 <= v2 and v2 < 227, data[v0, v1 - 3, v2 - 3, v3], T.float32(0), dtype="float32")
+                            for ax0_ax1_ax2_ax3_fused in T.serial(224):
+                                with T.block("kernel_shared"):
+                                    v0 = T.axis.spatial(7, i4_0)
+                                    v1 = T.axis.spatial(7, ax0_ax1_ax2_ax3_fused // 32)
+                                    v2 = T.axis.spatial(3, i6_0)
+                                    v3 = T.axis.spatial(64, i0_0_i1_0_i2_0_i3_0_fused % 2 * 32 + ax0_ax1_ax2_ax3_fused % 32)
+                                    T.reads(kernel[v0, v1, v2, v3])
+                                    T.writes(kernel_shared[v0, v1, v2, v3])
+                                    T.block_attr({"meta_schedule.cooperative_fetch":1})
+                                    kernel_shared[v0, v1, v2, v3] = kernel[v0, v1, v2, v3]
+                            for i4_1, i5_1, i6_1, i0_3, i1_3, i2_3, i3_3, i4_2, i5_2, i6_2, i0_4, i1_4, i2_4, i3_4 in T.grid(1, 1, 1, 1, 1, 1, 2, 1, 7, 1, 1, 7, 1, 8):
+                                with T.block("Conv2dOutput"):
+                                    nn = T.axis.spatial(1, i0_3 + i0_4)
+                                    yy = T.axis.spatial(112, i0_1_i1_1_i2_1_i3_1_fused // 2 * 56 + i0_2_i1_2_i2_2_i3_2_fused // 16 * 7 + i1_3 * 7 + i1_4)
+                                    xx = T.axis.spatial(112, i2_4 + i0_0_i1_0_i2_0_i3_0_fused // 2 * 16 + i0_2_i1_2_i2_2_i3_2_fused % 16 + i2_3)
+                                    ff = T.axis.spatial(64, i0_0_i1_0_i2_0_i3_0_fused % 2 * 32 + i0_1_i1_1_i2_1_i3_1_fused % 2 * 16 + i3_3 * 8 + i3_4)
+                                    ry = T.axis.reduce(7, i4_0 + i4_1 + i4_2)
+                                    rx = T.axis.reduce(7, i5_0 * 7 + i5_1 * 7 + i5_2)
+                                    rc = T.axis.reduce(3, i6_1 + i6_2 + i6_0)
+                                    T.reads(PaddedInput_shared[nn, yy * 2 + ry, xx * 2 + rx, rc], kernel_shared[ry, rx, rc, ff])
+                                    T.writes(Conv2dOutput_local[nn, yy, xx, ff])
+                                    T.block_attr({"meta_schedule.thread_extent_high_inclusive":1024, "meta_schedule.thread_extent_low_inclusive":32, "meta_schedule.tiling_structure":"SSSRRSRS"})
+                                    with T.init():
+                                        Conv2dOutput_local[nn, yy, xx, ff] = T.float32(0)
+                                    Conv2dOutput_local[nn, yy, xx, ff] = Conv2dOutput_local[nn, yy, xx, ff] + PaddedInput_shared[nn, yy * 2 + ry, xx * 2 + rx, rc] * kernel_shared[ry, rx, rc, ff]
+                        for ax0, ax1, ax2, ax3 in T.grid(1, 7, 1, 16):
+                            with T.block("Conv2dOutput_local"):
+                                v0 = T.axis.spatial(1, ax0)
+                                v1 = T.axis.spatial(112, i0_1_i1_1_i2_1_i3_1_fused // 2 * 56 + i0_2_i1_2_i2_2_i3_2_fused // 16 * 7 + ax1)
+                                v2 = T.axis.spatial(112, i0_0_i1_0_i2_0_i3_0_fused // 2 * 16 + i0_2_i1_2_i2_2_i3_2_fused % 16 + ax2)
+                                v3 = T.axis.spatial(64, i0_0_i1_0_i2_0_i3_0_fused % 2 * 32 + i0_1_i1_1_i2_1_i3_1_fused % 2 * 16 + ax3)
+                                T.reads(Conv2dOutput_local[v0, v1, v2, v3], bias[v3], bn_scale[v3], bn_offset[v3])
+                                T.writes(compute[v0, v1, v2, v3])
+                                compute[v0, v1, v2, v3] = T.max((Conv2dOutput_local[v0, v1, v2, v3] + bias[v3]) * bn_scale[v3] + bn_offset[v3], T.float32(0))
+    # fmt: on
+    decision_0 = [
+        ("SamplePerfectTile", [1, 1, 1, 1, 1]),
+        ("SamplePerfectTile", [1, 2, 8, 1, 7]),
+        ("SamplePerfectTile", [7, 1, 16, 1, 1]),
+        ("SamplePerfectTile", [2, 2, 1, 2, 8]),
+        ("SamplePerfectTile", [7, 1, 1]),
+        ("SamplePerfectTile", [1, 1, 7]),
+        ("SamplePerfectTile", [3, 1, 1]),
+        ("SampleCategorical", 0),
+        ("SampleCategorical", 0),
+        ("SampleCategorical", 3),
+    ]
+    mod = create_te_workload("CBR", 0)
+    actual = ms.TuneContext(
+        mod=mod,
+        target=_target(),
+        space_generator=ms.space_generator.PostOrderApply(),
+        sch_rules="default",
+    ).generate_design_space()
+    check_sketches(
+        mod,
+        sketches=actual,
+        expected_mods=[cbr_0],
+        expected_decisions=[decision_0],
+    )
+
+
 if __name__ == "__main__":
     test_cuda_c1d()
     test_cuda_c2d()
@@ -1139,3 +1229,4 @@ if __name__ == "__main__":
     test_cuda_t2d()
     test_cuda_nrm()
     test_cuda_sfm()
+    test_cuda_cbr()

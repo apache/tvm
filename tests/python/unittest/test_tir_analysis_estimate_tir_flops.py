@@ -38,7 +38,7 @@ from tvm.tir.analysis import estimate_tir_flops
         ("GMM", 4194304),
         ("GRP", 28901376),
         ("T2D", 268435456),
-        ("C2d-BN-RELU", 239239168),
+        ("CBR", 239239168),
         ("TBG", 25165824),
         ("NRM", 131072),
         ("SFM", 262144),
