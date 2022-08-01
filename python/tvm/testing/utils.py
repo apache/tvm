@@ -73,9 +73,9 @@ import logging
 import os
 import pickle
 import platform
-import shutil
 import sys
 import time
+import shutil
 
 from pathlib import Path
 from typing import Optional, Callable, Union, List, Tuple
@@ -958,13 +958,18 @@ requires_hexagon = Feature(
 # Mark a test as requiring the CMSIS NN library
 requires_cmsisnn = Feature("cmsisnn", "CMSIS NN", cmake_flag="USE_CMSISNN")
 
+
+def _corstone300_compile_time_check():
+    if shutil.which("arm-none-eabi-gcc") is None:
+        return "ARM embedded toolchain unavailable"
+    return True
+
+
 # Mark a test as requiring the corstone300 FVP
 requires_corstone300 = Feature(
     "corstone300",
     "Corstone-300",
-    compile_time_check=lambda: (
-        (shutil.which("arm-none-eabi-gcc") is None) or "ARM embedded toolchain unavailable"
-    ),
+    compile_time_check=_corstone300_compile_time_check,
     parent_features="cmsisnn",
 )
 
