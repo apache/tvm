@@ -47,7 +47,7 @@ def pytest_addoption(parser):
         help="Only run tests that don't require physical hardware.",
     )
     parser.addoption(
-        "--tvm-debug",
+        "--microtvm-debug",
         action="store_true",
         default=False,
         help=(
@@ -63,7 +63,7 @@ def board(request):
 
 
 @pytest.fixture(scope="session")
-def tvm_debug(request):
+def microtvm_debug(request):
     return request.config.getoption("--tvm-debug")
 
 
@@ -76,7 +76,7 @@ def pytest_collection_modifyitems(config, items):
 
 
 @pytest.fixture
-def workspace_dir(request, board, tvm_debug):
+def workspace_dir(request, board, microtvm_debug):
     """Creates workspace directory for each test."""
     parent_dir = pathlib.Path(os.path.dirname(request.module.__file__))
     board_workspace = (
@@ -91,7 +91,7 @@ def workspace_dir(request, board, tvm_debug):
     if not os.path.exists(board_workspace.parent):
         os.makedirs(board_workspace.parent)
 
-    keep_for_debug = tvm_debug if tvm_debug else None
+    keep_for_debug = microtvm_debug if microtvm_debug else None
     test_temp_dir = tempdir(custom_path=board_workspace, keep_for_debug=keep_for_debug)
     return test_temp_dir
 

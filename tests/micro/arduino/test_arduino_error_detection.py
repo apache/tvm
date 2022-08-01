@@ -25,8 +25,8 @@ import tvm.testing
 
 
 @pytest.fixture
-def project(board, arduino_cli_cmd, tvm_debug, workspace_dir):
-    return test_utils.make_kws_project(board, arduino_cli_cmd, tvm_debug, workspace_dir)
+def project(board, arduino_cli_cmd, microtvm_debug, workspace_dir):
+    return test_utils.make_kws_project(board, arduino_cli_cmd, microtvm_debug, workspace_dir)
 
 
 def test_blank_project_compiles(workspace_dir, project):

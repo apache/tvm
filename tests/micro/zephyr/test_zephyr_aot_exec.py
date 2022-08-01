@@ -69,11 +69,11 @@ def _make_session(workspace_dir, zephyr_board, west_cmd, mod, build_config):
 
 @tvm.testing.requires_micro
 @pytest.mark.skip_boards(["mps2_an521"])
-def test_relay(workspace_dir, board, west_cmd, tvm_debug):
+def test_relay(workspace_dir, board, west_cmd, microtvm_debug):
     """Testing a simple relay graph"""
 
     model = test_utils.ZEPHYR_BOARDS[board]
-    build_config = {"debug": tvm_debug}
+    build_config = {"debug": microtvm_debug}
     shape = (10,)
     dtype = "int8"
 
@@ -103,11 +103,11 @@ def test_relay(workspace_dir, board, west_cmd, tvm_debug):
 
 @tvm.testing.requires_micro
 @pytest.mark.skip_boards(["mps2_an521"])
-def test_aot_executor(workspace_dir, board, west_cmd, tvm_debug):
+def test_aot_executor(workspace_dir, board, west_cmd, microtvm_debug):
     """Test use of the AOT executor with microTVM."""
 
     model = test_utils.ZEPHYR_BOARDS[board]
-    build_config = {"debug": tvm_debug}
+    build_config = {"debug": microtvm_debug}
     shape = (10,)
     dtype = "int8"
 

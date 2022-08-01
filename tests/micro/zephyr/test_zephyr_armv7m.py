@@ -104,7 +104,7 @@ def _apply_desired_layout_no_simd(relay_mod):
 
 @tvm.testing.requires_micro
 @pytest.mark.skip_boards(["mps2_an521"])
-def test_armv7m_intrinsic(workspace_dir, board, west_cmd, tvm_debug):
+def test_armv7m_intrinsic(workspace_dir, board, west_cmd, microtvm_debug):
     """Testing a ARM v7m SIMD extension."""
 
     if board not in [
@@ -118,7 +118,7 @@ def test_armv7m_intrinsic(workspace_dir, board, west_cmd, tvm_debug):
 
     model = test_utils.ZEPHYR_BOARDS[board]
 
-    build_config = {"debug": tvm_debug}
+    build_config = {"debug": microtvm_debug}
 
     this_dir = pathlib.Path(os.path.dirname(__file__))
     testdata_dir = this_dir.parent / "testdata" / "mnist"

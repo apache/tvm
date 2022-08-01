@@ -89,11 +89,11 @@ def _make_add_sess(temp_dir, model, zephyr_board, west_cmd, build_config, dtype=
 # The same test code can be executed on both the QEMU simulation and on real hardware.
 @tvm.testing.requires_micro
 @pytest.mark.skip_boards(["mps2_an521"])
-def test_add_uint(workspace_dir, board, west_cmd, tvm_debug):
+def test_add_uint(workspace_dir, board, west_cmd, microtvm_debug):
     """Test compiling the on-device runtime."""
 
     model = test_utils.ZEPHYR_BOARDS[board]
-    build_config = {"debug": tvm_debug}
+    build_config = {"debug": microtvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
     def test_basic_add(sess):
@@ -115,13 +115,13 @@ def test_add_uint(workspace_dir, board, west_cmd, tvm_debug):
 # The same test code can be executed on both the QEMU simulation and on real hardware.
 @tvm.testing.requires_micro
 @pytest.mark.skip_boards(["mps2_an521"])
-def test_add_float(workspace_dir, board, west_cmd, tvm_debug):
+def test_add_float(workspace_dir, board, west_cmd, microtvm_debug):
     """Test compiling the on-device runtime."""
     model = test_utils.ZEPHYR_BOARDS[board]
     if not test_utils.has_fpu(board):
         pytest.skip(f"FPU not enabled for {board}")
 
-    build_config = {"debug": tvm_debug}
+    build_config = {"debug": microtvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
     def test_basic_add(sess):
@@ -144,11 +144,11 @@ def test_add_float(workspace_dir, board, west_cmd, tvm_debug):
 
 @tvm.testing.requires_micro
 @pytest.mark.skip_boards(["mps2_an521"])
-def test_platform_timer(workspace_dir, board, west_cmd, tvm_debug):
+def test_platform_timer(workspace_dir, board, west_cmd, microtvm_debug):
     """Test compiling the on-device runtime."""
 
     model = test_utils.ZEPHYR_BOARDS[board]
-    build_config = {"debug": tvm_debug}
+    build_config = {"debug": microtvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
     def test_basic_add(sess):
@@ -174,10 +174,10 @@ def test_platform_timer(workspace_dir, board, west_cmd, tvm_debug):
 
 @tvm.testing.requires_micro
 @pytest.mark.skip_boards(["mps2_an521"])
-def test_relay(workspace_dir, board, west_cmd, tvm_debug):
+def test_relay(workspace_dir, board, west_cmd, microtvm_debug):
     """Testing a simple relay graph"""
     model = test_utils.ZEPHYR_BOARDS[board]
-    build_config = {"debug": tvm_debug}
+    build_config = {"debug": microtvm_debug}
     shape = (10,)
     dtype = "int8"
 
@@ -207,10 +207,10 @@ def test_relay(workspace_dir, board, west_cmd, tvm_debug):
 
 @tvm.testing.requires_micro
 @pytest.mark.skip_boards(["mps2_an521"])
-def test_onnx(workspace_dir, board, west_cmd, tvm_debug):
+def test_onnx(workspace_dir, board, west_cmd, microtvm_debug):
     """Testing a simple ONNX model."""
     model = test_utils.ZEPHYR_BOARDS[board]
-    build_config = {"debug": tvm_debug}
+    build_config = {"debug": microtvm_debug}
 
     this_dir = pathlib.Path(os.path.dirname(__file__))
     mnist_testdata = this_dir.parent / "testdata" / "mnist"
@@ -288,10 +288,10 @@ def check_result(
 
 @tvm.testing.requires_micro
 @pytest.mark.skip_boards(["mps2_an521"])
-def test_byoc_microtvm(workspace_dir, board, west_cmd, tvm_debug):
+def test_byoc_microtvm(workspace_dir, board, west_cmd, microtvm_debug):
     """This is a simple test case to check BYOC capabilities of microTVM"""
     model = test_utils.ZEPHYR_BOARDS[board]
-    build_config = {"debug": tvm_debug}
+    build_config = {"debug": microtvm_debug}
     x = relay.var("x", shape=(10, 10))
     w0 = relay.var("w0", shape=(10, 10))
     w1 = relay.var("w1", shape=(10, 10))
@@ -369,10 +369,10 @@ def _make_add_sess_with_shape(temp_dir, model, zephyr_board, west_cmd, shape, bu
 )
 @tvm.testing.requires_micro
 @pytest.mark.skip_boards(["mps2_an521"])
-def test_rpc_large_array(workspace_dir, board, west_cmd, tvm_debug, shape):
+def test_rpc_large_array(workspace_dir, board, west_cmd, microtvm_debug, shape):
     """Test large RPC array transfer."""
     model = test_utils.ZEPHYR_BOARDS[board]
-    build_config = {"debug": tvm_debug}
+    build_config = {"debug": microtvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
     def test_tensors(sess):
@@ -391,14 +391,14 @@ def test_rpc_large_array(workspace_dir, board, west_cmd, tvm_debug, shape):
 
 @pytest.mark.xfail(strict=False, reason="See https://github.com/apache/tvm/issues/10297")
 @tvm.testing.requires_micro
-def test_autotune_conv2d(workspace_dir, board, west_cmd, tvm_debug):
+def test_autotune_conv2d(workspace_dir, board, west_cmd, microtvm_debug):
     """Test AutoTune for microTVM Zephyr"""
     if board != "qemu_x86":
         pytest.xfail(f"Autotune fails on {board}.")
 
     runtime = Runtime("crt", {"system-lib": True})
     model = test_utils.ZEPHYR_BOARDS[board]
-    build_config = {"debug": tvm_debug}
+    build_config = {"debug": microtvm_debug}
 
     # Create a Relay model
     data_shape = (1, 3, 16, 16)
@@ -517,12 +517,12 @@ def test_autotune_conv2d(workspace_dir, board, west_cmd, tvm_debug):
 
 
 @tvm.testing.requires_micro
-def test_schedule_build_with_cmsis_dependency(workspace_dir, board, west_cmd, tvm_debug):
+def test_schedule_build_with_cmsis_dependency(workspace_dir, board, west_cmd, microtvm_debug):
     """Test Relay schedule with CMSIS dependency. This test shows if microTVM Auto tuning
     with Zephyr breaks if CMSIS dependency was required for a schedule.
     """
     model = test_utils.ZEPHYR_BOARDS[board]
-    build_config = {"debug": tvm_debug}
+    build_config = {"debug": microtvm_debug}
     target = tvm.target.target.micro(model, options=["-keys=arm_cpu,cpu"])
 
     isa = arm_isa.IsaAnalyzer(target)
