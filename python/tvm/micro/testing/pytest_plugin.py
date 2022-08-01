@@ -64,7 +64,7 @@ def board(request):
 
 @pytest.fixture(scope="session")
 def microtvm_debug(request):
-    return request.config.getoption("--tvm-debug")
+    return request.config.getoption("--microtvm-debug")
 
 
 def pytest_collection_modifyitems(config, items):
