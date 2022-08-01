@@ -242,6 +242,14 @@ _reg.register_strategy("unique", strategy.unique_strategy)
 _reg.register_strategy("invert_permutation", strategy.invert_permutation_strategy)
 _reg.register_shape_func("invert_permutation", False, elemwise_shape_func)
 
+# interpolate
+@_reg.register_compute("interpolate")
+def compute_interpolate(attrs, inputs, output_type):
+    """Compute definition of interpolate"""
+    return [topi.interpolate(inputs[0], inputs[1], inputs[2])]
+
+
+_reg.register_schedule("interpolate", strategy.schedule_interpolate)
 
 #####################
 #  Shape functions  #
@@ -678,6 +686,8 @@ def argwhere_shape_func(attrs, inputs, out_ndims):
 _reg.register_shape_func("scatter", False, elemwise_shape_func)
 _reg.register_shape_func("scatter_add", False, elemwise_shape_func)
 _reg.register_shape_func("scatter_nd", False, elemwise_shape_func)
+
+_reg.register_shape_func("interpolate", False, elemwise_shape_func)
 
 
 @script

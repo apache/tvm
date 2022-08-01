@@ -575,6 +575,15 @@ struct StftAttrs : public tvm::AttrsNode<StftAttrs> {
   }
 };  // struct StftAttrs
 
+/*! \brief Attributes used in interpolate operator */
+struct InterpolateAttrs : public tvm::AttrsNode<InterpolateAttrs> {
+  std::string mode;
+
+  TVM_DECLARE_ATTRS(InterpolateAttrs, "relay.attrs.InterpolateAttrs") {
+    TVM_ATTR_FIELD(mode).describe("Type of inteprolation to use.").set_default("linear");
+  }
+};  // struct InterpolateAttrs
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_TRANSFORM_H_

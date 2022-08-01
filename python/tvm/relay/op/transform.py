@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=import-outside-toplevel
+# pylint: disable=import-outside-toplevel, unused-argument, invalid-name
 """Transform operators."""
 
 from ...tir import expr as _expr
@@ -1889,3 +1889,39 @@ def stft(
         window = _make.ones([n_fft], "int32")
 
     return _make.stft(data, n_fft, hop_length, win_length, window, normalized, onesided)
+
+
+def interpolate(x, xp, fp, mode="linear"):
+    """Calculates piecewise interpolant to a function with given discrete data points
+    and evaluated at given indices.
+
+    .. note::
+        Similar to ``numpy.interp``.
+
+    Parameters
+    ----------
+    x : relay.Expr
+        The indices at which to evaluate the interpolated values.
+
+    xp : relay.Expr
+        The indices corresponding to the reference data points.
+
+    fp : relay.Expr
+        The values of the reference data points.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        x = [0, 1, 1.5, 2.72, 3.14]
+        xp = [1, 2, 3]
+        fp = [3, 2, 0]
+        f = relay.interpolate(x, xp, fp)
+        f = [3.  , 3.  , 2.5 , 0.56, 0.  ]
+    """
+    return _make.interpolate(x, xp, fp)

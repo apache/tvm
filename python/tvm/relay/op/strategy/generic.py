@@ -1460,6 +1460,14 @@ def wrap_compute_stft(topi_compute):
     return _compute_stft
 
 
+# interpolate
+@generic_func
+def schedule_interpolate(attrs, outs, target):
+    """schedule interpolate"""
+    with target:
+        return topi.generic.schedule_interpolate(outs)
+
+
 # roi_pool
 @generic_func
 def schedule_roi_pool(attrs, outs, target):

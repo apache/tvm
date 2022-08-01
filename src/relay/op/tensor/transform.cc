@@ -4230,5 +4230,57 @@ RELAY_REGISTER_OP("invert_permutation")
     .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_attr<TOpIsStateful>("TOpIsStateful", false);
 
+// interpolate operator
+TVM_REGISTER_NODE_TYPE(InterpolateAttrs);
+
+bool InterpolateRel(const Array<Type>& types, int num_inputs, const Attrs& raw_attrs,
+                    const TypeReporter& reporter) {
+  // 'types' contains: [x, xp, fp, result]
+  CHECK_EQ(types.size(), 4);
+  const InterpolateAttrs* attrs = raw_attrs.as<InterpolateAttrs>();
+  CHECK(attrs != nullptr);
+  const auto* x = types[0].as<TensorTypeNode>();
+  if (x == nullptr) {
+    return false;
+  }
+  const auto* xp = types[1].as<TensorTypeNode>();
+  if (xp == nullptr) {
+    return false;
+  }
+  const auto* fp = types[2].as<TensorTypeNode>();
+  if (fp == nullptr) {
+    return false;
+  }
+
+  const auto& x_shape = x->shape;
+  const auto& xp_shape = xp->shape;
+  const auto& fp_shape = fp->shape;
+
+  for (size_t i = 0; i < xp_shape.size(); i++) {
+    CHECK(reporter->AssertEQ(xp_shape[i], fp_shape[i]))
+        << "xp and fp must have the same shape: " << xp_shape << " vs " << fp_shape;
+  }
+
+  reporter->Assign(types[3], TensorType(x_shape, fp->dtype));
+  return true;
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.interpolate").set_body_typed([](Expr x, Expr xp, Expr fp) {
+  auto attrs = make_object<InterpolateAttrs>();
+  static const Op& op = Op::Get("interpolate");
+  return Call(op, {x, xp, fp}, Attrs(attrs), {});
+});
+
+RELAY_REGISTER_OP("interpolate")
+    .describe(R"doc(linear interpolate)doc" TVM_ADD_FILELINE)
+    .set_num_inputs(3)
+    .add_argument("x", "Tensor", "x.")
+    .add_argument("xp", "Tensor", "xp.")
+    .add_argument("fp", "Tensor", "fp.")
+    .add_type_rel("Interpolate", InterpolateRel)
+    .set_attr<TOpIsStateful>("TOpIsStateful", false)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque)
+    .set_support_level(10);
+
 }  // namespace relay
 }  // namespace tvm
