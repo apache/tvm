@@ -22,7 +22,6 @@ import os
 import logging
 import tvm
 from tvm import relay
-from tvm.error import TVMError
 from tvm.contrib.download import download_testdata
 
 
