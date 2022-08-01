@@ -154,7 +154,7 @@ TVM_REGISTER_GLOBAL("relay.ext.uma.OutlineCompilerFunctions")
     .set_body_typed(OutlineCompilerFunctions);
 
 /*!
- * \brief This pass will lower NPU functions in a Relay module to scheduled TIR prim functions.
+ * \brief This pass will lower UMA functions in a Relay module to scheduled TIR prim functions.
  */
 tvm::transform::Pass RelayToTIR(String target_name) {
   runtime::TypedPackedFunc<IRModule(IRModule, transform::PassContext)> pass_func =
