@@ -780,7 +780,6 @@ Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(const ScheduleSta
                                                                const StmtSRef& block_sref,
                                                                const PrimFunc& desc_func);
 
-
 /*!
  * \brief Perform basic checks for auto tensorization applicability, such as the structure of
  * arithmetic operations and data types.
