@@ -92,7 +92,8 @@ class Executable(object):
         self._get_late_bound_consts = self.mod["get_late_bound_consts"]
         self._load_late_bound_consts = self.mod["load_late_bound_consts"]
         self._load_late_bound_consts_from_map = self.mod["load_late_bound_consts_from_map"]
-        self.hash = ""
+        self._set_hash = self.mod["set_hash"]
+        self._get_hash = self.mod["get_hash"]
 
     def save(self):
         """Save the Relay VM Executable.
@@ -159,25 +160,6 @@ class Executable(object):
             print(res.numpy())
         """
         return self._save(), self._get_lib()
-
-    def set_hash(self, vm_hash):
-        self.hash = vm_hash
-
-    def get_hash(self):
-        return self.hash
-
-    def save_hash(self, dir):
-        """Save hash of the onnx model in the file with path dir/hash.txt.
-
-        Parameters
-        ----------
-
-        dir: str
-            The path to directory where file with hash will be saved
-        """
-        hash_path = os.path.join(dir, "hash.txt")
-        with open(hash_path, "wb") as fh:
-            fh.write(self.hash.encode())
 
     @staticmethod
     def load_exec(bytecode, lib):
@@ -319,6 +301,27 @@ class Executable(object):
         """Return the runtime module contained in a virtual machine executable."""
         return self.mod
 
+    @property
+    def hash(self):
+        return self._get_hash()
+
+    @hash.setter
+    def hash(self, vm_hash):
+        self._set_hash(vm_hash)
+
+    def save_hash(self, dir):
+        """Save hash of the onnx model in the file with path dir/hash.txt.
+
+        Parameters
+        ----------
+
+        dir: str
+            The path to directory where file with hash will be saved
+        """
+        hash_path = os.path.join(dir, "hash.txt")
+        with open(hash_path, "wb") as fh:
+            fh.write(self.hash.encode())
+
     def get_function_params(self, func_name):
         """Get VM Function parameters"""
         if func_name in self._function_params:
@@ -420,6 +423,7 @@ class VirtualMachine(object):
         self._get_output = self.module["get_output"]
         self._get_num_outputs = self.module["get_num_outputs"]
         self._get_input_index = self.module["get_input_index"]
+        self._get_hash = self.module["get_hash"]
         self._set_input = self.module["set_input"]
         self._set_one_input = self.module["set_one_input"]
         self._set_outputs = self.module["set_outputs"]
@@ -627,6 +631,16 @@ class VirtualMachine(object):
         outputs : List[NDArray]
         """
         return [self._get_output(i) for i in range(self._get_num_outputs())]
+
+    def get_hash(self):
+        """Get the ONNX model hash saved in Executable.
+
+        Returns
+        -------
+        outputs : str
+          String of ONNX model hash
+        """
+        return self._get_hash()
 
     def get_input_index(self, input_name, func_name="main"):
         """Get inputs index via input name.

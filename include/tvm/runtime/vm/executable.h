@@ -232,6 +232,18 @@ class TVM_DLL Executable : public ModuleNode {
   void SetLib(const runtime::Module& lib);
 
   /*!
+   * \brief Get the hash calculated from model file. It is used to save the hash to disk.
+   *
+   * \return The model hash needed for checking after import.
+   */
+  std::string GetHash() const;
+
+  /*!
+   * \brief Set the hash in an executable.
+   */
+  void SetHash(const std::string& hash);
+
+  /*!
    * \brief Get VMFunction.
    * \param func_name The function's name.
    * \return VMFunction.
@@ -292,6 +304,9 @@ class TVM_DLL Executable : public ModuleNode {
   std::vector<VMFunction> functions;
   /*! \brief The index of the device holding each constant. */
   std::vector<Index> const_device_indexes;
+  // TODO(vchernov): just now hash is calculated from onnx model only.
+  /*! \brief The hash calculated from model file. */
+  std::string hash;
 
  private:
   /*!
@@ -337,6 +352,13 @@ class TVM_DLL Executable : public ModuleNode {
   void SaveCodeSection(dmlc::Stream* strm);
 
   /*!
+   * \brief Save the hash calculated from model file.
+   *
+   * \param strm The output stream.
+   */
+  void SaveHash(dmlc::Stream* strm);
+
+  /*!
    * \brief Load the virtual devices
    *
    * /param strm The input stream.
@@ -363,6 +385,13 @@ class TVM_DLL Executable : public ModuleNode {
    * \param strm The input stream.
    */
   void LoadCodeSection(dmlc::Stream* strm);
+
+  /*!
+   * \brief Load the hash.
+   *
+   * \param strm The input stream.
+   */
+  void LoadHash(dmlc::Stream* strm);
 
   /*! \brief The serialized bytecode. */
   std::string code_;

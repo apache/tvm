@@ -69,7 +69,7 @@ def compile(mod, target=None, target_host=None, params=None):
     compiler.codegen()
     vm_exec = compiler.get_exec()
     if vm_hash:
-        vm_exec.set_hash(vm_hash)
+        vm_exec.hash = vm_hash
     return vm_exec
 
 

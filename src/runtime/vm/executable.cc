@@ -116,6 +116,14 @@ PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Obje
       Map<String, NDArray> map = args[0];
       LoadLateBoundConstantsFromMap(map);
     });
+  } else if (name == "set_hash") {
+    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
+      std::string hash = args[0];
+      SetHash(hash);
+    });
+  } else if (name == "get_hash") {
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetHash(); });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc();
@@ -301,6 +309,9 @@ TVMByteArray Executable::Save() {
 
   // Code section.
   SaveCodeSection(&strm);
+
+  // Hash.
+  SaveHash(&strm);
 
   TVMByteArray arr;
   arr.data = code_.c_str();
@@ -714,6 +725,8 @@ void Executable::SaveCodeSection(dmlc::Stream* strm) {
   }
 }
 
+void Executable::SaveHash(dmlc::Stream* strm) { strm->Write(hash); }
+
 void LoadHeader(dmlc::Stream* strm) {
   // Check header.
   uint64_t header;
@@ -748,6 +761,10 @@ void Executable::SetLib(const runtime::Module& lib) {
   this->Import(lib);
 }
 
+std::string Executable::GetHash() const { return hash; }
+
+void Executable::SetHash(const std::string& new_hash) { hash = new_hash; }
+
 runtime::Module Executable::Load(const std::string& code, const runtime::Module lib) {
   auto exec = make_object<Executable>();
 
@@ -777,6 +794,9 @@ runtime::Module Executable::Load(const std::string& code, const runtime::Module 
 
   // Code section.
   exec->LoadCodeSection(&strm);
+
+  // Hash.
+  exec->LoadHash(&strm);
 
   return runtime::Module(exec);
 }
@@ -1046,6 +1066,10 @@ void Executable::LoadCodeSection(dmlc::Stream* strm) {
     ICHECK_LE(it->second, this->global_map.size());
     this->functions[it->second] = vm_func;
   }
+}
+
+void Executable::LoadHash(dmlc::Stream* strm) {
+  STREAM_CHECK(strm->Read(&hash), "Model file hash");
 }
 
 void Executable::SaveToBinary(dmlc::Stream* stream) {

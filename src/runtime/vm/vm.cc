@@ -241,6 +241,8 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       std::string path = args[0];
       exec_->LoadLateBoundConstantsFromFile(path);
     });
+  } else if (name == "get_hash") {
+    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) { *rv = exec_->GetHash(); });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
