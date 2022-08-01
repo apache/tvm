@@ -94,7 +94,6 @@ from tvm.contrib import nvcc, cudnn
 import tvm.contrib.hexagon._ci_env_check as hexagon
 from tvm.driver.tvmc.frontends import load_model
 from tvm.error import TVMError
-from tvm.script import tir as T
 
 
 SKIP_SLOW_TESTS = os.getenv("SKIP_SLOW_TESTS", "").lower() in {"true", "1", "yes"}
@@ -1796,16 +1795,19 @@ class CompareBeforeAfter:
         if isinstance(func, tvm.tir.PrimFunc):
 
             def inner(self):
+                # pylint: disable=unused-argument
                 return func
 
         elif cls._is_method(func):
 
             def inner(self):
+                # pylint: disable=unused-argument
                 return func(self)
 
         else:
 
             def inner(self):
+                # pylint: disable=unused-argument
                 source_code = "@T.prim_func\n" + textwrap.dedent(inspect.getsource(func))
                 return tvm.script.from_source(source_code)
 
@@ -1821,16 +1823,19 @@ class CompareBeforeAfter:
         ):
 
             def inner(self):
+                # pylint: disable=unused-argument
                 return func
 
         elif cls._is_method(func):
 
             def inner(self):
+                # pylint: disable=unused-argument
                 return func(self)
 
         else:
 
             def inner(self):
+                # pylint: disable=unused-argument
                 source_code = "@T.prim_func\n" + textwrap.dedent(inspect.getsource(func))
                 return tvm.script.from_source(source_code)
 
@@ -1844,11 +1849,13 @@ class CompareBeforeAfter:
         if isinstance(transform, tvm.ir.transform.Pass):
 
             def inner(self):
+                # pylint: disable=unused-argument
                 return transform
 
         elif cls._is_method(transform):
 
             def inner(self):
+                # pylint: disable=unused-argument
                 return transform(self)
 
         else:
@@ -1865,6 +1872,8 @@ class CompareBeforeAfter:
         return "self" in sig.parameters
 
     def test_compare(self, before, expected, transform):
+        """Unit test to compare the expected TIR PrimFunc to actual"""
+
         before_mod = tvm.IRModule.from_expr(before)
 
         if inspect.isclass(expected) and issubclass(expected, Exception):
@@ -1877,7 +1886,10 @@ class CompareBeforeAfter:
                 after = after_mod["main"]
                 script = tvm.IRModule({"after": after, "before": before}).script()
                 pytest.fail(
-                    msg=f"Expected {expected.__name__} to be raised from transformation, instead received TIR\n:{script}"
+                    msg=(
+                        f"Expected {expected.__name__} to be raised from transformation, "
+                        f"instead received TIR\n:{script}"
+                    )
                 )
 
         elif isinstance(expected, tvm.tir.PrimFunc):
