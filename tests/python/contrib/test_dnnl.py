@@ -788,6 +788,48 @@ def test_conv2d_pattern(run_module, dtype="float32"):
     run_and_verify_func(config, run_module=run_module, dtype=dtype)
 
 
+def test_conv2d_bias_sum_relu(run_module, dtype="float32"):
+    x_shape = (1, 32, 8, 8)
+    k_shape = (16, 32, 3, 3)
+
+    def get_conv2d_bn_sum_relu(x_shape, k_shape, sum_shape, dtype="float32"):
+        out, dic, param_lst = get_conv2d_bias(x_shape=x_shape, k_shape=k_shape, dtype=dtype)
+        beta = relay.const(np.zeros(k_shape[0]).astype(dtype))
+        gamma = relay.const(np.ones(k_shape[0]).astype(dtype))
+        moving_mean = relay.const(np.zeros(k_shape[0]).astype(dtype))
+        moving_var = relay.const(np.ones(k_shape[0]).astype(dtype))
+        out, _, _ = relay.nn.batch_norm(
+            out,
+            gamma=gamma,
+            beta=beta,
+            moving_mean=moving_mean,
+            moving_var=moving_var,
+            axis=1,
+            center=True,
+            scale=True,
+            epsilon=1e-5,
+        )
+        sum_data = relay.var("data1", shape=sum_shape, dtype=dtype)
+        out = relay.add(out, sum_data)
+        dic["data1"] = sum_shape
+        param_lst += ["data1"]
+        return relay.nn.relu(out), dic, param_lst
+
+    conv2d_bn_sum_relu, dic, param_lst = get_conv2d_bn_sum_relu(
+        x_shape, k_shape, sum_shape=(1, 16, 6, 6), dtype=dtype
+    )
+    conv2d_bn_sum_relu = tvm.IRModule.from_expr(conv2d_bn_sum_relu)
+    config = conv2d_bn_sum_relu, dic, param_lst
+    run_and_verify_func(config, run_module=run_module, dtype=dtype)
+
+    conv2d_bn_sum_relu, dic, param_lst = get_conv2d_bn_sum_relu(
+        x_shape, k_shape, sum_shape=(1, 16, 1, 1), dtype=dtype
+    )
+    conv2d_bn_sum_relu = tvm.IRModule.from_expr(conv2d_bn_sum_relu)
+    config = conv2d_bn_sum_relu, dic, param_lst
+    run_and_verify_func(config, run_module=run_module, dtype=dtype)
+
+
 def test_conv2d_transpose(run_module, dtype="float32"):
     x_shape = (1, 32, 8, 8)
     for k_shape, groups in [((32, 16, 3, 3), 1), ((32, 1, 3, 3), 32), ((32, 4, 3, 3), 16)]:

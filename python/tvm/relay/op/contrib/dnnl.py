@@ -33,8 +33,10 @@ it is supported. For example:
 check the attributes of the op and decide if it should be offloaded to DNNL.
 """
 import logging
+from functools import reduce
 
 import tvm.ir
+from tvm.ir import Op
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.expr import GlobalVar
@@ -44,7 +46,7 @@ from tvm.relay.expr import const
 from tvm.relay.analysis import analysis as _analysis
 from tvm.relay import expr as _expr
 
-
+from tvm.relay.expr import Call, TupleGetItem
 from ... import _ffi_api
 from ...dataflow_pattern import wildcard, is_op, is_constant, is_expr, rewrite, DFPatternCallback
 from .register import register_pattern_table
@@ -165,6 +167,94 @@ def make_conv_pattern(conv_name, with_bias=True, with_eltwise=None):
     else:
         conv_out = conv
     return append_eltwise_ops(conv_out, with_eltwise)
+
+
+def make_conv_bias_sum_relu_pattern(conv_type, has_relu=True):
+    """Create patterns with sum op.
+
+    Parameters
+    ----------
+    conv_type : str
+        Should be nn.conv1d / nn.conv2d / nn.conv3d.
+    has_relu : bool
+        Whether attach relu.
+    Returns
+    -------
+    out : CallPattern
+        Call node sequence.
+    """
+    data1 = wildcard()
+    weight = wildcard()
+    bias = wildcard()
+    data2 = wildcard()
+    out = is_op(conv_type)(data1, weight)
+    out = is_op("add")(out, bias)
+    out = is_op("add")(out, data2)
+    if has_relu:
+        out = is_op("nn.relu")(out)
+    return out
+
+
+def get_op_name(expr):
+    """Get the operator name from an expression."""
+    if isinstance(expr, Op):
+        return expr.name
+    if isinstance(expr, Call):
+        return get_op_name(expr.op)
+    if isinstance(expr, TupleGetItem):
+        return get_op_name(expr.tuple_value)
+    if isinstance(expr, relay.Tuple):
+        return get_op_name(expr.fields[0])
+    return ""
+
+
+def get_args(expr):
+    """Get the arguments from an expression."""
+    if isinstance(expr, Call):
+        return expr.args
+    if isinstance(expr, TupleGetItem):
+        return get_args(expr.tuple_value)
+    if isinstance(expr, relay.Tuple):
+        return [arg for args in map(get_args, expr.fields) for arg in args]
+    return []
+
+
+def get_attrs(expr):
+    """Get the attributes from an expression."""
+    if isinstance(expr, Call):
+        return expr.attrs
+    if isinstance(expr, TupleGetItem):
+        return get_attrs(expr.tuple_value)
+    return {}
+
+
+def make_predicate(checker):
+    """Check whether the conv_bias_add_sum pattern is as expected."""
+
+    def predicate(expr):
+        if get_op_name(expr) == "nn.relu":
+            expr = expr.args[0]
+        for e, op_name in zip([expr, expr.args[0]], ["sum", "bias_add"]):
+            args = get_args(e)
+            attrs = get_attrs(e.args[0])
+            if not checker(attrs, args, op_name):
+                return False
+        return True
+
+    return predicate
+
+
+def add_checker(attrs, args, op_name):
+    """Check if add is supported by DNNL."""
+    if op_name == "sum":
+        if tuple(get_shape(args[0])) != tuple(get_shape(args[1])):
+            return False
+    if op_name == "bias_add":
+        channel = dict(attrs)["channels"]
+        const_shape = get_shape(args[1])
+        if channel != reduce(lambda x, y: x * y, const_shape):
+            return False
+    return True
 
 
 def make_dense_pattern(with_bias=True, with_eltwise=None):
@@ -306,6 +396,20 @@ def pattern_table():
     dnnl_patterns = list()
     dnnl_patterns.append(make_qnn_conv2d_pattern())
     dnnl_patterns.append(make_qnn_dense_pattern())
+    dnnl_patterns.append(
+        (
+            "dnnl.conv2d_bias_sum_relu",
+            make_conv_bias_sum_relu_pattern("nn.conv2d"),
+            make_predicate(add_checker),
+        )
+    )
+    dnnl_patterns.append(
+        (
+            "dnnl.conv2d_bias_sum",
+            make_conv_bias_sum_relu_pattern("nn.conv2d", False),
+            make_predicate(add_checker),
+        )
+    )
 
     elt_list = ["nn.relu", "tanh", "sigmoid", "clip", "gelu", "swish", None]
     for with_bias in [True, False]:
