@@ -96,7 +96,7 @@ TVM_REGISTER_GLOBAL("tvmtorch.save_runtime_mod").set_body_typed([](tvm::runtime:
 });
 
 DLPackTensorExt create_dlpack_tensor_ext(tvm::runtime::NDArray* results, bool is_bool,
-                                        tvm::Device* device_info) {
+                                         tvm::Device* device_info) {
   DLManagedTensor* tensor;
   if (is_bool) {
     auto tmp =
