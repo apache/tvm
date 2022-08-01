@@ -720,6 +720,15 @@ TVM_DLL const Op& texture2d_load();
  */
 TVM_DLL const Op& mem_copy();
 
+/*!
+ * \brief Provide a true statement that can be used for simplifications
+ *
+ * Compile-time representation of known constraints about function
+ * inputs.  This assumption is removed when lowering, and does not
+ * occur in codegen.
+ */
+TVM_DLL const Op& assume();
+
 /*! \brief The kind of structure field info used in intrinsic */
 enum TVMStructFieldKind : int {
   // array head address
