@@ -141,16 +141,15 @@ class DataType(ctypes.Structure):
         elif head.startswith("bfloat"):
             self.type_code = DataTypeCode.BFLOAT
             head = head[6:]
-        elif head.startswith("custom"):
+        elif head.startswith("custom_"):
             # pylint: disable=import-outside-toplevel
             import tvm.runtime._ffi_api
 
-            low, high = head.find("["), head.find("]")
-            if not low or not high or low >= high:
-                raise ValueError("Badly formatted custom type string %s" % type_str)
-            type_name = head[low + 1 : high]
+            head = head[7:]
+            index_of_first_digit = [c.isdigit() for c in head].index(True)
+            type_name = head[:index_of_first_digit]
+            head = head[index_of_first_digit:]
             self.type_code = tvm.runtime._ffi_api._datatype_get_type_code(type_name)
-            head = head[high + 1 :]
         else:
             raise ValueError("Do not know how to handle type %s" % type_str)
         bits = int(head) if head else bits
@@ -165,7 +164,7 @@ class DataType(ctypes.Structure):
         else:
             import tvm.runtime._ffi_api
 
-            type_name = "custom[%s]" % tvm.runtime._ffi_api._datatype_get_type_name(self.type_code)
+            type_name = "custom_%s" % tvm.runtime._ffi_api._datatype_get_type_name(self.type_code)
         x = "%s%d" % (type_name, self.bits)
         if self.lanes != 1:
             x += "x%d" % self.lanes

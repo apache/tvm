@@ -42,8 +42,8 @@ def register(type_name, type_code):
 
     .. code-block:: python
 
-        # Register a dtype named 'posites2' under type code 130.
-        tvm.target.datatype.register('posites2', 130)
+        # Register a dtype named 'posit' under type code 130.
+        tvm.target.datatype.register('posit', 130)
 
 
     Parameters
@@ -68,8 +68,8 @@ def get_type_name(type_code):
 
     .. code-block:: python
 
-        tvm.target.datatype.register('posites2', 130)
-        assert tvm.target.datatype.get_type_name(130) == 'posites2'
+        tvm.target.datatype.register('posit', 130)
+        assert tvm.target.datatype.get_type_name(130) == 'posit'
 
     Parameters
     ----------
@@ -95,8 +95,8 @@ def get_type_code(type_name):
 
     .. code-block:: python
 
-        tvm.target.datatype.register('posites2', 130)
-        assert tvm.target.datatype.get_type_code('posites2') == 130
+        tvm.target.datatype.register('posit', 130)
+        assert tvm.target.datatype.get_type_code('posit') == 130
 
     Parameters
     ----------
@@ -118,7 +118,7 @@ def get_type_registered(type_code):
 
     .. code-block:: python
 
-        tvm.target.datatype.register('posites2', 130)
+        tvm.target.datatype.register('posit', 130)
         assert tvm.target.datatype.get_type_registered(130)
 
     Parameters
@@ -176,7 +176,7 @@ def register_op(
         The name of codegen target.
 
     src_type_name : str
-        The name of the custom datatype, e.g. posites2 (but not custom[posites2]32).
+        The name of the custom datatype, e.g. posit (but not custom_posit32).
         If op_name is not "Cast", then target type is guaranteed to be the same as src_type_name.
 
     dest_type_name : str
@@ -237,11 +237,11 @@ def register_min_func(func, type_name):
     ----------
     func : function
         Input is an integer num_bits, should return a TIR expression node that
-        represents a scalar tensor of type custom[type_name]num_bits with the minimum
+        represents a scalar tensor of type custom_<type_name><num_bits> with the minimum
         representable value.
 
     type_name : str
-        The name of the custom datatype, e.g. posites2 (but not custom[posites2]32).
+        The name of the custom datatype, e.g. posit (but not custom_posit32).
     """
     _register_func("tvm.datatype.min." + type_name, func)
 
@@ -255,11 +255,11 @@ def create_min_lower_func(extern_func_map, type_name):
         A map from bit lengths to the name of the extern "C" function to lower to.
 
     type_name : string
-        The name of the custom datatype, e.g. posites2 (but not custom[posites2]32).
+        The name of the custom datatype, e.g. posit (but not custom_posit32).
     """
 
     def lower(num_bits):
-        dtype = f"custom[{type_name}]{num_bits}"
+        dtype = f"custom_{type_name}{num_bits}"
 
         if num_bits not in extern_func_map:
             raise RuntimeError("missing minimum function for {dtype}")
