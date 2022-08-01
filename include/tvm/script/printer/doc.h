@@ -1067,7 +1067,7 @@ class FunctionDocNode : public StmtDocNode {
   /*! \brief Decorators of function. */
   Array<ExprDoc> decorators;
   /*! \brief The return type of function. */
-  ExprDoc return_type{nullptr};
+  Optional<ExprDoc> return_type{NullOpt};
   /*! \brief The body of function. */
   Array<StmtDoc> body;
 
@@ -1100,7 +1100,7 @@ class FunctionDoc : public StmtDoc {
    * \param body The body of function.
    */
   explicit FunctionDoc(IdDoc name, Array<AssignDoc> args, Array<ExprDoc> decorators,
-                       ExprDoc return_type, Array<StmtDoc> body);
+                       Optional<ExprDoc> return_type, Array<StmtDoc> body);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(FunctionDoc, StmtDoc, FunctionDocNode);
 };
 
