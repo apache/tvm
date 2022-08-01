@@ -19,7 +19,17 @@
 
 from .mprofile.dsp.dense import dense_dsp_schedule
 
+from tvm import autotvm
+from tvm.topi.nn import dense
 
-def schedule_dense_dsp(outs):
+
+@autotvm.register_topi_compute("dense_dsp.arm_cpu")
+def dense_dsp(cfg, data, weight, bias, out_dtype):
+    """Compute conv2d_nhwc with v7e-m DSP instructions."""
+    return dense(data, weight, bias=bias, out_dtype=out_dtype)
+
+
+@autotvm.register_topi_schedule("dense_dsp.arm_cpu")
+def schedule_dense_dsp(cfg, outs):
     """Create schedule for dense_dsp"""
     return dense_dsp_schedule(outs)
