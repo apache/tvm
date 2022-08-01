@@ -186,6 +186,30 @@
     label: 'Run Python frontend tests',
   )
 {% endcall %}
+{% call(shard_index, num_shards) m.sharded_test_step(
+  name="test: Qemu",
+  node="CPU-SMALL",
+  ws="tvm/test-qemu",
+  platform="qemu",
+  docker_image="ci_qemu",
+  num_shards=4,
+  test_method_names=test_method_names,
+) %}
+  {{ m.download_artifacts(tag='qemu', filenames=tvm_lib, folders=microtvm_template_projects) }}
+  add_microtvm_permissions()
+  ci_setup(ci_qemu)
+  {% if shard_index == 1%}
+  cpp_unittest(ci_qemu)
+  sh (
+    script: "${docker_run} ${ci_qemu} ./tests/scripts/task_demo_microtvm.sh",
+    label: 'Run microTVM demos',
+  )
+  {% endif %}
+  sh (
+    script: "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh",
+    label: 'Run microTVM tests',
+  )
+{% endcall %}
 
 
 def test() {
@@ -214,26 +238,6 @@ stage('Test') {
     sh (
       script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh",
       label: 'Run VTA tests in TSIM',
-    )
-  {% endcall %}
-  {% call m.test_step(
-    name="test: QEMU",
-    node="CPU-SMALL",
-    ws="tvm/test-qemu",
-    platform="qemu",
-    docker_image="ci_qemu",
-  ) %}
-    {{ m.download_artifacts(tag='qemu', filenames=tvm_lib, folders=microtvm_template_projects) }}
-    add_microtvm_permissions()
-    ci_setup(ci_qemu)
-    cpp_unittest(ci_qemu)
-    sh (
-      script: "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh",
-      label: 'Run microTVM tests',
-    )
-    sh (
-      script: "${docker_run} ${ci_qemu} ./tests/scripts/task_demo_microtvm.sh",
-      label: 'Run microTVM demos',
     )
   {% endcall %}
   {% call m.test_step(
