@@ -72,71 +72,68 @@ enum class ExprPrecedence : int32_t {
   kIdentity = 15,
 };
 
-#define DOC_PRECEDENCE_ENTRY(RefType, Precedence) \
-  { RefType::ContainerType::RuntimeTypeIndex(), ExprPrecedence::Precedence }
-
 ExprPrecedence GetExprPrecedence(const ExprDoc& doc) {
   // Key is the value of OperationDocNode::Kind
   static const std::vector<ExprPrecedence> op_kind_precedence = []() {
     using OpKind = OperationDocNode::Kind;
     std::map<OpKind, ExprPrecedence> raw_table = {
-        {OpKind::kUSub, ExprPrecedence::kUnary},             //
-        {OpKind::kInvert, ExprPrecedence::kUnary},           //
-        {OpKind::kAdd, ExprPrecedence::kAdd},                //
-        {OpKind::kSub, ExprPrecedence::kAdd},                //
-        {OpKind::kMult, ExprPrecedence::kMult},              //
-        {OpKind::kDiv, ExprPrecedence::kMult},               //
-        {OpKind::kFloorDiv, ExprPrecedence::kMult},          //
-        {OpKind::kMod, ExprPrecedence::kMult},               //
-        {OpKind::kPow, ExprPrecedence::kExp},                //
-        {OpKind::kLShift, ExprPrecedence::kShift},           //
-        {OpKind::kRShift, ExprPrecedence::kShift},           //
-        {OpKind::kBitAnd, ExprPrecedence::kBitwiseAnd},      //
-        {OpKind::kBitOr, ExprPrecedence::kBitwiseOr},        //
-        {OpKind::kBitXor, ExprPrecedence::kBitwiseXor},      //
-        {OpKind::kLt, ExprPrecedence::kComparison},          //
-        {OpKind::kLtE, ExprPrecedence::kComparison},         //
-        {OpKind::kEq, ExprPrecedence::kComparison},          //
-        {OpKind::kNotEq, ExprPrecedence::kComparison},       //
-        {OpKind::kGt, ExprPrecedence::kComparison},          //
-        {OpKind::kGtE, ExprPrecedence::kComparison},         //
-        {OpKind::kIfThenElse, ExprPrecedence::kIfThenElse},  //
+        {OpKind::kUSub, ExprPrecedence::kUnary},
+        {OpKind::kInvert, ExprPrecedence::kUnary},
+        {OpKind::kAdd, ExprPrecedence::kAdd},
+        {OpKind::kSub, ExprPrecedence::kAdd},
+        {OpKind::kMult, ExprPrecedence::kMult},
+        {OpKind::kDiv, ExprPrecedence::kMult},
+        {OpKind::kFloorDiv, ExprPrecedence::kMult},
+        {OpKind::kMod, ExprPrecedence::kMult},
+        {OpKind::kPow, ExprPrecedence::kExp},
+        {OpKind::kLShift, ExprPrecedence::kShift},
+        {OpKind::kRShift, ExprPrecedence::kShift},
+        {OpKind::kBitAnd, ExprPrecedence::kBitwiseAnd},
+        {OpKind::kBitOr, ExprPrecedence::kBitwiseOr},
+        {OpKind::kBitXor, ExprPrecedence::kBitwiseXor},
+        {OpKind::kLt, ExprPrecedence::kComparison},
+        {OpKind::kLtE, ExprPrecedence::kComparison},
+        {OpKind::kEq, ExprPrecedence::kComparison},
+        {OpKind::kNotEq, ExprPrecedence::kComparison},
+        {OpKind::kGt, ExprPrecedence::kComparison},
+        {OpKind::kGtE, ExprPrecedence::kComparison},
+        {OpKind::kIfThenElse, ExprPrecedence::kIfThenElse},
     };
-
-    std::vector<ExprPrecedence> table;
-    table.resize(static_cast<int>(OperationDocNode::Kind::kSpecialEnd) + 1);
-
+    int n = static_cast<int>(OpKind::kSpecialEnd);
+    std::vector<ExprPrecedence> table(n + 1, ExprPrecedence::kUnkown);
     for (const auto& kv : raw_table) {
       table[static_cast<int>(kv.first)] = kv.second;
     }
-
     return table;
   }();
 
   // Key is the type index of Doc
   static const std::unordered_map<uint32_t, ExprPrecedence> doc_type_precedence = {
-      DOC_PRECEDENCE_ENTRY(LiteralDoc, kIdentity),     //
-      DOC_PRECEDENCE_ENTRY(IdDoc, kIdentity),          //
-      DOC_PRECEDENCE_ENTRY(AttrAccessDoc, kIdentity),  //
-      DOC_PRECEDENCE_ENTRY(IndexDoc, kIdentity),       //
-      DOC_PRECEDENCE_ENTRY(CallDoc, kIdentity),        //
-      DOC_PRECEDENCE_ENTRY(LambdaDoc, kLambda),        //
-      DOC_PRECEDENCE_ENTRY(TupleDoc, kIdentity),       //
-      DOC_PRECEDENCE_ENTRY(ListDoc, kIdentity),        //
-      DOC_PRECEDENCE_ENTRY(DictDoc, kIdentity),        //
+      {LiteralDocNode::RuntimeTypeIndex(), ExprPrecedence::kIdentity},
+      {IdDocNode::RuntimeTypeIndex(), ExprPrecedence::kIdentity},
+      {AttrAccessDocNode::RuntimeTypeIndex(), ExprPrecedence::kIdentity},
+      {IndexDocNode::RuntimeTypeIndex(), ExprPrecedence::kIdentity},
+      {CallDocNode::RuntimeTypeIndex(), ExprPrecedence::kIdentity},
+      {LambdaDocNode::RuntimeTypeIndex(), ExprPrecedence::kLambda},
+      {TupleDocNode::RuntimeTypeIndex(), ExprPrecedence::kIdentity},
+      {ListDocNode::RuntimeTypeIndex(), ExprPrecedence::kIdentity},
+      {DictDocNode::RuntimeTypeIndex(), ExprPrecedence::kIdentity},
   };
 
   if (const auto* op_doc = doc.as<OperationDocNode>()) {
-    ExprPrecedence precedence = op_kind_precedence[static_cast<int>(op_doc->kind)];
+    size_t kind = static_cast<int>(op_doc->kind);
+    ICHECK_LT(kind, op_kind_precedence.size()) << "ValueError: Invalid operation: " << kind;
+    ExprPrecedence precedence = op_kind_precedence[kind];
     ICHECK(precedence != ExprPrecedence::kUnkown)
         << "Precedence for operator " << static_cast<int>(op_doc->kind) << " is unknown";
     return precedence;
-  } else if (doc_type_precedence.find(doc->type_index()) != doc_type_precedence.end()) {
-    return doc_type_precedence.at(doc->type_index());
-  } else {
-    ICHECK(false) << "Precedence for doc type " << doc->GetTypeKey() << " is unknown";
-    throw;
   }
+  auto it = doc_type_precedence.find(doc->type_index());
+  if (it != doc_type_precedence.end()) {
+    return it->second;
+  }
+  ICHECK(false) << "Precedence for doc type " << doc->GetTypeKey() << " is unknown";
+  throw;
 }
 
 class PythonDocPrinter : public DocPrinter {
@@ -239,7 +236,7 @@ class PythonDocPrinter : public DocPrinter {
    * and the `b` and `c` in `a if b else c`.
    */
   void PrintChildExprConservatively(const ExprDoc& doc, const ExprDoc& parent) {
-    PrintChildExpr(doc, parent, /*parenthesis_for_same_precedence*/ true);
+    PrintChildExpr(doc, parent, /*parenthesis_for_same_precedence=*/true);
   }
 
   void MaybePrintCommentInline(const StmtDoc& stmt) {
