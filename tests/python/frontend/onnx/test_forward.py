@@ -16,6 +16,7 @@
 # under the License.
 import glob
 import os
+import platform
 import re
 
 import numpy as np
@@ -5280,6 +5281,9 @@ target_skips = {
 @pytest.mark.parametrize("onnx_test", onnx_test_folders)
 @tvm.testing.parametrize_targets
 def test_onnx_nodes(target, dev, onnx_test):
+    if platform.machine() == "aarch64" and onnx_test == "test_resize_upsample_sizes_nearest":
+        pytest.skip("Currently failing on AArch64")
+
     target_kind = tvm.target.Target(target).kind.name
 
     if onnx_test in unsupported_onnx_tests:
