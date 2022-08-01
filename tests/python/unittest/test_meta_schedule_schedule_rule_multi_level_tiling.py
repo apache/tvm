@@ -478,7 +478,7 @@ sch.reorder(l42, l50, l58, l66, l74, l43, l51, l59, l67, l75, l80, l84, l88, l92
     check_trace(spaces, expected)
 
 
-def test_multi_level_tiling_dense_dpa4():
+def test_multi_level_tiling_dense_dp4a():
     m, n, k = 128, 128, 128
 
     X = te.placeholder((m, k), name="X", dtype="int8")
@@ -559,6 +559,53 @@ sch.annotate(block_or_loop=b49, ann_key="meta_schedule.cooperative_fetch", ann_v
             "\n"
         )
     ]
+
+    check_trace(spaces, expected)
+
+
+def test_multi_level_tiling_dense_dp4a_non_tensorizable():
+    m, n, k = 128, 128, 128
+
+    X = te.placeholder((m, k), name="X", dtype="float32")
+    W = te.placeholder((n, k), name="W", dtype="float32")
+    ak = te.reduce_axis((0, k), name="k")
+
+    matmul = te.compute(
+        (m, n),
+        lambda i, j: te.sum(
+            X[i, ak] * W[j, ak],
+            axis=ak,
+        ),
+        name="compute",
+    )
+
+    func = te.create_prim_func([X, W, matmul])
+
+    ctx = _create_context(
+        func,
+        target=tvm.target.Target("cuda"),
+        rule=schedule_rule.MultiLevelTilingWithIntrin(
+            DP4A_INTRIN,
+            structure="SSSRRSRS",
+            tile_binds=["blockIdx.x", "vthread.x", "threadIdx.x"],
+            max_innermost_factor=64,
+            vector_load_lens=[1, 2, 3, 4],
+            reuse_read=schedule_rule.ReuseType(
+                req="must",
+                levels=[4],
+                scope="shared",
+            ),
+            reuse_write=schedule_rule.ReuseType(
+                req="must",
+                levels=[3],
+                scope="local",
+            ),
+        ),
+    )
+
+    spaces = ctx.space_generator.generate_design_space(mod=ctx.mod)
+
+    expected = [""]
 
     check_trace(spaces, expected)
 

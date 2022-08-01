@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include "../../tir/schedule/analysis.h"
 #include "../../tir/schedule/transform.h"
 #include "../utils.h"
 #include "multi_level_tiling.h"
@@ -41,6 +42,15 @@ tir::BlockRV TileForIntrin(tir::Schedule sch, tir::BlockRV block, const std::str
  */
 class MultiLevelTilingWithIntrinNode : public MultiLevelTilingNode {
  protected:
+  Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final {
+    auto desc_func = tir::TensorIntrin::Get(intrin_name)->desc;
+    if (!CheckAutoTensorizeApplicable(sch, block_rv, desc_func)) {
+      return {sch};
+    }
+
+    return MultiLevelTilingNode::Apply(sch, block_rv);
+  }
+
   // Override ApplySubRules to tile the inner loops according to the given tensor intrinsic, then
   // tile the outerloops.
   virtual std::vector<State> ApplySubRules(std::vector<State> states) {
