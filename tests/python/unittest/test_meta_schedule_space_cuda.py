@@ -1217,6 +1217,90 @@ def test_cuda_cbr():
     )
 
 
+def test_cuda_tbg():
+    # fmt: off
+    @T.prim_func
+    def tbg_0(query: T.Buffer[(1, 128, 12, 64), "float32"], value: T.Buffer[(1, 128, 12, 64), "float32"], C: T.Buffer[(1, 12, 128, 128), "float32"]) -> None:
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.unroll_explicit":1024})
+            C_local = T.alloc_buffer([1, 12, 128, 128], dtype="float32", scope="local")
+            query_T_shared = T.alloc_buffer([1, 12, 128, 64], dtype="float32", scope="shared")
+            value_T_shared = T.alloc_buffer([1, 12, 64, 128], dtype="float32", scope="shared")
+            for i0_0_i1_0_i2_0_i3_0_fused in T.thread_binding(4, thread="blockIdx.x"):
+                for i0_1_i1_1_i2_1_i3_1_fused in T.thread_binding(192, thread="vthread.x"):
+                    for i0_2_i1_2_i2_2_i3_2_fused in T.thread_binding(32, thread="threadIdx.x"):
+                        for i4_0 in T.serial(8):
+                            for ax0_ax1_ax2_ax3_fused in T.serial(12288):
+                                with T.block("query_T_shared"):
+                                    v0 = T.axis.spatial(1, 0)
+                                    v1 = T.axis.spatial(12, ax0_ax1_ax2_ax3_fused // 1024)
+                                    v2 = T.axis.spatial(128, ax0_ax1_ax2_ax3_fused % 1024 // 8)
+                                    v3 = T.axis.spatial(64, i4_0 * 8 + ax0_ax1_ax2_ax3_fused % 8)
+                                    T.reads(query[v0, v2, v1, v3])
+                                    T.writes(query_T_shared[v0, v1, v2, v3])
+                                    T.block_attr({"meta_schedule.cooperative_fetch":3})
+                                    query_T_shared[v0, v1, v2, v3] = query[v0, v2, v1, v3]
+                            for ax0_ax1_ax2_ax3_fused in T.serial(3072):
+                                with T.block("value_T_shared"):
+                                    v0 = T.axis.spatial(1, 0)
+                                    v1 = T.axis.spatial(12, ax0_ax1_ax2_ax3_fused // 256)
+                                    v2 = T.axis.spatial(64, i4_0 * 8 + ax0_ax1_ax2_ax3_fused % 256 // 32)
+                                    v3 = T.axis.spatial(128, i0_0_i1_0_i2_0_i3_0_fused * 32 + ax0_ax1_ax2_ax3_fused % 32)
+                                    T.reads(value[v0, v3, v1, v2])
+                                    T.writes(value_T_shared[v0, v1, v2, v3])
+                                    T.block_attr({"meta_schedule.cooperative_fetch":4})
+                                    value_T_shared[v0, v1, v2, v3] = value[v0, v3, v1, v2]
+                            for i4_1, i0_3, i1_3, i2_3, i3_3, i4_2, i0_4, i1_4, i2_4, i3_4 in T.grid(4, 1, 2, 1, 1, 2, 1, 1, 4, 1):
+                                with T.block("C"):
+                                    b = T.axis.spatial(1, i0_4 + i0_3)
+                                    h = T.axis.spatial(12, i1_4 + i0_1_i1_1_i2_1_i3_1_fused // 32 * 2 + i1_3)
+                                    i = T.axis.spatial(128, i0_1_i1_1_i2_1_i3_1_fused % 32 // 8 * 32 + i0_2_i1_2_i2_2_i3_2_fused // 4 * 4 + i2_3 * 4 + i2_4)
+                                    j = T.axis.spatial(128, i3_4 + i0_0_i1_0_i2_0_i3_0_fused * 32 + i0_1_i1_1_i2_1_i3_1_fused % 8 * 4 + i0_2_i1_2_i2_2_i3_2_fused % 4 + i3_3)
+                                    k = T.axis.reduce(64, i4_0 * 8 + i4_1 * 2 + i4_2)
+                                    T.reads(query_T_shared[b, h, i, k], value_T_shared[b, h, k, j])
+                                    T.writes(C_local[b, h, i, j])
+                                    T.block_attr({"meta_schedule.thread_extent_high_inclusive":1024, "meta_schedule.thread_extent_low_inclusive":32, "meta_schedule.tiling_structure":"SSSRRSRS"})
+                                    with T.init():
+                                        C_local[b, h, i, j] = T.float32(0)
+                                    C_local[b, h, i, j] = C_local[b, h, i, j] + query_T_shared[b, h, i, k] * value_T_shared[b, h, k, j]
+                        for ax0, ax1, ax2, ax3 in T.grid(1, 2, 4, 1):
+                            with T.block("C_local"):
+                                v0 = T.axis.spatial(1, ax0)
+                                v1 = T.axis.spatial(12, i0_1_i1_1_i2_1_i3_1_fused // 32 * 2 + ax1)
+                                v2 = T.axis.spatial(128, i0_1_i1_1_i2_1_i3_1_fused % 32 // 8 * 32 + i0_2_i1_2_i2_2_i3_2_fused // 4 * 4 + ax2)
+                                v3 = T.axis.spatial(128, i0_0_i1_0_i2_0_i3_0_fused * 32 + i0_1_i1_1_i2_1_i3_1_fused % 8 * 4 + i0_2_i1_2_i2_2_i3_2_fused % 4 + ax3)
+                                T.reads(C_local[v0, v1, v2, v3])
+                                T.writes(C[v0, v1, v2, v3])
+                                C[v0, v1, v2, v3] = C_local[v0, v1, v2, v3]
+    # fmt: on
+    decision_0 = [
+        ("SamplePerfectTile", [1, 1, 1, 1, 1]),
+        ("SamplePerfectTile", [1, 6, 1, 2, 1]),
+        ("SamplePerfectTile", [1, 4, 8, 1, 4]),
+        ("SamplePerfectTile", [4, 8, 4, 1, 1]),
+        ("SamplePerfectTile", [8, 4, 2]),
+        ("SampleCategorical", 2),
+        ("SampleCategorical", 3),
+        ("SampleCategorical", 4),
+    ]
+    mod = create_te_workload("TBG", 0)
+    actual = ms.TuneContext(
+        mod=mod,
+        target=_target(),
+        space_generator=ms.space_generator.PostOrderApply(),
+        sch_rules="default",
+    ).generate_design_space()
+    check_sketches(
+        mod,
+        sketches=actual,
+        expected_mods=[tbg_0],
+        expected_decisions=[decision_0],
+    )
+
+
 if __name__ == "__main__":
     test_cuda_c1d()
     test_cuda_c2d()
@@ -1230,3 +1314,4 @@ if __name__ == "__main__":
     test_cuda_nrm()
     test_cuda_sfm()
     test_cuda_cbr()
+    test_cuda_tbg()
