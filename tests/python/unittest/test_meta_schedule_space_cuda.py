@@ -915,6 +915,218 @@ def test_cuda_nrm():
     )
 
 
+def test_cuda_sfm():
+    # fmt: off
+    @T.prim_func
+    def sfm_0(A: T.Buffer[(256, 256), "float32"], T_softmax_norm: T.Buffer[(256, 256), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.unroll_explicit":0})
+            T_softmax_maxelem = T.alloc_buffer([256], dtype="float32")
+            T_softmax_expsum = T.alloc_buffer([256], dtype="float32")
+            for i0_fused_0 in T.thread_binding(2, thread="blockIdx.x"):
+                for i0_fused_1 in T.thread_binding(128, thread="threadIdx.x"):
+                    for i1 in T.serial(256):
+                        with T.block("T_softmax_maxelem"):
+                            i0 = T.axis.spatial(256, i0_fused_0 * 128 + i0_fused_1)
+                            k = T.axis.reduce(256, i1)
+                            T.reads(A[i0, k])
+                            T.writes(T_softmax_maxelem[i0])
+                            with T.init():
+                                T_softmax_maxelem[i0] = T.float32(-3.4028234663852886e+38)
+                            T_softmax_maxelem[i0] = T.max(T_softmax_maxelem[i0], A[i0, k])
+            for i0_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
+                for i0_fused_1 in T.thread_binding(256, thread="threadIdx.x"):
+                    for i1 in T.serial(256):
+                        with T.block("T_softmax_expsum"):
+                            i0 = T.axis.spatial(256, i0_fused_0 * 256 + i0_fused_1)
+                            k = T.axis.reduce(256, i1)
+                            T.reads(A[i0, k], T_softmax_maxelem[i0])
+                            T.writes(T_softmax_expsum[i0])
+                            with T.init():
+                                T_softmax_expsum[i0] = T.float32(0)
+                            T_softmax_expsum[i0] = T_softmax_expsum[i0] + T.exp(A[i0, k] - T_softmax_maxelem[i0], dtype="float32")
+            for i0_i1_fused_0 in T.thread_binding(1024, thread="blockIdx.x"):
+                for i0_i1_fused_1 in T.thread_binding(64, thread="threadIdx.x"):
+                    with T.block("T_softmax_norm"):
+                        i0 = T.axis.spatial(256, (i0_i1_fused_0 * 64 + i0_i1_fused_1) // 256)
+                        i1 = T.axis.spatial(256, (i0_i1_fused_0 * 64 + i0_i1_fused_1) % 256)
+                        T.reads(A[i0, i1], T_softmax_maxelem[i0], T_softmax_expsum[i0])
+                        T.writes(T_softmax_norm[i0, i1])
+                        T.block_attr({"axis":1})
+                        T_softmax_norm[i0, i1] = T.exp(A[i0, i1] - T_softmax_maxelem[i0], dtype="float32") / T_softmax_expsum[i0]
+    @T.prim_func
+    def sfm_1(A: T.Buffer[(256, 256), "float32"], T_softmax_norm: T.Buffer[(256, 256), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.unroll_explicit":16})
+            T_softmax_maxelem = T.alloc_buffer([256], dtype="float32")
+            T_softmax_expsum = T.alloc_buffer([256], dtype="float32")
+            for i0_fused in T.thread_binding(256, thread="blockIdx.x"):
+                for i1_0 in T.serial(64):
+                    for i1_1 in T.thread_binding(4, thread="threadIdx.x"):
+                        with T.block("T_softmax_maxelem"):
+                            i0 = T.axis.spatial(256, i0_fused)
+                            k = T.axis.reduce(256, i1_0 * 4 + i1_1)
+                            T.reads(A[i0, k])
+                            T.writes(T_softmax_maxelem[i0])
+                            with T.init():
+                                T_softmax_maxelem[i0] = T.float32(-3.4028234663852886e+38)
+                            T_softmax_maxelem[i0] = T.max(T_softmax_maxelem[i0], A[i0, k])
+            for i0_fused_0 in T.thread_binding(4, thread="blockIdx.x"):
+                for i0_fused_1 in T.thread_binding(64, thread="threadIdx.x"):
+                    for i1 in T.serial(256):
+                        with T.block("T_softmax_expsum"):
+                            i0 = T.axis.spatial(256, i0_fused_0 * 64 + i0_fused_1)
+                            k = T.axis.reduce(256, i1)
+                            T.reads(A[i0, k], T_softmax_maxelem[i0])
+                            T.writes(T_softmax_expsum[i0])
+                            with T.init():
+                                T_softmax_expsum[i0] = T.float32(0)
+                            T_softmax_expsum[i0] = T_softmax_expsum[i0] + T.exp(A[i0, k] - T_softmax_maxelem[i0], dtype="float32")
+            for i0_i1_fused_0 in T.thread_binding(256, thread="blockIdx.x"):
+                for i0_i1_fused_1 in T.thread_binding(256, thread="threadIdx.x"):
+                    with T.block("T_softmax_norm"):
+                        i0 = T.axis.spatial(256, (i0_i1_fused_0 * 256 + i0_i1_fused_1) // 256)
+                        i1 = T.axis.spatial(256, (i0_i1_fused_0 * 256 + i0_i1_fused_1) % 256)
+                        T.reads(A[i0, i1], T_softmax_maxelem[i0], T_softmax_expsum[i0])
+                        T.writes(T_softmax_norm[i0, i1])
+                        T.block_attr({"axis":1})
+                        T_softmax_norm[i0, i1] = T.exp(A[i0, i1] - T_softmax_maxelem[i0], dtype="float32") / T_softmax_expsum[i0]
+    @T.prim_func
+    def sfm_2(A: T.Buffer[(256, 256), "float32"], T_softmax_norm: T.Buffer[(256, 256), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.unroll_explicit":512})
+            T_softmax_maxelem = T.alloc_buffer([256], dtype="float32")
+            T_softmax_expsum_shared = T.alloc_buffer([256], dtype="float32", scope="shared")
+            for i0_fused_0 in T.thread_binding(8, thread="blockIdx.x"):
+                for i0_fused_1 in T.thread_binding(32, thread="threadIdx.x"):
+                    for i1 in T.serial(256):
+                        with T.block("T_softmax_maxelem"):
+                            i0 = T.axis.spatial(256, i0_fused_0 * 32 + i0_fused_1)
+                            k = T.axis.reduce(256, i1)
+                            T.reads(A[i0, k])
+                            T.writes(T_softmax_maxelem[i0])
+                            with T.init():
+                                T_softmax_maxelem[i0] = T.float32(-3.4028234663852886e+38)
+                            T_softmax_maxelem[i0] = T.max(T_softmax_maxelem[i0], A[i0, k])
+            for i0_fused in T.thread_binding(256, thread="blockIdx.x"):
+                for ax0, ax1_0 in T.grid(1, 1):
+                    for ax1_1 in T.thread_binding(512, thread="threadIdx.x"):
+                        with T.block("T_softmax_expsum"):
+                            i0 = T.axis.spatial(256, i0_fused + ax0)
+                            k = T.axis.reduce(256, ax1_0 * 512 + ax1_1)
+                            T.where(ax1_0 * 512 + ax1_1 < 256)
+                            T.reads(A[i0, k], T_softmax_maxelem[i0])
+                            T.writes(T_softmax_expsum_shared[i0])
+                            with T.init():
+                                T_softmax_expsum_shared[i0] = T.float32(0)
+                            T_softmax_expsum_shared[i0] = T_softmax_expsum_shared[i0] + T.exp(A[i0, k] - T_softmax_maxelem[i0], dtype="float32")
+                for i1_0 in T.serial(1):
+                    for i1_1 in T.thread_binding(512, thread="threadIdx.x"):
+                        with T.block("T_softmax_norm"):
+                            i0 = T.axis.spatial(256, i0_fused)
+                            i1 = T.axis.spatial(256, i1_0 * 512 + i1_1)
+                            T.where(i1_0 * 512 + i1_1 < 256)
+                            T.reads(A[i0, i1], T_softmax_maxelem[i0], T_softmax_expsum_shared[i0])
+                            T.writes(T_softmax_norm[i0, i1])
+                            T.block_attr({"axis":1})
+                            T_softmax_norm[i0, i1] = T.exp(A[i0, i1] - T_softmax_maxelem[i0], dtype="float32") / T_softmax_expsum_shared[i0]
+    @T.prim_func
+    def sfm_3(A: T.Buffer[(256, 256), "float32"], T_softmax_norm: T.Buffer[(256, 256), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.unroll_explicit":0})
+            T_softmax_maxelem_shared = T.alloc_buffer([256], dtype="float32", scope="shared")
+            T_softmax_expsum_shared = T.alloc_buffer([256], dtype="float32", scope="shared")
+            for i0_fused in T.thread_binding(256, thread="blockIdx.x"):
+                for ax0, ax1_0 in T.grid(1, 1):
+                    for ax1_1 in T.thread_binding(512, thread="threadIdx.x"):
+                        with T.block("T_softmax_maxelem"):
+                            i0 = T.axis.spatial(256, i0_fused + ax0)
+                            k = T.axis.reduce(256, ax1_0 * 512 + ax1_1)
+                            T.where(ax1_0 * 512 + ax1_1 < 256)
+                            T.reads(A[i0, k])
+                            T.writes(T_softmax_maxelem_shared[i0])
+                            with T.init():
+                                T_softmax_maxelem_shared[i0] = T.float32(-3.4028234663852886e+38)
+                            T_softmax_maxelem_shared[i0] = T.max(T_softmax_maxelem_shared[i0], A[i0, k])
+                for ax0, ax1_0 in T.grid(1, 1):
+                    for ax1_1 in T.thread_binding(512, thread="threadIdx.x"):
+                        with T.block("T_softmax_expsum"):
+                            i0 = T.axis.spatial(256, i0_fused + ax0)
+                            k = T.axis.reduce(256, ax1_0 * 512 + ax1_1)
+                            T.where(ax1_0 * 512 + ax1_1 < 256)
+                            T.reads(A[i0, k], T_softmax_maxelem_shared[i0])
+                            T.writes(T_softmax_expsum_shared[i0])
+                            with T.init():
+                                T_softmax_expsum_shared[i0] = T.float32(0)
+                            T_softmax_expsum_shared[i0] = T_softmax_expsum_shared[i0] + T.exp(A[i0, k] - T_softmax_maxelem_shared[i0], dtype="float32")
+                for i1_0 in T.serial(1):
+                    for i1_1 in T.thread_binding(512, thread="threadIdx.x"):
+                        with T.block("T_softmax_norm"):
+                            i0 = T.axis.spatial(256, i0_fused)
+                            i1 = T.axis.spatial(256, i1_0 * 512 + i1_1)
+                            T.where(i1_0 * 512 + i1_1 < 256)
+                            T.reads(A[i0, i1], T_softmax_maxelem_shared[i0], T_softmax_expsum_shared[i0])
+                            T.writes(T_softmax_norm[i0, i1])
+                            T.block_attr({"axis":1})
+                            T_softmax_norm[i0, i1] = T.exp(A[i0, i1] - T_softmax_maxelem_shared[i0], dtype="float32") / T_softmax_expsum_shared[i0]
+    # fmt: on
+    decision_0 = [
+        ("SampleCategorical", 0),
+        ("SampleCategorical", 1),
+        ("SampleCategorical", 3),
+        ("SampleCategorical", 2),
+    ]
+    decision_1 = [
+        ("SampleCategorical", 0),
+        ("SampleCategorical", 1),
+        ("SampleCategorical", 3),
+        ("SampleCategorical", 1),
+    ]
+    decision_2 = [
+        ("SampleCategorical", 7),
+        ("SampleCategorical", 3),
+        ("SampleCategorical", 0),
+    ]
+    decision_3 = [
+        ("SampleCategorical", 7),
+        ("SampleCategorical", 0),
+        ("SampleCategorical", 0),
+    ]
+    mod = create_te_workload("SFM", 0)
+    actual = ms.TuneContext(
+        mod=mod,
+        target=_target(),
+        space_generator=ms.space_generator.PostOrderApply(),
+        sch_rules="default",
+    ).generate_design_space()
+    check_sketches(
+        mod,
+        sketches=actual,
+        expected_mods=[sfm_0, sfm_1, sfm_2, sfm_3],
+        expected_decisions=[decision_0, decision_1, decision_2, decision_3],
+    )
+
+
 if __name__ == "__main__":
     test_cuda_c1d()
     test_cuda_c2d()
@@ -926,3 +1138,4 @@ if __name__ == "__main__":
     test_cuda_grp()
     test_cuda_t2d()
     test_cuda_nrm()
+    test_cuda_sfm()
