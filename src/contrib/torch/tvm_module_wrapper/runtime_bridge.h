@@ -25,8 +25,6 @@
 
 extern "C" {
 
-typedef DLManagedTensor** TensorList;
-
 struct DLPackTensorExt {
   DLManagedTensor* dl_managed_tensor;
   bool is_bool;
@@ -36,18 +34,25 @@ struct TVMContribTorchRuntimeModule;
 
 TVMContribTorchRuntimeModule* tvm_contrib_torch_get_last_saved_runtime_module();
 
+void tvm_contrib_torch_free_runtime_module(TVMContribTorchRuntimeModule* module_ptr);
+
+TVMContribTorchRuntimeModule* tvm_contrib_torch_create_graph_runtime_module(
+    TVMContribTorchRuntimeModule* graph_module, DLManagedTensor* input_example);
+
 void tvm_contrib_torch_operator_module_forward(TVMContribTorchRuntimeModule* runtime_module,
                                                DLPackTensorExt* inputs, size_t input_size);
 
-int64_t tvm_contrib_torch_graph_executor_module_forward(TVMContribTorchRuntimeModule* graph_module,
-                                                        DLPackTensorExt* inputs, size_t input_size,
-                                                        DLPackTensorExt** outputs);
+size_t tvm_contrib_torch_graph_executor_module_forward(TVMContribTorchRuntimeModule* graph_module,
+                                                       DLPackTensorExt* inputs, size_t input_size,
+                                                       DLPackTensorExt** outputs);
 
 char* tvm_contrib_torch_encode(TVMContribTorchRuntimeModule* runtime_module);
 
 TVMContribTorchRuntimeModule* tvm_contrib_torch_decode(const char* state);
 
-void tvm_contrib_torch_delete_raw_pointer(TensorList* ptr);
+void tvm_contrib_torch_free_dlpack_tensor_ext_array(DLPackTensorExt*);
+
+void tvm_contrib_torch_free_encoding(char* encoding);
 }
 
 #endif  // TVM_CONTRIB_TORCH_TVM_MODULE_WRAPPER_RUNTIME_BRIDGE_H_

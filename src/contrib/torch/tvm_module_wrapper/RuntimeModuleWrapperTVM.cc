@@ -32,6 +32,9 @@
 #include "../base64.h"
 #include "runtime_bridge.h"
 
+namespace tvm {
+namespace contrib {
+
 struct ThreadLocalStore {
   tvm::runtime::Module mod;
   static ThreadLocalStore* ThreadLocal() {
@@ -39,9 +42,6 @@ struct ThreadLocalStore {
     return &tls;
   }
 };
-
-namespace tvm {
-namespace contrib {
 
 std::string serialize(tvm::runtime::Module module) {
   static const runtime::PackedFunc* f_to_str =
@@ -86,13 +86,29 @@ tvm::runtime::Module deserialize(std::string state) {
 }
 
 tvm::Device getDeviceInfo(DLManagedTensor* input_device) {
-  return {.device_type = input_device->dl_tensor.device.device_type,
-          .device_id = input_device->dl_tensor.device.device_id};
+  tvm::Device ret{input_device->dl_tensor.device.device_type,
+                  input_device->dl_tensor.device.device_id};
+  return ret;
 }
 
 TVM_REGISTER_GLOBAL("tvmtorch.save_runtime_mod").set_body_typed([](tvm::runtime::Module mod) {
   ThreadLocalStore::ThreadLocal()->mod = mod;
 });
+
+DLPackTensorExt create_dlpack_tensor_ext(tvm::runtime::NDArray* results, bool is_bool,
+                                        tvm::Device* device_info) {
+  DLManagedTensor* tensor;
+  if (is_bool) {
+    auto tmp =
+        tvm::runtime::NDArray::Empty(results->Shape(), DLDataType{kDLInt, 8, 1}, *device_info);
+    results->CopyTo(tmp);
+    tensor = tmp.ToDLPack();
+  } else {
+    tensor = results->ToDLPack();
+  }
+  DLPackTensorExt ret{tensor, is_bool};
+  return ret;
+}
 
 }  // namespace contrib
 }  // namespace tvm
@@ -102,11 +118,11 @@ extern "C" {
 struct TVMContribTorchRuntimeModule {
   tvm::runtime::Module mod;
 
-  explicit TVMContribTorchRuntimeModule(tvm::runtime::Module mod) : mod(mod) {}
+  explicit TVMContribTorchRuntimeModule(tvm::runtime::Module& mod) : mod(mod) {}
 };
 
 TVMContribTorchRuntimeModule* tvm_contrib_torch_get_last_saved_runtime_module() {
-  return new TVMContribTorchRuntimeModule(ThreadLocalStore::ThreadLocal()->mod);
+  return new TVMContribTorchRuntimeModule(tvm::contrib::ThreadLocalStore::ThreadLocal()->mod);
 }
 
 void tvm_contrib_torch_operator_module_forward(TVMContribTorchRuntimeModule* runtime_module,
@@ -123,16 +139,22 @@ void tvm_contrib_torch_operator_module_forward(TVMContribTorchRuntimeModule* run
                  nullptr);
 }
 
-int64_t tvm_contrib_torch_graph_executor_module_forward(TVMContribTorchRuntimeModule* graph_module,
-                                                        DLPackTensorExt* inputs, size_t input_size,
-                                                        DLPackTensorExt** outputs) {
+TVMContribTorchRuntimeModule* tvm_contrib_torch_create_graph_runtime_module(
+    TVMContribTorchRuntimeModule* graph_module, DLManagedTensor* input_example) {
   tvm::runtime::PackedFunc built_module = graph_module->mod.GetFunction("default");
-  auto device_info = tvm::contrib::getDeviceInfo(inputs[0].dl_managed_tensor);
+  tvm::Device device_info = tvm::contrib::getDeviceInfo(input_example);
   tvm::runtime::Module runtime_module = built_module(device_info);
-  tvm::runtime::PackedFunc run = runtime_module.GetFunction("run");
-  tvm::runtime::PackedFunc set_input = runtime_module.GetFunction("set_input");
-  tvm::runtime::PackedFunc get_output = runtime_module.GetFunction("get_output");
-  tvm::runtime::PackedFunc get_num_outputs = runtime_module.GetFunction("get_num_outputs");
+  return new TVMContribTorchRuntimeModule(runtime_module);
+}
+
+size_t tvm_contrib_torch_graph_executor_module_forward(TVMContribTorchRuntimeModule* runtime_module,
+                                                       DLPackTensorExt* inputs, size_t input_size,
+                                                       DLPackTensorExt** outputs) {
+  tvm::runtime::PackedFunc run = runtime_module->mod.GetFunction("run");
+  tvm::runtime::PackedFunc set_input = runtime_module->mod.GetFunction("set_input");
+  tvm::runtime::PackedFunc get_output = runtime_module->mod.GetFunction("get_output");
+  tvm::runtime::PackedFunc get_num_outputs = runtime_module->mod.GetFunction("get_num_outputs");
+  tvm::Device device_info = tvm::contrib::getDeviceInfo(inputs[0].dl_managed_tensor);
 
   for (int k = 0; k < input_size; ++k) {
     set_input(k, &inputs[k].dl_managed_tensor->dl_tensor);
@@ -142,38 +164,37 @@ int64_t tvm_contrib_torch_graph_executor_module_forward(TVMContribTorchRuntimeMo
 
   int64_t output_length = get_num_outputs();
 
-  auto outputs_ptr = new DLPackTensorExt[output_length];
+  DLPackTensorExt* outputs_ptr = new DLPackTensorExt[output_length];
   *outputs = outputs_ptr;
 
   for (int k = 0; k < output_length; ++k) {
     tvm::runtime::NDArray results = get_output(k);
-    auto is_bool = results.DataType().is_bool();
-    DLManagedTensor* tensor;
-    if (is_bool) {
-      auto tmp =
-          tvm::runtime::NDArray::Empty(results.Shape(), DLDataType{kDLInt, 8, 1}, device_info);
-      results.CopyTo(tmp);
-      tensor = tmp.ToDLPack();
-    } else {
-      tensor = results.ToDLPack();
-    }
-    outputs_ptr[k] = {.dl_managed_tensor = tensor, .is_bool = is_bool};
+    bool is_bool = results.DataType().is_bool();
+    outputs_ptr[k] = tvm::contrib::create_dlpack_tensor_ext(&results, is_bool, &device_info);
   }
 
   return output_length;
 }
 
 char* tvm_contrib_torch_encode(TVMContribTorchRuntimeModule* runtime_module) {
-  auto std = tvm::contrib::serialize(runtime_module->mod);
-  auto* ret = new char[std.length() + 1];
+  std::string std = tvm::contrib::serialize(runtime_module->mod);
+  char* ret = new char[std.length() + 1];
   snprintf(ret, std.length() + 1, "%s", std.c_str());
   return ret;
 }
 
 TVMContribTorchRuntimeModule* tvm_contrib_torch_decode(const char* state) {
-  auto ret = tvm::contrib::deserialize(state);
+  tvm::runtime::Module ret = tvm::contrib::deserialize(state);
   return new TVMContribTorchRuntimeModule(ret);
 }
 
-void tvm_contrib_torch_delete_raw_pointer(TensorList* ptr) { delete ptr; }
+void tvm_contrib_torch_free_runtime_module(TVMContribTorchRuntimeModule* module_ptr) {
+  delete module_ptr;
+}
+
+void tvm_contrib_torch_free_dlpack_tensor_ext_array(DLPackTensorExt* dlpack_ptr) {
+  delete dlpack_ptr;
+}
+
+void tvm_contrib_torch_free_encoding(char* encoding) { delete encoding; }
 }

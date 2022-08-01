@@ -16,9 +16,10 @@
 # under the License.
 # pylint: disable=invalid-name
 """Module container of PyTorch custom class"""
-from typing import List
-import torch
 import warnings
+from typing import List
+
+import torch
 
 
 class GraphModule(torch.nn.Module):

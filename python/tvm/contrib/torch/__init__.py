@@ -36,9 +36,10 @@ def _load_platform_specific_library(lib_name="libpt_tvmintg"):
     lib_file_path = os.path.join(lib_dir, lib_file_name)
     try:
         torch.classes.load_library(lib_file_path)
-    except:
+    except OSError:
         warnings.warn(
-            f"The library {lib_name} is not built and loaded successfully.", RuntimeWarning
+            f"The library {lib_name} is not built successfully due to the CXXABI incompatibility.",
+            RuntimeWarning,
         )
 
 
