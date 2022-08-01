@@ -18,9 +18,11 @@
 import sys
 
 import pytest
+
 import tvm.testing
 from tvm.ir import IRModule
 from tvm.meta_schedule.testing.te_workload import create_te_workload
+from tvm.script import tir as T
 from tvm.tir.analysis import estimate_tir_flops
 
 
@@ -46,6 +48,18 @@ def test_te_workload(workload, flops):
     te_workload = create_te_workload(workload, 0)
     mod = IRModule({"main": te_workload})
     assert float(flops) == estimate_tir_flops(mod)
+
+
+@T.prim_func
+def flops_with_let(a: T.Buffer[16, "float32"]):
+    for i in range(8):
+        j = i + 8
+        a[j] = a[i]
+
+
+def test_flops_with_let():
+    flops = estimate_tir_flops(IRModule({"main": flops_with_let}))
+    assert flops == 8
 
 
 if __name__ == "__main__":
