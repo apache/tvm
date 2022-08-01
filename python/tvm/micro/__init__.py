@@ -32,4 +32,3 @@ from .session import (
     SessionTerminatedError,
 )
 from .transport import TransportLogger
-from .testing import _ci_env_check
