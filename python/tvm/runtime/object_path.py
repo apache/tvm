@@ -128,7 +128,7 @@ class MissingMapEntryPath(ObjectPath):
 @tvm._ffi.register_object("ObjectPathPair")
 class ObjectPathPair(Object):
     """
-    Pair of `ObjectPath`s, one for each object being tested for structural equality.
+    Pair of ObjectPaths, one for each object being tested for structural equality.
     """
 
     @property
