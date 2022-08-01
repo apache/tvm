@@ -1536,6 +1536,130 @@ def test_cpu_t2d():
     )
 
 
+def test_cpu_nrm():
+    # fmt: off
+    @T.prim_func
+    def nrm_0(A: T.Buffer[(1, 256, 256), "float32"], D: T.Buffer[1, "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":0, "meta_schedule.vectorize":64})
+            C = T.alloc_buffer([1], dtype="float32")
+            C_rf = T.alloc_buffer([1, 32768], dtype="float32")
+            for i0, i1_i2_fused_0, i1_i2_fused_1 in T.grid(1, 32768, 2):
+                with T.block("C_rf"):
+                    vi1_i2_fused_0, b, vi1_i2_fused_1 = T.axis.remap("SSR", [i1_i2_fused_0, i0, i1_i2_fused_1])
+                    T.reads(A[b, (vi1_i2_fused_0 * 2 + vi1_i2_fused_1) // 256, (vi1_i2_fused_0 * 2 + vi1_i2_fused_1) % 256])
+                    T.writes(C_rf[b, vi1_i2_fused_0])
+                    with T.init():
+                        C_rf[b, vi1_i2_fused_0] = T.float32(0)
+                    C_rf[b, vi1_i2_fused_0] = C_rf[b, vi1_i2_fused_0] + A[b, (vi1_i2_fused_0 * 2 + vi1_i2_fused_1) // 256, (vi1_i2_fused_0 * 2 + vi1_i2_fused_1) % 256] * A[b, (vi1_i2_fused_0 * 2 + vi1_i2_fused_1) // 256, (vi1_i2_fused_0 * 2 + vi1_i2_fused_1) % 256]
+            for i0, i1_i2_fused_0 in T.grid(1, 32768):
+                with T.block("C"):
+                    vi1_i2_fused_0, b = T.axis.remap("RS", [i1_i2_fused_0, i0])
+                    T.reads(C_rf[b, vi1_i2_fused_0])
+                    T.writes(C[b])
+                    with T.init():
+                        C[b] = T.float32(0)
+                    C[b] = C[b] + C_rf[b, vi1_i2_fused_0]
+            for i0 in T.serial(1):
+                with T.block("D"):
+                    b = T.axis.spatial(1, i0)
+                    T.reads(C[b])
+                    T.writes(D[b])
+                    D[b] = T.sqrt(C[b], dtype="float32")
+    @T.prim_func
+    def nrm_1(A: T.Buffer[(1, 256, 256), "float32"], D: T.Buffer[1, "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":16, "meta_schedule.vectorize":64})
+            C = T.alloc_buffer([1], dtype="float32")
+            C_rf = T.alloc_buffer([1, 2], dtype="float32")
+            for i0, i1_i2_fused_0, i1_i2_fused_1 in T.grid(1, 32768, 2):
+                with T.block("C_rf"):
+                    vi1_i2_fused_1, b, vi1_i2_fused_0 = T.axis.remap("SSR", [i1_i2_fused_1, i0, i1_i2_fused_0])
+                    T.reads(A[b, (vi1_i2_fused_0 * 2 + vi1_i2_fused_1) // 256, (vi1_i2_fused_0 * 2 + vi1_i2_fused_1) % 256])
+                    T.writes(C_rf[b, vi1_i2_fused_1])
+                    with T.init():
+                        C_rf[b, vi1_i2_fused_1] = T.float32(0)
+                    C_rf[b, vi1_i2_fused_1] = C_rf[b, vi1_i2_fused_1] + A[b, (vi1_i2_fused_0 * 2 + vi1_i2_fused_1) // 256, (vi1_i2_fused_0 * 2 + vi1_i2_fused_1) % 256] * A[b, (vi1_i2_fused_0 * 2 + vi1_i2_fused_1) // 256, (vi1_i2_fused_0 * 2 + vi1_i2_fused_1) % 256]
+            for i0, i1_i2_fused_1 in T.grid(1, 2):
+                with T.block("C"):
+                    vi1_i2_fused_1, b = T.axis.remap("RS", [i1_i2_fused_1, i0])
+                    T.reads(C_rf[b, vi1_i2_fused_1])
+                    T.writes(C[b])
+                    with T.init():
+                        C[b] = T.float32(0)
+                    C[b] = C[b] + C_rf[b, vi1_i2_fused_1]
+            for i0 in T.serial(1):
+                with T.block("D"):
+                    b = T.axis.spatial(1, i0)
+                    T.reads(C[b])
+                    T.writes(D[b])
+                    D[b] = T.sqrt(C[b], dtype="float32")
+    @T.prim_func
+    def nrm_2(A: T.Buffer[(1, 256, 256), "float32"], D: T.Buffer[1, "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":0, "meta_schedule.vectorize":64})
+            C = T.alloc_buffer([1], dtype="float32")
+            for i0, i1, i2 in T.grid(1, 256, 256):
+                with T.block("C"):
+                    b, i, j = T.axis.remap("SRR", [i0, i1, i2])
+                    T.reads(A[b, i, j])
+                    T.writes(C[b])
+                    with T.init():
+                        C[b] = T.float32(0)
+                    C[b] = C[b] + A[b, i, j] * A[b, i, j]
+            for i0 in T.serial(1):
+                with T.block("D"):
+                    b = T.axis.spatial(1, i0)
+                    T.reads(C[b])
+                    T.writes(D[b])
+                    D[b] = T.sqrt(C[b], dtype="float32")
+    # fmt: on
+    decision_0 = [
+        ("SamplePerfectTile", [32768, 2]),
+        ("SampleCategorical", 0),
+        ("SampleComputeLocation", -1),
+        ("SampleComputeLocation", -1),
+    ]
+    decision_1 = [
+        ("SamplePerfectTile", [32768, 2]),
+        ("SampleCategorical", 1),
+        ("SampleComputeLocation", -1),
+        ("SampleComputeLocation", -1),
+    ]
+    decision_2 = [
+        ("SampleCategorical", 0),
+        ("SampleComputeLocation", -1),
+    ]
+    mod = create_te_workload("NRM", 0)
+    actual = ms.TuneContext(
+        mod=mod,
+        target=_target(),
+        space_generator=ms.space_generator.PostOrderApply(),
+        sch_rules="default",
+    ).generate_design_space()
+    check_sketches(
+        mod,
+        sketches=actual,
+        expected_mods=[nrm_0, nrm_1, nrm_2],
+        expected_decisions=[decision_0, decision_1, decision_2],
+    )
+
+
 if __name__ == "__main__":
     test_cpu_c1d()
     test_cpu_c2d()
@@ -1546,3 +1670,4 @@ if __name__ == "__main__":
     test_cpu_gmm()
     test_cpu_grp()
     test_cpu_t2d()
+    test_cpu_nrm()
