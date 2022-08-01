@@ -21,30 +21,31 @@ Doc objects, then access and modify their attributes correctly.
 
 import pytest
 
+import tvm
 from tvm.script.printer.doc import (
-    LiteralDoc,
-    IdDoc,
+    AssertDoc,
+    AssignDoc,
     AttrAccessDoc,
-    IndexDoc,
     CallDoc,
-    OperationKind,
-    OperationDoc,
-    LambdaDoc,
-    TupleDoc,
-    ListDoc,
+    ClassDoc,
     DictDoc,
+    ExprStmtDoc,
+    ForDoc,
+    FunctionDoc,
+    IdDoc,
+    IfDoc,
+    IndexDoc,
+    LambdaDoc,
+    ListDoc,
+    LiteralDoc,
+    OperationDoc,
+    OperationKind,
+    ReturnDoc,
+    ScopeDoc,
     SliceDoc,
     StmtBlockDoc,
-    AssignDoc,
-    IfDoc,
+    TupleDoc,
     WhileDoc,
-    ForDoc,
-    ScopeDoc,
-    ExprStmtDoc,
-    AssertDoc,
-    ReturnDoc,
-    FunctionDoc,
-    ClassDoc,
 )
 
 
@@ -451,6 +452,13 @@ def test_return_doc():
     ],
 )
 @pytest.mark.parametrize(
+    "return_type",
+    [
+        None,
+        LiteralDoc(None),
+    ],
+)
+@pytest.mark.parametrize(
     "body",
     [
         [],
@@ -458,9 +466,8 @@ def test_return_doc():
         [ExprStmtDoc(IdDoc("x")), ExprStmtDoc(IdDoc("y"))],
     ],
 )
-def test_function_doc(args, decorators, body):
+def test_function_doc(args, decorators, return_type, body):
     name = IdDoc("name")
-    return_type = LiteralDoc(None)
 
     doc = FunctionDoc(name, args, decorators, return_type, body)
 
@@ -504,3 +511,7 @@ def test_stmt_doc_comment():
     comment = "test comment"
     doc.comment = comment
     assert doc.comment == comment
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

@@ -14,9 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
 import itertools
 
+import pytest
+
+import tvm
 from tvm.script.printer.doc import (
     AssertDoc,
     AssignDoc,
@@ -701,29 +703,32 @@ def test_print_return_doc(value, expected):
 
 
 @pytest.mark.parametrize(
-    "args, decorators, body, expected",
+    "args, decorators, return_type, body, expected",
     [
         (
             [],
             [],
+            None,
             [],
             """
-            def func() -> None:
+            def func():
                 pass
             """,
         ),
         (
             [AssignDoc(IdDoc("x"), rhs=None, annotation=IdDoc("int"))],
             [],
+            IdDoc("int"),
             [],
             """
-            def func(x: int) -> None:
+            def func(x: int) -> int:
                 pass
             """,
         ),
         (
             [AssignDoc(IdDoc("x"), rhs=LiteralDoc(1), annotation=IdDoc("int"))],
             [],
+            LiteralDoc(None),
             [],
             """
             def func(x: int = 1) -> None:
@@ -733,6 +738,7 @@ def test_print_return_doc(value, expected):
         (
             [],
             [IdDoc("wrap")],
+            LiteralDoc(None),
             [],
             """
             @wrap
@@ -743,6 +749,7 @@ def test_print_return_doc(value, expected):
         (
             [],
             [IdDoc("wrap_outter"), IdDoc("wrap_inner")],
+            LiteralDoc(None),
             [],
             """
             @wrap_outter
@@ -757,6 +764,7 @@ def test_print_return_doc(value, expected):
                 AssignDoc(IdDoc("y"), rhs=LiteralDoc(1), annotation=IdDoc("int")),
             ],
             [IdDoc("wrap")],
+            LiteralDoc(None),
             [],
             """
             @wrap
@@ -770,6 +778,7 @@ def test_print_return_doc(value, expected):
                 AssignDoc(IdDoc("y"), rhs=LiteralDoc(1), annotation=IdDoc("int")),
             ],
             [IdDoc("wrap")],
+            LiteralDoc(None),
             [
                 AssignDoc(IdDoc("y"), OperationDoc(OperationKind.Add, [IdDoc("x"), LiteralDoc(1)])),
                 AssignDoc(IdDoc("y"), OperationDoc(OperationKind.Sub, [IdDoc("y"), LiteralDoc(1)])),
@@ -784,8 +793,8 @@ def test_print_return_doc(value, expected):
     ],
     ids=itertools.count(),
 )
-def test_print_function_doc(args, decorators, body, expected):
-    doc = FunctionDoc(IdDoc("func"), args, decorators, LiteralDoc(None), body)
+def test_print_function_doc(args, decorators, body, return_type, expected):
+    doc = FunctionDoc(IdDoc("func"), args, decorators, return_type, body)
     assert to_python_script(doc) == format_script(expected)  # test
 
 
@@ -1038,3 +1047,297 @@ def test_print_invalid_multiline_doc_comment(doc):
     with pytest.raises(ValueError) as e:
         to_python_script(doc)
     assert "cannot have newline" in str(e.value)
+
+
+def generate_expr_precedence_test_cases():
+    x = IdDoc("x")
+    y = IdDoc("y")
+    z = IdDoc("z")
+
+    def negative(a):
+        return OperationDoc(OperationKind.USub, [a])
+
+    def invert(a):
+        return OperationDoc(OperationKind.Invert, [a])
+
+    def add(a, b):
+        return OperationDoc(OperationKind.Add, [a, b])
+
+    def sub(a, b):
+        return OperationDoc(OperationKind.Sub, [a, b])
+
+    def mult(a, b):
+        return OperationDoc(OperationKind.Mult, [a, b])
+
+    def div(a, b):
+        return OperationDoc(OperationKind.Div, [a, b])
+
+    def mod(a, b):
+        return OperationDoc(OperationKind.Mod, [a, b])
+
+    def pow(a, b):
+        return OperationDoc(OperationKind.Pow, [a, b])
+
+    def lshift(a, b):
+        return OperationDoc(OperationKind.LShift, [a, b])
+
+    def bit_and(a, b):
+        return OperationDoc(OperationKind.BitAnd, [a, b])
+
+    def bit_or(a, b):
+        return OperationDoc(OperationKind.BitOr, [a, b])
+
+    def bit_xor(a, b):
+        return OperationDoc(OperationKind.BitXor, [a, b])
+
+    def lt(a, b):
+        return OperationDoc(OperationKind.Lt, [a, b])
+
+    def eq(a, b):
+        return OperationDoc(OperationKind.Eq, [a, b])
+
+    def not_eq(a, b):
+        return OperationDoc(OperationKind.NotEq, [a, b])
+
+    def if_then_else(a, b, c):
+        return OperationDoc(OperationKind.IfThenElse, [a, b, c])
+
+    test_cases = {
+        "attr-call-index": [
+            (
+                add(x, y).attr("test"),
+                "(x + y).test",
+            ),
+            (
+                add(x, y.attr("test")),
+                "x + y.test",
+            ),
+            (
+                x[z].call(y),
+                "x[z](y)",
+            ),
+            (
+                x.call(y)[z],
+                "x(y)[z]",
+            ),
+            (
+                x.call(y).call(z),
+                "x(y)(z)",
+            ),
+            (
+                x.call(y).attr("test"),
+                "x(y).test",
+            ),
+            (
+                x.attr("test").call(y),
+                "x.test(y)",
+            ),
+            (
+                x.attr("test").attr("test2"),
+                "x.test.test2",
+            ),
+            (
+                LambdaDoc([x], x).call(y),
+                "(lambda x: x)(y)",
+            ),
+            (
+                add(x, y)[z][add(z, z)].attr("name"),
+                "(x + y)[z][z + z].name",
+            ),
+        ],
+        "power": [
+            (
+                pow(pow(x, y), z),
+                "(x ** y) ** z",
+            ),
+            (
+                pow(x, pow(y, z)),
+                "x ** y ** z",
+            ),
+            (
+                pow(negative(x), negative(y)),
+                "(-x) ** -y",
+            ),
+            (
+                pow(add(x, y), add(y, z)),
+                "(x + y) ** (y + z)",
+            ),
+        ],
+        "unary": [
+            (
+                invert(negative(y)),
+                "~-y",
+            ),
+            (
+                negative(y).attr("test"),
+                "(-y).test",
+            ),
+            (
+                negative(y.attr("test")),
+                "-y.test",
+            ),
+            (
+                mult(negative(x), negative(y)),
+                "-x * -y",
+            ),
+            (
+                negative(add(invert(x), negative(y))),
+                "-(~x + -y)",
+            ),
+        ],
+        "add-mult": [
+            (
+                mult(x, mult(y, z)),
+                "x * (y * z)",
+            ),
+            (
+                mult(mult(x, y), z),
+                "x * y * z",
+            ),
+            (
+                mult(x, add(y, z)),
+                "x * (y + z)",
+            ),
+            (
+                mult(add(y, z), x),
+                "(y + z) * x",
+            ),
+            (
+                add(x, mod(y, z)),
+                "x + y % z",
+            ),
+            (
+                add(mult(y, z), x),
+                "y * z + x",
+            ),
+            (
+                add(add(x, y), add(y, z)),
+                "x + y + (y + z)",
+            ),
+            (
+                div(add(x, y), add(y, z)),
+                "(x + y) / (y + z)",
+            ),
+        ],
+        "shift": [
+            (
+                div(x, lshift(y, z)),
+                "x / (y << z)",
+            ),
+            (
+                mult(lshift(y, z), x),
+                "(y << z) * x",
+            ),
+            (
+                lshift(x, mult(y, z)),
+                "x << y * z",
+            ),
+            (
+                lshift(mult(x, y), z),
+                "x * y << z",
+            ),
+            (
+                lshift(mult(x, y), z),
+                "x * y << z",
+            ),
+            (
+                lshift(lshift(x, y), z),
+                "x << y << z",
+            ),
+            (
+                lshift(x, lshift(y, z)),
+                "x << (y << z)",
+            ),
+        ],
+        "bitwise": [
+            (
+                add(bit_or(x, y), bit_or(y, z)),
+                "(x | y) + (y | z)",
+            ),
+            (
+                bit_and(bit_or(x, y), bit_or(y, z)),
+                "(x | y) & (y | z)",
+            ),
+            (
+                bit_or(bit_and(x, y), bit_and(y, z)),
+                "x & y | y & z",
+            ),
+            (
+                bit_and(bit_xor(x, bit_or(y, z)), z),
+                "(x ^ (y | z)) & z",
+            ),
+        ],
+        "comparison": [
+            (
+                not_eq(add(x, y), z),
+                "x + y != z",
+            ),
+            (
+                eq(pow(x, y), z),
+                "x ** y == z",
+            ),
+            (
+                lt(x, div(y, z)),
+                "x < y / z",
+            ),
+            (
+                lt(x, if_then_else(y, y, y)),
+                "x < (y if y else y)",
+            ),
+        ],
+        "if-then-else": [
+            (
+                if_then_else(x, if_then_else(y, y, y), z),
+                "y if y else y if x else z",
+            ),
+            (
+                if_then_else(if_then_else(x, x, x), y, z),
+                "y if (x if x else x) else z",
+            ),
+            (
+                if_then_else(x, y, if_then_else(z, z, z)),
+                "y if x else (z if z else z)",
+            ),
+            (
+                if_then_else(lt(x, x), add(y, y), mult(z, z)),
+                "y + y if x < x else z * z",
+            ),
+            (
+                if_then_else(LambdaDoc([x], x), LambdaDoc([y], y), LambdaDoc([z], z)),
+                "(lambda y: y) if (lambda x: x) else (lambda z: z)",
+            ),
+        ],
+        "lambda": [
+            (
+                LambdaDoc([x, y], add(z, z)),
+                "lambda x, y: z + z",
+            ),
+            (
+                add(LambdaDoc([x, y], z), z),
+                "(lambda x, y: z) + z",
+            ),
+            (
+                LambdaDoc([x, y], add(z, z)).call(x, y),
+                "(lambda x, y: z + z)(x, y)",
+            ),
+            (
+                LambdaDoc([x], LambdaDoc([y], z)),
+                "lambda x: lambda y: z",
+            ),
+        ],
+    }
+
+    return [
+        pytest.param(*args, id=f"{group_name}-{i}")
+        for group_name, cases in test_cases.items()
+        for i, args in enumerate(cases)
+    ]
+
+
+@pytest.mark.parametrize("doc, expected", generate_expr_precedence_test_cases())
+def test_expr_precedence(doc, expected):
+    assert to_python_script(doc) == format_script(expected)
+
+
+if __name__ == "__main__":
+    tvm.testing.main()
