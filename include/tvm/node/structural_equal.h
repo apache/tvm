@@ -317,11 +317,11 @@ class SEqualReducer {
                                      const PathTracingData* tracing_data);
 
   /*! \brief Internal class pointer. */
-  Handler* handler_;
+  Handler* handler_ = nullptr;
   /*! \brief Pointer to the current path tracing context, or nullptr if path tracing is disabled. */
-  const PathTracingData* tracing_data_;
+  const PathTracingData* tracing_data_ = nullptr;
   /*! \brief Whether or not to map free vars. */
-  bool map_free_vars_;
+  bool map_free_vars_ = false;
 };
 
 }  // namespace tvm
