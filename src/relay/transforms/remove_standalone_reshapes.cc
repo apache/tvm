@@ -17,13 +17,8 @@
  * under the License.
  */
 /*!
- * \file remove_standalone_reshapes.cc
+ * \file src/relay/transforms/remove_standalone_reshapes.cc
  * \brief This file contains the Relay pass for removing unfused reshapes from lowered graph.
- * InferType() cannot be invoked after calling this pass as it removes reshapes from the call
- * graph. Many targets only need buffer addresses irrespective of the shapes of them. This makes
- * reshapes symbolic once the graph has been lowered. Reshape removal results into smaller code
- * size and reduced buffer allocations. It opens up opportunities of operator fusion in the target
- * backend. Thus, consequently, it improves the performance of the inference.
  */
 
 #include <tvm/relay/expr_functor.h>
@@ -116,6 +111,9 @@ Pass RemoveStandaloneReshapes() {
   };
   return tvm::transform::CreateModulePass(pass_func, 0, "RemoveStandaloneReshapes", {});
 }
+
+TVM_REGISTER_GLOBAL("relay._transform.RemoveStandaloneReshapes")
+    .set_body_typed(RemoveStandaloneReshapes);
 
 }  // namespace transform
 }  // namespace relay

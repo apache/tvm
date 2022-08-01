@@ -587,10 +587,12 @@ TVM_DLL Pass CapturePostDfsIndexInSpans();
 TVM_DLL Pass AnnotateMemoryScope(CompilationConfig config);
 
 /*!
- * \brief Remove non-fused reshapes after lowering the graph.
- *
- *
- * \return The pass.
+ * \brief Removes non-fused reshapes after lowering the graph.
+ * InferType() cannot be invoked after calling this pass as it removes reshapes from the call
+ * graph. Many targets only need buffer addresses irrespective of the shapes of them. This makes
+ * reshapes symbolic once the graph has been lowered. Reshape removal results into smaller code
+ * size and reduced buffer allocations. It opens up opportunities of operator fusion in the target
+ * backend. Thus, consequently, it improves the performance of the inference.
  */
 TVM_DLL Pass RemoveStandaloneReshapes();
 
