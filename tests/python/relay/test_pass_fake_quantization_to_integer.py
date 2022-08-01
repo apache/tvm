@@ -747,7 +747,7 @@ def test_fake_quantize_subtract_different_output_zp():
 
         x_np = np.random.randint(0, 255, size=[1, 128, 128, 3], dtype=dtype)
 
-        compare_fq_to_int(op, [x_np])
+        compare_fq_to_int(op, [x_np], True)
 
 
 def test_fake_quantize_pad():
