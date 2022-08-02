@@ -54,7 +54,7 @@ ci_gpu = 'tlcpack/ci-gpu:20220801-060139-d332eb374'
 ci_cpu = 'tlcpack/ci-cpu:20220715-060127-37f9d3c49'
 ci_wasm = 'tlcpack/ci-wasm:20220715-060127-37f9d3c49'
 ci_i386 = 'tlcpack/ci-i386:20220715-060127-37f9d3c49'
-ci_qemu = 'tlcpack/ci-qemu:20220630-060117-558ba99c7'
+ci_cortexm = 'tlcpack/ci-qemu:20220630-060117-558ba99c7'
 ci_arm = 'tlcpack/ci-arm:20220715-060127-37f9d3c49'
 ci_hexagon = 'tlcpack/ci-hexagon:20220715-060127-37f9d3c49'
 // <--- End of regex-scanned config.
@@ -70,7 +70,7 @@ properties([
     string(name: 'ci_hexagon_param', defaultValue: ''),
     string(name: 'ci_i386_param', defaultValue: ''),
     string(name: 'ci_lint_param', defaultValue: ''),
-    string(name: 'ci_qemu_param', defaultValue: ''),
+    string(name: 'ci_cortexm_param', defaultValue: ''),
     string(name: 'ci_wasm_param', defaultValue: ''),
   ])
 ])
@@ -83,7 +83,7 @@ properties([
   built_ci_hexagon = null;
   built_ci_i386 = null;
   built_ci_lint = null;
-  built_ci_qemu = null;
+  built_ci_cortexm = null;
   built_ci_wasm = null;
 
 // Global variable assigned during Sanity Check that holds the sha1 which should be
@@ -273,7 +273,7 @@ def prepare() {
 
         if (env.DETERMINE_DOCKER_IMAGES == 'yes') {
           sh(
-            script: "./tests/scripts/determine_docker_images.py ci_arm=${ci_arm} ci_cpu=${ci_cpu} ci_gpu=${ci_gpu} ci_hexagon=${ci_hexagon} ci_i386=${ci_i386} ci_lint=${ci_lint} ci_qemu=${ci_qemu} ci_wasm=${ci_wasm} ",
+            script: "./tests/scripts/determine_docker_images.py ci_arm=${ci_arm} ci_cpu=${ci_cpu} ci_gpu=${ci_gpu} ci_hexagon=${ci_hexagon} ci_i386=${ci_i386} ci_lint=${ci_lint} ci_cortexm=${ci_cortexm} ci_wasm=${ci_wasm} ",
             label: 'Decide whether to use tlcpack or tlcpackstaging for Docker images',
           )
           // Pull image names from the results of should_rebuild_docker.py
@@ -307,9 +307,9 @@ def prepare() {
             label: "Find docker image name for ci_lint",
             returnStdout: true,
           ).trim()
-          ci_qemu = sh(
-            script: "cat .docker-image-names/ci_qemu",
-            label: "Find docker image name for ci_qemu",
+          ci_cortexm = sh(
+            script: "cat .docker-image-names/ci_cortexm",
+            label: "Find docker image name for ci_cortexm",
             returnStdout: true,
           ).trim()
           ci_wasm = sh(
@@ -325,7 +325,7 @@ def prepare() {
         ci_hexagon = params.ci_hexagon_param ?: ci_hexagon
         ci_i386 = params.ci_i386_param ?: ci_i386
         ci_lint = params.ci_lint_param ?: ci_lint
-        ci_qemu = params.ci_qemu_param ?: ci_qemu
+        ci_cortexm = params.ci_cortexm_param ?: ci_cortexm
         ci_wasm = params.ci_wasm_param ?: ci_wasm
 
         sh (script: """
@@ -336,7 +336,7 @@ def prepare() {
           echo " ci_hexagon = ${ci_hexagon}"
           echo " ci_i386 = ${ci_i386}"
           echo " ci_lint = ${ci_lint}"
-          echo " ci_qemu = ${ci_qemu}"
+          echo " ci_cortexm = ${ci_cortexm}"
           echo " ci_wasm = ${ci_wasm}"
         """, label: 'Docker image names')
 
@@ -527,14 +527,14 @@ def build_docker_images() {
           }
         }
       },
-      'ci_qemu': {
+      'ci_cortexm': {
         node('CPU') {
           timeout(time: max_time, unit: 'MINUTES') {
             init_git()
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
-            // ci_qemu = build_image('ci_qemu')
-            built_ci_qemu = build_image('ci_qemu');
+            // ci_cortexm = build_image('ci_cortexm')
+            built_ci_cortexm = build_image('ci_cortexm');
           }
         }
       },
@@ -951,17 +951,17 @@ stage('Build') {
       Utils.markStageSkippedForConditional('BUILD: arm')
     }
   },
-  'BUILD: QEMU': {
+  'BUILD: Cortex-M': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-qemu") {
-          docker_init(ci_qemu)
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-cortexm") {
+          docker_init(ci_cortexm)
           init_git()
           sh (
-            script: "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh build",
-            label: 'Create QEMU cmake config',
+            script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_config_build_cortexm.sh build",
+            label: 'Create Cortex-M cmake config',
           )
-          make(ci_qemu, 'build', '-j2')
+          make(ci_cortexm, 'build', '-j2')
           sh(
             script: """
               set -eux
@@ -999,7 +999,7 @@ stage('Build') {
         }
       }
      } else {
-      Utils.markStageSkippedForConditional('BUILD: QEMU')
+      Utils.markStageSkippedForConditional('BUILD: Cortex-M')
     }
   },
   'BUILD: Hexagon': {
@@ -4269,13 +4269,13 @@ def shard_run_frontend_aarch64_2_of_2() {
 def shard_run_test_Qemu_1_of_4() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-qemu") {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
         try {
-          docker_init(ci_qemu)
+          docker_init(ci_cortexm)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
-              'PLATFORM=qemu',
+              'PLATFORM=cortexm',
               'TVM_NUM_SHARDS=4',
               'TVM_SHARD_INDEX=0'], {
               sh(
@@ -4313,14 +4313,14 @@ def shard_run_test_Qemu_1_of_4() {
                       )
 
               add_microtvm_permissions()
-              ci_setup(ci_qemu)
-              cpp_unittest(ci_qemu)
+              ci_setup(ci_cortexm)
+              cpp_unittest(ci_cortexm)
               sh (
-                script: "${docker_run} ${ci_qemu} ./tests/scripts/task_demo_microtvm.sh",
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_demo_microtvm.sh",
                 label: 'Run microTVM demos',
               )
               sh (
-                script: "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh",
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
                 label: 'Run microTVM tests',
               )
             })
@@ -4346,13 +4346,13 @@ def shard_run_test_Qemu_1_of_4() {
 def shard_run_test_Qemu_2_of_4() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-qemu") {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
         try {
-          docker_init(ci_qemu)
+          docker_init(ci_cortexm)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
-              'PLATFORM=qemu',
+              'PLATFORM=cortexm',
               'TVM_NUM_SHARDS=4',
               'TVM_SHARD_INDEX=1'], {
               sh(
@@ -4390,9 +4390,9 @@ def shard_run_test_Qemu_2_of_4() {
                       )
 
               add_microtvm_permissions()
-              ci_setup(ci_qemu)
+              ci_setup(ci_cortexm)
               sh (
-                script: "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh",
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
                 label: 'Run microTVM tests',
               )
             })
@@ -4418,13 +4418,13 @@ def shard_run_test_Qemu_2_of_4() {
 def shard_run_test_Qemu_3_of_4() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-qemu") {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
         try {
-          docker_init(ci_qemu)
+          docker_init(ci_cortexm)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
-              'PLATFORM=qemu',
+              'PLATFORM=cortexm',
               'TVM_NUM_SHARDS=4',
               'TVM_SHARD_INDEX=2'], {
               sh(
@@ -4462,9 +4462,9 @@ def shard_run_test_Qemu_3_of_4() {
                       )
 
               add_microtvm_permissions()
-              ci_setup(ci_qemu)
+              ci_setup(ci_cortexm)
               sh (
-                script: "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh",
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
                 label: 'Run microTVM tests',
               )
             })
@@ -4490,13 +4490,13 @@ def shard_run_test_Qemu_3_of_4() {
 def shard_run_test_Qemu_4_of_4() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-qemu") {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
         try {
-          docker_init(ci_qemu)
+          docker_init(ci_cortexm)
           init_git()
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
-              'PLATFORM=qemu',
+              'PLATFORM=cortexm',
               'TVM_NUM_SHARDS=4',
               'TVM_SHARD_INDEX=3'], {
               sh(
@@ -4534,9 +4534,9 @@ def shard_run_test_Qemu_4_of_4() {
                       )
 
               add_microtvm_permissions()
-              ci_setup(ci_qemu)
+              ci_setup(ci_cortexm)
               sh (
-                script: "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh",
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
                 label: 'Run microTVM tests',
               )
             })
@@ -5083,7 +5083,7 @@ def deploy() {
             update_docker(built_ci_hexagon, "tlcpackstaging/ci_hexagon:${tag}")
             update_docker(built_ci_i386, "tlcpackstaging/ci_i386:${tag}")
             update_docker(built_ci_lint, "tlcpackstaging/ci_lint:${tag}")
-            update_docker(built_ci_qemu, "tlcpackstaging/ci_qemu:${tag}")
+            update_docker(built_ci_cortexm, "tlcpackstaging/ci_qemu:${tag}")
             update_docker(built_ci_wasm, "tlcpackstaging/ci_wasm:${tag}")
           } finally {
             sh(
