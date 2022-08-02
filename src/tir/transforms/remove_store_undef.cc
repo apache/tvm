@@ -103,7 +103,8 @@ class StoreUndefRemover : public StmtExprMutator {
  private:
   using Parent = StmtExprMutator;
 
-  StoreUndefRemover(std::unordered_set<const BufferStoreNode*> to_remove) : to_remove_(to_remove) {}
+  explicit StoreUndefRemover(std::unordered_set<const BufferStoreNode*> to_remove)
+      : to_remove_(to_remove) {}
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     if (to_remove_.count(op)) {
