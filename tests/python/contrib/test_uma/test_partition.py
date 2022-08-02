@@ -72,8 +72,6 @@ def test_existing_pattern_tables(workload, backend, merge):
     partitioner.register()
     partitioned_mod = partitioner.partition(mod)
 
-
-
     def partition_default(mod):
         """partitions using default BYOC flow"""
 
@@ -85,7 +83,6 @@ def test_existing_pattern_tables(workload, backend, merge):
         if merge:
             sequence.append(relay.transform.MergeCompilerRegions())
 
-        
         sequence.append(relay.transform.PartitionGraph())
         sequential = tvm.transform.Sequential(sequence)
 
