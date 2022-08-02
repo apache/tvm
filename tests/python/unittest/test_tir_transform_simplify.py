@@ -136,31 +136,16 @@ def test_complex_likely_elimination():
     assert "if" not in str(stmt)
 
 
-class BaseBeforeAfter:
-    def test_simplify(self):
-        before = self.before
-        before_mod = tvm.IRModule.from_expr(before)
-        after_mod = tvm.tir.transform.Simplify()(before_mod)
-        after = after_mod["main"]
-        expected = self.expected
-
-        try:
-            tvm.ir.assert_structural_equal(after, expected)
-        except ValueError as err:
-            script = tvm.IRModule({"expected": expected, "after": after, "before": before}).script()
-            raise ValueError(
-                f"Function after simplification did not match expected:\n{script}"
-            ) from err
+class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
+    transform = tvm.tir.transform.Simplify()
 
 
 class TestLoadStoreNoop(BaseBeforeAfter):
     """Store of a value that was just read from the same location is a no-op."""
 
-    @T.prim_func
     def before(A: T.Buffer[(1,), "float32"]):
         A[0] = A[0]
 
-    @T.prim_func
     def expected(A: T.Buffer[(1,), "float32"]):
         T.evaluate(0)
 
@@ -174,11 +159,9 @@ class TestLoadStoreNoopAfterSimplify(BaseBeforeAfter):
     regression.
     """
 
-    @T.prim_func
     def before(A: T.Buffer[(1,), "float32"]):
         A[0] = A[0] + (5.0 - 5.0)
 
-    @T.prim_func
     def expected(A: T.Buffer[(1,), "float32"]):
         T.evaluate(0)
 
@@ -191,14 +174,12 @@ class TestNestedCondition(BaseBeforeAfter):
     constraint.
     """
 
-    @T.prim_func
     def before(A: T.Buffer[(16,), "float32"]):
         for i in T.serial(16):
             if i == 5:
                 if i == 5:
                     A[i] = 0.0
 
-    @T.prim_func
     def expected(A: T.Buffer[(16,), "float32"]):
         for i in T.serial(16):
             if i == 5:
@@ -212,14 +193,12 @@ class TestNestedProvableCondition(BaseBeforeAfter):
     conditional.
     """
 
-    @T.prim_func
     def before(A: T.Buffer[(16,), "float32"]):
         for i in T.serial(16):
             if i == 5:
                 if i < 7:
                     A[i] = 0.0
 
-    @T.prim_func
     def expected(A: T.Buffer[(16,), "float32"]):
         for i in T.serial(16):
             if i == 5:
@@ -233,14 +212,12 @@ class TestNestedVarCondition(BaseBeforeAfter):
     constraint.
     """
 
-    @T.prim_func
     def before(A: T.Buffer[(16,), "float32"], n: T.int32):
         for i in T.serial(16):
             if i == n:
                 if i == n:
                     A[i] = 0.0
 
-    @T.prim_func
     def expected(A: T.Buffer[(16,), "float32"], n: T.int32):
         for i in T.serial(16):
             if i == n:
@@ -256,7 +233,6 @@ class TestAlteredBufferContents(BaseBeforeAfter):
     may not.
     """
 
-    @T.prim_func
     def before(A: T.Buffer[(1,), "int32"], n: T.int32):
         if A[0] == n:
             A[0] = A[0] + 1
@@ -273,7 +249,6 @@ class TestNegationOfCondition(BaseBeforeAfter):
     condition is known to be false.
     """
 
-    @T.prim_func
     def before(A: T.Buffer[(16,), "int32"]):
         for i in T.serial(16):
             if i == 5:
@@ -282,7 +257,6 @@ class TestNegationOfCondition(BaseBeforeAfter):
                 else:
                     A[i] = 1
 
-    @T.prim_func
     def expected(A: T.Buffer[(16,), "int32"]):
         for i in T.serial(16):
             if i == 5:
@@ -298,7 +272,6 @@ class TestNegationOfNotEqual(BaseBeforeAfter):
     ``i==5`` as the negation of a literal constraint.
     """
 
-    @T.prim_func
     def before(A: T.Buffer[(16,), "int32"]):
         for i in T.serial(16):
             if i != 5:
@@ -307,7 +280,6 @@ class TestNegationOfNotEqual(BaseBeforeAfter):
                 else:
                     A[i] = 1
 
-    @T.prim_func
     def expected(A: T.Buffer[(16,), "int32"]):
         for i in T.serial(16):
             if i != 5:
@@ -321,7 +293,6 @@ class TestNegationOfVarCondition(BaseBeforeAfter):
     must rely on RewriteSimplifier recognizing the repeated literal.
     """
 
-    @T.prim_func
     def before(A: T.Buffer[(16,), "int32"], n: T.int32):
         for i in T.serial(16):
             if i == n:
@@ -330,7 +301,6 @@ class TestNegationOfVarCondition(BaseBeforeAfter):
                 else:
                     A[i] = 1
 
-    @T.prim_func
     def expected(A: T.Buffer[(16,), "int32"], n: T.int32):
         for i in T.serial(16):
             if i == n:
@@ -346,14 +316,12 @@ class TestLiteralConstraintSplitBooleanAnd(BaseBeforeAfter):
     the condition is to ensure we exercise RewriteSimplifier.
     """
 
-    @T.prim_func
     def before(A: T.Buffer[(16, 16), "int32"], n: T.int32):
         for i, j in T.grid(16, 16):
             if i == n and j == n:
                 if i == n:
                     A[i, j] = 0
 
-    @T.prim_func
     def expected(A: T.Buffer[(16, 16), "int32"], n: T.int32):
         for i, j in T.grid(16, 16):
             if i == n and j == n:
@@ -371,7 +339,6 @@ class TestLiteralConstraintSplitBooleanOr(BaseBeforeAfter):
     RewriteSimplifier.
     """
 
-    @T.prim_func
     def before(A: T.Buffer[(16, 16), "int32"], n: T.int32):
         for i, j in T.grid(16, 16):
             if i == n or j == n:
@@ -382,7 +349,6 @@ class TestLiteralConstraintSplitBooleanOr(BaseBeforeAfter):
                 else:
                     A[i, j] = 2
 
-    @T.prim_func
     def expected(A: T.Buffer[(16, 16), "int32"], n: T.int32):
         for i, j in T.grid(16, 16):
             if i == n or j == n:
