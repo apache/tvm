@@ -250,6 +250,8 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
     // used for index calculation.
     if (op->op.same_as(tir::builtin::shift_right())) {
       return VisitRightShift(op);
+    } else if (op->op.same_as(tir::builtin::bitwise_and())) {
+      return VisitBitwiseAnd(op);
     } else {
       return Everything();
     }
@@ -270,6 +272,17 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
     // a c x  / c -> a x
     if (b.is_const()) {
       return DivByConst(op->args[0], static_cast<int64_t>(1) << b.base, true);
+    }
+    return Everything();
+  }
+
+  Entry VisitBitwiseAnd(const CallNode* op) {
+    Entry b = VisitExpr(op->args[1]);
+    if (b.is_const()) {
+      int shift;
+      if (is_const_power_of_two_integer(Integer(b.base + 1), &shift)) {
+        return ModByConst(op->args[0], static_cast<int64_t>(1) << shift, true);
+      }
     }
     return Everything();
   }
