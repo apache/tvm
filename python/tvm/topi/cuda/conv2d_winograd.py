@@ -139,7 +139,6 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_
             kernel_pack[eps][nu][ci][co] * data_pack[eps][nu][ci][p], axis=[ci]
         ),
         name="bgemm",
-        attrs={"schedule_rule": "meta_schedule.winograd_bgemm.nchw.cuda"},
     )
 
     # inverse transform
