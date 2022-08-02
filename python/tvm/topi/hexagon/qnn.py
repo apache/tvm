@@ -23,7 +23,7 @@ from ..generic.default import default_schedule as _default_schedule
 from ..utils import get_const_tuple
 from ..nn.utils import get_pad_tuple
 from ..nn.pad import pad
-from .. import tag
+from .. import tag, nn
 from ..x86.concat import concatenate
 
 
@@ -555,6 +555,50 @@ def schedule_qnn_dense(outs):
     ----------
     outs: Array of Tensor
           The computation graph description of qnn.dense
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+def qnn_batch_matmul(
+    tensor_a,
+    tensor_b,
+    # batch_matmul quantization params:
+    a_zero_point,
+    b_zero_point,
+    _a_scale,
+    _b_scale,
+    # Attributes
+    transpose_a,
+    transpose_b,
+    out_dtype,
+):
+    """Compute for qnn.dense"""
+
+    # Preprocess tensor_a: subtract zp
+    a_sub_zp = te.compute(
+        tensor_a.shape, lambda *indices: te.subtract(tensor_a(*indices), a_zero_point)
+    )
+    # Preprocess tensor_b: subtract zp
+    b_sub_zp = te.compute(
+        tensor_b.shape, lambda *indices: te.subtract(tensor_b(*indices), b_zero_point)
+    )
+
+    return nn.batch_matmul(a_sub_zp, b_sub_zp, None, out_dtype, transpose_a, transpose_b)
+
+
+def schedule_qnn_batch_matmul(outs):
+    """Schedule for qnn.batch_matmul
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of qnn.batch_matmul
           in the format of an array of tensors.
 
     Returns

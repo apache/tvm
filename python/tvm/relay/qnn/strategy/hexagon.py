@@ -129,3 +129,16 @@ def qnn_dense_strategy_hexagon(attrs, inputs, out_type, target):
         name="qnn_dense.hexagon",
     )
     return strategy
+
+
+# TODO: This is POC code. Change it on "hexagon" instead of "cpu"
+@qnn_batch_matmul_strategy.register("cpu")
+def qnn_batch_matmul_strategy_hexagon(attrs, inputs, out_type, target):
+    """qnn.batch_matmul strategy for Hexagon"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_topi_qnn_batch_matmul(topi.hexagon.qnn_batch_matmul),
+        wrap_topi_schedule(topi.hexagon.schedule_qnn_batch_matmul),
+        name="qnn_batch_matmul.hexagon",
+    )
+    return strategy
