@@ -2995,6 +2995,220 @@ def shard_run_frontend_aarch64_2_of_2() {
 }
 
 
+def shard_run_test_Qemu_1_of_4() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-qemu") {
+        try {
+          docker_init(ci_qemu)
+          init_git()
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=qemu',
+              'TVM_NUM_SHARDS=4',
+              'TVM_SHARD_INDEX=0'], {
+              sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/microtvm_template_projects build/microtvm_template_projects --recursive
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              add_microtvm_permissions()
+              ci_setup(ci_qemu)
+              cpp_unittest(ci_qemu)
+              sh (
+                script: "${docker_run} ${ci_qemu} ./tests/scripts/task_demo_microtvm.sh",
+                label: 'Run microTVM demos',
+              )
+              sh (
+                script: "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Qemu 1 of 4')
+  }
+}
+
+def shard_run_test_Qemu_2_of_4() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-qemu") {
+        try {
+          docker_init(ci_qemu)
+          init_git()
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=qemu',
+              'TVM_NUM_SHARDS=4',
+              'TVM_SHARD_INDEX=1'], {
+              sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/microtvm_template_projects build/microtvm_template_projects --recursive
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              add_microtvm_permissions()
+              ci_setup(ci_qemu)
+              sh (
+                script: "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Qemu 2 of 4')
+  }
+}
+
+def shard_run_test_Qemu_3_of_4() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-qemu") {
+        try {
+          docker_init(ci_qemu)
+          init_git()
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=qemu',
+              'TVM_NUM_SHARDS=4',
+              'TVM_SHARD_INDEX=2'], {
+              sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/microtvm_template_projects build/microtvm_template_projects --recursive
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              add_microtvm_permissions()
+              ci_setup(ci_qemu)
+              sh (
+                script: "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Qemu 3 of 4')
+  }
+}
+
+def shard_run_test_Qemu_4_of_4() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-qemu") {
+        try {
+          docker_init(ci_qemu)
+          init_git()
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=qemu',
+              'TVM_NUM_SHARDS=4',
+              'TVM_SHARD_INDEX=3'], {
+              sh(
+                        script: """
+                          set -eux
+                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/microtvm_template_projects build/microtvm_template_projects --recursive
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              add_microtvm_permissions()
+              ci_setup(ci_qemu)
+              sh (
+                script: "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Qemu 4 of 4')
+  }
+}
+
+
 
 def test() {
 stage('Test') {
@@ -3119,6 +3333,18 @@ stage('Test') {
   'frontend: aarch64 2 of 2': {
     shard_run_frontend_aarch64_2_of_2()
   },
+  'test: Qemu 1 of 4': {
+    shard_run_test_Qemu_1_of_4()
+  },
+  'test: Qemu 2 of 4': {
+    shard_run_test_Qemu_2_of_4()
+  },
+  'test: Qemu 3 of 4': {
+    shard_run_test_Qemu_3_of_4()
+  },
+  'test: Qemu 4 of 4': {
+    shard_run_test_Qemu_4_of_4()
+  },
   'unittest: CPU': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
@@ -3170,59 +3396,6 @@ stage('Test') {
       }
     } else {
       Utils.markStageSkippedForConditional('unittest: CPU')
-    }
-  },
-  'test: QEMU': {
-    if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU-SMALL') {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-qemu") {
-          timeout(time: max_time, unit: 'MINUTES') {
-            try {
-              docker_init(ci_qemu)
-              init_git()
-              withEnv(['PLATFORM=qemu'], {
-                sh(
-                        script: """
-                          set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/libtvm.so build/libtvm.so
-                          md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/libtvm_runtime.so build/libtvm_runtime.so
-                          md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/config.cmake build/config.cmake
-                          md5sum build/config.cmake
-                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/microtvm_template_projects build/microtvm_template_projects --recursive
-                        """,
-                        label: 'Download artifacts from S3',
-                      )
-
-                add_microtvm_permissions()
-                ci_setup(ci_qemu)
-                cpp_unittest(ci_qemu)
-                sh (
-                  script: "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh",
-                  label: 'Run microTVM tests',
-                )
-                sh (
-                  script: "${docker_run} ${ci_qemu} ./tests/scripts/task_demo_microtvm.sh",
-                  label: 'Run microTVM demos',
-                )
-              })
-            } finally {
-              sh(
-                script: """
-                  set -eux
-                  aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
-                """,
-                label: 'Upload JUnits to S3',
-              )
-
-              junit 'build/pytest-results/*.xml'
-            }
-          }
-        }
-      }
-    } else {
-      Utils.markStageSkippedForConditional('test: QEMU')
     }
   },
   'frontend: CPU': {
