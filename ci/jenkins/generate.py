@@ -32,38 +32,38 @@ JENKINSFILE = REPO_ROOT / "Jenkinsfile"
 
 data = {
     "images": [
-        # {
-        #     "name": "ci_arm",
-        #     "platform": "ARM",
-        # },
-        # {
-        #     "name": "ci_cpu",
-        #     "platform": "CPU",
-        # },
-        # {
-        #     "name": "ci_gpu",
-        #     "platform": "CPU",
-        # },
-        # {
-        #     "name": "ci_hexagon",
-        #     "platform": "CPU",
-        # },
-        # {
-        #     "name": "ci_i386",
-        #     "platform": "CPU",
-        # },
+        {
+            "name": "ci_arm",
+            "platform": "ARM",
+        },
+        {
+            "name": "ci_cpu",
+            "platform": "CPU",
+        },
+        {
+            "name": "ci_gpu",
+            "platform": "CPU",
+        },
+        {
+            "name": "ci_hexagon",
+            "platform": "CPU",
+        },
+        {
+            "name": "ci_i386",
+            "platform": "CPU",
+        },
         {
             "name": "ci_lint",
             "platform": "CPU",
         },
-        # {
-        #     "name": "ci_qemu",
-        #     "platform": "CPU",
-        # },
-        # {
-        #     "name": "ci_wasm",
-        #     "platform": "CPU",
-        # },
+        {
+            "name": "ci_qemu",
+            "platform": "CPU",
+        },
+        {
+            "name": "ci_wasm",
+            "platform": "CPU",
+        },
     ]
 }
 

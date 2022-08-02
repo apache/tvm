@@ -90,7 +90,7 @@ def deploy() {
         }
       }
     }
-    if (env.BRANCH_NAME == 'PR-12282' && env.DEPLOY_DOCKER_IMAGES == 'yes' && rebuild_docker_images && upstream_revision != null) {
+    if (env.BRANCH_NAME == 'main' && env.DEPLOY_DOCKER_IMAGES == 'yes' && rebuild_docker_images && upstream_revision != null) {
       node('CPU') {
         ws({{ m.per_exec_ws('tvm/deploy-docker') }}) {
           try {
