@@ -172,6 +172,17 @@ def wrap_topi_concatenate(topi_compute):
     return wrapper
 
 
+def wrap_topi_qnn_batch_matmul(topi_compute):
+    """Wrap TOPI compute which use qnn.batch_matmul attrs"""
+
+    def wrapper(attrs, inputs, _out_type):
+        assert len([*inputs]) == 6
+        args = [*inputs, attrs.transpose_a, attrs.transpose_b, attrs.out_dtype]
+        return [topi_compute(*args)]
+
+    return wrapper
+
+
 @override_native_generic_func("qnn_quantize_strategy")
 def qnn_quantize_strategy(attrs, inputs, out_type, target):
     """qnn.quantize generic strategy"""
@@ -231,5 +242,14 @@ def qnn_dense_strategy(attrs, inputs, out_type, target):
     """qnn.dense generic strategy"""
     raise RuntimeError(
         "qnn.dense is currently only supported with Hexagon. "
+        "Please run QNN Canonicalize pass to decompose this op into supported ops."
+    )
+
+
+@override_native_generic_func("qnn_batch_matmul_strategy")
+def qnn_batch_matmul_strategy(attrs, inputs, out_type, target):
+    """qnn.batch_matmul generic strategy"""
+    raise RuntimeError(
+        "qnn.batch_matmul is currently only supported with Hexagon. "
         "Please run QNN Canonicalize pass to decompose this op into supported ops."
     )

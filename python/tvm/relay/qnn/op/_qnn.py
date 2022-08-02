@@ -79,3 +79,7 @@ register_pattern("qnn.conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 # qnn.dense
 register_strategy("qnn.dense", strategy.qnn_dense_strategy)
 register_pattern("qnn.dense", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+# qnn.batch_matmul
+register_strategy("qnn.batch_matmul", strategy.qnn_batch_matmul_strategy)
+register_pattern("qnn.batch_matmul", OpPattern.OUT_ELEMWISE_FUSABLE)
