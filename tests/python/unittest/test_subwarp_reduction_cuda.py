@@ -33,6 +33,19 @@ def reduce(a: T.handle, b: T.handle, d1: T.int32, d2: T.int32, d3: T.int32) -> N
             B[vi, vj, vk] = B[vi, vj, vk] + A[vi, vj, vk, vl]
 
 
+@T.prim_func
+def reduce_max(a: T.handle, b: T.handle, d1: T.int32, d2: T.int32, d3: T.int32) -> None:
+    A = T.match_buffer(a, [1, d1, d2, d3])
+    B = T.match_buffer(b, [1, d1, d2])
+
+    for i, j, k, l in T.grid(1, d1, d2, d3):
+        with T.block("reduce"):
+            vi, vj, vk, vl = T.axis.remap("SSSR", [i, j, k, l])
+            with T.init():
+                B[vi, vj, vk] = T.float32(-3.4028234663852886e38)
+            B[vi, vj, vk] = T.max(B[vi, vj, vk], A[vi, vj, vk, vl])
+
+
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
 def test_cuda_subwarp_reduction():
@@ -59,8 +72,8 @@ def test_cuda_subwarp_reduction():
         tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-6, atol=1e-6)
 
     def check_max(d1: int, d2: int, d3: int):
-        _, _, _d1, _d2, _d3 = reduce.params
-        mod = reduce.specialize({_d1: d1, _d2: d2, _d3: d3})
+        _, _, _d1, _d2, _d3 = reduce_max.params
+        mod = reduce_max.specialize({_d1: d1, _d2: d2, _d3: d3})
         sch = tvm.tir.Schedule(mod)
         blk = sch.get_block("reduce")
         i, j, k, l = sch.get_loops(blk)
