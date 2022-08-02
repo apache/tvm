@@ -75,7 +75,8 @@ class UMAPartitioner:
     def partition(
         self, mod: tvm.IRModule, params: Optional[Dict[str, tvm.runtime.NDArray]] = None
     ) -> tvm.IRModule:
-        """Partition the relay graph in parts supported and unsupported by the target hardware accelerator.
+        """Partition the relay graph in parts supported and unsupported by the
+        target hardware accelerator.
 
         Parameters
         ----------
