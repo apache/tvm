@@ -124,7 +124,7 @@ TVM_REGISTER_GLOBAL("meta_schedule.winograd_data_pack.llvm")
       return {sch};
     });
 
-TVM_REGISTER_GLOBAL("meta_schedule.winograd_output.cuda")
+TVM_REGISTER_GLOBAL("meta_schedule.winograd_output.nchw.cuda")
     .set_body_typed([](Schedule sch, BlockRV output) -> Array<Schedule> {
       // get loops
       Array<LoopRV> loops = sch->GetLoops(output);
