@@ -17,10 +17,10 @@
 # pylint: disable=invalid-name, unused-variable, no-else-return, unused-argument, import-outside-toplevel
 """Dense schedule for ARM CPU"""
 
-from .mprofile.dsp.dense import dense_dsp_schedule
-
 from tvm import autotvm
 from tvm.topi.nn import dense
+
+from .mprofile.dsp.dense import dense_dsp_schedule
 
 
 @autotvm.register_topi_compute("dense_dsp.arm_cpu")
