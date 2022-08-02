@@ -225,7 +225,7 @@ def test_conv2d_inceptionv3_64x35x35_96x64x3x3_nopad():
         "bias": tvm.nd.array(bias_data),
     }
 
-    build_run_compare(mod, params1, {"data": input_shape}, dtype, target, gpu_preprocess)
+    build_run_compare(mod, params1, {"data": input_shape}, dtype, target, [], gpu_preprocess)
 
 
 @tvm.testing.requires_opencl
@@ -267,7 +267,7 @@ def test_conv2d_inceptionv3_64x35x35_96x64x3x3_nopad_pass():
         "bias": tvm.nd.array(bias_data),
     }
 
-    build_run_compare(mod, params1, {"data": input_shape}, dtype, target, gpu_preprocess)
+    build_run_compare(mod, params1, {"data": input_shape}, dtype, target, [], gpu_preprocess)
 
 
 @tvm.testing.requires_opencl
@@ -309,7 +309,7 @@ def test_conv2d_inceptionv3_35_35_strides():
         "bias": tvm.nd.array(bias_data),
     }
 
-    build_run_compare(mod, params1, {"data": input_shape}, dtype, target, gpu_preprocess)
+    build_run_compare(mod, params1, {"data": input_shape}, dtype, target, [], gpu_preprocess)
 
 
 @tvm.testing.requires_opencl
@@ -493,7 +493,6 @@ def test_conv2d_4x4x4_16c16pad():
     B = relay.var("weight", shape=filter_shape, dtype=dtype)
     bias = relay.var("bias", shape=bias_shape, dtype=dtype)
 
-    # C = relay.nn.relu(A)
     conv = relay.nn.conv2d(
         A,
         B,
