@@ -96,7 +96,7 @@ def workspace_dir(request, board, microtvm_debug):
     return test_temp_dir
 
 
-@pytest.fixture(autouse=True, scope="session")
+@pytest.fixture(autouse=True)
 def skip_by_board(request, board):
     """Skip test if board is in the list."""
     if request.node.get_closest_marker("skip_boards"):
