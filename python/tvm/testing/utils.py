@@ -74,6 +74,7 @@ import os
 import pickle
 import platform
 import sys
+import textwrap
 import time
 import shutil
 
@@ -1712,3 +1713,208 @@ def fetch_model_from_url(
 def main():
     test_file = inspect.getsourcefile(sys._getframe(1))
     sys.exit(pytest.main([test_file] + sys.argv[1:]))
+
+
+class CompareBeforeAfter:
+    """Utility for comparing before/after of TIR transforms
+
+    A standard framework for writing tests that take a TIR PrimFunc as
+    input, apply a transformation, then either compare against an
+    expected output or assert that the transformation raised an error.
+    A test should subclass CompareBeforeAfter, defining class members
+    `before`, `transform`, and `expected`.  CompareBeforeAfter will
+    then use these members to define a test method and test fixture.
+
+    `transform` may be one of the following.
+
+    - An instance of `tvm.ir.transform.Pass`
+
+    - A method that takes no arguments and returns a `tvm.ir.transform.Pass`
+
+    - A pytest fixture that returns a `tvm.ir.transform.Pass`
+
+    `before` may be any one of the following.
+
+    - An instance of `tvm.tir.PrimFunc`.  This is allowed, but is not
+      the preferred method, as any errors in constructing the
+      `PrimFunc` occur while collecting the test, preventing any other
+      tests in the same file from being run.
+
+    - An TVMScript function, without the ``@T.prim_func`` decoration.
+      The ``@T.prim_func`` decoration will be applied when running the
+      test, rather than at module import.
+
+    - A method that takes no arguments and returns a `tvm.tir.PrimFunc`
+
+    - A pytest fixture that returns a `tvm.tir.PrimFunc`
+
+    `expected` may be any one of the following.  The type of
+    `expected` defines the test being performed.  If `expected`
+    provides a `tvm.tir.PrimFunc`, the result of the transformation
+    must match `expected`.  If `expected` is an exception, then the
+    transformation must raise that exception type.
+
+    - Any option supported for `before`.
+
+    - The `Exception` class object, or a class object that inherits
+      from `Exception`.
+
+    - A method that takes no arguments and returns `Exception` or a
+      class object that inherits from `Exception`.
+
+    - A pytest fixture that returns `Exception` or an class object
+      that inherits from `Exception`.
+
+    Examples
+    --------
+
+    .. python::
+
+        class TestRemoveIf(tvm.testing.CompareBeforeAfter):
+            transform = tvm.tir.transform.Simplify()
+
+            def before(A: T.Buffer[1, "int32"]):
+                if True:
+                    A[0] = 42
+                else:
+                    A[0] = 5
+
+            def expected(A: T.Buffer[1, "int32"]):
+                A[0] = 42
+
+    """
+
+    def __init_subclass__(cls):
+        if hasattr(cls, "before"):
+            cls.before = cls._normalize_before(cls.before)
+        if hasattr(cls, "expected"):
+            cls.expected = cls._normalize_expected(cls.expected)
+        if hasattr(cls, "transform"):
+            cls.transform = cls._normalize_transform(cls.transform)
+
+    @classmethod
+    def _normalize_before(cls, func):
+        if hasattr(func, "_pytestfixturefunction"):
+            return func
+
+        if isinstance(func, tvm.tir.PrimFunc):
+
+            def inner(self):
+                # pylint: disable=unused-argument
+                return func
+
+        elif cls._is_method(func):
+
+            def inner(self):
+                # pylint: disable=unused-argument
+                return func(self)
+
+        else:
+
+            def inner(self):
+                # pylint: disable=unused-argument
+                source_code = "@T.prim_func\n" + textwrap.dedent(inspect.getsource(func))
+                return tvm.script.from_source(source_code)
+
+        return pytest.fixture(inner)
+
+    @classmethod
+    def _normalize_expected(cls, func):
+        if hasattr(func, "_pytestfixturefunction"):
+            return func
+
+        if isinstance(func, tvm.tir.PrimFunc) or (
+            inspect.isclass(func) and issubclass(func, Exception)
+        ):
+
+            def inner(self):
+                # pylint: disable=unused-argument
+                return func
+
+        elif cls._is_method(func):
+
+            def inner(self):
+                # pylint: disable=unused-argument
+                return func(self)
+
+        else:
+
+            def inner(self):
+                # pylint: disable=unused-argument
+                source_code = "@T.prim_func\n" + textwrap.dedent(inspect.getsource(func))
+                return tvm.script.from_source(source_code)
+
+        return pytest.fixture(inner)
+
+    @classmethod
+    def _normalize_transform(cls, transform):
+        if hasattr(transform, "_pytestfixturefunction"):
+            return transform
+
+        if isinstance(transform, tvm.ir.transform.Pass):
+
+            def inner(self):
+                # pylint: disable=unused-argument
+                return transform
+
+        elif cls._is_method(transform):
+
+            def inner(self):
+                # pylint: disable=unused-argument
+                return transform(self)
+
+        else:
+
+            raise TypeError(
+                "Expected transform to be a tvm.ir.transform.Pass, or a method returning a Pass"
+            )
+
+        return pytest.fixture(inner)
+
+    @staticmethod
+    def _is_method(func):
+        sig = inspect.signature(func)
+        return "self" in sig.parameters
+
+    def test_compare(self, before, expected, transform):
+        """Unit test to compare the expected TIR PrimFunc to actual"""
+
+        before_mod = tvm.IRModule.from_expr(before)
+
+        if inspect.isclass(expected) and issubclass(expected, Exception):
+            with pytest.raises(expected):
+                after_mod = transform(before_mod)
+
+                # This portion through pytest.fail isn't strictly
+                # necessary, but gives a better error message that
+                # includes the before/after.
+                after = after_mod["main"]
+                script = tvm.IRModule({"after": after, "before": before}).script()
+                pytest.fail(
+                    msg=(
+                        f"Expected {expected.__name__} to be raised from transformation, "
+                        f"instead received TIR\n:{script}"
+                    )
+                )
+
+        elif isinstance(expected, tvm.tir.PrimFunc):
+            after_mod = transform(before_mod)
+            after = after_mod["main"]
+
+            try:
+                tvm.ir.assert_structural_equal(after, expected)
+            except ValueError as err:
+                script = tvm.IRModule(
+                    {"expected": expected, "after": after, "before": before}
+                ).script()
+                raise ValueError(
+                    f"TIR after transformation did not match expected:\n{script}"
+                ) from err
+
+        else:
+            raise TypeError(
+                f"tvm.testing.CompareBeforeAfter requires the `expected` fixture "
+                f"to return either `Exception`, an `Exception` subclass, "
+                f"or an instance of `tvm.tir.PrimFunc`.  "
+                f"Instead, received {type(exception)}."
+            )
