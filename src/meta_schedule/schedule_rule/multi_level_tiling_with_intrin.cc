@@ -29,8 +29,12 @@ namespace meta_schedule {
  * \brief Tile a subset of loops in the block according to the given tensor intrinsic, and annotate
  * the tiled block for tensorization by postproc rewrite.
  */
-tir::BlockRV TileForIntrin(tir::Schedule sch, tir::BlockRV block, const std::string& intrin_name) {
+Optional<tir::BlockRV> TileForIntrin(tir::Schedule sch, tir::BlockRV block,
+                                     const std::string& intrin_name) {
   Optional<tir::LoopRV> tiled_loop_rv = TileWithTensorIntrin(sch, block, intrin_name);
+  if (!tiled_loop_rv) {
+    return NullOpt;
+  }
   ICHECK(tiled_loop_rv.defined());
   tir::BlockRV outer_block = sch->Blockize(tiled_loop_rv.value());
   sch->Annotate(outer_block, tir::attr::meta_schedule_auto_tensorize, String(intrin_name));
@@ -48,15 +52,23 @@ class MultiLevelTilingWithIntrinNode : public MultiLevelTilingNode {
       return {sch};
     }
 
-    return MultiLevelTilingNode::Apply(sch, block_rv);
+    auto res = MultiLevelTilingNode::Apply(sch->Copy(), block_rv);
+
+    if (res.empty()) {
+      return {sch};
+    }
+    return res;
   }
 
   // Override ApplySubRules to tile the inner loops according to the given tensor intrinsic, then
   // tile the outerloops.
   virtual std::vector<State> ApplySubRules(std::vector<State> states) {
     states = SubRule(std::move(states), [&](State state) {
-      state->block_rv = TileForIntrin(state->sch, state->block_rv, intrin_name);
-      return std::vector<State>(1, state);
+      if (auto block_rv = TileForIntrin(state->sch, state->block_rv, intrin_name)) {
+        state->block_rv = block_rv.value();
+        return std::vector<State>(1, state);
+      }
+      return std::vector<State>();
     });
     return MultiLevelTilingNode::ApplySubRules(states);
   }

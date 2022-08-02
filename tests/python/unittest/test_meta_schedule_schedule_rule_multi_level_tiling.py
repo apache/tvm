@@ -568,7 +568,7 @@ sch.annotate(block_or_loop=b49, ann_key="meta_schedule.cooperative_fetch", ann_v
 
 def test_multi_level_tiling_dense_dp4a_non_tensorizable():
     _test_multi_level_tiling_dense_dp4a(128, 128, 128, "float32", "float32", [""])
-    _test_multi_level_tiling_dense_dp4a(127, 127, 127, "int32", "int32", [""])
+    _test_multi_level_tiling_dense_dp4a(127, 127, 127, "int8", "int32", [""])
 
 
 def test_cuda_tensor_core_matmul_relu():
