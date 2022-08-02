@@ -869,12 +869,12 @@ def compile_and_run(
         Prints commands to build and run AOT test runner
     """
 
-    if isinstance(target, str):
-        target = tvm.target.Target(target)
-
     if target_opts:
         for key, val in target_opts.items():
             target += f" {key}={val}"
+
+    if isinstance(target, str):
+        target = tvm.target.Target(target)
 
     compiled_test_mods = compile_models(
         models=models,
