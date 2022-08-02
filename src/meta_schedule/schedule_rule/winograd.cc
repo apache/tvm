@@ -43,6 +43,44 @@ inline BlockRV GetOnlyConsumer(Schedule sch, BlockRV block) {
 }
 
 inline LoopRV ScheduleDataPack(Schedule sch, BlockRV block) {
+  Array<ExprRV> factors{nullptr};
+  Array<LoopRV> loops = sch->GetLoops(block);
+  ICHECK_EQ(loops.size(), 6);
+
+  factors = sch->SamplePerfectTile(loops[2], /*n=*/2, /*max_innermost_factor=*/64);
+  Array<LoopRV> t0 = sch->Split(loops[2], {factors.begin(), factors.end()});
+  ICHECK_EQ(t0.size(), 2);
+
+  factors = sch->SamplePerfectTile(loops[3], /*n=*/2, /*max_innermost_factor=*/64);
+  Array<LoopRV> t1 = sch->Split(loops[3], {factors.begin(), factors.end()});
+  ICHECK_EQ(t1.size(), 2);
+
+  if (const int64_t* i = tir::GetLoopIntExtent(sch->GetSRef(loops[0]))) {
+    if (*i <= 16) {
+      sch->Unroll(loops[0]);
+    }
+  }
+  if (const int64_t* i = tir::GetLoopIntExtent(sch->GetSRef(loops[1]))) {
+    if (*i <= 16) {
+      sch->Unroll(loops[1]);
+    }
+  }
+  sch->Unroll(loops[4]);
+  sch->Unroll(loops[5]);
+  sch->Reorder({
+      t0[0],
+      t1[0],
+      t0[1],
+      t1[1],
+      loops[0],
+      loops[1],
+      loops[4],
+      loops[5],
+  });
+  return t1[1];
+}
+
+inline LoopRV ScheduleDataPackNCHW(Schedule sch, BlockRV block) {
   Array<LoopRV> loops = sch->GetLoops(block);
   ICHECK_EQ(loops.size(), 6);
 
@@ -131,6 +169,16 @@ TVM_REGISTER_GLOBAL("meta_schedule.winograd_output.cuda")
     });
 
 TVM_REGISTER_GLOBAL("meta_schedule.winograd_inverse.cuda")
+    .set_body_typed([](Schedule sch, BlockRV block) -> Array<Schedule> {
+      ScheduleDataPack(sch, block);
+      int64_t max_threadblocks = 256;
+      int64_t max_threads_per_block = 1024;
+      auto get_factor = MakeFactorSampler(sch, {32, 64, 128, 256, 512, 1024});
+      BindBlockThreadIdx(sch, block, max_threadblocks, max_threads_per_block, get_factor);
+      return {sch};
+    });
+
+TVM_REGISTER_GLOBAL("meta_schedule.winograd_inverse.nchw.cuda")
     .set_body_typed([](Schedule sch, BlockRV inverse) -> Array<Schedule> {
       sch->SetScope(inverse, /*buffer_index=*/0, /*storage_scope=*/"local");
       Array<LoopRV> loops = sch->GetLoops(inverse);
@@ -150,7 +198,7 @@ TVM_REGISTER_GLOBAL("meta_schedule.winograd_inverse.cuda")
       return {sch};
     });
 
-TVM_REGISTER_GLOBAL("meta_schedule.winograd_bgemm.cuda")
+TVM_REGISTER_GLOBAL("meta_schedule.winograd_bgemm.nchw.cuda")
     .set_body_typed([](Schedule sch, BlockRV bgemm) -> Array<Schedule> {
       BlockRV OL = sch->CacheWrite(bgemm, /*buffer_index=*/0, /*storage_scope=*/"local");
       BlockRV AA = sch->CacheRead(bgemm, /*buffer_index=*/0, /*storage_scope=*/"shared");
@@ -222,9 +270,24 @@ TVM_REGISTER_GLOBAL("meta_schedule.winograd_data_pack.cuda")
     .set_body_typed([](Schedule sch, BlockRV data_pack) -> Array<Schedule> {
       BlockRV input_tile = GetOnlyProducer(sch, data_pack);
       BlockRV data_pad = GetOnlyProducer(sch, input_tile);
+      LoopRV loop = ScheduleDataPack(sch, data_pack);
+      sch->ComputeAt(input_tile, /*loop_rv=*/loop, /*preserve_unit_loops=*/true);
+      sch->SetScope(input_tile, /*buffer_index=*/0, /*storage_scope=*/"local");
+      sch->ComputeInline(data_pad);
+      int64_t max_threadblocks = 256;
+      int64_t max_threads_per_block = 1024;
+      auto get_factor = MakeFactorSampler(sch, {32, 64, 128, 256, 512, 1024});
+      BindBlockThreadIdx(sch, data_pack, max_threadblocks, max_threads_per_block, get_factor);
+      return {sch};
+    });
+
+TVM_REGISTER_GLOBAL("meta_schedule.winograd_data_pack.nchw.cuda")
+    .set_body_typed([](Schedule sch, BlockRV data_pack) -> Array<Schedule> {
+      BlockRV input_tile = GetOnlyProducer(sch, data_pack);
+      BlockRV data_pad = GetOnlyProducer(sch, input_tile);
 
       BlockRV data_l = sch->CacheWrite(data_pack, /*buffer_index=*/0, /*storage_scope=*/"local");
-      LoopRV loop = ScheduleDataPack(sch, data_pack);
+      LoopRV loop = ScheduleDataPackNCHW(sch, data_pack);
       sch->ReverseComputeAt(data_l, loop, /*preserve_unit_loops=*/true);
       sch->ComputeAt(input_tile, /*loop_rv=*/loop, /*preserve_unit_loops=*/true);
       sch->ComputeInline(data_pad);
