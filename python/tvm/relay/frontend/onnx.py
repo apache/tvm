@@ -2834,7 +2834,7 @@ class RNN(OnnxOpConverter):
         return acts
 
     @classmethod
-    def _inputs_helper(cls, inputs):
+    def _inputs_helper(cls, inputs, layout):
         """
         Process inputs
         """
@@ -2848,19 +2848,22 @@ class RNN(OnnxOpConverter):
         Hp_0 = inputs[5]
 
         num_directions = infer_shape(Wp)[0]
-        W_dtype = infer_type(Wp).checked_type.dtype
 
         if num_directions not in [1, 2]:
             raise ValueError("num_directions must be either 1 or 2!")
 
-        X_shape = infer_shape(X)
-        hidden_size = infer_shape(Rp)[-1]
-        batch_size = X_shape[1]
+        if layout == 1:
+            X = _op.transpose(X, axes=(1, 0))
 
         # Initialize state if not provided.
-        # Otherwise remove bidirectional axis.
         if Hp_0 is None:
+            W_dtype = infer_type(Wp).checked_type.dtype
+            X_shape = infer_shape(X)
+            hidden_size = infer_shape(Rp)[-1]
+            batch_size = X_shape[1]
             Hp_0 = _op.zeros((num_directions, batch_size, hidden_size), W_dtype)
+        elif layout == 1:
+            Hp_0 = _op.transpose(Hp_0, axes=(1, 0))
 
         # TODO (vvchernov): It can be replaced by _op.split if issue #8412 is resolved
         X_steps = unbind(X, axis=0)
@@ -2875,8 +2878,8 @@ class RNN(OnnxOpConverter):
         return X_steps, H_ts, Ws, Rs, Bs, num_directions
 
     @classmethod
-    def _impl_v7(cls, inputs, attr, params):
-        X_steps, H_ts, Ws, Rs, Bs, num_directions = cls._inputs_helper(inputs)
+    def _impl_common(cls, inputs, attr, layout):
+        X_steps, H_ts, Ws, Rs, Bs, num_directions = cls._inputs_helper(inputs, layout)
         acts = cls._get_activations(attr, 1, num_directions, "RNN")
 
         weights_dicts = []
@@ -2911,7 +2914,19 @@ class RNN(OnnxOpConverter):
             output = _op.expand_dims(_op.stack(outputs, axis=0), axis=1)
             H = _op.expand_dims(H, axis=0)
 
+        if layout == 1:
+            output = _op.transpose(output, axes=(1, 0))
+            H = _op.transpose(H, axes=(1, 0))
         return _expr.TupleWrapper(_expr.Tuple((output, H)), 2)
+
+    @classmethod
+    def _impl_v7(cls, inputs, attr, params):
+        return cls._impl_common(inputs, attr, 0)
+
+    @classmethod
+    def _impl_v14(cls, inputs, attr, params):
+        layout = attr.get("layout", 0)
+        return cls._impl_common(inputs, attr, layout)
 
 
 class LSTM(RNN):
@@ -2962,8 +2977,8 @@ class LSTM(RNN):
         return [_op.sigmoid, _op.tanh, _op.tanh] * num_directions
 
     @classmethod
-    def _impl_v7(cls, inputs, attr, params):
-        X_steps, H_ts, Ws, Rs, Bs, num_directions = cls._inputs_helper(inputs)
+    def _impl_common(cls, inputs, attr, layout):
+        X_steps, H_ts, Ws, Rs, Bs, num_directions = cls._inputs_helper(inputs, layout)
         acts = cls._get_activations(attr, 3, num_directions, "LSTM")
 
         # cell state
@@ -2971,9 +2986,11 @@ class LSTM(RNN):
         if Cp_0 is None:
             C_ts = _expr.TupleWrapper(
                 _expr.Tuple([_op.zeros_like(H_ts[i]) for i in range(num_directions)]),
-                num_directions
+                num_directions,
             )
         else:
+            if layout == 1:
+                Cp_0 = _op.transpose(Cp_0, axes=(1, 0))
             C_ts = _op.split(Cp_0, num_directions)
 
         # peepholes
@@ -3030,6 +3047,10 @@ class LSTM(RNN):
             H = _op.expand_dims(H, axis=0)
             C = _op.expand_dims(C, axis=0)
 
+        if layout == 1:
+            output = _op.transpose(output, axes=(1, 0))
+            H = _op.transpose(H, axes=(1, 0))
+            C = _op.transpose(C, axes=(1, 0))
         return _expr.TupleWrapper(_expr.Tuple((output, H, C)), 3)
 
 
@@ -3078,8 +3099,8 @@ class GRU(RNN):
         return [_op.sigmoid, _op.tanh] * num_directions
 
     @classmethod
-    def _impl_v7(cls, inputs, attr, params):
-        X_steps, H_ts, Ws, Rs, Bs, num_directions = cls._inputs_helper(inputs)
+    def _impl_common(cls, inputs, attr, layout):
+        X_steps, H_ts, Ws, Rs, Bs, num_directions = cls._inputs_helper(inputs, layout)
         acts = cls._get_activations(attr, 2, num_directions, "GRU")
         linear_before_reset = attr.get("linear_before_reset", 0)
 
@@ -3122,6 +3143,9 @@ class GRU(RNN):
             output = _op.expand_dims(_op.stack(outputs, axis=0), axis=1)
             H = _op.expand_dims(H, axis=0)
 
+        if layout == 1:
+            output = _op.transpose(output, axes=(1, 0))
+            H = _op.transpose(H, axes=(1, 0))
         return _expr.TupleWrapper(_expr.Tuple((output, H)), 2)
 
 
