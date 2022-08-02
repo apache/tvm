@@ -4685,6 +4685,20 @@ class Einsum(OnnxOpConverter):
         return _op.einsum(inputs, equation)
 
 
+class Trilu(OnnxOpConverter):
+    """Operator converter for Trilu"""
+
+    @classmethod
+    def _impl_v14(cls, inputs, attr, params):
+        upper = attr.get("upper", True)
+        if len(inputs) == 2:
+            data, k = inputs
+        else:
+            data = inputs[0]
+            k = 0
+        return _op.trilu(data, k, upper)
+
+
 class RandomNormal(OnnxOpConverter):
     """Operator converter for random_normal"""
 
@@ -5345,6 +5359,7 @@ def _get_convert_map(opset):
         "CumSum": CumSum.get_converter(opset),
         "Unique": Unique.get_converter(opset),
         "Einsum": Einsum.get_converter(opset),
+        "Trilu": Trilu.get_converter(opset),
         # defs/control_flow
         "Loop": Loop.get_converter(opset),
         "If": If.get_converter(opset),
