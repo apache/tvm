@@ -84,7 +84,7 @@ def test_cuda_subwarp_reduction():
         f = tvm.build(sch.mod["main"], target="cuda")
 
         # prepare input and output array
-        a_np = np.random.randn(1, d1, d2, d3).astype("float32")
+        a_np = -np.random.rand(1, d1, d2, d3).astype("float32")
         b_np = a_np.max(axis=-1).astype("float32")
         a = tvm.nd.array(a_np, tvm.cuda(0))
         b = tvm.nd.array(np.zeros_like(b_np), tvm.cuda(0))
