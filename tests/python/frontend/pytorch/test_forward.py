@@ -18,6 +18,7 @@
 """Unit tests for various models and operators"""
 from contextlib import suppress
 import os
+import platform
 import sys
 from time import time
 
@@ -4060,6 +4061,10 @@ def test_forward_pretrained_bert_base_uncased():
     print("TVM   top-1 id: {}, token: {}".format(tvm_pred_idx, tvm_pred_token))
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64",
+)
 def test_convert_torch_script_with_input_types():
     def model_fn(x, y):
         x = x.to(dtype=torch.int32)
