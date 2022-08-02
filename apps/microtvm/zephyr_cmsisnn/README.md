@@ -19,7 +19,7 @@
 
 This project was used for the [TVMCon 2021 talk on Cortex-M improvements to TVM](https://www.youtube.com/watch?v=6a7o8U-8Op4). It runs a keyword spotting model with the Zephyr RTOS using CMSIS-NN with the Ahead-of-Time (AOT) executor and the stack allocation strategy.
 
-The application starts from [the Zephyr base project](https://docs.zephyrproject.org/latest/application/index.html#application) and makes minimal changes to integrate TVM. To try it out, first refer to the [Zephyr Getting Started](https://docs.zephyrproject.org/latest/getting_started/index.html) page to setup your tooling such as `west` (you can also use the `tlcpack/ci_qemu` image). Then download the [Fixed Virtual Platform (FVP) based on Arm(R) Corstone(TM)-300 software](https://developer.arm.com/tools-and-software/open-source-software/arm-platforms-software/arm-ecosystem-fvps) and set the path for Zephyr to find it:
+The application starts from [the Zephyr base project](https://docs.zephyrproject.org/latest/application/index.html#application) and makes minimal changes to integrate TVM. To try it out, first refer to the [Zephyr Getting Started](https://docs.zephyrproject.org/latest/getting_started/index.html) page to setup your tooling such as `west` (you can also use the `tlcpack/ci_cortexm` image). Then download the [Fixed Virtual Platform (FVP) based on Arm(R) Corstone(TM)-300 software](https://developer.arm.com/tools-and-software/open-source-software/arm-platforms-software/arm-ecosystem-fvps) and set the path for Zephyr to find it:
 
 ```
 export ARMFVP_BIN_PATH=/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4/
@@ -32,7 +32,7 @@ wget \
     -O model/cnn_s_quantized.tflite
 ``` 
 
-Checkout [CMSIS_5](https://github.com/ARM-software/CMSIS_5.git) (default is `/opt/arm/ethosu/cmsis` to reflect `tlcpack/ci_qemu`):
+Checkout [CMSIS_5](https://github.com/ARM-software/CMSIS_5.git) (default is `/opt/arm/ethosu/cmsis` to reflect `tlcpack/ci_cortexm`):
 ```
 git clone "https://github.com/ARM-software/CMSIS_5.git" cmsis
 ```
