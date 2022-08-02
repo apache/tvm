@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-08-01T14:23:41.853298
+// Generated at 2022-08-02T14:39:43.148591
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -64,16 +64,13 @@ ci_hexagon = 'tlcpack/ci-hexagon:20220715-060127-37f9d3c49'
 // over default values above.
 properties([
   parameters([
-    string(name: 'ci_arm_param', defaultValue: ''),
-    string(name: 'ci_cpu_param', defaultValue: ''),
-    string(name: 'ci_gpu_param', defaultValue: ''),
-    string(name: 'ci_hexagon_param', defaultValue: ''),
-    string(name: 'ci_i386_param', defaultValue: ''),
     string(name: 'ci_lint_param', defaultValue: ''),
-    string(name: 'ci_qemu_param', defaultValue: ''),
-    string(name: 'ci_wasm_param', defaultValue: ''),
   ])
 ])
+
+// Placeholders for newly built Docker image names (if rebuild_docker_images
+// is used)
+  built_ci_lint = null;
 
 // Global variable assigned during Sanity Check that holds the sha1 which should be
 // merged into the PR in all branches.
@@ -239,71 +236,22 @@ def prepare() {
 
         if (env.DETERMINE_DOCKER_IMAGES == 'yes') {
           sh(
-            script: "./tests/scripts/determine_docker_images.py ci_arm=${ci_arm} ci_cpu=${ci_cpu} ci_gpu=${ci_gpu} ci_hexagon=${ci_hexagon} ci_i386=${ci_i386} ci_lint=${ci_lint} ci_qemu=${ci_qemu} ci_wasm=${ci_wasm} ",
+            script: "./tests/scripts/determine_docker_images.py ci_lint=${ci_lint} ",
             label: 'Decide whether to use tlcpack or tlcpackstaging for Docker images',
           )
           // Pull image names from the results of should_rebuild_docker.py
-          ci_arm = sh(
-            script: "cat .docker-image-names/ci_arm",
-            label: "Find docker image name for ci_arm",
-            returnStdout: true,
-          ).trim()
-          ci_cpu = sh(
-            script: "cat .docker-image-names/ci_cpu",
-            label: "Find docker image name for ci_cpu",
-            returnStdout: true,
-          ).trim()
-          ci_gpu = sh(
-            script: "cat .docker-image-names/ci_gpu",
-            label: "Find docker image name for ci_gpu",
-            returnStdout: true,
-          ).trim()
-          ci_hexagon = sh(
-            script: "cat .docker-image-names/ci_hexagon",
-            label: "Find docker image name for ci_hexagon",
-            returnStdout: true,
-          ).trim()
-          ci_i386 = sh(
-            script: "cat .docker-image-names/ci_i386",
-            label: "Find docker image name for ci_i386",
-            returnStdout: true,
-          ).trim()
           ci_lint = sh(
             script: "cat .docker-image-names/ci_lint",
             label: "Find docker image name for ci_lint",
             returnStdout: true,
           ).trim()
-          ci_qemu = sh(
-            script: "cat .docker-image-names/ci_qemu",
-            label: "Find docker image name for ci_qemu",
-            returnStdout: true,
-          ).trim()
-          ci_wasm = sh(
-            script: "cat .docker-image-names/ci_wasm",
-            label: "Find docker image name for ci_wasm",
-            returnStdout: true,
-          ).trim()
         }
 
-        ci_arm = params.ci_arm_param ?: ci_arm
-        ci_cpu = params.ci_cpu_param ?: ci_cpu
-        ci_gpu = params.ci_gpu_param ?: ci_gpu
-        ci_hexagon = params.ci_hexagon_param ?: ci_hexagon
-        ci_i386 = params.ci_i386_param ?: ci_i386
         ci_lint = params.ci_lint_param ?: ci_lint
-        ci_qemu = params.ci_qemu_param ?: ci_qemu
-        ci_wasm = params.ci_wasm_param ?: ci_wasm
 
         sh (script: """
           echo "Docker images being used in this build:"
-          echo " ci_arm = ${ci_arm}"
-          echo " ci_cpu = ${ci_cpu}"
-          echo " ci_gpu = ${ci_gpu}"
-          echo " ci_hexagon = ${ci_hexagon}"
-          echo " ci_i386 = ${ci_i386}"
           echo " ci_lint = ${ci_lint}"
-          echo " ci_qemu = ${ci_qemu}"
-          echo " ci_wasm = ${ci_wasm}"
         """, label: 'Docker image names')
 
         is_docs_only_build = sh (
@@ -318,6 +266,8 @@ def prepare() {
           script: './tests/scripts/git_change_docker.sh',
           label: 'Check for any docker changes',
         )
+        rebuild_docker_images = true;
+
         if (skip_ci) {
           // Don't rebuild when skipping CI
           rebuild_docker_images = false
@@ -426,61 +376,6 @@ def build_image(image_name) {
 def build_docker_images() {
   stage('Docker Image Build') {
     parallel(
-      'ci_arm': {
-        node('ARM') {
-          timeout(time: max_time, unit: 'MINUTES') {
-            init_git()
-            // We're purposefully not setting the built image here since they
-            // are not yet being uploaded to tlcpack
-            // ci_arm = build_image('ci_arm')
-            build_image('ci_arm')
-          }
-        }
-      },
-      'ci_cpu': {
-        node('CPU') {
-          timeout(time: max_time, unit: 'MINUTES') {
-            init_git()
-            // We're purposefully not setting the built image here since they
-            // are not yet being uploaded to tlcpack
-            // ci_cpu = build_image('ci_cpu')
-            build_image('ci_cpu')
-          }
-        }
-      },
-      'ci_gpu': {
-        node('CPU') {
-          timeout(time: max_time, unit: 'MINUTES') {
-            init_git()
-            // We're purposefully not setting the built image here since they
-            // are not yet being uploaded to tlcpack
-            // ci_gpu = build_image('ci_gpu')
-            build_image('ci_gpu')
-          }
-        }
-      },
-      'ci_hexagon': {
-        node('CPU') {
-          timeout(time: max_time, unit: 'MINUTES') {
-            init_git()
-            // We're purposefully not setting the built image here since they
-            // are not yet being uploaded to tlcpack
-            // ci_hexagon = build_image('ci_hexagon')
-            build_image('ci_hexagon')
-          }
-        }
-      },
-      'ci_i386': {
-        node('CPU') {
-          timeout(time: max_time, unit: 'MINUTES') {
-            init_git()
-            // We're purposefully not setting the built image here since they
-            // are not yet being uploaded to tlcpack
-            // ci_i386 = build_image('ci_i386')
-            build_image('ci_i386')
-          }
-        }
-      },
       'ci_lint': {
         node('CPU') {
           timeout(time: max_time, unit: 'MINUTES') {
@@ -488,29 +383,7 @@ def build_docker_images() {
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
             // ci_lint = build_image('ci_lint')
-            build_image('ci_lint')
-          }
-        }
-      },
-      'ci_qemu': {
-        node('CPU') {
-          timeout(time: max_time, unit: 'MINUTES') {
-            init_git()
-            // We're purposefully not setting the built image here since they
-            // are not yet being uploaded to tlcpack
-            // ci_qemu = build_image('ci_qemu')
-            build_image('ci_qemu')
-          }
-        }
-      },
-      'ci_wasm': {
-        node('CPU') {
-          timeout(time: max_time, unit: 'MINUTES') {
-            init_git()
-            // We're purposefully not setting the built image here since they
-            // are not yet being uploaded to tlcpack
-            // ci_wasm = build_image('ci_wasm')
-            build_image('ci_wasm')
+            built_ci_lint = build_image('ci_lint');
           }
         }
       },
@@ -3515,8 +3388,12 @@ stage('Build packages') {
 
 
 def update_docker(ecr_image, hub_image) {
+  if (ecr_image == null) {
+    sh("image was not rebuilt, skipping")
+    return
+  }
   if (!ecr_image.contains("amazonaws.com")) {
-    sh("echo Skipping '${ecr_image}' since it doesn't look like an ECR image")
+    sh("echo \"Skipping '${ecr_image}' -> '${hub_image}' since it doesn\'t look like an ECR image\"")
     return
   }
   docker_init(ecr_image)
@@ -3591,7 +3468,7 @@ def deploy() {
         }
       }
     }
-    if (env.BRANCH_NAME == 'main' && env.DEPLOY_DOCKER_IMAGES == 'yes' && rebuild_docker_images && upstream_revision != null) {
+    if (env.BRANCH_NAME == 'PR-12282' && env.DEPLOY_DOCKER_IMAGES == 'yes' && rebuild_docker_images && upstream_revision != null) {
       node('CPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/deploy-docker") {
           try {
@@ -3610,14 +3487,7 @@ def deploy() {
               returnStdout: true,
             ).trim()
             def tag = "${date_Ymd_HMS}-${upstream_revision.substring(0, 8)}"
-            update_docker(ci_arm, "tlcpackstaging/ci_arm:${tag}")
-            update_docker(ci_cpu, "tlcpackstaging/ci_cpu:${tag}")
-            update_docker(ci_gpu, "tlcpackstaging/ci_gpu:${tag}")
-            update_docker(ci_hexagon, "tlcpackstaging/ci_hexagon:${tag}")
-            update_docker(ci_i386, "tlcpackstaging/ci_i386:${tag}")
-            update_docker(ci_lint, "tlcpackstaging/ci_lint:${tag}")
-            update_docker(ci_qemu, "tlcpackstaging/ci_qemu:${tag}")
-            update_docker(ci_wasm, "tlcpackstaging/ci_wasm:${tag}")
+            update_docker(built_ci_lint, "tlcpackstaging/ci_lint:${tag}")
           } finally {
             sh(
               script: 'docker logout',
@@ -3639,10 +3509,10 @@ if (rebuild_docker_images) {
   build_docker_images()
 }
 
-lint()
+// lint()
 
-build()
+// build()
 
-test()
+// test()
 
 deploy()
