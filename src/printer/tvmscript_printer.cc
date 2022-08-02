@@ -245,6 +245,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitStmt_(const BufferRealizeNode* op) override;
   Doc VisitStmt_(const AllocateNode* op) override;
   Doc VisitStmt_(const AllocateConstNode* op) override;
+  Doc VisitStmt_(const DeclBufferNode* op) override;
   Doc VisitStmt_(const IfThenElseNode* op) override;
   Doc VisitStmt_(const SeqStmtNode* op) override;
   Doc VisitStmt_(const ForNode* op) override;
@@ -1158,6 +1159,26 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateConstNode* alloc) {
     doc << Print(alloc_buffer) << " = " << func_call << Doc::NewLine();
     doc << PrintNonHeaderBufferDeclarations(aliasing_buffers) << PrintBody(alloc->body);
   }
+  return doc;
+}
+
+Doc TVMScriptPrinter::VisitStmt_(const DeclBufferNode* op) {
+  const Buffer& buffer = op->buffer;
+  auto storage_scope = GetPtrStorageScope(buffer->data);
+  Doc func_call;
+  func_call << tir_prefix_ << ".decl_buffer(" << Print(buffer->shape) << ", " << PrintDType(buffer->dtype)
+            << ", " << Print(storage_scope);
+  func_call << ")";
+
+  Doc doc;
+  if (current_num_ != num_child_ - 1) {
+    doc << "with " << func_call << " as " << Print(buffer) << ":";
+    doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
+  } else {
+    doc << Print(buffer) << " = " << func_call << Doc::NewLine();
+    doc << PrintBody(op->body);
+  }
+  TryDeallocVar(buffer->data);
   return doc;
 }
 
