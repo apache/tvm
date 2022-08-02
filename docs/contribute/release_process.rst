@@ -51,7 +51,13 @@ Prepare the Release Notes
 
 Release note contains new features, improvement, bug fixes, known issues and deprecation, etc. TVM provides `monthly dev report <https://discuss.tvm.ai/search?q=TVM%20Monthly%20%23Announcement>`_ collects developing progress each month. It could be helpful to who writes the release notes.
 
-It is recommended to open a Github issue to collect feedbacks for the release note draft before cutting the release branch.
+It is recommended to open a Github issue to collect feedbacks for the release note draft before cutting the release branch. See the scripts in ``tests/scripts/release`` for some starting points.
+
+
+Prepare the Release Candidate
+-----------------------------
+
+There may be some code changes necessary to the release branch before the release. Ensure all version numbers are up to date 
 
 
 Prepare the GPG Key
@@ -72,7 +78,7 @@ The last step is to update the KEYS file with your code signing key https://www.
 	cd svn-tvm
 	# edit KEYS file
 	svn ci --username $ASF_USERNAME --password "$ASF_PASSWORD" -m "Update KEYS"
-	# update downloads.apache.org
+	# update downloads.apache.org (note that only PMC members can update the dist/release directory)
 	svn rm --username $ASF_USERNAME --password "$ASF_PASSWORD" https://dist.apache.org/repos/dist/release/tvm/KEYS -m "Update KEYS"
 	svn cp --username $ASF_USERNAME --password "$ASF_PASSWORD" https://dist.apache.org/repos/dist/dev/tvm/KEYS https://dist.apache.org/repos/dist/release/tvm/ -m "Update KEYS"
 
@@ -86,6 +92,7 @@ To cut a release candidate, one needs to first cut a branch using selected versi
 
 	git clone https://github.com/apache/tvm.git
 	cd tvm/
+	# Replace v0.6.0 with the relevant version
 	git branch v0.6.0
 	git push --set-upstream origin v0.6.0
 
@@ -111,8 +118,9 @@ Create source code artifacts,
 
 .. code-block:: bash
 
-	git clone git@github.com:apache/tvm.git apache-tvm-src-v0.6.0.rc0
-	cd apache-tvm-src-v0.6.0.rc0
+	# Replace v0.6.0 with the relevant version
+	git clone git@github.com:apache/tvm.git apache-tvm-src-v0.6.0
+	cd apache-tvm-src-v0.6.0
 	git checkout v0.6
 	git submodule update --init --recursive
 	git checkout v0.6.0.rc0
@@ -120,7 +128,7 @@ Create source code artifacts,
 	find . -name ".git*" -print0 | xargs -0 rm -rf
 	cd ..
 	brew install gnu-tar
-	gtar -czvf apache-tvm-src-v0.6.0.rc0.tar.gz apache-tvm-src-v0.6.0.rc0
+	gtar -czvf apache-tvm-src-v0.6.0.rc0.tar.gz apache-tvm-src-v0.6.0
 
 Use your GPG key to sign the created artifact. First make sure your GPG is set to use the correct private key,
 
@@ -191,13 +199,35 @@ Remember to create a new release TAG (v0.6.0 in this case) on Github and remove 
 
  .. code-block:: bash
 
-     git push --delete origin v0.6.0.rc2
+    git push --delete origin v0.6.0.rc2
 
 
 Update the TVM Website
 ----------------------
 
-The website repository is located at `https://github.com/apache/tvm-site <https://github.com/apache/tvm-site>`_. Modify the download page to include the release artifacts as well as the GPG signature and SHA hash.
+The website repository is located at `https://github.com/apache/tvm-site <https://github.com/apache/tvm-site>`_. Modify the download page to include the release artifacts as well as the GPG signature and SHA hash. Since TVM's docs are continually updated, upload a fixed version of the release docs. If CI has deleted the docs from the release by the time you go to update the website, you can restart the CI build for the release branch on Jenkins. See the example code below for a starting point
+
+.. code-block:: bash
+
+	git clone https://github.com/apache/tvm-site.git
+	pushd tvm-site
+	git checkout asf-site
+	pushd docs
+
+	# make release docs directory
+	mkdir v0.9.0
+	pushd v0.9.0
+
+	# download the release docs from CI
+	# find this URL by inspecting the CI logs for the most recent build of the release branch
+	curl -LO https://tvm-jenkins-artifacts-prod.s3.us-west-2.amazonaws.com/tvm/v0.9.0/1/docs/docs.tgz
+	tar xf docs.tgz
+	rm docs.tgz
+
+	# add the docs and push
+	git add .
+	git commit -m"Add v0.9.0 docs"
+	git push
 
 
 Post the Announcement
