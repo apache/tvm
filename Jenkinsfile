@@ -4266,7 +4266,7 @@ def shard_run_frontend_aarch64_2_of_2() {
 }
 
 
-def shard_run_test_Qemu_1_of_4() {
+def shard_run_test_Cortex_M_1_of_4() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
@@ -4339,11 +4339,11 @@ def shard_run_test_Qemu_1_of_4() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Qemu 1 of 4')
+    Utils.markStageSkippedForConditional('test: Cortex-M 1 of 4')
   }
 }
 
-def shard_run_test_Qemu_2_of_4() {
+def shard_run_test_Cortex_M_2_of_4() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
@@ -4411,11 +4411,11 @@ def shard_run_test_Qemu_2_of_4() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Qemu 2 of 4')
+    Utils.markStageSkippedForConditional('test: Cortex-M 2 of 4')
   }
 }
 
-def shard_run_test_Qemu_3_of_4() {
+def shard_run_test_Cortex_M_3_of_4() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
@@ -4483,11 +4483,11 @@ def shard_run_test_Qemu_3_of_4() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Qemu 3 of 4')
+    Utils.markStageSkippedForConditional('test: Cortex-M 3 of 4')
   }
 }
 
-def shard_run_test_Qemu_4_of_4() {
+def shard_run_test_Cortex_M_4_of_4() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
@@ -4555,7 +4555,7 @@ def shard_run_test_Qemu_4_of_4() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Qemu 4 of 4')
+    Utils.markStageSkippedForConditional('test: Cortex-M 4 of 4')
   }
 }
 
@@ -4696,17 +4696,17 @@ stage('Test') {
   'frontend: aarch64 2 of 2': {
     shard_run_frontend_aarch64_2_of_2()
   },
-  'test: Qemu 1 of 4': {
-    shard_run_test_Qemu_1_of_4()
+  'test: Cortex-M 1 of 4': {
+    shard_run_test_Cortex_M_1_of_4()
   },
-  'test: Qemu 2 of 4': {
-    shard_run_test_Qemu_2_of_4()
+  'test: Cortex-M 2 of 4': {
+    shard_run_test_Cortex_M_2_of_4()
   },
-  'test: Qemu 3 of 4': {
-    shard_run_test_Qemu_3_of_4()
+  'test: Cortex-M 3 of 4': {
+    shard_run_test_Cortex_M_3_of_4()
   },
-  'test: Qemu 4 of 4': {
-    shard_run_test_Qemu_4_of_4()
+  'test: Cortex-M 4 of 4': {
+    shard_run_test_Cortex_M_4_of_4()
   },
   'unittest: CPU': {
     if (!skip_ci && is_docs_only_build != 1) {
