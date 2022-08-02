@@ -2499,21 +2499,33 @@ class AutoTensorizeMappingProposer {
   std::unordered_map<Var, VarSet, ObjectPtrHash, ObjectPtrEqual> lhs_feasible_vars_;
 };
 
+bool CheckAutoTensorizeApplicable(const ScheduleState& state, const tir::StmtSRef& block_sref,
+                                  const tir::PrimFunc& desc_func,
+                                  AutoTensorizeComparator* extractor) {
+  // Step 1. Analyze desc_func, extract its block, loops and loop vars
+  // Step 2. Check if `desc_block` matches `block`
+  // Ignore the scope of buffers when comparing, since we can do cache_read/write
+  const BlockRealize& block = tir::GetBlockRealize(state, block_sref);
+  arith::Analyzer analyzer;
+  auto desc_info = tir::ExtractTensorIntrinDescInfo(&analyzer, desc_func);
+
+  return extractor->VisitStmt(block->block, desc_info.desc_block->block);
+}
+
+bool CheckAutoTensorizeApplicable(const tir::Schedule& sch, const tir::BlockRV& block_rv,
+                                  const tir::PrimFunc& desc_func) {
+  AutoTensorizeComparator extractor(sch->state()->mod);
+  return CheckAutoTensorizeApplicable(sch->state(), sch->GetSRef(block_rv), desc_func, &extractor);
+}
+
 Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(const tir::ScheduleState& self,
                                                                const tir::StmtSRef& block_sref,
                                                                const tir::PrimFunc& desc_func) {
-  arith::Analyzer analyzer;
-  const tir::BlockRealize& block = tir::GetBlockRealize(self, block_sref);
-  // Step 1. Analyze desc_func, extract its block, loops and loop vars
-  TensorIntrinDescInfo desc_info = ExtractTensorIntrinDescInfo(&analyzer, desc_func);
-  // Step 2. Check if `desc_block` matches `block`
-  // Ignore the scope of buffers when comparing, since we can do cache_read/write
-  const StmtSRef& scope_sref = GetScopeRoot(self, block_sref, false);
-  const tir::BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_block, scope_sref);
   AutoTensorizeComparator extractor(self->mod);
-  if (!extractor.VisitStmt(block->block, desc_info.desc_block->block)) {
+  if (!CheckAutoTensorizeApplicable(self, block_sref, desc_func, &extractor)) {
     return NullOpt;
   }
+  arith::Analyzer analyzer;
   Array<IndexMap> mappings = AutoTensorizeMappingProposer::ProposeMappings(&extractor, &analyzer);
   if (mappings.empty()) {
     return NullOpt;

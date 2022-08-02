@@ -22,7 +22,6 @@ import os
 import logging
 import tvm
 from tvm import relay
-from tvm.error import TVMError
 from tvm.contrib.download import download_testdata
 
 
@@ -113,7 +112,7 @@ def load_quantized_bert_base(batch_size=1, seq_len=384):
     def deserialize():
         try:
             return deserialize_relay(json_path, params_path)
-        except TVMError:
+        except ValueError:
             # A serialized Relay json file may become invalid after TVM bump
             # Update the serialized model and try loading again
             convert_to_qnn(onnx_path, json_path, params_path, input_info)
