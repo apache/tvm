@@ -131,10 +131,6 @@ TVM_REGISTER_GLOBAL("meta_schedule.winograd_output.nchw.cuda")
       ICHECK_EQ(loops.size(), 4);
 
       BlockRV OL{nullptr};
-      if (sch->GetConsumers(output).size() > 0) {
-        OL = GetOnlyConsumer(sch, output);
-        sch->SetScope(OL, /*buffer_index=*/0, /*storage_scope=*/"local");
-      }
 
       // tile
       BlockRV inverse = GetOnlyProducer(sch, output);
@@ -148,15 +144,6 @@ TVM_REGISTER_GLOBAL("meta_schedule.winograd_output.nchw.cuda")
       // compute_at
       sch->ComputeAt(inverse, /*loop_rv=*/split1[0],
                      /*preserve_unit_loops=*/true);
-      if (OL.defined()) {
-        while (sch->GetConsumers(OL).size() > 0) {
-          BlockRV next_OL = GetOnlyConsumer(sch, OL);
-          sch->ComputeInline(OL);
-          OL = next_OL;
-        }
-        sch->ReverseComputeAt(OL, /*loop_rv=*/split1[0],
-                              /*preserve_unit_loops=*/true);
-      }
 
       // fuse
       LoopRV fused = sch->Fuse({loops[0], loops[1], split0[0], split1[0]});
