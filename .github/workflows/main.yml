@@ -25,10 +25,10 @@ on:
   push:
     branches:
       - main
-
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 concurrency:
   group: CI-${{ github.event.pull_request.number || github.sha }}
@@ -36,6 +36,7 @@ concurrency:
 
 jobs:
   MacOS:
+    if: ${{ github.repository == 'apache/tvm' }}
     runs-on: macOS-latest
     steps:
       - uses: actions/checkout@v2
@@ -78,6 +79,7 @@ jobs:
           python -m pytest -v tests/python/contrib/test_rpc_server_device.py
 
   Windows:
+    if: ${{ github.repository == 'apache/tvm' }}
     runs-on: windows-2019
     steps:
       - uses: actions/checkout@v2
@@ -96,6 +98,7 @@ jobs:
           python -m pytest -v tests/python/all-platform-minimal-test
 
   Android:
+    if: ${{ github.repository == 'apache/tvm' }}
     runs-on: Ubuntu-20.04
     steps:
       - uses: actions/checkout@v2

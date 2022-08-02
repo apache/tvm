@@ -87,10 +87,17 @@ class GitHubRepo:
 
         try:
             with request.urlopen(req, data) as response:
-                response = json.loads(response.read())
+                content = response.read()
         except error.HTTPError as e:
             logging.info(f"Error response: {e.read().decode()}")
+            e.seek(0)
             raise e
+
+        logging.info(f"Got response from {full_url}: {content}")
+        try:
+            response = json.loads(content)
+        except json.decoder.JSONDecodeError as e:
+            return content
 
         return response
 
