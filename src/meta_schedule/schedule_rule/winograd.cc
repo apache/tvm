@@ -133,7 +133,6 @@ TVM_REGISTER_GLOBAL("meta_schedule.winograd_output.nchw.cuda")
       BlockRV OL{nullptr};
 
       // tile
-      BlockRV inverse = GetOnlyProducer(sch, output);
       Optional<PrimExpr> tile_size =
           tir::GetAnn<PrimExpr>(sch->GetSRef(output), "winograd_tile_size");
       ICHECK(tile_size.defined()) << "Winograd tile size is not defined in block annotation!";
@@ -142,6 +141,7 @@ TVM_REGISTER_GLOBAL("meta_schedule.winograd_output.nchw.cuda")
       sch->Reorder({split0[0], split1[0], split0[1], split1[1]});
 
       // compute_at
+      BlockRV inverse = GetOnlyProducer(sch, output);
       sch->ComputeAt(inverse, /*loop_rv=*/split1[0],
                      /*preserve_unit_loops=*/true);
 
@@ -182,74 +182,6 @@ TVM_REGISTER_GLOBAL("meta_schedule.winograd_inverse.nchw.cuda")
       }
       sch->Unroll(loops[4]);
       sch->Unroll(loops[5]);
-      return {sch};
-    });
-
-TVM_REGISTER_GLOBAL("meta_schedule.winograd_bgemm.nchw.cuda")
-    .set_body_typed([](Schedule sch, BlockRV bgemm) -> Array<Schedule> {
-      BlockRV OL = sch->CacheWrite(bgemm, /*buffer_index=*/0, /*storage_scope=*/"local");
-      BlockRV AA = sch->CacheRead(bgemm, /*buffer_index=*/0, /*storage_scope=*/"shared");
-      BlockRV BB = sch->CacheRead(bgemm, /*buffer_index=*/1, /*storage_scope=*/"shared");
-
-      Array<LoopRV> loops = sch->GetLoops(bgemm);
-      ICHECK_EQ(loops.size(), 5);  // SSSSR
-      LoopRV fused = sch->Fuse({loops[0], loops[1]});
-      Array<ExprRV> factors0 = sch->SamplePerfectTile(fused, /*n=*/4, /*max_innermost_factor=*/64);
-      Array<LoopRV> split0 =
-          sch->Split(fused, /*factors=*/{factors0[0], factors0[1], factors0[2], factors0[3]},
-                     /*preserve_unit_loops=*/true);
-      Array<ExprRV> factors1 =
-          sch->SamplePerfectTile(loops[2], /*n=*/4, /*max_innermost_factor=*/64);
-      Array<LoopRV> split1 =
-          sch->Split(loops[2], /*factors=*/{factors1[0], factors1[1], factors1[2], factors1[3]},
-                     /*preserve_unit_loops=*/true);
-      Array<ExprRV> factors2 =
-          sch->SamplePerfectTile(loops[3], /*n=*/4, /*max_innermost_factor=*/64);
-      Array<LoopRV> split2 =
-          sch->Split(loops[3], /*factors=*/{factors2[0], factors2[1], factors2[2], factors2[3]},
-                     /*preserve_unit_loops=*/true);
-      Array<ExprRV> factors3 =
-          sch->SamplePerfectTile(loops[4], /*n=*/2, /*max_innermost_factor=*/64);
-      Array<LoopRV> split3 = sch->Split(loops[4], /*factors=*/{factors3[0], factors3[1]},
-                                        /*preserve_unit_loops=*/true);
-      sch->Bind(split0[0], "blockIdx.z");
-      sch->Bind(split1[0], "blockIdx.y");
-      sch->Bind(split2[0], "blockIdx.x");
-      sch->Bind(split0[1], "vthread.z");
-      sch->Bind(split1[1], "vthread.y");
-      sch->Bind(split2[1], "vthread.x");
-      sch->Bind(split0[2], "threadIdx.z");
-      sch->Bind(split1[2], "threadIdx.y");
-      sch->Bind(split2[2], "threadIdx.x");
-      sch->Reorder({split0[0], split1[0], split2[0], split0[1], split1[1], split2[1], split0[2],
-                    split1[2], split2[2], split3[0], split3[1], split0[3], split1[3], split2[3]});
-
-      // tile reduction axes
-      sch->ReverseComputeAt(OL, split2[2], /*preserve_unit_loops=*/false);
-
-      sch->ComputeAt(AA, split3[0], /*preserve_unit_loops=*/true);
-      sch->ComputeAt(BB, split3[0], /*preserve_unit_loops=*/true);
-
-      // cooperative fetching
-      ExprRV ann_val = sch->SampleCategorical(
-          {Integer(1), Integer(2), Integer(3), Integer(4)},
-          {FloatImm(DataType::Float(32), 0.25), FloatImm(DataType::Float(32), 0.25),
-           FloatImm(DataType::Float(32), 0.25), FloatImm(DataType::Float(32), 0.25)});
-      sch->Annotate(AA, tir::attr::meta_schedule_cooperative_fetch, ann_val);
-      sch->Annotate(BB, tir::attr::meta_schedule_cooperative_fetch, ann_val);
-
-      ann_val = sch->SampleCategorical(
-          {Integer(0), Integer(16), Integer(64), Integer(512)},
-          {FloatImm(DataType::Float(32), 0.25), FloatImm(DataType::Float(32), 0.25),
-           FloatImm(DataType::Float(32), 0.25), FloatImm(DataType::Float(32), 0.25)});
-      sch->Annotate(bgemm, tir::attr::meta_schedule_unroll_explicit, ann_val);
-
-      ann_val = sch->SampleCategorical(
-          {Integer(128), Integer(256), Integer(512), Integer(1024)},
-          {FloatImm(DataType::Float(32), 0.25), FloatImm(DataType::Float(32), 0.25),
-           FloatImm(DataType::Float(32), 0.25), FloatImm(DataType::Float(32), 0.25)});
-      sch->Annotate(bgemm, tir::attr::pragma_auto_unroll_max_step, ann_val);
-
       return {sch};
     });
 
