@@ -26,10 +26,26 @@ from tvm.target import Target
 def _target():
     return Target("nvidia/geforce-rtx-3070")
 
+
 def _conv2d_winograd_nchw():
     data = te.placeholder((1, 64, 224, 224), name="data", dtype="float32")
     kernel = te.placeholder((6, 6, 64, 64), name="kernel", dtype="float32")
-    return te.create_prim_func([data, kernel, topi.cuda.conv2d_winograd.winograd_cuda(cfg=autotvm.ConfigSpace(), data = data, kernel=kernel, strides=(1, 1), padding=(1, 1), dilation=(1, 1), out_dtype="float32", pre_computed=True)])
+    return te.create_prim_func(
+        [
+            data,
+            kernel,
+            topi.cuda.conv2d_winograd.winograd_cuda(
+                cfg=autotvm.ConfigSpace(),
+                data=data,
+                kernel=kernel,
+                strides=(1, 1),
+                padding=(1, 1),
+                dilation=(1, 1),
+                out_dtype="float32",
+                pre_computed=True,
+            ),
+        ]
+    )
 
 
 def test_cuda_c1d():
@@ -1222,6 +1238,7 @@ def test_cuda_cbr():
         expected_decisions=[decision_0],
     )
 
+
 def test_cuda_winograd_nchw_conv2d():
     # fmt: off
     @T.prim_func
@@ -1367,6 +1384,7 @@ def test_cuda_winograd_nchw_conv2d():
         expected_mods=[winograd_nchw_conv2d],
         expected_decisions=[decision_0],
     )
+
 
 def test_cuda_tbg():
     # fmt: off
