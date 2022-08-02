@@ -73,7 +73,20 @@ def test_split_add_concat(dtype):
     for npu in [False, True]:
         model = get_model(inputs["a"].shape, dtype, iter(inputs))
         mod = tei.make_module(model, [])
-        outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
+
+        expected_host_ops = 1 if tei.get_ethosn_api_version() == 2205 else 0
+        npu_partitions = 2 if tei.get_ethosn_api_version() == 2205 else 1
+        outputs.append(
+            tei.build_and_run(
+                mod,
+                inputs,
+                1,
+                {},
+                npu=npu,
+                expected_host_ops=expected_host_ops,
+                npu_partitions=npu_partitions,
+            )
+        )
 
     tei.verify(outputs, dtype, 2)
 
@@ -202,11 +215,28 @@ def test_split_with_asym_concats(dtype):
         for npu in [False, True]:
             model = get_model(shape, dtype, splits, axis)
             mod = tei.make_module(model, {})
-            outputs.append(tei.build_and_run(mod, inputs, 2, {}, npu=npu))
+
+            expected_host_ops = 1 if tei.get_ethosn_api_version() == 2205 else 0
+            npu_partitions = 2 if tei.get_ethosn_api_version() == 2205 else 1
+            outputs.append(
+                tei.build_and_run(
+                    mod,
+                    inputs,
+                    2,
+                    {},
+                    npu=npu,
+                    expected_host_ops=expected_host_ops,
+                    npu_partitions=npu_partitions,
+                )
+            )
 
         tei.verify(outputs, dtype, 0)
 
 
+@pytest.mark.skipif(
+    tei.get_ethosn_api_version() == 2205,
+    reason="Split is not supported by the 22.05 release of the driver stack",
+)
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 def test_output_tuple_propagation(dtype):

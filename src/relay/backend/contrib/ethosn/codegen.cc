@@ -662,8 +662,6 @@ sl::CompilationOptions EthosnCompiler::CreateOptions() {
   options.m_EnableIntermediateCompression = cfg.value()->enable_intermediate_compression;
   options.m_DisableWinograd = cfg.value()->disable_winograd;
   options.m_DebugInfo.m_DebugDir = cfg.value()->debug_dir;
-  options.m_CompilerAlgorithm =
-      sl::EthosNCompilerAlgorithmFromString(cfg.value()->compiler_algorithm.c_str());
   return options;
 }
 

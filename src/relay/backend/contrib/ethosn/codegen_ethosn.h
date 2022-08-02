@@ -248,7 +248,6 @@ struct EthosnCompilerConfigNode : public tvm::AttrsNode<EthosnCompilerConfigNode
   bool enable_intermediate_compression;
   bool disable_winograd;
   String debug_dir;
-  String compiler_algorithm;
 
   TVM_DECLARE_ATTRS(EthosnCompilerConfigNode, "ext.attrs.EthosnCompilerConfigNode") {
     TVM_ATTR_FIELD(variant).describe("See Ethos-N documentation.").set_default("n78");
@@ -276,7 +275,6 @@ struct EthosnCompilerConfigNode : public tvm::AttrsNode<EthosnCompilerConfigNode
     TVM_ATTR_FIELD(enable_intermediate_compression).set_default(true);
     TVM_ATTR_FIELD(disable_winograd).set_default(false);
     TVM_ATTR_FIELD(debug_dir).set_default(".");
-    TVM_ATTR_FIELD(compiler_algorithm).set_default("NonCascadingOnly");
   }
 };
 
