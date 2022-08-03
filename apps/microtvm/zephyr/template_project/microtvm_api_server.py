@@ -597,8 +597,9 @@ class Handler(server.ProjectAPIHandler):
     def build(self, options):
         BUILD_DIR.mkdir()
 
+        zephyr_board = self._find_board_from_cmake_file()
         env = dict(os.environ)
-        if self._is_fvp(options["zephyr_board"]):
+        if self._is_fvp(zephyr_board):
             env["ARMFVP_BIN_PATH"] = str(API_SERVER_DIR / "fvp-hack")
             env["ARMFVP_BIN_PATH"] = os.path.realpath(env["ARMFVP_BIN_PATH"])
             st = os.stat(env["ARMFVP_BIN_PATH"] + "/FVP_Corstone_SSE-300_Ethos-U55")
