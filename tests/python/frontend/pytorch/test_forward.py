@@ -124,12 +124,14 @@ def load_model(model_name):
     raise RuntimeError("Model not supported")
 
 
-# pylint: disable=dangerous-default-value
 def verify_model(
-    model_name, input_data=[], custom_convert_map={}, rtol=1e-5, atol=1e-5, expected_ops=[]
+    model_name, input_data=None, custom_convert_map=None, rtol=1e-5, atol=1e-5, expected_ops=None
 ):
     """Assert that the output of a compiled model matches with that of its
     baseline."""
+    input_data = input_data or []
+    custom_convert_map = custom_convert_map or {}
+    expected_ops = expected_ops or []
     if isinstance(model_name, str):
         baseline_model, baseline_input = load_model(model_name)
     elif isinstance(input_data, list):
@@ -2479,9 +2481,9 @@ def convert_pt_to_tvm_type(idtype):
     return curr_dtype
 
 
-# pylint: disable=dangerous-default-value
-def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=["llvm"]):
+def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=None):
     """verify_model_vm"""
+    targets = targets or ["llvm"]
     if not idtype:
         idtype = torch.float
 
