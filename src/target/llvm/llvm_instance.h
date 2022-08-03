@@ -17,7 +17,7 @@
  * under the License.
  */
 
-/*! \file llvm_scope.h
+/*! \file llvm_instance.h
  */
 #ifndef TVM_TARGET_LLVM_LLVM_SCOPE_H_
 #define TVM_TARGET_LLVM_LLVM_SCOPE_H_
@@ -56,21 +56,21 @@ namespace codegen {
 class LLVMTarget;
 
 /*!
- * \class LLVMScope
- * \brief LLVMScope is a class that (conceptually) starts and stops LLVM. All
+ * \class LLVMInstance
+ * \brief LLVMInstance is a class that (conceptually) starts and stops LLVM. All
  * uses of LLVM should take place within a lifetime of an object of this class.
  *
  * E.g.
  * ```{.cpp}
  * {
- *   LLVMScope llvm_scope;
+ *   LLVMInstance llvm_instance;
  *   ...
  *   someFunctionFromLLVM(...);
  *   ...
  * }
  * // no more calls to LLVM here
  * ```
- * In addition to that, LLVMScope provides an LLVM context (llvm::LLVMContext).
+ * In addition to that, LLVMInstance provides an LLVM context (llvm::LLVMContext).
  * The context is a structure in LLVM where common IR constructs are maintained,
  * (such as types, constants, etc.) so that they can be identified by their
  * address (i.e. pointer comparison). Because of that, it's important to use
@@ -85,16 +85,16 @@ class LLVMTarget;
  * (in a string), or from a file. In either case, the serialized module can
  * be LLVM IR assembly, or binary bitcode enconding.
  */
-class LLVMScope {
+class LLVMInstance {
  public:
   /*!
-   * \brief Constructs LLVMScope
+   * \brief Constructs LLVMInstance
    */
-  LLVMScope();
+  LLVMInstance();
   /*!
-   * \brief Destroys LLVMScope object
+   * \brief Destroys LLVMInstance object
    */
-  ~LLVMScope();  // Must not be "= default" here in the header file.
+  ~LLVMInstance();  // Must not be "= default" here in the header file.
 
   /*!
    * \brief Get the LLVM context for this scope.
@@ -139,22 +139,22 @@ class LLVMScope {
  * global state.
  *
  * Note that objects of this class must be created within the lifetime of an
- * LLVMScope object.
+ * LLVMInstance object.
  */
 class LLVMTarget {
  public:
   /*!
    * \brief Constructs LLVMTarget from `Target`
-   * \param scope LLVMScope object
+   * \param scope LLVMInstance object
    * \param target TVM Target object for target "llvm"
    */
-  LLVMTarget(LLVMScope& scope, const Target& target);  // NOLINT(runtime/references)
+  LLVMTarget(LLVMInstance& scope, const Target& target);  // NOLINT(runtime/references)
   /*!
    * \brief Constructs LLVMTarget from target string
-   * \param scope LLVMScope object
+   * \param scope LLVMInstance object
    * \param target TVM target string for target "llvm"
    */
-  LLVMTarget(LLVMScope& scope, const std::string& target_str);  // NOLINT(runtime/references)
+  LLVMTarget(LLVMInstance& scope, const std::string& target_str);  // NOLINT(runtime/references)
   /*!
    * \brief Destroys LLVMTarget object
    */
@@ -172,11 +172,11 @@ class LLVMTarget {
   std::string str() const;
 
   /*!
-   * \brief Get the LLVMScope object from which the LLVMTarget object was
+   * \brief Get the LLVMInstance object from which the LLVMTarget object was
    *        created
-   * \return The enclosing LLVMScope object
+   * \return The enclosing LLVMInstance object
    */
-  const LLVMScope& GetScope() const { return scope_; }
+  const LLVMInstance& GetInstance() const { return instance_; }
   /*!
    * \brief Get the current LLVM context
    * \return the current LLVM context
@@ -245,7 +245,7 @@ class LLVMTarget {
   void ExitWithScope() {}
 
  private:
-  const LLVMScope& scope_;
+  const LLVMInstance& instance_;
   std::weak_ptr<llvm::LLVMContext> ctx_;
 
   std::string triple_;

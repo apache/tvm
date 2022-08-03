@@ -62,7 +62,7 @@
 #include "../../runtime/hexagon/hexagon_module.h"
 #include "../build_common.h"
 #include "codegen_cpu.h"
-#include "llvm_scope.h"
+#include "llvm_instance.h"
 
 namespace tvm {
 namespace codegen {
@@ -511,8 +511,8 @@ void ProcessLLVMOptions(const std::vector<std::string>& llvm_vec) {
 }  // namespace
 
 runtime::Module BuildHexagon(IRModule mod, Target target) {
-  LLVMScope llvm_scope;
-  With<LLVMTarget> llvm_target(llvm_scope, target);
+  LLVMInstance llvm_instance;
+  With<LLVMTarget> llvm_target(llvm_instance, target);
 
   auto split = [](const std::string& str, char delim = ' ') {
     std::vector<std::string> vec;

@@ -60,7 +60,7 @@
 
 #include "../func_registry_generator.h"
 #include "../metadata_utils.h"
-#include "llvm_scope.h"
+#include "llvm_instance.h"
 
 namespace tvm {
 namespace codegen {

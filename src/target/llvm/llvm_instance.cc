@@ -19,7 +19,7 @@
 
 #ifdef TVM_LLVM_VERSION
 
-#include "llvm_scope.h"
+#include "llvm_instance.h"
 
 #include <dmlc/base.h>
 #include <llvm/ADT/ArrayRef.h>
@@ -98,23 +98,23 @@ std::string Join(std::string sep, llvm::ArrayRef<std::string> strings) {
 
 }  // namespace
 
-// LLVMScope
+// LLVMInstance
 
-LLVMScope::LLVMScope() {
+LLVMInstance::LLVMInstance() {
   // Call InitializeLLVM before anything else.
   static const bool DMLC_ATTRIBUTE_UNUSED init_llvm = InitializeLLVM();
   ctx_ = std::make_shared<llvm::LLVMContext>();
 }
 
-LLVMScope::~LLVMScope() = default;
+LLVMInstance::~LLVMInstance() = default;
 
-std::unique_ptr<llvm::Module> LLVMScope::ParseIR(const std::string& llvm_ir) const {
+std::unique_ptr<llvm::Module> LLVMInstance::ParseIR(const std::string& llvm_ir) const {
   auto buffer = llvm::MemoryBuffer::getMemBuffer(llvm_ir, /*BufferName=*/"",
                                                  /*RequiresNullTerminator=*/false);
   return ParseBuffer(*buffer);
 }
 
-std::unique_ptr<llvm::Module> LLVMScope::LoadIR(const std::string& file_name) const {
+std::unique_ptr<llvm::Module> LLVMInstance::LoadIR(const std::string& file_name) const {
   llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> maybe_buffer =
       llvm::MemoryBuffer::getFileAsStream(file_name);
   if (std::error_code ec = maybe_buffer.getError()) {
@@ -123,7 +123,7 @@ std::unique_ptr<llvm::Module> LLVMScope::LoadIR(const std::string& file_name) co
   return ParseBuffer(**maybe_buffer);
 }
 
-std::unique_ptr<llvm::Module> LLVMScope::ParseBuffer(const llvm::MemoryBuffer& buffer) const {
+std::unique_ptr<llvm::Module> LLVMInstance::ParseBuffer(const llvm::MemoryBuffer& buffer) const {
   llvm::SMDiagnostic error;
   std::unique_ptr<llvm::Module> module = llvm::parseIR(buffer.getMemBufferRef(), error, *ctx_);
   if (module == nullptr) {
@@ -138,8 +138,8 @@ std::unique_ptr<llvm::Module> LLVMScope::ParseBuffer(const llvm::MemoryBuffer& b
 
 // LLVMTarget
 
-LLVMTarget::LLVMTarget(LLVMScope& scope, const Target& target)
-    : scope_(scope), ctx_(scope.GetContext()) {
+LLVMTarget::LLVMTarget(LLVMInstance& instance, const Target& target)
+    : instance_(instance), ctx_(instance.GetContext()) {
   triple_ = target->GetAttr<String>("mtriple").value_or("default");
 
   if (triple_.empty() || triple_ == "default") {
@@ -238,7 +238,7 @@ LLVMTarget::LLVMTarget(LLVMScope& scope, const Target& target)
   }
 }
 
-LLVMTarget::LLVMTarget(LLVMScope& scope, const std::string& target_str)
+LLVMTarget::LLVMTarget(LLVMInstance& scope, const std::string& target_str)
     : LLVMTarget(scope, Target(target_str)) {}
 
 LLVMTarget::~LLVMTarget() = default;
@@ -252,10 +252,10 @@ llvm::TargetMachine* LLVMTarget::GetOrCreateTargetMachine(bool allow_missing) {
   if (target_machine_) return target_machine_.get();
 
   std::string error;
-  if (const llvm::Target* llvm_scope = llvm::TargetRegistry::lookupTarget(triple_, error)) {
+  if (const llvm::Target* llvm_instance = llvm::TargetRegistry::lookupTarget(triple_, error)) {
     llvm::TargetMachine* tm =
-        llvm_scope->createTargetMachine(triple_, cpu_, GetTargetFeatureString(), target_options_,
-                                        reloc_model_, code_model_, opt_level_);
+        llvm_instance->createTargetMachine(triple_, cpu_, GetTargetFeatureString(), target_options_,
+                                           reloc_model_, code_model_, opt_level_);
     target_machine_ = std::unique_ptr<llvm::TargetMachine>(tm);
     if (!allow_missing) {
       ICHECK(target_machine_ != nullptr) << error;

@@ -89,7 +89,7 @@
 #include "../build_common.h"
 #include "../func_registry_generator.h"
 #include "codegen_params.h"
-#include "llvm_scope.h"
+#include "llvm_instance.h"
 
 namespace tvm {
 namespace codegen {
@@ -272,9 +272,9 @@ void CodeGenLLVM::HandleImport(const std::string& code) {
   llvm::StringRef code_str(code);
   std::unique_ptr<llvm::Module> mlib;
   if (code_str.endswith(".ll") || code_str.endswith(".bc")) {
-    mlib = llvm_target_->GetScope().LoadIR(code);
+    mlib = llvm_target_->GetInstance().LoadIR(code);
   } else {
-    mlib = llvm_target_->GetScope().ParseIR(code);
+    mlib = llvm_target_->GetInstance().ParseIR(code);
   }
 
   mlib->setTargetTriple(llvm_target_->GetTargetTriple());

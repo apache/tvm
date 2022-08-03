@@ -52,7 +52,7 @@
 #include <string>
 #include <utility>
 
-#include "llvm_scope.h"
+#include "llvm_instance.h"
 
 namespace tvm {
 namespace codegen {

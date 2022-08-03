@@ -38,7 +38,7 @@
 #include <vector>
 
 #include "codegen_cpu.h"
-#include "llvm_scope.h"
+#include "llvm_instance.h"
 
 namespace tvm {
 namespace codegen {

@@ -56,7 +56,7 @@
 #include "../../runtime/cuda/cuda_module.h"
 #include "../build_common.h"
 #include "codegen_llvm.h"
-#include "llvm_scope.h"
+#include "llvm_instance.h"
 
 namespace tvm {
 namespace codegen {
@@ -299,8 +299,8 @@ int GetCUDAComputeVersion(const Target& target) {
 }
 
 runtime::Module BuildNVPTX(IRModule mod, Target target) {
-  LLVMScope llvm_scope;
-  With<LLVMTarget> llvm_target(llvm_scope, target);
+  LLVMInstance llvm_instance;
+  With<LLVMTarget> llvm_target(llvm_instance, target);
 
   int compute_ver = GetCUDAComputeVersion(target);
   std::unique_ptr<CodeGenNVPTX> cg(new CodeGenNVPTX());
@@ -318,7 +318,7 @@ runtime::Module BuildNVPTX(IRModule mod, Target target) {
   if (flibdevice_path != nullptr) {
     std::string path = (*flibdevice_path)(compute_ver);
     if (path.length() != 0) {
-      std::unique_ptr<llvm::Module> mlib = llvm_scope.LoadIR(path);
+      std::unique_ptr<llvm::Module> mlib = llvm_instance.LoadIR(path);
       mlib->setTargetTriple(llvm_target->GetTargetTriple());
       mlib->setDataLayout(tm->createDataLayout());
       cg->AddLinkModule(std::move(mlib));

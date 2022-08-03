@@ -76,7 +76,7 @@
 #include "codegen_blob.h"
 #include "codegen_cpu.h"
 #include "codegen_llvm.h"
-#include "llvm_scope.h"
+#include "llvm_instance.h"
 
 namespace tvm {
 namespace codegen {
@@ -98,7 +98,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   std::string GetSource(const std::string& format) final;
 
   void Init(const IRModule& mod, const Target& target);
-  void Init(std::unique_ptr<llvm::Module> module, std::unique_ptr<LLVMScope> llvm_scope);
+  void Init(std::unique_ptr<llvm::Module> module, std::unique_ptr<LLVMInstance> llvm_instance);
   void LoadIR(const std::string& file_name);
   bool IsDSOExportable() const final { return true; }
 
@@ -111,7 +111,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   void* GetFunctionAddr(const std::string& name, const LLVMTarget& llvm_target) const;
 
   // The LLVM scope object.
-  std::unique_ptr<LLVMScope> llvm_scope_;
+  std::unique_ptr<LLVMInstance> llvm_instance_;
   // JIT lock
   std::mutex mutex_;
   // execution engine
@@ -154,7 +154,7 @@ PackedFunc LLVMModuleNode::GetFunction(const std::string& name,
   std::lock_guard<std::mutex> lock(mutex_);
 
   TVMBackendPackedCFunc faddr;
-  With<LLVMTarget> llvm_target(*llvm_scope_, LLVMTarget::GetTargetMetadata(*module_));
+  With<LLVMTarget> llvm_target(*llvm_instance_, LLVMTarget::GetTargetMetadata(*module_));
   if (name == runtime::symbol::tvm_module_main) {
     const char* entry_name = reinterpret_cast<const char*>(
         GetGlobalAddr(runtime::symbol::tvm_module_main, *llvm_target));
@@ -178,7 +178,7 @@ void LLVMModuleNode::SaveToFile(const std::string& file_name, const std::string&
 #endif
   ICHECK_EQ(ecode.value(), 0) << "Cannot open file: " << file_name << " " << ecode.message();
   if (fmt == "o" || fmt == "obj") {
-    With<LLVMTarget> llvm_target(*llvm_scope_, LLVMTarget::GetTargetMetadata(*module_));
+    With<LLVMTarget> llvm_target(*llvm_instance_, LLVMTarget::GetTargetMetadata(*module_));
 #if TVM_LLVM_VERSION <= 60
     std::unique_ptr<llvm::Module> m = llvm::CloneModule(module_);
 #else
@@ -198,7 +198,7 @@ void LLVMModuleNode::SaveToFile(const std::string& file_name, const std::string&
 #endif
     pass.run(*m);
   } else if (fmt == "s" || fmt == "asm") {
-    With<LLVMTarget> llvm_target(*llvm_scope_, LLVMTarget::GetTargetMetadata(*module_));
+    With<LLVMTarget> llvm_target(*llvm_instance_, LLVMTarget::GetTargetMetadata(*module_));
 #if TVM_LLVM_VERSION <= 60
     std::unique_ptr<llvm::Module> m = llvm::CloneModule(module_);
 #else
@@ -244,7 +244,7 @@ std::string LLVMModuleNode::GetSource(const std::string& format) {
   llvm::raw_svector_ostream rso(str);
 
   if (fmt == "s" || fmt == "asm") {
-    With<LLVMTarget> llvm_target(*llvm_scope_, LLVMTarget::GetTargetMetadata(*module_));
+    With<LLVMTarget> llvm_target(*llvm_instance_, LLVMTarget::GetTargetMetadata(*module_));
 #if TVM_LLVM_VERSION <= 60
     std::unique_ptr<llvm::Module> m = llvm::CloneModule(module_);
 #else
@@ -277,8 +277,8 @@ std::string LLVMModuleNode::GetSource(const std::string& format) {
 }
 
 void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
-  llvm_scope_ = std::make_unique<LLVMScope>();
-  With<LLVMTarget> llvm_target(*llvm_scope_, target);
+  llvm_instance_ = std::make_unique<LLVMInstance>();
+  With<LLVMTarget> llvm_target(*llvm_instance_, target);
   llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
   std::unique_ptr<CodeGenLLVM> cg = CodeGenLLVM::Create(llvm_target.get());
 
@@ -334,16 +334,16 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
 }
 
 void LLVMModuleNode::Init(std::unique_ptr<llvm::Module> module,
-                          std::unique_ptr<LLVMScope> llvm_scope) {
+                          std::unique_ptr<LLVMInstance> llvm_instance) {
   module_owning_ptr_ = std::move(module);
   module_ = module_owning_ptr_.get();
-  llvm_scope_ = std::move(llvm_scope);
+  llvm_instance_ = std::move(llvm_instance);
 }
 
 void LLVMModuleNode::LoadIR(const std::string& file_name) {
-  auto llvm_scope = std::make_unique<LLVMScope>();
-  std::unique_ptr<llvm::Module> module = llvm_scope->LoadIR(file_name);
-  Init(std::move(module), std::move(llvm_scope));
+  auto llvm_instance = std::make_unique<LLVMInstance>();
+  std::unique_ptr<llvm::Module> module = llvm_instance->LoadIR(file_name);
+  Init(std::move(module), std::move(llvm_instance));
 }
 
 bool LLVMModuleNode::ImplementsFunction(const String& name, bool query_imports) {
@@ -355,7 +355,7 @@ void LLVMModuleNode::LazyInitJIT() {
   if (ee_) {
     return;
   }
-  With<LLVMTarget> llvm_target(*llvm_scope_, LLVMTarget::GetTargetMetadata(*module_));
+  With<LLVMTarget> llvm_target(*llvm_instance_, LLVMTarget::GetTargetMetadata(*module_));
   llvm::EngineBuilder builder(std::move(module_owning_ptr_));
   builder.setEngineKind(llvm::EngineKind::JIT);
   builder.setOptLevel(llvm::CodeGenOpt::Aggressive);
@@ -390,7 +390,7 @@ void LLVMModuleNode::LazyInitJIT() {
 }
 
 bool LLVMModuleNode::IsCompatibleWithHost(const llvm::TargetMachine* tm) const {
-  With<LLVMTarget> host_target(*llvm_scope_, "llvm");  // FIXME(kparzysz-quic): nesting
+  With<LLVMTarget> host_target(*llvm_instance_, "llvm");  // FIXME(kparzysz-quic): nesting
   auto tm_host = host_target->GetOrCreateTargetMachine();
   if (tm_host->getTargetTriple().getArch() != tm->getTargetTriple().getArch()) {
     LOG(INFO) << "Architecture mismatch: module=" << tm->getTargetTriple().str()
@@ -429,15 +429,15 @@ TVM_REGISTER_GLOBAL("target.build.llvm")
 
 TVM_REGISTER_GLOBAL("codegen.LLVMModuleCreate")
     .set_body_typed([](std::string target_str, std::string module_name) -> runtime::Module {
-      auto llvm_scope = std::make_unique<LLVMScope>();
-      With<LLVMTarget> llvm_target(*llvm_scope, target_str);
+      auto llvm_instance = std::make_unique<LLVMInstance>();
+      With<LLVMTarget> llvm_target(*llvm_instance, target_str);
       auto n = make_object<LLVMModuleNode>();
       // Generate a LLVM module from an input target string
       auto module = std::make_unique<llvm::Module>(module_name, *llvm_target->GetContext());
       llvm_target->SetTargetMetadata(module.get());
       module->setTargetTriple(llvm_target->GetTargetTriple());
       module->setDataLayout(llvm_target->GetOrCreateTargetMachine()->createDataLayout());
-      n->Init(std::move(module), std::move(llvm_scope));
+      n->Init(std::move(module), std::move(llvm_instance));
       return runtime::Module(n);
     });
 
@@ -474,8 +474,8 @@ TVM_REGISTER_GLOBAL("runtime.module.loadfile_ll")
 
 TVM_REGISTER_GLOBAL("codegen.llvm_target_enabled")
     .set_body_typed([](std::string target_str) -> bool {
-      LLVMScope llvm_scope;
-      auto* tm = With<LLVMTarget>(llvm_scope, target_str)
+      LLVMInstance llvm_instance;
+      auto* tm = With<LLVMTarget>(llvm_instance, target_str)
                      ->GetOrCreateTargetMachine(/*allow_missing=*/true);
       return tm != nullptr;
     });
@@ -484,17 +484,17 @@ TVM_REGISTER_GLOBAL("codegen.codegen_blob")
     .set_body_typed([](std::string data, bool system_lib,
                        std::string llvm_target_string) -> runtime::Module {
       auto n = make_object<LLVMModuleNode>();
-      auto llvm_scope = std::make_unique<LLVMScope>();
-      With<LLVMTarget> llvm_target(*llvm_scope, llvm_target_string);
+      auto llvm_instance = std::make_unique<LLVMInstance>();
+      With<LLVMTarget> llvm_target(*llvm_instance, llvm_target_string);
       std::unique_ptr<llvm::Module> blob = CodeGenBlob(data, system_lib, llvm_target.get());
-      n->Init(std::move(blob), std::move(llvm_scope));
+      n->Init(std::move(blob), std::move(llvm_instance));
       return runtime::Module(n);
     });
 
 runtime::Module CreateLLVMCppMetadataModule(runtime::metadata::Metadata metadata, Target target,
                                             tvm::relay::Runtime runtime) {
-  auto llvm_scope = std::make_unique<LLVMScope>();
-  With<LLVMTarget> llvm_target(*llvm_scope, target);
+  auto llvm_instance = std::make_unique<LLVMInstance>();
+  With<LLVMTarget> llvm_target(*llvm_instance, target);
   bool system_lib = runtime->GetAttr<Bool>("system-lib").value_or(Bool(false));
   std::unique_ptr<CodeGenCPU> cg{new CodeGenCPU()};
 
@@ -517,7 +517,7 @@ runtime::Module CreateLLVMCppMetadataModule(runtime::metadata::Metadata metadata
       << verify_errors.str();
 
   auto n = make_object<LLVMModuleNode>();
-  n->Init(std::move(mod), std::move(llvm_scope));
+  n->Init(std::move(mod), std::move(llvm_instance));
 
   auto meta_mod = MetadataModuleCreate(metadata);
   meta_mod->Import(runtime::Module(n));
@@ -537,8 +537,8 @@ runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& module
     }
   }
 
-  auto llvm_scope = std::make_unique<LLVMScope>();
-  With<LLVMTarget> llvm_target(*llvm_scope, target);
+  auto llvm_instance = std::make_unique<LLVMInstance>();
+  With<LLVMTarget> llvm_target(*llvm_instance, target);
   bool system_lib = runtime->GetAttr<Bool>("system-lib").value_or(Bool(false));
   bool target_c_runtime = runtime->name == "crt";
   ICHECK(system_lib && target_c_runtime)
@@ -563,7 +563,7 @@ runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& module
       << verify_errors.str();
 
   auto n = make_object<LLVMModuleNode>();
-  n->Init(std::move(mod), std::move(llvm_scope));
+  n->Init(std::move(mod), std::move(llvm_instance));
   for (auto m : modules) {
     n->Import(m);
   }

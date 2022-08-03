@@ -51,7 +51,7 @@
 #include "../../runtime/rocm/rocm_module.h"
 #include "../build_common.h"
 #include "codegen_llvm.h"
-#include "llvm_scope.h"
+#include "llvm_instance.h"
 
 namespace tvm {
 namespace codegen {
@@ -246,9 +246,9 @@ class CodeGenAMDGPU : public CodeGenLLVM {
 };
 
 runtime::Module BuildAMDGPU(IRModule mod, Target target) {
-  LLVMScope llvm_scope;
+  LLVMInstance llvm_instance;
 
-  With<LLVMTarget> llvm_target(llvm_scope, target);
+  With<LLVMTarget> llvm_target(llvm_instance, target);
 #if TVM_LLVM_VERSION < 90
   LOG(FATAL) << "AMDGPU backend requires at least LLVM 9";
   // Lower versions will crash when loading the bitcode, see
@@ -269,7 +269,7 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
   Array<runtime::String> bitcode_files = (*find_rocm_bitcodes)();
 
   for (auto& bitcode_path : bitcode_files) {
-    std::unique_ptr<llvm::Module> mlib = llvm_scope.LoadIR(bitcode_path);
+    std::unique_ptr<llvm::Module> mlib = llvm_instance.LoadIR(bitcode_path);
     mlib->setTargetTriple(llvm_target->GetTargetTriple());
     mlib->setDataLayout(tm->createDataLayout());
 
