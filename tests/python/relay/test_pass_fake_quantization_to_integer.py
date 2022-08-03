@@ -403,25 +403,6 @@ def test_fake_quantize_abs():
     compare_fq_to_int(op, [x_np])
 
 
-def test_fake_quantize_abs_qnn():
-    x = relay.var("x", shape=[1, 960, 512, 64], dtype="int8")
-
-    zero = 0
-    x = relay.qnn.op.dequantize(x, relay.const(6.4712), relay.const(119))
-    op = relay.op.abs(x)
-    op = relay.qnn.op.requantize(
-        op,
-        relay.const(6.4712),
-        relay.const(119),
-        output_scale=relay.const(3.46196),
-        output_zero_point=relay.const(0),
-        out_dtype="uint8",
-    )
-
-    x_np = np.random.randint(0 + zero, 255 + zero, size=[1, 960, 512, 64], dtype="uint8")
-    compare_fq_to_int(op, [x_np])
-
-
 def test_fake_quantize_expand_dims():
     x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
 

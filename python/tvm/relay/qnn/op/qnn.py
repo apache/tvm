@@ -963,6 +963,9 @@ def erf(x, scale, zero_point, output_scale, output_zero_point):
     )
 
 
+# pylint: disable=redefined-builtin
+
+
 def abs(x, scale, zero_point, output_scale, output_zero_point):
     """Quantized abs function.
 
