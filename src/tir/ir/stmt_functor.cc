@@ -63,9 +63,7 @@ void StmtVisitor::VisitStmt_(const AllocateConstNode* op) {
   this->VisitStmt(op->body);
 }
 
-void StmtVisitor::VisitStmt_(const DeclBufferNode* op) {
-  this->VisitStmt(op->body);
-}
+void StmtVisitor::VisitStmt_(const DeclBufferNode* op) { this->VisitStmt(op->body); }
 
 void StmtVisitor::VisitStmt_(const StoreNode* op) {
   LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
