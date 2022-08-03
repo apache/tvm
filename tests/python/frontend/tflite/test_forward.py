@@ -31,13 +31,14 @@ import numpy as np
 
 from PIL import Image
 from packaging import version as package_version
+
+import tvm
+import tvm.relay.testing.tf as tf_testing
 from tvm.contrib.download import download_testdata
 from tvm import relay
 from tvm.contrib import graph_executor
 from tflite.BuiltinOperator import BuiltinOperator
 
-import tvm
-import tvm.relay.testing.tf as tf_testing
 
 try:
     import tensorflow.compat.v1 as tf
