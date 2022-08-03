@@ -82,7 +82,7 @@ class OperatorModuleWrapper : public torch::jit::CustomClassHolder {
     // we convert Torch tensor to an extension of DLPack tensor
     for (int i = 0; i < input_length; ++i) tensors.push_back(toDLPackExt(inputs[i]));
     tvm_contrib_torch_operator_module_forward(
-        this->runtime_module_, static_cast<DLPackTensorExt*>(tensors.data()), tensors.size());
+        this->runtime_module_, tensors.data(), tensors.size());
 
     for (int k = 0; k < input_length; ++k) {
       tensors[k].dl_managed_tensor->deleter(tensors[k].dl_managed_tensor);
