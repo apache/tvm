@@ -25,33 +25,84 @@
 
 extern "C" {
 
+/*
+ * DLPack data structure extend with `is_bool` flag.
+ * DLPack haven't support boolean tensor,
+ * thus a boolean tensor will be regarded as a UInt8 tensor.
+ */
 struct DLPackTensorExt {
   DLManagedTensor* dl_managed_tensor;
   bool is_bool;
 };
 
+/*
+ * A wrapper pointing to TVM runtime module.
+ */
 struct TVMContribTorchRuntimeModule;
 
+/*
+ * Obtain a saved runtime module passed by TVM FFI.
+ * @return A TVM runtime module wrapper.
+ */
 TVMContribTorchRuntimeModule* tvm_contrib_torch_get_last_saved_runtime_module();
 
+/*
+ * Delete TVMContribTorchRuntimeModule pointer.
+ */
 void tvm_contrib_torch_free_runtime_module(TVMContribTorchRuntimeModule* module_ptr);
 
+/*
+ * Obtain ExecutorFactory runtime module from ExecutorFactory class.
+ * @param graph_module ExecutorFactory class
+ * @param input_example For obtaining device information
+ * @return ExecutorFactory TVM runtime module wrapper
+ */
 TVMContribTorchRuntimeModule* tvm_contrib_torch_create_graph_runtime_module(
     TVMContribTorchRuntimeModule* graph_module, DLManagedTensor* input_example);
 
+/*
+ * Forward method for OperatorModuleWrapper.
+ * @param runtime_module TVM runtime module wrapper
+ * @param inputs Array pointer of the input tensors
+ * @param input_size The number of input tensors
+ */
 void tvm_contrib_torch_operator_module_forward(TVMContribTorchRuntimeModule* runtime_module,
                                                DLPackTensorExt* inputs, size_t input_size);
 
+/*
+ * Forward method for GraphExecutorFactoryWrapper.
+ * @param graph_module TVM runtime module wrapper
+ * @param inputs Array pointer of the input tensors
+ * @param input_size The number of input tensors
+ * @param outputs The resulting output tensors pointer
+ * @return The number of output tensors
+ */
 size_t tvm_contrib_torch_graph_executor_module_forward(TVMContribTorchRuntimeModule* graph_module,
                                                        DLPackTensorExt* inputs, size_t input_size,
                                                        DLPackTensorExt** outputs);
 
+/*
+ * Encode TVM runtime module.
+ * @param runtime_module TVM runtime module wrapper
+ * @return The encoding stream (char array)
+ */
 char* tvm_contrib_torch_encode(TVMContribTorchRuntimeModule* runtime_module);
 
+/*
+ * Decode TVM runtime module.
+ * @param state The encoding stream (char array) of TVM runtime module
+ * @return TVM runtime module wrapper
+ */
 TVMContribTorchRuntimeModule* tvm_contrib_torch_decode(const char* state);
 
+/*
+ * Delete DLPackTensorExt pointer.
+ */
 void tvm_contrib_torch_free_dlpack_tensor_ext_array(DLPackTensorExt*);
 
+/*
+ * Delete char array pointer.
+ */
 void tvm_contrib_torch_free_encoding(char* encoding);
 }
 

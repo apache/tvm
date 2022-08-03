@@ -70,7 +70,7 @@ if(NOT USE_PT_TVMDSOOP STREQUAL "OFF")
   separate_arguments(PT_LINK_FLAGS UNIX_COMMAND ${PT_LINK_FLAGS_STR})
 
   set(LIBRARY_NAME pt_tvmdsoop)
-  set(LIBRARY_TORCH_NAME pt_tvmintg)
+  set(LIBRARY_TORCH_NAME pt_tvmdsoop_new)
   tvm_file_glob(GLOB_RECURSE PTTVM_TORCH ${CMAKE_CURRENT_SOURCE_DIR}/src/contrib/torch/tvm_module_wrapper/*.cc)
 
   tvm_file_glob(GLOB_RECURSE PTTVM_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/src/contrib/torch/pt_call_tvm/*.cc)

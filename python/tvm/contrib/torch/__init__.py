@@ -23,7 +23,7 @@ import torch
 from tvm._ffi import libinfo
 
 
-def _load_platform_specific_library(lib_name="libpt_tvmintg"):
+def _load_platform_specific_library(lib_name):
     system = platform.system()
     if system == "Darwin":
         lib_file_name = lib_name + ".dylib"
@@ -36,15 +36,25 @@ def _load_platform_specific_library(lib_name="libpt_tvmintg"):
     lib_file_path = os.path.join(lib_dir, lib_file_name)
     try:
         torch.classes.load_library(lib_file_path)
-    except OSError:
+    except OSError as err:
+        errmsg = str(err)
+        if errmsg.find("undefined symbol") != -1:
+            reason = " ".join(
+                (
+                    "Got undefined symbol error,",
+                    "which might be due to the CXXABI incompatibility.",
+                )
+            )
+        else:
+            reason = errmsg
         warnings.warn(
-            f"The library {lib_name} is not built successfully due to the CXXABI incompatibility.",
+            f"The library {lib_name} is not built successfully. {reason}",
             RuntimeWarning,
         )
 
 
 _load_platform_specific_library("libpt_tvmdsoop")
-_load_platform_specific_library()
+_load_platform_specific_library("libpt_tvmdsoop_new")
 
 from . import module
 

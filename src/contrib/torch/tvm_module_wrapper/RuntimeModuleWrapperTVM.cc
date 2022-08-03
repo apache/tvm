@@ -43,6 +43,9 @@ struct ThreadLocalStore {
   }
 };
 
+/*
+ * Encode TVM runtime module to base64 stream
+ */
 std::string serialize(tvm::runtime::Module module) {
   static const runtime::PackedFunc* f_to_str =
       runtime::Registry::Get("script_torch.save_to_base64");
@@ -61,10 +64,13 @@ struct Deleter {  // deleter
   std::string file_name;
 };
 
+/*
+ * Decode TVM runtime module from base64 stream
+ */
 tvm::runtime::Module deserialize(std::string state) {
   auto length = tvm::support::b64strlen(state);
 
-  std::vector<u_char> bytes(length);
+  std::vector<u_char> bytes(length);  // bytes stream
   tvm::support::b64decode(state, bytes.data());
 
   const std::string name = tmpnam(NULL);
@@ -95,12 +101,18 @@ TVM_REGISTER_GLOBAL("tvmtorch.save_runtime_mod").set_body_typed([](tvm::runtime:
   ThreadLocalStore::ThreadLocal()->mod = mod;
 });
 
+/*
+ * Convert NDArray to DLPack extend tensor.
+ * @param results Pointer to NDArray
+ * @return DLPack extend tensor
+ */
 DLPackTensorExt create_dlpack_tensor_ext(tvm::runtime::NDArray* results, bool is_bool,
                                          tvm::Device* device_info) {
   DLManagedTensor* tensor;
   if (is_bool) {
     auto tmp =
         tvm::runtime::NDArray::Empty(results->Shape(), DLDataType{kDLInt, 8, 1}, *device_info);
+    // Here memory copy is imposed which might cause performance penalty.
     results->CopyTo(tmp);
     tensor = tmp.ToDLPack();
   } else {

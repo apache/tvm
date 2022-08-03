@@ -27,6 +27,12 @@
 namespace tvm {
 namespace contrib {
 
+/*
+ * Convert Torch tensor to DLPack extended tensor.
+ * The boolean Torch tensor will convert to DLtensor with `is_bool=True` flag.
+ * @param src Torch tensor
+ * @return DLPack extended tensor
+ */
 DLPackTensorExt toDLPackExt(const at::Tensor& src) {
   if (!src.is_contiguous()) {
     return toDLPackExt(src.contiguous());
@@ -44,6 +50,11 @@ DLPackTensorExt toDLPackExt(const at::Tensor& src) {
   return ret;
 }
 
+/*
+ * Convert DLPack extended tensor to Torch tensor.
+ * @param src DLPack extended tensor
+ * @return Torch tensor
+ */
 at::Tensor fromDLPackExt(const DLPackTensorExt& src) {
   if (src.is_bool) {
     return at::fromDLPack(src.dl_managed_tensor).toType(torch::kBool);
@@ -67,6 +78,8 @@ class OperatorModuleWrapper : public torch::jit::CustomClassHolder {
 
     std::vector<DLPackTensorExt> tensors;
 
+    // Torch tensor supports boolean type while DLpack does not,
+    // we convert Torch tensor to an extension of DLPack tensor
     for (int i = 0; i < input_length; ++i) tensors.push_back(toDLPackExt(inputs[i]));
     tvm_contrib_torch_operator_module_forward(
         this->runtime_module_, static_cast<DLPackTensorExt*>(tensors.data()), tensors.size());
@@ -88,6 +101,9 @@ class OperatorModuleWrapper : public torch::jit::CustomClassHolder {
   }
 
  private:
+  /*
+   * TVM runtime module wrapper
+   */
   TVMContribTorchRuntimeModule* runtime_module_;
 };
 
@@ -128,6 +144,8 @@ class GraphExecutorFactoryWrapper : public torch::jit::CustomClassHolder {
 
     std::vector<DLPackTensorExt> tensors;
 
+    // Torch tensor supports boolean type while DLpack does not,
+    // we convert Torch tensor to an extension of DLPack tensor
     for (int i = 0; i < input_length; ++i) tensors.push_back(toDLPackExt(inputs[i]));
 
     DLPackTensorExt* outputs;
@@ -155,7 +173,14 @@ class GraphExecutorFactoryWrapper : public torch::jit::CustomClassHolder {
   }
 
  private:
+  /*
+   * TVM Graph Executor Factory module wrapper
+   */
   TVMContribTorchRuntimeModule* executor_factory_;
+
+  /*
+   * TVM runtime module wrapper
+   */
   TVMContribTorchRuntimeModule* executor_factory_runtime_;
 };
 
