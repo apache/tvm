@@ -559,8 +559,8 @@ Doc TIRTextPrinter::VisitStmt_(const AllocateConstNode* op) {
 
 Doc TIRTextPrinter::VisitStmt_(const DeclBufferNode* op) {
   Doc doc;
-  doc << AllocBuf(op->buffer) << " = decl_buffer(" << PrintDType(op->buffer->dtype)
-      << Print(op->buffer->shape) << ")" << Doc::NewLine();
+  doc << AllocBuf(op->buffer) << " = decl_buffer(" << Print(op->buffer->var) << ", "
+      << PrintDType(op->buffer->dtype) << ", " << Print(op->buffer->shape) << ")" << Doc::NewLine();
   if (op->body->IsInstance<SeqStmtNode>()) {
     doc << PrintBody(op->body);
   } else {
