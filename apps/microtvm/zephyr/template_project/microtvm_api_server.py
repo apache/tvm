@@ -485,11 +485,11 @@ class Handler(server.ProjectAPIHandler):
         if options.get("west_cmd"):
             cmake_args += f"set(WEST {options['west_cmd']})\n"
 
-        if self._is_qemu(options):
+        if self._is_qemu(options["zephyr_board"]):
             # Some boards support more than one emulator, so ensure QEMU is set.
             cmake_args += f"set(EMU_PLATFORM qemu)\n"
 
-        if self._is_fvp(options):
+        if self._is_fvp(options["zephyr_board"]):
             cmake_args += f"set(EMU_PLATFORM armfvp)\n"
             cmake_args += f"set(ARMFVP_FLAGS -I)\n"
 
@@ -531,9 +531,9 @@ class Handler(server.ProjectAPIHandler):
             os.makedirs(extract_path)
             tf.extractall(path=extract_path)
 
-        if self._is_qemu(options):
+        if self._is_qemu(options["zephyr_board"]):
             shutil.copytree(API_SERVER_DIR / "qemu-hack", project_dir / "qemu-hack")
-        elif self._is_fvp(options):
+        elif self._is_fvp(options["zephyr_board"]):
             shutil.copytree(API_SERVER_DIR / "fvp-hack", project_dir / "fvp-hack")
 
         # Populate CRT.
@@ -569,7 +569,7 @@ class Handler(server.ProjectAPIHandler):
                     for item in flags:
                         cmake_f.write(f"target_compile_definitions(app PUBLIC {item})\n")
 
-                if self._is_fvp(options):
+                if self._is_fvp(options["zephyr_board"]):
                     cmake_f.write(f"target_compile_definitions(app PUBLIC -DFVP=1)\n")
 
         self._create_prj_conf(project_dir, options)
@@ -583,7 +583,7 @@ class Handler(server.ProjectAPIHandler):
 
         # Populate src/
         src_dir = project_dir / "src"
-        if options["project_type"] != "host_driven" or self._is_fvp(options):
+        if options["project_type"] != "host_driven" or self._is_fvp(options["zephyr_board"]):
             shutil.copytree(API_SERVER_DIR / "src" / options["project_type"], src_dir)
         else:
             src_dir.mkdir()
@@ -598,7 +598,7 @@ class Handler(server.ProjectAPIHandler):
         BUILD_DIR.mkdir()
 
         env = dict(os.environ)
-        if self._is_fvp(options):
+        if self._is_fvp(options["zephyr_board"]):
             env["ARMFVP_BIN_PATH"] = str(API_SERVER_DIR / "fvp-hack")
             env["ARMFVP_BIN_PATH"] = os.path.realpath(env["ARMFVP_BIN_PATH"])
             st = os.stat(env["ARMFVP_BIN_PATH"] + "/FVP_Corstone_SSE-300_Ethos-U55")
@@ -618,31 +618,19 @@ class Handler(server.ProjectAPIHandler):
     # A list of all zephyr_board values which are known to launch using QEMU. Many platforms which
     # launch through QEMU by default include "qemu" in their name. However, not all do. This list
     # includes those tested platforms which do not include qemu.
-    _KNOWN_QEMU_ZEPHYR_BOARDS = ("mps2_an521", "mps3_an547")
+    _KNOWN_QEMU_ZEPHYR_BOARDS = ["mps2_an521"]
 
     # A list of all zephyr_board values which are known to launch using ARM FVP (this script configures
     # Zephyr to use that launch method).
     _KNOWN_FVP_ZEPHYR_BOARDS = ["mps3_an547"]
 
     @classmethod
-    def _is_fvp(cls, options):
-        if (
-            "use_fvp" in options
-            and options["use_fvp"] == True
-            and options["zephyr_board"] not in cls._KNOWN_FVP_ZEPHYR_BOARDS
-        ):
-            raise ValueError(f"FVP does not support this board")
-        return (
-            options["zephyr_board"] in cls._KNOWN_FVP_ZEPHYR_BOARDS
-            and "use_fvp" in options
-            and options["use_fvp"] == True
-        )
+    def _is_fvp(cls, board):
+        return board in cls._KNOWN_FVP_ZEPHYR_BOARDS
 
     @classmethod
-    def _is_qemu(cls, options):
-        return "qemu" in options["zephyr_board"] or (
-            options["zephyr_board"] in cls._KNOWN_QEMU_ZEPHYR_BOARDS and not cls._is_fvp(options)
-        )
+    def _is_qemu(cls, board):
+        return "qemu" in board or board in cls._KNOWN_QEMU_ZEPHYR_BOARDS
 
     @classmethod
     def _has_fpu(cls, zephyr_board):
@@ -663,10 +651,9 @@ class Handler(server.ProjectAPIHandler):
         return zephyr_board
 
     def flash(self, options):
-        if self._is_qemu(options) or self._is_fvp(options):
-            return  # NOTE: qemu requires no flash step--it is launched from open_transport.
-
         zephyr_board = self._find_board_from_cmake_file()
+        if self._is_qemu(zephyr_board) or self._is_fvp(zephyr_board):
+            return  # NOTE: qemu requires no flash step--it is launched from open_transport.
 
         # The nRF5340DK requires an additional `nrfjprog --recover` before each flash cycle.
         # This is because readback protection is enabled by default when this device is flashed.
@@ -681,9 +668,10 @@ class Handler(server.ProjectAPIHandler):
         check_call(["ninja", "flash"], cwd=API_SERVER_DIR / "build")
 
     def open_transport(self, options):
-        if self._is_qemu(options):
+        zephyr_board = self._find_board_from_cmake_file()
+        if self._is_qemu(zephyr_board):
             transport = ZephyrQemuTransport(options)
-        elif self._is_fvp(options):
+        elif self._is_fvp(zephyr_board):
             transport = ZephyrFvpTransport(options)
         else:
             transport = ZephyrSerialTransport(options)
@@ -1085,6 +1073,7 @@ class ZephyrFvpTransport:
         self._target._stdin = BlockingStream()
         self._model.run(blocking=False, timeout=100)
         self._wait_for_semihost_init()
+        _LOG.info("IRIS semihosting initialized.")
 
         return server.TransportTimeouts(
             session_start_retry_timeout_sec=2.0,
@@ -1104,6 +1093,7 @@ class ZephyrFvpTransport:
                 self._queue.put((ZephyrFvpMakeResult.FVP_STARTED, int(start_msg.group(1))))
             elif init_msg:
                 self._queue.put((ZephyrFvpMakeResult.MICROTVM_API_SERVER_INIT, None))
+                break
             else:
                 line = re.sub("[^a-zA-Z0-9 \n]", "", line)
                 pattern = r"recipe for target (\w*) failed"
