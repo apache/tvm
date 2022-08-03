@@ -23,6 +23,7 @@
  */
 #ifndef TVM_TARGET_LLVM_CODEGEN_LLVM_H_
 #define TVM_TARGET_LLVM_CODEGEN_LLVM_H_
+
 #ifdef TVM_LLVM_VERSION
 
 #include <llvm/ADT/ArrayRef.h>
@@ -40,7 +41,6 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Intrinsics.h>
-#include <llvm/IR/LLVMContext.h>
 #include <llvm/Support/Casting.h>
 #if TVM_LLVM_VERSION >= 140
 #include <llvm/MC/TargetRegistry.h>
@@ -78,7 +78,6 @@ class Function;
 class GlobalVariable;
 class Instruction;
 class PassManagerBuilder;
-class TargetMachine;
 class DIFile;
 class DICompileUnit;
 class MDNode;
@@ -92,6 +91,8 @@ class MDBuilder;
 
 namespace tvm {
 namespace codegen {
+
+class LLVMTarget;
 
 using namespace tir;
 
@@ -109,7 +110,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \param tm The target machine
    * \return The created llvm generator.
    */
-  static std::unique_ptr<CodeGenLLVM> Create(llvm::TargetMachine* tm);
+  static std::unique_ptr<CodeGenLLVM> Create(LLVMTarget* llvm_target);
   /*!
    * \brief Initialize the code generator with given context
    * \param module_name The name of the module.
@@ -121,14 +122,14 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \param target_c_runtime If true, generate a module to be executed by the C runtime. In practice
    *                       this option influences whether global ctors are used.
    */
-  virtual void Init(const std::string& module_name, llvm::TargetMachine* tm, llvm::LLVMContext* ctx,
-                    bool system_lib, bool dynamic_lookup, bool target_c_runtime);
+  virtual void Init(const std::string& module_name, LLVMTarget* llvm_target, bool system_lib,
+                    bool dynamic_lookup, bool target_c_runtime);
 
   /*!
    * \brief Turn on fast math flags for floating point operations.
    * \param fmf FastMathFlags to use for code generation.
    */
-  void SetFastMathFlag(llvm::FastMathFlags fmf);
+  void SetFastMathFlags(llvm::FastMathFlags fmf);
 
   /*!
    * \brief Compile and add function f to the current module.
@@ -229,9 +230,6 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Constant* GetGlobalConstant(
       llvm::Constant* const_data, const std::string& name = "",
       llvm::GlobalValue::LinkageTypes linkage_type = llvm::GlobalValue::InternalLinkage);
-  inline llvm::ConstantArray* NDArrayToLLVMArray(::tvm::runtime::NDArray arr) {
-    return codegen::NDArrayToLLVMArray(ctx_, arr);
-  }
 
  protected:
   /*!
@@ -340,7 +338,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
                                        bool is_volatile)>
           make_instruction);
   // Initialize target
-  virtual void InitTarget(llvm::TargetMachine* tm);
+  virtual void InitTarget();
   // Add module startup function if needed.
   virtual void AddStartupFunction() {}
   // apply optimization on the module.
@@ -476,10 +474,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   std::unique_ptr<llvm::DataLayout> data_layout_;
   // Internal metabuilder
   std::unique_ptr<llvm::MDBuilder> md_builder_;
-  // llvm target machine
-  llvm::TargetMachine* target_machine_{nullptr};
-  // llvm context
-  llvm::LLVMContext* ctx_{nullptr};
+  // llvm target info
+  LLVMTarget* llvm_target_{nullptr};
   // helpful data types
   llvm::Type* t_void_{nullptr};
   llvm::PointerType* t_void_p_{nullptr};
@@ -495,7 +491,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::MDNode* md_tbaa_root_{nullptr};
   llvm::MDNode* md_tbaa_alias_set_{nullptr};
   // modules to be linked.
-  std::vector<std::unique_ptr<llvm::Module> > link_modules_;
+  std::vector<std::unique_ptr<llvm::Module>> link_modules_;
   /*! \brief native vector bits of current targetx*/
   int native_vector_bits_{0};
   /*! \brief the storage scope of allocation */
@@ -567,5 +563,6 @@ void CodeGenLLVM::AddFunctionsOrdered(IterType begin, IterType end, ConvType pfu
 
 }  // namespace codegen
 }  // namespace tvm
-#endif  // LLVM_VERSION
+
+#endif  // TVM_LLVM_VERSION
 #endif  // TVM_TARGET_LLVM_CODEGEN_LLVM_H_
