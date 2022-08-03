@@ -19,8 +19,8 @@
 
 /*! \file llvm_instance.h
  */
-#ifndef TVM_TARGET_LLVM_LLVM_SCOPE_H_
-#define TVM_TARGET_LLVM_LLVM_SCOPE_H_
+#ifndef TVM_TARGET_LLVM_LLVM_INSTANCE_H_
+#define TVM_TARGET_LLVM_LLVM_INSTANCE_H_
 
 #ifdef TVM_LLVM_VERSION
 
@@ -263,4 +263,4 @@ class LLVMTarget {
 }  // namespace tvm
 
 #endif  // TVM_LLVM_VERSION
-#endif  // TVM_TARGET_LLVM_LLVM_SCOPE_H_
+#endif  // TVM_TARGET_LLVM_LLVM_INSTANCE_H_
