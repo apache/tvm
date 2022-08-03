@@ -19,6 +19,7 @@
 # class exposures
 from .packed_func import PackedFunc
 from .object import Object
+from .object_path import ObjectPath, ObjectPathPair
 from .object_generic import ObjectGeneric, ObjectTypes
 from .ndarray import NDArray, DataType, DataTypeCode, Device
 from .module import Module, num_threads
