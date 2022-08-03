@@ -1456,9 +1456,6 @@ def test_cuda_winograd_nchw_conv2d():
         space_generator=ms.space_generator.PostOrderApply(),
         sch_rules="default",
     ).generate_design_space()
-    sch = actual[0]
-    print(sch.mod.script())
-    print(sch.trace)
     check_sketches(
         mod,
         sketches=actual,
