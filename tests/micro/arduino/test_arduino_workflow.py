@@ -36,23 +36,24 @@ This unit test simulates a simple user workflow, where we:
 6. Use serial connection to ensure model behaves correctly
 """
 
-
 # Since these tests are sequential, we'll use the same project/workspace
 # directory for all tests in this file
 @pytest.fixture(scope="module")
-def workspace_dir(request, board):
+def workflow_workspace_dir(request, board):
     return test_utils.make_workspace_dir("arduino_workflow", board)
 
 
 @pytest.fixture(scope="module")
-def project_dir(workspace_dir):
-    return workspace_dir / "project"
+def project_dir(workflow_workspace_dir):
+    return workflow_workspace_dir / "project"
 
 
 # We MUST pass workspace_dir, not project_dir, or the workspace will be dereferenced too soon
 @pytest.fixture(scope="module")
-def project(board, arduino_cli_cmd, tvm_debug, workspace_dir):
-    return test_utils.make_kws_project(board, arduino_cli_cmd, tvm_debug, workspace_dir)
+def project(board, arduino_cli_cmd, microtvm_debug, workflow_workspace_dir):
+    return test_utils.make_kws_project(
+        board, arduino_cli_cmd, microtvm_debug, workflow_workspace_dir
+    )
 
 
 def _get_directory_elements(directory):

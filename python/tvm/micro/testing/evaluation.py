@@ -28,6 +28,7 @@ from contextlib import ExitStack
 import tempfile
 
 import tvm
+from tvm.relay.op.contrib import cmsisnn
 
 
 def tune_model(
@@ -99,6 +100,8 @@ def create_aot_session(
         if use_cmsis_nn:
             config["relay.ext.cmsisnn.options"] = {"mcpu": target.mcpu}
         stack.enter_context(tvm.transform.PassContext(opt_level=3, config=config))
+        if use_cmsis_nn:
+            mod = cmsisnn.partition_for_cmsisnn(mod, params, mcpu=target.mcpu)
         if tune_logs is not None:
             stack.enter_context(tvm.autotvm.apply_history_best(tune_logs))
 
@@ -153,4 +156,4 @@ def evaluate_model_accuracy(session, aot_executor, input_data, true_labels, runs
     num_correct = sum(u == v for u, v in zip(true_labels, predicted_labels))
     average_time = sum(aot_runtimes) / len(aot_runtimes)
     accuracy = num_correct / len(predicted_labels)
-    return average_time, accuracy
+    return average_time, accuracy, predicted_labels
