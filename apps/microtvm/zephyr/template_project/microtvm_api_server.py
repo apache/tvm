@@ -583,7 +583,9 @@ class Handler(server.ProjectAPIHandler):
 
         # Populate src/
         src_dir = project_dir / "src"
-        if options["project_type"] != "host_driven" or self._is_fvp(options["zephyr_board"], options.get("use_fvp")):
+        if options["project_type"] != "host_driven" or self._is_fvp(
+            options["zephyr_board"], options.get("use_fvp")
+        ):
             shutil.copytree(API_SERVER_DIR / "src" / options["project_type"], src_dir)
         else:
             src_dir.mkdir()
@@ -600,7 +602,7 @@ class Handler(server.ProjectAPIHandler):
         zephyr_board = self._find_board_from_cmake_file()
         emu_platform = self._find_platform_from_cmake_file()
         use_fvp = False
-        if (emu_platform == "armfvp"):
+        if emu_platform == "armfvp":
             use_fvp = True
         env = dict(os.environ)
         if self._is_fvp(zephyr_board, use_fvp):
@@ -631,7 +633,10 @@ class Handler(server.ProjectAPIHandler):
 
     @classmethod
     def _is_fvp(cls, board, use_fvp):
-        assert (use_fvp and board not in cls._KNOWN_FVP_ZEPHYR_BOARDS, "fvp doesn't support this board.")
+        assert (
+            use_fvp and board not in cls._KNOWN_FVP_ZEPHYR_BOARDS,
+            "fvp doesn't support this board.",
+        )
         return board in cls._KNOWN_FVP_ZEPHYR_BOARDS and use_fvp
 
     @classmethod
@@ -672,7 +677,7 @@ class Handler(server.ProjectAPIHandler):
     def flash(self, options):
         if self._find_platform_from_cmake_file():
             return  # NOTE: qemu and fvp don't require flash step--it is launched from open_transport.
-        
+
         zephyr_board = self._find_board_from_cmake_file()
         # The nRF5340DK requires an additional `nrfjprog --recover` before each flash cycle.
         # This is because readback protection is enabled by default when this device is flashed.
@@ -690,7 +695,7 @@ class Handler(server.ProjectAPIHandler):
         zephyr_board = self._find_board_from_cmake_file()
         emu_platform = self._find_platform_from_cmake_file()
         use_fvp = False
-        if (emu_platform == "armfvp"):
+        if emu_platform == "armfvp":
             use_fvp = True
 
         if self._is_qemu(zephyr_board, use_fvp):
