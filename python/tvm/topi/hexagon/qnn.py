@@ -339,6 +339,7 @@ def qnn_conv2d(  # Conv2d inputs
     kh = te.reduce_axis((0, kernel_height), name="kh")
     kw = te.reduce_axis((0, kernel_width), name="kw")
 
+    # axis=0 in get_qnn_param means 'O' dimension in "OIHW" weights layout.
     out = te.compute(
         oshape,
         lambda n, oc, oh, ow: te.sum(
@@ -348,7 +349,9 @@ def qnn_conv2d(  # Conv2d inputs
                 oh * height_stride + kh * dilation_h,
                 ow * width_stride + kw * dilation_w,
             ].astype("int32")
-            * te.subtract(weight[oc, ic, kh, kw], kernel_zero_point).astype("int32"),
+            * te.subtract(
+                weight[oc, ic, kh, kw], get_qnn_param(kernel_zero_point, (oc, ic, kh, kw), axis=0)
+            ).astype("int32"),
             axis=[ic, kh, kw],
         ),
     )
@@ -519,11 +522,14 @@ def qnn_dense(
     N, _ = get_const_tuple(weight.shape)
     k = te.reduce_axis((0, K), "k")
     # This implementation uses "int32" dense output data type.
+    # axis=0 in get_qnn_param mean 'N' dimension in "NK" weights layout.
     out = te.compute(
         (M, N),
         lambda m, n: te.sum(
             te.subtract(data[m, k], input_zero_point).astype("int32")
-            * te.subtract(weight[n, k], kernel_zero_point).astype("int32"),
+            * te.subtract(weight[n, k], get_qnn_param(kernel_zero_point, (n, k), axis=0)).astype(
+                "int32"
+            ),
             axis=k,
         ),
     )
