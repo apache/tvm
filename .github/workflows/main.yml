@@ -36,15 +36,12 @@ concurrency:
 
 jobs:
   MacOS:
-    if: ${{ github.repository == 'driazati/tvm' }}
-    runs-on: ubuntu-latest
+    if: ${{ github.repository == 'apache/tvm' }}
+    runs-on: macOS-latest
     steps:
       - uses: actions/checkout@v2
         with:
           submodules: 'recursive'
-      - name: fail
-        run: |
-          exit 1
       - name: Set up environment
         uses: ./.github/actions/setup
       - name: Conda Build

@@ -37,7 +37,7 @@ CommentChecker = Callable[[Comment], bool]
 
 EXPECTED_JOBS = ["tvm-ci/pr-head"]
 TVM_BOT_JENKINS_TOKEN = os.environ["TVM_BOT_JENKINS_TOKEN"]
-GH_API_TOKEN = os.environ["GH_API_TOKEN"]
+GH_ACTIONS_TOKEN = os.environ["GH_ACTIONS_TOKEN"]
 JENKINS_URL = "https://ci.tlcpack.ai/"
 THANKS_MESSAGE = r"(\s*)Thanks for contributing to TVM!   Please refer to guideline https://tvm.apache.org/docs/contribute/ for useful information and tips. After the pull request is submitted, please request code reviews from \[Reviewers\]\(https://github.com/apache/incubator-tvm/blob/master/CONTRIBUTORS.md#reviewers\) by  them in the pull request thread.(\s*)"
 
@@ -50,6 +50,18 @@ COLLABORATORS_QUERY = """
 query ($owner: String!, $name: String!, $user: String!) {
   repository(owner: $owner, name: $name) {
     collaborators(query: $user, first: 1) {
+      nodes {
+        login
+      }
+    }
+  }
+}
+"""
+
+MENTIONABLE_QUERY = """
+query ($owner: String!, $name: String!, $user: String!) {
+  repository(owner: $owner, name: $name) {
+    mentionableUsers(query: $user, first: 1) {
       nodes {
         login
       }
@@ -328,14 +340,20 @@ class PR:
         """
         Query GitHub for collaborators matching 'user'
         """
+        return self.search_users(user, COLLABORATORS_QUERY)["collaborators"]["nodes"]
+
+    def search_users(self, user: str, query: str) -> List[Dict[str, Any]]:
         return self.github.graphql(
-            query=COLLABORATORS_QUERY,
+            query=query,
             variables={
                 "owner": self.owner,
                 "name": self.repo_name,
                 "user": user,
             },
         )["data"]["repository"]["collaborators"]["nodes"]
+
+    def search_mentionable_users(self, user: str) -> List[Dict[str, Any]]:
+        return self.search_users(user, MENTIONABLE_QUERY)["mentionableUsers"]["nodes"]
 
     def comment(self, text: str) -> None:
         """
@@ -513,7 +531,7 @@ class PR:
 
         logging.info(f"Rerunning GitHub Actions jobs with IDs: {job_ids}")
         actions_github = GitHubRepo(
-            user=self.github.user, repo=self.github.repo, token=GH_API_TOKEN
+            user=self.github.user, repo=self.github.repo, token=GH_ACTIONS_TOKEN
         )
         for job_id in job_ids:
             try:
@@ -558,12 +576,21 @@ def check_collaborator(pr, triggering_comment, args):
     return len(collaborators) > 0
 
 
-def check_anyone(pr, triggering_comment, args):
-    return True
+def check_mentionable_users(pr, triggering_comment, args):
+    logging.info("Checking mentionable users")
+    # Get the list of collaborators for the repo filtered by the comment
+    # author
+    if args.testing_mentionable_users_json:
+        mentionable_users = json.loads(args.testing_mentionable_users_json)
+    else:
+        mentionable_users = pr.search_mentionable_users(triggering_comment["user"]["login"])
+    logging.info(f"Found mentionable_users: {mentionable_users}")
+
+    return len(mentionable_users) > 0
 
 
 AUTH_CHECKS = {
-    "anyone": check_anyone,
+    "metionable_users": check_mentionable_users,
     "collaborators": check_collaborator,
     "author": check_author,
 }
@@ -607,7 +634,7 @@ class Rerun:
         "run ci",
     ]
 
-    auth = [AUTH_CHECKS["anyone"]]
+    auth = [AUTH_CHECKS["metionable_users"]]
 
     @staticmethod
     def run(pr: PR):
