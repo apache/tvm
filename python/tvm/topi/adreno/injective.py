@@ -17,9 +17,10 @@
 # pylint: disable=invalid-name, unused-variable,
 """Schedule for composition of injective operator"""
 import tvm
-from .utils import bind_data_copy
 from tvm import te
+from .utils import bind_data_copy
 from .. import utils
+
 
 def schedule_injective_from_existing(sch, out):
     """Schedule for injective op from existing schedule.
@@ -39,6 +40,7 @@ def schedule_injective_from_existing(sch, out):
 
     bind_data_copy(sch[out])
     return sch
+
 
 def schedule_injective(outs):
     """Schedule for injective op.
@@ -62,4 +64,3 @@ def schedule_injective(outs):
         if not utils.is_empty_shape(out.shape):
             schedule_injective_from_existing(s, out)
     return s
-

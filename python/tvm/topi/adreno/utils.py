@@ -474,8 +474,16 @@ def add_pad(
         pad_after[x_axis] -= in_width + pad_before[x_axis] + pad_after[x_axis] - input_latest_w
     if input_latest_h < in_height + pad_before[y_axis] + pad_after[y_axis]:
         pad_after[y_axis] -= in_height + pad_before[y_axis] + pad_after[y_axis] - input_latest_h
-    if pad_before[0] == 0 and pad_before[1] == 0 and pad_before[2] == 0 and pad_before[3] == 0 and \
-        pad_after[0] == 0 and pad_after[1] == 0 and pad_after[2] == 0 and pad_after[3] == 0:
+    if (
+        pad_before[0] == 0
+        and pad_before[1] == 0
+        and pad_before[2] == 0
+        and pad_before[3] == 0
+        and pad_after[0] == 0
+        and pad_after[1] == 0
+        and pad_after[2] == 0
+        and pad_after[3] == 0
+    ):
         return data
     else:
         return nn.pad(data, pad_before, pad_after, name="pad_temp")
