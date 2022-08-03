@@ -27,7 +27,6 @@ from tvm import meta_schedule as ms
 from tvm import relay
 from tvm.meta_schedule import ApplyHistoryBest, postproc, schedule_rule
 from tvm.meta_schedule.relay_integration import extract_task_from_relay
-from tvm.meta_schedule.testing import relay_workload
 from tvm.meta_schedule.testing.tlcbench import load_quantized_bert_base
 from tvm.meta_schedule.tune import tune_extracted_tasks
 from tvm.tir.tensor_intrin import AMDGPU_SDOT4_INTRIN, DP4A_INTRIN
@@ -53,6 +52,18 @@ SCH_RULES_FOR_VNNI = [
     schedule_rule.AddRFactor(max_jobs_per_core=16, max_innermost_factor=64),
     schedule_rule.MultiLevelTilingWithIntrin(
         VNNI_INTRIN,
+        structure="SSRSRS",
+        tile_binds=None,
+        max_innermost_factor=64,
+        vector_load_lens=None,
+        reuse_read=None,
+        reuse_write=schedule_rule.ReuseType(
+            req="may",
+            levels=[1, 2],
+            scope="global",
+        ),
+    ),
+    schedule_rule.MultiLevelTiling(
         structure="SSRSRS",
         tile_binds=None,
         max_innermost_factor=64,
@@ -240,17 +251,11 @@ def _test_bert_int8(target, sch_rules, postprocs):
 
     extracted_tasks = extract_task_from_relay(relay_mod, target, params)
 
-    tune_tasks = []
-
-    for task in filter(
-        lambda task: "dense" in task.task_name or "batch_matmul" in task.task_name,
-        extracted_tasks,
-    ):
-        relay_func = list(task.mod.functions.values())[0]
-        out_type = relay_func.body.checked_type
-
-        if out_type.dtype != "float32":
-            tune_tasks.append(task)
+    tune_tasks = [
+        task
+        for task in extracted_tasks
+        if "dense" in task.task_name or "batch_matmul" in task.task_name
+    ]
 
     with tempfile.TemporaryDirectory() as work_dir:
         database = tune_extracted_tasks(

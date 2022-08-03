@@ -180,6 +180,7 @@ def prepare() {
           script: './tests/scripts/git_change_docker.sh',
           label: 'Check for any docker changes',
         )
+
         if (skip_ci) {
           // Don't rebuild when skipping CI
           rebuild_docker_images = false

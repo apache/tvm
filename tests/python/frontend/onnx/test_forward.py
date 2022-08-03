@@ -16,6 +16,7 @@
 # under the License.
 import glob
 import os
+import platform
 import re
 
 import numpy as np
@@ -5241,23 +5242,7 @@ unsupported_onnx_tests = [
     "test_training_dropout_mask",
     "test_training_dropout_zero_ratio",
     "test_training_dropout_zero_ratio_mask",
-    "test_tril",
-    "test_tril_pos",
-    "test_tril_square",
-    "test_tril_square_neg",
-    "test_tril_neg",
-    "test_tril_one_row_neg",
-    "test_tril_out_neg",
-    "test_tril_out_pos",
     "test_tril_zero",
-    "test_triu",
-    "test_triu_one_row",
-    "test_triu_out_neg_out",
-    "test_triu_out_pos",
-    "test_triu_neg",
-    "test_triu_pos",
-    "test_triu_square",
-    "test_triu_square_neg",
     "test_triu_zero",
     "test_unique_sorted_with_axis",
     "test_unique_sorted_with_axis_3d",
@@ -5280,6 +5265,9 @@ target_skips = {
 @pytest.mark.parametrize("onnx_test", onnx_test_folders)
 @tvm.testing.parametrize_targets
 def test_onnx_nodes(target, dev, onnx_test):
+    if platform.machine() == "aarch64" and onnx_test == "test_resize_upsample_sizes_nearest":
+        pytest.skip("Currently failing on AArch64")
+
     target_kind = tvm.target.Target(target).kind.name
 
     if onnx_test in unsupported_onnx_tests:

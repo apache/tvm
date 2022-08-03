@@ -357,7 +357,7 @@ inline double GetRunMsMedian(const RunnerResult& runner_result) {
   std::sort(v.begin(), v.end());
   int n = v.size();
   if (n % 2 == 0) {
-    return (v[n / 2] + v[n / 2 + 1]) * 0.5 * 1000.0;
+    return (v[n / 2 - 1] + v[n / 2]) * 0.5 * 1000.0;
   } else {
     return v[n / 2] * 1000.0;
   }

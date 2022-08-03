@@ -15,115 +15,151 @@
 # specific language governing permissions and limitations
 # under the License.
 
+""" Test rpc based launcher for hexagon """
+
 import numpy as np
 
 import tvm.testing
-from tvm import te
-from tvm import relay
-from tvm.relay.backend import Executor, Runtime
+from tvm import relay, te
 from tvm.contrib.hexagon.session import Session
+from tvm.relay.backend import Executor, Runtime
 
 
 @tvm.testing.requires_hexagon
 def test_add(hexagon_session: Session):
+    """Test simple add"""
     dtype = "int8"
-    A = tvm.te.placeholder((2,), dtype=dtype)
-    B = tvm.te.placeholder((1,), dtype=dtype)
-    C = tvm.te.compute(A.shape, lambda i: A[i] + B[0], name="C")
-    sched = tvm.te.create_schedule(C.op)
+    placeholder_a = tvm.te.placeholder((2,), dtype=dtype)
+    placeholder_b = tvm.te.placeholder((1,), dtype=dtype)
+    compute_c = tvm.te.compute(
+        placeholder_a.shape, lambda i: placeholder_a[i] + placeholder_b[0], name="C"
+    )
+    sched = tvm.te.create_schedule(compute_c.op)
 
     target_hexagon = tvm.target.hexagon("v68", link_params=True)
     func = tvm.build(
-        sched, [A, B, C], tvm.target.Target(target_hexagon, host=target_hexagon), name="add"
+        sched,
+        [placeholder_a, placeholder_b, compute_c],
+        tvm.target.Target(target_hexagon, host=target_hexagon),
+        name="add",
     )
 
     mod = hexagon_session.load_module(func)
 
-    A_data = tvm.nd.array(np.array([2, 3], dtype=dtype), device=hexagon_session.device)
-    assert (A_data.numpy() == np.array([2, 3])).all()
-    B_data = tvm.nd.array(np.array([4], dtype=dtype), device=hexagon_session.device)
-    assert (B_data.numpy() == np.array([4])).all()
-    C_data = tvm.nd.array(np.array([0, 0], dtype=dtype), device=hexagon_session.device)
-    assert (C_data.numpy() == np.array([0, 0])).all()
-    mod["add"](A_data, B_data, C_data)
-    assert (C_data.numpy() == np.array([6, 7])).all()
+    a_data = tvm.nd.array(np.array([2, 3], dtype=dtype), device=hexagon_session.device)
+    assert (a_data.numpy() == np.array([2, 3])).all()
+    b_data = tvm.nd.array(np.array([4], dtype=dtype), device=hexagon_session.device)
+    assert (b_data.numpy() == np.array([4])).all()
+    c_data = tvm.nd.array(np.array([0, 0], dtype=dtype), device=hexagon_session.device)
+    assert (c_data.numpy() == np.array([0, 0])).all()
+    mod["add"](a_data, b_data, c_data)
+    assert (c_data.numpy() == np.array([6, 7])).all()
 
 
 @tvm.testing.requires_hexagon
 def test_add_vtcm(hexagon_session: Session):
+    """Test add on VTCM"""
     dtype = "int8"
-    A = tvm.te.placeholder((2,), dtype=dtype)
-    B = tvm.te.placeholder((1,), dtype=dtype)
-    C = tvm.te.compute(A.shape, lambda i: A[i] + B[0], name="C")
-    sched = tvm.te.create_schedule(C.op)
+    placeholder_a = tvm.te.placeholder((2,), dtype=dtype)
+    placeholder_b = tvm.te.placeholder((1,), dtype=dtype)
+    compute_c = tvm.te.compute(
+        placeholder_a.shape, lambda i: placeholder_a[i] + placeholder_b[0], name="C"
+    )
+    sched = tvm.te.create_schedule(compute_c.op)
 
     target_hexagon = tvm.target.hexagon("v68", link_params=True)
     func = tvm.build(
-        sched, [A, B, C], tvm.target.Target(target_hexagon, host=target_hexagon), name="add"
+        sched,
+        [placeholder_a, placeholder_b, compute_c],
+        tvm.target.Target(target_hexagon, host=target_hexagon),
+        name="add",
     )
 
     mod = hexagon_session.load_module(func)
 
-    A_data = tvm.nd.empty(A.shape, A.dtype, hexagon_session.device, "global.vtcm")
-    A_data.copyfrom(np.array([2, 3]))
+    a_data = tvm.nd.empty(
+        placeholder_a.shape, placeholder_a.dtype, hexagon_session.device, "global.vtcm"
+    )
+    a_data.copyfrom(np.array([2, 3]))
 
-    B_data = tvm.nd.empty(B.shape, B.dtype, hexagon_session.device, "global.vtcm")
-    B_data.copyfrom(np.array([4]))
+    b_data = tvm.nd.empty(
+        placeholder_b.shape, placeholder_b.dtype, hexagon_session.device, "global.vtcm"
+    )
+    b_data.copyfrom(np.array([4]))
 
-    C_data = tvm.nd.empty(C.shape, C.dtype, hexagon_session.device, "global.vtcm")
-    C_data.copyfrom(np.array([0, 0]))
+    c_data = tvm.nd.empty(compute_c.shape, compute_c.dtype, hexagon_session.device, "global.vtcm")
+    c_data.copyfrom(np.array([0, 0]))
 
-    mod["add"](A_data, B_data, C_data)
-    result = C_data.numpy()
+    mod["add"](a_data, b_data, c_data)
+    result = c_data.numpy()
     assert (result == np.array([6, 7])).all()
 
 
 class TestMatMul:
-    M = tvm.testing.parameter(32)
-    N = tvm.testing.parameter(32)
-    K = tvm.testing.parameter(32)
+    """Test matmul class"""
+
+    size_m = tvm.testing.parameter(32)
+    size_n = tvm.testing.parameter(32)
+    size_k = tvm.testing.parameter(32)
 
     @tvm.testing.requires_hexagon
-    def test_matmul(self, hexagon_session, M, N, K):
-        X = te.placeholder((M, K), dtype="float32")
-        Y = te.placeholder((K, N), dtype="float32")
-        k1 = te.reduce_axis((0, K), name="k1")
-        Z = te.compute((M, N), lambda i, j: te.sum(X[i, k1] * Y[k1, j], axis=[k1]))
-        schedule = te.create_schedule(Z.op)
+    def test_matmul(self, hexagon_session, size_m, size_n, size_k):
+        """Test matmul"""
+        placeholder_x = te.placeholder((size_m, size_k), dtype="float32")
+        placeholder_y = te.placeholder((size_k, size_n), dtype="float32")
+        reduce_k1 = te.reduce_axis((0, size_k), name="k1")
+        compute_z = te.compute(
+            (size_m, size_n),
+            lambda i, j: te.sum(
+                placeholder_x[i, reduce_k1] * placeholder_y[reduce_k1, j], axis=[reduce_k1]
+            ),
+        )
+        schedule = te.create_schedule(compute_z.op)
 
         target_hexagon = tvm.target.hexagon("v68", link_params=True)
         func = tvm.build(
-            schedule, [X, Y, Z], tvm.target.Target(target_hexagon, host=target_hexagon)
+            schedule,
+            [placeholder_x, placeholder_y, compute_z],
+            tvm.target.Target(target_hexagon, host=target_hexagon),
         )
 
         mod = hexagon_session.load_module(func)
 
-        x = np.random.uniform(size=[i.value for i in X.shape]).astype(X.dtype)
-        y = np.random.uniform(size=[i.value for i in Y.shape]).astype(Y.dtype)
-        z = np.zeros([i.value for i in Z.shape], dtype=Z.dtype)
+        x_data = np.random.uniform(size=[i.value for i in placeholder_x.shape]).astype(
+            placeholder_x.dtype
+        )
+        y_data = np.random.uniform(size=[i.value for i in placeholder_y.shape]).astype(
+            placeholder_y.dtype
+        )
+        z_data = np.zeros([i.value for i in compute_z.shape], dtype=compute_z.dtype)
 
-        xt = tvm.nd.array(x, device=hexagon_session.device)
-        yt = tvm.nd.array(y, device=hexagon_session.device)
-        zt = tvm.nd.array(z, device=hexagon_session.device)
-        mod(xt, yt, zt)
+        x_array = tvm.nd.array(x_data, device=hexagon_session.device)
+        y_array = tvm.nd.array(y_data, device=hexagon_session.device)
+        z_array = tvm.nd.array(z_data, device=hexagon_session.device)
+        mod(x_array, y_array, z_array)
 
         target_llvm = tvm.target.Target("llvm")
-        mod = tvm.build(schedule, [X, Y, Z], tvm.target.Target(target_llvm, host=target_llvm))
+        mod = tvm.build(
+            schedule,
+            [placeholder_x, placeholder_y, compute_z],
+            tvm.target.Target(target_llvm, host=target_llvm),
+        )
         device = tvm.cpu(0)
-        xtcpu = tvm.nd.array(x, device)
-        ytcpu = tvm.nd.array(y, device)
-        ztcpu = tvm.nd.array(z, device)
+        xtcpu = tvm.nd.array(x_data, device)
+        ytcpu = tvm.nd.array(y_data, device)
+        ztcpu = tvm.nd.array(z_data, device)
         mod(xtcpu, ytcpu, ztcpu)
 
-        tvm.testing.assert_allclose(zt.numpy(), ztcpu.numpy(), rtol=1e-4)
+        tvm.testing.assert_allclose(z_array.numpy(), ztcpu.numpy(), rtol=1e-4)
 
 
 @tvm.testing.requires_hexagon
 def test_graph_executor(hexagon_session: Session):
+    """Test graph executor"""
     dtype = "float32"
     data = relay.var("data", relay.TensorType((1, 64, 64, 3), dtype))
     weight = relay.var("weight", relay.TensorType((5, 5, 3, 8), dtype))
-    y = relay.nn.conv2d(
+    conv2d_op = relay.nn.conv2d(
         data,
         weight,
         padding=(2, 2),
@@ -132,7 +168,7 @@ def test_graph_executor(hexagon_session: Session):
         kernel_layout="HWIO",
         out_dtype="float32",
     )
-    f = relay.Function([data, weight], y)
+    f = relay.Function([data, weight], conv2d_op)
     relay_mod = tvm.IRModule.from_expr(f)
     relay_mod = relay.transform.InferType()(relay_mod)
 
@@ -176,6 +212,7 @@ def test_graph_executor(hexagon_session: Session):
 
 @tvm.testing.requires_hexagon
 def test_graph_executor_multiple_conv2d(hexagon_session: Session):
+    """Test multiple conv2d nodes with graph_executor"""
     dtype = "float32"
     input_shape = (1, 8, 8, 3)
     w1_shape = (5, 5, 3, 1)
@@ -183,7 +220,7 @@ def test_graph_executor_multiple_conv2d(hexagon_session: Session):
     data = relay.var("data", relay.TensorType(input_shape, dtype))
     weight1 = relay.var("weight1", relay.TensorType(w1_shape, dtype))
     weight2 = relay.var("weight2", relay.TensorType(w2_shape, dtype))
-    y1 = relay.nn.conv2d(
+    conv2d_op1 = relay.nn.conv2d(
         data,
         weight1,
         padding=(2, 2),
@@ -192,8 +229,8 @@ def test_graph_executor_multiple_conv2d(hexagon_session: Session):
         kernel_layout="HWIO",
         out_dtype="float32",
     )
-    y2 = relay.nn.conv2d(
-        y1,
+    conv2d_op2 = relay.nn.conv2d(
+        conv2d_op1,
         weight2,
         padding=(2, 2),
         kernel_size=(5, 5),
@@ -201,7 +238,7 @@ def test_graph_executor_multiple_conv2d(hexagon_session: Session):
         kernel_layout="HWIO",
         out_dtype="float32",
     )
-    f = relay.Function([data, weight1, weight2], y2)
+    f = relay.Function([data, weight1, weight2], conv2d_op2)
     relay_mod = tvm.IRModule.from_expr(f)
     relay_mod = relay.transform.InferType()(relay_mod)
 
@@ -253,6 +290,7 @@ def test_graph_executor_multiple_conv2d(hexagon_session: Session):
 
 @tvm.testing.requires_hexagon
 def test_aot_executor(hexagon_session: Session, aot_host_target, aot_target):
+    """Test AOT executor"""
     dtype = "float32"
     input_shape = (1, 128, 128, 3)
     w_shape = (5, 5, 3, 8)
@@ -312,6 +350,7 @@ def test_aot_executor(hexagon_session: Session, aot_host_target, aot_target):
 
 @tvm.testing.requires_hexagon
 def test_aot_executor_multiple_conv2d(hexagon_session: Session, aot_host_target, aot_target):
+    """Test multiple conv2d nodes with AOT executor"""
     dtype = "float32"
     input_shape = (1, 8, 8, 3)
     w1_shape = (5, 5, 3, 1)
@@ -319,7 +358,7 @@ def test_aot_executor_multiple_conv2d(hexagon_session: Session, aot_host_target,
     data = relay.var("data", relay.TensorType(input_shape, dtype))
     weight1 = relay.var("weight1", relay.TensorType(w1_shape, dtype))
     weight2 = relay.var("weight2", relay.TensorType(w2_shape, dtype))
-    y1 = relay.nn.conv2d(
+    conv2d_op1 = relay.nn.conv2d(
         data,
         weight1,
         padding=(2, 2),
@@ -328,8 +367,8 @@ def test_aot_executor_multiple_conv2d(hexagon_session: Session, aot_host_target,
         kernel_layout="HWIO",
         out_dtype="float32",
     )
-    y2 = relay.nn.conv2d(
-        y1,
+    conv2d_op2 = relay.nn.conv2d(
+        conv2d_op1,
         weight2,
         padding=(2, 2),
         kernel_size=(5, 5),
@@ -337,7 +376,7 @@ def test_aot_executor_multiple_conv2d(hexagon_session: Session, aot_host_target,
         kernel_layout="HWIO",
         out_dtype="float32",
     )
-    f = relay.Function([data, weight1, weight2], y2)
+    f = relay.Function([data, weight1, weight2], conv2d_op2)
     relay_mod = tvm.IRModule.from_expr(f)
     relay_mod = relay.transform.InferType()(relay_mod)
 

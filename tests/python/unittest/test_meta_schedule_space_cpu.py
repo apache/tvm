@@ -1660,6 +1660,948 @@ def test_cpu_nrm():
     )
 
 
+def test_cpu_sfm():
+    # fmt: off
+    @T.prim_func
+    def sfm_0(A: T.Buffer[(256, 256), "float32"], T_softmax_norm: T.Buffer[(256, 256), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":0, "meta_schedule.vectorize":64})
+            T_softmax_maxelem = T.alloc_buffer([256], dtype="float32")
+            T_softmax_expsum = T.alloc_buffer([256], dtype="float32")
+            T_softmax_expsum_rf = T.alloc_buffer([256, 16], dtype="float32")
+            T_softmax_maxelem_rf = T.alloc_buffer([256, 4], dtype="float32")
+            for i0, i1_0, i1_1 in T.grid(256, 4, 64):
+                with T.block("T_softmax_maxelem_rf"):
+                    vi1_0, i0_1, vi1_1 = T.axis.remap("SSR", [i1_0, i0, i1_1])
+                    T.reads(A[i0_1, vi1_0 * 64 + vi1_1])
+                    T.writes(T_softmax_maxelem_rf[i0_1, vi1_0])
+                    with T.init():
+                        T_softmax_maxelem_rf[i0_1, vi1_0] = T.float32(-3.4028234663852886e+38)
+                    T_softmax_maxelem_rf[i0_1, vi1_0] = T.max(T_softmax_maxelem_rf[i0_1, vi1_0], A[i0_1, vi1_0 * 64 + vi1_1])
+            for i0, i1_0 in T.grid(256, 4):
+                with T.block("T_softmax_maxelem"):
+                    vi1_0, i0_2 = T.axis.remap("RS", [i1_0, i0])
+                    T.reads(T_softmax_maxelem_rf[i0_2, vi1_0])
+                    T.writes(T_softmax_maxelem[i0_2])
+                    with T.init():
+                        T_softmax_maxelem[i0_2] = T.float32(-3.4028234663852886e+38)
+                    T_softmax_maxelem[i0_2] = T.max(T_softmax_maxelem[i0_2], T_softmax_maxelem_rf[i0_2, vi1_0])
+            for i0_3, i1_0, i1_1 in T.grid(256, 16, 16):
+                with T.block("T_softmax_expsum_rf"):
+                    vi1_0, i0_4, vi1_1 = T.axis.remap("SSR", [i1_0, i0_3, i1_1])
+                    T.reads(A[i0_4, vi1_0 * 16 + vi1_1], T_softmax_maxelem[i0_4])
+                    T.writes(T_softmax_expsum_rf[i0_4, vi1_0])
+                    with T.init():
+                        T_softmax_expsum_rf[i0_4, vi1_0] = T.float32(0)
+                    T_softmax_expsum_rf[i0_4, vi1_0] = T_softmax_expsum_rf[i0_4, vi1_0] + T.exp(A[i0_4, vi1_0 * 16 + vi1_1] - T_softmax_maxelem[i0_4], dtype="float32")
+            for i0_5, i1 in T.grid(256, 256):
+                for ax0, ax1 in T.grid(16, 1):
+                    with T.block("T_softmax_expsum"):
+                        vi1_0 = T.axis.reduce(16, ax0)
+                        i0_6 = T.axis.spatial(256, i0_5 + ax1)
+                        T.reads(T_softmax_expsum_rf[i0_6, vi1_0])
+                        T.writes(T_softmax_expsum[i0_6])
+                        with T.init():
+                            T_softmax_expsum[i0_6] = T.float32(0)
+                        T_softmax_expsum[i0_6] = T_softmax_expsum[i0_6] + T_softmax_expsum_rf[i0_6, vi1_0]
+                with T.block("T_softmax_norm"):
+                    i0_7, i1_2 = T.axis.remap("SS", [i0_5, i1])
+                    T.reads(A[i0_7, i1_2], T_softmax_maxelem[i0_7], T_softmax_expsum[i0_7])
+                    T.writes(T_softmax_norm[i0_7, i1_2])
+                    T.block_attr({"axis":1})
+                    T_softmax_norm[i0_7, i1_2] = T.exp(A[i0_7, i1_2] - T_softmax_maxelem[i0_7], dtype="float32") / T_softmax_expsum[i0_7]
+    @T.prim_func
+    def sfm_1(A: T.Buffer[(256, 256), "float32"], T_softmax_norm: T.Buffer[(256, 256), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":16, "meta_schedule.vectorize":64})
+            T_softmax_maxelem = T.alloc_buffer([256], dtype="float32")
+            T_softmax_exp = T.alloc_buffer([256, 256], dtype="float32")
+            T_softmax_expsum = T.alloc_buffer([256], dtype="float32")
+            T_softmax_expsum_rf = T.alloc_buffer([256, 16], dtype="float32")
+            T_softmax_maxelem_rf = T.alloc_buffer([256, 64], dtype="float32")
+            for i0 in T.serial(256):
+                for ax0, ax1, ax2 in T.grid(64, 1, 4):
+                    with T.block("T_softmax_maxelem_rf"):
+                        vi1_1 = T.axis.spatial(64, ax0)
+                        i0_1 = T.axis.spatial(256, i0 + ax1)
+                        vi1_0 = T.axis.reduce(4, ax2)
+                        T.reads(A[i0_1, vi1_0 * 64 + vi1_1])
+                        T.writes(T_softmax_maxelem_rf[i0_1, vi1_1])
+                        with T.init():
+                            T_softmax_maxelem_rf[i0_1, vi1_1] = T.float32(-3.4028234663852886e+38)
+                        T_softmax_maxelem_rf[i0_1, vi1_1] = T.max(T_softmax_maxelem_rf[i0_1, vi1_1], A[i0_1, vi1_0 * 64 + vi1_1])
+                for i1 in T.serial(256):
+                    for ax0, ax1 in T.grid(64, 1):
+                        with T.block("T_softmax_maxelem"):
+                            vi1_1 = T.axis.reduce(64, ax0)
+                            i0_2 = T.axis.spatial(256, i0 + ax1)
+                            T.reads(T_softmax_maxelem_rf[i0_2, vi1_1])
+                            T.writes(T_softmax_maxelem[i0_2])
+                            with T.init():
+                                T_softmax_maxelem[i0_2] = T.float32(-3.4028234663852886e+38)
+                            T_softmax_maxelem[i0_2] = T.max(T_softmax_maxelem[i0_2], T_softmax_maxelem_rf[i0_2, vi1_1])
+                    with T.block("T_softmax_exp"):
+                        i0_3, i1_1 = T.axis.remap("SS", [i0, i1])
+                        T.reads(A[i0_3, i1_1], T_softmax_maxelem[i0_3])
+                        T.writes(T_softmax_exp[i0_3, i1_1])
+                        T_softmax_exp[i0_3, i1_1] = T.exp(A[i0_3, i1_1] - T_softmax_maxelem[i0_3], dtype="float32")
+            for i0_4, i1_0, i1_1_1 in T.grid(256, 16, 16):
+                with T.block("T_softmax_expsum_rf"):
+                    vi1_0, i0_5, vi1_1 = T.axis.remap("SSR", [i1_0, i0_4, i1_1_1])
+                    T.reads(T_softmax_exp[i0_5, vi1_0 * 16 + vi1_1])
+                    T.writes(T_softmax_expsum_rf[i0_5, vi1_0])
+                    with T.init():
+                        T_softmax_expsum_rf[i0_5, vi1_0] = T.float32(0)
+                    T_softmax_expsum_rf[i0_5, vi1_0] = T_softmax_expsum_rf[i0_5, vi1_0] + T_softmax_exp[i0_5, vi1_0 * 16 + vi1_1]
+            for i0_6, i1_0 in T.grid(256, 16):
+                with T.block("T_softmax_expsum"):
+                    vi1_0, i0_7 = T.axis.remap("RS", [i1_0, i0_6])
+                    T.reads(T_softmax_expsum_rf[i0_7, vi1_0])
+                    T.writes(T_softmax_expsum[i0_7])
+                    with T.init():
+                        T_softmax_expsum[i0_7] = T.float32(0)
+                    T_softmax_expsum[i0_7] = T_softmax_expsum[i0_7] + T_softmax_expsum_rf[i0_7, vi1_0]
+            for i0_8, i1 in T.grid(256, 256):
+                with T.block("T_softmax_norm"):
+                    i0_9, i1_2 = T.axis.remap("SS", [i0_8, i1])
+                    T.reads(T_softmax_exp[i0_9, i1_2], T_softmax_expsum[i0_9])
+                    T.writes(T_softmax_norm[i0_9, i1_2])
+                    T.block_attr({"axis":1})
+                    T_softmax_norm[i0_9, i1_2] = T_softmax_exp[i0_9, i1_2] / T_softmax_expsum[i0_9]
+    @T.prim_func
+    def sfm_2(A: T.Buffer[(256, 256), "float32"], T_softmax_norm: T.Buffer[(256, 256), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":512, "meta_schedule.vectorize":64})
+            T_softmax_maxelem = T.alloc_buffer([256], dtype="float32")
+            T_softmax_expsum = T.alloc_buffer([256], dtype="float32")
+            T_softmax_expsum_rf = T.alloc_buffer([256, 16], dtype="float32")
+            for i0, i1 in T.grid(256, 256):
+                with T.block("T_softmax_maxelem"):
+                    i0_1, k = T.axis.remap("SR", [i0, i1])
+                    T.reads(A[i0_1, k])
+                    T.writes(T_softmax_maxelem[i0_1])
+                    with T.init():
+                        T_softmax_maxelem[i0_1] = T.float32(-3.4028234663852886e+38)
+                    T_softmax_maxelem[i0_1] = T.max(T_softmax_maxelem[i0_1], A[i0_1, k])
+            for i0, i1_0, i1_1 in T.grid(256, 16, 16):
+                with T.block("T_softmax_expsum_rf"):
+                    vi1_0, i0_2, vi1_1 = T.axis.remap("SSR", [i1_0, i0, i1_1])
+                    T.reads(A[i0_2, vi1_0 * 16 + vi1_1], T_softmax_maxelem[i0_2])
+                    T.writes(T_softmax_expsum_rf[i0_2, vi1_0])
+                    with T.init():
+                        T_softmax_expsum_rf[i0_2, vi1_0] = T.float32(0)
+                    T_softmax_expsum_rf[i0_2, vi1_0] = T_softmax_expsum_rf[i0_2, vi1_0] + T.exp(A[i0_2, vi1_0 * 16 + vi1_1] - T_softmax_maxelem[i0_2], dtype="float32")
+            for i0_3, i1_0 in T.grid(256, 16):
+                with T.block("T_softmax_expsum"):
+                    vi1_0, i0_4 = T.axis.remap("RS", [i1_0, i0_3])
+                    T.reads(T_softmax_expsum_rf[i0_4, vi1_0])
+                    T.writes(T_softmax_expsum[i0_4])
+                    with T.init():
+                        T_softmax_expsum[i0_4] = T.float32(0)
+                    T_softmax_expsum[i0_4] = T_softmax_expsum[i0_4] + T_softmax_expsum_rf[i0_4, vi1_0]
+            for i0_5, i1 in T.grid(256, 256):
+                with T.block("T_softmax_norm"):
+                    i0_6, i1_2 = T.axis.remap("SS", [i0_5, i1])
+                    T.reads(A[i0_6, i1_2], T_softmax_maxelem[i0_6], T_softmax_expsum[i0_6])
+                    T.writes(T_softmax_norm[i0_6, i1_2])
+                    T.block_attr({"axis":1})
+                    T_softmax_norm[i0_6, i1_2] = T.exp(A[i0_6, i1_2] - T_softmax_maxelem[i0_6], dtype="float32") / T_softmax_expsum[i0_6]
+    @T.prim_func
+    def sfm_3(A: T.Buffer[(256, 256), "float32"], T_softmax_norm: T.Buffer[(256, 256), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":512, "meta_schedule.vectorize":64})
+            T_softmax_maxelem = T.alloc_buffer([256], dtype="float32")
+            T_softmax_exp = T.alloc_buffer([256, 256], dtype="float32")
+            T_softmax_expsum = T.alloc_buffer([256], dtype="float32")
+            T_softmax_expsum_rf = T.alloc_buffer([256, 16], dtype="float32")
+            T_softmax_maxelem_rf = T.alloc_buffer([256, 256], dtype="float32")
+            for i0, i1 in T.grid(256, 256):
+                for ax0, ax1, ax2 in T.grid(256, 1, 1):
+                    with T.block("T_softmax_maxelem_rf"):
+                        vi1_0 = T.axis.spatial(256, ax0)
+                        i0_1 = T.axis.spatial(256, i0 + ax1)
+                        vi1_1 = T.axis.reduce(1, ax2)
+                        T.reads(A[i0_1, vi1_1 + vi1_0])
+                        T.writes(T_softmax_maxelem_rf[i0_1, vi1_0])
+                        with T.init():
+                            T_softmax_maxelem_rf[i0_1, vi1_0] = T.float32(-3.4028234663852886e+38)
+                        T_softmax_maxelem_rf[i0_1, vi1_0] = T.max(T_softmax_maxelem_rf[i0_1, vi1_0], A[i0_1, vi1_1 + vi1_0])
+                for ax0, ax1 in T.grid(256, 1):
+                    with T.block("T_softmax_maxelem"):
+                        vi1_0 = T.axis.reduce(256, ax0)
+                        i0_2 = T.axis.spatial(256, i0 + ax1)
+                        T.reads(T_softmax_maxelem_rf[i0_2, vi1_0])
+                        T.writes(T_softmax_maxelem[i0_2])
+                        with T.init():
+                            T_softmax_maxelem[i0_2] = T.float32(-3.4028234663852886e+38)
+                        T_softmax_maxelem[i0_2] = T.max(T_softmax_maxelem[i0_2], T_softmax_maxelem_rf[i0_2, vi1_0])
+                for ax0, ax1 in T.grid(1, 256):
+                    with T.block("T_softmax_exp"):
+                        i0_3 = T.axis.spatial(256, i0 + ax0)
+                        i1_1 = T.axis.spatial(256, ax1)
+                        T.reads(A[i0_3, i1_1], T_softmax_maxelem[i0_3])
+                        T.writes(T_softmax_exp[i0_3, i1_1])
+                        T_softmax_exp[i0_3, i1_1] = T.exp(A[i0_3, i1_1] - T_softmax_maxelem[i0_3], dtype="float32")
+                for ax0 in T.serial(16):
+                    for ax0_1, ax1, ax2 in T.grid(1, 1, 16):
+                        with T.block("T_softmax_expsum_rf"):
+                            vi1_1 = T.axis.spatial(16, ax0 + ax0_1)
+                            i0_4 = T.axis.spatial(256, i0 + ax1)
+                            vi1_0 = T.axis.reduce(16, ax2)
+                            T.reads(T_softmax_exp[i0_4, vi1_0 * 16 + vi1_1])
+                            T.writes(T_softmax_expsum_rf[i0_4, vi1_1])
+                            with T.init():
+                                T_softmax_expsum_rf[i0_4, vi1_1] = T.float32(0)
+                            T_softmax_expsum_rf[i0_4, vi1_1] = T_softmax_expsum_rf[i0_4, vi1_1] + T_softmax_exp[i0_4, vi1_0 * 16 + vi1_1]
+                    for ax1 in T.serial(1):
+                        with T.block("T_softmax_expsum"):
+                            vi1_1 = T.axis.reduce(16, ax0)
+                            i0_5 = T.axis.spatial(256, i0 + ax1)
+                            T.reads(T_softmax_expsum_rf[i0_5, vi1_1])
+                            T.writes(T_softmax_expsum[i0_5])
+                            with T.init():
+                                T_softmax_expsum[i0_5] = T.float32(0)
+                            T_softmax_expsum[i0_5] = T_softmax_expsum[i0_5] + T_softmax_expsum_rf[i0_5, vi1_1]
+                with T.block("T_softmax_norm"):
+                    i0_6, i1_2 = T.axis.remap("SS", [i0, i1])
+                    T.reads(T_softmax_exp[i0_6, i1_2], T_softmax_expsum[i0_6])
+                    T.writes(T_softmax_norm[i0_6, i1_2])
+                    T.block_attr({"axis":1})
+                    T_softmax_norm[i0_6, i1_2] = T_softmax_exp[i0_6, i1_2] / T_softmax_expsum[i0_6]
+    @T.prim_func
+    def sfm_4(A: T.Buffer[(256, 256), "float32"], T_softmax_norm: T.Buffer[(256, 256), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":0, "meta_schedule.vectorize":64})
+            T_softmax_maxelem = T.alloc_buffer([256], dtype="float32")
+            T_softmax_exp = T.alloc_buffer([256, 256], dtype="float32")
+            T_softmax_expsum = T.alloc_buffer([256], dtype="float32")
+            T_softmax_expsum_rf = T.alloc_buffer([256, 16], dtype="float32")
+            T_softmax_maxelem_rf = T.alloc_buffer([256, 1], dtype="float32")
+            for i0 in T.serial(256):
+                for ax0, ax1, ax2 in T.grid(1, 1, 256):
+                    with T.block("T_softmax_maxelem_rf"):
+                        vi1_1 = T.axis.spatial(1, ax0)
+                        i0_1 = T.axis.spatial(256, i0 + ax1)
+                        vi1_0 = T.axis.reduce(256, ax2)
+                        T.reads(A[i0_1, vi1_1 + vi1_0])
+                        T.writes(T_softmax_maxelem_rf[i0_1, vi1_1])
+                        with T.init():
+                            T_softmax_maxelem_rf[i0_1, vi1_1] = T.float32(-3.4028234663852886e+38)
+                        T_softmax_maxelem_rf[i0_1, vi1_1] = T.max(T_softmax_maxelem_rf[i0_1, vi1_1], A[i0_1, vi1_1 + vi1_0])
+                for i1_1 in T.serial(1):
+                    with T.block("T_softmax_maxelem"):
+                        vi1_1, i0_2 = T.axis.remap("RS", [i1_1, i0])
+                        T.reads(T_softmax_maxelem_rf[i0_2, vi1_1])
+                        T.writes(T_softmax_maxelem[i0_2])
+                        with T.init():
+                            T_softmax_maxelem[i0_2] = T.float32(-3.4028234663852886e+38)
+                        T_softmax_maxelem[i0_2] = T.max(T_softmax_maxelem[i0_2], T_softmax_maxelem_rf[i0_2, vi1_1])
+            for i0_3, i1 in T.grid(256, 256):
+                with T.block("T_softmax_exp"):
+                    i0_4, i1_2 = T.axis.remap("SS", [i0_3, i1])
+                    T.reads(A[i0_4, i1_2], T_softmax_maxelem[i0_4])
+                    T.writes(T_softmax_exp[i0_4, i1_2])
+                    T_softmax_exp[i0_4, i1_2] = T.exp(A[i0_4, i1_2] - T_softmax_maxelem[i0_4], dtype="float32")
+            for i0_5, i1_0, i1_1 in T.grid(256, 16, 16):
+                with T.block("T_softmax_expsum_rf"):
+                    vi1_1, i0_6, vi1_0 = T.axis.remap("SSR", [i1_1, i0_5, i1_0])
+                    T.reads(T_softmax_exp[i0_6, vi1_0 * 16 + vi1_1])
+                    T.writes(T_softmax_expsum_rf[i0_6, vi1_1])
+                    with T.init():
+                        T_softmax_expsum_rf[i0_6, vi1_1] = T.float32(0)
+                    T_softmax_expsum_rf[i0_6, vi1_1] = T_softmax_expsum_rf[i0_6, vi1_1] + T_softmax_exp[i0_6, vi1_0 * 16 + vi1_1]
+            for i0_7, i1_1 in T.grid(256, 16):
+                with T.block("T_softmax_expsum"):
+                    vi1_1, i0_8 = T.axis.remap("RS", [i1_1, i0_7])
+                    T.reads(T_softmax_expsum_rf[i0_8, vi1_1])
+                    T.writes(T_softmax_expsum[i0_8])
+                    with T.init():
+                        T_softmax_expsum[i0_8] = T.float32(0)
+                    T_softmax_expsum[i0_8] = T_softmax_expsum[i0_8] + T_softmax_expsum_rf[i0_8, vi1_1]
+            for i0_9, i1_3 in T.grid(256, 256):
+                with T.block("T_softmax_norm"):
+                    i0_10, i1_4 = T.axis.remap("SS", [i0_9, i1_3])
+                    T.reads(T_softmax_exp[i0_10, i1_4], T_softmax_expsum[i0_10])
+                    T.writes(T_softmax_norm[i0_10, i1_4])
+                    T.block_attr({"axis":1})
+                    T_softmax_norm[i0_10, i1_4] = T_softmax_exp[i0_10, i1_4] / T_softmax_expsum[i0_10]
+    @T.prim_func
+    def sfm_5(A: T.Buffer[(256, 256), "float32"], T_softmax_norm: T.Buffer[(256, 256), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":512, "meta_schedule.vectorize":64})
+            T_softmax_maxelem = T.alloc_buffer([256], dtype="float32")
+            T_softmax_exp = T.alloc_buffer([256, 256], dtype="float32")
+            T_softmax_expsum = T.alloc_buffer([256], dtype="float32")
+            T_softmax_expsum_rf = T.alloc_buffer([256, 16], dtype="float32")
+            for i0 in T.serial(256):
+                for ax0, ax1 in T.grid(1, 256):
+                    with T.block("T_softmax_maxelem"):
+                        i0_1 = T.axis.spatial(256, i0 + ax0)
+                        k = T.axis.reduce(256, ax1)
+                        T.reads(A[i0_1, k])
+                        T.writes(T_softmax_maxelem[i0_1])
+                        with T.init():
+                            T_softmax_maxelem[i0_1] = T.float32(-3.4028234663852886e+38)
+                        T_softmax_maxelem[i0_1] = T.max(T_softmax_maxelem[i0_1], A[i0_1, k])
+                for ax0, ax1 in T.grid(1, 256):
+                    with T.block("T_softmax_exp"):
+                        i0_2 = T.axis.spatial(256, i0 + ax0)
+                        i1 = T.axis.spatial(256, ax1)
+                        T.reads(A[i0_2, i1], T_softmax_maxelem[i0_2])
+                        T.writes(T_softmax_exp[i0_2, i1])
+                        T_softmax_exp[i0_2, i1] = T.exp(A[i0_2, i1] - T_softmax_maxelem[i0_2], dtype="float32")
+                for ax0 in T.serial(16):
+                    for ax0_1, ax1, ax2 in T.grid(1, 1, 16):
+                        with T.block("T_softmax_expsum_rf"):
+                            vi1_1 = T.axis.spatial(16, ax0 + ax0_1)
+                            i0_3 = T.axis.spatial(256, i0 + ax1)
+                            vi1_0 = T.axis.reduce(16, ax2)
+                            T.reads(T_softmax_exp[i0_3, vi1_0 * 16 + vi1_1])
+                            T.writes(T_softmax_expsum_rf[i0_3, vi1_1])
+                            with T.init():
+                                T_softmax_expsum_rf[i0_3, vi1_1] = T.float32(0)
+                            T_softmax_expsum_rf[i0_3, vi1_1] = T_softmax_expsum_rf[i0_3, vi1_1] + T_softmax_exp[i0_3, vi1_0 * 16 + vi1_1]
+                    for ax1 in T.serial(1):
+                        with T.block("T_softmax_expsum"):
+                            vi1_1 = T.axis.reduce(16, ax0)
+                            i0_4 = T.axis.spatial(256, i0 + ax1)
+                            T.reads(T_softmax_expsum_rf[i0_4, vi1_1])
+                            T.writes(T_softmax_expsum[i0_4])
+                            with T.init():
+                                T_softmax_expsum[i0_4] = T.float32(0)
+                            T_softmax_expsum[i0_4] = T_softmax_expsum[i0_4] + T_softmax_expsum_rf[i0_4, vi1_1]
+                for i1 in T.serial(256):
+                    with T.block("T_softmax_norm"):
+                        i0_5, i1_1 = T.axis.remap("SS", [i0, i1])
+                        T.reads(T_softmax_exp[i0_5, i1_1], T_softmax_expsum[i0_5])
+                        T.writes(T_softmax_norm[i0_5, i1_1])
+                        T.block_attr({"axis":1})
+                        T_softmax_norm[i0_5, i1_1] = T_softmax_exp[i0_5, i1_1] / T_softmax_expsum[i0_5]
+    @T.prim_func
+    def sfm_6(A: T.Buffer[(256, 256), "float32"], T_softmax_norm: T.Buffer[(256, 256), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":64, "meta_schedule.vectorize":64})
+            T_softmax_maxelem = T.alloc_buffer([256], dtype="float32")
+            T_softmax_expsum = T.alloc_buffer([256], dtype="float32")
+            T_softmax_maxelem_rf = T.alloc_buffer([256, 64], dtype="float32")
+            for i0 in T.serial(256):
+                for ax0, ax1, ax2 in T.grid(64, 1, 4):
+                    with T.block("T_softmax_maxelem_rf"):
+                        vi1_0 = T.axis.spatial(64, ax0)
+                        i0_1 = T.axis.spatial(256, i0 + ax1)
+                        vi1_1 = T.axis.reduce(4, ax2)
+                        T.reads(A[i0_1, vi1_0 * 4 + vi1_1])
+                        T.writes(T_softmax_maxelem_rf[i0_1, vi1_0])
+                        with T.init():
+                            T_softmax_maxelem_rf[i0_1, vi1_0] = T.float32(-3.4028234663852886e+38)
+                        T_softmax_maxelem_rf[i0_1, vi1_0] = T.max(T_softmax_maxelem_rf[i0_1, vi1_0], A[i0_1, vi1_0 * 4 + vi1_1])
+                for i1_0 in T.serial(64):
+                    with T.block("T_softmax_maxelem"):
+                        vi1_0, i0_2 = T.axis.remap("RS", [i1_0, i0])
+                        T.reads(T_softmax_maxelem_rf[i0_2, vi1_0])
+                        T.writes(T_softmax_maxelem[i0_2])
+                        with T.init():
+                            T_softmax_maxelem[i0_2] = T.float32(-3.4028234663852886e+38)
+                        T_softmax_maxelem[i0_2] = T.max(T_softmax_maxelem[i0_2], T_softmax_maxelem_rf[i0_2, vi1_0])
+            for i0_3, i1 in T.grid(256, 256):
+                with T.block("T_softmax_expsum"):
+                    i0_4, k = T.axis.remap("SR", [i0_3, i1])
+                    T.reads(A[i0_4, k], T_softmax_maxelem[i0_4])
+                    T.writes(T_softmax_expsum[i0_4])
+                    with T.init():
+                        T_softmax_expsum[i0_4] = T.float32(0)
+                    T_softmax_expsum[i0_4] = T_softmax_expsum[i0_4] + T.exp(A[i0_4, k] - T_softmax_maxelem[i0_4], dtype="float32")
+            for i0_5, i1 in T.grid(256, 256):
+                with T.block("T_softmax_norm"):
+                    i0_6, i1_1 = T.axis.remap("SS", [i0_5, i1])
+                    T.reads(A[i0_6, i1_1], T_softmax_maxelem[i0_6], T_softmax_expsum[i0_6])
+                    T.writes(T_softmax_norm[i0_6, i1_1])
+                    T.block_attr({"axis":1})
+                    T_softmax_norm[i0_6, i1_1] = T.exp(A[i0_6, i1_1] - T_softmax_maxelem[i0_6], dtype="float32") / T_softmax_expsum[i0_6]
+    @T.prim_func
+    def sfm_7(A: T.Buffer[(256, 256), "float32"], T_softmax_norm: T.Buffer[(256, 256), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":64, "meta_schedule.vectorize":64})
+            T_softmax_maxelem = T.alloc_buffer([256], dtype="float32")
+            T_softmax_expsum = T.alloc_buffer([256], dtype="float32")
+            T_softmax_maxelem_rf = T.alloc_buffer([256, 4], dtype="float32")
+            for i0, i1_0, i1_1 in T.grid(256, 64, 4):
+                with T.block("T_softmax_maxelem_rf"):
+                    vi1_1, i0_1, vi1_0 = T.axis.remap("SSR", [i1_1, i0, i1_0])
+                    T.reads(A[i0_1, vi1_0 * 4 + vi1_1])
+                    T.writes(T_softmax_maxelem_rf[i0_1, vi1_1])
+                    with T.init():
+                        T_softmax_maxelem_rf[i0_1, vi1_1] = T.float32(-3.4028234663852886e+38)
+                    T_softmax_maxelem_rf[i0_1, vi1_1] = T.max(T_softmax_maxelem_rf[i0_1, vi1_1], A[i0_1, vi1_0 * 4 + vi1_1])
+            for i0, i1_1 in T.grid(256, 4):
+                with T.block("T_softmax_maxelem"):
+                    vi1_1, i0_2 = T.axis.remap("RS", [i1_1, i0])
+                    T.reads(T_softmax_maxelem_rf[i0_2, vi1_1])
+                    T.writes(T_softmax_maxelem[i0_2])
+                    with T.init():
+                        T_softmax_maxelem[i0_2] = T.float32(-3.4028234663852886e+38)
+                    T_softmax_maxelem[i0_2] = T.max(T_softmax_maxelem[i0_2], T_softmax_maxelem_rf[i0_2, vi1_1])
+            for i0_3, i1 in T.grid(256, 256):
+                for ax0, ax1 in T.grid(1, 256):
+                    with T.block("T_softmax_expsum"):
+                        i0_4 = T.axis.spatial(256, i0_3 + ax0)
+                        k = T.axis.reduce(256, ax1)
+                        T.reads(A[i0_4, k], T_softmax_maxelem[i0_4])
+                        T.writes(T_softmax_expsum[i0_4])
+                        with T.init():
+                            T_softmax_expsum[i0_4] = T.float32(0)
+                        T_softmax_expsum[i0_4] = T_softmax_expsum[i0_4] + T.exp(A[i0_4, k] - T_softmax_maxelem[i0_4], dtype="float32")
+                with T.block("T_softmax_norm"):
+                    i0_5, i1_2 = T.axis.remap("SS", [i0_3, i1])
+                    T.reads(A[i0_5, i1_2], T_softmax_maxelem[i0_5], T_softmax_expsum[i0_5])
+                    T.writes(T_softmax_norm[i0_5, i1_2])
+                    T.block_attr({"axis":1})
+                    T_softmax_norm[i0_5, i1_2] = T.exp(A[i0_5, i1_2] - T_softmax_maxelem[i0_5], dtype="float32") / T_softmax_expsum[i0_5]
+    @T.prim_func
+    def sfm_8(A: T.Buffer[(256, 256), "float32"], T_softmax_norm: T.Buffer[(256, 256), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":512, "meta_schedule.vectorize":64})
+            T_softmax_maxelem = T.alloc_buffer([256], dtype="float32")
+            T_softmax_exp = T.alloc_buffer([256, 256], dtype="float32")
+            T_softmax_expsum = T.alloc_buffer([256], dtype="float32")
+            for i0 in T.serial(256):
+                for ax0, ax1 in T.grid(1, 256):
+                    with T.block("T_softmax_maxelem"):
+                        i0_1 = T.axis.spatial(256, i0 + ax0)
+                        k = T.axis.reduce(256, ax1)
+                        T.reads(A[i0_1, k])
+                        T.writes(T_softmax_maxelem[i0_1])
+                        with T.init():
+                            T_softmax_maxelem[i0_1] = T.float32(-3.4028234663852886e+38)
+                        T_softmax_maxelem[i0_1] = T.max(T_softmax_maxelem[i0_1], A[i0_1, k])
+                for i1 in T.serial(256):
+                    with T.block("T_softmax_exp"):
+                        i0_2, i1_1 = T.axis.remap("SS", [i0, i1])
+                        T.reads(A[i0_2, i1_1], T_softmax_maxelem[i0_2])
+                        T.writes(T_softmax_exp[i0_2, i1_1])
+                        T_softmax_exp[i0_2, i1_1] = T.exp(A[i0_2, i1_1] - T_softmax_maxelem[i0_2], dtype="float32")
+            for i0_3, i1 in T.grid(256, 256):
+                with T.block("T_softmax_expsum"):
+                    i0_4, k = T.axis.remap("SR", [i0_3, i1])
+                    T.reads(T_softmax_exp[i0_4, k])
+                    T.writes(T_softmax_expsum[i0_4])
+                    with T.init():
+                        T_softmax_expsum[i0_4] = T.float32(0)
+                    T_softmax_expsum[i0_4] = T_softmax_expsum[i0_4] + T_softmax_exp[i0_4, k]
+            for i0_5, i1 in T.grid(256, 256):
+                with T.block("T_softmax_norm"):
+                    i0_6, i1_2 = T.axis.remap("SS", [i0_5, i1])
+                    T.reads(T_softmax_exp[i0_6, i1_2], T_softmax_expsum[i0_6])
+                    T.writes(T_softmax_norm[i0_6, i1_2])
+                    T.block_attr({"axis":1})
+                    T_softmax_norm[i0_6, i1_2] = T_softmax_exp[i0_6, i1_2] / T_softmax_expsum[i0_6]
+    # fmt: on
+    decision_0 = [
+        ("SamplePerfectTile", [16, 16]),
+        ("SamplePerfectTile", [4, 64]),
+        ("SampleCategorical", 0),
+        ("SampleComputeLocation", 1),
+        ("SampleComputeLocation", -1),
+        ("SampleComputeLocation", -2),
+        ("SampleComputeLocation", -1),
+        ("SampleComputeLocation", -1),
+    ]
+    decision_1 = [
+        ("SamplePerfectTile", [16, 16]),
+        ("SamplePerfectTile", [4, 64]),
+        ("SampleCategorical", 1),
+        ("SampleComputeLocation", -1),
+        ("SampleComputeLocation", -1),
+        ("SampleComputeLocation", -1),
+        ("SampleComputeLocation", 1),
+        ("SampleComputeLocation", 0),
+    ]
+    decision_2 = [
+        ("SamplePerfectTile", [16, 16]),
+        ("SampleCategorical", 3),
+        ("SampleComputeLocation", -1),
+        ("SampleComputeLocation", -1),
+        ("SampleComputeLocation", -2),
+        ("SampleComputeLocation", -1),
+    ]
+    decision_3 = [
+        ("SamplePerfectTile", [16, 16]),
+        ("SamplePerfectTile", [256, 1]),
+        ("SampleCategorical", 3),
+        ("SampleComputeLocation", 1),
+        ("SampleComputeLocation", 2),
+        ("SampleComputeLocation", 1),
+        ("SampleComputeLocation", 1),
+        ("SampleComputeLocation", 1),
+    ]
+    decision_4 = [
+        ("SamplePerfectTile", [16, 16]),
+        ("SamplePerfectTile", [256, 1]),
+        ("SampleCategorical", 0),
+        ("SampleComputeLocation", -1),
+        ("SampleComputeLocation", -1),
+        ("SampleComputeLocation", -1),
+        ("SampleComputeLocation", -1),
+        ("SampleComputeLocation", 0),
+    ]
+    decision_5 = [
+        ("SamplePerfectTile", [16, 16]),
+        ("SampleCategorical", 3),
+        ("SampleComputeLocation", 0),
+        ("SampleComputeLocation", 1),
+        ("SampleComputeLocation", 0),
+        ("SampleComputeLocation", 0),
+    ]
+    decision_6 = [
+        ("SamplePerfectTile", [64, 4]),
+        ("SampleCategorical", 2),
+        ("SampleComputeLocation", -1),
+        ("SampleComputeLocation", -2),
+        ("SampleComputeLocation", -1),
+        ("SampleComputeLocation", 0),
+    ]
+    decision_7 = [
+        ("SamplePerfectTile", [64, 4]),
+        ("SampleCategorical", 2),
+        ("SampleComputeLocation", 1),
+        ("SampleComputeLocation", -2),
+        ("SampleComputeLocation", -1),
+        ("SampleComputeLocation", -1),
+    ]
+    decision_8 = [
+        ("SampleCategorical", 3),
+        ("SampleComputeLocation", -1),
+        ("SampleComputeLocation", -1),
+        ("SampleComputeLocation", 0),
+    ]
+    mod = create_te_workload("SFM", 0)
+    actual = ms.TuneContext(
+        mod=mod,
+        target=_target(),
+        space_generator=ms.space_generator.PostOrderApply(),
+        sch_rules="default",
+    ).generate_design_space()
+    check_sketches(
+        mod,
+        sketches=actual,
+        expected_mods=[sfm_0, sfm_1, sfm_2, sfm_3, sfm_4, sfm_5, sfm_6, sfm_7, sfm_8],
+        expected_decisions=[
+            decision_0,
+            decision_1,
+            decision_2,
+            decision_3,
+            decision_4,
+            decision_5,
+            decision_6,
+            decision_7,
+            decision_8,
+        ],
+    )
+
+
+def test_cpu_cbr():
+    # fmt: off
+    @T.prim_func
+    def cbr_0(data: T.Buffer[(1, 224, 224, 3), "float32"], kernel: T.Buffer[(7, 7, 3, 64), "float32"], bias: T.Buffer[64, "float32"], bn_offset: T.Buffer[64, "float32"], bn_scale: T.Buffer[64, "float32"], compute: T.Buffer[(1, 112, 112, 64), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":64, "meta_schedule.vectorize":64})
+            Conv2dOutput = T.alloc_buffer([1, 112, 112, 64], dtype="float32")
+            for i0_0, i1_0, i2_0, i3_0, i0_1, i1_1, i2_1, i3_1, i4_0, i5_0, i6_0, i0_2, i1_2, i2_2, i3_2, i4_1, i5_1, i6_1, i0_3, i1_3, i2_3, i3_3 in T.grid(1, 2, 7, 1, 1, 2, 2, 32, 7, 7, 1, 1, 1, 4, 1, 1, 1, 3, 1, 28, 2, 2):
+                with T.block("Conv2dOutput"):
+                    nn = T.axis.spatial(1, i0_3 + i0_0 + i0_1 + i0_2)
+                    yy = T.axis.spatial(112, i1_0 * 56 + i1_1 * 28 + i1_2 * 28 + i1_3)
+                    xx = T.axis.spatial(112, i2_0 * 16 + i2_1 * 8 + i2_2 * 2 + i2_3)
+                    ff = T.axis.spatial(64, i3_0 * 64 + i3_1 * 2 + i3_2 * 2 + i3_3)
+                    ry = T.axis.reduce(7, i4_1 + i4_0)
+                    rx = T.axis.reduce(7, i5_0 + i5_1)
+                    rc = T.axis.reduce(3, i6_0 * 3 + i6_1)
+                    T.reads(data[nn, yy * 2 + ry - 3, xx * 2 + rx - 3, rc], kernel[ry, rx, rc, ff])
+                    T.writes(Conv2dOutput[nn, yy, xx, ff])
+                    T.block_attr({"meta_schedule.tiling_structure":"SSRSRS"})
+                    with T.init():
+                        Conv2dOutput[nn, yy, xx, ff] = T.float32(0)
+                    Conv2dOutput[nn, yy, xx, ff] = Conv2dOutput[nn, yy, xx, ff] + T.if_then_else(3 <= yy * 2 + ry and yy * 2 + ry < 227 and 3 <= xx * 2 + rx and xx * 2 + rx < 227, data[nn, yy * 2 + ry - 3, xx * 2 + rx - 3, rc], T.float32(0), dtype="float32") * kernel[ry, rx, rc, ff]
+            for i0, i1, i2, i3 in T.grid(1, 112, 112, 64):
+                with T.block("compute"):
+                    i0_4, i1_4, i2_4, i3_4 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    T.reads(Conv2dOutput[i0_4, i1_4, i2_4, i3_4], bias[i3_4], bn_scale[i3_4], bn_offset[i3_4])
+                    T.writes(compute[i0_4, i1_4, i2_4, i3_4])
+                    compute[i0_4, i1_4, i2_4, i3_4] = T.max((Conv2dOutput[i0_4, i1_4, i2_4, i3_4] + bias[i3_4]) * bn_scale[i3_4] + bn_offset[i3_4], T.float32(0))
+    @T.prim_func
+    def cbr_1(data: T.Buffer[(1, 224, 224, 3), "float32"], kernel: T.Buffer[(7, 7, 3, 64), "float32"], bias: T.Buffer[64, "float32"], bn_offset: T.Buffer[64, "float32"], bn_scale: T.Buffer[64, "float32"], compute: T.Buffer[(1, 112, 112, 64), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":512, "meta_schedule.vectorize":64})
+            PaddedInput = T.alloc_buffer([1, 230, 230, 3], dtype="float32")
+            Conv2dOutput = T.alloc_buffer([1, 112, 112, 64], dtype="float32")
+            for i0_0, i1_0 in T.grid(1, 2):
+                for ax0, ax1, ax2, ax3 in T.grid(1, 117, 229, 3):
+                    with T.block("PaddedInput"):
+                        i0 = T.axis.spatial(1, ax0)
+                        i1 = T.axis.spatial(230, i1_0 * 112 + ax1)
+                        i2 = T.axis.spatial(230, ax2)
+                        i3 = T.axis.spatial(3, ax3)
+                        T.reads(data[i0, i1 - 3, i2 - 3, i3])
+                        T.writes(PaddedInput[i0, i1, i2, i3])
+                        PaddedInput[i0, i1, i2, i3] = T.if_then_else(3 <= i1 and i1 < 227 and 3 <= i2 and i2 < 227, data[i0, i1 - 3, i2 - 3, i3], T.float32(0), dtype="float32")
+                for i2_0, i3_0, i0_1, i1_1, i2_1, i3_1 in T.grid(7, 1, 1, 2, 2, 32):
+                    for i4_0, i5_0, i6_0, i0_2, i1_2, i2_2, i3_2, i4_1, i5_1, i6_1, i0_3, i1_3, i2_3, i3_3 in T.grid(7, 7, 1, 1, 1, 4, 1, 1, 1, 3, 1, 28, 2, 2):
+                        with T.block("Conv2dOutput"):
+                            nn = T.axis.spatial(1, i0_3 + i0_0 + i0_1 + i0_2)
+                            yy = T.axis.spatial(112, i1_0 * 56 + i1_1 * 28 + i1_2 * 28 + i1_3)
+                            xx = T.axis.spatial(112, i2_0 * 16 + i2_1 * 8 + i2_2 * 2 + i2_3)
+                            ff = T.axis.spatial(64, i3_0 * 64 + i3_1 * 2 + i3_2 * 2 + i3_3)
+                            ry = T.axis.reduce(7, i4_1 + i4_0)
+                            rx = T.axis.reduce(7, i5_0 + i5_1)
+                            rc = T.axis.reduce(3, i6_0 * 3 + i6_1)
+                            T.reads(PaddedInput[nn, yy * 2 + ry, xx * 2 + rx, rc], kernel[ry, rx, rc, ff])
+                            T.writes(Conv2dOutput[nn, yy, xx, ff])
+                            T.block_attr({"meta_schedule.tiling_structure":"SSRSRS"})
+                            with T.init():
+                                Conv2dOutput[nn, yy, xx, ff] = T.float32(0)
+                            Conv2dOutput[nn, yy, xx, ff] = Conv2dOutput[nn, yy, xx, ff] + PaddedInput[nn, yy * 2 + ry, xx * 2 + rx, rc] * kernel[ry, rx, rc, ff]
+                    for ax0, ax1, ax2, ax3 in T.grid(1, 28, 8, 2):
+                        with T.block("compute"):
+                            i0 = T.axis.spatial(1, ax0)
+                            i1 = T.axis.spatial(112, i1_0 * 56 + i1_1 * 28 + ax1)
+                            i2 = T.axis.spatial(112, i2_0 * 16 + i2_1 * 8 + ax2)
+                            i3 = T.axis.spatial(64, i3_1 * 2 + ax3)
+                            T.reads(Conv2dOutput[i0, i1, i2, i3], bias[i3], bn_scale[i3], bn_offset[i3])
+                            T.writes(compute[i0, i1, i2, i3])
+                            compute[i0, i1, i2, i3] = T.max((Conv2dOutput[i0, i1, i2, i3] + bias[i3]) * bn_scale[i3] + bn_offset[i3], T.float32(0))
+    @T.prim_func
+    def cbr_2(data: T.Buffer[(1, 224, 224, 3), "float32"], kernel: T.Buffer[(7, 7, 3, 64), "float32"], bias: T.Buffer[64, "float32"], bn_offset: T.Buffer[64, "float32"], bn_scale: T.Buffer[64, "float32"], compute: T.Buffer[(1, 112, 112, 64), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":64, "meta_schedule.vectorize":64})
+            PaddedInput = T.alloc_buffer([1, 230, 230, 3], dtype="float32")
+            Conv2dOutput = T.alloc_buffer([1, 112, 112, 64], dtype="float32")
+            for i0_0, i1_0 in T.grid(1, 2):
+                for ax0, ax1, ax2, ax3 in T.grid(1, 117, 229, 3):
+                    with T.block("PaddedInput"):
+                        i0 = T.axis.spatial(1, ax0)
+                        i1 = T.axis.spatial(230, i1_0 * 112 + ax1)
+                        i2 = T.axis.spatial(230, ax2)
+                        i3 = T.axis.spatial(3, ax3)
+                        T.reads(data[i0, i1 - 3, i2 - 3, i3])
+                        T.writes(PaddedInput[i0, i1, i2, i3])
+                        PaddedInput[i0, i1, i2, i3] = T.if_then_else(3 <= i1 and i1 < 227 and 3 <= i2 and i2 < 227, data[i0, i1 - 3, i2 - 3, i3], T.float32(0), dtype="float32")
+                for i2_0, i3_0 in T.grid(7, 1):
+                    for i0_1, i1_1, i2_1, i3_1, i4_0, i5_0, i6_0, i0_2, i1_2, i2_2, i3_2, i4_1, i5_1, i6_1, i0_3, i1_3, i2_3, i3_3 in T.grid(1, 2, 2, 32, 7, 7, 1, 1, 1, 4, 1, 1, 1, 3, 1, 28, 2, 2):
+                        with T.block("Conv2dOutput"):
+                            nn = T.axis.spatial(1, i0_3 + i0_0 + i0_1 + i0_2)
+                            yy = T.axis.spatial(112, i1_0 * 56 + i1_1 * 28 + i1_2 * 28 + i1_3)
+                            xx = T.axis.spatial(112, i2_0 * 16 + i2_1 * 8 + i2_2 * 2 + i2_3)
+                            ff = T.axis.spatial(64, i3_0 * 64 + i3_1 * 2 + i3_2 * 2 + i3_3)
+                            ry = T.axis.reduce(7, i4_1 + i4_0)
+                            rx = T.axis.reduce(7, i5_0 + i5_1)
+                            rc = T.axis.reduce(3, i6_0 * 3 + i6_1)
+                            T.reads(PaddedInput[nn, yy * 2 + ry, xx * 2 + rx, rc], kernel[ry, rx, rc, ff])
+                            T.writes(Conv2dOutput[nn, yy, xx, ff])
+                            T.block_attr({"meta_schedule.tiling_structure":"SSRSRS"})
+                            with T.init():
+                                Conv2dOutput[nn, yy, xx, ff] = T.float32(0)
+                            Conv2dOutput[nn, yy, xx, ff] = Conv2dOutput[nn, yy, xx, ff] + PaddedInput[nn, yy * 2 + ry, xx * 2 + rx, rc] * kernel[ry, rx, rc, ff]
+                    for ax0, ax1, ax2, ax3 in T.grid(1, 56, 16, 64):
+                        with T.block("compute"):
+                            i0 = T.axis.spatial(1, ax0)
+                            i1 = T.axis.spatial(112, i1_0 * 56 + ax1)
+                            i2 = T.axis.spatial(112, i2_0 * 16 + ax2)
+                            i3 = T.axis.spatial(64, ax3)
+                            T.reads(Conv2dOutput[i0, i1, i2, i3], bias[i3], bn_scale[i3], bn_offset[i3])
+                            T.writes(compute[i0, i1, i2, i3])
+                            compute[i0, i1, i2, i3] = T.max((Conv2dOutput[i0, i1, i2, i3] + bias[i3]) * bn_scale[i3] + bn_offset[i3], T.float32(0))
+    # fmt: on
+    decision_0 = [
+        ("SamplePerfectTile", [1, 1, 1, 1]),
+        ("SamplePerfectTile", [2, 2, 1, 28]),
+        ("SamplePerfectTile", [7, 2, 4, 2]),
+        ("SamplePerfectTile", [1, 32, 1, 2]),
+        ("SamplePerfectTile", [7, 1]),
+        ("SamplePerfectTile", [7, 1]),
+        ("SamplePerfectTile", [1, 3]),
+        ("SampleCategorical", 2),
+        ("SampleComputeLocation", -2),
+    ]
+    decision_1 = [
+        ("SamplePerfectTile", [1, 1, 1, 1]),
+        ("SamplePerfectTile", [2, 2, 1, 28]),
+        ("SamplePerfectTile", [7, 2, 4, 2]),
+        ("SamplePerfectTile", [1, 32, 1, 2]),
+        ("SamplePerfectTile", [7, 1]),
+        ("SamplePerfectTile", [7, 1]),
+        ("SamplePerfectTile", [1, 3]),
+        ("SampleCategorical", 3),
+        ("SampleComputeLocation", 1),
+    ]
+    decision_2 = [
+        ("SamplePerfectTile", [1, 1, 1, 1]),
+        ("SamplePerfectTile", [2, 2, 1, 28]),
+        ("SamplePerfectTile", [7, 2, 4, 2]),
+        ("SamplePerfectTile", [1, 32, 1, 2]),
+        ("SamplePerfectTile", [7, 1]),
+        ("SamplePerfectTile", [7, 1]),
+        ("SamplePerfectTile", [1, 3]),
+        ("SampleCategorical", 2),
+        ("SampleComputeLocation", 1),
+    ]
+    mod = create_te_workload("CBR", 0)
+    actual = ms.TuneContext(
+        mod=mod,
+        target=_target(),
+        space_generator=ms.space_generator.PostOrderApply(),
+        sch_rules="default",
+    ).generate_design_space()
+    check_sketches(
+        mod,
+        sketches=actual,
+        expected_mods=[cbr_0, cbr_1, cbr_2],
+        expected_decisions=[decision_0, decision_1, decision_2],
+    )
+
+
+def test_cpu_tbg():
+    # fmt: off
+    @T.prim_func
+    def tbg_0(query: T.Buffer[(1, 128, 12, 64), "float32"], value: T.Buffer[(1, 128, 12, 64), "float32"], C: T.Buffer[(1, 12, 128, 128), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":64, "meta_schedule.vectorize":64})
+            query_T = T.alloc_buffer([1, 12, 128, 64], dtype="float32")
+            value_T = T.alloc_buffer([1, 12, 64, 128], dtype="float32")
+            C_global = T.alloc_buffer([1, 12, 128, 128], dtype="float32")
+            for i0_0, i1_0, i2_0, i3_0, i0_1, i1_1, i2_1 in T.grid(1, 1, 1, 2, 1, 6, 2):
+                for ax0, ax1, ax2, ax3 in T.grid(1, 2, 64, 64):
+                    with T.block("value_T"):
+                        b = T.axis.spatial(1, ax0)
+                        h = T.axis.spatial(12, i1_1 * 2 + ax1)
+                        d = T.axis.spatial(64, ax2)
+                        l = T.axis.spatial(128, i3_0 * 64 + ax3)
+                        T.reads(value[b, l, h, d])
+                        T.writes(value_T[b, h, d, l])
+                        value_T[b, h, d, l] = value[b, l, h, d]
+                for ax0, ax1, ax2, ax3 in T.grid(1, 2, 64, 64):
+                    with T.block("query_T"):
+                        b = T.axis.spatial(1, ax0)
+                        h = T.axis.spatial(12, i1_1 * 2 + ax1)
+                        l = T.axis.spatial(128, i2_1 * 64 + ax2)
+                        d = T.axis.spatial(64, ax3)
+                        T.reads(query[b, l, h, d])
+                        T.writes(query_T[b, h, l, d])
+                        query_T[b, h, l, d] = query[b, l, h, d]
+                for i3_1 in T.serial(8):
+                    for i4_0, i0_2, i1_2, i2_2, i3_2, i4_1, i0_3, i1_3, i2_3, i3_3 in T.grid(1, 1, 2, 2, 4, 64, 1, 1, 32, 2):
+                        with T.block("C"):
+                            b = T.axis.spatial(1, i0_1 + i0_2 + i0_3 + i0_0)
+                            h = T.axis.spatial(12, i1_0 * 12 + i1_1 * 2 + i1_2 + i1_3)
+                            i = T.axis.spatial(128, i2_0 * 128 + i2_1 * 64 + i2_2 * 32 + i2_3)
+                            j = T.axis.spatial(128, i3_0 * 64 + i3_1 * 8 + i3_2 * 2 + i3_3)
+                            k = T.axis.reduce(64, i4_0 * 64 + i4_1)
+                            T.reads(query_T[b, h, i, k], value_T[b, h, k, j])
+                            T.writes(C_global[b, h, i, j])
+                            T.block_attr({"meta_schedule.tiling_structure":"SSRSRS"})
+                            with T.init():
+                                C_global[b, h, i, j] = T.float32(0)
+                            C_global[b, h, i, j] = C_global[b, h, i, j] + query_T[b, h, i, k] * value_T[b, h, k, j]
+                    for ax0, ax1, ax2, ax3 in T.grid(1, 2, 64, 8):
+                        with T.block("C_global"):
+                            v0 = T.axis.spatial(1, ax0)
+                            v1 = T.axis.spatial(12, i1_1 * 2 + ax1)
+                            v2 = T.axis.spatial(128, i2_1 * 64 + ax2)
+                            v3 = T.axis.spatial(128, i3_0 * 64 + i3_1 * 8 + ax3)
+                            T.reads(C_global[v0, v1, v2, v3])
+                            T.writes(C[v0, v1, v2, v3])
+                            C[v0, v1, v2, v3] = C_global[v0, v1, v2, v3]
+    @T.prim_func
+    def tbg_1(query: T.Buffer[(1, 128, 12, 64), "float32"], value: T.Buffer[(1, 128, 12, 64), "float32"], C: T.Buffer[(1, 12, 128, 128), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":64, "meta_schedule.vectorize":64})
+            query_T = T.alloc_buffer([1, 12, 128, 64], dtype="float32")
+            value_T = T.alloc_buffer([1, 12, 64, 128], dtype="float32")
+            C_global = T.alloc_buffer([1, 12, 128, 128], dtype="float32")
+            for i0, i1, i2, i3 in T.grid(1, 12, 128, 64):
+                with T.block("query_T"):
+                    b, h, l, d = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    T.reads(query[b, l, h, d])
+                    T.writes(query_T[b, h, l, d])
+                    query_T[b, h, l, d] = query[b, l, h, d]
+            for i0_0, i1_0, i2_0, i3_0 in T.grid(1, 1, 1, 2):
+                for i0_1, i1_1, i2_1, i3_1, i4_0, i0_2, i1_2, i2_2, i3_2, i4_1 in T.grid(1, 6, 2, 8, 1, 1, 2, 2, 4, 64):
+                    for ax0, ax1, ax2, ax3 in T.grid(1, 1, 1, 2):
+                        with T.block("value_T"):
+                            b = T.axis.spatial(1, ax0)
+                            h = T.axis.spatial(12, i1_1 * 2 + i1_2 + ax1)
+                            d = T.axis.spatial(64, i4_1 + ax2)
+                            l = T.axis.spatial(128, i3_0 * 64 + i3_1 * 8 + i3_2 * 2 + ax3)
+                            T.reads(value[b, l, h, d])
+                            T.writes(value_T[b, h, d, l])
+                            value_T[b, h, d, l] = value[b, l, h, d]
+                    for i0_3, i1_3, i2_3, i3_3 in T.grid(1, 1, 32, 2):
+                        with T.block("C"):
+                            b = T.axis.spatial(1, i0_1 + i0_2 + i0_3 + i0_0)
+                            h = T.axis.spatial(12, i1_0 * 12 + i1_1 * 2 + i1_2 + i1_3)
+                            i = T.axis.spatial(128, i2_0 * 128 + i2_1 * 64 + i2_2 * 32 + i2_3)
+                            j = T.axis.spatial(128, i3_0 * 64 + i3_1 * 8 + i3_2 * 2 + i3_3)
+                            k = T.axis.reduce(64, i4_0 * 64 + i4_1)
+                            T.reads(query_T[b, h, i, k], value_T[b, h, k, j])
+                            T.writes(C_global[b, h, i, j])
+                            T.block_attr({"meta_schedule.tiling_structure":"SSRSRS"})
+                            with T.init():
+                                C_global[b, h, i, j] = T.float32(0)
+                            C_global[b, h, i, j] = C_global[b, h, i, j] + query_T[b, h, i, k] * value_T[b, h, k, j]
+                for ax0, ax1, ax2, ax3 in T.grid(1, 12, 128, 64):
+                    with T.block("C_global"):
+                        v0, v1, v2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                        v3 = T.axis.spatial(128, i3_0 * 64 + ax3)
+                        T.reads(C_global[v0, v1, v2, v3])
+                        T.writes(C[v0, v1, v2, v3])
+                        C[v0, v1, v2, v3] = C_global[v0, v1, v2, v3]
+    @T.prim_func
+    def tbg_2(query: T.Buffer[(1, 128, 12, 64), "float32"], value: T.Buffer[(1, 128, 12, 64), "float32"], C: T.Buffer[(1, 12, 128, 128), "float32"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            T.block_attr({"meta_schedule.parallel":288, "meta_schedule.unroll_explicit":512, "meta_schedule.vectorize":64})
+            value_T = T.alloc_buffer([1, 12, 64, 128], dtype="float32")
+            for i0_0, i1_0, i2_0, i3_0, i0_1, i1_1, i2_1, i3_1 in T.grid(1, 1, 1, 2, 1, 6, 2, 8):
+                for ax0, ax1, ax2, ax3 in T.grid(1, 2, 64, 8):
+                    with T.block("value_T"):
+                        b = T.axis.spatial(1, ax0)
+                        h = T.axis.spatial(12, i1_1 * 2 + ax1)
+                        d = T.axis.spatial(64, ax2)
+                        l = T.axis.spatial(128, i3_0 * 64 + i3_1 * 8 + ax3)
+                        T.reads(value[b, l, h, d])
+                        T.writes(value_T[b, h, d, l])
+                        value_T[b, h, d, l] = value[b, l, h, d]
+                for i4_0, i0_2, i1_2, i2_2, i3_2, i4_1, i0_3, i1_3, i2_3, i3_3 in T.grid(1, 1, 2, 2, 4, 64, 1, 1, 32, 2):
+                    with T.block("C"):
+                        b = T.axis.spatial(1, i0_1 + i0_2 + i0_3 + i0_0)
+                        h = T.axis.spatial(12, i1_0 * 12 + i1_1 * 2 + i1_2 + i1_3)
+                        i = T.axis.spatial(128, i2_0 * 128 + i2_1 * 64 + i2_2 * 32 + i2_3)
+                        j = T.axis.spatial(128, i3_0 * 64 + i3_1 * 8 + i3_2 * 2 + i3_3)
+                        k = T.axis.reduce(64, i4_0 * 64 + i4_1)
+                        T.reads(query[b, i, h, k], value_T[b, h, k, j])
+                        T.writes(C[b, h, i, j])
+                        T.block_attr({"meta_schedule.tiling_structure":"SSRSRS"})
+                        with T.init():
+                            C[b, h, i, j] = T.float32(0)
+                        C[b, h, i, j] = C[b, h, i, j] + query[b, i, h, k] * value_T[b, h, k, j]
+    # fmt: on
+    decision_0 = [
+        ("SamplePerfectTile", [1, 1, 1, 1]),
+        ("SamplePerfectTile", [1, 6, 2, 1]),
+        ("SamplePerfectTile", [1, 2, 2, 32]),
+        ("SamplePerfectTile", [2, 8, 4, 2]),
+        ("SamplePerfectTile", [1, 64]),
+        ("SampleCategorical", 2),
+        ("SampleComputeLocation", 6),
+        ("SampleComputeLocation", 6),
+    ]
+    decision_1 = [
+        ("SamplePerfectTile", [1, 1, 1, 1]),
+        ("SamplePerfectTile", [1, 6, 2, 1]),
+        ("SamplePerfectTile", [1, 2, 2, 32]),
+        ("SamplePerfectTile", [2, 8, 4, 2]),
+        ("SamplePerfectTile", [1, 64]),
+        ("SampleCategorical", 2),
+        ("SampleComputeLocation", 13),
+        ("SampleComputeLocation", -1),
+    ]
+    decision_2 = [
+        ("SamplePerfectTile", [1, 1, 1, 1]),
+        ("SamplePerfectTile", [1, 6, 2, 1]),
+        ("SamplePerfectTile", [1, 2, 2, 32]),
+        ("SamplePerfectTile", [2, 8, 4, 2]),
+        ("SamplePerfectTile", [1, 64]),
+        ("SampleCategorical", 3),
+        ("SampleComputeLocation", 7),
+        ("SampleComputeLocation", -2),
+    ]
+    mod = create_te_workload("TBG", 0)
+    actual = ms.TuneContext(
+        mod=mod,
+        target=_target(),
+        space_generator=ms.space_generator.PostOrderApply(),
+        sch_rules="default",
+    ).generate_design_space()
+    check_sketches(
+        mod,
+        sketches=actual,
+        expected_mods=[tbg_0, tbg_1, tbg_2],
+        expected_decisions=[decision_0, decision_1, decision_2],
+    )
+
+
 if __name__ == "__main__":
     test_cpu_c1d()
     test_cpu_c2d()
@@ -1671,3 +2613,6 @@ if __name__ == "__main__":
     test_cpu_grp()
     test_cpu_t2d()
     test_cpu_nrm()
+    test_cpu_sfm()
+    test_cpu_cbr()
+    test_cpu_tbg()

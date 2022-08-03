@@ -53,7 +53,7 @@ from .register import register_pattern_table
 
 
 logger = logging.getLogger("DNNL")
-supported_post_elts = ["nn.relu", "tanh", "sigmoid", "clip", "gelu", "swish", None]
+supported_post_elts = ["nn.relu", "tanh", "sigmoid", "clip", "gelu", "swish", "mish", None]
 
 
 def _register_external_op_helper(op_name, supported=True):
@@ -137,6 +137,13 @@ def append_eltwise_ops(op, eltwise):
     elif eltwise == "swish":
         sig_out = is_op("sigmoid")(op)
         op = is_op("multiply")(op, sig_out)
+    elif eltwise == "mish":
+        const1 = wildcard()
+        exp = is_op("exp")(op)
+        add = is_op("add")(exp, const1)
+        log = is_op("log")(add)
+        tanh = is_op("tanh")(log)
+        op = is_op("multiply")(op, tanh)
     elif eltwise:
         op = is_op(eltwise)(op)
     return op
@@ -411,7 +418,7 @@ def pattern_table():
         )
     )
 
-    elt_list = ["nn.relu", "tanh", "sigmoid", "clip", "gelu", "swish", None]
+    elt_list = ["nn.relu", "tanh", "sigmoid", "clip", "gelu", "swish", "mish", None]
     for with_bias in [True, False]:
         for elt in elt_list:
             if not with_bias and not elt:

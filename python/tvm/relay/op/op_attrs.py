@@ -617,3 +617,8 @@ class NLLLossAttrs(Attrs):
 @tvm._ffi.register_object("relay.attrs.FixedPointMultiplyAttrs")
 class FixedPointMultiplyAttrs(Attrs):
     """Attributes used in fixed_point_multiply operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.TriluAttrs")
+class TriluAttrs(Attrs):
+    """Attributes used in trilu operators"""

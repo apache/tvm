@@ -163,12 +163,21 @@ bool Inference(tvm::runtime::TVMArgs args, dl::Network* npu,
       case 8: {
         dl::Buffer** ofms = &ofm_raw[0];
         for (DLTensor* tensor : outputs) {
-          uint8_t* source_buffer_data = (*ofms++)->GetMappedBuffer();
+          dl::Buffer* source_buffer = (*ofms++);
+#if _ETHOSN_API_VERSION_ < 2111
+          uint8_t* source_buffer_data = source_buffer->GetMappedBuffer();
+#else
+          uint8_t* source_buffer_data = source_buffer->Map();
+#endif
           uint8_t* dest_pointer = static_cast<uint8_t*>(tensor->data);
           if (source_buffer_data != dest_pointer) {
             CopyOutput<uint8_t>(ofm_raw, &outputs);
             break;
           }
+#if _ETHOSN_API_VERSION_ >= 2111
+          source_buffer->Unmap();
+#else
+#endif
         }
         break;
       }

@@ -111,19 +111,18 @@ def test_fullyconnected(dtype):
 
 @requires_ethosn
 def test_fullyconnected_failure():
-    lb = "2.328306e-10" if tei.get_ethosn_api_version() > 2102 else "0"
     trials = [
         (
             (1, 64),
             (1, 64),
             0,
-            1,
+            1024,
             0,
-            1,
+            1024,
             0,
             1,
             "uint8",
-            f"Overall scale (of the input * weights / output) should be in the range [{lb}, 1)",
+            tei.get_overall_scale_range_expected_error_message(),
         ),
         (
             (1, 1, 1, 64),
