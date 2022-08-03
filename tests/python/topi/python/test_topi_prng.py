@@ -88,7 +88,7 @@ def multinomial(target, dev, gen, probs, num_samples):
     return out_gen.numpy(), indices.asnumpy()
 
 
-@tvm.testing.parametrize_targets
+@tvm.testing.parametrize_targets("llvm")
 def test_threefry_split(target, dev):
     # test that results of split do not equal eachother or the input
     gen = tvm.relay.random.threefry_key(0).data.numpy()
@@ -127,7 +127,7 @@ def test_threefry_split(target, dev):
     ).all(), "Split called on the same input should return the same result"
 
 
-@tvm.testing.parametrize_targets
+@tvm.testing.parametrize_targets("llvm")
 def test_threefry_generate(target, dev):
     gen = tvm.relay.random.threefry_key(0).data.numpy()
 
@@ -148,28 +148,28 @@ def test_threefry_generate(target, dev):
 
     # test enough generates to go over generate limit
     gen = np.array(
-        [0, 0, 0, 0, 0, 0, 0, 2**64 - 2, 1 << 63, 0], dtype="uint64"
+        [0, 0, 0, 0, 0, 0, 0, 2 ** 64 - 2, 1 << 63, 0], dtype="uint64"
     )  # make counter large
     a, rands = threefry_generate(target, dev, gen, (2048,))
     assert gen[4] != a[4], "Overflow of counter should trigger path change"
     assert a[7] == 2048, "Overflow of counter should still update counter"
 
     # check generate with path at length limit
-    gen = np.array([0, 0, 0, 0, 0, 0, 0, 2**64 - 2, 0, 0], dtype="uint64")  # make counter large
+    gen = np.array([0, 0, 0, 0, 0, 0, 0, 2 ** 64 - 2, 0, 0], dtype="uint64")  # make counter large
     a, rands = threefry_generate(target, dev, gen, (2048,))
     assert (
         gen[0:4] != a[0:4]
     ).any(), "Overflowing counter with no space left in path should change state"
 
 
-@tvm.testing.parametrize_targets
+@tvm.testing.parametrize_targets("llvm")
 def test_threefry_wrapping(target, dev):
     assert tvm.topi.random.threefry_test_wrapping(
         target, dev
     ), f"{target} does not suppport wrapping unsigned integer arithmetic"
 
 
-@tvm.testing.parametrize_targets
+@tvm.testing.parametrize_targets("llvm")
 def test_uniform(target, dev):
     gen = tvm.relay.random.threefry_key(0).data.numpy()
     m = 1024
@@ -185,7 +185,7 @@ def test_uniform(target, dev):
         assert np.max(rands) <= 10.0
 
 
-@tvm.testing.parametrize_targets
+@tvm.testing.parametrize_targets("llvm")
 def test_multinomial(target, dev):
     def _verify_multinomial(size, num_samples):
         gen = tvm.relay.random.threefry_key(np.random.randint(0, 1e5)).data.numpy()

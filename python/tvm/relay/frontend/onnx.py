@@ -4811,6 +4811,22 @@ class RandomUniformLike(OnnxOpConverter):
         return vals
 
 
+class Multinomial(OnnxOpConverter):
+    """Operator converter for multinomial"""
+
+    @classmethod
+    def _impl_v7(cls, inputs, attr, params):
+        dtype = attr.get("dtype", "int64")
+        sample_size = attr.get("sample_size", 1)
+        seed = attr.get("seed", None)
+        if seed is None:
+            seed = np.random.randint(1e6)
+        key = _op.random.threefry_key(seed)
+        output = _op.random.multinomial(key, inputs[0], sample_size)
+        _, indices = _expr.TupleWrapper(output, 2)
+        return _op.cast(indices, dtype)
+
+
 class NegativeLogLikelihoodLoss(OnnxOpConverter):
     """Operator converter for NegativeLogLikehoodLoss"""
 
@@ -5385,6 +5401,7 @@ def _get_convert_map(opset):
         "RandomNormalLike": RandomNormalLike.get_converter(opset),
         "RandomUniform": RandomUniform.get_converter(opset),
         "RandomUniformLike": RandomUniformLike.get_converter(opset),
+        "Multinomial": Multinomial.get_converter(opset),
         # Loss functions / training
         "NegativeLogLikelihoodLoss": NegativeLogLikelihoodLoss.get_converter(opset),
         "SoftmaxCrossEntropyLoss": SoftmaxCrossEntropyLoss.get_converter(opset),
