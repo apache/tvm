@@ -42,10 +42,10 @@ class CodeGenARM final : public CodeGenCPU {
   CodeGenARM() = default;
   virtual ~CodeGenARM() = default;
 
-  void InitTarget(llvm::TargetMachine* tm) final {
+  void InitTarget() final {
     // set native vector bits.
     native_vector_bits_ = 16 * 8;
-    CodeGenCPU::InitTarget(tm);
+    CodeGenCPU::InitTarget();
   }
   llvm::Value* CreateIntrinsic(const CallNode* op) override;
 
@@ -139,4 +139,5 @@ TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_arm")
 
 }  // namespace codegen
 }  // namespace tvm
+
 #endif  // TVM_LLVM_VERSION

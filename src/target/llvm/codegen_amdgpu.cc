@@ -51,7 +51,7 @@
 #include "../../runtime/rocm/rocm_module.h"
 #include "../build_common.h"
 #include "codegen_llvm.h"
-#include "llvm_common.h"
+#include "llvm_instance.h"
 
 namespace tvm {
 namespace codegen {
@@ -238,27 +238,25 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   }
 
  protected:
-  void InitTarget(llvm::TargetMachine* tm) final {
+  void InitTarget() final {
     // Maximum vector lane = float4
     native_vector_bits_ = 4 * 32;
-    CodeGenLLVM::InitTarget(tm);
+    CodeGenLLVM::InitTarget();
   }
 };
 
 runtime::Module BuildAMDGPU(IRModule mod, Target target) {
+  LLVMInstance llvm_instance;
+
+  With<LLVMTarget> llvm_target(llvm_instance, target);
 #if TVM_LLVM_VERSION < 90
   LOG(FATAL) << "AMDGPU backend requires at least LLVM 9";
   // Lower versions will crash when loading the bitcode, see
   // issue #4087 for a discussion
 #endif
-  InitializeLLVM();
-  std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(target);
-  std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
-  // careful: cg will hold a naked pointer reference to ctx, so it should
-  // have a shorter lifetime than the ctx.
   std::unique_ptr<CodeGenAMDGPU> cg(new CodeGenAMDGPU());
 
-  cg->Init("TVMAMDGPUModule", tm.get(), ctx.get(), false, false, false);
+  cg->Init("TVMAMDGPUModule", llvm_target.get(), false, false, false);
 
   cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end(), [](auto& kv) {
     ICHECK(kv.second->template IsInstance<PrimFuncNode>())
@@ -266,20 +264,15 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
     return Downcast<PrimFunc>(kv.second);
   });
 
+  llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
   const auto* find_rocm_bitcodes = tvm::runtime::Registry::Get("tvm_callback_rocm_bitcode_path");
   Array<runtime::String> bitcode_files = (*find_rocm_bitcodes)();
 
   for (auto& bitcode_path : bitcode_files) {
-    std::string path = bitcode_path;
-    llvm::SMDiagnostic err;
-    std::unique_ptr<llvm::Module> mlib = llvm::parseIRFile(path, err, *ctx);
-    if (mlib.get() == nullptr) {
-      std::string msg(err.getMessage());
-      LOG(FATAL) << "Fail to load bitcode file " << path << "\n"
-                 << "line " << err.getLineNo() << ":" << msg;
-    }
-    mlib->setTargetTriple(tm->getTargetTriple().str());
+    std::unique_ptr<llvm::Module> mlib = llvm_instance.LoadIR(bitcode_path);
+    mlib->setTargetTriple(llvm_target->GetTargetTriple());
     mlib->setDataLayout(tm->createDataLayout());
+
     for (llvm::Function& f : mlib->functions()) {
       f.addFnAttr(llvm::Attribute::AlwaysInline);
     }
@@ -351,4 +344,5 @@ TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_rocm")
 
 }  // namespace codegen
 }  // namespace tvm
+
 #endif  // TVM_LLVM_VERSION

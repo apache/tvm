@@ -26,15 +26,18 @@
 
 #ifdef TVM_LLVM_VERSION
 
-#include <llvm/IR/LLVMContext.h>
-#include <llvm/IR/Module.h>
-
 #include <memory>
 #include <string>
-#include <utility>
+
+namespace llvm {
+class Module;
+}
 
 namespace tvm {
 namespace codegen {
+
+class LLVMTarget;
+
 /**
  * \brief Code Generation of blob data
  *
@@ -44,8 +47,8 @@ namespace codegen {
  *
  * \return LLVM module and LLVM context
  */
-std::pair<std::unique_ptr<llvm::Module>, std::shared_ptr<llvm::LLVMContext>> CodeGenBlob(
-    const std::string& data, bool system_lib, const std::string& llvm_target_string);
+std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_lib,
+                                          LLVMTarget* llvm_target);
 
 }  // namespace codegen
 }  // namespace tvm
