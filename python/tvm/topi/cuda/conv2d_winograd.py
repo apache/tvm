@@ -82,7 +82,6 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_
         (0, 0, pt, pl),
         (0, 0, pb, pr),
         name="data_pad",
-        attrs={"schedule_rule": "None"},
     )
 
     r = KW
@@ -118,7 +117,6 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_
             idxmod(idxdiv(p, nW), nH) * m + eps
         ][idxmod(p, nW) * m + nu],
         name="d",
-        attrs={"schedule_rule": "None"},
     )
 
     # transform data
@@ -130,7 +128,7 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_
             input_tile[ci][p][r_a][r_b] * B[r_a][eps] * B[r_b][nu], axis=[r_a, r_b]
         ),
         name="data_pack",
-        attrs={"schedule_rule": "meta_schedule.winograd_data_pack.cuda"},
+        attrs={"schedule_rule": "meta_schedule.winograd_data_pack.nchw.cuda"},
     )
 
     # do batch gemm
@@ -152,7 +150,7 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_
             bgemm[r_a][r_b][co][p] * A[r_a][vh] * A[r_b][vw], axis=[r_a, r_b]
         ),
         name="inverse",
-        attrs={"schedule_rule": "meta_schedule.winograd_inverse.cuda"},
+        attrs={"schedule_rule": "meta_schedule.winograd_inverse.nchw.cuda"},
     )
 
     # output
@@ -163,6 +161,10 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_
         ],
         name="output",
         tag="conv2d_nchw_winograd",
+        attrs={
+            "schedule_rule": "meta_schedule.winograd_output.nchw.cuda",
+            "winograd_tile_size": alpha - 3 + 1,
+        },
     )
 
     if isinstance(N, int):
