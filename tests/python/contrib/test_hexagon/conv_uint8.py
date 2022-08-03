@@ -21,27 +21,29 @@ import tvm
 from numbers import Integral
 from tvm import te
 
+
 def get_const_int(expr):
-            """Verifies expr is integer and get the constant value.
+    """Verifies expr is integer and get the constant value.
 
-            Parameters
-            ----------
-            expr : tvm.Expr or int
-                The input expression.
+    Parameters
+    ----------
+    expr : tvm.Expr or int
+        The input expression.
 
-            Returns
-            -------
-            out_value : int
-                The output.
-            """
-            if isinstance(expr, Integral):
-                return expr
-            if not isinstance(expr, tvm.tir.IntImm):
-                ana = tvm.arith.Analyzer()
-                expr = ana.simplify(expr)
-            if not isinstance(expr, tvm.tir.IntImm):
-                raise ValueError("Expect value to be constant int")
-            return int(expr.value)
+    Returns
+    -------
+    out_value : int
+        The output.
+    """
+    if isinstance(expr, Integral):
+        return expr
+    if not isinstance(expr, tvm.tir.IntImm):
+        ana = tvm.arith.Analyzer()
+        expr = ana.simplify(expr)
+    if not isinstance(expr, tvm.tir.IntImm):
+        raise ValueError("Expect value to be constant int")
+    return int(expr.value)
+
 
 def get_const_tuple(in_tuple):
     """Verifies input tuple is IntImm or Var, returns tuple of int or Var.
@@ -72,6 +74,7 @@ def get_const_tuple(in_tuple):
             ret.append(get_const_int(elem))
     return tuple(ret)
 
+
 def Pad(Input, padding):
     batch, in_height, in_width, in_channel = Input.shape
     return te.compute(
@@ -89,12 +92,14 @@ def Pad(Input, padding):
         name="Apad",
     )
 
+
 def schedule_qconv2d_nhwc(outs, target, device):
     s = te.create_schedule([x.op for x in outs])
     x = outs[0]
     nn, yy, xx, cc = s[x].op.axis
     px1, px2 = s[x].split(nn, nparts=1)
     return s
+
 
 def qconv2d_nhwc(Input, in_offset, Filter, filt_offset, stride, padding, out_dtype=None):
     if out_dtype is None:
@@ -141,7 +146,12 @@ def run_conv_te(hexagon_session, a, w, a_offset, w_offset, padding):
     s[B].vectorize(cc)
 
     b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), device=device)
-    func_te = tvm.build(s, [A, W, B], target=tvm.target.Target(target_hexagon, host=target_hexagon), name="quant_conv2d")
+    func_te = tvm.build(
+        s,
+        [A, W, B],
+        target=tvm.target.Target(target_hexagon, host=target_hexagon),
+        name="quant_conv2d",
+    )
 
     module_te = hexagon_session.load_module(func_te)
 
@@ -150,10 +160,11 @@ def run_conv_te(hexagon_session, a, w, a_offset, w_offset, padding):
     b_hexagon = tvm.runtime.ndarray.array(b, device=hexagon_session.device)
 
     module_te(a_hexagon, w_hexagon, b_hexagon)
-    evaluator = module_te.time_evaluator(module_te.entry_name, hexagon_session.device, number=1, repeat=1)
+    evaluator = module_te.time_evaluator(
+        module_te.entry_name, hexagon_session.device, number=1, repeat=1
+    )
     mean_ms = evaluator(a_hexagon, w_hexagon, b_hexagon).mean * 1000
 
     out = b_hexagon.numpy()
 
     return out, mean_ms
-    

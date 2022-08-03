@@ -26,8 +26,8 @@ from tests.python.contrib.test_hexagon.conv_uint8 import get_const_tuple, run_co
 from tests.python.contrib.test_hexagon.conv_uint8_hvx_intrin import get_conv_uint8_hvx_intrin
 from tests.python.contrib.test_hexagon.quantization_utils import quantize_array, quantize_uint8
 
-class TestConvHVX:
 
+class TestConvHVX:
     def create_inputs(input_shape, filter_shape, mem_scope):
 
         w_size, _, _, _ = filter_shape
@@ -48,10 +48,11 @@ class TestConvHVX:
 
         a_f = np.array(a_q, dtype="uint8").reshape(get_const_tuple(a.shape))
         w_f = np.array(w_q, dtype="uint8").reshape(get_const_tuple(w.shape))
-        expected_output = tvm.topi.testing.conv2d_nhwc_python(a_f, w_f, 1, input_padding).astype("int32")
+        expected_output = tvm.topi.testing.conv2d_nhwc_python(a_f, w_f, 1, input_padding).astype(
+            "int32"
+        )
 
         return a_q, w_q, a_offset, w_offset, expected_output, mem_scope
-
 
     a, w, a_offset, w_offset, expected_output, mem_scope = tvm.testing.parameters(
         (create_inputs((2, 128, 128, 3), (3, 3, 3, 2), "local")),
@@ -67,9 +68,11 @@ class TestConvHVX:
     )
 
     @tvm.testing.requires_hexagon
-    def test_vrmpy_conv(self, hexagon_session, a, w, a_offset, w_offset, expected_output, mem_scope):
+    def test_vrmpy_conv(
+        self, hexagon_session, a, w, a_offset, w_offset, expected_output, mem_scope
+    ):
 
-        #TODO even sized kernels and stride are currently not working. 
+        # TODO even sized kernels and stride are currently not working.
 
         batches, input_size, _, in_c = a.shape
         w_size, _, _, filters = w.shape
@@ -79,9 +82,15 @@ class TestConvHVX:
         out_shape = (batches, out_height, out_width, filters)
         c = np.zeros(out_shape, dtype="int32")
 
-        conv2d_vrmpy_description, conv2d_vrmpy_intrinsic, conv2d_operator = get_conv_uint8_hvx_intrin(a.shape, w.shape, a_offset, w_offset, mem_scope)
+        (
+            conv2d_vrmpy_description,
+            conv2d_vrmpy_intrinsic,
+            conv2d_operator,
+        ) = get_conv_uint8_hvx_intrin(a.shape, w.shape, a_offset, w_offset, mem_scope)
 
-        intrin_name = "conv2d.uint8_{}x{}x{}x{}_{}".format(input_size, input_size, w_size, w_size, mem_scope)
+        intrin_name = "conv2d.uint8_{}x{}x{}x{}_{}".format(
+            input_size, input_size, w_size, w_size, mem_scope
+        )
         try:
             TensorIntrin.register(intrin_name, conv2d_vrmpy_description, conv2d_vrmpy_intrinsic)
         except:
@@ -89,14 +98,18 @@ class TestConvHVX:
 
         ir_module = conv2d_operator
         sch = tvm.tir.Schedule(ir_module, debug_mask="all")
-        
+
         block = sch.get_block("C")
 
         w_block_local = sch.get_block("W_local")
-        sch.transform_layout(w_block_local, buffer=("write", 0), index_map=lambda h, w, c, f: (f, c, h, w))
+        sch.transform_layout(
+            w_block_local, buffer=("write", 0), index_map=lambda h, w, c, f: (f, c, h, w)
+        )
 
         a_block_local = sch.get_block("A_local")
-        sch.transform_layout(a_block_local, buffer=("write", 0), index_map=lambda b, h, w, c: (b, c, h, w))
+        sch.transform_layout(
+            a_block_local, buffer=("write", 0), index_map=lambda b, h, w, c: (b, c, h, w)
+        )
 
         n, f, y, x, ry, rx, rc = sch.get_loops(block)
         sch.reorder(n, f, rc, y, x, ry, rx)
@@ -104,15 +117,18 @@ class TestConvHVX:
         sch.tensorize(y, intrin_name)
 
         target_hexagon = tvm.target.hexagon("v68", link_params=True)
-        
+
         A = tvm.tir.decl_buffer(a.shape, name="A", dtype="uint8")
         W = tvm.tir.decl_buffer(w.shape, name="W", dtype="uint8")
         C = tvm.tir.decl_buffer(out_shape, name="C", dtype="int32")
 
         func_tir = tvm.build(
-            sch.mod, [A, W, C], tvm.target.Target(target_hexagon, host=target_hexagon), name="hvx_op"
+            sch.mod,
+            [A, W, C],
+            tvm.target.Target(target_hexagon, host=target_hexagon),
+            name="hvx_op",
         )
-        
+
         module = hexagon_session.load_module(func_tir)
 
         a_hexagon = tvm.runtime.ndarray.array(a, device=hexagon_session.device)
@@ -121,22 +137,32 @@ class TestConvHVX:
 
         module(a_hexagon, w_hexagon, c_hexagon)
         out = c_hexagon.numpy()
-        out = out[:,:,:out_width,:]
-    
+        out = out[:, :, :out_width, :]
+
         tvm.testing.assert_allclose(out, expected_output)
-        
+
         timer = module.time_evaluator(module.entry_name, hexagon_session.device, number=1, repeat=1)
         time_ms = timer(a_hexagon, w_hexagon, c_hexagon).mean * 1000
-        print("Input Shape: {} Kernel Shape: {} Mem_scope: {}. HVX: {} ms.".format(a.shape, w.shape, mem_scope, time_ms))
+        print(
+            "Input Shape: {} Kernel Shape: {} Mem_scope: {}. HVX: {} ms.".format(
+                a.shape, w.shape, mem_scope, time_ms
+            )
+        )
 
     @tvm.testing.requires_hexagon
     def test_te_conv(self, hexagon_session, a, w, a_offset, w_offset, expected_output, mem_scope):
         batches, input_size, _, in_c = a.shape
         w_size, _, _, filters = w.shape
-        baseline_output, baseline_time = run_conv_te(hexagon_session, a, w, a_offset, w_offset, w_size // 2)
+        baseline_output, baseline_time = run_conv_te(
+            hexagon_session, a, w, a_offset, w_offset, w_size // 2
+        )
         tvm.testing.assert_allclose(baseline_output, expected_output)
-        print("Input Shape: {} Kernel Shape: {}. TE Baseline: {} ms".format(a.shape, w.shape, baseline_time))
-    
+        print(
+            "Input Shape: {} Kernel Shape: {}. TE Baseline: {} ms".format(
+                a.shape, w.shape, baseline_time
+            )
+        )
+
 
 if __name__ == "__main__":
     tvm.testing.main()

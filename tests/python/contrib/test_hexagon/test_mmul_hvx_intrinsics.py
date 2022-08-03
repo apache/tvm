@@ -28,8 +28,10 @@ from tests.python.contrib.test_hexagon.quantization_utils import quantize_array,
 
 UNROLL_FACTOR = 4  # This must match the hard-coded unrolling in mm_uint8_intrinsic().
 
+
 def can_tensorize(n, m, k):
     return m % (4 * UNROLL_FACTOR) == k % 32 == 0
+
 
 def blockify_matrix(B):
     """
@@ -89,6 +91,7 @@ def blockify_matrix(B):
                     BB[bt, j, k, b] = B[bt, y, k]
     return BB
 
+
 def setup_test(b, m, n, k):
     a_shape = (b, n, m)
     b_shape = (b, m, k)
@@ -122,6 +125,7 @@ def setup_test(b, m, n, k):
 
     return a_q, b_q, bb, a_offset, b_offset, intrin_name, expected_output
 
+
 class TestMatMulVec:
 
     batches, m, n, k = tvm.testing.parameters(
@@ -134,8 +138,8 @@ class TestMatMulVec:
 
     @tvm.testing.requires_hexagon
     def test_matmul_intrinsics(self, hexagon_session, batches, m, n, k):
-        
-        out_shape = (batches, n, k) 
+
+        out_shape = (batches, n, k)
 
         a_q, b_q, bb, a_offset, b_offset, intrin_name, out_ref = setup_test(batches, m, n, k)
 
@@ -151,32 +155,39 @@ class TestMatMulVec:
                 for i0, i1, i2, i3 in T.grid(batches, m, n, k):
                     with T.block("C"):
                         batch, y, x, j = T.axis.remap("SSSR", [i0, i1, i2, i3])
-                        C[batch, y, x] = C[batch, y, x] + T.cast(A[batch, y, j] - OFFSETS[0], "int32") * T.cast(B[batch, j, x] - OFFSETS[1], "int32")
+                        C[batch, y, x] = C[batch, y, x] + T.cast(
+                            A[batch, y, j] - OFFSETS[0], "int32"
+                        ) * T.cast(B[batch, j, x] - OFFSETS[1], "int32")
 
         ir_module = operator
         sch = tvm.tir.Schedule(ir_module, debug_mask="all")
-        
+
         block = sch.get_block("C")
         _, y, _, _ = sch.get_loops(block)
         sch.tensorize(y, intrin_name)
-        
+
         A = tvm.tir.decl_buffer(a_q.shape, name="A", dtype="uint8")
         B = tvm.tir.decl_buffer(b_q.shape, name="B", dtype="uint8")
         C = tvm.tir.decl_buffer(out_shape, name="C", dtype="int32")
         OFFSETS = tvm.tir.decl_buffer((2), name="OFFSETS", dtype="uint8")
 
         target_hexagon = tvm.target.hexagon("v68", link_params=True)
-        func_tir = tvm.build(sch.mod, [A, B, C, OFFSETS], tvm.target.Target(target_hexagon, host=target_hexagon), name="qmmul_vrmpy")
+        func_tir = tvm.build(
+            sch.mod,
+            [A, B, C, OFFSETS],
+            tvm.target.Target(target_hexagon, host=target_hexagon),
+            name="qmmul_vrmpy",
+        )
         module = hexagon_session.load_module(func_tir)
 
         c = np.zeros(out_shape, dtype="int32")
         offsets = np.array([a_offset, b_offset], dtype="uint8")
-        
+
         a_hexagon = tvm.runtime.ndarray.array(a_q, device=hexagon_session.device)
         b_hexagon = tvm.runtime.ndarray.array(bb, device=hexagon_session.device)
         c_hexagon = tvm.runtime.ndarray.array(c, device=hexagon_session.device)
         offsets_hexagon = tvm.runtime.ndarray.array(offsets, device=hexagon_session.device)
-        
+
         module(a_hexagon, b_hexagon, c_hexagon, offsets_hexagon)
         evaluator = module.time_evaluator(module.entry_name, hexagon_session.device, number=1)
         time_ms = evaluator(a_hexagon, b_hexagon, c_hexagon, offsets_hexagon).mean * 1e3
@@ -192,4 +203,3 @@ class TestMatMulVec:
         out_ref_q = np.array(out_ref_q).reshape(batches, n, k)
 
         tvm.testing.assert_allclose(out_req, out_ref_q, atol=2.0, rtol=0.0)
-        

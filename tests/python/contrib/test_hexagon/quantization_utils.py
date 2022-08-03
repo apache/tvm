@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+
 def quantize_uint8(val, minval, maxval):
     range = max(0.0001, maxval - minval)
     resize_amt = 255.0 / range
