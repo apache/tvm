@@ -1056,6 +1056,3 @@ def test_conv2d_different_lowering_same_op():
     ]
 
     build_run_compare(mod, params1, {"data": input_shape}, dtype, target, static_memory_scope)
-
-if __name__ == "__main__":
-    test_conv2d_different_param_scope()

@@ -42,9 +42,9 @@
 #include <memory>
 #include <unordered_map>
 
-#include "../transforms/device_aware_visitors.h"
-#include "../op/memory/memory.h"
 #include "../op/memory/device_copy.h"
+#include "../op/memory/memory.h"
+#include "../transforms/device_aware_visitors.h"
 
 namespace tvm {
 namespace relay {
@@ -57,11 +57,11 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
  public:
   StorageInfo() : transform::DeviceAwareExprVisitor(Optional<IRModule>()) {}
 
-  static Map<Expr, Map<Expr,Array<String> > > GetStorageMap(const Expr& expr) {
+  static Map<Expr, Map<Expr, Array<String>>> GetStorageMap(const Expr& expr) {
     StorageInfo storage_info;
     storage_info.VisitExpr(expr);
     storage_info.LegalizeProducerStorage();
-    Map<Expr, Map<Expr, Array<String> > > storage_map = storage_info.accept_textures_;
+    Map<Expr, Map<Expr, Array<String>>> storage_map = storage_info.accept_textures_;
     for (auto& kv : storage_info.storage_scope_) {
       std::vector<String> storage_scopes;
       std::copy(kv.second.begin(), kv.second.end(), std::back_inserter(storage_scopes));
@@ -91,11 +91,12 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
       if (storage_map.count(a.first)) {
         for (const auto& v : a.second) {
           storage_map.Set(v, storage_map[a.first]);
-          if (storage_map[a.first][Expr()][0] == "global" && storage_info.accept_textures_.count(v)){
+          if (storage_map[a.first][Expr()][0] == "global" &&
+              storage_info.accept_textures_.count(v)) {
             Map<Expr, Array<String>> ent;
             ent.Set(Expr(), storage_info.accept_textures_[v][Expr()]);
             storage_map.Set(v, ent);
-            for (const auto& calls: storage_info.accept_textures_[v]) {
+            for (const auto& calls : storage_info.accept_textures_[v]) {
               if (calls.first != Expr()) {
                 if (storage_map.count(a.first)) {
                   Map<Expr, Array<String>> ent_call = storage_map[a.first];
@@ -410,7 +411,7 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
   /*! \brief mapping of arguments to call to function variables*/
   std::unordered_map<Expr, std::vector<Var>, ObjectPtrHash, ObjectPtrEqual> args_to_vars_;
 
-  Map<Expr, Map<Expr, Array<String> > > accept_textures_;
+  Map<Expr, Map<Expr, Array<String>>> accept_textures_;
   std::set<Expr> require_textures_;
 };
 
@@ -427,7 +428,7 @@ class RewriteVDStorageScopes : public transform::DeviceAwareExprMutator {
   using VarMap = std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual>;
 
  public:
-  explicit RewriteVDStorageScopes(const Map<Expr, Array<String>>& storage_scope)
+  explicit RewriteVDStorageScopes(const Map<Expr, Map<Expr, Array<String>>>& storage_scope)
       : transform::DeviceAwareExprMutator(Optional<IRModule>()), storage_scope_(storage_scope) {}
 
   Function Rewrite(const Expr& expr) { return Downcast<Function>(Mutate(expr)); }
@@ -451,10 +452,11 @@ class RewriteVDStorageScopes : public transform::DeviceAwareExprMutator {
         storage_scope_[GetRef<Expr>(vn)].find(Expr()) != storage_scope_[GetRef<Expr>(vn)].end()) {
       Expr c = Constant(vn->data, vn->span);
       auto virtual_device = GetVirtualDevice(GetRef<Expr>(vn));
-      c = OnDevice(c,
-                   VirtualDevice(virtual_device->device_type(), virtual_device->virtual_device_id,
-                                 virtual_device->target, storage_scope_[GetRef<Expr>(vn)][Expr()][0]),
-                   true);
+      c = OnDevice(
+          c,
+          VirtualDevice(virtual_device->device_type(), virtual_device->virtual_device_id,
+                        virtual_device->target, storage_scope_[GetRef<Expr>(vn)][Expr()][0]),
+          true);
       return c;
     }
     return GetRef<Constant>(vn);
@@ -481,20 +483,18 @@ class RewriteVDStorageScopes : public transform::DeviceAwareExprMutator {
       if (storage_scope_.count(arg) && storage_scope_[arg].count(GetRef<Expr>(call_node))) {
         auto virtual_device = GetVirtualDevice(GetRef<Expr>(call_node));
         // TOO(amalyshe): hardcoded source scope, need to fix later
-        VirtualDevice virtual_device_from = VirtualDevice(virtual_device->device_type(),
-                                                          virtual_device->virtual_device_id,
-                                                          virtual_device->target,
-                                                          "global");
-        VirtualDevice virtual_device_to = VirtualDevice(virtual_device->device_type(),
-                                                          virtual_device->virtual_device_id,
-                                                          virtual_device->target,
-                                                          storage_scope_[arg][GetRef<Expr>(call_node)][0]);
+        VirtualDevice virtual_device_from =
+            VirtualDevice(virtual_device->device_type(), virtual_device->virtual_device_id,
+                          virtual_device->target, "global");
+        VirtualDevice virtual_device_to =
+            VirtualDevice(virtual_device->device_type(), virtual_device->virtual_device_id,
+                          virtual_device->target, storage_scope_[arg][GetRef<Expr>(call_node)][0]);
         new_arg = DeviceCopy(new_arg, virtual_device_from, virtual_device_to);
-        new_arg =
-          OnDevice(new_arg,
-                   VirtualDevice(virtual_device->device_type(), virtual_device->virtual_device_id,
-                                 virtual_device->target, storage_scope_[arg][GetRef<Expr>(call_node)][0]),
-                   true);
+        new_arg = OnDevice(
+            new_arg,
+            VirtualDevice(virtual_device->device_type(), virtual_device->virtual_device_id,
+                          virtual_device->target, storage_scope_[arg][GetRef<Expr>(call_node)][0]),
+            true);
       }
       call_args.push_back(new_arg);
     }
@@ -504,7 +504,8 @@ class RewriteVDStorageScopes : public transform::DeviceAwareExprMutator {
     auto virtual_device = GetVirtualDevice(GetRef<Expr>(call_node));
     std::string memory_scope = "";
     if (storage_scope_.find(GetRef<Expr>(call_node)) != storage_scope_.end() &&
-        storage_scope_[GetRef<Expr>(call_node)].find(Expr()) != storage_scope_[GetRef<Expr>(call_node)].end()) {
+        storage_scope_[GetRef<Expr>(call_node)].find(Expr()) !=
+            storage_scope_[GetRef<Expr>(call_node)].end()) {
       memory_scope = storage_scope_[GetRef<Expr>(call_node)][Expr()][0];
     } else if (virtual_device->memory_scope != "") {
       memory_scope = virtual_device->memory_scope;

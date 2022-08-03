@@ -397,8 +397,6 @@ class RelayBuildModule : public runtime::ModuleNode {
     relay_module = transform::InferType()(relay_module);
     relay_module = transform::LabelOps()(relay_module);
     relay_module = transform::AnnotateMemoryScope(config_)(relay_module);
-    std::cout << PrettyPrint(relay_module) << 
-    "------------------------------------------------------------------------" << std::endl;
     pass_seqs = GetPassPrefix(
         /*is_homogenous=*/config_->optional_homogeneous_target.defined(), /*is_vm=*/false);
     pass_seqs.push_back(transform::PlanDevices(config_));
