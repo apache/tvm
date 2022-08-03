@@ -350,7 +350,7 @@ class PR:
                 "name": self.repo_name,
                 "user": user,
             },
-        )["data"]["repository"]["collaborators"]["nodes"]
+        )["data"]["repository"]
 
     def search_mentionable_users(self, user: str) -> List[Dict[str, Any]]:
         return self.search_users(user, MENTIONABLE_QUERY)["mentionableUsers"]["nodes"]
@@ -657,6 +657,9 @@ if __name__ == "__main__":
     parser.add_argument("--testing-pr-json", help="(testing only) manual data for testing")
     parser.add_argument(
         "--testing-collaborators-json", help="(testing only) manual data for testing"
+    )
+    parser.add_argument(
+        "--testing-mentionable-users-json", help="(testing only) manual data for testing"
     )
     parser.add_argument(
         "--dry-run",
