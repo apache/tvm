@@ -109,16 +109,39 @@ def {{ method_name }}() {
   },
 {% endmacro %}
 
+{% macro bash_retry() %}
+retry() {
+  local retries=\$1
+  shift
+
+  local count=0
+  until "\$@"; do
+    exit=\$?
+    wait=\$((2 ** \$count))
+    count=\$((\$count + 1))
+    if [ \$count -lt \$retries ]; then
+      echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+      sleep \$wait
+    else
+      echo "Retry \$count/\$retries exited \$exit, no more retries left."
+      return \$exit
+    fi
+  done
+  return 0
+}
+{% endmacro %}
+
 {% macro upload_artifacts(tag, filenames, folders=None) %}
 sh(
             script: """
               set -eux
+              {{ bash_retry() | indent(width=14) }}
               {% for filename in filenames %}
               md5sum {{ filename }}
-              aws s3 cp --no-progress {{ filename }} s3://${s3_prefix}/{{ tag }}/{{ filename }}
+              retry 3 aws s3 cp --no-progress {{ filename }} s3://${s3_prefix}/{{ tag }}/{{ filename }}
               {% endfor %}
               {% for folder in (folders or []) %}
-              aws s3 cp --no-progress {{ folder }} s3://${s3_prefix}/{{ tag }}/{{ folder }} --recursive
+              retry 3 aws s3 cp --no-progress {{ folder }} s3://${s3_prefix}/{{ tag }}/{{ folder }} --recursive
               {% endfor %}
             """,
             label: 'Upload artifacts to S3',
@@ -129,12 +152,13 @@ sh(
 sh(
             script: """
               set -eux
+              {{ bash_retry() | indent(width=14) }}
               {% for filename in filenames %}
-              aws s3 cp --no-progress s3://${s3_prefix}/{{ tag }}/{{ filename }} {{ filename }}
+              retry 3 aws s3 cp --no-progress s3://${s3_prefix}/{{ tag }}/{{ filename }} {{ filename }}
               md5sum {{ filename }}
               {% endfor %}
               {% for folder in (folders or []) %}
-              aws s3 cp --no-progress s3://${s3_prefix}/{{ tag }}/{{ folder }} {{ folder }} --recursive
+              retry 3 aws s3 cp --no-progress s3://${s3_prefix}/{{ tag }}/{{ folder }} {{ folder }} --recursive
               {% endfor %}
             """,
             label: 'Download artifacts from S3',
