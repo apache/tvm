@@ -240,63 +240,6 @@ class BufferDeclare(SpecialStmt):
 
 
 @register
-class DeclBuffer(SpecialStmt):
-    """Special Stmt decl_buffer(shape, dtype, data, strides, elem_offset, scope, align,
-                                offset_factor, buffer_type, axis_separators)
-    Example
-    -------
-    .. code-block:: python
-        A = T.decl_buffer((128, 128), dtype="float32")
-    """
-
-    def __init__(self):
-        def decl_buffer(
-            shape,
-            dtype="float32",
-            data=None,
-            strides=None,
-            elem_offset=None,
-            scope="global",
-            align=-1,
-            offset_factor=0,
-            buffer_type="default",
-            axis_separators=None,
-            span=None,
-        ):
-            if not isinstance(self.node, ast.Assign) or not len(self.node.lhs) == 1:
-                self.context.report_error(
-                    "`decl_buffer` must be assigned to a single buffer, e.g. A = decl_buffer(...)",
-                    self.node.span,
-                )
-
-            if strides is None:
-                strides = []
-            align = convert_to_int(align, "align", self.context.report_error, self.node.span)
-            offset_factor = convert_to_int(
-                offset_factor, "offset_factor", self.context.report_error, self.node.span
-            )
-            buffer_name: str = self.node.lhs[0].id.name
-            buffer = tvm.tir.decl_buffer(
-                shape,
-                dtype,
-                buffer_name,
-                data,
-                strides,
-                elem_offset,
-                scope,
-                align,
-                offset_factor,
-                buffer_type,
-                axis_separators,
-                span=span,
-            )
-            self.context.update_symbol(buffer_name, buffer, self.node)
-            return buffer
-
-        super().__init__(decl_buffer, def_symbol=True)
-
-
-@register
 class AllocBuffer(SpecialStmt):
     """Special function alloc_buffer(shape, dtype, data, strides, elem_offset, scope, align,
                                      offset_factor, buffer_type, axis_separators)

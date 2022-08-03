@@ -1164,21 +1164,19 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateConstNode* alloc) {
 
 Doc TVMScriptPrinter::VisitStmt_(const DeclBufferNode* op) {
   const Buffer& buffer = op->buffer;
-  auto storage_scope = GetPtrStorageScope(buffer->data);
+  buf_not_in_headers_.insert(buffer.get());
+  Doc buffer_name = Print(op->buffer);
   Doc func_call;
-  func_call << tir_prefix_ << ".decl_buffer(" << Print(buffer->shape) << ", " << PrintDType(buffer->dtype)
-            << ", " << Print(storage_scope);
-  func_call << ")";
+  func_call << tir_prefix_ << ".decl_buffer(" << memo_buf_decl_.at(buffer) << ")";
 
   Doc doc;
   if (current_num_ != num_child_ - 1) {
-    doc << "with " << func_call << " as " << Print(buffer) << ":";
+    doc << "with " << func_call << " as " << buffer_name << ":";
     doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
   } else {
-    doc << Print(buffer) << " = " << func_call << Doc::NewLine();
+    doc << buffer_name << " = " << func_call << Doc::NewLine();
     doc << PrintBody(op->body);
   }
-  TryDeallocVar(buffer->data);
   return doc;
 }
 
