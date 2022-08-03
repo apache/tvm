@@ -16,7 +16,6 @@
 # under the License.
 """Pseudorandom number kernels."""
 import math
-from matplotlib.pyplot import close
 import numpy as np
 
 import tvm

@@ -204,9 +204,8 @@ def test_multinomial(target, dev):
 
 
 if __name__ == "__main__":
-    # test_threefry_split(tvm.target.Target("llvm"), tvm.device("cpu"))
-    # test_threefry_generate(tvm.target.Target("llvm"), tvm.device("cpu"))
-    # test_threefry_wrapping(tvm.target.Target("llvm"), tvm.device("cpu"))
-    test_uniform(tvm.target.Target("cuda"), tvm.device("cuda"))
-    # test_multinomial(tvm.target.Target("llvm"), tvm.device("cpu"))
-    # test_multinomial(tvm.target.Target("cuda"), tvm.device("cuda"))
+    test_threefry_split(tvm.target.Target("llvm"), tvm.device("cpu"))
+    test_threefry_generate(tvm.target.Target("llvm"), tvm.device("cpu"))
+    test_threefry_wrapping(tvm.target.Target("llvm"), tvm.device("cpu"))
+    test_uniform(tvm.target.Target("llvm"), tvm.device("cpu"))
+    test_multinomial(tvm.target.Target("llvm"), tvm.device("cpu"))
