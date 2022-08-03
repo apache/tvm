@@ -266,7 +266,7 @@ void main(void) {
 #ifdef FVP
   init_semihosting();
   // send some dummy log to speed up the initialization
-  for (int i = 0; i < 100; ++i) {
+  for (int i = 0; i < 500; ++i) {
     uart_write(NULL, "dummy log...\n", 13);
   }
   uart_write(NULL, "microTVM Zephyr runtime - running\n", 34);
