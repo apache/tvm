@@ -635,7 +635,7 @@ class Handler(server.ProjectAPIHandler):
     def _is_fvp(cls, board, use_fvp):
         assert (
             use_fvp and board not in cls._KNOWN_FVP_ZEPHYR_BOARDS
-        ), "fvp doesn't support this board."
+        ) == False, "fvp doesn't support this board."
 
         return board in cls._KNOWN_FVP_ZEPHYR_BOARDS and use_fvp
 
