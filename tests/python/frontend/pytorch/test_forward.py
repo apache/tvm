@@ -137,12 +137,14 @@ def verify_model(
     elif isinstance(input_data, list):
         baseline_model = model_name
         baseline_input = input_data
-    elif isinstance(input_data, torch.Tensor) or not input_data.shape:
+    elif isinstance(input_data, torch.Tensor) or not input_data:
+        if not input_data:
+            baseline_input = []
+        else:
+            baseline_input = [input_data]
         baseline_model = model_name
-        baseline_input = [input_data]
     else:
         assert False, "Unexpected input format"
-    baseline_input = baseline_input or []
     if torch.cuda.is_available():
         if isinstance(baseline_model, torch.nn.Module):
             baseline_model = baseline_model.cuda()
