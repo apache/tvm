@@ -186,8 +186,19 @@ bool MultinomialRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   const MultinomialAttrs* param = attrs.as<MultinomialAttrs>();
   ICHECK_EQ(types.size(), 3) << "Normal should have two inputs and one output";
 
+  const auto* data = types[1].as<TensorTypeNode>();
+  if (data == nullptr) {
+    ICHECK(types[1].as<IncompleteTypeNode>())
+        << "multinomial: expect input type to be TensorType but get " << types[0];
+    return false;
+  }
+
   std::vector<IndexExpr> oshape;
+  for (size_t i = 0; i < data->shape.size() - 1; i++) {
+    oshape.push_back(data->shape[i]);
+  }
   oshape.push_back(param->num_samples);
+
   DataType out_dtype = tvm::DataType::Int(32);
 
   reporter->Assign(types[0], ThreefryKeyType());

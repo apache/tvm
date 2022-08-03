@@ -52,11 +52,19 @@ def uniform(target, dev, gen, low, high, size, dtype):
     )
     s = tvm.topi.generic.schedule_extern([left_placeholder, right_placeholder])
     f = tvm.build(
-        s, [gen_placeholder, low_placeholder, high_placeholder, left_placeholder, right_placeholder]
+        s,
+        [gen_placeholder, low_placeholder, high_placeholder, left_placeholder, right_placeholder],
+        target=target,
     )
-    out_gen = tvm.nd.array(np.zeros(gen.shape, dtype="uint64"))
-    rands = tvm.nd.array(np.zeros(size, dtype=dtype))
-    f(tvm.nd.array(gen), tvm.nd.array(low), tvm.nd.array(high), out_gen, rands)
+    out_gen = tvm.nd.array(np.zeros(gen.shape, dtype="uint64"), device=dev)
+    rands = tvm.nd.array(np.zeros(size, dtype=dtype), device=dev)
+    f(
+        tvm.nd.array(gen, device=dev),
+        tvm.nd.array(low, device=dev),
+        tvm.nd.array(high, device=dev),
+        out_gen,
+        rands,
+    )
     return out_gen.numpy(), rands.asnumpy()
 
 
@@ -64,14 +72,18 @@ def multinomial(target, dev, gen, probs, num_samples):
     gen_placeholder = tvm.te.placeholder(gen.shape, name="gen", dtype="uint64")
     probs_placeholder = tvm.te.placeholder(probs.shape, name="probs", dtype="float32")
     new_gen_placeholder, indices_placeholder = tvm.topi.random.multinomial(
-        gen_placeholder, probs_placeholder, num_samples 
+        gen_placeholder, probs_placeholder, num_samples
     )
     s = tvm.topi.generic.schedule_extern([new_gen_placeholder, indices_placeholder])
     f = tvm.build(
-        s, [gen_placeholder, probs_placeholder, new_gen_placeholder, indices_placeholder]
+        s,
+        [gen_placeholder, probs_placeholder, new_gen_placeholder, indices_placeholder],
+        target=target,
     )
-    out_gen = tvm.nd.array(np.zeros(gen.shape, dtype="uint64"))
-    indices = tvm.nd.array(np.zeros((num_samples,), dtype="int32"))
+    out_gen = tvm.nd.array(np.zeros(gen.shape, dtype="uint64"), device=dev)
+    print(probs.shape)
+    indices = tvm.nd.array(np.zeros((*probs.shape[:-1], num_samples), dtype="int32"), device=dev)
+    print(indices.shape)
     f(tvm.nd.array(gen), tvm.nd.array(probs), out_gen, indices)
     return out_gen.numpy(), indices.asnumpy()
 
@@ -175,18 +187,26 @@ def test_uniform(target, dev):
 
 @tvm.testing.parametrize_targets
 def test_multinomial(target, dev):
-    gen = tvm.relay.random.threefry_key(0).data.numpy()
-    probs = np.asarray([3, 10, 5], dtype="float32")
-    num_samples = 2
-    new_gen, indices = multinomial(target, dev, gen, probs, num_samples)
-    assert (gen != new_gen).any()
-    assert np.min(indices) >= 0
-    assert np.max(indices) < len(probs)
+    def _verify_multinomial(size, num_samples):
+        gen = tvm.relay.random.threefry_key(np.random.randint(0, 1e5)).data.numpy()
+        probs = np.random.normal(size=size).astype("float32")
+        new_gen, indices = multinomial(target, dev, gen, probs, num_samples)
+        assert (gen != new_gen).any()
+        assert np.min(indices) >= 0
+        assert np.max(indices) < probs.shape[-1]
+
+    # Test simple 1-D case.
+    _verify_multinomial([3], 2)
+    # Test 2-D case.
+    _verify_multinomial([2, 10], 1)
+    # Test 3-D case.
+    _verify_multinomial([2, 3, 10], 4)
 
 
 if __name__ == "__main__":
-    #test_threefry_split(tvm.target.Target("llvm"), tvm.device("cpu"))
-    #test_threefry_generate(tvm.target.Target("llvm"), tvm.device("cpu"))
-    #test_threefry_wrapping(tvm.target.Target("llvm"), tvm.device("cpu"))
-    #test_uniform(tvm.target.Target("llvm"), tvm.device("cpu"))
-    test_multinomial(tvm.target.Target("llvm"), tvm.device("cpu"))
+    # test_threefry_split(tvm.target.Target("llvm"), tvm.device("cpu"))
+    # test_threefry_generate(tvm.target.Target("llvm"), tvm.device("cpu"))
+    # test_threefry_wrapping(tvm.target.Target("llvm"), tvm.device("cpu"))
+    test_uniform(tvm.target.Target("cuda"), tvm.device("cuda"))
+    # test_multinomial(tvm.target.Target("llvm"), tvm.device("cpu"))
+    # test_multinomial(tvm.target.Target("cuda"), tvm.device("cuda"))

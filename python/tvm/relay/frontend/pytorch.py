@@ -2565,13 +2565,8 @@ class PyTorchOpConverter:
         dim = inputs[1]
         is_descending = inputs[2]
         # pytorch sort returns both sorted indices and values
-        print("START SORT")
         indices = _op.argsort(data, dim, not is_descending)
-        print("START GATHER")
-        gather = _op.gather(data, dim, indices) 
-        print("END")
-        exit()
-        return gather, indices
+        return _op.gather(data, dim, indices), indices
 
     def argsort(self, inputs, input_types):
         data = inputs[0]
@@ -3391,16 +3386,18 @@ class PyTorchOpConverter:
         upper = True if mode == "triu" else False
         return _op.trilu(data, k, upper)
 
-
     def multinomial(self, inputs, input_types):
         probs = inputs[0]
         num_samples = inputs[1]
+        replacement = inputs[2] if inputs[2] else True
+        assert not (
+            replacement is False and num_samples > 1
+        ), "Multinomial without replacement is not yet supported."
         seed = np.random.randint(1e6)
         key = _op.random.threefry_key(seed)
         output = _op.random.multinomial(key, probs, num_samples)
         _, indices = _expr.TupleWrapper(output, 2)
         return indices
-
 
     # Operator mappings
     def create_convert_map(self):
@@ -3847,7 +3844,6 @@ class PyTorchOpConverter:
         """Convert each Torch IR operators to Relay equivalent"""
         for node_name, op_node in operators:
             operator = op_node.kind()
-            print("OP: ", operator)
             inputs = _get_op_inputs(op_node, outputs)
 
             if operator == "prim::Constant":
@@ -3906,7 +3902,6 @@ class PyTorchOpConverter:
                 relay_out = relay_op(
                     inputs, _get_input_types(op_node, outputs, default_dtype=self.default_dtype)
                 )
-                print(relay_out)
                 self.record_output_type(relay_out)
 
                 if isinstance(relay_out, tuple):
