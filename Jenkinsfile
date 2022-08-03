@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-08-01T14:23:41.853298
+// Generated at 2022-08-02T15:11:44.251188
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -74,6 +74,17 @@ properties([
     string(name: 'ci_wasm_param', defaultValue: ''),
   ])
 ])
+
+// Placeholders for newly built Docker image names (if rebuild_docker_images
+// is used)
+  built_ci_arm = null;
+  built_ci_cpu = null;
+  built_ci_gpu = null;
+  built_ci_hexagon = null;
+  built_ci_i386 = null;
+  built_ci_lint = null;
+  built_ci_qemu = null;
+  built_ci_wasm = null;
 
 // Global variable assigned during Sanity Check that holds the sha1 which should be
 // merged into the PR in all branches.
@@ -318,6 +329,7 @@ def prepare() {
           script: './tests/scripts/git_change_docker.sh',
           label: 'Check for any docker changes',
         )
+
         if (skip_ci) {
           // Don't rebuild when skipping CI
           rebuild_docker_images = false
@@ -433,7 +445,7 @@ def build_docker_images() {
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
             // ci_arm = build_image('ci_arm')
-            build_image('ci_arm')
+            built_ci_arm = build_image('ci_arm');
           }
         }
       },
@@ -444,7 +456,7 @@ def build_docker_images() {
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
             // ci_cpu = build_image('ci_cpu')
-            build_image('ci_cpu')
+            built_ci_cpu = build_image('ci_cpu');
           }
         }
       },
@@ -455,7 +467,7 @@ def build_docker_images() {
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
             // ci_gpu = build_image('ci_gpu')
-            build_image('ci_gpu')
+            built_ci_gpu = build_image('ci_gpu');
           }
         }
       },
@@ -466,7 +478,7 @@ def build_docker_images() {
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
             // ci_hexagon = build_image('ci_hexagon')
-            build_image('ci_hexagon')
+            built_ci_hexagon = build_image('ci_hexagon');
           }
         }
       },
@@ -477,7 +489,7 @@ def build_docker_images() {
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
             // ci_i386 = build_image('ci_i386')
-            build_image('ci_i386')
+            built_ci_i386 = build_image('ci_i386');
           }
         }
       },
@@ -488,7 +500,7 @@ def build_docker_images() {
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
             // ci_lint = build_image('ci_lint')
-            build_image('ci_lint')
+            built_ci_lint = build_image('ci_lint');
           }
         }
       },
@@ -499,7 +511,7 @@ def build_docker_images() {
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
             // ci_qemu = build_image('ci_qemu')
-            build_image('ci_qemu')
+            built_ci_qemu = build_image('ci_qemu');
           }
         }
       },
@@ -510,7 +522,7 @@ def build_docker_images() {
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
             // ci_wasm = build_image('ci_wasm')
-            build_image('ci_wasm')
+            built_ci_wasm = build_image('ci_wasm');
           }
         }
       },
@@ -3515,8 +3527,12 @@ stage('Build packages') {
 
 
 def update_docker(ecr_image, hub_image) {
+  if (ecr_image == null) {
+    sh("image was not rebuilt, skipping")
+    return
+  }
   if (!ecr_image.contains("amazonaws.com")) {
-    sh("echo Skipping '${ecr_image}' since it doesn't look like an ECR image")
+    sh("echo \"Skipping '${ecr_image}' -> '${hub_image}' since it doesn\'t look like an ECR image\"")
     return
   }
   docker_init(ecr_image)
@@ -3610,14 +3626,14 @@ def deploy() {
               returnStdout: true,
             ).trim()
             def tag = "${date_Ymd_HMS}-${upstream_revision.substring(0, 8)}"
-            update_docker(ci_arm, "tlcpackstaging/ci_arm:${tag}")
-            update_docker(ci_cpu, "tlcpackstaging/ci_cpu:${tag}")
-            update_docker(ci_gpu, "tlcpackstaging/ci_gpu:${tag}")
-            update_docker(ci_hexagon, "tlcpackstaging/ci_hexagon:${tag}")
-            update_docker(ci_i386, "tlcpackstaging/ci_i386:${tag}")
-            update_docker(ci_lint, "tlcpackstaging/ci_lint:${tag}")
-            update_docker(ci_qemu, "tlcpackstaging/ci_qemu:${tag}")
-            update_docker(ci_wasm, "tlcpackstaging/ci_wasm:${tag}")
+            update_docker(built_ci_arm, "tlcpackstaging/ci_arm:${tag}")
+            update_docker(built_ci_cpu, "tlcpackstaging/ci_cpu:${tag}")
+            update_docker(built_ci_gpu, "tlcpackstaging/ci_gpu:${tag}")
+            update_docker(built_ci_hexagon, "tlcpackstaging/ci_hexagon:${tag}")
+            update_docker(built_ci_i386, "tlcpackstaging/ci_i386:${tag}")
+            update_docker(built_ci_lint, "tlcpackstaging/ci_lint:${tag}")
+            update_docker(built_ci_qemu, "tlcpackstaging/ci_qemu:${tag}")
+            update_docker(built_ci_wasm, "tlcpackstaging/ci_wasm:${tag}")
           } finally {
             sh(
               script: 'docker logout',
