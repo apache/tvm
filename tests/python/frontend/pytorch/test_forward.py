@@ -130,6 +130,7 @@ def verify_model(
 ):
     """Assert that the output of a compiled model matches with that of its
     baseline."""
+    input_data = [] if input_data is None else input_data
     custom_convert_map = custom_convert_map or {}
     expected_ops = expected_ops or []
     if isinstance(model_name, str):
@@ -137,12 +138,9 @@ def verify_model(
     elif isinstance(input_data, list):
         baseline_model = model_name
         baseline_input = input_data
-    elif isinstance(input_data, torch.Tensor) or not input_data:
-        if not input_data:
-            baseline_input = []
-        else:
-            baseline_input = [input_data]
+    elif isinstance(input_data, torch.Tensor) or not input_data.shape:
         baseline_model = model_name
+        baseline_input = [input_data]
     else:
         assert False, "Unexpected input format"
     if torch.cuda.is_available():
