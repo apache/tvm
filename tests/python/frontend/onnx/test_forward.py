@@ -4019,12 +4019,9 @@ def verify_rnn_helper(target, dev, rnn_type):
             dev=dev,
         )
         # All parametrized with new Affine activation.
-        activations = ["Affine", "LeakyRelu", "HardSigmoid"]
-        alphas = [0.8, 2.0, 0.5]
-        betas = [0.0, 0.3, 0.0]
-        activations = activations[0:num_activations] * directions
-        alphas = alphas[0:num_activations] * directions
-        betas = betas[0:num_activations] * directions
+        activations = ["Affine", "LeakyRelu", "HardSigmoid"][0:num_activations] * directions
+        alphas = [0.8, 2.0, 0.5][0:num_activations] * directions
+        betas = [0.0, 0.3, 0.0][0:num_activations] * directions
         verify_rnn(
             seq_length=2,
             batch_size=1,
