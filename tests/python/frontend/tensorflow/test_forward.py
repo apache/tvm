@@ -4711,22 +4711,22 @@ def test_forward_reduce():
             reduce_op = tf_op(in_data, axis=axis, keepdims=keepdims, name="reduce_std")
             compare_tf_with_tvm([np_data], ["in_data:0"], reduce_op.name)
 
-    def _test_math_op(op, dtypes=["int32", "float32"]):
-        # pylint: disable=dangerous-default-value, redefined-outer-name
-        for dtype in dtypes:
+    def _test_math_op(op, d_types=None):
+        d_types = d_types or ["int32", "float32"]
+        for dtype in d_types:
             _check_op(op, (3, 10), axis=(-1), keepdims=False, dtype=dtype)
             _check_op(op, (8, 16, 32), axis=(-1), keepdims=False, dtype=dtype)
             _check_op(op, (1, 8, 8, 3), axis=(2, 3), keepdims=True, dtype=dtype)
             _check_op(op, (2, 3, 10, 10), axis=(1, 2), keepdims=True, dtype=dtype)
 
-    _test_math_op(tf.math.reduce_all, dtypes=["bool"])
-    _test_math_op(tf.math.reduce_any, dtypes=["bool"])
+    _test_math_op(tf.math.reduce_all, d_types=["bool"])
+    _test_math_op(tf.math.reduce_any, d_types=["bool"])
     _test_math_op(tf.math.reduce_max)
     _test_math_op(tf.math.reduce_min)
     _test_math_op(tf.math.reduce_prod)
-    _test_math_op(tf.math.reduce_variance, dtypes=["float32"])
-    _test_math_op(tf.math.reduce_std, dtypes=["float32"])
-    _test_math_op(tf.math.reduce_logsumexp, dtypes=["float32"])
+    _test_math_op(tf.math.reduce_variance, d_types=["float32"])
+    _test_math_op(tf.math.reduce_std, d_types=["float32"])
+    _test_math_op(tf.math.reduce_logsumexp, d_types=["float32"])
     if package_version.parse(tf.VERSION) >= package_version.parse("1.15.0"):
         _test_math_op(tf.math.reduce_euclidean_norm)
 
@@ -4755,9 +4755,9 @@ def test_forward_raw_reduce():
             reduce_op = tf_op(input=in_data, axis=axis, keep_dims=keepdims, name="reduce_std")
             compare_tf_with_tvm([np_data], ["in_data:0"], reduce_op.name)
 
-    def _test_raw_reduce_op(op, dtypes=["int32", "float32"]):
-        # pylint: disable=dangerous-default-value, redefined-outer-name
-        for dtype in dtypes:
+    def _test_raw_reduce_op(op, d_types=None):
+        d_types = d_types or ["int32", "float32"]
+        for dtype in d_types:
             _check_op(op, (3, 10), axis=(-1), keepdims=False, dtype=dtype)
             _check_op(op, (8, 16, 32), axis=(-1), keepdims=False, dtype=dtype)
             _check_op(op, (1, 8, 8, 3), axis=(2, 3), keepdims=True, dtype=dtype)
@@ -4768,7 +4768,7 @@ def test_forward_raw_reduce():
             )
 
     if package_version.parse(tf.VERSION) >= package_version.parse("2.4.1"):
-        _test_raw_reduce_op(tf.raw_ops.All, dtypes=["bool"])
+        _test_raw_reduce_op(tf.raw_ops.All, d_types=["bool"])
         _test_raw_reduce_op(tf.raw_ops.Max)
         _test_raw_reduce_op(tf.raw_ops.Min)
 
