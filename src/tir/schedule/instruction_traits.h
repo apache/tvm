@@ -22,7 +22,9 @@
 #include <tvm/tir/schedule/instruction.h>
 #include <tvm/tir/schedule/schedule.h>
 
+#include <algorithm>
 #include <sstream>
+#include <string>
 #include <utility>
 #include <vector>
 

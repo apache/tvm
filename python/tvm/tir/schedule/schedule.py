@@ -2208,7 +2208,11 @@ class Schedule(Object):
             The block/loop to be annotated
         ann_key : str
             The annotation key
-        ann_val : Union[str, int, float, ExprRV, List[Union[str, int, float, ExprRV]], Dict[str, Union[str, int, float, ExprRV, List[Union[str, int, float, ExprRV]]]]],
+        ann_val : Union[
+                str, int, float, ExprRV,
+                List[Union[str, int, float, ExprRV]],
+                Dict[str, Union[str, int, float, ExprRV, List[Union[str, int, float, ExprRV]]]]
+            ]
             The annotation value
 
         Examples

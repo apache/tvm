@@ -83,7 +83,7 @@ elif hasattr(typing, "_Union"):
             return None
 
         @staticmethod
-        def dict_(type_: Any) -> Optional[Dict[type, type]]:
+        def dict_(type_: Any) -> Optional[List[type]]:
             if isinstance(type_, typing.GenericMeta):  # type: ignore # pylint: disable=no-member
                 if type_.__name__ == "Dict":
                     (ktype, vtype) = type_.__args__  # type: ignore # pylint: disable=no-member
@@ -197,11 +197,11 @@ def _type_check_vtable() -> Dict[str, Callable]:
                 return error_msg
         return None
 
-    def _type_check_dict(d: List[Any], name: str, *types: Any) -> Optional[str]:
+    def _type_check_dict(dict_obj: Dict[Any, Any], name: str, *types: Any) -> Optional[str]:
         ktype_, vtype_ = types
-        if not isinstance(d, dict):
-            return _type_check_err(d, name, dict)
-        for k, v in d.items():
+        if not isinstance(dict_obj, dict):
+            return _type_check_err(dict_obj, name, dict)
+        for k, v in dict_obj.items():
             error_msg = _type_check(k, f"{name}[{k}]", ktype_)
             if error_msg is not None:
                 return error_msg
