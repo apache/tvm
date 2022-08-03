@@ -89,9 +89,9 @@ class GitHubRepo:
             with request.urlopen(req, data) as response:
                 content = response.read()
         except error.HTTPError as e:
-            logging.info(f"Error response: {e.read().decode()}")
-            e.seek(0)
-            raise e
+            msg = str(e)
+            error_data = e.read().decode()
+            raise RuntimeError(f"Error response: {msg}\n{error_data}")
 
         logging.info(f"Got response from {full_url}: {content}")
         try:

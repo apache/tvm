@@ -37,6 +37,7 @@ CommentChecker = Callable[[Comment], bool]
 
 EXPECTED_JOBS = ["tvm-ci/pr-head"]
 TVM_BOT_JENKINS_TOKEN = os.environ["TVM_BOT_JENKINS_TOKEN"]
+GH_API_TOKEN = os.environ["GH_API_TOKEN"]
 JENKINS_URL = "https://ci.tlcpack.ai/"
 THANKS_MESSAGE = r"(\s*)Thanks for contributing to TVM!   Please refer to guideline https://tvm.apache.org/docs/contribute/ for useful information and tips. After the pull request is submitted, please request code reviews from \[Reviewers\]\(https://github.com/apache/incubator-tvm/blob/master/CONTRIBUTORS.md#reviewers\) by  them in the pull request thread.(\s*)"
 
@@ -106,6 +107,7 @@ PR_QUERY = """
                     nodes {
                       ... on CheckRun {
                         name
+                        databaseId
                         checkSuite {
                           workflowRun {
                             workflow {
@@ -221,12 +223,12 @@ class PR:
     def __repr__(self):
         return json.dumps(self.raw, indent=2)
 
-    def plus_one(self, comment: Dict[str, Any]):
+    def react(self, comment: Dict[str, Any], content: str):
         """
         React with a thumbs up to a comment
         """
         url = f"issues/comments/{comment['id']}/reactions"
-        data = {"content": "+1"}
+        data = {"content": content}
         if self.dry_run:
             logging.info(f"Dry run, would have +1'ed to {url} with {data}")
         else:
@@ -503,6 +505,27 @@ class PR:
         else:
             post(url, auth=("tvm-bot", TVM_BOT_JENKINS_TOKEN))
 
+    def rerun_github_actions(self) -> None:
+        job_ids = []
+        for item in self.head_commit()["statusCheckRollup"]["contexts"]["nodes"]:
+            if "checkSuite" in item:
+                job_ids.append(item["databaseId"])
+
+        logging.info(f"Rerunning GitHub Actions jobs with IDs: {job_ids}")
+        actions_github = GitHubRepo(
+            user=self.github.user, repo=self.github.repo, token=GH_API_TOKEN
+        )
+        for job_id in job_ids:
+            try:
+                actions_github.post(f"actions/jobs/{job_id}/rerun", data={})
+            except RuntimeError as e:
+                # Ignore errors about jobs that are part of the same workflow to avoid
+                # having to figure out which jobs are in which workflows ahead of time
+                if "The workflow run containing this job is already running" in str(e):
+                    pass
+                else:
+                    raise e
+
     def comment_failure(self, msg: str, exception: Exception):
         if not self.dry_run:
             exception_msg = traceback.format_exc()
@@ -514,12 +537,48 @@ class PR:
         return exception
 
 
+def check_author(pr, triggering_comment, args):
+    comment_author = triggering_comment["user"]["login"]
+    if pr.author() == comment_author:
+        logging.info("Comment user is PR author, continuing")
+        return True
+    return False
+
+
+def check_collaborator(pr, triggering_comment, args):
+    logging.info("Checking collaborators")
+    # Get the list of collaborators for the repo filtered by the comment
+    # author
+    if args.testing_collaborators_json:
+        collaborators = json.loads(args.testing_collaborators_json)
+    else:
+        collaborators = pr.search_collaborator(triggering_comment["user"]["login"])
+    logging.info(f"Found collaborators: {collaborators}")
+
+    return len(collaborators) > 0
+
+
+def check_anyone(pr, triggering_comment, args):
+    return True
+
+
+AUTH_CHECKS = {
+    "anyone": check_anyone,
+    "collaborators": check_collaborator,
+    "author": check_author,
+}
+# Stash the keys so they're accessible from the values
+AUTH_CHECKS = {k: (k, v) for k, v in AUTH_CHECKS.items()}
+
+
 class Merge:
     triggers = [
         "merge",
         "merge this",
         "merge this pr",
     ]
+
+    auth = [AUTH_CHECKS["collaborators"], AUTH_CHECKS["author"]]
 
     @staticmethod
     def run(pr: PR):
@@ -548,9 +607,15 @@ class Rerun:
         "run ci",
     ]
 
+    auth = [AUTH_CHECKS["anyone"]]
+
     @staticmethod
     def run(pr: PR):
-        pr.rerun_jenkins_ci()
+        try:
+            pr.rerun_jenkins_ci()
+            pr.rerun_github_actions()
+        except Exception as e:
+            pr.comment_failure("Failed to re-run CI", e)
 
 
 if __name__ == "__main__":
@@ -615,28 +680,17 @@ if __name__ == "__main__":
     else:
         pr = PR(number=int(args.pr), owner=owner, repo=repo, dry_run=args.dry_run)
 
-    # Acknowledge the comment with a react
-    pr.plus_one(comment)
-
-    # Check the comment author
-    comment_author = comment["user"]["login"]
-    if pr.author() == comment_author:
-        logging.info("Comment user is PR author, continuing")
-    else:
-        logging.info("Comment is not from PR author, checking collaborators")
-        # Get the list of collaborators for the repo filtered by the comment
-        # author
-        if args.testing_collaborators_json:
-            collaborators = json.loads(args.testing_collaborators_json)
+    for name, check in command_to_run.auth:
+        if check(pr, comment, args):
+            logging.info(f"Passed auth check '{name}', continuing")
         else:
-            collaborators = pr.search_collaborator(comment_author)
-        logging.info(f"Found collaborators: {collaborators}")
-
-        if len(collaborators) > 0:
-            logging.info("Comment is from collaborator")
-        else:
-            logging.info("Comment is not from from PR author or collaborator, quitting")
+            logging.info(f"Failed auth check '{name}', quitting")
+            # Add a sad face
+            pr.react(comment, "confused")
             exit(0)
+
+    # Acknowledge the comment with a react
+    pr.react(comment, "+1")
 
     state = pr.state()
 

@@ -1,7 +1,6 @@
 
 name: tvm-bot
 on:
-  status:
   pull_request_review:
     types:
       - submitted
@@ -21,13 +20,14 @@ jobs:
       issues: write
       pull-requests: write
       statuses: write
-    if: ${{ github.event.issue.pull_request && github.repository == 'apache/tvm' }}
+    if: ${{ github.event.issue.pull_request && github.repository == 'driazati/tvm' }}
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
       - name: Run tvm-bot
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_API_TOKEN: ${{ secrets.GH_API_TOKEN }}
           TVM_BOT_JENKINS_TOKEN: ${{ secrets.TVM_BOT_JENKINS_TOKEN }}
           PR_NUMBER: ${{ github.event.issue.number }}
           ISSUE_COMMENT: ${{ toJson(github.event.comment) }}
