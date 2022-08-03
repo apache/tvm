@@ -23,7 +23,8 @@
 sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -113,12 +114,13 @@ def {{ method_name }}() {
 sh(
             script: """
               set -eux
+              source ./tests/scripts/setup-aws-copy.sh
               {% for filename in filenames %}
               md5sum {{ filename }}
-              aws s3 cp --no-progress {{ filename }} s3://${s3_prefix}/{{ tag }}/{{ filename }}
+              s3-cp --no-progress {{ filename }} s3://${s3_prefix}/{{ tag }}/{{ filename }}
               {% endfor %}
               {% for folder in (folders or []) %}
-              aws s3 cp --no-progress {{ folder }} s3://${s3_prefix}/{{ tag }}/{{ folder }} --recursive
+              s3-cp --no-progress {{ folder }} s3://${s3_prefix}/{{ tag }}/{{ folder }} --recursive
               {% endfor %}
             """,
             label: 'Upload artifacts to S3',
@@ -129,12 +131,13 @@ sh(
 sh(
             script: """
               set -eux
+              source ./tests/scripts/setup-aws-copy.sh
               {% for filename in filenames %}
-              aws s3 cp --no-progress s3://${s3_prefix}/{{ tag }}/{{ filename }} {{ filename }}
+              s3-cp --no-progress s3://${s3_prefix}/{{ tag }}/{{ filename }} {{ filename }}
               md5sum {{ filename }}
               {% endfor %}
               {% for folder in (folders or []) %}
-              aws s3 cp --no-progress s3://${s3_prefix}/{{ tag }}/{{ folder }} {{ folder }} --recursive
+              s3-cp --no-progress s3://${s3_prefix}/{{ tag }}/{{ folder }} {{ folder }} --recursive
               {% endfor %}
             """,
             label: 'Download artifacts from S3',

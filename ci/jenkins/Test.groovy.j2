@@ -271,7 +271,10 @@ stage('Test') {
           }
           {{ m.upload_artifacts(tag='docs', filenames=["docs.tgz"]) }}
           sh(
-            script: "aws s3 cp --no-progress _docs s3://${s3_prefix}/docs --recursive",
+            script: """
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress _docs s3://${s3_prefix}/docs --recursive
+            """,
             label: 'Upload docs to S3',
           )
         }

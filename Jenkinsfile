@@ -661,15 +661,16 @@ stage('Build') {
           sh(
             script: """
               set -eux
+              source ./tests/scripts/setup-aws-copy.sh
               md5sum build/libtvm.so
-              aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/gpu/build/libtvm.so
+              s3-cp --no-progress build/libtvm.so s3://${s3_prefix}/gpu/build/libtvm.so
               md5sum build/libvta_fsim.so
-              aws s3 cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/gpu/build/libvta_fsim.so
+              s3-cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/gpu/build/libvta_fsim.so
               md5sum build/libtvm_runtime.so
-              aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/gpu/build/libtvm_runtime.so
+              s3-cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/gpu/build/libtvm_runtime.so
               md5sum build/config.cmake
-              aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/gpu/build/config.cmake
-              aws s3 cp --no-progress build/microtvm_template_projects s3://${s3_prefix}/gpu/build/microtvm_template_projects --recursive
+              s3-cp --no-progress build/config.cmake s3://${s3_prefix}/gpu/build/config.cmake
+              s3-cp --no-progress build/microtvm_template_projects s3://${s3_prefix}/gpu/build/microtvm_template_projects --recursive
             """,
             label: 'Upload artifacts to S3',
           )
@@ -681,14 +682,15 @@ stage('Build') {
           sh(
             script: """
               set -eux
+              source ./tests/scripts/setup-aws-copy.sh
               md5sum build/libtvm.so
-              aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/gpu2/build/libtvm.so
+              s3-cp --no-progress build/libtvm.so s3://${s3_prefix}/gpu2/build/libtvm.so
               md5sum build/libvta_fsim.so
-              aws s3 cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/gpu2/build/libvta_fsim.so
+              s3-cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/gpu2/build/libvta_fsim.so
               md5sum build/libtvm_runtime.so
-              aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/gpu2/build/libtvm_runtime.so
+              s3-cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/gpu2/build/libtvm_runtime.so
               md5sum build/config.cmake
-              aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/gpu2/build/config.cmake
+              s3-cp --no-progress build/config.cmake s3://${s3_prefix}/gpu2/build/config.cmake
             """,
             label: 'Upload artifacts to S3',
           )
@@ -711,16 +713,17 @@ stage('Build') {
           sh(
             script: """
               set -eux
+              source ./tests/scripts/setup-aws-copy.sh
               md5sum build/libvta_tsim.so
-              aws s3 cp --no-progress build/libvta_tsim.so s3://${s3_prefix}/cpu/build/libvta_tsim.so
+              s3-cp --no-progress build/libvta_tsim.so s3://${s3_prefix}/cpu/build/libvta_tsim.so
               md5sum build/libtvm.so
-              aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/cpu/build/libtvm.so
+              s3-cp --no-progress build/libtvm.so s3://${s3_prefix}/cpu/build/libtvm.so
               md5sum build/libvta_fsim.so
-              aws s3 cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/cpu/build/libvta_fsim.so
+              s3-cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/cpu/build/libvta_fsim.so
               md5sum build/libtvm_runtime.so
-              aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/cpu/build/libtvm_runtime.so
+              s3-cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/cpu/build/libtvm_runtime.so
               md5sum build/config.cmake
-              aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/cpu/build/config.cmake
+              s3-cp --no-progress build/config.cmake s3://${s3_prefix}/cpu/build/config.cmake
             """,
             label: 'Upload artifacts to S3',
           )
@@ -776,16 +779,17 @@ stage('Build') {
           sh(
             script: """
               set -eux
+              source ./tests/scripts/setup-aws-copy.sh
               md5sum build/libvta_tsim.so
-              aws s3 cp --no-progress build/libvta_tsim.so s3://${s3_prefix}/i386/build/libvta_tsim.so
+              s3-cp --no-progress build/libvta_tsim.so s3://${s3_prefix}/i386/build/libvta_tsim.so
               md5sum build/libtvm.so
-              aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/i386/build/libtvm.so
+              s3-cp --no-progress build/libtvm.so s3://${s3_prefix}/i386/build/libtvm.so
               md5sum build/libvta_fsim.so
-              aws s3 cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/i386/build/libvta_fsim.so
+              s3-cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/i386/build/libvta_fsim.so
               md5sum build/libtvm_runtime.so
-              aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/i386/build/libtvm_runtime.so
+              s3-cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/i386/build/libtvm_runtime.so
               md5sum build/config.cmake
-              aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/i386/build/config.cmake
+              s3-cp --no-progress build/config.cmake s3://${s3_prefix}/i386/build/config.cmake
             """,
             label: 'Upload artifacts to S3',
           )
@@ -810,14 +814,15 @@ stage('Build') {
           sh(
             script: """
               set -eux
+              source ./tests/scripts/setup-aws-copy.sh
               md5sum build/libtvm.so
-              aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/arm/build/libtvm.so
+              s3-cp --no-progress build/libtvm.so s3://${s3_prefix}/arm/build/libtvm.so
               md5sum build/libvta_fsim.so
-              aws s3 cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/arm/build/libvta_fsim.so
+              s3-cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/arm/build/libvta_fsim.so
               md5sum build/libtvm_runtime.so
-              aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/arm/build/libtvm_runtime.so
+              s3-cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/arm/build/libtvm_runtime.so
               md5sum build/config.cmake
-              aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/arm/build/config.cmake
+              s3-cp --no-progress build/config.cmake s3://${s3_prefix}/arm/build/config.cmake
             """,
             label: 'Upload artifacts to S3',
           )
@@ -842,13 +847,14 @@ stage('Build') {
           sh(
             script: """
               set -eux
+              source ./tests/scripts/setup-aws-copy.sh
               md5sum build/libtvm.so
-              aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/qemu/build/libtvm.so
+              s3-cp --no-progress build/libtvm.so s3://${s3_prefix}/qemu/build/libtvm.so
               md5sum build/libtvm_runtime.so
-              aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/qemu/build/libtvm_runtime.so
+              s3-cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/qemu/build/libtvm_runtime.so
               md5sum build/config.cmake
-              aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/qemu/build/config.cmake
-              aws s3 cp --no-progress build/microtvm_template_projects s3://${s3_prefix}/qemu/build/microtvm_template_projects --recursive
+              s3-cp --no-progress build/config.cmake s3://${s3_prefix}/qemu/build/config.cmake
+              s3-cp --no-progress build/microtvm_template_projects s3://${s3_prefix}/qemu/build/microtvm_template_projects --recursive
             """,
             label: 'Upload artifacts to S3',
           )
@@ -877,13 +883,14 @@ stage('Build') {
           sh(
             script: """
               set -eux
+              source ./tests/scripts/setup-aws-copy.sh
               md5sum build/libtvm.so
-              aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/hexagon/build/libtvm.so
+              s3-cp --no-progress build/libtvm.so s3://${s3_prefix}/hexagon/build/libtvm.so
               md5sum build/libtvm_runtime.so
-              aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/hexagon/build/libtvm_runtime.so
+              s3-cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/hexagon/build/libtvm_runtime.so
               md5sum build/config.cmake
-              aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/hexagon/build/config.cmake
-              aws s3 cp --no-progress build/hexagon_api_output s3://${s3_prefix}/hexagon/build/hexagon_api_output --recursive
+              s3-cp --no-progress build/config.cmake s3://${s3_prefix}/hexagon/build/config.cmake
+              s3-cp --no-progress build/hexagon_api_output s3://${s3_prefix}/hexagon/build/hexagon_api_output --recursive
             """,
             label: 'Upload artifacts to S3',
           )
@@ -918,13 +925,14 @@ def shard_run_unittest_GPU_1_of_3() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu2/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/gpu2/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu2/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu2/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu2/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu2/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu2/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/gpu2/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -935,13 +943,14 @@ def shard_run_unittest_GPU_1_of_3() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -963,7 +972,8 @@ def shard_run_unittest_GPU_1_of_3() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -992,13 +1002,14 @@ def shard_run_unittest_GPU_2_of_3() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -1023,7 +1034,8 @@ def shard_run_unittest_GPU_2_of_3() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1052,13 +1064,14 @@ def shard_run_unittest_GPU_3_of_3() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -1079,7 +1092,8 @@ def shard_run_unittest_GPU_3_of_3() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1109,15 +1123,16 @@ def shard_run_integration_CPU_1_of_6() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
                           md5sum build/libvta_tsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -1134,7 +1149,8 @@ def shard_run_integration_CPU_1_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1163,15 +1179,16 @@ def shard_run_integration_CPU_2_of_6() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
                           md5sum build/libvta_tsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -1188,7 +1205,8 @@ def shard_run_integration_CPU_2_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1217,15 +1235,16 @@ def shard_run_integration_CPU_3_of_6() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
                           md5sum build/libvta_tsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -1242,7 +1261,8 @@ def shard_run_integration_CPU_3_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1271,15 +1291,16 @@ def shard_run_integration_CPU_4_of_6() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
                           md5sum build/libvta_tsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -1296,7 +1317,8 @@ def shard_run_integration_CPU_4_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1325,15 +1347,16 @@ def shard_run_integration_CPU_5_of_6() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
                           md5sum build/libvta_tsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -1350,7 +1373,8 @@ def shard_run_integration_CPU_5_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1379,15 +1403,16 @@ def shard_run_integration_CPU_6_of_6() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
                           md5sum build/libvta_tsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -1404,7 +1429,8 @@ def shard_run_integration_CPU_6_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1434,13 +1460,14 @@ def shard_run_python_i386_1_of_5() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -1459,7 +1486,8 @@ def shard_run_python_i386_1_of_5() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1488,13 +1516,14 @@ def shard_run_python_i386_2_of_5() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -1513,7 +1542,8 @@ def shard_run_python_i386_2_of_5() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1542,13 +1572,14 @@ def shard_run_python_i386_3_of_5() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -1566,7 +1597,8 @@ def shard_run_python_i386_3_of_5() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1595,13 +1627,14 @@ def shard_run_python_i386_4_of_5() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -1619,7 +1652,8 @@ def shard_run_python_i386_4_of_5() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1648,13 +1682,14 @@ def shard_run_python_i386_5_of_5() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -1672,7 +1707,8 @@ def shard_run_python_i386_5_of_5() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1702,13 +1738,14 @@ def shard_run_test_Hexagon_1_of_7() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
                         """,
                         label: 'Download artifacts from S3',
                       )
@@ -1726,7 +1763,8 @@ def shard_run_test_Hexagon_1_of_7() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1755,13 +1793,14 @@ def shard_run_test_Hexagon_2_of_7() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
                         """,
                         label: 'Download artifacts from S3',
                       )
@@ -1778,7 +1817,8 @@ def shard_run_test_Hexagon_2_of_7() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1807,13 +1847,14 @@ def shard_run_test_Hexagon_3_of_7() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
                         """,
                         label: 'Download artifacts from S3',
                       )
@@ -1830,7 +1871,8 @@ def shard_run_test_Hexagon_3_of_7() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1859,13 +1901,14 @@ def shard_run_test_Hexagon_4_of_7() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
                         """,
                         label: 'Download artifacts from S3',
                       )
@@ -1882,7 +1925,8 @@ def shard_run_test_Hexagon_4_of_7() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1911,13 +1955,14 @@ def shard_run_test_Hexagon_5_of_7() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
                         """,
                         label: 'Download artifacts from S3',
                       )
@@ -1934,7 +1979,8 @@ def shard_run_test_Hexagon_5_of_7() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1963,13 +2009,14 @@ def shard_run_test_Hexagon_6_of_7() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
                         """,
                         label: 'Download artifacts from S3',
                       )
@@ -1986,7 +2033,8 @@ def shard_run_test_Hexagon_6_of_7() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2015,13 +2063,14 @@ def shard_run_test_Hexagon_7_of_7() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
+                          s3-cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
                         """,
                         label: 'Download artifacts from S3',
                       )
@@ -2038,7 +2087,8 @@ def shard_run_test_Hexagon_7_of_7() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2068,13 +2118,14 @@ def shard_run_integration_aarch64_1_of_4() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2092,7 +2143,8 @@ def shard_run_integration_aarch64_1_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2121,13 +2173,14 @@ def shard_run_integration_aarch64_2_of_4() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2145,7 +2198,8 @@ def shard_run_integration_aarch64_2_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2174,13 +2228,14 @@ def shard_run_integration_aarch64_3_of_4() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2198,7 +2253,8 @@ def shard_run_integration_aarch64_3_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2227,13 +2283,14 @@ def shard_run_integration_aarch64_4_of_4() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2251,7 +2308,8 @@ def shard_run_integration_aarch64_4_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2281,13 +2339,14 @@ def shard_run_topi_GPU_1_of_4() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2304,7 +2363,8 @@ def shard_run_topi_GPU_1_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2333,13 +2393,14 @@ def shard_run_topi_GPU_2_of_4() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2356,7 +2417,8 @@ def shard_run_topi_GPU_2_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2385,13 +2447,14 @@ def shard_run_topi_GPU_3_of_4() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2408,7 +2471,8 @@ def shard_run_topi_GPU_3_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2437,13 +2501,14 @@ def shard_run_topi_GPU_4_of_4() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2460,7 +2525,8 @@ def shard_run_topi_GPU_4_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2490,13 +2556,14 @@ def shard_run_frontend_GPU_1_of_6() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2513,7 +2580,8 @@ def shard_run_frontend_GPU_1_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2542,13 +2610,14 @@ def shard_run_frontend_GPU_2_of_6() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2565,7 +2634,8 @@ def shard_run_frontend_GPU_2_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2594,13 +2664,14 @@ def shard_run_frontend_GPU_3_of_6() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2617,7 +2688,8 @@ def shard_run_frontend_GPU_3_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2646,13 +2718,14 @@ def shard_run_frontend_GPU_4_of_6() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2669,7 +2742,8 @@ def shard_run_frontend_GPU_4_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2698,13 +2772,14 @@ def shard_run_frontend_GPU_5_of_6() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2721,7 +2796,8 @@ def shard_run_frontend_GPU_5_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2750,13 +2826,14 @@ def shard_run_frontend_GPU_6_of_6() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2773,7 +2850,8 @@ def shard_run_frontend_GPU_6_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2803,13 +2881,14 @@ def shard_run_topi_aarch64_1_of_2() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2831,7 +2910,8 @@ def shard_run_topi_aarch64_1_of_2() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2860,13 +2940,14 @@ def shard_run_topi_aarch64_2_of_2() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2887,7 +2968,8 @@ def shard_run_topi_aarch64_2_of_2() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2917,13 +2999,14 @@ def shard_run_frontend_aarch64_1_of_2() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2940,7 +3023,8 @@ def shard_run_frontend_aarch64_1_of_2() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2969,13 +3053,14 @@ def shard_run_frontend_aarch64_2_of_2() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2992,7 +3077,8 @@ def shard_run_frontend_aarch64_2_of_2() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -3022,13 +3108,14 @@ def shard_run_test_Qemu_1_of_4() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/qemu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/qemu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/qemu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
-                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/microtvm_template_projects build/microtvm_template_projects --recursive
+                          s3-cp --no-progress s3://${s3_prefix}/qemu/build/microtvm_template_projects build/microtvm_template_projects --recursive
                         """,
                         label: 'Download artifacts from S3',
                       )
@@ -3050,7 +3137,8 @@ def shard_run_test_Qemu_1_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -3079,13 +3167,14 @@ def shard_run_test_Qemu_2_of_4() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/qemu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/qemu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/qemu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
-                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/microtvm_template_projects build/microtvm_template_projects --recursive
+                          s3-cp --no-progress s3://${s3_prefix}/qemu/build/microtvm_template_projects build/microtvm_template_projects --recursive
                         """,
                         label: 'Download artifacts from S3',
                       )
@@ -3102,7 +3191,8 @@ def shard_run_test_Qemu_2_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -3131,13 +3221,14 @@ def shard_run_test_Qemu_3_of_4() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/qemu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/qemu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/qemu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
-                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/microtvm_template_projects build/microtvm_template_projects --recursive
+                          s3-cp --no-progress s3://${s3_prefix}/qemu/build/microtvm_template_projects build/microtvm_template_projects --recursive
                         """,
                         label: 'Download artifacts from S3',
                       )
@@ -3154,7 +3245,8 @@ def shard_run_test_Qemu_3_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -3183,13 +3275,14 @@ def shard_run_test_Qemu_4_of_4() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/qemu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/qemu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/qemu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
-                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/microtvm_template_projects build/microtvm_template_projects --recursive
+                          s3-cp --no-progress s3://${s3_prefix}/qemu/build/microtvm_template_projects build/microtvm_template_projects --recursive
                         """,
                         label: 'Download artifacts from S3',
                       )
@@ -3206,7 +3299,8 @@ def shard_run_test_Qemu_4_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -3369,15 +3463,16 @@ stage('Test') {
                 sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
                           md5sum build/libvta_tsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -3396,7 +3491,8 @@ stage('Test') {
               sh(
                 script: """
                   set -eux
-                  aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+                  source ./tests/scripts/setup-aws-copy.sh
+                  s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
                 """,
                 label: 'Upload JUnits to S3',
               )
@@ -3422,13 +3518,14 @@ stage('Test') {
                 sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          source ./tests/scripts/setup-aws-copy.sh
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          s3-cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -3444,7 +3541,8 @@ stage('Test') {
               sh(
                 script: """
                   set -eux
-                  aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+                  source ./tests/scripts/setup-aws-copy.sh
+                  s3-cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
                 """,
                 label: 'Upload JUnits to S3',
               )
@@ -3467,15 +3565,16 @@ stage('Test') {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
               md5sum build/libtvm.so
-              aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+              s3-cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
               md5sum build/libvta_fsim.so
-              aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+              s3-cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
               md5sum build/libtvm_runtime.so
-              aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+              s3-cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
               md5sum build/config.cmake
-              aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/microtvm_template_projects build/microtvm_template_projects --recursive
+              s3-cp --no-progress s3://${s3_prefix}/gpu/build/microtvm_template_projects build/microtvm_template_projects --recursive
             """,
             label: 'Download artifacts from S3',
           )
@@ -3491,14 +3590,18 @@ stage('Test') {
           sh(
             script: """
               set -eux
+              source ./tests/scripts/setup-aws-copy.sh
               md5sum docs.tgz
-              aws s3 cp --no-progress docs.tgz s3://${s3_prefix}/docs/docs.tgz
+              s3-cp --no-progress docs.tgz s3://${s3_prefix}/docs/docs.tgz
             """,
             label: 'Upload artifacts to S3',
           )
 
           sh(
-            script: "aws s3 cp --no-progress _docs s3://${s3_prefix}/docs --recursive",
+            script: """
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress _docs s3://${s3_prefix}/docs --recursive
+            """,
             label: 'Upload docs to S3',
           )
         }
@@ -3597,7 +3700,8 @@ def deploy() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress s3://${s3_prefix}/docs/docs.tgz docs.tgz
+              source ./tests/scripts/setup-aws-copy.sh
+              s3-cp --no-progress s3://${s3_prefix}/docs/docs.tgz docs.tgz
               md5sum docs.tgz
             """,
             label: 'Download artifacts from S3',
