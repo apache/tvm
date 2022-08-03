@@ -534,15 +534,18 @@ class PR:
             user=self.github.user, repo=self.github.repo, token=GH_ACTIONS_TOKEN
         )
         for job_id in job_ids:
-            try:
-                actions_github.post(f"actions/jobs/{job_id}/rerun", data={})
-            except RuntimeError as e:
-                # Ignore errors about jobs that are part of the same workflow to avoid
-                # having to figure out which jobs are in which workflows ahead of time
-                if "The workflow run containing this job is already running" in str(e):
-                    pass
-                else:
-                    raise e
+            if self.dry_run:
+                try:
+                    actions_github.post(f"actions/jobs/{job_id}/rerun", data={})
+                except RuntimeError as e:
+                    # Ignore errors about jobs that are part of the same workflow to avoid
+                    # having to figure out which jobs are in which workflows ahead of time
+                    if "The workflow run containing this job is already running" in str(e):
+                        pass
+                    else:
+                        raise e
+            else:
+                logging.info(f"Dry run, not restarting {job_id}")
 
     def comment_failure(self, msg: str, exception: Exception):
         if not self.dry_run:
@@ -567,26 +570,26 @@ def check_collaborator(pr, triggering_comment, args):
     logging.info("Checking collaborators")
     # Get the list of collaborators for the repo filtered by the comment
     # author
+    commment_author = triggering_comment["user"]["login"]
     if args.testing_collaborators_json:
         collaborators = json.loads(args.testing_collaborators_json)
     else:
-        collaborators = pr.search_collaborator(triggering_comment["user"]["login"])
+        collaborators = pr.search_collaborator(commment_author)
     logging.info(f"Found collaborators: {collaborators}")
 
-    return len(collaborators) > 0
+    return len(collaborators) > 0 and commment_author in collaborators
 
 
 def check_mentionable_users(pr, triggering_comment, args):
     logging.info("Checking mentionable users")
-    # Get the list of collaborators for the repo filtered by the comment
-    # author
+    commment_author = triggering_comment["user"]["login"]
     if args.testing_mentionable_users_json:
         mentionable_users = json.loads(args.testing_mentionable_users_json)
     else:
-        mentionable_users = pr.search_mentionable_users(triggering_comment["user"]["login"])
+        mentionable_users = pr.search_mentionable_users(commment_author)
     logging.info(f"Found mentionable_users: {mentionable_users}")
 
-    return len(mentionable_users) > 0
+    return len(mentionable_users) > 0 and commment_author in mentionable_users
 
 
 AUTH_CHECKS = {
