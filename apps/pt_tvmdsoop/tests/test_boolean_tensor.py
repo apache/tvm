@@ -23,9 +23,10 @@ import numpy as np
 import torch
 
 import tvm
-from tvm.meta_schedule.tune import TuneConfig
 import tvm.testing
-from tvm.contrib.torch import optimize_torch
+from tvm.contrib.torch import as_torch, optimize_torch
+from tvm.meta_schedule.tune import TuneConfig
+from tvm.script import tir as T
 
 
 def negate(x):
@@ -79,7 +80,25 @@ def test_tensor_boolean_operation():
     tvm.testing.assert_allclose(ret1, ret2, atol=1e-5, rtol=1e-5)
 
 
+@as_torch
+@T.prim_func
+def negate(X: T.Buffer[(8, 8), "bool"], Y: T.Buffer[(8, 8), "bool"]) -> None:
+    for i, j in T.grid(8, 8):
+        with T.block():
+            Y[i, j] = not X[i, j]
+
+
+def test_tvmscript_torch_decorator():
+    q1 = (torch.rand(8, 8) + 0.5).int().bool()
+    q2 = torch.zeros((8, 8), dtype=torch.bool)
+
+    negate(q1, q2)
+
+    tvm.testing.assert_allclose(~q1.numpy(), q2.numpy(), atol=1e-5, rtol=1e-5)
+
+
 if __name__ == "__main__":
+    test_tvmscript_torch_decorator()
     test_bool_tensor_negate()
     test_sum_up_tensor()
     test_tensor_boolean_operation()
