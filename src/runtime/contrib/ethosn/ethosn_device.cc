@@ -119,16 +119,16 @@ bool Inference(tvm::runtime::TVMArgs args, dl::Network* npu,
                const std::vector<uint32_t>& output_sizes) {
 #endif
   // Unpack parameters
-  uint8_t argc = 0;
   size_t n_inputs = input_order.size();
   size_t n_outputs = output_order.size();
   std::vector<DLTensor*> inputs(n_inputs);
   for (uint8_t i = 0; i < n_inputs; i++) {
-    inputs[input_order[i]] = args[argc++];
+    inputs[i] = args[input_order[i]];
   }
   std::vector<DLTensor*> outputs(n_outputs);
+  size_t output_offset = n_inputs;
   for (uint8_t i = 0; i < n_outputs; i++) {
-    outputs[output_order[i]] = args[argc++];
+    outputs[i] = args[output_order[i] + output_offset];
   }
 
   // Set up input buffers

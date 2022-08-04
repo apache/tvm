@@ -184,6 +184,52 @@ def test_output_order(dtype):
 
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
+def test_output_order_different_sizes(dtype):
+    """
+    Test the output order when there are multiple outputs of different sizes.
+    """
+    np.random.seed(0)
+    input_name = "a"
+    input_shape = (1, 8, 8, 4)
+    dtype_min = np.iinfo(dtype).min
+    dtype_max = np.iinfo(dtype).max
+
+    def get_model():
+        var = relay.var(input_name, shape=input_shape, dtype=dtype)
+        clip = relay.op.clip(var, dtype_min, dtype_max)
+        max_pool = relay.nn.max_pool2d(clip, (2, 2), (2, 2), ceil_mode=True, layout="NHWC")
+        mean = relay.op.cast(clip, "int32")
+        mean = relay.mean(mean, axis=[1, 2], keepdims=True)
+        mean = relay.qnn.op.requantize(
+            mean,
+            input_scale=relay.const(0.0784314, "float32"),
+            input_zero_point=relay.const(dtype_min + 128, "int32"),
+            output_scale=relay.const(0.0784314, "float32"),
+            output_zero_point=relay.const(dtype_min + 128, "int32"),
+            out_dtype=dtype,
+        )
+
+        return relay.Tuple((mean, max_pool, clip))
+
+    inputs = {
+        input_name: tvm.nd.array(
+            np.random.randint(dtype_min, dtype_max + 1, size=input_shape, dtype=dtype)
+        ),
+    }
+
+    outputs = []
+    for npu in [False, True]:
+        model = get_model()
+        mod = tei.make_module(model, [])
+        outputs.append(
+            tei.build_and_run(mod, inputs, 3, {}, npu=npu, expected_host_ops=0, npu_partitions=1)
+        )
+
+    tei.verify(outputs, dtype, 1)
+
+
+@requires_ethosn
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
 def test_split_with_asym_concats(dtype):
     def get_model(shape, dtype, splits, axis):
         a = relay.var("a", shape=shape, dtype=dtype)
