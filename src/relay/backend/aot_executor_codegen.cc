@@ -1098,7 +1098,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
     transform::PassContext pass_ctx = transform::PassContext::Current();
     bool enable_remove_reshapes =
-        pass_ctx->GetConfig<Bool>("relay.RemoveStandaloneReshapes.enable", Bool(true)).value();
+        pass_ctx->GetConfig<Bool>("relay.remove_standalone_reshapes.enable", Bool(true)).value();
     if (enable_remove_reshapes) {
       lowered_mod = transform::RemoveStandaloneReshapes()(lowered_mod);
     }

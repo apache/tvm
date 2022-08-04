@@ -30,7 +30,7 @@
 namespace tvm {
 namespace relay {
 
-TVM_REGISTER_PASS_CONFIG_OPTION("relay.RemoveStandaloneReshapes.enable", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("relay.remove_standalone_reshapes.enable", Bool);
 /*! Removes reshapes right after LowerTE. Removes preceding on_device calls
  * while removing reshapes.
  */
