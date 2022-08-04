@@ -566,30 +566,35 @@ def check_author(pr, triggering_comment, args):
     return False
 
 
-def check_collaborator(pr, triggering_comment, args):
-    logging.info("Checking collaborators")
-    # Get the list of collaborators for the repo filtered by the comment
-    # author
+def search_users(name, triggering_comment, testing_json, search_fn):
+    logging.info(f"Checking {name}")
     commment_author = triggering_comment["user"]["login"]
-    if args.testing_collaborators_json:
-        collaborators = json.loads(args.testing_collaborators_json)
+    if testing_json:
+        matching_users = json.loads(testing_json)
     else:
-        collaborators = pr.search_collaborator(commment_author)
-    logging.info(f"Found collaborators: {collaborators}")
+        matching_users = search_fn(commment_author)
+    logging.info(f"Found {name}: {matching_users}")
+    user_names = {user["login"] for user in matching_users}
 
-    return len(collaborators) > 0 and commment_author in collaborators
+    return len(matching_users) > 0 and commment_author in user_names
+
+
+def check_collaborator(pr, triggering_comment, args):
+    return search_users(
+        name="collaborators",
+        triggering_comment=triggering_comment,
+        search_fn=pr.search_collaborator,
+        testing_json=args.testing_collaborators_json,
+    )
 
 
 def check_mentionable_users(pr, triggering_comment, args):
-    logging.info("Checking mentionable users")
-    commment_author = triggering_comment["user"]["login"]
-    if args.testing_mentionable_users_json:
-        mentionable_users = json.loads(args.testing_mentionable_users_json)
-    else:
-        mentionable_users = pr.search_mentionable_users(commment_author)
-    logging.info(f"Found mentionable_users: {mentionable_users}")
-
-    return len(mentionable_users) > 0 and commment_author in mentionable_users
+    return search_users(
+        name="mentionable users",
+        triggering_comment=triggering_comment,
+        search_fn=pr.search_mentionable_users,
+        testing_json=args.testing_mentionable_users,
+    )
 
 
 AUTH_CHECKS = {
