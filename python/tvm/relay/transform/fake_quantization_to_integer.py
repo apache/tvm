@@ -109,20 +109,6 @@ register_unary_identity("min")
 register_unary_identity("image.resize2d")
 
 
-@register_fake_quantization_to_integer("abs")
-def abs_(expr, type_map):
-    """Rewrite an abs op"""
-    assert len(expr.args) == 1
-    arg = expr.args[0]
-    t = type_map[arg]
-
-    min_value = relay.const(np.iinfo(t.dtype).min, t.dtype)
-    one = relay.const(1, t.dtype)
-    out = relay.op.where(relay.op.equal(min_value, arg), arg + one, arg)
-    out = relay.op.abs(out)
-    return [out, t]
-
-
 @register_fake_quantization_to_integer("nn.adaptive_avg_pool1d")
 def adaptive_avgpool1d(expr, type_map):
     """Rewrite an adaptive avgpool op"""
@@ -380,11 +366,11 @@ def pad(expr, type_map):
     arg = expr.args[0]
     t = type_map[arg]
     pad_value = expr.args[1]
-    ## TF2ONNX will sometimes implement the pad_value as a constant without a quantize
-    ## To support that, the pass lets branches that terminate in a constant through
+    # TF2ONNX will sometimes implement the pad_value as a constant without a quantize
+    # To support that, the pass lets branches that terminate in a constant through
     if pad_value in type_map:
-        ## if the pad value is calcuated from a dequantize op, it should be in the type map
-        ## and we need to make sure it's affine type matches the arg
+        # if the pad value is calcuated from a dequantize op, it should be in the type map
+        # and we need to make sure it's affine type matches the arg
         pad_t = type_map[pad_value]
         if not tvm.ir.structural_equal(t, pad_t):
             pad_value = relay.qnn.op.requantize(
@@ -397,7 +383,7 @@ def pad(expr, type_map):
                 axis=pad_t.axis,
             )
     else:
-        ## If the pad-value is a constant, we need to quantize it
+        # If the pad-value is a constant, we need to quantize it
         assert isinstance(pad_value, relay.expr.Constant)
         pad_value = relay.qnn.op.quantize(pad_value, t.scale, t.zero_point)
 
@@ -419,7 +405,7 @@ def mean(expr, type_map):
 
 def get_binary_types(expr, type_map):
     """Get Affine types of a binary op's inputs and unify them"""
-    ##Support the case where one input is quantized and the other is a constant float
+    # Support the case where one input is quantized and the other is a constant float
     left = expr.args[0]
     right = expr.args[1]
     left_t = None
@@ -545,4 +531,5 @@ register_unary_qnn("erf", relay.qnn.op.erf)
 register_unary_qnn("sigmoid", relay.qnn.op.sigmoid)
 register_unary_qnn("hardswish", relay.qnn.op.hardswish)
 register_unary_qnn("tanh", relay.qnn.op.tanh)
+register_unary_qnn("abs", relay.qnn.op.abs)
 register_unary_qnn("log", relay.qnn.op.log)
