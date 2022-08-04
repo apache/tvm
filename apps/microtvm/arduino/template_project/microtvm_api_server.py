@@ -495,12 +495,12 @@ class Handler(server.ProjectAPIHandler):
             # be caught.
             except subprocess.TimeoutExpired:
                 _LOG.warning(
-                    "Upload attempt to port {port} timed out after {self.FLASH_TIMEOUT_SEC} seconds"
+                    f"Upload attempt to port {port} timed out after {self.FLASH_TIMEOUT_SEC} seconds"
                 )
 
         else:
             raise RuntimeError(
-                "Unable to flash Arduino board after {self.FLASH_MAX_RETRIES} attempts"
+                f"Unable to flash Arduino board after {self.FLASH_MAX_RETRIES} attempts"
             )
 
     def open_transport(self, options):
