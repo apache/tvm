@@ -73,33 +73,20 @@ class OperatorModuleWrapper : public torch::jit::CustomClassHolder {
   OperatorModuleWrapper() { runtime_module_ = tvm_contrib_torch_get_last_saved_runtime_module(); }
   ~OperatorModuleWrapper() { tvm_contrib_torch_free_runtime_module(runtime_module_); }
 
-  c10::List<at::Tensor> forward(const c10::List<at::Tensor>& inputs) {
+  void forward(const c10::List<at::Tensor>& inputs) {
     int input_length = inputs.size();
 
     std::vector<DLPackTensorExt> tensors;
 
-    DLPackTensorExt* outputs;
-
     // Torch tensor supports boolean type while DLpack does not,
     // we convert Torch tensor to an extension of DLPack tensor
     for (int i = 0; i < input_length; ++i) tensors.push_back(toDLPackExt(inputs[i]));
-    tvm_contrib_torch_operator_module_forward(this->runtime_module_, tensors.data(), tensors.size(),
-                                              &outputs);
-
-    c10::List<at::Tensor> ret;
-    ret.reserve(input_length);
-
-    for (int k = 0; k < input_length; ++k) {
-      at::Tensor atTensor = fromDLPackExt(outputs[k]);
-      ret.emplace_back(atTensor);
-    }
+    tvm_contrib_torch_operator_module_forward(this->runtime_module_, tensors.data(),
+                                              tensors.size());
 
     for (int k = 0; k < input_length; ++k) {
       tensors[k].dl_managed_tensor->deleter(tensors[k].dl_managed_tensor);
     }
-    tvm_contrib_torch_free_dlpack_tensor_ext_array(outputs);
-
-    return ret;
   }
 
   std::string Serialize() {

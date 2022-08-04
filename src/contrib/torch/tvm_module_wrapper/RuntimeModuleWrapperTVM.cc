@@ -160,6 +160,7 @@ tvm::runtime::NDArray ndarray_from_dlpack(DLPackTensorExt* src) {
       tvm::runtime::NDArray::AbilityOfZeroCopyForDLTensor(&dl_tensor, dl_tensor.device);
   if (src->is_bool) {
     // one memory copy
+    // the code is similar to NewFromDLTensor except for the type
     array = create_bool_ndarray(src);
   } else if (is_zero_copy) {
     array = NDArray::FromExternalDLTensor(src->dl_managed_tensor->dl_tensor);
@@ -186,28 +187,28 @@ TVMContribTorchRuntimeModule* tvm_contrib_torch_get_last_saved_runtime_module() 
 }
 
 void tvm_contrib_torch_operator_module_forward(TVMContribTorchRuntimeModule* runtime_module,
-                                               DLPackTensorExt* inputs, size_t input_size,
-                                               DLPackTensorExt** outputs) {
+                                               DLPackTensorExt* inputs, size_t input_size) {
   tvm::runtime::PackedFunc run = runtime_module->mod.GetFunction("__tvm_main__");
 
   std::vector<TVMValue> tvm_values(input_size);
   std::vector<int> tvm_type_codes(input_size);
   tvm::runtime::TVMArgsSetter setter(tvm_values.data(), tvm_type_codes.data());
 
-  DLPackTensorExt* outputs_ptr = new DLPackTensorExt[input_size];
-  *outputs = outputs_ptr;
+  std::vector<tvm::runtime::NDArray> input_cache(input_size);
 
   for (int k = 0; k < input_size; ++k) {
     auto datum = tvm::contrib::ndarray_from_dlpack(&inputs[k]);
-    outputs_ptr[k] = tvm::contrib::create_dlpack_tensor_ext(&datum, inputs[k].is_bool);
+    input_cache[k] = datum;  // we keep the datum in a vector for future use, otherwise the datum
+                             // will be freed after the loop
     setter(k, datum);
   }
+
   run.CallPacked(tvm::runtime::TVMArgs(tvm_values.data(), tvm_type_codes.data(), input_size),
                  nullptr);
 
   for (int k = 0; k < input_size; ++k) {
-    tvm::runtime::NDArray::CopyFromTo(&outputs_ptr[k].dl_managed_tensor->dl_tensor,
-                                      &inputs[k].dl_managed_tensor->dl_tensor);
+    // this statement seems to not work for boolean tensor
+    input_cache[k].CopyTo(&inputs[k].dl_managed_tensor->dl_tensor);
   }
 }
 

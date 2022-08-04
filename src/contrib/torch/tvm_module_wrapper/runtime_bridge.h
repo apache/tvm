@@ -67,8 +67,7 @@ TVMContribTorchRuntimeModule* tvm_contrib_torch_create_graph_runtime_module(
  * @param input_size The number of input tensors
  */
 void tvm_contrib_torch_operator_module_forward(TVMContribTorchRuntimeModule* runtime_module,
-                                               DLPackTensorExt* inputs, size_t input_size,
-                                               DLPackTensorExt** outputs);
+                                               DLPackTensorExt* inputs, size_t input_size);
 
 /*
  * Forward method for GraphExecutorFactoryWrapper.
