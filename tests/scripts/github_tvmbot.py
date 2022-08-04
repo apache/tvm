@@ -122,6 +122,7 @@ PR_QUERY = """
                         databaseId
                         checkSuite {
                           workflowRun {
+                            databaseId
                             workflow {
                               name
                             }
@@ -524,37 +525,53 @@ class PR:
             post(url, auth=("tvm-bot", TVM_BOT_JENKINS_TOKEN))
 
     def rerun_github_actions(self) -> None:
-        job_ids = []
+        workflow_ids = []
         for item in self.head_commit()["statusCheckRollup"]["contexts"]["nodes"]:
-            if "checkSuite" in item:
-                job_ids.append(item["databaseId"])
+            if "checkSuite" in item and item["conclusion"] == "FAILURE":
+                workflow_id = item["checkSuite"]["workflowRun"]["databaseId"]
+                workflow_ids.append(workflow_id)
 
-        logging.info(f"Rerunning GitHub Actions jobs with IDs: {job_ids}")
+        workflow_ids = list(set(workflow_ids))
+        logging.info(f"Rerunning GitHub Actions workflows with IDs: {workflow_ids}")
         actions_github = GitHubRepo(
             user=self.github.user, repo=self.github.repo, token=GH_ACTIONS_TOKEN
         )
-        for job_id in job_ids:
+        for workflow_id in workflow_ids:
             if self.dry_run:
+                logging.info(f"Dry run, not restarting workflow {workflow_id}")
+            else:
                 try:
-                    actions_github.post(f"actions/jobs/{job_id}/rerun", data={})
+                    actions_github.post(f"actions/runs/{workflow_id}/rerun-failed-jobs", data={})
                 except RuntimeError as e:
+                    logging.exception(e)
                     # Ignore errors about jobs that are part of the same workflow to avoid
                     # having to figure out which jobs are in which workflows ahead of time
                     if "The workflow run containing this job is already running" in str(e):
                         pass
                     else:
                         raise e
-            else:
-                logging.info(f"Dry run, not restarting {job_id}")
 
-    def comment_failure(self, msg: str, exception: Exception):
-        if not self.dry_run:
-            exception_msg = traceback.format_exc()
-            comment = f"{msg} in {args.run_url}\n\n<details>\n\n```\n{exception_msg}\n```\n\n"
+    def comment_failure(self, msg: str, exceptions: Exception):
+        if not isinstance(exceptions, list):
+            exceptions = [exceptions]
+
+        logging.info(f"Failed, commenting {exceptions}")
+
+        # Extract all the traceback strings
+        for item in exceptions:
+            try:
+                raise item
+            except Exception:
+                item.exception_msg = traceback.format_exc()
+
+        comment = f"{msg} in {args.run_url}\n\n"
+        for exception in exceptions:
+            comment += f"<details>\n\n```\n{exception.exception_msg}\n```\n\n"
             if hasattr(exception, "read"):
                 comment += f"with response\n\n```\n{exception.read().decode()}\n```\n\n"
             comment += "</details>"
-            pr.comment(comment)
+
+        pr.comment(comment)
         return exception
 
 
@@ -593,7 +610,7 @@ def check_mentionable_users(pr, triggering_comment, args):
         name="mentionable users",
         triggering_comment=triggering_comment,
         search_fn=pr.search_mentionable_users,
-        testing_json=args.testing_mentionable_users,
+        testing_json=args.testing_mentionable_users_json,
     )
 
 
@@ -646,11 +663,19 @@ class Rerun:
 
     @staticmethod
     def run(pr: PR):
+        errors = []
         try:
             pr.rerun_jenkins_ci()
+        except Exception as e:
+            errors.append(e)
+
+        try:
             pr.rerun_github_actions()
         except Exception as e:
-            pr.comment_failure("Failed to re-run CI", e)
+            errors.append(e)
+
+        if len(errors) > 0:
+            pr.comment_failure("Failed to re-run CI", errors)
 
 
 if __name__ == "__main__":

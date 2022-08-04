@@ -156,7 +156,7 @@ def test_tvmbot(tmpdir_factory, number, filename, expected, comment, user, detai
             "login": user,
         },
     }
-    collaborators = ["abc"]
+    allowed_users = [{"login": "abc"}]
 
     proc = subprocess.run(
         [
@@ -169,9 +169,9 @@ def test_tvmbot(tmpdir_factory, number, filename, expected, comment, user, detai
             "--testing-pr-json",
             json.dumps(test_data),
             "--testing-collaborators-json",
-            json.dumps(collaborators),
+            json.dumps(allowed_users),
             "--testing-mentionable-users-json",
-            json.dumps(collaborators),
+            json.dumps(allowed_users),
             "--trigger-comment-json",
             json.dumps(comment),
         ],
