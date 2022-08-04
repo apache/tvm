@@ -1,7 +1,6 @@
 
 name: tvm-bot
 on:
-  status:
   pull_request_review:
     types:
       - submitted
@@ -28,6 +27,7 @@ jobs:
       - name: Run tvm-bot
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_ACTIONS_TOKEN: ${{ secrets.GH_ACTIONS_TOKEN }}
           TVM_BOT_JENKINS_TOKEN: ${{ secrets.TVM_BOT_JENKINS_TOKEN }}
           PR_NUMBER: ${{ github.event.issue.number }}
           ISSUE_COMMENT: ${{ toJson(github.event.comment) }}
