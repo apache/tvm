@@ -22,7 +22,7 @@ import pytest
 import tvm
 from tvm import relay
 from tvm.testing import requires_ethosn
-from tvm.relay.op.contrib.ethosn import Available
+from tvm.relay.op.contrib.ethosn import Available, ethosn_available
 from . import infrastructure as tei
 
 
@@ -76,19 +76,27 @@ def test_split_add_concat(dtype):
 
         expected_host_ops = 1 if tei.get_ethosn_api_version() == 2205 else 0
         npu_partitions = 2 if tei.get_ethosn_api_version() == 2205 else 1
-        outputs.append(
-            tei.build_and_run(
-                mod,
-                inputs,
-                1,
-                {},
-                npu=npu,
-                expected_host_ops=expected_host_ops,
-                npu_partitions=npu_partitions,
-            )
-        )
 
-    tei.verify(outputs, dtype, 2)
+        # Mock inference is only supported when the whole graph is offloaded to the NPU
+        if tei.get_ethosn_api_version() == 2205 and ethosn_available() == Available.SW_ONLY:
+            tei.build(
+                mod, {}, npu=npu, expected_host_ops=expected_host_ops, npu_partitions=npu_partitions
+            )
+        else:
+            outputs.append(
+                tei.build_and_run(
+                    mod,
+                    inputs,
+                    1,
+                    {},
+                    npu=npu,
+                    expected_host_ops=expected_host_ops,
+                    npu_partitions=npu_partitions,
+                )
+            )
+
+    if outputs:
+        tei.verify(outputs, dtype, 2)
 
 
 @requires_ethosn
@@ -118,7 +126,6 @@ def test_multiple_command_streams(dtype):
         return out
 
     np.random.seed(0)
-    outputs = []
     inputs = {
         "x": tvm.nd.array(
             np.random.randint(
@@ -128,9 +135,12 @@ def test_multiple_command_streams(dtype):
     }
     model = get_model(dtype)
     mod = tei.make_module(model, {})
-    outputs.append(
+
+    # Mock inference is only supported when the whole graph is offloaded to the NPU
+    if ethosn_available() == Available.SW_ONLY:
+        tei.build(mod, {}, npu=True, expected_host_ops=1, npu_partitions=2)
+    else:
         tei.build_and_run(mod, inputs, 1, {}, npu=True, expected_host_ops=1, npu_partitions=2)
-    )
 
 
 @requires_ethosn
@@ -218,19 +228,31 @@ def test_split_with_asym_concats(dtype):
 
             expected_host_ops = 1 if tei.get_ethosn_api_version() == 2205 else 0
             npu_partitions = 2 if tei.get_ethosn_api_version() == 2205 else 1
-            outputs.append(
-                tei.build_and_run(
+
+            # Mock inference is only supported when the whole graph is offloaded to the NPU
+            if tei.get_ethosn_api_version() == 2205 and ethosn_available() == Available.SW_ONLY:
+                tei.build(
                     mod,
-                    inputs,
-                    2,
                     {},
                     npu=npu,
                     expected_host_ops=expected_host_ops,
                     npu_partitions=npu_partitions,
                 )
-            )
+            else:
+                outputs.append(
+                    tei.build_and_run(
+                        mod,
+                        inputs,
+                        2,
+                        {},
+                        npu=npu,
+                        expected_host_ops=expected_host_ops,
+                        npu_partitions=npu_partitions,
+                    )
+                )
 
-        tei.verify(outputs, dtype, 0)
+        if outputs:
+            tei.verify(outputs, dtype, 0)
 
 
 @pytest.mark.skipif(
