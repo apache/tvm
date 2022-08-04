@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-08-02T21:01:38.958652
+// Generated at 2022-08-04T10:10:32.335972
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -182,7 +182,30 @@ def docker_init(image) {
     ecr_pull(image)
   } else {
     sh(
-      script: "docker pull ${image}",
+      script: """
+      set -eux
+      retry() {
+  local retries=\$1
+  shift
+
+  local count=0
+  until "\$@"; do
+    exit=\$?
+    wait=\$((2 ** \$count))
+    count=\$((\$count + 1))
+    if [ \$count -lt \$retries ]; then
+      echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+      sleep \$wait
+    else
+      echo "Retry \$count/\$retries exited \$exit, no more retries left."
+      return \$exit
+    fi
+  done
+  return 0
+}
+
+      retry 3 docker pull ${image}
+      """,
       label: 'Pull docker image',
     )
   }

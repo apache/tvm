@@ -76,7 +76,11 @@ def docker_init(image) {
     ecr_pull(image)
   } else {
     sh(
-      script: "docker pull ${image}",
+      script: """
+      set -eux
+      {{ m.bash_retry() }}
+      retry 3 docker pull ${image}
+      """,
       label: 'Pull docker image',
     )
   }
