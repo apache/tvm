@@ -126,13 +126,12 @@ DLPackTensorExt create_dlpack_tensor_ext(tvm::runtime::NDArray* src, bool is_boo
  * @return an empty NDArray
  */
 tvm::runtime::NDArray create_empty_bool_ndarray(DLPackTensorExt* src) {
-  auto& dl_tensor = src->dl_managed_tensor->dl_tensor;
-  std::vector<ShapeTuple::index_type> shape;
-  shape.resize(dl_tensor.ndim);
-  shape.assign(dl_tensor.shape, dl_tensor.shape + dl_tensor.ndim);
-  LOG(INFO) << shape[0] << " " << shape[1];
-  auto shapeTuple = ShapeTuple(shape);
-  auto ret = tvm::runtime::NDArray::Empty(shapeTuple, DataType::Bool(), dl_tensor.device);
+  auto& tensor = src->dl_managed_tensor->dl_tensor;
+  std::vector<int64_t> shape;
+  for (int64_t i = 0; i < tensor.ndim; i++) {
+    shape.push_back(tensor.shape[i]);
+  }
+  auto ret = tvm::runtime::NDArray::Empty(shape, DataType::Bool(), tensor.device);
   return ret;
 }
 
@@ -187,26 +186,28 @@ TVMContribTorchRuntimeModule* tvm_contrib_torch_get_last_saved_runtime_module() 
 }
 
 void tvm_contrib_torch_operator_module_forward(TVMContribTorchRuntimeModule* runtime_module,
-                                               DLPackTensorExt* inputs, size_t input_size) {
+                                               DLPackTensorExt* inputs, size_t input_size,
+                                               DLPackTensorExt** outputs) {
   tvm::runtime::PackedFunc run = runtime_module->mod.GetFunction("__tvm_main__");
 
   std::vector<TVMValue> tvm_values(input_size);
   std::vector<int> tvm_type_codes(input_size);
   tvm::runtime::TVMArgsSetter setter(tvm_values.data(), tvm_type_codes.data());
 
-  std::vector<tvm::runtime::NDArray> input_tmp(input_size);
+  DLPackTensorExt* outputs_ptr = new DLPackTensorExt[input_size];
+  *outputs = outputs_ptr;
 
   for (int k = 0; k < input_size; ++k) {
     auto datum = tvm::contrib::ndarray_from_dlpack(&inputs[k]);
+    outputs_ptr[k] = tvm::contrib::create_dlpack_tensor_ext(&datum, inputs[k].is_bool);
     setter(k, datum);
-    input_tmp.push_back(std::move(datum));
   }
   run.CallPacked(tvm::runtime::TVMArgs(tvm_values.data(), tvm_type_codes.data(), input_size),
                  nullptr);
 
   for (int k = 0; k < input_size; ++k) {
-    auto result = static_cast<DLManagedTensor*>(tvm_values[k].v_handle);
-    tvm::runtime::NDArray::CopyFromTo(&result->dl_tensor, &inputs[k].dl_managed_tensor->dl_tensor);
+    tvm::runtime::NDArray::CopyFromTo(&outputs_ptr[k].dl_managed_tensor->dl_tensor,
+                                      &inputs[k].dl_managed_tensor->dl_tensor);
   }
 }
 
