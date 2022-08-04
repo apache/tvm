@@ -17,11 +17,11 @@
  * under the License.
  */
 
-#include <../../src/script/printer/traced_object.h>
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/runtime/container/map.h>
+#include <tvm/script/printer/traced_object.h>
 
 using namespace tvm;
 

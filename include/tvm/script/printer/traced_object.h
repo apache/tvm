@@ -159,6 +159,9 @@ class TracedObject {
   ObjectPath path_;
 };
 
+/*!
+ * \brief Iterator class for TracedMap<K, V>
+ */
 template <typename K, typename V>
 class TracedMapIterator {
  public:
@@ -215,6 +218,9 @@ class TracedMap {
   explicit TracedMap(Map<K, V> map, ObjectPath path)
       : map_(std::move(map)), path_(std::move(path)) {}
 
+  /*!
+   * \brief Get a value by its key, wrapped in a traced wrapper.
+   */
   WrappedV at(const K& key) const {
     auto it = map_.find(key);
     ICHECK(it != map_.end()) << "No such key in Map";
@@ -222,14 +228,29 @@ class TracedMap {
     return WrappedV(kv.second, path_->MapValue(kv.first));
   }
 
+  /*!
+   * \brief Access the wrapped map object.
+   */
   const Map<K, V>& Get() const { return map_; }
 
+  /*!
+   * \brief Get the path of the wrapped object.
+   */
   const ObjectPath& GetPath() const { return path_; }
 
+  /*!
+   * \brief Get an iterator to the first item of the map.
+   */
   iterator begin() const { return iterator(map_.begin(), path_); }
 
+  /*!
+   * \brief Get an iterator to the end of the map.
+   */
   iterator end() const { return iterator(map_.end(), path_); }
 
+  /*!
+   * \brief Returns true iff the wrapped map is empty.
+   */
   bool empty() const { return map_.empty(); }
 
  private:
@@ -237,6 +258,9 @@ class TracedMap {
   ObjectPath path_;
 };
 
+/*!
+ * \brief Iterator class for TracedArray<T>
+ */
 template <typename T>
 class TracedArrayIterator {
  public:
@@ -286,8 +310,6 @@ class TracedArrayIterator {
   bool operator!=(TracedArrayIterator other) const { return !(*this == other); }
   value_type operator*() const { return WrappedT(array_[index_], array_path_->ArrayIndex(index_)); }
 
-  bool empty() const { return array_.empty(); }
-
  private:
   Array<T> array_;
   size_t index_;
@@ -308,20 +330,45 @@ class TracedArray {
   explicit TracedArray(Array<T> array, ObjectPath path)
       : array_(std::move(array)), path_(std::move(path)) {}
 
+  /*!
+   * \brief Access the wrapped array object.
+   */
   const Array<T>& Get() const { return array_; }
 
+  /*!
+   * \brief Get the path of the wrapped array object.
+   */
   const ObjectPath& GetPath() const { return path_; }
 
+  /*!
+   * \brief Get an element by index, wrapped in a traced wrapper.
+   */
   WrappedT operator[](size_t index) const {
     return WrappedT(array_[index], path_->ArrayIndex(index));
   }
 
+  /*!
+   * \brief Get an iterator to the first array element.
+   *
+   * The iterator's dereference operator will automatically wrap each element in a traced wrapper.
+   */
   iterator begin() const { return iterator(array_, 0, path_); }
 
+  /*!
+   * \brief Get an iterator to the end of the array.
+   *
+   * The iterator's dereference operator will automatically wrap each element in a traced wrapper.
+   */
   iterator end() const { return iterator(array_, array_.size(), path_); }
 
+  /*!
+   * \brief Returns true iff the wrapped array is empty.
+   */
   bool empty() const { return array_.empty(); }
 
+  /*!
+   * \brief Get the size of the wrapped array.
+   */
   size_t size() const { return array_.size(); }
 
  private:
@@ -337,21 +384,40 @@ class TracedOptional {
  public:
   using WrappedT = typename detail::TracedObjectWrapperSelector<T>::Type;
 
+  /*!
+   * \brief Implicit conversion from the corresponding non-optional traced wrapper.
+   */
   TracedOptional(const WrappedT& value)  // NOLINT(runtime/explicit)
       : optional_(value.Get().defined() ? value.Get() : Optional<T>(NullOpt)),
         path_(value.GetPath()) {}
 
+  // Don't use this direcly. For convenience, call MakeTraced() instead.
   explicit TracedOptional(Optional<T> optional, ObjectPath path)
       : optional_(std::move(optional)), path_(std::move(path)) {}
 
+  /*!
+   * \brief Access the wrapped optional object.
+   */
   const Optional<T>& Get() const { return optional_; }
 
+  /*!
+   * \brief Get the path of the wrapped optional object.
+   */
   const ObjectPath& GetPath() const { return path_; }
 
+  /*!
+   * \brief Returns true iff the object is present.
+   */
   bool defined() const { return optional_.defined(); }
 
+  /*!
+   * \brief Returns a non-optional traced wrapper, throws if defined() is false.
+   */
   WrappedT value() const { return WrappedT(optional_.value(), path_); }
 
+  /*!
+   * \brief Same as defined().
+   */
   explicit operator bool() const { return optional_.defined(); }
 
  private:
@@ -368,8 +434,14 @@ class TracedBasicValue {
   explicit TracedBasicValue(const T& value, ObjectPath path)
       : value_(value), path_(std::move(path)) {}
 
+  /*!
+   * \brief Access the wrapped value.
+   */
   const T& Get() const { return value_; }
 
+  /*!
+   * \brief Get the path of the wrapped value.
+   */
   const ObjectPath& GetPath() const { return path_; }
 
   /*!
