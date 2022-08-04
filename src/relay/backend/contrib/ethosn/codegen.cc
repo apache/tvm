@@ -629,6 +629,7 @@ runtime::ethosn::OrderedCompiledNetwork EthosnCompiler::CompileEthosnFunc(const 
   // Determine the order that the inputs/outputs are in and how that corresponds to the
   // order that the TVM runtime will expect them in
   auto input_output_order = GetInputOutputOrder(network_with_ids, compiled_network);
+  auto io_sizes = GetIOSizes(compiled_network);
   // Use the order information to create an 'ordered' network with includes how to map
   // the inputs/outputs from the TVM runtime to the inputs/outputs of the compiled network
   runtime::ethosn::OrderedCompiledNetwork ordered_network;
@@ -636,6 +637,8 @@ runtime::ethosn::OrderedCompiledNetwork EthosnCompiler::CompileEthosnFunc(const 
   ordered_network.compiled_cmm = std::move(compiled_network);
   ordered_network.inputs = input_output_order.first;
   ordered_network.outputs = input_output_order.second;
+  ordered_network.input_sizes = io_sizes.first;
+  ordered_network.output_sizes = io_sizes.second;
   return ordered_network;
 }
 
@@ -682,6 +685,20 @@ std::pair<std::vector<uint32_t>, std::vector<uint32_t>> EthosnCompiler::GetInput
     output_order.push_back(network.output_ids[output_id]);
   }
   return std::make_pair(input_order, output_order);
+}
+
+std::pair<std::vector<uint32_t>, std::vector<uint32_t>> EthosnCompiler::GetIOSizes(
+    const std::unique_ptr<sl::CompiledNetwork>& compiled_network) {
+  std::vector<uint32_t> input_sizes;
+  std::vector<uint32_t> output_sizes;
+  for (const sl::InputBufferInfo info : compiled_network->GetInputBufferInfos()) {
+    input_sizes.push_back(info.m_Size);
+  }
+  for (const sl::OutputBufferInfo info : compiled_network->GetOutputBufferInfos()) {
+    output_sizes.push_back(info.m_Size);
+  }
+
+  return std::make_pair(input_sizes, output_sizes);
 }
 
 std::unique_ptr<sl::SupportQueries> EthosnCompiler::m_Queries;

@@ -42,9 +42,9 @@ def _get_model(
         units=weight_shape[0],
         out_dtype="int32",
     )
-    b = tvm.nd.array(np.random.randint(0, high=255, size=(shape[0],), dtype="int32"))
+    b = tvm.nd.array(np.random.randint(0, high=255, size=(weight_shape[0],), dtype="int32"))
     biasc = relay.const(b, "int32")
-    bias = relay.nn.bias_add(fc, biasc, axis=0)
+    bias = relay.nn.bias_add(fc, biasc)
     req = relay.qnn.op.requantize(
         bias,
         relay.const(input_sc * kernel_sc, "float32"),  # input zero scale
@@ -58,55 +58,60 @@ def _get_model(
 
 
 @requires_ethosn
-@pytest.mark.parametrize("dtype", ["uint8"])
-def test_fullyconnected(dtype):
-    zp_min = np.iinfo(dtype).min
-    zp_max = np.iinfo(dtype).max
-    trials = [
-        ((1, 1024), zp_min + 71, 0.580, zp_max - 176, 1.498),
-        ((1, 4096), zp_min + 166, 1.724, zp_max - 138, 0.180),
-        ((1, 16384), zp_min + 101, 1.372, zp_max - 234, 1.346),
-    ]
+@pytest.mark.parametrize(
+    "shape,out_channels",
+    [
+        ((1, 1024), 64),
+        ((1, 16384), 1),
+        ((1, 1280), 1000),
+    ],
+)
+@pytest.mark.parametrize(
+    "dtype,input_zp,input_sc,kernel_zp,kernel_sc",
+    [
+        ("uint8", 71, 0.580, 176, 1.498),
+        ("uint8", 166, 1.724, 138, 0.180),
+        ("int8", 71, 0.580, 0, 1.498),
+        ("int8", 120, 1.724, 0, 0.180),
+    ],
+)
+def test_fullyconnected(shape, out_channels, dtype, input_zp, input_sc, kernel_zp, kernel_sc):
+    """
+    Test fully connected offloading.
+    """
     np.random.seed(0)
-    for shape, input_zp, input_sc, kernel_zp, kernel_sc in trials:
-        kernel_zp = (
-            0
-            if dtype == "int8"
-            else np.random.randint(np.iinfo(dtype).min, np.iinfo(dtype).max) + 1
-        )
-        inputs = {
-            "a": tvm.nd.array(
-                np.random.randint(
-                    np.iinfo(dtype).min, np.iinfo(dtype).max + 1, size=shape, dtype=dtype
-                )
-            ),
-        }
-        outputs = []
-        output_zp, output_sc = tei.get_conv2d_qnn_params(
-            dtype,
+    inputs = {
+        "a": tvm.nd.array(
+            np.random.randint(np.iinfo(dtype).min, np.iinfo(dtype).max + 1, size=shape, dtype=dtype)
+        ),
+    }
+
+    outputs = []
+    output_zp, output_sc = tei.get_conv2d_qnn_params(
+        dtype,
+        input_zp,
+        input_sc,
+        kernel_zp,
+        kernel_sc,
+        shape[0],
+        shape[1],
+        1,
+    )
+    for npu in [False, True]:
+        model, params = _get_model(
+            shape,
+            (out_channels, shape[1]),
             input_zp,
             input_sc,
             kernel_zp,
             kernel_sc,
-            shape[0],
-            shape[1],
-            1,
+            output_zp,
+            output_sc,
+            dtype,
         )
-        for npu in [False, True]:
-            model, params = _get_model(
-                shape,
-                shape,
-                input_zp,
-                input_sc,  # input zp, sc
-                kernel_zp,
-                kernel_sc,  # kernel
-                output_zp,
-                output_sc,  # output
-                dtype,
-            )
-            mod = tei.make_module(model, params)
-            outputs.append(tei.build_and_run(mod, inputs, 1, params, npu=npu))
-        tei.verify(outputs, dtype, 1)
+        mod = tei.make_module(model, params)
+        outputs.append(tei.build_and_run(mod, inputs, 1, params, npu=npu))
+    tei.verify(outputs, dtype, 1)
 
 
 @requires_ethosn
