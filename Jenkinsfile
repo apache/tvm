@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-08-02T21:01:38.958652
+// Generated at 2022-08-04T10:14:32.880726
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -1314,7 +1314,7 @@ def shard_run_unittest_GPU_3_of_3() {
 }
 
 
-def shard_run_integration_CPU_1_of_6() {
+def shard_run_integration_CPU_1_of_10() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
@@ -1324,7 +1324,7 @@ def shard_run_integration_CPU_1_of_6() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TVM_NUM_SHARDS=6',
+              'TVM_NUM_SHARDS=10',
               'TVM_SHARD_INDEX=0'], {
               sh(
                         script: """
@@ -1384,11 +1384,11 @@ def shard_run_integration_CPU_1_of_6() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('integration: CPU 1 of 6')
+    Utils.markStageSkippedForConditional('integration: CPU 1 of 10')
   }
 }
 
-def shard_run_integration_CPU_2_of_6() {
+def shard_run_integration_CPU_2_of_10() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
@@ -1398,7 +1398,7 @@ def shard_run_integration_CPU_2_of_6() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TVM_NUM_SHARDS=6',
+              'TVM_NUM_SHARDS=10',
               'TVM_SHARD_INDEX=1'], {
               sh(
                         script: """
@@ -1458,11 +1458,11 @@ def shard_run_integration_CPU_2_of_6() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('integration: CPU 2 of 6')
+    Utils.markStageSkippedForConditional('integration: CPU 2 of 10')
   }
 }
 
-def shard_run_integration_CPU_3_of_6() {
+def shard_run_integration_CPU_3_of_10() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
@@ -1472,7 +1472,7 @@ def shard_run_integration_CPU_3_of_6() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TVM_NUM_SHARDS=6',
+              'TVM_NUM_SHARDS=10',
               'TVM_SHARD_INDEX=2'], {
               sh(
                         script: """
@@ -1532,11 +1532,11 @@ def shard_run_integration_CPU_3_of_6() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('integration: CPU 3 of 6')
+    Utils.markStageSkippedForConditional('integration: CPU 3 of 10')
   }
 }
 
-def shard_run_integration_CPU_4_of_6() {
+def shard_run_integration_CPU_4_of_10() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
@@ -1546,7 +1546,7 @@ def shard_run_integration_CPU_4_of_6() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TVM_NUM_SHARDS=6',
+              'TVM_NUM_SHARDS=10',
               'TVM_SHARD_INDEX=3'], {
               sh(
                         script: """
@@ -1606,11 +1606,11 @@ def shard_run_integration_CPU_4_of_6() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('integration: CPU 4 of 6')
+    Utils.markStageSkippedForConditional('integration: CPU 4 of 10')
   }
 }
 
-def shard_run_integration_CPU_5_of_6() {
+def shard_run_integration_CPU_5_of_10() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
@@ -1620,7 +1620,7 @@ def shard_run_integration_CPU_5_of_6() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TVM_NUM_SHARDS=6',
+              'TVM_NUM_SHARDS=10',
               'TVM_SHARD_INDEX=4'], {
               sh(
                         script: """
@@ -1680,11 +1680,11 @@ def shard_run_integration_CPU_5_of_6() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('integration: CPU 5 of 6')
+    Utils.markStageSkippedForConditional('integration: CPU 5 of 10')
   }
 }
 
-def shard_run_integration_CPU_6_of_6() {
+def shard_run_integration_CPU_6_of_10() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
@@ -1694,7 +1694,7 @@ def shard_run_integration_CPU_6_of_6() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TVM_NUM_SHARDS=6',
+              'TVM_NUM_SHARDS=10',
               'TVM_SHARD_INDEX=5'], {
               sh(
                         script: """
@@ -1754,7 +1754,303 @@ def shard_run_integration_CPU_6_of_6() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('integration: CPU 6 of 6')
+    Utils.markStageSkippedForConditional('integration: CPU 6 of 10')
+  }
+}
+
+def shard_run_integration_CPU_7_of_10() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
+        try {
+          docker_init(ci_cpu)
+          init_git()
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cpu',
+              'TVM_NUM_SHARDS=10',
+              'TVM_SHARD_INDEX=6'], {
+              sh(
+                        script: """
+                          set -eux
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          md5sum build/libvta_tsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              ci_setup(ci_cpu)
+              sh (
+                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
+                label: 'Run CPU integration tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('integration: CPU 7 of 10')
+  }
+}
+
+def shard_run_integration_CPU_8_of_10() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
+        try {
+          docker_init(ci_cpu)
+          init_git()
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cpu',
+              'TVM_NUM_SHARDS=10',
+              'TVM_SHARD_INDEX=7'], {
+              sh(
+                        script: """
+                          set -eux
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          md5sum build/libvta_tsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              ci_setup(ci_cpu)
+              sh (
+                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
+                label: 'Run CPU integration tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('integration: CPU 8 of 10')
+  }
+}
+
+def shard_run_integration_CPU_9_of_10() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
+        try {
+          docker_init(ci_cpu)
+          init_git()
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cpu',
+              'TVM_NUM_SHARDS=10',
+              'TVM_SHARD_INDEX=8'], {
+              sh(
+                        script: """
+                          set -eux
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          md5sum build/libvta_tsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              ci_setup(ci_cpu)
+              sh (
+                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
+                label: 'Run CPU integration tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('integration: CPU 9 of 10')
+  }
+}
+
+def shard_run_integration_CPU_10_of_10() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
+        try {
+          docker_init(ci_cpu)
+          init_git()
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cpu',
+              'TVM_NUM_SHARDS=10',
+              'TVM_SHARD_INDEX=9'], {
+              sh(
+                        script: """
+                          set -eux
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          md5sum build/libvta_tsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              ci_setup(ci_cpu)
+              sh (
+                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
+                label: 'Run CPU integration tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('integration: CPU 10 of 10')
   }
 }
 
@@ -4257,23 +4553,35 @@ stage('Test') {
   'unittest: GPU 3 of 3': {
     shard_run_unittest_GPU_3_of_3()
   },
-  'integration: CPU 1 of 6': {
-    shard_run_integration_CPU_1_of_6()
+  'integration: CPU 1 of 10': {
+    shard_run_integration_CPU_1_of_10()
   },
-  'integration: CPU 2 of 6': {
-    shard_run_integration_CPU_2_of_6()
+  'integration: CPU 2 of 10': {
+    shard_run_integration_CPU_2_of_10()
   },
-  'integration: CPU 3 of 6': {
-    shard_run_integration_CPU_3_of_6()
+  'integration: CPU 3 of 10': {
+    shard_run_integration_CPU_3_of_10()
   },
-  'integration: CPU 4 of 6': {
-    shard_run_integration_CPU_4_of_6()
+  'integration: CPU 4 of 10': {
+    shard_run_integration_CPU_4_of_10()
   },
-  'integration: CPU 5 of 6': {
-    shard_run_integration_CPU_5_of_6()
+  'integration: CPU 5 of 10': {
+    shard_run_integration_CPU_5_of_10()
   },
-  'integration: CPU 6 of 6': {
-    shard_run_integration_CPU_6_of_6()
+  'integration: CPU 6 of 10': {
+    shard_run_integration_CPU_6_of_10()
+  },
+  'integration: CPU 7 of 10': {
+    shard_run_integration_CPU_7_of_10()
+  },
+  'integration: CPU 8 of 10': {
+    shard_run_integration_CPU_8_of_10()
+  },
+  'integration: CPU 9 of 10': {
+    shard_run_integration_CPU_9_of_10()
+  },
+  'integration: CPU 10 of 10': {
+    shard_run_integration_CPU_10_of_10()
   },
   'python: i386 1 of 5': {
     shard_run_python_i386_1_of_5()
