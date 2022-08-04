@@ -277,15 +277,16 @@ def test_fake_quantize_maxpool():
     compare_fq_to_int(op, [x_np])
 
 
-def test_fake_quantize_adaptive_avgpool1d():
-    x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
+@pytest.mark.parametrize("output_size", [None, 1])
+def test_fake_quantize_adaptive_avgpool1d(output_size):
+    x = relay.var("x", shape=[1, 128, 768], dtype="int8")
 
     zero = relay.const(0)
     x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
-    op = relay.op.nn.adaptive_avg_pool1d(x)
+    op = relay.op.nn.adaptive_avg_pool1d(x, output_size)
     op = relay.qnn.op.quantize(op, relay.const(2.0), zero)
 
-    x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
+    x_np = np.random.randint(-128, 127, size=[1, 128, 768], dtype="int8")
 
     compare_fq_to_int(op, [x_np], True)
 
