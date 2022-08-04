@@ -121,19 +121,30 @@ DLPackTensorExt create_dlpack_tensor_ext(tvm::runtime::NDArray* src, bool is_boo
 }
 
 /*
+ * Create an empty NDArray with boolean type.
+ * @param src DLpack extended tensor
+ * @return an empty NDArray
+ */
+tvm::runtime::NDArray create_empty_bool_ndarray(DLPackTensorExt* src) {
+  auto& dl_tensor = src->dl_managed_tensor->dl_tensor;
+  std::vector<ShapeTuple::index_type> shape;
+  shape.resize(dl_tensor.ndim);
+  shape.assign(dl_tensor.shape, dl_tensor.shape + dl_tensor.ndim);
+  LOG(INFO) << shape[0] << " " << shape[1];
+  auto shapeTuple = ShapeTuple(shape);
+  auto ret = tvm::runtime::NDArray::Empty(shapeTuple, DataType::Bool(), dl_tensor.device);
+  return ret;
+}
+
+/*
  * Create an NDArray with boolean type. (One memory copy)
  * @param src DLpack extended tensor
  * @return a new NDArray
  */
 tvm::runtime::NDArray create_bool_ndarray(DLPackTensorExt* src) {
-  auto& dl_tensor = src->dl_managed_tensor->dl_tensor;
-  std::vector<ShapeTuple::index_type> shape;
-  shape.resize(dl_tensor.ndim);
-  shape.assign(dl_tensor.shape, dl_tensor.shape + dl_tensor.ndim);
-  auto shapeTuple = ShapeTuple(shape);
-  auto ret = tvm::runtime::NDArray::Empty(shapeTuple, DataType::Bool(), dl_tensor.device);
+  auto&& ret = create_empty_bool_ndarray(src);
   ret.CopyFrom(&src->dl_managed_tensor->dl_tensor);
-  return ret;
+  return std::move(ret);
 }
 
 /*
@@ -152,7 +163,7 @@ tvm::runtime::NDArray ndarray_from_dlpack(DLPackTensorExt* src) {
     // one memory copy
     array = create_bool_ndarray(src);
   } else if (is_zero_copy) {
-    array = NDArray::FromDLPack(src->dl_managed_tensor);
+    array = NDArray::FromExternalDLTensor(src->dl_managed_tensor->dl_tensor);
   } else {
     // one memory copy
     array = NDArray::NewFromDLTensor(&dl_tensor, dl_tensor.device);
@@ -194,11 +205,8 @@ void tvm_contrib_torch_operator_module_forward(TVMContribTorchRuntimeModule* run
                  nullptr);
 
   for (int k = 0; k < input_size; ++k) {
-    tvm::runtime::NDArray* result_ndarray =
-        static_cast<tvm::runtime::NDArray*>(tvm_values[k].v_handle);
-    // "result_ndarray->ToDLPack()->dl_tensor" will lead a memory error
-    // Maybe the static_cast is problematic
-    inputs[k].dl_managed_tensor->dl_tensor = result_ndarray->ToDLPack()->dl_tensor;
+    auto result = static_cast<DLManagedTensor*>(tvm_values[k].v_handle);
+    tvm::runtime::NDArray::CopyFromTo(&result->dl_tensor, &inputs[k].dl_managed_tensor->dl_tensor);
   }
 }
 
