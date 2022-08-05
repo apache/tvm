@@ -133,7 +133,8 @@ Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
 }
 
 // Helper class that is used during lowering to TE.
-// It matches sequence of Ops and lower them into single TOPI operation.
+// It matches sequence of Ops and lower them into single TOPI operation. Has sense for Hexagon only.
+// All supported patterns are enumerated in "supported_patterns_"
 class PatternMatcher {
  public:
   PatternMatcher()
@@ -147,33 +148,32 @@ class PatternMatcher {
     ICHECK(call_node->op.as<OpNode>());
     Op op = Downcast<Op>(call_node->op);
     if (op == qnn_conv2d_op_) {
-      registered_ops_[QConv2d]++;
+      registered_ops_.push_front(P_QConv2d);
       ICHECK(anchor_op_ == nullptr);
       anchor_op_ = call_node;
     } else if (op == qnn_requantize_op_) {
-      registered_ops_[QRequantize]++;
+      registered_ops_.push_front(P_QRequantize);
     } else if (op == bias_add_op_) {
-      registered_ops_[BiasAdd]++;
+      registered_ops_.push_front(P_BiasAdd);
     } else if (op == qnn_dense_op_) {
-      registered_ops_[QDense]++;
+      registered_ops_.push_front(P_QDense);
       ICHECK(anchor_op_ == nullptr);
       anchor_op_ = call_node;
+    } else {
+      registered_ops_.push_front(P_Opaque);
     }
   }
 
-  // Check whether given Op is part of matched pattern.
+  // Check whether given Op is a part of matched pattern.
   bool find(const Op& op) {
     if (registered_ops_.empty()) return false;
 
     if (op == qnn_conv2d_op_ || op == qnn_requantize_op_ || op == bias_add_op_ ||
         op == qnn_dense_op_) {
-      // Patterns: qnn.conv2d -> qnn.requantize or qnn.conv2d -> bias_add -> qnn.requantize
-      if (registered_ops_[QConv2d] && registered_ops_[QRequantize]) {
-        return true;
-      }
-      // Patterns: qnn.dense -> qnn.requantize or qnn.dense -> bias_add -> qnn.requantize
-      if (registered_ops_[QDense] && registered_ops_[QRequantize]) {
-        return true;
+      for (const auto& pat : supported_patterns_) {
+        auto it =
+            std::search(registered_ops_.begin(), registered_ops_.end(), pat.begin(), pat.end());
+        if (it != registered_ops_.end()) return true;
       }
     }
     return false;
@@ -206,11 +206,19 @@ class PatternMatcher {
   const Op& qnn_requantize_op_;
   const Op& bias_add_op_;
 
-  // Main (complicated) operation in the primitive.
+  // Main (complicated) operation in the primitive (for example qnn.conv2d, qnn.dense etc.).
   const CallNode* anchor_op_ = nullptr;
 
-  enum POper { QConv2d, QDense, BiasAdd, QRequantize };
-  std::map<POper, int> registered_ops_;
+  enum POper { P_QConv2d, P_QDense, P_BiasAdd, P_QRequantize, P_Opaque };
+
+  std::deque<POper> registered_ops_;
+
+  const std::vector<std::deque<POper>> supported_patterns_ = {
+      {P_QDense, P_BiasAdd, P_QRequantize},   // Pattern qnn.dense -> bias_add -> qnn.requantize
+      {P_QDense, P_QRequantize},              // Patter qnn.dense -> qnn.requantize
+      {P_QConv2d, P_BiasAdd, P_QRequantize},  // Pattern qnn.conv2d -> bias_add -> qnn.requantize
+      {P_QConv2d, P_QRequantize}              // Patter qnn.conv2d -> qnn.requantize
+  };
 };
 
 // Lowers Relay primitive Function to TE Compute
