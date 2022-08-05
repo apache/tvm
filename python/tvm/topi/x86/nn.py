@@ -110,6 +110,19 @@ def schedule_softmax(outs):
 
 
 def schedule_batch_norm(outs):
+    """Schedule for batch_norm
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of batch_norm
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
     s = te.create_schedule([x.op for x in outs])
     # only parallelize outer dimensions up to axis
     output_op = outs[0].op
