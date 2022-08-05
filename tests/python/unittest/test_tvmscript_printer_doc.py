@@ -511,6 +511,7 @@ def test_stmt_doc_comment():
 
     comment = "test comment"
     doc.comment = comment
+    assert "comment" not in doc.__dict__
     assert doc.comment == comment
 
 
