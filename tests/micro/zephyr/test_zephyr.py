@@ -32,7 +32,6 @@ from tvm.relay.backend import Executor, Runtime
 from tvm.relay.testing import byoc
 from tvm.contrib import utils
 from tvm.micro.testing.utils import check_tune_log
-from tvm.target import arm_isa
 
 import test_utils
 
@@ -525,8 +524,7 @@ def test_schedule_build_with_cmsis_dependency(workspace_dir, board, west_cmd, mi
     build_config = {"debug": microtvm_debug}
     target = tvm.target.target.micro(model, options=["-keys=arm_cpu,cpu"])
 
-    isa = arm_isa.IsaAnalyzer(target)
-    if not isa.has_dsp_support:
+    if not target.features.has_dsp:
         pytest.skip(f"ISA does not support DSP. target: {target}")
 
     # Create a Relay conv2d
