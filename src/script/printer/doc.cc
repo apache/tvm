@@ -217,6 +217,10 @@ ClassDoc::ClassDoc(IdDoc name, Array<ExprDoc> decorators, Array<StmtDoc> body) {
 }
 
 TVM_REGISTER_NODE_TYPE(DocNode);
+TVM_REGISTER_GLOBAL("script.printer.DocSetSourcePaths")
+    .set_body_typed([](Doc doc, Array<ObjectPath> source_paths) {
+      doc->source_paths = source_paths;
+    });
 
 TVM_REGISTER_NODE_TYPE(ExprDocNode);
 TVM_REGISTER_GLOBAL("script.printer.ExprDocAttr").set_body_method<ExprDoc>(&ExprDocNode::Attr);
