@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,33 +15,21 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#
 
-set -e
+set -euxo pipefail
 
-if [ "$1" == "--help" ]; then
-    echo "Usage ./apps/microtvm/reference-vm/rebuild_tvm.sh"
-    exit -1
-fi
+BUILD_DIR=$1
+mkdir -p "$BUILD_DIR"
+cd "$BUILD_DIR"
+cp ../cmake/config.cmake .
 
-# Get number of cores for build
-if [ -n "${TVM_CI_NUM_CORES}" ]; then
-  num_cores=${TVM_CI_NUM_CORES}
-else
-  # default setup for Vagrantfile
-  num_cores=2
-fi
-
-cd "$(dirname $0)"
-cd "$(git rev-parse --show-toplevel)"
-BUILD_DIR="build-microtvm"
-
-if [ ! -e "${BUILD_DIR}" ]; then
-    mkdir "${BUILD_DIR}"
-fi
-
-./tests/scripts/task_config_build_cortexm.sh "${BUILD_DIR}"
-cd "${BUILD_DIR}"
-cmake ..
-rm -rf standalone_crt host_standalone_crt  # remove stale generated files
-make -j${num_cores}
+echo set\(USE_SORT ON\) >> config.cmake
+echo set\(USE_MICRO ON\) >> config.cmake
+echo set\(USE_CMSISNN ON\) >> config.cmake
+echo set\(USE_ETHOSU ON\) >> config.cmake
+echo set\(USE_PROFILER ON\) >> config.cmake
+echo set\(USE_LLVM llvm-config-10\) >> config.cmake
+echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
+echo set\(HIDE_PRIVATE_SYMBOLS ON\) >> config.cmake
+echo set\(USE_CCACHE OFF\) >> config.cmake
+echo set\(SUMMARIZE ON\) >> config.cmake

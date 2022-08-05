@@ -184,22 +184,22 @@ stage('Build') {
       Utils.markStageSkippedForConditional('BUILD: arm')
     }
   },
-  'BUILD: QEMU': {
+  'BUILD: Cortex-M': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
-        ws({{ m.per_exec_ws('tvm/build-qemu') }}) {
-          docker_init(ci_qemu)
+        ws({{ m.per_exec_ws('tvm/build-cortexm') }}) {
+          docker_init(ci_cortexm)
           init_git()
           sh (
-            script: "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh build",
-            label: 'Create QEMU cmake config',
+            script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_config_build_cortexm.sh build",
+            label: 'Create Cortex-M cmake config',
           )
-          make(ci_qemu, 'build', '-j2')
-          {{ m.upload_artifacts(tag='qemu', filenames=tvm_lib, folders=microtvm_template_projects) }}
+          make(ci_cortexm, 'build', '-j2')
+          {{ m.upload_artifacts(tag='cortexm', filenames=tvm_lib, folders=microtvm_template_projects) }}
         }
       }
      } else {
-      Utils.markStageSkippedForConditional('BUILD: QEMU')
+      Utils.markStageSkippedForConditional('BUILD: Cortex-M')
     }
   },
   'BUILD: Hexagon': {

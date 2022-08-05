@@ -165,7 +165,7 @@ def docker(name: str, image: str, scripts: List[str], env: Dict[str, str], inter
         "ci_cpu",
         # "ci_wasm",
         # "ci_i386",
-        "ci_qemu",
+        "ci_cortexm",
         "ci_arm",
         "ci_hexagon",
     }
@@ -618,8 +618,8 @@ generated = [
         },
     ),
     generate_command(
-        name="qemu",
-        help="Run QEMU build and test(s)",
+        name="cortexm",
+        help="Run Cortex-M build and test(s)",
         options={
             "cpp": CPP_UNITTEST,
             "test": (

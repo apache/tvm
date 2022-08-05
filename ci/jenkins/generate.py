@@ -57,7 +57,7 @@ data = {
             "platform": "CPU",
         },
         {
-            "name": "ci_qemu",
+            "name": "ci_cortexm",
             "platform": "CPU",
         },
         {
