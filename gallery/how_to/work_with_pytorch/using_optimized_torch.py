@@ -157,7 +157,7 @@ jit_module_resnet18 = JitModule()
 # Using PyTorch's benchmark Compare class, we can have a straightforward comparison between two inference models.
 
 results = []
-for i in range(20):
+for i in range(5):
     test_input = torch.rand(1, 3, 224, 224).half().cuda()
     sub_label = f"[test {i}]"
     results.append(
@@ -182,6 +182,10 @@ for i in range(20):
 # We can print the results on screen.
 compare = benchmark.Compare(results)
 compare.print()
+
+# In the working machine, the average inference time by `optimized_torch` is 860.5 us,
+# while the average inference time of `jit_optimized` is 1156.3 us,
+# improving the performance by around 1/4.
 
 # As above, we can save the module for future use
 torch.save(meta_module_resnet18, "meta_tuned_resnet18.pt")
