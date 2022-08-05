@@ -45,7 +45,7 @@ class Doc(Object):
         return _ffi_api.DocSetSourcePaths(self, value)  # type: ignore # pylint: disable=no-member
 
 
-class ExprDoc(Object):
+class ExprDoc(Doc):
     """Base class of all expression Docs"""
 
     def attr(self, name: str) -> "AttrAccessDoc":
