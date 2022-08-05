@@ -96,14 +96,14 @@ class StoreUndefRemover : public StmtExprMutator {
  public:
   static Stmt Apply(Stmt stmt) {
     auto to_remove = StoreUndefLocator::Locate(stmt);
-    StoreUndefRemover mutator(std::move(to_remove));
+    StoreUndefRemover mutator(to_remove);
     return mutator(std::move(stmt));
   }
 
  private:
   using Parent = StmtExprMutator;
 
-  explicit StoreUndefRemover(std::unordered_set<const BufferStoreNode*> to_remove)
+  explicit StoreUndefRemover(const std::unordered_set<const BufferStoreNode*>& to_remove)
       : to_remove_(to_remove) {}
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
@@ -114,7 +114,7 @@ class StoreUndefRemover : public StmtExprMutator {
     }
   }
 
-  std::unordered_set<const BufferStoreNode*> to_remove_;
+  const std::unordered_set<const BufferStoreNode*>& to_remove_;
 };
 
 // Remove any BufferStores whose value depends on T.undef
