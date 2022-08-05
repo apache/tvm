@@ -21,13 +21,19 @@ Wrap Your Tensor IR with PyTorch Module
 This article is an introductory tutorial to wrap the Tensor IR code with PyTorch module.
 By the decorator `as_torch`, users are able to wrap a TVMscript code into an PyTorch nn.Module naturally.
 """
-# Import Tvm and PyTorch, as well as necessary libraries
+
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
+
+# Import PyTorch, as well as necessary libraries
 import torch
 import torch.nn.functional as F
 import torch.utils.benchmark as benchmark
 
 import tvm
-import tvm.testing
 from tvm.contrib.torch import as_torch
 from tvm.script import tir as T
 
@@ -102,7 +108,7 @@ class tvm_depthwise:
 ret_tvm = torch.zeros(700, 800 - 50 + 1).cuda()
 tvm_depthwise(inputs, filters, ret_tvm)
 
-tvm.testing.assert_allclose(ret_torch.cpu().numpy(), ret_tvm.cpu().numpy(), atol=1e-5, rtol=1e-5)
+testing.assert_allclose(ret_torch.cpu().numpy(), ret_tvm.cpu().numpy(), atol=1e-5, rtol=1e-5)
 
 ######################################################################
 # Benchmark

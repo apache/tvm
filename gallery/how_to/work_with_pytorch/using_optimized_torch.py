@@ -21,23 +21,25 @@ Compile PyTorch Models
 This article is an introductory tutorial to optimize PyTorch models by using `tvm.contrib.torch.optimize_torch`.
 For us to follow this tutorial, PyTorch as well as TorchVision should be installed.
 """
-# Import TVM
-import tvm
-import tvm.testing
 
-# Import `optimize_torch` function
-from tvm.contrib.torch import optimize_torch
-from tvm.meta_schedule import TuneConfig
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
 
 # Import PyTorch
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision.models import resnet18
 
 # Import library for profiling
 import torch.utils.benchmark as benchmark
+from torchvision.models import resnet18
 
+# Import `optimize_torch` function
+from tvm.contrib.torch import optimize_torch
+from tvm.meta_schedule import TuneConfig
 
 ######################################################################
 # Define a simple module written by PyTorch
@@ -83,7 +85,7 @@ model_loaded = torch.load("meta_model.pt")
 # We load the module and run again and it will return the same result as above.
 ret2 = model_loaded(example_input)
 
-tvm.testing.assert_allclose(ret1.numpy(), ret2.numpy(), atol=1e-5, rtol=1e-5)
+testing.assert_allclose(ret1.numpy(), ret2.numpy(), atol=1e-5, rtol=1e-5)
 
 ######################################################################
 # Define the resnet18 optimized by MetaSchedule
