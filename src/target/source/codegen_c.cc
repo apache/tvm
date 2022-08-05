@@ -29,7 +29,6 @@
 
 #include "../../arith/pattern_match.h"
 #include "codegen_params.h"
-#include "tvm/tir/stmt.h"
 
 namespace tvm {
 namespace codegen {
