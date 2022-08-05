@@ -377,6 +377,26 @@ class AllocateConst(Stmt):
         )
 
 
+@tvm._ffi.register_object("tir.DeclBuffer")
+class DeclBuffer(Stmt):
+    """DeclBuffer node.
+
+    Parameters
+    ----------
+    buffer: Buffer
+        The buffer being declared.
+
+    body: Stmt
+        The body statement to be executed.
+
+    span: Optional[Span]
+        The location of this DeclBuffer in the source code.
+    """
+
+    def __init__(self, buffer, body, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.DeclBuffer, buffer, body, span)
+
+
 @tvm._ffi.register_object("tir.AttrStmt")
 class AttrStmt(Stmt):
     """AttrStmt node.
