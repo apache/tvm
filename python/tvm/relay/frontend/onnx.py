@@ -97,6 +97,11 @@ def get_numpy(tensor_proto):
 
 def get_type(elem_type):
     """Converts onnx integer datatype to numpy datatype"""
+    # If a string was passed instead of a tensor type, it does not need
+    # conversion and can be returned.
+    if isinstance(elem_type, str):
+        return elem_type
+
     try:
         from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
     except ImportError as e:
