@@ -492,7 +492,7 @@ TVM_REGISTER_GLOBAL("profiling.timer.opencl").set_body_typed([](Device dev) {
 });
 
 }  // namespace cl
-int64_t OpenCLTimerNode::count_timer_execs = 0;
-std::vector<int64_t> OpenCLTimerNode::event_start_idxs;
+size_t OpenCLTimerNode::count_timer_execs = 0;
+std::vector<size_t> OpenCLTimerNode::event_start_idxs;
 }  // namespace runtime
 }  // namespace tvm
