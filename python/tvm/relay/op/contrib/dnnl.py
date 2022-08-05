@@ -77,6 +77,11 @@ def _register_external_op_helper(op_name, supported=True):
         if any([x.checked_type.dtype == "int64" for x in args]):
             logger.info("DNNL does not support int64.")
             return False
+        # DNNL does not support pooling with ceil_mode = True.
+        if "pool" in op_name:
+            attrs = dict(get_attrs(expr))
+            if "ceil_mode" in attrs.keys() and attrs["ceil_mode"]:
+                return False
         return supported
 
     return _func_wrapper
