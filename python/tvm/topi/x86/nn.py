@@ -107,3 +107,19 @@ def schedule_softmax(outs):
 
     traverse_inline(s, outs[0].op, _callback)
     return s
+
+def schedule_batch_norm(outs):
+    s = te.create_schedule([x.op for x in outs])
+    # only parallelize outer dimensions up to axis
+    output_op=outs[0].op
+    axis = output_op.axis
+    outer_axes = [output_op.axis[i] for i in range(0, len(axis)-1)]
+    fused_outer_axes = s[output_op].fuse(*outer_axes)
+    s[output_op].parallel(fused_outer_axes)
+    # when scale or center is enabled
+    if 'divide' not in output_op.name:
+        div = output_op.input_tensors[0]
+        substract = s[div].op.input_tensors[0]
+        s[div].compute_inline()
+        s[substract].compute_inline()
+    return s
