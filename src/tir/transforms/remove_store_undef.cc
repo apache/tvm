@@ -144,34 +144,34 @@ class ContainsUndefChecker : public StmtExprVisitor {
 };
 
 namespace transform {
-  Pass RemoveStoreUndefInternal() {
-    auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-      auto* n = f.CopyOnWrite();
-      n->body = StoreUndefRemover::Apply(std::move(n->body));
-      return f;
-    };
-    return CreatePrimFuncPass(pass_func, 0, "tir.RemoveStoreUndefInternal", {});
-  }
+Pass RemoveStoreUndefInternal() {
+  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    n->body = StoreUndefRemover::Apply(std::move(n->body));
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.RemoveStoreUndefInternal", {});
+}
 
-  Pass ValidateAllUndefRemoved() {
-    auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-      bool contains_undef = ContainsUndefChecker::Check(f->body);
-      ICHECK(!contains_undef) << "Expected removal of BufferStore containing builtin::undef() "
-                              << "to remove all instances of builtin::undef().  "
-                              << "Instead, result was"
-                              << "\n"
-                              << f;
-      return f;
-    };
-    return CreatePrimFuncPass(pass_func, 0, "tir.ValidateAllUndefRemoved", {});
-  }
+Pass ValidateAllUndefRemoved() {
+  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    bool contains_undef = ContainsUndefChecker::Check(f->body);
+    ICHECK(!contains_undef) << "Expected removal of BufferStore containing builtin::undef() "
+                            << "to remove all instances of builtin::undef().  "
+                            << "Instead, result was"
+                            << "\n"
+                            << f;
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.ValidateAllUndefRemoved", {});
+}
 
-  Pass RemoveStoreUndef() {
-    return Sequential({RemoveStoreUndefInternal(), RemoveNoOp(), ValidateAllUndefRemoved()},
-                      "tir.RemoveStoreUndef");
-  }
+Pass RemoveStoreUndef() {
+  return Sequential({RemoveStoreUndefInternal(), RemoveNoOp(), ValidateAllUndefRemoved()},
+                    "tir.RemoveStoreUndef");
+}
 
-  TVM_REGISTER_GLOBAL("tir.transform.RemoveStoreUndef").set_body_typed(RemoveStoreUndef);
+TVM_REGISTER_GLOBAL("tir.transform.RemoveStoreUndef").set_body_typed(RemoveStoreUndef);
 
 }  // namespace transform
 
