@@ -509,7 +509,6 @@ TVM_DLL Pass SimplifyExpr();
  *
  * \param config All available targets.
  *
- *
  * \return The pass.
  */
 TVM_DLL Pass RelayToTIRTargetHook(CompilationConfig config);

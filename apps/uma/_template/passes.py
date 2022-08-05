@@ -64,11 +64,7 @@ class MyAiHwConv2dPass:
                     offset_order = ["co", "w", "h", "ci", "kh", "kw"]
                     offsets = [_loops[i].extent.value for i in offset_order]
                     args = buffers + offsets
-                    external_call = tvm.tir.Evaluate(
-                        tir_call(irb, True, cls._EXTERNAL_FUNCTION_NAME, *args)
-                    )
-                    ext_calls = tvm.tir.SeqStmt([external_call])
-                    irb.emit(ext_calls)
+                    irb.emit(tir_call(irb, True, cls._EXTERNAL_FUNCTION_NAME, *args))
                     irb_result = irb.get()
                     return irb_result
                 elif isinstance(op, tvm.tir.SeqStmt):
@@ -129,7 +125,7 @@ def tir_call(ib: tvm.tir.ir_builder, extern: bool, name: str, *args):
 
     if extern:
         args = [i.data if isinstance(i, tvm.tir.Buffer) else i for i in args]
-        call = tvm.tir.call_extern("int32", name, *args)
+        return tvm.tir.call_extern("int32", name, *args)
     else:
         args = [
             buf_from_array(ib, i, "int32")
@@ -137,6 +133,4 @@ def tir_call(ib: tvm.tir.ir_builder, extern: bool, name: str, *args):
             else i
             for i in args
         ]
-        call = tvm.tir.call_packed(name, *args)
-
-    return call
+        return tvm.tir.call_packed(name, *args)

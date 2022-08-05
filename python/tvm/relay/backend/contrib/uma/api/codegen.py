@@ -28,9 +28,20 @@ class UMACodegen(object):
     def __init__(self, target_name: str) -> None:
         self.target_name = target_name
 
-    def _register_codegen(self, fmt: str = "c", **kwargs) -> None:
+    def _register_codegen(
+        self, fmt: str = "c", includes: Optional[Callable[[], str]] = None, **kwargs
+    ) -> None:
+        """Registration codegen in UMA.
+
+        Parameters
+        ----------
+        fmt: str
+            format of codegen. Currently only "c" is supported.
+        includes : OptionalCallable[[], str]]
+            user-defined function that adds C-#include statement to UMA C-Code.
+        """
         if fmt == "c":
-            self._register_c_codegen(**kwargs)
+            self._register_c_codegen(includes, **kwargs)
         else:
             raise RuntimeError(f'Unsupported codegen format "{fmt}"')
 

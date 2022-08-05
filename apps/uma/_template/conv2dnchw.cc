@@ -18,6 +18,7 @@
 */
 #include <stdlib.h>
 
+//TODO(mjklaiber): leverage pragma import_c in the future
 #ifdef __cplusplus
 extern "C"
 #endif

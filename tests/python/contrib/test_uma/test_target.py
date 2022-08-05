@@ -14,9 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from typing import Union
 
 import pytest
 import tvm
+from tests.python.contrib.test_uma.test_uma_vanilla_accelerator import VanillaAcceleratorBackend
 from tvm.relay.backend.contrib.uma import uma_available
 
 pytestmark = pytest.mark.skipif(not uma_available(), reason="UMA not available")
@@ -54,6 +56,29 @@ def test_uma_target(target_name, target_attrs, target_args):
 
     for attr in target_args.keys():
         assert my_target.attrs[attr] == target_args[attr]
+
+
+@pytest.mark.parametrize(
+    "attr_name, target_attr",
+    [
+        ("float_attr", 3.14),
+        ("none_attr", None),
+    ],
+)
+def test_invalid_attr_option(attr_name: str, target_attr: Union[str, int, bool, float, None]):
+    if target_attr is None:
+        # None cannot be caught as TVMError, as it causes a SIGKILL, therefore it must be prevented to be
+        # entered into relay.backend.contrib.uma.RegisterTarget at Python level.
+        with pytest.raises(ValueError):
+            uma_backend = VanillaAcceleratorBackend()
+            uma_backend._target_attrs = {attr_name: target_attr}
+            uma_backend.register()
+    else:
+        registration_func = tvm.get_global_func("relay.backend.contrib.uma.RegisterTarget")
+        target_name = f"{attr_name}_{target_attr}"
+        target_attr = {attr_name: target_attr}
+        with pytest.raises(tvm.TVMError, match=r"Only String, Integer, or Bool are supported. .*"):
+            registration_func(target_name, target_attr)
 
 
 if __name__ == "__main__":

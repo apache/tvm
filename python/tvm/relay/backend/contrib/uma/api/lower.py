@@ -24,23 +24,24 @@ from tvm.relay.op.op import register_strategy
 from . import _ffi_api
 from .utils import PassPhase
 
+OperatorStrategies = List[
+    Tuple[
+        str,
+        Callable[
+            [tvm.ir.Attrs, tvm.ir.Array, tvm.ir.TensorType, tvm.target.Target],
+            tvm.relay.op.op.OpStrategy,
+        ],
+        Optional[int],
+    ]
+]
+
 
 class UMALower:
     """Lowering base class of the Universal Modular Accelerator Interface (UMA)."""
 
     def __init__(self, target_name: str) -> None:
         self.target_name = target_name
-
-        self._operator_strategies: List[
-            Tuple[
-                str,
-                Callable[
-                    [tvm.ir.Attrs, tvm.ir.Array, tvm.ir.TensorType, tvm.target.Target],
-                    tvm.relay.op.op.OpStrategy,
-                ],
-                Optional[int],
-            ]
-        ] = []
+        self._operator_strategies: OperatorStrategies = []
         self._tir_passes: List[Tuple[PassPhase, tvm.tir.transform.PrimFuncPass]] = []
 
     def _lower_relay_to_tir(self, relay_prim_func: relay.Function) -> tvm.tir.PrimFunc:

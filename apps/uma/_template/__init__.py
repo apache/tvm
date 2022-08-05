@@ -18,6 +18,5 @@
 
 Template files for UMA tutorial
 
-Do not import
 
 """

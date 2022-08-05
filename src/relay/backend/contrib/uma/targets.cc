@@ -70,8 +70,8 @@ TVM_REGISTER_GLOBAL("relay.backend.contrib.uma.RegisterTarget")
         } else if (default_value->IsInstance<IntImmNode>()) {
           target_kind.add_attr_option<Integer>(option_name, Downcast<Integer>(default_value));
         } else {
-          LOG(FATAL) << "Attribute option of type " << attr_option.second->GetTypeKey()
-                     << " can not be added. Only String, Integer, or Bool are supported.";
+                  LOG(FATAL) << "Only String, Integer, or Bool are supported. Given attribute option type: "
+                  << attr_option.second->GetTypeKey();
         }
       }
       return true;

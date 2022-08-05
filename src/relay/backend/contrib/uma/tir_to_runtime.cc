@@ -40,9 +40,10 @@ class UMACodegen : public codegen::CodeGenCHost {
   void Init(bool output_ssa, bool emit_asserts) {
     auto includes_pf =
         tvm::runtime::Registry::Get("relay.ext.uma.codegen_c_includes_" + target_str_);
-    ICHECK(includes_pf);
-    String includes = (*includes_pf)();
-    decl_stream << includes;
+    if (includes_pf){
+        String includes = (*includes_pf)();
+        decl_stream << includes;
+    }
     std::unordered_set<std::string> devices;
     devices.insert(target_str_);
     CodeGenCHost::Init(output_ssa, emit_asserts, target_str_, devices);

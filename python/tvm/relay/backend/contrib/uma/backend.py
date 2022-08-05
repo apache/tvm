@@ -272,7 +272,15 @@ class UMABackend(ABC):
 
     # Backend functions
     def register(self) -> None:
+        """
+        Registering UMABackend:
+         registering target attributes, relay_to_relay, relay_to_tir and tir_to_runtime
+        """
         registration_func = tvm.get_global_func("relay.backend.contrib.uma.RegisterTarget")
+
+        for name, attr in self._target_attrs:
+            if attr is None:
+                raise ValueError("Target attribute None is not supported.")
 
         if registration_func(self.target_name, self._target_attrs):
             self._relay_to_relay.register()
