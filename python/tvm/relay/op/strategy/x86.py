@@ -837,6 +837,7 @@ def concatenate_strategy_cpu(attrs, inputs, out_type, target):
         )
     return strategy
 
+
 @batch_norm_strategy.register(["cpu"])
 def batch_norm_strategy_cpu(attrs, inputs, out_type, target):
     """batch_norm x86 strategy"""
