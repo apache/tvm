@@ -108,7 +108,7 @@ NDArray StorageObj::AllocNDArray(size_t offset, std::vector<int64_t> shape, DLDa
 MemoryManager* MemoryManager::Global() {
   // NOTE: explicitly use new to avoid exit-time destruction of global state
   // Global state will be recycled by OS as the process exits.
-  static auto* inst = new MemoryManager();
+  thread_local static auto* inst = new MemoryManager();
   return inst;
 }
 
