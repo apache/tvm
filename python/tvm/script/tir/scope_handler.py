@@ -225,6 +225,87 @@ class AllocateConst(WithScopeHandler):
 
 
 @register
+class DeclBuffer(WithScopeHandler):
+    """Special Stmt decl_buffer(shape, dtype, data, strides, elem_offset, scope, align,
+                                offset_factor, buffer_type, axis_separators)
+    Example
+    -------
+    .. code-block:: python
+        A = T.decl_buffer((128, 128), dtype="float32")
+    """
+
+    def __init__(self):
+        def decl_buffer(
+            shape,
+            dtype="float32",
+            data=None,
+            strides=None,
+            elem_offset=None,
+            scope="global",
+            align=-1,
+            offset_factor=0,
+            buffer_type="default",
+            axis_separators=None,
+            span=None,
+        ):
+            return tvm.tir.DeclBuffer(self.buffer, self.body, span=span)
+
+        super().__init__(decl_buffer, concise_scope=True, def_symbol=True)
+
+    def enter_scope(
+        self,
+        node: synr.ast.Node,
+        context: ContextMaintainer,
+        arg_list: List[Any],
+        span: synr.ast.Span,
+    ):
+        # define buffer vars in symbol table
+        if isinstance(node, synr.ast.With):
+            vars = WithScopeHandler.get_optional_vars(node, context)
+            if len(vars) != 1:
+                context.report_error(f"Unexpected number of vars: 1 vs. {len(vars)}", node.span)
+            name = vars[0].id.name
+            var_span = vars[0].id.span
+        elif isinstance(node, synr.ast.Assign):
+            if len(node.lhs) != 1:
+                context.report_error(f"Unexpected number of vars: 1 vs. {len(node.lhs)}", node.span)
+            name = node.lhs[0].id.name
+            var_span = node.lhs[0].id.span
+        else:
+            raise Exception("Internal Bug")
+
+        def setup_buffer(
+            shape,
+            dtype,
+            data,
+            strides,
+            elem_offset,
+            scope,
+            align,
+            offset_factor,
+            buffer_type,
+            axis_separators,
+            span: Span = None,
+        ):
+            self.buffer = tvm.tir.decl_buffer(
+                shape=shape,
+                dtype=dtype,
+                data=data,
+                strides=strides,
+                elem_offset=elem_offset,
+                scope=scope,
+                data_alignment=align,
+                offset_factor=offset_factor,
+                buffer_type=buffer_type,
+                axis_separators=axis_separators,
+                span=span,
+            )
+
+        setup_buffer(*arg_list, span=tvm_span_from_synr(var_span))
+        context.update_symbol(name, self.buffer, node)
+
+
+@register
 class LaunchThread(WithScopeHandler):
     """With scope handler T.launch_thread(env_var, extent)"""
 
