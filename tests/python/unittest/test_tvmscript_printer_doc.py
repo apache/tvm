@@ -511,6 +511,8 @@ def test_stmt_doc_comment():
 
     comment = "test comment"
     doc.comment = comment
+    # Make sure the previous statement doesn't set attribute
+    # as if it's an ordinary Python object.
     assert "comment" not in doc.__dict__
     assert doc.comment == comment
 
