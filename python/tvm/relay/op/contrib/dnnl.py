@@ -605,7 +605,8 @@ def legalize_pad_avg_pool(attrs, inputs, types):
     if isinstance(data, relay.expr.Call) and data.op.name == "nn.pad":
         new_attrs["padding"] = (1, 1)
         new_attrs["count_include_pad"] = True
-    return relay.nn.avg_pool2d(data.args[0], **new_attrs)
+        return relay.nn.avg_pool2d(data.args[0], **new_attrs)
+    return
 
 
 def legalize_group_conv(attrs, inputs, types):
