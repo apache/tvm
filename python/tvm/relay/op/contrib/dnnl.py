@@ -343,8 +343,11 @@ def make_dnnl_pattern(op_name, with_bias, with_eltwise):
     pat_name += "_bias" if with_bias else ""
     pat_name += ("_" + with_eltwise.split(".")[-1]) if with_eltwise else ""
     if "conv" in op_name:
-        dnnl_pattern = (pat_name, make_conv_pattern(op_name, with_bias, with_eltwise),
-                        make_bias_add_pattren_predicate(add_checker),)
+        dnnl_pattern = (
+            pat_name,
+            make_conv_pattern(op_name, with_bias, with_eltwise),
+            make_bias_add_pattren_predicate(add_checker),
+        )
     elif op_name == "nn.dense":
         dnnl_pattern = (pat_name, make_dense_pattern(with_bias, with_eltwise))
     else:
@@ -611,7 +614,7 @@ def legalize_pad_avg_pool(attrs, inputs, types):
         new_attrs["padding"] = (1, 1)
         new_attrs["count_include_pad"] = True
         return relay.nn.avg_pool2d(data.args[0], **new_attrs)
-    return
+    return relay.nn.avg_pool2d(data, **attrs)
 
 
 def legalize_group_conv(attrs, inputs, types):
