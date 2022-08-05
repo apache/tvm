@@ -116,6 +116,8 @@ class TracedObjectFunctor {
 
   /*!
    * \brief Set the dispatch function
+   * \param token The dispatch token.
+   * \param type_index The TVM object type index for this dispatch function.
    * \param f The dispatch function.
    *
    * This takes a type-erased packed function as input. It should be used
