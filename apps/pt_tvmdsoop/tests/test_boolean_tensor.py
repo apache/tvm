@@ -82,7 +82,7 @@ def test_tensor_boolean_operation():
 
 @as_torch
 @T.prim_func
-def negate(X: T.Buffer[(8, 8), "bool"], Y: T.Buffer[(8, 8), "bool"]) -> None:
+def negate_tvmscript(X: T.Buffer[(8, 8), "bool"], Y: T.Buffer[(8, 8), "bool"]) -> None:
     for i, j in T.grid(8, 8):
         with T.block():
             Y[i, j] = not X[i, j]
@@ -92,7 +92,7 @@ def test_tvmscript_torch_decorator():
     q1 = (torch.rand(8, 8) + 0.5).int().bool()
     q2 = torch.zeros((8, 8), dtype=torch.bool)
 
-    negate(q1, q2)
+    negate_tvmscript(q1, q2)
 
     tvm.testing.assert_allclose(~q1.numpy(), q2.numpy(), atol=1e-5, rtol=1e-5)
 
