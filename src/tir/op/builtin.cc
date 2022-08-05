@@ -288,6 +288,10 @@ TIR_DEFINE_BUILTIN_FUNC(texture2d_load)
 TIR_DEFINE_BUILTIN_FUNC(mem_copy).set_attr<TCallEffectKind>("TCallEffectKind",
                                                             Integer(CallEffectKind::kOpaque));
 
+TIR_DEFINE_BUILTIN_FUNC(assume)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kEmbedInfo))
+    .set_num_inputs(1);
+
 }  // namespace builtin
 }  // namespace tir
 }  // namespace tvm

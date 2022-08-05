@@ -253,6 +253,17 @@ def RemoveNoOp():
     return _ffi_api.RemoveNoOp()  # type: ignore
 
 
+def RemoveAssume():
+    """Remove all instances of builtin::assume
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RemoveAssume()  # type: ignore
+
+
 def BF16Legalize():
     """Legalize bf16 typed Ops.
     Runs BF16Promote, BF16CastElimination and BF16TypeLowering

@@ -241,6 +241,17 @@ class StoreIntrin(Intrin):
 
 
 @register
+class AssumeIntrin(Intrin):
+    def __init__(self):
+        def assume(constraint, span):
+            return tvm.tir.Evaluate(
+                tvm.tir.call_intrin("bool", "tir.assume", constraint, span=span)
+            )
+
+        super().__init__(assume, stmt=True)
+
+
+@register
 def comm_reducer(lambda_io, identities, span):
     """Create a CommReducer from lambda inputs/outputs and the identities"""
     lambda_input = lambda_io[0]
