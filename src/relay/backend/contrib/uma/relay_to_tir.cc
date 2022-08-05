@@ -42,7 +42,7 @@ namespace relay {
 namespace contrib {
 namespace uma {
 
-//TODO(@mjklaiber, @manupa-arm, @areusch) move this to include
+// TODO(@mjklaiber, @manupa-arm, @areusch) move this to include
 /*!
  * \brief This mutator outlines functions that are marked with a named
  * "Compiler" attribute. Functions that do not match this condition remain
