@@ -42,7 +42,7 @@
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="integration: CPU",
   node="CPU-SMALL",
-  num_shards=6,
+  num_shards=10,
   ws="tvm/integration-python-cpu",
   platform="cpu",
   docker_image="ci_cpu",
