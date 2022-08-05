@@ -256,6 +256,9 @@ def multinomial(key, probs, num_samples):
 
     probs: relay.Expr
         Array containing the probabilities of returning each respective index.
+        If a tensor is provided, the last dimension is treated independently.
+        Negative values in this tensor will be clipped to zero to
+        represent they have no chance of being selected.
 
     num_samples : int
         Number of samples to return

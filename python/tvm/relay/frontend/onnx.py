@@ -4824,7 +4824,7 @@ class Multinomial(OnnxOpConverter):
         key = _op.random.threefry_key(seed)
         output = _op.random.multinomial(key, inputs[0], sample_size)
         _, indices = _expr.TupleWrapper(output, 2)
-        return _op.cast(indices, dtype)
+        return _op.cast(indices, get_type(dtype))
 
 
 class NegativeLogLikelihoodLoss(OnnxOpConverter):
