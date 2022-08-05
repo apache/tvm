@@ -3303,6 +3303,18 @@ def void_ptr():
     return func
 
 
+def decl_buffer():
+    @T.prim_func
+    def func(A: T.Buffer[(16, 16), "float32"], B: T.Buffer[(16, 16), "float32"]) -> None:
+        A_flattened = T.decl_buffer(data=A.data, shape=(256,), dtype="float32")
+        B_flattened = T.decl_buffer(data=B.data, shape=(256,), dtype="float32")
+        C_alias = T.decl_buffer(data=A_flattened.data, shape=(256,), dtype="float32")
+        for i in range(256):
+            B_flattened[i] = A_flattened[i] + C_alias[i] + T.float32(1.0)
+
+    return func
+
+
 ir_generator = tvm.testing.parameter(
     opt_gemm_normalize,
     opt_gemm_lower,
@@ -3342,6 +3354,7 @@ ir_generator = tvm.testing.parameter(
     buffer_ramp_access_as_slice_index,
     let_expression,
     void_ptr,
+    decl_buffer,
 )
 
 

@@ -508,6 +508,29 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->Print(op->body);
     });
 
+// DeclBuffer
+DeclBuffer::DeclBuffer(Buffer buffer, Stmt body, Span span) {
+  ObjectPtr<DeclBufferNode> node = make_object<DeclBufferNode>();
+  node->buffer = std::move(buffer);
+  node->body = std::move(body);
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+TVM_REGISTER_GLOBAL("tir.DeclBuffer").set_body_typed([](Buffer buffer, Stmt body, Span span) {
+  return DeclBuffer(buffer, body, span);
+});
+
+TVM_REGISTER_NODE_TYPE(DeclBufferNode);
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<DeclBufferNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const DeclBufferNode*>(node.get());
+      p->PrintIndent();
+      p->stream << "decl_buffer " << op->buffer << "\n";
+      p->stream << op->body;
+    });
+
 // ProducerRealize
 ProducerRealize::ProducerRealize(DataProducer producer, Region bounds, PrimExpr condition,
                                  Stmt body, String storage_scope, Span span) {
