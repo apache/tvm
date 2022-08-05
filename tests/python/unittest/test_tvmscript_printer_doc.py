@@ -22,6 +22,7 @@ Doc objects, then access and modify their attributes correctly.
 import pytest
 
 import tvm
+from tvm.runtime import ObjectPath
 from tvm.script.printer.doc import (
     AssertDoc,
     AssignDoc,
@@ -511,6 +512,19 @@ def test_stmt_doc_comment():
     comment = "test comment"
     doc.comment = comment
     assert doc.comment == comment
+
+
+def test_doc_source_paths():
+    doc = IdDoc("x")
+    assert len(doc.source_paths) == 0
+
+    source_paths = [ObjectPath.root(), ObjectPath.root().attr("x")]
+
+    doc.source_paths = source_paths
+    assert list(doc.source_paths) == source_paths
+
+    doc.source_paths = []
+    assert len(doc.source_paths) == 0
 
 
 if __name__ == "__main__":
