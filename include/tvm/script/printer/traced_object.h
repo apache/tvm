@@ -86,6 +86,8 @@ class TracedObject {
   using ObjectType = typename RefT::ContainerType;
 
  public:
+  using ObjectRefType = RefT;
+
   // Don't use this direcly. For convenience, call MakeTraced() instead.
   explicit TracedObject(const RefT& object_ref, ObjectPath path)
       : ref_(object_ref), path_(std::move(path)) {}
