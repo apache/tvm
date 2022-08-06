@@ -222,9 +222,8 @@ def dump_graph(dot_string, show_svg=True, dot_file_path="", output_dot_string=Fa
     """Output dot_string in various formats."""
     if dot_file_path:
         try:
-            dot_file = open(dot_file_path, "w+")
-            dot_file.write(dot_string)
-            dot_file.close()
+            with open(dot_file_path, "w+") as dot_file:
+                dot_file.write(dot_string)
         except IOError:
             print("Cannot open file: " + dot_file_path)
     if show_svg:
