@@ -65,10 +65,10 @@ def dump_image(filename, image):
         outputRaw.append(struct.pack("<B", int(image_data[i]) & 0xFF))
 
     # Dump image in raw binary format
-    f = open(filename, "wb")
-    for i in range(0, len(outputRaw)):
-        f.write(outputRaw[i])
-    f.close()
+    with open(filename, "wb") as f:
+        for i in range(0, len(outputRaw)):
+            f.write(outputRaw[i])
+
 
 
 # ==================================================================
