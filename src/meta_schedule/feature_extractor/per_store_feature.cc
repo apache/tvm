@@ -885,7 +885,7 @@ void Feature::SubFeature::SetStride(const LoopNest& loop_nest, arith::Analyzer* 
   // Calculate this->prod
   int64_t& prod = this->prod_non_strided_loop_extent = 1;
   for (int j = n_loops - 1; j > i; --j) {
-    if (const int64_t* extent = GetLoopIntExtent(loops[n_loops - 1])) {
+    if (const int64_t* extent = GetLoopIntExtent(loops[j])) {
       prod *= *extent;
     }
   }
