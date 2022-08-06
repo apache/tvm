@@ -854,12 +854,32 @@ stage('Build') {
           sh(
             script: """
               set -eux
+              retry() {
+                local retries=\$1
+                shift
+
+                local count=0
+                until "\$@"; do
+                  exit=\$?
+                  wait=\$((2 ** \$count))
+                  count=\$((\$count + 1))
+                  if [ \$count -lt \$retries ]; then
+                    echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                    sleep \$wait
+                  else
+                    echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                    return \$exit
+                  fi
+                done
+                return 0
+              }
+
               md5sum build/libtvm.so
-              aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/cpu-minimal/build/libtvm.so
+              retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/cpu-minimal/build/libtvm.so
               md5sum build/libtvm_runtime.so
-              aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/cpu-minimal/build/libtvm_runtime.so
+              retry 3 aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/cpu-minimal/build/libtvm_runtime.so
               md5sum build/config.cmake
-              aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/cpu-minimal/build/config.cmake
+              retry 3 aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/cpu-minimal/build/config.cmake
             """,
             label: 'Upload artifacts to S3',
           )
@@ -4910,11 +4930,31 @@ def run_unittest_minimal() {
               sh(
                     script: """
                       set -eux
-                      aws s3 cp --no-progress s3://${s3_prefix}/cpu-minimal/build/libtvm.so build/libtvm.so
+                      retry() {
+                        local retries=\$1
+                        shift
+
+                        local count=0
+                        until "\$@"; do
+                          exit=\$?
+                          wait=\$((2 ** \$count))
+                          count=\$((\$count + 1))
+                          if [ \$count -lt \$retries ]; then
+                            echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                            sleep \$wait
+                          else
+                            echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                            return \$exit
+                          fi
+                        done
+                        return 0
+                      }
+
+                      retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu-minimal/build/libtvm.so build/libtvm.so
                       md5sum build/libtvm.so
-                      aws s3 cp --no-progress s3://${s3_prefix}/cpu-minimal/build/libtvm_runtime.so build/libtvm_runtime.so
+                      retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu-minimal/build/libtvm_runtime.so build/libtvm_runtime.so
                       md5sum build/libtvm_runtime.so
-                      aws s3 cp --no-progress s3://${s3_prefix}/cpu-minimal/build/config.cmake build/config.cmake
+                      retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu-minimal/build/config.cmake build/config.cmake
                       md5sum build/config.cmake
                     """,
                     label: 'Download artifacts from S3',
@@ -4927,7 +4967,7 @@ def run_unittest_minimal() {
             sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/unittest_CPU_MINIMAL --recursive
             """,
             label: 'Upload JUnits to S3',
           )
