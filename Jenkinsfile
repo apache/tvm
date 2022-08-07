@@ -4266,7 +4266,7 @@ def shard_run_frontend_aarch64_2_of_2() {
 }
 
 
-def shard_run_test_Cortex_M_1_of_4() {
+def shard_run_test_Cortex_M_1_of_8() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
@@ -4276,7 +4276,7 @@ def shard_run_test_Cortex_M_1_of_4() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cortexm',
-              'TVM_NUM_SHARDS=4',
+              'TVM_NUM_SHARDS=8',
               'TVM_SHARD_INDEX=0'], {
               sh(
                         script: """
@@ -4339,11 +4339,11 @@ def shard_run_test_Cortex_M_1_of_4() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Cortex-M 1 of 4')
+    Utils.markStageSkippedForConditional('test: Cortex-M 1 of 8')
   }
 }
 
-def shard_run_test_Cortex_M_2_of_4() {
+def shard_run_test_Cortex_M_2_of_8() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
@@ -4353,7 +4353,7 @@ def shard_run_test_Cortex_M_2_of_4() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cortexm',
-              'TVM_NUM_SHARDS=4',
+              'TVM_NUM_SHARDS=8',
               'TVM_SHARD_INDEX=1'], {
               sh(
                         script: """
@@ -4411,11 +4411,11 @@ def shard_run_test_Cortex_M_2_of_4() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Cortex-M 2 of 4')
+    Utils.markStageSkippedForConditional('test: Cortex-M 2 of 8')
   }
 }
 
-def shard_run_test_Cortex_M_3_of_4() {
+def shard_run_test_Cortex_M_3_of_8() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
@@ -4425,7 +4425,7 @@ def shard_run_test_Cortex_M_3_of_4() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cortexm',
-              'TVM_NUM_SHARDS=4',
+              'TVM_NUM_SHARDS=8',
               'TVM_SHARD_INDEX=2'], {
               sh(
                         script: """
@@ -4483,11 +4483,11 @@ def shard_run_test_Cortex_M_3_of_4() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Cortex-M 3 of 4')
+    Utils.markStageSkippedForConditional('test: Cortex-M 3 of 8')
   }
 }
 
-def shard_run_test_Cortex_M_4_of_4() {
+def shard_run_test_Cortex_M_4_of_8() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
@@ -4497,7 +4497,7 @@ def shard_run_test_Cortex_M_4_of_4() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cortexm',
-              'TVM_NUM_SHARDS=4',
+              'TVM_NUM_SHARDS=8',
               'TVM_SHARD_INDEX=3'], {
               sh(
                         script: """
@@ -4555,7 +4555,295 @@ def shard_run_test_Cortex_M_4_of_4() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('test: Cortex-M 4 of 4')
+    Utils.markStageSkippedForConditional('test: Cortex-M 4 of 8')
+  }
+}
+
+def shard_run_test_Cortex_M_5_of_8() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
+        try {
+          docker_init(ci_cortexm)
+          init_git()
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cortexm',
+              'TVM_NUM_SHARDS=8',
+              'TVM_SHARD_INDEX=4'], {
+              sh(
+                        script: """
+                          set -eux
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/microtvm_template_projects build/microtvm_template_projects --recursive
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              add_microtvm_permissions()
+              ci_setup(ci_cortexm)
+              sh (
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Cortex-M 5 of 8')
+  }
+}
+
+def shard_run_test_Cortex_M_6_of_8() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
+        try {
+          docker_init(ci_cortexm)
+          init_git()
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cortexm',
+              'TVM_NUM_SHARDS=8',
+              'TVM_SHARD_INDEX=5'], {
+              sh(
+                        script: """
+                          set -eux
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/microtvm_template_projects build/microtvm_template_projects --recursive
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              add_microtvm_permissions()
+              ci_setup(ci_cortexm)
+              sh (
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Cortex-M 6 of 8')
+  }
+}
+
+def shard_run_test_Cortex_M_7_of_8() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
+        try {
+          docker_init(ci_cortexm)
+          init_git()
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cortexm',
+              'TVM_NUM_SHARDS=8',
+              'TVM_SHARD_INDEX=6'], {
+              sh(
+                        script: """
+                          set -eux
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/microtvm_template_projects build/microtvm_template_projects --recursive
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              add_microtvm_permissions()
+              ci_setup(ci_cortexm)
+              sh (
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Cortex-M 7 of 8')
+  }
+}
+
+def shard_run_test_Cortex_M_8_of_8() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
+        try {
+          docker_init(ci_cortexm)
+          init_git()
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cortexm',
+              'TVM_NUM_SHARDS=8',
+              'TVM_SHARD_INDEX=7'], {
+              sh(
+                        script: """
+                          set -eux
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/microtvm_template_projects build/microtvm_template_projects --recursive
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              add_microtvm_permissions()
+              ci_setup(ci_cortexm)
+              sh (
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Cortex-M 8 of 8')
   }
 }
 
@@ -4696,17 +4984,29 @@ stage('Test') {
   'frontend: aarch64 2 of 2': {
     shard_run_frontend_aarch64_2_of_2()
   },
-  'test: Cortex-M 1 of 4': {
-    shard_run_test_Cortex_M_1_of_4()
+  'test: Cortex-M 1 of 8': {
+    shard_run_test_Cortex_M_1_of_8()
   },
-  'test: Cortex-M 2 of 4': {
-    shard_run_test_Cortex_M_2_of_4()
+  'test: Cortex-M 2 of 8': {
+    shard_run_test_Cortex_M_2_of_8()
   },
-  'test: Cortex-M 3 of 4': {
-    shard_run_test_Cortex_M_3_of_4()
+  'test: Cortex-M 3 of 8': {
+    shard_run_test_Cortex_M_3_of_8()
   },
-  'test: Cortex-M 4 of 4': {
-    shard_run_test_Cortex_M_4_of_4()
+  'test: Cortex-M 4 of 8': {
+    shard_run_test_Cortex_M_4_of_8()
+  },
+  'test: Cortex-M 5 of 8': {
+    shard_run_test_Cortex_M_5_of_8()
+  },
+  'test: Cortex-M 6 of 8': {
+    shard_run_test_Cortex_M_6_of_8()
+  },
+  'test: Cortex-M 7 of 8': {
+    shard_run_test_Cortex_M_7_of_8()
+  },
+  'test: Cortex-M 8 of 8': {
+    shard_run_test_Cortex_M_8_of_8()
   },
   'unittest: CPU': {
     if (!skip_ci && is_docs_only_build != 1) {
