@@ -73,7 +73,7 @@ TVM_REGISTER_GLOBAL("relay.ir.StorageInfo")
       std::vector<int64_t> sids_v;
       sids_v.reserve(sids.size());
       for (auto s : sids) {
-        sids_v.push_back(s);
+        sids_v.push_back(s.IntValue());
       }
       std::vector<VirtualDevice> virtual_devices_v;
       virtual_devices_v.reserve(device_types.size());
@@ -83,7 +83,7 @@ TVM_REGISTER_GLOBAL("relay.ir.StorageInfo")
       std::vector<int64_t> size_in_bytes_v;
       size_in_bytes_v.reserve(sizes_in_bytes.size());
       for (auto s : sizes_in_bytes) {
-        size_in_bytes_v.push_back(s);
+        size_in_bytes_v.push_back(s.IntValue());
       }
       return StorageInfo(std::move(sids_v), std::move(virtual_devices_v),
                          std::move(size_in_bytes_v));
@@ -112,6 +112,14 @@ TVM_REGISTER_GLOBAL("relay.ir.StorageInfoStorageSizes").set_body_typed([](Storag
     storage_sizes_in_bytes.push_back(id);
   }
   return storage_sizes_in_bytes;
+});
+
+TVM_REGISTER_GLOBAL("relay.ir.StorageInfoVirtualDevices").set_body_typed([](StorageInfo si) {
+  Array<VirtualDevice> virtual_devices;
+  for (auto id : si->virtual_devices) {
+    virtual_devices.push_back(id);
+  }
+  return virtual_devices;
 });
 
 TVM_REGISTER_NODE_TYPE(StaticMemoryPlanNode);
@@ -183,6 +191,7 @@ ExecutorCodegenMetadata::ExecutorCodegenMetadata(
     Array<tir::Var> inputs, Array<TensorType> input_tensor_types, Array<String> outputs,
     Array<TensorType> output_tensor_types, Array<tir::Var> pools, Array<String> devices,
     String executor, String mod_name, String interface_api, bool unpacked_api,
+    Integer workspace_alignment, Integer constant_alignment,
     Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs,
     Map<String, tir::usmp::PoolAllocation> io_pool_allocations) {
   auto n = make_object<ExecutorCodegenMetadataNode>();
@@ -196,6 +205,8 @@ ExecutorCodegenMetadata::ExecutorCodegenMetadata(
   n->interface_api = interface_api;
   n->unpacked_api = unpacked_api;
   n->mod_name = mod_name;
+  n->workspace_alignment = workspace_alignment;
+  n->constant_alignment = constant_alignment;
   n->pool_inputs = pool_inputs;
   n->io_pool_allocations = io_pool_allocations;
   data_ = std::move(n);

@@ -98,6 +98,8 @@ _reg.register_injective_schedule("layout_transform")
 _reg.register_pattern("layout_transform", OpPattern.INJECTIVE)
 _reg.register_injective_schedule("auto_scheduler_layout_transform")
 _reg.register_pattern("auto_scheduler_layout_transform", OpPattern.INJECTIVE)
+_reg.register_injective_schedule("meta_schedule_layout_transform")
+_reg.register_pattern("meta_schedule_layout_transform", OpPattern.INJECTIVE)
 
 # argwhere
 _reg.register_strategy("argwhere", strategy.argwhere_strategy)
@@ -187,6 +189,10 @@ def stft_shape_func(attrs, inputs, _):
             inputs[0], convert(attrs.n_fft), convert(attrs.hop_length), convert(attrs.onesided)
         )
     ]
+
+
+# trilu
+_reg.register_strategy("trilu", strategy.trilu_strategy)
 
 
 # scatter_add
@@ -675,6 +681,7 @@ def argwhere_shape_func(attrs, inputs, out_ndims):
 
 _reg.register_shape_func("scatter", False, elemwise_shape_func)
 _reg.register_shape_func("scatter_add", False, elemwise_shape_func)
+_reg.register_shape_func("scatter_nd", False, elemwise_shape_func)
 
 
 @script

@@ -361,7 +361,7 @@ class TVMScriptParser(Transformer):
         """
         if len(node.funcs) == 1:
             return self.transform(next(iter(node.funcs.values())))
-        elif len(node.func) == 0:
+        elif len(node.funcs) == 0:
             self.report_error(
                 "You must supply at least one class or function definition", node.span
             )
@@ -435,11 +435,23 @@ class TVMScriptParser(Transformer):
                 T.evaluate(0)  # 4. This function returns 0
         """
 
+        def check_as_torch_decorator(decorator: Union[ast.Call, ast.Var]):
+            if isinstance(decorator, ast.Call):
+                if len(decorator.params) != 1:
+                    return False
+                func_name = decorator.func_name
+            else:
+                func_name = decorator
+            if isinstance(func_name, ast.Var):
+                return func_name.id.name == "as_torch"
+
         def check_decorator(decorators: List[ast.Expr]) -> bool:
             """Check the decorator is `T.prim_func"""
-            if len(decorators) != 1:
+            if len(decorators) > 2 or len(decorators) == 0:
                 return False
-            d: ast.Expr = decorators[0]
+            if len(decorators) == 2 and not check_as_torch_decorator(decorators[0]):
+                return False
+            d: ast.Expr = decorators[-1]
             return (
                 isinstance(d, ast.Attr)
                 and isinstance(d.object, ast.Var)
@@ -526,7 +538,10 @@ class TVMScriptParser(Transformer):
         # add parameters of the lambda
         arg_vars = []
         for arg in node.params:
-            arg_var = tvm.te.var(arg.name)
+            # Use "void" for dtype here. The actual type is not yet known and will be
+            # determined later. Using void type will allow IRSubstitute to do the
+            # replacement without flagging a type-mismatch error.
+            arg_var = tvm.te.var(arg.name, dtype="")
             arg_vars.append(arg_var)
             self.context.update_symbol(arg.name, arg_var, node)
 

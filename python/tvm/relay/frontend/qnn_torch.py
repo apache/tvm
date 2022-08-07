@@ -571,6 +571,14 @@ def quantized_relu(data, input_zero_point):
     return _op.tensor.maximum(data, zp)
 
 
+def quantized_sigmoid(data, input_scale, input_zero_point):
+    output_scale = input_scale
+    output_zero_point = input_zero_point
+    return relay.qnn.op.sigmoid(
+        data, input_scale, input_zero_point, output_scale, output_zero_point
+    )
+
+
 def _quantize_per_tensor():
     def _impl(inputs, _):
         dim = len(infer_shape(inputs[0]))
@@ -937,10 +945,9 @@ def _relu6():
     return _impl
 
 
-def _leaky_relu():
+def _leaky_relu(fp32_piggy_back=False):
     # refer to src/ATen/native/quantized/cpu/qrelu.cpp
-    def _impl(inputs, _):
-        assert len(inputs) == 7, "Input quant params not found in op inputs"
+    def _impl_fp32(inputs, _):
         alpha = inputs[1]
         output_scale = _expr.const(inputs[3])
         output_zero_point = _expr.const(inputs[4])
@@ -951,6 +958,22 @@ def _leaky_relu():
         return relay.qnn.op.quantize(
             dequantized, output_scale, output_zero_point, out_dtype="uint8"
         )
+
+    def _impl_int8(inputs, _):
+        alpha = inputs[1]
+        output_scale = _expr.const(inputs[3])
+        output_zero_point = _expr.const(inputs[4])
+        input_scale = _expr.const(inputs[5])
+        input_zero_point = _expr.const(inputs[6])
+        return relay.qnn.op.leaky_relu(
+            inputs[0], alpha, input_scale, input_zero_point, output_scale, output_zero_point
+        )
+
+    def _impl(inputs, _):
+        assert len(inputs) == 7, "Input quant params not found in op inputs"
+        if fp32_piggy_back:
+            return _impl_fp32(inputs, _)
+        return _impl_int8(inputs, _)
 
     return _impl
 
@@ -981,14 +1004,10 @@ def _mul_scalar():
     return _impl
 
 
-def _hswish():
-    # refer to src/ATen/native/quantized/cpu/kernels/QuantizedOpKernels.cpp
-    # They fallback to fp32
-    def _impl(inputs, _):
-        assert len(inputs) == 5, "Input quant params not found in op inputs"
-        # TODO(masahi): Replace this with integer only compute.
-        # We do not have to strictly follow how PyTorch does it.
-
+def _hswish(fp32_piggy_back=False):
+    def _impl_fp32(inputs):
+        # refer to src/ATen/native/quantized/cpu/kernels/QuantizedOpKernels.cpp
+        # They fallback to fp32
         def relu6(x):
             return _op.tensor.clip(x, 0.0, 6.0)
 
@@ -1006,6 +1025,21 @@ def _hswish():
         return relay.qnn.op.quantize(
             dequantized_hswish, output_scale, output_zero_point, out_dtype="uint8"
         )
+
+    def _impl_int8(inputs):
+        output_scale = _expr.const(inputs[1])
+        output_zero_point = _expr.const(inputs[2])
+        input_scale = _expr.const(inputs[3])
+        input_zero_point = _expr.const(inputs[4])
+        return relay.qnn.op.hardswish(
+            inputs[0], input_scale, input_zero_point, output_scale, output_zero_point
+        )
+
+    def _impl(inputs, _):
+        assert len(inputs) == 5, "Input quant params not found in op inputs"
+        if fp32_piggy_back:
+            return _impl_fp32(inputs)
+        return _impl_int8(inputs)
 
     return _impl
 
@@ -1153,6 +1187,6 @@ convert_map = {
     "quantized::relu6": _relu6(),
     "quantized::leaky_relu": _leaky_relu(),
     "quantized::linear_dynamic": _linear_dynamic(),
-    "quantized::hardswish": _hswish(),
+    "quantized::hardswish": _hswish(fp32_piggy_back=False),
     "quantized::conv_transpose2d": _quantized_conv_transpose2d(),
 }

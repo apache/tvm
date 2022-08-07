@@ -1386,7 +1386,7 @@ def OutlineCompilerFunctionsWithExistingGlobalSymbols(compiler_filter=""):
     Parameters
     ----------
     compiler_filter : String
-        If non-empty, the 'compiler' attribute to filter on.
+        If non-empty, the "Compiler" attribute to filter on.
 
     Returns
     -------
@@ -1412,7 +1412,7 @@ def MarkCompilerFunctionsAsExtern(compiler_filter=""):
     Parameters
     ----------
     compiler_filter : String
-        If non-empty, the 'compiler' attribute to filter on.
+        If non-empty, the "Compiler" attribute to filter on.
 
     Returns
     -------
@@ -1420,3 +1420,67 @@ def MarkCompilerFunctionsAsExtern(compiler_filter=""):
         The pass.
     """
     return _ffi_api.MarkCompilerFunctionsAsExtern(compiler_filter)
+
+
+def CapturePostDfsIndexInSpans():
+    """Captures the post-dfs index and dominator post-dfs index of (most) expression nodes in
+    their span, in the form "index:<post-dfs index>:<dominator post-dfs index>".
+
+    This is useful for debugging since a) it helps identify pretty-printed sub-expressions within
+    the overall model and b) the indexes are heavily used by Collage for its compact representation
+    of sub-graphs.
+
+    Note that Op and Constructor nodes are not changed even though they are assigned an
+    post-dfs index.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The pass.
+    """
+    return _ffi_api.CapturePostDfsIndexInSpans()
+
+
+def InlineCompilerFunctionsBoundTo(global_vars):
+    """Inlines all global functions bound to a global var in global_vars.
+
+    Both the global "Compiler" attributed function, and any calls to "Composite" functions it its
+    body are inlined.
+
+    This pass may be useful for external codegen which needs to undo partitioning based on
+    properties of the entire partition.
+
+    Parameters
+    ----------
+    global_vars : Array[tvm.relay.GlobalVar]
+        The global vars of all 'Compiler' functions to inline.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The pass.
+    """
+    return _ffi_api.InlineCompilerFunctionsBoundTo(global_vars)
+
+
+def CollagePartition(config, cost_estimator=None):
+    """Partition the bodies of all functions according to the available targets so as to
+    minimize model latency. See https://github.com/apache/tvm-rfcs/blob/main/rfcs/0062-collage.md.
+
+    Parameters
+    ----------
+    config : CompilationConfig
+        The available targets.
+    cost_estimator : CostEstimator, optional
+        The custom cost estimator to use for costing each candidate partition.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The pass.
+
+    """
+    if cost_estimator is None:
+        cost_estimator = relay.collage.CostEstimator()
+
+    return _ffi_api.CollagePartition(config, cost_estimator)

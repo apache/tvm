@@ -35,6 +35,7 @@
 #include <limits>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace tvm {
@@ -305,6 +306,10 @@ struct FragmentInfo {
  * \return Map from buffer variables to the fragment info.
  */
 std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const Stmt& stmt);
+
+// Return the queue id and the in-flight count associated with the given
+// attr::async_wait_queue_scope annotation.
+std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op);
 
 }  // namespace tir
 }  // namespace tvm

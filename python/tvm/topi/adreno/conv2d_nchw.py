@@ -28,6 +28,8 @@ from .utils import (
     expand_spatial_dimensions,
     add_pad,
     bind_data_copy,
+    get_default_conv2d_config,
+    get_texture_storage,
 )
 
 
@@ -213,8 +215,11 @@ def schedule_conv2d_NCHWc_KCRSk(cfg, s, output):
       5d tensors
     4. pad should be scheduled separately to create independent opencl kernel. If pad is
        inlined into convolution, this gives 1.5x performance drop
-    5. We are using cache_read to produce texture and guarantee the best performance
-       on the next stage.
+    5. We are using cache_read for intermediate tensors to produce texture and guarantee
+       the best performance on the next stage.
+       The weights are managed through static texture planning mechanism and guarantied come
+       in texture memory scope.
+       Thus way we are calling cache_read only for data tensor
     6. For 5d convolution we schedule the latest op with binding 5d axis and vectorize
        for textures
        For 4d tensor we are doing the same for the latest blocked stage, i.e. conversion
@@ -264,6 +269,8 @@ def schedule_conv2d_NCHWc_KCRSk(cfg, s, output):
     cfg.define_knob("auto_unroll_max_step", [0, 512, 1500])
     cfg.define_knob("unroll_explicit", [0, 1])
 
+    if cfg.is_fallback:
+        get_default_conv2d_config(cfg, conv.shape[1], conv.shape[2], conv.shape[3])
     ##### space definition end #####
 
     pad_data, kernel = s[conv].op.input_tensors
@@ -285,10 +292,15 @@ def schedule_conv2d_NCHWc_KCRSk(cfg, s, output):
         s[output].compute_inline()
 
     # create cache stage
-    AT = s.cache_read(pad_data, "global.texture", [conv])
+    AT = s.cache_read(pad_data, get_texture_storage(pad_data.shape), [conv])
     bind_data_copy(s[AT])
-    WT = s.cache_read(kernel, "global.texture-weight", [conv])
-    bind_data_copy(s[WT])
+    if (
+        autotvm.GLOBAL_SCOPE.in_tuning
+        or isinstance(kernel.op, tvm.te.ComputeOp)
+        and "filter_pack" in kernel.op.tag
+    ):
+        WT = s.cache_read(kernel, get_texture_storage(kernel.shape), [conv])
+        bind_data_copy(s[WT])
 
     # tile and bind spatial axes
     n, fc, y, x, fb = s[latest_blocked].op.axis

@@ -165,19 +165,20 @@ import shutil
 import urllib.request
 
 # Download datasets
+os.makedirs(f"{FOLDER}/downloads")
 os.makedirs(f"{FOLDER}/images")
 urllib.request.urlretrieve(
-    "http://ai.stanford.edu/~jkrause/car196/cars_train.tgz", f"{FOLDER}/images/target.tgz"
+    "https://data.deepai.org/stanfordcars.zip", f"{FOLDER}/downloads/target.zip"
 )
 urllib.request.urlretrieve(
-    "http://images.cocodataset.org/zips/val2017.zip", f"{FOLDER}/images/random.zip"
+    "http://images.cocodataset.org/zips/val2017.zip", f"{FOLDER}/downloads/random.zip"
 )
 
 # Extract them and rename their folders
-shutil.unpack_archive(f"{FOLDER}/images/target.tgz", f"{FOLDER}/images")
-shutil.unpack_archive(f"{FOLDER}/images/random.zip", f"{FOLDER}/images")
-shutil.move(f"{FOLDER}/images/cars_train", f"{FOLDER}/images/target")
-shutil.move(f"{FOLDER}/images/val2017", f"{FOLDER}/images/random")
+shutil.unpack_archive(f"{FOLDER}/downloads/target.zip", f"{FOLDER}/downloads")
+shutil.unpack_archive(f"{FOLDER}/downloads/random.zip", f"{FOLDER}/downloads")
+shutil.move(f"{FOLDER}/downloads/cars_train/cars_train", f"{FOLDER}/images/target")
+shutil.move(f"{FOLDER}/downloads/val2017", f"{FOLDER}/images/random")
 
 ######################################################################
 # Loading the Data
@@ -605,7 +606,7 @@ assert os.path.isfile(f"{FOLDER}/models/quantized.tflite")
 assert os.path.isfile(f"{FOLDER}/models/project.zip")
 
 # Assert MLF file was correctly generated
-assert str(mod.executor) == "aot"
+assert mod.executor.name == "aot"
 
 # Remove the temporary folder we generated at the beginning
 shutil.rmtree(FOLDER)

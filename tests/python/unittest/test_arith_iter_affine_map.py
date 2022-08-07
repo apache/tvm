@@ -61,7 +61,6 @@ def assert_iter_sum_pattern(
     )
     indices = res.indices
     assert len(indices) == len(keys), res.errors
-    print(indices)
     for i, input_iter in enumerate(keys):
         spec = expect_dict[input_iter]
         (
@@ -171,6 +170,11 @@ def test_split():
     )
 
     assert_iter_sum_failure([fld(x, flm(flm(y, 8), 6))], var_dom([(x, 24), (y, 8)]))
+
+    # domain of x is undefined
+    assert_iter_sum_pattern(
+        {fld(flm(x, 49) + y, 49): (1, fld(flm(x, 49) + y, 49))}, var_dom([(y, 1)])
+    )
 
 
 def test_compound():
@@ -439,6 +443,13 @@ def test_predicate():
         {xo * 129 + xi: (128, 0), y: (128, 0)},
         var_dom([(xo, 1), (xi, 129), (y, 128)]),
         predicate=xo * 129 + xi < 128,
+    )
+
+    # strided iteration predicate
+    assert_iter_sum_pattern(
+        {xo * 16 + xi * 4: (10, 0, 4)},
+        var_dom([(xo, 3), (xi, 4)]),
+        predicate=xo * 4 + xi < 10,
     )
 
 
@@ -864,6 +875,19 @@ def test_inverse_affine_iter_map():
     assert analyzer.can_prove_equal(res[l0[0]], l0_inverse)
 
 
+def test_inverse_affine_map_trivial_iter():
+    analyzer = tvm.arith.Analyzer()
+    l0 = create_iter("l0", 64)
+    l1 = create_iter("l1", 64)
+    iter_map = tvm.arith.detect_iter_map([0, l0[0], l1[0]], var_dom([l0, l1])).indices
+    outputs = [tvm.tir.Var("output_{}".format(i), "int32") for i in range(len(iter_map))]
+    res = tvm.arith.inverse_affine_iter_map(iter_map, outputs)
+    # output_0 is expected to be constant and it is not included in the inverse map
+    assert len(res) == 2
+    assert analyzer.can_prove_equal(res[l0[0]], outputs[1])
+    assert analyzer.can_prove_equal(res[l1[0]], outputs[2])
+
+
 def test_free_variables():
     x = tvm.tir.Var("x", "int32")
     y = tvm.tir.Var("y", "int32")
@@ -990,6 +1014,56 @@ def test_padding():
     # original extent is smaller than the divident
     # it is not surjective wrt to the region [0, 16)
     assert_iter_sum_failure({flm(x, 16)}, var_dom([(x, 3)]))
+
+
+def test_overlapped_fuse():
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
+    z = tvm.tir.Var("z", "int32")
+    a = tvm.tir.Var("x", "int32")
+    b = tvm.tir.Var("y", "int32")
+
+    # non-bijective fuse of two
+    assert_iter_sum_pattern(
+        {
+            x * 7 + y: (22, 0, 1),
+        },
+        var_dom([(x, 3), (y, 8)]),
+        check_level="surjective",
+    )
+    assert_iter_sum_failure([x * 7 + y], var_dom([(x, 3), (y, 8)]), check_level="bijective")
+
+    # non-bijective fuse of three
+    assert_iter_sum_pattern(
+        {
+            x * 18 + y * 7 + z: (40, 0, 1),
+        },
+        var_dom([(x, 2), (y, 3), (z, 8)]),
+        check_level="surjective",
+    )
+    assert_iter_sum_failure([x * 7 + y], var_dom([(x, 2), (y, 3), (z, 8)]), check_level="bijective")
+
+    # negative scale fusion is not allowed
+    assert_iter_sum_failure([x * -7 + y], var_dom([(x, 3), (y, 8)]), check_level="surjective")
+    assert_iter_sum_failure([x * 7 - y], var_dom([(x, 3), (y, 8)]), check_level="surjective")
+
+    # with predicate
+    assert_iter_sum_pattern(
+        {
+            a * 40 + b * 20 + x * 18 + y * 3 + z: (125, 6, 1),
+        },
+        var_dom([(a, 3), (b, 2), (x, 2), (y, 6), (z, 8)]),
+        predicate=tvm.tir.all(z < 4, 1 < x * 6 + y, x * 6 + y < 10),
+        check_level="surjective",
+    )
+
+    # stride=1 kernel
+    assert_iter_sum_pattern(
+        {x + a: (230, 0, 1)}, var_dom([(x, 224), (a, 7)]), check_level="surjective"
+    )
+
+    # do not allow both strided and overlapped
+    assert_iter_sum_failure([5 * x + 2 * y], var_dom([(x, 4), (y, 3)]), check_level="surjective")
 
 
 if __name__ == "__main__":

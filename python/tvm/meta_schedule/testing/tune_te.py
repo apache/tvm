@@ -15,15 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
+from distutils.util import strtobool
 import argparse
 import logging
-from os import cpu_count
 from typing import Optional
 
 import tvm
-from tvm import meta_schedule as ms
 from tvm import tir
+from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.te_workload import create_te_workload
+from tvm.support import describe
 
 
 def _parse_args():
@@ -59,11 +60,6 @@ def _parse_args():
         required=True,
     )
     args.add_argument(
-        "--rpc-workers",
-        type=int,
-        required=True,
-    )
-    args.add_argument(
         "--work-dir",
         type=str,
         required=True,
@@ -84,8 +80,16 @@ def _parse_args():
         default=100,
     )
     args.add_argument(
+        "--adaptive-training",
+        type=lambda x: bool(strtobool(x)),
+        required=False,
+        help="example: True / False",
+        default=True,
+    )
+    args.add_argument(
         "--cpu-flush",
-        type=bool,
+        type=lambda x: bool(strtobool(x)),
+        help="example: True / False",
         required=True,
     )
     parsed = args.parse_args()
@@ -107,6 +111,8 @@ ARGS = _parse_args()
 
 
 def main():
+    describe()
+    print(f"Workload: {ARGS.workload}")
     runner = ms.runner.RPCRunner(
         rpc_config=ARGS.rpc_config,
         evaluator_config=ms.runner.EvaluatorConfig(
@@ -116,7 +122,6 @@ def main():
             enable_cpu_cache_flush=ARGS.cpu_flush,
         ),
         alloc_repeat=1,
-        max_workers=ARGS.rpc_workers,
     )
     with ms.Profiler() as profiler:
         sch: Optional[tir.Schedule] = ms.tune_tir(
@@ -127,14 +132,16 @@ def main():
                 num_trials_per_iter=64,
                 max_trials_per_task=ARGS.num_trials,
                 max_trials_global=ARGS.num_trials,
+                adaptive_training=ARGS.adaptive_training,
             ),
             runner=runner,  # type: ignore
             task_name=ARGS.workload,
             work_dir=ARGS.work_dir,
-            num_threads=cpu_count(),
         )
+
     print("Tuning Time:")
     print(profiler.table())
+
     if sch is None:
         print("No valid schedule found!")
     else:

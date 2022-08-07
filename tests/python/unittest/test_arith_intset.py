@@ -323,10 +323,6 @@ def test_region_lower_bound_for_non_perfect_tile():
 
 
 def test_region_lower_bound_unfusable():
-    # This test is designed to trigger an error in DetectIterMap,
-    # resulting from a numerator which required multiple input
-    # variables.  The bug resulted in an exception being thrown,
-    # rather than a return value of None.
     var_dom = {
         tvm.tir.Var("i", "int32"): tvm.ir.Range(8),
         tvm.tir.Var("j", "int32"): tvm.ir.Range(4),
@@ -336,7 +332,8 @@ def test_region_lower_bound_unfusable():
         tvm.ir.Range.from_min_extent((i + j) // 2, 1),
     ]
     result = tvm.arith.estimate_region_lower_bound(region, var_dom, predicate=True)
-    assert result is None
+    assert result[0].min_value == 0
+    assert result[0].max_value == 5
 
 
 def test_union_lower_bound():

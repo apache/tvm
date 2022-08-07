@@ -31,6 +31,12 @@ Schedule Schedule::Concrete(IRModule mod, support::LinearCongruentialEngine::TRa
   n->symbol_table_ = {};
   n->analyzer_ = std::make_unique<arith::Analyzer>();
   n->Seed(seed);
+  GlobalVar gv = NullValue<GlobalVar>();
+  if (FindEntryFunc(mod, &gv) != nullptr) {
+    n->func_working_on_ = gv;
+  } else {
+    n->func_working_on_ = NullOpt;
+  }
   return Schedule(std::move(n));
 }
 
@@ -177,6 +183,10 @@ class ScheduleCopier {
   std::unordered_map<const StmtSRefNode*, StmtSRef> old2new_;
 };
 
+void ConcreteScheduleNode::WorkOn(const String& func_name) {
+  this->func_working_on_ = this->state_->mod->GetGlobalVar(func_name);
+}
+
 void ConcreteScheduleNode::Copy(ScheduleState* new_state, TSymbolTable* new_symbol_table) const {
   ScheduleCopier::Copy(this, new_state, new_symbol_table);
   new_state->get()->DebugVerify();
@@ -184,6 +194,7 @@ void ConcreteScheduleNode::Copy(ScheduleState* new_state, TSymbolTable* new_symb
 
 Schedule ConcreteScheduleNode::Copy() {
   ObjectPtr<ConcreteScheduleNode> n = make_object<ConcreteScheduleNode>();
+  n->func_working_on_ = this->func_working_on_;
   n->error_render_level_ = this->error_render_level_;
   ConcreteScheduleNode::Copy(&n->state_, &n->symbol_table_);
   n->analyzer_ = std::make_unique<arith::Analyzer>();  // new analyzer needed because it is stateful
@@ -251,7 +262,7 @@ LoopRV ConcreteScheduleNode::SampleComputeLocation(const BlockRV& block_rv,
 
 /******** Schedule: Get blocks & loops ********/
 
-BlockRV ConcreteScheduleNode::GetBlock(const String& name, const String& func_name) {
+BlockRV ConcreteScheduleNode::GetBlock(const String& name, const Optional<String>& func_name) {
   class NotSingleResult : public ScheduleError {
    public:
     explicit NotSingleResult(String name, IRModule mod, const Array<StmtSRef>& blocks)
@@ -286,7 +297,17 @@ BlockRV ConcreteScheduleNode::GetBlock(const String& name, const String& func_na
     IRModule mod_;
     Array<Block> blocks_;
   };
-  Array<StmtSRef> blocks = tir::GetBlocks(this->state_, name, func_name);
+  GlobalVar gv = NullValue<GlobalVar>();
+  if (func_name.defined()) {
+    gv = state_->mod->GetGlobalVar(func_name.value());
+  } else if (func_working_on_.defined()) {
+    gv = this->func_working_on_.value();
+  } else {
+    LOG(FATAL) << "ValueError: `get_block` does not know which function to be working on. Please "
+                  "specify the function name explicitly, or call `work_on` to specify the function "
+                  "before using `get_block`.";
+  }
+  Array<StmtSRef> blocks = tir::GetBlocks(this->state_, name, gv);
   if (blocks.size() != 1) {
     TVM_TIR_SCHEDULE_BEGIN();
     throw NotSingleResult(name, this->state_->mod, blocks);
@@ -430,6 +451,9 @@ Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
       PrimExpr factor = this->Get(factor_rvs[i].value());
       if (is_const_int(factor) && !is_positive_const(factor)) {
         throw NonPositiveFactorError(state_->mod, factor.as<IntImmNode>()->value, i);
+      }
+      if (factor.dtype().bits() > loop->extent.dtype().bits()) {
+        factor = cast(loop->extent.dtype(), factor);
       }
       factors.push_back(factor);
       tot_length *= factor;
@@ -675,6 +699,21 @@ ObjectRef ConcreteScheduleNode::CheckAndGetAnnotationValue(const ObjectRef& ann_
     }
     return std::move(result);
   }
+  if (const auto* dict = ann_val.as<MapNode>()) {
+    Map<String, ObjectRef> result;
+    for (auto it = dict->begin(); it != dict->end(); ++it) {
+      const auto& key = it->first;
+      auto value = CheckAndGetAnnotationValue(it->second);
+      if (const StringImmNode* imm = key.as<StringImmNode>()) {
+        result.Set(imm->value, value);
+      } else if (key->IsInstance<StringObj>()) {
+        result.Set(Downcast<String>(key), value);
+      } else {
+        LOG(FATAL) << "TypeError: annotation dict key expect to be String or StringImm";
+      }
+    }
+    return std::move(result);
+  }
   LOG(FATAL)
       << "TypeError: Only strings, integers, floats, ExprRVs and Arrays are supported for now, but "
       << "gets: " << ann_val->GetTypeKey();
@@ -738,6 +777,15 @@ void ConcreteScheduleNode::SetAxisSeparator(const BlockRV& block_rv, int buffer_
                         axis_separators);
   TVM_TIR_SCHEDULE_END("set-axis-separator", this->error_render_level_);
   this->state_->DebugVerify();
+}
+
+BlockRV ConcreteScheduleNode::DecomposePadding(const BlockRV& block_rv, const LoopRV& loop_rv) {
+  StmtSRef result{nullptr};
+  TVM_TIR_SCHEDULE_BEGIN();
+  result = tir::DecomposePadding(state_, this->GetSRef(block_rv), this->GetSRef(loop_rv));
+  TVM_TIR_SCHEDULE_END("decompose-padding", this->error_render_level_);
+  this->state_->DebugVerify();
+  return CreateRV<BlockRV>(result);
 }
 
 /******** Schedule: Misc ********/

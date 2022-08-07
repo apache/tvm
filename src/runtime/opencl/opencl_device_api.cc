@@ -485,14 +485,14 @@ TVM_REGISTER_GLOBAL("device_api.opencl").set_body([](TVMArgs args, TVMRetValue* 
   *rv = static_cast<void*>(ptr);
 });
 
-#ifdef USE_PROFILER
 TVM_REGISTER_OBJECT_TYPE(OpenCLTimerNode);
 
 TVM_REGISTER_GLOBAL("profiling.timer.opencl").set_body_typed([](Device dev) {
   return Timer(make_object<OpenCLTimerNode>(dev));
 });
-#endif
 
 }  // namespace cl
+int64_t OpenCLTimerNode::count_timer_execs = 0;
+std::vector<int64_t> OpenCLTimerNode::event_start_idxs;
 }  // namespace runtime
 }  // namespace tvm

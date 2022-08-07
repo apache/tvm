@@ -919,6 +919,11 @@ def test_mixed_single_multiple_outputs():
 
 def test_dnnl_fuse():
     dnnl_patterns = get_pattern_table("dnnl")
+    valid_pats = list()
+    for pattern in dnnl_patterns:
+        if len(pattern) == 2:
+            valid_pats.append(pattern)
+    dnnl_pat_dic = dict(valid_pats)
     (
         conv2d_bias_relu_pat,
         conv2d_bias_sigmoid_pat,
@@ -926,11 +931,26 @@ def test_dnnl_fuse():
         conv2d_relu_pat,
         conv2d_sigmoid_pat,
     ) = (
-        dnnl_patterns[1],
-        dnnl_patterns[13],
-        dnnl_patterns[20],
-        dnnl_patterns[26],
-        dnnl_patterns[38],
+        (
+            "dnnl.conv2d_bias_relu",
+            dnnl_pat_dic["dnnl.conv2d_bias_relu"],
+        ),
+        (
+            "dnnl.conv2d_bias_sigmoid",
+            dnnl_pat_dic["dnnl.conv2d_bias_sigmoid"],
+        ),
+        (
+            "dnnl.conv2d_bias",
+            dnnl_pat_dic["dnnl.conv2d_bias"],
+        ),
+        (
+            "dnnl.conv2d_relu",
+            dnnl_pat_dic["dnnl.conv2d_relu"],
+        ),
+        (
+            "dnnl.conv2d_sigmoid",
+            dnnl_pat_dic["dnnl.conv2d_sigmoid"],
+        ),
     )
 
     def get_blocks(
@@ -1039,8 +1059,8 @@ def test_dnnl_fuse():
     def test_partition_mobilenet():
         mod, params = relay.testing.mobilenet.get_workload()
         mod = get_partitoned_mod(mod, params, dnnl_patterns)
-        # 27 fused conv + bn + relu, one dense and one softmax
-        assert len(mod.functions) - 1 == 29  # -1 for main
+        # 27 fused conv + bn + relu, one dense, one softmax and one global_avg_pooling
+        assert len(mod.functions) - 1 == 30  # -1 for main
 
     def test_exec(mod, params, ref_mod, ref_params, out_shape):
         ishape = (1, 3, 224, 224)

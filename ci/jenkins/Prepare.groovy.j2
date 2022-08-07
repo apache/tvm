@@ -1,0 +1,195 @@
+def per_exec_ws(folder) {
+  return "workspace/exec_${env.EXECUTOR_NUMBER}/" + folder
+}
+
+// initialize source codes
+def init_git() {
+  checkout scm
+
+
+  // Add more info about job node
+  sh (
+    script: './tests/scripts/task_show_node_info.sh',
+    label: 'Show executor node info',
+  )
+
+  // Determine merge commit to use for all stages
+  sh (
+    script: 'git fetch origin main',
+    label: 'Fetch upstream',
+  )
+  if (upstream_revision == null) {
+    upstream_revision = sh(
+      script: 'git log -1 FETCH_HEAD --format=\'%H\'',
+      label: 'Determine upstream revision',
+      returnStdout: true,
+    ).trim()
+  }
+  sh (
+    script: "git -c user.name=TVM-Jenkins -c user.email=jenkins@tvm.apache.org merge ${upstream_revision}",
+    label: 'Merge to origin/main'
+  )
+
+  sh(
+    script: '''
+      set -eux
+      n=0
+      max_retries=3
+      backoff_max=30
+      until [ "$n" -ge $max_retries ]
+      do
+          timeout 5m git submodule update --init -f --jobs 0 && break
+          n=$((n+1))
+          if [ "$n" -eq $max_retries ]; then
+              echo "failed to update $n / $max_retries, giving up"
+              exit 1
+          fi
+
+          WAIT=$((RANDOM % "$backoff_max"))
+          echo "failed to update $n / $max_retries, waiting $WAIT to try again"
+          sleep $WAIT
+      done
+    ''',
+    label: 'Update git submodules',
+  )
+}
+
+def docker_init(image) {
+  // Clear out all Docker images that aren't going to be used
+  sh(
+    script: """
+    set -eux
+    docker image ls --all
+    IMAGES=\$(docker image ls --all --format {% raw %}'{{.Repository}}:{{.Tag}}  {{.ID}}'{% endraw %})
+
+    echo -e "Found images:\\n\$IMAGES"
+    echo "\$IMAGES" | { grep -vE '${image}' || test \$? = 1; } | { xargs docker rmi || test \$? = 123; }
+
+    docker image ls --all
+    """,
+    label: 'Clean old Docker images',
+  )
+
+  if (image.contains("amazonaws.com")) {
+    // If this string is in the image name it's from ECR and needs to be pulled
+    // with the right credentials
+    ecr_pull(image)
+  } else {
+    sh(
+      script: """
+      set -eux
+      {{ m.bash_retry() }}
+      retry 3 docker pull ${image}
+      """,
+      label: 'Pull docker image',
+    )
+  }
+}
+
+def should_skip_slow_tests(pr_number) {
+  withCredentials([string(
+    credentialsId: 'tvm-bot-jenkins-reader',
+    variable: 'GITHUB_TOKEN',
+  )]) {
+    // Exit code of 1 means run slow tests, exit code of 0 means skip slow tests
+    result = sh (
+      returnStatus: true,
+      script: "./tests/scripts/should_run_slow_tests.py --pr '${pr_number}'",
+      label: 'Check if CI should run slow tests',
+    )
+  }
+  return result == 0
+}
+
+def cancel_previous_build() {
+  // cancel previous build if it is not on main.
+  if (env.BRANCH_NAME != 'main') {
+    def buildNumber = env.BUILD_NUMBER as int
+    // Milestone API allows us to cancel previous build
+    // with the same milestone number
+    if (buildNumber > 1) milestone(buildNumber - 1)
+    milestone(buildNumber)
+  }
+}
+
+def should_skip_ci(pr_number) {
+  if (env.BRANCH_NAME == null || !env.BRANCH_NAME.startsWith('PR-')) {
+    // never skip CI on build sourced from a branch
+    return false
+  }
+  glob_skip_ci_code = sh (
+    returnStatus: true,
+    script: "./tests/scripts/git_skip_ci_globs.py",
+    label: 'Check if CI should be skipped due to changed files',
+  )
+  if (glob_skip_ci_code == 0) {
+    return true
+  }
+  withCredentials([string(
+    credentialsId: 'tvm-bot-jenkins-reader',
+    variable: 'TOKEN',
+    )]) {
+    // Exit code of 1 means run full CI (or the script had an error, so run
+    // full CI just in case). Exit code of 0 means skip CI.
+    git_skip_ci_code = sh (
+      returnStatus: true,
+      script: "./tests/scripts/git_skip_ci.py --pr '${pr_number}'",
+      label: 'Check if CI should be skipped',
+    )
+  }
+  return git_skip_ci_code == 0
+}
+
+def prepare() {
+  stage('Prepare') {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/prepare") {
+        init_git()
+
+        if (env.DETERMINE_DOCKER_IMAGES == 'yes') {
+          sh(
+            script: "./tests/scripts/determine_docker_images.py {% for image in images %}{{ image.name }}={% raw %}${{% endraw %}{{ image.name }}{% raw %}}{% endraw %} {% endfor %}",
+            label: 'Decide whether to use tlcpack or tlcpackstaging for Docker images',
+          )
+          // Pull image names from the results of should_rebuild_docker.py
+          {% for image in images %}
+          {{ image.name }} = sh(
+            script: "cat .docker-image-names/{{ image.name }}",
+            label: "Find docker image name for {{ image.name }}",
+            returnStdout: true,
+          ).trim()
+          {% endfor %}
+        }
+
+        {% for image in images %}
+        {{ image.name }} = params.{{ image.name }}_param ?: {{ image.name }}
+        {% endfor %}
+
+        sh (script: """
+          echo "Docker images being used in this build:"
+          {% for image in images %}
+          echo " {{ image.name }} = ${ {{- image.name -}} }"
+          {% endfor %}
+        """, label: 'Docker image names')
+
+        is_docs_only_build = sh (
+          returnStatus: true,
+          script: './tests/scripts/git_change_docs.sh',
+          label: 'Check for docs only changes',
+        )
+        skip_ci = should_skip_ci(env.CHANGE_ID)
+        skip_slow_tests = should_skip_slow_tests(env.CHANGE_ID)
+        rebuild_docker_images = sh (
+          returnStatus: true,
+          script: './tests/scripts/git_change_docker.sh',
+          label: 'Check for any docker changes',
+        )
+
+        if (skip_ci) {
+          // Don't rebuild when skipping CI
+          rebuild_docker_images = false
+        }
+      }
+    }
+  }
+}

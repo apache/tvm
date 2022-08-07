@@ -28,6 +28,12 @@ various primitives provided by TVM.
 """
 from __future__ import absolute_import, print_function
 
+
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
 import tvm
 from tvm import te
 import numpy as np

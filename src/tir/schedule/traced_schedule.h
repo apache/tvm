@@ -53,7 +53,7 @@ class TracedScheduleNode : public ConcreteScheduleNode {
                                   Optional<Array<Integer>> decision = NullOpt) final;
   LoopRV SampleComputeLocation(const BlockRV& block_rv, Optional<Integer> decision = NullOpt) final;
   /******** Schedule: Get blocks & loops ********/
-  BlockRV GetBlock(const String& name, const String& func_name = "main") final;
+  BlockRV GetBlock(const String& name, const Optional<String>& func_name) final;
   Array<LoopRV> GetLoops(const BlockRV& block_rv) final;
   Array<BlockRV> GetChildBlocks(const BlockRV& block_rv) final;
   Array<BlockRV> GetChildBlocks(const LoopRV& loop_rv) final;
@@ -107,6 +107,8 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   void SetAxisSeparator(const BlockRV& block_rv, int buffer_index,
                         BufferIndexType buffer_index_type,
                         const Array<IntImm>& axis_separators) final;
+  /******** Schedule: Padding decomposition ********/
+  BlockRV DecomposePadding(const BlockRV& block_rv, const LoopRV& loop_rv) final;
   /******** Schedule: Misc ********/
   void EnterPostproc() final;
 };

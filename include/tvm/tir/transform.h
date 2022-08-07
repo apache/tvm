@@ -365,6 +365,19 @@ TVM_DLL Pass PointerValueTypeRewrite();
 TVM_DLL Pass HoistIfThenElse();
 
 /*!
+ * \brief Hoist loop-invariant expressions nodes to
+ * outside the elligible loops.
+ *
+ * Can hoist conditionals used in IfThenElse statements and
+ * expressions, bindings of variables in Let statements and
+ * expressions, or boolean expressions, configurable to enable/disable
+ * each hoistable type.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass HoistExpression();
+
+/*!
  * \brief Lower cross-thread reduction from thread
  * bindings to intrinsic function calls.
  * \return The pass.
@@ -444,9 +457,14 @@ TVM_DLL Pass LegalizePackedCalls();
 TVM_DLL Pass LowerMatchBuffer();
 
 /*!
- * \brief Flatten the multi-dimensional BufferLoad and BufferStore
- *        to single dimensional Load/Store. Also remove Block to
- *        ensure that the flattened TIR can not be scheduled again.
+ * \brief Remove the block to ensure that the TIR can not be scheduled again.
+ * \return The pass.
+ */
+TVM_DLL Pass LowerOpaqueBlock();
+
+/*!
+ * \brief Flatten the multi-dimensional BufferLoad and BufferStore to single dimensional
+ *        BufferLoad/BufferStore for the TIR not contains opaque block.
  * \return The pass.
  */
 TVM_DLL Pass FlattenBuffer();
@@ -649,6 +667,12 @@ TVM_DLL Pass Filter(runtime::TypedPackedFunc<bool(PrimFunc)> fcond);
  * \return The pass.
  */
 TVM_DLL Pass InjectPTXAsyncCopy();
+
+/*!
+ * \brief Remove the weight layout rewrite block
+ * \return The pass.
+ */
+TVM_DLL Pass RemoveWeightLayoutRewriteBlock();
 
 }  // namespace transform
 }  // namespace tir

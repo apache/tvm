@@ -286,6 +286,29 @@ TEST(CompilationConfig, FindPrimitiveTargetForKind_NotFound) {
   ASSERT_FALSE(config->FindPrimitiveTargetForKind("cutlass").defined());
 }
 
+TEST(CompilationConfig, CanonicalTarget) {
+  Target host_target = TestDefaultCpuTarget();
+  Target cuda_target = TestCudaTarget();
+  Target cpu_target = TestCpuTarget();
+  CompilationConfig config = TestCompilationConfig();
+
+  {
+    Target other_cuda_target = Target::WithHost(TestCudaTarget(), TestDefaultCpuTarget());
+    ASSERT_NE(other_cuda_target, cuda_target);
+    ASSERT_EQ(config->CanonicalTarget(other_cuda_target),
+              config->FindPrimitiveTargetForKind("cuda"));
+  }
+  {
+    Target other_host_target = TestDefaultCpuTarget();
+    ASSERT_NE(other_host_target, cuda_target);
+    ASSERT_EQ(config->CanonicalTarget(other_host_target), config->host_target);
+  }
+  {
+    Target other_target("cuda -max_num_threads=7");
+    ASSERT_EQ(config->CanonicalTarget(other_target), other_target);
+  }
+}
+
 TEST(CompilationConfig, CanonicalVirtualDevice) {
   Target host_target = TestDefaultCpuTarget();
   Target cuda_target = TestCudaTarget();
@@ -306,14 +329,27 @@ TEST(CompilationConfig, CanonicalVirtualDevice) {
     EXPECT_TRUE(StructuralEqual()(actual->target, Target::WithHost(cuda_target, host_target)));
     EXPECT_EQ(config->CanonicalVirtualDevice(in), actual);
   }
-}
-
-TEST(CompilationConfig, CanonicalVirtualDevice_NoDevice) {
-  CompilationConfig config = TestCompilationConfig();
-  VirtualDevice fully_unconstrained;
-  EXPECT_ANY_THROW(config->CanonicalVirtualDevice(fully_unconstrained));
-  VirtualDevice missing_device(kInvalidDeviceType, 3, {}, "local");
-  EXPECT_ANY_THROW(config->CanonicalVirtualDevice(missing_device));
+  {
+    Target other_cuda_target = Target::WithHost(TestCudaTarget(), TestDefaultCpuTarget());
+    VirtualDevice in = VirtualDevice(kDLCUDA, -1, other_cuda_target);
+    VirtualDevice actual = config->CanonicalVirtualDevice(in);
+    ASSERT_EQ(actual->target, config->FindPrimitiveTargetForKind("cuda"));
+  }
+  {
+    VirtualDevice in = VirtualDevice::ForMemoryScope("scope");
+    VirtualDevice actual = config->CanonicalVirtualDevice(in);
+    EXPECT_EQ(config->CanonicalVirtualDevice(in), actual);
+  }
+  {
+    VirtualDevice in = VirtualDevice::FullyUnconstrained();
+    VirtualDevice actual = config->CanonicalVirtualDevice(in);
+    EXPECT_EQ(config->CanonicalVirtualDevice(in), actual);
+  }
+  {
+    VirtualDevice in = VirtualDevice();  // ie structurally equal to FullyUnconstrained.
+    VirtualDevice actual = config->CanonicalVirtualDevice(in);
+    EXPECT_EQ(config->CanonicalVirtualDevice(in), VirtualDevice::FullyUnconstrained());
+  }
 }
 
 TEST(CompilationConfig, CanonicalVirtualDevice_NoMatchingTarget) {

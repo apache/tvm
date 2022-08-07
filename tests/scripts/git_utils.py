@@ -21,7 +21,7 @@ import subprocess
 import re
 import base64
 import logging
-from urllib import request
+from urllib import request, error
 from typing import Dict, Tuple, Any, Optional, List
 
 
@@ -85,12 +85,27 @@ class GitHubRepo:
         data = data.encode("utf-8")
         req.add_header("Content-Length", len(data))
 
-        with request.urlopen(req, data) as response:
-            response = json.loads(response.read())
+        try:
+            with request.urlopen(req, data) as response:
+                content = response.read()
+        except error.HTTPError as e:
+            msg = str(e)
+            error_data = e.read().decode()
+            raise RuntimeError(f"Error response: {msg}\n{error_data}")
+
+        logging.info(f"Got response from {full_url}: {content}")
+        try:
+            response = json.loads(content)
+        except json.decoder.JSONDecodeError as e:
+            return content
+
         return response
 
     def put(self, url: str, data: Dict[str, Any]) -> Dict[str, Any]:
         return self._request(self.base + url, data, method="PUT")
+
+    def patch(self, url: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        return self._request(self.base + url, data, method="PATCH")
 
     def post(self, url: str, data: Dict[str, Any]) -> Dict[str, Any]:
         return self._request(self.base + url, data, method="POST")

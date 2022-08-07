@@ -44,6 +44,7 @@ from tensorflow.python.framework import constant_op
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import array_ops
+from tensorflow.python.ops import image_ops
 from tensorflow.python.ops import gen_array_ops
 from tensorflow.python.ops import nn_impl
 from tensorflow.python.ops import variables
@@ -932,9 +933,24 @@ def _test_tflite2_quantized_convolution(
         is_float_output=True,
         int_quant_dtype=int_quant_dtype,
     )
+    # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
+    try:
+        import tflite.Model
+
+        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_quant, 0)
+    except AttributeError:
+        import tflite
+
+        tflite_model = tflite.Model.GetRootAsModel(tflite_model_quant, 0)
+    except ImportError:
+        raise ImportError("The tflite package must be installed")
+
+    subgraph = tflite_model.Subgraphs(0)
+    model_input = subgraph.InputsAsNumpy()
+    input_node = subgraph.Tensors(model_input).Name().decode("utf-8")
 
     tflite_output = run_tflite_graph(tflite_model_quant, data)
-    tvm_output = run_tvm_graph(tflite_model_quant, data, data_in.name.replace(":0", ""))
+    tvm_output = run_tvm_graph(tflite_model_quant, data, input_node)
     tvm.testing.assert_allclose(
         np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]), rtol=1e-2, atol=1e-2
     )
@@ -959,8 +975,28 @@ def test_forward_quantized_convolution():
         )
 
 
+def test_forward_quantized_depthwise_convolution():
+    for int_quant_dtype in [tf.int8, tf.int16]:
+        _test_tflite2_quantized_depthwise_convolution(
+            [1, 8, 8, 128], [1, 1, 128, 1], [1, 1], [1, 1], "SAME", "NHWC", 1, int_quant_dtype
+        )
+        _test_tflite2_quantized_depthwise_convolution(
+            [1, 17, 17, 12], [3, 3, 12, 1], [1, 1], [2, 2], "VALID", "NHWC", 1, int_quant_dtype
+        )
+        _test_tflite2_quantized_depthwise_convolution(
+            [1, 24, 24, 3], [7, 7, 3, 8], [1, 1], [2, 2], "SAME", "NHWC", 8, int_quant_dtype
+        )
+
+
 def _test_tflite2_quantized_depthwise_convolution(
-    input_shape, kernel_shape, dilations, strides, padding, data_format, depth_multiplier
+    input_shape,
+    kernel_shape,
+    dilations,
+    strides,
+    padding,
+    data_format,
+    depth_multiplier,
+    int_quant_dtype=tf.int8,
 ):
     """One iteration of TFLite2 quantized depthwise convolution with given shapes and attributes"""
 
@@ -986,10 +1022,32 @@ def _test_tflite2_quantized_depthwise_convolution(
         for i in range(1):
             yield [data]
 
-    tflite_model_quant = _quantize_keras_model(keras_model, representative_data_gen)
+    tflite_model_quant = _quantize_keras_model(
+        keras_model,
+        representative_data_gen,
+        is_float_input=True,
+        is_float_output=True,
+        int_quant_dtype=int_quant_dtype,
+    )
+
+    # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
+    try:
+        import tflite.Model
+
+        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_quant, 0)
+    except AttributeError:
+        import tflite
+
+        tflite_model = tflite.Model.GetRootAsModel(tflite_model_quant, 0)
+    except ImportError:
+        raise ImportError("The tflite package must be installed")
+
+    subgraph = tflite_model.Subgraphs(0)
+    model_input = subgraph.InputsAsNumpy()
+    input_node = subgraph.Tensors(model_input).Name().decode("utf-8")
 
     tflite_output = run_tflite_graph(tflite_model_quant, data)
-    tvm_output = run_tvm_graph(tflite_model_quant, data, data_in.name.replace(":0", ""))
+    tvm_output = run_tvm_graph(tflite_model_quant, data, input_node)
     tvm.testing.assert_allclose(
         np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]), rtol=1e-2, atol=1e-2
     )
@@ -1229,15 +1287,6 @@ def test_forward_convolution():
         _test_convolution(
             [1, 17, 17, 124], [1, 1, 124, 19], [1, 1], [1, 1], "SAME", "NHWC", quantized=True
         )
-
-        # Disable as tests are flaky - https://github.com/apache/tvm/issues/6064
-        # depthwise convolution
-        # _test_tflite2_quantized_depthwise_convolution([1, 8, 8, 128], [1, 1, 128, 1], [1, 1], [1, 1],
-        #                                               'SAME', 'NHWC', 1)
-        # _test_tflite2_quantized_depthwise_convolution([1, 17, 17, 12], [3, 3, 12, 1], [1, 1], [2, 2],
-        #                                               'VALID', 'NHWC', 1)
-        # _test_tflite2_quantized_depthwise_convolution([1, 24, 24, 3], [7, 7, 3, 8], [1, 1], [2, 2],
-        #                                               'SAME', 'NHWC', 8)
 
 
 #######################################################################
@@ -1766,7 +1815,9 @@ def test_forward_range():
 #######################################################################
 # Shape
 # -----
-def test_forward_shape():
+
+
+def _test_shape(dtype):
     # tflite 1.13 convert method does not accept empty shapes
     if package_version.parse(tf.VERSION) >= package_version.parse("1.14.0"):
         tf.reset_default_graph()
@@ -1776,7 +1827,8 @@ def test_forward_shape():
             limit = tf.placeholder(dtype=tf.int32, shape=[], name="limit")
             delta = tf.placeholder(dtype=tf.int32, shape=[], name="delta")
             r = tf.range(start, limit, delta, tf.int32, name="range")
-            out = tf.shape(r, out_type=tf.dtypes.int32)
+            out = tf.shape(r, out_type=dtype)
+            out = tf.add(out, tf.constant([1], dtype=dtype))
             compare_tflite_with_tvm(
                 [x for x in np.nditer(data)],
                 ["start", "limit", "delta"],
@@ -1784,6 +1836,11 @@ def test_forward_shape():
                 [out],
                 mode="vm",
             )
+
+
+def test_forward_shape():
+    _test_shape(tf.int32)
+    _test_shape(tf.int64)
 
 
 #######################################################################
@@ -2214,22 +2271,33 @@ def _test_elemwise(
                 if None != x[0]
             }
 
-            out = math_op(inq_data[0], inq_data[1])
-            out = with_fused_activation_function(out, fused_activation_function)
-            out = tf.quantization.fake_quant_with_min_max_args(
-                out, min=out_min, max=out_max, name="out"
-            )
+            if math_op is math_ops.equal:
+                out = math_op(inq_data[0], inq_data[1])
+                out = with_fused_activation_function(out, fused_activation_function)
 
-            # Note same_qnn_params uses experimental_new_converter as toco failed
-            compare_tflite_with_tvm(
-                [x[1] for x in zip(in_data, data) if None != x[0]],
-                [x + ":0" for x in input_range.keys()],
-                [x[1] for x in zip(in_data, inq_data) if None != x[0]],
-                [out],
-                quantized=True,
-                input_range=input_range,
-                experimental_new_converter=same_qnn_params,
-            )
+                compare_tflite_with_tvm(
+                    [x[1] for x in zip(in_data, data) if None != x[0]],
+                    [x + ":0" for x in input_range.keys()],
+                    [x[1] for x in zip(in_data, inq_data) if None != x[0]],
+                    [out],
+                )
+            else:
+                out = math_op(inq_data[0], inq_data[1])
+                out = with_fused_activation_function(out, fused_activation_function)
+                out = tf.quantization.fake_quant_with_min_max_args(
+                    out, min=out_min, max=out_max, name="out"
+                )
+
+                # Note same_qnn_params uses experimental_new_converter as toco failed
+                compare_tflite_with_tvm(
+                    [x[1] for x in zip(in_data, data) if None != x[0]],
+                    [x + ":0" for x in input_range.keys()],
+                    [x[1] for x in zip(in_data, inq_data) if None != x[0]],
+                    [out],
+                    quantized=True,
+                    input_range=input_range,
+                    experimental_new_converter=same_qnn_params,
+                )
         else:
             out = math_op(
                 in_data[0]
@@ -2386,9 +2454,16 @@ def _test_less_equal(data):
 # -----
 
 
-def _test_equal(data):
+def _test_equal(data, fused_activation_function=None, quantized=False, qnn_op=None):
     """One iteration of equal"""
-    return _test_elemwise(math_ops.equal, data)
+    return _test_elemwise(
+        math_ops.equal,
+        data,
+        fused_activation_function,
+        quantized,
+        qnn_op,
+        same_qnn_params=True,
+    )
 
 
 #######################################################################
@@ -2454,14 +2529,25 @@ def _test_forward_elemwise(testop):
 
 
 def _test_forward_elemwise_quantized(testop):
-    testop(
-        [
-            np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8),
-            np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8),
-        ],
-        quantized=True,
-        qnn_op=testop,
-    )
+    if testop is not _test_equal:
+        testop(
+            [
+                np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8),
+                np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8),
+            ],
+            quantized=True,
+            qnn_op=testop,
+        )
+    else:
+        # no need for fake_quant to hold tensors in float32 until conversion
+        testop(
+            [
+                np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.float32),
+                np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.float32),
+            ],
+            quantized=True,
+            qnn_op=testop,
+        )
 
 
 def _test_elemwise_qnn_out_range(qnn_op):
@@ -2472,6 +2558,7 @@ def _test_elemwise_qnn_out_range(qnn_op):
         _test_mul: (-5e3, 5e3),
         _test_maximum: (-112, 111),
         _test_minimum: (-128, 127),
+        _test_equal: (-150, 150),
     }
 
     return qnn_out_range[qnn_op]
@@ -2506,6 +2593,7 @@ def test_all_elemwise():
     _test_forward_elemwise(_test_less)
     _test_forward_elemwise(_test_less_equal)
     _test_forward_elemwise(_test_equal)
+    _test_forward_elemwise_quantized(_test_equal)
     _test_forward_elemwise(_test_not_equal)
     if package_version.parse(tf.VERSION) >= package_version.parse("1.14.0"):
         _test_forward_elemwise(_test_floor_divide)
@@ -4906,6 +4994,42 @@ def test_prevent_tensorflow_dynamic_range():
         tvm_output = run_tvm_graph(tflite_model, data_array, data_in.name.replace(":0", ""))
 
 
+def _test_nms_v5(
+    bx_shape, score_shape, iou_threshold, score_threshold, max_output_size, dtype="float32"
+):
+    """One iteration of nms_v5 with given attributes"""
+    boxes = np.random.uniform(0, 10, size=bx_shape).astype(dtype)
+    scores = np.random.uniform(size=score_shape).astype(dtype)
+
+    tf.reset_default_graph()
+    tf.compat.v1.disable_eager_execution()
+    in_data_1 = array_ops.placeholder(dtype, boxes.shape, name="in_data_1")
+    in_data_2 = array_ops.placeholder(dtype, scores.shape, name="in_data_2")
+    out = image_ops.non_max_suppression_with_scores(
+        boxes=in_data_1,
+        scores=in_data_2,
+        max_output_size=max_output_size,
+        iou_threshold=iou_threshold,
+        score_threshold=score_threshold,
+        name="nms",
+    )
+
+    compare_tflite_with_tvm(
+        [boxes, scores],
+        ["in_data_1:0", "in_data_2:0"],
+        [in_data_1, in_data_2],
+        [out[0], out[1]],
+        out_names=[out[0].name, out[1].name],
+        experimental_new_converter=True,
+    )
+
+
+def test_forward_nms_v5():
+    """test nms_v5"""
+    _test_nms_v5((10000, 4), (10000,), 0.5, 0.4, 100)
+    _test_nms_v5((1000, 4), (1000,), 0.7, 0.3, 50)
+
+
 #######################################################################
 # Main
 # ----
@@ -5000,6 +5124,9 @@ if __name__ == "__main__":
     # Detection_PostProcess
     test_detection_postprocess()
 
+    # NonMaxSuppressionV5
+    test_forward_nms_v5()
+
     # Overwrite Converter
     test_custom_op_converter()
 
@@ -5027,6 +5154,8 @@ if __name__ == "__main__":
     test_forward_qnn_coco_ssd_mobilenet_v1()
 
     # TFLite 2.1.0 quantized tests
+    test_forward_quantized_convolution()
+    test_forward_quantized_depthwise_convolution()
     test_forward_tflite2_qnn_resnet50()
     test_forward_tflite2_qnn_inception_v1()
     test_forward_tflite2_qnn_mobilenet_v2()

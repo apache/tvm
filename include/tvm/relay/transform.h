@@ -372,6 +372,12 @@ TVM_DLL Pass AlterOpLayout();
 TVM_DLL Pass AutoSchedulerLayoutRewrite();
 
 /*!
+ * \brief Do layout rewrite according to the tile structure created by meta-schedule.
+ * \return The pass
+ */
+TVM_DLL Pass MetaScheduleLayoutRewrite();
+
+/*!
  * \brief Given a dest layout, this pass transforms the expr such that most of the ops input data
  * layout is changed to the dest layout. In ideal situation, there are only 2 layout transforms, one
  * at the start and one at the end.
@@ -550,6 +556,35 @@ TVM_DLL Pass PlanDevices(CompilationConfig config);
  */
 TVM_DLL Pass FlattenAtrousConv();
 
+/*!
+ * \brief Annotates the minimum required memory of each primitive function callsite by analyzing
+ * the liveness of the input/output tensors at each function callsite and calculating the total
+ * amount of memory these tensors require. This is added as a "used_memory" annotation to the
+ * function in question as a list of the number of bytes for each callsite. In addition, the
+ * containing function is annotated with an "io_used_memory" annotation which refers to the total
+ * memory required for the IO tensors.
+ *
+ * Note: This pass does not support dynamic shapes, it is the users responsibility to check this
+ * pass isn't applied where dynamic shapes may be input.
+ */
+TVM_DLL Pass AnnotateUsedMemory();
+
+/*!
+ * \brief Captures the post-dfs index and dominator post-dfs index of (most) expression nodes in
+ * their span, in the form "index:<post-dfs index>:<dominator post-dfs index>". This is useful for
+ * debugging since a) it helps identify pretty-printed sub-expressions within the overall model
+ * and b) the indexes are heavily used by Collage for its compact representation of sub-graphs.
+ *
+ * Note that Op and Constructor nodes are not changed even though they are assigned an
+ * post-dfs index.
+ */
+TVM_DLL Pass CapturePostDfsIndexInSpans();
+
+/*!
+ * \brief Calls device dependent memory scope analysis pass, collects mapping of desirable
+ * expr->memory_scope and annotates expressions by VirtualDevice with required memory_scope
+ */
+TVM_DLL Pass AnnotateMemoryScope(CompilationConfig config);
 }  // namespace transform
 
 /*!

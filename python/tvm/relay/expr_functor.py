@@ -18,7 +18,7 @@
 """The expression functor of Relay."""
 from tvm.ir import Op
 
-from .function import Function
+from .function import Function, FunctionWithFields
 from .expr import Call, Let, Var, GlobalVar
 from .expr import If, Tuple, TupleGetItem, Constant
 from .expr import RefCreate, RefRead, RefWrite
@@ -204,7 +204,11 @@ class ExprMutator(ExprFunctor):
     def visit_function(self, fn):
         new_params = [self.visit(x) for x in fn.params]
         new_body = self.visit(fn.body)
-        return Function(list(new_params), new_body, fn.ret_type, fn.type_params, fn.attrs)
+        return FunctionWithFields(
+            fn,
+            list(new_params),
+            new_body,
+        )
 
     def visit_let(self, let):
         new_var = self.visit(let.var)

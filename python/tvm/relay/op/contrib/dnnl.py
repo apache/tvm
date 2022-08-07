@@ -33,31 +33,35 @@ it is supported. For example:
 check the attributes of the op and decide if it should be offloaded to DNNL.
 """
 import logging
+from functools import reduce
 
 import tvm.ir
+from tvm.ir import Op
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.expr import GlobalVar
 from tvm.relay.expr_functor import ExprMutator, ExprVisitor
+from tvm.relay.expr import const
 
 from tvm.relay.analysis import analysis as _analysis
 from tvm.relay import expr as _expr
 
-
+from tvm.relay.expr import Call, TupleGetItem
 from ... import _ffi_api
-from ...dataflow_pattern import wildcard, is_op, is_expr, rewrite, DFPatternCallback
+from ...dataflow_pattern import wildcard, is_op, is_constant, is_expr, rewrite, DFPatternCallback
 from .register import register_pattern_table
 
 
 logger = logging.getLogger("DNNL")
+supported_post_elts = ["nn.relu", "tanh", "sigmoid", "clip", "gelu", "swish", "mish", None]
 
 
 def _register_external_op_helper(op_name, supported=True):
     """The helper function to indicate that a given operator can be supported
     by DNNL.
 
-    Paramters
-    ---------
+    Parameters
+    ----------
     op_name : Str
         The name of operator that will be registered.
 
@@ -69,6 +73,10 @@ def _register_external_op_helper(op_name, supported=True):
 
     @tvm.ir.register_op_attr(op_name, "target.dnnl")
     def _func_wrapper(expr):
+        args = expr.args
+        if any([x.checked_type.dtype == "int64" for x in args]):
+            logger.info("DNNL does not support int64.")
+            return False
         return supported
 
     return _func_wrapper
@@ -83,6 +91,7 @@ _register_external_op_helper("nn.conv3d_transpose")
 _register_external_op_helper("nn.dense")
 _register_external_op_helper("nn.max_pool2d")
 _register_external_op_helper("nn.avg_pool2d")
+_register_external_op_helper("nn.global_avg_pool2d")
 _register_external_op_helper("nn.max_pool3d")
 _register_external_op_helper("nn.avg_pool3d")
 _register_external_op_helper("abs")
@@ -90,6 +99,7 @@ _register_external_op_helper("clip")
 _register_external_op_helper("exp")
 _register_external_op_helper("log")
 _register_external_op_helper("sqrt")
+_register_external_op_helper("round")
 _register_external_op_helper("nn.relu")
 _register_external_op_helper("nn.leaky_relu")
 _register_external_op_helper("tanh")
@@ -98,6 +108,45 @@ _register_external_op_helper("nn.softmax")
 _register_external_op_helper("add")
 _register_external_op_helper("multiply")
 _register_external_op_helper("nn.layer_norm")
+_register_external_op_helper("nn.batch_matmul")
+
+
+def append_eltwise_ops(op, eltwise):
+    """Append element-wise post-ops to conv / conv_transpose / dense
+
+    Parameters
+    ----------
+    op : str
+        The op name to be attached with element-wise post-op.
+    eltwise : str
+        The attached elementwise post-op name.
+    Returns
+    -------
+    pattern : CallPattern
+        Call node sequence.
+    """
+    if eltwise == "gelu":
+        const1 = wildcard()
+        const2 = wildcard()
+        const3 = wildcard()
+        div = is_op("divide")(op, const1)
+        erf_val = is_op("erf")(div)
+        added_erf_val = is_op("add")(erf_val, const2)
+        mul_val = is_op("multiply")(op, added_erf_val)
+        op = is_op("multiply")(mul_val, const3)
+    elif eltwise == "swish":
+        sig_out = is_op("sigmoid")(op)
+        op = is_op("multiply")(op, sig_out)
+    elif eltwise == "mish":
+        const1 = wildcard()
+        exp = is_op("exp")(op)
+        add = is_op("add")(exp, const1)
+        log = is_op("log")(add)
+        tanh = is_op("tanh")(log)
+        op = is_op("multiply")(op, tanh)
+    elif eltwise:
+        op = is_op(eltwise)(op)
+    return op
 
 
 def make_conv_pattern(conv_name, with_bias=True, with_eltwise=None):
@@ -114,6 +163,8 @@ def make_conv_pattern(conv_name, with_bias=True, with_eltwise=None):
     conv_out : CallPattern
         Call node sequence.
     """
+    if with_eltwise not in supported_post_elts:
+        raise ValueError("Unsupported eltwise post-op: %s" % with_eltwise)
     data = wildcard()
     weight = wildcard()
     bias = wildcard()
@@ -122,9 +173,95 @@ def make_conv_pattern(conv_name, with_bias=True, with_eltwise=None):
         conv_out = is_op("add")(conv, bias)
     else:
         conv_out = conv
-    if with_eltwise:
-        return is_op(with_eltwise)(conv_out)
-    return conv_out
+    return append_eltwise_ops(conv_out, with_eltwise)
+
+
+def make_conv_bias_sum_relu_pattern(conv_type, has_relu=True):
+    """Create patterns with sum op.
+
+    Parameters
+    ----------
+    conv_type : str
+        Should be nn.conv1d / nn.conv2d / nn.conv3d.
+    has_relu : bool
+        Whether attach relu.
+    Returns
+    -------
+    out : CallPattern
+        Call node sequence.
+    """
+    data1 = wildcard()
+    weight = wildcard()
+    bias = wildcard()
+    data2 = wildcard()
+    out = is_op(conv_type)(data1, weight)
+    out = is_op("add")(out, bias)
+    out = is_op("add")(out, data2)
+    if has_relu:
+        out = is_op("nn.relu")(out)
+    return out
+
+
+def get_op_name(expr):
+    """Get the operator name from an expression."""
+    if isinstance(expr, Op):
+        return expr.name
+    if isinstance(expr, Call):
+        return get_op_name(expr.op)
+    if isinstance(expr, TupleGetItem):
+        return get_op_name(expr.tuple_value)
+    if isinstance(expr, relay.Tuple):
+        return get_op_name(expr.fields[0])
+    return ""
+
+
+def get_args(expr):
+    """Get the arguments from an expression."""
+    if isinstance(expr, Call):
+        return expr.args
+    if isinstance(expr, TupleGetItem):
+        return get_args(expr.tuple_value)
+    if isinstance(expr, relay.Tuple):
+        return [arg for args in map(get_args, expr.fields) for arg in args]
+    return []
+
+
+def get_attrs(expr):
+    """Get the attributes from an expression."""
+    if isinstance(expr, Call):
+        return expr.attrs
+    if isinstance(expr, TupleGetItem):
+        return get_attrs(expr.tuple_value)
+    return {}
+
+
+def make_predicate(checker):
+    """Check whether the conv_bias_add_sum pattern is as expected."""
+
+    def predicate(expr):
+        if get_op_name(expr) == "nn.relu":
+            expr = expr.args[0]
+        for e, op_name in zip([expr, expr.args[0]], ["sum", "bias_add"]):
+            args = get_args(e)
+            attrs = get_attrs(e.args[0])
+            if not checker(attrs, args, op_name):
+                return False
+        return True
+
+    return predicate
+
+
+def add_checker(attrs, args, op_name):
+    """Check if add is supported by DNNL."""
+    if op_name == "sum":
+        if tuple(get_shape(args[0])) != tuple(get_shape(args[1])):
+            return False
+    if op_name == "bias_add":
+        channel = dict(attrs)["channels"]
+        const_shape = get_shape(args[1])
+        if channel != reduce(lambda x, y: x * y, const_shape):
+            return False
+    return True
 
 
 def make_dense_pattern(with_bias=True, with_eltwise=None):
@@ -141,6 +278,8 @@ def make_dense_pattern(with_bias=True, with_eltwise=None):
     dense_out : CallPattern
         Call node sequence.
     """
+    if with_eltwise not in supported_post_elts:
+        raise ValueError("Unsupported eltwise post-op: %s" % with_eltwise)
     data = wildcard()
     weight = wildcard()
     bias = wildcard()
@@ -150,18 +289,7 @@ def make_dense_pattern(with_bias=True, with_eltwise=None):
         dense_out = is_op("add")(dense, bias)
     else:
         dense_out = dense
-    if with_eltwise == "gelu":
-        const1 = wildcard()
-        const2 = wildcard()
-        const3 = wildcard()
-        div = is_op("divide")(dense_out, const1)
-        erf_val = is_op("erf")(div)
-        added_erf_val = is_op("add")(erf_val, const2)
-        mul_val = is_op("multiply")(dense_out, added_erf_val)
-        dense_out = is_op("multiply")(mul_val, const3)
-    elif with_eltwise:
-        dense_out = is_op(with_eltwise)(dense_out)
-    return dense_out
+    return append_eltwise_ops(dense_out, with_eltwise)
 
 
 def make_dnnl_pattern(op_name, with_bias, with_eltwise):
@@ -199,6 +327,70 @@ def make_dnnl_pattern(op_name, with_bias, with_eltwise):
     return dnnl_pattern
 
 
+def make_qnn_conv2d_pattern():
+    """Make qnn.conv2d based pattern supported by DNNL
+
+    Returns
+    -------
+    pattern : Tuple(pattern_name, CallPattern)
+        Created pattern name, along with its CallPattern.
+    """
+    data = wildcard()
+    weight = is_constant()
+    bias = is_constant()
+    o_scl = is_constant()
+    dst_zp = is_constant()
+    act_scl = is_constant()
+    sum_scl = is_constant()
+    sum_src = wildcard()
+
+    zero_zp = is_expr(const(0, dtype="int32"))
+
+    pat = is_op("qnn.conv2d")(data, weight, zero_zp, zero_zp, is_constant(), is_constant())
+    pat = is_op("cast")(pat)
+    pat = is_op("add")(pat, bias) | pat  # optional bias
+    pat = is_op("multiply")(pat, o_scl)
+    pat = is_op("clip")(pat)  # TBD, not only clip
+    pat = is_op("multiply")(pat, act_scl) | pat  # optional multiply. Ex: act_scl == 1
+    pat = is_op("add")(pat, sum_scl * is_op("cast")(sum_src)) | pat  # optional sum
+    pat = is_op("add")(pat, dst_zp) | pat  # optional dst_zp, can be dst_zp == 0
+    pat = is_op("cast")(pat)
+
+    return "dnnl.qnn.conv2d", pat
+
+
+def make_qnn_dense_pattern():
+    """Make qnn.dense based pattern supported by DNNL
+
+    Returns
+    -------
+    pattern : Tuple(pattern_name, CallPattern)
+        Created pattern name, along with its CallPattern.
+    """
+    data = wildcard()
+    weight = is_constant()
+    bias = is_constant()
+    o_scl = is_constant()
+    dst_zp = is_constant()
+    act_scl = is_constant()
+    sum_scl = is_constant()
+    sum_src = wildcard()
+
+    zero_zp = is_expr(const(0, dtype="int32"))
+
+    pat = is_op("qnn.dense")(data, weight, zero_zp, zero_zp, is_constant(), is_constant())
+    pat = is_op("cast")(pat)
+    pat = is_op("add")(pat, bias) | pat  # optional bias
+    pat = is_op("multiply")(pat, o_scl)
+    pat = is_op("clip")(pat)  # TBD, not only clip
+    pat = is_op("multiply")(pat, act_scl) | pat  # optional multiply. ex act_scl == 1
+    pat = is_op("add")(pat, sum_scl * is_op("cast")(sum_src)) | pat  # optional sum
+    pat = is_op("add")(pat, dst_zp) | pat  # optional dst_zp, can be dst_zp == 0
+    pat = is_op("cast")(pat)
+
+    return "dnnl.qnn.dense", pat
+
+
 @register_pattern_table("dnnl")
 def pattern_table():
     """Create dnnl patterns.
@@ -208,8 +400,25 @@ def pattern_table():
     dnnl_patterns : List[dnnl_pattern]
         Created patterns.
     """
-    elt_list = ["nn.relu", "tanh", "sigmoid", "gelu", None]
-    dnnl_patterns = []
+    dnnl_patterns = list()
+    dnnl_patterns.append(make_qnn_conv2d_pattern())
+    dnnl_patterns.append(make_qnn_dense_pattern())
+    dnnl_patterns.append(
+        (
+            "dnnl.conv2d_bias_sum_relu",
+            make_conv_bias_sum_relu_pattern("nn.conv2d"),
+            make_predicate(add_checker),
+        )
+    )
+    dnnl_patterns.append(
+        (
+            "dnnl.conv2d_bias_sum",
+            make_conv_bias_sum_relu_pattern("nn.conv2d", False),
+            make_predicate(add_checker),
+        )
+    )
+
+    elt_list = ["nn.relu", "tanh", "sigmoid", "clip", "gelu", "swish", "mish", None]
     for with_bias in [True, False]:
         for elt in elt_list:
             if not with_bias and not elt:
@@ -221,8 +430,7 @@ def pattern_table():
                 "nn.conv2d_transpose",
                 "nn.conv3d_transpose",
             ]:
-                if elt != "gelu":
-                    dnnl_patterns.append(make_dnnl_pattern(conv_name, with_bias, elt))
+                dnnl_patterns.append(make_dnnl_pattern(conv_name, with_bias, elt))
             dnnl_patterns.append(make_dnnl_pattern("nn.dense", with_bias, elt))
     return dnnl_patterns
 
@@ -307,6 +515,8 @@ def get_shape(tensor):
     if isinstance(tensor, tvm.ir.container.Array):
         return tensor[-1].shape
     if isinstance(tensor, relay.expr.Call):
+        if tensor.op.name == "multiply":
+            return tensor.type_args[0].shape
         return tensor.checked_type.shape
     raise TypeError("Unsupport data type: %s" % type(tensor))
 
@@ -322,6 +532,8 @@ def get_dtype(tensor):
     if isinstance(tensor, tvm.ir.container.Array):
         return tensor[-1].dtype
     if isinstance(tensor, relay.expr.Call):
+        if tensor.op.name == "multiply":
+            return tensor.type_args[0].dtype
         return tensor.checked_type.dtype
     raise TypeError("Unsupport data type: %s" % type(tensor))
 
@@ -357,6 +569,18 @@ def tag2layout(input_data, is_weight=False, conv_type="Conv1D"):
             raise ValueError("Unsupport layout format: %s" % input_data)
 
     return res
+
+
+def legalize_pad_avg_pool(attrs, inputs, types):
+    """Legalize pad->avg_pool2d pattern.
+    Fuse this pattern into one avg_pool2d with padding = (1, 1),
+    and count_include_pad = True"""
+    data = inputs[0]
+    new_attrs = dict(attrs)
+    if isinstance(data, relay.expr.Call) and data.op.name == "nn.pad":
+        new_attrs["padding"] = (1, 1)
+        new_attrs["count_include_pad"] = True
+    return relay.nn.avg_pool2d(data.args[0], **new_attrs)
 
 
 def legalize_group_conv(attrs, inputs, types):
@@ -474,6 +698,8 @@ class IsComputeIntensiveGraph(ExprVisitor):
                 "nn.conv3d_transpose",
                 "nn.dense",
                 "nn.layer_norm",
+                "nn.batch_matmul",
+                "nn.global_avg_pool2d",
             ]
         )
         if isinstance(call.op, tvm.tir.op.Op):
@@ -590,7 +816,7 @@ class LayerNormRewrite(DFPatternCallback):
         const_two = is_expr(relay.const(2)) | is_expr(relay.const(2.0))
         p1 = is_op("power")(cdiff, const_two)
         mp1 = is_op("mean")(p1) | is_op("variance")(self.data, mu)
-        eps = is_expr(relay.const(1e-5))
+        eps = is_expr(relay.const(1e-5)) | is_expr(relay.const(1e-6))
         added_eps = is_op("add")(mp1, eps)
         deno = is_op("sqrt")(added_eps)
         div_out = is_op("divide")(diff, deno)
@@ -706,4 +932,381 @@ def rewrite_dense_bias_gelu_reshape_last(mod):
     mod["main"] = rewrite(
         [DenseReshapeBiasGeluRewrite(), DenseReshapeBiasGeluRewrite(has_gelu=False)], mod["main"]
     )
+    return mod
+
+
+class ResNetV1Rewrite(DFPatternCallback):
+    """
+    A callback to advance downsize operation when the patterns are as pattern1,
+    and the result is written in pattern2:
+    Pattern #1:
+    %26 = nn.conv2d(%25, ty=Tensor[(64, 256, 1, 1));
+    %27 = add(%26, ty=Tensor[(64, 1, 1));
+    %28 = nn.relu(%27);
+
+    %29 = nn.conv2d(%28, ty=Tensor[(64, 64, 3, 3));
+    %30 = add(%29, ty=Tensor[(64, 1, 1));
+    %31 = nn.relu(%30);
+
+    %32 = nn.conv2d(%31, ty=Tensor[(256, 64, 1, 1));
+    %33 = add(%32, ty=Tensor[(256, 1, 1));
+    %34 = add(%33, %25);
+    %35 = nn.relu(%34);
+
+    %36 = nn.conv2d(%35, ty=Tensor[(128, 256, 1, 1), strides=[2, 2]);
+    %37 = add(%36, ty=Tensor[(128, 1, 1));
+    %38 = nn.relu(%37);
+
+    %39 = nn.conv2d(%38, ty=Tensor[(128, 128, 3, 3));
+    %40 = add(%39, ty=Tensor[(128, 1, 1)]);
+    %41 = nn.relu(%40);
+
+    %42 = nn.conv2d(%41, ty=Tensor[(512, 128, 1, 1));
+    %43 = nn.conv2d(%35, ty=Tensor[(512, 256, 1, 1), strides=[2, 2]);
+    %44 = add(%42, ty=Tensor[(512, 1, 1));
+    %45 = add(%43, ty=Tensor[(512, 1, 1));
+
+    %46 = add(%44, %45);
+    %47 = nn.relu(%46);
+    Pattern #2:
+    %26 = nn.conv2d(%25, ty=Tensor[(64, 256, 1, 1));
+    %27 = add(%26, ty=Tensor[(64, 1, 1));
+    %28 = nn.relu(%27);
+
+    %29 = nn.conv2d(%28, ty=Tensor[(64, 64, 3, 3), strides=[2, 2]);
+    %30 = add(%29, ty=Tensor[(64, 1, 1));
+    %31 = nn.relu(%30);
+
+    %32 = nn.conv2d(%31, ty=Tensor[(256, 64, 1, 1));
+    %33 = add(%32, ty=Tensor[(256, 1, 1));
+    %34 = nn.max_pool2d(%25, pool_size=[1, 1], strides=[2, 2], padding=[0, 0, 0, 0]);
+    %35 = add(%33, %34);
+    %36 = nn.relu(%35);
+
+    %37 = nn.conv2d(%36, ty=Tensor[(128, 256, 1, 1));
+    %38 = add(%37, ty=Tensor[(128, 1, 1));
+    %39 = nn.relu(%38);
+
+    %40 = nn.conv2d(%39, ty=Tensor[(128, 128, 3, 3));
+    %41 = add(%40, ty=Tensor[(128, 1, 1));
+    %42 = nn.relu(%41);
+
+    %43 = nn.conv2d(%42, ty=Tensor[(512, 128, 1, 1));
+    %44 = nn.conv2d(%36, ty=Tensor[(512, 256, 1, 1));
+    %45 = add(%43, ty=Tensor[(512, 1, 1));
+    %46 = add(%44, ty=Tensor[(512, 1, 1));
+    %47 = add(%45, %46);
+    %48 = nn.relu(%47);
+    """
+
+    def __init__(self):
+        super(ResNetV1Rewrite, self).__init__()
+        self.attr_lst = []
+        self.data = wildcard()
+        self.w1, self.b1 = wildcard(), wildcard()
+        self.w2, self.b2 = wildcard(), wildcard()
+        self.w3, self.b3 = wildcard(), wildcard()
+        self.w4, self.b4 = wildcard(), wildcard()
+        self.w5, self.b5 = wildcard(), wildcard()
+        self.w6, self.b6 = wildcard(), wildcard()
+        self.w7, self.b7 = wildcard(), wildcard()
+
+        conv1 = is_op("nn.conv2d")(self.data, self.w1).has_attr({"kernel_size": [1, 1]})
+        conv1 = is_op("add")(conv1, self.b1)
+        conv1 = is_op("nn.relu")(conv1)
+
+        conv2 = is_op("nn.conv2d")(conv1, self.w2).has_attr({"kernel_size": [3, 3]})
+        conv2 = is_op("add")(conv2, self.b2)
+        conv2 = is_op("nn.relu")(conv2)
+
+        conv3 = is_op("nn.conv2d")(conv2, self.w3).has_attr({"kernel_size": [1, 1]})
+        conv3 = is_op("add")(conv3, self.b3)
+        conv3 = is_op("add")(conv3, self.data)
+        conv3 = is_op("nn.relu")(conv3)
+
+        left_conv4 = is_op("nn.conv2d")(conv3, self.w4).has_attr({"strides": [2, 2]})
+        left_conv4 = is_op("add")(left_conv4, self.b4)
+        left_conv4 = is_op("nn.relu")(left_conv4)
+
+        left_conv5 = is_op("nn.conv2d")(left_conv4, self.w5).has_attr({"kernel_size": [3, 3]})
+        left_conv5 = is_op("add")(left_conv5, self.b5)
+        left_conv5 = is_op("nn.relu")(left_conv5)
+
+        left_conv6 = is_op("nn.conv2d")(left_conv5, self.w6).has_attr({"kernel_size": [1, 1]})
+        left_conv6 = is_op("add")(left_conv6, self.b6)
+
+        right_conv7 = is_op("nn.conv2d")(conv3, self.w7).has_attr({"strides": [2, 2]})
+        right_conv7 = is_op("add")(right_conv7, self.b7)
+
+        out = is_op("add")(left_conv6, right_conv7)
+        out = is_op("nn.relu")(out)
+        self.pattern = out
+
+    def get_attr(self, pre):
+        """Recursively retrieve attributes from reshape operator."""
+
+        def visit_func(expr):
+            if isinstance(expr, _expr.Call) and expr.op == relay.op.get("nn.conv2d"):
+                self.attr_lst.append(expr.attrs)
+
+        _analysis.post_order_visit(pre, visit_func)
+
+    def callback(self, pre, post, node_map):
+        self.get_attr(pre)
+        data = node_map[self.data][0]
+        w1, b1 = node_map[self.w1][0], node_map[self.b1][0]
+        w2, b2 = node_map[self.w2][0], node_map[self.b2][0]
+        w3, b3 = node_map[self.w3][0], node_map[self.b3][0]
+        w4, b4 = node_map[self.w4][0], node_map[self.b4][0]
+        w5, b5 = node_map[self.w5][0], node_map[self.b5][0]
+        w6, b6 = node_map[self.w6][0], node_map[self.b6][0]
+        w7, b7 = node_map[self.w7][0], node_map[self.b7][0]
+
+        new_attrs = self.attr_lst[-7]
+        conv1 = relay.op.nn.conv2d(data, w1, **new_attrs)
+        conv1 = relay.op.add(conv1, b1)
+        conv1 = relay.op.nn.relu(conv1)
+
+        new_attrs = dict(self.attr_lst[-6])
+        new_attrs["strides"] = [2, 2]
+        conv2 = relay.op.nn.conv2d(conv1, w2, **new_attrs)
+        conv2 = relay.op.add(conv2, b2)
+        conv2 = relay.op.nn.relu(conv2)
+
+        new_attrs = self.attr_lst[-5]
+        conv3 = relay.op.nn.conv2d(conv2, w3, **new_attrs)
+        conv3 = relay.op.add(conv3, b3)
+        max_pool = relay.op.nn.max_pool2d(
+            data, pool_size=(1, 1), strides=(2, 2), layout=new_attrs["data_layout"]
+        )
+        conv3 = relay.op.add(conv3, max_pool)
+        conv3 = relay.op.nn.relu(conv3)
+
+        new_attrs = dict(self.attr_lst[-4])
+        new_attrs["strides"] = [1, 1]
+        left_conv4 = relay.op.nn.conv2d(conv3, w4, **new_attrs)
+        left_conv4 = relay.op.add(left_conv4, b4)
+        left_conv4 = relay.op.nn.relu(left_conv4)
+
+        new_attrs = self.attr_lst[-3]
+        left_conv5 = relay.op.nn.conv2d(left_conv4, w5, **new_attrs)
+        left_conv5 = relay.op.add(left_conv5, b5)
+        left_conv5 = relay.op.nn.relu(left_conv5)
+
+        new_attrs = self.attr_lst[-2]
+        left_conv6 = relay.op.nn.conv2d(left_conv5, w6, **new_attrs)
+        left_conv6 = relay.op.add(left_conv6, b6)
+
+        new_attrs = dict(self.attr_lst[-1])
+        new_attrs["strides"] = [1, 1]
+        right_conv7 = relay.op.nn.conv2d(conv3, w7, **new_attrs)
+        right_conv7 = relay.op.add(right_conv7, b7)
+
+        out = relay.op.add(left_conv6, right_conv7)
+        out = relay.op.nn.relu(out)
+        self.attr_lst = []
+        return out
+
+
+def rewrite_resnetv1(mod):
+    """Rewrite the the ResNetV1 downsize block to reduce the computation complexity."""
+    mod["main"] = rewrite(ResNetV1Rewrite(), mod["main"])
+    return mod
+
+
+class LegalizeQnnOpForDnnl(DFPatternCallback):
+    """Legalize QNN based patterns to match DNNL
+
+    original pattern:
+      OP = qnn.dense | qnn.conv2d
+      %1 = OP<int>(SRC, WGH) - OP<int>(src_zp, WGH)   // qnn.conv2d
+      %2 = %1 + orig_bias                             // bias
+      %2 = (%1 - rq_in_zp) * rq_in_scl / rq_out_scl + rq_out_zp  // qnn.requantize
+      %3 = act(%2)                                               // activation == clip
+      %4 = ((%3 - sum_lh_zp) * sum_lh_scl + (SRC2 - sum_rh_zp) * sum_rh_scl)  // qnn.add
+           / sum_out_scl + sum_out_zp
+
+    transform to DNNL compatible:
+      %1 = OP<int>(SRC, WGH)
+      %2 = cast(%1, dtype="float")
+      %2 = (%1 + bias) * o_scl
+      %3 = act(%2) * act_scl
+      %4 = %3 + SRC2 * sum_scl
+      %5 = %4 + dst_zp
+      %6 = cast(%5, dtype="float")
+
+    where:
+      o_scl = rq_in_scl / rq_out_scl
+      act_scl = sum_lhs_scl / sum_out_scl
+      sum_scl = sum_rhs_scl / sum_out_scl
+      bias = orig_bias - OP(src_zp, WGH) - rq_in_zp + rq_out_zp * rq_out_scl / rq_in_scl
+      dst_zp = sum_out_zp - sum_lhs_zp * sum_lhs_scl / sum_out_scl -
+               sum_rhs_zp * sum_rhs_scl / sum_out_scl
+    """
+
+    def __init__(self):
+        super(LegalizeQnnOpForDnnl, self).__init__()
+        self.src = wildcard()
+        self.wgh = wildcard()
+        self.bias = wildcard()
+        self.sum_src = wildcard()
+
+        self.src_scl = is_constant()
+        self.src_zp = is_constant()
+        self.wgh_scl = is_constant()
+        self.wgh_zp = is_expr(const(0))
+
+        self.rq_in_scl = is_constant()
+        self.rq_in_zp = is_constant()
+        self.rq_out_scl = is_constant()
+        self.rq_out_zp = is_constant()
+
+        self.sum_lhs_scl = is_constant()
+        self.sum_lhs_zp = is_constant()
+        self.sum_rhs_scl = is_constant()
+        self.sum_rhs_zp = is_constant()
+        self.sum_out_scl = is_constant()
+        self.sum_out_zp = is_constant()
+
+        self.root = (is_op("qnn.conv2d") | is_op("qnn.dense"))(
+            self.src, self.wgh, self.src_zp, self.wgh_zp, self.src_scl, self.wgh_scl
+        )
+        pat = is_op("add")(self.root, self.bias) | self.root  # optional bias
+        pat = is_op("qnn.requantize")(
+            pat, self.rq_in_scl, self.rq_in_zp, self.rq_out_scl, self.rq_out_zp
+        )
+        pat = is_op("clip")(pat)
+        cast = is_op("cast")(pat)
+        pat = is_op("qnn.add")(
+            cast,
+            self.sum_src,
+            self.sum_lhs_scl,
+            self.sum_lhs_zp,
+            self.sum_rhs_scl,
+            self.sum_rhs_zp,
+            self.sum_out_scl,
+            self.sum_out_zp,
+        )
+        pat = is_op("clip")(pat)
+        self.pattern = pat | cast
+
+    def callback(self, pre, post, node_map):
+        root = node_map[self.root][0]
+        src = node_map[self.src][0]
+        wgh = node_map[self.wgh][0]
+        bias = node_map.get(self.bias, default=[relay.const(0, dtype="int32")])[0]
+        src_zp = node_map[self.src_zp][0]
+        rq_in_scl = node_map[self.rq_in_scl][0]
+        rq_in_zp = node_map[self.rq_in_zp][0]
+        rq_out_scl = node_map[self.rq_out_scl][0]
+        rq_out_zp = node_map[self.rq_out_zp][0]
+
+        final_dtype = node_map[self.pattern][0].checked_type.dtype
+
+        if root.op == relay.op.get("qnn.conv2d"):
+            dst_layout = root.attrs.out_layout
+            dst_layout = root.attrs.data_layout if dst_layout == "" else dst_layout
+            wgh_layout = root.attrs.kernel_layout
+        else:
+            # qnn.dense has no layout attributes. Assume that is plain
+            dst_layout = "NC"
+            wgh_layout = "OI"
+
+        # TODO(@apeskov): dst_layout may ne blocked
+        bias_rank = len(dst_layout) - dst_layout.index("C")
+
+        sum_src = node_map[self.sum_src][0] if self.sum_src in node_map else None
+        # Default values if qnn.sum is not present
+        sum_lhs_scl = node_map[self.sum_lhs_scl][0] if sum_src else relay.const(1, dtype="float32")
+        sum_lhs_zp = node_map[self.sum_lhs_zp][0] if sum_src else relay.const(0, dtype="int32")
+        sum_rhs_scl = node_map[self.sum_rhs_scl][0] if sum_src else relay.const(0, dtype="float32")
+        sum_rhs_zp = node_map[self.sum_rhs_zp][0] if sum_src else relay.const(0, dtype="int32")
+        sum_out_scl = node_map[self.sum_out_scl][0] if sum_src else relay.const(1, dtype="float32")
+        sum_out_zp = node_map[self.sum_out_zp][0] if sum_src else relay.const(0, dtype="int32")
+
+        def cast_fp(op):
+            return relay.op.cast(op, dtype="float32")
+
+        # recalculate some factors
+        o_scl = rq_in_scl / rq_out_scl
+        act_scl = sum_lhs_scl / sum_out_scl
+        sum_scl = sum_rhs_scl / sum_out_scl
+        dst_zp = (
+            cast_fp(sum_out_zp)
+            - cast_fp(sum_lhs_zp) * sum_lhs_scl / sum_out_scl
+            - cast_fp(sum_rhs_zp) * sum_rhs_scl / sum_out_scl
+        )
+        bias = self.squeeze_bias(bias, dst_layout)
+        bias = (
+            cast_fp(bias)
+            - cast_fp(self.fake_op(src_zp, wgh, wgh_layout))
+            - cast_fp(rq_in_zp)
+            + cast_fp(rq_out_zp) * rq_out_scl / rq_in_scl
+        )
+        bias = self.broadcast_to_rank(bias, bias_rank)
+
+        zero_zp = relay.const(0, dtype="int32")
+        one_scl = relay.const(1.0, dtype="float32")
+
+        # construct new graph with proper post op ordering
+        gr = tvm.relay.Call(
+            root.op,
+            [src, wgh, zero_zp, zero_zp, one_scl, one_scl],
+            root.attrs,
+            root.type_args,
+            root.span,
+        )
+        gr = relay.op.cast(gr, dtype="float32")
+        gr = gr + bias
+        gr = gr * o_scl
+        gr = relay.op.clip(gr, 0, 255) * act_scl
+        gr = gr + sum_scl * cast_fp(sum_src) if sum_src else gr
+        gr = gr + dst_zp
+        gr = relay.op.cast(gr, dtype=final_dtype)
+        return gr
+
+    @staticmethod
+    def fake_op(zp, wgh, layout):
+        """Fake operator implementation for zp broadcast input"""
+        # Conv:  reduce kernel {OC, IC, KH, KW} -> {OC} in case of group that is still correct
+        # Dense: reduce kernel {OC, IC} -> {OC}
+        wgh_int = relay.op.cast(wgh, dtype="int32")
+        reduced_kernel = relay.op.sum(
+            wgh_int, axis=[layout.index("O")], keepdims=False, exclude=True
+        )
+        return zp * reduced_kernel
+
+    @staticmethod
+    def squeeze_bias(bias, layout):
+        shape = transform.InferTypeLocal(bias).concrete_shape
+        c_position = layout.index("C") - len(layout) + len(shape)
+        squeeze_idxs = [i for i in range(len(shape)) if i != c_position]
+        return relay.op.squeeze(bias, squeeze_idxs)
+
+    @staticmethod
+    def broadcast_to_rank(op, rank):
+        """Scalar or 1D tensor are supported"""
+        shape = transform.InferTypeLocal(op).concrete_shape
+        if len(shape) == 0:
+            return op
+        if len(shape) == 1:
+            return relay.op.expand_dims(op, 1, rank - 1)
+        raise ValueError("Unexpected bias rank to broadcast. Only 0 and 1 are supported.")
+
+
+def legalize_qnn_for_dnnl(mod):
+    """Transform qnn primitives to DNNL compatible form. Eliminate source zero point and apply
+    strict sequence of post ops."""
+    mod["main"] = rewrite(LegalizeQnnOpForDnnl(), mod["main"])
+
+    seq = tvm.transform.Sequential(
+        [
+            transform.InferType(),
+            # transform.SimplifyInference(),  # TODO: this pass decompose nn.layer_norm
+            # transform.FoldScaleAxis(),  # TODO: fail inside TVM in case of grouped convolutions.
+            transform.FoldConstant(),
+        ]
+    )
+    with tvm.transform.PassContext(opt_level=3):
+        mod = seq(mod)
     return mod

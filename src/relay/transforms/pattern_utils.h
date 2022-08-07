@@ -562,6 +562,11 @@ inline Expr Tanh(Expr e) {
   static const Op& op = Op::Get("tanh");
   return Call(op, {e});
 }
+
+inline Expr Abs(Expr e) {
+  static const Op& op = Op::Get("abs");
+  return Call(op, {e});
+}
 /*!
  * \brief Get an immediate scalar from a Constant expr.
  *
@@ -785,6 +790,16 @@ static inline Expr Tile(Expr data, Array<Integer> reps) { return MakeTile(data, 
 
 static inline Expr BroadCastTo(Expr data, Array<IndexExpr> shape) {
   return MakeBroadCastTo(data, CheckConstantShapeArrayInteger(shape));
+}
+
+inline Expr Hardswish(Expr x) {
+  auto three = MakeConstantScalar(DataType::Float(32), 3.0);
+  auto six = MakeConstantScalar(DataType::Float(32), 6.0);
+  auto x2 = Add(x, three);
+  x2 = Clip(x2, 0.0, 6.0);
+  x2 = Multiply(x, x2);
+  x2 = Divide(x2, six);
+  return x2;
 }
 
 }  // namespace relay

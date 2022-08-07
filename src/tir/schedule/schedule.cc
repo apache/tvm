@@ -56,6 +56,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSeed")  //
     .set_body_method<Schedule>(&ScheduleNode::Seed);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleForkSeed")  //
     .set_body_method<Schedule>(&ScheduleNode::ForkSeed);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleWorkOn")  //
+    .set_body_method<Schedule>(&ScheduleNode::WorkOn);
 
 /**************** (FFI) Constructor ****************/
 
@@ -258,6 +260,11 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSetAxisSeparator")
       return self->SetAxisSeparator(
           block_rv, buffer_index, static_cast<BufferIndexType>(buffer_index_type), axis_separators);
     });
+
+/******** (FFI) Padding decomposition ********/
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleDecomposePadding")
+    .set_body_method<Schedule>(&ScheduleNode::DecomposePadding);
+
 /******** (FFI) Misc ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleEnterPostproc")
     .set_body_method<Schedule>(&ScheduleNode::EnterPostproc);

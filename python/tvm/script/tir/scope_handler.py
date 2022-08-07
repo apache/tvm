@@ -111,16 +111,10 @@ class Allocate(WithScopeHandler):
             condition = tvm.runtime.convert(condition)
             scope = tvm.runtime.convert(scope)
 
-            # Currently, allocate nodes should only occur after buffer
-            # flattening has been applied.  This can be simplified in
-            # the future by having the AllocateNode hold a buffer
-            # object directly.
-            flattened = self.buffer.get_flattened_buffer()
-
             return tvm.tir.Allocate(
                 self.buffer.data,
-                flattened.dtype,
-                flattened.shape,
+                self.buffer.dtype,
+                self.buffer.shape,
                 condition,
                 self.body,
                 annotations=annotations,
@@ -176,12 +170,20 @@ class AllocateConst(WithScopeHandler):
     """
 
     def __init__(self):
-        def allocate_const(raw_data, dtype, shape, span=None):
+        def allocate_const(raw_data, dtype, shape, annotations=None, span=None):
             list_data = []
             for i in raw_data:
                 list_data.append(i.value)
             nd_data = tvm.nd.array(np.asarray(list_data, dtype=dtype))
-            n = tvm.tir.AllocateConst(self.buffer.data, dtype, shape, nd_data, self.body, span=span)
+            n = tvm.tir.AllocateConst(
+                self.buffer.data,
+                dtype,
+                shape,
+                nd_data,
+                self.body,
+                annotations=annotations,
+                span=span,
+            )
             return n
 
         super().__init__(allocate_const, concise_scope=True, def_symbol=True)
@@ -209,12 +211,93 @@ class AllocateConst(WithScopeHandler):
         else:
             raise Exception("Internal Bug")
 
-        def setup_buffer(data, dtype, shape, span: Span = None):
+        def setup_buffer(data, dtype, shape, annotations: dict = None, span: Span = None):
             """Setup buffer var for a given type."""
             self.buffer = tvm.tir.decl_buffer(
                 shape=shape,
                 dtype=dtype,
                 name=name,
+                span=span,
+            )
+
+        setup_buffer(*arg_list, span=tvm_span_from_synr(var_span))
+        context.update_symbol(name, self.buffer, node)
+
+
+@register
+class DeclBuffer(WithScopeHandler):
+    """Special Stmt decl_buffer(shape, dtype, data, strides, elem_offset, scope, align,
+                                offset_factor, buffer_type, axis_separators)
+    Example
+    -------
+    .. code-block:: python
+        A = T.decl_buffer((128, 128), dtype="float32")
+    """
+
+    def __init__(self):
+        def decl_buffer(
+            shape,
+            dtype="float32",
+            data=None,
+            strides=None,
+            elem_offset=None,
+            scope="global",
+            align=-1,
+            offset_factor=0,
+            buffer_type="default",
+            axis_separators=None,
+            span=None,
+        ):
+            return tvm.tir.DeclBuffer(self.buffer, self.body, span=span)
+
+        super().__init__(decl_buffer, concise_scope=True, def_symbol=True)
+
+    def enter_scope(
+        self,
+        node: synr.ast.Node,
+        context: ContextMaintainer,
+        arg_list: List[Any],
+        span: synr.ast.Span,
+    ):
+        # define buffer vars in symbol table
+        if isinstance(node, synr.ast.With):
+            vars = WithScopeHandler.get_optional_vars(node, context)
+            if len(vars) != 1:
+                context.report_error(f"Unexpected number of vars: 1 vs. {len(vars)}", node.span)
+            name = vars[0].id.name
+            var_span = vars[0].id.span
+        elif isinstance(node, synr.ast.Assign):
+            if len(node.lhs) != 1:
+                context.report_error(f"Unexpected number of vars: 1 vs. {len(node.lhs)}", node.span)
+            name = node.lhs[0].id.name
+            var_span = node.lhs[0].id.span
+        else:
+            raise Exception("Internal Bug")
+
+        def setup_buffer(
+            shape,
+            dtype,
+            data,
+            strides,
+            elem_offset,
+            scope,
+            align,
+            offset_factor,
+            buffer_type,
+            axis_separators,
+            span: Span = None,
+        ):
+            self.buffer = tvm.tir.decl_buffer(
+                shape=shape,
+                dtype=dtype,
+                data=data,
+                strides=strides,
+                elem_offset=elem_offset,
+                scope=scope,
+                data_alignment=align,
+                offset_factor=offset_factor,
+                buffer_type=buffer_type,
+                axis_separators=axis_separators,
                 span=span,
             )
 

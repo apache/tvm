@@ -22,6 +22,7 @@ set -o pipefail
 
 # install libraries for python package on ubuntu
 pip3 install --upgrade \
+    "Pygments>=2.4.0" \
     attrs \
     cloudpickle \
     cython \
@@ -33,9 +34,10 @@ pip3 install --upgrade \
     Pillow==9.1.0 \
     psutil \
     pytest \
-    git+https://github.com/tlc-pack/tlcpack-sphinx-addon.git@14906063f938b7569e40f3d47a0ca39c181fb6ea \
+    git+https://github.com/tlc-pack/tlcpack-sphinx-addon.git@545450acaf0ee4e2932d8c5d9ab6e321d0bc86c8 \
     pytest-profiling \
     pytest-xdist \
+    pytest-rerunfailures==10.2 \
     requests \
     scipy \
     Jinja2 \

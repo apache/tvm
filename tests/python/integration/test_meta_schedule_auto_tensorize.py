@@ -14,34 +14,32 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
-import tvm
-from tvm import relay
-import tvm.testing
-import numpy as np
-from tvm.meta_schedule.tune import tune_extracted_tasks
-from tvm.meta_schedule.relay_integration import extract_task_from_relay
-from tvm.meta_schedule import ApplyHistoryBest
-from tvm.meta_schedule import schedule_rule, postproc
-from tvm.meta_schedule.testing.tlcbench import load_quantized_bert_base
-from tvm import meta_schedule as ms
-from tvm.tir.tensor_intrin import (
-    VNNI_DOT_16x4_INTRIN as VNNI_INTRIN,
-    DP4A_INTRIN,
-    AMDGPU_SDOT4_INTRIN,
-)
+"""Integration test for metascheduler's auto tensorization."""
 import tempfile
+
+import numpy as np
+import pytest
+
+import tvm
+import tvm.testing
 import tvm.topi.testing
+from tvm import meta_schedule as ms
+from tvm import relay
+from tvm.meta_schedule import ApplyHistoryBest, postproc, schedule_rule
+from tvm.meta_schedule.relay_integration import extract_task_from_relay
+from tvm.meta_schedule.testing.tlcbench import load_quantized_bert_base
+from tvm.meta_schedule.tune import tune_extracted_tasks
+from tvm.tir.tensor_intrin import AMDGPU_SDOT4_INTRIN, DP4A_INTRIN
+from tvm.tir.tensor_intrin import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 
-
-config = ms.TuneConfig(
+CONFIG = ms.TuneConfig(
     strategy="evolutionary",
     num_trials_per_iter=32,
     max_trials_per_task=32,
     max_trials_global=20000,
 )
 
-sch_rules_for_vnni = [
+SCH_RULES_FOR_VNNI = [
     schedule_rule.AutoInline(
         into_producer=False,
         into_consumer=True,
@@ -54,6 +52,18 @@ sch_rules_for_vnni = [
     schedule_rule.AddRFactor(max_jobs_per_core=16, max_innermost_factor=64),
     schedule_rule.MultiLevelTilingWithIntrin(
         VNNI_INTRIN,
+        structure="SSRSRS",
+        tile_binds=None,
+        max_innermost_factor=64,
+        vector_load_lens=None,
+        reuse_read=None,
+        reuse_write=schedule_rule.ReuseType(
+            req="may",
+            levels=[1, 2],
+            scope="global",
+        ),
+    ),
+    schedule_rule.MultiLevelTiling(
         structure="SSRSRS",
         tile_binds=None,
         max_innermost_factor=64,
@@ -113,17 +123,17 @@ def get_sch_rules_for_dp4a(intrin):
     ]
 
 
-sch_rules_for_dp4a = get_sch_rules_for_dp4a(DP4A_INTRIN)
-sch_rules_for_sdot4 = get_sch_rules_for_dp4a(AMDGPU_SDOT4_INTRIN)
+SCH_RULES_FOR_DP4A = get_sch_rules_for_dp4a(DP4A_INTRIN)
+SCH_RULES_FOR_SDOT4 = get_sch_rules_for_dp4a(AMDGPU_SDOT4_INTRIN)
 
-postprocs_for_vnni = [
+POSTPROCS_FOR_VNNI = [
     postproc.DisallowDynamicLoop(),
     postproc.RewriteParallelVectorizeUnroll(),
     postproc.RewriteReductionBlock(),
     postproc.RewriteTensorize(vectorize_init_loop=True),
 ]
 
-postprocs_for_dp4a = [
+POSTPROCS_FOR_DP4A = [
     postproc.DisallowDynamicLoop(),
     postproc.RewriteCooperativeFetch(),
     postproc.RewriteUnboundBlock(),
@@ -135,6 +145,7 @@ postprocs_for_dp4a = [
 
 
 def tune_and_test(relay_mod, data_np, weight_np, op_name, target, sch_rules, postprocs):
+    """Test tuning."""
     tgt = "cuda" if "nvidia" in target else target
     dev = tvm.device(tgt, 0)
 
@@ -158,7 +169,7 @@ def tune_and_test(relay_mod, data_np, weight_np, op_name, target, sch_rules, pos
     with tempfile.TemporaryDirectory() as work_dir:
         database = tune_extracted_tasks(
             tune_tasks,
-            config,
+            CONFIG,
             work_dir=work_dir,
             sch_rules=lambda: sch_rules,
             postprocs=lambda: postprocs,
@@ -186,9 +197,9 @@ def tune_and_test(relay_mod, data_np, weight_np, op_name, target, sch_rules, pos
 
 
 def _test_dense(data_dtype, sch_rules, postprocs, target):
-    M, N, K = 1024, 1024, 1024
-    data_shape = (M, K)
-    weight_shape = (N, K)
+    dim_m, dim_n, dim_k = 1024, 1024, 1024
+    data_shape = (dim_m, dim_k)
+    weight_shape = (dim_n, dim_k)
 
     weight_dtype = "int8"
     out_dtype = "int32"
@@ -240,22 +251,16 @@ def _test_bert_int8(target, sch_rules, postprocs):
 
     extracted_tasks = extract_task_from_relay(relay_mod, target, params)
 
-    tune_tasks = []
-
-    for task in filter(
-        lambda task: "dense" in task.task_name or "batch_matmul" in task.task_name,
-        extracted_tasks,
-    ):
-        relay_func = list(task.mod.functions.values())[0]
-        out_type = relay_func.body.checked_type
-
-        if out_type.dtype != "float32":
-            tune_tasks.append(task)
+    tune_tasks = [
+        task
+        for task in extracted_tasks
+        if "dense" in task.task_name or "batch_matmul" in task.task_name
+    ]
 
     with tempfile.TemporaryDirectory() as work_dir:
         database = tune_extracted_tasks(
             tune_tasks,
-            config,
+            CONFIG,
             work_dir=work_dir,
             sch_rules=lambda: sch_rules,
             postprocs=lambda: postprocs,
@@ -284,14 +289,14 @@ def _test_bert_int8(target, sch_rules, postprocs):
 @pytest.mark.skip("Requires cascadelake")
 def test_vnni_dense():
     _test_dense(
-        "uint8", sch_rules_for_vnni, postprocs_for_vnni, "llvm -mcpu=cascadelake -num-cores 4"
+        "uint8", SCH_RULES_FOR_VNNI, POSTPROCS_FOR_VNNI, "llvm -mcpu=cascadelake -num-cores 4"
     )
 
 
 @pytest.mark.skip("Only tested locally on sm_86 (for cuda) which is not supported by CI")
 @tvm.testing.requires_gpu
 def test_dp4a_dense():
-    _test_dense("int8", sch_rules_for_dp4a, postprocs_for_dp4a, "nvidia/geforce-rtx-3070")
+    _test_dense("int8", SCH_RULES_FOR_DP4A, POSTPROCS_FOR_DP4A, "nvidia/geforce-rtx-3070")
 
     # Uncomment to test on vulkan or rocm target
     # _test_dense(
@@ -305,14 +310,14 @@ def test_dp4a_dense():
 @pytest.mark.skip("Requires cascadelake")
 def test_vnni_conv2d():
     _test_conv2d(
-        "uint8", sch_rules_for_vnni, postprocs_for_vnni, "llvm -mcpu=cascadelake -num-cores 4"
+        "uint8", SCH_RULES_FOR_VNNI, POSTPROCS_FOR_VNNI, "llvm -mcpu=cascadelake -num-cores 4"
     )
 
 
 @pytest.mark.skip("Only tested locally on sm_86 (for cuda) which is not supported by CI")
 @tvm.testing.requires_gpu
 def test_dp4a_conv2d():
-    _test_conv2d("int8", sch_rules_for_dp4a, postprocs_for_dp4a, "nvidia/geforce-rtx-3070")
+    _test_conv2d("int8", SCH_RULES_FOR_DP4A, POSTPROCS_FOR_DP4A, "nvidia/geforce-rtx-3070")
 
     # Uncomment to test on vulkan or rocm target
     # _test_conv2d(
@@ -325,23 +330,84 @@ def test_dp4a_conv2d():
 
 @pytest.mark.skip("Requires cascadelake")
 def test_vnni_bert_int8():
-    _test_bert_int8("llvm -mcpu=cascadelake -num-cores 4", sch_rules_for_vnni, postprocs_for_vnni)
+    _test_bert_int8("llvm -mcpu=cascadelake -num-cores 4", SCH_RULES_FOR_VNNI, POSTPROCS_FOR_VNNI)
 
 
 @tvm.testing.requires_gpu
 @pytest.mark.skip("Slow on CI")
 def test_dp4a_bert_int8():
-    _test_bert_int8("nvidia/geforce-rtx-3070", sch_rules_for_dp4a, postprocs_for_dp4a)
+    _test_bert_int8("nvidia/geforce-rtx-3070", SCH_RULES_FOR_DP4A, POSTPROCS_FOR_DP4A)
 
     # Uncomment to test on vulkan or rocm target
     # _test_bert_int8("vulkan -from_device=0", sch_rules_for_dp4a, postprocs_for_dp4a)
     # _test_bert_int8("rocm", sch_rules_for_sdot4, postprocs_for_dp4a)
 
 
+@tvm.testing.requires_gpu
+@pytest.mark.skip("Slow on CI")
+@pytest.mark.parametrize(
+    ["model_name", "input_shape"],
+    [("bert_base", (8, 128)), ("resnet_18", (16, 3, 224, 224)), ("resnet_50", (16, 3, 224, 224))],
+)
+def test_cuda_tensor_core(model_name, input_shape):
+    """Integration tests of auto tensorization with CUDA tensor core"""
+    target = tvm.target.Target("nvidia/geforce-rtx-3070")
+    dev = tvm.cuda()
+    if model_name.startswith("bert"):
+        data = tvm.nd.array(np.random.randint(0, 30521, size=input_shape), dev)  # embedding size
+    else:
+        data = tvm.nd.array(np.random.randn(*input_shape).astype("float32"), dev)
+
+    mod, params, (input_name, _, _) = relay_workload.get_network(model_name, input_shape)
+    seq = tvm.transform.Sequential(
+        [
+            relay.transform.ToMixedPrecision(),
+        ]
+    )
+
+    with tvm.transform.PassContext(opt_level=3):
+        mod = seq(mod)
+
+    def convert_layout(mod):
+        seq = tvm.transform.Sequential(
+            [relay.transform.ConvertLayout({"nn.conv2d": ["NHWC", "OHWI"]})]
+        )
+        with tvm.transform.PassContext(opt_level=3):
+            mod = seq(mod)
+        return mod
+
+    with tempfile.TemporaryDirectory() as work_dir:
+        with ms.Profiler() as profiler:
+            rt_mod1: tvm.runtime.Module = ms.tune_relay(
+                mod=convert_layout(mod),
+                params=params,
+                target=target,
+                config=ms.TuneConfig(
+                    num_trials_per_iter=32,
+                    max_trials_per_task=200,
+                    max_trials_global=3000,
+                ),
+                sch_rules=ms.default_config._DefaultCUDATensorCore.schedule_rules,
+                postprocs=ms.default_config._DefaultCUDATensorCore.postprocs,
+                work_dir=work_dir,
+            )
+        print(profiler.table())
+
+        # Compile without meta-scheduler for correctness check
+        with tvm.transform.PassContext(opt_level=0):
+            rt_mod2 = relay.build(mod, target=target, params=params)
+
+        def get_output(data, lib):
+            module = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+            module.set_input(input_name, data)
+            module.run()
+            return module.get_output(0).numpy()
+
+        # Check correctness
+        actual_output = get_output(data, rt_mod1)
+        expected_output = get_output(data, rt_mod2)
+        assert np.allclose(actual_output, expected_output, rtol=1e-2, atol=2e-2)
+
+
 if __name__ == "__main__":
-    test_vnni_dense()
-    test_vnni_conv2d()
-    test_vnni_bert_int8()
-    test_dp4a_dense()
-    test_dp4a_conv2d()
-    test_dp4a_bert_int8()
+    tvm.testing.main()

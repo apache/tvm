@@ -29,6 +29,7 @@ from .utils import (
     add_pad,
     bind_data_copy,
     get_texture_storage,
+    get_default_conv2d_config,
 )
 
 
@@ -235,6 +236,9 @@ def schedule_depthwise_conv2d_NHWC_HWOI(cfg, s, output):
     cfg.define_split("tile_rx", rx, num_outputs=2)
     cfg.define_knob("auto_unroll_max_step", [0, 512, 1500])
     cfg.define_knob("unroll_explicit", [0, 1])
+
+    if cfg.is_fallback:
+        get_default_conv2d_config(cfg, conv.shape[3], conv.shape[1], conv.shape[2])
     ##### space definition end #####
 
     pad_data, kernel = s[conv].op.input_tensors
@@ -255,11 +259,12 @@ def schedule_depthwise_conv2d_NHWC_HWOI(cfg, s, output):
     if latest_blocked == latest and output != latest:
         s[output].compute_inline()
 
-    # create cache stage
-    AT = s.cache_read(pad_data, get_texture_storage(pad_data.shape), [conv])
-    WT = s.cache_read(kernel, get_texture_storage(kernel.shape), [conv])
-    bind_data_copy(s[AT])
-    bind_data_copy(s[WT])
+    if autotvm.GLOBAL_SCOPE.in_tuning or len(latest.op.axis) == 4:
+        # create cache stage for tuning only or in case of 4d case
+        AT = s.cache_read(pad_data, get_texture_storage(pad_data.shape), [conv])
+        bind_data_copy(s[AT])
+        WT = s.cache_read(kernel, get_texture_storage(kernel.shape), [conv])
+        bind_data_copy(s[WT])
 
     # tile and bind spatial axes
     n, y, x, fc, fb = s[latest_blocked].op.axis

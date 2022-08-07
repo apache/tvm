@@ -16,14 +16,22 @@
 # under the License.
 # pylint: disable=missing-docstring
 from typing import List
-
+import pytest
 import tvm
+import tvm.testing
+from tvm.tir.function import TensorIntrin
 from tvm.tir.tensor_intrin.x86 import dot_product_16x4_u8i8i32_desc
+from tvm.tir.tensor_intrin.cuda import WMMA_SYNC_16x16x16_f16f16f32_INTRIN
 
 
 from tvm.tir import Evaluate, For, ForKind, IndexMap, Var, decl_buffer, floordiv, floormod, Schedule
 from tvm.tir.analysis import expr_deep_equal
-from tvm.tir.schedule.analysis import suggest_index_map, get_tensorize_loop_mapping, TensorizeInfo
+from tvm.tir.schedule.analysis import (
+    get_auto_tensorize_mapping_info,
+    suggest_index_map,
+    get_tensorize_loop_mapping,
+    TensorizeInfo,
+)
 from tvm.script import tir as T
 from tvm.tir.stmt_functor import pre_order_visit
 from tvm.meta_schedule.testing import te_workload
@@ -252,9 +260,73 @@ def test_get_tensorize_loop_mapping_matmul_mma():
         assert s.get(desc_loop_to_sref[desc_loops[2]]) == s.get(i2)
 
 
+def check_index_map(workload, block_name, intrin_name, expected_index_map):
+    s = Schedule(workload)
+    block = s.get_block(block_name)
+    desc_func = TensorIntrin.get(intrin_name).desc
+    info = get_auto_tensorize_mapping_info(s, block, desc_func)
+    if expected_index_map is None:
+        assert info is None
+        return
+    assert len(info.mappings) == 1
+    assert IndexMap.from_func(expected_index_map).is_equivalent_to(info.mappings[0])
+
+
+def test_get_auto_tensorize_mapping_info_conv2d():
+    conv2d = create_prim_func(
+        te_workload.conv2d_nhwc(4, 16, 16, 64, 64, 3, 1, 1, in_dtype="float16", out_dtype="float32")
+    )
+    check_index_map(
+        conv2d,
+        "conv2d_nhwc",
+        WMMA_SYNC_16x16x16_f16f16f32_INTRIN,
+        lambda n, h, w, c, rh, rw, rc: (n * 256 + h * 16 + w, c, rh * 192 + rw * 64 + rc),
+    )
+
+
+def test_get_auto_tensorize_mapping_info_conv2d_unit_batch():
+    conv2d = create_prim_func(
+        te_workload.conv2d_nhwc(1, 16, 16, 64, 64, 3, 1, 1, in_dtype="float16", out_dtype="float32")
+    )
+    check_index_map(
+        conv2d,
+        "conv2d_nhwc",
+        WMMA_SYNC_16x16x16_f16f16f32_INTRIN,
+        # unit iter is not mapped
+        lambda n, h, w, c, rh, rw, rc: (n, h * 16 + w, c, rh * 192 + rw * 64 + rc),
+    )
+
+
+@pytest.mark.parametrize("b,m,n,k", [(1, 512, 512, 512), (16, 32, 32, 32)])
+def test_get_auto_tensorize_mapping_info_batch_matmul(b, m, n, k):
+    matmul = create_prim_func(
+        te_workload.batch_matmul_nkkm(b, m, n, k, in_dtype="float16", out_dtype="float32")
+    )
+    check_index_map(
+        matmul, "Z", WMMA_SYNC_16x16x16_f16f16f32_INTRIN, lambda b, m, n, k: (b, m, n, k)
+    )
+
+
+@pytest.mark.parametrize(
+    "n,m,k,expected",
+    [
+        (
+            512,
+            512,
+            512,
+            lambda n, m, k: (
+                n,
+                m,
+                k,
+            ),
+        ),
+        (1, 32, 32, None),
+    ],
+)
+def test_get_auto_tensorize_mapping_info_matmul(n, m, k, expected):
+    matmul = create_prim_func(te_workload.matmul(n, m, k, in_dtype="float16", out_dtype="float32"))
+    check_index_map(matmul, "C", WMMA_SYNC_16x16x16_f16f16f32_INTRIN, expected)
+
+
 if __name__ == "__main__":
-    test_suggest_index_map_simple()
-    test_suggest_index_map_bijective()
-    test_get_tensorize_loop_mapping_dense_vnni()
-    test_get_tensorize_loop_mapping_conv2d_nchwc_vnni()
-    test_get_tensorize_loop_mapping_matmul_mma()
+    tvm.testing.main()

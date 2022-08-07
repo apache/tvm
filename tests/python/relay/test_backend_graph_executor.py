@@ -184,6 +184,101 @@ def test_plan_memory():
     )
 
 
+def test_plan_2d_memory():
+    """Verification if GraphPlanMemory manages 2d memory reffered as
+    global.texture* memory scopes in json file."""
+    global_virtual_device = tvm.target.VirtualDevice(memory_scope="global")
+    texture_virtual_device = tvm.target.VirtualDevice(memory_scope="global.texture")
+    metatable = {
+        "VirtualDevice": [
+            global_virtual_device,
+            texture_virtual_device,
+        ]
+    }
+
+    mod = tvm.parser.parse(
+        """
+        #[version = "0.0.5"]
+        def @main(%data1: Tensor[(1, 32, 40, 40), float32],
+                  %data2: Tensor[(1, 32, 40, 40), float32]) {
+          %0 = fn (%a, Primitive=1) {
+            layout_transform(%a, src_layout="NCHW", dst_layout="NCHW4c")
+          };
+          %1 = %0(%data1);
+          %3 = %0(%data2);
+          %5 = fn (%a {virtual_device=meta[VirtualDevice][0]},  // global
+                   %b {virtual_device=meta[VirtualDevice][0]},  // global
+                   virtual_device=meta[VirtualDevice][1],       // texture
+                   Primitive=1) {
+            add(%a, %b)
+          };
+          %6 = %5(%1, %3);
+          %7 = fn (%a {virtual_device=meta[VirtualDevice][1]},  // texture
+                   %b {virtual_device=meta[VirtualDevice][0]},  // global
+                   virtual_device=meta[VirtualDevice][1],       // texture
+                   Primitive=1) {
+            add(%a, %b)
+          };
+          %8 = %7(%6, %3);
+          %9 = fn (%a {virtual_device=meta[VirtualDevice][1]},  // texture
+                   %b {virtual_device=meta[VirtualDevice][1]},  // texture
+                   virtual_device=meta[VirtualDevice][1],       // texture
+                   Primitive=1) {
+            add(%a, %b)
+          };
+          %10 = %9(%8, %6);
+          %11 = fn (%a,
+                    virtual_device=meta[VirtualDevice][0],      // global
+                    Primitive=1) {
+            layout_transform(%a, src_layout="NCHW4c", dst_layout="NCHW")
+          };
+          %11(%10)
+        }
+        """,
+        "from_string",
+        None,
+        metatable,
+    )
+
+    GPU_DEVICE = tvm.device("cuda")
+    HOST_TARGET = tvm.target.Target("llvm")
+    GPU_TARGET = tvm.target.Target("cuda").with_host(HOST_TARGET)
+    GPU = tvm.target.VirtualDevice(GPU_DEVICE, GPU_TARGET)  # device_type=2
+    CTXT = tvm.transform.PassContext(config={"relay.fallback_device_type": GPU.device_type_int})
+    config = tvm.target.make_compilation_config(CTXT, GPU_TARGET)
+    mod = relay.transform.InferType()(mod)
+    # PlanDevices should succeed.
+    mod = relay.transform.PlanDevices(config)(mod)
+
+    func = mod["main"]
+    memory_plan = relay.backend._backend.GraphPlanMemory(func)
+    virtual_devices = {}
+
+    # We do not have execution ordered information, the only order that we can stick
+    # in this place - storage_id
+    # for above graph we know that
+    # We have
+    #  - 8 manageable storages for above graph
+    #  - 5 of them are buffers
+    #  - 3 of them are textures (2d storages)
+    #  - 1 of buffer will be reused, since we have storage id maped data, we will have 4th
+    #      storage id reuesed and hidden in virtual_devices map
+    #  - no textures are reused so far
+    for k, v in memory_plan.expr_to_storage_info.items():
+        virtual_devices[v.storage_ids[0]] = v.virtual_devices[0].memory_scope
+
+    # Check the scopes according to abvoce expectaions
+    assert (
+        virtual_devices[0] == "global"
+        and virtual_devices[1] == "global"
+        and virtual_devices[2] == "global"
+        and virtual_devices[3] == "global"
+        and virtual_devices[4] == "global.texture"
+        and virtual_devices[5] == "global.texture"
+        and virtual_devices[6] == "global.texture"
+    )
+
+
 def test_reshape_nop():
     # test that reshape can be turned into nop
     x = relay.var("x", shape=(10, 4))

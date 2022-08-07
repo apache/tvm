@@ -1,4 +1,3 @@
-
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -31,6 +30,7 @@
 #include "../../../transforms/pattern_utils.h"
 #include "buffer_size.h"
 #include "compiler_attrs.h"
+#include "convolutions.h"
 
 namespace tvm {
 namespace relay {
@@ -173,7 +173,6 @@ class RelayToTIRVisitor : public MixedModeMutator {
     int32_t dilation_w = qnn::get_const_int(conv2d_attrs->dilation[1]);
     int32_t dilation_h = qnn::get_const_int(conv2d_attrs->dilation[0]);
     int32_t out_channels = qnn::get_const_int(conv2d_attrs->channels);
-    int32_t groups = conv2d_attrs->groups;
     std::string kernel_layout = conv2d_attrs->kernel_layout.c_str();
     int32_t clip_min = std::numeric_limits<int8_t>::min();
     int32_t clip_max = std::numeric_limits<int8_t>::max();
@@ -207,11 +206,13 @@ class RelayToTIRVisitor : public MixedModeMutator {
     int32_t output_c = qnn::get_const_int(output_shape[3]);
 
     int32_t depth_multiplier = -1;
-    int kernel_pos_o = kernel_layout.find("O");
-    if (groups == qnn::get_const_int(input_shape[3]) &&
-        groups == qnn::get_const_int(filter_shape[kernel_pos_o])) {
+    if (IsCMSISNNDepthwise(conv2d_attrs, input_shape, filter_shape)) {
+      // Refer to TVM frontend to know how depth multiplier and out_channels are related
+      // https://github.com/apache/tvm/blob/6ed3ab3e33f8eafa4acaf53b7a671831de7587e9/python/tvm/relay/frontend/tflite.py#L2129
       int kernel_pos_i = kernel_layout.find("I");
-      depth_multiplier = qnn::get_const_int(filter_shape[kernel_pos_i]);
+      int kernel_pos_o = kernel_layout.find("O");
+      int kernel_pos_dm = input_c == 1 ? kernel_pos_o : kernel_pos_i;
+      depth_multiplier = qnn::get_const_int(filter_shape[kernel_pos_dm]);
     }
     scalar_args.push_back(ToArg(depth_multiplier));
 
@@ -438,13 +439,15 @@ class RelayToTIRVisitor : public MixedModeMutator {
 
     int context_buffer_size = 0;
     PrimExpr context_buffer_var = tir::StringImm("NULL");
-    if (pool_name == "cmsisnn.qnn_avg_pool2d") {
+    if (pool_name == "cmsis-nn.qnn_avg_pool2d") {
       CMSISNNFlags flags = GetCompilerFlags(transform::PassContext::Current());
       int32_t input_c = qnn::get_const_int(input_shape[3]);
       context_buffer_size = AvgPoolBufferSize(flags, input_c);
-      std::string context_buffer_name = "context_buffer_" + std::to_string(context_buffer_id_++);
-      context_buffer_var = tir::Var(context_buffer_name,
-                                    PointerType(PrimType(DataType::Int(8)), "global.workspace"));
+      if (context_buffer_size) {
+        std::string context_buffer_name = "context_buffer_" + std::to_string(context_buffer_id_++);
+        context_buffer_var = tir::Var(context_buffer_name,
+                                      PointerType(PrimType(DataType::Int(8)), "global.workspace"));
+      }
     }
     tvm::Array<PrimExpr> context_buffer_args = {context_buffer_var, ToArg(context_buffer_size)};
 
@@ -556,7 +559,12 @@ class RelayToTIRVisitor : public MixedModeMutator {
 
     BufferCreator buffer_creator;
     tir::Var input_0 = buffer_creator.CreateBufferVar("input_0", DataType::Handle(8));
-    tir::Var input_1 = buffer_creator.CreateBufferVar("input_1", DataType::Handle(8));
+    tir::Var input_1;
+    if (mul_call->args[0].same_as(mul_call->args[1])) {
+      input_1 = input_0;
+    } else {
+      input_1 = buffer_creator.CreateBufferVar("input_1", DataType::Handle(8));
+    }
     tir::Var output = buffer_creator.CreateBufferVar("output", DataType::Handle(8));
 
     tvm::Array<PrimExpr> args = {
@@ -626,7 +634,12 @@ class RelayToTIRVisitor : public MixedModeMutator {
 
     BufferCreator buffer_creator;
     tir::Var input_0 = buffer_creator.CreateBufferVar("input_0", DataType::Handle(8));
-    tir::Var input_1 = buffer_creator.CreateBufferVar("input_1", DataType::Handle(8));
+    tir::Var input_1;
+    if (add_call->args[0].same_as(add_call->args[1])) {
+      input_1 = input_0;
+    } else {
+      input_1 = buffer_creator.CreateBufferVar("input_1", DataType::Handle(8));
+    }
     tir::Var output = buffer_creator.CreateBufferVar("output", DataType::Handle(8));
 
     tvm::Array<PrimExpr> args = {

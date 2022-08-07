@@ -104,6 +104,7 @@ We do encourage everyone to work anything they are interested in.
 - [Haozheng Fan](https://github.com/hzfan): @hzfan
 - [Siyuan Feng](https://github.com/Hzfengsy): @Hzfengsy
 - [Josh Fromm](https://github.com/jwfromm): @jwfromm
+- [Alexey Gladyshev](https://github.com/KJlaccHoeUM9l): @KJlaccHoeUM9l
 - [Sergei Grechanik](https://github.com/sgrechanik-h): @sgrechanik-h
 - [Altan Haan](https://github.com/altanh): @altanh
 - [Mehrdad Hessar](https://github.com/mehrdadh): @mehrdadh
@@ -115,10 +116,12 @@ We do encourage everyone to work anything they are interested in.
 - [Chenfan Jia](https://github.com/jcf94): @jcf94
 - [Hua Jiang](https://github.com/huajsj): @huajsj
 - [Ziheng Jiang](https://github.com/ZihengJiang): @ZihengJiang
+- [Hongyi Jin](https://github.com/jinhongyii): @jinhongyii
 - [Manupa Karunaratne](https://github.com/manupa-arm): @manupa-arm
 - [Elen Kalda](https://github.com/ekalda): @ekalda
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame
 - [Tristan Konolige](https://github.com/tkonolige): @tkonolige
+- [Denise Kutnick](https://github.com/denise-k): @denise-k
 - [Ruihang Lai](https://github.com/MasterJH5574): @MasterJH5574
 - [Nicola Lancellotti](https://github.com/nicolalancellotti): @NicolaLancellotti
 - [Wuwei Lin](https://github.com/vinx13): @vinx13

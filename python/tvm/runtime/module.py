@@ -270,7 +270,17 @@ class Module(object):
         """
         _ffi_api.ModuleSaveToFile(self, file_name, fmt)
 
-    def time_evaluator(self, func_name, dev, number=10, repeat=1, min_repeat_ms=0, f_preproc=""):
+    def time_evaluator(
+        self,
+        func_name,
+        dev,
+        number=10,
+        repeat=1,
+        min_repeat_ms=0,
+        cooldown_interval_ms=0,
+        repeats_to_cooldown=1,
+        f_preproc="",
+    ):
         """Get an evaluator that measures time cost of running function.
 
         Parameters
@@ -299,6 +309,14 @@ class Module(object):
             minimum duration requirement of one `repeat`.
             i.e., When the run time of one `repeat` falls below this time, the `number` parameter
             will be automatically increased.
+
+        cooldown_interval_ms: int, optional
+            The cooldown interval in milliseconds between the number of repeats defined by
+            `repeats_to_cooldown`.
+
+        repeats_to_cooldown: int, optional
+            The number of repeats before the cooldown is activated.
+
         f_preproc: str, optional
             The preprocess function name we want to execute before executing the time evaluator.
 
@@ -322,6 +340,8 @@ class Module(object):
                 number,
                 repeat,
                 min_repeat_ms,
+                cooldown_interval_ms,
+                repeats_to_cooldown,
                 f_preproc,
             )
 
@@ -436,7 +456,7 @@ class Module(object):
         files = addons if addons else []
         is_system_lib = False
         has_c_module = False
-        llvm_target_triple = None
+        llvm_target_string = None
         for index, module in enumerate(modules):
             if fcompile is not None and hasattr(fcompile, "object_format"):
                 if module.type_key == "c":
@@ -475,8 +495,8 @@ class Module(object):
             is_system_lib = (
                 module.type_key == "llvm" and module.get_function("__tvm_is_system_module")()
             )
-            llvm_target_triple = (
-                module.type_key == "llvm" and module.get_function("_get_target_triple")()
+            llvm_target_string = (
+                module.type_key == "llvm" and module.get_function("_get_target_string")()
             )
         if not fcompile:
             if file_name.endswith(".tar"):
@@ -484,16 +504,18 @@ class Module(object):
             else:
                 fcompile = _cc.create_shared
 
-        if llvm_target_triple is None and hasattr(fcompile, "get_target_triple"):
-            llvm_target_triple = fcompile.get_target_triple()
+        if llvm_target_string is None and hasattr(fcompile, "get_target_triple"):
+            triple = fcompile.get_target_triple()
+            assert triple, "Target triple should not be empty"
+            llvm_target_string = "llvm -mtriple " + triple
 
         if getattr(fcompile, "need_system_lib", False) and not is_system_lib:
             raise ValueError("%s need --system-lib option" % str(fcompile))
 
         if self.imported_modules:
-            if enabled("llvm") and llvm_target_triple:
+            if enabled("llvm") and llvm_target_string:
                 path_obj = os.path.join(workspace_dir, f"devc.{object_format}")
-                m = _ffi_api.ModulePackImportsToLLVM(self, is_system_lib, llvm_target_triple)
+                m = _ffi_api.ModulePackImportsToLLVM(self, is_system_lib, llvm_target_string)
                 m.save(path_obj)
                 files.append(path_obj)
             else:

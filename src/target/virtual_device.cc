@@ -170,6 +170,9 @@ VirtualDevice VirtualDeviceCache::Make(DLDeviceType device_type, int virtual_dev
                                        Target target, MemoryScope memory_scope) {
   VirtualDevice prototype(device_type, virtual_device_id, std::move(target),
                           std::move(memory_scope));
+  if (prototype->IsFullyUnconstrained()) {
+    return VirtualDevice::FullyUnconstrained();
+  }
   auto itr = cache_.find(prototype);
   if (itr == cache_.end()) {
     cache_.emplace(prototype);

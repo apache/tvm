@@ -23,6 +23,27 @@
  */
 #ifdef TVM_LLVM_VERSION
 
+#include <llvm/ADT/SmallString.h>
+#include <llvm/IR/Attributes.h>
+#include <llvm/IR/CallingConv.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/GlobalValue.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/IR/Intrinsics.h>
+#if TVM_LLVM_VERSION >= 100
+#include <llvm/IR/IntrinsicsAMDGPU.h>
+#endif
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/IRReader/IRReader.h>
+#if TVM_LLVM_VERSION >= 100
+#include <llvm/Support/Alignment.h>
+#endif
+#include <llvm/Support/CodeGen.h>
+#include <llvm/Support/SourceMgr.h>
+#include <llvm/Support/raw_ostream.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/Transforms/IPO/PassManagerBuilder.h>
+#include <llvm/Transforms/Utils/Cloning.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
@@ -30,6 +51,7 @@
 #include "../../runtime/rocm/rocm_module.h"
 #include "../build_common.h"
 #include "codegen_llvm.h"
+#include "llvm_instance.h"
 
 namespace tvm {
 namespace codegen {
@@ -60,6 +82,9 @@ static inline int DetectROCMmaxThreadsPerBlock() {
 // AMDGPU code generator.
 class CodeGenAMDGPU : public CodeGenLLVM {
  public:
+  CodeGenAMDGPU() = default;
+  virtual ~CodeGenAMDGPU() = default;
+
   void AddFunction(const PrimFunc& f) final {
     // add function as void return value
     CodeGenLLVM::AddFunctionInternal(f, true);
@@ -128,17 +153,17 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   // Return the thread index via intrinsics.
   llvm::Value* GetThreadIndex(const IterVar& iv) final {
     runtime::ThreadScope ts = runtime::ThreadScope::Create(iv->thread_tag);
-    llvm::Intrinsic::ID intrin_id = ::llvm::Intrinsic::amdgcn_workitem_id_x;
+    llvm::Intrinsic::ID intrin_id = llvm::Intrinsic::amdgcn_workitem_id_x;
     if (ts.rank == 1) {
       switch (ts.dim_index) {
         case 0:
-          intrin_id = ::llvm::Intrinsic::amdgcn_workitem_id_x;
+          intrin_id = llvm::Intrinsic::amdgcn_workitem_id_x;
           break;
         case 1:
-          intrin_id = ::llvm::Intrinsic::amdgcn_workitem_id_y;
+          intrin_id = llvm::Intrinsic::amdgcn_workitem_id_y;
           break;
         case 2:
-          intrin_id = ::llvm::Intrinsic::amdgcn_workitem_id_z;
+          intrin_id = llvm::Intrinsic::amdgcn_workitem_id_z;
           break;
         default:
           LOG(FATAL) << "unknown workitem idx";
@@ -147,13 +172,13 @@ class CodeGenAMDGPU : public CodeGenLLVM {
       ICHECK_EQ(ts.rank, 0);
       switch (ts.dim_index) {
         case 0:
-          intrin_id = ::llvm::Intrinsic::amdgcn_workgroup_id_x;
+          intrin_id = llvm::Intrinsic::amdgcn_workgroup_id_x;
           break;
         case 1:
-          intrin_id = ::llvm::Intrinsic::amdgcn_workgroup_id_y;
+          intrin_id = llvm::Intrinsic::amdgcn_workgroup_id_y;
           break;
         case 2:
-          intrin_id = ::llvm::Intrinsic::amdgcn_workgroup_id_z;
+          intrin_id = llvm::Intrinsic::amdgcn_workgroup_id_z;
           break;
         default:
           LOG(FATAL) << "unknown workgroup idx";
@@ -169,7 +194,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
       return nullptr;
     } else if (sync == "shared") {
       llvm::Function* f =
-          llvm::Intrinsic::getDeclaration(module_.get(), ::llvm::Intrinsic::amdgcn_s_barrier);
+          llvm::Intrinsic::getDeclaration(module_.get(), llvm::Intrinsic::amdgcn_s_barrier);
       return builder_->CreateCall(f, {});
     } else {
       LOG(FATAL) << "Do not support sync " << sync;
@@ -213,27 +238,25 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   }
 
  protected:
-  void InitTarget(llvm::TargetMachine* tm) final {
+  void InitTarget() final {
     // Maximum vector lane = float4
     native_vector_bits_ = 4 * 32;
-    CodeGenLLVM::InitTarget(tm);
+    CodeGenLLVM::InitTarget();
   }
 };
 
 runtime::Module BuildAMDGPU(IRModule mod, Target target) {
+  LLVMInstance llvm_instance;
+
+  With<LLVMTarget> llvm_target(llvm_instance, target);
 #if TVM_LLVM_VERSION < 90
   LOG(FATAL) << "AMDGPU backend requires at least LLVM 9";
   // Lower versions will crash when loading the bitcode, see
   // issue #4087 for a discussion
 #endif
-  InitializeLLVM();
-  std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(target);
-  std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
-  // careful: cg will hold a naked pointer reference to ctx, so it should
-  // have a shorter lifetime than the ctx.
   std::unique_ptr<CodeGenAMDGPU> cg(new CodeGenAMDGPU());
 
-  cg->Init("TVMAMDGPUModule", tm.get(), ctx.get(), false, false, false);
+  cg->Init("TVMAMDGPUModule", llvm_target.get(), false, false, false);
 
   cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end(), [](auto& kv) {
     ICHECK(kv.second->template IsInstance<PrimFuncNode>())
@@ -241,20 +264,15 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
     return Downcast<PrimFunc>(kv.second);
   });
 
+  llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
   const auto* find_rocm_bitcodes = tvm::runtime::Registry::Get("tvm_callback_rocm_bitcode_path");
   Array<runtime::String> bitcode_files = (*find_rocm_bitcodes)();
 
   for (auto& bitcode_path : bitcode_files) {
-    std::string path = bitcode_path;
-    llvm::SMDiagnostic err;
-    std::unique_ptr<llvm::Module> mlib = llvm::parseIRFile(path, err, *ctx);
-    if (mlib.get() == nullptr) {
-      std::string msg(err.getMessage());
-      LOG(FATAL) << "Fail to load bitcode file " << path << "\n"
-                 << "line " << err.getLineNo() << ":" << msg;
-    }
-    mlib->setTargetTriple(tm->getTargetTriple().str());
+    std::unique_ptr<llvm::Module> mlib = llvm_instance.LoadIR(bitcode_path);
+    mlib->setTargetTriple(llvm_target->GetTargetTriple());
     mlib->setDataLayout(tm->createDataLayout());
+
     for (llvm::Function& f : mlib->functions()) {
       f.addFnAttr(llvm::Attribute::AlwaysInline);
     }
@@ -319,6 +337,12 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
 
 TVM_REGISTER_GLOBAL("target.build.rocm").set_body_typed(BuildAMDGPU);
 
+TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_rocm")
+    .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
+      *rv = static_cast<void*>(new CodeGenAMDGPU());
+    });
+
 }  // namespace codegen
 }  // namespace tvm
+
 #endif  // TVM_LLVM_VERSION

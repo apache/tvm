@@ -165,7 +165,6 @@ TVM_DLL runtime::Module build(const Map<Target, IRModule>& input, const Target& 
  * \return The built module that contains code for different processors.
  */
 TVM_DLL runtime::Module build(const Map<String, IRModule>& input, const Target& target_host);
-
 }  // namespace tvm
 
 #endif  // TVM_DRIVER_DRIVER_API_H_

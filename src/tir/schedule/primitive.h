@@ -116,10 +116,10 @@ TVM_DLL tir::StmtSRef SampleComputeLocation(
  * \brief Retrieves blocks in a specific function with its name
  * \param self The schedule state
  * \param name The name of the blocks to be retrieved
- * \param func_name The name of the function
+ * \param gvar The function to be retrieved
  * \return A list of blocks with the specific name
  */
-Array<StmtSRef> GetBlocks(const ScheduleState& self, const String& name, const String& func_name);
+Array<StmtSRef> GetBlocks(const ScheduleState& self, const String& name, const GlobalVar& gv);
 /*!
  * \brief Gets the parent loops of the block in its scope, from outer to inner
  * \param self The schedule state
@@ -481,6 +481,17 @@ TVM_DLL void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int
  */
 TVM_DLL void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
                                   const IndexMap& index_map);
+
+/******** Schedule: Padding decomposition ********/
+/*!
+ * \brief Decompose a padding block into a block filling const pad values and a block
+ * writing in-bound values.
+ * \param block_sref The block sref that match the padding pattern.
+ * \param loop_sref The loop above which the const filling block is inserted before.
+ * \return The padding value filling block sref.
+ */
+TVM_DLL StmtSRef DecomposePadding(ScheduleState self, const StmtSRef& block_sref,
+                                  const StmtSRef& loop_sref);
 
 /******** Schedule: Misc ********/
 

@@ -33,6 +33,12 @@
 #include <tvm/runtime/crt/internal/graph_executor/graph_executor.h>
 #include <tvm/runtime/crt/platform.h>
 
+#if defined(_WIN32) || defined(WIN32)
+#include <windows.h>
+#elif __unix__
+#include <unistd.h>
+#endif
+
 // Handle internal errors
 
 static char g_last_error[1024];
@@ -471,6 +477,8 @@ typedef struct {
   int number;
   int repeat;
   int min_repeat_ms;
+  int cooldown_interval_ms;
+  int repeats_to_cooldown;
 } time_evaluator_state_t;
 
 static time_evaluator_state_t g_time_evaluator_state;
@@ -479,13 +487,14 @@ int RPCTimeEvaluator(TVMValue* args, int* type_codes, int num_args, TVMValue* re
                      int* ret_type_code) {
   ret_val[0].v_handle = NULL;
   ret_type_code[0] = kTVMNullptr;
-  if (num_args < 8) {
+  if (num_args < 10) {
     TVMAPIErrorf("not enough args");
     return kTvmErrorFunctionCallNumArguments;
   }
   if (type_codes[0] != kTVMModuleHandle || type_codes[1] != kTVMStr ||
       type_codes[2] != kTVMArgInt || type_codes[3] != kTVMArgInt || type_codes[4] != kTVMArgInt ||
-      type_codes[5] != kTVMArgInt || type_codes[6] != kTVMArgInt || type_codes[7] != kTVMStr) {
+      type_codes[5] != kTVMArgInt || type_codes[6] != kTVMArgInt || type_codes[7] != kTVMArgInt ||
+      type_codes[8] != kTVMArgInt || type_codes[9] != kTVMStr) {
     TVMAPIErrorf("one or more invalid arg types");
     return kTvmErrorFunctionCallWrongArgType;
   }
@@ -497,6 +506,8 @@ int RPCTimeEvaluator(TVMValue* args, int* type_codes, int num_args, TVMValue* re
   g_time_evaluator_state.number = args[4].v_int64;
   g_time_evaluator_state.repeat = args[5].v_int64;
   g_time_evaluator_state.min_repeat_ms = args[6].v_int64;
+  g_time_evaluator_state.cooldown_interval_ms = args[7].v_int64;
+  g_time_evaluator_state.repeats_to_cooldown = args[8].v_int64;
 
   int ret_code =
       TVMModGetFunction(mod, name, /* query_imports */ 0, &g_time_evaluator_state.func_to_time);
@@ -528,23 +539,35 @@ tvm_crt_error_t RunTimeEvaluator(tvm_function_index_t function_index, TVMValue* 
   }
   result_byte_arr->data = NULL;
   size_t data_size = sizeof(double) * g_time_evaluator_state.repeat;
-  err = TVMPlatformMemoryAllocate(data_size, result_byte_dev, (void*)&result_byte_arr->data);
+  err = TVMPlatformMemoryAllocate(data_size, result_byte_dev, (void**)&result_byte_arr->data);
   if (err != kTvmErrorNoError) {
     goto release_and_return;
   }
   result_byte_arr->size = data_size;
+
+  // skip first time call, to activate lazy compilation components.
+  err = TVMFuncCall(g_time_evaluator_state.func_to_time, args, type_codes, num_args, ret_val,
+                    ret_type_code);
+  if (err != kTvmErrorNoError) {
+    goto release_and_return;
+  }
+
   double min_repeat_seconds = ((double)g_time_evaluator_state.min_repeat_ms) / 1000;
   double* iter = (double*)result_byte_arr->data;
   for (int i = 0; i < g_time_evaluator_state.repeat; i++) {
-    double repeat_res_seconds = 0.0;
-    int exec_count = 0;
+    double curr_res_seconds = 0.0;
     // do-while structure ensures we run even when `min_repeat_ms` isn't set (i.e., is 0).
     do {
+      if (curr_res_seconds > 0.0) {
+        double a = (min_repeat_seconds / (curr_res_seconds / g_time_evaluator_state.number) + 1);
+        const double golden_ratio = 1.618;
+        double b = g_time_evaluator_state.number * golden_ratio;
+        g_time_evaluator_state.number = (int64_t)(a > b ? a : b);
+      }
       err = TVMPlatformBeforeMeasurement();
       if (err != kTvmErrorNoError) {
         goto release_and_return;
       }
-
       err = TVMPlatformTimerStart();
       if (err != kTvmErrorNoError) {
         goto release_and_return;
@@ -557,23 +580,31 @@ tvm_crt_error_t RunTimeEvaluator(tvm_function_index_t function_index, TVMValue* 
           goto release_and_return;
         }
       }
-      exec_count += g_time_evaluator_state.number;
-
-      double curr_res_seconds;
       err = TVMPlatformTimerStop(&curr_res_seconds);
       if (err != kTvmErrorNoError) {
         goto release_and_return;
       }
-      repeat_res_seconds += curr_res_seconds;
-
       err = TVMPlatformAfterMeasurement();
       if (err != kTvmErrorNoError) {
         goto release_and_return;
       }
-    } while (repeat_res_seconds < min_repeat_seconds);
-    double mean_exec_seconds = repeat_res_seconds / exec_count;
+    } while (curr_res_seconds < min_repeat_seconds);
+    double mean_exec_seconds = curr_res_seconds / g_time_evaluator_state.number;
     *iter = mean_exec_seconds;
     iter++;
+    if (g_time_evaluator_state.cooldown_interval_ms > 0 &&
+        (i % g_time_evaluator_state.repeats_to_cooldown) == 0) {
+#if defined(_WIN32) || defined(WIN32)
+      Sleep(g_time_evaluator_state.cooldown_interval_ms);
+#elif __unix__
+      usleep(g_time_evaluator_state.cooldown_interval_ms * 1000);
+#else
+      TVMAPIErrorf(
+          "No support for non-zero cooldown_interval_ms for this platform: Use "
+          "cooldown_interval_ms = 0");
+      goto release_and_return;
+#endif
+    }
   }
 
   *ret_type_code = kTVMBytes;
@@ -582,9 +613,9 @@ tvm_crt_error_t RunTimeEvaluator(tvm_function_index_t function_index, TVMValue* 
 
 release_and_return : {
   tvm_crt_error_t release_err =
-      TVMPlatformMemoryFree((void*)&result_byte_arr->data, result_byte_dev);
+      TVMPlatformMemoryFree((void*)result_byte_arr->data, result_byte_dev);
   if (release_err != kTvmErrorNoError) {
-    release_err = TVMPlatformMemoryFree((void*)&result_byte_arr, result_byte_dev);
+    release_err = TVMPlatformMemoryFree((void*)result_byte_arr, result_byte_dev);
   }
 
   if (err == kTvmErrorNoError && release_err != kTvmErrorNoError) {

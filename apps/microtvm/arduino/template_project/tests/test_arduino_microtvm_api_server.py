@@ -140,6 +140,30 @@ class TestGenerateProject:
         mock_run.return_value.stdout = bytes(self.BAD_CLI_VERSION, "utf-8")
         with pytest.raises(server.ServerError) as error:
             handler._check_platform_version({"warning_as_error": True})
+        mock_run.reset_mock()
+
+    @mock.patch("subprocess.run")
+    def test_flash_retry(self, mock_run):
+        mock_run.return_value.stdout = bytes(self.GOOD_CLI_VERSION, "utf-8")
+
+        def side_effect(cmd, *args, **kwargs):
+            if cmd[1] == "upload":
+                raise subprocess.TimeoutExpired(cmd, kwargs["timeout"])
+            return mock.DEFAULT
+
+        mock_run.side_effect = side_effect
+
+        handler = microtvm_api_server.Handler()
+        handler._port = "/dev/ttyACM0"
+
+        # handler.flash will try flashing `handler.FLASH_MAX_RETRIES` times,
+        # after which it will raise a TimeoutExpired exception of its own
+        with pytest.raises(RuntimeError):
+            handler.flash(self.DEFAULT_OPTIONS)
+
+        # Test we checked version then called upload once per retry attempt,
+        # plus once to verify arduino-cli version.
+        assert mock_run.call_count == handler.FLASH_MAX_RETRIES + 1
 
     @mock.patch("subprocess.run")
     def test_flash(self, mock_run):

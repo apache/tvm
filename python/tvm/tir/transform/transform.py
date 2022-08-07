@@ -16,7 +16,10 @@
 # under the License.
 """Wrapping existing transformations."""
 # pylint: disable=invalid-name
-from typing import Optional, Callable
+
+
+import enum
+from typing import Callable, Optional
 
 from . import _ffi_api
 from . import function_pass as _fpass
@@ -248,6 +251,28 @@ def RemoveNoOp():
         The result pass
     """
     return _ffi_api.RemoveNoOp()  # type: ignore
+
+
+def RemoveAssume():
+    """Remove all instances of builtin::assume
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RemoveAssume()  # type: ignore
+
+
+def RemoveStoreUndef():
+    """Remove stores of undefined values from the Stmt.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RemoveStoreUndef()  # type: ignore
 
 
 def BF16Legalize():
@@ -593,6 +618,74 @@ def HoistIfThenElse(variant: Optional[str] = None):
         return _ffi_api.HoistIfThenElse()  # type: ignore
 
 
+class HoistedConditionals(enum.Flag):
+    """Flags for use in HoistExpressionConfig.conditional_types
+
+    Each bitflag represents a type of expression that should be
+    hoisted to the outermost loop possible.
+    """
+
+    Never = 0
+    """ No hoisting of conditionals """
+
+    IfElseStmt = 1
+    """ If set, look for hoist candidates in IfElseStmt """
+
+    IfElseExpr = 2
+    """ If set, look for hoist candidates in tir.if_then_else """
+
+    BooleanExpression = 4
+    """ If set, look for hoist candidates in all boolean expressions """
+
+    UsingBlockVar = 8
+    """ If set, allow hoisting of conditionals that use a block variable (e.g. threadIdx.x)  """
+
+    All = IfElseStmt | IfElseExpr | BooleanExpression | UsingBlockVar
+    """ Enable all hoisting of conditionals"""
+
+
+class HoistedLetBindings(enum.Flag):
+    """Flags for use in HoistExpressionConfig.let_binding_types
+
+    Each bitflag represents a type of let binding expression that should be
+    hoisted to the outermost loop possible.
+    """
+
+    Never = 0
+    """ No hoisting of let bindings """
+
+    RequiredByConditional = 1
+    """ Bindings that are used by a hoisted conditional """
+
+    LetStmt = 2
+    """ Bindings occuring in LetStmt """
+
+    LetExpr = 4
+    """ Bindings occuring in Let expressions """
+
+    All = RequiredByConditional | LetStmt | LetExpr
+    """ Enable all hoisting of let bindings """
+
+
+def HoistExpression():
+    """Generalized verison of HoistIfThenElse.
+
+    Hoist loop-invariant expressions to outside the eligible loops.
+    Searches for expressions in:
+
+    * LetStmt bindings
+    * IfThenElse conditions
+    * Boolean operators
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+
+    """
+    return _ffi_api.HoistExpression()  # type: ignore
+
+
 def LowerCrossThreadReduction():
     """Lower cross-thread reduction from thread bindings to
     intrinsic function calls.
@@ -698,10 +791,20 @@ def LowerMatchBuffer():
     return _ffi_api.LowerMatchBuffer()  # type: ignore
 
 
+def LowerOpaqueBlock():
+    """Remove the block to ensure that the TIR can not be scheduled again.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerOpaqueBlock()  # type: ignore
+
+
 def FlattenBuffer():
-    """Flatten the multi-dimensional BufferLoad and BufferStore
-    to single dimensional Load/Store. Also remove Block to
-    ensure that the flattened TIR can not be scheduled again.
+    """Flatten the multi-dimensional BufferLoad and BufferStore to single dimensional
+    BufferLoad/BufferStore for the TIR not contains opaque block.
 
     Returns
     -------
@@ -836,3 +939,13 @@ def InjectPTXAsyncCopy():
         The result pass
     """
     return _ffi_api.InjectPTXAsyncCopy()  # type: ignore
+
+
+def RemoveWeightLayoutRewriteBlock():
+    """Remove weight layout rewrite block before benchmarking during tuning stage.
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RemoveWeightLayoutRewriteBlock()  # type: ignore

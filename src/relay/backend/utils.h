@@ -26,6 +26,7 @@
 
 #include <dmlc/json.h>
 #include <tvm/driver/driver_api.h>
+#include <tvm/relay/executor.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
@@ -81,6 +82,10 @@ class ExecutorCodegenMetadataNode : public Object {
   String interface_api;
   /*! \brief The internal API (packed or unpacked) in use */
   bool unpacked_api;
+  /*! \brief Alginment of the workspace in bytes */
+  Integer workspace_alignment;
+  /*! \brief Alginment of the constants in bytes */
+  Integer constant_alignment;
   /*! \brief the input var names that correspond to pool_inputs */
   Optional<Map<tir::Var, tir::usmp::AllocatedPoolInfo>> pool_inputs;
   /*! \brief the I/O tensor to PoolAllocations if any*/
@@ -97,6 +102,8 @@ class ExecutorCodegenMetadataNode : public Object {
     v->Visit("devices", &devices);
     v->Visit("executor", &executor);
     v->Visit("unpacked_api", &unpacked_api);
+    v->Visit("workspace_alignment", &workspace_alignment);
+    v->Visit("constant_alignment", &constant_alignment);
     v->Visit("pool_inputs", &pool_inputs);
     v->Visit("io_pool_allocations", &io_pool_allocations);
   }
@@ -110,14 +117,15 @@ class ExecutorCodegenMetadataNode : public Object {
  */
 class ExecutorCodegenMetadata : public ObjectRef {
  public:
-  TVM_DLL ExecutorCodegenMetadata(
-      Array<tir::Var> inputs, Array<TensorType> input_tensor_types, Array<String> outputs,
-      Array<TensorType> output_tensor_types, Array<tir::Var> pools, Array<String> devices,
-      String executor, String mod_name, String interface_api = "packed", bool unpacked_api = false,
-      Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs =
-          Map<tir::Var, tir::usmp::AllocatedPoolInfo>(),
-      Map<String, tir::usmp::PoolAllocation> io_pool_allocations = {{}});
-
+  TVM_DLL ExecutorCodegenMetadata(Array<tir::Var> inputs, Array<TensorType> input_tensor_types,
+                                  Array<String> outputs, Array<TensorType> output_tensor_types,
+                                  Array<tir::Var> pools, Array<String> devices, String executor,
+                                  String mod_name, String interface_api = "packed",
+                                  bool unpacked_api = false, Integer workspace_alignment = 16,
+                                  Integer constant_alignment = 16,
+                                  Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs =
+                                      Map<tir::Var, tir::usmp::AllocatedPoolInfo>(),
+                                  Map<String, tir::usmp::PoolAllocation> io_pool_allocations = {});
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ExecutorCodegenMetadata, ObjectRef,
                                         ExecutorCodegenMetadataNode);
 };
@@ -215,7 +223,11 @@ struct LoweredOutput {
   Map<Target, IRModule> lowered_funcs;
   Array<tvm::runtime::Module> external_mods;
   Map<String, FunctionInfo> function_metadata;
-  std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>> params;
+  /*!
+   * \brief Map from constant names (allocated by the codegen as constants are encountered)
+   * to the constant's value.
+   */
+  std::unordered_map<std::string, tvm::runtime::NDArray> params;
   ExecutorCodegenMetadata metadata;
 };
 
@@ -241,7 +253,7 @@ struct ConstantUpdater : public ExprVisitor {
 
   void VisitExpr_(const ConstantNode* cn) final {
     std::string name = symbol_ + "_const_" + std::to_string(const_idx_++);
-    VLOG(1) << "Binding " << name << " to constant of type " << PrettyPrint(cn->checked_type());
+    VLOG(1) << "binding '" << name << "' to constant of type " << PrettyPrint(cn->checked_type());
     (*params_)[name] = cn->data;
   }
 
@@ -456,6 +468,10 @@ inline const CallNode* GetRootCall(const CallNode* current_call, int depth,
   size_t valid_node_idx = 0;
   while (valid_node_idx < current_call->args.size() &&
          current_call->args[valid_node_idx].as<VarNode>()) {
+    valid_node_idx++;
+  }
+  while (valid_node_idx < current_call->args.size() &&
+         !(IsOp(current_call->args[valid_node_idx].as<CallNode>(), expected_op_names[depth - 1]))) {
     valid_node_idx++;
   }
   const auto* next_call = current_call->args[valid_node_idx].as<CallNode>();

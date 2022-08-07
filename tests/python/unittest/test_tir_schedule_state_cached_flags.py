@@ -758,7 +758,7 @@ def test_non_perfect_tiling_cache():
     s = tir.ScheduleState(non_perfect_tiling_cache, debug_mask="all")
     # pylint: disable=protected-access
     assert s._get_cached_flags(_get_block(s, "cache")) == CachedFlags(
-        affine_binding=False,
+        affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )

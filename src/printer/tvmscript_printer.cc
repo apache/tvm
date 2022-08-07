@@ -245,6 +245,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitStmt_(const BufferRealizeNode* op) override;
   Doc VisitStmt_(const AllocateNode* op) override;
   Doc VisitStmt_(const AllocateConstNode* op) override;
+  Doc VisitStmt_(const DeclBufferNode* op) override;
   Doc VisitStmt_(const IfThenElseNode* op) override;
   Doc VisitStmt_(const SeqStmtNode* op) override;
   Doc VisitStmt_(const ForNode* op) override;
@@ -945,46 +946,48 @@ Doc TVMScriptPrinter::VisitStmt_(const LetStmtNode* op) {
 
 Doc TVMScriptPrinter::VisitStmt_(const AttrStmtNode* op) {
   Doc doc;
-  // merge attr with realize when possible
-  if (op->node->IsInstance<BufferNode>() && op->attr_key == "realize_scope" &&
-      op->body->IsInstance<BufferRealizeNode>()) {
-    const auto* realize = Downcast<BufferRealize>(op->body).get();
-    if (realize->buffer.same_as(op->node)) {
-      if (current_num_ != num_child_ - 1) {
-        doc << "with " << tir_prefix_ << ".realize(" << Print(realize->buffer)
-            << Print(realize->bounds) << ", " << Print(op->value);
-        if (!is_one(realize->condition)) {
-          doc << ", " << Print(realize->condition);
+  if (op->node.defined()) {
+    // merge attr with realize when possible
+    if (op->node->IsInstance<BufferNode>() && op->attr_key == "realize_scope" &&
+        op->body->IsInstance<BufferRealizeNode>()) {
+      const auto* realize = Downcast<BufferRealize>(op->body).get();
+      if (realize->buffer.same_as(op->node)) {
+        if (current_num_ != num_child_ - 1) {
+          doc << "with " << tir_prefix_ << ".realize(" << Print(realize->buffer)
+              << Print(realize->bounds) << ", " << Print(op->value);
+          if (!is_one(realize->condition)) {
+            doc << ", " << Print(realize->condition);
+          }
+          doc << "):" << Doc::Indent(4, Doc::NewLine() << PrintBody(realize->body));
+        } else {
+          doc << tir_prefix_ << ".realize(" << Print(realize->buffer) << Print(realize->bounds)
+              << ", " << Print(op->value);
+          if (!is_one(realize->condition)) {
+            doc << ", " << Print(realize->condition);
+          }
+          doc << ")" << Doc::NewLine() << PrintBody(realize->body);
         }
-        doc << "):" << Doc::Indent(4, Doc::NewLine() << PrintBody(realize->body));
-      } else {
-        doc << tir_prefix_ << ".realize(" << Print(realize->buffer) << Print(realize->bounds)
-            << ", " << Print(op->value);
-        if (!is_one(realize->condition)) {
-          doc << ", " << Print(realize->condition);
-        }
-        doc << ")" << Doc::NewLine() << PrintBody(realize->body);
+        return doc;
       }
+    }
+    // concise thread env
+    if (op->node->IsInstance<IterVarNode>() &&
+        (op->attr_key == "thread_extent" || op->attr_key == "virtual_thread")) {
+      const auto* iter_var = Downcast<IterVar>(op->node).get();
+      var_not_in_headers_.insert(iter_var->var.get());
+      var_env_map_[iter_var->var] = iter_var->thread_tag;
+      if (current_num_ != num_child_ - 1) {
+        doc << "with " << tir_prefix_ << ".launch_thread(" << Print(iter_var->var) << ", "
+            << Print(op->value) << "):";
+        doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
+      } else {
+        doc << tir_prefix_ << ".launch_thread(" << Print(iter_var->var) << ", " << Print(op->value)
+            << ")";
+        doc << Doc::NewLine() << PrintBody(op->body);
+      }
+      TryDeallocVar(iter_var->var);
       return doc;
     }
-  }
-  // concise thread env
-  if (op->node->IsInstance<IterVarNode>() &&
-      (op->attr_key == "thread_extent" || op->attr_key == "virtual_thread")) {
-    const auto* iter_var = Downcast<IterVar>(op->node).get();
-    var_not_in_headers_.insert(iter_var->var.get());
-    var_env_map_[iter_var->var] = iter_var->thread_tag;
-    if (current_num_ != num_child_ - 1) {
-      doc << "with " << tir_prefix_ << ".launch_thread(" << Print(iter_var->var) << ", "
-          << Print(op->value) << "):";
-      doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
-    } else {
-      doc << tir_prefix_ << ".launch_thread(" << Print(iter_var->var) << ", " << Print(op->value)
-          << ")";
-      doc << Doc::NewLine() << PrintBody(op->body);
-    }
-    TryDeallocVar(iter_var->var);
-    return doc;
   }
   // default
   if (current_num_ != num_child_ - 1) {
@@ -1159,6 +1162,24 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateConstNode* alloc) {
   return doc;
 }
 
+Doc TVMScriptPrinter::VisitStmt_(const DeclBufferNode* op) {
+  const Buffer& buffer = op->buffer;
+  buf_not_in_headers_.insert(buffer.get());
+  Doc buffer_name = Print(op->buffer);
+  Doc func_call;
+  func_call << tir_prefix_ << ".decl_buffer(" << memo_buf_decl_.at(buffer) << ")";
+
+  Doc doc;
+  if (current_num_ != num_child_ - 1) {
+    doc << "with " << func_call << " as " << buffer_name << ":";
+    doc << Doc::Indent(4, Doc::NewLine() << PrintBody(op->body));
+  } else {
+    doc << buffer_name << " = " << func_call << Doc::NewLine();
+    doc << PrintBody(op->body);
+  }
+  return doc;
+}
+
 Doc TVMScriptPrinter::VisitStmt_(const IfThenElseNode* op) {
   Doc doc;
   doc << "if " << Print(op->condition) << ":";
@@ -1179,6 +1200,14 @@ Doc TVMScriptPrinter::VisitStmt_(const SeqStmtNode* op) {
 }
 
 Doc TVMScriptPrinter::VisitStmt_(const EvaluateNode* op) {
+  if (auto* call = op->value.as<CallNode>()) {
+    if (call->op.same_as(builtin::assume())) {
+      Doc doc;
+      doc << tir_prefix_ << ".assume(" << Print(call->args[0]) << ")";
+      return doc;
+    }
+  }
+
   Doc doc;
   doc << tir_prefix_ << ".evaluate(" << Print(op->value) << ")";
   return doc;
@@ -1234,7 +1263,12 @@ Doc TVMScriptPrinter::VisitStmt_(const WhileNode* op) {
 
 Doc TVMScriptPrinter::VisitType_(const PrimTypeNode* node) {
   Doc doc;
-  doc << tir_prefix_ << "." << runtime::DLDataType2String(node->dtype);
+  doc << tir_prefix_ << ".";
+  if (node->dtype.is_void()) {
+    doc << "void";
+  } else {
+    doc << runtime::DLDataType2String(node->dtype);
+  }
   return doc;
 }
 

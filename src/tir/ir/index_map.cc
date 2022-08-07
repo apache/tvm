@@ -151,8 +151,13 @@ IndexMap IndexMap::Inverse(Array<Range> initial_ranges) const {
 
   // Unpack the map to an array, maintaining the same parameter order.
   Array<PrimExpr> inverse_exprs;
-  for (const auto& index : (*this)->initial_indices) {
-    inverse_exprs.push_back(inverse_exprs_map.at(index));
+  for (int i = 0, n = (*this)->initial_indices.size(); i < n; ++i) {
+    Var index = (*this)->initial_indices[i];
+    if (is_one(initial_ranges[i]->extent) && !inverse_exprs_map.count(index)) {
+      inverse_exprs.push_back(initial_ranges[i]->min);
+    } else {
+      inverse_exprs.push_back(inverse_exprs_map.at(index));
+    }
   }
 
   return IndexMap(output_vars, inverse_exprs);

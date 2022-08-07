@@ -19,7 +19,9 @@ import subprocess
 import os
 import logging
 import sys
+import re
 from pathlib import Path
+from typing import List
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -62,3 +64,9 @@ class Sh:
         defaults.update(kwargs)
 
         return subprocess.run(cmd, **defaults)
+
+
+def tags_from_title(title: str) -> List[str]:
+    tags = re.findall(r"\[(.*?)\]", title)
+    tags = [t.strip() for t in tags]
+    return tags

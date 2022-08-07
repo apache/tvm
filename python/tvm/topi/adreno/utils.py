@@ -22,6 +22,7 @@ import numpy
 from tvm import te
 from tvm.topi.utils import simplify
 from tvm.topi import nn
+from tvm.autotvm.task.space import SplitEntity
 from ..utils import get_const_tuple
 
 
@@ -575,3 +576,46 @@ def infer_tile_size(data, layout):
     if H % 8 == 0:
         return 4
     return 2
+
+
+def get_default_conv2d_config(cfg, fc, y, x):
+    """Defines conv2d default parameters for split axis for Adreno conv2d and depthwise conv2d"""
+    # look for vthread params:
+    vy = 1
+    for n in range(5, 0, -1):
+        if y % n == 0:
+            vy = n
+            break
+
+    vx = 1
+    for n in range(5, 0, -1):
+        if x % n == 0 and vy * n < 9:
+            vx = n
+            break
+
+    y = y // vy
+    x = x // vx
+
+    tfc = 1
+    for n in range(64, 0, -1):
+        if fc % n == 0:
+            tfc = n
+            break
+    ty = 1
+    for n in range(16, 0, -1):
+        if y % n == 0 and tfc * n <= 512:
+            ty = n
+            break
+    tx = 1
+    for n in range(16, 0, -1):
+        if x % n == 0 and tfc * ty * n <= 512:
+            tx = n
+            break
+
+    fc = fc // tfc
+    y = y // ty
+    x = x // tx
+
+    cfg["tile_fc"] = SplitEntity([fc, 1, tfc])
+    cfg["tile_y"] = SplitEntity([y, vy, ty])
+    cfg["tile_x"] = SplitEntity([x, vx, tx])

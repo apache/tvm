@@ -372,7 +372,7 @@ def compacted_storage_align_func(a: T.handle, c: T.handle) -> None:
         with T.block():
             T.reads(A[i, 0:16])
             T.writes(C[i, 0:16])
-            B = T.alloc_buffer((1, 16), strides=(31, 1), dtypes="float32")
+            B = T.alloc_buffer((1, 16), strides=(31, 1), dtype="float32")
             for j in range(0, 16):
                 with T.block():
                     T.reads(A[i, j])
@@ -391,7 +391,7 @@ def padding_pattern_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
     C = T.match_buffer(c, (20, 20), "float32")
     with T.block():
-        B = T.alloc_buffer((20, 20), dtypes="float32")
+        B = T.alloc_buffer((20, 20), dtype="float32")
         for i, j in T.grid(16, 16):
             with T.block():
                 B[i, j] = A[i, j]
@@ -473,10 +473,10 @@ def compacted_padding_pattern_inlined(
 def mem_access_in_branch_func(a: T.handle) -> None:
     A = T.match_buffer(a, (224, 224), "float32")
     with T.block():
-        B1 = T.alloc_buffer((224, 224), dtypes="float32")
-        B2 = T.alloc_buffer((224, 224), dtypes="float32")
-        B3 = T.alloc_buffer((224, 224), dtypes="float32")
-        B4 = T.alloc_buffer((224, 224), dtypes="float32")
+        B1 = T.alloc_buffer((224, 224), dtype="float32")
+        B2 = T.alloc_buffer((224, 224), dtype="float32")
+        B3 = T.alloc_buffer((224, 224), dtype="float32")
+        B4 = T.alloc_buffer((224, 224), dtype="float32")
         for i in range(0, 224):
             for j in range(0, 224):
                 with T.block():
@@ -519,8 +519,8 @@ def compacted_mem_access_in_branch_func(a: T.handle) -> None:
 def opaque_access_annotated_func(a: T.handle) -> None:
     A = T.match_buffer(a, (1024,), "float32")
     with T.block():
-        B = T.alloc_buffer((1024,), dtypes="float32")
-        C = T.alloc_buffer((1024,), dtypes="float32")
+        B = T.alloc_buffer((1024,), dtype="float32")
+        C = T.alloc_buffer((1024,), dtype="float32")
         for i in range(0, 512):
             with T.block():
                 # no annotation, opaque access will cover full region
@@ -541,8 +541,8 @@ def opaque_access_annotated_func(a: T.handle) -> None:
 def compacted_opaque_access_annotated_func(a: T.handle) -> None:
     A = T.match_buffer(a, (1024,), "float32")
     with T.block():
-        B = T.alloc_buffer((1024,), dtypes="float32")
-        C = T.alloc_buffer((520,), dtypes="float32")
+        B = T.alloc_buffer((1024,), dtype="float32")
+        C = T.alloc_buffer((520,), dtype="float32")
         for i in range(0, 512):
             with T.block():
                 # no annotation, opaque access will cover full region
@@ -737,6 +737,21 @@ def test_compact_with_let_binding():
 
     _check(func_with_let_binding, func_with_let_binding)
 
+    @T.prim_func
+    def func_with_non_index_let_binding():
+        A = T.alloc_buffer((64), "float32")
+        x1 = T.call_extern("get", dtype="float16")
+        x2 = T.call_extern("get", dtype="float32")
+        x3 = T.call_extern("get", dtype="float64")
+        x4 = T.call_extern("get", dtype="uint8")
+        x5 = T.call_extern("get", dtype="int32x16")
+        x6 = T.call_extern("get", dtype="handle")
+        x7 = T.call_extern("get", dtype="")
+        for rk in range(64):
+            A[rk] = T.call_extern("load_ptr", x1, x2, x3, x4, x5, x6, x7, dtype="float32")
+
+    _check(func_with_non_index_let_binding, func_with_non_index_let_binding)
+
 
 def test_compact_spatial_tiled_pad_and_pooling():
     @T.prim_func
@@ -832,6 +847,66 @@ def test_compact_spatial_tiled_pad_and_pooling():
                         )
 
     _check(spatial_tiled_pad_and_pooling, compacted_spatial_tiled_pad_and_pooling)
+
+
+def test_complex_case_1():
+    """Meta-schedule matmul case for compact shared A, B matrix"""
+
+    # fmt: off
+    @T.prim_func
+    def func(A: T.Buffer[(960, 770), "float32"], B: T.Buffer[(770, 2304), "float32"], C: T.Buffer[(960, 2304), "float32"]) -> None:
+        for bx in T.thread_binding(144, thread="blockIdx.x"):
+            for vx in T.thread_binding(2, thread="vthread.x"):
+                for tx_p in T.thread_binding(256, thread="threadIdx.x"):
+                    with T.block():
+                        for k_0 in T.serial(193):
+                            with T.block():
+                                A_shared = T.alloc_buffer([960, 770], dtype="float32", scope="shared")
+                                B_shared = T.alloc_buffer([770, 2304], dtype="float32", scope="shared")
+                                for _u in T.serial(1):
+                                    for tx in T.thread_binding(256, thread="threadIdx.x"):
+                                        for vec in T.vectorized(3):
+                                            with T.block("A_shared"):
+                                                T.where(bx // 18 * 128 + ((_u * 256 + tx) * 3 + vec) // 4 < 960 and k_0 * 4 + ((_u * 256 + tx) * 3 + vec) % 4 < 770 and (_u * 256 + tx) * 3 + vec < 512)
+                                                A_shared[bx // 18 * 128 + (_u * 768 + tx * 3 + vec) // 4, k_0 * 4 + (_u * 768 + tx * 3 + vec) % 4] = A[bx // 18 * 128 + (_u * 768 + tx * 3 + vec) // 4, k_0 * 4 + (_u * 768 + tx * 3 + vec) % 4]
+                                for _u in T.serial(1):
+                                    for tx in T.thread_binding(256, thread="threadIdx.x"):
+                                        for vec in T.vectorized(4):
+                                            with T.block("B_shared"):
+                                                T.where(k_0 * 4 + ((_u * 256 + tx) * 4 + vec) // 128 < 770 and (_u * 256 + tx) * 4 + vec < 512)
+                                                B_shared[k_0 * 4 + (_u * 1024 + tx * 4 + vec) // 128, bx % 18 * 128 + (_u * 1024 + tx * 4 + vec) % 128] = B[k_0 * 4 + (_u * 1024 + tx * 4 + vec) // 128, bx % 18 * 128 + (_u * 1024 + tx * 4 + vec) % 128]
+                                for k_1, i_3, j_3, k_2, i_4, j_4 in T.grid(1, 8, 1, 4, 2, 2):
+                                    with T.block("update_update"):
+                                        C[(((bx // 18 + 0) * 8 + tx_p // 32) * 8 + i_3) * 2 + i_4, ((bx % 18 * 2 + vx % 2) * 32 + tx_p % 32 + j_3) * 2 + j_4] = C[(((bx // 18 + 0) * 8 + tx_p // 32) * 8 + i_3) * 2 + i_4, ((bx % 18 * 2 + vx % 2) * 32 + tx_p % 32 + j_3) * 2 + j_4] + A_shared[(((bx // 18 + 0) * 8 + tx_p // 32) * 8 + i_3) * 2 + i_4, (k_0 + k_1) * 4 + k_2] * B_shared[(k_0 + k_1) * 4 + k_2, ((bx % 18 * 2 + vx % 2) * 32 + tx_p % 32 + j_3) * 2 + j_4]
+    
+    @T.prim_func
+    def compacted_func(A: T.Buffer[(960, 770), "float32"], B: T.Buffer[(770, 2304), "float32"], C: T.Buffer[(960, 2304), "float32"]) -> None:
+        for bx in T.thread_binding(144, thread="blockIdx.x"):
+            for vx in T.thread_binding(2, thread="vthread.x"):
+                for tx_p in T.thread_binding(256, thread="threadIdx.x"):
+                    with T.block():
+                        for k_0 in T.serial(193):
+                            with T.block():
+                                A_shared = T.alloc_buffer([128, 4], dtype="float32", scope="shared")
+                                B_shared = T.alloc_buffer([4, 128], dtype="float32", scope="shared")
+                                for v_u in T.serial(1):
+                                    for tx in T.thread_binding(256, thread="threadIdx.x"):
+                                        for vec in T.vectorized(3):
+                                            with T.block("A_shared"):
+                                                T.where(bx // 18 * 128 + (tx * 3 + vec) // 4 < 960 and k_0 * 4 + (tx * 3 + vec) % 4 < 770 and tx * 3 + vec < 512)
+                                                A_shared[(tx * 3 + vec) // 4, (tx * 3 + vec) % 4] = A[bx // 18 * 128 + (tx * 3 + vec) // 4, k_0 * 4 + (tx * 3 + vec) % 4]
+                                for v_u in T.serial(1):
+                                    for tx in T.thread_binding(256, thread="threadIdx.x"):
+                                        for vec in T.vectorized(4):
+                                            with T.block("B_shared"):
+                                                T.where(k_0 * 4 + tx // 32 < 770 and tx * 4 + vec < 512)
+                                                B_shared[tx // 32, tx % 32 * 4 + vec] = B[k_0 * 4 + tx // 32, bx % 18 * 128 + tx % 32 * 4 + vec]
+                                for k_1, i_3, j_3, k_2, i_4, j_4 in T.grid(1, 8, 1, 4, 2, 2):
+                                    with T.block("update_update"):
+                                        C[bx // 18 * 128 + tx_p // 32 * 16 + i_3 * 2 + i_4, bx % 18 * 128 + vx * 64 + tx_p % 32 * 2 + j_4] = C[bx // 18 * 128 + tx_p // 32 * 16 + i_3 * 2 + i_4, bx % 18 * 128 + vx * 64 + tx_p % 32 * 2 + j_4] + A_shared[tx_p // 32 * 16 + i_3 * 2 + i_4, k_2] * B_shared[k_2, vx * 64 + tx_p % 32 * 2 + j_4]
+    # fmt: on
+
+    _check(func, compacted_func)
 
 
 if __name__ == "__main__":

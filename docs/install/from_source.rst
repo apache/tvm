@@ -115,7 +115,7 @@ The configuration of TVM can be modified by editing `config.cmake` and/or by pas
 
       .. code:: bash
 
-          export TVM_LOG_DEBUG="ir/transform.cc=1;relay/ir/transform.cc=1"
+          export TVM_LOG_DEBUG="ir/transform.cc=1,relay/ir/transform.cc=1"
 
 - TVM requires LLVM for CPU codegen. We highly recommend you to build with the LLVM support on.
 
@@ -323,7 +323,7 @@ like ``virtualenv``.
 
    .. code:: bash
 
-       pip3 install --user tornado psutil xgboost cloudpickle
+       pip3 install --user tornado psutil 'xgboost<1.6.0' cloudpickle
 
 Note on M1 macs, you may have trouble installing xgboost / scipy. scipy and xgboost requires some additional dependencies to be installed,
 including openblas and its dependencies. Use the following commands to install scipy and xgboost with the required dependencies and
@@ -339,7 +339,7 @@ configuration. A workaround for this is to do the following commands:
 
         pip install scipy --no-use-pep517
 
-        pip install xgboost
+        pip install 'xgboost<1.6.0'
 
 Install Contrib Libraries
 -------------------------

@@ -94,7 +94,7 @@ struct VMFunction {
         instructions(std::move(instructions)),
         register_file_size(register_file_size),
         param_device_indexes(std::move(param_device_indexes)) {
-    ICHECK_EQ(params.size(), param_device_indexes.size());
+    ICHECK_EQ(this->params.size(), this->param_device_indexes.size());
   }
 
   VMFunction() = default;
@@ -145,7 +145,7 @@ struct VMFrame {
  * multiple threads, or serialize them to disk or over the
  * wire.
  */
-class VirtualMachine : public runtime::ModuleNode {
+class TVM_DLL VirtualMachine : public runtime::ModuleNode {
  public:
   /*!
    * \brief Get a PackedFunc from module.
