@@ -105,15 +105,15 @@ NDArray StorageObj::AllocNDArray(size_t offset, std::vector<int64_t> shape, DLDa
   return ret;
 }
 
-MemoryManager* MemoryManager::Global() {
+std::shared_ptr<MemoryManager> MemoryManager::Global() {
   // NOTE: explicitly use new to avoid exit-time destruction of global state
   // Global state will be recycled by OS as the process exits.
-  thread_local static auto* inst = new MemoryManager();
+  thread_local static std::shared_ptr<MemoryManager> inst = std::make_shared<MemoryManager>();
   return inst;
 }
 
 Allocator* MemoryManager::GetOrCreateAllocator(Device dev, AllocatorType type) {
-  MemoryManager* m = MemoryManager::Global();
+  auto m = MemoryManager::Global();
   std::lock_guard<std::mutex> lock(m->mu_);
   if (m->allocators_.find(dev) == m->allocators_.end()) {
     std::unique_ptr<Allocator> alloc;
@@ -147,7 +147,7 @@ Allocator* MemoryManager::GetOrCreateAllocator(Device dev, AllocatorType type) {
 }
 
 Allocator* MemoryManager::GetAllocator(Device dev) {
-  MemoryManager* m = MemoryManager::Global();
+  auto m = MemoryManager::Global();
   std::lock_guard<std::mutex> lock(m->mu_);
   auto it = m->allocators_.find(dev);
   if (it == m->allocators_.end()) {

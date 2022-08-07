@@ -87,7 +87,7 @@ class Allocator {
 
 class MemoryManager {
  public:
-  static MemoryManager* Global();
+  static std::shared_ptr<MemoryManager> Global();
   /*!
    * \brief Get or create an allocator given the context and allocator type.
    * \param dev The TVM device
@@ -102,8 +102,7 @@ class MemoryManager {
    */
   static Allocator* GetAllocator(Device dev);
 
- private:
-  MemoryManager() {}
+  MemoryManager() = default;
 
  private:
   std::mutex mu_;
