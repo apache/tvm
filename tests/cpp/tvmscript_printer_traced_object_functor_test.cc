@@ -19,13 +19,12 @@
 
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
+#include <tvm/node/object_path.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/runtime/container/map.h>
+#include <tvm/runtime/packed_func.h>
+#include <tvm/script/printer/traced_object.h>
 #include <tvm/script/printer/traced_object_functor.h>
-
-#include "tvm/node/object_path.h"
-#include "tvm/runtime/packed_func.h"
-#include "tvm/script/printer/traced_object.h"
 
 using namespace tvm;
 using namespace tvm::script::printer;
