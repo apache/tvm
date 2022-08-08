@@ -102,9 +102,14 @@ class MemoryManager {
    */
   static Allocator* GetAllocator(Device dev);
 
-  MemoryManager() = default;
-
  private:
+  MemoryManager(){};
+  MemoryManager(const MemoryManager &) = delete;
+  MemoryManager(MemoryManager &&) = delete;
+
+  MemoryManager& operator=(const MemoryManager &) = delete;
+  MemoryManager& operator=(MemoryManager &&) = delete;
+
   std::mutex mu_;
   std::unordered_map<Device, std::unique_ptr<Allocator>> allocators_;
 };
