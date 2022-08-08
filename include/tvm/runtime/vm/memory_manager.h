@@ -103,7 +103,7 @@ class MemoryManager {
   static Allocator* GetAllocator(Device dev);
 
  private:
-  MemoryManager(){};
+  MemoryManager(){}
   MemoryManager(const MemoryManager &) = delete;
   MemoryManager(MemoryManager &&) = delete;
 
