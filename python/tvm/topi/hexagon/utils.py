@@ -103,6 +103,11 @@ def nhwc_8h8w32c_2d(n, h, w, c):
     return [n, h // 8, w // 8, c // 32, te.AXIS_SEPARATOR, h % 8, w % 8, c % 32]
 
 
+def n11c_2048c_2d(n, h, w, c):
+    """Return index map for n11c_2048c 2d layout"""
+    return [n, h, w, c // 2048, te.AXIS_SEPARATOR, c % 2048]
+
+
 def iohw_16i32o2i_1d(height, width, in_channel, out_channel):
     return [
         in_channel // 32,
@@ -113,16 +118,6 @@ def iohw_16i32o2i_1d(height, width, in_channel, out_channel):
         out_channel % 32,
         in_channel % 2,
     ]
-
-
-def nhwc_8h8w32c_2d(n, h, w, c):
-    """Return index map for nhwc_8h8w32c 2d layout"""
-    return [n, h // 8, w // 8, c // 32, te.AXIS_SEPARATOR, h % 8, w % 8, c % 32]
-
-
-def n11c_2048c_2d(n, h, w, c):
-    """Return index map for n11c_2048c 2d layout"""
-    return [n, h, w, c // 2048, te.AXIS_SEPARATOR, c % 2048]
 
 
 def get_layout_transform_fn(layout):
@@ -216,7 +211,9 @@ def get_fixed_point_value(flp, dtype="int16"):
 
     def within_range(val, dtype):
         if dtype == "int16":
-            return val <= 32767 and val >= -32768
+            return -32768 <= val <= 32767
+        raise RuntimeError(f"Unsupported dtype, {dtype}'")
+
 
     flp_f = struct.pack("f", flp)
     flp_i = struct.unpack("I", flp_f)
