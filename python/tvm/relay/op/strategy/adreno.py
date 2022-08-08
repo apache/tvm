@@ -261,7 +261,7 @@ def schedule_pool_adreno(attrs, outs, target):
 
 @schedule_injective.register(["adreno"])
 def schedule_injective_adreno(attrs, outs, target):
-    """schedule injective ops for cuda"""
+    """schedule injective ops for adreno"""
     with target:
         return topi.adreno.schedule_injective(outs)
 
@@ -272,6 +272,6 @@ def concatenate_strategy_adreno(attrs, inputs, out_type, target):
     strategy.add_implementation(
         wrap_compute_concat(topi.transform.concatenate),
         wrap_topi_schedule(topi.adreno.schedule_injective),
-        name="concatenate.cuda",
+        name="concatenate.adreno",
     )
     return strategy

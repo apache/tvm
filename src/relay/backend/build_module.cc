@@ -397,6 +397,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     relay_module = transform::InferType()(relay_module);
     relay_module = transform::LabelOps()(relay_module);
     relay_module = transform::AnnotateMemoryScope(config_)(relay_module);
+
     ICHECK(relay_module.defined());
 
     return relay_module;

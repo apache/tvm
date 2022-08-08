@@ -534,6 +534,8 @@ def bind_data_copy(stage, axis_to_vectorize=None):
             stage.bind(thread, te.thread_axis("threadIdx.x"))
             if shape[-1] == 4:
                 stage.vectorize(axes[-1])
+        # 1024 is the maximum work group size for Adreno devices.
+        # See: CL_DEVICE_MAX_WORK_GROUP_SIZE
         elif shape[-1] > 1024:
             ftc = numpy.prod(shape[:-1])
             div = get_div(ftc, 1024)

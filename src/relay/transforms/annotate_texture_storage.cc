@@ -23,7 +23,7 @@
  * storage scope related information.
  *
  *  - CollectStorageInfo returns a mapping from relay expr
- *    to a list of output storage scopes for each output.
+ *    to a map of storage scopes for each call argument.
  *    These scopes are used during memory planning as well
  *    as downstream when doing codegen and in the graph runtime when doing runtime dataspace
  *    allocations.
@@ -153,7 +153,6 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
         primitive_supports_texture_ = false;
         Visit(call->op);
         if (primitive_supports_texture_) {
-          require_textures_.insert(GetRef<Expr>(call));
           if (call->checked_type().as<TensorTypeNode>()) {
             std::string scope = "global.texture";
             if (const auto* ttype = call->checked_type().as<TensorTypeNode>()) {
@@ -410,9 +409,8 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
   std::unordered_map<const ExprNode*, std::vector<std::string>> consumer_storage_scopes_;
   /*! \brief mapping of arguments to call to function variables*/
   std::unordered_map<Expr, std::vector<Var>, ObjectPtrHash, ObjectPtrEqual> args_to_vars_;
-
+  /*! \brief mapping of arguments that can be converted to texture*/
   Map<Expr, Map<Expr, Array<String>>> accept_textures_;
-  std::set<Expr> require_textures_;
 };
 
 }  // namespace
@@ -482,10 +480,9 @@ class RewriteVDStorageScopes : public transform::DeviceAwareExprMutator {
       // verification if we need to put device_copy
       if (storage_scope_.count(arg) && storage_scope_[arg].count(GetRef<Expr>(call_node))) {
         auto virtual_device = GetVirtualDevice(GetRef<Expr>(call_node));
-        // TOO(amalyshe): hardcoded source scope, need to fix later
         VirtualDevice virtual_device_from =
             VirtualDevice(virtual_device->device_type(), virtual_device->virtual_device_id,
-                          virtual_device->target, "global");
+                          virtual_device->target, virtual_device->memory_scope);
         VirtualDevice virtual_device_to =
             VirtualDevice(virtual_device->device_type(), virtual_device->virtual_device_id,
                           virtual_device->target, storage_scope_[arg][GetRef<Expr>(call_node)][0]);
