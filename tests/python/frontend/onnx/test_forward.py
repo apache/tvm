@@ -6044,7 +6044,7 @@ def test_qlinearsigmoid(target, dev):
     verify_qlinearsigmoid([])
 
 
-@tvm.testing.parametrize_targets
+@tvm.testing.parametrize_targets("llvm")
 def test_random_uniform(target, dev):
     def get_random_uniform(shape, dtype="float32", high=1.0, low=0.0, seed=None):
         ONNX_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
@@ -6102,7 +6102,7 @@ def test_random_uniform(target, dev):
     tvm.testing.assert_allclose(real, expected, rtol=1e-5)
 
 
-@tvm.testing.parametrize_targets
+@tvm.testing.parametrize_targets("llvm")
 def test_random_uniform_like(target, dev):
     def get_random_uniform_like(input, shape, dtype=None, high=1.0, low=0.0, seed=None):
         node = helper.make_node("RandomUniformLike", ["in"], ["out"], high=high, low=low)
@@ -6170,7 +6170,7 @@ def test_random_uniform_like(target, dev):
     tvm.testing.assert_allclose(real, expected, rtol=1e-5)
 
 
-@tvm.testing.parametrize_targets
+@tvm.testing.parametrize_targets("llvm")
 def test_random_normal(target, dev):
     def get_random_normal(shape, dtype="float32", scale=1.0, mean=0.0, seed=None):
         ONNX_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
@@ -6208,7 +6208,7 @@ def test_random_normal(target, dev):
     assert all(vals_1 == vals_2)
 
 
-@tvm.testing.parametrize_targets
+@tvm.testing.parametrize_targets("llvm")
 def test_random_normal_like(target, dev):
     def get_random_normal_like(input, shape, dtype="float32", scale=1.0, mean=0.0, seed=None):
         ONNX_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
@@ -6243,6 +6243,44 @@ def test_random_normal_like(target, dev):
     assert list(vals.shape) == [1, 3, 100, 100]
     tvm.testing.assert_allclose(vals.mean(), 2.0, rtol=0.1, atol=0.1)
     tvm.testing.assert_allclose(np.std(vals), 10.0, rtol=0.1, atol=0.1)
+
+
+@tvm.testing.parametrize_targets("llvm")
+def test_multinomial(target, dev):
+    def get_multinomial(input, shape, sample_size, seed=None):
+        IN_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype("float32")]
+        OUT_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype("int32")]
+        node = helper.make_node("Multinomial", ["in"], ["out"], sample_size=sample_size)
+        if seed is not None:
+            seed_attr = helper.make_attribute("seed", seed)
+            node.attribute.append(seed_attr)
+
+        graph = helper.make_graph(
+            [node],
+            "multinomial_test",
+            inputs=[helper.make_tensor_value_info("in", IN_DTYPE, shape)],
+            outputs=[helper.make_tensor_value_info("out", OUT_DTYPE, shape)],
+        )
+        model = helper.make_model(graph, producer_name="multinomial_test")
+        return get_tvm_output_with_vm(model, [input], target=target, dev=dev)
+
+    # Test N-D tensor generation.
+    shape = [3]
+    sample_size = 2
+    probs = np.random.random(shape).astype("float32")
+    indices = get_multinomial(probs, shape, sample_size)
+    # Since specific values are random, we'll check that the output shape is
+    # correct and the values chosen are all valid indices.
+    assert list(indices.shape) == [sample_size]
+    assert np.max(indices) < shape[-1]
+
+    # Test 2d multinomial
+    shape = [10, 5]
+    sample_size = 4
+    probs = np.random.random(shape).astype("float32")
+    indices = get_multinomial(probs, shape, sample_size)
+    assert list(indices.shape) == [10, sample_size]
+    assert np.max(indices) < shape[-1]
 
 
 @tvm.testing.parametrize_targets
