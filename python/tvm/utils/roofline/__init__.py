@@ -56,14 +56,11 @@ class SaveLoweredTIR:
 
     def __init__(self):
         self.functions = {}
-        self.done = False
 
-    def run_after_pass(self, mod, info):
-        if not self.done:
-            if info.name == "tir.MakePackedAPI":
-                self.done = True
-            else:
-                for v, func in mod.functions.items():
+    def run_before_pass(self, mod, info):
+        if info.name == "tir.MakePackedAPI":
+            for v, func in mod.functions.items():
+                if isinstance(func, tir.PrimFunc):
                     self.functions[v] = func
 
 
