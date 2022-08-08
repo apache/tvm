@@ -23,7 +23,7 @@ import warnings
 import logging
 import traceback
 import re
-from typing import Dict, Any, List, Optional, Callable
+from typing import Dict, Any, List, Optional, Callable, Union
 from pathlib import Path
 
 from git_utils import git, GitHubRepo, parse_remote, post
@@ -551,7 +551,7 @@ class PR:
                     else:
                         raise e
 
-    def comment_failure(self, msg: str, exceptions: Exception):
+    def comment_failure(self, msg: str, exceptions: Union[Exception, List[Exception]]):
         if not isinstance(exceptions, list):
             exceptions = [exceptions]
 
