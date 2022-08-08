@@ -158,7 +158,7 @@ def _find_board_from_cmake_file(cmake_file: Union[str, pathlib.Path]) -> str:
     with open(cmake_file) as cmake_f:
         for line in cmake_f:
             if line.startswith("set(BOARD"):
-                zephyr_board = line.strip("\n").strip("set(BOARD ").strip(")")
+                zephyr_board = line.strip("\n").strip("\r").strip(")").split(" ")[1]
                 break
 
     if not zephyr_board:
