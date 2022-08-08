@@ -326,15 +326,32 @@ class TestAvgPool2dSlice:
         return [o_b, in_h, in_w, o_c]
 
     @tvm.testing.fixture
-    def input_shape_padded(self, input_shape, padding, output_layout):
+    def input_shape_padded(self, input_shape, padding, output_layout, dtype):
         # Input shape is adjusted to account for 'padding'. Also, due to the physical
         # layout of the buffer, height and width are adjusted so that they are a
-        # multiple of 8 and 4 respectively.
-        # NOTE: Input layout is always assumed to be nhwc-8h2w32c2w-2d.
+        # multiple of the buffer size dictated by the layout.
+        # NOTE: For float16, the input layout is always assumed to be nhwc-8h2w32c2w-2d and
+        # for int8/uint8, it's nhwc-8h8w32c-2d.
+        # For both nhwc-8h2w32c2w-2d and nhwc-8h8w32c-2d, the height should be a multiple
+        # of 8. However, the width should be a multiple of 4 for the first case and 8 for
+        # the second case.
+
+        height_mult = 8
+        if dtype == "float16":
+            width_mult = 4  # input layout : nhwc-8h2w32c2w-2d
+        elif dtype == "uint8" or "int8":
+            width_mult = 8  # input layout : nhwc-8h8w32c-2d
+        else:
+            raise RuntimeError(f"Unsupport dtype '{dtype}'")
+
         pad_before_h, pad_before_w = padding[:2]
         pad_after_h, pad_after_w = padding[2:]
-        padded_input_height = ((input_shape[1] + pad_before_h + pad_after_h + 7) // 8) * 8
-        padded_input_width = ((input_shape[2] + pad_before_w + pad_after_w + 3) // 4) * 4
+        padded_input_height = (
+            (input_shape[1] + pad_before_h + pad_after_h + height_mult - 1) // height_mult
+        ) * height_mult
+        padded_input_width = (
+            (input_shape[2] + pad_before_w + pad_after_w + width_mult - 1) // width_mult
+        ) * width_mult
         return [input_shape[0], padded_input_height, padded_input_width, input_shape[3]]
 
     @tvm.testing.fixture
