@@ -48,7 +48,7 @@ class BlockCollector : public tir::StmtVisitor {
     return results;
   }
   /*! \brief Constructor */
-  explicit BlockCollector(const tir::Schedule& sch) : sch_(sch) {}
+  explicit BlockCollector(const tir::Schedule& sch, const Array<String> target_blocks = {}) : sch_(sch), target_blocks_(target_blocks) {}
   /*! \brief Override the Stmt visiting behaviour */
   void VisitStmt_(const tir::BlockNode* block) override {
     tir::StmtVisitor::VisitStmt_(block);
@@ -56,11 +56,23 @@ class BlockCollector : public tir::StmtVisitor {
         << "Duplicated block name " << block->name_hint << " in function " << func_name_
         << " not supported!";
     block_names_.insert(block->name_hint);
-    blocks_to_collect_.push_back(block->name_hint);
+    // If target blocks are specified, only collect them. Otherwise collect all blocks.
+    if (target_blocks_.empty()) {
+      blocks_to_collect_.push_back(block->name_hint);
+    } else {
+      // Iterate over specified blocks and check if this is one of them.
+      for (String name : target_blocks_) {
+        if (name.compare(block->name_hint) == 0) {
+          blocks_to_collect_.push_back(block->name_hint);
+        }
+      }
+    }
   }
 
   /*! \brief The schedule to be collected */
   const tir::Schedule& sch_;
+  /*! \brief An optional list of block names that will be collected, if not provided all blocks are collected. */
+  const Array<String> target_blocks_;
   /*! \brief The set of func name and block name pair */
   std::unordered_set<String> block_names_;
   /* \brief The list of blocks to collect in order */
