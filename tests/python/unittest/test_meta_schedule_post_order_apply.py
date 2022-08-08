@@ -216,7 +216,7 @@ class TrinityDoubleRule(PyScheduleRule):
         j_0, j_1 = new_sch.split(loop=j, factors=[2, 512])
         new_sch.reorder(i_0, j_0, i_1, j_1)
         result.append(new_sch)
-        return result        
+        return result
 
 
 @derived_object
@@ -389,36 +389,38 @@ def test_meta_schedule_custom_search_space():
 
 def test_target_blocks_search_space():
     # Test that specific blocks of trinity matmul can be targeted.
-    def _get_sch(target_blocks=[]):
+    def filter_fn(block, target_names) -> bool:
+        return block.name_hint in target_names
+
+    def _get_sch(filter_fn):
         mod = TrinityMatmul
         context = TuneContext(
             mod=mod,
             target=Target("llvm"),
             task_name="Custom Search Space Task",
-            space_generator=PostOrderApply(target_blocks=target_blocks),
+            space_generator=PostOrderApply(filter_fn=filter_fn),
             sch_rules=[TrinityDoubleRule()],
         )
         post_order_apply = context.space_generator
-        schs = post_order_apply.generate_design_space(mod) 
+        schs = post_order_apply.generate_design_space(mod)
         return schs
 
     # Start by checking that by default each block has a space generated.
-    schs = _get_sch()
+    schs = _get_sch(None)
     assert len(schs) == 8
 
     # Next check that we can target a specific block and only get its' revelant schedules.
-    schs = _get_sch(["B"])
+    schs = _get_sch(lambda block: filter_fn(block, ["B"]))
     assert len(schs) == 2
 
-    # Check that extracting two blocks works.
-    schs = _get_sch(["A", "C"])
+    ## Check that extracting two blocks works.
+    schs = _get_sch(lambda block: filter_fn(block, ["A", "C"]))
     assert len(schs) == 4
 
-    # Finally check that all blocks can be extracted by name.
-    schs = _get_sch(["A", "B", "C"])
+    ## Finally check that all blocks can be extracted by name.
+    schs = _get_sch(lambda block: filter_fn(block, ["A", "B", "C"]))
     assert len(schs) == 8
 
 
 if __name__ == "__main__":
-    #tvm.testing.main()
-    test_target_blocks_search_space()
+    tvm.testing.main()

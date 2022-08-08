@@ -66,6 +66,7 @@ def test_tune_matmul_cpu():
                 max_trials_global=32,
             ),
             work_dir=work_dir,
+            blocks=["update"],
         )
         if sch is None:
             print("No valid schedule found!")

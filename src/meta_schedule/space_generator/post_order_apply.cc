@@ -24,7 +24,8 @@ namespace meta_schedule {
 /*! \brief Collecting all the blocks */
 class BlockCollector : public tir::StmtVisitor {
  public:
-  static Array<tir::BlockRV> Collect(const tir::Schedule& sch, const runtime::PackedFunc f_block_filter = nullptr) {  //
+  static Array<tir::BlockRV> Collect(const tir::Schedule& sch,
+                                     const runtime::PackedFunc f_block_filter = nullptr) {  //
     return BlockCollector(sch, f_block_filter).Run();
   }
 
@@ -48,7 +49,9 @@ class BlockCollector : public tir::StmtVisitor {
     return results;
   }
   /*! \brief Constructor */
-  explicit BlockCollector(const tir::Schedule& sch, const runtime::PackedFunc f_block_filter = nullptr) : sch_(sch), f_block_filter_(f_block_filter) {}
+  explicit BlockCollector(const tir::Schedule& sch,
+                          const runtime::PackedFunc f_block_filter = nullptr)
+      : sch_(sch), f_block_filter_(f_block_filter) {}
   /*! \brief Override the Stmt visiting behaviour */
   void VisitStmt_(const tir::BlockNode* block) override {
     tir::StmtVisitor::VisitStmt_(block);
@@ -92,7 +95,8 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
   Array<ScheduleRule> sch_rules_{nullptr};
   /*! \brief The logging function to use. */
   PackedFunc logging_func;
-  /*! \brief Optional block names to target. If not specified all blocks will have spaces generated. */
+  /*! \brief Optional block names to target. If not specified all blocks will have spaces generated.
+   */
   runtime::PackedFunc f_block_filter_ = nullptr;
 
   void VisitAttrs(tvm::AttrVisitor* v) {

@@ -29,12 +29,8 @@ class PostOrderApply(SpaceGenerator):
     rules to blocks in post-DFS order.
     """
 
-    def __init__(self, target_blocks=[]):
+    def __init__(self, filter_fn=None):
         """Constructor"""
-        if target_blocks is None:
-            target_blocks = []
-        if not isinstance(target_blocks, (list, tuple)):
-            target_blocks = [target_blocks]
         self.__init_handle_by_constructor__(
-            _ffi_api.SpaceGeneratorPostOrderApply, target_blocks # type: ignore # pylint: disable=no-member
+            _ffi_api.SpaceGeneratorPostOrderApply, filter_fn  # type: ignore # pylint: disable=no-member
         )

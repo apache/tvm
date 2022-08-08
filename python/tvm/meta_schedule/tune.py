@@ -24,6 +24,7 @@ from typing import Any, Callable, Dict, List, NamedTuple, Optional, Union
 
 from tvm.ir import IRModule
 from tvm.ir.transform import PassContext
+from tvm.meta_schedule.space_generator.post_order_apply import PostOrderApply
 from tvm.runtime import Module, NDArray, vm
 from tvm.target import Target
 from tvm.te import Tensor, create_prim_func
@@ -364,6 +365,7 @@ def tune_tir(
     cost_model: Optional[CostModel] = None,
     measure_callbacks: Optional[List[MeasureCallback]] = None,
     space: Optional[FnSpaceGenerator] = None,
+    blocks: Optional[List[str]] = None,
     sch_rules: Optional[FnScheduleRule] = None,
     postprocs: Optional[FnPostproc] = None,
     mutator_probs: Optional[FnMutatorProb] = None,
@@ -392,6 +394,21 @@ def tune_tir(
         The cost model to use.
     measure_callbacks : Optional[List[MeasureCallback]]
         The callbacks used during tuning.
+    space : Optional[FnSpaceGenerator]
+        The space generator to use.
+    blocks : Optional[List[str]]
+        A list of block names to tune. If provided, other blocks
+        will not be optimized.
+    sch_rules : Optional[FnScheduleRule]
+        The search rules to use.
+    postprocs : Optional[FnPostproc]
+        The postprocessors to use.
+    mutator_probs : Optional[FnMutatorProb]
+        The probability distribution to use different mutators.
+    task_name : str
+        The name of the function to extract schedules from.
+    num_threads : Optional[int]
+        The number of threads to use
 
     Returns
     -------
@@ -406,6 +423,15 @@ def tune_tir(
         log_dir=log_dir,
         params=[{"log_dir": log_dir, "logger_name": __name__ + f".task_{task_name}"}],
     )
+
+    if blocks is not None:
+        assert space is None, "Only one of blocks and space can be specified."
+        # Create a filter function to identify named blocks.
+        def _filter_fn(block, target_names) -> bool:
+            return block.name_hint in target_names
+
+        # Create a space generator that targets specific blocks.
+        space = PostOrderApply(filter_fn=lambda block: _filter_fn(block, blocks))
 
     # pylint: disable=protected-access
     mod = default_config.mod(mod)
