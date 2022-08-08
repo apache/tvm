@@ -42,10 +42,10 @@ namespace detail {
  * \tparam FType The function type.
  */
 template <typename FType>
-struct first_arg_type_helper;
+struct FirstArgTypeGetter;
 
 template <typename R, typename ArgOne, typename... OtherArgs>
-struct first_arg_type_helper<R(ArgOne, OtherArgs...)> {
+struct FirstArgTypeGetter<R(ArgOne, OtherArgs...)> {
   using T = ArgOne;
 };
 
@@ -57,27 +57,40 @@ struct first_arg_type_helper<R(ArgOne, OtherArgs...)> {
  * tvm/node/functor.h
  */
 template <typename FType>
-using first_arg_type = typename detail::first_arg_type_helper<
+using FirstArgType = typename detail::FirstArgTypeGetter<
     typename tvm::runtime::detail::function_signature<FType>::FType>::T;
 }  // namespace detail
 
 }  // namespace
 
-namespace dispatch_table {
 /*
- * Functions in dispatch_table namespace is created to reduce the binary bloat
+ * This type alias and the following free functions are created to reduce the binary bloat
  * from template and also hide implementation details from this header
  */
-
 using DispatchTable = std::unordered_map<std::string, std::vector<runtime::PackedFunc>>;
 
-constexpr const char* kDefaultDispatchToken = "";
-
+/*!
+ * \brief Get function from dispatch table.
+ * \param dispatch_table The dispatch table.
+ * \param token The dispatch token.
+ * \param type_index The type index of the Object type to be dispatched.
+ *
+ * \return The dispatch function.
+ */
 const runtime::PackedFunc& GetDispatchFunction(const DispatchTable& dispatch_table,
                                                const String& token, uint32_t type_index);
+
+/*!
+ * \brief Set function in dispatch table.
+ * \param dispatch_table The dispatch table.
+ * \param token The dispatch token.
+ * \param type_index The type index of the Object type to be dispatched.
+ * \param f The dispatch function.
+ */
 void SetDispatchFunction(DispatchTable* dispatch_table, const String& token, uint32_t type_index,
                          runtime::PackedFunc f);
-}  // namespace dispatch_table
+
+constexpr const char* kDefaultDispatchToken = "";
 
 /*!
  * \brief Dynamic dispatch functor based on TracedObject.
@@ -108,8 +121,8 @@ class TracedObjectFunctor {
    */
   template <class TObjectRef>
   R operator()(const String& token, TracedObject<TObjectRef> traced_object, Args... args) const {
-    const runtime::PackedFunc& dispatch_function = dispatch_table::GetDispatchFunction(
-        dispatch_table_, token, traced_object.Get()->type_index());
+    const runtime::PackedFunc& dispatch_function =
+        GetDispatchFunction(dispatch_table_, token, traced_object.Get()->type_index());
     return dispatch_function(traced_object.Get(), traced_object.GetPath(),
                              std::forward<Args>(args)...);
   }
@@ -124,7 +137,7 @@ class TracedObjectFunctor {
    * through FFI boundary, for example, registering dispatch function from Python.
    */
   TSelf& set_dispatch(String token, uint32_t type_index, runtime::PackedFunc f) {
-    dispatch_table::SetDispatchFunction(&dispatch_table_, token, type_index, std::move(f));
+    SetDispatchFunction(&dispatch_table_, token, type_index, std::move(f));
     return *this;
   }
 
@@ -136,7 +149,7 @@ class TracedObjectFunctor {
    * The diaptch function should have signature `R(TracedObject<TObjectRef>, Args...)`.
    */
   template <typename TCallable,
-            typename TObjectRef = typename detail::first_arg_type<TCallable>::ObjectRefType,
+            typename TObjectRef = typename detail::FirstArgType<TCallable>::ObjectRefType,
             typename = std::enable_if_t<IsDispatchFunction<TObjectRef, TCallable>::value>>
   TSelf& set_dispatch(String token, TCallable f) {
     return set_dispatch(token,                                          //
@@ -157,11 +170,11 @@ class TracedObjectFunctor {
    */
   template <typename TCallable>
   TSelf& set_dispatch(TCallable f) {
-    return set_dispatch(dispatch_table::kDefaultDispatchToken, std::forward<TCallable>(f));
+    return set_dispatch(kDefaultDispatchToken, std::forward<TCallable>(f));
   }
 
  private:
-  dispatch_table::DispatchTable dispatch_table_;
+  DispatchTable dispatch_table_;
 };
 
 }  // namespace printer

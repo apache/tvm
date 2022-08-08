@@ -22,7 +22,6 @@
 namespace tvm {
 namespace script {
 namespace printer {
-namespace dispatch_table {
 
 const runtime::PackedFunc* GetDispatchFunctionForToken(const DispatchTable& table,
                                                        const String& token, uint32_t type_index) {
@@ -71,7 +70,6 @@ void SetDispatchFunction(DispatchTable* dispatch_table, const String& token, uin
   }
   slot = f;
 }
-}  // namespace dispatch_table
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm
