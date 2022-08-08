@@ -17,7 +17,15 @@
 """TVMScript for TIR"""
 
 # Type system
-from .ty import uint8, int8, int16, int32, int64, float16, float32, float64, void
-from .ty import boolean, handle, Ptr, Tuple, Buffer
+from .ty import void, boolean, handle, Ptr, Tuple, Buffer
 
 from .prim_func import prim_func
+
+# add all floating point and integer datatypes to the module
+for dtype in ["float", "uint", "int"]:
+    for size in ["8", "16", "32", "64"]:
+        for lanes in ["", "x4", "x8", "x16", "x32"]:
+            from . import ty
+
+            name = dtype + size + lanes
+            globals()[name] = getattr(ty, name)
