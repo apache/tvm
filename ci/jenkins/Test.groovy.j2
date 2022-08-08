@@ -192,7 +192,7 @@
   ws="tvm/test-cortexm",
   platform="cortexm",
   docker_image="ci_cortexm",
-  num_shards=4,
+  num_shards=8,
   test_method_names=test_method_names,
 ) %}
   {{ m.download_artifacts(tag='cortexm', filenames=tvm_lib, folders=microtvm_template_projects) }}
