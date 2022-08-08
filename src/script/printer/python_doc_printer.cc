@@ -138,7 +138,7 @@ ExprPrecedence GetExprPrecedence(const ExprDoc& doc) {
 
 class PythonDocPrinter : public DocPrinter {
  public:
-  explicit PythonDocPrinter(int indent_spaces = 4) : DocPrinter(indent_spaces) {}
+  explicit PythonDocPrinter(const DocPrinterOptions& options) : DocPrinter(options) {}
 
  protected:
   using DocPrinter::PrintDoc;
@@ -622,9 +622,17 @@ void PythonDocPrinter::PrintTypedDoc(const ClassDoc& doc) {
   NewLineWithoutIndent();
 }
 
-String DocToPythonScript(Doc doc, int indent_spaces) {
-  PythonDocPrinter printer(indent_spaces);
-  printer.Append(doc);
+String DocToPythonScript(Doc doc, int indent_spaces, bool print_line_numbers, int num_context_lines,
+                         Optional<ObjectPath> path_to_underline) {
+  DocPrinterOptions options;
+  options.indent_spaces = indent_spaces;
+  options.print_line_numbers = print_line_numbers;
+  if (num_context_lines >= 0) {
+    options.num_context_lines = num_context_lines;
+  }
+
+  PythonDocPrinter printer(options);
+  printer.Append(doc, path_to_underline);
   return printer.GetString();
 }
 
