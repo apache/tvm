@@ -214,7 +214,6 @@ def get_fixed_point_value(flp, dtype="int16"):
             return -32768 <= val <= 32767
         raise RuntimeError(f"Unsupported dtype, {dtype}'")
 
-
     flp_f = struct.pack("f", flp)
     flp_i = struct.unpack("I", flp_f)
     exp_value = ((flp_i[0] >> 23) & 0xFF) - 127
