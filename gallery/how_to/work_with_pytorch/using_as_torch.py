@@ -95,12 +95,10 @@ class tvm_depthwise:
         B = T.match_buffer(b, (700, 50), "float32")
         C = T.match_buffer(c, (700, 751), "float32")
         for j in T.thread_binding(0, 700, thread="blockIdx.x"):
-            with T.block("channels"):
-                for i in T.thread_binding(0, 751, thread="threadIdx.x"):
+            for i in T.thread_binding(0, 751, thread="threadIdx.x"):
+                for k in range(50):
                     with T.block("output"):
-                        for k in range(50):
-                            with T.block("kernel"):
-                                C[j, i] += B[j, k] * A[j, i + k]
+                        C[j, i] += B[j, k] * A[j, i + k]
 
 
 # We can verify that two function are the same:
@@ -109,6 +107,10 @@ ret_tvm = torch.zeros(700, 800 - 50 + 1).cuda()
 tvm_depthwise(inputs, filters, ret_tvm)
 
 testing.assert_allclose(ret_torch.cpu().numpy(), ret_tvm.cpu().numpy(), atol=1e-5, rtol=1e-5)
+
+# Tip: We also provide an optional method `tune(config, target)` for additional optimization.
+# In this case, users could call `tvm_depthwise.tune(target="nvidia/geforce-rtx-3070")`
+# for trying to tune the operators via TVM MetaSchedule.
 
 ######################################################################
 # Benchmark
