@@ -82,19 +82,46 @@ def test_tensor_boolean_operation():
 
 @as_torch
 @T.prim_func
-def negate_tvmscript(X: T.Buffer[(8, 8), "bool"], Y: T.Buffer[(8, 8), "bool"]) -> None:
+def negate_tvmscript(
+    X: T.Buffer[(8, 8), "bool"],
+    Y: T.Buffer[(8, 8), "float32"],
+    Z: T.Buffer[(8, 8), "bool"],
+    U: T.Buffer[(8, 8), "float32"],
+) -> None:
     for i, j in T.grid(8, 8):
         with T.block():
-            Y[i, j] = not X[i, j]
+            if Y[i, j] > 0.0:
+                Z[i, j] = X[i, j]
+                U[i, j] = Y[i, j]
+            else:
+                Z[i, j] = not X[i, j]
+                U[i, j] = 0.0 - Y[i, j]
+
+
+def negate_vanila(x, y):
+    z = torch.zeros(8, 8).bool()
+    for i in range(8):
+        for j in range(8):
+            if y[i, j] > 0:
+                z[i, j] = x[i, j]
+            else:
+                z[i, j] = ~x[i, j]
+    return z
 
 
 def test_tvmscript_torch_decorator():
     q1 = (torch.rand(8, 8) + 0.5).int().bool()
-    q2 = torch.zeros((8, 8), dtype=torch.bool)
+    q2 = torch.rand(8, 8) - 0.5
+    q3 = torch.zeros(8, 8).bool()
+    q4 = torch.zeros(8, 8)
 
-    negate_tvmscript(q1, q2)
+    std1 = negate_vanila(q1, q2)
+    std2 = torch.abs(q2)
 
-    tvm.testing.assert_allclose(~q1.numpy(), q2.numpy(), atol=1e-5, rtol=1e-5)
+    negate_tvmscript(q1, q2, q3, q4)
+
+    tvm.testing.assert_allclose(std1.numpy(), q3.numpy(), atol=1e-5, rtol=1e-5)
+    tvm.testing.assert_allclose(std2.numpy(), q4.numpy(), atol=1e-5, rtol=1e-5)
 
 
 if __name__ == "__main__":
