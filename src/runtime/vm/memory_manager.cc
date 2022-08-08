@@ -109,7 +109,7 @@ std::shared_ptr<MemoryManager> MemoryManager::Global() {
   // NOTE: explicitly use new to avoid exit-time destruction of global state
   // Global state will be recycled by OS as the process exits.
   thread_local static std::shared_ptr<MemoryManager> inst =
-        std::shared_ptr<MemoryManager>(new MemoryManager());
+      std::shared_ptr<MemoryManager>(new MemoryManager());
   return inst;
 }
 
