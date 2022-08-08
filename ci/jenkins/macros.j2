@@ -23,7 +23,7 @@
 sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/{{ test_dir_name }} --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/{{ test_dir_name }} --recursive
             """,
             label: 'Upload JUnits to S3',
           )
