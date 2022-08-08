@@ -123,8 +123,7 @@ class TracedObjectFunctor {
   R operator()(const String& token, TracedObject<TObjectRef> traced_object, Args... args) const {
     const runtime::PackedFunc& dispatch_function =
         GetDispatchFunction(dispatch_table_, token, traced_object.Get()->type_index());
-    return dispatch_function(traced_object.Get(), traced_object.GetPath(),
-                             std::forward<Args>(args)...);
+    return dispatch_function(traced_object.Get(), traced_object.GetPath(), args...);
   }
 
   /*!
@@ -152,12 +151,13 @@ class TracedObjectFunctor {
             typename TObjectRef = typename detail::FirstArgType<TCallable>::ObjectRefType,
             typename = std::enable_if_t<IsDispatchFunction<TObjectRef, TCallable>::value>>
   TSelf& set_dispatch(String token, TCallable f) {
-    return set_dispatch(token,                                          //
-                        TObjectRef::ContainerType::RuntimeTypeIndex(),  //
-                        runtime::TypedPackedFunc<R(TObjectRef, ObjectPath, Args...)>(
-                            [f](TObjectRef object, ObjectPath path, Args... args) -> R {
-                              return f(MakeTraced(object, path), std::forward<Args>(args)...);
-                            }));
+    return set_dispatch(
+        token,                                          //
+        TObjectRef::ContainerType::RuntimeTypeIndex(),  //
+        runtime::TypedPackedFunc<R(TObjectRef, ObjectPath, Args...)>(
+            [f = std::move(f)](TObjectRef object, ObjectPath path, Args... args) -> R {
+              return f(MakeTraced(object, path), args...);
+            }));
   }
   /*!
    * \brief Set the default dispatch function
@@ -169,7 +169,7 @@ class TracedObjectFunctor {
    * Default dispatch function has an empty string as dispatch token.
    */
   template <typename TCallable>
-  TSelf& set_dispatch(TCallable f) {
+  TSelf& set_dispatch(TCallable&& f) {
     return set_dispatch(kDefaultDispatchToken, std::forward<TCallable>(f));
   }
 
