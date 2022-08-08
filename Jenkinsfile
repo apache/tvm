@@ -1166,7 +1166,7 @@ def shard_run_unittest_GPU_1_of_3() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/unittest_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1246,7 +1246,7 @@ def shard_run_unittest_GPU_2_of_3() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/unittest_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1322,7 +1322,7 @@ def shard_run_unittest_GPU_3_of_3() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/unittest_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1397,7 +1397,7 @@ def shard_run_integration_CPU_1_of_10() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/integration_CPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1471,7 +1471,7 @@ def shard_run_integration_CPU_2_of_10() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/integration_CPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1545,7 +1545,7 @@ def shard_run_integration_CPU_3_of_10() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/integration_CPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1619,7 +1619,7 @@ def shard_run_integration_CPU_4_of_10() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/integration_CPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1693,7 +1693,7 @@ def shard_run_integration_CPU_5_of_10() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/integration_CPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1767,7 +1767,7 @@ def shard_run_integration_CPU_6_of_10() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/integration_CPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1841,7 +1841,7 @@ def shard_run_integration_CPU_7_of_10() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/integration_CPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1915,7 +1915,7 @@ def shard_run_integration_CPU_8_of_10() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/integration_CPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1989,7 +1989,7 @@ def shard_run_integration_CPU_9_of_10() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/integration_CPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2063,7 +2063,7 @@ def shard_run_integration_CPU_10_of_10() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/integration_CPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2138,7 +2138,7 @@ def shard_run_python_i386_1_of_5() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/python_i386 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2212,7 +2212,7 @@ def shard_run_python_i386_2_of_5() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/python_i386 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2285,7 +2285,7 @@ def shard_run_python_i386_3_of_5() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/python_i386 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2358,7 +2358,7 @@ def shard_run_python_i386_4_of_5() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/python_i386 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2431,7 +2431,7 @@ def shard_run_python_i386_5_of_5() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/python_i386 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2505,7 +2505,7 @@ def shard_run_test_Hexagon_1_of_7() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2577,7 +2577,7 @@ def shard_run_test_Hexagon_2_of_7() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2649,7 +2649,7 @@ def shard_run_test_Hexagon_3_of_7() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2721,7 +2721,7 @@ def shard_run_test_Hexagon_4_of_7() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2793,7 +2793,7 @@ def shard_run_test_Hexagon_5_of_7() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2865,7 +2865,7 @@ def shard_run_test_Hexagon_6_of_7() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2937,7 +2937,7 @@ def shard_run_test_Hexagon_7_of_7() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -3011,7 +3011,7 @@ def shard_run_integration_aarch64_1_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/integration_aarch64 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -3084,7 +3084,7 @@ def shard_run_integration_aarch64_2_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/integration_aarch64 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -3157,7 +3157,7 @@ def shard_run_integration_aarch64_3_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/integration_aarch64 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -3230,7 +3230,7 @@ def shard_run_integration_aarch64_4_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/integration_aarch64 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -3303,7 +3303,7 @@ def shard_run_topi_GPU_1_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/topi_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -3375,7 +3375,7 @@ def shard_run_topi_GPU_2_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/topi_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -3447,7 +3447,7 @@ def shard_run_topi_GPU_3_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/topi_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -3519,7 +3519,7 @@ def shard_run_topi_GPU_4_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/topi_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -3592,7 +3592,7 @@ def shard_run_frontend_GPU_1_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/frontend_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -3664,7 +3664,7 @@ def shard_run_frontend_GPU_2_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/frontend_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -3736,7 +3736,7 @@ def shard_run_frontend_GPU_3_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/frontend_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -3808,7 +3808,7 @@ def shard_run_frontend_GPU_4_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/frontend_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -3880,7 +3880,7 @@ def shard_run_frontend_GPU_5_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/frontend_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -3952,7 +3952,7 @@ def shard_run_frontend_GPU_6_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/frontend_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -4030,7 +4030,7 @@ def shard_run_topi_aarch64_1_of_2() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/topi_aarch64 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -4106,7 +4106,7 @@ def shard_run_topi_aarch64_2_of_2() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/topi_aarch64 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -4179,7 +4179,7 @@ def shard_run_frontend_aarch64_1_of_2() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/frontend_aarch64 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -4251,7 +4251,7 @@ def shard_run_frontend_aarch64_2_of_2() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/frontend_aarch64 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -4329,7 +4329,7 @@ def shard_run_test_Cortex_M_1_of_8() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -4401,7 +4401,7 @@ def shard_run_test_Cortex_M_2_of_8() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -4473,7 +4473,7 @@ def shard_run_test_Cortex_M_3_of_8() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -4545,7 +4545,7 @@ def shard_run_test_Cortex_M_4_of_8() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -4617,7 +4617,7 @@ def shard_run_test_Cortex_M_5_of_8() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -4689,7 +4689,7 @@ def shard_run_test_Cortex_M_6_of_8() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -4761,7 +4761,7 @@ def shard_run_test_Cortex_M_7_of_8() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -4833,7 +4833,7 @@ def shard_run_test_Cortex_M_8_of_8() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -5067,7 +5067,7 @@ stage('Test') {
               sh(
                 script: """
                   set -eux
-                  aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+                  aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/unittest_CPU --recursive
                 """,
                 label: 'Upload JUnits to S3',
               )
@@ -5135,7 +5135,7 @@ stage('Test') {
               sh(
                 script: """
                   set -eux
-                  aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+                  aws s3 cp --no-progress build/pytest-results/* s3://${s3_prefix}/pytest-results/frontend_CPU --recursive
                 """,
                 label: 'Upload JUnits to S3',
               )

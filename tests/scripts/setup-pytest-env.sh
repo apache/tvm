@@ -58,19 +58,29 @@ function run_pytest() {
         exit 2
     fi
 
+    # Allow unbound variable here.
+    set +u
+    if [[ -z "${TVM_SHARD_INDEX}" ]]; then
+      current_shard="no-shard"
+    else
+      current_shard="shard-${TVM_SHARD_INDEX}"
+    fi
+    set -u
+
     has_reruns=$(python3 -m pytest --help 2>&1 | grep 'reruns=' || true)
     if [ -n "$has_reruns" ]; then
         extra_args+=('--reruns=3')
     fi
 
-    suite_name="${test_suite_name}-${ffi_type}"
+    suite_name="${test_suite_name}-${current_shard}-${ffi_type}"
     exit_code=0
     TVM_FFI=${ffi_type} python3 -m pytest \
            -o "junit_suite_name=${suite_name}" \
            "--junit-xml=${TVM_PYTEST_RESULT_DIR}/${suite_name}.xml" \
            "--junit-prefix=${ffi_type}" \
            "${extra_args[@]}" || exit_code=$?
-    if [ "$exit_code" -ne "0" ]; then
+    # Pytest will return error code -5 if no test is collected.
+    if [ "$exit_code" -ne "0" ] && [ "$exit_code" -ne "5" ]; then
         pytest_errors+=("${suite_name}: $@")
     fi
 }
