@@ -132,6 +132,8 @@ class SpaceGenerator : public runtime::ObjectRef {
   SpaceGenerator() = default;
 
  public:
+  /* A callback function that can be used to filter which blocks have generated spaces. */
+  using BlockFilterFunc = runtime::TypedPackedFunc<Optional<Bool>(const tir::BlockNode&)>;
   /*!
    * \brief Create a design space generator with customized methods on the python-side.
    * \param f_initialize_with_tune_context The packed function of `InitializeWithTuneContext`.
@@ -153,7 +155,7 @@ class SpaceGenerator : public runtime::ObjectRef {
    *  to blocks in post-DFS order.
    * \return The design space generator created.
    */
-  TVM_DLL static SpaceGenerator PostOrderApply();
+  TVM_DLL static SpaceGenerator PostOrderApply(BlockFilterFunc f_block_filter = nullptr);
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(SpaceGenerator, ObjectRef, SpaceGeneratorNode);
 };
 

@@ -24,8 +24,8 @@ namespace meta_schedule {
 /*! \brief Collecting all the blocks */
 class BlockCollector : public tir::StmtVisitor {
  public:
-  static Array<tir::BlockRV> Collect(const tir::Schedule& sch) {  //
-    return BlockCollector(sch).Run();
+  static Array<tir::BlockRV> Collect(const tir::Schedule& sch, const SpaceGenerator::BlockFilterFunc f_block_filter = nullptr) {  //
+    return BlockCollector(sch, f_block_filter).Run();
   }
 
  private:
@@ -48,7 +48,7 @@ class BlockCollector : public tir::StmtVisitor {
     return results;
   }
   /*! \brief Constructor */
-  explicit BlockCollector(const tir::Schedule& sch, const Array<String> target_blocks = {}) : sch_(sch), target_blocks_(target_blocks) {}
+  explicit BlockCollector(const tir::Schedule& sch, const SpaceGenerator::BlockFilterFunc f_block_filter = nullptr) : sch_(sch), f_block_filter_(f_block_filter) {}
   /*! \brief Override the Stmt visiting behaviour */
   void VisitStmt_(const tir::BlockNode* block) override {
     tir::StmtVisitor::VisitStmt_(block);
@@ -56,23 +56,21 @@ class BlockCollector : public tir::StmtVisitor {
         << "Duplicated block name " << block->name_hint << " in function " << func_name_
         << " not supported!";
     block_names_.insert(block->name_hint);
-    // If target blocks are specified, only collect them. Otherwise collect all blocks.
-    if (target_blocks_.empty()) {
-      blocks_to_collect_.push_back(block->name_hint);
-    } else {
-      // Iterate over specified blocks and check if this is one of them.
-      for (String name : target_blocks_) {
-        if (name.compare(block->name_hint) == 0) {
-          blocks_to_collect_.push_back(block->name_hint);
-        }
+    // If filter function is provided, use it to selectively collect blocks.
+    if (f_block_filter_ != nullptr) {
+      Optional<Bool> collect_block = f_block_filter_(*block);
+      if (collect_block.defined() && collect_block) {
+        blocks_to_collect_.push_back(block->name_hint);
       }
+    } else {
+      blocks_to_collect_.push_back(block->name_hint);
     }
   }
 
   /*! \brief The schedule to be collected */
   const tir::Schedule& sch_;
-  /*! \brief An optional list of block names that will be collected, if not provided all blocks are collected. */
-  const Array<String> target_blocks_;
+  /*! \brief An optional packed func that allows only certain blocks to be collected. */
+  const SpaceGenerator::BlockFilterFunc f_block_filter_;
   /*! \brief The set of func name and block name pair */
   std::unordered_set<String> block_names_;
   /* \brief The list of blocks to collect in order */
@@ -93,6 +91,8 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
   Array<ScheduleRule> sch_rules_{nullptr};
   /*! \brief The logging function to use. */
   PackedFunc logging_func;
+  /*! \brief Optional block names to target. If not specified all blocks will have spaces generated. */
+  SpaceGenerator::BlockFilterFunc f_block_filter_ = nullptr;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     // `rand_state_` is not visited
@@ -119,7 +119,7 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
     Array<tir::Schedule> result{sch};
     // Enumerate the schedule rules first because you can
     // always concat multiple schedule rules as one
-    Array<tir::BlockRV> all_blocks = BlockCollector::Collect(sch);
+    Array<tir::BlockRV> all_blocks = BlockCollector::Collect(sch, f_block_filter_);
     Array<Optional<ScheduleRule>> rules{NullOpt};
     rules.insert(rules.end(), sch_rules_.begin(), sch_rules_.end());
     for (Optional<ScheduleRule> sch_rule : rules) {
@@ -189,8 +189,9 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(PostOrderApplyNode, SpaceGeneratorNode);
 };
 
-SpaceGenerator SpaceGenerator::PostOrderApply() {
+SpaceGenerator SpaceGenerator::PostOrderApply(SpaceGenerator::BlockFilterFunc f_block_filter) {
   ObjectPtr<PostOrderApplyNode> n = make_object<PostOrderApplyNode>();
+  n->f_block_filter_ = f_block_filter;
   return SpaceGenerator(n);
 }
 
