@@ -288,7 +288,7 @@ def add_checker(attrs, args, op_name):
             return False
         channel = dict(attrs)["channels"]
         const_shape = get_shape(args[1])
-        if channel != reduce(lambda x, y: x * y, const_shape[1::]):
+        if channel != reduce(lambda x, y: x * y, const_shape):
             return False
     return True
 

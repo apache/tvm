@@ -919,39 +919,17 @@ def test_mixed_single_multiple_outputs():
 
 def test_dnnl_fuse():
     dnnl_patterns = get_pattern_table("dnnl")
-    valid_pats = list()
     for pattern in dnnl_patterns:
-        if len(pattern) == 2:
-            valid_pats.append(pattern)
-    dnnl_pat_dic = dict(valid_pats)
-    (
-        conv2d_bias_relu_pat,
-        conv2d_bias_sigmoid_pat,
-        conv2d_bias_pat,
-        conv2d_relu_pat,
-        conv2d_sigmoid_pat,
-    ) = (
-        (
-            "dnnl.conv2d_bias_relu",
-            dnnl_pat_dic["dnnl.conv2d_bias_relu"],
-        ),
-        (
-            "dnnl.conv2d_bias_sigmoid",
-            dnnl_pat_dic["dnnl.conv2d_bias_sigmoid"],
-        ),
-        (
-            "dnnl.conv2d_bias",
-            dnnl_pat_dic["dnnl.conv2d_bias"],
-        ),
-        (
-            "dnnl.conv2d_relu",
-            dnnl_pat_dic["dnnl.conv2d_relu"],
-        ),
-        (
-            "dnnl.conv2d_sigmoid",
-            dnnl_pat_dic["dnnl.conv2d_sigmoid"],
-        ),
-    )
+        if pattern[0] == "dnnl.conv2d_bias_relu":
+            conv2d_bias_relu_pat = pattern
+        elif pattern[0] == "dnnl.conv2d_bias_sigmoid":
+            conv2d_bias_sigmoid_pat = pattern
+        elif pattern[0] == "dnnl.conv2d_bias":
+            conv2d_bias_pat = pattern
+        elif pattern[0] == "dnnl.conv2d_relu":
+            conv2d_relu_pat = pattern
+        elif pattern[0] == "dnnl.conv2d_sigmoid":
+            conv2d_sigmoid_pat = pattern
 
     def get_blocks(
         prefix,
