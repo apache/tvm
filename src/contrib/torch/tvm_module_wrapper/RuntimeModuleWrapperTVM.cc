@@ -146,6 +146,13 @@ tvm::runtime::NDArray create_bool_ndarray(DLPackTensorExt* src) {
   return std::move(ret);
 }
 
+bool is_zero_copy(DLPackTensorExt* src) {
+  auto& dl_tensor = src->dl_managed_tensor->dl_tensor;
+  bool is_zero_copy =
+      tvm::runtime::NDArray::AbilityOfZeroCopyForDLTensor(&dl_tensor, dl_tensor.device);
+  return is_zero_copy;
+}
+
 /*
  * Create an NDArray from DLpack extended tensor.
  * @param src DLpack extended tensor
@@ -156,13 +163,11 @@ tvm::runtime::NDArray ndarray_from_dlpack(DLPackTensorExt* src) {
 
   NDArray array;
   auto& dl_tensor = src->dl_managed_tensor->dl_tensor;
-  bool is_zero_copy =
-      tvm::runtime::NDArray::AbilityOfZeroCopyForDLTensor(&dl_tensor, dl_tensor.device);
   if (src->is_bool) {
     // one memory copy
     // the code is similar to NewFromDLTensor except for the type
     array = create_bool_ndarray(src);
-  } else if (is_zero_copy) {
+  } else if (is_zero_copy(src)) {
     array = NDArray::FromExternalDLTensor(src->dl_managed_tensor->dl_tensor);
   } else {
     // one memory copy
@@ -182,6 +187,10 @@ struct TVMContribTorchRuntimeModule {
   explicit TVMContribTorchRuntimeModule(tvm::runtime::Module& mod) : mod(mod) {}
 };
 
+bool tvm_contrib_torch_is_be_copied(DLPackTensorExt* src) {
+  return (src->is_bool) || (!tvm::contrib::is_zero_copy(src));
+}
+
 TVMContribTorchRuntimeModule* tvm_contrib_torch_get_last_saved_runtime_module() {
   return new TVMContribTorchRuntimeModule(tvm::contrib::ThreadLocalStore::ThreadLocal()->mod);
 }
@@ -197,7 +206,7 @@ void tvm_contrib_torch_operator_module_forward(TVMContribTorchRuntimeModule* run
   std::vector<tvm::runtime::NDArray> input_cache(input_size);
 
   for (int k = 0; k < input_size; ++k) {
-    auto datum = tvm::contrib::ndarray_from_dlpack(&inputs[k]);
+    auto datum = tvm::contrib::ndarray_from_dlpack(&inputs[k]);  // could have one memory copy
     input_cache[k] = datum;  // we keep the datum in a vector for future use, otherwise the datum
                              // will be freed after the loop
     setter(k, datum);
@@ -207,8 +216,8 @@ void tvm_contrib_torch_operator_module_forward(TVMContribTorchRuntimeModule* run
                  nullptr);
 
   for (int k = 0; k < input_size; ++k) {
-    // this statement seems to not work for boolean tensor
-    input_cache[k].CopyTo(&inputs[k].dl_managed_tensor->dl_tensor);
+    if (tvm_contrib_torch_is_be_copied(&inputs[k]))
+      input_cache[k].CopyTo(&inputs[k].dl_managed_tensor->dl_tensor);
   }
 }
 

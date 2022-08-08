@@ -104,6 +104,11 @@ void tvm_contrib_torch_free_dlpack_tensor_ext_array(DLPackTensorExt*);
  * Delete char array pointer.
  */
 void tvm_contrib_torch_free_encoding(char* encoding);
+
+/*
+ * Checking if a DLPackTensorExt is boolean or cannot be copied in zero cost.
+ */
+bool tvm_contrib_torch_is_be_copied(DLPackTensorExt*);
 }
 
 #endif  // TVM_CONTRIB_TORCH_TVM_MODULE_WRAPPER_RUNTIME_BRIDGE_H_

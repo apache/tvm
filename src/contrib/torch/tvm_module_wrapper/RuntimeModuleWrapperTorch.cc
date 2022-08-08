@@ -85,7 +85,7 @@ class OperatorModuleWrapper : public torch::jit::CustomClassHolder {
                                               tensors.size());
 
     for (int k = 0; k < input_length; ++k) {
-      if (tensors[k].is_bool) {
+      if (tvm_contrib_torch_is_be_copied(&tensors[k])) {
         inputs[k].copy_(fromDLPackExt(tensors[k]));
       } else {
         tensors[k].dl_managed_tensor->deleter(tensors[k].dl_managed_tensor);
