@@ -36,6 +36,7 @@ from .stmt import (
     Allocate,
     AllocateConst,
     AttrStmt,
+    DeclBuffer,
 )
 
 from .stmt import ProducerRealize, SeqStmt

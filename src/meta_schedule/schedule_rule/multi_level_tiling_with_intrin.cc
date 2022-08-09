@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include "../../tir/schedule/analysis.h"
 #include "../../tir/schedule/transform.h"
 #include "../utils.h"
 #include "multi_level_tiling.h"
@@ -28,8 +29,12 @@ namespace meta_schedule {
  * \brief Tile a subset of loops in the block according to the given tensor intrinsic, and annotate
  * the tiled block for tensorization by postproc rewrite.
  */
-tir::BlockRV TileForIntrin(tir::Schedule sch, tir::BlockRV block, const std::string& intrin_name) {
+Optional<tir::BlockRV> TileForIntrin(tir::Schedule sch, tir::BlockRV block,
+                                     const std::string& intrin_name) {
   Optional<tir::LoopRV> tiled_loop_rv = TileWithTensorIntrin(sch, block, intrin_name);
+  if (!tiled_loop_rv) {
+    return NullOpt;
+  }
   ICHECK(tiled_loop_rv.defined());
   tir::BlockRV outer_block = sch->Blockize(tiled_loop_rv.value());
   sch->Annotate(outer_block, tir::attr::meta_schedule_auto_tensorize, String(intrin_name));
@@ -41,12 +46,29 @@ tir::BlockRV TileForIntrin(tir::Schedule sch, tir::BlockRV block, const std::str
  */
 class MultiLevelTilingWithIntrinNode : public MultiLevelTilingNode {
  protected:
+  Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final {
+    auto desc_func = tir::TensorIntrin::Get(intrin_name)->desc;
+    if (!CheckAutoTensorizeApplicable(sch, block_rv, desc_func)) {
+      return {sch};
+    }
+
+    auto res = MultiLevelTilingNode::Apply(sch->Copy(), block_rv);
+
+    if (res.empty()) {
+      return {sch};
+    }
+    return res;
+  }
+
   // Override ApplySubRules to tile the inner loops according to the given tensor intrinsic, then
   // tile the outerloops.
   virtual std::vector<State> ApplySubRules(std::vector<State> states) {
     states = SubRule(std::move(states), [&](State state) {
-      state->block_rv = TileForIntrin(state->sch, state->block_rv, intrin_name);
-      return std::vector<State>(1, state);
+      if (auto block_rv = TileForIntrin(state->sch, state->block_rv, intrin_name)) {
+        state->block_rv = block_rv.value();
+        return std::vector<State>(1, state);
+      }
+      return std::vector<State>();
     });
     return MultiLevelTilingNode::ApplySubRules(states);
   }

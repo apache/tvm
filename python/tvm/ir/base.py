@@ -191,8 +191,8 @@ def structural_equal(lhs, rhs, map_free_vars=False):
         The left operand.
 
     map_free_vars : bool
-        Whether or not shall we map free vars that does
-        not bound to any definitions as equal to each other.
+        Whether free variables (i.e. variables without a definition site) should be mapped
+        as equal to each other.
 
     Return
     ------
@@ -207,6 +207,36 @@ def structural_equal(lhs, rhs, map_free_vars=False):
     lhs = tvm.runtime.convert(lhs)
     rhs = tvm.runtime.convert(rhs)
     return bool(tvm.runtime._ffi_node_api.StructuralEqual(lhs, rhs, False, map_free_vars))
+
+
+def get_first_structural_mismatch(lhs, rhs, map_free_vars=False):
+    """Like structural_equal(), but returns the ObjectPaths of the first detected mismatch.
+
+    Parameters
+    ----------
+    lhs : Object
+        The left operand.
+
+    rhs : Object
+        The left operand.
+
+    map_free_vars : bool
+        Whether free variables (i.e. variables without a definition site) should be mapped
+        as equal to each other.
+
+    Returns
+    -------
+    mismatch: Optional[Tuple[ObjectPath, ObjectPath]]
+        `None` if `lhs` and `rhs` are structurally equal.
+        Otherwise, a tuple of two ObjectPath objects that point to the first detected mismtach.
+    """
+    lhs = tvm.runtime.convert(lhs)
+    rhs = tvm.runtime.convert(rhs)
+    mismatch = tvm.runtime._ffi_node_api.GetFirstStructuralMismatch(lhs, rhs, map_free_vars)
+    if mismatch is None:
+        return None
+    else:
+        return mismatch.lhs_path, mismatch.rhs_path
 
 
 def assert_structural_equal(lhs, rhs, map_free_vars=False):

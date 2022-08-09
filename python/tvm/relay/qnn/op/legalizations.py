@@ -32,6 +32,8 @@ from .. import op as reg
 #################################################
 
 # Registering QNN Conv2D legalization function.
+
+
 @reg.register_qnn_legalize("qnn.conv2d")
 def legalize_qnn_conv2d(attrs, inputs, types):
     return qnn_conv2d_legalize(attrs, inputs, types)
@@ -81,6 +83,7 @@ register_qnn_unary_op_legalize("qnn.sigmoid", lambda arr: 1 / (1 + np.exp(-arr))
 register_qnn_unary_op_legalize("qnn.hardswish", hardswish_func)
 register_qnn_unary_op_legalize("qnn.tanh", np.tanh)
 register_qnn_unary_op_legalize("qnn.log", np.log)
+register_qnn_unary_op_legalize("qnn.abs", np.abs)
 
 
 # Default to None. If overridden by target, this will not be run.

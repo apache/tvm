@@ -104,7 +104,7 @@ def _apply_desired_layout_no_simd(relay_mod):
 
 @tvm.testing.requires_micro
 @pytest.mark.skip_boards(["mps2_an521"])
-def test_armv7m_intrinsic(temp_dir, board, west_cmd, tvm_debug):
+def test_armv7m_intrinsic(workspace_dir, board, west_cmd, microtvm_debug):
     """Testing a ARM v7m SIMD extension."""
 
     if board not in [
@@ -118,7 +118,7 @@ def test_armv7m_intrinsic(temp_dir, board, west_cmd, tvm_debug):
 
     model = test_utils.ZEPHYR_BOARDS[board]
 
-    build_config = {"debug": tvm_debug}
+    build_config = {"debug": microtvm_debug}
 
     this_dir = pathlib.Path(os.path.dirname(__file__))
     testdata_dir = this_dir.parent / "testdata" / "mnist"
@@ -137,11 +137,11 @@ def test_armv7m_intrinsic(temp_dir, board, west_cmd, tvm_debug):
     executor = Executor("aot", {"unpacked-api": True, "interface-api": "c"})
     runtime = Runtime("crt")
 
-    temp_dir_simd = temp_dir / "simd"
-    temp_dir_no_simd = temp_dir / "nosimd"
+    workspace_dir_simd = workspace_dir / "simd"
+    workspace_dir_no_simd = workspace_dir / "nosimd"
 
-    os.makedirs(temp_dir_simd, exist_ok=True)
-    os.makedirs(temp_dir_no_simd, exist_ok=True)
+    os.makedirs(workspace_dir_simd, exist_ok=True)
+    os.makedirs(workspace_dir_no_simd, exist_ok=True)
 
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lowered_simd = relay.build(
@@ -152,7 +152,7 @@ def test_armv7m_intrinsic(temp_dir, board, west_cmd, tvm_debug):
         )
 
         simd_project, _ = test_utils.generate_project(
-            temp_dir_simd,
+            workspace_dir_simd,
             board,
             west_cmd,
             lowered_simd,
@@ -165,7 +165,7 @@ def test_armv7m_intrinsic(temp_dir, board, west_cmd, tvm_debug):
         result_simd, time_simd = test_utils.run_model(simd_project)
 
         no_simd_project, _ = test_utils.generate_project(
-            temp_dir_no_simd,
+            workspace_dir_no_simd,
             board,
             west_cmd,
             lowered_no_simd,

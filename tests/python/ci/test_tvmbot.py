@@ -81,7 +81,7 @@ TEST_DATA = {
     "invalid-author": {
         "number": 10786,
         "filename": "pr10786-invalid-author.json",
-        "expected": "Comment is not from from PR author or collaborator, quitting",
+        "expected": "Failed auth check 'collaborators', quitting",
         "comment": "@tvm-bot merge",
         "user": "not-abc",
         "detail": "Merge requester is not a committer and cannot merge",
@@ -89,7 +89,7 @@ TEST_DATA = {
     "unauthorized-comment": {
         "number": 11244,
         "filename": "pr11244-unauthorized-comment.json",
-        "expected": "Comment is not from from PR author or collaborator, quitting",
+        "expected": "Failed auth check 'collaborators'",
         "comment": "@tvm-bot merge",
         "user": "not-abc2",
         "detail": "Check that a merge comment not from a CONTRIBUTOR is rejected",
@@ -135,7 +135,7 @@ TEST_DATA = {
     [tuple(d.values()) for d in TEST_DATA.values()],
     ids=TEST_DATA.keys(),
 )
-def test_mergebot(tmpdir_factory, number, filename, expected, comment, user, detail):
+def test_tvmbot(tmpdir_factory, number, filename, expected, comment, user, detail):
     """
     Test the mergebot test cases
     """
@@ -156,7 +156,7 @@ def test_mergebot(tmpdir_factory, number, filename, expected, comment, user, det
             "login": user,
         },
     }
-    collaborators = []
+    collaborators = ["abc"]
 
     proc = subprocess.run(
         [
@@ -170,6 +170,8 @@ def test_mergebot(tmpdir_factory, number, filename, expected, comment, user, det
             json.dumps(test_data),
             "--testing-collaborators-json",
             json.dumps(collaborators),
+            "--testing-mentionable-users-json",
+            json.dumps(collaborators),
             "--trigger-comment-json",
             json.dumps(comment),
         ],
@@ -178,6 +180,7 @@ def test_mergebot(tmpdir_factory, number, filename, expected, comment, user, det
         encoding="utf-8",
         env={
             "TVM_BOT_JENKINS_TOKEN": "123",
+            "GH_ACTIONS_TOKEN": "123",
         },
         cwd=git.cwd,
         check=False,

@@ -318,6 +318,7 @@ within_subsection_order = {
         "micro_tflite.py",
         "micro_ethosu.py",
         "micro_tvmc.py",
+        "micro_aot.py",
     ],
 }
 
@@ -425,7 +426,7 @@ html_context = {
     "header_dropdown": header_dropdown,
     "header_logo": header_logo,
     "header_logo_link": header_logo_link,
-    "version_prefixes": ["main", "v0.8.0/"],
+    "version_prefixes": ["main", "v0.8.0/", "v0.9.0/"],
 }
 
 # add additional overrides

@@ -63,6 +63,8 @@ void StmtVisitor::VisitStmt_(const AllocateConstNode* op) {
   this->VisitStmt(op->body);
 }
 
+void StmtVisitor::VisitStmt_(const DeclBufferNode* op) { this->VisitStmt(op->body); }
+
 void StmtVisitor::VisitStmt_(const StoreNode* op) {
   LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
 }
@@ -331,6 +333,18 @@ Stmt StmtMutator::VisitStmt_(const AllocateConstNode* op) {
   } else {
     auto n = CopyOnWrite(op);
     n->extents = std::move(extents);
+    n->body = std::move(body);
+    return Stmt(n);
+  }
+}
+
+Stmt StmtMutator::VisitStmt_(const DeclBufferNode* op) {
+  Stmt body = this->VisitStmt(op->body);
+
+  if (body.same_as(op->body)) {
+    return GetRef<Stmt>(op);
+  } else {
+    auto n = CopyOnWrite(op);
     n->body = std::move(body);
     return Stmt(n);
   }

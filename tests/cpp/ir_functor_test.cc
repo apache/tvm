@@ -181,6 +181,7 @@ TEST(IRF, StmtVisitor) {
     DataType dtype = DataType::Float(32);
     Var buf_var("b", PointerType(PrimType(dtype)));
     Buffer buffer = decl_buffer({16});
+    body = DeclBuffer(buffer, std::move(body));
     BufferRegion buffer_region(buffer, {Range::FromMinExtent(x + 1, 1)});
     MatchBufferRegion match_buffer_region(decl_buffer({1}), buffer_region);
 
@@ -309,6 +310,7 @@ TEST(IRF, StmtMutator) {
     DataType dtype = DataType::Float(32);
     Var buf_var("b", PointerType(PrimType(dtype)));
     Buffer buffer = decl_buffer({16});
+    body = DeclBuffer(buffer, std::move(body));
     BufferRegion buffer_region(buffer, {Range::FromMinExtent(x + 1, 1)});
     MatchBufferRegion match_buffer_region(decl_buffer({1}), buffer_region);
     // construct block and block_realize
@@ -318,8 +320,8 @@ TEST(IRF, StmtMutator) {
     body = v(std::move(block_realize));
     // the body should be changed
     Block new_block = body.as<BlockRealizeNode>()->block;
-    ICHECK(new_block->body.as<AllocateNode>()->extents[1].same_as(x));
-    ICHECK(new_block->init.as<AllocateNode>()->extents[1].same_as(x));
+    ICHECK(new_block->body.as<DeclBufferNode>()->body.as<AllocateNode>()->extents[1].same_as(x));
+    ICHECK(new_block->init.as<DeclBufferNode>()->body.as<AllocateNode>()->extents[1].same_as(x));
     ICHECK(new_block->reads[0]->region[0]->min.same_as(x));
     ICHECK(new_block->writes[0]->region[0]->min.same_as(x));
     ICHECK(new_block->match_buffers[0]->source->region[0]->min.same_as(x));

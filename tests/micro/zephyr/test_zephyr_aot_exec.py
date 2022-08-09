@@ -38,7 +38,7 @@ from tvm._ffi import get_global_func, register_func
 import test_utils
 
 
-def _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config):
+def _make_session(workspace_dir, zephyr_board, west_cmd, mod, build_config):
     config_main_stack_size = None
     if test_utils.qemu_boards(zephyr_board):
         # fyi: qemu_riscv64 seems to be the greediest stack user
@@ -59,7 +59,7 @@ def _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config):
     project = tvm.micro.generate_project(
         str(test_utils.TEMPLATE_PROJECT_DIR),
         mod,
-        temp_dir / "project",
+        workspace_dir / "project",
         project_options,
     )
     project.build()
@@ -69,11 +69,11 @@ def _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config):
 
 @tvm.testing.requires_micro
 @pytest.mark.skip_boards(["mps2_an521"])
-def test_relay(temp_dir, board, west_cmd, tvm_debug):
+def test_relay(workspace_dir, board, west_cmd, microtvm_debug):
     """Testing a simple relay graph"""
 
     model = test_utils.ZEPHYR_BOARDS[board]
-    build_config = {"debug": tvm_debug}
+    build_config = {"debug": microtvm_debug}
     shape = (10,)
     dtype = "int8"
 
@@ -90,7 +90,7 @@ def test_relay(temp_dir, board, west_cmd, tvm_debug):
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = tvm.relay.build(ir_mod, target=target, runtime=runtime, executor=executor)
 
-    with _make_session(temp_dir, board, west_cmd, mod, build_config) as session:
+    with _make_session(workspace_dir, board, west_cmd, mod, build_config) as session:
 
         aot_executor = tvm.runtime.executor.aot_executor.AotModule(session.create_aot_executor())
 
@@ -103,11 +103,11 @@ def test_relay(temp_dir, board, west_cmd, tvm_debug):
 
 @tvm.testing.requires_micro
 @pytest.mark.skip_boards(["mps2_an521"])
-def test_aot_executor(temp_dir, board, west_cmd, tvm_debug):
+def test_aot_executor(workspace_dir, board, west_cmd, microtvm_debug):
     """Test use of the AOT executor with microTVM."""
 
     model = test_utils.ZEPHYR_BOARDS[board]
-    build_config = {"debug": tvm_debug}
+    build_config = {"debug": microtvm_debug}
     shape = (10,)
     dtype = "int8"
 
@@ -154,7 +154,7 @@ def test_aot_executor(temp_dir, board, west_cmd, tvm_debug):
         aot_executor.set_input("b", B_np_new)
         assert (B_data.numpy() == B_np_new).all()
 
-    with _make_session(temp_dir, board, west_cmd, mod, build_config) as session:
+    with _make_session(workspace_dir, board, west_cmd, mod, build_config) as session:
         do_test()
 
 

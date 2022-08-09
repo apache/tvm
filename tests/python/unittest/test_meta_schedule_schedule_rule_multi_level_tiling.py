@@ -478,17 +478,15 @@ sch.reorder(l42, l50, l58, l66, l74, l43, l51, l59, l67, l75, l80, l84, l88, l92
     check_trace(spaces, expected)
 
 
-def test_multi_level_tiling_dense_dpa4():
-    m, n, k = 128, 128, 128
-
-    X = te.placeholder((m, k), name="X", dtype="int8")
-    W = te.placeholder((n, k), name="W", dtype="int8")
+def _test_multi_level_tiling_dense_dp4a(m, n, k, in_dtype, out_dtype, expected):
+    X = te.placeholder((m, k), name="X", dtype=in_dtype)
+    W = te.placeholder((n, k), name="W", dtype=in_dtype)
     ak = te.reduce_axis((0, k), name="k")
 
     matmul = te.compute(
         (m, n),
         lambda i, j: te.sum(
-            X[i, ak].astype("int32") * W[j, ak].astype("int32"),
+            X[i, ak].astype(out_dtype) * W[j, ak].astype(out_dtype),
             axis=ak,
         ),
         name="compute",
@@ -519,6 +517,11 @@ def test_multi_level_tiling_dense_dpa4():
     )
 
     spaces = ctx.space_generator.generate_design_space(mod=ctx.mod)
+    check_trace(spaces, expected)
+
+
+def test_multi_level_tiling_dense_dp4a():
+    m, n, k = 128, 128, 128
 
     expected = [
         """b0 = sch.get_block(name="compute", func_name="main")
@@ -560,7 +563,12 @@ sch.annotate(block_or_loop=b49, ann_key="meta_schedule.cooperative_fetch", ann_v
         )
     ]
 
-    check_trace(spaces, expected)
+    _test_multi_level_tiling_dense_dp4a(m, n, k, "int8", "int32", expected)
+
+
+def test_multi_level_tiling_dense_dp4a_non_tensorizable():
+    _test_multi_level_tiling_dense_dp4a(128, 128, 128, "float32", "float32", [""])
+    _test_multi_level_tiling_dense_dp4a(127, 127, 127, "int8", "int32", [""])
 
 
 def test_cuda_tensor_core_matmul_relu():

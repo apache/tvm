@@ -22,6 +22,7 @@
 #include <dmlc/memory_io.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/node.h>
+#include <tvm/node/object_path.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/structural_hash.h>
 #include <tvm/runtime/container/adt.h>
@@ -395,10 +396,71 @@ struct ArrayNodeTrait {
   }
 
   static bool SEqualReduce(const ArrayNode* lhs, const ArrayNode* rhs, SEqualReducer equal) {
+    if (equal.IsPathTracingEnabled()) {
+      return SEqualReduceTraced(lhs, rhs, equal);
+    }
+
     if (lhs->size() != rhs->size()) return false;
     for (size_t i = 0; i < lhs->size(); ++i) {
       if (!equal(lhs->at(i), rhs->at(i))) return false;
     }
+    return true;
+  }
+
+ private:
+  static bool SEqualReduceTraced(const ArrayNode* lhs, const ArrayNode* rhs,
+                                 const SEqualReducer& equal) {
+    size_t min_size = std::min(lhs->size(), rhs->size());
+    const ObjectPathPair& array_paths = equal.GetCurrentObjectPaths();
+
+    for (size_t index = 0; index < min_size; ++index) {
+      ObjectPathPair element_paths = {array_paths->lhs_path->ArrayIndex(index),
+                                      array_paths->rhs_path->ArrayIndex(index)};
+      if (!equal(lhs->at(index), rhs->at(index), element_paths)) {
+        return false;
+      }
+    }
+
+    if (lhs->size() == rhs->size()) {
+      return true;
+    }
+
+    // If the array length is mismatched, don't report it immediately.
+    // Instead, defer the failure until we visit all children.
+    //
+    // This is for human readability. For example, say we have two sequences
+    //
+    //    (1)     a b c d e f g h i j k l m
+    //    (2)     a b c d e g h i j k l m
+    //
+    // If we directly report a mismatch at the end of the array right now,
+    // the user will see that array (1) has an element `m` at index 12 but array (2)
+    // has no index 12 because it's too short:
+    //
+    //    (1)     a b c d e f g h i j k l m
+    //                                    ^error here
+    //    (2)     a b c d e g h i j k l m
+    //                                    ^ error here
+    //
+    // This is not very helpful. Instead, if we defer reporting this mismatch until all elements
+    // are fully visited, we can be much more helpful with pointing out the location:
+    //
+    //    (1)     a b c d e f g h i j k l m
+    //                      ^
+    //                   error here
+    //
+    //    (2)     a b c d e g h i j k l m
+    //                      ^
+    //                  error here
+    if (lhs->size() > min_size) {
+      equal->DeferFail({array_paths->lhs_path->ArrayIndex(min_size),
+                        array_paths->rhs_path->MissingArrayElement(min_size)});
+    } else {
+      equal->DeferFail({array_paths->lhs_path->MissingArrayElement(min_size),
+                        array_paths->rhs_path->ArrayIndex(min_size)});
+    }
+
+    // Can return `true` pretending that everything is good since we have deferred the failure.
     return true;
   }
 };
@@ -501,13 +563,105 @@ struct MapNodeTrait {
     return true;
   }
 
+  static bool IsStringMap(const MapNode* map) {
+    return std::all_of(map->begin(), map->end(),
+                       [](const auto& v) { return v.first->template IsInstance<StringObj>(); });
+  }
+
+  static bool SEqualReduceTracedForOMap(const MapNode* lhs, const MapNode* rhs,
+                                        const SEqualReducer& equal) {
+    const ObjectPathPair& map_paths = equal.GetCurrentObjectPaths();
+
+    std::vector<const Object*> seen_rhs_keys;
+
+    // First, check that every key from `lhs` is also in `rhs`,
+    // and their values are mapped to each other.
+    for (const auto& kv : *lhs) {
+      ObjectPath lhs_path = map_paths->lhs_path->MapValue(kv.first);
+
+      ObjectRef rhs_key = equal->MapLhsToRhs(kv.first);
+      if (!rhs_key.defined()) {
+        equal.RecordMismatchPaths({lhs_path, map_paths->rhs_path->MissingMapEntry()});
+        return false;
+      }
+
+      auto it = rhs->find(rhs_key);
+      if (it == rhs->end()) {
+        equal.RecordMismatchPaths({lhs_path, map_paths->rhs_path->MissingMapEntry()});
+        return false;
+      }
+
+      if (!equal(kv.second, it->second, {lhs_path, map_paths->rhs_path->MapValue(it->first)})) {
+        return false;
+      }
+
+      seen_rhs_keys.push_back(it->first.get());
+    }
+
+    std::sort(seen_rhs_keys.begin(), seen_rhs_keys.end());
+
+    // Second, check that we have visited every `rhs` key when iterating over `lhs`.
+    for (const auto& kv : *rhs) {
+      if (!std::binary_search(seen_rhs_keys.begin(), seen_rhs_keys.end(), kv.first.get())) {
+        equal.RecordMismatchPaths(
+            {map_paths->lhs_path->MissingMapEntry(), map_paths->rhs_path->MapValue(kv.first)});
+        return false;
+      }
+    }
+
+    ICHECK(lhs->size() == rhs->size());
+    return true;
+  }
+
+  static bool SEqualReduceTracedForSMap(const MapNode* lhs, const MapNode* rhs,
+                                        const SEqualReducer& equal) {
+    const ObjectPathPair& map_paths = equal.GetCurrentObjectPaths();
+
+    // First, check that every key from `lhs` is also in `rhs`, and their values are equal.
+    for (const auto& kv : *lhs) {
+      ObjectPath lhs_path = map_paths->lhs_path->MapValue(kv.first);
+      auto it = rhs->find(kv.first);
+      if (it == rhs->end()) {
+        equal.RecordMismatchPaths({lhs_path, map_paths->rhs_path->MissingMapEntry()});
+        return false;
+      }
+
+      if (!equal(kv.second, it->second, {lhs_path, map_paths->rhs_path->MapValue(it->first)})) {
+        return false;
+      }
+    }
+
+    // Second, make sure every key from `rhs` is also in `lhs`.
+    for (const auto& kv : *rhs) {
+      ObjectPath rhs_path = map_paths->rhs_path->MapValue(kv.first);
+      if (!lhs->count(kv.first)) {
+        equal.RecordMismatchPaths({map_paths->lhs_path->MissingMapEntry(), rhs_path});
+        return false;
+      }
+    }
+
+    ICHECK(lhs->size() == rhs->size());
+    return true;
+  }
+
+  static bool SEqualReduceTraced(const MapNode* lhs, const MapNode* rhs,
+                                 const SEqualReducer& equal) {
+    if (IsStringMap(lhs)) {
+      return SEqualReduceTracedForSMap(lhs, rhs, equal);
+    } else {
+      return SEqualReduceTracedForOMap(lhs, rhs, equal);
+    }
+  }
+
   static bool SEqualReduce(const MapNode* lhs, const MapNode* rhs, SEqualReducer equal) {
+    if (equal.IsPathTracingEnabled()) {
+      return SEqualReduceTraced(lhs, rhs, equal);
+    }
+
     if (rhs->size() != lhs->size()) return false;
     if (rhs->size() == 0) return true;
-    bool ls = std::all_of(lhs->begin(), lhs->end(),
-                          [](const auto& v) { return v.first->template IsInstance<StringObj>(); });
-    bool rs = std::all_of(rhs->begin(), rhs->end(),
-                          [](const auto& v) { return v.first->template IsInstance<StringObj>(); });
+    bool ls = IsStringMap(lhs);
+    bool rs = IsStringMap(rhs);
     if (ls != rs) {
       return false;
     }

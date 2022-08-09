@@ -53,6 +53,9 @@ QNN_CREATE_UNARY_ELEMENTWISE_OP("hardswish")
 QNN_CREATE_UNARY_ELEMENTWISE_OP("log").set_attr<FTVMLegalize>(
     "FTVMQnnCanonicalize", QNN_UNARY_OP_DEFAULT_CANONICALIZATION(Log));
 
+QNN_CREATE_UNARY_ELEMENTWISE_OP("abs").set_attr<FTVMLegalize>(
+    "FTVMQnnCanonicalize", QNN_UNARY_OP_DEFAULT_CANONICALIZATION(Abs));
+
 }  // namespace qnn
 }  // namespace relay
 }  // namespace tvm

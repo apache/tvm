@@ -265,6 +265,9 @@ def check_index_map(workload, block_name, intrin_name, expected_index_map):
     block = s.get_block(block_name)
     desc_func = TensorIntrin.get(intrin_name).desc
     info = get_auto_tensorize_mapping_info(s, block, desc_func)
+    if expected_index_map is None:
+        assert info is None
+        return
     assert len(info.mappings) == 1
     assert IndexMap.from_func(expected_index_map).is_equivalent_to(info.mappings[0])
 
@@ -302,6 +305,27 @@ def test_get_auto_tensorize_mapping_info_batch_matmul(b, m, n, k):
     check_index_map(
         matmul, "Z", WMMA_SYNC_16x16x16_f16f16f32_INTRIN, lambda b, m, n, k: (b, m, n, k)
     )
+
+
+@pytest.mark.parametrize(
+    "n,m,k,expected",
+    [
+        (
+            512,
+            512,
+            512,
+            lambda n, m, k: (
+                n,
+                m,
+                k,
+            ),
+        ),
+        (1, 32, 32, None),
+    ],
+)
+def test_get_auto_tensorize_mapping_info_matmul(n, m, k, expected):
+    matmul = create_prim_func(te_workload.matmul(n, m, k, in_dtype="float16", out_dtype="float32"))
+    check_index_map(matmul, "C", WMMA_SYNC_16x16x16_f16f16f32_INTRIN, expected)
 
 
 if __name__ == "__main__":

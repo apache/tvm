@@ -18,6 +18,7 @@
 import pytest
 import argparse
 
+import tvm
 from tvm.driver.tvmc.workspace_pools import (
     generate_workspace_pools_args,
     workspace_pools_recombobulate,
@@ -402,3 +403,18 @@ def test_workspace_pools_recombobulate_single_pool_overrides():
 
     assert len(memory_pools.pools[0].targets) == 2
     assert len(memory_pools.pools[1].targets) == 1
+
+
+@tvm.testing.requires_ethosn
+def test_workspace_pools_recombobulate_ext_codegen():
+    """No error should occur when using an external code generator without an attached Target"""
+
+    parser = argparse.ArgumentParser()
+    generate_workspace_pools_args(parser)
+    parsed, _ = parser.parse_known_args([])
+
+    targets = [Target("llvm")]
+    extra_targets = [{"raw": "ethos-n"}]
+
+    memory_pools = workspace_pools_recombobulate(parsed, targets, extra_targets)
+    assert memory_pools is None
