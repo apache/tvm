@@ -77,6 +77,11 @@ def _register_external_op_helper(op_name, supported=True):
         if any([x.checked_type.dtype == "int64" for x in args]):
             logger.info("DNNL does not support int64.")
             return False
+        # DNNL does not support pooling with ceil_mode = True.
+        if "pool" in op_name:
+            attrs = dict(get_attrs(expr))
+            if "ceil_mode" in attrs.keys() and attrs["ceil_mode"]:
+                return False
         return supported
 
     return _func_wrapper
@@ -235,7 +240,7 @@ def get_attrs(expr):
     return {}
 
 
-def make_predicate(checker):
+def make_sum_pattren_predicate(checker):
     """Check whether the conv_bias_add_sum pattern is as expected."""
 
     def predicate(expr):
@@ -251,12 +256,36 @@ def make_predicate(checker):
     return predicate
 
 
+def make_bias_add_pattren_predicate(checker):
+    """Check whether the conv_bias pattern is as expected."""
+
+    def predicate(expr):
+        if get_op_name(expr) == "nn.relu":
+            expr = expr.args[0]
+        if get_op_name(expr) == "add":
+            args = get_args(expr)
+            attrs = get_attrs(expr.args[0])
+            if not checker(attrs, args, "bias_add"):
+                return False
+        return True
+
+    return predicate
+
+
 def add_checker(attrs, args, op_name):
-    """Check if add is supported by DNNL."""
+    """Check if add is aligned with elementwise_add and bias_add."""
     if op_name == "sum":
+        if not isinstance(args[0].op, tvm.ir.op.Op):
+            return False
+        if args[0].op.name != "add":
+            return False
         if tuple(get_shape(args[0])) != tuple(get_shape(args[1])):
             return False
     if op_name == "bias_add":
+        if not isinstance(args[0].op, tvm.ir.op.Op):
+            return False
+        if args[0].op.name != "nn.conv2d":
+            return False
         channel = dict(attrs)["channels"]
         const_shape = get_shape(args[1])
         if channel != reduce(lambda x, y: x * y, const_shape):
@@ -314,7 +343,11 @@ def make_dnnl_pattern(op_name, with_bias, with_eltwise):
     pat_name += "_bias" if with_bias else ""
     pat_name += ("_" + with_eltwise.split(".")[-1]) if with_eltwise else ""
     if "conv" in op_name:
-        dnnl_pattern = (pat_name, make_conv_pattern(op_name, with_bias, with_eltwise))
+        dnnl_pattern = (
+            pat_name,
+            make_conv_pattern(op_name, with_bias, with_eltwise),
+            make_bias_add_pattren_predicate(add_checker),
+        )
     elif op_name == "nn.dense":
         dnnl_pattern = (pat_name, make_dense_pattern(with_bias, with_eltwise))
     else:
@@ -407,14 +440,14 @@ def pattern_table():
         (
             "dnnl.conv2d_bias_sum_relu",
             make_conv_bias_sum_relu_pattern("nn.conv2d"),
-            make_predicate(add_checker),
+            make_sum_pattren_predicate(add_checker),
         )
     )
     dnnl_patterns.append(
         (
             "dnnl.conv2d_bias_sum",
             make_conv_bias_sum_relu_pattern("nn.conv2d", False),
-            make_predicate(add_checker),
+            make_sum_pattren_predicate(add_checker),
         )
     )
 
@@ -580,7 +613,8 @@ def legalize_pad_avg_pool(attrs, inputs, types):
     if isinstance(data, relay.expr.Call) and data.op.name == "nn.pad":
         new_attrs["padding"] = (1, 1)
         new_attrs["count_include_pad"] = True
-    return relay.nn.avg_pool2d(data.args[0], **new_attrs)
+        return relay.nn.avg_pool2d(data.args[0], **new_attrs)
+    return relay.nn.avg_pool2d(data, **attrs)
 
 
 def legalize_group_conv(attrs, inputs, types):
