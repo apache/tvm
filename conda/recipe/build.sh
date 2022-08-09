@@ -56,5 +56,5 @@ cmake -DCMAKE_INSTALL_PREFIX="${PREFIX}" \
       ${GPU_OPT} ${TOOLCHAIN_OPT} \
       ${SRC_DIR}
 
-make -j${CPU_COUNT}
+make -j${CPU_COUNT} VERBOSE=1
 cd ..
