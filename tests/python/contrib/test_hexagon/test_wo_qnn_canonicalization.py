@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 import pytest
 import numpy as np
 
@@ -28,7 +45,7 @@ def test_no_qnn_pass():
     tvm.ir.assert_structural_equal(opt_mod_1, opt_mod_2)
 
 
-def execute(executor, data_np, weight_np, bias_np = None):
+def execute(executor, data_np, weight_np, bias_np=None):
     executor.set_input("data", data_np)
     executor.set_input("weight", weight_np)
     if bias_np is not None:
@@ -45,21 +62,25 @@ def test_qnn_conv2d_rq(hexagon_session: Session):
     weight = relay.var("weight", shape=weight_shape, dtype="float32")
     op0 = relay.qnn.op.quantize(data, relay.const(0.078), relay.const(0), out_dtype="int8")
     op1 = relay.qnn.op.quantize(weight, relay.const(0.07), relay.const(0), out_dtype="int8")
-    op2 = relay.qnn.op.conv2d(op0,
-                              op1,
-                              input_zero_point=relay.const(0),
-                              kernel_zero_point=relay.const(0),
-                              input_scale=relay.const(0.078),
-                              kernel_scale=relay.const(0.07),
-                              padding=[0, 0, 0, 0],
-                              channels=64,
-                              kernel_size=[3, 3])
-    op5 = relay.qnn.op.requantize(op2,
-                                  input_scale=relay.const(0.05),
-                                  input_zero_point=relay.const(0),
-                                  output_scale=relay.const(0.21),
-                                  output_zero_point=relay.const(61),
-                                  out_dtype="int8")
+    op2 = relay.qnn.op.conv2d(
+        op0,
+        op1,
+        input_zero_point=relay.const(0),
+        kernel_zero_point=relay.const(0),
+        input_scale=relay.const(0.078),
+        kernel_scale=relay.const(0.07),
+        padding=[0, 0, 0, 0],
+        channels=64,
+        kernel_size=[3, 3],
+    )
+    op5 = relay.qnn.op.requantize(
+        op2,
+        input_scale=relay.const(0.05),
+        input_zero_point=relay.const(0),
+        output_scale=relay.const(0.21),
+        output_zero_point=relay.const(61),
+        out_dtype="int8",
+    )
     relay_mod = tvm.IRModule.from_expr(op5)
 
     target_hexagon = tvm.target.hexagon("v68")
@@ -77,7 +98,7 @@ def test_qnn_conv2d_rq(hexagon_session: Session):
             tvm.target.Target(target_llvm, host=target_llvm),
             executor=executor,
         )
-    
+
     data_np = np.random.rand(*data_shape) - 0.5
     weight_np = np.random.rand(*weight_shape) - 0.5
 
@@ -102,21 +123,25 @@ def test_qnn_dense_bias_rq(hexagon_session: Session):
 
     op0 = relay.qnn.op.quantize(data, relay.const(0.08), relay.const(0), out_dtype="int8")
     op1 = relay.qnn.op.quantize(weight, relay.const(0.07), relay.const(0), out_dtype="int8")
-    op2 = relay.qnn.op.dense(op0,
-                             op1,
-                             input_zero_point=relay.const(0),
-                             kernel_zero_point=relay.const(0),
-                             input_scale=relay.const(0.08),
-                             kernel_scale=relay.const(0.07),
-                             units=None)
+    op2 = relay.qnn.op.dense(
+        op0,
+        op1,
+        input_zero_point=relay.const(0),
+        kernel_zero_point=relay.const(0),
+        input_scale=relay.const(0.08),
+        kernel_scale=relay.const(0.07),
+        units=None,
+    )
     op3 = relay.qnn.op.quantize(bias, relay.const(0.5), relay.const(0), out_dtype="int32")
     op4 = relay.nn.bias_add(op2, op3)
-    op5 = relay.qnn.op.requantize(op4,
-                                  input_scale=relay.const(0.05),
-                                  input_zero_point=relay.const(0),
-                                  output_scale=relay.const(0.212),
-                                  output_zero_point=relay.const(10),
-                                  out_dtype="int8")
+    op5 = relay.qnn.op.requantize(
+        op4,
+        input_scale=relay.const(0.05),
+        input_zero_point=relay.const(0),
+        output_scale=relay.const(0.212),
+        output_zero_point=relay.const(10),
+        out_dtype="int8",
+    )
     relay_mod = tvm.IRModule.from_expr(op5)
 
     target_hexagon = tvm.target.hexagon("v68")
@@ -134,7 +159,7 @@ def test_qnn_dense_bias_rq(hexagon_session: Session):
             tvm.target.Target(target_llvm, host=target_llvm),
             executor=executor,
         )
-    
+
     data_np = np.random.rand(*data_shape) - 0.5
     weight_np = np.random.rand(*weight_shape) - 0.5
     bias_np = np.random.rand(*bias_shape)

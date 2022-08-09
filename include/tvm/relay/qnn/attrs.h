@@ -199,15 +199,6 @@ struct QConv2DAttrs : public tvm::AttrsNode<QConv2DAttrs> {
     TVM_ATTR_FIELD(out_dtype)
         .set_default(NullValue<DataType>())
         .describe("Output data type, set to explicit type under mixed precision setting");
-
-    TVM_ATTR_FIELD(axis)
-        .describe(
-            "The channel axis for channel wise requantization. Default value is -1,"
-            "which corresponds to the last axis.")
-        .set_default(-1);
-    TVM_ATTR_FIELD(rq_out_dtype)
-        .set_default(NullValue<DataType>())
-        .describe("Requantized output data type");
   }
 };
 
@@ -230,15 +221,6 @@ struct QDenseAttrs : public tvm::AttrsNode<QDenseAttrs> {
     TVM_ATTR_FIELD(out_dtype)
         .set_default(NullValue<DataType>())
         .describe("Output data type, set to explicit type under mixed precision setting");
-
-    TVM_ATTR_FIELD(axis)
-        .describe(
-            "The channel axis for channel wise requantization. Default value is -1,"
-            "which corresponds to the last axis.")
-        .set_default(-1);
-    TVM_ATTR_FIELD(rq_out_dtype)
-        .set_default(NullValue<DataType>())
-        .describe("Requantized output data type");
   }
 };
 
