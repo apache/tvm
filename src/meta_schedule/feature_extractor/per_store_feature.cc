@@ -894,7 +894,7 @@ void Feature::SubFeature::SetStride(const LoopNest& loop_nest, arith::Analyzer* 
 void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_touch_bytes,
                                    const ForBufferMap<IntVec>& buffer_touched_under_loop) {
   const BufferNode* buffer = this->buffer;
-  // Step 0. Collect all `Var`s that appears in the buffer region
+  // Step 3.1. Collect all `Var`s that appears in the buffer region
   std::unordered_set<const VarNode*> region_vars;
   for (const MultiIndex& multi_index : this->multi_indices) {
     for (const PrimExpr& index : multi_index) {
