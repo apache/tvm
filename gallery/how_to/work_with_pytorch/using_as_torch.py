@@ -15,11 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Wrap Your Tensor IR with PyTorch Module
+Wrap Your TVMscript with PyTorch Module
 ======================
 **Author**: `Yaoda Zhou <https://github.com/juda/>`_
-This article is an introductory tutorial to wrap the Tensor IR code with PyTorch module.
-By the decorator `as_torch`, users are able to wrap a TVMscript code into an PyTorch nn.Module naturally.
+This article is an introductory tutorial on wrapping the TVMscript code with the PyTorch module.
+By the decorator `as_torch`, users can wrap a TVMscript code into a PyTorch nn.Module naturally.
 """
 
 # sphinx_gallery_start_ignore
@@ -43,13 +43,13 @@ from tvm.script import tir as T
 # PyTorch is a very popular machine learning framework in which
 # it highly optimizes most commonly used operators.
 # Nevertheless, sometimes you might want to write your own operators
-# while the performance in PyTorch is not fully satisfactory.
+# in PyTorch, but the performance could be not satisfactory.
 #
 # For example, assume you are writing a variance of MobileNet,
-# and you need to define an 1-d depthwise convolution.
+# and you need to define a 1-d depthwise convolution operator.
 # Assume the number of in_channel and out_channel are both 700,
 # the width is 800 and the kernel size is 50,
-# Then it could be written by PyTorch in one line:
+# then the 1-d depthwise conv could be written by PyTorch in one line:
 
 in_channel = 700
 out_channel = 700
@@ -61,14 +61,14 @@ def torch_depthwise(inputs, filters):
     return F.conv1d(inputs, filters.view(700, 1, 50), groups=700)
 
 
-# We can run this function as
+# We can run this function as:
 
 inputs = torch.randn(700, 800).cuda()
 filters = torch.randn(700, 50).cuda()
 ret_torch = torch_depthwise(inputs, filters)
 
 # The `torch_depthwise` function, in a plain python code,
-# could be written as
+# could be written as:
 
 
 def vanilla_depthwise(input, weight):
@@ -82,7 +82,7 @@ def vanilla_depthwise(input, weight):
 
 # We plan to optimize the `depthwise` function by
 # leveraging the power of TVMscript.
-# A simple TVMscript code, can be rewritten as:
+# We can write such a simple TVMscript code:
 
 
 @as_torch
@@ -101,7 +101,7 @@ class tvm_depthwise:
                         C[j, i] += B[j, k] * A[j, i + k]
 
 
-# We can verify that two function are the same:
+# We can verify that the two functions are the same:
 
 ret_tvm = torch.zeros(700, 800 - 50 + 1).cuda()
 tvm_depthwise(inputs, filters, ret_tvm)
@@ -115,7 +115,7 @@ testing.assert_allclose(ret_torch.cpu().numpy(), ret_tvm.cpu().numpy(), atol=1e-
 ######################################################################
 # Benchmark
 # -------------------------------
-# We will compare two operators by using PyTorch's benchmark toolkit
+# We will compare two operators by using PyTorch's benchmark toolkit.
 
 results = []
 for i in range(5):
@@ -149,4 +149,4 @@ compare.print()
 
 # In the working machine, the average inference time of `tvm_depthwise` is 42.5 us,
 # while the average inference time of `torch_depthwise` is 66.0 us,
-# improving the performance by around 1/3.
+# showing the performance arises by around 1/3.
