@@ -22,10 +22,10 @@ from .ty import void, boolean, handle, Ptr, Tuple, Buffer
 from .prim_func import prim_func
 
 # add all floating point and integer datatypes to the module
-for dtype in ["float", "uint", "int"]:
-    for size in ["8", "16", "32", "64"]:
-        for lanes in ["", "x4", "x8", "x16", "x32"]:
+for _dtype in ["float", "uint", "int"]:
+    for _size in ["8", "16", "32", "64"]:
+        for _lanes in ["", "x4", "x8", "x16", "x32"]:
             from . import ty
 
-            name = dtype + size + lanes
-            globals()[name] = getattr(ty, name)
+            _name = _dtype + _size + _lanes
+            globals()[_name] = getattr(ty, _name)

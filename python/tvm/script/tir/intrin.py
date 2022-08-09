@@ -43,17 +43,21 @@ def bool(imm, span):
 
 
 # register all datatypes
-for dtype in ["float", "uint", "int"]:
-    for size in ["8", "16", "32", "64"]:
-        for lanes in ["", "x4", "x8", "x16", "x32"]:
-            name = dtype + size + lanes
-            print(name)
+for _dtype in ["float", "uint", "int"]:
+    for _size in ["8", "16", "32", "64"]:
+        for _lanes in ["", "x4", "x8", "x16", "x32"]:
+            _name = _dtype + _size + _lanes
 
-            def f(imm, span):
-                return imm.astype(name, span)
+            # nest closures so we copy the name string
+            def wrap(name):
+                def f(imm, span):
+                    return imm.astype(name, span)
 
-            f.__name__ = name
-            register(f)
+                f.__name__ = name
+                return f
+
+            _intrin = wrap(_name)
+            register(_intrin)
 
 
 @register
