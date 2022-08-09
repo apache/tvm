@@ -303,8 +303,7 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
     static auto flower_call = tvm::runtime::Registry::Get("relay.backend.lower_call");
     ICHECK(flower_call) << "relay.backend.lower_call is not registered.";
 
-    // Should be changed on kDLHexagon
-    if (target_->kind->device_type == kDLCPU) pattern_matcher_.Register(call_node);
+    if (target_->kind->device_type == kDLHexagon) pattern_matcher_.Register(call_node);
 
     Array<te::Tensor> inputs;
     int count_tuple = 0;

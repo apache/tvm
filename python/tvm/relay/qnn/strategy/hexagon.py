@@ -23,8 +23,7 @@ from ... import op as _op
 from ...op.strategy.generic import is_depthwise_conv2d
 
 
-# TODO: This is POC code. Change it on "hexagon" instead of "cpu"
-@qnn_quantize_strategy.register("cpu")
+@qnn_quantize_strategy.register("hexagon")
 def qnn_quantize_strategy_hexagon(attrs, inputs, out_type, target):
     """qnn.quantize strategy for Hexagon"""
     strategy = _op.OpStrategy()
@@ -36,8 +35,7 @@ def qnn_quantize_strategy_hexagon(attrs, inputs, out_type, target):
     return strategy
 
 
-# TODO: This is POC code. Change it on "hexagon" instead of "cpu"
-@qnn_dequantize_strategy.register("cpu")
+@qnn_dequantize_strategy.register("hexagon")
 def qnn_dequantize_strategy_hexagon(attrs, inputs, out_type, target):
     """qnn.dequantize strategy for Hexagon"""
     strategy = _op.OpStrategy()
@@ -49,8 +47,7 @@ def qnn_dequantize_strategy_hexagon(attrs, inputs, out_type, target):
     return strategy
 
 
-# TODO: This is POC code. Change it on "hexagon" instead of "cpu"
-@qnn_requantize_strategy.register("cpu")
+@qnn_requantize_strategy.register("hexagon")
 def qnn_requantize_strategy_hexagon(attrs, inputs, out_type, target):
     """qnn.requantize strategy for Hexagon"""
     strategy = _op.OpStrategy()
@@ -62,8 +59,7 @@ def qnn_requantize_strategy_hexagon(attrs, inputs, out_type, target):
     return strategy
 
 
-# TODO: This is POC code. Change it on "hexagon" instead of "cpu"
-@qnn_add_strategy.register("cpu")
+@qnn_add_strategy.register("hexagon")
 def qnn_add_strategy_hexagon(attrs, inputs, out_type, target):
     """qnn.add strategy for Hexagon"""
     strategy = _op.OpStrategy()
@@ -75,8 +71,7 @@ def qnn_add_strategy_hexagon(attrs, inputs, out_type, target):
     return strategy
 
 
-# TODO: This is POC code. Change it on "hexagon" instead of "cpu"
-@qnn_concatenate_strategy.register("cpu")
+@qnn_concatenate_strategy.register("hexagon")
 def qnn_concatenate_strategy_hexagon(attrs, inputs, out_type, target):
     """qnn.concatenate strategy for Hexagon"""
     strategy = _op.OpStrategy()
@@ -88,8 +83,7 @@ def qnn_concatenate_strategy_hexagon(attrs, inputs, out_type, target):
     return strategy
 
 
-# TODO: This is POC code. Change it on "hexagon" instead of "cpu"
-@qnn_conv2d_strategy.register("cpu")
+@qnn_conv2d_strategy.register("hexagon")
 def qnn_conv2d_strategy_hexagon(attrs, inputs, out_type, target):
     """qnn.conv2d strategy for Hexagon"""
     data = inputs[0]
@@ -118,8 +112,7 @@ def qnn_conv2d_strategy_hexagon(attrs, inputs, out_type, target):
     return strategy
 
 
-# TODO: This is POC code. Change it on "hexagon" instead of "cpu"
-@qnn_dense_strategy.register("cpu")
+@qnn_dense_strategy.register("hexagon")
 def qnn_dense_strategy_hexagon(attrs, inputs, out_type, target):
     """qnn.dense strategy for Hexagon"""
     strategy = _op.OpStrategy()
@@ -131,8 +124,7 @@ def qnn_dense_strategy_hexagon(attrs, inputs, out_type, target):
     return strategy
 
 
-# TODO: This is POC code. Change it on "hexagon" instead of "cpu"
-@qnn_batch_matmul_strategy.register("cpu")
+@qnn_batch_matmul_strategy.register("hexagon")
 def qnn_batch_matmul_strategy_hexagon(attrs, inputs, out_type, target):
     """qnn.batch_matmul strategy for Hexagon"""
     strategy = _op.OpStrategy()
