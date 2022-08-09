@@ -50,8 +50,19 @@ def count_num_calls(mod):
     return counter.count
 
 
-def assert_partitioned_function(orig_mod, cmsisnn_mod):
-    """If kCompiler attribute is missing, this function raises assertion"""
+def assert_partitioned_function(orig_mod, cmsisnn_mod, is_num_calls_same=True):
+    """
+    if KCompiler attribute is missing, this function raises an assertion.
+
+    Parameters
+    ----------
+    orig_mod : IRModule
+        Pre-partitioning module
+    cmsisnn_mod : IRModule
+        Post-partitioning module
+    is_num_calls_same: bool
+        Are number of CallNode(s) before and after partitioning expected to be the same
+    """
     attrs = [
         cmsisnn_mod[var.name_hint].attrs
         for var in cmsisnn_mod.get_global_vars()
@@ -64,9 +75,10 @@ def assert_partitioned_function(orig_mod, cmsisnn_mod):
     ]
     assert any(compilers), "Module does not contain function for cmsisnn target."
 
-    assert count_num_calls(orig_mod) == count_num_calls(
-        cmsisnn_mod
-    ), "Number of calls changed during partitioning"
+    if is_num_calls_same:
+        assert count_num_calls(orig_mod) == count_num_calls(
+            cmsisnn_mod
+        ), "Number of calls changed during partitioning"
 
 
 def assert_no_external_function(mod):

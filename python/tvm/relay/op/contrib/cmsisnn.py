@@ -59,6 +59,7 @@ def partition_for_cmsisnn(mod, params=None, mod_name="default", **opts):
             transform.AnnotateTarget("cmsis-nn"),
             transform.PartitionGraph(mod_name=mod_name),
             GenerateCMSISNNConstants(),
+            CMSISNNFusePads(),
             ScalarToTensorConstants(),
             ExtractConstantsFromPartitionedFunction(),
             transform.InferType(),
@@ -92,9 +93,16 @@ def pattern_table():
         )
 
     def qnn_conv2d_pattern():
-        """Create pattern for qnn.conv2D with optional fused relu."""
+        """Create pattern for qnn.conv2D with optional pad and/or optional fused relu."""
+        optional_pad = is_op("nn.pad")(wildcard(), is_constant())
+
         qnn_conv2d = is_op("qnn.conv2d")(
-            wildcard(), is_constant(), is_constant(), is_constant(), is_constant(), is_constant()
+            optional_pad | wildcard(),
+            is_constant(),
+            is_constant(),
+            is_constant(),
+            is_constant(),
+            is_constant(),
         )
         bias_add = is_op("nn.bias_add")(qnn_conv2d, is_constant())
         req = is_op("qnn.requantize")(
@@ -122,6 +130,25 @@ def pattern_table():
         conv2d_input = conv2d.args[0]
         conv2d_weight = conv2d.args[1]
 
+        # check if sum of paddings from pad() and conv2d() satisfies CMSIS-NN constraints
+        can_pad_be_fused = True
+        if isinstance(conv2d_input, tvm.relay.expr.Call) and str(conv2d_input.op.name) == "nn.pad":
+            data_layout = conv2d.attrs.data_layout
+            conv2d_padding = conv2d.attrs.padding  # (top, left, bottom, right)
+            pad = conv2d_input
+            pad_width = pad.attrs.pad_width
+            pad_width_w = pad_width[data_layout.find("W")]  # (left, right)
+            pad_width_h = pad_width[data_layout.find("H")]  # (top, bottom)
+            # calculate effective padding post pad fusion
+            pad_top = pad_width_h[0] + conv2d_padding[0]
+            pad_bottom = pad_width_h[1] + conv2d_padding[2]
+            pad_left = pad_width_w[0] + conv2d_padding[1]
+            pad_right = pad_width_w[1] + conv2d_padding[3]
+            # check if difference in the side paddings is 1 along each dimension
+            pad_w_diff = int(pad_right - pad_left)
+            pad_h_diff = int(pad_bottom - pad_top)
+            can_pad_be_fused = pad_w_diff in [0, 1] and pad_h_diff in [0, 1]
+
         # kernel zero_point should be 0
         kernel_zp = conv2d.args[3].data.numpy()
         kernel_zp = [kernel_zp] if kernel_zp.ndim == 0 else kernel_zp
@@ -144,6 +171,7 @@ def pattern_table():
             and bias_dtype == "int32"
             and all([zp == 0 for zp in kernel_zp])
             and (not is_depthwise or bias_add is not None)
+            and can_pad_be_fused
         )
 
     def qnn_fully_connected_pattern():
