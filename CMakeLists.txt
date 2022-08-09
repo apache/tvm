@@ -216,6 +216,17 @@ else(MSVC)
   endif()
   message(STATUS "Forbidding undefined symbols in shared library, using ${TVM_NO_UNDEFINED_SYMBOLS} on platform ${CMAKE_SYSTEM_NAME}")
 
+  # Set the macOS version to >= 10.13 and iOS version to >= 10.0. This is to
+  # enable libc++ functionality that was unavailable in older versions of the
+  # OS (shared_mutex in particular).
+  if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    set(CMAKE_C_FLAGS "-mmacosx-version-min=10.13 ${CMAKE_C_FLAGS}")
+    set(CMAKE_CXX_FLAGS "-mmacosx-version-min=10.13 ${CMAKE_CXX_FLAGS}")
+  elseif(${CMAKE_SYSTEM_NAME} MATCHES "iOS")
+    set(CMAKE_C_FLAGS "-mios-version-min=10.0 ${CMAKE_C_FLAGS}")
+    set(CMAKE_CXX_FLAGS "-mios-version-min=10.0 ${CMAKE_CXX_FLAGS}")
+  endif()
+
   # Detect if we're compiling for Hexagon.
   set(TEST_FOR_HEXAGON_CXX
       "#ifndef __hexagon__"
