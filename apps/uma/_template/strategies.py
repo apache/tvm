@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,23 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Strategies for the my_ai_hw accelerator"""
 
-set -euxo pipefail
+# Example how to integrate a custom conv1d strategy:
 
-BUILD_DIR=$1
-mkdir -p "$BUILD_DIR"
-cd "$BUILD_DIR"
-cp ../cmake/config.cmake .
+# @relay.op.strategy.override_native_generic_func("custom_conv1d_strategy")
+# def custom_conv1d_strategy(attrs, inputs, out_type, target):
+#     strategy = _op.OpStrategy()
+#     strategy.add_implementation(
+#         wrap_compute_conv1d(custom_conv1d_compute),
+#         wrap_topi_schedule(custom_conv1d_schedule),
+#         name="custom_conv1d.generic",
+#     return strategy
+#
 
-echo set\(USE_SORT ON\) >> config.cmake
-echo set\(USE_MICRO ON\) >> config.cmake
-echo set\(USE_CMSISNN ON\) >> config.cmake
-echo set\(USE_ETHOSU ON\) >> config.cmake
-echo set\(USE_UMA ON\) >> config.cmake
-echo set\(USE_PROFILER ON\) >> config.cmake
-echo set\(USE_LLVM llvm-config-10\) >> config.cmake
-echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
-echo set\(HIDE_PRIVATE_SYMBOLS ON\) >> config.cmake
-echo set\(USE_CCACHE OFF\) >> config.cmake
-echo set\(SUMMARIZE ON\) >> config.cmake
-
+# For further details see:
+# - github.com/apache/tvm-rfcs/blob/main/rfcs/0060_UMA_Unified_Modular_Accelerator_Interface.md
+# - $TVM_HOME/python/tvm/relay/op/strategy/x86.py
