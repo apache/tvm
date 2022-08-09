@@ -428,11 +428,11 @@ def tune_tir(
     if blocks is not None:
         assert space is None, "Can not specify blocks to tune when a search space is given."
         # Create a filter function to identify named blocks.
-        def _filter_fn(block, target_names) -> bool:
+        def _f_block_filter(block, target_names) -> bool:
             return block.name_hint in target_names
 
         # Create a space generator that targets specific blocks.
-        space = PostOrderApply(filter_fn=lambda block: _filter_fn(block, blocks))
+        space = PostOrderApply(f_block_filter=lambda block: _f_block_filter(block, blocks))
 
     # pylint: disable=protected-access
     mod = default_config.mod(mod)
