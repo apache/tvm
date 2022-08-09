@@ -2049,10 +2049,10 @@ def test_forward_zero_pad2d():
 @tvm.testing.uses_gpu
 def test_forward_constant_pad1d():
     inp = torch.rand((1, 2, 4))
-    verify_model(torch.nn.ConstantPad2d(2, 3.5).eval(), inp)
+    verify_model(torch.nn.ConstantPad1d(2, 3.5).eval(), inp)
 
     inp = torch.rand((1, 2, 3))
-    verify_model(torch.nn.ConstantPad2d((3, 1), 3.5).eval(), inp)
+    verify_model(torch.nn.ConstantPad1d((3, 1), 3.5).eval(), inp)
 
 
 @tvm.testing.uses_gpu

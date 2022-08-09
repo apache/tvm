@@ -1905,7 +1905,7 @@ class PyTorchOpConverter:
 
         # initialize paddings based on input len
         pad_len = len(self.infer_shape(data)) * 2
-        paddings = [pad_value] * pad_len
+        paddings = [0] * pad_len
 
         if len(pad_list) >= 2:
             paddings[-1] = pad_list[1]
@@ -1928,7 +1928,12 @@ class PyTorchOpConverter:
                 if isinstance(p, _expr.Expr):
                     p = int(_infer_value(p, {}).numpy())
                 elif isinstance(p, float):
-                    p = int(p)
+                    if p == float("inf"):
+                        p = sys.maxsize
+                    elif p == float("-inf"):
+                        p = -sys.maxsize - 1
+                    else:
+                        p = int(float)
                 elif not isinstance(p, int):
                     raise NotImplementedError("pad value should be int/float/expr")
                 const_paddings[-1].append(p)
