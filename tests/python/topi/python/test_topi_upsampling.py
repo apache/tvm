@@ -101,8 +101,16 @@ def verify_upsampling(
         check_target(target, dev)
 
 
-@tvm.testing.uses_gpu
 def test_int_div_upsampling():
+    """Test whether upsampling op is tilable when scale_h and scale_w is integer.
+
+    Compute_at cannot work correctly in the original floating-point multiplication.
+    After using integer division,compute_at can work correctly and reduce the
+    capacity of cache buffer.
+
+    In this test case, scale_h and scale_w are set to integers, the size
+    of cache buffer should be equal to (h_i/scale_h * w_i/scale_w * c_i).
+    """
     dtype = "int8"
     scale_h = 2
     scale_w = 2

@@ -23,17 +23,17 @@ from tvm.topi.utils import nchw_pack_layout, nchw_xc_layout
 from .. import tag
 
 
-def can_multiple2div(image, target):
-    """Check whether can transform multiplion to division"""
+def can_convert_multiply_to_intdiv(origin_size, scaled_size):
+    """Check whether can convert multiplication to division"""
     # Only support IntImm type
-    if not isinstance(target, tvm.tir.expr.IntImm):
+    if not isinstance(scaled_size, tvm.tir.expr.IntImm):
         return False
 
-    div = target / image.astype("float")
+    div = scaled_size / origin_size.astype("float")
     if div.value % 1 != 0:
         return False
     epsilon = 1e-5
-    check = 1 / (epsilon * image + epsilon)
+    check = 1 / (epsilon * origin_size + epsilon)
     if div > check:
         return False
     return True
@@ -629,8 +629,8 @@ def _resize_2d(
     height_use_int_div = False
     width_use_int_div = False
     if method == "nearest_neighbor" and coordinate_transformation_mode == "asymmetric":
-        height_use_int_div = can_multiple2div(image_height, target_height)
-        width_use_int_div = can_multiple2div(image_width, target_width)
+        height_use_int_div = can_convert_multiply_to_intdiv(image_height, target_height)
+        width_use_int_div = can_convert_multiply_to_intdiv(image_width, target_width)
 
     n, c, y, x, cc, inum, ic = get_2d_indices(indices, layout)
     box_idx = box_indices(n) if box_indices is not None else n
