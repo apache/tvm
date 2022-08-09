@@ -22,7 +22,6 @@ from typing import List
 
 import pytest
 import tvm
-from tvm.meta_schedule.default_config import target
 import tvm.testing
 from tvm._ffi import register_func
 from tvm.error import TVMError
