@@ -201,7 +201,7 @@ else(MSVC)
       set(TVM_VISIBILITY_FLAG "-fvisibility=hidden")
     endif(HIDE_PRIVATE_SYMBOLS)
   endif ()
-  if (CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND
+  if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang" AND
       CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 7.0)
     set(CMAKE_CXX_FLAGS "-faligned-new ${CMAKE_CXX_FLAGS}")
   endif()
