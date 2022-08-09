@@ -117,7 +117,7 @@ class GraphExecutorDebug : public GraphExecutor {
       LOG(FATAL) << "RPC measurements should not use RunIndividualNode!";
     }
 
-    if (!op_execs_[node_index]) {
+    if (!op_execs_[node_index] || nodes_[node_index].param.func_name == "__nop") {
       // don't return anything...
       std::ostringstream os;
       double zero = 0;

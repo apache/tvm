@@ -21,7 +21,7 @@
 namespace tvm {
 namespace meta_schedule {
 
-/*! \brief Collecting all the non-root blocks */
+/*! \brief Collecting all the blocks */
 class BlockCollector : public tir::StmtVisitor {
  public:
   static Array<tir::BlockRV> Collect(const tir::Schedule& sch) {  //

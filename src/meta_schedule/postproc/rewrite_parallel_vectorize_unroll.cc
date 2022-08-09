@@ -303,11 +303,14 @@ bool FindAnnotatedRootBlock(const Schedule& sch, ParsedAnnotation* parsed, Block
     const GlobalVar& g_var = kv.first;
     const BaseFunc& base_func = kv.second;
     if (const auto* prim_func = base_func.as<PrimFuncNode>()) {
-      Block block = Downcast<BlockRealize>(prim_func->body)->block;
-      if (ParseAnnotation(block, parsed)) {
-        *root_rv = sch->GetBlock(block->name_hint, g_var->name_hint);
-        RemoveParsedAnn(sch, *root_rv, *parsed);
-        return true;
+      const BlockRealizeNode* block_realize = prim_func->body.as<BlockRealizeNode>();
+      if (block_realize != nullptr) {
+        Block block = block_realize->block;
+        if (ParseAnnotation(block, parsed)) {
+          *root_rv = sch->GetBlock(block->name_hint, g_var->name_hint);
+          RemoveParsedAnn(sch, *root_rv, *parsed);
+          return true;
+        }
       }
     }
   }

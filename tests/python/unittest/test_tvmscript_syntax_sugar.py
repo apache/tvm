@@ -200,7 +200,7 @@ def test_dynamic_shape_gemm():
 @T.prim_func
 def preflattened_buffer_map(A: T.handle, B: T.handle):
     A_1 = T.match_buffer(A, [1])
-    T.preflattened_buffer(A_1, [1], align=T.int32(1), offset_factor=T.int64(2))
+    T.preflattened_buffer(A_1, [1], align=1, offset_factor=2)
     B_1 = T.match_buffer(B, [1])
     T.preflattened_buffer(B_1, [1])
     B_1[0] = A_1[0]

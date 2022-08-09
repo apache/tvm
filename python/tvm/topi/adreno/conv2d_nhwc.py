@@ -210,8 +210,11 @@ def schedule_conv2d_NHWC(cfg, s, output):
       5d tensors
     4. pad should be scheduled separately to create independent opencl kernel. If pad is
        inlined into convolution, this gives 1.5x performance drop
-    5. We are using cache_read to produce texture and guarantee the best performance
-       on the next stage.
+    5. We are using cache_read for intermediate tensors to produce texture and guarantee
+       the best performance on the next stage.
+       The weights are managed through static texture planning mechanism and guarantied come
+       in texture memory scope.
+       Thus way we are calling cache_read only for data tensor
     6. For 5d convolution we schedule the latest op with binding 5d axis and vectorize
        for textures
        For 4d tensor we are doing the same for the latest blocked stage, i.e. conversion
@@ -287,8 +290,13 @@ def schedule_conv2d_NHWC(cfg, s, output):
     # create cache stage
     AT = s.cache_read(pad_data, get_texture_storage(pad_data.shape), [conv])
     bind_data_copy(s[AT])
-    WT = s.cache_read(kernel, get_texture_storage(kernel.shape), [conv])
-    bind_data_copy(s[WT])
+    if (
+        autotvm.GLOBAL_SCOPE.in_tuning
+        or isinstance(kernel.op, tvm.te.ComputeOp)
+        and "filter_pack" in kernel.op.tag
+    ):
+        WT = s.cache_read(kernel, get_texture_storage(kernel.shape), [conv])
+        bind_data_copy(s[WT])
 
     # tile and bind spatial axes
     n, y, x, fc, fb = s[latest_blocked].op.axis

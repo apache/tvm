@@ -349,3 +349,55 @@ class _DefaultCUDA:
             M.MutateUnroll(): 0.08,
             M.MutateThreadBinding(): 0.02,
         }
+
+
+class _DefaultCUDATensorCore:
+    """Default tuning configuration for CUDA TensorCore."""
+
+    @staticmethod
+    def schedule_rules():
+        from tvm.meta_schedule import schedule_rule as M
+        from tvm.tir.tensor_intrin import get_wmma_intrin_group
+
+        return [
+            M.MultiLevelTilingTensorCore(
+                intrin_groups=[
+                    get_wmma_intrin_group(
+                        store_scope="shared",
+                        in_dtype="float16",
+                        out_dtype="float16",
+                        trans_b=trans_b,
+                    )
+                    for trans_b in [False, True]
+                ],
+                structure="SSSRRSRS",
+                tile_binds=["blockIdx.y", "blockIdx.x", "threadIdx.y"],
+                max_innermost_factor=4,
+                vector_load_lens=[1, 2, 3, 4],
+                reuse_read=M.ReuseType(req="must", levels=[4], scope="shared"),
+                reuse_write=M.ReuseType(
+                    req="must",
+                    levels=[2],
+                    scope="shared",
+                ),
+            ),
+            *_DefaultCUDA.schedule_rules(),
+        ]
+
+    @staticmethod
+    def postprocs() -> List[Postproc]:
+        from tvm.meta_schedule import postproc as M
+
+        return [
+            M.DisallowDynamicLoop(),
+            M.RewriteCooperativeFetch(),
+            M.RewriteUnboundBlock(),
+            M.RewriteParallelVectorizeUnroll(),
+            M.RewriteReductionBlock(),
+            M.RewriteTensorize(),
+            M.VerifyGPUCode(),
+        ]
+
+    @staticmethod
+    def mutator_probs() -> Dict[Mutator, float]:
+        return _DefaultCUDA.mutator_probs()

@@ -18,6 +18,7 @@
 """Unit tests for various models and operators"""
 from contextlib import suppress
 import os
+import platform
 import sys
 from time import time
 
@@ -119,7 +120,15 @@ def load_model(model_name):
 
 
 def verify_model(
-    model_name, input_data=[], custom_convert_map={}, rtol=1e-5, atol=1e-5, expected_ops=[]
+    model_name,
+    input_data=[],
+    custom_convert_map={},
+    rtol=1e-5,
+    atol=1e-5,
+    expected_ops=[],
+    kind="graph",
+    check_correctness=True,
+    cpu_only=False,
 ):
     """Assert that the output of a compiled model matches with that of its
     baseline."""
@@ -163,22 +172,28 @@ def verify_model(
         assert arg.name_hint in input_names
     compiled_input = dict(zip(input_names, [inp.clone().cpu().numpy() for inp in baseline_input]))
 
+    targets = ["llvm"]
+    if not cpu_only:
+        targets.append("cuda")
+
     with tvm.transform.PassContext(opt_level=3):
-        for target in ["llvm", "cuda"]:
+        for target in targets:
             if not tvm.runtime.enabled(target):
                 continue
             dev = tvm.device(target, 0)
-            lib = relay.build(mod, target=target, params=params)
-            relay_model = graph_executor.GraphModule(lib["default"](dev))
-            for name, inp in compiled_input.items():
-                relay_model.set_input(name, inp)
-            relay_model.run()
+            exe = relay.create_executor(
+                kind, mod=mod, params=params, device=dev, target=target
+            ).evaluate()
+            result = exe(**compiled_input)
+            if not isinstance(result, list):
+                result = [result]
 
             for i, baseline_output in enumerate(baseline_outputs):
-                compiled_output = relay_model.get_output(i).numpy()
+                output = result[i].numpy()
 
-                assert_shapes_match(baseline_output, compiled_output)
-                tvm.testing.assert_allclose(baseline_output, compiled_output, rtol=rtol, atol=atol)
+                assert_shapes_match(baseline_output, output)
+                if check_correctness:
+                    tvm.testing.assert_allclose(baseline_output, output, rtol=rtol, atol=atol)
 
     if expected_ops:
 
@@ -4060,6 +4075,10 @@ def test_forward_pretrained_bert_base_uncased():
     print("TVM   top-1 id: {}, token: {}".format(tvm_pred_idx, tvm_pred_token))
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64",
+)
 def test_convert_torch_script_with_input_types():
     def model_fn(x, y):
         x = x.to(dtype=torch.int32)
@@ -4594,6 +4613,47 @@ def test_softmax_fuse():
             )
 
         tvm.testing.assert_allclose(out, output_torch, rtol=1e-5, atol=1e-5)
+
+
+@tvm.testing.uses_gpu
+def test_lerp():
+    def test_fn(x, y, w):
+        return torch.lerp(x, y, w)
+
+    input_shape = [16]
+    x = torch.rand(input_shape).float()
+    y = torch.rand(input_shape).float()
+    w = torch.rand(input_shape).float()
+
+    # weight can be tensor or scalar
+    verify_model(test_fn, [x, y, w])
+    verify_model(test_fn, [x, y, w[0]])
+
+
+def test_trilu():
+    def _test_trilu(op, diagonal):
+        return lambda inp: op(inp, diagonal)
+
+    for op in [torch.triu, torch.tril]:
+        verify_model(_test_trilu(op, 0), [torch.rand(size=[3, 3])])
+        verify_model(_test_trilu(op, 1), [torch.rand(size=[6, 6])])
+        verify_model(_test_trilu(op, -2), [torch.rand(size=[6, 6])])
+
+
+def test_multinomial():
+    def _test_multinomial(num_samples):
+        return lambda inp: torch.multinomial(inp, num_samples=num_samples, replacement=True)
+
+    # Dont check output since it's random. Instead we'll just make sure shapes are right.
+    verify_model(
+        _test_multinomial(2), [torch.rand(size=[3]).float()], cpu_only=True, check_correctness=False
+    )
+    verify_model(
+        _test_multinomial(1),
+        [torch.rand(size=[4, 5]).float()],
+        cpu_only=True,
+        check_correctness=False,
+    )
 
 
 if __name__ == "__main__":

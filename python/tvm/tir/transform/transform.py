@@ -253,6 +253,28 @@ def RemoveNoOp():
     return _ffi_api.RemoveNoOp()  # type: ignore
 
 
+def RemoveAssume():
+    """Remove all instances of builtin::assume
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RemoveAssume()  # type: ignore
+
+
+def RemoveStoreUndef():
+    """Remove stores of undefined values from the Stmt.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RemoveStoreUndef()  # type: ignore
+
+
 def BF16Legalize():
     """Legalize bf16 typed Ops.
     Runs BF16Promote, BF16CastElimination and BF16TypeLowering
@@ -769,10 +791,20 @@ def LowerMatchBuffer():
     return _ffi_api.LowerMatchBuffer()  # type: ignore
 
 
+def LowerOpaqueBlock():
+    """Remove the block to ensure that the TIR can not be scheduled again.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerOpaqueBlock()  # type: ignore
+
+
 def FlattenBuffer():
-    """Flatten the multi-dimensional BufferLoad and BufferStore
-    to single dimensional Load/Store. Also remove Block to
-    ensure that the flattened TIR can not be scheduled again.
+    """Flatten the multi-dimensional BufferLoad and BufferStore to single dimensional
+    BufferLoad/BufferStore for the TIR not contains opaque block.
 
     Returns
     -------

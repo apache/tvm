@@ -161,16 +161,6 @@ def workspace_pools_recombobulate(parsed, targets, extra_target):
         "workspace_pools_target_burst_bytes",
     ]
 
-    # Load extra targets from CLI
-    additional_targets = []
-
-    for t in extra_target:
-        additional_targets.append(Target(t["raw"], host=targets[0].host or targets[0]))
-
-    target = targets + additional_targets
-    if targets[0].host:
-        target.append(targets[0].host)
-
     workspace_pools = _split_pools_to_pool_names(parsed.workspace_pools)
     if not workspace_pools:
         return None
@@ -185,6 +175,16 @@ def workspace_pools_recombobulate(parsed, targets, extra_target):
         )
         for workspace_pool_param in WORKSPACE_POOL_TARGET_PARAMS
     }
+
+    # Load extra targets from CLI
+    additional_targets = []
+
+    for t in extra_target:
+        additional_targets.append(Target(t["raw"], host=targets[0].host or targets[0]))
+
+    target = targets + additional_targets
+    if targets[0].host:
+        target.append(targets[0].host)
 
     return WorkspaceMemoryPools(
         [

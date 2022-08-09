@@ -19,8 +19,7 @@
 
 set -eux
 
-BRANCH=$(git rev-parse --abbrev-ref HEAD)
-if [ "$BRANCH" == "main" ]; then
+if [ "${BRANCH_NAME}" == "main" ]; then
     changed_files=$(git diff --no-commit-id --name-only -r HEAD~1)
 else
     changed_files=$(git diff --no-commit-id --name-only -r origin/main)

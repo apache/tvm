@@ -669,6 +669,7 @@ def test_relay_conv2d_cmsisnn_depthwise_int8(
 
     cmsisnn_func = cmsisnn_tir_mod["tvmgen_default_cmsis_nn_main_0"]
     call_extern = None
+    # This happens when context buffer is init in case depthM != 1
     if isinstance(cmsisnn_func.body, tvm.tir.stmt.Evaluate):
         call_extern = cmsisnn_func.body.value
     else:

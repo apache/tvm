@@ -45,16 +45,16 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-07-15T13:35:24.676914
+// Generated at 2022-08-05T17:23:43.942908
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
 ci_lint = 'tlcpack/ci-lint:20220715-060127-37f9d3c49'
-ci_gpu = 'tlcpack/ci-gpu:20220715-060127-37f9d3c49'
+ci_gpu = 'tlcpack/ci-gpu:20220801-060139-d332eb374'
 ci_cpu = 'tlcpack/ci-cpu:20220715-060127-37f9d3c49'
 ci_wasm = 'tlcpack/ci-wasm:20220715-060127-37f9d3c49'
 ci_i386 = 'tlcpack/ci-i386:20220715-060127-37f9d3c49'
-ci_qemu = 'tlcpack/ci-qemu:20220630-060117-558ba99c7'
+ci_cortexm = 'tlcpack/ci-cortexm:v0.01'
 ci_arm = 'tlcpack/ci-arm:20220715-060127-37f9d3c49'
 ci_hexagon = 'tlcpack/ci-hexagon:20220715-060127-37f9d3c49'
 // <--- End of regex-scanned config.
@@ -70,10 +70,21 @@ properties([
     string(name: 'ci_hexagon_param', defaultValue: ''),
     string(name: 'ci_i386_param', defaultValue: ''),
     string(name: 'ci_lint_param', defaultValue: ''),
-    string(name: 'ci_qemu_param', defaultValue: ''),
+    string(name: 'ci_cortexm_param', defaultValue: ''),
     string(name: 'ci_wasm_param', defaultValue: ''),
   ])
 ])
+
+// Placeholders for newly built Docker image names (if rebuild_docker_images
+// is used)
+  built_ci_arm = null;
+  built_ci_cpu = null;
+  built_ci_gpu = null;
+  built_ci_hexagon = null;
+  built_ci_i386 = null;
+  built_ci_lint = null;
+  built_ci_cortexm = null;
+  built_ci_wasm = null;
 
 // Global variable assigned during Sanity Check that holds the sha1 which should be
 // merged into the PR in all branches.
@@ -171,7 +182,30 @@ def docker_init(image) {
     ecr_pull(image)
   } else {
     sh(
-      script: "docker pull ${image}",
+      script: """
+      set -eux
+      retry() {
+  local retries=\$1
+  shift
+
+  local count=0
+  until "\$@"; do
+    exit=\$?
+    wait=\$((2 ** \$count))
+    count=\$((\$count + 1))
+    if [ \$count -lt \$retries ]; then
+      echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+      sleep \$wait
+    else
+      echo "Retry \$count/\$retries exited \$exit, no more retries left."
+      return \$exit
+    fi
+  done
+  return 0
+}
+
+      retry 3 docker pull ${image}
+      """,
       label: 'Pull docker image',
     )
   }
@@ -239,7 +273,7 @@ def prepare() {
 
         if (env.DETERMINE_DOCKER_IMAGES == 'yes') {
           sh(
-            script: "./tests/scripts/determine_docker_images.py ci_arm=${ci_arm} ci_cpu=${ci_cpu} ci_gpu=${ci_gpu} ci_hexagon=${ci_hexagon} ci_i386=${ci_i386} ci_lint=${ci_lint} ci_qemu=${ci_qemu} ci_wasm=${ci_wasm} ",
+            script: "./tests/scripts/determine_docker_images.py ci_arm=${ci_arm} ci_cpu=${ci_cpu} ci_gpu=${ci_gpu} ci_hexagon=${ci_hexagon} ci_i386=${ci_i386} ci_lint=${ci_lint} ci_cortexm=${ci_cortexm} ci_wasm=${ci_wasm} ",
             label: 'Decide whether to use tlcpack or tlcpackstaging for Docker images',
           )
           // Pull image names from the results of should_rebuild_docker.py
@@ -273,9 +307,9 @@ def prepare() {
             label: "Find docker image name for ci_lint",
             returnStdout: true,
           ).trim()
-          ci_qemu = sh(
-            script: "cat .docker-image-names/ci_qemu",
-            label: "Find docker image name for ci_qemu",
+          ci_cortexm = sh(
+            script: "cat .docker-image-names/ci_cortexm",
+            label: "Find docker image name for ci_cortexm",
             returnStdout: true,
           ).trim()
           ci_wasm = sh(
@@ -291,7 +325,7 @@ def prepare() {
         ci_hexagon = params.ci_hexagon_param ?: ci_hexagon
         ci_i386 = params.ci_i386_param ?: ci_i386
         ci_lint = params.ci_lint_param ?: ci_lint
-        ci_qemu = params.ci_qemu_param ?: ci_qemu
+        ci_cortexm = params.ci_cortexm_param ?: ci_cortexm
         ci_wasm = params.ci_wasm_param ?: ci_wasm
 
         sh (script: """
@@ -302,7 +336,7 @@ def prepare() {
           echo " ci_hexagon = ${ci_hexagon}"
           echo " ci_i386 = ${ci_i386}"
           echo " ci_lint = ${ci_lint}"
-          echo " ci_qemu = ${ci_qemu}"
+          echo " ci_cortexm = ${ci_cortexm}"
           echo " ci_wasm = ${ci_wasm}"
         """, label: 'Docker image names')
 
@@ -318,6 +352,7 @@ def prepare() {
           script: './tests/scripts/git_change_docker.sh',
           label: 'Check for any docker changes',
         )
+
         if (skip_ci) {
           // Don't rebuild when skipping CI
           rebuild_docker_images = false
@@ -433,7 +468,7 @@ def build_docker_images() {
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
             // ci_arm = build_image('ci_arm')
-            build_image('ci_arm')
+            built_ci_arm = build_image('ci_arm');
           }
         }
       },
@@ -444,7 +479,7 @@ def build_docker_images() {
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
             // ci_cpu = build_image('ci_cpu')
-            build_image('ci_cpu')
+            built_ci_cpu = build_image('ci_cpu');
           }
         }
       },
@@ -455,7 +490,7 @@ def build_docker_images() {
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
             // ci_gpu = build_image('ci_gpu')
-            build_image('ci_gpu')
+            built_ci_gpu = build_image('ci_gpu');
           }
         }
       },
@@ -466,7 +501,7 @@ def build_docker_images() {
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
             // ci_hexagon = build_image('ci_hexagon')
-            build_image('ci_hexagon')
+            built_ci_hexagon = build_image('ci_hexagon');
           }
         }
       },
@@ -477,7 +512,7 @@ def build_docker_images() {
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
             // ci_i386 = build_image('ci_i386')
-            build_image('ci_i386')
+            built_ci_i386 = build_image('ci_i386');
           }
         }
       },
@@ -488,18 +523,18 @@ def build_docker_images() {
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
             // ci_lint = build_image('ci_lint')
-            build_image('ci_lint')
+            built_ci_lint = build_image('ci_lint');
           }
         }
       },
-      'ci_qemu': {
+      'ci_cortexm': {
         node('CPU') {
           timeout(time: max_time, unit: 'MINUTES') {
             init_git()
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
-            // ci_qemu = build_image('ci_qemu')
-            build_image('ci_qemu')
+            // ci_cortexm = build_image('ci_cortexm')
+            built_ci_cortexm = build_image('ci_cortexm');
           }
         }
       },
@@ -510,7 +545,7 @@ def build_docker_images() {
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
             // ci_wasm = build_image('ci_wasm')
-            build_image('ci_wasm')
+            built_ci_wasm = build_image('ci_wasm');
           }
         }
       },
@@ -649,15 +684,35 @@ stage('Build') {
           sh(
             script: """
               set -eux
+              retry() {
+                local retries=\$1
+                shift
+
+                local count=0
+                until "\$@"; do
+                  exit=\$?
+                  wait=\$((2 ** \$count))
+                  count=\$((\$count + 1))
+                  if [ \$count -lt \$retries ]; then
+                    echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                    sleep \$wait
+                  else
+                    echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                    return \$exit
+                  fi
+                done
+                return 0
+              }
+
               md5sum build/libtvm.so
-              aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/gpu/build/libtvm.so
+              retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/gpu/build/libtvm.so
               md5sum build/libvta_fsim.so
-              aws s3 cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/gpu/build/libvta_fsim.so
+              retry 3 aws s3 cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/gpu/build/libvta_fsim.so
               md5sum build/libtvm_runtime.so
-              aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/gpu/build/libtvm_runtime.so
+              retry 3 aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/gpu/build/libtvm_runtime.so
               md5sum build/config.cmake
-              aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/gpu/build/config.cmake
-              aws s3 cp --no-progress build/microtvm_template_projects s3://${s3_prefix}/gpu/build/microtvm_template_projects --recursive
+              retry 3 aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/gpu/build/config.cmake
+              retry 3 aws s3 cp --no-progress build/microtvm_template_projects s3://${s3_prefix}/gpu/build/microtvm_template_projects --recursive
             """,
             label: 'Upload artifacts to S3',
           )
@@ -669,14 +724,34 @@ stage('Build') {
           sh(
             script: """
               set -eux
+              retry() {
+                local retries=\$1
+                shift
+
+                local count=0
+                until "\$@"; do
+                  exit=\$?
+                  wait=\$((2 ** \$count))
+                  count=\$((\$count + 1))
+                  if [ \$count -lt \$retries ]; then
+                    echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                    sleep \$wait
+                  else
+                    echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                    return \$exit
+                  fi
+                done
+                return 0
+              }
+
               md5sum build/libtvm.so
-              aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/gpu2/build/libtvm.so
+              retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/gpu2/build/libtvm.so
               md5sum build/libvta_fsim.so
-              aws s3 cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/gpu2/build/libvta_fsim.so
+              retry 3 aws s3 cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/gpu2/build/libvta_fsim.so
               md5sum build/libtvm_runtime.so
-              aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/gpu2/build/libtvm_runtime.so
+              retry 3 aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/gpu2/build/libtvm_runtime.so
               md5sum build/config.cmake
-              aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/gpu2/build/config.cmake
+              retry 3 aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/gpu2/build/config.cmake
             """,
             label: 'Upload artifacts to S3',
           )
@@ -699,16 +774,36 @@ stage('Build') {
           sh(
             script: """
               set -eux
+              retry() {
+                local retries=\$1
+                shift
+
+                local count=0
+                until "\$@"; do
+                  exit=\$?
+                  wait=\$((2 ** \$count))
+                  count=\$((\$count + 1))
+                  if [ \$count -lt \$retries ]; then
+                    echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                    sleep \$wait
+                  else
+                    echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                    return \$exit
+                  fi
+                done
+                return 0
+              }
+
               md5sum build/libvta_tsim.so
-              aws s3 cp --no-progress build/libvta_tsim.so s3://${s3_prefix}/cpu/build/libvta_tsim.so
+              retry 3 aws s3 cp --no-progress build/libvta_tsim.so s3://${s3_prefix}/cpu/build/libvta_tsim.so
               md5sum build/libtvm.so
-              aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/cpu/build/libtvm.so
+              retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/cpu/build/libtvm.so
               md5sum build/libvta_fsim.so
-              aws s3 cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/cpu/build/libvta_fsim.so
+              retry 3 aws s3 cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/cpu/build/libvta_fsim.so
               md5sum build/libtvm_runtime.so
-              aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/cpu/build/libtvm_runtime.so
+              retry 3 aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/cpu/build/libtvm_runtime.so
               md5sum build/config.cmake
-              aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/cpu/build/config.cmake
+              retry 3 aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/cpu/build/config.cmake
             """,
             label: 'Upload artifacts to S3',
           )
@@ -764,16 +859,36 @@ stage('Build') {
           sh(
             script: """
               set -eux
+              retry() {
+                local retries=\$1
+                shift
+
+                local count=0
+                until "\$@"; do
+                  exit=\$?
+                  wait=\$((2 ** \$count))
+                  count=\$((\$count + 1))
+                  if [ \$count -lt \$retries ]; then
+                    echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                    sleep \$wait
+                  else
+                    echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                    return \$exit
+                  fi
+                done
+                return 0
+              }
+
               md5sum build/libvta_tsim.so
-              aws s3 cp --no-progress build/libvta_tsim.so s3://${s3_prefix}/i386/build/libvta_tsim.so
+              retry 3 aws s3 cp --no-progress build/libvta_tsim.so s3://${s3_prefix}/i386/build/libvta_tsim.so
               md5sum build/libtvm.so
-              aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/i386/build/libtvm.so
+              retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/i386/build/libtvm.so
               md5sum build/libvta_fsim.so
-              aws s3 cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/i386/build/libvta_fsim.so
+              retry 3 aws s3 cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/i386/build/libvta_fsim.so
               md5sum build/libtvm_runtime.so
-              aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/i386/build/libtvm_runtime.so
+              retry 3 aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/i386/build/libtvm_runtime.so
               md5sum build/config.cmake
-              aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/i386/build/config.cmake
+              retry 3 aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/i386/build/config.cmake
             """,
             label: 'Upload artifacts to S3',
           )
@@ -798,14 +913,34 @@ stage('Build') {
           sh(
             script: """
               set -eux
+              retry() {
+                local retries=\$1
+                shift
+
+                local count=0
+                until "\$@"; do
+                  exit=\$?
+                  wait=\$((2 ** \$count))
+                  count=\$((\$count + 1))
+                  if [ \$count -lt \$retries ]; then
+                    echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                    sleep \$wait
+                  else
+                    echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                    return \$exit
+                  fi
+                done
+                return 0
+              }
+
               md5sum build/libtvm.so
-              aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/arm/build/libtvm.so
+              retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/arm/build/libtvm.so
               md5sum build/libvta_fsim.so
-              aws s3 cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/arm/build/libvta_fsim.so
+              retry 3 aws s3 cp --no-progress build/libvta_fsim.so s3://${s3_prefix}/arm/build/libvta_fsim.so
               md5sum build/libtvm_runtime.so
-              aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/arm/build/libtvm_runtime.so
+              retry 3 aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/arm/build/libtvm_runtime.so
               md5sum build/config.cmake
-              aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/arm/build/config.cmake
+              retry 3 aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/arm/build/config.cmake
             """,
             label: 'Upload artifacts to S3',
           )
@@ -816,27 +951,47 @@ stage('Build') {
       Utils.markStageSkippedForConditional('BUILD: arm')
     }
   },
-  'BUILD: QEMU': {
+  'BUILD: Cortex-M': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-qemu") {
-          docker_init(ci_qemu)
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-cortexm") {
+          docker_init(ci_cortexm)
           init_git()
           sh (
-            script: "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh build",
-            label: 'Create QEMU cmake config',
+            script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_config_build_cortexm.sh build",
+            label: 'Create Cortex-M cmake config',
           )
-          make(ci_qemu, 'build', '-j2')
+          make(ci_cortexm, 'build', '-j2')
           sh(
             script: """
               set -eux
+              retry() {
+                local retries=\$1
+                shift
+
+                local count=0
+                until "\$@"; do
+                  exit=\$?
+                  wait=\$((2 ** \$count))
+                  count=\$((\$count + 1))
+                  if [ \$count -lt \$retries ]; then
+                    echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                    sleep \$wait
+                  else
+                    echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                    return \$exit
+                  fi
+                done
+                return 0
+              }
+
               md5sum build/libtvm.so
-              aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/qemu/build/libtvm.so
+              retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/cortexm/build/libtvm.so
               md5sum build/libtvm_runtime.so
-              aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/qemu/build/libtvm_runtime.so
+              retry 3 aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/cortexm/build/libtvm_runtime.so
               md5sum build/config.cmake
-              aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/qemu/build/config.cmake
-              aws s3 cp --no-progress build/microtvm_template_projects s3://${s3_prefix}/qemu/build/microtvm_template_projects --recursive
+              retry 3 aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/cortexm/build/config.cmake
+              retry 3 aws s3 cp --no-progress build/microtvm_template_projects s3://${s3_prefix}/cortexm/build/microtvm_template_projects --recursive
             """,
             label: 'Upload artifacts to S3',
           )
@@ -844,7 +999,7 @@ stage('Build') {
         }
       }
      } else {
-      Utils.markStageSkippedForConditional('BUILD: QEMU')
+      Utils.markStageSkippedForConditional('BUILD: Cortex-M')
     }
   },
   'BUILD: Hexagon': {
@@ -865,13 +1020,33 @@ stage('Build') {
           sh(
             script: """
               set -eux
+              retry() {
+                local retries=\$1
+                shift
+
+                local count=0
+                until "\$@"; do
+                  exit=\$?
+                  wait=\$((2 ** \$count))
+                  count=\$((\$count + 1))
+                  if [ \$count -lt \$retries ]; then
+                    echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                    sleep \$wait
+                  else
+                    echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                    return \$exit
+                  fi
+                done
+                return 0
+              }
+
               md5sum build/libtvm.so
-              aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/hexagon/build/libtvm.so
+              retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/hexagon/build/libtvm.so
               md5sum build/libtvm_runtime.so
-              aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/hexagon/build/libtvm_runtime.so
+              retry 3 aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/hexagon/build/libtvm_runtime.so
               md5sum build/config.cmake
-              aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/hexagon/build/config.cmake
-              aws s3 cp --no-progress build/hexagon_api_output s3://${s3_prefix}/hexagon/build/hexagon_api_output --recursive
+              retry 3 aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/hexagon/build/config.cmake
+              retry 3 aws s3 cp --no-progress build/hexagon_api_output s3://${s3_prefix}/hexagon/build/hexagon_api_output --recursive
             """,
             label: 'Upload artifacts to S3',
           )
@@ -906,13 +1081,33 @@ def shard_run_unittest_GPU_1_of_3() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu2/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu2/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu2/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu2/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu2/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu2/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu2/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu2/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -923,13 +1118,33 @@ def shard_run_unittest_GPU_1_of_3() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -951,7 +1166,7 @@ def shard_run_unittest_GPU_1_of_3() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/unittest_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -980,13 +1195,33 @@ def shard_run_unittest_GPU_2_of_3() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -1011,7 +1246,7 @@ def shard_run_unittest_GPU_2_of_3() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/unittest_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1040,13 +1275,33 @@ def shard_run_unittest_GPU_3_of_3() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -1067,7 +1322,7 @@ def shard_run_unittest_GPU_3_of_3() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/unittest_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1082,7 +1337,7 @@ def shard_run_unittest_GPU_3_of_3() {
 }
 
 
-def shard_run_integration_CPU_1_of_6() {
+def shard_run_integration_CPU_1_of_10() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
@@ -1092,20 +1347,40 @@ def shard_run_integration_CPU_1_of_6() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TVM_NUM_SHARDS=6',
+              'TVM_NUM_SHARDS=10',
               'TVM_SHARD_INDEX=0'], {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
                           md5sum build/libvta_tsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -1122,7 +1397,7 @@ def shard_run_integration_CPU_1_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_CPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1132,11 +1407,11 @@ def shard_run_integration_CPU_1_of_6() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('integration: CPU 1 of 6')
+    Utils.markStageSkippedForConditional('integration: CPU 1 of 10')
   }
 }
 
-def shard_run_integration_CPU_2_of_6() {
+def shard_run_integration_CPU_2_of_10() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
@@ -1146,20 +1421,40 @@ def shard_run_integration_CPU_2_of_6() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TVM_NUM_SHARDS=6',
+              'TVM_NUM_SHARDS=10',
               'TVM_SHARD_INDEX=1'], {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
                           md5sum build/libvta_tsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -1176,7 +1471,7 @@ def shard_run_integration_CPU_2_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_CPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1186,11 +1481,11 @@ def shard_run_integration_CPU_2_of_6() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('integration: CPU 2 of 6')
+    Utils.markStageSkippedForConditional('integration: CPU 2 of 10')
   }
 }
 
-def shard_run_integration_CPU_3_of_6() {
+def shard_run_integration_CPU_3_of_10() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
@@ -1200,20 +1495,40 @@ def shard_run_integration_CPU_3_of_6() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TVM_NUM_SHARDS=6',
+              'TVM_NUM_SHARDS=10',
               'TVM_SHARD_INDEX=2'], {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
                           md5sum build/libvta_tsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -1230,7 +1545,7 @@ def shard_run_integration_CPU_3_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_CPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1240,11 +1555,11 @@ def shard_run_integration_CPU_3_of_6() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('integration: CPU 3 of 6')
+    Utils.markStageSkippedForConditional('integration: CPU 3 of 10')
   }
 }
 
-def shard_run_integration_CPU_4_of_6() {
+def shard_run_integration_CPU_4_of_10() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
@@ -1254,20 +1569,40 @@ def shard_run_integration_CPU_4_of_6() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TVM_NUM_SHARDS=6',
+              'TVM_NUM_SHARDS=10',
               'TVM_SHARD_INDEX=3'], {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
                           md5sum build/libvta_tsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -1284,7 +1619,7 @@ def shard_run_integration_CPU_4_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_CPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1294,11 +1629,11 @@ def shard_run_integration_CPU_4_of_6() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('integration: CPU 4 of 6')
+    Utils.markStageSkippedForConditional('integration: CPU 4 of 10')
   }
 }
 
-def shard_run_integration_CPU_5_of_6() {
+def shard_run_integration_CPU_5_of_10() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
@@ -1308,20 +1643,40 @@ def shard_run_integration_CPU_5_of_6() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TVM_NUM_SHARDS=6',
+              'TVM_NUM_SHARDS=10',
               'TVM_SHARD_INDEX=4'], {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
                           md5sum build/libvta_tsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -1338,7 +1693,7 @@ def shard_run_integration_CPU_5_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_CPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1348,11 +1703,11 @@ def shard_run_integration_CPU_5_of_6() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('integration: CPU 5 of 6')
+    Utils.markStageSkippedForConditional('integration: CPU 5 of 10')
   }
 }
 
-def shard_run_integration_CPU_6_of_6() {
+def shard_run_integration_CPU_6_of_10() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
@@ -1362,20 +1717,40 @@ def shard_run_integration_CPU_6_of_6() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TVM_NUM_SHARDS=6',
+              'TVM_NUM_SHARDS=10',
               'TVM_SHARD_INDEX=5'], {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
                           md5sum build/libvta_tsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -1392,7 +1767,7 @@ def shard_run_integration_CPU_6_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_CPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1402,7 +1777,303 @@ def shard_run_integration_CPU_6_of_6() {
       }
     }
   } else {
-    Utils.markStageSkippedForConditional('integration: CPU 6 of 6')
+    Utils.markStageSkippedForConditional('integration: CPU 6 of 10')
+  }
+}
+
+def shard_run_integration_CPU_7_of_10() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
+        try {
+          docker_init(ci_cpu)
+          init_git()
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cpu',
+              'TVM_NUM_SHARDS=10',
+              'TVM_SHARD_INDEX=6'], {
+              sh(
+                        script: """
+                          set -eux
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          md5sum build/libvta_tsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              ci_setup(ci_cpu)
+              sh (
+                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
+                label: 'Run CPU integration tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_CPU --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('integration: CPU 7 of 10')
+  }
+}
+
+def shard_run_integration_CPU_8_of_10() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
+        try {
+          docker_init(ci_cpu)
+          init_git()
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cpu',
+              'TVM_NUM_SHARDS=10',
+              'TVM_SHARD_INDEX=7'], {
+              sh(
+                        script: """
+                          set -eux
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          md5sum build/libvta_tsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              ci_setup(ci_cpu)
+              sh (
+                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
+                label: 'Run CPU integration tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_CPU --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('integration: CPU 8 of 10')
+  }
+}
+
+def shard_run_integration_CPU_9_of_10() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
+        try {
+          docker_init(ci_cpu)
+          init_git()
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cpu',
+              'TVM_NUM_SHARDS=10',
+              'TVM_SHARD_INDEX=8'], {
+              sh(
+                        script: """
+                          set -eux
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          md5sum build/libvta_tsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              ci_setup(ci_cpu)
+              sh (
+                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
+                label: 'Run CPU integration tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_CPU --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('integration: CPU 9 of 10')
+  }
+}
+
+def shard_run_integration_CPU_10_of_10() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
+        try {
+          docker_init(ci_cpu)
+          init_git()
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cpu',
+              'TVM_NUM_SHARDS=10',
+              'TVM_SHARD_INDEX=9'], {
+              sh(
+                        script: """
+                          set -eux
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          md5sum build/libvta_tsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          md5sum build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              ci_setup(ci_cpu)
+              sh (
+                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
+                label: 'Run CPU integration tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_CPU --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('integration: CPU 10 of 10')
   }
 }
 
@@ -1422,13 +2093,33 @@ def shard_run_python_i386_1_of_5() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -1447,7 +2138,7 @@ def shard_run_python_i386_1_of_5() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/python_i386 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1476,13 +2167,33 @@ def shard_run_python_i386_2_of_5() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -1501,7 +2212,7 @@ def shard_run_python_i386_2_of_5() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/python_i386 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1530,13 +2241,33 @@ def shard_run_python_i386_3_of_5() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -1554,7 +2285,7 @@ def shard_run_python_i386_3_of_5() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/python_i386 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1583,13 +2314,33 @@ def shard_run_python_i386_4_of_5() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -1607,7 +2358,7 @@ def shard_run_python_i386_4_of_5() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/python_i386 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1636,13 +2387,33 @@ def shard_run_python_i386_5_of_5() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -1660,7 +2431,7 @@ def shard_run_python_i386_5_of_5() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/python_i386 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1690,13 +2461,33 @@ def shard_run_test_Hexagon_1_of_7() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
                         """,
                         label: 'Download artifacts from S3',
                       )
@@ -1714,7 +2505,7 @@ def shard_run_test_Hexagon_1_of_7() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1743,13 +2534,33 @@ def shard_run_test_Hexagon_2_of_7() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
                         """,
                         label: 'Download artifacts from S3',
                       )
@@ -1766,7 +2577,7 @@ def shard_run_test_Hexagon_2_of_7() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1795,13 +2606,33 @@ def shard_run_test_Hexagon_3_of_7() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
                         """,
                         label: 'Download artifacts from S3',
                       )
@@ -1818,7 +2649,7 @@ def shard_run_test_Hexagon_3_of_7() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1847,13 +2678,33 @@ def shard_run_test_Hexagon_4_of_7() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
                         """,
                         label: 'Download artifacts from S3',
                       )
@@ -1870,7 +2721,7 @@ def shard_run_test_Hexagon_4_of_7() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1899,13 +2750,33 @@ def shard_run_test_Hexagon_5_of_7() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
                         """,
                         label: 'Download artifacts from S3',
                       )
@@ -1922,7 +2793,7 @@ def shard_run_test_Hexagon_5_of_7() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -1951,13 +2822,33 @@ def shard_run_test_Hexagon_6_of_7() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
                         """,
                         label: 'Download artifacts from S3',
                       )
@@ -1974,7 +2865,7 @@ def shard_run_test_Hexagon_6_of_7() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2003,13 +2894,33 @@ def shard_run_test_Hexagon_7_of_7() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
-                          aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/hexagon_api_output build/hexagon_api_output --recursive
                         """,
                         label: 'Download artifacts from S3',
                       )
@@ -2026,7 +2937,7 @@ def shard_run_test_Hexagon_7_of_7() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Hexagon --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2056,13 +2967,33 @@ def shard_run_integration_aarch64_1_of_4() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2080,7 +3011,7 @@ def shard_run_integration_aarch64_1_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_aarch64 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2109,13 +3040,33 @@ def shard_run_integration_aarch64_2_of_4() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2133,7 +3084,7 @@ def shard_run_integration_aarch64_2_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_aarch64 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2162,13 +3113,33 @@ def shard_run_integration_aarch64_3_of_4() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2186,7 +3157,7 @@ def shard_run_integration_aarch64_3_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_aarch64 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2215,13 +3186,33 @@ def shard_run_integration_aarch64_4_of_4() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2239,7 +3230,7 @@ def shard_run_integration_aarch64_4_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/integration_aarch64 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2269,13 +3260,33 @@ def shard_run_topi_GPU_1_of_4() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2292,7 +3303,7 @@ def shard_run_topi_GPU_1_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/topi_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2321,13 +3332,33 @@ def shard_run_topi_GPU_2_of_4() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2344,7 +3375,7 @@ def shard_run_topi_GPU_2_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/topi_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2373,13 +3404,33 @@ def shard_run_topi_GPU_3_of_4() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2396,7 +3447,7 @@ def shard_run_topi_GPU_3_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/topi_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2425,13 +3476,33 @@ def shard_run_topi_GPU_4_of_4() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2448,7 +3519,7 @@ def shard_run_topi_GPU_4_of_4() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/topi_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2478,13 +3549,33 @@ def shard_run_frontend_GPU_1_of_6() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2501,7 +3592,7 @@ def shard_run_frontend_GPU_1_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/frontend_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2530,13 +3621,33 @@ def shard_run_frontend_GPU_2_of_6() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2553,7 +3664,7 @@ def shard_run_frontend_GPU_2_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/frontend_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2582,13 +3693,33 @@ def shard_run_frontend_GPU_3_of_6() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2605,7 +3736,7 @@ def shard_run_frontend_GPU_3_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/frontend_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2634,13 +3765,33 @@ def shard_run_frontend_GPU_4_of_6() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2657,7 +3808,7 @@ def shard_run_frontend_GPU_4_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/frontend_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2686,13 +3837,33 @@ def shard_run_frontend_GPU_5_of_6() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2709,7 +3880,7 @@ def shard_run_frontend_GPU_5_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/frontend_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2738,13 +3909,33 @@ def shard_run_frontend_GPU_6_of_6() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2761,7 +3952,7 @@ def shard_run_frontend_GPU_6_of_6() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/frontend_GPU --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2791,13 +3982,33 @@ def shard_run_topi_aarch64_1_of_2() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2819,7 +4030,7 @@ def shard_run_topi_aarch64_1_of_2() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/topi_aarch64 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2848,13 +4059,33 @@ def shard_run_topi_aarch64_2_of_2() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2875,7 +4106,7 @@ def shard_run_topi_aarch64_2_of_2() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/topi_aarch64 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2905,13 +4136,33 @@ def shard_run_frontend_aarch64_1_of_2() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2928,7 +4179,7 @@ def shard_run_frontend_aarch64_1_of_2() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/frontend_aarch64 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2957,13 +4208,33 @@ def shard_run_frontend_aarch64_2_of_2() {
               sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -2980,7 +4251,7 @@ def shard_run_frontend_aarch64_2_of_2() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/frontend_aarch64 --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -2991,6 +4262,588 @@ def shard_run_frontend_aarch64_2_of_2() {
     }
   } else {
     Utils.markStageSkippedForConditional('frontend: aarch64 2 of 2')
+  }
+}
+
+
+def shard_run_test_Cortex_M_1_of_8() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
+        try {
+          docker_init(ci_cortexm)
+          init_git()
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cortexm',
+              'TVM_NUM_SHARDS=8',
+              'TVM_SHARD_INDEX=0'], {
+              sh(
+                        script: """
+                          set -eux
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/microtvm_template_projects build/microtvm_template_projects --recursive
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              add_microtvm_permissions()
+              ci_setup(ci_cortexm)
+              cpp_unittest(ci_cortexm)
+              sh (
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_demo_microtvm.sh",
+                label: 'Run microTVM demos',
+              )
+              sh (
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Cortex-M 1 of 8')
+  }
+}
+
+def shard_run_test_Cortex_M_2_of_8() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
+        try {
+          docker_init(ci_cortexm)
+          init_git()
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cortexm',
+              'TVM_NUM_SHARDS=8',
+              'TVM_SHARD_INDEX=1'], {
+              sh(
+                        script: """
+                          set -eux
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/microtvm_template_projects build/microtvm_template_projects --recursive
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              add_microtvm_permissions()
+              ci_setup(ci_cortexm)
+              sh (
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Cortex-M 2 of 8')
+  }
+}
+
+def shard_run_test_Cortex_M_3_of_8() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
+        try {
+          docker_init(ci_cortexm)
+          init_git()
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cortexm',
+              'TVM_NUM_SHARDS=8',
+              'TVM_SHARD_INDEX=2'], {
+              sh(
+                        script: """
+                          set -eux
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/microtvm_template_projects build/microtvm_template_projects --recursive
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              add_microtvm_permissions()
+              ci_setup(ci_cortexm)
+              sh (
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Cortex-M 3 of 8')
+  }
+}
+
+def shard_run_test_Cortex_M_4_of_8() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
+        try {
+          docker_init(ci_cortexm)
+          init_git()
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cortexm',
+              'TVM_NUM_SHARDS=8',
+              'TVM_SHARD_INDEX=3'], {
+              sh(
+                        script: """
+                          set -eux
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/microtvm_template_projects build/microtvm_template_projects --recursive
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              add_microtvm_permissions()
+              ci_setup(ci_cortexm)
+              sh (
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Cortex-M 4 of 8')
+  }
+}
+
+def shard_run_test_Cortex_M_5_of_8() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
+        try {
+          docker_init(ci_cortexm)
+          init_git()
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cortexm',
+              'TVM_NUM_SHARDS=8',
+              'TVM_SHARD_INDEX=4'], {
+              sh(
+                        script: """
+                          set -eux
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/microtvm_template_projects build/microtvm_template_projects --recursive
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              add_microtvm_permissions()
+              ci_setup(ci_cortexm)
+              sh (
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Cortex-M 5 of 8')
+  }
+}
+
+def shard_run_test_Cortex_M_6_of_8() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
+        try {
+          docker_init(ci_cortexm)
+          init_git()
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cortexm',
+              'TVM_NUM_SHARDS=8',
+              'TVM_SHARD_INDEX=5'], {
+              sh(
+                        script: """
+                          set -eux
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/microtvm_template_projects build/microtvm_template_projects --recursive
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              add_microtvm_permissions()
+              ci_setup(ci_cortexm)
+              sh (
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Cortex-M 6 of 8')
+  }
+}
+
+def shard_run_test_Cortex_M_7_of_8() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
+        try {
+          docker_init(ci_cortexm)
+          init_git()
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cortexm',
+              'TVM_NUM_SHARDS=8',
+              'TVM_SHARD_INDEX=6'], {
+              sh(
+                        script: """
+                          set -eux
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/microtvm_template_projects build/microtvm_template_projects --recursive
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              add_microtvm_permissions()
+              ci_setup(ci_cortexm)
+              sh (
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Cortex-M 7 of 8')
+  }
+}
+
+def shard_run_test_Cortex_M_8_of_8() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
+        try {
+          docker_init(ci_cortexm)
+          init_git()
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM=cortexm',
+              'TVM_NUM_SHARDS=8',
+              'TVM_SHARD_INDEX=7'], {
+              sh(
+                        script: """
+                          set -eux
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
+                          md5sum build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm_runtime.so build/libtvm_runtime.so
+                          md5sum build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/config.cmake build/config.cmake
+                          md5sum build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/microtvm_template_projects build/microtvm_template_projects --recursive
+                        """,
+                        label: 'Download artifacts from S3',
+                      )
+
+              add_microtvm_permissions()
+              ci_setup(ci_cortexm)
+              sh (
+                script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_python_microtvm.sh",
+                label: 'Run microTVM tests',
+              )
+            })
+          }
+        } finally {
+          sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/test_Cortex_M --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+          junit 'build/pytest-results/*.xml'
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('test: Cortex-M 8 of 8')
   }
 }
 
@@ -3011,23 +4864,35 @@ stage('Test') {
   'unittest: GPU 3 of 3': {
     shard_run_unittest_GPU_3_of_3()
   },
-  'integration: CPU 1 of 6': {
-    shard_run_integration_CPU_1_of_6()
+  'integration: CPU 1 of 10': {
+    shard_run_integration_CPU_1_of_10()
   },
-  'integration: CPU 2 of 6': {
-    shard_run_integration_CPU_2_of_6()
+  'integration: CPU 2 of 10': {
+    shard_run_integration_CPU_2_of_10()
   },
-  'integration: CPU 3 of 6': {
-    shard_run_integration_CPU_3_of_6()
+  'integration: CPU 3 of 10': {
+    shard_run_integration_CPU_3_of_10()
   },
-  'integration: CPU 4 of 6': {
-    shard_run_integration_CPU_4_of_6()
+  'integration: CPU 4 of 10': {
+    shard_run_integration_CPU_4_of_10()
   },
-  'integration: CPU 5 of 6': {
-    shard_run_integration_CPU_5_of_6()
+  'integration: CPU 5 of 10': {
+    shard_run_integration_CPU_5_of_10()
   },
-  'integration: CPU 6 of 6': {
-    shard_run_integration_CPU_6_of_6()
+  'integration: CPU 6 of 10': {
+    shard_run_integration_CPU_6_of_10()
+  },
+  'integration: CPU 7 of 10': {
+    shard_run_integration_CPU_7_of_10()
+  },
+  'integration: CPU 8 of 10': {
+    shard_run_integration_CPU_8_of_10()
+  },
+  'integration: CPU 9 of 10': {
+    shard_run_integration_CPU_9_of_10()
+  },
+  'integration: CPU 10 of 10': {
+    shard_run_integration_CPU_10_of_10()
   },
   'python: i386 1 of 5': {
     shard_run_python_i386_1_of_5()
@@ -3119,6 +4984,30 @@ stage('Test') {
   'frontend: aarch64 2 of 2': {
     shard_run_frontend_aarch64_2_of_2()
   },
+  'test: Cortex-M 1 of 8': {
+    shard_run_test_Cortex_M_1_of_8()
+  },
+  'test: Cortex-M 2 of 8': {
+    shard_run_test_Cortex_M_2_of_8()
+  },
+  'test: Cortex-M 3 of 8': {
+    shard_run_test_Cortex_M_3_of_8()
+  },
+  'test: Cortex-M 4 of 8': {
+    shard_run_test_Cortex_M_4_of_8()
+  },
+  'test: Cortex-M 5 of 8': {
+    shard_run_test_Cortex_M_5_of_8()
+  },
+  'test: Cortex-M 6 of 8': {
+    shard_run_test_Cortex_M_6_of_8()
+  },
+  'test: Cortex-M 7 of 8': {
+    shard_run_test_Cortex_M_7_of_8()
+  },
+  'test: Cortex-M 8 of 8': {
+    shard_run_test_Cortex_M_8_of_8()
+  },
   'unittest: CPU': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU-SMALL') {
@@ -3131,15 +5020,35 @@ stage('Test') {
                 sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
                           md5sum build/libvta_tsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -3158,7 +5067,7 @@ stage('Test') {
               sh(
                 script: """
                   set -eux
-                  aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+                  aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/unittest_CPU --recursive
                 """,
                 label: 'Upload JUnits to S3',
               )
@@ -3170,59 +5079,6 @@ stage('Test') {
       }
     } else {
       Utils.markStageSkippedForConditional('unittest: CPU')
-    }
-  },
-  'test: QEMU': {
-    if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU-SMALL') {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-qemu") {
-          timeout(time: max_time, unit: 'MINUTES') {
-            try {
-              docker_init(ci_qemu)
-              init_git()
-              withEnv(['PLATFORM=qemu'], {
-                sh(
-                        script: """
-                          set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/libtvm.so build/libtvm.so
-                          md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/libtvm_runtime.so build/libtvm_runtime.so
-                          md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/config.cmake build/config.cmake
-                          md5sum build/config.cmake
-                          aws s3 cp --no-progress s3://${s3_prefix}/qemu/build/microtvm_template_projects build/microtvm_template_projects --recursive
-                        """,
-                        label: 'Download artifacts from S3',
-                      )
-
-                add_microtvm_permissions()
-                ci_setup(ci_qemu)
-                cpp_unittest(ci_qemu)
-                sh (
-                  script: "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh",
-                  label: 'Run microTVM tests',
-                )
-                sh (
-                  script: "${docker_run} ${ci_qemu} ./tests/scripts/task_demo_microtvm.sh",
-                  label: 'Run microTVM demos',
-                )
-              })
-            } finally {
-              sh(
-                script: """
-                  set -eux
-                  aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
-                """,
-                label: 'Upload JUnits to S3',
-              )
-
-              junit 'build/pytest-results/*.xml'
-            }
-          }
-        }
-      }
-    } else {
-      Utils.markStageSkippedForConditional('test: QEMU')
     }
   },
   'frontend: CPU': {
@@ -3237,13 +5093,33 @@ stage('Test') {
                 sh(
                         script: """
                           set -eux
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
+                          retry() {
+                            local retries=\$1
+                            shift
+
+                            local count=0
+                            until "\$@"; do
+                              exit=\$?
+                              wait=\$((2 ** \$count))
+                              count=\$((\$count + 1))
+                              if [ \$count -lt \$retries ]; then
+                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                                sleep \$wait
+                              else
+                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                                return \$exit
+                              fi
+                            done
+                            return 0
+                          }
+
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
                           md5sum build/libtvm.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_fsim.so build/libvta_fsim.so
                           md5sum build/libvta_fsim.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm_runtime.so build/libtvm_runtime.so
                           md5sum build/libtvm_runtime.so
-                          aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
+                          retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/config.cmake build/config.cmake
                           md5sum build/config.cmake
                         """,
                         label: 'Download artifacts from S3',
@@ -3259,7 +5135,7 @@ stage('Test') {
               sh(
                 script: """
                   set -eux
-                  aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+                  aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/frontend_CPU --recursive
                 """,
                 label: 'Upload JUnits to S3',
               )
@@ -3282,15 +5158,35 @@ stage('Test') {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
+              retry() {
+                local retries=\$1
+                shift
+
+                local count=0
+                until "\$@"; do
+                  exit=\$?
+                  wait=\$((2 ** \$count))
+                  count=\$((\$count + 1))
+                  if [ \$count -lt \$retries ]; then
+                    echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                    sleep \$wait
+                  else
+                    echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                    return \$exit
+                  fi
+                done
+                return 0
+              }
+
+              retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
               md5sum build/libtvm.so
-              aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
+              retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libvta_fsim.so build/libvta_fsim.so
               md5sum build/libvta_fsim.so
-              aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
+              retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm_runtime.so build/libtvm_runtime.so
               md5sum build/libtvm_runtime.so
-              aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
+              retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/config.cmake build/config.cmake
               md5sum build/config.cmake
-              aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/microtvm_template_projects build/microtvm_template_projects --recursive
+              retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/microtvm_template_projects build/microtvm_template_projects --recursive
             """,
             label: 'Download artifacts from S3',
           )
@@ -3306,8 +5202,28 @@ stage('Test') {
           sh(
             script: """
               set -eux
+              retry() {
+                local retries=\$1
+                shift
+
+                local count=0
+                until "\$@"; do
+                  exit=\$?
+                  wait=\$((2 ** \$count))
+                  count=\$((\$count + 1))
+                  if [ \$count -lt \$retries ]; then
+                    echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                    sleep \$wait
+                  else
+                    echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                    return \$exit
+                  fi
+                done
+                return 0
+              }
+
               md5sum docs.tgz
-              aws s3 cp --no-progress docs.tgz s3://${s3_prefix}/docs/docs.tgz
+              retry 3 aws s3 cp --no-progress docs.tgz s3://${s3_prefix}/docs/docs.tgz
             """,
             label: 'Upload artifacts to S3',
           )
@@ -3342,8 +5258,12 @@ stage('Build packages') {
 
 
 def update_docker(ecr_image, hub_image) {
+  if (ecr_image == null) {
+    sh("image was not rebuilt, skipping")
+    return
+  }
   if (!ecr_image.contains("amazonaws.com")) {
-    sh("echo Skipping '${ecr_image}' since it doesn't look like an ECR image")
+    sh("echo \"Skipping '${ecr_image}' -> '${hub_image}' since it doesn\'t look like an ECR image\"")
     return
   }
   docker_init(ecr_image)
@@ -3408,7 +5328,27 @@ def deploy() {
           sh(
             script: """
               set -eux
-              aws s3 cp --no-progress s3://${s3_prefix}/docs/docs.tgz docs.tgz
+              retry() {
+                local retries=\$1
+                shift
+
+                local count=0
+                until "\$@"; do
+                  exit=\$?
+                  wait=\$((2 ** \$count))
+                  count=\$((\$count + 1))
+                  if [ \$count -lt \$retries ]; then
+                    echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                    sleep \$wait
+                  else
+                    echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                    return \$exit
+                  fi
+                done
+                return 0
+              }
+
+              retry 3 aws s3 cp --no-progress s3://${s3_prefix}/docs/docs.tgz docs.tgz
               md5sum docs.tgz
             """,
             label: 'Download artifacts from S3',
@@ -3437,14 +5377,14 @@ def deploy() {
               returnStdout: true,
             ).trim()
             def tag = "${date_Ymd_HMS}-${upstream_revision.substring(0, 8)}"
-            update_docker(ci_arm, "tlcpackstaging/ci_arm:${tag}")
-            update_docker(ci_cpu, "tlcpackstaging/ci_cpu:${tag}")
-            update_docker(ci_gpu, "tlcpackstaging/ci_gpu:${tag}")
-            update_docker(ci_hexagon, "tlcpackstaging/ci_hexagon:${tag}")
-            update_docker(ci_i386, "tlcpackstaging/ci_i386:${tag}")
-            update_docker(ci_lint, "tlcpackstaging/ci_lint:${tag}")
-            update_docker(ci_qemu, "tlcpackstaging/ci_qemu:${tag}")
-            update_docker(ci_wasm, "tlcpackstaging/ci_wasm:${tag}")
+            update_docker(built_ci_arm, "tlcpackstaging/ci_arm:${tag}")
+            update_docker(built_ci_cpu, "tlcpackstaging/ci_cpu:${tag}")
+            update_docker(built_ci_gpu, "tlcpackstaging/ci_gpu:${tag}")
+            update_docker(built_ci_hexagon, "tlcpackstaging/ci_hexagon:${tag}")
+            update_docker(built_ci_i386, "tlcpackstaging/ci_i386:${tag}")
+            update_docker(built_ci_lint, "tlcpackstaging/ci_lint:${tag}")
+            update_docker(built_ci_cortexm, "tlcpackstaging/ci_cortexm:${tag}")
+            update_docker(built_ci_wasm, "tlcpackstaging/ci_wasm:${tag}")
           } finally {
             sh(
               script: 'docker logout',

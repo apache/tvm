@@ -530,7 +530,7 @@ def tune_relay(
     mutator_probs: Optional[FnMutatorProb] = None,
     num_threads: Optional[int] = None,
 ) -> Union[Module, vm.Executable]:
-    """Tune a TIR IRModule with a given target.
+    """Tune a Relay IRModule with a given target.
 
     Parameters
     ----------

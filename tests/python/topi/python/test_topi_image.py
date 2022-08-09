@@ -339,7 +339,7 @@ def test_grid_sample():
 
 
 if __name__ == "__main__":
-    test_resize()
+    test_resize2d()
     test_resize3d()
     test_crop_and_resize()
     test_affine_grid()

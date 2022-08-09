@@ -39,12 +39,12 @@ import test_utils
 
 @tvm.testing.requires_micro
 @pytest.mark.skip_boards(["mps2_an521"])
-def test_tflite(temp_dir, board, west_cmd, tvm_debug):
+def test_tflite(workspace_dir, board, west_cmd, microtvm_debug):
     """Testing a TFLite model."""
     model = test_utils.ZEPHYR_BOARDS[board]
     input_shape = (1, 49, 10, 1)
     output_shape = (1, 12)
-    build_config = {"debug": tvm_debug}
+    build_config = {"debug": microtvm_debug}
 
     model_url = "https://github.com/tlc-pack/web-data/raw/25fe99fb00329a26bd37d3dca723da94316fd34c/testdata/microTVM/model/keyword_spotting_quant.tflite"
     model_path = download_testdata(model_url, "keyword_spotting_quant.tflite", module="model")
@@ -78,7 +78,7 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
     sample = np.load(sample_path)
 
     project, _ = test_utils.generate_project(
-        temp_dir,
+        workspace_dir,
         board,
         west_cmd,
         lowered,
@@ -95,13 +95,13 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
 
 @tvm.testing.requires_micro
 @pytest.mark.skip_boards(["mps2_an521"])
-def test_qemu_make_fail(temp_dir, board, west_cmd, tvm_debug):
+def test_qemu_make_fail(workspace_dir, board, west_cmd, microtvm_debug):
     """Testing QEMU make fail."""
     if board not in ["qemu_x86", "mps2_an521", "mps3_an547"]:
         pytest.skip(msg="Only for QEMU targets.")
 
     model = test_utils.ZEPHYR_BOARDS[board]
-    build_config = {"debug": tvm_debug}
+    build_config = {"debug": microtvm_debug}
     shape = (10,)
     dtype = "float32"
 
@@ -120,7 +120,15 @@ def test_qemu_make_fail(temp_dir, board, west_cmd, tvm_debug):
 
     sample = np.zeros(shape=shape, dtype=dtype)
     project, project_dir = test_utils.generate_project(
-        temp_dir, board, west_cmd, lowered, build_config, sample, shape, dtype, load_cmsis=False
+        workspace_dir,
+        board,
+        west_cmd,
+        lowered,
+        build_config,
+        sample,
+        shape,
+        dtype,
+        load_cmsis=False,
     )
 
     file_path = (

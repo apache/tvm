@@ -218,6 +218,11 @@ def Select(cond, if_body, else_body, span):  # pylint: disable=invalid-name
 
 
 @register
+def Let(var, value, body, span):  # pylint: disable=invalid-name
+    return tvm.tir.Let(var, value, body, span)
+
+
+@register
 class EvaluateIntrin(Intrin):
     def __init__(self):
         def evaluate(value, span):
@@ -233,6 +238,17 @@ class StoreIntrin(Intrin):
             return tvm.tir.Store(var, value, index, predicate, span)
 
         super().__init__(store, stmt=True)
+
+
+@register
+class AssumeIntrin(Intrin):
+    def __init__(self):
+        def assume(constraint, span):
+            return tvm.tir.Evaluate(
+                tvm.tir.call_intrin("bool", "tir.assume", constraint, span=span)
+            )
+
+        super().__init__(assume, stmt=True)
 
 
 @register

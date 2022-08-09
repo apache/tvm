@@ -29,11 +29,11 @@ class Module:
         A: T.handle, B: T.handle, C: T.handle, device_context: T.handle
     ) -> T.handle:
         A_0 = T.match_buffer(A, (1,), dtype="float32")
-        A_0pre = T.preflattened_buffer(A_0, (1,), dtype="float32")
+        T.preflattened_buffer(A_0, (1,), dtype="float32")
         B_0 = T.match_buffer(B, (1,), dtype="float32")
-        B_0pre = T.preflattened_buffer(B_0, (1,), dtype="float32")
+        T.preflattened_buffer(B_0, (1,), dtype="float32")
         C_0 = T.match_buffer(C, (1,), dtype="float32")
-        C_0pre = T.preflattened_buffer(C_0, (1,), dtype="float32")
+        T.preflattened_buffer(C_0, (1,), dtype="float32")
         T.evaluate(C)
 
     @T.prim_func
@@ -62,11 +62,11 @@ class Expected:
         A: T.handle, B: T.handle, C: T.handle, device_context: T.handle
     ) -> T.handle:
         A_0 = T.match_buffer(A, (1,), dtype="float32")
-        A_0pre = T.preflattened_buffer(A_0, (1,), dtype="float32")
+        T.preflattened_buffer(A_0, (1,), dtype="float32")
         B_0 = T.match_buffer(B, (1,), dtype="float32")
-        B_0pre = T.preflattened_buffer(B_0, (1,), dtype="float32")
+        T.preflattened_buffer(B_0, (1,), dtype="float32")
         C_0 = T.match_buffer(C, (1,), dtype="float32")
-        C_0pre = T.preflattened_buffer(C_0, (1,), dtype="float32")
+        T.preflattened_buffer(C_0, (1,), dtype="float32")
         T.evaluate(C)
 
     @T.prim_func
