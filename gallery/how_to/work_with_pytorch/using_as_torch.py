@@ -112,7 +112,7 @@ tvm_depthwise = tvm_depthwise_initializer(
 )
 
 # We can tune the TVMscript code by providing a target device.
-# The model will deploy on GPU, and variable/thread bindings will conduct automatically.
+# The model will deploy on GPU, and thread bindings will conduct automatically.
 
 tvm_depthwise.tune(target="nvidia/geforce-rtx-3070")
 
