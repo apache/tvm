@@ -93,14 +93,12 @@ def tvm_depthwise_initializer(Channels: int, Width: int, Kernel: int, Output: in
         A = T.match_buffer(a, (Channels, Width), dtype)
         B = T.match_buffer(b, (Channels, Kernel), dtype)
         C = T.match_buffer(c, (Channels, Output), dtype)
-        for j, i in T.grid(Channels, Output):
+        for j, i, k in T.grid(Channels, Output, Kernel):
             with T.block():
-                vi, vj = T.axis.remap("SS", [i, j])
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     C[vj, vi] = T.float32(0)
-                for k in range(Kernel):
-                    vk = T.axis.remap("S", [k])
-                    C[vj, vi] += B[vj, vk] * A[vj, vi + vk]
+                C[vj, vi] += B[vj, vk] * A[vj, vi + vk]
 
     return f
 
