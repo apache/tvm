@@ -28,6 +28,7 @@
 
 #include <unordered_set>
 
+#include "../../arith/ir_mutator_with_analyzer.h"
 #include "ir_utils.h"
 
 namespace tvm {
@@ -181,12 +182,16 @@ class VarTouchedAnalysis : public StmtVisitor {
 
 // Inject virtual thread loop
 // rewrite the buffer access pattern when necessary.
-class VTInjector : public StmtExprMutator {
+class VTInjector : public arith::IRMutatorWithAnalyzer {
  public:
+  using IRMutatorWithAnalyzer::VisitExpr_;
+  using IRMutatorWithAnalyzer::VisitStmt_;
+
   // constructor
-  VTInjector(Var var, int num_threads, const std::unordered_set<const VarNode*>& touched_var,
-             bool allow_share)
-      : var_(var),
+  VTInjector(arith::Analyzer* analyzer, Var var, int num_threads,
+             const std::unordered_set<const VarNode*>& touched_var, bool allow_share)
+      : IRMutatorWithAnalyzer(analyzer),
+        var_(var),
         num_threads_(num_threads),
         touched_var_(touched_var),
         allow_share_(allow_share) {}
@@ -212,7 +217,7 @@ class VTInjector : public StmtExprMutator {
     return GetRef<PrimExpr>(op);
   }
   PrimExpr RewriteIndex(PrimExpr index, PrimExpr alloc_extent) const {
-    return index + var_ * alloc_extent;
+    return analyzer_->Simplify(index + var_ * alloc_extent);
   }
   // Expression.
   PrimExpr VisitExpr_(const CallNode* op) final {
@@ -500,8 +505,11 @@ class VTInjector : public StmtExprMutator {
   std::unordered_map<const BufferNode*, Buffer> buf_remap_;
 };
 
-class VirtualThreadInjector : public StmtMutator {
+class VirtualThreadInjector : public arith::IRMutatorWithAnalyzer {
  public:
+  using IRMutatorWithAnalyzer::IRMutatorWithAnalyzer;
+  using IRMutatorWithAnalyzer::VisitStmt_;
+
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<AttrStmtNode>();
@@ -511,7 +519,7 @@ class VirtualThreadInjector : public StmtMutator {
       int nthread = static_cast<int>(op->value.as<IntImmNode>()->value);
       VarTouchedAnalysis vs;
       auto touched = vs.TouchedVar(op->body, iv->var.get());
-      VTInjector injector(iv->var, nthread, touched, allow_share);
+      VTInjector injector(analyzer_, iv->var, nthread, touched, allow_share);
       return injector(op->body);
     } else {
       return stmt;
@@ -529,7 +537,11 @@ namespace transform {
 Pass InjectVirtualThread() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    n->body = ConvertSSA(VirtualThreadInjector()(std::move(n->body)));
+
+    arith::Analyzer analyzer;
+
+    n->body = VirtualThreadInjector(&analyzer)(std::move(n->body));
+    n->body = ConvertSSA(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.InjectVirtualThread", {});
