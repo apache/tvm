@@ -24,8 +24,9 @@ namespace meta_schedule {
 /*! \brief Collecting all the blocks */
 class BlockCollector : public tir::StmtVisitor {
  public:
-  static Array<tir::BlockRV> Collect(const tir::Schedule& sch) {  //
-    return BlockCollector(sch).Run();
+  static Array<tir::BlockRV> Collect(const tir::Schedule& sch,
+                                     const runtime::PackedFunc f_block_filter = nullptr) {  //
+    return BlockCollector(sch, f_block_filter).Run();
   }
 
  private:
@@ -48,7 +49,9 @@ class BlockCollector : public tir::StmtVisitor {
     return results;
   }
   /*! \brief Constructor */
-  explicit BlockCollector(const tir::Schedule& sch) : sch_(sch) {}
+  explicit BlockCollector(const tir::Schedule& sch,
+                          const runtime::PackedFunc f_block_filter = nullptr)
+      : sch_(sch), f_block_filter_(f_block_filter) {}
   /*! \brief Override the Stmt visiting behaviour */
   void VisitStmt_(const tir::BlockNode* block) override {
     tir::StmtVisitor::VisitStmt_(block);
@@ -56,11 +59,22 @@ class BlockCollector : public tir::StmtVisitor {
         << "Duplicated block name " << block->name_hint << " in function " << func_name_
         << " not supported!";
     block_names_.insert(block->name_hint);
-    blocks_to_collect_.push_back(block->name_hint);
+
+    // If filter function is provided, use it to selectively collect blocks.
+    // Otherwise collect all blocks.
+    Bool collect_block = Bool(true);
+    if (f_block_filter_ != nullptr) {
+      collect_block = f_block_filter_(GetRef<tir::Block>(block));
+    }
+    if (collect_block) {
+      blocks_to_collect_.push_back(block->name_hint);
+    }
   }
 
   /*! \brief The schedule to be collected */
   const tir::Schedule& sch_;
+  /*! \brief An optional packed func that allows only certain blocks to be collected. */
+  const runtime::PackedFunc f_block_filter_;
   /*! \brief The set of func name and block name pair */
   std::unordered_set<String> block_names_;
   /* \brief The list of blocks to collect in order */
@@ -81,6 +95,9 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
   Array<ScheduleRule> sch_rules_{nullptr};
   /*! \brief The logging function to use. */
   PackedFunc logging_func;
+  /*! \brief Optional block names to target. If not specified all blocks will have spaces generated.
+   */
+  runtime::PackedFunc f_block_filter_ = nullptr;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     // `rand_state_` is not visited
@@ -107,7 +124,7 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
     Array<tir::Schedule> result{sch};
     // Enumerate the schedule rules first because you can
     // always concat multiple schedule rules as one
-    Array<tir::BlockRV> all_blocks = BlockCollector::Collect(sch);
+    Array<tir::BlockRV> all_blocks = BlockCollector::Collect(sch, f_block_filter_);
     Array<Optional<ScheduleRule>> rules{NullOpt};
     rules.insert(rules.end(), sch_rules_.begin(), sch_rules_.end());
     for (Optional<ScheduleRule> sch_rule : rules) {
@@ -177,8 +194,9 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(PostOrderApplyNode, SpaceGeneratorNode);
 };
 
-SpaceGenerator SpaceGenerator::PostOrderApply() {
+SpaceGenerator SpaceGenerator::PostOrderApply(runtime::PackedFunc f_block_filter) {
   ObjectPtr<PostOrderApplyNode> n = make_object<PostOrderApplyNode>();
+  n->f_block_filter_ = f_block_filter;
   return SpaceGenerator(n);
 }
 

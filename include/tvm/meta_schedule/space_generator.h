@@ -153,7 +153,7 @@ class SpaceGenerator : public runtime::ObjectRef {
    *  to blocks in post-DFS order.
    * \return The design space generator created.
    */
-  TVM_DLL static SpaceGenerator PostOrderApply();
+  TVM_DLL static SpaceGenerator PostOrderApply(runtime::PackedFunc f_block_filter = nullptr);
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(SpaceGenerator, ObjectRef, SpaceGeneratorNode);
 };
 
