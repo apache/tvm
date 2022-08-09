@@ -364,10 +364,11 @@ class _DefaultCUDATensorCore:
                 intrin_groups=[
                     get_wmma_intrin_group(
                         store_scope="shared",
-                        in_dtype="float16",
-                        out_dtype="float16",
+                        in_dtype=in_dtype,
+                        out_dtype=out_dtype,
                         trans_b=trans_b,
                     )
+                    for (in_dtype, out_dtype) in [("float16", "float16"), ("int8", "int32")]
                     for trans_b in [False, True]
                 ],
                 structure="SSSRRSRS",
