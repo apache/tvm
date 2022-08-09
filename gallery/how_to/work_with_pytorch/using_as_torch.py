@@ -58,59 +58,71 @@ kernel_size = 50
 
 
 def torch_depthwise(inputs, filters):
-    return F.conv1d(inputs, filters.view(700, 1, 50), groups=700)
+    global out_channel
+    global kernel_size
+    return F.conv1d(inputs, filters.view(out_channel, 1, kernel_size), groups=out_channel)
 
 
 # We can run this function as:
 
-inputs = torch.randn(700, 800).cuda()
-filters = torch.randn(700, 50).cuda()
+inputs = torch.randn(in_channel, width).cuda()
+filters = torch.randn(out_channel, kernel_size).cuda()
 ret_torch = torch_depthwise(inputs, filters)
 
-# The `torch_depthwise` function, in a plain python code,
-# could be written as:
+# The `torch_depthwise` function, in a plain python code, could be written as:
 
 
 def vanilla_depthwise(input, weight):
-    ret = torch.zeros(700, 800 - 50 + 1).cuda()
-    for j in range(700):
-        for i in range(800 - 50 + 1):
-            for k in range(50):
+    ret = torch.zeros(out_channel, width - kernel_size + 1).cuda()
+    for j in range(out_channel):
+        for i in range(width - kernel_size + 1):
+            for k in range(kernel_size):
                 ret[j, i] += weight[j, k] * input[j, i + k]
     return ret
 
 
-# We plan to optimize the `depthwise` function by
-# leveraging the power of TVMscript.
-# We can write such a simple TVMscript code:
+# We plan to optimize the `depthwise` function by leveraging the power of TVMscript.
+# Firstly, we can write such a simple python code:
 
 
 @as_torch
-@tvm.script.ir_module
-class tvm_depthwise:
+def tvm_depthwise_initializer(Channels: int, Width: int, Kernel: int, Output: int, dtype: str):
     @T.prim_func
     def f(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        A = T.match_buffer(a, (700, 800), "float32")
-        B = T.match_buffer(b, (700, 50), "float32")
-        C = T.match_buffer(c, (700, 751), "float32")
-        for j in T.thread_binding(0, 700, thread="blockIdx.x"):
-            for i in T.thread_binding(0, 751, thread="threadIdx.x"):
-                for k in range(50):
-                    with T.block("output"):
-                        C[j, i] += B[j, k] * A[j, i + k]
+        A = T.match_buffer(a, (Channels, Width), dtype)
+        B = T.match_buffer(b, (Channels, Kernel), dtype)
+        C = T.match_buffer(c, (Channels, Output), dtype)
+        for j, i in T.grid(Channels, Output):
+            with T.block():
+                vi, vj = T.axis.remap("SS", [i, j])
+                with T.init():
+                    C[vj, vi] = T.float32(0)
+                for k in range(Kernel):
+                    vk = T.axis.remap("S", [k])
+                    C[vj, vi] += B[vj, vk] * A[vj, vi + vk]
 
+    return f
+
+
+# Then we fill out the parameters and generate the TVMscript program.
+
+tvm_depthwise = tvm_depthwise_initializer(
+    out_channel, width, kernel_size, width - kernel_size + 1, "float32"
+)
+
+# We can tune the TVMscript code by providing a target device.
+# The model will deploy on GPU, and variable/thread bindings will conduct automatically.
+
+tvm_depthwise.tune(target="nvidia/geforce-rtx-3070")
 
 # We can verify that the two functions are the same:
 
-ret_tvm = torch.zeros(700, 800 - 50 + 1).cuda()
+ret_tvm = torch.zeros(out_channel, width - kernel_size + 1).cuda()
 tvm_depthwise(inputs, filters, ret_tvm)
 
 testing.assert_allclose(ret_torch.cpu().numpy(), ret_tvm.cpu().numpy(), atol=1e-5, rtol=1e-5)
 
-# Tip: We also provide an optional method `tune(config, target)` for additional optimization.
-# In this case, users could call `tvm_depthwise.tune(target="nvidia/geforce-rtx-3070")`
-# for trying to tune the operators via TVM MetaSchedule.
 
 ######################################################################
 # Benchmark
@@ -119,9 +131,9 @@ testing.assert_allclose(ret_torch.cpu().numpy(), ret_tvm.cpu().numpy(), atol=1e-
 
 results = []
 for i in range(5):
-    inputs = torch.randn(700, 800).cuda()
-    filters = torch.randn(700, 50).cuda()
-    res = torch.zeros(700, 800 - 50 + 1).cuda()
+    inputs = torch.randn(out_channel, width).cuda()
+    filters = torch.randn(out_channel, kernel_size).cuda()
+    res = torch.zeros(out_channel, width - kernel_size + 1).cuda()
     sub_label = f"[test {i}]"
     results.append(
         benchmark.Timer(
@@ -147,6 +159,6 @@ for i in range(5):
 compare = benchmark.Compare(results)
 compare.print()
 
-# In the working machine, the average inference time of `tvm_depthwise` is 42.5 us,
+# In the working machine, the average inference time of `tvm_depthwise` is 44.0 us,
 # while the average inference time of `torch_depthwise` is 66.0 us,
 # showing the performance arises by around 1/3.
