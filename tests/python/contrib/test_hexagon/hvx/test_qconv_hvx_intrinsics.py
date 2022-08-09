@@ -72,7 +72,7 @@ class TestConvHVX:
         self, hexagon_session, a, w, a_offset, w_offset, expected_output, mem_scope
     ):
 
-        #TODO(@nverke): even sized kernels and stride are currently not working.
+        # TODO(@nverke): even sized kernels and stride are currently not working.
 
         batches, input_size, _, in_c = a.shape
         w_size, _, _, filters = w.shape
