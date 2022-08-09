@@ -23,12 +23,14 @@ import pytest
 import tvm
 
 from tvm import meta_schedule as ms
-from tvm.meta_schedule import TuneConfig, tune_tir
+from tvm.meta_schedule import TuneContext, TuneConfig, tune_tir
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.meta_schedule.testing.local_rpc import LocalRPC
+from tvm.meta_schedule.schedule_rule import PyScheduleRule
+from tvm.meta_schedule.utils import derived_object
 from tvm.script import tir as T
 from tvm.target import Target
-from tvm.tir import Schedule
+from tvm.tir.schedule import BlockRV, Schedule
 
 logging.basicConfig()
 logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
@@ -85,6 +87,18 @@ def test_tune_matmul_cpu():
 
 @pytest.mark.skip("Integration test")
 def test_tune_block_cpu():
+    @derived_object
+    class RemoveBlock(PyScheduleRule):
+        def _initialize_with_tune_context(self, context: TuneContext) -> None:
+            pass
+
+        def apply(self, sch: Schedule, block: BlockRV):
+            if sch.get(block).name_hint == "root":
+                return [sch]
+            sch = sch.copy()
+            sch.compute_inline(block)
+            return [sch]
+
     with tempfile.TemporaryDirectory() as work_dir:
         sch: Schedule = tune_tir(
             mod=two_step,
@@ -96,17 +110,10 @@ def test_tune_block_cpu():
                 max_trials_global=32,
             ),
             work_dir=work_dir,
-            blocks=["B"],
+            blocks=["A"],
+            sch_rules=lambda *args: [RemoveBlock()],
         )
-        if sch is None:
-            print("No valid schedule found!")
-        else:
-            # Since only block B was tuned, we should now be able
-            # to manually inline block A without an error.
-            block_a = sch.get_block("A")
-            sch.compute_inline(block=block_a)
-            print(sch.mod.script())
-            print(sch.trace)
+        assert sch is not None
 
 
 @pytest.mark.skip("Integration test")

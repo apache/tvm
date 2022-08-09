@@ -397,7 +397,7 @@ def test_target_blocks_search_space():
             mod=mod,
             target=Target("llvm"),
             task_name="Custom Search Space Task",
-            space_generator=PostOrderApply(filter_fn=filter_fn),
+            space_generator=PostOrderApply(f_block_filter=filter_fn),
             sch_rules=[TrinityDoubleRule()],
         )
         post_order_apply = context.space_generator
