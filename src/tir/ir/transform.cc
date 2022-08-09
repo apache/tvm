@@ -96,8 +96,8 @@ IRModule PrimFuncPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
     // only picks up tir::PrimFunc
     if (kv.second->IsInstance<PrimFuncNode>()) {
       // move out the function so that it is the only copy.
-      PrimFunc func = Downcast<PrimFunc>(std::move(kv.second));
-      func = pass_func(std::move(func), mod, pass_ctx);
+      PrimFunc func = Downcast<PrimFunc>(kv.second);
+      func = pass_func(func, mod, pass_ctx);
       kv.second = std::move(func);
 
       if (!kv.second.defined()) {
