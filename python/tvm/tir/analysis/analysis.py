@@ -321,6 +321,7 @@ def verify_well_formed(func: PrimFunc, assert_mode: bool = True) -> bool:
     """
     return _ffi_api.VerifyWellFormed(func, assert_mode)  # type: ignore # pylint: disable=no-member
 
+
 def OOBChecker():
     """Detect out of bounds memory access in arrays.
 
