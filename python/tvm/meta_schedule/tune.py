@@ -397,8 +397,9 @@ def tune_tir(
     space : Optional[FnSpaceGenerator]
         The space generator to use.
     blocks : Optional[List[str]]
-        A list of block names to tune. If provided, other blocks
-        will not be optimized.
+        A list of block names specifying blocks to be tuned. Note that if
+        the list is not None, blocks outside this list will not be tuned.
+        Only one of this argument and space may be provided.
     sch_rules : Optional[FnScheduleRule]
         The search rules to use.
     postprocs : Optional[FnPostproc]
@@ -425,7 +426,7 @@ def tune_tir(
     )
 
     if blocks is not None:
-        assert space is None, "Only one of blocks and space can be specified."
+        assert space is None, "Can not specify blocks to tune when a search space is given."
         # Create a filter function to identify named blocks.
         def _filter_fn(block, target_names) -> bool:
             return block.name_hint in target_names

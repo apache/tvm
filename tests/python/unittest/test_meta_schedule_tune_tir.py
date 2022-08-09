@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring
+# pylint: disable=missing-docstring,no-member,invalid-name,unused-variable
 import logging
 import tempfile
 import numpy as np
@@ -34,9 +34,6 @@ logging.basicConfig()
 logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
 
 
-# pylint: disable=no-member,invalid-name,unused-variable
-
-
 @T.prim_func
 def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [128, 128])
@@ -50,7 +47,19 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-# pylint: enable=no-member,invalid-name,unused-variable
+@T.prim_func
+def two_step(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (1024, 1024), "float32")
+    B = T.alloc_buffer((1024, 1024), "float32")
+    C = T.match_buffer(c, (1024, 1024), "float32")
+    for i, j in T.grid(1024, 1024):
+        with T.block("A"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(1024, 1024):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 3.0
 
 
 @pytest.mark.skip("Integration test")
@@ -66,11 +75,36 @@ def test_tune_matmul_cpu():
                 max_trials_global=32,
             ),
             work_dir=work_dir,
-            blocks=["update"],
         )
         if sch is None:
             print("No valid schedule found!")
         else:
+            print(sch.mod.script())
+            print(sch.trace)
+
+
+@pytest.mark.skip("Integration test")
+def test_tune_block_cpu():
+    with tempfile.TemporaryDirectory() as work_dir:
+        sch: Schedule = tune_tir(
+            mod=two_step,
+            target=Target("llvm --num-cores=16"),
+            config=TuneConfig(
+                strategy="replay_trace",
+                num_trials_per_iter=32,
+                max_trials_per_task=32,
+                max_trials_global=32,
+            ),
+            work_dir=work_dir,
+            blocks=["B"],
+        )
+        if sch is None:
+            print("No valid schedule found!")
+        else:
+            # Since only block B was tuned, we should now be able
+            # to manually inline block A without an error.
+            block_a = sch.get_block("A")
+            sch.compute_inline(block=block_a)
             print(sch.mod.script())
             print(sch.trace)
 
@@ -142,3 +176,4 @@ if __name__ == """__main__""":
     test_tune_matmul_cpu()
     test_tune_matmul_cuda()
     test_tune_run_module_via_rpc()
+    test_tune_block_cpu()
