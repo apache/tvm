@@ -75,14 +75,14 @@ ByteSpan PopNextUnderline(UnderlineIter* next_underline, UnderlineIter end_under
   }
 }
 
-void PrintChunk(const std::pair<size_t, size_t>& lines,
+void PrintChunk(const std::pair<size_t, size_t>& lines_range,
                 const std::pair<UnderlineIter, UnderlineIter>& underlines, const std::string& text,
                 const std::vector<size_t>& line_starts, const DocPrinterOptions& options,
                 size_t line_number_width, std::string* out) {
   UnderlineIter next_underline = underlines.first;
   ByteSpan current_underline = PopNextUnderline(&next_underline, underlines.second);
 
-  for (size_t line_idx = lines.first; line_idx < lines.second; ++line_idx) {
+  for (size_t line_idx = lines_range.first; line_idx < lines_range.second; ++line_idx) {
     if (options.print_line_numbers) {
       std::string line_num_str = std::to_string(line_idx + 1);
       line_num_str.push_back(' ');
