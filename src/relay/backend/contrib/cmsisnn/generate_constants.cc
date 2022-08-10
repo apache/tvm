@@ -51,7 +51,8 @@ class GenerateConstantsMutator : public MixedModeMutator {
 
  private:
   /*!  * \brief Converts Kernel layout from HWIO to OHWI to align to CMSIS-NN requirements */
-  Expr ConvertKernelLayout(Expr kernel_expr, const Conv2DAttrs* conv2d_attrs, Attrs* new_attrs) {
+  Expr ConvertKernelLayout(Expr kernel_expr, const qnn::QConv2DAttrs* conv2d_attrs,
+                           Attrs* new_attrs) {
     auto attrs = make_object<Conv2DAttrs>();
     attrs->strides = std::move(conv2d_attrs->strides);
     attrs->padding = std::move(conv2d_attrs->padding);
@@ -94,7 +95,7 @@ class GenerateConstantsMutator : public MixedModeMutator {
       conv2d_call = requantize_input;
     }
 
-    auto* conv2d_attrs = conv2d_call->attrs.as<Conv2DAttrs>();
+    auto* conv2d_attrs = conv2d_call->attrs.as<qnn::QConv2DAttrs>();
     tvm::Attrs new_conv2d_attrs = conv2d_call->attrs;
     Expr conv2d_kernel = conv2d_call->args[1];
 
