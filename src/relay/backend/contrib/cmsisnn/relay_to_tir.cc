@@ -179,7 +179,7 @@ class RelayToTIRVisitor : public MixedModeMutator {
     // https://github.com/ARM-software/CMSIS_5/blob/def6f800f95661eb3451d317f7d0dde504f6020d/CMSIS/NN/Source/ConvolutionFunctions/arm_convolve_wrapper_s8.c#L50
 
     // prepare cmsis_nn_conv_params
-    const Conv2DAttrs* conv2d_attrs = conv2d_call->attrs.as<Conv2DAttrs>();
+    const qnn::QConv2DAttrs* conv2d_attrs = conv2d_call->attrs.as<qnn::QConv2DAttrs>();
     int32_t input_offset = -GetScalarFromConstant<int32_t>(conv2d_call->args[2]);
     int32_t output_offset = GetScalarFromConstant<int32_t>(requantize_call->args[4]);
     int32_t stride_w = qnn::get_const_int(conv2d_attrs->strides[1]);
@@ -328,7 +328,7 @@ class RelayToTIRVisitor : public MixedModeMutator {
     // https://github.com/ARM-software/CMSIS_5/blob/def6f800f95661eb3451d317f7d0dde504f6020d/CMSIS/NN/Source/ConvolutionFunctions/arm_convolve_wrapper_s8.c#L50
 
     // prepare cmsis_nn_fc_params
-    const DenseAttrs* dense_attrs = fc_call->attrs.as<DenseAttrs>();
+    const qnn::QDenseAttrs* dense_attrs = fc_call->attrs.as<qnn::QDenseAttrs>();
     int32_t input_offset = -GetScalarFromConstant<int32_t>(fc_call->args[2]);
     int32_t filter_offset = -GetScalarFromConstant<int32_t>(fc_call->args[3]);
     int32_t output_offset = GetScalarFromConstant<int32_t>(requantize_call->args[4]);
