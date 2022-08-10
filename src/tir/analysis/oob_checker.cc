@@ -107,7 +107,9 @@ transform::Pass OOBChecker() {
     OOBCheckerVisitor checker;
     checker(func->body);
     if (checker.errors.size() > 0) {
-      LOG(FATAL) << OOBError(mod, checker.errors).RenderReport("Out of bounds checker");
+      // mod doesn't contain our function, so we construct a new mod with out function
+      IRModule func_mod({{GlobalVar("main"), func}});
+      LOG(FATAL) << OOBError(func_mod, checker.errors).RenderReport("Out of bounds checker");
     }
     return func;
   };
