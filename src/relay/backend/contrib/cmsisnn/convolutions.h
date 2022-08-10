@@ -49,7 +49,7 @@ namespace cmsisnn {
  * attributes
  */
 
-bool IsCMSISNNDepthwise(const Conv2DAttrs* conv2d_attrs, const Array<PrimExpr>& input_shape,
+bool IsCMSISNNDepthwise(const qnn::QConv2DAttrs* conv2d_attrs, const Array<PrimExpr>& input_shape,
                         const Array<PrimExpr>& kernel_shape);
 
 }  // namespace cmsisnn
