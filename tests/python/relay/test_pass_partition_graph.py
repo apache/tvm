@@ -935,7 +935,6 @@ def test_dnnl_fuse():
         elif pattern[0] == "dnnl.conv2d_bias_sum_relu":
             conv2d_bias_sum_relu_pat = pattern
 
-
     def get_blocks(
         prefix,
         data,
@@ -1053,6 +1052,7 @@ def test_dnnl_fuse():
             )
             conv_bias_bn_sum = relay.add(conv_bias_bn, sum_data)
             return relay.nn.relu(conv_bias_bn_sum), dic, param_lst
+
         net, dic, param_lst = get_conv2d_bn_sum_relu()
         net = tvm.IRModule.from_expr(net)
         params = {x: np.random.uniform(-1, 1, dic[x]).astype("float32") for x in param_lst}
