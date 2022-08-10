@@ -23,7 +23,7 @@ import warnings
 import logging
 import traceback
 import re
-from typing import Dict, Any, List, Optional, Callable
+from typing import Dict, Any, List, Optional, Callable, Union
 from pathlib import Path
 
 from git_utils import git, GitHubRepo, parse_remote, post
@@ -122,6 +122,7 @@ PR_QUERY = """
                         databaseId
                         checkSuite {
                           workflowRun {
+                            databaseId
                             workflow {
                               name
                             }
@@ -528,37 +529,53 @@ class PR:
             post(url, auth=("tvm-bot", TVM_BOT_JENKINS_TOKEN))
 
     def rerun_github_actions(self) -> None:
-        job_ids = []
+        workflow_ids = []
         for item in self.head_commit()["statusCheckRollup"]["contexts"]["nodes"]:
-            if "checkSuite" in item:
-                job_ids.append(item["databaseId"])
+            if "checkSuite" in item and item["conclusion"] == "FAILURE":
+                workflow_id = item["checkSuite"]["workflowRun"]["databaseId"]
+                workflow_ids.append(workflow_id)
 
-        logging.info(f"Rerunning GitHub Actions jobs with IDs: {job_ids}")
+        workflow_ids = list(set(workflow_ids))
+        logging.info(f"Rerunning GitHub Actions workflows with IDs: {workflow_ids}")
         actions_github = GitHubRepo(
             user=self.github.user, repo=self.github.repo, token=GH_ACTIONS_TOKEN
         )
-        for job_id in job_ids:
+        for workflow_id in workflow_ids:
             if self.dry_run:
+                logging.info(f"Dry run, not restarting workflow {workflow_id}")
+            else:
                 try:
-                    actions_github.post(f"actions/jobs/{job_id}/rerun", data={})
+                    actions_github.post(f"actions/runs/{workflow_id}/rerun-failed-jobs", data={})
                 except RuntimeError as e:
+                    logging.exception(e)
                     # Ignore errors about jobs that are part of the same workflow to avoid
                     # having to figure out which jobs are in which workflows ahead of time
                     if "The workflow run containing this job is already running" in str(e):
                         pass
                     else:
                         raise e
-            else:
-                logging.info(f"Dry run, not restarting {job_id}")
 
-    def comment_failure(self, msg: str, exception: Exception):
-        if not self.dry_run:
-            exception_msg = traceback.format_exc()
-            comment = f"{msg} in {args.run_url}\n\n<details>\n\n```\n{exception_msg}\n```\n\n"
+    def comment_failure(self, msg: str, exceptions: Union[Exception, List[Exception]]):
+        if not isinstance(exceptions, list):
+            exceptions = [exceptions]
+
+        logging.info(f"Failed, commenting {exceptions}")
+
+        # Extract all the traceback strings
+        for item in exceptions:
+            try:
+                raise item
+            except Exception:
+                item.exception_msg = traceback.format_exc()
+
+        comment = f"{msg} in {args.run_url}\n\n"
+        for exception in exceptions:
+            comment += f"<details>\n\n```\n{exception.exception_msg}\n```\n\n"
             if hasattr(exception, "read"):
                 comment += f"with response\n\n```\n{exception.read().decode()}\n```\n\n"
             comment += "</details>"
-            pr.comment(comment)
+
+        pr.comment(comment)
         return exception
 
 
@@ -570,30 +587,35 @@ def check_author(pr, triggering_comment, args):
     return False
 
 
-def check_collaborator(pr, triggering_comment, args):
-    logging.info("Checking collaborators")
-    # Get the list of collaborators for the repo filtered by the comment
-    # author
+def search_users(name, triggering_comment, testing_json, search_fn):
+    logging.info(f"Checking {name}")
     commment_author = triggering_comment["user"]["login"]
-    if args.testing_collaborators_json:
-        collaborators = json.loads(args.testing_collaborators_json)
+    if testing_json:
+        matching_users = json.loads(testing_json)
     else:
-        collaborators = pr.search_collaborator(commment_author)
-    logging.info(f"Found collaborators: {collaborators}")
+        matching_users = search_fn(commment_author)
+    logging.info(f"Found {name}: {matching_users}")
+    user_names = {user["login"] for user in matching_users}
 
-    return len(collaborators) > 0 and commment_author in collaborators
+    return len(matching_users) > 0 and commment_author in user_names
+
+
+def check_collaborator(pr, triggering_comment, args):
+    return search_users(
+        name="collaborators",
+        triggering_comment=triggering_comment,
+        search_fn=pr.search_collaborator,
+        testing_json=args.testing_collaborators_json,
+    )
 
 
 def check_mentionable_users(pr, triggering_comment, args):
-    logging.info("Checking mentionable users")
-    commment_author = triggering_comment["user"]["login"]
-    if args.testing_mentionable_users_json:
-        mentionable_users = json.loads(args.testing_mentionable_users_json)
-    else:
-        mentionable_users = pr.search_mentionable_users(commment_author)
-    logging.info(f"Found mentionable_users: {mentionable_users}")
-
-    return len(mentionable_users) > 0 and commment_author in mentionable_users
+    return search_users(
+        name="mentionable users",
+        triggering_comment=triggering_comment,
+        search_fn=pr.search_mentionable_users,
+        testing_json=args.testing_mentionable_users_json,
+    )
 
 
 AUTH_CHECKS = {
@@ -645,11 +667,19 @@ class Rerun:
 
     @staticmethod
     def run(pr: PR):
+        errors = []
         try:
             pr.rerun_jenkins_ci()
+        except Exception as e:
+            errors.append(e)
+
+        try:
             pr.rerun_github_actions()
         except Exception as e:
-            pr.comment_failure("Failed to re-run CI", e)
+            errors.append(e)
+
+        if len(errors) > 0:
+            pr.comment_failure("Failed to re-run CI", errors)
 
 
 if __name__ == "__main__":
