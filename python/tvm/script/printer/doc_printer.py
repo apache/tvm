@@ -51,6 +51,6 @@ def to_python_script(
     """
     if num_context_lines is None:
         num_context_lines = -1
-    return _ffi_api.DocToPythonScript(  # pylint: disable=no-member
+    return _ffi_api.DocToPythonScript(  # type: ignore
         doc, indent_spaces, print_line_numbers, num_context_lines, path_to_underline
-    )  # type: ignore
+    )
