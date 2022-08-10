@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-08-05T17:23:43.942908
+// Generated at 2022-08-05T14:15:15.427777
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -137,25 +137,30 @@ def init_git() {
   )
 
   sh(
-    script: '''
+    script: """
       set -eux
-      n=0
-      max_retries=3
-      backoff_max=30
-      until [ "$n" -ge $max_retries ]
-      do
-          timeout 5m git submodule update --init -f --jobs 0 && break
-          n=$((n+1))
-          if [ "$n" -eq $max_retries ]; then
-              echo "failed to update $n / $max_retries, giving up"
-              exit 1
-          fi
+      retry() {
+  local max_retries=\$1
+  shift
+  local n=0
+  local backoff_max=30
+  until [ "\$n" -ge \$max_retries ]
+  do
+      "\$@" && break
+      n=\$((n+1))
+      if [ "\$n" -eq \$max_retries ]; then
+          echo "failed to update after attempt \$n / \$max_retries, giving up"
+          exit 1
+      fi
 
-          WAIT=$((RANDOM % "$backoff_max"))
-          echo "failed to update $n / $max_retries, waiting $WAIT to try again"
-          sleep $WAIT
-      done
-    ''',
+      WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+      echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+      sleep \$WAIT
+  done
+}
+
+      retry 3 timeout 5m git submodule update --init -f --jobs 0
+    """,
     label: 'Update git submodules',
   )
 }
@@ -185,23 +190,23 @@ def docker_init(image) {
       script: """
       set -eux
       retry() {
-  local retries=\$1
+  local max_retries=\$1
   shift
+  local n=0
+  local backoff_max=30
+  until [ "\$n" -ge \$max_retries ]
+  do
+      "\$@" && break
+      n=\$((n+1))
+      if [ "\$n" -eq \$max_retries ]; then
+          echo "failed to update after attempt \$n / \$max_retries, giving up"
+          exit 1
+      fi
 
-  local count=0
-  until "\$@"; do
-    exit=\$?
-    wait=\$((2 ** \$count))
-    count=\$((\$count + 1))
-    if [ \$count -lt \$retries ]; then
-      echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-      sleep \$wait
-    else
-      echo "Retry \$count/\$retries exited \$exit, no more retries left."
-      return \$exit
-    fi
+      WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+      echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+      sleep \$WAIT
   done
-  return 0
 }
 
       retry 3 docker pull ${image}
@@ -685,23 +690,23 @@ stage('Build') {
             script: """
               set -eux
               retry() {
-                local retries=\$1
+                local max_retries=\$1
                 shift
+                local n=0
+                local backoff_max=30
+                until [ "\$n" -ge \$max_retries ]
+                do
+                    "\$@" && break
+                    n=\$((n+1))
+                    if [ "\$n" -eq \$max_retries ]; then
+                        echo "failed to update after attempt \$n / \$max_retries, giving up"
+                        exit 1
+                    fi
 
-                local count=0
-                until "\$@"; do
-                  exit=\$?
-                  wait=\$((2 ** \$count))
-                  count=\$((\$count + 1))
-                  if [ \$count -lt \$retries ]; then
-                    echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                    sleep \$wait
-                  else
-                    echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                    return \$exit
-                  fi
+                    WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                    echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                    sleep \$WAIT
                 done
-                return 0
               }
 
               md5sum build/libtvm.so
@@ -725,23 +730,23 @@ stage('Build') {
             script: """
               set -eux
               retry() {
-                local retries=\$1
+                local max_retries=\$1
                 shift
+                local n=0
+                local backoff_max=30
+                until [ "\$n" -ge \$max_retries ]
+                do
+                    "\$@" && break
+                    n=\$((n+1))
+                    if [ "\$n" -eq \$max_retries ]; then
+                        echo "failed to update after attempt \$n / \$max_retries, giving up"
+                        exit 1
+                    fi
 
-                local count=0
-                until "\$@"; do
-                  exit=\$?
-                  wait=\$((2 ** \$count))
-                  count=\$((\$count + 1))
-                  if [ \$count -lt \$retries ]; then
-                    echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                    sleep \$wait
-                  else
-                    echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                    return \$exit
-                  fi
+                    WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                    echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                    sleep \$WAIT
                 done
-                return 0
               }
 
               md5sum build/libtvm.so
@@ -775,23 +780,23 @@ stage('Build') {
             script: """
               set -eux
               retry() {
-                local retries=\$1
+                local max_retries=\$1
                 shift
+                local n=0
+                local backoff_max=30
+                until [ "\$n" -ge \$max_retries ]
+                do
+                    "\$@" && break
+                    n=\$((n+1))
+                    if [ "\$n" -eq \$max_retries ]; then
+                        echo "failed to update after attempt \$n / \$max_retries, giving up"
+                        exit 1
+                    fi
 
-                local count=0
-                until "\$@"; do
-                  exit=\$?
-                  wait=\$((2 ** \$count))
-                  count=\$((\$count + 1))
-                  if [ \$count -lt \$retries ]; then
-                    echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                    sleep \$wait
-                  else
-                    echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                    return \$exit
-                  fi
+                    WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                    echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                    sleep \$WAIT
                 done
-                return 0
               }
 
               md5sum build/libvta_tsim.so
@@ -860,23 +865,23 @@ stage('Build') {
             script: """
               set -eux
               retry() {
-                local retries=\$1
+                local max_retries=\$1
                 shift
+                local n=0
+                local backoff_max=30
+                until [ "\$n" -ge \$max_retries ]
+                do
+                    "\$@" && break
+                    n=\$((n+1))
+                    if [ "\$n" -eq \$max_retries ]; then
+                        echo "failed to update after attempt \$n / \$max_retries, giving up"
+                        exit 1
+                    fi
 
-                local count=0
-                until "\$@"; do
-                  exit=\$?
-                  wait=\$((2 ** \$count))
-                  count=\$((\$count + 1))
-                  if [ \$count -lt \$retries ]; then
-                    echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                    sleep \$wait
-                  else
-                    echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                    return \$exit
-                  fi
+                    WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                    echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                    sleep \$WAIT
                 done
-                return 0
               }
 
               md5sum build/libvta_tsim.so
@@ -914,23 +919,23 @@ stage('Build') {
             script: """
               set -eux
               retry() {
-                local retries=\$1
+                local max_retries=\$1
                 shift
+                local n=0
+                local backoff_max=30
+                until [ "\$n" -ge \$max_retries ]
+                do
+                    "\$@" && break
+                    n=\$((n+1))
+                    if [ "\$n" -eq \$max_retries ]; then
+                        echo "failed to update after attempt \$n / \$max_retries, giving up"
+                        exit 1
+                    fi
 
-                local count=0
-                until "\$@"; do
-                  exit=\$?
-                  wait=\$((2 ** \$count))
-                  count=\$((\$count + 1))
-                  if [ \$count -lt \$retries ]; then
-                    echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                    sleep \$wait
-                  else
-                    echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                    return \$exit
-                  fi
+                    WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                    echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                    sleep \$WAIT
                 done
-                return 0
               }
 
               md5sum build/libtvm.so
@@ -966,23 +971,23 @@ stage('Build') {
             script: """
               set -eux
               retry() {
-                local retries=\$1
+                local max_retries=\$1
                 shift
+                local n=0
+                local backoff_max=30
+                until [ "\$n" -ge \$max_retries ]
+                do
+                    "\$@" && break
+                    n=\$((n+1))
+                    if [ "\$n" -eq \$max_retries ]; then
+                        echo "failed to update after attempt \$n / \$max_retries, giving up"
+                        exit 1
+                    fi
 
-                local count=0
-                until "\$@"; do
-                  exit=\$?
-                  wait=\$((2 ** \$count))
-                  count=\$((\$count + 1))
-                  if [ \$count -lt \$retries ]; then
-                    echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                    sleep \$wait
-                  else
-                    echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                    return \$exit
-                  fi
+                    WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                    echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                    sleep \$WAIT
                 done
-                return 0
               }
 
               md5sum build/libtvm.so
@@ -1021,23 +1026,23 @@ stage('Build') {
             script: """
               set -eux
               retry() {
-                local retries=\$1
+                local max_retries=\$1
                 shift
+                local n=0
+                local backoff_max=30
+                until [ "\$n" -ge \$max_retries ]
+                do
+                    "\$@" && break
+                    n=\$((n+1))
+                    if [ "\$n" -eq \$max_retries ]; then
+                        echo "failed to update after attempt \$n / \$max_retries, giving up"
+                        exit 1
+                    fi
 
-                local count=0
-                until "\$@"; do
-                  exit=\$?
-                  wait=\$((2 ** \$count))
-                  count=\$((\$count + 1))
-                  if [ \$count -lt \$retries ]; then
-                    echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                    sleep \$wait
-                  else
-                    echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                    return \$exit
-                  fi
+                    WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                    echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                    sleep \$WAIT
                 done
-                return 0
               }
 
               md5sum build/libtvm.so
@@ -1082,23 +1087,23 @@ def shard_run_unittest_GPU_1_of_3() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu2/build/libtvm.so build/libtvm.so
@@ -1119,23 +1124,23 @@ def shard_run_unittest_GPU_1_of_3() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
@@ -1196,23 +1201,23 @@ def shard_run_unittest_GPU_2_of_3() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
@@ -1276,23 +1281,23 @@ def shard_run_unittest_GPU_3_of_3() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
@@ -1353,23 +1358,23 @@ def shard_run_integration_CPU_1_of_10() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
@@ -1427,23 +1432,23 @@ def shard_run_integration_CPU_2_of_10() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
@@ -1501,23 +1506,23 @@ def shard_run_integration_CPU_3_of_10() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
@@ -1575,23 +1580,23 @@ def shard_run_integration_CPU_4_of_10() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
@@ -1649,23 +1654,23 @@ def shard_run_integration_CPU_5_of_10() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
@@ -1723,23 +1728,23 @@ def shard_run_integration_CPU_6_of_10() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
@@ -1797,23 +1802,23 @@ def shard_run_integration_CPU_7_of_10() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
@@ -1871,23 +1876,23 @@ def shard_run_integration_CPU_8_of_10() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
@@ -1945,23 +1950,23 @@ def shard_run_integration_CPU_9_of_10() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
@@ -2019,23 +2024,23 @@ def shard_run_integration_CPU_10_of_10() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
@@ -2094,23 +2099,23 @@ def shard_run_python_i386_1_of_5() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
@@ -2168,23 +2173,23 @@ def shard_run_python_i386_2_of_5() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
@@ -2242,23 +2247,23 @@ def shard_run_python_i386_3_of_5() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
@@ -2315,23 +2320,23 @@ def shard_run_python_i386_4_of_5() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
@@ -2388,23 +2393,23 @@ def shard_run_python_i386_5_of_5() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/i386/build/libtvm.so build/libtvm.so
@@ -2462,23 +2467,23 @@ def shard_run_test_Hexagon_1_of_7() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
@@ -2535,23 +2540,23 @@ def shard_run_test_Hexagon_2_of_7() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
@@ -2607,23 +2612,23 @@ def shard_run_test_Hexagon_3_of_7() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
@@ -2679,23 +2684,23 @@ def shard_run_test_Hexagon_4_of_7() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
@@ -2751,23 +2756,23 @@ def shard_run_test_Hexagon_5_of_7() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
@@ -2823,23 +2828,23 @@ def shard_run_test_Hexagon_6_of_7() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
@@ -2895,23 +2900,23 @@ def shard_run_test_Hexagon_7_of_7() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/hexagon/build/libtvm.so build/libtvm.so
@@ -2968,23 +2973,23 @@ def shard_run_integration_aarch64_1_of_4() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
@@ -3041,23 +3046,23 @@ def shard_run_integration_aarch64_2_of_4() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
@@ -3114,23 +3119,23 @@ def shard_run_integration_aarch64_3_of_4() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
@@ -3187,23 +3192,23 @@ def shard_run_integration_aarch64_4_of_4() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
@@ -3261,23 +3266,23 @@ def shard_run_topi_GPU_1_of_4() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
@@ -3333,23 +3338,23 @@ def shard_run_topi_GPU_2_of_4() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
@@ -3405,23 +3410,23 @@ def shard_run_topi_GPU_3_of_4() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
@@ -3477,23 +3482,23 @@ def shard_run_topi_GPU_4_of_4() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
@@ -3550,23 +3555,23 @@ def shard_run_frontend_GPU_1_of_6() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
@@ -3622,23 +3627,23 @@ def shard_run_frontend_GPU_2_of_6() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
@@ -3694,23 +3699,23 @@ def shard_run_frontend_GPU_3_of_6() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
@@ -3766,23 +3771,23 @@ def shard_run_frontend_GPU_4_of_6() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
@@ -3838,23 +3843,23 @@ def shard_run_frontend_GPU_5_of_6() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
@@ -3910,23 +3915,23 @@ def shard_run_frontend_GPU_6_of_6() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
@@ -3983,23 +3988,23 @@ def shard_run_topi_aarch64_1_of_2() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
@@ -4060,23 +4065,23 @@ def shard_run_topi_aarch64_2_of_2() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
@@ -4137,23 +4142,23 @@ def shard_run_frontend_aarch64_1_of_2() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
@@ -4209,23 +4214,23 @@ def shard_run_frontend_aarch64_2_of_2() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/arm/build/libtvm.so build/libtvm.so
@@ -4282,23 +4287,23 @@ def shard_run_test_Cortex_M_1_of_8() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
@@ -4359,23 +4364,23 @@ def shard_run_test_Cortex_M_2_of_8() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
@@ -4431,23 +4436,23 @@ def shard_run_test_Cortex_M_3_of_8() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
@@ -4503,23 +4508,23 @@ def shard_run_test_Cortex_M_4_of_8() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
@@ -5021,23 +5026,23 @@ stage('Test') {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libvta_tsim.so build/libvta_tsim.so
@@ -5094,23 +5099,23 @@ stage('Test') {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu/build/libtvm.so build/libtvm.so
@@ -5159,23 +5164,23 @@ stage('Test') {
             script: """
               set -eux
               retry() {
-                local retries=\$1
+                local max_retries=\$1
                 shift
+                local n=0
+                local backoff_max=30
+                until [ "\$n" -ge \$max_retries ]
+                do
+                    "\$@" && break
+                    n=\$((n+1))
+                    if [ "\$n" -eq \$max_retries ]; then
+                        echo "failed to update after attempt \$n / \$max_retries, giving up"
+                        exit 1
+                    fi
 
-                local count=0
-                until "\$@"; do
-                  exit=\$?
-                  wait=\$((2 ** \$count))
-                  count=\$((\$count + 1))
-                  if [ \$count -lt \$retries ]; then
-                    echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                    sleep \$wait
-                  else
-                    echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                    return \$exit
-                  fi
+                    WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                    echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                    sleep \$WAIT
                 done
-                return 0
               }
 
               retry 3 aws s3 cp --no-progress s3://${s3_prefix}/gpu/build/libtvm.so build/libtvm.so
@@ -5203,23 +5208,23 @@ stage('Test') {
             script: """
               set -eux
               retry() {
-                local retries=\$1
+                local max_retries=\$1
                 shift
+                local n=0
+                local backoff_max=30
+                until [ "\$n" -ge \$max_retries ]
+                do
+                    "\$@" && break
+                    n=\$((n+1))
+                    if [ "\$n" -eq \$max_retries ]; then
+                        echo "failed to update after attempt \$n / \$max_retries, giving up"
+                        exit 1
+                    fi
 
-                local count=0
-                until "\$@"; do
-                  exit=\$?
-                  wait=\$((2 ** \$count))
-                  count=\$((\$count + 1))
-                  if [ \$count -lt \$retries ]; then
-                    echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                    sleep \$wait
-                  else
-                    echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                    return \$exit
-                  fi
+                    WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                    echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                    sleep \$WAIT
                 done
-                return 0
               }
 
               md5sum docs.tgz
@@ -5329,23 +5334,23 @@ def deploy() {
             script: """
               set -eux
               retry() {
-                local retries=\$1
+                local max_retries=\$1
                 shift
+                local n=0
+                local backoff_max=30
+                until [ "\$n" -ge \$max_retries ]
+                do
+                    "\$@" && break
+                    n=\$((n+1))
+                    if [ "\$n" -eq \$max_retries ]; then
+                        echo "failed to update after attempt \$n / \$max_retries, giving up"
+                        exit 1
+                    fi
 
-                local count=0
-                until "\$@"; do
-                  exit=\$?
-                  wait=\$((2 ** \$count))
-                  count=\$((\$count + 1))
-                  if [ \$count -lt \$retries ]; then
-                    echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                    sleep \$wait
-                  else
-                    echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                    return \$exit
-                  fi
+                    WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                    echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                    sleep \$WAIT
                 done
-                return 0
               }
 
               retry 3 aws s3 cp --no-progress s3://${s3_prefix}/docs/docs.tgz docs.tgz
