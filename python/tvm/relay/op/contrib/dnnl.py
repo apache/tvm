@@ -249,8 +249,6 @@ def make_sum_pattren_predicate(checker):
         for e, op_name in zip([expr, expr.args[0]], ["sum", "bias_add"]):
             args = get_args(e)
             attrs = get_attrs(e.args[0])
-            if attrs is None:
-                return False
             if not checker(attrs, args, op_name):
                 return False
         return True
@@ -284,6 +282,8 @@ def add_checker(attrs, args, op_name):
         if tuple(get_shape(args[0])) != tuple(get_shape(args[1])):
             return False
     if op_name == "bias_add":
+        if attrs is None:
+            return False
         if not isinstance(args[0].op, tvm.ir.op.Op):
             return False
         if args[0].op.name != "nn.conv2d":
