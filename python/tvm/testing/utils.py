@@ -1006,15 +1006,10 @@ def _compose(args, decs):
     return decs
 
 
-def slow(fn):
-    @functools.wraps(fn)
-    def wrapper(*args, **kwargs):
-        if SKIP_SLOW_TESTS:
-            pytest.skip("Skipping slow test since RUN_SLOW_TESTS environment variables is 'true'")
-        else:
-            fn(*args, **kwargs)
-
-    return wrapper
+slow = pytest.mark.skipif(
+    SKIP_SLOW_TESTS,
+    reason="Skipping slow test since the SKIP_SLOW_TESTS environment variable is 'true'",
+)
 
 
 def requires_nvcc_version(major_version, minor_version=0, release_version=0):
