@@ -39,6 +39,7 @@
 #include "ethosn_api_version.h"
 #include "ethosn_support_library/Support.hpp"
 #include "ethosn_support_library/SupportQueries.hpp"
+#include "tvm/relay/qnn/attrs.h"
 
 namespace tvm {
 namespace relay {
@@ -671,6 +672,35 @@ EthosnError EthosnAPI::Relu(const Expr& expr, ReluParams* params) {
   sl::TensorInfo output_tensor_info;
   err += Tvm2Npu(call->checked_type(), &output_tensor_info);
   output_tensor_info.m_QuantizationInfo = params->input_info.m_QuantizationInfo;
+  params->output_info = output_tensor_info;
+
+  return err;
+}
+
+EthosnError EthosnAPI::Requantize(const Expr& expr, RequantizeParams* params) {
+  Call call = Downcast<Call>(expr);
+  const auto* input_dtype = call->args[0]->checked_type().as<TensorTypeNode>();
+  sl::TensorShape input_tensor_shape = {1, 1, 1, 1};
+  sl::DataType input_data_type;
+  EthosnError err = Tvm2Npu(input_dtype->shape, &input_tensor_shape);
+  err += Tvm2Npu(input_dtype->dtype, &input_data_type);
+
+  float input_sc, output_sc;
+  int input_zp, output_zp;
+  err += AsConstant(call->args[1], &input_sc);
+  err += AsConstant(call->args[2], &input_zp);
+  err += AsConstant(call->args[3], &output_sc);
+  err += AsConstant(call->args[4], &output_zp);
+
+  params->requantize_info = sl::RequantizeInfo(sl::QuantizationInfo(output_zp, output_sc));
+  params->input_info = sl::TensorInfo(input_tensor_shape, input_data_type, sl::DataFormat::NHWC,
+                                      sl::QuantizationInfo(input_zp, input_sc));
+
+  sl::QuantizationInfo output_q_info;
+  err += Tvm2Npu(output_zp, output_sc, &output_q_info);
+  sl::TensorInfo output_tensor_info;
+  err += Tvm2Npu(call->checked_type(), &output_tensor_info);
+  output_tensor_info.m_QuantizationInfo = output_q_info;
   params->output_info = output_tensor_info;
 
   return err;
