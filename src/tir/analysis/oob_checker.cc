@@ -90,9 +90,17 @@ class OOBCheckerVisitor final : public arith::IRVisitorWithAnalyzer {
   void CheckBounds(const T* node, size_t i) {
     auto ind_bounds = analyzer_.int_set(node->indices[i]);
     auto shape_bounds = analyzer_.int_set(node->buffer->shape[i]);
-    // Only show an error if we can prove that the access occurs out of bounds.
-    // In some cases we may not be able to prove that the access is in or out
-    // of bounds and we would like to ignore these cases.
+    // We would expect that
+    // `analyzer_.CanProve(node->indices[i] < 0 || node->indices[i] >= node->buffer->shape[i])`
+    // would be the way to check if any out of bounds access occurs here, but `CanProve` checks if
+    // the statement is true for all possible values (universal quantification). For a mix of in
+    // bounds and out of bounds access, no out of bounds access would be reported. We instead want
+    // to check if there is any value for which the access is out of bounds (existential
+    // quantification).
+    // An solution would be to check that the index is in bounds for every possible value. This
+    // has the problem that some valid access patterns maybe be valid but not provably valid. We
+    // prefer that this analysis is conservative and only shows errors that are provable. This leads
+    // us to the following check: are the bounds of the index outside the bounds of the shape.
     if (analyzer_.CanProve(ind_bounds.max() >= shape_bounds.min()) ||
         analyzer_.CanProve(ind_bounds.min() < 0)) {
       errors.push_back({node->buffer, i, node->indices[i], ind_bounds, shape_bounds});
