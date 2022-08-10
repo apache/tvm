@@ -155,7 +155,7 @@ def adb_server_socket() -> str:
 
 @pytest.fixture(scope="session")
 def hexagon_server_process(
-    request, android_serial_number, rpc_server_port_for_session, adb_server_socket, server_par
+    request, android_serial_number, rpc_server_port_for_session, adb_server_socket, skip_rpc
 ) -> HexagonLauncherRPC:
     """Initials and returns hexagon launcher if ANDROID_SERIAL_NUMBER is defined.
     This launcher is started only once per test session.
@@ -177,11 +177,11 @@ def hexagon_server_process(
         }
         launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
         try:
-            if not server_par:
+            if not skip_rpc:
                 launcher.start_server()
             yield launcher
         finally:
-            if not server_par:
+            if not skip_rpc:
                 launcher.stop_server()
 
 
@@ -262,15 +262,15 @@ def aot_target(aot_host_target):
 
 
 @pytest.fixture(scope="session")
-def server_par(request) -> bool:
-    return request.config.getoption("--server-par")
+def skip_rpc(request) -> bool:
+    return request.config.getoption("--skip-rpc")
 
 
 def pytest_addoption(parser):
     parser.addoption("--gtest_args", action="store", default="")
-
+    
     parser.addoption(
-        "--server-par",
+        "--skip-rpc",
         action="store_true",
         default=False,
         help="If set true, a new hexagon launcher is not created",
