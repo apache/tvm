@@ -152,6 +152,20 @@ def _get_flash_runner():
     return doc["flash-runner"]
 
 
+def _find_board_from_cmake_file(cmake_file: Union[str, pathlib.Path]) -> str:
+    """Find Zephyr board from generated CMakeLists.txt"""
+    zephyr_board = None
+    with open(cmake_file) as cmake_f:
+        for line in cmake_f:
+            if line.startswith("set(BOARD"):
+                zephyr_board = line.strip("\n").strip("\r").strip(")").split(" ")[1]
+                break
+
+    if not zephyr_board:
+        raise RuntimeError(f"No Zephyr board set in the {cmake_file}.")
+    return zephyr_board
+
+
 def _get_device_args(options):
     flash_runner = _get_flash_runner()
 
@@ -162,7 +176,7 @@ def _get_device_args(options):
         return _get_openocd_device_args(options)
 
     raise BoardError(
-        f"Don't know how to find serial terminal for board {CMAKE_CACHE['BOARD']} with flash "
+        f"Don't know how to find serial terminal for board {_find_board_from_cmake_file(API_SERVER_DIR / CMAKELIST_FILENAME)} with flash "
         f"runner {flash_runner}"
     )
 
@@ -186,7 +200,7 @@ def generic_find_serial_port(serial_number=None):
     if serial_number:
         regex = serial_number
     else:
-        prop = BOARD_PROPERTIES[CMAKE_CACHE["BOARD"]]
+        prop = BOARD_PROPERTIES[_find_board_from_cmake_file(API_SERVER_DIR / CMAKELIST_FILENAME)]
         device_id = ":".join([prop["vid_hex"], prop["pid_hex"]])
         regex = device_id
 
@@ -585,21 +599,8 @@ class Handler(server.ProjectAPIHandler):
         fpu_boards = [name for name, board in BOARD_PROPERTIES.items() if board["fpu"]]
         return zephyr_board in fpu_boards
 
-    @classmethod
-    def _find_board_from_cmake_file(cls) -> str:
-        zephyr_board = None
-        with open(API_SERVER_DIR / CMAKELIST_FILENAME) as cmake_f:
-            for line in cmake_f:
-                if line.startswith("set(BOARD"):
-                    zephyr_board = line.strip("\n").strip("set(BOARD ").strip(")")
-                    break
-
-        if not zephyr_board:
-            raise RuntimeError(f"No Zephyr board set in the {API_SERVER_DIR / CMAKELIST_FILENAME}.")
-        return zephyr_board
-
     def flash(self, options):
-        zephyr_board = self._find_board_from_cmake_file()
+        zephyr_board = _find_board_from_cmake_file(API_SERVER_DIR / CMAKELIST_FILENAME)
 
         if self._is_qemu(zephyr_board):
             return  # NOTE: qemu requires no flash step--it is launched from open_transport.
@@ -617,7 +618,7 @@ class Handler(server.ProjectAPIHandler):
         check_call(["make", "flash"], cwd=API_SERVER_DIR / "build")
 
     def open_transport(self, options):
-        zephyr_board = self._find_board_from_cmake_file()
+        zephyr_board = _find_board_from_cmake_file(API_SERVER_DIR / CMAKELIST_FILENAME)
 
         if self._is_qemu(zephyr_board):
             transport = ZephyrQemuTransport(options)

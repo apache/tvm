@@ -31,25 +31,11 @@ def init_git() {
   )
 
   sh(
-    script: '''
+    script: """
       set -eux
-      n=0
-      max_retries=3
-      backoff_max=30
-      until [ "$n" -ge $max_retries ]
-      do
-          timeout 5m git submodule update --init -f --jobs 0 && break
-          n=$((n+1))
-          if [ "$n" -eq $max_retries ]; then
-              echo "failed to update $n / $max_retries, giving up"
-              exit 1
-          fi
-
-          WAIT=$((RANDOM % "$backoff_max"))
-          echo "failed to update $n / $max_retries, waiting $WAIT to try again"
-          sleep $WAIT
-      done
-    ''',
+      {{ m.bash_retry() }}
+      retry 3 timeout 5m git submodule update --init -f --jobs 0
+    """,
     label: 'Update git submodules',
   )
 }

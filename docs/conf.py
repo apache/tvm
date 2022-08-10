@@ -264,6 +264,7 @@ within_subsection_order = {
         "topi.pi",
         "cross_compilation_and_rpc.py",
         "relay_quick_start.py",
+        "uma.py",
     ],
     "compile_models": [
         "from_pytorch.py",

@@ -196,6 +196,29 @@ class DoubleScheduleRule(PyScheduleRule):
 
 
 @derived_object
+class TrinityDoubleRule(PyScheduleRule):
+    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
+        pass
+
+    def apply(self, sch: Schedule, block: BlockRV) -> List[Schedule]:
+        if _is_root(sch, block):
+            return [sch]
+        new_sch = sch.copy()
+        i, j = new_sch.get_loops(block=block)
+        i_0, i_1 = new_sch.split(loop=i, factors=[16, 64])
+        j_0, j_1 = new_sch.split(loop=j, factors=[64, 16])
+        new_sch.reorder(i_0, j_0, i_1, j_1)
+        result = [new_sch]
+        new_sch = sch.copy()
+        i, j = new_sch.get_loops(block=block)
+        i_0, i_1 = new_sch.split(loop=i, factors=[2, 512])
+        j_0, j_1 = new_sch.split(loop=j, factors=[2, 512])
+        new_sch.reorder(i_0, j_0, i_1, j_1)
+        result.append(new_sch)
+        return result
+
+
+@derived_object
 class ReorderScheduleRule(PyScheduleRule):
     def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         pass
@@ -284,28 +307,6 @@ def test_meta_schedule_post_order_apply_duplicate_matmul():
 
 def test_meta_schedule_post_order_apply_remove_block():
     @derived_object
-    class TrinityDouble(PyScheduleRule):
-        def _initialize_with_tune_context(self, context: "TuneContext") -> None:
-            pass
-
-        def apply(self, sch: Schedule, block: BlockRV) -> List[Schedule]:
-            if _is_root(sch, block):
-                return [sch]
-            new_sch = sch.copy()
-            i, j = new_sch.get_loops(block=block)
-            i_0, i_1 = new_sch.split(loop=i, factors=[16, 64])
-            j_0, j_1 = new_sch.split(loop=j, factors=[64, 16])
-            new_sch.reorder(i_0, j_0, i_1, j_1)
-            result = [new_sch]
-            new_sch = sch.copy()
-            i, j = new_sch.get_loops(block=block)
-            i_0, i_1 = new_sch.split(loop=i, factors=[2, 512])
-            j_0, j_1 = new_sch.split(loop=j, factors=[2, 512])
-            new_sch.reorder(i_0, j_0, i_1, j_1)
-            result.append(new_sch)
-            return result
-
-    @derived_object
     class RemoveBlock(PyScheduleRule):
         def _initialize_with_tune_context(self, context: "TuneContext") -> None:
             pass
@@ -342,7 +343,7 @@ def test_meta_schedule_post_order_apply_remove_block():
         target=Target("llvm"),
         task_name="Remove Block Task",
         space_generator=PostOrderApply(),
-        sch_rules=[RemoveBlock(), TrinityDouble()],
+        sch_rules=[RemoveBlock(), TrinityDoubleRule()],
     )
     post_order_apply = context.space_generator
     schs = post_order_apply.generate_design_space(mod)
@@ -383,6 +384,41 @@ def test_meta_schedule_custom_search_space():
     register_func("tvm.meta_schedule.test.custom_search_space", custom_search_space_func)
     post_order_apply.generate_design_space(mod)
     assert called
+
+
+def test_target_blocks_search_space():
+    # Test that specific blocks of trinity matmul can be targeted.
+    def filter_fn(block, target_names) -> bool:
+        return block.name_hint in target_names
+
+    def _get_sch(filter_fn):
+        mod = TrinityMatmul
+        context = TuneContext(
+            mod=mod,
+            target=Target("llvm"),
+            task_name="Custom Search Space Task",
+            space_generator=PostOrderApply(f_block_filter=filter_fn),
+            sch_rules=[TrinityDoubleRule()],
+        )
+        post_order_apply = context.space_generator
+        schs = post_order_apply.generate_design_space(mod)
+        return schs
+
+    # Start by checking that by default each block has a space generated.
+    schs = _get_sch(None)
+    assert len(schs) == 8
+
+    # Next check that we can target a specific block and only get its' revelant schedules.
+    schs = _get_sch(lambda block: filter_fn(block, ["B"]))
+    assert len(schs) == 2
+
+    ## Check that extracting two blocks works.
+    schs = _get_sch(lambda block: filter_fn(block, ["A", "C"]))
+    assert len(schs) == 4
+
+    ## Finally check that all blocks can be extracted by name.
+    schs = _get_sch(lambda block: filter_fn(block, ["A", "B", "C"]))
+    assert len(schs) == 8
 
 
 if __name__ == "__main__":
