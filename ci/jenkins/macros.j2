@@ -45,7 +45,8 @@ def {{ method_name }}() {
             withEnv([
               'PLATFORM={{ platform }}',
               'TVM_NUM_SHARDS={{ num_shards }}',
-              'TVM_SHARD_INDEX={{ shard_index - 1 }}'], {
+              'TVM_SHARD_INDEX={{ shard_index - 1 }}',
+              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               {{ caller(shard_index, num_shards) | trim | indent(width=12) }}
             })
           }
@@ -74,7 +75,8 @@ def {{ method_name }}() {
         timeout(time: max_time, unit: 'MINUTES') {
           withEnv([
             'TVM_NUM_SHARDS={{ num_shards }}',
-            'TVM_SHARD_INDEX={{ shard_index - 1 }}'], {
+            'TVM_SHARD_INDEX={{ shard_index - 1 }}',
+            "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
             {{ caller() | trim | indent(width=6) }}
           })
         }
@@ -95,7 +97,8 @@ def {{ method_name }}() {
             try {
               docker_init({{ docker_image }})
               init_git()
-              withEnv(['PLATFORM={{ platform }}'], {
+              withEnv(['PLATFORM={{ platform }}',
+              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
                 {{ caller() | indent(width=12) | trim }}
               })
             } finally {
