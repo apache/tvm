@@ -145,12 +145,12 @@ def test_vthread_simplified():
     def before_func():
         vthread = T.env_thread("vthread")
         T.launch_thread(vthread, 4)
-        B = T.allocate([4], "int32", "shared")
+        B = T.decl_buffer([4], "int32", scope="shared")
         B[0:4] = T.broadcast(vthread, 4)
 
     @T.prim_func
     def expected_func():
-        B = T.allocate([16], "int32", "shared")
+        B = T.decl_buffer([16], "int32", scope="shared")
         # The indices for B should each be a single Ramp node, and
         # should not be the sum of a Ramp and Broadcast node.
         B[0 * 4 : 0 * 4 + 4] = T.broadcast(0, 4)
