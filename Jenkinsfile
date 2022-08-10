@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-08-05T14:15:15.427777
+// Generated at 2022-08-10T09:54:08.733518
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -4580,23 +4580,23 @@ def shard_run_test_Cortex_M_5_of_8() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
@@ -4652,23 +4652,23 @@ def shard_run_test_Cortex_M_6_of_8() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
@@ -4724,23 +4724,23 @@ def shard_run_test_Cortex_M_7_of_8() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
@@ -4796,23 +4796,23 @@ def shard_run_test_Cortex_M_8_of_8() {
                         script: """
                           set -eux
                           retry() {
-                            local retries=\$1
+                            local max_retries=\$1
                             shift
+                            local n=0
+                            local backoff_max=30
+                            until [ "\$n" -ge \$max_retries ]
+                            do
+                                "\$@" && break
+                                n=\$((n+1))
+                                if [ "\$n" -eq \$max_retries ]; then
+                                    echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                    exit 1
+                                fi
 
-                            local count=0
-                            until "\$@"; do
-                              exit=\$?
-                              wait=\$((2 ** \$count))
-                              count=\$((\$count + 1))
-                              if [ \$count -lt \$retries ]; then
-                                echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-                                sleep \$wait
-                              else
-                                echo "Retry \$count/\$retries exited \$exit, no more retries left."
-                                return \$exit
-                              fi
+                                WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                                echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                                sleep \$WAIT
                             done
-                            return 0
                           }
 
                           retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cortexm/build/libtvm.so build/libtvm.so
