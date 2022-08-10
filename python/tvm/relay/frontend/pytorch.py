@@ -1927,15 +1927,8 @@ class PyTorchOpConverter:
             for p in pad:
                 if isinstance(p, _expr.Expr):
                     p = int(_infer_value(p, {}).numpy())
-                elif isinstance(p, float):
-                    if p == float("inf"):
-                        p = sys.maxsize
-                    elif p == float("-inf"):
-                        p = -sys.maxsize - 1
-                    else:
-                        p = int(float)
                 elif not isinstance(p, int):
-                    raise NotImplementedError("pad value should be int/float/expr")
+                    raise NotImplementedError("pad width should be int/expr")
                 const_paddings[-1].append(p)
                 if p != 0:
                     non_zero_found = True
