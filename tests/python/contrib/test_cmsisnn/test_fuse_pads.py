@@ -26,7 +26,7 @@ tvm._ffi._init_api("relay.ext.cmsisnn.transform", __name__)
 
 
 class CheckForPadsWithinCompositeFunc(tvm.relay.ExprVisitor):
-    """Provides methods to test number of constants present in a function"""
+    """Provides method to test number of pads present inside the function being visited."""
 
     def __init__(self):
         super().__init__()
@@ -66,9 +66,7 @@ def set_composite_func_attr(func, name):
     ],
 )
 def test_invalid_padding_for_fusion(ifm_shape, pad_width, conv2d_padding, ofm_shape):
-    """Tests the pass ExternConstants when a composite function
-    is present within global function
-    """
+    """Negative tests for pads preceding Conv2D that cannot be fused."""
     dtype = "int8"
     kernel_size = (3, 3)
     ofm_channels = 2
@@ -146,9 +144,7 @@ def test_invalid_padding_for_fusion(ifm_shape, pad_width, conv2d_padding, ofm_sh
     ],
 )
 def test_pad_conv2d_fusion(ifm_shape, pad_width, conv2d_padding, ofm_shape):
-    """Tests the pass ExternConstants when a composite function
-    is present within global function
-    """
+    """Tests the pads and conv2d fusion."""
     dtype = "int8"
     kernel_size = (3, 3)
     ofm_channels = 2
@@ -218,9 +214,7 @@ def test_pad_conv2d_fusion(ifm_shape, pad_width, conv2d_padding, ofm_shape):
 
 
 def test_without_preceding_pad():
-    """Tests the pass ExternConstants when a composite function
-    is present within global function
-    """
+    """Tests the pass FusePads when padding is not present before qnn.conv2d."""
     dtype = "int8"
     ifm_shape = (1, 56, 56, 64)
     ofm_shape = (1, 56, 56, 64)

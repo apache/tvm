@@ -163,9 +163,9 @@ def test_conv2d_number_primfunc_args(
         input_zero_point,
         kernel_scale,
         kernel_zero_point,
-        dtype,
-        dtype,
-        dtype,
+        input_dtype=dtype,
+        weights_dtype=dtype,
+        output_dtype=dtype,
     )
 
     model, params = make_model(
@@ -263,9 +263,9 @@ def test_conv2d_symmetric_padding_int8(
         input_zero_point,
         kernel_scale,
         kernel_zero_point,
-        dtype,
-        dtype,
-        dtype,
+        input_dtype=dtype,
+        weights_dtype=dtype,
+        output_dtype=dtype,
     )
 
     model, params = make_model(
@@ -353,9 +353,9 @@ def test_conv2d_asymmetric_padding_int8(
         input_zero_point,
         kernel_scale,
         kernel_zero_point,
-        dtype,
-        dtype,
-        dtype,
+        input_dtype=dtype,
+        weights_dtype=dtype,
+        output_dtype=dtype,
     )
 
     model, params = make_model(
@@ -446,9 +446,9 @@ def test_conv2d_separate_padding_int8(
         input_zero_point,
         kernel_scale,
         kernel_zero_point,
-        dtype,
-        dtype,
-        dtype,
+        input_dtype=dtype,
+        weights_dtype=dtype,
+        output_dtype=dtype,
     )
 
     invar = relay.var("input", shape=ifm_shape, dtype=dtype)
@@ -607,10 +607,10 @@ def test_depthwise_int8(
         input_zero_point,
         kernel_scale,
         kernel_zero_point,
-        dtype,
-        dtype,
-        dtype,
-        True,
+        input_dtype=dtype,
+        weights_dtype=dtype,
+        output_dtype=dtype,
+        is_depthwise=True,
     )
 
     model, params = make_model(
@@ -712,10 +712,10 @@ def test_relay_conv2d_cmsisnn_depthwise_int8(
         input_zero_point,
         kernel_scale,
         kernel_zero_point,
-        dtype,
-        dtype,
-        dtype,
-        True,
+        input_dtype=dtype,
+        weights_dtype=dtype,
+        output_dtype=dtype,
+        is_depthwise=True,
     )
 
     model, params = make_model(
@@ -830,7 +830,7 @@ def test_invalid_parameters(
         in_dtype,
         kernel_dtype,
         in_dtype,
-        False,
+        is_depthwise=False,
     )
     model, params = make_model(
         shape=ifm_shape,
