@@ -22,27 +22,45 @@
 #include <tvm/node/node.h>
 #include <tvm/script/printer/doc.h>
 
+#include <utility>
+#include <vector>
+
 namespace tvm {
 namespace script {
 namespace printer {
 
+/*!
+ * Frame is the core data structure for semantic information
+ * when printing IR graph into TVMScript code.
+ */
 class FrameNode : public Object {
  public:
   void VisitAttrs(tvm::AttrVisitor* v) {}
 
   virtual ~FrameNode() = default;
 
+  /*!
+   * \brief Add a callback function to be called when this frame exits.
+   * \param cb The callback function. It should have signature void().
+   */
   template <typename TCallback>
   void AddCallback(TCallback&& cb) {
     callbacks_.emplace_back(std::forward<TCallback>(cb));
   }
 
+  /*!
+   * \brief Method that's called when Frame enters the scope.
+   */
   virtual void EnterWithScope() {}
 
+  /*!
+   * \brief Method that's called when Frame exits the scope.
+   */
   virtual void ExitWithScope() {
     for (const std::function<void()>& callback : callbacks_) {
       callback();
     }
+    callbacks_.clear();
   }
 
   static constexpr const char* _type_key = "script.printer.Frame";
@@ -52,6 +70,9 @@ class FrameNode : public Object {
   std::vector<std::function<void()>> callbacks_;
 };
 
+/*!
+ * \brief Reference type of FrameNode
+ */
 class Frame : public ObjectRef {
  protected:
   Frame() = default;
@@ -61,6 +82,9 @@ class Frame : public ObjectRef {
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Frame, ObjectRef, FrameNode);
 };
 
+/*!
+ * \brief MetadataFrame contains information like contant parameter array.
+ */
 class MetadataFrameNode : public FrameNode {
  public:
   Array<ObjectRef> metadata;
@@ -74,12 +98,19 @@ class MetadataFrameNode : public FrameNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(MetadataFrameNode, FrameNode);
 };
 
+/*!
+ * \brief Reference type of MetadataFrameNode
+ */
 class MetadataFrame : public Frame {
  public:
   MetadataFrame();
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(MetadataFrame, Frame, MetadataFrameNode);
 };
 
+/*!
+ * \brief VarDefFrame contains information about the free variables that needs to be defined
+ * at the beginning of the printed snippet.
+ */
 class VarDefFrameNode : public FrameNode {
  public:
   Array<StmtDoc> stmts;
@@ -93,9 +124,12 @@ class VarDefFrameNode : public FrameNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(VarDefFrameNode, FrameNode);
 };
 
+/*!
+ * \brief Reference type of VarDefFrameNode
+ */
 class VarDefFrame : public Frame {
  public:
-  explicit VarDefFrame();
+  VarDefFrame();
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(VarDefFrame, Frame, VarDefFrameNode);
 };
 

@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/script/printer/frame.h>
 
 namespace tvm {
@@ -27,8 +28,24 @@ MetadataFrame::MetadataFrame() : MetadataFrame(make_object<MetadataFrameNode>())
 VarDefFrame::VarDefFrame() : VarDefFrame(make_object<VarDefFrameNode>()) {}
 
 TVM_REGISTER_NODE_TYPE(FrameNode);
+TVM_REGISTER_GLOBAL("script.printer.FrameAddCallback")
+    .set_body_typed([](Frame frame, runtime::TypedPackedFunc<void()> callback) {
+      frame->AddCallback(callback);
+    });
+TVM_REGISTER_GLOBAL("script.printer.FrameEnterWithScope").set_body_typed([](Frame frame) {
+  frame->EnterWithScope();
+});
+TVM_REGISTER_GLOBAL("script.printer.FrameExitWithScope").set_body_typed([](Frame frame) {
+  frame->ExitWithScope();
+});
+
 TVM_REGISTER_NODE_TYPE(MetadataFrameNode);
+TVM_REGISTER_GLOBAL("script.printer.MetadataFrame").set_body_typed([]() {
+  return MetadataFrame();
+});
+
 TVM_REGISTER_NODE_TYPE(VarDefFrameNode);
+TVM_REGISTER_GLOBAL("script.printer.VarDefFrame").set_body_typed([]() { return VarDefFrame(); });
 
 }  // namespace printer
 }  // namespace script
