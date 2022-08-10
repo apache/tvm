@@ -277,11 +277,15 @@ class PR:
                     # If the 'conclusion' isn't filled out the job hasn't
                     # finished yet
                     status = "PENDING"
+                workflow_name = item["checkSuite"]["workflowRun"]["workflow"]["name"]
+                if workflow_name != "CI":
+                    # Ignore all jobs that aren't in the main.yml workflow (these are mostly
+                    # automation jobs that run on PRs for tagging / reviews)
+                    continue
+                check_name = item["name"]
                 jobs.append(
                     {
-                        "name": item["checkSuite"]["workflowRun"]["workflow"]["name"]
-                        + " / "
-                        + item["name"],
+                        "name": f"{workflow_name} / {check_name}",
                         "url": item["url"],
                         "status": status.upper(),
                     }

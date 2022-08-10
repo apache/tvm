@@ -126,6 +126,14 @@ TEST_DATA = {
         "user": "abc",
         "detail": "Start a new CI job",
     },
+    "ignore-jobs": {
+        "number": 10786,
+        "filename": "pr10786-ignore-jobs.json",
+        "expected": "Dry run, would have merged",
+        "comment": "@tvm-bot merge",
+        "user": "abc",
+        "detail": "Ignore GitHub Actions jobs that don't start with CI / ",
+    },
 }
 
 
