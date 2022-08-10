@@ -1461,6 +1461,14 @@ class VectorTypeRewriter : public StmtExprMutator {
     return VisitBufferAccess(std::move(node));
   }
 
+  Stmt VisitStmt_(const LetStmtNode* op) final {
+    auto it = rewrite_map_.find(op->var.get());
+    if (it == rewrite_map_.end()) {
+      return GetRef<Stmt>(op);
+    }
+    return LetStmt(it->second.new_buffer_var, op->value, op->body);
+  }
+
   Buffer RemapBuffer(Buffer buf) {
     auto cache_key = buf.get();
 
