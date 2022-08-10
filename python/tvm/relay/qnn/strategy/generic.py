@@ -16,7 +16,12 @@
 # under the License.
 """Definition of generic operator strategy."""
 
+from tvm import _ffi
 from tvm.target import override_native_generic_func
+
+
+GET_RQ_OUT_DTYPE = _ffi.get_global_func("relay.attrs.get_rq_out_dtype")
+GET_RQ_AXIS = _ffi.get_global_func("relay.attrs.get_rq_axis")
 
 
 def wrap_topi_schedule(topi_schedule):
@@ -64,12 +69,12 @@ def wrap_topi_qnn_conv2d(topi_compute):
     """Wrap TOPI compute which use conv2d attrs and output data type"""
 
     def wrapper(attrs, inputs, out_type):
+        out_dtype = GET_RQ_OUT_DTYPE(attrs)
+        axis = GET_RQ_AXIS(attrs)
         oshape = out_type.shape
-        out_dtype = attrs.rq_out_dtype
         strides = attrs.strides
         padding = attrs.padding
         dilation = attrs.dilation
-        axis = attrs.axis
         if len([*inputs]) == 11:
             args = [*inputs, axis, strides, padding, dilation, oshape, out_dtype]
         elif len([*inputs]) == 10:
@@ -122,8 +127,8 @@ def wrap_topi_qnn_dense(topi_compute):
     """Wrap TOPI compute which use qnn.dense attrs"""
 
     def wrapper(attrs, inputs, _out_type):
-        out_dtype = attrs.rq_out_dtype
-        axis = attrs.axis
+        out_dtype = GET_RQ_OUT_DTYPE(attrs)
+        axis = GET_RQ_AXIS(attrs)
         if len([*inputs]) == 11:
             args = [*inputs, axis, out_dtype]
         elif len([*inputs]) == 10:
