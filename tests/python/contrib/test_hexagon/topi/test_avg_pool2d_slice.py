@@ -26,7 +26,7 @@ from tvm.contrib.hexagon.build import HexagonLauncher
 from tvm.contrib.hexagon.session import Session
 import tvm.topi.hexagon.slice_ops as sl
 import tvm.topi.hexagon.qnn as qn
-from ..infrastructure import allocate_hexagon_array, transform_numpy
+from ..infrastructure import allocate_hexagon_array, transform_numpy, quantize_np
 from ..pytest_util import (
     get_multitest_ids,
     create_populated_numpy_ndarray,
@@ -66,28 +66,11 @@ def input_np(input_shape, dtype: str, input_tensor_populator):
     return create_populated_numpy_ndarray(input_shape, dtype, input_tensor_populator)
 
 
-def quantize_np(arr_np, dtype):
-    if dtype == "uint8":
-        qmax = 255
-        qmin = 0
-    elif dtype == "int8":
-        qmax = 128
-        qmin = -127
-    else:
-        raise RuntimeError(f"Unsupported quantized data type '{dtype}'")
-    fmin = np.amin(arr_np)
-    fmax = np.amax(arr_np)
-    scale = (fmax - fmin) / (qmax - qmin)
-    zero_point = np.ceil((fmax * qmin - fmin * qmax) / (fmax - fmin)).astype("int32")
-    quant_np = (arr_np / scale + zero_point).astype(dtype)
-    return quant_np, scale, zero_point
-
-
 @tvm.testing.fixture
 def transformed_expected_output_np(expected_output_np, output_layout, dtype):
     if dtype == "float16":
         return transform_numpy(expected_output_np, "nhwc", output_layout)
-    elif dtype == "uint8" or "int8":
+    elif dtype in ("uint8", "int8"):
         quant_arr, scale, zero_point = quantize_np(expected_output_np, dtype)
         return [transform_numpy(quant_arr, "nhwc", output_layout), scale, zero_point]
     else:
@@ -98,7 +81,7 @@ def transformed_expected_output_np(expected_output_np, output_layout, dtype):
 def transformed_input_np_padded(input_np_padded, input_layout, dtype):
     if dtype == "float16":
         return transform_numpy(input_np_padded, "nhwc", input_layout)
-    elif dtype == "uint8" or "int8":
+    elif dtype in ("uint8", "int8"):
         quant_arr, scale, zero_point = quantize_np(input_np_padded, dtype)
         return [transform_numpy(quant_arr, "nhwc", input_layout), scale, zero_point]
     else:
@@ -339,7 +322,7 @@ class TestAvgPool2dSlice:
         height_mult = 8
         if dtype == "float16":
             width_mult = 4  # input layout : nhwc-8h2w32c2w-2d
-        elif dtype == "uint8" or "int8":
+        elif dtype in ("uint8", "int8"):
             width_mult = 8  # input layout : nhwc-8h8w32c-2d
         else:
             raise RuntimeError(f"Unsupport dtype '{dtype}'")
@@ -388,7 +371,7 @@ class TestAvgPool2dSlice:
         if dtype == "float16":
             M = sl.avg_pool2d_compute(A, kernel, stride, dilation, output_shape)
             tir_schedule = sl.avg_pool2d_schedule(M, A, output_layout, input_layout)
-        elif dtype == "uint8" or "int8":
+        elif dtype in ("uint8", "int8"):
             in_data, in_scale, in_zero_point = transformed_input_np_padded
             _, out_scale, out_zero_point = transformed_expected_output_np
             M = qn.qnn_avg_pool2d_compute(
@@ -418,8 +401,8 @@ class TestAvgPool2dSlice:
         schedule_args,
         hexagon_session: Session,
     ):
-        if hexagon_session._launcher._serial_number != "simulator":
-            pytest.skip(msg="Due to https://github.com/apache/tvm/issues/11928")
+        #if hexagon_session._launcher._serial_number != "simulator":
+        #    pytest.skip(msg="Due to https://github.com/apache/tvm/issues/11928")
 
         target_hexagon = tvm.target.hexagon("v69")
         in_data = transformed_input_np_padded
@@ -445,7 +428,7 @@ class TestAvgPool2dSlice:
         if dtype == "float16":
             in_data_np = transformed_input_np_padded
             out_data_np = transformed_expected_output_np
-        elif dtype == "int8" or "uint8":
+        elif dtype in ("uint8", "int8"):
             in_data_np, _, _ = transformed_input_np_padded
             out_data_np, _, _ = transformed_expected_output_np
         else:

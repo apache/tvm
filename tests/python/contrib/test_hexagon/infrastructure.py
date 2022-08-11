@@ -305,3 +305,34 @@ def transform_numpy(arr_np, current_layout: str, new_layout: str):
         raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
 
     raise RuntimeError(f"Unexpected current_layout '{current_layout}'")
+
+
+def quantize_np(arr_np, dtype):
+    """
+    Returns quantized array along with the scale and zero-point
+
+    Parameters
+    ----------
+
+    """
+    if dtype == "uint8":
+        qmax = 255
+        qmin = 0
+    elif dtype == "int8":
+        qmax = 128
+        qmin = -127
+    else:
+        raise RuntimeError(f"Unsupported quantized data type '{dtype}'")
+    fmin = numpy.amin(arr_np)
+    fmax = numpy.amax(arr_np)
+
+    # Include floating-point zero in the range
+    if fmax < 0:
+        fmax = 0.0
+    elif fmin > 0:
+        fmin = 0.0
+
+    scale = (fmax - fmin) / (qmax - qmin)
+    zero_point = numpy.rint((fmax * qmin - fmin * qmax) / (fmax - fmin)).astype("int32")
+    quant_np = (arr_np / scale + zero_point).astype(dtype)
+    return quant_np, scale, zero_point

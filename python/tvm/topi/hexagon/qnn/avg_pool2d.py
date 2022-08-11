@@ -36,7 +36,7 @@ from tvm import tir
 from ..utils import get_layout_transform_fn, get_fixed_point_value
 
 
-def validate_out_shape(out_shape, in_shape, kernel, stride, dilation):
+def validate_out_shape(out_shape: list, in_shape: list, kernel: list, stride: list, dilation: list):
     """Validate output shape"""
     _, oh, ow, _ = out_shape
     _, ih, iw, _ = in_shape
@@ -49,27 +49,23 @@ def validate_out_shape(out_shape, in_shape, kernel, stride, dilation):
         raise RuntimeError("Output width is too large")
 
 
-def saturate(x, dtype):
+def saturate(x: te.Tensor, dtype: str):
     """Saturate value for the specified data type"""
-    if dtype == "uint8":
-        return te.max(0, te.min(x, 255))
-    elif dtype == "int8":
-        return te.max(-127, te.min(x, 128))
-    return x
+    return te.max(te.min_value(dtype), te.min(x, te.max_value(dtype)))
 
 
 def qnn_avg_pool2d_compute(
-    data,
-    kernel,
-    stride,
-    dilation,
-    oshape,
-    odtype,
+    data: te.Tensor,
+    kernel: list,
+    stride: list,
+    dilation: list,
+    oshape: list,
+    odtype: str,
     # quantization params:
-    input_zero_point,
-    input_scale,
-    output_zero_point,
-    output_scale,
+    input_zero_point: int,
+    input_scale: float,
+    output_zero_point: int,
+    output_scale: float,
 ):
     """Compute for quantized avg_pool2d"""
     kh, kw = kernel
@@ -114,7 +110,7 @@ def qnn_avg_pool2d_compute(
     return Avg
 
 
-def schedule_nhwc_8h8w32c(outs, ins, output_layout: str, input_layout: str):
+def schedule_nhwc_8h8w32c(outs: te.Tensor, ins: te.Tensor, output_layout: str, input_layout: str):
     """Schedule for input and output layout nhwc-8h8w32c"""
     func = te.create_prim_func([ins, outs])
     s = tir.Schedule(func)
@@ -127,6 +123,14 @@ def schedule_nhwc_8h8w32c(outs, ins, output_layout: str, input_layout: str):
     s.transform_layout(Avg, ("write", 0), output_transform_fn)
 
     # Schedule 'Avg'
+    # Split and reorder the axes to iterate over the output tensor chunks.
+    # Each chunk consists for 2048 bytes with 32 channels being the fastest
+    # changing axis, followed by 8 width and then 8 height.
+    # The width is split by a factor of 4 and then fused with 32 channels
+    # to provide full vector length of data for the output tensor chunks.
+    # NOTE: These schedules are a work in progress and may require
+    # adjustments in future as some of the missing features for 2-d tensors
+    # become available.
     n, h, w, c = s.get_loops(Avg)
     ho, hi = s.split(h, [None, 8])
     wo, wi = s.split(w, [None, 8])
@@ -139,13 +143,18 @@ def schedule_nhwc_8h8w32c(outs, ins, output_layout: str, input_layout: str):
     # Schedule 'Sum'
     s.compute_at(Sum, wio)
     Sum_axis = s.get_loops(Sum)
+    # Compute for 'Sum' includes reduction along height and width. The axes
+    # are being reordered so that 4 width and 32 channels become the
+    # inner-most loops which then can be fused and vectorized. However,
+    # vectorization of the 2-d tensors doesn't work when reduction is
+    # involved and requires codegen support that is yet to be added.
     s.reorder(Sum_axis[-2], Sum_axis[-1], Sum_axis[-4], Sum_axis[-3])
     ci_wii = s.fuse(Sum_axis[-4], Sum_axis[-3])
     # s.vectorize(ci_wii) # Doesn't work
     return s
 
 
-def schedule_n11c_2048c(outs, ins, output_layout: str, input_layout: str):
+def schedule_n11c_2048c(outs: te.Tensor, ins: te.Tensor, output_layout: str, input_layout: str):
     """Schedule for output layout: n11c-2048c, input layout: nhwc-8h8w32c"""
     func = te.create_prim_func([ins, outs])
     s = tir.Schedule(func)
@@ -158,12 +167,22 @@ def schedule_n11c_2048c(outs, ins, output_layout: str, input_layout: str):
     s.transform_layout(Avg, ("write", 0), output_transform_fn)
 
     # Schedule 'Avg'
+    # Split and reorder the axes to iterate over the output tensor chunks.
+    # Each chunk consists for 2048 bytes. For n11c-2048c tensor layout, each chunk
+    # only contains 2048 channels which get split by a factor of 128 to be vectorized.
+    # NOTE: These schedules are a work in progress and may require
+    # adjustments in future as some of the missing features for 2-d tensors
+    # become available.
     n, h, w, c = s.get_loops(Avg)
     co, ci = s.split(c, [None, 2048])
     cio, cii = s.split(ci, [None, 128])
     s.vectorize(cii)
 
     # Schedule 'Sum'
+    # Compute for 'Sum' includes reduction along height and width. The axes are being
+    # reordered so that 128 channels become the inner-most loop and can be vectorized.
+    # However, vectorization of the 2-d tensors doesn't work when reduction is
+    # involved and requires codegen support that is yet to be added.
     s.compute_at(Sum, cio)
     Sum_axis = s.get_loops(Sum)
     s.reorder(Sum_axis[-2], Sum_axis[-1], Sum_axis[-3])
@@ -171,8 +190,14 @@ def schedule_n11c_2048c(outs, ins, output_layout: str, input_layout: str):
     return s
 
 
-def qnn_avg_pool2d_schedule(outs, ins, output_layout: str, input_layout: str):
-    """Quantized avg_pool2d schedule"""
+def qnn_avg_pool2d_schedule(outs: te.Tensor, ins: te.Tensor, output_layout: str, input_layout: str):
+    """Quantized avg_pool2d schedule
+
+    NOTE: This schedule assumes that both input and output tensors are in the form of
+    2d discontiguous buffer and data is already arranged as per the input and output layout
+    respectively.
+
+    """
     if output_layout == "nhwc-8h8w32c-2d":
         return schedule_nhwc_8h8w32c(outs, ins, output_layout, input_layout)
     if output_layout == "n11c-2048c-2d":

@@ -19,6 +19,7 @@
 
 
 """Common hexagon specific utilities"""
+import math
 import struct
 from tvm import te
 
@@ -161,9 +162,26 @@ def get_layout_transform_fn(layout):
     raise RuntimeError(f"Unexpected layout '{layout}'")
 
 
-def get_fixed_point_value(flp, dtype="int16"):
+def get_fixed_point_value(flp: float, dtype: str = "int16"):
     """
-    Convert floating-point value into a fixed-point number. This is done by
+    Return fixed-point value and the corresponding log2 of the scale factor used to compute
+    this value.
+
+    Parameters
+    ----------
+    flp : float
+        Floating-point value to be converted
+    dtype : str
+        Type of the resulting fixed-point value. By default, it's set to "int16"
+
+    Returns
+    -------
+    fixed_point_value : int
+        Fixed-point value for the given floating-point value
+    exp_scale_factor : int
+        log2 of the scale factor
+
+    Convert floating-point value into fixed-point number. This is done by
     multiplying the value by a scaling factor and then rounding it to the nearest
     integer value.
 
@@ -175,7 +193,8 @@ def get_fixed_point_value(flp, dtype="int16"):
     * S is the signed bit (0 or 1).
     * M is the mantissa. It's composed of an implicit 1 for the normalized floating-point
       values or 0 for the denormalized values, and the fraction part. This ensures that
-      mantissa is always within [0, 2) range.
+      mantissa is always within [0, 2) range. Please note that this function doesn't
+      handle denormalized values.
     * E is the exponent.
 
     In single precision, 23 bits are used to represent the fraction part of
@@ -186,7 +205,7 @@ def get_fixed_point_value(flp, dtype="int16"):
     value.
 
     As mentioned above, to find the corresponding fixed-point number, we multiply the
-    value with a scaling factor and then round it to the nearest integer. The Scaling factor
+    value with a scaling factor and then round it to the nearest integer. The scaling factor
     is chosen to be a power for 2 and it's the largest value that can be safely multiplied
     to the floating-point value, without causing the resulting value to overflow the range
     of the integer type used to represent the fixed-point value.
@@ -207,6 +226,11 @@ def get_fixed_point_value(flp, dtype="int16"):
     For most cases, 2^x, where x = 14 - (E - Bias) or 14 - (E - 127) for single precision, is the
     best scaling factor for 'int16' type that can be used to convert the floating-point value to
     fixed-point with the least amount of precision loss.
+
+    Additonal notes on various floating-point values:
+    ------------------------------------------------
+    1) Denormalized values: Can't be represented as fixed-point - causes assertion failure
+    2) NaN and INF: assertion failure
     """
 
     def within_range(val, dtype):
@@ -214,15 +238,27 @@ def get_fixed_point_value(flp, dtype="int16"):
             return -32768 <= val <= 32767
         raise RuntimeError(f"Unsupported dtype, {dtype}'")
 
+    # Make sure that 'flp' isn't NaN or infinity
+    if math.isnan(flp) or math.isinf(flp):
+        raise RuntimeError("Can not handle NaN or INF")
+
     flp_f = struct.pack("f", flp)
     flp_i = struct.unpack("I", flp_f)
+    exp_stored_value = (flp_i[0] >> 23) & 0xFF
+
+    if exp_stored_value == 0:
+        raise RuntimeError("Can not handle denormalized values")
+
     exp_value = ((flp_i[0] >> 23) & 0xFF) - 127
     if dtype == "int16":
         max_bits = 14
     else:
         raise RuntimeError(f"Unsupported dtype, {dtype}'")
 
-    exp_scale_factor = max_bits - exp_value
+    exp_scale_factor = max_bits - exp_value  # log2 of the scale_factor
+
+    if exp_scale_factor > 127:
+        raise RuntimeError("Value too small for fixed-point conversion!")
 
     # Scaling factor = 2^exp_scale_factor
     # Since exp_scale_factor can be -ve or +ve, scaling factor is calculated by first
@@ -243,4 +279,4 @@ def get_fixed_point_value(flp, dtype="int16"):
         scale_f = struct.unpack("f", scale_i)
         fixed_point_value = int(round(flp * scale_f[0]))
 
-    return (fixed_point_value, exp_scale_factor)
+    return fixed_point_value, exp_scale_factor
