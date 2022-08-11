@@ -195,6 +195,30 @@ def _get_device_args(options):
     )
 
 
+def _get_board_mem_size(options):
+    board_file_path = (
+        pathlib.Path(get_zephyr_base(options))
+        / "boards"
+        / "arm"
+        / options["zephyr_board"]
+        / (options["zephyr_board"] + ".yaml")
+    )
+    try:
+        with open(board_file_path) as f:
+            board_data = yaml.load(f, Loader=yaml.FullLoader)
+            return int(board_data["ram"]) * 1024
+    except:
+        _LOG.warning("Board memory information is not available.")
+    return None
+
+
+def _get_recommended_heap_size(options):
+    prop = BOARD_PROPERTIES[options["zephyr_board"]]
+    if "recommended_heap_size" in prop:
+        return prop["recommended_heap_size"]
+    return 216 * 1024
+
+
 def generic_find_serial_port(serial_number=None):
     """Find a USB serial port based on its serial number or its VID:PID.
 
@@ -369,6 +393,12 @@ PROJECT_OPTIONS = [
         optional=["generate_project"],
         type="bool",
         help="Run on the FVP emulator instead of hardware.",
+    ),
+    server.ProjectOption(
+        "heap_size",
+        optional=["generate_project"],
+        type="int",
+        help="Sets HEAP_SIZE for Zephyr board.",
     ),
 ]
 
@@ -588,6 +618,14 @@ class Handler(server.ProjectAPIHandler):
                         line = line.replace(self.QEMU_PIPE_TOKEN, str(self.qemu_pipe_dir / "fifo"))
 
                     cmake_f.write(line)
+
+                heap_size = _get_recommended_heap_size(options)
+                if options.get("heap_size"):
+                    board_mem_size = _get_board_mem_size(options)
+                    if board_mem_size is not None:
+                        assert options["heap_size"] < board_mem_size, "heap size is too large"
+                    heap_size = options["heap_size"]
+                cmake_f.write(f"target_compile_definitions(app PUBLIC -DHEAP_SIZE={heap_size})\n")
 
                 if options.get("compile_definitions"):
                     flags = options.get("compile_definitions")
