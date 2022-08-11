@@ -268,7 +268,7 @@ def skip_rpc(request) -> bool:
 
 def pytest_addoption(parser):
     parser.addoption("--gtest_args", action="store", default="")
-    
+
     parser.addoption(
         "--skip-rpc",
         action="store_true",
