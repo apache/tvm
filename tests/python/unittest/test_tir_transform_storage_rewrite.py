@@ -671,5 +671,29 @@ def test_access_in_let_value():
     tvm.ir.assert_structural_equal(mod["main"], func_rewritten)
 
 
+class TestLetBufferRewrite(tvm.testing.CompareBeforeAfter):
+    """StorageRewrite replaces the bound var of backing allocations
+
+    If StorageRewrite replaces the backing variable of an array, such
+    as when vectorizing the storage type, the variable must be
+    replaced in the LetStmt that defines it.  Currently, StmtMutator
+    only visits usage of variables, and does not visit definitions of
+    variables, so the definition in a LetStmt must be explicitly
+    handled.
+    """
+
+    transform = tvm.tir.transform.StorageRewrite()
+
+    def before() -> None:
+        A_data: T.Ptr[T.int32] = T.call_extern("dummy_func", dtype="handle")
+        A = T.buffer_decl([8], "int32", data=A_data)
+        A[0:8] = T.broadcast(42, 8)
+
+    def expected() -> None:
+        A_data: T.Ptr[T.int32x8] = T.call_extern("dummy_func", dtype="handle")
+        A = T.buffer_decl([8], "int32", data=A_data)
+        A[0:8] = T.broadcast(42, 8)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

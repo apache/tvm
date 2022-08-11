@@ -22,6 +22,7 @@ Doc objects, then access and modify their attributes correctly.
 import pytest
 
 import tvm
+from tvm.runtime import ObjectPath
 from tvm.script.printer.doc import (
     AssertDoc,
     AssignDoc,
@@ -510,7 +511,25 @@ def test_stmt_doc_comment():
 
     comment = "test comment"
     doc.comment = comment
+    # Make sure the previous statement doesn't set attribute
+    # as if it's an ordinary Python object.
+    assert "comment" not in doc.__dict__
     assert doc.comment == comment
+
+
+def test_doc_source_paths():
+    doc = IdDoc("x")
+    assert len(doc.source_paths) == 0
+
+    source_paths = [ObjectPath.root(), ObjectPath.root().attr("x")]
+
+    doc.source_paths = source_paths
+    # This should triggers the __getattr__ and gets a tvm.ir.container.Array
+    assert not isinstance(doc.source_paths, list)
+    assert list(doc.source_paths) == source_paths
+
+    doc.source_paths = []
+    assert len(doc.source_paths) == 0
 
 
 if __name__ == "__main__":

@@ -23,7 +23,7 @@ import warnings
 import logging
 import traceback
 import re
-from typing import Dict, Any, List, Optional, Callable
+from typing import Dict, Any, List, Optional, Callable, Union
 from pathlib import Path
 
 from git_utils import git, GitHubRepo, parse_remote, post
@@ -37,6 +37,7 @@ CommentChecker = Callable[[Comment], bool]
 
 EXPECTED_JOBS = ["tvm-ci/pr-head"]
 TVM_BOT_JENKINS_TOKEN = os.environ["TVM_BOT_JENKINS_TOKEN"]
+GH_ACTIONS_TOKEN = os.environ["GH_ACTIONS_TOKEN"]
 JENKINS_URL = "https://ci.tlcpack.ai/"
 THANKS_MESSAGE = r"(\s*)Thanks for contributing to TVM!   Please refer to guideline https://tvm.apache.org/docs/contribute/ for useful information and tips. After the pull request is submitted, please request code reviews from \[Reviewers\]\(https://github.com/apache/incubator-tvm/blob/master/CONTRIBUTORS.md#reviewers\) by  them in the pull request thread.(\s*)"
 
@@ -49,6 +50,18 @@ COLLABORATORS_QUERY = """
 query ($owner: String!, $name: String!, $user: String!) {
   repository(owner: $owner, name: $name) {
     collaborators(query: $user, first: 1) {
+      nodes {
+        login
+      }
+    }
+  }
+}
+"""
+
+MENTIONABLE_QUERY = """
+query ($owner: String!, $name: String!, $user: String!) {
+  repository(owner: $owner, name: $name) {
+    mentionableUsers(query: $user, first: 1) {
       nodes {
         login
       }
@@ -106,8 +119,10 @@ PR_QUERY = """
                     nodes {
                       ... on CheckRun {
                         name
+                        databaseId
                         checkSuite {
                           workflowRun {
+                            databaseId
                             workflow {
                               name
                             }
@@ -221,12 +236,12 @@ class PR:
     def __repr__(self):
         return json.dumps(self.raw, indent=2)
 
-    def plus_one(self, comment: Dict[str, Any]):
+    def react(self, comment: Dict[str, Any], content: str):
         """
         React with a thumbs up to a comment
         """
         url = f"issues/comments/{comment['id']}/reactions"
-        data = {"content": "+1"}
+        data = {"content": content}
         if self.dry_run:
             logging.info(f"Dry run, would have +1'ed to {url} with {data}")
         else:
@@ -263,11 +278,15 @@ class PR:
                     # If the 'conclusion' isn't filled out the job hasn't
                     # finished yet
                     status = "PENDING"
+                workflow_name = item["checkSuite"]["workflowRun"]["workflow"]["name"]
+                if workflow_name != "CI":
+                    # Ignore all jobs that aren't in the main.yml workflow (these are mostly
+                    # automation jobs that run on PRs for tagging / reviews)
+                    continue
+                check_name = item["name"]
                 jobs.append(
                     {
-                        "name": item["checkSuite"]["workflowRun"]["workflow"]["name"]
-                        + " / "
-                        + item["name"],
+                        "name": f"{workflow_name} / {check_name}",
                         "url": item["url"],
                         "status": status.upper(),
                     }
@@ -326,14 +345,20 @@ class PR:
         """
         Query GitHub for collaborators matching 'user'
         """
+        return self.search_users(user, COLLABORATORS_QUERY)["collaborators"]["nodes"]
+
+    def search_users(self, user: str, query: str) -> List[Dict[str, Any]]:
         return self.github.graphql(
-            query=COLLABORATORS_QUERY,
+            query=query,
             variables={
                 "owner": self.owner,
                 "name": self.repo_name,
                 "user": user,
             },
-        )["data"]["repository"]["collaborators"]["nodes"]
+        )["data"]["repository"]
+
+    def search_mentionable_users(self, user: str) -> List[Dict[str, Any]]:
+        return self.search_users(user, MENTIONABLE_QUERY)["mentionableUsers"]["nodes"]
 
     def comment(self, text: str) -> None:
         """
@@ -503,15 +528,103 @@ class PR:
         else:
             post(url, auth=("tvm-bot", TVM_BOT_JENKINS_TOKEN))
 
-    def comment_failure(self, msg: str, exception: Exception):
-        if not self.dry_run:
-            exception_msg = traceback.format_exc()
-            comment = f"{msg} in {args.run_url}\n\n<details>\n\n```\n{exception_msg}\n```\n\n"
+    def rerun_github_actions(self) -> None:
+        workflow_ids = []
+        for item in self.head_commit()["statusCheckRollup"]["contexts"]["nodes"]:
+            if "checkSuite" in item and item["conclusion"] == "FAILURE":
+                workflow_id = item["checkSuite"]["workflowRun"]["databaseId"]
+                workflow_ids.append(workflow_id)
+
+        workflow_ids = list(set(workflow_ids))
+        logging.info(f"Rerunning GitHub Actions workflows with IDs: {workflow_ids}")
+        actions_github = GitHubRepo(
+            user=self.github.user, repo=self.github.repo, token=GH_ACTIONS_TOKEN
+        )
+        for workflow_id in workflow_ids:
+            if self.dry_run:
+                logging.info(f"Dry run, not restarting workflow {workflow_id}")
+            else:
+                try:
+                    actions_github.post(f"actions/runs/{workflow_id}/rerun-failed-jobs", data={})
+                except RuntimeError as e:
+                    logging.exception(e)
+                    # Ignore errors about jobs that are part of the same workflow to avoid
+                    # having to figure out which jobs are in which workflows ahead of time
+                    if "The workflow run containing this job is already running" in str(e):
+                        pass
+                    else:
+                        raise e
+
+    def comment_failure(self, msg: str, exceptions: Union[Exception, List[Exception]]):
+        if not isinstance(exceptions, list):
+            exceptions = [exceptions]
+
+        logging.info(f"Failed, commenting {exceptions}")
+
+        # Extract all the traceback strings
+        for item in exceptions:
+            try:
+                raise item
+            except Exception:
+                item.exception_msg = traceback.format_exc()
+
+        comment = f"{msg} in {args.run_url}\n\n"
+        for exception in exceptions:
+            comment += f"<details>\n\n```\n{exception.exception_msg}\n```\n\n"
             if hasattr(exception, "read"):
                 comment += f"with response\n\n```\n{exception.read().decode()}\n```\n\n"
             comment += "</details>"
-            pr.comment(comment)
+
+        pr.comment(comment)
         return exception
+
+
+def check_author(pr, triggering_comment, args):
+    comment_author = triggering_comment["user"]["login"]
+    if pr.author() == comment_author:
+        logging.info("Comment user is PR author, continuing")
+        return True
+    return False
+
+
+def search_users(name, triggering_comment, testing_json, search_fn):
+    logging.info(f"Checking {name}")
+    commment_author = triggering_comment["user"]["login"]
+    if testing_json:
+        matching_users = json.loads(testing_json)
+    else:
+        matching_users = search_fn(commment_author)
+    logging.info(f"Found {name}: {matching_users}")
+    user_names = {user["login"] for user in matching_users}
+
+    return len(matching_users) > 0 and commment_author in user_names
+
+
+def check_collaborator(pr, triggering_comment, args):
+    return search_users(
+        name="collaborators",
+        triggering_comment=triggering_comment,
+        search_fn=pr.search_collaborator,
+        testing_json=args.testing_collaborators_json,
+    )
+
+
+def check_mentionable_users(pr, triggering_comment, args):
+    return search_users(
+        name="mentionable users",
+        triggering_comment=triggering_comment,
+        search_fn=pr.search_mentionable_users,
+        testing_json=args.testing_mentionable_users_json,
+    )
+
+
+AUTH_CHECKS = {
+    "metionable_users": check_mentionable_users,
+    "collaborators": check_collaborator,
+    "author": check_author,
+}
+# Stash the keys so they're accessible from the values
+AUTH_CHECKS = {k: (k, v) for k, v in AUTH_CHECKS.items()}
 
 
 class Merge:
@@ -520,6 +633,8 @@ class Merge:
         "merge this",
         "merge this pr",
     ]
+
+    auth = [AUTH_CHECKS["collaborators"], AUTH_CHECKS["author"]]
 
     @staticmethod
     def run(pr: PR):
@@ -548,9 +663,23 @@ class Rerun:
         "run ci",
     ]
 
+    auth = [AUTH_CHECKS["metionable_users"]]
+
     @staticmethod
     def run(pr: PR):
-        pr.rerun_jenkins_ci()
+        errors = []
+        try:
+            pr.rerun_jenkins_ci()
+        except Exception as e:
+            errors.append(e)
+
+        try:
+            pr.rerun_github_actions()
+        except Exception as e:
+            errors.append(e)
+
+        if len(errors) > 0:
+            pr.comment_failure("Failed to re-run CI", errors)
 
 
 if __name__ == "__main__":
@@ -565,6 +694,9 @@ if __name__ == "__main__":
     parser.add_argument("--testing-pr-json", help="(testing only) manual data for testing")
     parser.add_argument(
         "--testing-collaborators-json", help="(testing only) manual data for testing"
+    )
+    parser.add_argument(
+        "--testing-mentionable-users-json", help="(testing only) manual data for testing"
     )
     parser.add_argument(
         "--dry-run",
@@ -615,28 +747,17 @@ if __name__ == "__main__":
     else:
         pr = PR(number=int(args.pr), owner=owner, repo=repo, dry_run=args.dry_run)
 
-    # Acknowledge the comment with a react
-    pr.plus_one(comment)
-
-    # Check the comment author
-    comment_author = comment["user"]["login"]
-    if pr.author() == comment_author:
-        logging.info("Comment user is PR author, continuing")
-    else:
-        logging.info("Comment is not from PR author, checking collaborators")
-        # Get the list of collaborators for the repo filtered by the comment
-        # author
-        if args.testing_collaborators_json:
-            collaborators = json.loads(args.testing_collaborators_json)
+    for name, check in command_to_run.auth:
+        if check(pr, comment, args):
+            logging.info(f"Passed auth check '{name}', continuing")
         else:
-            collaborators = pr.search_collaborator(comment_author)
-        logging.info(f"Found collaborators: {collaborators}")
-
-        if len(collaborators) > 0:
-            logging.info("Comment is from collaborator")
-        else:
-            logging.info("Comment is not from from PR author or collaborator, quitting")
+            logging.info(f"Failed auth check '{name}', quitting")
+            # Add a sad face
+            pr.react(comment, "confused")
             exit(0)
+
+    # Acknowledge the comment with a react
+    pr.react(comment, "+1")
 
     state = pr.state()
 

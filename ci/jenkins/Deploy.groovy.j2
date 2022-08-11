@@ -18,8 +18,12 @@ stage('Build packages') {
 
 
 def update_docker(ecr_image, hub_image) {
+  if (ecr_image == null) {
+    sh("image was not rebuilt, skipping")
+    return
+  }
   if (!ecr_image.contains("amazonaws.com")) {
-    sh("echo Skipping '${ecr_image}' since it doesn't look like an ECR image")
+    sh("echo \"Skipping '${ecr_image}' -> '${hub_image}' since it doesn\'t look like an ECR image\"")
     return
   }
   docker_init(ecr_image)
@@ -106,7 +110,7 @@ def deploy() {
             ).trim()
             def tag = "${date_Ymd_HMS}-${upstream_revision.substring(0, 8)}"
             {% for image in images %}
-            update_docker({{ image.name }}, "tlcpackstaging/{{ image.name }}:${tag}")
+            update_docker(built_{{ image.name }}, "tlcpackstaging/{{ image.name }}:${tag}")
             {% endfor %}
           } finally {
             sh(

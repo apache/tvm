@@ -124,9 +124,9 @@ def test_mobilenet_v1():
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
     if tei.get_ethosn_api_version() == 2205:
-        _compile_hash = {"cb12b5469d78af81f4704488e3857755"}
+        _compile_hash = {"50186822915909303e813205db80e032"}
     elif tei.get_ethosn_api_version() == 2111:
-        _compile_hash = {"5d1c6a6bd4df8963866cc90405bf92dd"}
+        _compile_hash = {"c523c3c2bb9add1fee508217eb73af1a"}
     elif tei.get_ethosn_api_version() == 2102:
         _compile_hash = {"46ccafc840633633aca441645e41b444"}
         if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
@@ -154,9 +154,9 @@ def test_resnet_50_int8():
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
     if tei.get_ethosn_api_version() == 2205:
-        _compile_hash = {"c0a01c547ed1b2e3308094508fa1bfea", "64905a4ff2dbde08078ccc9f44ad711d"}
+        _compile_hash = {"60404ad60fc2bfbb68464d8a14cc0452", "4225fa951c145bb1e48e28cad6a3bdd4"}
     else:
-        _compile_hash = {"c0a01c547ed1b2e3308094508fa1bfea", "434f0c65c41e24d5482142c88b3438fe"}
+        _compile_hash = {"60404ad60fc2bfbb68464d8a14cc0452", "5b9d72b9accfea7ed89eb09ca0aa5487"}
     _test_image_network(
         model_url="https://raw.githubusercontent.com/dmlc/web-data/main/tensorflow/"
         "models/Quantized/resnet_50_quantized.tflite",
@@ -177,9 +177,9 @@ def test_inception_v3():
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
     if tei.get_ethosn_api_version() == 2205:
-        _compile_hash = {"85ef702ad3628c598db8c72060c70a61"}
+        _compile_hash = {"a5a2b5d2b618de754bf9a01033a020c0"}
     elif tei.get_ethosn_api_version() == 2111:
-        _compile_hash = {"e6abe33a7bc4a4170da53eefa6577bba"}
+        _compile_hash = {"88db2c7928240be9833c1b5ef367de28"}
     elif tei.get_ethosn_api_version() == 2102:
         _compile_hash = {"43dc2097127eb224c0191b1a15f8acca"}
         if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
@@ -206,9 +206,9 @@ def test_inception_v4():
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
     if tei.get_ethosn_api_version() == 2205:
-        _compile_hash = {"91a980eaf53881f4f109a1a7578e422b"}
+        _compile_hash = {"61b4ade41898d7cb2451dbdc3340aced"}
     elif tei.get_ethosn_api_version() == 2111:
-        _compile_hash = {"42e43c323ed8202f7b720ba9029bbcb7"}
+        _compile_hash = {"37648682f97cbbcecdc13945b7f2212f"}
     elif tei.get_ethosn_api_version() == 2102:
         _compile_hash = {"fab6c2297502f95d33079c6ce1a737f9"}
         if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
@@ -235,9 +235,9 @@ def test_ssd_mobilenet_v1():
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
     if tei.get_ethosn_api_version() == 2205:
-        _compile_hash = {"d804ce3496a776c48f719b4062d5e5c3", "afb68ca8f452d1f4a674b457b5e30f59"}
+        _compile_hash = {"789906c7d8ac787809b303d82781fc9d", "6b699f94795785d31b39940a5cf84a81"}
     elif tei.get_ethosn_api_version() == 2111:
-        _compile_hash = {"a37f900601b9493bd142e8aed16205e5", "afb68ca8f452d1f4a674b457b5e30f59"}
+        _compile_hash = {"7b8b0a3ad7cfe1695dee187f21f03785", "6b699f94795785d31b39940a5cf84a81"}
     elif tei.get_ethosn_api_version() == 2102:
         _compile_hash = {"7795b6c67178da9d1f9b98063bad75b1", "10826406ae724e52f360a06c35ced09d"}
         if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":

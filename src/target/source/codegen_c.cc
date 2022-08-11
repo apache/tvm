@@ -661,6 +661,8 @@ void CodeGenC::VisitStmt_(const AllocateConstNode* op) {
   this->PrintStmt(op->body);
 }
 
+void CodeGenC::VisitStmt_(const DeclBufferNode* op) { this->PrintStmt(op->body); }
+
 void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
   LOG(FATAL) << "Unexpected deprecated LoadNode.  Use BufferLoadNode instead.";
 }

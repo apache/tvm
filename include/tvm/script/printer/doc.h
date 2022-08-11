@@ -40,7 +40,16 @@ namespace printer {
  */
 class DocNode : public Object {
  public:
-  void VisitAttrs(AttrVisitor* v) {}
+  /*!
+   * \brief The list of object paths of the source IR node.
+   *
+   * This is used to trace back to the IR node position where
+   * this Doc is generated, in order to position the diagnostic
+   * message.
+   */
+  mutable Array<ObjectPath> source_paths;
+
+  void VisitAttrs(AttrVisitor* v) { v->Visit("source_paths", &source_paths); }
 
   static constexpr const char* _type_key = "script.printer.Doc";
   TVM_DECLARE_BASE_OBJECT_INFO(DocNode, Object);
