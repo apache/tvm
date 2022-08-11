@@ -226,13 +226,15 @@ def verify_model_with_input(
     test_func,
     input_data,
     *,
-    input_dict={},
-    custom_convert_map={},
+    input_dict=None,
+    custom_convert_map=None,
     rtol=1e-5,
     atol=1e-5,
     assert_shape_only=False,
 ):
     """Generic function to generate and compare Pytorch and TVM output"""
+    input_dict = input_dict or {}
+    custom_convert_map = custom_convert_map or {}
     baseline_outputs = test_func(*input_data)
     trace = torch.jit.trace(test_func, [input.clone() for input in input_data])
     input_names = [f"input{idx}" for idx, _ in enumerate(input_data)]
