@@ -29,6 +29,7 @@ from cmd_utils import init_log, tags_from_title
 
 GITHUB_USERNAME_REGEX = re.compile(r"(@[a-zA-Z0-9-]+)", flags=re.MULTILINE)
 OK = object()
+FAIL = object()
 
 
 @dataclass
@@ -42,55 +43,48 @@ class Check:
 
 def non_empty(s: str):
     if len(s) == 0:
-        return False
+        return FAIL
     return OK
 
 
 def usernames(s: str):
     m = GITHUB_USERNAME_REGEX.findall(s)
-    if m and len(m) > 0:
-        return m
-    return OK
+    return m if m else OK
 
 
 def tags(s: str):
     items = tags_from_title(s)
     if len(items) == 0:
-        return False
+        return FAIL
     return OK
 
 
 def trailing_period(s: str):
     if s.endswith("."):
-        return False
+        return FAIL
     return OK
 
 
 title_checks = [
     Check(check=non_empty, error_fn=lambda d: "PR must have a title but title was empty"),
     Check(check=trailing_period, error_fn=lambda d: "PR must not end in a tailing '.'"),
-    Check(
-        check=usernames,
-        error_fn=lambda d: f"PR title must not tag anyone but found these usernames: {d}",
-    ),
-    Check(
-        check=tags,
-        error_fn=lambda d: f"PR title must have a topic tag like [the_topic] (e.g. [tir], [relay], etc.) but found none",
-    ),
+    # TODO(driazati): enable this check once https://github.com/apache/tvm/issues/12637 is done
+    # Check(
+    #     check=usernames,
+    #     error_fn=lambda d: f"PR title must not tag anyone but found these usernames: {d}",
+    # ),
 ]
 body_checks = [
     Check(check=non_empty, error_fn=lambda d: "PR must have a body but body was empty"),
-    Check(
-        check=usernames,
-        error_fn=lambda d: f"PR body must not tag anyone but found these usernames: {d}",
-    ),
+    # TODO(driazati): enable this check once https://github.com/apache/tvm/issues/12637 is done
+    # Check(
+    #     check=usernames,
+    #     error_fn=lambda d: f"PR body must not tag anyone but found these usernames: {d}",
+    # ),
 ]
 
 
 def run_checks(checks: List[Check], s: str, name: str) -> bool:
-    errors = [(c, c.check(s)) for c in checks]
-    errors = [item for item in errors if item[1] != OK]
-    errors = []
     print(f"Running checks for {name}")
     print(textwrap.indent(s, prefix="    "))
     passed = True
@@ -139,6 +133,9 @@ if __name__ == "__main__":
         body = pr["body"]
         title = pr["title"]
 
+    body = body.strip()
+    title = title.strip()
+
     title_passed = run_checks(checks=title_checks, s=title, name="PR title")
     print("")
     body_passed = run_checks(checks=body_checks, s=body, name="PR body")
@@ -147,5 +144,7 @@ if __name__ == "__main__":
         print("All checks passed!")
         exit(0)
     else:
-        print("Some checks failed, please review the logs above")
+        print(
+            "Some checks failed, please review the logs above and edit your PR on GitHub accordingly"
+        )
         exit(1)

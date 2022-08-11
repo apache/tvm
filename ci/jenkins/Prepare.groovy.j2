@@ -161,7 +161,7 @@ def check_pr(pr_number) {
     variable: 'GITHUB_TOKEN',
     )]) {
     sh (
-      script: "python3 tests/scripts/check_pr.py --pr ${pr_number}",
+      script: "python3 ci/scripts/check_pr.py --pr ${pr_number}",
       label: 'Check PR title and body',
     )
   }

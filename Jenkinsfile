@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-08-30T15:23:03.836398
+// Generated at 2022-08-30T15:26:50.100067
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -311,7 +311,7 @@ def check_pr(pr_number) {
     variable: 'GITHUB_TOKEN',
     )]) {
     sh (
-      script: "python3 tests/scripts/check_pr.py --pr ${pr_number}",
+      script: "python3 ci/scripts/check_pr.py --pr ${pr_number}",
       label: 'Check PR title and body',
     )
   }
