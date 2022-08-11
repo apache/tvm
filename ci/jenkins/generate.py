@@ -18,9 +18,11 @@
 import jinja2
 import argparse
 import difflib
-import re
+import fnmatch
 import datetime
 import textwrap
+import subprocess
+from typing import List
 
 from pathlib import Path
 
@@ -76,10 +78,46 @@ data = {
 }
 
 
-def lines_without_generated_tag(content):
+def lines_without_generated_tag(content: str) -> List[str]:
     return [
         line for line in content.splitlines(keepends=True) if not line.startswith("// Generated at")
     ]
+
+
+
+def changed_files() -> List[str]:
+    proc = subprocess.run(
+        ["git", "diff", "origin/main", "HEAD", "--name-only"], check=True, stdout=subprocess.PIPE, encoding="utf-8"
+    )
+    files = [f.strip() for f in proc.stdout.strip().split("\n")]
+    files = [f for f in files if f != ""]
+    return files
+
+
+def check_timestamp() -> None:
+    """
+    Assert that the git diff against main contains a timestamp
+    """
+
+    files = changed_files()
+    print(files)
+    # if any([f.startswith("ci/jenkins/])
+    for f in files:
+        print(f, fnmatch.fnmatch(f, 'ci/jenkins/*.j2'))
+    
+    # Check the Jenkinsfile timestamp if the templates were edited
+    if any(fnmatch.fnmatch(f, 'ci/jenkins/*.j2') for f in files):
+        proc = subprocess.run(
+            ["git", "diff", "origin/main", "HEAD"], check=True, stdout=subprocess.PIPE, encoding="utf-8"
+        )
+        diff = proc.stdout
+        if "+// Generated at" not in diff:
+            print(
+                "Newly generated Jenkinsfile was missing an updated timestamp, "
+                "please ensure that the timestamp is updated by running "
+                "'python3 ci/jenkins/generate.py' to avoid merge conflicts"
+            )
+            exit(1)
 
 
 if __name__ == "__main__":
@@ -109,6 +147,7 @@ if __name__ == "__main__":
         )
     )
     if args.check:
+        check_timestamp()
         if not diff:
             print("Success, the newly generated Jenkinsfile matched the one on disk")
             exit(0)

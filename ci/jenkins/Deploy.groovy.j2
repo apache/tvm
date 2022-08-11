@@ -120,7 +120,7 @@ def deploy() {
             sh(
               script: 'docker logout',
               label: 'Clean up login credentials'
-            )
+            )2
           }
         {% endcall %}
         {% call m.deploy_step(
