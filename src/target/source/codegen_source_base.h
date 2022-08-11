@@ -25,6 +25,7 @@
 #ifndef TVM_TARGET_SOURCE_CODEGEN_SOURCE_BASE_H_
 #define TVM_TARGET_SOURCE_CODEGEN_SOURCE_BASE_H_
 
+#include <tvm/ir/name_supply.h>
 #include <tvm/runtime/metadata.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tir/expr.h>
@@ -98,12 +99,6 @@ class CodeGenSourceBase {
    */
   std::string SSAGetID(std::string src, DataType t);
   /*!
-   * \brief get a unique name with the corresponding prefix
-   * \param prefix The prefix of the name
-   * \return The returned name.
-   */
-  std::string GetUniqueName(std::string prefix);
-  /*!
    * \brief mark the beginning of a new scope
    * \return The scope id.
    */
@@ -127,12 +122,12 @@ class CodeGenSourceBase {
   std::ostringstream stream;
   /*! \brief name of each variable */
   std::unordered_map<const tir::VarNode*, std::string> var_idmap_;
+  /*! \brief NameSupply for allocation */
+  NameSupply name_supply_ = NameSupply("");
 
  private:
   /*! \brief assignment map of ssa */
   std::unordered_map<std::string, SSAEntry> ssa_assign_map_;
-  /*! \brief name allocation map */
-  std::unordered_map<std::string, int> name_alloc_map_;
   /*! \brief array to check whether we are inside certain scope */
   std::vector<bool> scope_mark_;
   /*! \brief The current indentation value */
