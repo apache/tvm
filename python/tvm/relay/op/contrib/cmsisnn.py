@@ -92,12 +92,13 @@ def pattern_table():
             and dequantize_call.args[0].checked_type.dtype == "int8"
         )
 
-    def qnn_conv2d_pattern():
+    def qnn_conv2d_pattern(with_pad):
         """Create pattern for qnn.conv2D with optional pad and/or optional fused relu."""
-        optional_pad = is_op("nn.pad")(wildcard(), is_constant())
-
+        conv2d_input = wildcard()
+        if with_pad:
+            conv2d_input = is_op("nn.pad")(wildcard(), is_constant())
         qnn_conv2d = is_op("qnn.conv2d")(
-            optional_pad | wildcard(),
+            conv2d_input,
             is_constant(),
             is_constant(),
             is_constant(),
@@ -130,20 +131,56 @@ def pattern_table():
         conv2d_input = conv2d.args[0]
         conv2d_weight = conv2d.args[1]
 
+        # kernel zero_point should be 0
+        kernel_zp = conv2d.args[3].data.numpy()
+        kernel_zp = [kernel_zp] if kernel_zp.ndim == 0 else kernel_zp
+
+        # check if depthwise Conv2D
+        kernel_layout = conv2d.attrs.kernel_layout
+        pos_o = kernel_layout.index("O")
+        groups = conv2d.attrs.groups
+        is_depthwise = False
+        if groups == int(conv2d_input.checked_type.shape[3]) and groups == int(
+            conv2d_weight.checked_type.shape[pos_o]
+        ):
+            is_depthwise = True
+
+        ret = (
+            conv2d.attrs.out_dtype == "int32"
+            and conv2d_input.checked_type.dtype == "int8"
+            and conv2d_weight.checked_type.dtype == "int8"
+            and pattern.checked_type.dtype == "int8"
+            and bias_dtype == "int32"
+            and all([zp == 0 for zp in kernel_zp])
+            and (not is_depthwise or bias_add is not None)
+        )
+        return ret
+
+    def check_qnn_conv2d_pad(pattern):
+        """Check if the Pad followed by Conv2D is supported by CMSIS-NN."""
+        if str(pattern.op.name) == "clip":
+            relu = pattern
+            requantize = relu.args[0]
+        else:
+            requantize = pattern
+        requantize_input = requantize.args[0]
+        bias_add = None
+        bias_dtype = "int32"
+        if str(requantize_input.op.name) == "nn.bias_add":
+            bias_add = requantize_input
+            conv2d = bias_add.args[0]
+            bias_dtype = bias_add.args[1].checked_type.dtype
+        else:
+            conv2d = requantize_input
+        conv2d_input = conv2d.args[0]
+        conv2d_weight = conv2d.args[1]
+
         # check if sum of paddings from pad() and conv2d() satisfies CMSIS-NN constraints
         can_pad_be_fused = True
         if isinstance(conv2d_input, tvm.relay.expr.Call) and str(conv2d_input.op.name) == "nn.pad":
-            data_layout = conv2d.attrs.data_layout
-            conv2d_padding = conv2d.attrs.padding  # (top, left, bottom, right)
-            pad = conv2d_input
-            pad_width = pad.attrs.pad_width
-            pad_width_w = pad_width[data_layout.find("W")]  # (left, right)
-            pad_width_h = pad_width[data_layout.find("H")]  # (top, bottom)
-            # calculate effective padding post pad fusion
-            pad_top = pad_width_h[0] + conv2d_padding[0]
-            pad_bottom = pad_width_h[1] + conv2d_padding[2]
-            pad_left = pad_width_w[0] + conv2d_padding[1]
-            pad_right = pad_width_w[1] + conv2d_padding[3]
+            pad_top, pad_left, pad_bottom, pad_right = GetEffectiveConv2DPadding(
+                conv2d, conv2d_input
+            )
             # check if difference in the side paddings is 1 along each dimension
             pad_w_diff = int(pad_right - pad_left)
             pad_h_diff = int(pad_bottom - pad_top)
@@ -163,7 +200,7 @@ def pattern_table():
         ):
             is_depthwise = True
 
-        return (
+        ret = (
             conv2d.attrs.out_dtype == "int32"
             and conv2d_input.checked_type.dtype == "int8"
             and conv2d_weight.checked_type.dtype == "int8"
@@ -173,6 +210,7 @@ def pattern_table():
             and (not is_depthwise or bias_add is not None)
             and can_pad_be_fused
         )
+        return ret
 
     def qnn_fully_connected_pattern():
         """Create pattern for qnn.dense with optional Relu."""
@@ -303,7 +341,8 @@ def pattern_table():
         )
 
     return [
-        ("cmsis-nn.qnn_conv2d", qnn_conv2d_pattern(), check_qnn_conv2d),
+        ("cmsis-nn.qnn_conv2d", qnn_conv2d_pattern(with_pad=True), check_qnn_conv2d_pad),
+        ("cmsis-nn.qnn_conv2d", qnn_conv2d_pattern(with_pad=False), check_qnn_conv2d),
         ("cmsis-nn.qnn_fully_connected", qnn_fully_connected_pattern(), check_qnn_fully_connected),
         ("cmsis-nn.qnn_avg_pool2d", qnn_avg_pool2d_pattern(), check_qnn_avg_pool2d),
         ("cmsis-nn.qnn_max_pool2d", qnn_max_pool2d_pattern(), check_qnn_max_pool2d),

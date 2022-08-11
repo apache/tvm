@@ -21,28 +21,9 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relay
+from .utils import CheckForPadsWithinCompositeFunc
 
 tvm._ffi._init_api("relay.ext.cmsisnn.transform", __name__)
-
-
-class CheckForPadsWithinCompositeFunc(tvm.relay.ExprVisitor):
-    """Provides method to test number of pads present inside the function being visited."""
-
-    def __init__(self):
-        super().__init__()
-        self.num_pads_ = 0
-
-    def visit_call(self, call):
-        super().visit_call(call)
-        if (
-            isinstance(call, tvm.relay.Call)
-            and isinstance(call.op, tvm.ir.op.Op)
-            and call.op.name == "nn.pad"
-        ):
-            self.num_pads_ += 1
-
-    def check_num_pads(self):
-        assert self.num_pads_ == 0, "CMSIS-NN composite function should not have pads"
 
 
 def set_external_func_attr(func, compiler, ext_symbol):
@@ -143,6 +124,86 @@ def test_invalid_padding_for_fusion(ifm_shape, pad_width, conv2d_padding, ofm_sh
         [(1, 55, 55, 3), ((0, 0), (2, 1), (3, 2), (0, 0)), (0, 0, 1, 1), (1, 57, 59, 2)],
     ],
 )
+def test_pad_conv2d_fusion_noncmsisnn_target(ifm_shape, pad_width, conv2d_padding, ofm_shape):
+    """Tests the pads and conv2d fusion for non-cmsisnn targets.
+    It is expected that pad will not be fused with Conv2D in this case.
+    """
+    dtype = "int8"
+    kernel_size = (3, 3)
+    ofm_channels = 2
+    local_input = relay.var("local_input", shape=ifm_shape, dtype=dtype)
+    pad = relay.nn.pad(
+        local_input,
+        pad_width=pad_width,  # ((), (top, bottom), (left, right), ())
+        pad_value=10,
+        pad_mode="constant",
+    )
+    rng = np.random.default_rng(12321)
+    local_weight = tvm.nd.array(
+        rng.integers(
+            np.iinfo(dtype).min,
+            high=np.iinfo(dtype).max,
+            size=(ofm_channels, kernel_size[0], kernel_size[1], ifm_shape[3]),
+            dtype=dtype,
+        )
+    )
+    local_weight = relay.const(local_weight, dtype)
+    conv2d = relay.qnn.op.conv2d(
+        pad,
+        local_weight,
+        relay.const(1, "int32"),
+        relay.const(1, "int32"),
+        relay.const(1, "float32"),
+        relay.const(1, "float32"),
+        data_layout="NHWC",
+        kernel_layout="OHWI",
+        channels=ofm_channels,
+        kernel_size=(3, 3),
+        padding=conv2d_padding,
+        out_dtype="int32",
+    )
+    requantize = relay.qnn.op.requantize(
+        conv2d,
+        relay.const(1, "float32"),
+        relay.const(1, "int32"),
+        relay.const(1, "float32"),
+        relay.const(1, "int32"),
+        axis=0,
+        out_dtype=dtype,
+    )
+    local_func = relay.Function(relay.analysis.free_vars(requantize), requantize)
+    local_func = set_composite_func_attr(local_func, "noncmsis-nn.qnn_conv2d")
+
+    mod = tvm.IRModule()
+    ext_input = relay.var("ext_input", shape=ifm_shape, dtype=dtype)
+    call_local_func = relay.Call(local_func, [ext_input])
+    extern_func = relay.Function(relay.analysis.free_vars(call_local_func), call_local_func)
+    extern_var = relay.GlobalVar("external_function")
+    extern_func = set_external_func_attr(extern_func, "noncmsis-nn", extern_var.name_hint)
+    mod[extern_var] = extern_func
+
+    main_input = relay.var("main_input", shape=ifm_shape, dtype=dtype)
+    call_extern_func = relay.Call(extern_var, [main_input])
+    main_func = relay.Function([main_input], call_extern_func, relay.TensorType(ofm_shape, dtype))
+    main_var = relay.GlobalVar("main")
+    mod[main_var] = main_func
+
+    mod = relay.transform.InferType()(mod)
+
+    mod = CMSISNNFusePads()(mod)
+    pad_verifier = CheckForPadsWithinCompositeFunc()
+    pad_verifier.visit_function(mod[extern_var])
+    pad_verifier.assert_pads_within_func()
+
+
+@pytest.mark.parametrize(
+    "ifm_shape, pad_width, conv2d_padding, ofm_shape",
+    [
+        [(1, 25, 25, 12), ((0, 0), (0, 1), (1, 2), (0, 0)), (1, 1, 1, 1), (1, 26, 28, 2)],
+        [(1, 64, 100, 4), ((0, 0), (1, 1), (1, 1), (0, 0)), (0, 0, 0, 0), (1, 64, 100, 2)],
+        [(1, 55, 55, 3), ((0, 0), (2, 1), (3, 2), (0, 0)), (0, 0, 1, 1), (1, 57, 59, 2)],
+    ],
+)
 def test_pad_conv2d_fusion(ifm_shape, pad_width, conv2d_padding, ofm_shape):
     """Tests the pads and conv2d fusion."""
     dtype = "int8"
@@ -210,7 +271,7 @@ def test_pad_conv2d_fusion(ifm_shape, pad_width, conv2d_padding, ofm_shape):
     mod = CMSISNNFusePads()(mod)
     pad_verifier = CheckForPadsWithinCompositeFunc()
     pad_verifier.visit_function(mod[extern_var])
-    pad_verifier.check_num_pads()
+    pad_verifier.assert_no_pads_within_func()
 
 
 def test_without_preceding_pad():
@@ -276,4 +337,4 @@ def test_without_preceding_pad():
     mod = CMSISNNFusePads()(mod)
     pad_verifier = CheckForPadsWithinCompositeFunc()
     pad_verifier.visit_function(mod[extern_var])
-    pad_verifier.check_num_pads()
+    pad_verifier.assert_no_pads_within_func()
