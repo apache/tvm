@@ -583,8 +583,10 @@ class StoragePlanRewriter : public StmtExprMutator {
   };
 
   // Checks whether the storage_scope is especially tagged for a specific memory.
+  // Special memory is all combined into a single allocation.
   bool IsSpecialTaggedMemory(const StorageScope& scope) {
-    return scope.tag.length() != 0 && scope.tag != ".dyn" && scope.tag != ".workspace";
+    return scope.tag.length() != 0 && scope.tag != ".dyn" && scope.tag != ".workspace" &&
+           scope.tag != ".vtcm";
   }
 
   // Alllocate entry of node.
@@ -655,8 +657,6 @@ class StoragePlanRewriter : public StmtExprMutator {
 
         if (e->allocs.size() == 1) {
           // simply use the original allocation.
-          PrimExpr sz = foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
-                              make_const(DataType::Int(32), 1), e->allocs[0]->extents);
           e->new_alloc = Allocate(e->alloc_var, alloc_type, e->allocs[0]->extents,
                                   e->allocs[0]->condition, Evaluate(0));
           if (IsSpecialTaggedMemory(e->scope)) {
