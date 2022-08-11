@@ -261,11 +261,34 @@ std::vector<State> MultiLevelTilingNode::AddReadReuse(State state) const {
 
 void MultiLevelTilingNode::AnnotateCooperativeFetching(Schedule* sch,
                                                        const tir::BlockRV& block) const {
-  if (!vector_load_lens.empty()) {
-    int n = vector_load_lens.size();
+  // Filter out invalid vector lanes according to the data type.
+  const tir::BlockNode* block_node = (*sch)->GetSRef(block)->StmtAs<tir::BlockNode>();
+  ICHECK_EQ(block_node->writes.size(), 1);
+  const runtime::DataType dtype = block_node->writes[0]->buffer->dtype;
+  std::function<bool(int)> f_filter = nullptr;
+  if (dtype == runtime::DataType::Float(32)) {
+    f_filter = [&](int vector_len) { return vector_len <= 4; };
+  } else if (dtype == runtime::DataType::Float(16)) {
+    f_filter = [&](int vector_len) {
+      return (vector_len == 1 || vector_len % 2 == 0) && vector_len <= 8;
+    };
+  } else if (dtype == runtime::DataType::Int(8)) {
+    f_filter = [&](int vector_len) { return vector_len <= 16; };
+  }
+  std::vector<int> valid_vector_lens;
+  valid_vector_lens.reserve(vector_load_lens.size());
+  if (f_filter != nullptr) {
+    std::copy_if(vector_load_lens.begin(), vector_load_lens.end(),
+                 std::back_inserter(valid_vector_lens), f_filter);
+  } else {
+    valid_vector_lens = vector_load_lens;
+  }
+
+  if (!valid_vector_lens.empty()) {
+    int n = valid_vector_lens.size();
     double prob = 1.0 / n;
     tir::ExprRV vector_load_len =
-        (*sch)->SampleCategorical(support::AsArray<int, Integer>(vector_load_lens),
+        (*sch)->SampleCategorical(support::AsArray<int, Integer>(valid_vector_lens),
                                   Array<FloatImm>(n, FloatImm(DataType::Float(64), prob)));
     (*sch)->Annotate(block, tir::attr::meta_schedule_cooperative_fetch, vector_load_len);
   }
