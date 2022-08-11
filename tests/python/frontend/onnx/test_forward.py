@@ -3891,7 +3891,7 @@ def verify_rnn(
         raise NotImplementedError(f"{rnn_type} RNNs not yet supported.")
 
     if directions not in [1, 2]:
-        raise ValueError("Direction should be either 1 or 2 (for bidirectional LSTMs)")
+        raise ValueError(f"Direction should be either 1 or 2 (for bidirectional LSTMs)")
 
     def get_inputs():
         input_names = []
@@ -4029,10 +4029,7 @@ def verify_rnn(
     )
 
 
-@pytest.mark.parametrize("rnn_type", ["RNN", "LSTM", "GRU"])
-@tvm.testing.parametrize_targets
-def test_lstm(target, dev):
-    """test_lstm"""
+def verify_rnn_helper(target, dev, rnn_type):
     num_activations = 1
     if rnn_type == "GRU":
         num_activations = 2
@@ -4211,6 +4208,21 @@ def test_lstm(target, dev):
                 target=target,
                 dev=dev,
             )
+
+
+@tvm.testing.parametrize_targets
+def test_rnn(target, dev):
+    verify_rnn_helper(target, dev, "RNN")
+
+
+@tvm.testing.parametrize_targets
+def test_lstm(target, dev):
+    verify_rnn_helper(target, dev, "LSTM")
+
+
+@tvm.testing.parametrize_targets
+def test_gru(target, dev):
+    verify_rnn_helper(target, dev, "GRU")
 
 
 @tvm.testing.parametrize_targets
