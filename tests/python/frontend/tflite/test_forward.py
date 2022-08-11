@@ -293,7 +293,7 @@ def compare_tflite_with_tvm(
     out_names=None,
     quantized=False,
     input_range=None,
-    mode="vm",
+    mode="graph_executor",
     experimental_new_converter=False,
     fp16_quantized=False,
     int_quant_dtype=tf.int8,
