@@ -4230,5 +4230,70 @@ RELAY_REGISTER_OP("invert_permutation")
     .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_attr<TOpIsStateful>("TOpIsStateful", false);
 
+TVM_REGISTER_NODE_TYPE(EmbeddingBagAttrs);
+
+bool EmbeddingBagRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                     const TypeReporter& reporter) {
+  // types: [weight, indics, result]
+  ICHECK_EQ(types.size(), 3) << "EmbeddingBag: expect 3 types but " << types.size() << " provided";
+  ICHECK_EQ(num_inputs, 2) << "EmbeddingBag: expect 2 inputs but " << num_inputs << " provided";
+  auto data = types[0].as<TensorTypeNode>();  // shape of (B, N)
+  if (data == nullptr) {
+    ICHECK(types[0].as<IncompleteTypeNode>())
+        << "EmbeddingBag: expect input type to be TensorType but get " << types[0];
+    return false;
+  }
+
+  auto embedding_matrix =
+      types[1].as<TensorTypeNode>();  // shape of (num_embeddings, embedding_dim)
+  if (embedding_matrix == nullptr) {
+    ICHECK(types[1].as<IncompleteTypeNode>())
+        << "EmbeddingBag: expect embedding_matrix type to be TensorType but get " << types[1];
+    return false;
+  }
+
+  ICHECK(data->shape.size() == 2) << "EmbeddingBag: input must be a 2-D tensor but get " << data;
+  ICHECK(embedding_matrix->shape.size() == 2)
+      << "EmbeddingBag: embedding_matrix must be a 2-D tensor but get " << data;
+
+  // Output shape is the (B, embedding_dim).
+  auto row = data->shape[0];
+  auto column = embedding_matrix->shape[1];
+  std::vector<decltype(row)> shape{row, column};
+  reporter->Assign(types[2], TensorType(tvm::relay::Shape(shape), embedding_matrix->dtype));
+  return true;
+}
+
+Expr MakeEmbeddingBag(Expr input, Expr weight, size_t num_embeddings, size_t embedding_dim,
+                      size_t mode) {
+  auto attrs = make_object<EmbeddingBagAttrs>();
+  attrs->num_embeddings = num_embeddings;
+  attrs->embedding_dim = embedding_dim;
+  attrs->mode = mode;
+  static const Op& op = Op::Get("embedding_bag");
+  return Call(op, {input, weight}, Attrs(attrs), {});
+}
+
+Array<te::Tensor> EmbeddingBagCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                      const Type& out_type) {
+  const auto* param = attrs.as<EmbeddingBagAttrs>();
+  ICHECK(param != nullptr);
+  return Array<te::Tensor>{};
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.embedding_bag").set_body_typed(MakeEmbeddingBag());
+
+RELAY_REGISTER_OP("embedding_bag")
+    .describe(
+        R"code(Computes sums, means or maxes of bags of embeddings, without instantiating the intermediate embeddings.
+    )code" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .add_argument("input", "Tensor", "Tensor containing bags of indices into the embedding matrix.")
+    .add_argument("weight", "Tensor", "The embedding matrix.")
+    .add_type_rel("embedding_bag", EmbeddingBagRel)
+    .set_support_level(10)
+    .set_attr<FTVMCompute>("FTVMCompute", EmbeddingBagCompute)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable);
+
 }  // namespace relay
 }  // namespace tvm

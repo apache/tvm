@@ -575,6 +575,22 @@ struct StftAttrs : public tvm::AttrsNode<StftAttrs> {
   }
 };  // struct StftAttrs
 
+/*! \brief Attributes used in embedding_bad operator */
+struct EmbeddingBagAttrs : public tvm::AttrsNode<EmbeddingBagAttrs> {
+  int num_embeddings;
+  int embedding_dim;
+  int mode;
+
+  TVM_DECLARE_ATTRS(EmbeddingBagAttrs, "relay.attrs.EmbeddingBagAttrs") {
+    TVM_ATTR_FIELD(num_embeddings)
+        .set_default(-1)
+        .describe("The size of the dictionary of embeddings.");
+    TVM_ATTR_FIELD(embedding_dim).set_default(-1).describe("The size of each embedding vector.");
+    TVM_ATTR_FIELD(mode).set_default(0).describe(
+        "Specifies the way to reduce the bag. The default function is `sum`.");
+  }
+};  // struct EmbeddingBagAttrs
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_TRANSFORM_H_
