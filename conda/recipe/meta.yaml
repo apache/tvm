@@ -44,7 +44,7 @@ requirements:
     - make # [not win]
   host:
     - zlib
-    - llvmdev ==10.0.0
+    - llvmdev >=11
 
 outputs:
   - name: {{ pkg_name }}-libs
@@ -59,11 +59,11 @@ outputs:
         - make # [not win]
       host:
         - zlib
-        - llvmdev ==10.0.0
+        - llvmdev >=11
         - {{ pin_compatible('cudatoolkit', lower_bound=cuda_version, max_pin='x.x') }}  # [cuda]
         - cudnn >=7.6.0  # [cuda]
       run:
-        - llvmdev ==10.0.0
+        - llvmdev >=11
         - {{ pin_compatible('cudatoolkit', lower_bound=cuda_version, max_pin='x.x') }}  # [cuda]
         - cudnn >=7.6.0  # [cuda]
 
