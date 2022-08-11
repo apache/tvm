@@ -436,11 +436,11 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
       int64_t vstride = stride.Eval()->value;
       if (vstride > 0) {
         return Combine<Add>(analyzer_, base,
-                            IntervalSet(make_zero(t), make_const(t, vstride * op->lanes - 1)),
+                            IntervalSet(make_zero(t), make_const(t, vstride * (op->lanes - 1))),
                             op->dtype);
       } else {
         return Combine<Add>(analyzer_, base,
-                            IntervalSet(make_const(t, vstride * op->lanes + 1), make_zero(t)),
+                            IntervalSet(make_const(t, vstride * (op->lanes - 1)), make_zero(t)),
                             op->dtype);
       }
     }
