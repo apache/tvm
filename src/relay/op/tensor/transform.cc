@@ -4281,7 +4281,7 @@ Array<te::Tensor> EmbeddingBagCompute(const Attrs& attrs, const Array<te::Tensor
   return Array<te::Tensor>{};
 }
 
-TVM_REGISTER_GLOBAL("relay.op._make.embedding_bag").set_body_typed(MakeEmbeddingBag());
+TVM_REGISTER_GLOBAL("relay.op._make.embedding_bag").set_body_typed(MakeEmbeddingBag);
 
 RELAY_REGISTER_OP("embedding_bag")
     .describe(
