@@ -52,6 +52,7 @@ import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 ci_lint = 'tlcpack/ci-lint:20220715-060127-37f9d3c49'
 ci_gpu = 'tlcpack/ci-gpu:20220801-060139-d332eb374'
 ci_cpu = 'tlcpack/ci-cpu:20220715-060127-37f9d3c49'
+ci_minimal = 'tlcpack/ci-minimal:20220725-133226-d3cefdaf1'
 ci_wasm = 'tlcpack/ci-wasm:20220715-060127-37f9d3c49'
 ci_i386 = 'tlcpack/ci-i386:20220715-060127-37f9d3c49'
 ci_cortexm = 'tlcpack/ci-cortexm:v0.01'
@@ -66,6 +67,7 @@ properties([
   parameters([
     string(name: 'ci_arm_param', defaultValue: ''),
     string(name: 'ci_cpu_param', defaultValue: ''),
+    string(name: 'ci_minimal_param', defaultValue: ''),
     string(name: 'ci_gpu_param', defaultValue: ''),
     string(name: 'ci_hexagon_param', defaultValue: ''),
     string(name: 'ci_i386_param', defaultValue: ''),
@@ -79,6 +81,7 @@ properties([
 // is used)
   built_ci_arm = null;
   built_ci_cpu = null;
+  built_ci_minimal = null;
   built_ci_gpu = null;
   built_ci_hexagon = null;
   built_ci_i386 = null;
@@ -278,7 +281,7 @@ def prepare() {
 
         if (env.DETERMINE_DOCKER_IMAGES == 'yes') {
           sh(
-            script: "./tests/scripts/determine_docker_images.py ci_arm=${ci_arm} ci_cpu=${ci_cpu} ci_gpu=${ci_gpu} ci_hexagon=${ci_hexagon} ci_i386=${ci_i386} ci_lint=${ci_lint} ci_cortexm=${ci_cortexm} ci_wasm=${ci_wasm} ",
+            script: "./tests/scripts/determine_docker_images.py ci_arm=${ci_arm} ci_cpu=${ci_cpu} ci_minimal=${ci_minimal} ci_gpu=${ci_gpu} ci_hexagon=${ci_hexagon} ci_i386=${ci_i386} ci_lint=${ci_lint} ci_cortexm=${ci_cortexm} ci_wasm=${ci_wasm} ",
             label: 'Decide whether to use tlcpack or tlcpackstaging for Docker images',
           )
           // Pull image names from the results of should_rebuild_docker.py
@@ -290,6 +293,11 @@ def prepare() {
           ci_cpu = sh(
             script: "cat .docker-image-names/ci_cpu",
             label: "Find docker image name for ci_cpu",
+            returnStdout: true,
+          ).trim()
+          ci_minimal = sh(
+            script: "cat .docker-image-names/ci_minimal",
+            label: "Find docker image name for ci_minimal",
             returnStdout: true,
           ).trim()
           ci_gpu = sh(
@@ -326,6 +334,7 @@ def prepare() {
 
         ci_arm = params.ci_arm_param ?: ci_arm
         ci_cpu = params.ci_cpu_param ?: ci_cpu
+        ci_minimal = params.ci_minimal_param ?: ci_minimal
         ci_gpu = params.ci_gpu_param ?: ci_gpu
         ci_hexagon = params.ci_hexagon_param ?: ci_hexagon
         ci_i386 = params.ci_i386_param ?: ci_i386
@@ -337,6 +346,7 @@ def prepare() {
           echo "Docker images being used in this build:"
           echo " ci_arm = ${ci_arm}"
           echo " ci_cpu = ${ci_cpu}"
+          echo " ci_minimal = ${ci_minimal}"
           echo " ci_gpu = ${ci_gpu}"
           echo " ci_hexagon = ${ci_hexagon}"
           echo " ci_i386 = ${ci_i386}"
@@ -488,6 +498,17 @@ def build_docker_images() {
           }
         }
       },
+      'ci_minimal': {
+        node('CPU') {
+          timeout(time: max_time, unit: 'MINUTES') {
+            init_git()
+            // We're purposefully not setting the built image here since they
+            // are not yet being uploaded to tlcpack
+            // ci_minimal = build_image('ci_minimal')
+            built_ci_minimal = build_image('ci_minimal');
+          }
+        }
+      },
       'ci_gpu': {
         node('CPU') {
           timeout(time: max_time, unit: 'MINUTES') {
@@ -635,7 +656,6 @@ def cpp_unittest(image) {
     label: 'Build and run C++ tests',
   )
 }
-
 
 def add_microtvm_permissions() {
   sh(
@@ -825,6 +845,56 @@ stage('Build') {
       }
     } else {
       Utils.markStageSkippedForConditional('BUILD: CPU')
+    }
+  },
+  'BUILD: CPU MINIMAL': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU-SMALL') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-cpu-minimal") {
+          docker_init(ci_minimal)
+          init_git()
+          sh (
+            script: "${docker_run} ${ci_minimal} ./tests/scripts/task_config_build_minimal.sh build",
+            label: 'Create CPU minimal cmake config',
+          )
+          make(ci_minimal, 'build', '-j2')
+          sh(
+            script: """
+              set -eux
+              retry() {
+                local retries=\$1
+                shift
+
+                local count=0
+                until "\$@"; do
+                  exit=\$?
+                  wait=\$((2 ** \$count))
+                  count=\$((\$count + 1))
+                  if [ \$count -lt \$retries ]; then
+                    echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                    sleep \$wait
+                  else
+                    echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                    return \$exit
+                  fi
+                done
+                return 0
+              }
+
+              md5sum build/libtvm.so
+              retry 3 aws s3 cp --no-progress build/libtvm.so s3://${s3_prefix}/cpu-minimal/build/libtvm.so
+              md5sum build/libtvm_runtime.so
+              retry 3 aws s3 cp --no-progress build/libtvm_runtime.so s3://${s3_prefix}/cpu-minimal/build/libtvm_runtime.so
+              md5sum build/config.cmake
+              retry 3 aws s3 cp --no-progress build/config.cmake s3://${s3_prefix}/cpu-minimal/build/config.cmake
+            """,
+            label: 'Upload artifacts to S3',
+          )
+
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('BUILD: CPU MINIMAL')
     }
   },
   'BUILD: WASM': {
@@ -4906,6 +4976,69 @@ def shard_run_test_Cortex_M_8_of_8() {
 }
 
 
+def run_unittest_minimal() {
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('CPU-SMALL') {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-cpu-minimal") {
+        timeout(time: max_time, unit: 'MINUTES') {
+          try {
+            docker_init(ci_minimal)
+            init_git()
+            withEnv(['PLATFORM=minimal'], {
+              sh(
+                    script: """
+                      set -eux
+                      retry() {
+                        local retries=\$1
+                        shift
+
+                        local count=0
+                        until "\$@"; do
+                          exit=\$?
+                          wait=\$((2 ** \$count))
+                          count=\$((\$count + 1))
+                          if [ \$count -lt \$retries ]; then
+                            echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
+                            sleep \$wait
+                          else
+                            echo "Retry \$count/\$retries exited \$exit, no more retries left."
+                            return \$exit
+                          fi
+                        done
+                        return 0
+                      }
+
+                      retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu-minimal/build/libtvm.so build/libtvm.so
+                      md5sum build/libtvm.so
+                      retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu-minimal/build/libtvm_runtime.so build/libtvm_runtime.so
+                      md5sum build/libtvm_runtime.so
+                      retry 3 aws s3 cp --no-progress s3://${s3_prefix}/cpu-minimal/build/config.cmake build/config.cmake
+                      md5sum build/config.cmake
+                    """,
+                    label: 'Download artifacts from S3',
+                  )
+
+              cpp_unittest(ci_minimal)
+              python_unittest(ci_minimal)
+            })
+          } finally {
+            sh(
+            script: """
+              set -eux
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/unittest_CPU_MINIMAL --recursive
+            """,
+            label: 'Upload JUnits to S3',
+          )
+
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('unittest: CPU MINIMAL')
+  }
+}
 
 def test() {
 stage('Test') {
@@ -5065,6 +5198,9 @@ stage('Test') {
   },
   'test: Cortex-M 8 of 8': {
     shard_run_test_Cortex_M_8_of_8()
+  },
+  'unittest: CPU MINIMAL': {
+    run_unittest_minimal()
   },
   'unittest: CPU': {
     if (!skip_ci && is_docs_only_build != 1) {
@@ -5439,6 +5575,7 @@ def deploy() {
             def tag = "${date_Ymd_HMS}-${upstream_revision.substring(0, 8)}"
             update_docker(built_ci_arm, "tlcpackstaging/ci_arm:${tag}")
             update_docker(built_ci_cpu, "tlcpackstaging/ci_cpu:${tag}")
+            update_docker(built_ci_minimal, "tlcpackstaging/ci_minimal:${tag}")
             update_docker(built_ci_gpu, "tlcpackstaging/ci_gpu:${tag}")
             update_docker(built_ci_hexagon, "tlcpackstaging/ci_hexagon:${tag}")
             update_docker(built_ci_i386, "tlcpackstaging/ci_i386:${tag}")

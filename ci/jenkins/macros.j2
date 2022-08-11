@@ -86,6 +86,29 @@ def {{ method_name }}() {
 {% endfor %}
 {% endmacro %}
 
+{% macro test_step_body(name, node, ws, docker_image, platform) %}
+{% set test_dir_name = name.replace(":", "").replace(" ", "-").replace("-", "_")|string %}
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('{{ node }}') {
+      ws({{ per_exec_ws(ws) }}) {
+        timeout(time: max_time, unit: 'MINUTES') {
+          try {
+            docker_init({{ docker_image }})
+            init_git()
+            withEnv(['PLATFORM={{ platform }}'], {
+              {{ caller() | indent(width=8) | trim }}
+            })
+          } finally {
+            {{ junit_to_s3(test_dir_name) | indent(width=0) }}
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('{{ name }}')
+  }
+{% endmacro %}
 
 {% macro test_step(name, node, ws, docker_image, platform) %}
 {% set test_dir_name = name.replace(":", "").replace(" ", "-").replace("-", "_")|string %}
