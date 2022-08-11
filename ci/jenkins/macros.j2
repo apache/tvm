@@ -159,6 +159,22 @@ retry() {
 }
 {% endmacro %}
 
+{% macro deploy_step(name, feature_flag, ws) %}
+  '{{ name }}': {
+    if ({{ feature_flag }}) {
+      node('CPU') {
+        ws({{ per_exec_ws(ws) }}) {
+          timeout(time: max_time, unit: 'MINUTES') {
+            {{ caller() | indent(width=10) | trim }}
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('{{ name }}')
+    }
+  },
+{% endmacro %}
+
 {% macro upload_artifacts(tag, filenames, folders=None) %}
 sh(
             script: """
