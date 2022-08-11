@@ -223,7 +223,15 @@ class GraphModuleDebug(graph_executor.GraphModule):
                 output_tensors.append(self._get_node_output(i, j))
         self.debug_datum.update_output_tensors(output_tensors)
 
-    def _run_debug(self, number, repeat, min_repeat_ms, max_repeat_num, cooldown_interval_ms, repeats_to_cooldown):
+    def _run_debug(
+        self,
+        number,
+        repeat,
+        min_repeat_ms,
+        max_repeat_num,
+        cooldown_interval_ms,
+        repeats_to_cooldown,
+    ):
         """Execute the node specified with index will be executed.
         Each debug output will be copied to the buffer
         Time consumed for each execution will be set as debug output.
@@ -335,7 +343,13 @@ class GraphModuleDebug(graph_executor.GraphModule):
         self.debug_datum.display_debug_result()
 
     def run_individual(
-        self, number, repeat=1, min_repeat_ms=0, max_repeat_num=100, cooldown_interval_ms=0, repeats_to_cooldown=1
+        self,
+        number,
+        repeat=1,
+        min_repeat_ms=0,
+        max_repeat_num=100,
+        cooldown_interval_ms=0,
+        repeats_to_cooldown=1,
     ):
         """Run each operation in the graph and get the time per op for all ops.
 
@@ -444,7 +458,13 @@ class GraphModuleDebug(graph_executor.GraphModule):
         """
         # Results are returned as serialized strings which we deserialize
         res = self._run_individual_node(
-            index, number, repeat, min_repeat_ms, max_repeat_num, cooldown_interval_ms, repeats_to_cooldown
+            index,
+            number,
+            repeat,
+            min_repeat_ms,
+            max_repeat_num,
+            cooldown_interval_ms,
+            repeats_to_cooldown,
         )
         fmt = "@" + ("d" * repeat)
         results = struct.unpack(fmt, res)
