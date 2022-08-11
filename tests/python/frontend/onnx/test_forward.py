@@ -4212,6 +4212,7 @@ def test_lstm(target, dev):
                 dev=dev,
             )
 
+
 @tvm.testing.parametrize_targets
 def test_resize(target, dev):
     """test_resize"""

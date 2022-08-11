@@ -126,8 +126,15 @@ def load_model(model_name):
 
 
 def verify_model(
-    model_name, input_data=None, custom_convert_map=None, rtol=1e-5, atol=1e-5, expected_ops=None,
-    kind="graph", check_correctness=True, cpu_only=False
+    model_name,
+    input_data=None,
+    custom_convert_map=None,
+    rtol=1e-5,
+    atol=1e-5,
+    expected_ops=None,
+    kind="graph",
+    check_correctness=True,
+    cpu_only=False,
 ):
     """Assert that the output of a compiled model matches with that of its
     baseline."""
