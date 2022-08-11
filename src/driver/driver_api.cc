@@ -261,7 +261,8 @@ IRModule ApplyPasses(IRModule mod, transform::Sequential seq) {
 
 // Convert te schedule to IRModule
 IRModule ScheduleToModule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
-                          const std::unordered_map<te::Tensor, tir::Buffer>& binds) {
+                          const std::unordered_map<te::Tensor, tir::Buffer>& binds,
+                          GlobalVarSupply global_var_supply) {
   sch = sch.normalize();
 
   transform::PassContext pass_ctx = transform::PassContext::Current();
@@ -289,7 +290,8 @@ IRModule ScheduleToModule(te::Schedule sch, const Array<ObjectRef>& args, const 
   if (noalias) {
     f = WithAttr(std::move(f), "tir.noalias", Bool(true));
   }
-  return IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(name), f}}));
+  GlobalVar global_var = global_var_supply->UniqueGlobalFor(name, false);
+  return IRModule(Map<GlobalVar, BaseFunc>({{global_var, f}}));
 }
 
 TVM_REGISTER_GLOBAL("driver.schedule_to_module")
@@ -302,7 +304,8 @@ TVM_REGISTER_GLOBAL("driver.schedule_to_module")
           c_binds.insert({kv.first, kv.second});
         }
       }
-      IRModule mod = ScheduleToModule(std::move(sch), args, name, c_binds);
+      IRModule mod =
+          ScheduleToModule(std::move(sch), args, name, c_binds, GlobalVarSupply(NameSupply("")));
       return mod;
     });
 
@@ -337,17 +340,19 @@ TVM_REGISTER_GLOBAL("driver.lower_primfunc")
     });
 
 IRModule LowerSchedule(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
-                       const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
+                       const std::unordered_map<te::Tensor, tir::Buffer>& binds,
+                       GlobalVarSupply global_var_supply, bool simple_mode) {
   Array<ObjectRef> ref_args;
   for (ObjectRef x : args) {
     ref_args.push_back(x);
   }
-  return LowerSchedule(std::move(sch), ref_args, name, binds);
+  return LowerSchedule(std::move(sch), ref_args, name, binds, global_var_supply);
 }
 
 IRModule LowerSchedule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
-                       const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
-  IRModule mod = ScheduleToModule(std::move(sch), args, name, binds);
+                       const std::unordered_map<te::Tensor, tir::Buffer>& binds,
+                       GlobalVarSupply global_var_supply, bool simple_mode) {
+  IRModule mod = ScheduleToModule(std::move(sch), args, name, binds, global_var_supply);
   // Get the legacy TE pass list
   Array<transform::Pass> pass_list = CreatePassList(simple_mode);
   return LowerWithPassList(mod, pass_list);
@@ -363,7 +368,8 @@ TVM_REGISTER_GLOBAL("driver.lower_schedule")
           c_binds.insert({kv.first, kv.second});
         }
       }
-      return LowerSchedule(std::move(sch), args, name, c_binds, simple_mode);
+      return LowerSchedule(std::move(sch), args, name, c_binds, GlobalVarSupply(NameSupply("")),
+                           simple_mode);
     });
 
 /**

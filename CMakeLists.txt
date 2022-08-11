@@ -796,3 +796,5 @@ find_and_set_linker(${USE_ALTERNATIVE_LINKER})
 if(${SUMMARIZE})
   print_summary()
 endif()
+
+dump_options_to_file("${TVM_ALL_OPTIONS}")

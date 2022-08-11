@@ -45,33 +45,33 @@ void CodeGenC::InitFuncState(const PrimFunc& f) {
 
 void CodeGenC::ReserveKeywordsAsUnique() {
   // skip the first underscore, so SSA variable starts from _1
-  GetUniqueName("_");
-  GetUniqueName("extern");
-  GetUniqueName("void");
-  GetUniqueName("int");
-  GetUniqueName("float");
-  GetUniqueName("double");
-  GetUniqueName("char");
-  GetUniqueName("unsigned");
-  GetUniqueName("short");
-  GetUniqueName("long");
-  GetUniqueName("if");
-  GetUniqueName("else");
-  GetUniqueName("switch");
-  GetUniqueName("case");
-  GetUniqueName("default");
-  GetUniqueName("for");
-  GetUniqueName("do");
-  GetUniqueName("while");
-  GetUniqueName("goto");
-  GetUniqueName("register");
-  GetUniqueName("continue");
-  GetUniqueName("break");
-  GetUniqueName("typedef");
-  GetUniqueName("struct");
-  GetUniqueName("enum");
-  GetUniqueName("union");
-  GetUniqueName("return");
+  name_supply_->ReserveName("_");
+  name_supply_->ReserveName("extern");
+  name_supply_->ReserveName("void");
+  name_supply_->ReserveName("int");
+  name_supply_->ReserveName("float");
+  name_supply_->ReserveName("double");
+  name_supply_->ReserveName("char");
+  name_supply_->ReserveName("unsigned");
+  name_supply_->ReserveName("short");
+  name_supply_->ReserveName("long");
+  name_supply_->ReserveName("if");
+  name_supply_->ReserveName("else");
+  name_supply_->ReserveName("switch");
+  name_supply_->ReserveName("case");
+  name_supply_->ReserveName("default");
+  name_supply_->ReserveName("for");
+  name_supply_->ReserveName("do");
+  name_supply_->ReserveName("while");
+  name_supply_->ReserveName("goto");
+  name_supply_->ReserveName("register");
+  name_supply_->ReserveName("continue");
+  name_supply_->ReserveName("break");
+  name_supply_->ReserveName("typedef");
+  name_supply_->ReserveName("struct");
+  name_supply_->ReserveName("enum");
+  name_supply_->ReserveName("union");
+  name_supply_->ReserveName("return");
 }
 
 void CodeGenC::AddFunction(const PrimFunc& f) {

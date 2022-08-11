@@ -27,6 +27,7 @@
 #include <tvm/auto_scheduler/measure.h>
 #include <tvm/auto_scheduler/measure_record.h>
 #include <tvm/driver/driver_api.h>
+#include <tvm/ir/global_var_supply.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/support/parallel_for.h>
 #include <tvm/te/operation.h>
@@ -1371,7 +1372,8 @@ void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, i
     auto pass_ctx = tvm::transform::PassContext::Current();
 
     auto mod = ScheduleToModule(sch, Array<ObjectRef>{tensors.begin(), tensors.end()}, name,
-                                std::unordered_map<te::Tensor, te::Buffer>());
+                                std::unordered_map<te::Tensor, te::Buffer>(),
+                                GlobalVarSupply(NameSupply("")));
 
     bool disable_vectorize =
         pass_ctx->GetConfig<Bool>("tir.disable_vectorize", Bool(false)).value();

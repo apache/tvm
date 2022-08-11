@@ -18,6 +18,7 @@
  */
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ir/name_supply.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
@@ -61,8 +62,10 @@ struct CreateFuncInfo {
   ProducerToBufferTransformer transformer;
   /*! \brief The buffers should be allocated at function root. */
   Array<Buffer> root_alloc;
-  /*! \brief The count map to make block name unique. */
-  std::unordered_map<String, int> name_count;
+  /*! \brief The NameSupply to make block name unique. */
+  NameSupply name_supply = NameSupply("");
+
+  String FreshName(String base_name) { return name_supply->FreshName(base_name); }
 
   explicit CreateFuncInfo(Array<te::Tensor> arg_list)
       : arg_list(std::move(arg_list)), transformer(tensor2buffers) {}
@@ -70,16 +73,6 @@ struct CreateFuncInfo {
   bool IsArg(const te::Tensor& tensor) const {
     return std::any_of(arg_list.begin(), arg_list.end(),
                        [&tensor](const te::Tensor& arg) { return tensor == arg; });
-  }
-
-  String GetUniqueName(const String& prefix) {
-    String unique_prefix = prefix;
-    auto it = name_count.find(prefix);
-    while (name_count.count(unique_prefix)) {
-      unique_prefix = prefix + "_" + std::to_string(++it->second);
-    }
-    name_count[unique_prefix] = 0;
-    return unique_prefix;
   }
 };
 
@@ -179,7 +172,7 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
   Stmt body;
   if (const auto* reduce = expr_body.as<ReduceNode>()) {
     // Case 1. Reduce compute
-    block_name = info->GetUniqueName(compute_op->name);
+    block_name = info->FreshName(compute_op->name);
     int n_buffers = buffers.size();
 
     Array<PrimExpr> lhs;
@@ -236,7 +229,7 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
   } else {
     // Case 2. Data parallel compute
     ICHECK_EQ(tensors.size(), 1);
-    block_name = info->GetUniqueName(tensors[0]->GetNameHint());
+    block_name = info->FreshName(tensors[0]->GetNameHint());
     const PrimExpr& compute_body = Substitute(info->transformer(expr_body), var_map);
     body = BufferStore(info->tensor2buffers[tensors[0]], analyzer->Simplify(compute_body), indices);
   }
@@ -387,7 +380,7 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
                       Block(/*iter_vars=*/{},
                             /*reads=*/std::move(reads),
                             /*writes=*/std::move(writes),
-                            /*name_hint=*/info->GetUniqueName(extern_op->name),
+                            /*name_hint=*/info->FreshName(extern_op->name),
                             /*body=*/std::move(body),
                             /*init=*/NullOpt,
                             /*alloc_buffers=*/{},

@@ -30,12 +30,12 @@ from git_utils import GitHubRepo, parse_remote, git
 
 
 SLOW_TEST_TRIGGERS = [
-    "@ci run slow tests",
-    "@ci run slow test",
-    "@ci run slow",
-    "@ci slow tests",
-    "@ci slow test",
-    "@ci slow",
+    "@tvm-bot run slow tests",
+    "@tvm-bot run slow test",
+    "@tvm-bot run slow",
+    "@tvm-bot slow tests",
+    "@tvm-bot slow test",
+    "@tvm-bot slow",
 ]
 
 
@@ -69,18 +69,6 @@ if __name__ == "__main__":
         print(f"Branch {branch} is in {skip_branches}, running slow tests")
         exit(1)
     print(f"Branch {branch} is not in {skip_branches}, checking last commit...")
-
-    log = git(["log", "--format=%B", "-1"])
-
-    # Check if anything in the last commit's body message matches
-    log_match, reason = check_match(log, SLOW_TEST_TRIGGERS)
-    if log_match:
-        print(f"Matched {reason} in commit message:\n{display(log)}, running slow tests")
-        exit(1)
-
-    print(
-        f"Last commit:\n{display(log)}\ndid not have any of {SLOW_TEST_TRIGGERS}, checking PR body..."
-    )
 
     if args.pr_body:
         body = args.pr_body

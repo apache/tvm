@@ -33,7 +33,6 @@ def cpp_unittest(image) {
   )
 }
 
-
 def add_microtvm_permissions() {
   {% for folder in microtvm_template_projects %}
   sh(
@@ -121,6 +120,24 @@ stage('Build') {
       }
     } else {
       Utils.markStageSkippedForConditional('BUILD: CPU')
+    }
+  },
+  'BUILD: CPU MINIMAL': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU-SMALL') {
+        ws({{ m.per_exec_ws('tvm/build-cpu-minimal') }}) {
+          docker_init(ci_minimal)
+          init_git()
+          sh (
+            script: "${docker_run} ${ci_minimal} ./tests/scripts/task_config_build_minimal.sh build",
+            label: 'Create CPU minimal cmake config',
+          )
+          make(ci_minimal, 'build', '-j2')
+          {{ m.upload_artifacts(tag='cpu-minimal', filenames=tvm_lib) }}
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('BUILD: CPU MINIMAL')
     }
   },
   'BUILD: WASM': {
