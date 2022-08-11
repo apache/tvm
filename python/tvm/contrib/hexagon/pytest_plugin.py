@@ -273,7 +273,7 @@ def pytest_addoption(parser):
         "--skip-rpc",
         action="store_true",
         default=False,
-        help="If set true, a new hexagon launcher is not created",
+        help="If set true, the RPC server initialization on Android would be skipped",
     )
 
 
