@@ -401,9 +401,6 @@ class TestAvgPool2dSlice:
         schedule_args,
         hexagon_session: Session,
     ):
-        #if hexagon_session._launcher._serial_number != "simulator":
-        #    pytest.skip(msg="Due to https://github.com/apache/tvm/issues/11928")
-
         target_hexagon = tvm.target.hexagon("v69")
         in_data = transformed_input_np_padded
 

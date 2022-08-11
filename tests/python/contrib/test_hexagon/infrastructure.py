@@ -22,7 +22,6 @@ import numpy
 import tvm
 from tvm import te
 
-
 def allocate_hexagon_array(
     dev, tensor_shape=None, dtype=None, data=None, axis_separators=None, mem_scope=None
 ):
@@ -307,12 +306,25 @@ def transform_numpy(arr_np, current_layout: str, new_layout: str):
     raise RuntimeError(f"Unexpected current_layout '{current_layout}'")
 
 
-def quantize_np(arr_np, dtype):
+def quantize_np(arr_np: numpy.ndarray, dtype: str):
     """
-    Returns quantized array along with the scale and zero-point
+    Returns quantized array along with scale and zero-point
 
     Parameters
     ----------
+    arr_np: numpy.ndarray
+        Input numpy array to be quantized
+    dtype: str
+        dtype of the quantized array: "uint8", "int8", etc
+
+    Returns
+    -------
+    quant_np: numpy.ndarray
+        Quantized numpy array
+    scale: float
+        Scale
+    zero_point: int
+        Value corresponding to float 0
 
     """
     if dtype == "uint8":
