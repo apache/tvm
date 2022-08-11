@@ -32,12 +32,10 @@ TVM_REGISTER_GLOBAL("script.printer.FrameAddExitCallback")
     .set_body_typed([](Frame frame, runtime::TypedPackedFunc<void()> callback) {
       frame->AddExitCallback(callback);
     });
-TVM_REGISTER_GLOBAL("script.printer.FrameEnterWithScope").set_body_typed([](Frame frame) {
-  frame->EnterWithScope();
-});
-TVM_REGISTER_GLOBAL("script.printer.FrameExitWithScope").set_body_typed([](Frame frame) {
-  frame->ExitWithScope();
-});
+TVM_REGISTER_GLOBAL("script.printer.FrameEnterWithScope")
+    .set_body_method<Frame>(&FrameNode::EnterWithScope);
+TVM_REGISTER_GLOBAL("script.printer.FrameExitWithScope")
+    .set_body_method<Frame>(&FrameNode::ExitWithScope);
 
 TVM_REGISTER_NODE_TYPE(MetadataFrameNode);
 TVM_REGISTER_GLOBAL("script.printer.MetadataFrame").set_body_typed([]() {

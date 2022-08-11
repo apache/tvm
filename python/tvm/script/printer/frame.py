@@ -46,14 +46,14 @@ class Frame(Object):
         callback : Callable[[], None]
             The callback function.
         """
-        _ffi_api.FrameAddExitCallback(self, callback)
+        _ffi_api.FrameAddExitCallback(self, callback)  # type: ignore # pylint: disable=no-member
 
     def __enter__(self):
-        _ffi_api.FrameEnterWithScope(self)
+        _ffi_api.FrameEnterWithScope(self)  # type: ignore # pylint: disable=no-member
         return self
 
     def __exit__(self, *exception_info):
-        _ffi_api.FrameExitWithScope(self)
+        _ffi_api.FrameExitWithScope(self)  # type: ignore # pylint: disable=no-member
 
 
 @register_object("script.printer.MetadataFrame")
@@ -65,7 +65,7 @@ class MetadataFrame(Frame):
     metadata: Sequence[Object]
 
     def __init__(self):
-        self.__init_handle_by_constructor__(_ffi_api.MetadataFrame)
+        self.__init_handle_by_constructor__(_ffi_api.MetadataFrame)  # type: ignore # pylint: disable=no-member
 
 
 @register_object("script.printer.VarDefFrame")
@@ -78,4 +78,4 @@ class VarDefFrame(Frame):
     stmts: Sequence[StmtDoc]
 
     def __init__(self):
-        self.__init_handle_by_constructor__(_ffi_api.VarDefFrame)
+        self.__init_handle_by_constructor__(_ffi_api.VarDefFrame)  # type: ignore # pylint: disable=no-member
