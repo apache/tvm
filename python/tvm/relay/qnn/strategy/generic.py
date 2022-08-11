@@ -16,12 +16,7 @@
 # under the License.
 """Definition of generic operator strategy."""
 
-from tvm import _ffi
 from tvm.target import override_native_generic_func
-
-
-GET_RQ_OUT_DTYPE = _ffi.get_global_func("relay.attrs.get_rq_out_dtype")
-GET_RQ_AXIS = _ffi.get_global_func("relay.attrs.get_rq_axis")
 
 
 def wrap_topi_schedule(topi_schedule):
@@ -69,14 +64,13 @@ def wrap_topi_qnn_conv2d(topi_compute):
     """Wrap TOPI compute which use conv2d attrs and output data type"""
 
     def wrapper(attrs, inputs, out_type):
-        out_dtype = GET_RQ_OUT_DTYPE(attrs)
-        axis = GET_RQ_AXIS(attrs)
+        out_dtype = out_type.dtype
         oshape = out_type.shape
         strides = attrs.strides
         padding = attrs.padding
         dilation = attrs.dilation
         if len([*inputs]) == 11:
-            args = [*inputs, axis, strides, padding, dilation, oshape, out_dtype]
+            args = [*inputs, strides, padding, dilation, oshape, out_dtype]
         elif len([*inputs]) == 10:
             args = [  # QNN Conv2d params:
                 inputs[0],
@@ -92,7 +86,6 @@ def wrap_topi_qnn_conv2d(topi_compute):
                 inputs[7],
                 inputs[8],
                 inputs[9],
-                axis,
                 # Conv2d attrs:
                 strides,
                 padding,
@@ -111,7 +104,6 @@ def wrap_topi_qnn_conv2d(topi_compute):
                 None,
                 None,
                 None,
-                axis,
                 strides,
                 padding,
                 dilation,
@@ -126,11 +118,10 @@ def wrap_topi_qnn_conv2d(topi_compute):
 def wrap_topi_qnn_dense(topi_compute):
     """Wrap TOPI compute which use qnn.dense attrs"""
 
-    def wrapper(attrs, inputs, _out_type):
-        out_dtype = GET_RQ_OUT_DTYPE(attrs)
-        axis = GET_RQ_AXIS(attrs)
+    def wrapper(_attrs, inputs, out_type):
+        out_dtype = out_type.dtype
         if len([*inputs]) == 11:
-            args = [*inputs, axis, out_dtype]
+            args = [*inputs, out_dtype]
         elif len([*inputs]) == 10:
             args = [  # QNN Dense params:
                 inputs[0],
@@ -146,7 +137,6 @@ def wrap_topi_qnn_dense(topi_compute):
                 inputs[7],
                 inputs[8],
                 inputs[9],
-                axis,
                 out_dtype,
             ]
         else:
@@ -160,7 +150,6 @@ def wrap_topi_qnn_dense(topi_compute):
                 None,
                 None,
                 None,
-                axis,
                 out_dtype,
             ]
         return [topi_compute(*args)]

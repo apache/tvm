@@ -25,7 +25,6 @@ from .dense import *
 from .injective import *
 from .pad import *
 from .pooling import *
-from .qnn import *
 from .reduce import *
 from .resize2d import *
 from .tensor_intrin import *

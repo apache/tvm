@@ -213,28 +213,6 @@ std::string SelectRequntizeParameter(const std::string& arg_value, const std::st
   }
 }
 
-TVM_REGISTER_GLOBAL("relay.attrs.get_rq_out_dtype").set_body_typed([](const Attrs& attrs) {
-  if (attrs->IsInstance<QConv2DAttrs>()) {
-    return attrs.as<QConv2DAttrs>()->rq_out_dtype;
-  } else if (attrs->IsInstance<QDenseAttrs>()) {
-    return attrs.as<QDenseAttrs>()->rq_out_dtype;
-  } else {
-    LOG(FATAL) << "Unhandled attribute: " << attrs;
-  }
-  return DataType();
-});
-
-TVM_REGISTER_GLOBAL("relay.attrs.get_rq_axis").set_body_typed([](const Attrs& attrs) {
-  if (attrs->IsInstance<QConv2DAttrs>()) {
-    return attrs.as<QConv2DAttrs>()->axis;
-  } else if (attrs->IsInstance<QDenseAttrs>()) {
-    return attrs.as<QDenseAttrs>()->axis;
-  } else {
-    LOG(FATAL) << "Unhandled attribute: " << attrs;
-  }
-  return -1;
-});
-
 }  // namespace qnn
 }  // namespace relay
 }  // namespace tvm

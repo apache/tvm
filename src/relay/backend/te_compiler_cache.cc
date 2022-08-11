@@ -29,7 +29,6 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/op_strategy.h>
-#include <tvm/relay/qnn/attrs.h>
 #include <tvm/runtime/builtin_fp16.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
@@ -174,20 +173,6 @@ class PatternMatcher {
   // returns whether given Op is last in the pattern sequence.
   bool IsLeafOp(const Op& op) { return op == qnn_requantize_op_; }
 
-  // Copy requantization attributes from one node to another.
-  void CopyAttrs(const CallNode* from, const CallNode* to) {
-    const auto* requantize_attrs = from->attrs.as<qnn::RequantizeAttrs>();
-    if (auto* pattr = const_cast<qnn::QConv2DAttrs*>(to->attrs.as<qnn::QConv2DAttrs>())) {
-      pattr->axis = requantize_attrs->axis;
-      pattr->rq_out_dtype = requantize_attrs->out_dtype;
-    } else if (auto* pattr = const_cast<qnn::QDenseAttrs*>(to->attrs.as<qnn::QDenseAttrs>())) {
-      pattr->axis = requantize_attrs->axis;
-      pattr->rq_out_dtype = requantize_attrs->out_dtype;
-    } else {
-      LOG(FATAL) << "Unsupported op: " << PrettyPrint(to->op);
-    }
-  }
-
   const CallNode* GetAnchorOp() { return anchor_op_; }
 
   void Clear() { registered_ops_.clear(); }
@@ -303,7 +288,7 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
     static auto flower_call = tvm::runtime::Registry::Get("relay.backend.lower_call");
     ICHECK(flower_call) << "relay.backend.lower_call is not registered.";
 
-    if (target_->kind->device_type == kDLHexagon) pattern_matcher_.Register(call_node);
+    if (target_->GetTargetDeviceType() == kDLHexagon) pattern_matcher_.Register(call_node);
 
     Array<te::Tensor> inputs;
     int count_tuple = 0;
@@ -328,8 +313,8 @@ class LowerToTECompute : public backend::MemoizedExprTranslator<Array<te::Tensor
       if (pattern_matcher_.IsLeafOp(op)) {
         // Lower anchor op when pattern leaf op was reached
         auto anchor_op = pattern_matcher_.GetAnchorOp();
-        pattern_matcher_.CopyAttrs(call_node, anchor_op);
-        LoweredOutput lowered_out = (*flower_call)(GetRef<Call>(anchor_op), inputs, target_);
+        LoweredOutput lowered_out =
+            (*flower_call)(GetRef<Call>(anchor_op), inputs, target_, call_node->checked_type());
         outputs = lowered_out->outputs;
         Op a_op = Downcast<Op>(anchor_op->op);
         op_implementations_[a_op.operator->()] = lowered_out->implementation;

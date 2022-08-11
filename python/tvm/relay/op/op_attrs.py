@@ -529,16 +529,6 @@ class RequantizeAttrs(Attrs):
     """Attributes used in requantize operators"""
 
 
-@tvm._ffi.register_object("relay.attrs.QConv2DAttrs")
-class QConv2DAttrs(Attrs):
-    """Attributes used in QNN conv2d operators"""
-
-
-@tvm._ffi.register_object("relay.attrs.QDenseAttrs")
-class QDenseAttrs(Attrs):
-    """Attributes used in QNN dense operators"""
-
-
 @tvm._ffi.register_object("relay.attrs.ScatterAttrs")
 class ScatterAttrs(Attrs):
     """Attributes used in scatter operators"""

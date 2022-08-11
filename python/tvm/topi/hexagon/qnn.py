@@ -151,12 +151,8 @@ def qnn_requantize(data, input_scale, input_zp, output_scale, output_zp, axis, o
     def _compute(*indices):
         value = data(*indices)
 
-        # Account scalar and 1D quantization parameters:
-        iscale_idx = tvm.tir.indexmod(indices[axis], topi.shape(input_scale)[0])
-        iscale = input_scale if len(input_scale.shape) == 0 else input_scale[iscale_idx]
-
-        oscale_idx = tvm.tir.indexmod(indices[axis], topi.shape(output_scale)[0])
-        oscale = output_scale if len(output_scale.shape) == 0 else output_scale[oscale_idx]
+        iscale = get_qnn_param(input_scale, indices, axis)
+        oscale = get_qnn_param(output_scale, indices, axis)
 
         sub = te.subtract(value, input_zp)
         mul = te.div(iscale, oscale)
@@ -334,7 +330,6 @@ def qnn_conv2d(  # Conv2d inputs
     rq_input_zero_point,
     rq_output_scale,
     rq_output_zero_point,
-    axis,
     # Conv2d attributes:
     strides,
     padding,
@@ -402,6 +397,13 @@ def qnn_conv2d(  # Conv2d inputs
     # Requantize output of convolution
     # Q_output = zp_output + round((scale_input)/(scale_output) * (Q_input - zp_input))
     if rq_input_scale is not None and rq_output_scale is not None:
+        # Now supported only scalar and 1D quantization parameters
+        assert len(rq_input_scale.shape) == 0 or len(rq_input_scale.shape) == 1
+        assert len(rq_output_scale.shape) == 0 or len(rq_output_scale.shape) == 1
+        axis = -1
+        if len(rq_input_scale.shape) == 1 or len(rq_output_scale.shape) == 1:
+            axis = 1  # Axis param should correspond to 'C' dimension.
+
         return qnn_requantize(
             out,
             rq_input_scale,
@@ -447,7 +449,6 @@ def qnn_depthwise_conv2d(  # Conv2d inputs
     rq_input_zero_point,
     rq_output_scale,
     rq_output_zero_point,
-    axis,
     # Conv2d attributes:
     strides,
     padding,
@@ -510,6 +511,13 @@ def qnn_depthwise_conv2d(  # Conv2d inputs
     # Requantize output of convolution
     # Q_output = zp_output + round((scale_input)/(scale_output) * (Q_input - zp_input))
     if rq_input_scale is not None and rq_output_scale is not None:
+        # Now supported only scalar and 1D quantization parameters
+        assert len(rq_input_scale.shape) == 0 or len(rq_input_scale.shape) == 1
+        assert len(rq_output_scale.shape) == 0 or len(rq_output_scale.shape) == 1
+        axis = -1
+        if len(rq_input_scale.shape) == 1 or len(rq_output_scale.shape) == 1:
+            axis = 1  # Axis param should correspond to 'C' dimension.
+
         return qnn_requantize(
             out,
             rq_input_scale,
@@ -555,7 +563,6 @@ def qnn_dense(
     rq_input_zero_point,
     rq_output_scale,
     rq_output_zero_point,
-    axis,
     out_dtype,
 ):
     """Compute for qnn.dense
@@ -563,7 +570,6 @@ def qnn_dense(
     Note! This is POC code. There was no goal to implement high performance compute function.
 
     """
-
     M, K = get_const_tuple(data.shape)
     N, _ = get_const_tuple(weight.shape)
     k = te.reduce_axis((0, K), "k")
@@ -587,6 +593,13 @@ def qnn_dense(
     # Requantize output of dense
     # Q_output = zp_output + round((scale_input)/(scale_output) * (Q_input - zp_input))
     if rq_input_scale is not None and rq_output_scale is not None:
+        # Now supported only scalar and 1D quantization parameters
+        assert len(rq_input_scale.shape) == 0 or len(rq_input_scale.shape) == 1
+        assert len(rq_output_scale.shape) == 0 or len(rq_output_scale.shape) == 1
+        axis = -1
+        if len(rq_input_scale.shape) == 1 or len(rq_output_scale.shape) == 1:
+            axis = 1  # Axis param should correspond to 'N' dimension.
+
         return qnn_requantize(
             out,
             rq_input_scale,
