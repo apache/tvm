@@ -477,6 +477,7 @@ typedef struct {
   int number;
   int repeat;
   int min_repeat_ms;
+  int max_repeat_num;
   int cooldown_interval_ms;
   int repeats_to_cooldown;
 } time_evaluator_state_t;
@@ -487,14 +488,14 @@ int RPCTimeEvaluator(TVMValue* args, int* type_codes, int num_args, TVMValue* re
                      int* ret_type_code) {
   ret_val[0].v_handle = NULL;
   ret_type_code[0] = kTVMNullptr;
-  if (num_args < 10) {
+  if (num_args < 11) {
     TVMAPIErrorf("not enough args");
     return kTvmErrorFunctionCallNumArguments;
   }
   if (type_codes[0] != kTVMModuleHandle || type_codes[1] != kTVMStr ||
       type_codes[2] != kTVMArgInt || type_codes[3] != kTVMArgInt || type_codes[4] != kTVMArgInt ||
       type_codes[5] != kTVMArgInt || type_codes[6] != kTVMArgInt || type_codes[7] != kTVMArgInt ||
-      type_codes[8] != kTVMArgInt || type_codes[9] != kTVMStr) {
+      type_codes[8] != kTVMArgInt || type_codes[9] != kTVMArgInt || type_codes[10] != kTVMStr) {
     TVMAPIErrorf("one or more invalid arg types");
     return kTvmErrorFunctionCallWrongArgType;
   }
@@ -506,8 +507,9 @@ int RPCTimeEvaluator(TVMValue* args, int* type_codes, int num_args, TVMValue* re
   g_time_evaluator_state.number = args[4].v_int64;
   g_time_evaluator_state.repeat = args[5].v_int64;
   g_time_evaluator_state.min_repeat_ms = args[6].v_int64;
-  g_time_evaluator_state.cooldown_interval_ms = args[7].v_int64;
-  g_time_evaluator_state.repeats_to_cooldown = args[8].v_int64;
+  g_time_evaluator_state.min_repeat_num = args[7].v_int64;
+  g_time_evaluator_state.cooldown_interval_ms = args[8].v_int64;
+  g_time_evaluator_state.repeats_to_cooldown = args[9].v_int64;
 
   int ret_code =
       TVMModGetFunction(mod, name, /* query_imports */ 0, &g_time_evaluator_state.func_to_time);
@@ -556,6 +558,7 @@ tvm_crt_error_t RunTimeEvaluator(tvm_function_index_t function_index, TVMValue* 
   double* iter = (double*)result_byte_arr->data;
   for (int i = 0; i < g_time_evaluator_state.repeat; i++) {
     double curr_res_seconds = 0.0;
+    int absolute_zero_times = 0;
     // do-while structure ensures we run even when `min_repeat_ms` isn't set (i.e., is 0).
     do {
       if (curr_res_seconds > 0.0) {
@@ -588,6 +591,8 @@ tvm_crt_error_t RunTimeEvaluator(tvm_function_index_t function_index, TVMValue* 
       if (err != kTvmErrorNoError) {
         goto release_and_return;
       }
+      if (std::fpclassify(curr_res_seconds) == FP_ZERO) absolute_zero_times++;
+      if (absolute_zero_times >= max_repeat_num) break;
     } while (curr_res_seconds < min_repeat_seconds);
     double mean_exec_seconds = curr_res_seconds / g_time_evaluator_state.number;
     *iter = mean_exec_seconds;
