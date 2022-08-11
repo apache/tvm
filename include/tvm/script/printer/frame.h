@@ -44,7 +44,7 @@ class FrameNode : public Object {
    * \param cb The callback function. It should have signature void().
    */
   template <typename TCallback>
-  void AddCallback(TCallback&& cb) {
+  void AddExitCallback(TCallback&& cb) {
     callbacks_.emplace_back(std::forward<TCallback>(cb));
   }
 

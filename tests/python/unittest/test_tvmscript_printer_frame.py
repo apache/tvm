@@ -30,9 +30,9 @@ def test_frame_add_callback():
         nonlocal flag
         flag += 5
 
-    frame.add_callback(callback1)
+    frame.add_exit_callback(callback1)
     with frame:
-        frame.add_callback(callback2)
+        frame.add_exit_callback(callback2)
         assert flag == 0
 
     assert flag == 6
@@ -47,7 +47,7 @@ def test_frame_clear_callbacks_after_exit():
         nonlocal flag
         flag += 1
 
-    frame.add_callback(callback)
+    frame.add_exit_callback(callback)
 
     with frame:
         pass

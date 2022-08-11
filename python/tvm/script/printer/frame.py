@@ -37,7 +37,7 @@ class Frame(Object):
     when frame goes out of scope.
     """
 
-    def add_callback(self, callback: Callable[[], None]) -> None:
+    def add_exit_callback(self, callback: Callable[[], None]) -> None:
         """
         Adds a callback function to be executed when frame goes out of scope.
 
@@ -46,7 +46,7 @@ class Frame(Object):
         callback : Callable[[], None]
             The callback function.
         """
-        _ffi_api.FrameAddCallback(self, callback)
+        _ffi_api.FrameAddExitCallback(self, callback)
 
     def __enter__(self):
         _ffi_api.FrameEnterWithScope(self)

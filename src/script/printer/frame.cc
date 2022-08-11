@@ -28,9 +28,9 @@ MetadataFrame::MetadataFrame() : MetadataFrame(make_object<MetadataFrameNode>())
 VarDefFrame::VarDefFrame() : VarDefFrame(make_object<VarDefFrameNode>()) {}
 
 TVM_REGISTER_NODE_TYPE(FrameNode);
-TVM_REGISTER_GLOBAL("script.printer.FrameAddCallback")
+TVM_REGISTER_GLOBAL("script.printer.FrameAddExitCallback")
     .set_body_typed([](Frame frame, runtime::TypedPackedFunc<void()> callback) {
-      frame->AddCallback(callback);
+      frame->AddExitCallback(callback);
     });
 TVM_REGISTER_GLOBAL("script.printer.FrameEnterWithScope").set_body_typed([](Frame frame) {
   frame->EnterWithScope();
