@@ -18,6 +18,7 @@
 import subprocess
 import json
 import textwrap
+import shutil
 from pathlib import Path
 
 import pytest
@@ -1098,6 +1099,73 @@ def test_should_rebuild_docker(tmpdir_factory, changed_files, name, check, expec
 
     assert_in(check, proc.stdout)
     assert proc.returncode == expected_code
+
+
+@tvm.testing.skip_if_wheel_test
+def test_jenkinsfile_timestamps(tmpdir_factory):
+    """
+    Check that the timestamp added by ci/jenkins/generate.py is correctly
+    checked with --check
+    """
+    # Git repo set up
+    git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
+    git.run("init")
+    git.run("config", "user.name", "ci")
+    git.run("config", "user.email", "email@example.com")
+    git.run("checkout", "-b", "main")
+    git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
+    cwd = Path(git.cwd)
+
+    # generate.py relies on files being at certain places in the repo, so copy
+    # them all over
+    shutil.copytree(REPO_ROOT / "ci", cwd / "ci")
+    script = cwd / "ci" / "jenkins" / "generate.py"
+
+    # generate the Jenkinsfile based on the copied templates as a starting point
+    with open(cwd / "Jenkinsfile", "w") as f:
+        f.write("abc")
+
+    subprocess.run(
+        [
+            str(script),
+            "--base-ref",
+            "HEAD~1",
+        ],
+        encoding="utf-8",
+        stdout=subprocess.PIPE,
+        cwd=git.cwd,
+        check=True,
+    )
+
+    git.run("add", ".")
+    git.run("commit", "-mtest")
+
+    # Edit the Jenkinsfile and templates without updating the timestamp
+    with open(cwd / "Jenkinsfile", "a") as f:
+        f.write("test2")
+
+    with open(cwd / "ci" / "jenkins" / "Build.groovy.j2", "a") as f:
+        f.write("test2")
+
+    git.run("add", ".")
+    git.run("commit", "-mtest")
+
+    # Run generate.py in --check mode
+    proc = subprocess.run(
+        [
+            str(script),
+            "--check",
+            "--base-ref",
+            "HEAD~1",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        encoding="utf-8",
+        cwd=git.cwd,
+        check=False,
+    )
+
+    assert_in("Newly generated Jenkinsfile was missing an updated timestamp", proc.stdout)
 
 
 if __name__ == "__main__":

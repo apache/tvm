@@ -20,6 +20,7 @@ import argparse
 import difflib
 import fnmatch
 import datetime
+import re
 import textwrap
 import subprocess
 from typing import List
@@ -84,38 +85,39 @@ def lines_without_generated_tag(content: str) -> List[str]:
     ]
 
 
-
-def changed_files() -> List[str]:
+def changed_files(base_ref: str) -> List[str]:
     proc = subprocess.run(
-        ["git", "diff", "origin/main", "HEAD", "--name-only"], check=True, stdout=subprocess.PIPE, encoding="utf-8"
+        ["git", "diff", base_ref, "HEAD", "--name-only"],
+        check=True,
+        stdout=subprocess.PIPE,
+        encoding="utf-8",
     )
     files = [f.strip() for f in proc.stdout.strip().split("\n")]
     files = [f for f in files if f != ""]
     return files
 
 
-def check_timestamp() -> None:
+def check_timestamp(base_ref: str) -> None:
     """
     Assert that the git diff against main contains a timestamp
     """
+    files = changed_files(base_ref=base_ref)
 
-    files = changed_files()
-    print(files)
-    # if any([f.startswith("ci/jenkins/])
-    for f in files:
-        print(f, fnmatch.fnmatch(f, 'ci/jenkins/*.j2'))
-    
     # Check the Jenkinsfile timestamp if the templates were edited
-    if any(fnmatch.fnmatch(f, 'ci/jenkins/*.j2') for f in files):
+    if any(fnmatch.fnmatch(f, "ci/jenkins/*.j2") for f in files):
         proc = subprocess.run(
-            ["git", "diff", "origin/main", "HEAD"], check=True, stdout=subprocess.PIPE, encoding="utf-8"
+            ["git", "diff", base_ref, "HEAD", "Jenkinsfile"],
+            check=True,
+            stdout=subprocess.PIPE,
+            encoding="utf-8",
         )
         diff = proc.stdout
-        if "+// Generated at" not in diff:
+        if re.search(r"^\+// Generated at", diff, flags=re.MULTILINE) is None:
             print(
                 "Newly generated Jenkinsfile was missing an updated timestamp, "
                 "please ensure that the timestamp is updated by running "
-                "'python3 ci/jenkins/generate.py' to avoid merge conflicts"
+                "'python3 ci/jenkins/generate.py' and commit your changes "
+                "to avoid merge conflicts"
             )
             exit(1)
 
@@ -123,6 +125,9 @@ def check_timestamp() -> None:
 if __name__ == "__main__":
     help = "Regenerate Jenkinsfile from template"
     parser = argparse.ArgumentParser(description=help)
+    parser.add_argument(
+        "--base-ref", help="git ref to diff against for checking", default="origin/main"
+    )
     parser.add_argument("--check", action="store_true", help="just verify the output didn't change")
     args = parser.parse_args()
 
@@ -147,9 +152,11 @@ if __name__ == "__main__":
         )
     )
     if args.check:
-        check_timestamp()
+        check_timestamp(base_ref=args.base_ref)
         if not diff:
-            print("Success, the newly generated Jenkinsfile matched the one on disk")
+            print(
+                f"Success, the newly generated Jenkinsfile matched the one on disk at {JENKINSFILE}"
+            )
             exit(0)
         else:
             print(
