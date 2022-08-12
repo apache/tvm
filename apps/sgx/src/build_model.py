@@ -39,7 +39,7 @@ def main():
     )
 
     with tvm.transform.PassContext(opt_level=3):
-        graph, lib, params = relay.build(net, "llvm --system-lib", params=params)
+        graph, lib, params = relay.build(net, "llvm", params=params)
 
     build_dir = osp.abspath(sys.argv[1])
     if not osp.isdir(build_dir):

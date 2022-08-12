@@ -72,7 +72,7 @@ def build_graph_lib(opt_level):
     shape_dict = {input_name: img_data.shape}
 
     mod, params = relay.frontend.from_onnx(onnx_model, shape_dict)
-    target = "llvm -mtriple=wasm32-unknown-unknown -mattr=+simd128 --system-lib"
+    target = "llvm -mtriple=wasm32-unknown-unknown -mattr=+simd128"
 
     with tvm.transform.PassContext(opt_level=opt_level):
         factory = relay.build(mod, target=target, params=params)
