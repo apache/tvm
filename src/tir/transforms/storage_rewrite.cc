@@ -1465,10 +1465,11 @@ class VectorTypeRewriter : public StmtExprMutator {
     auto it = rewrite_map_.find(op->var.get());
     PrimExpr value = this->VisitExpr(op->value);
     Stmt body = this->VisitStmt(op->body);
-    if (value.same_as(op->value) && body.same_as(op->body) && it == rewrite_map_.end()) {
+    Var var = (it == rewrite_map_.end()) ? op->var : it->second.new_buffer_var;
+    if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body)) {
       return GetRef<Stmt>(op);
     }
-    return LetStmt(it->second.new_buffer_var, op->value, op->body);
+    return LetStmt(var, value, body);
   }
 
   Buffer RemapBuffer(Buffer buf) {
