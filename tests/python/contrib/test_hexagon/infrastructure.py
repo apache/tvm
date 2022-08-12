@@ -300,3 +300,30 @@ def transform_numpy(arr_np, current_layout: str, new_layout: str):
         raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
 
     raise RuntimeError(f"Unexpected current_layout '{current_layout}'")
+
+def getZeroPoint_Scale(input_np_float):
+    float_max = numpy.amax(input_np_float)
+    float_min = numpy.amin(input_np_float)
+
+    print("---float_max: ", float_max)
+    print("---float_min: ", float_min)
+
+    if float_max == float_min:
+        scale = float_max
+        zero_point = 0
+    else:
+        zero_point = numpy.rint(-(float_min * 255) / (float_max - float_min)).astype("int32")
+
+        scale = (float_max - float_min) / 255
+        print("---scale: ", scale)
+        print("---zero_point: ", zero_point)
+
+    return zero_point, scale
+
+
+def quantize(input_np_float):
+    zero_point, scale = getZeroPoint_Scale(input_np_float)
+
+    quantized_input_np = (input_np_float/scale + zero_point).astype('uint8')
+
+    return zero_point, scale, quantized_input_np
