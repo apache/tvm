@@ -3253,8 +3253,14 @@ class PyTorchOpConverter:
         return (output, _op.stack(hy, 0), _op.stack(cy, 0))
 
     def all_any_common(self, op, inputs, input_types):
-        dim = inputs[1]
-        keepdim = inputs[2]
+        if len(inputs) >= 2:
+            dim = inputs[1]
+        else:
+            dim = None
+        if len(inputs) >= 3:
+            keepdim = inputs[2]
+        else:
+            keepdim = False
         if self.infer_type(inputs[0]).dtype != "bool":
             # The input dtype can be uint8.
             inp = _op.cast(inputs[0], "bool")

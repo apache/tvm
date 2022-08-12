@@ -4385,11 +4385,16 @@ def test_all_any():
     def test_fn(f, dim=None, keepdim=False):
         return lambda x: f(x, dim=dim, keepdim=keepdim)
 
+    def test_fn_no_arg(f):
+        return lambda x: f(x)
+
     for f in [torch.all, torch.any]:
         verify_model(test_fn(f, 0), [torch.rand(1, 2).bool()])
         verify_model(test_fn(f, 0), [torch.arange(0, 3).to(torch.uint8)])
         verify_model(test_fn(f, 1), [torch.rand(4, 2).bool()])
         verify_model(test_fn(f, 0, keepdim=True), [torch.rand(4, 2).bool()])
+        verify_model(test_fn_no_arg(f), [torch.rand(1, 2).bool()])
+        verify_model(test_fn_no_arg(f), [torch.arange(0, 3).to(torch.uint8)])
 
 
 @tvm.testing.uses_gpu
