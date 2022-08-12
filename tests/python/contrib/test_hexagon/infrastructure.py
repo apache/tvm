@@ -22,6 +22,7 @@ import numpy
 import tvm
 from tvm import te
 
+
 def allocate_hexagon_array(
     dev, tensor_shape=None, dtype=None, data=None, axis_separators=None, mem_scope=None
 ):
