@@ -74,14 +74,8 @@ function run_pytest() {
 
     suite_name="${test_suite_name}-${current_shard}-${ffi_type}"
 
-    # Some test environments don't play well with parallelism
-    DEFAULT_PARALLELISM=2
-    if [[ "${TEST_STEP_NAME:-default}" == "frontend: GPU"* ]] || [[ "${TEST_STEP_NAME:-default}" == "test: Hexagon"* ]]; then
-        DEFAULT_PARALLELISM=1
-    fi
-
     if [[ ! "${extra_args[@]}" == *" -n"* ]]; then
-        extra_args+=("-n=$DEFAULT_PARALLELISM")
+        extra_args+=("-n=1")
     fi
 
     exit_code=0
