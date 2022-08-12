@@ -59,7 +59,7 @@ class VarTable(Object):
         doc : IdDoc
             The doc for this variable.
         """
-        return _ffi_api.VarTableDefine(self, obj, name_hint, object_path, frame)
+        return _ffi_api.VarTableDefine(self, obj, name_hint, object_path, frame)  # type: ignore # pylint: disable=no-member
 
     def define_by_doc(self, obj: Object, doc_factory: Callable[[], ExprDoc], frame: Frame) -> None:
         """
@@ -78,7 +78,7 @@ class VarTable(Object):
         -------
         None
         """
-        _ffi_api.VarTableDefineByDoc(self, obj, doc_factory, frame)
+        _ffi_api.VarTableDefineByDoc(self, obj, doc_factory, frame)  # type: ignore # pylint: disable=no-member
 
     def get_var_doc(self, obj: Object, object_path: ObjectPath) -> Optional[ExprDoc]:
         """
@@ -96,7 +96,7 @@ class VarTable(Object):
         doc : ExprDoc
             The doc for this variable.
         """
-        return _ffi_api.VarTableGetVarDoc(self, obj, object_path)
+        return _ffi_api.VarTableGetVarDoc(self, obj, object_path)  # type: ignore # pylint: disable=no-member
 
     def is_var_defined(self, obj: Object) -> bool:
         """
@@ -112,7 +112,7 @@ class VarTable(Object):
         is_defined : bool
             Whether the variable is defined.
         """
-        return _ffi_api.VarTableIsVarDefined(self, obj)
+        return _ffi_api.VarTableIsVarDefined(self, obj)  # type: ignore # pylint: disable=no-member
 
     def __contains__(self, obj: Object) -> bool:
         return self.is_var_defined(obj)
