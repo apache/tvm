@@ -16,14 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SCRIPT_PRINTER_SYMBOL_TABLE_H_
-#define TVM_SCRIPT_PRINTER_SYMBOL_TABLE_H_
+#ifndef TVM_SCRIPT_PRINTER_VAR_TABLE_H_
+#define TVM_SCRIPT_PRINTER_VAR_TABLE_H_
 
 #include <tvm/node/node.h>
 #include <tvm/node/object_path.h>
 #include <tvm/script/printer/doc.h>
 #include <tvm/script/printer/frame.h>
 #include <tvm/script/printer/traced_object.h>
+
+#include <unordered_map>
+#include <unordered_set>
 
 namespace tvm {
 namespace script {
@@ -137,4 +140,4 @@ class VarTable : public ObjectRef {
 }  // namespace script
 }  // namespace tvm
 
-#endif  // TVM_SCRIPT_PRINTER_SYMBOL_TABLE_H_
+#endif  // TVM_SCRIPT_PRINTER_VAR_TABLE_H_
