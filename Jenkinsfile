@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-08-11T15:56:40.509448
+// Generated at 2022-08-11T13:17:04.679404
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -94,7 +94,7 @@ properties([
 upstream_revision = null
 
 // command to start a docker container
-docker_run = 'docker/bash.sh --env CI --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM --env SKIP_SLOW_TESTS --env TEST_STEP_NAME'
+docker_run = 'docker/bash.sh --env CI --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM --env SKIP_SLOW_TESTS'
 docker_build = 'docker/build.sh'
 // timeout in minutes
 max_time = 180
@@ -589,7 +589,6 @@ def lint() {
         timeout(time: max_time, unit: 'MINUTES') {
           withEnv([
             'TVM_NUM_SHARDS=2',
-            'TEST_STEP_NAME=Lint',
             'TVM_SHARD_INDEX=0',
             "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
             sh (
@@ -609,7 +608,6 @@ def lint() {
         timeout(time: max_time, unit: 'MINUTES') {
           withEnv([
             'TVM_NUM_SHARDS=2',
-            'TEST_STEP_NAME=Lint',
             'TVM_SHARD_INDEX=1',
             "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
             sh (
@@ -1155,7 +1153,6 @@ def shard_run_unittest_GPU_1_of_3() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=gpu',
-              'TEST_STEP_NAME=unittest: GPU',
               'TVM_NUM_SHARDS=3',
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -1271,7 +1268,6 @@ def shard_run_unittest_GPU_2_of_3() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=gpu',
-              'TEST_STEP_NAME=unittest: GPU',
               'TVM_NUM_SHARDS=3',
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -1353,7 +1349,6 @@ def shard_run_unittest_GPU_3_of_3() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=gpu',
-              'TEST_STEP_NAME=unittest: GPU',
               'TVM_NUM_SHARDS=3',
               'TVM_SHARD_INDEX=2',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -1432,7 +1427,6 @@ def shard_run_integration_CPU_1_of_10() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TEST_STEP_NAME=integration: CPU',
               'TVM_NUM_SHARDS=10',
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -1508,7 +1502,6 @@ def shard_run_integration_CPU_2_of_10() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TEST_STEP_NAME=integration: CPU',
               'TVM_NUM_SHARDS=10',
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -1584,7 +1577,6 @@ def shard_run_integration_CPU_3_of_10() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TEST_STEP_NAME=integration: CPU',
               'TVM_NUM_SHARDS=10',
               'TVM_SHARD_INDEX=2',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -1660,7 +1652,6 @@ def shard_run_integration_CPU_4_of_10() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TEST_STEP_NAME=integration: CPU',
               'TVM_NUM_SHARDS=10',
               'TVM_SHARD_INDEX=3',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -1736,7 +1727,6 @@ def shard_run_integration_CPU_5_of_10() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TEST_STEP_NAME=integration: CPU',
               'TVM_NUM_SHARDS=10',
               'TVM_SHARD_INDEX=4',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -1812,7 +1802,6 @@ def shard_run_integration_CPU_6_of_10() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TEST_STEP_NAME=integration: CPU',
               'TVM_NUM_SHARDS=10',
               'TVM_SHARD_INDEX=5',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -1888,7 +1877,6 @@ def shard_run_integration_CPU_7_of_10() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TEST_STEP_NAME=integration: CPU',
               'TVM_NUM_SHARDS=10',
               'TVM_SHARD_INDEX=6',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -1964,7 +1952,6 @@ def shard_run_integration_CPU_8_of_10() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TEST_STEP_NAME=integration: CPU',
               'TVM_NUM_SHARDS=10',
               'TVM_SHARD_INDEX=7',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -2040,7 +2027,6 @@ def shard_run_integration_CPU_9_of_10() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TEST_STEP_NAME=integration: CPU',
               'TVM_NUM_SHARDS=10',
               'TVM_SHARD_INDEX=8',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -2116,7 +2102,6 @@ def shard_run_integration_CPU_10_of_10() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cpu',
-              'TEST_STEP_NAME=integration: CPU',
               'TVM_NUM_SHARDS=10',
               'TVM_SHARD_INDEX=9',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -2193,7 +2178,6 @@ def shard_run_python_i386_1_of_5() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=i386',
-              'TEST_STEP_NAME=python: i386',
               'TVM_NUM_SHARDS=5',
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -2269,7 +2253,6 @@ def shard_run_python_i386_2_of_5() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=i386',
-              'TEST_STEP_NAME=python: i386',
               'TVM_NUM_SHARDS=5',
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -2345,7 +2328,6 @@ def shard_run_python_i386_3_of_5() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=i386',
-              'TEST_STEP_NAME=python: i386',
               'TVM_NUM_SHARDS=5',
               'TVM_SHARD_INDEX=2',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -2420,7 +2402,6 @@ def shard_run_python_i386_4_of_5() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=i386',
-              'TEST_STEP_NAME=python: i386',
               'TVM_NUM_SHARDS=5',
               'TVM_SHARD_INDEX=3',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -2495,7 +2476,6 @@ def shard_run_python_i386_5_of_5() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=i386',
-              'TEST_STEP_NAME=python: i386',
               'TVM_NUM_SHARDS=5',
               'TVM_SHARD_INDEX=4',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -2571,7 +2551,6 @@ def shard_run_test_Hexagon_1_of_7() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=hexagon',
-              'TEST_STEP_NAME=test: Hexagon',
               'TVM_NUM_SHARDS=7',
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -2646,7 +2625,6 @@ def shard_run_test_Hexagon_2_of_7() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=hexagon',
-              'TEST_STEP_NAME=test: Hexagon',
               'TVM_NUM_SHARDS=7',
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -2720,7 +2698,6 @@ def shard_run_test_Hexagon_3_of_7() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=hexagon',
-              'TEST_STEP_NAME=test: Hexagon',
               'TVM_NUM_SHARDS=7',
               'TVM_SHARD_INDEX=2',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -2794,7 +2771,6 @@ def shard_run_test_Hexagon_4_of_7() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=hexagon',
-              'TEST_STEP_NAME=test: Hexagon',
               'TVM_NUM_SHARDS=7',
               'TVM_SHARD_INDEX=3',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -2868,7 +2844,6 @@ def shard_run_test_Hexagon_5_of_7() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=hexagon',
-              'TEST_STEP_NAME=test: Hexagon',
               'TVM_NUM_SHARDS=7',
               'TVM_SHARD_INDEX=4',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -2942,7 +2917,6 @@ def shard_run_test_Hexagon_6_of_7() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=hexagon',
-              'TEST_STEP_NAME=test: Hexagon',
               'TVM_NUM_SHARDS=7',
               'TVM_SHARD_INDEX=5',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -3016,7 +2990,6 @@ def shard_run_test_Hexagon_7_of_7() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=hexagon',
-              'TEST_STEP_NAME=test: Hexagon',
               'TVM_NUM_SHARDS=7',
               'TVM_SHARD_INDEX=6',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -3091,7 +3064,6 @@ def shard_run_integration_aarch64_1_of_4() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=arm',
-              'TEST_STEP_NAME=integration: aarch64',
               'TVM_NUM_SHARDS=4',
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -3166,7 +3138,6 @@ def shard_run_integration_aarch64_2_of_4() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=arm',
-              'TEST_STEP_NAME=integration: aarch64',
               'TVM_NUM_SHARDS=4',
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -3241,7 +3212,6 @@ def shard_run_integration_aarch64_3_of_4() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=arm',
-              'TEST_STEP_NAME=integration: aarch64',
               'TVM_NUM_SHARDS=4',
               'TVM_SHARD_INDEX=2',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -3316,7 +3286,6 @@ def shard_run_integration_aarch64_4_of_4() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=arm',
-              'TEST_STEP_NAME=integration: aarch64',
               'TVM_NUM_SHARDS=4',
               'TVM_SHARD_INDEX=3',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -3392,7 +3361,6 @@ def shard_run_topi_GPU_1_of_4() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=gpu',
-              'TEST_STEP_NAME=topi: GPU',
               'TVM_NUM_SHARDS=4',
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -3466,7 +3434,6 @@ def shard_run_topi_GPU_2_of_4() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=gpu',
-              'TEST_STEP_NAME=topi: GPU',
               'TVM_NUM_SHARDS=4',
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -3540,7 +3507,6 @@ def shard_run_topi_GPU_3_of_4() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=gpu',
-              'TEST_STEP_NAME=topi: GPU',
               'TVM_NUM_SHARDS=4',
               'TVM_SHARD_INDEX=2',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -3614,7 +3580,6 @@ def shard_run_topi_GPU_4_of_4() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=gpu',
-              'TEST_STEP_NAME=topi: GPU',
               'TVM_NUM_SHARDS=4',
               'TVM_SHARD_INDEX=3',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -3689,7 +3654,6 @@ def shard_run_frontend_GPU_1_of_6() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=gpu',
-              'TEST_STEP_NAME=frontend: GPU',
               'TVM_NUM_SHARDS=6',
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -3763,7 +3727,6 @@ def shard_run_frontend_GPU_2_of_6() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=gpu',
-              'TEST_STEP_NAME=frontend: GPU',
               'TVM_NUM_SHARDS=6',
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -3837,7 +3800,6 @@ def shard_run_frontend_GPU_3_of_6() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=gpu',
-              'TEST_STEP_NAME=frontend: GPU',
               'TVM_NUM_SHARDS=6',
               'TVM_SHARD_INDEX=2',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -3911,7 +3873,6 @@ def shard_run_frontend_GPU_4_of_6() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=gpu',
-              'TEST_STEP_NAME=frontend: GPU',
               'TVM_NUM_SHARDS=6',
               'TVM_SHARD_INDEX=3',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -3985,7 +3946,6 @@ def shard_run_frontend_GPU_5_of_6() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=gpu',
-              'TEST_STEP_NAME=frontend: GPU',
               'TVM_NUM_SHARDS=6',
               'TVM_SHARD_INDEX=4',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -4059,7 +4019,6 @@ def shard_run_frontend_GPU_6_of_6() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=gpu',
-              'TEST_STEP_NAME=frontend: GPU',
               'TVM_NUM_SHARDS=6',
               'TVM_SHARD_INDEX=5',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -4134,7 +4093,6 @@ def shard_run_topi_aarch64_1_of_2() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=arm',
-              'TEST_STEP_NAME=topi: aarch64',
               'TVM_NUM_SHARDS=2',
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -4213,7 +4171,6 @@ def shard_run_topi_aarch64_2_of_2() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=arm',
-              'TEST_STEP_NAME=topi: aarch64',
               'TVM_NUM_SHARDS=2',
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -4292,7 +4249,6 @@ def shard_run_frontend_aarch64_1_of_2() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=arm',
-              'TEST_STEP_NAME=frontend: aarch64',
               'TVM_NUM_SHARDS=2',
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -4366,7 +4322,6 @@ def shard_run_frontend_aarch64_2_of_2() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=arm',
-              'TEST_STEP_NAME=frontend: aarch64',
               'TVM_NUM_SHARDS=2',
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -4441,7 +4396,6 @@ def shard_run_test_Cortex_M_1_of_8() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cortexm',
-              'TEST_STEP_NAME=test: Cortex-M',
               'TVM_NUM_SHARDS=8',
               'TVM_SHARD_INDEX=0',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -4520,7 +4474,6 @@ def shard_run_test_Cortex_M_2_of_8() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cortexm',
-              'TEST_STEP_NAME=test: Cortex-M',
               'TVM_NUM_SHARDS=8',
               'TVM_SHARD_INDEX=1',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -4594,7 +4547,6 @@ def shard_run_test_Cortex_M_3_of_8() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cortexm',
-              'TEST_STEP_NAME=test: Cortex-M',
               'TVM_NUM_SHARDS=8',
               'TVM_SHARD_INDEX=2',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -4668,7 +4620,6 @@ def shard_run_test_Cortex_M_4_of_8() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cortexm',
-              'TEST_STEP_NAME=test: Cortex-M',
               'TVM_NUM_SHARDS=8',
               'TVM_SHARD_INDEX=3',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -4742,7 +4693,6 @@ def shard_run_test_Cortex_M_5_of_8() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cortexm',
-              'TEST_STEP_NAME=test: Cortex-M',
               'TVM_NUM_SHARDS=8',
               'TVM_SHARD_INDEX=4',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -4816,7 +4766,6 @@ def shard_run_test_Cortex_M_6_of_8() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cortexm',
-              'TEST_STEP_NAME=test: Cortex-M',
               'TVM_NUM_SHARDS=8',
               'TVM_SHARD_INDEX=5',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -4890,7 +4839,6 @@ def shard_run_test_Cortex_M_7_of_8() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cortexm',
-              'TEST_STEP_NAME=test: Cortex-M',
               'TVM_NUM_SHARDS=8',
               'TVM_SHARD_INDEX=6',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -4964,7 +4912,6 @@ def shard_run_test_Cortex_M_8_of_8() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM=cortexm',
-              'TEST_STEP_NAME=test: Cortex-M',
               'TVM_NUM_SHARDS=8',
               'TVM_SHARD_INDEX=7',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
@@ -5264,7 +5211,6 @@ stage('Test') {
               docker_init(ci_cpu)
               init_git()
               withEnv(['PLATFORM=cpu',
-              'TEST_STEP_NAME=unittest: CPU',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
                 sh(
                         script: """
@@ -5339,7 +5285,6 @@ stage('Test') {
               docker_init(ci_cpu)
               init_git()
               withEnv(['PLATFORM=cpu',
-              'TEST_STEP_NAME=frontend: CPU',
               "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
                 sh(
                         script: """
