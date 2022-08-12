@@ -379,29 +379,27 @@ TVM_REGISTER_TARGET_KIND("webgpu", kDLWebGPU)
     .add_attr_option<Integer>("max_num_threads", Integer(256))
     .set_default_keys({"webgpu", "gpu"});
 
-TVM_REGISTER_TARGET_KIND("sdaccel", kDLOpenCL)
+TVM_REGISTER_TARGET_KIND("sdaccel", kDLOpenCL)  // line break
     .set_default_keys({"sdaccel", "hls"});
 
-TVM_REGISTER_TARGET_KIND("aocl", kDLAOCL)
+TVM_REGISTER_TARGET_KIND("aocl", kDLAOCL)  // line break
     .set_default_keys({"aocl", "hls"});
 
-TVM_REGISTER_TARGET_KIND("aocl_sw_emu", kDLAOCL)
+TVM_REGISTER_TARGET_KIND("aocl_sw_emu", kDLAOCL)  // line break
     .set_default_keys({"aocl", "hls"});
 
 TVM_REGISTER_TARGET_KIND("hexagon", kDLHexagon)
     .add_attr_option<Array<String>>("mattr")
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("mtriple")
-    // .add_attr_option<Bool>("system-lib")
-    // .add_attr_option<Bool>("link-params", Bool(false))
     .add_attr_option<Array<String>>("llvm-options")
     .set_default_keys({"hexagon"});
 
-TVM_REGISTER_TARGET_KIND("stackvm", kDLCPU);  // line break
+TVM_REGISTER_TARGET_KIND("stackvm", kDLCPU);
 
-TVM_REGISTER_TARGET_KIND("ext_dev", kDLExtDev);  // line break
+TVM_REGISTER_TARGET_KIND("ext_dev", kDLExtDev);
 
-TVM_REGISTER_TARGET_KIND("hybrid", kDLCPU);  // line break
+TVM_REGISTER_TARGET_KIND("hybrid", kDLCPU);
 
 TVM_REGISTER_TARGET_KIND("composite", kDLCPU)  // line break
     .add_attr_option<Array<Target>>("devices");
