@@ -228,7 +228,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
         number,
         repeat,
         min_repeat_ms,
-        max_repeat_num,
+        limit_zero_time_iterations,
         cooldown_interval_ms,
         repeats_to_cooldown,
     ):
@@ -241,7 +241,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
             number=number,
             repeat=repeat,
             min_repeat_ms=min_repeat_ms,
-            max_repeat_num=max_repeat_num,
+            limit_zero_time_iterations=limit_zero_time_iterations,
             cooldown_interval_ms=cooldown_interval_ms,
             repeats_to_cooldown=repeats_to_cooldown,
         )
@@ -281,7 +281,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
         number=10,
         repeat=1,
         min_repeat_ms=1,
-        max_repeat_num=100,
+        limit_zero_time_iterations=100,
         cooldown_interval_ms=0,
         repeats_to_cooldown=1,
         **input_dict,
@@ -309,7 +309,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
             i.e., When the run time of one `repeat` falls below this time, the `number` parameter
             will be automatically increased.
 
-        max_repeat_num: int, optional
+        limit_zero_time_iterations: int, optional
             The maximum number of repeats when measured time is equal to 0.
             It helps to avoid hanging during measurements.
 
@@ -331,7 +331,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
             number=number,
             repeat=repeat,
             min_repeat_ms=min_repeat_ms,
-            max_repeat_num=max_repeat_num,
+            limit_zero_time_iterations=limit_zero_time_iterations,
             cooldown_interval_ms=cooldown_interval_ms,
             repeats_to_cooldown=repeats_to_cooldown,
         )
@@ -347,7 +347,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
         number,
         repeat=1,
         min_repeat_ms=0,
-        max_repeat_num=100,
+        limit_zero_time_iterations=100,
         cooldown_interval_ms=0,
         repeats_to_cooldown=1,
     ):
@@ -372,7 +372,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
             i.e., When the run time of one `repeat` falls below this time, the `number` parameter
             will be automatically increased.
 
-        max_repeat_num: int, optional
+        limit_zero_time_iterations: int, optional
             The maximum number of repeats when measured time is equal to 0.
             It helps to avoid hanging during measurements.
 
@@ -389,7 +389,12 @@ class GraphModuleDebug(graph_executor.GraphModule):
         the repeat of the measurement.
         """
         res = self._run_individual(
-            number, repeat, min_repeat_ms, max_repeat_num, cooldown_interval_ms, repeats_to_cooldown
+            number,
+            repeat,
+            min_repeat_ms,
+            limit_zero_time_iterations,
+            cooldown_interval_ms,
+            repeats_to_cooldown,
         )
         results = []
         offset = 0
@@ -409,7 +414,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
         number=10,
         repeat=1,
         min_repeat_ms=0,
-        max_repeat_num=100,
+        limit_zero_time_iterations=100,
         cooldown_interval_ms=0,
         repeats_to_cooldown=1,
     ):
@@ -441,7 +446,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
             i.e., When the run time of one `repeat` falls below this time, the `number` parameter
             will be automatically increased.
 
-        max_repeat_num: int, optional
+        limit_zero_time_iterations: int, optional
             The maximum number of repeats when measured time is equal to 0.
             It helps to avoid hanging during measurements.
 
@@ -462,7 +467,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
             number,
             repeat,
             min_repeat_ms,
-            max_repeat_num,
+            limit_zero_time_iterations,
             cooldown_interval_ms,
             repeats_to_cooldown,
         )

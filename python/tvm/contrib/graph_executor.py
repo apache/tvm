@@ -355,7 +355,7 @@ class GraphModule(object):
         repeat=5,
         number=5,
         min_repeat_ms=None,
-        max_repeat_num=100,
+        limit_zero_time_iterations=100,
         end_to_end=False,
         cooldown_interval_ms=0,
         repeats_to_cooldown=1,
@@ -403,7 +403,7 @@ class GraphModule(object):
             milliseconds. This can be used to ensure that the function is run enough to get an
             accurate measurement.
 
-        max_repeat_num : Optional[int]
+        limit_zero_time_iterations : Optional[int]
             The maximum number of repeats when measured time is equal to 0.
             It helps to avoid hanging during measurements.
 
@@ -442,7 +442,7 @@ class GraphModule(object):
                 repeat=repeat,
                 number=number,
                 min_repeat_ms=min_repeat_ms,
-                max_repeat_num=max_repeat_num,
+                limit_zero_time_iterations=limit_zero_time_iterations,
             )(device.device_type % rpc_base.RPC_SESS_MASK, device.device_id, *args)
         if kwargs:
             self.set_input(**kwargs)
@@ -452,7 +452,7 @@ class GraphModule(object):
             repeat=repeat,
             number=number,
             min_repeat_ms=min_repeat_ms,
-            max_repeat_num=max_repeat_num,
+            limit_zero_time_iterations=limit_zero_time_iterations,
             cooldown_interval_ms=cooldown_interval_ms,
             repeats_to_cooldown=repeats_to_cooldown,
         )()

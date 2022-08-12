@@ -56,8 +56,9 @@ class GraphExecutorDebug : public GraphExecutor {
    *        By default, one `repeat` contains `number` runs. If this parameter is set,
    *        the parameters `number` will be dynamically adjusted to meet the
    *        minimum duration requirement of one `repeat`.
-   * \param max_repeat_ms The maximum number of repeats when measured time is equal to 0.
-   *        It helps to avoid hanging during measurements.
+   * \param limit_zero_time_iterations The maximum number of repeats when
+   *        measured time is equal to 0.  It helps to avoid hanging during
+   *        measurements.
    * \param cooldown_interval_ms The cooldown interval in milliseconds between the number of repeats
    *        defined by `repeats_to_cooldown`.
    * \param repeats_to_cooldown The number of repeats before the
@@ -66,8 +67,9 @@ class GraphExecutorDebug : public GraphExecutor {
    * representing the number of layers. Next the encoded real numbers are float32_t in the number of
    * repeat multiplied by the number of layers.
    */
-  std::string RunIndividual(int number, int repeat, int min_repeat_ms, int max_repeat_num,
-                            int cooldown_interval_ms, int repeats_to_cooldown) {
+  std::string RunIndividual(int number, int repeat, int min_repeat_ms,
+                            int limit_zero_time_iterations, int cooldown_interval_ms,
+                            int repeats_to_cooldown) {
     // warmup run
     GraphExecutor::Run();
     std::string tkey = module_->type_key();
@@ -75,14 +77,15 @@ class GraphExecutorDebug : public GraphExecutor {
     if (tkey == "rpc") {
       // RPC modules rely on remote timing which implements the logic from the else branch.
       for (size_t index = 0; index < op_execs_.size(); ++index) {
-        time_sec_per_op[index] = RunOpRPC(index, number, repeat, min_repeat_ms, max_repeat_num,
-                                          cooldown_interval_ms, repeats_to_cooldown);
+        time_sec_per_op[index] =
+            RunOpRPC(index, number, repeat, min_repeat_ms, limit_zero_time_iterations,
+                     cooldown_interval_ms, repeats_to_cooldown);
       }
     } else {
       int op = 0;
       for (size_t index = 0; index < op_execs_.size(); ++index) {
         std::string result_str =
-            RunIndividualNode(index, number, repeat, min_repeat_ms, max_repeat_num,
+            RunIndividualNode(index, number, repeat, min_repeat_ms, limit_zero_time_iterations,
                               cooldown_interval_ms, repeats_to_cooldown);
         const double* blob_ptr = reinterpret_cast<const double*>(result_str.data());
         for (int i = 0; i < repeat; ++i, ++blob_ptr) {
@@ -113,7 +116,7 @@ class GraphExecutorDebug : public GraphExecutor {
   }
 
   std::string RunIndividualNode(int node_index, int number, int repeat, int min_repeat_ms,
-                                int max_repeat_num, int cooldown_interval_ms,
+                                int limit_zero_time_iterations, int cooldown_interval_ms,
                                 int repeats_to_cooldown) {
     std::string tkey = module_->type_key();
 
@@ -135,12 +138,13 @@ class GraphExecutorDebug : public GraphExecutor {
     Device& d = devices_[0];
     PackedFunc time_evaluator = profiling::WrapTimeEvaluator(
         TypedPackedFunc<void()>([this, node_index]() { this->RunOpHost(node_index); }), d, number,
-        repeat, min_repeat_ms, max_repeat_num, cooldown_interval_ms, repeats_to_cooldown);
+        repeat, min_repeat_ms, limit_zero_time_iterations, cooldown_interval_ms,
+        repeats_to_cooldown);
     return time_evaluator();
   }
 
   std::vector<double> RunOpRPC(int index, int number, int repeat, int min_repeat_ms,
-                               int max_repeat_num, int cooldown_interval_ms,
+                               int limit_zero_time_iterations, int cooldown_interval_ms,
                                int repeats_to_cooldown) {
     std::vector<double> results(repeat, 0);
     // Right now we expect either "tvm_op" for nodes which run PackedFunc or "null" for nodes
@@ -167,7 +171,7 @@ class GraphExecutorDebug : public GraphExecutor {
         runtime::Registry::Get("runtime.RPCTimeEvaluator")
             ->
             operator()(module_, name, static_cast<int>(dev.device_type), dev.device_id, number,
-                       repeat, min_repeat_ms, max_repeat_num, cooldown_interval_ms,
+                       repeat, min_repeat_ms, limit_zero_time_iterations, cooldown_interval_ms,
                        repeats_to_cooldown, "");
 
     int num_flat_args = num_inputs + num_outputs;
@@ -391,17 +395,18 @@ PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
       int number = args[0];
       int repeat = args[1];
       int min_repeat_ms = args[2];
-      int max_repeat_num = args[3];
+      int limit_zero_time_iterations = args[3];
       int cooldown_interval_ms = args[4];
       int repeats_to_cooldown = args[5];
       ICHECK_GT(number, 0);
       ICHECK_GT(repeat, 0);
       ICHECK_GE(min_repeat_ms, 0);
-      ICHECK_GE(max_repeat_num, 0);
+      ICHECK_GE(limit_zero_time_iterations, 0);
       ICHECK_GE(cooldown_interval_ms, 0);
       ICHECK_GT(repeats_to_cooldown, 0);
-      std::string blob = this->RunIndividual(number, repeat, min_repeat_ms, max_repeat_num,
-                                             cooldown_interval_ms, repeats_to_cooldown);
+      std::string blob =
+          this->RunIndividual(number, repeat, min_repeat_ms, limit_zero_time_iterations,
+                              cooldown_interval_ms, repeats_to_cooldown);
       TVMByteArray arr;
       arr.size = blob.length();
       arr.data = blob.data();
@@ -413,7 +418,7 @@ PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
       int number = args[1];
       int repeat = args[2];
       int min_repeat_ms = args[3];
-      int max_repeat_num = args[4];
+      int limit_zero_time_iterations = args[4];
       int cooldown_interval_ms = args[5];
       int repeats_to_cooldown = args[6];
       ICHECK_GE(node_index, 0);
@@ -421,12 +426,12 @@ PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
       ICHECK_GT(number, 0);
       ICHECK_GT(repeat, 0);
       ICHECK_GE(min_repeat_ms, 0);
-      ICHECK_GE(max_repeat_num, 0);
+      ICHECK_GE(limit_zero_time_iterations, 0);
       ICHECK_GE(cooldown_interval_ms, 0);
       ICHECK_GT(repeats_to_cooldown, 0);
-      std::string blob =
-          this->RunIndividualNode(node_index, number, repeat, min_repeat_ms, max_repeat_num,
-                                  cooldown_interval_ms, repeats_to_cooldown);
+      std::string blob = this->RunIndividualNode(node_index, number, repeat, min_repeat_ms,
+                                                 limit_zero_time_iterations, cooldown_interval_ms,
+                                                 repeats_to_cooldown);
       TVMByteArray arr;
       arr.size = blob.length();
       arr.data = blob.data();
