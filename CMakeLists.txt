@@ -288,6 +288,7 @@ tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
 tvm_file_glob(GLOB CODEGEN_SRCS
   src/target/*.cc
   src/target/source/*.cc
+  src/target/parsers/*.cc
     )
 
 list(APPEND COMPILER_SRCS ${CODEGEN_SRCS})

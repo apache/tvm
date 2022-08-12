@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 import json
-import sys
 
 import pytest
 import tvm
