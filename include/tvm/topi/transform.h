@@ -1798,7 +1798,7 @@ inline Tensor ndarray_size(const Tensor& src, const DataType& dtype,
 }
 
 /*!
- * \brief Returns a one-hot tensor where the locations repsented by indices take value on_value,
+ * \brief Returns a one-hot tensor where the locations represented by indices take value on_value,
     other locations take value off_value.
  * \param indices locations to set to on_value.
  * \param on_value value that locations represented by indices take on.
@@ -2014,6 +2014,65 @@ inline Tensor adv_index(const Tensor& data, const Array<Tensor>& indices,
         return data(real_indices);
       },
       name, tag);
+}
+
+/*!
+ * \brief Returns the sums, means or maxes of bags of embeddings
+ * \param input input tensor
+ * \param weight the lookup table.
+ * \param offset the starting index position of each bag.
+ * \param mode  the way (`sum`, `mean` or `max`) to reduce the bag.
+ * \param oshape shape of the output tensor.
+ * \param name output tensor name.
+ * \param tag output tensor tag.
+ * \return embedded tensor.
+ */
+inline Tensor embedding_bag(const Tensor& input, const Tensor& weight, const Tensor& offset,
+                            int mode, DataType dtype, const std::string name = "T_embedding_bag",
+                            const std::string tag = kInjective) {
+  tvm::PrimExpr row, column;
+  bool is_1d_input = static_cast<int>(input->shape.size()) == 1;
+  if (is_1d_input) {
+    row = offset->shape[0];
+  } else {
+    row = input->shape[0];
+  }
+  column = weight->shape[1];
+
+  Array<PrimExpr> oshape{row, column};
+
+  auto func = [&](tvm::tir::Var i, tvm::tir::Var j) {
+    auto ret = make_zero(dtype);
+    if (is_1d_input) {
+      // TODO
+      return ret;
+    } else {
+      Array<PrimExpr> data;
+      auto N = GetConstInt(input->shape[1]);
+      for (auto idx = 0; idx < N; idx++) {
+        auto idx_i = input[i][idx];
+        data.push_back(weight[idx_i][j]);
+      }
+
+      if (mode == 0) {  // mean
+        for (auto& itr : data) ret += itr;
+        return ret / N;
+      } else if (mode == 1) {  // sum
+        for (auto& itr : data) ret += itr;
+        return ret;
+      } else if (mode == 2) {  // max
+        for (auto itr = data.begin(); itr != data.end(); ++itr)
+          if (itr == data.begin()) {
+            ret = *itr;
+          } else {
+            ret = tvm::max(ret, *itr);
+          }
+        return ret;
+      }
+    }
+  };
+
+  return compute(oshape, func, name, tag);
 }
 
 }  // namespace topi

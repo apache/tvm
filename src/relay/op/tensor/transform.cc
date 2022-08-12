@@ -4234,10 +4234,10 @@ TVM_REGISTER_NODE_TYPE(EmbeddingBagAttrs);
 
 bool EmbeddingBagRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                      const TypeReporter& reporter) {
-  // types: [weight, indics, result]
-  ICHECK_EQ(types.size(), 3) << "EmbeddingBag: expect 3 types but " << types.size() << " provided";
-  ICHECK_EQ(num_inputs, 2) << "EmbeddingBag: expect 2 inputs but " << num_inputs << " provided";
-  auto data = types[0].as<TensorTypeNode>();  // shape of (B, N)
+  // types: [weight, indics, offset, result]
+  ICHECK_EQ(types.size(), 4) << "EmbeddingBag: expect 4 types but " << types.size() << " provided";
+  ICHECK_LE(num_inputs, 3) << "EmbeddingBag: expect 3 inputs but " << num_inputs << " provided";
+  auto data = types[0].as<TensorTypeNode>();  // shape of (B, N) or (N)
   if (data == nullptr) {
     ICHECK(types[0].as<IncompleteTypeNode>())
         << "EmbeddingBag: expect input type to be TensorType but get " << types[0];
@@ -4252,33 +4252,45 @@ bool EmbeddingBagRel(const Array<Type>& types, int num_inputs, const Attrs& attr
     return false;
   }
 
-  ICHECK(data->shape.size() == 2) << "EmbeddingBag: input must be a 2-D tensor but get " << data;
-  ICHECK(embedding_matrix->shape.size() == 2)
+  ICHECK_LE(data->shape.size(), 2)
+      << "EmbeddingBag: input must be a 1-D or 2-D tensor but get " << data;
+  ICHECK_EQ(embedding_matrix->shape.size(), 2)
       << "EmbeddingBag: embedding_matrix must be a 2-D tensor but get " << data;
 
+  tvm::PrimExpr row, column;
+  if (data->shape.size() == 1) {  // offset cannot be omitted
+    auto offset = types[2].as<TensorTypeNode>();
+    if (offset == nullptr) {
+      ICHECK(types[2].as<IncompleteTypeNode>())
+          << "EmbeddingBag: expect offset type to be TensorType but get " << types[2];
+      return false;
+    }
+    ICHECK_EQ(offset->shape.size(), 1) << "EmbeddingBag: offset must be a 1-D";
+    row = offset->shape[0];
+  } else {  // offset is ignored
+    row = data->shape[0];
+  }
+
   // Output shape is the (B, embedding_dim).
-  auto row = data->shape[0];
-  auto column = embedding_matrix->shape[1];
-  std::vector<decltype(row)> shape{row, column};
+  column = embedding_matrix->shape[1];
+  std::vector<tvm::PrimExpr> shape{row, column};
   reporter->Assign(types[2], TensorType(tvm::relay::Shape(shape), embedding_matrix->dtype));
   return true;
 }
 
-Expr MakeEmbeddingBag(Expr input, Expr weight, size_t num_embeddings, size_t embedding_dim,
-                      size_t mode) {
+Expr MakeEmbeddingBag(Expr input, Expr weight, Expr offset, size_t mode) {
   auto attrs = make_object<EmbeddingBagAttrs>();
-  attrs->num_embeddings = num_embeddings;
-  attrs->embedding_dim = embedding_dim;
   attrs->mode = mode;
   static const Op& op = Op::Get("embedding_bag");
-  return Call(op, {input, weight}, Attrs(attrs), {});
+  return Call(op, {input, weight, offset}, Attrs(attrs), {});
 }
 
 Array<te::Tensor> EmbeddingBagCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                       const Type& out_type) {
   const auto* param = attrs.as<EmbeddingBagAttrs>();
   ICHECK(param != nullptr);
-  return Array<te::Tensor>{};
+  return Array<te::Tensor>{
+      topi::embedding_bag(inputs[0], inputs[1], inputs[2], param->mode, inputs[1]->dtype)};
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.embedding_bag").set_body_typed(MakeEmbeddingBag);
@@ -4287,9 +4299,10 @@ RELAY_REGISTER_OP("embedding_bag")
     .describe(
         R"code(Computes sums, means or maxes of bags of embeddings, without instantiating the intermediate embeddings.
     )code" TVM_ADD_FILELINE)
-    .set_num_inputs(2)
+    .set_num_inputs(3)
     .add_argument("input", "Tensor", "Tensor containing bags of indices into the embedding matrix.")
     .add_argument("weight", "Tensor", "The embedding matrix.")
+    .add_argument("offset", "Tensor", "The offset.")
     .add_type_rel("embedding_bag", EmbeddingBagRel)
     .set_support_level(10)
     .set_attr<FTVMCompute>("FTVMCompute", EmbeddingBagCompute)
