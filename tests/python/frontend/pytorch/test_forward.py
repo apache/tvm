@@ -2010,6 +2010,34 @@ def test_forward_functional_pad():
     pad = (0, 1, 2, 1, 3, 3)
     verify_model(Pad1().float().eval(), input_data=input_data)
 
+    class Pad2(Module):
+        def forward(self, *args):
+            return torch.nn.functional.pad(args[0], pad, "constant", 1)
+
+    input_data = torch.rand((3, 3, 4, 2))
+    pad = (1, 1)
+    verify_model(Pad2().float().eval(), input_data=input_data)
+
+    pad = (1, 1, 2, 2)
+    verify_model(Pad2().float().eval(), input_data=input_data)
+
+    pad = (0, 1, 2, 1, 3, 3)
+    verify_model(Pad2().float().eval(), input_data=input_data)
+
+    class Pad3(Module):
+        def forward(self, *args):
+            return torch.nn.functional.pad(args[0], pad, "constant", 1.0)
+
+    input_data = torch.rand((3, 3, 4, 2))
+    pad = (1, 1)
+    verify_model(Pad3().float().eval(), input_data=input_data)
+
+    pad = (1, 1, 2, 2)
+    verify_model(Pad3().float().eval(), input_data=input_data)
+
+    pad = (0, 1, 2, 1, 3, 3)
+    verify_model(Pad3().float().eval(), input_data=input_data)
+
 
 @tvm.testing.uses_gpu
 def test_forward_zero_pad2d():
@@ -2021,10 +2049,10 @@ def test_forward_zero_pad2d():
 @tvm.testing.uses_gpu
 def test_forward_constant_pad1d():
     inp = torch.rand((1, 2, 4))
-    verify_model(torch.nn.ConstantPad2d(2, 3.5).eval(), inp)
+    verify_model(torch.nn.ConstantPad1d(2, 3.5).eval(), inp)
 
     inp = torch.rand((1, 2, 3))
-    verify_model(torch.nn.ConstantPad2d((3, 1), 3.5).eval(), inp)
+    verify_model(torch.nn.ConstantPad1d((3, 1), 3.5).eval(), inp)
 
 
 @tvm.testing.uses_gpu

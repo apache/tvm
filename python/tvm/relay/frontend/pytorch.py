@@ -1905,7 +1905,7 @@ class PyTorchOpConverter:
 
         # initialize paddings based on input len
         pad_len = len(self.infer_shape(data)) * 2
-        paddings = [pad_value] * pad_len
+        paddings = [0] * pad_len
 
         if len(pad_list) >= 2:
             paddings[-1] = pad_list[1]
@@ -1925,8 +1925,10 @@ class PyTorchOpConverter:
         for pad in paddings:
             const_paddings.append([])
             for p in pad:
-                if not isinstance(p, int):
+                if isinstance(p, _expr.Expr):
                     p = int(_infer_value(p, {}).numpy())
+                elif not isinstance(p, int):
+                    raise NotImplementedError("pad width should be int/expr")
                 const_paddings[-1].append(p)
                 if p != 0:
                     non_zero_found = True
@@ -1934,12 +1936,11 @@ class PyTorchOpConverter:
         if not non_zero_found:
             return data
         elif mode == "constant":
-            return _op.nn.pad(data, const_paddings, pad_value=inputs[2], pad_mode=mode)
+            return _op.nn.pad(data, const_paddings, pad_value=pad_value, pad_mode=mode)
         else:
             return _op.nn.pad(data, const_paddings, pad_mode=mode)
 
     def pad(self, inputs, input_types):
-
         # mode: Optional default "constant"
         if len(inputs) > 2 and inputs[2] is not None:
             mode = inputs[2]
@@ -1960,7 +1961,7 @@ class PyTorchOpConverter:
         return self.pad_common(mode, pad_value, inputs, input_types)
 
     def constant_pad_nd(self, inputs, input_types):
-        return self.pad_common("constant", 0, inputs, input_types)
+        return self.pad_common("constant", _expr.const(inputs[2]), inputs, input_types)
 
     def reflection_pad1d(self, inputs, input_types):
         return self.pad_common("reflect", 0, inputs, input_types)
