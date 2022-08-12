@@ -25,7 +25,7 @@ from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
 
 from ...dataflow_pattern import is_constant, is_op, wildcard
-from . import _ethosn as support
+from . import _ethosn
 from .register import register_pattern_table
 
 
@@ -58,6 +58,18 @@ def ethosn_api_version() -> str:
         Semantic version string (e.g. 3.0.1).
     """
     return tvm.get_global_func("relay.ethos-n.api.version")()
+
+
+def ConvertEquivalents() -> tvm.ir.IRModule:  # pylint: disable=invalid-name
+    """Converts operations into a numerically equivalent form
+    that can be understood by the NPU codegen.
+
+    Return
+    ------
+    Pass
+        The module pass.
+    """
+    return _ethosn.ConvertEquivalents()
 
 
 def partition_for_ethosn(mod, params=None, **opts):
@@ -107,9 +119,9 @@ def partition_for_ethosn(mod, params=None, **opts):
             transform.AnnotateTarget("ethos-n"),
             transform.MergeCompilerRegions(),
             transform.PartitionGraph(),
+            ConvertEquivalents(),
         ]
     )
-
     return seq(mod)
 
 
@@ -183,70 +195,102 @@ def pattern_table():
         )
         return pattern
 
+    def qnn_mul_pattern():
+        """
+        Multiply is supported when one input is a constant of shape [1, ..., C],
+        where C matches the number of channels of the other input.
+        """
+        mul_op = is_op("qnn.mul")
+        gen_mul_inputs = lambda x, y: mul_op(
+            x,
+            y,
+            is_constant(),
+            is_constant(),
+            is_constant(),
+            is_constant(),
+            is_constant(),
+            is_constant(),
+        )
+        input_is_left = gen_mul_inputs(wildcard(), is_constant())
+        input_is_right = gen_mul_inputs(is_constant(), wildcard())
+        return input_is_left | input_is_right
+
     def check_conv2d(extract):
         """Check if a conv2d is supported by Ethos-N."""
         if not ethosn_available():
             return False
 
-        return support.conv2d(extract)
+        return _ethosn.conv2d(extract)
 
     def check_fc(extract):
         """Check if a fully connected is supported by Ethos-N."""
         if not ethosn_available():
             return False
 
-        return support.fc(extract)
+        return _ethosn.fc(extract)
 
     def check_avg_pool2d(extract):
         """Check if a avg pool2d is supported by Ethos-N."""
         if not ethosn_available():
             return False
 
-        return support.avg_pool2d(extract)
+        return _ethosn.avg_pool2d(extract)
 
     def check_mean(extract):
         """Check if mean is supported by Ethos-N."""
         if not ethosn_available():
             return False
 
-        return support.mean(extract)
+        return _ethosn.mean(extract)
 
     def check_sigmoid(extract):
         """Check if a sigmoid is supported by Ethos-N."""
         if not ethosn_available():
             return False
 
-        return support.sigmoid(extract)
+        return _ethosn.sigmoid(extract)
 
     def check_tanh(extract):
         """Check if tanh is supported by Ethos-N."""
         if not ethosn_available():
             return False
 
-        return support.tanh(extract)
+        return _ethosn.tanh(extract)
 
     def check_leaky_relu(extract):
         """Check if Leaky ReLU is supported."""
         if not ethosn_available():
             return False
 
-        return support.leaky_relu(extract)
+        return _ethosn.leaky_relu(extract)
+
+    def check_mul(extract):
+        """Check if Mul is supported."""
+        if not ethosn_available():
+            return False
+        # Do not support scalar constants for now
+        check_scalar = lambda i: isinstance(i, tvm.relay.Constant) and len(i.data.shape) == 0
+        if check_scalar(extract.args[0]) or check_scalar(extract.args[1]):
+            return False
+        extract = _ethosn.ConvertQnnMultiply(extract)
+        return _ethosn.conv2d(extract)
 
     def check_requantize(extract):
         """Check if requantize is supported."""
         if not ethosn_available():
             return False
 
-        return support.requantize(extract)
+        return _ethosn.requantize(extract)
 
     def check_resize(extract):
         """Check if resize (nearest neighbor) is supported."""
         if not ethosn_available():
             return False
 
-        return support.resize(extract)
+        return _ethosn.resize(extract)
 
     return [
+        ("ethos-n.qnn_mul", qnn_mul_pattern(), check_mul),
         ("ethos-n.qnn_conv2d", qnn_conv_pattern(), check_conv2d),
         ("ethos-n.qnn_avg_pool2d", qnn_avg_pool2d_pattern(), check_avg_pool2d),
         ("ethos-n.qnn_sigmoid", qnn_sigmoid_pattern(), check_sigmoid),
@@ -274,7 +318,7 @@ def max_pool2d(expr):
     if not ethosn_available():
         return False
 
-    return support.max_pool2d(expr)
+    return _ethosn.max_pool2d(expr)
 
 
 @tvm.ir.register_op_attr("reshape", "target.ethos-n")
@@ -285,7 +329,7 @@ def reshape(expr):
     if not _is_ethosn_composite(expr.args[0]):
         return False
 
-    return support.reshape(expr)
+    return _ethosn.reshape(expr)
 
 
 @tvm.ir.register_op_attr("qnn.add", "target.ethos-n")
@@ -294,7 +338,7 @@ def qnn_add(expr):
     if not ethosn_available():
         return False
 
-    return support.addition(expr)
+    return _ethosn.addition(expr)
 
 
 @tvm.ir.register_op_attr("qnn.concatenate", "target.ethos-n")
@@ -302,7 +346,7 @@ def qnn_concatenate(expr):
     """Check if a concatenate is supported by Ethos-N."""
     if not ethosn_available():
         return False
-    if not support.concatenate(expr):
+    if not _ethosn.concatenate(expr):
         return False
 
     # Support library has some unenforced restrictions on qnn params
@@ -332,7 +376,7 @@ def split(expr):
         return False
     if ethosn_api_version() >= LooseVersion("3.0.1"):
         return False
-    if not support.split(expr):
+    if not _ethosn.split(expr):
         return False
 
     return True
@@ -343,7 +387,7 @@ def depth_to_space(expr):
     """Check if a depth_to_space is supported by Ethos-N."""
     if not ethosn_available():
         return False
-    if not support.depth_to_space(expr):
+    if not _ethosn.depth_to_space(expr):
         return False
 
     return True
@@ -354,7 +398,7 @@ def clip(expr):
     """Check if a clip is supported by Ethos-N."""
     if not ethosn_available():
         return False
-    if not support.relu(expr):
+    if not _ethosn.relu(expr):
         return False
 
     return True
