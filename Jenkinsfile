@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-08-11T13:17:04.679404
+// Generated at 2022-08-12T16:20:03.163981
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -4290,7 +4290,11 @@ def shard_run_frontend_aarch64_1_of_2() {
               ci_setup(ci_arm)
               sh (
                 script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_frontend_cpu.sh",
-                label: 'Run Python frontend tests',
+                label: 'Run General Python frontend tests',
+              )
+              sh (
+                script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_frontend_aarch64only.sh",
+                label: 'Run AArch64 Python frontend tests',
               )
             })
           }
@@ -4363,7 +4367,11 @@ def shard_run_frontend_aarch64_2_of_2() {
               ci_setup(ci_arm)
               sh (
                 script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_frontend_cpu.sh",
-                label: 'Run Python frontend tests',
+                label: 'Run General Python frontend tests',
+              )
+              sh (
+                script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_frontend_aarch64only.sh",
+                label: 'Run AArch64 Python frontend tests',
               )
             })
           }
