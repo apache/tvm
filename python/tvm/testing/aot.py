@@ -572,7 +572,7 @@ def _create_header_file(tensor_name, npy_data, output_path, data_linkage):
 
 
 def convert_to_relay(
-    tflite_model_buf,
+    tflite_model_buf, bind_params_by_name=True
 ):
     """Convert a tflite model buffer in a Relay module"""
     # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
@@ -588,7 +588,8 @@ def convert_to_relay(
         raise ImportError("The tflite package must be installed")
 
     mod, params = relay.frontend.from_tflite(tflite_model)
-    mod["main"] = relay.build_module.bind_params_by_name(mod["main"], params)
+    if bind_params_by_name:
+        mod["main"] = relay.build_module.bind_params_by_name(mod["main"], params)
     return mod, params
 
 
@@ -836,7 +837,8 @@ def run_and_check(
             assert AOT_SUCCESS_TOKEN in run_log.read()
 
     if test_dir is None:
-        tmpdir = utils.tempdir()
+        tmpdir = utils.tempdir(keep_for_debug=True)
+        print(tmpdir.path)
         run_and_check_body(os.path.join(tmpdir.path, "test"))
     else:
         run_and_check_body(test_dir)
@@ -931,20 +933,23 @@ def generate_ref_data(mod, input_data, params=None, target="llvm"):
     return dict(zip(output_tensor_names, out))
 
 
-def create_relay_module_and_inputs_from_tflite_file(tflite_model_file):
+def create_relay_module_and_inputs_from_tflite_file(tflite_model_file, bind_params_by_name=True):
     """A helper function to create a Relay IRModule with inputs
     and params from a tflite file"""
     with open(tflite_model_file, "rb") as f:
         tflite_model_buf = f.read()
-    mod, params = convert_to_relay(tflite_model_buf)
+    mod, params = convert_to_relay(tflite_model_buf, bind_params_by_name)
 
     inputs = dict()
     for param in mod["main"].params:
         name = str(param.name_hint)
         data_shape = [int(i) for i in param.type_annotation.shape]
         dtype = str(param.type_annotation.dtype)
-        in_min, in_max = (np.iinfo(dtype).min, np.iinfo(dtype).max)
-        data = np.random.randint(in_min, high=in_max, size=data_shape, dtype=dtype)
+        if dtype == "float32":
+            data = np.random.uniform(size=data_shape).astype("float32")
+        else:
+            in_min, in_max = (np.iinfo(dtype).min, np.iinfo(dtype).max)
+            data = np.random.randint(in_min, high=in_max, size=data_shape, dtype=dtype)
         inputs[name] = data
 
     return mod, inputs, params
