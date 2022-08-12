@@ -59,7 +59,11 @@ It is also possible to :ref:`build the runtime <deploy-and-integration>` library
 
 The minimal building requirements for the ``TVM`` libraries are:
 
-   - A recent c++ compiler supporting C++ 14 (g++-5 or higher)
+   - A recent C++ compiler supporting C++ 17, at the minimum
+      - GCC 7.1
+      - Clang 5.0
+      - Apple Clang 9.3
+      - Visual Studio 2019 (v16.7)
    - CMake 3.10 or higher
    - We highly recommend to build with LLVM to enable all the features.
    - If you want to use CUDA, CUDA toolkit version >= 8.0 is required. If you are upgrading from an older version, make sure you purge the older version and reboot after installation.
