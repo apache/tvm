@@ -30,6 +30,7 @@
 #include <algorithm>
 
 #include "../node/attr_registry.h"
+#include "./parsers/cpu.h"
 
 namespace tvm {
 
@@ -281,7 +282,8 @@ TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
     .set_default_keys({"cpu"})
     // Force the external codegen kind attribute to be registered, even if no external
     // codegen targets are enabled by the TVM build.
-    .set_attr<Bool>(tvm::attr::kIsExternalCodegen, Bool(false));
+    .set_attr<Bool>(tvm::attr::kIsExternalCodegen, Bool(false))
+    .set_target_parser(tvm::target::parsers::cpu::ParseTarget);
 
 TVM_REGISTER_TARGET_KIND("c", kDLCPU)
     .add_attr_option<Bool>("system-lib")
@@ -294,7 +296,8 @@ TVM_REGISTER_TARGET_KIND("c", kDLCPU)
     .add_attr_option<Integer>("constants-byte-alignment")
     .add_attr_option<Bool>("unpacked-api")
     .add_attr_option<String>("interface-api")
-    .set_default_keys({"cpu"});
+    .set_default_keys({"cpu"})
+    .set_target_parser(tvm::target::parsers::cpu::ParseTarget);
 
 TVM_REGISTER_TARGET_KIND("cuda", kDLCUDA)
     .add_attr_option<String>("mcpu")
