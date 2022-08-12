@@ -120,28 +120,7 @@ class FusePadsMutator : public MixedModeMutator {
   /*!
    * \brief Identifies the sequence for qnn.conv2D and fuses the preceding nn.pad present within the
    * CMSIS-NN partitioned function. */
-  Expr FusePadConv2d(const Expr& expr) {
-    const CallNode* clip_call = nullptr;
-    const CallNode* requantize_call = nullptr;
-    const CallNode* bias_add_call = nullptr;
-    const CallNode* conv2d_call = nullptr;
-    auto* final_call = expr.as<CallNode>();
-    auto* final_op = final_call->op.as<OpNode>();
-    if (final_op->name == "clip") {
-      clip_call = final_call;
-      requantize_call = clip_call->args[0].as<CallNode>();
-    } else {
-      requantize_call = final_call;
-    }
-    auto* requantize_input = requantize_call->args[0].as<CallNode>();
-    auto* requantize_input_op = requantize_input->op.as<OpNode>();
-    if (requantize_input_op->name == "nn.bias_add") {
-      bias_add_call = requantize_input;
-      conv2d_call = bias_add_call->args[0].as<CallNode>();
-    } else {
-      conv2d_call = requantize_input;
-    }
-
+  Expr FusePadConv2d(const CallNode* conv2d_call) {
     // create new paddings for qnn.conv2d
     tvm::Attrs new_conv2d_attrs = conv2d_call->attrs;
     Expr new_conv2d_input = conv2d_call->args[0];
@@ -159,31 +138,28 @@ class FusePadsMutator : public MixedModeMutator {
     new_conv2d_args.erase(new_conv2d_args.begin());
     new_conv2d_args.insert(new_conv2d_args.begin(), new_conv2d_input);
     Call ret_call = Call(conv2d_call->op, new_conv2d_args, new_conv2d_attrs, {});
-    if (bias_add_call) {
-      ret_call =
-          Call(bias_add_call->op, {ret_call, bias_add_call->args[1]}, bias_add_call->attrs, {});
-    }
-    auto new_requantize_args = requantize_call->args;
-    new_requantize_args.erase(new_requantize_args.begin());
-    new_requantize_args.insert(new_requantize_args.begin(), ret_call);
-    ret_call = Call(requantize_call->op, new_requantize_args, requantize_call->attrs, {});
-    if (clip_call) {
-      ret_call = Call(clip_call->op, {ret_call}, clip_call->attrs, {});
-    }
     return std::move(ret_call);
   }
 
   Expr Rewrite_(const CallNode* call, const Expr& post) final {
     Expr ret_call = post;
+    auto* post_call = post.as<CallNode>();
+
+    // Fuse nn.pad and qnn.conv2d
+    if (auto* conv2d_op = post_call->op.as<OpNode>()) {
+      if (conv2d_op->name == "qnn.conv2d") {
+        ret_call = FusePadConv2d(post_call);
+      }
+    }
+
     // Identify qnn.conv2d partitioned function
-    if (call->op.as<FunctionNode>()) {
+    if (post_call->op.as<FunctionNode>()) {
       auto* func = call->op.as<FunctionNode>();
       auto func_name = func->GetAttr<String>(attr::kComposite);
       if (func_name.defined() && func_name == "cmsis-nn.qnn_conv2d") {
-        Expr new_body = FusePadConv2d(func->body);
+        Expr new_body = VisitExpr(func->body);
         Function new_func = Function(FreeVars(new_body), new_body, func->ret_type,
                                      FreeTypeVars(new_body, mod_), func->attrs);
-        auto* post_call = post.as<CallNode>();
         ret_call = Call(new_func, post_call->args);
       }
     }
