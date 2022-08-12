@@ -264,12 +264,7 @@ TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
     .add_attr_option<String>("mtriple")
     .add_attr_option<String>("mfloat-abi")
     .add_attr_option<String>("mabi")
-    .add_attr_option<Bool>("system-lib")
-    .add_attr_option<String>("runtime")
     .add_attr_option<Integer>("num-cores")
-    .add_attr_option<Bool>("link-params", Bool(false))
-    .add_attr_option<Bool>("unpacked-api")
-    .add_attr_option<String>("interface-api")
     // Fast math flags, see https://llvm.org/docs/LangRef.html#fast-math-flags
     .add_attr_option<Bool>("fast-math")  // implies all the below
     .add_attr_option<Bool>("fast-math-nnan")
@@ -286,23 +281,16 @@ TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
     .set_target_parser(tvm::target::parsers::cpu::ParseTarget);
 
 TVM_REGISTER_TARGET_KIND("c", kDLCPU)
-    .add_attr_option<Bool>("system-lib")
-    .add_attr_option<Bool>("link-params", Bool(false))
-    .add_attr_option<String>("runtime")
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("march")
-    .add_attr_option<String>("executor")
     .add_attr_option<Integer>("workspace-byte-alignment")
     .add_attr_option<Integer>("constants-byte-alignment")
-    .add_attr_option<Bool>("unpacked-api")
-    .add_attr_option<String>("interface-api")
     .set_default_keys({"cpu"})
     .set_target_parser(tvm::target::parsers::cpu::ParseTarget);
 
 TVM_REGISTER_TARGET_KIND("cuda", kDLCUDA)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("arch")
-    .add_attr_option<Bool>("system-lib")
     .add_attr_option<Integer>("max_shared_memory_per_block")
     .add_attr_option<Integer>("max_threads_per_block")
     .add_attr_option<Integer>("thread_warp_size", Integer(32))
@@ -314,7 +302,6 @@ TVM_REGISTER_TARGET_KIND("cuda", kDLCUDA)
 TVM_REGISTER_TARGET_KIND("nvptx", kDLCUDA)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("mtriple")
-    .add_attr_option<Bool>("system-lib")
     .add_attr_option<Integer>("max_num_threads", Integer(1024))
     .add_attr_option<Integer>("thread_warp_size", Integer(32))
     .set_default_keys({"cuda", "gpu"})
@@ -324,7 +311,6 @@ TVM_REGISTER_TARGET_KIND("rocm", kDLROCM)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("mtriple")
     .add_attr_option<Array<String>>("mattr")
-    .add_attr_option<Bool>("system-lib")
     // TODO(masahi): Support querying from a target device
     // On RDNA cards, thread_warp_size should be 32
     .add_attr_option<Integer>("max_num_threads", Integer(256))
@@ -335,7 +321,6 @@ TVM_REGISTER_TARGET_KIND("rocm", kDLROCM)
     .set_target_parser(UpdateROCmAttrs);
 
 TVM_REGISTER_TARGET_KIND("opencl", kDLOpenCL)
-    .add_attr_option<Bool>("system-lib")
     .add_attr_option<Integer>("max_num_threads", Integer(256))
     .add_attr_option<Integer>("thread_warp_size", Integer(1))
     .add_attr_option<Integer>("texture_spatial_limit", Integer(16384))
@@ -346,7 +331,6 @@ TVM_REGISTER_TARGET_KIND("opencl", kDLOpenCL)
 // information about this limitation can be found here:
 // https://developer.apple.com/documentation/metal/buffers/about_argument_buffers?language=objc
 TVM_REGISTER_TARGET_KIND("metal", kDLMetal)
-    .add_attr_option<Bool>("system-lib")
     .add_attr_option<Integer>("max_num_threads", Integer(256))
     .add_attr_option<Integer>("thread_warp_size", Integer(16))
     .add_attr_option<Integer>("max_function_args", Integer(31))
@@ -354,7 +338,6 @@ TVM_REGISTER_TARGET_KIND("metal", kDLMetal)
 
 TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
     .add_attr_option<Array<String>>("mattr")
-    .add_attr_option<Bool>("system-lib")
     // Feature support
     .add_attr_option<Bool>("supports_float16")
     .add_attr_option<Bool>("supports_float32", Bool(true))
@@ -393,39 +376,32 @@ TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
     .set_default_keys({"vulkan", "gpu"});
 
 TVM_REGISTER_TARGET_KIND("webgpu", kDLWebGPU)
-    .add_attr_option<Bool>("system-lib")
     .add_attr_option<Integer>("max_num_threads", Integer(256))
     .set_default_keys({"webgpu", "gpu"});
 
 TVM_REGISTER_TARGET_KIND("sdaccel", kDLOpenCL)
-    .add_attr_option<Bool>("system-lib")
     .set_default_keys({"sdaccel", "hls"});
 
 TVM_REGISTER_TARGET_KIND("aocl", kDLAOCL)
-    .add_attr_option<Bool>("system-lib")
     .set_default_keys({"aocl", "hls"});
 
 TVM_REGISTER_TARGET_KIND("aocl_sw_emu", kDLAOCL)
-    .add_attr_option<Bool>("system-lib")
     .set_default_keys({"aocl", "hls"});
 
 TVM_REGISTER_TARGET_KIND("hexagon", kDLHexagon)
     .add_attr_option<Array<String>>("mattr")
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("mtriple")
-    .add_attr_option<Bool>("system-lib")
-    .add_attr_option<Bool>("link-params", Bool(false))
+    // .add_attr_option<Bool>("system-lib")
+    // .add_attr_option<Bool>("link-params", Bool(false))
     .add_attr_option<Array<String>>("llvm-options")
     .set_default_keys({"hexagon"});
 
-TVM_REGISTER_TARGET_KIND("stackvm", kDLCPU)  // line break
-    .add_attr_option<Bool>("system-lib");
+TVM_REGISTER_TARGET_KIND("stackvm", kDLCPU);  // line break
 
-TVM_REGISTER_TARGET_KIND("ext_dev", kDLExtDev)  // line break
-    .add_attr_option<Bool>("system-lib");
+TVM_REGISTER_TARGET_KIND("ext_dev", kDLExtDev);  // line break
 
-TVM_REGISTER_TARGET_KIND("hybrid", kDLCPU)  // line break
-    .add_attr_option<Bool>("system-lib");
+TVM_REGISTER_TARGET_KIND("hybrid", kDLCPU);  // line break
 
 TVM_REGISTER_TARGET_KIND("composite", kDLCPU)  // line break
     .add_attr_option<Array<Target>>("devices");
