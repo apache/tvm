@@ -284,6 +284,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
         limit_zero_time_iterations=100,
         cooldown_interval_ms=0,
         repeats_to_cooldown=1,
+        sort_by_time=True,
         **input_dict,
     ):
         """Run forward execution of the graph with debug
@@ -320,6 +321,9 @@ class GraphModuleDebug(graph_executor.GraphModule):
         repeats_to_cooldown: int, optional
             The number of repeats before the cooldown is activated.
 
+        sort_by_time: bool, optional
+            Whether to sort the debug output by time.
+
         input_dict : dict of str to NDArray
             List of input values to be feed to
         """
@@ -340,7 +344,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
         # Step 3. Dump the Chrome trace to the dump folder
         self.debug_datum.dump_chrome_trace()
         # Step 4. Display the collected information
-        self.debug_datum.display_debug_result()
+        self.debug_datum.display_debug_result(sort_by_time)
 
     def run_individual(
         self,
