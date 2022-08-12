@@ -4362,6 +4362,9 @@ def test_all_any():
         verify_model(test_fn(f, 0), [torch.arange(0, 3).to(torch.uint8)])
         verify_model(test_fn(f, 1), [torch.rand(4, 2).bool()])
         verify_model(test_fn(f, 0, keepdim=True), [torch.rand(4, 2).bool()])
+        # with no default dim and keepdim
+        verify_model(f, [torch.rand(1, 2).bool()])
+        verify_model(f, [torch.arange(0, 3).to(torch.uint8)])
 
 
 @tvm.testing.uses_gpu
