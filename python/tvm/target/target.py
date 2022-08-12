@@ -723,8 +723,8 @@ def hexagon(cpu_ver="v66", **kwargs):
         """Create LLVM options string."""
 
         llvm_options = config["llvm_options"]
-        
-        #To enable auto-vectorization for v68 target added the below llvm-option by default
+
+        # To enable auto-vectorization for v68 target added the below llvm-option by default
         if arch_version == 68:
             if not llvm_options:
                 llvm_options = ""
