@@ -30,7 +30,7 @@ namespace script {
 namespace printer {
 
 /*!
- * \breif Variable Table manages mapping from variable object to ExprDoc during
+ * \brief Variable Table manages mapping from variable object to ExprDoc during
  * the process of printing TVMScript.
  *
  * The value type of this map is ExprDoc rather than IdDoc or String. It's
@@ -122,7 +122,7 @@ class VarTableNode : public Object {
 };
 
 /*!
- * \breif Reference type of VarTableNode.
+ * \brief Reference type of VarTableNode.
  */
 class VarTable : public ObjectRef {
  public:
