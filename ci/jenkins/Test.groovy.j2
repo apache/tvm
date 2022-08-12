@@ -183,7 +183,11 @@
   ci_setup(ci_arm)
   sh (
     script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_frontend_cpu.sh",
-    label: 'Run Python frontend tests',
+    label: 'Run General Python frontend tests',
+  )
+  sh (
+    script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_frontend_aarch64only.sh",
+    label: 'Run AArch64 Python frontend tests',
   )
 {% endcall %}
 {% call(shard_index, num_shards) m.sharded_test_step(
