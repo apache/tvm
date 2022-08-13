@@ -221,12 +221,21 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
   }
   if (const auto* block = sref->StmtAs<BlockNode>()) {
     auto body = block->body;
+    std::vector<const AllocateConstNode*> allocs;
     while (const auto* alloc = body.as<AllocateConstNode>()) {
+      allocs.push_back(alloc);
       body = alloc->body;
     }
     if (const auto* seq = body.as<SeqStmtNode>()) {
       ObjectPtr<BlockNode> n = make_object<BlockNode>(*block);
-      n->body = RemoveFromSeqStmt(GetRef<SeqStmt>(seq), GetRef<Stmt>(last_stmt));
+      auto new_seq = RemoveFromSeqStmt(GetRef<SeqStmt>(seq), GetRef<Stmt>(last_stmt));
+      auto new_body = new_seq;
+      for (int i = 0; i < allocs.size(); ++i) {
+        auto alloc = allocs[allocs.size() - 1 - i];
+        new_body = AllocateConst(alloc->buffer_var, alloc->dtype, alloc->extents, alloc->data,
+                                 new_body, alloc->annotations, alloc->span);
+      }
+      n->body = new_body;
       *src_stmt = GetRef<Stmt>(block);
       *tgt_stmt = Stmt(std::move(n));
       return;
