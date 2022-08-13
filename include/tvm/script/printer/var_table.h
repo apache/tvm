@@ -88,8 +88,8 @@ class VarTableNode : public Object {
    *
    * This function takes a DocFactory instead of Doc. It's because GetVarDoc needs to
    * return a new Doc object every time it's called, as the returned doc will have
-   * different `soruce_path`. Currently there isn't a good way to deep copy a TVMObject 
-   * so VarTable needs to call a factory function to get a freshly-constructed Doc object 
+   * different `soruce_path`. Currently there isn't a good way to deep copy a TVMObject
+   * so VarTable needs to call a factory function to get a freshly-constructed Doc object
    * every time GetVarDoc is called.
    */
   void DefineByDoc(const ObjectRef& obj, DocFactory doc_factory, const Frame& frame);
