@@ -4623,7 +4623,7 @@ def test_all_any():
         return lambda x: f(x, dim=dim, keepdim=keepdim)
 
     def test_fn_no_arg(f):
-        return lambda x: f(x)
+        return lambda x: f(x)  # pylint: disable=unnecessary-lambda
 
     for f in [torch.all, torch.any]:
         verify_model(test_fn(f, 0), [torch.rand(1, 2).bool()])
