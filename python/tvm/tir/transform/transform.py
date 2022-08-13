@@ -949,3 +949,14 @@ def RemoveWeightLayoutRewriteBlock():
         The result pass
     """
     return _ffi_api.RemoveWeightLayoutRewriteBlock()  # type: ignore
+
+
+def ManifestSharedMemoryLocalStage():
+    """Add the explicit local stage for the shared memory access on GPU.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.ManifestSharedMemoryLocalStage()  # type: ignore

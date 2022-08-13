@@ -674,6 +674,12 @@ TVM_DLL Pass InjectPTXAsyncCopy();
  */
 TVM_DLL Pass RemoveWeightLayoutRewriteBlock();
 
+/*!
+ * \brief Add the explicit local stage for the shared memory access on GPU.
+ * \return The pass.
+ */
+TVM_DLL Pass ManifestSharedMemoryLocalStage();
+
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm
