@@ -423,6 +423,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
  */
 template <typename T>
 void NDArrayToTIR(::tvm::runtime::NDArray arr, std::ostream& os) {
+  return;
   int ndim = arr->ndim;
   int tot_dim = 1;
   for (int i = 0; i < ndim; i++) {
@@ -1121,6 +1122,16 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateConstNode* alloc) {
       NDArrayToTIR<int16_t>(data, ss);
     } else if (alloc->dtype.bits() == 32) {
       NDArrayToTIR<int32_t>(data, ss);
+    } else {
+      LOG(FATAL) << "DataType not supported";
+    }
+  } else if (alloc->dtype.is_uint()) {
+    if (alloc->dtype.bits() == 8) {
+      // NDArrayToTIR<uint8_t>(data, ss);
+    } else if (alloc->dtype.bits() == 16) {
+      NDArrayToTIR<uint16_t>(data, ss);
+    } else if (alloc->dtype.bits() == 32) {
+      NDArrayToTIR<uint32_t>(data, ss);
     } else {
       LOG(FATAL) << "DataType not supported";
     }

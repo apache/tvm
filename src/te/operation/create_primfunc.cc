@@ -27,6 +27,7 @@
 #include <unordered_set>
 
 #include "../../tir/ir/functor_common.h"
+#include "../../tir/transforms/ir_utils.h"
 #include "../schedule/graph.h"
 
 namespace tvm {
@@ -427,7 +428,7 @@ void RewriteStageToBlock(const te::Operation& op, CreateFuncInfo* info, Array<St
     ICHECK_EQ(op->num_outputs(), 1);
     const te::Tensor& tensor = op.output(0);
     // Check op is in op list
-    ICHECK(info->IsArg(tensor));
+    ICHECK(info->IsArg(tensor)) << tensor;
     // Declare a buffer for any argument tensors without a pre-existing
     // buffer declaration recorded in the tensor2buffer binds map
     if (info->tensor2buffers.count(tensor) == 0) {
@@ -490,6 +491,12 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list) {
   }
   // Step 4. Create func and complete prim func.
   return GenerateAndCompletePrimFunc(arg_list, root_stmts, &info);
+}
+
+PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
+                                     const Array<runtime::NDArray>& constants) {
+  PrimFunc func = CreatePrimFunc(arg_list);
+  return tir::BindParams(func, constants);
 }
 
 TVM_REGISTER_GLOBAL("te.CreatePrimFunc").set_body_typed(CreatePrimFunc);

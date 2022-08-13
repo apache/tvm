@@ -311,6 +311,7 @@ std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const
 // attr::async_wait_queue_scope annotation.
 std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op);
 
+PrimFunc BindParams(PrimFunc f, const Array<runtime::NDArray>& constants);
 }  // namespace tir
 }  // namespace tvm
 #endif  // TVM_TIR_TRANSFORMS_IR_UTILS_H_

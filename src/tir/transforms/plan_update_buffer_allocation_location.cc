@@ -112,7 +112,7 @@ class BufferAllocationLocator : public StmtExprMutator {
     }
 
     ObjectPtr<BlockNode> n = CopyOnWrite(op);
-    n->alloc_buffers = std::move(alloc_buffers);
+    // n->alloc_buffers = std::move(alloc_buffers);
     // Erase buffer allocated inside the block from access region.
     n->reads = RemoveRedundantBufferRegion(n->reads);
     n->writes = RemoveRedundantBufferRegion(n->writes);

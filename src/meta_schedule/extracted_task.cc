@@ -38,7 +38,9 @@ ExtractedTask::ExtractedTask(String task_name, IRModule mod, Target target,
   data_ = n;
 }
 
-Optional<tir::PrimFunc> DefaultTaskFilterImpl(const Array<te::Tensor>& args, bool allow_extern_op) {
+Optional<tir::PrimFunc> DefaultTaskFilterImpl(const Array<te::Tensor>& args,
+                                              const Array<runtime::NDArray>& constants,
+                                              bool allow_extern_op) {
   using namespace ::tvm::te;
   std::vector<Tensor> stack;
   std::unordered_set<const TensorNode*> visited;
@@ -72,7 +74,7 @@ Optional<tir::PrimFunc> DefaultTaskFilterImpl(const Array<te::Tensor>& args, boo
       return NullOpt;
     }
   }
-  PrimFunc func = te::CreatePrimFunc(args);
+  PrimFunc func = te::CreatePrimFuncWithConstants(args, constants);
   bool dynamic_loop_extent = false;
   PostOrderVisit(func->body, [&dynamic_loop_extent](const ObjectRef& obj) -> void {
     if (const auto* loop = obj.as<tir::ForNode>()) {
@@ -87,12 +89,14 @@ Optional<tir::PrimFunc> DefaultTaskFilterImpl(const Array<te::Tensor>& args, boo
   return func;
 }
 
-Optional<tir::PrimFunc> DefaultTaskFilter(const Array<te::Tensor>& args) {
-  return DefaultTaskFilterImpl(args, false);
+Optional<tir::PrimFunc> DefaultTaskFilter(const Array<te::Tensor>& args,
+                                          const Array<runtime::NDArray>& constants) {
+  return DefaultTaskFilterImpl(args, constants, false);
 }
 
-Optional<tir::PrimFunc> DefaultTaskFilterAllowExtern(const Array<te::Tensor>& args) {
-  return DefaultTaskFilterImpl(args, true);
+Optional<tir::PrimFunc> DefaultTaskFilterAllowExtern(const Array<te::Tensor>& args,
+                                                     const Array<runtime::NDArray>& constants) {
+  return DefaultTaskFilterImpl(args, constants, true);
 }
 
 TVM_REGISTER_NODE_TYPE(ExtractedTaskNode);
@@ -101,8 +105,15 @@ TVM_REGISTER_GLOBAL("meta_schedule.ExtractedTask")
                        int weight) -> ExtractedTask {
       return ExtractedTask(task_name, mod, target, dispatched, weight);
     });
-TVM_REGISTER_GLOBAL("meta_schedule.DefaultTaskFilter").set_body_typed(DefaultTaskFilter);
+
+TVM_REGISTER_GLOBAL("meta_schedule.DefaultTaskFilter")
+    .set_body_typed([](const Array<te::Tensor>& args, const Array<runtime::NDArray>& constants) {
+      return DefaultTaskFilter(args, constants);
+    });
+
 TVM_REGISTER_GLOBAL("meta_schedule.DefaultTaskFilterAllowExtern")
-    .set_body_typed(DefaultTaskFilterAllowExtern);
+    .set_body_typed([](const Array<te::Tensor>& args, const Array<runtime::NDArray>& constants) {
+      return DefaultTaskFilterAllowExtern(args, constants);
+    });
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -220,7 +220,11 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
     }
   }
   if (const auto* block = sref->StmtAs<BlockNode>()) {
-    if (const auto* seq = block->body.as<SeqStmtNode>()) {
+    auto body = block->body;
+    while (const auto* alloc = body.as<AllocateConstNode>()) {
+      body = alloc->body;
+    }
+    if (const auto* seq = body.as<SeqStmtNode>()) {
       ObjectPtr<BlockNode> n = make_object<BlockNode>(*block);
       n->body = RemoveFromSeqStmt(GetRef<SeqStmt>(seq), GetRef<Stmt>(last_stmt));
       *src_stmt = GetRef<Stmt>(block);
