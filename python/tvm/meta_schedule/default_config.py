@@ -293,7 +293,7 @@ class _DefaultCUDA:
                 structure="SSSRRSRS",
                 tile_binds=["blockIdx.x", "vthread.x", "threadIdx.x"],
                 max_innermost_factor=64,
-                vector_load_lens=[1, 2, 3, 4],
+                vector_load_lens=[1, 2, 3, 4, 8, 16],
                 reuse_read=M.ReuseType(
                     req="must",
                     levels=[4],
@@ -374,7 +374,7 @@ class _DefaultCUDATensorCore:
                 structure="SSSRRSRS",
                 tile_binds=["blockIdx.y", "blockIdx.x", "threadIdx.y"],
                 max_innermost_factor=4,
-                vector_load_lens=[1, 2, 3, 4],
+                vector_load_lens=[1, 2, 3, 4, 8, 16],
                 reuse_read=M.ReuseType(req="must", levels=[4], scope="shared"),
                 reuse_write=M.ReuseType(
                     req="must",
