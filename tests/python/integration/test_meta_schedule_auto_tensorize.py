@@ -394,7 +394,7 @@ def test_cuda_tensor_core(model_name, input_shape):
             )
         print(profiler.table())
 
-        # Compile without MetaScheduler for correctness check
+        # Compile without MetaSchedule for correctness check
         with tvm.transform.PassContext(opt_level=0):
             rt_mod2 = relay.build(mod, target=target, params=params)
 
