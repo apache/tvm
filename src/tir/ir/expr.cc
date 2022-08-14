@@ -840,9 +840,10 @@ TVM_REGISTER_GLOBAL("tir.Call")
           for (Range r : br->region) {
             if (is_one(r->extent)) {
               indices.push_back(r->min);
+            } else if (const auto* extent = r->extent.as<IntImmNode>()) {
+              indices.push_back(tir::Ramp(r->min, make_const(r->min->dtype, 1), extent->value));
             } else {
-              indices.push_back(tir::Ramp(r->min, make_const(r->min->dtype, 1),
-                                          Downcast<IntImm>(r->extent)->value));
+              LOG(FATAL) << "ValueError: Cannot convert to BufferLoad: " << br;
             }
           }
           prim_expr_args.push_back(BufferLoad(br->buffer, indices));
