@@ -54,10 +54,10 @@ PrimExpr PrimExpr::FromObject_(ObjectRef ref) {
     Array<PrimExpr> indices;
     indices.reserve(buffer_region->region.size());
     for (const Range& r : buffer_region->region) {
-      if (is_one(r->extent)) {
+      if (tvm::tir::is_one(r->extent)) {
         indices.push_back(r->min);
       } else if (const auto* extent = r->extent.as<IntImmNode>()) {
-        indices.push_back(tir::Ramp(r->min, make_const(r->min->dtype, 1), extent->value));
+        indices.push_back(tir::Ramp(r->min, tvm::tir::make_const(r->min->dtype, 1), extent->value));
       } else {
         LOG(FATAL) << "ValueError: Cannot convert to BufferLoad: " << ref;
       }
