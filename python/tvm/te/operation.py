@@ -22,9 +22,9 @@ from numbers import Integral as _Integral
 from typing import List
 
 import tvm._ffi
+import tvm.arith._ffi_api
 import tvm.tir
 import tvm.tir._ffi_api
-import tvm.arith._ffi_api
 from tvm._ffi.base import string_types
 from tvm.ir import Array
 from tvm.runtime import convert
@@ -420,11 +420,13 @@ def extern_primfunc(input_tensors: List[_tensor.Tensor], primfunc: tvm.tir.PrimF
     )
     for tensor, buffer in zip(input_tensors, input_buffers):
         # TODO(csullivan): Can a stronger comparison between Tensor<>Buffer be made?
-        assert tensor.shape == buffer.shape, (
-            "The input input_tensors provided do not match the input buffers in the ",
-            "primfunc. Please check that the order of input te.Input_Tensors and the ",
-            "order of the primfunc variables in the params list agree.",
-        )
+        assert len(tensor.shape) == len(buffer.shape)
+        for d1, d2 in zip(tensor.shape, buffer.shape):
+            assert d1 == d2, (
+                "The input input_tensors provided do not match the input buffers in the ",
+                "primfunc. Please check that the order of input te.Input_Tensors and the ",
+                "order of the primfunc variables in the params list agree.",
+            )
     output = extern(
         [buf.shape for buf in outputs],
         input_tensors,
