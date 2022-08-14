@@ -31,8 +31,8 @@ from tvm.meta_schedule.tune_context import TuneContext
 from tvm.script import tir as T
 from tvm.target import Target
 from tvm.te import create_prim_func
-from tvm.tir.tensor_intrin import DP4A_INTRIN
-from tvm.tir.tensor_intrin import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
+from tvm.tir.tensor_intrin.arm_cpu import DP4A_INTRIN
+from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 
 
 def _create_context(mod, target, rule) -> TuneContext:
