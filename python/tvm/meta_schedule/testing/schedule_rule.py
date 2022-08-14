@@ -16,6 +16,7 @@
 # under the License.
 """Default schedule rules"""
 from typing import List, Union
+
 from tvm.meta_schedule.schedule_rule import (
     AddRFactor,
     AutoBind,
@@ -28,7 +29,6 @@ from tvm.meta_schedule.schedule_rule import (
     ScheduleRule,
 )
 from tvm.meta_schedule.schedule_rule.multi_level_tiling import MultiLevelTilingTensorCore
-from tvm.tir import tensor_intrin
 from tvm.target import Target
 
 
@@ -130,8 +130,10 @@ def multi_level_tiling_tensor_core(
         trans_b = [trans_b]
 
     if target.kind.name == "cuda":
+        from tvm.tir.tensor_intrin import cuda  # pylint: disable=import-outside-toplevel
+
         intrin_groups = [
-            tensor_intrin.get_wmma_intrin_group(write_reuse_scope, _in_dtype, _out_dtype, _trans_b)
+            cuda.get_wmma_intrin_group(write_reuse_scope, _in_dtype, _out_dtype, _trans_b)
             for _in_dtype in in_dtype
             for _out_dtype in out_dtype
             for _trans_b in trans_b

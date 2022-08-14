@@ -357,7 +357,7 @@ class _DefaultCUDATensorCore:
     @staticmethod
     def schedule_rules():
         from tvm.meta_schedule import schedule_rule as M
-        from tvm.tir.tensor_intrin import get_wmma_intrin_group
+        from tvm.tir.tensor_intrin.cuda import get_wmma_intrin_group
 
         return [
             M.MultiLevelTilingTensorCore(
