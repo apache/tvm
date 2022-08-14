@@ -640,7 +640,7 @@ class ForScopeHandler(ScopeHandler):
         assert self.context and self.node, "call 'exit_scope' before 'enter_scope'"
         extent = end if begin == 0 else self.context.analyzer.simplify(end - begin)
         if begin == 0 and isinstance(extent, PrimExpr):
-            begin = IntImm(extent.dtype, 0)
+            begin = IntImm(extent.dtype, 0, begin.span)
         self.annotations: Mapping[str, Object] = {}
         if annotations is not None:
             self.annotations = {
