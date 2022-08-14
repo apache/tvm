@@ -21,6 +21,7 @@
  * \file src/ir/expr.cc
  * \brief The expression AST nodes for the common IR infra.
  */
+#include <tvm/arith/analyzer.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
 #include <tvm/runtime/registry.h>
@@ -48,6 +49,20 @@ PrimExpr PrimExpr::FromObject_(ObjectRef ref) {
   }
   if (auto* ptr = ref.as<runtime::StringObj>()) {
     return tir::StringImm(GetRef<runtime::String>(ptr));
+  }
+  if (const auto* buffer_region = ref.as<tir::BufferRegionNode>()) {
+    Array<PrimExpr> indices;
+    indices.reserve(buffer_region->region.size());
+    for (const Range& r : buffer_region->region) {
+      if (tvm::tir::is_one(r->extent)) {
+        indices.push_back(r->min);
+      } else if (const auto* extent = r->extent.as<IntImmNode>()) {
+        indices.push_back(tir::Ramp(r->min, tvm::tir::make_const(r->min->dtype, 1), extent->value));
+      } else {
+        LOG(FATAL) << "ValueError: Cannot convert to BufferLoad: " << ref;
+      }
+    }
+    return tir::BufferLoad(buffer_region->buffer, indices);
   }
   Optional<String> actual_type = ObjectTypeChecker<PrimExpr>::CheckAndGetMismatch(ref.get());
   ICHECK(!actual_type.defined()) << "Expected type " << ObjectTypeChecker<PrimExpr>::TypeName()
