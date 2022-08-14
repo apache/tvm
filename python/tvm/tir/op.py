@@ -373,6 +373,100 @@ def tvm_stack_make_array(data, shape, strides, ndim, arr_dtype, elem_offset):
     )
 
 
+def ptx_ldmatrix(dtype, trans, num, type, local_ptr, local_offset, smem_ptr, smem_offset):
+    """TVM intrinsic for ptx load matrix from shared memory
+
+    Parameters
+    ----------
+    dtype : str
+       The data type of the result.
+
+    trans : bool
+
+    num : IntImm
+
+    type : str
+
+    local_ptr : Var
+
+    local_offset : Expr
+
+    smem_ptr : Var
+
+    smem_offset : Expr
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        dtype,
+        "tir.ptx_ldmatrix",
+        trans,
+        num,
+        type,
+        local_ptr,
+        local_offset,
+        smem_ptr,
+        smem_offset,
+    )
+
+
+def ptx_cp_async(dtype, shared_ptr, shared_offset, global_ptr, global_offset, bytes):
+    """TVM intrinsic for ptx async copy from global to shared memory
+
+    Parameters
+    ----------
+    dtype : str
+       The data type of the result.
+
+    shared_ptr : Var
+
+    shared_offset : Expr
+
+    global_ptr : Var
+
+    global_offset : Expr
+
+    bytes : int
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        dtype, "tir.ptx_cp_async", shared_ptr, shared_offset, global_ptr, global_offset, bytes
+    )
+
+
+def ptx_commit_group():
+    """TVM intrinsic for ptx async copy commit
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("", "tir.ptx_commit_group")
+
+
+def ptx_wait_group(num):
+    """TVM intrinsic for ptx async copy wait
+
+    Parameters
+    ----------
+    num : int
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("", "tir.ptx_wait_group", num)
+
+
 def ret(val):
     """Create a tir return expression
 
