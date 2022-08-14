@@ -50,14 +50,16 @@ PrimExpr PrimExpr::FromObject_(ObjectRef ref) {
   if (auto* ptr = ref.as<runtime::StringObj>()) {
     return tir::StringImm(GetRef<runtime::String>(ptr));
   }
-  if (auto* ptr = ref.as<tir::BufferRegionNode>()) {
-    tir::BufferRegion buffer_region = GetRef<tir::BufferRegion>(ptr);
+  if (const auto* buffer_region = ref.as<tir::BufferRegionNode>()) {
     Array<PrimExpr> indices;
-    for (Range r : buffer_region->region) {
-      if (arith::Analyzer().CanProveEqual(r->extent, 1)) {
+    indices.reserve(buffer_region->region.size());
+    for (const Range& r : buffer_region->region) {
+      if (is_one(r->extent)) {
         indices.push_back(r->min);
+      } else if (const auto* extent = r->extent.as<IntImmNode>()) {
+        indices.push_back(tir::Ramp(r->min, make_const(r->min->dtype, 1), extent->value));
       } else {
-        indices.push_back(tir::Ramp(r->min, 1, Downcast<IntImm>(r->extent)->value));
+        LOG(FATAL) << "ValueError: Cannot convert to BufferLoad: " << ref;
       }
     }
     return tir::BufferLoad(buffer_region->buffer, indices);
