@@ -394,7 +394,7 @@ class IndexMap(Object):
                 raise TypeError(
                     "Expected mapping function to return list of "
                     "either tvm.ir.PrimExpr or IndexMap.AXIS_SEPARATOR.  "
-                    "Instead received {val} of type {type(val)}."
+                    f"Instead received {val} of type {type(val)}."
                 )
 
         return IndexMap(initial_indices, final_indices), axis_separators
