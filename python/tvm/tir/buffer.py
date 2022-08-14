@@ -197,10 +197,11 @@ class Buffer(Object):
                     region.append(Range.from_min_extent(index, 1))
             return BufferRegion(self, region)
         else:
+            analyzer = Analyzer()
             expr_indices = []
             for index in indices:
                 if isinstance(index, slice):
-                    lanes = Analyzer().simplify(
+                    lanes = analyzer.simplify(
                         (index.stop - index.start + index.step - 1) // index.step
                     )
                     if lanes == 1:
