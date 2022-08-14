@@ -29,7 +29,6 @@ from tvm.meta_schedule.schedule_rule import (
     ScheduleRule,
 )
 from tvm.meta_schedule.schedule_rule.multi_level_tiling import MultiLevelTilingTensorCore
-from tvm.tir import tensor_intrin
 from tvm.target import Target
 
 
