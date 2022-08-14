@@ -75,6 +75,8 @@ class With {
   ContextType& operator*() { return *get(); }
   const ContextType* operator*() const { return *get(); }
 
+  ContextType operator()() { return ctx_; }
+
  private:
   /*! \brief internal context type. */
   ContextType ctx_;
