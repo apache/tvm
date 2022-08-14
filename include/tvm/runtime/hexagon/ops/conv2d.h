@@ -17,7 +17,6 @@
  * under the License.
  */
 
-#include <HAP_farf.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
 
@@ -26,34 +25,19 @@
 #ifndef TVM_RUNTIME_HEXAGON_OPS_CONV2D_H_
 #define TVM_RUNTIME_HEXAGON_OPS_CONV2D_H_
 
-#ifdef DEBUG_CONV
-#define DEBUG_BLOCK(X) \
-  { X }
-#define debug(...) FARF(ALWAYS, ##__VA_ARGS__)
-#else
-#define DEBUG_BLOCK(X)
-#define debug(...)
-#endif
-
-#define HAP_CALL(hap_fn, ...)                 \
-  {                                           \
-    int rc = hap_fn(__VA_ARGS__);             \
-    if (rc != 0) {                            \
-      debug("%s failed: rc=%x", #hap_fn, rc); \
-    }                                         \
-  }
-
-namespace detail {
+namespace tvm {
+namespace runtime {
+namespace hexagon {
 static constexpr auto hexagon_device = DLDevice{static_cast<DLDeviceType>(kDLHexagon), 0};
 
 // Standalone DLTensor: the standalone-ness means that this object owns the shape
 // (as opposed to a DLTensor).
-template <size_t N>
+template <size_t NDIM>
 class SDLTensor : public DLTensor {
  public:
   SDLTensor(void* data_ptr, DLDataType data_type, void* data_space, const int64_t* data_dims)
       : SDLTensor(data_ptr, data_type, data_space) {
-    for (size_t i = 0; i != N; ++i) dims[i] = data_dims[i];
+    for (size_t i = 0; i < NDIM; ++i) dims[i] = data_dims[i];
   }
 
   SDLTensor(void* data_ptr, DLDataType data_type, void* data_space,
@@ -66,7 +50,7 @@ class SDLTensor : public DLTensor {
   SDLTensor(void* data_ptr, DLDataType data_type, void* data_space) : data_space(data_space) {
     data = data_ptr;
     device = hexagon_device;
-    ndim = N;
+    ndim = NDIM;
     dtype = data_type;
     shape = dims;
     strides = nullptr;
@@ -74,45 +58,48 @@ class SDLTensor : public DLTensor {
   }
 
   void* data_space = nullptr;
-  int64_t dims[N];
+  int64_t dims[NDIM];
 };
 
 inline void* to_ptr(uintptr_t v) { return reinterpret_cast<void*>(v); }
 
 inline uintptr_t to_uint(void* ptr) { return reinterpret_cast<uintptr_t>(ptr); }
 
-inline constexpr int xyc_to_sm_16b(int y, int x, int c) {
+constexpr int xyc_to_sm_16b(int y, int x, int c) {
   // Map y,x,c coordinates within a block to the offset (in 16-bit elements)
   // from the beginning of the block in spatial-major layout.
   // 10-bit spatial mask: yyyxcccccx
+  assert(y >= 0 && x >= 0 && c >= 0);
   return y << 7 | (x & 2) << 5 | c << 1 | (x & 1);
 }
 
-inline constexpr int hwio_to_sm_16b(int width, int y, int x, int i, int o) {
+constexpr int hwio_to_sm_16b(int width, int y, int x, int i, int o) {
   // Map y,x,i,o coordinates within a chunk (assuming the origin at the
   // top-left spatial corner) to the offset (in 16-bit elements) from the
   // beginning of the chunk in spatial-major layout.
   // Spatial mask: p..piiiioooooi, where p..p are position bits.
+  assert(width >= 1);
+  assert(y >= 0 && x >= 0 && i >= 0 && o >= 0);
   int p = y * width + (width - 1 - x);
   return p << 10 | (i & 0x1e) << 5 | o << 1 | (i & 1);
 }
 
 inline constexpr int round_up(int v, int p2) { return (v + p2 - 1) & -p2; }
 
-constexpr uintptr_t nhwc_at(const DLTensor& a, int n, int y, int x, int c) {
+inline uintptr_t nhwc_at(const DLTensor& a, int n, int y, int x, int c) {
   if (y < 0 || y >= a.shape[1]) return uintptr_t(0);
   auto p = static_cast<uintptr_t*>(a.data);
   assert(n == 0);
   return p[y * a.shape[2] * a.shape[3] + x * a.shape[3] + c];
 }
 
-constexpr uintptr_t hwio_at(const DLTensor& f, int y, int x, int i, int o) {
+inline uintptr_t hwio_at(const DLTensor& f, int y, int x, int i, int o) {
   auto p = static_cast<uintptr_t*>(f.data);
   return p[y * f.shape[1] * f.shape[2] * f.shape[3] + x * f.shape[2] * f.shape[3] + i * f.shape[3] +
            o];
 }
 
-constexpr uint32_t* bias_at(const DLTensor& b, int d) {
+inline uint32_t* bias_at(const DLTensor& b, int d) {
   auto p = static_cast<uint32_t*>(b.data);
   return p + d;
 }
@@ -139,6 +126,8 @@ void release(tvm::runtime::DeviceAPI* device_api, const SDLTensor<N>& tensor) {
   }
 }
 
-}  // namespace detail
+}  // namespace hexagon
+}  // namespace runtime
+}  // namespace tvm
 
 #endif  // TVM_RUNTIME_HEXAGON_OPS_CONV2D_H_

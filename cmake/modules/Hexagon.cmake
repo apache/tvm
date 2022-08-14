@@ -177,9 +177,6 @@ if(BUILD_FOR_HEXAGON)
   file_glob_append(RUNTIME_HEXAGON_SRCS
     "${TVMRT_SOURCE_DIR}/hexagon/ops/*.cc"
   )
-  include_directories(
-    "${TVMRT_SOURCE_DIR}/hexagon/ops"
-  )
 
   set_source_files_properties(
     "${TVMRT_SOURCE_DIR}/hexagon/ops/conv2d_hvx.cc"

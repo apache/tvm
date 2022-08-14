@@ -15,9 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+""" Test conv2d HVX intrinsic implementation"""
+
 import numpy as np
-import pytest
-import sys
 
 import tvm
 import tvm.contrib.hexagon
@@ -25,21 +25,26 @@ from tvm.topi.testing import conv2d_nhwc_python
 
 
 def build_conv2d(target):
-    an, ah, aw, ac = (
-        tvm.te.var("an"),
-        tvm.te.var("ah"),
-        tvm.te.var("aw"),
-        tvm.te.var("ac"),
+    """Build and the return the conv2d module that calls the intrinsic implementation"""
+    act_n, act_h, act_w, act_c = (
+        tvm.te.var("act_n"),
+        tvm.te.var("act_h"),
+        tvm.te.var("act_w"),
+        tvm.te.var("act_c"),
     )
-    fh, fw, fo = tvm.te.var("fh"), tvm.te.var("fw"), tvm.te.var("fo")
+    filt_h, filt_w, filt_o = tvm.te.var("filt_h"), tvm.te.var("fw"), tvm.te.var("filt_o")
     off_l, off_t = tvm.te.var("off_l"), tvm.te.var("off_t")
     stride_h, stride_w = tvm.te.var("stride_h"), tvm.te.var("stride_w")
 
-    act_flat = tvm.te.placeholder(shape=(an, ah, aw, ac), dtype="float16", name="act_flat")
-    wgt_flat = tvm.te.placeholder(shape=(fh, fw, ac, fo), dtype="float16", name="wgt_flat")
+    act_flat = tvm.te.placeholder(
+        shape=(act_n, act_h, act_w, act_c), dtype="float16", name="act_flat"
+    )
+    wgt_flat = tvm.te.placeholder(
+        shape=(filt_h, filt_w, act_c, filt_o), dtype="float16", name="wgt_flat"
+    )
 
     out_flat = tvm.te.extern(
-        shape=(an, (ah - fh) // stride_h + 1, (aw - fw) // stride_w + 1, fo),
+        shape=(act_n, (act_h - filt_h) // stride_h + 1, (act_w - filt_w) // stride_w + 1, filt_o),
         inputs=[act_flat, wgt_flat],
         fcompute=lambda ins, outs: tvm.tir.call_cpacked(
             "conv2d_packed",  # Function from TVM runtime
@@ -70,186 +75,173 @@ def build_conv2d(target):
 
 
 shape_parameters = [
-    {
-        "act_shape": (1, 8, 4, 3),
-        "wgt_shape": (3, 3, 3, 3),
-        "inp_offset": (0, 0),
-        "inp_stride": (1, 1),
-    },
-    {
-        "act_shape": (1, 10, 14, 3),
-        "wgt_shape": (3, 3, 3, 3),
-        "inp_offset": (0, 0),
-        "inp_stride": (1, 1),
-    },
-    {
-        "act_shape": (1, 14, 6, 3),
-        "wgt_shape": (3, 3, 3, 3),
-        "inp_offset": (0, 0),
-        "inp_stride": (1, 1),
-    },
-    {
-        "act_shape": (1, 14, 6, 3),
-        "wgt_shape": (3, 3, 3, 64),
-        "inp_offset": (0, 0),
-        "inp_stride": (1, 1),
-    },
-    {
-        "act_shape": (1, 14, 6, 3),
-        "wgt_shape": (5, 5, 3, 3),
-        "inp_offset": (0, 0),
-        "inp_stride": (1, 1),
-    },
-    {
-        "act_shape": (1, 8, 8, 3),
-        "wgt_shape": (2, 2, 3, 3),
-        "inp_offset": (0, 0),
-        "inp_stride": (1, 1),
-    },
-    {
-        "act_shape": (1, 14, 6, 64),
-        "wgt_shape": (3, 3, 64, 3),
-        "inp_offset": (0, 0),
-        "inp_stride": (1, 1),
-    },
-    {
-        "act_shape": (1, 4, 4, 40),
-        "wgt_shape": (3, 3, 40, 3),
-        "inp_offset": (0, 0),
-        "inp_stride": (1, 1),
-    },
-    {
-        "act_shape": (1, 4, 4, 3),
-        "wgt_shape": (3, 3, 3, 3),
-        "inp_offset": (0, 0),
-        "inp_stride": (1, 1),
-    },
-    {
-        "act_shape": (1, 5, 5, 3),
-        "wgt_shape": (3, 3, 3, 3),
-        "inp_offset": (0, 0),
-        "inp_stride": (1, 1),
-    },
-    {
-        "act_shape": (1, 6, 6, 3),
-        "wgt_shape": (3, 3, 3, 3),
-        "inp_offset": (0, 0),
-        "inp_stride": (1, 1),
-    },
-    {
-        "act_shape": (1, 7, 7, 3),
-        "wgt_shape": (3, 3, 3, 3),
-        "inp_offset": (0, 0),
-        "inp_stride": (1, 1),
-    },
-    {
-        "act_shape": (1, 8, 8, 3),
-        "wgt_shape": (3, 3, 3, 3),
-        "inp_offset": (0, 0),
-        "inp_stride": (1, 1),
-    },
-    {
-        "act_shape": (1, 8, 8, 3),
-        "wgt_shape": (5, 5, 3, 3),
-        "inp_offset": (0, 0),
-        "inp_stride": (1, 1),
-    },
-    {
-        "act_shape": (1, 8, 8, 64),
-        "wgt_shape": (2, 2, 64, 64),
-        "inp_offset": (0, 0),
-        "inp_stride": (1, 1),
-    },
-    {
-        "act_shape": (1, 8, 4, 3),
-        "wgt_shape": (3, 3, 3, 3),
-        "inp_offset": (0, 0),
-        "inp_stride": (2, 2),
-    },
-    {
-        "act_shape": (1, 14, 6, 3),
-        "wgt_shape": (3, 3, 3, 64),
-        "inp_offset": (0, 0),
-        "inp_stride": (2, 2),
-    },
-    {
-        "act_shape": (1, 14, 6, 3),
-        "wgt_shape": (5, 5, 3, 3),
-        "inp_offset": (0, 0),
-        "inp_stride": (2, 2),
-    },
-    {
-        "act_shape": (1, 8, 8, 3),
-        "wgt_shape": (2, 2, 3, 3),
-        "inp_offset": (0, 0),
-        "inp_stride": (2, 2),
-    },
+    (
+        (1, 8, 4, 3),
+        (3, 3, 3, 3),
+        (1, 1),
+    ),
+    (
+        (1, 10, 14, 3),
+        (3, 3, 3, 3),
+        (1, 1),
+    ),
+    (
+        (1, 14, 6, 3),
+        (3, 3, 3, 3),
+        (1, 1),
+    ),
+    (
+        (1, 14, 6, 3),
+        (3, 3, 3, 64),
+        (1, 1),
+    ),
+    (
+        (1, 14, 6, 3),
+        (5, 5, 3, 3),
+        (1, 1),
+    ),
+    (
+        (1, 8, 8, 3),
+        (2, 2, 3, 3),
+        (1, 1),
+    ),
+    (
+        (1, 14, 6, 64),
+        (3, 3, 64, 3),
+        (1, 1),
+    ),
+    (
+        (1, 4, 4, 40),
+        (3, 3, 40, 3),
+        (1, 1),
+    ),
+    (
+        (1, 4, 4, 3),
+        (3, 3, 3, 3),
+        (1, 1),
+    ),
+    (
+        (1, 5, 5, 3),
+        (3, 3, 3, 3),
+        (1, 1),
+    ),
+    (
+        (1, 6, 6, 3),
+        (3, 3, 3, 3),
+        (1, 1),
+    ),
+    (
+        (1, 7, 7, 3),
+        (3, 3, 3, 3),
+        (1, 1),
+    ),
+    (
+        (1, 8, 8, 3),
+        (3, 3, 3, 3),
+        (1, 1),
+    ),
+    (
+        (1, 8, 8, 3),
+        (5, 5, 3, 3),
+        (1, 1),
+    ),
+    (
+        (1, 8, 8, 64),
+        (2, 2, 64, 64),
+        (1, 1),
+    ),
+    (
+        (1, 8, 4, 3),
+        (3, 3, 3, 3),
+        (2, 2),
+    ),
+    (
+        (1, 14, 6, 3),
+        (3, 3, 3, 64),
+        (2, 2),
+    ),
+    (
+        (1, 14, 6, 3),
+        (5, 5, 3, 3),
+        (2, 2),
+    ),
+    (
+        (1, 8, 8, 3),
+        (2, 2, 3, 3),
+        (2, 2),
+    ),
 ]
 
 
-def gen_id(param):
+def gen_config(params):
     """Utility function to generate useful ids for shape_parameters"""
 
     dims = lambda vals: "x".join(map(str, vals))
 
-    act_shape = param["act_shape"]
-    wgt_shape = param["wgt_shape"]
-    inp_stride = param["inp_stride"]
-    return f"nhwc{dims(act_shape)}-hwio{dims(wgt_shape)}-stride{dims(inp_stride)}"
+    config = {}
+    for param in params:
+        act_shape, wgt_shape, inp_stride = param
+        name = f"nhwc{dims(act_shape)}-hwio{dims(wgt_shape)}-stride{dims(inp_stride)}"
+        config[name] = param
+
+    return config
 
 
-@tvm.testing.requires_hexagon
-@pytest.mark.parametrize("shapes", shape_parameters, ids=map(gen_id, shape_parameters))
-def test_conv2d(shapes, hexagon_session):
-    act_shape = shapes["act_shape"]
-    wgt_shape = shapes["wgt_shape"]
-    inp_offset = shapes["inp_offset"]
-    inp_stride = shapes["inp_stride"]
-    assert act_shape[3] == wgt_shape[2]
+class TestConv2dIntrin:
+    """Test Conv2d Intrin class"""
 
-    target_hexagon = tvm.target.hexagon("v69")
-    target = tvm.target.Target(target_hexagon, host=target_hexagon)
+    config = gen_config(shape_parameters)
+    act_shape, wgt_shape, inp_stride = tvm.testing.parameters(*config.values(), ids=config.keys())
+    inp_offset = tvm.testing.parameter((0, 0), ids=["offset0x0"])
 
-    # Currently, input offset does not affect the output shape
-    def get_out_shape(ash, wsh, inp_stride):
-        assert ash[3] == wsh[2]
-        osh = (
-            ash[0],
-            (ash[1] - wsh[0]) // inp_stride[0] + 1,
-            (ash[2] - wsh[1]) // inp_stride[1] + 1,
-            wsh[3],
+    @tvm.testing.requires_hexagon
+    def test_conv2d(self, act_shape, wgt_shape, inp_stride, inp_offset, hexagon_session):
+        """Test conv2d intrinsic implementation"""
+        assert act_shape[3] == wgt_shape[2]
+
+        target_hexagon = tvm.target.hexagon("v69")
+        target = tvm.target.Target(target_hexagon, host=target_hexagon)
+
+        # Currently, input offset does not affect the output shape
+        def get_out_shape(ash, wsh, inp_stride):
+            assert ash[3] == wsh[2]
+            osh = (
+                ash[0],
+                (ash[1] - wsh[0]) // inp_stride[0] + 1,
+                (ash[2] - wsh[1]) // inp_stride[1] + 1,
+                wsh[3],
+            )
+            assert tvm.tir.all([x > 0 for x in osh])
+            return osh
+
+        act = np.random.rand(*act_shape).astype("float16")
+        wgt = np.random.rand(*wgt_shape).astype("float16")
+
+        module = build_conv2d(target)
+
+        mod = hexagon_session.load_module(module)
+        output = tvm.nd.array(
+            np.zeros(get_out_shape(act_shape, wgt_shape, inp_stride), dtype="float16"),
+            device=hexagon_session.device,
         )
-        assert tvm.tir.all([x > 0 for x in osh])
-        return osh
+        mod(
+            tvm.nd.array(act, device=hexagon_session.device),
+            tvm.nd.array(wgt, device=hexagon_session.device),
+            inp_offset[0],  # off_t
+            inp_offset[1],  # off_l
+            inp_stride[0],  # stride_height
+            inp_stride[1],  # stride_width
+            output,
+        )
 
-    act = np.random.rand(*act_shape).astype("float16")
-    wgt = np.random.rand(*wgt_shape).astype("float16")
+        out = output.numpy()
 
-    module = build_conv2d(target)
+        # Generate reference output and compare:
+        ref_out = conv2d_nhwc_python(
+            act.astype("float32"), wgt.astype("float32"), stride=inp_stride, padding="VALID"
+        ).astype("float16")
 
-    mod = hexagon_session.load_module(module)
-    output = tvm.nd.array(
-        np.zeros(get_out_shape(act_shape, wgt_shape, inp_stride), dtype="float16"),
-        device=hexagon_session.device,
-    )
-    mod(
-        tvm.nd.array(act, device=hexagon_session.device),
-        tvm.nd.array(wgt, device=hexagon_session.device),
-        inp_offset[0],  # off_t
-        inp_offset[1],  # off_l
-        inp_stride[0],  # stride_height
-        inp_stride[1],  # stride_width
-        output,
-    )
-
-    out = output.numpy()
-
-    # Generate reference output and compare:
-    ref_out = conv2d_nhwc_python(
-        act.astype("float32"), wgt.astype("float32"), stride=inp_stride, padding="VALID"
-    ).astype("float16")
-
-    tvm.testing.assert_allclose(out, ref_out, rtol=5e-2, atol=5e-2)
+        tvm.testing.assert_allclose(out, ref_out, rtol=5e-2, atol=5e-2)
 
 
 if __name__ == "__main__":

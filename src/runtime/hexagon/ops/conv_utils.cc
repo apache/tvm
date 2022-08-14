@@ -17,10 +17,29 @@
  * under the License.
  */
 
-#include "conv2d.h"
+#include "tvm/runtime/hexagon/ops/conv2d.h"
 
-namespace detail {
+namespace tvm {
+namespace runtime {
+namespace hexagon {
 
+/**
+ * @brief Function to "blockize" the flat input data
+ * The term "blockize" is used to mention that the data is stored in non-contiguous blocks
+ *
+ * The input is mapped into the below mentioned layout (notation similar to index map used for
+ * transform layout):
+ *
+ * lambda n, h, w, c: n, h//8, w//4, c//32, AXIS_SEPARATOR, h%8, (w%4)//2, c%32, w%2
+ *
+ * where AXIS_SEPARATOR represents split up in the physical layout
+ *
+ * @param out Pre-allocated output memory pointer
+ * @param inp_flat Flat input data pointer
+ * @param height
+ * @param width
+ * @param depth
+ */
 void blockize_hwc_16b(void* out, void* inp_flat, int height, int width, int depth) {
   auto inp_data = static_cast<uint16_t*>(inp_flat);
   auto out_data = static_cast<uintptr_t*>(out);
@@ -55,6 +74,15 @@ void blockize_hwc_16b(void* out, void* inp_flat, int height, int width, int dept
   }      // cy
 }
 
+/**
+ * @brief Convert back from non-contguous layout to a flat layout
+ *
+ * @param out_float Pre-allocated output memory pointer
+ * @param inp Blockized input data pointer
+ * @param height
+ * @param width
+ * @param depth
+ */
 void deblockize_hwc_16b(void* out_flat, void* inp, int height, int width, int depth) {
   uintptr_t* inp_data = static_cast<uintptr_t*>(inp);
   uint16_t* out_data = static_cast<uint16_t*>(out_flat);
@@ -83,6 +111,33 @@ void deblockize_hwc_16b(void* out_flat, void* inp, int height, int width, int de
   }
 }
 
+/**
+ * @brief Convert the layout of weights from flat to "chunked". The term chunked is explained below:
+ *
+ * Weights are packed into the below mentioned layout (notation similar to index map):
+ * Since weights cannot be exactly represented into a index map notation, the
+ * base split up is mentioned below with a few gotchas
+ *
+ * lambda h, w, i, o: h//8, w//4, o//32, i//32, h%8, w%4, (i%32)//2, o%32, i%2
+ *
+ * The gotchas are:
+ *  - (w%4) is actually stored in the right to left order, as in 3,2,1,0 instead of 0,1,2,3
+ *  - The h%8 and (w%4) dimensions are not padded up, leading to chunks of different sizes
+ *    (thereby the name "chunked" instead of packed)
+ *  - The thinnest chunk of width is stored first. For example, if a kernel is 5x5, the first
+ *    chunk along the width has size 1 (representing index 0) and then next one has size 4
+ *    representing indices (1,2,3,4)
+ *
+ * @param out_ptr Base pointer table to be filled with the list of pointers to the first addresses
+ * of the "chunked" weights
+ * @param out_ptr_size The number of chunks
+ * @param out Pointer to pre-allocated output memory
+ * @param inp Pointer to flat input data
+ * @param height
+ * @param width
+ * @param idepth
+ * @param odepth
+ */
 void chunkify_hwio_16b(void** out_ptr, int out_ptr_size, void* out, void* inp, int height,
                        int width, int idepth, int odepth) {
   auto inp_data = static_cast<uint16_t*>(inp);
@@ -108,10 +163,6 @@ void chunkify_hwio_16b(void** out_ptr, int out_ptr_size, void* out, void* inp, i
             for (int x = max_x - 1; x >= 0; --x) {
               for (int i = 0; i < max_i; ++i) {
                 for (int o = 0; o < max_o; ++o) {
-                  debug(
-                      "cy: %d, cx: %d, cx0: %d, ci: %d, co: %d, max_x: %d, y: %d, x: %d, i: %d, o: "
-                      "%d, index: %d",
-                      cy, cx, cx0, ci, co, max_x, y, x, i, o, hwio_to_sm_16b(max_x, y, x, i, o));
                   chunk[hwio_to_sm_16b(max_x, y, x, i, o)] =
                       inp_data[(cy + y) * stride_y + (cx0 + x) * stride_x + (ci + i) * stride_i +
                                (co + o)];
@@ -184,8 +235,9 @@ int calculate_num_weight_chunks(int64_t* shape_hwio) {
   int i = round_up(shape_hwio[2], 32);
   int o = round_up(shape_hwio[3], 32);
 
-  debug("h: %d, w: %d, i: %d, o: %d", h, w, i, o);
   return (h * w * i * o) / (8 * 4 * 32 * 32);
 }
 
-}  // namespace detail
+}  // namespace hexagon
+}  // namespace runtime
+}  // namespace tvm
