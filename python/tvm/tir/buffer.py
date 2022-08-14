@@ -186,11 +186,12 @@ class Buffer(Object):
             indices = [indices]
         if any(isinstance(index, slice) and index.step is None for index in indices):
             region = []
+            analyzer = Analyzer()
             for index in indices:
                 if isinstance(index, slice):
                     region.append(
                         Range.from_min_extent(
-                            index.start, Analyzer().simplify(index.stop - index.start)
+                            index.start, analyzer.simplify(index.stop - index.start)
                         )
                     )
                 else:
