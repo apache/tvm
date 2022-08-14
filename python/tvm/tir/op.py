@@ -373,6 +373,245 @@ def tvm_stack_make_array(data, shape, strides, ndim, arr_dtype, elem_offset):
     )
 
 
+def ptx_mma(
+    dtype,
+    shape,
+    A_layout,
+    B_layout,
+    A_dtype,
+    B_dtype,
+    C_dtype,
+    multiplicand_a,
+    a_index,
+    multiplicand_b,
+    b_index,
+    accumulator,
+    c_index,
+    saturate,
+    operator=None,
+):
+    """TVM intrinsic for ptx tensor core mma instructions
+
+    Parameters
+    ----------
+    dtype : str
+        The data type of the result.
+
+    shape : str
+
+    A_layout : str
+
+    B_layout : str
+
+    A_dtype : str
+
+    B_dtype : str
+
+    C_dtype : str
+
+    multiplicand_a : Var
+
+    a_index : Expr
+
+    multiplicand_b : Var
+
+    b_index : Expr
+
+    accumulator : Var
+
+    c_index : Expr
+
+    saturate : bool
+
+    operator : Optional[bool]
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    if operator is None:
+        return call_intrin(
+            dtype,
+            "tir.ptx_mma",
+            shape,
+            A_layout,
+            B_layout,
+            A_dtype,
+            B_dtype,
+            C_dtype,
+            multiplicand_a,
+            a_index,
+            multiplicand_b,
+            b_index,
+            accumulator,
+            c_index,
+            saturate,
+        )
+    return call_intrin(
+        dtype,
+        "tir.ptx_mma",
+        shape,
+        A_layout,
+        B_layout,
+        A_dtype,
+        B_dtype,
+        C_dtype,
+        multiplicand_a,
+        a_index,
+        multiplicand_b,
+        b_index,
+        accumulator,
+        c_index,
+        saturate,
+        operator,
+    )
+
+
+def ptx_mma_sp(
+    dtype,
+    shape,
+    A_layout,
+    B_layout,
+    A_dtype,
+    B_dtype,
+    C_dtype,
+    multiplicand_a,
+    a_index,
+    multiplicand_b,
+    b_index,
+    accumulator,
+    c_index,
+    metadata,
+    meta_index,
+    sparse_selector,
+    saturate,
+):
+    """TVM intrinsic for ptx load matrix from shared memory
+
+    Parameters
+    ----------
+    dtype : str
+        The data type of the result.
+
+    shape : str
+
+    A_layout : str
+
+    B_layout : str
+
+    A_dtype : str
+
+    B_dtype : str
+
+    C_dtype : str
+
+    multiplicand_a : Var
+
+    a_index : Expr
+
+    multiplicand_b : Var
+
+    b_index : Expr
+
+    accumulator : Var
+
+    c_index : Expr
+
+    saturate : bool
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        dtype,
+        "tir.ptx_mma_sp",
+        shape,
+        A_layout,
+        B_layout,
+        A_dtype,
+        B_dtype,
+        C_dtype,
+        multiplicand_a,
+        a_index,
+        multiplicand_b,
+        b_index,
+        accumulator,
+        c_index,
+        metadata,
+        meta_index,
+        sparse_selector,
+        saturate,
+    )
+
+
+def mma_store(dtype, m, n, dst_ptr, src_ptr, src_offset, dst_stride):
+    """TVM intrinsics for storing the result of PTX MMA into a destination pointer
+
+    Parameters
+    ----------
+    dtype : str
+        The data type of the result.
+
+    m : IntImm
+
+    n : IntImm
+
+    dst_ptr : Var
+
+    src_ptr : Var
+
+    src_offset : Expr
+
+    dst_stride : Var
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        dtype,
+        "tir.mma_store",
+        m,
+        n,
+        dst_ptr,
+        src_ptr,
+        src_offset,
+        dst_stride,
+    )
+
+
+def mma_fill(dtype, local_size, local_ptr, offset):
+    """TVM intrinsics for zero-initalizing an MMA accumulation registor
+
+    Parameters
+    ----------
+    dtype : str
+        The data type of the result.
+
+    local_size : IntImm
+
+    local_ptr : Var
+
+    offset : Expr
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        dtype,
+        "tir.mma_fill",
+        local_size,
+        local_ptr,
+        offset,
+    )
+
+
 def ret(val):
     """Create a tir return expression
 
