@@ -691,8 +691,8 @@ class TestLetBufferRewrite(tvm.testing.CompareBeforeAfter):
 
     def expected() -> None:
         A_data: T.Ptr[T.int32x8] = T.call_extern("dummy_func", dtype="handle")
-        A = T.buffer_decl([8], "int32", data=A_data)
-        A[0:8] = T.broadcast(42, 8)
+        A = T.buffer_decl([1], "int32x8", data=A_data)
+        A[0] = T.broadcast(42, 8)
 
 
 if __name__ == "__main__":
