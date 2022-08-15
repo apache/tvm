@@ -212,6 +212,7 @@ class ConstructNetworkVisitor : public MixedModeVisitor, private ErrorReportingP
   EthosnError MakeReluLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
   EthosnError MakeLeakyReLULayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
   EthosnError MakeRequantizeLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
+  EthosnError MakeResizeLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
 
   /*! \brief A look-up table from Expr to layers. */
   std::map<Expr, std::vector<std::shared_ptr<sl::Operand>>> operand_table_;
