@@ -31,12 +31,12 @@
 #include <tvm/tir/op.h>
 #include <tvm/topi/nn/pooling.h>
 
-#include "../op/tensor/transform.h"
-#include "pattern_utils.h"
-
 #include <optional>
 #include <set>
 #include <string>
+
+#include "../op/tensor/transform.h"
+#include "pattern_utils.h"
 
 namespace tvm {
 namespace relay {
