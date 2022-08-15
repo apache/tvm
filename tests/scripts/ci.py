@@ -168,6 +168,7 @@ def docker(name: str, image: str, scripts: List[str], env: Dict[str, str], inter
         "ci_cortexm",
         "ci_arm",
         "ci_hexagon",
+        "ci_riscv",
     }
 
     if image in sccache_images and os.getenv("USE_SCCACHE", "1") == "1":
@@ -669,6 +670,19 @@ generated = [
                 [
                     "./tests/scripts/task_python_unittest.sh",
                     "./tests/scripts/task_python_arm_compute_library.sh",
+                ],
+            ),
+        },
+    ),
+    generate_command(
+        name="riscv",
+        help="Run RISC-V build and test(s)",
+        options={
+            "cpp": CPP_UNITTEST,
+            "python": (
+                "run full Python tests",
+                [
+                    "./tests/scripts/task_riscv_microtvm.sh",
                 ],
             ),
         },
