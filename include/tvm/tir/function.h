@@ -225,10 +225,11 @@ class TensorIntrin : public ObjectRef {
    * up with its name.
    * \param name The name of the TensorIntrin to register
    * \param intrin The TensorIntrin to register.
+   * \param override Whether override existing intrinsic.
    * \throws This method throws an exception if the TensorIntrin with the specified name already
    *         exists.
    */
-  TVM_DLL static void Register(String name, TensorIntrin intrin);
+  TVM_DLL static void Register(String name, TensorIntrin intrin, bool override = false);
 
   /*!
    * \brief Look up TensorIntrin by name. Raises an exception if not found.
