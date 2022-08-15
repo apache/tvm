@@ -630,7 +630,7 @@ class EliminateDivModMutator : public ExprMutator {
 
  private:
   std::optional<std::pair<Var, Var>> AddNewVarPair(const PrimExpr& e, const PrimExpr& mut,
-                                                  int64_t val, DivMode mode) {
+                                                   int64_t val, DivMode mode) {
     using tresult = std::optional<std::pair<Var, Var>>;
 
     // Try to find the variables using the mutated expressions

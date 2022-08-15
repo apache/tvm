@@ -38,7 +38,6 @@
 #include <utility>        // For pairs datatype
 #include <vector>
 
-
 namespace tvm {
 namespace tir {
 
