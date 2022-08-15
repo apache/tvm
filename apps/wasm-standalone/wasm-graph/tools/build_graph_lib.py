@@ -75,7 +75,12 @@ def build_graph_lib(opt_level):
     target = "llvm -mtriple=wasm32-unknown-unknown -mattr=+simd128"
 
     with tvm.transform.PassContext(opt_level=opt_level):
-        factory = relay.build(mod, target=target, params=params)
+        factory = relay.build(
+            mod,
+            target=target,
+            params=params,
+            runtime=tvm.relay.backend.Runtime("cpp", {"system-lib": True}),
+        )
 
     # Save the model artifacts to obj_file
     obj_file = os.path.join(out_dir, "graph.o")
