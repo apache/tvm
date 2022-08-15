@@ -135,6 +135,11 @@ def add_tune_parser(subparsers, _, json_params):
         help="enable tuning the graph through the AutoScheduler tuner",
         action="store_true",
     )
+    parser.add_argument(
+        "--tasks",
+        default="all",
+        help="which tasks should be tuned, i.e. 0 0,2 3-5 all list",
+    )
 
     auto_scheduler_group = parser.add_argument_group(
         "AutoScheduler options",
@@ -290,7 +295,68 @@ def drive_tune(args):
         include_simple_tasks=args.include_simple_tasks,
         log_estimated_latency=args.log_estimated_latency,
         additional_target_options=reconstruct_target_args(args),
+        tasks_filter=args.tasks,
         **transform_args,
+    )
+
+
+def filter_tasks(
+    tasks: Optional[Union[auto_scheduler.SearchTask, autotvm.task.Task]],
+    expr: str,
+):
+    assert isinstance(expr, str), "Expected filter expression of string type"
+    assert len(expr) > 0, "Got empty filter expression"
+
+    # groups of keywords are comma-separated
+    splitted = expr.split(",")
+
+    do_list = False
+    do_filter = False
+    selected = []
+    for item in splitted:
+        if item in ["list", "help"]:
+            do_list = True
+        elif item in ["all"]:
+            selected = list(range(len(tasks)))
+        else:
+            do_filter = True
+            if "-" in item:
+                lhs, rhs = item.split("-")[:2]
+                lhs = int(lhs) if lhs else 0
+                rhs = int(rhs) if rhs else len(tasks) - 1
+                assert 0 <= lhs < len(tasks), "Left-hand side expression out of range"
+                assert 0 <= rhs < len(tasks), "Right-hand side expression out of range"
+                selected.extend(list(range(lhs, rhs + 1)))
+            else:
+                assert isinstance(item, str)
+                idx = int(item)
+                assert idx < len(tasks) and idx >= 0
+                selected.append(idx)
+
+    if do_filter:
+        # remove duplicates
+        selected = list(set(selected))
+        tasks = [task for i, task in enumerate(tasks) if i in selected]
+
+    return tasks, do_list
+
+
+def print_task_list(tasks, enable_autoscheduler):
+    print("Available Tasks for tuning:")
+    print(
+        "\n".join(
+            [
+                "  {}. {}".format(
+                    i,
+                    task.desc
+                    if enable_autoscheduler
+                    else task
+                    if len(str(task.desc if enable_autoscheduler else task)) < 100
+                    else str(task.desc if enable_autoscheduler else task)[:97] + "...",
+                )
+                for i, task in enumerate(tasks)
+            ]
+        )
     )
 
 
@@ -316,6 +382,7 @@ def tune_model(
     include_simple_tasks: bool = False,
     log_estimated_latency: bool = False,
     additional_target_options: Optional[Dict[str, Dict[str, Any]]] = None,
+    tasks_filter: str = "all",
     desired_layout: Optional[str] = None,
     desired_layout_ops: Optional[List[str]] = None,
     mixed_precision: bool = False,
@@ -376,6 +443,9 @@ def tune_model(
         If using the autoscheduler, write the estimated latency at each step of tuning to file.
     additional_target_options: Optional[Dict[str, Dict[str, Any]]]
         Additional target options in a dictionary to combine with initial Target arguments
+    tasks_filter : str, optional
+        Filter which tasks should be tuned or output a list of the extracted tasks.
+        Examples: 0 0,2 3-5 all list
     desired_layout: str, optional
         Can be one of "NCHW" or "NHWC". When specified, compatible operations in the graph
         will have their layout set to this format. Tasks will then be tuned using this
@@ -390,7 +460,6 @@ def tune_model(
         The calculation dtype to be used while mixed precision.
     mixed_precision_acc_type: str
         The accumulation data type to be used while mixed precision.
-
 
     Returns
     -------
@@ -473,6 +542,28 @@ def tune_model(
                 hardware_params=hardware_params,
                 include_simple_tasks=include_simple_tasks,
             )
+        else:
+
+            tasks = autotvm_get_tuning_tasks(
+                mod=mod,
+                params=params,
+                target=target,
+                transform_args=transform_args,
+            )
+
+        # Filter extracted tasks by provided user expression
+        if tasks_filter:
+            tasks, do_list = filter_tasks(tasks, tasks_filter)
+            if do_list:
+                print_task_list(tasks, enable_autoscheduler)
+                return None
+        if len(tasks) == 0:
+            logger.info("No tasks have been selected for tuning.")
+            return None
+        else:
+            logger.info(f"Selected {len(tasks)} for tuning.")
+
+        if enable_autoscheduler:
 
             # Create the autoscheduler tuning options
             tuning_options = auto_scheduler.TuningOptions(
@@ -487,12 +578,6 @@ def tune_model(
             # Schedule the tasks (i.e., produce a schedule for each task)
             schedule_tasks(tasks, weights, tuning_options, prior_records, log_estimated_latency)
         else:
-            tasks = autotvm_get_tuning_tasks(
-                mod=mod,
-                params=params,
-                target=target,
-                transform_args=transform_args,
-            )
 
             # In autotvm, trials is specified per task. We can convert the per-model input
             # provided to per-task trials by dividing by the number of tasks.
