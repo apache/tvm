@@ -73,7 +73,7 @@ PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
           invoke(arg_name);
           prof_.operator*().Stop();
           auto report = prof_.operator*().Report();
-          prof_ = dmlc::optional<profiling::Profiler>();  // releases hardware counters
+          prof_ = std::nullopt;  // releases hardware counters
           return report;
         });
   } else if (name == "profile_rpc") {

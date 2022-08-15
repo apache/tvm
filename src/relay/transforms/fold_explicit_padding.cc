@@ -22,7 +22,6 @@
  * \brief A pass for folding explicit pads into other ops.
  */
 
-#include <dmlc/optional.h>
 #include <tvm/relay/dataflow_matcher.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
@@ -34,6 +33,10 @@
 
 #include "../op/tensor/transform.h"
 #include "pattern_utils.h"
+
+#include <optional>
+#include <set>
+#include <string>
 
 namespace tvm {
 namespace relay {
@@ -180,10 +183,10 @@ class SimplifyExplicitPad {
     return attrs;
   }
 
-  static const Optional<Array<PrimExpr>> get_padding(const PadAttrs* param,
-                                                     std::string data_layout) {
+  static const std::optional<Array<PrimExpr>> get_padding(const PadAttrs* param,
+                                                          std::string data_layout) {
     // Gets spatial axes padding from the given PadAttrs `param`. If padding
-    // is non-zero on non-spatial axes, return NullOpt.
+    // is non-zero on non-spatial axes, return std::nullopt.
     ICHECK(param);
     ICHECK(data_layout.size() == param->pad_width.size())
         << "Data Layout and padding attributes should have the same extent";
@@ -196,7 +199,7 @@ class SimplifyExplicitPad {
       if (!image_dims.count(data_layout[i])) {
         for (size_t j = 0; j < param->pad_width[i].size(); ++j) {
           if (param->pad_width[i][j] != 0) {
-            return NullOpt;
+            return std::nullopt;
           }
         }
       }
