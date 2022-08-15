@@ -103,6 +103,7 @@ def test_multiply(dtype, shape, constant_shape, reverse_inputs):
     tei.verify(outputs, dtype, 1)
 
 
+@requires_ethosn
 def test_multiply_multiple_inputs_unsupported():
     """Check multiply operator with two inputs is not offloaded."""
     np.random.seed(0)
@@ -147,6 +148,7 @@ def test_multiply_multiple_inputs_unsupported():
         )
 
 
+@requires_ethosn
 def test_multiply_unsupported_datatype():
     """Check multiply operator with unsupported datatype is not offloaded."""
     np.random.seed(0)
