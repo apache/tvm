@@ -373,6 +373,61 @@ def tvm_stack_make_array(data, shape, strides, ndim, arr_dtype, elem_offset):
     )
 
 
+def tvm_thread_allreduce(*freduce_args):
+    """
+
+    Parameters
+    ----------
+    freduce_args : Expr
+        The args.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.tvm_thread_allreduce", *freduce_args)
+
+
+def tvm_access_ptr(ptype, data, offset, extent, rw_mask):
+    """Get head access address with memory access pattern info
+
+    Parameters
+    ----------
+    ptype : Expr
+        The data type of pointer.
+
+    data : DType*
+        The data of pointer.
+
+    offset : int
+        The offset of pointer.
+
+    extent : int
+        The extent of pointer.
+
+    rw_mask : int
+        The read write mask.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.tvm_access_ptr", ptype, data, offset, extent, rw_mask)
+
+
+def tvm_throw_last_error():
+    """Throw TVMGetLastError()
+
+    Returns
+    -------
+    ret : PrimExpr
+        The return expression
+    """
+    return call_intrin("handle", "tir.tvm_throw_last_error")
+
+
 def ret(val):
     """Create a tir return expression
 
@@ -1644,6 +1699,64 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
               """
     reducer.__doc__ = doc_str.format(name)
     return reducer
+
+
+def TVMBackendAllocWorkspace(device_type, device_id, nbytes, dtype_code_hint, dtype_bits_hint):
+    """Backend function to allocate temporal workspace
+
+    Parameters
+    ----------
+    device_type : int
+        The device type which the space will be allocated.
+
+    device_id : int
+        The device id which the space will be allocated.
+
+    nbytes : int
+        The size of the space requested.
+
+    dtype_code_hint : int
+        The type code of the array elements. Only used in certain backends such as OpenGL.
+
+    dtype_bits_hint : int
+        The type bits of the array elements. Only used in certain backends such as OpenGL.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        "handle",
+        "tir.TVMBackendAllocWorkspace",
+        device_type,
+        device_id,
+        nbytes,
+        dtype_code_hint,
+        dtype_bits_hint,
+    )
+
+
+def TVMBackendFreeWorkspace(device_type, device_id, ptr):
+    """Backend function to free temporal workspace.
+
+    Parameters
+    ----------
+    device_type : int
+        The device type which the space will be allocated.
+
+    device_id : int
+        The device id which the space will be allocated.
+
+    ptr : Var
+        The result allocated space pointer.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    call_intrin("int32", "tir.TVMBackendFreeWorkspace", device_type, device_id, ptr)
 
 
 # pylint: disable=unnecessary-lambda
