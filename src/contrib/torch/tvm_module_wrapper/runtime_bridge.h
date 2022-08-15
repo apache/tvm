@@ -27,8 +27,10 @@ extern "C" {
 
 /*
  * DLPack data structure extend with `is_bool` flag.
- * DLPack haven't support boolean tensor,
- * thus a boolean tensor will be regarded as a UInt8 tensor.
+ * DLPack haven't support boolean tensor
+ * (https://github.com/pytorch/pytorch/blob/4618371da56c887195e2e1d16dad2b9686302800/aten/src/ATen/DLConvertor.cpp#L42),
+ * thus a boolean tensor will be regarded as a UInt8 tensor
+ * (https://github.com/apache/tvm/blob/de124862714e747764aa8b7f41a90bcb25f3c6a8/python/tvm/_ffi/runtime_ctypes.py#L91).
  */
 struct DLPackTensorExt {
   DLManagedTensor* dl_managed_tensor;
@@ -53,12 +55,12 @@ void tvm_contrib_torch_free_runtime_module(TVMContribTorchRuntimeModule* module_
 
 /*
  * Obtain ExecutorFactory runtime module from ExecutorFactory class.
- * @param graph_module ExecutorFactory class
+ * @param graph_executor_factory ExecutorFactory class
  * @param input_example For obtaining device information
  * @return ExecutorFactory TVM runtime module wrapper
  */
 TVMContribTorchRuntimeModule* tvm_contrib_torch_create_graph_runtime_module(
-    TVMContribTorchRuntimeModule* graph_module, DLManagedTensor* input_example);
+    TVMContribTorchRuntimeModule* graph_executor_factory, DLManagedTensor* input_example);
 
 /*
  * Forward method for OperatorModuleWrapper.
@@ -71,15 +73,15 @@ void tvm_contrib_torch_operator_module_forward(TVMContribTorchRuntimeModule* run
 
 /*
  * Forward method for GraphExecutorFactoryWrapper.
- * @param graph_module TVM runtime module wrapper
+ * @param graph_executor_factory TVM runtime module wrapper
  * @param inputs Array pointer of the input tensors
  * @param input_size The number of input tensors
  * @param outputs The resulting output tensors pointer
  * @return The number of output tensors
  */
-size_t tvm_contrib_torch_graph_executor_module_forward(TVMContribTorchRuntimeModule* graph_module,
-                                                       DLPackTensorExt* inputs, size_t input_size,
-                                                       DLPackTensorExt** outputs);
+size_t tvm_contrib_torch_graph_executor_module_forward(
+    TVMContribTorchRuntimeModule* graph_executor_factory, DLPackTensorExt* inputs,
+    size_t input_size, DLPackTensorExt** outputs);
 
 /*
  * Encode TVM runtime module.
@@ -108,7 +110,7 @@ void tvm_contrib_torch_free_encoding(char* encoding);
 /*
  * Checking if a DLPackTensorExt is boolean or cannot be copied in zero cost.
  */
-bool tvm_contrib_torch_is_be_copied(DLPackTensorExt*);
+bool tvm_contrib_torch_tensor_ability_of_zero_copy(DLPackTensorExt*);
 }
 
 #endif  // TVM_CONTRIB_TORCH_TVM_MODULE_WRAPPER_RUNTIME_BRIDGE_H_

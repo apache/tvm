@@ -85,7 +85,7 @@ class OperatorModuleWrapper : public torch::jit::CustomClassHolder {
                                               tensors.size());
 
     for (int k = 0; k < input_length; ++k) {
-      if (tvm_contrib_torch_is_be_copied(&tensors[k])) {
+      if (tvm_contrib_torch_tensor_ability_of_zero_copy(&tensors[k])) {
         inputs[k].copy_(fromDLPackExt(tensors[k]));
       } else {
         tensors[k].dl_managed_tensor->deleter(tensors[k].dl_managed_tensor);
@@ -163,7 +163,7 @@ class GraphExecutorFactoryWrapper : public torch::jit::CustomClassHolder {
     c10::List<at::Tensor> ret;
     ret.reserve(num_outputs);
 
-    for (int k = 0; k < num_outputs; ++k) {
+    for (size_t k = 0; k < num_outputs; ++k) {
       at::Tensor atTensor = fromDLPackExt(outputs[k]);
       ret.emplace_back(atTensor);
     }
