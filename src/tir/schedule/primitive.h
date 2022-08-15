@@ -482,6 +482,17 @@ TVM_DLL void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int
 TVM_DLL void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
                                   const IndexMap& index_map);
 
+/******** Schedule: Padding decomposition ********/
+/*!
+ * \brief Decompose a padding block into a block filling const pad values and a block
+ * writing in-bound values.
+ * \param block_sref The block sref that match the padding pattern.
+ * \param loop_sref The loop above which the const filling block is inserted before.
+ * \return The padding value filling block sref.
+ */
+TVM_DLL StmtSRef DecomposePadding(ScheduleState self, const StmtSRef& block_sref,
+                                  const StmtSRef& loop_sref);
+
 /******** Schedule: Misc ********/
 
 }  // namespace tir

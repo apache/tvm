@@ -562,6 +562,11 @@ inline Expr Tanh(Expr e) {
   static const Op& op = Op::Get("tanh");
   return Call(op, {e});
 }
+
+inline Expr Abs(Expr e) {
+  static const Op& op = Op::Get("abs");
+  return Call(op, {e});
+}
 /*!
  * \brief Get an immediate scalar from a Constant expr.
  *

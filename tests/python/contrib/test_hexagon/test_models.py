@@ -15,21 +15,22 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import sys
-import pytest
+"""Test mobilenet model with both graph and aot executor"""
+
 import numpy as np
+import pytest
 
 import tvm.testing
 from tvm import relay
-from tvm.relay.backend import Executor, Runtime
 from tvm.contrib.hexagon.session import Session
+from tvm.relay.backend import Executor, Runtime
 
 
 def get_mobilenet():
     """Download and import mobilenet model with ONNX"""
     import onnx  # pylint: disable=import-outside-toplevel
 
-    model_url = "https://github.com/onnx/models/raw/main/vision/classification/mobilenet/model/mobilenetv2-7.onnx"
+    model_url = "https://github.com/onnx/models/raw/main/vision/classification/mobilenet/model/mobilenetv2-7.onnx"  # pylint: disable=line-too-long
     model_path = tvm.contrib.download.download_testdata(
         model_url, "mobilenetv2-7.onnx", module="onnx"
     )
@@ -38,6 +39,7 @@ def get_mobilenet():
 
 @tvm.testing.requires_hexagon
 def test_mobilenet(hexagon_session: Session):
+    """Test mobilenet with graph executor"""
     dtype = "float32"
     onnx_model = get_mobilenet()
 
@@ -83,11 +85,10 @@ def test_mobilenet(hexagon_session: Session):
     tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 
 
-enable_usmp = tvm.testing.parameter(False, True)
-
-
+@pytest.mark.parametrize("enable_usmp", [False, True])
 @tvm.testing.requires_hexagon
 def test_mobilenet_aot(hexagon_session: Session, aot_host_target, aot_target, enable_usmp):
+    """Test mobilenet with aot executor"""
     if hexagon_session._launcher._serial_number == "simulator":
         pytest.skip(msg="Skip on simulator due to long runtime.")
 

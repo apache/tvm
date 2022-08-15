@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+"""coreml model zoo for testing purposes."""
 import os
 from PIL import Image
 import numpy as np
@@ -36,7 +36,11 @@ def get_resnet50():
 
 
 def get_cat_image():
-    url = "https://gist.githubusercontent.com/zhreshold/bcda4716699ac97ea44f791c24310193/raw/fa7ef0e9c9a5daea686d6473a62aacd1a5885849/cat.png"
+    """Get cat image"""
+    url = (
+        "https://gist.githubusercontent.com/zhreshold/"
+        + "bcda4716699ac97ea44f791c24310193/raw/fa7ef0e9c9a5daea686d6473a62aacd1a5885849/cat.png"
+    )
     dst = "cat.png"
     real_dst = download_testdata(url, dst, module="data")
     img = Image.open(real_dst).resize((224, 224))

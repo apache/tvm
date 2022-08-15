@@ -64,7 +64,7 @@ def test_depthwise_conv2d_bias_nchwc():
         "bias": tvm.nd.array(bias_data),
     }
 
-    build_run_compare(mod, params1, {"data": input_shape}, dtype, target, gpu_preprocess)
+    build_run_compare(mod, params1, {"data": input_shape}, dtype, target, [], gpu_preprocess)
 
 
 @tvm.testing.requires_opencl
@@ -103,7 +103,7 @@ def test_depthwise_conv2d_nchwc():
         "weight": tvm.nd.array(filter_data),
     }
 
-    build_run_compare(mod, params1, {"data": input_shape}, dtype, target, gpu_preprocess)
+    build_run_compare(mod, params1, {"data": input_shape}, dtype, target, [], gpu_preprocess)
 
 
 @tvm.testing.requires_opencl

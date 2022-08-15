@@ -22,7 +22,7 @@ from tvm.script import tir as T
 @T.prim_func
 def scalar_func(a: T.handle, b: T.handle):
     m = T.var("int32")
-    n = T.int32(100)
+    n = 100
     A = T.match_buffer(a, (n, m))
     B = T.match_buffer(b, (n, m))
 
@@ -33,7 +33,7 @@ def scalar_func(a: T.handle, b: T.handle):
 @T.prim_func
 def vector_func(a: T.handle, b: T.handle):
     n = T.var("int32")
-    m = T.int32(128)
+    m = 128
     A = T.match_buffer(a, (n, m))
     B = T.match_buffer(b, (n, m))
 

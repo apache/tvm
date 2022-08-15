@@ -31,10 +31,15 @@ namespace printer {
  * This function unpacks the DocPrinterOptions into function arguments
  * to be FFI friendly.
  *
- * \param doc the doc to be converted
- * \param indent_spaces the number of spaces used for indention
+ * \param doc Doc to be converted
+ * \param indent_spaces Number of spaces used for indentation
+ * \param print_line_numbers Whether to print line numbers
+ * \param num_context_lines Number of context lines to print around the underlined text
+ * \param path_to_underline Object path to be underlined
  */
-String DocToPythonScript(Doc doc, int indent_spaces = 4);
+String DocToPythonScript(Doc doc, int indent_spaces = 4, bool print_line_numbers = false,
+                         int num_context_lines = -1,
+                         Optional<ObjectPath> path_to_underline = NullOpt);
 
 }  // namespace printer
 }  // namespace script

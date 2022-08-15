@@ -31,6 +31,8 @@
 extern "C" {
 TVM_DLL uint16_t __gnu_f2h_ieee(float);
 TVM_DLL float __gnu_h2f_ieee(uint16_t);
+TVM_DLL uint16_t __truncsfhf2(float v);
+TVM_DLL float __extendhfsf2(uint16_t v);
 }
 
 #endif  // TVM_RUNTIME_BUILTIN_FP16_H_

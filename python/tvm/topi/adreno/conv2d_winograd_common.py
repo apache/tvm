@@ -90,6 +90,7 @@ def conv2d_winograd_comp(
 
     convert_from4d = False
     if len(data.shape) == 4:
+        convert_from4d = True
         if layout == "NCHW":
             N, DCI, H, W = get_const_tuple(data.shape)
         else:
@@ -120,7 +121,6 @@ def conv2d_winograd_comp(
             data = tvm.te.placeholder(dshape, data.dtype, name="data_placeholder")
             kernel = tvm.te.placeholder(kshape, kernel.dtype, name="kernel_placeholder")
         else:
-            convert_from4d = True
             data = pack_input(
                 data, layout, N, in_channel_chunks, in_channel_block, in_channel_tail, H, W
             )
@@ -220,9 +220,9 @@ def conv2d_winograd_comp(
     idxdiv = tvm.tir.indexdiv
     idxmod = tvm.tir.indexmod
     if layout == "NCHW":
-        N, CI, H, W, CB = get_const_tuple(data.shape)
+        N, CI, _, _, CB = get_const_tuple(data.shape)
     else:
-        N, H, W, CI, CB = get_const_tuple(data.shape)
+        N, _, _, CI, CB = get_const_tuple(data.shape)
 
     # pack input tile
     if layout == "NCHW":
@@ -494,16 +494,18 @@ def schedule_conv2d_winograd(cfg, s, output, pre_computed):
         s[OL].set_scope("local")
         output = s.outputs[0]
 
-    m = alpha - 3 + 1
     if len(s[output].op.axis) == 4:
         n, co, h, w = s[output].op.axis
+        cb = None
     else:
-        n, co, h, w, _ = s[output].op.axis
-    ho, wo, hi, wi = s[output].tile(h, w, m, m)
+        n, co, h, w, cb = s[output].op.axis
     inverse_scope, n = s[output].split(n, nparts=1)
 
-    fused = s[output].fuse(n, co, ho, wo)
+    fused = s[output].fuse(n, co, h, w)
     bb, tt = s[output].split(fused, 128)
+    if cb is not None:
+        s[output].reorder(bb, tt, cb)
+        s[output].vectorize(cb)
 
     s[output].bind(bb, te.thread_axis("blockIdx.x"))
     s[output].bind(tt, te.thread_axis("threadIdx.x"))

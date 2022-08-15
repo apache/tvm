@@ -64,12 +64,6 @@ function run_docker() {
     image_name="$1"  # Name of the Jenkinsfile var to find
     shift
 
-    image_spec=$(lookup_image_spec "${image_name}")
-    if [ -z "${image_spec}" ]; then
-        echo "${image_name}: not found in ${GIT_TOPLEVEL}/Jenkinsfile" >&2
-        exit 2
-    fi
-
-    docker_bash_args=( "${docker_bash_args[@]}" "${image_spec}" "$@" )
+    docker_bash_args=( "${docker_bash_args[@]}" "${image_name}" "$@" )
     "${GIT_TOPLEVEL}/docker/bash.sh" "${docker_bash_args[@]}"
 }

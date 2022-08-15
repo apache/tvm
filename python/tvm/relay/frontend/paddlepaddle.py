@@ -2268,7 +2268,7 @@ class GraphProto:
         self.shape_dict = shape_dict
         program = layer.program()
         parameters = dict()
-        for param in layer.parameters():
+        for param in layer.parameters() + layer.buffers():
             parameters[param.name] = np.array(param.value().get_tensor())
         self.check_unsupported_ops(program)
         self.extract_parameters(program, parameters)

@@ -15,8 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Maps object type to its constructor"""
+"""Maps object type index to its constructor"""
 cdef list OBJECT_TYPE = []
+"""Maps object type to its type index"""
+cdef dict OBJECT_INDEX = {}
 
 def _register_object(int index, object cls):
     """register object class"""
@@ -28,7 +30,11 @@ def _register_object(int index, object cls):
     while len(OBJECT_TYPE) <= index:
         OBJECT_TYPE.append(None)
     OBJECT_TYPE[index] = cls
+    OBJECT_INDEX[cls] = index
 
+def _get_object_type_index(object cls):
+    """get the type index of object class"""
+    return OBJECT_INDEX.get(cls)
 
 cdef inline object make_ret_object(void* chandle):
     global OBJECT_TYPE

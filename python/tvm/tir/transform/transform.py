@@ -253,6 +253,28 @@ def RemoveNoOp():
     return _ffi_api.RemoveNoOp()  # type: ignore
 
 
+def RemoveAssume():
+    """Remove all instances of builtin::assume
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RemoveAssume()  # type: ignore
+
+
+def RemoveStoreUndef():
+    """Remove stores of undefined values from the Stmt.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RemoveStoreUndef()  # type: ignore
+
+
 def BF16Legalize():
     """Legalize bf16 typed Ops.
     Runs BF16Promote, BF16CastElimination and BF16TypeLowering
@@ -927,3 +949,14 @@ def RemoveWeightLayoutRewriteBlock():
         The result pass
     """
     return _ffi_api.RemoveWeightLayoutRewriteBlock()  # type: ignore
+
+
+def ManifestSharedMemoryLocalStage():
+    """Add the explicit local stage for the shared memory access on GPU.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.ManifestSharedMemoryLocalStage()  # type: ignore

@@ -106,7 +106,7 @@ def build_docker_images() {
             // We're purposefully not setting the built image here since they
             // are not yet being uploaded to tlcpack
             // {{ image.name }} = build_image('{{ image.name }}')
-            build_image('{{ image.name }}')
+            built_{{ image.name }} = build_image('{{ image.name }}');
           }
         }
       },

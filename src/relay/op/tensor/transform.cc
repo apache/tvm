@@ -4230,5 +4230,55 @@ RELAY_REGISTER_OP("invert_permutation")
     .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_attr<TOpIsStateful>("TOpIsStateful", false);
 
+// Trilu
+
+TVM_REGISTER_NODE_TYPE(TriluAttrs);
+
+bool TriluRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+              const TypeReporter& reporter) {
+  // types: [data, k, result]
+  ICHECK_EQ(types.size(), 3) << "Trilu: expect 3 types but " << types.size() << " provided";
+  ICHECK_EQ(num_inputs, 2) << "Trilu: expect 2 inputs but " << num_inputs << " provided";
+  auto data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    ICHECK(types[0].as<IncompleteTypeNode>())
+        << "Trilu: expect input type to be TensorType but get " << types[0];
+    return false;
+  }
+
+  auto k = types[1].as<TensorTypeNode>();
+  if (k == nullptr) {
+    ICHECK(types[1].as<IncompleteTypeNode>())
+        << "Trilu: expect k type to be TensorType but get " << types[1];
+    return false;
+  }
+
+  ICHECK(k->shape.size() == 0) << "Trilu: k must be a 0-D tensor but get " << k;
+
+  // Output shape is the same as input shape.
+  reporter->Assign(types[2], TensorType(data->shape, data->dtype));
+  return true;
+}
+
+Expr MakeTrilu(Expr data, Expr k, bool upper) {
+  auto attrs = make_object<TriluAttrs>();
+  attrs->upper = upper;
+  static const Op& op = Op::Get("trilu");
+  return Call(op, {data, k}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.trilu").set_body_typed(MakeTrilu);
+
+RELAY_REGISTER_OP("trilu")
+    .describe(
+        R"code(Filters out the upper or lower portion of an input tensor on one side of a diagonal.
+    )code" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor")
+    .add_argument("k", "Tensor", "The number of diagonals above or below the main to exclude.")
+    .add_type_rel("trilu", TriluRel)
+    .set_support_level(3)
+    .set_attr<TOpPattern>("TOpPattern", kElemWise);
+
 }  // namespace relay
 }  // namespace tvm

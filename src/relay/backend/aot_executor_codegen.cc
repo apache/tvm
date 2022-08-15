@@ -1096,6 +1096,12 @@ class AOTExecutorCodegen : public MixedModeVisitor {
           tec::UpdateFunctionMetadata(func, this->function_metadata_, workspace_byte_alignment);
         })(mod);
 
+    transform::PassContext pass_ctx = transform::PassContext::Current();
+    bool enable_remove_reshapes =
+        pass_ctx->GetConfig<Bool>("relay.remove_standalone_reshapes.enable", Bool(true)).value();
+    if (enable_remove_reshapes) {
+      lowered_mod = transform::RemoveStandaloneReshapes()(lowered_mod);
+    }
     auto lowered_main = lowered_mod->Lookup("main");
     auto lowered_main_func = GetRef<Function>(lowered_main.as<FunctionNode>());
 
@@ -1203,7 +1209,6 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     // Parallel for loops are not supported in AoT codegen.
     lowered_mod = tir::transform::ConvertForLoopsToSerial()(lowered_mod);
 
-    transform::PassContext pass_ctx = transform::PassContext::Current();
     bool enable_usmp = pass_ctx->GetConfig<Bool>(kUSMPEnableOption, Bool(false)).value();
     if (enable_usmp) {
       lowered_mod = PlanMemoryWithUSMP(lowered_mod);

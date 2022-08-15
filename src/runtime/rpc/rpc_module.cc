@@ -191,7 +191,8 @@ class RPCModuleNode final : public ModuleNode {
   }
 
   PackedFunc GetTimeEvaluator(const std::string& name, Device dev, int number, int repeat,
-                              int min_repeat_ms, int cooldown_interval_ms, int repeats_to_cooldown,
+                              int min_repeat_ms, int limit_zero_time_iterations,
+                              int cooldown_interval_ms, int repeats_to_cooldown,
                               const std::string& f_preproc_name) {
     InitRemoteFunc(&remote_get_time_evaluator_, "runtime.RPCTimeEvaluator");
     // Remove session mask because we pass dev by parts.
@@ -200,13 +201,15 @@ class RPCModuleNode final : public ModuleNode {
     dev = RemoveRPCSessionMask(dev);
 
     if (module_handle_ != nullptr) {
-      return remote_get_time_evaluator_(
-          GetRef<Module>(this), name, static_cast<int>(dev.device_type), dev.device_id, number,
-          repeat, min_repeat_ms, cooldown_interval_ms, repeats_to_cooldown, f_preproc_name);
+      return remote_get_time_evaluator_(GetRef<Module>(this), name,
+                                        static_cast<int>(dev.device_type), dev.device_id, number,
+                                        repeat, min_repeat_ms, limit_zero_time_iterations,
+                                        cooldown_interval_ms, repeats_to_cooldown, f_preproc_name);
     } else {
-      return remote_get_time_evaluator_(
-          Optional<Module>(nullptr), name, static_cast<int>(dev.device_type), dev.device_id, number,
-          repeat, min_repeat_ms, cooldown_interval_ms, repeats_to_cooldown, f_preproc_name);
+      return remote_get_time_evaluator_(Optional<Module>(nullptr), name,
+                                        static_cast<int>(dev.device_type), dev.device_id, number,
+                                        repeat, min_repeat_ms, limit_zero_time_iterations,
+                                        cooldown_interval_ms, repeats_to_cooldown, f_preproc_name);
     }
   }
 
@@ -244,7 +247,7 @@ class RPCModuleNode final : public ModuleNode {
   // The local channel
   std::shared_ptr<RPCSession> sess_;
   // remote function to get time evaluator
-  TypedPackedFunc<PackedFunc(Optional<Module>, std::string, int, int, int, int, int, int, int,
+  TypedPackedFunc<PackedFunc(Optional<Module>, std::string, int, int, int, int, int, int, int, int,
                              std::string)>
       remote_get_time_evaluator_;
   // remote function getter for modules.
@@ -363,8 +366,9 @@ inline void CPUCacheFlush(int begin_index, const TVMArgs& args) {
 
 TVM_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
     .set_body_typed([](Optional<Module> opt_mod, std::string name, int device_type, int device_id,
-                       int number, int repeat, int min_repeat_ms, int cooldown_interval_ms,
-                       int repeats_to_cooldown, std::string f_preproc_name) {
+                       int number, int repeat, int min_repeat_ms, int limit_zero_time_iterations,
+                       int cooldown_interval_ms, int repeats_to_cooldown,
+                       std::string f_preproc_name) {
       Device dev;
       dev.device_type = static_cast<DLDeviceType>(device_type);
       dev.device_id = device_id;
@@ -373,7 +377,8 @@ TVM_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
         std::string tkey = m->type_key();
         if (tkey == "rpc") {
           return static_cast<RPCModuleNode*>(m.operator->())
-              ->GetTimeEvaluator(name, dev, number, repeat, min_repeat_ms, cooldown_interval_ms,
+              ->GetTimeEvaluator(name, dev, number, repeat, min_repeat_ms,
+                                 limit_zero_time_iterations, cooldown_interval_ms,
                                  repeats_to_cooldown, f_preproc_name);
         } else {
           PackedFunc f_preproc;
@@ -386,7 +391,8 @@ TVM_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
           PackedFunc pf = m.GetFunction(name, true);
           CHECK(pf != nullptr) << "Cannot find " << name << " in the global registry";
           return profiling::WrapTimeEvaluator(pf, dev, number, repeat, min_repeat_ms,
-                                              cooldown_interval_ms, repeats_to_cooldown, f_preproc);
+                                              limit_zero_time_iterations, cooldown_interval_ms,
+                                              repeats_to_cooldown, f_preproc);
         }
       } else {
         auto* pf = runtime::Registry::Get(name);
@@ -399,7 +405,8 @@ TVM_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
           f_preproc = *pf_preproc;
         }
         return profiling::WrapTimeEvaluator(*pf, dev, number, repeat, min_repeat_ms,
-                                            cooldown_interval_ms, repeats_to_cooldown, f_preproc);
+                                            limit_zero_time_iterations, cooldown_interval_ms,
+                                            repeats_to_cooldown, f_preproc);
       }
     });
 

@@ -52,25 +52,20 @@
 #include <string>
 #include <utility>
 
-#include "llvm_common.h"
+#include "llvm_instance.h"
 
 namespace tvm {
 namespace codegen {
 
-std::pair<std::unique_ptr<llvm::Module>, std::shared_ptr<llvm::LLVMContext>> CodeGenBlob(
-    const std::string& data, bool system_lib, const std::string& llvm_target_string) {
-  InitializeLLVM();
-  Target target(llvm_target_string);
-  auto tm = GetLLVMTargetMachine(target);
-  auto triple = tm->getTargetTriple();
-  auto ctx = std::make_shared<llvm::LLVMContext>();
+std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_lib,
+                                          LLVMTarget* llvm_target) {
+  llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
+  const llvm::Triple& triple = tm->getTargetTriple();
+  llvm::LLVMContext* ctx = llvm_target->GetContext();
   std::string module_name = "devc";
-  std::unique_ptr<llvm::Module> module(new llvm::Module(module_name, *ctx));
+  auto module = std::make_unique<llvm::Module>(module_name, *ctx);
   module->setTargetTriple(triple.str());
-  // Store full target string in metadata, because flags such as -mfloat-abi must be preserved for
-  // ModulePackImportsToLLVM.
-  module->addModuleFlag(llvm::Module::ModFlagBehavior::Override, "tvm_target",
-                        llvm::MDString::get(*ctx, LLVMTargetToString(target)));
+  llvm_target->SetTargetMetadata(module.get());
   module->setDataLayout(tm->createDataLayout());
   auto* blob_value = llvm::ConstantDataArray::getString(*ctx, data, false);
   auto* tvm_dev_mblob = new llvm::GlobalVariable(
@@ -188,9 +183,10 @@ std::pair<std::unique_ptr<llvm::Module>, std::shared_ptr<llvm::LLVMContext>> Cod
     ir_builder.CreateRetVoid();
   }
 
-  return std::make_pair(std::move(module), ctx);
+  return module;
 }
 
 }  // namespace codegen
 }  // namespace tvm
+
 #endif  // TVM_LLVM_VERSION

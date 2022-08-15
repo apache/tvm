@@ -264,6 +264,7 @@ within_subsection_order = {
         "topi.pi",
         "cross_compilation_and_rpc.py",
         "relay_quick_start.py",
+        "uma.py",
     ],
     "compile_models": [
         "from_pytorch.py",
@@ -318,6 +319,7 @@ within_subsection_order = {
         "micro_tflite.py",
         "micro_ethosu.py",
         "micro_tvmc.py",
+        "micro_aot.py",
     ],
 }
 

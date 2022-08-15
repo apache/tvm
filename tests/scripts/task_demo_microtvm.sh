@@ -18,6 +18,8 @@
 
 set -euxo pipefail
 
+source tests/scripts/setup-pytest-env.sh
+
 pushd apps/microtvm/cmsisnn
  timeout 5m ./run_demo.sh
 popd

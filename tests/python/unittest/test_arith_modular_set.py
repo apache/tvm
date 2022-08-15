@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 from tvm import te
 
 
@@ -200,18 +201,25 @@ def test_let():
     x = te.var("x")
     y = te.var("y")
     m = analyzer.modular_set(tvm.tir.Let(x, y * 10, x + 1))
-    m.coeff = 10
-    m.base = 1
+    assert m.coeff == 10
+    assert m.base == 1
+
+
+def test_bitwise_and():
+    analyzer = tvm.arith.Analyzer()
+    x = te.var("x")
+    y = te.var("y")
+
+    # RHS of bitwise_and is 2^p - 1
+    m = analyzer.modular_set((x * 16 + y * 4) & 31)
+    assert m.coeff == 4
+    assert m.base == 0
+
+    # arbitrary RHS
+    m = analyzer.modular_set((x * 16 + y * 4) & 17)
+    assert m.coeff == 1
+    assert m.base == 0
 
 
 if __name__ == "__main__":
-    test_let()
-    test_cast()
-    test_add_sub()
-    test_mul()
-    test_div_shift()
-    test_floormod()
-    test_min_max_select()
-    test_mix_index()
-    test_constraint_scope()
-    test_intersect()
+    tvm.testing.main()

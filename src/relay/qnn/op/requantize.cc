@@ -303,10 +303,7 @@ Expr RequantizeLowerFP(const Expr& input_tensor, const Expr& input_scale,
                                                                   -1,
                                                               }),
                                                       rank, {axis});
-    tensor = Subtract(Cast(tensor, DataType::Float(Bits)),
-                      Cast(input_zero_broadcast, DataType::Float(Bits)));
-  } else {
-    tensor = Cast(tensor, DataType::Float(Bits));
+    tensor = Subtract(tensor, Cast(input_zero_broadcast, DataType::Float(Bits)));
   }
 
   // 2) If the input and output scales are same, we can skip the multiplication. Check

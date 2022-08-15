@@ -617,6 +617,15 @@ class ScheduleNode : public runtime::Object {
                                 BufferIndexType buffer_index_type,
                                 const Array<IntImm>& axis_separators) = 0;
 
+  /*!
+   * \brief Decompose a padding block into a block filling const pad values and a block
+   * writing in-bound values.
+   * \param block_rv The block that match the padding pattern.
+   * \param loop_rv The loop above which the const filling block is inserted before.
+   * \return The const pad value filling block.
+   */
+  virtual BlockRV DecomposePadding(const BlockRV& block_rv, const LoopRV& loop_rv) = 0;
+
   /******** Schedule: Misc ********/
   /*! \brief A no-op that marks the start of postprocessing phase of scheduling */
   virtual void EnterPostproc() = 0;

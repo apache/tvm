@@ -270,6 +270,33 @@ def test_error(mod, params, err_msg):
     assert err_msg in caught, caught
 
 
+def get_overall_scale_range_expected_error_message():
+    """
+    Get the expected error message when the overall scale is out of range.
+    Different versions of the driver stack support different scale ranges,
+    so creating a unified utility to obtain the expected message.
+    """
+    if get_ethosn_api_version() >= 2205:
+        lb = "2^-32"
+    elif get_ethosn_api_version() > 2102:
+        lb = "2.328306e-10"
+    else:
+        lb = "0"
+
+    if get_ethosn_api_version() >= 2205:
+        ub = "65536"
+    else:
+        ub = "1"
+
+    lb_bracket = "(" if get_ethosn_api_version() >= 2205 else "["
+    ub_bracket = ")"
+
+    return (
+        "Overall scale (of the input * weights / output) should be in the range "
+        f"{lb_bracket}{lb}, {ub}{ub_bracket}"
+    )
+
+
 def get_conv2d(var, shape, dtype):
     """Standard convolution to test activation functions"""
 
@@ -333,7 +360,8 @@ def get_conv2d_qnn_params(
 
 
 def get_ethosn_api_version():
-    return tvm.get_global_func("relay.ethos-n.api.version")()
+    gf = tvm.get_global_func("relay.ethos-n.api.version", True)
+    return gf() if gf else None
 
 
 def get_ethosn_variant():

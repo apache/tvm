@@ -91,6 +91,14 @@ void LoadMetaDataFromFile(const std::string& file_name,
                           std::unordered_map<std::string, FunctionInfo>* fmap);
 
 /*!
+ * \brief Copy the content of an existing file to another file.
+ * \param src_file_name Path to the source file.
+ * \param dest_file_name Path of the destination file.  If this file already exists,
+ *    replace its content.
+ */
+void CopyFile(const std::string& src_file_name, const std::string& dest_file_name);
+
+/*!
  * \brief Remove (unlink) a file.
  * \param file_name The file name.
  */

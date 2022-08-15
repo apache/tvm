@@ -121,7 +121,9 @@ tvmc compile magic_wand.tflite \
 #
 # To generate a Zephyr project we use TVM Micro subcommand ``create``. We pass the MLF format and the path
 # for the project to ``create`` subcommand along with project options. Project options for each
-# platform (Zephyr/Arduino) are defined in their Project API server file. To generate Zephyr project, run:
+# platform (Zephyr/Arduino) are defined in their Project API server file. To build
+# Zephyr project for a different Zephyr board, change ``zephyr_board`` project option.
+# To generate Zephyr project, run:
 #
 # bash
 tvmc micro create \
@@ -151,11 +153,9 @@ tvmc micro create \
 # bash
 tvmc micro build \
     project \
-    zephyr \
-    --project-option zephyr_board=qemu_x86
+    zephyr
 # bash
-# This will build the project in ``project`` directory and generates binary files under ``project/build``. To build
-# Zephyr project for a different Zephyr board, change ``zephyr_board`` project option.
+# This will build the project in ``project`` directory and generates binary files under ``project/build``.
 #
 # Next, we flash the Zephyr binary file to Zephyr device. For ``qemu_x86`` Zephyr board this step does not
 # actually perform any action since QEMU will be used, however you need this step for physical hardware.
@@ -163,8 +163,7 @@ tvmc micro build \
 # bash
 tvmc micro flash \
     project \
-    zephyr \
-    --project-option zephyr_board=qemu_x86
+    zephyr
 # bash
 
 ############################################################
@@ -181,7 +180,6 @@ tvmc micro flash \
 tvmc run \
     --device micro \
     project \
-    --project-option zephyr_board=qemu_x86 \
     --fill-mode ones \
     --print-top 4
 # bash

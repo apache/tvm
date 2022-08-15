@@ -15,18 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=import-self, invalid-name
-# pylint: disable=arguments-differ, unused-argument, unused-import
+# pylint: disable=arguments-differ, unused-argument
 """Unit tests for various models and operators"""
 import os
-import sys
 
 import numpy as np
-import pytest
 import tvm
 import tvm.testing
 import tvm.topi.testing
 from tvm import relay
-from tvm.contrib import graph_executor
 
 import oneflow as flow
 from flowvision.models.alexnet import alexnet
@@ -47,7 +44,7 @@ def mkdir(path):
     if not os.path.exists(path):
         os.makedirs(path)
     else:
-        print("{} is already here".format(path))
+        print(f"{path} is already here")
 
 
 def rmdir(path):
@@ -81,6 +78,7 @@ def get_oneflow_output(model, inputs):
 
 
 def get_tvm_output(graph, model_path, inputs: flow.tensor, target="llvm", dtype="float32"):
+    """Generic function to execute and get tvm output"""
     inputs_numpy = inputs.numpy()
     if target == "llvm":
         device = tvm.cpu(0)
@@ -105,6 +103,7 @@ def verify_model(
     ),
     device="llvm",
 ):
+    """Generic function to generate and compare oneflow and TVM output"""
     if device == "cuda":
         model.to(device)
         inputs = inputs.to(device)
@@ -125,6 +124,7 @@ def verify_model(
 
 @tvm.testing.uses_gpu
 def test_vision_models():
+    """Vision models test"""
 
     if os.path.exists(MODEL_HOME):
         rmdir(MODEL_HOME)
