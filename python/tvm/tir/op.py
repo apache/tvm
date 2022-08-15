@@ -49,16 +49,20 @@ def call_packed_lowered(*args, span=None):
     When the argument is Buffer, the corresponding PackedFunc
     will recieve an TVMArrayHandle whose content is valid during the callback period.
     If the PackedFunc is a python callback, then the corresponding argument is NDArray.
+
     Parameters
     ----------
     args : list of Expr or Buffer.
         Positional arguments.
+
     span : Optional[Span]
         The location of this operator in the source code.
+
     Returns
     -------
     call : PrimExpr
         The call expression.
+
     See Also
     --------
     te.extern : Create tensor with extern function call.
@@ -71,16 +75,20 @@ def call_cpacked_lowered(*args, span=None):
     """Lowered version of call c-packed.
     Same as call_packed, except that the first argument is the function name
     (as in call_extern), and the last argument is the resource handle.
+
     Parameters
     ----------
     args : list of Expr or Buffer.
         Positional arguments.
+
     span : Optional[Span]
         The location of this operator in the source code.
+
     Returns
     -------
     call : PrimExpr
         The call expression.
+
     See Also
     --------
     te.extern : Create tensor with extern function call.
