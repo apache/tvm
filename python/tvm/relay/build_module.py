@@ -682,9 +682,5 @@ def create_executor(kind="debug", mod=None, device=None, target="llvm", params=N
     if kind == "vm":
         return VMExecutor(mod, device, raw_targets)
     if kind == "aot":
-        # The AOT requires the executor as a target attribute.
-        # (The compilation paths for the other executors currently do not always provide this
-        # attribute, hence the above generic assert is more forgiving).
-        assert "executor" in raw_targets[0].attrs
         return AotExecutor(mod, device, raw_targets)
     raise RuntimeError("unknown execution strategy: {0}".format(kind))
