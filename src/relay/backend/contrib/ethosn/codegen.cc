@@ -952,7 +952,8 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.requantize")
       char reason[kReasonMaxLength];
       reason[0] = '\0';
       *rv = !err && EthosnCompiler::GetSupported()->IsRequantizeSupported(
-                        params.requantize_info, params.input_info, nullptr, reason, sizeof(reason));
+                        params.requantize_info, params.input_info, &params.output_info, reason,
+                        sizeof(reason));
       err += EthosnError(reason);
     });
 

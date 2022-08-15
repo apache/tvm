@@ -692,16 +692,21 @@ EthosnError EthosnAPI::Requantize(const Expr& expr, RequantizeParams* params) {
   err += AsConstant(call->args[3], &output_sc);
   err += AsConstant(call->args[4], &output_zp);
 
-  params->requantize_info = sl::RequantizeInfo(sl::QuantizationInfo(output_zp, output_sc));
-  params->input_info = sl::TensorInfo(input_tensor_shape, input_data_type, sl::DataFormat::NHWC,
-                                      sl::QuantizationInfo(input_zp, input_sc));
+  sl::QuantizationInfo input_q_info;
+  err += Tvm2Npu(input_zp, input_sc, &input_q_info);
+  params->input_info =
+      sl::TensorInfo(input_tensor_shape, input_data_type, sl::DataFormat::NHWC, input_q_info);
 
-  sl::QuantizationInfo output_q_info;
-  err += Tvm2Npu(output_zp, output_sc, &output_q_info);
-  sl::TensorInfo output_tensor_info;
-  err += Tvm2Npu(call->checked_type(), &output_tensor_info);
-  output_tensor_info.m_QuantizationInfo = output_q_info;
-  params->output_info = output_tensor_info;
+  sl::QuantizationInfo requantize_q_info;
+  err += Tvm2Npu(output_zp, output_sc, &requantize_q_info);
+  params->requantize_info = sl::RequantizeInfo(requantize_q_info);
+
+  sl::TensorInfo output_info = params->input_info;
+  output_info.m_QuantizationInfo = params->requantize_info.m_OutputQuantizationInfo;
+  if (params->requantize_info.m_OutputDataType.has_value()) {
+    output_info.m_DataType = params->requantize_info.m_OutputDataType.value();
+  }
+  params->output_info = output_info;
 
   return err;
 }
