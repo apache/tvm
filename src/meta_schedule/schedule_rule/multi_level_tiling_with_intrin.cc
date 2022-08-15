@@ -55,8 +55,10 @@ class MultiLevelTilingWithIntrinNode : public MultiLevelTilingNode {
     auto res = MultiLevelTilingNode::Apply(sch->Copy(), block_rv);
 
     if (res.empty()) {
+      TVM_PY_LOG(INFO, logging_func) << "The workload cannot be tensorized.";
       return {sch};
     }
+    TVM_PY_LOG(INFO, logging_func) << "Tensorizing with " << intrin_name;
     return res;
   }
 
