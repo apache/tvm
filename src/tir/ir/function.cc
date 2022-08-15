@@ -88,10 +88,12 @@ TensorIntrin::TensorIntrin(PrimFunc desc, PrimFunc impl) {
   data_ = std::move(n);
 }
 
-void TensorIntrin::Register(String name, TensorIntrin intrin) {
+void TensorIntrin::Register(String name, TensorIntrin intrin, bool override) {
   TensorIntrinManager* manager = TensorIntrinManager::Global();
-  CHECK_EQ(manager->reg.count(name), 0)
-      << "ValueError: TensorIntrin '" << name << "' has already been registered";
+  if (!override) {
+    CHECK_EQ(manager->reg.count(name), 0)
+        << "ValueError: TensorIntrin '" << name << "' has already been registered";
+  }
   manager->reg.Set(name, intrin);
 }
 
