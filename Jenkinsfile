@@ -45,19 +45,20 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-08-11T12:19:24.817346
+// Generated at 2022-08-12T14:39:18.041411
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = 'tlcpack/ci-lint:20220715-060127-37f9d3c49'
-ci_gpu = 'tlcpack/ci-gpu:20220801-060139-d332eb374'
-ci_cpu = 'tlcpack/ci-cpu:20220715-060127-37f9d3c49'
+ci_lint = 'tlcpack/ci-lint:20220810-060142-fae79bbc3'
+ci_gpu = 'tlcpack/ci-gpu:20220810-060142-fae79bbc3'
+ci_cpu = 'tlcpack/ci-cpu:20220810-060142-fae79bbc3'
 ci_minimal = 'tlcpack/ci-minimal:20220725-133226-d3cefdaf1'
-ci_wasm = 'tlcpack/ci-wasm:20220715-060127-37f9d3c49'
-ci_i386 = 'tlcpack/ci-i386:20220715-060127-37f9d3c49'
-ci_cortexm = 'tlcpack/ci-cortexm:v0.01'
-ci_arm = 'tlcpack/ci-arm:20220715-060127-37f9d3c49'
-ci_hexagon = 'tlcpack/ci-hexagon:20220715-060127-37f9d3c49'
+ci_wasm = 'tlcpack/ci-wasm:20220810-060142-fae79bbc3'
+ci_i386 = 'tlcpack/ci-i386:20220810-060142-fae79bbc3'
+ci_cortexm = 'tlcpack/ci-cortexm:20220810-060142-fae79bbc3'
+ci_arm = 'tlcpack/ci-arm:20220810-060142-fae79bbc3'
+ci_hexagon = 'tlcpack/ci-hexagon:20220810-060142-fae79bbc3'
+ci_riscv = 'tlcpack/ci-riscv:20220810-060142-fae79bbc3'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -5518,78 +5519,239 @@ def deploy_docs() {
 
 def deploy() {
   stage('Deploy') {
-    if (env.BRANCH_NAME == 'main' && env.DOCS_DEPLOY_ENABLED == 'yes') {
+    if (env.BRANCH_NAME == 'main') {
+      parallel(
+  'Deploy Docs': {
+    if (env.DOCS_DEPLOY_ENABLED == 'yes') {
       node('CPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/deploy-docs") {
-          sh(
-            script: """
-              set -eux
-              retry() {
-                local max_retries=\$1
-                shift
-                local n=0
-                local backoff_max=30
-                until [ "\$n" -ge \$max_retries ]
-                do
-                    "\$@" && break
-                    n=\$((n+1))
-                    if [ "\$n" -eq \$max_retries ]; then
-                        echo "failed to update after attempt \$n / \$max_retries, giving up"
-                        exit 1
-                    fi
-
-                    WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
-                    echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
-                    sleep \$WAIT
-                done
-              }
-
-              retry 3 aws s3 cp --no-progress s3://${s3_prefix}/docs/docs.tgz docs.tgz
-              md5sum docs.tgz
-            """,
-            label: 'Download artifacts from S3',
-          )
-
-          deploy_docs()
-        }
-      }
-    }
-    if (env.BRANCH_NAME == 'main' && env.DEPLOY_DOCKER_IMAGES == 'yes' && rebuild_docker_images && upstream_revision != null) {
-      node('CPU') {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/deploy-docker") {
-          try {
-            withCredentials([string(
-              credentialsId: 'dockerhub-tlcpackstaging-key',
-              variable: 'DOCKERHUB_KEY',
-            )]) {
-              sh(
-                script: 'docker login -u tlcpackstaging -p ${DOCKERHUB_KEY}',
-                label: 'Log in to Docker Hub',
-              )
-            }
-            def date_Ymd_HMS = sh(
-              script: 'python3 -c \'import datetime; print(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))\'',
-              label: 'Determine date',
-              returnStdout: true,
-            ).trim()
-            def tag = "${date_Ymd_HMS}-${upstream_revision.substring(0, 8)}"
-            update_docker(built_ci_arm, "tlcpackstaging/ci_arm:${tag}")
-            update_docker(built_ci_cpu, "tlcpackstaging/ci_cpu:${tag}")
-            update_docker(built_ci_minimal, "tlcpackstaging/ci_minimal:${tag}")
-            update_docker(built_ci_gpu, "tlcpackstaging/ci_gpu:${tag}")
-            update_docker(built_ci_hexagon, "tlcpackstaging/ci_hexagon:${tag}")
-            update_docker(built_ci_i386, "tlcpackstaging/ci_i386:${tag}")
-            update_docker(built_ci_lint, "tlcpackstaging/ci_lint:${tag}")
-            update_docker(built_ci_cortexm, "tlcpackstaging/ci_cortexm:${tag}")
-            update_docker(built_ci_wasm, "tlcpackstaging/ci_wasm:${tag}")
-          } finally {
+          timeout(time: max_time, unit: 'MINUTES') {
             sh(
-              script: 'docker logout',
-              label: 'Clean up login credentials'
-            )
+                      script: """
+                        set -eux
+                        retry() {
+                          local max_retries=\$1
+                          shift
+                          local n=0
+                          local backoff_max=30
+                          until [ "\$n" -ge \$max_retries ]
+                          do
+                              "\$@" && break
+                              n=\$((n+1))
+                              if [ "\$n" -eq \$max_retries ]; then
+                                  echo "failed to update after attempt \$n / \$max_retries, giving up"
+                                  exit 1
+                              fi
+
+                              WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+                              echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+                              sleep \$WAIT
+                          done
+                        }
+
+                        retry 3 aws s3 cp --no-progress s3://${s3_prefix}/docs/docs.tgz docs.tgz
+                        md5sum docs.tgz
+                      """,
+                      label: 'Download artifacts from S3',
+                    )
+
+                    deploy_docs()
           }
         }
       }
+    } else {
+      Utils.markStageSkippedForConditional('Deploy Docs')
+    }
+  },
+  'Upload built Docker images': {
+    if (env.DEPLOY_DOCKER_IMAGES == 'yes' && rebuild_docker_images && upstream_revision != null) {
+      node('CPU') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/deploy-docker") {
+          timeout(time: max_time, unit: 'MINUTES') {
+            try {
+                      withCredentials([string(
+                        credentialsId: 'dockerhub-tlcpackstaging-key',
+                        variable: 'DOCKERHUB_KEY',
+                      )]) {
+                        sh(
+                          script: 'docker login -u tlcpackstaging -p ${DOCKERHUB_KEY}',
+                          label: 'Log in to Docker Hub',
+                        )
+                      }
+                      def date_Ymd_HMS = sh(
+                        script: 'python3 -c \'import datetime; print(datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))\'',
+                        label: 'Determine date',
+                        returnStdout: true,
+                      ).trim()
+                      def tag = "${date_Ymd_HMS}-${upstream_revision.substring(0, 8)}"
+                      update_docker(built_ci_arm, "tlcpackstaging/ci_arm:${tag}")
+                      update_docker(built_ci_cpu, "tlcpackstaging/ci_cpu:${tag}")
+                      update_docker(built_ci_minimal, "tlcpackstaging/ci_minimal:${tag}")
+                      update_docker(built_ci_gpu, "tlcpackstaging/ci_gpu:${tag}")
+                      update_docker(built_ci_hexagon, "tlcpackstaging/ci_hexagon:${tag}")
+                      update_docker(built_ci_i386, "tlcpackstaging/ci_i386:${tag}")
+                      update_docker(built_ci_lint, "tlcpackstaging/ci_lint:${tag}")
+                      update_docker(built_ci_cortexm, "tlcpackstaging/ci_cortexm:${tag}")
+                      update_docker(built_ci_wasm, "tlcpackstaging/ci_wasm:${tag}")
+                    } finally {
+                      sh(
+                        script: 'docker logout',
+                        label: 'Clean up login credentials'
+                      )
+                    }
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('Upload built Docker images')
+    }
+  },
+  'Tag tlcpackstaging to tlcpack': {
+    if (env.DOCS_DEPLOY_ENABLED == 'yes') {
+      node('CPU') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/tag-images") {
+          timeout(time: max_time, unit: 'MINUTES') {
+            withCredentials([string(
+                        credentialsId: 'dockerhub-tlcpack-key',
+                        variable: 'TLCPACK_TOKEN',
+                      )]) {
+                      try {
+                        sh(
+                          script: 'echo $TLCPACK_TOKEN | docker login --username octomldriazati --password-stdin',
+                          label: 'Log in to Docker Hub'
+                        )
+                        if (ci_arm.contains("tlcpackstaging")) {
+                          // Push image to tlcpack
+                          def tag = ci_arm.split(":")[1]
+                          sh(
+                            script: """
+                              set -eux
+                              docker pull tlcpackstaging/ci_arm:${tag}
+                              docker tag tlcpackstaging/ci_arm:${tag} tlcpack/ci-arm:${tag}
+                              docker push tlcpack/ci-arm:${tag}
+                            """,
+                            label: 'Tag tlcpackstaging/ci_arm image to tlcpack',
+                          )
+                        }
+                        if (ci_cpu.contains("tlcpackstaging")) {
+                          // Push image to tlcpack
+                          def tag = ci_cpu.split(":")[1]
+                          sh(
+                            script: """
+                              set -eux
+                              docker pull tlcpackstaging/ci_cpu:${tag}
+                              docker tag tlcpackstaging/ci_cpu:${tag} tlcpack/ci-cpu:${tag}
+                              docker push tlcpack/ci-cpu:${tag}
+                            """,
+                            label: 'Tag tlcpackstaging/ci_cpu image to tlcpack',
+                          )
+                        }
+                        if (ci_minimal.contains("tlcpackstaging")) {
+                          // Push image to tlcpack
+                          def tag = ci_minimal.split(":")[1]
+                          sh(
+                            script: """
+                              set -eux
+                              docker pull tlcpackstaging/ci_minimal:${tag}
+                              docker tag tlcpackstaging/ci_minimal:${tag} tlcpack/ci-minimal:${tag}
+                              docker push tlcpack/ci-minimal:${tag}
+                            """,
+                            label: 'Tag tlcpackstaging/ci_minimal image to tlcpack',
+                          )
+                        }
+                        if (ci_gpu.contains("tlcpackstaging")) {
+                          // Push image to tlcpack
+                          def tag = ci_gpu.split(":")[1]
+                          sh(
+                            script: """
+                              set -eux
+                              docker pull tlcpackstaging/ci_gpu:${tag}
+                              docker tag tlcpackstaging/ci_gpu:${tag} tlcpack/ci-gpu:${tag}
+                              docker push tlcpack/ci-gpu:${tag}
+                            """,
+                            label: 'Tag tlcpackstaging/ci_gpu image to tlcpack',
+                          )
+                        }
+                        if (ci_hexagon.contains("tlcpackstaging")) {
+                          // Push image to tlcpack
+                          def tag = ci_hexagon.split(":")[1]
+                          sh(
+                            script: """
+                              set -eux
+                              docker pull tlcpackstaging/ci_hexagon:${tag}
+                              docker tag tlcpackstaging/ci_hexagon:${tag} tlcpack/ci-hexagon:${tag}
+                              docker push tlcpack/ci-hexagon:${tag}
+                            """,
+                            label: 'Tag tlcpackstaging/ci_hexagon image to tlcpack',
+                          )
+                        }
+                        if (ci_i386.contains("tlcpackstaging")) {
+                          // Push image to tlcpack
+                          def tag = ci_i386.split(":")[1]
+                          sh(
+                            script: """
+                              set -eux
+                              docker pull tlcpackstaging/ci_i386:${tag}
+                              docker tag tlcpackstaging/ci_i386:${tag} tlcpack/ci-i386:${tag}
+                              docker push tlcpack/ci-i386:${tag}
+                            """,
+                            label: 'Tag tlcpackstaging/ci_i386 image to tlcpack',
+                          )
+                        }
+                        if (ci_lint.contains("tlcpackstaging")) {
+                          // Push image to tlcpack
+                          def tag = ci_lint.split(":")[1]
+                          sh(
+                            script: """
+                              set -eux
+                              docker pull tlcpackstaging/ci_lint:${tag}
+                              docker tag tlcpackstaging/ci_lint:${tag} tlcpack/ci-lint:${tag}
+                              docker push tlcpack/ci-lint:${tag}
+                            """,
+                            label: 'Tag tlcpackstaging/ci_lint image to tlcpack',
+                          )
+                        }
+                        if (ci_cortexm.contains("tlcpackstaging")) {
+                          // Push image to tlcpack
+                          def tag = ci_cortexm.split(":")[1]
+                          sh(
+                            script: """
+                              set -eux
+                              docker pull tlcpackstaging/ci_cortexm:${tag}
+                              docker tag tlcpackstaging/ci_cortexm:${tag} tlcpack/ci-cortexm:${tag}
+                              docker push tlcpack/ci-cortexm:${tag}
+                            """,
+                            label: 'Tag tlcpackstaging/ci_cortexm image to tlcpack',
+                          )
+                        }
+                        if (ci_wasm.contains("tlcpackstaging")) {
+                          // Push image to tlcpack
+                          def tag = ci_wasm.split(":")[1]
+                          sh(
+                            script: """
+                              set -eux
+                              docker pull tlcpackstaging/ci_wasm:${tag}
+                              docker tag tlcpackstaging/ci_wasm:${tag} tlcpack/ci-wasm:${tag}
+                              docker push tlcpack/ci-wasm:${tag}
+                            """,
+                            label: 'Tag tlcpackstaging/ci_wasm image to tlcpack',
+                          )
+                        }
+                      } finally {
+                        sh(
+                          script: 'docker logout',
+                          label: 'Clean up login credentials'
+                        )
+                      }
+                    }
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('Tag tlcpackstaging to tlcpack')
+    }
+  },
+      )
     }
   }
 }

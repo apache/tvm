@@ -42,6 +42,61 @@ def _pack_buffer(buf, span=None):
     return Call("handle", Op.get("tir.tvm_stack_make_array"), pack_args, span)
 
 
+def call_packed_lowered(*args, span=None):
+    """Lowered version of call packed.
+    The argument to packed function can be Expr or Buffer.
+    The argument is the corresponding POD type when Expr is presented.
+    When the argument is Buffer, the corresponding PackedFunc
+    will recieve an TVMArrayHandle whose content is valid during the callback period.
+    If the PackedFunc is a python callback, then the corresponding argument is NDArray.
+
+    Parameters
+    ----------
+    args : list of Expr or Buffer.
+        Positional arguments.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+
+    See Also
+    --------
+    te.extern : Create tensor with extern function call.
+    """
+    call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
+    return Call("int32", Op.get("tir.tvm_call_packed_lowered"), call_args, span)
+
+
+def call_cpacked_lowered(*args, span=None):
+    """Lowered version of call c-packed.
+    Same as call_packed, except that the first argument is the function name
+    (as in call_extern), and the last argument is the resource handle.
+
+    Parameters
+    ----------
+    args : list of Expr or Buffer.
+        Positional arguments.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+
+    See Also
+    --------
+    te.extern : Create tensor with extern function call.
+    """
+    call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
+    return Call("int32", Op.get("tir.tvm_call_cpacked_lowered"), call_args, span)
+
+
 def call_packed(*args, span=None):
     """Build expression by call an external packed function.
 
@@ -247,6 +302,74 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
         tvm.tir.const(llvm_id, "uint32"),
         *args,
         span=span,
+    )
+
+
+def tvm_stack_alloca(dtype_str, num):
+    """Return new on stack dtype[num]
+
+    Parameters
+    ----------
+    dtype_str : str
+        The data type of array.
+
+    num : int
+        The size of array.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.tvm_stack_alloca", dtype_str, num)
+
+
+def tvm_stack_make_shape(*args):
+    """Allocate a shape tuple on stack, return the handle
+
+    Parameters
+    ----------
+    args : int
+        The tuple shape.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.tvm_stack_make_shape", *args)
+
+
+def tvm_stack_make_array(data, shape, strides, ndim, arr_dtype, elem_offset):
+    """Allocate a NDArray(DLTensor) on stack, return the handle
+
+    Parameters
+    ----------
+    data : Expr
+        The data of array.
+
+    shape : Expr
+        The shape of array.
+
+    strides : Expr
+        The strides of array.
+
+    ndim : Expr
+        The dimensions of array.
+
+    arr_dtype : Expr
+        The data type of array.
+
+    elem_offse : Expr
+        The element offset of array.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        "handle", "tir.tvm_stack_make_array", data, shape, strides, ndim, arr_dtype, elem_offset
     )
 
 
