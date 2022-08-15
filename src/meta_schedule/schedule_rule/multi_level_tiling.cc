@@ -87,6 +87,7 @@ void MultiLevelTilingNode::InitializeWithTuneContext(const TuneContext& context)
       TVM_PY_LOG(INFO, context->logging_func) << "'thread_warp_size' is not defined in the target";
     }
   }
+  logging_func = context->logging_func;
 }
 
 // Entry of the mega rule; Inherited from ScheduleRuleNode
