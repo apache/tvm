@@ -28,6 +28,7 @@ from .... import tag
 
 
 def dense_dsp_compute(cfg, data, weight, bias=None, out_dtype=None):
+    """Defines the v7e-m DSP instructions of dense."""
     M, K = get_const_tuple(data.shape)
     N, _ = get_const_tuple(weight.shape)
 
