@@ -305,6 +305,74 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
     )
 
 
+def tvm_stack_alloca(dtype_str, num):
+    """Return new on stack dtype[num]
+
+    Parameters
+    ----------
+    dtype_str : str
+        The data type of array.
+
+    num : int
+        The size of array.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.tvm_stack_alloca", dtype_str, num)
+
+
+def tvm_stack_make_shape(*args):
+    """Allocate a shape tuple on stack, return the handle
+
+    Parameters
+    ----------
+    args : int
+        The tuple shape.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.tvm_stack_make_shape", *args)
+
+
+def tvm_stack_make_array(data, shape, strides, ndim, arr_dtype, elem_offset):
+    """Allocate a NDArray(DLTensor) on stack, return the handle
+
+    Parameters
+    ----------
+    data : Expr
+        The data of array.
+
+    shape : Expr
+        The shape of array.
+
+    strides : Expr
+        The strides of array.
+
+    ndim : Expr
+        The dimensions of array.
+
+    arr_dtype : Expr
+        The data type of array.
+
+    elem_offse : Expr
+        The element offset of array.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        "handle", "tir.tvm_stack_make_array", data, shape, strides, ndim, arr_dtype, elem_offset
+    )
+
+
 def ret(val):
     """Create a tir return expression
 
