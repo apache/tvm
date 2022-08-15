@@ -180,7 +180,7 @@ def progress_bar(total, prefix="", si_prefix="G"):
     return _callback
 
 
-def visualize_progress(idx, title="AutoTVM Progress", multi=False,  si_prefix="G"):
+def visualize_progress(idx, title="AutoTVM Progress", multi=False, si_prefix="G"):
     """Display tuning progress in graph
 
     Parameters
