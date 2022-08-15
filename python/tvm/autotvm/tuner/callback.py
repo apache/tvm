@@ -178,3 +178,64 @@ def progress_bar(total, prefix="", si_prefix="G"):
             sys.stdout.flush()
 
     return _callback
+
+
+def visualize_progress(idx, title="AutoTVM Progress", multi=False,  si_prefix="G"):
+    """Display tuning progress in graph
+
+    Parameters
+    ----------
+    idx: int
+        Index of the current task.
+    title: str
+        Specify the title of the matplotlib figure.
+    multi: bool
+        Add traces for alls tuned tasks into a single plot.
+        If False, one plot is generated for each task.
+    si_prefix: str
+        SI prefix for flops
+    """
+    import matplotlib.pyplot as plt
+
+    class _Context(object):
+        """Context to store local variables"""
+
+        def __init__(self):
+            self.best_flops = [0]
+            self.all_flops = []
+            if multi and idx > 0:
+                plt.figure(title)
+            else:
+                plt.figure(title).clear()
+            self.color = plt.cm.tab10(idx)
+            (self.p,) = plt.plot([0], [0], color=self.color, label=f"Task {idx}")
+            plt.xlabel("Iterations")
+            plt.ylabel(f"{si_prefix}FLOPS")
+            plt.legend(loc="upper left")
+            plt.pause(0.05)
+
+    ctx = _Context()
+
+    def _callback(_, inputs, results):
+
+        flops = 0
+        for inp, res in zip(inputs, results):
+            m = "x"
+            if res.error_no == 0:
+                flops = inp.task.flop / np.mean(res.costs)
+                m = "."
+
+            flops = format_si_prefix(flops, si_prefix)
+            ctx.all_flops.append(flops)
+            best = max(flops, ctx.best_flops[-1])
+            ctx.best_flops.append(best)
+
+            axes = plt.gca()
+            _, ymax = axes.get_ylim()
+            _, xmax = axes.get_xlim()
+            plt.axis([0, max(len(ctx.all_flops) + 1, xmax), 0, max(ctx.best_flops[-1] * 1.1, ymax)])
+            plt.scatter(len(ctx.all_flops), flops, color=ctx.color, marker=m, s=15)
+            ctx.p.set_data(list(range(0, len(ctx.all_flops) + 1)), ctx.best_flops)
+            plt.pause(0.05)
+
+    return _callback
