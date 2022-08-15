@@ -24,20 +24,20 @@ from tvm.target.target import Target
 from tvm.relay.backend import Runtime, Executor, graph_executor_codegen
 
 
-test_target = tvm.testing.parameter(
-    "c -runtime=c",
-    "c -system-lib",
-    "c -executor=aot",
-    "c -interface-api=c",
-    "c -unpacked-api=1",
-    "c -link-params=1",
+@pytest.mark.parametrize(
+    "test_target,unsupported_config",
+    [
+        ["c", "-runtime=c"],
+        ["c", "-system-lib=1"],
+        ["c", "-executor=aot"],
+        ["c", "-interface-api=c"],
+        ["c", "-unpacked-api=1"],
+        ["c", "-link-params=1"],
+    ],
 )
-
-
-def test_deprecated_target_parameters(test_target, target):
-    unsupported_config = test_target.split(" ")[1].replace("=", " ").split(" ")[0][1:]
+def test_deprecated_target_parameters(test_target, unsupported_config):
     with pytest.raises(ValueError) as e_info:
-        Target(test_target)
+        Target(f"{test_target} {unsupported_config}")
         assert f"Cannot recognize '{unsupported_config}" in str(e_info.execption)
 
 
