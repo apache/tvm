@@ -812,6 +812,31 @@ def verify_adv_index(data_shape, index_shapes, indice_dtype="int64"):
         check_device(target, dev)
 
 
+def verify_trilu(input_shape, upper, k=0):
+    x = te.placeholder(shape=input_shape, name="x", dtype="float32")
+    k_tir = tvm.tir.const(k, dtype="int32")
+    trilu_result = topi.transform.trilu(x, k_tir, upper)
+
+    def check_device(target, dev):
+        print("Running on target: %s" % target)
+        with tvm.target.Target(target):
+            s = tvm.topi.testing.get_injective_schedule(target)(trilu_result)
+        fn = tvm.build(s, [x, trilu_result], target, name="trilu")
+        x_npy = np.random.normal(size=input_shape).astype(x.dtype)
+        if upper:
+            out_npy = np.triu(x_npy, k)
+        else:
+            out_npy = np.tril(x_npy, k)
+        x_nd = tvm.nd.array(x_npy, dev)
+        out_nd = tvm.nd.array(np.empty(x_npy.shape).astype(trilu_result.dtype), dev)
+        fn(x_nd, out_nd)
+        out_topi = out_nd.numpy()
+        tvm.testing.assert_allclose(out_topi, out_npy)
+
+    for target, dev in tvm.testing.enabled_targets():
+        check_device(target, dev)
+
+
 @tvm.testing.uses_gpu
 def test_strided_slice():
     verify_strided_slice((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2])
@@ -1256,6 +1281,19 @@ def test_adv_index():
         verify_adv_index((10, 5, 15), [(1, 2, 1), (1, 2, 7)], indice_dtype=indice_dtype)
 
 
+@tvm.testing.uses_gpu
+def test_trilu():
+    # Test upper and lower triangle
+    verify_trilu((3, 3), True, 0)
+    verify_trilu((3, 3), False, 0)
+    # Test larger matrices with offset.
+    verify_trilu((6, 6), True, 1)
+    verify_trilu((6, 6), False, 2)
+    verify_trilu((6, 6), False, -2)
+    # Test batch size
+    verify_trilu((8, 6, 6), False, -2)
+
+
 if __name__ == "__main__":
     test_strided_slice()
     test_concatenate()
@@ -1283,3 +1321,4 @@ if __name__ == "__main__":
     test_sparse_to_dense()
     test_matrix_set_diag()
     test_adv_index()
+    test_trilu()

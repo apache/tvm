@@ -27,7 +27,7 @@ channels:
 dependencies:
   - conda-build
   - git
-  - llvmdev ==10.0.0
+  - llvmdev >=11
   - numpy
   - pytest
   - cython

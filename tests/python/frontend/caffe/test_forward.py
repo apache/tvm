@@ -14,21 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=import-self, invalid-name, unused-argument
+# pylint: disable=import-self, invalid-name, unused-argument, unspecified-encoding
 """
 Caffe testcases
 ====================
 This article is a test script to test Caffe operator with Relay.
 """
 import os
-
-os.environ["GLOG_minloglevel"] = "2"
-import sys
 import logging
-
-logging.basicConfig(level=logging.ERROR)
-
 import numpy as np
+
 from google.protobuf import text_format
 import caffe
 from caffe import layers as L, params as P
@@ -37,8 +32,12 @@ from caffe.proto import caffe_pb2 as pb
 import tvm
 import tvm.testing
 from tvm import relay
-from tvm.contrib import utils, graph_executor
+from tvm.contrib import graph_executor
 from tvm.contrib.download import download_testdata
+
+os.environ["GLOG_minloglevel"] = "2"
+
+logging.basicConfig(level=logging.ERROR)
 
 CURRENT_DIR = os.path.join(os.path.expanduser("~"), ".tvm_test_data", "caffe_test")
 
@@ -57,7 +56,8 @@ def _list_to_str(ll):
     """Convert list or tuple to str, separated by underline."""
     if isinstance(ll, (tuple, list)):
         tmp = [str(i) for i in ll]
-        return "_".join(tmp)
+        res = "_".join(tmp)
+    return res
 
 
 def _gen_filename_str(op_name, data_shape, *args, **kwargs):
@@ -137,8 +137,8 @@ def _miso_op(data_list, func, *args, **kwargs):
     """Create multi input and single output Caffe op"""
     n = caffe.NetSpec()
     if not isinstance(data_list, (tuple, list)):
-        raise TypeError("Need tuple or list but get {}".format(type(data_list)))
-    input_list = list()
+        raise TypeError(f"Need tuple or list but get {type(data_list)}")
+    input_list = []
     for idx, data in enumerate(data_list):
         n["data" + str(idx)] = L.Input(input_param={"shape": {"dim": list(data.shape)}})
         input_list.append(n["data" + str(idx)])
@@ -166,7 +166,7 @@ def _run_caffe(data, proto_file, blob_file):
         net.blobs["data"].data[...] = data
     out = net.forward()
 
-    caffe_output = list()
+    caffe_output = []
     for i in range(len(out.keys())):
         if "output" + str(i) not in out.keys():
             caffe_output.clear()
@@ -187,8 +187,8 @@ def _run_tvm(data, proto_file, blob_file):
     with open(blob_file, "rb") as f:
         init_net.ParseFromString(f.read())
 
-    shape_dict = dict()
-    dtype_dict = dict()
+    shape_dict = {}
+    dtype_dict = {}
     if isinstance(data, (tuple, list)):
         for idx, d in enumerate(data):
             shape_dict["data" + str(idx)] = d.shape
@@ -213,7 +213,7 @@ def _run_tvm(data, proto_file, blob_file):
         m.set_input("data", tvm.nd.array(data.astype(dtype)))
     # execute
     m.run()
-    tvm_output = list()
+    tvm_output = []
     # get outputs
     for i in range(m.get_num_outputs()):
         tvm_output.append(m.get_output(i).numpy())
@@ -221,7 +221,7 @@ def _run_tvm(data, proto_file, blob_file):
 
 
 def _compare_caffe_tvm(caffe_out, tvm_out, is_network=False):
-    for i in range(len(caffe_out)):
+    for i, _ in enumerate(caffe_out):
         if is_network:
             caffe_out[i] = caffe_out[i][:1]
         tvm.testing.assert_allclose(caffe_out[i], tvm_out[i], rtol=1e-5, atol=1e-5)
@@ -229,14 +229,14 @@ def _compare_caffe_tvm(caffe_out, tvm_out, is_network=False):
 
 def _test_op(data, func_op, op_name, **kwargs):
     """Single op testing pipline."""
-    shape_list = list()
+    shape_list = []
     if isinstance(data, (list, tuple)):
         n = _miso_op(data, func_op, **kwargs)
         for d in data:
             shape_list.extend(list(d.shape))
     else:
         output_num = 1
-        if "ntop" in kwargs.keys():
+        if "ntop" in kwargs:
             output_num = kwargs["ntop"]
         if output_num == 1:
             n = _siso_op(data, func_op, **kwargs)
@@ -961,8 +961,9 @@ def _test_embed(data, **kwargs):
 
 
 def test_forward_Embed():
+    """Embed"""
     k = 20
-    data = [i for i in range(k)]
+    data = list(i for i in range(k))
     np.random.shuffle(data)
     # dimension is 1
     data = np.asarray(data)
@@ -1083,7 +1084,7 @@ def _test_alexnet(data):
     data_process = data_process.astype(np.float32)
 
     proto_file_url = (
-        "https://github.com/BVLC/caffe/raw/master/models/" "bvlc_alexnet/deploy.prototxt"
+        "https://github.com/BVLC/caffe/raw/master/models/" + "bvlc_alexnet/deploy.prototxt"
     )
     blob_file_url = "http://dl.caffe.berkeleyvision.org/bvlc_alexnet.caffemodel"
     proto_file = download_testdata(proto_file_url, "alexnet.prototxt", module="model")
@@ -1144,7 +1145,7 @@ def _test_inceptionv1(data):
     data_process = data_process.astype(np.float32)
 
     proto_file_url = (
-        "https://github.com/BVLC/caffe/raw/master/models" "/bvlc_googlenet/deploy.prototxt"
+        "https://github.com/BVLC/caffe/raw/master/models" + "/bvlc_googlenet/deploy.prototxt"
     )
     blob_file_url = "http://dl.caffe.berkeleyvision.org/bvlc_googlenet.caffemodel"
     proto_file = download_testdata(proto_file_url, "inceptionv1.prototxt", module="model")
@@ -1159,38 +1160,4 @@ def test_forward_Inceptionv1():
 
 
 if __name__ == "__main__":
-    # NN
-    test_forward_Convolution()
-    test_forward_Deconvolution()
-    test_forward_Dropout()
-    test_forward_LRN()
-    test_forward_Pooling()
-    test_forward_Scale()
-    test_forward_InnerProduct()
-    test_forward_BatchNorm()
-
-    # Elemwise
-    test_forward_Eltwise()
-
-    # Activation
-    test_forward_PReLU()
-    test_forward_ReLU()
-    test_forward_Sigmoid()
-    test_forward_Softmax()
-    test_forward_TanH()
-
-    # Reshape
-    test_forward_Reshape()
-    test_forward_Flatten()
-    test_forward_Reduction()
-
-    # Math
-    test_forward_Concat()
-    test_forward_Crop()
-    test_forward_Slice()
-
-    # End to End
-    test_forward_Mobilenetv2()
-    test_forward_Alexnet()
-    test_forward_Resnet50()
-    test_forward_Inceptionv1()
+    tvm.testing.main()

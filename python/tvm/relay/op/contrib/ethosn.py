@@ -46,6 +46,11 @@ def ethosn_available():
     return Available.SW_AND_HW if hw else Available.SW_ONLY
 
 
+def ethosn_api_version():
+    """Returns the version of the driver stack api that is being used."""
+    return tvm.get_global_func("relay.ethos-n.api.version")()
+
+
 def partition_for_ethosn(mod, params=None, **opts):
     """Partition the graph greedily offloading supported
     operators to Arm Ethos-N NPU.
@@ -278,6 +283,8 @@ def qnn_concatenate(expr):
 def split(expr):
     """Check if a split is supported by Ethos-N."""
     if not ethosn_available():
+        return False
+    if ethosn_api_version() == 2205:
         return False
     if not support.split(expr):
         return False

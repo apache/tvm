@@ -140,7 +140,7 @@ Stmt PoolInfoAssigner::VisitStmt_(const AllocateNode* op) {
   Stmt body = VisitStmt(op->body);
   auto allocate =
       Allocate(op->buffer_var, op->dtype, op->extents, op->condition, body, annotations);
-  return allocate;
+  return std::move(allocate);
 }
 
 Stmt PoolInfoAssigner::VisitStmt_(const AllocateConstNode* op) {
@@ -157,7 +157,7 @@ Stmt PoolInfoAssigner::VisitStmt_(const AllocateConstNode* op) {
   Stmt body = VisitStmt(op->body);
   auto allocate_const =
       AllocateConst(op->buffer_var, op->dtype, op->extents, op->data, body, annotations);
-  return allocate_const;
+  return std::move(allocate_const);
 }
 
 IRModule PoolInfoAssigner::operator()() {

@@ -963,6 +963,44 @@ def erf(x, scale, zero_point, output_scale, output_zero_point):
     )
 
 
+# pylint: disable=redefined-builtin
+
+
+def abs(x, scale, zero_point, output_scale, output_zero_point):
+    """Quantized abs function.
+
+    Parameters
+    ----------
+    x : relay.Expr
+        The quantized input tensor.
+
+    scale: relay.Expr
+        The scale of the quantized expr.
+
+    zero_point: relay.Expr
+       The zero point of quantized expr.
+
+    output_scale: relay.Expr
+        The scale of the output quantized expr.
+
+    output_zero_point: relay.Expr
+       The zero point of output quantized expr.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+
+    """
+    return _make.abs(
+        x,
+        scale,
+        zero_point,
+        output_scale,
+        output_zero_point,
+    )
+
+
 def sigmoid(x, scale, zero_point, output_scale, output_zero_point):
     """Quantized sigmoid.
 

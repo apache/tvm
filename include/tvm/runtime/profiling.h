@@ -573,6 +573,8 @@ PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, i
  *        minimum duration requirement of one `repeat`.
  *        i.e., When the run time of one `repeat` falls below this time,
  *        the `number` parameter will be automatically increased.
+ * \param limit_zero_time_iterations The maximum number of repeats when
+ *        measured time is equal to 0.  It helps to avoid hanging during measurements.
  * \param cooldown_interval_ms The cooldown interval in milliseconds between the number of repeats
  *        defined by `repeats_to_cooldown`.
  * \param repeats_to_cooldown The number of repeats before the
@@ -582,8 +584,8 @@ PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, i
  * \return f_timer A timer function.
  */
 PackedFunc WrapTimeEvaluator(PackedFunc f, Device dev, int number, int repeat, int min_repeat_ms,
-                             int cooldown_interval_ms, int repeats_to_cooldown,
-                             PackedFunc f_preproc = nullptr);
+                             int limit_zero_time_iterations, int cooldown_interval_ms,
+                             int repeats_to_cooldown, PackedFunc f_preproc = nullptr);
 
 }  // namespace profiling
 }  // namespace runtime

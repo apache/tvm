@@ -162,7 +162,7 @@ def schedule_conv_NCHWc_cpu_common_int8(
         # data and kernel are not pre-computed, schedule layout transform here.
         # this should only be used by x86 conv2d_nchw, which is for
         # testing purpose.
-        batch, ic_chunk, ih, ic_block, iw = s[data_vec].op.axis
+        batch, ic_chunk, ih, iw, ic_block = s[data_vec].op.axis
         parallel_axis = s[data_vec].fuse(batch, ic_chunk, ih)
         s[data_vec].parallel(parallel_axis)
 
@@ -300,7 +300,7 @@ def schedule_conv_NCHWc_cpu_1x1_int8(
         # data and kernel are not pre-computed, schedule layout transform here.
         # this should only be used by x86 conv2d_nchw, which is for
         # testing purpose.
-        batch, ic_chunk, ih, ic_block, iw = s[data_vec].op.axis
+        batch, ic_chunk, ih, iw, ic_block = s[data_vec].op.axis
         parallel_axis = s[data_vec].fuse(batch, ic_chunk, ih)
         s[data_vec].parallel(parallel_axis)
 

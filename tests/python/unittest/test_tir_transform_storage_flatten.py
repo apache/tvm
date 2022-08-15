@@ -95,7 +95,7 @@ def test_flatten_double_buffer():
             threadIdx_x = T.env_thread("threadIdx.x")
             T.launch_thread(threadIdx_x, 1)
             for i in T.serial(0, 100):
-                B = T.allocate([4], "float32", scope="shared", strides=[1])
+                B = T.allocate([4], "float32", scope="shared")
                 with T.attr(B.data, "double_buffer_scope", 1):
                     for j in T.serial(0, 4):
                         B[j] = A[4 * i + j]

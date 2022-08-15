@@ -127,8 +127,7 @@ Expr MetaScheduleLayoutRewriter::VisitExpr_(const CallNode* call) {
     if (const auto* func = call->op.as<FunctionNode>()) {
       LayoutIndexQueue* self = LayoutIndexQueue::Global();
       self->queue_.clear();
-      tec::PrimFuncFor(GetRef<Function>(func), Target::Current(),
-                       [](std::string name) { return name; });
+      tec::PrimFuncFor(GetRef<Function>(func), Target::Current(), GlobalVarSupply(NameSupply("")));
       if (!self->queue_.empty()) {
         std::deque<tir::IndexMap> queue = std::move(self->queue_);
         self->queue_.clear();

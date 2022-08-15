@@ -38,6 +38,11 @@ namespace tvm {
 class Target;
 
 /*!
+ * \brief Map containing parsed features of a specific Target
+ */
+using TargetFeatures = Map<String, ObjectRef>;
+
+/*!
  * \brief TargetParser to apply on instantiation of a given TargetKind
  *
  * \param target_json Target in JSON format to be transformed during parsing.

@@ -34,6 +34,9 @@ void BindBlockThreadIdx(const tir::Schedule& sch, const tir::BlockRV& block_rv,
   if (block_sref->parent == nullptr) {
     return;
   }
+  if (tir::HasBeenMultiLevelTiled(block_sref)) {
+    return;
+  }
   Array<StmtSRef> loops = tir::GetLoops(block_sref);
   int n = loops.size();
   int i_block_idx = -1;

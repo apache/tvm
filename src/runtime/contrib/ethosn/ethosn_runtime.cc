@@ -60,6 +60,8 @@ EthosnModule::EthosnModule(std::vector<OrderedCompiledNetwork>* cmms) {
 #endif
     network_map_[it.name].inputs = it.inputs;
     network_map_[it.name].outputs = it.outputs;
+    network_map_[it.name].input_sizes = it.input_sizes;
+    network_map_[it.name].output_sizes = it.output_sizes;
   }
 }
 
@@ -69,10 +71,12 @@ PackedFunc EthosnModule::GetFunction(const std::string& name,
     return PackedFunc([sptr_to_self, this, name](TVMArgs args, TVMRetValue* rv) {
 #if _ETHOSN_API_VERSION_ <= 2102
       *rv = Inference(args, network_map_[name].compiled_cmm.get(), network_map_[name].inputs,
-                      network_map_[name].outputs);
+                      network_map_[name].outputs, network_map_[name].input_sizes,
+                      network_map_[name].output_sizes);
 #else
       *rv = Inference(args, network_map_[name].runtime_cmm.get(), network_map_[name].inputs,
-                      network_map_[name].outputs);
+                      network_map_[name].outputs, network_map_[name].input_sizes,
+                      network_map_[name].output_sizes);
 #endif
     });
   } else {
@@ -90,8 +94,10 @@ void EthosnModule::SaveToBinary(dmlc::Stream* stream) {
     stream->Write(ss.str());
     stream->Write(it.second.inputs.size());
     stream->Write(&it.second.inputs[0], sizeof(uint32_t) * it.second.inputs.size());
+    stream->Write(&it.second.input_sizes[0], sizeof(uint32_t) * it.second.input_sizes.size());
     stream->Write(it.second.outputs.size());
     stream->Write(&it.second.outputs[0], sizeof(uint32_t) * it.second.outputs.size());
+    stream->Write(&it.second.output_sizes[0], sizeof(uint32_t) * it.second.output_sizes.size());
   }
 }
 
@@ -128,12 +134,16 @@ Module EthosnModule::LoadFromBinary(void* strm) {
     compiled.inputs.resize(size);
     // Read the order of inputs
     stream->Read(&compiled.inputs[0], sizeof(uint32_t) * size);
+    compiled.input_sizes.resize(size);
+    stream->Read(&compiled.input_sizes[0], sizeof(uint32_t) * size);
     // Read the number of outputs
     stream->Read<uint64_t>(&output_size);
     size = static_cast<size_t>(output_size);
     compiled.outputs.resize(size);
     // Read the order of outputs
     stream->Read(&compiled.outputs[0], sizeof(uint32_t) * size);
+    compiled.output_sizes.resize(size);
+    stream->Read(&compiled.output_sizes[0], sizeof(uint32_t) * size);
   }
   auto n = make_object<EthosnModule>(&cmms);
   return Module(n);

@@ -60,7 +60,7 @@ def get_test_id(*test_params, test_param_descs: List[Optional[str]] = None) -> s
             need_prefix_separator = True
 
         elif type(param_val) == TensorContentConstant:
-            val_str = f"const({param_val.elem_value})"
+            val_str = f"const[{param_val.elem_value}]"
             need_prefix_separator = True
 
         elif type(param_val) == TensorContentDtypeMin:
@@ -76,7 +76,7 @@ def get_test_id(*test_params, test_param_descs: List[Optional[str]] = None) -> s
             need_prefix_separator = True
 
         elif type(param_val) == TensorContentSequentialCOrder:
-            val_str = f"seqC(start:{param_val.start_value},inc:{param_val.increment})"
+            val_str = f"seqC[start:{param_val.start_value},inc:{param_val.increment}]"
             need_prefix_separator = True
 
         else:
