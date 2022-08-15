@@ -732,24 +732,10 @@ def hexagon(cpu_ver="v66", **kwargs):
         args = [s.replace("=", "@") for s in llvm_options.split()]
         return "--llvm-options=" + ",".join(args)
 
-    # TVM target attributes string
-    def create_tvm_options(cpu_ver, config):  # pylint: disable=unused-argument
-        """Create TVM target features string."""
-
-        features = {
-            "link_params": "link-params",
-        }
-        opts = ""
-        for k in config:
-            if k in features:
-                opts += " --" + features[k] + "=" + str(config[k])
-        return opts
-
     target_str = create_llvm_target(cpu_ver, config)
     llvm_str = create_llvm_options(cpu_ver, config)
-    tvm_str = create_tvm_options(cpu_ver, config)
 
-    args_list = target_str.split() + llvm_str.split() + tvm_str.split()
+    args_list = target_str.split() + llvm_str.split() + llvm_str.split()
 
     return Target(" ".join(["hexagon"] + args_list))
 
