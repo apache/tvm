@@ -78,6 +78,7 @@ int HexagonUserDMA::Copy(void* dst, void* src, uint32_t length) {
   dma_desc_set_src(dma_desc, src32);
   dma_desc_set_dst(dma_desc, dst32);
 
+  // only for first DMA
   if (first_dma_) {
     // reset DMA engine
     auto status = Init();
@@ -100,6 +101,7 @@ int HexagonUserDMA::Copy(void* dst, void* src, uint32_t length) {
 }
 
 void HexagonUserDMA::Wait(uint32_t max_dmas_in_flight) {
+  // wait (forever) until max DMAs in flight <= actual DMAs in flight
   while (DMAsInFlight() > max_dmas_in_flight) {
   }
 }
@@ -133,6 +135,7 @@ int hexagon_user_dma_1d_sync(void* dst, void* src, uint32_t length) {
   // One DMA transfer can copy at most DESC_LENGTH_MASK bytes.
   // Make the common case quick.
   if (length <= DESC_LENGTH_MASK) {
+    // sync DMA -> `Copy` and then `Wait(0)`
     int ret_val = HexagonUserDMA::Get().Copy(dst, src, length);
     if (ret_val != DMA_SUCCESS) return ret_val;
     HexagonUserDMA::Get().Wait(0);
@@ -145,6 +148,7 @@ int hexagon_user_dma_1d_sync(void* dst, void* src, uint32_t length) {
   for (uint32_t i = 0; i < length;) {
     // Ensure there is no overflow while updating i
     uint32_t cur_len = std::min<uint32_t>(length - i, DESC_LENGTH_MASK);
+    // sync DMA -> `Copy` and then `Wait(0)`
     int ret_val = HexagonUserDMA::Get().Copy(&cast_dst[i], &cast_src[i], cur_len);
     if (ret_val != DMA_SUCCESS) return ret_val;
     HexagonUserDMA::Get().Wait(0);

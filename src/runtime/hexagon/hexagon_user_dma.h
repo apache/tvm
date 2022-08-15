@@ -31,10 +31,29 @@ namespace hexagon {
 
 class HexagonUserDMA {
  public:
+  /*!
+   * \brief Initiate DMA to copy memory from source to destination address
+   * \param dst Destination address
+   * \param src Source address
+   * \param length Length in bytes to copy
+   * \returns Status, either DMA_SUCCESS or DMA_FAILURE
+   */
   int Copy(void* dst, void* src, uint32_t length);
+
+  /*!
+   * \brief Wait until the number of DMAs in flight is less than or equal to some maximum
+   * \param max_dmas_in_flight Maximum number of DMAs allowed to be in flight
+   * to satisfy the `Wait` e.g. use `Wait(0)` to wait on "all" outstanding DMAs to complete
+   */
   void Wait(uint32_t max_dmas_in_flight);
+
+  /*!
+   * \brief Poll the number of DMAs in flight
+   * \returns Number of DMAs in flight
+   */
   uint32_t Poll();
 
+  //! HexagonUserDMA uses the singleton pattern
   static HexagonUserDMA& Get() {
     static HexagonUserDMA* hud = new HexagonUserDMA();
     return *hud;
@@ -48,12 +67,20 @@ class HexagonUserDMA {
   HexagonUserDMA(HexagonUserDMA&&) = delete;
   HexagonUserDMA& operator=(HexagonUserDMA&&) = delete;
 
+  //! \brief Initializes / resets the Hexagon User DMA engine
   unsigned int Init();
+
+  //! \brief Calculates the number of DMAs in flight
   uint32_t DMAsInFlight();
 
-  bool first_dma_{true};
-  uint32_t oldest_dma_in_flight_{0};
+  //! \brief Stores descriptors for all DMAs
   std::vector<void*> dma_descriptors_;
+
+  //! \brief Index to the descriptor for the oldest DMA in flight
+  uint32_t oldest_dma_in_flight_{0};
+
+  //! \brief Tracks whether (or not) we are executing the very first DMA
+  bool first_dma_{true};
 };
 
 }  // namespace hexagon
