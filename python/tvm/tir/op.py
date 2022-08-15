@@ -256,10 +256,10 @@ def tvm_stack_alloca(dtype_str, num):
     Parameters
     ----------
     dtype_str : str
-        The data type of array
+        The data type of array.
 
     num : int
-        The size of array
+        The size of array.
 
     Returns
     -------
@@ -275,7 +275,7 @@ def tvm_stack_make_shape(*args):
     Parameters
     ----------
     args : int
-        The tuple shape
+        The tuple shape.
 
     Returns
     -------
@@ -291,22 +291,22 @@ def tvm_stack_make_array(data, shape, strides, ndim, arr_dtype, elem_offset):
     Parameters
     ----------
     data : Expr
-        The data of array
+        The data of array.
 
     shape : Expr
-        The shape of array
+        The shape of array.
 
     strides : Expr
-        The strides of array
+        The strides of array.
 
     ndim : Expr
-        The dimensions of array
+        The dimensions of array.
 
     arr_dtype : Expr
-        The data type of array
+        The data type of array.
 
     elem_offse : Expr
-        The element offset of array
+        The element offset of array.
 
     Returns
     -------
