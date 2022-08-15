@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Integration test for metascheduler's auto tensorization."""
+"""Integration test for MetaSchedule's auto tensorization."""
 import tempfile
 
 import numpy as np
@@ -29,8 +29,9 @@ from tvm.meta_schedule import ApplyHistoryBest, postproc, schedule_rule
 from tvm.meta_schedule.relay_integration import extract_task_from_relay
 from tvm.meta_schedule.testing.tlcbench import load_quantized_bert_base
 from tvm.meta_schedule.tune import tune_extracted_tasks
-from tvm.tir.tensor_intrin import AMDGPU_SDOT4_INTRIN, DP4A_INTRIN
-from tvm.tir.tensor_intrin import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
+from tvm.tir.tensor_intrin.arm_cpu import DP4A_INTRIN
+from tvm.tir.tensor_intrin.rocm import AMDGPU_SDOT4_INTRIN
+from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 
 CONFIG = ms.TuneConfig(
     strategy="evolutionary",
@@ -393,7 +394,7 @@ def test_cuda_tensor_core(model_name, input_shape):
             )
         print(profiler.table())
 
-        # Compile without meta-scheduler for correctness check
+        # Compile without MetaSchedule for correctness check
         with tvm.transform.PassContext(opt_level=0):
             rt_mod2 = relay.build(mod, target=target, params=params)
 

@@ -52,7 +52,7 @@ TEST(BuildModule, Basic) {
 
   auto target = Target("llvm");
 
-  auto lowered = LowerSchedule(s, args, "func", binds);
+  auto lowered = LowerSchedule(s, args, "func", binds, GlobalVarSupply(NameSupply("")));
   auto module = build(lowered, target, Target());
 
   auto mali_target = Target("opencl -model=Mali-T860MP4@800Mhz -device=mali");
@@ -121,8 +121,9 @@ TEST(BuildModule, Heterogeneous) {
   auto args2 = Array<Tensor>({copy, C, elemwise_sub});
 
   std::unordered_map<Tensor, Buffer> binds;
-  auto lowered_s1 = LowerSchedule(fcreate_s1(), args1, "elemwise_add", binds);
-  auto lowered_s2 = LowerSchedule(fcreate_s2(), args2, "elemwise_sub", binds);
+  GlobalVarSupply global_var_supply = GlobalVarSupply(NameSupply(""));
+  auto lowered_s1 = LowerSchedule(fcreate_s1(), args1, "elemwise_add", binds, global_var_supply);
+  auto lowered_s2 = LowerSchedule(fcreate_s2(), args2, "elemwise_sub", binds, global_var_supply);
   Map<tvm::Target, IRModule> inputs = {{target_cuda, lowered_s1}, {target_llvm, lowered_s2}};
   auto module = build(inputs, Target());
 

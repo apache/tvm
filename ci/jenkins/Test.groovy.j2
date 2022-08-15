@@ -211,6 +211,19 @@
   )
 {% endcall %}
 
+def run_unittest_minimal() {
+  {% call m.test_step_body(
+      name="unittest: CPU MINIMAL",
+      node="CPU-SMALL",
+      ws="tvm/ut-python-cpu-minimal",
+      platform="minimal",
+      docker_image="ci_minimal",
+    ) %}
+      {{ m.download_artifacts(tag='cpu-minimal', filenames=tvm_lib) }}
+      cpp_unittest(ci_minimal)
+      python_unittest(ci_minimal)
+  {% endcall %}
+}
 
 def test() {
 stage('Test') {
@@ -223,6 +236,9 @@ stage('Test') {
     {{ method_name }}()
   },
   {% endfor %}
+  'unittest: CPU MINIMAL': {
+    run_unittest_minimal()
+  },
   {% call m.test_step(
     name="unittest: CPU",
     node="CPU-SMALL",

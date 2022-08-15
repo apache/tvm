@@ -152,7 +152,7 @@ def test_meta_schedule_tune_relay(
                 work_dir=work_dir,
             )
         print(profiler.table())
-        # Compile without meta-scheduler for correctness check
+        # Compile without meta-schedule for correctness check
         with tvm.transform.PassContext(opt_level=0):
             rt_mod2 = relay.build(mod, target=target, params=params)
 
@@ -252,7 +252,7 @@ def test_meta_schedule_te2primfunc_argument_order():
         ):
             rt_mod1 = relay.build(mod, target=target, params=params)
 
-    # Compile without meta-scheduler for correctness check
+    # Compile without meta-schedule for correctness check
     with tvm.transform.PassContext(opt_level=0):
         rt_mod2 = relay.build(mod, target=target, params=params)
 
@@ -314,7 +314,7 @@ def test_meta_schedule_relay_lowering():
             ):
                 rt_mod1 = relay.build(mod, target=target, params=params)
 
-        # Compile without meta-scheduler for correctness check
+        # Compile without meta-schedule for correctness check
         with tvm.transform.PassContext(opt_level=0):
             rt_mod2 = relay.build(mod, target=target, params=params)
 
@@ -516,7 +516,7 @@ def test_tune_relay_manual_tir_vnni():
         attrs={"schedule_rule": "meta_schedule.dense_vnni"},
     )
 
-    When the meta scheduler encounters a TensorIR block with the "schedule_rule" annotation,
+    When the MetaSchedule encounters a TensorIR block with the "schedule_rule" annotation,
     it looks up the packed func registry for a function that is associated with the given schedule
     rule key ("meta_schedule.dense_vnni" in this example). The signature of such custom schedule
     functions must be

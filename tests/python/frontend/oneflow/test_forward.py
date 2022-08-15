@@ -14,19 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=import-self, invalid-name
-# pylint: disable=arguments-differ, unused-argument, unused-import
+# pylint: disable=arguments-differ, unused-argument
 """Unit tests for various models and operators"""
 import os
-import sys
 
 import numpy as np
-import pytest
 import tvm
 import tvm.testing
 import tvm.topi.testing
 from tvm import relay
-from tvm.contrib import graph_executor
 
 import oneflow as flow
 
@@ -41,7 +37,7 @@ def mkdir(path):
     if not os.path.exists(path):
         os.makedirs(path)
     else:
-        print("{} is already here".format(path))
+        print(f"{path} is already here")
 
 
 def rmdir(path):
@@ -69,23 +65,23 @@ class OneFlowGraph(flow.nn.Graph):
         return out
 
 
-class OneFlowGraph_v2(flow.nn.Graph):
+class OneFlowGraphV2(flow.nn.Graph):
     def __init__(self, module):
         super().__init__()
         self.m = module
 
-    def build(self, x1, x2, x3):
-        out = self.m(x1, x2, x3)
+    def build(self, input_1, input_2, input_3):
+        out = self.m(input_1, input_2, input_3)
         return out
 
 
-class OneFlowGraph_v3(flow.nn.Graph):
+class OneFlowGraphV3(flow.nn.Graph):
     def __init__(self, module):
         super().__init__()
         self.m = module
 
-    def build(self, x1, x2):
-        out = self.m(x1, x2)
+    def build(self, input_1, input_2):
+        out = self.m(input_1, input_2)
         return out
 
 
@@ -104,6 +100,7 @@ def get_oneflow_elementwise_output(model, input1, input2):
 
 
 def get_tvm_output(graph, model_path, inputs: flow.tensor, target="llvm", dtype="float32"):
+    """Generic function to execute and get tvm output"""
     inputs_numpy = inputs.numpy()
     if target == "llvm":
         device = tvm.cpu(0)
@@ -126,6 +123,7 @@ def get_tvm_concat_output(
     target="llvm",
     dtype="float32",
 ):
+    """Generic function to execute and get tvm concat output"""
     input1_numpy = input1.numpy()
     input2_numpy = input2.numpy()
     input3_numpy = input3.numpy()
@@ -154,6 +152,7 @@ def get_tvm_elementwise_output(
     target="llvm",
     dtype="float32",
 ):
+    """Generic function to execute and get tvm elementwise output"""
     input1_numpy = input1.numpy()
     input2_numpy = input2.numpy()
     if target == "llvm":
@@ -183,6 +182,7 @@ def verify_conv(
     ),
     device="llvm",
 ):
+    """verify_conv"""
     if device == "cuda":
         model.to(device)
         inputs = inputs.to(device)
@@ -212,6 +212,7 @@ def verify_pool(
     ),
     device="llvm",
 ):
+    """verify_pool"""
     if device == "cuda":
         model.to(device)
         inputs = inputs.to(device)
@@ -241,6 +242,7 @@ def verify_normalization(
     ),
     device="llvm",
 ):
+    """verify_normalization"""
     if device == "cuda":
         model.to(device)
         inputs = inputs.to(device)
@@ -271,6 +273,7 @@ def verify_upsample(
     ),
     device="llvm",
 ):
+    """verify_upsample"""
     if device == "cuda":
         model.to(device)
         inputs = inputs.to(device)
@@ -300,6 +303,7 @@ def verify_convtran(
     ),
     device="llvm",
 ):
+    """verify_convtran"""
     if device == "cuda":
         model.to(device)
         inputs = inputs.to(device)
@@ -329,6 +333,7 @@ def verify_activation(
     ),
     device="llvm",
 ):
+    """verify_activation"""
     if device == "cuda":
         model.to(device)
         inputs = inputs.to(device)
@@ -358,6 +363,7 @@ def verify_math(
     ),
     device="llvm",
 ):
+    """verify_math"""
     if device == "cuda":
         model.to(device)
         inputs = inputs.to(device)
@@ -385,12 +391,13 @@ def verify_matmul(
     inputs2=flow.tensor(np.random.randn(5, 2), dtype=flow.float32),
     device="llvm",
 ):
+    """verify_matmul"""
     if device == "cuda":
         model.to(device)
         inputs1 = inputs1.to(device)
         inputs2 = inputs2.to(device)
 
-    graph = OneFlowGraph_v3(model)
+    graph = OneFlowGraphV3(model)
     graph._compile(inputs1, inputs2)
     mkdir(MODEL_HOME)
     flow.save(model.state_dict(), MODEL_HOME)
@@ -413,13 +420,14 @@ def verify_concat(
     inputs3=flow.tensor(np.random.randn(2, 5, 5, 3), dtype=flow.float32),
     device="llvm",
 ):
+    """verify_concat"""
     if device == "cuda":
         model.to(device)
         inputs1 = inputs1.to(device)
         inputs2 = inputs2.to(device)
         inputs3 = inputs3.to(device)
 
-    graph = OneFlowGraph_v2(model)
+    graph = OneFlowGraphV2(model)
     graph._compile(inputs1, inputs2, inputs3)
 
     mkdir(MODEL_HOME)
@@ -436,6 +444,8 @@ def verify_concat(
 # defs/nn
 @tvm.testing.uses_gpu
 def test_conv2d():
+    """Conv2d"""
+
     class Conv2dModel(flow.nn.Module):
         def __init__(self):
             super().__init__()
@@ -457,6 +467,8 @@ def test_conv2d():
 
 @tvm.testing.uses_gpu
 def test_pool2d():
+    """Pool2d"""
+
     class MaxPool2dModel(flow.nn.Module):
         def __init__(self):
             super().__init__()
@@ -499,6 +511,8 @@ def test_pool2d():
 
 @tvm.testing.uses_gpu
 def test_normalization():
+    """Normalization"""
+
     class BatchNorm2dModel(flow.nn.Module):
         def __init__(self):
             super().__init__()
@@ -519,6 +533,8 @@ def test_normalization():
 
 @tvm.testing.uses_gpu
 def test_upsample():
+    """Upsample"""
+
     class UpsampleModel(flow.nn.Module):
         def __init__(self):
             super().__init__()
@@ -550,6 +566,8 @@ def test_upsample():
 
 @tvm.testing.uses_gpu
 def test_convtran():
+    """ConvTran"""
+
     class ConvTranModel(flow.nn.Module):
         def __init__(self):
             super().__init__()
@@ -570,6 +588,8 @@ def test_convtran():
 
 @tvm.testing.uses_gpu
 def test_activation():
+    """Activation"""
+
     class Softmax(flow.nn.Module):
         def __init__(self):
             super().__init__()
@@ -679,9 +699,6 @@ def test_activation():
             return x
 
     class TensorSoftmax(flow.nn.Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x):
             x = x.softmax(dim=-1)
             return x
@@ -690,7 +707,7 @@ def test_activation():
         rmdir(MODEL_HOME)
 
     model1 = Softmax().eval()
-    model2 = Softplus().eval()
+    model2 = Softplus().eval()  # pylint: disable=unused-variable
     model3 = Softsign().eval()
     model4 = Tanh().eval()
     model5 = ReLU().eval()
@@ -725,6 +742,8 @@ def test_activation():
 
 @tvm.testing.uses_gpu
 def test_math():
+    """Math"""
+
     class Sigmoid(flow.nn.Module):
         def forward(self, x):
             return flow.sigmoid(x)
@@ -785,6 +804,8 @@ def test_math():
 
 @tvm.testing.uses_gpu
 def test_slice():
+    """Slice"""
+
     class Slice(flow.nn.Module):
         def forward(self, x):
             tup_list = [[None, None, None], [0, 5, 2], [0, 6, 3]]
@@ -801,9 +822,11 @@ def test_slice():
 
 @tvm.testing.uses_gpu
 def test_concat():
+    """Concat"""
+
     class Concat(flow.nn.Module):
-        def forward(self, x1, x2, x3):
-            out = flow.cat([x1, x2, x3], dim=-1)
+        def forward(self, input_1, input_2, input_3):
+            out = flow.cat([input_1, input_2, input_3], dim=-1)
             return out
 
     model = Concat().eval()
@@ -814,6 +837,8 @@ def test_concat():
 
 @tvm.testing.uses_gpu
 def test_add_constant():
+    """ConstantAdd"""
+
     class ConstantAdd(flow.nn.Module):
         def forward(self, x):
             out = flow.add(1.0, x)
@@ -857,6 +882,8 @@ def test_expand():
 
 @tvm.testing.uses_gpu
 def test_matmul():
+    """MatMul"""
+
     class MatMul(flow.nn.Module):
         def forward(self, x, y):
             return flow._C.matmul(x, y)

@@ -596,6 +596,19 @@ generated = [
         },
     ),
     generate_command(
+        name="minimal",
+        help="Run minimal CPU build and test(s)",
+        options={
+            "cpp": CPP_UNITTEST,
+            "unittest": (
+                "run unit tests",
+                [
+                    "./tests/scripts/task_python_unittest.sh",
+                ],
+            ),
+        },
+    ),
+    generate_command(
         name="i386",
         help="Run i386 build and test(s)",
         options={

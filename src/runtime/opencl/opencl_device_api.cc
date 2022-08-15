@@ -273,12 +273,31 @@ void OpenCLWorkspace::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHand
 
   if (IsOpenCLDevice(from->device) && IsOpenCLDevice(to->device)) {
     const auto* from_desc = static_cast<const cl::BufferDescriptor*>(from->data);
-    ICHECK(from_desc->layout == cl::BufferDescriptor::MemoryLayout::kBuffer1D)
-        << "Device to device copying is currently only implemented for OpenCL buffer storage";
     auto* to_desc = static_cast<cl::BufferDescriptor*>(to->data);
-    OPENCL_CALL(clEnqueueCopyBuffer(this->GetQueue(to->device), from_desc->buffer, to_desc->buffer,
-                                    from->byte_offset, to->byte_offset, nbytes, 0, nullptr,
-                                    nullptr));
+    if (to_desc->layout == cl::BufferDescriptor::MemoryLayout::kBuffer1D &&
+        from_desc->layout == cl::BufferDescriptor::MemoryLayout::kBuffer1D) {
+      OPENCL_CALL(clEnqueueCopyBuffer(this->GetQueue(to->device), from_desc->buffer,
+                                      to_desc->buffer, from->byte_offset, to->byte_offset, nbytes,
+                                      0, nullptr, nullptr));
+    } else if (to_desc->layout != cl::BufferDescriptor::MemoryLayout::kBuffer1D &&
+               from_desc->layout == cl::BufferDescriptor::MemoryLayout::kBuffer1D) {
+      auto image_info = GetImageInfo(to_desc, to);
+      OPENCL_CALL(clEnqueueCopyBufferToImage(this->GetQueue(to->device), from_desc->buffer,
+                                             to_desc->buffer, from->byte_offset, image_info.origin,
+                                             image_info.region, 0, nullptr, nullptr));
+    } else if (to_desc->layout == cl::BufferDescriptor::MemoryLayout::kBuffer1D &&
+               from_desc->layout != cl::BufferDescriptor::MemoryLayout::kBuffer1D) {
+      auto image_info = GetImageInfo(from_desc, from);
+      OPENCL_CALL(clEnqueueCopyImageToBuffer(this->GetQueue(to->device), from_desc->buffer,
+                                             to_desc->buffer, image_info.origin, image_info.region,
+                                             to->byte_offset, 0, nullptr, nullptr));
+    } else {
+      auto to_image_info = GetImageInfo(to_desc, to);
+      auto from_image_info = GetImageInfo(from_desc, from);
+      OPENCL_CALL(clEnqueueCopyImage(this->GetQueue(to->device), from_desc->buffer, to_desc->buffer,
+                                     from_image_info.origin, to_image_info.origin,
+                                     to_image_info.region, 0, nullptr, nullptr));
+    }
   } else if (IsOpenCLDevice(from->device) && to->device.device_type == kDLCPU) {
     const auto* from_desc = static_cast<const cl::BufferDescriptor*>(from->data);
     switch (from_desc->layout) {

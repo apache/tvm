@@ -90,6 +90,7 @@ def lower_ethosu(sch, args, const_dict, name="main"):
         mod = tvm.tir.transform.RemoveNoOp()(mod)
         mod, const_dict = ethosu_passes.EncodeConstants(const_dict)(mod)
         mod = ethosu_passes.HoistAllocates()(mod)
+        mod = tvm.tir.transform.RemoveNoOp()(mod)
         #  MergeConstant pass currently does not support striped schedules.
         #  It requires further investigation.
         if not util.is_striping_enabled():

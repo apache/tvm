@@ -293,7 +293,7 @@ class _DefaultCUDA:
                 structure="SSSRRSRS",
                 tile_binds=["blockIdx.x", "vthread.x", "threadIdx.x"],
                 max_innermost_factor=64,
-                vector_load_lens=[1, 2, 3, 4],
+                vector_load_lens=[1, 2, 3, 4, 8, 16],
                 reuse_read=M.ReuseType(
                     req="must",
                     levels=[4],
@@ -357,23 +357,24 @@ class _DefaultCUDATensorCore:
     @staticmethod
     def schedule_rules():
         from tvm.meta_schedule import schedule_rule as M
-        from tvm.tir.tensor_intrin import get_wmma_intrin_group
+        from tvm.tir.tensor_intrin.cuda import get_wmma_intrin_group
 
         return [
             M.MultiLevelTilingTensorCore(
                 intrin_groups=[
                     get_wmma_intrin_group(
                         store_scope="shared",
-                        in_dtype="float16",
-                        out_dtype="float16",
+                        in_dtype=in_dtype,
+                        out_dtype=out_dtype,
                         trans_b=trans_b,
                     )
+                    for (in_dtype, out_dtype) in [("float16", "float16"), ("int8", "int32")]
                     for trans_b in [False, True]
                 ],
                 structure="SSSRRSRS",
                 tile_binds=["blockIdx.y", "blockIdx.x", "threadIdx.y"],
                 max_innermost_factor=4,
-                vector_load_lens=[1, 2, 3, 4],
+                vector_load_lens=[1, 2, 3, 4, 8, 16],
                 reuse_read=M.ReuseType(req="must", levels=[4], scope="shared"),
                 reuse_write=M.ReuseType(
                     req="must",
