@@ -2269,9 +2269,9 @@ class PyTorchOpConverter:
 
         offsets_const_fold = _fold_constant(offsets_1d)
 
-        assert isinstance(
-            offsets_const_fold, _expr.Constant
-        ), "Only constant offsets are supported."
+        # assert isinstance(
+        #     offsets_const_fold, _expr.Constant
+        # ), "Only constant offsets are supported."
 
         offsets_np = offsets_const_fold.data.numpy()
         if include_last_offset == 1:
@@ -2283,7 +2283,7 @@ class PyTorchOpConverter:
         mode_map = {0: _op.sum, 1: _op.mean, 2: _op.max}
         assert mode in mode_map, "unsupported reduction op mode %d." % mode
 
-        return _op.embedding_bag(indices, weights, offsets_1d, mode)
+        return _op.embedding_bag(indices, weights, offsets_diff, mode)
 
     def one_hot(self, inputs, input_types):
         indices = inputs[0].astype("int32")

@@ -1889,3 +1889,29 @@ def stft(
         window = _make.ones([n_fft], "int32")
 
     return _make.stft(data, n_fft, hop_length, win_length, window, normalized, onesided)
+
+def embedding_bag(indices, weights, offsets, mode):
+    """
+    TBA
+    
+    Parameters
+    ----------
+    indicus: relay.Expr
+        TBA
+        
+    weight: relay.Expr
+        TBA
+        
+    offset: relay.Expr
+        TBA
+        
+    mode: int
+        TBA
+        
+    Returns
+    -------
+    ret : relay.Expr
+        TBA
+    """
+    
+    return _make.embedding_bag(indices, weights, offsets, mode)
