@@ -920,6 +920,7 @@ def test_open_docker_update_pr(
         "ci_cortexm",
         "ci_arm",
         "ci_hexagon",
+        "ci_riscv",
     ]
 
     docker_data = {}
