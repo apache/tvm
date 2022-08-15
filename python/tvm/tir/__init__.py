@@ -48,6 +48,7 @@ from .function import PrimFunc, TensorIntrin, IndexMap
 from .op import call_packed_lowered, call_cpacked_lowered
 from .op import call_packed, call_cpacked, call_intrin, call_pure_extern, call_extern
 from .op import call_llvm_intrin, call_llvm_pure_intrin, ret, all, any, min_value, max_value, trace
+from .op import tvm_stack_alloca, tvm_stack_make_shape, tvm_stack_make_array
 from .op import exp, exp2, exp10, log, log2, log10, log1p, ldexp, clz
 from .op import sin, sinh, asin, asinh
 from .op import cos, cosh, acos, acosh
