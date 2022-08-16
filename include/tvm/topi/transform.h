@@ -2042,14 +2042,14 @@ inline Tensor embedding_bag(const Tensor& input, const Tensor& weight, const Ten
   auto func = [&](tvm::tir::Var i, tvm::tir::Var j) {
     auto ret = make_zero(dtype);
 
-    auto st = offset(i);
-    auto ed = if_then_else(row == i + 1, N, offset(i + 1));
+    auto st = offset(i); // start point
+    auto ed = if_then_else(row == i + 1, N, offset(i + 1)); // end point
 
-    for (auto idx = 0; idx < N; idx++) {
-      if (mode < 2)  // mean or sum
+    for (auto idx = 0; idx < N; idx++) { // can't find `fold` function, so use a stupid method to iterate from st to ed
+      if (mode < 2)  // mean(1) or sum(0)
       {
         ret = if_then_else(st + idx < ed, ret + weight[input(st + idx)][j], ret);
-      } else {  // max
+      } else {  // max(2)
         if (idx == 0) {
           ret = weight[input(st + idx)][j];
         } else {
