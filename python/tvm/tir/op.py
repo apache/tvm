@@ -400,6 +400,72 @@ def undef():
     return call_intrin("int32", "tir.undef")
 
 
+def tvm_tuple(*value):
+    """Create a tuple structure in value field of AttrStmt
+
+    Parameters
+    ----------
+    value : Expr
+        The value in tuple.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.tvm_tuple", *value)
+
+
+def tvm_struct_get(arr, index, field, dtype):
+    """Get struct field value in array
+
+    Parameters
+    ----------
+    dtype : str
+        The date type of the result.
+
+    arr : StructType*
+        The array of struct.
+
+    index : int
+        The index of struct.
+
+    field : int
+        The field of struct.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(dtype, "tir.tvm_struct_get", arr, index, field)
+
+
+def tvm_struct_set(arr, index, field, value):
+    """Set value in struct field in array
+
+    Parameters
+    ----------
+    arr : StructType*
+        The array of struct.
+
+    index : int
+        The index of struct.
+
+    field : int
+        The field of struct.
+
+    value : Expr
+        The value to be set in field.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.tvm_struct_set", arr, index, field, value)
+
+
 def ret(val):
     """Create a tir return expression
 
