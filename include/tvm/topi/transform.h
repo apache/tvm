@@ -2030,13 +2030,12 @@ inline Tensor adv_index(const Tensor& data, const Array<Tensor>& indices,
 inline Tensor embedding_bag(const Tensor& input, const Tensor& weight, const Tensor& offset,
                             int mode, DataType dtype, const std::string name = "T_embedding_bag",
                             const std::string tag = kInjective) {
-  bool is_1d_input = static_cast<int>(input->shape.size()) == 1;
-  LOG(INFO) << is_1d_input;
   auto row = offset->shape[0];
   auto column = weight->shape[1];
 
   int N = GetConstInt(weight->shape[0]);
-  LOG(INFO) << N;
+  LOG(INFO) << row << " "
+            << " " << column << " " << N;
 
   Array<PrimExpr> oshape{row, column};
 
@@ -2062,22 +2061,6 @@ inline Tensor embedding_bag(const Tensor& input, const Tensor& weight, const Ten
       ret = tvm::topi::divide(ret, ed - st);
     }
 
-    // if (mode == 1) {  // mean
-    //   for (auto& itr : data) ret += itr;
-    //   LOG(INFO) << "mean " << N;
-    //   return tvm::topi::divide(ret, static_cast<int32_t>(N));
-    // } else if (mode == 0) {  // sum
-    //   for (auto& itr : data) ret += itr;
-    //   LOG(INFO) << "sum";
-    // } else if (mode == 2) {  // max
-    //   for (auto itr = data.begin(); itr != data.end(); ++itr)
-    //     if (itr == data.begin()) {
-    //       ret = *itr;
-    //     } else {
-    //       ret = tvm::max(ret, *itr);
-    //     }
-    //   LOG(INFO) << "max";
-    // }
     return ret;
   };
 
