@@ -27,6 +27,7 @@
 
 #include <algorithm>
 
+#include "constraint_extract.h"
 #include "int_operator.h"
 #include "pattern_match.h"
 
@@ -637,36 +638,34 @@ class ConstIntBoundAnalyzer::Impl
   static std::vector<BoundInfo> DetectBoundInfo(const PrimExpr& cond) {
     PVar<PrimExpr> x, y;
     PVar<IntImm> c;
-    if ((x && y).Match(cond)) {
-      auto ret1 = DetectBoundInfo(x.Eval());
-      auto ret2 = DetectBoundInfo(y.Eval());
-      ret1.insert(ret1.end(), ret2.begin(), ret2.end());
-      return ret1;
+
+    std::vector<BoundInfo> info;
+    auto add_info = [&](const PrimExpr& expr, int64_t min_value, int64_t max_value) {
+      // If the conditional is comparing two integers, do not assign a
+      // value to them.
+      if (!expr->IsInstance<IntImmNode>()) {
+        info.push_back(BoundInfo(expr, MakeBound(min_value, max_value)));
+      }
+    };
+
+    for (const auto& subexpr : ExtractConstraints(cond)) {
+      // NOTE: The canonical form always uses <= or <, but a
+      // user-supplied constraint from the python API might not be
+      // canonicalized.
+      if ((c <= x).Match(subexpr) || (x >= c).Match(subexpr)) {
+        add_info(x.Eval(), c.Eval()->value, kPosInf);
+      } else if ((c < x).Match(subexpr) || (x > c).Match(subexpr)) {
+        add_info(x.Eval(), c.Eval()->value + 1, kPosInf);
+      } else if ((x <= c).Match(subexpr) || (x >= c).Match(subexpr)) {
+        add_info(x.Eval(), kNegInf, c.Eval()->value);
+      } else if ((x < c).Match(subexpr) || (c > x).Match(subexpr)) {
+        add_info(x.Eval(), kNegInf, c.Eval()->value - 1);
+      } else if ((x == c).Match(subexpr) || (c == x).Match(subexpr)) {
+        add_info(x.Eval(), c.Eval()->value, c.Eval()->value);
+      }
     }
 
-    // NOTE: canonical form always use <= or <
-    Entry bound;
-    if ((c <= x).Match(cond)) {
-      bound = MakeBound(c.Eval()->value, kPosInf);
-    } else if ((c < x).Match(cond)) {
-      bound = MakeBound(c.Eval()->value + 1, kPosInf);
-    } else if ((x <= c).Match(cond)) {
-      bound = MakeBound(kNegInf, c.Eval()->value);
-    } else if ((x < c).Match(cond)) {
-      bound = MakeBound(kNegInf, c.Eval()->value - 1);
-    } else if ((x == c).Match(cond) || (c == x).Match(cond)) {
-      bound = MakeBound(c.Eval()->value, c.Eval()->value);
-    } else {
-      return {};
-    }
-
-    // If the conditional is comparing two integers, do not assign a
-    // value to them.
-    if (x.Eval().as<IntImmNode>()) {
-      return {};
-    }
-
-    return {BoundInfo(x.Eval(), bound)};
+    return info;
   }
 
   /*!
