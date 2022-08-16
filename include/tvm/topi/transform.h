@@ -725,7 +725,7 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
 }
 
 /*!
- * \brief Calcluate the output shape of strided_slice, the entry point for Relay type relation
+ * \brief Calculate the output shape of strided_slice, the entry point for Relay type relation
  *
  * \param ishape The input tensor shape
  * \param begin The indices to begin with in the slicing
@@ -2030,57 +2030,59 @@ inline Tensor adv_index(const Tensor& data, const Array<Tensor>& indices,
 inline Tensor embedding_bag(const Tensor& input, const Tensor& weight, const Tensor& offset,
                             int mode, DataType dtype, const std::string name = "T_embedding_bag",
                             const std::string tag = kInjective) {
-  tvm::PrimExpr row, column;
   bool is_1d_input = static_cast<int>(input->shape.size()) == 1;
-  if (is_1d_input) {
-    row = offset->shape[0];
-  } else {
-    row = input->shape[0];
-  }
-  column = weight->shape[1];
+  LOG(INFO) << is_1d_input;
+  auto row = offset->shape[0];
+  auto column = weight->shape[1];
+
+  int N = GetConstInt(weight->shape[0]);
+  LOG(INFO) << N;
 
   Array<PrimExpr> oshape{row, column};
 
   auto func = [&](tvm::tir::Var i, tvm::tir::Var j) {
     auto ret = make_zero(dtype);
-    if (is_1d_input) {
-      // TODO
-      LOG(FATAL) << "accidental";
-      return ret;
-    } else {
-      LOG(INFO) << "input 2d";
-      Array<PrimExpr> data;
-      auto N = GetConstInt(input->shape[1]);
-      for (auto idx = 0; idx < N; idx++) {
-        auto idx_i = input[i][idx];
-        data.push_back(weight[idx_i][j]);
-      }
 
-      if (mode == 1) {  // mean
-        for (auto& itr : data) ret += itr;
-        LOG(INFO) << "mean";
-        return tvm::topi::divide(ret, static_cast<int32_t>(N));
-      } else if (mode == 0) {  // sum
-        for (auto& itr : data) ret += itr;
-        LOG(INFO) << "sum";
-        return ret;
-      } else if (mode == 2) {  // max
-        for (auto itr = data.begin(); itr != data.end(); ++itr)
-          if (itr == data.begin()) {
-            ret = *itr;
-          } else {
-            ret = tvm::max(ret, *itr);
-          }
-        LOG(INFO) << "max";
-        return ret;
+    auto st = offset(i);
+    auto ed = if_then_else(row == i + 1, N, offset(i + 1));
+
+    for (auto idx = 0; idx < N; idx++) {
+      if (mode < 2)  // mean or sum
+      {
+        ret = if_then_else(st + idx < ed, ret + weight[input(st + idx)][j], ret);
+      } else {  // max
+        if (idx == 0) {
+          ret = weight[input(st + idx)][j];
+        } else {
+          ret = if_then_else(st + idx < ed, max(ret, weight[input(st + idx)][j]), ret);
+        }
       }
-      ICHECK(false);
     }
+    if (mode == 1) {  // mean
+      ret = tvm::topi::divide(ret, ed - st);
+    }
+
+    // if (mode == 1) {  // mean
+    //   for (auto& itr : data) ret += itr;
+    //   LOG(INFO) << "mean " << N;
+    //   return tvm::topi::divide(ret, static_cast<int32_t>(N));
+    // } else if (mode == 0) {  // sum
+    //   for (auto& itr : data) ret += itr;
+    //   LOG(INFO) << "sum";
+    // } else if (mode == 2) {  // max
+    //   for (auto itr = data.begin(); itr != data.end(); ++itr)
+    //     if (itr == data.begin()) {
+    //       ret = *itr;
+    //     } else {
+    //       ret = tvm::max(ret, *itr);
+    //     }
+    //   LOG(INFO) << "max";
+    // }
+    return ret;
   };
 
-  LOG(INFO) << "compute";
   return compute(oshape, func, name, tag);
-}
+}  // namespace topi
 
 }  // namespace topi
 }  // namespace tvm
