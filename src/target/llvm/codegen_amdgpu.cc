@@ -254,7 +254,7 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
   // Lower versions will crash when loading the bitcode, see
   // issue #4087 for a discussion
 #endif
-  std::unique_ptr<CodeGenAMDGPU> cg(new CodeGenAMDGPU());
+  auto cg = std::make_unique<CodeGenAMDGPU>();
 
   cg->Init("TVMAMDGPUModule", llvm_target.get(), false, false, false);
 

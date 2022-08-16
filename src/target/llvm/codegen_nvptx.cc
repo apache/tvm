@@ -303,7 +303,7 @@ runtime::Module BuildNVPTX(IRModule mod, Target target) {
   With<LLVMTarget> llvm_target(llvm_instance, target);
 
   int compute_ver = GetCUDAComputeVersion(target);
-  std::unique_ptr<CodeGenNVPTX> cg(new CodeGenNVPTX());
+  auto cg = std::make_unique<CodeGenNVPTX>();
 
   cg->Init("TVMPTXModule", llvm_target.get(), false, false, false);
 
