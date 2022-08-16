@@ -35,6 +35,9 @@
 namespace tvm {
 namespace contrib {
 
+/*
+ * TVM's FFI for passing module from python to C++
+ */
 struct ThreadLocalStore {
   tvm::runtime::Module mod;
   static ThreadLocalStore* ThreadLocal() {
@@ -100,7 +103,7 @@ TVM_REGISTER_GLOBAL("tvmtorch.save_runtime_mod").set_body_typed([](tvm::runtime:
  * @param src Pointer to NDArray
  * @return DLPack extended tensor
  */
-DLPackTensorExt createDLpackTensorExt(tvm::runtime::NDArray* src) {
+DLPackTensorExt CreateDLpackTensorExt(tvm::runtime::NDArray* src) {
   auto is_bool = src->DataType().is_bool();
   DLManagedTensor* tensor;
   if (is_bool) {
@@ -120,7 +123,7 @@ DLPackTensorExt createDLpackTensorExt(tvm::runtime::NDArray* src) {
  * @param src DLpack extended tensor
  * @return a new NDArray
  */
-tvm::runtime::NDArray createBoolNDarray(DLPackTensorExt* src) {
+tvm::runtime::NDArray CreateBoolNDarray(DLPackTensorExt* src) {
   auto& tensor = src->dl_managed_tensor->dl_tensor;
   std::vector<int64_t> shape;
   for (int64_t i = 0; i < tensor.ndim; i++) {
@@ -131,7 +134,7 @@ tvm::runtime::NDArray createBoolNDarray(DLPackTensorExt* src) {
   return std::move(ret);
 }
 
-bool isZeroCopy(DLPackTensorExt* src) {
+bool IsZeroCopy(DLPackTensorExt* src) {
   auto& dl_tensor = src->dl_managed_tensor->dl_tensor;
   return tvm::runtime::NDArray::AbilityOfZeroCopyForDLTensor(&dl_tensor, dl_tensor.device);
 }
@@ -141,7 +144,7 @@ bool isZeroCopy(DLPackTensorExt* src) {
  * @param src DLpack extended tensor
  * @return a new NDArray
  */
-tvm::runtime::NDArray ndarrayFromDLpack(DLPackTensorExt* src) {
+tvm::runtime::NDArray NDarrayFromDLpack(DLPackTensorExt* src) {
   using tvm::runtime::NDArray;
 
   NDArray array;
@@ -149,8 +152,8 @@ tvm::runtime::NDArray ndarrayFromDLpack(DLPackTensorExt* src) {
   if (src->is_bool) {
     // one memory copy
     // the code is similar to NewFromDLTensor except for the type
-    array = createBoolNDarray(src);
-  } else if (isZeroCopy(src)) {
+    array = CreateBoolNDarray(src);
+  } else if (IsZeroCopy(src)) {
     array = NDArray::FromExternalDLTensor(src->dl_managed_tensor->dl_tensor);
   } else {
     // one memory copy
@@ -171,7 +174,7 @@ struct TVMContribTorchRuntimeModule {
 };
 
 bool tvm_contrib_torch_tensor_ability_of_zero_copy(DLPackTensorExt* src) {
-  return (src->is_bool) || (!tvm::contrib::isZeroCopy(src));
+  return (!src->is_bool) && (tvm::contrib::IsZeroCopy(src));
 }
 
 TVMContribTorchRuntimeModule* tvm_contrib_torch_get_last_saved_runtime_module() {
@@ -189,7 +192,7 @@ void tvm_contrib_torch_operator_module_forward(TVMContribTorchRuntimeModule* run
   std::vector<tvm::runtime::NDArray> input_cache(input_size);
 
   for (size_t k = 0; k < input_size; ++k) {
-    auto datum = tvm::contrib::ndarrayFromDLpack(&inputs[k]);  // could have one memory copy
+    auto datum = tvm::contrib::NDarrayFromDLpack(&inputs[k]);  // could have one memory copy
     input_cache[k] = datum;  // we keep the datum in a vector for future use, otherwise the datum
                              // will be freed after the loop
     setter(k, datum);
@@ -199,7 +202,7 @@ void tvm_contrib_torch_operator_module_forward(TVMContribTorchRuntimeModule* run
                  nullptr);
 
   for (size_t k = 0; k < input_size; ++k) {
-    if (tvm_contrib_torch_tensor_ability_of_zero_copy(&inputs[k]))
+    if (!tvm_contrib_torch_tensor_ability_of_zero_copy(&inputs[k]))
       input_cache[k].CopyTo(&inputs[k].dl_managed_tensor->dl_tensor);
   }
 }
@@ -233,7 +236,7 @@ size_t tvm_contrib_torch_graph_executor_module_forward(TVMContribTorchRuntimeMod
 
   for (int64_t k = 0; k < output_length; ++k) {
     tvm::runtime::NDArray results = get_output(k);
-    outputs_ptr[k] = tvm::contrib::createDLpackTensorExt(&results);
+    outputs_ptr[k] = tvm::contrib::CreateDLpackTensorExt(&results);
   }
 
   return output_length;

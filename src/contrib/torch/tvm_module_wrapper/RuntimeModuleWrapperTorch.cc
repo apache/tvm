@@ -33,9 +33,9 @@ namespace contrib {
  * @param src Torch tensor
  * @return DLPack extended tensor
  */
-DLPackTensorExt toDLPackExt(const at::Tensor& src) {
+DLPackTensorExt ToDLPackExt(const at::Tensor& src) {
   if (!src.is_contiguous()) {
-    return toDLPackExt(src.contiguous());
+    return ToDLPackExt(src.contiguous());
   }
   DLPackTensorExt ret;
   if (src.dtype().isScalarType(torch::kBool)) {
@@ -55,7 +55,7 @@ DLPackTensorExt toDLPackExt(const at::Tensor& src) {
  * @param src DLPack extended tensor
  * @return Torch tensor
  */
-at::Tensor fromDLPackExt(const DLPackTensorExt& src) {
+at::Tensor FromDLPackExt(const DLPackTensorExt& src) {
   if (src.is_bool) {
     return at::fromDLPack(src.dl_managed_tensor).toType(torch::kBool);
   } else {
@@ -80,13 +80,13 @@ class OperatorModuleWrapper : public torch::jit::CustomClassHolder {
 
     // Torch tensor supports boolean type while DLpack does not,
     // we convert Torch tensor to an extension of DLPack tensor
-    for (int i = 0; i < input_length; ++i) tensors.push_back(toDLPackExt(inputs[i]));
+    for (int i = 0; i < input_length; ++i) tensors.push_back(ToDLPackExt(inputs[i]));
     tvm_contrib_torch_operator_module_forward(this->runtime_module_, tensors.data(),
                                               tensors.size());
 
     for (int k = 0; k < input_length; ++k) {
-      if (tvm_contrib_torch_tensor_ability_of_zero_copy(&tensors[k])) {
-        inputs[k].copy_(fromDLPackExt(tensors[k]));
+      if (!tvm_contrib_torch_tensor_ability_of_zero_copy(&tensors[k])) {
+        inputs[k].copy_(FromDLPackExt(tensors[k]));
       } else {
         tensors[k].dl_managed_tensor->deleter(tensors[k].dl_managed_tensor);
       }
@@ -150,7 +150,7 @@ class GraphExecutorFactoryWrapper : public torch::jit::CustomClassHolder {
 
     // Torch tensor supports boolean type while DLpack does not,
     // we convert Torch tensor to an extension of DLPack tensor
-    for (int i = 0; i < input_length; ++i) tensors.push_back(toDLPackExt(inputs[i]));
+    for (int i = 0; i < input_length; ++i) tensors.push_back(ToDLPackExt(inputs[i]));
 
     DLPackTensorExt* outputs;
     if (executor_factory_runtime_ == nullptr) {
@@ -164,7 +164,7 @@ class GraphExecutorFactoryWrapper : public torch::jit::CustomClassHolder {
     ret.reserve(num_outputs);
 
     for (size_t k = 0; k < num_outputs; ++k) {
-      at::Tensor atTensor = fromDLPackExt(outputs[k]);
+      at::Tensor atTensor = FromDLPackExt(outputs[k]);
       ret.emplace_back(atTensor);
     }
 
