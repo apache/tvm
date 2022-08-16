@@ -16,6 +16,9 @@
 # under the License.
 
 import pytest
+pytest.importorskip("tflite")
+pytest.importorskip("tensorflow")
+
 import os
 import tensorflow as tf
 from tvm.micro.testing.aot_test_utils import AOT_DEFAULT_RUNNER
