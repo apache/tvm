@@ -373,6 +373,33 @@ def tvm_stack_make_array(data, shape, strides, ndim, arr_dtype, elem_offset):
     )
 
 
+def assume(cond=None):
+    """Provide a true statement that can be used for simplifications
+
+    Parameters
+    ----------
+    cond : Expr
+       The constraint condition.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("int32", "tir.assume", cond)
+
+
+def undef():
+    """Returns an initialized but arbitrary value
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("int32", "tir.undef")
+
+
 def ret(val):
     """Create a tir return expression
 
@@ -1119,6 +1146,26 @@ def ldexp(x1, x2):
         The result.
     """
     return call_intrin(x1.dtype, "tir.ldexp", x1, x2)  # type: ignore
+
+
+def likely(cond, span=None):
+    """Mark condition as likely.
+
+    Parameters
+    ----------
+
+    cond : PrimExpr
+        Input argument.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    y : PrimExpr
+        The marked expression.
+    """
+    return _ffi_api.likely(cond, span)  # type: ignore
 
 
 def isnan(x, span=None):

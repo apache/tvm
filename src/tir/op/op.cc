@@ -931,6 +931,8 @@ TVM_REGISTER_GLOBAL("tir.max_value").set_body_typed(max_value);
 
 TVM_REGISTER_GLOBAL("tir.abs").set_body_typed(tvm::abs);
 
+TVM_REGISTER_GLOBAL("tir.likely").set_body_typed(tvm::likely);
+
 TVM_REGISTER_GLOBAL("tir.isnan").set_body_typed(tvm::isnan);
 
 TVM_REGISTER_GLOBAL("tir.isfinite").set_body_typed(tvm::isfinite);
