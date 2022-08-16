@@ -18,8 +18,6 @@
 """Dense schedule for ARM CPU"""
 
 from tvm import autotvm
-from tvm.topi.nn import dense
-
 from .mprofile.dsp.dense import dense_dsp_schedule, dense_dsp_compute
 
 
