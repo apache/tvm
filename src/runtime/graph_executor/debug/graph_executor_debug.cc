@@ -175,8 +175,8 @@ class GraphExecutorDebug : public GraphExecutor {
                        repeats_to_cooldown, "");
 
     int num_flat_args = num_inputs + num_outputs;
-    std::unique_ptr<TVMValue> values(new TVMValue[num_flat_args]);
-    std::unique_ptr<int> type_codes(new int[num_flat_args]);
+    auto values = std::make_unique<TVMValue[]>(num_flat_args);
+    auto type_codes = std::make_unique<int[]>(num_flat_args);
     TVMArgsSetter setter(values.get(), type_codes.get());
     int offs = 0;
     const auto& inode = nodes_[index];
