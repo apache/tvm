@@ -70,6 +70,16 @@ void SetDispatchFunction(DispatchTable* dispatch_table, const String& token, uin
   }
   slot = f;
 }
+
+void RemoveDispatchFunction(DispatchTable* dispatch_table, const String& token,
+                            uint32_t type_index) {
+  std::vector<runtime::PackedFunc>* table = &(*dispatch_table)[token];
+  if (table->size() <= type_index) {
+    return;
+  }
+  (*table)[type_index] = nullptr;
+}
+
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm
