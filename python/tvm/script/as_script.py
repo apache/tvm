@@ -14,9 +14,32 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVM Script APIs of TVM Python Package, aimed to support TIR"""
+"""
+This file contains the entry point of TVMScript Unified Printer.
+"""
 
-from . import tir
+from typing import Dict, Optional
 
-from .parser import ir_module, from_source
-from .as_script import as_script
+from tvm.runtime.object_path import ObjectPath
+
+from . import _ffi_api
+
+
+def as_script(
+    root_node,
+    ir_name: str,
+    ir_prefix: Dict[str, str],
+    indent_spaces: int = 4,
+    print_line_numbers: bool = False,
+    num_context_lines: int = -1,
+    path_to_underline: Optional[ObjectPath] = None,
+) -> str:
+    return _ffi_api.AsScript(
+        root_node,
+        ir_name,
+        ir_prefix,
+        indent_spaces,
+        print_line_numbers,
+        num_context_lines,
+        path_to_underline,
+    )

@@ -182,6 +182,47 @@ class IRDocsifier : public ObjectRef {
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(IRDocsifier, ObjectRef, IRDocsifierNode);
 };
 
+/*!
+ * \brief A wrapper object to provide injection point for printer of each IR.
+ *
+ * For any IR node to be transformed by IRDocsifier, it will be wrapped by RootNodeContainer
+ * and be dispatched to the corresponding function first. This provides an injection point for
+ * each IR's printer implemention to add specialized logic, for example, pushing a special
+ * Frame to the IRDocsifier before doing any IR->Doc transformation.
+ *
+ * \code
+ * TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+ *     .set_dispatch("relax", [](TracedObject<RootNodeContainer> obj, IRDocsifier p) {
+ *       const ObjectRef& root_node = obj.Get()->root_node;
+ *       // For example, relax printer can create a Frame specialized to Relax here
+ *       RelaxGeneralFrame frame;
+ *       auto ctx = p->WithFrame(frame);
+ *       // More specialized logic for your IR.
+ *       return p->AsDoc<Doc>(MakeTraced(root_node));
+ *     });
+ * \endcode
+ */
+class RootNodeContainerNode : public Object {
+ public:
+  /*! \brief The root node to print. */
+  ObjectRef root_node;
+
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("root_node", &root_node); }
+
+  static constexpr const char* _type_key = "script.printer.RootNodeContainer";
+  TVM_DECLARE_FINAL_OBJECT_INFO(RootNodeContainerNode, Object);
+};
+
+class RootNodeContainer : public ObjectRef {
+ public:
+  /*!
+   * \brief Constructor of RootNodeContainer.
+   * \param root_node The root node to print.
+   * */
+  explicit RootNodeContainer(ObjectRef root_node);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(RootNodeContainer, ObjectRef, RootNodeContainerNode);
+};
+
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm
