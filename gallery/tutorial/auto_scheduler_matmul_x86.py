@@ -44,7 +44,6 @@ from tvm import testing
 testing.utils.install_request_hook(depth=3)
 # sphinx_gallery_end_ignore
 
-import pathlib
 import numpy as np
 import tvm
 from tvm import te, auto_scheduler
@@ -116,10 +115,7 @@ print(task.compute_dag)
 #   best, resume the search, and do more analyses later.
 # * see :any:`TuningOptions <auto_scheduler.TuningOptions>` for more parameters
 
-log_file = pathlib.Path("matmul.json")
-if log_file.exists():
-    log_file.unlink()
-
+log_file = "matmul.json"
 tune_option = auto_scheduler.TuningOptions(
     num_measure_trials=10,
     measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
