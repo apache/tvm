@@ -518,7 +518,7 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
   static bool CallOnce = (ProcessLLVMOptions(llvm_options_vec), true);
   (void)CallOnce;
 
-  std::unique_ptr<CodeGenHexagon> cg(new CodeGenHexagon());
+  auto cg = std::make_unique<CodeGenHexagon>();
 
   std::vector<PrimFunc> funcs;
   std::string entry_func;

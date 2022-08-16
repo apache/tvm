@@ -324,7 +324,7 @@ struct ValueTypeInfoMaker<ValueType, std::true_type, std::false_type> {
     ValueTypeInfo info;
     info.type_index = tindex;
     info.type_key = runtime::Object::TypeIndex2Key(tindex);
-    info.key = std::unique_ptr<ValueTypeInfo>(new ValueTypeInfo(key_type()()));
+    info.key = std::make_unique<ValueTypeInfo>(key_type()());
     info.val = nullptr;
     return info;
   }
@@ -340,8 +340,8 @@ struct ValueTypeInfoMaker<ValueType, std::false_type, std::true_type> {
     ValueTypeInfo info;
     info.type_index = tindex;
     info.type_key = runtime::Object::TypeIndex2Key(tindex);
-    info.key = std::unique_ptr<ValueTypeInfo>(new ValueTypeInfo(key_type()()));
-    info.val = std::unique_ptr<ValueTypeInfo>(new ValueTypeInfo(val_type()()));
+    info.key = std::make_unique<ValueTypeInfo>(key_type()());
+    info.val = std::make_unique<ValueTypeInfo>(val_type()());
     return info;
   }
 };

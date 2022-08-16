@@ -899,7 +899,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                          const StorageScope& scope, size_t const_nbits) {
     ICHECK(op != nullptr);
     // Re-use not successful, allocate a new buffer.
-    std::unique_ptr<StorageEntry> entry(new StorageEntry());
+    auto entry = std::make_unique<StorageEntry>();
     entry->attach_scope_ = attach_scope;
     entry->scope = scope;
     entry->elem_type = op->dtype.element_of();
