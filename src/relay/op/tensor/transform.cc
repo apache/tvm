@@ -4274,7 +4274,15 @@ bool EmbeddingBagRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   // Output shape is the (B, embedding_dim).
   column = embedding_matrix->shape[1];
   std::vector<tvm::PrimExpr> shape{row, column};
-  reporter->Assign(types[2], TensorType(tvm::relay::Shape(shape), embedding_matrix->dtype));
+  const auto param = attrs.as<EmbeddingBagAttrs>();
+  const auto mode = param->mode;
+  DataType dtype;
+  if (mode == 1) {  // mean
+    dtype = DataType::Float(32);
+  } else {  // sum or max
+    dtype = embedding_matrix->dtype;
+  }
+  reporter->Assign(types[3], TensorType(tvm::relay::Shape(shape), dtype));
   return true;
 }
 

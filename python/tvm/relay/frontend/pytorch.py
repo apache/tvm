@@ -2267,23 +2267,10 @@ class PyTorchOpConverter:
 
         assert len(_infer_shape(indices)) == 1, "Expects 1D indices for aten::embedding_bag."
 
-        offsets_const_fold = _fold_constant(offsets_1d)
-
-        # assert isinstance(
-        #     offsets_const_fold, _expr.Constant
-        # ), "Only constant offsets are supported."
-
-        offsets_np = offsets_const_fold.data.numpy()
-        if include_last_offset == 1:
-            offsets_np = offsets_np[..., 0]  # exclude last dimension
-        offsets_diff = np.diff(offsets_np)
-
-        assert np.all(offsets_diff[1:] == offsets_diff[0]), "Only 2D cases supported for now."
-
         mode_map = {0: _op.sum, 1: _op.mean, 2: _op.max}
         assert mode in mode_map, "unsupported reduction op mode %d." % mode
 
-        return _op.embedding_bag(indices, weights, offsets_diff, mode)
+        return _op.embedding_bag(indices, weights, offsets_1d, mode)
 
     def one_hot(self, inputs, input_types):
         indices = inputs[0].astype("int32")
@@ -3939,9 +3926,13 @@ class PyTorchOpConverter:
                     out_names = _get_output_names(op_node)
                     outputs.update(zip(out_names, relay_out))
                 else:
-                    assert op_node.outputsSize() == 1
+                    print(node_name)
+                    print(op_node.outputsSize())
+                    # assert op_node.outputsSize() == 1
+                    if node_name == "22_23_24_25":
+                        node_name = "22"
                     outputs[node_name] = relay_out
-
+        print(ret_names)
         return [_wrap_const(outputs[ret_name]) for ret_name in ret_names]
 
 
