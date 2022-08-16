@@ -648,7 +648,7 @@ Load::Load(DataType dtype, Var buffer_var, PrimExpr index, PrimExpr predicate, S
   // annotation tells us otherwise.
   int element_lanes = 1;
   auto pointer_type = tir::GetPointerType(buffer_var->type_annotation);
-  if (pointer_type.first) {
+  if (pointer_type.has_value()) {
     // Cannot check element type of array, as it may be different than
     // the loaded type in some cases.
     //
@@ -663,11 +663,11 @@ Load::Load(DataType dtype, Var buffer_var, PrimExpr index, PrimExpr predicate, S
     // See https://discuss.tvm.apache.org/t/pre-rfc-vectorized-tir-buffers/10615
     // for discussion.
 
-    // ICHECK(dtype.element_of() == pointer_type.second.element_of())
+    // ICHECK(dtype.element_of() == pointer_type->element_of())
     //     << "Type mismatch, cannot load type " << dtype << " from buffer " <<
     //     buffer_var->name_hint
-    //     << " of type " << pointer_type.second;
-    element_lanes = pointer_type.second.lanes();
+    //     << " of type " << pointer_type.value();
+    element_lanes = pointer_type->lanes();
   }
 
   // The C-based codegens assume that all loads occur on a array with

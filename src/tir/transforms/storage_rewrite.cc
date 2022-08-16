@@ -1125,8 +1125,8 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     // track the parameter itself.
     for (Var buffer_var : params) {
       auto pointer_type = GetPointerType(buffer_var->type_annotation);
-      if (pointer_type.first && (buffer_map.count(buffer_var) == 0)) {
-        DataType dtype = pointer_type.second;
+      if (pointer_type.has_value() && (buffer_map.count(buffer_var) == 0)) {
+        DataType dtype = pointer_type.value();
         PrimExpr extent = 0;
         OnArrayDeclaration(buffer_var, dtype, extent, BufferVarInfo::kPrimFuncBufferMap);
       }
@@ -1190,8 +1190,8 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   void HandleLetNode(Var let_var) {
     if (let_var->dtype.is_handle()) {
       auto pointer_type = GetPointerType(let_var->type_annotation);
-      if (pointer_type.first) {
-        OnArrayDeclaration(let_var, pointer_type.second, 0, BufferVarInfo::kLetNode);
+      if (pointer_type.has_value()) {
+        OnArrayDeclaration(let_var, pointer_type.value(), 0, BufferVarInfo::kLetNode);
       } else if (allow_untyped_pointers_) {
         OnArrayDeclaration(let_var, let_var->dtype, 0, BufferVarInfo::kLetNode);
       } else {
