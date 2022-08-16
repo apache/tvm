@@ -101,6 +101,15 @@ def _make_enter_postproc():
     )
 
 
+def _make_annotate(block: BlockRV, annotation: str):
+    return Instruction(
+        kind=InstructionKind.get("Annotate"),
+        inputs=[block, annotation],
+        attrs=["meta_schedule.auto_tensorize"],
+        outputs=[],
+    )
+
+
 def _make_trace_1(b0, l1, l2):  # pylint: disable=invalid-name
     return Trace(
         insts=[
@@ -273,6 +282,40 @@ def test_apply_json_to_schedule_1():
     sch = tir.Schedule(elementwise, debug_mask="all")
     Trace.apply_json_to_schedule(json_obj, sch)
     tvm.ir.assert_structural_equal(elementwise_inlined, sch.mod["main"])
+
+
+def _test_apply_annotation_trace_from_json(annotation: str):
+    """Test applying an annotation works without crashing.
+
+    Designed to handle some previously failing edge cases like the
+    empty string.
+    """
+    b0 = BlockRV()
+    trace = Trace(
+        insts=[
+            _make_get_block(name="B", output=b0),
+            _make_annotate(block=b0, annotation=annotation),
+        ],
+        decisions={},
+    )
+    json_obj = trace.as_json()
+    sch = tir.Schedule(elementwise, debug_mask="all")
+    Trace.apply_json_to_schedule(json_obj, sch)
+    tvm.ir.assert_structural_equal(elementwise_inlined, sch.mod["main"])
+
+
+def test_apply_annotation_from_json():
+    # Something reasonable
+    _test_apply_annotation_trace_from_json("SSRSSR")
+
+    # The empty string
+    _test_apply_annotation_trace_from_json("")
+
+    # A string of two quotation marks
+    _test_apply_annotation_trace_from_json('""')
+
+    # A string of one quotation mark
+    _test_apply_annotation_trace_from_json('"')
 
 
 if __name__ == "__main__":
