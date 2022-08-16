@@ -2033,7 +2033,7 @@ inline Tensor embedding_bag(const Tensor& input, const Tensor& weight, const Ten
   auto row = offset->shape[0];
   auto column = weight->shape[1];
 
-  int N = GetConstInt(weight->shape[0]);
+  int N = GetConstInt(input->shape[0]);
   LOG(INFO) << row << " "
             << " " << column << " " << N;
 
