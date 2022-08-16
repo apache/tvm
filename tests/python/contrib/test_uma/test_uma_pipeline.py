@@ -186,6 +186,7 @@ def generate_tflite_file(tflite_filename):
     mnist = tf.keras.datasets.mnist
     (x_train, y_train), (x_test, y_test) = mnist.load_data()
     x_train, x_test = x_train / 255.0, x_test / 255.0
+    x_train, x_test = x_train.reshape(-1, 28, 28, 1), x_test.reshape(-1, 28, 28, 1)
     tf_model = tf.keras.models.Sequential(
         [
             tf.keras.Input(shape=(28, 28, 1)),
@@ -198,12 +199,10 @@ def generate_tflite_file(tflite_filename):
     )
     output = tf_model(x_train[:1])
     output = output.numpy()
-    tf.nn.softmax(output).numpy()
-    loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
-    loss_fn(y_train[:1], output).numpy()
-    tf_model.compile(metrics=["accuracy"], optimizer="adam", loss=loss_fn)
+    loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+    loss(y_train[:1], output).numpy()
+    tf_model.compile(metrics=["accuracy"], optimizer="adam", loss=loss)
     tf_model.fit(x_train, y_train, epochs=1)
-    tf_model.evaluate(x_test, y_test, verbose=2)
 
     tflite_converter = tf.lite.TFLiteConverter.from_keras_model(tf_model)
     tflite_model = tflite_converter.convert()

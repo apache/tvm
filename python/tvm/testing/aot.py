@@ -835,7 +835,7 @@ def run_and_check(
             assert AOT_SUCCESS_TOKEN in run_log.read()
 
     if test_dir is None:
-        tmpdir = utils.tempdir(keep_for_debug=True)
+        tmpdir = utils.tempdir()
         run_and_check_body(os.path.join(tmpdir.path, "test"))
     else:
         run_and_check_body(test_dir)
