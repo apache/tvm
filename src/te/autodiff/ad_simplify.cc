@@ -44,7 +44,6 @@
  * Due to TVM's restriction, we also lift the reduction to the top of the compute stage.
  *
  */
-#include <dmlc/optional.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/int_solver.h>
 #include <tvm/runtime/registry.h>
@@ -54,6 +53,7 @@
 
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "ad_utils.h"
@@ -629,9 +629,9 @@ class EliminateDivModMutator : public ExprMutator {
   }
 
  private:
-  dmlc::optional<std::pair<Var, Var>> AddNewVarPair(const PrimExpr& e, const PrimExpr& mut,
-                                                    int64_t val, DivMode mode) {
-    using tresult = dmlc::optional<std::pair<Var, Var>>;
+  std::optional<std::pair<Var, Var>> AddNewVarPair(const PrimExpr& e, const PrimExpr& mut,
+                                                   int64_t val, DivMode mode) {
+    using tresult = std::optional<std::pair<Var, Var>>;
 
     // Try to find the variables using the mutated expressions
     if (!e.same_as(mut)) {
