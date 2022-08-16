@@ -14,8 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,unused-variable,unused-argument,no-member
-# pylint: disable=no-value-for-parameter,import-outside-toplevel
+
 """Grouped Spatial Pack Convolution (Group Conv2D) schedule on ARM"""
 
 import tvm

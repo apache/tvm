@@ -100,7 +100,7 @@ def schedule_avgpool_2d_nchw(s, op):
     s[output].pragma(n, "import_c", sum_impl(pool_w, uniq_id))
 
 
-def pool_dsp_schedule(outs, layout):
+def schedule_pool(outs, layout):
     """Schedule function for v7e-m DSP instructions of pooling."""
     s = te.create_schedule([x.op for x in outs])
 

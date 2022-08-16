@@ -53,12 +53,12 @@ def verify_bitserial_conv2d_nhwc(
     with tvm.target.Target(device):
         A = te.placeholder((batch, in_height, in_width, in_channel), dtype=input_type, name="A")
         W = te.placeholder((kernel, kernel, in_channel, num_filter), dtype=input_type, name="W")
-        B = topi.arm_cpu.bitserial_conv2d_nhwc(
+        B = topi.arm_cpu.aprofile.asimd.bitserial_conv2d_nhwc(
             A, W, stride, padding, activation_bits, weight_bits, "uint8", out_dtype, unipolar
         )
         if use_relu:
             B = topi.nn.relu(B)
-        s = topi.arm_cpu.schedule_bitserial_conv2d_nhwc([B])
+        s = topi.arm_cpu.aprofile.asimd.schedule_bitserial_conv2d_nhwc([B])
 
     func = tvm.build(s, [A, W, B], device)
 

@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name, no-value-for-parameter
 """Direct implementation of dense."""
 
-from tvm import te
+from tvm import te, autotvm
 from tvm.topi.utils import traverse_inline, get_const_tuple
 
 from .micro_kernel.gemm import (
@@ -27,6 +27,7 @@ from .micro_kernel.gemm import (
 from .... import tag
 
 
+@autotvm.register_topi_compute("dense_dsp.arm_cpu")
 def dense_dsp_compute(cfg, data, weight, bias=None, out_dtype=None):
     """Defines the v7e-m DSP instructions of dense."""
     M, K = get_const_tuple(data.shape)
@@ -52,6 +53,7 @@ def dense_dsp_compute(cfg, data, weight, bias=None, out_dtype=None):
     return C
 
 
+@autotvm.register_topi_schedule("dense_dsp.arm_cpu")
 def dense_dsp_schedule(cfg, outs):
     """Schedule function for v7e-m DSP instructions of dense."""
     sched = te.create_schedule([x.op for x in outs])
