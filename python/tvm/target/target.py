@@ -636,8 +636,6 @@ def hexagon(cpu_ver="v66", **kwargs):
         Whether to use QFloat HVX instructions.
     use_ieee_fp : bool (default: False)
         Whether to use IEEE HVX instructions
-    link_params : bool (default: False)
-        Whether to link graph parameters into the LLVM module.
 
     Note: Floating point support in HVX requires LLVM 14+.
     """
@@ -735,7 +733,7 @@ def hexagon(cpu_ver="v66", **kwargs):
     target_str = create_llvm_target(cpu_ver, config)
     llvm_str = create_llvm_options(cpu_ver, config)
 
-    args_list = target_str.split() + llvm_str.split() + llvm_str.split()
+    args_list = target_str.split() + llvm_str.split()
 
     return Target(" ".join(["hexagon"] + args_list))
 
