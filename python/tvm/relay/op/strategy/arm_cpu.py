@@ -207,8 +207,8 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     name="conv2d_nhwc_dsp.arm_cpu",
                 )
             elif kernel_layout == "HWIO":
-                is_aarch64 = topi.arm_cpu.arm_utils.is_aarch64_arm()
-                has_dot_prod = topi.arm_cpu.arm_utils.is_dotprod_available()
+                is_aarch64 = target.features.is_aarch64
+                has_dot_prod = target.features.had_dotprod
                 if has_dot_prod and data.dtype in ["int8", "uint8"]:
                     strategy.add_implementation(
                         wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_quantized_native),
@@ -281,8 +281,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 )
         elif layout == "NHWC":
             assert kernel_layout == "HWOI"
-            is_aarch64 = topi.arm_cpu.arm_utils.is_aarch64_arm()
-            if is_aarch64 or "+neon" in target.mattr:
+            if target.features.has_asimd:
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.arm_cpu.compute_depthwise_conv2d_nhwc),
                     wrap_topi_schedule(topi.arm_cpu.schedule_depthwise_conv2d_nhwc),
