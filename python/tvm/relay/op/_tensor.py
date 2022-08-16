@@ -152,15 +152,6 @@ def ones_like_compute(attrs, inputs, output_type):
 
 register_broadcast_schedule("ones_like")
 
-# clip
-@register_compute("clip")
-def clip_compute(attrs, inputs, output_type):
-    assert len(inputs) == 1
-    return [topi.clip(inputs[0], attrs.a_min, attrs.a_max)]
-
-
-register_injective_schedule("clip")
-
 # fixed point multiply
 @register_compute("fixed_point_multiply")
 def fixed_point_multiply_compute(attrs, inputs, output_type):
@@ -301,7 +292,6 @@ register_shape_func("fast_erf", False, elemwise_shape_func)
 register_shape_func("floor", False, elemwise_shape_func)
 register_shape_func("log", False, elemwise_shape_func)
 register_shape_func("device_copy", False, elemwise_shape_func)
-register_shape_func("clip", False, elemwise_shape_func)
 register_shape_func("log2", False, elemwise_shape_func)
 register_shape_func("sigmoid", False, elemwise_shape_func)
 register_shape_func("tanh", False, elemwise_shape_func)

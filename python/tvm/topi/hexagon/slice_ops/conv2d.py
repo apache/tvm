@@ -26,6 +26,36 @@ from ..utils import get_layout_transform_fn
 
 
 def conv2d_compute(
+    Input,
+    Filter,
+    stride,
+    padding,
+    dilation,
+    out_dtype="float16",
+    auto_scheduler_rewritten_layout="",
+    meta_schedule_original_shape=None,
+):
+    filt_height, filt_width, in_channel, out_channel = Filter.shape
+    dilation_height, dilation_width = dilation
+    in_batch, in_height, in_width, _ = Input.shape
+    if dilation_height == 1 and dilation_width == 1:
+        dilated_filt_shape = Filter.shape
+    else :
+        dilated_height, dilated_width = (
+            dilation_height * (filt_height - 1) + 1,
+            dilation_width * (filt_width - 1) + 1,
+        )
+        dilated_filt_shape = dilated_height, dilated_width, in_channel, out_channel
+    filt_height, filt_width, _, num_filt = dilated_filt_shape
+    out_height = (in_height - filt_height) // stride[0] + 1
+    out_width = (in_width - filt_width) // stride[1] + 1
+    out_channel = num_filt
+    # out_shape = in_batch, out_height, out_width, out_channel
+    #TODO: FIX this hard coded output shape
+    out_shape = (1, 8, 8, 32)
+    return conv2d_compute_slice(Input, Filter, out_shape, stride, dilation, out_dtype, "conv2d_hexagon")
+
+def conv2d_compute_slice(
     activations: te.Tensor,
     weights: te.Tensor,
     out_shape: typing.Tuple,
@@ -97,6 +127,7 @@ def conv2d_compute(
             axis=[reduce_channel, reduce_height, reduce_width],
         ),
         name=output_name,
+        tag = "conv2d_nhwc"
     )
     return output
 

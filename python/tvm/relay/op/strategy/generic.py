@@ -1999,6 +1999,34 @@ def einsum_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
+@generic_func
+def schedule_clip(attrs, outs, target):
+    """schedule clip"""
+    with target:
+        return schedule_injective(attrs, outs, target)
+
+
+def wrap_compute_clip(topi_compute):
+    """Wrap clip topi compute"""
+    def _compute_clip(attrs, inputs, _):
+        args = [inputs[0], attrs.a_min, attrs.a_max]
+        return [topi_compute(*args)]
+
+    return _compute_clip
+
+
+@override_native_generic_func("clip_strategy")
+def clip_strategy(attrs, inputs, out_type, target):
+    """clip generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_clip(topi.clip),
+        wrap_topi_schedule(topi.generic.schedule_clip),
+        name="clip.generic",
+    )
+    return strategy
+
+
 # conv2d_backward_weight
 def wrap_compute_conv2d_backward_weight(topi_compute):
     """wrap conv2d_backward_weight topi compute"""

@@ -19,6 +19,7 @@
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
 
 from tvm import topi
+from tvm.topi.hexagon import slice_ops
 from .generic import *
 from .. import op as _op
 
@@ -62,7 +63,7 @@ def conv2d_strategy_hexagon(attrs, inputs, out_type, target):
     if groups == 1:
         if data_layout == "NHWC" and kernel_layout == "HWIO":
             strategy.add_implementation(
-                wrap_compute_conv2d(topi.nn.conv2d_nhwc),
+                wrap_compute_conv2d(topi.hexagon.slice_ops.conv2d_compute),
                 wrap_topi_schedule(topi.hexagon.schedule_conv2d_nhwc),
                 name="conv2d_nhwc.hexagon",
             )
@@ -141,6 +142,17 @@ def conv2d_transpose_strategy_hexagon(attrs, inputs, out_type, target):
         )
     else:
         raise RuntimeError("Unsupported conv2d_transpose layout {}".format(layout))
+    return strategy
+
+@clip_strategy.register("hexagon")
+def clip_strategy_hexagon(attrs, inputs, out_type, target):
+    """clip strategy for Hexagon"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_clip(topi.hexagon.slice_ops.clip_compute_crouton),
+        wrap_topi_schedule(topi.hexagon.slice_ops.clip_te_schedule_crouton),
+        name="clip.hexagon",
+    )
     return strategy
 
 

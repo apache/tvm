@@ -24,6 +24,7 @@ from tvm import relay, te
 from tvm.contrib.hexagon.session import Session
 from tvm.relay.backend import Executor, Runtime
 
+from .infrastructure import allocate_hexagon_array, transform_numpy
 
 @tvm.testing.requires_hexagon
 def test_add(hexagon_session: Session):
@@ -209,6 +210,94 @@ def test_graph_executor(hexagon_session: Session):
 
     tvm.testing.assert_allclose(hexagon_output, expected_output, rtol=1e-4, atol=1e-5)
 
+
+@tvm.testing.requires_hexagon
+def test_integrate_op_in_model(hexagon_session: Session):
+    """Test graph executor"""
+
+    dtype = "float16"
+    input_shape = (1,10,10,32)
+    weight_shape = (3, 3, 32, 32)
+    def padded_in_shape(in_shape):
+        in_batch, in_height, in_width, in_channel = in_shape
+        in_height = ((in_height + 7) // 8) * 8
+        in_width = ((in_width + 3) // 4) * 4
+        in_channel = ((in_channel + 31) // 32) * 32
+        return in_batch, in_height, in_width, in_channel
+
+    def input_np_padded(input_np, in_shape, padded_in_shape):
+        pad_height = padded_in_shape[1] - in_shape[1]
+        pad_width = padded_in_shape[2] - in_shape[2]
+        pad_channel = padded_in_shape[3] - in_shape[3]
+        input_padded = np.pad(
+            input_np, ((0, 0), (0, pad_height), (0, pad_width), (0, pad_channel)), "constant"
+        )
+        return input_padded
+    input_shape_padded = padded_in_shape(input_shape)
+    data = relay.var("data", shape=input_shape_padded, dtype=dtype)
+
+    params = {
+            "kernel_size": [3, 3],
+            "data_layout": "NHWC",
+            "kernel_layout": "HWIO",
+            "channels": 32
+            }
+
+    weights = relay.var("weight", shape=weight_shape, dtype=dtype)
+    l1_conv = relay.nn.conv2d(data, weights, **params)
+    clip = relay.op.clip(l1_conv, 0, 10)
+    f = relay.function.Function([data, weights], clip)
+    mod = tvm.IRModule()
+    mod["main"] = f
+
+    print("original module")
+    print(mod)
+
+    target_hexagon = tvm.target.hexagon("v68")
+    target = tvm.target.Target(target_hexagon,host=target_hexagon)
+
+    runtime = Runtime("cpp")
+    executor = Executor("graph")
+
+    with tvm.transform.PassContext(opt_level=3):
+        mod = tvm.relay.transform.InferType()(mod)
+        lib = relay.build(mod, target=target,
+                          runtime = runtime,
+                          executor = executor)
+        print(lib.function_metadata)
+
+    working_scope = "global.vtcm"
+    weight_in = np.random.rand(weight_shape[0], weight_shape[1], weight_shape[2], weight_shape[3]).astype(dtype=dtype)
+    data_in = np.random.rand(input_shape[0], input_shape[1], input_shape[2], input_shape[3]).astype(dtype=dtype)
+    input_layout =  "nhwc-8h2w32c2w-2d"
+
+    padded_input = input_np_padded(data_in, input_shape, input_shape_padded)
+    input_np_transformed = transform_numpy(padded_input, "nhwc", input_layout)
+    input_arr = allocate_hexagon_array(
+            hexagon_session.device,
+            data=input_np_transformed,
+            axis_separators=[4],
+            mem_scope=working_scope,
+        )
+
+    def weights_np_transformed(weights_in):
+        height, width, in_channel, out_channel = weights_in.shape
+        weights_np_reverse_width = weights_in[:, ::-1, :, :]
+        transformed_weights_np = weights_np_reverse_width.reshape(
+            [height, width, in_channel // 32, 16, 2, out_channel // 32, 32]
+        ).transpose(2, 5, 0, 1, 3, 6, 4)
+        return transformed_weights_np
+
+    weight_arr = allocate_hexagon_array(
+            hexagon_session.device, data=weights_np_transformed(weight_in), mem_scope=working_scope
+        )
+    params = {"weight": weight_arr}
+    inputs = {"data": input_arr}
+
+    graph_mod = hexagon_session.get_executor_from_factory(lib)
+    graph_mod.set_input(**params)
+    graph_mod.run(**inputs)
+    hexagon_output = graph_mod.get_output(0).numpy()
 
 @tvm.testing.requires_hexagon
 def test_graph_executor_multiple_conv2d(hexagon_session: Session):

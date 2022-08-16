@@ -20,3 +20,6 @@ from . import strategy
 
 # einsum
 _reg.register_strategy("einsum", strategy.einsum_strategy)
+
+# clip
+_reg.register_strategy("clip", strategy.clip_strategy)
