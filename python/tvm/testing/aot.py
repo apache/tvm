@@ -571,9 +571,7 @@ def _create_header_file(tensor_name, npy_data, output_path, data_linkage):
         header_file.write("};\n\n")
 
 
-def convert_to_relay(
-    tflite_model_buf, bind_params_by_name=True
-):
+def convert_to_relay(tflite_model_buf, bind_params_by_name=True):
     """Convert a tflite model buffer in a Relay module"""
     # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
     try:
@@ -838,7 +836,6 @@ def run_and_check(
 
     if test_dir is None:
         tmpdir = utils.tempdir(keep_for_debug=True)
-        print(tmpdir.path)
         run_and_check_body(os.path.join(tmpdir.path, "test"))
     else:
         run_and_check_body(test_dir)

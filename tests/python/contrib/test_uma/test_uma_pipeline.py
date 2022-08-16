@@ -16,13 +16,16 @@
 # under the License.
 
 import pytest
+import os
+import tensorflow as tf
 from tvm.micro.testing.aot_test_utils import AOT_DEFAULT_RUNNER
 from tvm.relay import transform, testing
 from tvm.testing.aot import (
     AOTTestModel,
     AOTTestRunner,
     generate_ref_data,
-    compile_and_run, create_relay_module_and_inputs_from_tflite_file,
+    compile_and_run,
+    create_relay_module_and_inputs_from_tflite_file,
 )
 
 import tvm
@@ -133,12 +136,13 @@ def test_mobilenet():
 
 
 def test_tflite_model():
-    import os
-    import tensorflow as tf
-
-    tflite_file = "/tmp/model0.tflite"
-    if not os.path.exists(tflite_file):
-        generate_tflite_file(tflite_file)
+    """
+    End-to-end test of TF-Lite file using UMA
+    """
+    tflite_file = "/tmp/model.tflite"
+    if os.path.exists(tflite_file):
+        os.remove(tflite_file)
+    generate_tflite_file(tflite_file)
 
     pytest.importorskip("tflite")
 
@@ -179,17 +183,15 @@ def test_tflite_model():
 
 
 def generate_tflite_file(tflite_filename):
-    import tensorflow as tf
-
     mnist = tf.keras.datasets.mnist
     (x_train, y_train), (x_test, y_test) = mnist.load_data()
     x_train, x_test = x_train / 255.0, x_test / 255.0
     tf_model = tf.keras.models.Sequential(
         [
             tf.keras.Input(shape=(28, 28, 1)),
-            # tf.keras.layers.Conv2D(4, (3, 3), padding="same", activation="relu"),
+            tf.keras.layers.Conv2D(4, (3, 3), padding="same", activation="relu"),
             tf.keras.layers.Flatten(input_shape=(28, 28)),
-            #tf.keras.layers.Dense(32, activation="relu"),
+            tf.keras.layers.Dense(32, activation="relu"),
             tf.keras.layers.Dropout(0.2),
             tf.keras.layers.Dense(10),
         ]
@@ -200,7 +202,7 @@ def generate_tflite_file(tflite_filename):
     loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
     loss_fn(y_train[:1], output).numpy()
     tf_model.compile(metrics=["accuracy"], optimizer="adam", loss=loss_fn)
-    tf_model.fit(x_train, y_train, epochs=3)
+    tf_model.fit(x_train, y_train, epochs=1)
     tf_model.evaluate(x_test, y_test, verbose=2)
 
     tflite_converter = tf.lite.TFLiteConverter.from_keras_model(tf_model)
@@ -210,5 +212,4 @@ def generate_tflite_file(tflite_filename):
 
 
 if __name__ == "__main__":
-    test_tflite_model()
-    #tvm.testing.main()
+    tvm.testing.main()
