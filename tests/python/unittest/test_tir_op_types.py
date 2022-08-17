@@ -79,6 +79,42 @@ def test_tir_op_call_likely():
     assert expr.op.name == "tir.likely"
 
 
+def test_tir_op_tvm_thread_allreduce():
+    x = tir.Var("x", "int32")
+    buffer = tir.decl_buffer((128), "float32")
+    y = tir.Var("y", "handle")
+    z = tir.Var("z", "int32")
+    expr = tir.tvm_thread_allreduce(x, buffer[0], True, y, z)
+    assert expr.op.name == "tir.tvm_thread_allreduce"
+
+
+def test_tir_op_type_annotation():
+    expr = tir.type_annotation("int32")
+    assert expr.op.name == "tir.type_annotation"
+
+
+def test_tir_op_tvm_access_ptr():
+    buffer = tir.decl_buffer((128), "float32")
+    expr = tir.tvm_access_ptr("float32", buffer.data, 0, 1, 2)
+    assert expr.op.name == "tir.tvm_access_ptr"
+
+
+def test_tir_op_tvm_throw_last_error():
+    expr = tir.tvm_throw_last_error()
+    assert expr.op.name == "tir.tvm_throw_last_error"
+
+
+def test_tir_op_TVMBackendAllocWorkspace():
+    expr = tir.TVMBackendAllocWorkspace(0, 1, 2, 3, 4)
+    assert expr.op.name == "tir.TVMBackendAllocWorkspace"
+
+
+def test_tir_op_TVMBackendFreeWorkspace():
+    buffer = tir.decl_buffer((128), "float32")
+    expr = tir.TVMBackendFreeWorkspace(0, 1, buffer.data)
+    assert expr.op.name == "tir.TVMBackendFreeWorkspace"
+
+
 if __name__ == "__main__":
     test_tir_op_tvm_tuple()
     test_tir_op_tvm_struct_get()
@@ -90,3 +126,9 @@ if __name__ == "__main__":
     test_tir_op_call_assume()
     test_tir_op_call_undef()
     test_tir_op_call_likely()
+    test_tir_op_tvm_thread_allreduce()
+    test_tir_op_type_annotation()
+    test_tir_op_tvm_access_ptr()
+    test_tir_op_tvm_throw_last_error()
+    test_tir_op_TVMBackendAllocWorkspace()
+    test_tir_op_TVMBackendFreeWorkspace()
