@@ -59,6 +59,7 @@
 #include <atomic>
 #include <cctype>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <sstream>
 #include <string>
@@ -510,15 +511,16 @@ LLVMTargetInfo::Option LLVMTargetInfo::ParseOptionString(const std::string& str)
   }
 
   // Check value, if present.
-  std::pair<std::string, bool> value = {"", false};
+  std::optional<std::string> value;
   if (part_this < part_end) {
     auto& p0 = parts[part_this];
     if (p0 == "=") {
       part_this++;
       if (part_this < part_end) {
-        value.first = std::move(parts[part_this]);
+        value = std::move(parts[part_this]);
+      } else {
+        value = "";
       }
-      value.second = true;
     } else {
       // If there are still any parts left to be processed, there must be "=".
       LOG(WARNING) << warn_header << "expecting \"=\"" << warn_ignored;
@@ -527,72 +529,72 @@ LLVMTargetInfo::Option LLVMTargetInfo::ParseOptionString(const std::string& str)
   }
 
   // NOLINTNEXTLINE(runtime/int)
-  auto to_integer = [](const std::string& s) -> std::pair<long long, bool> {
+  auto to_integer = [](const std::string& s) -> std::optional<long long> {
     // std::stoll takes "long long"
     long long number;  // NOLINT(runtime/int)
     size_t pos;
     try {
       number = std::stoll(s, &pos);
     } catch (...) {
-      return {0, false};
+      return std::nullopt;
     }
     if (pos == s.size()) {
-      return {number, true};
+      return number;
     } else {
-      return {0, false};
+      return std::nullopt;
     }
   };
 
-  auto to_boolean = [&to_integer](const std::string& s) -> std::pair<bool, bool> {
+  auto to_boolean = [&to_integer](const std::string& s) -> std::optional<bool> {
     // Return 0 or 1, if string corresponds to a valid boolean value,
     // otherwise return 2.
     auto ti = to_integer(s);
-    if (ti.second && (ti.first == 0 || ti.first == 1)) {
-      return {static_cast<bool>(ti.first), true};
+    if (ti.has_value() && (ti.value() == 0 || ti.value() == 1)) {
+      return static_cast<bool>(ti.value());
     }
 
     std::string lower;
     std::transform(s.begin(), s.end(), std::back_inserter(lower),
                    [](unsigned char c) { return std::tolower(c); });
     if (lower == "true") {
-      return {true, true};
+      return true;
     } else if (lower == "false") {
-      return {false, true};
+      return false;
     }
-    return {false, false};
+    return std::nullopt;
   };
 
-  if (value.second) {
+  if (value.has_value()) {
     if (type == Option::OptType::Int || type == Option::OptType::UInt) {
-      auto v = to_integer(value.first);
-      if (!v.second) {
-        LOG(WARNING) << warn_header << "invalid integer value \"" << value.first << "\""
+      auto v = to_integer(value.value());
+      if (!v.has_value()) {
+        LOG(WARNING) << warn_header << "invalid integer value \"" << value.value() << "\""
                      << warn_ignored;
         return opt;
       }
       if (type == Option::OptType::Int) {
-        opt.value.i = static_cast<int>(v.first);
-        if (opt.value.i != v.first) {
+        opt.value.i = static_cast<int>(v.value());
+        if (opt.value.i != v.value()) {
           LOG(WARNING) << warn_header << "value exceeds int range, assuming " << opt.value.i;
         }
       } else {
         // NOLINTNEXTLINE(runtime/int)
-        opt.value.u = static_cast<unsigned>(static_cast<unsigned long long>(v.first));
-        if (opt.value.u != static_cast<unsigned long long>(v.first)) {  // NOLINT(runtime/int)
+        opt.value.u = static_cast<unsigned>(static_cast<unsigned long long>(v.value()));
+        if (opt.value.u != static_cast<unsigned long long>(v.value())) {  // NOLINT(runtime/int)
           LOG(WARNING) << warn_header << "value exceeds int range, assuming " << opt.value.u;
         }
       }
     } else if (type == Option::OptType::String) {
-      opt.value.s = std::move(value.first);
+      opt.value.s = std::move(value.value());
     } else {
       // "type" is either Bool (given explicitly) or Invalid (type not present in string)
-      auto v = to_boolean(value.first);
-      if (!v.second) {
-        LOG(WARNING) << warn_header << "invalid boolean value \"" << value.first << "\""
+      auto v = to_boolean(value.value());
+      if (!v.has_value()) {
+        LOG(WARNING) << warn_header << "invalid boolean value \"" << value.value() << "\""
                      << warn_ignored;
         return opt;
       }
-      opt.value.b = v.first;
+      opt.value.b = v.value();
       type = Option::OptType::Bool;
     }
   } else {
