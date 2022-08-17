@@ -79,7 +79,7 @@ class OperatorModuleWrapper(torch.nn.Module):
             )
             self.ir_module = sch.mod
             self.build(target)
-            
+
     def script(self):
         return self.ir_module.script()
 
