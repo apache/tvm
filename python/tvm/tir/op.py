@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=redefined-builtin, invalid-name
 """Operators used in TIR expression."""
+import warnings
 from typing import Any, Optional
 import tvm._ffi
 from tvm.ir.base import Span
@@ -262,10 +263,22 @@ def call_llvm_intrin(dtype, name, *args, span=None):
     # pylint: disable=import-outside-toplevel
     from tvm.target import codegen
 
-    llvm_id = codegen.llvm_lookup_intrinsic_id(name)
-    assert llvm_id != 0, "%s is not an LLVM intrinsic" % name
+    from .expr import IntImm
+
+    if isinstance(name, str):
+        llvm_id = codegen.llvm_lookup_intrinsic_id(name)
+    elif isinstance(name, IntImm):
+        llvm_id = name.value
+    else:
+        llvm_id = name
+    if llvm_id == 0:
+        warnings.warn(f"Unknown llvm intrinsic function {name}, falling back to 0")
     return call_intrin(
-        dtype, Op.get("tir.call_llvm_intrin"), tvm.tir.const(llvm_id, "uint32"), *args, span=span
+        dtype,
+        Op.get("tir.call_llvm_intrin"),
+        tvm.tir.const(llvm_id, "uint32"),
+        *args,
+        span=span,
     )
 
 
@@ -294,8 +307,16 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
     # pylint: disable=import-outside-toplevel
     from tvm.target import codegen
 
-    llvm_id = codegen.llvm_lookup_intrinsic_id(name)
-    assert llvm_id != 0, "%s is not an LLVM intrinsic" % name
+    from .expr import IntImm
+
+    if isinstance(name, str):
+        llvm_id = codegen.llvm_lookup_intrinsic_id(name)
+    elif isinstance(name, IntImm):
+        llvm_id = name.value
+    else:
+        llvm_id = name
+    if llvm_id == 0:
+        warnings.warn(f"Unknown llvm intrinsic function {name}, falling back to 0")
     return call_intrin(
         dtype,
         Op.get("tir.call_llvm_pure_intrin"),
@@ -502,6 +523,76 @@ def lookup_param(param_name, span=None):
         The call expression.
     """
     return call_intrin("handle", "tir.lookup_param", param_name, span=span)
+
+
+def tvm_thread_allreduce(*freduce_args):
+    """
+    Parameters
+    ----------
+    freduce_args : Expr
+        The args.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.tvm_thread_allreduce", *freduce_args)
+
+
+def type_annotation(dtype):
+    """Create a type annotation expression
+
+    Parameters
+    ----------
+    dtype : Expr
+        The data type.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(dtype, "tir.type_annotation")
+
+
+def tvm_access_ptr(ptype, data, offset, extent, rw_mask):
+    """Get head access address with memory access pattern info
+
+    Parameters
+    ----------
+    ptype : Expr
+        The data type of pointer.
+
+    data : DType*
+        The data of pointer.
+
+    offset : int
+        The offset of pointer.
+
+    extent : int
+        The extent of pointer.
+
+    rw_mask : int
+        The read write mask.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.tvm_access_ptr", ptype, data, offset, extent, rw_mask)
+
+
+def tvm_throw_last_error():
+    """Throw TVMGetLastError()
+
+    Returns
+    -------
+    ret : PrimExpr
+        The return expression
+    """
+    return call_intrin("handle", "tir.tvm_throw_last_error")
 
 
 def ret(val):
@@ -1855,6 +1946,64 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
               """
     reducer.__doc__ = doc_str.format(name)
     return reducer
+
+
+def TVMBackendAllocWorkspace(device_type, device_id, nbytes, dtype_code_hint, dtype_bits_hint):
+    """Backend function to allocate temporal workspace
+
+    Parameters
+    ----------
+    device_type : int
+        The device type which the space will be allocated.
+
+    device_id : int
+        The device id which the space will be allocated.
+
+    nbytes : int
+        The size of the space requested.
+
+    dtype_code_hint : int
+        The type code of the array elements. Only used in certain backends such as OpenGL.
+
+    dtype_bits_hint : int
+        The type bits of the array elements. Only used in certain backends such as OpenGL.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        "handle",
+        "tir.TVMBackendAllocWorkspace",
+        device_type,
+        device_id,
+        nbytes,
+        dtype_code_hint,
+        dtype_bits_hint,
+    )
+
+
+def TVMBackendFreeWorkspace(device_type, device_id, ptr):
+    """Backend function to free temporal workspace.
+
+    Parameters
+    ----------
+    device_type : int
+        The device type which the space will be allocated.
+
+    device_id : int
+        The device id which the space will be allocated.
+
+    ptr : Var
+        The result allocated space pointer.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("int32", "tir.TVMBackendFreeWorkspace", device_type, device_id, ptr)
 
 
 # pylint: disable=unnecessary-lambda
