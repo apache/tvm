@@ -51,10 +51,10 @@ from tvm.script import tir as T
 # the width is 800 and the kernel size is 50,
 # then the 1-d depthwise conv could be written by PyTorch in one line:
 
-in_channel = 700
-out_channel = 700
-width = 800
-kernel_size = 50
+in_channel = 70
+out_channel = 70
+width = 80
+kernel_size = 20
 
 
 def torch_depthwise(inputs, filters):
@@ -65,15 +65,15 @@ def torch_depthwise(inputs, filters):
 
 # We can run this function as:
 
-inputs = torch.randn(in_channel, width).cuda()
-filters = torch.randn(out_channel, kernel_size).cuda()
+inputs = torch.randn(in_channel, width)
+filters = torch.randn(out_channel, kernel_size)
 ret_torch = torch_depthwise(inputs, filters)
 
 # The `torch_depthwise` function, in a plain python code, could be written as:
 
 
 def vanilla_depthwise(input, weight):
-    ret = torch.zeros(out_channel, width - kernel_size + 1).cuda()
+    ret = torch.zeros(out_channel, width - kernel_size + 1)
     for j in range(out_channel):
         for i in range(width - kernel_size + 1):
             for k in range(kernel_size):
@@ -110,13 +110,21 @@ tvm_depthwise = tvm_depthwise_initializer(
 )
 
 # We can tune the TVMscript code by providing a target device.
-# The model will deploy on GPU, and thread bindings will conduct automatically.
+# The model will deploy on CPU, and the optimization (e.g. tiling) will conduct automatically.
 
-tvm_depthwise.tune(target="nvidia/geforce-rtx-3070")
+tvm_depthwise.tune()
+
+# We can print out the tuned TVMscript code, as
+
+print(tvm_depthwise.script())
+
+# Hint: If user plan to deploy on GPU, the GPU target should be provided,
+# and all the PyTorch tensors should convert into GPU version.
+# The thread bindings will be added automatically.
 
 # We can verify that the two functions are the same:
 
-ret_tvm = torch.zeros(out_channel, width - kernel_size + 1).cuda()
+ret_tvm = torch.zeros(out_channel, width - kernel_size + 1)
 tvm_depthwise(inputs, filters, ret_tvm)
 
 testing.assert_allclose(ret_torch.cpu().numpy(), ret_tvm.cpu().numpy(), atol=1e-5, rtol=1e-5)
@@ -129,9 +137,9 @@ testing.assert_allclose(ret_torch.cpu().numpy(), ret_tvm.cpu().numpy(), atol=1e-
 
 results = []
 for i in range(5):
-    inputs = torch.randn(out_channel, width).cuda()
-    filters = torch.randn(out_channel, kernel_size).cuda()
-    res = torch.zeros(out_channel, width - kernel_size + 1).cuda()
+    inputs = torch.randn(out_channel, width)
+    filters = torch.randn(out_channel, kernel_size)
+    res = torch.zeros(out_channel, width - kernel_size + 1)
     sub_label = f"[test {i}]"
     results.append(
         benchmark.Timer(
@@ -157,6 +165,6 @@ for i in range(5):
 compare = benchmark.Compare(results)
 compare.print()
 
-# In the working machine, the average inference time of `tvm_depthwise` is 44.0 us,
-# while the average inference time of `torch_depthwise` is 66.0 us,
-# showing the performance arises by around 1/3.
+# In the working machine, the average inference time of `tvm_depthwise` is 120.0 us (TVM version is 0.9.0),
+# while the average inference time of `torch_depthwise` is 210.0 us (PyTorch version is 1.11.0),
+# showing the performance arises by around 43%.

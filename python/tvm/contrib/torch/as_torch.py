@@ -79,6 +79,9 @@ class OperatorModuleWrapper(torch.nn.Module):
             )
             self.ir_module = sch.mod
             self.build(target)
+            
+    def script(self):
+        return self.ir_module.script()
 
     def build(self, target=None):
         runtime_module = tvm.build(self.ir_module, target=target)
