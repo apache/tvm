@@ -23,7 +23,8 @@ import tvm
 import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
-from tvm.tir.schedule import BlockRV, Instruction, InstructionKind, LoopRV, Trace
+from tvm.tir.schedule import (BlockRV, Instruction, InstructionKind, LoopRV,
+                              Trace)
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
