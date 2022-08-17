@@ -929,6 +929,8 @@ TVM_REGISTER_GLOBAL("tir.min_value").set_body_typed(min_value);
 
 TVM_REGISTER_GLOBAL("tir.max_value").set_body_typed(max_value);
 
+TVM_REGISTER_GLOBAL("tir.infinity").set_body_typed(infinity);
+
 TVM_REGISTER_GLOBAL("tir.abs").set_body_typed(tvm::abs);
 
 TVM_REGISTER_GLOBAL("tir.likely").set_body_typed(tvm::likely);

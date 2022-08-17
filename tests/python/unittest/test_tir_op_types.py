@@ -39,6 +39,29 @@ def test_tir_op_tvm_struct_set():
     assert expr.op.name == "tir.tvm_struct_set"
 
 
+def test_tir_op_address_of():
+    buffer = tir.decl_buffer((128), "float32")
+    expr = tir.address_of(buffer[0])
+    assert expr.op.name == "tir.address_of"
+
+
+def test_tir_op_lookup_param():
+    expr = tir.lookup_param("p0")
+    assert expr.op.name == "tir.lookup_param"
+
+
+def test_tir_op_reinterpret():
+    x = tir.Var("x", dtype="int32")
+    expr = tir.reinterpret("float32", x)
+    assert expr.op.name == "tir.reinterpret"
+
+
+def test_tir_op_isnullptr():
+    x = tir.Var("x", dtype="int32")
+    expr = tir.isnullptr(x)
+    assert expr.op.name == "tir.isnullptr"
+
+
 def test_tir_op_call_assume():
     x = tir.Var("x", dtype="int32")
     expr = tir.assume(cond=x)
@@ -60,6 +83,10 @@ if __name__ == "__main__":
     test_tir_op_tvm_tuple()
     test_tir_op_tvm_struct_get()
     test_tir_op_tvm_struct_set()
+    test_tir_op_address_of()
+    test_tir_op_lookup_param()
+    test_tir_op_reinterpret()
+    test_tir_op_isnullptr()
     test_tir_op_call_assume()
     test_tir_op_call_undef()
     test_tir_op_call_likely()
