@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """ Tests for Hexagon slice argmax op """
-import pytest
 import numpy as np
 
 import tvm
@@ -33,15 +32,18 @@ class TestArgMaxSlice:
         input_shape,
         input_layout,
         output_layout,
+        dtype,
         in_axis,
         in_axis_sep,
         out_axis_sep,
     ) = tvm.testing.parameters(
-        ((1, 64, 64, 32), "nhwc-8h2w32c2w-2d", "nhw-32h16w-2d", [3], [4], [3]),
-        ((3, 32, 16, 32), "nhwc-8h2w32c2w-2d", "nhw-32h16w-2d", [3], [4], [3]),
-        ((1, 32, 32, 64), "nhwc-8h2w32c2w-2d", "nhw-32h16w-2d", [3], [4], [3]),
+        ((1, 64, 64, 32), "nhwc-8h2w32c2w-2d", "nhw-32h16w-2d", "float16", [3], [4], [3]),
+        ((3, 32, 16, 32), "nhwc-8h2w32c2w-2d", "nhw-32h16w-2d", "float16", [3], [4], [3]),
+        ((1, 32, 32, 64), "nhwc-8h2w32c2w-2d", "nhw-32h16w-2d", "float16", [3], [4], [3]),
+        ((1, 64, 64, 32), "nhwc-8h8w32c-2d", "nhw-32h16w-2d", "int8", [3], [4], [3]),
+        ((3, 32, 16, 32), "nhwc-8h8w32c-2d", "nhw-32h16w-2d", "int8", [3], [4], [3]),
+        ((1, 32, 32, 64), "nhwc-8h8w32c-2d", "nhw-32h16w-2d", "int8", [3], [4], [3]),
     )
-    dtype = tvm.testing.parameter("float16")
     working_scope = tvm.testing.parameter("global.vtcm")
 
     @tvm.testing.fixture
@@ -96,7 +98,7 @@ class TestArgMaxSlice:
             axis_separators=out_axis_sep,
             mem_scope=working_scope,
         )
-        with tvm.transform.PassContext(opt_level=3, config={"tir.disable_assert": True}):
+        with tvm.transform.PassContext(opt_level=3):
             tir_irm = tvm.lower(tir_s.mod, [argmax_input, output], name="argmax")
             runtime_module = tvm.build(
                 tir_irm, [argmax_input, output], target=target, name="argmax"
