@@ -19,13 +19,11 @@
 """Test script for boolean tensor support"""
 import tempfile
 
-import numpy as np
 import torch
 
 import tvm
 import tvm.testing
 from tvm.contrib.torch import as_torch, optimize_torch
-from tvm.meta_schedule.tune import TuneConfig
 from tvm.script import tir as T
 
 
