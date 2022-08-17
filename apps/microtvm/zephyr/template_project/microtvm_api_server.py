@@ -212,11 +212,14 @@ def _get_board_mem_size(options):
     return None
 
 
+DEFAULT_HEAP_SIZE = 216 * 1024
+
+
 def _get_recommended_heap_size(options):
     prop = BOARD_PROPERTIES[options["zephyr_board"]]
     if "recommended_heap_size" in prop:
         return prop["recommended_heap_size"]
-    return 216 * 1024
+    return DEFAULT_HEAP_SIZE
 
 
 def generic_find_serial_port(serial_number=None):
@@ -622,9 +625,11 @@ class Handler(server.ProjectAPIHandler):
                 heap_size = _get_recommended_heap_size(options)
                 if options.get("heap_size"):
                     board_mem_size = _get_board_mem_size(options)
-                    if board_mem_size is not None:
-                        assert options["heap_size"] < board_mem_size, "heap size is too large"
                     heap_size = options["heap_size"]
+                    if board_mem_size is not None:
+                        assert (
+                            heap_size < board_mem_size
+                        ), f"Heap size {heap_size} is larger than memory size {board_mem_size} on this board."
                 cmake_f.write(f"target_compile_definitions(app PUBLIC -DHEAP_SIZE={heap_size})\n")
 
                 if options.get("compile_definitions"):
