@@ -51,6 +51,7 @@ from .op import call_llvm_intrin, call_llvm_pure_intrin, ret, all, any, min_valu
 from .op import tvm_stack_alloca, tvm_stack_make_shape, tvm_stack_make_array
 from .op import tvm_tuple, tvm_struct_get, tvm_struct_set
 from .op import address_of, lookup_param, assume, undef
+from .op import tvm_thread_allreduce, type_annotation, tvm_access_ptr, tvm_throw_last_error
 from .op import infinity, reinterpret
 from .op import exp, exp2, exp10, log, log2, log10, log1p, ldexp, clz
 from .op import sin, sinh, asin, asinh
@@ -62,6 +63,7 @@ from .op import likely, isnan, isnullptr, isfinite, isinf, copysign
 from .op import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod, ceildiv
 from .op import comm_reducer, min, max, sum
 from .op import q_multiply_shift
+from .op import TVMBackendAllocWorkspace, TVMBackendFreeWorkspace
 
 from .schedule import StmtSRef, BlockScope, ScheduleState, Schedule, ScheduleError
 
