@@ -552,7 +552,7 @@ LLVMTargetInfo::Option LLVMTargetInfo::ParseOptionString(const std::string& str)
     }
 
     std::string lower;
-    std::transform(s.begin(), s.end(), lower.begin(),
+    std::transform(s.begin(), s.end(), std::back_inserter(lower),
                    [](unsigned char c) { return std::tolower(c); });
     if (lower == "true") {
       return {true, true};
