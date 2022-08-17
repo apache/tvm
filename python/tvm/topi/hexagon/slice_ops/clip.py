@@ -26,11 +26,6 @@ from ..utils import get_layout_transform_fn
 from tvm.topi.utils import traverse_inline
 
 def clip_compute_flat(A, A_min, A_max):
-    """
-    This compute expects the input tensor to be in flat layout.
-    It pads the input to ensure it is a multiple of croutons.
-    After computing clip, it removes the padding.
-    """
 
     block_H = 8
     block_W = 8
@@ -58,12 +53,6 @@ def clip_compute_flat(A, A_min, A_max):
 
 
 def clip_schedule_flat(outs):
-    """
-    This schedule expects the input tensor to be in flat layout.
-    It assumes the layout is in NHWC format and the crouton layout is nhwc-8h2w32c2w-2d.
-    Only one layout is needed because this is an elementwise operation that does not change the shape of the input.
-    The schedule inserts cache reads and writes to utilize VTCM.
-    """
 
     import pdb; pdb.set_trace()
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
@@ -80,26 +69,16 @@ def clip_schedule_flat(outs):
     return s
 
 
-def clip_compute_crouton(A, A_min, A_max):
-    """
-    Use topi clip implementation
-    Expects input to already be a multiple of croutons
-    """
+def clip_compute(A, A_min, A_max):
     return topi.clip(A, A_min, A_max)
 
 
-def clip_te_schedule_crouton(outs):
-    """
-    This schedule expects the input tensor to be in flat layout.
-    It assumes the layout is in NHWC format and the crouton layout is nhwc-8h2w32c2w-2d.
-    Only one layout is needed because this is an elementwise operation that does not change the shape of the input.
-    The schedule inserts cache reads and writes to utilize VTCM.
-    """
+def clip_te_schedule(outs):
 
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = te.create_schedule([x.op for x in outs])
     output_op = outs[0].op
-    print("in clip_te_schedule_crouton")
+    print("in clip_te_schedule")
 
     def _callback(op):
         if "elemwise" in op.tag:
@@ -115,11 +94,7 @@ def clip_te_schedule_crouton(outs):
     traverse_inline(s, output_op, _callback)
     return s
 
-def clip_schedule_crouton(outs, ins, output_layout: str, input_layout: str):
-    """
-    Hexagon clip schedule
-    Expects input to already be a multiple of croutons
-    """
+def clip_tir_schedule(outs, ins, output_layout: str, input_layout: str):
     A = ins
     M = outs
 

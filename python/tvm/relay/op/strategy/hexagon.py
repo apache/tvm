@@ -149,8 +149,8 @@ def clip_strategy_hexagon(attrs, inputs, out_type, target):
     """clip strategy for Hexagon"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_clip(topi.hexagon.slice_ops.clip_compute_crouton),
-        wrap_topi_schedule(topi.hexagon.slice_ops.clip_te_schedule_crouton),
+        wrap_compute_clip(topi.hexagon.slice_ops.clip_compute),
+        wrap_topi_schedule(topi.hexagon.slice_ops.clip_te_schedule),
         name="clip.hexagon",
     )
     return strategy
