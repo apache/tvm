@@ -85,10 +85,12 @@ class OperatorModuleWrapper : public torch::jit::CustomClassHolder {
                                               tensors.size());
 
     for (int k = 0; k < input_length; ++k) {
-      if (!tvm_contrib_torch_tensor_ability_of_zero_copy(&tensors[k])) {
-        inputs[k].copy_(FromDLPackExt(tensors[k]));
-      } else {
+      if (tvm_contrib_torch_tensor_ability_of_zero_copy(&tensors[k])) {
+        // We need to free memory manually
         tensors[k].dl_managed_tensor->deleter(tensors[k].dl_managed_tensor);
+      } else {
+        // Ownership transferred
+        inputs[k].copy_(FromDLPackExt(tensors[k]));
       }
     }
   }
