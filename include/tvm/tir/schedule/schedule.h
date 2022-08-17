@@ -432,9 +432,13 @@ class ScheduleNode : public runtime::Object {
    * \param block_rv The block to be moved
    * \param loop_rv The loop where the block to be moved under
    * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+   * \param index The block index of the loop body subtree blocks:
+   * - `index = -1` means inserted into the last possible insertion point;
+   * - `index = -2` means inserted into the first possible insertion point;
+   * - Otherwise, `index` is a nonnegative number that indicates the insertion point
    */
-  virtual void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
-                         bool preserve_unit_loops) = 0;
+  virtual void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops,
+                         int index = -1) = 0;
   /*!
    * \brief Move a consumer block under the specific loop, and regenerate the
    * loops induced by the block so that the buffer region consumed by the consumer block could
@@ -449,9 +453,13 @@ class ScheduleNode : public runtime::Object {
    * \param block_rv The block to be moved
    * \param loop_rv The loop where the block to be moved under
    * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+   * \param index The block index of the loop body subtree blocks:
+   * - `index = -1` means inserted into the last possible insertion point;
+   * - `index = -2` means inserted into the first possible insertion point;
+   * - Otherwise, `index` is a nonnegative number that indicates the insertion point
    */
   virtual void ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
-                                bool preserve_unit_loops) = 0;
+                                bool preserve_unit_loops, int index = -1) = 0;
   /*!
    * \brief Inline a block into its consumer(s). It requires:
    * 1) The block is a complete non-root block, which only produces one buffer

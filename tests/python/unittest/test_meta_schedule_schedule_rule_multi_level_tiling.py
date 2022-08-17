@@ -62,7 +62,7 @@ def test_cpu_matmul():
             "l22, l23 = sch.split(loop=l3, factors=[v20, v21], preserve_unit_iters=True)",
             "sch.reorder(l8, l16, l9, l17, l22, l10, l18, l23, l11, l19)",
             'b24 = sch.cache_write(block=b0, write_buffer_index=0, storage_scope="global")',
-            "sch.reverse_compute_at(block=b24, loop=l17, preserve_unit_loops=True)",
+            "sch.reverse_compute_at(block=b24, loop=l17, preserve_unit_loops=True, index=-1)",
         ],
         [
             'b0 = sch.get_block(name="C", func_name="main")',
@@ -76,7 +76,7 @@ def test_cpu_matmul():
             "l22, l23 = sch.split(loop=l3, factors=[v20, v21], preserve_unit_iters=True)",
             "sch.reorder(l8, l16, l9, l17, l22, l10, l18, l23, l11, l19)",
             'b24 = sch.cache_write(block=b0, write_buffer_index=0, storage_scope="global")',
-            "sch.reverse_compute_at(block=b24, loop=l16, preserve_unit_loops=True)",
+            "sch.reverse_compute_at(block=b24, loop=l16, preserve_unit_loops=True, index=-1)",
         ],
         [
             'b0 = sch.get_block(name="C", func_name="main")',
@@ -123,7 +123,7 @@ def test_cpu_matmul_relu():
             "l22, l23 = sch.split(loop=l3, factors=[v20, v21], preserve_unit_iters=True)",
             "sch.reorder(l8, l16, l9, l17, l22, l10, l18, l23, l11, l19)",
             "b24, = sch.get_consumers(block=b0)",
-            "sch.reverse_compute_at(block=b24, loop=l17, preserve_unit_loops=True)",
+            "sch.reverse_compute_at(block=b24, loop=l17, preserve_unit_loops=True, index=-1)",
         ],
         [
             'b0 = sch.get_block(name="C", func_name="main")',
@@ -137,7 +137,7 @@ def test_cpu_matmul_relu():
             "l22, l23 = sch.split(loop=l3, factors=[v20, v21], preserve_unit_iters=True)",
             "sch.reorder(l8, l16, l9, l17, l22, l10, l18, l23, l11, l19)",
             "b24, = sch.get_consumers(block=b0)",
-            "sch.reverse_compute_at(block=b24, loop=l16, preserve_unit_loops=True)",
+            "sch.reverse_compute_at(block=b24, loop=l16, preserve_unit_loops=True, index=-1)",
         ],
         [
             'b0 = sch.get_block(name="C", func_name="main")',
@@ -193,15 +193,15 @@ def test_cuda_matmul():
             'sch.annotate(block_or_loop=b0, ann_key="meta_schedule.thread_extent_low_inclusive", ann_val=32)',
             'sch.annotate(block_or_loop=b0, ann_key="meta_schedule.thread_extent_high_inclusive", ann_val=1024)',
             'b33 = sch.cache_write(block=b0, write_buffer_index=0, storage_scope="local")',
-            "sch.reverse_compute_at(block=b33, loop=l32, preserve_unit_loops=True)",
+            "sch.reverse_compute_at(block=b33, loop=l32, preserve_unit_loops=True, index=-1)",
             'b34 = sch.cache_read(block=b0, read_buffer_index=0, storage_scope="shared")',
-            "sch.compute_at(block=b34, loop=l27, preserve_unit_loops=True)",
+            "sch.compute_at(block=b34, loop=l27, preserve_unit_loops=True, index=-1)",
             "l35, l36, l37, l38, l39, l40 = sch.get_loops(block=b34)",
             "l41 = sch.fuse(l39, l40, preserve_unit_iters=True)",
             "v42 = sch.sample_categorical(candidates=[1, 2, 3, 4], probs=[0.25, 0.25, 0.25, 0.25])",
             'sch.annotate(block_or_loop=b34, ann_key="meta_schedule.cooperative_fetch", ann_val=v42)',
             'b43 = sch.cache_read(block=b0, read_buffer_index=1, storage_scope="shared")',
-            "sch.compute_at(block=b43, loop=l27, preserve_unit_loops=True)",
+            "sch.compute_at(block=b43, loop=l27, preserve_unit_loops=True, index=-1)",
             "l44, l45, l46, l47, l48, l49 = sch.get_loops(block=b43)",
             "l50 = sch.fuse(l48, l49, preserve_unit_iters=True)",
             "v51 = sch.sample_categorical(candidates=[1, 2, 3, 4], probs=[0.25, 0.25, 0.25, 0.25])",
@@ -247,15 +247,15 @@ def test_cuda_matmul_relu():
             "l32 = sch.fuse(l11, l21, preserve_unit_iters=True)",
             'sch.bind(loop=l32, thread_axis="threadIdx.x")',
             'b33 = sch.cache_write(block=b0, write_buffer_index=0, storage_scope="local")',
-            "sch.reverse_compute_at(block=b33, loop=l32, preserve_unit_loops=True)",
+            "sch.reverse_compute_at(block=b33, loop=l32, preserve_unit_loops=True, index=-1)",
             'b34 = sch.cache_read(block=b0, read_buffer_index=0, storage_scope="shared")',
-            "sch.compute_at(block=b34, loop=l27, preserve_unit_loops=True)",
+            "sch.compute_at(block=b34, loop=l27, preserve_unit_loops=True, index=-1)",
             "l35, l36, l37, l38, l39, l40 = sch.get_loops(block=b34)",
             "l41 = sch.fuse(l39, l40, preserve_unit_iters=True)",
             "v42 = sch.sample_categorical(candidates=[1, 2, 3, 4], probs=[0.25, 0.25, 0.25, 0.25])",
             'sch.annotate(block_or_loop=b34, ann_key="meta_schedule.cooperative_fetch", ann_val=v42)',
             'b43 = sch.cache_read(block=b0, read_buffer_index=1, storage_scope="shared")',
-            "sch.compute_at(block=b43, loop=l27, preserve_unit_loops=True)",
+            "sch.compute_at(block=b43, loop=l27, preserve_unit_loops=True, index=-1)",
             "l44, l45, l46, l47, l48, l49 = sch.get_loops(block=b43)",
             "l50 = sch.fuse(l48, l49, preserve_unit_iters=True)",
             "v51 = sch.sample_categorical(candidates=[1, 2, 3, 4], probs=[0.25, 0.25, 0.25, 0.25])",
@@ -402,7 +402,7 @@ v94, v95 = sch.sample_perfect_tile(loop=l37, n=2, max_innermost_factor=64)
 l96, l97 = sch.split(loop=l37, factors=[v94, v95], preserve_unit_iters=True)
 sch.reorder(l42, l50, l58, l66, l74, l43, l51, l59, l67, l75, l80, l84, l88, l92, l96, l44, l52, l60, l68, l76, l81, l85, l89, l93, l97, l45, l53, l61, l69, l77)
 b98 = sch.cache_write(block=b27, write_buffer_index=0, storage_scope="global")
-sch.reverse_compute_at(block=b98, loop=l75, preserve_unit_loops=True)""".split(
+sch.reverse_compute_at(block=b98, loop=l75, preserve_unit_loops=True, index=-1)""".split(
             "\n"
         ),
         """b0 = sch.get_block(name="conv2d_NCHWc_int8", func_name="main")
@@ -437,7 +437,7 @@ v94, v95 = sch.sample_perfect_tile(loop=l37, n=2, max_innermost_factor=64)
 l96, l97 = sch.split(loop=l37, factors=[v94, v95], preserve_unit_iters=True)
 sch.reorder(l42, l50, l58, l66, l74, l43, l51, l59, l67, l75, l80, l84, l88, l92, l96, l44, l52, l60, l68, l76, l81, l85, l89, l93, l97, l45, l53, l61, l69, l77)
 b98 = sch.cache_write(block=b27, write_buffer_index=0, storage_scope="global")
-sch.reverse_compute_at(block=b98, loop=l74, preserve_unit_loops=True)""".split(
+sch.reverse_compute_at(block=b98, loop=l74, preserve_unit_loops=True, index=-1)""".split(
             "\n"
         ),
         """b0 = sch.get_block(name="conv2d_NCHWc_int8", func_name="main")
@@ -546,15 +546,15 @@ sch.bind(loop=l37, thread_axis="vthread.x")
 l38 = sch.fuse(l17, l27, preserve_unit_iters=True)
 sch.bind(loop=l38, thread_axis="threadIdx.x")
 b39 = sch.cache_write(block=b6, write_buffer_index=0, storage_scope="local")
-sch.reverse_compute_at(block=b39, loop=l38, preserve_unit_loops=True)
+sch.reverse_compute_at(block=b39, loop=l38, preserve_unit_loops=True, index=-1)
 b40 = sch.cache_read(block=b6, read_buffer_index=0, storage_scope="shared")
-sch.compute_at(block=b40, loop=l33, preserve_unit_loops=True)
+sch.compute_at(block=b40, loop=l33, preserve_unit_loops=True, index=-1)
 l41, l42, l43, l44, l45, l46 = sch.get_loops(block=b40)
 l47 = sch.fuse(l45, l46, preserve_unit_iters=True)
 v48 = sch.sample_categorical(candidates=[1, 2, 3, 4], probs=[0.25, 0.25, 0.25, 0.25])
 sch.annotate(block_or_loop=b40, ann_key="meta_schedule.cooperative_fetch", ann_val=v48)
 b49 = sch.cache_read(block=b6, read_buffer_index=1, storage_scope="shared")
-sch.compute_at(block=b49, loop=l33, preserve_unit_loops=True)
+sch.compute_at(block=b49, loop=l33, preserve_unit_loops=True, index=-1)
 l50, l51, l52, l53, l54, l55 = sch.get_loops(block=b49)
 l56 = sch.fuse(l54, l55, preserve_unit_iters=True)
 v57 = sch.sample_categorical(candidates=[1, 2, 3, 4], probs=[0.25, 0.25, 0.25, 0.25])
@@ -632,9 +632,9 @@ sch.bind(loop=l51, thread_axis="blockIdx.x")
 l52 = sch.fuse(l31, l41, preserve_unit_iters=True)
 sch.bind(loop=l52, thread_axis="threadIdx.y")
 b53 = sch.cache_write(block=b20, write_buffer_index=0, storage_scope="shared")
-sch.reverse_compute_at(block=b53, loop=l51, preserve_unit_loops=True)
+sch.reverse_compute_at(block=b53, loop=l51, preserve_unit_loops=True, index=-1)
 b54 = sch.cache_write(block=b20, write_buffer_index=0, storage_scope="wmma.accumulator")
-sch.reverse_compute_at(block=b54, loop=l52, preserve_unit_loops=True)
+sch.reverse_compute_at(block=b54, loop=l52, preserve_unit_loops=True, index=-1)
 v55 = sch.sample_categorical(candidates=[1, 2, 3, 4], probs=[0.25, 0.25, 0.25, 0.25])
 sch.annotate(block_or_loop=b53, ann_key="meta_schedule.cooperative_fetch", ann_val=v55)
 sch.reverse_compute_inline(block=b2)
@@ -646,19 +646,19 @@ sch.reorder(l70, l64, l62)
 b72 = sch.blockize(loop=l64)
 sch.annotate(block_or_loop=b72, ann_key="meta_schedule.auto_tensorize", ann_val="wmma_store_16x16x16_f32_shared")
 b73 = sch.cache_read(block=b20, read_buffer_index=0, storage_scope="shared")
-sch.compute_at(block=b73, loop=l47, preserve_unit_loops=True)
+sch.compute_at(block=b73, loop=l47, preserve_unit_loops=True, index=-1)
 l74, l75, l76, l77, l78, l79 = sch.get_loops(block=b73)
 l80 = sch.fuse(l78, l79, preserve_unit_iters=True)
 v81 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25])
 sch.annotate(block_or_loop=b73, ann_key="meta_schedule.cooperative_fetch", ann_val=v81)
 b82 = sch.cache_read(block=b20, read_buffer_index=1, storage_scope="shared")
-sch.compute_at(block=b82, loop=l47, preserve_unit_loops=True)
+sch.compute_at(block=b82, loop=l47, preserve_unit_loops=True, index=-1)
 l83, l84, l85, l86, l87, l88 = sch.get_loops(block=b82)
 l89 = sch.fuse(l87, l88, preserve_unit_iters=True)
 v90 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25])
 sch.annotate(block_or_loop=b82, ann_key="meta_schedule.cooperative_fetch", ann_val=v90)
 b91 = sch.cache_read(block=b20, read_buffer_index=0, storage_scope="wmma.matrix_a")
-sch.compute_at(block=b91, loop=l48, preserve_unit_loops=True)
+sch.compute_at(block=b91, loop=l48, preserve_unit_loops=True, index=-1)
 l92, l93, l94, l95, l96, l97, l98 = sch.get_loops(block=b91)
 l99, l100 = sch.split(loop=l98, factors=[None, 16], preserve_unit_iters=True)
 l101, l102 = sch.split(loop=l97, factors=[None, 16], preserve_unit_iters=True)
@@ -667,7 +667,7 @@ sch.reorder(l110, l102, l100)
 b112 = sch.blockize(loop=l102)
 sch.annotate(block_or_loop=b112, ann_key="meta_schedule.auto_tensorize", ann_val="wmma_load_16x16x16_f16_a")
 b113 = sch.cache_read(block=b20, read_buffer_index=1, storage_scope="wmma.matrix_b")
-sch.compute_at(block=b113, loop=l48, preserve_unit_loops=True)
+sch.compute_at(block=b113, loop=l48, preserve_unit_loops=True, index=-1)
 l114, l115, l116, l117, l118, l119, l120 = sch.get_loops(block=b113)
 l121, l122 = sch.split(loop=l120, factors=[None, 16], preserve_unit_iters=True)
 l123, l124 = sch.split(loop=l119, factors=[None, 16], preserve_unit_iters=True)
@@ -772,9 +772,9 @@ sch.bind(loop=l51, thread_axis="blockIdx.x")
 l52 = sch.fuse(l31, l41, preserve_unit_iters=True)
 sch.bind(loop=l52, thread_axis="threadIdx.y")
 b53 = sch.cache_write(block=b20, write_buffer_index=0, storage_scope="shared")
-sch.reverse_compute_at(block=b53, loop=l51, preserve_unit_loops=True)
+sch.reverse_compute_at(block=b53, loop=l51, preserve_unit_loops=True, index=-1)
 b54 = sch.cache_write(block=b20, write_buffer_index=0, storage_scope="wmma.accumulator")
-sch.reverse_compute_at(block=b54, loop=l52, preserve_unit_loops=True)
+sch.reverse_compute_at(block=b54, loop=l52, preserve_unit_loops=True, index=-1)
 v55 = sch.sample_categorical(candidates=[1, 2, 3, 4], probs=[0.25, 0.25, 0.25, 0.25])
 sch.annotate(block_or_loop=b53, ann_key="meta_schedule.cooperative_fetch", ann_val=v55)
 sch.reverse_compute_inline(block=b2)
@@ -786,19 +786,19 @@ sch.reorder(l70, l64, l62)
 b72 = sch.blockize(loop=l64)
 sch.annotate(block_or_loop=b72, ann_key="meta_schedule.auto_tensorize", ann_val="wmma_store_16x16x16_f32_shared")
 b73 = sch.cache_read(block=b20, read_buffer_index=0, storage_scope="shared")
-sch.compute_at(block=b73, loop=l47, preserve_unit_loops=True)
+sch.compute_at(block=b73, loop=l47, preserve_unit_loops=True, index=-1)
 l74, l75, l76, l77, l78, l79 = sch.get_loops(block=b73)
 l80 = sch.fuse(l78, l79, preserve_unit_iters=True)
 v81 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25])
 sch.annotate(block_or_loop=b73, ann_key="meta_schedule.cooperative_fetch", ann_val=v81)
 b82 = sch.cache_read(block=b20, read_buffer_index=1, storage_scope="shared")
-sch.compute_at(block=b82, loop=l47, preserve_unit_loops=True)
+sch.compute_at(block=b82, loop=l47, preserve_unit_loops=True, index=-1)
 l83, l84, l85, l86, l87, l88 = sch.get_loops(block=b82)
 l89 = sch.fuse(l87, l88, preserve_unit_iters=True)
 v90 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25])
 sch.annotate(block_or_loop=b82, ann_key="meta_schedule.cooperative_fetch", ann_val=v90)
 b91 = sch.cache_read(block=b20, read_buffer_index=0, storage_scope="wmma.matrix_a")
-sch.compute_at(block=b91, loop=l48, preserve_unit_loops=True)
+sch.compute_at(block=b91, loop=l48, preserve_unit_loops=True, index=-1)
 l92, l93, l94, l95, l96, l97, l98 = sch.get_loops(block=b91)
 l99, l100 = sch.split(loop=l98, factors=[None, 16], preserve_unit_iters=True)
 l101, l102 = sch.split(loop=l97, factors=[None, 16], preserve_unit_iters=True)
@@ -807,7 +807,7 @@ sch.reorder(l110, l102, l100)
 b112 = sch.blockize(loop=l102)
 sch.annotate(block_or_loop=b112, ann_key="meta_schedule.auto_tensorize", ann_val="wmma_load_16x16x16_f16_a")
 b113 = sch.cache_read(block=b20, read_buffer_index=1, storage_scope="wmma.matrix_b")
-sch.compute_at(block=b113, loop=l48, preserve_unit_loops=True)
+sch.compute_at(block=b113, loop=l48, preserve_unit_loops=True, index=-1)
 l114, l115, l116, l117, l118, l119, l120 = sch.get_loops(block=b113)
 l121, l122 = sch.split(loop=l120, factors=[None, 16], preserve_unit_iters=True)
 l123, l124 = sch.split(loop=l119, factors=[None, 16], preserve_unit_iters=True)
@@ -895,7 +895,7 @@ sch.bind(loop=l50, thread_axis="blockIdx.x")
 l51 = sch.fuse(l30, l40, preserve_unit_iters=True)
 sch.bind(loop=l51, thread_axis="threadIdx.y")
 b52 = sch.cache_write(block=b19, write_buffer_index=0, storage_scope="wmma.accumulator")
-sch.reverse_compute_at(block=b52, loop=l51, preserve_unit_loops=True)
+sch.reverse_compute_at(block=b52, loop=l51, preserve_unit_loops=True, index=-1)
 sch.reverse_compute_inline(block=b1)
 l53, l54, l55, l56, l57 = sch.get_loops(block=b52)
 l58, l59 = sch.split(loop=l57, factors=[None, 16], preserve_unit_iters=True)
@@ -905,19 +905,19 @@ sch.reorder(l67, l61, l59)
 b69 = sch.blockize(loop=l61)
 sch.annotate(block_or_loop=b69, ann_key="meta_schedule.auto_tensorize", ann_val="wmma_store_16x16x16_f32_global")
 b70 = sch.cache_read(block=b19, read_buffer_index=0, storage_scope="shared")
-sch.compute_at(block=b70, loop=l46, preserve_unit_loops=True)
+sch.compute_at(block=b70, loop=l46, preserve_unit_loops=True, index=-1)
 l71, l72, l73, l74, l75, l76 = sch.get_loops(block=b70)
 l77 = sch.fuse(l75, l76, preserve_unit_iters=True)
 v78 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25])
 sch.annotate(block_or_loop=b70, ann_key="meta_schedule.cooperative_fetch", ann_val=v78)
 b79 = sch.cache_read(block=b19, read_buffer_index=1, storage_scope="shared")
-sch.compute_at(block=b79, loop=l46, preserve_unit_loops=True)
+sch.compute_at(block=b79, loop=l46, preserve_unit_loops=True, index=-1)
 l80, l81, l82, l83, l84, l85 = sch.get_loops(block=b79)
 l86 = sch.fuse(l84, l85, preserve_unit_iters=True)
 v87 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25])
 sch.annotate(block_or_loop=b79, ann_key="meta_schedule.cooperative_fetch", ann_val=v87)
 b88 = sch.cache_read(block=b19, read_buffer_index=0, storage_scope="wmma.matrix_a")
-sch.compute_at(block=b88, loop=l47, preserve_unit_loops=True)
+sch.compute_at(block=b88, loop=l47, preserve_unit_loops=True, index=-1)
 l89, l90, l91, l92, l93, l94, l95 = sch.get_loops(block=b88)
 l96, l97 = sch.split(loop=l95, factors=[None, 16], preserve_unit_iters=True)
 l98, l99 = sch.split(loop=l94, factors=[None, 16], preserve_unit_iters=True)
@@ -926,7 +926,7 @@ sch.reorder(l107, l99, l97)
 b109 = sch.blockize(loop=l99)
 sch.annotate(block_or_loop=b109, ann_key="meta_schedule.auto_tensorize", ann_val="wmma_load_16x16x16_f16_a")
 b110 = sch.cache_read(block=b19, read_buffer_index=1, storage_scope="wmma.matrix_b")
-sch.compute_at(block=b110, loop=l47, preserve_unit_loops=True)
+sch.compute_at(block=b110, loop=l47, preserve_unit_loops=True, index=-1)
 l111, l112, l113, l114, l115, l116, l117 = sch.get_loops(block=b110)
 l118, l119 = sch.split(loop=l117, factors=[None, 16], preserve_unit_iters=True)
 l120, l121 = sch.split(loop=l116, factors=[None, 16], preserve_unit_iters=True)
@@ -995,7 +995,7 @@ sch.bind(loop=l50, thread_axis="blockIdx.x")
 l51 = sch.fuse(l30, l40, preserve_unit_iters=True)
 sch.bind(loop=l51, thread_axis="threadIdx.y")
 b52 = sch.cache_write(block=b19, write_buffer_index=0, storage_scope="wmma.accumulator")
-sch.reverse_compute_at(block=b52, loop=l51, preserve_unit_loops=True)
+sch.reverse_compute_at(block=b52, loop=l51, preserve_unit_loops=True, index=-1)
 sch.reverse_compute_inline(block=b1)
 l53, l54, l55, l56, l57 = sch.get_loops(block=b52)
 l58, l59 = sch.split(loop=l57, factors=[None, 16], preserve_unit_iters=True)
@@ -1005,19 +1005,19 @@ sch.reorder(l67, l61, l59)
 b69 = sch.blockize(loop=l61)
 sch.annotate(block_or_loop=b69, ann_key="meta_schedule.auto_tensorize", ann_val="wmma_store_16x16x16_f32_global")
 b70 = sch.cache_read(block=b19, read_buffer_index=0, storage_scope="shared")
-sch.compute_at(block=b70, loop=l46, preserve_unit_loops=True)
+sch.compute_at(block=b70, loop=l46, preserve_unit_loops=True, index=-1)
 l71, l72, l73, l74, l75, l76 = sch.get_loops(block=b70)
 l77 = sch.fuse(l75, l76, preserve_unit_iters=True)
 v78 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25])
 sch.annotate(block_or_loop=b70, ann_key="meta_schedule.cooperative_fetch", ann_val=v78)
 b79 = sch.cache_read(block=b19, read_buffer_index=1, storage_scope="shared")
-sch.compute_at(block=b79, loop=l46, preserve_unit_loops=True)
+sch.compute_at(block=b79, loop=l46, preserve_unit_loops=True, index=-1)
 l80, l81, l82, l83, l84, l85 = sch.get_loops(block=b79)
 l86 = sch.fuse(l84, l85, preserve_unit_iters=True)
 v87 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25])
 sch.annotate(block_or_loop=b79, ann_key="meta_schedule.cooperative_fetch", ann_val=v87)
 b88 = sch.cache_read(block=b19, read_buffer_index=0, storage_scope="wmma.matrix_a")
-sch.compute_at(block=b88, loop=l47, preserve_unit_loops=True)
+sch.compute_at(block=b88, loop=l47, preserve_unit_loops=True, index=-1)
 l89, l90, l91, l92, l93, l94, l95 = sch.get_loops(block=b88)
 l96, l97 = sch.split(loop=l95, factors=[None, 16], preserve_unit_iters=True)
 l98, l99 = sch.split(loop=l94, factors=[None, 16], preserve_unit_iters=True)
@@ -1026,7 +1026,7 @@ sch.reorder(l107, l99, l97)
 b109 = sch.blockize(loop=l99)
 sch.annotate(block_or_loop=b109, ann_key="meta_schedule.auto_tensorize", ann_val="wmma_load_16x16x16_f16_a")
 b110 = sch.cache_read(block=b19, read_buffer_index=1, storage_scope="wmma.matrix_b")
-sch.compute_at(block=b110, loop=l47, preserve_unit_loops=True)
+sch.compute_at(block=b110, loop=l47, preserve_unit_loops=True, index=-1)
 l111, l112, l113, l114, l115, l116, l117 = sch.get_loops(block=b110)
 l118, l119 = sch.split(loop=l117, factors=[None, 16], preserve_unit_iters=True)
 l120, l121 = sch.split(loop=l116, factors=[None, 16], preserve_unit_iters=True)
@@ -1133,9 +1133,9 @@ sch.bind(loop=l63, thread_axis="blockIdx.x")
 l64 = sch.fuse(l33, l43, l53, preserve_unit_iters=True)
 sch.bind(loop=l64, thread_axis="threadIdx.y")
 b65 = sch.cache_write(block=b21, write_buffer_index=0, storage_scope="shared")
-sch.reverse_compute_at(block=b65, loop=l63, preserve_unit_loops=True)
+sch.reverse_compute_at(block=b65, loop=l63, preserve_unit_loops=True, index=-1)
 b66 = sch.cache_write(block=b21, write_buffer_index=0, storage_scope="wmma.accumulator")
-sch.reverse_compute_at(block=b66, loop=l64, preserve_unit_loops=True)
+sch.reverse_compute_at(block=b66, loop=l64, preserve_unit_loops=True, index=-1)
 v67 = sch.sample_categorical(candidates=[1, 2, 3, 4], probs=[0.25, 0.25, 0.25, 0.25])
 sch.annotate(block_or_loop=b65, ann_key="meta_schedule.cooperative_fetch", ann_val=v67)
 sch.reverse_compute_inline(block=b1)
@@ -1147,19 +1147,19 @@ sch.reorder(l82, l76, l74)
 b84 = sch.blockize(loop=l76)
 sch.annotate(block_or_loop=b84, ann_key="meta_schedule.auto_tensorize", ann_val="wmma_store_16x16x16_f32_shared")
 b85 = sch.cache_read(block=b21, read_buffer_index=0, storage_scope="shared")
-sch.compute_at(block=b85, loop=l59, preserve_unit_loops=True)
+sch.compute_at(block=b85, loop=l59, preserve_unit_loops=True, index=-1)
 l86, l87, l88, l89, l90, l91 = sch.get_loops(block=b85)
 l92 = sch.fuse(l90, l91, preserve_unit_iters=True)
 v93 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25])
 sch.annotate(block_or_loop=b85, ann_key="meta_schedule.cooperative_fetch", ann_val=v93)
 b94 = sch.cache_read(block=b21, read_buffer_index=1, storage_scope="shared")
-sch.compute_at(block=b94, loop=l59, preserve_unit_loops=True)
+sch.compute_at(block=b94, loop=l59, preserve_unit_loops=True, index=-1)
 l95, l96, l97, l98, l99, l100 = sch.get_loops(block=b94)
 l101 = sch.fuse(l99, l100, preserve_unit_iters=True)
 v102 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25])
 sch.annotate(block_or_loop=b94, ann_key="meta_schedule.cooperative_fetch", ann_val=v102)
 b103 = sch.cache_read(block=b21, read_buffer_index=0, storage_scope="wmma.matrix_a")
-sch.compute_at(block=b103, loop=l60, preserve_unit_loops=True)
+sch.compute_at(block=b103, loop=l60, preserve_unit_loops=True, index=-1)
 l104, l105, l106, l107, l108, l109, l110 = sch.get_loops(block=b103)
 l111, l112 = sch.split(loop=l110, factors=[None, 16], preserve_unit_iters=True)
 l113, l114 = sch.split(loop=l109, factors=[None, 16], preserve_unit_iters=True)
@@ -1168,7 +1168,7 @@ sch.reorder(l122, l114, l112)
 b124 = sch.blockize(loop=l114)
 sch.annotate(block_or_loop=b124, ann_key="meta_schedule.auto_tensorize", ann_val="wmma_load_16x16x16_f16_a")
 b125 = sch.cache_read(block=b21, read_buffer_index=1, storage_scope="wmma.matrix_b")
-sch.compute_at(block=b125, loop=l60, preserve_unit_loops=True)
+sch.compute_at(block=b125, loop=l60, preserve_unit_loops=True, index=-1)
 l126, l127, l128, l129, l130, l131, l132 = sch.get_loops(block=b125)
 l133, l134 = sch.split(loop=l132, factors=[None, 16], preserve_unit_iters=True)
 l135, l136 = sch.split(loop=l131, factors=[None, 16], preserve_unit_iters=True)

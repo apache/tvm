@@ -119,9 +119,10 @@ class ConcreteScheduleNode : public ScheduleNode {
   BlockRV ReIndex(const BlockRV& block_rv, int buffer_index,
                   BufferIndexType buffer_index_type) override;
   /******** Schedule: Compute location ********/
-  void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops) override;
-  void ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
-                        bool preserve_unit_loops) override;
+  void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops,
+                 int index = -1) override;
+  void ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops,
+                        int index = -1) override;
   void ComputeInline(const BlockRV& block) override;
   void ReverseComputeInline(const BlockRV& block) override;
   /******** Schedule: Reduction ********/

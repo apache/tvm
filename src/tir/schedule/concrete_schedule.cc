@@ -574,7 +574,7 @@ BlockRV ConcreteScheduleNode::ReIndex(const BlockRV& block_rv, int buffer_index,
 /******** Schedule: Compute location ********/
 
 void ConcreteScheduleNode::ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
-                                     bool preserve_unit_loops) {
+                                     bool preserve_unit_loops, int index) {
   static StmtSRef inline_mark = StmtSRef::InlineMark();
   static StmtSRef root_mark = StmtSRef::RootMark();
   StmtSRef loop_sref = this->GetSRef(loop_rv);
@@ -586,14 +586,14 @@ void ConcreteScheduleNode::ComputeAt(const BlockRV& block_rv, const LoopRV& loop
     TVM_TIR_SCHEDULE_END("compute-at", this->error_render_level_);
   } else {
     TVM_TIR_SCHEDULE_BEGIN();
-    tir::ComputeAt(state_, this->GetSRef(block_rv), loop_sref, preserve_unit_loops);
+    tir::ComputeAt(state_, this->GetSRef(block_rv), loop_sref, preserve_unit_loops, index);
     TVM_TIR_SCHEDULE_END("compute-at", this->error_render_level_);
   }
   this->state_->DebugVerify();
 }
 
 void ConcreteScheduleNode::ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
-                                            bool preserve_unit_loops) {
+                                            bool preserve_unit_loops, int index) {
   static StmtSRef inline_mark = StmtSRef::InlineMark();
   static StmtSRef root_mark = StmtSRef::RootMark();
   StmtSRef loop_sref = this->GetSRef(loop_rv);
@@ -605,7 +605,7 @@ void ConcreteScheduleNode::ReverseComputeAt(const BlockRV& block_rv, const LoopR
     TVM_TIR_SCHEDULE_END("reverse-compute-at", this->error_render_level_);
   } else {
     TVM_TIR_SCHEDULE_BEGIN();
-    tir::ReverseComputeAt(state_, this->GetSRef(block_rv), loop_sref, preserve_unit_loops);
+    tir::ReverseComputeAt(state_, this->GetSRef(block_rv), loop_sref, preserve_unit_loops, index);
     TVM_TIR_SCHEDULE_END("reverse-compute-at", this->error_render_level_);
   }
   this->state_->DebugVerify();

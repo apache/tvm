@@ -79,9 +79,10 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   BlockRV ReIndex(const BlockRV& block_rv, int buffer_index,
                   BufferIndexType buffer_index_type) final;
   /******** Schedule: Compute location ********/
-  void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops) final;
-  void ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
-                        bool preserve_unit_loops) final;
+  void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops,
+                 int index = -1) final;
+  void ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops,
+                        int index = -1) final;
   void ComputeInline(const BlockRV& block_rv) final;
   void ReverseComputeInline(const BlockRV& block_rv) final;
   /******** Schedule: Reduction ********/
