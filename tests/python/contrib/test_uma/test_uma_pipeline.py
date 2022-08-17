@@ -16,6 +16,7 @@
 # under the License.
 
 import pytest
+
 pytest.importorskip("tflite")
 pytest.importorskip("tensorflow")
 
