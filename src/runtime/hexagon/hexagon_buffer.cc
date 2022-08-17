@@ -241,10 +241,10 @@ void hexagon_buffer_copy_across_regions(const BufferSet& dest, const BufferSet& 
   // Finally, do the memory copies.
   for (const auto& copy : macro_copies) {
 #if __HEXAGON_ARCH__ >= 68
-    int error_code = hexagon_user_dma_1d_sync(dst, src, size);
+    int error_code = hexagon_user_dma_1d_sync(copy.dest, copy.src, copy.num_bytes);
     CHECK_EQ(error_code, 0);
 #else
-    memcpy(dst, src, size);
+    memcpy(copy.dest, copy.src, copy.num_bytes);
 #endif
   }
 }
