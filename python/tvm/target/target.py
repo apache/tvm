@@ -669,7 +669,6 @@ def hexagon(cpu_ver="v66", **kwargs):
         "llvm_options": None,
         "use_qfloat": arch_version >= 68,
         "use_ieee_fp": False,
-        "link_params": False,
     }
     config.update(kwargs)
 

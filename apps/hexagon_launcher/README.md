@@ -118,7 +118,7 @@ mod, params = relay.frontend.from_tflite(
     tflite_model, shape_dict=shape_dict, dtype_dict=dtype_dict
 )
 
-target = tvm.target.hexagon('v68', link_params=True)
+target = tvm.target.hexagon('v68')
 with tvm.transform.PassContext(opt_level=3):
     lib = relay.build(mod, tvm.target.Target(target, host=target), params=params, mod_name="default")
 
