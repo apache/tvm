@@ -18,11 +18,12 @@
 """Module container of Pytorch custom class"""
 import os
 import platform
+import warnings
 import torch
 from tvm._ffi import libinfo
 
 
-def _load_platform_specific_library(lib_name="libpt_tvmdsoop"):
+def _load_platform_specific_library(lib_name):
     system = platform.system()
     if system == "Darwin":
         lib_file_name = lib_name + ".dylib"
@@ -33,11 +34,27 @@ def _load_platform_specific_library(lib_name="libpt_tvmdsoop"):
     lib_path = libinfo.find_lib_path()[0]
     lib_dir = os.path.dirname(lib_path)
     lib_file_path = os.path.join(lib_dir, lib_file_name)
-    torch.classes.load_library(lib_file_path)
+    try:
+        torch.classes.load_library(lib_file_path)
+    except OSError as err:
+        errmsg = str(err)
+        if errmsg.find("undefined symbol") != -1:
+            reason = " ".join(
+                (
+                    "Got undefined symbol error,",
+                    "which might be due to the CXXABI incompatibility.",
+                )
+            )
+        else:
+            reason = errmsg
+        warnings.warn(
+            f"The library {lib_name} is not built successfully. {reason}",
+            RuntimeWarning,
+        )
 
 
-_load_platform_specific_library()
-
+_load_platform_specific_library("libpt_tvmdsoop")
+_load_platform_specific_library("libpt_tvmdsoop_new")
 
 from . import module
 
