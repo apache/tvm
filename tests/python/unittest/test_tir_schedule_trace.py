@@ -23,8 +23,7 @@ import tvm
 import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
-from tvm.tir.schedule import (BlockRV, Instruction, InstructionKind, LoopRV,
-                              Trace)
+from tvm.tir.schedule import BlockRV, Instruction, InstructionKind, LoopRV, Trace
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -310,7 +309,7 @@ def _test_apply_annotation_trace_from_json(annotation: str):
         C = T.match_buffer(c, (128, 128))
         for i, j in T.grid(128, 128):
             with T.block("B"):
-                T.block_attr({"meta_schedule.auto_tensorize":annotation})
+                T.block_attr({"meta_schedule.auto_tensorize": annotation})
                 vi, vj = T.axis.remap("SS", [i, j])
                 B[vi, vj] = A[vi, vj] * 2.0
         for i, j in T.grid(128, 128):
@@ -319,6 +318,7 @@ def _test_apply_annotation_trace_from_json(annotation: str):
                 C[vi, vj] = B[vi, vj] + 1.0
 
     tvm.ir.assert_structural_equal(elementwise_expected, sch.mod["main"])
+
 
 def test_apply_annotation_from_json():
     # Something reasonable
@@ -332,6 +332,7 @@ def test_apply_annotation_from_json():
 
     # A string of one quotation mark
     _test_apply_annotation_trace_from_json('"')
+
 
 if __name__ == "__main__":
     tvm.testing.main()
