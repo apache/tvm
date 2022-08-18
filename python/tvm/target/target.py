@@ -724,6 +724,12 @@ def hexagon(cpu_ver="v66", **kwargs):
 
         llvm_options = config["llvm_options"]
 
+        # To enable auto-vectorization for v68 target added the below llvm-option by default
+        if arch_version == 68:
+            if not llvm_options:
+                llvm_options = ""
+            llvm_options += " -force-hvx-float"
+
         # TVM's option parser doesn't allow '=' in values, but '=' can
         # appear in LLVM flags. Replace it with '@', since it's unlikely
         # that '@' will be used in another context.
