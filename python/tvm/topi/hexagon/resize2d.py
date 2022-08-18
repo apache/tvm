@@ -58,7 +58,7 @@ def resize2d_compute(
     )
 
 
-def tir_broadcast_schedule(
+def tir_resize2d_schedule(
     out_m,
     input_a,
     input_layout: str,
@@ -68,14 +68,5 @@ def tir_broadcast_schedule(
     func = te.create_prim_func([input_a, out_m])
 
     s = tir.Schedule(func)
-
-    block = s.get_block("resize")
-
-    if input_layout == "nhwc-8h2w32c2w-2d":
-        input_transformed_layout = get_layout_transform_fn(input_layout)
-        s.transform_layout(block, buffer=("read", 0), index_map=input_transformed_layout)
-
-    output_transformed_layout = get_layout_transform_fn(output_layout)
-    s.transform_layout(block, buffer=("write", 0), index_map=output_transformed_layout)
 
     return s
