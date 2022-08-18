@@ -525,7 +525,3 @@ def run_generator(*, _validators=None, **kwargs):
         return func
 
     return decorator
-
-
-# friendly alias
-create_interface = AcceleratorInterface.create_interface
