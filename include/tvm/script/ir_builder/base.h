@@ -131,7 +131,7 @@ class IRBuilderFrame : public runtime::ObjectRef {
 
 /*!
  * \brief A dialect-agnostic IRBuilder that constructs any IR of TVM.
- * \example An idiomatic use of this class is to put this inside the RAII with-scope,
+ * An idiomatic use of this class is to put this inside the RAII with-scope,
  * call dialect-specific methods accordingly. Upon exiting the scope.
  *
  * \code
