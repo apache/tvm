@@ -24,9 +24,6 @@ import random
 from typing import Optional, Union
 
 import pytest
-import sys
-sys.stdout = sys.stderr
-
 
 import tvm
 import tvm.rpc.tracker
