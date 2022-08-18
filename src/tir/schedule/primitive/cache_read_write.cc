@@ -77,8 +77,6 @@ struct CacheStageInfo {
   Map<Block, Block> block_reuse;
   /*! \brief A list of blocks that will consume the new cache. */
   Array<BlockRV> consumer_blocks;
-  /*! \brief The schedule corresponding to the graph. */
-  ScheduleState schedule;
 };
 
 /*! \brief Return the buffer region realted with the buffer */
@@ -537,8 +535,6 @@ class CacheReadRewriter : public StmtExprMutator {
     for (BlockRV consumer : info_->consumer_blocks) {
       std::cout << "Consumer: " << consumer << std::endl;
       std::cout << "Same: " << old_stmt.same_as(consumer) << std::endl;
-      Block test = info_->schedule.get(consumer);
-      std::cout << "Same 2: " << old_stmt.same_as(test) << std::endl;
       if (old_stmt.same_as(consumer)) {
         is_consumer = true;
       }
@@ -1015,8 +1011,6 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
   info.alloc = info.write_buffer;
   // Indicate which buffers should consume the cache.
   info.consumer_blocks = consumer_blocks;
-  // Note the schedule in pass info.
-  info.schedule = self;
 
   // Step 3. Update cache stage info.
   BufferRegion cache_region{nullptr};
