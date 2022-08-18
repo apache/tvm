@@ -26,7 +26,10 @@
 #include <tvm/tir/stmt_functor.h>
 
 #include <algorithm>
+#include <set>
+#include <unordered_map>
 #include <unordered_set>
+#include <utility>
 
 #include "../../tir/ir/functor_common.h"
 #include "../../tir/transforms/ir_utils.h"
