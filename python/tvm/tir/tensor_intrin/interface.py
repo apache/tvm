@@ -119,7 +119,7 @@ def intrinsic(func=None, *, name=None, desc_name="desc", impl_name="impl"):
     See Also
     --------
     IntrinsicDeclaration
-    IntrinsicInterface.intrinsic
+    AcceleratorInterface.intrinsic
     """
 
     # this is based on recipe 9.6 from python cookbook and is here to allow the
@@ -149,7 +149,33 @@ def intrinsic(func=None, *, name=None, desc_name="desc", impl_name="impl"):
     return inner
 
 
-class IntrinsicInterface:
+class AcceleratorInterface:
+    """A class representing an accelerator which provides intrinsic.
+
+    This is used to aggregate intrinsics provided by the accelerator and can be
+    used to store any additional metadata of interest. Currently supports
+    defining a set of resources provided by the accelerator.
+
+    Attributes
+    ----------
+    registry : dict
+        A mapping from intrinsic names to their corresponding
+        `IntrinsicDeclaration`
+    name : str
+        The name of the accelerator. By default, this is used to prefix
+        intrinsic names
+    resources : dict
+        An example metadata dictionary which defines a mapping from the name of
+        a resource to the amount of that resource provided by the accelerator.
+
+    Methods
+    -------
+    intrinsic
+        A modified version of `intrinsic` which stores the declared intrinsic
+        in the `registry` of the accelerator.
+
+    """
+
     registry: Dict[str, IntrinsicDeclaration]
     name: str
     resources: Dict[str, int]
@@ -160,6 +186,35 @@ class IntrinsicInterface:
         self.resources = dict()
 
     def intrinsic(self, func=None, *, name=None, name_prefix=True, **kwargs):
+        """A decorator for declaring an intrinsic function attached to the
+        accelerator interface.
+
+        Works in the same manner as `intrinsic` however it changes the default
+        naming behavior of the declared intrinsic to CLASSNAME_FUNCTIONNAME.
+        There is also some additional functionality to auto mangle names when
+        used in conjunction with `run_generator`.
+
+        Examples
+        --------
+
+        .. code-block:: python
+            MyAccelerator = AcceleratorInterface("MyAccelerator")
+
+            @MyAccelerator.intrinsic
+            class example_intrinsic:
+                @T.prim_func
+                def desc(...): ...
+                @T.prim_func
+                def impl(...): ...
+
+            MyAccelerator.registry["MyAccelerator_example_intrinsic"] is example_intrinsic
+
+        See Also
+        --------
+        intrinsic
+        run_generator
+
+        """
 
         if func is None:
             return partial(
@@ -224,21 +279,25 @@ class IntrinsicInterface:
         """Utility decorator used to turn a class declaration into an interface
         object.
 
+        This decorator sets the name of the resultant interface to the name of
+        the class it is attached to.
+
         It's probably better to just make the object directly by
         initializing an IntrinsicInterface since this can confuse IDEs.
         Currently only handles resource declarations but could be extended in
         the future as needed.
 
+
         Examples
         --------
         .. code-block:: python
-            @IntrinsicInterface.create_interface
+            @AcceleratorInterface.create_interface
             class SecondInterface:
                 resources = {"test_resource": 1}
 
         """
 
-        inner = IntrinsicInterface(cls.__name__)
+        inner = AcceleratorInterface(cls.__name__)
         if hasattr(cls, "resources"):
             # the validation code in these if-arms is inefficient but given
             # that these resource dicts are unlikely to be all that large this
@@ -275,9 +334,18 @@ class IntrinsicInterface:
 
 
 class GeneratorWrapper:
-    """
-    A wrapper class for functions which generate intrinsic implementations.
-    Used to handle automatic name mangling based on generator input
+    """A wrapper class for functions which generate intrinsic implementations.
+
+    DO NOT create this class directly. Instead use the `generator` decorator.
+
+    Generator here refers to a function which generates intrinsics from inputs
+    rather than a python generator.
+
+    Used to handle automatic name mangling based on generator input.
+
+    See Also
+    --------
+    generator
     """
 
     def __init__(self, wrapped_fn):
@@ -289,8 +357,24 @@ class GeneratorWrapper:
 
 
 def generator(func):
-    """
-    Decorator for wrapping functions which generate intrinsic implementations
+    """Decorator for wrapping functions which generate intrinsic
+    implementations.
+
+    This function and the `GeneratorWrapper` class are used to automatically
+    generate mangled names when defining intrinsics from within functions.
+
+    Examples
+    --------
+
+    .. code-block:: python
+        @generator
+        def gen_intrinsic(...):
+            @MyAccelerator.intrinsic
+            class intrin:
+                @T.prim_func
+                def desc(...): ...
+                @T.prim_func
+                def impl(...): ...
     """
     gen = GeneratorWrapper(func)
     # this is needed to ensure that signature introspection works properly
@@ -299,18 +383,47 @@ def generator(func):
 
 
 def run_generator(*, _validators=None, **kwargs):
-    """
-    This decorator when given iterable keyword arguments will run the annotated
-    generator with the cartesian product of the input iterators. Optional
-    validators may be supplied via the `_validators` argument. If present, this
-    decorator will skip over any argument lists which fail to pass all
-    validators.
+    """This decorator when given iterable keyword arguments will run the
+    annotated generator with the cartesian product of the input iterators.
+
+    Generator here refers to a function which generates intrinsics from inputs
+    rather than a python generator.
+
+    This exists to help sweep the intrinsic-space via generator functions.
+    Optional validators may be supplied via the `_validators` argument. If
+    present, this decorator will skip over any argument lists which fail to
+    pass all validators.
 
     Successful non-None values returned from the attached function will be
     captured in the `captured_output` field of the returned function wrapper.
 
-    Note: wraps the generator function with the :code:`@generator` wrapper if
+    Note: wraps the generator function with the `@generator` wrapper if
     it has not already been applied
+
+    Examples
+    --------
+
+    .. code-block:: python
+        @run_generator(a=[1, 2, 3], b=range(0,10))
+        def gen_intrin(a, b):
+            @MyAccelerator.intrinsic
+            class generated:
+                @T.prim_func
+                def desc(...): ...
+                @T.prim_func
+                def impl(...): ...
+
+        # Names are MyAccelerator_generated_A-VAL_B-VAL
+
+        def v1(a, b):
+            return a < b
+
+        def v2(a):
+            return a % 2
+
+        @run_generator(a=[1, 2, 3], b=range(0,10), _validators=[v1, v2])
+        def gen_intrin_with_validators(a, b): ...
+
     """
 
     if _validators:
@@ -376,4 +489,4 @@ def run_generator(*, _validators=None, **kwargs):
 
 
 # friendly alias
-create_interface = IntrinsicInterface.create_interface
+create_interface = AcceleratorInterface.create_interface
