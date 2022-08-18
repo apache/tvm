@@ -513,7 +513,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
         self._cleanup_port_forwarding()
         self._terminate_remote()
-        # self.cleanup_directory()
+        self.cleanup_directory()
 
 
 class HexagonLauncherSimulator(HexagonLauncherRPC):
