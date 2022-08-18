@@ -259,7 +259,7 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
             const std::vector<AllocatorType>& alloc_types);
 
   /*! \brief Run VM dispatch loop. */
-  void RunLoop(bool set_output_enabled = false);
+  void RunLoop(const std::vector<Index>& output_tensor_reg_indices = {});
 
   /*! \brief Get device from the device list based on a given device index. */
   Device GetDevice(Index device_index) const;
@@ -405,9 +405,12 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
    * new tensor is not allocated and write, but expected shape is checked.
    * For other register WriteAllocatedTensor method is used.
    * \param instr current instruction containing shape and storage info.
-   * \param res_index register index of result.
+   * \param output_tensor_reg_indices register indices of output tensors.
    */
-  void WriteAllocatedTensorFromOutside(const Instruction& instr, Index res_index);
+  void WriteAllocatedTensorFromOutside(const Instruction& instr,
+                                       const std::vector<Index>& output_tensor_reg_indices);
+
+  bool FindIndex(const std::vector<Index>& indices, Index val) const;
 
  protected:
   /*! \brief The virtual machine's packed function table. */

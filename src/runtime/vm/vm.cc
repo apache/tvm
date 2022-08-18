@@ -318,8 +318,9 @@ void VirtualMachine::SetOutputTensorsToRegister(const std::string& func_name,
   auto& reg_indices = output_tensor_reg_indices_[func_name];
   ICHECK_EQ(reg_indices.size(), size)
       << "Number of outside output tensors should be equal to model outputs number";
-  for (size_t i = 0; i < size; ++i) {
-    WriteRegister(reg_indices[i], outputs[i]);
+  size_t i = 0;
+  for (auto it = reg_indices.begin(); it != reg_indices.end(); ++it, ++i) {
+    WriteRegister(*it, outputs[i]);
   }
 }
 
@@ -441,7 +442,7 @@ ObjectRef VirtualMachine::Invoke(const VMFunction& func, const std::vector<Objec
                                  const std::vector<ObjectRef>& output_args) {
   PrintInfoAndSetInputArgs(func, input_args);
   SetOutputTensorsToRegister(func.name, output_args);
-  RunLoop(set_outputs_enabled_[func.name]);
+  RunLoop(output_tensor_reg_indices_[func.name]);
   return return_register_;
 }
 
@@ -614,12 +615,11 @@ void VirtualMachine::CollectOutputTensorRegIndices(const std::string& func_name)
   }
 }
 
-void VirtualMachine::RunLoop(bool set_output_enabled) {
+void VirtualMachine::RunLoop(const std::vector<Index>& output_tensor_reg_indices) {
   ICHECK(this->exec_);
   ICHECK(this->code_);
   pc_ = 0;
   Index frame_start = frames_.size();
-  Index res_reg_index = GetResultRegisterIndex();
   while (true) {
   main_loop:
     auto const& instr = code_[this->pc_];
@@ -763,10 +763,10 @@ void VirtualMachine::RunLoop(bool set_output_enabled) {
       }
       case Opcode::AllocTensor: {
         OpStartHook(instr);
-        if (set_output_enabled) {
-          WriteAllocatedTensorFromOutside(instr, res_reg_index);
-        } else {
+        if (output_tensor_reg_indices.empty()) {
           WriteAllocatedTensor(instr);
+        } else {
+          WriteAllocatedTensorFromOutside(instr, output_tensor_reg_indices);
         }
         OpStopHook();
         pc_++;
@@ -930,12 +930,19 @@ void VirtualMachine::WriteAllocatedTensor(const Instruction& instr) {
   WriteRegister(instr.dst, obj);
 }
 
-void VirtualMachine::WriteAllocatedTensorFromOutside(const Instruction& instr, Index res_index) {
-  if (instr.dst == res_index) {
+void VirtualMachine::WriteAllocatedTensorFromOutside(
+    const Instruction& instr, const std::vector<Index>& output_tensor_reg_indices) {
+  if (FindIndex(output_tensor_reg_indices, instr.dst)) {
     // TODO(vvchernov): check shape
   } else {
+    LOG(WARNING) << "Writting of allocated tensor from outside fails. Usual approach is used";
     WriteAllocatedTensor(instr);
   }
+}
+
+bool VirtualMachine::FindIndex(const std::vector<Index>& indices, Index val) const {
+  auto it = std::find(indices.begin(), indices.end(), val);
+  return it != indices.end();
 }
 
 runtime::Module CreateVirtualMachine(Executable* exec) {
