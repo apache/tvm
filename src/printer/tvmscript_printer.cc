@@ -416,27 +416,6 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   }
 };
 
-/*!
- * \brief special method to print NDArray in TIR
- * \param arr the NDArray to be printed
- * \param os the output stream where the NDArray will be printed to
- */
-template <typename T>
-void NDArrayToTIR(::tvm::runtime::NDArray arr, std::ostream& os) {
-  return;
-  int ndim = arr->ndim;
-  int tot_dim = 1;
-  for (int i = 0; i < ndim; i++) {
-    tot_dim *= arr->shape[i];
-  }
-  T* data_ptr = reinterpret_cast<T*>(arr->data);
-  os << "[";
-  for (int i = 0; i < tot_dim; i++) {
-    os << (i != 0 ? ", " : "") << data_ptr[i];
-  }
-  os << "]";
-}
-
 Doc TVMScriptPrinter::GetUniqueName(std::string prefix) {
   std::replace(prefix.begin(), prefix.end(), '.', '_');
   std::string unique_prefix = prefix;
@@ -1113,41 +1092,7 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateNode* op) {
 Doc TVMScriptPrinter::VisitStmt_(const AllocateConstNode* alloc) {
   std::stringstream ss;
   ICHECK(alloc->data) << "Should be presented";
-  const auto& data = alloc->data.value();
-
-  if (alloc->dtype.is_int()) {
-    if (alloc->dtype.bits() == 8) {
-      NDArrayToTIR<int8_t>(data, ss);
-    } else if (alloc->dtype.bits() == 16) {
-      NDArrayToTIR<int16_t>(data, ss);
-    } else if (alloc->dtype.bits() == 32) {
-      NDArrayToTIR<int32_t>(data, ss);
-    } else {
-      LOG(FATAL) << "DataType not supported";
-    }
-  } else if (alloc->dtype.is_uint()) {
-    if (alloc->dtype.bits() == 8) {
-      // NDArrayToTIR<uint8_t>(data, ss);
-    } else if (alloc->dtype.bits() == 16) {
-      NDArrayToTIR<uint16_t>(data, ss);
-    } else if (alloc->dtype.bits() == 32) {
-      NDArrayToTIR<uint32_t>(data, ss);
-    } else {
-      LOG(FATAL) << "DataType not supported";
-    }
-  } else if (alloc->dtype.is_float()) {
-    if (alloc->dtype.bits() == 16) {
-      NDArrayToTIR<int16_t>(data, ss);
-    } else if (alloc->dtype.bits() == 32) {
-      NDArrayToTIR<float>(data, ss);
-    } else if (alloc->dtype.bits() == 64) {
-      NDArrayToTIR<double>(data, ss);
-    } else {
-      LOG(FATAL) << "DataType not supported";
-    }
-  } else {
-    LOG(FATAL) << "DataType not supported";
-  }
+  ss << "...";
   auto ndarray_str = ss.str();
 
   auto usage = FindAllocateUsage(alloc, &buffer_var_usage_);

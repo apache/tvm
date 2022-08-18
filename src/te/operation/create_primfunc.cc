@@ -428,7 +428,7 @@ void RewriteStageToBlock(const te::Operation& op, CreateFuncInfo* info, Array<St
     ICHECK_EQ(op->num_outputs(), 1);
     const te::Tensor& tensor = op.output(0);
     // Check op is in op list
-    ICHECK(info->IsArg(tensor)) << tensor;
+    ICHECK(info->IsArg(tensor));
     // Declare a buffer for any argument tensors without a pre-existing
     // buffer declaration recorded in the tensor2buffer binds map
     if (info->tensor2buffers.count(tensor) == 0) {

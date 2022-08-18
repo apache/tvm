@@ -709,7 +709,7 @@ class PipelineRewriter : public StmtExprMutator {
       arith::Analyzer* ana_normalized) const {
     std::vector<RewrittenBlockInfo> new_blocks = blocks;
     std::vector<int> commit_group_indices(new_blocks.size(), -1);
-    for (const auto& [stage_id, state]: async_states_local) {
+    for (const auto& [stage_id, state] : async_states_local) {
       if (!state.commit_groups.empty()) {
         for (size_t i = 0; i < state.commit_groups.size(); ++i) {
           for (size_t j = 0; j < state.commit_groups[i].size(); ++j) {
