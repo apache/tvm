@@ -535,10 +535,10 @@ void ConcreteScheduleNode::Unroll(const LoopRV& loop_rv) {
 /******** Schedule: Insert cache stages ********/
 
 BlockRV ConcreteScheduleNode::CacheRead(const BlockRV& block_rv, int read_buffer_index,
-                                        const String& storage_scope) {
+                                        const String& storage_scope, const Array<BlockRV> consumer_blocks) {
   StmtSRef result{nullptr};
   TVM_TIR_SCHEDULE_BEGIN();
-  result = tir::CacheRead(state_, this->GetSRef(block_rv), read_buffer_index, storage_scope);
+  result = tir::CacheRead(state_, this->GetSRef(block_rv), read_buffer_index, storage_scope, consumer_blocks);
   TVM_TIR_SCHEDULE_END("cache-read", this->error_render_level_);
   this->state_->DebugVerify();
   return CreateRV<BlockRV>(result);

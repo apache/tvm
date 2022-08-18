@@ -75,6 +75,10 @@ struct CacheStageInfo {
   Stmt cache_stage;
   /*! \brief The map used for ScheduleStateNode::Replace. */
   Map<Block, Block> block_reuse;
+  /*! \brief A list of blocks that will consume the new cache. */
+  Array<BlockRV> consumer_blocks;
+  /*! \brief The schedule corresponding to the graph. */
+  ScheduleState schedule;
 };
 
 /*! \brief Return the buffer region realted with the buffer */
@@ -525,6 +529,20 @@ class CacheReadRewriter : public StmtExprMutator {
 
   Stmt VisitStmt_(const BlockNode* block) final {
     Block old_stmt = GetRef<Block>(block);
+    // Check if this block is one of the specified consumers.
+    // If no consumer blocks are specified, all blocks should be considered consumers.
+    bool is_consumer = !info_->consumer_blocks.empty();
+    // Otherwise check if this is one of the specified blocks.
+    std::cout << "Block: " << old_stmt << std::endl;
+    for (BlockRV consumer : info_->consumer_blocks) {
+      std::cout << "Consumer: " << consumer << std::endl;
+      std::cout << "Same: " << old_stmt.same_as(consumer) << std::endl;
+      Block test = info_->schedule.get(consumer);
+      std::cout << "Same 2: " << old_stmt.same_as(test) << std::endl;
+      if (old_stmt.same_as(consumer)) {
+        is_consumer = true;
+      }
+    }
     // We don't mutate the block which generates info->read_buffer
     if (block != scope_sref_->stmt &&
         GetBufferRegionFromBuffer(block->writes, info_->read_buffer).defined()) {
@@ -547,15 +565,18 @@ class CacheReadRewriter : public StmtExprMutator {
       stmt = Block(n);
     } else {
       // Otherwise, update read regions and match_buffers
-      Array<BufferRegion> reads =
-          ReplaceBuffer(block->reads, info_->read_buffer, info_->write_buffer);
-      Array<MatchBufferRegion> match_buffers =
-          ReplaceBuffer(block->match_buffers, info_->read_buffer, info_->write_buffer);
-      if (!reads.same_as(block->reads) || !match_buffers.same_as(block->match_buffers)) {
-        ObjectPtr<BlockNode> n = make_object<BlockNode>(*stmt.as<BlockNode>());
-        n->reads = std::move(reads);
-        n->match_buffers = std::move(match_buffers);
-        stmt = Block(n);
+      // Only make this change if the block is one of the specified consumers.
+      if (is_consumer) {
+        Array<BufferRegion> reads =
+            ReplaceBuffer(block->reads, info_->read_buffer, info_->write_buffer);
+        Array<MatchBufferRegion> match_buffers =
+            ReplaceBuffer(block->match_buffers, info_->read_buffer, info_->write_buffer);
+        if (!reads.same_as(block->reads) || !match_buffers.same_as(block->match_buffers)) {
+          ObjectPtr<BlockNode> n = make_object<BlockNode>(*stmt.as<BlockNode>());
+          n->reads = std::move(reads);
+          n->match_buffers = std::move(match_buffers);
+          stmt = Block(n);
+        }
       }
     }
     info_->block_reuse.Set(old_stmt, stmt);
@@ -963,7 +984,7 @@ class ReIndexRewriter : public StmtExprMutator {
 /******** Implementation ********/
 
 StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buffer_index,
-                   const String& storage_scope) {
+                   const String& storage_scope, const Array<BlockRV> consumer_blocks) {
   /*!
    * Check:
    *   - The index is in the array of block reading region
@@ -992,6 +1013,10 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
   info.write_buffer = WithScope(read_buffer, storage_scope);
   // Create the corresponding buffer allocation
   info.alloc = info.write_buffer;
+  // Indicate which buffers should consume the cache.
+  info.consumer_blocks = consumer_blocks;
+  // Note the schedule in pass info.
+  info.schedule = self;
 
   // Step 3. Update cache stage info.
   BufferRegion cache_region{nullptr};
@@ -1171,20 +1196,21 @@ struct CacheReadTraits : public UnpackedInstTraits<CacheReadTraits> {
 
  private:
   static constexpr size_t kNumInputs = 1;
-  static constexpr size_t kNumAttrs = 2;
+  static constexpr size_t kNumAttrs = 3;
   static constexpr size_t kNumDecisions = 0;
 
   static BlockRV UnpackedApplyToSchedule(Schedule sch, BlockRV block, Integer read_buffer_index,
-                                         String storage_scope) {
-    return sch->CacheRead(block, read_buffer_index->value, storage_scope);
+                                         String storage_scope, Array<BlockRV> consumer_blocks) {
+    return sch->CacheRead(block, read_buffer_index->value, storage_scope, consumer_blocks);
   }
 
   static String UnpackedAsPython(Array<String> outputs, String block, Integer read_buffer_index,
-                                 String storage_scope) {
+                                 String storage_scope, Array<String> consumer_blocks) {
     PythonAPICall py("cache_read");
     py.Input("block", block);
     py.Input("read_buffer_index", read_buffer_index->value);
     py.Input("storage_scope", storage_scope);
+    py.Input("consumer_blocks", consumer_blocks);
     py.SingleOutput(outputs);
     return py.Str();
   }
