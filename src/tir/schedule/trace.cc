@@ -153,7 +153,7 @@ Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
     const char* name = str->data;
     int64_t size = str->size;
     // Case 2. string
-    if (size > 2 && name[0] == '"' && name[size - 1] == '"') {
+    if (size >= 2 && name[0] == '"' && name[size - 1] == '"') {
       results.push_back(String(std::string(name + 1, size - 2)));
       continue;
     }

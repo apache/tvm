@@ -23,7 +23,7 @@ import numpy as np
 import tvm.tir
 from tvm.runtime import Object, String, convert
 from tvm.ir import Span, Range
-from tvm.tir import Stmt, PrimExpr, IterVar, Var, Buffer, BufferRegion, ForKind
+from tvm.tir import Stmt, PrimExpr, IterVar, Var, Buffer, BufferRegion, ForKind, IntImm
 
 from .node import BufferSlice
 
@@ -639,6 +639,8 @@ class ForScopeHandler(ScopeHandler):
         begin, end = [convert(_) for _ in [begin, end]]
         assert self.context and self.node, "call 'exit_scope' before 'enter_scope'"
         extent = end if begin == 0 else self.context.analyzer.simplify(end - begin)
+        if begin == 0 and isinstance(extent, PrimExpr):
+            begin = IntImm(extent.dtype, 0, begin.span)
         self.annotations: Mapping[str, Object] = {}
         if annotations is not None:
             self.annotations = {

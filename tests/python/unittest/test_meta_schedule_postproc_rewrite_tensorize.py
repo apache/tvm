@@ -16,9 +16,9 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 import tvm
-import tvm.tir.tensor_intrin
 from tvm.meta_schedule import TuneContext, postproc
 from tvm.script import tir as T
+from tvm.tir.tensor_intrin import arm_cpu, cuda, rocm, x86
 
 
 @tvm.script.ir_module

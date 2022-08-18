@@ -271,7 +271,7 @@ Store::Store(Var buffer_var, PrimExpr value, PrimExpr index, PrimExpr predicate,
   // annotation tells us otherwise.
   int element_lanes = 1;
   auto pointer_type = tir::GetPointerType(buffer_var->type_annotation);
-  if (pointer_type.first) {
+  if (pointer_type.has_value()) {
     // Currently cannot check element type of array, see Load::Load
     // for details.
 
@@ -279,10 +279,10 @@ Store::Store(Var buffer_var, PrimExpr value, PrimExpr index, PrimExpr predicate,
     // See https://discuss.tvm.apache.org/t/pre-rfc-vectorized-tir-buffers/10615
     // for discussion.
 
-    // ICHECK_EQ(value.dtype().element_of(), pointer_type.second.element_of())
+    // ICHECK_EQ(value.dtype().element_of(), pointer_type->element_of())
     //     << "Type mismatch, cannot store type " << value.dtype() << " into buffer "
-    //     << buffer_var->name_hint << " of type " << pointer_type.second;
-    element_lanes = pointer_type.second.lanes();
+    //     << buffer_var->name_hint << " of type " << pointer_type.value();
+    element_lanes = pointer_type->lanes();
   }
 
   ICHECK((value.dtype().lanes() == element_lanes * index.dtype().lanes()) ||

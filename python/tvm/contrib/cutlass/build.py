@@ -62,7 +62,7 @@ def _get_cutlass_compile_options(sm, threads, use_fast_math=False):
         "-Xcompiler=-Wconversion",
         "-Xcompiler=-fno-strict-aliasing",
         "-O3",
-        "-std=c++14",
+        "-std=c++17",
         "-I" + cutlass_include,
         "-I" + cutlass_util_include,
     ]
