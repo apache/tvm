@@ -619,13 +619,6 @@ def _resize_2d(
         The computed result with type out_dtype
     """
 
-    def saturate(x, dtype):
-        if dtype == "uint8":
-            return te.max(0, te.min(x, 255))
-        elif dtype == "int8":
-            return te.max(-127, te.min(x, 128))
-        return x
-
     def _cast_output(value, data_dtype="float32", out_dtype=None):
         if out_dtype:
             dtype = out_dtype
@@ -783,7 +776,7 @@ def _resize_2d(
             extrapolation_value,
             tvm.tir.if_then_else(in_x > image_width - 1, extrapolation_value, out),
         )
-    return _cast_output(saturate(value, out_dtype), data.dtype, out_dtype=out_dtype)
+    return _cast_output(value, data.dtype, out_dtype=out_dtype)
 
 
 def resize2d(

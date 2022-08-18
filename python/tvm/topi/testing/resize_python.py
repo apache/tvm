@@ -64,15 +64,6 @@ def resize3d_nearest(arr, scale, coordinate_transformation_mode):
     return out
 
 
-def saturate(x, dtype):
-    """Saturate value for the specified data type"""
-    if dtype == "uint8":
-        return np.maximum(0, np.minimum(x, 255))
-    elif dtype == "int8":
-        return np.maximum(-127, np.minimum(x, 128))
-    return x
-
-
 def resize3d_linear(data_in, scale, coordinate_transformation_mode):
     """Trilinear 3d scaling using python"""
     dtype = data_in.dtype
@@ -169,7 +160,7 @@ def resize3d_cubic(data_in, scale, coordinate_transformation_mode):
 
                 l = np.sum(p * wx, axis=-1)
                 col = np.sum(l * wy, axis=-1)
-                data_out[m, j, k] = saturate(np.sum(col * wz), data_in.dtype).astype(data_in.dtype)
+                data_out[m, j, k] = np.sum(col * wz)
 
     return data_out
 
