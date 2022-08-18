@@ -1,11 +1,14 @@
+"""Utility classes and decorators for creating tensor intrinsics and attaching
+metadata to them"""
 from collections import namedtuple
 from dataclasses import dataclass, field
 from functools import wraps, partial
 import inspect
 import itertools
+from typing import Dict, Iterable, List
+
 from tvm.tir.function import PrimFunc
 from tvm import tir
-from typing import Dict, Iterable, List
 
 Resource = namedtuple("Resource", ["name", "count"])
 
@@ -55,7 +58,7 @@ def consumes(resource_name, count=1):
                 f"list, but got {type(func.consumes)}"
             )
         else:
-            func.consumes = list()
+            func.consumes = []
             func.consumes.append(Resource(resource_name, count))
         return func
 
@@ -181,9 +184,9 @@ class AcceleratorInterface:
     resources: Dict[str, int]
 
     def __init__(self, name):
-        self.registry = dict()
+        self.registry = {}
         self.name = name
-        self.resources = dict()
+        self.resources = {}
 
     def intrinsic(self, func=None, *, name=None, name_prefix=True, **kwargs):
         """A decorator for declaring an intrinsic function attached to the
@@ -297,7 +300,7 @@ class AcceleratorInterface:
         )
 
     @staticmethod
-    def create_interface(cls):
+    def create_interface(wrapped_class):
         """Utility decorator used to turn a class declaration into an interface
         object.
 
@@ -319,35 +322,38 @@ class AcceleratorInterface:
 
         """
 
-        inner = AcceleratorInterface(cls.__name__)
-        if hasattr(cls, "resources"):
+        inner = AcceleratorInterface(wrapped_class.__name__)
+        if hasattr(wrapped_class, "resources"):
             # the validation code in these if-arms is inefficient but given
             # that these resource dicts are unlikely to be all that large this
             # is fine for the time being. If the need arises these can be
             # converted to a more efficient but less readable single pass
             # version
 
-            if isinstance(cls.resources, dict) and all(
+            if isinstance(wrapped_class.resources, dict) and all(
                 (
                     isinstance(key, str) and isinstance(value, int)
-                    for key, value in cls.resources.items()
+                    for key, value in wrapped_class.resources.items()
                 )
             ):
-                inner.resources = cls.resources
-            elif isinstance(cls.resources, Iterable) and all(
-                (isinstance(item, (Resource, tuple)) and len(item) == 2 for item in cls.resources)
+                inner.resources = wrapped_class.resources
+            elif isinstance(wrapped_class.resources, Iterable) and all(
+                (
+                    isinstance(item, (Resource, tuple)) and len(item) == 2
+                    for item in wrapped_class.resources
+                )
             ):
-                inner.resources = {key: value for key, value in cls.resources}
-                cls.resources = inner.resources
+                inner.resources = dict(wrapped_class.resources)
+                wrapped_class.resources = inner.resources
             else:
                 raise TypeError(
                     "the resources field must be a dictionary with string keys"
                     " and int values or an Iterable of valid Resource tuples"
                 )
         else:
-            cls.resources = inner.resources
+            wrapped_class.resources = inner.resources
 
-        class WrappedIntrinsicInterface(cls):
+        class WrappedIntrinsicInterface(wrapped_class):
             _inner = inner
             registry = _inner.registry
             function = _inner.intrinsic
@@ -479,7 +485,7 @@ def run_generator(*, _validators=None, **kwargs):
         ]
 
         for concrete_values in product:
-            arg_dict = {key: value for key, value in zip(kwargs.keys(), concrete_values)}
+            arg_dict = dict(zip(kwargs.keys(), concrete_values))
 
             args = [arg_dict[key] for key in arg_ordering]
             arg_dict = {key: value for key, value in arg_dict.items() if key not in arg_ordering}
