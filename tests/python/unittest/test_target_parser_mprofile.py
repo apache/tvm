@@ -56,5 +56,16 @@ def test_target_parser_mprofile_no_dsp(cpu_target):
     assert not parsed_target.features.has_mve
 
 
+@pytest.mark.parametrize(["cpu_target"], [["llvm"]])
+def test_target_parser_mprofile_mattr(cpu_target):
+    parsed_target = Target(f"{cpu_target} -mcpu=cortex-m55 -mattr=+nomve,+woof")
+    assert len(parsed_target.keys) == 2
+    assert parsed_target.keys[0] == "arm_cpu"
+    assert parsed_target.keys[1] == "cpu"
+    assert parsed_target.features
+    assert parsed_target.features.has_dsp
+    assert not parsed_target.features.has_mve
+
+
 if __name__ == "__main__":
     tvm.testing.main()
