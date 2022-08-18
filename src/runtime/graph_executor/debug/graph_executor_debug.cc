@@ -287,7 +287,7 @@ class GraphExecutorDebug : public GraphExecutor {
    * \brief Copy index-th node to data_out.
    *
    * This method will do a partial run of the graph
-   * from beginning upto the index-th node and return output of index-th node.
+   * from begining upto the index-th node and return output of index-th node.
    * This is costly operation and suggest to use only for debug porpose.
    *
    * \param index: The  index of the node.
