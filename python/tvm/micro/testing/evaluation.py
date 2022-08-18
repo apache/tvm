@@ -39,7 +39,7 @@ def tune_model(
     params,
     num_trials,
     tuner_cls=tvm.autotvm.tuner.GATuner,
-    options=None,
+    project_options=None,
 ):
     """Autotunes a model with microTVM and returns a StringIO with the tuning logs"""
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
@@ -48,11 +48,10 @@ def tune_model(
     assert isinstance(params, dict)
 
     project_options = {
+        **(project_options if project_options is not None else {}),
         f"{platform}_board": board,
         "project_type": "host_driven",
     }
-    if options:
-        project_options = {**options, **project_options}
     module_loader = tvm.micro.AutoTvmModuleLoader(
         template_project_dir=tvm.micro.get_microtvm_template_projects(platform),
         project_options=project_options,
