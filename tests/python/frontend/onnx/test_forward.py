@@ -4415,9 +4415,7 @@ def test_topk(target, dev):
         output_dims = list(input_dims)
         output_dims[axis] = k
 
-        node = helper.make_node(
-            "TopK", inputs=["X", "K"], outputs=["Values", "Indices"], axis=axis
-        )
+        node = helper.make_node("TopK", inputs=["X", "K"], outputs=["Values", "Indices"], axis=axis)
 
         graph = helper.make_graph(
             [node],
