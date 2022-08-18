@@ -40,7 +40,7 @@ if [[ "${device_serial}" == "simulator" ]]; then
 fi
 
 export ANDROID_SERIAL_NUMBER=${device_serial}
-run_pytest ctypes python-contrib-hexagon tests/python/contrib/test_hexagon
+run_pytest ctypes python-contrib-hexagon tests/python/contrib/test_hexagon --tx 2*popen --dist=load
 
 if [[ "${device_serial}" == "simulator" ]]; then
     kill ${TRACKER_PID}
