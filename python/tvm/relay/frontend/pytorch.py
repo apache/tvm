@@ -3926,13 +3926,10 @@ class PyTorchOpConverter:
                     out_names = _get_output_names(op_node)
                     outputs.update(zip(out_names, relay_out))
                 else:
-                    print(node_name)
-                    print(op_node.outputsSize())
-                    # assert op_node.outputsSize() == 1
-                    if node_name == "22_23_24_25":
-                        node_name = "22"
+                    # The node_name of embedding_bag is like "22_23_24_25"
+                    node_name = node_name.split("_")[0]
                     outputs[node_name] = relay_out
-        print(ret_names)
+
         return [_wrap_const(outputs[ret_name]) for ret_name in ret_names]
 
 

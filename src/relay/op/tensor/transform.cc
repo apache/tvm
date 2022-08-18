@@ -4314,6 +4314,7 @@ RELAY_REGISTER_OP("embedding_bag")
     .add_type_rel("embedding_bag", EmbeddingBagRel)
     .set_support_level(10)
     .set_attr<FTVMCompute>("FTVMCompute", EmbeddingBagCompute)
+    // If we want 4 outputs we need to implement InferCorrectLayoutOutput
     .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable);
 
 }  // namespace relay

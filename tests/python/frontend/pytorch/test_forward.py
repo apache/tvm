@@ -2863,12 +2863,18 @@ def test_forward_embedding():
 
 
 def test_embedding_bag():
+    class EmbeddingBag(Module):
+        def __init__(self, mode="mean"):
+            super().__init__()
+            self.mode = mode
+
+        def forward(self, input, weight):
+            return F.embedding_bag(input, weight, mode=self.mode)
+
     embedding_matrix = torch.rand(10, 3)
     inp = torch.tensor([[1, 2, 4, 5], [4, 3, 2, 9], [6, 7, 8, 9]])
-    verify_model(
-        F.embedding_bag,
-        [inp, embedding_matrix],
-    )
+    verify_model(EmbeddingBag().float().eval(), [inp, embedding_matrix])
+    verify_model(EmbeddingBag("sum").float().eval(), [inp, embedding_matrix])
 
 
 @tvm.testing.uses_gpu
