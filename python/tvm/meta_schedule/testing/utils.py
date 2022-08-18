@@ -45,7 +45,7 @@ def apply_fixed_schedules(
     schedule_fn : Callable[[ExtractedTask, Schedule], bool]
         A callable that is applied for each extracted task and the corresponding default schedule.
         Returns True if the given schedule should be committed to the database, False otherwise.
-    te_filter_func : Union[str, None, Callable[[List[Tensor]], PrimFunc]] = None
+    te_filter_func : Union[str, None, Callable[[List[Tensor], List[NDArray]], PrimFunc]] = None
         The filtering function for TE computation
         If it's a string, it's the name of the filtering function. Built in functions are
           - "meta_schedule.DefaultTaskFilter"

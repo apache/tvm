@@ -67,10 +67,7 @@ Array<meta_schedule::ExtractedTask> ExtractTask(
         it->second->weight += 1;
         return;
       }
-      Array<te::Tensor> inputs_outputs{nullptr};
-      Array<runtime::NDArray> constants;
-      std::string fused_name;
-      std::tie(inputs_outputs, constants, fused_name) =
+      auto [inputs_outputs, constants, fused_name] =
           tec::LowerTECompute(relay_func, target, /*return_inputs=*/true);
       if (Optional<tir::PrimFunc> prim_func = filter_func(inputs_outputs, constants)) {
         GlobalVar prim_fn_var(fused_name);

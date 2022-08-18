@@ -79,6 +79,8 @@ class ExtractedTask : public runtime::ObjectRef {
 /*!
  * \brief The default TE task filter
  * \param args The input/output arguments of the TE compute graph
+ * \param constants Raw data for constant tensors in args. If the size of this array is N, the last
+ * N tensors in args will be treated as constant tensors.
  * \return NullOpt if the task is filtered out, otherwise the task in PrimFunc
  */
 Optional<tvm::tir::PrimFunc> DefaultTaskFilter(const Array<tvm::te::Tensor, void>& args,
@@ -87,6 +89,8 @@ Optional<tvm::tir::PrimFunc> DefaultTaskFilter(const Array<tvm::te::Tensor, void
 /*!
  * \brief The default TE task filter, with `te.extern` allowed
  * \param args The input/output arguments of the TE compute graph
+ * \param constants Raw data for constant tensors in args. If the size of this array is N, the last
+ * N tensors in args will be treated as constant tensors.
  * \return NullOpt if the task is filtered out, otherwise the task in PrimFunc
  */
 Optional<tir::PrimFunc> DefaultTaskFilterAllowExtern(const Array<tvm::te::Tensor, void>& args,

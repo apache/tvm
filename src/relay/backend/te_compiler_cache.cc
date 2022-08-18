@@ -362,9 +362,9 @@ class ScheduleBuilder : public ExprVisitor {
       if (meta_schedule_ctx_) {
         Array<te::Tensor> te_args = Concat(fn_inputs, tensor_outs);
         Array<runtime::NDArray> constants;
-        for (auto kv : lower_te_compute.constant_tensors_) {
-          te_args.push_back(kv.second);
-          constants.push_back(kv.first->data);
+        for (auto [const_node, te_tensor] : lower_te_compute.constant_tensors_) {
+          te_args.push_back(te_tensor);
+          constants.push_back(const_node->data);
         }
 
         if (Optional<tir::PrimFunc> tir_func =
@@ -803,9 +803,9 @@ std::tuple<Array<te::Tensor>, Array<runtime::NDArray>, std::string> LowerTECompu
   }
 
   tvm::Array<runtime::NDArray> constants;
-  for (auto kv : lower_te_compute.constant_tensors_) {
-    tensor_outs.push_back(kv.second);
-    constants.push_back(kv.first->data);
+  for (auto [const_node, te_tensor] : lower_te_compute.constant_tensors_) {
+    tensor_outs.push_back(te_tensor);
+    constants.push_back(const_node->data);
   }
 
   if (return_inputs) {

@@ -17,6 +17,8 @@
  * under the License.
  */
 
+#include "create_primfunc.h"
+
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/name_supply.h>
 #include <tvm/runtime/registry.h>

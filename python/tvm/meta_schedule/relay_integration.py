@@ -56,7 +56,7 @@ def extract_task_from_relay(
         The pass config of the compiler
     disabled_pass : Optional[List[str]]
         The list of disabled passes of the compiler
-    te_filter_func : Callable[[List[tvm.te.Tensor]], bool]
+    te_filter_func : Callable[[List[tvm.te.Tensor], List[NDArray]], bool]
         The filter function to filter out the extracted tasks
         If it's a string, it's the name of the filtering function. Built in functions are
           - "meta_schedule.DefaultTaskFilter"

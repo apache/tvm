@@ -215,7 +215,7 @@ Array<IndexExpr> GetShape(const Array<IndexExpr>& shape);
  * \param source_func The primitive function to be lowered.
  * \param target The target we want to create schedule for.
  * \param return_inputs If true, prepend input tensors to the output array of tensors.
- * \return Pair of schedule and fused function name.
+ * \return Tuple of the lowered TE compute, constant raw data, and fused function name.
  */
 std::tuple<Array<te::Tensor>, Array<runtime::NDArray>, std::string> LowerTECompute(
     const Function& source_func, Target target, bool return_inputs = true);
