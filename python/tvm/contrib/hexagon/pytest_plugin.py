@@ -24,6 +24,9 @@ import random
 from typing import Optional, Union
 
 import pytest
+import sys
+sys.stdout = sys.stderr
+
 
 import tvm
 import tvm.rpc.tracker
@@ -175,7 +178,13 @@ def hexagon_server_process(
             "rpc_server_port": rpc_server_port_for_session,
             "adb_server_socket": adb_server_socket,
         }
-        launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
+        workerinput = getattr(request.config, "workerinput", None)
+        if workerinput is None: # single-process execution
+            ipadr = read_device_list()[0]
+        else: # running in a subprocess here
+            ipadr = workerinput["ipadr"]
+        launcher = HexagonLauncher(serial_number=ipadr, rpc_info=rpc_info)
+        print(ipadr)
         try:
             if not skip_rpc:
                 launcher.start_server()
@@ -184,6 +193,24 @@ def hexagon_server_process(
             if not skip_rpc:
                 launcher.stop_server()
 
+
+def read_device_list():
+    import json
+    # return ["192.168.10.138:5555"]
+    return ["192.168.10.159:5555", "192.168.10.138:5555"] 
+    return ["192.168.10.159:5555", "192.168.10.138:5555", "192.168.10.139:5555"]
+    # with open("devices.json") as f:
+    #     return json.load(f)
+ 
+def pytest_configure(config):
+     # read device list if we are on the master
+    if not hasattr(config, "workerinput"):
+        config.iplist = read_device_list()
+
+def pytest_configure_node(node):
+    # the master for each node fills slaveinput dictionary
+    # which pytest-xdist will transfer to the subprocess
+    node.workerinput["ipadr"] = node.config.iplist.pop()
 
 @pytest.fixture
 def hexagon_launcher(
@@ -207,16 +234,7 @@ def hexagon_launcher(
             "rpc_server_port": rpc_server_port,
             "adb_server_socket": adb_server_socket,
         }
-
-    launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
-    try:
-        if android_serial_number == "simulator":
-            launcher.start_server()
-        yield launcher
-    finally:
-        if android_serial_number == "simulator":
-            launcher.stop_server()
-        launcher.cleanup_directory()
+    yield hexagon_server_process
 
 
 @pytest.fixture
