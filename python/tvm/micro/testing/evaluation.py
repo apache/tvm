@@ -48,9 +48,9 @@ def tune_model(
     assert isinstance(params, dict)
 
     project_options = {
-        **(project_options if project_options is not None else {}),
         f"{platform}_board": board,
         "project_type": "host_driven",
+        **(project_options or {}),
     }
     module_loader = tvm.micro.AutoTvmModuleLoader(
         template_project_dir=tvm.micro.get_microtvm_template_projects(platform),
