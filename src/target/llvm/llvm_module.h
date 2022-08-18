@@ -46,5 +46,4 @@ runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& module
 }  // namespace tvm
 
 #endif  // TVM_LLVM_VERSION
-
 #endif  // TVM_TARGET_LLVM_LLVM_MODULE_H_

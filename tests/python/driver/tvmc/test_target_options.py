@@ -86,7 +86,7 @@ def test_skip_target_from_codegen():
 def test_target_recombobulation_single():
     tvm_target, _ = target_from_cli("llvm", {"llvm": {"mcpu": "cortex-m3"}})
 
-    assert str(tvm_target) == "llvm -keys=cpu -link-params=0 -mcpu=cortex-m3"
+    assert str(tvm_target) == "llvm -keys=arm_cpu,cpu -link-params=0 -mcpu=cortex-m3"
 
 
 def test_target_recombobulation_many():

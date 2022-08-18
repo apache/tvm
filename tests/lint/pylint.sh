@@ -32,3 +32,24 @@ python3 -m pylint tests/python/contrib/test_hexagon/conv2d/test_conv2d_blocked.p
 python3 -m pylint tests/python/contrib/test_hexagon/conv2d/test_conv2d_conv2d.py --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint tests/python/contrib/test_hexagon/infrastructure.py --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint tests/python/contrib/test_hexagon/test_2d_physical_buffers.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/contrib/test_hexagon/test_autotvm.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/contrib/test_hexagon/test_cache_read_write.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/contrib/test_hexagon/test_launcher.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/contrib/test_hexagon/test_maxpool2d_blocked.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/contrib/test_hexagon/test_models.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/contrib/test_hexagon/test_run_unit_tests.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/contrib/test_hexagon/test_thread_pool.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/contrib/test_hexagon/test_usmp.py --rcfile="$(dirname "$0")"/pylintrc
+
+# tests/python/frontend tests
+python3 -m pylint tests/python/frontend/caffe/test_forward.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/frontend/caffe2/*.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/frontend/darknet/test_forward.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/frontend/coreml/*.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/frontend/keras/test_forward.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/frontend/darknet/test_forward.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/frontend/oneflow/*.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/frontend/tensorflow/test_forward.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/frontend/pytorch/test_forward.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/frontend/tflite/test_forward.py --rcfile="$(dirname "$0")"/pylintrc
+

@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
-import pytest
+""" capture gtest output and return over FFI """
+
 import numpy as np
 
 import tvm
@@ -29,11 +29,16 @@ from tvm.contrib.hexagon.session import Session
 # pytest -sv <this file> --gtests_args="--gtest_filter=*foo* --gtest_repeat=2"
 @tvm.testing.requires_hexagon
 def test_run_unit_tests(hexagon_session: Session, gtest_args):
+    """Try running gtest unit tests and capture output and error code"""
     try:
         func = hexagon_session._rpc.get_function("hexagon.run_unit_tests")
     except:
         print(
-            "This test requires TVM Runtime to be built with a Hexagon gtest version using Hexagon API cmake flag -DUSE_HEXAGON_GTEST=/path/to/hexagon/sdk/utils/googletest/gtest"
+            (
+                "This test requires TVM Runtime to be built with a Hexagon gtest"
+                "version using Hexagon API cmake flag"
+                "-DUSE_HEXAGON_GTEST=/path/to/hexagon/sdk/utils/googletest/gtest"
+            )
         )
         raise
 

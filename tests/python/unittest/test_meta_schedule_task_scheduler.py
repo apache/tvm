@@ -23,6 +23,7 @@ from typing import Set
 import pytest
 import tvm
 import tvm.testing
+from tvm.support import libinfo
 from tvm import meta_schedule as ms
 from tvm._ffi.base import TVMError
 from tvm.meta_schedule.testing.dummy_object import DummyBuilder, DummyRunner

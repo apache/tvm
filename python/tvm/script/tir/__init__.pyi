@@ -187,6 +187,18 @@ def match_buffer(
     buffer_type: str = "default",
     axis_separators: Optional[List[int]] = None,
 ) -> Buffer: ...
+def decl_buffer(
+    shape: Sequence[Union[PrimExpr, int]],
+    dtype: str = "float32",
+    data: Var = None,
+    strides: Optional[Sequence[int]] = None,
+    elem_offset: Optional[int] = None,
+    scope: str = "global",
+    align: int = -1,
+    offset_factor: int = 0,
+    buffer_type: str = "default",
+    axis_separators: Optional[List[int]] = None,
+) -> Buffer: ...
 def buffer_decl(
     shape: Sequence[Union[PrimExpr, int]],
     dtype: str = "float32",

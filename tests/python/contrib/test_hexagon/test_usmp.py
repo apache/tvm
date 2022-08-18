@@ -15,23 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import sys
-import pytest
-import numpy as np
+"""USMP tests"""
 
+import numpy as np
+import pytest
 import tvm.testing
-from tvm import te
 from tvm import relay
-from tvm.relay.backend import Executor, Runtime
 from tvm.contrib.hexagon.session import Session
+from tvm.relay.backend import Executor, Runtime
 from tvm.testing.usmp import is_tvm_backendallocworkspace_calls
 
 
-usmp_enabled = tvm.testing.parameter(False, True)
-
-
+@pytest.mark.parametrize("usmp_enabled", [False, True])
 @tvm.testing.requires_hexagon
 def test_conv2d(hexagon_session: Session, aot_host_target, aot_target, usmp_enabled):
+    """Try conv2d on AOT target with usmp_enabled and check for TVMBackendAllocWorkspace calls"""
     dtype = "float32"
     input_shape = (1, 8, 8, 3)
     w1_shape = (5, 5, 3, 1)
@@ -39,7 +37,7 @@ def test_conv2d(hexagon_session: Session, aot_host_target, aot_target, usmp_enab
     data = relay.var("data", relay.TensorType(input_shape, dtype))
     weight1 = relay.var("weight1", relay.TensorType(w1_shape, dtype))
     weight2 = relay.var("weight2", relay.TensorType(w2_shape, dtype))
-    y1 = relay.nn.conv2d(
+    outpu1 = relay.nn.conv2d(
         data,
         weight1,
         padding=(2, 2),
@@ -48,8 +46,8 @@ def test_conv2d(hexagon_session: Session, aot_host_target, aot_target, usmp_enab
         kernel_layout="HWIO",
         out_dtype="float32",
     )
-    y2 = relay.nn.conv2d(
-        y1,
+    output2 = relay.nn.conv2d(
+        outpu1,
         weight2,
         padding=(2, 2),
         kernel_size=(5, 5),
@@ -57,7 +55,7 @@ def test_conv2d(hexagon_session: Session, aot_host_target, aot_target, usmp_enab
         kernel_layout="HWIO",
         out_dtype="float32",
     )
-    f = relay.Function([data, weight1, weight2], y2)
+    f = relay.Function([data, weight1, weight2], output2)
     relay_mod = tvm.IRModule.from_expr(f)
     relay_mod = relay.transform.InferType()(relay_mod)
 

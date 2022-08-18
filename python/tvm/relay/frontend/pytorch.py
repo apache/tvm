@@ -23,7 +23,6 @@ import functools
 import itertools
 import math
 import sys
-import logging
 
 import numpy as np
 import tvm
@@ -320,30 +319,15 @@ class PyTorchOpConverter:
         (dtype,) = input_types
         return _op.power(inputs[0], _expr.const(2, dtype))
 
-    def tril(self, inputs, input_types):
-        data = inputs[0]
-        if len(inputs) == 2:
-            k_value = inputs[1]
-        else:
-            k_value = 0
-        input_shape = self.infer_shape(data)
-        k1, k2 = input_shape[-2:]
-        k1 = k_value + 1
-        diag_input = _op.zeros(input_shape, dtype=input_types[0])
-        return _op.matrix_set_diag(data, diag_input, k=(k1, k2))
+    def lerp(self, inputs, input_types):
+        if len(inputs) != 3:
+            msg = "Wrong number of arguments (%d) to parse." % (len(inputs))
+            raise AssertionError(msg)
 
-    def triu(self, inputs, input_types):
-        data = inputs[0]
-        if len(inputs) == 2:
-            k_value = inputs[1]
-        else:
-            k_value = 0
-        input_shape = self.infer_shape(data)
-        k1, k2 = input_shape[-2:]
-        k1 = (k1 * -1) - 1
-        k2 = k_value - 1
-        diag_input = _op.zeros(input_shape, dtype=input_types[0])
-        return _op.matrix_set_diag(data, diag_input, k=(k1, k2))
+        start = inputs[0]
+        end = inputs[1]
+        weight = inputs[2]
+        return start + weight * (end - start)
 
     def arange(self, inputs, input_types):
         def _get_value(val, dtype):
@@ -1385,6 +1369,16 @@ class PyTorchOpConverter:
             axes = inputs[1]
         return _op.transform.transpose(data, axes)
 
+    def numpy_T(self, inputs, input_types):
+        data = inputs[0]
+        shape = self.infer_shape(data)
+        if len(shape) != 2:
+            logger.warning(
+                "The use of Tensor.T on tensors of dimensions != 2 is deprecated"
+                "and will be removed in a future release of PyTorch."
+            )
+        return _op.transform.transpose(data)
+
     def flatten(self, inputs, input_types):
         data = inputs[0]
         start = int(inputs[1])
@@ -1912,7 +1906,7 @@ class PyTorchOpConverter:
 
         # initialize paddings based on input len
         pad_len = len(self.infer_shape(data)) * 2
-        paddings = [pad_value] * pad_len
+        paddings = [0] * pad_len
 
         if len(pad_list) >= 2:
             paddings[-1] = pad_list[1]
@@ -1932,8 +1926,10 @@ class PyTorchOpConverter:
         for pad in paddings:
             const_paddings.append([])
             for p in pad:
-                if not isinstance(p, int):
+                if isinstance(p, _expr.Expr):
                     p = int(_infer_value(p, {}).numpy())
+                elif not isinstance(p, int):
+                    raise NotImplementedError("pad width should be int/expr")
                 const_paddings[-1].append(p)
                 if p != 0:
                     non_zero_found = True
@@ -1941,12 +1937,11 @@ class PyTorchOpConverter:
         if not non_zero_found:
             return data
         elif mode == "constant":
-            return _op.nn.pad(data, const_paddings, pad_value=inputs[2], pad_mode=mode)
+            return _op.nn.pad(data, const_paddings, pad_value=pad_value, pad_mode=mode)
         else:
             return _op.nn.pad(data, const_paddings, pad_mode=mode)
 
     def pad(self, inputs, input_types):
-
         # mode: Optional default "constant"
         if len(inputs) > 2 and inputs[2] is not None:
             mode = inputs[2]
@@ -1967,7 +1962,7 @@ class PyTorchOpConverter:
         return self.pad_common(mode, pad_value, inputs, input_types)
 
     def constant_pad_nd(self, inputs, input_types):
-        return self.pad_common("constant", 0, inputs, input_types)
+        return self.pad_common("constant", _expr.const(inputs[2]), inputs, input_types)
 
     def reflection_pad1d(self, inputs, input_types):
         return self.pad_common("reflect", 0, inputs, input_types)
@@ -2372,7 +2367,7 @@ class PyTorchOpConverter:
         if len(inputs) > 12:
             strides_offset = 5
             bias = inputs[4]
-            logging.warning("mask argument in deformable conv2d is not supported and ignored")
+            logger.warning("mask argument in deformable conv2d is not supported and ignored")
         else:
             strides_offset = 4
             bias = inputs[3]
@@ -3289,8 +3284,14 @@ class PyTorchOpConverter:
         return (output, _op.stack(hy, 0), _op.stack(cy, 0))
 
     def all_any_common(self, op, inputs, input_types):
-        dim = inputs[1]
-        keepdim = inputs[2]
+        if len(inputs) >= 2:
+            dim = inputs[1]
+        else:
+            dim = None
+        if len(inputs) >= 3:
+            keepdim = inputs[2]
+        else:
+            keepdim = False
         if self.infer_type(inputs[0]).dtype != "bool":
             # The input dtype can be uint8.
             inp = _op.cast(inputs[0], "bool")
@@ -3417,6 +3418,27 @@ class PyTorchOpConverter:
             inputs[0], grid, interpolate_str, layout, padding_mode_str, align_corners
         )
 
+    def trilu(self, inputs, input_types, mode):
+        data = inputs[0]
+        k = inputs[1] if inputs[1] else 0
+        upper = True if mode == "triu" else False
+        return _op.trilu(data, k, upper)
+
+    def multinomial(self, inputs, input_types):
+        probs = inputs[0]
+        num_samples = inputs[1]
+        replacement = inputs[2] if inputs[2] else True
+        assert not (
+            replacement is False and num_samples > 1
+        ), "Multinomial without replacement is not yet supported."
+        # Ideally this seed would be generated by a previous threefry operation.
+        # Eventually we might want to add a global store for random keys.
+        seed = np.random.randint(1e6)
+        key = _op.random.threefry_key(seed)
+        output = _op.random.multinomial(key, probs, num_samples)
+        _, indices = _expr.TupleWrapper(output, 2)
+        return indices
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -3434,6 +3456,7 @@ class PyTorchOpConverter:
             "aten::stft": self.stft,
             "aten::mul": self.make_elemwise("multiply"),
             "aten::pow": self.make_elemwise("power"),
+            "aten::lerp": self.lerp,
             "aten::arange": self.arange,
             "aten::meshgrid": self.meshgrid,
             "aten::div": self.make_elemwise("divide"),
@@ -3511,6 +3534,7 @@ class PyTorchOpConverter:
             "aten::group_norm": self.group_norm,
             "aten::transpose": self.transpose,
             "aten::t": self.transpose,
+            "aten::numpy_T": self.numpy_T,
             "aten::flatten": self.flatten,
             "aten::addmm": self.addmm,
             "aten::size": self.size,
@@ -3577,8 +3601,8 @@ class PyTorchOpConverter:
             "aten::sqrt": self.make_unary("sqrt"),
             "aten::rsqrt": self.make_unary("rsqrt"),
             "aten::square": self.square,
-            "aten::tril": self.tril,
-            "aten::triu": self.triu,
+            "aten::tril": functools.partial(self.trilu, mode="tril"),
+            "aten::triu": functools.partial(self.trilu, mode="triu"),
             "aten::ceil": self.make_unary("ceil"),
             "aten::floor": self.make_unary("floor"),
             "aten::round": self.make_unary("round"),
@@ -3677,6 +3701,7 @@ class PyTorchOpConverter:
             "aten::__ixor__": self.make_elemwise("bitwise_xor"),
             "aten::__lshift__": self.make_elemwise("left_shift"),
             "aten::__rshift__": self.make_elemwise("right_shift"),
+            "aten::multinomial": self.multinomial,
         }
 
     def update_convert_map(self, custom_map):

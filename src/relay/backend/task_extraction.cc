@@ -74,9 +74,9 @@ Array<meta_schedule::ExtractedTask> ExtractTask(
   });
   // Tasks are extracted via post order visit, return the reversed list.
   std::reverse(tasks.begin(), tasks.end());
-  std::unordered_map<std::string, int> name_map;
+  NameSupply name_supply = NameSupply("");
   for (ExtractedTask task : tasks) {
-    task->task_name = tec::GetUniqueName(task->task_name, &name_map);
+    task->task_name = name_supply->FreshName(task->task_name);
   }
   return tasks;
 }

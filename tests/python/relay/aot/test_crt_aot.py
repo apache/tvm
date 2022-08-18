@@ -998,7 +998,7 @@ def test_workspace_calculation_cmsis_nn():
     ):
         lib = tvm.relay.build(mod, target, executor=executor, runtime=runtime, params=params)
     mlf_memory_map = mlf._build_function_memory_map(lib.function_metadata)
-    assert mlf_memory_map["main"][0]["workspace_size_bytes"] == 14384
+    assert mlf_memory_map["main"][0]["workspace_size_bytes"] == 14256
 
 
 def test_aot_codegen_checks_returns():

@@ -457,9 +457,14 @@ TVM_DLL Pass LegalizePackedCalls();
 TVM_DLL Pass LowerMatchBuffer();
 
 /*!
- * \brief Flatten the multi-dimensional BufferLoad and BufferStore
- *        to single dimensional Load/Store. Also remove Block to
- *        ensure that the flattened TIR can not be scheduled again.
+ * \brief Remove the block to ensure that the TIR can not be scheduled again.
+ * \return The pass.
+ */
+TVM_DLL Pass LowerOpaqueBlock();
+
+/*!
+ * \brief Flatten the multi-dimensional BufferLoad and BufferStore to single dimensional
+ *        BufferLoad/BufferStore for the TIR not contains opaque block.
  * \return The pass.
  */
 TVM_DLL Pass FlattenBuffer();
@@ -668,6 +673,12 @@ TVM_DLL Pass InjectPTXAsyncCopy();
  * \return The pass.
  */
 TVM_DLL Pass RemoveWeightLayoutRewriteBlock();
+
+/*!
+ * \brief Add the explicit local stage for the shared memory access on GPU.
+ * \return The pass.
+ */
+TVM_DLL Pass ManifestSharedMemoryLocalStage();
 
 }  // namespace transform
 }  // namespace tir

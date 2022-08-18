@@ -16,7 +16,8 @@
 # under the License.
 """Test type checker based on python's type annotations"""
 
-from typing import List, Tuple, Union
+import sys
+from typing import Dict, List, Tuple, Union
 
 import pytest
 
@@ -43,6 +44,13 @@ test_cases = [
             5,
             ["5"],
         ],
+    },
+    {
+        "type_annotation": Dict[str, int],
+        "positive_cases": [
+            {"key1": 0, "key2": 1, "key3": -1},
+        ],
+        "negative_cases": [None, [1], {1: "1"}],
     },
     {
         "type_annotation": Tuple[int],

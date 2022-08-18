@@ -828,10 +828,26 @@ TVM_REGISTER_GLOBAL("tir.Call")
     .set_body_typed([](DataType type, RelayExpr op, Array<ObjectRef> args, Span span) {
       Array<PrimExpr> prim_expr_args;
       for (const auto& it : args) {
-        ICHECK(it->IsInstance<runtime::StringObj>() || it->IsInstance<PrimExprNode>())
+        ICHECK(it->IsInstance<runtime::StringObj>() || it->IsInstance<PrimExprNode>() ||
+               it->IsInstance<IterVarNode>() || it->IsInstance<BufferRegionNode>())
             << "Argument " << it << " is not a string or primexpr";
         if (const auto* str = it.as<runtime::StringObj>()) {
           prim_expr_args.push_back(StringImm(str->data));
+        } else if (const auto* iter_var = it.as<IterVarNode>()) {
+          prim_expr_args.push_back(GetRef<IterVar>(iter_var)->var);
+        } else if (const auto* br = it.as<BufferRegionNode>()) {
+          Array<PrimExpr> indices;
+          for (Range r : br->region) {
+            if (is_one(r->extent)) {
+              indices.push_back(r->min);
+            } else if (const auto* extent = r->extent.as<IntImmNode>()) {
+              indices.push_back(tir::Ramp(r->min, make_const(r->min->dtype, 1), extent->value));
+            } else {
+              LOG(FATAL) << "ValueError: Cannot convert to BufferLoad: "
+                         << GetRef<BufferRegion>(br);
+            }
+          }
+          prim_expr_args.push_back(BufferLoad(br->buffer, indices));
         } else {
           prim_expr_args.push_back(Downcast<PrimExpr>(it));
         }

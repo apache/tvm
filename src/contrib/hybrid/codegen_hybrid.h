@@ -24,6 +24,7 @@
 #ifndef TVM_CONTRIB_HYBRID_CODEGEN_HYBRID_H_
 #define TVM_CONTRIB_HYBRID_CODEGEN_HYBRID_H_
 
+#include <tvm/ir/name_supply.h>
 #include <tvm/target/codegen.h>
 #include <tvm/te/operation.h>
 #include <tvm/te/schedule.h>
@@ -145,19 +146,14 @@ class CodeGenHybrid : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   const int tab_{4};
   /*! \brief Print the current indent spaces. */
   inline void PrintIndent();
-  /*! \brief Keys are ids allocated, and values are the suffix to prevent double-name.  */
-  std::map<std::string, int> ids_allocated_;
+  /*! \brief NameSupply for allocated ids.  */
+  NameSupply ids_allocated = NameSupply("");
   /*!
    * \brief Keys are either (tensors, value_index) or (variables, 0).
    *        Values are the corresponding IDs.*/
   std::map<std::pair<const Object*, int>, std::string> id_map_;
   /*! \brief Variables (keys) binded to the threads (values). */
   std::map<const VarNode*, std::string> binds_;
-  /*!
-   * \brief Find an unallocated name for the given prefix.
-   * \param prefix The given prefix.
-   */
-  std::string GetUniqueName(std::string prefix);
   /*! \brief The output code string builder. */
   std::stringstream stream;
   /*!

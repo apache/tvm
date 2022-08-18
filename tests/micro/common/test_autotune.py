@@ -75,7 +75,7 @@ def test_kws_autotune_workflow(platform, board, tmp_path):
         labels = [0, 0, 0]
 
         # Validate perforance across random runs
-        time, _ = tvm.micro.testing.evaluate_model_accuracy(
+        time, _, _ = tvm.micro.testing.evaluate_model_accuracy(
             session, aot_executor, samples, labels, runs_per_sample=20
         )
         # `time` is the average time taken to execute model inference on the

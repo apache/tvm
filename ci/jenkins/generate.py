@@ -41,6 +41,10 @@ data = {
             "platform": "CPU",
         },
         {
+            "name": "ci_minimal",
+            "platform": "CPU",
+        },
+        {
             "name": "ci_gpu",
             "platform": "CPU",
         },
@@ -57,7 +61,7 @@ data = {
             "platform": "CPU",
         },
         {
-            "name": "ci_qemu",
+            "name": "ci_cortexm",
             "platform": "CPU",
         },
         {

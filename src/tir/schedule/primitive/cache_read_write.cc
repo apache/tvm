@@ -121,7 +121,7 @@ Block MakeCacheStage(const BufferRegion& cache_region, CacheStageInfo* info,
   // Create block vars, block's accessed region and accessing indices
   for (const PrimExpr& dim : cache_region->buffer->shape) {
     Var var("v" + std::to_string(access_indices.size()), dim.dtype());
-    block_vars.push_back(IterVar(/*dom=*/Range::FromMinExtent(0, dim),
+    block_vars.push_back(IterVar(/*dom=*/Range::FromMinExtent(make_zero(dim->dtype), dim),
                                  /*var=*/var,
                                  /*IterVarType=*/kDataPar));
     access_indices.push_back(var);
@@ -888,7 +888,7 @@ class ReIndexRewriter : public StmtExprMutator {
       n->alloc_buffers.push_back(info_->alloc);
       stmt = Block(n);
       info_->block_reuse.Set(old_stmt, stmt);
-      return stmt;
+      return std::move(stmt);
     }
 
     // Visiting the blokc being reindexed
@@ -917,9 +917,9 @@ class ReIndexRewriter : public StmtExprMutator {
         stmt = Block(n);
       }
       info_->block_reuse.Set(old_stmt, stmt);
-      return stmt;
+      return std::move(stmt);
     }
-    return old_stmt;
+    return std::move(old_stmt);
   }
 
   template <typename Node>

@@ -147,7 +147,7 @@ class RootPathNode final : public ObjectPathNode {
 
 class RootPath : public ObjectPath {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(RootPath, ObjectPath, RootPathNode);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(RootPath, ObjectPath, RootPathNode);
 };
 
 // ----- Attribute access -----
@@ -169,7 +169,8 @@ class AttributeAccessPathNode final : public ObjectPathNode {
 
 class AttributeAccessPath : public ObjectPath {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(AttributeAccessPath, ObjectPath, AttributeAccessPathNode);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(AttributeAccessPath, ObjectPath,
+                                            AttributeAccessPathNode);
 };
 
 // ----- Unknown attribute access -----
@@ -188,8 +189,8 @@ class UnknownAttributeAccessPathNode final : public ObjectPathNode {
 
 class UnknownAttributeAccessPath : public ObjectPath {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(UnknownAttributeAccessPath, ObjectPath,
-                                UnknownAttributeAccessPathNode);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(UnknownAttributeAccessPath, ObjectPath,
+                                            UnknownAttributeAccessPathNode);
 };
 
 // ----- Array element access by index -----
@@ -211,7 +212,7 @@ class ArrayIndexPathNode : public ObjectPathNode {
 
 class ArrayIndexPath : public ObjectPath {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(ArrayIndexPath, ObjectPath, ArrayIndexPathNode);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ArrayIndexPath, ObjectPath, ArrayIndexPathNode);
 };
 
 // ----- Missing array element -----
@@ -233,7 +234,8 @@ class MissingArrayElementPathNode : public ObjectPathNode {
 
 class MissingArrayElementPath : public ObjectPath {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(MissingArrayElementPath, ObjectPath, MissingArrayElementPathNode);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(MissingArrayElementPath, ObjectPath,
+                                            MissingArrayElementPathNode);
 };
 
 // ----- Map value -----
@@ -255,7 +257,7 @@ class MapValuePathNode : public ObjectPathNode {
 
 class MapValuePath : public ObjectPath {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(MapValuePath, ObjectPath, MapValuePathNode);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(MapValuePath, ObjectPath, MapValuePathNode);
 };
 
 // ----- Missing map entry -----
@@ -274,7 +276,8 @@ class MissingMapEntryPathNode : public ObjectPathNode {
 
 class MissingMapEntryPath : public ObjectPath {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(MissingMapEntryPath, ObjectPath, MissingMapEntryPathNode);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(MissingMapEntryPath, ObjectPath,
+                                            MissingMapEntryPathNode);
 };
 
 }  // namespace tvm

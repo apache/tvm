@@ -585,6 +585,15 @@ struct EmbeddingBagAttrs : public tvm::AttrsNode<EmbeddingBagAttrs> {
   }
 };  // struct EmbeddingBagAttrs
 
+struct TriluAttrs : public tvm::AttrsNode<TriluAttrs> {
+  bool upper;
+
+  TVM_DECLARE_ATTRS(TriluAttrs, "relay.attrs.TriluAttrs") {
+    TVM_ATTR_FIELD(upper).set_default(true).describe(
+        "Whether to keep the upper or lower half of the diagonal.");
+  }
+};  // struct TriluAttrs
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_TRANSFORM_H_
