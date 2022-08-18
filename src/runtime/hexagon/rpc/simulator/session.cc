@@ -18,7 +18,6 @@
  */
 
 #include <HexagonWrapper.h>
-#include <dmlc/optional.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 // POSIX includes
@@ -31,6 +30,7 @@
 #include <iterator>
 #include <map>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -54,19 +54,6 @@ namespace hexagon {
 using string_list = std::deque<std::string>;
 
 namespace detail {
-
-// An "Optional" class, originally a replacement for llvm::Optional, then an
-// extension of dmlc::optional to make it compatible with C++17's std::optional.
-template <typename T>
-struct Optional : public dmlc::optional<T> {
-  using dmlc::optional<T>::optional;
-  using dmlc::optional<T>::operator=;
-  Optional(const T& val) : dmlc::optional<T>(val) {}  // NOLINT(*)
-  Optional() = default;
-
-  T* operator->() { return &this->operator*(); }
-  const T* operator->() const { return &this->operator*(); }
-};
 
 // Replacement for llvm::StringSwitch.
 template <typename T>
@@ -94,10 +81,10 @@ class StringSwitch {
  private:
   const std::string key;
   std::map<std::string, T> map;
-  Optional<T> def_val;
+  std::optional<T> def_val;
 };
 
-using MaybeString = Optional<std::string>;
+using MaybeString = std::optional<std::string>;
 
 MaybeString front(const string_list& deq) {
   return !deq.empty() ? MaybeString(deq.front()) : MaybeString();
@@ -112,65 +99,60 @@ MaybeString pop_front(string_list& deq) {  // NOLINT(*)
 
 // Functions used when parsing the argument string.
 
-Optional<int64_t> to_int(const MaybeString& str) {
-  auto none = Optional<int64_t>();
+std::optional<int64_t> to_int(const MaybeString& str) {
   if (str.has_value()) {
     try {
       size_t pos;
       int64_t val = std::stoll(*str, &pos, 0);
-      return pos == str->size() ? Optional<int64_t>(val) : none;
+      return pos == str->size() ? std::optional<int64_t>(val) : std::nullopt;
     } catch (std::invalid_argument&) {
     }
   }
-  return none;
+  return std::nullopt;
 }
 
-Optional<uint64_t> to_uint(const MaybeString& str) {
-  auto none = Optional<uint64_t>();
+std::optional<uint64_t> to_uint(const MaybeString& str) {
   if (str.has_value()) {
     try {
       size_t pos;
       uint64_t val = std::stoull(*str, &pos, 0);
-      return pos == str->size() ? Optional<uint64_t>(val) : none;
+      return pos == str->size() ? std::optional<uint64_t>(val) : std::nullopt;
     } catch (std::invalid_argument&) {
     }
   }
-  return none;
+  return std::nullopt;
 }
 
-Optional<float> to_float(const MaybeString& str) {
-  auto none = Optional<float>();
+std::optional<float> to_float(const MaybeString& str) {
   if (str.has_value()) {
     try {
       size_t pos;
       float val = std::stof(*str, &pos);
-      return pos == str->size() ? Optional<float>(val) : none;
+      return pos == str->size() ? std::optional<float>(val) : std::nullopt;
     } catch (std::invalid_argument&) {
     }
   }
-  return none;
+  return std::nullopt;
 }
 
-Optional<bool> to_bool(const MaybeString& str) {
-  auto none = Optional<bool>();
+std::optional<bool> to_bool(const MaybeString& str) {
   if (auto num = to_int(str)) {
     if (*num == 0) return false;
     if (*num == 1) return true;
-    return none;
+    return std::nullopt;
   }
   if (str) {
     if (*str == "true" || *str == "TRUE") return true;
     if (*str == "false" || *str == "FALSE") return false;
   }
-  return none;
+  return std::nullopt;
 }
 
 template <typename T>
-using MaybeRange = Optional<std::pair<T, T>>;
+using MaybeRange = std::optional<std::pair<T, T>>;
 
-template <typename T, Optional<T> Parse(const MaybeString&)>
+template <typename T, std::optional<T> Parse(const MaybeString&)>
 MaybeRange<T> to_range(const MaybeString& str) {
-  auto none = MaybeRange<T>();
   if (str && !str->empty()) {
     auto n = str->find('-', 1);
     if (n != std::string::npos) {
@@ -181,7 +163,7 @@ MaybeRange<T> to_range(const MaybeString& str) {
       }
     }
   }
-  return none;
+  return std::nullopt;
 }
 
 }  // namespace detail
@@ -227,7 +209,7 @@ class SimulatorRPCChannel final : public RPCChannel {
   static HEX_8u_t PassVirtAddrCallback(void* handle, int threadno, HEX_8u_t RssV, HEX_8u_t RttV,
                                        HEX_8u_t RxxV, HEX_1u_t imm);
 
-  detail::Optional<HEXAPI_Cpu> GetCPU(const detail::MaybeString& cpu_str);
+  std::optional<HEXAPI_Cpu> GetCPU(const detail::MaybeString& cpu_str);
 
   // File name templates for mkstemps.
 #define SUFFIX ".cfg"
@@ -306,17 +288,17 @@ class SimulatorRPCChannel final : public RPCChannel {
   bool HandleV2PTranslation(string_list& rest);     // NOLINT(*)
   bool HandleVerbose(string_list& rest);            // NOLINT(*)
 
-  using MaybeUInt64 = detail::Optional<uint64_t>;
+  using MaybeUInt64 = std::optional<uint64_t>;
   using MaybeUIntRange = std::pair<MaybeUInt64, MaybeUInt64>;
 
   bool should_parse_next(const string_list& rest);
-  detail::Optional<HEXAPI_Interval> to_interval(const detail::MaybeString& str);
-  detail::Optional<HEXAPI_TimingMode> to_timingmode(const detail::MaybeString& str);
-  detail::Optional<HEXAPI_VerboseMode> to_verbosemode(const detail::MaybeString& str);
-  detail::Optional<HEXAPI_Nullptr> to_nullptr(const detail::MaybeString& str);
+  std::optional<HEXAPI_Interval> to_interval(const detail::MaybeString& str);
+  std::optional<HEXAPI_TimingMode> to_timingmode(const detail::MaybeString& str);
+  std::optional<HEXAPI_VerboseMode> to_verbosemode(const detail::MaybeString& str);
+  std::optional<HEXAPI_Nullptr> to_nullptr(const detail::MaybeString& str);
 
   MaybeUIntRange ahb_, axi2_;
-  detail::Optional<uint32_t> debug_port_;
+  std::optional<uint32_t> debug_port_;
 
   using OptionHandler = bool (SimulatorRPCChannel::*)(string_list&);
   static std::map<std::string, OptionHandler> opt_map_;
@@ -556,15 +538,14 @@ HEX_8u_t SimulatorRPCChannel::PassVirtAddrCallback(void* handle, int threadno, H
   return RssV;
 }
 
-detail::Optional<HEXAPI_Cpu> SimulatorRPCChannel::GetCPU(const detail::MaybeString& cpu_str) {
-  auto none = detail::Optional<HEXAPI_Cpu>();
-  if (!cpu_str) return none;
-  return detail::StringSwitch<detail::Optional<HEXAPI_Cpu>>(*cpu_str)
+std::optional<HEXAPI_Cpu> SimulatorRPCChannel::GetCPU(const detail::MaybeString& cpu_str) {
+  if (!cpu_str) return std::nullopt;
+  return detail::StringSwitch<std::optional<HEXAPI_Cpu>>(*cpu_str)
       .Case("v65", HEX_CPU_V65)
       .Case("v66", HEX_CPU_V66)
       .Case("v68", HEX_CPU_V68)
       .Case("v69", HEX_CPU_V69)
-      .Default(none);
+      .Default(std::nullopt);
 }
 
 SimulatorRPCChannel::SimulatorRPCChannel(int stack_size, std::string args) {
@@ -1265,9 +1246,8 @@ bool SimulatorRPCChannel::should_parse_next(const string_list& rest) {
   return false;
 }
 
-detail::Optional<HEXAPI_Interval> SimulatorRPCChannel::to_interval(const detail::MaybeString& str) {
-  auto none = detail::Optional<HEXAPI_Interval>();
-  if (!str) return none;
+std::optional<HEXAPI_Interval> SimulatorRPCChannel::to_interval(const detail::MaybeString& str) {
+  if (!str) return std::nullopt;
 
   if (auto val = detail::to_int(*str)) {
     switch (*val) {
@@ -1280,19 +1260,18 @@ detail::Optional<HEXAPI_Interval> SimulatorRPCChannel::to_interval(const detail:
     }
   }
 
-  return detail::StringSwitch<detail::Optional<HEXAPI_Interval>>(*str)
+  return detail::StringSwitch<std::optional<HEXAPI_Interval>>(*str)
       .Case("MILLISEC", HEX_MILLISEC)
       .Case("MICROSEC", HEX_MICROSEC)
       .Case("NANOSEC", HEX_NANOSEC)
       .Case("PICOSEC", HEX_PICOSEC)
       .Case("PCYCLE", HEX_PCYCLE)
-      .Default(none);
+      .Default(std::nullopt);
 }
 
-detail::Optional<HEXAPI_TimingMode> SimulatorRPCChannel::to_timingmode(
+std::optional<HEXAPI_TimingMode> SimulatorRPCChannel::to_timingmode(
     const detail::MaybeString& str) {
-  auto none = detail::Optional<HEXAPI_TimingMode>();
-  if (!str) return none;
+  if (!str) return std::nullopt;
 
   if (auto val = detail::to_int(*str)) {
     switch (*val) {
@@ -1304,18 +1283,17 @@ detail::Optional<HEXAPI_TimingMode> SimulatorRPCChannel::to_timingmode(
     }
   }
 
-  return detail::StringSwitch<detail::Optional<HEXAPI_TimingMode>>(*str)
+  return detail::StringSwitch<std::optional<HEXAPI_TimingMode>>(*str)
       .Case("NOTIMING", HEX_NOTIMING)
       .Case("TIMING_NODBC", HEX_TIMING_NODBC)
       .Case("TIMING", HEX_TIMING)
       .Case("TIMING_COHERENCY", HEX_TIMING_COHERENCY)
-      .Default(none);
+      .Default(std::nullopt);
 }
 
-detail::Optional<HEXAPI_VerboseMode> SimulatorRPCChannel::to_verbosemode(
+std::optional<HEXAPI_VerboseMode> SimulatorRPCChannel::to_verbosemode(
     const detail::MaybeString& str) {
-  auto none = detail::Optional<HEXAPI_VerboseMode>();
-  if (!str) return none;
+  if (!str) return std::nullopt;
 
   if (auto val = detail::to_int(*str)) {
     switch (*val) {
@@ -1328,18 +1306,17 @@ detail::Optional<HEXAPI_VerboseMode> SimulatorRPCChannel::to_verbosemode(
     }
   }
 
-  return detail::StringSwitch<detail::Optional<HEXAPI_VerboseMode>>(*str)
+  return detail::StringSwitch<std::optional<HEXAPI_VerboseMode>>(*str)
       .Case("SILENT", HEX_SILENT)
       .Case("QUIET", HEX_QUIET)
       .Case("NORMAL", HEX_NORMAL)
       .Case("VERBOSE", HEX_VERBOSE)
       .Case("REALLY_VERBOSE", HEX_REALLY_VERBOSE)
-      .Default(none);
+      .Default(std::nullopt);
 }
 
-detail::Optional<HEXAPI_Nullptr> SimulatorRPCChannel::to_nullptr(const detail::MaybeString& str) {
-  auto none = detail::Optional<HEXAPI_Nullptr>();
-  if (!str) return none;
+std::optional<HEXAPI_Nullptr> SimulatorRPCChannel::to_nullptr(const detail::MaybeString& str) {
+  if (!str) return std::nullopt;
 
   if (auto val = detail::to_int(*str)) {
     switch (*val) {
@@ -1351,12 +1328,12 @@ detail::Optional<HEXAPI_Nullptr> SimulatorRPCChannel::to_nullptr(const detail::M
     }
   }
 
-  return detail::StringSwitch<detail::Optional<HEXAPI_Nullptr>>(*str)
+  return detail::StringSwitch<std::optional<HEXAPI_Nullptr>>(*str)
       .Case("IGNORE", HEX_NULLPTR_IGNORE)
       .Case("WARN", HEX_NULLPTR_WARN)
       .Case("FATAL", HEX_NULLPTR_FATAL)
       .Case("PCZERO", HEX_NULLPTR_PCZERO)
-      .Default(none);
+      .Default(std::nullopt);
 }
 
 TVM_REGISTER_GLOBAL("tvm.contrib.hexagon.create_hexagon_session")

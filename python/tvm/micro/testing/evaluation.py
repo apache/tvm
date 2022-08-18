@@ -28,6 +28,7 @@ from contextlib import ExitStack
 import tempfile
 
 import tvm
+from tvm.relay.op.contrib import cmsisnn
 
 
 def tune_model(
@@ -70,7 +71,9 @@ def tune_model(
             ],
             si_prefix="M",
         )
-        assert tuner.best_flops > 1
+        # Note that we might not find a working schedule at all, in which case
+        # tuner.best_flops would equal zero. This is not good, but checking for
+        # this case will happen elsewhere.
 
     return results
 
@@ -83,7 +86,9 @@ def create_aot_session(
     params,
     build_dir=Path(tempfile.mkdtemp()),
     tune_logs=None,
+    timeout_override=None,
     use_cmsis_nn=False,
+    project_options=None,
 ):
     """AOT-compiles and uploads a model to a microcontroller, and returns the RPC session"""
 
@@ -95,6 +100,8 @@ def create_aot_session(
         if use_cmsis_nn:
             config["relay.ext.cmsisnn.options"] = {"mcpu": target.mcpu}
         stack.enter_context(tvm.transform.PassContext(opt_level=3, config=config))
+        if use_cmsis_nn:
+            mod = cmsisnn.partition_for_cmsisnn(mod, params, mcpu=target.mcpu)
         if tune_logs is not None:
             stack.enter_context(tvm.autotvm.apply_history_best(tune_logs))
 
@@ -108,7 +115,6 @@ def create_aot_session(
     parameter_size = len(tvm.runtime.save_param_dict(lowered.get_params()))
     print(f"Model parameter size: {parameter_size}")
 
-    # Once the project has been uploaded, we don't need to keep it
     project = tvm.micro.generate_project(
         str(tvm.micro.get_microtvm_template_projects(platform)),
         lowered,
@@ -116,12 +122,15 @@ def create_aot_session(
         {
             f"{platform}_board": board,
             "project_type": "host_driven",
+            # {} shouldn't be the default value for project options ({}
+            # is mutable), so we use this workaround
+            **(project_options or {}),
         },
     )
     project.build()
     project.flash()
 
-    return tvm.micro.Session(project.transport())
+    return tvm.micro.Session(project.transport(), timeout_override=timeout_override)
 
 
 # This utility functions was designed ONLY for one input / one output models
@@ -147,4 +156,4 @@ def evaluate_model_accuracy(session, aot_executor, input_data, true_labels, runs
     num_correct = sum(u == v for u, v in zip(true_labels, predicted_labels))
     average_time = sum(aot_runtimes) / len(aot_runtimes)
     accuracy = num_correct / len(predicted_labels)
-    return average_time, accuracy
+    return average_time, accuracy, predicted_labels

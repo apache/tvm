@@ -199,11 +199,12 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   pass_list.push_back(tir::transform::PlanAndUpdateBufferAllocationLocation());
   pass_list.push_back(tir::transform::ConvertBlocksToOpaque());
   pass_list.push_back(tir::transform::UnifyThreadBinding());
+  pass_list.push_back(tir::transform::ManifestSharedMemoryLocalStage());
   pass_list.push_back(tir::transform::CompactBufferAllocation());
   pass_list.push_back(tir::transform::LowerMatchBuffer());
   pass_list.push_back(tir::transform::InjectSoftwarePipeline());
+  pass_list.push_back(tir::transform::LowerOpaqueBlock());
   pass_list.push_back(tir::transform::FlattenBuffer());
-  pass_list.push_back(tir::transform::LowerVtcmAlloc());
   pass_list.push_back(tir::transform::BF16Legalize());
   pass_list.push_back(tir::transform::NarrowDataType(32));
   pass_list.push_back(tir::transform::Simplify());
@@ -222,6 +223,8 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   if (!disable_storage_rewrite) {
     pass_list.push_back(tir::transform::StorageRewrite());
   }
+  // LowerVtcmAlloc must occur after any transformations that modify memory allocation locations
+  pass_list.push_back(tir::transform::LowerVtcmAlloc());
   pass_list.push_back(tir::transform::UnrollLoop());
 
   // Add user-defined phase-2 passes
@@ -260,7 +263,8 @@ IRModule ApplyPasses(IRModule mod, transform::Sequential seq) {
 
 // Convert te schedule to IRModule
 IRModule ScheduleToModule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
-                          const std::unordered_map<te::Tensor, tir::Buffer>& binds) {
+                          const std::unordered_map<te::Tensor, tir::Buffer>& binds,
+                          GlobalVarSupply global_var_supply) {
   sch = sch.normalize();
 
   transform::PassContext pass_ctx = transform::PassContext::Current();
@@ -288,7 +292,8 @@ IRModule ScheduleToModule(te::Schedule sch, const Array<ObjectRef>& args, const 
   if (noalias) {
     f = WithAttr(std::move(f), "tir.noalias", Bool(true));
   }
-  return IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(name), f}}));
+  GlobalVar global_var = global_var_supply->UniqueGlobalFor(name, false);
+  return IRModule(Map<GlobalVar, BaseFunc>({{global_var, f}}));
 }
 
 TVM_REGISTER_GLOBAL("driver.schedule_to_module")
@@ -301,7 +306,8 @@ TVM_REGISTER_GLOBAL("driver.schedule_to_module")
           c_binds.insert({kv.first, kv.second});
         }
       }
-      IRModule mod = ScheduleToModule(std::move(sch), args, name, c_binds);
+      IRModule mod =
+          ScheduleToModule(std::move(sch), args, name, c_binds, GlobalVarSupply(NameSupply("")));
       return mod;
     });
 
@@ -336,17 +342,19 @@ TVM_REGISTER_GLOBAL("driver.lower_primfunc")
     });
 
 IRModule LowerSchedule(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
-                       const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
+                       const std::unordered_map<te::Tensor, tir::Buffer>& binds,
+                       GlobalVarSupply global_var_supply, bool simple_mode) {
   Array<ObjectRef> ref_args;
   for (ObjectRef x : args) {
     ref_args.push_back(x);
   }
-  return LowerSchedule(std::move(sch), ref_args, name, binds);
+  return LowerSchedule(std::move(sch), ref_args, name, binds, global_var_supply);
 }
 
 IRModule LowerSchedule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
-                       const std::unordered_map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
-  IRModule mod = ScheduleToModule(std::move(sch), args, name, binds);
+                       const std::unordered_map<te::Tensor, tir::Buffer>& binds,
+                       GlobalVarSupply global_var_supply, bool simple_mode) {
+  IRModule mod = ScheduleToModule(std::move(sch), args, name, binds, global_var_supply);
   // Get the legacy TE pass list
   Array<transform::Pass> pass_list = CreatePassList(simple_mode);
   return LowerWithPassList(mod, pass_list);
@@ -362,7 +370,8 @@ TVM_REGISTER_GLOBAL("driver.lower_schedule")
           c_binds.insert({kv.first, kv.second});
         }
       }
-      return LowerSchedule(std::move(sch), args, name, c_binds, simple_mode);
+      return LowerSchedule(std::move(sch), args, name, c_binds, GlobalVarSupply(NameSupply("")),
+                           simple_mode);
     });
 
 /**

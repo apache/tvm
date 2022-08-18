@@ -44,10 +44,12 @@ def _get_model(shape, axis, keepdims, input_zp, input_sc, output_zp, output_sc, 
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 @pytest.mark.parametrize("shape", [(1, 7, 7, 2048), (1, 8, 8)])
 def test_mean(dtype, shape):
+    """Compare Mean output with TVM."""
+    np.random.seed(0)
+
     zp_min = np.iinfo(dtype).min
     zp_max = np.iinfo(dtype).max
 
-    np.random.seed(0)
     inputs = {
         "a": tvm.nd.array(np.random.randint(zp_min, high=zp_max + 1, size=shape, dtype=dtype)),
     }
@@ -60,3 +62,17 @@ def test_mean(dtype, shape):
         outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
 
     tei.verify(outputs, dtype, 1)
+
+
+@requires_ethosn
+@pytest.mark.parametrize("dtype", ["int8", "uint8"])
+def test_mean_non_equal_quantization(dtype):
+    """Test mean is not offloaded when quantization is not equal."""
+    np.random.seed(0)
+
+    shape = (1, 7, 7, 2048)
+    zp_min = np.iinfo(dtype).min
+
+    model = _get_model(shape, [1, 2], True, zp_min + 120, 0.0068132, zp_min + 128, 0.0078125, dtype)
+    mod = tei.make_module(model, [])
+    tei.build(mod, {}, npu=True, expected_host_ops=3, npu_partitions=0)

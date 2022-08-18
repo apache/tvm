@@ -31,8 +31,8 @@ from tvm.meta_schedule.tune_context import TuneContext
 from tvm.script import tir as T
 from tvm.target import Target
 from tvm.te import create_prim_func
-from tvm.tir.tensor_intrin import DP4A_INTRIN
-from tvm.tir.tensor_intrin import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
+from tvm.tir.tensor_intrin.arm_cpu import DP4A_INTRIN
+from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 
 
 def _create_context(mod, target, rule) -> TuneContext:
@@ -478,17 +478,15 @@ sch.reorder(l42, l50, l58, l66, l74, l43, l51, l59, l67, l75, l80, l84, l88, l92
     check_trace(spaces, expected)
 
 
-def test_multi_level_tiling_dense_dpa4():
-    m, n, k = 128, 128, 128
-
-    X = te.placeholder((m, k), name="X", dtype="int8")
-    W = te.placeholder((n, k), name="W", dtype="int8")
+def _test_multi_level_tiling_dense_dp4a(m, n, k, in_dtype, out_dtype, expected):
+    X = te.placeholder((m, k), name="X", dtype=in_dtype)
+    W = te.placeholder((n, k), name="W", dtype=in_dtype)
     ak = te.reduce_axis((0, k), name="k")
 
     matmul = te.compute(
         (m, n),
         lambda i, j: te.sum(
-            X[i, ak].astype("int32") * W[j, ak].astype("int32"),
+            X[i, ak].astype(out_dtype) * W[j, ak].astype(out_dtype),
             axis=ak,
         ),
         name="compute",
@@ -519,6 +517,11 @@ def test_multi_level_tiling_dense_dpa4():
     )
 
     spaces = ctx.space_generator.generate_design_space(mod=ctx.mod)
+    check_trace(spaces, expected)
+
+
+def test_multi_level_tiling_dense_dp4a():
+    m, n, k = 128, 128, 128
 
     expected = [
         """b0 = sch.get_block(name="compute", func_name="main")
@@ -560,7 +563,12 @@ sch.annotate(block_or_loop=b49, ann_key="meta_schedule.cooperative_fetch", ann_v
         )
     ]
 
-    check_trace(spaces, expected)
+    _test_multi_level_tiling_dense_dp4a(m, n, k, "int8", "int32", expected)
+
+
+def test_multi_level_tiling_dense_dp4a_non_tensorizable():
+    _test_multi_level_tiling_dense_dp4a(128, 128, 128, "float32", "float32", [""])
+    _test_multi_level_tiling_dense_dp4a(127, 127, 127, "int8", "int32", [""])
 
 
 def test_cuda_tensor_core_matmul_relu():
@@ -568,10 +576,12 @@ def test_cuda_tensor_core_matmul_relu():
     target = Target("cuda", host="llvm")
     ctx = _create_context(
         create_prim_func(
-            te_workload.matmul_relu_fp16(
+            te_workload.matmul_relu(
                 n=n,
                 m=m,
                 k=k,
+                in_dtype="float16",
+                out_dtype="float32",
             )
         ),
         target=target,
@@ -639,13 +649,13 @@ b73 = sch.cache_read(block=b20, read_buffer_index=0, storage_scope="shared")
 sch.compute_at(block=b73, loop=l47, preserve_unit_loops=True)
 l74, l75, l76, l77, l78, l79 = sch.get_loops(block=b73)
 l80 = sch.fuse(l78, l79, preserve_unit_iters=True)
-v81 = sch.sample_categorical(candidates=[1, 2, 3, 4], probs=[0.25, 0.25, 0.25, 0.25])
+v81 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25])
 sch.annotate(block_or_loop=b73, ann_key="meta_schedule.cooperative_fetch", ann_val=v81)
 b82 = sch.cache_read(block=b20, read_buffer_index=1, storage_scope="shared")
 sch.compute_at(block=b82, loop=l47, preserve_unit_loops=True)
 l83, l84, l85, l86, l87, l88 = sch.get_loops(block=b82)
 l89 = sch.fuse(l87, l88, preserve_unit_iters=True)
-v90 = sch.sample_categorical(candidates=[1, 2, 3, 4], probs=[0.25, 0.25, 0.25, 0.25])
+v90 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25])
 sch.annotate(block_or_loop=b82, ann_key="meta_schedule.cooperative_fetch", ann_val=v90)
 b91 = sch.cache_read(block=b20, read_buffer_index=0, storage_scope="wmma.matrix_a")
 sch.compute_at(block=b91, loop=l48, preserve_unit_loops=True)
@@ -679,10 +689,12 @@ sch.reverse_compute_inline(block=b1)""".split(
     # to use multi_level_tiling as a fallback when the workload can't be tensorized
     ctx = _create_context(
         create_prim_func(
-            te_workload.matmul_relu_fp16(
+            te_workload.matmul_relu(
                 n=n,
                 m=m,
                 k=k,
+                in_dtype="float16",
+                out_dtype="float32",
             )
         ),
         target=target,
@@ -701,10 +713,12 @@ def test_cuda_tensor_core_matmul_relu_global():
     m = n = k = 128
     target = Target("cuda", host="llvm")
     workload = create_prim_func(
-        te_workload.matmul_relu_fp16(
+        te_workload.matmul_relu(
             n=n,
             m=m,
             k=k,
+            in_dtype="float16",
+            out_dtype="float32",
         ),
     )
     ctx = _create_context(
@@ -769,13 +783,13 @@ b70 = sch.cache_read(block=b19, read_buffer_index=0, storage_scope="shared")
 sch.compute_at(block=b70, loop=l46, preserve_unit_loops=True)
 l71, l72, l73, l74, l75, l76 = sch.get_loops(block=b70)
 l77 = sch.fuse(l75, l76, preserve_unit_iters=True)
-v78 = sch.sample_categorical(candidates=[1, 2, 3, 4], probs=[0.25, 0.25, 0.25, 0.25])
+v78 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25])
 sch.annotate(block_or_loop=b70, ann_key="meta_schedule.cooperative_fetch", ann_val=v78)
 b79 = sch.cache_read(block=b19, read_buffer_index=1, storage_scope="shared")
 sch.compute_at(block=b79, loop=l46, preserve_unit_loops=True)
 l80, l81, l82, l83, l84, l85 = sch.get_loops(block=b79)
 l86 = sch.fuse(l84, l85, preserve_unit_iters=True)
-v87 = sch.sample_categorical(candidates=[1, 2, 3, 4], probs=[0.25, 0.25, 0.25, 0.25])
+v87 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25])
 sch.annotate(block_or_loop=b79, ann_key="meta_schedule.cooperative_fetch", ann_val=v87)
 b88 = sch.cache_read(block=b19, read_buffer_index=0, storage_scope="wmma.matrix_a")
 sch.compute_at(block=b88, loop=l47, preserve_unit_loops=True)
@@ -869,13 +883,13 @@ b70 = sch.cache_read(block=b19, read_buffer_index=0, storage_scope="shared")
 sch.compute_at(block=b70, loop=l46, preserve_unit_loops=True)
 l71, l72, l73, l74, l75, l76 = sch.get_loops(block=b70)
 l77 = sch.fuse(l75, l76, preserve_unit_iters=True)
-v78 = sch.sample_categorical(candidates=[1, 2, 3, 4], probs=[0.25, 0.25, 0.25, 0.25])
+v78 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25])
 sch.annotate(block_or_loop=b70, ann_key="meta_schedule.cooperative_fetch", ann_val=v78)
 b79 = sch.cache_read(block=b19, read_buffer_index=1, storage_scope="shared")
 sch.compute_at(block=b79, loop=l46, preserve_unit_loops=True)
 l80, l81, l82, l83, l84, l85 = sch.get_loops(block=b79)
 l86 = sch.fuse(l84, l85, preserve_unit_iters=True)
-v87 = sch.sample_categorical(candidates=[1, 2, 3, 4], probs=[0.25, 0.25, 0.25, 0.25])
+v87 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25])
 sch.annotate(block_or_loop=b79, ann_key="meta_schedule.cooperative_fetch", ann_val=v87)
 b88 = sch.cache_read(block=b19, read_buffer_index=0, storage_scope="wmma.matrix_a")
 sch.compute_at(block=b88, loop=l47, preserve_unit_loops=True)
@@ -933,8 +947,17 @@ def test_multi_level_tiling_non_tensorizable():
 def test_cuda_tensor_core_conv2d():
     target = Target("cuda", host="llvm")
     workload = create_prim_func(
-        te_workload.conv2d_nhwc_f16(
-            N=1, H=16, W=16, CI=32, CO=32, kernel_size=3, stride=1, padding=1
+        te_workload.conv2d_nhwc(
+            N=1,
+            H=16,
+            W=16,
+            CI=32,
+            CO=32,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+            in_dtype="float16",
+            out_dtype="float32",
         )
     )
     ctx = _create_context(
@@ -1002,13 +1025,13 @@ b85 = sch.cache_read(block=b21, read_buffer_index=0, storage_scope="shared")
 sch.compute_at(block=b85, loop=l59, preserve_unit_loops=True)
 l86, l87, l88, l89, l90, l91 = sch.get_loops(block=b85)
 l92 = sch.fuse(l90, l91, preserve_unit_iters=True)
-v93 = sch.sample_categorical(candidates=[1, 2, 3, 4], probs=[0.25, 0.25, 0.25, 0.25])
+v93 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25])
 sch.annotate(block_or_loop=b85, ann_key="meta_schedule.cooperative_fetch", ann_val=v93)
 b94 = sch.cache_read(block=b21, read_buffer_index=1, storage_scope="shared")
 sch.compute_at(block=b94, loop=l59, preserve_unit_loops=True)
 l95, l96, l97, l98, l99, l100 = sch.get_loops(block=b94)
 l101 = sch.fuse(l99, l100, preserve_unit_iters=True)
-v102 = sch.sample_categorical(candidates=[1, 2, 3, 4], probs=[0.25, 0.25, 0.25, 0.25])
+v102 = sch.sample_categorical(candidates=[1, 2, 4, 8], probs=[0.25, 0.25, 0.25, 0.25])
 sch.annotate(block_or_loop=b94, ann_key="meta_schedule.cooperative_fetch", ann_val=v102)
 b103 = sch.cache_read(block=b21, read_buffer_index=0, storage_scope="wmma.matrix_a")
 sch.compute_at(block=b103, loop=l60, preserve_unit_loops=True)

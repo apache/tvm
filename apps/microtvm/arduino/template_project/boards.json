@@ -69,8 +69,7 @@
         "package": "teensy",
         "architecture": "avr",
         "board": "teensy40",
-        "model": "imxrt1060",
-        "note": "The Teensy boards are listed here for completeness, but they won't work until https://github.com/arduino/arduino-cli/issues/700 is finished.",
+        "model": "imxrt10xx",
         "vid_hex": "16c0",
         "pid_hex": "0478"
     },
@@ -78,7 +77,7 @@
         "package": "teensy",
         "architecture": "avr",
         "board": "teensy41",
-        "model": "imxrt1060",
+        "model": "imxrt10xx",
         "vid_hex": "16c0",
         "pid_hex": "0478"
     },

@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
-import sys
 import pytest
 import tvm
 import tvm.testing
@@ -76,12 +75,12 @@ def element_wise_subregion_match(A: T.Buffer[(128, 128), "float32"], C: T.Buffer
     for i, j in T.grid(128, 128):
         with T.block("B"):
             vi, vj = T.axis.remap("SS", [i, j])
-            B_subregion0 = T.match_buffer(B[i, j], [], offset_factor=1)
+            B_subregion0 = T.match_buffer(B[vi, vj], [], offset_factor=1)
             B_subregion0[()] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
         with T.block("C"):
             vi, vj = T.axis.remap("SS", [i, j])
-            B_subregion1 = T.match_buffer(B[i, j], [], offset_factor=1)
+            B_subregion1 = T.match_buffer(B[vi, vj], [], offset_factor=1)
             C[vi, vj] = B_subregion1[()] + 1.0
 
 
@@ -92,12 +91,12 @@ def element_wise_subregion_match_set_axis_separator(A: T.Buffer[(128, 128), "flo
     for i, j in T.grid(128, 128):
         with T.block("B"):
             vi, vj = T.axis.remap("SS", [i, j])
-            B_subregion0 = T.match_buffer(B[i, j], [], dtype="float32", offset_factor=1, axis_separators=[1])
+            B_subregion0 = T.match_buffer(B[vi, vj], [], dtype="float32", offset_factor=1, axis_separators=[1])
             B_subregion0[()] = A[vi, vj] * T.float32(2)
     for i, j in T.grid(128, 128):
         with T.block("C"):
             vi, vj = T.axis.remap("SS", [i, j])
-            B_subregion1 = T.match_buffer(B[i, j], [], dtype="float32", offset_factor=1, axis_separators=[1])
+            B_subregion1 = T.match_buffer(B[vi, vj], [], dtype="float32", offset_factor=1, axis_separators=[1])
             C[vi, vj] = B_subregion1[()] + T.float32(1)
 
 

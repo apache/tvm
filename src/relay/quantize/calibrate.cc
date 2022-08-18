@@ -158,7 +158,7 @@ class StatsCollector : private ExprMutator {
     // indistinguishable from NullValue<Type>(), so we can't express "update to nullptr" in
     // WithFields.
     ret_func.CopyOnWrite()->ret_type = NullValue<Type>();
-    return ret_func;
+    return std::move(ret_func);
   }
 
  private:

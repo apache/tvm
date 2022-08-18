@@ -43,6 +43,14 @@ class TargetKind(Object):
         return dict(_ffi_api.ListTargetKindOptionsFromName(kind_name))
 
 
+class TargetFeatures:
+    def __init__(self, target):
+        self.target = target
+
+    def __getattr__(self, name: str):
+        return _ffi_api.TargetGetFeature(self.target, name)
+
+
 @tvm._ffi.register_object
 class Target(Object):
     """Target device information, use through TVM API.
@@ -206,6 +214,10 @@ class Target(Object):
     @property
     def libs(self):
         return list(self.attrs.get("libs", []))
+
+    @property
+    def features(self):
+        return TargetFeatures(self)
 
     def get_kind_attr(self, attr_name):
         """Get additional attribute about the target kind.
@@ -431,7 +443,7 @@ MICRO_SUPPORTED_MODELS = {
     "mps2_an521": ["-mcpu=cortex-m33"],
     "nrf52832": ["-mcpu=cortex-m4"],
     "mps3_an547": ["-mcpu=cortex-m55"],
-    "nrf52840": ["-mcpu=cortex-m4"],
+    "nrf52840": ["-mcpu=cortex-m4+nodsp"],
     "nrf5340dk": ["-mcpu=cortex-m33"],
     "rp2040": ["-mcpu=cortex-m0"],
     "sam3x8e": ["-mcpu=cortex-m3"],

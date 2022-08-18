@@ -137,7 +137,8 @@ recommonmark = "^0.6"
 pillow = "< 7"
 pyformat = "^0.7"
 pylint = "^2.4"
-pytest = "^5.4"
+pytest = "==7.1.2"
+pytest-xdist = "==2.5.0"
 
 [build-system]
 requires = ["poetry>=0.12"]

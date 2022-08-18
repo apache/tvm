@@ -57,11 +57,11 @@ def primfunc_global_allocates(placeholder_144: T.handle, placeholder_145: T.hand
 def primfunc_local_allocates(placeholder_162: T.handle, placeholder_163: T.handle, placeholder_164: T.handle, T_cast_76: T.handle) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "fused_nn_conv2d_add_cast_fixed_point_multiply_clip_cast_cast_9", "tir.noalias": True})
-    sid_21 = T.allocate_const([0,1,2,3,4,5,6,7], "int8", [8])
     placeholder_165 = T.match_buffer(placeholder_162, [100352], dtype="int16", elem_offset=0, align=128, offset_factor=1)
     placeholder_166 = T.match_buffer(placeholder_163, [4608], dtype="int16", elem_offset=0, align=128, offset_factor=1)
     placeholder_167 = T.match_buffer(placeholder_164, [512], dtype="int32", elem_offset=0, align=128, offset_factor=1)
     T_cast_77 = T.match_buffer(T_cast_76, [100352], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+    sid_21 = T.allocate_const([0,1,2,3,4,5,6,7], "int8", [8])
     # body
     PaddedInput_25 = T.allocate([131072], "int16", "global")
     for i1_35, i2_46, i3_47 in T.grid(16, 16, 512):

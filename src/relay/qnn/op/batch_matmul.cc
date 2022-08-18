@@ -106,7 +106,9 @@ Expr BatchMatmulThirdTerm(const Expr& y_quantized_data, const Expr& x_zero_point
   auto reducemult =
       Multiply(x_zero_point, Sum(Cast(y_quantized_data, DataType::Int(32)), axes, true, false));
   Array<Integer> newshape;
-  newshape = {1, 1, broadcast_dim_size};
+
+  // dimension of 0 in reshape copies old dimension size
+  newshape = {0, 1, broadcast_dim_size};
   return Reshape(reducemult, newshape);
 }
 
@@ -199,10 +201,18 @@ Expr QnnBatchMatmulCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
 }
 
 RELAY_REGISTER_OP("qnn.batch_matmul")
-    .describe(R"code(Applies a linear transformation: :math:`Z = XY`.
-- **data**: quantized(int8, unit8) `(x1, x2, ..., xn, input_dim)`
-- **weight**: quantized(int8, unit8) `(units, input_dim)`
-- **out**: quantized(int32) `(x1, x2, ..., xn, units)`.
+    .describe(R"code(Compute batch matrix multiplication of `tensor_a` and `tensor_b`.
+
+Note we expect tensor_b to be transposed to copy the standard nn.batch_matmul conventions.
+
+.. math::
+
+  batch\_matmul(A, B)[i, :, :] = matmul(A[i, :, :], B[i, :, :]^T)
+
+- **data**: quantized(int8, unit8) `(i, m, k)`
+- **weight**: quantized(int8, unit8) `(i, n, k)`
+- **out**: quantized(int32) `(i, m, n)`.
+
 )code" TVM_ADD_FILELINE)
     .set_attrs_type<BatchMatmulAttrs>()
     .set_num_inputs(6)

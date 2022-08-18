@@ -214,9 +214,9 @@ def test_reorder_with_opaque_access():
     verify_trace_roundtrip(sch=sch, mod=opaque_access)
 
 
-def test_reorder_with_partial_affineness():
+def test_reorder_overlapped_access():
     @T.prim_func
-    def non_affine_func(A: T.Buffer[(14, 4), "float32"], B: T.Buffer[(14, 4), "float32"]):
+    def overlapped_access(A: T.Buffer[(14, 4), "float32"], B: T.Buffer[(14, 4), "float32"]):
         # example to write first axis multiple times
         for v0, v1, v2 in T.grid(6, 4, 4):
             with T.block("block"):
@@ -225,11 +225,35 @@ def test_reorder_with_partial_affineness():
                 B[i, j] = A[i, j] + 1.0
 
     @T.prim_func
-    def non_affine_func_reorder(A: T.Buffer[(14, 4), "float32"], B: T.Buffer[(14, 4), "float32"]):
+    def overlapped_access_reorder(A: T.Buffer[(14, 4), "float32"], B: T.Buffer[(14, 4), "float32"]):
         # example to write first axis multiple times
         for v0, v2, v1 in T.grid(6, 4, 4):
             with T.block("block"):
                 i = T.axis.spatial(14, v0 * 2 + v1)
+                j = T.axis.spatial(4, v2)
+                B[i, j] = A[i, j] + 1.0
+
+    sch = tir.Schedule(overlapped_access, debug_mask="all")
+    v0, v1, v2 = sch.get_loops(sch.get_block("block"))
+    sch.reorder(v0, v2, v1)
+    tvm.ir.assert_structural_equal(overlapped_access_reorder, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=overlapped_access)
+
+
+def test_reorder_with_partial_affineness():
+    @T.prim_func
+    def non_affine_func(A: T.Buffer[(14, 4), "float32"], B: T.Buffer[(14, 4), "float32"]):
+        for v0, v1, v2 in T.grid(6, 4, 4):
+            with T.block("block"):
+                i = T.axis.spatial(14, v0 * v0 + v1)
+                j = T.axis.spatial(4, v2)
+                B[i, j] = A[i, j] + 1.0
+
+    @T.prim_func
+    def non_affine_func_reorder(A: T.Buffer[(14, 4), "float32"], B: T.Buffer[(14, 4), "float32"]):
+        for v0, v2, v1 in T.grid(6, 4, 4):
+            with T.block("block"):
+                i = T.axis.spatial(14, v0 * v0 + v1)
                 j = T.axis.spatial(4, v2)
                 B[i, j] = A[i, j] + 1.0
 

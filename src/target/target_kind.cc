@@ -30,6 +30,7 @@
 #include <algorithm>
 
 #include "../node/attr_registry.h"
+#include "./parsers/cpu.h"
 
 namespace tvm {
 
@@ -244,6 +245,17 @@ TargetJSON UpdateROCmAttrs(TargetJSON target) {
   return target;
 }
 
+/*!
+ * \brief Test Target Parser
+ * \param target The Target to update
+ * \return The updated attributes
+ */
+TargetJSON TestTargetParser(TargetJSON target) {
+  Map<String, ObjectRef> features = {{"is_test", Bool(true)}};
+  target.Set("features", features);
+  return target;
+}
+
 /**********  Register Target kinds and attributes  **********/
 
 TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
@@ -270,7 +282,8 @@ TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
     .set_default_keys({"cpu"})
     // Force the external codegen kind attribute to be registered, even if no external
     // codegen targets are enabled by the TVM build.
-    .set_attr<Bool>(tvm::attr::kIsExternalCodegen, Bool(false));
+    .set_attr<Bool>(tvm::attr::kIsExternalCodegen, Bool(false))
+    .set_target_parser(tvm::target::parsers::cpu::ParseTarget);
 
 TVM_REGISTER_TARGET_KIND("c", kDLCPU)
     .add_attr_option<Bool>("system-lib")
@@ -283,7 +296,8 @@ TVM_REGISTER_TARGET_KIND("c", kDLCPU)
     .add_attr_option<Integer>("constants-byte-alignment")
     .add_attr_option<Bool>("unpacked-api")
     .add_attr_option<String>("interface-api")
-    .set_default_keys({"cpu"});
+    .set_default_keys({"cpu"})
+    .set_target_parser(tvm::target::parsers::cpu::ParseTarget);
 
 TVM_REGISTER_TARGET_KIND("cuda", kDLCUDA)
     .add_attr_option<String>("mcpu")
@@ -415,6 +429,9 @@ TVM_REGISTER_TARGET_KIND("hybrid", kDLCPU)  // line break
 
 TVM_REGISTER_TARGET_KIND("composite", kDLCPU)  // line break
     .add_attr_option<Array<Target>>("devices");
+
+TVM_REGISTER_TARGET_KIND("test", kDLCPU)  // line break
+    .set_target_parser(TestTargetParser);
 
 /**********  Registry  **********/
 

@@ -21,6 +21,7 @@
  * \file remove_no_op.cc
  * \brief Remove no op from the stmt
  */
+#include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/op.h>
@@ -29,6 +30,8 @@
 #include <tvm/tir/transform.h>
 
 #include <unordered_map>
+
+#include "ir_utils.h"
 
 namespace tvm {
 namespace tir {
@@ -44,7 +47,20 @@ class NoOpRemover : public StmtMutator {
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == "pragma_debug_skip_region") {
       return MakeEvaluate(0);
+    } else if (op->attr_key == attr::async_wait_queue_scope) {
+      auto wait_attrs = GetAsyncWaitAttributes(op);
+      auto wait_cnt = wait_attrs.second;
+      arith::Analyzer ana;
+      if (ana.CanProve(wait_cnt < 0)) {
+        // A negative wait count can arise if it depends on a loop variable.
+        // For example, a wait count 1 - i can be negative after loop unrolling.
+        // We assume that such wait is a nop.
+        auto inner = op->body.as<AttrStmtNode>();
+        ICHECK(inner);
+        return StmtMutator::VisitStmt(inner->body);
+      }
     }
+
     Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<AttrStmtNode>();
     return is_no_op(op->body) ? MakeEvaluate(op->value) : stmt;

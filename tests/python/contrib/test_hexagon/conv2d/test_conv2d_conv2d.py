@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import sys
+""" back-to-back conv2d Hexagon test for stripe scheduling """
 
-import platform
+
+import numpy as np
 import tvm
 import tvm.testing
-from tvm import te
-from tvm import topi
+from tvm import te, topi
 from tvm.topi import testing
 
 from ..infrastructure import (
@@ -32,9 +32,6 @@ from ..infrastructure import (
     get_packed_filter_shape,
     get_packed_shape,
 )
-
-import numpy as np
-import pytest
 
 
 def conv2dconv2d_nhwc8h8w32c(
@@ -61,87 +58,99 @@ def conv2dconv2d_nhwc8h8w32c(
     """
 
     # nhwc layout
-    X = te.placeholder(shape_input, dtype=dtype, name="logical_input")
+    logical_input = te.placeholder(shape_input, dtype=dtype, name="logical_input")
 
     # oihw8i32o4i layout
     filt_packed1 = te.placeholder(shape_filter1, dtype=dtype, name="packed_filter1")
     filt_packed2 = te.placeholder(shape_filter2, dtype=dtype, name="packed_filter2")
 
-    block_H, block_W, block_C = get_block_shape()
+    block_h, block_w, block_c = get_block_shape()
 
     # Calculate padded input
-    N, H, W, C = shape_input
-    pad_h = (block_H - ((H + pad1[1]) % block_H)) % block_H
-    pad_w = (block_W - ((W + pad1[3]) % block_W)) % block_W
-    X_pad = topi.nn.pad(
-        X, [0, pad1[0], pad1[2], 0], [0, pad_h, pad_w, 0], pad_value=0, name="padded_input"
+    _, height, width, _ = shape_input
+    pad_h = (block_h - ((height + pad1[1]) % block_h)) % block_h
+    pad_w = (block_w - ((width + pad1[3]) % block_w)) % block_w
+    padded_input = topi.nn.pad(
+        logical_input,
+        [0, pad1[0], pad1[2], 0],
+        [0, pad_h, pad_w, 0],
+        pad_value=0,
+        name="padded_input",
     )
 
     # Calculate packed input
-    packed_shape = get_packed_shape(X_pad.shape)
-    X_packed = te.compute(
+    packed_shape = get_packed_shape(padded_input.shape)
+    packed_input = te.compute(
         packed_shape,
-        lambda n, ho, wo, co, hi, wi, ci: X_pad[
-            n, ho * block_H + hi, wo * block_W + wi, co * block_C + ci
+        lambda n, ho, wo, co, hi, wi, ci: padded_input[
+            n, ho * block_h + hi, wo * block_w + wi, co * block_c + ci
         ],
         name="packed_input",
     )
 
-    output_shape1, compute1 = conv2d_compute(X_packed, filt_packed1, pad1, stride1, dilation1)
-    temp_Y = te.compute(output_shape1, compute1, name="temp_output")
+    output_shape1, compute1 = conv2d_compute(packed_input, filt_packed1, pad1, stride1, dilation1)
+    temp_output = te.compute(output_shape1, compute1, name="temp_output")
 
-    output_shape2, compute2 = conv2d_compute(temp_Y, filt_packed2, pad2, stride2, dilation2)
-    Y = te.compute(output_shape2, compute2, name="packed_output")
-    s = te.create_schedule(Y.op)
+    output_shape2, compute2 = conv2d_compute(temp_output, filt_packed2, pad2, stride2, dilation2)
+    packed_output = te.compute(output_shape2, compute2, name="packed_output")
+    s = te.create_schedule(packed_output.op)
 
     # Ensure the padding and array packing is performed inline
-    s[X_pad].compute_inline()
-    s[X_packed].compute_inline()
+    s[padded_input].compute_inline()
+    s[packed_input].compute_inline()
 
     # cache reads and writes
-    Xl = s.cache_read(X_packed, storage_scope, [temp_Y])
-    F1l = s.cache_read(filt_packed1, storage_scope, [temp_Y])
-    F2l = s.cache_read(filt_packed2, storage_scope, [Y])
-    Yl = s.cache_write(Y, storage_scope)
+    packed_input_cached = s.cache_read(packed_input, storage_scope, [temp_output])
+    filt_packed1_cached = s.cache_read(filt_packed1, storage_scope, [temp_output])
+    filt_packed2_cached = s.cache_read(filt_packed2, storage_scope, [packed_output])
+    packed_output_cached = s.cache_write(packed_output, storage_scope)
 
     # conv2d #1 schedule
-    n, ho, wo, ko, hi, wi, ki = s[temp_Y].op.axis
-    rh, rw, rc = s[temp_Y].op.reduce_axis
-    rco, rci = s[temp_Y].split(rc, factor=block_C)
-    koo, koi = s[temp_Y].split(ko, factor=k_split_factor)
-    hoo, hoi = s[temp_Y].split(ho, factor=h_split_factor)
-    s[temp_Y].reorder(n, koo, hoo, koi, hoi, wo, rco, hi, wi, ki, rci)
-    s[Xl].compute_at(s[temp_Y], hoo)
-    s[F1l].compute_at(s[temp_Y], hoo)
+    n, h_outer, w_outer, k_outer, h_inner, w_inner, k_inner = s[temp_output].op.axis
+    _, _, reduce_channel = s[temp_output].op.reduce_axis
+    rco, rci = s[temp_output].split(reduce_channel, factor=block_c)
+    koo, koi = s[temp_output].split(k_outer, factor=k_split_factor)
+    hoo, hoi = s[temp_output].split(h_outer, factor=h_split_factor)
+    s[temp_output].reorder(n, koo, hoo, koi, hoi, w_outer, rco, h_inner, w_inner, k_inner, rci)
+    s[packed_input_cached].compute_at(s[temp_output], hoo)
+    s[filt_packed1_cached].compute_at(s[temp_output], hoo)
 
     # cache write schedule
-    n, ho, wo, ko, hi, wi, ki = s[Y].op.axis
-    koo, koi = s[Y].split(ko, factor=k_split_factor)
-    hoo, hoi = s[Y].split(ho, factor=h_split_factor)
-    s[Y].reorder(n, koo, hoo, koi, hoi, wo, hi, wi, ki)
-    s[Yl].compute_at(s[Y], hoo)
+    n, h_outer, w_outer, k_outer, h_inner, w_inner, k_inner = s[packed_output].op.axis
+    koo, koi = s[packed_output].split(k_outer, factor=k_split_factor)
+    hoo, hoi = s[packed_output].split(h_outer, factor=h_split_factor)
+    s[packed_output].reorder(n, koo, hoo, koi, hoi, w_outer, h_inner, w_inner, k_inner)
+    s[packed_output_cached].compute_at(s[packed_output], hoo)
 
     # conv2d #2 schedule
-    n, ho, wo, ko, hi, wi, ki = s[Yl].op.axis
-    rh, rw, rc = s[Yl].op.reduce_axis
-    rco, rci = s[Yl].split(rc, factor=block_C)
-    koo, koi = s[Yl].split(ko, factor=k_split_factor)
-    hoo, hoi = s[Yl].split(ho, factor=h_split_factor)
-    s[Yl].reorder(n, koo, hoo, koi, hoi, wo, rco, hi, wi, ki, rci)
-    s[temp_Y].compute_at(s[Yl], hoo)
-    s[F2l].compute_at(s[Yl], hoo)
+    n, h_outer, w_outer, k_outer, h_inner, w_inner, k_inner = s[packed_output_cached].op.axis
+    _, _, reduce_channel = s[packed_output_cached].op.reduce_axis
+    rco, rci = s[packed_output_cached].split(reduce_channel, factor=block_c)
+    koo, koi = s[packed_output_cached].split(k_outer, factor=k_split_factor)
+    hoo, hoi = s[packed_output_cached].split(h_outer, factor=h_split_factor)
+    s[packed_output_cached].reorder(
+        n, koo, hoo, koi, hoi, w_outer, rco, h_inner, w_inner, k_inner, rci
+    )
+    s[temp_output].compute_at(s[packed_output_cached], hoo)
+    s[filt_packed2_cached].compute_at(s[packed_output_cached], hoo)
 
     binds = {}
     if storage_scope and storage_scope != "global":
         with tvm.transform.PassContext():
-            Xb = tvm.tir.decl_buffer(packed_shape, name="Xb", dtype=dtype, scope=storage_scope)
-            Yb = tvm.tir.decl_buffer(output_shape2, name="Yb", dtype=dtype, scope=storage_scope)
-            binds = {X: Xb, Y: Yb}
+            input_buffer = tvm.tir.decl_buffer(
+                packed_shape, name="Xb", dtype=dtype, scope=storage_scope
+            )
+            output_buffer = tvm.tir.decl_buffer(
+                output_shape2, name="Yb", dtype=dtype, scope=storage_scope
+            )
+            binds = {logical_input: input_buffer, packed_output: output_buffer}
 
-    return (s, [X, filt_packed1, filt_packed2, Y], binds)
+    return (s, [logical_input, filt_packed1, filt_packed2, packed_output], binds)
 
 
 class BaseConv2dConv2d:
+    """Base class for conv2d-conv2d tests"""
+
     # input
     batch = tvm.testing.parameter(1)
     in_size = tvm.testing.parameter(64)
@@ -162,6 +171,8 @@ class BaseConv2dConv2d:
 
 
 class TestConv2dConv2dPackedFilter(BaseConv2dConv2d):
+    """Conv2d-Conv2d packed filter test class"""
+
     @tvm.testing.parametrize_targets("llvm")
     @tvm.testing.skip_if_32bit(reason="Test known to be flaky on i386 machines")
     def test_conv2d(
@@ -181,6 +192,7 @@ class TestConv2dConv2dPackedFilter(BaseConv2dConv2d):
         dtype,
         target,
     ):
+        """conv2d-conv2d test"""
         # TODO: no support for padding in conv2d #2
         pad2 = 0
 

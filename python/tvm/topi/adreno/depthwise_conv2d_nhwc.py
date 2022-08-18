@@ -247,13 +247,17 @@ def schedule_depthwise_conv2d_NHWC_HWOI(cfg, s, output):
     ):  # len(latest.op.axis) == 4:
         # manage scheduling of datacopy
         pad_data, kernel = s[conv].op.input_tensors
-        pack_data = pad_data.op.input_tensors[0]
-        bind_data_copy(s[pack_data])
+        if "pad_temp" in pad_data.op.name:
+            pack_data = pad_data.op.input_tensors[0]
+            bind_data_copy(s[pack_data])
+        else:
+            bind_data_copy(s[pad_data])
         bind_data_copy(s[kernel])
 
     pad_data, kernel = s[conv].op.input_tensors
 
-    s[pad_data].compute_inline()
+    if "pad_temp" in pad_data.op.name:
+        s[pad_data].compute_inline()
 
     s[conv].set_scope("local")
     if latest_blocked == latest and output != latest:

@@ -92,14 +92,11 @@ def pytest_collection_modifyitems(config, items):
     shard_index = int(os.environ["TVM_SHARD_INDEX"])
 
     print(f"Marking tests for shard {shard_index} of {num_shards}")
-    for item in items:
+    items_copy = list(items)
+    for item in items_copy:
         item_shard_index = find_shard_index(item.nodeid, num_shards=num_shards)
-        item.add_marker(
-            pytest.mark.skipif(
-                item_shard_index != shard_index,
-                reason=f"Test running on shard {item_shard_index} of {num_shards}",
-            )
-        )
+        if item_shard_index != shard_index:
+            items.remove(item)
 
 
 def pytest_sessionstart():

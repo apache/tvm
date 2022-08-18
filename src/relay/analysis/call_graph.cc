@@ -112,7 +112,7 @@ CallGraphEntry* CallGraphNode::LookupGlobalVar(const GlobalVar& gv) {
   if (call_graph_node) return call_graph_node.get();
 
   // Create the node for the inserted entry.
-  call_graph_node = std::unique_ptr<CallGraphEntry>(new CallGraphEntry(gv));
+  call_graph_node = std::make_unique<CallGraphEntry>(gv);
   return call_graph_node.get();
 }
 

@@ -474,11 +474,13 @@ def schedule_dense_arm_cpu(attrs, inputs, out_type, target):
     """dense arm cpu strategy"""
     strategy = _op.OpStrategy()
     isa = arm_isa.IsaAnalyzer(target)
-    if isa.has_dsp_support:
+    data, _ = inputs
+
+    if isa.has_dsp_support and data.dtype in ["int8", "int16"]:
         strategy.add_implementation(
-            wrap_compute_dense(topi.nn.dense),
+            wrap_compute_dense(topi.arm_cpu.dense_dsp),
             wrap_topi_schedule(topi.arm_cpu.schedule_dense_dsp),
-            name="dense_dsp",
+            name="dense_dsp.arm_cpu",
         )
     else:
         logger.warning("dense is not optimized for arm cpu.")
@@ -511,7 +513,7 @@ def conv1d_strategy_arm_cpu(attrs, inputs, out_type, target):
             strategy.add_implementation(
                 wrap_compute_conv1d(topi.arm_cpu.conv1d_nwc_dsp),
                 wrap_topi_schedule(topi.arm_cpu.schedule_conv1d_nwc_dsp),
-                name="conv1d_dsp",
+                name="conv1d_dsp.arm_cpu",
             )
         else:
             raise RuntimeError(

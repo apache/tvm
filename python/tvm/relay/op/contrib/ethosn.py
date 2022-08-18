@@ -23,7 +23,6 @@ import tvm.ir
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
 
-from ... import qnn as _qnn
 from ...dataflow_pattern import is_constant, is_op, wildcard
 from . import _ethosn as support
 from .register import register_pattern_table
@@ -45,6 +44,11 @@ def ethosn_available():
         return Available.UNAVAILABLE
     hw = tvm.get_global_func("relay.ethos-n.query")()
     return Available.SW_AND_HW if hw else Available.SW_ONLY
+
+
+def ethosn_api_version():
+    """Returns the version of the driver stack api that is being used."""
+    return tvm.get_global_func("relay.ethos-n.api.version")()
 
 
 def partition_for_ethosn(mod, params=None, **opts):
@@ -149,6 +153,12 @@ def pattern_table():
         pattern = is_op("qnn.quantize")(pattern, is_constant(), is_constant())
         return pattern
 
+    def qnn_requantize_pattern():
+        pattern = is_op("qnn.requantize")(
+            wildcard(), is_constant(), is_constant(), is_constant(), is_constant()
+        )
+        return pattern
+
     def check_conv2d(extract):
         """Check if a conv2d is supported by Ethos-N."""
         if not ethosn_available():
@@ -198,6 +208,13 @@ def pattern_table():
 
         return support.leaky_relu(extract)
 
+    def check_requantize(extract):
+        """Check if requantize is supported."""
+        if not ethosn_available():
+            return False
+
+        return support.requantize(extract)
+
     return [
         ("ethos-n.qnn_conv2d", qnn_conv_pattern(), check_conv2d),
         ("ethos-n.qnn_avg_pool2d", qnn_avg_pool2d_pattern(), check_avg_pool2d),
@@ -206,6 +223,7 @@ def pattern_table():
         ("ethos-n.qnn_mean", qnn_mean_pattern(), check_mean),
         ("ethos-n.qnn_tanh", qnn_tanh_pattern(), check_tanh),
         ("ethos-n.qnn_leaky_relu", qnn_leaky_relu_pattern(), check_leaky_relu),
+        ("ethos-n.qnn_requantize", qnn_requantize_pattern(), check_requantize),
     ]
 
 
@@ -224,9 +242,7 @@ def max_pool2d(expr):
     if not ethosn_available():
         return False
 
-    attrs, args = expr.attrs, expr.args
-    pool = tvm.relay.nn.max_pool2d(*args, **attrs)
-    return support.max_pool2d(pool)
+    return support.max_pool2d(expr)
 
 
 @tvm.ir.register_op_attr("reshape", "target.ethos-n")
@@ -234,13 +250,10 @@ def reshape(expr):
     """Check if a reshape is supported by Ethos-N."""
     if not ethosn_available():
         return False
-
-    attrs, args = expr.attrs, expr.args
-    if not _is_ethosn_composite(args[0]):
+    if not _is_ethosn_composite(expr.args[0]):
         return False
 
-    rs = tvm.relay.op.reshape(*args, attrs["newshape"])
-    return support.reshape(rs)
+    return support.reshape(expr)
 
 
 @tvm.ir.register_op_attr("qnn.add", "target.ethos-n")
@@ -249,9 +262,7 @@ def qnn_add(expr):
     if not ethosn_available():
         return False
 
-    args = expr.args
-    add = _qnn.op.add(*args)
-    return support.addition(add)
+    return support.addition(expr)
 
 
 @tvm.ir.register_op_attr("qnn.concatenate", "target.ethos-n")
@@ -259,13 +270,11 @@ def qnn_concatenate(expr):
     """Check if a concatenate is supported by Ethos-N."""
     if not ethosn_available():
         return False
-
-    attrs, args = expr.attrs, expr.args
-    conc = _qnn.op.concatenate(*args, **attrs)
-    if not support.concatenate(conc):
+    if not support.concatenate(expr):
         return False
 
     # Support library has some unenforced restrictions on qnn params
+    args = expr.args
     min_range = 1e9
     max_range = -1e9
     qnn_params = []
@@ -289,17 +298,9 @@ def split(expr):
     """Check if a split is supported by Ethos-N."""
     if not ethosn_available():
         return False
-
-    attrs, args = expr.attrs, expr.args
-    if isinstance(attrs["indices_or_sections"], tvm.tir.IntImm):
-        sp = tvm.relay.split(
-            *args, indices_or_sections=attrs["indices_or_sections"].value, axis=attrs["axis"]
-        )
-    else:
-        sp = tvm.relay.split(
-            *args, indices_or_sections=attrs["indices_or_sections"], axis=attrs["axis"]
-        )
-    if not support.split(sp.astuple()):
+    if ethosn_api_version() == 2205:
+        return False
+    if not support.split(expr):
         return False
 
     return True
@@ -310,10 +311,7 @@ def depth_to_space(expr):
     """Check if a depth_to_space is supported by Ethos-N."""
     if not ethosn_available():
         return False
-
-    attrs, args = expr.attrs, expr.args
-    depth = tvm.relay.nn.depth_to_space(*args, **attrs)
-    if not support.depth_to_space(depth):
+    if not support.depth_to_space(expr):
         return False
 
     return True
@@ -324,10 +322,7 @@ def clip(expr):
     """Check if a clip is supported by Ethos-N."""
     if not ethosn_available():
         return False
-
-    attrs, args = expr.attrs, expr.args
-    c = tvm.relay.clip(*args, **attrs)
-    if not support.relu(c):
+    if not support.relu(expr):
         return False
 
     return True

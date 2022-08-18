@@ -24,6 +24,8 @@ from unittest import mock
 import pytest
 
 import tvm
+from tvm.ir.memory_pools import WorkspacePoolInfo, WorkspaceMemoryPools
+from tvm.target import Target
 import tvm.testing
 from tvm.relay.op.contrib.ethosn import ethosn_available
 from tvm.relay.backend import Runtime, Executor
@@ -672,6 +674,26 @@ def test_compile_tflite_module_with_mod_name_and_ethosu(
         with mlf_package.extractfile("./codegen/host/src/classify_lib2.c") as f:
             content = f.read()
             assert b"tvmgen_classify_ethos_u_main_" in content
+
+
+@mock.patch("tvm.relay.build")
+@mock.patch("tvm.driver.tvmc.load")
+@mock.patch("tvm.driver.tvmc.model.TVMCPackage.__init__", return_value=None)
+def test_compile_check_workspace_pools(mock_pkg, mock_fe, mock_relay):
+    mock_fe.return_value = mock.MagicMock()
+    mock_relay.return_value = mock.MagicMock()
+    memory_pools = WorkspaceMemoryPools(
+        [WorkspacePoolInfo(pool_name="sram", targets=[Target("llvm")])]
+    )
+    tvmc_model = tvmc.load("no_file_needed")
+    tvmc.compile(
+        tvmc_model,
+        target="llvm,c",
+        workspace_pools=memory_pools,
+    )
+
+    assert mock_relay.call_count == 1
+    assert mock_relay.call_args_list[0][1]["workspace_memory_pools"] == memory_pools
 
 
 if __name__ == "__main__":

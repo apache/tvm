@@ -38,6 +38,7 @@
 #include <vector>
 
 #include "codegen_cpu.h"
+#include "llvm_instance.h"
 
 namespace tvm {
 namespace codegen {
@@ -91,9 +92,9 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
   const auto to = op->dtype;
   if (from.is_float() && to.is_float() && from.bits() == 16 && to.bits() == 32) {
     ICHECK_EQ(from.lanes(), to.lanes());
-    CHECK_NOTNULL(target_machine_);
+    llvm::TargetMachine* tm = llvm_target_->GetOrCreateTargetMachine();
 
-    const auto has_avx512 = TargetHasFeature(*target_machine_, "avx512f");
+    const auto has_avx512 = TargetHasFeature(*tm, "avx512f");
 
     if (from.lanes() >= 16 && has_avx512) {
       return CallVectorIntrin(
@@ -110,7 +111,7 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
 
 #if TVM_LLVM_VERSION <= 100
     // The intrinsic x86_vcvtph2ps_256 was removed in LLVM 11.
-    const auto has_f16c = TargetHasFeature(*target_machine_, "f16c");
+    const auto has_f16c = TargetHasFeature(*tm, "f16c");
 
     if (from.lanes() >= 8 && has_f16c) {
       return CallVectorIntrin(llvm::Intrinsic::x86_vcvtph2ps_256, 8,
@@ -168,4 +169,5 @@ TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_x86-64")
 
 }  // namespace codegen
 }  // namespace tvm
+
 #endif  // TVM_LLVM_VERSION

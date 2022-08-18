@@ -153,8 +153,7 @@ def build(
 
     Parameters
     ----------
-    inputs : Union[tvm.te.schedule.Schedule,
-        tvm.tir.PrimFunc, IRModule, Mapping[str, IRModule]]
+    inputs : Union[tvm.te.schedule.Schedule, tvm.tir.PrimFunc, IRModule, Mapping[str, IRModule]]
         The input to be built
 
     args : Optional[List[Union[tvm.tir.Buffer, tensor.Tensor, Var]]]

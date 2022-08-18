@@ -1026,7 +1026,7 @@ class DeviceCapturer : public ExprMutator {
     VLOG(4) << "Func with bound params: " << func;
     func->virtual_device_ = result_virtual_device;
     VLOG(4) << "Func with bound params & result vid set: " << func;
-    return func;
+    return std::move(func);
   }
 
   Expr VisitExpr_(const CallNode* call_node) final {

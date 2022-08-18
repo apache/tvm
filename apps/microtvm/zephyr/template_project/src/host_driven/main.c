@@ -28,7 +28,6 @@
  * intended to be a demonstration, since typically you will want to incorporate
  * this logic into your own application.
  */
-
 #include <drivers/gpio.h>
 #include <drivers/uart.h>
 #include <fatal.h>
@@ -43,6 +42,10 @@
 #include <tvm/runtime/crt/microtvm_rpc_server.h>
 #include <unistd.h>
 #include <zephyr.h>
+
+#ifdef FVP
+#include "fvp/semihost.h"
+#endif
 
 #ifdef CONFIG_ARCH_POSIX
 #include "posix_board_if.h"
@@ -65,7 +68,7 @@ static size_t g_num_bytes_written = 0;
 static size_t g_num_bytes_in_rx_buffer = 0;
 
 // Called by TVM to write serial data to the UART.
-ssize_t write_serial(void* unused_context, const uint8_t* data, size_t size) {
+ssize_t uart_write(void* unused_context, const uint8_t* data, size_t size) {
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 1);
 #endif
@@ -81,6 +84,14 @@ ssize_t write_serial(void* unused_context, const uint8_t* data, size_t size) {
 #endif
 
   return size;
+}
+
+ssize_t serial_write(void* unused_context, const uint8_t* data, size_t size) {
+#ifdef FVP
+  return semihost_write(unused_context, data, size);
+#else
+  return uart_write(unused_context, data, size);
+#endif
 }
 
 // This is invoked by Zephyr from an exception handler, which will be invoked
@@ -250,9 +261,19 @@ void main(void) {
   timing_init();
   timing_start();
 
+#ifdef FVP
+  init_semihosting();
+  // send some dummy log to speed up the initialization
+  for (int i = 0; i < 100; ++i) {
+    uart_write(NULL, "dummy log...\n", 13);
+  }
+  uart_write(NULL, "microTVM Zephyr runtime - running\n", 34);
+#endif
+
   // Initialize microTVM RPC server, which will receive commands from the UART and execute them.
-  microtvm_rpc_server_t server = MicroTVMRpcServerInit(write_serial, NULL);
+  microtvm_rpc_server_t server = MicroTVMRpcServerInit(serial_write, NULL);
   TVMLogf("microTVM Zephyr runtime - running");
+
 #ifdef CONFIG_LED
   gpio_pin_set(led0_pin, LED0_PIN, 0);
 #endif
@@ -260,18 +281,28 @@ void main(void) {
   // The main application loop. We continuously read commands from the UART
   // and dispatch them to MicroTVMRpcServerLoop().
   while (true) {
+#ifdef FVP
+    uint8_t data[128];
+    uint32_t bytes_read = semihost_read(data, 128);
+#else
     uint8_t* data;
     unsigned int key = irq_lock();
     uint32_t bytes_read = ring_buf_get_claim(&uart_rx_rbuf, &data, RING_BUF_SIZE_BYTES);
+#endif
     if (bytes_read > 0) {
-      g_num_bytes_in_rx_buffer -= bytes_read;
+      uint8_t* ptr = data;
       size_t bytes_remaining = bytes_read;
       while (bytes_remaining > 0) {
         // Pass the received bytes to the RPC server.
-        tvm_crt_error_t err = MicroTVMRpcServerLoop(server, &data, &bytes_remaining);
+        tvm_crt_error_t err = MicroTVMRpcServerLoop(server, &ptr, &bytes_remaining);
         if (err != kTvmErrorNoError && err != kTvmErrorFramingShortPacket) {
           TVMPlatformAbort(err);
         }
+#ifdef FVP
+      }
+    }
+#else
+        g_num_bytes_in_rx_buffer -= bytes_read;
         if (g_num_bytes_written != 0 || g_num_bytes_requested != 0) {
           if (g_num_bytes_written != g_num_bytes_requested) {
             TVMPlatformAbort((tvm_crt_error_t)0xbeef5);
@@ -286,6 +317,7 @@ void main(void) {
       }
     }
     irq_unlock(key);
+#endif
   }
 
 #ifdef CONFIG_ARCH_POSIX

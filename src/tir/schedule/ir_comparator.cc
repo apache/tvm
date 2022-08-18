@@ -447,8 +447,17 @@ bool AutoTensorizeComparator::CompareBufferAccess(const T* lhs, const T* rhs) {
     for (const auto& index : lhs->indices) {
       lhs_indices.push_back(analyzer_.Simplify(index));
     }
+
+    auto is_scalar_access = [](const Array<PrimExpr>& indices, PrimExpr index) {
+      // Check if the indexing is of the form C[0]
+      if (indices.size() > 1) return false;
+      auto int_imm = index.template as<IntImmNode>();
+      if (int_imm && int_imm->value == 0) return true;
+      return false;
+    };
+
     for (const auto& index : rhs->indices) {
-      if (!index.template as<VarNode>()) return false;
+      if (!index.template as<VarNode>() && !is_scalar_access(rhs->indices, index)) return false;
     }
     lhs_buffer_indices_map_[lhs->buffer] = lhs_indices;
     rhs_buffer_indices_map_[rhs->buffer] = rhs->indices;

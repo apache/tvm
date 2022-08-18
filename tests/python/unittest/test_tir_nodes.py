@@ -301,6 +301,12 @@ def test_divide_by_zero():
             pass
 
 
+def test_infinity():
+    assert str(tvm.tir.infinity("float16")) == "inff16"
+    assert str(tvm.tir.infinity("float32")) == "inff32"
+    assert str(tvm.tir.infinity("float64")) == "inff64"
+
+
 def test_isnan():
     x = te.var("x", "float32")
     assert str(tvm.tir.isnan(x)) == "@tir.isnan(x: float32, dtype=bool)"

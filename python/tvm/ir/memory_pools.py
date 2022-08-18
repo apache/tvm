@@ -189,7 +189,7 @@ class WorkspaceMemoryPools(Object):
 
     def __init__(
         self,
-        pools: List[PoolInfo],
+        pools: List[WorkspacePoolInfo],
     ):
         self.__init_handle_by_constructor__(
             _ffi_api.WorkspaceMemoryPools, pools  # type: ignore # pylint: disable=no-member
