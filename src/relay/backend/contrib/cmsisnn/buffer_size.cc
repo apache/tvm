@@ -27,7 +27,7 @@ namespace relay {
 namespace contrib {
 namespace cmsisnn {
 
-int Conv2dBufferSize(CMSISNNFlags flags, int32_t padding_w, int32_t padding_h, int32_t input_n,
+int Conv2dBufferSize(Target target, int32_t padding_w, int32_t padding_h, int32_t input_n,
                      int32_t input_h, int32_t input_c, int32_t output_h, int32_t output_w,
                      int32_t stride_w, int32_t stride_h, int32_t dilation_w, int32_t dilation_h,
                      int32_t filter_w, int32_t filter_h) {
@@ -37,18 +37,20 @@ int Conv2dBufferSize(CMSISNNFlags flags, int32_t padding_w, int32_t padding_h, i
   bool is1xN = (output_h == 1) && (input_h == 1) && (filter_h == 1) && (output_w % 4 == 0) &&
                (input_n == 1) && (dilation_w == 1) && (dilation_h == 1);
 
+  bool has_mve = target->GetFeature<Bool>("has_mve").value_or(Bool(false));
+
   if (is1x1) {
     return 0;
   }
 
   if (is1xN) {
-    if (!flags.mve) {
+    if (!has_mve) {
       return (2 * input_c * filter_w * filter_h) * (int32_t)sizeof(int16_t);
     }
     return 0;
   }
 
-  if (flags.mve) {
+  if (has_mve) {
     int32_t col_length = input_c * filter_w * filter_h;
     col_length = (col_length + 7) / 8;
     return 4 * col_length * 8 * (int32_t)sizeof(int8_t);
@@ -58,21 +60,27 @@ int Conv2dBufferSize(CMSISNNFlags flags, int32_t padding_w, int32_t padding_h, i
   return 0;
 }
 
-int DepthwiseConv2dBufferSize(CMSISNNFlags flags, int32_t input_n, int32_t input_c,
-                              int32_t output_c, int32_t filter_w, int32_t filter_h) {
+int DepthwiseConv2dBufferSize(Target target, int32_t input_n, int32_t input_c, int32_t output_c,
+                              int32_t filter_w, int32_t filter_h) {
+  bool has_mve = target->GetFeature<Bool>("has_mve").value_or(Bool(false));
+  bool has_dsp = target->GetFeature<Bool>("has_dsp").value_or(Bool(false));
+
   if (input_c == output_c && input_n == 1) {
-    if (flags.mve) {
+    if (has_mve) {
       return (2 * input_c * filter_w * filter_h) * (int32_t)sizeof(int16_t) + 4;
     }
-    if (flags.dsp) {
+    if (has_dsp) {
       return (input_c * filter_w * filter_h) * (int32_t)sizeof(int16_t);
     }
   }
   return 0;
 }
 
-int AvgPoolBufferSize(CMSISNNFlags flags, int32_t input_c) {
-  if (flags.dsp && !flags.mve) {
+int AvgPoolBufferSize(Target target, int32_t input_c) {
+  bool has_mve = target->GetFeature<Bool>("has_mve").value_or(Bool(false));
+  bool has_dsp = target->GetFeature<Bool>("has_dsp").value_or(Bool(false));
+
+  if (has_dsp && !has_mve) {
     return (input_c * sizeof(int32_t));
   }
   return 0;
