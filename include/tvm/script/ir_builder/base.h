@@ -134,7 +134,8 @@ class IRBuilderFrame : public runtime::ObjectRef {
  * \example An idiomatic use of this class is to put this inside the RAII with-scope,
  * call dialect-specific methods accordingly. Upon exiting the scope.
  *
- * \code {.cpp}
+ * \code
+ *
  * PrimFunc ConstructPrimFunc() {
  *   using tvm::script::ir_builder::IRBuilder;
  *   using T = tvm::script::ir_builder::tir;
@@ -149,6 +150,7 @@ class IRBuilderFrame : public runtime::ObjectRef {
  *   // Step 3. Return the constructed PrimFunc.
  *   return builder->Get<PrimFunc>();
  * }
+ *
  * \endcode
  */
 class IRBuilderNode : public runtime::Object {
@@ -205,8 +207,6 @@ class IRBuilder : public runtime::ObjectRef {
   /*!
    * \brief Puts the current IRBuilder into a thread-local scope, which can be retrieved using
    * `IRBuilder::Current()`.
-   *
-   * \example
    *
    * \code {.cpp}
    * IRBuilder builder;
