@@ -503,7 +503,7 @@ def run_generator(*, _validators=None, **kwargs):
                         val_kwargs[param_name] = bound.arguments[param_name]
                     else:
                         raise ValueError(
-                            "validators may not contain variable positional or" " keyword arguments"
+                            "validators may not contain variable positional or keyword arguments"
                         )
 
                 result = validator(*val_args, **val_kwargs)
