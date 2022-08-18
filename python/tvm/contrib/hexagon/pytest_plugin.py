@@ -178,15 +178,15 @@ def hexagon_server_process(
             "adb_server_socket": adb_server_socket,
         }
         workerinput = getattr(request.config, "workerinput", None)
-        if workerinput is None: # single-process execution
+        if workerinput is None:  # single-process execution
             device_adr = read_device_list()[0]
-        else: # running in a subprocess here
+        else:  # running in a subprocess here
             device_adr = workerinput["device_adr"]
         launcher = HexagonLauncher(serial_number=device_adr, rpc_info=rpc_info)
         try:
             if not skip_rpc:
                 launcher.start_server()
-            yield {"launcher":launcher, "device_adr":device_adr}
+            yield {"launcher": launcher, "device_adr": device_adr}
         finally:
             if not skip_rpc:
                 launcher.stop_server()
@@ -195,16 +195,18 @@ def hexagon_server_process(
 def read_device_list():
     return android_serial_number()
 
- 
+
 def pytest_configure(config):
-     # read device list if we are on the master
+    # read device list if we are on the master
     if not hasattr(config, "workerinput"):
         config.iplist = read_device_list()
+
 
 def pytest_configure_node(node):
     # the master for each node fills slaveinput dictionary
     # which pytest-xdist will transfer to the subprocess
     node.workerinput["device_adr"] = node.config.iplist.pop()
+
 
 @pytest.fixture
 def hexagon_launcher(
@@ -228,13 +230,15 @@ def hexagon_launcher(
             "rpc_server_port": rpc_server_port,
             "adb_server_socket": adb_server_socket,
         }
-    
+
     try:
         if android_serial_num == "simulator":
             launcher = HexagonLauncher(serial_number=android_serial_num, rpc_info=rpc_info)
             launcher.start_server()
         else:
-            launcher = HexagonLauncher(serial_number=hexagon_server_process["device_adr"], rpc_info=rpc_info) 
+            launcher = HexagonLauncher(
+                serial_number=hexagon_server_process["device_adr"], rpc_info=rpc_info
+            )
         yield launcher
     finally:
         if android_serial_num == "simulator":
