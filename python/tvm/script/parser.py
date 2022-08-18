@@ -472,11 +472,11 @@ class TVMScriptParser(Transformer):
                 self.context.update_symbol(arg.name, arg_var, node)
             self.context.func_params.append(arg_var)
 
-        if not check_decorator(node.decorators):
-            self.report_error(
-                "All functions should be decorated by `T.prim_func`",
-                node.span,
-            )
+        #if not check_decorator(node.decorators):
+        #    self.report_error(
+        #        "All functions should be decorated by `T.prim_func`",
+        #        node.span,
+        #    )
 
         # fetch the body of root block
         body = self.parse_body(node.body)
