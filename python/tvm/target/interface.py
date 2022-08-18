@@ -1,31 +1,58 @@
 from collections import namedtuple
 from dataclasses import dataclass, field
-from functools import singledispatch, wraps, partial
+from functools import wraps, partial
 import inspect
 import itertools
 from tvm.tir.function import PrimFunc
-from tvm.script import tir as T
 from tvm import tir
 from typing import Dict, Iterable, List
 
-Resource = namedtuple('Resource', ['name', 'count'])
+Resource = namedtuple("Resource", ["name", "count"])
 
 
 @dataclass(frozen=True)
 class IntrinsicDeclaration:
+    """A Dataclass representing an intrinsic declaration.
+
+    This is meant to act as a representative object for the declared intrinsic
+    and bundles the name, description, and implementation. This dataclass can
+    be extended with additional metadata as needed.
+    """
+
     desc: PrimFunc = field(repr=False)
     impl: PrimFunc = field(repr=False)
     name: str
+    # Example metadata representing async capability/resource use
     consumes: List[Resource] = field(default_factory=list)
 
 
 def consumes(resource_name, count=1):
+    """
+    An example metadata decorator which annotates an intrinsic declaration with
+    a resource consumption tag. If the annotated intrinsic does not already
+    have a `consumes` attribute, this decorator will first add it.
+
+    Examples
+    --------
+    The following stub shows using the decorator in conjunction with
+    `intrinsic` to declare a new intrinsic with the given resource
+    consumption metadata
+
+    .. code-block:: python
+
+        @consumes('example resource')
+        @intrinsic
+        class MyFunction:
+            ...
+    """
+
     def decorator(func):
-        if hasattr(func, 'consumes') and isinstance(func.consumes, list):
+        if hasattr(func, "consumes") and isinstance(func.consumes, list):
             func.consumes.append(Resource(resource_name, count))
-        elif hasattr(func, 'consumes'):
+        elif hasattr(func, "consumes"):
             raise TypeError(
-                f'Consumes decorator expects the consumes attribute to be a list, but got {type(func.consumes)}'
+                "Consumes decorator expects the consumes attribute to be a "
+                f"list, but got {type(func.consumes)}"
             )
         else:
             func.consumes = list()
@@ -35,30 +62,88 @@ def consumes(resource_name, count=1):
     return decorator
 
 
-def function(func=None, *, name=None, desc_name='desc', impl_name='impl'):
+def intrinsic(func=None, *, name=None, desc_name="desc", impl_name="impl"):
+    """A decorator for declaring an intrinsic function.
+
+    This decorator unifies the intrinsic description and implementation while
+    handling the Tensor registration call. There are two possible approaches to
+    using this decorator as it can be attached to a function definition or a
+    class. In general, the class syntax is recommended over the function
+    syntax.
+
+    The decorator replaces the attached function or class with an
+    `IntrinsicDeclaration` object
+
+    Parameters
+    ----------
+    name : str, optional
+        The name of the intrinsic, will be used to register the intrinsic. If
+        not provided, the name of the attached function/class will be used.
+
+    desc_name : str, optional
+        The name of the description function. Used when attached to a class.
+
+    impl_name : str, optional
+        The name of the implementation function. Used when attached to a class.
+
+
+    Examples
+    --------
+    The following example shows the two methods of using this decorator to
+    declare the same intrinsic.
+
+    .. code-block:: python
+
+        @intrinsic
+        class MyIntrin:
+            @T.prim_func
+            def desc(...): ...
+
+            @T.prim_func
+            def impl(...): ...
+
+        @intrinsic
+        def MyIntrinAlt():
+            @T.prim_func
+            def desc(...): ...
+
+            @T.prim_func
+            def impl(...): ...
+
+            return desc, impl
+
+        # tensorize via the attached name
+        s.tensorize(i, MyIntrin.name)    # "MyIntrin"
+        s.tensorize(i, MyIntrinAlt.name) # "MyIntrinAlt"
+
+    See Also
+    --------
+    IntrinsicDeclaration
+    IntrinsicInterface.intrinsic
+    """
 
     # this is based on recipe 9.6 from python cookbook and is here to allow the
     # decorator to be used both with and without the call syntax
     if func is None:
-        return partial(
-            function, name=name, desc_name=desc_name, impl_name=impl_name
-        )
+        return partial(intrinsic, name=name, desc_name=desc_name, impl_name=impl_name)
 
     name = name or func.__name__
 
     desc, impl = None, None
 
+    # if this is attached to a class, pull the appropriate attributes
     if isinstance(func, type):
-        desc = getattr(func, desc_name)
-        impl = getattr(func, impl_name)
+        desc, impl = getattr(func, desc_name), getattr(func, impl_name)
 
+    # otherwise assume we are attached to a function and call it, the function
+    # must return desc, impl in that exact order
     else:
         desc, impl = func()
 
     tir.TensorIntrin.register(name, desc, impl)
     inner = IntrinsicDeclaration(desc, impl, name)
 
-    if hasattr(func, 'consumes'):
+    if hasattr(func, "consumes"):
         inner.consumes.extend(func.consumes)
 
     return inner
@@ -74,47 +159,50 @@ class IntrinsicInterface:
         self.name = name
         self.resources = dict()
 
-    def function(self, func=None, *, name=None, name_prefix=True, **kwargs):
+    def intrinsic(self, func=None, *, name=None, name_prefix=True, **kwargs):
 
         if func is None:
             return partial(
-                self.function,
+                self.intrinsic,
                 name=name,
                 name_prefix=name_prefix,
                 **kwargs,
             )
 
-        # this is a crime against humanity
+        # this abomination is a tricky means of providing automatic name
+        # mangling when running inside a function annotated with
+        # `run_generator`
         frame_stack = inspect.stack()
         if (
             not name
             and len(frame_stack) > 2
-            and frame_stack[2].function == '__call__'
-            and 'self' in frame_stack[2].frame.f_locals
-            and isinstance(
-                frame_stack[2].frame.f_locals['self'], GeneratorWrapper
-            )
+            and frame_stack[2].function == "__call__"
+            and "self" in frame_stack[2].frame.f_locals
+            and isinstance(frame_stack[2].frame.f_locals["self"], GeneratorWrapper)
         ):
-            args = frame_stack[2].frame.f_locals['args']
-            kwargs = frame_stack[2].frame.f_locals['kwargs']
+            args = frame_stack[2].frame.f_locals["args"]
+            kwargs = frame_stack[2].frame.f_locals["kwargs"]
             if args or kwargs:
                 name = (
                     func.__name__
-                    + '_'
-                    + '_'.join((str(arg) for arg in args))
-                    + '_'.join((str(val) for val in kwargs.values()))
+                    + "_"
+                    + "_".join((str(arg) for arg in args))
+                    + "_".join((str(val) for val in kwargs.values()))
                 )
 
-        name = name or f'{self.name}_{func.__name__}'
+        name = name or f"{self.name}_{func.__name__}"
 
         if not name.startswith(self.name) and name_prefix:
-            name = f'{self.name}_{name}'
+            name = f"{self.name}_{name}"
 
-        assert (
-            name not in self.registry
-        ), f'An intrinsic named {name} has already been registered, a second intrinsic cannot be registered under the same name. If using a generator, please ensure that the generator produces a uniquely named intrinsic per each unique input set'
+        assert name not in self.registry, (
+            f"An intrinsic named {name} has already been registered, a second"
+            "intrinsic cannot be registered under the same name. If using a "
+            "generator, please ensure that the generator produces a uniquely "
+            "named intrinsic per each unique input set"
+        )
 
-        inner = function(func, name=name, **kwargs)
+        inner = intrinsic(func, name=name, **kwargs)
         self.registry[name] = inner
 
         return inner
@@ -133,18 +221,30 @@ class IntrinsicInterface:
 
     @staticmethod
     def create_interface(cls):
-        """
-        Utility decorator used to turn a class declaration into an interface
-        object. It's probably better to just make the object directly by
-        initializing an IntrinsicInterface
+        """Utility decorator used to turn a class declaration into an interface
+        object.
+
+        It's probably better to just make the object directly by
+        initializing an IntrinsicInterface since this can confuse IDEs.
+        Currently only handles resource declarations but could be extended in
+        the future as needed.
+
+        Examples
+        --------
+        .. code-block:: python
+            @IntrinsicInterface.create_interface
+            class SecondInterface:
+                resources = {"test_resource": 1}
+
         """
 
         inner = IntrinsicInterface(cls.__name__)
-        if hasattr(cls, 'resources'):
-            # the validation code in these if-arms is inefficient but given that
-            # these resource dicts are unlikely to be all that large this is
-            # fine for the time being. If the need arises these can be converted
-            # to a more efficient but less readable single pass version
+        if hasattr(cls, "resources"):
+            # the validation code in these if-arms is inefficient but given
+            # that these resource dicts are unlikely to be all that large this
+            # is fine for the time being. If the need arises these can be
+            # converted to a more efficient but less readable single pass
+            # version
 
             if isinstance(cls.resources, dict) and all(
                 (
@@ -154,16 +254,14 @@ class IntrinsicInterface:
             ):
                 inner.resources = cls.resources
             elif isinstance(cls.resources, Iterable) and all(
-                (
-                    isinstance(item, (Resource, tuple)) and len(item) == 2
-                    for item in cls.resources
-                )
+                (isinstance(item, (Resource, tuple)) and len(item) == 2 for item in cls.resources)
             ):
                 inner.resources = {key: value for key, value in cls.resources}
                 cls.resources = inner.resources
             else:
                 raise TypeError(
-                    'the resources field must be a dictionary with string keys and int values or an Iterable of valid Resource tuples'
+                    "the resources field must be a dictionary with string keys"
+                    " and int values or an Iterable of valid Resource tuples"
                 )
         else:
             cls.resources = inner.resources
@@ -171,15 +269,15 @@ class IntrinsicInterface:
         class WrappedIntrinsicInterface(cls):
             _inner = inner
             registry = _inner.registry
-            function = _inner.function
+            function = _inner.intrinsic
 
         return WrappedIntrinsicInterface
 
 
 class GeneratorWrapper:
     """
-    A wrapper class for functions which generate intrinsic implementations. Used
-    to handle automatic name mangling based on generator input
+    A wrapper class for functions which generate intrinsic implementations.
+    Used to handle automatic name mangling based on generator input
     """
 
     def __init__(self, wrapped_fn):
@@ -200,19 +298,19 @@ def generator(func):
     return gen
 
 
-def run_generator(_validators=None, **kwargs):
+def run_generator(*, _validators=None, **kwargs):
     """
-    This decorator when given iterable keyword arguments will run the
-    annotated generator with the cartesian product of the input iterators.
-    Optional validators may be supplied via the `_validators` argument. If
-    present, this decorator will skip over any argument lists which fail to pass
-    all validators.
+    This decorator when given iterable keyword arguments will run the annotated
+    generator with the cartesian product of the input iterators. Optional
+    validators may be supplied via the `_validators` argument. If present, this
+    decorator will skip over any argument lists which fail to pass all
+    validators.
 
     Successful non-None values returned from the attached function will be
     captured in the `captured_output` field of the returned function wrapper.
 
-    Note: wraps the generator function with the @generator wrapper if it has not
-    already been applied
+    Note: wraps the generator function with the :code:`@generator` wrapper if
+    it has not already been applied
     """
 
     if _validators:
@@ -235,17 +333,10 @@ def run_generator(_validators=None, **kwargs):
         ]
 
         for concrete_values in product:
-            arg_dict = {
-                key: value
-                for key, value in zip(kwargs.keys(), concrete_values)
-            }
+            arg_dict = {key: value for key, value in zip(kwargs.keys(), concrete_values)}
 
             args = [arg_dict[key] for key in arg_ordering]
-            arg_dict = {
-                key: value
-                for key, value in arg_dict.items()
-                if key not in arg_ordering
-            }
+            arg_dict = {key: value for key, value in arg_dict.items() if key not in arg_ordering}
             bound = signature.bind(*args, **arg_dict)
             bound.apply_defaults()
 
@@ -266,7 +357,7 @@ def run_generator(_validators=None, **kwargs):
                         val_kwargs[param_name] = bound.arguments[param_name]
                     else:
                         raise ValueError(
-                            'validators may not contain variable positional or keyword arguments'
+                            "validators may not contain variable positional or" " keyword arguments"
                         )
 
                 result = validator(*val_args, **val_kwargs)
