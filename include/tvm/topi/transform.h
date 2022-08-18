@@ -2034,26 +2034,27 @@ inline Tensor embedding_bag(const Tensor& input, const Tensor& weight, const Ten
   auto column = weight->shape[1];
 
   int N = GetConstInt(input->shape[0]);
-  LOG(INFO) << row << " "
-            << " " << column << " " << N;
 
   Array<PrimExpr> oshape{row, column};
 
   auto func = [&](tvm::tir::Var i, tvm::tir::Var j) {
     auto ret = make_zero(dtype);
 
-    auto st = offset(i); // start point
-    auto ed = if_then_else(row == i + 1, N, offset(i + 1)); // end point
+    auto st = offset(i);  // start point
+    auto ed = tvm::tir::Select(row == i + 1, PrimExpr(N),
+                               cast(DataType::Int(32), offset(i + 1)));  // end point
 
-    for (auto idx = 0; idx < N; idx++) { // can't find `fold` function, so use a stupid method to iterate from st to ed
+    // can't find `fold` function, so use a stupid method to iterate from st to ed
+    for (auto idx = 0; idx < N; idx++) {
+      auto real_idx = st + idx;
       if (mode < 2)  // mean(1) or sum(0)
       {
-        ret = if_then_else(st + idx < ed, ret + weight[input(st + idx)][j], ret);
+        ret = tvm::tir::Select(real_idx < ed, ret + weight[input(real_idx)][j], ret);
       } else {  // max(2)
         if (idx == 0) {
-          ret = weight[input(st + idx)][j];
+          ret = weight[input(real_idx)][j];
         } else {
-          ret = if_then_else(st + idx < ed, max(ret, weight[input(st + idx)][j]), ret);
+          ret = tvm::tir::Select(real_idx < ed, max(ret, weight[input(real_idx)][j]), ret);
         }
       }
     }

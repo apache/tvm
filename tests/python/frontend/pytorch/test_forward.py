@@ -2875,7 +2875,7 @@ def test_embedding_bag():
     inp = torch.tensor([[1, 2, 4, 5], [4, 3, 2, 9], [6, 7, 8, 9]])
     verify_model(EmbeddingBag().float().eval(), [inp, embedding_matrix])
     verify_model(EmbeddingBag("sum").float().eval(), [inp, embedding_matrix])
-
+    verify_model(EmbeddingBag("max").float().eval(), [inp, embedding_matrix])
 
 @tvm.testing.uses_gpu
 def test_forward_onehot():
