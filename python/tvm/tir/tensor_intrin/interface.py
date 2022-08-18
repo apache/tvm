@@ -194,6 +194,28 @@ class AcceleratorInterface:
         There is also some additional functionality to auto mangle names when
         used in conjunction with `run_generator`.
 
+
+        Parameters
+        ----------
+        name : str, optional
+            The name of the intrinsic, will be used to register the intrinsic.
+            If not provided, the name of the attached function/class will be
+            used. And, if not provided, when called from a function annotated
+            with `generator, the name will have the string values of arguments
+            as suffixes on the intrinsic name
+
+        desc_name : str, optional
+            The name of the description function. Used when attached to a
+            class.
+
+        impl_name : str, optional
+            The name of the implementation function. Used when attached to a
+            class.
+
+        name_prefix : bool, optional
+            If True, the name of the created intrinsic will be prefixed with
+            the name of the accelerator interface.
+
         Examples
         --------
 
@@ -400,6 +422,11 @@ def run_generator(*, _validators=None, **kwargs):
     Note: wraps the generator function with the `@generator` wrapper if
     it has not already been applied
 
+    Parameters
+    ----------
+    _validators : function or iterable of function, optional
+        Validator functions which can skip over invalid parameter combinations
+
     Examples
     --------
 
@@ -423,6 +450,12 @@ def run_generator(*, _validators=None, **kwargs):
 
         @run_generator(a=[1, 2, 3], b=range(0,10), _validators=[v1, v2])
         def gen_intrin_with_validators(a, b): ...
+
+        # only generates intrinsics which pass all validators
+
+
+        # validators only apply to calls from run_generator
+        gen_intrin_with_validators(6, 2)
 
     """
 
