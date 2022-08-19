@@ -79,6 +79,9 @@ Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
                 << "TypeError: Expect 'tir.Var', but gets: " << dst->GetTypeKey();
             return GetRef<Var>(static_cast<const VarNode*>(dst));
           }));
+    } else if (input->IsInstance<ArrayNode>()) {
+      // Recursively convert elements of the array into a new list of ObjectRefs.
+      result.push_back(TranslateInputRVs(Downcast<Array<ObjectRef>>(input), rv_map));
     } else {
       ICHECK(false) << "TypeError: Cannot recognize the type of an input random variable: "
                     << input->GetTypeKey();

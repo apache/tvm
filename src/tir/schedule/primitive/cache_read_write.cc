@@ -1207,7 +1207,7 @@ struct CacheReadTraits : public UnpackedInstTraits<CacheReadTraits> {
     py.Input("block", block);
     py.Input("read_buffer_index", read_buffer_index->value);
     py.Input("storage_scope", storage_scope);
-    py.Input("consumer_block", consumer_blocks);
+    py.Input("consumer_blocks", consumer_blocks);
     py.SingleOutput(outputs);
     return py.Str();
   }
