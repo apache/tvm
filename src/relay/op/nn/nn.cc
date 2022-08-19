@@ -653,10 +653,9 @@ Expr MakeL2Normalize(Expr data, double eps, Array<Integer> axis) {
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-InferCorrectLayoutOutput L2NormalizeInferCorrectLayout(const Attrs& attrs,
-                                                const Array<Layout>& new_in_layouts,
-                                                const Array<Layout>& old_in_layouts,
-                                                const Array<tvm::relay::Type>& old_in_types) {
+InferCorrectLayoutOutput L2NormalizeInferCorrectLayout(
+    const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
+    const Array<tvm::relay::Type>& old_in_types) {
   const auto* attrs_ptr = attrs.as<L2NormalizeAttrs>();
   ICHECK(attrs_ptr);
   ObjectPtr<L2NormalizeAttrs> param = make_object<L2NormalizeAttrs>(*attrs_ptr);
