@@ -24,6 +24,7 @@ from utils.adreno_utils import gpu_preprocess, build_run_compare
 
 dtype = tvm.testing.parameter("float32")
 
+
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl")
 def test_depthwise_conv2d_bias_nchwc(target, dtype):

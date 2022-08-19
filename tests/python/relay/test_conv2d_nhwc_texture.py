@@ -26,6 +26,7 @@ from utils.adreno_utils import gpu_preprocess, build_run_compare
 
 dtype = tvm.testing.parameter("float32")
 
+
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl")
 def test_conv2d_deeplabv3_1_257_257_32x1_1_32_16(target, dtype):
