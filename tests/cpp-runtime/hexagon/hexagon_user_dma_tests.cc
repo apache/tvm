@@ -57,9 +57,9 @@ TEST_F(HexagonUserDMATest, wait) {
   HexagonUserDMA::Get().Wait(10);
 }
 
-TEST_F(HexagonUserDMATest, poll) { ASSERT_EQ(HexagonUserDMA::Get().Poll(), 0); }
+TEST_F(HexagonUserDMATest, just_poll) { ASSERT_EQ(HexagonUserDMA::Get().Poll(), 0); }
 
-TEST_F(HexagonUserDMATest, bad_copy) {
+TEST_F(HexagonUserDMATest, copy) {
   uint64_t bigaddr = 0x100000000;
   void* src64 = reinterpret_cast<void*>(bigaddr);
   void* dst64 = reinterpret_cast<void*>(bigaddr);
@@ -83,16 +83,12 @@ TEST_F(HexagonUserDMATest, sync_dma) {
   }
 }
 
-TEST_F(HexagonUserDMATest, async_dma) {
+TEST_F(HexagonUserDMATest, async_dma_wait) {
   // kick off 10x duplicate DMAs
   for (uint32_t i = 0; i < 10; ++i) {
     ret = HexagonUserDMA::Get().Copy(dst, src, length);
     ASSERT_EQ(ret, DMA_SUCCESS);
   }
-
-  // verify at least 1 DMA in flight
-  // TODO: re-enable when CI runs on hardware - fails on simulator
-  // ASSERT_GT(HexagonUserDMA::Get().Poll(), 0);
 
   // wait for at least 1 DMA to complete
   HexagonUserDMA::Get().Wait(9);
@@ -101,6 +97,28 @@ TEST_F(HexagonUserDMATest, async_dma) {
   for (uint32_t i = 0; i < length; ++i) {
     ASSERT_EQ(src_char[i], dst_char[i]);
   }
+
+  // empty the DMA queue
+  HexagonUserDMA::Get().Wait(0);
+}
+
+TEST_F(HexagonUserDMATest, async_dma_poll) {
+  // kick off 10x duplicate DMAs
+  for (uint32_t i = 0; i < 10; ++i) {
+    ret = HexagonUserDMA::Get().Copy(dst, src, length);
+    ASSERT_EQ(ret, DMA_SUCCESS);
+  }
+
+  // poll until at least 1 DMA is complete
+  while (HexagonUserDMA::Get().Poll() == 10) {};
+
+  // verify
+  for (uint32_t i = 0; i < length; ++i) {
+    ASSERT_EQ(src_char[i], dst_char[i]);
+  }
+
+  // empty the DMA queue
+  HexagonUserDMA::Get().Wait(0);
 }
 
 // TODO: Run non-pipelined case with sync DMA and execution time vs. pipelined case

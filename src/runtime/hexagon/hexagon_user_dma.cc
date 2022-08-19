@@ -31,7 +31,6 @@ namespace runtime {
 namespace hexagon {
 
 unsigned int HexagonUserDMA::Init() {
-  // reset DMA engine
   unsigned int status = dmpause() & DM0_STATUS_MASK;
   return status;
 }
@@ -78,14 +77,7 @@ int HexagonUserDMA::Copy(void* dst, void* src, uint32_t length) {
   dma_desc_set_src(dma_desc, src32);
   dma_desc_set_dst(dma_desc, dst32);
 
-  // only for first DMA
   if (first_dma_) {
-    // reset DMA engine
-    auto status = Init();
-    if (status != DM0_STATUS_IDLE) {
-      return DMA_FAILURE;
-    }
-
     // `dmstart` first descriptor
     dmstart(dma_desc);
     first_dma_ = false;
@@ -124,8 +116,13 @@ uint32_t HexagonUserDMA::DMAsInFlight() {
   return dma_descriptors_.size() - oldest_dma_in_flight_;
 }
 
+HexagonUserDMA::HexagonUserDMA() {
+  // reset DMA engine
+  unsigned int status = Init();
+  CHECK_EQ(status, DM0_STATUS_IDLE);
+}
+
 HexagonUserDMA::~HexagonUserDMA() {
-  Init();  // reset DMA engine
   for (auto dma_desc : dma_descriptors_) {
     free(dma_desc);
   }

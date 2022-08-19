@@ -17,10 +17,10 @@
  * under the License.
  */
 
-#include <vector>
-
 #ifndef TVM_RUNTIME_HEXAGON_HEXAGON_USER_DMA_H_
 #define TVM_RUNTIME_HEXAGON_HEXAGON_USER_DMA_H_
+
+#include <vector>
 
 namespace tvm {
 namespace runtime {
@@ -60,14 +60,14 @@ class HexagonUserDMA {
   }
 
  private:
-  HexagonUserDMA() = default;
+  HexagonUserDMA();
   ~HexagonUserDMA();
   HexagonUserDMA(const HexagonUserDMA&) = delete;
   HexagonUserDMA& operator=(const HexagonUserDMA&) = delete;
   HexagonUserDMA(HexagonUserDMA&&) = delete;
   HexagonUserDMA& operator=(HexagonUserDMA&&) = delete;
 
-  //! \brief Initializes / resets the Hexagon User DMA engine
+  //! \brief Initializes the Hexagon User DMA engine
   unsigned int Init();
 
   //! \brief Calculates the number of DMAs in flight
