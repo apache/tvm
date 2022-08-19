@@ -120,6 +120,7 @@ We do encourage everyone to work anything they are interested in.
 - [Manupa Karunaratne](https://github.com/manupa-arm): @manupa-arm
 - [Elen Kalda](https://github.com/ekalda): @ekalda
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame
+- [Michael J. Klaiber](https://github.com/MichaelJKlaiber/) @MichaelJKlaiber
 - [Tristan Konolige](https://github.com/tkonolige): @tkonolige
 - [Denise Kutnick](https://github.com/denise-k): @denise-k
 - [Ruihang Lai](https://github.com/MasterJH5574): @MasterJH5574
