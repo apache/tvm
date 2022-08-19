@@ -178,17 +178,22 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const Target& target) {
 
   if (const Optional<Array<String>>& v = target->GetAttr<Array<String>>("cl-opt")) {
     llvm::StringMap<llvm::cl::Option*>& options = llvm::cl::getRegisteredOptions();
+    bool parse_error = false;
     for (const String& s : v.value()) {
       Option opt = ParseOptionString(s);
       if (opt.type == Option::OptType::Invalid) {
+        parse_error = true;
         continue;
       }
       if (options.count(opt.name)) {
         llvm_options_.push_back(opt);
       } else {
-        LOG(WARNING) << "\"" << opt.name << "\" is not an LLVM option, option ignored";
+        // Flag an error, but don't abort. LLVM flags may change, and this would
+        // give the code a chance to run even if the option no longer applies.
+        LOG(ERROR) << "\"" << opt.name << "\" is not an LLVM option, option ignored";
       }
     }
+    ICHECK(!parse_error) << "there were errors parsing command-line options";
   }
 
   llvm::FloatABI::ABIType float_abi = llvm::FloatABI::Default;
@@ -465,7 +470,7 @@ LLVMTargetInfo::Option LLVMTargetInfo::ParseOptionString(const std::string& str)
   if (part_this < part_end) {
     auto& p = parts[part_this++];
     if ((p.size() != 1 && p.size() != 2) || p.find_first_not_of('-') != std::string::npos) {
-      LOG(WARNING) << warn_header << "option must start with \"-\" or \"--\"" << warn_ignored;
+      LOG(ERROR) << warn_header << "option must start with \"-\" or \"--\"" << warn_ignored;
       return opt;
     }
   }
@@ -474,7 +479,7 @@ LLVMTargetInfo::Option LLVMTargetInfo::ParseOptionString(const std::string& str)
   if (part_this < part_end) {
     auto& p = parts[part_this++];
     if (p.empty()) {
-      LOG(WARNING) << warn_header << "option name must not be empty" << warn_ignored;
+      LOG(ERROR) << warn_header << "option name must not be empty" << warn_ignored;
       return opt;
     }
     opt.name = std::move(p);
@@ -504,7 +509,7 @@ LLVMTargetInfo::Option LLVMTargetInfo::ParseOptionString(const std::string& str)
       }
       // If there was ":", there must be a type.
       if (type == Option::OptType::Invalid) {
-        LOG(WARNING) << warn_header << "invalid type" << warn_ignored;
+        LOG(ERROR) << warn_header << "invalid type" << warn_ignored;
         return opt;
       }
     }
@@ -523,7 +528,7 @@ LLVMTargetInfo::Option LLVMTargetInfo::ParseOptionString(const std::string& str)
       }
     } else {
       // If there are still any parts left to be processed, there must be "=".
-      LOG(WARNING) << warn_header << "expecting \"=\"" << warn_ignored;
+      LOG(ERROR) << warn_header << "expecting \"=\"" << warn_ignored;
       return opt;
     }
   }
@@ -568,8 +573,8 @@ LLVMTargetInfo::Option LLVMTargetInfo::ParseOptionString(const std::string& str)
     if (type == Option::OptType::Int || type == Option::OptType::UInt) {
       auto v = to_integer(value.value());
       if (!v.has_value()) {
-        LOG(WARNING) << warn_header << "invalid integer value \"" << value.value() << "\""
-                     << warn_ignored;
+        LOG(ERROR) << warn_header << "invalid integer value \"" << value.value() << "\""
+                   << warn_ignored;
         return opt;
       }
       if (type == Option::OptType::Int) {
@@ -590,8 +595,8 @@ LLVMTargetInfo::Option LLVMTargetInfo::ParseOptionString(const std::string& str)
       // "type" is either Bool (given explicitly) or Invalid (type not present in string)
       auto v = to_boolean(value.value());
       if (!v.has_value()) {
-        LOG(WARNING) << warn_header << "invalid boolean value \"" << value.value() << "\""
-                     << warn_ignored;
+        LOG(ERROR) << warn_header << "invalid boolean value \"" << value.value() << "\""
+                   << warn_ignored;
         return opt;
       }
       opt.value.b = v.value();
@@ -603,7 +608,7 @@ LLVMTargetInfo::Option LLVMTargetInfo::ParseOptionString(const std::string& str)
       opt.value.b = true;
       type = Option::OptType::Bool;
     } else {
-      LOG(WARNING) << warn_header << "must have a value" << warn_ignored;
+      LOG(ERROR) << warn_header << "must have a value" << warn_ignored;
       return opt;
     }
   }
