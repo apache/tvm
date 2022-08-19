@@ -1012,7 +1012,7 @@ class Schedule(Object):
 
     @type_checked
     def cache_read(
-        self, block: Union[BlockRV, str], read_buffer_index: int, storage_scope: str, consumer_blocks: Optional[List[BlockRV]] = None 
+        self, block: Union[BlockRV, str], read_buffer_index: int, storage_scope: str, consumer_blocks: Optional[List[Union[BlockRV, str]]] = None 
     ) -> BlockRV:
         """Create a block that reads a buffer region into a read cache. It requires:
 
@@ -1031,7 +1031,7 @@ class Schedule(Object):
         storage_scope: str
             The target storage scope.
 
-        consumer_blocks: Optional[List[BlockRV]]
+        consumer_blocks: Optional[List[Union[BlockRV, str]]]
             An optional list of consumers that should read from the cache. If not specified,
             all consumers will use the cache.
 
@@ -1088,6 +1088,8 @@ class Schedule(Object):
         if isinstance(consumer_blocks, BlockRV):
             consumer_blocks = [consumer_blocks]
 
+        # Convert any string block names into Block RVs.
+        consumer_blocks = [self._normalize_block_arg(b) for b in consumer_blocks]
         block = self._normalize_block_arg(block)
         return _ffi_api.ScheduleCacheRead(  # type: ignore # pylint: disable=no-member
             self, block, read_buffer_index, storage_scope, consumer_blocks

@@ -287,8 +287,8 @@ BlockRV TracedScheduleNode::CacheRead(const BlockRV& block_rv, int read_buffer_i
 
   static const InstructionKind& kind = InstructionKind::Get("CacheRead");
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
-                                      /*inputs=*/{block_rv},
-                                      /*attrs=*/{Integer(read_buffer_index), storage_scope, consumer_blocks},
+                                      /*inputs=*/{block_rv, consumer_blocks},
+                                      /*attrs=*/{Integer(read_buffer_index), storage_scope},
                                       /*outputs=*/{result}));
   return result;
 }

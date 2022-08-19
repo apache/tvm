@@ -76,7 +76,7 @@ struct CacheStageInfo {
   /*! \brief The map used for ScheduleStateNode::Replace. */
   Map<Block, Block> block_reuse;
   /*! \brief A list of blocks that will consume the new cache. */
-  Array<BlockRV> consumer_blocks;
+  Array<StmtSRef> consumer_blocks;
 };
 
 /*! \brief Return the buffer region realted with the buffer */
@@ -529,17 +529,18 @@ class CacheReadRewriter : public StmtExprMutator {
     Block old_stmt = GetRef<Block>(block);
     // Check if this block is one of the specified consumers.
     // If no consumer blocks are specified, all blocks should be considered consumers.
-    bool is_consumer = !info_->consumer_blocks.empty();
+    bool is_consumer = info_->consumer_blocks.empty();
     // Otherwise check if this is one of the specified blocks.
-    std::cout << "Block: " << old_stmt << std::endl;
-    for (BlockRV consumer : info_->consumer_blocks) {
-      std::cout << "Consumer: " << consumer << std::endl;
-      std::cout << "Same: " << old_stmt.same_as(consumer) << std::endl;
-      if (old_stmt.same_as(consumer)) {
+    for (StmtSRef consumer_sref : info_->consumer_blocks) {
+      const BlockNode* consumer_node = TVM_SREF_TO_BLOCK(consumer_node, consumer_sref);
+      Block consumer_block = GetRef<Block>(consumer_node);
+      if (old_stmt.same_as(consumer_block)) {
         is_consumer = true;
       }
     }
-    // We don't mutate the block which generates info->read_buffer
+    // Keep track of this blocks status. We'll use this when rewriting loads.
+    current_block_consumes = is_consumer;
+    // We don't mutate the block which generates info->read_buffer.
     if (block != scope_sref_->stmt &&
         GetBufferRegionFromBuffer(block->writes, info_->read_buffer).defined()) {
       return std::move(old_stmt);
@@ -580,7 +581,7 @@ class CacheReadRewriter : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* load) final {
-    if (load->buffer.same_as(info_->read_buffer)) {
+    if (load->buffer.same_as(info_->read_buffer) && current_block_consumes) {
       ObjectPtr<BufferLoadNode> n = make_object<BufferLoadNode>(*load);
       n->buffer = info_->write_buffer;
       return PrimExpr(n);
@@ -605,6 +606,8 @@ class CacheReadRewriter : public StmtExprMutator {
   const StmtSRef& scope_sref_;
   /*! \brief The info for inserting cache stage */
   CacheStageInfo* info_;
+  /*! \brief Whether the most recently visited block is a specified consumer. */
+  bool current_block_consumes;
 };
 
 /*! \brief Mutator for CacheWrite */
@@ -980,7 +983,7 @@ class ReIndexRewriter : public StmtExprMutator {
 /******** Implementation ********/
 
 StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buffer_index,
-                   const String& storage_scope, const Array<BlockRV> consumer_blocks) {
+                   const String& storage_scope, const Array<StmtSRef> consumer_blocks) {
   /*!
    * Check:
    *   - The index is in the array of block reading region
@@ -1189,22 +1192,22 @@ struct CacheReadTraits : public UnpackedInstTraits<CacheReadTraits> {
   static constexpr bool kIsPure = false;
 
  private:
-  static constexpr size_t kNumInputs = 1;
-  static constexpr size_t kNumAttrs = 3;
+  static constexpr size_t kNumInputs = 2;
+  static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
-  static BlockRV UnpackedApplyToSchedule(Schedule sch, BlockRV block, Integer read_buffer_index,
-                                         String storage_scope, Array<BlockRV> consumer_blocks) {
+  static BlockRV UnpackedApplyToSchedule(Schedule sch, BlockRV block, Array<BlockRV> consumer_blocks, Integer read_buffer_index,
+                                         String storage_scope) {
     return sch->CacheRead(block, read_buffer_index->value, storage_scope, consumer_blocks);
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String block, Integer read_buffer_index,
-                                 String storage_scope, Array<String> consumer_blocks) {
+  static String UnpackedAsPython(Array<String> outputs, String block, Array<String> consumer_blocks ,
+                                 Integer read_buffer_index, String storage_scope) {
     PythonAPICall py("cache_read");
     py.Input("block", block);
     py.Input("read_buffer_index", read_buffer_index->value);
     py.Input("storage_scope", storage_scope);
-    py.Input("consumer_blocks", consumer_blocks);
+    py.Input("consumer_block", consumer_blocks);
     py.SingleOutput(outputs);
     return py.Str();
   }

@@ -254,7 +254,7 @@ TVM_DLL void Unroll(ScheduleState self, const StmtSRef& loop_sref);
  * \return The cache stage block.
  */
 TVM_DLL StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buffer_index,
-                           const String& storage_scope, const Array<BlockRV> consumer_blocks = {});
+                           const String& storage_scope, const Array<StmtSRef> consumer_blocks = {});
 /*!
  * \brief Create a block that writes a buffer region into a write cache. It requires:
  * 1) There is only one block that writes the target buffer.
