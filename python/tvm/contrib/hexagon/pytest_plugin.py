@@ -57,6 +57,7 @@ requires_hexagon_toolchain = tvm.testing.requires_hexagon(support_required="comp
 
 
 def android_serial_number() -> Optional[str]:
+    """Return the android serial number or simulator"""
     serial = os.getenv(ANDROID_SERIAL_NUMBER, default="")
     # Setting ANDROID_SERIAL_NUMBER to an empty string should be
     # equivalent to having it unset.
