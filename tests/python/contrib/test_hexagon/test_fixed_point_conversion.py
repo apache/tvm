@@ -22,7 +22,7 @@ import tvm.topi.hexagon.utils as utils
 
 """
 Test float to fixed-point conversion. We do it by constructing a numpy array with the
-wide range of floating-point values. These values are converted into the 
+wide range of floating-point values. These values are converted into the
 fixed-point value using topi.hexagon.utils.get_fixed_point_value. Then, these values are
 converted back into float using scale_factor provided by the function. These converted
 floating point values are then compared against the original values and an assertion is

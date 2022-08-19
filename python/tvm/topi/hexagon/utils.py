@@ -229,7 +229,11 @@ def get_fixed_point_value(flp: float, dtype: str = "int16") -> Tuple[int, int]:
 
     Additonal notes on various floating-point values:
     ------------------------------------------------
-    1) Denormalized values: Can't be represented as fixed-point - causes assertion failure
+    1) Denormalized values: causes assertion failure. The problem with the denormalized values
+        is that they require a very large scale factor (>= 2^127) to be converted to a fixed-point
+        value. As the denormalzied values get smaller, the scale factor becomes too large to be
+        represented as a IEEE-754 floating point value (as being done in the computaton below)
+        and therefore, the denormalized values aren't being handled here.
     2) NaN and INF: assertion failure
     """
 
@@ -240,14 +244,16 @@ def get_fixed_point_value(flp: float, dtype: str = "int16") -> Tuple[int, int]:
 
     # Make sure that 'flp' isn't NaN or infinity
     if math.isnan(flp) or math.isinf(flp):
-        raise RuntimeError("Can not handle NaN or INF")
+        raise RuntimeError("NaN or INF can not be represented as fixed-point")
 
     flp_f = struct.pack("f", flp)
     flp_i = struct.unpack("I", flp_f)
     exp_stored_value = (flp_i[0] >> 23) & 0xFF
 
     if exp_stored_value == 0:
-        raise RuntimeError("Can not handle denormalized values")
+        raise RuntimeError(
+            "Denormalized values are not considered for float -> fixed-point conversion!"
+        )
 
     exp_value = ((flp_i[0] >> 23) & 0xFF) - 127
     if dtype == "int16":
