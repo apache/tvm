@@ -38,8 +38,14 @@ class TestFixedPointConversion:
         fp3 = np.random.uniform(1, 20, size=(10))
         fp4 = np.random.uniform(900, 1000, size=(10))
         fp5 = np.random.uniform(1e9, 1e10, size=(10))
-        fp6 = np.random.uniform(2.44885652993e38, 2.54885652993e38, size=(1))
-        fp7 = np.random.uniform(1.46711479073e-34, 1.76098837843e-34, size=(1))
+
+        # Test for values with largest possible exponent as per IEEE-754 floating-point
+        # standard (actual exp value = 127, stored exp value = 254).
+        fp6 = np.random.uniform(2.4e38, 2.5e38, size=(1))
+
+        # Test for very small floating-point values.
+        fp7 = np.random.uniform(1.4e-34, 1.7e-34, size=(1))
+
         float_arr = np.concatenate((fp1, fp2, fp3, fp4, fp5, fp6, fp7))
         for flp in float_arr:
             fxp, rsh = utils.get_fixed_point_value(flp, "int16")
