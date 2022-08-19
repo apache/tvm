@@ -283,7 +283,7 @@ class Device(ctypes.Structure):
     def warp_size(self):
         """Number of threads that execute concurrently.
 
-        Returns device value for for cuda, rocm, and vulkan.  Returns
+        Returns device value for cuda, rocm, and vulkan.  Returns
         1 for metal and opencl devices, regardless of the physical
         device.  Returns remote device value for RPC devices.  Returns
         None for all other devices.

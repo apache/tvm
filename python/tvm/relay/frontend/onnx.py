@@ -2018,7 +2018,7 @@ class Slice(OnnxOpConverter):
 
 
 def normalize_gather_indices(data, indices, axis):
-    """Make sure gather indicies aren't negative"""
+    """Make sure gather indices aren't negative"""
     ind_dtype = infer_type(indices).checked_type.dtype
     # Normalize the indices to a positive range
     s = _op.take(_op.shape_of(data, dtype=ind_dtype), _op.const(axis, dtype="int64"))

@@ -4415,9 +4415,7 @@ def test_topk(target, dev):
         output_dims = list(input_dims)
         output_dims[axis] = k
 
-        node = helper.make_node(
-            "TopK", inputs=["X", "K"], outputs=["Values", "Indicies"], axis=axis
-        )
+        node = helper.make_node("TopK", inputs=["X", "K"], outputs=["Values", "Indices"], axis=axis)
 
         graph = helper.make_graph(
             [node],
@@ -4434,7 +4432,7 @@ def test_topk(target, dev):
             ],
             outputs=[
                 helper.make_tensor_value_info("Values", TensorProto.FLOAT, output_dims),
-                helper.make_tensor_value_info("Indicies", TensorProto.INT64, output_dims),
+                helper.make_tensor_value_info("Indices", TensorProto.INT64, output_dims),
             ],
         )
 
@@ -4472,7 +4470,7 @@ def test_roi_align(target, dev):
 
         node = helper.make_node(
             "RoiAlign",
-            inputs=["X", "rois", "batch_indicies"],
+            inputs=["X", "rois", "batch_indices"],
             outputs=["Y"],
             mode=mode,
             output_height=output_height,
@@ -4488,7 +4486,7 @@ def test_roi_align(target, dev):
                 helper.make_tensor_value_info("X", TensorProto.FLOAT, list(input_dims)),
                 helper.make_tensor_value_info("rois", TensorProto.FLOAT, [num_roi, 4]),
                 helper.make_tensor_value_info(
-                    "batch_indicies",
+                    "batch_indices",
                     TensorProto.INT64,
                     [
                         num_roi,
@@ -4502,11 +4500,11 @@ def test_roi_align(target, dev):
 
         np_data = np.random.uniform(size=input_dims).astype("float32")
         np_rois = np.random.uniform(size=[num_roi, 4]).astype("float32") * input_dims[2]
-        np_batch_indicies = np.random.randint(low=0, high=input_dims[0], size=num_roi)
+        np_batch_indices = np.random.randint(low=0, high=input_dims[0], size=num_roi)
 
         verify_with_ort_with_inputs(
             model,
-            [np_data, np_rois, np_batch_indicies],
+            [np_data, np_rois, np_batch_indices],
             out_shape=[output_dims],
             target=target,
             dev=dev,

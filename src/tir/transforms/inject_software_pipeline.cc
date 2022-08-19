@@ -202,7 +202,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
    * \param buffer_remap The map from original buffer to the buffer with updated shape for
    *        multi-versioning in the software pipeline.
    * \param pipeline_loop The original loop to be software pipelined.
-   * \param access_all_versions Whether all versions the the buffers in the software pipeline are
+   * \param access_all_versions Whether all versions the buffers in the software pipeline are
    *        accessed. This will be used to update block access region. In the prologue and epilogue
    *        of a two-stage software pipeline, only one version of these buffers are accessed.
    * \param fragment_info Information about tensor core fragment
