@@ -17,7 +17,10 @@
 """
 Wrap Your TVMscript with PyTorch Module
 ======================
-**Author**: `Yaoda Zhou <https://github.com/juda/>`_
+**Author**: 
+`Yaoda Zhou <https://github.com/juda>`_,
+`Masahiro Masuda <https://github.com/masahi>`_
+
 This article is an introductory tutorial on wrapping the TVMscript code with the PyTorch module.
 By the decorator `as_torch`, users can wrap a TVMscript code into a PyTorch nn.Module naturally.
 """
@@ -40,16 +43,15 @@ from tvm.script import tir as T
 ######################################################################
 # Write your own PyTorch operator by TVMscript
 # -------------------------------
-# PyTorch is a very popular machine learning framework in which
-# it highly optimizes most commonly used operators.
-# Nevertheless, sometimes you might want to write your own operators
-# in PyTorch, but the performance could be not satisfactory.
+# PyTorch is a very popular machine learning framework which contains
+# optimized implementations of most commonly used operators.
+# Nevertheless, sometimes you might want to write your own operators in PyTorch.
+# In that case, the performance of such custom operators might not be satisfactory for your needs.
 #
-# For example, assume you are writing a variance of MobileNet,
-# and you need to define a 1-d depthwise convolution operator.
-# Assume the number of in_channel and out_channel are both 700,
-# the width is 800 and the kernel size is 50,
-# then the 1-d depthwise conv could be written by PyTorch in one line:
+# One of the examples is to define a 1-d depthwise convolution operator.
+# Assume the number of in_channel and out_channel are both 70,
+# the width is 80 and the kernel size is 20,
+# then the 1-d depthwise conv could be written in PyTorch in one line:
 
 in_channel = 70
 out_channel = 70
@@ -58,8 +60,6 @@ kernel_size = 20
 
 
 def torch_depthwise(inputs, filters):
-    global out_channel
-    global kernel_size
     return F.conv1d(inputs, filters.view(out_channel, 1, kernel_size), groups=out_channel)
 
 
@@ -69,7 +69,7 @@ inputs = torch.randn(in_channel, width)
 filters = torch.randn(out_channel, kernel_size)
 ret_torch = torch_depthwise(inputs, filters)
 
-# The `torch_depthwise` function, in a plain python code, could be written as:
+# The `torch_depthwise` function, in a plain Python code, could be written as:
 
 
 def vanilla_depthwise(input, weight):
@@ -81,48 +81,50 @@ def vanilla_depthwise(input, weight):
     return ret
 
 
-# We plan to optimize the `depthwise` function by leveraging the power of TVMscript.
-# Firstly, we can write such a simple python code:
+# Then, we plan to optimize the `depthwise` function by leveraging the power of TVM.
+# TVM community proposes an embedded Domain Specific Language on Python call TVMscript,
+# which serves for an abstraction of program on various hardware backends.
+
+# As a concrete example, we can write such a TVMscript for 1-d depthwise conv code as below.
+# The computation procedure of `tvm_depthwise` is corresponding to the code snippet of `vanilla_depthwise`.
+
+# In our `tvm_depthwise` function, both inputs and outputs are set to be function parameters
+# that held on the multi-dimension buffers. For each buffer, the shape and data type information are required.
+# In the function body, there is a syntactic sugar `T.grid` for writing multiple nested iterators.
+# In the body of the loop, each computation is wrapped in an additional construct named `T.block`.
+# A block is a basic unit of computation. Inside the block, we need to provide a few more information about the block axes.
+# Here, 2 spatial and 1 reduce block iterators are created and bound to the loop iterators i, j and k.
+# The computations and machine learning compilation analysis will be defined around them.
+# The last 3 lines are computation statements, including an initialization of `C[vj, vi]` and the summing up along the axis k.
+# Finally, we place 2 decorators `T.prim_func` and `as_torch` above the definition of function,
+# which converts the Python AST to TVMscript AST and then converts to PyTorch's `nn.Module`.
 
 
 @as_torch
-def tvm_depthwise_initializer(Channels: int, Width: int, Kernel: int, Output: int, dtype: str):
-    @T.prim_func
-    def f(a: T.handle, b: T.handle, c: T.handle) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        A = T.match_buffer(a, (Channels, Width), dtype)
-        B = T.match_buffer(b, (Channels, Kernel), dtype)
-        C = T.match_buffer(c, (Channels, Output), dtype)
-        for j, i, k in T.grid(Channels, Output, Kernel):
-            with T.block():
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
-                    C[vj, vi] = T.float32(0)
-                C[vj, vi] += B[vj, vk] * A[vj, vi + vk]
-
-    return f
+@T.prim_func
+def tvm_depthwise(
+    A: T.Buffer((70, 80), "float32"),
+    B: T.Buffer((70, 20), "float32"),
+    C: T.Buffer((70, 61), "float32"),
+) -> None:
+    for j, i, k in T.grid(70, 61, 20):
+        with T.block():
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                C[vj, vi] = T.float32(0)
+            C[vj, vi] += B[vj, vk] * A[vj, vi + vk]
 
 
-# Then we fill out the parameters and generate the TVMscript program.
-
-tvm_depthwise = tvm_depthwise_initializer(
-    out_channel, width, kernel_size, width - kernel_size + 1, "float32"
-)
-
-# We can tune the TVMscript code by providing a target device.
-# The model will deploy on CPU, and the optimization (e.g. tiling) will conduct automatically.
+# We can build the TVMscript code by calling the `tune` method.
+# Without providing more information, the model will be tuned for CPU.
 
 tvm_depthwise.tune()
 
-# We can print out the tuned TVMscript code, as
+# We can print out the tuned TVMscript code to see how the program is transformed, as
 
 print(tvm_depthwise.script())
 
-# Hint: If user plan to deploy on GPU, the GPU target should be provided,
-# and all the PyTorch tensors should convert into GPU version.
-# The thread bindings will be added automatically.
-
-# We can verify that the two functions are the same:
+# We can verify that the two outputs are the same:
 
 ret_tvm = torch.zeros(out_channel, width - kernel_size + 1)
 tvm_depthwise(inputs, filters, ret_tvm)
@@ -165,6 +167,6 @@ for i in range(5):
 compare = benchmark.Compare(results)
 compare.print()
 
-# In the working machine, the average inference time of `tvm_depthwise` is 120.0 us (TVM version is 0.9.0),
-# while the average inference time of `torch_depthwise` is 210.0 us (PyTorch version is 1.11.0),
-# showing the performance arises by around 43%.
+# In author's environment, the average inference time of `tvm_depthwise` is 120.0 us (TVM version is 0.9.0),
+# while the average inference time of `torch_depthwise` is 196.0 us (PyTorch version is 1.11.0),
+# showing the speedup of around 38%.
