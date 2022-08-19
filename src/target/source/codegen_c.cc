@@ -754,7 +754,7 @@ void CodeGenC::VisitStmt_(const BufferStoreNode* op) {
       // be reused across multiple expression, thus a new scope is needed
       int vec_scope = BeginScope();
 
-      // store elements seperately
+      // store elements separately
       std::string index = SSAGetID(PrintExpr(index_expr), index_expr.dtype());
       std::string value = SSAGetID(PrintExpr(op->value), op->value.dtype());
       std::string vid = GetVarID(buffer_var.get());

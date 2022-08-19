@@ -213,7 +213,7 @@ Stmt CommonSubexpressionEliminator::PerformCSE(const Stmt& stmt, const Context& 
 
 /*!
  * \brief Protected constructor of CommonSubexpressionEliminator.
- * \param context_init The context at the begining of the CSE pass. It should contain the
+ * \param context_init The context at the beginning of the CSE pass. It should contain the
                         formal parameters of the function that will be analyzed
  */
 CommonSubexpressionEliminator::CommonSubexpressionEliminator(const Stmt& stmt,
@@ -278,7 +278,7 @@ PrimExpr CommonSubexpressionEliminator::VisitExpr(const PrimExpr& expr) {
     // Case where we have a perfectly equivalent computation already available in a variable
     // introduced (i.e, present in context_).
     // Note that this case is needed when the user has written something like
-    // [let x = A in ....A...A...] : we need to be able to replace all the occurences of A by
+    // [let x = A in ....A...A...] : we need to be able to replace all the occurrences of A by
     // an already existing variable holding A, when such a variable happens to exist.
     if (it_on_var != context_.end()) {
       // Replace in the current `result` everything that is selected by the selector with
@@ -458,7 +458,7 @@ Stmt CommonSubexpressionEliminator::VisitStmt(const Stmt& stmt) {
     // Case where we have a perfectly equivalent computation already available in a variable
     // introduced (i.e, present in context_).
     // Note that this case is needed when the user has written something like
-    // [let x = A in ....A...A...] : we need to be able to replace all the occurences of A by
+    // [let x = A in ....A...A...] : we need to be able to replace all the occurrences of A by
     // an already existing variable holding A, when such a variable happens to exist.
     if (it_on_var != context_.end()) {
       // Replace in the current `result` everything that is selected by the selector with
