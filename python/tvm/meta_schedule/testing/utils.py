@@ -16,7 +16,7 @@
 # under the License.
 """Testing utility functions in meta schedule"""
 from typing import Callable, Dict, Optional, Union
-from tvm.ir import IRModule
+from tvm.ir import IRModule, transform
 from tvm.relay import Function as RelayFunc
 from tvm.runtime import NDArray
 from tvm.target import Target
@@ -59,11 +59,16 @@ def apply_fixed_schedules(
         The database containing dummy tuning records for manually scheduled traces.
     """
     target = Target(target) if isinstance(target, str) else target
+    config = {"relay.backend.use_meta_schedule": True}
+    for k, v in transform.PassContext.current().config.items():
+        config[k] = v
+
     extracted_tasks = ms.extract_task_from_relay(
         relay_mod,
         target,
         params,
         te_filter_func=te_filter_func,
+        pass_config=config
     )
     database = ms.database.MemoryDatabase()
     for task in extracted_tasks:

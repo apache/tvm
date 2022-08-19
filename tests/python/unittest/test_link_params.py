@@ -406,7 +406,7 @@ def test_tir_link_params():
     relay_mod = relay.transform.InferType()(relay_mod)
     data_np = np.random.randn(*data_shape).astype("float32")
     weight_np = np.random.randn(*weight_shape).astype("float32")
-    target = "llvm --link-params=1"
+    target = "llvm"
     params = {"weight": weight_np}
 
     def schedule_fn(task, sch):
@@ -415,7 +415,10 @@ def test_tir_link_params():
             return True
         return False
 
-    database = apply_fixed_schedules(relay_mod, target, params, schedule_fn)
+    link_params = True
+
+    with tvm.transform.PassContext(config={"relay.FuseOps.link_params": link_params}):
+        database = apply_fixed_schedules(relay_mod, target, params, schedule_fn)
 
     with StringIO() as stderr_buf, redirect_stderr(stderr_buf):
         with ms.ApplyHistoryBest(database):
@@ -423,9 +426,10 @@ def test_tir_link_params():
                 opt_level=3,
                 config={"relay.backend.use_meta_schedule": True},
             ):
-                lib = relay.build(relay_mod, target=target)
+                executor = Executor("graph", {"link-params":link_params})
+                lib = relay.build(relay_mod, target=target, executor=executor)
 
-        # Workload look up should succeed
+        # Workload look up should succeed. This does not work when the test is invoked from pytest.
         assert not "Cannot find workload" in stderr_buf.getvalue()
 
     dev = tvm.device(target, 0)

@@ -44,13 +44,6 @@ Array<meta_schedule::ExtractedTask> ExtractTask(
   Array<Pass> pass_seqs = relay::backend::GetPassPrefix(/*is_homogenous=*/true, /*is_vm=*/true);
   pass_seqs.push_back(transform::FuseOps());
 
-  if (auto link_params_obj = target->attrs.Get("link-params")) {
-    ICHECK(link_params_obj.as<IntImmNode>());
-    int link_params = link_params_obj.as<IntImmNode>()->value;
-    auto ctx = transform::PassContext::Current();
-    ctx->config.Set("relay.FuseOps.link_params", IntImm(DataType::Int(32), link_params));
-  }
-
   mod = transform::Sequential(pass_seqs)(std::move(mod));
 
   std::vector<ExtractedTask> tasks;
