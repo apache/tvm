@@ -92,7 +92,7 @@ class TargetKindNode : public Object {
   /*! \brief Name of the target kind */
   String name;
   /*! \brief Device type of target kind */
-  int device_type;
+  int default_device_type;
   /*! \brief Default keys of the target */
   Array<String> default_keys;
   /*! \brief Function used to preprocess on target creation */
@@ -102,7 +102,7 @@ class TargetKindNode : public Object {
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
-    v->Visit("device_type", &device_type);
+    v->Visit("default_device_type", &default_device_type);
     v->Visit("default_keys", &default_keys);
   }
 
@@ -364,7 +364,7 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_attr(const String& attr_name,
 }
 
 inline TargetKindRegEntry& TargetKindRegEntry::set_device_type(int device_type) {
-  kind_->device_type = device_type;
+  kind_->default_device_type = device_type;
   return *this;
 }
 
@@ -470,7 +470,8 @@ constexpr const char* kRelayToTIR = "RelayToTIR";
           .add_attr_option<String>("model")                       \
           .add_attr_option<Array<String>>("libs")                 \
           .add_attr_option<Target>("host")                        \
-          .add_attr_option<Integer>("from_device")
+          .add_attr_option<Integer>("from_device")                \
+          .add_attr_option<Integer>("target_device_type")
 
 }  // namespace tvm
 
