@@ -40,6 +40,8 @@ class HexagonThreadManagerTest : public ::testing::Test {
   const unsigned stack_size{0x4000};  // 16KB
 };
 
+TEST_F(HexagonThreadManagerTest, force_fail) { ASSERT_EQ(42, 43); }
+
 TEST_F(HexagonThreadManagerTest, ctor_errors) {
   // zero threads
   ASSERT_THROW(HexagonThreadManager(0, stack_size, pipe_size), InternalError);
