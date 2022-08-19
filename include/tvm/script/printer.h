@@ -24,6 +24,7 @@
 
 namespace tvm {
 namespace script {
+namespace printer {
 
 /*!
  * \brief Print IR graph as TVMScript code
@@ -38,7 +39,7 @@ namespace script {
  *
  * \return the TVMScript code as string.
  */
-String AsScript(                                      //
+String Script(                                        //
     const ObjectRef& root_node,                       //
     String ir_name,                                   //
     Map<String, String> ir_prefix,                    //
@@ -48,6 +49,7 @@ String AsScript(                                      //
     Optional<ObjectPath> path_to_underline = NullOpt  //
 );
 
+}  // namespace printer
 }  // namespace script
 }  // namespace tvm
 

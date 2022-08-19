@@ -19,4 +19,3 @@
 from . import tir
 
 from .parser import ir_module, from_source
-from .as_script import as_script

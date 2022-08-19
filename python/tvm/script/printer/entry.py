@@ -20,13 +20,13 @@ This file contains the entry point of TVMScript Unified Printer.
 
 from typing import Dict, Optional
 
-from tvm.runtime.object_path import ObjectPath
+from tvm.runtime import Object, ObjectPath
 
 from . import _ffi_api
 
 
-def as_script(
-    root_node,
+def script(  # pylint: disable=too-many-arguments
+    root_node: Object,
     ir_name: str,
     ir_prefix: Dict[str, str],
     indent_spaces: int = 4,
@@ -34,7 +34,33 @@ def as_script(
     num_context_lines: int = -1,
     path_to_underline: Optional[ObjectPath] = None,
 ) -> str:
-    return _ffi_api.AsScript(
+    """
+    Print IR graph as TVMScript code
+
+    Parameters
+    ----------
+    root_node : Object
+        The root node to print.
+    ir_name : str
+        The dispatch token of the target IR, e.g., "tir", "relax".
+    ir_prefix : Dict[str, str]
+        The symbol name for TVMScript IR namespaces. For example,
+        {"tir": "T"}.
+    indent_spaces : int
+        The number of indent spaces to use in the output
+    print_line_numbers: bool
+        Whether to print line numbers
+    num_context_lines : Optional[int]
+        Number of context lines to print around the underlined text
+    path_to_underline : Optional[ObjectPath]
+        Object path to be underlined
+
+    Returns
+    -------
+    script : str
+        The TVMScript code of the root_node
+    """
+    return _ffi_api.Script(
         root_node,
         ir_name,
         ir_prefix,

@@ -17,7 +17,7 @@
 import pytest
 
 from tvm.error import TVMError
-from tvm.script import as_script
+from tvm.script.printer import script
 from tvm.tir import FloatImm
 
 
@@ -25,6 +25,6 @@ def test_as_script_unknown_ir():
     ir_node = FloatImm("float32", 1.0)
 
     with pytest.raises(TVMError) as e:
-        as_script(ir_node, "test_xyz", {})
+        script(ir_node, "test_xyz", {})
 
     assert "test_xyz" in str(e.value)

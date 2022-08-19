@@ -26,10 +26,9 @@
 
 namespace tvm {
 namespace script {
+namespace printer {
 
-using namespace printer;
-
-String AsScript(                            //
+String Script(                              //
     const ObjectRef& root_node,             //
     String ir_name,                         //
     Map<String, String> ir_prefix,          //
@@ -48,7 +47,8 @@ String AsScript(                            //
                            path_to_underline);
 }
 
-TVM_REGISTER_GLOBAL("script.AsScript").set_body_typed(&AsScript);
+TVM_REGISTER_GLOBAL("script.printer.Script").set_body_typed(&Script);
 
+}  // namespace printer
 }  // namespace script
 }  // namespace tvm
