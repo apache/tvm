@@ -24,8 +24,10 @@ import tvm
 from tvm import relay
 from tvm.testing import requires_ethosn
 from tvm.relay.op.contrib.ethosn import ConvertEquivalents
+from tvm.relay import ExprVisitor
 
 from . import infrastructure as tei
+from .test_addition import _get_addition_qnn_params
 
 
 def _assert_structural_equal(a, b):
@@ -36,35 +38,6 @@ def _assert_structural_equal(a, b):
         "graph."
     )
     assert tvm.ir.structural_equal(a, b), reason
-
-
-def _create_npu_module(inputs, expr, composite_name, ext_func_name):
-    """Wraps an operator as an NPU module."""
-    gen_vars = lambda prefix, vars: [
-        relay.var(
-            prefix + var.name_hint, shape=var.type_annotation.shape, dtype=var.type_annotation.dtype
-        )
-        for var in vars
-    ]
-
-    mod = tvm.ir.IRModule()
-
-    func = relay.Function(relay.analysis.free_vars(expr), expr)
-    func = func.with_attr("Composite", composite_name)
-    inner_vars = gen_vars("inner_", inputs)
-    call = relay.Call(func, inner_vars)
-
-    func2 = relay.Function(relay.analysis.free_vars(call), call)
-    func2 = func2.with_attr("Compiler", "ethos-n")
-    func2 = func2.with_attr("global_symbol", ext_func_name)
-    mod[ext_func_name] = func2
-    mod = relay.transform.InferType()(mod)
-
-    outer_vars = gen_vars("outer_", inputs)
-    out = relay.Call(mod.get_global_var(ext_func_name), outer_vars)
-    mod["main"] = relay.Function(relay.analysis.free_vars(out), out)
-    mod = relay.transform.InferType()(mod)
-    return mod
 
 
 @requires_ethosn
@@ -101,7 +74,8 @@ def test_multiply_to_depthwise(dtype, shape, channels, reverse_inputs):
             relay.const(output_sc, "float32"),
             relay.const(output_zp, "int32"),
         )
-        return _create_npu_module([x], expr, "ethos-n.qnn_mul", "ext_func")
+        composite = tei.make_ethosn_composite(expr, "ethos-n.qnn_mul")
+        return tei.make_ethosn_partition(composite)
 
     def expected():
         constant_shape_hwoi = (1, 1, channels, 1)
@@ -134,9 +108,70 @@ def test_multiply_to_depthwise(dtype, shape, channels, reverse_inputs):
             relay.const(output_zp, "int32"),
             out_dtype=dtype,
         )
-        return _create_npu_module([x], expr, "ethos-n.qnn_conv2d", "ext_func")
+        composite = tei.make_ethosn_composite(expr, "ethos-n.qnn_conv2d")
+        return tei.make_ethosn_partition(composite)
 
     mod = before()
     mod = ConvertEquivalents()(mod)
     expected_mod = expected()
-    _assert_structural_equal(mod["ext_func"], expected_mod["ext_func"])
+    _assert_structural_equal(mod["ethos-n_0"], expected_mod["ethos-n_0"])
+
+
+@requires_ethosn
+@pytest.mark.parametrize("reverse_inputs", [True, False])
+def test_add_to_depthwise(reverse_inputs):
+    """
+    Check that add is converted correctly.
+    """
+    dtype = "uint8"
+    lhs_shape = (1, 2, 4, 8)
+    rhs_shape = (1, 1, 1, 8)
+    np.random.seed(0)
+
+    iinfo = np.iinfo(dtype)
+    data_min = iinfo.min
+    data_max = iinfo.max
+    lhs_zp, lhs_sc, rhs_zp, rhs_sc, out_zp, out_sc = _get_addition_qnn_params(dtype)
+
+    x = relay.var("x", shape=lhs_shape, dtype=dtype)
+    y_data = np.random.randint(data_min, data_max + 1, size=rhs_shape, dtype=dtype)
+
+    def before():
+        y = relay.const(y_data)
+        expr = relay.qnn.op.add(
+            lhs=y if reverse_inputs else x,
+            rhs=x if reverse_inputs else y,
+            lhs_scale=relay.const(lhs_sc, "float32"),
+            lhs_zero_point=relay.const(lhs_zp, "int32"),
+            rhs_scale=relay.const(rhs_sc, "float32"),
+            rhs_zero_point=relay.const(rhs_zp, "int32"),
+            output_scale=relay.const(out_sc, "float32"),
+            output_zero_point=relay.const(out_zp, "int32"),
+        )
+        composite = tei.make_ethosn_composite(expr, "ethos-n.qnn_add")
+        return tei.make_ethosn_partition(composite)
+
+    class ConversionChecker(ExprVisitor):
+        """
+        Pass to check the new composite function is in the expected format.
+        """
+
+        sequence = ["qnn.conv2d", "nn.bias_add", "qnn.requantize"]
+
+        def visit_function(self, fn):
+            composite_name = fn.attrs["Composite"]
+            expected = "ethos-n.qnn_conv2d"
+            assert (
+                composite_name == expected
+            ), f"Expected Composite attribute {expected} but got {composite_name}"
+            super().visit_function(fn)
+
+        def visit_call(self, call):
+            op_name = call.op.name
+            expected_name = self.sequence.pop()
+            assert op_name == expected_name, f"Got operator {op_name} but expected {expected_name}"
+            super().visit_call(call)
+
+    mod = before()
+    mod = ConvertEquivalents()(mod)
+    mod = ConversionChecker().visit(mod["ethos-n_0"].body.op)
