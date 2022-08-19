@@ -2696,6 +2696,59 @@ def test_resnet_convert_layout_nchwc(data_layout, kernel_layout):
     b = run_opt_pass(expected(), transform.InferType())
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "\n Expect = \n" + str(b)
 
+def test_conv_l2n_convert_layout():
+    """Check that layout transforms are propagated through bn."""
+
+    def before():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight = relay.var("weight", shape=(3, 3, 64, 64))
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+        z = relay.nn.l2_normalize(y, eps=0.001, axis=[3])
+        func = relay.Function(analysis.free_vars(z), z)
+        return func
+
+    def before_neg():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight = relay.var("weight", shape=(3, 3, 64, 64))
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+        z = relay.nn.l2_normalize(y, eps=0.001, axis=[-1])
+        func = relay.Function(analysis.free_vars(z), z)
+        return func
+
+    def expected():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        w = relay.var("weight", shape=(3, 3, 64, 64))
+        x = relay.layout_transform(x, "NHWC", "NCHW")
+        w = relay.layout_transform(w, "HWIO", "OIHW")
+        y = relay.nn.conv2d(x, w, channels=64, kernel_size=(3, 3), padding=(1, 1))
+        z = relay.nn.l2_normalize(y, eps=0.001, axis=[1])
+        z = relay.layout_transform(z, "NCHW", "NHWC")
+        func = relay.Function(analysis.free_vars(z), z)
+        return func
+
+    a = before()
+    a_neg = before_neg()
+    a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
+    a_neg = run_opt_pass(a_neg, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
+    b = run_opt_pass(expected(), transform.InferType())
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "\n\n Expected = \n" + str(b)
+    assert tvm.ir.structural_equal(a_neg, b), "Actual = \n" + str(a) + "\n\n Expected = \n" + str(b)
 
 if __name__ == "__main__":
     pytest.main([__file__])
