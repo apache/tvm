@@ -426,7 +426,7 @@ def test_tir_link_params():
                 opt_level=3,
                 config={"relay.backend.use_meta_schedule": True},
             ):
-                executor = Executor("graph", {"link-params":link_params})
+                executor = Executor("graph", {"link-params": link_params})
                 lib = relay.build(relay_mod, target=target, executor=executor)
 
         # Workload look up should succeed. This does not work when the test is invoked from pytest.

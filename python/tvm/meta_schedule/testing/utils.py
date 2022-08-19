@@ -64,11 +64,7 @@ def apply_fixed_schedules(
         config[k] = v
 
     extracted_tasks = ms.extract_task_from_relay(
-        relay_mod,
-        target,
-        params,
-        te_filter_func=te_filter_func,
-        pass_config=config
+        relay_mod, target, params, te_filter_func=te_filter_func, pass_config=config
     )
     database = ms.database.MemoryDatabase()
     for task in extracted_tasks:
