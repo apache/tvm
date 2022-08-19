@@ -2028,7 +2028,8 @@ inline Tensor adv_index(const Tensor& data, const Array<Tensor>& indices,
  * \return embedded tensor.
  */
 inline Tensor embedding_bag(const Tensor& input, const Tensor& weight, const Tensor& offset,
-                            int mode, DataType dtype, const std::string name = "T_embedding_bag",
+                            int mode, int padding_idx, bool scale_grad_by_freq, DataType dtype,
+                            const std::string name = "T_embedding_bag",
                             const std::string tag = kInjective) {
   auto row = offset->shape[0];
   auto column = weight->shape[1];
@@ -2039,27 +2040,31 @@ inline Tensor embedding_bag(const Tensor& input, const Tensor& weight, const Ten
 
   auto func = [&](tvm::tir::Var i, tvm::tir::Var j) {
     auto ret = make_zero(dtype);
+    auto count = make_zero(dtype);
 
     auto st = offset(i);  // start point
     auto ed = tvm::tir::Select(row == i + 1, PrimExpr(N),
                                cast(DataType::Int(32), offset(i + 1)));  // end point
 
     // can't find `fold` function, so use a stupid method to iterate from st to ed
-    for (auto idx = 0; idx < N; idx++) {
+    for (auto idx = 0; idx < 4; idx++) {
       auto real_idx = st + idx;
-      if (mode < 2)  // mean(1) or sum(0)
+      auto idx_i = input(real_idx);
+      auto cond = (real_idx < ed) && (idx_i != padding_idx);
+      if (mode == 0)  // sum(0)
       {
-        ret = tvm::tir::Select(real_idx < ed, ret + weight[input(real_idx)][j], ret);
+        ret = tvm::tir::Select(cond, ret + weight[idx_i][j], ret);
+      } else if (mode == 1) {  // mean(1)
+        count = tvm::tir::Select(cond, count + 1, count);
+        ret = tvm::tir::Select(cond, ret + weight[idx_i][j], ret);
       } else {  // max(2)
-        if (idx == 0) {
-          ret = weight[input(real_idx)][j];
-        } else {
-          ret = tvm::tir::Select(real_idx < ed, max(ret, weight[input(real_idx)][j]), ret);
-        }
+        auto on_true = tvm::tir::Select(count == 0, weight[idx_i][j], max(ret, weight[idx_i][j]));
+        ret = tvm::tir::Select(cond, on_true, ret);
+        count = tvm::tir::Select(cond, count + 1, count);
       }
     }
     if (mode == 1) {  // mean
-      ret = tvm::topi::divide(ret, ed - st);
+      ret = tvm::topi::divide(ret, count);
     }
 
     return ret;

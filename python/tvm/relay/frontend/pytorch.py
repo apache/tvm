@@ -2257,15 +2257,14 @@ class PyTorchOpConverter:
             padding_idx,
         ) = inputs
 
-        assert scale_grad_by_freq == 0, "scale_grad_by_freq not supported in embedding_bag."
-        assert padding_idx is None, "padding_idx not supported in embedding_bag."
-
         assert len(_infer_shape(indices)) == 1, "Expects 1D indices for aten::embedding_bag."
 
         mode_map = {0: _op.sum, 1: _op.mean, 2: _op.max}
         assert mode in mode_map, "unsupported reduction op mode %d." % mode
+        
+        padding_idx = -1 if padding_idx is None else padding_idx
 
-        return _op.embedding_bag(indices, weights, offsets_1d, mode)
+        return _op.embedding_bag(indices, weights, offsets_1d, mode, padding_idx, scale_grad_by_freq)
 
     def one_hot(self, inputs, input_types):
         indices = inputs[0].astype("int32")

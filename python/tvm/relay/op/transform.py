@@ -1891,31 +1891,56 @@ def stft(
     return _make.stft(data, n_fft, hop_length, win_length, window, normalized, onesided)
 
 
-def embedding_bag(indices, weights, offsets, mode):
+def embedding_bag(indices, weights, offsets, mode, padding_idx, scale_grad_by_freq):
     """
     TBA
 
     Parameters
     ----------
     indicus: relay.Expr
-        TBA
+        A 1-d tensor containing bags of indices into the embedding matrix.
 
     weight: relay.Expr
-        TBA
+        A 2-d tensor of embedding matrix of shape `(num_embeddings, embedding_dim)`
+        whose number of rows equal to the maximum possible index + 1.
 
     offset: relay.Expr
-        TBA
+        A 1-d tensor of length `B`. The starting index position of each bag.
 
-    mode: int
-        TBA
+    mode: int, optional
+        Specifies the way to reduce the bag.
+        1 is `mean`.
+        0 is `sum`.
+        2 is `max`.
+        The default value is 1.
+
+    padding_idx: int, optional
+        The embedding vector at `padding_idx` is not updated during reduction.
+        If `padding_idx` is not specified, the default value is -1.
+
+    scale_grad_by_freq: bool, optional
+        If the value is `True`, the function will scale gradients by
+        the inverse of frequency of the words in the mini-batch.
+        This option is not supported when mode is `max`. The default value is `False`.
 
     Returns
     -------
     ret : relay.Expr
-        TBA
+        aggregated embedding values of shape (B, embedding_dim)
+
+    Examples
+    --------
+    .. code-block:: python
+
+        embedding_matrix = torch.rand(10, 3)
+        input = torch.tensor([1,2,4,5,4,3,2,9])
+        offsets = torch.tensor([0,4])
+        relay.embedding_bag(input, embedding_matrix, offsets ) =
+            [[ 0.3397,  0.3552,  0.5545],
+            [ 0.5893,  0.4386,  0.5882]]
     """
 
-    return _make.embedding_bag(indices, weights, offsets, mode)
+    return _make.embedding_bag(indices, weights, offsets, mode, padding_idx, scale_grad_by_freq)
 
 
 def trilu(data, k, upper=True):

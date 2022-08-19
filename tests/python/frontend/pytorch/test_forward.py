@@ -3071,18 +3071,28 @@ def test_forward_embedding():
 
 def test_embedding_bag():
     class EmbeddingBag(Module):
-        def __init__(self, mode="mean"):
+        def __init__(self, mode="mean", padding_idx=None, scale_grad_by_freq=False):
             super().__init__()
             self.mode = mode
+            self.padding_idx = padding_idx
+            self.scale_grad_by_freq = scale_grad_by_freq
 
         def forward(self, input, weight):
-            return F.embedding_bag(input, weight, mode=self.mode)
+            return F.embedding_bag(
+                input,
+                weight,
+                mode=self.mode,
+                padding_idx=self.padding_idx,
+                scale_grad_by_freq=self.scale_grad_by_freq,
+            )
 
     embedding_matrix = torch.rand(10, 3)
     inp = torch.tensor([[1, 2, 4, 5], [4, 3, 2, 9], [6, 7, 8, 9]])
-    verify_model(EmbeddingBag().float().eval(), [inp, embedding_matrix])
-    verify_model(EmbeddingBag("sum").float().eval(), [inp, embedding_matrix])
-    verify_model(EmbeddingBag("max").float().eval(), [inp, embedding_matrix])
+    verify_model(EmbeddingBag(mode="mean").float().eval(), [inp, embedding_matrix])
+    verify_model(EmbeddingBag(mode="mean", padding_idx=2).float().eval(), [inp, embedding_matrix])
+    verify_model(EmbeddingBag(mode="sum", padding_idx=4).float().eval(), [inp, embedding_matrix])
+    verify_model(EmbeddingBag(mode="max", padding_idx=1).float().eval(), [inp, embedding_matrix])
+
 
 @tvm.testing.uses_gpu
 def test_forward_onehot():

@@ -4230,7 +4230,6 @@ RELAY_REGISTER_OP("invert_permutation")
     .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_attr<TOpIsStateful>("TOpIsStateful", false);
 
-
 TVM_REGISTER_NODE_TYPE(EmbeddingBagAttrs);
 
 bool EmbeddingBagRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
@@ -4287,9 +4286,12 @@ bool EmbeddingBagRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   return true;
 }
 
-Expr MakeEmbeddingBag(Expr input, Expr weight, Expr offset, size_t mode) {
+Expr MakeEmbeddingBag(Expr input, Expr weight, Expr offset, size_t mode, size_t padding_idx,
+                      bool scale_grad_by_freq) {
   auto attrs = make_object<EmbeddingBagAttrs>();
   attrs->mode = mode;
+  attrs->padding_idx = padding_idx;
+  attrs->scale_grad_by_freq = scale_grad_by_freq;
   static const Op& op = Op::Get("embedding_bag");
   return Call(op, {input, weight, offset}, Attrs(attrs), {});
 }
@@ -4298,8 +4300,9 @@ Array<te::Tensor> EmbeddingBagCompute(const Attrs& attrs, const Array<te::Tensor
                                       const Type& out_type) {
   const auto* param = attrs.as<EmbeddingBagAttrs>();
   ICHECK(param != nullptr);
-  return Array<te::Tensor>{
-      topi::embedding_bag(inputs[0], inputs[1], inputs[2], param->mode, inputs[1]->dtype)};
+  return Array<te::Tensor>{topi::embedding_bag(inputs[0], inputs[1], inputs[2], param->mode,
+                                               param->padding_idx, param->scale_grad_by_freq,
+                                               inputs[1]->dtype)};
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.embedding_bag").set_body_typed(MakeEmbeddingBag);
