@@ -4237,7 +4237,7 @@ bool EmbeddingBagRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   // types: [weight, indics, offset, result]
   ICHECK_EQ(types.size(), 4) << "EmbeddingBag: expect 4 types but " << types.size() << " provided";
   ICHECK_LE(num_inputs, 3) << "EmbeddingBag: expect 3 inputs but " << num_inputs << " provided";
-  auto data = types[0].as<TensorTypeNode>();  // shape of (B, N) or (N)
+  auto data = types[0].as<TensorTypeNode>();  // shape of  (N)
   if (data == nullptr) {
     ICHECK(types[0].as<IncompleteTypeNode>())
         << "EmbeddingBag: expect input type to be TensorType but get " << types[0];
@@ -4252,28 +4252,26 @@ bool EmbeddingBagRel(const Array<Type>& types, int num_inputs, const Attrs& attr
     return false;
   }
 
+  auto offset = types[2].as<TensorTypeNode>();  // shape of (B)
+  if (offset == nullptr) {
+    ICHECK(types[2].as<IncompleteTypeNode>())
+        << "EmbeddingBag: expect offset type to be TensorType but get " << types[2];
+    return false;
+  }
+
   ICHECK_LE(data->shape.size(), 2)
       << "EmbeddingBag: input must be a 1-D or 2-D tensor but get " << data;
   ICHECK_EQ(embedding_matrix->shape.size(), 2)
-      << "EmbeddingBag: embedding_matrix must be a 2-D tensor but get " << data;
+      << "EmbeddingBag: embedding_matrix must be a 2-D tensor but get " << embedding_matrix;
+  ICHECK_EQ(offset->shape.size(), 1)
+      << "EmbeddingBag: offset must be a 1-D tensor but get " << offset;
 
   tvm::PrimExpr row, column;
-  if (data->shape.size() == 1) {  // offset cannot be omitted
-    auto offset = types[2].as<TensorTypeNode>();
-    if (offset == nullptr) {
-      ICHECK(types[2].as<IncompleteTypeNode>())
-          << "EmbeddingBag: expect offset type to be TensorType but get " << types[2];
-      return false;
-    }
-    ICHECK_EQ(offset->shape.size(), 1) << "EmbeddingBag: offset must be a 1-D";
-    row = offset->shape[0];
-  } else {  // offset is ignored
-    row = data->shape[0];
-  }
-
   // Output shape is the (B, embedding_dim).
+  row = offset->shape[0];
   column = embedding_matrix->shape[1];
   std::vector<tvm::PrimExpr> shape{row, column};
+
   const auto param = attrs.as<EmbeddingBagAttrs>();
   const auto mode = param->mode;
   DataType dtype;
