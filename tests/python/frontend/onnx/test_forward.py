@@ -2967,7 +2967,7 @@ def test_conv(target, dev):
         )
 
     # TODO(jwfromm): Merge with other tests once group_conv3d is supported.
-    for dims in [1, 2]:
+    for dims in [1, 2, 3]:
         # Group Convolution
         verify_conv(
             (1, 8) + repeat(5, dims),

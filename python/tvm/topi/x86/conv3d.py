@@ -275,7 +275,7 @@ def _conv3d_ndhwc(cfg, data, kernel, strides, padding, dilation, groups, out_dty
     # pack kernel
     shape = (
         num_filter // oc_bn,
-        in_channel // groups // ic_bn,
+        in_channel // groups // ic_bn if (in_channel // groups // ic_bn) else 1,
         kernel_depth,
         kernel_height,
         kernel_width,
@@ -392,7 +392,7 @@ def _conv3d_ncdhw(cfg, data, kernel, strides, padding, dilation, layout, groups,
     # pack kernel
     shape = (
         num_filter // oc_bn,
-        in_channel // groups // ic_bn,
+        in_channel // groups // ic_bn if (in_channel // groups // ic_bn) else 1,
         kernel_depth,
         kernel_height,
         kernel_width,
