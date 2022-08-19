@@ -295,12 +295,14 @@ TEST(TargetCreation, LLVMCommandLineFatal) {
   tvm::codegen::LLVMInstance inst;
 
   // Check that malformed options cause an assertion.
-  EXPECT_THROW({
-    Target test_target(
-        "llvm -cl-opt='-heh:,-hah:=,-print-after-all:bool=,"
-        "---unroll-factor=0,\\\'-blah:string=ha ha\\\''");
-    tvm::codegen::LLVMTargetInfo info(inst, test_target);
-  }, std::exception);
+  EXPECT_THROW(
+      {
+        Target test_target(
+            "llvm -cl-opt='-heh:,-hah:=,-print-after-all:bool=,"
+            "---unroll-factor=0,\\\'-blah:string=ha ha\\\''");
+        tvm::codegen::LLVMTargetInfo info(inst, test_target);
+      },
+      std::exception);
 }
 
 TEST(TargetCreation, LLVMCommandLineError) {
