@@ -46,7 +46,11 @@ def test_kws_autotune_workflow(platform, board, tmp_path):
 
     str_logs = str_io_logs.getvalue().rstrip().split("\n")
     logs = list(map(json.loads, str_logs))
-    assert len(logs) == 1 * TUNING_RUNS_PER_OPERATOR  # One operator
+
+    # Some tuning tasks don't have any config space, and will only be run once
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        tasks = tvm.autotvm.task.extract_from_program(mod["main"], {}, target)
+    assert len(tasks) <= len(logs) <= len(tasks) * TUNING_RUNS_PER_OPERATOR
 
     # Check we tested both operators
     op_names = list(map(lambda x: x["input"][1], logs))
