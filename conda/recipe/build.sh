@@ -16,8 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
+set -euxo
 
 GPU_OPT=""
 TOOLCHAIN_OPT=""
@@ -53,8 +52,8 @@ cmake -DCMAKE_INSTALL_PREFIX="${PREFIX}" \
       -DUSE_LLVM=ON \
       -DINSTALL_DEV=ON \
       -DUSE_LIBBACKTRACE=AUTO \
-      ${GPU_OPT} ${TOOLCHAIN_OPT} \
-      ${SRC_DIR}
+      "${GPU_OPT}" "${TOOLCHAIN_OPT}" \
+      "${SRC_DIR}"
 
-make -j${CPU_COUNT}
+make -j "$(nproc)" VERBOSE=1
 cd ..
