@@ -1016,7 +1016,7 @@ class Schedule(Object):
         block: Union[BlockRV, str],
         read_buffer_index: int,
         storage_scope: str,
-        consumer_blocks: Optional[List[Union[BlockRV, str]]] = None,
+        consumer_blocks: Optional[Union[BlockRV, List[Union[BlockRV, str]]]] = None,
     ) -> BlockRV:
         """Create a block that reads a buffer region into a read cache. It requires:
 
@@ -1035,7 +1035,7 @@ class Schedule(Object):
         storage_scope: str
             The target storage scope.
 
-        consumer_blocks: Optional[List[Union[BlockRV, str]]]
+        consumer_blocks: Optional[Union[BlockRV, List[Union[BlockRV, str]]]]
             An optional list of consumers that should read from the cache. If not specified,
             all consumers will use the cache.
 
