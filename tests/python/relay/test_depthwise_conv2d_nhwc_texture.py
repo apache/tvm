@@ -22,12 +22,11 @@ from tvm import relay
 from tvm.relay import testing
 from utils.adreno_utils import build_run_compare
 
+dtype = tvm.testing.parameter("float32")
 
 @tvm.testing.requires_opencl
-def test_depthwise_conv2d_deeplabv3_1_129_129_144x3_3_144_1():
-    target = "opencl --device=adreno"
-    dtype = "float16"
-
+@tvm.testing.parametrize_targets("opencl")
+def test_depthwise_conv2d_deeplabv3_1_129_129_144x3_3_144_1(target, dtype):
     input_shape = (1, 129, 129, 144)
     filter_shape = (3, 3, 144, 1)
     kernel_size = (filter_shape[0], filter_shape[1])
@@ -66,10 +65,8 @@ def test_depthwise_conv2d_deeplabv3_1_129_129_144x3_3_144_1():
 
 
 @tvm.testing.requires_opencl
-def test_depthwise_conv2d_deeplabv3_4_35_35_576x3_3_576_1():
-    target = "opencl --device=adreno"
-    dtype = "float16"
-
+@tvm.testing.parametrize_targets("opencl")
+def test_depthwise_conv2d_deeplabv3_4_35_35_576x3_3_576_1(target, dtype):
     input_shape = (4, 35, 35, 576)
     filter_shape = (3, 3, 576, 1)
     kernel_size = (filter_shape[0], filter_shape[1])
@@ -108,10 +105,8 @@ def test_depthwise_conv2d_deeplabv3_4_35_35_576x3_3_576_1():
 
 
 @tvm.testing.requires_opencl
-def test_depthwise_conv2d_deeplabv3_1_129_129_144x3_3_144_1_with_padding():
-    target = "opencl --device=adreno"
-    dtype = "float16"
-
+@tvm.testing.parametrize_targets("opencl")
+def test_depthwise_conv2d_deeplabv3_1_129_129_144x3_3_144_1_with_padding(target, dtype):
     input_shape = (1, 129, 129, 144)
     filter_shape = (3, 3, 144, 1)
     kernel_size = (filter_shape[0], filter_shape[1])
@@ -152,10 +147,8 @@ def test_depthwise_conv2d_deeplabv3_1_129_129_144x3_3_144_1_with_padding():
 
 
 @tvm.testing.requires_opencl
-def test_depthwise_conv2d_1_513_513_7x3_3_7_1():
-    target = "opencl --device=adreno"
-    dtype = "float16"
-
+@tvm.testing.parametrize_targets("opencl")
+def test_depthwise_conv2d_1_513_513_7x3_3_7_1(target, dtype):
     input_shape = (1, 513, 513, 7)
     filter_shape = (3, 3, 7, 1)
     bias_shape = (filter_shape[2],)
@@ -193,10 +186,8 @@ def test_depthwise_conv2d_1_513_513_7x3_3_7_1():
 
 
 @tvm.testing.requires_opencl
-def test_depthwise_conv2d_1_513_513_3x3_3_3_1():
-    target = "opencl --device=adreno"
-    dtype = "float16"
-
+@tvm.testing.parametrize_targets("opencl")
+def test_depthwise_conv2d_1_513_513_3x3_3_3_1(target, dtype):
     input_shape = (1, 513, 513, 3)
     filter_shape = (3, 3, 3, 1)
     bias_shape = (filter_shape[2],)

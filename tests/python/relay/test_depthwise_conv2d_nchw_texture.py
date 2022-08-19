@@ -22,12 +22,11 @@ from tvm import relay
 from tvm.relay import testing
 from utils.adreno_utils import gpu_preprocess, build_run_compare
 
+dtype = tvm.testing.parameter("float32")
 
 @tvm.testing.requires_opencl
-def test_depthwise_conv2d_bias_nchwc():
-    target = "opencl --device=adreno"
-    dtype = "float16"
-
+@tvm.testing.parametrize_targets("opencl")
+def test_depthwise_conv2d_bias_nchwc(target, dtype):
     input_shape = (1, 64, 112, 112)
     filter_shape = (64, 1, 3, 3)
     bias_shape = (1, 64, 1, 1)
@@ -68,10 +67,8 @@ def test_depthwise_conv2d_bias_nchwc():
 
 
 @tvm.testing.requires_opencl
-def test_depthwise_conv2d_nchwc():
-    target = "opencl --device=adreno"
-    dtype = "float16"
-
+@tvm.testing.parametrize_targets("opencl")
+def test_depthwise_conv2d_nchwc(target, dtype):
     input_shape = (1, 64, 112, 112)
     filter_shape = (64, 1, 3, 3)
     bias_shape = (1, 64, 1, 1)
@@ -107,10 +104,8 @@ def test_depthwise_conv2d_nchwc():
 
 
 @tvm.testing.requires_opencl
-def test_depthwise_conv2d_bias_nchw():
-    target = "opencl --device=adreno"
-    dtype = "float16"
-
+@tvm.testing.parametrize_targets("opencl")
+def test_depthwise_conv2d_bias_nchw(target, dtype):
     input_shape = (1, 64, 112, 112)
     filter_shape = (64, 1, 3, 3)
     bias_shape = (1, 64, 1, 1)
@@ -151,10 +146,8 @@ def test_depthwise_conv2d_bias_nchw():
 
 
 @tvm.testing.requires_opencl
-def test_depthwise_conv2d_repack_bias_nchw():
-    target = "opencl --device=adreno"
-    dtype = "float16"
-
+@tvm.testing.parametrize_targets("opencl")
+def test_depthwise_conv2d_repack_bias_nchw(target, dtype):
     input_shape = (1, 63, 112, 112)
     filter_shape = (63, 1, 3, 3)
     bias_shape = (1, 63, 1, 1)
