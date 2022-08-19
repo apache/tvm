@@ -68,9 +68,10 @@ def cast_f16_f32_stir_schedule_nc(func, in_layout, out_layout, c_split_factor):
     block_name = "CastF16F32"
     _, c_orig = sch.get_loops(sch.get_block(block_name))
     _, c_inner = sch.split(c_orig, [None, c_split_factor])
+    _, c_inner_inner = sch.split(c_inner, [None, 64])
     sch.transform_layout(block_name, "A", in_layout)
     sch.transform_layout(block_name, block_name, out_layout)
-    sch.vectorize(c_inner)
+    sch.vectorize(c_inner_inner)
     return sch
 
 
@@ -122,9 +123,10 @@ def cast_f32_f16_stir_schedule_nc(func, in_layout, out_layout, c_split_factor):
     block_name = "CastF32F16"
     _, c_orig = sch.get_loops(sch.get_block(block_name))
     _, c_inner = sch.split(c_orig, [None, c_split_factor])
+    _, c_inner_inner = sch.split(c_inner, [None, 64])
     sch.transform_layout(block_name, "A", in_layout)
     sch.transform_layout(block_name, block_name, out_layout)
-    sch.vectorize(c_inner)
+    sch.vectorize(c_inner_inner)
     return sch
 
 

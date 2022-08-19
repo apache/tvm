@@ -120,6 +120,7 @@ We do encourage everyone to work anything they are interested in.
 - [Manupa Karunaratne](https://github.com/manupa-arm): @manupa-arm
 - [Elen Kalda](https://github.com/ekalda): @ekalda
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame
+- [Michael J. Klaiber](https://github.com/MichaelJKlaiber/) @MichaelJKlaiber
 - [Tristan Konolige](https://github.com/tkonolige): @tkonolige
 - [Denise Kutnick](https://github.com/denise-k): @denise-k
 - [Ruihang Lai](https://github.com/MasterJH5574): @MasterJH5574
@@ -166,6 +167,7 @@ We do encourage everyone to work anything they are interested in.
 - [Siva Rama Krishna Reddy](https://github.com/srkreddy1238): @srkreddy1238
 - [Dmitriy Smirnov](https://github.com/d-smirnov): @d-smirnov
 - [Jon Soifer](https://github.com/soiferj): @soiferj
+- [Adam Straw](https://github.com/adstraw): @adstraw
 - [Chris Sullivan](https://github.com/csullivan): @csullivan
 - [Zhixun Tan](https://github.com/phisiart): @phisiart
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch

@@ -885,7 +885,8 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ObjectRef> config) {
   // parse "keys"
   {
     std::vector<String> keys;
-    if (config.count(kKeys)) {
+    bool has_user_keys = config.count(kKeys);
+    if (has_user_keys) {
       // user provided keys
       if (const auto* cfg_keys = config[kKeys].as<ArrayNode>()) {
         for (const ObjectRef& e : *cfg_keys) {
@@ -909,9 +910,11 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ObjectRef> config) {
         keys.push_back(GetRef<String>(device));
       }
     }
-    // add default keys
-    for (const auto& key : target->kind->default_keys) {
-      keys.push_back(key);
+    if (!has_user_keys) {
+      // add default keys
+      for (const auto& key : target->kind->default_keys) {
+        keys.push_back(key);
+      }
     }
     // de-duplicate keys
     target->keys = DeduplicateKeys(keys);

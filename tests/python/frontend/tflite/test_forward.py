@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=import-self, invalid-name, unused-argument
+# pylint: disable=unused-argument, import-outside-toplevel, inconsistent-return-statements
 """
 TFLite testcases
 ================
@@ -22,12 +22,23 @@ This article is a test script to test TFLite operator with Relay.
 """
 from __future__ import print_function
 from functools import partial
+from distutils.version import LooseVersion
+
+import os
+import tempfile
 import pytest
 import numpy as np
+
+from PIL import Image
+from packaging import version as package_version
+
 import tvm
-import tempfile
-from tvm import te
+import tvm.relay.testing.tf as tf_testing
+from tvm.contrib.download import download_testdata
 from tvm import relay
+from tvm.contrib import graph_executor
+from tflite.BuiltinOperator import BuiltinOperator
+
 
 try:
     import tensorflow.compat.v1 as tf
@@ -48,19 +59,12 @@ from tensorflow.python.ops import image_ops
 from tensorflow.python.ops import gen_array_ops
 from tensorflow.python.ops import nn_impl
 from tensorflow.python.ops import variables
-from distutils.version import LooseVersion
 
 try:
     from tensorflow import lite as interpreter_wrapper
 except ImportError:
     from tensorflow.contrib import lite as interpreter_wrapper
 
-from tvm.contrib.download import download_testdata
-import tvm.relay.testing.tf as tf_testing
-from packaging import version as package_version
-
-from PIL import Image
-import os
 
 #######################################################################
 # Generic run functions for TVM & TFLite
@@ -86,6 +90,7 @@ def get_real_image(im_height, im_width, quantized=True):
 
 
 def pre_processed_image(height, width):
+    """Image preprocessed"""
     repo_base = "https://github.com/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/"
     img_name = "elephant-299.jpg"
     image_url = os.path.join(repo_base, img_name)
@@ -113,30 +118,31 @@ def get_real_image_object_detection(im_height, im_width):
     return data
 
 
-def vmobj_to_list(o):
-    if isinstance(o, tvm.nd.NDArray):
-        return [o.numpy().tolist()]
-    elif isinstance(o, tvm.runtime.container.ADT):
+def vmobj_to_list(obj):
+    """Converts TVM objects returned by VM execution to Python List."""
+    if isinstance(obj, tvm.nd.NDArray):
+        return [obj.numpy().tolist()]
+    elif isinstance(obj, tvm.runtime.container.ADT):
         result = []
-        for f in o:
+        for f in obj:
             result.extend(vmobj_to_list(f))
         return result
-    elif isinstance(o, tvm.relay.backend.interpreter.ConstructorValue):
-        if o.constructor.name_hint == "Cons":
-            tl = vmobj_to_list(o.fields[1])
-            hd = vmobj_to_list(o.fields[0])
-            hd.extend(tl)
-            return hd
-        elif o.constructor.name_hint == "Nil":
+    elif isinstance(obj, tvm.relay.backend.interpreter.ConstructorValue):
+        if obj.constructor.name_hint == "Cons":
+            t_l = vmobj_to_list(obj.fields[1])
+            h_d = vmobj_to_list(obj.fields[0])
+            h_d.extend(t_l)
+            return h_d
+        elif obj.constructor.name_hint == "Nil":
             return []
-        elif "tensor_nil" in o.constructor.name_hint:
+        elif "tensor_nil" in obj.constructor.name_hint:
             return [0]
-        elif "tensor" in o.constructor.name_hint:
-            return [o.fields[0].numpy()]
+        elif "tensor" in obj.constructor.name_hint:
+            return [obj.fields[0].numpy()]
         else:
-            raise RuntimeError("Unknown object type: %s" % o.constructor.name_hint)
+            raise RuntimeError(f"Unknown object type: {obj.constructor.name_hint}")
     else:
-        raise RuntimeError("Unknown object type: %s" % type(o))
+        raise RuntimeError(f"Unknown object type: {type(obj)}")
 
 
 def _quantize_keras_model(
@@ -195,17 +201,17 @@ def run_tvm_graph(
         import tflite
 
         tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
-    except ImportError:
-        raise ImportError("The tflite package must be installed")
+    except ImportError as exc:
+        raise ImportError("The tflite package must be installed") from exc
 
     input_data = convert_to_list(input_data)
     input_node = convert_to_list(input_node)
 
     shape_dict = {}
     dtype_dict = {}
-    for i, e in enumerate(input_node):
-        shape_dict[e] = input_data[i].shape
-        dtype_dict[e] = input_data[i].dtype.name
+    for i, node in enumerate(input_node):
+        shape_dict[node] = input_data[i].shape
+        dtype_dict[node] = input_data[i].dtype.name
 
     mod, params = relay.frontend.from_tflite(
         tflite_model, shape_dict=shape_dict, dtype_dict=dtype_dict, op_converter=op_converter
@@ -232,18 +238,17 @@ def run_tvm_graph(
             lib = relay.build(mod, target, params=params)
 
         dev = tvm.device(target, 0)
-        from tvm.contrib import graph_executor
 
         m = graph_executor.GraphModule(lib["default"](dev))
         # set inputs
-        for i, e in enumerate(input_node):
-            m.set_input(e, tvm.nd.array(input_data[i].astype(input_data[i].dtype)))
+        for i, node in enumerate(input_node):
+            m.set_input(node, tvm.nd.array(input_data[i].astype(input_data[i].dtype)))
         # execute
         m.run()
         # get outputs
         assert out_names is None or num_output == len(
             out_names
-        ), "out_names: {} num_output: {}".format(out_names, num_output)
+        ), f"out_names: {out_names} num_output: {num_output}"
         tvm_output_list = []
         for i in range(0, num_output):
             tvm_output = m.get_output(i)
@@ -259,22 +264,22 @@ def run_tflite_graph(tflite_model_buf, input_data):
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
 
-    for i in range(len(input_details)):
-        interpreter.resize_tensor_input(input_details[i]["index"], input_data[i].shape)
+    for i, input_detail in enumerate(input_details):
+        interpreter.resize_tensor_input(input_detail["index"], input_data[i].shape)
     interpreter.allocate_tensors()
 
     # set input
     assert len(input_data) == len(input_details)
-    for i in range(len(input_details)):
-        interpreter.set_tensor(input_details[i]["index"], input_data[i])
+    for i, input_detail in enumerate(input_details):
+        interpreter.set_tensor(input_detail["index"], input_data[i])
 
     # Run
     interpreter.invoke()
 
     # get output
-    tflite_output = list()
-    for i in range(len(output_details)):
-        tflite_output.append(interpreter.get_tensor(output_details[i]["index"]))
+    tflite_output = []
+    for _, output_detail in enumerate(output_details):
+        tflite_output.append(interpreter.get_tensor(output_detail["index"]))
 
     return tflite_output
 
@@ -298,7 +303,7 @@ def compare_tflite_with_tvm(
     in_name = convert_to_list(in_name)
     out_names = convert_to_list(out_names)
     in_node = [0] * len(in_name)
-    for i in range(len(in_name)):
+    for i, _ in enumerate(in_name):
         in_node[i] = in_name[i].split(":")[0] if ":" in in_name[i] else in_name[i]
 
     with tf.Session() as sess:
@@ -326,9 +331,7 @@ def compare_tflite_with_tvm(
                 try:
                     quant_scale = 255 / (input_range[i][1] - input_range[i][0])
                 except ZeroDivisionError:
-                    raise ZeroDivisionError(
-                        "Min and max of the input range for tensor " + i + " can't be equal"
-                    )
+                    print("Min and max of the input range for tensor " + i + " can't be equal")
                 mean = -input_range[i][0] * quant_scale
                 input_stats[i] = (mean, quant_scale)
             converter.quantized_input_stats = input_stats
@@ -340,9 +343,9 @@ def compare_tflite_with_tvm(
         tflite_output = run_tflite_graph(tflite_model_buffer, in_data)
 
         for device in ["llvm"]:
-            dev = tvm.device(device, 0)
+            _ = tvm.device(device, 0)
             if not tvm.testing.device_enabled(device):
-                print("Skip because %s is not enabled" % device)
+                print(f"Skip because {device} is not enabled")
                 continue
 
             tvm_output = run_tvm_graph(
@@ -354,21 +357,31 @@ def compare_tflite_with_tvm(
                 out_names=out_names,
                 mode=mode,
             )
-            # WARNING: the results could well be random values clipped to 0 or 255 because of badly tuned output
-            # range for the specific operator. While adding test ensure that we aren't getting only clipped values
-            # in output tensors that still pass the assertion. For reference see _test_elemwise_qnn_out_range()
+            # WARNING: the results could well be random values clipped to 0 or 255 because of badly
+            # tuned output range for the specific operator. While adding test ensure that we aren't
+            # getting only clipped values in output tensors that still pass the assertion.
+            # For reference see _test_elemwise_qnn_out_range()
             if quantized and not fp16_quantized:
-                for i in range(len(tflite_output)):
+                for i, _ in enumerate(tflite_output):
                     # allow absolute tolerance of 1 in the quantized results
-                    tvm.testing.assert_allclose(tflite_output[i], tvm_output[i], atol=1, rtol=1e-5)
-            else:
-                for i in range(len(tflite_output)):
                     tvm.testing.assert_allclose(
-                        tflite_output[i], tvm_output[i], atol=1e-5, rtol=1e-5
+                        tflite_output[i],  # pylint: disable=unnecessary-list-index-lookup
+                        tvm_output[i],
+                        atol=1,
+                        rtol=1e-5,
+                    )
+            else:
+                for i, _ in enumerate(tflite_output):
+                    tvm.testing.assert_allclose(
+                        tflite_output[i],  # pylint: disable=unnecessary-list-index-lookup
+                        tvm_output[i],
+                        atol=1e-5,
+                        rtol=1e-5,
                     )
 
 
 def with_fused_activation_function(input_tensor, fn_name):
+    """Fused activation function"""
     if fn_name is None or fn_name == "NONE":
         return input_tensor
     if fn_name == "RELU":
@@ -379,7 +392,7 @@ def with_fused_activation_function(input_tensor, fn_name):
         return math_ops.maximum(-1, math_ops.minimum(input_tensor, 1))
     if fn_name == "TANH":
         return math_ops.tanh(input_tensor)
-    raise AssertionError("Unknown fused_activation_function {}".format(fn_name))
+    raise AssertionError(f"Unknown fused_activation_function {fn_name}")
 
 
 def _test_split(in_shape, axis, num_splits, dtype):
@@ -507,11 +520,11 @@ def _test_gather(dshape, indices, axis, dtype, quantized=False, oob=False, wrap_
                 quantized=quantized,
                 input_range=input_range,
             )
-        except ValueError as e:
+        except ValueError as exc:
             if not oob:
-                raise e
-        except Exception as e:
-            raise e
+                raise exc
+        except Exception as exc:
+            raise exc
 
 
 def test_forward_gather():
@@ -713,15 +726,15 @@ def test_forward_cast():
 #######################################################################
 # Batch Mat Mul
 # ----
-def _test_batch_matmul(A_shape, B_shape, dtype, adjoint_a=False, adjoint_b=False):
+def _test_batch_matmul(a_shape, b_shape, dtype, adjoint_a=False, adjoint_b=False):
     with tf.Graph().as_default():
-        A = array_ops.placeholder(shape=A_shape, dtype=dtype, name="A")
-        B = array_ops.placeholder(shape=B_shape, dtype=dtype, name="B")
-        result = math_ops.matmul(A, B, adjoint_a=adjoint_a, adjoint_b=adjoint_b, name="batchmatmul")
+        a = array_ops.placeholder(shape=a_shape, dtype=dtype, name="A")
+        b = array_ops.placeholder(shape=b_shape, dtype=dtype, name="B")
+        result = math_ops.matmul(a, b, adjoint_a=adjoint_a, adjoint_b=adjoint_b, name="batchmatmul")
 
-        A_np = np.random.uniform(high=5.0, size=A_shape).astype(dtype)
-        B_np = np.random.uniform(high=5.0, size=B_shape).astype(dtype)
-        compare_tflite_with_tvm([A_np, B_np], [A.name, B.name], [A, B], [result])
+        a_np = np.random.uniform(high=5.0, size=a_shape).astype(dtype)
+        b_np = np.random.uniform(high=5.0, size=b_shape).astype(dtype)
+        compare_tflite_with_tvm([a_np, b_np], [a.name, b.name], [a, b], [result])
 
 
 def test_forward_batch_matmul():
@@ -907,9 +920,9 @@ def _test_tflite2_quantized_convolution(
     input_shape, kernel_shape, filters, padding="valid", data_format=None, int_quant_dtype=tf.int8
 ):
     """One iteration of TFLite2 quantized convolution with given shapes and attributes"""
-    data_format = "channels_last" if "NHWC" else "channels_first"
+    data_format = "channels_last" if data_format == "NHWC" else "channels_first"
     data = np.random.uniform(0, 1, input_shape).astype("float32")
-    kernel = np.random.uniform(0, 1, kernel_shape).astype("float32")
+    _ = np.random.uniform(0, 1, kernel_shape).astype("float32")
 
     data_in = tf.keras.layers.Input(shape=data.shape[1:])
     conv = tf.keras.layers.Conv2D(
@@ -923,7 +936,7 @@ def _test_tflite2_quantized_convolution(
 
     # To create quantized values with dynamic range of activations, needs representative dataset
     def representative_data_gen():
-        for i in range(1):
+        for _ in range(1):
             yield [data]
 
     tflite_model_quant = _quantize_keras_model(
@@ -942,8 +955,8 @@ def _test_tflite2_quantized_convolution(
         import tflite
 
         tflite_model = tflite.Model.GetRootAsModel(tflite_model_quant, 0)
-    except ImportError:
-        raise ImportError("The tflite package must be installed")
+    except ImportError as exc:
+        raise ImportError("The tflite package must be installed") from exc
 
     subgraph = tflite_model.Subgraphs(0)
     model_input = subgraph.InputsAsNumpy()
@@ -957,6 +970,7 @@ def _test_tflite2_quantized_convolution(
 
 
 def test_forward_quantized_convolution():
+    """Quantized convolution"""
     for int_quant_dtype in [tf.int8, tf.int16]:
         _test_tflite2_quantized_convolution(
             (1, 28, 28, 1),
@@ -1000,7 +1014,7 @@ def _test_tflite2_quantized_depthwise_convolution(
 ):
     """One iteration of TFLite2 quantized depthwise convolution with given shapes and attributes"""
 
-    data_format = "channels_last" if "NHWC" else "channels_first"
+    data_format = "channels_last" if data_format == "NHWC" else "channels_first"
     data = np.random.uniform(0, 1, input_shape).astype("float32")
     kernel = np.random.uniform(0, 1, kernel_shape).astype("float32")
 
@@ -1019,7 +1033,7 @@ def _test_tflite2_quantized_depthwise_convolution(
 
     # To create quantized values with dynamic range of activations, needs representative dataset
     def representative_data_gen():
-        for i in range(1):
+        for _ in range(1):
             yield [data]
 
     tflite_model_quant = _quantize_keras_model(
@@ -1039,8 +1053,8 @@ def _test_tflite2_quantized_depthwise_convolution(
         import tflite
 
         tflite_model = tflite.Model.GetRootAsModel(tflite_model_quant, 0)
-    except ImportError:
-        raise ImportError("The tflite package must be installed")
+    except ImportError as exc:
+        raise ImportError("The tflite package must be installed") from exc
 
     subgraph = tflite_model.Subgraphs(0)
     model_input = subgraph.InputsAsNumpy()
@@ -1161,6 +1175,7 @@ def _test_convolution(
 
 
 def test_forward_convolution():
+    """Convolution"""
     for quantized in [False, True]:
         for fp16_quantized in [False, True]:
             _test_convolution(
@@ -1365,6 +1380,7 @@ def _test_transpose_conv(
 
 
 def test_forward_transpose_conv():
+    """Transpose convolution"""
     for quantized in [True, False]:
         for fp16_quantized in [True, False]:
             # odd size input, padding VALID
@@ -1732,7 +1748,6 @@ def test_all_resize():
     ### RESIZE_NEAREST_NEIGHBOR (was added in v1.13)
     # According to topi resize.h
     # Align corners not supported for nearest neighbour
-    from tflite.BuiltinOperator import BuiltinOperator
 
     if "RESIZE_NEAREST_NEIGHBOR" in dir(BuiltinOperator()):
         _test_resize(
@@ -1826,11 +1841,11 @@ def _test_shape(dtype):
             start = tf.placeholder(dtype=tf.int32, shape=[], name="start")
             limit = tf.placeholder(dtype=tf.int32, shape=[], name="limit")
             delta = tf.placeholder(dtype=tf.int32, shape=[], name="delta")
-            r = tf.range(start, limit, delta, tf.int32, name="range")
-            out = tf.shape(r, out_type=dtype)
+            tf_range = tf.range(start, limit, delta, tf.int32, name="range")
+            out = tf.shape(tf_range, out_type=dtype)
             out = tf.add(out, tf.constant([1], dtype=dtype))
             compare_tflite_with_tvm(
-                [x for x in np.nditer(data)],
+                list(np.nditer(data)),
                 ["start", "limit", "delta"],
                 [start, limit, delta],
                 [out],
@@ -1855,11 +1870,11 @@ def _test_concatenation(data, axis):
 
     with tf.Graph().as_default():
         in_data = [
-            array_ops.placeholder(shape=tensor.shape, dtype=tensor.dtype, name="in_{}".format(idx))
+            array_ops.placeholder(shape=tensor.shape, dtype=tensor.dtype, name=f"in_{idx}")
             for idx, tensor in enumerate(data)
         ]
-        out = array_ops.concat(in_data, axis=axis)
-        name = ["in_{}:0".format(idx) for idx in range(len(data))]
+        out = array_ops.concat(in_data, axis)
+        name = [f"in_{idx}:0" for idx in range(len(data))]
 
         compare_tflite_with_tvm(data, name, in_data, [out])
 
@@ -1885,7 +1900,7 @@ def test_forward_concatenation():
 # --------------
 
 
-def _test_unary_elemwise(math_op, data, quantized, quant_range=[-6, 6], int_quant_dtype=tf.int8):
+def _test_unary_elemwise(math_op, data, quantized, quant_range=(-6, 6), int_quant_dtype=tf.int8):
     """One iteration of unary elemwise"""
     if quantized:
         with tf.Graph().as_default():
@@ -1924,9 +1939,9 @@ def _unary_elewise_create_model(math_op, data, offset=0, int_quant_dtype=tf.int8
             return op
 
     if int_quant_dtype in (tf.int8, tf.uint8):
-        dtype = "int8"
+        _ = "int8"
     elif int_quant_dtype in (tf.int16, tf.uint16):
-        dtype = "int16"
+        _ = "int16"
     else:
         raise Exception(f"Unsupported dtype '{int_quant_dtype}' for unary elementwise test.")
 
@@ -2185,6 +2200,7 @@ def _test_forward_unary_elemwise(test_op, int_quant_dtype=None, quantized=True, 
 
 
 def test_all_unary_elemwise():
+    """All unary elemwise"""
     _test_forward_unary_elemwise(_test_abs, int_quant_dtype=tf.int8)
     _test_forward_unary_elemwise(_test_abs, int_quant_dtype=tf.int16)
     _test_forward_unary_elemwise(_test_floor)
@@ -2233,7 +2249,7 @@ def _test_elemwise(
     assert len(data) == 2
 
     def __test_elemwise(in_data):
-        assert 2 == len(in_data)
+        assert len(in_data) == 2
         if quantized:
             # set the fp32 output range with respect to the operation
             out_min, out_max = _test_elemwise_qnn_out_range(qnn_op)
@@ -2250,14 +2266,14 @@ def _test_elemwise(
                 tf.quantization.fake_quant_with_min_max_args(
                     in_data[0], min=out_min, max=out_max, name="inq_0"
                 )
-                if None != in_data[0]
+                if in_data[0] is not None
                 else tf.quantization.fake_quant_with_min_max_args(
                     data[0], min=out_min, max=out_max, name="const_tensor0"
                 ),
                 tf.quantization.fake_quant_with_min_max_args(
                     in_data[1], min=out_min, max=out_max, name="inq_1"
                 )
-                if None != in_data[1]
+                if in_data[1] is not None
                 else tf.quantization.fake_quant_with_min_max_args(
                     data[1], min=out_min, max=out_max, name="const_tensor1"
                 ),
@@ -2268,7 +2284,7 @@ def _test_elemwise(
                 for x in zip(
                     in_data, (("inq_0", (inq0_min, inq0_max)), ("inq_1", (inq1_min, inq1_max)))
                 )
-                if None != x[0]
+                if x[0] is not None
             }
 
             if math_op is math_ops.equal:
@@ -2276,9 +2292,9 @@ def _test_elemwise(
                 out = with_fused_activation_function(out, fused_activation_function)
 
                 compare_tflite_with_tvm(
-                    [x[1] for x in zip(in_data, data) if None != x[0]],
+                    [x[1] for x in zip(in_data, data) if x[0] is not None],
                     [x + ":0" for x in input_range.keys()],
-                    [x[1] for x in zip(in_data, inq_data) if None != x[0]],
+                    [x[1] for x in zip(in_data, inq_data) if x[0] is not None],
                     [out],
                 )
             else:
@@ -2287,12 +2303,11 @@ def _test_elemwise(
                 out = tf.quantization.fake_quant_with_min_max_args(
                     out, min=out_min, max=out_max, name="out"
                 )
-
                 # Note same_qnn_params uses experimental_new_converter as toco failed
                 compare_tflite_with_tvm(
-                    [x[1] for x in zip(in_data, data) if None != x[0]],
+                    [x[1] for x in zip(in_data, data) if x[0] is not None],
                     [x + ":0" for x in input_range.keys()],
-                    [x[1] for x in zip(in_data, inq_data) if None != x[0]],
+                    [x[1] for x in zip(in_data, inq_data) if x[0] is not None],
                     [out],
                     quantized=True,
                     input_range=input_range,
@@ -2301,17 +2316,17 @@ def _test_elemwise(
         else:
             out = math_op(
                 in_data[0]
-                if None != in_data[0]
+                if in_data[0] is not None
                 else ops.convert_to_tensor(data[0], dtype=data[0].dtype),
                 in_data[1]
-                if None != in_data[1]
+                if in_data[1] is not None
                 else ops.convert_to_tensor(data[1], dtype=data[1].dtype),
             )
             out = with_fused_activation_function(out, fused_activation_function)
             compare_tflite_with_tvm(
-                [x[1] for x in zip(in_data, data) if None != x[0]],
-                [x[1] for x in zip(in_data, ("in_0:0", "in_1:0")) if None != x[0]],
-                [x for x in in_data if None != x],
+                [x[1] for x in zip(in_data, data) if x[0] is not None],
+                [x[1] for x in zip(in_data, ("in_0:0", "in_1:0")) if x[0] is not None],
+                [x for x in in_data if x is not None],
                 [out],
             )
 
@@ -2565,6 +2580,7 @@ def _test_elemwise_qnn_out_range(qnn_op):
 
 
 def test_all_elemwise():
+    """All_elewise"""
     _test_forward_elemwise(_test_add)
     _test_forward_elemwise_quantized(_test_add)
     _test_forward_elemwise(partial(_test_add, fused_activation_function="RELU"))
@@ -2613,25 +2629,26 @@ def _test_forward_add_n(inputs):
             temp.append(tf.placeholder(shape=each.shape, dtype=each.dtype))
         output = tf.add_n(temp)
         compare_tflite_with_tvm(
-            [each for each in inputs],
+            list(inputs),
             [each.name for each in temp],
-            [each for each in temp],
+            list(temp),
             [output],
         )
 
 
 def test_forward_add_n():
+    """Add n"""
     if package_version.parse(tf.VERSION) >= package_version.parse("1.14.0"):
         x = np.random.randint(1, 100, size=(3, 3, 3), dtype=np.int32)
         y = np.random.randint(1, 100, size=(3, 3, 3), dtype=np.int32)
-        z = np.random.randint(1, 100, size=(3, 3, 3), dtype=np.int32)
-        m, n, o = x.astype(np.float32), y.astype(np.float32), z.astype(np.float32)
+        z_1 = np.random.randint(1, 100, size=(3, 3, 3), dtype=np.int32)
+        x_1, x_2, z_2 = x.astype(np.float32), y.astype(np.float32), z_1.astype(np.float32)
         in0 = x
         in1 = [x, y]
-        in2 = (x, y, z)
-        in3 = m
-        in4 = [m, n]
-        in5 = (m, n, o)
+        in2 = (x, y, z_1)
+        in3 = x_1
+        in4 = [x_1, x_2]
+        in5 = (x_1, x_2, z_2)
         _test_forward_add_n(in0)
         _test_forward_add_n(in1)
         _test_forward_add_n(in2)
@@ -2652,7 +2669,7 @@ def _test_logical_binary(logical_bin_op, data):
             array_ops.placeholder(shape=data[0].shape, dtype="bool", name="in_0"),
             array_ops.placeholder(shape=data[1].shape, dtype="bool", name="in_1"),
         ]
-        if logical_bin_op == math_ops.logical_not:
+        if logical_bin_op is math_ops.logical_not:
             out = math_ops.logical_or(in_data[0], in_data[1], name="out1")
             out = logical_bin_op(out, name="out")
         else:
@@ -2912,6 +2929,7 @@ def _test_arg_min_max(math_op, data, axis, quantized=False):
 
 
 def test_forward_arg_min_max():
+    """Arg min max"""
     # test quantized
     for data in [np.array(np.random.uniform(-100, 100, (3, 4)), dtype=np.uint8)]:
         # There is no quantized version of ArgMin
@@ -2930,8 +2948,9 @@ def test_forward_arg_min_max():
 
 
 def test_forward_select():
+    """Select"""
     with tf.Graph().as_default():
-        with tf.Session() as sess:
+        with tf.Session() as _:
             input1 = tf.placeholder(tf.int32, shape=[1, 4, 4, 3], name="input1")
             input2 = tf.placeholder(tf.int32, shape=[1, 4, 4, 3], name="input2")
             mask = input1 > input2
@@ -2946,18 +2965,20 @@ def test_forward_select():
 
 @pytest.mark.parametrize("quant_bits", [2, 4, 8, 16])
 @pytest.mark.parametrize(
-    "value, min, max", [[-10.11, -6, 6], [-3.55, -6, 6], [0, -6, 6], [3.55, -6, 6], [10.11, -6, 6]]
+    "value, min_value, max_value",
+    [[-10.11, -6, 6], [-3.55, -6, 6], [0, -6, 6], [3.55, -6, 6], [10.11, -6, 6]],
 )
-def test_forward_fake_quant(value, min, max, quant_bits):
+def test_forward_fake_quant(value, min_value, max_value, quant_bits):
+    """Fake quant"""
     with tf.Graph().as_default():
-        with tf.Session() as sess:
-            input = tf.placeholder(tf.float32, shape=[1], name="input")
+        with tf.Session() as _:
+            input_placeholder = tf.placeholder(tf.float32, shape=[1], name="input")
             out = tf.quantization.fake_quant_with_min_max_args(
-                input, min=min, max=max, num_bits=quant_bits, name=None
+                input_placeholder, min=min_value, max=max_value, num_bits=quant_bits, name=None
             )
 
             in_data = np.float32(value)
-            compare_tflite_with_tvm([in_data], ["input:0"], [input], [out])
+            compare_tflite_with_tvm([in_data], ["input:0"], [input_placeholder], [out])
 
 
 # Squeeze
@@ -3007,7 +3028,7 @@ def _test_quantize_dequantize(data):
 
     # To create quantized values with dynamic range of activations, needs representative dataset
     def representative_data_gen():
-        for i in range(1):
+        for _ in range(1):
             yield [data]
 
     tflite_model_quant = _quantize_keras_model(keras_model, representative_data_gen, True, True)
@@ -3034,7 +3055,7 @@ def _test_quantize_dequantize_const(data):
 
     # To create quantized values with dynamic range of activations, needs representative dataset
     def representative_data_gen():
-        for i in range(1):
+        for _ in range(1):
             yield [data]
 
     tflite_model_quant = _quantize_keras_model(keras_model, representative_data_gen, True, True)
@@ -3337,8 +3358,8 @@ def _test_expand_dims(input_shape, input_type, axis, quantized=False):
 
         if quantized:
             # ignoring input_type as quantized requires uint8
-            input = np.random.uniform(0, 256, input_shape).astype("uint8")
-            in_input = tf.placeholder(dtype="float32", shape=input.shape, name="input")
+            input_array = np.random.uniform(0, 256, input_shape).astype("uint8")
+            in_input = tf.placeholder(dtype="float32", shape=input_array.shape, name="input")
 
             input_range = {"q_input": (-100, 100)}
             inq_input = tf.quantization.fake_quant_with_min_max_args(
@@ -3349,15 +3370,22 @@ def _test_expand_dims(input_shape, input_type, axis, quantized=False):
             out = tf.quantization.fake_quant_with_min_max_args(out, min=-100, max=100, name="out")
 
             compare_tflite_with_tvm(
-                [input], ["q_input"], [inq_input], [out], quantized=True, input_range=input_range
+                [input_array],
+                ["q_input"],
+                [inq_input],
+                [out],
+                quantized=True,
+                input_range=input_range,
             )
         else:
-            input = np.random.uniform(-100, 100, input_shape).astype(input_type)
-            in_input = tf.placeholder(dtype=input.dtype, shape=input.shape, name="input")
+            input_array = np.random.uniform(-100, 100, input_shape).astype(input_type)
+            in_input = tf.placeholder(
+                dtype=input_array.dtype, shape=input_array.shape, name="input"
+            )
 
             out = array_ops.expand_dims(in_input, axis=axis)
 
-            compare_tflite_with_tvm([input], ["input"], [in_input], [out])
+            compare_tflite_with_tvm([input_array], ["input"], [in_input], [out])
 
 
 def test_forward_expand_dims():
@@ -3426,17 +3454,17 @@ def _test_pack(data, is_var, axis, quantized=False):
             ]
             inq_data = [
                 tf.quantization.fake_quant_with_min_max_args(
-                    i_data, min=-100, max=100, name="inq_{}".format(idx)
+                    i_data, min=-100, max=100, name=f"inq_{idx}"
                 )
                 for idx, i_data in enumerate(in_data)
             ]
             input_range = {}
             for i in range(len(data)):
-                input_range["inq_{}".format(i)] = (-100, 100)
+                input_range[f"inq_{i}"] = (-100, 100)
 
             out = array_ops.pack(inq_data, axis=axis)
             out = tf.quantization.fake_quant_with_min_max_args(out, min=-100, max=100, name="out")
-            name = ["inq_{}:0".format(idx) for idx in range(len(data))]
+            name = [f"inq_{idx}:0" for idx in range(len(data))]
             compare_tflite_with_tvm(
                 data, name, inq_data, [out], quantized=True, input_range=input_range
             )
@@ -3788,7 +3816,8 @@ def _test_relu_n1_to_1(data, quantized=False):
                 in_data, min=-3, max=3, name="inq_0"
             )
             input_range = {"inq_0": (-3, 3)}
-            # There is no such tf operation. The specific pattern will be replaced into RELU_N1_TO_1 by tflite
+            # There is no such tf operation.
+            # The specific pattern will be replaced into RELU_N1_TO_1 by tflite
             out = math_ops.maximum(-1.0, math_ops.minimum(inq_data, 1.0))
             out = tf.quantization.fake_quant_with_min_max_args(out, min=-1, max=1, name="out")
             compare_tflite_with_tvm(
@@ -3949,7 +3978,7 @@ def _test_sparse_to_dense(sparse_indices, sparse_values, default_value, output_s
                 output_shape, shape=output_shape.shape, dtype=str(output_shape.dtype)
             )
 
-            if default_value == None:
+            if default_value is None:
                 output = tf.sparse_to_dense(indices, oshape, values)
                 compare_tflite_with_tvm(
                     [sparse_indices, sparse_values],
@@ -3958,12 +3987,14 @@ def _test_sparse_to_dense(sparse_indices, sparse_values, default_value, output_s
                     [output],
                 )
             else:
-                dv = tf.placeholder(shape=(), dtype=str(default_value.dtype), name="default_value")
-                output = tf.sparse_to_dense(indices, oshape, values, dv)
+                dv_placeholder = tf.placeholder(
+                    shape=(), dtype=str(default_value.dtype), name="default_value"
+                )
+                output = tf.sparse_to_dense(indices, oshape, values, dv_placeholder)
                 compare_tflite_with_tvm(
                     [sparse_indices, sparse_values, default_value],
                     ["indices", "values", "default_value"],
-                    [indices, values, dv],
+                    [indices, values, dv_placeholder],
                     [output],
                 )
 
@@ -4143,13 +4174,13 @@ def test_forward_fully_connected():
 def _test_reverse_v2(input_shape, axis, dtype):
     """One iteration of REVERSE_V2"""
     with tf.Graph().as_default():
-        input = np.random.randint(0, 100, size=input_shape).astype(dtype)
-        in_input = tf.placeholder(dtype=input.dtype, shape=input.shape, name="input")
+        input_array = np.random.randint(0, 100, size=input_shape).astype(dtype)
+        in_input = tf.placeholder(dtype=input_array.dtype, shape=input_array.shape, name="input")
         in_axis = ops.convert_to_tensor(axis, dtype=axis.dtype)
 
         out = array_ops.reverse(in_input, in_axis)
 
-        compare_tflite_with_tvm([input], ["input"], [in_input], [out])
+        compare_tflite_with_tvm([input_array], ["input"], [in_input], [out])
 
 
 def test_forward_reverse_v2():
@@ -4172,8 +4203,8 @@ def _test_matrix_set_diag(input_shape, input_type, quantized=False):
 
         if quantized:
             # ignoring input_type as quantized requires uint8
-            input = np.random.uniform(0, 256, input_shape).astype("uint8")
-            in_input = tf.placeholder(dtype="float32", shape=input.shape, name="input")
+            input_array = np.random.uniform(0, 256, input_shape).astype("uint8")
+            in_input = tf.placeholder(dtype="float32", shape=input_array.shape, name="input")
             inq_input = tf.quantization.fake_quant_with_min_max_args(
                 in_input, min=-100, max=100, name="q_input"
             )
@@ -4190,7 +4221,7 @@ def _test_matrix_set_diag(input_shape, input_type, quantized=False):
             out = tf.quantization.fake_quant_with_min_max_args(out, min=-100, max=100, name="out")
 
             compare_tflite_with_tvm(
-                [input, diagonal],
+                [input_array, diagonal],
                 ["q_input", "q_diagonal"],
                 [inq_input, inq_diagonal],
                 [out],
@@ -4198,10 +4229,12 @@ def _test_matrix_set_diag(input_shape, input_type, quantized=False):
                 input_range=input_range,
             )
         else:
-            input = np.random.uniform(0, 100, input_shape).astype(input_type)
+            input_array = np.random.uniform(0, 100, input_shape).astype(input_type)
             diagonal = np.random.uniform(0, 100, diagonal_shape).astype(input_type)
 
-            in_input = tf.placeholder(dtype=input.dtype, shape=input.shape, name="input")
+            in_input = tf.placeholder(
+                dtype=input_array.dtype, shape=input_array.shape, name="input"
+            )
             in_diagonal = tf.placeholder(
                 dtype=diagonal.dtype, shape=diagonal.shape, name="diagonal"
             )
@@ -4209,7 +4242,7 @@ def _test_matrix_set_diag(input_shape, input_type, quantized=False):
             out = array_ops.matrix_set_diag(in_input, in_diagonal)
 
             compare_tflite_with_tvm(
-                [input, diagonal], ["input", "diagonal"], [in_input, in_diagonal], [out]
+                [input_array, diagonal], ["input", "diagonal"], [in_input, in_diagonal], [out]
             )
 
 
@@ -4257,6 +4290,7 @@ def test_forward_matrix_diag():
 
 
 def test_detection_postprocess():
+    """Detection PostProcess"""
     tf_model_file = tf_testing.get_workload_official(
         "http://download.tensorflow.org/models/object_detection/"
         "ssd_mobilenet_v2_quantized_300x300_coco_2019_01_03.tar.gz",
@@ -4292,10 +4326,10 @@ def test_detection_postprocess():
 
     # Check all output shapes are equal
     assert all(
-        [
+        list(
             tvm_tensor.shape == tflite_tensor.shape
             for (tvm_tensor, tflite_tensor) in zip(tvm_output, tflite_output)
-        ]
+        )
     )
 
     # Check valid count is the same
@@ -4338,7 +4372,7 @@ def test_custom_op_converter():
         """Operator Converter for converting TFLite ops to relay ops"""
 
         def __init__(self, model, subgraph, exp_tab):
-            super(DummyOperatorConverter, self).__init__(model, subgraph, exp_tab)
+            super().__init__(model, subgraph, exp_tab)
             self.allow_custom_ops = True
 
             convert_map_overwrite = {"SUB": self.convert_sub_dummy}
@@ -4373,11 +4407,11 @@ def test_custom_op_converter():
         ]
         out = math_ops.subtract(in_data[0], in_data[1])
         in_name = [x[1] for x in zip(in_data, ("in_0:0", "in_1:0"))]
-        input_tensors = [x for x in in_data]
+        input_tensors = in_data
         output_tensors = [out]
         in_node = [0] * len(in_name)
-        for i in range(len(in_name)):
-            in_node[i] = in_name[i].split(":")[0] if ":" in in_name[i] else in_name[i]
+        for i, _ in enumerate(in_name):
+            in_node[i] = in_name[i].split(":")[0]
 
         with tf.Session() as sess:
             converter = tf.lite.TFLiteConverter.from_session(sess, input_tensors, output_tensors)
@@ -4508,7 +4542,8 @@ def test_forward_inception_v3_net():
     """Test the Inception V3 TF Lite model."""
     # InceptionV3
     tflite_model_file = tf_testing.get_workload_official(
-        "https://storage.googleapis.com/download.tensorflow.org/models/tflite/model_zoo/upload_20180427/inception_v3_2018_04_27.tgz",
+        "https://storage.googleapis.com/download.tensorflow.org/models/tflite/model_zoo/"
+        "upload_20180427/inception_v3_2018_04_27.tgz",
         "inception_v3.tflite",
     )
     with open(tflite_model_file, "rb") as f:
@@ -4525,7 +4560,9 @@ def test_forward_inception_v4_net():
     """Test the Inception V4 TF Lite model."""
     # InceptionV4
     tflite_model_file = tf_testing.get_workload_official(
-        "https://storage.googleapis.com/download.tensorflow.org/models/tflite/model_zoo/upload_20180427/inception_v4_2018_04_27.tgz",
+        "https://storage.googleapis.com/download.tensorflow.org/models/"
+        "tflite/model_zoo/upload_20180427/"
+        "inception_v4_2018_04_27.tgz",
         "inception_v4.tflite",
     )
     with open(tflite_model_file, "rb") as f:
@@ -4542,7 +4579,9 @@ def test_forward_inception_v4_net_batched():
     """Test the Inception V4 TF Lite model."""
     # InceptionV4
     tflite_model_file = tf_testing.get_workload_official(
-        "https://storage.googleapis.com/download.tensorflow.org/models/tflite/model_zoo/upload_20180427/inception_v4_2018_04_27.tgz",
+        "https://storage.googleapis.com/download.tensorflow.org/models/"
+        "tflite/model_zoo/upload_20180427/"
+        "inception_v4_2018_04_27.tgz",
         "inception_v4.tflite",
     )
     with open(tflite_model_file, "rb") as f:
@@ -4559,7 +4598,8 @@ def test_forward_qnn_inception_v1_net():
     """Test the Quantized TFLite Inception model."""
     # InceptionV1
     tflite_model_file = tf_testing.get_workload_official(
-        "https://storage.googleapis.com/download.tensorflow.org/models/inception_v1_224_quant_20181026.tgz",
+        "https://storage.googleapis.com/download.tensorflow.org/models/"
+        "inception_v1_224_quant_20181026.tgz",
         "inception_v1_224_quant.tflite",
     )
     with open(tflite_model_file, "rb") as f:
@@ -4583,7 +4623,8 @@ def test_forward_qnn_mobilenet_v1_net():
     """Test the Quantized TFLite Mobilenet V1 model."""
     # MobilenetV1
     tflite_model_file = tf_testing.get_workload_official(
-        "https://storage.googleapis.com/download.tensorflow.org/models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz",
+        "https://storage.googleapis.com/download.tensorflow.org/models/mobilenet_v1_2018_08_02/"
+        "mobilenet_v1_1.0_224_quant.tgz",
         "mobilenet_v1_1.0_224_quant.tflite",
     )
     with open(tflite_model_file, "rb") as f:
@@ -4607,7 +4648,8 @@ def test_forward_qnn_mobilenet_v2_net():
     """Test the Quantized TFLite Mobilenet V2 model."""
     # MobilenetV2
     tflite_model_file = tf_testing.get_workload_official(
-        "https://storage.googleapis.com/download.tensorflow.org/models/tflite_11_05_08/mobilenet_v2_1.0_224_quant.tgz",
+        "https://storage.googleapis.com/download.tensorflow.org/models/tflite_11_05_08/"
+        "mobilenet_v2_1.0_224_quant.tgz",
         "mobilenet_v2_1.0_224_quant.tflite",
     )
     with open(tflite_model_file, "rb") as f:
@@ -4665,7 +4707,8 @@ def test_forward_tflite2_qnn_resnet50():
     """Test the Quantized TFLite version 2.1.0 Resnet50 model."""
     if package_version.parse(tf.VERSION) >= package_version.parse("2.1.0"):
         tflite_model_file = download_testdata(
-            "https://raw.githubusercontent.com/dmlc/web-data/main/tensorflow/models/Quantized/resnet_50_quantized.tflite",
+            "https://raw.githubusercontent.com/dmlc/web-data/main/tensorflow/models/Quantized/"
+            "resnet_50_quantized.tflite",
             "resnet_50_quantized.tflite",
         )
         with open(tflite_model_file, "rb") as f:
@@ -4686,7 +4729,8 @@ def test_forward_tflite2_qnn_inception_v1():
     """Test the Quantized TFLite version 2.1.0 Inception V1 model."""
     if package_version.parse(tf.VERSION) >= package_version.parse("2.1.0"):
         tflite_model_file = download_testdata(
-            "https://raw.githubusercontent.com/dmlc/web-data/main/tensorflow/models/Quantized/inception_v1_quantized.tflite",
+            "https://raw.githubusercontent.com/dmlc/web-data/main/tensorflow/models/Quantized/"
+            "inception_v1_quantized.tflite",
             "inception_v1_quantized.tflite",
         )
         with open(tflite_model_file, "rb") as f:
@@ -4707,7 +4751,8 @@ def test_forward_tflite2_qnn_mobilenet_v2():
     """Test the Quantized TFLite version 2.1.0 Mobilenet V2 model."""
     if package_version.parse(tf.VERSION) >= package_version.parse("2.1.0"):
         tflite_model_file = download_testdata(
-            "https://raw.githubusercontent.com/dmlc/web-data/main/tensorflow/models/Quantized/mobilenet_v2_quantized.tflite",
+            "https://raw.githubusercontent.com/dmlc/web-data/main/tensorflow/models/Quantized/"
+            "mobilenet_v2_quantized.tflite",
             "mobilenet_v2_quantized.tflite",
         )
         with open(tflite_model_file, "rb") as f:
@@ -4728,7 +4773,8 @@ def test_forward_tflite_float16():
     """Test float16 quantized model"""
     # MobilenetV2
     tflite_model_file = tf_testing.get_workload_official(
-        "https://storage.googleapis.com/download.tensorflow.org/models/mobilenet_v1_2018_02_22/mobilenet_v1_0.25_128.tgz",
+        "https://storage.googleapis.com/download.tensorflow.org/models/mobilenet_v1_2018_02_22/"
+        "mobilenet_v1_0.25_128.tgz",
         "mobilenet_v1_0.25_128_frozen.pb",
     )
 
@@ -4757,7 +4803,8 @@ def test_forward_mobilenet_int16():
     """Test int16 quantized model"""
     # MobilenetV2
     model_file = tf_testing.get_workload_official(
-        "https://storage.googleapis.com/download.tensorflow.org/models/mobilenet_v1_2018_02_22/mobilenet_v1_0.25_128.tgz",
+        "https://storage.googleapis.com/download.tensorflow.org/models/mobilenet_v1_2018_02_22/"
+        "mobilenet_v1_0.25_128.tgz",
         "mobilenet_v1_0.25_128_frozen.pb",
     )
 
@@ -4801,7 +4848,8 @@ def test_forward_unidirectional_sequence_lstm():
     """Test the UnidirectionalSequenceLSTM TFLite"""
     if package_version.parse(tf.VERSION) >= package_version.parse("2.1.0"):
         tflite_model_file = download_testdata(
-            "https://github.com/SebastianBoblestETAS/nn_models/blob/ce49c5de64889493161ca4194a20e0fd5eb707e6/lstm_1_in_3_out_2_ts_4.tflite?raw=true",
+            "https://github.com/SebastianBoblestETAS/nn_models/blob/"
+            "ce49c5de64889493161ca4194a20e0fd5eb707e6/lstm_1_in_3_out_2_ts_4.tflite?raw=true",
             "lstm_1_in_3_out_2_ts_4.tflite",
         )
         with open(tflite_model_file, "rb") as f:
@@ -4838,7 +4886,8 @@ def test_forward_qnn_coco_ssd_mobilenet_v1():
     )
 
     tflite_model_file = tf_testing.get_workload_official(
-        "https://storage.googleapis.com/download.tensorflow.org/models/tflite/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip",
+        "https://storage.googleapis.com/download.tensorflow.org/models/tflite/"
+        "coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip",
         "detect.tflite",
     )
 
@@ -4853,10 +4902,10 @@ def test_forward_qnn_coco_ssd_mobilenet_v1():
 
     # Check all output shapes are equal
     assert all(
-        [
+        list(
             tvm_tensor.shape == tflite_tensor.shape
             for (tvm_tensor, tflite_tensor) in zip(tvm_output, tflite_output)
-        ]
+        )
     )
 
     # Check valid count is the same
@@ -4904,7 +4953,8 @@ def test_forward_qnn_coco_ssd_mobilenet_v1():
 def test_forward_coco_ssd_mobilenet_v1():
     """Test the FP32 Coco SSD Mobilenet V1 TF Lite model."""
     tflite_model_file = tf_testing.get_workload_official(
-        "https://raw.githubusercontent.com/dmlc/web-data/main/tensorflow/models/object_detection/ssd_mobilenet_v1_coco_2018_01_28.tgz",
+        "https://raw.githubusercontent.com/dmlc/web-data/main/tensorflow/models/object_detection/"
+        "ssd_mobilenet_v1_coco_2018_01_28.tgz",
         "ssd_mobilenet_v1_coco_2018_01_28.tflite",
     )
 
@@ -4920,10 +4970,10 @@ def test_forward_coco_ssd_mobilenet_v1():
 
     # Check all output shapes are equal
     assert all(
-        [
+        list(
             tvm_tensor.shape == tflite_tensor.shape
             for (tvm_tensor, tflite_tensor) in zip(tvm_output, tflite_output)
-        ]
+        )
     )
 
     # Check valid count is the same
@@ -4991,7 +5041,7 @@ def test_prevent_tensorflow_dynamic_range():
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
     tflite_model = converter.convert()
     with pytest.raises(tvm.error.OpNotImplemented):
-        tvm_output = run_tvm_graph(tflite_model, data_array, data_in.name.replace(":0", ""))
+        _ = run_tvm_graph(tflite_model, data_array, data_in.name.replace(":0", ""))
 
 
 def _test_nms_v5(

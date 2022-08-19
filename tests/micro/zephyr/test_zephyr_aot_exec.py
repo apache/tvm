@@ -38,7 +38,7 @@ from tvm._ffi import get_global_func, register_func
 import test_utils
 
 
-def _make_session(workspace_dir, zephyr_board, west_cmd, mod, build_config):
+def _make_session(workspace_dir, zephyr_board, west_cmd, mod, build_config, use_fvp):
     config_main_stack_size = None
     if test_utils.qemu_boards(zephyr_board):
         # fyi: qemu_riscv64 seems to be the greediest stack user
@@ -52,6 +52,8 @@ def _make_session(workspace_dir, zephyr_board, west_cmd, mod, build_config):
         "west_cmd": west_cmd,
         "verbose": bool(build_config.get("debug")),
         "zephyr_board": zephyr_board,
+        "arm_fvp_path": "/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4/FVP_Corstone_SSE-300_Ethos-U55",
+        "use_fvp": bool(use_fvp),
     }
     if config_main_stack_size is not None:
         project_options["config_main_stack_size"] = config_main_stack_size
@@ -69,7 +71,8 @@ def _make_session(workspace_dir, zephyr_board, west_cmd, mod, build_config):
 
 @tvm.testing.requires_micro
 @pytest.mark.skip_boards(["mps2_an521"])
-def test_relay(workspace_dir, board, west_cmd, microtvm_debug):
+@pytest.mark.xfail_on_fvp()
+def test_relay(workspace_dir, board, west_cmd, microtvm_debug, use_fvp):
     """Testing a simple relay graph"""
 
     model = test_utils.ZEPHYR_BOARDS[board]
@@ -90,7 +93,7 @@ def test_relay(workspace_dir, board, west_cmd, microtvm_debug):
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         mod = tvm.relay.build(ir_mod, target=target, runtime=runtime, executor=executor)
 
-    with _make_session(workspace_dir, board, west_cmd, mod, build_config) as session:
+    with _make_session(workspace_dir, board, west_cmd, mod, build_config, use_fvp) as session:
 
         aot_executor = tvm.runtime.executor.aot_executor.AotModule(session.create_aot_executor())
 
@@ -103,7 +106,8 @@ def test_relay(workspace_dir, board, west_cmd, microtvm_debug):
 
 @tvm.testing.requires_micro
 @pytest.mark.skip_boards(["mps2_an521"])
-def test_aot_executor(workspace_dir, board, west_cmd, microtvm_debug):
+@pytest.mark.xfail_on_fvp()
+def test_aot_executor(workspace_dir, board, west_cmd, microtvm_debug, use_fvp):
     """Test use of the AOT executor with microTVM."""
 
     model = test_utils.ZEPHYR_BOARDS[board]
@@ -154,7 +158,7 @@ def test_aot_executor(workspace_dir, board, west_cmd, microtvm_debug):
         aot_executor.set_input("b", B_np_new)
         assert (B_data.numpy() == B_np_new).all()
 
-    with _make_session(workspace_dir, board, west_cmd, mod, build_config) as session:
+    with _make_session(workspace_dir, board, west_cmd, mod, build_config, use_fvp) as session:
         do_test()
 
 

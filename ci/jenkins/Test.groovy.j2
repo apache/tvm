@@ -210,6 +210,26 @@
     label: 'Run microTVM tests',
   )
 {% endcall %}
+{% call(shard_index, num_shards) m.sharded_test_step(
+  name="test: RISC-V",
+  node="CPU-SMALL",
+  ws="tvm/test-riscv",
+  platform="riscv",
+  docker_image="ci_riscv",
+  num_shards=1,
+  test_method_names=test_method_names,
+) %}
+  {{ m.download_artifacts(tag='riscv', filenames=tvm_lib, folders=microtvm_template_projects) }}
+  add_microtvm_permissions()
+  ci_setup(ci_riscv)
+  {% if shard_index == 1%}
+  cpp_unittest(ci_cortexm)
+  {% endif %}
+  sh (
+    script: "${docker_run} ${ci_riscv} ./tests/scripts/task_riscv_microtvm.sh",
+    label: 'Run microTVM tests',
+  )
+{% endcall %}
 
 def run_unittest_minimal() {
   {% call m.test_step_body(

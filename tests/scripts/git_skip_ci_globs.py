@@ -32,6 +32,9 @@ globs = [
     "LICENSE",
     "NOTICE",
     "KEYS",
+    # microTVM
+    "apps/microtvm/poetry.lock",
+    "apps/microtvm/pyproject.toml",
 ]
 
 

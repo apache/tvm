@@ -442,7 +442,7 @@ MICRO_SUPPORTED_MODELS = {
     "imxrt10xx": ["-mcpu=cortex-m7"],
     "mps2_an521": ["-mcpu=cortex-m33"],
     "mps3_an547": ["-mcpu=cortex-m55"],
-    "nrf52840": ["-mcpu=cortex-m4"],
+    "nrf52840": ["-mcpu=cortex-m4+nodsp"],
     "nrf5340dk": ["-mcpu=cortex-m33"],
     "rp2040": ["-mcpu=cortex-m0"],
     "sam3x8e": ["-mcpu=cortex-m3"],
@@ -531,7 +531,7 @@ def arm_cpu(model="unknown", options=None):
     }
     pre_defined_opt = trans_table.get(model, ["-model=%s" % model])
 
-    opts = ["-device=arm_cpu"] + pre_defined_opt
+    opts = ["-keys=arm_cpu,cpu", "-device=arm_cpu"] + pre_defined_opt
     opts = _merge_opts(opts, options)
     return Target(" ".join(["llvm"] + opts))
 
@@ -612,7 +612,7 @@ def riscv_cpu(model="sifive-u54", options=None):
     }
     pre_defined_opt = trans_table.get(model, ["-model=%s" % model])
 
-    opts = ["-device=arm_cpu"] + pre_defined_opt
+    opts = ["-keys=arm_cpu,cpu", "-device=arm_cpu"] + pre_defined_opt
     opts = _merge_opts(opts, options)
     return Target(" ".join(["llvm"] + opts))
 
@@ -724,6 +724,12 @@ def hexagon(cpu_ver="v66", **kwargs):
 
         llvm_options = config["llvm_options"]
 
+        # To enable auto-vectorization for v68 target added the below llvm-option by default
+        if arch_version == 68:
+            if not llvm_options:
+                llvm_options = ""
+            llvm_options += " -force-hvx-float"
+
         # TVM's option parser doesn't allow '=' in values, but '=' can
         # appear in LLVM flags. Replace it with '@', since it's unlikely
         # that '@' will be used in another context.
@@ -756,22 +762,22 @@ def hexagon(cpu_ver="v66", **kwargs):
 
 STM32_SUPPORTED_SERIES = {
     # High-Performance
-    "stm32H7xx": ["-device=arm_cpu", "-mcpu=cortex-m7", "-march=armv7e-m"],
-    "stm32F7xx": ["-device=arm_cpu", "-mcpu=cortex-m7"],
-    "stm32F4xx": ["-device=arm_cpu", "-mcpu=cortex-m4"],
-    "stm32F2xx": ["-device=arm_cpu", "-mcpu=cortex-m3"],
+    "stm32H7xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m7", "-march=armv7e-m"],
+    "stm32F7xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m7"],
+    "stm32F4xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
+    "stm32F2xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m3"],
     # Mainstream
-    "stm32G0xx": ["-device=arm_cpu", "-mcpu=cortex-m0+"],
-    "stm32F0xx": ["-device=arm_cpu", "-mcpu=cortex-m0"],
-    "stm32F1xx": ["-device=arm_cpu", "-mcpu=cortex-m3"],
-    "stm32G4xx": ["-device=arm_cpu", "-mcpu=cortex-m4"],
-    "stm32F3xx": ["-device=arm_cpu", "-mcpu=cortex-m4"],
+    "stm32G0xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m0+"],
+    "stm32F0xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m0"],
+    "stm32F1xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m3"],
+    "stm32G4xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
+    "stm32F3xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
     # Low-power
-    "stm32U5xx": ["-device=arm_cpu", "-mcpu=cortex-m33"],
-    "stm32L5xx": ["-device=arm_cpu", "-mcpu=cortex-m33"],
-    "stm32L4xx": ["-device=arm_cpu", "-mcpu=cortex-m4"],
-    "stm32L1xx": ["-device=arm_cpu", "-mcpu=cortex-m3"],
-    "stm32L0xx": ["-device=arm_cpu", "-mcpu=cortex-m0+"],
+    "stm32U5xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m33"],
+    "stm32L5xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m33"],
+    "stm32L4xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
+    "stm32L1xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m3"],
+    "stm32L0xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m0+"],
 }
 
 

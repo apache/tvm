@@ -1058,6 +1058,7 @@ export class Instance implements Disposable {
       nstep: number,
       repeat: number,
       minRepeatMs: number,
+      limitZeroTimeIterations: number,
       cooldownIntervalMs: number,
       repeatsToCooldown: number
     ): Promise<Uint8Array> => {
@@ -1068,6 +1069,7 @@ export class Instance implements Disposable {
 
       for (let i = 0; i < repeat; ++i) {
         let durationMs = 0.0;
+        let absoluteZeroTimes = 0;
         do {
           if (durationMs > 0.0) {
             let golden_ratio = 1.618;
@@ -1081,7 +1083,10 @@ export class Instance implements Disposable {
           const tend: number = perf.now();
 
           durationMs = tend - tstart;
-        } while (durationMs < minRepeatMs);
+          if (durationMs == 0) {
+            absoluteZeroTimes++;
+          }
+        } while (durationMs < minRepeatMs && absoluteZeroTimes < limitZeroTimeIterations);
         const speed = durationMs / setupNumber / 1000;
         result.push(speed);
         if (cooldownIntervalMs > 0.0 && (i % repeatsToCooldown) == 0 ) {

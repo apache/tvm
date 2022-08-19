@@ -127,6 +127,20 @@ TEST(TracedObjectFunctorTest, ExtraArg) {
   ICHECK_EQ(functor("tir", MakeTraced(BarObject(), path), 2), 3);
 }
 
+TEST(TracedObjectFunctorTest, RemoveDispatchFunction) {
+  TracedObjectFunctor<String> functor;
+  ObjectPath path = ObjectPath::Root();
+
+  functor.set_dispatch([](TracedObject<FooObject> o) -> String { return "Foo"; });
+  functor.set_dispatch("tir", [](TracedObject<FooObject> o) -> String { return "Foo tir"; });
+
+  ICHECK_EQ(functor("", MakeTraced(FooObject(), path)), "Foo");
+  ICHECK_EQ(functor("tir", MakeTraced(FooObject(), path)), "Foo tir");
+
+  functor.remove_dispatch("tir", FooObjectNode::RuntimeTypeIndex());
+  ICHECK_EQ(functor("tir", MakeTraced(FooObject(), path)), "Foo");
+}
+
 TEST(TracedObjectFunctorTest, CallWithUnregisteredType) {
   TracedObjectFunctor<int, int> functor;
   ObjectPath path = ObjectPath::Root();

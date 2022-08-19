@@ -194,6 +194,21 @@ class GPUCodeVerifier : public StmtExprVisitor {
     LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
   }
 
+  void CheckBufferIndicesVectorizable(const Array<PrimExpr> indices) {
+    for (const auto index : indices) {
+      if (const auto* ramp = index.as<RampNode>()) {
+        if (!is_one(ramp->stride) &&
+            static_cast<size_t>(ramp->dtype.lanes() * ramp->dtype.bytes()) > max_vector_bytes_) {
+          std::stringstream s;
+          s << "Number of lanes (" << ramp->dtype.lanes() << ") times number of bytes ("
+            << ramp->dtype.bytes() << ") for dtype " << ramp->dtype
+            << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
+          errors_.push_back(s.str());
+        }
+      }
+    }
+  }
+
   void VisitExpr_(const BufferLoadNode* op) {
     if (op->dtype.lanes() > 1) {
       if (static_cast<size_t>(op->dtype.lanes() * op->dtype.bytes()) > max_vector_bytes_) {
@@ -203,6 +218,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
           << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
         errors_.push_back(s.str());
       }
+      CheckBufferIndicesVectorizable(op->indices);
     }
     ExprVisitor::VisitExpr_(op);
   }
@@ -217,6 +233,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
           << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
         errors_.push_back(s.str());
       }
+      CheckBufferIndicesVectorizable(op->indices);
     }
     StmtVisitor::VisitStmt_(op);
   }

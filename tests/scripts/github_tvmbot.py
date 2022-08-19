@@ -49,7 +49,7 @@ def to_json_str(obj: Any) -> str:
 COLLABORATORS_QUERY = """
 query ($owner: String!, $name: String!, $user: String!) {
   repository(owner: $owner, name: $name) {
-    collaborators(query: $user, first: 1) {
+    collaborators(query: $user, first: 100) {
       nodes {
         login
       }
@@ -61,7 +61,7 @@ query ($owner: String!, $name: String!, $user: String!) {
 MENTIONABLE_QUERY = """
 query ($owner: String!, $name: String!, $user: String!) {
   repository(owner: $owner, name: $name) {
-    mentionableUsers(query: $user, first: 1) {
+    mentionableUsers(query: $user, first: 100) {
       nodes {
         login
       }

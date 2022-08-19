@@ -883,8 +883,8 @@ def get_wmma_intrin_group(
         A group of tensor intrinsics.
     """
     assert store_scope in ["global", "shared"]
-    assert in_dtype in ["float16"]
-    assert out_dtype in ["float16", "float32"]
+    assert in_dtype in ["float16", "int8"]
+    assert out_dtype in ["float16", "float32", "int32"]
 
     load_a_intrins = {
         "float16": WMMA_LOAD_16x16x16_F16_A_INTRIN,

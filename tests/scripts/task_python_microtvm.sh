@@ -28,6 +28,7 @@ run_pytest ctypes python-microtvm-zephyr-qemu_x86 tests/micro/zephyr --board=qem
 run_pytest ctypes python-microtvm-zephyr-qemu_riscv32 tests/micro/zephyr --board=qemu_riscv32
 run_pytest ctypes python-microtvm-zephyr-qemu_riscv64 tests/micro/zephyr --board=qemu_riscv64
 run_pytest ctypes python-microtvm-zephyr-mps2_an521 tests/micro/zephyr --board=mps2_an521
+run_pytest ctypes python-microtvm-zephyr-mps3_an547 tests/micro/zephyr --board=mps3_an547 --use-fvp
 
 # Arduino
 run_pytest ctypes python-microtvm-arduino apps/microtvm/arduino/template_project/tests

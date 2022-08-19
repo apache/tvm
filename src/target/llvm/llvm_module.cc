@@ -496,7 +496,7 @@ runtime::Module CreateLLVMCppMetadataModule(runtime::metadata::Metadata metadata
   auto llvm_instance = std::make_unique<LLVMInstance>();
   With<LLVMTarget> llvm_target(*llvm_instance, target);
   bool system_lib = runtime->GetAttr<Bool>("system-lib").value_or(Bool(false));
-  std::unique_ptr<CodeGenCPU> cg{new CodeGenCPU()};
+  auto cg = std::make_unique<CodeGenCPU>();
 
   cg->Init("TVMMetadataMod", llvm_target.get(), system_lib, system_lib,
            /*target_c_runtime=*/false);
@@ -544,7 +544,7 @@ runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& module
   ICHECK(system_lib && target_c_runtime)
       << "For LLVM C-runtime metadata module, must include --system-lib and --runtime=c; "
       << "got target: " << target->str();
-  std::unique_ptr<CodeGenCPU> cg{new CodeGenCPU()};
+  auto cg = std::make_unique<CodeGenCPU>();
   cg->Init("TVMMetadataMod", llvm_target.operator->(), system_lib, system_lib, target_c_runtime);
 
   cg->DefineFunctionRegistry(func_names);
