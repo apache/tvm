@@ -2047,7 +2047,7 @@ inline Tensor embedding_bag(const Tensor& input, const Tensor& weight, const Ten
                                cast(DataType::Int(32), offset(i + 1)));  // end point
 
     // can't find `fold` function, so use a stupid method to iterate from st to ed
-    for (auto idx = 0; idx < 4; idx++) {
+    for (auto idx = 0; idx < N; idx++) {
       auto real_idx = st + idx;
       auto idx_i = input(real_idx);
       auto cond = (real_idx < ed) && (idx_i != padding_idx);
