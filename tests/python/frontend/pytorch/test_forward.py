@@ -906,13 +906,17 @@ def test_forward_maxpool1d():
 def test_forward_maxpool3d():
     """test_forward_maxpool3d"""
     torch.set_grad_enabled(False)
-    input_shape = [1, 3, 10, 10, 10]
-    input_data = torch.rand(input_shape).float()
+    for input_shape in [(1, 3, 10, 10, 10), (3, 10, 10, 10)]:
+        input_data = torch.rand(input_shape).float()
 
-    verify_model(torch.nn.MaxPool3d(kernel_size=[1, 1, 1]).eval(), input_data)
-    verify_model(torch.nn.MaxPool3d(kernel_size=[2, 2, 2], dilation=[1, 2, 3]).eval(), input_data)
-    verify_model(torch.nn.MaxPool3d(kernel_size=[10, 10, 10]).eval(), input_data)
-    verify_model(torch.nn.MaxPool3d(kernel_size=[4, 4, 4], padding=2, stride=2).eval(), input_data)
+        verify_model(torch.nn.MaxPool3d(kernel_size=[1, 1, 1]).eval(), input_data)
+        verify_model(
+            torch.nn.MaxPool3d(kernel_size=[2, 2, 2], dilation=[1, 2, 3]).eval(), input_data
+        )
+        verify_model(torch.nn.MaxPool3d(kernel_size=[10, 10, 10]).eval(), input_data)
+        verify_model(
+            torch.nn.MaxPool3d(kernel_size=[4, 4, 4], padding=2, stride=2).eval(), input_data
+        )
 
     # A functional variant (default strides = None case)
     class MaxPool3D(Module):

@@ -27,7 +27,6 @@
 #define TVM_RELAY_TRANSFORMS_PATTERN_UTILS_H_
 
 #include <builtin_fp16.h>
-#include <dmlc/optional.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/nn.h>
@@ -40,6 +39,7 @@
 #include <tvm/tir/data_layout.h>
 
 #include <limits>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -405,48 +405,47 @@ inline bool IsEqualScalar(const Expr& a, const Expr& b) {
  * \param i element index
  * \return Converted scalar value, or None if conversion failed
  */
-static inline dmlc::optional<long double> TryToScalar(const runtime::NDArray& array, size_t i = 0) {
+static inline std::optional<long double> TryToScalar(const runtime::NDArray& array, size_t i = 0) {
   if (array->dtype.code == kDLInt) {
     if (array->dtype.bits == 8) {
-      return dmlc::optional<long double>(reinterpret_cast<int8_t*>(array->data)[i]);
+      return std::optional<long double>(reinterpret_cast<int8_t*>(array->data)[i]);
     } else if (array->dtype.bits == 16) {
-      return dmlc::optional<long double>(reinterpret_cast<int16_t*>(array->data)[i]);
+      return std::optional<long double>(reinterpret_cast<int16_t*>(array->data)[i]);
     } else if (array->dtype.bits == 32) {
-      return dmlc::optional<long double>(reinterpret_cast<int32_t*>(array->data)[i]);
+      return std::optional<long double>(reinterpret_cast<int32_t*>(array->data)[i]);
     } else if (array->dtype.bits == 64) {
-      return dmlc::optional<long double>(reinterpret_cast<int64_t*>(array->data)[i]);
+      return std::optional<long double>(reinterpret_cast<int64_t*>(array->data)[i]);
     }
   } else if (array->dtype.code == kDLUInt) {
     if (array->dtype.bits == 1) {  // bool
-      return dmlc::optional<long double>(reinterpret_cast<uint8_t*>(array->data)[i]);
+      return std::optional<long double>(reinterpret_cast<uint8_t*>(array->data)[i]);
     } else if (array->dtype.bits == 8) {
-      return dmlc::optional<long double>(reinterpret_cast<uint8_t*>(array->data)[i]);
+      return std::optional<long double>(reinterpret_cast<uint8_t*>(array->data)[i]);
     } else if (array->dtype.bits == 16) {
-      return dmlc::optional<long double>(reinterpret_cast<uint16_t*>(array->data)[i]);
+      return std::optional<long double>(reinterpret_cast<uint16_t*>(array->data)[i]);
     } else if (array->dtype.bits == 32) {
-      return dmlc::optional<long double>(reinterpret_cast<uint32_t*>(array->data)[i]);
+      return std::optional<long double>(reinterpret_cast<uint32_t*>(array->data)[i]);
     } else if (array->dtype.bits == 64) {
-      return dmlc::optional<long double>(reinterpret_cast<uint64_t*>(array->data)[i]);
+      return std::optional<long double>(reinterpret_cast<uint64_t*>(array->data)[i]);
     }
   } else if (array->dtype.code == kDLFloat) {
     if (array->dtype.bits == 16) {
-      return dmlc::optional<long double>(
+      return std::optional<long double>(
           __extendXfYf2__<uint16_t, uint16_t, 10, float, uint32_t, 23>(
               reinterpret_cast<uint16_t*>(array->data)[i]));
     }
     if (array->dtype.bits == 32) {
-      return dmlc::optional<long double>(reinterpret_cast<float*>(array->data)[i]);
+      return std::optional<long double>(reinterpret_cast<float*>(array->data)[i]);
     } else if (array->dtype.bits == 64) {
-      return dmlc::optional<long double>(reinterpret_cast<double*>(array->data)[i]);
+      return std::optional<long double>(reinterpret_cast<double*>(array->data)[i]);
     }
   } else if (array->dtype.code == kDLBfloat) {
     if (array->dtype.bits == 16) {
-      return dmlc::optional<long double>(
-          __extendXfYf2__<uint16_t, uint16_t, 7, float, uint32_t, 23>(
-              reinterpret_cast<uint16_t*>(array->data)[i]));
+      return std::optional<long double>(__extendXfYf2__<uint16_t, uint16_t, 7, float, uint32_t, 23>(
+          reinterpret_cast<uint16_t*>(array->data)[i]));
     }
   }
-  return dmlc::optional<long double>();
+  return std::nullopt;
 }
 
 /*!

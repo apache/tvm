@@ -90,6 +90,15 @@ const runtime::PackedFunc& GetDispatchFunction(const DispatchTable& dispatch_tab
 void SetDispatchFunction(DispatchTable* dispatch_table, const String& token, uint32_t type_index,
                          runtime::PackedFunc f);
 
+/*!
+ * \brief Remove function from dispatch table.
+ * \param dispatch_table The dispatch table.
+ * \param token The dispatch token.
+ * \param type_index The TVM object type index for the dispatch function to be removed.
+ */
+void RemoveDispatchFunction(DispatchTable* dispatch_table, const String& token,
+                            uint32_t type_index);
+
 constexpr const char* kDefaultDispatchToken = "";
 
 /*!
@@ -171,6 +180,18 @@ class TracedObjectFunctor {
   template <typename TCallable>
   TSelf& set_dispatch(TCallable&& f) {
     return set_dispatch(kDefaultDispatchToken, std::forward<TCallable>(f));
+  }
+
+  /*!
+   * \brief Remove dispatch function
+   * \param token The dispatch token.
+   * \param type_index The TVM object type index for the dispatch function to be removed.
+   *
+   * This is useful when dispatch function comes from other language's runtime, and
+   * those function should be removed before that language runtime shuts down.
+   */
+  void remove_dispatch(String token, uint32_t type_index) {
+    RemoveDispatchFunction(&dispatch_table_, token, type_index);
   }
 
  private:

@@ -198,9 +198,12 @@ Array<Schedule> MultiLevelTilingTensorCoreNode::Apply(const Schedule& sch,
   }
   Array<Schedule> results;
   for (auto&& state : ApplySubRules(initial_states)) {
+    TVM_PY_LOG(INFO, logging_func) << "Sketch " << results.size() << ": tensorizing with "
+                                   << state.as<TensorCoreStateNode>()->intrin_group.compute_intrin;
     results.push_back(std::move(state->sch));
   }
   if (results.empty()) {
+    TVM_PY_LOG(INFO, logging_func) << "The workload cannot be tensorized.";
     return {original_sch};
   }
   return results;
@@ -276,8 +279,8 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddReadReuseTensorCore(
     } else if (dtype.is_int() && dtype.bits() == 8) {
       sch->StorageAlign(cache_read, 0, -2, 32, 16);
     } else {
-      LOG(WARNING) << "StorageAlign is not applied for data type " << dtype
-                   << ", shared memory accesses might be inefficient.";
+      TVM_PY_LOG(WARNING, logging_func) << "StorageAlign is not applied for data type " << dtype
+                                        << ", shared memory accesses might be inefficient.";
     }
   }
   return {state};

@@ -147,6 +147,7 @@ ALLOW_SPECIFIC_FILE = {
     "apps/microtvm/zephyr/template_project/qemu-hack/qemu-system-i386",
     "apps/microtvm/zephyr/template_project/qemu-hack/qemu-system-riscv32",
     "apps/microtvm/zephyr/template_project/qemu-hack/qemu-system-riscv64",
+    "apps/microtvm/zephyr/template_project/fvp-hack/FVP_Corstone_SSE-300_Ethos-U55",
     # microTVM Virtual Machines
     "apps/microtvm/poetry.lock",
     "apps/microtvm/reference-vm/Vagrantfile",
@@ -236,7 +237,7 @@ def main():
     if error_list:
         report = "------File type check report----\n"
         report += "\n".join(error_list)
-        report += "\nFound %d files that are now allowed\n" % len(error_list)
+        report += "\nFound %d files that are not allowed\n" % len(error_list)
         report += (
             "We do not check in binary files into the repo.\n"
             "If necessary, please discuss with committers and"

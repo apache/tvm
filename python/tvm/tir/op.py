@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=redefined-builtin, invalid-name
 """Operators used in TIR expression."""
+import warnings
 from typing import Any, Optional
 import tvm._ffi
 from tvm.ir.base import Span
@@ -262,10 +263,22 @@ def call_llvm_intrin(dtype, name, *args, span=None):
     # pylint: disable=import-outside-toplevel
     from tvm.target import codegen
 
-    llvm_id = codegen.llvm_lookup_intrinsic_id(name)
-    assert llvm_id != 0, "%s is not an LLVM intrinsic" % name
+    from .expr import IntImm
+
+    if isinstance(name, str):
+        llvm_id = codegen.llvm_lookup_intrinsic_id(name)
+    elif isinstance(name, IntImm):
+        llvm_id = name.value
+    else:
+        llvm_id = name
+    if llvm_id == 0:
+        warnings.warn(f"Unknown llvm intrinsic function {name}, falling back to 0")
     return call_intrin(
-        dtype, Op.get("tir.call_llvm_intrin"), tvm.tir.const(llvm_id, "uint32"), *args, span=span
+        dtype,
+        Op.get("tir.call_llvm_intrin"),
+        tvm.tir.const(llvm_id, "uint32"),
+        *args,
+        span=span,
     )
 
 
@@ -294,8 +307,16 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
     # pylint: disable=import-outside-toplevel
     from tvm.target import codegen
 
-    llvm_id = codegen.llvm_lookup_intrinsic_id(name)
-    assert llvm_id != 0, "%s is not an LLVM intrinsic" % name
+    from .expr import IntImm
+
+    if isinstance(name, str):
+        llvm_id = codegen.llvm_lookup_intrinsic_id(name)
+    elif isinstance(name, IntImm):
+        llvm_id = name.value
+    else:
+        llvm_id = name
+    if llvm_id == 0:
+        warnings.warn(f"Unknown llvm intrinsic function {name}, falling back to 0")
     return call_intrin(
         dtype,
         Op.get("tir.call_llvm_pure_intrin"),
@@ -371,6 +392,207 @@ def tvm_stack_make_array(data, shape, strides, ndim, arr_dtype, elem_offset):
     return call_intrin(
         "handle", "tir.tvm_stack_make_array", data, shape, strides, ndim, arr_dtype, elem_offset
     )
+
+
+def assume(cond=None):
+    """Provide a true statement that can be used for simplifications
+
+    Parameters
+    ----------
+    cond : Expr
+       The constraint condition.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("int32", "tir.assume", cond)
+
+
+def undef():
+    """Returns an initialized but arbitrary value
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("int32", "tir.undef")
+
+
+def tvm_tuple(*value):
+    """Create a tuple structure in value field of AttrStmt
+
+    Parameters
+    ----------
+    value : Expr
+        The value in tuple.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.tvm_tuple", *value)
+
+
+def tvm_struct_get(arr, index, field, dtype):
+    """Get struct field value in array
+
+    Parameters
+    ----------
+    dtype : str
+        The date type of the result.
+
+    arr : StructType*
+        The array of struct.
+
+    index : int
+        The index of struct.
+
+    field : int
+        The field of struct.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(dtype, "tir.tvm_struct_get", arr, index, field)
+
+
+def tvm_struct_set(arr, index, field, value):
+    """Set value in struct field in array
+
+    Parameters
+    ----------
+    arr : StructType*
+        The array of struct.
+
+    index : int
+        The index of struct.
+
+    field : int
+        The field of struct.
+
+    value : Expr
+        The value to be set in field.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.tvm_struct_set", arr, index, field, value)
+
+
+def address_of(buffer_load, span=None):
+    """Returns the address of an element in the buffer
+
+    Parameters
+    ----------
+    buffer_load: BufferLoad
+        The buffer load.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.address_of", buffer_load, span=span)
+
+
+def lookup_param(param_name, span=None):
+    """Returns the param by name
+
+    Parameters
+    ----------
+    param_name : str
+        The name of param.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.lookup_param", param_name, span=span)
+
+
+def tvm_thread_allreduce(*freduce_args):
+    """
+    Parameters
+    ----------
+    freduce_args : Expr
+        The args.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.tvm_thread_allreduce", *freduce_args)
+
+
+def type_annotation(dtype):
+    """Create a type annotation expression
+
+    Parameters
+    ----------
+    dtype : Expr
+        The data type.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(dtype, "tir.type_annotation")
+
+
+def tvm_access_ptr(ptype, data, offset, extent, rw_mask):
+    """Get head access address with memory access pattern info
+
+    Parameters
+    ----------
+    ptype : Expr
+        The data type of pointer.
+
+    data : DType*
+        The data of pointer.
+
+    offset : int
+        The offset of pointer.
+
+    extent : int
+        The extent of pointer.
+
+    rw_mask : int
+        The read write mask.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.tvm_access_ptr", ptype, data, offset, extent, rw_mask)
+
+
+def tvm_throw_last_error():
+    """Throw TVMGetLastError()
+
+    Returns
+    -------
+    ret : PrimExpr
+        The return expression
+    """
+    return call_intrin("handle", "tir.tvm_throw_last_error")
 
 
 def ret(val):
@@ -515,6 +737,47 @@ def max_value(dtype: str, span: Optional[Span] = None) -> Any:
         The maximum value of dtype.
     """
     return _ffi_api.max_value(dtype, span)  # type: ignore
+
+
+def infinity(dtype: str, span: Optional[Span] = None) -> Any:
+    """infinity value of dtype
+
+    Parameters
+    ----------
+    dtype : str
+        The data type.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    value : tvm.Expr
+        The infinity value of dtype.
+    """
+    return _ffi_api.infinity(dtype, span)  # type: ignore
+
+
+def reinterpret(dtype, value) -> Any:
+    """infinity value of dtype
+
+    Parameters
+    ----------
+    dtype : str
+        The data type.
+
+    value : PrimExpr
+        The input value.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    value : tvm.Expr
+        The reinterpret cast value of dtype.
+    """
+    return call_intrin(dtype, "tir.reinterpret", value)
 
 
 def exp(x):
@@ -1121,6 +1384,26 @@ def ldexp(x1, x2):
     return call_intrin(x1.dtype, "tir.ldexp", x1, x2)  # type: ignore
 
 
+def likely(cond, span=None):
+    """Mark condition as likely.
+
+    Parameters
+    ----------
+
+    cond : PrimExpr
+        Input argument.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    y : PrimExpr
+        The marked expression.
+    """
+    return _ffi_api.likely(cond, span)  # type: ignore
+
+
 def isnan(x, span=None):
     """Check if input value is Nan.
 
@@ -1138,6 +1421,25 @@ def isnan(x, span=None):
         The result.
     """
     return _ffi_api.isnan(x, span)  # type: ignore
+
+
+def isnullptr(x, span=None):
+    """Check if input value is nullptr.
+
+    Parameters
+    ----------
+    x : PrimExpr
+        Input argument.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    y : PrimExpr
+        The result.
+    """
+    return call_intrin("bool", "tir.isnullptr", x, span=span)  # type: ignore
 
 
 def isfinite(x, span=None):
@@ -1644,6 +1946,64 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
               """
     reducer.__doc__ = doc_str.format(name)
     return reducer
+
+
+def TVMBackendAllocWorkspace(device_type, device_id, nbytes, dtype_code_hint, dtype_bits_hint):
+    """Backend function to allocate temporal workspace
+
+    Parameters
+    ----------
+    device_type : int
+        The device type which the space will be allocated.
+
+    device_id : int
+        The device id which the space will be allocated.
+
+    nbytes : int
+        The size of the space requested.
+
+    dtype_code_hint : int
+        The type code of the array elements. Only used in certain backends such as OpenGL.
+
+    dtype_bits_hint : int
+        The type bits of the array elements. Only used in certain backends such as OpenGL.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        "handle",
+        "tir.TVMBackendAllocWorkspace",
+        device_type,
+        device_id,
+        nbytes,
+        dtype_code_hint,
+        dtype_bits_hint,
+    )
+
+
+def TVMBackendFreeWorkspace(device_type, device_id, ptr):
+    """Backend function to free temporal workspace.
+
+    Parameters
+    ----------
+    device_type : int
+        The device type which the space will be allocated.
+
+    device_id : int
+        The device id which the space will be allocated.
+
+    ptr : Var
+        The result allocated space pointer.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("int32", "tir.TVMBackendFreeWorkspace", device_type, device_id, ptr)
 
 
 # pylint: disable=unnecessary-lambda

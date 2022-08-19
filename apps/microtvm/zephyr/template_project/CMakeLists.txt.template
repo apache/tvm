@@ -21,7 +21,7 @@ cmake_minimum_required(VERSION 3.13.1)
 
 set(ENV{QEMU_BIN_PATH} "${CMAKE_SOURCE_DIR}/qemu-hack")
 
-set(QEMU_PIPE "\${QEMU_PIPE}")  # QEMU_PIPE is set by the calling TVM instance.
+set(QEMU_PIPE <QEMU_PIPE> CACHE PATH "Path to QEMU pipe")
 
 <CMAKE_ARGS>
 

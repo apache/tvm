@@ -241,6 +241,24 @@ stage('Build') {
       Utils.markStageSkippedForConditional('BUILD: Hexagon')
     }
   },
+  'BUILD: RISC-V': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU-SMALL') {
+        ws({{ m.per_exec_ws('tvm/build-riscv') }}) {
+          docker_init(ci_riscv)
+          init_git()
+          sh (
+            script: "${docker_run} ${ci_riscv} ./tests/scripts/task_config_build_riscv.sh build",
+            label: 'Create RISC-V cmake config',
+          )
+          make(ci_riscv, 'build', '-j2')
+          {{ m.upload_artifacts(tag='riscv', filenames=tvm_lib, folders=microtvm_template_projects) }}
+        }
+      }
+     } else {
+      Utils.markStageSkippedForConditional('BUILD: RISC-V')
+    }
+  },
   )
 }
 }

@@ -143,6 +143,10 @@ void InferTensorsVisitor::InferCall(const CallNode* cn) {
     params.input_info = GetTensorInfo(tensor_table_, call);
     err = EthosnAPI::Relu(call, &params);
     tensor_table_[cn->args[0]] = {params.input_info};
+  } else if (IsEthosnFunc(call, "ethos-n.qnn_requantize")) {
+    RequantizeParams params;
+    err += EthosnAPI::Requantize(cn->op.as<FunctionNode>()->body, &params);
+    tensor_table_[cn->args[0]] = {params.input_info};
   } else {
     err = EthosnError("unknown operator");
   }
@@ -313,6 +317,9 @@ sl::TensorsAndId ConstructNetworkVisitor::HandleCall(const CallNode* cn) {
     return MakeOps(tensor);
   } else if (IsEthosnOp(call, "clip")) {
     if ((err = MakeReluLayer(call, &tensor))) ReportFatalError(call, err);
+    return MakeOps(tensor);
+  } else if (IsEthosnFunc(call, "ethos-n.qnn_requantize")) {
+    if ((err = MakeRequantizeLayer(call, &tensor))) ReportFatalError(call, err);
     return MakeOps(tensor);
   } else {
     ReportFatalError(call, EthosnError("unknown operator"));
@@ -590,6 +597,24 @@ EthosnError ConstructNetworkVisitor::MakeReluLayer(const Call& call,
 
   try {
     *out = AddRelu(network_, *input, params.relu_info);
+  } catch (const sl::NotSupportedException& e) {
+    return EthosnError(e.what());
+  }
+  return EthosnError();
+}
+
+EthosnError ConstructNetworkVisitor::MakeRequantizeLayer(const Call& call,
+                                                         sl::TensorAndId<sl::Operand>* out) {
+  RequantizeParams params;
+  params.input_info = GetTensorInfo(tensor_table_, call);
+  if (auto err = EthosnAPI::Requantize(call->op.as<FunctionNode>()->body, &params)) {
+    return err;
+  }
+
+  auto input = operand_table_[call->args[0]][0];
+
+  try {
+    *out = AddRequantize(network_, *input, params.requantize_info);
   } catch (const sl::NotSupportedException& e) {
     return EthosnError(e.what());
   }
@@ -915,6 +940,20 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.relu")
       *rv = !err &&
             EthosnCompiler::GetSupported()->IsReluSupported(
                 params.relu_info, params.input_info, &params.output_info, reason, sizeof(reason));
+      err += EthosnError(reason);
+    });
+
+TVM_REGISTER_GLOBAL("relay.ethos-n.support.requantize")
+    .set_body([](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
+      Call call = args[0];
+      RequantizeParams params;
+      auto err = EthosnAPI::Requantize(call, &params);
+      err += EthosnCompiler::SupportedSetup();
+      char reason[kReasonMaxLength];
+      reason[0] = '\0';
+      *rv = !err && EthosnCompiler::GetSupported()->IsRequantizeSupported(
+                        params.requantize_info, params.input_info, &params.output_info, reason,
+                        sizeof(reason));
       err += EthosnError(reason);
     });
 
