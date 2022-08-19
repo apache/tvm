@@ -1012,7 +1012,11 @@ class Schedule(Object):
 
     @type_checked
     def cache_read(
-        self, block: Union[BlockRV, str], read_buffer_index: int, storage_scope: str, consumer_blocks: Optional[List[Union[BlockRV, str]]] = None 
+        self,
+        block: Union[BlockRV, str],
+        read_buffer_index: int,
+        storage_scope: str,
+        consumer_blocks: Optional[List[Union[BlockRV, str]]] = None,
     ) -> BlockRV:
         """Create a block that reads a buffer region into a read cache. It requires:
 

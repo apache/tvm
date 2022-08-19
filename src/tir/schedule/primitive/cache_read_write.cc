@@ -1196,12 +1196,13 @@ struct CacheReadTraits : public UnpackedInstTraits<CacheReadTraits> {
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
-  static BlockRV UnpackedApplyToSchedule(Schedule sch, BlockRV block, Array<BlockRV> consumer_blocks, Integer read_buffer_index,
+  static BlockRV UnpackedApplyToSchedule(Schedule sch, BlockRV block,
+                                         Array<BlockRV> consumer_blocks, Integer read_buffer_index,
                                          String storage_scope) {
     return sch->CacheRead(block, read_buffer_index->value, storage_scope, consumer_blocks);
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String block, Array<String> consumer_blocks ,
+  static String UnpackedAsPython(Array<String> outputs, String block, Array<String> consumer_blocks,
                                  Integer read_buffer_index, String storage_scope) {
     PythonAPICall py("cache_read");
     py.Input("block", block);

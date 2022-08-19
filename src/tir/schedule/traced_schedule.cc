@@ -282,8 +282,10 @@ void TracedScheduleNode::Unroll(const LoopRV& loop_rv) {
 
 /******** Schedule: Insert cache stages ********/
 BlockRV TracedScheduleNode::CacheRead(const BlockRV& block_rv, int read_buffer_index,
-                                      const String& storage_scope, const Array<BlockRV> consumer_blocks) {
-  BlockRV result = ConcreteScheduleNode::CacheRead(block_rv, read_buffer_index, storage_scope, consumer_blocks);
+                                      const String& storage_scope,
+                                      const Array<BlockRV> consumer_blocks) {
+  BlockRV result =
+      ConcreteScheduleNode::CacheRead(block_rv, read_buffer_index, storage_scope, consumer_blocks);
 
   static const InstructionKind& kind = InstructionKind::Get("CacheRead");
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,

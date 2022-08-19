@@ -389,7 +389,8 @@ class ScheduleNode : public runtime::Object {
    * \return The cache stage block.
    */
   virtual BlockRV CacheRead(const BlockRV& block_rv, int read_buffer_index,
-                            const String& storage_scope, const Array<BlockRV> consumer_blocks = {}) = 0;
+                            const String& storage_scope,
+                            const Array<BlockRV> consumer_blocks = {}) = 0;
   /*!
    * \brief Create a block that writes a buffer region into a write cache. It requires:
    * 1) There is only one block who writes the target buffer.
