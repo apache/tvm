@@ -667,7 +667,7 @@ InferCorrectLayoutOutput L2NormalizeInferCorrectLayout(const Attrs& attrs,
     old_in_shapes.push_back(old_in_t.as<TensorTypeNode>()->shape);
   }
   std::vector<size_t> axis_list;
-  for(auto i : param->axis) {
+  for (auto i : param->axis) {
     int64_t axis = i->value;
     if (axis < 0) {
       axis = axis + static_cast<size_t>(old_in_shapes[0].size());
@@ -677,7 +677,7 @@ InferCorrectLayoutOutput L2NormalizeInferCorrectLayout(const Attrs& attrs,
 
   Layout ret = Layout::Undef();
   if (new_in_layouts.defined() && old_in_layouts.defined()) {
-    for(uint i = 0; i < axis_list.size(); ++i) {
+    for (uint i = 0; i < axis_list.size(); ++i) {
       const auto& axis_dim = old_in_layouts[0][axis_list[i]];
       auto axis_index = new_in_layouts[0].IndexOf(axis_dim);
       param->axis.Set(i, axis_index);
