@@ -476,16 +476,22 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<TraceNode>([](const ObjectRef& obj, ReprPrinter* p) {
       const auto* self = obj.as<TraceNode>();
       ICHECK_NOTNULL(self);
+      p->stream << "# from tvm import tir\n";
+      p->stream << "def apply_trace(sch: tir.Schedule) -> None:\n";
       Array<String> repr = self->AsPython(/*remove_postproc=*/false);
       bool is_first = true;
       for (const String& line : repr) {
         if (is_first) {
           is_first = false;
         } else {
-          p->stream << std::endl;
+          p->stream << '\n';
         }
-        p->stream << line;
+        p->stream << "  " << line;
       }
+      if (is_first) {
+        p->stream << "  pass";
+      }
+      p->stream << std::flush;
     });
 
 /**************** Instruction Registration ****************/
