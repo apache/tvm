@@ -23,6 +23,7 @@
 #include <tvm/script/printer/ir_docsifier.h>
 #include <tvm/script/printer/traced_object.h>
 #include <tvm/script/printer/traced_object_functor.h>
+#include <tvm/script/printer/visit_traced.h>
 #include <tvm/tir/op.h>
 
 namespace tvm {
@@ -32,6 +33,24 @@ namespace printer {
 TIRTopLevelFrame::TIRTopLevelFrame() : TIRFrame(make_object<TIRTopLevelFrameNode>()) {}
 
 TIRGeneralFrame::TIRGeneralFrame() : TIRFrame(make_object<TIRGeneralFrameNode>()) {}
+
+void PostOrderVisitExprTraced(const TracedObject<PrimExpr>& expr,
+                              const std::function<void(const TracedObject<PrimExpr>&)>& callback) {
+  PostOrderVisitTraced(
+      expr, [](const ObjectRef& object) { return object->IsInstance<PrimExprNode>(); },
+      [&](const TracedObject<ObjectRef>& object) { callback(object.Downcast<PrimExpr>()); });
+}
+
+void PostOrderVisitStmtExprTraced(
+    const TracedObject<tir::Stmt>& stmt,
+    const std::function<void(const TracedObject<ObjectRef>&)>& callback) {
+  PostOrderVisitTraced(
+      stmt,
+      [](const ObjectRef& object) {
+        return object->IsInstance<PrimExprNode>() || object->IsInstance<tir::StmtNode>();
+      },
+      [&](const TracedObject<ObjectRef>& object) { callback(object); });
+}
 
 ExprDoc GetTypeAnnotationDocForVar(const TracedObject<tir::Var>& var, const IRDocsifier& p) {
   auto type_annotation = var.GetAttr(&tir::VarNode::type_annotation);

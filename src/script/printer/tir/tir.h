@@ -82,6 +82,13 @@ inline IdDoc TIR(const IRDocsifier& p) { return IdDoc(p->ir_prefix.Get("tir").va
 
 ExprDoc GetTypeAnnotationDocForVar(const TracedObject<tir::Var>& var, const IRDocsifier& p);
 
+void PostOrderVisitExprTraced(const TracedObject<PrimExpr>& expr,
+                              const std::function<void(const TracedObject<PrimExpr>&)>& callback);
+
+void PostOrderVisitStmtExprTraced(
+    const TracedObject<tir::Stmt>& expr,
+    const std::function<void(const TracedObject<ObjectRef>&)>& callback);
+
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

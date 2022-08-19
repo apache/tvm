@@ -86,6 +86,17 @@ inline TupleDoc AsTupleDoc(const TracedArray<T>& arr, const IRDocsifier& ir_docs
   return ret;
 }
 
+inline LiteralDoc DType2Literal(const DLDataType& dtype) {
+  using runtime::DLDataType2String;
+  return LiteralDoc::Str(DLDataType2String(dtype));
+}
+
+inline LiteralDoc DType2Literal(const TracedBasicValue<DataType>& dtype) {
+  auto doc = DType2Literal(dtype.Get());
+  doc->source_paths.push_back(dtype.GetPath());
+  return doc;
+}
+
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm
