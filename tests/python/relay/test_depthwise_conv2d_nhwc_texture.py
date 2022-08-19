@@ -25,7 +25,7 @@ from utils.adreno_utils import build_run_compare
 dtype = tvm.testing.parameter("float32")
 
 
-@tvm.testing.requires_opencl1
+@tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl")
 def test_depthwise_conv2d_deeplabv3_1_129_129_144x3_3_144_1(target, dtype):
     input_shape = (1, 129, 129, 144)
