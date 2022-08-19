@@ -398,6 +398,7 @@ class ScheduleNode : public runtime::Object {
    * \param block_rv The producer of the buffer
    * \param write_buffer_index The index of the buffer in block's write region
    * \param storage_scope The target storage scope
+   * \param consumer_blocks An optional list of consumers of the cache to rewrite.
    * \return The cache stage block.
    */
   virtual BlockRV CacheWrite(const BlockRV& block_rv, int write_buffer_index,
