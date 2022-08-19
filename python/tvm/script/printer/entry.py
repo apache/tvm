@@ -60,7 +60,7 @@ def script(  # pylint: disable=too-many-arguments
     script : str
         The TVMScript code of the root_node
     """
-    return _ffi_api.Script(
+    return _ffi_api.Script(  # type: ignore # pylint: disable=no-member
         root_node,
         ir_name,
         ir_prefix,
