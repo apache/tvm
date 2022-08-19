@@ -62,9 +62,12 @@ def android_serial_number() -> Optional[str]:
     # equivalent to having it unset.
     if not serial.strip():
         serial = None
-    # Split android serial numbers into a list
-    serial = serial.split(",")
-    return serial
+    if serial == "simulator":
+        return serial
+    else:
+        # Split android serial numbers into a list
+        serial = serial.split(",")
+        return serial
 
 
 # NOTE on server ports:
