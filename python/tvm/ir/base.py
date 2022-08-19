@@ -294,7 +294,7 @@ def structural_hash(node, map_free_vars=False):
 
     map_free_vars : bool
         If map_free_vars is set to true, we will hash free variables
-        by the order of their occurences. Otherwise, we will hash by
+        by the order of their occurrences. Otherwise, we will hash by
         their in-memory pointer address.
 
     Return
