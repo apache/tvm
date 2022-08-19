@@ -110,7 +110,8 @@ TEST_F(HexagonUserDMATest, async_dma_poll) {
   }
 
   // poll until at least 1 DMA is complete
-  while (HexagonUserDMA::Get().Poll() == 10) {};
+  while (HexagonUserDMA::Get().Poll() == 10) {
+  };
 
   // verify
   for (uint32_t i = 0; i < length; ++i) {
