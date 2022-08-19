@@ -162,7 +162,7 @@ def get_layout_transform_fn(layout):
     raise RuntimeError(f"Unexpected layout '{layout}'")
 
 
-def get_fixed_point_value(flp: float, dtype: str = "int16"):
+def get_fixed_point_value(flp: float, dtype: str = "int16") -> Tuple[int, int]:
     """
     Return fixed-point value and the corresponding log2 of the scale factor used to compute
     this value.
