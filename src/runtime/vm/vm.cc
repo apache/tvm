@@ -593,6 +593,15 @@ Index VirtualMachine::GetResultRegisterIndex() const {
   return code_[op_index].result;
 }
 
+void VirtualMachine::CalculatePreResultOpIndex(Index res_index) {
+  if (preresult_op_index_ == -1) {
+    preresult_op_index_ = 0;
+    while (code_[preresult_op_index_].dst != res_index) {
+      ++preresult_op_index_;
+    }
+  }
+}
+
 void VirtualMachine::CollectOutputTensorRegIndices(const std::string& func_name) {
   if (!output_tensor_reg_indices_[func_name].empty()) {
     return;
@@ -600,18 +609,19 @@ void VirtualMachine::CollectOutputTensorRegIndices(const std::string& func_name)
 
   auto& reg_indices = output_tensor_reg_indices_[func_name];
   Index res_index = GetResultRegisterIndex();
-  Index op_index = 0;
-  while (code_[op_index].dst != res_index) {
-    ++op_index;
-  }
-  if (code_[op_index].op == Opcode::AllocTensor) {
+  CalculatePreResultOpIndex(res_index);
+  auto& preres_instr = code_[preresult_op_index_];
+  auto op_code = preres_instr.op;
+  if (op_code == Opcode::AllocTensor) {
     reg_indices.emplace_back(res_index);
-  } else if (code_[op_index].op == Opcode::AllocADT) {
-    for (Index i = 0; i < code_[op_index].num_fields; ++i) {
-      reg_indices.push_back(code_[op_index].datatype_fields[i]);
+  } else if (op_code == Opcode::AllocADT) {
+    for (Index i = 0; i < preres_instr.num_fields; ++i) {
+      reg_indices.push_back(preres_instr.datatype_fields[i]);
     }
+  } else if (op_code == Opcode::ReshapeTensor) {
+    reg_indices.push_back(preres_instr.reshape_tensor.tensor);
   } else {
-    // TODO(vvchernov): possible extension
+    LOG(WARNING) << "Operation " << size_t(op_code) << " is not supported for set_outputs method";
   }
 }
 
@@ -763,10 +773,10 @@ void VirtualMachine::RunLoop(const std::vector<Index>& output_tensor_reg_indices
       }
       case Opcode::AllocTensor: {
         OpStartHook(instr);
-        if (output_tensor_reg_indices.empty()) {
-          WriteAllocatedTensor(instr);
-        } else {
+        if (!output_tensor_reg_indices.empty() && FindIndex(output_tensor_reg_indices, instr.dst)) {
           WriteAllocatedTensorFromOutside(instr, output_tensor_reg_indices);
+        } else {
+          WriteAllocatedTensor(instr);
         }
         OpStopHook();
         pc_++;
@@ -932,11 +942,43 @@ void VirtualMachine::WriteAllocatedTensor(const Instruction& instr) {
 
 void VirtualMachine::WriteAllocatedTensorFromOutside(
     const Instruction& instr, const std::vector<Index>& output_tensor_reg_indices) {
-  if (FindIndex(output_tensor_reg_indices, instr.dst)) {
-    // TODO(vvchernov): check shape
-  } else {
-    LOG(WARNING) << "Writting of allocated tensor from outside fails. Usual approach is used";
-    WriteAllocatedTensor(instr);
+  for (auto res_index : output_tensor_reg_indices) {
+    auto arr = Downcast<NDArray>(ReadRegister(res_index));
+    auto shape = arr.Shape();
+    size_t size = shape.size();
+    bool size_check = false;
+    if (size != instr.alloc_tensor.ndim) {
+      size_check = true;
+    } else {
+      for (size_t i = 0; i < size; ++i) {
+        if (shape[i] != instr.alloc_tensor.shape[i]) {
+          size_check = true;
+          break;
+        }
+      }
+    }
+
+    if (size_check) {
+      // Match element number
+      size_t in_el_num = 1, ex_el_num = 1;
+      for (size_t i = 0; i < size; ++i) {
+        in_el_num *= shape[i];
+      }
+      for (size_t i = 0; i < instr.alloc_tensor.ndim; ++i) {
+        ex_el_num *= instr.alloc_tensor.shape[i];
+      }
+      ICHECK_EQ(in_el_num, ex_el_num)
+          << "Element number mismatching of internal and external output tensors";
+      if (code_[preresult_op_index_].op == Opcode::ReshapeTensor) {
+        int64_t* dims = instr.alloc_tensor.shape;
+        int64_t ndim = instr.alloc_tensor.ndim;
+        std::vector<int64_t> ref_shape(dims, dims + ndim);
+        auto reshaped_tensor = arr.CreateView(ref_shape, arr->dtype);
+        WriteRegister(res_index, reshaped_tensor);
+      } else {
+        LOG_ERROR << "Internal and external output tensor shapes are mismatched";
+      }
+    }
   }
 }
 

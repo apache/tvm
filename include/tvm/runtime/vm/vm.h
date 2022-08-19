@@ -386,6 +386,12 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
   Index GetResultRegisterIndex() const;
 
   /*!
+   * \brief Calculate the index of operation which destination is result
+   * \param res_index is the index of op returning result
+   */
+  void CalculatePreResultOpIndex(Index res_index);
+
+  /*!
    * \brief Collect indices from register_file for output tensors.
    * It helps to replace output tensors allocated in RunLoop by
    * tensors pre-allocated outside. Scenario is when `set_output` is used
@@ -431,6 +437,8 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
   std::unordered_map<std::string, std::vector<ObjectRef>> inputs_;
   /*! \brief The function name to flag enabling scenario with set outputs. */
   std::unordered_map<std::string, bool> set_outputs_enabled_;
+  /*! \brief The index of operation which destination is result. */
+  Index preresult_op_index_ = -1;
   /*! \brief The function name to indices of output tensors in register file. */
   std::unordered_map<std::string, std::vector<Index>> output_tensor_reg_indices_;
   /*! \brief The function name to pre-allocated outputs mapping. */
