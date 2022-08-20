@@ -17,20 +17,20 @@
 """Highlight printed TVM script.
 """
 
-from typing import Union, Optional
-import warnings
 import sys
+import warnings
+from typing import Optional, Union
 
 from tvm.ir import IRModule
 from tvm.tir import PrimFunc
 
 
-def cprint(printable: Union[IRModule, PrimFunc], style: Optional[str] = None) -> None:
+def cprint(printable: Union[IRModule, PrimFunc, str], style: Optional[str] = None) -> None:
     """
     Print highlighted TVM script string with Pygments
     Parameters
     ----------
-    printable : Union[IRModule, PrimFunc]
+    printable : Union[IRModule, PrimFunc, str]
         The TVM script to be printed
     style : str, optional
         Printing style, auto-detected if None.
@@ -44,16 +44,17 @@ def cprint(printable: Union[IRModule, PrimFunc], style: Optional[str] = None) ->
     installing the Pygment library. Other Pygment styles can be found in
     https://pygments.org/styles/
     """
-
+    if isinstance(printable, (IRModule, PrimFunc)):
+        printable = printable.script()
     try:
         # pylint: disable=import-outside-toplevel
         import pygments
-        from pygments import highlight
-        from pygments.lexers.python import Python3Lexer
-        from pygments.formatters import Terminal256Formatter, HtmlFormatter
-        from pygments.style import Style
-        from pygments.token import Keyword, Name, Comment, String, Number, Operator
         from packaging import version
+        from pygments import highlight
+        from pygments.formatters import HtmlFormatter, Terminal256Formatter
+        from pygments.lexers.python import Python3Lexer
+        from pygments.style import Style
+        from pygments.token import Comment, Keyword, Name, Number, Operator, String
 
         if version.parse(pygments.__version__) < version.parse("2.4.0"):
             raise ImportError("Required Pygments version >= 2.4.0 but got " + pygments.__version__)
@@ -68,7 +69,7 @@ def cprint(printable: Union[IRModule, PrimFunc], style: Optional[str] = None) ->
                 + install_cmd,
                 category=UserWarning,
             )
-        print(printable.script())
+        print(printable)
     else:
 
         class JupyterLight(Style):
@@ -136,11 +137,14 @@ def cprint(printable: Union[IRModule, PrimFunc], style: Optional[str] = None) ->
             style = AnsiTerminalDefault
 
         if is_in_notebook:  # print with HTML display
-            from IPython.display import display, HTML  # pylint: disable=import-outside-toplevel
+            from IPython.display import (  # pylint: disable=import-outside-toplevel
+                HTML,
+                display,
+            )
 
             formatter = HtmlFormatter(style=JupyterLight)
             formatter.noclasses = True  # inline styles
-            html = highlight(printable.script(), Python3Lexer(), formatter)
+            html = highlight(printable, Python3Lexer(), formatter)
             display(HTML(html))
         else:
-            print(highlight(printable.script(), Python3Lexer(), Terminal256Formatter(style=style)))
+            print(highlight(printable, Python3Lexer(), Terminal256Formatter(style=style)))
