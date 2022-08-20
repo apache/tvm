@@ -24,6 +24,7 @@ from tvm.topi.utils import simplify, traverse_inline
 from tvm.topi.nn.pad import pad
 from tvm.topi.nn.utils import get_pad_tuple
 from tvm.tir.expr import Mul
+from tvm.autotvm.task.space import get_factors
 
 from .micro_kernel.gemm import (
     intrin_gemm_MxKxN,
@@ -120,7 +121,12 @@ def conv2d_nhwc_dsp_compute(cfg, data, kernel, strides, padding, dilation, out_d
         policy="factors",
         num_outputs=2,
         # TODO: check case with in_channels.value % 4 != 0 with AutoTVM
-        filter=None if cfg.is_fallback else lambda x: x.size[-1] % 4 == 0,
+        # temp fix: if non of the splits are divisible by 4, don't filter them
+        # to prevent an empty search space, and allow autotuning to select the best one
+        filter=None
+        if cfg.is_fallback
+        else lambda x: x.size[-1] % 4 == 0
+        or not ([a for a in get_factors(in_channels.value) if a % 4 == 0]),
     )
     coo, coi = cfg.define_split("tile_co", co, policy="factors", num_outputs=2)
 
