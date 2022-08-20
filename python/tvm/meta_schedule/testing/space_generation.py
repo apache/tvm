@@ -29,7 +29,7 @@ def check_trace(spaces: List[Schedule], expected: List[List[str]]):
     for space in spaces:
         trace = Trace(space.trace.insts, {})
         trace = trace.simplified(remove_postproc=True)
-        str_trace = "\n".join(str(trace).strip().splitlines())
+        str_trace = "\n".join(t[2:] for t in str(trace).strip().splitlines()[2:] if t != "  pass")
         actual_traces.add(str_trace)
         assert str_trace in expected_traces, "\n" + str_trace
     assert len(expected_traces) == len(actual_traces)
