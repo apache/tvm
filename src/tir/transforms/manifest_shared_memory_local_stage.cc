@@ -46,7 +46,7 @@ namespace tir {
  */
 class IntermediateStageRewriter {
  public:
-  explicit IntermediateStageRewriter(const Array<Stmt>& ancestor_loop_or_blocks)
+  explicit IntermediateStageRewriter(const std::vector<Stmt>& ancestor_loop_or_blocks)
       : ancestor_loop_or_blocks_(ancestor_loop_or_blocks) {}
 
   std::tuple<Buffer, Buffer, Block, Stmt> Rewrite(const BlockNode* block) {
@@ -165,7 +165,7 @@ class IntermediateStageRewriter {
     return {new_buffer, buffer_indices};
   }
 
-  const Array<Stmt>& ancestor_loop_or_blocks_;
+  const std::vector<Stmt>& ancestor_loop_or_blocks_;
 };
 
 class SharedMemoryLocalStageInserter : public StmtMutator {
