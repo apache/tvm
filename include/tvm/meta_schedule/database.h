@@ -313,6 +313,8 @@ class PyDatabaseNode : public DatabaseNode {
  */
 class Database : public runtime::ObjectRef {
  public:
+  /*! An in-memory database. */
+  TVM_DLL static Database MemoryDatabase();
   /*!
    * \brief Create a default database that uses JSON file for tuning records.
    * \param path_workload The path to the workload table.
