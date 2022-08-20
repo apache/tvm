@@ -67,8 +67,6 @@ def test_basic():
     # const shape
     # i32 -> i32
     check(2, 2, 32, "int32")
-    # i32 + i32 is not promoted to i64 even if overflow
-    check(2**16, 2**16, 32, "int32")
     # i64 -> i32
     check(const(2, dtype="int64"), const(2, dtype="int64"), 32, "int32")
     check(const(2**16, dtype="int64"), const(2**16, dtype="int64"), 32, "int64")
@@ -100,12 +98,6 @@ def test_thread_axis():
 
     # i32 -> i32
     check(2, 32, target_bits=32, target_dtype="int32")
-    check(
-        2**30,
-        32,  # i32 + i32 is not promoted to i64 even in the case of overflow
-        target_bits=32,
-        target_dtype="int32",
-    )
     # i64 -> i32
     check(const(2, dtype="int64"), const(32, dtype="int64"), target_bits=32, target_dtype="int32")
     check(
@@ -162,7 +154,6 @@ def test_multilanes():
 
     # i32 -> i32
     check(const(2**10, dtype="int32"), 2, target_bits=32, target_dtype="int32")
-    check(const(2**32, dtype="int32"), 2, target_bits=32, target_dtype="int32")
     # i64 -> i32
     check(const(2**10, dtype="int64"), 2, target_bits=32, target_dtype="int32")
     check(const(2**32, dtype="int64"), 2, target_bits=32, target_dtype="int64")

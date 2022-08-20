@@ -76,7 +76,20 @@ IntImm::IntImm(DataType dtype, int64_t value, Span span) {
   ICHECK(dtype.is_int() || dtype.is_uint())
       << "ValueError: IntImm supports only int or uint type, but " << dtype << " was supplied.";
   if (dtype.is_uint()) {
-    ICHECK_GE(value, 0U);
+    ICHECK_GE(value, 0U) << "ValueError: Literal value " << value
+                         << " is negative for unsigned integer type " << dtype;
+    if (dtype.bits() < 64) {
+      ICHECK_LT(value, 1LL << dtype.bits())
+          << "ValueError: Literal value " << value << " exceeds maximum of " << dtype;
+    }
+  } else if (dtype.bits() == 1) {
+    // int(1)
+    ICHECK(value == 0 || value == 1) << "ValueError: " << value << " exceeds range of " << dtype;
+  } else if (dtype.bits() < 64) {
+    ICHECK_GE(value, -(1LL << (dtype.bits() - 1)))
+        << "ValueError: Literal value " << value << " exceeds minimum of " << dtype;
+    ICHECK_LT(value, 1LL << (dtype.bits() - 1))
+        << "ValueError: Literal value " << value << " exceeds maximum of " << dtype;
   }
   ObjectPtr<IntImmNode> node = make_object<IntImmNode>();
   node->dtype = dtype;
