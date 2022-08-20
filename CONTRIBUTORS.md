@@ -175,6 +175,7 @@ We do encourage everyone to work anything they are interested in.
 - [Gavin Uberti](https://github.com/guberti): @guberti
 - [Luis Vega](https://github.com/vegaluisjose): @vegaluisjose
 - [Thomas Viehmann](https://github.com/t-vi): @t-vi
+- [An Wang](https://github.com/anwang2009): @anwang2009
 - [Yao Wang](https://github.com/kevinthesun): @kevinthesun
 - [Yuchen Wang](https://github.com/wyc-ruiker): @wyc-ruiker
 - [Leyuan Wang](https://github.com/Laurawly): @Laurawly
