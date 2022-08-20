@@ -676,7 +676,7 @@ InferCorrectLayoutOutput L2NormalizeInferCorrectLayout(
 
   Layout ret = Layout::Undef();
   if (new_in_layouts.defined() && old_in_layouts.defined()) {
-    for (uint i = 0; i < axis_list.size(); ++i) {
+    for (size_t i = 0; i < axis_list.size(); ++i) {
       const auto& axis_dim = old_in_layouts[0][axis_list[i]];
       auto axis_index = new_in_layouts[0].IndexOf(axis_dim);
       param->axis.Set(i, axis_index);
