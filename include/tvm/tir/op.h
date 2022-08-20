@@ -911,7 +911,7 @@ inline PrimExpr MakeConstScalar(DataType t, ValueType value, Span span = Span())
   if (t.is_uint()) {
     // Use IntImm if it is a small integer
     uint64_t uval = static_cast<uint64_t>(value);
-    if (value < 0) {
+    if (static_cast<int64_t>(value) < 0) {
       LOG(FATAL) << "cannot make uint from negative value " << value;
     } else if (uval <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
       return IntImm(t, static_cast<int64_t>(value), span);
