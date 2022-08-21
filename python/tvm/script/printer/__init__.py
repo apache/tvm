@@ -24,3 +24,4 @@ https://github.com/apache/tvm-rfcs/blob/main/rfcs/0074-tvmscript-unified-printer
 """
 
 from . import _ffi_api
+from .entry import script
