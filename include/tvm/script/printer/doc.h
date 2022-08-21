@@ -125,6 +125,12 @@ class ExprDoc : public Doc {
   ExprDoc() = default;
 
  public:
+  /*!
+   * \brief Create a doc representing index access on the current ExprDoc
+   * \param indices The indices to access.
+   */
+  ExprDoc operator[](Array<Doc> indices) const;
+
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ExprDoc, Doc, ExprDocNode);
 };
 
