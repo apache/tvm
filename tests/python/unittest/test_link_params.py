@@ -19,20 +19,18 @@ import ctypes
 import json
 import os
 import re
-from io import StringIO
 from contextlib import redirect_stderr
+from io import StringIO
 
 import numpy as np
-
 import tvm
 import tvm.relay
 import tvm.testing
 from tvm import meta_schedule as ms
 from tvm import relay
-from tvm.relay.backend import Executor, Runtime
 from tvm.contrib import utils
 from tvm.meta_schedule.testing.utils import apply_fixed_schedules
-
+from tvm.relay.backend import Executor, Runtime
 
 INPUT_SHAPE = (1, 3, 16, 16)
 
@@ -421,13 +419,12 @@ def test_tir_link_params():
         database = apply_fixed_schedules(relay_mod, target, params, schedule_fn)
 
     with StringIO() as stderr_buf, redirect_stderr(stderr_buf):
-        with ms.ApplyHistoryBest(database):
-            with tvm.transform.PassContext(
-                opt_level=3,
-                config={"relay.backend.use_meta_schedule": True},
-            ):
-                executor = Executor("graph", {"link-params": link_params})
-                lib = relay.build(relay_mod, target=target, executor=executor)
+        with database, tvm.transform.PassContext(
+            opt_level=3,
+            config={"relay.backend.use_meta_schedule": True},
+        ):
+            executor = Executor("graph", {"link-params": link_params})
+            lib = relay.build(relay_mod, target=target, executor=executor)
 
         # Workload look up should succeed. This does not work when the test is invoked from pytest.
         assert not "Cannot find workload" in stderr_buf.getvalue()

@@ -19,7 +19,6 @@ import tvm
 import tvm.testing
 import tvm.topi.testing
 from tvm import autotvm, relay, te
-from tvm.meta_schedule import ApplyHistoryBest
 from tvm.meta_schedule.testing.utils import apply_fixed_schedules
 from tvm.relay.testing.temp_op_attr import TempOpAttr
 from tvm.script import tir as T
@@ -152,17 +151,16 @@ def test_conv2d():
             target,
             params,
             schedule_fn,
-            te_filter_func="meta_schedule.DefaultTaskFilterAllowExtern",
+            tir_converter="allow_extern",
         )
-        with ApplyHistoryBest(
-            database,
-            te_filter_func="meta_schedule.DefaultTaskFilterAllowExtern",
+        with database, tvm.transform.PassContext(
+            opt_level=3,
+            config={
+                "relay.backend.use_meta_schedule": True,
+                "relay.backend.tir_converter": "allow_extern",
+            },
         ):
-            with tvm.transform.PassContext(
-                opt_level=3,
-                config={"relay.backend.use_meta_schedule": True},
-            ):
-                lib = relay.build(relay_mod, target=target, params=params)
+            lib = relay.build(relay_mod, target=target, params=params)
 
     dev = tvm.device(target, 0)
 

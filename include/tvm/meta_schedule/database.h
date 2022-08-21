@@ -203,6 +203,27 @@ class DatabaseNode : public runtime::Object {
    * \return The size of the database.
    */
   virtual int64_t Size() = 0;
+  /*!
+   * \brief Query the best record of the given workload from the database.
+   * \param mod The IRModule to be searched for.
+   * \param target The target to be searched for.
+   * \return The best record of the given workload; NullOpt if not found.
+   */
+  virtual Optional<TuningRecord> QueryTuningRecord(IRModule mod, Target target);
+  /*!
+   * \brief Query the best schedule of the given workload from the database.
+   * \param mod The IRModule to be searched for.
+   * \param target The target to be searched for.
+   * \return The schedule in the best schedule of the given workload; NullOpt if not found.
+   */
+  virtual Optional<tir::Schedule> QuerySchedule(IRModule mod, Target target);
+  /*!
+   * \brief Query the best IRModule of the given workload from the database.
+   * \param mod The IRModule to be searched for.
+   * \param target The target to be searched for.
+   * \return The IRModule in the best IRModule of the given workload; NullOpt if not found.
+   */
+  virtual Optional<IRModule> QueryIRModule(IRModule mod, Target target);
 
   static constexpr const char* _type_key = "meta_schedule.Database";
   TVM_DECLARE_BASE_OBJECT_INFO(DatabaseNode, runtime::Object);
@@ -339,6 +360,13 @@ class Database : public runtime::ObjectRef {
                                      PyDatabaseNode::FGetTopK f_get_top_k,
                                      PyDatabaseNode::FGetAllTuningRecords f_get_all_tuning_records,
                                      PyDatabaseNode::FSize f_size);
+  /*! \return The current Database in the scope. */
+  static Optional<Database> Current();
+  /*! \brief Entering the scope of the context manager */
+  void EnterWithScope();
+  /*! \brief Exiting the scope of the context manager */
+  void ExitWithScope();
+
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Database, runtime::ObjectRef, DatabaseNode);
 };
 
