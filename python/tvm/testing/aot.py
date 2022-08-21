@@ -942,14 +942,14 @@ def create_relay_module_and_inputs_from_tflite_file(tflite_model_file, bind_para
         name = str(param.name_hint)
         data_shape = [int(i) for i in param.type_annotation.shape]
         dtype = str(param.type_annotation.dtype)
-        if dtype == "float32" or dtype == "float64":
+        if dtype in ("float32", "float64"):
             # Since np.random.uniform only allows the ranges of float32,
             # at first float32 is used and scaled afterwards, if necessary
             in_min, in_max = (np.finfo("float32").min, np.finfo("float32").max)
             data = np.random.uniform(low=in_min, high=in_max, size=data_shape).astype(dtype)
             scale = np.finfo(dtype).min / np.finfo("float32").min
             data *= scale
-        elif dtype == "int32" or dtype == "int64" or dtype == "int16":
+        elif dtype in ("int16", "int32", "int64"):
             in_min, in_max = (np.iinfo(dtype).min, np.iinfo(dtype).max)
             data = np.random.randint(in_min, high=in_max, size=data_shape, dtype=dtype)
         else:
