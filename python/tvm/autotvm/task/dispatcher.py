@@ -468,11 +468,16 @@ class ApplyGraphBest(DispatchContext):
             Otherwise, it is an iterator.
         """
         # pylint: disable=import-outside-toplevel
-        from ..record import load_from_file
+        from ..record import load_from_file, load_from_buffer
 
         super(ApplyGraphBest, self).__init__()
-        if isinstance(records, str):
+        if isinstance(records, str, bytes, PathLike):
             records = load_from_file(records)
+        elif isinstance(records, TextIOBase):
+            records = load_from_buffer(records)
+        else:
+            records = list(records)
+
         self._records = list(records)
         self._counter = 0
         self._global_cfg_dict = {}
