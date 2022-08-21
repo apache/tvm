@@ -246,12 +246,12 @@ class ApplyHistoryBest(DispatchContext):
 
     Parameters
     ----------
-    records : str, list of str, or iterator of (autotvm.measure.MeasureInput,\
-                                                autotvm.measure.MeasureResult)
-        Collection of tuning records.
-        If is str, then it should be the filename of a records log file.
-        Each row of this file is an encoded record pair. If it is a list, it can either be
-        a list of paths to log files that will be loaded jointly or an iterator or records.
+    records : Records or iterator of Records objects, where a Records
+              object is a path-like object, a file-like object, or an
+              iterator of (MeasureInput, MeasureResult).
+
+        Collection of tuning records. If multiple Records objects are passed, their
+        contents will be merged.
     """
 
     def __init__(self, records):
@@ -271,11 +271,9 @@ class ApplyHistoryBest(DispatchContext):
         ----------
         records : str, list of str, or iterator of (autotvm.measure.MeasureInput,\
                                                     autotvm.measure.MeasureResult)
-            Collection of tuning records.
-            If is str, then it should be the filename of a records log file.
-            Each row of this file is an encoded record pair. If it is a list
-            it can either be a list of paths to logs that will be loaded jointly or
-            an iterator of measurement results.
+
+            Collection of tuning records. If multiple Records objects are passed, their
+            contents will be merged.
         """
         # pylint: disable=import-outside-toplevel
         from ..record import load_from_file, load_from_io
