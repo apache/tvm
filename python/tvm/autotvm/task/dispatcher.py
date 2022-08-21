@@ -30,17 +30,25 @@ of the DispatchContext base class.
 
 from __future__ import absolute_import as _abs
 
+from io import TextIOBase
 import logging
-import typing
-from typing import Union
-from collections.abc import Iterable
+from os import PathLike
+from pathlib import Path
+from typing import List, Iterable, Tuple, Union
 
 import numpy as np
 
 from .space import FallbackConfigEntity
 from .. import env as _env
+from ..measure import MeasureInput, MeasureResult
 
 logger = logging.getLogger("autotvm")
+
+Records = Union[
+    Union[str, bytes, Path],  # Path-like objects
+    TextIOBase,  # File-like objects
+    Iterable[Tuple[MeasureInput, MeasureResult]],
+]
 
 
 class DispatchContext(object):
@@ -194,7 +202,7 @@ class ApplyFixedConfig(DispatchContext):
         Name of schedules to use.
     """
 
-    def __init__(self, tasks, schedule_names: Union[str, typing.List[str]]):
+    def __init__(self, tasks, schedule_names: Union[str, List[str]]):
         super(ApplyFixedConfig, self).__init__()
         if isinstance(schedule_names, str):
             self._schedule_names = list(schedule_names)
@@ -256,7 +264,7 @@ class ApplyHistoryBest(DispatchContext):
         if records:
             self.load(records)
 
-    def load(self, records):
+    def load(self, records: Union[Records, Iterable[Records]]):
         """Load records to this dispatch context
 
         Parameters
@@ -270,32 +278,36 @@ class ApplyHistoryBest(DispatchContext):
             an iterator of measurement results.
         """
         # pylint: disable=import-outside-toplevel
-        from pathlib import Path
-        from ..record import load_from_file
+        from ..record import load_from_file, load_from_io
 
-        joint_records = []
-        if not isinstance(records, Iterable) or isinstance(records, str):
-            records = [records]
+        def _unpack_records(
+            records: Union[Records, Iterable[Records]]
+        ) -> List[Tuple[MeasureInput, MeasureResult]]:
 
-        for rec in records:
-            if isinstance(rec, Path):
-                rec = str(rec)
+            if isinstance(records, (str, bytes, PathLike)):
+                return load_from_file(records)
 
-            if isinstance(rec, str):
-                rec = load_from_file(rec)
-                joint_records += rec
-            else:
-                if rec is not None:
-                    joint_records.append(rec)
+            if isinstance(records, TextIOBase):
+                return load_from_io(records)
 
-        if not joint_records:
+            joint_records = []
+            for record in records:
+                if isinstance(record, Tuple) and isinstance(record[0], MeasureInput):
+                    joint_records.append(record)
+                else:
+                    joint_records += _unpack_records(record)
+
+            return joint_records
+
+        flattened_records = _unpack_records(records)
+        if not flattened_records:
             return
 
         best_by_targetkey = self.best_by_targetkey
         best_by_model = self.best_by_model
 
         counter = 0
-        for inp, res in joint_records:
+        for inp, res in flattened_records:
             counter += 1
             if res.error_no != 0:
                 continue
@@ -447,7 +459,7 @@ class ApplyGraphBest(DispatchContext):
     node index.
     """
 
-    def __init__(self, records):
+    def __init__(self, records: Records):
         """
         Parameters
         ----------

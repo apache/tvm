@@ -194,20 +194,41 @@ def decode(row, protocol="json"):
     raise RuntimeError("Invalid log protocol: " + protocol)
 
 
-def load_from_file(filename):
+def load_from_io(file):
     """Generator: load records from file.
     This is a generator that yields the records.
 
     Parameters
     ----------
-    filename: str
+    file: os.TextIOBase
 
     Yields
     ------
     input: autotvm.measure.MeasureInput
     result: autotvm.measure.MeasureResult
     """
-    with open(filename) as f:
+    for row in file:
+        if row and not row.startswith("#"):
+            ret = decode(row)
+            if ret is None:
+                continue
+            yield ret
+
+
+def load_from_file(filepath):
+    """Generator: load records from path.
+    This is a generator that yields the records.
+
+    Parameters
+    ----------
+    filepath: str, bytes, os.PathLike
+
+    Yields
+    ------
+    input: autotvm.measure.MeasureInput
+    result: autotvm.measure.MeasureResult
+    """
+    with open(filepath) as f:
         for row in f:
             if row and not row.startswith("#"):
                 ret = decode(row)
