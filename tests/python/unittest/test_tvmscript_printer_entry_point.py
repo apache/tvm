@@ -14,14 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-TVMScript Unified Printer
+import pytest
 
-This package provides a set of APIs to print supported TVM IR into TVMScript
-in a roundtrippable way.
+from tvm.error import TVMError
+from tvm.script.printer import script
+from tvm.tir import FloatImm
 
-https://github.com/apache/tvm-rfcs/blob/main/rfcs/0074-tvmscript-unified-printer.md
-"""
 
-from . import _ffi_api
-from .entry import script
+def test_as_script_unknown_ir():
+    ir_node = FloatImm("float32", 1.0)
+
+    with pytest.raises(TVMError) as e:
+        script(ir_node, "test_xyz", {})
+
+    assert "test_xyz" in str(e.value)
