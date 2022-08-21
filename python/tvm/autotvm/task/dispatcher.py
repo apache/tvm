@@ -276,7 +276,7 @@ class ApplyHistoryBest(DispatchContext):
             contents will be merged.
         """
         # pylint: disable=import-outside-toplevel
-        from ..record import load_from_file, load_from_io
+        from ..record import load_from_file, load_from_buffer
 
         def _unpack_records(
             records: Union[Records, Iterable[Records]]
@@ -286,7 +286,7 @@ class ApplyHistoryBest(DispatchContext):
                 return load_from_file(records)
 
             if isinstance(records, TextIOBase):
-                return load_from_io(records)
+                return load_from_buffer(records)
 
             joint_records = []
             for record in records:

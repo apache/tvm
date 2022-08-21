@@ -20,10 +20,12 @@
 
 import argparse
 import base64
+from io import TextIOBase
 import logging
 import pickle
 import json
 import time
+from typing import Union
 import os
 import itertools
 from collections import OrderedDict
@@ -194,13 +196,13 @@ def decode(row, protocol="json"):
     raise RuntimeError("Invalid log protocol: " + protocol)
 
 
-def load_from_io(file):
-    """Generator: load records from file.
+def load_from_buffer(file: TextIOBase):
+    """Generator: load records from buffer.
     This is a generator that yields the records.
 
     Parameters
     ----------
-    file: os.TextIOBase
+    file: io.TextIOBase
 
     Yields
     ------
@@ -215,13 +217,13 @@ def load_from_io(file):
             yield ret
 
 
-def load_from_file(filepath):
+def load_from_file(filepath: Union[str, bytes, os.PathLike]):
     """Generator: load records from path.
     This is a generator that yields the records.
 
     Parameters
     ----------
-    filepath: str, bytes, os.PathLike
+    filepath: str, bytes, or os.PathLike
 
     Yields
     ------
