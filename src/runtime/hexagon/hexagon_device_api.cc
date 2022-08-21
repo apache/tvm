@@ -57,34 +57,53 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shap
   CHECK(shape) << "shape array is null";
   CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
 
+  // IMPORTANT NOTE!
+  // Hexagon treats "global" memory scope VERY DIFFERENTLY from all the others.
+  //
+  // With "global":
+  //    - As with "global.ddr", this uses the target device's DDR memory.
+  //    - The memory allocation must be a single, contiguous region of
+  //      (virtual) memory addresses.
+  //    - 'ndim' and 'shape' give the dimensions of the tensor to be stored
+  //      in this allocation.  There's no (practical) limit on the maximum
+  //      rank (ndim) of the tensor.
+  //
+  // All other supported memory-scope names:
+  //   - 'ndim' must be exactly 1 or 2:
+  //      1: A single, contiguous region of memory is requested.
+  //      2: A two-level memory allocation is required, suitable for storing a tensor
+  //         in Hexagon's "indirect tensor" format:
+  //         - shape[0] indicates the number of tensor-content memory allocations.
+  //         - shape[1] indicates the size of each tensor-content memory allocation.
   if (!mem_scope.defined() || mem_scope.value() == "global") {
     return DeviceAPI::AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
   }
 
-  // must be Hexagon device and VTCM scope after this point
-  CHECK_EQ(mem_scope.value(), "global.vtcm");
-  CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon) << "dev.device_type: " << dev.device_type;
+  // NOTE: This check should be superfluous, but it's probably a good idea to leave it in
+  // until the AoT executor's multi-device dispatch code is mature. --cconvey 2022-08-26
+  CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon)
+      << "dev.device_type: " << dev.device_type << " DeviceName(" << dev.device_type
+      << "): " << DeviceName(dev.device_type) << "";
 
-  size_t typesize = (dtype.bits / 8) * dtype.lanes;
+  CHECK(ndim >= 0 && ndim <= 2)
+      << "Hexagon Device API supports only 1d and 2d allocations, but received ndim = " << ndim;
 
-  size_t alignment = shape[ndim - 1] * typesize;
-  if (alignment < kHexagonAllocAlignment) {
-    alignment = kHexagonAllocAlignment;
-  }
+  const size_t typesize = (dtype.bits / 8) * dtype.lanes;
 
   if (ndim == 0) {
-    return hexbuffs.AllocateHexagonBuffer(typesize, alignment, mem_scope);
+    // Allocate storage for a single scalar value.
+    return hexbuffs.AllocateHexagonBuffer(typesize, kHexagonAllocAlignment, mem_scope);
   } else if (ndim == 1) {
+    // Allocate a single, contiguous memory region.
     size_t nbytes = shape[0] * typesize;
-    return hexbuffs.AllocateHexagonBuffer(nbytes, alignment, mem_scope);
+    return hexbuffs.AllocateHexagonBuffer(nbytes, kHexagonAllocAlignment, mem_scope);
   } else if (ndim == 2) {
+    // Allocate the region(s) needed for Hexagon's indirect-tensor format.
     size_t nallocs = shape[0];
     size_t nbytes = shape[1] * typesize;
-    return hexbuffs.AllocateHexagonBuffer(nallocs, nbytes, alignment, mem_scope);
+    return hexbuffs.AllocateHexagonBuffer(nallocs, nbytes, kHexagonAllocAlignment, mem_scope);
   } else {
-    LOG(FATAL) << "Hexagon Device API supports only 1d and 2d allocations, but received ndim = "
-               << ndim;
-    return nullptr;
+    return nullptr;  // unreachable
   }
 }
 
