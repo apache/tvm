@@ -320,3 +320,14 @@ def verify_well_formed(func: PrimFunc, assert_mode: bool = True) -> bool:
         Whether it is a well-formed TIR function.
     """
     return _ffi_api.VerifyWellFormed(func, assert_mode)  # type: ignore # pylint: disable=no-member
+
+
+def OOBChecker():
+    """Detect out of bounds memory access in arrays.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.OOBChecker()  # type: ignore
