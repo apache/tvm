@@ -1705,6 +1705,30 @@ def fetch_model_from_url(
     return tvmc_model.mod, tvmc_model.params
 
 
+def xfail_parameterizations(*xfail_params, reason):
+    """
+    Mark tests with a nodeid parameters that exactly matches one in params as
+    xfail. Useful for quickly marking tests as xfail when they have a large
+    combination of parameters.
+    """
+    xfail_params = set(xfail_params)
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(request, *args, **kwargs):
+            if "[" in request.node.name and "]" in request.node.name:
+                # Strip out the test name and the [ and ] brackets
+                params_from_name = request.node.name[len(request.node.originalname) + 1 : -1]
+                if params_from_name in xfail_params:
+                    pytest.xfail(reason=f"xfail on nodeid {request.node.nodeid}: " + reason)
+
+            return func(request, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
 def main():
     test_file = inspect.getsourcefile(sys._getframe(1))
     sys.exit(pytest.main([test_file] + sys.argv[1:]))
