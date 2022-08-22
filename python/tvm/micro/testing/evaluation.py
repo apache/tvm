@@ -154,6 +154,6 @@ def evaluate_model_accuracy(session, aot_executor, input_data, true_labels, runs
         aot_runtimes.append(runtime)
 
     num_correct = sum(u == v for u, v in zip(true_labels, predicted_labels))
-    average_time = sum(aot_runtimes) / len(aot_runtimes)
+    average_time = np.median(aot_runtimes)
     accuracy = num_correct / len(predicted_labels)
     return average_time, accuracy, predicted_labels
