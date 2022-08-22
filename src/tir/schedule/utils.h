@@ -249,24 +249,6 @@ inline bool IsThreadIdx(const runtime::ThreadScope& thread_scope) {
   return thread_scope.rank == 1 && thread_scope.dim_index >= 0;
 }
 
-/******** Integer set ********/
-
-/*!
- * \brief Converts the Ranges to IntSets
- * \param var_dom The ranges of variables
- * \return The integer sets of the variables
- */
-inline Map<Var, arith::IntSet> AsIntSet(const Map<Var, Range>& var_dom) {
-  std::unordered_map<Var, arith::IntSet, ObjectPtrHash, ObjectPtrEqual> result;
-  result.reserve(var_dom.size());
-  for (auto kv : var_dom) {
-    Var& var = kv.first;
-    Range& range = kv.second;
-    result.emplace(std::move(var), arith::IntSet::FromRange(std::move(range)));
-  }
-  return {result.begin(), result.end()};
-}
-
 /**************** Loop extents ****************/
 
 /*!

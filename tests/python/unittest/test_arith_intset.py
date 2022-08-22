@@ -15,9 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 from tvm import te
 from tvm import tir
-from tvm.ir.base import structural_equal
+from tvm.arith.analyzer import Analyzer
 
 
 class IntSetChecker:
@@ -128,66 +129,139 @@ def test_select():
     ck.verify(tvm.tir.Select(x > 0, x - 1, x + 1), {x: tvm.arith.IntervalSet(0, 10)}, (-1, 11))
 
 
-def test_region_lower_bound_not_independent():
+def check_region_bound(expect_region, var_dom, mode, predicate=None):
+    """Helper to check region bound estimation.
+
+    Parameters
+    ----------
+    expect_region: dict
+        The keys are of form (begin, end) or PrimExpr as a single point. The values are
+        expected estimated region or region dict on different bindings.
+
+    var_dom: dict
+        Map var to iteration domain range.
+
+    mode: str
+        Specify "lowerbound", "upperbound" or else use strict bound estimation.
+
+    predicate: PrimExpr
+        Extra predicate, defaults to True.
+    """
+    if predicate is None:
+        predicate = tvm.tir.IntImm("bool", 1)
+    region = []
+    expect = []
+    for k, v in expect_region.items():
+        if not isinstance(k, (tuple, list)):
+            k = (k, k + 1)
+        region.append(tvm.ir.Range.from_min_extent(k[0], Analyzer().simplify(k[1] - k[0])))
+        expect.append(v)
+    if mode == "lowerbound":
+        result = tvm.arith.estimate_region_lower_bound(
+            region=region, var_dom=var_dom, predicate=predicate
+        )
+    elif mode == "upperbound":
+        result = tvm.arith.estimate_region_upper_bound(
+            region=region, var_dom=var_dom, predicate=predicate
+        )
+    else:
+        result = tvm.arith.estimate_region_strict_bound(
+            region=region, var_dom=var_dom, predicate=predicate
+        )
+    if result is None:
+        assert all([_ is None for _ in expect])
+        return
+    assert len(result) == len(expect)
+    for intset, expect_desc in zip(result, expect):
+        if isinstance(expect_desc, dict):
+            # check range on different free var bindings
+            for binding in expect_desc:
+                analyzer = Analyzer()
+                for k, v in binding:
+                    analyzer.bind(k, v)
+                expect_begin, expect_end = expect_desc[binding]
+                result_begin = analyzer.simplify(intset.min_value, 3)
+                result_end = analyzer.simplify(intset.max_value + 1, 3)
+                print(result_end)
+                assert analyzer.can_prove_equal(
+                    result_begin - expect_begin, 0
+                ), f"{result_begin} vs {expect_begin}"
+                assert analyzer.can_prove_equal(
+                    result_end - expect_end, 0
+                ), f"{result_end} vs {expect_end}"
+        else:
+            # check range
+            expect_begin, expect_end = expect_desc
+            analyzer = Analyzer()
+            assert analyzer.can_prove_equal(
+                intset.min_value - expect_begin, 0
+            ), f"{intset.min_value} vs {expect_begin}"
+            assert analyzer.can_prove_equal(
+                intset.max_value - expect_end + 1, 0
+            ), f"{intset.max_value} vs {expect_end - 1}"
+
+
+def test_region_bound_not_independent():
+    # (i, i+2) and (i+2, i+4) are dependent, this the lowerbound is not available
     i = tvm.tir.Var("i", "int32")
-    result = tvm.arith.estimate_region_lower_bound(
-        region=[
-            tvm.ir.Range(begin=i, end=i + 2),
-            tvm.ir.Range(begin=i + 1, end=i + 4),
-        ],
-        var_dom={
-            i: tvm.ir.Range(begin=0, end=64),
-        },
-        predicate=tvm.tir.IntImm("bool", 1),
+    var_dom = {
+        i: tvm.ir.Range(begin=0, end=64),
+    }
+    check_region_bound({(i, i + 2): None, (i + 2, i + 4): None}, var_dom, mode="lowerbound")
+    check_region_bound({(i, i + 2): (0, 65), (i + 2, i + 4): (2, 67)}, var_dom, mode="upperbound")
+
+    # when only a subset of access indices are affine
+    i, j, k = tvm.tir.Var("i", "int32"), tvm.tir.Var("j", "int32"), tvm.tir.Var("k", "int32")
+    var_dom = {
+        i: tvm.ir.Range(begin=0, end=16),
+        j: tvm.ir.Range(begin=0, end=16),
+        k: tvm.ir.Range(begin=0, end=16),
+    }
+    check_region_bound(
+        {i // 4: None, j * 4 + i % 4: None, tir.truncdiv(k, 2): None},
+        var_dom,
+        predicate=j * 4 + i % 4 > 3,
+        mode="lowerbound",
     )
-    assert result is None
+    check_region_bound(
+        {i // 4: (0, 4), j * 4 + i % 4: (4, 64), tir.truncdiv(k, 2): (0, 8)},
+        var_dom,
+        predicate=j * 4 + i % 4 > 3,
+        mode="upperbound",
+    )
 
 
-def test_region_lower_bound_stride_too_wide():
+def test_region_bound_stride_too_wide():
     i = tvm.tir.Var("i", "int32")
-    result = tvm.arith.estimate_region_lower_bound(
-        region=[
-            tvm.ir.Range(begin=i * 4, end=i * 4 + 2),
-        ],
-        var_dom={
-            i: tvm.ir.Range(begin=0, end=64),
-        },
-        predicate=tvm.tir.IntImm("bool", 1),
-    )
-    assert result is None
+    var_dom = {i: tvm.ir.Range(begin=0, end=64)}
+    check_region_bound({(i * 4, i * 4 + 2): None}, var_dom, mode="lowerbound")
+    check_region_bound({(i * 4, i * 4 + 2): (0, 254)}, var_dom, mode="upperbound")
 
 
-def test_region_lower_bound_small_stride():
+def test_region_bound_small_stride():
     i = tvm.tir.Var("i", "int32")
-    (result,) = tvm.arith.estimate_region_lower_bound(
-        region=[
-            tvm.ir.Range.from_min_extent(min_value=i * 4, extent=8),
-        ],
-        var_dom={
-            i: tvm.ir.Range(begin=0, end=64),
-        },
-        predicate=tvm.tir.IntImm("bool", 1),
-    )
-    assert result.min_value.value == 0
-    assert result.max_value.value == 259
+    var_dom = {
+        i: tvm.ir.Range(begin=0, end=64),
+    }
+    check_region_bound({(i * 4, i * 4 + 8): (0, 260)}, var_dom, mode="lowerbound")
 
 
 def test_region_lower_bound_split_predicate():
     x_o = tvm.tir.Var("xo", "int32")
     x_i = tvm.tir.Var("xi", "int32")
     x = x_o * 4 + x_i
-    (result,) = tvm.arith.estimate_region_lower_bound(
-        region=[
-            tvm.ir.Range.from_min_extent(min_value=x * 4, extent=8),
-        ],
-        var_dom={
-            x_o: tvm.ir.Range(begin=0, end=16),
-            x_i: tvm.ir.Range(begin=0, end=4),
-        },
+    var_dom = {
+        x_o: tvm.ir.Range(begin=0, end=16),
+        x_i: tvm.ir.Range(begin=0, end=4),
+    }
+    check_region_bound({(x * 4, x * 4 + 8): (0, 256)}, var_dom, predicate=x < 63, mode="lowerbound")
+
+    check_region_bound(
+        {(x * 4, x * 4 + 8): (0, 256), (x * 3, x * 3 + 5): (0, 191)},
+        var_dom,
         predicate=x < 63,
+        mode="upperbound",
     )
-    assert result.min_value.value == 0
-    assert result.max_value.value == 255
 
 
 def test_region_lower_bound_multiple_variables():
@@ -198,127 +272,94 @@ def test_region_lower_bound_multiple_variables():
     i = div(x, 16)
     j = div(mod(x, 16), 4) * 8 + mod(x, 4) + div(wid, 32) * 4
     k = wid % 32
-    (i_int_set, j_int_set, k_int_set) = tvm.arith.estimate_region_lower_bound(
-        region=[
-            tvm.ir.Range.from_min_extent(min_value=i, extent=1),
-            tvm.ir.Range.from_min_extent(min_value=j, extent=1),
-            tvm.ir.Range.from_min_extent(min_value=k, extent=1),
-        ],
-        var_dom={
-            x: tvm.ir.Range(begin=0, end=32),
-            wid: tvm.ir.Range(begin=0, end=64),
-        },
-        predicate=tvm.tir.IntImm("bool", 1),
-    )
-    assert i_int_set.min_value.value == 0
-    assert i_int_set.max_value.value == 1
-    assert j_int_set.min_value.value == 0
-    assert j_int_set.max_value.value == 31
-    assert k_int_set.min_value.value == 0
-    assert k_int_set.max_value.value == 31
+    var_dom = {
+        x: tvm.ir.Range(begin=0, end=32),
+        wid: tvm.ir.Range(begin=0, end=64),
+    }
+    check_region_bound({i: (0, 2), j: (0, 32), k: (0, 32)}, var_dom, mode="lowerbound")
 
 
 def test_region_lower_bound_negative_scale():
     i = tvm.tir.Var("i", "int32")
     j = tvm.tir.Var("j", "int32")
-    int_set_0, int_set_1 = tvm.arith.estimate_region_lower_bound(
-        region=[
-            tvm.ir.Range.from_min_extent(min_value=1 - i, extent=4),
-            tvm.ir.Range.from_min_extent(min_value=20 - j * 4, extent=16),
-        ],
-        var_dom={
-            i: tvm.ir.Range(begin=0, end=4),
-            j: tvm.ir.Range(begin=0, end=4),
-        },
-        predicate=tvm.tir.IntImm("bool", 1),
+    var_dom = {
+        i: tvm.ir.Range(begin=0, end=4),
+        j: tvm.ir.Range(begin=0, end=4),
+    }
+    check_region_bound(
+        {(1 - i, 5 - i): (-2, 5), (20 - j * 4, 36 - j * 4): (8, 36)}, var_dom, mode="lowerbound"
     )
-    assert int_set_0.min_value.value == -2
-    assert int_set_0.max_value.value == 4
-    assert int_set_1.min_value.value == 8
-    assert int_set_1.max_value.value == 35
 
 
 def test_region_lower_bound_for_non_perfect_tile():
     h1 = tvm.tir.Var("h1", "int32")
     h2 = tvm.tir.Var("h2", "int32")
     h3 = tvm.tir.Var("h3", "int32")
-    analyzer = tvm.arith.Analyzer()
-
-    def do_test_point_access(point, predicates, var_dom, expect):
-        regions = tvm.arith.estimate_region_lower_bound(
-            region=[
-                tvm.ir.Range.from_min_extent(min_value=point, extent=1),
-            ],
-            var_dom=var_dom,
-            predicate=tvm.tir.all(*predicates),
-        )
-        if expect is None:  # expect a failure
-            assert regions is None
-        else:
-            assert len(regions) == 1
-            for binding, expect_min, expect_max in expect:
-                min_diff = expect_min - regions[0].min_value
-                assert analyzer.simplify(tir.stmt_functor.substitute(min_diff, binding), 3) == 0
-                max_diff = expect_max - regions[0].max_value
-                assert analyzer.simplify(tir.stmt_functor.substitute(max_diff, binding), 3) == 0
 
     # non-uniform tiling, single inner variable
-    # h3 == 0: region is [1, 9]
-    # 0 < h3 <= 26: region is [h3 * 8, h3 * 8 + 9]
-    # h3 > 26: region is [h3 * 8, 223]
-    do_test_point_access(
-        point=h3 * 8 + h2,
-        predicates=[1 <= h3 * 8 + h2, h3 * 8 + h2 < 224],
-        var_dom={
-            h2: tvm.ir.Range(begin=0, end=10),
+    var_dom = {
+        h2: tvm.ir.Range(begin=0, end=10),
+    }
+    check_region_bound(
+        {
+            h3 * 8
+            + h2: {
+                (): (
+                    tvm.tir.max(h3 * 8, 1),
+                    tvm.tir.max(h3 * 8, 1)
+                    - tvm.tir.max(h3 * 8, 214)
+                    - tvm.tir.max(1 - h3 * 8, 0)
+                    + 224,
+                ),
+                ((h3, 0),): (1, 10),  # h3 == 0: region is [1, 10)
+                ((h3, 10),): (h3 * 8, h3 * 8 + 10),  # 0 < h3 <= 26: region is [h3 * 8, h3 * 8 + 10)
+                ((h3, 27),): (h3 * 8, 224),  # h3 > 26: region is [h3 * 8, 224)
+            }
         },
-        expect=[
-            (
-                {},
-                tvm.tir.max(h3 * 8, 1),
-                tvm.tir.max(h3 * 8, 1)
-                - tvm.tir.max(h3 * 8, 214)
-                - tvm.tir.max(1 - h3 * 8, 0)
-                + 223,
-            ),
-            ({h3: 0}, 1, 9),
-            ({h3: 10}, h3 * 8, h3 * 8 + 9),
-            ({h3: 27}, h3 * 8, 223),
-        ],
+        var_dom,
+        predicate=tvm.tir.all(1 <= h3 * 8 + h2, h3 * 8 + h2 < 224),
+        mode="lowerbound",
     )
 
     # non-uniform tiling, two inner variables
-    do_test_point_access(
-        point=h3 * 8 + h2 * 5 + h1,
-        predicates=[1 <= h3 * 8 + h2 * 5 + h1, h3 * 8 + h2 * 5 + h1 < 224],
-        var_dom={
-            h2: tvm.ir.Range(begin=0, end=2),
-            h1: tvm.ir.Range(begin=0, end=5),
+    var_dom = {
+        h1: tvm.ir.Range(begin=0, end=5),
+        h2: tvm.ir.Range(begin=0, end=2),
+    }
+    check_region_bound(
+        {
+            h3 * 8
+            + h2 * 5
+            + h1: {
+                (): (
+                    tvm.tir.max(h3 * 8, 1),
+                    tvm.tir.max(h3 * 8, 1)
+                    - tvm.tir.max(h3 * 8, 214)
+                    - tvm.tir.max(1 - h3 * 8, 0)
+                    + 224,
+                ),
+                ((h3, 0),): (1, 10),
+                ((h3, 10),): (h3 * 8, h3 * 8 + 10),
+                ((h3, 27),): (h3 * 8, 224),
+            }
         },
-        expect=[
-            (
-                {},
-                tvm.tir.max(h3 * 8, 1),
-                tvm.tir.max(h3 * 8, 1)
-                - tvm.tir.max(h3 * 8, 214)
-                - tvm.tir.max(1 - h3 * 8, 0)
-                + 223,
-            ),
-            ({h3: 0}, 1, 9),
-            ({h3: 10}, h3 * 8, h3 * 8 + 9),
-            ({h3: 27}, h3 * 8, 223),
-        ],
+        var_dom,
+        predicate=tvm.tir.all(1 <= h3 * 8 + h2 * 5 + h1, h3 * 8 + h2 * 5 + h1 < 224),
+        mode="lowerbound",
     )
 
-    # should fail on incompatible predicates
-    do_test_point_access(
-        point=h3 * 8 + h2 * 5 + h1,
-        predicates=[1 <= h3 * 8 + h2 * 5 + h1, h3 * 8 + h1 * 2 + h2 < 224],
-        var_dom={
-            h2: tvm.ir.Range(begin=0, end=2),
-            h1: tvm.ir.Range(begin=0, end=5),
-        },
-        expect=None,
+    # lowerbound should fail on incompatible predicates
+    check_region_bound(
+        {h3 * 8 + h2 * 5 + h1: None},
+        var_dom,
+        predicate=tvm.tir.all(1 <= h3 * 8 + h2 * 5 + h1, h3 * 8 + h1 * 2 + h2 < 224),
+        mode="lowerbound",
+    )
+    check_region_bound(
+        {h3 * 8 + h2 * 5 + h1: (h3 * 8, h3 * 8 + 10)},
+        var_dom,
+        predicate=tvm.tir.all(1 <= h3 * 8 + h2 * 5 + h1, h3 * 8 + h1 * 2 + h2 < 224),
+        mode="upperbound",
     )
 
 
@@ -328,12 +369,7 @@ def test_region_lower_bound_unfusable():
         tvm.tir.Var("j", "int32"): tvm.ir.Range(4),
     }
     i, j = var_dom
-    region = [
-        tvm.ir.Range.from_min_extent((i + j) // 2, 1),
-    ]
-    result = tvm.arith.estimate_region_lower_bound(region, var_dom, predicate=True)
-    assert result[0].min_value == 0
-    assert result[0].max_value == 5
+    check_region_bound({(i + j) // 2: (0, 6)}, var_dom, mode="lowerbound")
 
 
 def test_union_lower_bound():
@@ -347,18 +383,4 @@ def test_union_lower_bound():
 
 
 if __name__ == "__main__":
-    test_basic()
-    test_vector()
-    test_add_sub()
-    test_mul_div()
-    test_max_min()
-    test_select()
-    test_mod()
-    test_region_lower_bound_not_independent()
-    test_region_lower_bound_stride_too_wide()
-    test_region_lower_bound_small_stride()
-    test_region_lower_bound_split_predicate()
-    test_region_lower_bound_multiple_variables()
-    test_region_lower_bound_negative_scale()
-    test_region_lower_bound_for_non_perfect_tile()
-    test_union_lower_bound()
+    tvm.testing.main()
