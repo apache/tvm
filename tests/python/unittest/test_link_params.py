@@ -19,16 +19,19 @@ import ctypes
 import json
 import os
 import re
-import sys
+from io import StringIO
+from contextlib import redirect_stderr
 
 import numpy as np
-import pytest
 
 import tvm
 import tvm.relay
 import tvm.testing
+from tvm import meta_schedule as ms
+from tvm import relay
 from tvm.relay.backend import Executor, Runtime
 from tvm.contrib import utils
+from tvm.meta_schedule.testing.utils import apply_fixed_schedules
 
 
 INPUT_SHAPE = (1, 3, 16, 16)
@@ -380,6 +383,63 @@ def test_crt_link_params(linkable_dtype):
         np.testing.assert_equal(unlinked_output, linked_output)
     else:
         np.testing.assert_allclose(unlinked_output, linked_output)
+
+
+def test_tir_link_params():
+    def get_dense(data_shape, weight_shape):
+        data = relay.var("data", shape=data_shape, dtype="float32")
+        weight = relay.var("weight", shape=weight_shape, dtype="float32")
+        dense = relay.nn.dense(data, weight)
+        return relay.Function([data, weight], dense)
+
+    def get_ref_dense(data_np, weight_np):
+        return np.dot(data_np, np.transpose(weight_np))
+
+    def schedule_dense(sch):
+        dense = sch.get_block("T_matmul_NT")
+        _y, _x, _k = sch.get_loops(dense)
+
+    M, N, K = 128, 128, 128
+    data_shape = (M, K)
+    weight_shape = (N, K)
+    relay_mod = tvm.IRModule.from_expr(get_dense(data_shape, weight_shape))
+    relay_mod = relay.transform.InferType()(relay_mod)
+    data_np = np.random.randn(*data_shape).astype("float32")
+    weight_np = np.random.randn(*weight_shape).astype("float32")
+    target = "llvm"
+    params = {"weight": weight_np}
+
+    def schedule_fn(task, sch):
+        if "nn_dense" in task.task_name:
+            schedule_dense(sch)
+            return True
+        return False
+
+    link_params = True
+
+    with tvm.transform.PassContext(config={"relay.FuseOps.link_params": link_params}):
+        database = apply_fixed_schedules(relay_mod, target, params, schedule_fn)
+
+    with StringIO() as stderr_buf, redirect_stderr(stderr_buf):
+        with ms.ApplyHistoryBest(database):
+            with tvm.transform.PassContext(
+                opt_level=3,
+                config={"relay.backend.use_meta_schedule": True},
+            ):
+                executor = Executor("graph", {"link-params": link_params})
+                lib = relay.build(relay_mod, target=target, executor=executor)
+
+        # Workload look up should succeed. This does not work when the test is invoked from pytest.
+        assert not "Cannot find workload" in stderr_buf.getvalue()
+
+    dev = tvm.device(target, 0)
+    runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+    runtime.set_input(**params)
+    runtime.set_input("data", data_np)
+    runtime.run()
+    out = runtime.get_output(0).numpy()
+    ref = get_ref_dense(data_np, weight_np)
+    tvm.testing.assert_allclose(out, ref, atol=1e-4, rtol=1e-4)
 
 
 if __name__ == "__main__":

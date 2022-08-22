@@ -311,6 +311,16 @@ std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const
 // attr::async_wait_queue_scope annotation.
 std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op);
 
+/*!
+ * \brief Bind a subset of parameter tensors to constants, replacing them by AllocateConst nodes.
+ * \param f The function to bind constants to.
+ * \param constants Raw constant data. If the size of this array is N, the last N parameter tensors
+ * will be removed from the signature and instead AllocateConst nodes will be introduced in the
+ * function body.
+ * \return The updated function.
+ */
+PrimFunc BindParams(PrimFunc f, const Array<runtime::NDArray>& constants);
+
 }  // namespace tir
 }  // namespace tvm
 #endif  // TVM_TIR_TRANSFORMS_IR_UTILS_H_

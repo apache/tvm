@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <tvm/meta_schedule/apply_history_best.h>
 #include <tvm/meta_schedule/extracted_task.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
@@ -33,7 +34,7 @@ namespace backend {
 
 Array<meta_schedule::ExtractedTask> ExtractTask(
     IRModule mod, Target target, Map<String, runtime::NDArray> params,
-    runtime::TypedPackedFunc<Optional<tir::PrimFunc>(const Array<te::Tensor>&)> filter_func) {
+    meta_schedule::ApplyHistoryBestNode::FTEFilterFunc filter_func) {
   using meta_schedule::ExtractedTask;
   if (filter_func == nullptr) {
     filter_func = tvm::meta_schedule::DefaultTaskFilter;
@@ -42,6 +43,7 @@ Array<meta_schedule::ExtractedTask> ExtractTask(
   // is_vm=true for backward compatibility
   Array<Pass> pass_seqs = relay::backend::GetPassPrefix(/*is_homogenous=*/true, /*is_vm=*/true);
   pass_seqs.push_back(transform::FuseOps());
+
   mod = transform::Sequential(pass_seqs)(std::move(mod));
 
   std::vector<ExtractedTask> tasks;
@@ -58,11 +60,9 @@ Array<meta_schedule::ExtractedTask> ExtractTask(
         it->second->weight += 1;
         return;
       }
-      Array<te::Tensor> inputs_outputs{nullptr};
-      std::string fused_name;
-      std::tie(inputs_outputs, fused_name) =
+      auto [inputs_outputs, constants, fused_name] =
           tec::LowerTECompute(relay_func, target, /*return_inputs=*/true);
-      if (Optional<tir::PrimFunc> prim_func = filter_func(inputs_outputs)) {
+      if (Optional<tir::PrimFunc> prim_func = filter_func(inputs_outputs, constants)) {
         GlobalVar prim_fn_var(fused_name);
         IRModule relay_mod({{prim_fn_var, relay_func}});
         IRModule tir_mod({{prim_fn_var, prim_func.value()}});
