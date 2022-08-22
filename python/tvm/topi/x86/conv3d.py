@@ -272,10 +272,14 @@ def _conv3d_ndhwc(cfg, data, kernel, strides, padding, dilation, groups, out_dty
         shape, lambda n, C, d, h, c, w: data_pad[n, d, h, w, C * ic_bn + c], name="data_vec"
     )
 
+    ci_tile = in_channel // groups // ic_bn
+    if ci_tile == 0 or ci_tile * ic_bn * groups < in_channel:
+        ci_tile += 1
+
     # pack kernel
     shape = (
         num_filter // oc_bn,
-        in_channel // groups // ic_bn if (in_channel // groups // ic_bn) else 1,
+        ci_tile,
         kernel_depth,
         kernel_height,
         kernel_width,
@@ -389,10 +393,14 @@ def _conv3d_ncdhw(cfg, data, kernel, strides, padding, dilation, layout, groups,
         shape, lambda n, C, d, h, c, w: data_pad[n, C * ic_bn + c, d, h, w], name="data_vec"
     )
 
+    ci_tile = in_channel // groups // ic_bn
+    if ci_tile == 0 or ci_tile * ic_bn * groups < in_channel:
+        ci_tile += 1
+
     # pack kernel
     shape = (
         num_filter // oc_bn,
-        in_channel // groups // ic_bn if (in_channel // groups // ic_bn) else 1,
+        ci_tile,
         kernel_depth,
         kernel_height,
         kernel_width,
