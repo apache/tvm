@@ -75,7 +75,8 @@ class FusePadsMutator : public MixedModeMutator {
   explicit FusePadsMutator(const IRModule& mod) : mod_(mod) {}
 
  private:
-  /*!  * \brief In order to eliminate preceding nn.pad op, pad_width of nn.pad is passed onto
+  /*!
+   * \brief In order to eliminate preceding nn.pad op, pad_width of nn.pad is passed onto
    * convolution layer to update Conv2DAttrs's padding attribute. */
   void UpdateConv2DPadding(const CallNode* conv2d_call, const CallNode* pad_call,
                            Attrs* new_attrs) {
