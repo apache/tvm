@@ -127,7 +127,9 @@ def test_bf16_build():
     relu_bf16 = relay.nn.relu(bn_bf16[0])
     maxpool_bf16 = relay.nn.max_pool2d(relu_bf16, pool_size=(2, 2), strides=(2, 2))
     avgpool_bf16 = relay.nn.avg_pool2d(maxpool_bf16, pool_size=(2, 2), strides=(2, 2))
-    mod_bf16 = tvm.IRModule.from_expr(avgpool_bf16)
+    flattened_bf16 = relay.nn.batch_flatten(avgpool_bf16)
+    softmax_bf16 = relay.nn.softmax(flattened_bf16)
+    mod_bf16 = tvm.IRModule.from_expr(softmax_bf16)
     with tvm.transform.PassContext(opt_level=3):
         relay.build(mod_bf16, target="llvm", params=params)
 

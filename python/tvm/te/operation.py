@@ -187,7 +187,7 @@ def scan(init, update, state_placeholder, inputs=None, name="scan", tag="", attr
     Returns
     -------
     tensor: Tensor or list of Tensors
-        The created tensor or tuple of tensors it it contains multiple outputs.
+        The created tensor or tuple of tensors contains multiple outputs.
 
     Example
     -------
@@ -282,7 +282,7 @@ def extern(
     Returns
     -------
     tensor: Tensor or list of Tensors
-        The created tensor or tuple of tensors it it contains multiple outputs.
+        The created tensor or tuple of tensors contains multiple outputs.
 
     Example
     -------

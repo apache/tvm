@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/runtime/container/base.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/script/printer/ir_docsifier.h>
 #include <tvm/script/printer/traced_object.h>
@@ -41,6 +42,31 @@ IRDocsifier::FType& IRDocsifier::vtable() {
   static IRDocsifier::FType inst;
   return inst;
 }
+
+RootNodeContainer::RootNodeContainer(ObjectRef root_node) {
+  auto n = make_object<RootNodeContainerNode>();
+  n->root_node = std::move(root_node);
+  data_ = std::move(n);
+}
+
+// Add a default dispatch for the RootNodeContainer to throw error.
+// To add implementation for a new IR, RootNodeContainer needs to be
+// registered under the dispatch token of that IR, like:
+// \code
+// TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+//     .set_dispatch("relax", [](TracedObject<RootNodeContainer> obj, IRDocsifier p) {
+//       const ObjectRef& root_node = obj.Get()->root_node;
+//       \\ More specialized logic for your IR.
+//       return p->AsDoc<Doc>(MakeTraced(root_node));
+//     });
+// \endcode
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch([](TracedObject<RootNodeContainer> obj, IRDocsifier p) -> Doc {
+      String top_dispatch_token = p->dispatch_tokens.back();
+      ICHECK_NE(top_dispatch_token, "");
+      ICHECK(false) << "Printing IR " << top_dispatch_token << " is not implemented.";
+      throw;
+    });
 
 TVM_REGISTER_NODE_TYPE(IRDocsifierNode);
 TVM_REGISTER_GLOBAL("script.printer.IRDocsifier").set_body_typed([](Map<String, String> ir_prefix) {
@@ -71,6 +97,12 @@ TVM_REGISTER_GLOBAL("script.printer.IRDocsifierRemoveDispatch")
     .set_body_typed([](String token, uint64_t type_index) {
       IRDocsifier::vtable().remove_dispatch(token, type_index);
     });
+
+TVM_REGISTER_NODE_TYPE(RootNodeContainerNode);
+TVM_REGISTER_GLOBAL("script.printer.RootNodeContainer").set_body_typed([](ObjectRef root_node) {
+  return RootNodeContainer(root_node);
+});
+
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

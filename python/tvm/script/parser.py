@@ -604,7 +604,7 @@ class TVMScriptParser(Transformer):
                     out = func(*args)
                 except Exception as e:
                     self.report_error(
-                        "Error occured when invoking the function "
+                        "Error occurred when invoking the function "
                         + func.__name__
                         + ": \n"
                         + str(e),

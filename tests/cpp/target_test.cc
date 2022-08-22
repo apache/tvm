@@ -170,9 +170,8 @@ TEST(TargetCreationFail, TargetKindNotFound) {
 TEST(TargetCreation, TargetParser) {
   Target test_target("TestTargetParser -mcpu=woof");
   ASSERT_EQ(test_target->GetAttr<String>("mcpu").value(), "super_woof");
-  ASSERT_EQ(test_target->keys.size(), 2);
+  ASSERT_EQ(test_target->keys.size(), 1);
   ASSERT_EQ(test_target->keys[0], "super");
-  ASSERT_EQ(test_target->keys[1], "cpu");
 }
 
 TEST(TargetCreation, TargetFeatures) {

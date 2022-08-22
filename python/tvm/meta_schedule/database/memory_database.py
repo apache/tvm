@@ -15,52 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 """A database that stores TuningRecords in memory"""
-from typing import List
+from tvm._ffi import register_object
 
-from ...ir import IRModule, structural_equal
-from ..utils import derived_object
-from .database import PyDatabase, TuningRecord, Workload
+from .. import _ffi_api
+from .database import Database
 
 
-@derived_object
-class MemoryDatabase(PyDatabase):
-    """An in-memory database based on python list for testing."""
+@register_object("meta_schedule.MemoryDatabase")
+class MemoryDatabase(Database):
+    """An in-memory database"""
 
-    def __init__(self):
-        super().__init__()
-        self.records = []
-        self.workload_reg = []
-
-    def has_workload(self, mod: IRModule) -> bool:
-        for workload in self.workload_reg:
-            if structural_equal(workload.mod, mod):
-                return True
-        return False
-
-    def commit_tuning_record(self, record: TuningRecord) -> None:
-        self.records.append(record)
-
-    def commit_workload(self, mod: IRModule) -> Workload:
-        for workload in self.workload_reg:
-            if structural_equal(workload.mod, mod):
-                return workload
-        workload = Workload(mod)
-        self.workload_reg.append(workload)
-        return workload
-
-    def get_top_k(self, workload: Workload, top_k: int) -> List[TuningRecord]:
-        return list(
-            filter(
-                lambda x: x.workload == workload,
-                sorted(self.records, key=lambda x: sum(x.run_secs) / len(x.run_secs)),
-            )
-        )[: int(top_k)]
-
-    def get_all_tuning_records(self) -> List[TuningRecord]:
-        return self.records
-
-    def __len__(self) -> int:
-        return len(self.records)
-
-    def print_results(self) -> None:
-        print("\n".join([str(r) for r in self.records]))
+    def __init__(self) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.DatabaseMemoryDatabase,  # type: ignore # pylint: disable=no-member
+        )

@@ -19,7 +19,7 @@ import pytest
 from tvm.runtime import ObjectPath
 from tvm.script.printer.doc import IdDoc
 from tvm.script.printer.frame import MetadataFrame, VarDefFrame
-from tvm.script.printer.ir_docsifier import IRDocsifier
+from tvm.script.printer.ir_docsifier import IRDocsifier, RootNodeContainer
 from tvm.tir import Var
 
 
@@ -40,9 +40,16 @@ def _get_id_doc_printer(id_name):
     return printer
 
 
+def _root_dispatch_function(obj, ir_docsifier):
+    doc = ir_docsifier.as_doc(obj, ObjectPath.root())
+    doc.source_paths = [ObjectPath.root().attr("irdocsifier_test")]
+    return doc
+
+
 # Because the dispatch table is global, tests should only set dispatch function under
 # unique dispatch token.
 IRDocsifier.set_dispatch(Var, _get_id_doc_printer("x"), f"{__file__}")
+IRDocsifier.set_root_dispatch(f"{__file__}", _root_dispatch_function)
 
 
 def test_set_dispatch(ir_docsifier):
@@ -53,6 +60,11 @@ def test_set_dispatch(ir_docsifier):
 
     doc = ir_docsifier.as_doc(Var("x", dtype="int8"), ObjectPath.root())
     assert doc.name == "x"
+
+
+def test_set_root_dispatch(ir_docsifier):
+    doc = ir_docsifier.as_doc(RootNodeContainer(Var("x", dtype="int8")), ObjectPath.root())
+    assert ObjectPath.root().attr("irdocsifier_test") in doc.source_paths
 
 
 def test_as_doc(ir_docsifier):

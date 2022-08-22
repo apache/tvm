@@ -974,7 +974,7 @@ class AbsRewriter(UnaryElementwiseRewriter):
 
 
 class MeanRewriter(DFPatternCallback):
-    """Convert ethosu.mean composite functions to to an equivalent legalization:
+    """Convert ethosu.mean composite functions to an equivalent legalization:
     - Case 1 (axis == [1, 2] and keepsdims == True):
         ethosu_depthwise_conv2d + ethosu_binary_elementwise
     - Case 2 (ifm qparams == ofm qparams): ethosu_pooling

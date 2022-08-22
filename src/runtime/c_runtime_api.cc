@@ -308,7 +308,7 @@ std::string NormalizeError(std::string err_msg) {
       error_type = "TVMError";
     }
   }
-  // Seperate out stack trace.
+  // Separate out stack trace.
   std::ostringstream os;
   os << error_type << ": " << check_msg << line << '\n';
 

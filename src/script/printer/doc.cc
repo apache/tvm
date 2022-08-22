@@ -40,6 +40,8 @@ ExprDoc ExprDocNode::Call(Array<ExprDoc, void> args, Array<String, void> kwargs_
   return CallDoc(GetRef<ExprDoc>(this), args, kwargs_keys, kwargs_values);
 }
 
+ExprDoc ExprDoc::operator[](Array<Doc> indices) const { return (*get())[indices]; }
+
 StmtBlockDoc::StmtBlockDoc(Array<StmtDoc> stmts) {
   ObjectPtr<StmtBlockDocNode> n = make_object<StmtBlockDocNode>();
   n->stmts = stmts;

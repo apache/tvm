@@ -2697,5 +2697,44 @@ def test_resnet_convert_layout_nchwc(data_layout, kernel_layout):
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "\n Expect = \n" + str(b)
 
 
+def test_conv_l2n_convert_layout():
+    """Check that layout transforms are propagated through bn."""
+    axis_list = ([3], [-1], [2, 3])
+    expected_axis = ([1], [1], [3, 1])
+    for i, axis in enumerate(axis_list):
+
+        def before():
+            x = relay.var("x", shape=(1, 56, 56, 64))
+            weight = relay.var("weight", shape=(3, 3, 64, 64))
+            y = relay.nn.conv2d(
+                x,
+                weight,
+                channels=64,
+                kernel_size=(3, 3),
+                padding=(1, 1),
+                data_layout="NHWC",
+                kernel_layout="HWIO",
+            )
+            z = relay.nn.l2_normalize(y, eps=0.001, axis=axis)
+            z = relay.Function(analysis.free_vars(z), z)
+            return z
+
+        def expected():
+            x = relay.var("x", shape=(1, 56, 56, 64))
+            w = relay.var("weight", shape=(3, 3, 64, 64))
+            x = relay.layout_transform(x, "NHWC", "NCHW")
+            w = relay.layout_transform(w, "HWIO", "OIHW")
+            y = relay.nn.conv2d(x, w, channels=64, kernel_size=(3, 3), padding=(1, 1))
+            z = relay.nn.l2_normalize(y, eps=0.001, axis=expected_axis[i])
+            z = relay.layout_transform(z, "NCHW", "NHWC")
+            z = relay.Function(analysis.free_vars(z), z)
+            return z
+
+    a = before()
+    a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
+    b = run_opt_pass(expected(), transform.InferType())
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "\n\n Expected = \n" + str(b)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

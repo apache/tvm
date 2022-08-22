@@ -125,7 +125,7 @@ TVM_DLL Pass FoldConstant(bool fold_qnn = false);
 TVM_DLL Pass SplitArgs(int max_function_args);
 
 /*!
- * \brief Fuse operations into expr into seperate functions.
+ * \brief Fuse operations into expr into separate functions.
  *
  * \param fuse_opt_level Optimization level. If it is -1 it will be inferred from pass context.
  *

@@ -568,12 +568,12 @@ def take_shape_func(attrs, inputs, out_ndims):
     batch_dims = get_const_int(attrs.batch_dims)
     data_ndim = int(inputs[0].shape[0])
     if inputs[1].shape:
-        indicies_ndim = int(inputs[1].shape[0])
+        indices_ndim = int(inputs[1].shape[0])
     if axis < 0:
         axis += data_ndim
     assert 0 <= axis < data_ndim
     if batch_dims < 0:
-        batch_dims += indicies_ndim
+        batch_dims += indices_ndim
     return [_take_with_axis_shape_func(*inputs, convert(axis), convert(batch_dims), out_ndims[0])]
 
 

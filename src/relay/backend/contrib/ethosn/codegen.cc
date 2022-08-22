@@ -22,6 +22,7 @@
  * \brief The Relay -> Arm(R) Ethos(TM)-N command stream compiler.
  */
 #include <tvm/relay/expr_functor.h>
+#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/module.h>
 
 #include "codegen_ethosn.h"
@@ -965,8 +966,8 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.query").set_body([](tvm::TVMArgs args, tvm::T
 #endif
 });
 
-TVM_REGISTER_GLOBAL("relay.ethos-n.api.version").set_body_typed([]() -> int {
-  return _ETHOSN_API_VERSION_;
+TVM_REGISTER_GLOBAL("relay.ethos-n.api.version").set_body_typed([]() -> String {
+  return sl::GetLibraryVersion().ToString();
 });
 
 }  // namespace ethosn
