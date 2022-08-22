@@ -63,7 +63,6 @@ def test_conv2d_inceptionv3_64x35x35_96x64x3x3_nopad(target, dtype):
         "bias": tvm.nd.array(bias_data),
     }
 
-
     build_run_compare(mod, params1, {"data": input_shape}, dtype, target, [], gpu_preprocess)
 
 
