@@ -161,6 +161,7 @@ def test_print_index_doc(indices, expected):
 UNARY_OP_TOKENS = {
     OperationKind.USub: "-",
     OperationKind.Invert: "~",
+    OperationKind.Not: "not ",
 }
 
 
@@ -193,6 +194,8 @@ BINARY_OP_TOKENS = {
     OperationKind.NotEq: "!=",
     OperationKind.Gt: ">",
     OperationKind.GtE: ">=",
+    OperationKind.And: "and",
+    OperationKind.Or: "or",
 }
 
 
@@ -1060,6 +1063,9 @@ def generate_expr_precedence_test_cases():
     def invert(a):
         return OperationDoc(OperationKind.Invert, [a])
 
+    def not_(a):
+        return OperationDoc(OperationKind.Not, [a])
+
     def add(a, b):
         return OperationDoc(OperationKind.Add, [a, b])
 
@@ -1098,6 +1104,12 @@ def generate_expr_precedence_test_cases():
 
     def not_eq(a, b):
         return OperationDoc(OperationKind.NotEq, [a, b])
+
+    def and_(a, b):
+        return OperationDoc(OperationKind.And, [a, b])
+
+    def or_(a, b):
+        return OperationDoc(OperationKind.Or, [a, b])
 
     def if_then_else(a, b, c):
         return OperationDoc(OperationKind.IfThenElse, [a, b, c])
@@ -1283,6 +1295,56 @@ def generate_expr_precedence_test_cases():
             (
                 lt(x, if_then_else(y, y, y)),
                 "x < (y if y else y)",
+            ),
+        ],
+        "boolean": [
+            (
+                not_(and_(x, y)),
+                "not (x and y)",
+            ),
+            (
+                and_(not_(x), y),
+                "not x and y",
+            ),
+            (
+                and_(or_(x, y), z),
+                "(x or y) and z",
+            ),
+            (
+                or_(x, or_(y, z)),
+                "x or (y or z)",
+            ),
+            (
+                or_(or_(x, y), z),
+                "x or y or z",
+            ),
+            (
+                or_(and_(x, y), z),
+                # Maybe we should consider adding parentheses here
+                # for readability, even though it's not necessary.
+                "x and y or z",
+            ),
+            (
+                and_(or_(not_(x), y), z),
+                "(not x or y) and z",
+            ),
+            (
+                and_(lt(x, y), lt(y, z)),
+                "x < y and y < z",
+            ),
+            (
+                or_(not_(eq(x, y)), lt(y, z)),
+                # Same as the previous one, the code here is not
+                # readable without parentheses.
+                "not x == y or y < z",
+            ),
+            (
+                and_(if_then_else(x, y, z), x),
+                "(y if x else z) and x",
+            ),
+            (
+                not_(if_then_else(x, y, z)),
+                "not (y if x else z)",
             ),
         ],
         "if-then-else": [

@@ -460,34 +460,37 @@ class OperationDocNode : public ExprDocNode {
     kUnaryStart = 0,
     kUSub = 1,    // -x
     kInvert = 2,  // ~x
-    kUnaryEnd = 3,
+    kNot = 3,     // not x
+    kUnaryEnd = 4,
 
     // Binary operators
-    kBinaryStart = 4,
-    kAdd = 5,       // +
-    kSub = 6,       // -
-    kMult = 7,      // *
-    kDiv = 8,       // /
-    kFloorDiv = 9,  // // in Python
-    kMod = 10,      // % in Python
-    kPow = 11,      // ** in Python
-    kLShift = 12,   // <<
-    kRShift = 13,   // >>
-    kBitAnd = 14,   // &
-    kBitOr = 15,    // |
-    kBitXor = 16,   // ^
-    kLt = 17,       // <
-    kLtE = 18,      // <=
-    kEq = 19,       // ==
-    kNotEq = 20,    // !=
-    kGt = 21,       // >
-    kGtE = 22,      // >=
-    kBinaryEnd = 23,
+    kBinaryStart = 5,
+    kAdd = 6,        // +
+    kSub = 7,        // -
+    kMult = 8,       // *
+    kDiv = 9,        // /
+    kFloorDiv = 10,  // // in Python
+    kMod = 11,       // % in Python
+    kPow = 12,       // ** in Python
+    kLShift = 13,    // <<
+    kRShift = 14,    // >>
+    kBitAnd = 15,    // &
+    kBitOr = 16,     // |
+    kBitXor = 17,    // ^
+    kLt = 18,        // <
+    kLtE = 19,       // <=
+    kEq = 20,        // ==
+    kNotEq = 21,     // !=
+    kGt = 22,        // >
+    kGtE = 23,       // >=
+    kAnd = 24,       // and
+    kOr = 25,        // or
+    kBinaryEnd = 26,
 
     // Special
-    kSpecialStart = 24,
-    kIfThenElse = 25,  // <operands[1]> if <operands[0]> else <operands[2]>
-    kSpecialEnd = 26
+    kSpecialStart = 27,
+    kIfThenElse = 28,  // <operands[1]> if <operands[0]> else <operands[2]>
+    kSpecialEnd = 29
   };
 
   /*! \brief The kind of operation (operator) */
