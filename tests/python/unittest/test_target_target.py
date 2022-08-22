@@ -162,6 +162,13 @@ def test_target_string_with_spaces():
     assert target.attrs["device_type"] == "discrete"
 
 
+def test_target_llvm_options():
+    target = tvm.target.Target("llvm -cl-opt='-unroll-threshold:uint=100,-unroll-count:uint=3'")
+    assert sorted(target.attrs["cl-opt"]) == sorted(
+        ["-unroll-threshold:uint=100", "-unroll-count:uint=3"]
+    )
+
+
 def test_target_create():
     targets = [cuda(), rocm(), mali(), intel_graphics(), arm_cpu("rk3399"), vta(), bifrost()]
     for tgt in targets:
