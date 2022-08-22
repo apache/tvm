@@ -62,10 +62,14 @@ def pytest_addoption(parser):
     )
 
 
-# We have to dynamically parameterize based on platform. This is superior to
-# using regular fixtures, as it ensures the platform and board will be included
-# in the resulting Junit XML file.
 def pytest_generate_tests(metafunc):
+    """Hooks into pytest to add platform and board fixtures to tests that
+    require them. To make sure that "platform" and "board" are treated as
+    parameters for the appropriate tests (and included in the test names),
+    we add them as function level parametrizations. This prevents data
+    from being overwritten in Junit XML files if multiple platforms
+    or boards are tested. """
+
     for argument in ["platform", "board"]:
         if argument in metafunc.fixturenames:
             value = metafunc.config.getoption(f"--{argument}", default=None)
