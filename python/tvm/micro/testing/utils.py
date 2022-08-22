@@ -35,7 +35,7 @@ TIMEOUT_SEC = 10
 
 @lru_cache(maxsize=None)
 def get_supported_platforms():
-    return ["arduino", "platforms"]
+    return ["arduino", "zephyr"]
 
 
 @lru_cache(maxsize=None)

@@ -38,7 +38,6 @@ def pytest_addoption(parser):
     )
     parser.addoption(
         "--board",
-        required=True,
         choices=list(get_supported_boards("zephyr").keys())
         + list(get_supported_boards("arduino").keys()),
         help=(
@@ -67,12 +66,15 @@ def pytest_addoption(parser):
 # using regular fixtures, as it ensures the platform and board will be included
 # in the resulting Junit XML file.
 def pytest_generate_tests(metafunc):
-    if "platform" in metafunc.fixturenames:
-        metafunc.parametrize("platform", [metafunc.config.getoption("--platform")])
-
-    if "board" in metafunc.fixturenames:
-        metafunc.parametrize("board", [metafunc.config.getoption("--board")])
-
+    for argument in ["platform", "board"]:
+        if argument in metafunc.fixturenames:
+            if f"--{argument}" in metafunc.config.invocation_params.args:
+                metafunc.parametrize(argument, [metafunc.config.getoption(f"--{argument}")])
+            else:
+                raise ValueError(
+                    f"Test {metafunc.function.__name__} in module {metafunc.module.__name__} "
+                    f"requires a --{argument} argument, but none was given."
+                )
 
 @pytest.fixture(scope="session")
 def microtvm_debug(request):
