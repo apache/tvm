@@ -68,13 +68,15 @@ def pytest_addoption(parser):
 def pytest_generate_tests(metafunc):
     for argument in ["platform", "board"]:
         if argument in metafunc.fixturenames:
-            if f"--{argument}" in metafunc.config.invocation_params.args:
-                metafunc.parametrize(argument, [metafunc.config.getoption(f"--{argument}")])
-            else:
+            value = metafunc.config.getoption(f"--{argument}", default=None)
+
+            if not value:
                 raise ValueError(
                     f"Test {metafunc.function.__name__} in module {metafunc.module.__name__} "
                     f"requires a --{argument} argument, but none was given."
                 )
+
+            metafunc.parametrize(argument, [metafunc.config.getoption(f"--{argument}")])
 
 
 @pytest.fixture(scope="session")
