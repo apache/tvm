@@ -65,8 +65,10 @@ struct ExecutorCodegen {
     CallFunc("init", m, raw_targets);
   }
 
-  void Codegen(IRModule mod, const Function& func, String mod_name) {
-    CallFunc("codegen", mod, func, mod_name);
+  void Codegen(IRModule mod, const Function& func, String mod_name, CompilationConfig config,
+               Executor executor, CallType call_type) {
+    CallFunc("codegen", mod, func, mod_name, config, executor,
+             Integer(static_cast<int>(call_type)));
   }
 
   virtual void UpdateOutput(BuildOutput* ret) = 0;
@@ -302,11 +304,45 @@ class RelayBuildModule : public runtime::ModuleNode {
     workspace_memory_pools_ = workspace_memory_pools;
     constant_memory_pools_ = constant_memory_pools;
     config_ = CompilationConfig(PassContext::Current(), raw_targets);
+    SetCallType(executor, runtime);
     VLOG(1) << "Using compilation config:" << std::endl << config_;
     BuildRelay(std::move(mod), mod_name);
   }
 
  protected:
+  void SetCallType(const Executor& executor, const Runtime& runtime) {
+    std::string interface_api = executor->GetAttr<String>("interface-api").value_or("packed");
+    bool unpacked_api = executor->GetAttr<Bool>("unpacked-api").value_or(Bool(false));
+
+    // Validate choice of unpacked_api and use_call_cpacked_
+    if (runtime->name == kTvmRuntimeCrt) {
+      if (unpacked_api == true) {
+        call_type_ = CallType::kUnpacked;
+      } else if (unpacked_api == false && interface_api == "packed") {
+        call_type_ = CallType::kCPacked;
+      } else {
+        CHECK(interface_api == "packed" || unpacked_api == true)
+            << "Either need interface_api == \"packed\" (got: " << interface_api
+            << ") or unpacked-api == true (got: " << unpacked_api << ") when targeting c runtime";
+        ICHECK(false) << "Unhandled executor option config: interface-api=" << interface_api
+                      << ", unpacked-api=" << unpacked_api;
+      }
+    } else if (runtime->name == kTvmRuntimeCpp) {
+      if (unpacked_api == false && interface_api == "packed") {
+        call_type_ = CallType::kCPacked;
+      } else {
+        CHECK(static_cast<bool>(unpacked_api) == false && interface_api == "packed")
+            << "Need unpacked-api == false (got: " << unpacked_api
+            << ") and interface-api == \"packed\" (got: " << interface_api
+            << ") when targeting c++ runtime";
+        ICHECK(false) << "Unhandled executor option config: interface-api=" << interface_api
+                      << ", unpacked-api=" << unpacked_api;
+      }
+    } else {
+      ICHECK(false) << "runtime (" << runtime->name << ") is not one of the expected values";
+    }
+  }
+
   /*!
    * \brief Optimize a Relay IRModule.
    *
@@ -428,7 +464,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     // Generate code for the updated function.
     executor_codegen_ = MakeExecutorCodegen(executor_->name);
     executor_codegen_->Init(nullptr, config_->primitive_targets);
-    executor_codegen_->Codegen(func_module, func, mod_name);
+    executor_codegen_->Codegen(func_module, func, mod_name, config_, executor_, call_type_);
     executor_codegen_->UpdateOutput(&ret_);
     ret_.params = executor_codegen_->GetParams();
 
@@ -484,6 +520,7 @@ class RelayBuildModule : public runtime::ModuleNode {
   Executor executor_;
   /*! \brief Runtime to codegen for */
   Runtime runtime_;
+  CallType call_type_;
   /*! \brief Workspace memory pools to codegen for */
   WorkspaceMemoryPools workspace_memory_pools_;
   /*! \brief Constant memory pools to codegen for */

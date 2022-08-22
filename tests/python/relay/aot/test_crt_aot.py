@@ -984,7 +984,7 @@ def test_aot_codegen_checks_returns():
 
     # Check operator call is wrapped properly
     assert (
-        str(main_func.body[1])
+        str(main_func.body)
         == "tir.tvm_check_return(0, -1, tir.call_extern("
         + '"tvmgen_default_fused_add",'
         + " x_buffer_var, y_buffer_var, output_buffer_var))\n"
