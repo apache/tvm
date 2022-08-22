@@ -43,16 +43,32 @@
 //   4: int stride_h
 //   5: int stride_w
 //   6: DLTensor output (NHWC)
-extern "C" int conv2d_packed(TVMValue* args, int* type_codes, int num_args, TVMValue* out_val,
-                             int out_code, void* res_handle);
+extern "C" int conv2d_packed_fp16(TVMValue* args, int* type_codes, int num_args, TVMValue* out_val,
+                                  int out_code, void* res_handle);
 
 namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-inline uint16_t* getElementPtr(int block_out_y, int block_out_x, int block_out_c, int yi, int xio,
-                               int ci, int xii, const DLTensor& block) {
-  auto block_ptr = nhwc_at(block, 0, block_out_y, block_out_x, block_out_c);
+/**
+ * @brief Returns the pointer to the element within the given block
+ * assuming fp16 type and speicific layout as mentioned in blockize_hwc_16b.
+ * All the below params are explained with the same layout assumption
+ *
+ * @param block_out_y y-index of block
+ * @param block_out_x x-index of block
+ * @param block_out_c c-index of block
+ * @param yi height-offset within the block
+ * @param xio outer width offset within the block
+ * @param ci channel offset within the block
+ * @param xii inner width offset within the block
+ * @param block base DLTensor
+ *
+ * @return The pointer to the element within the given block
+ */
+static inline uint16_t* getElementPtr(int block_out_y, int block_out_x, int block_out_c, int yi,
+                                      int xio, int ci, int xii, const DLTensor& tensor) {
+  auto block_ptr = nhwc_at(tensor, 0, block_out_y, block_out_x, block_out_c);
   auto block_offset = yi * 128 + xio * 64 + ci * 2 + xii;
   auto first_element_ptr = reinterpret_cast<uint16_t*>(block_ptr);
   return first_element_ptr + block_offset;
@@ -386,8 +402,8 @@ void conv_layer_fp16_hvx(DLTensor& cr_out, const DLTensor& cr_act,  // NOLINT(*)
 }  // namespace runtime
 }  // namespace tvm
 
-int conv2d_packed(TVMValue* args, int* type_codes, int num_args, TVMValue* out_val, int out_code,
-                  void* res_handle) {
+int conv2d_packed_fp16(TVMValue* args, int* type_codes, int num_args, TVMValue* out_val,
+                       int out_code, void* res_handle) {
   namespace hexagonrt = tvm::runtime::hexagon;
   ICHECK_EQ(num_args, 7) << "Unexpected number of arguments";
   ICHECK_EQ(type_codes[0], kTVMDLTensorHandle)

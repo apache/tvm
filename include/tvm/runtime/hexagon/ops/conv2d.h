@@ -47,6 +47,16 @@ class SDLTensor : public DLTensor {
   void* GetDataSpace() const { return data_space; }
 
  private:
+  /**
+   * @brief Construct SDLTensor
+   *
+   * @param data_ptr Either points to the same memory as data_space or an array of pointers to the
+   * start of each chunk of weight. Since weights can be of varying sizes, this array could contain
+   * the pointer to each chunk of memory
+   * @param data_type data type of the elements in Tensor
+   * @param data_space is meant to store the pointer returned from AllocDataSpace and can be freed
+   * by passing it to FreeDataSpace
+   */
   SDLTensor(void* data_ptr, DLDataType data_type, void* data_space) : data_space(data_space) {
     data = data_ptr;
     device = hexagon_device;
@@ -86,6 +96,10 @@ constexpr int hwio_to_sm_16b(int width, int y, int x, int i, int o) {
 
 inline constexpr int round_up(int v, int p2) { return (v + p2 - 1) & -p2; }
 
+// Returns the block address at the given index
+// Assumptions
+// - The data type of tensor is fp16
+// - There is only one batch, and hence n==0
 inline uintptr_t nhwc_at(const DLTensor& a, int n, int y, int x, int c) {
   if (y < 0 || y >= a.shape[1]) return uintptr_t(0);
   auto p = static_cast<uintptr_t*>(a.data);
@@ -93,21 +107,72 @@ inline uintptr_t nhwc_at(const DLTensor& a, int n, int y, int x, int c) {
   return p[y * a.shape[2] * a.shape[3] + x * a.shape[3] + c];
 }
 
+// Returns the address of the chunk stored at given index
+// Assumptions
+// - The data type of tensor is fp16
 inline uintptr_t hwio_at(const DLTensor& f, int y, int x, int i, int o) {
   auto p = static_cast<uintptr_t*>(f.data);
   return p[y * f.shape[1] * f.shape[2] * f.shape[3] + x * f.shape[2] * f.shape[3] + i * f.shape[3] +
            o];
 }
 
-inline uint32_t* bias_at(const DLTensor& b, int d) {
-  auto p = static_cast<uint32_t*>(b.data);
-  return p + d;
-}
-
+/**
+ * @brief Function to "blockize" the flat input data
+ * The term "blockize" is used to mention that the data is stored in non-contiguous blocks
+ *
+ * The input is mapped into the below mentioned layout (notation similar to index map used for
+ * transform layout):
+ *
+ * lambda n, h, w, c: n, h//8, w//4, c//32, AXIS_SEPARATOR, h%8, (w%4)//2, c%32, w%2
+ *
+ * where AXIS_SEPARATOR represents split up in the physical layout
+ *
+ * @param out Pre-allocated output memory pointer
+ * @param inp_flat Flat input data pointer
+ * @param height
+ * @param width
+ * @param depth
+ */
 void blockize_hwc_16b(void* out, void* inp_flat, int height, int width, int depth);
 
+/**
+ * @brief Convert back from non-contguous layout to a flat layout
+ *
+ * @param out_flat Pre-allocated output memory pointer
+ * @param inp Blockized input data pointer
+ * @param height
+ * @param width
+ * @param depth
+ */
 void deblockize_hwc_16b(void* out_flat, void* inp, int height, int width, int depth);
 
+/**
+ * @brief Convert the layout of weights from flat to "chunked". The term chunked is explained below:
+ *
+ * Weights are packed into the below mentioned layout (notation similar to index map):
+ * Since weights cannot be exactly represented into a index map notation, the
+ * base split up is mentioned below with a few gotchas
+ *
+ * lambda h, w, i, o: h//8, w//4, o//32, i//32, h%8, w%4, (i%32)//2, o%32, i%2
+ *
+ * The gotchas are:
+ *  - (w%4) is actually stored in the right to left order, as in 3,2,1,0 instead of 0,1,2,3
+ *  - The h%8 and (w%4) dimensions are not padded up, leading to chunks of different sizes
+ *    (thereby the name "chunked" instead of packed)
+ *  - The thinnest chunk of width is stored first. For example, if a kernel is 5x5, the first
+ *    chunk along the width has size 1 (representing index 0) and then next one has size 4
+ *    representing indices (1,2,3,4)
+ *
+ * @param out_ptr Base pointer table to be filled with the list of pointers to the first addresses
+ * of the "chunked" weights
+ * @param out_ptr_size The number of chunks
+ * @param out Pointer to pre-allocated output memory
+ * @param inp Pointer to flat input data
+ * @param height
+ * @param width
+ * @param idepth
+ * @param odepth
+ */
 void chunkify_hwio_16b(void** out_ptr, int out_ptr_size, void* out, void* inp, int height,
                        int width, int idepth, int odepth);
 

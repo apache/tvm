@@ -77,7 +77,7 @@ void blockize_hwc_16b(void* out, void* inp_flat, int height, int width, int dept
 /**
  * @brief Convert back from non-contguous layout to a flat layout
  *
- * @param out_float Pre-allocated output memory pointer
+ * @param out_flat Pre-allocated output memory pointer
  * @param inp Blockized input data pointer
  * @param height
  * @param width

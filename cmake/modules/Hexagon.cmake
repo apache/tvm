@@ -179,7 +179,7 @@ if(BUILD_FOR_HEXAGON)
   )
 
   set_source_files_properties(
-    "${TVMRT_SOURCE_DIR}/hexagon/ops/conv2d_hvx.cc"
+    "${TVMRT_SOURCE_DIR}/hexagon/ops/conv2d_fp16_hvx.cc"
     PROPERTIES COMPILE_FLAGS "-mhvx"
   )
 endif()

@@ -47,7 +47,7 @@ def build_conv2d(target):
         shape=(act_n, (act_h - filt_h) // stride_h + 1, (act_w - filt_w) // stride_w + 1, filt_o),
         inputs=[act_flat, wgt_flat],
         fcompute=lambda ins, outs: tvm.tir.call_cpacked(
-            "conv2d_packed",  # Function from TVM runtime
+            "conv2d_packed_fp16",  # Function from TVM runtime
             ins[0],
             ins[1],
             off_t,
