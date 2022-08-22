@@ -22,6 +22,7 @@
 import math
 import struct
 from tvm import te
+from typing import Tuple
 
 
 def n11c_1024c_2d(n, h, w, c):
