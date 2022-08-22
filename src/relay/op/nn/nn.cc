@@ -653,6 +653,42 @@ Expr MakeL2Normalize(Expr data, double eps, Array<Integer> axis) {
   return Call(op, {data}, Attrs(attrs), {});
 }
 
+InferCorrectLayoutOutput L2NormalizeInferCorrectLayout(
+    const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
+    const Array<tvm::relay::Type>& old_in_types) {
+  const auto* attrs_ptr = attrs.as<L2NormalizeAttrs>();
+  ICHECK(attrs_ptr);
+  ObjectPtr<L2NormalizeAttrs> param = make_object<L2NormalizeAttrs>(*attrs_ptr);
+
+  Array<Array<IndexExpr>> old_in_shapes;
+  for (auto old_in_t : old_in_types) {
+    ICHECK(old_in_t.as<TensorTypeNode>());
+    old_in_shapes.push_back(old_in_t.as<TensorTypeNode>()->shape);
+  }
+  std::vector<size_t> axis_list;
+  for (auto i : param->axis) {
+    int64_t axis = i->value;
+    if (axis < 0) {
+      axis = axis + static_cast<size_t>(old_in_shapes[0].size());
+    }
+    axis_list.emplace_back(axis);
+  }
+
+  Layout ret = Layout::Undef();
+  if (new_in_layouts.defined() && old_in_layouts.defined()) {
+    for (size_t i = 0; i < axis_list.size(); ++i) {
+      const auto& axis_dim = old_in_layouts[0][axis_list[i]];
+      auto axis_index = new_in_layouts[0].IndexOf(axis_dim);
+      param->axis.Set(i, axis_index);
+    }
+    ret = new_in_layouts[0];
+  } else if (old_in_layouts.defined()) {
+    ret = old_in_layouts[0];
+  }
+
+  return InferCorrectLayoutOutput({ret}, {ret}, Attrs(param));
+}
+
 TVM_REGISTER_GLOBAL("relay.op.nn._make.l2_normalize").set_body_typed(MakeL2Normalize);
 
 RELAY_REGISTER_OP("nn.l2_normalize")
@@ -669,7 +705,7 @@ Normalizes along dimension axis using an L2 norm
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_support_level(2)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", L2NormalizeInferCorrectLayout)
     .add_type_rel("Identity", IdentityRel);
 
 // Dropout

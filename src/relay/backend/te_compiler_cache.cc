@@ -50,7 +50,6 @@
 #include "../../te/operation/create_primfunc.h"
 #include "../op/memory/memory.h"
 #include "../transforms/meta_schedule_layout_rewrite.h"
-#include "../transforms/pass_utils.h"
 #include "utils.h"
 
 namespace tvm {
@@ -362,8 +361,14 @@ class ScheduleBuilder : public ExprVisitor {
       }
       if (meta_schedule_ctx_) {
         Array<te::Tensor> te_args = Concat(fn_inputs, tensor_outs);
+        Array<runtime::NDArray> constants;
+        for (auto [const_node, te_tensor] : lower_te_compute.constant_tensors_) {
+          te_args.push_back(te_tensor);
+          constants.push_back(const_node->data);
+        }
+
         if (Optional<tir::PrimFunc> tir_func =
-                meta_schedule_ctx_.value()->te_filter_func(te_args)) {
+                meta_schedule_ctx_.value()->te_filter_func(te_args, constants)) {
           IRModule relay_mod({{prim_fn_var, relay_func}});
           IRModule tir_mod({{prim_fn_var, tir_func.value()}});
           if (Optional<IRModule> opt_scheduled_mod = meta_schedule_ctx_.value()->Query(
@@ -785,8 +790,8 @@ CachedFunc ShapeFuncFor(const Function& prim_func, const Target& target,
   return MakeShapeFunc().Create(prim_func, target, global_var_supply);
 }
 
-std::pair<Array<te::Tensor>, std::string> LowerTECompute(const Function& source_func, Target target,
-                                                         bool return_inputs) {
+std::tuple<Array<te::Tensor>, Array<runtime::NDArray>, std::string> LowerTECompute(
+    const Function& source_func, Target target, bool return_inputs) {
   LowerToTECompute lower_te_compute(target);
   Array<te::Tensor> outputs = lower_te_compute.Lower(source_func);
   // Following ScheduleBuilder, remove placeholder ops from outputs.
@@ -796,11 +801,18 @@ std::pair<Array<te::Tensor>, std::string> LowerTECompute(const Function& source_
       tensor_outs.push_back(tensor);
     }
   }
-  if (return_inputs) {
-    return std::make_pair(Concat(lower_te_compute.fn_inputs_, tensor_outs),
-                          lower_te_compute.candidate_name_);
+
+  tvm::Array<runtime::NDArray> constants;
+  for (auto [const_node, te_tensor] : lower_te_compute.constant_tensors_) {
+    tensor_outs.push_back(te_tensor);
+    constants.push_back(const_node->data);
   }
-  return std::make_pair(tensor_outs, lower_te_compute.candidate_name_);
+
+  if (return_inputs) {
+    return std::make_tuple(Concat(lower_te_compute.fn_inputs_, tensor_outs), constants,
+                           lower_te_compute.candidate_name_);
+  }
+  return std::make_tuple(tensor_outs, constants, lower_te_compute.candidate_name_);
 }
 
 TVM_REGISTER_GLOBAL("relay.backend.LowerToTE").set_body_typed([](Function prim_func) {

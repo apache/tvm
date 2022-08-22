@@ -44,6 +44,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--test-build-only",
         action="store_true",
+        default=False,
         help="Only run tests that don't require physical hardware.",
     )
     parser.addoption(

@@ -51,7 +51,7 @@ struct Purity {
   bool pure_eval;
   /*!
    * \brief If the sub-expression is first-order then always true. Otherwise true only if evaling
-   * a call to the the sub-expression is pure. See [RULE A] below.
+   * a call to the sub-expression is pure. See [RULE A] below.
    */
   bool pure_call;
 };

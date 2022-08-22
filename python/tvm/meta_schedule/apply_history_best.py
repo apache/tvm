@@ -40,7 +40,7 @@ class ApplyHistoryBest(Object):
     ----------
     database : Database
         The database to be queried from
-    te_filter_func : Union[str, None, Callable[[List[Tensor]], PrimFunc]] = None
+    te_filter_func : Union[str, None, Callable[[List[Tensor], List[NDArray]], PrimFunc]] = None
         The filtering function for TE computation
         If it's a string, it's the name of the filtering function. Built in functions are
           - "meta_schedule.DefaultTaskFilter"

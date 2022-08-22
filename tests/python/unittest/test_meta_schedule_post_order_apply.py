@@ -322,18 +322,22 @@ def test_meta_schedule_post_order_apply_remove_block():
     def correct_trace(a, b, c, d):
         return "\n".join(
             [
-                'b0 = sch.get_block(name="A", func_name="main")',
-                'b1 = sch.get_block(name="B", func_name="main")',
-                'b2 = sch.get_block(name="C", func_name="main")',
-                "sch.compute_inline(block=b1)",
-                "l3, l4 = sch.get_loops(block=b2)",
-                "l5, l6 = sch.split(loop=l3, factors=" + str(a) + ", preserve_unit_iters=True)",
-                "l7, l8 = sch.split(loop=l4, factors=" + str(b) + ", preserve_unit_iters=True)",
-                "sch.reorder(l5, l7, l6, l8)",
-                "l9, l10 = sch.get_loops(block=b0)",
-                "l11, l12 = sch.split(loop=l9, factors=" + str(c) + ", preserve_unit_iters=True)",
-                "l13, l14 = sch.split(loop=l10, factors=" + str(d) + ", preserve_unit_iters=True)",
-                "sch.reorder(l11, l13, l12, l14)",
+                "# from tvm import tir",
+                "def apply_trace(sch: tir.Schedule) -> None:",
+                '  b0 = sch.get_block(name="A", func_name="main")',
+                '  b1 = sch.get_block(name="B", func_name="main")',
+                '  b2 = sch.get_block(name="C", func_name="main")',
+                "  sch.compute_inline(block=b1)",
+                "  l3, l4 = sch.get_loops(block=b2)",
+                "  l5, l6 = sch.split(loop=l3, factors=" + str(a) + ", preserve_unit_iters=True)",
+                "  l7, l8 = sch.split(loop=l4, factors=" + str(b) + ", preserve_unit_iters=True)",
+                "  sch.reorder(l5, l7, l6, l8)",
+                "  l9, l10 = sch.get_loops(block=b0)",
+                "  l11, l12 = sch.split(loop=l9, factors=" + str(c) + ", preserve_unit_iters=True)",
+                "  l13, l14 = sch.split(loop=l10, factors="
+                + str(d)
+                + ", preserve_unit_iters=True)",
+                "  sch.reorder(l11, l13, l12, l14)",
             ]
         )
 

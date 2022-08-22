@@ -46,7 +46,6 @@
 #include "../../../../runtime/contrib/ethosn/ethosn_runtime.h"
 #include "../codegen_c/codegen_c.h"
 #include "ethosn_api.h"
-#include "ethosn_api_version.h"
 #include "ethosn_support_library/Support.hpp"
 #include "ethosn_support_library/SupportQueries.hpp"
 
