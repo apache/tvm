@@ -57,9 +57,9 @@ TEST_F(HexagonUserDMATest, wait) {
   HexagonUserDMA::Get().Wait(10);
 }
 
-TEST_F(HexagonUserDMATest, just_poll) { ASSERT_EQ(HexagonUserDMA::Get().Poll(), 0); }
+TEST_F(HexagonUserDMATest, poll) { ASSERT_EQ(HexagonUserDMA::Get().Poll(), 0); }
 
-TEST_F(HexagonUserDMATest, copy) {
+TEST_F(HexagonUserDMATest, bad_copy) {
   uint64_t bigaddr = 0x100000000;
   void* src64 = reinterpret_cast<void*>(bigaddr);
   void* dst64 = reinterpret_cast<void*>(bigaddr);

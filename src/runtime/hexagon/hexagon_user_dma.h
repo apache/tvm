@@ -20,7 +20,7 @@
 #ifndef TVM_RUNTIME_HEXAGON_HEXAGON_USER_DMA_H_
 #define TVM_RUNTIME_HEXAGON_HEXAGON_USER_DMA_H_
 
-#include <vector>
+#include <stdint.h>
 
 namespace tvm {
 namespace runtime {
@@ -70,14 +70,29 @@ class HexagonUserDMA {
   //! \brief Initializes the Hexagon User DMA engine
   unsigned int Init();
 
-  //! \brief Calculates the number of DMAs in flight
+  //! \brief Calculates and returns the number of DMAs in flight; updates the ID of the oldest
+  //! descriptor in flight
   uint32_t DMAsInFlight();
 
-  //! \brief Stores descriptors for all DMAs
-  std::vector<void*> dma_descriptors_;
+  //! \brief Calculates and returns the address of a DMA descriptor in the ring buffer given a
+  //! descriptor ID
+  void* GetDescriptorAddr(uint32_t dma_desc_id);
 
-  //! \brief Index to the descriptor for the oldest DMA in flight
-  uint32_t oldest_dma_in_flight_{0};
+  //! \brief Pointer to ring buffer storage for all DMA descriptors
+  void* dma_desc_ring_buff_{nullptr};
+
+  //! \brief Size of ring buffer storage for all DMA descriptors
+  const uint32_t dma_desc_ring_buff_size_{100};
+
+  //! \brief Tracks both the total number of DMA descriptors and the ID of the next DMA descriptor
+  //! to be added to the ring buffer - modulo ring buffer size to find the ring buffer index for the
+  //! next DMA descriptor
+  uint32_t id_next_dma_desc_{0};
+
+  //! \brief Tracks the ID of the oldest DMA descriptor in flight OR the ID of the next DMA
+  //! descriptor if no DMA descriptors are in flight  - modulo ring buffer size to find the ring
+  //! buffer index for the oldest DMA descriptor in flight
+  uint32_t id_oldest_dma_desc_in_flight_{0};
 
   //! \brief Tracks whether (or not) we are executing the very first DMA
   bool first_dma_{true};
