@@ -69,8 +69,8 @@ TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm;cuda}" \
     run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-relay tests/python/relay
 
 # OpenCL texture test
-TVM_TEST_TARGETS="$TVM_TEST_TARGETS;$TVM_RELAY_OPENCL_TEXTURE_TARGETS"
-run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-opencl-texture tests/python/relay/opencl_texture
+TVM_TEST_TARGETS="$TVM_RELAY_OPENCL_TEXTURE_TARGETS" \
+    run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-opencl-texture tests/python/relay/opencl_texture
 
 # Command line driver test
 run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-driver tests/python/driver
