@@ -381,6 +381,7 @@ class _DefaultCUDATensorCore:
                     levels=[2],
                     scope="shared",
                 ),
+                use_software_pipeline=False,
             ),
             *_DefaultCUDA.schedule_rules(),
         ]
