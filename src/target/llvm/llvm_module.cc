@@ -390,8 +390,8 @@ void LLVMModuleNode::LazyInitJIT() {
 }
 
 bool LLVMModuleNode::IsCompatibleWithHost(const llvm::TargetMachine* tm) const {
-  With<LLVMTarget> host_target(*llvm_instance_, "llvm");  // FIXME(kparzysz-quic): nesting
-  auto tm_host = host_target->GetOrCreateTargetMachine();
+  LLVMTargetInfo host_target(*llvm_instance_, "llvm");
+  auto tm_host = host_target.GetOrCreateTargetMachine();
   if (tm_host->getTargetTriple().getArch() != tm->getTargetTriple().getArch()) {
     LOG(INFO) << "Architecture mismatch: module=" << tm->getTargetTriple().str()
               << " host=" << tm_host->getTargetTriple().str();

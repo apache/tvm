@@ -279,11 +279,35 @@ TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
     .add_attr_option<Bool>("fast-math-contract")
     .add_attr_option<Bool>("fast-math-reassoc")
     .add_attr_option<Integer>("opt-level")
+    // LLVM command line flags, see below
+    .add_attr_option<Array<String>>("cl-opt")
     .set_default_keys({"cpu"})
     // Force the external codegen kind attribute to be registered, even if no external
     // codegen targets are enabled by the TVM build.
     .set_attr<Bool>(tvm::attr::kIsExternalCodegen, Bool(false))
     .set_target_parser(tvm::target::parsers::cpu::ParseTarget);
+
+// Note regarding the "cl-opt" attribute:
+// Each string in the array has the format
+//   -optionname[[:type]=value]
+// where
+//   * optionname is the actual LLVM option (e.g. "unroll-threshold")
+//   * type is one of "bool", "int", "uint", or "string"
+//   * value is the corresponding option value (for "bool" type is can be 0 or "false"
+//     for false value, or 1 or "true" for true value)
+// If type is omitted, it is assumed to be "bool". If value is omitted, it is assumed
+// to be "true".
+//
+// The type must match the option type in LLVM. To find the type, search the LLVM
+// repository (https://github.com/llvm/llvm-project) for optionname, and look for
+// its definition: it will be a declaration of a variable of type cl::opt<T> with
+// optionname being an argument to the constructor. The T in the declaration is
+// the type.
+// For example, for unroll-threshold, we get the following declaration:
+// static cl::opt<unsigned>
+//     UnrollThreshold("unroll-threshold", cl::Hidden,
+//                     cl::desc("The cost threshold for loop unrolling"));
+// Hence the type is "uint".
 
 TVM_REGISTER_TARGET_KIND("c", kDLCPU)
     .add_attr_option<Bool>("system-lib")
