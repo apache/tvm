@@ -678,11 +678,17 @@ EthosnError EthosnAPI::Relu(const Expr& expr, ReluParams* params) {
 
 EthosnError EthosnAPI::Requantize(const Expr& expr, RequantizeParams* params) {
   Call call = Downcast<Call>(expr);
-  const auto* input_dtype = call->args[0]->checked_type().as<TensorTypeNode>();
+  const auto* input_ttype = call->args[0]->checked_type().as<TensorTypeNode>();
   sl::TensorShape input_tensor_shape = {1, 1, 1, 1};
   sl::DataType input_data_type;
-  EthosnError err = Tvm2Npu(input_dtype->shape, &input_tensor_shape);
-  err += Tvm2Npu(input_dtype->dtype, &input_data_type);
+  EthosnError err = Tvm2Npu(input_ttype->shape, &input_tensor_shape);
+  err += Tvm2Npu(input_ttype->dtype, &input_data_type);
+
+  const auto* output_ttype = call->checked_type().as<TensorTypeNode>();
+  sl::TensorShape output_tensor_shape = {1, 1, 1, 1};
+  sl::DataType output_data_type;
+  err += Tvm2Npu(output_ttype->shape, &output_tensor_shape);
+  err += Tvm2Npu(output_ttype->dtype, &output_data_type);
 
   float input_sc, output_sc;
   int input_zp, output_zp;
@@ -699,14 +705,10 @@ EthosnError EthosnAPI::Requantize(const Expr& expr, RequantizeParams* params) {
   sl::QuantizationInfo requantize_q_info;
   err += Tvm2Npu(output_zp, output_sc, &requantize_q_info);
   params->requantize_info = sl::RequantizeInfo(requantize_q_info);
+  params->requantize_info.m_OutputDataType = output_data_type;
 
-  sl::TensorInfo output_info = params->input_info;
-  output_info.m_QuantizationInfo = params->requantize_info.m_OutputQuantizationInfo;
-  if (params->requantize_info.m_OutputDataType.has_value()) {
-    output_info.m_DataType = params->requantize_info.m_OutputDataType.value();
-  }
-  params->output_info = output_info;
-
+  params->output_info = sl::TensorInfo(output_tensor_shape, output_data_type, sl::DataFormat::NHWC,
+                                       requantize_q_info);
   return err;
 }
 
