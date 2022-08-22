@@ -911,6 +911,7 @@ def test_complex_case_1():
 
 def test_compact_dependent_buffer_indices():
     """Check the upper bound on different indices could be independently estimated."""
+
     @T.prim_func
     def diagonal_access():
         for i in range(8):
@@ -936,6 +937,7 @@ def test_compact_dependent_buffer_indices():
 
 def test_compact_dependent_buffer_indices_of_packed_matmul():
     """Check the outer dimension of the packed M-dim should be compacted to 1 wrt split condition."""
+
     @T.prim_func
     def nonuniform_packed_matmul_write_cache(
         A: T.Buffer[(1020, 64), "float32"],
