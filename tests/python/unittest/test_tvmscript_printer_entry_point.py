@@ -14,12 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-The tvm.meta_schedule.space_generator package.
-Meta Schedule design space generators that generates design
-space for generation of measure candidates.
-"""
-from .post_order_apply import PostOrderApply
-from .schedule_fn import ScheduleFn
-from .space_generator import PySpaceGenerator, ScheduleFnType, SpaceGenerator
-from .space_generator_union import SpaceGeneratorUnion
+import pytest
+
+from tvm.error import TVMError
+from tvm.script.printer import script
+from tvm.tir import FloatImm
+
+
+def test_as_script_unknown_ir():
+    ir_node = FloatImm("float32", 1.0)
+
+    with pytest.raises(TVMError) as e:
+        script(ir_node, "test_xyz", {})
+
+    assert "test_xyz" in str(e.value)

@@ -346,7 +346,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 ###################################################################################################
 # Parallel
 # --------
-# Futhermore, we can also utilize multi-core processors to do the thread-level parallelization.
+# Furthermore, we can also utilize multi-core processors to do the thread-level parallelization.
 
 s = te.create_schedule(C.op)
 

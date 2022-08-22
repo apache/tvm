@@ -127,7 +127,7 @@ def test_fullyconnected_failure():
             0,
             1,
             "uint8",
-            tei.get_overall_scale_range_expected_error_message(),
+            "Overall scale (of the input * weights / output) should be in the range (2^-32, 65536)",
         ),
         (
             (1, 1, 1, 64),

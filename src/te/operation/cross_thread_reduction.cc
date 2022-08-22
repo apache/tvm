@@ -62,7 +62,7 @@ using namespace tir;
 // The last step is to write the final reduction variable,
 // which should be predicated by the existing input_pred if any
 // The consequence is that input_pred should be independent of
-// the reduction axis. Otherwise, we need to seperate it into
+// the reduction axis. Otherwise, we need to separate it into
 // dependent part and independent one.
 //
 // (3) write back

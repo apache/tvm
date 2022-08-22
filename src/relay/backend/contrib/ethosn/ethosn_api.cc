@@ -36,7 +36,6 @@
 #include <utility>
 #include <vector>
 
-#include "ethosn_api_version.h"
 #include "ethosn_support_library/Support.hpp"
 #include "ethosn_support_library/SupportQueries.hpp"
 #include "tvm/relay/qnn/attrs.h"

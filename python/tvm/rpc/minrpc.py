@@ -70,7 +70,7 @@ def with_minrpc(compile_func, server="posix_popen_server", runtime="libtvm"):
     options = ["-std=c++17"]
     # Make sure the rpath to the libtvm is set so we can do local tests.
     # Note that however, this approach won't work on remote.
-    # Always recommend to to link statically.
+    # Always recommend to link statically.
     options += ["-Wl,-rpath=" + runtime_dir]
     options += ["-I" + path for path in libinfo.find_include_path()]
     options += ["-I" + minrpc_dir]

@@ -2617,9 +2617,9 @@ bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
     return false;
   }
 
-  ICHECK(param->begin) << "strided_slice recieved invalid begin " << param->begin;
-  ICHECK(param->end) << "strided_slice recieved invalid end " << param->end;
-  ICHECK(param->strides) << "strided_slice recieved invalid strides " << param->strides;
+  ICHECK(param->begin) << "strided_slice received invalid begin " << param->begin;
+  ICHECK(param->end) << "strided_slice received invalid end " << param->end;
+  ICHECK(param->strides) << "strided_slice received invalid strides " << param->strides;
 
   auto begin = param->begin.value();
   auto end = param->end.value();

@@ -108,6 +108,10 @@ def test_meta_schedule_integration_extract_from_resnet():
 
 @requires_torch
 def test_meta_schedule_integration_extract_from_bert_base():
+    pytest.importorskip(
+        "transformers", reason="transformers package is required to import bert_base"
+    )
+
     expected = {
         "fused_nn_dense_2": (
             12,
