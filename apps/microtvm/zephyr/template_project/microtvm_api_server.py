@@ -212,14 +212,14 @@ def _get_board_mem_size(options):
     return None
 
 
-DEFAULT_HEAP_SIZE = 216 * 1024
+DEFAULT_HEAP_SIZE_BYTES = 216 * 1024
 
 
 def _get_recommended_heap_size(options):
     prop = BOARD_PROPERTIES[options["zephyr_board"]]
     if "recommended_heap_size" in prop:
         return prop["recommended_heap_size"]
-    return DEFAULT_HEAP_SIZE
+    return DEFAULT_HEAP_SIZE_BYTES
 
 
 def generic_find_serial_port(serial_number=None):
@@ -398,10 +398,10 @@ PROJECT_OPTIONS = [
         help="Run on the FVP emulator instead of hardware.",
     ),
     server.ProjectOption(
-        "heap_size",
+        "heap_size_bytes",
         optional=["generate_project"],
         type="int",
-        help="Sets HEAP_SIZE for Zephyr board.",
+        help="Sets the value for HEAP_SIZE_BYTES passed to K_HEAP_DEFINE() to service TVM memory allocation requests.",
     ),
 ]
 
@@ -623,14 +623,16 @@ class Handler(server.ProjectAPIHandler):
                     cmake_f.write(line)
 
                 heap_size = _get_recommended_heap_size(options)
-                if options.get("heap_size"):
+                if options.get("heap_size_bytes"):
                     board_mem_size = _get_board_mem_size(options)
-                    heap_size = options["heap_size"]
+                    heap_size = options["heap_size_bytes"]
                     if board_mem_size is not None:
                         assert (
                             heap_size < board_mem_size
                         ), f"Heap size {heap_size} is larger than memory size {board_mem_size} on this board."
-                cmake_f.write(f"target_compile_definitions(app PUBLIC -DHEAP_SIZE={heap_size})\n")
+                cmake_f.write(
+                    f"target_compile_definitions(app PUBLIC -DHEAP_SIZE_BYTES={heap_size})\n"
+                )
 
                 if options.get("compile_definitions"):
                     flags = options.get("compile_definitions")
