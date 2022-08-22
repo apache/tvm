@@ -76,6 +76,7 @@ def pytest_generate_tests(metafunc):
                     f"requires a --{argument} argument, but none was given."
                 )
 
+
 @pytest.fixture(scope="session")
 def microtvm_debug(request):
     return request.config.getoption("--microtvm-debug")
