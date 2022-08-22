@@ -463,14 +463,13 @@ LLVMTargetInfo::Option LLVMTargetInfo::ParseOptionString(const std::string& str)
 
   int part_this = 0, part_end = parts.size();
 
-  const std::string warn_header = "while parsing option \"" + str + "\": ";
-  const std::string warn_ignored = ", option ignored";
+  const std::string error_header = "while parsing option \"" + str + "\": ";
 
   // Check for "-" or "--".
   if (part_this < part_end) {
     auto& p = parts[part_this++];
     if ((p.size() != 1 && p.size() != 2) || p.find_first_not_of('-') != std::string::npos) {
-      LOG(ERROR) << warn_header << "option must start with \"-\" or \"--\"" << warn_ignored;
+      LOG(ERROR) << error_header << "option must start with \"-\" or \"--\"";
       return opt;
     }
   }
@@ -479,7 +478,7 @@ LLVMTargetInfo::Option LLVMTargetInfo::ParseOptionString(const std::string& str)
   if (part_this < part_end) {
     auto& p = parts[part_this++];
     if (p.empty()) {
-      LOG(ERROR) << warn_header << "option name must not be empty" << warn_ignored;
+      LOG(ERROR) << error_header << "option name must not be empty";
       return opt;
     }
     opt.name = std::move(p);
@@ -509,7 +508,7 @@ LLVMTargetInfo::Option LLVMTargetInfo::ParseOptionString(const std::string& str)
       }
       // If there was ":", there must be a type.
       if (type == Option::OptType::Invalid) {
-        LOG(ERROR) << warn_header << "invalid type" << warn_ignored;
+        LOG(ERROR) << error_header << "invalid type";
         return opt;
       }
     }
@@ -528,7 +527,7 @@ LLVMTargetInfo::Option LLVMTargetInfo::ParseOptionString(const std::string& str)
       }
     } else {
       // If there are still any parts left to be processed, there must be "=".
-      LOG(ERROR) << warn_header << "expecting \"=\"" << warn_ignored;
+      LOG(ERROR) << error_header << "expecting \"=\"";
       return opt;
     }
   }
@@ -573,20 +572,19 @@ LLVMTargetInfo::Option LLVMTargetInfo::ParseOptionString(const std::string& str)
     if (type == Option::OptType::Int || type == Option::OptType::UInt) {
       auto v = to_integer(value.value());
       if (!v.has_value()) {
-        LOG(ERROR) << warn_header << "invalid integer value \"" << value.value() << "\""
-                   << warn_ignored;
+        LOG(ERROR) << error_header << "invalid integer value \"" << value.value() << "\"";
         return opt;
       }
       if (type == Option::OptType::Int) {
         opt.value.i = static_cast<int>(v.value());
         if (opt.value.i != v.value()) {
-          LOG(WARNING) << warn_header << "value exceeds int range, assuming " << opt.value.i;
+          LOG(WARNING) << error_header << "value exceeds int range, assuming " << opt.value.i;
         }
       } else {
         // NOLINTNEXTLINE(runtime/int)
         opt.value.u = static_cast<unsigned>(static_cast<unsigned long long>(v.value()));
         if (opt.value.u != static_cast<unsigned long long>(v.value())) {  // NOLINT(runtime/int)
-          LOG(WARNING) << warn_header << "value exceeds int range, assuming " << opt.value.u;
+          LOG(WARNING) << error_header << "value exceeds int range, assuming " << opt.value.u;
         }
       }
     } else if (type == Option::OptType::String) {
@@ -595,8 +593,7 @@ LLVMTargetInfo::Option LLVMTargetInfo::ParseOptionString(const std::string& str)
       // "type" is either Bool (given explicitly) or Invalid (type not present in string)
       auto v = to_boolean(value.value());
       if (!v.has_value()) {
-        LOG(ERROR) << warn_header << "invalid boolean value \"" << value.value() << "\""
-                   << warn_ignored;
+        LOG(ERROR) << error_header << "invalid boolean value \"" << value.value() << "\"";
         return opt;
       }
       opt.value.b = v.value();
@@ -608,7 +605,7 @@ LLVMTargetInfo::Option LLVMTargetInfo::ParseOptionString(const std::string& str)
       opt.value.b = true;
       type = Option::OptType::Bool;
     } else {
-      LOG(ERROR) << warn_header << "must have a value" << warn_ignored;
+      LOG(ERROR) << error_header << "must have a value";
       return opt;
     }
   }
