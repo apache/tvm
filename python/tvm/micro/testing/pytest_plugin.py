@@ -68,7 +68,7 @@ def pytest_generate_tests(metafunc):
     parameters for the appropriate tests (and included in the test names),
     we add them as function level parametrizations. This prevents data
     from being overwritten in Junit XML files if multiple platforms
-    or boards are tested. """
+    or boards are tested."""
 
     for argument in ["platform", "board"]:
         if argument in metafunc.fixturenames:
