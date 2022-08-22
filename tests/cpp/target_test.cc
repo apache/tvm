@@ -291,15 +291,134 @@ TEST(TargetCreation, ProcessStrings) {
   ASSERT_EQ(array7[1][1][0], "fred");
 }
 
-TEST(TargetCreation, LLVMCommandLineFatal) {
+// Checks that malformed options cause an assertion.
+TEST(TargetCreation, LLVMCommandLineParseFatalDashDashDash) {
   tvm::codegen::LLVMInstance inst;
 
-  // Check that malformed options cause an assertion.
+  // Too many dashes in an otherwise valid option.
   EXPECT_THROW(
       {
-        Target test_target(
-            "llvm -cl-opt='-heh:,-hah:=,-print-after-all:bool=,"
-            "---unroll-factor=0,\\\'-blah:string=ha ha\\\''");
+        Target test_target("llvm -cl-opt='---unroll-factor:uint=0'");
+        tvm::codegen::LLVMTargetInfo info(inst, test_target);
+      },
+      std::exception);
+}
+
+TEST(TargetCreation, LLVMCommandLineParseFatalColonNoType) {
+  tvm::codegen::LLVMInstance inst;
+
+  // : not followed by type.
+  EXPECT_THROW(
+      {
+        Target test_target("llvm -cl-opt='-option:'");
+        tvm::codegen::LLVMTargetInfo info(inst, test_target);
+      },
+      std::exception);
+}
+
+TEST(TargetCreation, LLVMCommandLineParseFatalColonNoTypeEqNoValue) {
+  tvm::codegen::LLVMInstance inst;
+
+  // : and = without type/value.
+  EXPECT_THROW(
+      {
+        Target test_target("llvm -cl-opt='-option:='");
+        tvm::codegen::LLVMTargetInfo info(inst, test_target);
+      },
+      std::exception);
+}
+
+TEST(TargetCreation, LLVMCommandLineParseFatalColonTypeNoEqNoValue) {
+  tvm::codegen::LLVMInstance inst;
+
+  // Option with type, but no = and no value.
+  EXPECT_THROW(
+      {
+        Target test_target("llvm -cl-opt='-option:bool'");
+        tvm::codegen::LLVMTargetInfo info(inst, test_target);
+      },
+      std::exception);
+}
+
+TEST(TargetCreation, LLVMCommandLineParseFatalColonTypeEqNoValue) {
+  tvm::codegen::LLVMInstance inst;
+
+  // Option with type and =, but no value.
+  EXPECT_THROW(
+      {
+        Target test_target("llvm -cl-opt='-option:bool='");
+        tvm::codegen::LLVMTargetInfo info(inst, test_target);
+      },
+      std::exception);
+}
+
+TEST(TargetCreation, LLVMCommandLineParseFatalInvalidType) {
+  tvm::codegen::LLVMInstance inst;
+
+  // Option with invalid type.
+  EXPECT_THROW(
+      {
+        Target test_target("llvm -cl-opt='-option:invalidtype=xyz'");
+        tvm::codegen::LLVMTargetInfo info(inst, test_target);
+      },
+      std::exception);
+}
+
+TEST(TargetCreation, LLVMCommandLineParseFatalInvalidValue1) {
+  tvm::codegen::LLVMInstance inst;
+
+  // (Implicit) bool option without type, but with invalid value.
+  EXPECT_THROW(
+      {
+        Target test_target("llvm -cl-opt='-option=2'");
+        tvm::codegen::LLVMTargetInfo info(inst, test_target);
+      },
+      std::exception);
+}
+
+TEST(TargetCreation, LLVMCommandLineParseFatalInvalidValue2) {
+  tvm::codegen::LLVMInstance inst;
+
+  // Bool option without type, but with invalid value.
+  EXPECT_THROW(
+      {
+        Target test_target("llvm -cl-opt='-option=fred'");
+        tvm::codegen::LLVMTargetInfo info(inst, test_target);
+      },
+      std::exception);
+}
+
+TEST(TargetCreation, LLVMCommandLineParseFatalInvalidValue3) {
+  tvm::codegen::LLVMInstance inst;
+
+  // Bool option with type and =, but invalid value.
+  EXPECT_THROW(
+      {
+        Target test_target("llvm -cl-opt='-option:bool=2'");
+        tvm::codegen::LLVMTargetInfo info(inst, test_target);
+      },
+      std::exception);
+}
+
+TEST(TargetCreation, LLVMCommandLineParseFatalInvalidValue4) {
+  tvm::codegen::LLVMInstance inst;
+
+  // Int option with invalid value.
+  EXPECT_THROW(
+      {
+        Target test_target("llvm -cl-opt='-option:int=haha'");
+        tvm::codegen::LLVMTargetInfo info(inst, test_target);
+      },
+      std::exception);
+}
+
+TEST(TargetCreation, LLVMCommandLineParseFatalInvalidValue5) {
+  tvm::codegen::LLVMInstance inst;
+
+  // UInt option with invalid value.
+  EXPECT_THROW(
+      {
+        Target test_target("llvm -cl-opt='-option:uint=haha'");
         tvm::codegen::LLVMTargetInfo info(inst, test_target);
       },
       std::exception);
