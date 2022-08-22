@@ -50,7 +50,7 @@ def test_vector():
     lanes = 2
     s = tvm.arith.IntSet.vector(tvm.tir.Ramp(base, stride, lanes))
     assert s.min_value.value == base
-    assert s.max_value.value == base + stride * lanes - 1
+    assert s.max_value.value == base + stride * (lanes - 1)
 
 
 def test_add_sub():
