@@ -942,18 +942,18 @@ def create_relay_module_and_inputs_from_tflite_file(tflite_model_file, bind_para
         name = str(param.name_hint)
         data_shape = [int(i) for i in param.type_annotation.shape]
         dtype = str(param.type_annotation.dtype)
-        if dtype in ("float32", "float64"):
+        if np.issubdtype(dtype, np.floating):
             # Since np.random.uniform only allows the ranges of float32,
-            # at first float32 is used and scaled afterwards, if necessary
-            in_min, in_max = (np.finfo("float32").min, np.finfo("float32").max)
+            # at first float16 is used and scaled afterwards, if necessary.
+            in_min, in_max = (np.finfo("float16").min, np.finfo("float16").max)
             data = np.random.uniform(low=in_min, high=in_max, size=data_shape).astype(dtype)
-            scale = np.finfo(dtype).min / np.finfo("float32").min
+            scale = np.finfo(dtype).min / np.finfo("float16").min
             data *= scale
-        elif dtype in ("int16", "int32", "int64"):
+        elif np.issubdtype(dtype, np.integer):
             in_min, in_max = (np.iinfo(dtype).min, np.iinfo(dtype).max)
             data = np.random.randint(in_min, high=in_max, size=data_shape, dtype=dtype)
         else:
-            raise TypeError("Unsupported type used")
+            raise TypeError(f"Type {dtype} not supported")
         inputs[name] = data
 
     return mod, inputs, params
