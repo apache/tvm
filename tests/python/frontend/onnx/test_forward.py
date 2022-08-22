@@ -2980,6 +2980,17 @@ def test_conv(target, dev):
             group=8,
         )
 
+        verify_conv(
+            (1, 12) + repeat(5, dims),
+            (30, 4) + repeat(3, dims),
+            (1, 30) + repeat(5, dims),
+            2 * repeat(1, dims),
+            repeat(3, dims),
+            repeat(1, dims),
+            repeat(1, dims),
+            group=3,
+        )
+
 
 @tvm.testing.parametrize_targets
 def test_convtranspose(target, dev):
