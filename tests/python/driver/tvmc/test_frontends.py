@@ -169,7 +169,7 @@ def verify_load_model__onnx(model, **kwargs):
 def test_load_model__onnx(onnx_resnet50):
     # some CI environments wont offer onnx, so skip in case it is not present
     pytest.importorskip("onnx")
-    tvmc_model = verify_load_model__onnx(onnx_resnet50)
+    tvmc_model = verify_load_model__onnx(onnx_resnet50, freeze_params=False)
     # check whether one known value is part of the params dict
     assert "resnetv24_batchnorm0_gamma" in tvmc_model.params.keys()
     tvmc_model = verify_load_model__onnx(onnx_resnet50, freeze_params=True)
