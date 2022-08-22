@@ -61,13 +61,6 @@ def test_tir_invalid_intimm(dtype, literals):
     "dtype, literals",
     [
         [
-            "int64",
-            {
-                -9223372036854775810: 9223372036854775806,
-                9223372036854775808: -9223372036854775808,
-            },
-        ],
-        [
             "uint64",
             {
                 9223372036854775807: 9223372036854775807,
@@ -79,7 +72,6 @@ def test_tir_invalid_intimm(dtype, literals):
 def test_tir_large_py_int_literals(dtype, literals):
     """
     For large uint value, use LargeUIntImm intrin,
-    For large int value exceed int64_t value range, the value is wrapped back.
     """
     for l in literals:
         x = tir.const(l, dtype)
