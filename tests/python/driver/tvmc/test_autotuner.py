@@ -24,8 +24,10 @@ from os import path
 from pathlib import Path
 
 import tvm
+import tvm.testing
 from tvm import autotvm
 from tvm.driver import tvmc
+from tvm.driver.tvmc.autotuner import filter_tasks
 
 
 def _get_tasks(model):
@@ -207,3 +209,27 @@ def test_autotune_pass_context(mock_pc, onnx_mnist, tmpdir_factory):
     # AutoTVM overrides the pass context later in the pipeline to disable AlterOpLayout
     assert mock_pc.call_count == 2
     assert mock_pc.call_args_list[0][1]["opt_level"] == 3
+
+
+def test_filter_tasks_valid():
+    filter_tasks(list(range(10)), "list") == ([], True)
+    filter_tasks(list(range(10)), "help") == ([], True)
+    filter_tasks(list(range(10)), "all") == ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], False)
+    filter_tasks(list(range(10)), "5") == ([5], False)
+    filter_tasks(list(range(10)), "1-5") == ([1, 2, 3, 4, 5], False)
+    filter_tasks(list(range(10)), "-5") == ([0, 1, 2, 3, 4, 5], False)
+    filter_tasks(list(range(10)), "6-") == ([6, 7, 8, 9], False)
+    filter_tasks(list(range(10)), "0,1-3,all") == ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], False)
+    filter_tasks(list(range(10)), "0,4-5,9,list") == ([0, 4, 5, 9], True)
+
+
+@pytest.mark.xfail
+def test_filter_tasks_invalid():
+    filter_tasks(list(range(10)), "10")
+    filter_tasks(list(range(10)), "5,10")
+    filter_tasks(list(range(10)), "1-10")
+    filter_tasks(list(range(10)), "-10")
+
+
+if __name__ == "__main__":
+    tvm.testing.main()
