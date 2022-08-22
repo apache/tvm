@@ -1,14 +1,14 @@
 
-name: docs-bot
+name: tests-bot
 on:
   status
 jobs:
-  run-docs-bot:
+  run-tests-bot:
     if: ${{ github.repository == 'apache/tvm' && github.event.state == 'success' && github.event.context == 'tvm-ci/pr-head' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Comment link to docs
+      - name: Comment skipped tests
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.CI_RESOURCES_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.CI_RESOURCES_AWS_SECRET_ACCESS_KEY }}
