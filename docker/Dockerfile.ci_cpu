@@ -124,13 +124,6 @@ RUN bash /install/ubuntu_install_androidsdk.sh
 ENV ANDROID_HOME=/opt/android-sdk-linux/
 ENV ANDROID_NDK_HOME=/opt/android-sdk-linux/ndk/21.3.6528147/
 
-# Install Vela compiler
-COPY install/ubuntu_install_vela.sh /install/ubuntu_install_vela.sh
-RUN bash /install/ubuntu_install_vela.sh
-
-# Update PATH
-ENV PATH /opt/arm/gcc-arm-none-eabi/bin:/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4:$PATH
-
 # PaddlePaddle deps
 COPY install/ubuntu_install_paddle.sh /install/ubuntu_install_paddle.sh
 RUN bash /install/ubuntu_install_paddle.sh
