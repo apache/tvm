@@ -26,11 +26,16 @@ import pytest
 
 from tvm.contrib.utils import tempdir
 
-from .utils import get_supported_boards
+from .utils import get_supported_platforms, get_supported_boards
 
 
 def pytest_addoption(parser):
     """Adds more pytest arguments"""
+    parser.addoption(
+        "--platform",
+        choices=get_supported_platforms(),
+        help=("microTVM platform for tests."),
+    )
     parser.addoption(
         "--board",
         required=True,
@@ -58,9 +63,15 @@ def pytest_addoption(parser):
     )
 
 
-@pytest.fixture(scope="session")
-def board(request):
-    return request.config.getoption("--board")
+# We have to dynamically parameterize based on platform. This is superior to
+# using regular fixtures, as it ensures the platform and board will be included
+# in the resulting Junit XML file.
+def pytest_generate_tests(metafunc):
+    if "platform" in metafunc.fixturenames:
+        metafunc.parametrize("platform", [metafunc.config.getoption("--platform")])
+
+    if "board" in metafunc.fixturenames:
+        metafunc.parametrize("board", [metafunc.config.getoption("--board")])
 
 
 @pytest.fixture(scope="session")
