@@ -21,8 +21,8 @@
 """Common hexagon specific utilities"""
 import math
 import struct
-from tvm import te
 from typing import Tuple
+from tvm import te
 
 
 def n11c_1024c_2d(n, h, w, c):
