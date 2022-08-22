@@ -213,20 +213,18 @@ def schedule_conv2d_NCHWc_KCRSk(cfg, s, output):
         latest_blocked = latest
 
     pad_data, kernel = s[conv].op.input_tensors
-    if isinstance(kernel.op, tvm.te.ComputeOp) and "filter_pack" in kernel.op.tag:
-        filter_pack_rt = True
-    else:
-        filter_pack_rt = False
+    filter_pack_rt = bool(
+        isinstance(kernel.op, tvm.te.ComputeOp) and "filter_pack" in kernel.op.tag
+    )
 
     if "pad_temp" in pad_data.op.name:
         input_pad_temp = pad_data.op.input_tensors[0]
     else:
         input_pad_temp = pad_data
 
-    if isinstance(input_pad_temp.op, tvm.te.ComputeOp) and "input_pack" in input_pad_temp.op.tag:
-        input_pack_rt = True
-    else:
-        input_pack_rt = False
+    input_pack_rt = bool(
+        isinstance(input_pad_temp.op, tvm.te.ComputeOp) and "input_pack" in input_pad_temp.op.tag
+    )
 
     ##### space definition begin #####
     n, fc, y, x, fb = s[conv].op.axis

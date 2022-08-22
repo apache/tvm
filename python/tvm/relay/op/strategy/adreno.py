@@ -49,7 +49,7 @@ def conv2d_strategy_adreno(attrs, inputs, out_type, target):
                 (2 < kh < 8 and 2 < kw < 8 and kh == kw)
                 and (stride_h == 1 and stride_w == 1)
                 and (dilation_h == 1 and dilation_w == 1)
-                and ((data_layout == "NCHW" and kernel_layout == "OIHW4o") == False)
+                and not (data_layout == "NCHW" and kernel_layout == "OIHW4o")
             ):
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.adreno.conv2d_nchw_winograd),
@@ -76,7 +76,7 @@ def conv2d_strategy_adreno(attrs, inputs, out_type, target):
                 (2 < kh < 8 and 2 < kw < 8 and kh == kw)
                 and (stride_h == 1 and stride_w == 1)
                 and (dilation_h == 1 and dilation_w == 1)
-                and ((data_layout == "NHWC" and kernel_layout == "HWIO4o") == False)
+                and not (data_layout == "NHWC" and kernel_layout == "HWIO4o")
             ):
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.adreno.conv2d_nhwc_winograd),
