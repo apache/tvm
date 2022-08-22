@@ -195,7 +195,7 @@ def _get_device_args(options):
     )
 
 
-def _get_board_mem_size(options):
+def _get_board_mem_size_bytes(options):
     board_file_path = (
         pathlib.Path(get_zephyr_base(options))
         / "boards"
@@ -215,10 +215,10 @@ def _get_board_mem_size(options):
 DEFAULT_HEAP_SIZE_BYTES = 216 * 1024
 
 
-def _get_recommended_heap_size(options):
+def _get_recommended_heap_size_bytes(options):
     prop = BOARD_PROPERTIES[options["zephyr_board"]]
-    if "recommended_heap_size" in prop:
-        return prop["recommended_heap_size"]
+    if "recommended_heap_size_bytes" in prop:
+        return prop["recommended_heap_size_bytes"]
     return DEFAULT_HEAP_SIZE_BYTES
 
 
@@ -622,9 +622,9 @@ class Handler(server.ProjectAPIHandler):
 
                     cmake_f.write(line)
 
-                heap_size = _get_recommended_heap_size(options)
+                heap_size = _get_recommended_heap_size_bytes(options)
                 if options.get("heap_size_bytes"):
-                    board_mem_size = _get_board_mem_size(options)
+                    board_mem_size = _get_board_mem_size_bytes(options)
                     heap_size = options["heap_size_bytes"]
                     if board_mem_size is not None:
                         assert (

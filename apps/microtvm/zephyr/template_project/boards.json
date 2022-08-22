@@ -55,7 +55,7 @@
         "fpu": true,
         "vid_hex": "0483",
         "pid_hex": "374b",
-        "recommended_heap_size": 512000
+        "recommended_heap_size_bytes": 512000
     },
     "qemu_cortex_r5": {
         "board": "qemu_cortex_r5",
