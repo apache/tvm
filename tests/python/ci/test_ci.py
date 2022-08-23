@@ -914,11 +914,13 @@ def test_open_docker_update_pr(
         "ci_lint",
         "ci_gpu",
         "ci_cpu",
+        "ci_minimal",
         "ci_wasm",
         "ci_i386",
-        "ci_qemu",
+        "ci_cortexm",
         "ci_arm",
         "ci_hexagon",
+        "ci_riscv",
     ]
 
     docker_data = {}

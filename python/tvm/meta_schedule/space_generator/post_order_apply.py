@@ -27,10 +27,18 @@ class PostOrderApply(SpaceGenerator):
     """
     PostOrderApply is the design space generator that generates design spaces by applying schedule
     rules to blocks in post-DFS order.
+
+    Parameters
+    ----------
+    f_block_filter : Optional[function]
+        An optional callback function that is used to filter which blocks have schedules generated
+        for them. The function should take in a block and return True if a schedule should
+        be generated or False if that block should be skipped. If no function is provided
+        all blocks will have schedules generated.
     """
 
-    def __init__(self):
+    def __init__(self, f_block_filter=None):
         """Constructor"""
         self.__init_handle_by_constructor__(
-            _ffi_api.SpaceGeneratorPostOrderApply,  # type: ignore # pylint: disable=no-member
+            _ffi_api.SpaceGeneratorPostOrderApply, f_block_filter  # type: ignore # pylint: disable=no-member
         )

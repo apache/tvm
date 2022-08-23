@@ -92,6 +92,7 @@
 #include <tvm/driver/driver_api.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/function.h>
+#include <tvm/ir/name_supply.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/attrs/call.h>
@@ -134,30 +135,33 @@ TVM_REGISTER_OBJECT_TYPE(TECompilerNode);
 
 class TECompilerImpl : public TECompilerNode {
  public:
-  explicit TECompilerImpl(Optional<IRModule> opt_mod) {
+  explicit TECompilerImpl(Optional<IRModule> opt_mod, Optional<String> opt_mod_name) {
+    String mod_name = opt_mod_name.value_or("");
+    NameSupply name_supply = NameSupply(mod_name /* prefix */);
+    global_var_supply_ = GlobalVarSupply(name_supply);
     // Make sure we don't collide with any existing globals in the module.
     if (opt_mod) {
       for (const auto& kv : opt_mod.value()->functions) {
-        name_map_[kv.first->name_hint] = 1;
+        global_var_supply_->name_supply_->ReserveName(kv.first->name_hint, false);
       }
     }
   }
 
   // Lower the function.
-  CachedFunc Lower(const CCacheKey& key, std::function<String(String)> mangle_fn) {
-    return LowerInternal(key, mangle_fn)->cached_func;
+  CachedFunc Lower(const CCacheKey& key) {
+    return LowerInternal(key, global_var_supply_)->cached_func;
   }
 
+  // TODO(gigiblender): Only to be called by the global TE compiler.
+  //  Remove this when the global TE compiler is removed.
   CachedFunc Lower(const CCacheKey& key, const String mod_name) {
-    auto mangle_fn = [mod_name](String name) { return runtime::get_name_mangled(mod_name, name); };
-
-    return Lower(key, mangle_fn);
+    global_var_supply_->name_supply_->prefix_ = mod_name;
+    return LowerInternal(key, global_var_supply_)->cached_func;
   }
 
   // For now, build one module per function.
   PackedFunc JIT(const CCacheKey& key) final {
-    auto mangle_fn = [](String name) { return name; };
-    CCacheValue value = LowerInternal(key, mangle_fn);
+    CCacheValue value = LowerInternal(key, GlobalVarSupply(NameSupply("")));
     if (value->packed_func != nullptr) {
       return value->packed_func;
     }
@@ -335,7 +339,7 @@ class TECompilerImpl : public TECompilerNode {
 
  private:
   // implement lowered func
-  CCacheValue LowerInternal(const CCacheKey& key, std::function<String(String)> mangle_fn) {
+  CCacheValue LowerInternal(const CCacheKey& key, GlobalVarSupply global_var_supply) {
     VLOG(1) << "lowering:" << std::endl
             << PrettyPrint(key->source_func) << std::endl
             << "for target:" << std::endl
@@ -360,7 +364,7 @@ class TECompilerImpl : public TECompilerNode {
     if (opt_compiler.defined()) {
       // Don't compile now since we don't have anywhere to put the resulting runtime module.
       // Instead place the original definition in the cache and wait for LowerExternalFunctions.
-      IRModule ir_module;
+      IRModule ir_module({}, {});
       Optional<String> opt_global_symbol =
           key->source_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
       ICHECK(opt_global_symbol.defined()) << "External function has not been attached a name yet.";
@@ -369,7 +373,7 @@ class TECompilerImpl : public TECompilerNode {
       // the module's globals. Furthermore, the external codegen tool must bind the compiled
       // function to the "global_symbol" attribute on the source_func. So do not use GetUniqueName
       // here.
-      auto global_var = GlobalVar(opt_global_symbol.value());
+      auto global_var = global_var_supply->UniqueGlobalFor(opt_global_symbol.value(), false);
       global_var->checked_type_ = key->source_func->checked_type();
       ir_module->Add(global_var, key->source_func);
       value->cached_func = CachedFunc(key->target, global_var, {}, {}, te::Schedule{nullptr},
@@ -388,10 +392,7 @@ class TECompilerImpl : public TECompilerNode {
     With<Target> target_scope(key->target);
 
     ICHECK(!value->cached_func.defined());
-    value->cached_func = PrimFuncFor(key->source_func, key->target, [&](std::string name) {
-      auto mangled = mangle_fn(name);
-      return GetUniqueName(mangled, &name_map_);
-    });
+    value->cached_func = PrimFuncFor(key->source_func, key->target, global_var_supply);
 
     if (value->cached_func->prim_func.defined()) {
       VLOG(1) << "Lowering PrimFunc";
@@ -443,16 +444,11 @@ class TECompilerImpl : public TECompilerNode {
       }
       auto func_name = value->cached_func->prim_fn_var->name_hint;
       VLOG(1) << "scheduling";
-      IRModule scheduled_module =
-          tvm::LowerSchedule(value->cached_func->schedule, all_args, func_name, binds);
+      IRModule scheduled_module = tvm::LowerSchedule(value->cached_func->schedule, all_args,
+                                                     func_name, binds, global_var_supply);
       scheduled_module->Update(tir::transform::BindParams(all_consts)(scheduled_module));
-      // Unfortunately the above machinery creates its own GlobalVars instead of using *the*
-      // GlobalVar we established above. Fix this before the confusion spreads any further.
-      // TODO(mbs): LowerSchedule should be given prim_fn_gvar instead of func_name.
       for (const auto& kv : scheduled_module->functions) {
-        GlobalVar global_var = kv.first->name_hint == value->cached_func->prim_fn_var->name_hint
-                                   ? value->cached_func->prim_fn_var
-                                   : kv.first;
+        GlobalVar global_var = kv.first;
         auto func = kv.second;
         // Propagate the structural hash of the relay function to the tir
         // function so associations can be made between the two.
@@ -498,9 +494,7 @@ class TECompilerImpl : public TECompilerNode {
 
     using tvm::transform::PassContext;
     With<PassContext> fresh_pass_ctx_scope(PassContext::Create());
-    value->cached_func = ShapeFuncFor(key->source_func, key->target, [&](std::string name) {
-      return GetUniqueName(name, &name_map_);
-    });
+    value->cached_func = ShapeFuncFor(key->source_func, key->target, global_var_supply_);
 
     ICHECK(
         value->cached_func->funcs->Lookup(value->cached_func->prim_fn_var).as<tir::PrimFuncNode>());
@@ -527,8 +521,8 @@ class TECompilerImpl : public TECompilerNode {
 
   /*! \brief compiler cache lock*/
   std::mutex mutex_;
-  /*! \brief internal name map to get an unique name */
-  std::unordered_map<std::string, int> name_map_;
+  /*! \brief internal GlobalVarSupply to get unique GlobalVars  */
+  GlobalVarSupply global_var_supply_;
   /*! \brief internal compiler cache */
   std::unordered_map<CCacheKey, CCacheValue> cache_;
   /*! \brief internal compiler cache for shape funcs */
@@ -539,15 +533,16 @@ class TECompilerImpl : public TECompilerNode {
   Map<GlobalVar, String> device_contexts_;
 };
 
-TECompiler::TECompiler(Optional<IRModule> opt_mod) {
-  auto object = make_object<TECompilerImpl>(std::move(opt_mod));
+TECompiler::TECompiler(Optional<IRModule> opt_mod, Optional<String> mod_name) {
+  auto object = make_object<TECompilerImpl>(std::move(opt_mod), std::move(mod_name));
   data_ = object;
 }
 
 /*! \brief The global TE compiler */
 // TODO(mbs): To be terminated with extreme prejudice.
 TECompiler& TECompiler::Global() {
-  static TECompiler* inst = new TECompiler(make_object<TECompilerImpl>(Optional<IRModule>()));
+  static TECompiler* inst =
+      new TECompiler(make_object<TECompilerImpl>(Optional<IRModule>(), Optional<String>()));
   return *inst;
 }
 TVM_REGISTER_PASS_CONFIG_OPTION("relay.backend.use_auto_scheduler", Bool);
@@ -629,12 +624,11 @@ using AnalysisRemapping = std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual
 class LowerTensorExprMutator : public DeviceAwareExprMutator {
  public:
   LowerTensorExprMutator(IRModule module, ProcessFn process_fn, CompilationConfig config,
-                         String module_name, TECompiler compiler)
+                         TECompiler compiler)
       : DeviceAwareExprMutator(module),
         module_(std::move(module)),
         process_fn_(std::move(process_fn)),
         config_(std::move(config)),
-        module_name_(std::move(module_name)),
         compiler_(std::move(compiler)),
         debug_op_(Op::Get("debug")) {}
 
@@ -925,7 +919,7 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
       // codegen.
       CCacheKey key(Downcast<Function>(primitive_func), target,
                     GetVirtualDevice(GetRef<Call>(call_node)));
-      CachedFunc cfunc = compiler_->Lower(key, module_name_);
+      CachedFunc cfunc = compiler_->Lower(key);
       ICHECK(cfunc.defined());
       return MakeLoweredCall(primitive_func, cfunc->prim_fn_var, std::move(new_args),
                              call_node->span, target, cfunc->funcs->functions);
@@ -942,17 +936,15 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
   // module we'll ultimately emit for each required device-type. Note that a primitive may be
   // lowered for multiple device types, each which will be assigned a fresh var.
   std::unordered_map<const VarNode*, BaseFunc> primitive_functions_;
-  String module_name_;
   TECompiler compiler_;
   // Cache ops that need to be frequently used later to reduce lookup overhead.
   const Op& debug_op_;
 };
 
-Pass LowerTensorExpr(const String& module_name, TECompiler compiler, ProcessFn process_fn,
-                     CompilationConfig config) {
+Pass LowerTensorExpr(TECompiler compiler, ProcessFn process_fn, CompilationConfig config) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function func, IRModule module, PassContext ctx) {
-        LowerTensorExprMutator lower_te(module, process_fn, config, module_name, compiler);
+        LowerTensorExprMutator lower_te(module, process_fn, config, compiler);
         return Downcast<Function>(lower_te.Mutate(func));
       };
   return CreateFunctionPass(pass_func, 0, "LowerTensorExpr", {});
@@ -1184,7 +1176,7 @@ void UpdateFunctionMetadata(BaseFunc func,
 /*! \brief Main lowering driving. */
 IRModule LowerTE(const IRModule& module, const String& module_name, ProcessFn process_fn,
                  CompilationConfig config) {
-  TECompiler compiler(module);
+  TECompiler compiler(module, module_name);
 
   // TODO(mbs): This is all unnecessarily convoluted. Better would be to accumulate the rewritten
   // module as we go (including rewritten Functions, lowered primitives, and runtime modules
@@ -1199,7 +1191,7 @@ IRModule LowerTE(const IRModule& module, const String& module_name, ProcessFn pr
   //  - Calls to functions tagged with "Primitive" are compiled to PrimFuncs, and calls updated
   //    (using call_lowered convention).
   IRModule updated_module =
-      LowerTensorExpr(module_name, compiler, std::move(process_fn), std::move(config))(module);
+      LowerTensorExpr(compiler, std::move(process_fn), std::move(config))(module);
 
   // The Functions tagged with "Compiler" are now residing in the cache ready to be
   // compiled by LowerExternalFunctions. However we still need a record of them in the

@@ -28,6 +28,7 @@ run_pytest ctypes python-microtvm-zephyr-qemu_x86 tests/micro/zephyr --board=qem
 run_pytest ctypes python-microtvm-zephyr-qemu_riscv32 tests/micro/zephyr --board=qemu_riscv32
 run_pytest ctypes python-microtvm-zephyr-qemu_riscv64 tests/micro/zephyr --board=qemu_riscv64
 run_pytest ctypes python-microtvm-zephyr-mps2_an521 tests/micro/zephyr --board=mps2_an521
+run_pytest ctypes python-microtvm-zephyr-mps3_an547 tests/micro/zephyr --board=mps3_an547 --use-fvp
 
 # Arduino
 run_pytest ctypes python-microtvm-arduino apps/microtvm/arduino/template_project/tests
@@ -55,3 +56,6 @@ python3 gallery/how_to/work_with_microtvm/micro_autotune.py
 python3 gallery/how_to/work_with_microtvm/micro_aot.py
 
 run_pytest ctypes python-relay-strategy-arm_cpu tests/python/relay/strategy/arm_cpu --enable-corstone300-tests
+run_pytest ctypes python-integration-m7-simd tests/python/integration/test_arm_mprofile_dsp.py --enable-corstone300-tests
+run_pytest ctypes python-integration-contrib-test_cmsisnn tests/python/contrib/test_cmsisnn
+run_pytest ctypes python-integration-contrib-test_ethosu tests/python/contrib/test_ethosu -n auto

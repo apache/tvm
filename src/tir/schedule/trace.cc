@@ -112,6 +112,9 @@ Array<ObjectRef> TranslateInputRVs(
     } else if (input->IsInstance<ArrayNode>()) {
       // Case 4: array
       results.push_back(TranslateInputRVs(Downcast<Array<ObjectRef>>(input), rv_names));
+    } else if (input->IsInstance<MapNode>()) {
+      // Case 5: dict
+      results.push_back(input);
     } else if (input->IsInstance<BlockRVNode>() || inputs->IsInstance<LoopRVNode>() ||
                inputs->IsInstance<VarNode>()) {
       LOG(FATAL) << "IndexError: Random variable is not defined " << input;
@@ -139,13 +142,18 @@ Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
       results.push_back(TranslateInputRVs(Downcast<Array<ObjectRef>>(input), named_rvs));
       continue;
     }
+    // Case 5. dict
+    if (input->IsInstance<MapNode>()) {
+      results.push_back(input);
+      continue;
+    }
     const auto* str = input.as<StringObj>();
     CHECK(str) << "TypeError: Expect String, but gets: " << input->GetTypeKey();
     CHECK_GT(str->size, 0) << "ValueError: Empty string is not allowed in input names";
     const char* name = str->data;
     int64_t size = str->size;
     // Case 2. string
-    if (size > 2 && name[0] == '"' && name[size - 1] == '"') {
+    if (size >= 2 && name[0] == '"' && name[size - 1] == '"') {
       results.push_back(String(std::string(name + 1, size - 2)));
       continue;
     }

@@ -26,8 +26,36 @@ def pytest_addoption(parser):
     parser.addoption(
         "--west-cmd", default="west", help="Path to `west` command for flashing device."
     )
+    parser.addoption(
+        "--use-fvp",
+        action="store_true",
+        default=False,
+        help="If set true, use the FVP emulator to run the test",
+    )
 
 
 @pytest.fixture(scope="session")
 def west_cmd(request):
     return request.config.getoption("--west-cmd")
+
+
+@pytest.fixture
+def use_fvp(request):
+    return request.config.getoption("--use-fvp")
+
+
+@pytest.fixture(autouse=True)
+def xfail_on_fvp(request, use_fvp):
+    """mark the tests as xfail if running on fvp."""
+    if request.node.get_closest_marker("xfail_on_fvp"):
+        if use_fvp:
+            request.node.add_marker(
+                pytest.mark.xfail(reason="checking corstone300 reliability on CI")
+            )
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "xfail_on_fvp(): mark test as xfail on fvp",
+    )

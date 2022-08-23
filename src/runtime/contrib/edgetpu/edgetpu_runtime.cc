@@ -39,7 +39,7 @@ void EdgeTPURuntime::Init(const std::string& tflite_model_bytes, Device dev) {
   // According to tflite_runtime.cc, the buffer for tflite::FlatBufferModel
   // should be allocated on flatBuffersBuffer_ to make share it must be kept alive
   // for interpreters.
-  flatBuffersBuffer_ = std::unique_ptr<char[]>(new char[buffer_size]);
+  flatBuffersBuffer_ = std::make_unique<char[]>(buffer_size);
   std::memcpy(flatBuffersBuffer_.get(), buffer, buffer_size);
   std::unique_ptr<tflite::FlatBufferModel> model =
       tflite::FlatBufferModel::BuildFromBuffer(flatBuffersBuffer_.get(), buffer_size);

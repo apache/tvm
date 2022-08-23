@@ -45,20 +45,22 @@ python3 tests/scripts/task_build.py \
     --cmake-target cpptest \
     --build-dir "${BUILD_DIR}"
 
-# crttest requires USE_MICRO to be enabled, which is currently the case
-# with all CI configs
-pushd "${BUILD_DIR}"
-ninja crttest
-popd
-
+# crttest requries USE_MICRO to be enabled.
+if grep -Fq "USE_MICRO ON" ${BUILD_DIR}/TVMBuildOptions.txt; then
+  pushd "${BUILD_DIR}"
+  ninja crttest
+  popd
+fi
 
 pushd "${BUILD_DIR}"
 ctest --gtest_death_test_style=threadsafe
 popd
 
-# Test MISRA-C runtime
-pushd apps/bundle_deploy
-rm -rf build
-make test_dynamic test_static
-popd
+# Test MISRA-C runtime. It requires USE_MICRO to be enabled.
+if grep -Fq "USE_MICRO ON" ${BUILD_DIR}/TVMBuildOptions.txt; then
+  pushd apps/bundle_deploy
+  rm -rf build
+  make test_dynamic test_static
+  popd
+fi
 

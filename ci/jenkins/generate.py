@@ -37,6 +37,10 @@ data = {
             "platform": "ARM",
         },
         {
+            "name": "ci_cortexm",
+            "platform": "CPU",
+        },
+        {
             "name": "ci_cpu",
             "platform": "CPU",
         },
@@ -57,7 +61,11 @@ data = {
             "platform": "CPU",
         },
         {
-            "name": "ci_qemu",
+            "name": "ci_minimal",
+            "platform": "CPU",
+        },
+        {
+            "name": "ci_riscv",
             "platform": "CPU",
         },
         {

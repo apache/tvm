@@ -203,12 +203,12 @@ def test_lower_extern_with_dynamic_shape():
     # Expected:
     # def @main(%a: Tensor[(5, 7), float32]) -> Tensor[(?, ?), float32] {
     #   %0 = (%a, %a);
-    #   call_lowered(@my_dyn, %0, metadata={prim_shape_fn_var='shape_func_add', relay_attrs={Extern=1}, prim_shape_fn_states=[2, 2], prim_shape_fn_num_inputs=2, all_prim_shape_fn_vars=['shape_func_add'], prim_shape_fn_num_outputs=1, all_prim_fn_vars=[]})
+    #   call_lowered(@my_dyn, %0, metadata={prim_shape_fn_var='test_shape_func_add', relay_attrs={Extern=1}, prim_shape_fn_states=[2, 2], prim_shape_fn_num_inputs=2, all_prim_shape_fn_vars=['shape_func_add'], prim_shape_fn_num_outputs=1, all_prim_fn_vars=[]})
     # }
     # def @my_dyn(%x: Tensor[(5, 7), float32] , %y: Tensor[(5, 7), float32] , Extern=1) -> Tensor[(?, ?), float32] {
     #   add(%x, %y)
     # }
-    # def @shape_func_add = <shape PrimFunc>
+    # def @test_shape_func_add = <shape PrimFunc>
 
     main = actual_mod["main"]
     call = main.body
@@ -218,14 +218,14 @@ def test_lower_extern_with_dynamic_shape():
     assert len(call.args[1].fields) == 2
     assert call.args[1].fields[0].name_hint == "a"
     assert call.args[1].fields[1].name_hint == "a"
-    assert call.attrs.metadata["prim_shape_fn_var"].name_hint == "shape_func_add"
+    assert call.attrs.metadata["prim_shape_fn_var"].name_hint == "test_shape_func_add"
     assert call.attrs.metadata["relay_attrs"].Extern == 1
     assert len(call.attrs.metadata["prim_shape_fn_states"]) == 2
     assert call.attrs.metadata["prim_shape_fn_states"][0] == 2
     assert call.attrs.metadata["prim_shape_fn_states"][1] == 2
     assert call.attrs.metadata["prim_shape_fn_num_inputs"] == 2
     assert len(call.attrs.metadata["all_prim_shape_fn_vars"]) == 1
-    assert call.attrs.metadata["all_prim_shape_fn_vars"][0].name_hint == "shape_func_add"
+    assert call.attrs.metadata["all_prim_shape_fn_vars"][0].name_hint == "test_shape_func_add"
     assert call.attrs.metadata["prim_shape_fn_num_outputs"] == 1
     assert len(call.attrs.metadata["all_prim_fn_vars"]) == 0
 
@@ -233,7 +233,7 @@ def test_lower_extern_with_dynamic_shape():
     assert isinstance(my_dyn, tvm.relay.Function)
     assert my_dyn.attrs["Extern"] == 1
 
-    shape_func_add = actual_mod["shape_func_add"]
+    shape_func_add = actual_mod["test_shape_func_add"]
     assert isinstance(shape_func_add, tvm.tir.PrimFunc)
 
 

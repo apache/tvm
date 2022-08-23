@@ -681,6 +681,40 @@ class AllocateConst : public Stmt {
   TVM_DEFINE_OBJECT_REF_METHODS(AllocateConst, Stmt, AllocateConstNode);
 };
 
+/*! \brief Declare a buffer that can be used in the body */
+class DeclBufferNode : public StmtNode {
+ public:
+  /*! \brief The buffer being declared */
+  Buffer buffer;
+  /*! \brief The body to be executed */
+  Stmt body;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("buffer", &buffer);
+    v->Visit("body", &body);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const DeclBufferNode* other, SEqualReducer equal) const {
+    return equal(buffer, other->buffer) && equal(body, other->body);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(buffer);
+    hash_reduce(body);
+  }
+
+  static constexpr const char* _type_key = "tir.DeclBuffer";
+  TVM_DECLARE_FINAL_OBJECT_INFO(DeclBufferNode, StmtNode);
+};
+
+/*! \brief Managed reference to DeclBufferNode */
+class DeclBuffer : public Stmt {
+ public:
+  TVM_DLL DeclBuffer(Buffer buffer, Stmt body, Span span = Span());
+  TVM_DEFINE_OBJECT_REF_METHODS(DeclBuffer, Stmt, DeclBufferNode);
+};
+
 /*!
  * \brief The container of seq statement.
  *        Represent a sequence of statements.
@@ -1512,6 +1546,9 @@ constexpr const char* software_pipeline_async_stages = "software_pipeline_async_
 
 /*! \brief Mark the buffers which is const access and can be transformed layout. */
 constexpr const char* layout_free_buffers = "layout_free_buffers";
+
+/*! \brief Mark the local stage for the shared memory access should be added. */
+constexpr const char* manifest_shared_memory_local_stage = "tir.manifest_shared_memory_local_stage";
 
 /*! \brief Mark the tiling structure of blocks that are applied by rule Multi-Level-Tiling */
 constexpr const char* meta_schedule_tiling_structure = "meta_schedule.tiling_structure";

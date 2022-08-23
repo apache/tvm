@@ -699,6 +699,21 @@ ObjectRef ConcreteScheduleNode::CheckAndGetAnnotationValue(const ObjectRef& ann_
     }
     return std::move(result);
   }
+  if (const auto* dict = ann_val.as<MapNode>()) {
+    Map<String, ObjectRef> result;
+    for (auto it = dict->begin(); it != dict->end(); ++it) {
+      const auto& key = it->first;
+      auto value = CheckAndGetAnnotationValue(it->second);
+      if (const StringImmNode* imm = key.as<StringImmNode>()) {
+        result.Set(imm->value, value);
+      } else if (key->IsInstance<StringObj>()) {
+        result.Set(Downcast<String>(key), value);
+      } else {
+        LOG(FATAL) << "TypeError: annotation dict key expect to be String or StringImm";
+      }
+    }
+    return std::move(result);
+  }
   LOG(FATAL)
       << "TypeError: Only strings, integers, floats, ExprRVs and Arrays are supported for now, but "
       << "gets: " << ann_val->GetTypeKey();

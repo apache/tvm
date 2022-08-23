@@ -17,20 +17,19 @@
 import collections
 import ctypes
 import json
+import math
+import re
 import sys
 
+import numpy as np
+import pytest
 import tvm
 import tvm.testing
 from tvm import te
+from tvm.contrib import clang, utils
 from tvm.relay.backend import Runtime
-from tvm.contrib import utils, clang
-from tvm.target.codegen import llvm_lookup_intrinsic_id, llvm_get_intrinsic_name
-import tvm.script.tir as T
-import numpy as np
-
-import math
-import re
-import pytest
+from tvm.script import tir as T
+from tvm.target.codegen import llvm_get_intrinsic_name, llvm_lookup_intrinsic_id
 
 
 @tvm.testing.requires_llvm

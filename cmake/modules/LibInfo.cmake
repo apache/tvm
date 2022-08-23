@@ -116,6 +116,7 @@ function(add_lib_info src_file)
     TVM_INFO_USE_VULKAN="${USE_VULKAN}"
     TVM_INFO_USE_CLML="${USE_CLML}"
     TVM_INFO_USE_CLML_GRAPH_EXECUTOR="${USE_CLML_GRAPH_EXECUTOR}"
+    TVM_INFO_USE_UMA="${USE_UMA}"
   )
 
 endfunction()

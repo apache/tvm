@@ -279,28 +279,35 @@ def schedule_conv2d_NCHWc_KCRSk(cfg, s, output):
     ):  # len(latest.op.axis) == 4:
         # manage scheduling of datacopy
         pad_data, kernel = s[conv].op.input_tensors
-        pack_data = pad_data.op.input_tensors[0]
-        bind_data_copy(s[pack_data])
+        if "pad_temp" in pad_data.op.name:
+            pack_data = pad_data.op.input_tensors[0]
+            bind_data_copy(s[pack_data])
+        else:
+            bind_data_copy(s[pad_data])
         bind_data_copy(s[kernel])
 
     pad_data, kernel = s[conv].op.input_tensors
 
-    s[pad_data].compute_inline()
-
-    s[conv].set_scope("local")
-    if latest_blocked == latest and output != latest:
-        s[output].compute_inline()
-
-    # create cache stage
-    AT = s.cache_read(pad_data, get_texture_storage(pad_data.shape), [conv])
-    bind_data_copy(s[AT])
     if (
         autotvm.GLOBAL_SCOPE.in_tuning
         or isinstance(kernel.op, tvm.te.ComputeOp)
         and "filter_pack" in kernel.op.tag
     ):
+        if "pad_temp" in pad_data.op.name:
+            s[pad_data].compute_inline()
+        AT = s.cache_read(pad_data, get_texture_storage(pad_data.shape), [conv])
+        bind_data_copy(s[AT])
         WT = s.cache_read(kernel, get_texture_storage(kernel.shape), [conv])
         bind_data_copy(s[WT])
+    elif "pad_temp" in pad_data.op.name:
+        s[pad_data].compute_inline()
+        # create cache stage
+        AT = s.cache_read(pad_data, get_texture_storage(pad_data.shape), [conv])
+        bind_data_copy(s[AT])
+
+    s[conv].set_scope("local")
+    if latest_blocked == latest and output != latest:
+        s[output].compute_inline()
 
     # tile and bind spatial axes
     n, fc, y, x, fb = s[latest_blocked].op.axis

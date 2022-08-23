@@ -568,8 +568,8 @@ def test_residual_block(target, dtype):
     }
 
     static_memory_scope = [
-        "",
         "global",
+        "global.texture",
         "global.texture-weight",
         "global.texture-weight",
         "global.texture",
@@ -804,8 +804,8 @@ def test_pooling_branching_texture_params(target, dtype):
     }
 
     static_memory_scope = [
-        "",
         "global",
+        "global.texture",
         "global.texture-weight",
         "global.texture",
         "global.texture",
@@ -929,8 +929,8 @@ def test_branching_texture_params(target, dtype):
     }
 
     static_memory_scope = [
-        "",
         "global",
+        "global.texture",
         "global.texture-weight",
         "global.texture",
         "global.texture-weight",
@@ -1016,8 +1016,8 @@ def test_conv2d_different_lowering_same_op(target, dtype):
     }
 
     static_memory_scope = [
-        "",
         "global",
+        "global.texture",
         "global.texture-weight",
         "global.texture",
         "global.texture",
