@@ -2028,13 +2028,17 @@ inline Tensor adv_index(const Tensor& data, const Array<Tensor>& indices,
  * \return embedded tensor.
  */
 inline Tensor embedding_bag(const Tensor& input, const Tensor& weight, const Tensor& offset,
-                            int mode, int padding_idx, bool scale_grad_by_freq, DataType dtype,
+                            int mode, int padding_idx, bool scale_grad_by_freq,
+                            bool include_last_offset, bool sparse, DataType dtype,
                             const std::string name = "T_embedding_bag",
                             const std::string tag = kInjective) {
   auto row = offset->shape[0];
   auto column = weight->shape[1];
 
-  int N = GetConstInt(input->shape[0]);
+  tvm::PrimExpr N = static_cast<int>(GetConstInt(input->shape[0]));
+  if (include_last_offset) {
+    row = row - 1;
+  }
 
   Array<PrimExpr> oshape{row, column};
 
@@ -2043,8 +2047,8 @@ inline Tensor embedding_bag(const Tensor& input, const Tensor& weight, const Ten
     auto count = make_zero(dtype);
 
     auto st = offset(i);  // start point
-    auto ed = tvm::tir::Select(row == i + 1, PrimExpr(N),
-                               cast(DataType::Int(32), offset(i + 1)));  // end point
+    auto ed =
+        tvm::tir::Select(row == i + 1, N, cast(DataType::Int(32), offset(i + 1)));  // end point
 
     // can't find `fold` function, so use a stupid method to iterate from st to ed
     for (auto idx = 0; idx < N; idx++) {
@@ -2064,6 +2068,9 @@ inline Tensor embedding_bag(const Tensor& input, const Tensor& weight, const Ten
       }
     }
     if (mode == 1) {  // mean
+      // if (include_last_offset) {
+      //   // count = tvm::tir::Select(row == i + 1, count + (N - offset(i + 1)), count);
+      // }
       ret = tvm::topi::divide(ret, count);
     }
 

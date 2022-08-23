@@ -1891,7 +1891,7 @@ def stft(
     return _make.stft(data, n_fft, hop_length, win_length, window, normalized, onesided)
 
 
-def embedding_bag(indices, weights, offsets, mode, padding_idx, scale_grad_by_freq):
+def embedding_bag(indices, weights, offsets, mode, padding_idx, scale_grad_by_freq, sparse, per_sample_weights, include_last_offset):
     """
     TBA
 
@@ -1940,7 +1940,7 @@ def embedding_bag(indices, weights, offsets, mode, padding_idx, scale_grad_by_fr
             [ 0.5893,  0.4386,  0.5882]]
     """
 
-    return _make.embedding_bag(indices, weights, offsets, mode, padding_idx, scale_grad_by_freq)
+    return _make.embedding_bag(indices, weights, offsets, mode, padding_idx, scale_grad_by_freq, sparse, per_sample_weights, include_last_offset)
 
 
 def trilu(data, k, upper=True):
