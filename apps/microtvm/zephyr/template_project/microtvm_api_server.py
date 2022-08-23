@@ -195,6 +195,33 @@ def _get_device_args(options):
     )
 
 
+def _get_board_mem_size_bytes(options):
+    board_file_path = (
+        pathlib.Path(get_zephyr_base(options))
+        / "boards"
+        / "arm"
+        / options["zephyr_board"]
+        / (options["zephyr_board"] + ".yaml")
+    )
+    try:
+        with open(board_file_path) as f:
+            board_data = yaml.load(f, Loader=yaml.FullLoader)
+            return int(board_data["ram"]) * 1024
+    except:
+        _LOG.warning("Board memory information is not available.")
+    return None
+
+
+DEFAULT_HEAP_SIZE_BYTES = 216 * 1024
+
+
+def _get_recommended_heap_size_bytes(options):
+    prop = BOARD_PROPERTIES[options["zephyr_board"]]
+    if "recommended_heap_size_bytes" in prop:
+        return prop["recommended_heap_size_bytes"]
+    return DEFAULT_HEAP_SIZE_BYTES
+
+
 def generic_find_serial_port(serial_number=None):
     """Find a USB serial port based on its serial number or its VID:PID.
 
@@ -369,6 +396,12 @@ PROJECT_OPTIONS = [
         optional=["generate_project"],
         type="bool",
         help="Run on the FVP emulator instead of hardware.",
+    ),
+    server.ProjectOption(
+        "heap_size_bytes",
+        optional=["generate_project"],
+        type="int",
+        help="Sets the value for HEAP_SIZE_BYTES passed to K_HEAP_DEFINE() to service TVM memory allocation requests.",
     ),
 ]
 
@@ -594,6 +627,18 @@ class Handler(server.ProjectAPIHandler):
                         line = line.replace(self.CMSIS_PATH_TOKEN, str(os.environ["CMSIS_PATH"]))
 
                     cmake_f.write(line)
+
+                heap_size = _get_recommended_heap_size_bytes(options)
+                if options.get("heap_size_bytes"):
+                    board_mem_size = _get_board_mem_size_bytes(options)
+                    heap_size = options["heap_size_bytes"]
+                    if board_mem_size is not None:
+                        assert (
+                            heap_size < board_mem_size
+                        ), f"Heap size {heap_size} is larger than memory size {board_mem_size} on this board."
+                cmake_f.write(
+                    f"target_compile_definitions(app PUBLIC -DHEAP_SIZE_BYTES={heap_size})\n"
+                )
 
                 if options.get("compile_definitions"):
                     flags = options.get("compile_definitions")
