@@ -21,7 +21,7 @@
 
 import os
 import random
-from typing import List, Union
+from typing import Optional, Union
 
 import pytest
 
@@ -56,13 +56,13 @@ def _compose(args, decs):
 requires_hexagon_toolchain = tvm.testing.requires_hexagon(support_required="compile-only")
 
 
-def android_serial_number() -> List[str]:
-    """Return the android serial number or simulator"""
+def android_serial_number() -> Optional[str]:
+    """Return the android serial number"""
     serial = os.getenv(ANDROID_SERIAL_NUMBER, default="")
     # Setting ANDROID_SERIAL_NUMBER to an empty string should be
     # equivalent to having it unset.
     if not serial.strip():
-        pytest.skip("ANDROID_SERIAL_NUMBER is not set.")
+        return None
 
     # Split android serial numbers into a list
     serial = serial.split(",")
@@ -164,6 +164,9 @@ def hexagon_server_process(
     This launcher is started only once per test session.
     """
     android_serial_num = android_serial_number()
+    
+    if android_serial_num is None:
+        pytest.skip("ANDROID_SERIAL_NUMBER is not set.")
     if android_serial_num == ["simulator"]:
         yield None
     else:
