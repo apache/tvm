@@ -15,7 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+import json
 import os
 import logging
 import argparse
@@ -36,25 +36,50 @@ PR_TEST_REPORT_DIR = "pr-reports"
 MAIN_TEST_REPORT_DIR = "main-reports"
 
 
-def retrieve_test_report(s3_url, target_dir):
-    command = f"aws s3 cp {s3_url} {target_dir} --recursive"
+def run_subprocess(command):
     logging.info(f"Running command {command}")
     proc = subprocess.run(command, shell=True, stdout=subprocess.PIPE, encoding="utf-8")
     if proc.returncode != 0:
         raise RuntimeError(f"Command failed {command}:\nstdout:\n{proc.stdout}")
+    return proc
 
 
-def retrieve_test_reports(pr_number, build_number, s3_prefix, jenkins_prefix):
+def retrieve_test_report(s3_url, target_dir):
+    command = f"aws s3 cp {s3_url} {target_dir} --recursive"
+    run_subprocess(command)
+
+
+def get_common_commit_sha():
+    command = "git merge-base origin/main HEAD"
+    proc = run_subprocess(command)
+    return proc.stdout.strip()
+
+
+def get_main_jenkins_build_number(github, common_commit):
+    json = github.get(f"commits/{common_commit}/status")
+    for status in reversed(json["statuses"]):
+        if status["context"] != "tvm-ci/branch":
+            continue
+        state = status["state"]
+        target_url = str(status["target_url"])
+        build_number = (
+            target_url[target_url.find("job/main") : len(target_url)]
+            .strip("job/main/")
+            .strip("/display/redirect")
+        )
+        assert build_number.isdigit()
+        return {"build_number": build_number, "state": state}
+    raise RuntimeError(f"Failed to find main build number for commit {common_commit}")
+
+
+def retrieve_test_reports(common_main_build, pr_number, build_number, s3_prefix):
     cur_build_s3_link = (
         f"s3://{s3_prefix}/tvm/PR-{str(pr_number)}/{str(build_number)}/pytest-results"
     )
     retrieve_test_report(cur_build_s3_link, PR_TEST_REPORT_DIR)
 
-    latest_main_build = requests.get(
-        f"https://{jenkins_prefix}/job/tvm/job/main/lastSuccessfulBuild/buildNumber"
-    ).text
-    latest_build_s3_link = f"s3://{s3_prefix}/tvm/main/{latest_main_build}/pytest-results"
-    retrieve_test_report(latest_build_s3_link, MAIN_TEST_REPORT_DIR)
+    common_build_s3_link = f"s3://{s3_prefix}/tvm/main/{common_main_build}/pytest-results"
+    retrieve_test_report(common_build_s3_link, MAIN_TEST_REPORT_DIR)
 
 
 def get_pr_and_build_numbers(target_url):
@@ -87,13 +112,24 @@ def to_node_name(dir_name: str):
     return dir_name.replace("_", ": ", 1)
 
 
-def build_comment(skipped_list, pr_number, build_number, commit_sha, jenkins_prefix):
+def build_comment(
+    common_commit_sha,
+    common_main_build,
+    skipped_list,
+    pr_number,
+    build_number,
+    commit_sha,
+    jenkins_prefix,
+):
+    if common_main_build["state"] != "success":
+        return f"{SKIPPED_TESTS_COMMENT_MARKER}Unable to run tests bot because main failed to pass CI at {common_commit_sha}."
+
     if len(skipped_list) == 0:
         return f"{SKIPPED_TESTS_COMMENT_MARKER}No additional skipped tests found in this branch for commit {commit_sha}."
 
     text = (
-        f"{SKIPPED_TESTS_COMMENT_MARKER}The list below shows some tests that ran in main but were skipped in the "
-        f"CI build of {commit_sha}:\n"
+        f"{SKIPPED_TESTS_COMMENT_MARKER}The list below shows some tests that ran in main {common_commit_sha} but were "
+        f"skipped in the CI build of {commit_sha}:\n"
         f"```\n"
     )
     for skip in skipped_list:
@@ -132,6 +168,7 @@ if __name__ == "__main__":
     parser.add_argument("--remote", default="origin", help="ssh remote to parse")
     parser.add_argument("--s3-prefix", default="tvm-jenkins-artifacts-prod")
     parser.add_argument("--jenkins-prefix", default="ci.tlcpack.ai")
+    parser.add_argument("--common-main-build")
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -150,12 +187,19 @@ if __name__ == "__main__":
     commit_sha = os.environ["COMMIT_SHA"]
 
     if not args.dry_run:
+        github = GitHubRepo(token=os.environ["GITHUB_TOKEN"], user=user, repo=repo)
+        common_commit_sha = get_common_commit_sha()
+        common_main_build = get_main_jenkins_build_number(github, common_commit_sha)
         retrieve_test_reports(
+            common_main_build=common_main_build["build_number"],
             pr_number=pr_and_build["pr_number"],
             build_number=pr_and_build["build_number"],
             s3_prefix=args.s3_prefix,
-            jenkins_prefix=args.jenkins_prefix,
         )
+    else:
+        assert args.common_main_build is not None
+        common_main_build = json.loads(args.common_main_build)
+        common_commit_sha = os.environ["COMMIT_SHA"]
 
     main_tests = build_test_set(MAIN_TEST_REPORT_DIR)
     build_tests = build_test_set(PR_TEST_REPORT_DIR)
@@ -172,10 +216,15 @@ if __name__ == "__main__":
             for test in diff_set:
                 skipped_list.append(f"{to_node_name(subdir)} -> {test}")
 
+    # Sort the list to maintain an order in the output. Helps when validating the output in tests.
+    skipped_list.sort()
+
     if len(skipped_list) == 0:
         logging.info("No skipped tests found.")
 
     body = build_comment(
+        common_commit_sha,
+        common_main_build,
         skipped_list,
         pr_and_build["pr_number"],
         pr_and_build["build_number"],
@@ -184,8 +233,6 @@ if __name__ == "__main__":
     )
     url = f'issues/{pr_and_build["pr_number"]}/comments'
     if not args.dry_run:
-        github = GitHubRepo(token=os.environ["GITHUB_TOKEN"], user=user, repo=repo)
-
         # For now, only comment for PRs open by driazati, gigiblender and areusch.
         get_pr_url = f'pulls/{pr_and_build["pr_number"]}'
         pull_request_body = github.get(get_pr_url)
@@ -199,8 +246,10 @@ if __name__ == "__main__":
 
         if comment is not None:
             comment_url = comment["url"]
-            comment_id = comment_url[comment_url.find("comments/"): len(comment_url)].strip("comments/")
-            github.patch(f'issues/comments/{comment_id}', {"body": body})
+            comment_id = comment_url[comment_url.find("comments/") : len(comment_url)].strip(
+                "comments/"
+            )
+            github.patch(f"issues/comments/{comment_id}", {"body": body})
         else:
             github.post(url, {"body": body})
     else:
