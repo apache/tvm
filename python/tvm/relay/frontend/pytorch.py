@@ -911,6 +911,8 @@ class PyTorchOpConverter:
 
     def log_sigmoid(self, inputs, input_types):
         data = inputs[0]
+        mn = _op.minimum(_op.const(0, dtype=input_types[0]), data)
+        z = _op.exp(-_op.abs(data))
         return _op.log(_op.tensor.sigmoid(data))
 
     def cross_entropy_loss_with_logits(self, inputs, input_types):
