@@ -34,11 +34,11 @@ def opt_gemm_normalize():
             # function attr dict
             T.func_attr({"global_symbol": "mmult", "tir.noalias": True})
             # buffer definition
-            C_global = T.buffer_decl([1024, 1024], elem_offset=0, align=128, offset_factor=1)
-            packedB = T.buffer_decl([32, 1024, 32], elem_offset=0, align=128, offset_factor=1)
-            A_1 = T.match_buffer(A, [1024, 1024], elem_offset=0, align=128, offset_factor=1)
-            B_1 = T.match_buffer(B, [1024, 1024], elem_offset=0, align=128, offset_factor=1)
-            C_1 = T.match_buffer(C, [1024, 1024], elem_offset=0, align=128, offset_factor=1)
+            C_global = T.buffer_decl([1024, 1024], elem_offset=0, align=64, offset_factor=1)
+            packedB = T.buffer_decl([32, 1024, 32], elem_offset=0, align=64, offset_factor=1)
+            A_1 = T.match_buffer(A, [1024, 1024], elem_offset=0, align=64, offset_factor=1)
+            B_1 = T.match_buffer(B, [1024, 1024], elem_offset=0, align=64, offset_factor=1)
+            C_1 = T.match_buffer(C, [1024, 1024], elem_offset=0, align=64, offset_factor=1)
             # body
             T.realize(packedB[0:32, 0:1024, 0:32], "")
             for x in T.parallel(0, 32):
@@ -90,9 +90,9 @@ def opt_gemm_lower():
         def mmult(A: T.handle, B: T.handle, C: T.handle) -> None:
             # function attr dict
             T.func_attr({"global_symbol": "mmult", "tir.noalias": True})
-            A_1 = T.match_buffer(A, [1024 * 1024], elem_offset=0, align=128, offset_factor=1)
-            B_1 = T.match_buffer(B, [1024, 1024], elem_offset=0, align=128, offset_factor=1)
-            C_1 = T.match_buffer(C, [1024 * 1024], elem_offset=0, align=128, offset_factor=1)
+            A_1 = T.match_buffer(A, [1024 * 1024], elem_offset=0, align=64, offset_factor=1)
+            B_1 = T.match_buffer(B, [1024, 1024], elem_offset=0, align=64, offset_factor=1)
+            C_1 = T.match_buffer(C, [1024 * 1024], elem_offset=0, align=64, offset_factor=1)
             # body
             packedB = T.allocate([32768], "float32", "global")
             for x in T.parallel(0, 32):
@@ -484,10 +484,10 @@ def opt_conv_tensorcore_normalize():
         tz = T.env_thread("threadIdx.z")
         # buffer definition
         Apad_shared = T.buffer_decl(
-            [16, 16, 16, 16, 16, 16], dtype="float16", elem_offset=0, align=128, offset_factor=1
+            [16, 16, 16, 16, 16, 16], dtype="float16", elem_offset=0, align=64, offset_factor=1
         )
         Apad_shared_wmma_matrix_a = T.buffer_decl(
-            [16, 16, 16, 16, 16, 16], dtype="float16", elem_offset=0, align=128, offset_factor=1
+            [16, 16, 16, 16, 16, 16], dtype="float16", elem_offset=0, align=64, offset_factor=1
         )
         BA = T.buffer_decl(
             [16, 16], dtype="float16", scope="wmma.matrix_a", align=32, offset_factor=256
@@ -497,13 +497,13 @@ def opt_conv_tensorcore_normalize():
         )
         BC = T.buffer_decl([16, 16], scope="wmma.accumulator", align=32, offset_factor=256)
         Conv_wmma_accumulator = T.buffer_decl(
-            [16, 14, 14, 32, 16, 16], elem_offset=0, align=128, offset_factor=1
+            [16, 14, 14, 32, 16, 16], elem_offset=0, align=64, offset_factor=1
         )
         W_shared = T.buffer_decl(
-            [3, 3, 16, 32, 16, 16], dtype="float16", elem_offset=0, align=128, offset_factor=1
+            [3, 3, 16, 32, 16, 16], dtype="float16", elem_offset=0, align=64, offset_factor=1
         )
         W_shared_wmma_matrix_b = T.buffer_decl(
-            [3, 3, 16, 32, 16, 16], dtype="float16", elem_offset=0, align=128, offset_factor=1
+            [3, 3, 16, 32, 16, 16], dtype="float16", elem_offset=0, align=64, offset_factor=1
         )
         buffer = T.buffer_decl(
             [16, 16], dtype="float16", scope="shared", align=32, offset_factor=256
@@ -520,13 +520,13 @@ def opt_conv_tensorcore_normalize():
         buffer_4 = T.buffer_decl([16, 16], scope="wmma.accumulator", align=32, offset_factor=256)
         buffer_5 = T.buffer_decl([16, 16], align=32, offset_factor=256)
         A_1 = T.match_buffer(
-            A, [16, 14, 14, 16, 16, 16], dtype="float16", elem_offset=0, align=128, offset_factor=1
+            A, [16, 14, 14, 16, 16, 16], dtype="float16", elem_offset=0, align=64, offset_factor=1
         )
         W_1 = T.match_buffer(
-            W, [3, 3, 16, 32, 16, 16], dtype="float16", elem_offset=0, align=128, offset_factor=1
+            W, [3, 3, 16, 32, 16, 16], dtype="float16", elem_offset=0, align=64, offset_factor=1
         )
         Conv_1 = T.match_buffer(
-            Conv, [16, 14, 14, 32, 16, 16], elem_offset=0, align=128, offset_factor=1
+            Conv, [16, 14, 14, 32, 16, 16], elem_offset=0, align=64, offset_factor=1
         )
         # body
         T.realize(Conv_1[0:16, 0:14, 0:14, 0:32, 0:16, 0:16], "")
@@ -2958,8 +2958,8 @@ def primfunc_with_allocate_annotations():
     def primfunc_with_allocate_annotations(placeholder_28: T.handle, T_cast_6: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_max_pool2d_cast", "tir.noalias": True})
-        placeholder_29 = T.match_buffer(placeholder_28, [802816], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        T_cast_7 = T.match_buffer(T_cast_6, [200704], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_29 = T.match_buffer(placeholder_28, [802816], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
+        T_cast_7 = T.match_buffer(T_cast_6, [200704], dtype="int16", elem_offset=0, align=64, offset_factor=1)
         # body
         tensor_2 = T.allocate([200704], "uint8", "global", annotations={"attr1_key": "attr1_value"})
         for ax0_ax1_fused_4 in T.serial(0, 56):

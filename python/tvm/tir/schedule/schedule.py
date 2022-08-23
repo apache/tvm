@@ -2092,9 +2092,9 @@ class Schedule(Object):
 
             @T.prim_func
             def mma_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (16, 16), align=128, offset_factor=1)
-                B = T.match_buffer(b, (16, 16), align=128, offset_factor=1)
-                C = T.match_buffer(c, (16, 16), align=128, offset_factor=1)
+                A = T.match_buffer(a, (16, 16), align=64, offset_factor=1)
+                B = T.match_buffer(b, (16, 16), align=64, offset_factor=1)
+                C = T.match_buffer(c, (16, 16), align=64, offset_factor=1)
 
                 with T.block("root"):
                     T.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
@@ -2107,9 +2107,9 @@ class Schedule(Object):
 
             @T.prim_func
             def mma_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (16, 16), align=128, offset_factor=1)
-                B = T.match_buffer(b, (16, 16), align=128, offset_factor=1)
-                C = T.match_buffer(c, (16, 16), align=128, offset_factor=1)
+                A = T.match_buffer(a, (16, 16), align=64, offset_factor=1)
+                B = T.match_buffer(b, (16, 16), align=64, offset_factor=1)
+                C = T.match_buffer(c, (16, 16), align=64, offset_factor=1)
 
                 with T.block("root"):
                     T.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
