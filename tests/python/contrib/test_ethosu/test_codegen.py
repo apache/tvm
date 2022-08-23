@@ -347,9 +347,7 @@ def test_ethosu_binary_elementwise(
         ([1, 4, 4], [4, 1]),
     ],
 )
-@tvm.testing.xfail_parameterizations(
-    "ifm_shape0-ifm2_shape0-ethos-u55-64", reason="See https://github.com/apache/tvm/issues/12511"
-)
+@pytest.mark.xfail(reason="See https://github.com/apache/tvm/issues/12511")
 def test_binary_add_with_non_4d_shapes(
     request,
     accel_type,
@@ -608,9 +606,7 @@ def test_ethosu_right_shift_binary_elemwise(
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize("ifm_shape", [(3, 2), (1, 15, 11, 7), (3, 1, 12), (400,)])
 @pytest.mark.parametrize("ifm_scale, ifm_zp, ofm_scale, ofm_zp", [(1, 0, 1, 0), (0.015, 3, 0.2, 5)])
-@tvm.testing.xfail_parameterizations(
-    "1-0-1-0-ifm_shape3-ethos-u55-128", reason="See https://github.com/apache/tvm/issues/12511"
-)
+@pytest.mark.xfail(reason="See https://github.com/apache/tvm/issues/12511")
 def test_ethosu_identity_codegen(
     request, ifm_shape, ifm_scale, ifm_zp, ofm_scale, ofm_zp, accel_type
 ):
@@ -659,6 +655,7 @@ def test_ethosu_identity_codegen(
         ((8, 7, 3), (-4, 1, 8, -2)),
     ],
 )
+@pytest.mark.xfail(reason="See https://github.com/apache/tvm/issues/12511")
 def test_relay_reshape_codegen(ifm_shape, new_shape, accel_type):
     np.random.seed(0)
 
@@ -691,9 +688,7 @@ def test_relay_reshape_codegen(ifm_shape, new_shape, accel_type):
         ([5000], [123], [2151]),
     ],
 )
-@tvm.testing.xfail_parameterizations(
-    "ifm_shape3-begin3-size3-ethos-u55-32", reason="See https://github.com/apache/tvm/issues/12511"
-)
+@pytest.mark.xfail(reason="See https://github.com/apache/tvm/issues/12511")
 def test_tflite_slice(request, accel_type, ifm_shape, begin, size):
     np.random.seed(0)
 
@@ -729,9 +724,7 @@ def test_tflite_strided_slice(accel_type, ifm_shape, begin, end):
     "ifm_shape",
     [[1, 5, 12, 4], [1, 1, 2], [4, 3, 2], [10, 20], [345]],
 )
-@tvm.testing.xfail_parameterizations(
-    "ifm_shape4-ABS-ethos-u55-64", reason="See https://github.com/apache/tvm/issues/12511"
-)
+@pytest.mark.xfail(reason="See https://github.com/apache/tvm/issues/12511")
 def test_ethosu_unary_elementwise(
     request,
     accel_type,
