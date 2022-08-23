@@ -63,6 +63,63 @@ ExprDoc GetTypeAnnotationDocForVar(const TracedObject<tir::Var>& var, const IRDo
   }
 }
 
+static String GetIterTypePyStr(tir::IterVarType iter_type) {
+  switch (iter_type) {
+    case tir::kDataPar:
+      return "DataPar";
+    case tir::kThreadIndex:
+      return "ThreadIndex";
+    case tir::kCommReduce:
+      return "CommReduce";
+    case tir::kOrdered:
+      return "Ordered";
+    case tir::kOpaque:
+      return "DimInfo";
+    case tir::kUnrolled:
+      return "Unrolled";
+    case tir::kVectorized:
+      return "Vectorized";
+    case tir::kParallelized:
+      return "Parallelized";
+    case tir::kTensorized:
+      return "Tensorized";
+    default:
+      LOG(FATAL) << "Unknown iter type: " << iter_type;
+      throw;
+  }
+}
+
+ExprDoc IterVarStandaloneDef(const TracedObject<tir::IterVar> iter_var, const IRDocsifier& p) {
+  Array<ExprDoc> args;
+
+  args.push_back(p->AsExprDoc(iter_var.GetAttr(&tir::IterVarNode::var)));
+
+  if (iter_var.Get()->dom.defined()) {
+    auto dom = iter_var.GetAttr(&tir::IterVarNode::dom);
+    auto min = dom.GetAttr(&RangeNode::min);
+    auto extent = dom.GetAttr(&RangeNode::extent);
+    if (tir::is_zero(min.Get())) {
+      auto extent_doc = p->AsExprDoc(extent);
+      extent_doc->source_paths.push_back(min.GetPath());
+      args.push_back(extent_doc);
+    } else {
+      auto max = MakeTraced(min.Get() + extent.Get(), extent.GetPath());
+      args.push_back(TupleDoc({p->AsExprDoc(min), p->AsExprDoc(max)}));
+    }
+  } else {
+    args.push_back(LiteralDoc::None());
+  }
+
+  auto iter_type = iter_var.GetAttr(&tir::IterVarNode::iter_type);
+  args.push_back(
+      LiteralDoc::Str(MakeTraced(GetIterTypePyStr(iter_type.Get()), iter_type.GetPath())));
+  args.push_back(LiteralDoc::Str(iter_var.GetAttr(&tir::IterVarNode::thread_tag)));
+
+  ExprDoc result = TIR(p)->Attr("iter_var")->Call(args);
+  result->source_paths.push_back(iter_var.GetPath());
+  return result;
+}
+
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<RootNodeContainer>("tir", [](TracedObject<RootNodeContainer> obj, IRDocsifier p) {
       const ObjectRef& root_node = obj.Get()->root_node;

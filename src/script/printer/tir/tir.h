@@ -80,6 +80,10 @@ class TIRGeneralFrame : public TIRFrame {
 
 inline IdDoc TIR(const IRDocsifier& p) { return IdDoc(p->ir_prefix.Get("tir").value_or("T")); }
 
+inline IdDoc DefineTIRVar(const TracedObject<tir::Var>& var, const Frame& frame, IRDocsifier p) {
+  return p->vars->Define(var.Get(), var.GetAttr(&tir::VarNode::name_hint), frame);
+}
+
 ExprDoc GetTypeAnnotationDocForVar(const TracedObject<tir::Var>& var, const IRDocsifier& p);
 
 void PostOrderVisitExprTraced(const TracedObject<PrimExpr>& expr,
@@ -88,6 +92,9 @@ void PostOrderVisitExprTraced(const TracedObject<PrimExpr>& expr,
 void PostOrderVisitStmtExprTraced(
     const TracedObject<tir::Stmt>& expr,
     const std::function<void(const TracedObject<ObjectRef>&)>& callback);
+
+// Print IterVar as T.iter_var(...)
+ExprDoc IterVarStandaloneDef(const TracedObject<tir::IterVar> iter_var, const IRDocsifier& p);
 
 }  // namespace printer
 }  // namespace script
