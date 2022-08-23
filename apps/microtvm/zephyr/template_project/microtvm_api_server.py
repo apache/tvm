@@ -463,6 +463,7 @@ class Handler(server.ProjectAPIHandler):
     API_SERVER_CRT_LIBS_TOKEN = "<API_SERVER_CRT_LIBS>"
     CMAKE_ARGS_TOKEN = "<CMAKE_ARGS>"
     QEMU_PIPE_TOKEN = "<QEMU_PIPE>"
+    CMSIS_PATH_TOKEN = "<CMSIS_PATH>"
 
     CRT_LIBS_BY_PROJECT_TYPE = {
         "host_driven": "microtvm_rpc_server microtvm_rpc_common aot_executor_module aot_executor common",
@@ -521,6 +522,8 @@ class Handler(server.ProjectAPIHandler):
         cmake_args += f"set(BOARD {options['zephyr_board']})\n"
 
         enable_cmsis = self._cmsis_required(mlf_extracted_path)
+        if enable_cmsis:
+            assert os.environ.get("CMSIS_PATH"), "CMSIS_PATH is not defined."
         cmake_args += f"set(ENABLE_CMSIS {str(enable_cmsis).upper()})\n"
 
         return cmake_args
@@ -586,6 +589,9 @@ class Handler(server.ProjectAPIHandler):
                     if self.QEMU_PIPE_TOKEN in line:
                         self.qemu_pipe_dir = pathlib.Path(tempfile.mkdtemp())
                         line = line.replace(self.QEMU_PIPE_TOKEN, str(self.qemu_pipe_dir / "fifo"))
+
+                    if self.CMSIS_PATH_TOKEN in line and self._cmsis_required(extract_path):
+                        line = line.replace(self.CMSIS_PATH_TOKEN, str(os.environ["CMSIS_PATH"]))
 
                     cmake_f.write(line)
 
