@@ -36,6 +36,7 @@
 #include <utility>
 #include <vector>
 
+#include "../../../op/tensor/transform.h"
 #include "ethosn_support_library/Support.hpp"
 #include "ethosn_support_library/SupportQueries.hpp"
 #include "tvm/relay/qnn/attrs.h"
@@ -293,12 +294,6 @@ EthosnError EthosnAPI::Reshape(const Expr& expr, ReshapeParams* params) {
   // Create input info
   Call reshape = Downcast<Call>(expr);
   const auto* input_dtype = reshape->args[0]->checked_type().as<TensorTypeNode>();
-  const auto& reshape_attrs = reshape->attrs.as<ReshapeAttrs>();
-
-  if (reshape_attrs->newshape.size() > params->new_shape.size()) {
-    return EthosnError(ErrStrm() << "reshape dimension=" << reshape_attrs->newshape.size()
-                                 << ", reshape dimension must be <= " << params->new_shape.size());
-  }
 
   sl::TensorShape input_tensor_shape = {1, 1, 1, 1};
   sl::DataType input_data_type;
@@ -309,35 +304,12 @@ EthosnError EthosnAPI::Reshape(const Expr& expr, ReshapeParams* params) {
     tensor_size *= dim;
   }
 
-  int infer_index = -1;
-  int reshaped_size = 1;
-  Array<Integer> inferred_shape = {1, 1, 1, 1};
-  for (size_t i = 0; i < reshape_attrs->newshape.size(); i++) {
-    int value = reshape_attrs->newshape[i].as<IntImmNode>()->value;
-    if (value < -1) {
-      return EthosnError(ErrStrm()
-                         << "reshape dimension=" << value << ", reshape dimension must be >= -1");
-    }
-    if (value == -1) {
-      if (infer_index != -1) {
-        return EthosnError("only one reshape dimension can be inferred");
-      }
-      infer_index = i;
-    } else {
-      inferred_shape.Set(i, value);
-      reshaped_size *= value;
-    }
+  Array<IndexExpr> inferred_shape = {1, 1, 1, 1};
+  Array<IndexExpr> new_shape = InferNewShape(input_dtype->shape, reshape->attrs, false);
+  for (size_t i = 0; i < new_shape.size(); ++i) {
+    inferred_shape.Set(i, new_shape[i]);
   }
 
-  if (infer_index != -1) {
-    if (tensor_size % reshaped_size != 0) {
-      return EthosnError(ErrStrm()
-                         << "reshaped size=" << reshaped_size
-                         << ", must be an integer factor of the input size " << tensor_size);
-    }
-    int value = tensor_size / reshaped_size;
-    inferred_shape.Set(infer_index, Integer(value));
-  }
   err += Tvm2Npu(inferred_shape, &params->new_shape);
   params->input_info =
       sl::TensorInfo(input_tensor_shape, input_data_type, params->input_info.m_DataFormat,
