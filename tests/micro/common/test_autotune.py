@@ -61,6 +61,7 @@ def test_kws_autotune_workflow(platform, board, tmp_path):
     assert logs[0]["config"]["entity"] != logs[1]["config"]["entity"]
 
     # Compile the best model with AOT and connect to it
+    str_io_logs.seek(0)
     with tvm.micro.testing.create_aot_session(
         platform,
         board,
