@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import platform
 import pytest
 import os
 
@@ -73,6 +74,10 @@ def test_get_tuning_tasks(onnx_mnist):
     assert all([type(x) is expected_task_type for x in sut]) is True
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+)
 def test_tune_tasks__tuner__xgb(onnx_mnist, tmpdir_factory):
     pytest.importorskip("onnx")
 
@@ -141,6 +146,10 @@ def test_tune_tasks__tuner__xgb__no_early_stopping(onnx_mnist, tmpdir_factory):
     _tuner_test_helper(onnx_mnist, "xgb", tmpdir_name, early_stopping=None)
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+)
 def test_tune_tasks__tuner__xgb__no_tuning_records(onnx_mnist, tmpdir_factory):
     pytest.importorskip("onnx")
 

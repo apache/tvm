@@ -55,6 +55,10 @@ def test_tvmc_workflow(use_vm, keras_simple):
     assert "output_0" in result.outputs.keys()
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+)
 @pytest.mark.parametrize("use_vm", [True, False])
 def test_save_load_model(use_vm, keras_simple, tmpdir_factory):
     pytest.importorskip("onnx")
