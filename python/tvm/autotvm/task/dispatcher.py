@@ -246,15 +246,15 @@ class ApplyHistoryBest(DispatchContext):
 
     Parameters
     ----------
-    records : Records or iterator of Records objects, where a Records
-              object is a path-like object, a file-like object, or an
-              iterator of (MeasureInput, MeasureResult).
+    records : None, Records, or iterator of Records objects, where a
+              Records object is a path-like object, a file-like object,
+              or an iterator of (MeasureInput, MeasureResult).
 
         Collection of tuning records. If multiple Records objects are passed, their
         contents will be merged.
     """
 
-    def __init__(self, records):
+    def __init__(self, records: Union[None, Records, Iterable[Records]]):
         super(ApplyHistoryBest, self).__init__()
 
         self.best_by_targetkey = {}
@@ -471,7 +471,7 @@ class ApplyGraphBest(DispatchContext):
         from ..record import load_from_file, load_from_buffer
 
         super(ApplyGraphBest, self).__init__()
-        if isinstance(records, str, bytes, PathLike):
+        if isinstance(records, (str, bytes, PathLike)):
             records = load_from_file(records)
         elif isinstance(records, TextIOBase):
             records = load_from_buffer(records)
