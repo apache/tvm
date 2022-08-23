@@ -22,7 +22,7 @@ from tvm import relay
 from tvm.relay import testing
 from tvm.contrib import utils
 from utils.adreno_utils import gpu_preprocess, build_run_compare
-
+import pytest
 dtype = tvm.testing.parameter("float32")
 
 
@@ -148,6 +148,7 @@ def test_conv2d_inceptionv3_35_35_strides(target, dtype):
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_conv2d_resnet50_v2_nchw_3c(target, dtype):
     input_shape = (1, 3, 224, 224)
     filter_shape = (64, 3, 7, 7)
@@ -477,6 +478,7 @@ def test_conv2d_winograd_conv(target, dtype):
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
+@pytest.mark.xfail
 def test_residual_block(target, dtype):
     """
     - some kind of residual block followed by convolution to have texture after residual block

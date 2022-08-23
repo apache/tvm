@@ -23,6 +23,7 @@ from tvm import relay
 from tvm.relay import testing
 from tvm.contrib import utils
 from utils.adreno_utils import gpu_preprocess, build_run_compare
+import pytest
 
 dtype = tvm.testing.parameter("float32")
 
@@ -302,6 +303,7 @@ def test_conv2d_inceptionv3_35_35_strides(target, dtype):
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_conv2d_resnet50_v2_nhwc_3c(target, dtype):
     input_shape = (1, 224, 224, 3)
     filter_shape = (7, 7, 3, 64)
@@ -383,6 +385,7 @@ def test_conv2d_inceptionv3_nhwc_3c(target, dtype):
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
+@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_conv2d_1x1_16c16spatial(target, dtype):
     input_shape = (1, 256, 256, 16)
     filter_shape = (4, 4, 16, 32)
