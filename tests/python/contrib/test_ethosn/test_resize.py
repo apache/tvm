@@ -25,14 +25,25 @@ from tvm.testing import requires_ethosn
 from . import infrastructure as tei
 
 
-def _get_model(shape, dtype, size, input_zp, input_sc, output_zp, output_sc):
+def _get_model(
+    shape,
+    dtype,
+    size,
+    input_zp,
+    input_sc,
+    output_zp,
+    output_sc,
+    coordinate_transformation_mode,
+    rounding_method,
+):
     x = relay.var("x", shape=shape, dtype=dtype)
     resize = relay.image.resize2d(
         data=x,
         size=size,
         layout="NHWC",
         method="nearest_neighbor",
-        coordinate_transformation_mode="asymmetric",
+        coordinate_transformation_mode=coordinate_transformation_mode,
+        rounding_method=rounding_method,
     )
     model = relay.qnn.op.requantize(
         resize,
@@ -48,15 +59,15 @@ def _get_model(shape, dtype, size, input_zp, input_sc, output_zp, output_sc):
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 @pytest.mark.parametrize(
-    "shape, size",
+    "shape, size, coordinate_transformation_mode, rounding_method",
     [
-        ((1, 4, 4, 2), (8, 8)),
-        ((1, 4, 4, 2), (7, 7)),
-        ((1, 4, 8, 3), (8, 16)),
-        ((1, 4, 8, 3), (7, 15)),
+        ((1, 4, 4, 2), (8, 8), "half_pixel", "round_prefer_ceil"),
+        ((1, 4, 4, 2), (7, 7), "asymmetric", "floor"),
+        ((1, 4, 8, 3), (8, 16), "half_pixel", "round_prefer_ceil"),
+        ((1, 4, 8, 3), (7, 15), "asymmetric", "floor"),
     ],
 )
-def test_resize(dtype, shape, size):
+def test_resize(dtype, shape, size, coordinate_transformation_mode, rounding_method):
     np.random.seed(0)
     zp_min = np.iinfo(dtype).min
     zp_max = np.iinfo(dtype).max
@@ -73,6 +84,8 @@ def test_resize(dtype, shape, size):
             input_sc=0.0784314,
             output_zp=zp_min + 128,
             output_sc=0.0784314,
+            coordinate_transformation_mode=coordinate_transformation_mode,
+            rounding_method=rounding_method,
         )
         mod = tei.make_module(model, {})
         x = tei.build_and_run(mod, inputs, 1, {}, npu=npu)
@@ -113,6 +126,8 @@ def test_resize_failure():
             input_sc=0.0784314,
             output_zp=zp_min + 128,
             output_sc=0.0784314,
+            coordinate_transformation_mode="half_pixel",
+            rounding_method="round_prefer_ceil",
         )
         model = tei.make_ethosn_composite(model, "ethos-n.qnn_resize")
         mod = tei.make_ethosn_partition(model)
