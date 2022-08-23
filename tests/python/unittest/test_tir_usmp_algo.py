@@ -299,9 +299,9 @@ class MobilenetStructure:
     def tvmgen_default_fused_cast_subtract(placeholder_2: T.handle, placeholder_3: T.handle, T_subtract: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_cast_subtract", "tir.noalias": True})
-        placeholder_4 = T.match_buffer(placeholder_2, [150528], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        placeholder_5 = T.match_buffer(placeholder_3, [1], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        T_subtract_1 = T.match_buffer(T_subtract, [150528], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_4 = T.match_buffer(placeholder_2, [150528], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
+        placeholder_5 = T.match_buffer(placeholder_3, [1], dtype="int16", elem_offset=0, align=64, offset_factor=1)
+        T_subtract_1 = T.match_buffer(T_subtract, [150528], dtype="int16", elem_offset=0, align=64, offset_factor=1)
         # body
         for ax0_ax1_fused_1 in T.serial(0, 224):
             for ax2_1, ax3_inner_1 in T.grid(224, 3):
@@ -311,10 +311,10 @@ class MobilenetStructure:
     def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast(placeholder_62: T.handle, placeholder_63: T.handle, placeholder_64: T.handle, T_cast_20: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast", "tir.noalias": True})
-        placeholder_65 = T.match_buffer(placeholder_62, [150528], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_66 = T.match_buffer(placeholder_63, [9408], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_67 = T.match_buffer(placeholder_64, [64], dtype="int32", elem_offset=0, align=128, offset_factor=1)
-        T_cast_21 = T.match_buffer(T_cast_20, [802816], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        placeholder_65 = T.match_buffer(placeholder_62, [150528], dtype="int16", elem_offset=0, align=64, offset_factor=1)
+        placeholder_66 = T.match_buffer(placeholder_63, [9408], dtype="int16", elem_offset=0, align=64, offset_factor=1)
+        placeholder_67 = T.match_buffer(placeholder_64, [64], dtype="int32", elem_offset=0, align=64, offset_factor=1)
+        T_cast_21 = T.match_buffer(T_cast_20, [802816], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
         # body
         PaddedInput_7 = T.allocate([157323], "int16", "global")
         for i0_i1_fused_7 in T.serial(0, 229):
@@ -333,8 +333,8 @@ class MobilenetStructure:
     def tvmgen_default_fused_nn_max_pool2d_cast(placeholder_28: T.handle, T_cast_6: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_max_pool2d_cast", "tir.noalias": True})
-        placeholder_29 = T.match_buffer(placeholder_28, [802816], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        T_cast_7 = T.match_buffer(T_cast_6, [200704], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_29 = T.match_buffer(placeholder_28, [802816], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
+        T_cast_7 = T.match_buffer(T_cast_6, [200704], dtype="int16", elem_offset=0, align=64, offset_factor=1)
         # body
         tensor_2 = T.allocate([200704], "uint8", "global")
         for ax0_ax1_fused_4 in T.serial(0, 56):

@@ -288,9 +288,9 @@ def test_func_call():
 
     @T.prim_func
     def mma_sync_m16n16k16_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (32, 8), "float16", align=128, offset_factor=16, scope="warp")
-        B = T.match_buffer(b, (32, 8), "float16", align=128, offset_factor=16, scope="warp")
-        C = T.match_buffer(c, (32, 8), "float16", align=128, offset_factor=16, scope="warp")
+        A = T.match_buffer(a, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
+        B = T.match_buffer(b, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
+        C = T.match_buffer(c, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
 
         with T.block("root"):
             T.reads(C[0:32, 0:8], A[0:32, 0:8], B[0:32, 0:8])
@@ -315,9 +315,9 @@ def test_func_call():
 
     @T.prim_func
     def mma_sync_m16n16k16_desc_manual(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (32, 8), "float16", align=128, offset_factor=16, scope="warp")
-        B = T.match_buffer(b, (32, 8), "float16", align=128, offset_factor=16, scope="warp")
-        C = T.match_buffer(c, (32, 8), "float16", align=128, offset_factor=16, scope="warp")
+        A = T.match_buffer(a, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
+        B = T.match_buffer(b, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
+        C = T.match_buffer(c, (32, 8), "float16", align=64, offset_factor=16, scope="warp")
 
         with T.block("root"):
             T.reads(C[0:32, 0:8], A[0:32, 0:8], B[0:32, 0:8])
