@@ -164,7 +164,7 @@ def hexagon_server_process(
     This launcher is started only once per test session.
     """
     android_serial_num = android_serial_number()
-    
+
     if android_serial_num is None:
         pytest.skip("ANDROID_SERIAL_NUMBER is not set.")
     if android_serial_num == ["simulator"]:
