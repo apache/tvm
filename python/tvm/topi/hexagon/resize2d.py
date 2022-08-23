@@ -71,7 +71,10 @@ def tir_resize2d_schedule(
 
     block = s.get_block("resize")
 
-    if input_layout == "nhwc-8h2w32c2w-2d" or input_layout == "nhwc-8h8w32c-2d":
+    if input_layout in (
+        "nhwc-8h2w32c2w-2d",
+        "nhwc-8h8w32c-2d",
+    ):
         input_transformed_layout = get_layout_transform_fn(input_layout)
         s.transform_layout(block, buffer=("read", 0), index_map=input_transformed_layout)
 
@@ -80,7 +83,7 @@ def tir_resize2d_schedule(
 
     if output_layout == "nhwc-8h2w32c2w-2d":
         # Fixed chunk size is 2048 byte
-        # For fp16 the layout for fixed chunk is 8x4x32 
+        # For fp16 the layout for fixed chunk is 8x4x32
         # where each element is 2 bytes
         # Split and reorder is done to iterate over the fixed chunk
         # Channel is split by a factor of 32
@@ -96,7 +99,7 @@ def tir_resize2d_schedule(
 
     elif output_layout == "nhwc-8h8w32c-2d":
         # Fixed chunk size is 2048 byte
-        # For uint8 the layout for fixed chunk is 8x8x32 
+        # For uint8 the layout for fixed chunk is 8x8x32
         # where each element is 1 bytes
         # Split and reorder is done to iterate over the fixed chunk
         # Channel is split by a factor of 32
@@ -111,4 +114,3 @@ def tir_resize2d_schedule(
         s.reorder(n, ho, wo, co, hi, wi, ci)
 
     return s
-    

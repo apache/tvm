@@ -47,9 +47,9 @@ def input_np(input_shape, dtype):
     if dtype == "float16":
         return np.random.random(input_shape).astype(dtype)
     elif dtype == "uint8":
-        return np.random.randint(0,255,input_shape).astype(dtype)
+        return np.random.randint(0, 255, input_shape).astype(dtype)
     elif dtype == "int8":
-        return np.random.randint(-128,127,input_shape).astype(dtype)
+        return np.random.randint(-128, 127, input_shape).astype(dtype)
 
 
 @tvm.testing.fixture
@@ -193,4 +193,3 @@ class TestResize2d:
 
 if __name__ == "__main__":
     tvm.testing.main()
-    
