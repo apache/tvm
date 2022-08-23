@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import platform
 import pytest
 import builtins
 import importlib
@@ -74,6 +75,10 @@ def test_guess_frontend_onnx():
     assert type(sut) is tvmc.frontends.OnnxFrontend
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+)
 def test_guess_frontend_pytorch():
     # some CI environments wont offer pytorch, so skip in case it is not present
     pytest.importorskip("torch")
@@ -245,6 +250,10 @@ def test_load_model__pth(pytorch_resnet18):
     assert "layer1.0.conv1.weight" in tvmc_model.params.keys()
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+)
 def test_load_quantized_model__pth(pytorch_mobilenetv2_quantized):
     # some CI environments wont offer torch, so skip in case it is not present
     pytest.importorskip("torch")
