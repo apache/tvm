@@ -117,8 +117,7 @@ def adaptive_avgpool1d(expr, type_map):
     arg = relay.op.cast(arg, "int32")
     output_size = expr.attrs.output_size
     out = relay.op.nn.adaptive_avg_pool1d(arg, output_size)
-    out = relay.op.cast(out, t.dtype)
-    return [out, t]
+    return [out, TensorAffineType(t.scale, t.zero_point, "int32", t.axis)]
 
 
 @register_fake_quantization_to_integer("nn.avg_pool2d")
@@ -128,8 +127,7 @@ def avgpool2d(expr, type_map):
     t = type_map[arg]
     arg = relay.op.cast(arg, "int32")
     out = relay.op.nn.avg_pool2d(arg, **expr.attrs)
-    out = relay.op.cast(out, t.dtype)
-    return [out, t]
+    return [out, TensorAffineType(t.scale, t.zero_point, "int32", t.axis)]
 
 
 @register_fake_quantization_to_integer("nn.global_avg_pool2d")
@@ -139,8 +137,7 @@ def global_avgpool2d(expr, type_map):
     t = type_map[arg]
     arg = relay.op.cast(arg, "int32")
     out = relay.op.nn.global_avg_pool2d(arg)
-    out = relay.op.cast(out, t.dtype)
-    return [out, t]
+    return [out, TensorAffineType(t.scale, t.zero_point, "int32", t.axis)]
 
 
 @register_fake_quantization_to_integer("broadcast_to")
