@@ -82,7 +82,7 @@ def test_resize(dtype, shape, size):
 
 
 @requires_ethosn
-def test_requantize_failure():
+def test_resize_failure():
     trials = [
         (
             (30, 20),
