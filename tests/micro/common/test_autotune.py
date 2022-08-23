@@ -76,17 +76,18 @@ def test_kws_autotune_workflow(platform, board, tmp_path):
             np.random.randint(low=-127, high=128, size=(1, 1960), dtype=np.int8) for x in range(3)
         )
 
-        labels = [0, 0, 0]
-
         # Validate perforance across random runs
-        time, _, _ = tvm.micro.testing.evaluate_model_accuracy(
-            session, aot_executor, samples, labels, runs_per_sample=20
-        )
+        runtimes = [
+            runtime
+            for _, runtime in tvm.micro.testing.predict_labels_aot(
+                session, aot_executor, samples, runs_per_sample=20
+            )
+        ]
         # `time` is the average time taken to execute model inference on the
         # device, measured in seconds. It does not include the time to upload
         # the input data via RPC. On slow boards like the Arduino Due, time
         # is around 0.12 (120 ms), so this gives us plenty of buffer.
-        assert time < 1
+        assert np.median(runtimes) < 1
 
 
 if __name__ == "__main__":

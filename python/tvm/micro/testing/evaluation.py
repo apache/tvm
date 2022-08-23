@@ -142,27 +142,18 @@ def create_aot_session(
     return tvm.micro.Session(project.transport(), timeout_override=timeout_override)
 
 
-# This utility functions was designed ONLY for one input / one output models
-# where the outputs are confidences for different classes.
-def evaluate_model_accuracy(session, aot_executor, input_data, true_labels, runs_per_sample=1):
-    """Evaluates an AOT-compiled model's accuracy and runtime over an RPC session. Works well
-    when used with create_aot_session."""
+def predict_labels_aot(session, aot_executor, input_data, runs_per_sample=1):
+    """Predicts labels for each sample in input_data using host-driven AOT.
+    Returns an iterator of (label, runtime) tuples. This function can only
+    be used with models for which the output is the confidence for each class."""
 
     assert aot_executor.get_num_inputs() == 1
     assert aot_executor.get_num_outputs() == 1
     assert runs_per_sample > 0
 
-    predicted_labels = []
-    aot_runtimes = []
     for sample in input_data:
         aot_executor.get_input(0).copyfrom(sample)
         result = aot_executor.module.time_evaluator("run", session.device, number=runs_per_sample)()
+        predicted_label = aot_executor.get_output(0).numpy().argmax()
         runtime = result.mean
-        output = aot_executor.get_output(0).numpy()
-        predicted_labels.append(output.argmax())
-        aot_runtimes.append(runtime)
-
-    num_correct = sum(u == v for u, v in zip(true_labels, predicted_labels))
-    average_time = sum(aot_runtimes) / len(aot_runtimes)
-    accuracy = num_correct / len(predicted_labels)
-    return average_time, accuracy, predicted_labels
+        yield predicted_label, runtime
