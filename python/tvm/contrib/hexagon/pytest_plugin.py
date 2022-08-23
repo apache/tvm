@@ -21,7 +21,7 @@
 
 import os
 import random
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 import pytest
 
@@ -56,19 +56,17 @@ def _compose(args, decs):
 requires_hexagon_toolchain = tvm.testing.requires_hexagon(support_required="compile-only")
 
 
-def android_serial_number() -> Optional[str]:
+def android_serial_number() -> List[str]:
     """Return the android serial number or simulator"""
     serial = os.getenv(ANDROID_SERIAL_NUMBER, default="")
     # Setting ANDROID_SERIAL_NUMBER to an empty string should be
     # equivalent to having it unset.
     if not serial.strip():
-        serial = None
-    if serial == "simulator":
-        return serial
-    else:
-        # Split android serial numbers into a list
-        serial = serial.split(",")
-        return serial
+        pytest.skip("ANDROID_SERIAL_NUMBER is not set.")
+
+    # Split android serial numbers into a list
+    serial = serial.split(",")
+    return serial
 
 
 # NOTE on server ports:
@@ -166,7 +164,7 @@ def hexagon_server_process(
     This launcher is started only once per test session.
     """
     android_serial_num = android_serial_number()
-    if android_serial_num is None or android_serial_num == "simulator":
+    if android_serial_num == ["simulator"]:
         yield None
     else:
         # Requesting these fixtures sets up a local tracker, if one
@@ -222,10 +220,8 @@ def hexagon_launcher(
 ) -> HexagonLauncherRPC:
     """Initials and returns hexagon launcher which reuses RPC info and Android serial number."""
     android_serial_num = android_serial_number()
-    if android_serial_num is None:
-        yield None
 
-    if android_serial_num != "simulator":
+    if android_serial_num != ["simulator"]:
         rpc_info = hexagon_server_process["launcher"]._rpc_info
     else:
         rpc_info = {
@@ -236,8 +232,8 @@ def hexagon_launcher(
         }
 
     try:
-        if android_serial_num == "simulator":
-            launcher = HexagonLauncher(serial_number=android_serial_num, rpc_info=rpc_info)
+        if android_serial_num == ["simulator"]:
+            launcher = HexagonLauncher(serial_number=android_serial_num[0], rpc_info=rpc_info)
             launcher.start_server()
         else:
             launcher = HexagonLauncher(
@@ -245,7 +241,7 @@ def hexagon_launcher(
             )
         yield launcher
     finally:
-        if android_serial_num == "simulator":
+        if android_serial_num == ["simulator"]:
             launcher.stop_server()
         launcher.cleanup_directory()
 
@@ -270,7 +266,7 @@ def terminate_rpc_servers():
     # yield happens every time.
     serial = os.environ.get(ANDROID_SERIAL_NUMBER)
     yield []
-    if serial == "simulator":
+    if serial == ["simulator"]:
         os.system("ps ax | grep tvm_rpc_x86 | awk '{print $1}' | xargs kill")
 
 
