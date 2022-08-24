@@ -811,17 +811,11 @@ def test_forward_log_sigmoid():
     torch.set_grad_enabled(False)
     input_shape = [10, 10]
     input_data = torch.rand(input_shape).float()
+    input_data_overflow = torch.tensor([-300.0, -100.0]).float()
     verify_model(torch.nn.LogSigmoid().eval(), input_data=input_data)
+    verify_model(torch.nn.LogSigmoid().eval(), input_data=input_data_overflow)
 
 
-@tvm.testing.uses_gpu
-def test_forward_log_sigmoid_overflow():
-    """test_forward_log_sigmoid"""
-    torch.set_grad_enabled(False)
-    input_data =  torch.tensor([-300.0, -100.0).float()
-    verify_model(torch.nn.LogSigmoid().eval(), input_data=input_data)
-    
-    
 @tvm.testing.uses_gpu
 def test_forward_adaptive_avgpool():
     """test_forward_adaptive_avgpool"""
