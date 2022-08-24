@@ -281,40 +281,37 @@ def test_fake_quantize_maxpool():
 def test_fake_quantize_adaptive_avgpool1d(output_size):
     x = relay.var("x", shape=[1, 128, 768], dtype="int8")
 
-    zero = relay.const(0)
-    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), relay.const(-12))
     op = relay.op.nn.adaptive_avg_pool1d(x, output_size)
     op = relay.qnn.op.quantize(op, relay.const(0.5), relay.const(10))
 
     x_np = np.random.randint(-128, 127, size=[1, 128, 768], dtype="int8")
 
-    compare_fq_to_int(op, [x_np])
+    compare_fq_to_int(op, [x_np], True)
 
 
 def test_fake_quantize_avgpool():
     x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
 
-    zero = relay.const(0)
-    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), relay.const(-12))
     op = relay.op.nn.avg_pool2d(x, [3, 3])
     op = relay.qnn.op.quantize(op, relay.const(0.5), relay.const(10))
 
     x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
 
-    compare_fq_to_int(op, [x_np])
+    compare_fq_to_int(op, [x_np], True)
 
 
 def test_fake_quantize_global_avg_pool():
     x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
 
-    zero = relay.const(0)
-    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), relay.const(-12))
     op = relay.op.nn.global_avg_pool2d(x)
     op = relay.qnn.op.quantize(op, relay.const(0.5), relay.const(10))
 
     x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
 
-    compare_fq_to_int(op, [x_np])
+    compare_fq_to_int(op, [x_np], True)
 
 
 class TestUnaryQNNOp:
