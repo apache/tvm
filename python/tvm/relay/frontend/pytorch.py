@@ -2258,15 +2258,26 @@ class PyTorchOpConverter:
         ) = inputs
 
         assert len(_infer_shape(indices)) == 1, "Expects 1D indices for aten::embedding_bag."
-        
-        assert scale_grad_by_freq == False, "unsupported scale_grad_by_freq in embedding_bag."
+
+        assert (
+            scale_grad_by_freq == False
+        ), "unsupported `scale_grad_by_freq` parameter in embedding_bag."
+        assert sparse == False, "unsupported `sparse` parameter in embedding_bag."
 
         mode_map = {0: _op.sum, 1: _op.mean, 2: _op.max}
         assert mode in mode_map, "unsupported reduction op mode %d." % mode
-        
+
         padding_idx = -1 if padding_idx is None else padding_idx
 
-        return _op.embedding_bag(indices, weights, offsets_1d, mode, padding_idx, scale_grad_by_freq, sparse, per_sample_weights, include_last_offset)
+        return _op.embedding_bag(
+            indices,
+            weights,
+            offsets_1d,
+            mode,
+            padding_idx,
+            per_sample_weights,
+            include_last_offset,
+        )
 
     def one_hot(self, inputs, input_types):
         indices = inputs[0].astype("int32")
@@ -2511,12 +2522,6 @@ class PyTorchOpConverter:
         )
 
     def numel(self, inputs, input_types):
-        shape = self.infer_shape(inputs[0])
-        if isinstance(shape, tuple) and isinstance(shape[0], int):
-            res = 1
-            for s in shape:
-                res *= s
-            return _op.const(res, dtype="int32")
         return _op.ndarray_size(inputs[0])
 
     def empty(self, inputs, input_types):
@@ -3952,8 +3957,9 @@ class PyTorchOpConverter:
                     out_names = _get_output_names(op_node)
                     outputs.update(zip(out_names, relay_out))
                 else:
-                    # The node_name of embedding_bag is like "22_23_24_25"
-                    node_name = node_name.split("_")[0]
+                    if operator == "aten::embedding_bag":
+                        # The node_name of embedding_bag is like "22_23_24_25"
+                        node_name = node_name.split("_")[0]
                     outputs[node_name] = relay_out
 
         return [_wrap_const(outputs[ret_name]) for ret_name in ret_names]

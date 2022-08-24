@@ -579,9 +579,7 @@ struct StftAttrs : public tvm::AttrsNode<StftAttrs> {
 struct EmbeddingBagAttrs : public tvm::AttrsNode<EmbeddingBagAttrs> {
   int mode;
   int padding_idx;
-  bool scale_grad_by_freq;
   bool include_last_offset;
-  bool sparse;
   ObjectRef per_sample_weights;
 
   TVM_DECLARE_ATTRS(EmbeddingBagAttrs, "relay.attrs.EmbeddingBagAttrs") {

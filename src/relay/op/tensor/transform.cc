@@ -4287,13 +4287,10 @@ bool EmbeddingBagRel(const Array<Type>& types, int num_inputs, const Attrs& attr
 }
 
 Expr MakeEmbeddingBag(Expr input, Expr weight, Expr offset, size_t mode, size_t padding_idx,
-                      bool scale_grad_by_freq, bool sparse, ObjectRef per_sample_weights,
-                      bool include_last_offset) {
+                      ObjectRef per_sample_weights, bool include_last_offset) {
   auto attrs = make_object<EmbeddingBagAttrs>();
   attrs->mode = mode;
   attrs->padding_idx = padding_idx;
-  attrs->scale_grad_by_freq = scale_grad_by_freq;
-  attrs->sparse = sparse;
   attrs->include_last_offset = include_last_offset;
   attrs->per_sample_weights = per_sample_weights;
   static const Op& op = Op::Get("embedding_bag");
@@ -4304,9 +4301,9 @@ Array<te::Tensor> EmbeddingBagCompute(const Attrs& attrs, const Array<te::Tensor
                                       const Type& out_type) {
   const auto* param = attrs.as<EmbeddingBagAttrs>();
   ICHECK(param != nullptr);
-  return Array<te::Tensor>{topi::embedding_bag(
-      inputs[0], inputs[1], inputs[2], param->mode, param->padding_idx, param->scale_grad_by_freq,
-      param->include_last_offset, param->sparse, inputs[1]->dtype)};
+  return Array<te::Tensor>{topi::embedding_bag(inputs[0], inputs[1], inputs[2], param->mode,
+                                               param->padding_idx, param->include_last_offset,
+                                               inputs[1]->dtype)};
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.embedding_bag").set_body_typed(MakeEmbeddingBag);
