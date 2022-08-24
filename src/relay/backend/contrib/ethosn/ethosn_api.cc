@@ -23,6 +23,7 @@
 
 #include "ethosn_api.h"
 
+#include <tvm/relay/attrs/image.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
@@ -681,6 +682,45 @@ EthosnError EthosnAPI::Requantize(const Expr& expr, RequantizeParams* params) {
 
   params->output_info = sl::TensorInfo(output_tensor_shape, output_data_type, sl::DataFormat::NHWC,
                                        requantize_q_info);
+  return err;
+}
+
+EthosnError EthosnAPI::Resize(const Expr& expr, ResizeParams* params) {
+  Call requantize = Downcast<Call>(expr);
+  Call resize = Downcast<Call>(requantize->args[0]);
+
+  const auto* input_dtype = resize->args[0]->checked_type().as<TensorTypeNode>();
+  sl::TensorShape input_tensor_shape = {1, 1, 1, 1};
+  EthosnError err = Tvm2Npu(input_dtype->shape, &input_tensor_shape);
+  sl::DataType input_tensor_dtype;
+  err += Tvm2Npu(input_dtype->dtype, &input_tensor_dtype);
+  float input_sc;
+  int input_zp;
+  err += AsConstant(requantize->args[2], &input_zp);
+  err += AsConstant(requantize->args[1], &input_sc);
+  sl::QuantizationInfo input_q_info;
+  err += Tvm2Npu(input_zp, input_sc, &input_q_info);
+  params->input_info =
+      sl::TensorInfo(input_tensor_shape, input_tensor_dtype, sl::DataFormat::NHWC, input_q_info);
+
+  float output_sc;
+  int output_zp;
+  err += AsConstant(requantize->args[3], &output_sc);
+  err += AsConstant(requantize->args[4], &output_zp);
+  sl::QuantizationInfo resize_q_info;
+  err += Tvm2Npu(output_zp, output_sc, &resize_q_info);
+  const auto* attrs = resize->attrs.as<Resize2DAttrs>();
+  uint32_t height, width;
+  err += Tvm2Npu(attrs->size, &height, &width);
+  params->resize_info =
+      sl::ResizeInfo{sl::ResizeAlgorithm::NEAREST_NEIGHBOUR, height, width, resize_q_info};
+
+  sl::TensorInfo output_info = params->input_info;
+  output_info.m_Dimensions[1] = params->resize_info.m_NewHeight;
+  output_info.m_Dimensions[2] = params->resize_info.m_NewWidth;
+  output_info.m_QuantizationInfo = params->resize_info.m_OutputQuantizationInfo;
+  params->output_info = output_info;
+
   return err;
 }
 
