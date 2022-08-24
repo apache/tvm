@@ -815,6 +815,14 @@ def test_forward_log_sigmoid():
 
 
 @tvm.testing.uses_gpu
+def test_forward_log_sigmoid_overflow():
+    """test_forward_log_sigmoid"""
+    torch.set_grad_enabled(False)
+    input_data =  torch.tensor([-300.0, -100.0).float()
+    verify_model(torch.nn.LogSigmoid().eval(), input_data=input_data)
+    
+    
+@tvm.testing.uses_gpu
 def test_forward_adaptive_avgpool():
     """test_forward_adaptive_avgpool"""
     torch.set_grad_enabled(False)
