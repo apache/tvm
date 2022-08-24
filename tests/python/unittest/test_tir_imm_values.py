@@ -103,6 +103,35 @@ def compare_float_value(value, expect):
         assert math.isinf(expect)
 
 
+@pytest.mark.parametrize(
+    "dtype, literals",
+    [
+        ["float16", [-65504.0, 3.14, 65504.0, np.inf, np.nan]],
+        ["bfloat16", [-3.38953139e38, 3.38953139e38, 3.14]],
+        ["float32", [np.finfo("float32").min, 3.14, np.finfo("float32").max, np.inf, np.nan]],
+        ["float64", [np.finfo("float64").min, 3.14, np.finfo("float64").max, np.inf, np.nan]],
+    ],
+)
+def test_tir_make_floatimm(dtype, literals):
+    for l in literals:
+        imm = tir.const(l, dtype)
+        compare_float_value(imm.value, l)
+
+
+@pytest.mark.parametrize(
+    "dtype, literals",
+    [
+        ["float16", [-65505.0, 65505.0]],
+        ["float32", [-3.402e39, 3.402e39]],
+    ],
+)
+def test_tir_invalid_floatimm(dtype, literals):
+    """Currently only fp16 and fp32 have range check."""
+    for l in literals:
+        with pytest.raises(tvm.TVMError):
+            tir.const(l, dtype)
+
+
 @pytest.mark.parametrize("dtype", ["float16", "float32", "float64"])
 @pytest.mark.parametrize("literal", [3.14, np.nan, np.inf])
 def test_tir_special_floatimms(dtype, literal):
@@ -111,29 +140,36 @@ def test_tir_special_floatimms(dtype, literal):
 
 
 @tvm.testing.requires_llvm()
-def test_tir_floatimm_overflow():
-    # Behavior check: if literal value is out of dtype range, the
+def test_tir_too_large_literal_f64():
+    # Behavior check: if literal f64 value is out of dtype range, the
     # object is still constructed, and eval to infinity.
-    @T.prim_func
-    def imm_overflow_fp16() -> T.float16:
-        T.evaluate(T.ret(T.float16(65536), dtype="float16"))
-
-    f = tvm.build(imm_overflow_fp16, target="llvm")
-    assert math.isinf(f())
-
-    @T.prim_func
-    def imm_overflow_fp32() -> T.float32:
-        T.evaluate(T.ret(T.float32(3.4028e39), dtype="float32"))
-
-    f = tvm.build(imm_overflow_fp32, target="llvm")
-    assert math.isinf(f())
-
     @T.prim_func
     def imm_overflow_fp64() -> T.float64:
         T.evaluate(T.ret(T.float64(1.7976e309), dtype="float64"))
 
     f = tvm.build(imm_overflow_fp64, target="llvm")
     assert math.isinf(f())
+
+
+@pytest.mark.parametrize(
+    "literal, expect_dtype",
+    [
+        (256, "int32"),
+        (2147483647, "int32"),
+        (-2147483648, "int32"),
+        (2147483648, "int64"),
+        (-2147483649, "int64"),
+        (3.14159, "float32"),
+        (np.finfo("float32").min, "float32"),
+        (np.finfo("float32").max, "float32"),
+        (-3.402e39, "float64"),
+        (3.402e39, "float64"),
+    ],
+)
+def test_tir_const_auto_dtype(literal, expect_dtype):
+    x = tir.const(literal, dtype=None)
+    assert x.dtype == expect_dtype
+    assert x.value == literal
 
 
 @tvm.testing.requires_llvm()
@@ -149,7 +185,7 @@ def test_tir_floatimm_const_fold():
     for x, y in [(3.14e30, 3.14e30), (-3.14e30, 3.14e30)]:
         assert float(tir.const(x, "float32") * tir.const(y, "float32")) == fmul(x, y)
 
-    seed = random.randrange(sys.maxsize)
+    seed = random.randint(0, 2147483648)
     print(
         "\nThis test is intentionally non-deterministic, "
         "if it fails please report it in github issue together with this seed {}\n".format(seed)

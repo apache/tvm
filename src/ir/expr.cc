@@ -33,6 +33,8 @@
 #include <tvm/te/tensor.h>
 #include <tvm/tir/expr.h>
 
+#include "../support/scalars.h"
+
 namespace tvm {
 
 PrimExpr::PrimExpr(int32_t value) : PrimExpr(IntImm(DataType::Int(32), value)) {}
@@ -116,6 +118,21 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 FloatImm::FloatImm(DataType dtype, double value, Span span) {
   ICHECK_EQ(dtype.lanes(), 1) << "ValueError: FloatImm can only take scalar.";
+
+  // check range for float32 and float16 since they have specified range.
+  if (!std::isinf(value) && !std::isnan(value)) {
+    if (dtype.bits() == 32) {
+      ICHECK_GE(value, std::numeric_limits<float>::lowest())
+          << "ValueError: Literal value " << value << " exceeds minimum of " << dtype;
+      ICHECK_LE(value, std::numeric_limits<float>::max())
+          << "ValueError: Literal value " << value << " exceeds maximum of " << dtype;
+    } else if (dtype.is_float16()) {
+      ICHECK_GE(value, -support::kMaxFloat16)
+          << "ValueError: Literal value " << value << " exceeds minimum of " << dtype;
+      ICHECK_LE(value, support::kMaxFloat16)
+          << "ValueError: Literal value " << value << " exceeds maximum of " << dtype;
+    }
+  }
   ObjectPtr<FloatImmNode> node = make_object<FloatImmNode>();
   node->dtype = dtype;
   node->value = value;
