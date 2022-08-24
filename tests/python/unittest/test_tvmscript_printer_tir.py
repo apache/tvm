@@ -30,10 +30,12 @@ from tvm.tir import (
     Broadcast,
     BufferLoad,
     BufferRegion,
+    BufferStore,
     Call,
     Cast,
     CommReducer,
     Div,
+    Evaluate,
     FloatImm,
     FloorDiv,
     FloorMod,
@@ -639,4 +641,47 @@ def test_range(node, expected):
     ],
 )
 def test_buffer_region(node, expected):
+    assert as_tir_script(node) == format_script(expected)
+
+
+@pytest.mark.parametrize(
+    "node, expected",
+    [
+        pytest.param(
+            BufferStore(decl_buffer((5, 10), name="buf"), 1.0, [0, 1]),
+            """
+            buf: T.Buffer(shape=(5, 10))
+            buf[0, 1] = T.float32(1)
+            """,
+            id="2d",
+        ),
+        pytest.param(
+            BufferStore(decl_buffer((5,), name="buf"), 1.0, [0]),
+            """
+            buf: T.Buffer(shape=(5,))
+            buf[0] = T.float32(1)
+            """,
+            id="1d",
+        ),
+        pytest.param(
+            BufferStore(decl_buffer((), name="buf"), 1.0, []),
+            """
+            buf: T.Buffer(shape=())
+            buf[()] = T.float32(1)
+            """,
+            id="0d",
+        ),
+    ],
+)
+def test_buffer_store(node, expected):
+    assert as_tir_script(node) == format_script(expected)
+
+
+def test_evaluate():
+    var = Var("a", "int32")
+    node = Evaluate(3 + var)
+    expected = """
+    a: T.int32
+    3 + a
+    """
     assert as_tir_script(node) == format_script(expected)
