@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 import math
+import random
+import sys
 import numpy as np
 import tvm
 import tvm.testing
@@ -133,14 +135,29 @@ def test_tir_floatimm_overflow():
     f = tvm.build(imm_overflow_fp64, target="llvm")
     assert math.isinf(f())
 
-    # Behavior check: disable fp16 folding
-    assert float(tir.const(1.0, "float32") * tir.const(2.0, "float32")) == 2.0
-    assert not isinstance(tir.const(1.0, "float16") * tir.const(2.0, "float16"), tir.FloatImm)
 
-    # Behavior check: folding when fp32 overflow get infinity
-    x = np.float32(3.4028235e37)
-    y = np.float32(3.4028235e37)
-    assert math.isinf(float(tir.const(x, "float32") * tir.const(y, "float32")))
+@tvm.testing.requires_llvm()
+def test_tir_floatimm_const_fold():
+    # Behavior check: folding fp32 match platform f32 arithmetic
+    @T.prim_func
+    def float_imm_multiply(x: T.float32, y: T.float32) -> T.float32:
+        T.evaluate(T.ret(x * y, dtype="float32"))
+
+    fmul = tvm.build(float_imm_multiply, target="llvm")
+
+    # overflow
+    for x, y in [(3.14e30, 3.14e30), (-3.14e30, 3.14e30)]:
+        assert float(tir.const(x, "float32") * tir.const(y, "float32")) == fmul(x, y)
+
+    seed = random.randrange(sys.maxsize)
+    print(
+        "\nThis test is intentionally non-deterministic, "
+        "if it fails please report it in github issue together with this seed {}\n".format(seed)
+    )
+    np.random.seed(seed)
+    x = np.random.uniform(np.finfo("float32").min, np.finfo("float32").max)
+    y = np.random.uniform(np.finfo("float32").min, np.finfo("float32").max)
+    assert float(tir.const(x, "float32") * tir.const(y, "float32")) == fmul(x, y), f"{x} * {y}"
 
 
 if __name__ == "__main__":
