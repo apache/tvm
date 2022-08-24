@@ -129,6 +129,8 @@ def adaptive_avgpool1d(expr, type_map):
             out_dtype="int32",
             axis=t.axis,
         )
+    else:
+        arg = relay.op.cast(arg, "int32")
     output_size = expr.attrs.output_size
     out = relay.op.nn.adaptive_avg_pool1d(arg, output_size)
     return [out, TensorAffineType(out_t.scale, out_t.zero_point, "int32", out_t.axis)]
@@ -154,6 +156,8 @@ def avgpool2d(expr, type_map):
             out_dtype="int32",
             axis=t.axis,
         )
+    else:
+        arg = relay.op.cast(arg, "int32")
     out = relay.op.nn.avg_pool2d(arg, **expr.attrs)
     return [out, TensorAffineType(out_t.scale, out_t.zero_point, "int32", out_t.axis)]
 
@@ -179,6 +183,8 @@ def global_avgpool2d(expr, type_map):
             out_dtype="int32",
             axis=t.axis,
         )
+    else:
+        arg = relay.op.cast(arg, "int32")
     out = relay.op.nn.global_avg_pool2d(arg)
     return [out, TensorAffineType(out_t.scale, out_t.zero_point, "int32", out_t.axis)]
 
