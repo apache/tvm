@@ -2028,7 +2028,8 @@ inline Tensor adv_index(const Tensor& data, const Array<Tensor>& indices,
  * \return embedded tensor.
  */
 inline Tensor embedding_bag(const Tensor& input, const Tensor& weight, const Tensor& offset,
-                            int mode, int padding_idx, bool include_last_offset, DataType dtype,
+                            int mode, const Tensor& per_sample_weights, int padding_idx,
+                            bool include_last_offset, DataType dtype,
                             const std::string name = "T_embedding_bag",
                             const std::string tag = kInjective) {
   auto row = offset->shape[0];
@@ -2054,14 +2055,15 @@ inline Tensor embedding_bag(const Tensor& input, const Tensor& weight, const Ten
       auto real_idx = st + idx;
       auto idx_i = input(real_idx);
       auto cond = (real_idx < ed) && (idx_i != padding_idx);
+      auto element = weight[idx_i][j] * per_sample_weights[real_idx];
       if (mode == 0)  // sum(0)
       {
-        ret = tvm::tir::Select(cond, ret + weight[idx_i][j], ret);
+        ret = tvm::tir::Select(cond, ret + element, ret);
       } else if (mode == 1) {  // mean(1)
         count = tvm::tir::Select(cond, count + 1, count);
-        ret = tvm::tir::Select(cond, ret + weight[idx_i][j], ret);
+        ret = tvm::tir::Select(cond, ret + element, ret);
       } else {  // max(2)
-        auto on_true = tvm::tir::Select(count == 0, weight[idx_i][j], max(ret, weight[idx_i][j]));
+        auto on_true = tvm::tir::Select(count == 0, element, max(ret, element));
         ret = tvm::tir::Select(cond, on_true, ret);
         count = tvm::tir::Select(cond, count + 1, count);
       }

@@ -3072,13 +3072,14 @@ def test_forward_embedding():
 def test_embedding_bag():
     class EmbeddingBag(Module):
         def __init__(
-            self, mode="mean", padding_idx=None, scale_grad_by_freq=False, include_last_offset=False
+            self, mode="mean", padding_idx=None, scale_grad_by_freq=False, include_last_offset=False, per_sample_weights=None
         ):
             super().__init__()
             self.mode = mode
             self.padding_idx = padding_idx
             self.scale_grad_by_freq = scale_grad_by_freq
             self.include_last_offset = include_last_offset
+            self.per_sample_weights = per_sample_weights
 
         def forward(self, input, weight):
             return F.embedding_bag(
@@ -3088,16 +3089,22 @@ def test_embedding_bag():
                 padding_idx=self.padding_idx,
                 scale_grad_by_freq=self.scale_grad_by_freq,
                 include_last_offset=self.include_last_offset,
+                per_sample_weights=self.per_sample_weights,
             )
 
-    embedding_matrix = torch.rand(10,3)
+    embedding_matrix = torch.rand(10, 3)
     inp = torch.tensor([[1, 2, 4], [5, 4, 3], [2, 4, 4]])
+    pre_sample_weights = torch.tensor([[0.3, 0.4, 0.4], [0.5, 0.4, 1.3], [0.2, 1.4, 0.4]]).cuda()
     verify_model(EmbeddingBag(mode="mean").float().eval(), [inp, embedding_matrix])
+    verify_model(EmbeddingBag(mode="sum", per_sample_weights=pre_sample_weights).float().eval(), [inp, embedding_matrix])
     verify_model(
         EmbeddingBag(mode="mean", include_last_offset=True).float().eval(), [inp, embedding_matrix]
     )
     verify_model(EmbeddingBag(mode="mean", padding_idx=2).float().eval(), [inp, embedding_matrix])
-    verify_model(EmbeddingBag(mode="sum", include_last_offset=True, padding_idx=4).float().eval(), [inp, embedding_matrix])
+    verify_model(
+        EmbeddingBag(mode="sum", include_last_offset=True, padding_idx=4).float().eval(),
+        [inp, embedding_matrix],
+    )
     verify_model(EmbeddingBag(mode="max", padding_idx=1).float().eval(), [inp, embedding_matrix])
 
 

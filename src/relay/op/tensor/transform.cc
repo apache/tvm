@@ -4235,8 +4235,8 @@ TVM_REGISTER_NODE_TYPE(EmbeddingBagAttrs);
 bool EmbeddingBagRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                      const TypeReporter& reporter) {
   // types: [weight, indics, offset, result]
-  ICHECK_EQ(types.size(), 4) << "EmbeddingBag: expect 5 types but " << types.size() << " provided";
-  ICHECK_LE(num_inputs, 3) << "EmbeddingBag: expect 4 inputs but " << num_inputs << " provided";
+  ICHECK_EQ(types.size(), 5) << "EmbeddingBag: expect 5 types but " << types.size() << " provided";
+  ICHECK_LE(num_inputs, 4) << "EmbeddingBag: expect 4 inputs but " << num_inputs << " provided";
   auto data = types[0].as<TensorTypeNode>();  // shape of  (N)
   if (data == nullptr) {
     ICHECK(types[0].as<IncompleteTypeNode>())
@@ -4259,12 +4259,20 @@ bool EmbeddingBagRel(const Array<Type>& types, int num_inputs, const Attrs& attr
     return false;
   }
 
-  ICHECK_LE(data->shape.size(), 2)
-      << "EmbeddingBag: input must be a 1-D or 2-D tensor but get " << data;
+  auto per_sample_weights = types[3].as<TensorTypeNode>();  // shape as
+  if (offset == nullptr) {
+    ICHECK(types[3].as<IncompleteTypeNode>())
+        << "EmbeddingBag: expect per_sample_weights type to be TensorType but get " << types[3];
+    return false;
+  }
+
+  ICHECK_EQ(data->shape.size(), 1) << "EmbeddingBag: input must be a 1-D tensor but get " << data;
   ICHECK_EQ(embedding_matrix->shape.size(), 2)
       << "EmbeddingBag: embedding_matrix must be a 2-D tensor but get " << embedding_matrix;
   ICHECK_EQ(offset->shape.size(), 1)
       << "EmbeddingBag: offset must be a 1-D tensor but get " << offset;
+  ICHECK_EQ(per_sample_weights->shape.size(), 1)
+      << "EmbeddingBag: per_sample_weights must be a 1-D tensor but get " << data;
 
   const auto param = attrs.as<EmbeddingBagAttrs>();
 
@@ -4282,28 +4290,28 @@ bool EmbeddingBagRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   } else {  // sum or max
     dtype = embedding_matrix->dtype;
   }
-  reporter->Assign(types[3], TensorType(tvm::relay::Shape(shape), dtype));
+  reporter->Assign(types[4], TensorType(tvm::relay::Shape(shape), dtype));
   return true;
 }
 
 Expr MakeEmbeddingBag(Expr input, Expr weight, Expr offset, size_t mode, size_t padding_idx,
-                      ObjectRef per_sample_weights, bool include_last_offset) {
+                      Expr per_sample_weights,
+                      bool include_last_offset) {
   auto attrs = make_object<EmbeddingBagAttrs>();
   attrs->mode = mode;
   attrs->padding_idx = padding_idx;
   attrs->include_last_offset = include_last_offset;
-  attrs->per_sample_weights = per_sample_weights;
   static const Op& op = Op::Get("embedding_bag");
-  return Call(op, {input, weight, offset}, Attrs(attrs), {});
+  return Call(op, {input, weight, offset, per_sample_weights}, Attrs(attrs), {});
 }
 
 Array<te::Tensor> EmbeddingBagCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                       const Type& out_type) {
   const auto* param = attrs.as<EmbeddingBagAttrs>();
   ICHECK(param != nullptr);
-  return Array<te::Tensor>{topi::embedding_bag(inputs[0], inputs[1], inputs[2], param->mode,
-                                               param->padding_idx, param->include_last_offset,
-                                               inputs[1]->dtype)};
+  return Array<te::Tensor>{topi::embedding_bag(
+      inputs[0], inputs[1], inputs[2], param->mode, inputs[3],
+      param->padding_idx, param->include_last_offset, inputs[1]->dtype)};
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.embedding_bag").set_body_typed(MakeEmbeddingBag);
@@ -4312,10 +4320,11 @@ RELAY_REGISTER_OP("embedding_bag")
     .describe(
         R"code(Computes sums, means or maxes of bags of embeddings, without instantiating the intermediate embeddings.
     )code" TVM_ADD_FILELINE)
-    .set_num_inputs(3)
+    .set_num_inputs(4)
     .add_argument("input", "Tensor", "Tensor containing bags of indices into the embedding matrix.")
     .add_argument("weight", "Tensor", "The embedding matrix.")
     .add_argument("offset", "Tensor", "The offset.")
+    .add_argument("per_sample_weights", "Tensor", "The per_sample_weights. (Optional)")
     .add_type_rel("embedding_bag", EmbeddingBagRel)
     .set_support_level(10)
     .set_attr<FTVMCompute>("FTVMCompute", EmbeddingBagCompute)

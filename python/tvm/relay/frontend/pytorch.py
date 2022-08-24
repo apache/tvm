@@ -2267,6 +2267,11 @@ class PyTorchOpConverter:
         mode_map = {0: _op.sum, 1: _op.mean, 2: _op.max}
         assert mode in mode_map, "unsupported reduction op mode %d." % mode
 
+        if per_sample_weights is not None:
+            assert mode == 0, "per_sample_weights only support for mode sum."
+        else:
+            per_sample_weights = _op.ones_like(indices)
+
         padding_idx = -1 if padding_idx is None else padding_idx
 
         return _op.embedding_bag(

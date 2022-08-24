@@ -1941,9 +1941,14 @@ def embedding_bag(
             [[ 0.3397,  0.3552,  0.5545],
             [ 0.5893,  0.4386,  0.5882]]
     """
-
     return _make.embedding_bag(
-        indices, weights, offsets, mode, padding_idx, per_sample_weights, include_last_offset
+        indices,
+        weights,
+        offsets,
+        mode,
+        padding_idx,
+        per_sample_weights,
+        include_last_offset,
     )
 
 
