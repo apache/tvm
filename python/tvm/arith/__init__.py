@@ -16,7 +16,13 @@
 # under the License.
 """Integer bound analysis, simplification and pattern detection."""
 
-from .int_set import IntSet, IntervalSet, estimate_region_lower_bound
+from .int_set import (
+    IntSet,
+    IntervalSet,
+    estimate_region_lower_bound,
+    estimate_region_strict_bound,
+    estimate_region_upper_bound,
+)
 from .analyzer import ModularSet, ConstIntBound, Analyzer
 from .bound import deduce_bound
 from .pattern import detect_linear_equation, detect_clip_bound
