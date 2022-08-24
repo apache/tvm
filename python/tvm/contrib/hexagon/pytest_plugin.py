@@ -56,13 +56,16 @@ def _compose(args, decs):
 requires_hexagon_toolchain = tvm.testing.requires_hexagon(support_required="compile-only")
 
 
-@pytest.fixture(scope="session")
 def android_serial_number() -> Optional[str]:
+    """Return the android serial number"""
     serial = os.getenv(ANDROID_SERIAL_NUMBER, default="")
     # Setting ANDROID_SERIAL_NUMBER to an empty string should be
     # equivalent to having it unset.
     if not serial.strip():
-        serial = None
+        return None
+
+    # Split android serial numbers into a list
+    serial = serial.split(",")
     return serial
 
 
@@ -155,12 +158,16 @@ def adb_server_socket() -> str:
 
 @pytest.fixture(scope="session")
 def hexagon_server_process(
-    request, android_serial_number, rpc_server_port_for_session, adb_server_socket, skip_rpc
+    request, rpc_server_port_for_session, adb_server_socket, skip_rpc
 ) -> HexagonLauncherRPC:
     """Initials and returns hexagon launcher if ANDROID_SERIAL_NUMBER is defined.
     This launcher is started only once per test session.
     """
-    if android_serial_number is None or android_serial_number == "simulator":
+    android_serial_num = android_serial_number()
+
+    if android_serial_num is None:
+        pytest.skip("ANDROID_SERIAL_NUMBER is not set.")
+    if android_serial_num == ["simulator"]:
         yield None
     else:
         # Requesting these fixtures sets up a local tracker, if one
@@ -175,14 +182,35 @@ def hexagon_server_process(
             "rpc_server_port": rpc_server_port_for_session,
             "adb_server_socket": adb_server_socket,
         }
-        launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
+        workerinput = getattr(request.config, "workerinput", None)
+        if workerinput is None:  # single-process execution
+            device_adr = read_device_list()[0]
+        else:  # running in a subprocess here
+            device_adr = workerinput["device_adr"]
+        launcher = HexagonLauncher(serial_number=device_adr, rpc_info=rpc_info)
         try:
             if not skip_rpc:
                 launcher.start_server()
-            yield launcher
+            yield {"launcher": launcher, "device_adr": device_adr}
         finally:
             if not skip_rpc:
                 launcher.stop_server()
+
+
+def read_device_list():
+    return android_serial_number()
+
+
+def pytest_configure(config):
+    # read device list if we are on the master
+    if not hasattr(config, "workerinput"):
+        config.iplist = read_device_list()
+
+
+def pytest_configure_node(node):
+    # the master for each node fills slaveinput dictionary
+    # which pytest-xdist will transfer to the subprocess
+    node.workerinput["device_adr"] = node.config.iplist.pop()
 
 
 @pytest.fixture
@@ -192,14 +220,12 @@ def hexagon_launcher(
     tvm_tracker_host,
     tvm_tracker_port,
     adb_server_socket,
-    android_serial_number,
 ) -> HexagonLauncherRPC:
     """Initials and returns hexagon launcher which reuses RPC info and Android serial number."""
-    if android_serial_number is None:
-        yield None
+    android_serial_num = android_serial_number()
 
-    if android_serial_number != "simulator":
-        rpc_info = hexagon_server_process._rpc_info
+    if android_serial_num != ["simulator"]:
+        rpc_info = hexagon_server_process["launcher"]._rpc_info
     else:
         rpc_info = {
             "rpc_tracker_host": tvm_tracker_host,
@@ -208,13 +234,17 @@ def hexagon_launcher(
             "adb_server_socket": adb_server_socket,
         }
 
-    launcher = HexagonLauncher(serial_number=android_serial_number, rpc_info=rpc_info)
     try:
-        if android_serial_number == "simulator":
+        if android_serial_num == ["simulator"]:
+            launcher = HexagonLauncher(serial_number=android_serial_num[0], rpc_info=rpc_info)
             launcher.start_server()
+        else:
+            launcher = HexagonLauncher(
+                serial_number=hexagon_server_process["device_adr"], rpc_info=rpc_info
+            )
         yield launcher
     finally:
-        if android_serial_number == "simulator":
+        if android_serial_num == ["simulator"]:
             launcher.stop_server()
         launcher.cleanup_directory()
 
@@ -239,7 +269,7 @@ def terminate_rpc_servers():
     # yield happens every time.
     serial = os.environ.get(ANDROID_SERIAL_NUMBER)
     yield []
-    if serial == "simulator":
+    if serial == ["simulator"]:
         os.system("ps ax | grep tvm_rpc_x86 | awk '{print $1}' | xargs kill")
 
 

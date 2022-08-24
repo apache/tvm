@@ -74,7 +74,7 @@ function run_pytest() {
 
     suite_name="${test_suite_name}-${current_shard}-${ffi_type}"
 
-    if [[ ! "${extra_args[@]}" == *" -n"* ]]; then
+    if [ ! "${extra_args[@]}" == *" -n"* ] && [! "${extra_args[@]}" == *" -dist"* ]; then
         extra_args+=("-n=1")
     fi
 
