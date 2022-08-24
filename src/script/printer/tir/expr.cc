@@ -168,12 +168,7 @@ ExprDoc PrintCall(TracedObject<tir::Call> call, IRDocsifier p) {
   auto op_or_global_var = call.GetAttr(&tir::CallNode::op);
 
   if (op_or_global_var.IsInstance<Op>()) {
-    // TODO(yelite): Call PrintOpCall once it's finished
-    TracedObject<String> op_name = op_or_global_var.Downcast<Op>().GetAttr(&OpNode::name);
-    Array<ExprDoc> arg_docs{LiteralDoc::Str(op_name)};
-    TracedArray<PrimExpr> args = call.GetAttr(&tir::CallNode::args);
-    arg_docs = Concat(arg_docs, AsExprDocArray(args, p));
-    return TIR(p)->Attr("call")->Call(arg_docs);
+    return PrintOpCall(call, p);
   } else {
     auto op_gvar = op_or_global_var.Downcast<GlobalVar>();
     auto name_hint = op_gvar.GetAttr(&GlobalVarNode::name_hint);

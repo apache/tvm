@@ -514,9 +514,9 @@ def test_let():
 
 
 def test_call_tir_op():
-    node = Call("float32", "tir.tvm_stack_make_shape", [0, 1])
+    node = Call("float64", "tir.exp", [0.0])
     expected = """
-    T.call("tir.tvm_stack_make_shape", 0, 1)
+    T.exp(T.float32(0))
     """
     assert as_tir_script(node) == format_script(expected)
 

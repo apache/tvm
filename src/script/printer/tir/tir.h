@@ -84,6 +84,8 @@ inline IdDoc DefineTIRVar(const TracedObject<tir::Var>& var, const Frame& frame,
   return p->vars->Define(var.Get(), var.GetAttr(&tir::VarNode::name_hint), frame);
 }
 
+ExprDoc PrintOpCall(TracedObject<tir::Call> call, IRDocsifier p);
+
 ExprDoc GetTypeAnnotationDocForVar(const TracedObject<tir::Var>& var, const IRDocsifier& p);
 
 void PostOrderVisitExprTraced(const TracedObject<PrimExpr>& expr,
