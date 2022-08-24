@@ -334,10 +334,11 @@ inline int GetTargetNumCores(const Target& target) {
     ICHECK(f_cpu_count)
         << "ValueError: Cannot find the packed function \"meta_schedule._cpu_count\"";
     num_cores = (*f_cpu_count)(false);
-    LOG(FATAL)
+    LOG(WARNING)
         << "Target does not have attribute \"num-cores\", physical core number must be "
            "defined! For example, on the local machine, the target must be \"llvm -num-cores "
         << num_cores << "\"";
+    return 1;
   }
   return num_cores;
 }

@@ -87,6 +87,7 @@ ExternalProject_Add(android_tvm_runtime_rpc
     "-DUSE_HEXAGON_RPC=ON"
     "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
     "-DUSE_ALTERNATIVE_LINKER=OFF"
+    "-DUSE_RANDOM=ON"
   INSTALL_COMMAND ""
   BUILD_ALWAYS ON
 )
@@ -133,6 +134,7 @@ ExternalProject_Add(hexagon_tvm_runtime_rpc
     "-DUSE_ALTERNATIVE_LINKER=OFF"
     "-DUSE_CUSTOM_LOGGING=ON"
     "-DUSE_HEXAGON_QHL=ON"
+    "-DUSE_RANDOM=ON"
     "${GTEST_FLAG}"
   INSTALL_COMMAND ""
   BUILD_ALWAYS ON
