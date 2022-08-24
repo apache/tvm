@@ -63,7 +63,7 @@ from .op import trunc, abs, round, nextafter, nearbyint, power, popcount, fmod, 
 from .op import likely, isnan, isnullptr, isfinite, isinf, copysign
 from .op import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod, ceildiv
 from .op import comm_reducer, min, max, sum
-from .op import q_multiply_shift
+from .op import q_multiply_shift, shift_left, shift_right
 from .op import TVMBackendAllocWorkspace, TVMBackendFreeWorkspace
 
 from .schedule import StmtSRef, BlockScope, ScheduleState, Schedule, ScheduleError
