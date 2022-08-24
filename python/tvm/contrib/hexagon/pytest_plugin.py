@@ -245,7 +245,7 @@ def terminate_rpc_servers():
 
 aot_host_target = tvm.testing.parameter(
     "c",
-    "llvm -keys=hexagon -link-params=0 "
+    "llvm -keys=hexagon "
     "-mattr=+hvxv68,+hvx-length128b,+hvx-qfloat,-hvx-ieee-fp "
     "-mcpu=hexagonv68 -mtriple=hexagon",
 )

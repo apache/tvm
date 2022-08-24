@@ -710,42 +710,6 @@ def test_name_sanitiser_name_clash():
         )
 
 
-# This tests for deprecated AOT executor arguments
-# TODO(Mousius) Remove deprecated arguments later
-def test_deprecated_target_arguments():
-    """Tests we can still use relay.build with -executor, -runtime and -link-params"""
-
-    interface_api = "c"
-    use_unpacked_api = True
-    test_runner = AOT_DEFAULT_RUNNER
-
-    input_x = relay.var("x", shape=(1, 10))
-    input_y = relay.var("y", shape=(1, 10))
-    func_add = relay.add(input_x, input_y)
-    func = relay.Function([input_x, input_y], func_add)
-
-    x_in = np.ones((1, 10)).astype("float32")
-    y_in = np.random.uniform(size=(1, 10)).astype("float32")
-
-    params = {"x": x_in}
-    inputs = {"y": y_in}
-    output_list = generate_ref_data(func, inputs, params)
-
-    compile_and_run(
-        AOTTestModel(
-            module=IRModule.from_expr(func),
-            inputs=inputs,
-            outputs=output_list,
-            params=params,
-        ),
-        test_runner,
-        interface_api,
-        use_unpacked_api,
-        use_runtime_executor=False,
-        target="c -executor=aot --link-params -runtime=c -interface-api=c --unpacked-api",
-    )
-
-
 def test_aot_codegen_backend_alloc_workspace_calls():
     """This test checks whether AoT lowering creates TVMBackendAllocWorkspace calls"""
 
