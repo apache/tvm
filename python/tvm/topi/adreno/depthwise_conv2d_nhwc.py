@@ -40,7 +40,7 @@ def schedule_depthwise_conv2d_nhwc(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if op.tag == "dummy_compute_at":
+        if op.tag == "adreno_dw_conv2d_latest_op":
             schedule_depthwise_conv2d_NHWC_HWOI(cfg, s, op.output(0))
 
     traverse_inline(s, outs[0].op, _callback)
@@ -164,13 +164,13 @@ def depthwise_conv2d_nhwc(cfg, Input, Filter, stride, padding, dilation, out_dty
         return te.compute(
             (batch, out_height_orig, out_width_orig, out_channles),
             lambda n, y, x, c: dummy_cast[n, y, x, c // out_channel_block, c % out_channel_block],
-            tag="dummy_compute_at",
+            tag="adreno_dw_conv2d_latest_op",
         )
     else:
         return te.compute(
             (batch, out_height_orig, out_width_orig, out_channel_chunks, out_channel_block),
             lambda n, y, x, ffc, ffb: conv[n, y, x, ffc, ffb].astype(out_dtype),
-            tag="dummy_compute_at",
+            tag="adreno_dw_conv2d_latest_op",
         )
 
 

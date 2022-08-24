@@ -40,7 +40,7 @@ def schedule_conv2d_nhwc(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if op.tag == "dummy_compute_at":
+        if op.tag == "adreno_conv2d_latest_op":
             schedule_conv2d_NHWC(cfg, s, op.output(0))
 
     traverse_inline(s, outs[0].op, _callback)
@@ -169,13 +169,13 @@ def conv2d_nhwc(cfg, Input, Filter, stride, padding, dilation, out_dtype):
         return te.compute(
             (batch, out_height_orig, out_width_orig, out_channles),
             lambda n, y, x, c: dummy_cast[n, y, x, c // out_channel_block, c % out_channel_block],
-            tag="dummy_compute_at",
+            tag="adreno_conv2d_latest_op",
         )
     else:
         return te.compute(
             (batch, out_height_orig, out_width_orig, out_channel_chunks, out_channel_block),
             lambda n, y, x, ffc, ffb: conv[n, y, x, ffc, ffb].astype(out_dtype),
-            tag="dummy_compute_at",
+            tag="adreno_conv2d_latest_op",
         )
 
 
@@ -264,13 +264,21 @@ def schedule_conv2d_NHWC(cfg, s, output):
     ##### space definition end #####
 
     pad_data, kernel = s[conv].op.input_tensors
+    # There are several conditions that have to be handled:
+    # 1. If we are in the tuning, we always add cache read for data to main conv kernel
+    #    to get texture in tuning opencl kernel
+    # 2. If we are repacking input in runtime, we should always explicit schedule this one more
+    #    stage of data copy from 4d to 5d (referred as pack_data).
+    # 3. If we have pad (independently if we have runtime repack or not) we should inline it in the
+    #    cache_read("texture")
     if autotvm.GLOBAL_SCOPE.in_tuning or input_pack_rt:
         if "pad_temp" in pad_data.op.name:
             s[pad_data].compute_inline()
             pack_data = pad_data.op.input_tensors[0]
             bind_data_copy(s[pack_data])
         else:
-            bind_data_copy(s[pad_data])
+            pack_data = pad_data
+            bind_data_copy(s[pack_data])
 
         AT = s.cache_read(pad_data, get_texture_storage(pad_data.shape), [conv])
         bind_data_copy(s[AT])
