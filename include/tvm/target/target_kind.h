@@ -211,7 +211,7 @@ class TargetKindRegEntry {
    * \brief Set DLPack's device_type the target
    * \param device_type Device type
    */
-  inline TargetKindRegEntry& set_device_type(int device_type);
+  inline TargetKindRegEntry& set_default_device_type(int device_type);
   /*!
    * \brief Set DLPack's device_type the target
    * \param keys The default keys
@@ -363,7 +363,7 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_attr(const String& attr_name,
   return *this;
 }
 
-inline TargetKindRegEntry& TargetKindRegEntry::set_device_type(int device_type) {
+inline TargetKindRegEntry& TargetKindRegEntry::set_default_device_type(int device_type) {
   kind_->default_device_type = device_type;
   return *this;
 }
@@ -463,7 +463,7 @@ constexpr const char* kRelayToTIR = "RelayToTIR";
   TVM_STR_CONCAT(TVM_TARGET_KIND_REGISTER_VAR_DEF, __COUNTER__) = \
       ::tvm::TargetKindRegEntry::RegisterOrGet(TargetKindName)    \
           .set_name()                                             \
-          .set_device_type(DeviceType)                            \
+          .set_default_device_type(DeviceType)                    \
           .add_attr_option<Array<String>>("keys")                 \
           .add_attr_option<String>("tag")                         \
           .add_attr_option<String>("device")                      \
