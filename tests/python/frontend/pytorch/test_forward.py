@@ -4162,6 +4162,23 @@ def test_empty_like():
     verify_model_with_input(test_func, [torch.rand([1, 3, 10, 10]).float()], assert_shape_only=True)
 
 
+@tvm.testing.uses_gpu
+def test_new_empty():
+    """test_forward_new_ones"""
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+
+    def test_func(input_tensor):
+        return input_tensor.new_empty([3, 10, 10])
+
+    verify_model_with_input(test_func, [torch.rand(input_shape).float()], assert_shape_only=True)
+
+    def test_func1(input_tensor):
+        return input_tensor.new_empty([3, 10, 10], dtype=torch.int32)
+
+    verify_model_with_input(test_func1, [torch.rand(input_shape).float()], assert_shape_only=True)
+
+
 def test_randn():
     """Test for aten::randn"""
 
