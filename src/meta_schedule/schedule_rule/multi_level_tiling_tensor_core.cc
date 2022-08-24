@@ -324,15 +324,78 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddSoftwarePipeline(
     sch->Annotate(cache_read, tir::attr::manifest_shared_memory_local_stage, Bool(true));
     sch->Annotate(cache_read, tir::attr::double_buffer_scope, Integer(0));
   }
+
   // Add annotations of software pipeline
+  //
+  // Before pipelining, the original loop can be expressed as the pseudo code below:
+  //
+  // for k0 in [0, K0):
+  //   load tile k0 to registers
+  //   load tile k0 from registers to shared memory
+  //
+  //   for k1 in [0, K1):
+  //     load fragment k1 of tile k0
+  //     compute matmul with fragment k1
+  //
 
   // Inner software pipeline: Prefetch to tensor core fragment by one iteration
+  // The following annotation for the inner loop is equivalent the pesudo code below:
+  //
+  // Pipelined inner loop:
+  //
+  // prologue:
+  //   load fragment 0
+  // body:
+  //   for k1 in [0, K1 - 1):
+  //     load fragment k1 + 1
+  //     compute matmul with fragment k1
+  // epilogue:
+  //   compute matmul with fragment K1 - 1
+  //
   sch->Annotate(state->tiles[r_indices_[1]].back(), tir::attr::software_pipeline_stage,
                 Array<Integer>{0, 0, 1});
   sch->Annotate(state->tiles[r_indices_[1]].back(), tir::attr::software_pipeline_order,
                 Array<Integer>{0, 1, 2});
   // Outer software pipeline: Interleave the outer loop with the (pipelined) inner loop.
   // The prefetching stage of the inner pipeline is executed by one iteration in the outer loop.
+  // The following annotation for the outer loop is equivalent the pesudo code below:
+  //
+  // Pipelined outer loop with nested inner pipeline:
+  //
+  // prologue:
+  //   load tile 0 to registers
+  //   load tile 0 from registers to shared memory
+  //
+  //   // prologue of the inner pipeline
+  //   load fragment 0 of tile 0
+  //
+  // body:
+  //   for k0 in [0, K0 - 1):
+  //     load tile k0 + 1 to registers
+  //
+  //     // body of the inner pipeline
+  //     for k1 in [0, K1 - 1):
+  //       load fragment k1 + 1 of tile k0
+  //       compute matmul with fragment k1 of tile k0
+  //
+  //     load tile k0 + 1 from registers to shared memory
+  //
+  //     // prologue of the inner pipeline
+  //     load fragment 0 of tile k0 + 1
+  //
+  //     // epilogue of the inner pipeline
+  //     compute matmul with fragment K1 - 1 of tile k0
+  //
+  // epilogue:
+  //
+  //   // body of the inner pipeline
+  //   for k1 in [0, K1 - 1):
+  //     load fragment k1 + 1 of tile K0 - 1
+  //     compute matmul with fragment k1 of tile K0 - 1
+  //
+  //   // epilogue of the inner pipeline
+  //   compute matmul with fragment K1 - 1 of tile K0 - 1
+  //
   sch->Annotate(state->tiles[r_indices_[0]].back(), tir::attr::software_pipeline_stage,
                 Array<Integer>{0, 0, 0, 0, 0, 1, 1});
   sch->Annotate(state->tiles[r_indices_[0]].back(), tir::attr::software_pipeline_order,
