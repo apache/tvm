@@ -109,6 +109,6 @@ if __name__ == "__main__":
                 github.post(f"pulls/{number}/requested_reviewers", {"reviewers": [reviewer]})
             except KeyboardInterrupt:
                 sys.exit()
-            except Exception as e:  # pylint: disable=broad-except
+            except (RuntimeError, error.HTTPError) as e:
                 # Catch any exception so other reviewers can be processed
                 print(f"Failed to add reviewer {reviewer}: {e}")
