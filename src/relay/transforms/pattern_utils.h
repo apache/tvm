@@ -345,6 +345,40 @@ static inline Constant MakeConstantTensor(DataType dtype, std::vector<int64_t> s
 }
 
 /*!
+ * \brief Create a Constant tensor of zeros.
+ *
+ * \param dtype The data type.
+ * \param shape The shape of the output constant tensor.
+ * \return A Constant.
+ */
+static inline Constant MakeConstantZeros(DataType dtype, std::vector<int64_t> shape) {
+  runtime::NDArray arr = runtime::NDArray::Empty(shape, dtype, {kDLCPU, 0});
+  int64_t data_size = 1;
+  for (int64_t dim : shape) {
+    data_size *= dim;
+  }
+  TVM_DTYPE_DISPATCH(dtype, DType, {
+    for (int64_t i = 0; i < data_size; i++) {
+      if (dtype == DataType::Float(16)) {
+        // convert to float16
+        // storage is uint16_t
+        // Similar handling as that in MakeConstantScalar
+        *(static_cast<DType*>(arr->data) + i) =
+            __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(static_cast<float>(0));
+      } else if (dtype == DataType::BFloat(16)) {
+        // convert to bfloat16
+        // storage is uint16_t
+        *(static_cast<DType*>(arr->data) + i) =
+            __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 7>(static_cast<float>(0));
+      } else {
+        *(static_cast<DType*>(arr->data) + i) = 0;
+      }
+    }
+  })
+  return Constant(arr);
+}
+
+/*!
  * \brief Check whether a shape is static and create corresponding Constant.
  Eventually this will be removed and replaced with CheckConstantShapeArrayInteger
  *
