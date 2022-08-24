@@ -595,6 +595,63 @@ def tvm_throw_last_error():
     return call_intrin("handle", "tir.tvm_throw_last_error")
 
 
+def vectorlow(dtype, vec):
+    """Get the low level half of the vector
+
+    Parameters
+    ----------
+    dtype : str
+       The data type of the result.
+
+    vec : list
+       The input vector.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(dtype, "tir.vectorlow", vec)
+
+
+def vectorhigh(dtype, vec):
+    """Get the high level half of the vector
+
+    Parameters
+    ----------
+    dtype : str
+       The data type of the result.
+
+    vec : list
+       The input vector.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(dtype, "tir.vectorhigh", vec)
+
+
+def vectorcombine(dtype, vec1, vec2):
+    """Concat two vectors
+
+    Parameters
+    ----------
+    vec1 : list
+       The input vector.
+
+    vec2 : list
+       The input vector.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(dtype, "tir.vectorcombine", vec1, vec2)
+
+
 def ret(val):
     """Create a tir return expression
 
