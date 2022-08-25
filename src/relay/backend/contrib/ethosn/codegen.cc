@@ -104,9 +104,9 @@ void InferTensorsVisitor::InferCall(const CallNode* cn) {
     params.input_info = GetTensorInfo(tensor_table_, call);
     err += EthosnAPI::Reshape(call, &params);
     tensor_table_[cn->args[0]] = {params.input_info};
-  } else if (IsEthosnOp(call, "qnn.add")) {
+  } else if (IsEthosnFunc(call, "ethos-n.qnn_add")) {
     AdditionParams params;
-    err += EthosnAPI::Addition(call, &params);
+    err += EthosnAPI::Addition(cn->op.as<FunctionNode>()->body, &params);
     tensor_table_[cn->args[0]] = {params.lhs_info};
     tensor_table_[cn->args[1]] = {params.rhs_info};
   } else if (IsEthosnFunc(call, "ethos-n.qnn_sigmoid")) {
@@ -296,7 +296,7 @@ sl::TensorsAndId ConstructNetworkVisitor::HandleCall(const CallNode* cn) {
   } else if (IsEthosnOp(call, "reshape")) {
     if ((err = MakeReshapeLayer(call, &tensor))) ReportFatalError(call, err);
     return MakeOps(tensor);
-  } else if (IsEthosnOp(call, "qnn.add")) {
+  } else if (IsEthosnFunc(call, "ethos-n.qnn_add")) {
     if ((err = MakeAdditionLayer(call, &tensor))) ReportFatalError(call, err);
     return MakeOps(tensor);
   } else if (IsEthosnFunc(call, "ethos-n.qnn_sigmoid")) {
@@ -468,7 +468,7 @@ EthosnError ConstructNetworkVisitor::MakeReshapeLayer(const Call& call,
 EthosnError ConstructNetworkVisitor::MakeAdditionLayer(const Call& call,
                                                        sl::TensorAndId<sl::Operand>* out) {
   AdditionParams params;
-  if (auto err = EthosnAPI::Addition(call, &params)) {
+  if (auto err = EthosnAPI::Addition(call->op.as<FunctionNode>()->body, &params)) {
     return err;
   }
 
