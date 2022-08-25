@@ -57,7 +57,7 @@ def test_builder_runner(hexagon_launcher):
     mod = MatmulModule
 
     builder = get_hexagon_local_builder()
-    runner = get_hexagon_rpc_runner(hexagon_launcher)
+    runner = get_hexagon_rpc_runner(hexagon_launcher, number=1, repeat=1, min_repeat_ms=0)
 
     (builder_result,) = builder.build([BuilderInput(mod, target)])
     assert builder_result.artifact_path is not None
@@ -196,7 +196,7 @@ def test_vrmpy_dense(hexagon_launcher):
                 work_dir=work_dir,
                 space=ms.space_generator.ScheduleFn(schedule_dense_for_tune),
                 builder=get_hexagon_local_builder(),
-                runner=get_hexagon_rpc_runner(hexagon_launcher),
+                runner=get_hexagon_rpc_runner(hexagon_launcher, number=10),
             )
 
     with hexagon_launcher.start_session() as session:

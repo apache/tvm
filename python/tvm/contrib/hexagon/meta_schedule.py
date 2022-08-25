@@ -43,7 +43,7 @@ class HexagonRPCRunner(PyRunner):
 
     def __init__(
         self,
-        hexagon_launcher : HexagonLauncherRPC,
+        hexagon_launcher: HexagonLauncherRPC,
         evaluator_config: Optional[EvaluatorConfig] = None,
         cooldown_sec: float = 0.0,
         alloc_repeat: int = 1,
@@ -131,12 +131,32 @@ def get_hexagon_local_builder():
     return LocalBuilder(f_export=export_func)
 
 
-def get_hexagon_rpc_runner(hexagon_launcher: HexagonLauncherRPC):
-    """Return Hexagon-compatible RPC Runner for meta scheduler."""
+def get_hexagon_rpc_runner(
+    hexagon_launcher: HexagonLauncherRPC, number=3, repeat=1, min_repeat_ms=100
+):
+    """Return Hexagon-compatible RPC Runner for meta scheduler.
+
+    Parameters
+    ----------
+    hexagon_launcher : HexagonLauncherRPC
+        The RPC launcher for Hexagon.
+    number: int
+        The number of times to run this function for taking average.
+        We call these runs as one `repeat` of measurement.
+    repeat: int
+        The number of times to repeat the measurement.
+        In total, the function will be invoked (1 + number x repeat) times,
+        where the first one is warm up and will be discarded.
+        The returned result contains `repeat` costs,
+        each of which is an average of `number` costs.
+    min_repeat_ms: int
+        Minimum repeat time in ms. if the execution latency is too short,
+        increase the number of runs to the given time (in ms) to reduce the measurement error.
+    """
     evaluator_config = EvaluatorConfig(
-        number=1,
-        repeat=1,
-        min_repeat_ms=0,
+        number=number,
+        repeat=repeat,
+        min_repeat_ms=min_repeat_ms,
         enable_cpu_cache_flush=False,
     )
 
