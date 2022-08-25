@@ -97,6 +97,7 @@ We do encourage everyone to work anything they are interested in.
 - [Zhi Chen](https://github.com/zhiics): @zhiics
 - [Valery Chernov](https://github.com/vvchernov): @vvchernov
 - [Neo Chien](https://github.com/cchung100m): @cchung100m
+- [Christian Convey](https://github.com/cconvey/): @cconvey
 - [Meghan Cowan](https://github.com/cowanmeg): @cowanmeg
 - [Balint Cristian](https://github.com/cbalint13): @cbalint13
 - [Egor Churaev](https://github.com/echuraev): @echuraev - metal
