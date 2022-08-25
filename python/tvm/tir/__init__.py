@@ -52,6 +52,13 @@ from .op import tvm_stack_alloca, tvm_stack_make_shape, tvm_stack_make_array
 from .op import tvm_tuple, tvm_struct_get, tvm_struct_set
 from .op import address_of, lookup_param, assume, undef
 from .op import tvm_thread_allreduce, type_annotation, tvm_access_ptr, tvm_throw_last_error
+from .op import (
+    tvm_load_matrix_sync,
+    tvm_store_matrix_sync,
+    tvm_mma_sync,
+    tvm_bmma_sync,
+    tvm_fill_fragment,
+)
 from .op import vectorlow, vectorhigh, vectorcombine
 from .op import infinity, reinterpret
 from .op import exp, exp2, exp10, log, log2, log10, log1p, ldexp, clz

@@ -104,6 +104,44 @@ def test_tir_op_tvm_throw_last_error():
     assert expr.op.name == "tir.tvm_throw_last_error"
 
 
+def test_tir_op_tvm_load_matrix_sync():
+    buffer = tir.decl_buffer((16, 16), "float32")
+    x = tir.Var("x", "handle")
+    expr = tir.tvm_load_matrix_sync(buffer.data, 16, 16, 16, 0, x, 128, "row_major")
+    assert expr.op.name == "tir.tvm_load_matrix_sync"
+
+
+def test_tir_op_tvm_store_matrix_sync():
+    buffer = tir.decl_buffer((16, 16), "float32")
+    x = tir.Var("x", "handle")
+    expr = tir.tvm_store_matrix_sync(buffer.data, 16, 16, 16, 0, x, 128, "row_major")
+    assert expr.op.name == "tir.tvm_store_matrix_sync"
+
+
+def test_tir_op_tvm_mma_sync():
+    buffer_0 = tir.decl_buffer((16, 16), "float32")
+    buffer_1 = tir.decl_buffer((16, 16), "float32")
+    buffer_2 = tir.decl_buffer((16, 16), "float32")
+    buffer_3 = tir.decl_buffer((16, 16), "float32")
+    expr = tir.tvm_mma_sync(buffer_0.data, 0, buffer_1.data, 0, buffer_2.data, 0, buffer_3.data, 0)
+    assert expr.op.name == "tir.tvm_mma_sync"
+
+
+def test_tir_op_tvm_bmma_sync():
+    buffer_0 = tir.decl_buffer((16, 16), "float32")
+    buffer_1 = tir.decl_buffer((16, 16), "float32")
+    buffer_2 = tir.decl_buffer((16, 16), "float32")
+    buffer_3 = tir.decl_buffer((16, 16), "float32")
+    expr = tir.tvm_bmma_sync(buffer_0.data, 0, buffer_1.data, 0, buffer_2.data, 0, buffer_3.data, 0)
+    assert expr.op.name == "tir.tvm_bmma_sync"
+
+
+def test_tir_op_tvm_fill_fragment():
+    buffer = tir.decl_buffer((16, 16), "float32")
+    expr = tir.tvm_fill_fragment(buffer.data, 16, 16, 16, 0, 0)
+    assert expr.op.name == "tir.tvm_fill_fragment"
+
+
 def test_tir_op_vectorlow():
     buffer = tir.decl_buffer((4, 4), "int8", offset_factor=1)
     vec = buffer.vload([0, 0], dtype="int8x16")
@@ -165,6 +203,11 @@ if __name__ == "__main__":
     test_tir_op_type_annotation()
     test_tir_op_tvm_access_ptr()
     test_tir_op_tvm_throw_last_error()
+    test_tir_op_tvm_load_matrix_sync(),
+    test_tir_op_tvm_store_matrix_sync(),
+    test_tir_op_tvm_mma_sync(),
+    test_tir_op_tvm_bmma_sync(),
+    test_tir_op_tvm_fill_fragment(),
     test_tir_op_vectorlow()
     test_tir_op_vectorhigh()
     test_tir_op_vectorcombine()
