@@ -148,7 +148,8 @@ bool RewriteLayout(const Schedule& sch) {
       // Apply schedule
       BlockRV block_rv = sch->GetBlock(block->name_hint, func_name);
       BlockRV cached_block_rv = sch->CacheRead(block_rv, buffer_index, "global");
-      sch->TransformLayout(block_rv, buffer_index, BufferIndexType::kRead, index_map.value());
+      sch->TransformLayout(block_rv, buffer_index, BufferIndexType::kRead, index_map.value(),
+                           NullOpt);
       sch->Annotate(cached_block_rv, attr::meta_schedule_layout_rewrite_preproc, const_true());
     }
   }

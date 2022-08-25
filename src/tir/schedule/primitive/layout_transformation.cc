@@ -133,7 +133,8 @@ class BufferIsSubregionError : public ScheduleError {
 };
 
 void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
-                     BufferIndexType buffer_index_type, const IndexMap& index_map) {
+                     BufferIndexType buffer_index_type, const IndexMap& index_map,
+                     const Optional<PrimExpr>& pad_value) {
   const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_sref);
   Buffer old_buffer =
       GetNthAccessBuffer(self, GetRef<Block>(block_ptr), buffer_index, buffer_index_type);
@@ -536,17 +537,20 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
 
  private:
   static constexpr size_t kNumInputs = 1;
-  static constexpr size_t kNumAttrs = 3;
+  static constexpr size_t kNumAttrs = 4;
   static constexpr size_t kNumDecisions = 0;
 
   static void UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv, Integer buffer_index,
-                                      Integer buffer_index_type, IndexMap index_map) {
+                                      Integer buffer_index_type, IndexMap index_map,
+                                      Optional<PrimExpr> pad_value) {
     return sch->TransformLayout(block_rv, buffer_index.IntValue(),
-                                static_cast<BufferIndexType>(buffer_index_type->value), index_map);
+                                static_cast<BufferIndexType>(buffer_index_type->value), index_map,
+                                pad_value);
   }
 
   static String UnpackedAsPython(Array<String> outputs, String block_rv, Integer buffer_index,
-                                 Integer buffer_index_type, IndexMap index_map) {
+                                 Integer buffer_index_type, IndexMap index_map,
+                                 Optional<PrimExpr> pad_value) {
     PythonAPICall py("transform_layout");
     py.Input("block", block_rv);
 
@@ -556,6 +560,8 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
     py.Input("buffer", os.str());
 
     py.Input("index_map", index_map->ToPythonString());
+    py.Input("pad_value", pad_value);
+
     return py.Str();
   }
 
@@ -566,6 +572,7 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
     attrs_record.push_back(attrs[0]);
     attrs_record.push_back(attrs[1]);
     attrs_record.push_back(String(::tvm::SaveJSON(attrs[2])));
+    attrs_record.push_back(attrs[3]);
     return std::move(attrs_record);
   }
 
@@ -575,6 +582,7 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
     attrs.push_back(attrs_record[0]);
     attrs.push_back(attrs_record[1]);
     attrs.push_back(::tvm::LoadJSON(Downcast<String>(attrs_record[2])));
+    attrs.push_back(attrs_record[3]);
     return attrs;
   }
 
