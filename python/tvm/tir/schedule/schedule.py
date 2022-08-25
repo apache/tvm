@@ -2443,6 +2443,7 @@ class Schedule(Object):
         block: Union[BlockRV, str],
         buffer: Union[Tuple[str, int], str, Buffer],
         index_map: Union[IndexMap, Callable],
+        pad_value: Optional[Union[int, float, IndexMap, Callable]] = None,
     ) -> None:
         """Apply a transformation represented by IndexMap to buffer
 
@@ -2478,6 +2479,20 @@ class Schedule(Object):
             contains IndexMap.AXIS_SEPARATOR, the SetAxisSeparators
             primitive will be called in addition to the
             TransformLayout primitive.
+
+        pad_value: Optional[Union[int, float, PrimExpr, IndexMap, Callable]]
+
+            The value to be used for any padding introduced by the
+            transformation.
+
+            If None, the transformation may not introduce padding.
+
+            If an int, float or PrimExpr, the transformation is the
+            specific value to be present in the padding.
+
+            If an IndexMap or Callable, the transformation is the
+            value to be present in the padding in terms of the
+            transformed index.
 
         Examples
         --------

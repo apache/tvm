@@ -329,5 +329,337 @@ def test_transform_block_layout_fail_mixed_iter_type(use_block_name):
         )
 
 
+class BasePaddingCompare(tvm.testing.CompareBeforeAfter):
+    pad_value = tvm.testing.parameter(None)
+
+    transformed_buffer = tvm.testing.parameter("A")
+
+    @pytest.fixture
+    def transform(self, pad_value, transformed_buffer):
+        def transform(mod):
+            sch = tir.Schedule(mod)
+            sch.transform_layout(
+                "block", transformed_buffer, lambda i: [i // 4, i % 4], pad_value=pad_value
+            )
+            # sch.transform_block_layout("block", lambda i: [i // 4, i % 4])
+            return sch.mod
+
+        return transform
+
+
+class TestNoPadding(BasePaddingCompare):
+    """Transformations without padding do not depend on pad_value."""
+
+    pad_value = tvm.testing.parameter(None, 42)
+
+    def before():
+        A = T.alloc_buffer(16, "int32")
+        for i in T.serial(16):
+            with T.block("block"):
+                A[i] = 0
+
+    def expected():
+        A = T.alloc_buffer([4, 4], "int32")
+        for i in T.serial(16):
+            with T.block("block"):
+                A[i // 4, i % 4] = 0
+
+
+class TestNoPaddingMultipleUsage(BasePaddingCompare):
+    """Transformations without padding do not depend on pad_value.
+
+    Like TestNoPadding, but the buffer A shows up in multiple
+    locations.  To remain internally consistent, all instances of the
+    buffer should be rewritten.
+    """
+
+    pad_value = tvm.testing.parameter(None, 42)
+
+    def before():
+        A = T.alloc_buffer(16, "int32")
+        for i in T.serial(16):
+            with T.block("block"):
+                A[i] = 0
+
+        B = T.alloc_buffer(16, "int32")
+        for i in T.serial(16):
+            with T.block("other"):
+                B[i] = A[i]
+
+    def expected():
+        A = T.alloc_buffer([4, 4], "int32")
+        for i in T.serial(16):
+            with T.block("block"):
+                A[i // 4, i % 4] = 0
+
+        B = T.alloc_buffer(16, "int32")
+        for i in T.serial(16):
+            with T.block("other"):
+                B[i] = A[i // 4, i % 4]
+
+
+class TestNoPaddingVirtualIndex(BasePaddingCompare):
+    """Like TestNoPadding, but accessed through block indices."""
+
+    pad_value = tvm.testing.parameter(None, 42)
+
+    def before():
+        A = T.alloc_buffer(16, "int32")
+        for i in T.serial(16):
+            with T.block("block"):
+                vi = T.axis.remap("S", [i])
+                A[vi] = 0
+
+    def expected():
+        A = T.alloc_buffer([4, 4], "int32")
+        for i in T.serial(16):
+            with T.block("block"):
+                vi = T.axis.remap("S", [i])
+                A[vi // 4, vi % 4] = 0
+
+
+@pytest.mark.xfail(reason="Not implemented yet")
+class TestErrorIfPaddingForbidden(BasePaddingCompare):
+    """Unless padding is explicitly enabled, should raise error"""
+
+    def before():
+        A = T.alloc_buffer(14, "int32")
+        for i in T.serial(14):
+            with T.block("block"):
+                A[i] = 0
+
+    expected = tvm.tir.schedule.schedule.ScheduleError
+
+
+@pytest.mark.xfail(reason="Not implemented yet")
+class TestErrorOnWrongPaddingType(BasePaddingCompare):
+    """The padding must have the same dtype as the buffer"""
+
+    pad_value = tvm.testing.parameter(0.5)
+
+    def before():
+        A = T.alloc_buffer(14, "int32")
+        for i in T.serial(14):
+            with T.block("block"):
+                A[i] = 0
+
+    expected = tvm.tir.schedule.schedule.ScheduleError
+
+
+@pytest.mark.xfail(reason="Superceded by TestPaddedTransformIfThenElse")
+class TestPaddedTransformPostProc(BasePaddingCompare):
+    """Set the transformation padding in a post-processing block.
+
+    This test is incompatible with TestPaddedTransformIfThenElse, and
+    is here for initial development purposes.
+    """
+
+    pad_value = tvm.testing.parameter(0)
+    transformed_buffer = tvm.testing.parameter("B")
+
+    def before(A: T.Buffer[14, "int32"]):
+        B = T.alloc_buffer(14, "int32")
+        for i in T.serial(14):
+            with T.block("block"):
+                B[i] = A[i]
+
+    def expected(A: T.Buffer[14, "int32"]):
+        B = T.alloc_buffer([4, 4], "int32")
+        for i in T.serial(14):
+            with T.block("block"):
+                B[i // 4, i % 4] = A[i]
+
+        for i, j in T.grid(4, 4):
+            with T.block("buffer_B_padding"):
+                T.where(i == 3 and 2 <= j)
+                B[i, j] = 0
+
+
+class TestPaddedTransformIfThenElse(BasePaddingCompare):
+    """Use if_then_else to represent padding, if possible.
+
+    For a block that is a producer of the pre-transformation buffer,
+    which visits all indices according to a row-major traversal, and
+    which has no effect other than producing the transformed buffer,
+    transform the loop iterators to be a row-major traversal of the
+    post-transformation buffer, with padding represented by
+    `T.if_then_else`.
+
+    This test is incompatible with TestPaddedTransformPostProc.  This
+    is the long-term intended method to be supported, with
+    TestPaddedTransformPostProc present for development purposes.
+    """
+
+    pad_value = tvm.testing.parameter(0)
+    transformed_buffer = tvm.testing.parameter("B")
+
+    def before(A: T.Buffer[14, "int32"]):
+        B = T.alloc_buffer(14, "int32")
+        for i in T.serial(14):
+            with T.block("block"):
+                B[i] = A[i]
+
+    def expected(A: T.Buffer[14, "int32"]):
+        B = T.alloc_buffer([4, 4], "int32")
+        for i, j in T.grid(4, 4):
+            with T.block("block"):
+                B[i, j] = T.if_then_else(i == 3 and 2 <= j, 0, A[i * 4 + j], dtype="int32")
+
+
+class TestPaddedTransformWithoutLoop(BasePaddingCompare):
+    """Handle padded writes without a loop
+
+    The statement being replaced may be something other than a
+    for-loop, such as if a loop has already been unrolled.
+    """
+
+    pad_value = tvm.testing.parameter(0)
+
+    def before(A: T.Buffer[14, "int32"]):
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            with T.block("block"):
+                A[0] = 0
+
+    def expected(A: T.Buffer[(4, 4), "int32"]):
+        with T.block("block"):
+            A[0, 0] = 0
+
+        for i, j in T.grid(4, 4):
+            with T.block("buffer_A_padding"):
+                T.where(i == 3 and 2 <= j)
+                A[i, j] = 0
+
+
+class TestPaddedTransformIfThenElseReduction(BasePaddingCompare):
+    """Like TestPaddedTransformIfThenElse, but with a reduction axis"""
+
+    pad_value = tvm.testing.parameter(0)
+    transformed_buffer = tvm.testing.parameter("B")
+
+    def before(A: T.Buffer[(14, 32), "int32"]):
+        B = T.alloc_buffer(14, "int32")
+        for i in T.serial(14):
+            B[i] = 0
+            for k in T.serial(32):
+                with T.block("block"):
+                    B[i] = B[i] + A[i, k]
+
+    def expected(A: T.Buffer[(14, 32), "int32"]):
+        B = T.alloc_buffer([4, 4], "int32")
+        for i, j in T.grid(4, 4):
+            B[i, j] = T.if_then_else(i == 3 and 2 <= j, 0, 0, dtype="int32")
+            for k in T.serial(32):
+                with T.block("block"):
+                    B[i, j] = T.if_then_else(
+                        i == 3 and 2 <= j, 0, B[i, j] + A[i * 4 + j, k], dtype="int32"
+                    )
+
+
+class TestPaddedTransformIfThenElseReductionBlock(BasePaddingCompare):
+    """Like TestPaddedTransformIfThenElse, but with a reduction axis"""
+
+    pad_value = tvm.testing.parameter(0)
+    transformed_buffer = tvm.testing.parameter("B")
+
+    def before(A: T.Buffer[(14, 32), "int32"]):
+        B = T.alloc_buffer(14, "int32")
+        for i, k in T.grid(14, 32):
+            with T.block("block"):
+                with T.init():
+                    B[i] = 0
+                B[i] = B[i] + A[i, k]
+
+    def expected(A: T.Buffer[(14, 32), "int32"]):
+        B = T.alloc_buffer([4, 4], "int32")
+        for i, j, k in T.grid(4, 4, 32):
+            with T.block("block"):
+                with T.init():
+                    B[i, j] = T.if_then_else(i == 3 and 2 <= j, 0, 0, dtype="int32")
+                B[i, j] = T.if_then_else(
+                    i == 3 and 2 <= j, 0, B[i, j] + A[i * 4 + j, k], dtype="int32"
+                )
+
+
+class TestPaddedTransformIfThenElseReductionBlockVirtualAxes(BasePaddingCompare):
+    """Like TestPaddedTransformIfThenElse, but with a reduction axis"""
+
+    pad_value = tvm.testing.parameter(0)
+    transformed_buffer = tvm.testing.parameter("B")
+
+    def before(A: T.Buffer[(14, 32), "int32"]):
+        B = T.alloc_buffer(14, "int32")
+        for i, k in T.grid(14, 32):
+            with T.block("block"):
+                vi, vk = T.axis.remap("SR", [i, k])
+                with T.init():
+                    B[vi] = 0
+                B[vi] = B[vi] + A[vi, vk]
+
+    def expected(A: T.Buffer[(14, 32), "int32"]):
+        B = T.alloc_buffer([4, 4], "int32")
+        for i, j, k in T.grid(4, 4, 32):
+            with T.block("block"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                with T.init():
+                    B[vi, vj] = T.if_then_else(vi == 3 and 2 <= vj, 0, 0, dtype="int32")
+                B[vi, vj] = T.if_then_else(
+                    vi == 3 and 2 <= vj, 0, B[vi, vj] + A[vi * 4 + vj, vk], dtype="int32"
+                )
+
+
+class TestPaddedTransformPostProcIfRequiredDueToSideEffects(BasePaddingCompare):
+    """Set the transformation padding in a post-processing block.
+
+    Like TestPaddedTransformIfThenElse, but the block that produces B
+    also has the effect of setting `C`.
+    """
+
+    pad_value = tvm.testing.parameter(0)
+    transformed_buffer = tvm.testing.parameter("B")
+
+    def before(A: T.Buffer[14, "int32"]):
+        B = T.alloc_buffer(14, "int32")
+        C = T.alloc_buffer(14, "int32")
+        for i in T.serial(14):
+            with T.block("block"):
+                B[i] = A[i]
+                C[i] = 0
+
+    def expected(A: T.Buffer[14, "int32"]):
+        B = T.alloc_buffer([4, 4], "int32")
+        C = T.alloc_buffer(14, "int32")
+        for i in T.serial(14):
+            with T.block("block"):
+                B[i // 4, i % 4] = A[i]
+                C[i] = 0
+
+        for i, j in T.grid(4, 4):
+            with T.block("block_pad_B"):
+                T.where(i == 3 and 2 <= j)
+                B[i, j] = 0
+
+
+class TestPaddedTransformOfInputCreatesAssumption(BasePaddingCompare):
+    """Transformation of an input buffer places T.assume locally"""
+
+    pad_value = tvm.testing.parameter(42)
+
+    def before(A: T.Buffer[14, "int32"], B: T.Buffer[14, "int32"]):
+        for i in T.serial(14):
+            with T.block("block"):
+                B[i] = A[i]
+
+    def expected(A: T.Buffer[(4, 4), "int32"], B: T.Buffer[14, "int32"]):
+        for i, j in T.grid(4, 4):
+            with T.block("buffer_A_assumption"):
+                T.assume(not (i == 3 and 2 <= j) or A[i, j] == 42)
+
+        for i in T.serial(14):
+            with T.block("block"):
+                B[i] = A[i // 4, i % 4]
+
+
 if __name__ == "__main__":
     tvm.testing.main()
