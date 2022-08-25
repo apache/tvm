@@ -3072,7 +3072,12 @@ def test_forward_embedding():
 def test_embedding_bag():
     class EmbeddingBag(Module):
         def __init__(
-            self, mode="mean", padding_idx=None, scale_grad_by_freq=False, include_last_offset=False, per_sample_weights=None
+            self,
+            mode="mean",
+            padding_idx=None,
+            scale_grad_by_freq=False,
+            include_last_offset=False,
+            per_sample_weights=None,
         ):
             super().__init__()
             self.mode = mode
@@ -3093,10 +3098,13 @@ def test_embedding_bag():
             )
 
     embedding_matrix = torch.rand(10, 3)
-    inp = torch.tensor([[1, 2, 4], [5, 4, 3], [2, 4, 4]])
-    pre_sample_weights = torch.tensor([[0.3, 0.4, 0.4], [0.5, 0.4, 1.3], [0.2, 1.4, 0.4]]).cuda()
+    inp = torch.tensor([[1, 1, 4, 1], [5, 9, 4, 3]])
+    pre_sample_weights = torch.tensor([[0.3, 0.4, 0.4, 1.1], [0.1, 2.2, 3.1, 0.6]]).cuda()
     verify_model(EmbeddingBag(mode="mean").float().eval(), [inp, embedding_matrix])
-    verify_model(EmbeddingBag(mode="sum", per_sample_weights=pre_sample_weights).float().eval(), [inp, embedding_matrix])
+    verify_model(
+        EmbeddingBag(mode="sum", per_sample_weights=pre_sample_weights).float().eval(),
+        [inp, embedding_matrix],
+    )
     verify_model(
         EmbeddingBag(mode="mean", include_last_offset=True).float().eval(), [inp, embedding_matrix]
     )
@@ -3106,6 +3114,10 @@ def test_embedding_bag():
         [inp, embedding_matrix],
     )
     verify_model(EmbeddingBag(mode="max", padding_idx=1).float().eval(), [inp, embedding_matrix])
+    verify_model(
+        EmbeddingBag(mode="max", include_last_offset=True, padding_idx=1).float().eval(),
+        [inp, embedding_matrix],
+    )
 
 
 @tvm.testing.uses_gpu
