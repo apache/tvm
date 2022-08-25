@@ -128,6 +128,8 @@ class MultiLevelTilingTensorCoreNode : public MultiLevelTilingNode {
   inline std::vector<State> AddReadReuseTensorCore(TensorCoreState state) const;
   // Subrule: Add tensorized store
   inline std::vector<State> AddWriteReuseTensorCore(TensorCoreState state) const;
+  // Subrule: Add software pipeline
+  inline std::vector<State> AddSoftwarePipeline(TensorCoreState state) const;
 
   // Override ApplySubRules to apply tensorization-specific sub-rules
   std::vector<State> ApplySubRules(std::vector<State> states) final;
@@ -155,6 +157,8 @@ class MultiLevelTilingTensorCoreNode : public MultiLevelTilingNode {
  public:
   /*! \brief The candidate tensor core intrin groups to apply */
   std::vector<TensorCoreIntrinGroup> intrin_groups;
+  /*! \brief Whether to use software pipeline */
+  bool use_software_pipeline = false;
   static constexpr const char* _type_key = "meta_schedule.MultiLevelTilingTensorCore";
   TVM_DECLARE_FINAL_OBJECT_INFO(MultiLevelTilingTensorCoreNode, MultiLevelTilingNode);
 
@@ -222,6 +226,9 @@ std::vector<State> MultiLevelTilingTensorCoreNode::ApplySubRules(std::vector<Sta
   states = SubRule(std::move(states), [&](State state) {
     return AddReadReuseTensorCore(Downcast<TensorCoreState>(state));
   });
+  states = SubRule(std::move(states), [&](State state) {
+    return AddSoftwarePipeline(Downcast<TensorCoreState>(state));
+  });
   return states;
 }
 
@@ -283,6 +290,117 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddReadReuseTensorCore(
                                         << ", shared memory accesses might be inefficient.";
     }
   }
+  return {state};
+}
+
+std::vector<State> MultiLevelTilingTensorCoreNode::AddSoftwarePipeline(
+    TensorCoreState state) const {
+  if (!use_software_pipeline) {
+    return {state};
+  }
+  // The current config is not suitable for software pipelining.
+  if (r_indices_.size() < 2) {
+    return {state};
+  }
+
+  Schedule& sch = state->sch;
+  // Check reduction length after blockize.
+  int64_t reduction_length = 1;
+  for (int r_index : r_indices_) {
+    const Array<LoopRV>& tiles = state->tiles[r_index];
+    for (const LoopRV& tile : tiles) {
+      const auto* extent = sch->Get(tile)->extent.as<IntImmNode>();
+      ICHECK(extent != nullptr) << "Dynamic extent is not supported.";
+      reduction_length *= extent->value;
+    }
+  }
+  if (reduction_length <= 1) {
+    return {state};
+  }
+
+  // Add local stage and double buffering
+  for (int i = 0; i < 2; ++i) {
+    const tir::BlockRV cache_read = state->read_reuse.at(i);
+    sch->Annotate(cache_read, tir::attr::manifest_shared_memory_local_stage, Bool(true));
+    sch->Annotate(cache_read, tir::attr::double_buffer_scope, Integer(0));
+  }
+
+  // Add annotations of software pipeline
+  //
+  // Before pipelining, the original loop can be expressed as the pseudo code below:
+  //
+  // for k0 in [0, K0):
+  //   load tile k0 to registers
+  //   load tile k0 from registers to shared memory
+  //
+  //   for k1 in [0, K1):
+  //     load fragment k1 of tile k0
+  //     compute matmul with fragment k1
+  //
+
+  // Inner software pipeline: Prefetch to tensor core fragment by one iteration
+  // The following annotation for the inner loop is equivalent the pesudo code below:
+  //
+  // Pipelined inner loop:
+  //
+  // prologue:
+  //   load fragment 0
+  // body:
+  //   for k1 in [0, K1 - 1):
+  //     load fragment k1 + 1
+  //     compute matmul with fragment k1
+  // epilogue:
+  //   compute matmul with fragment K1 - 1
+  //
+  sch->Annotate(state->tiles[r_indices_[1]].back(), tir::attr::software_pipeline_stage,
+                Array<Integer>{0, 0, 1});
+  sch->Annotate(state->tiles[r_indices_[1]].back(), tir::attr::software_pipeline_order,
+                Array<Integer>{0, 1, 2});
+  // Outer software pipeline: Interleave the outer loop with the (pipelined) inner loop.
+  // The prefetching stage of the inner pipeline is executed by one iteration in the outer loop.
+  // The following annotation for the outer loop is equivalent the pesudo code below:
+  //
+  // Pipelined outer loop with nested inner pipeline:
+  //
+  // prologue:
+  //   load tile 0 to registers
+  //   load tile 0 from registers to shared memory
+  //
+  //   // prologue of the inner pipeline
+  //   load fragment 0 of tile 0
+  //
+  // body:
+  //   for k0 in [0, K0 - 1):
+  //     load tile k0 + 1 to registers
+  //
+  //     // body of the inner pipeline
+  //     for k1 in [0, K1 - 1):
+  //       load fragment k1 + 1 of tile k0
+  //       compute matmul with fragment k1 of tile k0
+  //
+  //     load tile k0 + 1 from registers to shared memory
+  //
+  //     // prologue of the inner pipeline
+  //     load fragment 0 of tile k0 + 1
+  //
+  //     // epilogue of the inner pipeline
+  //     compute matmul with fragment K1 - 1 of tile k0
+  //
+  // epilogue:
+  //
+  //   // body of the inner pipeline
+  //   for k1 in [0, K1 - 1):
+  //     load fragment k1 + 1 of tile K0 - 1
+  //     compute matmul with fragment k1 of tile K0 - 1
+  //
+  //   // epilogue of the inner pipeline
+  //   compute matmul with fragment K1 - 1 of tile K0 - 1
+  //
+  sch->Annotate(state->tiles[r_indices_[0]].back(), tir::attr::software_pipeline_stage,
+                Array<Integer>{0, 0, 0, 0, 0, 1, 1});
+  sch->Annotate(state->tiles[r_indices_[0]].back(), tir::attr::software_pipeline_order,
+                Array<Integer>{0, 3, 1, 4, 5, 2, 6});
+
   return {state};
 }
 
@@ -418,7 +536,8 @@ inline std::vector<State> MultiLevelTilingTensorCoreNode::TransformForTensorizat
 ScheduleRule ScheduleRule::MultiLevelTilingTensorCore(
     Array<Map<String, String>> intrin_groups, String structure, Optional<Array<String>> tile_binds,
     Optional<Integer> max_innermost_factor, Optional<Array<Integer>> vector_load_lens,
-    Optional<Map<String, ObjectRef>> reuse_read, Optional<Map<String, ObjectRef>> reuse_write) {
+    Optional<Map<String, ObjectRef>> reuse_read, Optional<Map<String, ObjectRef>> reuse_write,
+    bool use_software_pipeline) {
   auto node = MultiLevelTilingInitCommon<MultiLevelTilingTensorCoreNode>(
       structure, tile_binds, max_innermost_factor, vector_load_lens, reuse_read, reuse_write);
 
@@ -426,6 +545,7 @@ ScheduleRule ScheduleRule::MultiLevelTilingTensorCore(
   for (const auto& intrin_group_config : intrin_groups) {
     node->intrin_groups.emplace_back(TensorCoreIntrinGroup::FromConfig(intrin_group_config));
   }
+  node->use_software_pipeline = use_software_pipeline;
   return ScheduleRule(node);
 }
 

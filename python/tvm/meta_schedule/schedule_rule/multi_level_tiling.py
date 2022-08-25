@@ -161,6 +161,8 @@ class MultiLevelTilingTensorCore(ScheduleRule):
         Data reuse configuration for reading. None means no reuse.
     reuse_write : Optional[ReuseType]
         Data reuse configuration for writing. None means no reuse.
+    use_software_pipeline : bool
+        Whether to use the software pipeline.
     """
 
     def __init__(
@@ -172,6 +174,7 @@ class MultiLevelTilingTensorCore(ScheduleRule):
         vector_load_lens: Optional[List[int]] = None,
         reuse_read: Optional[ReuseType] = None,
         reuse_write: Optional[ReuseType] = None,
+        use_software_pipeline: bool = False,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.ScheduleRuleMultiLevelTilingTensorCore,  # type: ignore # pylint: disable=no-member
@@ -182,4 +185,5 @@ class MultiLevelTilingTensorCore(ScheduleRule):
             vector_load_lens,
             reuse_read.as_dict() if reuse_read is not None else None,
             reuse_write.as_dict() if reuse_write is not None else None,
+            use_software_pipeline,
         )
