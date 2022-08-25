@@ -1895,18 +1895,18 @@ def embedding_bag(
     indices, weights, offsets, mode, padding_idx, per_sample_weights, include_last_offset
 ):
     """
-    TBA
+    Return the sums, means or maxes of specified indices of embeddings stored with a fixed sizes.
 
     Parameters
     ----------
-    indicus: relay.Expr
+    indices: relay.Expr
         A 1-d tensor containing bags of indices into the embedding matrix.
 
-    weight: relay.Expr
+    weights: relay.Expr
         A 2-d tensor of embedding matrix of shape `(num_embeddings, embedding_dim)`
         whose number of rows equal to the maximum possible index + 1.
 
-    offset: relay.Expr
+    offsets: relay.Expr
         A 1-d tensor of length `B`. The starting index position of each bag.
 
     mode: int, optional
@@ -1920,10 +1920,13 @@ def embedding_bag(
         The embedding vector at `padding_idx` is not updated during reduction.
         If `padding_idx` is not specified, the default value is -1.
 
-    scale_grad_by_freq: bool, optional
-        If the value is `True`, the function will scale gradients by
-        the inverse of frequency of the words in the mini-batch.
-        This option is not supported when mode is `max`. The default value is `False`.
+    per_sample_weights: relay.Expr
+        A tensor specifies weights for inputs. The shape is the same as input.
+        The default value is a one-like tensor.
+
+    include_last_offset: bool, optional
+        If True, the size of offsets is equal to the number of bags + 1.
+        The default value is False.
 
     Returns
     -------
