@@ -21,11 +21,6 @@
 
 #include <algorithm>
 
-#include "hexagon_common.h"
-#include "hexagon_user_dma_descriptors.h"
-#include "hexagon_user_dma_instructions.h"
-#include "hexagon_user_dma_registers.h"
-
 namespace tvm {
 namespace runtime {
 namespace hexagon {
@@ -56,25 +51,11 @@ int HexagonUserDMA::Copy(void* dst, void* src, uint32_t length) {
   uint32_t src32 = static_cast<uint32_t>(src64);
   uint32_t dst32 = static_cast<uint32_t>(dst64);
 
-  // check if the next DMA descriptor will overwrite an in flight DMA descriptor
-  // if this is the first DMA there is nothting to check
-  if (!first_dma_) {
-    // update the ID of the oldest DMA descriptor in flight
-    DMAsInFlight();
-    // calcultate whether there are DMA descriptors in flight
-    bool dma_desc_in_flight = id_next_dma_desc_ != id_oldest_dma_desc_in_flight_;
-    // calculate whether the next DMA descriptor will overwrite the oldest DMA descriptor in flight
-    bool same_ring_buff_index = (id_next_dma_desc_ % dma_desc_ring_buff_size_) ==
-                                (id_oldest_dma_desc_in_flight_ % dma_desc_ring_buff_size_);
-    // fail if there are DMA descriptors in flight
-    // and the next DMA descriptor overwrites the oldest DMA descriptor in flight
-    if (dma_desc_in_flight && same_ring_buff_index) {
-      return DMA_FAILURE;
-    }
+  // get pointer to next descriptor
+  dma_desc_2d_t* dma_desc = descriptors_->Next();
+  if (!dma_desc) {
+    return DMA_FAILURE;
   }
-
-  // get pointer to next DMA descriptor
-  void* dma_desc = GetDescriptorAddr(id_next_dma_desc_);
 
   // populate descriptor fields
   dma_desc_set_state(dma_desc, DESC_STATE_READY);
@@ -96,13 +77,11 @@ int HexagonUserDMA::Copy(void* dst, void* src, uint32_t length) {
     first_dma_ = false;
   } else {
     // `dmlink` descriptor to tail descriptor
-    void* tail = GetDescriptorAddr(id_next_dma_desc_ - 1);
-    dmlink(tail, dma_desc);
+    dmlink(tail_dma_desc_, dma_desc);
   }
 
-  // update the ID of the next DMA descriptor
-  id_next_dma_desc_++;
-
+  // update tail
+  tail_dma_desc_ = dma_desc;
   return DMA_SUCCESS;
 }
 
@@ -115,27 +94,8 @@ void HexagonUserDMA::Wait(uint32_t max_dmas_in_flight) {
 uint32_t HexagonUserDMA::Poll() { return DMAsInFlight(); }
 
 uint32_t HexagonUserDMA::DMAsInFlight() {
-  // poll DMA engine to make sure DMA status is current
-  dmpoll();
-
-  // find the oldest DMA descriptor in flight
-  // total number of DMA descriptors in flight == ID of the next DMA descriptor
-  for (; id_oldest_dma_desc_in_flight_ < id_next_dma_desc_; ++id_oldest_dma_desc_in_flight_) {
-    // read the `done` bit from the DMA descriptor and stop if incomplete
-    unsigned int done = dma_desc_get_done(GetDescriptorAddr(id_oldest_dma_desc_in_flight_));
-    if (done == DESC_DONE_INCOMPLETE) {
-      break;
-    }
-  }
-
-  // total DMA descriptors in flight = total number DMA desc - ID of the oldest DMA desc in flight
-  // note that these two IDs are equivalent when no DMA descriptors are in flight
-  return id_next_dma_desc_ - id_oldest_dma_desc_in_flight_;
-}
-
-void* HexagonUserDMA::GetDescriptorAddr(uint32_t dma_desc_id) {
-  return static_cast<char*>(dma_desc_ring_buff_) +
-         DMA_DESC_2D_SIZE * (dma_desc_id % dma_desc_ring_buff_size_);
+  dmpoll();  // update DMA engine status
+  return descriptors_->InFlight();
 }
 
 HexagonUserDMA::HexagonUserDMA() {
@@ -143,17 +103,16 @@ HexagonUserDMA::HexagonUserDMA() {
   unsigned int status = Init();
   CHECK_EQ(status, DM0_STATUS_IDLE);
 
-  // allocate memory for ring buffer storage for all DMA descriptors
-  int ret = posix_memalign(&dma_desc_ring_buff_, DMA_DESC_2D_SIZE,
-                           DMA_DESC_2D_SIZE * dma_desc_ring_buff_size_);
-  CHECK_EQ(ret, 0);
-  CHECK_NE(dma_desc_ring_buff_, nullptr);
+  auto desc_in_flight = [](dma_desc_2d_t* dma_desc) {
+    unsigned int done = dma_desc_get_done(dma_desc);
+    return (done != DESC_DONE_COMPLETE);
+  };
+  descriptors_ = new RingBuffer<dma_desc_2d_t>(100, desc_in_flight);
 }
 
 HexagonUserDMA::~HexagonUserDMA() {
-  // stop the DMA engine
-  Init();
-  free(dma_desc_ring_buff_);
+  Init();  // stop DMA engine
+  delete descriptors_;
 }
 
 int hexagon_user_dma_1d_sync(void* dst, void* src, uint32_t length) {
