@@ -621,7 +621,7 @@ def tvm_load_matrix_sync(fragment, m, n, k, index, buffer_ptr, stride, layout):
     stride : Expr
         The fragment stride.
 
-    layout : StringImm
+    layout : Literal["row_major", "column_major"]
         The fragment layout.
 
     Returns
@@ -809,7 +809,7 @@ def tvm_store_matrix_sync(fragment, m, n, k, index, buffer_ptr, stride, layout):
     stride : Expr
         The fragment stride.
 
-    layout : StringImm
+    layout : Literal["row_major", "column_major"]
         The fragment layout.
 
     Returns
