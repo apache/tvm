@@ -18,3 +18,4 @@
 """ Computes and schedules for Hexagon quantized ops """
 
 from .avg_pool2d import qnn_avg_pool2d_compute, qnn_avg_pool2d_schedule
+from .qadd_qsub_qmul import *

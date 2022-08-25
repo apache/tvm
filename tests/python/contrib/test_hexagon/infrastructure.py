@@ -345,7 +345,11 @@ def quantize_np(arr_np: numpy.ndarray, dtype: str):
     elif fmin > 0:
         fmin = 0.0
 
-    scale = (fmax - fmin) / (qmax - qmin)
-    zero_point = numpy.rint((fmax * qmin - fmin * qmax) / (fmax - fmin)).astype("int32")
-    quant_np = (arr_np / scale + zero_point).astype(dtype)
+    if fmax == fmin:
+        scale = fmax
+        zero_point = 0
+    else:
+        scale = (fmax - fmin) / (qmax - qmin)
+        zero_point = numpy.rint((fmax * qmin - fmin * qmax) / (fmax - fmin)).astype("int32")
+        quant_np = (arr_np / scale + zero_point).astype(dtype)
     return quant_np, scale, zero_point
