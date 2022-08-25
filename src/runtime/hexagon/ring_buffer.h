@@ -33,7 +33,7 @@ class RingBuffer {
  public:
   //! \brief Returns the number of Ts in flight
   uint32_t InFlight() {
-    while (!in_flight_(GetAddr(id_oldest_))) {
+    while (id_oldest_ < id_next_ && !in_flight_(GetAddr(id_oldest_))) {
       id_oldest_++;
     }
     return id_next_ - id_oldest_;
