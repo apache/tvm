@@ -29,18 +29,15 @@ RUN bash /install/ubuntu_install_core.sh
 COPY install/ubuntu_install_googletest.sh /install/ubuntu_install_googletest.sh
 RUN bash /install/ubuntu_install_googletest.sh
 
-COPY install/ubuntu1804_install_python.sh /install/ubuntu1804_install_python.sh
-RUN bash /install/ubuntu1804_install_python.sh
-
 COPY install/ubuntu_install_cmake_source.sh /install/ubuntu_install_cmake_source.sh
 RUN bash /install/ubuntu_install_cmake_source.sh
 
-COPY install/ubuntu1804_install_python_venv.sh /install/ubuntu1804_install_python_venv.sh
-RUN bash /install/ubuntu1804_install_python_venv.sh
-ENV PATH=/opt/tvm-venv/bin:/opt/zephyr-sdk/sysroots/x86_64-pokysdk-linux/usr/bin:$PATH
-
-# Globally disable pip cache
-RUN pip config set global.no-cache-dir false
+ENV TVM_VENV /venv/apache-tvm-py3.7
+COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles
+COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
+RUN bash /install/ubuntu_install_python.sh
+ENV PATH ${TVM_VENV}/bin:$PATH
+ENV PYTHONNOUSERSITE 1  # Disable .local directory from affecting CI.
 
 COPY install/ubuntu_install_python_package.sh /install/ubuntu_install_python_package.sh
 RUN bash /install/ubuntu_install_python_package.sh
