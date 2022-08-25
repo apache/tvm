@@ -81,7 +81,7 @@ namespace tvm {
  * The text parser can recover this object by loading from the corresponding
  * location in the meta data section.
  *
- * This is is a design trade-off.
+ * This is a design trade-off.
  * It allows us to embedded any meta data in the text format,
  * while still being able to tweak the text part of the printed IR easily.
  */

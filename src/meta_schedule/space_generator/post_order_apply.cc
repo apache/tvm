@@ -112,10 +112,10 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
     this->logging_func = context->logging_func;
   }
 
-  Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod_) final {
+  Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod) final {
     using ScheduleAndUnvisitedBlocks = std::pair<tir::Schedule, Array<tir::BlockRV>>;
     tir::Schedule sch = tir::Schedule::Traced(
-        /*mod=*/mod_,
+        /*mod=*/mod,
         /*rand_state=*/ForkSeed(&this->rand_state_),
         /*debug_mode=*/0,
         /*error_render_level=*/tir::ScheduleErrorRenderLevel::kDetail);

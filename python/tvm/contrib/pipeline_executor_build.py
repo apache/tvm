@@ -586,7 +586,7 @@ class PipelineConfig(object):
                             dep_item["input_name"] = dname
                         dep_conf.append(dep_item)
 
-                # The value of ouput_idx start from 0.
+                # The value of output_idx start from 0.
                 output["output_idx"] = int(binding.name)
                 output["dependencies"] = dep_conf
                 output_conf.append(output)

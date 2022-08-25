@@ -26,6 +26,7 @@
 #define TVM_RELAY_BACKEND_CONTRIB_CMSISNN_COMPILER_ATTRS_H_
 
 #include <tvm/ir/transform.h>
+#include <tvm/target/target.h>
 
 namespace tvm {
 namespace relay {
@@ -55,17 +56,8 @@ class CMSISNNCompilerConfig : public Attrs {
                                             CMSISNNCompilerConfigNode);
 };
 
-/*! \brief Flags to configure the calculations for CMSIS-NN. */
-struct CMSISNNFlags {
-  bool dsp;  // Enable or disable dsp buffers
-  bool mve;  // Enable or disable mve buffers
-};
-
-constexpr CMSISNNFlags kNoExt = {.dsp = false, .mve = false};
-constexpr CMSISNNFlags kHasDSP = {.dsp = true, .mve = false};
-constexpr CMSISNNFlags kHasMVE = {.dsp = true, .mve = true};
-
-CMSISNNFlags GetCompilerFlags(const tvm::transform::PassContext& ctx);
+/*! \brief Convert External Code Generator options to TVM Target. */
+Target CreateTarget(const tvm::transform::PassContext& ctx);
 
 }  // namespace cmsisnn
 }  // namespace contrib

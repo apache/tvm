@@ -14,26 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Defines functions to analyze available opcodes in the ARM ISA."""
+import pytest
 
-import tvm.target
-
-
-ARM_MPROFILE_DSP_SUPPORT_LIST = [
-    "cortex-m7",
-    "cortex-m4",
-    "cortex-m33",
-    "cortex-m35p",
-    "cortex-m55",
-]
+from tvm.error import TVMError
+from tvm.script.printer import script
+from tvm.tir import FloatImm
 
 
-class IsaAnalyzer(object):
-    """Checks ISA support for given target"""
+def test_as_script_unknown_ir():
+    ir_node = FloatImm("float32", 1.0)
 
-    def __init__(self, target):
-        self.target = tvm.target.Target(target)
+    with pytest.raises(TVMError) as e:
+        script(ir_node, "test_xyz", {})
 
-    @property
-    def has_dsp_support(self):
-        return self.target.mcpu is not None and self.target.mcpu in ARM_MPROFILE_DSP_SUPPORT_LIST
+    assert "test_xyz" in str(e.value)

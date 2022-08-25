@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "./utils.h"
+#include <tvm/arith/int_set.h>
 
+#include "./utils.h"
 namespace tvm {
 namespace tir {
 
@@ -44,13 +45,10 @@ Array<arith::IntSet> AnalyzeRegionUpperBound(const BufferRegion& region,        
       /*low_inclusive=*/dom_low_inclusive,
       /*high_exclusive=*/dom_high_exclusive,
       /*extra_relax_scope=*/runtime::StorageScope::Create(region->buffer.scope()));
-  if (Optional<Array<arith::IntSet>> result = EstimateRegionLowerBound(
-          /*region=*/region->region,
-          /*var_dom=*/var_dom,
-          /*predicate=*/predicate, /*analyzer=*/analyzer)) {
-    return result.value();
-  }
-  return arith::EvalSet(region->region, AsIntSet(var_dom));
+  return EstimateRegionUpperBound(
+      /*region=*/region->region,
+      /*var_dom=*/var_dom,
+      /*predicate=*/predicate, /*analyzer=*/analyzer);
 }
 
 /*!

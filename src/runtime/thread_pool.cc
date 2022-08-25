@@ -70,7 +70,7 @@ constexpr int kSyncStride = 64 / sizeof(std::atomic<int>);
  */
 class ParallelLauncher {
  public:
-  // Reset the the task request.
+  // Reset the task request.
   void Init(FTVMParallelLambda flambda, void* cdata, int num_task, bool need_sync) {
     num_pending_.store(num_task);
     this->cdata = cdata;
@@ -336,12 +336,11 @@ class ThreadPool {
   void Init() {
     for (int i = 0; i < num_workers_; ++i) {
       // The SpscTaskQueue only hosts ONE item at a time
-      queues_.emplace_back(std::unique_ptr<SpscTaskQueue>(new SpscTaskQueue()));
+      queues_.emplace_back(std::make_unique<SpscTaskQueue>());
     }
-    threads_ = std::unique_ptr<tvm::runtime::threading::ThreadGroup>(
-        new tvm::runtime::threading::ThreadGroup(
-            num_workers_, [this](int worker_id) { this->RunWorker(worker_id); },
-            exclude_worker0_ /* include_main_thread */));
+    threads_ = std::make_unique<tvm::runtime::threading::ThreadGroup>(
+        num_workers_, [this](int worker_id) { this->RunWorker(worker_id); },
+        exclude_worker0_ /* include_main_thread */);
     num_workers_used_ = threads_->Configure(threading::ThreadGroup::kBig, 0, exclude_worker0_);
   }
 

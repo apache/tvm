@@ -17,6 +17,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test script for tvm torch module"""
+import tempfile
+
 import numpy as np
 
 import torch
@@ -190,7 +192,10 @@ def test_tvmscript_torch_gpu():
     q1 = torch.arange(8, device=cuda0).type(torch.float32)
     q2 = torch.zeros((8,), dtype=torch.float32, device=cuda0)
 
-    ModuleGPU(q1, q2)
+    with tempfile.NamedTemporaryFile(suffix=".pt") as tmp:
+        torch.save(ModuleGPU, tmp.name)
+        loaded_mod = torch.load(tmp.name)
+        loaded_mod(q1, q2)
 
     tvm.testing.assert_allclose(q2.cpu().numpy(), (q1 + 1).cpu().numpy(), atol=1e-5, rtol=1e-5)
 

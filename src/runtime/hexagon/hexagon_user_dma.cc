@@ -104,7 +104,7 @@ int hexagon_user_dma_1d_sync_helper(void* dst, void* src, uint32_t length) {
 }
 
 int hexagon_user_dma_1d_sync(void* dst, void* src, uint32_t length) {
-  // One DMA transfer can copy atmost DESC_LENGTH_MASK bytes.
+  // One DMA transfer can copy at most DESC_LENGTH_MASK bytes.
   // Make the common case quick.
   if (length <= DESC_LENGTH_MASK) return hexagon_user_dma_1d_sync_helper(dst, src, length);
 

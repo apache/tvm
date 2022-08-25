@@ -429,9 +429,14 @@ void NDArrayToTIR(::tvm::runtime::NDArray arr, std::ostream& os) {
     tot_dim *= arr->shape[i];
   }
   T* data_ptr = reinterpret_cast<T*>(arr->data);
+  constexpr int NUM_PRINT = 20;
   os << "[";
   for (int i = 0; i < tot_dim; i++) {
     os << (i != 0 ? ", " : "") << data_ptr[i];
+    if (i == NUM_PRINT) {
+      os << "...";
+      break;
+    }
   }
   os << "]";
 }
@@ -1121,6 +1126,20 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateConstNode* alloc) {
       NDArrayToTIR<int16_t>(data, ss);
     } else if (alloc->dtype.bits() == 32) {
       NDArrayToTIR<int32_t>(data, ss);
+    } else if (alloc->dtype.bits() == 64) {
+      NDArrayToTIR<int64_t>(data, ss);
+    } else {
+      LOG(FATAL) << "DataType not supported";
+    }
+  } else if (alloc->dtype.is_uint()) {
+    if (alloc->dtype.bits() == 8) {
+      // NDArrayToTIR<uint8_t>(data, ss);
+    } else if (alloc->dtype.bits() == 16) {
+      NDArrayToTIR<uint16_t>(data, ss);
+    } else if (alloc->dtype.bits() == 32) {
+      NDArrayToTIR<uint32_t>(data, ss);
+    } else if (alloc->dtype.bits() == 64) {
+      NDArrayToTIR<int64_t>(data, ss);
     } else {
       LOG(FATAL) << "DataType not supported";
     }

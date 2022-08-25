@@ -540,8 +540,7 @@ std::unique_ptr<std::string> LogCheckFormat(const X& x, const Y& y) {
   std::ostringstream os;
   os << " (" << x << " vs. " << y << ") ";  // CHECK_XX(x, y) requires x and y can be serialized to
                                             // string. Use CHECK(x OP y) otherwise.
-  // no std::make_unique until c++14
-  return std::unique_ptr<std::string>(new std::string(os.str()));
+  return std::make_unique<std::string>(os.str());
 }
 
 // Inline _Pragma in macros does not work reliably on old version of MSVC and

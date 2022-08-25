@@ -912,7 +912,9 @@ class PyTorchOpConverter:
 
     def log_sigmoid(self, inputs, input_types):
         data = inputs[0]
-        return _op.log(_op.tensor.sigmoid(data))
+        mn = _op.minimum(_op.const(0, dtype=input_types[0]), data)
+        z = _op.exp(-_op.abs(data))
+        return mn - self.log1p([z], input_types)
 
     def cross_entropy_loss_with_logits(self, inputs, input_types):
         input = inputs[0]
@@ -1072,13 +1074,17 @@ class PyTorchOpConverter:
     def maxpool_3d(self, inputs, input_types):
         data = inputs[0]
 
+        need_squeeze = False
+        if len(self.get_dims(data)) == 4:
+            need_squeeze = True
+            data = _op.expand_dims(data, 0)
         pool_size = inputs[1]
         strides = inputs[2] if inputs[2] else pool_size
         padding = inputs[3]
         dilation = inputs[4]
         ceil_mode = int(inputs[5])
 
-        return _op.nn.max_pool3d(
+        res = _op.nn.max_pool3d(
             data,
             pool_size=pool_size,
             strides=strides,
@@ -1086,6 +1092,7 @@ class PyTorchOpConverter:
             padding=padding,
             ceil_mode=ceil_mode,
         )
+        return res if not need_squeeze else _op.squeeze(res, [0])
 
     def hardtanh(self, inputs, input_types):
         a = inputs[0]

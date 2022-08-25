@@ -40,6 +40,7 @@ from .utils import (
     assert_partitioned_function,
     assert_no_external_function,
     create_test_runner,
+    CheckForPadsWithinCompositeFunc,
 )
 
 
@@ -62,23 +63,21 @@ def make_model(
     weight_format,
     enable_bias,
     relu_type,
+    input_op=None,
 ):
     """Return a model and any parameters it may have"""
+    if input_op:
+        op = input_op
+    else:
+        op = relay.var("input", shape=shape, dtype=dtype)
+
     h_index = weight_format.index("H")
     w_index = weight_format.index("W")
     kernel_h = kernel_shape[h_index]
     kernel_w = kernel_shape[w_index]
-    invar = relay.var("input", shape=shape, dtype=dtype)
     p = (0, 0, 0, 0)
     if padding == "SAME":
         p = get_same_padding((shape[1], shape[2]), (kernel_h, kernel_w), dilation, strides)
-        invar = relay.nn.pad(
-            invar,
-            pad_width=[(0, 0), (p[0], p[2]), (p[1], p[3]), (0, 0)],
-            pad_value=input_zero_point,
-            pad_mode="constant",
-        )
-        shape = (shape[0], shape[1] + p[0] + p[2], shape[2] + p[1] + p[3], shape[3])
 
     rng = np.random.default_rng(12321)
     weight = tvm.nd.array(
@@ -92,7 +91,7 @@ def make_model(
     weight_const = relay.const(weight, kernel_dtype)
     conv2d_kernel_sc = kernel_scale[0] if out_channels == 1 else kernel_scale
     conv = relay.qnn.op.conv2d(
-        invar,
+        op,
         weight_const,
         input_zero_point=relay.const(input_zero_point, "int32"),
         kernel_zero_point=relay.const(kernel_zero_point, "int32"),
@@ -165,9 +164,9 @@ def test_conv2d_number_primfunc_args(
         input_zero_point,
         kernel_scale,
         kernel_zero_point,
-        dtype,
-        dtype,
-        dtype,
+        input_dtype=dtype,
+        weights_dtype=dtype,
+        output_dtype=dtype,
     )
 
     model, params = make_model(
@@ -265,9 +264,9 @@ def test_conv2d_symmetric_padding_int8(
         input_zero_point,
         kernel_scale,
         kernel_zero_point,
-        dtype,
-        dtype,
-        dtype,
+        input_dtype=dtype,
+        weights_dtype=dtype,
+        output_dtype=dtype,
     )
 
     model, params = make_model(
@@ -355,9 +354,9 @@ def test_conv2d_asymmetric_padding_int8(
         input_zero_point,
         kernel_scale,
         kernel_zero_point,
-        dtype,
-        dtype,
-        dtype,
+        input_dtype=dtype,
+        weights_dtype=dtype,
+        output_dtype=dtype,
     )
 
     model, params = make_model(
@@ -384,6 +383,234 @@ def test_conv2d_asymmetric_padding_int8(
     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
     # validate pattern matching
     assert_partitioned_function(orig_mod, cmsisnn_mod)
+
+    # validate the output
+    rng = np.random.default_rng(12345)
+    inputs = {"input": rng.integers(in_min, high=in_max, size=ifm_shape, dtype=dtype)}
+    output_list = generate_ref_data(orig_mod["main"], inputs, params)
+    compile_and_run(
+        AOTTestModel(
+            module=cmsisnn_mod,
+            inputs=inputs,
+            outputs=output_list,
+            params=params,
+            output_tolerance=1,
+        ),
+        test_runner,
+        interface_api,
+        use_unpacked_api,
+    )
+
+
+@tvm.testing.requires_cmsisnn
+@pytest.mark.parametrize("ifm_shape", [(1, 25, 25, 12), (1, 64, 100, 4)])
+@pytest.mark.parametrize(
+    "pad_width",
+    [
+        ((0, 0), (0, 1), (1, 2), (0, 0)),
+        ((0, 0), (1, 1), (1, 1), (0, 0)),
+        ((0, 0), (2, 2), (3, 4), (0, 0)),
+    ],
+)
+def test_pad_conv2d_fusion_int8(
+    ifm_shape,
+    pad_width,
+):
+    """Tests QNN Conv2D where the padding is asymmetric on different sides of input"""
+    interface_api = "c"
+    use_unpacked_api = True
+    test_runner = AOT_USMP_CORSTONE300_RUNNER
+
+    ifm_shape = (1, 25, 25, 12)
+    kernel_size = (5, 5)
+    strides = (2, 2)
+    dilation = (1, 1)
+    padding = "SAME"
+    dtype = "int8"
+    enable_bias = True
+    relu_type = "NONE"
+    input_zero_point = 10
+    input_scale = 0.0128
+    kernel_scale = [0.11, 0.22]
+    out_channels = 2
+    groups = 1
+    weight_format = "HWIO"
+    kernel_h = kernel_size[0]
+    kernel_w = kernel_size[1]
+    kernel_shape = (kernel_h, kernel_w, ifm_shape[3] // groups, out_channels)
+    kernel_zero_point = 0
+    in_min, in_max = get_range_for_dtype_str(dtype)
+
+    output_scale, output_zero_point = get_conv2d_qnn_params(
+        kernel_shape,
+        input_scale,
+        input_zero_point,
+        kernel_scale,
+        kernel_zero_point,
+        input_dtype=dtype,
+        weights_dtype=dtype,
+        output_dtype=dtype,
+    )
+
+    invar = relay.var("input", shape=ifm_shape, dtype=dtype)
+    pad = relay.nn.pad(
+        invar,
+        pad_width=pad_width,  # ((), (top, bottom), (left, right), ())
+        pad_value=input_zero_point,
+        pad_mode="constant",
+    )
+
+    model, params = make_model(
+        ifm_shape,
+        kernel_shape,
+        input_zero_point,
+        input_scale,
+        kernel_zero_point,
+        kernel_scale,
+        output_zero_point,
+        output_scale,
+        padding,
+        strides,
+        dilation,
+        groups,
+        dtype,
+        dtype,
+        out_channels,
+        weight_format,
+        enable_bias,
+        relu_type,
+        input_op=pad,
+    )
+    orig_mod = make_module(model)
+    cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
+
+    # validate pattern matching
+    assert_partitioned_function(orig_mod, cmsisnn_mod, False)
+
+    # check pad is not present inside CMSIS-NN partitioned function
+    cmsisnn_func = None
+    for var in cmsisnn_mod.get_global_vars():
+        if "cmsis_nn_main_0" in var.name_hint:
+            cmsisnn_func = cmsisnn_mod[var]
+            pad_verifier = CheckForPadsWithinCompositeFunc()
+            pad_verifier.visit_function(cmsisnn_func)
+            pad_verifier.assert_no_pads_within_func()
+
+    # validate the output
+    rng = np.random.default_rng(12345)
+    inputs = {"input": rng.integers(in_min, high=in_max, size=ifm_shape, dtype=dtype)}
+    output_list = generate_ref_data(orig_mod["main"], inputs, params)
+    compile_and_run(
+        AOTTestModel(
+            module=cmsisnn_mod,
+            inputs=inputs,
+            outputs=output_list,
+            params=params,
+            output_tolerance=1,
+        ),
+        test_runner,
+        interface_api,
+        use_unpacked_api,
+    )
+
+
+@tvm.testing.requires_cmsisnn
+@pytest.mark.parametrize(
+    "ifm_shape, pad_width, conv2d_padding",
+    [
+        [(1, 25, 25, 12), ((0, 0), (0, 2), (1, 2), (0, 0)), "SAME"],
+        [(1, 64, 100, 4), ((0, 0), (1, 3), (1, 1), (0, 0)), "VALID"],
+        [(1, 55, 55, 3), ((0, 0), (2, 1), (3, 5), (0, 0)), "SAME"],
+    ],
+)
+def test_invalid_pad_conv2d_fusion_int8(
+    ifm_shape,
+    pad_width,
+    conv2d_padding,
+):
+    """Tests QNN Conv2D where the padding is asymmetric on different sides of input"""
+    interface_api = "c"
+    use_unpacked_api = True
+    test_runner = AOT_USMP_CORSTONE300_RUNNER
+
+    ifm_shape = (1, 25, 25, 12)
+    kernel_size = (5, 5)
+    strides = (2, 2)
+    dilation = (1, 1)
+    dtype = "int8"
+    enable_bias = True
+    relu_type = "NONE"
+    input_zero_point = 10
+    input_scale = 0.0128
+    kernel_scale = [0.11, 0.22]
+    out_channels = 2
+    groups = 1
+    weight_format = "HWIO"
+    kernel_h = kernel_size[0]
+    kernel_w = kernel_size[1]
+    kernel_shape = (kernel_h, kernel_w, ifm_shape[3] // groups, out_channels)
+    kernel_zero_point = 0
+    in_min, in_max = get_range_for_dtype_str(dtype)
+
+    output_scale, output_zero_point = get_conv2d_qnn_params(
+        kernel_shape,
+        input_scale,
+        input_zero_point,
+        kernel_scale,
+        kernel_zero_point,
+        input_dtype=dtype,
+        weights_dtype=dtype,
+        output_dtype=dtype,
+    )
+
+    invar = relay.var("input", shape=ifm_shape, dtype=dtype)
+    pad = relay.nn.pad(
+        invar,
+        pad_width=pad_width,  # ((), (top, bottom), (left, right), ())
+        pad_value=input_zero_point,
+        pad_mode="constant",
+    )
+
+    model, params = make_model(
+        ifm_shape,
+        kernel_shape,
+        input_zero_point,
+        input_scale,
+        kernel_zero_point,
+        kernel_scale,
+        output_zero_point,
+        output_scale,
+        conv2d_padding,
+        strides,
+        dilation,
+        groups,
+        dtype,
+        dtype,
+        out_channels,
+        weight_format,
+        enable_bias,
+        relu_type,
+        input_op=pad,
+    )
+    orig_mod = make_module(model)
+    cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
+
+    # validate pattern matching
+    assert_partitioned_function(orig_mod, cmsisnn_mod)
+
+    # check pad is only present inside main function
+    cmsisnn_func = None
+    for var in cmsisnn_mod.get_global_vars():
+        if "cmsis_nn_main_0" in var.name_hint:
+            cmsisnn_func = cmsisnn_mod[var]
+            pad_verifier = CheckForPadsWithinCompositeFunc()
+            pad_verifier.visit_function(cmsisnn_func)
+            pad_verifier.assert_no_pads_within_func()
+        else:
+            main_func = cmsisnn_mod[var]
+            pad_verifier = CheckForPadsWithinCompositeFunc()
+            pad_verifier.visit_function(main_func)
+            pad_verifier.assert_pads_within_func()
 
     # validate the output
     rng = np.random.default_rng(12345)
@@ -506,10 +733,10 @@ def test_depthwise_int8(
         input_zero_point,
         kernel_scale,
         kernel_zero_point,
-        dtype,
-        dtype,
-        dtype,
-        True,
+        input_dtype=dtype,
+        weights_dtype=dtype,
+        output_dtype=dtype,
+        is_depthwise=True,
     )
 
     model, params = make_model(
@@ -611,10 +838,10 @@ def test_relay_conv2d_cmsisnn_depthwise_int8(
         input_zero_point,
         kernel_scale,
         kernel_zero_point,
-        dtype,
-        dtype,
-        dtype,
-        True,
+        input_dtype=dtype,
+        weights_dtype=dtype,
+        output_dtype=dtype,
+        is_depthwise=True,
     )
 
     model, params = make_model(
@@ -729,7 +956,7 @@ def test_invalid_parameters(
         in_dtype,
         kernel_dtype,
         in_dtype,
-        False,
+        is_depthwise=False,
     )
     model, params = make_model(
         shape=ifm_shape,

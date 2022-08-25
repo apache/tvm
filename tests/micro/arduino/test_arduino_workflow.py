@@ -37,9 +37,12 @@ This unit test simulates a simple user workflow, where we:
 """
 
 # Since these tests are sequential, we'll use the same project/workspace
-# directory for all tests in this file
+# directory for all tests in this file. Note that --board can't be loaded
+# from the fixture, since the fixture is function scoped (it has to be
+# for the tests to be named correctly via parameterization).
 @pytest.fixture(scope="module")
-def workflow_workspace_dir(request, board):
+def workflow_workspace_dir(request):
+    board = request.config.getoption("--board")
     return test_utils.make_workspace_dir("arduino_workflow", board)
 
 
@@ -48,9 +51,11 @@ def project_dir(workflow_workspace_dir):
     return workflow_workspace_dir / "project"
 
 
-# We MUST pass workspace_dir, not project_dir, or the workspace will be dereferenced too soon
+# We MUST pass workspace_dir, not project_dir, or the workspace will be dereferenced
+# too soon. We can't use the board fixture either for the reason mentioned above.
 @pytest.fixture(scope="module")
-def project(board, arduino_cli_cmd, microtvm_debug, workflow_workspace_dir):
+def project(request, arduino_cli_cmd, microtvm_debug, workflow_workspace_dir):
+    board = request.config.getoption("--board")
     return test_utils.make_kws_project(
         board, arduino_cli_cmd, microtvm_debug, workflow_workspace_dir
     )

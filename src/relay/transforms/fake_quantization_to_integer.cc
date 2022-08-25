@@ -300,7 +300,7 @@ class FakeQuantizationRewriter : public MixedModeMutator {
 /* Checks if the operation to convert QAT pass is enabled.
  * The following conditions must be satisfied:
  * 1. operations registered for FTVMFakeQuantizationToInteger;
- * 2. Unary operators or operators with with the TensorAffineType calculated during
+ * 2. Unary operators or operators with the TensorAffineType calculated during
  * FTVMFakeQuantizationToInteger conversion;
  * 3. Not one of the "key" operations: requantize,quantize and dequantize(they are at the boundaries
  * of regions defined to be quantized).

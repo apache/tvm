@@ -122,7 +122,10 @@ def config_cython():
         if os.name == "nt":
             library_dirs = ["tvm", "../build/Release", "../build"]
             libraries = ["tvm"]
-            extra_compile_args = None
+            extra_compile_args = [
+                "/std:c++17",
+                "/D DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>",
+            ]
             # library is available via conda env.
             if CONDA_BUILD:
                 library_dirs = [os.environ["LIBRARY_LIB"]]

@@ -356,7 +356,7 @@ void RelaxBufferRegions(const Map<Var, PrimExpr>& binding,
     runtime::StorageRank rank = scope.rank;
     if (rank != previous_rank || !var_dom.defined()) {
       previous_rank = rank;
-      var_dom = AsIntSet(LoopDomainOfSRefTreePath(
+      var_dom = arith::AsIntSet(LoopDomainOfSRefTreePath(
           /*low_inclusive=*/relax_path_low_inclusive,
           /*high_exclusive=*/relax_path_high_exclusive,
           /*extra_relax_scope=*/scope));

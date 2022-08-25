@@ -226,7 +226,7 @@ def test_conv2d_failure():
             "uint8",
             8,
             "HWIO",
-            tei.get_overall_scale_range_expected_error_message(),
+            "Overall scale (of the input * weights / output) should be in the range (2^-32, 65536)",
         ),
         (
             (1, 4, 4, 4),

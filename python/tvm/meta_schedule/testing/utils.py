@@ -16,7 +16,7 @@
 # under the License.
 """Testing utility functions in meta schedule"""
 from typing import Callable, Dict, Optional, Union
-from tvm.ir import IRModule
+from tvm.ir import IRModule, transform
 from tvm.relay import Function as RelayFunc
 from tvm.runtime import NDArray
 from tvm.target import Target
@@ -45,7 +45,7 @@ def apply_fixed_schedules(
     schedule_fn : Callable[[ExtractedTask, Schedule], bool]
         A callable that is applied for each extracted task and the corresponding default schedule.
         Returns True if the given schedule should be committed to the database, False otherwise.
-    te_filter_func : Union[str, None, Callable[[List[Tensor]], PrimFunc]] = None
+    te_filter_func : Union[str, None, Callable[[List[Tensor], List[NDArray]], PrimFunc]] = None
         The filtering function for TE computation
         If it's a string, it's the name of the filtering function. Built in functions are
           - "meta_schedule.DefaultTaskFilter"
@@ -59,11 +59,12 @@ def apply_fixed_schedules(
         The database containing dummy tuning records for manually scheduled traces.
     """
     target = Target(target) if isinstance(target, str) else target
+    config = {"relay.backend.use_meta_schedule": True}
+    for k, v in transform.PassContext.current().config.items():
+        config[k] = v
+
     extracted_tasks = ms.extract_task_from_relay(
-        relay_mod,
-        target,
-        params,
-        te_filter_func=te_filter_func,
+        relay_mod, target, params, te_filter_func=te_filter_func, pass_config=config
     )
     database = ms.database.MemoryDatabase()
     for task in extracted_tasks:
