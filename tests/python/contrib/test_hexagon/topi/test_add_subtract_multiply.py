@@ -55,7 +55,7 @@ def input_np_B(input_shape_B, dtype):
 def quantize_input_np_A(input_np_A, dtype):
     if dtype == "uint8" or dtype == "int8":
         global zero_point_A_val, scale_A_val
-        input_np_A_quantized, scale_A_val, zero_point_A_val= quantize_np(input_np_A, dtype)
+        input_np_A_quantized, scale_A_val, zero_point_A_val = quantize_np(input_np_A, dtype)
         return input_np_A_quantized
 
 
@@ -318,7 +318,7 @@ class TestAddSubtractMultiplyBroadcast2d:
             elif op_name == "multiply":
                 M = qn.qmultiply_broadcast_compute(*args)
             tir_schedule = qn.tir_schedule_quant(
-                M, A, B, output_layout, input_A_layout, input_B_layout, op_name
+                M, A, B, output_layout, input_A_layout, input_B_layout
             )
 
         sch = tir_schedule.mod

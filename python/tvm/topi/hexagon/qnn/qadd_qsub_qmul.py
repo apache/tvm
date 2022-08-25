@@ -25,7 +25,6 @@ Please note the following assumptions made by the implementation:
 from tvm import te
 from tvm import tir
 from ..utils import get_layout_transform_fn, get_fixed_point_value
-import tvm
 
 
 def broadcast_axis(tensor_A, tensor_B):
@@ -51,7 +50,7 @@ def saturate(x: te.Tensor, dtype: str):
     return te.max(te.min_value(dtype), te.min(x, te.max_value(dtype)))
 
 
-def get_int_scale(scale_A, scale_B, scale_M, zero_point_A, zero_point_B, zero_point_M, op, dtype):
+def get_int_scale(scale_A, scale_B, scale_M, zero_point_A, zero_point_B, zero_point_M, op):
     """Get fixed-point number"""
     C_recip = 1 / scale_M
 
@@ -104,7 +103,7 @@ def qadd_broadcast_compute(
     n_b, h_b, w_b, c_b = B_broadcast
 
     scale_a, scale_b, rsh, corr = get_int_scale(
-        scale_A, scale_B, scale_M, zero_point_A, zero_point_B, zero_point_M, "qadd", "int16"
+        scale_A, scale_B, scale_M, zero_point_A, zero_point_B, zero_point_M, "qadd"
     )
 
     return te.compute(
@@ -141,7 +140,7 @@ def qsubtract_broadcast_compute(
     n_b, h_b, w_b, c_b = B_broadcast
 
     scale_a, scale_b, rsh, corr = get_int_scale(
-        scale_A, scale_B, scale_M, zero_point_A, zero_point_B, zero_point_M, "qsub", "int16"
+        scale_A, scale_B, scale_M, zero_point_A, zero_point_B, zero_point_M, "qsub"
     )
 
     return te.compute(
@@ -178,7 +177,7 @@ def qmultiply_broadcast_compute(
     n_b, h_b, w_b, c_b = B_broadcast
 
     scale_int, rsh, corr = get_int_scale(
-        scale_A, scale_B, scale_M, zero_point_A, zero_point_B, zero_point_M, "qmul", "int16"
+        scale_A, scale_B, scale_M, zero_point_A, zero_point_B, zero_point_M, "qmul"
     )
 
     return te.compute(
@@ -205,7 +204,6 @@ def tir_schedule_quant(
     output_layout: str,
     tensor_A_layout: str,
     tensor_B_layout: str,
-    op_name: str,
 ):
     """Schedule for output layout nhwc-8h8w32c-2d"""
     func = te.create_prim_func([tensor_A, tensor_B, out_M])
