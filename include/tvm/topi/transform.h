@@ -396,7 +396,7 @@ inline Tensor unravel_index(const Tensor& x, const Tensor& shape, std::string na
  * The removed dimensions must have a constant size of 1.
  *
  * \param x The input tensor
- * \param axis Indices of the dimensions to remove. If this is empty,
+ * \param axis Indices of the dimensions to remove. If this is None,
  * all entries with a constant size of 1 will be removed.
  * \param atleast1d Whether the output need to be atleast1d.
  * \param name The name of the operation
@@ -408,7 +408,7 @@ inline Tensor squeeze(const Tensor& x, Array<Integer> axis, bool atleast1d = fal
                       std::string name = "T_squeeze", std::string tag = kInjective) {
   auto ndim = x->shape.size();
   std::vector<int> axis_val;
-  if (!axis.defined() || axis.size() == 0) {
+  if (!axis.defined()) {
     for (size_t i = 0; i < ndim; ++i) {
       if (IsConstInt(x->shape[i]) && GetConstInt(x->shape[i]) == 1) {
         axis_val.push_back(static_cast<int>(i));
