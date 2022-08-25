@@ -709,8 +709,9 @@ class SimplifyRSqrt : public DFPatternRewrite {
 };
 
 class SimplifyDQArgFunc : public DFPatternRewrite {
+  /*! Base class for simplifying dequantize followed by arg ops */
  public:
-  SimplifyDQArgFunc(std::string op) : op_(op) {
+  explicit SimplifyDQArgFunc(std::string op) : op_(op) {
     x_ = IsWildcard();
     dq_ = IsOp("qnn.dequantize")({x_, IsWildcard(), IsWildcard()});
     pattern_ = IsOp(op_)({dq_});
@@ -727,21 +728,26 @@ class SimplifyDQArgFunc : public DFPatternRewrite {
  protected:
   /*! \brief Pattern input */
   DFPattern x_;
+  /*! \brief dequantize op */
   DFPattern dq_;
+  /*! \brief Name of op to simplify */
   String op_;
 };
 
 class SimplifyDQArgMax : public SimplifyDQArgFunc {
+  /*! Simplify dequantize follwed by argmax */
  public:
   SimplifyDQArgMax() : SimplifyDQArgFunc("argmax") {}
 };
 
 class SimplifyDQArgMin : public SimplifyDQArgFunc {
+  /*! Simplify dequantize follwed by argmin */
  public:
   SimplifyDQArgMin() : SimplifyDQArgFunc("argmin") {}
 };
 
 class SimplifyDQArgSort : public SimplifyDQArgFunc {
+  /*! Simplify dequantize follwed by argsort */
  public:
   SimplifyDQArgSort() : SimplifyDQArgFunc("argsort") {}
 };
