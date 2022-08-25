@@ -30,14 +30,7 @@ from tvm.relay.backend.executor_factory import (
     AOTExecutorFactoryModule,
     GraphExecutorFactoryModule,
 )
-
-
-def export_module(module, out_dir):
-    temp_dir = pathlib.Path(out_dir)
-    binary_name = "test_binary.so"
-    binary_path = temp_dir / binary_name
-    module.save(str(binary_path))
-    return binary_path, binary_name
+from .tools import export_module
 
 
 class Session:
@@ -165,7 +158,8 @@ class Session:
 
         if isinstance(module, tvm.runtime.Module):
             with tempfile.TemporaryDirectory() as temp_dir:
-                binary_path, binary_name = export_module(module, temp_dir)
+                binary_name = "test_binary.so"
+                binary_path = export_module(module, temp_dir, binary_name)
                 remote_file_path = self.upload(binary_path, binary_name)
         else:
             remote_file_path = module

@@ -51,9 +51,7 @@ class MatmulModule:
 
 
 @tvm.testing.requires_hexagon
-def test_builder_runner_(hexagon_launcher):
-    """Test meta schedule rpc runner for a single run"""
-    # Build the module
+def test_builder_runner(hexagon_launcher):
     target_hexagon = tvm.target.hexagon("v68", link_params=True)
     target = tvm.target.Target(target_hexagon, host=target_hexagon)
     mod = MatmulModule
@@ -182,9 +180,9 @@ def test_vrmpy_dense(hexagon_launcher):
         with tempfile.TemporaryDirectory() as work_dir:
             config = ms.TuneConfig(
                 strategy="replay_trace",
-                num_trials_per_iter=32,
-                max_trials_per_task=32,
-                max_trials_global=32,
+                num_trials_per_iter=8,
+                max_trials_per_task=8,
+                max_trials_global=8,
             )
 
             def schedule_dense_for_tune(sch):
