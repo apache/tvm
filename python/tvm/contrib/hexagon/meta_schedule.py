@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Meta scheduler tuning utilities for Hexagon."""
+"""Meta schedule tuning utilities for Hexagon."""
 import os
 import tempfile
 from typing import Callable, List, Optional
@@ -122,7 +122,7 @@ def _worker_func(hexagon_launcher, evaluator_config, alloc_repeat, artifact_path
 
 
 def get_hexagon_local_builder():
-    """Return Hexagon-compatible Builder for meta scheduler."""
+    """Return Hexagon-compatible Builder for meta schedule."""
 
     def export_func(mod):
         binary_path = export_module(mod, tempfile.mkdtemp())
@@ -134,7 +134,7 @@ def get_hexagon_local_builder():
 def get_hexagon_rpc_runner(
     hexagon_launcher: HexagonLauncherRPC, number=3, repeat=1, min_repeat_ms=100
 ):
-    """Return Hexagon-compatible RPC Runner for meta scheduler.
+    """Return Hexagon-compatible RPC Runner for meta schedule.
 
     Parameters
     ----------
