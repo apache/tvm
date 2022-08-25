@@ -87,7 +87,7 @@ void CopyOutput(dl::Buffer* source_buffers[], std::vector<DLTensor*>* outputs) {
   }
 }
 
-void CreateBuffers(std::vector<std::shared_ptr<dl::Buffer> >* fm,
+void CreateBuffers(std::vector<std::shared_ptr<dl::Buffer>>* fm,
                    const std::vector<DLTensor*>& tensors, const std::vector<uint32_t>& tensor_sizes,
                    bool input) {
   for (size_t i = 0; i < tensors.size(); i++) {
@@ -118,11 +118,11 @@ bool Inference(tvm::runtime::TVMArgs args, dl::Network* npu,
   }
 
   // Set up input buffers
-  std::vector<std::shared_ptr<dl::Buffer> > ifm(inputs.size());
+  std::vector<std::shared_ptr<dl::Buffer>> ifm(inputs.size());
   CreateBuffers(&ifm, inputs, input_sizes, true);
 
   // Set up output buffers
-  std::vector<std::shared_ptr<dl::Buffer> > ofm(outputs.size());
+  std::vector<std::shared_ptr<dl::Buffer>> ofm(outputs.size());
   CreateBuffers(&ofm, outputs, output_sizes, false);
 
   // Raw pointers for the inference
