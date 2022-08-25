@@ -66,4 +66,6 @@ def dot_product_32x4_u8u8i32_vrmpy(
 
 VRMPY_u8u8i32_INTRIN = "dot_32x4_u8u8i32_vrmpy"
 
-TensorIntrin.register(VRMPY_u8u8i32_INTRIN, dot_product_32x4_u8u8i32_desc, dot_product_32x4_u8u8i32_vrmpy)
+TensorIntrin.register(
+    VRMPY_u8u8i32_INTRIN, dot_product_32x4_u8u8i32_desc, dot_product_32x4_u8u8i32_vrmpy
+)

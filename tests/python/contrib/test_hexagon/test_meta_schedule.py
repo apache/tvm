@@ -96,9 +96,9 @@ def dense(m, n, k):
         (m, n),
         lambda i, j: te.sum(
             X[i, ak].astype("int32")
-            * packedW[
-                tvm.tir.indexdiv(j, 32), tvm.tir.indexdiv(ak, 4), j % 32, ak % 4
-            ].astype("int32"),
+            * packedW[tvm.tir.indexdiv(j, 32), tvm.tir.indexdiv(ak, 4), j % 32, ak % 4].astype(
+                "int32"
+            ),
             axis=ak,
         ),
         name="compute",
@@ -149,9 +149,7 @@ def verify_dense(sch, target, M, N, K, hexagon_session):
         for ko in range(K // 4):
             for s_idx in range(32):
                 for t_idx in range(4):
-                    packW[r_idx][ko][s_idx][t_idx] = b_np[r_idx * 32 + s_idx][
-                        ko * 4 + t_idx
-                    ]
+                    packW[r_idx][ko][s_idx][t_idx] = b_np[r_idx * 32 + s_idx][ko * 4 + t_idx]
 
     a = tvm.nd.array(a_np, dev)
     b = tvm.nd.array(packW, dev)
@@ -163,10 +161,7 @@ def verify_dense(sch, target, M, N, K, hexagon_session):
     evaluator = mod.time_evaluator(mod.entry_name, dev, number=10)
     gflops = (N * M * K) * 2 / 1e9
     time_ms = evaluator(a, b, c).mean * 1e3
-    print(
-        "%f ms, %f GOPS"
-        % (time_ms, gflops / (time_ms / 1e3))
-    )
+    print("%f ms, %f GOPS" % (time_ms, gflops / (time_ms / 1e3)))
 
 
 @tvm.testing.requires_hexagon
@@ -203,9 +198,7 @@ def test_vrmpy_dense(hexagon_launcher):
                 work_dir=work_dir,
                 space=ms.space_generator.ScheduleFn(schedule_dense_for_tune),
                 builder=get_hexagon_local_builder(),
-                runner=get_hexagon_rpc_runner(hexagon_launcher)
-
-
+                runner=get_hexagon_rpc_runner(hexagon_launcher),
             )
 
     with hexagon_launcher.start_session() as session:
