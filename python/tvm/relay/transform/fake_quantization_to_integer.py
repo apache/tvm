@@ -114,11 +114,26 @@ def adaptive_avgpool1d(expr, type_map):
     """Rewrite an adaptive avgpool op"""
     arg = expr.args[0]
     t = type_map[arg]
-    arg = relay.op.cast(arg, "int32")
+    out_t = type_map[expr]
+    if not (
+        approx_equal(t.scale, out_t.scale)
+        and approx_equal(t.zero_point, out_t.zero_point)
+        and tvm.ir.structural_equal(t.dtype, out_t.dtype)
+    ):
+        arg = relay.qnn.op.requantize(
+            arg,
+            t.scale,
+            t.zero_point,
+            out_t.scale,
+            out_t.zero_point,
+            out_dtype="int32",
+            axis=t.axis,
+        )
+    else:
+        arg = relay.op.cast(arg, "int32")
     output_size = expr.attrs.output_size
     out = relay.op.nn.adaptive_avg_pool1d(arg, output_size)
-    out = relay.op.cast(out, t.dtype)
-    return [out, t]
+    return [out, TensorAffineType(out_t.scale, out_t.zero_point, "int32", out_t.axis)]
 
 
 @register_fake_quantization_to_integer("nn.avg_pool2d")
@@ -126,10 +141,25 @@ def avgpool2d(expr, type_map):
     """Rewrite a avgpool op"""
     arg = expr.args[0]
     t = type_map[arg]
-    arg = relay.op.cast(arg, "int32")
+    out_t = type_map[expr]
+    if not (
+        approx_equal(t.scale, out_t.scale)
+        and approx_equal(t.zero_point, out_t.zero_point)
+        and tvm.ir.structural_equal(t.dtype, out_t.dtype)
+    ):
+        arg = relay.qnn.op.requantize(
+            arg,
+            t.scale,
+            t.zero_point,
+            out_t.scale,
+            out_t.zero_point,
+            out_dtype="int32",
+            axis=t.axis,
+        )
+    else:
+        arg = relay.op.cast(arg, "int32")
     out = relay.op.nn.avg_pool2d(arg, **expr.attrs)
-    out = relay.op.cast(out, t.dtype)
-    return [out, t]
+    return [out, TensorAffineType(out_t.scale, out_t.zero_point, "int32", out_t.axis)]
 
 
 @register_fake_quantization_to_integer("nn.global_avg_pool2d")
@@ -137,10 +167,26 @@ def global_avgpool2d(expr, type_map):
     """Rewrite a global_avgpool op"""
     arg = expr.args[0]
     t = type_map[arg]
-    arg = relay.op.cast(arg, "int32")
+    out_t = type_map[expr]
+    out_t = type_map[expr]
+    if not (
+        approx_equal(t.scale, out_t.scale)
+        and approx_equal(t.zero_point, out_t.zero_point)
+        and tvm.ir.structural_equal(t.dtype, out_t.dtype)
+    ):
+        arg = relay.qnn.op.requantize(
+            arg,
+            t.scale,
+            t.zero_point,
+            out_t.scale,
+            out_t.zero_point,
+            out_dtype="int32",
+            axis=t.axis,
+        )
+    else:
+        arg = relay.op.cast(arg, "int32")
     out = relay.op.nn.global_avg_pool2d(arg)
-    out = relay.op.cast(out, t.dtype)
-    return [out, t]
+    return [out, TensorAffineType(out_t.scale, out_t.zero_point, "int32", out_t.axis)]
 
 
 @register_fake_quantization_to_integer("broadcast_to")
