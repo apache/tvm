@@ -3075,6 +3075,7 @@ def test_forward_embedding():
     verify_model(torch.nn.Embedding(4, 5, sparse=True).float().eval(), input_data=input_data)
 
 
+@tvm.testing.uses_gpu
 def test_embedding_bag():
     class EmbeddingBag(Module):
         def __init__(
@@ -3092,10 +3093,10 @@ def test_embedding_bag():
             self.include_last_offset = include_last_offset
             self.per_sample_weights = per_sample_weights
 
-        def forward(self, input, weight):
+        def forward(self, inputs, weights):
             return F.embedding_bag(
-                input,
-                weight,
+                inputs,
+                weights,
                 mode=self.mode,
                 padding_idx=self.padding_idx,
                 scale_grad_by_freq=self.scale_grad_by_freq,
