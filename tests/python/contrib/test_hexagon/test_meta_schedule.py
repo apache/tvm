@@ -16,7 +16,6 @@
 # under the License.
 
 """ Test rpc based launcher for hexagon """
-import os
 import numpy as np
 import tempfile
 
@@ -26,7 +25,8 @@ from tvm import meta_schedule as ms
 from tvm.meta_schedule.arg_info import TensorInfo
 from tvm.meta_schedule.builder import BuilderInput
 from tvm.script import tir as T
-from tvm.tir import FloatImm, TensorIntrin
+from tvm.tir import FloatImm
+from tvm.tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
 from tvm.meta_schedule.runner import RunnerInput
 from tvm.contrib.hexagon.meta_schedule import get_hexagon_local_builder, get_hexagon_rpc_runner
 
@@ -48,55 +48,6 @@ class MatmulModule:
                 with T.init():
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
-
-
-@T.prim_func
-def dot_product_32x4_u8u8i32_desc(
-    A: T.Buffer((4,), "uint8", offset_factor=1),
-    B: T.Buffer((32, 4), "uint8", offset_factor=1),
-    C: T.Buffer((32,), "int32", offset_factor=1),
-) -> None:
-    with T.block("root"):
-        T.reads(C[0:32], A[0:4], B[0:32, 0:4])
-        T.writes(C[0:32])
-        for i in T.serial(0, 32):
-            with T.init():
-                C[i] = T.int32(0)
-            for k in T.serial(0, 4):
-                with T.block("update"):
-                    vi, vk = T.axis.remap("SR", [i, k])
-                    C[vi] = C[vi] + T.cast(A[vk], "int32") * T.cast(B[vi, vk], "int32")
-
-
-@T.prim_func
-def dot_product_32x4_u8u8i32_vrmpy(
-    A: T.Buffer((4,), "uint8", offset_factor=1),
-    B: T.Buffer((32, 4), "uint8", offset_factor=1),
-    C: T.Buffer((32,), "int32", offset_factor=1),
-) -> None:
-    with T.block("root"):
-        T.reads(C[0:32], A[0:4], B[0:32, 0:4])
-        T.writes(C[0:32])
-
-        A_u8x4 = A.vload([0], "uint8x4")
-        A_i32 = T.reinterpret(A_u8x4, dtype="int32")
-
-        B_i8x128 = B.vload([0, 0], dtype="uint8x128")
-        B_i32x32 = T.reinterpret(B_i8x128, dtype="int32x32")
-
-        C[T.ramp(T.int32(0), 1, 32)] = T.call_llvm_pure_intrin(
-            T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpyub.acc.128B"),
-            T.uint32(3),
-            C[T.ramp(T.int32(0), 1, 32)],
-            B_i32x32,
-            A_i32,
-            dtype="int32x32",
-        )
-
-
-VRMPY_INTRIN = "dot_32x4_vrmpy"
-
-TensorIntrin.register(VRMPY_INTRIN, dot_product_32x4_u8u8i32_desc, dot_product_32x4_u8u8i32_vrmpy)
 
 
 @tvm.testing.requires_hexagon
@@ -180,7 +131,7 @@ def schedule_dense(sch, block, M, do_tune):
     init_loop = sch.get_loops(dec)[-1]
     sch.vectorize(init_loop)
 
-    sch.tensorize(a_xi, VRMPY_INTRIN)
+    sch.tensorize(a_xi, VRMPY_u8u8i32_INTRIN)
 
 
 def verify_dense(sch, target, M, N, K, hexagon_session):
@@ -256,11 +207,6 @@ def test_vrmpy_dense(hexagon_launcher):
 
 
             )
-            if sch is None:
-                print("No valid schedule found!")
-            else:
-                print(sch.mod.script())
-                print(sch.trace)
 
     with hexagon_launcher.start_session() as session:
         verify_dense(sch, target, M, N, K, session)
