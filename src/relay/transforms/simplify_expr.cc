@@ -685,6 +685,7 @@ class SimplifyConsecutiveAdd : public DFPatternRewrite {
   DFPattern const2_;
 };
 
+/*! \brief Simplifying x/sqrt to x*sqrt */
 class SimplifyRSqrt : public DFPatternRewrite {
  public:
   SimplifyRSqrt() {
@@ -708,8 +709,8 @@ class SimplifyRSqrt : public DFPatternRewrite {
   DFPattern numerator_;
 };
 
+/*! \brief Base class for simplifying dequantize followed by arg ops */
 class SimplifyDQArgFunc : public DFPatternRewrite {
-  /*! Base class for simplifying dequantize followed by arg ops */
  public:
   explicit SimplifyDQArgFunc(std::string op) : op_(op) {
     x_ = IsWildcard();
@@ -734,20 +735,20 @@ class SimplifyDQArgFunc : public DFPatternRewrite {
   String op_;
 };
 
+/*! \brief Simplify dequantize follwed by argmax */
 class SimplifyDQArgMax : public SimplifyDQArgFunc {
-  /*! Simplify dequantize follwed by argmax */
  public:
   SimplifyDQArgMax() : SimplifyDQArgFunc("argmax") {}
 };
 
+/*! \brief Simplify dequantize follwed by argmin */
 class SimplifyDQArgMin : public SimplifyDQArgFunc {
-  /*! Simplify dequantize follwed by argmin */
  public:
   SimplifyDQArgMin() : SimplifyDQArgFunc("argmin") {}
 };
 
+/*! \brief Simplify dequantize follwed by argsort */
 class SimplifyDQArgSort : public SimplifyDQArgFunc {
-  /*! Simplify dequantize follwed by argsort */
  public:
   SimplifyDQArgSort() : SimplifyDQArgFunc("argsort") {}
 };
