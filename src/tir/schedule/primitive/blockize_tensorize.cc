@@ -426,7 +426,7 @@ Stmt MakeLoopNest(Stmt stmt, const std::vector<const ForNode*>& loops) {
 
 BlockRealize BlockizeImpl(const ScheduleState& self, const StmtSRef& loop_sref,
                           Map<Block, Block>* block_sref_reuse, arith::Analyzer* analyzer) {
-  const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+  TVM_SREF_TO_FOR(loop_sref);
   // Step 1: Check and get the only block under `loop`.
   BlockRealize block_realize = CheckGetSingleChildBlockRealizeOnSRefTree(self, loop_sref);
   Block block = block_realize->block;

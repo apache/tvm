@@ -150,7 +150,7 @@ Definition of a scope that is a stage pipeline:
   if (require_stage_pipeline) {
     bool stage_pipeline = self->GetBlockInfo(scope_root_sref).scope->stage_pipeline;
     if (stage_pipeline == false) {
-      const BlockNode* block = TVM_SREF_TO_BLOCK(block, scope_root_sref);
+      const BlockNode* block = TVM_SREF_TO_BLOCK(scope_root_sref);
       throw NotStagePipelineError(self->mod, GetRef<Block>(block));
     }
   }
@@ -229,7 +229,7 @@ bool IsDominantBlock(const ScheduleState& self, const StmtSRef& scope_root_sref,
     }
   }
   // Check whether the input block is the only writer of its outputs
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   for (const BufferRegion& write_region : block->writes) {
     if (buffer_writers.count(write_region->buffer)) {
       if (buffer_writers.at(write_region->buffer).size() != 1) {
@@ -252,7 +252,7 @@ bool IsDominantBlock(const ScheduleState& self, const StmtSRef& scope_root_sref,
 int CheckCompleteBlockErrorCode(const ScheduleState& self, const StmtSRef& block_sref,
                                 const StmtSRef& scope_root_sref) {
   // Cond 1. All block vars are data parallel
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   for (const IterVar& iter_var : block->iter_vars) {
     if (iter_var->iter_type != kDataPar) {
       return 1;
@@ -328,7 +328,7 @@ void CheckCompleteBlock(const ScheduleState& self, const StmtSRef& block_sref,
 
   int error_code = CheckCompleteBlockErrorCode(self, block_sref, scope_root_sref);
   if (error_code != 0) {
-    const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+    const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
     throw IncompleteBlockError(self->mod, GetRef<Block>(block), error_code);
   }
 }
@@ -344,7 +344,7 @@ void CheckCompleteBlock(const ScheduleState& self, const StmtSRef& block_sref,
  */
 int CheckReductionBlockErrorCode(const ScheduleState& self, const StmtSRef& block_sref,
                                  const StmtSRef& scope_root_sref) {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   // Cond 1. The block has the `init` statement.
   if (!block->init.defined()) {
     return 1;
@@ -394,7 +394,7 @@ void CheckReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
 
   int error_code = CheckReductionBlockErrorCode(self, block_sref, scope_root_sref);
   if (error_code != 0) {
-    const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+    const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
     throw NotReductionBlockError(self->mod, GetRef<Block>(block), error_code);
   }
 }
@@ -441,7 +441,7 @@ void CheckCompleteOrReductionBlock(const ScheduleState& self, const StmtSRef& bl
   if (reduction_block_error_code == 0) {
     return;
   }
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   throw NotCompleteOrReductionBlockError(self->mod, GetRef<Block>(block), complete_block_error_code,
                                          reduction_block_error_code);
 }
@@ -491,7 +491,7 @@ void CheckSubtreeCompactDataflow(const ScheduleState& self, const StmtSRef& subt
     int local_complete_block_code = CheckCompleteBlockErrorCode(self, block_sref, subtree_root),
         local_reduction_block_code = CheckReductionBlockErrorCode(self, block_sref, subtree_root);
     if (local_complete_block_code != 0 && local_reduction_block_code != 0) {
-      const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+      const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
       throw NotCompactDataFlowError(self->mod, GetRef<Stmt>(subtree_root->stmt),
                                     GetRef<Block>(block), local_complete_block_code,
                                     local_reduction_block_code);
@@ -501,8 +501,8 @@ void CheckSubtreeCompactDataflow(const ScheduleState& self, const StmtSRef& subt
 
 bool IsOutputBlock(const ScheduleState& self, const StmtSRef& block_sref,
                    const StmtSRef& scope_root_sref) {
-  const BlockNode* scope_root = TVM_SREF_TO_BLOCK(scope_root, scope_root_sref);
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* scope_root = TVM_SREF_TO_BLOCK(scope_root_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   std::unordered_set<const BufferNode*> scope_allocated;
   scope_allocated.reserve(scope_root->alloc_buffers.size());
   for (const Buffer& buffer : scope_root->alloc_buffers) {
@@ -532,7 +532,7 @@ void CheckNotOutputBlock(const ScheduleState& self, const StmtSRef& block_sref,
     Block block_;
   };
   if (IsOutputBlock(self, block_sref, scope_root_sref)) {
-    const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+    const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
     throw OutputBlockError(self->mod, GetRef<Block>(block));
   }
 }
@@ -547,12 +547,12 @@ std::vector<IterVarType> GetBlockVarTypes(const BlockNode* block) {
 }
 
 std::vector<IterVarType> GetBlockVarTypes(const StmtSRef& block_sref) {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   return GetBlockVarTypes(block);
 }
 
 bool IsWriteCache(const StmtSRef& block_sref) {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   if (block->writes.size() != 1) {
     return false;
   }
@@ -751,7 +751,7 @@ void CheckLoopStartsWithZero(const ScheduleState& self, const StmtSRef& loop_sre
     IRModule mod_;
     For loop_;
   };
-  const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   if (!analyzer->CanProve(loop->min == 0)) {
     throw LoopNotStartWithZeroError(self->mod, GetRef<For>(loop));
   }
@@ -856,7 +856,7 @@ BlockRealize GetBlockRealize(const ScheduleState& self, const StmtSRef& block_sr
     const BlockRealizeNode* result;
   };
 
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   if (block_sref->parent == nullptr) {
     const PrimFuncNode* func = GetRootPrimFunc(self->mod, block, nullptr);
     return Downcast<BlockRealize>(func->body);
@@ -870,7 +870,7 @@ BlockRealize GetBlockRealize(const ScheduleState& self, const StmtSRef& block_sr
 }
 
 IterVarType GetLoopIterType(const StmtSRef& loop_sref) {
-  const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   const Var& loop_var = loop->loop_var;
   int n_spatial = 0;
   int n_reduce = 0;
@@ -1924,7 +1924,7 @@ void CheckStorageScope(const ScheduleState& self, String storage_scope) {
 }
 
 bool IsSpatial(const StmtSRef& block_sref) {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   for (const IterVar& iter_var : block->iter_vars) {
     if (iter_var->iter_type != IterVarType::kDataPar) {
       return false;
@@ -1934,14 +1934,14 @@ bool IsSpatial(const StmtSRef& block_sref) {
 }
 
 bool IsTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref) {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  TVM_SREF_TO_BLOCK(block_sref);
   Array<StmtSRef> loops = GetLoops(block_sref);
   Array<PrimExpr> binds = GetBlockRealize(self, block_sref)->iter_values;
   if (loops.size() != binds.size()) {
     return false;
   }
   for (int i = 0, n = loops.size(); i < n; ++i) {
-    const ForNode* loop = TVM_SREF_TO_FOR(loop, loops[i]);
+    const ForNode* loop = TVM_SREF_TO_FOR(loops[i]);
     if (binds[i].get() != loop->loop_var.get()) {
       return false;
     }
@@ -1953,7 +1953,7 @@ bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref
   if (HasBeenMultiLevelTiled(block_sref)) {
     return false;
   }
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   if (block->writes.size() != 1 || block->reads.empty() || IsSpatial(block_sref) ||
       !IsTrivialBinding(self, block_sref)) {
     return false;
@@ -2065,7 +2065,7 @@ bool NeedsRFactorOrCrossThreadReduction(const tir::ScheduleState& self,   //
                                         const tir::StmtSRef& block_sref,  //
                                         int64_t max_parallel_extent,      //
                                         int64_t max_parallel_basic) {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   Array<tir::StmtSRef> loops = tir::GetLoops(block_sref);
 
   // Cond 1. The block has only one write buffer
@@ -2100,9 +2100,9 @@ bool NeedsRFactorOrCrossThreadReduction(const tir::ScheduleState& self,   //
     }
 
     // Cond 5.
-    const ForNode* loop_i = TVM_SREF_TO_FOR(loop_i, loops[i]);
+    const ForNode* loop_i = TVM_SREF_TO_FOR(loops[i]);
     if (i < loops.size() - 1) {
-      const ForNode* loop_i1 = TVM_SREF_TO_FOR(loop_i1, loops[i + 1]);
+      const ForNode* loop_i1 = TVM_SREF_TO_FOR(loops[i + 1]);
       if (loop_i->body.get() != loop_i1) {
         return false;
       }
@@ -2194,7 +2194,7 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
   TensorIntrinDescInfo desc_info = ExtractTensorIntrinDescInfo(&analyzer, desc_func);
   // Step 2. Collect loops from block_sref
   const tir::StmtSRef& scope_sref = GetScopeRoot(self, block_sref, false);
-  const tir::BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_block, scope_sref);
+  TVM_SREF_TO_BLOCK(scope_sref);
   std::vector<const tir::ForNode*> block_loops;
   std::unordered_set<const tir::VarNode*> block_loop_vars;
   {

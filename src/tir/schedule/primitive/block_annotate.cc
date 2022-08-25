@@ -238,7 +238,7 @@ class StorageScopeMutator : private ReplaceBufferMutator {
 
 void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int buffer_index, int axis,
                   int factor, int offset) {
-  const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_ptr, block_sref);
+  const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_sref);
   Buffer buffer =
       GetNthAccessBuffer(self, GetRef<Block>(block_ptr), buffer_index, BufferIndexType::kWrite);
   StorageAlignInvalidFactorError::Check(self->mod, factor);
@@ -274,7 +274,7 @@ void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int buffer_ind
 
 void SetScope(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
               const String& storage_scope) {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   Buffer buffer =
       GetNthAccessBuffer(self, GetRef<Block>(block), buffer_index, BufferIndexType::kWrite);
 
@@ -289,7 +289,7 @@ void SetScope(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
   // Step 3. Get the allocation site of the target buffer.
   StmtSRef alloc_site_sref =
       NonAllocatedBufferError::CheckAndGetBufferAllocationSite(self->mod, block_sref, buffer);
-  const BlockNode* alloc_site = TVM_SREF_TO_BLOCK(alloc_site, alloc_site_sref);
+  const BlockNode* alloc_site = TVM_SREF_TO_BLOCK(alloc_site_sref);
 
   // Step 4. Recursively replace the old buffer to a new buffer, where the new buffer has the given
   // storage scope. In the meanwhile, collect the block sref reuse information.

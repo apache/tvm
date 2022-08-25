@@ -238,7 +238,7 @@ inline std::string Concat(const Array<String>& strs, const std::string& delim) {
  */
 inline tir::BlockRV GetRVFromSRef(const tir::Schedule& sch, const tir::StmtSRef& block_sref,
                                   const String& global_var_name) {
-  const tir::BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const tir::BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   return sch->GetBlock(block->name_hint, global_var_name);
 }
 
