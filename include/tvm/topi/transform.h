@@ -2018,14 +2018,17 @@ inline Tensor adv_index(const Tensor& data, const Array<Tensor>& indices,
 
 /*!
  * \brief Returns the sums, means or maxes of bags of embeddings
- * \param input input tensor
- * \param weight the lookup table.
+ * \param input 1-d tensor of indics.
+ * \param weight the 2-d lookup table.
  * \param offset the starting index position of each bag.
  * \param mode  the way (`sum`, `mean` or `max`) to reduce the bag.
- * \param oshape shape of the output tensor.
+ * \param per_sample_weights the weights for every input.
+ * \param padding_idx the index of padding_idx is not contributed to the result.
+ * \param include_last_offset if the last element of offset array is included.
+ * \param dtype the type of result.
  * \param name output tensor name.
  * \param tag output tensor tag.
- * \return embedded tensor.
+ * \return The embedded tensor.
  */
 inline Tensor embedding_bag(const Tensor& input, const Tensor& weight, const Tensor& offset,
                             int mode, const Tensor& per_sample_weights, int padding_idx,
@@ -2044,7 +2047,7 @@ inline Tensor embedding_bag(const Tensor& input, const Tensor& weight, const Ten
 
   auto func = [&](tvm::tir::Var i, tvm::tir::Var j) {
     auto ret = make_zero(dtype);
-    auto count = make_zero(dtype);
+    auto count = make_zero(dtype);  // count how many elements are used
 
     auto st = offset(i);  // start point
     auto ed = tvm::tir::Select(row == i + 1, PrimExpr(N),
@@ -2069,9 +2072,6 @@ inline Tensor embedding_bag(const Tensor& input, const Tensor& weight, const Ten
       }
     }
     if (mode == 1) {  // mean
-      // if (include_last_offset) {
-      //   // count = tvm::tir::Select(row == i + 1, count + (N - offset(i + 1)), count);
-      // }
       ret = tvm::topi::divide(ret, count);
     }
 

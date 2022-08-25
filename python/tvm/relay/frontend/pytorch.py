@@ -42,7 +42,6 @@ from . import qnn_torch
 from .common import AttrCvt, get_relay_op, gru_cell, logger, rnn_cell
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
-from .common import fold_constant as _fold_constant
 from .common import infer_value_simulated as _infer_value_simulated
 from .common import lstm_cell, try_infer_value, unbind
 from .pytorch_utils import is_version_greater_than, getattr_attr_name
@@ -2267,9 +2266,9 @@ class PyTorchOpConverter:
         assert len(_infer_shape(indices)) == 1, "Expects 1D indices for aten::embedding_bag."
 
         assert (
-            scale_grad_by_freq == False
+            not scale_grad_by_freq
         ), "unsupported `scale_grad_by_freq` parameter in embedding_bag."
-        assert sparse == False, "unsupported `sparse` parameter in embedding_bag."
+        assert not sparse, "unsupported `sparse` parameter in embedding_bag."
 
         mode_map = {0: _op.sum, 1: _op.mean, 2: _op.max}
         assert mode in mode_map, "unsupported reduction op mode %d." % mode
