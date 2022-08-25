@@ -418,7 +418,6 @@ class TestNoPaddingVirtualIndex(BasePaddingCompare):
                 A[vi // 4, vi % 4] = 0
 
 
-@pytest.mark.xfail(reason="Not implemented yet")
 class TestErrorIfPaddingForbidden(BasePaddingCompare):
     """Unless padding is explicitly enabled, should raise error"""
 

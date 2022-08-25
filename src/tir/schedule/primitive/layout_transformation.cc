@@ -132,6 +132,40 @@ class BufferIsSubregionError : public ScheduleError {
   Buffer buffer_;
 };
 
+class TransformationIntroducesPaddingError : public ScheduleError {
+ public:
+  TransformationIntroducesPaddingError(IRModule mod, Buffer buffer, IndexMap index_map,
+                                       PrimExpr padding_predicate)
+      : mod_(std::move(mod)),
+        buffer_(std::move(buffer)),
+        index_map_(std::move(index_map)),
+        padding_predicate_(std::move(padding_predicate)) {}
+
+  String FastErrorString() const final {
+    std::ostringstream ss;
+    ss << "ScheduleError: Transformation would introduce padding at " << padding_predicate_ << ".";
+    return ss.str();
+  }
+
+  String DetailRenderTemplate() const final {
+    auto new_shape = index_map_->MapShape(buffer_->shape);
+    std::ostringstream os;
+    os << "The transformation " << index_map_ << " applied on buffer " << buffer_->name
+       << " of shape " << buffer_->shape << " would result in shape " << new_shape
+       << ".  However, this would introduce padding wherever " << padding_predicate_ << " is true.";
+    return os.str();
+  }
+
+  IRModule mod() const final { return mod_; }
+  Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+
+ private:
+  IRModule mod_;
+  Buffer buffer_;
+  IndexMap index_map_;
+  PrimExpr padding_predicate_;
+};
+
 void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                      BufferIndexType buffer_index_type, const IndexMap& index_map,
                      const Optional<PrimExpr>& pad_value) {
@@ -152,6 +186,20 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
   ObjectPtr<BufferNode> new_buffer_node = make_object<BufferNode>(*(old_buffer.get()));
   new_buffer_node->shape = index_map->MapShape(old_buffer->shape);
   Buffer new_buffer{new_buffer_node};
+
+  // Step 1.1: Validate that padding hasn't been introduced.
+  auto [inverse, padding_predicate] = [&]() {
+    Array<Range> region;
+    for (const auto& dim : old_buffer->shape) {
+      region.push_back(Range::FromMinExtent(0, dim));
+    }
+    return index_map.NonSurjectiveInverse(region);
+  }();
+
+  bool has_padding = !is_zero(padding_predicate);
+  if (has_padding && !pad_value.defined()) {
+    throw TransformationIntroducesPaddingError(self->mod, old_buffer, index_map, padding_predicate);
+  }
 
   // Step 2: Rewrite access indices and regions of the buffer
   auto [new_stmt, block_sref_reuse] = TransformLayoutRewriter::Rewrite(
