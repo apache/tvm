@@ -16,6 +16,7 @@
 # under the License.
 
 """ Test rpc based launcher for hexagon """
+import pytest
 import numpy as np
 import tempfile
 
@@ -52,6 +53,9 @@ class MatmulModule:
 
 @tvm.testing.requires_hexagon
 def test_builder_runner(hexagon_launcher):
+    if hexagon_launcher._serial_number == "simulator":
+        pytest.skip(msg="Tuning on simulator not supported.")
+
     target_hexagon = tvm.target.hexagon("v68", link_params=True)
     target = tvm.target.Target(target_hexagon, host=target_hexagon)
     mod = MatmulModule
@@ -162,8 +166,12 @@ def verify_dense(sch, target, M, N, K, hexagon_session):
     print("%f ms, %f GOPS" % (time_ms, gflops / (time_ms / 1e3)))
 
 
+@pytest.mark.skip(reason="xgboost not installed on CI")
 @tvm.testing.requires_hexagon
 def test_vrmpy_dense(hexagon_launcher):
+    if hexagon_launcher._serial_number == "simulator":
+        pytest.skip(msg="Tuning on simulator not supported.")
+
     do_tune = True
     target_hexagon = tvm.target.hexagon("v68")
     target = tvm.target.Target(target_hexagon, host=target_hexagon)
