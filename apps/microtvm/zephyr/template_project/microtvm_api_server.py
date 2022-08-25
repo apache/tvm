@@ -673,6 +673,8 @@ class Handler(server.ProjectAPIHandler):
                 tf.extractall(project_dir)
 
     def build(self, options):
+        if BUILD_DIR.exists():
+            shutil.rmtree(BUILD_DIR)
         BUILD_DIR.mkdir()
 
         zephyr_board = _find_board_from_cmake_file(API_SERVER_DIR / CMAKELIST_FILENAME)
