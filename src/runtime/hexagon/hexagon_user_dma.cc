@@ -54,7 +54,7 @@ int HexagonUserDMA::Copy(void* dst, void* src, uint32_t length) {
   // get pointer to next descriptor
   dma_desc_2d_t* dma_desc = descriptors_->Next();
   if (!dma_desc) {
-    return DMA_FAILURE;
+    return DMA_RETRY;
   }
 
   // populate descriptor fields
@@ -107,7 +107,7 @@ HexagonUserDMA::HexagonUserDMA() {
     unsigned int done = dma_desc_get_done(dma_desc);
     return (done != DESC_DONE_COMPLETE);
   };
-  descriptors_ = new RingBuffer<dma_desc_2d_t>(100, desc_in_flight);
+  descriptors_ = new RingBuffer<dma_desc_2d_t>(MAX_DMA_DESCRIPTORS, desc_in_flight);
 }
 
 HexagonUserDMA::~HexagonUserDMA() {

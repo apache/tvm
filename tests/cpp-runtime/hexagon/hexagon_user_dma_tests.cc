@@ -49,7 +49,7 @@ class HexagonUserDMATest : public ::testing::Test {
   void* dst{nullptr};
   char* src_char{nullptr};
   char* dst_char{nullptr};
-  uint32_t length{0x400000};  // 4MB
+  uint32_t length{0x4000};  // 16KB
 };
 
 TEST_F(HexagonUserDMATest, wait) {
@@ -153,8 +153,26 @@ TEST_F(HexagonUserDMATest, pipeline) {
   }
 
   // verify
-  ASSERT_EQ(ret, 0);
+  ASSERT_EQ(ret, DMA_SUCCESS);
   for (uint32_t i = 0; i < length; ++i) {
-    ASSERT_EQ(dst_char[i], 2);
+    ASSERT_EQ(2, dst_char[i]);
+  }
+}
+
+TEST_F(HexagonUserDMATest, overflow_ring_buffer) {
+  uint32_t number_of_dmas = 0x400;  // 1k
+  uint32_t length_of_each_dma = length / number_of_dmas;
+
+  for (uint32_t i = 0; i < number_of_dmas; ++i) {
+    do {
+      ret = HexagonUserDMA::Get().Copy(dst_char + i * length_of_each_dma,
+                                       src_char + i * length_of_each_dma, length_of_each_dma);
+    } while (ret == DMA_RETRY);
+    ASSERT_EQ(ret, DMA_SUCCESS);
+  }
+
+  // verify
+  for (uint32_t i = 0; i < length; ++i) {
+    ASSERT_EQ(src_char[i], dst_char[i]);
   }
 }
