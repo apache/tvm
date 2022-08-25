@@ -203,7 +203,7 @@ class Module:
             [n],
             strides=[stride],
             elem_offset=0,
-            align=128,
+            align=64,
             offset_factor=1,
             buffer_type="auto",
         )
@@ -212,7 +212,7 @@ class Module:
             [n],
             strides=[stride_1],
             elem_offset=0,
-            align=128,
+            align=64,
             offset_factor=1,
             buffer_type="auto",
         )
@@ -221,7 +221,7 @@ class Module:
             [n],
             strides=[stride_2],
             elem_offset=0,
-            align=128,
+            align=64,
             offset_factor=1,
             buffer_type="auto",
         )
@@ -230,7 +230,7 @@ class Module:
             [n],
             strides=[stride_3],
             elem_offset=0,
-            align=128,
+            align=64,
             offset_factor=1,
             buffer_type="auto",
         )

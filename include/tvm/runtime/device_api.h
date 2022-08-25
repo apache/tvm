@@ -52,10 +52,10 @@ enum DeviceAttrKind : int {
 };
 
 /*! \brief Number of bytes each allocation must align to */
-constexpr int kAllocAlignment = 128;
+constexpr int kAllocAlignment = 64;
 
 /*! \brief Number of bytes each allocation must align to in temporary allocation */
-constexpr int kTempAllocaAlignment = 128;
+constexpr int kTempAllocaAlignment = 64;
 
 /*! \brief Maximum size that can be allocated on stack */
 constexpr int kMaxStackAlloca = 1024;
