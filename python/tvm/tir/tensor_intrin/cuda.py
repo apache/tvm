@@ -120,12 +120,12 @@ def get_ldmatrix_intrin(k_dim, dtype, is_b, transposed, shared_scope="shared"):
             shared_handle,
             shmem_shape,
             dtype,
-            align=128,
+            align=64,
             offset_factor=16,
             scope=shared_scope,
         )
         warp = T.match_buffer(
-            warp_handle, (WARP_SIZE, local_size), dtype, align=128, offset_factor=16, scope="warp"
+            warp_handle, (WARP_SIZE, local_size), dtype, align=64, offset_factor=16, scope="warp"
         )
 
         with T.block("root"):
@@ -149,13 +149,13 @@ def get_ldmatrix_intrin(k_dim, dtype, is_b, transposed, shared_scope="shared"):
             shared_handle,
             shmem_shape,
             dtype,
-            align=128,
+            align=64,
             offset_factor=16,
             scope=shared_scope,
             strides=[s0, s1],
         )
         warp = T.match_buffer(
-            warp_handle, (WARP_SIZE, local_size), dtype, align=128, offset_factor=16, scope="warp"
+            warp_handle, (WARP_SIZE, local_size), dtype, align=64, offset_factor=16, scope="warp"
         )
 
         with T.block("root"):
@@ -222,13 +222,13 @@ def get_mma_intrin(k_dim, out_dtype, b_transposed):
     @T.prim_func
     def mma_sync_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(
-            a, (WARP_SIZE, local_size), in_dtype, align=128, offset_factor=16, scope="warp"
+            a, (WARP_SIZE, local_size), in_dtype, align=64, offset_factor=16, scope="warp"
         )
         B = T.match_buffer(
-            b, (WARP_SIZE, local_size), in_dtype, align=128, offset_factor=16, scope="warp"
+            b, (WARP_SIZE, local_size), in_dtype, align=64, offset_factor=16, scope="warp"
         )
         C = T.match_buffer(
-            c, (WARP_SIZE, local_size_out), out_dtype, align=128, offset_factor=16, scope="warp"
+            c, (WARP_SIZE, local_size_out), out_dtype, align=64, offset_factor=16, scope="warp"
         )
 
         with T.block("root"):
@@ -262,13 +262,13 @@ def get_mma_intrin(k_dim, out_dtype, b_transposed):
     @T.prim_func
     def mma_sync_impl(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(
-            a, (WARP_SIZE, local_size), in_dtype, align=128, offset_factor=16, scope="warp"
+            a, (WARP_SIZE, local_size), in_dtype, align=64, offset_factor=16, scope="warp"
         )
         B = T.match_buffer(
-            b, (WARP_SIZE, local_size), in_dtype, align=128, offset_factor=16, scope="warp"
+            b, (WARP_SIZE, local_size), in_dtype, align=64, offset_factor=16, scope="warp"
         )
         C = T.match_buffer(
-            c, (WARP_SIZE, local_size_out), out_dtype, align=128, offset_factor=16, scope="warp"
+            c, (WARP_SIZE, local_size_out), out_dtype, align=64, offset_factor=16, scope="warp"
         )
 
         with T.block("root"):
@@ -510,11 +510,9 @@ def get_wmma_load_intrin(
 
     @T.prim_func
     def wmma_load_desc(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(
-            a, (m_dim, n_dim), dtype, align=128, offset_factor=16, scope=shared_scope
-        )
+        A = T.match_buffer(a, (m_dim, n_dim), dtype, align=64, offset_factor=16, scope=shared_scope)
         C = T.match_buffer(
-            c, (m_dim, n_dim), dtype, align=128, offset_factor=16, scope=wmma_fragment_scope
+            c, (m_dim, n_dim), dtype, align=64, offset_factor=16, scope=wmma_fragment_scope
         )
         with T.block("root"):
             T.reads(A[0:m_dim, 0:n_dim])
@@ -532,13 +530,13 @@ def get_wmma_load_intrin(
             a,
             (m_dim, n_dim),
             dtype,
-            align=128,
+            align=64,
             offset_factor=16,
             scope=shared_scope,
             strides=[s1, s0],
         )
         C = T.match_buffer(
-            c, (m_dim, n_dim), dtype, align=128, offset_factor=16, scope=wmma_fragment_scope
+            c, (m_dim, n_dim), dtype, align=64, offset_factor=16, scope=wmma_fragment_scope
         )
         with T.block("root"):
             T.reads(A[0:m_dim, 0:n_dim])
@@ -569,7 +567,7 @@ def get_wmma_fill_intrin(
     @T.prim_func
     def wmma_fill_desc(c: T.handle) -> None:
         C = T.match_buffer(
-            c, (m_dim, n_dim), dtype, align=128, offset_factor=16, scope="wmma.accumulator"
+            c, (m_dim, n_dim), dtype, align=64, offset_factor=16, scope="wmma.accumulator"
         )
         with T.block("root"):
             T.reads()
@@ -582,7 +580,7 @@ def get_wmma_fill_intrin(
     @T.prim_func
     def wmma_fill_impl(c: T.handle) -> None:
         C = T.match_buffer(
-            c, (m_dim, n_dim), dtype, align=128, offset_factor=16, scope="wmma.accumulator"
+            c, (m_dim, n_dim), dtype, align=64, offset_factor=16, scope="wmma.accumulator"
         )
         with T.block("root"):
             T.reads()
@@ -610,9 +608,9 @@ def get_wmma_store_intrin(
     @T.prim_func
     def wmma_store_desc(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(
-            a, (m_dim, n_dim), dtype, align=128, offset_factor=16, scope="wmma.accumulator"
+            a, (m_dim, n_dim), dtype, align=64, offset_factor=16, scope="wmma.accumulator"
         )
-        C = T.match_buffer(c, (m_dim, n_dim), dtype, align=128, offset_factor=16, scope=scope)
+        C = T.match_buffer(c, (m_dim, n_dim), dtype, align=64, offset_factor=16, scope=scope)
         with T.block("root"):
             T.reads(A[0:m_dim, 0:n_dim])
             T.writes(C[0:m_dim, 0:n_dim])
@@ -626,10 +624,10 @@ def get_wmma_store_intrin(
         s1 = T.var("int32")
         s0 = T.var("int32")
         A = T.match_buffer(
-            a, (m_dim, n_dim), dtype, align=128, offset_factor=16, scope="wmma.accumulator"
+            a, (m_dim, n_dim), dtype, align=64, offset_factor=16, scope="wmma.accumulator"
         )
         C = T.match_buffer(
-            c, (m_dim, n_dim), dtype, align=128, offset_factor=16, scope=scope, strides=[s1, s0]
+            c, (m_dim, n_dim), dtype, align=64, offset_factor=16, scope=scope, strides=[s1, s0]
         )
         with T.block("root"):
             T.reads(A[0:m_dim, 0:n_dim])
@@ -671,18 +669,18 @@ def get_wmma_sync_intrin(
     @T.prim_func
     def wmma_sync_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(
-            a, (m_dim, k_dim), in_dtype, align=128, offset_factor=16, scope="wmma.matrix_a"
+            a, (m_dim, k_dim), in_dtype, align=64, offset_factor=16, scope="wmma.matrix_a"
         )
         B = T.match_buffer(
             b,
             maybe_swap(k_dim, n_dim),
             in_dtype,
-            align=128,
+            align=64,
             offset_factor=16,
             scope="wmma.matrix_b",
         )
         C = T.match_buffer(
-            c, (m_dim, n_dim), out_dtype, align=128, offset_factor=16, scope="wmma.accumulator"
+            c, (m_dim, n_dim), out_dtype, align=64, offset_factor=16, scope="wmma.accumulator"
         )
 
         with T.block("root"):
@@ -699,18 +697,18 @@ def get_wmma_sync_intrin(
     @T.prim_func
     def wmma_sync_impl(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(
-            a, (m_dim, k_dim), in_dtype, align=128, offset_factor=16, scope="wmma.matrix_a"
+            a, (m_dim, k_dim), in_dtype, align=64, offset_factor=16, scope="wmma.matrix_a"
         )
         B = T.match_buffer(
             b,
             maybe_swap(k_dim, n_dim),
             in_dtype,
-            align=128,
+            align=64,
             offset_factor=16,
             scope="wmma.matrix_b",
         )
         C = T.match_buffer(
-            c, (m_dim, n_dim), out_dtype, align=128, offset_factor=16, scope="wmma.accumulator"
+            c, (m_dim, n_dim), out_dtype, align=64, offset_factor=16, scope="wmma.accumulator"
         )
 
         with T.block("root"):
