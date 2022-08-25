@@ -324,7 +324,7 @@ def tune_cutlass_kernels(
 
     split_k_slices : list of int
         Split factor candidates for split-K GEMM. If split-K > 1, the GEMM K-loop is computed in
-        parallel accross split-K blocks, and a seperate global reduction kernel is launched to
+        parallel across split-K blocks, and a separate global reduction kernel is launched to
         accumulate partial reductions. The profiler will pick the best split-k factor from the
         given candidate list. Note that the larger split-K factor requires a larger workspace.
         Currently, parallel split-k has been tested only for wgrad. For GEMM and other conv2d

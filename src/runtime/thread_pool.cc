@@ -70,7 +70,7 @@ constexpr int kSyncStride = 64 / sizeof(std::atomic<int>);
  */
 class ParallelLauncher {
  public:
-  // Reset the the task request.
+  // Reset the task request.
   void Init(FTVMParallelLambda flambda, void* cdata, int num_task, bool need_sync) {
     num_pending_.store(num_task);
     this->cdata = cdata;

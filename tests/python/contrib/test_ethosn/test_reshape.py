@@ -20,7 +20,6 @@
 import tvm
 from tvm import relay
 from tvm.testing import requires_ethosn
-from tvm.relay.op.contrib import get_pattern_table
 import numpy as np
 import pytest
 from . import infrastructure as tei
@@ -43,7 +42,14 @@ def _get_model(input_shape, output_shape, dtype):
         ((1, 15, 4, 1), (1, 30, 2)),
         ((1, 15, 4, 1), (1, 4, 15, 1)),
         ((1, 15, 4, 1), (1, 12, 5, 1)),
+        ((1, 15, 4, 1), (1, 0, 2, 2)),
         ((1, 15, 4, 1), (1, -1, 2, 1)),
+        ((1, 15, 4, 1), (1, -2)),
+        ((1, 15, 4, 1), (1, -3, 1, 1)),
+        ((1, 15, 4, 1), (1, -4, 3, 5, 4)),
+        ((1, 15, 4, 1), (0, -1, -2)),
+        ((1, 15, 4, 1), (0, -1, -3, 1)),
+        ((1, 15, 4, 1), (1, -4, -1, 5, 4)),
     ],
 )
 def test_reshape(dtype, input_shape, output_shape):
@@ -65,32 +71,3 @@ def test_reshape(dtype, input_shape, output_shape):
         outputs.append(tei.build_and_run(mod, inputs, 1, params, npu=npu))
 
     tei.verify(outputs, dtype, 1)
-
-
-@requires_ethosn
-@pytest.mark.parametrize(
-    "input_shape, output_shape, dtype, err_msg",
-    [
-        (
-            (1, 15, 4, 1),
-            (1, 15, -2),
-            "uint8",
-            "reshape dimension=-2, reshape dimension must be >= -1",
-        ),
-        (
-            (1, 1, 4, 1),
-            (1, 1, 2, 2, 1),
-            "uint8",
-            "reshape dimension=5, reshape dimension must be <= 4",
-        ),
-    ],
-)
-def test_reshape_failure(input_shape, output_shape, dtype, err_msg):
-    np.random.seed(0)
-    model, params = _get_model(input_shape, output_shape, dtype)
-    mod = tei.make_module(model, params)
-    pattern = get_pattern_table("ethos-n")
-    mod = tei.make_module(model, params)
-    mod = relay.transform.MergeComposite(pattern)(mod)
-    mod = tei.make_ethosn_partition(mod["main"].body)
-    tei.test_error(mod, {}, err_msg)

@@ -19,10 +19,12 @@
 
 import numpy as np
 import pytest
+
 import tvm
 from tvm import relay
 from tvm.testing import requires_ethosn
 from tvm.relay.op.contrib.ethosn import Available, ethosn_available
+
 from . import infrastructure as tei
 
 
@@ -74,11 +76,11 @@ def test_split_add_concat(dtype):
         model = get_model(inputs["a"].shape, dtype, iter(inputs))
         mod = tei.make_module(model, [])
 
-        expected_host_ops = 1 if tei.get_ethosn_api_version() == 2205 else 0
-        npu_partitions = 2 if tei.get_ethosn_api_version() == 2205 else 1
+        expected_host_ops = 1
+        npu_partitions = 2
 
         # Mock inference is only supported when the whole graph is offloaded to the NPU
-        if tei.get_ethosn_api_version() == 2205 and ethosn_available() == Available.SW_ONLY:
+        if ethosn_available() == Available.SW_ONLY:
             tei.build(
                 mod, {}, npu=npu, expected_host_ops=expected_host_ops, npu_partitions=npu_partitions
             )
@@ -272,11 +274,11 @@ def test_split_with_asym_concats(dtype):
             model = get_model(shape, dtype, splits, axis)
             mod = tei.make_module(model, {})
 
-            expected_host_ops = 1 if tei.get_ethosn_api_version() == 2205 else 0
-            npu_partitions = 2 if tei.get_ethosn_api_version() == 2205 else 1
+            expected_host_ops = 1
+            npu_partitions = 2
 
             # Mock inference is only supported when the whole graph is offloaded to the NPU
-            if tei.get_ethosn_api_version() == 2205 and ethosn_available() == Available.SW_ONLY:
+            if ethosn_available() == Available.SW_ONLY:
                 tei.build(
                     mod,
                     {},
@@ -301,10 +303,7 @@ def test_split_with_asym_concats(dtype):
             tei.verify(outputs, dtype, 0)
 
 
-@pytest.mark.skipif(
-    tei.get_ethosn_api_version() == 2205,
-    reason="Split is not supported by the 22.05 release of the driver stack",
-)
+@pytest.mark.skip("Split is not supported by the 3.0.1 version of the driver stack.")
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 def test_output_tuple_propagation(dtype):

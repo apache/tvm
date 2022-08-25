@@ -584,5 +584,24 @@ def test_simplify_consecutive_add():
     assert tvm.ir.structural_equal(zzl, after)
 
 
+def test_simplify_rsqrt():
+    shape = (32, 1, 1)
+    x = relay.var("x", shape=shape, dtype="float32")
+
+    def before(c):
+        return relay.const(c) / relay.sqrt(x)
+
+    def expected(c):
+        if c == 1:
+            return relay.rsqrt(x)
+        else:
+            return relay.const(c) * relay.rsqrt(x)
+
+    for c in [1.0, 2.0, 2.5]:
+        opt = run_opt_pass(before(c), transform.SimplifyExpr())
+        after = run_opt_pass(expected(c), transform.InferType())
+        assert tvm.ir.structural_equal(opt, after)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

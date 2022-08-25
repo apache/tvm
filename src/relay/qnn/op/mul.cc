@@ -160,7 +160,7 @@ Expr QnnMulCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
 
 // QNN Multiplication operator.
 QNN_REGISTER_BINARY_OP("mul")
-    .describe("Elementwise mul with with broadcasting for quantized tensors.")
+    .describe("Elementwise mul with broadcasting for quantized tensors.")
     .set_support_level(11)
     .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnMulCanonicalize);
 

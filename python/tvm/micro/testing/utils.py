@@ -34,6 +34,11 @@ TIMEOUT_SEC = 10
 
 
 @lru_cache(maxsize=None)
+def get_supported_platforms():
+    return ["arduino", "zephyr"]
+
+
+@lru_cache(maxsize=None)
 def get_supported_boards(platform: str):
     template = Path(tvm.micro.get_microtvm_template_projects(platform))
     with open(template / "boards.json") as f:

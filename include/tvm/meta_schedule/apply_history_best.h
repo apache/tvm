@@ -40,8 +40,8 @@ namespace meta_schedule {
 class ApplyHistoryBestNode : public runtime::Object {
  public:
   /*! \brief A callback function that filters TE compute */
-  using FTEFilterFunc =
-      runtime::TypedPackedFunc<Optional<tir::PrimFunc>(const Array<te::Tensor, void>&)>;
+  using FTEFilterFunc = runtime::TypedPackedFunc<Optional<tir::PrimFunc>(
+      const Array<te::Tensor, void>&, const Array<runtime::NDArray>&)>;
   /*! \brief  A callback function that takes a tuning record and does something with it */
   using FTakeTuningRecord = runtime::TypedPackedFunc<void(const TuningRecord&)>;
   using FDirectDispatch = runtime::TypedPackedFunc<Optional<IRModule>(const IRModule&)>;

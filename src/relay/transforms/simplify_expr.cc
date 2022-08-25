@@ -685,6 +685,29 @@ class SimplifyConsecutiveAdd : public DFPatternRewrite {
   DFPattern const2_;
 };
 
+class SimplifyRSqrt : public DFPatternRewrite {
+ public:
+  SimplifyRSqrt() {
+    x_ = IsWildcard();
+    numerator_ = IsWildcard();
+    auto sqrt = IsOp("sqrt");
+    pattern_ = IsOp("divide")({numerator_, sqrt({x_})});
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    static const Op& op = Op::Get("rsqrt");
+    auto x = node_map[x_][0];
+    auto numerator = node_map[numerator_][0];
+    return Call(Op::Get("multiply"), {numerator, Call(op, {x})});
+  }
+
+ private:
+  /*! \brief Pattern input */
+  DFPattern x_;
+  DFPattern numerator_;
+};
+
 Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   // the rewrites will be applied in the given order, and repeated until fixed point
   DFPatternRewriteComposer composer;
@@ -694,6 +717,7 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<ConcretizeReshapeLikeRewrite>();
   composer.AddRewrite<ConcretizeCollapseSumLikeRewrite>();
   composer.AddRewrite<ConcretizeBroadcastToLikeRewrite>();
+  composer.AddRewrite<SimplifyRSqrt>();
   composer.AddRewrite<EliminateIdentityRewrite>();
   composer.AddRewrite<SimplifyReshape>();
   composer.AddRewrite<SimplifyTranspose>();

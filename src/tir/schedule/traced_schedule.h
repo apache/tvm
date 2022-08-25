@@ -72,8 +72,8 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   void Bind(const LoopRV& loop_rv, const String& thread_axis) final;
   void Unroll(const LoopRV& loop_rv) final;
   /******** Schedule: Insert cache stages ********/
-  BlockRV CacheRead(const BlockRV& block_rv, int read_buffer_index,
-                    const String& storage_scope) final;
+  BlockRV CacheRead(const BlockRV& block_rv, int read_buffer_index, const String& storage_scope,
+                    const Array<BlockRV> consumer_blocks = {}) final;
   BlockRV CacheWrite(const BlockRV& block_rv, int write_buffer_index,
                      const String& storage_scope) final;
   BlockRV ReIndex(const BlockRV& block_rv, int buffer_index,
