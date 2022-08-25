@@ -56,7 +56,7 @@ class TIRTopLevelFrameNode : public TIRFrameNode {
   }
 
   static constexpr const char* _type_key = "script.printer.TIRTopLevelFrame";
-  TVM_DECLARE_BASE_OBJECT_INFO(TIRTopLevelFrameNode, FrameNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(TIRTopLevelFrameNode, TIRFrameNode);
 };
 
 class TIRTopLevelFrame : public TIRFrame {

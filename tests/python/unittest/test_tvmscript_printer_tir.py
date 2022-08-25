@@ -27,6 +27,7 @@ from tvm.tir import (
     NE,
     Add,
     And,
+    AssertStmt,
     Broadcast,
     BufferLoad,
     BufferRegion,
@@ -48,6 +49,7 @@ from tvm.tir import (
     Ramp,
     Reduce,
     Select,
+    SeqStmt,
     Shuffle,
     SizeVar,
     StringImm,
@@ -683,5 +685,43 @@ def test_evaluate():
     expected = """
     a: T.int32
     3 + a
+    """
+    assert as_tir_script(node) == format_script(expected)
+
+
+def test_assert_normal_form():
+    body = SeqStmt([Evaluate(2), Evaluate(3)])
+    node = SeqStmt([AssertStmt(1, StringImm("test"), body), Evaluate(4)])
+    expected = """
+    with T.Assert(1, "test"):
+        2
+        3
+    4
+    """
+    assert as_tir_script(node) == format_script(expected)
+
+
+def test_assert_concise_form():
+    body = SeqStmt([Evaluate(2), Evaluate(3)])
+    node = AssertStmt(1, StringImm("test"), body)
+    expected = """
+    assert 1, "test"
+    2
+    3
+    """
+    assert as_tir_script(node) == format_script(expected)
+
+
+def test_assert_body_concise_form():
+    body_assert1 = AssertStmt(2, StringImm("test"), Evaluate(3))
+    body_assert2 = AssertStmt(4, StringImm("test"), Evaluate(5))
+    body = SeqStmt([body_assert1, body_assert2])
+    node = AssertStmt(1, StringImm("test"), body)
+    expected = """
+    assert 1, "test"
+    with T.Assert(2, "test"):
+        3
+    assert 4, "test"
+    5
     """
     assert as_tir_script(node) == format_script(expected)
