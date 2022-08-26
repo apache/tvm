@@ -16,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import sys
 import os
 import json
 import argparse
@@ -106,5 +107,8 @@ if __name__ == "__main__":
         for reviewer in to_add:
             try:
                 github.post(f"pulls/{number}/requested_reviewers", {"reviewers": [reviewer]})
-            except error.HTTPError as e:
+            except KeyboardInterrupt:
+                sys.exit()
+            except (RuntimeError, error.HTTPError) as e:
+                # Catch any exception so other reviewers can be processed
                 print(f"Failed to add reviewer {reviewer}: {e}")

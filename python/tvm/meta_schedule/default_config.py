@@ -178,7 +178,7 @@ def schedule_rules(  # pylint: disable=redefined-outer-name
         return sch_rules()
     if sch_rules is not None:
         raise TypeError(f"Expected `sch_rules` to be None or callable, but gets: {sch_rules}")
-    if target.kind.name == "llvm":
+    if target.kind.name in ["llvm", "hexagon"]:
         return _DefaultLLVM.schedule_rules()
     if target.kind.name in ["cuda", "rocm", "vulkan"]:
         return _DefaultCUDA.schedule_rules()
@@ -194,7 +194,7 @@ def postproc(  # pylint: disable=redefined-outer-name
         return postproc()
     if postproc is not None:
         raise TypeError(f"Expected `postproc` to be None or callable, but gets: {postproc}")
-    if target.kind.name == "llvm":
+    if target.kind.name in ["llvm", "hexagon"]:
         return _DefaultLLVM.postprocs()
     if target.kind.name in ["cuda", "rocm", "vulkan"]:
         return _DefaultCUDA.postprocs()
@@ -212,7 +212,7 @@ def mutator_probs(  # pylint: disable=redefined-outer-name
         raise TypeError(
             f"Expected `mutator_probs` to be None or callable, but gets: {mutator_probs}"
         )
-    if target.kind.name == "llvm":
+    if target.kind.name in ["llvm", "hexagon"]:
         return _DefaultLLVM.mutator_probs()
     if target.kind.name in ["cuda", "rocm", "vulkan"]:
         return _DefaultCUDA.mutator_probs()

@@ -49,7 +49,7 @@ We do encourage everyone to work anything they are interested in.
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame - relay
 - [Tristan Konolige](https://github.com/tkonolige): @tkonolige - profiling, relay, tir, runtime
 - [Ruihang Lai](https://github.com/MasterJH5574): @MasterJH5574 - tir, tvm-script
-- [Wuwei Lin](https://github.com/vinx13): @vinx13 - relay, topi
+- [Wuwei Lin](https://github.com/vinx13) (PMC): @vinx13 - relay, topi, tir, meta_schedule
 - [Yizhi Liu](https://github.com/yzhliu) (PMC): @yzhliu - jvm, topi, relay
 - [Hao Lu](https://github.com/hlu1): @hlu1 - nnpack, frontends
 - [Eric Lunderberg](https://github.com/Lunderberg): @Lunderberg - CI, Vulkan backend
@@ -97,6 +97,7 @@ We do encourage everyone to work anything they are interested in.
 - [Zhi Chen](https://github.com/zhiics): @zhiics
 - [Valery Chernov](https://github.com/vvchernov): @vvchernov
 - [Neo Chien](https://github.com/cchung100m): @cchung100m
+- [Christian Convey](https://github.com/cconvey/): @cconvey
 - [Meghan Cowan](https://github.com/cowanmeg): @cowanmeg
 - [Balint Cristian](https://github.com/cbalint13): @cbalint13
 - [Egor Churaev](https://github.com/echuraev): @echuraev - metal

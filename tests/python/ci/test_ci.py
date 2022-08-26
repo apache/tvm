@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test various CI scripts and GitHub Actions workflows"""
+import shutil
 import subprocess
 import json
 import textwrap
@@ -31,6 +32,184 @@ def parameterize_named(*values):
         return pytest.mark.parametrize(",".join(keys), [d[keys[0]] for d in values])
 
     return pytest.mark.parametrize(",".join(keys), [tuple(d.values()) for d in values])
+
+
+# pylint: disable=line-too-long
+TEST_DATA_SKIPPED_BOT = {
+    "found-diff": {
+        "main_xml_file": "unittest/file1.xml",
+        "main_xml_content": """<?xml version="1.0" encoding="utf-8"?>
+                <testsuites>
+                    <testsuite errors="0" failures="0" hostname="13e7c5f749d8" name="python-unittest-gpu-0-shard-1-ctypes" skipped="102"
+                               tests="165" time="79.312" timestamp="2022-08-10T22:39:36.673781">
+                        <testcase classname="ctypes.tests.python.unittest.test_auto_scheduler_search_policy"
+                                  name="test_sketch_search_policy_cuda_rpc_runner" time="9.679">
+                        </testcase>
+                    </testsuite>
+                </testsuites>
+                """,
+        "pr_xml_file": "unittest/file2.xml",
+        "pr_xml_content": """<?xml version="1.0" encoding="utf-8"?>
+                <testsuites>
+                    <testsuite errors="0" failures="0" hostname="13e7c5f749d8" name="python-unittest-gpu-0-shard-1-ctypes" skipped="102"
+                               tests="165" time="79.312" timestamp="2022-08-10T22:39:36.673781">
+                        <testcase classname="ctypes.tests.python.unittest.test_auto_scheduler_search_policy"
+                                  name="test_sketch_search_policy_cuda_rpc_runner" time="9.679">
+                            <skipped message="This test is skipped" type="pytest.skip">
+                                Skipped
+                            </skipped>
+                        </testcase>
+                        <testcase classname="ctypes.tests.python.unittest.test_roofline"
+                                  name="test_estimate_peak_bandwidth[cuda]" time="4.679">
+                            <skipped message="This is another skippe test" type="pytest.skip">
+                                Skipped
+                            </skipped>
+                        </testcase>
+                    </testsuite>
+                </testsuites>
+                """,
+        "target_url": "https://ci.tlcpack.ai/job/tvm/job/PR-11594/3/display/redirect",
+        "s3_prefix": "tvm-jenkins-artifacts-prod",
+        "jenkins_prefix": "ci.tlcpack.ai",
+        "common_main_build": """{"build_number": "4115", "state": "success"}""",
+        "commit_sha": "SHA",
+        "expected_url": "issues/11594/comments",
+        "expected_body": """<!---skipped-tests-comment-->\n\nThe list below shows some tests that ran in main SHA but were skipped in the CI build of SHA:\n```\nunittest -> ctypes.tests.python.unittest.test_auto_scheduler_search_policy#test_sketch_search_policy_cuda_rpc_runner\nunittest -> ctypes.tests.python.unittest.test_roofline#test_estimate_peak_bandwidth[cuda]\n```\nA detailed report of ran tests is [here](https://ci.tlcpack.ai/job/tvm/job/PR-11594/3/testReport/).""",
+    },
+    "no-diff": {
+        "main_xml_file": "unittest/file1.xml",
+        "main_xml_content": """<?xml version="1.0" encoding="utf-8"?>
+                <testsuites>
+                    <testsuite errors="0" failures="0" hostname="13e7c5f749d8" name="python-unittest-gpu-0-shard-1-ctypes" skipped="102"
+                               tests="165" time="79.312" timestamp="2022-08-10T22:39:36.673781">
+                        <testcase classname="ctypes.tests.python.unittest.test_auto_scheduler_search_policy"
+                                  name="test_sketch_search_policy_cuda_rpc_runner" time="9.679">
+                            <skipped message="This test is skipped" type="pytest.skip">
+                                Skipped
+                            </skipped>
+                        </testcase>
+                    </testsuite>
+                </testsuites>
+                """,
+        "pr_xml_file": "unittest/file2.xml",
+        "pr_xml_content": """<?xml version="1.0" encoding="utf-8"?>
+                <testsuites>
+                    <testsuite errors="0" failures="0" hostname="13e7c5f749d8" name="python-unittest-gpu-0-shard-1-ctypes" skipped="102"
+                               tests="165" time="79.312" timestamp="2022-08-10T22:39:36.673781">
+                        <testcase classname="ctypes.tests.python.unittest.test_auto_scheduler_search_policy"
+                                  name="test_sketch_search_policy_cuda_rpc_runner" time="9.679">
+                            <skipped message="This test is skipped" type="pytest.skip">
+                                Skipped
+                            </skipped>
+                        </testcase>
+                    </testsuite>
+                </testsuites>
+                """,
+        "target_url": "https://ci.tlcpack.ai/job/tvm/job/PR-11594/3/display/redirect",
+        "s3_prefix": "tvm-jenkins-artifacts-prod",
+        "jenkins_prefix": "ci.tlcpack.ai",
+        "common_main_build": """{"build_number": "4115", "state": "success"}""",
+        "commit_sha": "SHA",
+        "expected_url": "issues/11594/comments",
+        "expected_body": """<!---skipped-tests-comment-->\n\nNo additional skipped tests found in this branch for commit SHA.""",
+    },
+    "unable-to-run": {
+        "main_xml_file": "unittest/file1.xml",
+        "main_xml_content": """<?xml version="1.0" encoding="utf-8"?>
+                    <testsuites>
+                    </testsuites>
+                    """,
+        "pr_xml_file": "unittest/file2.xml",
+        "pr_xml_content": """<?xml version="1.0" encoding="utf-8"?>
+                    <testsuites>
+                    </testsuites>
+                    """,
+        "target_url": "https://ci.tlcpack.ai/job/tvm/job/PR-11594/3/display/redirect",
+        "s3_prefix": "tvm-jenkins-artifacts-prod",
+        "jenkins_prefix": "ci.tlcpack.ai",
+        "common_main_build": """{"build_number": "4115", "state": "failed"}""",
+        "commit_sha": "SHA",
+        "expected_url": "issues/11594/comments",
+        "expected_body": """<!---skipped-tests-comment-->\n\nUnable to run tests bot because main failed to pass CI at SHA.""",
+    },
+}
+# pylint: enable=line-too-long
+
+
+@tvm.testing.skip_if_wheel_test
+@pytest.mark.parametrize(
+    [
+        "main_xml_file",
+        "main_xml_content",
+        "pr_xml_file",
+        "pr_xml_content",
+        "target_url",
+        "s3_prefix",
+        "jenkins_prefix",
+        "common_main_build",
+        "commit_sha",
+        "expected_url",
+        "expected_body",
+    ],
+    [tuple(d.values()) for d in TEST_DATA_SKIPPED_BOT.values()],
+    ids=TEST_DATA_SKIPPED_BOT.keys(),
+)
+# pylint: enable=line-too-long
+def test_skipped_tests_comment(
+    tmpdir_factory,
+    main_xml_file,
+    main_xml_content,
+    pr_xml_file,
+    pr_xml_content,
+    target_url,
+    s3_prefix,
+    jenkins_prefix,
+    common_main_build,
+    commit_sha,
+    expected_url,
+    expected_body,
+):
+    """
+    Test that a comment with a link to the docs is successfully left on PRs
+    """
+    skipped_tests_script = REPO_ROOT / "tests" / "scripts" / "github_skipped_tests_comment.py"
+
+    def write_xml_file(root_dir, xml_file, xml_content):
+        shutil.rmtree(root_dir, ignore_errors=True)
+        file = root_dir / xml_file
+        file.parent.mkdir(parents=True)
+        with open(file, "w") as f:
+            f.write(textwrap.dedent(xml_content))
+
+    git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
+    git.run("init")
+    git.run("checkout", "-b", "main")
+    git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
+
+    pr_test_report_dir = Path(git.cwd) / "pr-reports"
+    write_xml_file(pr_test_report_dir, pr_xml_file, pr_xml_content)
+    main_test_report_dir = Path(git.cwd) / "main-reports"
+    write_xml_file(main_test_report_dir, main_xml_file, main_xml_content)
+
+    proc = subprocess.run(
+        [
+            str(skipped_tests_script),
+            "--dry-run",
+            f"--s3-prefix={s3_prefix}",
+            f"--jenkins-prefix={jenkins_prefix}",
+            f"--common-main-build={common_main_build}",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env={"TARGET_URL": target_url, "COMMIT_SHA": commit_sha},
+        encoding="utf-8",
+        cwd=git.cwd,
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"Process failed:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
+
+    assert f"Dry run, would have posted {expected_url} with data {expected_body}." in proc.stderr
 
 
 @tvm.testing.skip_if_wheel_test

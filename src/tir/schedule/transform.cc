@@ -36,7 +36,7 @@ Block WithAnnotation(const BlockNode* block, const String& attr_key, const Objec
 Buffer WithScope(const Buffer& buffer, const String& scope) {
   ObjectPtr<BufferNode> new_buffer = make_object<BufferNode>(*buffer.get());
   ObjectPtr<VarNode> new_var = make_object<VarNode>(*buffer->data.get());
-  const auto* ptr_type = TVM_TYPE_AS(ptr_type, buffer->data->type_annotation, PointerTypeNode);
+  const auto* ptr_type = TVM_TYPE_AS(buffer->data->type_annotation, PointerTypeNode);
   new_var->type_annotation = PointerType(ptr_type->element_type, scope);
   new_buffer->data = Var(new_var->name_hint + "_" + scope, new_var->type_annotation);
   new_buffer->name = buffer->name + "_" + scope;
@@ -253,8 +253,8 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
     }
   }
   ICHECK(sref != nullptr && sref->stmt != nullptr);
-  const auto* leaf_block = TVM_SREF_TO_BLOCK(leaf_block, leaf_block_sref);
-  const auto* scope_block = TVM_SREF_TO_BLOCK(scope_block, sref);
+  const auto* leaf_block = TVM_SREF_TO_BLOCK(leaf_block_sref);
+  const auto* scope_block = TVM_SREF_TO_BLOCK(sref);
   throw OnlyLeafError(self->mod, GetRef<Block>(leaf_block), GetRef<Block>(scope_block));
 }
 

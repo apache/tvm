@@ -1274,6 +1274,7 @@ class Schedule(Object):
         block: Union[BlockRV, str],
         loop: LoopRV,
         preserve_unit_loops: bool = False,
+        index: int = -1,
     ) -> None:
         """Compute-At. Move a producer block under the specific loop, and regenerate the
         loops induced by the block so that the buffer region produced by the producer block could
@@ -1302,6 +1303,12 @@ class Schedule(Object):
 
         preserve_unit_loops: bool
             Whether to keep the trivial loops whose extents are 1
+
+        index: int
+            The block index of the loop body subtree blocks:
+            - `index = -1` means inserted into the last possible insertion point;
+            - `index = -2` means inserted into the first possible insertion point;
+            - Otherwise, `index` is a nonnegative number that indicates the insertion point
 
         Examples
         --------
@@ -1360,6 +1367,7 @@ class Schedule(Object):
             block,
             loop,
             preserve_unit_loops,
+            index,
         )
 
     @type_checked
@@ -1368,6 +1376,7 @@ class Schedule(Object):
         block: Union[BlockRV, str],
         loop: LoopRV,
         preserve_unit_loops: bool = False,
+        index: int = -1,
     ) -> None:
         """Reverse-Compute-At. Move a consumer block under the specific loop, and regenerate the
         loops induced by the block so that the buffer region consumed by the consumer block could
@@ -1393,6 +1402,12 @@ class Schedule(Object):
 
         preserve_unit_loops: bool
             Whether to keep the trivial loops whose extents are 1
+
+        index: int
+            The block index of the loop body subtree blocks:
+            - `index = -1` means inserted into the last possible insertion point;
+            - `index = -2` means inserted into the first possible insertion point;
+            - Otherwise, `index` is a nonnegative number that indicates the insertion point
 
         Examples
         --------
@@ -1451,6 +1466,7 @@ class Schedule(Object):
             block,
             loop,
             preserve_unit_loops,
+            index,
         )
 
     @type_checked

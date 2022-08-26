@@ -83,7 +83,8 @@ def make_module(func, params):
 
 def make_ethosn_composite(ethosn_expr, name):
     vars = relay.analysis.free_vars(ethosn_expr)
-    func = relay.Function([relay.Var("a")], ethosn_expr)
+    inner_vars = [relay.Var(v.name_hint, v.type_annotation) for v in vars]
+    func = relay.Function(inner_vars, ethosn_expr)
     func = func.with_attr("Composite", name)
     call = relay.Call(func, vars)
     return call
