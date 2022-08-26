@@ -391,8 +391,15 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
     std::ostringstream os;
     if (dtype.is_float() || dtype.is_float16() || dtype.is_bfloat16()) {
       os.precision(17);
+      if (std::isinf(data[0]) || std::isnan(data[0])) {
+        os << "\"" << data[0] << "\"";
+      } else {
+        os << data[0];
+      }
+    } else {
+      os << data[0];
     }
-    os << data[0];
+
     if (dtype == DataType::Int(32)) {
       doc << Doc::Text(os.str());
     } else if (dtype == DataType::Bool()) {
