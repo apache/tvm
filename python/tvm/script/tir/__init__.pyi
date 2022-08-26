@@ -465,9 +465,14 @@ class uint64(PrimExpr):
     def __init__(self: uint64, imm: Union[PrimExpr, int]): ...
 
 # use typing.Literal instead for python 3.8 or higher
-from typing_extensions import Literal
+import sys
 
-SpecialFloatLiteral = Literal["inf", "-inf", "nan"]
+if sys.version_info >= (3, 8):
+    from typing import Literal
+
+    SpecialFloatLiteral = Literal["inf", "-inf", "nan"]
+else:
+    SpecialFloatLiteral = str
 
 class float8(PrimExpr):
     def __init__(self: float8, imm: Union[PrimExpr, int, float, SpecialFloatLiteral]): ...
