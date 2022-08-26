@@ -152,7 +152,7 @@ inline std::pair<bool, PrimExpr> MergeMulModInner(arith::Analyzer* analyzer,
 // Otherwise, the elements will be added to the no_opt_sum variable
 inline void MergeMulModInsertElements(const std::vector<const PrimExpr*>& eles,
                                       std::list<PrimExpr>* mult_exprs,
-                                      std::list<std::pair<PrimExpr, PrimExpr> >* mod_exprs,
+                                      std::list<std::pair<PrimExpr, PrimExpr>>* mod_exprs,
                                       PrimExpr* no_opt_sum, bool* has_mult, bool* has_mod) {
   using namespace tir;
   *has_mult = false;
@@ -194,13 +194,13 @@ inline PrimExpr MergeMulMod(arith::Analyzer* analyzer, const PrimExpr& base) {
   simplified_base = analyzer->Simplify(simplified_base);
   std::vector<const PrimExpr*> eles = ExprSplitAddition(simplified_base);
   std::list<PrimExpr> mult_exprs;
-  std::list<std::pair<PrimExpr, PrimExpr> > mod_exprs;
+  std::list<std::pair<PrimExpr, PrimExpr>> mod_exprs;
   PrimExpr no_opt_sum;
   bool has_mult;
   bool has_mod;
   MergeMulModInsertElements(eles, &mult_exprs, &mod_exprs, &no_opt_sum, &has_mult, &has_mod);
   bool find_opt = false;
-  std::list<std::pair<PrimExpr, PrimExpr> >::iterator search_mod_it = mod_exprs.begin();
+  std::list<std::pair<PrimExpr, PrimExpr>>::iterator search_mod_it = mod_exprs.begin();
   // 2. Exhaustive Search
   while (search_mod_it != mod_exprs.end()) {
     std::list<PrimExpr>::iterator mult_it = mult_exprs.begin();
@@ -238,7 +238,7 @@ inline PrimExpr MergeMulMod(arith::Analyzer* analyzer, const PrimExpr& base) {
   for (std::list<PrimExpr>::iterator it = mult_exprs.begin(); it != mult_exprs.end(); ++it) {
     no_opt_sum = no_opt_sum.get() ? no_opt_sum + *it : *it;
   }
-  for (std::list<std::pair<PrimExpr, PrimExpr> >::iterator it = mod_exprs.begin();
+  for (std::list<std::pair<PrimExpr, PrimExpr>>::iterator it = mod_exprs.begin();
        it != mod_exprs.end(); ++it) {
     no_opt_sum = no_opt_sum.get() ? no_opt_sum + indexmod(it->first, it->second)
                                   : indexmod(it->first, it->second);

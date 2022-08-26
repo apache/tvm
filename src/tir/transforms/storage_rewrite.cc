@@ -1010,11 +1010,11 @@ class StoragePlanRewriter : public StmtExprMutator {
   // symbolic free list, for non constant items.
   std::list<StorageEntry*> sym_free_list_;
   // The allocation attach map
-  std::unordered_map<const Object*, std::vector<StorageEntry*> > attach_map_;
+  std::unordered_map<const Object*, std::vector<StorageEntry*>> attach_map_;
   // The allocation assign map
   std::unordered_map<const VarNode*, StorageEntry*> alloc_map_;
   // The allocations
-  std::vector<std::unique_ptr<StorageEntry> > alloc_vec_;
+  std::vector<std::unique_ptr<StorageEntry>> alloc_vec_;
   // The buffer objects being remapped
   std::unordered_map<const BufferNode*, Buffer> buffer_remap_;
   // analyzer
