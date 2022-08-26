@@ -1325,10 +1325,8 @@ State ComputeDAG::InferBound(const State& state) const {
 
   Array<te::Stage> stages;
   StageToAxesMap stage_to_axes;
-  te::Schedule sch;
-  Array<te::Tensor> tensors;
   // Replay steps to tvm::Schedule
-  std::tie(sch, tensors) = ApplySteps(pstate->transform_steps, &stages, &stage_to_axes);
+  auto [sch, tensors] = ApplySteps(pstate->transform_steps, &stages, &stage_to_axes);
   sch = sch.normalize_for_feature_extraction();
   // Get bound information from TVM schedule
   Map<IterVar, Range> bounds = te::InferBound(sch);
@@ -1382,9 +1380,7 @@ Array<State> ComputeDAG::InferBound(const Array<State>& states) const {
 }
 
 ComputeDAG ComputeDAG::ReplayAndGetDAG(const Array<Step>& transform_steps) const {
-  te::Schedule sch;
-  Array<te::Tensor> old_tensors;
-  std::tie(sch, old_tensors) = ApplySteps(transform_steps);
+  auto [sch, old_tensors] = ApplySteps(transform_steps);
   return ComputeDAG(sch);
 }
 
@@ -1481,11 +1477,8 @@ TVM_REGISTER_GLOBAL("auto_scheduler.ComputeDAG")
 
 TVM_REGISTER_GLOBAL("auto_scheduler.ComputeDAGApplyStepsFromState")
     .set_body_typed([](const ComputeDAG& dag, const State& state, int layout_rewrite) {
-      te::Schedule sch;
-      Array<te::Tensor> return_tensors;
-      std::tie(sch, return_tensors) =
-          dag.ApplySteps(state->transform_steps, nullptr, nullptr,
-                         static_cast<LayoutRewriteOption>(layout_rewrite));
+      auto [sch, return_tensors] = dag.ApplySteps(state->transform_steps, nullptr, nullptr,
+                                                  static_cast<LayoutRewriteOption>(layout_rewrite));
       return Array<ObjectRef>{sch, return_tensors};
     });
 

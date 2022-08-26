@@ -61,9 +61,7 @@ class IntermediateStageRewriter {
     std::vector<const ForNode*> relaxed_loops = CollectRelaxedOuterLoops(block, target_buffer);
 
     // Step 1: Create buffer for the local stage
-    Buffer new_buffer{nullptr};
-    Array<PrimExpr> buffer_indices;
-    std::tie(new_buffer, buffer_indices) = CreateIntermediateBuffer(relaxed_loops, target_buffer);
+    auto [new_buffer, buffer_indices] = CreateIntermediateBuffer(relaxed_loops, target_buffer);
 
     // Step 2: Create the local stage block
     Stmt local_stage = MakeLocalStage(block, new_buffer, buffer_indices, relaxed_loops, store);
@@ -190,12 +188,8 @@ class SharedMemoryLocalStageInserter : public StmtMutator {
       // The annotated block must be a leaf block (will be checked during rewriting). No need to
       // visit its body recursively.
 
-      Buffer target_buffer{nullptr};
-      Buffer new_buffer{nullptr};
-      Block new_block{nullptr};
-      Stmt local_stage{nullptr};
       IntermediateStageRewriter rewriter(ancestor_loop_or_blocks_);
-      std::tie(target_buffer, new_buffer, new_block, local_stage) = rewriter.Rewrite(op);
+      auto [target_buffer, new_buffer, new_block, local_stage] = rewriter.Rewrite(op);
       buffer_remap_.Set(target_buffer, new_buffer);
 
       new_block.CopyOnWrite()->annotations.erase(attr::manifest_shared_memory_local_stage);
