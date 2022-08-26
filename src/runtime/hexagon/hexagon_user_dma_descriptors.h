@@ -126,8 +126,6 @@ namespace hexagon {
 #define DESC_DSTWIDTHOFFSET_MASK 0xFFFF0000
 #define DESC_DSTWIDTHOFFSET_SHIFT 16
 
-#define DMA_SUCCESS 0
-#define DMA_FAILURE -1
 #define DMA_NULL_PTR 0
 
 /**************************/
