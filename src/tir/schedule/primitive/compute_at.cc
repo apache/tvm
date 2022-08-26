@@ -37,7 +37,7 @@ class NotAllRequiredBlocksAreVisitedError : public ScheduleError {
       : mod_(mod), num_not_visited_(num_not_visited) {
     required_.reserve(required.size());
     for (const StmtSRef& block_sref : required) {
-      const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+      const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
       required_.push_back(GetRef<Block>(block));
     }
   }
@@ -306,14 +306,14 @@ class ScopeReconstructor : private StmtMutator {
       return GetRef<Block>(block);
     }
     if (block == rm_src_stmt_.get()) {
-      block = TVM_TYPE_AS(block, rm_tgt_stmt_, BlockNode);
+      block = TVM_TYPE_AS(rm_tgt_stmt_, BlockNode);
     }
     return StmtMutator::VisitStmt_(block);
   }
 
   Stmt VisitStmt_(const ForNode* loop) final {
     if (loop == rm_src_stmt_.get()) {
-      loop = TVM_TYPE_AS(loop, rm_tgt_stmt_, ForNode);
+      loop = TVM_TYPE_AS(rm_tgt_stmt_, ForNode);
     }
     if (loop == loop_.get()) {
       return new_loop_;
@@ -559,7 +559,7 @@ void CalculateProvidedRequiredRegions(
   }
   // Step 2. Calculate the region required by dependent blocks under `loop`
   for (const StmtSRef& required_block_sref : is_compute_at ? consumer_srefs : producer_srefs) {
-    const BlockNode* required_block = TVM_SREF_TO_BLOCK(required_block, required_block_sref);
+    const BlockNode* required_block = TVM_SREF_TO_BLOCK(required_block_sref);
     ICHECK(block2realize.count(required_block));
     RelaxBufferRegions</*relax_storage_scope=*/is_compute_at>(
         /*binding=*/GetBindings(GetRef<BlockRealize>(block2realize.at(required_block))),
@@ -576,8 +576,8 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
                                      const StmtSRef& loop_sref, bool preserve_unit_loops,
                                      arith::Analyzer* analyzer, bool check_only = false,
                                      int index = -1) {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
-  const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
+  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   // Step 1. Bunch of checks
   // Check condition 1) : scope stage pipeline
   StmtSRef scope_root_sref = GetScopeRoot(self, block_sref,

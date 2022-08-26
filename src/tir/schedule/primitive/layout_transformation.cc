@@ -134,7 +134,7 @@ class BufferIsSubregionError : public ScheduleError {
 
 void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                      BufferIndexType buffer_index_type, const IndexMap& index_map) {
-  const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_ptr, block_sref);
+  const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_sref);
   Buffer old_buffer =
       GetNthAccessBuffer(self, GetRef<Block>(block_ptr), buffer_index, buffer_index_type);
   Optional<StmtSRef> defining_site_sref;
@@ -147,7 +147,7 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
   StmtSRef scope_sref = defining_site_sref.defined()
                             ? defining_site_sref.value()
                             : GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
-  const BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_block, scope_sref);
+  const BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_sref);
 
   // Step 1: Infer the shape of the new buffer
   ObjectPtr<BufferNode> new_buffer_node = make_object<BufferNode>(*(old_buffer.get()));
@@ -344,7 +344,7 @@ class OpaqueNewIterTypeError : public ScheduleError {
 
 void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
                           const IndexMap& index_map) {
-  const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_ptr, block_sref);
+  const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_sref);
   const Block& block = GetRef<Block>(block_ptr);
   arith::Analyzer analyzer;
 
@@ -489,7 +489,7 @@ class BufferAxisSeparatorMutator : private ReplaceBufferMutator {
 
 void SetAxisSeparator(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                       BufferIndexType buffer_index_type, const Array<IntImm>& axis_separators) {
-  const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_ptr, block_sref);
+  const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_sref);
   Buffer old_buffer =
       GetNthAccessBuffer(self, GetRef<Block>(block_ptr), buffer_index, buffer_index_type);
   Optional<StmtSRef> defining_site_sref;
@@ -502,7 +502,7 @@ void SetAxisSeparator(ScheduleState self, const StmtSRef& block_sref, int buffer
   StmtSRef scope_sref = defining_site_sref.defined()
                             ? defining_site_sref.value()
                             : GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
-  const BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_block, scope_sref);
+  const BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_sref);
 
   // Step 1: Check and update axis_separators of the buffer.
   Buffer new_buffer = old_buffer;
