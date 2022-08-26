@@ -3111,7 +3111,7 @@ def test_embedding_bag():
 
     embedding_matrix = torch.rand(10, 3)
     inp = torch.tensor([[1, 1, 4], [5, 9, 4], [4, 2, 5]])
-    pre_sample_weights = torch.tensor([[0.3, 0.4, 0.4], [0.1, 2.2, 3.1], [0.2, 1.1, 3.2]]).cuda()
+    pre_sample_weights = torch.tensor([[0.3, 0.4, 0.4], [0.1, 2.2, 3.1], [0.2, 1.1, 3.2]])
     verify_model(EmbeddingBag(mode="mean").float().eval(), [inp, embedding_matrix])
     verify_model(
         EmbeddingBag(mode="sum", per_sample_weights=pre_sample_weights).float().eval(),
