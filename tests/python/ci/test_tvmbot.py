@@ -147,7 +147,7 @@ def test_tvmbot(tmpdir_factory, number, filename, expected, comment, user, detai
     """
     Test the mergebot test cases
     """
-    mergebot_script = REPO_ROOT / "tests" / "scripts" / "github_tvmbot.py"
+    mergebot_script = REPO_ROOT / "ci" / "scripts" / "github_tvmbot.py"
     test_json_dir = Path(__file__).resolve().parent / "sample_prs"
 
     git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
