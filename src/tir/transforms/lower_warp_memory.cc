@@ -312,6 +312,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
                                           << "FlattenBuffer (TIR-based schedules) been run?";
 
       auto [local_index, group] = SplitIndexByGroup(store->indices[0]);
+      (void)group;  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
 
       auto writer = store.CopyOnWrite();
       writer->indices = {local_index};

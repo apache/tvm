@@ -302,6 +302,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     std::sort(block_threads.begin(), block_threads.end());
     for (auto&& thr_attr : block_threads) {
       auto [dim_index, extent, is_reduce] = thr_attr;
+      (void)dim_index;  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
       if (is_reduce) {
         contiguous_reduce_extent *= extent;
       } else {

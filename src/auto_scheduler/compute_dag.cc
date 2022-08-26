@@ -1327,6 +1327,7 @@ State ComputeDAG::InferBound(const State& state) const {
   StageToAxesMap stage_to_axes;
   // Replay steps to tvm::Schedule
   auto [sch, tensors] = ApplySteps(pstate->transform_steps, &stages, &stage_to_axes);
+  (void)tensors;  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
   sch = sch.normalize_for_feature_extraction();
   // Get bound information from TVM schedule
   Map<IterVar, Range> bounds = te::InferBound(sch);
@@ -1381,6 +1382,7 @@ Array<State> ComputeDAG::InferBound(const Array<State>& states) const {
 
 ComputeDAG ComputeDAG::ReplayAndGetDAG(const Array<Step>& transform_steps) const {
   auto [sch, old_tensors] = ApplySteps(transform_steps);
+  (void)old_tensors;  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
   return ComputeDAG(sch);
 }
 

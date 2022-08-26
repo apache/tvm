@@ -560,6 +560,11 @@ bool IsWriteCache(const StmtSRef& block_sref) {
   for (const BufferRegion& read_region : block->reads) {
     auto [exists, surjective, injective, ordered, no_const_read, no_shift_read] =
         AnalyzeReadWritePattern(read_region, write_region);
+    // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
+    (void)exists;
+    (void)surjective;
+    (void)no_const_read;
+    (void)no_shift_read;
     if (!(injective && ordered)) {
       return false;
     }

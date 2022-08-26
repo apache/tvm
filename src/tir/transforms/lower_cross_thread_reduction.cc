@@ -500,6 +500,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
     auto [init, update] = GetBufferStoresFromReductionBlock(NullOpt, GetRef<Block>(block));
     auto [reducer, combiner_lhs, combiner_rhs] =
         GetReducerAndCombinerLhsRhs(NullOpt, init->value, update);
+    (void)combiner_lhs;  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
 
     // Condition 5. The block should be the last block under the first reduction-related loop.
     bool visit = false;
