@@ -132,6 +132,34 @@ class BufferIsSubregionError : public ScheduleError {
   Buffer buffer_;
 };
 
+class TransformationPaddingTypeError : public ScheduleError {
+ public:
+  TransformationPaddingTypeError(IRModule mod, Buffer buffer, PrimExpr pad_value)
+      : mod_(mod), buffer_(buffer), pad_value_(pad_value) {}
+
+  String FastErrorString() const final {
+    std::ostringstream ss;
+    ss << "ScheduleError: Type mismatch " << buffer_->dtype << " vs " << pad_value_->dtype;
+    return ss.str();
+  }
+
+  String DetailRenderTemplate() const final {
+    std::ostringstream ss;
+    ss << "ScheduleError: Buffer " << buffer_->name << " has elements of type " << buffer_->dtype
+       << ", but the transformation fills padding with " << pad_value_ << ", which is of type "
+       << pad_value_->dtype;
+    return ss.str();
+  }
+
+  IRModule mod() const final { return mod_; }
+  Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+
+ private:
+  IRModule mod_;
+  Buffer buffer_;
+  PrimExpr pad_value_;
+};
+
 class TransformationIntroducesPaddingError : public ScheduleError {
  public:
   TransformationIntroducesPaddingError(IRModule mod, Buffer buffer, IndexMap index_map,
@@ -175,6 +203,9 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
   auto [defining_site_sref, is_alloc] = GetBufferDefiningSite(block_sref, old_buffer);
   if (defining_site_sref.defined() && !is_alloc) {
     throw BufferIsSubregionError(self->mod, old_buffer);
+  }
+  if (pad_value && pad_value.value()->dtype != old_buffer->dtype) {
+    throw TransformationPaddingTypeError(self->mod, old_buffer, pad_value.value());
   }
 
   StmtSRef scope_sref = defining_site_sref.defined()

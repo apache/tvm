@@ -430,7 +430,6 @@ class TestErrorIfPaddingForbidden(BasePaddingCompare):
     expected = tvm.tir.schedule.schedule.ScheduleError
 
 
-@pytest.mark.xfail(reason="Not implemented yet")
 class TestErrorOnWrongPaddingType(BasePaddingCompare):
     """The padding must have the same dtype as the buffer"""
 
