@@ -578,7 +578,7 @@ struct StftAttrs : public tvm::AttrsNode<StftAttrs> {
 /*! \brief Attributes used in embedding_bad operator */
 struct EmbeddingBagAttrs : public tvm::AttrsNode<EmbeddingBagAttrs> {
   int mode;
-  int padding_idx;
+  Integer padding_idx;
   bool include_last_offset;
 
   TVM_DECLARE_ATTRS(EmbeddingBagAttrs, "relay.attrs.EmbeddingBagAttrs") {

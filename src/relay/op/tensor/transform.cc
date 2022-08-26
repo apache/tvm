@@ -4294,7 +4294,7 @@ bool EmbeddingBagRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   return true;
 }
 
-Expr MakeEmbeddingBag(Expr input, Expr weight, Expr offset, size_t mode, size_t padding_idx,
+Expr MakeEmbeddingBag(Expr input, Expr weight, Expr offset, int mode, Integer padding_idx,
                       Expr per_sample_weights, bool include_last_offset) {
   auto attrs = make_object<EmbeddingBagAttrs>();
   attrs->mode = mode;

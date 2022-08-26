@@ -2031,7 +2031,7 @@ inline Tensor adv_index(const Tensor& data, const Array<Tensor>& indices,
  * \return The embedded tensor.
  */
 inline Tensor embedding_bag(const Tensor& input, const Tensor& weight, const Tensor& offset,
-                            int mode, const Tensor& per_sample_weights, int padding_idx,
+                            int mode, const Tensor& per_sample_weights, Integer padding_idx,
                             bool include_last_offset, DataType dtype,
                             const std::string name = "T_embedding_bag",
                             const std::string tag = kInjective) {
