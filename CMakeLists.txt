@@ -26,7 +26,7 @@ endif()
 # Alernatively, use cmake -DOPTION=VALUE through command-line.
 tvm_option(USE_CUDA "Build with CUDA" OFF)
 tvm_option(USE_OPENCL "Build with OpenCL" OFF)
-tvm_option(USE_OPENCL_GTEST "Path to OpenCL specific gtest version for runtime cpp tests." /path/to/opencl/gtest)
+tvm_option(USE_OPENCL_GTEST "Path to OpenCL specific gtest version for runtime cpp tests. Or pass ON/OFF value" OFF)
 tvm_option(USE_VULKAN "Build with Vulkan" OFF)
 
 
@@ -617,16 +617,24 @@ if(BUILD_FOR_HEXAGON AND DEFINED USE_HEXAGON_GTEST AND EXISTS ${USE_HEXAGON_GTES
   include_directories("${USE_HEXAGON_GTEST}/include")
 endif()
 
-if(USE_OPENCL AND DEFINED USE_OPENCL_GTEST AND EXISTS ${USE_OPENCL_GTEST})
+if(USE_OPENCL AND DEFINED USE_OPENCL_GTEST AND (EXISTS ${USE_OPENCL_GTEST} OR "${USE_OPENCL_GTEST}" MATCHES ${IS_TRUE_PATTERN}))
   include(FetchContent)
-  FetchContent_Declare(googletest SOURCE_DIR "${USE_OPENCL_GTEST}")
+  if ("${USE_OPENCL_GTEST}" MATCHES ${IS_TRUE_PATTERN})
+    FetchContent_Declare(
+      googletest
+      GIT_REPOSITORY https://github.com/google/googletest.git
+      GIT_TAG        703bd9caab50b139428cea1aaff9974ebee5742e # release-1.10.0
+    )
+  elseif(EXISTS ${USE_OPENCL_GTEST})
+    FetchContent_Declare(googletest SOURCE_DIR "${USE_OPENCL_GTEST}")
+    include_directories("${USE_OPENCL_GTEST}/include")
+    include_directories("${USE_OPENCL_GTEST}/googletest/include")
+    message(STATUS "Found OpenCL gtest at ${USE_OPENCL_GTEST}")
+  endif()
   set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(googletest)
   target_link_libraries(tvm_runtime PUBLIC gtest)
   target_link_libraries(tvm PUBLIC gtest)
-  include_directories("${USE_OPENCL_GTEST}/include")
-  include_directories("${USE_OPENCL_GTEST}/googletest/include")
-  message(STATUS "Found OpenCL gtest at ${USE_OPENCL_GTEST}")
 endif()
 
 # Set flags for clang
@@ -691,7 +699,7 @@ install(TARGETS tvm_runtime EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_S
 if(BUILD_FOR_HEXAGON AND DEFINED USE_HEXAGON_GTEST AND EXISTS ${USE_HEXAGON_GTEST})
   install(TARGETS gtest EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
 endif()
-if(USE_OPENCL AND DEFINED USE_OPENCL_GTEST AND EXISTS ${USE_OPENCL_GTEST})
+if(USE_OPENCL AND DEFINED USE_OPENCL_GTEST AND (EXISTS ${USE_OPENCL_GTEST} OR "${USE_OPENCL_GTEST}" MATCHES ${IS_TRUE_PATTERN}))
   install(TARGETS gtest EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
 endif()
 
