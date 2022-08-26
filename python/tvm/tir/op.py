@@ -831,6 +831,117 @@ def tvm_store_matrix_sync(fragment, m, n, k, index, buffer_ptr, stride, layout):
     )
 
 
+def ptx_ldmatrix(dtype, trans, num, type, local_ptr, local_offset, smem_ptr, smem_offset):
+    """TVM intrinsic for ptx load matrix from shared memory
+    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#warp-level-matrix-instructions-ldmatrix
+
+    Parameters
+    ----------
+    dtype : str
+       The data type of the result.
+
+    trans : bool
+        The matrix is loaded in column-major format.
+
+    num : IntImm
+        The number of matrices.
+
+    type : Literal[".b16"]
+        The data type of the matrices.
+
+    local_ptr : Var
+        The local pointer variable.
+
+    local_offset : Expr
+        The offset of local pointer.
+
+    smem_ptr : Var
+        The shared memory pointer variable.
+
+    smem_offset : Expr
+        The offset of shared memort pointer.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        dtype,
+        "tir.ptx_ldmatrix",
+        trans,
+        num,
+        type,
+        local_ptr,
+        local_offset,
+        smem_ptr,
+        smem_offset,
+    )
+
+
+def ptx_cp_async(dtype, shared_ptr, shared_offset, global_ptr, global_offset, bytes):
+    """TVM intrinsic for ptx async copy from global to shared memory
+    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-cp-async
+
+    Parameters
+    ----------
+    dtype : str
+       The data type of the result.
+
+    shared_ptr : Var
+        The shared memory pointer variable.
+
+    shared_offset : Expr
+        The offset of shared memory pointer.
+
+    global_ptr : Var
+        The global memory pointer variable.
+
+    global_offset : Expr
+        The offset of global memory pointer.
+
+    bytes : int
+        The data size to copy.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        dtype, "tir.ptx_cp_async", shared_ptr, shared_offset, global_ptr, global_offset, bytes
+    )
+
+
+def ptx_commit_group():
+    """TVM intrinsic for ptx async copy commit
+    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-cp-async-commit-group
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("", "tir.ptx_commit_group")
+
+
+def ptx_wait_group(num):
+    """TVM intrinsic for ptx async copy wait
+    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-cp-async-wait-group
+
+    Parameters
+    ----------
+    num : int
+        The number of the most recent uncommitted pending cp.async groups to wait.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("", "tir.ptx_wait_group", num)
+
+
 def vectorlow(dtype, vec):
     """Get the low level half of the vector
 
