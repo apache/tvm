@@ -210,7 +210,8 @@ def pytest_configure(config):
 def pytest_configure_node(node):
     # the master for each node fills slaveinput dictionary
     # which pytest-xdist will transfer to the subprocess
-    node.workerinput["device_adr"] = node.config.iplist.pop()
+    if node.config.iplist is not None:
+        node.workerinput["device_adr"] = node.config.iplist.pop()
 
 
 @pytest.fixture
