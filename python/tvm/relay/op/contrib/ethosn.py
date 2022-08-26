@@ -215,6 +215,24 @@ def pattern_table():
         input_is_right = gen_mul_inputs(is_constant(), wildcard())
         return input_is_left | input_is_right
 
+    def qnn_add_pattern():
+        add_op = is_op("qnn.add")
+        gen_add_inputs = lambda x, y: add_op(
+            x,
+            y,
+            is_constant(),
+            is_constant(),
+            is_constant(),
+            is_constant(),
+            is_constant(),
+            is_constant(),
+        )
+        two_inputs = gen_add_inputs(wildcard(), wildcard())
+        input_is_left = gen_add_inputs(wildcard(), is_constant())
+        input_is_right = gen_add_inputs(is_constant(), wildcard())
+
+        return input_is_left | input_is_right | two_inputs
+
     def check_conv2d(extract):
         """Check if a conv2d is supported by Ethos-N."""
         if not ethosn_available():
@@ -289,8 +307,24 @@ def pattern_table():
 
         return _ethosn.resize(extract)
 
+    def check_add(extract):
+        """Check if an addition is supported by Ethos-N."""
+        if not ethosn_available():
+            return False
+        # Do not support scalar constants for now
+        check_scalar = lambda i: isinstance(i, tvm.relay.Constant) and len(i.data.shape) == 0
+        if check_scalar(extract.args[0]) or check_scalar(extract.args[1]):
+            return False
+
+        inputs = extract.args[0:2]
+        if any([isinstance(i, tvm.relay.Constant) for i in inputs]):
+            extract = _ethosn.ConvertQnnAdd(extract)
+            return _ethosn.conv2d(extract)
+        return _ethosn.addition(extract)
+
     return [
         ("ethos-n.qnn_mul", qnn_mul_pattern(), check_mul),
+        ("ethos-n.qnn_add", qnn_add_pattern(), check_add),
         ("ethos-n.qnn_conv2d", qnn_conv_pattern(), check_conv2d),
         ("ethos-n.qnn_avg_pool2d", qnn_avg_pool2d_pattern(), check_avg_pool2d),
         ("ethos-n.qnn_sigmoid", qnn_sigmoid_pattern(), check_sigmoid),
@@ -330,15 +364,6 @@ def reshape(expr):
         return False
 
     return _ethosn.reshape(expr)
-
-
-@tvm.ir.register_op_attr("qnn.add", "target.ethos-n")
-def qnn_add(expr):
-    """Check if an addition is supported by Ethos-N."""
-    if not ethosn_available():
-        return False
-
-    return _ethosn.addition(expr)
 
 
 @tvm.ir.register_op_attr("qnn.concatenate", "target.ethos-n")

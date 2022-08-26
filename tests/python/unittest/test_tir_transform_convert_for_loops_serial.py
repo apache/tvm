@@ -26,10 +26,10 @@ from tvm.tir import stmt_functor
 def fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast_2(placeholder_30: T.handle, placeholder_31: T.handle, placeholder_32: T.handle, T_cast_8: T.handle) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast_2", "tir.noalias": True})
-    placeholder_33 = T.match_buffer(placeholder_30, [150528], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-    placeholder_34 = T.match_buffer(placeholder_31, [3072], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-    placeholder_35 = T.match_buffer(placeholder_32, [16], dtype="int32", elem_offset=0, align=128, offset_factor=1)
-    T_cast_9 = T.match_buffer(T_cast_8, [12544], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+    placeholder_33 = T.match_buffer(placeholder_30, [150528], dtype="int16", elem_offset=0, align=64, offset_factor=1)
+    placeholder_34 = T.match_buffer(placeholder_31, [3072], dtype="int16", elem_offset=0, align=64, offset_factor=1)
+    placeholder_35 = T.match_buffer(placeholder_32, [16], dtype="int32", elem_offset=0, align=64, offset_factor=1)
+    T_cast_9 = T.match_buffer(T_cast_8, [12544], dtype="int16", elem_offset=0, align=64, offset_factor=1)
     # body
     PaddedInput_3 = T.allocate([150528], "int16", "global")
     for i0_i1_fused_3 in T.parallel(0, 28):

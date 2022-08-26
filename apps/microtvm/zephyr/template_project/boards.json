@@ -38,7 +38,8 @@
         "is_qemu": false,
         "fpu": true,
         "vid_hex": "1366",
-        "pid_hex": "1055"
+        "pid_hex": "1055",
+        "recommended_heap_size_bytes": 368640
     },
     "nucleo_f746zg": {
         "board": "nucleo_f746zg",
@@ -55,7 +56,7 @@
         "fpu": true,
         "vid_hex": "0483",
         "pid_hex": "374b",
-        "recommended_heap_size_bytes": 512000
+        "recommended_heap_size_bytes": 524288
     },
     "qemu_cortex_r5": {
         "board": "qemu_cortex_r5",
@@ -87,7 +88,8 @@
         "is_qemu": true,
         "fpu": true,
         "vid_hex": "",
-        "pid_hex": ""
+        "pid_hex": "",
+        "recommended_heap_size_bytes": 524288
     },
     "stm32f746g_disco": {
         "board": "stm32f746g_disco",
