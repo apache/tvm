@@ -603,5 +603,53 @@ def test_simplify_rsqrt():
         assert tvm.ir.structural_equal(opt, after)
 
 
+def test_simplify_dq_argmax():
+    shape = (4, 32, 1, 1)
+    x = relay.var("x", shape=shape, dtype="int8")
+
+    def before():
+        y = relay.qnn.op.dequantize(x, relay.const(2.0), relay.const(0))
+        return relay.op.argmax(y, axis=1)
+
+    def expected():
+        return relay.op.argmax(x, axis=1)
+
+    opt = run_opt_pass(before(), transform.SimplifyExpr())
+    after = run_opt_pass(expected(), transform.InferType())
+    assert tvm.ir.structural_equal(opt, after)
+
+
+def test_simplify_dq_argmin():
+    shape = (4, 32, 1, 1)
+    x = relay.var("x", shape=shape, dtype="int8")
+
+    def before():
+        y = relay.qnn.op.dequantize(x, relay.const(2.0), relay.const(0))
+        return relay.op.argmin(y, axis=1)
+
+    def expected():
+        return relay.op.argmin(x, axis=1)
+
+    opt = run_opt_pass(before(), transform.SimplifyExpr())
+    after = run_opt_pass(expected(), transform.InferType())
+    assert tvm.ir.structural_equal(opt, after)
+
+
+def test_simplify_dq_argsort():
+    shape = (4, 32, 1, 1)
+    x = relay.var("x", shape=shape, dtype="int8")
+
+    def before():
+        y = relay.qnn.op.dequantize(x, relay.const(2.0), relay.const(0))
+        return relay.op.argsort(y, axis=1)
+
+    def expected():
+        return relay.op.argsort(x, axis=1)
+
+    opt = run_opt_pass(before(), transform.SimplifyExpr())
+    after = run_opt_pass(expected(), transform.InferType())
+    assert tvm.ir.structural_equal(opt, after)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
