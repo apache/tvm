@@ -177,7 +177,7 @@ class VarTouchedAnalysis : public StmtVisitor {
   // Whether variable is touched by the thread variable.
   std::unordered_set<const VarNode*> touched_var_;
   // x -> all the buffers x read from
-  std::unordered_map<const VarNode*, std::vector<const VarNode*> > affect_;
+  std::unordered_map<const VarNode*, std::vector<const VarNode*>> affect_;
 };
 
 // Inject virtual thread loop
