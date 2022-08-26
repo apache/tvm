@@ -30,7 +30,7 @@ namespace tvm {
 ObjectPtr<Object> GetSourceNameNode(const String& name) {
   // always return pointer as the reference can change as map re-allocate.
   // or use another level of indirection by creating a unique_ptr
-  static std::unordered_map<String, ObjectPtr<SourceNameNode> > source_map;
+  static std::unordered_map<String, ObjectPtr<SourceNameNode>> source_map;
 
   auto sn = source_map.find(name);
   if (sn == source_map.end()) {
