@@ -946,6 +946,7 @@ def test_squeeze():
     verify_squeeze((1, 2, 1, 4), None)
     verify_squeeze((1, 1, 1, 4), (1, 2))
     verify_squeeze((1, 1, 1, 1), None)
+    verify_squeeze((1, 1, 1, 1), ())
 
     # a special case to trigger inline let expression
     A = te.placeholder((2,), "float32", "A")
