@@ -3077,7 +3077,12 @@ def test_forward_embedding():
 
 @tvm.testing.uses_gpu
 def test_embedding_bag():
+    """test_forward_embedding_bag"""
+    torch.set_grad_enabled(False)
+
     class EmbeddingBag(Module):
+        """inner embedding_bag class"""
+
         def __init__(
             self,
             mode="mean",
