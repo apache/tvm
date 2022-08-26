@@ -15,27 +15,26 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Teams
-
+name: comment-bot
 on:
-  issues:
-    types: [opened, edited, reopened, labeled]
+  pull_request_target:
+    types: [opened, reopened, edited, ready_for_review, labeled]
+  status:
 
 concurrency:
-  group: Teams-${{ github.event.pull_request.number }}-${{ github.event.issue.number }}
+  group: pr-comment-${{ github.event.number }}
   cancel-in-progress: true
 
 jobs:
-  tag-teams:
-    if: github.repository == 'apache/tvm'
+  run-comment-bot:
+    if: ${{ github.repository == 'apache/tvm' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Tag people from relevant teams
+      - name: Comment bot comment
         env:
-          PR: ${{ toJson(github.event.pull_request) }}
-          ISSUE: ${{ toJson(github.event.issue) }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.issue.number }}
         run: |
           set -eux
-          python ci/scripts/github_tag_teams.py || echo failed
+          python tests/scripts/github_pr_comment.py --pr "$PR_NUMBER"
