@@ -3315,7 +3315,9 @@ def decl_buffer():
 
 def float_infinity():
     @T.prim_func
-    def func(placeholder: T.Buffer[(1, 512, 768), "float32"], T_isinf: T.Buffer[(1, 512, 768), "bool"]) -> None:
+    def func(
+        placeholder: T.Buffer[(1, 512, 768), "float32"], T_isinf: T.Buffer[(1, 512, 768), "bool"]
+    ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
@@ -3325,7 +3327,10 @@ def float_infinity():
                 ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
                 T.reads(placeholder[ax0, ax1, ax2])
                 T.writes(T_isinf[ax0, ax1, ax2])
-                T_isinf[ax0, ax1, ax2] = T.fabs(placeholder[ax0, ax1, ax2], dtype="float32") == T.float32("inf") and not(T.isnan(placeholder[ax0, ax1, ax2], dtype="bool"))
+                T_isinf[ax0, ax1, ax2] = T.fabs(
+                    placeholder[ax0, ax1, ax2], dtype="float32"
+                ) == T.float32("inf") and not (T.isnan(placeholder[ax0, ax1, ax2], dtype="bool"))
+
     return func
 
 

@@ -53,12 +53,8 @@ for _dtype in ["float", "uint", "int"]:
             def wrap(name):
                 def f(imm, span):
                     if name.startswith("float"):
-                        if imm == "inf":
-                            return FloatImm(dtype=name, value=float("inf"), span=span)
-                        elif imm == "-inf":
-                            return FloatImm(dtype=name, value=float("-inf"), span=span)
-                        elif imm == "nan":
-                            return FloatImm(dtype=name, value=float("nan"), span=span)
+                        if imm in {"inf", "-inf", "nan"}:
+                            return FloatImm(dtype=name, value=float(imm), span=span)
                     return imm.astype(name, span)
 
                 f.__name__ = name
