@@ -159,7 +159,8 @@ void CodeGenLLVM::InitTarget() {
       native_vector_bits_ = 512;
     } else if (arch == llvm::Triple::x86) {
       native_vector_bits_ = 256;
-    } else if (arch == llvm::Triple::arm || arch == llvm::Triple::aarch64) {
+    } else if (arch == llvm::Triple::arm || arch == llvm::Triple::aarch64 ||
+               arch == llvm::Triple::riscv64) {
       native_vector_bits_ = 128;
     } else {
       native_vector_bits_ = 128;

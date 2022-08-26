@@ -22,6 +22,7 @@ from .arm_compute_lib import *
 from .dnnl import *
 from .bnns import *
 from .coreml import *
+from .csinn import *
 from .ethosn import *
 from .libtorch import *
 from .tensorrt import *

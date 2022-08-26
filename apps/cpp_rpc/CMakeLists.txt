@@ -70,5 +70,11 @@ if(BUILD_STATIC_RUNTIME)
 else()
   list(APPEND TVM_RPC_LINKER_LIBS tvm_runtime)
 endif()
- 
+
+if(USE_CSINN_DEVICE_RUNTIME)
+  if (CSINN_LIBRARIES)
+    list(APPEND TVM_RPC_LINKER_LIBS ${CSINN_LIBRARIES})
+  endif()
+endif()
+
 target_link_libraries(tvm_rpc ${TVM_RPC_LINKER_LIBS})

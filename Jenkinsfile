@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-08-19T15:38:38.311410
+// Generated at 2022-08-23T19:51:36.174660
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -1206,6 +1206,40 @@ stage('Build') {
       }
      } else {
       Utils.markStageSkippedForConditional('BUILD: RISC-V')
+    }
+  },
+  'BUILD: CSINN2-x86': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU-SMALL') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-csinn2-x86") {
+          docker_init(ci_riscv)
+          init_git()
+          sh (
+            script: "${docker_run} ${ci_riscv} ./tests/scripts/task_config_build_csinn2.sh build",
+            label: 'Create CSINN2 x86 cmake config',
+          )
+          make(ci_riscv, 'build', '-j2')
+        }
+      }
+     } else {
+      Utils.markStageSkippedForConditional('BUILD: CSINN2-x86')
+    }
+  },
+  'BUILD: CSINN2-c906': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU-SMALL') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-csinn2-c906") {
+          docker_init(ci_riscv)
+          init_git()
+          sh (
+            script: "${docker_run} ${ci_riscv} ./tests/scripts/task_config_build_c906.sh build-c906",
+            label: 'Create CSINN2 c906 cmake config',
+          )
+          make(ci_riscv, 'build', 'tvm_rpc -j2')
+        }
+      }
+     } else {
+      Utils.markStageSkippedForConditional('BUILD: CSINN2-c906')
     }
   },
   )

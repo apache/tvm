@@ -16,19 +16,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -euxo pipefail
+set -e
+set -u
 
-source tests/scripts/setup-pytest-env.sh
+BUILD_DIR=$1
+mkdir -p "$BUILD_DIR"
+cd "$BUILD_DIR"
+cp ../cmake/config.cmake .
 
-make cython3
-
-#riscv gcc
-export PATH=/opt/csi-nn2/tools/gcc-toolchain/bin:$PATH
-#riscv qemu
-export PATH=/opt/csi-nn2/tools/qemu/bin:$PATH
-
-# run qemu tvm_rpc
-nohup qemu-riscv64 -cpu c906fdv -L /opt/csi-nn2/tools/gcc-toolchain/sysroot/ ./build-c906/tvm_rpc server --host=127.0.0.1 --port=9090 &
-
-# test
-run_pytest ctypes python-csinn2_compute_lib tests/python/contrib/test_csinn
+echo set\(USE_CPP_RPC ON\) >> config.cmake
+echo set\(USE_LIBBACKTRACE OFF\) >> config.cmake
+echo set\(USE_LLVM llvm-config-10\) >> config.cmake
+echo set\(USE_CSINN "/opt/csi-nn2"\) >> config.cmake
+echo set\(USE_CSINN_DEVICE_RUNTIME C906\) >> config.cmake

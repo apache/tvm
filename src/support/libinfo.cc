@@ -227,6 +227,14 @@
 #define TVM_CXX_COMPILER_PATH ""
 #endif
 
+#ifndef TVM_INFO_USE_CSINN
+#define TVM_INFO_USE_CSINN "NOT-FOUND"
+#endif
+
+#ifndef TVM_INFO_USE_CSINN_DEVICE_RUNTIME
+#define TVM_INFO_USE_CSINN_DEVICE_RUNTIME "NOT-FOUND"
+#endif
+
 namespace tvm {
 
 /*!
@@ -318,6 +326,8 @@ TVM_DLL Map<String, String> GetLibInfo() {
       {"USE_CLML", TVM_INFO_USE_CLML},
       {"USE_CLML_GRAPH_EXECUTOR", TVM_INFO_USE_CLML_GRAPH_EXECUTOR},
       {"USE_UMA", TVM_INFO_USE_UMA},
+      {"USE_CSINN", TVM_INFO_USE_CSINN},
+      {"USE_CSINN_DEVICE_RUNTIME", TVM_INFO_USE_CSINN_DEVICE_RUNTIME},
   };
   return result;
 }

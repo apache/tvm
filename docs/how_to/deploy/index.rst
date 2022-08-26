@@ -172,6 +172,7 @@ target device without relying on RPC. See the following resources on how to do s
    integrate
    hls
    arm_compute_lib
+   csinn_compute_lib
    tensorrt
    vitis_ai
    bnns
