@@ -940,7 +940,7 @@ def test_where():
     verify_where((1, 2, 3, 4))
 
 
-@tvm.testing.requires_gpu
+@tvm.testing.uses_gpu
 def test_squeeze():
     verify_squeeze((1, 2, 3, 4), 0)
     verify_squeeze((1, 2, 1, 4), None)
@@ -952,7 +952,7 @@ def test_squeeze():
     A = te.placeholder((2,), "float32", "A")
     E = topi.squeeze(A)
     C = te.compute((1,), lambda i: E[(2 * A[0] - 1).astype("int32")])
-    for target in ["cuda", "opencl"]:
+    for target in ["llvm", "cuda", "opencl"]:
         dev = tvm.device(target, 0)
         if tvm.testing.device_enabled(target):
             with tvm.target.Target(target):
