@@ -417,6 +417,7 @@ TVM_REGISTER_TARGET_KIND("hexagon", kDLHexagon)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("mtriple")
     .add_attr_option<Array<String>>("llvm-options")
+    .add_attr_option<Integer>("num-cores")
     .set_default_keys({"hexagon"});
 
 TVM_REGISTER_TARGET_KIND("stackvm", kDLCPU);
