@@ -2059,8 +2059,7 @@ inline Tensor embedding_bag(const Tensor& input, const Tensor& weight, const Ten
       auto idx_i = input(real_idx);
       auto cond = (real_idx < ed) && (idx_i != padding_idx);
       auto element = weight[idx_i][j] * per_sample_weights[real_idx];
-      if (mode == 0)  // sum(0)
-      {
+      if (mode == 0) {  // sum(0)
         ret = tvm::tir::Select(cond, ret + element, ret);
       } else if (mode == 1) {  // mean(1)
         count = tvm::tir::Select(cond, count + 1, count);
