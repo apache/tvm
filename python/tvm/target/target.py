@@ -636,6 +636,8 @@ def hexagon(cpu_ver="v66", **kwargs):
         Whether to use QFloat HVX instructions.
     use_ieee_fp : bool (default: False)
         Whether to use IEEE HVX instructions
+    num_cores : int (default: 4)
+        The number of HVX threads. This attribute is required by meta scheduler.
 
     Note: Floating point support in HVX requires LLVM 14+.
     """
@@ -739,6 +741,9 @@ def hexagon(cpu_ver="v66", **kwargs):
     llvm_str = create_llvm_options(cpu_ver, config)
 
     args_list = target_str.split() + llvm_str.split()
+
+    num_cores = config["num_cores"] if "num_cores" in kwargs else 4
+    args_list.append("--num-cores=%d" % num_cores)
 
     return Target(" ".join(["hexagon"] + args_list))
 
