@@ -299,10 +299,13 @@ TVM_DLL StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buf
  * \param self The schedule state
  * \param block_sref The block to be moved
  * \param loop_sref The loop where the block to be moved to
- * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+ * \param index The block index of the loop body subtree blocks:
+ * - `index = -1` means inserted into the last possible insertion point;
+ * - `index = -2` means inserted into the first possible insertion point;
+ * - Otherwise, `index` is a nonnegative number that indicates the insertion point
  */
 TVM_DLL void ComputeAt(ScheduleState self, const StmtSRef& block_sref, const StmtSRef& loop_sref,
-                       bool preserve_unit_loops);
+                       bool preserve_unit_loops, int index = -1);
 /*!
  * \brief Move a consumer block under the specific loop, and regenerate the
  * loops induced by the block so that the buffer region consumed by the consumer block could
@@ -318,9 +321,13 @@ TVM_DLL void ComputeAt(ScheduleState self, const StmtSRef& block_sref, const Stm
  * \param block_sref The block to be moved
  * \param loop_sref The loop where the block to be moved to
  * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+ * \param index The block index of the loop body subtree blocks:
+ * - `index = -1` means inserted into the last possible insertion point;
+ * - `index = -2` means inserted into the first possible insertion point;
+ * - Otherwise, `index` is a nonnegative number that indicates the insertion point
  */
 TVM_DLL void ReverseComputeAt(ScheduleState self, const StmtSRef& block_sref,
-                              const StmtSRef& loop_sref, bool preserve_unit_loops);
+                              const StmtSRef& loop_sref, bool preserve_unit_loops, int index = -1);
 /*!
  * \brief Inline a block into its consumer(s). It requires:
  * 1) The block is a complete non-root block, which only produces one buffer
