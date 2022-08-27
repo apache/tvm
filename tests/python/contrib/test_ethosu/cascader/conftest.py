@@ -24,6 +24,13 @@ except ImportError:
 
 import tvm.contrib.ethosu.cascader as cs
 
+print("base ETHOSU CONFTEST")
+
+
+def pytest_collection_modifyitems(config, items):
+    print("in ETHOSU CONFTEST")
+    pass
+
 
 @pytest.fixture
 def FLASH():

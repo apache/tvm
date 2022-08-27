@@ -80,7 +80,7 @@ function run_pytest() {
         DEFAULT_PARALLELISM=1
     fi
 
-    if [ ! "${extra_args[@]}" == *" -n"* ] && [! "${extra_args[@]}" == *" -dist"* ]; then
+    if [[ ! "${extra_args[*]}" == *" -n"* ]] && [[ ! "${extra_args[*]}" == *" -dist"* ]]; then
         extra_args+=("-n=$DEFAULT_PARALLELISM")
     fi
 
@@ -89,6 +89,7 @@ function run_pytest() {
            -o "junit_suite_name=${suite_name}" \
            "--junit-xml=${TVM_PYTEST_RESULT_DIR}/${suite_name}.xml" \
            "--junit-prefix=${ffi_type}" \
+           -v -rsx \
            "${extra_args[@]}" || exit_code=$?
     # Pytest will return error code -5 if no test is collected.
     if [ "$exit_code" -ne "0" ] && [ "$exit_code" -ne "5" ]; then
