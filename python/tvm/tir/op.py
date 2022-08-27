@@ -831,6 +831,293 @@ def tvm_store_matrix_sync(fragment, m, n, k, index, buffer_ptr, stride, layout):
     )
 
 
+def ptx_mma(
+    dtype,
+    shape,
+    A_layout,
+    B_layout,
+    A_dtype,
+    B_dtype,
+    C_dtype,
+    multiplicand_a,
+    a_index,
+    multiplicand_b,
+    b_index,
+    accumulator,
+    c_index,
+    saturate,
+    operator=None,
+):
+    """TVM intrinsic for ptx tensor core mma instructions
+    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#warp-level-matrix-instructions-for-mma
+
+    Parameters
+    ----------
+    dtype : str
+        The data type of the result.
+
+    shape : str
+        The shape of mma fragment.
+
+    A_layout : Literal["row", "col"]
+        The layout of multiplicand fragment A.
+
+    B_layout : Literal["row", "col"]
+        The layout of multiplicand fragment B.
+
+    A_dtype : str
+        The data type of multiplicand fragment A.
+
+    B_dtype : str
+        The data type of multiplicand fragment B.
+
+    C_dtype : str
+        The data type of accumulator fragment C.
+
+    multiplicand_a : Var
+        The multiplicand fragment A variable.
+
+    a_index : Expr
+        The index of multiplicand fragment A.
+
+    multiplicand_b : Var
+        The multiplicand fragment B variable.
+
+    b_index : Expr
+        The index of multiplicand fragment A.
+
+    accumulator : Var
+        The accumulator fragment C variable.
+
+    c_index : Expr
+        The index of accumulator fragment C.
+
+    saturate : bool
+        The optional saturation at the output.
+
+
+    operator : Optional[Literal["xor", "and"]]
+        The 1-bit operator.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    if operator is None:
+        return call_intrin(
+            dtype,
+            "tir.ptx_mma",
+            shape,
+            A_layout,
+            B_layout,
+            A_dtype,
+            B_dtype,
+            C_dtype,
+            multiplicand_a,
+            a_index,
+            multiplicand_b,
+            b_index,
+            accumulator,
+            c_index,
+            saturate,
+        )
+    return call_intrin(
+        dtype,
+        "tir.ptx_mma",
+        shape,
+        A_layout,
+        B_layout,
+        A_dtype,
+        B_dtype,
+        C_dtype,
+        multiplicand_a,
+        a_index,
+        multiplicand_b,
+        b_index,
+        accumulator,
+        c_index,
+        saturate,
+        operator,
+    )
+
+
+def ptx_mma_sp(
+    dtype,
+    shape,
+    A_layout,
+    B_layout,
+    A_dtype,
+    B_dtype,
+    C_dtype,
+    multiplicand_a,
+    a_index,
+    multiplicand_b,
+    b_index,
+    accumulator,
+    c_index,
+    metadata,
+    meta_index,
+    sparse_selector,
+    saturate,
+):
+    """TVM intrinsic for sparse tensor core ptx instructions
+    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#warp-level-matrix-instructions-for-sparse-mma
+
+    Parameters
+    ----------
+    dtype : str
+        The data type of the result.
+
+    shape : str
+        The shape of mma fragment.
+
+    A_layout : Literal["row", "col"]
+        The layout of multiplicand fragment A.
+
+    B_layout : Literal["row", "col"]
+        The layout of multiplicand fragment B.
+
+    A_dtype : str
+        The data type of multiplicand fragment A.
+
+    B_dtype : str
+        The data type of multiplicand fragment B.
+
+    C_dtype : str
+        The data type of multiplicand fragment C.
+
+    multiplicand_a : Var
+        The multiplicand fragment A variable.
+
+    a_index : Expr
+        The index of multiplicand fragment A.
+
+    multiplicand_b : Var
+        The multiplicand fragment B variable.
+
+    b_index : Expr
+        The index of multiplicand fragment B.
+
+    accumulator : Var
+        The accumulator fragment C variable.
+
+    c_index : Expr
+        The index of accumulator fragment C.
+
+    metadata : Expr
+        The metadata of operand.
+
+    meta_index : Expr
+        The metadata index of operand.
+
+    sparse_selector : Expr
+        The sparse selector indicating the thread that stores the metadata.
+
+    saturate : bool
+        The optional saturation at the output.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        dtype,
+        "tir.ptx_mma_sp",
+        shape,
+        A_layout,
+        B_layout,
+        A_dtype,
+        B_dtype,
+        C_dtype,
+        multiplicand_a,
+        a_index,
+        multiplicand_b,
+        b_index,
+        accumulator,
+        c_index,
+        metadata,
+        meta_index,
+        sparse_selector,
+        saturate,
+    )
+
+
+def mma_store(dtype, m, n, dst_ptr, src_ptr, src_offset, dst_stride):
+    """TVM intrinsic for storing the result of PTX MMA into a destination pointer
+
+    Parameters
+    ----------
+    dtype : str
+        The data type of the result.
+
+    m : IntImm
+        The shape of mma fragment.
+
+    n : IntImm
+        The shape of mma fragment.
+
+    dst_ptr : Var
+        The destination pointer variable.
+
+    src_ptr : Var
+        The source pointer variable.
+
+    src_offset : Expr
+        The source offset.
+
+    dst_stride : Var
+        The destination stride.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        dtype,
+        "tir.mma_store",
+        m,
+        n,
+        dst_ptr,
+        src_ptr,
+        src_offset,
+        dst_stride,
+    )
+
+
+def mma_fill(dtype, local_size, local_ptr, offset):
+    """TVM intrinsic for zero-initalizing an MMA accumulation registor
+
+    Parameters
+    ----------
+    dtype : str
+        The data type of the result.
+
+    local_size : IntImm
+        The number of elements.
+
+    local_ptr : Var
+        The destination pointer variable.
+
+    offset : Expr
+        The destination offset.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        dtype,
+        "tir.mma_fill",
+        local_size,
+        local_ptr,
+        offset,
+    )
+
+
 def ptx_ldmatrix(dtype, trans, num, type, local_ptr, local_offset, smem_ptr, smem_offset):
     """TVM intrinsic for ptx load matrix from shared memory
     https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#warp-level-matrix-instructions-ldmatrix

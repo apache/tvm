@@ -59,6 +59,7 @@ from .op import (
     tvm_bmma_sync,
     tvm_fill_fragment,
 )
+from .op import ptx_mma, ptx_mma_sp, mma_store, mma_fill
 from .op import ptx_ldmatrix, ptx_cp_async, ptx_commit_group, ptx_wait_group
 from .op import vectorlow, vectorhigh, vectorcombine
 from .op import infinity, reinterpret
