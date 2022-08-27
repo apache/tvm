@@ -29,7 +29,6 @@ from tvm._ffi import register_func
 from tvm.contrib import graph_executor
 from tvm.ir import IRModule
 from tvm.meta_schedule.testing.relay_workload import get_network
-from tvm.meta_schedule.testing.utils import apply_fixed_schedules
 from tvm.script import tir as T
 from tvm.target.target import Target
 from tvm.tir.schedule import BlockRV, Schedule
@@ -452,8 +451,8 @@ def manual_tir_common(do_tune=False):
             )
     else:
 
-        def schedule_fn(task, sch):
-            if "dense" not in task.task_name:
+        def schedule_fn(sch) -> bool:
+            if "dense" not in sch.mod.attrs["task_name"]:
                 return False
 
             block = sch.get_block("compute")
@@ -468,7 +467,7 @@ def manual_tir_common(do_tune=False):
 
             return True
 
-        database = apply_fixed_schedules(relay_mod, target, params, schedule_fn)
+        database = ms.database.ScheduleFnDatabase(schedule_fn)
 
     with database, tvm.transform.PassContext(
         opt_level=3,

@@ -207,23 +207,29 @@ class DatabaseNode : public runtime::Object {
    * \brief Query the best record of the given workload from the database.
    * \param mod The IRModule to be searched for.
    * \param target The target to be searched for.
+   * \param workload_name The name of the workload to be searched for.
    * \return The best record of the given workload; NullOpt if not found.
    */
-  virtual Optional<TuningRecord> QueryTuningRecord(IRModule mod, Target target);
+  virtual Optional<TuningRecord> QueryTuningRecord(const IRModule& mod, const Target& target,
+                                                   const String& workload_name);
   /*!
    * \brief Query the best schedule of the given workload from the database.
    * \param mod The IRModule to be searched for.
    * \param target The target to be searched for.
+   * \param workload_name The name of the workload to be searched for.
    * \return The schedule in the best schedule of the given workload; NullOpt if not found.
    */
-  virtual Optional<tir::Schedule> QuerySchedule(IRModule mod, Target target);
+  virtual Optional<tir::Schedule> QuerySchedule(const IRModule& mod, const Target& target,
+                                                const String& workload_name);
   /*!
    * \brief Query the best IRModule of the given workload from the database.
    * \param mod The IRModule to be searched for.
    * \param target The target to be searched for.
+   * \param workload_name The name of the workload to be searched for.
    * \return The IRModule in the best IRModule of the given workload; NullOpt if not found.
    */
-  virtual Optional<IRModule> QueryIRModule(IRModule mod, Target target);
+  virtual Optional<IRModule> QueryIRModule(const IRModule& mod, const Target& target,
+                                           const String& workload_name);
 
   static constexpr const char* _type_key = "meta_schedule.Database";
   TVM_DECLARE_BASE_OBJECT_INFO(DatabaseNode, runtime::Object);
@@ -336,6 +342,13 @@ class Database : public runtime::ObjectRef {
  public:
   /*! An in-memory database. */
   TVM_DLL static Database MemoryDatabase();
+  /*!
+   * \brief A database for injecting handcrafted schedule functions.
+   * \param schedule_fn The function to do scheduling, which takes a TIR schedule,
+   * and returns a boolean indicating if the schedule is successful.
+   */
+  TVM_DLL static Database ScheduleFnDatabase(
+      runtime::TypedPackedFunc<bool(tir::Schedule)> schedule_fn);
   /*!
    * \brief Create a default database that uses JSON file for tuning records.
    * \param path_workload The path to the workload table.

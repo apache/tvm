@@ -235,7 +235,12 @@ class Database(Object):
         """
         return _ffi_api.DatabaseSize(self)  # type: ignore # pylint: disable=no-member
 
-    def query_tuning_record(self, mod: IRModule, target: Target) -> Optional[TuningRecord]:
+    def query_tuning_record(
+        self,
+        mod: IRModule,
+        target: Target,
+        workload_name: str,
+    ) -> Optional[TuningRecord]:
         """Query the best record of the given workload from the database.
 
         Parameters
@@ -244,15 +249,22 @@ class Database(Object):
             The IRModule to be searched for.
         target : Target
             The target to be searched for.
+        workload_name : str
+            The name of the workload to be searched for.
 
         Returns
         -------
         tuning_record : Optional[TuningRecord]
             The best record of the given workload; None if not found.
         """
-        return _ffi_api.DatabaseQueryTuningRecord(self, mod, target)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.DatabaseQueryTuningRecord(self, mod, target, workload_name)  # type: ignore # pylint: disable=no-member
 
-    def query_schedule(self, mod: IRModule, target: Target) -> Optional[Schedule]:
+    def query_schedule(
+        self,
+        mod: IRModule,
+        target: Target,
+        workload_name: str,
+    ) -> Optional[Schedule]:
         """Query the best schedule of the given workload from the database.
 
         Parameters
@@ -261,15 +273,22 @@ class Database(Object):
             The IRModule to be searched for.
         target : Target
             The target to be searched for.
+        workload_name : str
+            The name of the workload to be searched for.
 
         Returns
         -------
         schedule : Optional[Schedule]
             The best schedule of the given workload; None if not found.
         """
-        return _ffi_api.DatabaseQuerySchedule(self, mod, target)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.DatabaseQuerySchedule(self, mod, target, workload_name)  # type: ignore # pylint: disable=no-member
 
-    def query_ir_module(self, mod: IRModule, target: Target) -> Optional[IRModule]:
+    def query_ir_module(
+        self,
+        mod: IRModule,
+        target: Target,
+        workload_name: str,
+    ) -> Optional[IRModule]:
         """Query the best IRModule of the given workload from the database.
 
         Parameters
@@ -278,18 +297,22 @@ class Database(Object):
             The IRModule to be searched for.
         target : Target
             The target to be searched for.
+        workload_name : str
+            The name of the workload to be searched for.
 
         Returns
         -------
         ir_module : Optional[IRModule]
             The best IRModule of the given workload; None if not found.
         """
-        return _ffi_api.DatabaseQueryIRModule(self, mod, target)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.DatabaseQueryIRModule(self, mod, target, workload_name)  # type: ignore # pylint: disable=no-member
 
     def query(
         self,
         mod: IRModule,
         target: Target,
+        *,
+        workload_name: str = "main",
         kind: Union[
             Literal["schedule"],
             Literal["record"],
@@ -313,11 +336,11 @@ class Database(Object):
             The best optimization outcome of the given workload.
         """
         if kind == "schedule":
-            return self.query_schedule(mod, target)
+            return self.query_schedule(mod, target, workload_name)
         if kind == "record":
-            return self.query_tuning_record(mod, target)
+            return self.query_tuning_record(mod, target, workload_name)
         if kind == "ir_module":
-            return self.query_ir_module(mod, target)
+            return self.query_ir_module(mod, target, workload_name)
         raise ValueError(f'Unknown kind: {kind}. Candidates are: "schedule", "record", "ir_module"')
 
     def __enter__(self) -> "Database":

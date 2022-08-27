@@ -14,11 +14,25 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-The tvm.meta_schedule.database package.
-The database that stores serialized tuning records and workloads
-"""
-from .database import Database, PyDatabase, TuningRecord, Workload
-from .json_database import JSONDatabase
-from .memory_database import MemoryDatabase
-from .schedule_fn_database import ScheduleFnDatabase
+"""A database for injecting handcrafted schedule functions."""
+from typing import Callable
+
+from tvm._ffi import register_object
+from tvm.tir import Schedule
+
+from .. import _ffi_api
+from .database import Database
+
+
+@register_object("meta_schedule.ScheduleFnDatabase")
+class ScheduleFnDatabase(Database):
+    """A database for injecting handcrafted schedule functions."""
+
+    def __init__(
+        self,
+        schedule_fn: Callable[[Schedule], bool],
+    ) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.DatabaseScheduleFnDatabase,  # type: ignore # pylint: disable=no-member
+            schedule_fn,
+        )

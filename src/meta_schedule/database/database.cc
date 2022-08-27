@@ -156,7 +156,8 @@ TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& w
 
 /******** Database ********/
 
-Optional<TuningRecord> DatabaseNode::QueryTuningRecord(IRModule mod, Target target) {
+Optional<TuningRecord> DatabaseNode::QueryTuningRecord(const IRModule& mod, const Target& target,
+                                                       const String& workload_name) {
   if (!this->HasWorkload(mod)) {
     return NullOpt;
   }
@@ -168,8 +169,9 @@ Optional<TuningRecord> DatabaseNode::QueryTuningRecord(IRModule mod, Target targ
   return records[0];
 }
 
-Optional<tir::Schedule> DatabaseNode::QuerySchedule(IRModule mod, Target target) {
-  if (Optional<TuningRecord> opt_record = this->QueryTuningRecord(mod, target)) {
+Optional<tir::Schedule> DatabaseNode::QuerySchedule(const IRModule& mod, const Target& target,
+                                                    const String& workload_name) {
+  if (Optional<TuningRecord> opt_record = this->QueryTuningRecord(mod, target, workload_name)) {
     TuningRecord record = opt_record.value();
     tir::Schedule sch =
         tir::Schedule::Traced(record->workload->mod, /*seed=*/-1, /*debug_mask=*/0,
@@ -181,8 +183,9 @@ Optional<tir::Schedule> DatabaseNode::QuerySchedule(IRModule mod, Target target)
   }
 }
 
-Optional<IRModule> DatabaseNode::QueryIRModule(IRModule mod, Target target) {
-  if (Optional<tir::Schedule> opt_sch = this->QuerySchedule(mod, target)) {
+Optional<IRModule> DatabaseNode::QueryIRModule(const IRModule& mod, const Target& target,
+                                               const String& workload_name) {
+  if (Optional<tir::Schedule> opt_sch = this->QuerySchedule(mod, target, workload_name)) {
     return opt_sch.value()->mod();
   } else {
     return NullOpt;
