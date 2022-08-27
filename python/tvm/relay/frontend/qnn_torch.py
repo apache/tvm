@@ -399,7 +399,7 @@ def _add_output_quant_params_to_scalar_op(node, graph, input_scale, input_zero_p
 def _add_output_quant_params_to_sigmoid_op(node, graph):
     """
     Refer to aten/src/ATen/native/quantized/cpu/qsigmoid.cpp,
-    the output scale and zp of sigmoid op are two fixed number.
+    the output scale and zp of sigmoid op are two fixed numbers.
     So we need to make two new constant nodes in the input IR and
     add these params to the inputs of sigmoid op.
     """
