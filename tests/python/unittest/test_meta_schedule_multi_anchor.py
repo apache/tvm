@@ -70,7 +70,7 @@ def test_dense_dense():
         return False
 
     database = apply_fixed_schedules(relay_mod, target, params, schedule_fn)
-    with ms.ApplyHistoryBest(database):
+    with database:
         with tvm.transform.PassContext(
             opt_level=3,
             config={"relay.backend.use_meta_schedule": True},

@@ -21,7 +21,7 @@
 
 #include <tvm/driver/driver_api.h>
 #include <tvm/ir/type_functor.h>
-#include <tvm/meta_schedule/apply_history_best.h>
+#include <tvm/meta_schedule/database.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/expr.h>
@@ -37,6 +37,7 @@
 #include <tvm/te/schedule_pass.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/index_map.h>
+#include <tvm/tir/schedule/schedule.h>
 #include <tvm/tir/transform.h>
 #include <tvm/topi/tags.h>
 
@@ -60,16 +61,6 @@ TVM_REGISTER_NODE_TYPE(LoweredOutputNode);
 TVM_REGISTER_NODE_TYPE(CachedFuncNode);
 TVM_REGISTER_NODE_TYPE(CCacheKeyNode);
 TVM_REGISTER_NODE_TYPE(CCacheValueNode);
-
-void ExtractTransformLayout(const meta_schedule::TuningRecord& record) {
-  static tir::InstructionKind kind_transform_layout = tir::InstructionKind::Get("TransformLayout");
-  for (const tir::Instruction& inst : record->trace->insts) {
-    if (inst->kind.same_as(kind_transform_layout)) {
-      ICHECK_EQ(inst->attrs.size(), 3);
-      relay::MetaScheduleLayoutRewriter::LayoutQueuePush(Downcast<tir::IndexMap>(inst->attrs[2]));
-    }
-  }
-}
 
 LoweredOutput::LoweredOutput(tvm::Array<te::Tensor> outputs, OpImplementation impl) {
   auto n = make_object<LoweredOutputNode>();
@@ -317,11 +308,11 @@ class ScheduleBuilder : public ExprVisitor {
     // Whether to use auto_scheduler schedule.
     use_auto_scheduler_ = backend::IsAutoSchedulerEnabled();
     if (backend::IsMetaScheduleEnabled()) {
-      meta_schedule_ctx_ = meta_schedule::ApplyHistoryBest::Current();
-      CHECK(meta_schedule_ctx_.defined()) << "ValueError: `use_meta_schedule` is enabled in Relay "
-                                             "build, but no ApplyHistoryBest context is provided. ";
+      database_ = meta_schedule::Database::Current();
+      CHECK(database_.defined()) << "ValueError: `use_meta_schedule` is enabled in Relay "
+                                    "build, but no `meta_schedule.Database` context is provided. ";
     } else {
-      meta_schedule_ctx_ = NullOpt;
+      database_ = NullOpt;
     }
   }
 
@@ -359,32 +350,43 @@ class ScheduleBuilder : public ExprVisitor {
           schedule = Downcast<te::Schedule>(obj);
         }
       }
-      if (meta_schedule_ctx_) {
+      if (database_) {
+        using tvm::meta_schedule::TuningRecord;
+        using tvm::tir::IndexMap;
+        using tvm::tir::Instruction;
+        using tvm::tir::InstructionKind;
+        using tvm::tir::PrimFunc;
+        using tvm::tir::Schedule;
+        backend::FTECompilerTIRConverter tir_converter = backend::GetTIRConverter();
         Array<te::Tensor> te_args = Concat(fn_inputs, tensor_outs);
         Array<runtime::NDArray> constants;
         for (auto [const_node, te_tensor] : lower_te_compute.constant_tensors_) {
           te_args.push_back(te_tensor);
           constants.push_back(const_node->data);
         }
-
-        if (Optional<tir::PrimFunc> tir_func =
-                meta_schedule_ctx_.value()->te_filter_func(te_args, constants)) {
-          IRModule relay_mod({{prim_fn_var, relay_func}});
-          IRModule tir_mod({{prim_fn_var, tir_func.value()}});
-          if (Optional<IRModule> opt_scheduled_mod = meta_schedule_ctx_.value()->Query(
-                  /*task_name=*/prim_fn_var->name_hint,     //
-                  /*mod=*/relay_mod,                        //
-                  /*target=*/target_,                       //
-                  /*dispatched=*/Array<IRModule>{tir_mod},  //
-                  /*f_take_tuning_record=*/ExtractTransformLayout)) {
-            IRModule scheduled_mod =
-                tir::transform::RemoveWeightLayoutRewriteBlock()(opt_scheduled_mod.value());
-            ICHECK_EQ(scheduled_mod->functions.count(prim_fn_var), 1);
-            prim_func = Downcast<tir::PrimFunc>(scheduled_mod->functions[prim_fn_var]);
+        if (Optional<PrimFunc> f = tir_converter(te_args, constants)) {
+          if (Optional<TuningRecord> opt_record = database_.value()->QueryTuningRecord(
+                  /*mod=*/backend::PrimFuncToIRModule(f.value()),
+                  /*target=*/target_)) {
+            static InstructionKind kind_transform_layout = InstructionKind::Get("TransformLayout");
+            TuningRecord record = opt_record.value();
+            for (const Instruction& inst : record->trace->insts) {
+              if (inst->kind.same_as(kind_transform_layout)) {
+                ICHECK_EQ(inst->attrs.size(), 3);
+                MetaScheduleLayoutRewriter::LayoutQueuePush(Downcast<IndexMap>(inst->attrs[2]));
+              }
+            }
+            Schedule sch = Schedule::Traced(record->workload->mod, /*seed=*/-1, /*debug_mask=*/0,
+                                            tir::ScheduleErrorRenderLevel::kDetail);
+            record->trace->ApplyToSchedule(sch, /*remove_postproc=*/false);
+            IRModule mod = sch->mod();
+            ICHECK_EQ(mod->functions.size(), 1);
+            mod = tir::transform::RemoveWeightLayoutRewriteBlock()(std::move(mod));
+            prim_func = Downcast<PrimFunc>(mod->Lookup("main"));
           }
         }
       }
-      // Use TOPI schedule if user specificed, or the function has no auto_scheduler schedule.
+      // Use TOPI schedule if user specified, or the function has no auto_scheduler schedule.
       if (!schedule.defined() && !prim_func.defined()) {
         if (anchor_op_.defined()) {
           auto anchor_impl = lower_te_compute.op_implementations_.find(anchor_op_.operator->());
@@ -422,7 +424,7 @@ class ScheduleBuilder : public ExprVisitor {
     }
 
     int op_pattern = fpattern[op];
-    if (!use_auto_scheduler_ && !meta_schedule_ctx_.defined() && op_pattern >= kCommReduce) {
+    if (!use_auto_scheduler_ && !database_.defined() && op_pattern >= kCommReduce) {
       ICHECK(!anchor_op_.defined() || anchor_op_pattern_ < kCommReduce)
           << "Cannot apply TOPI schedule to a primitive function with two complicated ops"
           << " anchor=" << anchor_op_ << " current=" << op;
@@ -440,7 +442,7 @@ class ScheduleBuilder : public ExprVisitor {
   Attrs anchor_attrs_;
   int anchor_op_pattern_{0};
   bool use_auto_scheduler_;
-  Optional<meta_schedule::ApplyHistoryBest> meta_schedule_ctx_;
+  Optional<meta_schedule::Database> database_;
 };
 
 /*!

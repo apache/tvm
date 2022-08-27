@@ -20,7 +20,6 @@ import logging
 from os import path as osp
 from typing import Callable, Dict, List, Optional, Union
 
-from tvm._ffi.registry import register_func
 from tvm.ir import IRModule
 from tvm.target import Target
 from tvm.tir import PrimFunc
@@ -44,7 +43,6 @@ FnPostproc = Callable[[], List[Postproc]]
 FnMutatorProb = Callable[[], Dict[Mutator, float]]
 
 
-@register_func("tvm.meta_schedule.tune.parse_mod")  # for use in ApplyHistoryBest
 def mod(mod: Union[PrimFunc, IRModule]) -> IRModule:  # pylint: disable=redefined-outer-name
     """Normalize the input to an IRModule"""
     if isinstance(mod, PrimFunc):
@@ -53,8 +51,6 @@ def mod(mod: Union[PrimFunc, IRModule]) -> IRModule:  # pylint: disable=redefine
         mod = IRModule({"main": mod})
     if not isinstance(mod, IRModule):
         raise TypeError(f"Expected `mod` to be PrimFunc or IRModule, but gets: {mod}")
-    # in order to make sure the mod can be found in ApplyHistoryBest
-    # different func name can cause structural unequal
     func_names = mod.get_global_vars()
     (func_name,) = func_names
     if len(func_names) == 1 and func_name != "main":

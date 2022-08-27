@@ -15,13 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 """TuningRecord database"""
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, List, Optional, Union
 
 from tvm._ffi import register_object
 from tvm.ir.module import IRModule
 from tvm.runtime import Object
 from tvm.target import Target
-from tvm.tir.schedule import Trace
+from tvm.tir.schedule import Schedule, Trace
+from typing_extensions import Literal  # pylint: disable=wrong-import-order
 
 from .. import _ffi_api
 from ..arg_info import ArgInfo
@@ -233,6 +234,105 @@ class Database(Object):
             The number of records in the database
         """
         return _ffi_api.DatabaseSize(self)  # type: ignore # pylint: disable=no-member
+
+    def query_tuning_record(self, mod: IRModule, target: Target) -> Optional[TuningRecord]:
+        """Query the best record of the given workload from the database.
+
+        Parameters
+        ----------
+        mod : IRModule
+            The IRModule to be searched for.
+        target : Target
+            The target to be searched for.
+
+        Returns
+        -------
+        tuning_record : Optional[TuningRecord]
+            The best record of the given workload; None if not found.
+        """
+        return _ffi_api.DatabaseQueryTuningRecord(self, mod, target)  # type: ignore # pylint: disable=no-member
+
+    def query_schedule(self, mod: IRModule, target: Target) -> Optional[Schedule]:
+        """Query the best schedule of the given workload from the database.
+
+        Parameters
+        ----------
+        mod : IRModule
+            The IRModule to be searched for.
+        target : Target
+            The target to be searched for.
+
+        Returns
+        -------
+        schedule : Optional[Schedule]
+            The best schedule of the given workload; None if not found.
+        """
+        return _ffi_api.DatabaseQuerySchedule(self, mod, target)  # type: ignore # pylint: disable=no-member
+
+    def query_ir_module(self, mod: IRModule, target: Target) -> Optional[IRModule]:
+        """Query the best IRModule of the given workload from the database.
+
+        Parameters
+        ----------
+        mod : IRModule
+            The IRModule to be searched for.
+        target : Target
+            The target to be searched for.
+
+        Returns
+        -------
+        ir_module : Optional[IRModule]
+            The best IRModule of the given workload; None if not found.
+        """
+        return _ffi_api.DatabaseQueryIRModule(self, mod, target)  # type: ignore # pylint: disable=no-member
+
+    def query(
+        self,
+        mod: IRModule,
+        target: Target,
+        kind: Union[
+            Literal["schedule"],
+            Literal["record"],
+            Literal["ir_module"],
+        ] = "schedule",
+    ) -> Union[Schedule, IRModule, TuningRecord]:
+        """Query the database to retrieve the best optimization outcome of the given workload.
+
+        Parameters
+        ----------
+        mod : IRModule
+            The IRModule to be searched for.
+        target : Target
+            The target to be searched for.
+        kind : str = "schedule" | "record" | "ir_module"
+            The kind of the optimization outcome to be returned.
+
+        Returns
+        -------
+        result : Union[Schedule, IRModule, TuningRecord]
+            The best optimization outcome of the given workload.
+        """
+        if kind == "schedule":
+            return self.query_schedule(mod, target)
+        if kind == "record":
+            return self.query_tuning_record(mod, target)
+        if kind == "ir_module":
+            return self.query_ir_module(mod, target)
+        raise ValueError(f'Unknown kind: {kind}. Candidates are: "schedule", "record", "ir_module"')
+
+    def __enter__(self) -> "Database":
+        """Entering the scope of the context manager"""
+        _ffi_api.DatabaseEnterWithScope(self)  # type: ignore # pylint: disable=no-member
+        return self
+
+    def __exit__(self, ptype, value, trace) -> None:
+        """Exiting the scope of the context manager"""
+        _ffi_api.DatabaseExitWithScope(self)  # type: ignore # pylint: disable=no-member
+
+    @staticmethod
+    def current() -> Optional["Database"]:
+        """Get the current database under scope."""
+        return _ffi_api.DatabaseCurrent()  # type: ignore # pylint: disable=no-member
 
 
 @register_object("meta_schedule.PyDatabase")
