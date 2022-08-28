@@ -29,6 +29,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 #include "int_operator.h"
 
@@ -74,7 +75,7 @@ inline bool IsIndexType(const DataType& type) {
 }
 
 /*! \brief Helper to get const folding result repr in int64. */
-inline int64_t GetInt64FoldResultRepr(int64_t x, const DataType& dtype) {
+inline int64_t GetFoldResultInt64Repr(int64_t x, const DataType& dtype) {
   if (dtype.bits() < 64) {
     x &= (1LL << dtype.bits()) - 1;
   }
@@ -84,6 +85,20 @@ inline int64_t GetInt64FoldResultRepr(int64_t x, const DataType& dtype) {
     x = (x ^ m) - m;
   }
   return x;
+}
+
+/*! \brief Helper to get fp32 const folding result repr in double. */
+inline double GetFoldResultDoubleRepr(float x) {
+  double res = static_cast<double>(x);
+  if (std::isinf(res) || std::isnan(res)) {
+    return res;
+  }
+  if (res < std::numeric_limits<float>::lowest()) {
+    return -std::numeric_limits<double>::infinity();
+  } else if (res > std::numeric_limits<float>::max()) {
+    return std::numeric_limits<double>::infinity();
+  }
+  return res;
 }
 
 #define TVM_ARITH_CONST_PROPAGATION(BODY)        \
@@ -110,13 +125,14 @@ inline PrimExpr TryConstFold<tir::Add>(PrimExpr a, PrimExpr b) {
     const DataType& rtype = a.dtype();
     if (pa && pb) {
       int64_t res = pa->value + pb->value;
-      return IntImm(rtype, GetInt64FoldResultRepr(res, rtype));
+      return IntImm(rtype, GetFoldResultInt64Repr(res, rtype));
     }
     if (pa && pa->value == 0) return b;
     if (pb && pb->value == 0) return a;
     if (fa && fb) {
       if (rtype.bits() == 32) {
-        return FloatImm(rtype, static_cast<float>(fa->value) + static_cast<float>(fb->value));
+        return FloatImm(rtype, GetFoldResultDoubleRepr(static_cast<float>(fa->value) +
+                                                       static_cast<float>(fb->value)));
       } else if (rtype.bits() == 64) {
         return FloatImm(rtype, fa->value + fb->value);
       } else {
@@ -139,12 +155,13 @@ inline PrimExpr TryConstFold<tir::Sub>(PrimExpr a, PrimExpr b) {
     const DataType& rtype = a.dtype();
     if (pa && pb) {
       int64_t res = pa->value - pb->value;
-      return IntImm(rtype, GetInt64FoldResultRepr(res, rtype));
+      return IntImm(rtype, GetFoldResultInt64Repr(res, rtype));
     }
     if (pb && pb->value == 0) return a;
     if (fa && fb) {
       if (rtype.bits() == 32) {
-        return FloatImm(rtype, static_cast<float>(fa->value) - static_cast<float>(fb->value));
+        return FloatImm(rtype, GetFoldResultDoubleRepr(static_cast<float>(fa->value) -
+                                                       static_cast<float>(fb->value)));
       } else if (rtype.bits() == 64) {
         return FloatImm(rtype, fa->value - fb->value);
       } else {
@@ -162,7 +179,7 @@ inline PrimExpr TryConstFold<tir::Mul>(PrimExpr a, PrimExpr b) {
     const DataType& rtype = a.dtype();
     if (pa && pb) {
       int64_t res = pa->value * pb->value;
-      return IntImm(rtype, GetInt64FoldResultRepr(res, rtype));
+      return IntImm(rtype, GetFoldResultInt64Repr(res, rtype));
     }
     if (pa) {
       if (pa->value == 1) return b;
@@ -174,7 +191,8 @@ inline PrimExpr TryConstFold<tir::Mul>(PrimExpr a, PrimExpr b) {
     }
     if (fa && fb) {
       if (rtype.bits() == 32) {
-        return FloatImm(rtype, static_cast<float>(fa->value) * static_cast<float>(fb->value));
+        return FloatImm(rtype, GetFoldResultDoubleRepr(static_cast<float>(fa->value) *
+                                                       static_cast<float>(fb->value)));
       } else if (rtype.bits() == 64) {
         return FloatImm(rtype, fa->value * fb->value);
       } else {
@@ -202,7 +220,7 @@ inline PrimExpr TryConstFold<tir::Div>(PrimExpr a, PrimExpr b) {
       // NOTE: this will assumes truc div.
       ICHECK_NE(pb->value, 0) << "Divide by zero";
       int64_t res = pa->value / pb->value;
-      return IntImm(rtype, GetInt64FoldResultRepr(res, rtype));
+      return IntImm(rtype, GetFoldResultInt64Repr(res, rtype));
     }
     if (pa) {
       if (pa->value == 0) return a;
@@ -213,7 +231,8 @@ inline PrimExpr TryConstFold<tir::Div>(PrimExpr a, PrimExpr b) {
     }
     if (fa && fb && fb->value != 0) {
       if (rtype.bits() == 32) {
-        return FloatImm(rtype, static_cast<float>(fa->value) / static_cast<float>(fb->value));
+        return FloatImm(rtype, GetFoldResultDoubleRepr(static_cast<float>(fa->value) /
+                                                       static_cast<float>(fb->value)));
       } else if (rtype.bits() == 64) {
         return FloatImm(rtype, fa->value / fb->value);
       } else {
@@ -236,7 +255,7 @@ inline PrimExpr TryConstFold<tir::Mod>(PrimExpr a, PrimExpr b) {
     if (pa && pb) {
       ICHECK_NE(pb->value, 0) << "Divide by zero";
       int64_t res = pa->value % pb->value;
-      return IntImm(rtype, GetInt64FoldResultRepr(res, rtype));
+      return IntImm(rtype, GetFoldResultInt64Repr(res, rtype));
     }
     if (pa) {
       if (pa->value == 0) return a;
@@ -256,7 +275,7 @@ inline PrimExpr TryConstFold<tir::FloorDiv>(PrimExpr a, PrimExpr b) {
     if (pa && pb) {
       ICHECK_NE(pb->value, 0) << "Divide by zero";
       int64_t res = arith::floordiv(pa->value, pb->value);
-      return IntImm(rtype, GetInt64FoldResultRepr(res, rtype));
+      return IntImm(rtype, GetFoldResultInt64Repr(res, rtype));
     }
     if (pa) {
       if (pa->value == 0) return a;
@@ -267,8 +286,8 @@ inline PrimExpr TryConstFold<tir::FloorDiv>(PrimExpr a, PrimExpr b) {
     }
     if (fa && fb && fb->value != 0) {
       if (rtype.bits() == 32) {
-        return FloatImm(rtype,
-                        std::floor(static_cast<float>(fa->value) / static_cast<float>(fb->value)));
+        return FloatImm(rtype, GetFoldResultDoubleRepr(std::floor(static_cast<float>(fa->value) /
+                                                                  static_cast<float>(fb->value))));
       } else if (rtype.bits() == 64) {
         return FloatImm(rtype, std::floor(fa->value / fb->value));
       } else {
@@ -291,7 +310,7 @@ inline PrimExpr TryConstFold<tir::FloorMod>(PrimExpr a, PrimExpr b) {
     if (pa && pb) {
       ICHECK_NE(pb->value, 0) << "Divide by zero";
       int64_t res = arith::floormod(pa->value, pb->value);
-      return IntImm(rtype, GetInt64FoldResultRepr(res, rtype));
+      return IntImm(rtype, GetFoldResultInt64Repr(res, rtype));
     }
     if (pa) {
       if (pa->value == 0) return a;
