@@ -98,6 +98,11 @@ std::vector<BufferPrintInfo> GetBufferPrintInfo(
     std::unordered_map<const tir::VarNode*, ObjectPath>* var_explicit_def,
     BufferAssociatedVariables* associated_vars);
 
+std::vector<IdDoc> DefineBuffers(const std::vector<TracedObject<tir::Buffer>>& buffers,
+                                 const Frame& frame, const IRDocsifier& p,
+                                 const ExprDoc& definition_prefix,
+                                 std::function<void(IdDoc, ExprDoc)> add_definiton);
+
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

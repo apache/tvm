@@ -25,6 +25,7 @@
 #include <tvm/tir/stmt.h>
 
 #include "../utils.h"
+#include "./buffer.h"
 #include "./tir.h"
 
 namespace tvm {
@@ -170,6 +171,33 @@ Array<StmtDoc> AsStmtDocArray(const TracedObject<tir::Stmt>& obj, IRDocsifier p)
   return result;
 }
 
+static TracedOptional<tir::Buffer> GetUsedBuffer(const TracedObject<ObjectRef>& stmt_or_expr) {
+  if (auto load = stmt_or_expr.TryDowncast<tir::BufferLoad>()) {
+    return load.value().GetAttr(&tir::BufferLoadNode::buffer);
+  } else if (auto store = stmt_or_expr.TryDowncast<tir::BufferStore>()) {
+    return store.value().GetAttr(&tir::BufferStoreNode::buffer);
+  } else {
+    return TracedOptional<tir::Buffer>(NullOpt, ObjectPath::Root());
+  }
+}
+
+std::vector<TracedObject<tir::Buffer>> FindBufferVarUsage(tir::Var buffer_var,
+                                                          TracedObject<tir::Stmt> body) {
+  std::vector<TracedObject<tir::Buffer>> ret;
+  PostOrderVisitStmtExprTraced(
+      body, [&ret, buffer_var](const TracedObject<ObjectRef>& stmt_or_expr) {
+        if (auto buffer_opt = GetUsedBuffer(stmt_or_expr)) {
+          auto buffer = buffer_opt.value();
+          if (buffer.Get()->data.same_as(buffer_var) &&
+              std::find_if(ret.begin(), ret.end(),
+                           [&](const auto& b) { return b.Get() == buffer.Get(); }) == ret.end()) {
+            ret.push_back(buffer);
+          }
+        }
+      });
+  return ret;
+}
+
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::SeqStmt>([](TracedObject<tir::SeqStmt> stmt, IRDocsifier p) -> Doc {
       if (!p->frames.back()->IsInstance<TIRTopLevelFrameNode>()) {
@@ -200,6 +228,84 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       Array<Doc> index_docs(indices.begin(), indices.end());
       return AssignDoc(p->AsExprDoc(stmt.GetAttr(&tir::BufferStoreNode::buffer))[index_docs],
                        p->AsExprDoc(stmt.GetAttr(&tir::BufferStoreNode::value)), NullOpt);
+    });
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<tir::IfThenElse>([](TracedObject<tir::IfThenElse> stmt, IRDocsifier p) {
+      ExprDoc predicate = p->AsExprDoc(stmt.GetAttr(&tir::IfThenElseNode::condition));
+      Array<StmtDoc> then_branch = AsStmtDocArray(stmt.GetAttr(&tir::IfThenElseNode::then_case), p);
+      Array<StmtDoc> else_branch = AsStmtDocArray(stmt.GetAttr(&tir::IfThenElseNode::else_case), p);
+      return IfDoc(predicate, then_branch, else_branch);
+    });
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<tir::While>([](TracedObject<tir::While> stmt, IRDocsifier p) {
+      return WhileDoc(p->AsExprDoc(stmt.GetAttr(&tir::WhileNode::condition)),
+                      AsStmtDocArray(stmt.GetAttr(&tir::WhileNode::body), p));
+    });
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<tir::Prefetch>([](TracedObject<tir::Prefetch> stmt, IRDocsifier p) {
+      auto buffer = stmt.GetAttr(&tir::PrefetchNode::buffer);
+      auto bounds = stmt.GetAttr(&tir::PrefetchNode::bounds);
+      return ExprStmtDoc(
+          TIR(p)->Attr("prefetch")->Call({p->AsExprDoc(buffer)[AsDocArray<Doc>(bounds, p)]}));
+    });
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<tir::LetStmt>([](TracedObject<tir::LetStmt> stmt, IRDocsifier p) {
+      TIRFrame previous_frame = p->GetFrame<TIRFrame>().value();
+      TIRGeneralFrame let_frame;
+      WithCtx ctx = p->WithFrame(let_frame);
+
+      auto var = stmt.GetAttr(&tir::LetStmtNode::var);
+      bool is_var_defined_previously = p->vars->IsVarDefined(var.Get());
+      ExprDoc var_doc{nullptr};
+      if (is_var_defined_previously) {
+        var_doc = p->vars->GetVarDoc(var).value();
+      } else {
+        var_doc = DefineTIRVar(var, let_frame, p);
+      }
+
+      auto value_doc = p->AsExprDoc(stmt.GetAttr(&tir::LetStmtNode::value));
+      auto dtype = var.GetAttr(&tir::VarNode::dtype);
+      auto type_annotation_doc = GetTypeAnnotationDocForVar(var, p);
+
+      TracedObject<tir::Stmt> body_stmt = stmt.GetAttr(&tir::LetStmtNode::body);
+      Array<StmtDoc> body_doc;
+
+      // Print definition of buffers that aliases the variable of this Let stmt.
+      std::vector<TracedObject<tir::Buffer>> aliasing_buffers =
+          FindBufferVarUsage(var.Get(), body_stmt);
+      std::vector<TracedObject<tir::Buffer>> buffers_to_define;
+      for (const TracedObject<tir::Buffer>& buffer : aliasing_buffers) {
+        if (!p->vars->IsVarDefined(buffer.Get())) {
+          buffers_to_define.push_back(buffer);
+        }
+      }
+      DefineBuffers(buffers_to_define, let_frame, p, TIR(p)->Attr("decl_buffer"),
+                    [&body_doc](IdDoc buf_identifier, ExprDoc buf_definition) {
+                      body_doc.push_back(AssignDoc(buf_identifier, buf_definition, NullOpt));
+                    });
+
+      body_doc = runtime::Concat(body_doc, AsStmtDocArray(body_stmt, p));
+
+      if (previous_frame->allow_concise_scoping) {
+        // dtype won't be linked to a doc object if it does concise scoping
+        // here we manually link it to type annotation
+        type_annotation_doc->source_paths.push_back(dtype.GetPath());
+        AssignDoc var_assignment = AssignDoc(var_doc, value_doc, type_annotation_doc);
+        return StmtBlockDoc(runtime::Concat({var_assignment}, body_doc));
+      } else {
+        Array<StmtDoc> result;
+        if (!is_var_defined_previously) {
+          result.push_back(AssignDoc(var_doc, TIR(p)->Attr("var")->Call({DType2Literal(dtype)}),
+                                     type_annotation_doc));
+        }
+        ExprDoc let_call = TIR(p)->Attr("let")->Call({var_doc, value_doc});
+        result.push_back(ScopeDoc(NullOpt, let_call, body_doc));
+        return StmtBlockDoc(result);
+      }
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)

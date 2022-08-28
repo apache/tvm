@@ -254,27 +254,34 @@ TracedObject<String> GetBufferNameHint(const TracedObject<tir::Buffer>& buf) {
   }
 }
 
-IdDoc DefineFreeBuffer(const TracedObject<tir::Buffer>& buf, const Frame& frame,
-                       const IRDocsifier& p, std::function<void(StmtDoc)> add_definiton) {
-  TracedObject<String> name_hint = GetBufferNameHint(buf);
-  IdDoc buf_doc = p->vars->Define(buf.Get(), name_hint, frame);
+std::vector<IdDoc> DefineBuffers(const std::vector<TracedObject<tir::Buffer>>& buffers,
+                                 const Frame& frame, const IRDocsifier& p,
+                                 const ExprDoc& definition_prefix,
+                                 std::function<void(IdDoc, ExprDoc)> add_definiton) {
+  std::vector<IdDoc> result;
+
   auto f_var_defined = [&p](const tir::VarNode* var) -> bool {
     return p->vars->IsVarDefined(GetRef<tir::Var>(var));
   };
   std::unordered_map<const tir::VarNode*, ObjectPath> var_explicit_def;
   BufferAssociatedVariables associated_vars;
 
-  BufferPrintInfo buffer_print_info =
-      GetBufferPrintInfo({buf}, f_var_defined, &var_explicit_def, &associated_vars)[0];
+  std::vector<BufferPrintInfo> buffers_print_info =
+      GetBufferPrintInfo(buffers, f_var_defined, &var_explicit_def, &associated_vars);
 
+  for (const BufferPrintInfo& buffer_print_info : buffers_print_info) {
+    TracedObject<tir::Buffer> buffer = buffer_print_info.buffer;
+    TracedObject<String> name_hint = GetBufferNameHint(buffer);
+    IdDoc buf_doc = p->vars->Define(buffer.Get(), name_hint, frame);
+    result.push_back(buf_doc);
+    ExprDoc buf_definition = buffer_print_info.AsCall(
+        definition_prefix,
+        [&p](const TracedObject<PrimExpr>& expr) -> ExprDoc { return p->AsDoc<ExprDoc>(expr); });
+    add_definiton(buf_doc, buf_definition);
+  }
   associated_vars.Define(p->vars.get(), frame);
 
-  ExprDoc buf_definition = buffer_print_info.AsCall(
-      TIR(p)->Attr("Buffer"),
-      [&p](const TracedObject<PrimExpr>& expr) -> ExprDoc { return p->AsDoc<ExprDoc>(expr); });
-  add_definiton(AssignDoc(buf_doc, NullOpt, buf_definition));
-
-  return buf_doc;
+  return result;
 }
 
 ExprDoc PrintBuffer(TracedObject<tir::Buffer> buf, IRDocsifier p) {
@@ -285,9 +292,13 @@ ExprDoc PrintBuffer(TracedObject<tir::Buffer> buf, IRDocsifier p) {
     // TODO(yelite): When implementing the PrimFunc printing, the logic here
     // needs to change, putting variable def into PrimFuncFrame if it exists.
     TIRTopLevelFrame top_level_frame = p->GetFrame<TIRTopLevelFrame>().value();
-    return DefineFreeBuffer(buf, top_level_frame, p, [top_level_frame](StmtDoc definition) {
-      top_level_frame->free_var_definitions.push_back(definition);
-    });
+    auto add_free_buffer_definition = [top_level_frame](IdDoc buf_indentifier,
+                                                        ExprDoc buf_definition) {
+      top_level_frame->free_var_definitions.push_back(
+          AssignDoc(buf_indentifier, NullOpt, buf_definition));
+    };
+    return DefineBuffers({buf}, top_level_frame, p, TIR(p)->Attr("Buffer"),
+                         add_free_buffer_definition)[0];
   }
 }
 

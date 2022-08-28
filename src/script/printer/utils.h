@@ -32,7 +32,7 @@ template <typename DocType, typename NodeType>
 Array<DocType> AsDocArray(const TracedArray<NodeType>& refs, const IRDocsifier& ir_docsifier) {
   Array<DocType> result;
   for (auto ref : refs) {
-    result.push_back(ir_docsifier->AsExprDoc(ref));
+    result.push_back(ir_docsifier->AsDoc<DocType>(ref));
   }
   return result;
 }

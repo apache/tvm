@@ -40,12 +40,15 @@ from tvm.tir import (
     FloatImm,
     FloorDiv,
     FloorMod,
+    IfThenElse,
     IntImm,
     IterVar,
     Let,
+    LetStmt,
     Mul,
     Not,
     Or,
+    Prefetch,
     Ramp,
     Reduce,
     Select,
@@ -55,6 +58,7 @@ from tvm.tir import (
     StringImm,
     Sub,
     Var,
+    While,
     decl_buffer,
 )
 
@@ -189,18 +193,52 @@ def test_var(var_type):
         pytest.param(
             decl_buffer(
                 (4, 10),
+                dtype="int32",
+                data=Var("p", PointerType(PrimType("int32"))),
+            ),
+            """
+            buffer: T.Buffer("int32", shape=(4, 10))
+            buffer
+            """,
+            id="default_data_ptr",
+        ),
+        pytest.param(
+            decl_buffer(
+                (4, 10),
                 dtype="bool",
             ),
             """
             buffer: T.Buffer("bool", shape=(4, 10))
             buffer
             """,
+            # Boolean buffer has different ptr type (Int8) and buffer type (UInt1)
             id="bool_different_ptr_type",
         ),
     ],
 )
 def test_buffer(buffer, expected):
     assert as_tir_script(buffer) == format_script(expected)
+
+
+def test_buffer_free_buffer_aliasing():
+    ptr_var = Var("p", PointerType(PrimType("int16")))
+    buffer_a = decl_buffer((4, 10), name="buffer_a", dtype="int8", data=ptr_var)
+    buffer_b = decl_buffer((8, 5), name="buffer_b", dtype="int4", data=ptr_var)
+    node = SeqStmt(
+        [
+            Evaluate(BufferLoad(buffer_a, [0, 0])),
+            Evaluate(BufferLoad(buffer_b, [0, 1])),
+        ]
+    )
+    # only prints one p
+    expected = """
+    p: T.Ptr(T.int16)
+    buffer_a: T.Buffer("int8", shape=(4, 10), data=p)
+    buffer_b: T.Buffer("int4", shape=(8, 5), data=p)
+    buffer_a[0, 0]
+    buffer_b[0, 1]
+    """
+    assert as_tir_script(node) == format_script(expected)
 
 
 @pytest.mark.parametrize(
@@ -723,5 +761,90 @@ def test_assert_body_concise_form():
         3
     assert 4, "test"
     5
+    """
+    assert as_tir_script(node) == format_script(expected)
+
+
+def test_if_then_else():
+    node = IfThenElse(1, Evaluate(2), Evaluate(3))
+    expected = """
+    if 1:
+        2
+    else:
+        3
+    """
+    assert as_tir_script(node) == format_script(expected)
+
+
+def test_if_then_else_free_var():
+    var = Var("a", "int32")
+    node = IfThenElse(1, Evaluate(var), Evaluate(var + 1))
+    expected = """
+    a: T.int32
+    if 1:
+        a
+    else:
+        a + 1
+    """
+    assert as_tir_script(node) == format_script(expected)
+
+
+def test_while():
+    var = Var("a", "int32")
+    node = While(var, Evaluate(var * 2))
+    expected = """
+    a: T.int32
+    while a:
+        a * 2
+    """
+    assert as_tir_script(node) == format_script(expected)
+
+
+def test_prefetch():
+    buf = decl_buffer((5, 10), name="buf")
+    ranges = [Range(1, 2), Range(5, 6)]
+    node = Prefetch(buf, ranges)
+    expected = """
+    buf: T.Buffer(shape=(5, 10))
+    T.prefetch(buf[1:2, 5:6])
+    """
+    assert as_tir_script(node) == format_script(expected)
+
+
+def test_let_stmt():
+    x = Var("x", "int32")
+    node = LetStmt(x, 1, Evaluate(x + 1))
+    expected = """
+    x: T.int32 = 1
+    x + 1
+    """
+    assert as_tir_script(node) == format_script(expected)
+
+
+def test_let_stmt_concise_scoping():
+    x = Var("x", "int32")
+    node = SeqStmt([LetStmt(x, 1, Evaluate(x + 1)), LetStmt(x, 2, Evaluate(x + 2))])
+    expected = """
+    x: T.int32 = T.var("int32")
+    with T.let(x, 1):
+        x + 1
+    x: T.int32 = 2
+    x + 2
+    """
+    assert as_tir_script(node) == format_script(expected)
+
+
+def test_let_stmt_alias_buffer():
+    buf0 = decl_buffer((10, 10), name="buf0")
+    ptr = Var("ptr", PointerType(PrimType("float32")))
+    buf1 = decl_buffer((5, 10), name="buf1", data=ptr)
+    buf2 = decl_buffer((2, 5), name="buf2", data=ptr)
+    node = LetStmt(ptr, buf0.data, SeqStmt([BufferStore(buf1, BufferLoad(buf2, [2, 4]), [1, 2])]))
+    expected = """
+    buf0: T.Ptr(T.float32)
+    ptr: T.Ptr(T.float32) = buf0
+    buf2 = T.decl_buffer(shape=(2, 5), data=ptr)
+    buf1 = T.decl_buffer(shape=(5, 10), data=ptr)
+    buf1[1, 2] = buf2[2, 4]
     """
     assert as_tir_script(node) == format_script(expected)
