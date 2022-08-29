@@ -26,7 +26,7 @@ endif()
 # Alernatively, use cmake -DOPTION=VALUE through command-line.
 tvm_option(USE_CUDA "Build with CUDA" OFF)
 tvm_option(USE_OPENCL "Build with OpenCL" OFF)
-tvm_option(USE_OPENCL_GTEST "Path to OpenCL specific gtest version for runtime cpp tests. Or pass ON/OFF value" OFF)
+tvm_option(USE_OPENCL_GTEST "Path to OpenCL specific gtest version for runtime cpp tests." /path/to/opencl/gtest)
 tvm_option(USE_VULKAN "Build with Vulkan" OFF)
 
 
@@ -617,39 +617,16 @@ if(BUILD_FOR_HEXAGON AND DEFINED USE_HEXAGON_GTEST AND EXISTS ${USE_HEXAGON_GTES
   include_directories("${USE_HEXAGON_GTEST}/include")
 endif()
 
-if(USE_OPENCL AND DEFINED USE_OPENCL_GTEST AND (EXISTS ${USE_OPENCL_GTEST} OR "${USE_OPENCL_GTEST}" MATCHES ${IS_TRUE_PATTERN}))
+if(USE_OPENCL AND DEFINED USE_OPENCL_GTEST AND EXISTS ${USE_OPENCL_GTEST})
   include(FetchContent)
-  if ("${USE_OPENCL_GTEST}" MATCHES ${IS_TRUE_PATTERN})
-    FetchContent_Declare(
-      googletest
-      GIT_REPOSITORY https://github.com/google/googletest.git
-      GIT_TAG        830fb567285c63ab5b5873e2e8b02f2249864916 
-    )
-  elseif(EXISTS ${USE_OPENCL_GTEST})
-    FetchContent_Declare(googletest SOURCE_DIR "${USE_OPENCL_GTEST}")
-    include_directories("${USE_OPENCL_GTEST}/include")
-    include_directories("${USE_OPENCL_GTEST}/googletest/include")
-    message(STATUS "Found OpenCL gtest at ${USE_OPENCL_GTEST}")
-  endif()
+  FetchContent_Declare(googletest SOURCE_DIR "${USE_OPENCL_GTEST}")
   set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-  get_property(
-    compile_options
-    DIRECTORY
-    PROPERTY COMPILE_OPTIONS
-  )
-  set_property(
-      DIRECTORY
-      APPEND
-      PROPERTY COMPILE_OPTIONS -Wno-error=sign-compare
-  )
   FetchContent_MakeAvailable(googletest)
-  set_property(
-    DIRECTORY
-    PROPERTY COMPILE_OPTIONS ${compile_options}
-  )
-  unset(compile_options)
-  target_link_libraries(tvm_runtime PRIVATE gtest)
-  target_link_libraries(tvm PRIVATE gtest)
+  target_link_libraries(tvm_runtime PUBLIC gtest)
+  target_link_libraries(tvm PUBLIC gtest)
+  include_directories("${USE_OPENCL_GTEST}/include")
+  include_directories("${USE_OPENCL_GTEST}/googletest/include")
+  message(STATUS "Found OpenCL gtest at ${USE_OPENCL_GTEST}")
 endif()
 
 # Set flags for clang
@@ -714,7 +691,7 @@ install(TARGETS tvm_runtime EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_S
 if(BUILD_FOR_HEXAGON AND DEFINED USE_HEXAGON_GTEST AND EXISTS ${USE_HEXAGON_GTEST})
   install(TARGETS gtest EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
 endif()
-if(USE_OPENCL AND DEFINED USE_OPENCL_GTEST AND (EXISTS ${USE_OPENCL_GTEST} OR "${USE_OPENCL_GTEST}" MATCHES ${IS_TRUE_PATTERN}))
+if(USE_OPENCL AND DEFINED USE_OPENCL_GTEST AND EXISTS ${USE_OPENCL_GTEST})
   install(TARGETS gtest EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
 endif()
 
