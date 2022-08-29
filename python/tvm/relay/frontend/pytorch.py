@@ -1565,10 +1565,8 @@ class PyTorchOpConverter:
             return _op.tensor.sigmoid(x)
 
         if self.is_quantized_tensor(data):
-            assert len(inputs) == 3, "Input quant param not found in op inputs"
-            input_scale = _expr.const(inputs[1])
-            input_zero_point = _expr.const(inputs[2])
-            return qnn_torch.quantized_sigmoid(data, input_scale, input_zero_point)
+            assert len(inputs) == 5, "Input/Ouput quant param not found in op inputs"
+            return qnn_torch.quantized_sigmoid(inputs)
 
         return func(data)
 
