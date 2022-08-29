@@ -93,9 +93,15 @@ inline double GetFoldResultDoubleRepr(float x) {
   if (std::isinf(res) || std::isnan(res)) {
     return res;
   }
+  // certain platform (eg, on gcc7-i386) do the folding arithmetic
+  // on float and write back to double is optimized to double
+  // precision arithmetic, this is legal and we check the output
+  // range thus to ensure consistency when the float result is inf.
   if (res < std::numeric_limits<float>::lowest()) {
+    LOG(WARNING) << "underlying float value overflow";
     return -std::numeric_limits<double>::infinity();
   } else if (res > std::numeric_limits<float>::max()) {
+    LOG(WARNING) << "underlying float value overflow";
     return std::numeric_limits<double>::infinity();
   }
   return res;
