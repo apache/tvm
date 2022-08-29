@@ -300,7 +300,7 @@ void Executable::SaveVirtualDevicesSection(dmlc::Stream* strm) {
   strm->Write(host_device_index);
 }
 
-void Executable::MoveLateBoundConstantsToStream(dmlc::Stream* stream, size_t byte_limit) {
+Map<String, NDArray> Executable::GetLateBoundConstants(size_t byte_limit) {
   ICHECK(late_bound_constant_names.empty());
   late_bound_constant_names.reserve(constants.size());
   Map<String, NDArray> map;
@@ -321,8 +321,13 @@ void Executable::MoveLateBoundConstantsToStream(dmlc::Stream* stream, size_t byt
     map.Set(name, Downcast<NDArray>(std::move(constants[const_index])));
     late_bound_constant_names.emplace_back(std::move(name));
   }
-  VLOG(1) << "moved " << map.size() << " constants of " << total_late_bound_bytes
+  VLOG(1) << "found " << map.size() << " constants of " << total_late_bound_bytes
           << " bytes (out of " << constants.size() << " overall) to be late-bound";
+  return map;
+}
+
+void Executable::MoveLateBoundConstantsToStream(dmlc::Stream* stream, size_t byte_limit) {
+  Map<String, NDArray> map = GetLateBoundConstants(byte_limit);
   runtime::SaveParams(stream, map);
 }
 
@@ -341,6 +346,10 @@ void Executable::LoadLateBoundConstantsFromStream(dmlc::Stream* stream) {
   ICHECK_EQ(late_bound_constant_names.size(), constants.size());
   Map<String, NDArray> map = runtime::LoadParams(stream);
   VLOG(1) << "loaded " << map.size() << " late-bound constants";
+  LoadLateBoundConstantsFromMap(map);
+}
+
+void Executable::LoadLateBoundConstantsFromMap(Map<String, NDArray> map) {
   for (size_t const_index = 0; const_index < constants.size(); ++const_index) {
     if (!late_bound_constant_names[const_index].defined()) {
       ICHECK(constants[const_index].defined())
