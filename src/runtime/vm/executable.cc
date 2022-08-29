@@ -97,11 +97,24 @@ PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Obje
       uint64_t byte_limit = args[1];
       MoveLateBoundConstantsToFile(path, static_cast<size_t>(byte_limit));
     });
+  } else if (name == "get_late_bound_consts") {
+    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
+      CHECK_EQ(args.size(), 1);
+      uint64_t byte_limit = args[0];
+      Map<String, NDArray> consts = GetLateBoundConstants(static_cast<size_t>(byte_limit));
+      *rv = consts;
+    });
   } else if (name == "load_late_bound_consts") {
     return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
       CHECK_EQ(args.size(), 1);
       std::string path = args[0];
       LoadLateBoundConstantsFromFile(path);
+    });
+  } else if (name == "load_late_bound_consts_from_map") {
+    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
+      CHECK_EQ(args.size(), 1);
+      Map<String, NDArray> map = args[0];
+      LoadLateBoundConstantsFromMap(map);
     });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
