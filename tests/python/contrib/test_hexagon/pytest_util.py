@@ -15,11 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import pytest
-import numpy as np
-from typing import *
+""" Hexagon pytest utility functions """
+
+from typing import List, Optional, Union
 import collections
-import tvm.testing
+import numpy as np
 
 
 def get_test_id(*test_params, test_param_descs: List[Optional[str]] = None) -> str:
@@ -47,35 +47,35 @@ def get_test_id(*test_params, test_param_descs: List[Optional[str]] = None) -> s
         assert len(test_param_descs) == len(test_params)
 
     def get_single_param_chunk(param_val, param_desc: Optional[str]):
-        if type(param_val) == list:
+        if isinstance(param_val, list):
             # Like str(list), but avoid the whitespace padding.
             val_str = "[" + ",".join(str(x) for x in param_val) + "]"
             need_prefix_separator = False
 
-        elif type(param_val) == bool:
+        elif isinstance(param_val, bool):
             if param_val:
                 val_str = "T"
             else:
                 val_str = "F"
             need_prefix_separator = True
 
-        elif type(param_val) == TensorContentConstant:
+        elif isinstance(param_val, TensorContentConstant):
             val_str = f"const[{param_val.elem_value}]"
             need_prefix_separator = True
 
-        elif type(param_val) == TensorContentDtypeMin:
+        elif isinstance(param_val, TensorContentDtypeMin):
             val_str = "min"
             need_prefix_separator = True
 
-        elif type(param_val) == TensorContentDtypeMax:
+        elif isinstance(param_val, TensorContentDtypeMax):
             val_str = "max"
             need_prefix_separator = True
 
-        elif type(param_val) == TensorContentRandom:
+        elif isinstance(param_val, TensorContentRandom):
             val_str = "random"
             need_prefix_separator = True
 
-        elif type(param_val) == TensorContentSequentialCOrder:
+        elif isinstance(param_val, TensorContentSequentialCOrder):
             val_str = f"seqC[start:{param_val.start_value},inc:{param_val.increment}]"
             need_prefix_separator = True
 
@@ -148,26 +148,26 @@ def create_populated_numpy_ndarray(
     """
     itp = input_tensor_populator  # just for brevity
 
-    if type(itp) == TensorContentConstant:
+    if isinstance(itp, TensorContentConstant):
         return np.full(tuple(input_shape), itp.elem_value, dtype=dtype)
 
-    elif type(itp) == TensorContentDtypeMin:
+    elif isinstance(itp, TensorContentDtypeMin):
         info = get_numpy_dtype_info(dtype)
         return np.full(tuple(input_shape), info.min, dtype=dtype)
 
-    elif type(itp) == TensorContentDtypeMax:
+    elif isinstance(itp, TensorContentDtypeMax):
         info = get_numpy_dtype_info(dtype)
         return np.full(tuple(input_shape), info.max, dtype=dtype)
 
-    elif type(itp) == TensorContentRandom:
+    elif isinstance(itp, TensorContentRandom):
         return np.random.random(input_shape).astype(dtype)
 
-    elif type(itp) == TensorContentSequentialCOrder:
+    elif isinstance(itp, TensorContentSequentialCOrder):
         a = np.empty(tuple(input_shape), dtype)
 
-        with np.nditer(a, op_flags=["writeonly"], order="C") as it:
+        with np.nditer(a, op_flags=["writeonly"], order="C") as iterator:
             next_elem_val = itp.start_value
-            for elem in it:
+            for elem in iterator:
                 elem[...] = next_elem_val
                 next_elem_val += itp.increment
         return a

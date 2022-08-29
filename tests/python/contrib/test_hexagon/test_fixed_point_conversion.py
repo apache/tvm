@@ -15,11 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import math
-import struct
-import numpy as np
-import tvm.topi.hexagon.utils as utils
-
 """
 Test float to fixed-point conversion. We do it by constructing a numpy array with the
 wide range of floating-point values. These values are converted into the
@@ -29,9 +24,17 @@ floating point values are then compared against the original values and an asser
 raised if they happened to be outside of the expected tolerance.
 """
 
+import math
+import struct
+import numpy as np
+import tvm.topi.hexagon.utils as utils
+
 
 class TestFixedPointConversion:
+    """Fixed point conversation test class"""
+
     def test_fixed_point_conversion(self):
+        """Test fixed point conversion"""
         # Construct array with wide range of values
         fp1 = np.random.uniform(0.00001, 0.0002, size=(10))
         fp2 = np.random.uniform(0.001, 0.02, size=(10))

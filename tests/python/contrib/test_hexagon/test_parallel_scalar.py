@@ -25,55 +25,66 @@ from tvm.script import tir as T
 
 from .infrastructure import get_hexagon_target
 
-TEST_OUTPUT_TEMPLATE = "Test {} with {} operations... \n    -Single Thread: {} ms \n    -Parallel: {} ms\n    -Speedup: {}x\n"
+TEST_OUTPUT_TEMPLATE = (
+    "Test {} with {} operations... \n"
+    "    -Single Thread: {} ms \n"
+    "    -Parallel: {} ms\n    -Speedup: {}x\n"
+)
 
 
 def get_add_operator(operations):
+    """Generate add operator."""
+
     @T.prim_func
     def operator(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        A = T.match_buffer(a, [operations], dtype="float64")
-        B = T.match_buffer(b, [operations], dtype="float64")
-        C = T.match_buffer(c, [operations], dtype="float64")
+        a_buffer = T.match_buffer(a, [operations], dtype="float64")
+        b_buffer = T.match_buffer(b, [operations], dtype="float64")
+        c_buffer = T.match_buffer(c, [operations], dtype="float64")
         for n in T.grid(operations):
-            with T.block("C"):
-                vn = T.axis.remap("S", [n])
-                C[vn] = A[vn] + B[vn]
+            with T.block("c_buffer"):
+                vn_ind = T.axis.remap("S", [n])
+                c_buffer[vn_ind] = a_buffer[vn_ind] + b_buffer[vn_ind]
 
     return operator
 
 
 def get_multiply_operator(operations):
+    """Generate multiply operator."""
+
     @T.prim_func
     def operator(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        A = T.match_buffer(a, [operations], dtype="float64")
-        B = T.match_buffer(b, [operations], dtype="float64")
-        C = T.match_buffer(c, [operations], dtype="float64")
+        a_buffer = T.match_buffer(a, [operations], dtype="float64")
+        b_buffer = T.match_buffer(b, [operations], dtype="float64")
+        c_buffer = T.match_buffer(c, [operations], dtype="float64")
         for n in T.grid(operations):
-            with T.block("C"):
-                vn = T.axis.remap("S", [n])
-                C[vn] = A[vn] * B[vn]
+            with T.block("c_buffer"):
+                vn_ind = T.axis.remap("S", [n])
+                c_buffer[vn_ind] = a_buffer[vn_ind] * b_buffer[vn_ind]
 
     return operator
 
 
 def get_sub_operator(operations):
+    """Generate subtract operator."""
+
     @T.prim_func
     def operator(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        A = T.match_buffer(a, [operations], dtype="float64")
-        B = T.match_buffer(b, [operations], dtype="float64")
-        C = T.match_buffer(c, [operations], dtype="float64")
+        a_buffer = T.match_buffer(a, [operations], dtype="float64")
+        b_buffer = T.match_buffer(b, [operations], dtype="float64")
+        c_buffer = T.match_buffer(c, [operations], dtype="float64")
         for n in T.grid(operations):
-            with T.block("C"):
-                vn = T.axis.remap("S", [n])
-                C[vn] = A[vn] - B[vn]
+            with T.block("c_buffer"):
+                vn_ind = T.axis.remap("S", [n])
+                c_buffer[vn_ind] = a_buffer[vn_ind] - b_buffer[vn_ind]
 
     return operator
 
 
 def evaluate(hexagon_session, operations, expected, sch):
+    """Evalute schedule."""
     shape = operations
     dtype = "float64"
 
@@ -104,6 +115,7 @@ def evaluate(hexagon_session, operations, expected, sch):
 
 
 class TestMatMulVec:
+    """MatMul test class."""
 
     (operation_name, operator_producer, expected_output_producer,) = tvm.testing.parameters(
         ("add", get_add_operator, (lambda a, b: a + b)),
@@ -116,9 +128,11 @@ class TestMatMulVec:
         128,
         # 256,
         # 512,
-        # 1024,  # Single thread runs faster since L2 cache can handle the entire request quickly
+        # Single thread runs faster since L2 cache can handle the entire request quickly
+        # 1024,
         # 2048,
-        # 4096,  # Significant performance degredation once the inputs and outputs cannot all fit in L2
+        # Significant performance degredation once the inputs and outputs cannot all fit in L2
+        # 4096,
         # 8192,
         # 16384,
     )
@@ -135,15 +149,16 @@ class TestMatMulVec:
         operations,
         split_factor,
     ):
+        """Test Add operator."""
 
         sch = tvm.tir.Schedule(operator_producer(operations))
         single_thread_runtime = evaluate(hexagon_session, operations, expected_output_producer, sch)
 
         sch = tvm.tir.Schedule(operator_producer(operations))
-        block = sch.get_block("C")
+        block = sch.get_block("c_buffer")
         b = sch.get_loops(block)
-        bo, _ = sch.split(b[0], factors=[split_factor, None])
-        sch.parallel(bo)
+        b_output, _ = sch.split(b[0], factors=[split_factor, None])
+        sch.parallel(b_output)
         parallel_runtime = evaluate(hexagon_session, operations, expected_output_producer, sch)
 
         speedup = round(single_thread_runtime / parallel_runtime, 2)
