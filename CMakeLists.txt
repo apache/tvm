@@ -623,7 +623,7 @@ if(USE_OPENCL AND DEFINED USE_OPENCL_GTEST AND (EXISTS ${USE_OPENCL_GTEST} OR "$
     FetchContent_Declare(
       googletest
       GIT_REPOSITORY https://github.com/google/googletest.git
-      GIT_TAG        703bd9caab50b139428cea1aaff9974ebee5742e # release-1.10.0
+      GIT_TAG        830fb567285c63ab5b5873e2e8b02f2249864916 
     )
     set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
     set(BUILD_GTEST ON CACHE BOOL "" FORCE)
@@ -635,8 +635,8 @@ if(USE_OPENCL AND DEFINED USE_OPENCL_GTEST AND (EXISTS ${USE_OPENCL_GTEST} OR "$
   endif()
   set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(googletest)
-  target_link_libraries(tvm_runtime PUBLIC gtest)
-  target_link_libraries(tvm PUBLIC gtest)
+  target_link_libraries(tvm_runtime PRIVATE gtest)
+  target_link_libraries(tvm PRIVATE gtest)
 endif()
 
 # Set flags for clang
