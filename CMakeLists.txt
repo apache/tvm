@@ -625,8 +625,6 @@ if(USE_OPENCL AND DEFINED USE_OPENCL_GTEST AND (EXISTS ${USE_OPENCL_GTEST} OR "$
       GIT_REPOSITORY https://github.com/google/googletest.git
       GIT_TAG        830fb567285c63ab5b5873e2e8b02f2249864916 
     )
-    set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
-    set(BUILD_GTEST ON CACHE BOOL "" FORCE)
   elseif(EXISTS ${USE_OPENCL_GTEST})
     FetchContent_Declare(googletest SOURCE_DIR "${USE_OPENCL_GTEST}")
     include_directories("${USE_OPENCL_GTEST}/include")
