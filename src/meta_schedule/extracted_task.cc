@@ -38,71 +38,12 @@ ExtractedTask::ExtractedTask(String task_name, IRModule mod, Target target,
   data_ = n;
 }
 
-Optional<tir::PrimFunc> DefaultTaskFilterImpl(const Array<te::Tensor>& args, bool allow_extern_op) {
-  using namespace ::tvm::te;
-  std::vector<Tensor> stack;
-  std::unordered_set<const TensorNode*> visited;
-  for (const Tensor& v : args) {
-    for (const PrimExpr& e : v->shape) {
-      // Dynamic shape is not supported for now
-      if (!e->IsInstance<IntImmNode>()) {
-        return NullOpt;
-      }
-    }
-    if (!visited.count(v.get())) {
-      visited.insert(v.get());
-      stack.push_back(v);
-    }
-  }
-  while (!stack.empty()) {
-    Tensor tensor = stack.back();
-    stack.pop_back();
-    if (tensor->op->IsInstance<PlaceholderOpNode>()) {
-      // do nothing
-    } else if (tensor->op->IsInstance<ComputeOpNode>() ||
-               (allow_extern_op && tensor->op->IsInstance<ExternOpNode>())) {
-      Array<Tensor> inputs = tensor->op->InputTensors();
-      for (const Tensor& v : inputs) {
-        if (!visited.count(v.get())) {
-          visited.insert(v.get());
-          stack.push_back(v);
-        }
-      }
-    } else {
-      return NullOpt;
-    }
-  }
-  PrimFunc func = te::CreatePrimFunc(args);
-  bool dynamic_loop_extent = false;
-  PostOrderVisit(func->body, [&dynamic_loop_extent](const ObjectRef& obj) -> void {
-    if (const auto* loop = obj.as<tir::ForNode>()) {
-      if (!loop->extent->IsInstance<IntImmNode>()) {
-        dynamic_loop_extent = true;
-      }
-    }
-  });
-  if (dynamic_loop_extent) {
-    return NullOpt;
-  }
-  return func;
-}
-
-Optional<tir::PrimFunc> DefaultTaskFilter(const Array<te::Tensor>& args) {
-  return DefaultTaskFilterImpl(args, false);
-}
-
-Optional<tir::PrimFunc> DefaultTaskFilterAllowExtern(const Array<te::Tensor>& args) {
-  return DefaultTaskFilterImpl(args, true);
-}
-
 TVM_REGISTER_NODE_TYPE(ExtractedTaskNode);
 TVM_REGISTER_GLOBAL("meta_schedule.ExtractedTask")
     .set_body_typed([](String task_name, IRModule mod, Target target, Array<IRModule> dispatched,
                        int weight) -> ExtractedTask {
       return ExtractedTask(task_name, mod, target, dispatched, weight);
     });
-TVM_REGISTER_GLOBAL("meta_schedule.DefaultTaskFilter").set_body_typed(DefaultTaskFilter);
-TVM_REGISTER_GLOBAL("meta_schedule.DefaultTaskFilterAllowExtern")
-    .set_body_typed(DefaultTaskFilterAllowExtern);
+
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -70,7 +70,7 @@ constexpr int kSyncStride = 64 / sizeof(std::atomic<int>);
  */
 class ParallelLauncher {
  public:
-  // Reset the the task request.
+  // Reset the task request.
   void Init(FTVMParallelLambda flambda, void* cdata, int num_task, bool need_sync) {
     num_pending_.store(num_task);
     this->cdata = cdata;
@@ -369,7 +369,7 @@ class ThreadPool {
   int num_workers_used_;
   // if or not to exclude worker 0 and use main to run task 0
   bool exclude_worker0_{true};
-  std::vector<std::unique_ptr<SpscTaskQueue> > queues_;
+  std::vector<std::unique_ptr<SpscTaskQueue>> queues_;
   std::unique_ptr<tvm::runtime::threading::ThreadGroup> threads_;
 };
 

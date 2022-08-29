@@ -77,8 +77,7 @@ inline Expr MulAndDiv(Expr data, float s1, float s2, DataType dtype,
     return Multiply(data, MakeConstantScalar(dtype, factor));
   } else {
     if (cfg->rounding == "UPWARD") {
-      int32_t fixed_point_multiplier, shift;
-      std::tie(fixed_point_multiplier, shift) = qnn::GetFixedPointMultiplierShift(factor);
+      auto [fixed_point_multiplier, shift] = qnn::GetFixedPointMultiplierShift(factor);
       data = relay::FixedPointMultiply(data, fixed_point_multiplier, shift);
     } else {
       data = qnn::FixedPointMultiplyToNearest(data, factor, data_shape);
@@ -135,8 +134,7 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
     } else {
       data = Cast(data, DataType::Int(64));
       if (cfg->rounding == "UPWARD") {
-        int32_t fixed_point_multiplier, shift;
-        std::tie(fixed_point_multiplier, shift) =
+        auto [fixed_point_multiplier, shift] =
             qnn::GetFixedPointMultiplierShift(idom_scale_imm / odom_scale_imm);
         data = relay::FixedPointMultiply(data, fixed_point_multiplier, shift);
       } else {

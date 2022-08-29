@@ -15,7 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Computes and Schedules for Hexagon slice ops. """
+""" Computes and schedules for Hexagon quantized ops """
+
+from .avg_pool2d import qnn_avg_pool2d_compute, qnn_avg_pool2d_schedule
+
 from .dequantize import (
     dequantize_compute,
     dequantize_schedule,

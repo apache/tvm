@@ -47,9 +47,7 @@ std::pair<Array<IterVar>, Map<Var, PrimExpr>> CloneIterVars(const Array<IterVar>
 
 PrimExpr CloneReduction(const PrimExpr& expr) {
   if (const ReduceNode* red = expr.as<ReduceNode>()) {
-    Array<IterVar> new_axis;
-    Map<Var, PrimExpr> vmap;
-    std::tie(new_axis, vmap) = CloneIterVars(red->axis);
+    auto [new_axis, vmap] = CloneIterVars(red->axis);
 
     Array<PrimExpr> src_with_newaxis;
     for (const auto& src : red->source) {
@@ -71,9 +69,7 @@ Operation ComputeOpFromExprs(const Array<PrimExpr>& exprs, const Array<IterVar>&
                              const std::string& name, const std::string& tag,
                              const Map<String, ObjectRef>& attrs, bool clone_axis) {
   if (clone_axis) {
-    Array<IterVar> new_axis = axis;
-    Map<Var, PrimExpr> vmap;
-    std::tie(new_axis, vmap) = CloneIterVars(axis);
+    auto [new_axis, vmap] = CloneIterVars(axis);
     Array<PrimExpr> new_exprs;
     for (const PrimExpr& e : exprs) {
       new_exprs.push_back(Substitute(CloneReduction(e), vmap));

@@ -24,14 +24,12 @@ from typing import Any, Callable, Dict, List, NamedTuple, Optional, Union
 
 from tvm.ir import IRModule
 from tvm.ir.transform import PassContext
-from tvm.meta_schedule.space_generator.post_order_apply import PostOrderApply
 from tvm.runtime import Module, NDArray, vm
 from tvm.target import Target
 from tvm.te import Tensor, create_prim_func
 from tvm.tir import PrimFunc, Schedule
 
 from . import default_config
-from .apply_history_best import ApplyHistoryBest
 from .builder import Builder
 from .cost_model import CostModel
 from .database import Database, TuningRecord
@@ -43,7 +41,7 @@ from .profiler import Profiler
 from .runner import Runner
 from .schedule_rule import ScheduleRule
 from .search_strategy import EvolutionarySearch, ReplayFunc, ReplayTrace
-from .space_generator import SpaceGenerator
+from .space_generator import PostOrderApply, SpaceGenerator
 from .task_scheduler import GradientBased, RoundRobin
 from .tune_context import TuneContext
 from .utils import autotvm_silencer, batch_parameterize_config
@@ -461,7 +459,7 @@ def tune_tir(
         mutator_probs=mutator_probs,
         num_threads=num_threads,
     )
-    with Profiler.timeit("ApplyHistoryBest"):
+    with Profiler.timeit("PostTuningCompilation"):
         bests: List[TuningRecord] = database.get_top_k(database.commit_workload(mod), top_k=1)
         if not bests:
             return None
@@ -591,6 +589,7 @@ def tune_relay(
     """
     # pylint: disable=import-outside-toplevel
     from tvm import relay
+
     from .relay_integration import extract_task_from_relay
 
     # pylint: disable=protected-access, enable=import-outside-toplevel
@@ -615,13 +614,14 @@ def tune_relay(
         num_threads=num_threads,
     )
     relay_build = {"graph": relay.build, "vm": relay.vm.compile}[backend]
-    with Profiler.timeit("ApplyHistoryBest"):
-        with target, autotvm_silencer(), ApplyHistoryBest(database):
+    with Profiler.timeit("PostTuningCompilation"):
+        with target, autotvm_silencer(), database:
             with PassContext(
                 opt_level=3,
                 config={
                     "relay.backend.use_meta_schedule": True,
                     "relay.backend.use_meta_schedule_dispatch": target.kind.name != "cuda",
+                    "relay.backend.tir_converter": "default",
                 },
             ):
                 return relay_build(mod, target=target, params=params)

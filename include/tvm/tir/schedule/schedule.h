@@ -386,10 +386,12 @@ class ScheduleNode : public runtime::Object {
    * \param block_rv The consumer block of the target buffer.
    * \param read_buffer_index The index of the buffer in block's read region.
    * \param storage_scope The target storage scope.
+   * \param consumer_blocks An optional list of consumers of the cache to rewrite.
    * \return The cache stage block.
    */
   virtual BlockRV CacheRead(const BlockRV& block_rv, int read_buffer_index,
-                            const String& storage_scope) = 0;
+                            const String& storage_scope,
+                            const Array<BlockRV> consumer_blocks = {}) = 0;
   /*!
    * \brief Create a block that writes a buffer region into a write cache. It requires:
    * 1) There is only one block who writes the target buffer.
@@ -430,9 +432,13 @@ class ScheduleNode : public runtime::Object {
    * \param block_rv The block to be moved
    * \param loop_rv The loop where the block to be moved under
    * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+   * \param index The block index of the loop body subtree blocks:
+   * - `index = -1` means inserted into the last possible insertion point;
+   * - `index = -2` means inserted into the first possible insertion point;
+   * - Otherwise, `index` is a nonnegative number that indicates the insertion point
    */
-  virtual void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
-                         bool preserve_unit_loops) = 0;
+  virtual void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops,
+                         int index = -1) = 0;
   /*!
    * \brief Move a consumer block under the specific loop, and regenerate the
    * loops induced by the block so that the buffer region consumed by the consumer block could
@@ -447,9 +453,13 @@ class ScheduleNode : public runtime::Object {
    * \param block_rv The block to be moved
    * \param loop_rv The loop where the block to be moved under
    * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+   * \param index The block index of the loop body subtree blocks:
+   * - `index = -1` means inserted into the last possible insertion point;
+   * - `index = -2` means inserted into the first possible insertion point;
+   * - Otherwise, `index` is a nonnegative number that indicates the insertion point
    */
   virtual void ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
-                                bool preserve_unit_loops) = 0;
+                                bool preserve_unit_loops, int index = -1) = 0;
   /*!
    * \brief Inline a block into its consumer(s). It requires:
    * 1) The block is a complete non-root block, which only produces one buffer

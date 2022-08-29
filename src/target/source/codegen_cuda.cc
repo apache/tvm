@@ -1004,6 +1004,7 @@ void CodeGenCUDA::VisitStmt_(const EvaluateNode* op) {
 }
 
 void CodeGenCUDA::VisitExpr_(const RampNode* op, std::ostream& os) {
+  CHECK_LE(op->lanes, 4) << "ValueError: Ramp of more than 4 lanes is not allowed.";
   os << "(make_int" << op->lanes << "(";
   for (int i = 0; i < op->lanes; i++) {
     os << "(" << PrintExpr(op->base) << ")"
@@ -1196,8 +1197,10 @@ inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p)
       break;
     }
     case 16: {
-      os << "__float2half_rn";
-      os << '(' << std::scientific << op->value << 'f' << ')';
+      os << "__float2half_rn" << '(';
+      FloatImm const_f32 = FloatImm(DataType::Float(32), op->value);
+      PrintConst(const_f32.get(), os, p);
+      os << ')';
       break;
     }
     default:

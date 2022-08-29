@@ -26,10 +26,10 @@ from tvm.script import tir as T
 def primfunc_global_allocates(placeholder_144: T.handle, placeholder_145: T.handle, placeholder_146: T.handle, T_cast_48: T.handle) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "fused_nn_conv2d_add_cast_fixed_point_multiply_clip_cast_cast_13", "tir.noalias": True})
-    placeholder_147 = T.match_buffer(placeholder_144, [100352], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-    placeholder_148 = T.match_buffer(placeholder_145, [4608], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-    placeholder_149 = T.match_buffer(placeholder_146, [512], dtype="int32", elem_offset=0, align=128, offset_factor=1)
-    T_cast_49 = T.match_buffer(T_cast_48, [100352], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+    placeholder_147 = T.match_buffer(placeholder_144, [100352], dtype="int16", elem_offset=0, align=64, offset_factor=1)
+    placeholder_148 = T.match_buffer(placeholder_145, [4608], dtype="int16", elem_offset=0, align=64, offset_factor=1)
+    placeholder_149 = T.match_buffer(placeholder_146, [512], dtype="int32", elem_offset=0, align=64, offset_factor=1)
+    T_cast_49 = T.match_buffer(T_cast_48, [100352], dtype="int16", elem_offset=0, align=64, offset_factor=1)
     # body
     PaddedInput_22 = T.allocate([131072], "int16", "global")
     DepthwiseConv2d_9 = T.allocate([100352], "int32", "global")
@@ -57,10 +57,10 @@ def primfunc_global_allocates(placeholder_144: T.handle, placeholder_145: T.hand
 def primfunc_local_allocates(placeholder_162: T.handle, placeholder_163: T.handle, placeholder_164: T.handle, T_cast_76: T.handle) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "fused_nn_conv2d_add_cast_fixed_point_multiply_clip_cast_cast_9", "tir.noalias": True})
-    placeholder_165 = T.match_buffer(placeholder_162, [100352], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-    placeholder_166 = T.match_buffer(placeholder_163, [4608], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-    placeholder_167 = T.match_buffer(placeholder_164, [512], dtype="int32", elem_offset=0, align=128, offset_factor=1)
-    T_cast_77 = T.match_buffer(T_cast_76, [100352], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+    placeholder_165 = T.match_buffer(placeholder_162, [100352], dtype="int16", elem_offset=0, align=64, offset_factor=1)
+    placeholder_166 = T.match_buffer(placeholder_163, [4608], dtype="int16", elem_offset=0, align=64, offset_factor=1)
+    placeholder_167 = T.match_buffer(placeholder_164, [512], dtype="int32", elem_offset=0, align=64, offset_factor=1)
+    T_cast_77 = T.match_buffer(T_cast_76, [100352], dtype="int16", elem_offset=0, align=64, offset_factor=1)
     sid_21 = T.allocate_const([0,1,2,3,4,5,6,7], "int8", [8])
     # body
     PaddedInput_25 = T.allocate([131072], "int16", "global")

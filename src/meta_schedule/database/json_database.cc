@@ -115,9 +115,7 @@ class JSONDatabaseNode : public DatabaseNode {
 
   Workload CommitWorkload(const IRModule& mod) {
     // Try to insert `mod` into `workloads_`
-    decltype(this->workloads2idx_)::iterator it;
-    bool inserted = false;
-    std::tie(it, inserted) =
+    auto [it, inserted] =
         this->workloads2idx_.emplace(Workload(mod, tvm::StructuralHash()(mod)), -1);
     Workload workload = it->first;
     // If `mod` is new in `workloads2idx_`, append it to the workload file

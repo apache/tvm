@@ -274,69 +274,6 @@ def _build_module_no_factory(mod, target=None, target_host=None, params=None, mo
     return _build_module_no_factory_impl(mod, target, target_host, params, mod_name)
 
 
-def _reconstruct_from_deprecated_options(deprecated_params_target):
-    executor = None
-    runtime = None
-
-    deprecated_executor = None
-    deprecated_executor_args = {}
-    if "executor" in deprecated_params_target.attrs:
-        _deprecated_target_param_warning("Executor", "executor")
-        deprecated_executor = deprecated_params_target.attrs.get("executor", "graph")
-    if "interface-api" in deprecated_params_target.attrs:
-        _deprecated_target_sub_param_warning("Executor", "interface-api")
-        deprecated_executor_args.update(
-            {"interface-api": deprecated_params_target.attrs["interface-api"]}
-        )
-    if "unpacked-api" in deprecated_params_target.attrs:
-        _deprecated_target_sub_param_warning("Executor", "unpacked-api")
-        deprecated_executor_args.update(
-            {"unpacked-api": deprecated_params_target.attrs["unpacked-api"]}
-        )
-    if (
-        "link-params" in deprecated_params_target.attrs
-        and deprecated_params_target.attrs["link-params"]
-    ):
-        _deprecated_target_sub_param_warning("Executor", "link-params")
-        if deprecated_executor != "aot":
-            deprecated_executor_args.update(
-                {"link-params": deprecated_params_target.attrs["link-params"]}
-            )
-    if deprecated_executor or deprecated_executor_args:
-        executor = Executor(deprecated_executor or "graph", deprecated_executor_args)
-
-    deprecated_runtime = None
-    deprecated_runtime_args = {}
-    if "runtime" in deprecated_params_target.attrs:
-        _deprecated_target_param_warning("Runtime", "runtime")
-        deprecated_runtime = deprecated_params_target.attrs.get("runtime", "cpp")
-        if deprecated_runtime == "c":
-            deprecated_runtime = "crt"
-    if "system-lib" in deprecated_params_target.attrs:
-        _deprecated_target_sub_param_warning("Runtime", "system-lib")
-        deprecated_runtime_args.update({"system-lib": deprecated_params_target.attrs["system-lib"]})
-    if deprecated_runtime or deprecated_runtime_args:
-        runtime = Runtime(deprecated_runtime or "cpp", deprecated_runtime_args)
-
-    return executor, runtime
-
-
-def _deprecated_target_param_warning(registry, param):
-    warnings.warn(
-        f"Please use {registry} (tvm.relay.backend.{registry}) "
-        f"instead of deprecated Target parameter -{param}",
-        DeprecationWarning,
-    )
-
-
-def _deprecated_target_sub_param_warning(registry, param):
-    warnings.warn(
-        f"Please use {registry} (tvm.relay.backend.{registry}) parameter {param} "
-        f"instead of deprecated Target parameter -{param}",
-        DeprecationWarning,
-    )
-
-
 def build(
     ir_mod,
     target=None,
@@ -414,17 +351,6 @@ def build(
     raw_targets = Target.canon_multi_target_and_host(Target.target_or_current(target), target_host)
     assert len(raw_targets) > 0
     target_host = raw_targets[0].host
-
-    # All of this logic is to raise deprecation warnings for various parameters
-    # TODO(Mousius) Remove these after some time
-    deprecated_params_target = target_host or list(raw_targets)[0]
-    deprecated_executor, deprecated_runtime = _reconstruct_from_deprecated_options(
-        deprecated_params_target
-    )
-    if deprecated_executor:
-        executor = deprecated_executor
-    if deprecated_runtime:
-        runtime = deprecated_runtime
 
     # If current dispatch context is fallback context (the default root context),
     # then load pre-tuned parameters from TopHub
@@ -756,9 +682,5 @@ def create_executor(kind="debug", mod=None, device=None, target="llvm", params=N
     if kind == "vm":
         return VMExecutor(mod, device, raw_targets)
     if kind == "aot":
-        # The AOT requires the executor as a target attribute.
-        # (The compilation paths for the other executors currently do not always provide this
-        # attribute, hence the above generic assert is more forgiving).
-        assert "executor" in raw_targets[0].attrs
         return AotExecutor(mod, device, raw_targets)
     raise RuntimeError("unknown execution strategy: {0}".format(kind))

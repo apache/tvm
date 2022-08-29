@@ -29,7 +29,6 @@ from tvm._ffi import register_func
 from tvm.contrib import graph_executor
 from tvm.ir import IRModule
 from tvm.meta_schedule.testing.relay_workload import get_network
-from tvm.meta_schedule.testing.utils import apply_fixed_schedules
 from tvm.script import tir as T
 from tvm.target.target import Target
 from tvm.tir.schedule import BlockRV, Schedule
@@ -245,12 +244,11 @@ def test_meta_schedule_te2primfunc_argument_order():
     database.commit_workload(tvmgen_default_fused_layout_transform_1)
     database.commit_workload(tvmgen_default_fused_nn_contrib_conv2d_NCHWc)
 
-    with ms.ApplyHistoryBest(database):
-        with tvm.transform.PassContext(
-            opt_level=3,
-            config={"relay.backend.use_meta_schedule": True},
-        ):
-            rt_mod1 = relay.build(mod, target=target, params=params)
+    with database, tvm.transform.PassContext(
+        opt_level=3,
+        config={"relay.backend.use_meta_schedule": True},
+    ):
+        rt_mod1 = relay.build(mod, target=target, params=params)
 
     # Compile without meta-schedule for correctness check
     with tvm.transform.PassContext(opt_level=0):
@@ -307,12 +305,11 @@ def test_meta_schedule_relay_lowering():
                 args_info=[],
             )
         )
-        with ms.ApplyHistoryBest(database):
-            with tvm.transform.PassContext(
-                opt_level=3,
-                config={"relay.backend.use_meta_schedule": True},
-            ):
-                rt_mod1 = relay.build(mod, target=target, params=params)
+        with database, tvm.transform.PassContext(
+            opt_level=3,
+            config={"relay.backend.use_meta_schedule": True},
+        ):
+            rt_mod1 = relay.build(mod, target=target, params=params)
 
         # Compile without meta-schedule for correctness check
         with tvm.transform.PassContext(opt_level=0):
@@ -454,8 +451,8 @@ def manual_tir_common(do_tune=False):
             )
     else:
 
-        def schedule_fn(task, sch):
-            if "dense" not in task.task_name:
+        def schedule_fn(sch) -> bool:
+            if "dense" not in sch.mod.attrs["task_name"]:
                 return False
 
             block = sch.get_block("compute")
@@ -470,26 +467,25 @@ def manual_tir_common(do_tune=False):
 
             return True
 
-        database = apply_fixed_schedules(relay_mod, target, params, schedule_fn)
+        database = ms.database.ScheduleFnDatabase(schedule_fn)
 
-    with ms.ApplyHistoryBest(database):
-        with tvm.transform.PassContext(
-            opt_level=3,
-            config={"relay.backend.use_meta_schedule": True},
-        ):
-            # pylint: disable=W0105
-            """
-            The log should say
-            Warning: Cannot find workload: tvmgen_default_fused_expand_dims
-            Warning: Cannot find workload: tvmgen_default_fused_cast
-            Warning: Cannot find workload: tvmgen_default_fused_cast_1
-            Warning: Cannot find workload: tvmgen_default_fused_nn_batch_matmul
+    with database, tvm.transform.PassContext(
+        opt_level=3,
+        config={"relay.backend.use_meta_schedule": True},
+    ):
+        # pylint: disable=W0105
+        """
+        The log should say
+        Warning: Cannot find workload: tvmgen_default_fused_expand_dims
+        Warning: Cannot find workload: tvmgen_default_fused_cast
+        Warning: Cannot find workload: tvmgen_default_fused_cast_1
+        Warning: Cannot find workload: tvmgen_default_fused_nn_batch_matmul
 
-            This means batch matmul and others are scheduled by TE, and dense (the one not warned)
-            is found in the meta schedule tuning database during ApplyHistoryBest
-            """
-            # pylint: enable=W0105
-            lib = relay.build(relay_mod, target=target, params=params)
+        This means batch matmul and others are scheduled by TE, and dense (the one not warned)
+        is found in the meta schedule tuning database during compilation
+        """
+        # pylint: enable=W0105
+        lib = relay.build(relay_mod, target=target, params=params)
 
     runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
 

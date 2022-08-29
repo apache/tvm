@@ -121,6 +121,10 @@ static inline Expr Requantize(const Expr& data, const Array<IndexExpr>& input_sh
                          attrs.operator->(), input_shape, attrs->out_dtype);
 }
 
+Expr MakeRequantize(Expr data, Expr input_scale, Expr input_zero_point, Expr output_scale,
+                    Expr output_zero_point, int axis, String rounding, String compute_dtype,
+                    DataType out_dtype);
+
 Expr DequantizeLower(const Expr& input_tensor, const Expr& input_scale,
                      const Expr& input_zero_point, const Array<tvm::relay::Type>& types,
                      const DequantizeAttrs* attrs);

@@ -431,7 +431,7 @@ Pass GetPass(const String& pass_name) {
     // pass
   } else if ((f = Registry::Get("relay._transform." + pass_name))) {
   }
-  ICHECK(f != nullptr) << "Cannot use " << pass_name << "to create the pass";
+  ICHECK(f != nullptr) << "Cannot use " << pass_name << " to create the pass";
   return (*f)();
 }
 

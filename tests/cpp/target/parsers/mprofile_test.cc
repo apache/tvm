@@ -69,8 +69,9 @@ TEST(MProfileParser, ParseTarget) {
   TargetJSON target = ParseTarget({});
   TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
   Array<String> keys = Downcast<Array<String>>(target.at("keys"));
-  ASSERT_EQ(keys.size(), 1);
+  ASSERT_EQ(keys.size(), 2);
   ASSERT_EQ(keys[0], "arm_cpu");
+  ASSERT_EQ(keys[1], "cpu");
 
   ASSERT_EQ(Downcast<Bool>(features.at("has_mve")), false);
   ASSERT_EQ(Downcast<Bool>(features.at("has_dsp")), false);

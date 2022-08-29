@@ -40,7 +40,7 @@ Array<StmtSRef> GetBlocks(const ScheduleState& self, const String& name, const G
   };
 
   BaseFunc func = self->mod->Lookup(gv);
-  const auto* prim_func = TVM_TYPE_AS(prim_func, func, PrimFuncNode);
+  const auto* prim_func = TVM_TYPE_AS(func, PrimFuncNode);
   Finder finder(self, name);
   finder(prim_func->body);
   return std::move(finder.results_);
