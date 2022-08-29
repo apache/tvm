@@ -23,27 +23,7 @@ import tvm
 import tvm.testing
 from tvm import te
 from tvm.topi.hexagon import qnn
-from ..infrastructure import allocate_hexagon_array, transform_numpy
-
-
-def quantize_np(arr_np, dtype="uint8"):
-    """
-    quantize the input array into dtype quant scale
-    """
-    if dtype == "uint8":
-        qmax = 255
-        qmin = 0
-    elif dtype == "int8":
-        qmax = 128
-        qmin = -127
-    else:
-        raise RuntimeError(f"Unsupported quantized data type '{dtype}'")
-    fmin = np.amin(arr_np)
-    fmax = np.amax(arr_np)
-    scale = (fmax - fmin) / (qmax - qmin)
-    zero_point = np.ceil((fmax * qmin - fmin * qmax) / (fmax - fmin)).astype("int32")
-    quant_np = (arr_np / scale + zero_point).astype(dtype)
-    return quant_np, scale, zero_point
+from ..infrastructure import allocate_hexagon_array, transform_numpy, quantize_np
 
 
 class TestDequantizeSlice2d:
@@ -54,8 +34,8 @@ class TestDequantizeSlice2d:
     input_shape, orig_layout, input_layout, output_layout, axis_sep, dtype = tvm.testing.parameters(
         ((1, 16, 64, 128), "nhwc", "nhwc-8h8w32c-2d", "nhwc-4h2w32c2w-2d", [4], "int8"),
         ((1, 16, 64, 128), "nhwc", "nhwc-8h8w32c-2d", "nhwc-4h2w32c2w-2d", [4], "uint8"),
-        ((1, 64, 64, 32), "nhwc", "nhwc-8h8w32c-2d", "nhwc-4h2w32c2w-2d", [4], "int8"),
-        ((1, 64, 64, 32), "nhwc", "nhwc-8h8w32c-2d", "nhwc-4h2w32c2w-2d", [4], "uint8"),
+        ((1, 8, 8, 32), "nhwc", "nhwc-8h8w32c-2d", "nhwc-4h2w32c2w-2d", [4], "int8"),
+        ((1, 8, 8, 32), "nhwc", "nhwc-8h8w32c-2d", "nhwc-4h2w32c2w-2d", [4], "uint8"),
         ((1, 2048), "nc", "nc-2048c-2d", "nc-512c-2d", [2], "int8"),
         ((1, 2048), "nc", "nc-2048c-2d", "nc-512c-2d", [2], "uint8"),
     )
@@ -75,7 +55,7 @@ class TestDequantizeSlice2d:
     @tvm.testing.fixture
     def expected_output_np(self, input_np, dtype):
         quant_np, scale, zero_point = quantize_np(input_np, dtype)
-        ref_np = (scale * (quant_np.astype("int16") - zero_point)).astype("float32")
+        ref_np = (scale * (quant_np.astype("int32") - zero_point)).astype("float32")
         return ref_np
 
     @tvm.testing.fixture
