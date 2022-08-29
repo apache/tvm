@@ -285,7 +285,7 @@ class ThreadGroup::Impl {
     // is not supported in earlier versions of QuRT. In such cases assume 4.
     if (threads == 0) threads = 4;
 #endif
-    std::vector<std::pair<unsigned int, int64_t> > max_freqs;
+    std::vector<std::pair<unsigned int, int64_t>> max_freqs;
 
     for (unsigned int i = 0; i < threads; ++i) {
       int64_t cur_freq = 0;

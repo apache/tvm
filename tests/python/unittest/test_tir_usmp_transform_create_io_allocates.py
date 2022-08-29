@@ -28,9 +28,9 @@ class SingleInputSingleOutput:
     def tvmgen_default_fused_cast_subtract(placeholder_2: T.handle, placeholder_3: T.handle, T_subtract: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_cast_subtract", "tir.noalias": True})
-        placeholder_4 = T.match_buffer(placeholder_2, [150528], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        placeholder_5 = T.match_buffer(placeholder_3, [1], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        T_subtract_1 = T.match_buffer(T_subtract, [452], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_4 = T.match_buffer(placeholder_2, [150528], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
+        placeholder_5 = T.match_buffer(placeholder_3, [1], dtype="int16", elem_offset=0, align=64, offset_factor=1)
+        T_subtract_1 = T.match_buffer(T_subtract, [452], dtype="int16", elem_offset=0, align=64, offset_factor=1)
         # body
         for ax0_ax1_fused_1 in T.serial(0, 224):
             for ax2_1, ax3_inner_1 in T.grid(224, 3):
@@ -40,8 +40,8 @@ class SingleInputSingleOutput:
     def __tvm_main__(input: T.handle, output: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "__tvm_main__", "runner_function": True})
-        input_buffer_var = T.match_buffer(input, [150528], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        output_buffer_var = T.match_buffer(output, [452], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        input_buffer_var = T.match_buffer(input, [150528], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
+        output_buffer_var = T.match_buffer(output, [452], dtype="int16", elem_offset=0, align=64, offset_factor=1)
         # body
         T.evaluate(T.call_extern("tvmgen_default_fused_cast_subtract", input_buffer_var.data, T.lookup_param("p0", dtype="handle"), output_buffer_var.data, dtype="int32"))
 # fmt: on
@@ -54,9 +54,9 @@ class TwoInputSingleOutput:
     def tvmgen_default_fused_cast_subtract(placeholder_2: T.handle, placeholder_3: T.handle, T_subtract: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_cast_subtract", "tir.noalias": True})
-        placeholder_4 = T.match_buffer(placeholder_2, [150528], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        placeholder_5 = T.match_buffer(placeholder_3, [1], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        T_subtract_1 = T.match_buffer(T_subtract, [452], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_4 = T.match_buffer(placeholder_2, [150528], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
+        placeholder_5 = T.match_buffer(placeholder_3, [1], dtype="int16", elem_offset=0, align=64, offset_factor=1)
+        T_subtract_1 = T.match_buffer(T_subtract, [452], dtype="int16", elem_offset=0, align=64, offset_factor=1)
         # body
         for ax0_ax1_fused_1 in T.serial(0, 224):
             for ax2_1, ax3_inner_1 in T.grid(224, 3):
@@ -66,9 +66,9 @@ class TwoInputSingleOutput:
     def __tvm_main__(input1: T.handle, input2: T.handle, output: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "__tvm_main__", "runner_function": True})
-        input1_buffer_var = T.match_buffer(input1, [150528], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        input2_buffer_var = T.match_buffer(input2, [1], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        output_buffer_var = T.match_buffer(output, [452], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        input1_buffer_var = T.match_buffer(input1, [150528], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
+        input2_buffer_var = T.match_buffer(input2, [1], dtype="int16", elem_offset=0, align=64, offset_factor=1)
+        output_buffer_var = T.match_buffer(output, [452], dtype="int16", elem_offset=0, align=64, offset_factor=1)
         # body
         T.evaluate(T.call_extern("tvmgen_default_fused_cast_subtract", input1_buffer_var.data, input2_buffer_var.data, output_buffer_var.data, dtype="int32"))
 # fmt: on
@@ -81,9 +81,9 @@ class TwoInputTwoOutput:
     def tvmgen_default_fused_cast_subtract(placeholder_2: T.handle, placeholder_3: T.handle, T_subtract: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_cast_subtract", "tir.noalias": True})
-        placeholder_4 = T.match_buffer(placeholder_2, [150528], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        placeholder_5 = T.match_buffer(placeholder_3, [1], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        T_subtract_1 = T.match_buffer(T_subtract, [452], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_4 = T.match_buffer(placeholder_2, [150528], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
+        placeholder_5 = T.match_buffer(placeholder_3, [1], dtype="int16", elem_offset=0, align=64, offset_factor=1)
+        T_subtract_1 = T.match_buffer(T_subtract, [452], dtype="int16", elem_offset=0, align=64, offset_factor=1)
         # body
         for ax0_ax1_fused_1 in T.serial(0, 224):
             for ax2_1, ax3_inner_1 in T.grid(224, 3):
@@ -93,10 +93,10 @@ class TwoInputTwoOutput:
     def __tvm_main__(input1: T.handle, input2: T.handle, output1: T.handle, output2: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "__tvm_main__", "runner_function": True})
-        input1_buffer_var = T.match_buffer(input1, [150528], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        input2_buffer_var = T.match_buffer(input2, [150528], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        output1_buffer_var = T.match_buffer(output1, [452], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        output2_buffer_var = T.match_buffer(output2, [452], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        input1_buffer_var = T.match_buffer(input1, [150528], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
+        input2_buffer_var = T.match_buffer(input2, [150528], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
+        output1_buffer_var = T.match_buffer(output1, [452], dtype="int16", elem_offset=0, align=64, offset_factor=1)
+        output2_buffer_var = T.match_buffer(output2, [452], dtype="int16", elem_offset=0, align=64, offset_factor=1)
         # body
         T.evaluate(T.call_extern("tvmgen_default_fused_cast_subtract", input1_buffer_var.data, T.lookup_param("p0", dtype="handle"), output1_buffer_var.data, dtype="int32"))
         T.evaluate(T.call_extern("tvmgen_default_fused_cast_subtract", input2_buffer_var.data, T.lookup_param("p1", dtype="handle"), output2_buffer_var.data, dtype="int32"))
@@ -110,9 +110,9 @@ class SingleInputTwoOutput:
     def tvmgen_default_fused_cast_subtract(placeholder_2: T.handle, placeholder_3: T.handle, T_subtract: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_cast_subtract", "tir.noalias": True})
-        placeholder_4 = T.match_buffer(placeholder_2, [150528], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        placeholder_5 = T.match_buffer(placeholder_3, [1], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        T_subtract_1 = T.match_buffer(T_subtract, [452], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_4 = T.match_buffer(placeholder_2, [150528], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
+        placeholder_5 = T.match_buffer(placeholder_3, [1], dtype="int16", elem_offset=0, align=64, offset_factor=1)
+        T_subtract_1 = T.match_buffer(T_subtract, [452], dtype="int16", elem_offset=0, align=64, offset_factor=1)
         # body
         for ax0_ax1_fused_1 in T.serial(0, 224):
             for ax2_1, ax3_inner_1 in T.grid(224, 3):
@@ -122,9 +122,9 @@ class SingleInputTwoOutput:
     def __tvm_main__(input: T.handle, output1: T.handle, output2: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "__tvm_main__", "runner_function": True})
-        input_buffer_var = T.match_buffer(input, [150528], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        output1_buffer_var = T.match_buffer(output1, [452], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        output2_buffer_var = T.match_buffer(output2, [452], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        input_buffer_var = T.match_buffer(input, [150528], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
+        output1_buffer_var = T.match_buffer(output1, [452], dtype="int16", elem_offset=0, align=64, offset_factor=1)
+        output2_buffer_var = T.match_buffer(output2, [452], dtype="int16", elem_offset=0, align=64, offset_factor=1)
         # body
         T.evaluate(T.call_extern("tvmgen_default_fused_cast_subtract", input_buffer_var.data, T.lookup_param("p0", dtype="handle"), output1_buffer_var.data, dtype="int32"))
         T.evaluate(T.call_extern("tvmgen_default_fused_cast_subtract", input_buffer_var.data, T.lookup_param("p1", dtype="handle"), output2_buffer_var.data, dtype="int32"))

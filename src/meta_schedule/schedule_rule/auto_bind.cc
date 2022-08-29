@@ -45,7 +45,7 @@ void BindBlockThreadIdx(const tir::Schedule& sch, const tir::BlockRV& block_rv,
   int i_spatial_loop = -1;
   for (int i = 0; i < n; ++i) {
     const StmtSRef& loop_sref = loops[i];
-    const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+    const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
     runtime::ThreadScope thread_scope = GetThreadScope(loop);
     if (IsBlockIdx(thread_scope)) {
       if (i_block_idx == -1) {

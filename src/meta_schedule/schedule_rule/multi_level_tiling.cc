@@ -37,7 +37,7 @@ namespace tir {
  * of multi-level tiling, so it's intentionally kept inside this file not in the analysis header
  */
 std::vector<int> GetReadBufferNDims(const StmtSRef& block_sref) {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   const BufferNode* write_buffer = block->writes[0]->buffer.get();
   int n = block->reads.size();
   std::vector<int> results(n, -1);

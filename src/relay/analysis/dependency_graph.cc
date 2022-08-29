@@ -56,11 +56,11 @@ class DependencyGraph::Creator : private MixedModeVisitor {
   }
 
   void Depend(DependencyGraph::Node* parent, DependencyGraph::Node* child) {
-    auto* parent_link = arena_->make<LinkNode<DependencyGraph::Node*> >();
+    auto* parent_link = arena_->make<LinkNode<DependencyGraph::Node*>>();
     parent_link->value = parent;
     child->parents.Push(parent_link);
 
-    auto* child_link = arena_->make<LinkNode<DependencyGraph::Node*> >();
+    auto* child_link = arena_->make<LinkNode<DependencyGraph::Node*>>();
     child_link->value = child;
     parent->children.Push(child_link);
   }

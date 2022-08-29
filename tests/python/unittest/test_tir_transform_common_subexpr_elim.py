@@ -449,7 +449,7 @@ def test_deterministic_cse():
 
 # Needed for the second test on determinism
 LOG_LINE = '{"i": [["[\\"conv2d_layer\\", 1, 7, 7, 512, 512, 3, 3, [1, 1], [1, 1]]", \
-            "llvm -keys=cpu -link-params=0 -mcpu=broadwell -num-cores=2", \
+            "llvm -keys=cpu -mcpu=broadwell -num-cores=2", \
             [8, 64, 64, 0, 0, 0, 0, 0], "", 1, []], [[], [["CI", 5], \
             ["SP", 3, 0, 1, [1, 1, 1], 1], ["SP", 3, 4, 512, [1, 32, 16], 1], \
             ["SP", 3, 8, 7, [7, 1, 1], 1], ["SP", 3, 12, 7, [1, 1, 1], 1], \

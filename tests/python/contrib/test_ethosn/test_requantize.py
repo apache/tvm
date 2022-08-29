@@ -69,6 +69,69 @@ def test_requantize(in_dtype, out_dtype, shape):
 
 
 @requires_ethosn
+def test_requantize_mixed_precision_with_following_op():
+    """
+    Checks a requantize operation that changes precision from uint8 to int8 with a
+    following add op.
+    """
+    np.random.seed(0)
+    shape = (1, 4, 6, 8)
+    in_sc = 0.012566
+    in_zp = 131
+    out_sc = 0.012566
+    out_zp = 3
+    in_dtype = "uint8"
+    out_dtype = "int8"
+
+    def get_model():
+        a = relay.var("a", shape=shape, dtype=in_dtype)
+        b = relay.var("b", shape=shape, dtype=out_dtype)
+        req = relay.qnn.op.requantize(
+            data=a,
+            input_scale=relay.const(in_sc, "float32"),
+            input_zero_point=relay.const(in_zp, "int32"),
+            output_scale=relay.const(out_sc, "float32"),
+            output_zero_point=relay.const(out_zp, "int32"),
+            out_dtype=out_dtype,
+        )
+        req = relay.qnn.op.add(
+            req,
+            b,
+            lhs_scale=relay.const(out_sc, "float32"),
+            lhs_zero_point=relay.const(out_zp, "int32"),
+            rhs_scale=relay.const(out_sc, "float32"),
+            rhs_zero_point=relay.const(out_zp, "int32"),
+            output_scale=relay.const(out_sc, "float32"),
+            output_zero_point=relay.const(out_zp, "int32"),
+        )
+        return req
+
+    inputs = {
+        "a": tvm.nd.array(
+            np.random.randint(
+                low=np.iinfo(in_dtype).min, high=np.iinfo(in_dtype).max, size=shape, dtype=in_dtype
+            )
+        ),
+        "b": tvm.nd.array(
+            np.random.randint(
+                low=np.iinfo(out_dtype).min,
+                high=np.iinfo(out_dtype).max,
+                size=shape,
+                dtype=out_dtype,
+            )
+        ),
+    }
+    outputs = []
+    for npu in [False, True]:
+        model = get_model()
+        mod = tei.make_module(model, {})
+        x = tei.build_and_run(mod, inputs, 1, {}, npu=npu)
+        outputs.append(x)
+
+    tei.verify(outputs, out_dtype, 1)
+
+
+@requires_ethosn
 def test_requantize_failure():
     input_sc = 0.8
     output_sc = (input_sc / 128) - 0.0001

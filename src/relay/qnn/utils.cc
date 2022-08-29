@@ -64,8 +64,7 @@ Expr FixedPointMultiplyToNearest(Expr tensor, double multiplier,
   tensor = Cast(tensor, hp_dtype);
 
   // 1) Calculating the integer multiplier and integer shift
-  int32_t fixed_point_multiplier, shift;
-  std::tie(fixed_point_multiplier, shift) = GetFixedPointMultiplierShift(multiplier);
+  auto [fixed_point_multiplier, shift] = GetFixedPointMultiplierShift(multiplier);
   int left_shift = shift > 0 ? shift : 0;
   int right_shift = shift > 0 ? 0 : -shift;
 
@@ -128,8 +127,7 @@ Expr FixedPointMultiplyPerChannel(Expr tensor, std::vector<double> multipliers,
   std::vector<int32_t> fixed_pt_multipliers, lshifts, rshifts;
   bool is_lshift_required = false;
   for (auto multiplier : multipliers) {
-    int32_t fixed_pt_multiplier, shift;
-    std::tie(fixed_pt_multiplier, shift) = GetFixedPointMultiplierShift(multiplier);
+    auto [fixed_pt_multiplier, shift] = GetFixedPointMultiplierShift(multiplier);
     int lshift = shift > 0 ? shift : 0;
     int rshift = shift > 0 ? 0 : -shift;
     fixed_pt_multipliers.push_back(fixed_pt_multiplier);

@@ -17,19 +17,3 @@
 pytest_plugins = [
     "tvm.micro.testing.pytest_plugin",
 ]
-
-import pytest
-
-
-def pytest_addoption(parser):
-    parser.addoption(
-        "--platform",
-        required=True,
-        choices=["arduino", "zephyr"],
-        help="Platform to run tests with",
-    )
-
-
-@pytest.fixture
-def platform(request):
-    return request.config.getoption("--platform")

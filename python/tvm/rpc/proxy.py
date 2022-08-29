@@ -568,7 +568,7 @@ def _popen_start_proxy_server(
 
 
 class Proxy(object):
-    """Start RPC proxy server on a seperate process.
+    """Start RPC proxy server on a separate process.
 
     Python implementation based on PopenWorker.
 

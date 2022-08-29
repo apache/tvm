@@ -117,6 +117,8 @@ Expr MakeShapeOf(Expr data, DataType dtype);
 
 Expr MakeTake(Expr data, Expr indices, Integer batch_dims, Integer axis, String mode);
 
+Expr MakeBiasAdd(Expr data, Expr bias, int axis);
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_OP_MAKE_OP_H_

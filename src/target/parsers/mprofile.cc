@@ -105,15 +105,17 @@ static TargetFeatures GetFeatures(TargetJSON target) {
 }
 
 static Array<String> MergeKeys(Optional<Array<String>> existing_keys) {
-  const String kExtraKey = "arm_cpu";
+  const Array<String> kExtraKeys = {"arm_cpu", "cpu"};
 
   if (!existing_keys) {
-    return {kExtraKey};
+    return kExtraKeys;
   }
 
   Array<String> keys = existing_keys.value();
-  if (std::find(keys.begin(), keys.end(), kExtraKey) == keys.end()) {
-    keys.push_back(kExtraKey);
+  for (String key : kExtraKeys) {
+    if (std::find(keys.begin(), keys.end(), key) == keys.end()) {
+      keys.push_back(key);
+    }
   }
   return keys;
 }
