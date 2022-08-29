@@ -632,7 +632,22 @@ if(USE_OPENCL AND DEFINED USE_OPENCL_GTEST AND (EXISTS ${USE_OPENCL_GTEST} OR "$
     message(STATUS "Found OpenCL gtest at ${USE_OPENCL_GTEST}")
   endif()
   set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+  get_property(
+    compile_options
+    DIRECTORY
+    PROPERTY COMPILE_OPTIONS
+  )
+  set_property(
+      DIRECTORY
+      APPEND
+      PROPERTY COMPILE_OPTIONS -Wno-undef
+  )
   FetchContent_MakeAvailable(googletest)
+  set_property(
+    DIRECTORY
+    PROPERTY COMPILE_OPTIONS ${compile_options}
+  )
+  unset(compile_options)
   target_link_libraries(tvm_runtime PRIVATE gtest)
   target_link_libraries(tvm PRIVATE gtest)
 endif()
