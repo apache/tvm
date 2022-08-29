@@ -722,9 +722,9 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
       << "qnn.conv2d supports only OIHW/HWIO/HWOI/OHWI kernel data layout.";
   ICHECK(param->kernel_size.defined()) << "qnn.conv2d requires kernel size to be specified.";
 
-  int batch_size, in_channels, out_channels, kernel_h, kernel_w, channel_multiplier;
-  std::tie(batch_size, in_channels, out_channels, kernel_h, kernel_w, channel_multiplier) =
+  auto [batch_size, in_channels, out_channels, kernel_h, kernel_w, channel_multiplier] =
       GetWorkload(arg_types, param);
+  (void)batch_size;  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
 
   // zero points are allowed to be non-scalar. Let's check if that's the case.
   bool dynamic_zp = false;

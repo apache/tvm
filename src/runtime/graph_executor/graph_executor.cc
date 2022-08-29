@@ -674,9 +674,7 @@ PackedFunc GraphExecutor::GetFunction(const std::string& name,
     });
   } else if (name == "get_input_info") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      GraphExecutor::ShapeInfo shape_info;
-      GraphExecutor::DtypeInfo dtype_info;
-      std::tie(shape_info, dtype_info) = this->GetInputInfo();
+      auto [shape_info, dtype_info] = this->GetInputInfo();
       Map<String, ObjectRef> input_info;
       input_info.Set("shape", shape_info);
       input_info.Set("dtype", dtype_info);

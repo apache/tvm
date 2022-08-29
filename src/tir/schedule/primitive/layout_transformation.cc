@@ -137,9 +137,7 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
   const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_sref);
   Buffer old_buffer =
       GetNthAccessBuffer(self, GetRef<Block>(block_ptr), buffer_index, buffer_index_type);
-  Optional<StmtSRef> defining_site_sref;
-  bool is_alloc;
-  std::tie(defining_site_sref, is_alloc) = GetBufferDefiningSite(block_sref, old_buffer);
+  auto [defining_site_sref, is_alloc] = GetBufferDefiningSite(block_sref, old_buffer);
   if (defining_site_sref.defined() && !is_alloc) {
     throw BufferIsSubregionError(self->mod, old_buffer);
   }
@@ -155,9 +153,7 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
   Buffer new_buffer{new_buffer_node};
 
   // Step 2: Rewrite access indices and regions of the buffer
-  Stmt new_stmt;
-  Map<Block, Block> block_sref_reuse;
-  std::tie(new_stmt, block_sref_reuse) = TransformLayoutRewriter::Rewrite(
+  auto [new_stmt, block_sref_reuse] = TransformLayoutRewriter::Rewrite(
       GetRef<Block>(scope_block), old_buffer, new_buffer, index_map);
   Block new_scope_block = Downcast<Block>(new_stmt);
 
@@ -492,9 +488,7 @@ void SetAxisSeparator(ScheduleState self, const StmtSRef& block_sref, int buffer
   const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_sref);
   Buffer old_buffer =
       GetNthAccessBuffer(self, GetRef<Block>(block_ptr), buffer_index, buffer_index_type);
-  Optional<StmtSRef> defining_site_sref;
-  bool is_alloc;
-  std::tie(defining_site_sref, is_alloc) = GetBufferDefiningSite(block_sref, old_buffer);
+  auto [defining_site_sref, is_alloc] = GetBufferDefiningSite(block_sref, old_buffer);
   if (defining_site_sref.defined() && !is_alloc) {
     throw BufferIsSubregionError(self->mod, old_buffer);
   }

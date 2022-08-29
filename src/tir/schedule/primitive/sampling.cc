@@ -348,9 +348,7 @@ tir::StmtSRef SampleComputeLocation(tir::ScheduleState self,
                                     support::LinearCongruentialEngine::TRandState* rand_state,
                                     const StmtSRef& block_sref, Optional<Integer>* decision) {
   // Step 1. Collect all possible compute-at locations.
-  Array<tir::StmtSRef> location_srefs;
-  std::vector<int> location_indices;
-  std::tie(location_srefs, location_indices) = CollectComputeLocation(self, block_sref);
+  auto [location_srefs, location_indices] = CollectComputeLocation(self, block_sref);
   ICHECK_EQ(location_srefs.size(), location_indices.size());
 
   // Step 2. If there was a previous decision, keep the decision unchanged if it exists in the

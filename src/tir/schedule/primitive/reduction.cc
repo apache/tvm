@@ -278,9 +278,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   body = Substitute(body, loop_var_map);
   // Step 6. Mutate IR
   const BlockNode* old_scope_root = TVM_SREF_TO_BLOCK(scope_root_sref);
-  Block new_scope_root{nullptr};
-  Block new_reduction_block{nullptr};
-  std::tie(new_scope_root, new_reduction_block) = DecomposeReductionBlockReplacer::Replace(
+  auto [new_scope_root, new_reduction_block] = DecomposeReductionBlockReplacer::Replace(
       GetRef<Block>(old_scope_root), GetRef<For>(loop), body, GetRef<Block>(block));
   self->Replace(scope_root_sref, new_scope_root,
                 {{GetRef<Block>(old_scope_root), new_scope_root},
@@ -1042,12 +1040,8 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   // commutative reducer, combiner lhs and combiner rhs from the reduction identity and the
   // reduction combiner. The lhs will be used when constructing the write-back block, and the rhs
   // will be used when constructing the rfactor block.
-  BufferStore init;
-  BufferStore update;
-  CommReducer reducer;
-  PrimExpr combiner_lhs, combiner_rhs;
-  std::tie(init, update) = GetBufferStoresFromReductionBlock(self, block);
-  std::tie(reducer, combiner_lhs, combiner_rhs) =
+  auto [init, update] = GetBufferStoresFromReductionBlock(self, block);
+  auto [reducer, combiner_lhs, combiner_rhs] =
       GetReducerAndCombinerLhsRhs(self, init->value, update);
 
   // Step 6. Check whether `factor_axis` is in a correct range, and convert it to non-negative if it
