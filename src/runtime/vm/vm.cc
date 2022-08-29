@@ -774,7 +774,7 @@ void VirtualMachine::RunLoop(const std::vector<Index>& output_tensor_reg_indices
       case Opcode::AllocTensor: {
         OpStartHook(instr);
         if (!output_tensor_reg_indices.empty() && FindIndex(output_tensor_reg_indices, instr.dst)) {
-          WriteAllocatedTensorFromOutside(instr, output_tensor_reg_indices);
+          WriteAllocatedTensorFromOutside(instr);
         } else {
           WriteAllocatedTensor(instr);
         }
@@ -940,51 +940,48 @@ void VirtualMachine::WriteAllocatedTensor(const Instruction& instr) {
   WriteRegister(instr.dst, obj);
 }
 
-void VirtualMachine::WriteAllocatedTensorFromOutside(
-    const Instruction& instr, const std::vector<Index>& output_tensor_reg_indices) {
-  for (auto res_index : output_tensor_reg_indices) {
-    // External tensor(s) has been already written to the register
-    auto ex_arr = Downcast<NDArray>(ReadRegister(res_index));
-    auto ex_shape = ex_arr.Shape();
-    auto ex_size = ex_shape.size();
-    auto ex_dtype = ex_arr->dtype;
+void VirtualMachine::WriteAllocatedTensorFromOutside(const Instruction& instr) {
+  // External tensor(s) has been already written to the register (instr.dst)
+  auto ex_arr = Downcast<NDArray>(ReadRegister(instr.dst));
+  auto ex_shape = ex_arr.Shape();
+  auto ex_size = ex_shape.size();
+  auto ex_dtype = ex_arr->dtype;
 
-    auto in_size = instr.alloc_tensor.ndim;
-    auto in_dtype = instr.alloc_tensor.dtype;
-    ICHECK_EQ(TypeEqual(in_dtype, ex_dtype), true)
-          << "Data types mismatching for internal and external output tensors";
+  auto in_size = instr.alloc_tensor.ndim;
+  auto in_dtype = instr.alloc_tensor.dtype;
+  ICHECK_EQ(TypeEqual(in_dtype, ex_dtype), true)
+      << "Data types mismatching for internal and external output tensors";
 
-    bool size_check = false;
-    if (ex_size != in_size) {
-      size_check = true;
-    } else {
-      for (size_t i = 0; i < in_size; ++i) {
-        if (ex_shape[i] != instr.alloc_tensor.shape[i]) {
-          size_check = true;
-          break;
-        }
+  bool size_check = false;
+  if (ex_size != in_size) {
+    size_check = true;
+  } else {
+    for (size_t i = 0; i < in_size; ++i) {
+      if (ex_shape[i] != instr.alloc_tensor.shape[i]) {
+        size_check = true;
+        break;
       }
     }
+  }
 
-    if (size_check) {
-      // Match element number
-      size_t in_el_num = 1, ex_el_num = 1;
-      for (size_t i = 0; i < ex_size; ++i) {
-        ex_el_num *= ex_shape[i];
-      }
-      for (size_t i = 0; i < in_size; ++i) {
-        in_el_num *= instr.alloc_tensor.shape[i];
-      }
-      ICHECK_EQ(in_el_num, ex_el_num)
-          << "Element number mismatching of internal and external output tensors";
-      if (code_[preresult_op_index_].op == Opcode::ReshapeTensor) {
-        int64_t* dims = instr.alloc_tensor.shape;
-        std::vector<int64_t> ref_shape(dims, dims + int64_t(in_size));
-        auto reshaped_tensor = ex_arr.CreateView(ref_shape, ex_dtype);
-        WriteRegister(res_index, reshaped_tensor);
-      } else {
-        LOG_ERROR << "Internal and external output tensor shapes are mismatched";
-      }
+  if (size_check) {
+    // Match element number
+    size_t in_el_num = 1, ex_el_num = 1;
+    for (size_t i = 0; i < ex_size; ++i) {
+      ex_el_num *= ex_shape[i];
+    }
+    for (size_t i = 0; i < in_size; ++i) {
+      in_el_num *= instr.alloc_tensor.shape[i];
+    }
+    ICHECK_EQ(in_el_num, ex_el_num)
+        << "Element number mismatching of internal and external output tensors";
+    if (code_[preresult_op_index_].op == Opcode::ReshapeTensor) {
+      int64_t* dims = instr.alloc_tensor.shape;
+      std::vector<int64_t> ref_shape(dims, dims + int64_t(in_size));
+      auto reshaped_tensor = ex_arr.CreateView(ref_shape, ex_dtype);
+      WriteRegister(instr.dst, reshaped_tensor);
+    } else {
+      LOG_ERROR << "Internal and external output tensor shapes are mismatched";
     }
   }
 }

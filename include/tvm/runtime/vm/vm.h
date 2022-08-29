@@ -408,13 +408,11 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
   /*!
    * \brief 'set_outputs_enabled' is assumed true for using this method.
    * It is expected that result register has already contained tensor from outside,
-   * new tensor is not allocated and write, but expected shape is checked.
+   * new memory is not allocated and write, but expected shape and data type are checked.
    * For other register WriteAllocatedTensor method is used.
    * \param instr current instruction containing shape and storage info.
-   * \param output_tensor_reg_indices register indices of output tensors.
    */
-  void WriteAllocatedTensorFromOutside(const Instruction& instr,
-                                       const std::vector<Index>& output_tensor_reg_indices);
+  void WriteAllocatedTensorFromOutside(const Instruction& instr);
 
   bool FindIndex(const std::vector<Index>& indices, Index val) const;
 
