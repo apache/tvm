@@ -640,7 +640,7 @@ if(USE_OPENCL AND DEFINED USE_OPENCL_GTEST AND (EXISTS ${USE_OPENCL_GTEST} OR "$
   set_property(
       DIRECTORY
       APPEND
-      PROPERTY COMPILE_OPTIONS -Wno-undef
+      PROPERTY COMPILE_OPTIONS -Wno-error=sign-compare
   )
   FetchContent_MakeAvailable(googletest)
   set_property(
