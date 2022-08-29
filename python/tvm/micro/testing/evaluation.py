@@ -153,7 +153,7 @@ def predict_labels_aot(session, aot_executor, input_data, runs_per_sample=1):
     assert runs_per_sample > 0
 
     for counter, sample in enumerate(input_data):
-        logging.info(f"Evaluating sample {counter}")
+        logging.info("Evaluating sample %d", counter)
         aot_executor.get_input(0).copyfrom(sample)
         result = aot_executor.module.time_evaluator("run", session.device, number=runs_per_sample)()
         predicted_label = aot_executor.get_output(0).numpy().argmax()
