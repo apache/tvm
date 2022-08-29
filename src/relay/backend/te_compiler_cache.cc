@@ -367,7 +367,8 @@ class ScheduleBuilder : public ExprVisitor {
         if (Optional<PrimFunc> f = tir_converter(te_args, constants)) {
           if (Optional<TuningRecord> opt_record = database_.value()->QueryTuningRecord(
                   /*mod=*/backend::PrimFuncToIRModule(f.value()),
-                  /*target=*/target_)) {
+                  /*target=*/target_,
+                  /*workload_name=*/prim_fn_var->name_hint)) {
             static InstructionKind kind_transform_layout = InstructionKind::Get("TransformLayout");
             TuningRecord record = opt_record.value();
             for (const Instruction& inst : record->trace->insts) {
@@ -383,6 +384,8 @@ class ScheduleBuilder : public ExprVisitor {
             ICHECK_EQ(mod->functions.size(), 1);
             mod = tir::transform::RemoveWeightLayoutRewriteBlock()(std::move(mod));
             prim_func = Downcast<PrimFunc>(mod->Lookup("main"));
+          } else {
+            LOG(WARNING) << "Cannot find workload: " << prim_fn_var->name_hint;
           }
         }
       }

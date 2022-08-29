@@ -18,8 +18,9 @@ import numpy as np
 import tvm
 import tvm.testing
 import tvm.topi.testing
-from tvm import autotvm, relay, te
-from tvm.meta_schedule.testing.utils import apply_fixed_schedules
+from tvm import autotvm
+from tvm import meta_schedule as ms
+from tvm import relay, te
 from tvm.relay.testing.temp_op_attr import TempOpAttr
 from tvm.script import tir as T
 
@@ -139,21 +140,14 @@ def test_conv2d():
     target = "llvm"
     params = {"weight": weight_np}
 
-    def schedule_fn(task, sch):
-        if "nn_conv2d" in task.task_name:
+    def schedule_fn(sch):
+        if "nn_conv2d" in sch.mod.attrs["task_name"]:
             schedule_tir_conv2d_nchw_oihw(sch)
             return True
         return False
 
     with TempOpAttr("nn.conv2d", "FTVMStrategy", _tmp_strategy):
-        database = apply_fixed_schedules(
-            relay_mod,
-            target,
-            params,
-            schedule_fn,
-            tir_converter="allow_extern",
-        )
-        with database, tvm.transform.PassContext(
+        with ms.database.ScheduleFnDatabase(schedule_fn), tvm.transform.PassContext(
             opt_level=3,
             config={
                 "relay.backend.use_meta_schedule": True,

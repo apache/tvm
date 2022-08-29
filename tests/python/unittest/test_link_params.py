@@ -29,7 +29,6 @@ import tvm.testing
 from tvm import meta_schedule as ms
 from tvm import relay
 from tvm.contrib import utils
-from tvm.meta_schedule.testing.utils import apply_fixed_schedules
 from tvm.relay.backend import Executor, Runtime
 
 INPUT_SHAPE = (1, 3, 16, 16)
@@ -407,21 +406,21 @@ def test_tir_link_params():
     target = "llvm"
     params = {"weight": weight_np}
 
-    def schedule_fn(task, sch):
-        if "nn_dense" in task.task_name:
+    def schedule_fn(sch):
+        if "nn_dense" in sch.mod.attrs["task_name"]:
             schedule_dense(sch)
             return True
         return False
 
     link_params = True
 
-    with tvm.transform.PassContext(config={"relay.FuseOps.link_params": link_params}):
-        database = apply_fixed_schedules(relay_mod, target, params, schedule_fn)
-
     with StringIO() as stderr_buf, redirect_stderr(stderr_buf):
-        with database, tvm.transform.PassContext(
+        with ms.database.ScheduleFnDatabase(schedule_fn), tvm.transform.PassContext(
             opt_level=3,
-            config={"relay.backend.use_meta_schedule": True},
+            config={
+                "relay.backend.use_meta_schedule": True,
+                "relay.FuseOps.link_params": link_params,
+            },
         ):
             executor = Executor("graph", {"link-params": link_params})
             lib = relay.build(relay_mod, target=target, executor=executor)
