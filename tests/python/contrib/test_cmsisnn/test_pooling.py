@@ -15,14 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""CMSIS-NN integration tests: Conv2D"""
+"""CMSIS-NN integration tests: Pooling"""
 import numpy as np
 import pytest
 import tvm
 from tvm import relay
 from tvm.relay.op.contrib import cmsisnn
 
-from tvm.testing.aot import AOTTestModel, compile_and_run, generate_ref_data
+from tvm.testing.aot import (
+    generate_ref_data,
+    AOTTestModel,
+    compile_and_run,
+)
 from tvm.micro.testing.aot_test_utils import AOT_USMP_CORSTONE300_RUNNER
 from .utils import (
     make_module,

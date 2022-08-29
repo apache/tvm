@@ -190,13 +190,14 @@ class ScheduleRule : public runtime::ObjectRef {
    * NullOpt means disable vectorization
    * \param reuse_read Data reuse configuration for reading. NullOpt means no reuse.
    * \param reuse_write Data reuse configuration for writing. NullOpt means no reuse.
+   * \param use_software_pipeline Whether use the software pipeline.
    * \return The schedule rule created
    */
   TVM_DLL static ScheduleRule MultiLevelTilingTensorCore(
       Array<Map<String, String>> intrin_groups, String structure,
       Optional<Array<String>> tile_binds, Optional<Integer> max_innermost_factor,
       Optional<Array<Integer>> vector_load_lens, Optional<Map<String, ObjectRef>> reuse_read,
-      Optional<Map<String, ObjectRef>> reuse_write);
+      Optional<Map<String, ObjectRef>> reuse_write, bool use_software_pipeline);
 
   /*!
    * \brief Create a rule: add-rfactor to some blocks if needed

@@ -334,7 +334,7 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
   /*!
    * \brief Set one input tensor with given index to set of input tensors if need copy to given
    * device. \param tensors the input tensors set (destination) \param tensor some tensor (not
-   * neccessary DLTensor). \param index The input tensor index. \param dev device to copy if need.
+   * necessary DLTensor). \param index The input tensor index. \param dev device to copy if need.
    */
   void SetInputTensorWithIndex(std::vector<ObjectRef>& tensors,  // NOLINT(*)
                                const TVMArgValue& tensor, int index, Device dev);

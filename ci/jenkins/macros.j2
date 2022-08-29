@@ -19,11 +19,11 @@
   "workspace/exec_${env.EXECUTOR_NUMBER}/{{ folder }}"
 {%- endmacro -%}
 
-{% macro junit_to_s3() %}
+{% macro junit_to_s3(test_dir_name) %}
 sh(
             script: """
               set -eux
-              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results --recursive
+              aws s3 cp --no-progress build/pytest-results s3://${s3_prefix}/pytest-results/{{ test_dir_name }} --recursive
             """,
             label: 'Upload JUnits to S3',
           )
@@ -33,6 +33,7 @@ sh(
 
 {% for shard_index in range(1, num_shards + 1) %}
 {% set method_name = "shard_run_" + name.replace(":", "").replace(" ", "-").replace("-", "_") + "_" + shard_index|string + "_of_" + num_shards|string %}
+{% set test_dir_name = name.replace(":", "").replace(" ", "-").replace("-", "_")|string %}
 def {{ method_name }}() {
   if (!skip_ci && is_docs_only_build != 1) {
     node('{{ node }}') {
@@ -43,13 +44,15 @@ def {{ method_name }}() {
           timeout(time: max_time, unit: 'MINUTES') {
             withEnv([
               'PLATFORM={{ platform }}',
+              'TEST_STEP_NAME={{ name }}',
               'TVM_NUM_SHARDS={{ num_shards }}',
-              'TVM_SHARD_INDEX={{ shard_index - 1 }}'], {
+              'TVM_SHARD_INDEX={{ shard_index - 1 }}',
+              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
               {{ caller(shard_index, num_shards) | trim | indent(width=12) }}
             })
           }
         } finally {
-          {{ junit_to_s3() }}
+          {{ junit_to_s3(test_dir_name) }}
           junit 'build/pytest-results/*.xml'
         }
       }
@@ -73,7 +76,9 @@ def {{ method_name }}() {
         timeout(time: max_time, unit: 'MINUTES') {
           withEnv([
             'TVM_NUM_SHARDS={{ num_shards }}',
-            'TVM_SHARD_INDEX={{ shard_index - 1 }}'], {
+            'TEST_STEP_NAME={{ name }}',
+            'TVM_SHARD_INDEX={{ shard_index - 1 }}',
+            "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
             {{ caller() | trim | indent(width=6) }}
           })
         }
@@ -83,8 +88,32 @@ def {{ method_name }}() {
 {% endfor %}
 {% endmacro %}
 
+{% macro test_step_body(name, node, ws, docker_image, platform) %}
+{% set test_dir_name = name.replace(":", "").replace(" ", "-").replace("-", "_")|string %}
+  if (!skip_ci && is_docs_only_build != 1) {
+    node('{{ node }}') {
+      ws({{ per_exec_ws(ws) }}) {
+        timeout(time: max_time, unit: 'MINUTES') {
+          try {
+            docker_init({{ docker_image }})
+            init_git()
+            withEnv(['PLATFORM={{ platform }}'], {
+              {{ caller() | indent(width=8) | trim }}
+            })
+          } finally {
+            {{ junit_to_s3(test_dir_name) | indent(width=0) }}
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('{{ name }}')
+  }
+{% endmacro %}
 
 {% macro test_step(name, node, ws, docker_image, platform) %}
+{% set test_dir_name = name.replace(":", "").replace(" ", "-").replace("-", "_")|string %}
   '{{ name }}': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('{{ node }}') {
@@ -93,11 +122,13 @@ def {{ method_name }}() {
             try {
               docker_init({{ docker_image }})
               init_git()
-              withEnv(['PLATFORM={{ platform }}'], {
+              withEnv(['PLATFORM={{ platform }}',
+              'TEST_STEP_NAME={{ name }}',
+              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
                 {{ caller() | indent(width=12) | trim }}
               })
             } finally {
-              {{ junit_to_s3() | indent(width=4) }}
+              {{ junit_to_s3(test_dir_name) | indent(width=4) }}
               junit 'build/pytest-results/*.xml'
             }
           }
@@ -111,24 +142,40 @@ def {{ method_name }}() {
 
 {% macro bash_retry() %}
 retry() {
-  local retries=\$1
+  local max_retries=\$1
   shift
+  local n=0
+  local backoff_max=30
+  until [ "\$n" -ge \$max_retries ]
+  do
+      "\$@" && break
+      n=\$((n+1))
+      if [ "\$n" -eq \$max_retries ]; then
+          echo "failed to update after attempt \$n / \$max_retries, giving up"
+          exit 1
+      fi
 
-  local count=0
-  until "\$@"; do
-    exit=\$?
-    wait=\$((2 ** \$count))
-    count=\$((\$count + 1))
-    if [ \$count -lt \$retries ]; then
-      echo "Retry \$count/\$retries exited \$exit, retrying in \$wait seconds..."
-      sleep \$wait
-    else
-      echo "Retry \$count/\$retries exited \$exit, no more retries left."
-      return \$exit
-    fi
+      WAIT=\$(python3 -c 'import random; print(random.randint(10, 30))')
+      echo "failed to update \$n / \$max_retries, waiting \$WAIT to try again"
+      sleep \$WAIT
   done
-  return 0
 }
+{% endmacro %}
+
+{% macro deploy_step(name, feature_flag, ws) %}
+  '{{ name }}': {
+    if ({{ feature_flag }}) {
+      node('CPU') {
+        ws({{ per_exec_ws(ws) }}) {
+          timeout(time: max_time, unit: 'MINUTES') {
+            {{ caller() | indent(width=10) | trim }}
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('{{ name }}')
+    }
+  },
 {% endmacro %}
 
 {% macro upload_artifacts(tag, filenames, folders=None) %}

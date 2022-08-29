@@ -1012,7 +1012,11 @@ class Schedule(Object):
 
     @type_checked
     def cache_read(
-        self, block: Union[BlockRV, str], read_buffer_index: int, storage_scope: str
+        self,
+        block: Union[BlockRV, str],
+        read_buffer_index: int,
+        storage_scope: str,
+        consumer_blocks: Optional[List[Union[BlockRV, str]]] = None,
     ) -> BlockRV:
         """Create a block that reads a buffer region into a read cache. It requires:
 
@@ -1030,6 +1034,10 @@ class Schedule(Object):
 
         storage_scope: str
             The target storage scope.
+
+        consumer_blocks: Optional[List[Union[BlockRV, str]]]
+            An optional list of consumers that should read from the cache. If not specified,
+            all consumers will use the cache.
 
         Returns
         -------
@@ -1079,9 +1087,14 @@ class Schedule(Object):
                         B[vi, vj] = A_local[vi, vj] * 2.0
 
         """
+        if consumer_blocks is None:
+            consumer_blocks = []
+
+        # Convert any string block names into Block RVs.
+        consumer_blocks = [self._normalize_block_arg(b) for b in consumer_blocks]
         block = self._normalize_block_arg(block)
         return _ffi_api.ScheduleCacheRead(  # type: ignore # pylint: disable=no-member
-            self, block, read_buffer_index, storage_scope
+            self, block, read_buffer_index, storage_scope, consumer_blocks
         )
 
     @type_checked
@@ -1261,6 +1274,7 @@ class Schedule(Object):
         block: Union[BlockRV, str],
         loop: LoopRV,
         preserve_unit_loops: bool = False,
+        index: int = -1,
     ) -> None:
         """Compute-At. Move a producer block under the specific loop, and regenerate the
         loops induced by the block so that the buffer region produced by the producer block could
@@ -1289,6 +1303,12 @@ class Schedule(Object):
 
         preserve_unit_loops: bool
             Whether to keep the trivial loops whose extents are 1
+
+        index: int
+            The block index of the loop body subtree blocks:
+            - `index = -1` means inserted into the last possible insertion point;
+            - `index = -2` means inserted into the first possible insertion point;
+            - Otherwise, `index` is a nonnegative number that indicates the insertion point
 
         Examples
         --------
@@ -1347,6 +1367,7 @@ class Schedule(Object):
             block,
             loop,
             preserve_unit_loops,
+            index,
         )
 
     @type_checked
@@ -1355,6 +1376,7 @@ class Schedule(Object):
         block: Union[BlockRV, str],
         loop: LoopRV,
         preserve_unit_loops: bool = False,
+        index: int = -1,
     ) -> None:
         """Reverse-Compute-At. Move a consumer block under the specific loop, and regenerate the
         loops induced by the block so that the buffer region consumed by the consumer block could
@@ -1380,6 +1402,12 @@ class Schedule(Object):
 
         preserve_unit_loops: bool
             Whether to keep the trivial loops whose extents are 1
+
+        index: int
+            The block index of the loop body subtree blocks:
+            - `index = -1` means inserted into the last possible insertion point;
+            - `index = -2` means inserted into the first possible insertion point;
+            - Otherwise, `index` is a nonnegative number that indicates the insertion point
 
         Examples
         --------
@@ -1438,6 +1466,7 @@ class Schedule(Object):
             block,
             loop,
             preserve_unit_loops,
+            index,
         )
 
     @type_checked

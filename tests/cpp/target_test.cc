@@ -26,6 +26,8 @@
 #include <cmath>
 #include <string>
 
+#include "../../../src/target/llvm/llvm_instance.h"
+
 using namespace tvm;
 
 TVM_REGISTER_TARGET_KIND("TestTargetKind", kDLCPU)
@@ -170,9 +172,8 @@ TEST(TargetCreationFail, TargetKindNotFound) {
 TEST(TargetCreation, TargetParser) {
   Target test_target("TestTargetParser -mcpu=woof");
   ASSERT_EQ(test_target->GetAttr<String>("mcpu").value(), "super_woof");
-  ASSERT_EQ(test_target->keys.size(), 2);
+  ASSERT_EQ(test_target->keys.size(), 1);
   ASSERT_EQ(test_target->keys[0], "super");
-  ASSERT_EQ(test_target->keys[1], "cpu");
 }
 
 TEST(TargetCreation, TargetFeatures) {
@@ -289,6 +290,164 @@ TEST(TargetCreation, ProcessStrings) {
   ASSERT_EQ(array7[1][1][0], "fred");
 }
 
+// Checks that malformed options cause an assertion.
+TEST(TargetCreation, LLVMCommandLineParseFatalDashDashDash) {
+  tvm::codegen::LLVMInstance inst;
+
+  // Too many dashes in an otherwise valid option.
+  EXPECT_THROW(
+      {
+        Target test_target("llvm -cl-opt='---unroll-factor:uint=0'");
+        tvm::codegen::LLVMTargetInfo info(inst, test_target);
+      },
+      std::exception);
+}
+
+TEST(TargetCreation, LLVMCommandLineParseFatalColonNoType) {
+  tvm::codegen::LLVMInstance inst;
+
+  // : not followed by type.
+  EXPECT_THROW(
+      {
+        Target test_target("llvm -cl-opt='-option:'");
+        tvm::codegen::LLVMTargetInfo info(inst, test_target);
+      },
+      std::exception);
+}
+
+TEST(TargetCreation, LLVMCommandLineParseFatalColonNoTypeEqNoValue) {
+  tvm::codegen::LLVMInstance inst;
+
+  // : and = without type/value.
+  EXPECT_THROW(
+      {
+        Target test_target("llvm -cl-opt='-option:='");
+        tvm::codegen::LLVMTargetInfo info(inst, test_target);
+      },
+      std::exception);
+}
+
+TEST(TargetCreation, LLVMCommandLineParseFatalColonTypeNoEqNoValue) {
+  tvm::codegen::LLVMInstance inst;
+
+  // Option with type, but no = and no value.
+  EXPECT_THROW(
+      {
+        Target test_target("llvm -cl-opt='-option:bool'");
+        tvm::codegen::LLVMTargetInfo info(inst, test_target);
+      },
+      std::exception);
+}
+
+TEST(TargetCreation, LLVMCommandLineParseFatalColonTypeEqNoValue) {
+  tvm::codegen::LLVMInstance inst;
+
+  // Option with type and =, but no value.
+  EXPECT_THROW(
+      {
+        Target test_target("llvm -cl-opt='-option:bool='");
+        tvm::codegen::LLVMTargetInfo info(inst, test_target);
+      },
+      std::exception);
+}
+
+TEST(TargetCreation, LLVMCommandLineParseFatalInvalidType) {
+  tvm::codegen::LLVMInstance inst;
+
+  // Option with invalid type.
+  EXPECT_THROW(
+      {
+        Target test_target("llvm -cl-opt='-option:invalidtype=xyz'");
+        tvm::codegen::LLVMTargetInfo info(inst, test_target);
+      },
+      std::exception);
+}
+
+TEST(TargetCreation, LLVMCommandLineParseFatalInvalidValue1) {
+  tvm::codegen::LLVMInstance inst;
+
+  // (Implicit) bool option without type, but with invalid value.
+  EXPECT_THROW(
+      {
+        Target test_target("llvm -cl-opt='-option=2'");
+        tvm::codegen::LLVMTargetInfo info(inst, test_target);
+      },
+      std::exception);
+}
+
+TEST(TargetCreation, LLVMCommandLineParseFatalInvalidValue2) {
+  tvm::codegen::LLVMInstance inst;
+
+  // Bool option without type, but with invalid value.
+  EXPECT_THROW(
+      {
+        Target test_target("llvm -cl-opt='-option=fred'");
+        tvm::codegen::LLVMTargetInfo info(inst, test_target);
+      },
+      std::exception);
+}
+
+TEST(TargetCreation, LLVMCommandLineParseFatalInvalidValue3) {
+  tvm::codegen::LLVMInstance inst;
+
+  // Bool option with type and =, but invalid value.
+  EXPECT_THROW(
+      {
+        Target test_target("llvm -cl-opt='-option:bool=2'");
+        tvm::codegen::LLVMTargetInfo info(inst, test_target);
+      },
+      std::exception);
+}
+
+TEST(TargetCreation, LLVMCommandLineParseFatalInvalidValue4) {
+  tvm::codegen::LLVMInstance inst;
+
+  // Int option with invalid value.
+  EXPECT_THROW(
+      {
+        Target test_target("llvm -cl-opt='-option:int=haha'");
+        tvm::codegen::LLVMTargetInfo info(inst, test_target);
+      },
+      std::exception);
+}
+
+TEST(TargetCreation, LLVMCommandLineParseFatalInvalidValue5) {
+  tvm::codegen::LLVMInstance inst;
+
+  // UInt option with invalid value.
+  EXPECT_THROW(
+      {
+        Target test_target("llvm -cl-opt='-option:uint=haha'");
+        tvm::codegen::LLVMTargetInfo info(inst, test_target);
+      },
+      std::exception);
+}
+
+TEST(TargetCreation, LLVMCommandLineError) {
+  tvm::codegen::LLVMInstance inst;
+
+  // Check that invalid LLVM options are ignored.
+  Target test_target("llvm -cl-opt=-not-an-option:uint=123");
+  tvm::codegen::LLVMTargetInfo info(inst, test_target);
+  ASSERT_TRUE(info.GetCommandLineOptions().empty());
+}
+
+TEST(TargetCreation, LLVMCommandLineSaveRestore) {
+  tvm::codegen::LLVMInstance inst;
+
+  // Check detection of modified global state
+  Target test_target("llvm -cl-opt=-print-after-all");  // "false" by default
+  tvm::codegen::LLVMTargetInfo info(inst, test_target);
+  ASSERT_FALSE(info.MatchesGlobalState());
+  {
+    // Check that we can modify global state.
+    tvm::codegen::LLVMTarget llvm_target(inst, info);
+    ASSERT_TRUE(info.MatchesGlobalState());
+  }
+  // Check that we restored global state.
+  ASSERT_FALSE(info.MatchesGlobalState());
+}
+
 TVM_REGISTER_TARGET_KIND("test_external_codegen_0", kDLCUDA)
     .set_attr<Bool>(tvm::attr::kIsExternalCodegen, Bool(true));
 
@@ -334,9 +493,8 @@ TEST(TargetCreation, DeduplicateKeys) {
   ICHECK_EQ(target->keys.size(), 2U);
   ICHECK_EQ(target->keys[0], "cpu");
   ICHECK_EQ(target->keys[1], "arm_cpu");
-  ICHECK_EQ(target->attrs.size(), 2U);
+  ICHECK_EQ(target->attrs.size(), 1U);
   ICHECK_EQ(target->GetAttr<String>("device"), "arm_cpu");
-  ICHECK_EQ(target->GetAttr<Bool>("link-params"), false);
 }
 
 TEST(TargetKindRegistry, ListTargetKinds) {
@@ -352,5 +510,4 @@ TEST(TargetKindRegistry, ListTargetOptions) {
 
   ICHECK_EQ(attrs["mattr"], "Array");
   ICHECK_EQ(attrs["mcpu"], "runtime.String");
-  ICHECK_EQ(attrs["system-lib"], "IntImm");
 }

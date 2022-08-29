@@ -110,7 +110,7 @@ class AnnotateUsedMemoryMutator : public transform::DeviceAwareExprMutator {
   /*!
    * \brief Establish which let bindings have primitive function values.
    */
-  std::pair<Var, Expr> PreVisitLetBinding_(const Var& var, const Expr& value) {
+  std::pair<Var, Expr> PreVisitLetBinding_(const Var& var, const Expr& value) override {
     if (const auto* func_node = value.as<FunctionNode>()) {
       ICHECK(func_node->attrs.HasNonzeroAttr(attr::kPrimitive))
           << "Expect top-level functions to be primitive.";

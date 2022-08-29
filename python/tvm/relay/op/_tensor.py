@@ -292,6 +292,7 @@ register_shape_func("left_shift", False, broadcast_shape_func)
 register_shape_func("right_shift", False, broadcast_shape_func)
 
 register_shape_func("sqrt", False, elemwise_shape_func)
+register_shape_func("rsqrt", False, elemwise_shape_func)
 register_shape_func("negative", False, elemwise_shape_func)
 register_shape_func("exp", False, elemwise_shape_func)
 register_shape_func("tan", False, elemwise_shape_func)

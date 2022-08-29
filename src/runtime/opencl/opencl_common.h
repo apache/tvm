@@ -456,11 +456,11 @@ class OpenCLTimerNode : public TimerNode {
   virtual void Stop() {
     std::vector<cl_event> evt_queue = cl::OpenCLWorkspace::Global()->GetEventQueue(dev_);
     cl_ulong start, end;
-    int64_t start_idx = event_start_idxs[count_timer_execs - 1];
+    size_t start_idx = event_start_idxs[count_timer_execs - 1];
 
     if (cl::OpenCLWorkspace::Global()->GetEventQueue(dev_).size() > 0) {
       OPENCL_CALL(clWaitForEvents(1, &(cl::OpenCLWorkspace::Global()->GetEventQueue(dev_).back())));
-      for (int i = start_idx; i < evt_queue.size(); ++i) {
+      for (size_t i = start_idx; i < evt_queue.size(); ++i) {
         auto& kevt = evt_queue[i];
         OPENCL_CALL(clGetEventProfilingInfo(kevt, CL_PROFILING_COMMAND_START, sizeof(cl_ulong),
                                             &start, nullptr));
@@ -488,8 +488,8 @@ class OpenCLTimerNode : public TimerNode {
   explicit OpenCLTimerNode(Device dev) : dev_(dev) {}
 
   static constexpr const char* _type_key = "OpenCLTimerNode";
-  static int64_t count_timer_execs;
-  static std::vector<int64_t> event_start_idxs;
+  static size_t count_timer_execs;
+  static std::vector<size_t> event_start_idxs;
   TVM_DECLARE_FINAL_OBJECT_INFO(OpenCLTimerNode, TimerNode);
 
  private:

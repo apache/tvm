@@ -97,7 +97,7 @@ std::shared_ptr<RPCEndpoint> RPCConnect(std::string url, int port, std::string k
     ICHECK_EQ(sock.RecvAll(&remote_key[0], keylen), keylen);
   }
 
-  std::unique_ptr<RPCChannel> channel{new SockChannel(sock)};
+  std::unique_ptr<RPCChannel> channel = std::make_unique<SockChannel>(sock);
   if (enable_logging) {
     channel.reset(new RPCChannelLogging(std::move(channel)));
   }
@@ -116,13 +116,11 @@ Module RPCClientConnect(std::string url, int port, std::string key, bool enable_
 // TVM_DLL needed for MSVC
 TVM_DLL void RPCServerLoop(int sockfd) {
   support::TCPSocket sock(static_cast<support::TCPSocket::SockType>(sockfd));
-  RPCEndpoint::Create(std::unique_ptr<SockChannel>(new SockChannel(sock)), "SockServerLoop", "")
-      ->ServerLoop();
+  RPCEndpoint::Create(std::make_unique<SockChannel>(sock), "SockServerLoop", "")->ServerLoop();
 }
 
 void RPCServerLoop(PackedFunc fsend, PackedFunc frecv) {
-  RPCEndpoint::Create(std::unique_ptr<CallbackChannel>(new CallbackChannel(fsend, frecv)),
-                      "SockServerLoop", "")
+  RPCEndpoint::Create(std::make_unique<CallbackChannel>(fsend, frecv), "SockServerLoop", "")
       ->ServerLoop();
 }
 

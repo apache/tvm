@@ -239,15 +239,15 @@ class RelayToTIRVisitor : public MixedModeMutator {
     call_ext_args.push_back(output);
 
     PrimExpr context_buffer_var = tir::StringImm("NULL");
-    CMSISNNFlags flags = GetCompilerFlags(transform::PassContext::Current());
+    Target target = CreateTarget(transform::PassContext::Current());
     size_t context_buffer_size;
     if (is_depthwise) {
       context_buffer_size =
-          DepthwiseConv2dBufferSize(flags, input_n, input_c, output_c, filter_w, filter_h);
+          DepthwiseConv2dBufferSize(target, input_n, input_c, output_c, filter_w, filter_h);
     } else {
-      context_buffer_size = Conv2dBufferSize(flags, padding_w, padding_h, input_n, input_h, input_c,
-                                             output_h, output_w, stride_w, stride_h, dilation_w,
-                                             dilation_h, filter_w, filter_h);
+      context_buffer_size = Conv2dBufferSize(target, padding_w, padding_h, input_n, input_h,
+                                             input_c, output_h, output_w, stride_w, stride_h,
+                                             dilation_w, dilation_h, filter_w, filter_h);
     }
 
     if (context_buffer_size) {
@@ -440,9 +440,9 @@ class RelayToTIRVisitor : public MixedModeMutator {
     int context_buffer_size = 0;
     PrimExpr context_buffer_var = tir::StringImm("NULL");
     if (pool_name == "cmsis-nn.qnn_avg_pool2d") {
-      CMSISNNFlags flags = GetCompilerFlags(transform::PassContext::Current());
+      Target target = CreateTarget(transform::PassContext::Current());
       int32_t input_c = qnn::get_const_int(input_shape[3]);
-      context_buffer_size = AvgPoolBufferSize(flags, input_c);
+      context_buffer_size = AvgPoolBufferSize(target, input_c);
       if (context_buffer_size) {
         std::string context_buffer_name = "context_buffer_" + std::to_string(context_buffer_id_++);
         context_buffer_var = tir::Var(context_buffer_name,

@@ -34,7 +34,7 @@ using tir::Trace;
  * \return The result of downcast
  */
 std::vector<int64_t> DowncastTilingDecision(const ObjectRef& decision) {
-  const auto* arr = TVM_TYPE_AS(arr, decision, runtime::ArrayNode);
+  const auto* arr = TVM_TYPE_AS(decision, runtime::ArrayNode);
   return support::AsVector<ObjectRef, int64_t>(GetRef<Array<ObjectRef>>(arr));
 }
 
@@ -123,7 +123,7 @@ void FindSampleVectorize(const Trace& trace, std::vector<Instruction>* inst,
     if (inst->kind.same_as(inst_sample_categorical)) {
       ICHECK_EQ(inst->outputs.size(), 1);
       if (annotated.count(inst->outputs[0].get())) {
-        const auto* d = TVM_TYPE_AS(d, decision, IntImmNode);
+        const auto* d = TVM_TYPE_AS(decision, IntImmNode);
         instructions.push_back(inst);
         decisions.push_back(d->value);
       }

@@ -82,17 +82,21 @@ def deploy_docs() {
 
 def deploy() {
   stage('Deploy') {
-    if (env.BRANCH_NAME == 'main' && env.DOCS_DEPLOY_ENABLED == 'yes') {
-      node('CPU') {
-        ws({{ m.per_exec_ws('tvm/deploy-docs') }}) {
+    if (env.BRANCH_NAME == 'main') {
+      parallel(
+        {% call m.deploy_step(
+          name="Deploy Docs",
+          feature_flag="env.DOCS_DEPLOY_ENABLED == 'yes'",
+          ws="tvm/deploy-docs",
+        ) %}
           {{ m.download_artifacts(tag='docs', filenames=["docs.tgz"]) }}
           deploy_docs()
-        }
-      }
-    }
-    if (env.BRANCH_NAME == 'main' && env.DEPLOY_DOCKER_IMAGES == 'yes' && rebuild_docker_images && upstream_revision != null) {
-      node('CPU') {
-        ws({{ m.per_exec_ws('tvm/deploy-docker') }}) {
+        {% endcall %}
+        {% call m.deploy_step(
+          name="Upload built Docker images",
+          feature_flag="env.DEPLOY_DOCKER_IMAGES == 'yes' && rebuild_docker_images && upstream_revision != null",
+          ws="tvm/deploy-docker",
+        ) %}
           try {
             withCredentials([string(
               credentialsId: 'dockerhub-tlcpackstaging-key',
@@ -118,8 +122,45 @@ def deploy() {
               label: 'Clean up login credentials'
             )
           }
-        }
-      }
+        {% endcall %}
+        {% call m.deploy_step(
+          name="Tag tlcpackstaging to tlcpack",
+          feature_flag="env.DOCS_DEPLOY_ENABLED == 'yes'",
+          ws="tvm/tag-images",
+        ) %}
+            withCredentials([string(
+              credentialsId: 'dockerhub-tlcpack-key',
+              variable: 'TLCPACK_TOKEN',
+            )]) {
+            try {
+              sh(
+                script: 'echo $TLCPACK_TOKEN | docker login --username octomldriazati --password-stdin',
+                label: 'Log in to Docker Hub'
+              )
+              {% for image in images %}
+              if ({{ image.name }}.contains("tlcpackstaging")) {
+                // Push image to tlcpack
+                def tag = {{ image.name }}.split(":")[1]
+                sh(
+                  script: """
+                    set -eux
+                    docker pull tlcpackstaging/{{ image.name }}:${tag}
+                    docker tag tlcpackstaging/{{ image.name }}:${tag} tlcpack/{{ image.name.replace("_", "-") }}:${tag}
+                    docker push tlcpack/{{ image.name.replace("_", "-") }}:${tag}
+                  """,
+                  label: 'Tag tlcpackstaging/{{ image.name }} image to tlcpack',
+                )
+              }
+              {% endfor %}
+            } finally {
+              sh(
+                script: 'docker logout',
+                label: 'Clean up login credentials'
+              )
+            }
+          }
+        {% endcall %}
+      )
     }
   }
 }

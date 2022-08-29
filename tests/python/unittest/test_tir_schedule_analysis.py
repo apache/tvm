@@ -218,9 +218,9 @@ def test_get_tensorize_loop_mapping_conv2d_nchwc_vnni():
 def test_get_tensorize_loop_mapping_matmul_mma():
     @T.prim_func
     def matmul_16x16x16xf16f16f16_desc(
-        A: T.Buffer((16, 16), "float16", align=128, offset_factor=1),
-        B: T.Buffer((16, 16), "float16", align=128, offset_factor=1),
-        C: T.Buffer((16, 16), "float16", align=128, offset_factor=1),
+        A: T.Buffer((16, 16), "float16", align=64, offset_factor=1),
+        B: T.Buffer((16, 16), "float16", align=64, offset_factor=1),
+        C: T.Buffer((16, 16), "float16", align=64, offset_factor=1),
     ) -> None:
         with T.block("root"):
             T.reads(C[0:16, 0:16], A[0:16, 0:16], B[0:16, 0:16])

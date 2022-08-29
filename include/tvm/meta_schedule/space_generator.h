@@ -141,7 +141,14 @@ class SpaceGenerator : public runtime::ObjectRef {
   TVM_DLL static SpaceGenerator PySpaceGenerator(
       PySpaceGeneratorNode::FInitializeWithTuneContext f_initialize_with_tune_context,
       PySpaceGeneratorNode::FGenerateDesignSpace f_generate_design_space);
-
+  /*!
+   * \brief Create a design space generator with customized schedule function.
+   * \param schedule_fn The schedule function, which can have the following signatures:
+   * 1) void(Schedule)
+   * 2) Schedule(Schedule)
+   * 3) Array<Schedule>(Schedule)
+   */
+  TVM_DLL static SpaceGenerator ScheduleFn(PackedFunc schedule_fn);
   /*!
    * \brief Create a design space generator that is union of multiple design space generators.
    * \param space_generators An array of design space generators to be unioned.
@@ -153,7 +160,7 @@ class SpaceGenerator : public runtime::ObjectRef {
    *  to blocks in post-DFS order.
    * \return The design space generator created.
    */
-  TVM_DLL static SpaceGenerator PostOrderApply();
+  TVM_DLL static SpaceGenerator PostOrderApply(runtime::PackedFunc f_block_filter = nullptr);
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(SpaceGenerator, ObjectRef, SpaceGeneratorNode);
 };
 

@@ -105,7 +105,7 @@ class PyCostModelNode : public CostModelNode {
    * \brief Predict the running results of given measure candidates.
    * \param context The tuning context.
    * \param candidates The measure candidates.
-   * \param p_addr The address to save the the estimated running results.
+   * \param p_addr The address to save the estimated running results.
    */
   using FPredict = runtime::TypedPackedFunc<void(const TuneContext&, const Array<MeasureCandidate>&,
                                                  void* p_addr)>;

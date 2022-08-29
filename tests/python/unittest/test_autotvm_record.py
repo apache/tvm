@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """test the correctness of dump and load of data log"""
+from io import StringIO
+from os import PathLike
 import time
 
-import tvm
-from tvm import te
 from tvm.contrib import utils
 
 from tvm import autotvm
@@ -78,23 +78,83 @@ def test_file_io():
     assert str(x) == str(inputs[0][2])
 
 
-def test_apply_history_best():
+def test_apply_history_best(tmpdir):
     tsk, target = get_sample_task()
+    best = str(tsk.config_space.get(2))
 
-    records = [
-        (MeasureInput(target, tsk, tsk.config_space.get(0)), MeasureResult((0.1,), 0, 2.3, 0)),
-        (MeasureInput(target, tsk, tsk.config_space.get(1)), MeasureResult((0.3,), 0, 2.3, 0)),
-        (MeasureInput(target, tsk, tsk.config_space.get(2)), MeasureResult((0.01,), 0, 2.3, 0)),
-        (MeasureInput(target, tsk, tsk.config_space.get(4)), MeasureResult((0.4,), 0, 2.3, 0)),
-    ]
-    hist_best = ApplyHistoryBest(records)
-    x = hist_best.query(target, tsk.workload)
-    assert str(x) == str(tsk.config_space.get(2))
+    inputs_batch_1 = [MeasureInput(target, tsk, tsk.config_space.get(i)) for i in range(3)]
+    results_batch_1 = [MeasureResult((i,), 0, 0, 0) for i in range(1, 3)]
+    results_batch_1.append(MeasureResult((0.5,), 0, 2.3, 0))
 
-    # Confirm same functionality for iterators.
-    hist_best = ApplyHistoryBest(iter(records))
-    x = hist_best.query(target, tsk.workload)
-    assert str(x) == str(tsk.config_space.get(2))
+    # Write data out to file
+    filepath_batch_1 = tmpdir / "batch_1.log"
+    with open(filepath_batch_1, "w") as file:
+        autotvm.callback.log_to_file(file)(None, inputs_batch_1, results_batch_1)
+
+    # Load best results from Path
+    assert isinstance(filepath_batch_1, PathLike)
+    hist_best = ApplyHistoryBest(filepath_batch_1)
+    assert str(hist_best.query(target, tsk.workload)) == best
+
+    # Load best results from str(Path)
+    hist_best = ApplyHistoryBest(str(filepath_batch_1))
+    assert str(hist_best.query(target, tsk.workload)) == best
+
+    # Write data into StringIO buffer
+    stringio_batch_1 = StringIO()
+    assert isinstance(filepath_batch_1, PathLike)
+    callback = autotvm.callback.log_to_file(stringio_batch_1)
+    callback(None, inputs_batch_1, results_batch_1)
+    stringio_batch_1.seek(0)
+
+    # Load best results from strIO
+    hist_best = ApplyHistoryBest(stringio_batch_1)
+    assert str(hist_best.query(target, tsk.workload)) == best
+
+    # Load best result from list of tuples (MeasureInput, MeasureResult)
+    hist_best = ApplyHistoryBest(list(zip(inputs_batch_1, results_batch_1)))
+    assert str(hist_best.query(target, tsk.workload)) == best
+
+    # Same thing, but iterable instead of list (i.e. no subscripting)
+    hist_best = ApplyHistoryBest(zip(inputs_batch_1, results_batch_1))
+    assert str(hist_best.query(target, tsk.workload)) == best
+
+
+def test_apply_history_best_multiple_batches(tmpdir):
+    tsk, target = get_sample_task()
+    best = str(tsk.config_space.get(2))
+
+    inputs_batch_1 = [MeasureInput(target, tsk, tsk.config_space.get(i)) for i in range(2)]
+    results_batch_1 = [MeasureResult((i,), 0, 0, 0) for i in range(1, 3)]
+    filepath_batch_1 = tmpdir / "batch_1.log"
+    with open(filepath_batch_1, "w") as file:
+        autotvm.callback.log_to_file(file)(None, inputs_batch_1, results_batch_1)
+
+    inputs_batch_2 = [MeasureInput(target, tsk, tsk.config_space.get(i)) for i in range(2, 4)]
+    results_batch_2 = [MeasureResult((0.5,), 0, 0, 0), MeasureResult((3,), 0, 0, 0)]
+    filepath_batch_2 = tmpdir / "batch_2.log"
+    with open(filepath_batch_2, "w") as file:
+        autotvm.callback.log_to_file(file)(None, inputs_batch_2, results_batch_2)
+
+    # Check two Path filepaths works
+    hist_best = ApplyHistoryBest([filepath_batch_1, filepath_batch_2])
+    assert str(hist_best.query(target, tsk.workload)) == best
+
+    # Check that an arbitrary Iterable of Paths works
+    # Calling zip() on a single list gives a non-subscriptable Iterable
+    hist_best = ApplyHistoryBest(zip([filepath_batch_1, filepath_batch_2]))
+    assert str(hist_best.query(target, tsk.workload)) == best
+
+    # Check that Iterable of Iterable of tuples is correctly merged
+    hist_best = ApplyHistoryBest(
+        zip(
+            [
+                zip(inputs_batch_1, results_batch_1),
+                zip(inputs_batch_2, results_batch_2),
+            ]
+        )
+    )
+    assert str(hist_best.query(target, tsk.workload)) == best
 
 
 if __name__ == "__main__":

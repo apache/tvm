@@ -33,7 +33,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../../../relay/backend/contrib/ethosn/ethosn_api_version.h"
 #include "ethosn_driver_library/Network.hpp"
 #include "ethosn_support_library/Support.hpp"
 
@@ -46,9 +45,7 @@ namespace dl = ::ethosn::driver_library;
 
 struct OrderedCompiledNetwork {
   std::unique_ptr<sl::CompiledNetwork> compiled_cmm;
-#if _ETHOSN_API_VERSION_ > 2102
   std::unique_ptr<dl::Network> runtime_cmm;
-#endif
   std::string name;
   std::vector<uint32_t> inputs;
   std::vector<uint32_t> outputs;

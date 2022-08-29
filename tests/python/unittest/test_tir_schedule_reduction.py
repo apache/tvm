@@ -78,8 +78,8 @@ def matmul_decompose0(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def matmul_decompose1(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [32, 4, 128], elem_offset=0, align=128, offset_factor=1)
-    B = T.match_buffer(b, [32, 4], elem_offset=0, align=128, offset_factor=1)
+    A = T.match_buffer(a, [32, 4, 128], elem_offset=0, align=64, offset_factor=1)
+    B = T.match_buffer(b, [32, 4], elem_offset=0, align=64, offset_factor=1)
 
     for i0 in T.serial(0, 32):
         with T.block("blockized_B_init"):
@@ -100,9 +100,9 @@ def matmul_decompose1(a: T.handle, b: T.handle) -> None:
 
 @T.prim_func
 def matmul_decompose2(a: T.handle, b: T.handle, c: T.handle) -> None:
-    C = T.match_buffer(c, [128, 128], elem_offset=0, align=128, offset_factor=1)
-    B = T.match_buffer(b, [128, 128], elem_offset=0, align=128, offset_factor=1)
-    A = T.match_buffer(a, [128, 128], elem_offset=0, align=128, offset_factor=1)
+    C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
+    B = T.match_buffer(b, [128, 128], elem_offset=0, align=64, offset_factor=1)
+    A = T.match_buffer(a, [128, 128], elem_offset=0, align=64, offset_factor=1)
 
     for i0, i1 in T.grid(128, 128):
         with T.block("update_init"):
@@ -130,9 +130,9 @@ def matmul_decompose_fail3(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def matmul_decompose4(a: T.handle, b: T.handle, c: T.handle) -> None:
-    C = T.match_buffer(c, [128, 128], elem_offset=0, align=128, offset_factor=1)
-    B = T.match_buffer(b, [128, 128], elem_offset=0, align=128, offset_factor=1)
-    A = T.match_buffer(a, [128, 128], elem_offset=0, align=128, offset_factor=1)
+    C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
+    B = T.match_buffer(b, [128, 128], elem_offset=0, align=64, offset_factor=1)
+    A = T.match_buffer(a, [128, 128], elem_offset=0, align=64, offset_factor=1)
     # body
     with T.block("root"):
         T.reads([])

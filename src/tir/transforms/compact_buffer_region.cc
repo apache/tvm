@@ -88,7 +88,7 @@ NDIntSet NDIntSetEval(Region region, PrimExpr predicate,
     var_dom[GetRef<Var>(it.first)] = it.second.CoverRange(Range::FromMinExtent(0, 0));
   }
   Optional<Array<arith::IntSet>> eval_res =
-      arith::EstimateRegionLowerBound(region, var_dom, predicate, analyzer);
+      arith::EstimateRegionUpperBound(region, var_dom, predicate, analyzer);
   if (eval_res.defined()) {
     return NDIntSet(eval_res.value().begin(), eval_res.value().end());
   }

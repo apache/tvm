@@ -86,6 +86,9 @@ def test_resize2d():
     verify_resize2d(6, 32, 64, 64, 20, 20, "NHWC")
     for layout in ["NCHW", "NHWC"]:
         verify_resize2d(4, 16, 32, 32, 50, 50, layout, "asymmetric", method="nearest_neighbor")
+        verify_resize2d(4, 16, 32, 32, 64, 50, layout, "asymmetric", method="nearest_neighbor")
+        verify_resize2d(4, 16, 32, 32, 50, 96, layout, "asymmetric", method="nearest_neighbor")
+        verify_resize2d(4, 16, 32, 32, 96, 96, layout, "asymmetric", method="nearest_neighbor")
         verify_resize2d(4, 16, 32, 32, 50, 50, layout, "align_corners", method="nearest_neighbor")
         verify_resize2d(4, 16, 32, 32, 50, 50, layout, "half_pixel", method="nearest_neighbor")
         verify_resize2d(4, 16, 32, 32, 50, 50, layout, "asymmetric", method="linear")

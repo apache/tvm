@@ -80,21 +80,14 @@ void CopyOutput(dl::Buffer* source_buffers[], std::vector<DLTensor*>* outputs) {
     dl::Buffer* source_buffer = source_buffers[0];
     T* dest_pointer = static_cast<T*>(tensor->data);
     size_t size = source_buffer->GetSize();
-#if _ETHOSN_API_VERSION_ < 2111
-    uint8_t* source_buffer_data = source_buffer->GetMappedBuffer();
-#else
     uint8_t* source_buffer_data = source_buffer->Map();
-#endif
     std::copy_backward(source_buffer_data, source_buffer_data + size, dest_pointer + size);
-#if _ETHOSN_API_VERSION_ >= 2111
     source_buffer->Unmap();
-#else
-#endif
     source_buffers++;
   }
 }
 
-void CreateBuffers(std::vector<std::shared_ptr<dl::Buffer> >* fm,
+void CreateBuffers(std::vector<std::shared_ptr<dl::Buffer>>* fm,
                    const std::vector<DLTensor*>& tensors, const std::vector<uint32_t>& tensor_sizes,
                    bool input) {
   for (size_t i = 0; i < tensors.size(); i++) {
@@ -107,36 +100,29 @@ void CreateBuffers(std::vector<std::shared_ptr<dl::Buffer> >* fm,
   }
 }
 
-#if _ETHOSN_API_VERSION_ <= 2102
-bool Inference(tvm::runtime::TVMArgs args, sl::CompiledNetwork* network,
-               const std::vector<uint32_t>& input_order, const std::vector<uint32_t>& output_order,
-               const std::vector<uint32_t>& input_sizes,
-               const std::vector<uint32_t>& output_sizes) {
-#else
 bool Inference(tvm::runtime::TVMArgs args, dl::Network* npu,
                const std::vector<uint32_t>& input_order, const std::vector<uint32_t>& output_order,
                const std::vector<uint32_t>& input_sizes,
                const std::vector<uint32_t>& output_sizes) {
-#endif
   // Unpack parameters
-  uint8_t argc = 0;
   size_t n_inputs = input_order.size();
   size_t n_outputs = output_order.size();
   std::vector<DLTensor*> inputs(n_inputs);
   for (uint8_t i = 0; i < n_inputs; i++) {
-    inputs[input_order[i]] = args[argc++];
+    inputs[i] = args[input_order[i]];
   }
   std::vector<DLTensor*> outputs(n_outputs);
+  size_t output_offset = n_inputs;
   for (uint8_t i = 0; i < n_outputs; i++) {
-    outputs[output_order[i]] = args[argc++];
+    outputs[i] = args[output_order[i] + output_offset];
   }
 
   // Set up input buffers
-  std::vector<std::shared_ptr<dl::Buffer> > ifm(inputs.size());
+  std::vector<std::shared_ptr<dl::Buffer>> ifm(inputs.size());
   CreateBuffers(&ifm, inputs, input_sizes, true);
 
   // Set up output buffers
-  std::vector<std::shared_ptr<dl::Buffer> > ofm(outputs.size());
+  std::vector<std::shared_ptr<dl::Buffer>> ofm(outputs.size());
   CreateBuffers(&ofm, outputs, output_sizes, false);
 
   // Raw pointers for the inference
@@ -149,10 +135,6 @@ bool Inference(tvm::runtime::TVMArgs args, dl::Network* npu,
     ofm_raw[i] = ofm[i].get();
   }
 
-#if _ETHOSN_API_VERSION_ <= 2102
-  auto npu = std::make_unique<dl::Network>(*network);
-#endif
-
   // Execute the inference.
   std::unique_ptr<dl::Inference> result(
       npu->ScheduleInference(ifm_raw, sizeof(ifm_raw) / sizeof(ifm_raw[0]), ofm_raw,
@@ -164,20 +146,13 @@ bool Inference(tvm::runtime::TVMArgs args, dl::Network* npu,
         dl::Buffer** ofms = &ofm_raw[0];
         for (DLTensor* tensor : outputs) {
           dl::Buffer* source_buffer = (*ofms++);
-#if _ETHOSN_API_VERSION_ < 2111
-          uint8_t* source_buffer_data = source_buffer->GetMappedBuffer();
-#else
           uint8_t* source_buffer_data = source_buffer->Map();
-#endif
           uint8_t* dest_pointer = static_cast<uint8_t*>(tensor->data);
           if (source_buffer_data != dest_pointer) {
             CopyOutput<uint8_t>(ofm_raw, &outputs);
             break;
           }
-#if _ETHOSN_API_VERSION_ >= 2111
           source_buffer->Unmap();
-#else
-#endif
         }
         break;
       }
@@ -229,17 +204,10 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.test.infra.inference_result")
     });
 
 // Allow the ethos-n support code to be tested without a device
-#if _ETHOSN_API_VERSION_ <= 2102
-bool Inference(tvm::runtime::TVMArgs args, sl::CompiledNetwork* network,
-               const std::vector<uint32_t>& input_order, const std::vector<uint32_t>& output_order,
-               const std::vector<uint32_t>& input_sizes,
-               const std::vector<uint32_t>& output_sizes) {
-#else
 bool Inference(tvm::runtime::TVMArgs args, dl::Network* /* npu */,
                const std::vector<uint32_t>& input_order, const std::vector<uint32_t>& output_order,
                const std::vector<uint32_t>& input_sizes,
                const std::vector<uint32_t>& output_sizes) {
-#endif
   std::vector<DLTensor*> outputs;
   for (int argc = input_order.size(); argc < args.size(); argc++) {
     outputs.push_back(args[argc]);

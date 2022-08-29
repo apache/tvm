@@ -30,6 +30,7 @@ from tvm.relay.backend.executor_factory import (
     AOTExecutorFactoryModule,
     GraphExecutorFactoryModule,
 )
+from .tools import export_module
 
 
 class Session:
@@ -110,6 +111,9 @@ class Session:
 
         return self._device
 
+    def get_function(self, name):
+        return self._rpc.get_function(name)
+
     def upload(self, local_path: Union[str, pathlib.Path], remote_filename: str) -> pathlib.Path:
         """Upload a local file to the remote workspace.
 
@@ -154,10 +158,8 @@ class Session:
 
         if isinstance(module, tvm.runtime.Module):
             with tempfile.TemporaryDirectory() as temp_dir:
-                temp_dir = pathlib.Path(temp_dir)
                 binary_name = "test_binary.so"
-                binary_path = temp_dir / binary_name
-                module.save(str(binary_path))
+                binary_path = export_module(module, temp_dir, binary_name)
                 remote_file_path = self.upload(binary_path, binary_name)
         else:
             remote_file_path = module

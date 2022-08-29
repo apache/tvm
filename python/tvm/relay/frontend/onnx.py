@@ -98,6 +98,11 @@ def get_numpy(tensor_proto):
 
 def get_type(elem_type):
     """Converts onnx integer datatype to numpy datatype"""
+    # If a string was passed instead of a tensor type, it does not need
+    # conversion and can be returned.
+    if isinstance(elem_type, str):
+        return elem_type
+
     try:
         from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
     except ImportError as e:
@@ -2013,7 +2018,7 @@ class Slice(OnnxOpConverter):
 
 
 def normalize_gather_indices(data, indices, axis):
-    """Make sure gather indicies aren't negative"""
+    """Make sure gather indices aren't negative"""
     ind_dtype = infer_type(indices).checked_type.dtype
     # Normalize the indices to a positive range
     s = _op.take(_op.shape_of(data, dtype=ind_dtype), _op.const(axis, dtype="int64"))
@@ -4890,6 +4895,22 @@ class RandomUniformLike(OnnxOpConverter):
         return vals
 
 
+class Multinomial(OnnxOpConverter):
+    """Operator converter for multinomial"""
+
+    @classmethod
+    def _impl_v7(cls, inputs, attr, params):
+        dtype = attr.get("dtype", "int64")
+        sample_size = attr.get("sample_size", 1)
+        seed = attr.get("seed", None)
+        if seed is None:
+            seed = np.random.randint(1e6)
+        key = _op.random.threefry_key(seed)
+        output = _op.random.multinomial(key, inputs[0], sample_size)
+        _, indices = _expr.TupleWrapper(output, 2)
+        return _op.cast(indices, get_type(dtype))
+
+
 class NegativeLogLikelihoodLoss(OnnxOpConverter):
     """Operator converter for NegativeLogLikehoodLoss"""
 
@@ -5465,6 +5486,7 @@ def _get_convert_map(opset):
         "RandomNormalLike": RandomNormalLike.get_converter(opset),
         "RandomUniform": RandomUniform.get_converter(opset),
         "RandomUniformLike": RandomUniformLike.get_converter(opset),
+        "Multinomial": Multinomial.get_converter(opset),
         # Loss functions / training
         "NegativeLogLikelihoodLoss": NegativeLogLikelihoodLoss.get_converter(opset),
         "SoftmaxCrossEntropyLoss": SoftmaxCrossEntropyLoss.get_converter(opset),

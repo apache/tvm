@@ -15,16 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
-from distutils.util import strtobool
 import argparse
 import json
 import logging
+from distutils.util import strtobool
+from typing import Dict
 
+import numpy as np  # type: ignore
 import tvm
 from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.meta_schedule.testing.relay_workload import get_network
-from tvm.meta_schedule.testing.tune_utils import generate_input_data, create_timer
+from tvm.meta_schedule.testing.tune_utils import create_timer, generate_input_data
 from tvm.support import describe
 
 
@@ -137,14 +139,24 @@ def main():
         ARGS.input_shape,
         cache_dir=ARGS.cache_dir,
     )
-    input_info = {input_name: input_shape}
-    input_data = {
-        item["name"]: generate_input_data(item["shape"], item["dtype"]) for item in ARGS.input_shape
+    input_info = [
+        {
+            "name": input_name,
+            "shape": input_shape,
+            "dtype": input_dtype,
+        },
+    ]
+    input_data: Dict[str, np.ndarray] = {
+        item["name"]: generate_input_data(  # type: ignore
+            item["shape"],  # type: ignore
+            item["dtype"],  # type: ignore
+        )
+        for item in input_info
     }
-    for input_name, input_shape in input_info.items():
-        print(f"  input_name : {input_name}")
-        print(f"  input_shape: {input_shape}")
-        print(f"  input_dtype: {input_dtype}")
+    for item in input_info:
+        print(f"  input_name : {item['name']}")
+        print(f"  input_shape: {item['shape']}")
+        print(f"  input_dtype: {item['dtype']}")
 
     runner = ms.runner.RPCRunner(
         rpc_config=ARGS.rpc_config,

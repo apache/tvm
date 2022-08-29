@@ -583,8 +583,10 @@ class StoragePlanRewriter : public StmtExprMutator {
   };
 
   // Checks whether the storage_scope is especially tagged for a specific memory.
+  // Special memory is all combined into a single allocation.
   bool IsSpecialTaggedMemory(const StorageScope& scope) {
-    return scope.tag.length() != 0 && scope.tag != ".dyn" && scope.tag != ".workspace";
+    return scope.tag.length() != 0 && scope.tag != ".dyn" && scope.tag != ".workspace" &&
+           scope.tag != ".vtcm";
   }
 
   // Alllocate entry of node.
@@ -655,8 +657,6 @@ class StoragePlanRewriter : public StmtExprMutator {
 
         if (e->allocs.size() == 1) {
           // simply use the original allocation.
-          PrimExpr sz = foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
-                              make_const(DataType::Int(32), 1), e->allocs[0]->extents);
           e->new_alloc = Allocate(e->alloc_var, alloc_type, e->allocs[0]->extents,
                                   e->allocs[0]->condition, Evaluate(0));
           if (IsSpecialTaggedMemory(e->scope)) {
@@ -899,7 +899,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                          const StorageScope& scope, size_t const_nbits) {
     ICHECK(op != nullptr);
     // Re-use not successful, allocate a new buffer.
-    std::unique_ptr<StorageEntry> entry(new StorageEntry());
+    auto entry = std::make_unique<StorageEntry>();
     entry->attach_scope_ = attach_scope;
     entry->scope = scope;
     entry->elem_type = op->dtype.element_of();
@@ -1010,11 +1010,11 @@ class StoragePlanRewriter : public StmtExprMutator {
   // symbolic free list, for non constant items.
   std::list<StorageEntry*> sym_free_list_;
   // The allocation attach map
-  std::unordered_map<const Object*, std::vector<StorageEntry*> > attach_map_;
+  std::unordered_map<const Object*, std::vector<StorageEntry*>> attach_map_;
   // The allocation assign map
   std::unordered_map<const VarNode*, StorageEntry*> alloc_map_;
   // The allocations
-  std::vector<std::unique_ptr<StorageEntry> > alloc_vec_;
+  std::vector<std::unique_ptr<StorageEntry>> alloc_vec_;
   // The buffer objects being remapped
   std::unordered_map<const BufferNode*, Buffer> buffer_remap_;
   // analyzer
@@ -1125,8 +1125,8 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     // track the parameter itself.
     for (Var buffer_var : params) {
       auto pointer_type = GetPointerType(buffer_var->type_annotation);
-      if (pointer_type.first && (buffer_map.count(buffer_var) == 0)) {
-        DataType dtype = pointer_type.second;
+      if (pointer_type.has_value() && (buffer_map.count(buffer_var) == 0)) {
+        DataType dtype = pointer_type.value();
         PrimExpr extent = 0;
         OnArrayDeclaration(buffer_var, dtype, extent, BufferVarInfo::kPrimFuncBufferMap);
       }
@@ -1190,8 +1190,8 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   void HandleLetNode(Var let_var) {
     if (let_var->dtype.is_handle()) {
       auto pointer_type = GetPointerType(let_var->type_annotation);
-      if (pointer_type.first) {
-        OnArrayDeclaration(let_var, pointer_type.second, 0, BufferVarInfo::kLetNode);
+      if (pointer_type.has_value()) {
+        OnArrayDeclaration(let_var, pointer_type.value(), 0, BufferVarInfo::kLetNode);
       } else if (allow_untyped_pointers_) {
         OnArrayDeclaration(let_var, let_var->dtype, 0, BufferVarInfo::kLetNode);
       } else {
@@ -1459,6 +1459,17 @@ class VectorTypeRewriter : public StmtExprMutator {
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
     return VisitBufferAccess(std::move(node));
+  }
+
+  Stmt VisitStmt_(const LetStmtNode* op) final {
+    auto it = rewrite_map_.find(op->var.get());
+    PrimExpr value = this->VisitExpr(op->value);
+    Stmt body = this->VisitStmt(op->body);
+    Var var = (it == rewrite_map_.end()) ? op->var : it->second.new_buffer_var;
+    if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body)) {
+      return GetRef<Stmt>(op);
+    }
+    return LetStmt(var, value, body);
   }
 
   Buffer RemapBuffer(Buffer buf) {

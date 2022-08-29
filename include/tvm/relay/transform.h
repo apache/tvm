@@ -125,7 +125,7 @@ TVM_DLL Pass FoldConstant(bool fold_qnn = false);
 TVM_DLL Pass SplitArgs(int max_function_args);
 
 /*!
- * \brief Fuse operations into expr into seperate functions.
+ * \brief Fuse operations into expr into separate functions.
  *
  * \param fuse_opt_level Optimization level. If it is -1 it will be inferred from pass context.
  *
@@ -585,6 +585,17 @@ TVM_DLL Pass CapturePostDfsIndexInSpans();
  * expr->memory_scope and annotates expressions by VirtualDevice with required memory_scope
  */
 TVM_DLL Pass AnnotateMemoryScope(CompilationConfig config);
+
+/*!
+ * \brief Removes non-fused reshapes after lowering the graph.
+ * InferType() cannot be invoked after calling this pass as it removes reshapes from the call
+ * graph. Many targets only need buffer addresses irrespective of the shapes of them. This makes
+ * reshapes symbolic once the graph has been lowered. Reshape removal results into smaller code
+ * size and reduced buffer allocations. It opens up opportunities of operator fusion in the target
+ * backend. Thus, consequently, it improves the performance of the inference.
+ */
+TVM_DLL Pass RemoveStandaloneReshapes();
+
 }  // namespace transform
 
 /*!

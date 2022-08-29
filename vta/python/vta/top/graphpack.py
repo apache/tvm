@@ -65,7 +65,7 @@ def _unpack_batch_channel(data, old_shape, unpack_transpose=False):
 
 
 def _channel_const_match(channel_length, cfactor_out):
-    """Round the chanel const variant if the value not divisible by cfactor_out"""
+    """Round the channel const variant if the value not divisible by cfactor_out"""
     diff = int(channel_length) % cfactor_out
     if diff != 0:
         diff = cfactor_out - diff

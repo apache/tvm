@@ -1006,15 +1006,10 @@ def _compose(args, decs):
     return decs
 
 
-def slow(fn):
-    @functools.wraps(fn)
-    def wrapper(*args, **kwargs):
-        if SKIP_SLOW_TESTS:
-            pytest.skip("Skipping slow test since RUN_SLOW_TESTS environment variables is 'true'")
-        else:
-            fn(*args, **kwargs)
-
-    return wrapper
+slow = pytest.mark.skipif(
+    SKIP_SLOW_TESTS,
+    reason="Skipping slow test since the SKIP_SLOW_TESTS environment variable is 'true'",
+)
 
 
 def requires_nvcc_version(major_version, minor_version=0, release_version=0):
@@ -1708,6 +1703,30 @@ def fetch_model_from_url(
 
     tvmc_model = load_model(file, model_format)
     return tvmc_model.mod, tvmc_model.params
+
+
+def xfail_parameterizations(*xfail_params, reason):
+    """
+    Mark tests with a nodeid parameters that exactly matches one in params as
+    xfail. Useful for quickly marking tests as xfail when they have a large
+    combination of parameters.
+    """
+    xfail_params = set(xfail_params)
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(request, *args, **kwargs):
+            if "[" in request.node.name and "]" in request.node.name:
+                # Strip out the test name and the [ and ] brackets
+                params_from_name = request.node.name[len(request.node.originalname) + 1 : -1]
+                if params_from_name in xfail_params:
+                    pytest.xfail(reason=f"xfail on nodeid {request.node.nodeid}: " + reason)
+
+            return func(request, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
 
 
 def main():
