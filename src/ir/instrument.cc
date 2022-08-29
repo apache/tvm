@@ -288,10 +288,7 @@ String RenderPassProfiles() {
   os << std::fixed;
 
   while (profiles.size() > 0) {
-    size_t depth;
-    PassProfile::Duration parent_duration;
-    PassProfile* profile;
-    std::tie(depth, parent_duration, profile) = profiles.top();
+    auto [depth, parent_duration, profile] = profiles.top();
     profiles.pop();
 
     // indent depth

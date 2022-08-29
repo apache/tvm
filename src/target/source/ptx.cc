@@ -403,8 +403,7 @@ class Replacer {
   }
   std::string rewrite(std::string str) {
     for (auto&& rule : _rules) {
-      std::string pattern, replacement;
-      std::tie(pattern, replacement) = rule;
+      auto [pattern, replacement] = rule;
       size_t len = pattern.size();
       size_t new_len = replacement.size();
       size_t pos = str.find(pattern);
@@ -532,8 +531,7 @@ std::string PrintMMAAssembly(const std::string& shape, const std::string& A_layo
                 dtype_c = ptx::DTypeFromString(C_dtype);
   ptx::LayoutType layout_a = ptx::LayoutTypeFromString(A_layout),
                   layout_b = ptx::LayoutTypeFromString(B_layout);
-  int m, n, k;
-  std::tie(m, n, k) = ptx::ParseMMAShape(shape);
+  auto [m, n, k] = ptx::ParseMMAShape(shape);
   CheckMMAConfigValidity(m, n, k, layout_a, layout_b, dtype_a, dtype_b, dtype_c, bit_op, sparse,
                          saturate);
   std::string asm_code = R"(
@@ -545,8 +543,7 @@ std::string PrintMMAAssembly(const std::string& shape, const std::string& A_layo
       : {inputs});
   }
 )";
-  std::string templates_str, inputs_str, outputs_str;
-  std::tie(templates_str, inputs_str, outputs_str) =
+  auto [templates_str, inputs_str, outputs_str] =
       GetMMAOperands(m, n, k, dtype_a, dtype_b, dtype_c, sparse);
 
   // replace patterns
@@ -622,8 +619,7 @@ std::string PrintLoadMatrixAssembly(bool trans, int num, const std::string& type
     );
   }
 )";
-  std::string templates_str, outputs_str;
-  std::tie(templates_str, outputs_str) = GetLoadMatrixOperands(num, local_ptr, local_elem_offset);
+  auto [templates_str, outputs_str] = GetLoadMatrixOperands(num, local_ptr, local_elem_offset);
 
   Replacer replacer;
   replacer.register_rule("{.shape}", ".m8n8");
