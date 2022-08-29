@@ -385,7 +385,6 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
    * \param dtype The data type
    * \param data The pointer to hold the data.
    */
-  template <typename T>
   Doc PrintConstScalar(DataType dtype, const int64_t* data) const {
     Doc doc;
     std::ostringstream os;
@@ -407,9 +406,8 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
    * \brief special method to print out const double scalar
    * \param dtype The data type
    * \param data The pointer to hold the data.
-   * \note this overriden function is created as std::isnan of msvc will complain taking int64_t
+   * \note this overriden function is created as std::isnan of msvc will complain about int64_t
    */
-  template <typename T>
   Doc PrintConstScalar(DataType dtype, const double* data) const {
     Doc doc;
     std::ostringstream os;
@@ -754,12 +752,12 @@ Doc TVMScriptPrinter::VisitStmtDefault_(const Object* op) {
 
 Doc TVMScriptPrinter::VisitExpr_(const IntImmNode* op, ExprPrecedence* out_precedence) {
   *out_precedence = ExprPrecedence::kIdentity;
-  return PrintConstScalar<int64_t>(op->dtype, &(op->value));
+  return PrintConstScalar(op->dtype, &(op->value));
 }
 
 Doc TVMScriptPrinter::VisitExpr_(const FloatImmNode* op, ExprPrecedence* out_precedence) {
   *out_precedence = ExprPrecedence::kIdentity;
-  return PrintConstScalar<double>(op->dtype, &(op->value));
+  return PrintConstScalar(op->dtype, &(op->value));
 }
 
 Doc TVMScriptPrinter::VisitExpr_(const StringImmNode* op, ExprPrecedence* out_precedence) {
