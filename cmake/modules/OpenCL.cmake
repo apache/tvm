@@ -56,7 +56,7 @@ if(USE_OPENCL)
   tvm_file_glob(GLOB RUNTIME_OPENCL_SRCS src/runtime/opencl/*.cc)
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${OpenCL_LIBRARIES})
 
-  if(DEFINED USE_OPENCL_GTEST EXISTS ${USE_OPENCL_GTEST})
+  if(DEFINED USE_OPENCL_GTEST AND EXISTS ${USE_OPENCL_GTEST})
     file_glob_append(RUNTIME_OPENCL_SRCS
       "${CMAKE_SOURCE_DIR}/tests/cpp-runtime/opencl/*.cc"
     )
