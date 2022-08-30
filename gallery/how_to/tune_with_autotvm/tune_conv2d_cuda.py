@@ -28,6 +28,12 @@ get it to run, you will need to wrap the body of this tutorial in a :code:`if
 __name__ == "__main__":` block.
 """
 
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
+
 ######################################################################
 # Install dependencies
 # --------------------
@@ -74,7 +80,7 @@ from tvm import autotvm
 #
 # If you are familiar with writing cuda schedule, you can find the following
 # template is very general. Actually this template can be easily modified
-# to tune other operators such as depthwise convolution and gemm.
+# to tune other operators such as depthwise convolution and GEMM.
 # In order to fully understand this template, you should be familiar with
 # the schedule primitives and auto tuning API. You can refer to the above
 # tutorials and :ref:`autotvm tutorial <tutorial-autotvm-matmul-x86>`

@@ -49,6 +49,28 @@ struct UniformAttrs : public tvm::AttrsNode<UniformAttrs> {
   }
 };
 
+struct NormalAttrs : public tvm::AttrsNode<NormalAttrs> {
+  Array<Integer> out_shape;
+  DataType out_dtype;
+
+  TVM_DECLARE_ATTRS(NormalAttrs, "relay.attrs.NormalAttrs") {
+    TVM_ATTR_FIELD(out_shape).describe("Shape of random numbers to generate");
+    TVM_ATTR_FIELD(out_dtype)
+        .set_default(NullValue<DataType>())
+        .describe("Data type of the generated numbers");
+  }
+};
+
+struct MultinomialAttrs : public tvm::AttrsNode<MultinomialAttrs> {
+  Integer num_samples;
+
+  TVM_DECLARE_ATTRS(MultinomialAttrs, "relay.attrs.MultinomialAttrs") {
+    TVM_ATTR_FIELD(num_samples)
+        .set_default(1)
+        .describe("Number of samples to draw from the distribution.");
+  }
+};
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_RANDOM_H_

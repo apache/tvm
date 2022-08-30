@@ -15,9 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Ethos-N integration pooling tests"""
+"""Arm(R) Ethos(TM)-N integration pooling tests"""
 
 import numpy as np
+import pytest
 import tvm
 from tvm import relay
 from tvm.testing import requires_ethosn
@@ -36,26 +37,30 @@ def _get_model(shape, typef, sizes, strides, pads, layout, dtype):
 
 
 @requires_ethosn
-def test_pooling():
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+def test_pooling(dtype):
     trials = [
         ((1, 8, 8, 8), relay.nn.max_pool2d, (2, 2), (2, 2), (0, 0, 0, 0), "NHWC"),
-        ((1, 9, 9, 9), relay.nn.max_pool2d, (2, 2), (2, 2), (0, 0, 1, 1), "NHWC"),
         ((1, 9, 9, 9), relay.nn.max_pool2d, (3, 3), (2, 2), (0, 0, 0, 0), "NHWC"),
-        ((1, 8, 8, 8), relay.nn.max_pool2d, (3, 3), (2, 2), (0, 0, 1, 1), "NHWC"),
         ((1, 8, 8, 8), relay.nn.avg_pool2d, (3, 3), (1, 1), (1, 1, 1, 1), "NHWC"),
     ]
 
+    np.random.seed(0)
     for shape, typef, size, stride, pad, layout in trials:
         inputs = {
-            "a": tvm.nd.array(np.random.randint(low=0, high=255, size=shape, dtype="uint8")),
+            "a": tvm.nd.array(
+                np.random.randint(
+                    low=np.iinfo(dtype).min, high=np.iinfo(dtype).max + 1, size=shape, dtype=dtype
+                )
+            ),
         }
         outputs = []
-        model = _get_model(shape, typef, size, stride, pad, layout, "uint8")
+        model = _get_model(shape, typef, size, stride, pad, layout, dtype)
         for npu in [False, True]:
             mod = tei.make_module(model, {})
             outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
 
-        tei.verify(outputs, 1)
+        tei.verify(outputs, dtype, 1)
 
 
 @requires_ethosn
@@ -78,8 +83,8 @@ def test_pooling_failure():
             (2, 2),
             (0, 0, 0, 0),
             "NHWC",
-            "int8",
-            "dtype='int8', dtype must be either uint8 or int32",
+            "int16",
+            "dtype='int16', dtype must be either uint8, int8 or int32",
         ),
         (
             (1, 8, 8, 8),

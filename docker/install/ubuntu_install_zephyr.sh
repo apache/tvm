@@ -26,7 +26,7 @@ export TZ=Etc/UTC
 sudo ln -snf /usr/share/zoneinfo/$TZ /etc/localtime
 echo $TZ > /etc/timezone
 
-sudo apt-get install -y --no-install-recommends \
+sudo apt-install-and-clear -y --no-install-recommends \
      libsdl2-dev ca-certificates gnupg software-properties-common wget \
      git cmake ninja-build gperf \
      ccache dfu-util device-tree-compiler wget \
@@ -36,21 +36,17 @@ sudo apt-get install -y --no-install-recommends \
 wget --no-verbose https://apt.kitware.com/keys/kitware-archive-latest.asc
 sudo apt-key add kitware-archive-latest.asc
 
-sudo apt-add-repository 'deb https://apt.kitware.com/ubuntu/ bionic main'
+echo deb https://apt.kitware.com/ubuntu/ bionic main\
+     >> /etc/apt/sources.list.d/kitware.list
 sudo apt-get update
 
-sudo apt-get install -y cmake
+sudo apt-install-and-clear -y cmake
 
 pip3 install west
 
 # Init ZephyrProject
-# To keep in sync with the version 
-# defined in apps/microtvm/zephyr/template_project/microtvm_api_server.py
-# We use `-branch` tag since it tracks the same version with extra patches for bugs.
-ZEPHYR_VERSION="v2.5-branch"
 ZEPHYR_PROJECT_PATH=/opt/zephyrproject
-ZEPHYR_INIT_SCRIPT=$(find -name "ubuntu_init_zephyr_project.sh")
-bash ${ZEPHYR_INIT_SCRIPT} ${ZEPHYR_PROJECT_PATH} ${ZEPHYR_VERSION}
+bash /install/ubuntu_init_zephyr_project.sh ${ZEPHYR_PROJECT_PATH}
 cd ${ZEPHYR_PROJECT_PATH}
 
 # As part of the build process, Zephyr needs to touch some symlinks in zephyr/misc/generated/syscalls_links (this path is relative to the
@@ -69,9 +65,8 @@ chmod o+rwx zephyr/.cache
 #/opt/west/bin/pip3 install -r /opt/zephyrproject/zephyr/scripts/requirements.txt
 pip3 install -r /opt/zephyrproject/zephyr/scripts/requirements.txt
 
-ZEPHYR_SDK_VERSION=0.12.3
-ZEPHYR_SDK_FILE=zephyr-sdk-linux-setup.run
-wget --no-verbose -O $ZEPHYR_SDK_FILE \
-    https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZEPHYR_SDK_VERSION}/zephyr-sdk-${ZEPHYR_SDK_VERSION}-x86_64-linux-setup.run
-chmod +x $ZEPHYR_SDK_FILE
-"./$ZEPHYR_SDK_FILE" -- -d /opt/zephyr-sdk
+# the requirements above overwrite junintparser with an older version, but it is not
+# used so overwrite it again with the correct version
+pip3 install junitparser==2.4.2
+
+bash /install/ubuntu_install_zephyr_sdk.sh /opt/zephyr-sdk

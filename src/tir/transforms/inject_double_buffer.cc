@@ -107,15 +107,15 @@ class DoubleBufferInjector : public StmtExprMutator {
     auto it = dbuffer_info_.find(buf);
     if (it != dbuffer_info_.end()) {
       it->second.scope = GetPtrStorageScope(op->buffer_var);
-      it->second.stride = foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
-                                make_const(DataType::Int(32), 1), op->extents) *
-                          op->dtype.lanes();
+
+      ICHECK_EQ(op->extents.size(), 1) << "InjectDoubleBuffer expects flat 1-d buffers.  "
+                                       << "Has StorageFlatten (TE-based schedules) or "
+                                       << "FlattenBuffer (TIR-based schedules) been run?";
+      it->second.stride = op->extents[0];
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       op = stmt.as<AllocateNode>();
-      Array<PrimExpr> new_extents{make_const(op->extents[0].dtype(), 2)};
-      for (PrimExpr e : op->extents) {
-        new_extents.push_back(e);
-      }
+
+      Array<PrimExpr> new_extents = {op->extents[0] * make_const(op->extents[0].dtype(), 2)};
       ICHECK(it->second.loop != nullptr);
       auto& alloc_nest = loop_allocs_[it->second.loop];
       alloc_nest.emplace_back(
@@ -170,34 +170,77 @@ class DoubleBufferInjector : public StmtExprMutator {
     return stmt;
   }
 
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
+  }
+
   Stmt VisitStmt_(const StoreNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<StoreNode>();
-    auto it = dbuffer_info_.find(op->buffer_var.get());
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
+  }
+
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+
+    auto it = dbuffer_info_.find(node->buffer->data.get());
     if (it != dbuffer_info_.end()) {
       const StorageEntry& e = it->second;
       ICHECK(in_double_buffer_scope_);
-      ICHECK(e.stride.defined());
-      return Store(op->buffer_var, op->value, e.switch_write_var * e.stride + op->index,
-                   op->predicate);
-    } else {
-      return stmt;
+      ICHECK(e.switch_write_var.defined());
+
+      ICHECK_EQ(node->indices.size(), 1) << "InjectDoubleBuffer expects flat 1-d buffers.  "
+                                         << "Has StorageFlatten (TE-based schedules) or "
+                                         << "FlattenBuffer (TIR-based schedules) been run?";
+
+      auto writer = node.CopyOnWrite();
+      writer->buffer = GetRemappedBuffer(node->buffer, e.stride);
+      writer->indices = {e.switch_write_var * e.stride + node->indices[0]};
     }
+
+    return std::move(node);
   }
 
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<LoadNode>();
-    auto it = dbuffer_info_.find(op->buffer_var.get());
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+
+    auto it = dbuffer_info_.find(node->buffer->data.get());
     if (it != dbuffer_info_.end()) {
       const StorageEntry& e = it->second;
-      ICHECK(e.stride.defined());
       ICHECK(e.switch_read_var.defined());
-      return Load(op->dtype, op->buffer_var, e.switch_read_var * e.stride + op->index,
-                  op->predicate);
-    } else {
-      return expr;
+
+      ICHECK_EQ(node->indices.size(), 1) << "InjectDoubleBuffer expects flat 1-d buffers.  "
+                                         << "Has StorageFlatten (TE-based schedules) or "
+                                         << "FlattenBuffer (TIR-based schedules) been run?";
+
+      auto writer = node.CopyOnWrite();
+      writer->buffer = GetRemappedBuffer(node->buffer, e.stride);
+      writer->indices = {e.switch_read_var * e.stride + node->indices[0]};
     }
+
+    return std::move(node);
+  }
+
+  Buffer GetRemappedBuffer(Buffer buf, PrimExpr stride) {
+    auto key = buf.get();
+    auto it = buf_remap_.find(key);
+    if (it != buf_remap_.end()) {
+      return it->second;
+    }
+
+    ICHECK(stride.defined());
+    // TODO(Lunderberg): Move this pass to before
+    // StorageFlatten/FlattenBuffer.  That will simplify the
+    // implementation, to be the insertion of a new dimension for the
+    // buffer, rather than adjusting the other indices.
+    ICHECK_EQ(buf->shape.size(), 1) << "InjectDoubleBuffer expects flat 1-d buffers.  "
+                                    << "Has StorageFlatten (TE-based schedules) or "
+                                    << "FlattenBuffer (TIR-based schedules) been run?";
+    auto writer = buf.CopyOnWrite();
+    writer->shape = {buf->shape[0] * stride};
+
+    buf_remap_[key] = buf;
+    return buf;
   }
 
   PrimExpr VisitExpr_(const VarNode* op) final {
@@ -256,11 +299,13 @@ class DoubleBufferInjector : public StmtExprMutator {
   // The current loop next
   std::vector<const ForNode*> loop_nest_;
   // The allocs to be appended before the loop
-  std::unordered_map<const ForNode*, std::vector<Stmt> > loop_allocs_;
+  std::unordered_map<const ForNode*, std::vector<Stmt>> loop_allocs_;
   // The stmt to be appended before the loop
-  std::unordered_map<const ForNode*, std::vector<Stmt> > loop_pre_;
+  std::unordered_map<const ForNode*, std::vector<Stmt>> loop_pre_;
   // The allocation size of the buffer
   std::unordered_map<const VarNode*, StorageEntry> dbuffer_info_;
+  // The updated Buffer objects
+  std::unordered_map<const BufferNode*, Buffer> buf_remap_;
 };
 
 namespace transform {

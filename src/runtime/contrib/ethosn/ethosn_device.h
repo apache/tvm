@@ -19,23 +19,28 @@
 
 /*!
  * \file ethosn_device.h
- * \brief Ethos-N NPU device integration.
+ * \brief Arm(R) Ethos(TM)-N NPU device integration.
  */
 #ifndef TVM_RUNTIME_CONTRIB_ETHOSN_ETHOSN_DEVICE_H_
 #define TVM_RUNTIME_CONTRIB_ETHOSN_ETHOSN_DEVICE_H_
 
+#include <tvm/runtime/registry.h>
+
 #include <vector>
 
-#include "ethosn_support_library/Support.hpp"
+#include "ethosn_runtime.h"
 
 namespace tvm {
 namespace runtime {
 namespace ethosn {
 
-namespace sl = ::ethosn::support_library;
+namespace dl = ::ethosn::driver_library;
 
-bool Inference(tvm::runtime::TVMArgs args, sl::CompiledNetwork* network,
-               const std::vector<uint32_t>& input_order, const std::vector<uint32_t>& output_order);
+using tvm::runtime::TVMArgs;
+
+bool Inference(tvm::runtime::TVMArgs args, dl::Network* npu,
+               const std::vector<uint32_t>& input_order, const std::vector<uint32_t>& output_order,
+               const std::vector<uint32_t>& input_sizes, const std::vector<uint32_t>& output_sizes);
 
 }  // namespace ethosn
 }  // namespace runtime

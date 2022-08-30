@@ -33,15 +33,13 @@ import ethosu.vela.api as vapi
 @tvm.script.ir_module
 class SingleEthosUConv2D:
     @T.prim_func
-    def main(placeholder: T.handle, placeholder_1: T.handle, placeholder_2: T.handle, ethosu_conv2d: T.handle) -> None:
+    def main(placeholder_3: T.Buffer[(8192,), "int8"], ethosu_conv2d_1: T.Buffer[(1024,), "int8"]) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        placeholder_4 = T.match_buffer(placeholder_1, [1, 1, 3, 16], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        placeholder_5 = T.match_buffer(placeholder_2, [16], dtype="int32", elem_offset=0, align=128, offset_factor=1)
-        placeholder_3 = T.match_buffer(placeholder, [1, 8, 8, 3], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        ethosu_conv2d_1 = T.match_buffer(ethosu_conv2d, [1, 8, 8, 16], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        placeholder_4 = T.buffer_decl([1], "uint8")
+        placeholder_5 = T.buffer_decl([1], "uint8")
         # body
-        T.evaluate(T.call_extern("ethosu_conv2d", "uint8", 8, 8, 3, 8, 0, 8, T.load("uint8", placeholder_3.data, 0), 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 3, 1, "uint8", 8, 8, 16, 8, 0, 8, T.load("uint8", ethosu_conv2d_1.data, 0), 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 16, 1, 1, 1, 1, 1, 1, 1, T.load("uint8", placeholder_4.data, 0), 0, 12, T.load("uint8", placeholder_5.data, 0), 0, 0, 0, 0, 0, "CLIP", 0, 255, "NONE", dtype="uint8"))
+        T.evaluate(T.call_extern("ethosu_conv2d", "uint8", 8, 8, 3, 8, 0, 8, placeholder_3[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 3, 1, "uint8", 8, 8, 16, 8, 0, 8, ethosu_conv2d_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 16, 1, 1, 1, 1, 1, 1, 1, placeholder_4[0], 0, T.int8(-1), T.int8(-1), 12, placeholder_5[0], 0, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "CLIP", 0, 255, "TFL", "NONE", 0, 0, 0, dtype="uint8"))
 # fmt: on
 
 
@@ -50,22 +48,20 @@ class SingleEthosUConv2D:
 @tvm.script.ir_module
 class MultiEthosUConv2D:
     @T.prim_func
-    def main(placeholder: T.handle, placeholder_1: T.handle, placeholder_2: T.handle, placeholder_3: T.handle, placeholder_4: T.handle, ethosu_conv2d: T.handle) -> None:
+    def main(placeholder_6: T.Buffer[(192,), "int8"], ethosu_conv2d_1: T.Buffer[(512,), "int8"]) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        placeholder_9 = T.match_buffer(placeholder_3, [1, 1, 32, 8], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        ethosu_conv2d_1 = T.match_buffer(ethosu_conv2d, [1, 8, 8, 8], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        placeholder_7 = T.match_buffer(placeholder_1, [1, 1, 3, 32], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        placeholder_6 = T.match_buffer(placeholder, [1, 8, 8, 3], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        placeholder_8 = T.match_buffer(placeholder_2, [32], dtype="int32", elem_offset=0, align=128, offset_factor=1)
-        placeholder_5 = T.match_buffer(placeholder_4, [8], dtype="int32", elem_offset=0, align=128, offset_factor=1)
+        placeholder_9 = T.buffer_decl([1], "uint8")
+        placeholder_7 = T.buffer_decl([1], "uint8")
+        placeholder_8 = T.buffer_decl([1], "uint8")
+        placeholder_5 = T.buffer_decl([1], "uint8")
         # body
         ethosu_conv2d_2 = T.allocate([1024], "uint8", "global")
         ethosu_conv2d_3 = T.allocate([2048], "uint8", "global")
-        T.evaluate(T.call_extern("ethosu_conv2d", "uint8", 4, 8, 3, 4, 0, 8, T.load("uint8", placeholder_6.data, 0), 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 3, 1, "uint8", 4, 8, 32, 4, 0, 8, T.load("uint8", ethosu_conv2d_2, 0), 0, 0, 0, T.float32(0.25), 14, "NHWC", 256, 32, 1, 1, 1, 1, 1, 1, 1, T.load("uint8", placeholder_7.data, 0), 0, 12, T.load("uint8", placeholder_8.data, 0), 0, 0, 0, 0, 0, "NONE", 0, 0, "NONE", dtype="uint8"))
-        T.evaluate(T.call_extern("ethosu_conv2d", "uint8", 4, 8, 32, 4, 0, 8, T.load("uint8", ethosu_conv2d_2, 0), 0, 0, 0, T.float32(0.5), 10, "NHWC", 256, 32, 1, "uint8", 4, 8, 8, 4, 0, 8, T.load("uint8", ethosu_conv2d_1.data, 0), 0, 0, 0, T.float32(0.25), 14, "NHWC", 64, 8, 1, 1, 1, 1, 1, 1, 1, T.load("uint8", placeholder_9.data, 0), 0, 12, T.load("uint8", placeholder_5.data, 0), 0, 0, 0, 0, 0, "CLIP", 0, 255, "NONE", dtype="uint8"))
-        T.evaluate(T.call_extern("ethosu_conv2d", "uint8", 4, 8, 3, 4, 0, 8, T.load("uint8", placeholder_6.data, 96), 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 3, 1, "uint8", 4, 8, 32, 4, 0, 8, T.load("uint8", ethosu_conv2d_2, 0), 0, 0, 0, T.float32(0.25), 14, "NHWC", 256, 32, 1, 1, 1, 1, 1, 1, 1, T.load("uint8", placeholder_7.data, 0), 0, 12, T.load("uint8", placeholder_8.data, 0), 0, 0, 0, 0, 0, "CLIP", 0, 255, "NONE", dtype="uint8"))
-        T.evaluate(T.call_extern("ethosu_conv2d", "uint8", 4, 8, 32, 4, 0, 8, T.load("uint8", ethosu_conv2d_2, 0), 0, 0, 0, T.float32(0.5), 10, "NHWC", 256, 32, 1, "uint8", 4, 8, 8, 4, 0, 8, T.load("uint8", ethosu_conv2d_1.data, 256), 0, 0, 0, T.float32(0.25), 14, "NHWC", 64, 8, 1, 1, 1, 1, 1, 1, 1, T.load("uint8", placeholder_9.data, 0), 0, 12, T.load("uint8", placeholder_5.data, 0), 0, 0, 0, 0, 0, "CLIP", 0, 255, "NONE", dtype="uint8"))
+        T.evaluate(T.call_extern("ethosu_conv2d", "uint8", 4, 8, 3, 4, 0, 8, placeholder_6[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 3, 1, "uint8", 4, 8, 32, 4, 0, 8, ethosu_conv2d_2[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 256, 32, 1, 1, 1, 1, 1, 1, 1, placeholder_7[0], 0, T.int8(-1), T.int8(-1), 12, placeholder_8[0], 0, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="uint8"))
+        T.evaluate(T.call_extern("ethosu_conv2d", "uint8", 4, 8, 32, 4, 0, 8, ethosu_conv2d_2[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 256, 32, 1, "uint8", 4, 8, 8, 4, 0, 8, ethosu_conv2d_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 64, 8, 1, 1, 1, 1, 1, 1, 1, placeholder_9[0], 0, T.int8(-1), T.int8(-1), 12, placeholder_5[0], 0, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "CLIP", 0, 255, "TFL", "NONE", 0, 0, 0, dtype="uint8"))
+        T.evaluate(T.call_extern("ethosu_conv2d", "uint8", 4, 8, 3, 4, 0, 8, placeholder_6[96], 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 3, 1, "uint8", 4, 8, 32, 4, 0, 8, ethosu_conv2d_2[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 256, 32, 1, 1, 1, 1, 1, 1, 1, placeholder_7[0], 0, T.int8(-1), T.int8(-1), 12, placeholder_8[0], 0, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "CLIP", 0, 255, "TFL", "NONE", 0, 0, 0, dtype="uint8"))
+        T.evaluate(T.call_extern("ethosu_conv2d", "uint8", 4, 8, 32, 4, 0, 8, ethosu_conv2d_2[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 256, 32, 1, "uint8", 4, 8, 8, 4, 0, 8, ethosu_conv2d_1[256], 0, 0, 0, T.float32(0.25), 14, "NHWC", 64, 8, 1, 1, 1, 1, 1, 1, 1, placeholder_9[0], 0, T.int8(-1), T.int8(-1), 12, placeholder_5[0], 0, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "CLIP", 0, 255, "TFL", "NONE", 0, 0, 0, dtype="uint8"))
 # fmt: on
 
 
@@ -74,19 +70,17 @@ class MultiEthosUConv2D:
 @tvm.script.ir_module
 class MultiEthosUCopy:
     @T.prim_func
-    def main(placeholder: T.handle, placeholder_1: T.handle, placeholder_2: T.handle, ethosu_conv2d: T.handle) -> None:
+    def main(placeholder_3: T.Buffer[(8192,), "int8"], ethosu_conv2d_1: T.Buffer[(2048,), "int8"]) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        placeholder_3 = T.match_buffer(placeholder, [1, 16, 16, 32], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        ethosu_conv2d_1 = T.match_buffer(ethosu_conv2d, [1, 16, 16, 8], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        placeholder_5 = T.match_buffer(placeholder_2, [8], dtype="int32", elem_offset=0, align=128, offset_factor=1)
-        placeholder_4 = T.match_buffer(placeholder_1, [8, 1, 1, 32], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        placeholder_5 = T.buffer_decl([1], "int32")
+        placeholder_4 = T.buffer_decl([1], "uint8")
         # body
         placeholder_global = T.allocate([256], "uint8", "global")
         placeholder_d_global = T.allocate([8], "int32", "global")
-        T.evaluate(T.call_extern("ethosu_copy", T.load("uint8", placeholder_4.data, 0), 256,  T.load("uint8", placeholder_global, 0), dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_copy", T.load("int32", placeholder_5.data, 0), 8, T.load("int32", placeholder_d_global, 0), dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_conv2d", "uint8", 16, 16, 32, 16, 0, 16, T.load("uint8", placeholder_3.data, 0), 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "uint8", 16, 16, 8, 16, 0, 16, T.load("uint8", ethosu_conv2d_1.data, 0), 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, T.load("uint8", placeholder_global, 0), 0, 12, T.load("uint8", placeholder_d_global, 0), 0, 0, 0, 0, 0, "CLIP", 0, 255, "NONE", dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_copy", placeholder_4[0], 256,  placeholder_global[0], dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_copy", placeholder_5[0], 8, placeholder_d_global[0], dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_conv2d", "uint8", 16, 16, 32, 16, 0, 16, placeholder_3[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "uint8", 16, 16, 8, 16, 0, 16, ethosu_conv2d_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, placeholder_global[0], 0, T.int8(-1), T.int8(-1), 12, placeholder_d_global[0], 0, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "CLIP", 0, 255, "TFL", "NONE", 0, 0, 0, dtype="handle"))
 # fmt: on
 
 
@@ -95,34 +89,41 @@ class MultiEthosUCopy:
 @tvm.script.ir_module
 class WeightStreamOnly:
     @T.prim_func
-    def main(placeholder: T.handle, ethosu_conv2d: T.handle, placeholder_1: T.handle, placeholder_2: T.handle, placeholder_3: T.handle, placeholder_4: T.handle, placeholder_5: T.handle, placeholder_6: T.handle, placeholder_7: T.handle, placeholder_8: T.handle) -> None:
+    def main(placeholder: T.Buffer[(8192,), "int8"], ethosu_write: T.Buffer[(2048,), "int8"]) -> None:
+        buffer = T.buffer_decl([1], "uint8")
+        buffer_1 = T.buffer_decl([1], "uint8")
+        buffer_2 = T.buffer_decl([1], "uint8")
+        buffer_3 = T.buffer_decl([1], "uint8")
+        buffer_4 = T.buffer_decl([1], "uint8")
+        buffer_5 = T.buffer_decl([1], "uint8")
+        buffer_6 = T.buffer_decl([1], "uint8")
+        buffer_7 = T.buffer_decl([1], "uint8")
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        buffer_4 = T.match_buffer(placeholder_5, [144], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        buffer_3 = T.match_buffer(placeholder_4, [20], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        buffer_7 = T.match_buffer(placeholder_7, [144], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        buffer_5 = T.match_buffer(placeholder_1, [144], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        buffer_6 = T.match_buffer(placeholder_6, [20], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        ethosu_conv2d_1 = T.match_buffer(ethosu_conv2d, [1, 16, 16, 8], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        buffer_1 = T.match_buffer(placeholder_3, [144], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        buffer_2 = T.match_buffer(placeholder_2, [20], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        placeholder_9 = T.match_buffer(placeholder, [1, 16, 16, 32], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        buffer = T.match_buffer(placeholder_8, [20], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        T.func_attr({"from_legacy_te_schedule": True,
+                     "global_symbol": "main", "tir.noalias": True,
+                     "constants": {buffer.name: buffer,
+                                       buffer_1.name: buffer_1,
+                                       buffer_2.name: buffer_2,
+                                       buffer_3.name: buffer_3,
+                                       buffer_4.name: buffer_4,
+                                       buffer_5.name: buffer_5,
+                                       buffer_6.name: buffer_6,
+                                       buffer_7.name: buffer_7}})
         # body
-        placeholder_global = T.allocate([144], "uint8", "global")
-        placeholder_d_global = T.allocate([20], "uint8", "global")
-        T.evaluate(T.call_extern("ethosu_copy", T.load("uint8", buffer_5.data, 0), 144, T.load("uint8", placeholder_global, 0), dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_copy", T.load("uint8", buffer_2.data, 0), 20, T.load("uint8", placeholder_d_global, 0), dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_conv2d", "uint8", 16, 16, 32, 16, 0, 16, T.load("uint8", placeholder_9.data, 0), 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "uint8", 16, 16, 2, 16, 0, 16, T.load("uint8", ethosu_conv2d_1.data, 0), 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, T.load("uint8", placeholder_global, 0), 144, 12, T.load("uint8", placeholder_d_global, 0), 20, 0, 0, 0, 0, "CLIP", 0, 255, "NONE", dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_copy", T.load("uint8", buffer_1.data, 0), 144, T.load("uint8", placeholder_global, 0), dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_copy", T.load("uint8", buffer_3.data, 0), 20, T.load("uint8", placeholder_d_global, 0), dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_conv2d", "uint8", 16, 16, 32, 16, 0, 16, T.load("uint8", placeholder_9.data, 0), 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "uint8", 16, 16, 2, 16, 0, 16, T.load("uint8", ethosu_conv2d_1.data, 2), 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, T.load("uint8", placeholder_global, 0), 144, 12, T.load("uint8", placeholder_d_global, 0), 20, 0, 0, 0, 0, "CLIP", 0, 255, "NONE", dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_copy", T.load("uint8", buffer_4.data, 0), 144, T.load("uint8", placeholder_global, 0), dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_copy", T.load("uint8", buffer_6.data, 0), 20, T.load("uint8", placeholder_d_global, 0), dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_conv2d", "uint8", 16, 16, 32, 16, 0, 16, T.load("uint8", placeholder_9.data, 0), 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "uint8", 16, 16, 2, 16, 0, 16, T.load("uint8", ethosu_conv2d_1.data, 4), 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, T.load("uint8", placeholder_global, 0), 144, 12, T.load("uint8", placeholder_d_global, 0), 20, 0, 0, 0, 0, "CLIP", 0, 255, "NONE", dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_copy", T.load("uint8", buffer_7.data, 0), 144, T.load("uint8", placeholder_global, 0), dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_copy", T.load("uint8", buffer.data, 0), 20, T.load("uint8", placeholder_d_global, 0), dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_conv2d", "uint8", 16, 16, 32, 16, 0, 16, T.load("uint8", placeholder_9.data, 0), 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "uint8", 16, 16, 2, 16, 0, 16, T.load("uint8", ethosu_conv2d_1.data, 6), 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, T.load("uint8", placeholder_global, 0), 144, 12, T.load("uint8", placeholder_d_global, 0), 20, 0, 0, 0, 0, "CLIP", 0, 255, "NONE", dtype="handle"))
+        placeholder_global = T.allocate([128], "uint8", "global", annotations={"disable_lower_builtin":True})
+        placeholder_d_global = T.allocate([32], "uint8", "global", annotations={"disable_lower_builtin":True})
+        T.evaluate(T.call_extern("ethosu_copy", buffer[0], 128, placeholder_global[0], dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_copy", buffer_1[0], 32, placeholder_d_global[0], dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 32, 16, 0, 16, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 16, 2, 16, 0, 16, ethosu_write[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, placeholder_global[0], 128, T.int8(-1), T.int8(-1), 12, placeholder_d_global[0], 32, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_copy", buffer_2[0], 112, placeholder_global[0], dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_copy", buffer_3[0], 32, placeholder_d_global[0], dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 32, 16, 0, 16, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 16, 2, 16, 0, 16, ethosu_write[2], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, placeholder_global[0], 112, T.int8(-1), T.int8(-1), 12, placeholder_d_global[0], 32, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_copy", buffer_4[0], 112, placeholder_global[0], dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_copy", buffer_5[0], 32, placeholder_d_global[0], dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 32, 16, 0, 16, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 16, 2, 16, 0, 16, ethosu_write[4], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, placeholder_global[0], 112, T.int8(-1), T.int8(-1), 12, placeholder_d_global[0], 32, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_copy", buffer_6[0], 112, placeholder_global[0], dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_copy", buffer_7[0], 32, placeholder_d_global[0], dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 32, 16, 0, 16, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 16, 2, 16, 0, 16, ethosu_write[6], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, placeholder_global[0], 112, T.int8(-1), T.int8(-1), 12, placeholder_d_global[0], 32, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
     __tvm_meta__ = None
 # fmt: on
 
@@ -132,38 +133,47 @@ class WeightStreamOnly:
 @tvm.script.ir_module
 class MixedRead:
     @T.prim_func
-    def main(placeholder: T.handle, placeholder_1: T.handle, ethosu_conv2d: T.handle, placeholder_2: T.handle, placeholder_3: T.handle, placeholder_4: T.handle, placeholder_5: T.handle, placeholder_6: T.handle, placeholder_7: T.handle, placeholder_8: T.handle, placeholder_9: T.handle, placeholder_10: T.handle) -> None:
+    def main(placeholder: T.Buffer[(8192,), "int8"], ethosu_write: T.Buffer[(2048,), "int8"]) -> None:
+        buffer = T.buffer_decl([1], "uint8")
+        buffer_1 = T.buffer_decl([1], "uint8")
+        buffer_2 = T.buffer_decl([1], "uint8")
+        buffer_3 = T.buffer_decl([1], "uint8")
+        buffer_4 = T.buffer_decl([1], "uint8")
+        buffer_5 = T.buffer_decl([1], "uint8")
+        buffer_6 = T.buffer_decl([1], "uint8")
+        buffer_7 = T.buffer_decl([1], "uint8")
+        buffer_8 = T.buffer_decl([1], "uint8")
+        buffer_9 = T.buffer_decl([1], "uint8")
         # function attr dict
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        buffer_5 = T.match_buffer(placeholder_1, [592], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        buffer_7 = T.match_buffer(placeholder_2, [160], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        buffer_3 = T.match_buffer(placeholder_7, [80], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        buffer_6 = T.match_buffer(placeholder_4, [20], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        buffer_9 = T.match_buffer(placeholder_5, [80], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        ethosu_conv2d_1 = T.match_buffer(ethosu_conv2d, [1, 16, 16, 8], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        buffer = T.match_buffer(placeholder_8, [20], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        buffer_1 = T.match_buffer(placeholder_10, [20], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        placeholder_11 = T.match_buffer(placeholder, [1, 16, 16, 32], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        buffer_2 = T.match_buffer(placeholder_6, [20], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        buffer_4 = T.match_buffer(placeholder_3, [80], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        buffer_8 = T.match_buffer(placeholder_9, [80], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        T.func_attr({"from_legacy_te_schedule": True,
+                     "global_symbol": "main", "tir.noalias": True,
+                     "constants": {buffer.name: buffer,
+                                   buffer_1.name: buffer_1,
+                                   buffer_2.name: buffer_2,
+                                   buffer_3.name: buffer_3,
+                                   buffer_4.name: buffer_4,
+                                   buffer_5.name: buffer_5,
+                                   buffer_6.name: buffer_6,
+                                   buffer_7.name: buffer_7,
+                                   buffer_8.name: buffer_8,
+                                   buffer_9.name: buffer_9}})
         # body
-        ethosu_conv2d_2 = T.allocate([4096], "uint8", "global")
-        placeholder_global = T.allocate([80], "uint8", "global")
-        placeholder_d_global = T.allocate([20], "uint8", "global")
-        T.evaluate(T.call_extern("ethosu_conv2d", "uint8", 16, 16, 32, 16, 0, 16, T.load("uint8", placeholder_11.data, 0), 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "uint8", 16, 16, 16, 16, 0, 16, T.load("uint8", ethosu_conv2d_2, 0), 0, 0, 0, T.float32(0.25), 14, "NHWC", 256, 16, 1, 1, 1, 1, 1, 1, 1, T.load("uint8", buffer_5.data, 0), 592, 12, T.load("uint8", buffer_7.data, 0), 160, 0, 0, 0, 0, "CLIP", 0, 255, "NONE", dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_copy", T.load("uint8", buffer_4.data, 0), 80, T.load("uint8", placeholder_global, 0), dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_copy", T.load("uint8", buffer_6.data, 0), 20, T.load("uint8", placeholder_d_global, 0), dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_conv2d", "uint8", 16, 16, 16, 16, 0, 16, T.load("uint8", ethosu_conv2d_2, 0), 0, 0, 0, T.float32(0.5), 10, "NHWC", 256, 16, 1, "uint8", 16, 16, 2, 16, 0, 16, T.load("uint8", ethosu_conv2d_1.data, 0), 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, T.load("uint8", placeholder_global, 0), 80, 12, T.load("uint8", placeholder_d_global, 0), 20, 0, 0, 0, 0, "CLIP", 0, 255, "NONE", dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_copy", T.load("uint8", buffer_9.data, 0), 80, T.load("uint8", placeholder_global, 0), dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_copy", T.load("uint8", buffer_2.data, 0), 20, T.load("uint8", placeholder_d_global, 0), dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_conv2d", "uint8", 16, 16, 16, 16, 0, 16, T.load("uint8", ethosu_conv2d_2, 0), 0, 0, 0, T.float32(0.5), 10, "NHWC", 256, 16, 1, "uint8", 16, 16, 2, 16, 0, 16, T.load("uint8", ethosu_conv2d_1.data, 2), 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, T.load("uint8", placeholder_global, 0), 80, 12, T.load("uint8", placeholder_d_global, 0), 20, 0, 0, 0, 0, "CLIP", 0, 255, "NONE", dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_copy", T.load("uint8", buffer_3.data, 0), 80, T.load("uint8", placeholder_global, 0), dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_copy", T.load("uint8", buffer.data, 0), 20, T.load("uint8", placeholder_d_global, 0), dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_conv2d", "uint8", 16, 16, 16, 16, 0, 16, T.load("uint8", ethosu_conv2d_2, 0), 0, 0, 0, T.float32(0.5), 10, "NHWC", 256, 16, 1, "uint8", 16, 16, 2, 16, 0, 16, T.load("uint8", ethosu_conv2d_1.data, 4), 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, T.load("uint8", placeholder_global, 0), 80, 12, T.load("uint8", placeholder_d_global, 0), 20, 0, 0, 0, 0, "CLIP", 0, 255, "NONE", dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_copy", T.load("uint8", buffer_8.data, 0), 80, T.load("uint8", placeholder_global, 0), dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_copy", T.load("uint8", buffer_1.data, 0), 20, T.load("uint8", placeholder_d_global, 0), dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_conv2d", "uint8", 16, 16, 16, 16, 0, 16, T.load("uint8", ethosu_conv2d_2, 0), 0, 0, 0, T.float32(0.5), 10, "NHWC", 256, 16, 1, "uint8", 16, 16, 2, 16, 0, 16, T.load("uint8", ethosu_conv2d_1.data, 6), 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, T.load("uint8", placeholder_global, 0), 80, 12, T.load("uint8", placeholder_d_global, 0), 20, 0, 0, 0, 0, "CLIP", 0, 255, "NONE", dtype="handle"))
+        ethosu_write_1 = T.allocate([4096], "int8", "global", annotations={"disable_lower_builtin":True})
+        placeholder_global = T.allocate([80], "uint8", "global", annotations={"disable_lower_builtin":True})
+        placeholder_d_global = T.allocate([32], "uint8", "global", annotations={"disable_lower_builtin":True})
+        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 32, 16, 0, 16, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 16, 16, 16, 0, 16, ethosu_write_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 256, 16, 1, 1, 1, 1, 1, 1, 1, buffer[0], 592, T.int8(-1), T.int8(-1), 12, buffer_1[0], 160, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_copy", buffer_2[0], 80, placeholder_global[0], dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_copy", buffer_3[0], 32, placeholder_d_global[0], dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 16, 16, 0, 16, ethosu_write_1[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 256, 16, 1, "int8", 16, 16, 2, 16, 0, 16, ethosu_write[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, placeholder_global[0], 80, T.int8(-1), T.int8(-1), 12, placeholder_d_global[0], 32, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_copy", buffer_4[0], 80, placeholder_global[0], dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_copy", buffer_5[0], 32, placeholder_d_global[0], dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 16, 16, 0, 16, ethosu_write_1[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 256, 16, 1, "int8", 16, 16, 2, 16, 0, 16, ethosu_write[2], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, placeholder_global[0], 80, T.int8(-1), T.int8(-1), 12, placeholder_d_global[0], 32, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_copy", buffer_6[0], 80, placeholder_global[0], dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_copy", buffer_7[0], 32, placeholder_d_global[0], dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 16, 16, 0, 16, ethosu_write_1[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 256, 16, 1, "int8", 16, 16, 2, 16, 0, 16, ethosu_write[4], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, placeholder_global[0], 80, T.int8(-1), T.int8(-1), 12, placeholder_d_global[0], 32, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_copy", buffer_8[0], 80, placeholder_global[0], dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_copy", buffer_9[0], 32, placeholder_d_global[0], dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 16, 16, 0, 16, ethosu_write_1[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 256, 16, 1, "int8", 16, 16, 2, 16, 0, 16, ethosu_write[6], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, placeholder_global[0], 80, T.int8(-1), T.int8(-1), 12, placeholder_d_global[0], 32, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
     __tvm_meta__ = None
 # fmt: on
 
@@ -174,16 +184,14 @@ def test_buffer_info_extraction():
             # Stimulus
             "tir_module": SingleEthosUConv2D,
             "param_dict": {
-                1: np.random.randint(
+                tvm.tir.Var("placeholder_4", "uint8"): np.random.randint(
                     np.iinfo("uint8").min, np.iinfo("uint8").max, [1, 1, 3, 16], "uint8"
                 ),
-                2: np.random.randint(np.iinfo("int32").min, np.iinfo("int32").max, [16], "int32"),
+                tvm.tir.Var("placeholder_5", "uint8"): np.random.randint(
+                    np.iinfo("int32").min, np.iinfo("int32").max, [16], "int32"
+                ),
             },
             # Reference Outputs
-            "constants": {
-                "placeholder_4": 1,
-                "placeholder_5": 2,
-            },
             "data_buffers": {
                 "placeholder_3": (
                     [1, 8, 8, 3],
@@ -200,22 +208,20 @@ def test_buffer_info_extraction():
         {
             "tir_module": MultiEthosUConv2D,
             "param_dict": {
-                1: np.random.randint(
+                tvm.tir.Var("placeholder_7", "uint8"): np.random.randint(
                     np.iinfo("uint8").min, np.iinfo("uint8").max, [1, 1, 3, 32], "uint8"
                 ),
-                2: np.random.randint(np.iinfo("int32").min, np.iinfo("int32").max, [32], "int32"),
-                3: np.random.randint(
+                tvm.tir.Var("placeholder_8", "uint8"): np.random.randint(
+                    np.iinfo("int32").min, np.iinfo("int32").max, [32], "int32"
+                ),
+                tvm.tir.Var("placeholder_8", "uint8"): np.random.randint(
                     np.iinfo("uint8").min, np.iinfo("uint8").max, [1, 1, 32, 8], "uint8"
                 ),
-                4: np.random.randint(np.iinfo("int32").min, np.iinfo("int32").max, [8], "int32"),
+                tvm.tir.Var("placeholder_5", "uint8"): np.random.randint(
+                    np.iinfo("int32").min, np.iinfo("int32").max, [8], "int32"
+                ),
             },
             # Reference Outputs
-            "constants": {
-                "placeholder_5": 4,
-                "placeholder_7": 1,
-                "placeholder_8": 2,
-                "placeholder_9": 3,
-            },
             "data_buffers": {
                 "placeholder_6": (
                     [1, 8, 8, 3],
@@ -227,28 +233,35 @@ def test_buffer_info_extraction():
                     "uint8",
                     tir_to_cs_translator.BufferType.input_or_output,
                 ),
-                "ethosu_conv2d_2": ([1024], "uint8", tir_to_cs_translator.BufferType.scratch),
-                "ethosu_conv2d_3": ([2048], "uint8", tir_to_cs_translator.BufferType.scratch),
+                "ethosu_conv2d_2": (
+                    [1024],
+                    "uint8",
+                    tir_to_cs_translator.BufferType.scratch,
+                ),
+                "ethosu_conv2d_3": (
+                    [2048],
+                    "uint8",
+                    tir_to_cs_translator.BufferType.scratch,
+                ),
             },
         },
     ]
     for test_case in test_cases:
-        buffer_info = tir_to_cs_translator.extract_buffer_info(
-            test_case["tir_module"], test_case["param_dict"]
-        )
+        # With Target Hooks the TIR module needs a target attached
+        # and lowered via make unpacked API.
+        tir_mod = test_case["tir_module"]
+        tir_mod["main"] = tir_mod["main"].with_attr("target", tvm.target.Target("ethos-u"))
+        tir_mod = tvm.tir.transform.MakeUnpackedAPI()(tir_mod)
+        buffer_info = tir_to_cs_translator.extract_buffer_info(tir_mod, test_case["param_dict"])
         for buffer_var, info in buffer_info.items():
-            buffer_name = buffer_var.name
-            if buffer_name in test_case["constants"].keys():
+            if buffer_var in test_case["param_dict"].keys():
                 assert (
-                    info.values == test_case["param_dict"][test_case["constants"][buffer_name]]
+                    info.values.flatten() == test_case["param_dict"][buffer_var].flatten()
                 ).all()
-                assert (
-                    info.dtype == test_case["param_dict"][test_case["constants"][buffer_name]].dtype
-                )
+                assert info.dtype == test_case["param_dict"][buffer_var].dtype
                 info.btype == tir_to_cs_translator.BufferType.constant
             else:
-                assert list(info.shape) == test_case["data_buffers"][buffer_name][0]
-                assert info.dtype == test_case["data_buffers"][buffer_name][1]
+                buffer_name = buffer_var.name
                 assert info.btype == test_case["data_buffers"][buffer_name][2]
 
 
@@ -291,6 +304,7 @@ def test_translate_ethosu_conv2d():
                         "min": -3.5,
                         "max": 60.25,
                     },
+                    "rounding_mode": vapi.NpuRoundingMode.TFL,
                     "ifm_upscale": vapi.NpuResamplingMode.NONE,
                     "w_zero_point": 12,
                 }
@@ -332,6 +346,7 @@ def test_translate_ethosu_conv2d():
                     ),
                     "padding": vapi.NpuPadding(top=0, left=0, bottom=0, right=0),
                     "activation": {"op": None},
+                    "rounding_mode": vapi.NpuRoundingMode.TFL,
                     "ifm_upscale": vapi.NpuResamplingMode.NONE,
                     "w_zero_point": 12,
                 },
@@ -361,6 +376,7 @@ def test_translate_ethosu_conv2d():
                         "min": -3.5,
                         "max": 60.25,
                     },
+                    "rounding_mode": vapi.NpuRoundingMode.TFL,
                     "ifm_upscale": vapi.NpuResamplingMode.NONE,
                     "w_zero_point": 12,
                 },
@@ -390,6 +406,7 @@ def test_translate_ethosu_conv2d():
                         "min": -3.5,
                         "max": 60.25,
                     },
+                    "rounding_mode": vapi.NpuRoundingMode.TFL,
                     "ifm_upscale": vapi.NpuResamplingMode.NONE,
                     "w_zero_point": 12,
                 },
@@ -419,6 +436,7 @@ def test_translate_ethosu_conv2d():
                         "min": -3.5,
                         "max": 60.25,
                     },
+                    "rounding_mode": vapi.NpuRoundingMode.TFL,
                     "ifm_upscale": vapi.NpuResamplingMode.NONE,
                     "w_zero_point": 12,
                 },
@@ -491,6 +509,8 @@ def test_translate_ethosu_conv2d():
                 assert npu_op.activation.op_type == ref["activation"]["op"]
                 assert npu_op.activation.min == ref["activation"]["min"]
                 assert npu_op.activation.max == ref["activation"]["max"]
+            # Compare rounding mode
+            assert npu_op.rounding_mode == ref["rounding_mode"]
             # Compare ifm upscaling
             assert npu_op.ifm_upscale == ref["ifm_upscale"]
             # Compare weight quantization parameters
@@ -505,12 +525,12 @@ class SingleEthosuDepthwiseConv2D:
     def main(placeholder: T.handle, placeholder_1: T.handle, placeholder_2: T.handle, ethosu_depthwise_conv2d: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        placeholder_4 = T.match_buffer(placeholder_1, [3, 3, 2, 1], dtype="int8", elem_offset=0, align=128, offset_factor=1)
-        placeholder_5 = T.match_buffer(placeholder_2, [3, 10], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        placeholder_3 = T.match_buffer(placeholder, [1, 8, 8, 3], dtype="int8", elem_offset=0, align=128, offset_factor=1)
-        ethosu_depthwise_conv2d_1 = T.match_buffer(ethosu_depthwise_conv2d, [1, 6, 7, 3], dtype="int8", elem_offset=0, align=128, offset_factor=1)
+        placeholder_4 = T.match_buffer(placeholder_1, [18], dtype="int8", elem_offset=0, align=64, offset_factor=1)
+        placeholder_5 = T.match_buffer(placeholder_2, [30], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
+        placeholder_3 = T.match_buffer(placeholder, [192], dtype="int8", elem_offset=0, align=64, offset_factor=1)
+        ethosu_depthwise_conv2d_1 = T.match_buffer(ethosu_depthwise_conv2d, [126], dtype="int8", elem_offset=0, align=64, offset_factor=1)
         # body
-        T.evaluate(T.call_extern("ethosu_depthwise_conv2d", "int8", 8, 8, 3, 8, 0, 8, T.load("int8", placeholder_3.data, 0), 0, 0, 0, T.float32(0.6), 11, "NHWC", 24, 3, 1, "int8", 6, 7, 3, 6, 0, 7, T.load("int8", ethosu_depthwise_conv2d_1.data, 0), 0, 0, 0, T.float32(0.26), 15, "NHWC", 21, 3, 1, 2, 3, 1, 1, 1, 1, T.load("int8", placeholder_4.data, 0), 18, 13, T.load("uint8", placeholder_5.data, 0), 30, 0, 0, 0, 0, "CLIP", 15, 105, "NONE", dtype="int8"))
+        T.evaluate(T.call_extern("ethosu_depthwise_conv2d", "int8", 8, 8, 3, 8, 0, 8, placeholder_3[0], 0, 0, 0, T.float32(0.6), 11, "NHWC", 24, 3, 1, "int8", 6, 7, 3, 6, 0, 7, ethosu_depthwise_conv2d_1[0], 0, 0, 0, T.float32(0.26), 15, "NHWC", 21, 3, 1, 2, 3, 1, 1, 1, 1, placeholder_4[0], 18, 13, placeholder_5[0], 30, 0, 0, 0, 0, "CLIP", 15, 105, "TFL", "NONE", 0, 0, 0, dtype="int8"))
     __tvm_meta__ = None
 # fmt: on
 
@@ -566,6 +586,8 @@ def test_translate_ethosu_depthwise_conv2d():
     assert npu_op.activation.op_type == vapi.NpuActivationOp.NONE_OR_RELU
     assert npu_op.activation.min == 0
     assert npu_op.activation.max == pytest.approx(23.4)
+    # Compare rounding mode
+    assert npu_op.rounding_mode == vapi.NpuRoundingMode.TFL
     # Compare ifm upscaling
     assert npu_op.ifm_upscale == vapi.NpuResamplingMode.NONE
     # Compare weight quantization parameters
@@ -625,7 +647,7 @@ def test_translate_ethosu_copy():
                 {
                     "src": "placeholder_5",
                     "dest": "placeholder_d_global",
-                    "length": 8,
+                    "length": 32,
                 },
             ],
         },
@@ -635,10 +657,37 @@ def test_translate_ethosu_copy():
         ethosu_copy_calls = extract_ethosu_copy_extern_calls(test_case["tir_module"])
         for idx, ethosu_copy_call in enumerate(ethosu_copy_calls):
             npu_dma_op = tir_to_cs_translator.translate_ethosu_tir_call_extern(ethosu_copy_call)
-            assert npu_dma_op.src.address.buffer_var.name == test_case["ref"][idx]["src"]
-            assert npu_dma_op.dest.address.buffer_var.name == test_case["ref"][idx]["dest"]
+            assert npu_dma_op.src.address.buffer.name == test_case["ref"][idx]["src"]
+            assert npu_dma_op.dest.address.buffer.name == test_case["ref"][idx]["dest"]
             assert npu_dma_op.src.length == test_case["ref"][idx]["length"]
             assert npu_dma_op.dest.length == test_case["ref"][idx]["length"]
+
+
+# fmt: off
+@tvm.script.ir_module
+class MixedConstantDatatypes:
+    @T.prim_func
+    def main(placeholder_4: T.Buffer[(2048,), "int8"], ethosu_write_1: T.Buffer[(16,), "int8"]) -> None:
+        buffer = T.buffer_decl([1], "uint8")
+        buffer_1 = T.buffer_decl([1], "uint8")
+        buffer_2 = T.buffer_decl([1], "int16")
+        # function attr dict
+        T.func_attr({"from_legacy_te_schedule": True,
+                     "global_symbol": "main", "tir.noalias": True,
+                     "constants": {buffer.name: buffer,
+                                   buffer_1.name: buffer_1,
+                                   buffer_2.name: buffer_2}})
+        # body
+        placeholder_global = T.allocate([272], "uint8", "global")
+        placeholder_d_global = T.allocate([160], "uint8", "global")
+        ethosu_write_2 = T.allocate([16], "int16", "global")
+        placeholder_d_global_1 = T.allocate([1], "int16", "global")
+        T.evaluate(T.call_extern("ethosu_copy", buffer_1[0], 272, placeholder_global[0], dtype="uint8"))
+        T.evaluate(T.call_extern("ethosu_copy", buffer[0], 160, placeholder_d_global[0], dtype="uint8"))
+        T.evaluate(T.call_extern("ethosu_depthwise_conv2d", "int8", 8, 16, 16, 8, 0, 16, placeholder_4[0], 0, 0, 0, T.float32(0.0039215548895299435), -128, "NHWC", 256, 16, 1, "int16", 1, 1, 16, 1, 0, 1, ethosu_write_2[0], 0, 0, 0, T.float32(0.0023205536417663097), -128, "NHWC", 1, 1, 1, 16, 8, 1, 1, 1, 1, placeholder_global[0], 272, 0, placeholder_d_global[0], 160, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="int16"))
+        T.evaluate(T.call_extern("ethosu_copy", buffer_2[0], 1, placeholder_d_global_1[0], dtype="int16"))
+        T.evaluate(T.call_extern("ethosu_binary_elementwise", "int16", 1, 1, 16, 1, 0, 1, ethosu_write_2[0], 0, 0, 0, T.float32(0.0023205536417663097), -128, "NHWC", 1, 1, 1, "int16", 1, 1, 1, 1, 0, 1, placeholder_d_global_1[0], 0, 0, 0, T.float32(0.0078125018482064768), 0, "NHWC", 1, 1, 1, "int8", 1, 1, 16, 1, 0, 1, ethosu_write_1[0], 0, 0, 0, T.float32(0.0023205536417663097), -128, "NHWC", 1, 1, 1, "MUL", 0, "NONE", 0, 0, "NATURAL", 0, 0, 0, dtype="int8"))
+# fmt: on
 
 
 def test_assign_addresses():
@@ -647,30 +696,81 @@ def test_assign_addresses():
             # Stimulus
             "tir_module": WeightStreamOnly,
             "param_dict": {
-                2: np.random.randint(np.iinfo("uint8").min, np.iinfo("uint8").max, [144], "uint8"),
-                3: np.random.randint(np.iinfo("uint8").min, np.iinfo("uint8").max, [20], "uint8"),
-                4: np.random.randint(np.iinfo("uint8").min, np.iinfo("uint8").max, [144], "uint8"),
-                5: np.random.randint(np.iinfo("uint8").min, np.iinfo("uint8").max, [20], "uint8"),
-                6: np.random.randint(np.iinfo("uint8").min, np.iinfo("uint8").max, [144], "uint8"),
-                7: np.random.randint(np.iinfo("uint8").min, np.iinfo("uint8").max, [20], "uint8"),
-                8: np.random.randint(np.iinfo("uint8").min, np.iinfo("uint8").max, [144], "uint8"),
-                9: np.random.randint(np.iinfo("uint8").min, np.iinfo("uint8").max, [20], "uint8"),
+                WeightStreamOnly["main"].attrs["constants"]["buffer"]: np.random.randint(
+                    np.iinfo("uint8").min, np.iinfo("uint8").max, [128], "uint8"
+                ),
+                WeightStreamOnly["main"].attrs["constants"]["buffer_1"]: np.random.randint(
+                    np.iinfo("uint8").min, np.iinfo("uint8").max, [32], "uint8"
+                ),
+                WeightStreamOnly["main"].attrs["constants"]["buffer_2"]: np.random.randint(
+                    np.iinfo("uint8").min, np.iinfo("uint8").max, [112], "uint8"
+                ),
+                WeightStreamOnly["main"].attrs["constants"]["buffer_3"]: np.random.randint(
+                    np.iinfo("uint8").min, np.iinfo("uint8").max, [32], "uint8"
+                ),
+                WeightStreamOnly["main"].attrs["constants"]["buffer_4"]: np.random.randint(
+                    np.iinfo("uint8").min, np.iinfo("uint8").max, [112], "uint8"
+                ),
+                WeightStreamOnly["main"].attrs["constants"]["buffer_5"]: np.random.randint(
+                    np.iinfo("uint8").min, np.iinfo("uint8").max, [32], "uint8"
+                ),
+                WeightStreamOnly["main"].attrs["constants"]["buffer_6"]: np.random.randint(
+                    np.iinfo("uint8").min, np.iinfo("uint8").max, [112], "uint8"
+                ),
+                WeightStreamOnly["main"].attrs["constants"]["buffer_7"]: np.random.randint(
+                    np.iinfo("uint8").min, np.iinfo("uint8").max, [32], "uint8"
+                ),
             },
         },
         {
             # Stimulus
             "tir_module": MixedRead,
             "param_dict": {
-                1: np.random.randint(np.iinfo("uint8").min, np.iinfo("uint8").max, [592], "uint8"),
-                3: np.random.randint(np.iinfo("uint8").min, np.iinfo("uint8").max, [160], "uint8"),
-                4: np.random.randint(np.iinfo("uint8").min, np.iinfo("uint8").max, [80], "uint8"),
-                5: np.random.randint(np.iinfo("uint8").min, np.iinfo("uint8").max, [20], "uint8"),
-                6: np.random.randint(np.iinfo("uint8").min, np.iinfo("uint8").max, [80], "uint8"),
-                7: np.random.randint(np.iinfo("uint8").min, np.iinfo("uint8").max, [20], "uint8"),
-                8: np.random.randint(np.iinfo("uint8").min, np.iinfo("uint8").max, [80], "uint8"),
-                9: np.random.randint(np.iinfo("uint8").min, np.iinfo("uint8").max, [20], "uint8"),
-                10: np.random.randint(np.iinfo("uint8").min, np.iinfo("uint8").max, [80], "uint8"),
-                11: np.random.randint(np.iinfo("uint8").min, np.iinfo("uint8").max, [20], "uint8"),
+                MixedRead["main"].attrs["constants"]["buffer"]: np.random.randint(
+                    np.iinfo("uint8").min, np.iinfo("uint8").max, [592], "uint8"
+                ),
+                MixedRead["main"].attrs["constants"]["buffer_1"]: np.random.randint(
+                    np.iinfo("uint8").min, np.iinfo("uint8").max, [160], "uint8"
+                ),
+                MixedRead["main"].attrs["constants"]["buffer_2"]: np.random.randint(
+                    np.iinfo("uint8").min, np.iinfo("uint8").max, [80], "uint8"
+                ),
+                MixedRead["main"].attrs["constants"]["buffer_3"]: np.random.randint(
+                    np.iinfo("uint8").min, np.iinfo("uint8").max, [32], "uint8"
+                ),
+                MixedRead["main"].attrs["constants"]["buffer_4"]: np.random.randint(
+                    np.iinfo("uint8").min, np.iinfo("uint8").max, [80], "uint8"
+                ),
+                MixedRead["main"].attrs["constants"]["buffer_5"]: np.random.randint(
+                    np.iinfo("uint8").min, np.iinfo("uint8").max, [32], "uint8"
+                ),
+                MixedRead["main"].attrs["constants"]["buffer_6"]: np.random.randint(
+                    np.iinfo("uint8").min, np.iinfo("uint8").max, [80], "uint8"
+                ),
+                MixedRead["main"].attrs["constants"]["buffer_7"]: np.random.randint(
+                    np.iinfo("uint8").min, np.iinfo("uint8").max, [32], "uint8"
+                ),
+                MixedRead["main"].attrs["constants"]["buffer_8"]: np.random.randint(
+                    np.iinfo("uint8").min, np.iinfo("uint8").max, [80], "uint8"
+                ),
+                MixedRead["main"].attrs["constants"]["buffer_9"]: np.random.randint(
+                    np.iinfo("uint8").min, np.iinfo("uint8").max, [32], "uint8"
+                ),
+            },
+        },
+        {
+            # Stimulus
+            "tir_module": MixedConstantDatatypes,
+            "param_dict": {
+                MixedConstantDatatypes["main"].attrs["constants"]["buffer"]: np.random.randint(
+                    np.iinfo("uint8").min, np.iinfo("uint8").max, [160], "uint8"
+                ),
+                MixedConstantDatatypes["main"].attrs["constants"]["buffer_2"]: np.random.randint(
+                    np.iinfo("int16").min, np.iinfo("int16").max, [1], "int16"
+                ),
+                MixedConstantDatatypes["main"].attrs["constants"]["buffer_1"]: np.random.randint(
+                    np.iinfo("uint8").min, np.iinfo("uint8").max, [272], "uint8"
+                ),
             },
         },
     ]
@@ -737,29 +837,60 @@ def test_assign_addresses():
             4: tir_to_cs_translator.BufferType.output,
         }
         buffer_type = inverse_region_map[region]
+        buffer_dtype = buffer_var.type_annotation.element_type.dtype
+        dtype_bytes = np.iinfo(np.dtype(buffer_dtype)).bits // 8
         if buffer_type == tir_to_cs_translator.BufferType.constant:
             ref = buffer_info[buffer_var].values
-            assert (constant_tensor[address : address + length] == ref).all()
+            hex_from = address * dtype_bytes * 2
+            hex_to = hex_from + length * dtype_bytes * 2
+            constant_hex = constant_hex_string[hex_from:hex_to]
+            constant_tensor = np.frombuffer(bytearray.fromhex(constant_hex), dtype=buffer_dtype)
+            np.array_equal(constant_tensor, ref)
             # Every buffer is adjusted to align to 16 bytes
             length = util.round_up(length, 16)
             # Mark these constants are read at least once
-            constant_tensor_read_mask[address : address + length] = np.ones(length, dtype="uint8")
+            constant_tensor_read_mask[address : address + length] = np.ones(
+                length, dtype=buffer_dtype
+            )
         elif buffer_type == tir_to_cs_translator.BufferType.scratch:
-            shape = list(buffer_info[buffer_var].shape)
-            assert length == np.prod(shape)
-            assert address < scratch_size
+            assert address < tvmbaw_workspace_size
+
+            size_in_bytes = allocate_node_sizes[buffer_var]
             # Every buffer is adjusted to align to 16 bytes
-            length = util.round_up(length, 16)
-            assert address + length <= scratch_size
-            # The scratch area should not be used by anyother buffer
-            assert not scratch_allocation_mask[address : address + length].any()
+            size_in_bytes = util.round_up(size_in_bytes, 16)
+            assert address + size_in_bytes <= tvmbaw_workspace_size
+            # The scratch area should not be used by any other buffer
+            assert not tvmbaw_workspace_mask[address : address + size_in_bytes].any()
             # The scratch area is marked as used
-            scratch_allocation_mask[address : address + length] = np.ones(length, dtype="uint8")
+            tvmbaw_workspace_mask[address : address + size_in_bytes] = np.ones(
+                size_in_bytes, dtype="uint8"
+            )
         elif buffer_type == tir_to_cs_translator.BufferType.input:
             assert address == 0
         else:
             assert buffer_type == tir_to_cs_translator.BufferType.output
             assert address == 0
+
+    def _get_allocate_node_sizes(mod):
+        # There should only be a single function
+        assert len(mod.functions.items()) == 1
+        primfunc = mod.functions.items()[0][1]
+        _allocate_node_sizes = dict()
+
+        def analyze_remaining_allocates(stmt):
+            if isinstance(stmt, tvm.tir.stmt.Allocate):
+                allocate = stmt
+                pointer_type = allocate.buffer_var.type_annotation
+                storage_scope = pointer_type.storage_scope
+                if storage_scope == "global":
+                    dtype_bytes = np.iinfo(np.dtype(allocate.dtype)).bits // 8
+                    size_in_bytes = int(dtype_bytes * np.prod(list(allocate.extents)))
+                    # Every memory address the NPU access have to be 16 byte aligned
+                    size_in_bytes = util.round_up(size_in_bytes, 16)
+                    _allocate_node_sizes[allocate.buffer_var] = size_in_bytes
+
+        tvm.tir.stmt_functor.post_order_visit(primfunc.body, analyze_remaining_allocates)
+        return _allocate_node_sizes
 
     def verify(npu_ops):
         """This wrapper verifies the allocated addresses matches with original tir buffers"""
@@ -772,11 +903,11 @@ def test_assign_addresses():
 
         for npu_op in npu_ops:
             if isinstance(npu_op, vapi.NpuDmaOperation):
-                src_tir_buffer_var = npu_op_tir_buffers[npu_op][0].buffer_var
+                src_tir_buffer_var = npu_op_tir_buffers[npu_op][0].buffer.data
                 check_buffer(
                     npu_op.src.address, npu_op.src.region, npu_op.src.length, src_tir_buffer_var
                 )
-                dest_tir_load = npu_op_tir_buffers[npu_op][1].buffer_var
+                dest_tir_load = npu_op_tir_buffers[npu_op][1].buffer.data
                 check_buffer(
                     npu_op.dest.address,
                     npu_op.dest.region,
@@ -784,7 +915,7 @@ def test_assign_addresses():
                     dest_tir_load,
                 )
             elif issubclass(type(npu_op), vapi.NpuBlockOperation):
-                ifm_tir_buffer_var = npu_op_tir_buffers[npu_op][0].buffer_var
+                ifm_tir_buffer_var = npu_op_tir_buffers[npu_op][0].buffer.data
                 ifm_length = (
                     npu_op.ifm.shape.height * npu_op.ifm.shape.width * npu_op.ifm.shape.depth
                 )
@@ -794,7 +925,7 @@ def test_assign_addresses():
                     ifm_length,
                     ifm_tir_buffer_var,
                 )
-                ofm_tir_buffer_var = npu_op_tir_buffers[npu_op][1].buffer_var
+                ofm_tir_buffer_var = npu_op_tir_buffers[npu_op][1].buffer.data
                 ofm_length = (
                     npu_op.ofm.shape.height * npu_op.ofm.shape.width * npu_op.ofm.shape.depth
                 )
@@ -810,7 +941,7 @@ def test_assign_addresses():
                         npu_op.weights[idx].address,
                         npu_op.weights[idx].region,
                         npu_op.weights[idx].length,
-                        weight.address.buffer_var,
+                        weight.address.buffer.data,
                     )
                 for idx, bias in enumerate(npu_op_tir_buffers[npu_op][3]):
                     assert isinstance(bias, vapi.NpuAddressRange)
@@ -818,26 +949,36 @@ def test_assign_addresses():
                         npu_op.biases[idx].address,
                         npu_op.biases[idx].region,
                         npu_op.biases[idx].length,
-                        bias.address.buffer_var,
+                        bias.address.buffer.data,
                     )
 
     for test_case in test_cases:
-        buffer_info = tir_to_cs_translator.extract_buffer_info(
-            test_case["tir_module"], test_case["param_dict"]
+        tir_mod = test_case["tir_module"]
+        tir_mod["main"] = tir_mod["main"].with_attr("target", tvm.target.Target("ethos-u"))
+        tir_mod = tvm.tir.transform.MakeUnpackedAPI()(tir_mod)
+        candidate_regions_for_scratch = [5, 2, 1]
+        (
+            scratch_region_map,
+            tvmbaw_workspace_size,
+            _,
+        ) = tir_to_cs_translator.analyze_scratch_memory_acesses(
+            tir_mod, candidate_regions_for_scratch
         )
-        extern_calls = extract_call_extern_list(test_case["tir_module"])
+        allocate_node_sizes = _get_allocate_node_sizes(tir_mod)
+        buffer_info = tir_to_cs_translator.extract_buffer_info(tir_mod, test_case["param_dict"])
+        extern_calls = extract_call_extern_list(tir_mod)
         _npu_ops = list()
         for extern_call in extern_calls:
             _npu_ops.append(tir_to_cs_translator.translate_ethosu_tir_call_extern(extern_call))
         npu_op_tir_buffers = collect_tir_buffer_info(_npu_ops)
-        _npu_ops, constant_tensor, scratch_size = tir_to_cs_translator.assign_addresses(
-            buffer_info, _npu_ops
+        (_npu_ops, constant_hex_string) = tir_to_cs_translator.assign_addresses(
+            buffer_info, _npu_ops, scratch_region_map
         )
-        scratch_allocation_mask = np.zeros(scratch_size, dtype="uint8")
-        constant_tensor_read_mask = np.zeros(constant_tensor.size, dtype="uint8")
+        tvmbaw_workspace_mask = np.zeros(tvmbaw_workspace_size, dtype="uint8")
+        constant_tensor_read_mask = np.zeros(len(constant_hex_string) // 2, dtype="uint8")
         verify(_npu_ops)
         # This will be only 1 if all allocated scratch is used.
-        assert np.prod(scratch_allocation_mask) == 1
+        assert np.prod(tvmbaw_workspace_mask) == 1
         # This will be only 1 if all constant tensors is read at least once.
         assert np.prod(constant_tensor_read_mask) == 1
 
@@ -850,10 +991,10 @@ class SingleEthosuPooling:
     def main(placeholder: T.handle, placeholder_3: T.handle, ethosu_write: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        placeholder_4 = T.match_buffer(placeholder, [1, 5, 9, 3], dtype="int8", elem_offset=0, align=128, offset_factor=1)
-        ethosu_write_2 = T.match_buffer(ethosu_write, [1, 5, 5, 3], dtype="int8", elem_offset=0, align=128, offset_factor=1)
+        placeholder_4 = T.match_buffer(placeholder, [135], dtype="int8", elem_offset=0, align=64, offset_factor=1)
+        ethosu_write_2 = T.match_buffer(ethosu_write, [75], dtype="int8", elem_offset=0, align=64, offset_factor=1)
         # body
-        T.evaluate(T.call_extern("ethosu_pooling", "int8", 5, 9, 3, 5, 0, 9, T.load("int8", placeholder_4.data, 0), 0, 0, 0, T.float32(1.0), 0, "NHWC", 27, 3, 1, "int8", 5, 5, 3, 5, 0, 5, T.load("int8", ethosu_write_2.data, 0), 0, 0, 0, T.float32(1.0), 0, "NHWC", 15, 3, 1, "AVG", 2, 3, 2, 1, 1, 1, 1, 1, 1, 0, "CLIP", 10, 100, "NONE", dtype="int8"))
+        T.evaluate(T.call_extern("ethosu_pooling", "int8", 5, 9, 3, 5, 0, 9, placeholder_4[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 27, 3, 1, "int8", 5, 5, 3, 5, 0, 5, ethosu_write_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 15, 3, 1, "AVG", 2, 3, 2, 1, 1, 1, 1, 1, 1, 0, "CLIP", 10, 100, "TFL", "NONE", 0, 0, 0, dtype="int8"))
     __tvm_meta__ = None
 # fmt: on
 
@@ -909,8 +1050,447 @@ def test_translate_ethosu_pooling():
     assert npu_op.activation.op_type == vapi.NpuActivationOp.NONE_OR_RELU
     assert npu_op.activation.min == 10
     assert npu_op.activation.max == 100
+    # Compare rounding mode
+    assert npu_op.rounding_mode == vapi.NpuRoundingMode.TFL
     # Compare ifm upscaling
     assert npu_op.ifm_upscale == vapi.NpuResamplingMode.NONE
+
+
+# fmt: off
+"""A ethosu_binary_elementwise ADD tir testcase for the translator"""
+@tvm.script.ir_module
+class SingleEthosuBinaryElementwiseAdd:
+    @T.prim_func
+    def main(placeholder: T.handle, ethosu_write: T.handle) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        placeholder_2 = T.match_buffer(
+            placeholder, [270], dtype="int8", elem_offset=0, align=64, offset_factor=1
+        )
+        ethosu_write_2 = T.match_buffer(
+            ethosu_write, [135], dtype="int8", elem_offset=0, align=64, offset_factor=1
+        )
+        # body
+        T.evaluate(T.call_extern( "ethosu_binary_elementwise", "int8", 5, 9, 3, 5, 0, 9, placeholder_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 27, 3, 1, "int8", 5, 9, 3, 5, 0, 9, placeholder_2[135], 0, 0, 0, T.float32(1.0), 0, "NHWC", 27, 3, 1, "int8", 5, 9, 3, 5, 0, 9, ethosu_write_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 27, 3, 1, "ADD", 0, "CLIP", 10, 100, "TFL", 0, 0, 0, dtype="int8"))
+
+    __tvm_meta__ = None
+# fmt: on
+
+# fmt: off
+"""A ethosu_binary_elementwise SUB tir testcase for the translator"""
+@tvm.script.ir_module
+class SingleEthosuBinaryElementwiseSub:
+    @T.prim_func
+    def main(placeholder: T.handle, ethosu_write: T.handle) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        placeholder_2 = T.match_buffer(placeholder, [270], dtype="int8", elem_offset=0, align=64, offset_factor=1)
+        ethosu_write_2 = T.match_buffer(ethosu_write, [135], dtype="int8", elem_offset=0, align=64, offset_factor=1)
+        # body
+        T.evaluate(T.call_extern("ethosu_binary_elementwise", "int8", 5, 9, 3, 5, 0, 9, placeholder_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 27, 3, 1, "int8", 5, 9, 3, 5, 0, 9, placeholder_2[135], 0, 0, 0, T.float32(1.0), 0, "NHWC", 27, 3, 1, "int8", 5, 9, 3, 5, 0, 9, ethosu_write_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 27, 3, 1, "SUB", 0, "CLIP", 10, 100, "TFL", 0, 0, 0, dtype="int8"))
+    __tvm_meta__ = None
+# fmt: on
+
+# fmt: off
+"""A ethosu_binary_elementwise MUL tir testcase for the translator"""
+@tvm.script.ir_module
+class SingleEthosuBinaryElementwiseMul:
+    @T.prim_func
+    def main(placeholder: T.handle, ethosu_write: T.handle) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        placeholder_2 = T.match_buffer(placeholder, [270], dtype="int8", elem_offset=0, align=64, offset_factor=1)
+        ethosu_write_2 = T.match_buffer(ethosu_write, [135], dtype="int8", elem_offset=0, align=64, offset_factor=1)
+        # body
+        T.evaluate(T.call_extern("ethosu_binary_elementwise", "int8", 5, 9, 3, 5, 0, 9, placeholder_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 27, 3, 1, "int8", 5, 9, 3, 5, 0, 9, placeholder_2[135], 0, 0, 0, T.float32(1.0), 0, "NHWC", 27, 3, 1, "int8", 5, 9, 3, 5, 0, 9, ethosu_write_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 27, 3, 1, "MUL", 0, "CLIP", 10, 100, "TFL", 0, 0, 0, dtype="int8"))
+    __tvm_meta__ = None
+# fmt: on
+
+
+# fmt: off
+"""A ethosu_binary_elementwise MIN tir testcase for the translator"""
+@tvm.script.ir_module
+class SingleEthosuBinaryElementwiseMin:
+    @T.prim_func
+    def main(placeholder: T.handle, ethosu_write: T.handle) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        placeholder_2 = T.match_buffer(placeholder, [270], dtype="int8", elem_offset=0, align=64, offset_factor=1)
+        ethosu_write_2 = T.match_buffer(ethosu_write, [135], dtype="int8", elem_offset=0, align=64, offset_factor=1)
+        # body
+        T.evaluate(T.call_extern("ethosu_binary_elementwise", "int8", 5, 9, 3, 5, 0, 9, placeholder_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 27, 3, 1, "int8", 5, 9, 3, 5, 0, 9, placeholder_2[135], 0, 0, 0, T.float32(1.0), 0, "NHWC", 27, 3, 1, "int8", 5, 9, 3, 5, 0, 9, ethosu_write_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 27, 3, 1, "MIN", 0, "CLIP", 10, 100, "TFL", 0, 0, 0, dtype="int8"))
+    __tvm_meta__ = None
+# fmt: on
+
+
+# fmt: off
+"""A ethosu_binary_elementwise Max tir testcase for the translator"""
+@tvm.script.ir_module
+class SingleEthosuBinaryElementwiseMax:
+    @T.prim_func
+    def main(placeholder: T.handle, ethosu_write: T.handle) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        placeholder_2 = T.match_buffer(placeholder, [270], dtype="int8", elem_offset=0, align=64, offset_factor=1)
+        ethosu_write_2 = T.match_buffer(ethosu_write, [135], dtype="int8", elem_offset=0, align=64, offset_factor=1)
+        # body
+        T.evaluate(T.call_extern("ethosu_binary_elementwise", "int8", 5, 9, 3, 5, 0, 9, placeholder_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 27, 3, 1, "int8", 5, 9, 3, 5, 0, 9, placeholder_2[135], 0, 0, 0, T.float32(1.0), 0, "NHWC", 27, 3, 1, "int8", 5, 9, 3, 5, 0, 9, ethosu_write_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 27, 3, 1, "MAX", 0, "CLIP", 10, 100, "TFL", 0, 0, 0, dtype="int8"))
+    __tvm_meta__ = None
+# fmt: on
+
+
+# fmt: off
+"""A ethosu_binary_elementwise SHR tir testcase for the translator"""
+@tvm.script.ir_module
+class SingleEthosuBinaryElementwiseShr:
+    @T.prim_func
+    def main(placeholder: T.handle, ethosu_write: T.handle) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        placeholder_2 = T.match_buffer(placeholder, [270], dtype="int32", elem_offset=0, align=64, offset_factor=1)
+        ethosu_write_2 = T.match_buffer(ethosu_write, [135], dtype="int32", elem_offset=0, align=64, offset_factor=1)
+        # body
+        T.evaluate(T.call_extern("ethosu_binary_elementwise", "int32", 5, 9, 3, 5, 0, 9, placeholder_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 27, 3, 1, "int32", 5, 9, 3, 5, 0, 9, placeholder_2[135], 0, 0, 0, T.float32(1.0), 0, "NHWC", 27, 3, 1, "int32", 5, 9, 3, 5, 0, 9, ethosu_write_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 27, 3, 1, "SHR", 0, "NONE", 0, 0, "TFL", 0, 0, 0, dtype="int32"))
+    __tvm_meta__ = None
+# fmt: on
+
+
+# fmt: off
+"""A ethosu_binary_elementwise SHL tir testcase for the translator"""
+@tvm.script.ir_module
+class SingleEthosuBinaryElementwiseShl:
+    @T.prim_func
+    def main(placeholder: T.handle, ethosu_write: T.handle) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        placeholder_2 = T.match_buffer(placeholder, [270], dtype="int32", elem_offset=0, align=64, offset_factor=1)
+        ethosu_write_2 = T.match_buffer(ethosu_write, [135], dtype="int32", elem_offset=0, align=64, offset_factor=1)
+        # body
+        T.evaluate(T.call_extern("ethosu_binary_elementwise", "int32", 5, 9, 3, 5, 0, 9, placeholder_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 27, 3, 1, "int32", 5, 9, 3, 5, 0, 9, placeholder_2[135], 0, 0, 0, T.float32(1.0), 0, "NHWC", 27, 3, 1, "int32", 5, 9, 3, 5, 0, 9, ethosu_write_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 27, 3, 1, "SHL", 0, "CLIP", 10, 100, "TFL", 0, 0, 0, dtype="int32"))
+    __tvm_meta__ = None
+# fmt: on
+
+
+@pytest.mark.parametrize("operator_type", ["ADD", "SUB", "MUL", "MIN", "MAX", "SHR", "SHL"])
+def test_translate_ethosu_binary_elementwise(operator_type):
+    if operator_type == "SHR" or operator_type == "SHL":
+        data_type = vapi.NpuDataType.INT32
+        data_type_bytes = 4
+    else:
+        data_type = vapi.NpuDataType.INT8
+        data_type_bytes = 1
+
+    def extract_ethosu_binary_elementwise_call_extern(mod):
+        # There should only be a single function
+        assert len(mod.functions.items()) == 1
+        primfunc = mod.functions.items()[0][1]
+
+        ethosu_binary_elementwise_calls = list()
+
+        def populate_ethosu_binary_elementwise_calls(stmt):
+            if (
+                isinstance(stmt, tvm.tir.Call)
+                and stmt.op.name == "tir.call_extern"
+                and stmt.args[0] == "ethosu_binary_elementwise"
+            ):
+                ethosu_binary_elementwise_calls.append(stmt)
+
+        stmt_functor.post_order_visit(primfunc.body, populate_ethosu_binary_elementwise_calls)
+        return ethosu_binary_elementwise_calls[0]
+
+    if operator_type == "ADD":
+        binary_elementwise = SingleEthosuBinaryElementwiseAdd
+    elif operator_type == "SUB":
+        binary_elementwise = SingleEthosuBinaryElementwiseSub
+    elif operator_type == "MUL":
+        binary_elementwise = SingleEthosuBinaryElementwiseMul
+    elif operator_type == "MIN":
+        binary_elementwise = SingleEthosuBinaryElementwiseMin
+    elif operator_type == "MAX":
+        binary_elementwise = SingleEthosuBinaryElementwiseMax
+    elif operator_type == "SHR":
+        binary_elementwise = SingleEthosuBinaryElementwiseShr
+    elif operator_type == "SHL":
+        binary_elementwise = SingleEthosuBinaryElementwiseShl
+    binary_elementwise_call = extract_ethosu_binary_elementwise_call_extern(binary_elementwise)
+    npu_op = tir_to_cs_translator.translate_ethosu_binary_elementwise(binary_elementwise_call)
+
+    # Compare IFM
+    assert npu_op.ifm.data_type == data_type
+    assert npu_op.ifm.shape == vapi.NpuShape3D(5, 9, 3)
+    assert npu_op.ifm.tiles.height_0 == vapi.NpuTileBox(5, 0, 9, [0, 0, 0, 0]).height_0
+    assert npu_op.ifm.tiles.height_1 == vapi.NpuTileBox(5, 0, 9, [0, 0, 0, 0]).height_1
+    assert npu_op.ifm.tiles.width_0 == vapi.NpuTileBox(5, 0, 9, [0, 0, 0, 0]).width_0
+    assert npu_op.ifm.quantization == vapi.NpuQuantization(1.0, 0)
+    assert npu_op.ifm.layout == vapi.NpuLayout.NHWC
+    assert npu_op.ifm.strides == vapi.NpuShape3D(
+        27 * data_type_bytes, 3 * data_type_bytes, 1 * data_type_bytes
+    )
+    # Compare IFM2
+    assert npu_op.ifm2.data_type == data_type
+    assert npu_op.ifm2.shape == vapi.NpuShape3D(5, 9, 3)
+    assert npu_op.ifm2.tiles.height_0 == vapi.NpuTileBox(5, 0, 9, [0, 0, 0, 0]).height_0
+    assert npu_op.ifm2.tiles.height_1 == vapi.NpuTileBox(5, 0, 9, [0, 0, 0, 0]).height_1
+    assert npu_op.ifm2.tiles.width_0 == vapi.NpuTileBox(5, 0, 9, [0, 0, 0, 0]).width_0
+    assert npu_op.ifm2.quantization == vapi.NpuQuantization(1.0, 0)
+    assert npu_op.ifm2.layout == vapi.NpuLayout.NHWC
+    assert npu_op.ifm2.strides == vapi.NpuShape3D(
+        27 * data_type_bytes, 3 * data_type_bytes, 1 * data_type_bytes
+    )
+    # Compare OFM
+    assert npu_op.ofm.data_type == data_type
+    assert npu_op.ofm.shape == vapi.NpuShape3D(5, 9, 3)
+    assert npu_op.ofm.tiles.height_0 == vapi.NpuTileBox(5, 0, 9, [0, 0, 0, 0]).height_0
+    assert npu_op.ofm.tiles.height_1 == vapi.NpuTileBox(5, 0, 9, [0, 0, 0, 0]).height_1
+    assert npu_op.ofm.tiles.width_0 == vapi.NpuTileBox(5, 0, 9, [0, 0, 0, 0]).width_0
+    assert npu_op.ofm.quantization == vapi.NpuQuantization(1.0, 0)
+    assert npu_op.ofm.layout == vapi.NpuLayout.NHWC
+    assert npu_op.ofm.strides == vapi.NpuShape3D(
+        27 * data_type_bytes, 3 * data_type_bytes, 1 * data_type_bytes
+    )
+    # Compare op type
+    if operator_type == "ADD":
+        assert npu_op.sub_op_type == vapi.NpuElementWiseOp.ADD
+    elif operator_type == "SUB":
+        assert npu_op.sub_op_type == vapi.NpuElementWiseOp.SUB
+    elif operator_type == "MUL":
+        assert npu_op.sub_op_type == vapi.NpuElementWiseOp.MUL
+    elif operator_type == "MIN":
+        assert npu_op.sub_op_type == vapi.NpuElementWiseOp.MIN
+    elif operator_type == "MAX":
+        assert npu_op.sub_op_type == vapi.NpuElementWiseOp.MAX
+    elif operator_type == "SHR":
+        assert npu_op.sub_op_type == vapi.NpuElementWiseOp.SHR
+    elif operator_type == "SHL":
+        assert npu_op.sub_op_type == vapi.NpuElementWiseOp.SHL
+    # Compare reversed_operands
+    assert npu_op.reversed_operands == False
+    # Compare activation
+    if operator_type == "SHR":
+        assert npu_op.activation is None
+    else:
+        assert npu_op.activation.op_type == vapi.NpuActivationOp.NONE_OR_RELU
+        assert npu_op.activation.min == 10
+        assert npu_op.activation.max == 100
+    # Compare rounding mode
+    assert npu_op.rounding_mode == vapi.NpuRoundingMode.TFL
+
+
+# fmt: off
+"""A ethosu_binary_elementwise ADD with broadcasting tir testcase for the translator"""
+@tvm.script.ir_module
+class SingleEthosuBinaryElementwiseAddBroadcasting:
+    @T.prim_func
+    def main(placeholder: T.handle, ethosu_write: T.handle) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        placeholder_2 = T.match_buffer(placeholder, [27], dtype="int8", elem_offset=0, align=64, offset_factor=1)
+        ethosu_write_2 = T.match_buffer(ethosu_write, [24], dtype="int8", elem_offset=0, align=64, offset_factor=1)
+        # body
+        T.evaluate(T.call_extern("ethosu_binary_elementwise", "int8", 2, 3, 4, 2, 0, 3, placeholder_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 12, 4, 1, "int8", 1, 3, 1, 1, 0, 3, placeholder_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 1, 1, 1, "int8", 2, 3, 4, 2, 0, 3, ethosu_write_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 12, 4, 1, "ADD", 1, "CLIP", 10, 100, "TFL", 0, 0, 0, dtype="int8"))
+    __tvm_meta__ = None
+# fmt: on
+
+# fmt: off
+"""A ethosu_binary_elementwise SUB with broadcasting tir testcase for the translator"""
+@tvm.script.ir_module
+class SingleEthosuBinaryElementwiseSubBroadcasting:
+    @T.prim_func
+    def main(placeholder: T.handle, ethosu_write: T.handle) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        placeholder_2 = T.match_buffer(placeholder, [27], dtype="int8", elem_offset=0, align=64, offset_factor=1)
+        ethosu_write_2 = T.match_buffer(ethosu_write, [24], dtype="int8", elem_offset=0, align=64, offset_factor=1)
+        # body
+        T.evaluate(T.call_extern("ethosu_binary_elementwise", "int8", 2, 3, 4, 2, 0, 3, placeholder_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 12, 4, 1, "int8", 1, 3, 1, 1, 0, 3, placeholder_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 1, 1, 1, "int8", 2, 3, 4, 2, 0, 3, ethosu_write_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 12, 4, 1, "SUB", 1, "CLIP", 10, 100, "TFL", 0, 0, 0, dtype="int8"))
+    __tvm_meta__ = None
+# fmt: on
+
+# fmt: off
+"""A ethosu_binary_elementwise MUL with broadcasting tir testcase for the translator"""
+@tvm.script.ir_module
+class SingleEthosuBinaryElementwiseMulBroadcasting:
+    @T.prim_func
+    def main(placeholder: T.handle, ethosu_write: T.handle) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        placeholder_2 = T.match_buffer(placeholder, [27], dtype="int8", elem_offset=0, align=64, offset_factor=1)
+        ethosu_write_2 = T.match_buffer(ethosu_write, [24], dtype="int8", elem_offset=0, align=64, offset_factor=1)
+        # body
+        T.evaluate(T.call_extern("ethosu_binary_elementwise", "int8", 2, 3, 4, 2, 0, 3, placeholder_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 12, 4, 1, "int8", 1, 3, 1, 1, 0, 3, placeholder_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 1, 1, 1, "int8", 2, 3, 4, 2, 0, 3, ethosu_write_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 12, 4, 1, "MUL", 1, "CLIP", 10, 100, "TFL", 0, 0, 0, dtype="int8"))
+    __tvm_meta__ = None
+# fmt: on
+
+
+# fmt: off
+"""A ethosu_binary_elementwise MIN with broadcasting tir testcase for the translator"""
+@tvm.script.ir_module
+class SingleEthosuBinaryElementwiseMinBroadcasting:
+    @T.prim_func
+    def main(placeholder: T.handle, ethosu_write: T.handle) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        placeholder_2 = T.match_buffer(placeholder, [27], dtype="int8", elem_offset=0, align=64, offset_factor=1)
+        ethosu_write_2 = T.match_buffer(ethosu_write, [24], dtype="int8", elem_offset=0, align=64, offset_factor=1)
+        # body
+        T.evaluate(T.call_extern("ethosu_binary_elementwise", "int8", 2, 3, 4, 2, 0, 3, placeholder_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 12, 4, 1, "int8", 1, 3, 1, 1, 0, 3, placeholder_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 1, 1, 1, "int8", 2, 3, 4, 2, 0, 3, ethosu_write_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 12, 4, 1, "MIN", 1, "CLIP", 10, 100, "TFL", 0, 0, 0, dtype="int8"))
+    __tvm_meta__ = None
+# fmt: on
+
+
+# fmt: off
+"""A ethosu_binary_elementwise MAX with broadcasting tir testcase for the translator"""
+@tvm.script.ir_module
+class SingleEthosuBinaryElementwiseMaxBroadcasting:
+    @T.prim_func
+    def main(placeholder: T.handle, ethosu_write: T.handle) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        placeholder_2 = T.match_buffer(placeholder, [27], dtype="int8", elem_offset=0, align=64, offset_factor=1)
+        ethosu_write_2 = T.match_buffer(ethosu_write, [24], dtype="int8", elem_offset=0, align=64, offset_factor=1)
+        # body
+        T.evaluate(T.call_extern("ethosu_binary_elementwise", "int8", 2, 3, 4, 2, 0, 3, placeholder_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 12, 4, 1, "int8", 1, 3, 1, 1, 0, 3, placeholder_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 1, 1, 1, "int8", 2, 3, 4, 2, 0, 3, ethosu_write_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 12, 4, 1, "MAX", 1, "CLIP", 10, 100, "TFL", 0, 0, 0, dtype="int8"))
+    __tvm_meta__ = None
+# fmt: on
+
+
+# fmt: off
+"""A ethosu_binary_elementwise SHR with broadcasting tir testcase for the translator"""
+@tvm.script.ir_module
+class SingleEthosuBinaryElementwiseShrBroadcasting:
+    @T.prim_func
+    def main(placeholder: T.handle, ethosu_write: T.handle) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        placeholder_2 = T.match_buffer(placeholder, [27], dtype="int32", elem_offset=0, align=64, offset_factor=1)
+        ethosu_write_2 = T.match_buffer(ethosu_write, [24], dtype="int32", elem_offset=0, align=64, offset_factor=1)
+        # body
+        T.evaluate(T.call_extern("ethosu_binary_elementwise", "int32", 2, 3, 4, 2, 0, 3, placeholder_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 12, 4, 1, "int32", 1, 3, 1, 1, 0, 3, placeholder_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 1, 1, 1, "int32", 2, 3, 4, 2, 0, 3, ethosu_write_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 12, 4, 1, "SHR", 1, "NONE", 0, 0, "TFL", 0, 0, 0, dtype="int32"))
+    __tvm_meta__ = None
+# fmt: on
+
+
+# fmt: off
+"""A ethosu_binary_elementwise SHL with broadcasting tir testcase for the translator"""
+@tvm.script.ir_module
+class SingleEthosuBinaryElementwiseShlBroadcasting:
+    @T.prim_func
+    def main(placeholder: T.handle, ethosu_write: T.handle) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        placeholder_2 = T.match_buffer(placeholder, [27], dtype="int32", elem_offset=0, align=64, offset_factor=1)
+        ethosu_write_2 = T.match_buffer(ethosu_write, [24], dtype="int32", elem_offset=0, align=64, offset_factor=1)
+        # body
+        T.evaluate(T.call_extern("ethosu_binary_elementwise", "int32", 2, 3, 4, 2, 0, 3, placeholder_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 12, 4, 1, "int32", 1, 3, 1, 1, 0, 3, placeholder_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 1, 1, 1, "int32", 2, 3, 4, 2, 0, 3, ethosu_write_2[0], 0, 0, 0, T.float32(1.0), 0, "NHWC", 12, 4, 1, "SHL", 1, "CLIP", 10, 100, "TFL", 0, 0, 0, dtype="int32"))
+    __tvm_meta__ = None
+# fmt: on
+
+
+@pytest.mark.parametrize("operator_type", ["ADD", "SUB", "MUL", "MIN", "MAX", "SHR", "SHL"])
+def test_translate_ethosu_binary_elementwise_broadcasting(operator_type):
+    if operator_type == "SHR" or operator_type == "SHL":
+        data_type = vapi.NpuDataType.INT32
+        data_type_bytes = 4
+    else:
+        data_type = vapi.NpuDataType.INT8
+        data_type_bytes = 1
+
+    def extract_ethosu_binary_elementwise_broadcasting_call_extern(mod):
+        # There should only be a single function
+        assert len(mod.functions.items()) == 1
+        primfunc = mod.functions.items()[0][1]
+
+        ethosu_binary_elementwise_calls = list()
+
+        def populate_ethosu_binary_elementwise_calls(stmt):
+            if (
+                isinstance(stmt, tvm.tir.Call)
+                and stmt.op.name == "tir.call_extern"
+                and stmt.args[0] == "ethosu_binary_elementwise"
+            ):
+                ethosu_binary_elementwise_calls.append(stmt)
+
+        stmt_functor.post_order_visit(primfunc.body, populate_ethosu_binary_elementwise_calls)
+        return ethosu_binary_elementwise_calls[0]
+
+    if operator_type == "ADD":
+        binary_elementwise = SingleEthosuBinaryElementwiseAddBroadcasting
+    elif operator_type == "SUB":
+        binary_elementwise = SingleEthosuBinaryElementwiseSubBroadcasting
+    elif operator_type == "MUL":
+        binary_elementwise = SingleEthosuBinaryElementwiseMulBroadcasting
+    elif operator_type == "MIN":
+        binary_elementwise = SingleEthosuBinaryElementwiseMinBroadcasting
+    elif operator_type == "MAX":
+        binary_elementwise = SingleEthosuBinaryElementwiseMaxBroadcasting
+    elif operator_type == "SHR":
+        binary_elementwise = SingleEthosuBinaryElementwiseShrBroadcasting
+    elif operator_type == "SHL":
+        binary_elementwise = SingleEthosuBinaryElementwiseShlBroadcasting
+    binary_elementwise_call = extract_ethosu_binary_elementwise_broadcasting_call_extern(
+        binary_elementwise
+    )
+    npu_op = tir_to_cs_translator.translate_ethosu_binary_elementwise(binary_elementwise_call)
+
+    # Compare IFM
+    assert npu_op.ifm.data_type == data_type
+    assert npu_op.ifm.shape == vapi.NpuShape3D(2, 3, 4)
+    assert npu_op.ifm.tiles.height_0 == vapi.NpuTileBox(2, 0, 3, [0, 0, 0, 0]).height_0
+    assert npu_op.ifm.tiles.height_1 == vapi.NpuTileBox(2, 0, 3, [0, 0, 0, 0]).height_1
+    assert npu_op.ifm.tiles.width_0 == vapi.NpuTileBox(2, 0, 3, [0, 0, 0, 0]).width_0
+    assert npu_op.ifm.quantization == vapi.NpuQuantization(1.0, 0)
+    assert npu_op.ifm.layout == vapi.NpuLayout.NHWC
+    assert npu_op.ifm.strides == vapi.NpuShape3D(
+        12 * data_type_bytes, 4 * data_type_bytes, 1 * data_type_bytes
+    )
+    # Compare IFM2
+    assert npu_op.ifm2.data_type == data_type
+    assert npu_op.ifm2.shape == vapi.NpuShape3D(1, 3, 1)
+    assert npu_op.ifm2.tiles.height_0 == vapi.NpuTileBox(1, 0, 3, [0, 0, 0, 0]).height_0
+    assert npu_op.ifm2.tiles.height_1 == vapi.NpuTileBox(1, 0, 3, [0, 0, 0, 0]).height_1
+    assert npu_op.ifm2.tiles.width_0 == vapi.NpuTileBox(1, 0, 3, [0, 0, 0, 0]).width_0
+    assert npu_op.ifm2.quantization == vapi.NpuQuantization(1.0, 0)
+    assert npu_op.ifm2.layout == vapi.NpuLayout.NHWC
+    assert npu_op.ifm2.strides == vapi.NpuShape3D(
+        1 * data_type_bytes, 1 * data_type_bytes, 1 * data_type_bytes
+    )
+    # Compare OFM
+    assert npu_op.ofm.data_type == data_type
+    assert npu_op.ofm.shape == vapi.NpuShape3D(2, 3, 4)
+    assert npu_op.ofm.tiles.height_0 == vapi.NpuTileBox(2, 0, 3, [0, 0, 0, 0]).height_0
+    assert npu_op.ofm.tiles.height_1 == vapi.NpuTileBox(2, 0, 3, [0, 0, 0, 0]).height_1
+    assert npu_op.ofm.tiles.width_0 == vapi.NpuTileBox(2, 0, 3, [0, 0, 0, 0]).width_0
+    assert npu_op.ofm.quantization == vapi.NpuQuantization(1.0, 0)
+    assert npu_op.ofm.layout == vapi.NpuLayout.NHWC
+    assert npu_op.ofm.strides == vapi.NpuShape3D(
+        12 * data_type_bytes, 4 * data_type_bytes, 1 * data_type_bytes
+    )
+    # Compare op type
+    if operator_type == "ADD":
+        assert npu_op.sub_op_type == vapi.NpuElementWiseOp.ADD
+    elif operator_type == "SUB":
+        assert npu_op.sub_op_type == vapi.NpuElementWiseOp.SUB
+    elif operator_type == "MUL":
+        assert npu_op.sub_op_type == vapi.NpuElementWiseOp.MUL
+    elif operator_type == "MIN":
+        assert npu_op.sub_op_type == vapi.NpuElementWiseOp.MIN
+    elif operator_type == "MAX":
+        assert npu_op.sub_op_type == vapi.NpuElementWiseOp.MAX
+    elif operator_type == "SHR":
+        assert npu_op.sub_op_type == vapi.NpuElementWiseOp.SHR
+    elif operator_type == "SHL":
+        assert npu_op.sub_op_type == vapi.NpuElementWiseOp.SHL
+    # Compare reversed_operands
+    assert npu_op.reversed_operands == True
+    # Compare activation
+    if operator_type == "SHR":
+        assert npu_op.activation is None
+    else:
+        assert npu_op.activation.op_type == vapi.NpuActivationOp.NONE_OR_RELU
+        assert npu_op.activation.min == 10
+        assert npu_op.activation.max == 100
+    # Compare rounding mode
+    assert npu_op.rounding_mode == vapi.NpuRoundingMode.TFL
 
 
 if __name__ == "__main__":

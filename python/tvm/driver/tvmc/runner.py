@@ -17,41 +17,65 @@
 """
 Provides support to run compiled networks both locally and remotely.
 """
-import json
+from contextlib import ExitStack
 import logging
-from typing import Dict, List, Optional, Union
+import pathlib
+from typing import Dict, Optional, Union
 from tarfile import ReadError
+import argparse
+import sys
+import json
 
 import numpy as np
+
 import tvm
 from tvm import rpc
+from tvm.runtime import vm
 from tvm.autotvm.measure import request_remote
-from tvm.contrib import graph_executor as runtime
+from tvm.contrib import graph_executor as executor
 from tvm.contrib.debugger import debug_executor
+from tvm.runtime import profiler_vm
 from tvm.relay.param_dict import load_param_dict
+from . import TVMCException
+from .arguments import TVMCSuppressedArgumentParser
+from .project import (
+    get_project_options,
+    get_and_check_options,
+    get_project_dir,
+)
 
-from . import common
-from .common import TVMCException
 from .main import register_parser
 from .model import TVMCPackage, TVMCResult
 from .result_utils import get_top_results
+from .tracker import tracker_host_port_from_cli
+
+try:
+    import tvm.micro.project as project
+    from tvm.micro.project import TemplateProjectError
+    from tvm.micro.project_api.client import ProjectAPIServerNotFoundError
+
+    SUPPORT_MICRO = True
+except (ImportError, AttributeError) as exception:
+    SUPPORT_MICRO = False
 
 # pylint: disable=invalid-name
 logger = logging.getLogger("TVMC")
 
 
 @register_parser
-def add_run_parser(subparsers):
+def add_run_parser(subparsers, main_parser, json_params):
     """Include parser for 'run' subcommand"""
 
-    parser = subparsers.add_parser("run", help="run a compiled module")
+    # Use conflict_handler='resolve' to allow '--list-options' option to be properly overriden when
+    # augmenting the parser with the micro device options (i.e. when '--device micro').
+    parser = subparsers.add_parser("run", help="run a compiled module", conflict_handler="resolve")
     parser.set_defaults(func=drive_run)
 
     # TODO --device needs to be extended and tested to support other targets,
     #      like 'webgpu', etc (@leandron)
     parser.add_argument(
         "--device",
-        choices=["cpu", "cuda", "cl", "metal", "vulkan", "rocm"],
+        choices=["cpu", "cuda", "cl", "metal", "vulkan", "rocm", "micro"],
         default="cpu",
         help="target device to run the compiled module. Defaults to 'cpu'",
     )
@@ -66,7 +90,9 @@ def add_run_parser(subparsers):
     parser.add_argument("-i", "--inputs", help="path to the .npz input file")
     parser.add_argument("-o", "--outputs", help="path to the .npz output file")
     parser.add_argument(
-        "--print-time", action="store_true", help="record and print the execution time(s)"
+        "--print-time",
+        action="store_true",
+        help="record and print the execution time(s). (non-micro devices only)",
     )
     parser.add_argument(
         "--print-top",
@@ -80,7 +106,13 @@ def add_run_parser(subparsers):
         help="generate profiling data from the runtime execution. "
         "Using --profile requires the Graph Executor Debug enabled on TVM. "
         "Profiling may also have an impact on inference time, "
-        "making it take longer to be generated.",
+        "making it take longer to be generated. (non-micro devices only)",
+    )
+    parser.add_argument(
+        "--end-to-end",
+        action="store_true",
+        help="Measure data transfers as well as model execution. This can provide a "
+        "more realistic performance measurement in many cases.",
     )
     parser.add_argument(
         "--repeat", metavar="N", type=int, default=1, help="run the model n times. Defaults to '1'"
@@ -90,14 +122,80 @@ def add_run_parser(subparsers):
     )
     parser.add_argument(
         "--rpc-key",
-        help="the RPC tracker key of the target device",
+        help="the RPC tracker key of the target device. (non-micro devices only)",
     )
     parser.add_argument(
         "--rpc-tracker",
         help="hostname (required) and port (optional, defaults to 9090) of the RPC tracker, "
-        "e.g. '192.168.0.100:9999'",
+        "e.g. '192.168.0.100:9999'. (non-micro devices only)",
     )
-    parser.add_argument("FILE", help="path to the compiled module file")
+    parser.add_argument(
+        "PATH",
+        help="path to the compiled module file or to the project directory if '--device micro' "
+        "is selected.",
+    )
+    parser.add_argument(
+        "--list-options",
+        action="store_true",
+        help="show all run options and option choices when '--device micro' is selected. "
+        "(micro devices only)",
+    )
+
+    disposable_parser = TVMCSuppressedArgumentParser(main_parser)
+    try:
+        known_args, _ = disposable_parser.parse_known_args()
+    except TVMCException:
+        return
+
+    if vars(known_args).get("device") != "micro":
+        # No need to augment the parser for micro targets.
+        return
+
+    if SUPPORT_MICRO is False:
+        sys.exit(
+            "'--device micro' is not supported. "
+            "Please build TVM with micro support (USE_MICRO ON)!"
+        )
+
+    project_dir = get_project_dir(known_args.PATH)
+
+    try:
+        project_ = project.GeneratedProject.from_directory(project_dir, None)
+    except ProjectAPIServerNotFoundError:
+        sys.exit(f"Error: Project API server not found in {project_dir}!")
+    except TemplateProjectError:
+        sys.exit(
+            f"Error: Project directory error. That usually happens when model.tar is not found."
+        )
+
+    project_info = project_.info()
+    options_by_method = get_project_options(project_info)
+    mlf_path = project_info["model_library_format_path"]
+
+    parser.formatter_class = (
+        argparse.RawTextHelpFormatter
+    )  # Set raw help text so customized help_text format works
+
+    parser.set_defaults(valid_options=options_by_method["open_transport"], mlf_path=mlf_path)
+
+    required = any([opt["required"] for opt in options_by_method["open_transport"]])
+    nargs = "+" if required else "*"
+
+    help_text_by_option = [opt["help_text"] for opt in options_by_method["open_transport"]]
+    help_text = "\n\n".join(help_text_by_option) + "\n\n"
+
+    parser.add_argument(
+        "--project-option", required=required, metavar="OPTION=VALUE", nargs=nargs, help=help_text
+    )
+
+    parser.add_argument(
+        "--list-options",
+        action="help",
+        help="show this help message with platform-specific options and exit.",
+    )
+
+    for one_entry in json_params:
+        parser.set_defaults(**one_entry)
 
 
 def drive_run(args):
@@ -109,21 +207,63 @@ def drive_run(args):
         Arguments from command line parser.
     """
 
-    rpc_hostname, rpc_port = common.tracker_host_port_from_cli(args.rpc_tracker)
+    path = pathlib.Path(args.PATH)
+    options = None
+    project_dir = None
+    if args.device == "micro":
+        # If it's a micro device, then grab the model.tar path from Project API instead.
+        # args.PATH will be used too since it points to the project directory. N.B.: there is no
+        # way to determine the model.tar path from the project dir or vice-verse (each platform
+        # is free to put model.tar whereever it's convenient).
+        project_dir = path
+        path = pathlib.Path(args.mlf_path)
+
+        # Check for options unavailable for micro targets.
+
+        if args.rpc_key or args.rpc_tracker:
+            raise TVMCException(
+                "--rpc-key and/or --rpc-tracker can't be specified for micro targets."
+            )
+
+        if args.device != "micro":
+            raise TVMCException(
+                f"Device '{args.device}' not supported. "
+                "Only device 'micro' is supported to run a model in MLF, "
+                "i.e. when '--device micro'."
+            )
+
+        if args.profile:
+            raise TVMCException("--profile is not currently supported for micro devices.")
+
+        if args.print_time:
+            raise TVMCException("--print-time is not currently supported for micro devices.")
+
+        # Get and check options for micro targets.
+        options = get_and_check_options(args.project_option, args.valid_options)
+
+    else:
+        # Check for options only availabe for micro targets.
+
+        if args.list_options:
+            raise TVMCException(
+                "--list-options is only availabe on micro targets, i.e. when '--device micro'."
+            )
+
+    try:
+        tvmc_package = TVMCPackage(package_path=path, project_dir=project_dir)
+    except IsADirectoryError:
+        raise TVMCException(f"File {path} must be an archive, not a directory.")
+    except FileNotFoundError:
+        raise TVMCException(f"File {path} does not exist.")
+    except ReadError:
+        raise TVMCException(f"Could not read model from archive {path}!")
+
+    rpc_hostname, rpc_port = tracker_host_port_from_cli(args.rpc_tracker)
 
     try:
         inputs = np.load(args.inputs) if args.inputs else {}
     except IOError as ex:
         raise TVMCException("Error loading inputs file: %s" % ex)
-
-    try:
-        tvmc_package = TVMCPackage(package_path=args.FILE)
-    except IsADirectoryError:
-        raise TVMCException(f"File {args.FILE} must be an archive, not a directory.")
-    except FileNotFoundError:
-        raise TVMCException(f"File {args.FILE} does not exist.")
-    except ReadError:
-        raise TVMCException(f"Could not read model from archive {args.FILE}!")
 
     result = run_module(
         tvmc_package,
@@ -136,6 +276,8 @@ def drive_run(args):
         repeat=args.repeat,
         number=args.number,
         profile=args.profile,
+        end_to_end=args.end_to_end,
+        options=options,
     )
 
     if args.print_time:
@@ -165,6 +307,13 @@ def get_input_info(graph_str: str, params: Dict[str, tvm.nd.NDArray]):
         appear in the params (where the weights are stored). These nodes
         are therefore inferred to be input tensors.
 
+    .. note::
+        There exists a more recent API to retrieve the input information
+        directly from the module. However, this isn't supported when using
+        with RPC due to a lack of support for Array and Map datatypes.
+        Therefore, this function exists only as a fallback when RPC is in
+        use. If RPC isn't being used, please use the more recent API.
+
     Parameters
     ----------
     graph_str : str
@@ -192,10 +341,6 @@ def get_input_info(graph_str: str, params: Dict[str, tvm.nd.NDArray]):
         if name not in param_names:
             shape_dict[name] = graph["attrs"]["shape"][1][node_id]
             dtype_dict[name] = graph["attrs"]["dltype"][1][node_id]
-
-    logger.debug("Collecting graph input shape and type:")
-    logger.debug("Graph input shape: %s", shape_dict)
-    logger.debug("Graph input type: %s", dtype_dict)
 
     return shape_dict, dtype_dict
 
@@ -241,8 +386,8 @@ def generate_tensor_data(shape: tuple, dtype: str, fill_mode: str):
 
 
 def make_inputs_dict(
-    shape_dict: Dict[str, List[int]],
-    dtype_dict: Dict[str, str],
+    shape_dict: tvm.container.Map,
+    dtype_dict: tvm.container.Map,
     inputs: Optional[Dict[str, np.ndarray]] = None,
     fill_mode: str = "random",
 ):
@@ -254,9 +399,9 @@ def make_inputs_dict(
 
     Parameters
     ----------
-    shape_dict : dict
+    shape_dict : Map
         Shape dictionary - {input_name: tuple}.
-    dtype_dict : dict
+    dtype_dict : Map
         dtype dictionary - {input_name: dtype}.
     inputs : dict, optional
         A dictionary that maps input names to numpy values.
@@ -279,7 +424,7 @@ def make_inputs_dict(
         if input_name not in shape_dict.keys():
             raise TVMCException(
                 "the input tensor '{}' is not in the graph. Expected inputs: '{}'".format(
-                    input_name, shape_dict.keys()
+                    input_name, list(shape_dict.keys())
                 )
             )
 
@@ -291,8 +436,10 @@ def make_inputs_dict(
             logger.debug("setting input '%s' with user input data", input_name)
             inputs_dict[input_name] = inputs[input_name]
         else:
-            shape = shape_dict[input_name]
-            dtype = dtype_dict[input_name]
+            # container.ShapleTuple -> tuple
+            shape = tuple(shape_dict[input_name])
+            # container.String -> str
+            dtype = str(dtype_dict[input_name])
 
             logger.debug(
                 "generating data for input '%s' (shape: %s, dtype: %s), using fill-mode '%s'",
@@ -318,6 +465,8 @@ def run_module(
     repeat: int = 10,
     number: int = 10,
     profile: bool = False,
+    end_to_end: bool = False,
+    options: dict = None,
 ):
     """Run a compiled graph executor module locally or remotely with
     optional input values.
@@ -351,7 +500,11 @@ def run_module(
     number : int, optional
         The number of runs to measure within each repeat.
     profile : bool
-        Whether to profile the run with the debug runtime.
+        Whether to profile the run with the debug executor.
+    end_to_end : bool
+        Whether to measure the time of memory copies as well as model
+        execution. Turning this on can provide a more realistic estimate
+        of how long running the model in production would take.
 
     Returns
     -------
@@ -366,79 +519,169 @@ def run_module(
             "Try calling tvmc.compile on the model before running it."
         )
 
-    # Currently only two package formats are supported: "classic" and
-    # "mlf". The later can only be used for micro targets, i.e. with microTVM.
-    if tvmc_package.type == "mlf":
-        raise TVMCException(
-            "You're trying to run a model saved using the Model Library Format (MLF)."
-            "MLF can only be used to run micro targets (microTVM)."
-        )
+    with ExitStack() as stack:
+        # Currently only two package formats are supported: "classic" and
+        # "mlf". The later can only be used for micro targets, i.e. with microTVM.
+        if device == "micro":
+            if tvmc_package.type != "mlf":
+                raise TVMCException(f"Model {tvmc_package.package_path} is not a MLF archive.")
 
-    if hostname:
-        if isinstance(port, str):
-            port = int(port)
-        # Remote RPC
-        if rpc_key:
-            logger.debug("Running on remote RPC tracker with key %s.", rpc_key)
-            session = request_remote(rpc_key, hostname, port, timeout=1000)
+            project_dir = get_project_dir(tvmc_package.project_dir)
+
+            # This is guaranteed to work since project_dir was already checked when
+            # building the dynamic parser to accommodate the project options, so no
+            # checks are in place when calling GeneratedProject.
+            project_ = project.GeneratedProject.from_directory(project_dir, options)
         else:
-            logger.debug("Running on remote RPC with no key.")
-            session = rpc.connect(hostname, port)
-    else:
-        # Local
-        logger.debug("Running a local session.")
-        session = rpc.LocalSession()
+            if tvmc_package.type == "mlf":
+                raise TVMCException(
+                    "You're trying to run a model saved using the Model Library Format (MLF). "
+                    "MLF can only be used to run micro device ('--device micro')."
+                )
 
-    session.upload(tvmc_package.lib_path)
-    lib = session.load_module(tvmc_package.lib_name)
+        if hostname:
+            if isinstance(port, str):
+                port = int(port)
+            # Remote RPC
+            if rpc_key:
+                logger.debug("Running on remote RPC tracker with key %s.", rpc_key)
+                session = request_remote(rpc_key, hostname, port, timeout=1000)
+            else:
+                logger.debug("Running on remote RPC with no key.")
+                session = rpc.connect(hostname, port)
+        elif device == "micro":
+            # Remote RPC (running on a micro target)
+            logger.debug("Running on remote RPC (micro target).")
+            try:
+                session = tvm.micro.Session(project_.transport())
+                stack.enter_context(session)
+            except:
+                raise TVMCException("Could not open a session with the micro target.")
+        else:
+            # Local
+            logger.debug("Running a local session.")
+            session = rpc.LocalSession()
 
-    # TODO expand to other supported devices, as listed in tvm.rpc.client (@leandron)
-    logger.debug("Device is %s.", device)
-    if device == "cuda":
-        dev = session.cuda()
-    elif device == "cl":
-        dev = session.cl()
-    elif device == "metal":
-        dev = session.metal()
-    elif device == "vulkan":
-        dev = session.vulkan()
-    elif device == "rocm":
-        dev = session.rocm()
-    else:
-        assert device == "cpu"
-        dev = session.cpu()
+        # Micro targets don't support uploading a model. The model to be run
+        # must be already flashed into the micro target before one tries
+        # to run it. Hence skip model upload for micro targets.
+        if device != "micro":
+            session.upload(tvmc_package.lib_path)
+            lib = session.load_module(tvmc_package.lib_name)
 
-    if profile:
-        logger.debug("Creating runtime with profiling enabled.")
-        module = debug_executor.create(tvmc_package.graph, lib, dev, dump_root="./prof")
-    else:
-        logger.debug("Creating runtime with profiling disabled.")
-        module = runtime.create(tvmc_package.graph, lib, dev)
+        # TODO expand to other supported devices, as listed in tvm.rpc.client (@leandron)
+        logger.debug("Device is %s.", device)
+        if device == "cuda":
+            dev = session.cuda()
+        elif device == "cl":
+            dev = session.cl()
+        elif device == "metal":
+            dev = session.metal()
+        elif device == "vulkan":
+            dev = session.vulkan()
+        elif device == "rocm":
+            dev = session.rocm()
+        elif device == "micro":
+            dev = session.device
+            lib = session.get_system_lib()
+        else:
+            assert device == "cpu"
+            dev = session.cpu()
 
-    logger.debug("Loading params into the runtime module.")
-    module.load_params(tvmc_package.params)
+        if tvmc_package.type == "vm":
+            assert inputs is not None, "vm runner requires inputs to be provided as a dict"
 
-    shape_dict, dtype_dict = get_input_info(tvmc_package.graph, tvmc_package.params)
-    inputs_dict = make_inputs_dict(shape_dict, dtype_dict, inputs, fill_mode)
+            input_tensor = {}
+            for e, i in inputs.items():
+                input_tensor[e] = tvm.nd.array(i, dev)
 
-    logger.debug("Setting inputs to the module.")
-    module.set_input(**inputs_dict)
+            if profile:
+                logger.debug("Creating vm with profile enabled.")
+                exe = profiler_vm.VirtualMachineProfiler(lib, dev)
+                res = exe.profile(**input_tensor, func_name="main")
+                # This print is intentional
+                print(res)
+            else:
+                exe = vm.VirtualMachine(lib, dev)
 
-    # Run must be called explicitly if profiling
-    if profile:
-        logger.info("Running the module with profiling enabled.")
-        report = module.profile()
-        # This print is intentional
-        print(report)
+            exe_outputs = exe.invoke("main", **input_tensor)
+            times = exe.benchmark(
+                dev,
+                **input_tensor,
+                func_name="main",
+                repeat=repeat,
+                number=number,
+                end_to_end=end_to_end,
+            )
 
-    # call the benchmarking function of the executor
-    times = module.benchmark(dev, number=number, repeat=repeat)
+            # Special handling if the output only has a single value
+            if not isinstance(exe_outputs, list):
+                exe_outputs = [exe_outputs]
 
-    logger.debug("Collecting the output tensors.")
-    num_outputs = module.get_num_outputs()
-    outputs = {}
-    for i in range(num_outputs):
-        output_name = "output_{}".format(i)
-        outputs[output_name] = module.get_output(i).numpy()
+            outputs = {}
+            for i, val in enumerate(exe_outputs):
+                output_name = "output_{}".format(i)
+                outputs[output_name] = val.numpy()
+        else:
+            # TODO(gromero): Adjust for micro targets.
+            if profile:
+                logger.debug("Creating runtime with profiling enabled.")
+                module = debug_executor.create(tvmc_package.graph, lib, dev, dump_root="./prof")
+            else:
+                if device == "micro":
+                    logger.debug("Creating runtime (micro) with profiling disabled.")
+                    module = tvm.micro.create_local_graph_executor(tvmc_package.graph, lib, dev)
+                else:
+                    logger.debug("Creating runtime with profiling disabled.")
+                    module = executor.create(tvmc_package.graph, lib, dev)
 
-    return TVMCResult(outputs, times)
+            logger.debug("Loading params into the runtime module.")
+            module.load_params(tvmc_package.params)
+
+            logger.debug("Collecting graph input shape and type:")
+
+            if isinstance(session, tvm.rpc.client.RPCSession):
+                # RPC does not support datatypes such as Array and Map,
+                # fallback to obtaining input information from graph json.
+                shape_dict, dtype_dict = get_input_info(tvmc_package.graph, tvmc_package.params)
+            else:
+                shape_dict, dtype_dict = module.get_input_info()
+
+            logger.debug("Graph input shape: %s", shape_dict)
+            logger.debug("Graph input type: %s", dtype_dict)
+
+            inputs_dict = make_inputs_dict(shape_dict, dtype_dict, inputs, fill_mode)
+
+            logger.debug("Setting inputs to the module.")
+            module.set_input(**inputs_dict)
+
+            # Run must be called explicitly if profiling
+            if profile:
+                logger.info("Running the module with profiling enabled.")
+                report = module.profile()
+                # This print is intentional
+                print(report)
+
+            if device == "micro":
+                # TODO(gromero): Fix time_evaluator() for micro targets. Once it's
+                # fixed module.benchmark() can be used instead and this if/else can
+                # be removed.
+                module.run()
+                times = []
+            else:
+                # Call the benchmarking function of the executor.
+                # Optionally measure e2e data transfers from the
+                # CPU to device memory overheads (e.g. PCIE
+                # overheads if the device is a discrete GPU).
+                if end_to_end:
+                    dev = session.cpu()
+                times = module.benchmark(dev, number=number, repeat=repeat, end_to_end=end_to_end)
+
+            logger.debug("Collecting the output tensors.")
+            num_outputs = module.get_num_outputs()
+            outputs = {}
+            for i in range(num_outputs):
+                output_name = "output_{}".format(i)
+                outputs[output_name] = module.get_output(i).numpy()
+
+        return TVMCResult(outputs, times)

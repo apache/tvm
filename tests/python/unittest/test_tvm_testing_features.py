@@ -291,4 +291,4 @@ class TestCacheableTypes:
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

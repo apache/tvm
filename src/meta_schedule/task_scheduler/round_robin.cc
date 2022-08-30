@@ -39,10 +39,13 @@ class RoundRobinNode final : public TaskSchedulerNode {
   int NextTaskId() final {
     int n_tasks = this->tasks.size();
     for (int i = 0; i < n_tasks; ++i) {
+      this->TouchTask(i);
+    }
+    for (int i = 0; i < n_tasks; ++i) {
       task_id = (task_id + 1) % n_tasks;
       TuneContext task = tasks[task_id];
-      if (!task->is_stopped) {
-        if (IsTaskRunning(task_id)) {
+      if (!task->is_terminated) {
+        if (task->runner_futures.defined()) {
           JoinRunningTask(task_id);
         }
         return task_id;
@@ -52,15 +55,24 @@ class RoundRobinNode final : public TaskSchedulerNode {
   }
 };
 
-TaskScheduler TaskScheduler::RoundRobin(Array<TuneContext> tasks,  //
-                                        Builder builder,           //
-                                        Runner runner,             //
-                                        Database database) {
+TaskScheduler TaskScheduler::RoundRobin(Array<TuneContext> tasks,                            //
+                                        Builder builder,                                     //
+                                        Runner runner,                                       //
+                                        Optional<Database> database,                         //
+                                        Optional<CostModel> cost_model,                      //
+                                        Optional<Array<MeasureCallback>> measure_callbacks,  //
+                                        int max_trials,                                      //
+                                        PackedFunc logging_func) {
   ObjectPtr<RoundRobinNode> n = make_object<RoundRobinNode>();
   n->tasks = tasks;
   n->builder = builder;
   n->runner = runner;
   n->database = database;
+  n->max_trials = max_trials;
+  n->cost_model = cost_model;
+  n->measure_callbacks = measure_callbacks.value_or({});
+  n->logging_func = logging_func;
+  n->num_trials_already = 0;
   n->task_id = -1;
   return TaskScheduler(n);
 }

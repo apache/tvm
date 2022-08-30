@@ -35,6 +35,8 @@
 #include <utility>
 #include <vector>
 
+#include "./op/requantize_config.h"
+
 namespace tvm {
 namespace relay {
 namespace qnn {
@@ -98,16 +100,60 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
                      const Expr& output_zero_point, const RequantizeAttrs* param,
                      const Array<IndexExpr>& input_shape, const DataType& out_dtype);
 
+std::string SelectRequntizeParameter(const std::string& arg_value, const std::string& cfg_value,
+                                     const bool is_cfg_default, const std::string& name);
+
 static inline Expr Requantize(const Expr& data, const Array<IndexExpr>& input_shape,
                               const Expr& input_scale, const Expr& input_zero_point,
                               const Expr& output_scale, const Expr& output_zero_point,
-                              const DataType& out_dtype, const std::string& rounding = "UPWARD") {
+                              const DataType& out_dtype, const int& axis = -1,
+                              const std::string& rounding = "None",
+                              const std::string& compute_dtype = "None") {
   auto attrs = make_object<RequantizeAttrs>();
-  attrs->rounding = std::move(rounding);
+  attrs->axis = axis;
   attrs->out_dtype = std::move(out_dtype);
+  const RequantizeConfig& cfg = RequantizeConfig::Current();
+  attrs->rounding =
+      SelectRequntizeParameter(rounding, cfg->get_rounding(), cfg->is_default, "rounding");
+  attrs->compute_dtype = SelectRequntizeParameter(compute_dtype, cfg->get_compute_dtype(),
+                                                  cfg->is_default, "compute_dtype");
   return RequantizeLower(data, input_scale, input_zero_point, output_scale, output_zero_point,
                          attrs.operator->(), input_shape, attrs->out_dtype);
 }
+
+Expr MakeRequantize(Expr data, Expr input_scale, Expr input_zero_point, Expr output_scale,
+                    Expr output_zero_point, int axis, String rounding, String compute_dtype,
+                    DataType out_dtype);
+
+Expr DequantizeLower(const Expr& input_tensor, const Expr& input_scale,
+                     const Expr& input_zero_point, const Array<tvm::relay::Type>& types,
+                     const DequantizeAttrs* attrs);
+
+static inline Expr Dequantize(const Expr& data, const Expr& input_scale,
+                              const Expr& input_zero_point, const Array<tvm::relay::Type>& types,
+                              const int& axis = -1) {
+  auto attrs = make_object<DequantizeAttrs>();
+  attrs->axis = std::move(axis);
+
+  return DequantizeLower(data, input_scale, input_zero_point, types, attrs.operator->());
+}
+Expr MakeDequantize(Expr data, Expr input_scale, Expr input_zero_point, int axis);
+
+Expr QuantizeLower(const Expr& input_tensor, const Expr& output_scale,
+                   const Expr& output_zero_point, const Array<tvm::relay::Type>& types,
+                   const QuantizeAttrs* attrs);
+
+static inline Expr Quantize(const Expr& data, const Expr& output_scale,
+                            const Expr& output_zero_point, const DataType& out_dtype,
+                            const Array<tvm::relay::Type>& types, const int& axis = -1) {
+  auto attrs = make_object<QuantizeAttrs>();
+  attrs->axis = std::move(axis);
+  attrs->out_dtype = std::move(out_dtype);
+
+  return QuantizeLower(data, output_scale, output_zero_point, types, attrs.operator->());
+}
+Expr MakeQuantize(Expr data, Expr output_scale, Expr output_zero_point, int axis,
+                  DataType out_dtype);
 
 static inline int64_t get_const_int(const tvm::PrimExpr& x) {
   auto* value_ptr = tir::as_const_int(x);
@@ -227,6 +273,12 @@ static inline std::vector<float> GetFloatVectorFromConstant(const Expr& expr) {
   }
   return vals;
 }
+
+Expr MakeQnnConv2D(Expr data, Expr weight, Expr input_zero_point, Expr kernel_zero_point,
+                   Expr input_scale, Expr kernel_scale, Array<IndexExpr> strides,
+                   Array<IndexExpr> padding, Array<IndexExpr> dilation, int groups,
+                   IndexExpr channels, Array<IndexExpr> kernel_size, String data_layout,
+                   String kernel_layout, String out_layout, DataType out_dtype);
 
 }  // namespace qnn
 }  // namespace relay

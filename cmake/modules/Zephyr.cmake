@@ -23,9 +23,11 @@ if(USE_MICRO)
       "apps/microtvm/zephyr/template_project microtvm_api_server.py -> zephyr"
       "apps/microtvm/zephyr/template_project boards.json -> zephyr"
       "apps/microtvm/zephyr/template_project CMakeLists.txt.template -> zephyr"
-      "apps/microtvm/zephyr/template_project/src/aot_demo *.c -> zephyr/src/aot_demo"
-      "apps/microtvm/zephyr/template_project/src/aot_demo *.h -> zephyr/src/aot_demo"
+      "apps/microtvm/zephyr/template_project/src/aot_standalone_demo *.c -> zephyr/src/aot_standalone_demo"
+      "apps/microtvm/zephyr/template_project/src/aot_standalone_demo *.h -> zephyr/src/aot_standalone_demo"
       "apps/microtvm/zephyr/template_project/src/host_driven *.c -> zephyr/src/host_driven"
+      "apps/microtvm/zephyr/template_project/src/host_driven *.h -> zephyr/src/host_driven"
+      "apps/microtvm/zephyr/template_project/fvp-hack * -> zephyr/fvp-hack"
       "apps/microtvm/zephyr/template_project/qemu-hack * -> zephyr/qemu-hack"
       "apps/microtvm/zephyr/template_project/crt_config *.h -> zephyr/crt_config"
     )
@@ -43,7 +45,7 @@ if(USE_MICRO)
       math(EXPR job_spec_stop "${job_spec_length} - 3")
 
       list(GET job_spec 0 job_src_base)
-      set(job_src_base "${CMAKE_SOURCE_DIR}/${job_src_base}")
+      set(job_src_base "${CMAKE_CURRENT_SOURCE_DIR}/${job_src_base}")
       foreach(copy_pattern_index RANGE 1 "${job_spec_stop}" 3)
         list(GET job_spec ${copy_pattern_index} copy_pattern)
         math(EXPR copy_dest_index "${copy_pattern_index} + 2")

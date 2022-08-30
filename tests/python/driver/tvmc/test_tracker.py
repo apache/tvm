@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from tvm.driver import tvmc
+from tvm.driver.tvmc.tracker import tracker_host_port_from_cli
 
 
 def test_tracker_host_port_from_cli__hostname_port():
@@ -23,7 +23,7 @@ def test_tracker_host_port_from_cli__hostname_port():
     expected_host = "1.2.3.4"
     expected_port = 9090
 
-    actual_host, actual_port = tvmc.common.tracker_host_port_from_cli(input_str)
+    actual_host, actual_port = tracker_host_port_from_cli(input_str)
 
     assert expected_host == actual_host
     assert expected_port == actual_port
@@ -32,7 +32,7 @@ def test_tracker_host_port_from_cli__hostname_port():
 def test_tracker_host_port_from_cli__hostname_port__empty():
     input_str = ""
 
-    actual_host, actual_port = tvmc.common.tracker_host_port_from_cli(input_str)
+    actual_host, actual_port = tracker_host_port_from_cli(input_str)
 
     assert actual_host is None
     assert actual_port is None
@@ -43,7 +43,7 @@ def test_tracker_host_port_from_cli__only_hostname__default_port_is_9090():
     expected_host = "1.2.3.4"
     expected_port = 9090
 
-    actual_host, actual_port = tvmc.common.tracker_host_port_from_cli(input_str)
+    actual_host, actual_port = tracker_host_port_from_cli(input_str)
 
     assert expected_host == actual_host
     assert expected_port == actual_port

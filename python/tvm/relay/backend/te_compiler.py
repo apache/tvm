@@ -19,15 +19,19 @@
 from __future__ import absolute_import
 
 import logging
+
+import numpy as np
 import tvm
-from tvm import te, autotvm
-from tvm.ir.transform import PassContext
+from tvm import autotvm, te
+from tvm.auto_scheduler import is_auto_scheduler_enabled
+from tvm.meta_schedule import is_meta_schedule_dispatch_enabled
 from tvm.runtime import Object
 from tvm.support import libinfo
 from tvm.target import Target
-from ..backend.utils import mangle_module_name
+
 from .. import function as _function
 from .. import ty as _ty
+from ..backend.utils import mangle_module_name
 from . import _backend
 
 logger = logging.getLogger("te_compiler")
@@ -171,11 +175,13 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
         The best op implementation and the corresponding output tensors.
     """
     all_impls = get_valid_implementations(op, attrs, inputs, out_type, target)
+    if len(all_impls) == 0:
+        raise RuntimeError(f"No valid {op} implementations for {target}")
     best_plevel_impl = max(all_impls, key=lambda x: x.plevel)
 
     # Disable autotvm if auto_scheduler is enabled.
     # (i.e., always return the implementation with the highest priority for auto-scheduler).
-    if PassContext.current().config.get("relay.backend.use_auto_scheduler", False):
+    if is_auto_scheduler_enabled() or is_meta_schedule_dispatch_enabled():
         use_autotvm = False
 
     # If not use autotvm, always return the implementation with the highest priority
@@ -268,7 +274,7 @@ def get_shape(shape):
                 assert val <= np.iinfo(np.int32).max
                 ret.append(tvm.tir.IntImm("int32", val))
         elif isinstance(dim, tvm.tir.Any):
-            ret.append(te.var("any_dim", "int32"))
+            ret.append(te.size_var("any_dim", "int32"))
         else:
             ret.append(dim)
     return ret

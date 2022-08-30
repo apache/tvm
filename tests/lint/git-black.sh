@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,27 +15,35 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-set -e
-set -u
-set -o pipefail
+set -euo pipefail
 
-if [[ "$1" == "-i" ]]; then
-    INPLACE_FORMAT=1
-    shift 1
-else
-    INPLACE_FORMAT=0
-fi
+INPLACE_FORMAT=${INPLACE_FORMAT:=false}
+LINT_ALL_FILES=true
+REVISION=
 
-if [[ "$#" -lt 1 ]]; then
-    echo "Usage: tests/lint/git-black.sh [-i] <commit>"
-    echo ""
-    echo "Run black on Python files that changed since <commit>"
-    echo "Examples:"
-    echo "- Compare last one commit: tests/lint/git-black.sh HEAD~1"
-    echo "- Compare against upstream/main: tests/lint/git-black.sh upstream/main"
-    echo "The -i will use black to format files in-place instead of checking them."
-    exit 1
-fi
+while (( $# )); do
+    case "$1" in
+        -i)
+            INPLACE_FORMAT=true
+            shift 1
+            ;;
+        --rev)
+            LINT_ALL_FILES=false
+            REVISION=$2
+            shift 2
+            ;;
+        *)
+            echo "Usage: tests/lint/git-black.sh [-i] [--rev <commit>]"
+            echo ""
+            echo "Run black on Python files that changed since <commit> or on all files in the repo"
+            echo "Examples:"
+            echo "- Compare last one commit: tests/lint/git-black.sh --rev HEAD~1"
+            echo "- Compare against upstream/main: tests/lint/git-black.sh --rev upstream/main"
+            echo "The -i will use black to format files in-place instead of checking them."
+            exit 1
+            ;;
+    esac
+done
 
 # required to make black's dep click to work
 export LC_ALL=C.UTF-8
@@ -47,22 +55,26 @@ if [ ! -x "$(command -v black)" ]; then
 fi
 
 # Print out specific version
-echo "Version Information: $(black --version)"
+VERSION=$(black --version)
+echo "black version: $VERSION"
 
 # Compute Python files which changed to compare.
-IFS=$'\n' read -a FILES -d'\n' < <(git diff --name-only --diff-filter=ACMRTUX $1 -- "*.py" "*.pyi") || true
-echo "Read returned $?"
-if [ -z ${FILES+x} ]; then
-    echo "No changes in Python files"
-    exit 0
+if [[ "$LINT_ALL_FILES" == "true" ]]; then
+    FILES=$(git ls-files | grep -E '\.py$')
+    echo "checking all files"
+else
+    IFS=$'\n' read -a FILES -d'\n' < <(git diff --name-only --diff-filter=ACMRTUX $REVISION -- "*.py" "*.pyi") || true
+    echo "Read returned $?"
+    if [ -z ${FILES+x} ]; then
+        echo "No changes in Python files"
+        exit 0
+    fi
+    echo "Files: $FILES"
 fi
-echo "Files: $FILES"
 
-if [[ ${INPLACE_FORMAT} -eq 1 ]]; then
-    echo "Running black on Python files against revision" $1:
-    CMD=( "black" "${FILES[@]}" )
-    echo "${CMD[@]}"
-    "${CMD[@]}"
+if [[ "$INPLACE_FORMAT" == "true" ]]; then
+    echo "Running black on Python files against revision" $REVISION:
+    python3 -m black ${FILES[@]}
 else
     echo "Running black in checking mode"
     python3 -m black --diff --check ${FILES[@]}

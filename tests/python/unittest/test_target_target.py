@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 import json
-import sys
 
 import pytest
 import tvm
+import tvm.testing
 from tvm.target import Target, arm_cpu, bifrost, cuda, intel_graphics, mali, rocm, vta
 
 
@@ -43,23 +43,96 @@ def rocm_func(data):
     return data + 10
 
 
+def test_all_targets_device_type_verify():
+    """Consistency verification for all targets' device type"""
+    all_targets = [tvm.target.Target(t) for t in tvm.target.Target.list_kinds()]
+
+    for tgt in all_targets:
+        # skip targets with hooks or otherwise intended to be used with external codegen
+        relay_to_tir = tgt.get_kind_attr("RelayToTIR")
+        tir_to_runtime = tgt.get_kind_attr("TIRToRuntime")
+        is_external_codegen = tgt.get_kind_attr("is_external_codegen")
+        if relay_to_tir is not None or tir_to_runtime is not None or is_external_codegen:
+            continue
+
+        if tgt.kind.name not in tvm._ffi.runtime_ctypes.Device.STR2MASK:
+            raise KeyError("Cannot find target kind: %s in Device.STR2MASK" % tgt.kind.name)
+
+        assert tgt.kind.device_type == tvm._ffi.runtime_ctypes.Device.STR2MASK[tgt.kind.name]
+
+
 def test_target_dispatch():
     with tvm.target.cuda():
         assert mygeneric(1) == 3
+        assert mygeneric.get_packed_func()(1) == 3
 
     with tvm.target.rocm():
         assert mygeneric(1) == 4
+        assert mygeneric.get_packed_func()(1) == 4
 
     with tvm.target.Target("cuda"):
         assert mygeneric(1) == 3
+        assert mygeneric.get_packed_func()(1) == 3
 
     with tvm.target.arm_cpu():
         assert mygeneric(1) == 11
+        assert mygeneric.get_packed_func()(1) == 11
 
     with tvm.target.Target("metal"):
         assert mygeneric(1) == 3
+        assert mygeneric.get_packed_func()(1) == 3
 
     assert tvm.target.Target.current() is None
+
+
+@tvm.target.override_native_generic_func("test_target_temp_strategy")
+def target_generic(data):
+    # default generic function
+    return data + 1
+
+
+@target_generic.register(["cuda", "gpu"])
+def target_cuda_func(data):
+    return data + 2
+
+
+def temp_target_cuda_func(data):
+    return data + 3
+
+
+def test_target_temp_strategy():
+    class TempStrategy(object):
+        def __init__(self, name, target, fstrategy):
+            generic_fstrategy = tvm.target.get_native_generic_func(name)
+            self.target = target
+            self.name = name
+            self.origin_func = {}
+            with tvm.target.Target(target) as target_obj:
+                for tgt_key in target_obj.keys:
+                    self.origin_func[tgt_key] = generic_fstrategy.get_packed_func()
+                    generic_fstrategy.register(fstrategy, tgt_key, allow_override=True)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, typ, value, traceback):
+            generic_fstrategy = tvm.target.get_native_generic_func(self.name)
+            with tvm.target.Target(self.target) as target_obj:
+                for tgt_key in target_obj.keys:
+                    generic_fstrategy.register(
+                        self.origin_func[tgt_key], tgt_key, allow_override=True
+                    )
+
+    with tvm.target.Target("cuda"):
+        assert target_generic(1) == 3
+
+    # The strategy func change to temp_target_cuda_func.
+    with TempStrategy("test_target_temp_strategy", "cuda", temp_target_cuda_func):
+        with tvm.target.Target("cuda"):
+            assert target_generic(1) == 4
+
+    with tvm.target.Target("cuda"):
+        assert target_generic(1) == 3
 
 
 def test_target_string_parse():
@@ -89,6 +162,13 @@ def test_target_string_with_spaces():
     assert target.attrs["device_type"] == "discrete"
 
 
+def test_target_llvm_options():
+    target = tvm.target.Target("llvm -cl-opt='-unroll-threshold:uint=100,-unroll-count:uint=3'")
+    assert sorted(target.attrs["cl-opt"]) == sorted(
+        ["-unroll-threshold:uint=100", "-unroll-count:uint=3"]
+    )
+
+
 def test_target_create():
     targets = [cuda(), rocm(), mali(), intel_graphics(), arm_cpu("rk3399"), vta(), bifrost()]
     for tgt in targets:
@@ -104,7 +184,6 @@ def test_target_config():
         "keys": ["arm_cpu", "cpu"],
         "device": "arm_cpu",
         "libs": ["cblas"],
-        "system-lib": True,
         "mfloat-abi": "hard",
         "mattr": ["+neon", "-avx512f"],
     }
@@ -117,7 +196,6 @@ def test_target_config():
         assert all([key in target.keys for key in ["arm_cpu", "cpu"]])
         assert target.device_name == "arm_cpu"
         assert target.libs == ["cblas"]
-        assert "system-lib" in str(target)
         assert target.attrs["mfloat-abi"] == "hard"
         assert all([attr in target.attrs["mattr"] for attr in ["+neon", "-avx512f"]])
 
@@ -146,7 +224,7 @@ def test_target_tag_0():
     tgt = tvm.target.Target("nvidia/geforce-rtx-2080-ti")
     assert tgt.kind.name == "cuda"
     assert tgt.attrs["arch"] == "sm_75"
-    assert tgt.attrs["shared_memory_per_block"] == 49152
+    assert tgt.attrs["max_shared_memory_per_block"] == 49152
     assert tgt.attrs["max_threads_per_block"] == 1024
     assert tgt.attrs["thread_warp_size"] == 32
     assert tgt.attrs["registers_per_block"] == 65536
@@ -156,7 +234,7 @@ def test_target_tag_1():
     tgt = tvm.target.Target("nvidia/jetson-nano")
     assert tgt.kind.name == "cuda"
     assert tgt.attrs["arch"] == "sm_53"
-    assert tgt.attrs["shared_memory_per_block"] == 49152
+    assert tgt.attrs["max_shared_memory_per_block"] == 49152
     assert tgt.attrs["max_threads_per_block"] == 1024
     assert tgt.attrs["thread_warp_size"] == 32
     assert tgt.attrs["registers_per_block"] == 32768
@@ -173,13 +251,13 @@ def test_target_host_tags():
     tgt = tvm.target.Target("nvidia/jetson-nano", "nvidia/geforce-rtx-2080-ti")
     assert tgt.kind.name == "cuda"
     assert tgt.attrs["arch"] == "sm_53"
-    assert tgt.attrs["shared_memory_per_block"] == 49152
+    assert tgt.attrs["max_shared_memory_per_block"] == 49152
     assert tgt.attrs["max_threads_per_block"] == 1024
     assert tgt.attrs["thread_warp_size"] == 32
     assert tgt.attrs["registers_per_block"] == 32768
     assert tgt.host.kind.name == "cuda"
     assert tgt.host.attrs["arch"] == "sm_75"
-    assert tgt.host.attrs["shared_memory_per_block"] == 49152
+    assert tgt.host.attrs["max_shared_memory_per_block"] == 49152
     assert tgt.host.attrs["max_threads_per_block"] == 1024
     assert tgt.host.attrs["thread_warp_size"] == 32
     assert tgt.host.attrs["registers_per_block"] == 65536
@@ -189,7 +267,7 @@ def test_target_host_tag_dict():
     tgt = tvm.target.Target("nvidia/jetson-nano", {"kind": "llvm"})
     assert tgt.kind.name == "cuda"
     assert tgt.attrs["arch"] == "sm_53"
-    assert tgt.attrs["shared_memory_per_block"] == 49152
+    assert tgt.attrs["max_shared_memory_per_block"] == 49152
     assert tgt.attrs["max_threads_per_block"] == 1024
     assert tgt.attrs["thread_warp_size"] == 32
     assert tgt.attrs["registers_per_block"] == 32768
@@ -201,7 +279,7 @@ def test_target_host_single_dict():
     assert tgt.kind.name == "llvm"
     assert tgt.host.kind.name == "cuda"
     assert tgt.host.attrs["arch"] == "sm_53"
-    assert tgt.host.attrs["shared_memory_per_block"] == 49152
+    assert tgt.host.attrs["max_shared_memory_per_block"] == 49152
     assert tgt.host.attrs["max_threads_per_block"] == 1024
     assert tgt.host.attrs["thread_warp_size"] == 32
     assert tgt.host.attrs["registers_per_block"] == 32768
@@ -218,7 +296,7 @@ def test_target_host_single_string_with_tag():
     assert tgt.kind.name == "cuda"
     assert tgt.host.kind.name == "cuda"
     assert tgt.host.attrs["arch"] == "sm_53"
-    assert tgt.host.attrs["shared_memory_per_block"] == 49152
+    assert tgt.host.attrs["max_shared_memory_per_block"] == 49152
     assert tgt.host.attrs["max_threads_per_block"] == 1024
     assert tgt.host.attrs["thread_warp_size"] == 32
     assert tgt.host.attrs["registers_per_block"] == 32768
@@ -229,7 +307,7 @@ def test_target_host_merge_0():
     assert tgt.kind.name == "cuda"
     assert tgt.host.kind.name == "cuda"
     assert tgt.host.attrs["arch"] == "sm_53"
-    assert tgt.host.attrs["shared_memory_per_block"] == 49152
+    assert tgt.host.attrs["max_shared_memory_per_block"] == 49152
     assert tgt.host.attrs["max_threads_per_block"] == 1024
     assert tgt.host.attrs["thread_warp_size"] == 32
     assert tgt.host.attrs["registers_per_block"] == 32768
@@ -245,6 +323,17 @@ def test_target_host_merge_1():
 def test_target_host_merge_2():
     """Test picking the same host is ok."""
     tgt = tvm.target.Target(tvm.target.Target("cuda --host llvm"), tvm.target.Target("llvm"))
+    assert tgt.kind.name == "cuda"
+    assert tgt.host.kind.name == "llvm"
+
+
+def test_target_tvm_object():
+    """Test creating Target by using TVM Objects"""
+    String = tvm.runtime.container.String
+    tgt = tvm.target.Target(target=String("cuda --host llvm"))
+    assert tgt.kind.name == "cuda"
+    assert tgt.host.kind.name == "llvm"
+    tgt = tvm.target.Target(target=String("cuda"), host=String("llvm"))
     assert tgt.kind.name == "cuda"
     assert tgt.host.kind.name == "llvm"
 
@@ -265,53 +354,137 @@ def test_target_with_host():
     tgt = tgt.with_host(cuda_host)
     assert tgt.host.kind.name == "cuda"
     assert tgt.host.attrs["arch"] == "sm_53"
-    assert tgt.host.attrs["shared_memory_per_block"] == 49152
+    assert tgt.host.attrs["max_shared_memory_per_block"] == 49152
     assert tgt.host.attrs["max_threads_per_block"] == 1024
     assert tgt.host.attrs["thread_warp_size"] == 32
     assert tgt.host.attrs["registers_per_block"] == 32768
 
 
-def test_check_and_update_host_consist_0():
+def test_canon_target_and_host_0():
     target = None
     host = None
-    target, host = Target.check_and_update_host_consist(target, host)
+    target, host = Target.canon_target_and_host(target, host)
+    assert target is None
+    assert host is None
 
 
-def test_check_and_update_host_consist_1():
+def test_canon_target_and_host_1():
     target = None
     host = "llvm"
     with pytest.raises(AssertionError, match=r"Target host is not empty when target is empty."):
-        target, host = Target.check_and_update_host_consist(target, host)
+        target, host = Target.canon_target_and_host(target, host)
 
 
-def test_check_and_update_host_consist_2():
+def test_canon_target_and_host_2():
     target = Target("cuda")
     host = Target("llvm")
-    target, host = Target.check_and_update_host_consist(target, host)
+    target, host = Target.canon_target_and_host(target, host)
     assert target.kind.name == "cuda"
     assert target.host.kind.name == "llvm"
 
 
-def test_check_and_update_host_consist_3():
+def test_canon_target_and_host_3():
     target = Target(target="cuda", host="llvm")
     host = None
-    target, host = Target.check_and_update_host_consist(target, host)
+    target, host = Target.canon_target_and_host(target, host)
     assert target.kind.name == "cuda"
     assert target.host.kind.name == "llvm"
     assert host.kind.name == "llvm"
     assert target.host == host
 
 
+def test_canon_multi_target_and_host_0():
+    with pytest.raises(AssertionError):
+        Target.canon_multi_target_and_host(None)
+
+
+def test_canon_multi_target_and_host_1():
+    raw_targets = Target.canon_multi_target_and_host({"kind": "llvm"})
+    assert len(raw_targets) == 1
+    assert raw_targets[0].kind.name == "llvm"
+
+
+def test_canon_multi_target_and_host_2():
+    raw_targets = Target.canon_multi_target_and_host({1: "llvm", 2: "cuda"})
+    assert len(raw_targets) == 2
+    assert raw_targets[0].kind.name == "llvm"
+    assert raw_targets[1].kind.name == "cuda"
+
+
+def test_canon_multi_target_and_host_3():
+    raw_targets = Target.canon_multi_target_and_host(["llvm", "cuda"])
+    assert len(raw_targets) == 2
+    assert raw_targets[0].kind.name == "llvm"
+    assert raw_targets[1].kind.name == "cuda"
+
+
+def test_canon_multi_target_and_host_4():
+    raw_targets = Target.canon_multi_target_and_host("llvm")
+    assert len(raw_targets) == 1
+    assert raw_targets[0].kind.name == "llvm"
+
+
+def test_canon_multi_target_and_host_5():
+    raw_targets = Target.canon_multi_target_and_host("cuda", "llvm")
+    assert len(raw_targets) == 1
+    assert raw_targets[0].kind.name == "cuda"
+    assert raw_targets[0].host.kind.name == "llvm"
+
+
+def test_canon_multi_target_and_host_6():
+    """Test `canon_target_and_host` by using TVM Objects"""
+    cuda_device_type = tvm.device("cuda").device_type
+    target = {cuda_device_type: Target(target="cuda", host="llvm")}
+    host = None
+    raw_targets_1 = Target.canon_multi_target_and_host(target, host)
+    assert len(raw_targets_1) == 1
+    assert raw_targets_1[0].kind.name == "cuda"
+    assert raw_targets_1[0].host.kind.name == "llvm"
+
+    target = {cuda_device_type: Target(tvm.runtime.container.String("cuda"))}
+    host = Target(tvm.runtime.container.String("llvm"))
+    target = tvm.runtime.convert(target)
+    assert isinstance(target, tvm.ir.container.Map)
+    raw_targets_2 = Target.canon_multi_target_and_host(target, host)
+    assert len(raw_targets_2) == 1
+    assert raw_targets_2[0].kind.name == "cuda"
+    assert raw_targets_2[0].host.kind.name == "llvm"
+
+
+def test_canon_target_map_and_host():
+    target_map = {"cuda": "cuda_module", "llvm": "cpu_module"}
+    target_map, host = Target.canon_target_map_and_host(target_map, "llvm")
+    assert host.kind.name == "llvm"
+    for t, v in target_map.items():
+        assert t.host.kind.name == "llvm"
+        if t.kind.name == "cuda":
+            assert v == "cuda_module"
+        elif t.kind.name == "llvm":
+            assert v == "cpu_module"
+        else:
+            assert False
+
+
 def test_target_attr_bool_value():
-    target0 = Target("llvm --link-params=True")
-    assert target0.attrs["link-params"] == 1
-    target1 = Target("llvm --link-params=true")
-    assert target1.attrs["link-params"] == 1
-    target2 = Target("llvm --link-params=False")
-    assert target2.attrs["link-params"] == 0
-    target3 = Target("llvm --link-params=false")
-    assert target3.attrs["link-params"] == 0
+    target0 = Target("vulkan --supports_float16=True")
+    assert target0.attrs["supports_float16"] == 1
+    target1 = Target("vulkan --supports_float16=true")
+    assert target1.attrs["supports_float16"] == 1
+    target2 = Target("vulkan --supports_float16=False")
+    assert target2.attrs["supports_float16"] == 0
+    target3 = Target("vulkan --supports_float16=false")
+    assert target3.attrs["supports_float16"] == 0
+
+
+def test_target_features():
+    target_no_features = Target("cuda")
+    assert target_no_features.features
+    assert not target_no_features.features.is_test
+
+    target_with_features = Target("test")
+    assert target_with_features.features.is_test
+    assert not target_with_features.features.is_missing
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

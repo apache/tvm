@@ -47,8 +47,8 @@ bool DequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   const auto input_dtype = data->dtype;
   ICHECK(input_dtype == DataType::Int(8) || input_dtype == DataType::UInt(8) ||
-         input_dtype == DataType::Int(32))
-      << "Input type should be one of the quantized types [unit8, int8, int32] but was "
+         input_dtype == DataType::Int(16) || input_dtype == DataType::Int(32))
+      << "Input type should be one of the quantized types [unit8, int8, int16, int32] but was "
       << input_dtype;
 
   const auto* dequantize_attrs = attrs.as<DequantizeAttrs>();
@@ -56,17 +56,20 @@ bool DequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   auto rank = static_cast<int>(data->shape.size());
   axis = (axis < 0) ? ((rank > 0) ? data->shape.size() + axis : 0) : axis;
 
-  // If zero point and scale are scalar then axis doesnt matter.
-  bool scale_is_scalar = (types[1].as<TensorTypeNode>())->shape.size() == 0;
-  bool zp_is_scalar = (types[2].as<TensorTypeNode>())->shape.size() == 0;
+  // If zero point and scale are scalar or have arbitrary rank with one element,
+  // then axis doesn't matter.
+  bool scale_is_scalar = (types[1].as<TensorTypeNode>())->shape.size() == 0 ||
+                         get_const_int((types[1].as<TensorTypeNode>())->Size()) == 1;
+  bool zp_is_scalar = (types[2].as<TensorTypeNode>())->shape.size() == 0 ||
+                      get_const_int((types[2].as<TensorTypeNode>())->Size()) == 1;
 
-  if (!(scale_is_scalar && zp_is_scalar)) {
+  if (!scale_is_scalar || !zp_is_scalar) {
     ICHECK_LT(axis, rank > 0 ? rank : 1) << "axis " << dequantize_attrs->axis << " is out of range";
     ICHECK_GE(axis, 0) << "axis " << dequantize_attrs->axis << " is out of range";
   }
 
   PrimExpr axis_shape;
-  if (rank > 0) {
+  if (!scale_is_scalar || !zp_is_scalar) {
     axis_shape = data->shape[axis];
   } else {
     axis_shape = Integer(1);

@@ -20,23 +20,19 @@
 set -eux
 
 FOUND_ONE_FILE=0
-DOCS_DIR=0
-OTHER_DIR=0
-DOC_DIR="docs/"
+SAW_NON_DOC_CHANGES=0
 
-changed_files=`git diff --no-commit-id --name-only -r origin/main`
+changed_files=$(git diff --no-commit-id --name-only -r origin/main)
 
 for file in $changed_files; do
     FOUND_ONE_FILE=1
-    if grep -q "$DOC_DIR" <<< "$file"; then
-        DOCS_DIR=1
-    else
-        OTHER_DIR=1
+    if ! grep -q "docs/" <<< "$file"; then
+        SAW_NON_DOC_CHANGES=1
         break
     fi
 done
 
-if [ ${FOUND_ONE_FILE} -eq 0 -o ${OTHER_DIR} -eq 1 ]; then
+if [ ${FOUND_ONE_FILE} -eq 0 ] || [ ${SAW_NON_DOC_CHANGES} -eq 1 ]; then
     exit 0
 else
     exit 1

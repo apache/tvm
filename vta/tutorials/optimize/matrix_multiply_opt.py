@@ -310,7 +310,9 @@ print(vta.lower(s, [data, weight, res], simple_mode=True))
 # ensure correctness.
 
 # Compile the TVM module
-my_gemm = vta.build(s, [data, weight, res], "ext_dev", env.target_host, name="my_gemm")
+my_gemm = vta.build(
+    s, [data, weight, res], tvm.target.Target("ext_dev", host=env.target_host), name="my_gemm"
+)
 temp = utils.tempdir()
 my_gemm.save(temp.relpath("gemm.o"))
 remote.upload(temp.relpath("gemm.o"))

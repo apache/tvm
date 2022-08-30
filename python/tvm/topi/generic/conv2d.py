@@ -19,8 +19,10 @@
 """Generic convolution schedules"""
 from tvm import te
 from tvm import autotvm
+from tvm import relay
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 from ..utils import get_const_tuple, traverse_inline
+from ..nn.utils import get_pad_tuple
 
 
 def fallback_schedule_cpu_common_int8(cfg, wkl, int32_lanes, num_int8_elements):
@@ -120,7 +122,16 @@ def fallback_schedule_cpu_1x1_int8(cfg, wkl, int32_lanes, num_int8_elements):
 
 
 def schedule_conv_NCHWc_cpu_common_int8(
-    s, cfg, data_vec, kernel_vec, conv_out, last, int32_lanes=16, int8_elems=4, intrin=None
+    s,
+    cfg,
+    data_vec,
+    kernel_vec,
+    conv_out,
+    last,
+    int32_lanes=16,
+    int8_elems=4,
+    intrin=None,
+    inline_fused=True,
 ):
     """
     Defines the schedule for INT8 for Intel and ARM machines
@@ -143,13 +154,15 @@ def schedule_conv_NCHWc_cpu_common_int8(
         # only in autotuning, input data of conv2d_NCHWc will be 4-D.
         # skip this part during tuning to make records accurate.
         # this part will be folded during Relay fold_constant pass.
-        s[data_vec].pragma(s[data_vec].op.axis[0], "debug_skip_region")
-        s[kernel_vec].pragma(s[kernel_vec].op.axis[0], "debug_skip_region")
+        if isinstance(data_vec.op, te.tensor.ComputeOp):
+            s[data_vec].pragma(s[data_vec].op.axis[0], "debug_skip_region")
+        if isinstance(kernel_vec.op, te.tensor.ComputeOp):
+            s[kernel_vec].pragma(s[kernel_vec].op.axis[0], "debug_skip_region")
     elif isinstance(kernel_vec.op, te.tensor.ComputeOp) and kernel_vec.name == "kernel_vec":
         # data and kernel are not pre-computed, schedule layout transform here.
         # this should only be used by x86 conv2d_nchw, which is for
         # testing purpose.
-        batch, ic_chunk, ih, ic_block, iw = s[data_vec].op.axis
+        batch, ic_chunk, ih, iw, ic_block = s[data_vec].op.axis
         parallel_axis = s[data_vec].fuse(batch, ic_chunk, ih)
         s[data_vec].parallel(parallel_axis)
 
@@ -174,14 +187,16 @@ def schedule_conv_NCHWc_cpu_common_int8(
     if C == O:
         s[C].parallel(parallel_axis)
 
-    s[CC].compute_at(s[C], ow_chunk)
+    s[CC].compute_at(s[C], parallel_axis)
     _, oc_chunk, oh, ow, oc_block = s[CC].op.axis
     kh, kw, ic_outer, ic_f_inner, ic_s_inner = s[CC].op.reduce_axis
 
     ow_chunk, ow_block = s[CC].split(ow, factor=reg_n)
 
-    assert oc_bn % int32_lanes == 0
-    assert ic_bn % int8_elems == 0  # (u)int8 elements in (u)int32
+    assert oc_bn % int32_lanes == 0, f"oc_bn={oc_bn} % int32_lanes={int32_lanes} != 0"
+    assert (
+        ic_bn % int8_elems == 0
+    ), f"ic_bn={ic_bn} % int8_elems={int8_elems} != 0"  # (u)int8 elements in (u)int32
 
     oc_f_inner, oc_s_inner = s[CC].split(oc_block, factor=int32_lanes)
 
@@ -226,27 +241,35 @@ def schedule_conv_NCHWc_cpu_common_int8(
             batch, oc_chunk, oh, ow, oc_block = s[O].op.axis
             ow_chunk, ow_block = s[O].split(ow, factor=reg_n)
             s[O].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
-            parallel_axis = s[O].fuse(batch, oc_chunk, oh)
-            s[C].compute_at(s[O], parallel_axis)
-            s[O].vectorize(oc_block)
-            s[O].parallel(parallel_axis)
         elif out_ndim == 4:
             batch, oc, oh, ow = s[O].op.axis
             ow_chunk, ow_block = s[O].split(ow, factor=reg_n)
             oc_chunk, oc_block = s[O].split(oc, factor=oc_bn)
             s[O].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
-            parallel_axis = s[O].fuse(batch, oc_chunk, oh)
-            s[C].compute_at(s[O], parallel_axis)
-            s[O].vectorize(oc_block)
-            s[O].parallel(parallel_axis)
         else:
             raise ValueError("Unsupported output ndim: %s" % out_ndim)
+        parallel_axis = s[O].fuse(batch, oc_chunk, oh)
+        if inline_fused:
+            s[C].compute_at(s[O], ow_block)
+        else:
+            s[C].compute_at(s[O], parallel_axis)
+        s[O].vectorize(oc_block)
+        s[O].parallel(parallel_axis)
 
     return s
 
 
 def schedule_conv_NCHWc_cpu_1x1_int8(
-    s, cfg, data_vec, kernel_vec, conv_out, last, int32_lanes=16, int8_elems=4, intrin=None
+    s,
+    cfg,
+    data_vec,
+    kernel_vec,
+    conv_out,
+    last,
+    int32_lanes=16,
+    int8_elems=4,
+    intrin=None,
+    inline_fused=False,
 ):
     """
     Defines the 1x1 conv schedule for INT8 for Intel and ARM machines
@@ -269,13 +292,15 @@ def schedule_conv_NCHWc_cpu_1x1_int8(
         # only in autotuning, input data of conv2d_NCHWc will be 4-D.
         # skip this part during tuning to make records accurate.
         # this part will be folded during Relay fold_constant pass.
-        s[data_vec].pragma(s[data_vec].op.axis[0], "debug_skip_region")
-        s[kernel_vec].pragma(s[kernel_vec].op.axis[0], "debug_skip_region")
+        if isinstance(data_vec.op, te.tensor.ComputeOp):
+            s[data_vec].pragma(s[data_vec].op.axis[0], "debug_skip_region")
+        if isinstance(kernel_vec.op, te.tensor.ComputeOp):
+            s[kernel_vec].pragma(s[kernel_vec].op.axis[0], "debug_skip_region")
     elif isinstance(kernel_vec.op, te.tensor.ComputeOp) and kernel_vec.name == "kernel_vec":
         # data and kernel are not pre-computed, schedule layout transform here.
         # this should only be used by x86 conv2d_nchw, which is for
         # testing purpose.
-        batch, ic_chunk, ih, ic_block, iw = s[data_vec].op.axis
+        batch, ic_chunk, ih, iw, ic_block = s[data_vec].op.axis
         parallel_axis = s[data_vec].fuse(batch, ic_chunk, ih)
         s[data_vec].parallel(parallel_axis)
 
@@ -298,9 +323,9 @@ def schedule_conv_NCHWc_cpu_1x1_int8(
     s[C].vectorize(oc_block)
 
     parallel_axis = s[C].fuse(batch, oc_chunk, oh_outer)
-    s[CC].compute_at(s[C], parallel_axis)
     if C == O:
         s[C].parallel(parallel_axis)
+    s[CC].compute_at(s[C], parallel_axis)  # good perf on mobilenet, but not on individuals?
 
     _, oc_chunk, oh, ow, oc_block = s[CC].op.axis
     kh, kw, ic_outer, ic_f_inner, ic_s_inner = s[CC].op.reduce_axis
@@ -340,25 +365,22 @@ def schedule_conv_NCHWc_cpu_1x1_int8(
             batch, oc_chunk, oh, ow, oc_block = s[O].op.axis
             oh_outer, oh_inner = s[O].split(oh, factor=oh_factor)
             ow_outer, ow_inner = s[O].split(ow, factor=ow_factor)
-            s[O].reorder(oc_chunk, oh_outer, ow_outer, oh_inner, ow_inner, oc_block)
-
-            parallel_axis = s[O].fuse(batch, oc_chunk, oh_outer)
-            s[C].compute_at(s[O], parallel_axis)
-            s[O].vectorize(oc_block)
-            s[O].parallel(parallel_axis)
         elif out_ndim == 4:
             batch, oc, oh, ow = s[O].op.axis
             oc_chunk, oc_block = s[O].split(oc, factor=oc_bn)
             oh_outer, oh_inner = s[O].split(oh, factor=oh_factor)
             ow_outer, ow_inner = s[O].split(ow, factor=ow_factor)
-            s[O].reorder(oc_chunk, oh_outer, ow_outer, oh_inner, ow_inner, oc_block)
-
-            parallel_axis = s[O].fuse(batch, oc_chunk, oh_outer)
-            s[C].compute_at(s[O], parallel_axis)
-            s[O].vectorize(oc_block)
-            s[O].parallel(parallel_axis)
         else:
             raise ValueError("Unsupported output ndim: %s" % out_ndim)
+
+        s[O].reorder(oc_chunk, oh_outer, ow_outer, oh_inner, ow_inner, oc_block)
+        parallel_axis = s[O].fuse(batch, oc_chunk, oh_outer)
+        if inline_fused:
+            s[C].compute_at(s[O], ow_inner)
+        else:
+            s[C].compute_at(s[O], parallel_axis)
+        s[O].vectorize(oc_block)
+        s[O].parallel(parallel_axis)
 
     return s
 
@@ -390,3 +412,171 @@ def schedule_depthwise_conv2d_nhwc(outs):
 
     traverse_inline(s, outs[0].op, _callback)
     return s
+
+
+def conv2d_alter_int8_common(
+    data,
+    data_tensor,
+    kernel,
+    kernel_tensor,
+    output_tensor,
+    attrs,
+    data_dtype: str,
+    in_channel_vector_length: int,
+    out_channel_vector_length: int,
+):
+    """
+    Convert TE inputs/outputs so that they are suitable for fast Int8 instructions.
+
+    Int8 instructions require input channels and output channels to be a
+    multiple of the vector length. For input channels, we pad both the inputs
+    and weights channels. For output channels, we pad the weight and
+    stride_slice the output.
+
+    Arguments
+    ---------
+    data: Expr
+        Data Expr
+    data_tensor: Tensor
+        Data tensor
+    kernel: Expr
+        Kernel Expr
+    kernel_tensor: Tensor
+        Kernel tensor
+    output_tensor: Tensor
+        Output tensor
+    attrs: Conv2dAttrs
+        Attributes of the computation
+    data_dtype: "int8" or "uint8"
+        Desired dtype of data. Data will be converted to this dtype before the main computation.
+    in_channel_vector_length: int
+        Length of vector units on target hardware. Input channels are padded to this length.
+    out_channel_vector_length: int
+        Output size of vector instruction. Output channels are padded to this length.
+
+    Returns
+    -------
+    out : Tensor
+        Conv2d computation with inputs in the correct order for tensorization.
+    """
+    # Dilation not supported yet. Return None if dilation is not (1, 1)
+    dilation = attrs.get_int_tuple("dilation")
+    if not (dilation[0] == 1 and dilation[1] == 1):
+        return None
+
+    # No legalization for depthwise convolutions yet.
+    groups = attrs.get_int("groups")
+    if groups != 1:
+        return None
+
+    # Get the conv attrs
+    new_attrs = {k: attrs[k] for k in attrs.keys()}
+
+    padding = attrs.get_int_tuple("padding")
+    kh, kw = attrs.get_int_tuple("kernel_size")
+    pt, pl, pb, pr = get_pad_tuple(padding, (kh, kw))
+
+    if data_tensor.dtype != data_dtype:
+        # How to convert data to int8
+        # Original --> C = A (conv) B
+        # A and B are int8
+        #   C = (A + 128 - 128) (conv) B
+        #   C = (A' conv B) - 128 (conv) B
+        # where A' = A + 128
+        # and 128 (conv) B is basically a reduce on CRS axis for weights.
+        #
+        # How to convert data to uint8
+        #   C = (A - 128 + 128) (conv) B
+        #   C = (A' conv B) + 128 (conv) B
+        # where A' = A - 128
+        if data_dtype == "int8":
+            # shift data to int8
+            before_shift = relay.add
+            after_shift = relay.subtract
+        else:
+            # shift data to uint8
+            before_shift = relay.subtract
+            after_shift = relay.add
+
+        if attrs["data_layout"] == "NHWC" and attrs["kernel_layout"] == "HWIO":
+            adjust_shift = relay.sum(relay.cast(kernel, dtype="int32"), axis=(0, 1, 2))
+            pad_width = ((0, 0), (pt, pb), (pl, pr), (0, 0))
+        elif attrs["data_layout"] == "NCHW" and attrs["kernel_layout"] == "OIHW":
+            pad_width = ((0, 0), (0, 0), (pt, pb), (pl, pr))
+            adjust_shift = relay.sum(relay.cast(kernel, dtype="int32"), axis=(1, 2, 3))
+            adjust_shift = relay.expand_dims(adjust_shift, axis=1, num_newaxis=2)
+        else:
+            return None
+
+        data = relay.cast(data, "int32")
+        data = before_shift(data, relay.const(128, "int32"))
+        data = relay.cast(data, data_dtype)
+
+        # Do external padding as pad value has to be 128.
+        if any(padding):
+            data = relay.nn.pad(data, pad_width=pad_width, pad_value=128)
+        new_attrs["padding"] = (0, 0)
+
+        # Multiply 128 to adjust shift.
+        adjust_shift = relay.multiply(adjust_shift, relay.const(128, "int32"))
+
+    # Flags to remember if the expr is modified
+    ic_modified = False
+    oc_modified = False
+
+    # Find the value of input and output channel.
+    in_channel = -1
+    out_channel = -1
+    if attrs["data_layout"] == "NHWC" and attrs["kernel_layout"] == "HWIO":
+        in_channel = data_tensor.shape[3].value
+        out_channel = kernel_tensor.shape[3].value
+    elif attrs["data_layout"] == "NCHW" and attrs["kernel_layout"] == "OIHW":
+        in_channel = data_tensor.shape[1].value
+        out_channel = kernel_tensor.shape[0].value
+    else:
+        return None
+
+    if in_channel % in_channel_vector_length != 0:
+        new_in_channel = (
+            (in_channel + in_channel_vector_length) // in_channel_vector_length
+        ) * in_channel_vector_length
+        diff = new_in_channel - in_channel
+        if attrs["data_layout"] == "NHWC" and attrs["kernel_layout"] == "HWIO":
+            data = relay.nn.pad(data, pad_width=((0, 0), (0, 0), (0, 0), (0, diff)))
+            kernel = relay.nn.pad(kernel, pad_width=((0, 0), (0, 0), (0, diff), (0, 0)))
+            ic_modified = True
+        elif attrs["data_layout"] == "NCHW" and attrs["kernel_layout"] == "OIHW":
+            pad_width = ((0, 0), (0, diff), (0, 0), (0, 0))
+            data = relay.nn.pad(data, pad_width=pad_width)
+            kernel = relay.nn.pad(kernel, pad_width=pad_width)
+            ic_modified = True
+        else:
+            return None
+
+    new_out_channel = out_channel
+    if out_channel % out_channel_vector_length != 0:
+        new_out_channel = (
+            (out_channel + out_channel_vector_length) // out_channel_vector_length
+        ) * out_channel_vector_length
+        diff = new_out_channel - out_channel
+        if attrs["data_layout"] == "NHWC" and attrs["kernel_layout"] == "HWIO":
+            kernel = relay.nn.pad(kernel, pad_width=((0, 0), (0, 0), (0, 0), (0, diff)))
+            oc_modified = True
+        elif attrs["data_layout"] == "NCHW" and attrs["kernel_layout"] == "OIHW":
+            kernel = relay.nn.pad(kernel, pad_width=((0, diff), (0, 0), (0, 0), (0, 0)))
+            oc_modified = True
+        else:
+            return None
+
+    if oc_modified:
+        new_attrs["channels"] = new_out_channel
+        out = relay.nn.conv2d(data, kernel, **new_attrs)
+        original_out_shape = [x.value for x in output_tensor.shape]
+        out = relay.strided_slice(out, begin=[0, 0, 0, 0], end=original_out_shape)
+    else:
+        out = relay.nn.conv2d(data, kernel, **new_attrs)
+
+    if data_tensor.dtype != data_dtype:
+        out = after_shift(out, adjust_shift)
+
+    return out

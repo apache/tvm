@@ -60,8 +60,8 @@ bool QnnDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       return false;
     }
   }
-  ICHECK(IsScalarType(types[2], DataType::Int(32)));                  // input_zero_point
-  ICHECK(IsScalarType(types[4], DataType::Float(32)));                // input_scale
+  ICHECK(IsScalarType(types[2], DataType::Int(32)));    // input_zero_point
+  ICHECK(IsScalarType(types[4], DataType::Float(32)));  // input_scale
   // weight_zero_point can be a scalar or a vector of the same shape as the weight_scale
   AssignType(types[5], DataType::Float(32), param->units, reporter);  // weight_scale
 

@@ -18,20 +18,8 @@
 """ Hexagon testing fixtures used to deduce testing argument
     values from testing parameters """
 
-import tvm
-from .infrastructure import get_packed_filter_layout
-
-
-@tvm.testing.fixture
-def shape_nhwc(batch, in_channel, in_size):
-    return (batch, in_size, in_size, in_channel)
-
-
-@tvm.testing.fixture
-def shape_oihw(out_channel, in_channel, kernel):
-    return (out_channel, in_channel, kernel, kernel)
-
-
-@tvm.testing.fixture
-def shape_oihw8i32o4i(out_channel, in_channel, kernel):
-    return get_packed_filter_layout(out_channel, in_channel, kernel, kernel)
+# Disabling invalid-name check as the name is expected to be exactly this by pytest
+# pylint: disable=invalid-name
+pytest_plugins = [
+    "tvm.contrib.hexagon.pytest_plugin",
+]

@@ -18,7 +18,6 @@ from tvm import relay
 from tvm.relay import testing
 import tvm
 from tvm import te
-
 import tvm.testing
 
 from tvm.contrib import utils
@@ -74,13 +73,11 @@ def test_mod_export():
         synthetic_llvm_mod, synthetic_llvm_params = relay.testing.synthetic.get_workload()
         with tvm.transform.PassContext(opt_level=3):
             _, synthetic_gpu_lib, _ = relay.build_module.build(
-                synthetic_mod, "cuda", params=synthetic_params
+                synthetic_mod, "cuda", params=synthetic_params, mod_name="cudalib"
             )
             _, synthetic_llvm_cpu_lib, _ = relay.build_module.build(
-                synthetic_llvm_mod, "llvm", params=synthetic_llvm_params
+                synthetic_llvm_mod, "llvm", params=synthetic_llvm_params, mod_name="llvmlib"
             )
-
-        from tvm.contrib import utils
 
         temp = utils.tempdir()
         if obj_format == ".so":
@@ -108,8 +105,6 @@ def test_mod_export():
         s = te.create_schedule(B.op)
         mod0 = tvm.build(s, [A, B], "llvm", name="myadd0")
         mod1 = tvm.build(s, [A, B], "llvm", name="myadd1")
-
-        from tvm.contrib import utils
 
         temp = utils.tempdir()
         if obj_format == ".so":
@@ -151,8 +146,6 @@ def test_mod_export():
             + "sub 5 inputs: 4 2 shape: 10 10\n"
             + "mul 6 inputs: 5 3 shape: 10 10"
         )
-
-        from tvm.contrib import utils
 
         temp = utils.tempdir()
         subgraph_path = temp.relpath("subgraph.examplejson")
@@ -203,14 +196,13 @@ def test_mod_export():
         s = te.create_schedule(B.op)
         f = tvm.build(s, [A, B], "c", name="myadd")
         engine_module = generate_engine_module()
-        from tvm.contrib import utils
 
         temp = utils.tempdir()
         file_name = "deploy_lib.so"
         path_lib = temp.relpath(file_name)
         synthetic_cpu_lib.import_module(f)
         synthetic_cpu_lib.import_module(engine_module)
-        kwargs = {"options": ["-O2", "-std=c++14", "-I" + header_file_dir_path.relpath("")]}
+        kwargs = {"options": ["-O2", "-std=c++17", "-I" + header_file_dir_path.relpath("")]}
         synthetic_cpu_lib.export_library(path_lib, fcompile=False, **kwargs)
         loaded_lib = tvm.runtime.load_module(path_lib)
         assert loaded_lib.type_key == "library"
@@ -225,5 +217,43 @@ def test_mod_export():
     verify_multi_c_mod_export()
 
 
+@tvm.testing.requires_llvm
+def test_import_static_library():
+    # Generate two LLVM modules.
+    A = te.placeholder((1024,), name="A")
+    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
+    s = te.create_schedule(B.op)
+    mod0 = tvm.build(s, [A, B], "llvm", name="myadd0")
+    mod1 = tvm.build(s, [A, B], "llvm", name="myadd1")
+
+    assert mod0.implements_function("myadd0")
+    assert mod1.implements_function("myadd1")
+    assert mod1.is_dso_exportable
+
+    # mod1 is currently an 'llvm' module.
+    # Save and reload it as a vanilla 'static_library'.
+    temp = utils.tempdir()
+    mod1_o_path = temp.relpath("mod1.o")
+    mod1.save(mod1_o_path)
+    mod1_o = tvm.runtime.load_static_library(mod1_o_path, ["myadd1"])
+    assert mod1_o.implements_function("myadd1")
+    assert mod1_o.is_dso_exportable
+
+    # Import mod1 as a static library into mod0 and compile to its own DSO.
+    mod0.import_module(mod1_o)
+    mod0_dso_path = temp.relpath("mod0.so")
+    mod0.export_library(mod0_dso_path)
+
+    # The imported mod1 is statically linked into mod0.
+    loaded_lib = tvm.runtime.load_module(mod0_dso_path)
+    assert loaded_lib.type_key == "library"
+    assert len(loaded_lib.imported_modules) == 0
+    assert loaded_lib.implements_function("myadd0")
+    assert loaded_lib.get_function("myadd0")
+    assert loaded_lib.implements_function("myadd1")
+    assert loaded_lib.get_function("myadd1")
+    assert not loaded_lib.is_dso_exportable
+
+
 if __name__ == "__main__":
-    test_mod_export()
+    tvm.testing.main()

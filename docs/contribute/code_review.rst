@@ -18,9 +18,12 @@
 .. _code_review_guide:
 
 
-Perform Code Reviews
-====================
+Code Reviews
+============
 
+.. contents::
+  :depth: 2
+  :local:
 
 Open source code is maintained by a community with diverse backgrounds, interests, and goals.
 Hence it is important to provide clear, documented and maintainable code and processes. Code reviews are a
@@ -152,18 +155,6 @@ Our goal is to strive to be consistent and objective but all of us are unfortuna
 Additional Recommendations
 --------------------------
 
-Scope the PRs
-~~~~~~~~~~~~~
-
-We recommend authors to send well scoped PRs that are easy to review and revert in case there is a problem.
-Authors avoid merging multiple unrelated changes into a single PR and split them into separate PRs.
-
-Label the PRs with Area Prefix
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-When sending pull requests, it is helpful to prefix the PR title with the areas related PR(e.g. use [TIR] for TIR-related changes).
-This would help people recognize the related areas and find PRs they are interested in.
-
-
 Deliberate on API and Data Structures
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 A minimum and stable API is critical to the project’s life. A good API makes a huge difference. Always think very carefully about all the aspects including naming, argument definitions and behavior.
@@ -193,7 +184,7 @@ Minimize Dependencies
 ~~~~~~~~~~~~~~~~~~~~~
 Always be cautious in introducing dependencies. While it is important to reuse code and avoid reinventing the wheel,
 dependencies can increase burden of users in deployment. A good design principle is that a feature or function
-should only have a dependecy if/when a user actually use it.
+should only have a dependency if/when a user actually use it.
 
 Concise Implementation
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -220,3 +211,11 @@ To do so -- please click on changes tab in the pull request, then select approve
 or comment on the code and click request changes.
 Code owner can decide if the code can be merged in case by case if some of the reviewers
 did not respond in time(e.g. a week) and existing reviews are sufficient.
+
+Reviewers
+~~~~~~~~~
+Reviewers should strive to leave timely feedback on pull requests for which their
+review was requested. Reviewing code is an important part of the project's health
+and should be considered a regular responsibility for contributors. Automated
+tooling helps out in this regard, as PRs with no activity for a set amount of
+time will get a bot comment pinging the relevant parties.

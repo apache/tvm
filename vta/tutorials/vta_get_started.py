@@ -311,7 +311,9 @@ print(vta.lower(s, [A, B, C], simple_mode=True))
 # function(including the inputs and outputs) as well as target language
 # we want to compile to.
 #
-my_vadd = vta.build(s, [A, B, C], "ext_dev", env.target_host, name="my_vadd")
+my_vadd = vta.build(
+    s, [A, B, C], tvm.target.Target("ext_dev", host=env.target_host), name="my_vadd"
+)
 
 ######################################################################
 # Saving the Module

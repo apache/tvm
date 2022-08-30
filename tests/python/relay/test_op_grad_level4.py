@@ -16,43 +16,46 @@
 # under the License.
 import pytest
 import numpy as np
+import tvm.testing
 from tvm import relay
 from tvm.relay.testing import check_grad, _np_randn_from_type
 
+executor_kind = tvm.testing.parameter("debug")
 
-def verify_reduction_grad(red_fn, d_shape, axis=None, keepdims=False, exclude=False):
+
+def verify_reduction_grad(executor_kind, red_fn, d_shape, axis=None, keepdims=False, exclude=False):
     data = relay.var("data", relay.TensorType(d_shape, "float32"))
     fwd_func = relay.Function([data], red_fn(data, axis=axis, keepdims=keepdims, exclude=exclude))
-    check_grad(fwd_func)
+    check_grad(fwd_func, executor_kind=executor_kind)
 
 
-def test_reduction_grad():
+def test_reduction_grad(executor_kind):
     def _unbiased_variance(x, axis=None, keepdims=False, exclude=False):
         return relay.variance(x, axis=axis, keepdims=keepdims, exclude=exclude, unbiased=True)
 
     for op in (relay.sum, relay.variance, _unbiased_variance, relay.mean):
-        verify_reduction_grad(op, (4, 2))
-        verify_reduction_grad(op, (4, 2), axis=-1, keepdims=True)
-        verify_reduction_grad(op, (4, 2, 1), axis=(1, 2), exclude=True)
-        verify_reduction_grad(op, (4, 2, 1), axis=1)
+        verify_reduction_grad(executor_kind, op, (4, 2))
+        verify_reduction_grad(executor_kind, op, (4, 2), axis=-1, keepdims=True)
+        verify_reduction_grad(executor_kind, op, (4, 2, 1), axis=(1, 2), exclude=True)
+        verify_reduction_grad(executor_kind, op, (4, 2, 1), axis=1)
 
 
-def verify_max_grad(d_shape, axis=None, keepdims=False, exclude=False):
+def verify_max_grad(executor_kind, d_shape, axis=None, keepdims=False, exclude=False):
     data = relay.var("data", relay.TensorType(d_shape, "float32"))
     fwd_func = relay.Function(
         [data], relay.max(data, axis=axis, keepdims=keepdims, exclude=exclude)
     )
-    check_grad(fwd_func, scale=1e-3)
+    check_grad(fwd_func, scale=1e-3, executor_kind=executor_kind)
 
 
-def test_max_grad():
-    verify_max_grad((10, 10), axis=None)
-    verify_max_grad((10, 10), axis=-1)
-    verify_max_grad((6, 3, 2), axis=(1, 2), keepdims=True)
-    verify_max_grad((5, 4, 3), axis=(0, 2), exclude=True)
+def test_max_grad(executor_kind):
+    verify_max_grad(executor_kind, (10, 10), axis=None)
+    verify_max_grad(executor_kind, (10, 10), axis=-1)
+    verify_max_grad(executor_kind, (6, 3, 2), axis=(1, 2), keepdims=True)
+    verify_max_grad(executor_kind, (5, 4, 3), axis=(0, 2), exclude=True)
 
 
-def test_where_grad():
+def test_where_grad(executor_kind):
     cond_type = relay.TensorType((2, 3, 4), "int32")
     lhs_type = relay.TensorType((1, 3, 4), "float32")
     rhs_type = relay.TensorType((2, 1, 4), "float32")
@@ -66,10 +69,10 @@ def test_where_grad():
     lhs = relay.var("lhs", type_annotation=lhs_type)
     rhs = relay.var("rhs", type_annotation=rhs_type)
     fwd_func = relay.Function([cond, lhs, rhs], relay.where(cond, lhs, rhs))
-    check_grad(fwd_func, inputs=inputs, test_inputs=inputs[1:])
+    check_grad(fwd_func, inputs=inputs, test_inputs=inputs[1:], executor_kind=executor_kind)
 
 
-def test_less_equal_grad():
+def test_less_equal_grad(executor_kind):
     x_type = relay.TensorType((2, 3, 4), "float32")
     y_type = relay.TensorType((3, 1), "float32")
     # We need to generate inputs far apart to get correct numerical gradients
@@ -83,10 +86,10 @@ def test_less_equal_grad():
     x = relay.var("x", type_annotation=x_type)
     y = relay.var("y", type_annotation=y_type)
     fwd_func = relay.Function([x, y], relay.less_equal(x, y))
-    check_grad(fwd_func, inputs=inputs, test_inputs=inputs, eps=1e-6)
+    check_grad(fwd_func, inputs=inputs, test_inputs=inputs, eps=1e-6, executor_kind=executor_kind)
 
 
-def test_not_equal_grad():
+def test_not_equal_grad(executor_kind):
     x_type = relay.TensorType((2, 3, 4), "float32")
     y_type = relay.TensorType((3, 1), "float32")
     # We need to generate inputs far apart to get correct numerical gradients
@@ -100,17 +103,17 @@ def test_not_equal_grad():
     x = relay.var("x", type_annotation=x_type)
     y = relay.var("y", type_annotation=y_type)
     fwd_func = relay.Function([x, y], relay.not_equal(x, y))
-    check_grad(fwd_func, inputs=inputs, test_inputs=inputs, eps=1e-6)
+    check_grad(fwd_func, inputs=inputs, test_inputs=inputs, eps=1e-6, executor_kind=executor_kind)
 
 
-def test_strided_slice_grad():
+def test_strided_slice_grad(executor_kind):
     def check(sh, dtype, begin, end, strides, slice_mode):
         x = relay.var("x", shape=sh, dtype=dtype)
         f = relay.Function(
             [x],
             relay.strided_slice(x, begin=begin, end=end, strides=strides, slice_mode=slice_mode),
         )
-        check_grad(f)
+        check_grad(f, executor_kind=executor_kind)
 
     check((2, 3, 4), "float32", (0, 1, 0), (-1, -1, 1), (1, 1, 1), "size")
     check((2, 3, 4), "float32", (0, 1, 0), (2, 3, 1), (1, 1, 1), "end")

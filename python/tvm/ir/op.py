@@ -59,6 +59,21 @@ class Op(RelayExpr):
         """
         return _ffi_api.OpGetAttr(self, attr_name)
 
+    def has_attr(self, attr_name):
+        """Check whether the operator has additional attribute.
+
+        Parameters
+        ----------
+        attr_name : str
+            The attribute name.
+
+        Returns
+        -------
+        value : bool
+            Whether the operator has additional attribute
+        """
+        return _ffi_api.OpHasAttr(self, attr_name)
+
     def set_attr(self, attr_name, value, plevel=10):
         """Set attribute about the operator.
 
@@ -156,6 +171,17 @@ class Op(RelayExpr):
             The type key.
         """
         _ffi_api.OpSetAttrsTypeKey(self, key)
+
+    @staticmethod
+    def list_op_names():
+        """List all the op names in the op registry.
+
+        Returns
+        -------
+        value : List[str]
+            The registered op names
+        """
+        return _ffi_api.ListOpNames()
 
 
 def register_op_attr(op_name, attr_key, value=None, level=10):

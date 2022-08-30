@@ -26,14 +26,14 @@ try:
     # pylint: disable=wrong-import-position,unused-import
     if _FFI_MODE == "ctypes":
         raise ImportError()
-    from ._cy3.core import _register_object
+    from ._cy3.core import _register_object, _get_object_type_index
     from ._cy3.core import _reg_extension
     from ._cy3.core import convert_to_tvm_func, _get_global_func, PackedFuncBase
 except (RuntimeError, ImportError) as error:
     # pylint: disable=wrong-import-position,unused-import
     if _FFI_MODE == "cython":
         raise error
-    from ._ctypes.object import _register_object
+    from ._ctypes.object import _register_object, _get_object_type_index
     from ._ctypes.ndarray import _reg_extension
     from ._ctypes.packed_func import convert_to_tvm_func, _get_global_func, PackedFuncBase
 
@@ -80,6 +80,23 @@ def register_object(type_key=None):
         return register
 
     return register(type_key)
+
+
+def get_object_type_index(cls):
+    """
+    Get type index of object type
+
+    Parameters
+    ----------
+    cls : type
+        The object type to get type index for.
+
+    Returns
+    -------
+    type_index : Optional[int]
+        The type index, or None if type not found in the registry.
+    """
+    return _get_object_type_index(cls)
 
 
 def register_extension(cls, fcreate=None):

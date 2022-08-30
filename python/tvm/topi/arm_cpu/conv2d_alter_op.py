@@ -24,10 +24,13 @@ from tvm import te
 from tvm import relay
 from tvm import autotvm
 
-from ..nn import conv2d_alter_layout
+from ..nn import conv2d_alter_layout, conv2d_legalize
 from ..utils import get_const_tuple
 from ..x86.conv2d import _get_default_config as _get_x86_default_config
+from ..x86.conv2d_int8 import _get_default_config_int8
+from .conv2d_int8 import is_int8_hw_support
 from .arm_utils import get_tiling_B_interleaved_t
+from ..generic.conv2d import conv2d_alter_int8_common
 
 logger = logging.getLogger("topi")
 
@@ -99,9 +102,6 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         # we then assume it's not necessary to alter this op.
         return None
     cfg = dispatch_ctx.query(target, workload)
-    if cfg.is_fallback:  # if is fallback, clear query cache and return None
-        autotvm.task.clear_fallback_cache(target, workload)
-        return None
 
     topi_tmpl = workload[0]
     new_attrs = {k: attrs[k] for k in attrs.keys()}
@@ -211,7 +211,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         new_attrs["channels"] = CO
 
         # pre-compute winograd_nnpack transform
-        # for winograd_nnpack_fp16, the the precompute prune pass must run on device,
+        # for winograd_nnpack_fp16, the precompute prune pass must run on device,
         # where float16 is supported
         weight_dtype = "float32"
         weight_expr = inputs[1]
@@ -257,7 +257,15 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         assert data_layout == "NCHW" and kernel_layout == "OIHW"
         if cfg.is_fallback:
             _get_x86_default_config(
-                cfg, data_tensor, kernel_tensor, strides, padding, out_dtype, False, data_layout
+                cfg,
+                data_tensor,
+                kernel_tensor,
+                strides,
+                padding,
+                dilation,
+                out_dtype,
+                False,
+                data_layout,
             )
         batch_size, in_channel, height, width = get_const_tuple(data_tensor.shape)
         out_channel, _, kh, kw = get_const_tuple(kernel_tensor.shape)
@@ -333,7 +341,71 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         )
         dispatch_ctx.update(target, new_workload, cfg)
         return relay.nn.contrib_depthwise_conv2d_nchwc(*inputs, **new_attrs)
+
+    if topi_tmpl == "conv2d_NCHWc_int8.arm_cpu":
+        assert data_layout == "NCHW" and kernel_layout == "OIHW"
+        batch_size, in_channel, height, width = get_const_tuple(data_tensor.shape)
+        out_channel, _, kh, kw = get_const_tuple(kernel_tensor.shape)
+
+        n_elems = 4
+
+        if cfg.is_fallback:
+            _get_default_config_int8(
+                cfg,
+                data_tensor,
+                kernel_tensor,
+                strides,
+                padding,
+                dilation,
+                out_dtype,
+                False,
+                data_layout,
+                int32_lanes=4,
+            )
+
+        ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
+
+        if cfg.is_fallback:
+            # ic_bn needs to be divided by n_elems below
+            ic_bn = max(ic_bn, n_elems)
+
+        # update new attrs
+        new_attrs["channels"] = out_channel
+        new_attrs["data_layout"] = "NCHW%dc" % ic_bn
+        new_attrs["kernel_layout"] = "OIHW{:n}i{:n}o{:n}i".format(ic_bn // n_elems, oc_bn, n_elems)
+        new_attrs["out_layout"] = "NCHW%dc" % oc_bn
+
+        # Store altered operator's config.
+        new_data = te.placeholder(
+            (batch_size, in_channel // ic_bn, height, width, ic_bn), dtype=data_dtype
+        )
+        new_kernel = te.placeholder(
+            (out_channel // oc_bn, in_channel // ic_bn, kh, kw, ic_bn // n_elems, oc_bn, n_elems),
+            dtype=kernel_dtype,
+        )
+        new_workload = autotvm.task.args_to_workload(
+            [
+                new_data,
+                new_kernel,
+                strides,
+                padding,
+                dilation,
+                new_attrs["data_layout"],
+                new_attrs["out_layout"],
+                out_dtype,
+            ],
+            topi_tmpl,
+        )
+        dispatch_ctx.update(target, new_workload, cfg)
+        return relay.nn.contrib_conv2d_nchwc(*inputs, **new_attrs)
+
     if topi_tmpl == "conv2d_NHWC_quantized_interleaved.arm_cpu":
+        # TODO(masahi): This schedule can easily result in a tensorization error
+        # if used in the fallback mode
+        if cfg.is_fallback:  # if is fallback, clear query cache and return None
+            autotvm.task.clear_fallback_cache(target, workload)
+            return None
+
         assert data_layout == "NHWC" and kernel_layout == "HWIO"
         KH, KW, _, OC = get_const_tuple(kernel.shape)
         new_workload_name = "conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu"
@@ -350,6 +422,12 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
             inputs[0], new_kernel_expr, **new_attrs
         )
     if topi_tmpl == "conv2d_NHWC_quantized_native.arm_cpu":
+        # TODO(masahi): This schedule can easily result in a tensorization error
+        # if used in the fallback mode
+        if cfg.is_fallback:  # if is fallback, clear query cache and return None
+            autotvm.task.clear_fallback_cache(target, workload)
+            return None
+
         assert data_layout == "NHWC" and kernel_layout == "HWIO"
         KH, KW, _, OC = get_const_tuple(kernel.shape)
         new_workload_name = "conv2d_NHWC_quantized_native_without_transform.arm_cpu"
@@ -363,5 +441,45 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         dispatch_ctx.update(target, new_workload, cfg)
         return relay.nn.contrib_conv2d_gemm_without_weight_transform(
             inputs[0], new_kernel_expr, **new_attrs
+        )
+    return None
+
+
+@conv2d_legalize.register("arm_cpu")
+def _conv2d_legalize(attrs, inputs, arg_types):
+    """Legalizes Conv2D op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    # Collect the input tensors.
+    data_tensor, kernel_tensor = arg_types[0], arg_types[1]
+    data_dtype = data_tensor.dtype
+    kernel_dtype = kernel_tensor.dtype
+
+    # Collect the output tensor.
+    output_tensor = arg_types[2]
+
+    # Collect the input exprs.
+    data, kernel = inputs
+
+    # ARM vector instructions operate on the same dtype for data and kernel, we
+    # provide those here and conv2d_alter_int8_common will convert to the
+    # correct datatype.
+    if is_int8_hw_support(kernel_dtype, kernel_dtype):
+        # ARM intrinsics need the datatypes of data and kernel to be the same
+        return conv2d_alter_int8_common(
+            data, data_tensor, kernel, kernel_tensor, output_tensor, attrs, kernel_dtype, 8, 8
         )
     return None

@@ -23,6 +23,8 @@ loading the tool.
 import logging
 import os
 import sys
+import re
+import importlib
 from abc import ABC
 from abc import abstractmethod
 from typing import Optional, List, Dict
@@ -31,7 +33,8 @@ from pathlib import Path
 import numpy as np
 
 from tvm import relay
-from tvm.driver.tvmc.common import TVMCException
+from tvm import parser
+from tvm.driver.tvmc import TVMCException, TVMCImportError
 from tvm.driver.tvmc.model import TVMCModel
 
 
@@ -76,20 +79,15 @@ class Frontend(ABC):
         """
 
 
-def import_keras():
-    """Lazy import function for Keras"""
-    # Keras writes the message "Using TensorFlow backend." to stderr
-    # Redirect stderr during the import to disable this
-    stderr = sys.stderr
-    sys.stderr = open(os.devnull, "w")
+def lazy_import(pkg_name, from_pkg_name=None, hide_stderr=False):
+    """Lazy import a frontend package or subpackage"""
     try:
-        # pylint: disable=C0415
-        import tensorflow as tf
-        from tensorflow import keras
-
-        return tf, keras
+        return importlib.import_module(pkg_name, package=from_pkg_name)
+    except ImportError as error:
+        raise TVMCImportError(pkg_name) from error
     finally:
-        sys.stderr = stderr
+        if hide_stderr:
+            sys.stderr = stderr
 
 
 class KerasFrontend(Frontend):
@@ -105,7 +103,8 @@ class KerasFrontend(Frontend):
 
     def load(self, path, shape_dict=None, **kwargs):
         # pylint: disable=C0103
-        tf, keras = import_keras()
+        tf = lazy_import("tensorflow")
+        keras = lazy_import("keras", from_pkg_name="tensorflow")
 
         # tvm build currently imports keras directly instead of tensorflow.keras
         try:
@@ -136,11 +135,11 @@ class KerasFrontend(Frontend):
         return relay.frontend.from_keras(model, input_shapes, **kwargs)
 
     def is_sequential_p(self, model):
-        _, keras = import_keras()
+        keras = lazy_import("keras", from_pkg_name="tensorflow")
         return isinstance(model, keras.models.Sequential)
 
     def sequential_to_functional(self, model):
-        _, keras = import_keras()
+        keras = lazy_import("keras", from_pkg_name="tensorflow")
         assert self.is_sequential_p(model)
         input_layer = keras.layers.Input(batch_shape=model.layers[0].input_shape)
         prev_layer = input_layer
@@ -162,8 +161,7 @@ class OnnxFrontend(Frontend):
         return ["onnx"]
 
     def load(self, path, shape_dict=None, **kwargs):
-        # pylint: disable=C0415
-        import onnx
+        onnx = lazy_import("onnx")
 
         # pylint: disable=E1101
         model = onnx.load(path)
@@ -183,9 +181,8 @@ class TensorflowFrontend(Frontend):
         return ["pb"]
 
     def load(self, path, shape_dict=None, **kwargs):
-        # pylint: disable=C0415
-        import tensorflow as tf
-        import tvm.relay.testing.tf as tf_testing
+        tf = lazy_import("tensorflow")
+        tf_testing = lazy_import("tvm.relay.testing.tf")
 
         with tf.io.gfile.GFile(path, "rb") as tf_graph:
             content = tf_graph.read()
@@ -210,8 +207,7 @@ class TFLiteFrontend(Frontend):
         return ["tflite"]
 
     def load(self, path, shape_dict=None, **kwargs):
-        # pylint: disable=C0415
-        import tflite.Model as model
+        model = lazy_import("tflite.Model")
 
         with open(path, "rb") as tf_graph:
             content = tf_graph.read()
@@ -249,8 +245,7 @@ class PyTorchFrontend(Frontend):
         return ["pth", "zip"]
 
     def load(self, path, shape_dict=None, **kwargs):
-        # pylint: disable=C0415
-        import torch
+        torch = lazy_import("torch")
 
         if shape_dict is None:
             raise TVMCException("--input-shapes must be specified for %s" % self.name())
@@ -276,7 +271,7 @@ class PaddleFrontend(Frontend):
 
     @staticmethod
     def suffixes():
-        return ["pdmodel", "pdiparams"]
+        return ["pdmodel"]
 
     def load(self, path, shape_dict=None, **kwargs):
         # pylint: disable=C0415
@@ -285,11 +280,87 @@ class PaddleFrontend(Frontend):
         paddle.enable_static()
         paddle.disable_signal_handler()
 
+        if not os.path.exists(path):
+            raise TVMCException("File {} is not exist.".format(path))
+        if not path.endswith(".pdmodel"):
+            raise TVMCException("Path of model file should be endwith suffixes '.pdmodel'.")
+        prefix = "".join(path.strip().split(".")[:-1])
+        params_file_path = prefix + ".pdiparams"
+        if not os.path.exists(params_file_path):
+            raise TVMCException("File {} is not exist.".format(params_file_path))
+
         # pylint: disable=E1101
         exe = paddle.static.Executor(paddle.CPUPlace())
-        prog, _, _ = paddle.static.load_inference_model(path, exe)
+        prog, _, _ = paddle.static.load_inference_model(prefix, exe)
 
         return relay.frontend.from_paddle(prog, shape_dict=shape_dict, **kwargs)
+
+
+class RelayFrontend(Frontend):
+    """Relay frontend for TVMC"""
+
+    @staticmethod
+    def name():
+        return "relay"
+
+    @staticmethod
+    def suffixes():
+        return ["relay"]
+
+    def load(self, path, shape_dict=None, **kwargs):
+        with open(path, "r", encoding="utf-8") as relay_text:
+            text = relay_text.read()
+        if shape_dict is None:
+            logger.warning(
+                "Specify --input-shapes to ensure that model inputs "
+                "will not be considered as constants."
+            )
+
+        def _validate_text(text):
+            """Check the provided file contents.
+            The relay.txt artifact contained in the MLF is missing the version header and
+            the metadata which is required to use meta[relay.Constant]."""
+
+            if re.compile(r".*\#\[version\.*").match(text) is None:
+                raise TVMCException(
+                    "The relay model does not include the required version information."
+                )
+            if re.compile(r".*meta\[.+\].*", re.DOTALL).match(text):
+                if "#[metadata]" not in text:
+                    raise TVMCException(
+                        "The relay model does not include the required #[metadata] section. "
+                        "Use ir_mod.astext(show_meta_data=True) to export compatible code."
+                    )
+
+        _validate_text(text)
+
+        ir_mod = parser.fromtext(text)
+
+        if shape_dict:
+            input_names = shape_dict.keys()
+        else:
+            input_names = []
+
+        def _gen_params(ir_mod, skip_names=None):
+            """Populate the all the params in the mode with ones."""
+            main_func = ir_mod["main"]
+            shape_dict = {p.name_hint: p.checked_type.concrete_shape for p in main_func.params}
+            type_dict = {p.name_hint: p.checked_type.dtype for p in main_func.params}
+            params = {}
+            for name, shape in shape_dict.items():
+                if skip_names and name in skip_names:
+                    continue
+
+                if "int" in type_dict[name]:
+                    data = np.random.randint(128, size=shape, dtype=type_dict[name])
+                else:
+                    data = np.random.uniform(-1, 1, size=shape).astype(type_dict[name])
+                params[name] = data
+            return params
+
+        params = _gen_params(ir_mod, skip_names=input_names)
+
+        return ir_mod, params
 
 
 ALL_FRONTENDS = [
@@ -299,6 +370,7 @@ ALL_FRONTENDS = [
     TFLiteFrontend,
     PyTorchFrontend,
     PaddleFrontend,
+    RelayFrontend,
 ]
 
 

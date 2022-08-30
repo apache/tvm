@@ -18,6 +18,7 @@
 import collections
 import json
 import os
+
 import numpy as np
 import tvm
 
@@ -111,15 +112,16 @@ class DebugResult(object):
         return self._dtype_list
 
     def get_output_tensors(self):
-        """Dump the outputs to a temporary folder, the tensors are in numpy format"""
+        """Get the output tensors of each operation in numpy format"""
         eid = 0
-        order = 0
         output_tensors = {}
-        for node, time in zip(self._nodes_list, self._time_list):
+        for i, node in enumerate(self._nodes_list):
             num_outputs = self.get_graph_node_output_num(node)
             for j in range(num_outputs):
-                order += time[0]
-                key = node["name"] + "_" + str(j)
+
+                # the node name is not unique, so we need a consistent
+                # indexing based on the list ordering in the nodes
+                key = f"{node['name']}____topo-index:{i}____output-num:{j}"
                 output_tensors[key] = self._output_tensor_list[eid]
                 eid += 1
         return output_tensors
@@ -141,14 +143,7 @@ class DebugResult(object):
         """Dump the outputs to a temporary folder, the tensors are in numpy format"""
         # cleanup existing tensors before dumping
         self._cleanup_tensors()
-        eid = 0
-        output_tensors = {}
-        for node in self._nodes_list:
-            num_outputs = self.get_graph_node_output_num(node)
-            for j in range(num_outputs):
-                key = node["name"] + "____" + str(j)
-                output_tensors[key] = self._output_tensor_list[eid]
-                eid += 1
+        output_tensors = self.get_output_tensors()
 
         with open(os.path.join(self._dump_path, "output_tensors.params"), "wb") as param_f:
             param_f.write(save_tensors(output_tensors))
@@ -157,10 +152,10 @@ class DebugResult(object):
         """Dump the trace to the Chrome trace.json format."""
 
         def s_to_us(t):
-            return t * 10 ** 6
+            return t * 10**6
 
         starting_times = np.zeros(len(self._time_list) + 1)
-        starting_times[1:] = np.cumsum([times[0] for times in self._time_list])
+        starting_times[1:] = np.cumsum([np.mean(times) for times in self._time_list])
 
         def node_to_events(node, times, starting_time):
             return [
@@ -173,7 +168,7 @@ class DebugResult(object):
                 ),
                 ChromeTraceEvent(
                     # Use start + duration instead of end to ensure precise timings.
-                    ts=s_to_us(times[0] + starting_time),
+                    ts=s_to_us(np.mean(times) + starting_time),
                     tid=1,
                     pid=1,
                     ph="E",
@@ -208,12 +203,31 @@ class DebugResult(object):
 
     def get_debug_result(self, sort_by_time=True):
         """Return the debugger result"""
-        header = ["Node Name", "Ops", "Time(us)", "Time(%)", "Shape", "Inputs", "Outputs"]
-        lines = ["---------", "---", "--------", "-------", "-----", "------", "-------"]
+        header = [
+            "Node Name",
+            "Ops",
+            "Time(us)",
+            "Time(%)",
+            "Shape",
+            "Inputs",
+            "Outputs",
+            "Measurements(us)",
+        ]
+        lines = [
+            "---------",
+            "---",
+            "--------",
+            "-------",
+            "-----",
+            "------",
+            "-------",
+            "----------------",
+        ]
         eid = 0
         data = []
-        total_time = sum(time[0] for time in self._time_list)
+        total_time = sum([np.mean(time) for time in self._time_list])
         for node, time in zip(self._nodes_list, self._time_list):
+            time_mean = np.mean(time)
             num_outputs = self.get_graph_node_output_num(node)
             for j in range(num_outputs):
                 op = node["op"]
@@ -222,11 +236,12 @@ class DebugResult(object):
                     continue
                 name = node["name"]
                 shape = str(self._output_tensor_list[eid].shape)
-                time_us = round(time[0] * 1e6, 3)
-                time_percent = round(((time[0] / total_time) * 100), 3)
+                time_us = round(time_mean * 1e6, 3)
+                time_percent = round(((time_mean / total_time) * 100), 3)
                 inputs = str(node["attrs"]["num_inputs"])
                 outputs = str(node["attrs"]["num_outputs"])
-                node_data = [name, op, time_us, time_percent, shape, inputs, outputs]
+                measurements = str([round(repeat_data * 1e6, 3) for repeat_data in time])
+                node_data = [name, op, time_us, time_percent, shape, inputs, outputs, measurements]
                 data.append(node_data)
                 eid += 1
 
@@ -235,7 +250,7 @@ class DebugResult(object):
             data = sorted(data, key=lambda x: x[2], reverse=True)
             # Insert a row for total time at the end.
             rounded_total_time_us = round(total_time * 1e6, 3)
-            data.append(["Total_time", "-", rounded_total_time_us, "-", "-", "-", "-", "-"])
+            data.append(["Total_time", "-", rounded_total_time_us, "-", "-", "-", "-", "-", "-"])
 
         fmt = ""
         for i, _ in enumerate(header):

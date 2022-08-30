@@ -285,8 +285,7 @@ def tune_and_evaluate(tuning_opt):
             relay.op.get("add"),
             relay.op.get("multiply"),
         ),
-        target=target,
-        target_host=env.target_host,
+        target=tvm.target.Target(target, host=env.target_host),
     )
 
     # filter out non-packed alu task

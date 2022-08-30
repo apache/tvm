@@ -16,19 +16,17 @@
 # under the License.
 """RPC client tools"""
 import os
-import stat
 import socket
+import stat
 import struct
 import time
 
 import tvm._ffi
-from tvm.contrib import utils
 from tvm._ffi.base import TVMError
+from tvm.contrib import utils
 from tvm.runtime import ndarray as nd
 
-from . import base
-from . import server
-from . import _ffi_api
+from . import _ffi_api, base, server
 
 
 class RPCSession(object):
@@ -326,18 +324,19 @@ class TrackerSession(object):
 
         res = ""
         res += "Server List\n"
-        res += "----------------------------\n"
-        res += "server-address\tkey\n"
-        res += "----------------------------\n"
-        for item in data["server_info"]:
+        res += "------------------------------\n"
+        res += "server-address           key\n"
+        res += "------------------------------\n"
+        sorted_server = sorted(data["server_info"], key=lambda x: x["key"])
+        for item in sorted_server:
             addr = item["addr"]
-            res += str(addr[0]) + ":" + str(addr[1]) + "\t"
+            res += "%21s    " % ":".join(map(str, addr))
             res += item["key"] + "\n"
             key = item["key"].split(":")[1]  # 'server:rasp3b` -> 'rasp3b'
             if key not in total_ct:
                 total_ct[key] = 0
             total_ct[key] += 1
-        res += "----------------------------\n"
+        res += "------------------------------\n"
         res += "\n"
 
         # compute max length of device key
@@ -460,7 +459,9 @@ class TrackerSession(object):
         )
 
 
-def connect(url, port, key="", session_timeout=0, session_constructor_args=None):
+def connect(
+    url, port, key="", session_timeout=0, session_constructor_args=None, enable_logging=False
+):
     """Connect to RPC Server
 
     Parameters
@@ -484,6 +485,9 @@ def connect(url, port, key="", session_timeout=0, session_constructor_args=None)
         The first element of the list is always a string specifying the name of
         the session constructor, the following args are the positional args to that function.
 
+    enable_logging: boolean
+        flag to enable/disable logging. Logging is disabled by default.
+
     Returns
     -------
     sess : RPCSession
@@ -504,9 +508,9 @@ def connect(url, port, key="", session_timeout=0, session_constructor_args=None)
     .. code-block:: python
 
         client_via_proxy = rpc.connect(
-            proxy_server_url, proxy_server_port, proxy_server_key,
+            proxy_server_url, proxy_server_port, proxy_server_key, enable_logging
             session_constructor_args=[
-                "rpc.Connect", internal_url, internal_port, internal_key])
+                "rpc.Connect", internal_url, internal_port, internal_key, internal_logging])
 
     """
     try:
@@ -515,7 +519,7 @@ def connect(url, port, key="", session_timeout=0, session_constructor_args=None)
         session_constructor_args = session_constructor_args if session_constructor_args else []
         if not isinstance(session_constructor_args, (list, tuple)):
             raise TypeError("Expect the session constructor to be a list or tuple")
-        sess = _ffi_api.Connect(url, port, key, *session_constructor_args)
+        sess = _ffi_api.Connect(url, port, key, enable_logging, *session_constructor_args)
     except NameError:
         raise RuntimeError("Please compile with USE_RPC=1")
     return RPCSession(sess)

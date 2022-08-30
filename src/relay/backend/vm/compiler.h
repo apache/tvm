@@ -74,25 +74,24 @@ struct VMCompilerContext {
   TagMap tag_map;
   // Map from global var to a unique integer
   GlobalMap global_map;
-  // TEcompiler for lowering
-  tec::TECompiler compiler;
   // List of constants
   std::vector<NDArray> constants;
-  // Device type for constants
-  std::vector<Index> const_device_type;
-  // List of cached functions
-  std::vector<tec::CachedFunc> cached_funcs;
-  // The functions that have been lowered.
-  std::unordered_map<tir::PrimFunc, size_t, ObjectPtrHash, ObjectPtrEqual> seen_funcs;
+  // Device indexes  for constants
+  std::vector<Index> const_device_indexes;
+  // Map from names of primitive functions already allocated to their primitive function index.
+  std::unordered_map<std::string, Index> primitive_map;
+  // The virtual devices corresponding to each device index.
+  std::vector<VirtualDevice> virtual_devices_;
 };
 
 class VMCompiler : public runtime::ModuleNode {
  public:
-  virtual ~VMCompiler() {}
+  VMCompiler() = default;
+  virtual ~VMCompiler() = default;
 
   virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
 
-  const char* type_key() const { return "VMCompiler"; }
+  const char* type_key() const final { return "VMCompiler"; }
 
   /*!
    * \brief Set the parameters
@@ -103,42 +102,64 @@ class VMCompiler : public runtime::ModuleNode {
   void SetParam(const std::string& name, runtime::NDArray data_in);
 
   /*!
-   * \brief Lower the functions in a Module
+   * \brief Lower the functions in a Module.
+   *
+   * ----------------------------------------------------------------------------------
+   * | This is the main entry point for the VM compilation flow.                      |
+   * |  - Preceded by \p SetParam for the global params.                              |
+   * |  - Followed by \p Codegen() to finalize the executable.                        |
+   * |  - Then the result runtime::Module can be constructed by GetExecutable.        |
+   * ----------------------------------------------------------------------------------
    *
    * \param mod Relay Module
-   * \param targets For heterogeneous compilation, it is a dictionary indicating device type
-   *                to target mapping. For homogeneous compilation, it is a singleton build target.
-   * \param target_host Host compilation target, if target is device.
+   * \param raw_targets List of available targets for running kernels. Any host target should
+   * be conveyed by the 'host' target field.
    */
-  void Lower(IRModule mod, const TargetMap& targets, const tvm::Target& target_host);
+  void Lower(IRModule mod, const Array<Target>& raw_targets);
+
+  /*
+   * \brief Perform a series of optimizations on the input IR module. Can be used instead
+   * of Lower if wish to stop and observe optimized IRModule. Otherwise not needed on
+   * regular compilation flow.
+   *
+   * \param mod The input IRModule.
+   * \param raw_targets List of available target for running kernels.
+   *
+   * \return The optimized IRModule.
+   */
+  IRModule OptimizeModule(IRModule mod, const Array<Target>& raw_targets);
 
   /*! \brief Generate the machine code for lowered functions. */
   void Codegen();
 
+  /*! \brief Returns the runtime::Module containing the compiled VM code. */
+  runtime::Module GetExecutable() const;
+
  protected:
-  /*
-   * \brief Perform a series of optimizations on the input IR module.
-   *
-   * \param mod The input IRModule.
-   * \param targets For heterogeneous compilation, it is a dictionary indicating device type
-   *                to target mapping. For homogeneous compilation, it is a singleton build target.
-   * \param target_host Host compilation target.
-   *
-   * \return The optimized IRModule.
-   */
-  IRModule OptimizeModule(IRModule mod, const TargetMap& targets, const Target& target_host);
+  /*! \brief Builds the executor and compilation config to match \p raw_targets. */
+  void Setup(const Array<Target>& raw_targets);
+
+  /*! \brief Internal implementation of \p Lower. */
+  void LowerImpl(IRModule mod);
+
+  /*! \brief Internal implementation of \p OptimizeModule. */
+  IRModule OptimizeModuleImpl(IRModule mod);
+
+  /*! \brief Returns the passes which layout memory. */
+  transform::Sequential MemoryOpt(const CompilationConfig& config);
+
+  /*! \brief Returns the passes which fuse then lower Relay primitive operators. */
+  transform::Sequential FuseAndLowerOperators(const CompilationConfig& config);
 
   /*!
    * \brief Populate the global function names in a map where the value is used
-   *        as the index by the VMFunctions.
+   *        as the index by the VMFunctions. Returns the number of functions.
    */
-  void PopulateGlobalMap();
+  size_t PopulateGlobalMap();
 
  protected:
-  /*! \brief Target devices. */
-  TargetMap targets_;
-  /*! \brief Target host device. */
-  tvm::Target target_host_;
+  /*! \brief Targets and scopes needed for compilation. */
+  CompilationConfig config_;
   /*! \brief Global shared meta data */
   VMCompilerContext context_;
   /*! \brief Compiled executable. */

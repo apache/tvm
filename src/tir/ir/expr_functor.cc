@@ -35,8 +35,7 @@ void ExprVisitor::VisitExpr_(const SizeVarNode* op) {
 void ExprVisitor::VisitExpr_(const AnyNode* op) {}
 
 void ExprVisitor::VisitExpr_(const LoadNode* op) {
-  this->VisitExpr(op->index);
-  this->VisitExpr(op->predicate);
+  LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
 }
 
 void ExprVisitor::VisitExpr_(const BufferLoadNode* op) {
@@ -127,13 +126,8 @@ PrimExpr ExprMutator::VisitExpr_(const SizeVarNode* op) {
 PrimExpr ExprMutator::VisitExpr_(const AnyNode* op) { return GetRef<PrimExpr>(op); }
 
 PrimExpr ExprMutator::VisitExpr_(const LoadNode* op) {
-  PrimExpr index = this->VisitExpr(op->index);
-  PrimExpr predicate = this->VisitExpr(op->predicate);
-  if (index.same_as(op->index) && predicate.same_as(op->predicate)) {
-    return GetRef<PrimExpr>(op);
-  } else {
-    return Load(op->dtype, op->buffer_var, index, predicate);
-  }
+  LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+  return PrimExpr();
 }
 
 PrimExpr ExprMutator::VisitExpr_(const BufferLoadNode* op) {

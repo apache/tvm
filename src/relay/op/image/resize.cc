@@ -68,6 +68,8 @@ bool Resize1DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   const Resize1DAttrs* param = attrs.as<Resize1DAttrs>();
   ICHECK(param != nullptr);
+  ICHECK(param->size.size() == 1);
+  ICHECK(param->roi.size() == 2);
   const Layout in_layout(param->layout);
   auto layout_converter = tir::BijectiveLayout(in_layout, kNCW);
   ICHECK(layout_converter.defined())
@@ -89,17 +91,20 @@ bool Resize1DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
 // Positional relay function to create image operator
 // used by frontend FFI.
-Expr MakeResize1D(Expr data, Array<IndexExpr> size, String layout, String method,
-                  String coordinate_transformation_mode, String rounding_method, double cubic_alpha,
-                  int cubic_exclude, DataType out_dtype) {
+Expr MakeResize1D(Expr data, Array<IndexExpr> size, Array<FloatImm> roi, String layout,
+                  String method, String coordinate_transformation_mode, String rounding_method,
+                  double cubic_alpha, int cubic_exclude, double extrapolation_value,
+                  DataType out_dtype) {
   auto attrs = make_object<Resize1DAttrs>();
   attrs->size = std::move(size);
+  attrs->roi = std::move(roi);
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
   attrs->coordinate_transformation_mode = coordinate_transformation_mode;
   attrs->rounding_method = rounding_method;
   attrs->cubic_alpha = cubic_alpha;
   attrs->cubic_exclude = cubic_exclude;
+  attrs->extrapolation_value = extrapolation_value;
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("image.resize1d");
   return Call(op, {data}, Attrs(attrs), {});
@@ -141,6 +146,8 @@ bool Resize2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   const Resize2DAttrs* param = attrs.as<Resize2DAttrs>();
   ICHECK(param != nullptr);
+  ICHECK(param->size.size() == 2);
+  ICHECK(param->roi.size() == 4);
   const Layout in_layout(param->layout);
   auto layout_converter = tir::BijectiveLayout(in_layout, kNCHW);
   ICHECK(layout_converter.defined())
@@ -163,17 +170,20 @@ bool Resize2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
 // Positional relay function to create image operator
 // used by frontend FFI.
-Expr MakeResize2D(Expr data, Array<IndexExpr> size, String layout, String method,
-                  String coordinate_transformation_mode, String rounding_method, double cubic_alpha,
-                  int cubic_exclude, DataType out_dtype) {
+Expr MakeResize2D(Expr data, Array<IndexExpr> size, Array<FloatImm> roi, String layout,
+                  String method, String coordinate_transformation_mode, String rounding_method,
+                  double cubic_alpha, int cubic_exclude, double extrapolation_value,
+                  DataType out_dtype) {
   auto attrs = make_object<Resize2DAttrs>();
   attrs->size = std::move(size);
+  attrs->roi = std::move(roi);
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
   attrs->coordinate_transformation_mode = coordinate_transformation_mode;
   attrs->rounding_method = rounding_method;
   attrs->cubic_alpha = cubic_alpha;
   attrs->cubic_exclude = cubic_exclude;
+  attrs->extrapolation_value = extrapolation_value;
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("image.resize2d");
   return Call(op, {data}, Attrs(attrs), {});
@@ -215,6 +225,8 @@ bool Resize3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   const Resize3DAttrs* param = attrs.as<Resize3DAttrs>();
   ICHECK(param != nullptr);
+  ICHECK(param->size.size() == 3);
+  ICHECK(param->roi.size() == 6);
   const Layout in_layout(param->layout);
   auto layout_converter = tir::BijectiveLayout(in_layout, kNCDHW);
   ICHECK(layout_converter.defined())
@@ -238,17 +250,20 @@ bool Resize3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
 // Positional relay function to create image operator
 // used by frontend FFI.
-Expr MakeResize3D(Expr data, Array<IndexExpr> size, String layout, String method,
-                  String coordinate_transformation_mode, String rounding_method, double cubic_alpha,
-                  int cubic_exclude, DataType out_dtype) {
+Expr MakeResize3D(Expr data, Array<IndexExpr> size, Array<FloatImm> roi, String layout,
+                  String method, String coordinate_transformation_mode, String rounding_method,
+                  double cubic_alpha, int cubic_exclude, double extrapolation_value,
+                  DataType out_dtype) {
   auto attrs = make_object<Resize3DAttrs>();
   attrs->size = std::move(size);
+  attrs->roi = std::move(roi);
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
   attrs->coordinate_transformation_mode = coordinate_transformation_mode;
   attrs->rounding_method = rounding_method;
   attrs->cubic_alpha = cubic_alpha;
   attrs->cubic_exclude = cubic_exclude;
+  attrs->extrapolation_value = extrapolation_value;
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("image.resize3d");
   return Call(op, {data}, Attrs(attrs), {});

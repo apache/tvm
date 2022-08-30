@@ -30,7 +30,7 @@ def test_format_si_prefix():
     for i, prefix in enumerate(SI_PREFIXES):
         integer, decimal = random.randint(0, 1000), random.randint(0, 1000)
         exp = -24 + 3 * i  # 0th prefix (yocto) is 10^-24
-        number = integer * (10 ** exp) + decimal * (10 ** (exp - 3))
+        number = integer * (10**exp) + decimal * (10 ** (exp - 3))
         expected = integer + decimal / 1000
         assert isclose(utils.format_si_prefix(number, prefix), expected)
 

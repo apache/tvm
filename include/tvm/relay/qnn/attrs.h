@@ -36,6 +36,7 @@ namespace qnn {
 struct RequantizeAttrs : public tvm::AttrsNode<RequantizeAttrs> {
   int axis;
   std::string rounding;
+  std::string compute_dtype;
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(RequantizeAttrs, "relay.attrs.RequantizeAttrs") {
@@ -44,7 +45,7 @@ struct RequantizeAttrs : public tvm::AttrsNode<RequantizeAttrs> {
             "The output channel axis for channel wise quantization. Default value is -1,"
             "which corresponds to the last axis.")
         .set_default(-1);
-    TVM_ATTR_FIELD(rounding).set_default("UPWARD").describe(
+    TVM_ATTR_FIELD(rounding).set_default("None").describe(
         "Defines the rounding direction when the value is midway between"
         "two representable values. There are two supported modes - UPWARD"
         "or TONEAREST. Both modes behave exactly same except at the"
@@ -54,6 +55,11 @@ struct RequantizeAttrs : public tvm::AttrsNode<RequantizeAttrs> {
         "value is rounded away from zero at midpoints (for example, -1.5"
         "rounds to -2). More context can be found at following gblic manual"
         "https://www.gnu.org/software/libc/manual/html_node/Rounding.html.");
+    TVM_ATTR_FIELD(compute_dtype)
+        .set_default("None")
+        .describe(
+            "Specifies the data type used during requantize. Supported "
+            "options: \"int64\", \"float32\", \"float64\"");
     TVM_ATTR_FIELD(out_dtype)
         .set_default(NullValue<DataType>())
         .describe("Output data type, set to explicit type under mixed precision setting");
@@ -95,6 +101,25 @@ struct DequantizeAttrs : public tvm::AttrsNode<DequantizeAttrs> {
     TVM_ATTR_FIELD(axis)
         .describe(
             "The channel axis for channel wise dequantization. Default value is -1,"
+            "which corresponds to the last axis.")
+        .set_default(-1);
+  }
+};
+
+/*! \brief Attribute for broadcast operator */
+struct BroadcastAttrs : public tvm::AttrsNode<BroadcastAttrs> {
+  int lhs_axis;
+  int rhs_axis;
+
+  TVM_DECLARE_ATTRS(BroadcastAttrs, "relay.attrs.BroadcastAttrs") {
+    TVM_ATTR_FIELD(lhs_axis)
+        .describe(
+            "The channel axis for channel wise broadcast. Default value is -1,"
+            "which corresponds to the last axis.")
+        .set_default(-1);
+    TVM_ATTR_FIELD(rhs_axis)
+        .describe(
+            "The channel axis for channel wise broadcast. Default value is -1,"
             "which corresponds to the last axis.")
         .set_default(-1);
   }

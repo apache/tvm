@@ -15,5 +15,5 @@
 # specific language governing permissions and limitations
 # under the License.
 """Testing utilities in meta schedule"""
-from .local_rpc import LocalRPC
-from .relay_workload import get_network
+
+# NOTE: Do not import any module here by default

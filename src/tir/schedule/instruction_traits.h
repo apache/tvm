@@ -22,7 +22,9 @@
 #include <tvm/tir/schedule/instruction.h>
 #include <tvm/tir/schedule/schedule.h>
 
+#include <algorithm>
 #include <sstream>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -56,12 +58,12 @@ namespace tir {
  *      const Array<String>& outputs);
  *
  *   // Convertible to `InstructionKindNode::FInstructionAttrsAsJSON`
- *   static Array<ObjectRef> AttrsAsJSON(
+ *   static ObjectRef AttrsAsJSON(
  *      const Array<ObjectRef>& attrs);
  *
  *   // Convertible to `InstructionKindNode::FInstructionAttrsFromJSON`
  *   static Array<ObjectRef> AttrsFromJSON(
- *      const Array<ObjectRef>& attrs_record);
+ *      const ObjectRef& attrs_record);
  * };
  *
  * TVM_REGISTER_INST_KIND_TRAITS(SomeInstructionKindTraits);
@@ -193,10 +195,12 @@ class PythonAPICall {
    * \param method_name The name of the schedule API to be called
    */
   explicit PythonAPICall(String method_name) : method_name_(method_name), output_(NullOpt) {}
-  /*! \brief Add an intger input */
+  /*! \brief Add an integer input */
   inline void Input(String arg_name, int arg);
-  /*! \brief Add an intger input */
+  /*! \brief Add an integer input */
   inline void Input(String arg_name, int64_t arg);
+  /*! \brief Add a bool input */
+  inline void Input(String arg_name, bool arg);
   /*! \brief Add a double input */
   inline void Input(String arg_name, double arg);
   /*! \brief Add an input random variable */
@@ -445,6 +449,28 @@ inline void PythonAPICall::AsPythonString(const ObjectRef& obj, std::ostream& os
       AsPythonString(e, os);
     }
     os << ']';
+  } else if (const auto* dict = obj.as<MapNode>()) {
+    os << '{';
+    bool is_first = true;
+    std::vector<std::pair<std::string, std::string>> dict_items;
+    for (auto it = dict->begin(); it != dict->end(); ++it) {
+      std::ostringstream ks;
+      AsPythonString(it->first, ks);
+      std::ostringstream vs;
+      AsPythonString(it->second, vs);
+      dict_items.emplace_back(ks.str(), vs.str());
+    }
+    std::sort(dict_items.begin(), dict_items.end(),
+              [](const auto& p1, const auto& p2) { return p1.first < p2.first; });
+    for (const auto& kv : dict_items) {
+      if (is_first) {
+        is_first = false;
+      } else {
+        os << ", ";
+      }
+      os << '\"' << kv.first << "\": " << kv.second;
+    }
+    os << '}';
   } else {
     LOG(FATAL) << "ValueError: Cannot translate type '" << obj->GetTypeKey()
                << "' to python. Its value is: " << obj;
@@ -460,6 +486,17 @@ void PythonAPICall::Input(String arg_name, int arg) {
 void PythonAPICall::Input(String arg_name, int64_t arg) {
   arg_names_.emplace_back(std::move(arg_name));
   args_.push_back(std::to_string(arg));
+}
+
+void PythonAPICall::Input(String arg_name, bool arg) {
+  static const char* true_str = "True";
+  static const char* false_str = "False";
+  arg_names_.emplace_back(std::move(arg_name));
+  if (arg) {
+    args_.push_back(true_str);
+  } else {
+    args_.push_back(false_str);
+  }
 }
 
 void PythonAPICall::Input(String arg_name, double arg) {

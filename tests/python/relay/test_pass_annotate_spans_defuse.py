@@ -42,7 +42,9 @@ def test_annotate_spans_compatibility():
 
     # Apply some simple passes to legalize the IR.
     with tvm.transform.PassContext(opt_level=0):
-        module, params = relay.optimize(module, tvm.testing.enabled_targets()[0][0], params)
+        module, params = relay.optimize(
+            module, target=tvm.testing.enabled_targets()[0][0], params=params
+        )
 
     seq = tvm.transform.Sequential([relay.transform.AnnotateSpans(), relay.transform.DefuseOps()])
     with tvm.transform.PassContext(opt_level=3):
@@ -50,4 +52,4 @@ def test_annotate_spans_compatibility():
 
 
 if __name__ == "__main__":
-    test_annotate_spans_compatibility()
+    tvm.testing.main()

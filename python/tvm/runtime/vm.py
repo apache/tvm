@@ -32,6 +32,14 @@ from ..rpc.base import RPC_SESS_MASK
 
 
 def _convert(arg, cargs):
+    def _gettype(arg):
+        if isinstance(arg, np.float16):
+            return "float16"
+        elif isinstance(arg, (_base.integer_types, bool)):
+            return "int32"
+        else:
+            return "float32"
+
     if isinstance(arg, Object):
         cargs.append(arg)
     elif isinstance(arg, np.ndarray):
@@ -45,7 +53,7 @@ def _convert(arg, cargs):
             _convert(field, field_args)
         cargs.append(container.tuple_object(field_args))
     elif isinstance(arg, (_base.numeric_types, bool)):
-        dtype = "int32" if isinstance(arg, (_base.integer_types, bool)) else "float32"
+        dtype = _gettype(arg)
         value = tvm.nd.array(np.array(arg, dtype=dtype), device=tvm.cpu(0))
         cargs.append(value)
     elif isinstance(arg, str):
@@ -72,9 +80,13 @@ class Executable(object):
         self._get_lib = self.mod["get_lib"]
         self._get_bytecode = self.mod["get_bytecode"]
         self._get_constants = self.mod["get_constants"]
+        self._get_virtual_devices = self.mod["get_virtual_devices"]
+        self._get_primitives = self.mod["get_primitives"]
         self._get_stats = self.mod["get_stats"]
         self._get_function_arity = self.mod["get_function_arity"]
         self._get_function_param_name = self.mod["get_function_param_name"]
+        self._move_late_bound_consts = self.mod["move_late_bound_consts"]
+        self._load_late_bound_consts = self.mod["load_late_bound_consts"]
 
     def save(self):
         """Save the Relay VM Executable.
@@ -160,11 +172,11 @@ class Executable(object):
             An executable constructed using the provided artifacts.
         """
         if isinstance(bytecode, (bytes, str)):
-            code = bytearray(bytecode)
+            bytecode = bytearray(bytecode)
         elif not isinstance(bytecode, (bytearray, TVMByteArray)):
             raise TypeError(
                 "bytecode is expected to be the type of bytearray "
-                + "or TVMByteArray, but received {}".format(type(code))
+                + "or TVMByteArray, but received {}".format(type(bytecode))
             )
 
         if lib is not None and not isinstance(lib, tvm.runtime.Module):
@@ -252,6 +264,17 @@ class Executable(object):
         return self._get_constants()
 
     @property
+    def virtual_devices(self):
+        """Returns a human-readable description of all the (virtual) devices in the executable."""
+        return self._get_virtual_devices()
+
+    @property
+    def primitives(self):
+        """Returns a human-readable description of all the primitives (ie PackedFuncs) in the
+        executable"""
+        return self._get_primitives()
+
+    @property
     def globals(self):
         """Get the globals used by the Relay VM executable.
 
@@ -285,6 +308,14 @@ class Executable(object):
         self._function_params[func_name] = params
         return params
 
+    def move_late_bound_consts(self, path, byte_limit):
+        """Move all constants of byte size greater or equal to byte_limit to file at path"""
+        return self._move_late_bound_consts(path, byte_limit)
+
+    def load_late_bound_consts(self, path):
+        """Re-load constants previously saved to file at path"""
+        return self._load_late_bound_consts(path)
+
 
 class VirtualMachine(object):
     """Relay VM runtime.
@@ -295,7 +326,8 @@ class VirtualMachine(object):
         The VM executable.
 
     device : tvm.runtime.Device or List[tvm.runtime.Device]
-        The device to deploy the module
+        The device(s) on which the model will run.
+        Currently at most one device per device type is supported.
 
     memory_cfg : str or Dict[tvm.runtime.Device, str], optional
         Config the type of memory allocator. The allocator type can be ["naive",
@@ -356,6 +388,7 @@ class VirtualMachine(object):
         self._get_num_outputs = self.module["get_num_outputs"]
         self._get_input_index = self.module["get_input_index"]
         self._set_input = self.module["set_input"]
+        self._set_one_input = self.module["set_one_input"]
         self._setup_device(device, memory_cfg)
 
     def _setup_device(self, dev, memory_cfg):
@@ -363,10 +396,7 @@ class VirtualMachine(object):
         devs = dev
         if not isinstance(dev, (list, tuple)):
             if not isinstance(dev, tvm.runtime.Device):
-                raise TypeError(
-                    "dev is expected to be Device or \
-                                List[Device]"
-                )
+                raise TypeError("dev is expected to be Device or List[Device]")
             devs = [dev]
 
         # CPU is required for executing shape functions
@@ -396,6 +426,10 @@ class VirtualMachine(object):
 
     def set_input(self, func_name, *args, **kwargs):
         """Set the input to a function.
+        If device type and device id for input tensor are the same as
+        for target one the zero copy is used. It means that internal
+        tensor is reference to memory allocated by input one.
+        Otherwise new internal NDarray is created and data is copied
 
         Parameters
         ----------
@@ -428,6 +462,30 @@ class VirtualMachine(object):
             args = new_args
         cargs = convert(args)
         self._set_input(func_name, *cargs)
+
+    def set_one_input(self, func_name, *args, **kwargs):
+        """Set the one input tensor with tag to a function.
+
+        Parameters
+        ----------
+        func_name : str
+            The name of the function.
+        args : [str or int, tvm.runtime.NDArray]
+            name or index of tensor and input tensor, optional
+        kwargs: dict of str or int to tvm.runtime.NDArray, optional
+            taged arguments to the function.
+        Only args or kwargs should exist
+        """
+        if kwargs:
+            assert len(kwargs) == 1
+            tag = next(iter(kwargs))
+            if isinstance(tag, str):
+                func_params = self._exec.get_function_params(func_name)
+                assert tag in func_params
+            self._set_one_input(func_name, tag, kwargs[tag])
+        else:
+            assert len(args) == 2
+            self._set_one_input(func_name, args[0], args[1])
 
     def invoke(self, func_name, *args, **kwargs):
         """Invoke a function.
@@ -525,7 +583,10 @@ class VirtualMachine(object):
         repeat=5,
         number=5,
         min_repeat_ms=None,
+        limit_zero_time_iterations=100,
         end_to_end=False,
+        cooldown_interval_ms=0,
+        repeats_to_cooldown=1,
         **kwargs,
     ):
         """Calculate runtime of a function by repeatedly calling it.
@@ -565,15 +626,26 @@ class VirtualMachine(object):
             `number` should be increased when the runtime of the function is small (less than a 1/10
             of a millisecond).
 
-        min_repeat_ms : Optional[float]
+        min_repeat_ms : Optional[int]
             If set, the inner loop will be run until it takes longer than `min_repeat_ms`
             milliseconds. This can be used to ensure that the function is run enough to get an
             accurate measurement.
+
+        limit_zero_time_iterations : Optional[int]
+            The maximum number of repeats when measured time is equal to 0.
+            It helps to avoid hanging during measurements.
 
         end_to_end : bool
             If set, include time to transfer input tensors to the device and time to transfer
             returned tensors in the total runtime. This will give accurate timings for end to end
             workloads.
+
+        cooldown_interval_ms: Optional[int]
+            The cooldown interval in milliseconds between the number of repeats defined by
+            `repeats_to_cooldown`.
+
+        repeats_to_cooldown: Optional[int]
+            The number of repeats before the cooldown is activated.
 
         args : Sequence[Object]
             Arguments to the function. These are cached before running timing code, so that data
@@ -605,9 +677,17 @@ class VirtualMachine(object):
                 repeat=repeat,
                 number=number,
                 min_repeat_ms=min_repeat_ms,
+                limit_zero_time_iterations=limit_zero_time_iterations,
             )(func_name, device.device_type % RPC_SESS_MASK, device.device_id, *packed_args)
         if args or kwargs:
             self.set_input(func_name, *args, **kwargs)
         return self.module.time_evaluator(
-            "invoke", device, repeat=repeat, number=number, min_repeat_ms=min_repeat_ms
+            "invoke",
+            device,
+            repeat=repeat,
+            number=number,
+            min_repeat_ms=min_repeat_ms,
+            limit_zero_time_iterations=limit_zero_time_iterations,
+            cooldown_interval_ms=cooldown_interval_ms,
+            repeats_to_cooldown=repeats_to_cooldown,
         )(func_name)

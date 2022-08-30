@@ -28,16 +28,21 @@ from ... import op as reg
 # resize
 @reg.register_compute("dyn.image.resize2d")
 def compute_resize2d(attrs, inputs, out_type):
+    """
+    Compute function calls into topi
+    """
     layout = attrs.layout
     method = attrs.method
     coord_trans = attrs.coordinate_transformation_mode
     rounding_method = attrs.rounding_method
     cubic_alpha = attrs.cubic_alpha
     cubic_exclude = attrs.cubic_exclude
+    extrapolation_value = attrs.extrapolation_value
     out_dtype = attrs.out_dtype
     return [
         tvm.topi.image.resize2d(
             inputs[0],
+            inputs[2],
             inputs[1],
             layout,
             method,
@@ -45,6 +50,7 @@ def compute_resize2d(attrs, inputs, out_type):
             rounding_method,
             cubic_alpha,
             cubic_exclude,
+            extrapolation_value,
             out_dtype,
             out_type.shape,
         )

@@ -101,45 +101,89 @@ class IRConvertSSA final : public StmtExprMutator {
     const Var& v = op->var;
     if (defined_.count(v.get())) {
       PrimExpr value = this->VisitExpr(op->value);
-      Var new_var(v->name_hint, v.dtype());
-      scope_[v.get()].push_back(new_var);
+      ScopedRedefine redefine(this, v);
       PrimExpr body = this->VisitExpr(op->body);
-      scope_[v.get()].pop_back();
-      return Let(new_var, value, body);
+      return Let(redefine.new_var, value, body);
     } else {
       defined_.insert(v.get());
       return StmtExprMutator::VisitExpr_(op);
     }
   }
+
   PrimExpr VisitExpr_(const LoadNode* op) final {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<LoadNode>();
-    const VarNode* v = op->buffer_var.get();
-    if (scope_.count(v) && !scope_[v].empty()) {
-      return Load(op->dtype, scope_[v].back(), op->index, op->predicate);
-    } else {
-      return expr;
-    }
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
   }
+
   Stmt VisitStmt_(const StoreNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<StoreNode>();
-    const VarNode* v = op->buffer_var.get();
-    if (scope_.count(v) && !scope_[v].empty()) {
-      return Store(scope_[v].back(), op->value, op->index, op->predicate);
-    } else {
-      return stmt;
-    }
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
   }
+
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    auto output = VisitBufferAccess(std::move(node));
+    return std::move(output);
+  }
+
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    auto output = VisitBufferAccess(std::move(node));
+    return std::move(output);
+  }
+
+  template <typename Node>
+  Node VisitBufferAccess(Node node) {
+    Buffer new_buf = GetRemappedBuffer(node->buffer);
+    if (!new_buf.same_as(node->buffer)) {
+      auto writer = node.CopyOnWrite();
+      writer->buffer = new_buf;
+    }
+
+    return node;
+  }
+
+  Buffer GetRemappedBuffer(Buffer buf) {
+    // Determine the buffer var that should be in the updated buffer,
+    // given the current scope.  If no redefines are present, then the
+    // buffer var is unchanged.
+    Var new_buffer_var = buf->data;
+    auto var_it = scope_.find(buf->data.get());
+    if (var_it != scope_.end() && !var_it->second.empty()) {
+      new_buffer_var = var_it->second.back();
+    }
+
+    // If no mapping is required, return the original buffer.
+    if (new_buffer_var.same_as(buf->data)) {
+      return buf;
+    }
+
+    // If the current scope already has a mapping of this buffer, use
+    // the mapped buffer.
+    auto key = buf.get();
+    std::vector<Buffer>& buffers = buf_remap_[key];
+    if (buffers.size() && buffers.back()->data.same_as(new_buffer_var)) {
+      return buffers.back();
+    }
+
+    // Otherwise, make and return a new buffer object that uses the
+    // new buffer, pushing it onto the scoped stack of existing
+    // buffers.  This will be popped when the new_buffer_var
+    // redefinition is popped.
+    Buffer new_buf(new_buffer_var, buf->dtype, buf->shape, buf->strides, buf->elem_offset,
+                   buf->name, buf->data_alignment, buf->offset_factor, buf->buffer_type,
+                   buf->axis_separators, buf->span);
+    buffers.push_back(new_buf);
+    return new_buf;
+  }
+
   Stmt VisitStmt_(const LetStmtNode* op) final {
     const Var& v = op->var;
     if (defined_.count(v.get())) {
       PrimExpr value = this->VisitExpr(op->value);
-      Var new_var(v->name_hint, v.dtype());
-      scope_[v.get()].push_back(new_var);
+      ScopedRedefine redefine(this, v);
       Stmt body = this->VisitStmt(op->body);
-      scope_[v.get()].pop_back();
-      return LetStmt(new_var, value, body);
+      return LetStmt(redefine.new_var, value, body);
     } else {
       defined_.insert(v.get());
       return StmtExprMutator::VisitStmt_(op);
@@ -148,12 +192,10 @@ class IRConvertSSA final : public StmtExprMutator {
   Stmt VisitStmt_(const ForNode* op) final {
     const Var& v = op->loop_var;
     if (defined_.count(v.get())) {
-      Var new_var(v->name_hint, v.dtype());
-      scope_[v.get()].push_back(new_var);
+      ScopedRedefine redefine(this, v);
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
-      scope_[v.get()].pop_back();
       op = stmt.as<ForNode>();
-      return For(new_var, op->min, op->extent, op->kind, op->body, op->thread_binding,
+      return For(redefine.new_var, op->min, op->extent, op->kind, op->body, op->thread_binding,
                  op->annotations);
     } else {
       defined_.insert(v.get());
@@ -163,12 +205,10 @@ class IRConvertSSA final : public StmtExprMutator {
   Stmt VisitStmt_(const AllocateNode* op) final {
     const Var& v = op->buffer_var;
     if (defined_.count(v.get())) {
-      Var new_var(v->name_hint, v->type_annotation);
-      scope_[v.get()].push_back(new_var);
+      ScopedRedefine redefine(this, v);
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
-      scope_[v.get()].pop_back();
       op = stmt.as<AllocateNode>();
-      return Allocate(new_var, op->dtype, op->extents, op->condition, op->body);
+      return Allocate(redefine.new_var, op->dtype, op->extents, op->condition, op->body);
     } else {
       defined_.insert(v.get());
       return StmtExprMutator::VisitStmt_(op);
@@ -189,8 +229,34 @@ class IRConvertSSA final : public StmtExprMutator {
   }
 
  private:
+  struct ScopedRedefine {
+    ScopedRedefine(IRConvertSSA* parent, Var old_var) : parent(parent), old_var(old_var) {
+      if (old_var->type_annotation.defined()) {
+        new_var = Var(old_var->name_hint, old_var->type_annotation);
+      } else {
+        new_var = Var(old_var->name_hint, old_var->dtype);
+      }
+      parent->scope_[old_var.get()].push_back(new_var);
+    }
+
+    ~ScopedRedefine() {
+      parent->scope_[old_var.get()].pop_back();
+      for (auto& kv : parent->buf_remap_) {
+        std::vector<Buffer>& buffers = kv.second;
+        if (buffers.size() && (buffers.back()->data.get() == new_var.get())) {
+          buffers.pop_back();
+        }
+      }
+    }
+
+    IRConvertSSA* parent;
+    Var old_var;
+    Var new_var;
+  };
+
   std::unordered_map<const VarNode*, std::vector<Var>> scope_;
   std::unordered_set<const VarNode*> defined_;
+  std::unordered_map<const BufferNode*, std::vector<Buffer>> buf_remap_;
 };
 
 Stmt ConvertSSA(Stmt stmt) { return IRConvertSSA()(std::move(stmt)); }
@@ -258,8 +324,8 @@ Map<Var, Range> ConditionalBoundsContext::GetVarBoundsFromCondition() {
   arith::Analyzer analyzer;
   PrimExpr condition = is_true_branch_ ? condition_ : analyzer.Simplify(!condition_);
   Array<PrimExpr> equations;
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> var_set;
-  std::function<void(const PrimExpr&)> fvisit = [&equations, &var_set, &fvisit](const PrimExpr& e) {
+  Array<Var> vars;
+  std::function<void(const PrimExpr&)> fvisit = [&equations, &vars, &fvisit](const PrimExpr& e) {
     if (e->IsInstance<GENode>() || e->IsInstance<GTNode>() || e->IsInstance<LENode>() ||
         e->IsInstance<LTNode>() || e->IsInstance<EQNode>() || e->IsInstance<NENode>()) {
       bool is_simple = true;
@@ -278,7 +344,12 @@ Map<Var, Range> ConditionalBoundsContext::GetVarBoundsFromCondition() {
         }
       });
       if (is_simple && !cand_vars.empty()) {
-        for (const Var& var : cand_vars) var_set.insert(var);
+        for (const Var& new_var : cand_vars) {
+          if (!std::any_of(vars.begin(), vars.end(),
+                           [&new_var](const Var& v) { return v.same_as(new_var); })) {
+            vars.push_back(new_var);
+          }
+        }
         equations.push_back(Downcast<PrimExpr>(e));
       }
     } else if (e->IsInstance<AndNode>()) {
@@ -293,18 +364,24 @@ Map<Var, Range> ConditionalBoundsContext::GetVarBoundsFromCondition() {
     }
   };
   fvisit(condition);
-  if (equations.empty() || var_set.empty()) {
+  if (equations.empty() || vars.empty()) {
     return Map<Var, Range>();
   }
   // build dom ranges for related vars
-  Array<Var> vars = Array<Var>(var_set.begin(), var_set.end());
   Map<Var, Range> ranges;
   for (const Var& v : vars) {
-    auto it = dom_map_->find(v.get());
-    if (it != dom_map_->end()) {
-      const auto& int_set = it->second;
-      ranges.Set(v, Range::FromMinExtent(int_set.min(),
-                                         analyzer.Simplify(int_set.max() - int_set.min() + 1)));
+    arith::IntSet dom;
+    auto relax_it = relax_map_->find(v.get());
+    if (relax_it != relax_map_->end()) {
+      dom = relax_it->second;
+    } else {
+      auto hint_it = hint_map_->find(v.get());
+      if (hint_it != hint_map_->end()) {
+        dom = hint_it->second;
+      }
+    }
+    if (dom.defined()) {
+      ranges.Set(v, Range::FromMinExtent(dom.min(), analyzer.Simplify(dom.max() - dom.min() + 1)));
     }
   }
   // solve constraints
@@ -314,25 +391,61 @@ Map<Var, Range> ConditionalBoundsContext::GetVarBoundsFromCondition() {
 }
 
 ConditionalBoundsContext::ConditionalBoundsContext(
-    const PrimExpr& condition, std::unordered_map<const VarNode*, arith::IntSet>* dom_map,
-    bool is_true_branch)
-    : condition_(condition), dom_map_(dom_map), is_true_branch_(is_true_branch) {}
+    const PrimExpr& condition, std::unordered_map<const VarNode*, arith::IntSet>* relax_map,
+    std::unordered_map<const VarNode*, arith::IntSet>* hint_map, bool is_true_branch)
+    : condition_(condition),
+      relax_map_(relax_map),
+      hint_map_(hint_map),
+      is_true_branch_(is_true_branch) {}
 
 void ConditionalBoundsContext::EnterWithScope() {
   for (const auto& p : GetVarBoundsFromCondition()) {
     const auto* var = p.first.get();
-    auto it = dom_map_->find(var);
-    if (it != dom_map_->end()) {
-      origin_map_.emplace(var, it->second);
-      it->second = arith::Intersect({it->second, arith::IntSet::FromRange(p.second)});
+    arith::IntSet new_dom = arith::IntSet::FromRange(p.second);
+    auto relax_it = relax_map_->find(var);
+    if (relax_it != relax_map_->end()) {
+      // this is a bound for relaxed var
+      origin_map_.emplace(var, relax_it->second);
+      relax_it->second = arith::Intersect({relax_it->second, new_dom});
+    } else {
+      // this is a bound for free var
+      auto hint_it = hint_map_->find(var);
+      if (hint_it != hint_map_->end()) {
+        origin_map_.emplace(var, hint_it->second);
+        hint_it->second = arith::Intersect({hint_it->second, new_dom});
+      } else {
+        origin_map_.emplace(var, arith::IntSet::Nothing());
+        hint_map_->insert(hint_it, {var, new_dom});
+      }
     }
   }
 }
 
 void ConditionalBoundsContext::ExitWithScope() {
   for (const auto& p : origin_map_) {
-    (*dom_map_)[p.first] = p.second;
+    const auto* var = p.first;
+    auto relax_it = relax_map_->find(var);
+    if (relax_it != relax_map_->end()) {
+      // recover bound for relaxed var
+      relax_it->second = p.second;
+    } else {
+      // recover bound for free var
+      auto hint_it = hint_map_->find(var);
+      ICHECK(hint_it != hint_map_->end());
+      if (p.second.IsNothing()) {
+        hint_map_->erase(hint_it);
+      } else {
+        hint_it->second = p.second;
+      }
+    }
   }
+}
+
+std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op) {
+  ICHECK(op && op->attr_key == tir::attr::async_wait_queue_scope);
+  auto inner = op->body.as<AttrStmtNode>();
+  ICHECK(inner && inner->attr_key == tir::attr::async_wait_inflight_count);
+  return std::make_pair(op->value, inner->value);
 }
 
 }  // namespace tir

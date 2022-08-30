@@ -93,10 +93,10 @@ class SerialFeatureMap(SerializableFormat):
         tile_height_0: int,
         tile_height_1: int,
         tile_width_0: int,
-        tile_address_0: tvm.tir.expr.Load,
-        tile_address_1: Union[tvm.tir.expr.Load, int],
-        tile_address_2: Union[tvm.tir.expr.Load, int],
-        tile_address_3: Union[tvm.tir.expr.Load, int],
+        tile_address_0: tvm.tir.expr.BufferLoad,
+        tile_address_1: Union[tvm.tir.expr.BufferLoad, int],
+        tile_address_2: Union[tvm.tir.expr.BufferLoad, int],
+        tile_address_3: Union[tvm.tir.expr.BufferLoad, int],
         scale: float,
         zero_point: int,
         layout: str,
@@ -148,7 +148,7 @@ class SerialAddressRange(SerializableFormat):
     """Specialization class to retrieve arguments of a AddressRange
     (similiar to NpuAddressRange of Vela) on a predefined ordering"""
 
-    def __init__(self, address: tvm.tir.expr.Load, length: int):
+    def __init__(self, address: tvm.tir.expr.BufferLoad, length: int):
         self.address = address
         self.length = length
 
@@ -174,6 +174,16 @@ class SerialActivation(SerializableFormat):
         self.clip_max = clip_max
 
 
+class SerialBlockConfig(SerializableFormat):
+    """Specialization class to retrieve arguments of a BlockConfig
+    (similar to NpuBlockConfig of Vela) on a predefined ordering"""
+
+    def __init__(self, height: int, width: int, depth: int):
+        self.height = height
+        self.width = width
+        self.depth = depth
+
+
 class Serial2DConvolution(SerializableFormat):
     """Specialization class to retrieve arguments of
     a ethosu.conv2d tir extern call on a predefined ordering"""
@@ -184,21 +194,29 @@ class Serial2DConvolution(SerializableFormat):
         ofm: SerialFeatureMap,
         kernel: SerialKernel,
         weight: SerialAddressRange,
+        weight2: SerialAddressRange,
         weight_zero_point: int,
         scale_bias: SerialAddressRange,
+        scale_bias2: SerialAddressRange,
         padding: SerialPadding,
         activation: SerialActivation,
+        rounding_mode: str,
         upscale: str,
+        block_config: SerialBlockConfig,
     ):
         self.ifm = ifm
         self.ofm = ofm
         self.kernel = kernel
         self.weight = weight
+        self.weight2 = weight2
         self.weight_zero_point = weight_zero_point
         self.scale_bias = scale_bias
+        self.scale_bias2 = scale_bias2
         self.padding = padding
         self.activation = activation
+        self.rounding_mode = rounding_mode
         self.upscale = upscale
+        self.block_config = block_config
 
 
 class Serial2DDepthwise(SerializableFormat):
@@ -215,7 +233,9 @@ class Serial2DDepthwise(SerializableFormat):
         scale_bias: SerialAddressRange,
         padding: SerialPadding,
         activation: SerialActivation,
+        rounding_mode: str,
         upscale: str,
+        block_config: SerialBlockConfig,
     ):
         self.ifm = ifm
         self.ofm = ofm
@@ -225,7 +245,9 @@ class Serial2DDepthwise(SerializableFormat):
         self.scale_bias = scale_bias
         self.padding = padding
         self.activation = activation
+        self.rounding_mode = rounding_mode
         self.upscale = upscale
+        self.block_config = block_config
 
 
 class SerialCopy(SerializableFormat):
@@ -233,7 +255,10 @@ class SerialCopy(SerializableFormat):
     a ethosu.copy tir extern call on a predefined ordering"""
 
     def __init__(
-        self, read_address: tvm.tir.expr.Load, length: int, write_address: tvm.tir.expr.Load
+        self,
+        read_address: tvm.tir.expr.BufferLoad,
+        length: int,
+        write_address: tvm.tir.expr.BufferLoad,
     ):
         self.read_address = read_address
         self.length = length
@@ -252,7 +277,9 @@ class SerialPooling(SerializableFormat):
         pool_shape: SerialKernel,
         padding: SerialPadding,
         activation: SerialActivation,
+        rounding_mode: str,
         upscale: str,
+        block_config: SerialBlockConfig,
     ):
         self.ifm = ifm
         self.ofm = ofm
@@ -260,4 +287,52 @@ class SerialPooling(SerializableFormat):
         self.pool_shape = pool_shape
         self.padding = padding
         self.activation = activation
+        self.rounding_mode = rounding_mode
         self.upscale = upscale
+        self.block_config = block_config
+
+
+class SerialBinaryElementwise(SerializableFormat):
+    """Specialization class to retrieve arguments of
+    a ethosu.binary_elementwise tir extern call on a predefined ordering"""
+
+    def __init__(
+        self,
+        ifm: SerialFeatureMap,
+        ifm2: SerialFeatureMap,
+        ofm: SerialFeatureMap,
+        operator_type: str,
+        reversed_operands: bool,
+        activation: SerialActivation,
+        rounding_mode: str,
+        block_config: SerialBlockConfig,
+    ):
+        self.ifm = ifm
+        self.ifm2 = ifm2
+        self.ofm = ofm
+        self.operator_type = operator_type
+        self.reversed_operands = reversed_operands
+        self.activation = activation
+        self.rounding_mode = rounding_mode
+        self.block_config = block_config
+
+
+class SerialUnaryElementwise(SerializableFormat):
+    """Specialization class to retrieve arguments of
+    a ethosu.unary_elementwise tir extern call on a predefined ordering"""
+
+    def __init__(
+        self,
+        ifm: SerialFeatureMap,
+        ofm: SerialFeatureMap,
+        operator_type: str,
+        activation: SerialActivation,
+        rounding_mode: str,
+        block_config: SerialBlockConfig,
+    ):
+        self.ifm = ifm
+        self.ofm = ofm
+        self.operator_type = operator_type
+        self.activation = activation
+        self.rounding_mode = rounding_mode
+        self.block_config = block_config

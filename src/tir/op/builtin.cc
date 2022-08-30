@@ -184,6 +184,10 @@ TIR_DEFINE_BUILTIN_FUNC(tvm_call_cpacked)
 TIR_DEFINE_BUILTIN_FUNC(tvm_call_trace_packed)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
+TIR_DEFINE_BUILTIN_FUNC(tvm_check_return)
+    .set_num_inputs(3)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
+
 TIR_DEFINE_BUILTIN_FUNC(tvm_thread_context)
     .set_num_inputs(1)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
@@ -234,6 +238,30 @@ TIR_DEFINE_BUILTIN_FUNC(tvm_fill_fragment)
 TIR_DEFINE_BUILTIN_FUNC(tvm_store_matrix_sync)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
+TIR_DEFINE_BUILTIN_FUNC(ptx_mma).set_attr<TCallEffectKind>("TCallEffectKind",
+                                                           Integer(CallEffectKind::kOpaque));
+
+TIR_DEFINE_BUILTIN_FUNC(ptx_mma_sp)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+
+TIR_DEFINE_BUILTIN_FUNC(ptx_ldmatrix)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+
+TIR_DEFINE_BUILTIN_FUNC(ptx_cp_async)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+
+TIR_DEFINE_BUILTIN_FUNC(ptx_commit_group)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+
+TIR_DEFINE_BUILTIN_FUNC(ptx_wait_group)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+
+TIR_DEFINE_BUILTIN_FUNC(mma_store).set_attr<TCallEffectKind>("TCallEffectKind",
+                                                             Integer(CallEffectKind::kOpaque));
+
+TIR_DEFINE_BUILTIN_FUNC(mma_fill).set_attr<TCallEffectKind>("TCallEffectKind",
+                                                            Integer(CallEffectKind::kOpaque));
+
 TIR_DEFINE_BUILTIN_FUNC(vectorhigh)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
 
@@ -246,7 +274,7 @@ TIR_DEFINE_BUILTIN_FUNC(vectorcombine)
 TIR_DEFINE_BUILTIN_FUNC(atomic_add)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(texture2d_alloca)
+TIR_DEFINE_BUILTIN_FUNC(nd_mem_alloc_with_scope)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
 TIR_DEFINE_BUILTIN_FUNC(texture2d_store)
@@ -256,6 +284,17 @@ TIR_DEFINE_BUILTIN_FUNC(texture2d_store)
 TIR_DEFINE_BUILTIN_FUNC(texture2d_load)
     .set_attr<TVectorizable>("TVectorizable", true)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+
+TIR_DEFINE_BUILTIN_FUNC(mem_copy).set_attr<TCallEffectKind>("TCallEffectKind",
+                                                            Integer(CallEffectKind::kOpaque));
+
+TIR_DEFINE_BUILTIN_FUNC(assume)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kEmbedInfo))
+    .set_num_inputs(1);
+
+TIR_DEFINE_BUILTIN_FUNC(undef)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kReadState))
+    .set_num_inputs(0);
 
 }  // namespace builtin
 }  // namespace tir

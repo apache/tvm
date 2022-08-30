@@ -25,6 +25,7 @@ as a schedule configuration here.
 
 import logging
 import pathlib
+from collections.abc import Iterable
 
 import numpy as np
 
@@ -130,11 +131,13 @@ class ApplyHistoryBest(DispatchContext):
 
     Parameters
     ----------
-    records : str or iterator of (auto_scheduler.measure.MeasureInput,\
-                                  auto_scheduler.measure.MeasureResult)
+    records : str, list of str, or iterator of (auto_scheduler.measure.MeasureInput,\
+                                                auto_scheduler.measure.MeasureResult)
         Collection of tuning records.
         If is str, then it should be the filename of a records log file.
-        Each row of this file is an encoded record pair. Otherwise, it is an iterator.
+        Each row of this file is an encoded record pair. If it is an iterator,
+        it can either be a set of str filenames which will be applied jointly,
+        or a set of (input, result) tuples.
     n_lines: Optional[int]
         if it is not None, only load the first `n_lines` lines of log.
     include_compatible: bool
@@ -196,20 +199,29 @@ class ApplyHistoryBest(DispatchContext):
         n_lines: Optional[int]
             if it is not None, only load the first `n_lines` lines of log
         """
-        if isinstance(records, pathlib.Path):
-            records = str(records)
+        joint_records = []
+        if not isinstance(records, Iterable) or isinstance(records, str):
+            records = [records]
 
-        if isinstance(records, str):
-            records = load_records(records)
+        for rec in records:
+            if isinstance(rec, pathlib.Path):
+                rec = str(rec)
 
-        if not records:
+            if isinstance(rec, str):
+                rec = load_records(rec)
+                joint_records += rec
+            else:
+                if rec is not None:
+                    joint_records.append(rec)
+
+        if not joint_records:
             return
 
         best_by_targetkey = self.best_by_targetkey
         best_by_model = self.best_by_model
 
         counter = 0
-        for inp, res in records:
+        for inp, res in joint_records:
             if n_lines is not None and counter >= n_lines:
                 break
             counter += 1

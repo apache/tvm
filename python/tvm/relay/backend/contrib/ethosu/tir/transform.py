@@ -21,19 +21,16 @@ from .spec import SerialCopy
 from .utils import get_base_address, get_op_attrs
 
 
-def get_copy_params(stmt, producers, consumers):
+def get_copy_params(stmt, producers_consumers):
     """Get the parameters necessary to construct a call_extern for a copy.
 
     Parameters
     ----------
     stmt : tvm.tir.AttrStmt
         The outermost attribute statement of a copy loop nest.
-    producers : dict of tvm.tir.Var to tvm.tir.AttrStmt
-        A dictionary to associate pointers with the loop nest
-        that produces their values.
-    consumers : dict of tvm.tir.Var to tvm.tir.AttrStmt
-        A dictionary to associate pointers with the loop nest
-        that consumes their values.
+    producers_consumers: ProducersConsumers
+        It associates pointers with the loop nest that produces
+        their values and with the loop nest that consumes their values.
 
     Returns
     -------
@@ -41,21 +38,25 @@ def get_copy_params(stmt, producers, consumers):
         The parameters needed to construct a copy.
     tvm.tir.Var
         The output pointer of the copy operation.
-
+    replace_pointer : tvm.tir.Var
+        The output pointer of the DMA write operation, which is to replace
+        the convolution output pointer.
+    is_allocator : bool
+        Whether this operator allocates its output.
     """
     _, body = get_op_attrs(stmt)
     length = body.extent
     write_store = body.body
-    write_base = get_base_address(write_store.index)
+    write_base = [get_base_address(index) for index in write_store.indices]
     read_load = body.body.value
-    read_base = get_base_address(read_load.index)
-    dtype = body.body.value.dtype
+    read_base = [get_base_address(index) for index in read_load.indices]
     return (
         SerialCopy(
-            read_address=tvm.tir.expr.Load(dtype, read_load.buffer_var, read_base),
+            read_address=tvm.tir.expr.BufferLoad(read_load.buffer, read_base),
             length=length,
-            write_address=tvm.tir.expr.Load(dtype, write_store.buffer_var, write_base),
+            write_address=tvm.tir.expr.BufferLoad(write_store.buffer, write_base),
         ),
-        write_store.buffer_var,
+        write_store.buffer.data,
         None,
+        True,
     )

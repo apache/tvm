@@ -295,9 +295,13 @@ class BijectiveLayoutNode : public Object {
   /*! \brief Describes how source axes can be mapped to the destination axes,
    *   e.g., [i0 / 16, i1, i0 % 16] can describe NC -> NC16n
    */
-  Array<PrimExpr> forward_rule;
+  Array<PrimExpr> index_forward_rule;
   /*! \brief Describes how destination axes can be mapped to the source axes */
-  Array<PrimExpr> backward_rule;
+  Array<PrimExpr> index_backward_rule;
+  /*! \brief Describes how source shapes can be mapped to the destination shapes */
+  Array<PrimExpr> shape_forward_rule;
+  /*! \brief Describes how destination shapes can be mapped to the source shapes */
+  Array<PrimExpr> shape_backward_rule;
 
   /*! \brief The source layout */
   Layout src_layout;
@@ -307,8 +311,10 @@ class BijectiveLayoutNode : public Object {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("src_layout", &src_layout);
     v->Visit("dst_layout", &dst_layout);
-    v->Visit("forward_rule", &forward_rule);
-    v->Visit("backward_rule", &backward_rule);
+    v->Visit("index_forward_rule", &index_forward_rule);
+    v->Visit("index_backward_rule", &index_backward_rule);
+    v->Visit("shape_forward_rule", &shape_forward_rule);
+    v->Visit("shape_backward_rule", &shape_backward_rule);
   }
 
   static constexpr const char* _type_key = "tir.BijectiveLayout";

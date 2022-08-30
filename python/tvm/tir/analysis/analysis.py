@@ -16,14 +16,16 @@
 # under the License.
 """Wrapping existing analysis utils."""
 # pylint: disable=invalid-name
-from typing import Dict, List
+from typing import Dict, List, Union
 
-from tvm.tir.stmt import Block, BufferRegion
-from tvm.tir.stmt import PrimExpr
+from tvm import Object
+from tvm.ir import IRModule
 from tvm.tir.expr import Var
-from . import _ffi_api
-from ..function import PrimFunc
+from tvm.tir.stmt import Block, BufferRegion, PrimExpr
+
 from .. import Buffer, Stmt
+from ..function import PrimFunc
+from . import _ffi_api
 
 
 def expr_deep_equal(lhs: PrimExpr, rhs: PrimExpr) -> bool:
@@ -180,6 +182,25 @@ def calculate_workspace_bytes(func: PrimFunc, workspace_byte_alignment: int) -> 
     return _ffi_api.calculate_workspace_bytes(func, workspace_byte_alignment)  # type: ignore
 
 
+def calculate_constant_bytes(func: PrimFunc, constant_byte_alignment: int) -> int:
+    """Calculate the constant size in bytes needed by the TIR allocates inside the TIR
+    PrimFunc.
+
+    Parameters
+    ----------
+    func: tvm.tir.PrimFunc
+        The function to be detected.
+    constant_byte_alignment : int
+        The byte alignment required for each tensor
+
+    Returns
+    -------
+    result : int
+        Workspace size in bytes.
+    """
+    return _ffi_api.calculate_constant_bytes(func, constant_byte_alignment)  # type: ignore
+
+
 def detect_buffer_access_lca(func: PrimFunc) -> Dict[Buffer, Stmt]:
     """Detect the lowest common ancestor(LCA) of buffer access, including both high-level
     access(BufferLoad, BufferStore) and low-level access(Load, Store and opaque access).
@@ -196,3 +217,117 @@ def detect_buffer_access_lca(func: PrimFunc) -> Dict[Buffer, Stmt]:
         Map from buffer to the LCA of all access to it.
     """
     return _ffi_api.detect_buffer_access_lca(func)  # type: ignore # pylint: disable=no-member
+
+
+def estimate_tir_flops(stmt_or_mod: Union[Stmt, IRModule]) -> float:
+    """Estimate the FLOPs of a TIR fragment.
+
+    Parameters
+    ----------
+    stmt_or_mod: Union[Stmt, IRModule]
+        The TIR fragment or IRModule to be estimated.
+
+    Returns
+    -------
+    flops: float
+        The estimated FLOPs.
+    """
+    return _ffi_api.EstimateTIRFlops(stmt_or_mod)  # type: ignore # pylint: disable=no-member
+
+
+# NOTE: relay_func_type in the following two functions should be relay.FuncType however that would
+# introduce a cycling dependency. We make do with Object.
+
+
+def get_prim_func_arg_and_result_memory_constraints(
+    func: PrimFunc, relay_func_type: Object
+) -> List[str]:
+    """Returns the memory (aka storage) scope constraints for all the arguments and result
+    of func. However the result will be w.r.t. the func's representation as a Relay Function
+    of relay_func_type before lowering and conversion to DPS.
+
+    Visible for testing.
+
+    Parameters
+    ----------
+    func: tvm.tir.PrimFunc
+        The function to retrieve constraints from.
+
+    relay_func_type: tvm.relay.FuncType
+        The type of the Relay Function from which the func was derived.
+
+    Returns
+    -------
+    result: List[AnyStr]
+        Memory scope constraints for funcs args and result in Relay form. The empty string
+        denotes 'no constraint'.
+    """
+    return _ffi_api.GetPrimFuncArgAndResultMemoryConstraints(  # type: ignore # pylint: disable=no-member
+        func, relay_func_type
+    )
+
+
+def apply_prim_func_arg_and_result_memory_constraints(
+    func: PrimFunc, relay_func_type: Object, arg_and_result_memory_scopes: List[str]
+) -> PrimFunc:
+    """Returns func written to capture the memory (aka storage) scope constraints
+    for each of the func's parameters given by arg_and_result_memory_scopes. However,
+    arg_and_result_memory_scopes should be w.r.t. the func's representation as a Relay
+    Function of relay_func_type before lowering and conversion to DPS.
+
+    Visible for testing.
+
+    CAUTION: This is experimental. The resulting PrimFunc may not have fully accounted
+    for all new memory scopes.
+
+    Parameters
+    ----------
+    func: tvm.tir.PrimFunc
+        The function to retrieve constraints from.
+
+    relay_func_type: tvm.relay.FuncType
+        The type of the Relay Function from which the func was derived.
+
+    arg_and_result_memory_scopes: Array[AnyStr]
+        Memory constraints for funcs args and result in Relay form. The empty string denotes
+        'no constraint'.
+
+    Returns
+    -------
+    result: tvm.tir.PrimFunc
+        The rewritten func.
+    """
+    return _ffi_api.ApplyPrimFuncArgAndResultMemoryConstraints(  # type: ignore # pylint: disable=no-member
+        func, relay_func_type, arg_and_result_memory_scopes
+    )
+
+
+def verify_well_formed(func: PrimFunc, assert_mode: bool = True) -> bool:
+    """Verify if the given TIR is well-formed. The verification includes:
+        - Check if expressions not contain vars that is defined outside the block.
+
+    Parameters
+    ----------
+    func: tvm.tir.PrimFunc
+        The function to be verified.
+
+    assert_mode: bool
+        The indicator if it raises an error when the function is not well-formed.
+
+    Returns
+    -------
+    result: bool
+        Whether it is a well-formed TIR function.
+    """
+    return _ffi_api.VerifyWellFormed(func, assert_mode)  # type: ignore # pylint: disable=no-member
+
+
+def OOBChecker():
+    """Detect out of bounds memory access in arrays.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.OOBChecker()  # type: ignore

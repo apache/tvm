@@ -24,11 +24,12 @@ set -o pipefail
 version="4.104"
 
 # Install dependencies
-apt-get update && apt-get install -y autoconf g++ flex bison
+apt-get update && apt-install-and-clear -y autoconf g++ flex bison
 
 # Install Verilator
 wget "https://github.com/verilator/verilator/archive/v$version.tar.gz"
 tar xf "v$version.tar.gz"
+rm "v$version.tar.gz"
 cd "verilator-$version"
 autoconf
 ./configure

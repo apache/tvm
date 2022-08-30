@@ -79,7 +79,7 @@ class LetList {
    *
    * \return a Var that hold the inserted expr.
    */
-  Var Push(Expr expr, Type ty) { return Push(Var("x", ty), expr); }
+  Var Push(Expr expr, Type ty) { return Push(Var::GenSym(ty), expr); }
 
   /*!
    * \brief insert a binding.
@@ -145,7 +145,7 @@ class LetList {
   }
 
  private:
-  std::vector<std::pair<Var, Expr> > lets_;
+  std::vector<std::pair<Var, Expr>> lets_;
   bool used_ = false;
 };
 

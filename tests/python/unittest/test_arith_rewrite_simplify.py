@@ -81,6 +81,10 @@ def test_vector_simplify():
     ck.verify(fld(tvm.tir.Ramp(x * 8 + 15, 1, 4), 8), fld(tvm.tir.Ramp(x * 8 + 15, 1, 4), 8))
     ck.verify(fld(tvm.tir.Ramp(x, 8, 5), tvm.tir.Broadcast(4, 5)), tvm.tir.Ramp(fld(x, 4), 2, 5))
     ck.verify(
+        fld(tvm.tir.Ramp(flm(x * 4, 256), 1, 4), tvm.tir.Broadcast(8, 4)),
+        tvm.tir.Broadcast(fld(flm(x * 4, 256), 8), 4),
+    )
+    ck.verify(
         fld(tvm.tir.Ramp(x, 7, 4), tvm.tir.Broadcast(4, 4)),
         fld(tvm.tir.Ramp(x, 7, 4), tvm.tir.Broadcast(4, 4)),
     )
@@ -277,6 +281,7 @@ def test_add_index_simplify():
     flm = tvm.te.floormod
     ck.verify(y * flm(x, 8) + 10 * flm(x, 8), flm(x, 8) * (y + 10))
     ck.verify(fld(x, 8) * 8 + flm(x, 8), x)
+    ck.verify(fld(flm(x, 2) + 7, 2) + fld(x, 2), fld(x + 7, 2))
 
 
 def test_sub_index_simplify():
@@ -454,20 +459,32 @@ def test_div_index_simplify():
 def test_floordiv_index_simplify():
     # short name for floordiv
     fld = tvm.te.floordiv
+    flm = tvm.te.floormod
     ck = RewriteChecker()
     x, y, z = te.var("x"), te.var("y"), te.var("z")
 
     ck.verify(fld(fld(x, 2), 3), fld(x, 6))
     ck.verify(fld(fld(x, 2) + 1, 3), fld(x + 2, 6))
+    ck.verify(fld(x - flm(x, 21), 21), fld(x, 21))
 
     ck.verify(fld(x * 2, 4), fld(x, 2))
     ck.verify(fld(x * 4, 2), x * 2)
+    ck.verify(fld(x * 8 + 7, 16), fld(x, 2))
+    ck.verify(fld(x * 8 + 39, 16), fld(x, 2) + 2)
+    ck.verify(fld(x * 8 - 1, 16), fld(x * 8 + -1, 16))
+    ck.verify(fld(x * 8 - 9, 16), fld(x, 2) + -1)
+
+    ck.analyzer.update(x, tvm.arith.ConstIntBound(0, 1), override=True)
+    ck.analyzer.update(y, tvm.arith.ConstIntBound(0, 7), override=True)
+    ck.verify(fld(x * 360 + y, 16), x * 22)
+    ck.verify(fld(x * 360 + y, 25), x * 14)
+    ck.verify(fld(x * 360 - 8, 25), fld(x * 360 + -8, 25))
 
     ck.verify(fld(x * 4 + y, 2), x * 2 + fld(y, 2))
     ck.verify(fld(tvm.te.min(x * 6, y), 2), tvm.te.min(x * 3, fld(y, 2)))
     ck.verify(fld(tvm.te.max(x * 6, y), 2), tvm.te.max(x * 3, fld(y, 2)))
 
-    ck.verify(fld(y + x * 4, 2), fld(y, 2) + x * 2)
+    ck.verify(fld(y + x * 4, 2), x * 2 + fld(y, 2))
     ck.verify(fld(tvm.te.min(y, x * 6), 2), tvm.te.min(fld(y, 2), x * 3))
     ck.verify(fld(tvm.te.max(y, x * 6), 2), tvm.te.max(fld(y, 2), x * 3))
 
@@ -494,6 +511,11 @@ def test_floordiv_index_simplify():
     ck.verify(fld(z * x + y, z), x + fld(y, z))
     ck.verify(fld(y + x * z, z), fld(y, z) + x)
     ck.verify(fld(y + z * x, z), fld(y, z) + x)
+
+    ck.analyzer.update(y, tvm.arith.ConstIntBound(0, 31), override=True)
+    ck.analyzer.update(z, tvm.arith.ConstIntBound(0, 3), override=True)
+    ck.verify(fld(x * 32 + y, 64), fld(x, 2))
+    ck.verify(fld(x * 128 + y * 4 + z, 512), fld(x, 4))
 
 
 def test_mod_index_simplify():
@@ -535,20 +557,26 @@ def test_mod_index_simplify():
 def test_floormod_index_simplify():
     # short name for floordiv
     flm = tvm.te.floormod
-    ck = RewriteChecker()
     x, y, z = te.var("x"), te.var("y"), te.var("z")
     ck = RewriteChecker()
     x, y, nx, ny, z = te.var("x"), te.var("y"), te.var("nx"), te.var("ny"), te.var("z")
 
     ck.verify(flm(x * 10, 2), 0)
+    ck.verify(flm(x * 9600, 6400), flm(x * 3200, 6400))
     ck.verify(flm(x * 10 + y, 2), flm(y, 2))
+    ck.verify(flm(x * 360 + y, 16), flm(x * 8 + y, 16))
     ck.verify(flm(x + 10, 2), flm(x, 2))
     ck.verify(flm(x + y * 10, 2), flm(x, 2))
+    ck.verify(flm(x + y * 360, 16), flm(x + y * 8, 16))
     ck.verify(flm(x * 10 + 1 + y * 2 + 2, 2), 1)
     ck.verify(flm(x * (-10), 2), 0)
     ck.verify(flm(x * (-10) + y, 2), flm(y, 2))
     ck.verify(flm(x + (-10), 2), flm(x, 2))
     ck.verify(flm(x + y * (-10), 2), flm(x, 2))
+
+    ck.analyzer.update(y, tvm.arith.ConstIntBound(0, 31), override=True)
+    ck.verify(flm(x * 32 + y, 64), flm(x, 2) * 32 + y)
+    ck.verify(flm(x * 32 - y, 64), flm(x * 32 - y, 64))
 
 
 def test_min_index_simplify():
@@ -952,6 +980,14 @@ def test_div_zero_simplify():
     with pytest.raises(tvm.error.TVMError) as cm:
         ck.analyzer.rewrite_simplify(tvm.tir.FloorMod(ramp, broadcast))
         assert "division by zero" in str(cm.execption)
+
+
+def test_sub_bufferload():
+    ck = RewriteChecker()
+    buf = tvm.tir.decl_buffer([1], dtype="float32")
+    load = tvm.tir.BufferLoad(buf, [0])
+    expr = load - load
+    ck.verify(expr, 0.0)
 
 
 if __name__ == "__main__":

@@ -96,22 +96,25 @@ void ArgBinder::BindBuffer(const Buffer& arg, const Buffer& value, const std::st
                  << " required_alignment=" << arg->data_alignment
                  << ", provided_alignment=" << value->data_alignment;
   }
-  // bind pointer and offset.
-  if (is_zero(arg->elem_offset)) {
-    ICHECK(is_zero(value->elem_offset))
-        << "Trying to bind a Buffer with offset into one without offset "
-        << " required elem_offset=" << arg->elem_offset
-        << ", provided elem_offset=" << value->elem_offset;
-  }
 
-  this->Bind(arg->data, value->data, arg_name + ".data");
-  if (Bind_(arg->elem_offset, value->elem_offset, arg_name + ".elem_offset", false)) {
-    if (arg->offset_factor > 1) {
-      PrimExpr offset = value->elem_offset;
-      PrimExpr factor = make_const(offset.dtype(), arg->offset_factor);
-      PrimExpr zero = make_zero(offset.dtype());
-      BinderAddAssert(&analyzer_, truncmod(offset, factor) == zero, arg_name + ".elem_offset",
-                      &asserts_);
+  if (value->elem_offset.defined()) {
+    // bind pointer and offset.
+    if (is_zero(arg->elem_offset)) {
+      ICHECK(is_zero(value->elem_offset))
+          << "Trying to bind a Buffer with offset into one without offset "
+          << " required elem_offset=" << arg->elem_offset
+          << ", provided elem_offset=" << value->elem_offset;
+    }
+
+    this->Bind(arg->data, value->data, arg_name + ".data");
+    if (Bind_(arg->elem_offset, value->elem_offset, arg_name + ".elem_offset", false)) {
+      if (arg->offset_factor > 1) {
+        PrimExpr offset = value->elem_offset;
+        PrimExpr factor = make_const(offset.dtype(), arg->offset_factor);
+        PrimExpr zero = make_zero(offset.dtype());
+        BinderAddAssert(&analyzer_, truncmod(offset, factor) == zero, arg_name + ".elem_offset",
+                        &asserts_);
+      }
     }
   }
 
@@ -154,22 +157,34 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
   const Stmt nop = Evaluate(0);
   // dimension checks
   PrimExpr v_ndim = TVMArrayGet(tvm_ndim_type, handle, builtin::kArrNDim);
+
+  // Helper functions for shape/stride name formatting
+  auto shape_handle_name = [&]() { return arg_name + ".shape"; };
+  auto stride_handle_name = [&]() { return arg_name + ".strides"; };
+  auto array_element_name = [&](const std::string& arr_name, size_t k) {
+    std::stringstream ss;
+    ss << arr_name << '[' << k << ']';
+    return ss.str();
+  };
+  auto shape_element_name = [&](size_t k) { return array_element_name(shape_handle_name(), k); };
+  auto stride_element_name = [&](size_t k) { return array_element_name(stride_handle_name(), k); };
+
   PrimExpr a_ndim = make_const(tvm_ndim_type, static_cast<int64_t>(buffer->shape.size()));
   std::ostringstream ndim_err_msg;
   ndim_err_msg << arg_name << ".ndim is expected to equal " << buffer->shape.size();
   auto msg = tvm::tir::StringImm(ndim_err_msg.str());
   asserts_.emplace_back(AssertStmt(a_ndim == v_ndim, msg, nop));
   // type checks
-  DataType dtype = buffer->dtype;
   std::ostringstream type_err_msg;
-  type_err_msg << arg_name << ".dtype is expected to be " << dtype;
+  type_err_msg << arg_name << ".dtype is expected to be " << buffer->dtype;
   PrimExpr cond = (TVMArrayGet(DataType::UInt(8), handle, builtin::kArrTypeCode) ==
-                       IntImm(DataType::UInt(8), dtype.code()) &&
+                       IntImm(DataType::UInt(8), buffer->dtype.code()) &&
                    TVMArrayGet(DataType::UInt(8), handle, builtin::kArrTypeBits) ==
-                       IntImm(DataType::UInt(8), dtype.bits()) &&
+                       IntImm(DataType::UInt(8), buffer->dtype.bits()) &&
                    TVMArrayGet(DataType::UInt(16), handle, builtin::kArrTypeLanes) ==
-                       IntImm(DataType::UInt(16), dtype.lanes()));
-  if (!(dtype == DataType::Int(4) || dtype == DataType::UInt(4) || dtype == DataType::Int(1))) {
+                       IntImm(DataType::UInt(16), buffer->dtype.lanes()));
+  if (!(buffer->dtype == DataType::Int(1) || buffer->dtype == DataType::Int(4) ||
+        buffer->dtype == DataType::UInt(4) || buffer->dtype == DataType::UInt(16))) {
     auto type_msg = tvm::tir::StringImm(type_err_msg.str());
     asserts_.emplace_back(AssertStmt(a_ndim == v_ndim, msg, nop));
     asserts_.emplace_back(AssertStmt(cond, type_msg, nop));
@@ -184,27 +199,29 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
                                      IntImm(DataType::Int(32), buffer->data_alignment), nop));
   }
 
-  Var v_shape(arg_name + ".shape", DataType::Handle());
+  // shape field
+  Buffer buf_shape = decl_buffer({IntImm(DataType::Int(32), buffer->shape.size())}, tvm_shape_type,
+                                 shape_handle_name());
+  Var v_shape(shape_handle_name(), DataType::Handle());
   def_handle_dtype_.Set(v_shape, make_const(tvm_shape_type, 0));
   init_nest_.emplace_back(
-      LetStmt(v_shape, TVMArrayGet(DataType::Handle(), handle, builtin::kArrShape), nop));
+      LetStmt(buf_shape->data, TVMArrayGet(DataType::Handle(), handle, builtin::kArrShape), nop));
   for (size_t k = 0; k < buffer->shape.size(); ++k) {
-    if (dtype == DataType::Int(4) || dtype == DataType::UInt(4) || dtype == DataType::Int(1)) {
+    if (buffer->dtype == DataType::Int(4) || buffer->dtype == DataType::UInt(4) ||
+        buffer->dtype == DataType::Int(1)) {
       break;
     }
-    std::ostringstream field_name;
-    field_name << v_shape->name_hint << '[' << k << ']';
     Bind_(buffer->shape[k],
-          cast(buffer->shape[k].dtype(),
-               Load(tvm_shape_type, v_shape, IntImm(DataType::Int(32), k), const_true(1))),
-          field_name.str(), true);
+          cast(buffer->shape[k].dtype(), BufferLoad(buf_shape, {IntImm(DataType::Int(32), k)})),
+          shape_element_name(k), true);
   }
   // strides field
-  Var v_strides(arg_name + ".strides", DataType::Handle());
-  def_handle_dtype_.Set(v_strides, tir::TypeAnnotation(tvm_shape_type));
-  init_nest_.emplace_back(
-      LetStmt(v_strides, TVMArrayGet(DataType::Handle(), handle, builtin::kArrStrides), nop));
-  PrimExpr v_strides_is_null = Call(DataType::Bool(1), builtin::isnullptr(), {v_strides});
+  Buffer buf_strides = decl_buffer({IntImm(DataType::Int(32), buffer->strides.size())},
+                                   tvm_shape_type, arg_name + ".strides");
+  def_handle_dtype_.Set(buf_strides->data, tir::TypeAnnotation(tvm_shape_type));
+  init_nest_.emplace_back(LetStmt(
+      buf_strides->data, TVMArrayGet(DataType::Handle(), handle, builtin::kArrStrides), nop));
+  PrimExpr v_strides_is_null = Call(DataType::Bool(1), builtin::isnullptr(), {buf_strides->data});
   if (buffer->strides.size() == 0) {
     // Assert the buffer is compact
     DataType stype = buffer->DefaultIndexType();
@@ -212,14 +229,12 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
     Array<PrimExpr> conds;
     for (size_t i = buffer->shape.size(); i != 0; --i) {
       size_t k = i - 1;
-      PrimExpr svalue =
-          cast(stype, Load(tvm_shape_type, v_strides, IntImm(DataType::Int(32), k), const_true(1)));
+      PrimExpr svalue = cast(stype, BufferLoad(buf_strides, {IntImm(DataType::Int(32), k)}));
       conds.push_back(expect_stride == svalue);
       expect_stride = expect_stride * buffer->shape[k];
     }
     std::ostringstream stride_err_msg;
-    stride_err_msg << arg_name << ".strides:"
-                   << " expected to be compact array";
+    stride_err_msg << stride_handle_name() << ": expected to be compact array";
     if (conds.size() != 0) {
       auto stride_msg = tvm::tir::StringImm(stride_err_msg.str());
       Stmt check = AssertStmt(
@@ -234,34 +249,26 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
     PrimExpr stride = make_const(stype, 1);
     for (size_t i = buffer->shape.size(); i != 0; --i) {
       size_t k = i - 1;
-      std::ostringstream field_name;
-      field_name << v_strides->name_hint << '[' << k << ']';
       PrimExpr value =
-          cast(buffer->shape[k].dtype(),
-               Load(tvm_shape_type, v_strides, IntImm(DataType::Int(32), k), const_true(1)));
+          cast(buffer->shape[k].dtype(), BufferLoad(buf_strides, {IntImm(DataType::Int(32), k)}));
       value = tvm::if_then_else(v_strides_is_null, stride, value);
       value = tvm::if_then_else(buffer->shape[k] == 1, 0, value);
-      Bind_(buffer->strides[k], value, field_name.str(), true);
+      Bind_(buffer->strides[k], value, stride_element_name(k), true);
       stride = analyzer_.Simplify(stride * buffer->shape[k]);
     }
   } else {
     PrimExpr stride_from_shape = 1;
 
     for (int k = buffer->strides.size() - 1; k >= 0; k--) {
-      std::ostringstream field_name;
-      field_name << v_strides->name_hint << '[' << k << ']';
-
       PrimExpr explicit_stride =
-          cast(buffer->shape[k].dtype(),
-               Load(tvm_shape_type, v_strides, IntImm(DataType::Int(32), k), const_true(1)));
+          cast(buffer->shape[k].dtype(), BufferLoad(buf_strides, {IntImm(DataType::Int(32), k)}));
 
       Bind_(buffer->strides[k],
             tvm::if_then_else(v_strides_is_null, stride_from_shape, explicit_stride),
-            field_name.str(), true);
+            stride_element_name(k), true);
 
       stride_from_shape *=
-          cast(buffer->shape[k].dtype(),
-               Load(tvm_shape_type, v_shape, IntImm(DataType::Int(32), k), const_true(1)));
+          cast(buffer->shape[k].dtype(), BufferLoad(buf_shape, {IntImm(DataType::Int(32), k)}));
     }
   }
   // Byte_offset field.

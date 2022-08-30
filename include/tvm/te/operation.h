@@ -47,7 +47,7 @@ struct TensorDom {
   // constructor
   explicit TensorDom(int ndim) : data(ndim) {}
   /*! \brief The domain data */
-  std::vector<std::vector<IntSet> > data;
+  std::vector<std::vector<IntSet>> data;
 };
 
 /*!
@@ -265,6 +265,7 @@ class ComputeOp : public Operation {
                     Array<IterVar> axis, Array<PrimExpr> body);
 
   TVM_DEFINE_OBJECT_REF_METHODS(ComputeOp, Operation, ComputeOpNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ComputeOpNode);
 };
 
 /*!

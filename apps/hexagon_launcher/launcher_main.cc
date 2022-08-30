@@ -76,8 +76,13 @@ int main(int argc, char* argv[]) {
   }
   ExecutionSession& session = *session_ptr;
 
-  std::cout << "loading model files: " << config.model_json << ", " << config.model_library << '\n';
-  std::string json = load_text_file(config.model_json);
+  std::cout << "loading model files: ";
+  if (!config.model_json.empty()) {
+    std::cout << config.model_json << ", ";
+  }
+  std::cout << config.model_library << '\n';
+
+  std::string json = !config.model_json.empty() ? load_text_file(config.model_json) : "";
   if (!session.load_model(config.model_library, json.c_str())) {
     return 1;
   }

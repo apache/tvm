@@ -134,6 +134,11 @@ class LoopUnroller : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const StoreNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
+  }
+
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
     ++step_count_;
     return StmtExprMutator::VisitStmt_(op);
   }

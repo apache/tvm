@@ -18,11 +18,11 @@ import tvm
 from tvm import te
 from tvm.contrib import cc, utils
 import ctypes
-import os
 import sys
 import numpy as np
 import subprocess
 import tvm.testing
+from tvm.relay.backend import Runtime
 
 runtime_py = """
 import os
@@ -59,7 +59,7 @@ def test_dso_module_load():
             0,
             n - 1,
             tvm.tir.ForKind.SERIAL,
-            tvm.tir.Store(Ab.data, tvm.tir.Load(dtype, Ab.data, i) + 1, i + 1),
+            tvm.tir.BufferStore(Ab, tvm.tir.BufferLoad(Ab, [i]) + 1, [i + 1]),
         )
         mod = tvm.IRModule.from_expr(
             tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", "main")
@@ -117,7 +117,8 @@ def test_device_module_dump():
         temp = utils.tempdir()
         name = "myadd_%s" % device
         if sys.platform == "darwin" or sys.platform.startswith("linux"):
-            f = tvm.build(s, [A, B], device, "llvm -system-lib", name=name)
+            runtime = Runtime("cpp", {"system-lib": True})
+            f = tvm.build(s, [A, B], device, "llvm", runtime=runtime, name=name)
         elif sys.platform == "win32":
             f = tvm.build(s, [A, B], device, "llvm", name=name)
         else:
@@ -198,8 +199,9 @@ def test_combine_module_llvm():
             print("Skip because llvm is not enabled")
             return
         temp = utils.tempdir()
-        fadd1 = tvm.build(s, [A, B], "llvm -system-lib", name="myadd1")
-        fadd2 = tvm.build(s, [A, B], "llvm -system-lib", name="myadd2")
+        runtime = Runtime("cpp", {"system-lib": True})
+        fadd1 = tvm.build(s, [A, B], "llvm", runtime=runtime, name="myadd1")
+        fadd2 = tvm.build(s, [A, B], "llvm", runtime=runtime, name="myadd2")
         path1 = temp.relpath("myadd1.o")
         path2 = temp.relpath("myadd2.o")
         path_dso = temp.relpath("mylib.so")
@@ -207,7 +209,7 @@ def test_combine_module_llvm():
         fadd2.save(path2)
         cc.create_shared(path_dso, [path1, path2])
         # Load dll, will trigger system library registration
-        dll = ctypes.CDLL(path_dso)
+        ctypes.CDLL(path_dso)
         # Load the system wide library
         mm = tvm.runtime.system_lib()
         a = tvm.nd.array(np.random.uniform(size=nn).astype(A.dtype), dev)

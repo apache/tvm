@@ -25,11 +25,11 @@ from tvm.relay.expr import Call
 from tvm.topi.utils import get_const_tuple
 
 
-def quantize_and_build(out):
+def quantize_and_build(out, skip_conv_layers=[]):
     f = relay.Function(relay.analysis.free_vars(out), out)
     mod, params = testing.create_workload(f)
 
-    with relay.quantize.qconfig(skip_conv_layers=[]):
+    with relay.quantize.qconfig(skip_conv_layers=skip_conv_layers):
         qmod = relay.quantize.quantize(mod, params)
 
     relay.build(qmod, "llvm", params=params)
@@ -51,6 +51,43 @@ def test_mul_rewrite():
     pool = relay.nn.global_avg_pool2d(data=act)
 
     quantize_and_build(act * pool)
+
+
+def test_skip_conv():
+    data = relay.var("data", shape=(1, 16, 64, 64))
+    np_weight = np.random.rand(16, 16, 3, 3)
+    conv0_weight = relay.Constant(tvm.nd.array(np_weight)).astype("float32")
+    conv1_weight = relay.Constant(tvm.nd.array(np_weight)).astype("float32")
+    multiplier = relay.sigmoid(relay.var("data", shape=(1, 16, 1, 1)))
+
+    conv0 = relay.nn.conv2d(data, conv0_weight, kernel_size=(3, 3), padding=(1, 1), channels=16)
+    act0 = relay.nn.relu(data=conv0)
+    conv1 = relay.nn.conv2d(act0, conv1_weight, kernel_size=(3, 3), padding=(1, 1), channels=16)
+    act1 = relay.nn.relu(data=conv1)
+
+    quantize_and_build(act1 * multiplier)
+    quantize_and_build(act1 * multiplier, skip_conv_layers=[0])
+    quantize_and_build(act1 * multiplier, skip_conv_layers=[1])
+    quantize_and_build(act1 * multiplier, skip_conv_layers=[0, 1])
+
+
+def test_stop_quantize():
+    data = relay.var("data", shape=(1, 16, 64, 64))
+    np_weight0 = np.random.rand(16, 16, 3, 3)
+    conv0_weight = relay.Constant(tvm.nd.array(np_weight0)).astype("float32")
+    np_weight1 = np.random.rand(16, 16, 1, 1)
+    conv1_weight = relay.Constant(tvm.nd.array(np_weight1)).astype("float32")
+    multiplier = relay.sigmoid(relay.var("data", shape=(1, 16, 1, 1)))
+
+    conv0 = relay.nn.conv2d(data, conv0_weight, kernel_size=(3, 3), padding=(1, 1), channels=16)
+    act0 = relay.nn.relu(data=conv0)
+
+    pool = relay.nn.global_avg_pool2d(data=act0)
+
+    conv1 = relay.nn.conv2d(pool, conv1_weight, kernel_size=(1, 1), padding=(0, 0), channels=16)
+    act1 = relay.nn.relu(data=conv1)
+
+    quantize_and_build(act1 * multiplier)
 
 
 def test_batch_flatten_rewrite():
@@ -420,3 +457,6 @@ if __name__ == "__main__":
     test_unquantizable_suffix_partition()
     test_left_shift_negative()
     test_dense_conv2d_rewrite()
+
+    test_skip_conv()
+    test_stop_quantize()

@@ -14,9 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import sys
+import pytest
 import tvm
+import tvm.testing
 from tvm import te
 from tvm.driver.build_module import schedule_to_module
+from tvm.script import tir as T
 
 
 def test_storage_share():
@@ -646,22 +650,50 @@ def test_large_input():
     tvm.tir.stmt_functor.post_order_visit(stmt, verify)
 
 
-if __name__ == "__main__":
-    test_storage_share()
-    test_alloc_seq()
-    test_alloc_different_dtypes()
-    test_inplace_rule()
-    test_parallel_alloc()
-    test_while_alloc()
-    test_storage_combine()
-    test_storage_combine_with_vectorization()
-    test_storage_share_gpu()
-    test_inplace_rule2()
+def test_access_in_let_value():
+    @T.prim_func
+    def func(A: T.Buffer[(8,), "float32"]):
+        for i in range(8):
+            B = T.allocate((1,), "float32", "global")
+            B[0] = 3.14
+            x: T.float32 = T.exp(B[0], dtype="float32")
+            A[i] = (x + 1.0) / (x - 1.0)
 
-    test_exceed_mem()
-    test_inplace_rule3()
-    test_alloc_seq_type()
-    test_alloc_seq_type2()
-    test_reuse_small_buffer()
-    test_replace_dataflow()
-    test_large_input()
+    @T.prim_func
+    def func_rewritten(A: T.Buffer[(8,), "float32"]) -> None:
+        B = T.allocate((1,), "float32", "global")
+        for i in range(8):
+            B[0] = 3.14
+            x: T.float32 = T.exp(B[0], dtype="float32")
+            A[i] = (x + 1.0) / (x - 1.0)
+
+    mod = tvm.tir.transform.StorageRewrite()(tvm.IRModule.from_expr(func))
+    tvm.ir.assert_structural_equal(mod["main"], func_rewritten)
+
+
+class TestLetBufferRewrite(tvm.testing.CompareBeforeAfter):
+    """StorageRewrite replaces the bound var of backing allocations
+
+    If StorageRewrite replaces the backing variable of an array, such
+    as when vectorizing the storage type, the variable must be
+    replaced in the LetStmt that defines it.  Currently, StmtMutator
+    only visits usage of variables, and does not visit definitions of
+    variables, so the definition in a LetStmt must be explicitly
+    handled.
+    """
+
+    transform = tvm.tir.transform.StorageRewrite()
+
+    def before() -> None:
+        A_data: T.Ptr[T.int32] = T.call_extern("dummy_func", dtype="handle")
+        A = T.buffer_decl([8], "int32", data=A_data)
+        A[0:8] = T.broadcast(42, 8)
+
+    def expected() -> None:
+        A_data: T.Ptr[T.int32x8] = T.call_extern("dummy_func", dtype="handle")
+        A = T.buffer_decl([1], "int32x8", data=A_data)
+        A[0] = T.broadcast(42, 8)
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

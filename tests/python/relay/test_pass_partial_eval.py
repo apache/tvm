@@ -15,10 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import pytest
 import numpy as np
 import tvm
-from tvm import te
+import tvm.testing
 from tvm import relay
 from tvm.relay.prelude import Prelude
 from tvm.relay import op, create_executor, transform
@@ -49,11 +48,11 @@ def tipe(expr):
     return run_opt_pass(expr, [transform.PartialEvaluate(), transform.InferType()])
 
 
-def dcpe(expr, mod=None, grad=False):
+def dcpe(expr, mod=None, grad=False, ignore_impurity=False):
     passes = [
         transform.PartialEvaluate(),
         transform.InferType(),
-        transform.DeadCodeElimination(inline_once=True),
+        transform.DeadCodeElimination(inline_once=True, ignore_impurity=ignore_impurity),
         transform.InferType(),
     ]
     if grad:
@@ -95,7 +94,9 @@ def test_ref():
     body = Let(r, RefCreate(d), body)
     square = Function([d], body)
     expected = run_opt_pass(Function([d], d * d), transform.InferType())
-    assert tvm.ir.structural_equal(dcpe(square), expected)
+    # TODO(mbs): Revisit once DCE eliminates dead writes.
+    actual = dcpe(square, ignore_impurity=True)
+    assert tvm.ir.structural_equal(actual, expected)
 
 
 def test_empty_ad():
@@ -104,7 +105,8 @@ def test_empty_ad():
     t = TensorType(shape, dtype)
     d = Var("d", t)
     f = Function([d], d)
-    g = dcpe(f, grad=True)
+    # TODO(mbs): Revisit once DCE eliminates dead writes.
+    g = dcpe(f, grad=True, ignore_impurity=True)
     expected = Function([d], Tuple([d, Tuple([op.ones_like(d)])]))
     expected = run_opt_pass(expected, transform.InferType())
     assert tvm.ir.structural_equal(g, expected)
@@ -116,7 +118,8 @@ def test_ad():
     t = TensorType(shape, dtype)
     d = Var("d", t)
     f = Function([d], d * d)
-    g = dcpe(f, grad=True)
+    # TODO(mbs): Revisit once DCE eliminates dead writes.
+    g = dcpe(f, grad=True, ignore_impurity=True)
     m = d * d
     x = relay.Var("x")
     o = op.ones_like(x)
@@ -348,4 +351,4 @@ def test_tuple_match():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

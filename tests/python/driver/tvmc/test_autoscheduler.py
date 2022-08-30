@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import platform
 import pytest
 import os
 
@@ -70,6 +71,10 @@ def test_get_tuning_tasks(keras_simple):
     assert all([type(x) is expected_task_type for x in tasks]) is True
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+)
 def test_tune_tasks(keras_simple, tmpdir_factory):
     pytest.importorskip("tensorflow")
 
@@ -77,6 +82,10 @@ def test_tune_tasks(keras_simple, tmpdir_factory):
     _autoscheduler_test_helper(keras_simple, tmpdir_name)
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+)
 def test_tune_tasks__tuning_records(keras_simple, tmpdir_factory):
     pytest.importorskip("tensorflow")
 
@@ -87,6 +96,10 @@ def test_tune_tasks__tuning_records(keras_simple, tmpdir_factory):
     _autoscheduler_test_helper(keras_simple, tmpdir_name, prior_records=output_log_phase_1)
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+)
 def test_tune_tasks__no_early_stopping(keras_simple, tmpdir_factory):
     pytest.importorskip("tensorflow")
 

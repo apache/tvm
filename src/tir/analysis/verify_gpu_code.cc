@@ -30,6 +30,7 @@
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include "../../runtime/thread_storage_scope.h"
 #include "../transforms/ir_utils.h"
 
 namespace tvm {
@@ -61,12 +62,13 @@ class GPUCodeVerifier : public StmtExprVisitor {
   void VisitStmt_(const AllocateNode* op) final {
     StmtVisitor::VisitStmt_(op);
     auto scope = GetPtrStorageScope(op->buffer_var);
+    runtime::StorageScope storage_scope = runtime::StorageScope::Create(scope);
     // visit an allocation of a buffer in shared memory, record its size
-    if (scope == "local") {
-      size_t size = static_cast<size_t>(op->constant_allocation_size());
+    if (storage_scope.rank == runtime::StorageRank::kLocal) {
+      size_t size = static_cast<size_t>(op->ConstantAllocationSize());
       local_memory_per_block_ += size * op->dtype.bytes() * op->dtype.lanes();
-    } else if (scope == "shared") {
-      size_t size = static_cast<size_t>(op->constant_allocation_size());
+    } else if (storage_scope.rank == runtime::StorageRank::kShared) {
+      size_t size = static_cast<size_t>(op->ConstantAllocationSize());
       shared_memory_per_block_ += size * op->dtype.bytes() * op->dtype.lanes();
     }
     if (op->dtype.lanes() > 1) {
@@ -184,7 +186,30 @@ class GPUCodeVerifier : public StmtExprVisitor {
     StmtVisitor::VisitStmt_(op);
   }
 
-  void VisitExpr_(const LoadNode* op) {
+  void VisitExpr_(const LoadNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+  }
+
+  void VisitStmt_(const StoreNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+  }
+
+  void CheckBufferIndicesVectorizable(const Array<PrimExpr> indices) {
+    for (const auto index : indices) {
+      if (const auto* ramp = index.as<RampNode>()) {
+        if (!is_one(ramp->stride) &&
+            static_cast<size_t>(ramp->dtype.lanes() * ramp->dtype.bytes()) > max_vector_bytes_) {
+          std::stringstream s;
+          s << "Number of lanes (" << ramp->dtype.lanes() << ") times number of bytes ("
+            << ramp->dtype.bytes() << ") for dtype " << ramp->dtype
+            << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
+          errors_.push_back(s.str());
+        }
+      }
+    }
+  }
+
+  void VisitExpr_(const BufferLoadNode* op) {
     if (op->dtype.lanes() > 1) {
       if (static_cast<size_t>(op->dtype.lanes() * op->dtype.bytes()) > max_vector_bytes_) {
         std::stringstream s;
@@ -193,11 +218,12 @@ class GPUCodeVerifier : public StmtExprVisitor {
           << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
         errors_.push_back(s.str());
       }
+      CheckBufferIndicesVectorizable(op->indices);
     }
     ExprVisitor::VisitExpr_(op);
   }
 
-  void VisitStmt_(const StoreNode* op) {
+  void VisitStmt_(const BufferStoreNode* op) {
     if (op->value->dtype.lanes() > 1) {
       if (static_cast<size_t>(op->value->dtype.lanes() * op->value->dtype.bytes()) >
           max_vector_bytes_) {
@@ -207,6 +233,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
           << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
         errors_.push_back(s.str());
       }
+      CheckBufferIndicesVectorizable(op->indices);
     }
     StmtVisitor::VisitStmt_(op);
   }

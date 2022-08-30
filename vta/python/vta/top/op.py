@@ -214,7 +214,7 @@ def conv2d_strategy_vta(attrs, inputs, out_type, target):
             assert kernel.dtype == "int8"
 
             strategy.add_implementation(
-                _strategy.wrap_compute_conv2d(conv2d_packed, True),
+                _strategy.wrap_compute_conv2d(conv2d_packed, need_data_layout=True),
                 _strategy.wrap_topi_schedule(schedule_conv2d_packed),
                 name="conv2d_packed.vta",
             )

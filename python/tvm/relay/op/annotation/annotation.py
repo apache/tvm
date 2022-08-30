@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Annotation operations."""
+from tvm import target
 from tvm.runtime import ndarray as _nd
 from tvm.runtime import Device as _Device
 
@@ -22,37 +23,45 @@ from . import _make
 from .. import op as reg
 
 
-def _device_to_int(device):
+def _make_virtual_device(device):
     if isinstance(device, _Device):
-        return device.device_type
+        return target.VirtualDevice(device)
     if isinstance(device, str):
-        return _nd.device(device).device_type
+        return target.VirtualDevice(_nd.device(device))
+    if isinstance(device, target.VirtualDevice):
+        return device
     raise ValueError("expecting a Device or device name, but received a %s" % (type(device)))
 
 
-def on_device(data, device, is_fixed=False):
-    """Annotates an expression with the device type on which its result should be stored.
+def on_device(body, device, constrain_result=False, constrain_body=True):
+    """Annotates a body expression with device constraints. The constraint influences
+    how the body is compiled, where the body is evaluated, and where the result of
+    evaluation is stored.
+
+    Note that the defaults for the constrain_body and constrain_result parameters should
+    almost never need to be overridden by the user. These parameters are exposed here
+    to help unit tests exercise the PlanDevices pass machinery.
 
     Parameters
     ----------
-    data : tvm.relay.Expr
+    body : tvm.relay.Expr
         The expression to be annotated.
 
     device : Union[:py:class:`Device`, str]
-        The device to annotate with. Only the device's type is significant.
+        The device to annotate with.
 
-    is_fixed : bool
-        If false (the default), a device_copy
-        If true, the annotation does not imply a device_copy may be inserted to
-        reconcile the device of the data argument with the device for the context of the
-        annotated expression.
+    constrain_result  : bool
+        If false (the default), the result of the on_device is not constrained to be on device.
+
+    constrain_body : bool
+        If true (the default), the body of the on_device is constrained to be on device.
 
     Returns
     -------
     result : tvm.relay.Expr
         The annotated expression.
     """
-    return _make.on_device(data, _device_to_int(device), is_fixed)
+    return _make.OnDevice(body, _make_virtual_device(device), constrain_result, constrain_body)
 
 
 def function_on_device(function, param_devices, result_device):
@@ -65,18 +74,20 @@ def function_on_device(function, param_devices, result_device):
         The function to be annotated.
 
     param_devices : Array[Union[:py:class:`Device`, str]]
-        The devices for each parameter. Only the device types are significant.
+        The devices for each parameter.
 
     result_device: Union[:py:class:`Device`, str]
-        The device for the function result. Only the device type is significant.
+        The device for the function result.
 
     Returns
     -------
-    result : tvm.rleay.Function
+    result : tvm.relay.Function
         The annotated function.
     """
-    return _make.function_on_device(
-        function, [_device_to_int(d) for d in param_devices], _device_to_int(result_device)
+    return _make.FunctionOnDevice(
+        function,
+        [_make_virtual_device(d) for d in param_devices],
+        _make_virtual_device(result_device),
     )
 
 

@@ -387,8 +387,7 @@ inline ReflectionVTable::Registry ReflectionVTable::Register() {
 inline void ReflectionVTable::VisitAttrs(Object* self, AttrVisitor* visitor) const {
   uint32_t tindex = self->type_index();
   if (tindex >= fvisit_attrs_.size() || fvisit_attrs_[tindex] == nullptr) {
-    LOG(FATAL) << "TypeError: " << self->GetTypeKey()
-               << " is not registered via TVM_REGISTER_NODE_TYPE";
+    return;
   }
   fvisit_attrs_[tindex](self, visitor);
 }
@@ -404,6 +403,12 @@ inline bool ReflectionVTable::GetReprBytes(const Object* self, std::string* repr
     return false;
   }
 }
+
+/*!
+ * \brief Given an object and an address of its attribute, return the key of the attribute.
+ * \return nullptr if no attribute with the given address exists.
+ */
+Optional<String> GetAttrKeyByAddress(const Object* object, const void* attr_address);
 
 }  // namespace tvm
 #endif  // TVM_NODE_REFLECTION_H_

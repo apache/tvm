@@ -16,7 +16,11 @@
 # under the License.
 """Wrapping existing transformations."""
 # pylint: disable=invalid-name
-from typing import Optional
+
+
+import enum
+from typing import Callable, Optional
+
 from . import _ffi_api
 from . import function_pass as _fpass
 
@@ -43,26 +47,6 @@ def Apply(ftransform):
     return _fpass.prim_func_pass(_transform, opt_level=0, name="Apply")  # type: ignore
 
 
-def Filter(fcond):
-    """Filter functions by the calling convention attribute.
-
-    Parameters
-    ----------
-    fcond : tvm.tir.PrimFunc -> bool
-        The condition of the filtering.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    # pylint: disable=unused-argument
-    def _transform(func, mod, ctx):
-        return func if fcond(func) else None
-
-    return _fpass.prim_func_pass(_transform, opt_level=0, name="Filter")  # type: ignore
-
-
 def InjectPrefetch():
     """Inject prefetch instructions into stmt.
 
@@ -72,6 +56,19 @@ def InjectPrefetch():
         The result pass
     """
     return _ffi_api.InjectPrefetch()  # type: ignore
+
+
+def ApplyLayoutTransforms():
+    """Reshape buffers that appear in the "layout_transform_map"
+    fucntion attribute.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+
+    """
+    return _ffi_api.ApplyLayoutTransforms()  # type: ignore
 
 
 def StorageFlatten(cache_line_size, create_bound_attribute: bool = False):
@@ -206,6 +203,17 @@ def InjectDoubleBuffer():
     return _ffi_api.InjectDoubleBuffer()  # type: ignore
 
 
+def InjectRollingBuffer():
+    """Inject rolling buffer statements.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InjectRollingBuffer()  # type: ignore
+
+
 def StorageRewrite():
     """Rewrite storage allocation pattern.
 
@@ -243,6 +251,28 @@ def RemoveNoOp():
         The result pass
     """
     return _ffi_api.RemoveNoOp()  # type: ignore
+
+
+def RemoveAssume():
+    """Remove all instances of builtin::assume
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RemoveAssume()  # type: ignore
+
+
+def RemoveStoreUndef():
+    """Remove stores of undefined values from the Stmt.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RemoveStoreUndef()  # type: ignore
 
 
 def BF16Legalize():
@@ -298,6 +328,17 @@ def BF16TypeLowering():
         The result pass
     """
     return _ffi_api.BF16TypeLowering()  # type: ignore
+
+
+def CommonSubexprElimTIR(enable_cse_tir: bool = True, identify_equiv_terms: bool = False):
+    """Replace redundant computations by new variables.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.CommonSubexprElimTIR(enable_cse_tir, identify_equiv_terms)  # type: ignore
 
 
 def RewriteUnsafeSelect():
@@ -577,6 +618,86 @@ def HoistIfThenElse(variant: Optional[str] = None):
         return _ffi_api.HoistIfThenElse()  # type: ignore
 
 
+class HoistedConditionals(enum.Flag):
+    """Flags for use in HoistExpressionConfig.conditional_types
+
+    Each bitflag represents a type of expression that should be
+    hoisted to the outermost loop possible.
+    """
+
+    Never = 0
+    """ No hoisting of conditionals """
+
+    IfElseStmt = 1
+    """ If set, look for hoist candidates in IfElseStmt """
+
+    IfElseExpr = 2
+    """ If set, look for hoist candidates in tir.if_then_else """
+
+    BooleanExpression = 4
+    """ If set, look for hoist candidates in all boolean expressions """
+
+    UsingBlockVar = 8
+    """ If set, allow hoisting of conditionals that use a block variable (e.g. threadIdx.x)  """
+
+    All = IfElseStmt | IfElseExpr | BooleanExpression | UsingBlockVar
+    """ Enable all hoisting of conditionals"""
+
+
+class HoistedLetBindings(enum.Flag):
+    """Flags for use in HoistExpressionConfig.let_binding_types
+
+    Each bitflag represents a type of let binding expression that should be
+    hoisted to the outermost loop possible.
+    """
+
+    Never = 0
+    """ No hoisting of let bindings """
+
+    RequiredByConditional = 1
+    """ Bindings that are used by a hoisted conditional """
+
+    LetStmt = 2
+    """ Bindings occuring in LetStmt """
+
+    LetExpr = 4
+    """ Bindings occuring in Let expressions """
+
+    All = RequiredByConditional | LetStmt | LetExpr
+    """ Enable all hoisting of let bindings """
+
+
+def HoistExpression():
+    """Generalized verison of HoistIfThenElse.
+
+    Hoist loop-invariant expressions to outside the eligible loops.
+    Searches for expressions in:
+
+    * LetStmt bindings
+    * IfThenElse conditions
+    * Boolean operators
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+
+    """
+    return _ffi_api.HoistExpression()  # type: ignore
+
+
+def LowerCrossThreadReduction():
+    """Lower cross-thread reduction from thread bindings to
+    intrinsic function calls.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerCrossThreadReduction()  # type: ignore
+
+
 def LowerInitBlock():
     """Lower block init stmt into IfThenElse statements.
 
@@ -670,10 +791,20 @@ def LowerMatchBuffer():
     return _ffi_api.LowerMatchBuffer()  # type: ignore
 
 
+def LowerOpaqueBlock():
+    """Remove the block to ensure that the TIR can not be scheduled again.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerOpaqueBlock()  # type: ignore
+
+
 def FlattenBuffer():
-    """Flatten the multi-dimensional BufferLoad and BufferStore
-    to single dimensional Load/Store. Also remove Block to
-    ensure that the flattened TIR can not be scheduled again.
+    """Flatten the multi-dimensional BufferLoad and BufferStore to single dimensional
+    BufferLoad/BufferStore for the TIR not contains opaque block.
 
     Returns
     -------
@@ -726,3 +857,106 @@ def ConvertForLoopsToSerial():
         The result pass
     """
     return _ffi_api.ConvertForLoopsToSerial()  # type: ignore
+
+
+def InjectSoftwarePipeline():
+    """Transform annotated loops into pipelined one that parallelize producers and consumers
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InjectSoftwarePipeline()  # type: ignore
+
+
+def ExtractPrimFuncConstants():
+    """Collects and unificates tir non-scalar constants to module's attr 'Constants' array.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.ExtractPrimFuncConstants()  # type: ignore
+
+
+def RenormalizeSplitPattern():
+    """Renormalize the split pattern from floordiv(floormod()) to floormod(floordiv())
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RenormalizeSplitPattern()  # type: ignore
+
+
+def BindTarget(target):
+    """Annotate a PrimFunc with a given target.
+    Parameters
+    -------
+    target : tvm.target.Target
+        target
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.BindTarget(target)  # type: ignore
+
+
+def AnnotateEntryFunc():
+    """Set a PrimFunc as the entry point if it is only function in IRModule.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.AnnotateEntryFunc()  # type: ignore
+
+
+def Filter(fcond: Callable):
+    """Filter out PrimFuncs that does not satisfy the given condition.
+    `fcond` should be a function that takes a primfunc and returns boolean.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.Filter(fcond)  # type: ignore
+
+
+def InjectPTXAsyncCopy():
+    """Rewrite global to shared memory copy on CUDA with asyncronous copy.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InjectPTXAsyncCopy()  # type: ignore
+
+
+def RemoveWeightLayoutRewriteBlock():
+    """Remove weight layout rewrite block before benchmarking during tuning stage.
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RemoveWeightLayoutRewriteBlock()  # type: ignore
+
+
+def ManifestSharedMemoryLocalStage():
+    """Add the explicit local stage for the shared memory access on GPU.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.ManifestSharedMemoryLocalStage()  # type: ignore

@@ -35,7 +35,8 @@ def test_vectorize_loop():
 
     assert isinstance(stmt, tvm.tir.For)
     assert not isinstance(stmt.body, tvm.tir.For)
-    assert isinstance(stmt.body.index, tvm.tir.Ramp)
+    assert len(stmt.body.indices) == 1
+    assert isinstance(stmt.body.indices[0], tvm.tir.Ramp)
     assert isinstance(stmt.body.value, tvm.tir.Broadcast)
 
 
@@ -55,7 +56,8 @@ def test_vectorize_vector():
 
     assert isinstance(stmt, tvm.tir.For)
     assert not isinstance(stmt.body, tvm.tir.For)
-    assert isinstance(stmt.body.index, tvm.tir.Ramp)
+    assert len(stmt.body.indices) == 1
+    assert isinstance(stmt.body.indices[0], tvm.tir.Ramp)
     assert isinstance(stmt.body.value, tvm.tir.Broadcast)
 
 
@@ -76,10 +78,21 @@ def test_vectorize_with_if():
     stmt = tvm.tir.transform.VectorizeLoop()(mod)["main"].body
 
     assert isinstance(stmt, tvm.tir.IfThenElse)
-    assert isinstance(stmt.then_case.index, tvm.tir.Ramp)
+    assert len(stmt.then_case.indices) == 1
+    assert isinstance(stmt.then_case.indices[0], tvm.tir.Ramp)
     assert isinstance(stmt.then_case.value, tvm.tir.Add)
     assert stmt.then_case.value.dtype == "float32x4"
     assert isinstance(stmt.else_case, tvm.tir.For)
+
+
+def test_vectorize_with_if_cond_int64():
+    m = te.size_var("m", dtype="int64")
+    A = te.placeholder((m,), name="A", dtype="float32")
+    B = te.compute((m,), lambda i: te.if_then_else(i < 2, A[i], A[i] * 2), name="B")
+    s = te.create_schedule(B.op)
+    x, y = s[B].split(B.op.axis[0], factor=4)
+    s[B].vectorize(y)
+    f = tvm.build(s, [A, B], "llvm")
 
 
 def test_vectorize_let():
@@ -205,6 +218,14 @@ def test_vectorize_while_fail():
         assert expected in error_msg
 
 
+def test_vectorize_dtype_mismatch():
+    n = tvm.tir.IntImm("int64", 4)
+    A = te.compute((n,), lambda i: tvm.tir.IntImm("int64", 2**31 - 1) + i, name="A")
+    s = te.create_schedule(A.op)
+    s[A].vectorize(A.op.axis[0])
+    tvm.lower(s, [A], "llvm", simple_mode=True)
+
+
 if __name__ == "__main__":
     test_vectorize_vector()
     test_vectorize_with_if()
@@ -214,3 +235,4 @@ if __name__ == "__main__":
     test_vectorize_with_ge_cond()
     test_vectorize_let()
     test_vectorize_while_fail()
+    test_vectorize_dtype_mismatch()

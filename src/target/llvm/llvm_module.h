@@ -25,19 +25,25 @@
 #ifndef TVM_TARGET_LLVM_LLVM_MODULE_H_
 #define TVM_TARGET_LLVM_LLVM_MODULE_H_
 
+#ifdef TVM_LLVM_VERSION
+
+#include <tvm/relay/runtime.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/metadata.h>
 #include <tvm/runtime/module.h>
 #include <tvm/target/target.h>
-
-#ifdef TVM_LLVM_VERSION
 
 namespace tvm {
 namespace codegen {
 
-runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& modules, Target target);
+runtime::Module CreateLLVMCppMetadataModule(runtime::metadata::Metadata metadata, Target target,
+                                            tvm::relay::Runtime runtime);
+
+runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& modules, Target target,
+                                            tvm::relay::Runtime runtime);
 
 }  // namespace codegen
 }  // namespace tvm
 
 #endif  // TVM_LLVM_VERSION
-
 #endif  // TVM_TARGET_LLVM_LLVM_MODULE_H_

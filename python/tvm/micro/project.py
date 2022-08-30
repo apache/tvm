@@ -83,6 +83,17 @@ class GeneratedProject:
     def transport(self):
         return ProjectTransport(self._api_client, self._options)
 
+    def info(self):
+        return self._info
+
+    @property
+    def options(self):
+        return self._options
+
+    @options.setter
+    def options(self, options):
+        self._options = options
+
 
 class NotATemplateProjectError(Exception):
     """Raised when the API server given to TemplateProject reports is_template=false."""
@@ -110,7 +121,8 @@ class TemplateProject:
                         Here is a list of available options:{list(available_options)}."""
             )
 
-    def generate_project_from_mlf(self, model_library_format_path, project_dir, options):
+    def generate_project_from_mlf(self, model_library_format_path, project_dir, options: dict):
+        """Generate a project from MLF file."""
         self._check_project_options(options)
         self._api_client.generate_project(
             model_library_format_path=str(model_library_format_path),

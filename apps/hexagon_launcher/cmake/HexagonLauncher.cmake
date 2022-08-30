@@ -15,6 +15,20 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# On successful execution, sets
+#   SDK_INCLUDE_DIRS
+#   QAIC_EXE_PATH
+# and
+#   QAIC_FLAGS
+#   LAUNCHER_SRC
+#   LAUNCHER_RPC_IDL
+#   LAUNCHER_RPC_H
+#   LAUNCHER_RPC_SKEL_C
+#   LAUNCHER_RPC_STUB_C
+
+if(USE_CUSTOM_LOGGING)
+  add_definitions(-DTVM_LOG_CUSTOMIZE=1)
+endif()
 if(NOT DEFINED USE_HEXAGON_SDK)
   message(SEND_ERROR "Please set USE_HEXAGON_SDK to the location of Hexagon SDK")
 endif()
@@ -25,14 +39,20 @@ endif()
 set(TVM_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../../")
 
 include(ExternalProject)
+include("${TVM_SOURCE_DIR}/cmake/utils/Utils.cmake")
 include("${TVM_SOURCE_DIR}/cmake/modules/HexagonSDK.cmake")
 
-find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}")
+get_hexagon_sdk_property("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}"
+  SDK_INCLUDE SDK_INCLUDE_DIRS
+  QAIC_EXE    QAIC_EXE_PATH
+)
+if(NOT SDK_INCLUDE_DIRS OR NOT QAIC_EXE_PATH)
+  message(WARNING "Could not locate some Hexagon SDK components")
+endif()
 
-include_directories(SYSTEM ${HEXAGON_SDK_INCLUDES} ${HEXAGON_REMOTE_ROOT})
+include_directories(SYSTEM ${SDK_INCLUDE_DIRS})
 
-set(QAIC_EXE "${HEXAGON_QAIC_EXE}")
-foreach(INCDIR IN LISTS HEXAGON_SDK_INCLUDES HEXAGON_REMOTE_ROOT)
+foreach(INCDIR IN LISTS SDK_INCLUDE_DIRS)
   list(APPEND QAIC_FLAGS "-I${INCDIR}")
 endforeach()
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -18,12 +18,11 @@
 
 # This file is a compiler test to ensure that runtimes can compile
 # correctly, even if they aren't actively tested in the CI.
+set -euxo pipefail
 
-set -e
-set -u
-
-mkdir -p build2
-cd build2
+BUILD_DIR=$1
+mkdir -p "$BUILD_DIR"
+cd "$BUILD_DIR"
 cp ../cmake/config.cmake .
 
 echo set\(USE_OPENCL ON\) >> config.cmake
@@ -33,3 +32,4 @@ echo set\(USE_PROFILER ON\) >> config.cmake
 echo set\(USE_LIBBACKTRACE OFF\) >> config.cmake
 echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
 echo set\(USE_CCACHE OFF\) >> config.cmake
+echo set\(SUMMARIZE ON\) >> config.cmake

@@ -77,10 +77,19 @@ VerilatorProfiler* VerilatorProfiler::ThreadLocal() {
 }
 
 VerilatorRuntime::~VerilatorRuntime() {
+  VLOG(0) << "destroying verilator runtime";
+  if (lib_ == nullptr) {
+    // Never initialized. This can happen if the runtime was created during compilation of
+    // a BYOC function but the resulting runtime module was never invoked.
+    return;
+  }
   auto dealloc = reinterpret_cast<VerilatorDeallocFunc>(lib_->GetSymbol("VerilatorDealloc"));
   ICHECK(dealloc != nullptr);
+  ICHECK(device_ != nullptr);
   dealloc(device_);
+  device_ = nullptr;
   lib_->~VerilatorLibrary();
+  lib_ = nullptr;
 }
 
 void VerilatorRuntime::SetLibrary(const std::string& lib_path) { lib_path_ = lib_path; }
@@ -92,6 +101,7 @@ void VerilatorRuntime::EnableProfiler() { prof_enable_ = true; }
 void VerilatorRuntime::SetProfilerCycleCounterId(const int id) { prof_cycle_counter_id_ = id; }
 
 void VerilatorRuntime::Init(const Array<NDArray>& consts) {
+  VLOG(0) << "initializing verilator runtime";
   lib_ = new VerilatorLibrary();
   lib_->Load(lib_path_);
   auto alloc = reinterpret_cast<VerilatorAllocFunc>(lib_->GetSymbol("VerilatorAlloc"));

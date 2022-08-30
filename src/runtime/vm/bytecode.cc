@@ -23,6 +23,7 @@
  */
 
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/vm/bytecode.h>
 
 #include <sstream>
@@ -119,13 +120,12 @@ Instruction::Instruction(const Instruction& instr) {
       this->shape_of.tensor = instr.shape_of.tensor;
       return;
     case Opcode::ReshapeTensor:
-      this->reshape_tensor.tensor = instr.reshape_tensor.tensor;
-      this->reshape_tensor.newshape = instr.reshape_tensor.newshape;
+      this->reshape_tensor = instr.reshape_tensor;
       return;
     case Opcode::DeviceCopy:
-      this->src = instr.src;
-      this->src_device_type = instr.src_device_type;
-      this->dst_device_type = instr.dst_device_type;
+      this->device_copy = instr.device_copy;
+      return;
+    case Opcode::KillRegister:
       return;
     default:
       std::ostringstream out;
@@ -225,13 +225,12 @@ Instruction& Instruction::operator=(const Instruction& instr) {
       this->shape_of.tensor = instr.shape_of.tensor;
       return *this;
     case Opcode::ReshapeTensor:
-      this->reshape_tensor.tensor = instr.reshape_tensor.tensor;
-      this->reshape_tensor.newshape = instr.reshape_tensor.newshape;
+      this->reshape_tensor = instr.reshape_tensor;
       return *this;
     case Opcode::DeviceCopy:
-      this->src = instr.src;
-      this->src_device_type = instr.src_device_type;
-      this->dst_device_type = instr.dst_device_type;
+      this->device_copy = instr.device_copy;
+      return *this;
+    case Opcode::KillRegister:
       return *this;
     default:
       std::ostringstream out;
@@ -256,6 +255,7 @@ Instruction::~Instruction() {
     case Opcode::ReshapeTensor:
     case Opcode::DeviceCopy:
     case Opcode::Fatal:
+    case Opcode::KillRegister:
       return;
     case Opcode::AllocTensor:
       delete[] this->alloc_tensor.shape;
@@ -338,14 +338,14 @@ Instruction Instruction::AllocTensorReg(RegName storage, RegName offset, RegName
 }
 
 Instruction Instruction::AllocStorage(RegName size, Index alignment, DLDataType dtype_hint,
-                                      Index device_type, RegName dst) {
+                                      Index device_index, RegName dst) {
   Instruction instr;
   instr.op = Opcode::AllocStorage;
   instr.dst = dst;
   instr.alloc_storage.allocation_size = size;
   instr.alloc_storage.alignment = alignment;
   instr.alloc_storage.dtype_hint = dtype_hint;
-  instr.alloc_storage.device_type = device_type;
+  instr.alloc_storage.device_index = device_index;
   return instr;
 }
 
@@ -366,14 +366,21 @@ Instruction Instruction::ReshapeTensor(RegName tensor, RegName newshape, RegName
   return instr;
 }
 
-Instruction Instruction::DeviceCopy(RegName src, Index src_device_type, Index dst_device_type,
+Instruction Instruction::DeviceCopy(RegName src, Index src_device_index, Index dst_device_index,
                                     RegName dst) {
   Instruction instr;
   instr.op = Opcode::DeviceCopy;
   instr.dst = dst;
-  instr.src = src;
-  instr.src_device_type = src_device_type;
-  instr.dst_device_type = dst_device_type;
+  instr.device_copy.src = src;
+  instr.device_copy.src_device_index = src_device_index;
+  instr.device_copy.dst_device_index = dst_device_index;
+  return instr;
+}
+
+Instruction Instruction::KillRegister(RegName dst) {
+  Instruction instr;
+  instr.op = Opcode::KillRegister;
+  instr.dst = dst;
   return instr;
 }
 
@@ -502,6 +509,9 @@ void DLDatatypePrint(std::ostream& os, const DLDataType& dtype) {
     case kDLFloat:
       os << "float";
       break;
+    case kDLBfloat:
+      os << "bfloat";
+      break;
   }
 
   os << int(dtype.bits);
@@ -609,7 +619,7 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       os << "alloc_storage $" << instr.dst << " $" << instr.alloc_storage.allocation_size << " "
          << instr.alloc_storage.alignment << " "
          << DLDataType2String(instr.alloc_storage.dtype_hint) << " "
-         << instr.alloc_storage.device_type;
+         << instr.alloc_storage.device_index;
       break;
     }
     case Opcode::ShapeOf: {
@@ -622,8 +632,12 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       break;
     }
     case Opcode::DeviceCopy: {
-      os << "device_copy $" << instr.dst << " $" << instr.src << " " << instr.dst_device_type << " "
-         << instr.src_device_type;
+      os << "device_copy $" << instr.dst << " $" << instr.device_copy.src << " "
+         << instr.device_copy.dst_device_index << " " << instr.device_copy.src_device_index;
+      break;
+    }
+    case Opcode::KillRegister: {
+      os << "kill_register $" << instr.dst;
       break;
     }
     default:

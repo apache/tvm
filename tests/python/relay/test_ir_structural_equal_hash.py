@@ -16,7 +16,7 @@
 # under the License.
 import numpy as np
 import tvm
-from tvm import te
+import tvm.testing
 from tvm import relay
 from tvm.relay.testing import run_opt_pass
 
@@ -756,31 +756,45 @@ def test_fn_vid_map():
     assert consistent_equal(get_fn(False), get_fn(False))
 
 
+def test_lets():
+    shape = (5, 5)
+
+    def func1():
+        sb = relay.ScopeBuilder()
+        p0 = relay.var("p0", shape=shape)
+        p1 = relay.var("p1", shape=shape)
+        a0 = sb.let("a0", relay.add(p0, relay.const(1)))
+        a1 = sb.let("a1", relay.add(p1, relay.const(1)))
+        a2 = sb.let("a2", relay.add(a0, a1))
+        sb.ret(a2)
+        return relay.Function([p0, p1], sb.get())
+
+    def func2():
+        # Alpha conversion is structurally equal
+        sb = relay.ScopeBuilder()
+        p0 = relay.var("p0", shape=shape)
+        p1 = relay.var("p1", shape=shape)
+        a1 = sb.let("a1", relay.add(p0, relay.const(1)))
+        a0 = sb.let("a0", relay.add(p1, relay.const(1)))
+        a2 = sb.let("a2", relay.add(a1, a0))
+        sb.ret(a2)
+        return relay.Function([p0, p1], sb.get())
+
+    def func3():
+        # But changing the order of bindings is not structurally equal
+        # (even though algebraically equal)
+        sb = relay.ScopeBuilder()
+        p0 = relay.var("p0", shape=shape)
+        p1 = relay.var("p1", shape=shape)
+        a1 = sb.let("a1", relay.add(p1, relay.const(1)))
+        a0 = sb.let("a0", relay.add(p0, relay.const(1)))
+        a2 = sb.let("a2", relay.add(a1, a0))
+        sb.ret(a2)
+        return relay.Function([p0, p1], sb.get())
+
+    assert tvm.ir.structural_equal(func1(), func2())
+    assert not tvm.ir.structural_equal(func1(), func3())
+
+
 if __name__ == "__main__":
-    test_fn_vid_map()
-    test_tensor_type_sequal()
-    test_incomplete_type_sequal()
-    test_constant_sequal()
-    test_type_node_sequal()
-    test_type_node_incompatible_sequal()
-    test_expr_node_incompatible_sequal()
-    test_func_type_sequal()
-    test_tuple_type_sequal()
-    test_type_relation_sequal()
-    test_type_call_sequal()
-    test_constant_sequal()
-    test_global_var_sequal()
-    test_tuple_sequal()
-    test_tuple_get_item_sequal()
-    test_function_sequal()
-    test_function_attr()
-    test_call_sequal()
-    test_let_sequal()
-    test_if_sequal()
-    test_constructor_sequal()
-    test_match_sequal()
-    test_op_sequal()
-    test_var_sequal()
-    test_graph_equal()
-    test_hash_unequal()
-    test_fn_attribute()
+    tvm.testing.main()

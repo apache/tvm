@@ -68,6 +68,7 @@ def test_mutate_tile_size():
     assert found
 
 
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/11440")
 def test_mutate_parallel():
     """
     The test case initializes evo search with a batch of "bad" states and check whether

@@ -25,6 +25,7 @@
 
 #include <tvm/node/functor.h>
 #include <tvm/runtime/data_type.h>
+#include <tvm/runtime/ndarray.h>
 
 #include <functional>
 #include <string>
@@ -197,6 +198,14 @@ class SHashReducer {
    *        by their in-memory address.
    */
   bool map_free_vars_;
+};
+
+class SEqualReducer;
+struct NDArrayContainerTrait {
+  static constexpr const std::nullptr_t VisitAttrs = nullptr;
+  static void SHashReduce(const runtime::NDArray::Container* key, SHashReducer hash_reduce);
+  static bool SEqualReduce(const runtime::NDArray::Container* lhs,
+                           const runtime::NDArray::Container* rhs, SEqualReducer equal);
 };
 
 }  // namespace tvm

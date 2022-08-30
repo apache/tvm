@@ -21,31 +21,40 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relay, te
-from tvm.relay import create_executor, transform
 from tvm.relay.testing import check_grad, run_infer_type
 
+executor_kind = tvm.testing.parameter("debug", "vm")
 
-def verify_func(func, data, ref_res, target_device=tvm.testing.enabled_targets()):
+
+def verify_func(executor_kind, func, data, ref_res, target_device=tvm.testing.enabled_targets()):
     assert isinstance(data, list)
     for target, dev in target_device:
-        for kind in ["vm", "debug"]:
-            mod = tvm.ir.IRModule.from_expr(func)
-            op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                *data
-            )
-            if isinstance(op_res, tvm.runtime.container.ADT):
-                assert len(op_res) == len(
-                    ref_res
-                ), "Outputs from TVM and Python implementation must be equal "
-                for op_result, ref_result in zip(op_res, ref_res):
-                    tvm.testing.assert_allclose(op_result.numpy(), ref_result, rtol=1e-5)
-            else:
-                tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
-            relay.backend.te_compiler.get().clear()
+        mod = tvm.ir.IRModule.from_expr(func)
+        op_res = relay.create_executor(
+            executor_kind, mod=mod, device=dev, target=target
+        ).evaluate()(*data)
+        if isinstance(op_res, tvm.runtime.container.ADT):
+            assert len(op_res) == len(
+                ref_res
+            ), "Outputs from TVM and Python implementation must be equal "
+            for op_result, ref_result in zip(op_res, ref_res):
+                tvm.testing.assert_allclose(op_result.numpy(), ref_result, rtol=1e-5)
+        else:
+            tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
+        relay.backend.te_compiler.get().clear()
+
+
+def check_on_vm(target, dev, args, expected_result, mod):
+    """
+    Check that evaluating `expr` applied to the arguments produces
+    `result` on Relay VM.
+    """
+    rts_result = relay.create_executor("vm", device=dev, target=target, mod=mod).evaluate()(*args)
+    tvm.testing.assert_allclose(expected_result, rts_result.numpy())
 
 
 @tvm.testing.uses_gpu
-def test_dyn_reshape():
+def test_dyn_reshape(executor_kind):
     def verify_reshape(shape, newshape, oshape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
         y = relay.var("y", relay.TensorType((len(newshape),), "int64"))
@@ -61,7 +70,7 @@ def test_dyn_reshape():
             test_inputs=[x_data],
             eps=1e-3,
         )
-        verify_func(func, [x_data, np.array(newshape).astype("int64")], ref_res)
+        verify_func(executor_kind, func, [x_data, np.array(newshape).astype("int64")], ref_res)
 
     verify_reshape((2, 3, 4), (8, 3), (8, 3))
     verify_reshape((4, 7), (2, 7, 2), (2, 7, 2))
@@ -75,7 +84,7 @@ def test_dyn_reshape():
 
 
 @tvm.testing.uses_gpu
-def test_dyn_shape_reshape():
+def test_dyn_shape_reshape(executor_kind):
     def verify_reshape(shape, newshape, oshape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
         y = relay.var("y", relay.TensorType(newshape, "float32"))
@@ -86,13 +95,13 @@ def test_dyn_shape_reshape():
         y_data = np.random.uniform(low=-1, high=1, size=newshape).astype("float32")
         ref_res = np.reshape(x_data, oshape)
         check_grad(run_infer_type(func), inputs=[x_data, y_data], eps=1e-3)
-        verify_func(func, [x_data, y_data], ref_res)
+        verify_func(executor_kind, func, [x_data, y_data], ref_res)
 
     verify_reshape((2, 3, 4), (8, 3), (8, 3))
     verify_reshape((4, 7), (2, 7, 2), (2, 7, 2))
 
 
-def test_squeeze():
+def test_squeeze(executor_kind):
     def verify_squeeze(shape, dtype, axis):
         x = relay.var("x", relay.TensorType(shape, dtype))
         assert axis is not None
@@ -102,14 +111,14 @@ def test_squeeze():
         func = relay.Function([x, axis], squeeze)
         x_data = np.random.random_sample(shape).astype(dtype)
         ref_res = np.squeeze(x_data, axis=np_axis)
-        verify_func(func, [x_data, np.array(np_axis).astype("int64")], ref_res)
+        verify_func(executor_kind, func, [x_data, np.array(np_axis).astype("int64")], ref_res)
 
     verify_squeeze((1, 3, 1), "float32", [0])
     verify_squeeze((1, 2, 1, 2, 1), "float32", [0, 2])
 
 
 @tvm.testing.uses_gpu
-def test_dyn_expand_dims():
+def test_dyn_expand_dims(executor_kind):
     def verify_expand_dims(
         dshape, dtype, oshape, axis, num_newaxis, target_device=tvm.testing.enabled_targets()
     ):
@@ -122,7 +131,7 @@ def test_dyn_expand_dims():
         data_np = np.random.uniform(size=dshape).astype(dtype)
         axis_np = np.array(axis).astype("int64")
         ref_res = data_np.reshape(oshape)
-        verify_func(func, [data_np, axis_np], ref_res, target_device=target_device)
+        verify_func(executor_kind, func, [data_np, axis_np], ref_res, target_device=target_device)
 
     for dtype in ["float16", "float32"]:
         verify_expand_dims((2, 2), dtype, (2, 2, 1), 2, 1)
@@ -138,7 +147,7 @@ def test_dyn_expand_dims():
 
 
 @tvm.testing.uses_gpu
-def test_dyn_tile():
+def test_dyn_tile(executor_kind):
     def verify_tile(dshape, reps):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         r = relay.var("reps", relay.TensorType((len(reps),), "float32"))
@@ -148,7 +157,7 @@ def test_dyn_tile():
         x_data = np.random.uniform(low=-1, high=1, size=dshape).astype("float32")
         ref_res = np.tile(x_data, reps=reps)
         reps_data = np.array(reps).astype("float32")
-        verify_func(func, [x_data, np.array(reps).astype("float32")], ref_res)
+        verify_func(executor_kind, func, [x_data, np.array(reps).astype("float32")], ref_res)
 
     verify_tile((2, 3, 4), (3, 2, 1))
     verify_tile((2, 3, 4), (1, 2))
@@ -156,7 +165,7 @@ def test_dyn_tile():
 
 
 @tvm.testing.uses_gpu
-def test_dyn_zeros_ones():
+def test_dyn_zeros_ones(executor_kind):
     def verify_zeros_ones(shape, dtype):
         for op, ref in [(relay.zeros, np.zeros), (relay.ones, np.ones)]:
             rank = len(shape)
@@ -167,14 +176,16 @@ def test_dyn_zeros_ones():
 
             func = relay.Function([dyn_shape], y)
             ref_res = ref(shape, dtype)
-            verify_func(func, [np.array(shape).astype("int64")], ref_res.astype("int64"))
+            verify_func(
+                executor_kind, func, [np.array(shape).astype("int64")], ref_res.astype("int64")
+            )
 
     verify_zeros_ones((1, 3), "int64")
     verify_zeros_ones((8, 9, 1, 2), "float32")
 
 
 @tvm.testing.uses_gpu
-def test_dyn_full():
+def test_dyn_full(executor_kind):
     def verify_full(fill_value, src_shape, dtype):
         x = relay.var("x", relay.scalar_type(dtype))
         rank = len(src_shape)
@@ -184,7 +195,10 @@ def test_dyn_full():
         ref_res = np.full(src_shape, fill_value).astype(dtype)
 
         verify_func(
-            func, [np.array(fill_value).astype(dtype), np.array(src_shape).astype("int64")], ref_res
+            executor_kind,
+            func,
+            [np.array(fill_value).astype(dtype), np.array(src_shape).astype("int64")],
+            ref_res,
         )
 
     verify_full(4, (1, 3, 4, 4), "int32")
@@ -193,7 +207,7 @@ def test_dyn_full():
 
 
 @tvm.testing.uses_gpu
-def test_dyn_sparse_to_dense():
+def test_dyn_sparse_to_dense(executor_kind):
     def verify_sparse_to_dense(sparse_indices, sparse_values, default_value, output_shape, xpected):
         sparse_indices_data = np.array(sparse_indices)
         sparse_values_data = np.array(sparse_values)
@@ -234,7 +248,7 @@ def test_dyn_sparse_to_dense():
                 output_shape_data,
             ]
 
-        verify_func(func, arguments, xpected)
+        verify_func(executor_kind, func, arguments, xpected)
 
     verify_sparse_to_dense(1, 3, 0, [5], [0, 3, 0, 0, 0])  # scalar
     verify_sparse_to_dense([0, 1, 4], [3, 3, 3], 0, [5], [3, 3, 0, 0, 3])  # vector
@@ -293,7 +307,7 @@ def test_dyn_sparse_to_dense():
 @pytest.mark.parametrize("dtype", [np.int64, np.int32])
 @pytest.mark.parametrize("use_dyn", [True, False])
 def test_sparse_fill_empty_rows(
-    sparse_indices, sparse_values, dense_shape, default_value, dtype, use_dyn
+    sparse_indices, sparse_values, dense_shape, default_value, dtype, use_dyn, executor_kind
 ):
     def ref_sparse_fill_empty_rows(
         sparse_indices: np.ndarray,
@@ -396,6 +410,7 @@ def test_sparse_fill_empty_rows(
         assert empty_row_indicator_infer_type.checked_type.dtype == "bool"
 
         verify_func(
+            executor_kind,
             func,
             [sparse_indices_np, sparse_values_np, dense_shape_np, default_value_np],
             ref_res,
@@ -410,5 +425,57 @@ def test_sparse_fill_empty_rows(
     )
 
 
+def test_dyn_copy():
+    target = tvm.target.Target("llvm")
+    dev = tvm.cpu()
+    mod = tvm.parser.fromtext(
+        """
+        #[version = "0.0.5"]
+        def @main(%x: Tensor[(?, 3), int64]) -> Tensor[(?, 3), int64] {
+          copy(%x)
+        }
+        """
+    )
+    x_data = np.random.rand(15, 3).astype("int64")
+    expected = x_data
+    check_on_vm(target, dev, [x_data], expected, mod)
+
+
+def test_dyn_copy_scalar():
+    target = tvm.target.Target("llvm")
+    dev = tvm.cpu()
+    mod = tvm.parser.fromtext(
+        """
+        #[version = "0.0.5"]
+        def @main(%x: int32, %y: Tensor[(?), int32]) -> Tensor[(?), int32] {
+          %0 = copy(%x);
+          %1 = expand_dims(%0, axis=0);
+          %2 = (%y, %1);
+          concatenate(%2)
+        }
+        """
+    )
+    x_data = 3
+    y_data = np.random.rand(7).astype("int32")
+    expected = np.concatenate((y_data, np.expand_dims(x_data, axis=0)))
+    check_on_vm(target, dev, [x_data, y_data], expected, mod)
+
+
+def test_dyn_cast():
+    target = tvm.target.Target("llvm")
+    dev = tvm.cpu()
+    mod = tvm.parser.fromtext(
+        """
+        #[version = "0.0.5"]
+        def @main(%x: Tensor[(?, 3), int64]) -> Tensor[(?, 3), int32] {
+          cast(%x, dtype="int32")
+        }
+        """
+    )
+    x_data = np.random.rand(15, 3).astype("int64")
+    expected = x_data.astype("int32")
+    check_on_vm(target, dev, [x_data], expected, mod)
+
+
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

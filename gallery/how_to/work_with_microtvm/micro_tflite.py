@@ -25,6 +25,12 @@ This tutorial is an introduction to working with microTVM and a TFLite
 model with Relay.
 """
 
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
+
 ######################################################################
 # .. note::
 #     If you want to run this tutorial on the microTVM Reference VM, download the Jupyter
@@ -123,15 +129,18 @@ model with Relay.
 # directory into a buffer
 
 import os
+import json
+import tarfile
+import pathlib
+import tempfile
 import numpy as np
-import logging
 
 import tvm
-import tvm.micro as micro
-from tvm.contrib.download import download_testdata
-from tvm.contrib import graph_executor, utils
 from tvm import relay
+import tvm.contrib.utils
+from tvm.contrib.download import download_testdata
 
+use_physical_hw = bool(os.getenv("TVM_MICRO_USE_HW"))
 model_url = "https://people.linaro.org/~tom.gall/sine_model.tflite"
 model_file = "sine_model.tflite"
 model_path = download_testdata(model_url, model_file, module="data")
@@ -179,11 +188,12 @@ mod, params = relay.frontend.from_tflite(
 # Now we create a build config for relay, turning off two options and then calling relay.build which
 # will result in a C source file for the selected TARGET. When running on a simulated target of the
 # same architecture as the host (where this Python script is executed) choose "host" below for the
-# TARGET and a proper board/VM to run it (Zephyr will create the right QEMU VM based on BOARD. In
-# the example below the x86 arch is selected and a x86 VM is picked up accordingly:
+# TARGET, the C Runtime as the RUNTIME and a proper board/VM to run it (Zephyr will create the right
+# QEMU VM based on BOARD. In the example below the x86 arch is selected and a x86 VM is picked up accordingly:
 #
+RUNTIME = tvm.relay.backend.Runtime("crt", {"system-lib": True})
 TARGET = tvm.target.target.micro("host")
-BOARD = "qemu_x86"
+
 #
 # Compiling for physical hardware
 #  When running on physical hardware, choose a TARGET and a BOARD that describe the hardware. The
@@ -192,8 +202,15 @@ BOARD = "qemu_x86"
 #  board but a couple of wirings and configs differ, it's necessary to select the "stm32f746g_disco"
 #  board to generated the right firmware image.
 #
-#  TARGET = tvm.target.target.micro("stm32f746xx")
-#  BOARD = "nucleo_f746zg" # or "stm32f746g_disco#"
+
+if use_physical_hw:
+    boards_file = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr")) / "boards.json"
+    with open(boards_file) as f:
+        boards = json.load(f)
+
+    BOARD = os.getenv("TVM_MICRO_BOARD", default="nucleo_f746zg")
+    TARGET = tvm.target.target.micro(boards[BOARD]["model"])
+
 #
 #  For some boards, Zephyr runs them emulated by default, using QEMU. For example, below is the
 #  TARGET and BOARD used to build a microTVM firmware for the mps2-an521 board. Since that board
@@ -210,7 +227,7 @@ BOARD = "qemu_x86"
 with tvm.transform.PassContext(
     opt_level=3, config={"tir.disable_vectorize": True}, disabled_pass=["AlterOpLayout"]
 ):
-    module = relay.build(mod, target=TARGET, params=params)
+    module = relay.build(mod, target=TARGET, runtime=RUNTIME, params=params)
 
 
 # Inspecting the compilation output
@@ -239,14 +256,11 @@ print("\n".join(first_few_lines))
 # (:doc:`Model Library Format` </dev/model_library_format>`). This is a tarball with a standard layout:
 
 # Get a temporary path where we can store the tarball (since this is running as a tutorial).
-import tempfile
 
 fd, model_library_format_tar_path = tempfile.mkstemp()
 os.close(fd)
 os.unlink(model_library_format_tar_path)
 tvm.micro.export_model_library_format(module, model_library_format_tar_path)
-
-import tarfile
 
 with tarfile.open(model_library_format_tar_path, "r:*") as tar_f:
     print("\n".join(f" - {m.name}" for m in tar_f.getmembers()))
@@ -266,9 +280,6 @@ os.unlink(model_library_format_tar_path)
 # this lives in a file ``microtvm_api_server.py`` in the root directory). Let's use the example ``host``
 # project in this tutorial, which simulates the device using a POSIX subprocess and pipes:
 
-import subprocess
-import pathlib
-
 template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("crt"))
 project_options = {}  # You can use options to provide platform-specific options through TVM.
 
@@ -277,11 +288,12 @@ project_options = {}  # You can use options to provide platform-specific options
 #  For physical hardware, you can try out the Zephyr platform by using a different template project
 #  and options:
 #
-#     template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr"))
-#     project_options = {"project_type": "host_driven", zephyr_board": "nucleo_f746zg"}}
+
+if use_physical_hw:
+    template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr"))
+    project_options = {"project_type": "host_driven", "zephyr_board": BOARD}
 
 # Create a temporary directory
-import tvm.contrib.utils
 
 temp_dir = tvm.contrib.utils.tempdir()
 generated_project_dir = temp_dir / "generated-project"

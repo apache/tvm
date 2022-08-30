@@ -103,5 +103,5 @@ def correlation_nchw_python(
                                     pad_data2[nbatch, channel, y2 + h, x2 + w],
                                 )
 
-    out /= float(kernel_size ** 2 * data1.shape[1])
+    out /= float(kernel_size**2 * data1.shape[1])
     return out

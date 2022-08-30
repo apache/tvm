@@ -35,6 +35,28 @@ class Report(Object):
         Per-device metrics collected over the entire run.
     """
 
+    def __init__(
+        self,
+        calls: Sequence[Dict[str, Object]],
+        device_metrics: Dict[str, Dict[str, Object]],
+        configuration: Dict[str, Object],
+    ):
+        """Construct a profiling report from a list of metrics and per-device metrics.
+
+        Parameters
+        ----------
+        calls : Sequence[Dict[str, Object]]
+            Per function call metrics.
+
+        device_metrics : Dict[str, Dict[str, Object]]
+            Per device metrics.
+
+        configuration : Dict[str, Object]
+            Configuration of TVM for this profiling run. Includes number of
+            threads, executor.
+        """
+        self.__init_handle_by_constructor__(_ffi_api.Report, calls, device_metrics, configuration)
+
     def csv(self):
         """Convert this profiling report into CSV format.
 
@@ -150,6 +172,38 @@ class Report(Object):
         return _ffi_api.FromJSON(s)
 
 
+@_ffi.register_object("runtime.profiling.Count")
+class Count(Object):
+    """A integer count of something"""
+
+    def __init__(self, count: int):
+        self.__init_handle_by_constructor__(_ffi_api.Count, count)
+
+
+@_ffi.register_object("runtime.profiling.Duration")
+class Duration(Object):
+    """A duration of something"""
+
+    def __init__(self, duration: float):
+        self.__init_handle_by_constructor__(_ffi_api.Duration, duration)
+
+
+@_ffi.register_object("runtime.profiling.Percent")
+class Percent(Object):
+    """A Percent of something"""
+
+    def __init__(self, percent: float):
+        self.__init_handle_by_constructor__(_ffi_api.Percent, percent)
+
+
+@_ffi.register_object("runtime.profiling.Ratio")
+class Ratio(Object):
+    """A Ratio of two things"""
+
+    def __init__(self, ratio: float):
+        self.__init_handle_by_constructor__(_ffi_api.Ratio, ratio)
+
+
 @_ffi.register_object("runtime.profiling.MetricCollector")
 class MetricCollector(Object):
     """Interface for user defined profiling metric collection."""
@@ -161,6 +215,58 @@ class DeviceWrapper(Object):
 
     def __init__(self, dev: Device):
         self.__init_handle_by_constructor__(_ffi_api.DeviceWrapper, dev)
+
+
+def profile_function(mod, dev, collectors, func_name=None, warmup_iters=10):
+    """Collect performance information of a function execution. Usually used with
+    a compiled PrimFunc.
+
+    This information can include performance counters like cache hits and FLOPs
+    that are useful in debugging performance issues of individual PrimFuncs.
+    Different metrics can be collected depending on which MetricCollector is
+    used.
+
+    Example
+    -------
+
+    .. code-block: python
+        f = tvm.build(my_func, target="llvm", name="my_func")
+        prof = tvm.runtime.profiling.profile_function(
+            f,
+            tvm.cpu(),
+            [tvm.runtime.profiling.PAPIMetricCollector({tvm.cpu(): ["PAPI_FP_OPS"]}),
+        )
+        counters = prof(*args)
+        print(counters)
+
+    Parameters
+    ----------
+    mod: Module
+        Module containing the function to profile.
+    dev: Device
+        Device to run the function on.
+
+    collectors: List[MetricCollector]
+        :py:class:`MetricCollector`s which will collect performance information.
+    func_name: Optional[str]
+        Name of the function in `mod` to profile. Defaults to the `entry_name` of `mod`.
+    warmup_iters: int
+        Number of iterations to run the function before collecting performance
+        information. Recommended to set this larger than 0 for consistent cache
+        effects. Defaults to 10.
+
+    Returns
+    -------
+    prof: PackedFunc[args, Dict[str, ObjectRef]]
+        PackedFunc which takes the same arguments as the `mod[func_name]` and
+        returns performance metrics as a `Dict[str, ObjectRef]` where values
+        can be `CountNode`, `DurationNode`, `PercentNode`.
+    """
+    if func_name is None:
+        func_name = mod.entry_name
+    return _ffi_api.ProfileFunction(
+        mod, func_name, dev.device_type, dev.device_id, warmup_iters, collectors
+    )
 
 
 # We only enable this class when TVM is build with PAPI support

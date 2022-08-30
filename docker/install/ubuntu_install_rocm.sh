@@ -21,10 +21,8 @@ set -u
 set -o pipefail
 
 # Install ROCm cross compilation toolchain.
-wget -qO - http://repo.radeon.com/rocm/apt/debian/rocm.gpg.key | sudo apt-key add -
-echo deb [arch=amd64] http://repo.radeon.com/rocm/apt/debian/ xenial main > /etc/apt/sources.list.d/rocm.list
-apt-get update && apt-get install -y \
+wget -qO - https://repo.radeon.com/rocm/rocm.gpg.key | sudo apt-key add -
+echo 'deb [arch=amd64] https://repo.radeon.com/rocm/apt/4.3/ ubuntu main' | sudo tee /etc/apt/sources.list.d/rocm.list
+apt-get update && apt-install-and-clear -y \
     rocm-dev \
-    lld && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    lld-12

@@ -164,6 +164,53 @@ def get_pad_tuple(padding, kernel):
     return pad_top, pad_left, pad_h - pad_top, pad_w - pad_left
 
 
+def get_pad_tuple_generic(padding, kernel):
+    """Common code to get the pad option
+
+    Parameters
+    ----------
+    padding : int or str
+        Padding size, or ['VALID', 'SAME']
+
+    kernel : tuple of int
+        Conv kernel size
+
+    Returns
+    -------
+    pad_top : int
+        Padding size on top
+
+    pad_down : int
+        Padding size on down.
+
+    pad_left : int
+        Padding size on left
+
+    pad_right : int
+        Padding size on right.
+    """
+    # compute the padding size
+    if isinstance(padding, (tuple, list)):
+        if len(padding) == len(kernel):
+            pad_dimensions = [p * 2 for p in padding]
+        elif len(padding) == len(kernel) * 2:
+            return [padding[i] for i in range(len(kernel))], [
+                padding[len(kernel) + i] for i in range(len(kernel))
+            ]
+        else:
+            raise ValueError("Size of padding can only be len(kernel) or len(kernel) * 2")
+    elif isinstance(padding, int):
+        pad_dimensions = [padding * 2 for _ in range(len(kernel))]
+    elif padding == "VALID":
+        pad_dimensions = [0 for _ in range(len(kernel))]
+    elif padding == "SAME":
+        pad_dimensions = [k - 1 for k in kernel]
+    else:
+        raise ValueError("Unknown padding option %s" % padding)
+    pad_begin = [(p + 1) // 2 for p in pad_dimensions]
+    return [pad_begin, [pd - pb for pb, pd in zip(pad_begin, pad_dimensions)]]
+
+
 def get_pad_tuple3d(padding, kernel):
     """Common code to get the pad option
 
@@ -212,9 +259,9 @@ def get_pad_tuple3d(padding, kernel):
         pad_w = 0
         pad_d = 0
     elif padding == "SAME":
-        pad_h = kernel[0] - 1
-        pad_w = kernel[1] - 1
-        pad_d = kernel[2] - 1
+        pad_d = kernel[0] - 1
+        pad_h = kernel[1] - 1
+        pad_w = kernel[2] - 1
     else:
         raise ValueError("Unknown padding option %s" % padding)
     pad_top = (pad_h + 1) // 2

@@ -128,6 +128,20 @@ def test_channelwise_axis_0():
     )
 
 
+def test_per_tensor_vector_args():
+    data = np.array([0, 1, 2, 3, 4, 251, 252, 253, 254, 255]).astype("uint8")
+    output = np.array([-63.5, -63, -62.5, -62, -61.5, 62, 62.5, 63, 63.5, 64]).astype("float32")
+
+    quant_args = {
+        "in_zero_point": np.array([127]).astype("int32"),
+        "in_scale": np.array([0.5]).astype("float32"),
+    }
+
+    dequantize_test_driver(
+        in_dtype="uint8", quant_args=quant_args, in_data=data, verify_output_data=output, axis=-1
+    )
+
+
 def test_dynamic_dequantize():
     x = relay.var("x", shape=(1, 2, 3, 4), dtype="int8")
     scale_var = relay.var("scale", shape=(), dtype="float32")

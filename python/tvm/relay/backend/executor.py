@@ -27,6 +27,8 @@ from . import _backend
 class Executor(Object):
     """Executor configuration"""
 
+    flag_registry_name = "executor"
+
     def __init__(self, name, options=None) -> None:
         if options is None:
             options = {}
@@ -39,12 +41,15 @@ class Executor(Object):
     def __getitem__(self, name):
         return self._attrs[name]
 
+    def __eq__(self, other):
+        return str(other) == str(self) and dict(other._attrs) == dict(self._attrs)
+
     @staticmethod
-    def list_executors():
+    def list_registered():
         """Returns a list of possible executors"""
         return list(_backend.ListExecutors())
 
     @staticmethod
-    def list_executor_options(executor):
+    def list_registered_options(executor):
         """Returns the dict of available option names and types"""
         return dict(_backend.ListExecutorOptions(str(executor)))

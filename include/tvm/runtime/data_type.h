@@ -57,7 +57,7 @@ class DataType {
     kCustomBegin = 129
   };
   /*! \brief default constructor */
-  DataType() {}
+  DataType() { data_ = DataType::Void(); }
   /*!
    * \brief Constructor
    * \param dtype The DLDataType

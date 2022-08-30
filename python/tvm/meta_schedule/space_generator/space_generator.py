@@ -18,7 +18,7 @@
 Meta Schedule design space generators that generates design
 space for generation of measure candidates.
 """
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, Callable, List, Optional, Union
 
 from tvm._ffi import register_object
 from tvm.ir import IRModule
@@ -26,7 +26,6 @@ from tvm.runtime import Object
 from tvm.tir.schedule import Schedule
 
 from .. import _ffi_api
-from ..utils import check_override
 
 if TYPE_CHECKING:
     from ..tune_context import TuneContext
@@ -36,19 +35,22 @@ if TYPE_CHECKING:
 class SpaceGenerator(Object):
     """The abstract design space generator interface."""
 
-    def initialize_with_tune_context(
-        self,
-        tune_context: "TuneContext",
-    ) -> None:
+    ScheduleFnType = Union[
+        Callable[[Schedule], None],  # No output
+        Callable[[Schedule], Schedule],  # Single output
+        Callable[[Schedule], List[Schedule]],  # Multiple outputs
+    ]
+
+    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         """Initialize the design space generator with tuning context.
 
         Parameters
         ----------
-        tune_context : TuneContext
+        context : TuneContext
             The tuning context for initializing the design space generator.
         """
         _ffi_api.SpaceGeneratorInitializeWithTuneContext(  # type: ignore # pylint: disable=no-member
-            self, tune_context
+            self, context
         )
 
     def generate_design_space(self, mod: IRModule) -> List[Schedule]:
@@ -67,23 +69,66 @@ class SpaceGenerator(Object):
         return _ffi_api.SpaceGeneratorGenerateDesignSpace(self, mod)  # type: ignore # pylint: disable=no-member
 
 
+ScheduleFnType = SpaceGenerator.ScheduleFnType
+
+
 @register_object("meta_schedule.PySpaceGenerator")
-class PySpaceGenerator(SpaceGenerator):
-    """An abstract design space generator with customized methods on the python-side."""
+class _PySpaceGenerator(SpaceGenerator):
+    """
+    A TVM object space generator to support customization on the python side.
+    This is NOT the user facing class for function overloading inheritance.
 
-    def __init__(self):
+    See also: PySpaceGenerator
+    """
+
+    def __init__(
+        self,
+        f_initialize_with_tune_context: Optional[Callable] = None,
+        f_generate_design_space: Optional[Callable] = None,
+    ):
         """Constructor."""
-
-        @check_override(self.__class__, SpaceGenerator)
-        def f_initialize_with_tune_context(tune_context: "TuneContext") -> None:
-            self.initialize_with_tune_context(tune_context)
-
-        @check_override(self.__class__, SpaceGenerator)
-        def f_generate_design_space(mod: IRModule) -> List[Schedule]:
-            return self.generate_design_space(mod)
 
         self.__init_handle_by_constructor__(
             _ffi_api.SpaceGeneratorPySpaceGenerator,  # type: ignore # pylint: disable=no-member
             f_initialize_with_tune_context,
             f_generate_design_space,
         )
+
+
+class PySpaceGenerator:
+    """
+    An abstract space generator with customized methods on the python-side.
+    This is the user facing class for function overloading inheritance.
+
+    Note: @derived_object is required for proper usage of any inherited class.
+    """
+
+    _tvm_metadata = {
+        "cls": _PySpaceGenerator,
+        "methods": ["_initialize_with_tune_context", "generate_design_space"],
+    }
+
+    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
+        """Initialize the design space generator with tuning context.
+
+        Parameters
+        ----------
+        context : TuneContext
+            The tuning context for initializing the design space generator.
+        """
+        raise NotImplementedError
+
+    def generate_design_space(self, mod: IRModule) -> List[Schedule]:
+        """Generate design spaces given a module.
+
+        Parameters
+        ----------
+        mod : IRModule
+            The module used for design space generation.
+
+        Returns
+        -------
+        design_spaces : List[Schedule]
+            The generated design spaces, i.e., schedules.
+        """
+        raise NotImplementedError

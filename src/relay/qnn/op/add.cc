@@ -45,6 +45,12 @@ Expr QnnAddCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   // Get the input dtype and shape.
   QnnBinaryOpTensorType input_type(arg_types, 0);
 
+  const auto* broadcast_attrs = attrs.as<BroadcastAttrs>();
+  ICHECK(broadcast_attrs != nullptr);
+
+  auto lhs_axis = broadcast_attrs->lhs_axis;
+  auto rhs_axis = broadcast_attrs->rhs_axis;
+
   // FIXME (anijain2305) - The lowering can be further optimized. Instead of inserting requantize in
   // the start, we can insert requantize at the end if both input tensors have same qnn params. In
   // that case, we can first add the tensors, subtract the zero point, and requantize at the end.
@@ -52,7 +58,7 @@ Expr QnnAddCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
 
   // Since the input qnn params can be different than output qnn params, we first requantize the
   // input tensors to the output qnn params. Then we call relay.add on the requantized inputs. This
-  // addition results in extra addition of the output zero point. We futher subtract the zero
+  // addition results in extra addition of the output zero point. We further subtract the zero
   // point. The whole process can be represented using following equations
   //
   //          scale_c * (Q_c - zp_c) = scale_a * (Q_a - zp_a) + scale_b * (Q_b - zp_b)
@@ -68,11 +74,11 @@ Expr QnnAddCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   // Requantize LHS if necessary. Computes Q_a'
   auto requantized_lhs =
       RequantizeOrUpcast(args.lhs, args.lhs_scale, args.lhs_zero_point, args.output_scale,
-                         args.output_zero_point, input_type.shape);
+                         args.output_zero_point, input_type.shape, lhs_axis);
   // Requantize RHS if necessary. Computes Q_b'
   auto requantized_rhs =
       RequantizeOrUpcast(args.rhs, args.rhs_scale, args.rhs_zero_point, args.output_scale,
-                         args.output_zero_point, input_type.shape);
+                         args.output_zero_point, input_type.shape, rhs_axis);
   // Computes Q_a' + Q_b'
   auto output = Add(requantized_lhs, requantized_rhs);
 
@@ -88,7 +94,7 @@ Expr QnnAddCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
 
 // QNN Addition operator.
 QNN_REGISTER_BINARY_OP("add")
-    .describe("Elementwise add with with broadcasting for quantized tensors.")
+    .describe("Elementwise add with broadcasting for quantized tensors.")
     .set_support_level(11)
     .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnAddCanonicalize);
 

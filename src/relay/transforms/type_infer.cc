@@ -41,6 +41,7 @@
 #include <tvm/ir/transform.h>
 #include <tvm/ir/type_functor.h>
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/dataflow_matcher.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 #include <tvm/relay/transform.h>
@@ -181,7 +182,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       return it->second.checked_type;
     }
     Type ret = this->VisitExpr(expr);
-    ICHECK(ret.defined());
+    ICHECK(ret.defined()) << "expression:" << std::endl << PrettyPrint(expr);
     KindCheck(ret, mod_, this->diag_ctx);
     ResolvedTypeInfo& rti = type_map_[expr];
     rti.checked_type = ret;
@@ -208,14 +209,19 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     if (mod_->ContainGlobalVar(var->name_hint)) {
       BaseFunc func = mod_->Lookup(var->name_hint);
 
-      if (func->IsInstance<FunctionNode>()) {
-        relay::Function relay_func = Downcast<Function>(func);
-        return relay_func->checked_type();
+      if (const auto* function_node = func.as<FunctionNode>()) {
+        VLOG(1) << "global var '" << op->name_hint << "' bound to Function";
+        return function_node->checked_type();
+      } else {
+        VLOG(1) << "global var '" << op->name_hint << "' bound to PrimFunc";
+        return op->checked_type_;
       }
+    } else {
+      // TODO(mbs): extern function cleanup
+      // Assume the function is extern thus no longer in the IRModule.
+      VLOG(1) << "global var '" << op->name_hint << "' not in module";
+      return op->checked_type_;
     }
-    // Return op->checked_type if the module doesn't contain the GlobalVar or the function is a
-    // PrimFunc (we don't typecheck PrimFuncs)
-    return op->checked_type_;
   }
 
   Type VisitExpr_(const ConstantNode* op) final { return op->tensor_type(); }
@@ -500,27 +506,49 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
 
     size_t type_arity = fn_ty->arg_types.size();
     size_t number_of_args = arg_types.size();
+    bool is_variable = false;
 
-    if (type_arity != number_of_args) {
-      if (type_arity < number_of_args) {
-        this->EmitFatal(Diagnostic::Error(call->span)
-                        << "the function is provided too many arguments "
-                        << "expected " << type_arity << ", found " << number_of_args);
-      } else {
-        this->EmitFatal(Diagnostic::Error(call->span)
-                        << "the function is provided too few arguments "
-                        << "expected " << type_arity << ", found " << number_of_args);
+    if (const OpNode* opnode = call->op.as<OpNode>()) {
+      if (opnode->num_inputs == -1) {
+        is_variable = true;
       }
     }
 
-    for (size_t i = 0; i < fn_ty->arg_types.size(); i++) {
-      this->Unify(fn_ty->arg_types[i], arg_types[i], call->span, true, false);
+    if ((type_arity < number_of_args) && !is_variable) {
+      this->EmitFatal(Diagnostic::Error(call->span)
+                      << "the function is provided too many arguments "
+                      << "expected " << type_arity << ", found " << number_of_args);
+    } else if (type_arity > number_of_args) {
+      this->EmitFatal(Diagnostic::Error(call->span)
+                      << "the function is provided too few arguments "
+                      << "expected " << type_arity << ", found " << number_of_args);
     }
 
+    Array<Type> unified_arg_types;
+    if (!is_variable) {
+      for (size_t i = 0; i < fn_ty->arg_types.size(); i++) {
+        this->Unify(fn_ty->arg_types[i], arg_types[i], call->span, true, false);
+      }
+    } else {
+      for (size_t i = 0; i < number_of_args; i++) {
+        if (i < fn_ty->arg_types.size()) {
+          unified_arg_types.push_back(
+              this->Unify(fn_ty->arg_types[i], arg_types[i], call->span, false, false));
+        } else {
+          unified_arg_types.push_back(arg_types[i]);
+        }
+      }
+      unified_arg_types.push_back(fn_ty->ret_type);
+    }
     for (auto cs : fn_ty->type_constraints) {
       if (const auto* tr = cs.as<TypeRelationNode>()) {
-        solver_.AddConstraint(TypeRelation(tr->func, tr->args, tr->num_inputs, call->attrs),
-                              call->span);
+        if (!is_variable) {
+          solver_.AddConstraint(TypeRelation(tr->func, tr->args, tr->num_inputs, call->attrs),
+                                call->span);
+        } else {
+          solver_.AddConstraint(
+              TypeRelation(tr->func, unified_arg_types, number_of_args, call->attrs), call->span);
+        }
       } else {
         solver_.AddConstraint(cs, call->span);
       }
@@ -801,7 +829,7 @@ void EnsureCheckedType(const Expr& e) { AllCheckTypePopulated().VisitExpr(e); }
 
 // TODO(@jroesch): Can we optimize this?
 void AddGlobalTypes(IRModule mod) {
-  std::vector<std::pair<GlobalVar, Function> > updates;
+  std::vector<std::pair<GlobalVar, Function>> updates;
   for (const auto& it : mod->functions) {
     // Currently we don't type check TIR.
     // The inferencer will only check Relay functions
@@ -819,7 +847,107 @@ void AddGlobalTypes(IRModule mod) {
   }
 }
 
+/*!
+ * \brief Returns a possibly much smaller subgraph whose inner nodes have the same type.
+ *
+ * Returns the largest sub-graph who's inner nodes need types and leaves are vars standing in
+ * for already typed sub-expressions. This creates a graph whose inner nodes have the same
+ * type as the original graph and when running type inference, we can avoid copying and
+ * recursing through most of the expression graph when running type inference. Note, this assumes
+ * that current populated type information is correct!
+ *
+ * ExprMutator is sufficient over MixedModemutator since we will not recurse much.
+ */
+class SameTypedSubgraphExtractor : public ExprMutator {
+  Expr VisitExpr_(const VarNode* op) { return Var(op->vid, op->type_annotation, op->span); }
+  Expr VisitExpr_(const ConstantNode* op) { return Constant(op->data, op->span); }
+  Expr VisitExpr_(const GlobalVarNode* op) { return GlobalVar(op->name_hint); }
+  Expr VisitExpr_(const OpNode* op) { return Op(GetRef<Op>(op)); }
+  Expr VisitExpr_(const TupleNode* op) {
+    return Tuple(GetAnalogousExpression(op->fields), op->span);
+  }
+  Expr VisitExpr_(const FunctionNode* op) {
+    // Unfortunately our strategy of inserting variables as dummies would change the signature of
+    // existing function nodes so we have to copy all used functions always :/
+    return Function(op->params, op->body, op->ret_type, op->type_params, op->attrs, op->span);
+  }
+  Expr VisitExpr_(const CallNode* op) {
+    return Call(op->op, GetAnalogousExpression(op->args), op->attrs, op->type_args, op->span);
+  }
+  Expr VisitExpr_(const LetNode* op) {
+    return Let(op->var, GetAnalogousExpression(op->value), GetAnalogousExpression(op->body),
+               op->span);
+  }
+  Expr VisitExpr_(const IfNode* op) {
+    return If(GetAnalogousExpression(op->cond), GetAnalogousExpression(op->true_branch),
+              GetAnalogousExpression(op->false_branch), op->span);
+  }
+  Expr VisitExpr_(const TupleGetItemNode* op) {
+    return TupleGetItem(GetAnalogousExpression(op->tuple), op->index, op->span);
+  }
+  Expr VisitExpr_(const RefCreateNode* op) {
+    return RefCreate(GetAnalogousExpression(op->value), op->span);
+  }
+  Expr VisitExpr_(const RefReadNode* op) {
+    return RefRead(GetAnalogousExpression(op->ref), op->span);
+  }
+  Expr VisitExpr_(const RefWriteNode* op) {
+    return RefWrite(GetAnalogousExpression(op->ref), GetAnalogousExpression(op->value), op->span);
+  }
+  Expr VisitExpr_(const ConstructorNode* op) {
+    return Constructor(op->name_hint, op->inputs, op->belong_to);
+  }
+  Expr VisitExpr_(const MatchNode* op) {
+    return Match(GetAnalogousExpression(op->data), op->clauses, op->complete, op->span);
+  }
+
+ private:
+  Expr GetAnalogousExpression(const Expr& expr) {
+    // Replace the expression with a potentially simpler expression of the same type
+    if (expr->checked_type_.defined()) {
+      // Since the expression already has a checked_type which we assume is correct we don't need
+      // full type inference to enter it. So stub it out with a dummy var of the same type.
+      return Var("dummy_var", expr->checked_type(), expr->span);
+    }
+
+    return VisitExpr(expr);
+  }
+  Array<Expr> GetAnalogousExpression(const Array<Expr>& fields) {
+    Array<Expr> new_fields;
+    for (Expr expr : fields) {
+      new_fields.push_back(GetAnalogousExpression(expr));
+    }
+    return new_fields;
+  }
+};
+
 namespace transform {
+
+Type InferTypeLocal(const Expr& expr) {
+  /*
+  This type inference differs from InferType in that it uses existing type information
+  to avoid recursing over much of the graph, and it only examines the type of the input
+  node. This makes it faster if you need to run type inference iteratively throughout
+  a pass for example.
+
+  However, it assumes any existing populated type inference is correct! If some populated
+  type inference is incorrect, an incorrect type may be returned or a type error will be
+  raised. If you know not all populated type fields are correct with the current graph,
+  you should use InferType() instead.
+  */
+  SameTypedSubgraphExtractor subgraph_extractor;
+  Expr sub_graph = subgraph_extractor(expr);
+
+  Type result_type;
+  result_type = relay::InferType(sub_graph)->checked_type();
+
+  expr->checked_type_ = result_type;
+  return result_type;
+}
+
+TVM_REGISTER_GLOBAL("relay._transform.InferTypeLocal").set_body_typed([](const Expr& expr) {
+  return InferTypeLocal(expr);
+});
 
 Pass InferType() {
   auto pass_info = PassInfo(0, "InferType", {});
@@ -833,7 +961,7 @@ Pass InferType() {
         // Add all the type annotations to the functions in the model.
         AddGlobalTypes(mod);
 
-        std::vector<std::pair<GlobalVar, Function> > updates;
+        std::vector<std::pair<GlobalVar, Function>> updates;
         for (const auto& it : updated_mod->functions) {
           // Currently we don't type check TIR.
           //

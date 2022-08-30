@@ -22,6 +22,7 @@ import time
 from typing import List
 
 import pytest
+import tvm.testing
 
 from tvm import script
 from tvm._ffi import register_func
@@ -163,7 +164,7 @@ def test_meta_schedule_error_handle_build_func():
 
     def initializer():
         @register_func("meta_schedule.builder.test_build")
-        def test_build(mod: Module, target: Target) -> None:  # pylint: disable=unused-variable
+        def test_build(mod: Module, target: Target, _) -> None:  # pylint: disable=unused-variable
             raise ValueError("Builder intended Test Error (build func).")
 
     builder = LocalBuilder(f_build="meta_schedule.builder.test_build", initializer=initializer)
@@ -201,7 +202,7 @@ def test_meta_schedule_error_handle_time_out():
 
     def initializer():
         @register_func("meta_schedule.builder.test_time_out")
-        def timeout_build(mod, target):  # pylint: disable=unused-argument, unused-variable
+        def timeout_build(mod, target, _):  # pylint: disable=unused-argument, unused-variable
             time.sleep(2)
 
     builder = LocalBuilder(
@@ -225,4 +226,4 @@ def test_meta_schedule_missing_build_func():
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

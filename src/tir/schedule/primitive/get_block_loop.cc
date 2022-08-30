@@ -21,7 +21,7 @@
 namespace tvm {
 namespace tir {
 
-Array<StmtSRef> GetBlocks(const ScheduleState& self, const String& name, const String& func_name) {
+Array<StmtSRef> GetBlocks(const ScheduleState& self, const String& name, const GlobalVar& gv) {
   struct Finder : public StmtVisitor {
     explicit Finder(const ScheduleState& self, const String& name) : self_(self), name_(name) {}
 
@@ -39,8 +39,8 @@ Array<StmtSRef> GetBlocks(const ScheduleState& self, const String& name, const S
     Array<StmtSRef> results_;
   };
 
-  BaseFunc func = self->mod->Lookup(func_name);
-  const auto* prim_func = TVM_TYPE_AS(prim_func, func, PrimFuncNode);
+  BaseFunc func = self->mod->Lookup(gv);
+  const auto* prim_func = TVM_TYPE_AS(func, PrimFuncNode);
   Finder finder(self, name);
   finder(prim_func->body);
   return std::move(finder.results_);
@@ -78,8 +78,7 @@ Array<StmtSRef> GetChildBlocks(const ScheduleState& self, const StmtSRef& parent
 }
 
 Array<StmtSRef> GetProducers(const ScheduleState& self, const StmtSRef& block_sref) {
-  StmtSRef scope_root = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false,
-                                     /*require_stage_pipeline=*/false);
+  StmtSRef scope_root = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
   Array<Dependency> edges = self->GetBlockScope(scope_root)->GetDepsByDst(block_sref);
   Array<StmtSRef> results;
   results.reserve(edges.size());
@@ -92,8 +91,7 @@ Array<StmtSRef> GetProducers(const ScheduleState& self, const StmtSRef& block_sr
 }
 
 Array<StmtSRef> GetConsumers(const ScheduleState& self, const StmtSRef& block_sref) {
-  StmtSRef scope_root = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false,
-                                     /*require_stage_pipeline=*/false);
+  StmtSRef scope_root = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
   Array<Dependency> edges = self->GetBlockScope(scope_root)->GetDepsBySrc(block_sref);
   Array<StmtSRef> results;
   results.reserve(edges.size());

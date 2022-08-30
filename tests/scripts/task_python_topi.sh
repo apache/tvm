@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,12 +16,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
+set -euxo pipefail
 
 source tests/scripts/setup-pytest-env.sh
 
-export TVM_TEST_TARGETS="llvm; llvm -device=arm_cpu; cuda; cuda -model=unknown -libs=cudnn"
+export TVM_TEST_TARGETS="llvm; cuda"
 
 # to avoid CI thread throttling.
 export TVM_BIND_THREADS=0

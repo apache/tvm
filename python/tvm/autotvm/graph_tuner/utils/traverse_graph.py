@@ -144,9 +144,7 @@ def _expr2graph_impl(expr, target_ops, node_dict, node_list, tvm_target):
                 mod = tvm.IRModule.from_expr(relay.Function(params, call))
                 relay.backend.te_compiler.get().clear()
                 tracing_target = _replace_device_with_tracing(tvm_target)
-                build_thread = threading.Thread(
-                    target=relay.build, args=(mod, tracing_target, None, None)
-                )
+                build_thread = threading.Thread(target=relay.build, args=(mod, tracing_target))
                 build_thread.start()
                 build_thread.join()
         elif isinstance(node, Var):

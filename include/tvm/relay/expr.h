@@ -28,6 +28,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/op.h>
+#include <tvm/target/virtual_device.h>
 
 #include <functional>
 #include <stack>
@@ -38,6 +39,16 @@
 #include "./type.h"
 
 namespace tvm {
+
+/*!
+ * \brief Returns \p global_var with the given properties. A null property denotes 'no change'.
+ * Returns \p global_var if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
+ */
+GlobalVar WithFields(GlobalVar global_var, Optional<String> opt_name_hint = {},
+                     Optional<Type> opt_type = {}, Optional<VirtualDevice> opt_virtual_device = {},
+                     Optional<Span> opt_span = {});
+
 namespace relay {
 
 using Expr = tvm::RelayExpr;
@@ -71,6 +82,7 @@ class ConstantNode : public ExprNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("data", &data);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -95,7 +107,16 @@ class Constant : public Expr {
   TVM_DLL explicit Constant(runtime::NDArray data, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Constant, RelayExpr, ConstantNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ConstantNode);
 };
+
+/*!
+ * \brief Returns \p constant with the given properties. A null property denotes 'no change'.
+ * Returns \p constant if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
+ */
+Constant WithFields(Constant constant, Optional<runtime::NDArray> opt_data = {},
+                    Optional<VirtualDevice> opt_virtual_device = {}, Optional<Span> opt_span = {});
 
 /*! \brief Tuple of multiple Exprs */
 class Tuple;
@@ -107,6 +128,7 @@ class TupleNode : public ExprNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("fields", &fields);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -142,7 +164,17 @@ class Tuple : public Expr {
   TVM_DLL explicit Tuple(tvm::Array<relay::Expr> fields, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Tuple, RelayExpr, TupleNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleNode);
 };
+
+/*!
+ * \brief Returns \p tuple with the given properties. A null property denotes 'no change'.
+ * Returns \p tuple if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
+ */
+Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields = Optional<Array<Expr>>(),
+                 Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
+                 Optional<Span> opt_span = Optional<Span>());
 
 /*!
  * \brief Local variables used in the let expression.
@@ -179,13 +211,15 @@ class VarNode : public ExprNode {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("vid", &vid);
     v->Visit("type_annotation", &type_annotation);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
 
   bool SEqualReduce(const VarNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
-    return equal(type_annotation, other->type_annotation) && equal(vid, other->vid);
+    return equal(type_annotation, other->type_annotation) && equal(vid, other->vid) &&
+           equal(virtual_device_, other->virtual_device_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -217,8 +251,28 @@ class Var : public Expr {
    */
   TVM_DLL Var(Id vid, Type type_annotation, Span span = Span());
 
+  /*!
+   * \brief Return a globally fresh name. Helps with debugging to follow the same
+   * variable between passes and sub-expressions.
+   *
+   * TODO(mbs): Replace with name creation w.r.t. scopes once available as part of
+   * name gen overhaul.
+   */
+  static Var GenSym(Type type_annotation = {}, Span span = {});
+
   TVM_DEFINE_OBJECT_REF_METHODS(Var, RelayExpr, VarNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(VarNode);
 };
+
+/*!
+ * \brief Returns \p vor with the given properties. A null property denotes 'no change'.
+ * Returns \p var if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
+ */
+Var WithFields(Var var, Optional<Id> opt_vid = Optional<Id>(),
+               Optional<Type> opt_type_annotation = Optional<Type>(),
+               Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
+               Optional<Span> opt_span = Optional<Span>());
 
 /*!
  * \brief Call corresponds to operator invocation.
@@ -272,6 +326,7 @@ class CallNode : public ExprNode {
     v->Visit("args", &args);
     v->Visit("attrs", &attrs);
     v->Visit("type_args", &type_args);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -319,7 +374,20 @@ class Call : public Expr {
                Array<Type> type_args = Array<Type>(), Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Call, RelayExpr, CallNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
 };
+
+/*!
+ * \brief Returns \p call with the given properties. A null property denotes 'no change'.
+ * Returns \p call if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
+ */
+Call WithFields(Call call, Optional<Expr> opt_op = Optional<Expr>(),
+                Optional<Array<Expr>> opt_args = Optional<Array<Expr>>(),
+                Optional<Attrs> opt_attrs = Optional<Attrs>(),
+                Optional<Array<Type>> opt_type_args = Optional<Array<Type>>(),
+                Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
+                Optional<Span> opt_span = Optional<Span>());
 
 /*!
  * \brief Let binding that binds a local var and optionally a type annotation.
@@ -352,6 +420,7 @@ class LetNode : public ExprNode {
     v->Visit("var", &var);
     v->Visit("value", &value);
     v->Visit("body", &body);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -393,7 +462,19 @@ class Let : public Expr {
   TVM_DLL Let(Var var, Expr value, Expr body, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Let, RelayExpr, LetNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(LetNode);
 };
+
+/*!
+ * \brief Returns \p let with the given properties. A null property denotes 'no change'.
+ * Returns \p let if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
+ */
+Let WithFields(Let let, Optional<Var> opt_var = Optional<Var>(),
+               Optional<Expr> opt_value = Optional<Expr>(),
+               Optional<Expr> opt_body = Optional<Expr>(),
+               Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
+               Optional<Span> opt_span = Optional<Span>());
 
 /*!
  * \brief Condition expression
@@ -421,6 +502,7 @@ class IfNode : public ExprNode {
     v->Visit("cond", &cond);
     v->Visit("true_branch", &true_branch);
     v->Visit("false_branch", &false_branch);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -454,7 +536,19 @@ class If : public Expr {
   TVM_DLL If(Expr cond, Expr true_branch, Expr false_branch, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(If, RelayExpr, IfNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(IfNode);
 };
+
+/*!
+ * \brief Returns \p if_expr with the given properties. A null property denotes 'no change'.
+ * Returns \p if_expr if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
+ */
+If WithFields(If if_expr, Optional<Expr> opt_cond = Optional<Expr>(),
+              Optional<Expr> opt_true_branch = Optional<Expr>(),
+              Optional<Expr> opt_false_branch = Optional<Expr>(),
+              Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
+              Optional<Span> opt_span = Optional<Span>());
 
 /*! \brief Get index-th field out of a tuple. */
 class TupleGetItem;
@@ -468,6 +562,7 @@ class TupleGetItemNode : public ExprNode {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("tuple_value", &tuple);
     v->Visit("index", &index);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -496,7 +591,18 @@ class TupleGetItem : public Expr {
   TVM_DLL TupleGetItem(Expr tuple, int index, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(TupleGetItem, RelayExpr, TupleGetItemNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleGetItemNode);
 };
+
+/*!
+ * \brief Returns \p tuple_get_item with the given properties. A null property denotes 'no change'.
+ * Returns \p tuple_get_item if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
+ */
+TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple = Optional<Expr>(),
+                        Optional<Integer> opt_index = Optional<Integer>(),
+                        Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
+                        Optional<Span> opt_span = Optional<Span>());
 
 /*! \brief Create a new Reference out of initial value. */
 class RefCreate;
@@ -507,6 +613,7 @@ class RefCreateNode : public ExprNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("value", &value);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -535,7 +642,17 @@ class RefCreate : public Expr {
   TVM_DLL explicit RefCreate(Expr value, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(RefCreate, RelayExpr, RefCreateNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(RefCreateNode);
 };
+
+/*!
+ * \brief Returns \p ref_create with the given properties. A null property denotes 'no change'.
+ * Returns \p ref_crete if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
+ */
+RefCreate WithFields(RefCreate ref_create, Optional<Expr> opt_value = Optional<Expr>(),
+                     Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
+                     Optional<Span> opt_span = Optional<Span>());
 
 /*! \brief Get value out of Reference. */
 class RefRead;
@@ -546,6 +663,7 @@ class RefReadNode : public ExprNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("ref", &ref);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -574,7 +692,18 @@ class RefRead : public Expr {
   TVM_DLL explicit RefRead(Expr ref, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(RefRead, RelayExpr, RefReadNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(RefReadNode);
 };
+
+/*!
+ * \brief Returns \p ref_read with the given properties. A null property denotes 'no change'.
+ * Returns \p ref_read if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
+ */
+RefRead WithFields(RefRead ref_read, Optional<Expr> opt_ref = Optional<Expr>(),
+                   Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
+                   Optional<Span> opt_span = Optional<Span>());
+
 /*! \brief Set value of Reference. The whole expression evaluates to an Empty Tuple. */
 class RefWrite;
 class RefWriteNode : public ExprNode {
@@ -587,6 +716,7 @@ class RefWriteNode : public ExprNode {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("ref", &ref);
     v->Visit("value", &value);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -617,7 +747,18 @@ class RefWrite : public Expr {
   TVM_DLL RefWrite(Expr ref, Expr value, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(RefWrite, RelayExpr, RefWriteNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(RefWriteNode);
 };
+
+/*!
+ * \brief Returns \p ref_write with the given properties. A null property denotes 'no change'.
+ * Returns \p ref_write if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
+ */
+RefWrite WithFields(RefWrite ref_write, Optional<Expr> opt_ref = Optional<Expr>(),
+                    Optional<Expr> opt_value = Optional<Expr>(),
+                    Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
+                    Optional<Span> opt_span = Optional<Span>());
 
 /*!
  * \brief Base class of the temporary expression.

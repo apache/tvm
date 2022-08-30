@@ -39,6 +39,12 @@ serve as the comparative basis for future tutorials covering more advanced
 features of TVM.
 """
 
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
+
 ################################################################################
 # Example 1: Writing and Scheduling Vector Addition in TE for CPU
 # ---------------------------------------------------------------
@@ -52,11 +58,12 @@ import tvm.testing
 from tvm import te
 import numpy as np
 
+################################################################################
 # You will get better performance if you can identify the CPU you are targeting
-# and specify it. If you're using llvm, you can get this information from the
+# and specify it. If you're using LLVM, you can get this information from the
 # command ``llc --version`` to get the CPU type, and you can check
 # ``/proc/cpuinfo`` for additional extensions that your processor might
-# support. For example, you can use "llvm -mcpu=skylake-avx512" for CPUs with
+# support. For example, you can use ``llvm -mcpu=skylake-avx512`` for CPUs with
 # AVX-512 instructions.
 
 tgt = tvm.target.Target(target="llvm", host="llvm")
@@ -83,12 +90,12 @@ B = te.placeholder((n,), name="B")
 C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
 
 ################################################################################
-# .. note:: Lambda Functions
+# .. admonition:: Lambda Functions
 #
 #   The second argument to the ``te.compute`` method is the function that
 #   performs the computation. In this example, we're using an anonymous function,
 #   also known as a ``lambda`` function, to define the computation, in this case
-#   addition on the ``i``th element of ``A`` and ``B``.
+#   addition on the ``i``\th element of ``A`` and ``B``.
 
 ################################################################################
 # Create a Default Schedule for the Computation
@@ -100,7 +107,7 @@ C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
 # split across different threads. TVM requires that the user to provide a
 # schedule, which is a description of how the computation should be performed.
 # Scheduling operations within TE can change loop orders, split computations
-# across different threads, group blocks of data together, amongst other
+# across different threads, and group blocks of data together, amongst other
 # operations. An important concept behind schedules is that they only describe
 # how the computation is performed, so different schedules for the same TE will
 # produce the same result.
@@ -125,7 +132,7 @@ s = te.create_schedule(C.op)
 # the target and host, and the name of the function we are producing. The result
 # of the output is a type-erased function that can be called directly from Python.
 #
-# In the following line, we use tvm.build to create a function. The build
+# In the following line, we use ``tvm.build`` to create a function. The build
 # function takes the schedule, the desired signature of the function (including
 # the inputs and outputs) as well as target language we want to compile to.
 
@@ -186,8 +193,8 @@ log = [("numpy", np_running_time / np_repeat)]
 evaluate_addition(fadd, tgt, "naive", log=log)
 
 ################################################################################
-# Updating the Schedule to Use Paralleism
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Updating the Schedule to Use Parallelism
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
 # Now that we've illustrated the fundamentals of TE, let's go deeper into what
 # schedules do, and how they can be used to optimize tensor expressions for
@@ -272,7 +279,7 @@ for result in log:
 
 
 ################################################################################
-# .. note:: Code Specialization
+# .. admonition:: Code Specialization
 #
 #   As you may have noticed, the declarations of ``A``, ``B`` and ``C`` all
 #   take the same shape argument, ``n``. TVM will take advantage of this to
@@ -416,7 +423,7 @@ cc.create_shared(temp.relpath("myadd.so"), [temp.relpath("myadd.o")])
 print(temp.listdir())
 
 ################################################################################
-# .. note:: Module Storage Format
+# .. admonition:: Module Storage Format
 #
 #   The CPU (host) module is directly saved as a shared library (.so). There
 #   can be multiple customized formats of the device code. In our example, the
@@ -460,7 +467,7 @@ fadd2(a, b, c)
 tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
 ################################################################################
-# .. note:: Runtime API and Thread-Safety
+# .. admonition:: Runtime API and Thread-Safety
 #
 #   The compiled modules of TVM do not depend on the TVM compiler. Instead,
 #   they only depend on a minimum runtime library. The TVM runtime library
@@ -492,7 +499,7 @@ if tgt.kind.name.startswith("opencl"):
     tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
 ################################################################################
-# .. note:: TE Scheduling Primitives
+# .. admonition:: TE Scheduling Primitives
 #
 #   TVM includes a number of different scheduling primitives:
 #
@@ -753,7 +760,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # regular but discontinuous. We expect that after some transformation we can
 # get a continuous access pattern. By reordering a ``[16][16]`` array to a
 # ``[16/4][16][4]`` array the access pattern of B will be sequential when
-# grabing the corresponding value from the packed array.
+# grabbing the corresponding value from the packed array.
 #
 # To accomplish this, we are going to have to start with a new default
 # schedule, taking into account the new packing of B. It's worth taking a
@@ -888,7 +895,7 @@ for result in log:
 # have from this introduction to TE, we can now begin to explore how TVM can
 # automate the schedule optimization process.
 #
-# This tutorial provided a walkthrough of TVM Tensor Expresstion (TE) workflow
+# This tutorial provided a walk-through of TVM Tensor Expression (TE) workflow
 # using a vector add and a matrix multiplication examples. The general workflow
 # is
 #

@@ -23,6 +23,8 @@ from tvm import relay
 from tvm.topi.testing import searchsorted_ref
 import tvm.testing
 
+executor_kind = tvm.testing.parameter("graph", "vm")
+
 
 @tvm.testing.uses_gpu
 def test_sort():
@@ -40,16 +42,15 @@ def test_sort():
             ref_res = -np.sort(-x_data, axis=axis)
 
         if is_dyn:
-            backends = ["vm", "debug"]
+            backend = "vm"
         else:
-            backends = ["graph", "debug"]
+            backend = "graph"
         for target, dev in tvm.testing.enabled_targets():
-            for kind in backends:
-                mod = tvm.ir.IRModule.from_expr(func)
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    x_data
-                )
-                tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
+            mod = tvm.ir.IRModule.from_expr(func)
+            op_res = relay.create_executor(backend, mod=mod, device=dev, target=target).evaluate()(
+                x_data
+            )
+            tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     for is_dyn in [False, True]:
         verify_sort((2, 3, 4), axis=0, is_ascend=False, is_dyn=is_dyn)
@@ -76,16 +77,15 @@ def test_argsort():
             ref_res = np.argsort(-x_data, axis=axis, kind="stable")
 
         if is_dyn:
-            backends = ["vm", "debug"]
+            backend = "vm"
         else:
-            backends = ["graph", "debug"]
+            backend = "graph"
         for target, dev in tvm.testing.enabled_targets():
-            for kind in backends:
-                mod = tvm.ir.IRModule.from_expr(func)
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate()(
-                    x_data
-                )
-                tvm.testing.assert_allclose(op_res.numpy(), ref_res.astype(dtype), rtol=1e-5)
+            mod = tvm.ir.IRModule.from_expr(func)
+            op_res = relay.create_executor(backend, mod=mod, device=dev, target=target).evaluate()(
+                x_data
+            )
+            tvm.testing.assert_allclose(op_res.numpy(), ref_res.astype(dtype), rtol=1e-5)
 
     for is_dyn in [False, True]:
         for dtype in ["int32", "int64", "float32", "float64"]:
@@ -102,7 +102,7 @@ def test_argsort():
 
 
 @tvm.testing.uses_gpu
-def test_topk():
+def test_topk(executor_kind):
     def verify_topk(k, axis, ret_type, is_ascend, dtype, in_dtype="float32"):
         shape = (20, 100)
         x = relay.var("x", relay.TensorType(shape, in_dtype))
@@ -129,17 +129,16 @@ def test_topk():
         np_indices = np_indices.astype(dtype)
 
         for target, dev in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                op_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
-                    np_data
-                )
-                if ret_type == "both":
-                    tvm.testing.assert_allclose(op_res[0].numpy(), np_values)
-                    tvm.testing.assert_allclose(op_res[1].numpy(), np_indices)
-                elif ret_type == "values":
-                    tvm.testing.assert_allclose(op_res.numpy(), np_values)
-                else:
-                    tvm.testing.assert_allclose(op_res.numpy(), np_indices)
+            op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+                np_data
+            )
+            if ret_type == "both":
+                tvm.testing.assert_allclose(op_res[0].numpy(), np_values)
+                tvm.testing.assert_allclose(op_res[1].numpy(), np_indices)
+            elif ret_type == "values":
+                tvm.testing.assert_allclose(op_res.numpy(), np_values)
+            else:
+                tvm.testing.assert_allclose(op_res.numpy(), np_indices)
 
     np.random.seed(0)
     for k in [0, 1, 5]:

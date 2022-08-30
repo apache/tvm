@@ -198,7 +198,7 @@ class ExternalFuncIOHandler : public ExprRewriter {
         return post;
       }
       if (auto compiler = func->GetAttr<String>(attr::kCompiler)) {
-        if (compiler == "ethosu") {
+        if (compiler == "ethos-u") {
           auto ext_input = std::move(post_call->args[0]);
           auto arg_dtype = Downcast<TensorType>(post_call->args[0]->checked_type())->dtype;
           if (post_call->args.size() > 1) {
@@ -261,7 +261,7 @@ Pass PreprocessExternalFuncIO() {
   return Sequential({preprocess_pass, InferType()});
 }
 
-TVM_REGISTER_GLOBAL("relay.ext.ethosu.PreprocessExternalFuncIO")
+TVM_REGISTER_GLOBAL("relay.ext.ethos-u.PreprocessExternalFuncIO")
     .set_body_typed(transform::PreprocessExternalFuncIO);
 
 }  // namespace transform

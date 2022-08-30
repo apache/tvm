@@ -83,6 +83,7 @@ Module Module::LoadFromFile(const std::string& file_name, const std::string& for
     fmt = "so";
   }
   std::string load_f_name = "runtime.module.loadfile_" + fmt;
+  VLOG(1) << "Loading module from '" << file_name << "' of format '" << fmt << "'";
   const PackedFunc* f = Registry::Get(load_f_name);
   ICHECK(f != nullptr) << "Loader for `." << format << "` files is not registered,"
                        << " resolved to (" << load_f_name << ") in the global registry."
@@ -106,6 +107,7 @@ std::string ModuleNode::GetSource(const std::string& format) {
 }
 
 const PackedFunc* ModuleNode::GetFuncFromEnv(const std::string& name) {
+  std::lock_guard<std::mutex> lock(mutex_);
   auto it = import_cache_.find(name);
   if (it != import_cache_.end()) return it->second.get();
   PackedFunc pf;
@@ -125,6 +127,17 @@ const PackedFunc* ModuleNode::GetFuncFromEnv(const std::string& name) {
     import_cache_.insert(std::make_pair(name, std::make_shared<PackedFunc>(pf)));
     return import_cache_.at(name).get();
   }
+}
+
+std::string ModuleNode::GetFormat() {
+  LOG(FATAL) << "Module[" << type_key() << "] does not support GetFormat";
+  return "";
+}
+
+bool ModuleNode::IsDSOExportable() const { return false; }
+
+bool ModuleNode::ImplementsFunction(const String& name, bool query_imports) {
+  return GetFunction(name, query_imports) != nullptr;
 }
 
 bool RuntimeEnabled(const std::string& target) {
@@ -148,7 +161,7 @@ bool RuntimeEnabled(const std::string& target) {
   } else if (target == "hexagon") {
     f_name = "device_api.hexagon";
   } else if (target.length() >= 5 && target.substr(0, 5) == "nvptx") {
-    f_name = "device_api.gpu";
+    f_name = "device_api.cuda";
   } else if (target.length() >= 4 && target.substr(0, 4) == "rocm") {
     f_name = "device_api.rocm";
   } else if (target.length() >= 4 && target.substr(0, 4) == "llvm") {
@@ -179,11 +192,22 @@ TVM_REGISTER_GLOBAL("runtime.ModuleGetTypeKey").set_body_typed([](Module mod) {
   return std::string(mod->type_key());
 });
 
+TVM_REGISTER_GLOBAL("runtime.ModuleGetFormat").set_body_typed([](Module mod) {
+  return mod->GetFormat();
+});
+
 TVM_REGISTER_GLOBAL("runtime.ModuleLoadFromFile").set_body_typed(Module::LoadFromFile);
 
 TVM_REGISTER_GLOBAL("runtime.ModuleSaveToFile")
-    .set_body_typed([](Module mod, tvm::String name, tvm::String fmt) {
-      mod->SaveToFile(name, fmt);
+    .set_body_typed([](Module mod, String name, tvm::String fmt) { mod->SaveToFile(name, fmt); });
+
+TVM_REGISTER_GLOBAL("runtime.ModuleIsDSOExportable").set_body_typed([](Module mod) {
+  return mod->IsDSOExportable();
+});
+
+TVM_REGISTER_GLOBAL("runtime.ModuleImplementsFunction")
+    .set_body_typed([](Module mod, String name, bool query_imports) {
+      return mod->ImplementsFunction(std::move(name), query_imports);
     });
 
 TVM_REGISTER_OBJECT_TYPE(ModuleNode);

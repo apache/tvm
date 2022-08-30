@@ -21,6 +21,7 @@
  * \file split_host_device.cc
  * \brief Split device function from host.
  */
+#include <tvm/ir/global_var_supply.h>
 #include <tvm/ir/transform.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
@@ -106,8 +107,18 @@ class VarUseDefAnalysis : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
+  Stmt VisitStmt_(const AllocateConstNode* op) final {
+    this->HandleDef(op->buffer_var.get());
+    return StmtExprMutator::VisitStmt_(op);
+  }
+
   Stmt VisitStmt_(const StoreNode* op) final {
-    this->HandleUse(op->buffer_var);
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
+  }
+
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    VisitBuffer(op->buffer);
     return StmtExprMutator::VisitStmt_(op);
   }
 
@@ -155,8 +166,25 @@ class VarUseDefAnalysis : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const LoadNode* op) final {
-    this->HandleUse(op->buffer_var);
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
+  }
+
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    VisitBuffer(op->buffer);
     return StmtExprMutator::VisitExpr_(op);
+  }
+
+  void VisitBuffer(Buffer buffer) {
+    this->HandleUse(buffer->data);
+    auto visit_arr = [&](Array<PrimExpr> arr) {
+      for (const auto& element : arr) {
+        this->VisitExpr(element);
+      }
+    };
+
+    visit_arr(buffer->shape);
+    visit_arr(buffer->strides);
   }
 
   void HandleDef(const VarNode* v) {
@@ -254,7 +282,12 @@ class HostDeviceSplitter : public StmtMutator {
         // Create a new version of v.
         auto it = handle_data_type_.find(var.get());
         if (it != handle_data_type_.end()) {
-          tir::Var new_var(var->name_hint, PointerType(PrimType((*it).second->dtype)));
+          String storage_scope;
+          if (auto* ptr_type = var->type_annotation.as<PointerTypeNode>()) {
+            storage_scope = ptr_type->storage_scope;
+          }
+          tir::Var new_var(var->name_hint,
+                           PointerType(PrimType((*it).second->dtype), storage_scope));
           params.push_back(new_var);
           remap_vars.Set(var, new_var);
         } else {
@@ -270,12 +303,15 @@ class HostDeviceSplitter : public StmtMutator {
         arguments.push_back(var);
       }
     }
+    GlobalVarSupply global_var_supply = GlobalVarSupply(*device_mod_);
+    GlobalVar kernel_symbol_global = global_var_supply->FreshGlobal(kernel_symbol, false);
+
     PrimFunc device_func(params, Substitute(body, remap_vars));
     device_func = WithAttr(std::move(device_func), tir::attr::kDeviceThreadAxis, m.thread_axis_);
     device_func = WithAttr(std::move(device_func), tvm::attr::kCallingConv,
                            Integer(CallingConv::kDeviceKernelLaunch));
-    device_func =
-        WithAttr(std::move(device_func), tvm::attr::kGlobalSymbol, runtime::String(kernel_symbol));
+    device_func = WithAttr(std::move(device_func), tvm::attr::kGlobalSymbol,
+                           runtime::String(kernel_symbol_global->name_hint));
     device_func = WithAttr(std::move(device_func), tir::attr::kNoAlias, Integer(1));
     device_func = WithAttr(std::move(device_func), tvm::attr::kTarget, device_target_);
     device_func = WithAttr(std::move(device_func), tir::attr::kIsGlobalFunc, Integer(1));
@@ -283,11 +319,11 @@ class HostDeviceSplitter : public StmtMutator {
       device_func =
           WithAttr(std::move(device_func), tir::attr::kDeviceUseDynSharedMemory, Integer(1));
     }
-    (*device_mod_)->Add(GlobalVar(kernel_symbol), device_func);
+    (*device_mod_)->Add(kernel_symbol_global, device_func);
 
     // generate calls to the device function
     Array<PrimExpr> call_args;
-    call_args.push_back(StringImm(kernel_symbol));
+    call_args.push_back(StringImm(kernel_symbol_global->name_hint));
     for (PrimExpr arg : arguments) {
       call_args.push_back(arg);
     }

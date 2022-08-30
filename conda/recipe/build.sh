@@ -21,10 +21,12 @@ set -u
 
 GPU_OPT=""
 TOOLCHAIN_OPT=""
+MACOS_OPT=""
 
 if [ "$target_platform" == "osx-64" ]; then
     # macOS 64 bits
     GPU_OPT="-DUSE_METAL=ON"
+    MACOS_OPT="-DCMAKE_OSX_DEPLOYMENT_TARGET=10.13"
 elif [ "$target_platform" == "linux-64" ]; then
     TOOLCHAIN_OPT="-DCMAKE_TOOLCHAIN_FILE=${RECIPE_DIR}/cross-linux.cmake"
 fi
@@ -53,8 +55,8 @@ cmake -DCMAKE_INSTALL_PREFIX="${PREFIX}" \
       -DUSE_LLVM=ON \
       -DINSTALL_DEV=ON \
       -DUSE_LIBBACKTRACE=AUTO \
-      ${GPU_OPT} ${TOOLCHAIN_OPT} \
+      ${GPU_OPT} ${TOOLCHAIN_OPT} ${MACOS_OPT} \
       ${SRC_DIR}
 
-make -j${CPU_COUNT}
+make -j${CPU_COUNT} VERBOSE=1
 cd ..

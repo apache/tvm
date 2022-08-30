@@ -44,6 +44,12 @@ class AttrRegistry;
 
 namespace relay {
 
+/*! \brief Value used with Runtime::name to indicate the C++ runtime. */
+static constexpr const char* kTvmRuntimeCpp = "cpp";
+
+/*! \brief Value used with Runtime::name to indicate the C runtime. */
+static constexpr const char* kTvmRuntimeCrt = "crt";
+
 /*!
  * \brief Runtime information.
  *
@@ -105,6 +111,8 @@ class RuntimeNode : public Object {
   }
 
   static constexpr const char* _type_key = "Runtime";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(RuntimeNode, Object);
 };
 
@@ -114,6 +122,8 @@ class RuntimeNode : public Object {
  */
 class Runtime : public ObjectRef {
  public:
+  Runtime() = default;
+
   /*!
    * \brief Create a new Runtime object using the registry
    * \throws Error if name is not registered
@@ -121,7 +131,7 @@ class Runtime : public ObjectRef {
    * \param attrs Attributes for the Runtime.
    * \return the new Runtime object.
    */
-  TVM_DLL static Runtime Create(String name, Map<String, ObjectRef> attrs);
+  TVM_DLL static Runtime Create(String name, Map<String, ObjectRef> attrs = {});
 
   /*!
    * \brief List all registered Runtimes
@@ -159,9 +169,6 @@ class Runtime : public ObjectRef {
  */
 class RuntimeRegEntry {
  public:
-  /*! \brief Set name of the Runtime to be the same as registry if it is empty */
-  inline RuntimeRegEntry& set_name();
-
   /*!
    * \brief Register a valid configuration option and its ValueType for validation
    * \param key The configuration key
@@ -218,13 +225,6 @@ class RuntimeRegEntry {
   friend class Runtime;
 };
 
-inline RuntimeRegEntry& RuntimeRegEntry::set_name() {
-  if (name.empty()) {
-    name = name;
-  }
-  return *this;
-}
-
 template <typename ValueType>
 inline RuntimeRegEntry& RuntimeRegEntry::add_attr_option(const String& key) {
   ICHECK(!key2vtype_.count(key)) << "AttributeError: add_attr_option failed because '" << key
@@ -269,7 +269,7 @@ inline RuntimeRegEntry& RuntimeRegEntry::add_attr_option(const String& key,
  */
 #define TVM_REGISTER_RUNTIME(RuntimeName)                     \
   TVM_STR_CONCAT(TVM_RUNTIME_REGISTER_VAR_DEF, __COUNTER__) = \
-      ::tvm::relay::RuntimeRegEntry::RegisterOrGet(RuntimeName).set_name()
+      ::tvm::relay::RuntimeRegEntry::RegisterOrGet(RuntimeName)
 }  // namespace relay
 }  // namespace tvm
 

@@ -18,6 +18,84 @@
 TVM Change Log
 ==============
 
+  - [On-going version](#on-going-version)
+  - [0.8](#08)
+    - [Accepted RFCs](#accepted-rfcs)
+    - [Features and Improvements](#features-and-improvements)
+      - [TE, TIR, TVMScript](#te-tir-tvmscript)
+      - [AutoTVM, AutoScheduler, Meta Schedule](#autotvm-autoscheduler-meta-schedule)
+      - [Operator Coverage](#operator-coverage)
+      - [Training](#training)
+      - [Relay](#relay)
+      - [MicroTVM, AOT, Graph Executor and VM](#microtvm-aot-graph-executor-and-vm)
+      - [Arithmetic Analysis](#arithmetic-analysis)
+      - [Frontends](#frontends)
+      - [Codegen Backends and Runtime](#codegen-backends-and-runtime)
+      - [BYOC Integration with Vendor Libraries: TensorRT, ACL, VitisAI](#byoc-integration-with-vendor-libraries-tensorrt-acl-vitisai)
+      - [TVMC](#tvmc)
+      - [Rust Binding](#rust-binding)
+      - [Misc](#misc)
+  - [0.7](#07)
+    - [New Features](#new-features)
+      - [Automatic Scheduling (Experimental)](#automatic-scheduling-experimental)
+      - [BYOC](#byoc)
+      - [Operator Coverage](#operator-coverage-1)
+      - [Quantization](#quantization)
+      - [Relay](#relay-1)
+      - [Runtime and Backend](#runtime-and-backend)
+      - [Rust Support](#rust-support)
+      - [TIR](#tir)
+      - [TE](#te)
+      - [TVMC(Experimental)](#tvmcexperimental)
+    - [Feature Improvement](#feature-improvement)
+      - [Accelerator and Microcontroller Support](#accelerator-and-microcontroller-support)
+      - [Arithmetic Analysis](#arithmetic-analysis-1)
+      - [AutoTVM and Graph Tuner](#autotvm-and-graph-tuner)
+      - [BYOC](#byoc-1)
+      - [Codegen](#codegen)
+      - [Dynamism Support](#dynamism-support)
+      - [Frontend and User Interface](#frontend-and-user-interface)
+      - [Relay](#relay-2)
+      - [Operator Coverage](#operator-coverage-2)
+      - [Runtime and Backend](#runtime-and-backend-1)
+      - [Quantization](#quantization-1)
+      - [TE](#te-1)
+      - [TIR](#tir-1)
+      - [Performance Improvements](#performance-improvements)
+      - [Documentation](#documentation)
+      - [Bug Fixes](#bug-fixes)
+    - [API Changes](#api-changes)
+    - [Deprecation](#deprecation)
+  - [0.6](#06)
+    - [Relay in Production](#relay-in-production)
+    - [Relay Virtual Machine](#relay-virtual-machine)
+    - [Training](#training-1)
+    - [Quantization](#quantization-2)
+    - [Accelerator and Microcontroller Support](#accelerator-and-microcontroller-support-1)
+    - [Rust Support](#rust-support-1)
+    - [Operator Support](#operator-support)
+    - [Frontend and User Interface](#frontend-and-user-interface-1)
+    - [Runtime and Backend Support](#runtime-and-backend-support)
+    - [Language and Architecture](#language-and-architecture)
+    - [Symbolic shape enhancement](#symbolic-shape-enhancement)
+    - [Language and Architecture](#language-and-architecture-1)
+    - [Arithmetic Analysis](#arithmetic-analysis-2)
+    - [Runtime and Backend Support](#runtime-and-backend-support-1)
+    - [Frontend and User Interface](#frontend-and-user-interface-2)
+    - [AutoTVM](#autotvm)
+    - [Performance Improvements](#performance-improvements-1)
+    - [Documentation](#documentation-1)
+    - [Build and Test](#build-and-test)
+    - [Bug Fixes](#bug-fixes-1)
+    - [Known Issues](#known-issues)
+    - [Depreciations](#depreciations)
+  - [0.5](#05)
+  - [0.4](#04)
+  - [0.3](#03)
+  - [0.2](#02)
+  - [0.1](#01)
+  - [Initial version](#initial-version)
+
 This file records the changes in TVM library in reverse chronological order.
 
 ## On-going version
@@ -25,6 +103,188 @@ This file records the changes in TVM library in reverse chronological order.
 Refer to the Roadmap issue for complete list on on-going version features.
 If you check in something that is not reflected in Roadmap issue, please reply
 to that issue so it can get added.
+
+## 0.8
+
+Apache TVM v0.8 brings several major exciting experimental features, including:
+- PaddlePaddle frontend
+- TVMScript: round-trippable python-based syntax for TIR
+- TorchScript integration
+- TensorIR scheduling language
+- TensorRT and CUTLASS integration via BYOC
+- Int4 TensorCore support in AutoTVM
+- MicroTVM Project API and Zephyr, Arduino support
+- AOT executor
+- Robost Windows support
+- Affine analysis infra: iter-affine-map
+- Improved Vulkan backend
+- CUDA graph support in TVM runtime
+
+Besides, The community has been working together to refactor and evolve the existing infrastructure, including but not limited to:
+- Relay compilation engine
+- Relay pattern language
+- CI and build process
+- Refactoring documentation and tutorials
+- Stablizing AutoScheduler
+- Stablizing TVMC command line driver interface
+- Stablizing target system
+- Frontend coverage, quantization, dynamic shape, training
+
+Full changelog: https://gist.github.com/junrushao1994/c669905dbc41edc2e691316df49d8562.
+
+### Accepted RFCs
+
+The community has adopted a [formal RFC process](https://github.com/apache/tvm-rfcs). Below is a list of the formal RFCs accepted by the community since then:
+- [RFC-0005] Meta schedule (AutoTIR)
+- [RFC-0006] Automatic mixed-precision pass and support
+- [RFC-0007] Parametrized unit tests
+- [RFC-0008] MicroTVM Project API
+- [RFC-0009] Unified static memory planner
+- [RFC-0010] Target-registered compiler flow customisation
+- [RFC-0011] Arm® Ethos-U integration
+- [RFC-0014] Pipeline executor
+- [RFC-0015] Use CMSIS-NN with TVM
+- [RFC-0019] Add PaddlePaddle frontend
+- [RFC-0020] Extend metadata in project option
+- [RFC-0022] TIR non-scalar constants
+- [RFC-0023] Adding annotation field to `tir.allocate` nodes
+- [RFC-0025] PyTorchTVM
+- [RFC-0027] Formalize TVM documentation organization
+- [RFC-0028] Command line composition from internal registry
+- [RFC-0029] Migrating target attributes to IRModule
+- [RFC-0030] Command line configuration files
+- [RFC-0031] C Device API
+- [RFC-0036] TVMScript namespace
+- [RFC-0041] Update TVMScript block syntax
+
+### Features and Improvements
+#### TE, TIR, TVMScript
+
+- TVMScript parser and printer [#7630](https://github.com/apache/tvm/pull/7630) [#9115](https://github.com/apache/tvm/pull/9115) [#9286](https://github.com/apache/tvm/pull/9286)
+- Scheduleable TIR (S-TIR) infrastructure, analysis and lowering passes [#7553](https://github.com/apache/tvm/pull/7553) [#7765](https://github.com/apache/tvm/pull/7765) [#7847](https://github.com/apache/tvm/pull/7847) [#8114](https://github.com/apache/tvm/pull/8114) [#8121](https://github.com/apache/tvm/pull/8121) [#7873](https://github.com/apache/tvm/pull/7873) [#7923](https://github.com/apache/tvm/pull/7923) [#7962](https://github.com/apache/tvm/pull/7962) [#7848](https://github.com/apache/tvm/pull/7848) [#8044](https://github.com/apache/tvm/pull/8044) [#7806](https://github.com/apache/tvm/pull/7806)
+- S-TIR schedule primitives: `compute-inline`, `reverse-compute-inline`, `fuse`, `split`, `rfactor`, `storage-align`, `vectorize`, `unroll`, `bind`, `reorder`, `cache-read`, `cache-write`, `compute-at`, `reverse-compute-at`, `decompose-reduction` [#8170](https://github.com/apache/tvm/pull/8170) [#8467](https://github.com/apache/tvm/pull/8467) [#8544](https://github.com/apache/tvm/pull/8544) [#8693](https://github.com/apache/tvm/pull/8693) [#8716](https://github.com/apache/tvm/pull/8716) [#8767](https://github.com/apache/tvm/pull/8767) [#8863](https://github.com/apache/tvm/pull/8863) [#8943](https://github.com/apache/tvm/pull/8943) [#9041](https://github.com/apache/tvm/pull/9041)
+- While loop in TIR [#7425](https://github.com/apache/tvm/pull/7425) [#9004](https://github.com/apache/tvm/pull/9004)
+- Metaprogramming in S-TIR via `specialize` [#8354](https://github.com/apache/tvm/pull/8354)
+- Support Return value in TIR [#7084](https://github.com/apache/tvm/pull/7084) [#7932](https://github.com/apache/tvm/pull/7932)
+- Storage scope support in `PointerType` [#8017](https://github.com/apache/tvm/pull/8017) [#8366](https://github.com/apache/tvm/pull/8366) [#8463](https://github.com/apache/tvm/pull/8463)
+- Creation of S-TIR via TE compute [#7987](https://github.com/apache/tvm/pull/7987)
+
+#### AutoTVM, AutoScheduler, Meta Schedule
+
+- PopenPoolExecutor is used to replace python native library to provide better multiprocessing support as well as enable auto-tuning in Jupyter notebooks for AutoTVM and AutoScheduler [#6959](https://github.com/apache/tvm/pull/6959) [#8492](https://github.com/apache/tvm/pull/8492) [#8913](https://github.com/apache/tvm/pull/8913) [#8820](https://github.com/apache/tvm/pull/8820) [#8851](https://github.com/apache/tvm/pull/8851)
+- AutoScheduler improvement and stabilization: task scheduler, layout rewrite, early stopping, dispatching [#6945](https://github.com/apache/tvm/pull/6945) [#6750](https://github.com/apache/tvm/pull/6750) [#6987](https://github.com/apache/tvm/pull/6987) [#7156](https://github.com/apache/tvm/pull/7156) [#8862](https://github.com/apache/tvm/pull/8862) [#8995](https://github.com/apache/tvm/pull/8995) [#7571](https://github.com/apache/tvm/pull/7571) [#7376](https://github.com/apache/tvm/pull/7376) [#7377](https://github.com/apache/tvm/pull/7377) [#7344](https://github.com/apache/tvm/pull/7344) [#7185](https://github.com/apache/tvm/pull/7185)
+- AutoScheduler support for sparse workloads [#7313](https://github.com/apache/tvm/pull/7313) [#7635](https://github.com/apache/tvm/pull/7635) [#8065](https://github.com/apache/tvm/pull/8065)
+- AutoScheduler support for Vulkan, ROCm, Mali [#7626](https://github.com/apache/tvm/pull/7626) [#7038](https://github.com/apache/tvm/pull/7038) [#7132](https://github.com/apache/tvm/pull/7132)
+- AutoTVM support for int4 TensorCore [#7831](https://github.com/apache/tvm/pull/7831) [#8402](https://github.com/apache/tvm/pull/8402)
+- Meta Schedule core infrastructure, builder runner and database [#8615](https://github.com/apache/tvm/pull/8615) [#8623](https://github.com/apache/tvm/pull/8623) [#8642](https://github.com/apache/tvm/pull/8642) [#8817](https://github.com/apache/tvm/pull/8817) [#9079](https://github.com/apache/tvm/pull/9079) [#9132](https://github.com/apache/tvm/pull/9132) [#9154](https://github.com/apache/tvm/pull/9154) [#9053](https://github.com/apache/tvm/pull/9053) [#9059](https://github.com/apache/tvm/pull/9059) [#9044](https://github.com/apache/tvm/pull/9044) [#9111](https://github.com/apache/tvm/pull/9111) [#9061](https://github.com/apache/tvm/pull/9061) [#9153](https://github.com/apache/tvm/pull/9153)
+
+#### Operator Coverage
+- Operators for Int-8 vision transformer on GPU [#7814](https://github.com/apache/tvm/pull/7814)
+- Optimizing NMS and ROI-related kernel on GPU [#7257](https://github.com/apache/tvm/pull/7257) [#7172](https://github.com/apache/tvm/pull/7172) [#7136](https://github.com/apache/tvm/pull/7136) [#7796](https://github.com/apache/tvm/pull/7796) [#7463](https://github.com/apache/tvm/pull/7463) [#6516](https://github.com/apache/tvm/pull/6516) [#7440](https://github.com/apache/tvm/pull/7440) [#7666](https://github.com/apache/tvm/pull/7666) [#8174](https://github.com/apache/tvm/pull/8174)
+- Support and optimize sparse operators [#8605](https://github.com/apache/tvm/pull/8605) [#7477](https://github.com/apache/tvm/pull/7477) [#7435](https://github.com/apache/tvm/pull/7435) [#6889](https://github.com/apache/tvm/pull/6889) [#6580](https://github.com/apache/tvm/pull/6580) [#8437](https://github.com/apache/tvm/pull/8437)
+- Sort-related operators and optimization [#9184](https://github.com/apache/tvm/pull/9184) [#7669](https://github.com/apache/tvm/pull/7669) [#8672](https://github.com/apache/tvm/pull/8672) [#7611](https://github.com/apache/tvm/pull/7611) [#7195](https://github.com/apache/tvm/pull/7195) [#7056](https://github.com/apache/tvm/pull/7056) [#6978](https://github.com/apache/tvm/pull/6978)
+- Support for einsum operator [#6370](https://github.com/apache/tvm/pull/6370)
+- Matmul, dense operators and their optimization [#8921](https://github.com/apache/tvm/pull/8921) [#8527](https://github.com/apache/tvm/pull/8527) [#8234](https://github.com/apache/tvm/pull/8234) [#8250](https://github.com/apache/tvm/pull/8250) [#6616](https://github.com/apache/tvm/pull/6616) [#8229](https://github.com/apache/tvm/pull/8229) [#8401](https://github.com/apache/tvm/pull/8401) [#7404](https://github.com/apache/tvm/pull/7404) [#8669](https://github.com/apache/tvm/pull/8669)
+- Convolution and pooling operators and their optimization [#8620](https://github.com/apache/tvm/pull/8620) [#8936](https://github.com/apache/tvm/pull/8936) [#8584](https://github.com/apache/tvm/pull/8584) [#7075](https://github.com/apache/tvm/pull/7075) [#7142](https://github.com/apache/tvm/pull/7142) [#7515](https://github.com/apache/tvm/pull/7515) [#6999](https://github.com/apache/tvm/pull/6999) [#6899](https://github.com/apache/tvm/pull/6899) [#6840](https://github.com/apache/tvm/pull/6840) [#6137](https://github.com/apache/tvm/pull/6137) [#6802](https://github.com/apache/tvm/pull/6802) [#6445](https://github.com/apache/tvm/pull/6445) [#6711](https://github.com/apache/tvm/pull/6711) [#6714](https://github.com/apache/tvm/pull/6714) [#8167](https://github.com/apache/tvm/pull/8167) [#8222](https://github.com/apache/tvm/pull/8222) [#8275](https://github.com/apache/tvm/pull/8275) [#8276](https://github.com/apache/tvm/pull/8276) [#8422](https://github.com/apache/tvm/pull/8422) [#8430](https://github.com/apache/tvm/pull/8430) [#6687](https://github.com/apache/tvm/pull/6687) [#7928](https://github.com/apache/tvm/pull/7928) [#8897](https://github.com/apache/tvm/pull/8897)
+- Scatter and gather operators and their optimization [#8479](https://github.com/apache/tvm/pull/8479) [#7600](https://github.com/apache/tvm/pull/7600) [#7044](https://github.com/apache/tvm/pull/7044) [#7464](https://github.com/apache/tvm/pull/7464) [#7233](https://github.com/apache/tvm/pull/7233) [#6533](https://github.com/apache/tvm/pull/6533) [#6856](https://github.com/apache/tvm/pull/6856) [#6854](https://github.com/apache/tvm/pull/6854) [#7927](https://github.com/apache/tvm/pull/7927) [#8105](https://github.com/apache/tvm/pull/8105)
+- Prefix scan, cumsum and cumprod [#7722](https://github.com/apache/tvm/pull/7722) [#7303](https://github.com/apache/tvm/pull/7303) [#7314](https://github.com/apache/tvm/pull/7314) [#7334](https://github.com/apache/tvm/pull/7334) [#7123](https://github.com/apache/tvm/pull/7123) [#6868](https://github.com/apache/tvm/pull/6868)
+- Dynamic shape and shape functions [#7414](https://github.com/apache/tvm/pull/7414) [#6979](https://github.com/apache/tvm/pull/6979) [#6912](https://github.com/apache/tvm/pull/6912) [#6898](https://github.com/apache/tvm/pull/6898) [#6373](https://github.com/apache/tvm/pull/6373) [#8068](https://github.com/apache/tvm/pull/8068) [#7490](https://github.com/apache/tvm/pull/7490) [#7487](https://github.com/apache/tvm/pull/7487)
+- Miscellaneous improvement. Operators including: reshape, resize, pad, PRNG, transpose, where, softmax, concat, nll_loss, space_to_batch_nd, batch_to_space_nd, slice_like; Libraries including thrust, cuDNN, cuBLAS, MIOpen; Improving schedules for generic reduction and softmax. [#8592](https://github.com/apache/tvm/pull/8592) [#7375](https://github.com/apache/tvm/pull/7375) [#7287](https://github.com/apache/tvm/pull/7287) [#7184](https://github.com/apache/tvm/pull/7184) [#7131](https://github.com/apache/tvm/pull/7131) [#7086](https://github.com/apache/tvm/pull/7086) [#7083](https://github.com/apache/tvm/pull/7083) [#8030](https://github.com/apache/tvm/pull/8030) [#6851](https://github.com/apache/tvm/pull/6851) [#6477](https://github.com/apache/tvm/pull/6477) [#8346](https://github.com/apache/tvm/pull/8346) [#6759](https://github.com/apache/tvm/pull/6759) [#8028](https://github.com/apache/tvm/pull/8028) [#8056](https://github.com/apache/tvm/pull/8056) [#8369](https://github.com/apache/tvm/pull/8369) [#7468](https://github.com/apache/tvm/pull/7468) [#7458](https://github.com/apache/tvm/pull/7458) [#7194](https://github.com/apache/tvm/pull/7194) [#8138](https://github.com/apache/tvm/pull/8138) [#8543](https://github.com/apache/tvm/pull/8543)
+
+#### Training
+
+- Relay AutoDiff [#7677](https://github.com/apache/tvm/pull/7677) [#8318](https://github.com/apache/tvm/pull/8318)
+- TE AutoDiff [#7321](https://github.com/apache/tvm/pull/7321)
+- Gradient operators [#7685](https://github.com/apache/tvm/pull/7685) [#7340](https://github.com/apache/tvm/pull/7340) [#6767](https://github.com/apache/tvm/pull/6767) [#8307](https://github.com/apache/tvm/pull/8307) [#7357](https://github.com/apache/tvm/pull/7357) [#6827](https://github.com/apache/tvm/pull/6827)
+
+#### Relay
+
+- Pattern language and mixed-mode visitor: matching more IR constructs, fuzzy matching; converting more passes to non-recursive.  [#8843](https://github.com/apache/tvm/pull/8843) [#7754](https://github.com/apache/tvm/pull/7754) [#7355](https://github.com/apache/tvm/pull/7355) [#7332](https://github.com/apache/tvm/pull/7332) [#7282](https://github.com/apache/tvm/pull/7282) [#7151](https://github.com/apache/tvm/pull/7151) [#7120](https://github.com/apache/tvm/pull/7120) [#6958](https://github.com/apache/tvm/pull/6958) [#7507](https://github.com/apache/tvm/pull/7507) [#8325](https://github.com/apache/tvm/pull/8325) [#8774](https://github.com/apache/tvm/pull/8774) [#7817](https://github.com/apache/tvm/pull/7817) [#7374](https://github.com/apache/tvm/pull/7374) [#6695](https://github.com/apache/tvm/pull/6695) [#6704](https://github.com/apache/tvm/pull/6704)
+- Improving or adding passes including ExtractOperators, SimplifyExpr, DynamicToStatic, DefuseOps, ConvertLayout, FoldConstant. Added a set of utilities that allows a model to be run efficiently on TensorCores [#9253](https://github.com/apache/tvm/pull/9253) [#9245](https://github.com/apache/tvm/pull/9245) [#8996](https://github.com/apache/tvm/pull/8996) [#7827](https://github.com/apache/tvm/pull/7827) [#9034](https://github.com/apache/tvm/pull/9034) [#7807](https://github.com/apache/tvm/pull/7807) [#8755](https://github.com/apache/tvm/pull/8755) [#7731](https://github.com/apache/tvm/pull/7731) [#7368](https://github.com/apache/tvm/pull/7368) [#7603](https://github.com/apache/tvm/pull/7603) [#7656](https://github.com/apache/tvm/pull/7656) [#7423](https://github.com/apache/tvm/pull/7423) [#7354](https://github.com/apache/tvm/pull/7354) [#6946](https://github.com/apache/tvm/pull/6946) [#6748](https://github.com/apache/tvm/pull/6748) [#6720](https://github.com/apache/tvm/pull/6720) [#6776](https://github.com/apache/tvm/pull/6776) [#7835](https://github.com/apache/tvm/pull/7835) [#7895](https://github.com/apache/tvm/pull/7895) [#8205](https://github.com/apache/tvm/pull/8205)
+- TECompiler and refactoring of compilation workflow [#9103](https://github.com/apache/tvm/pull/9103) [#8974](https://github.com/apache/tvm/pull/8974) [#8886](https://github.com/apache/tvm/pull/8886) [#8802](https://github.com/apache/tvm/pull/8802) [#8501](https://github.com/apache/tvm/pull/8501) [#8526](https://github.com/apache/tvm/pull/8526) [#8486](https://github.com/apache/tvm/pull/8486) [#8597](https://github.com/apache/tvm/pull/8597) [#7518](https://github.com/apache/tvm/pull/7518) [#7552](https://github.com/apache/tvm/pull/7552) [#8914](https://github.com/apache/tvm/pull/8914) [#9130](https://github.com/apache/tvm/pull/9130)
+- Quantization and automatic-mixed precision [#8883](https://github.com/apache/tvm/pull/8883) [#8810](https://github.com/apache/tvm/pull/8810) [#8644](https://github.com/apache/tvm/pull/8644) [#7613](https://github.com/apache/tvm/pull/7613) [#8069](https://github.com/apache/tvm/pull/8069) [#8341](https://github.com/apache/tvm/pull/8341) [#8126](https://github.com/apache/tvm/pull/8126) [#8460](https://github.com/apache/tvm/pull/8460)
+- Parser, printer and diagnostic [#7347](https://github.com/apache/tvm/pull/7347) [#6274](https://github.com/apache/tvm/pull/6274) [#6692](https://github.com/apache/tvm/pull/6692) [#8352](https://github.com/apache/tvm/pull/8352) [#8000](https://github.com/apache/tvm/pull/8000)
+
+#### MicroTVM, AOT, Graph Executor and VM
+
+- Pipeline Executor [#8702](https://github.com/apache/tvm/pull/8702) [#9108](https://github.com/apache/tvm/pull/9108)
+- CUDA graph integration in graph executor [#7616](https://github.com/apache/tvm/pull/7616)
+- Enable add `set_output_zero_copy` in graph executor [#8497](https://github.com/apache/tvm/pull/8497)
+- VM: memory allocation improvement, shape function improvement and misc [#7746](https://github.com/apache/tvm/pull/7746) [#7451](https://github.com/apache/tvm/pull/7451) [#7413](https://github.com/apache/tvm/pull/7413) [#7210](https://github.com/apache/tvm/pull/7210) [#8040](https://github.com/apache/tvm/pull/8040) [#6938](https://github.com/apache/tvm/pull/6938) [#8661](https://github.com/apache/tvm/pull/8661) [#7676](https://github.com/apache/tvm/pull/7676) [#8285](https://github.com/apache/tvm/pull/8285)
+- AOT compilation and execution [#8697](https://github.com/apache/tvm/pull/8697) [#7785](https://github.com/apache/tvm/pull/7785) [#8014](https://github.com/apache/tvm/pull/8014) [#8023](https://github.com/apache/tvm/pull/8023) [#8096](https://github.com/apache/tvm/pull/8096) [#8075](https://github.com/apache/tvm/pull/8075)
+- Project API infrastructure: [#8380](https://github.com/apache/tvm/pull/8380) [#8963](https://github.com/apache/tvm/pull/8963) [#8708](https://github.com/apache/tvm/pull/8708) [#8019](https://github.com/apache/tvm/pull/8019)
+- MicroTVM, Zephyr, Arduino RVM, AutoTVM support [#9320](https://github.com/apache/tvm/pull/9320) [#8941](https://github.com/apache/tvm/pull/8941) [#7804](https://github.com/apache/tvm/pull/7804) [#7786](https://github.com/apache/tvm/pull/7786) [#7449](https://github.com/apache/tvm/pull/7449) [#7891](https://github.com/apache/tvm/pull/7891) [#7915](https://github.com/apache/tvm/pull/7915) [#8055](https://github.com/apache/tvm/pull/8055) [#8037](https://github.com/apache/tvm/pull/8037) [#8386](https://github.com/apache/tvm/pull/8386) [#8519](https://github.com/apache/tvm/pull/8519) [#8748](https://github.com/apache/tvm/pull/8748) [8154](https://github.com/apache/tvm/pull/8154) [#8945](https://github.com/apache/tvm/pull/8945) [#8624](https://github.com/apache/tvm/pull/8624) [#8701](https://github.com/apache/tvm/pull/8701) [#7723](https://github.com/apache/tvm/pull/7723) [#8715](https://github.com/apache/tvm/pull/8715) [#7225](https://github.com/apache/tvm/pull/7225) [#6964](https://github.com/apache/tvm/pull/6964) [#7813](https://github.com/apache/tvm/pull/7813) [#7528](https://github.com/apache/tvm/pull/7528)
+- The pure C runtime (CRT) [#7398](https://github.com/apache/tvm/pull/7398) [#7333](https://github.com/apache/tvm/pull/7333) [#7095](https://github.com/apache/tvm/pull/7095) [#7225](https://github.com/apache/tvm/pull/7225)
+- Model library format [#8270](https://github.com/apache/tvm/pull/8270) [#8072](https://github.com/apache/tvm/pull/8072) [#7938](https://github.com/apache/tvm/pull/7938)
+
+#### Arithmetic Analysis
+
+- Tighter bounds and more simplification on cast [#6771](https://github.com/apache/tvm/pull/6771) [#7045](https://github.com/apache/tvm/pull/7045)
+- Introducing iterator (quasi-) affine map detection [#6667](https://github.com/apache/tvm/pull/6667) [#7752](https://github.com/apache/tvm/pull/7752) [#7759](https://github.com/apache/tvm/pull/7759)
+- Inverse of iterator affine map [#8384](https://github.com/apache/tvm/pull/8384) [#8427](https://github.com/apache/tvm/pull/8427)
+- Subspace division in iterator affine map [#7760](https://github.com/apache/tvm/pull/7760)
+
+#### Frontends
+
+- PaddlePaddle initial support [#8645](https://github.com/apache/tvm/pull/8645)  [#9124](https://github.com/apache/tvm/pull/9124) [#9126](https://github.com/apache/tvm/pull/9126) [#9295](https://github.com/apache/tvm/pull/9295) [#9370](https://github.com/apache/tvm/pull/9370) [#9236](https://github.com/apache/tvm/pull/9236) [#9283](https://github.com/apache/tvm/pull/9283)
+- ONNX support, including better handling of control flow, coverage of more operators, better dynamic shape support, more tests. [#9265](https://github.com/apache/tvm/pull/9265) [#9178](https://github.com/apache/tvm/pull/9178) [#9146](https://github.com/apache/tvm/pull/9146) [#8894](https://github.com/apache/tvm/pull/8894) [#8966](https://github.com/apache/tvm/pull/8966) [#8967](https://github.com/apache/tvm/pull/8967) [#7818](https://github.com/apache/tvm/pull/7818) [#9000](https://github.com/apache/tvm/pull/9000) [#9001](https://github.com/apache/tvm/pull/9001) [#9066](https://github.com/apache/tvm/pull/9066) [#9028](https://github.com/apache/tvm/pull/9028) [#9002](https://github.com/apache/tvm/pull/9002) [#8985](https://github.com/apache/tvm/pull/8985) [#9019](https://github.com/apache/tvm/pull/9019) [#9017](https://github.com/apache/tvm/pull/9017) [#8972](https://github.com/apache/tvm/pull/8972) [#7802](https://github.com/apache/tvm/pull/7802) [#7800](https://github.com/apache/tvm/pull/7800) [#7781](https://github.com/apache/tvm/pull/7781) [#8919](https://github.com/apache/tvm/pull/8919) [#9054](https://github.com/apache/tvm/pull/9054) [#8906](https://github.com/apache/tvm/pull/8906) [#8933](https://github.com/apache/tvm/pull/8933) [#8959](https://github.com/apache/tvm/pull/8959) [#8907](https://github.com/apache/tvm/pull/8907) [#7771](https://github.com/apache/tvm/pull/7771) [#8923](https://github.com/apache/tvm/pull/8923) [#8924](https://github.com/apache/tvm/pull/8924) [#7755](https://github.com/apache/tvm/pull/7755) [#7720](https://github.com/apache/tvm/pull/7720) [#8773](https://github.com/apache/tvm/pull/8773) [#8872](https://github.com/apache/tvm/pull/8872) [#7655](https://github.com/apache/tvm/pull/7655) [#8741](https://github.com/apache/tvm/pull/8741) [#7633](https://github.com/apache/tvm/pull/7633) [#8781](https://github.com/apache/tvm/pull/8781) [#8866](https://github.com/apache/tvm/pull/8866) [#8867](https://github.com/apache/tvm/pull/8867) [#7522](https://github.com/apache/tvm/pull/7522) [#7519](https://github.com/apache/tvm/pull/7519) [#7489](https://github.com/apache/tvm/pull/7489) [#7438](https://github.com/apache/tvm/pull/7438) [#7429](https://github.com/apache/tvm/pull/7429) [#7364](https://github.com/apache/tvm/pull/7364) [#7300](https://github.com/apache/tvm/pull/7300) [#7259](https://github.com/apache/tvm/pull/7259) [#7243](https://github.com/apache/tvm/pull/7243) [#7237](https://github.com/apache/tvm/pull/7237) [#7208](https://github.com/apache/tvm/pull/7208) [#7189](https://github.com/apache/tvm/pull/7189) [#7115](https://github.com/apache/tvm/pull/7115) [#7109](https://github.com/apache/tvm/pull/7109) [#7089](https://github.com/apache/tvm/pull/7089) [#7036](https://github.com/apache/tvm/pull/7036) [#7031](https://github.com/apache/tvm/pull/7031) [#6839](https://github.com/apache/tvm/pull/6839) [#6351](https://github.com/apache/tvm/pull/6351) [#7842](https://github.com/apache/tvm/pull/7842) [#7844](https://github.com/apache/tvm/pull/7844) [#6646](https://github.com/apache/tvm/pull/6646) [#6647](https://github.com/apache/tvm/pull/6647) [#6681](https://github.com/apache/tvm/pull/6681) [#6700](https://github.com/apache/tvm/pull/6700) [#7883](https://github.com/apache/tvm/pull/7883) [#6726](https://github.com/apache/tvm/pull/6726) [#6730](https://github.com/apache/tvm/pull/6730) [#7899](https://github.com/apache/tvm/pull/7899) [#7900](https://github.com/apache/tvm/pull/7900) [#7906](https://github.com/apache/tvm/pull/7906) [#7934](https://github.com/apache/tvm/pull/7934) [#7956](https://github.com/apache/tvm/pull/7956) [#8007](https://github.com/apache/tvm/pull/8007) [#8011](https://github.com/apache/tvm/pull/8011) [#8084](https://github.com/apache/tvm/pull/8084) [#8099](https://github.com/apache/tvm/pull/8099) [#8189](https://github.com/apache/tvm/pull/8189) [#8191](https://github.com/apache/tvm/pull/8191) [#8304](https://github.com/apache/tvm/pull/8304) [#8321](https://github.com/apache/tvm/pull/8321) [#8337](https://github.com/apache/tvm/pull/8337) [#8356](https://github.com/apache/tvm/pull/8356) [#8385](https://github.com/apache/tvm/pull/8385) [#8502](https://github.com/apache/tvm/pull/8502) [#8426](https://github.com/apache/tvm/pull/8426) [#8440](https://github.com/apache/tvm/pull/8440) [#8456](https://github.com/apache/tvm/pull/8456) [#8475](https://github.com/apache/tvm/pull/8475) [#7391](https://github.com/apache/tvm/pull/7391) [#7394](https://github.com/apache/tvm/pull/7394) [#8621](https://github.com/apache/tvm/pull/8621) [#8322](https://github.com/apache/tvm/pull/8322) [#8323](https://github.com/apache/tvm/pull/8323) [#8435](https://github.com/apache/tvm/pull/8435) [#8436](https://github.com/apache/tvm/pull/8436) [#8455](https://github.com/apache/tvm/pull/8455) [#7353](https://github.com/apache/tvm/pull/7353) [#7215](https://github.com/apache/tvm/pull/7215)
+- TensorFlow and TFLite, including more operators, better TensorArray support and quantization [#9404](https://github.com/apache/tvm/pull/9404) [#9256](https://github.com/apache/tvm/pull/9256) [#8689](https://github.com/apache/tvm/pull/8689) [#7789](https://github.com/apache/tvm/pull/7789) [#7736](https://github.com/apache/tvm/pull/7736) [#8763](https://github.com/apache/tvm/pull/8763) [#8647](https://github.com/apache/tvm/pull/8647) [#8648](https://github.com/apache/tvm/pull/8648) [#8558](https://github.com/apache/tvm/pull/8558) [#8780](https://github.com/apache/tvm/pull/8780) [#8538](https://github.com/apache/tvm/pull/8538) [#7659](https://github.com/apache/tvm/pull/7659) [#7639](https://github.com/apache/tvm/pull/7639) [#7531](https://github.com/apache/tvm/pull/7531) [#7520](https://github.com/apache/tvm/pull/7520) [#7502](https://github.com/apache/tvm/pull/7502) [#7496](https://github.com/apache/tvm/pull/7496) [#7473](https://github.com/apache/tvm/pull/7473) [#7452](https://github.com/apache/tvm/pull/7452) [#7442](https://github.com/apache/tvm/pull/7442) [#7441](https://github.com/apache/tvm/pull/7441) [#7400](https://github.com/apache/tvm/pull/7400) [#7320](https://github.com/apache/tvm/pull/7320) [#7293](https://github.com/apache/tvm/pull/7293) [#7267](https://github.com/apache/tvm/pull/7267) [#7159](https://github.com/apache/tvm/pull/7159) [#7148](https://github.com/apache/tvm/pull/7148) [#7114](https://github.com/apache/tvm/pull/7114) [#7113](https://github.com/apache/tvm/pull/7113) [#7093](https://github.com/apache/tvm/pull/7093) [#7074](https://github.com/apache/tvm/pull/7074) [#7048](https://github.com/apache/tvm/pull/7048) [#7030](https://github.com/apache/tvm/pull/7030) [#6998](https://github.com/apache/tvm/pull/6998) [#6984](https://github.com/apache/tvm/pull/6984) [#6970](https://github.com/apache/tvm/pull/6970) [#6949](https://github.com/apache/tvm/pull/6949) [#6933](https://github.com/apache/tvm/pull/6933) [#6918](https://github.com/apache/tvm/pull/6918) [#6901](https://github.com/apache/tvm/pull/6901) [#6885](https://github.com/apache/tvm/pull/6885) [#6849](https://github.com/apache/tvm/pull/6849) [#5767](https://github.com/apache/tvm/pull/5767) [#6589](https://github.com/apache/tvm/pull/6589) [#6670](https://github.com/apache/tvm/pull/6670) [#6674](https://github.com/apache/tvm/pull/6674) [#6675](https://github.com/apache/tvm/pull/6675) [#7866](https://github.com/apache/tvm/pull/7866) [#6685](https://github.com/apache/tvm/pull/6685) [#7885](https://github.com/apache/tvm/pull/7885) [#6729](https://github.com/apache/tvm/pull/6729) [#7901](https://github.com/apache/tvm/pull/7901) [#6774](https://github.com/apache/tvm/pull/6774) [#6783](https://github.com/apache/tvm/pull/6783) [#6799](https://github.com/apache/tvm/pull/6799) [#7951](https://github.com/apache/tvm/pull/7951) [#8024](https://github.com/apache/tvm/pull/8024) [#8051](https://github.com/apache/tvm/pull/8051) [#8060](https://github.com/apache/tvm/pull/8060) [#8074](https://github.com/apache/tvm/pull/8074) [#8142](https://github.com/apache/tvm/pull/8142) [#8179](https://github.com/apache/tvm/pull/8179) [#8251](https://github.com/apache/tvm/pull/8251) [#8277](https://github.com/apache/tvm/pull/8277) [#8335](https://github.com/apache/tvm/pull/8335) [#8364](https://github.com/apache/tvm/pull/8364) [#8375](https://github.com/apache/tvm/pull/8375) [#8431](https://github.com/apache/tvm/pull/8431) [#8454](https://github.com/apache/tvm/pull/8454) [#6818](https://github.com/apache/tvm/pull/6818) [#8483](https://github.com/apache/tvm/pull/8483) [#9099](https://github.com/apache/tvm/pull/9099) [#9165](https://github.com/apache/tvm/pull/9165)
+- PyTorch: more operators including activations, inplace operators, RNNs, NMS [#9371](https://github.com/apache/tvm/pull/9371) [#9204](https://github.com/apache/tvm/pull/9204) [#9185](https://github.com/apache/tvm/pull/9185) [#9135](https://github.com/apache/tvm/pull/9135) [#9133](https://github.com/apache/tvm/pull/9133) [#9015](https://github.com/apache/tvm/pull/9015) [#8839](https://github.com/apache/tvm/pull/8839) [#8718](https://github.com/apache/tvm/pull/8718) [#8699](https://github.com/apache/tvm/pull/8699) [#8692](https://github.com/apache/tvm/pull/8692) [#7712](https://github.com/apache/tvm/pull/7712) [#8753](https://github.com/apache/tvm/pull/8753) [#7694](https://github.com/apache/tvm/pull/7694) [#8583](https://github.com/apache/tvm/pull/8583) [#7675](https://github.com/apache/tvm/pull/7675) [#7646](https://github.com/apache/tvm/pull/7646) [#7606](https://github.com/apache/tvm/pull/7606) [#7592](https://github.com/apache/tvm/pull/7592) [#7569](https://github.com/apache/tvm/pull/7569) [#7544](https://github.com/apache/tvm/pull/7544) [#7549](https://github.com/apache/tvm/pull/7549) [#7535](https://github.com/apache/tvm/pull/7535) [#7517](https://github.com/apache/tvm/pull/7517) [#7465](https://github.com/apache/tvm/pull/7465) [#7397](https://github.com/apache/tvm/pull/7397) [#7371](https://github.com/apache/tvm/pull/7371) [#7348](https://github.com/apache/tvm/pull/7348) [#7346](https://github.com/apache/tvm/pull/7346) [#7325](https://github.com/apache/tvm/pull/7325) [#7231](https://github.com/apache/tvm/pull/7231) [#7174](https://github.com/apache/tvm/pull/7174) [#7154](https://github.com/apache/tvm/pull/7154) [#7137](https://github.com/apache/tvm/pull/7137) [#7134](https://github.com/apache/tvm/pull/7134) [#7133](https://github.com/apache/tvm/pull/7133) [#7128](https://github.com/apache/tvm/pull/7128) [#7088](https://github.com/apache/tvm/pull/7088) [#7023](https://github.com/apache/tvm/pull/7023) [#6900](https://github.com/apache/tvm/pull/6900) [#6602](https://github.com/apache/tvm/pull/6602) [#7845](https://github.com/apache/tvm/pull/7845) [#6659](https://github.com/apache/tvm/pull/6659) [#6740](https://github.com/apache/tvm/pull/6740) [#6782](https://github.com/apache/tvm/pull/6782) [#6784](https://github.com/apache/tvm/pull/6784) [#7958](https://github.com/apache/tvm/pull/7958) [#8192](https://github.com/apache/tvm/pull/8192) [#8397](https://github.com/apache/tvm/pull/8397) [#8398](https://github.com/apache/tvm/pull/8398) [#8403](https://github.com/apache/tvm/pull/8403) [#8447](https://github.com/apache/tvm/pull/8447) [#6829](https://github.com/apache/tvm/pull/6829)
+- MXNet support. More operators and NLP model coverage in GluonNLP [#7568](https://github.com/apache/tvm/pull/7568) [#7409](https://github.com/apache/tvm/pull/7409) [#7209](https://github.com/apache/tvm/pull/7209) [#7191](https://github.com/apache/tvm/pull/7191) [#7062](https://github.com/apache/tvm/pull/7062) [#6561](https://github.com/apache/tvm/pull/6561) [#6699](https://github.com/apache/tvm/pull/6699)
+- Misc: CoreML, Keras, DarkNet, etc. [#7667](https://github.com/apache/tvm/pull/7667) [#6676](https://github.com/apache/tvm/pull/6676) [#6651](https://github.com/apache/tvm/pull/6651) [#6963](https://github.com/apache/tvm/pull/6963) [#7949](https://github.com/apache/tvm/pull/7949) [#7035](https://github.com/apache/tvm/pull/7035) [#7446](https://github.com/apache/tvm/pull/7446) [#8562](https://github.com/apache/tvm/pull/8562) [#8599](https://github.com/apache/tvm/pull/8599)
+
+#### Codegen Backends and Runtime
+
+- LLVM backend: recover LLVM support on windows; support target feature strings in function attributes; atomic support in NVPTX, ROCm; LLVM compatibility to LLVM 12+ [#9305](https://github.com/apache/tvm/pull/9305) [#9223](https://github.com/apache/tvm/pull/9223) [#9138](https://github.com/apache/tvm/pull/9138) [#8860](https://github.com/apache/tvm/pull/8860) [#8958](https://github.com/apache/tvm/pull/8958) [#6763](https://github.com/apache/tvm/pull/6763) [#6698](https://github.com/apache/tvm/pull/6698) [#6717](https://github.com/apache/tvm/pull/6717) [#6738](https://github.com/apache/tvm/pull/6738) [#8293](https://github.com/apache/tvm/pull/8293) [#6907](https://github.com/apache/tvm/pull/6907) [#7051](https://github.com/apache/tvm/pull/7051)
+- ROCm 3.9 bitcode files search [#6865](https://github.com/apache/tvm/pull/6865)
+- Vulkan and SPIR-V refactoring and major improvement in codegen and runtime. [A critical bug fix in SPIRV codegen](https://github.com/apache/tvm/pull/8102) allows the Vulkan backend to produce correct outputs on more hardwares and drivers. Added support for querying device specific hardware parameters and capabilities, dynamic shapes, irregular ops such as sorting and NMS, UBO, fp16, and vectorization. We can now run complicated models like MaskRCNN on Vulkan end to end. [#8904](https://github.com/apache/tvm/pull/8904) [#7833](https://github.com/apache/tvm/pull/7833) [#7717](https://github.com/apache/tvm/pull/7717) [#7681](https://github.com/apache/tvm/pull/7681) [#8746](https://github.com/apache/tvm/pull/8746) [#8813](https://github.com/apache/tvm/pull/8813) [#7609](https://github.com/apache/tvm/pull/7609) [#8882](https://github.com/apache/tvm/pull/8882) [#7607](https://github.com/apache/tvm/pull/7607) [#7591](https://github.com/apache/tvm/pull/7591) [#7574](https://github.com/apache/tvm/pull/7574) [#7572](https://github.com/apache/tvm/pull/7572) [#7833](https://github.com/apache/tvm/pull/7833) [#6662](https://github.com/apache/tvm/pull/6662) [#7969](https://github.com/apache/tvm/pull/7969) [#8013](https://github.com/apache/tvm/pull/8013) [#8048](https://github.com/apache/tvm/pull/8048) [#8098](https://github.com/apache/tvm/pull/8098) [#8102](https://github.com/apache/tvm/pull/8102) [#8107](https://github.com/apache/tvm/pull/8107) [#8127](https://github.com/apache/tvm/pull/8127) [#8151](https://github.com/apache/tvm/pull/8151) [#8196](https://github.com/apache/tvm/pull/8196) [#8320](https://github.com/apache/tvm/pull/8320) [#8588](https://github.com/apache/tvm/pull/8588) [#8332](https://github.com/apache/tvm/pull/8332) [#8333](https://github.com/apache/tvm/pull/8333) [#8348](https://github.com/apache/tvm/pull/8348) [#8528](https://github.com/apache/tvm/pull/8528)
+- Metal language version upgrade (`MTLLanguageVersion2_3`), better codegen support, int64 support, various bug fixes [#7830](https://github.com/apache/tvm/pull/7830) [#7819](https://github.com/apache/tvm/pull/7819) [#7714](https://github.com/apache/tvm/pull/7714) [#7118](https://github.com/apache/tvm/pull/7118) [#7116](https://github.com/apache/tvm/pull/7116) [#7105](https://github.com/apache/tvm/pull/7105) [#7980](https://github.com/apache/tvm/pull/7980) [#8054](https://github.com/apache/tvm/pull/8054) [#8175](https://github.com/apache/tvm/pull/8175) [#8202](https://github.com/apache/tvm/pull/8202) [#8206](https://github.com/apache/tvm/pull/8206) [#8313](https://github.com/apache/tvm/pull/8313)
+- OpenCL, VTA, Verilator: refactored code generator, better error messages, various bug fixes [#7834](https://github.com/apache/tvm/pull/7834) [#7777](https://github.com/apache/tvm/pull/7777) [#7761](https://github.com/apache/tvm/pull/7761) [#7100](https://github.com/apache/tvm/pull/7100) [#6125](https://github.com/apache/tvm/pull/6125) [#6126](https://github.com/apache/tvm/pull/6126) [#6191](https://github.com/apache/tvm/pull/6191) [#7834](https://github.com/apache/tvm/pull/7834) [#8256](https://github.com/apache/tvm/pull/8256) [#8257](https://github.com/apache/tvm/pull/8257) [#8731](https://github.com/apache/tvm/pull/8731) [#8756](https://github.com/apache/tvm/pull/8756) [#8973](https://github.com/apache/tvm/pull/8973)
+- CUDA: enable `__launch_bounds__`, dynamic shared memory, TensorCore, BF16, half2, NVCC version upgrade [#9341](https://github.com/apache/tvm/pull/9341) [#8678](https://github.com/apache/tvm/pull/8678) [#7561](https://github.com/apache/tvm/pull/7561) [#7273](https://github.com/apache/tvm/pull/7273) [#7146](https://github.com/apache/tvm/pull/7146) [#7147](https://github.com/apache/tvm/pull/7147) [#7099](https://github.com/apache/tvm/pull/7099) [#7065](https://github.com/apache/tvm/pull/7065) [#7033](https://github.com/apache/tvm/pull/7033) [#7014](https://github.com/apache/tvm/pull/7014) [#7907](https://github.com/apache/tvm/pull/7907) [#7964](https://github.com/apache/tvm/pull/7964) [#9087](https://github.com/apache/tvm/pull/9087) [#8135](https://github.com/apache/tvm/pull/8135) [#8137](https://github.com/apache/tvm/pull/8137) [#8457](https://github.com/apache/tvm/pull/8457) [#8466](https://github.com/apache/tvm/pull/8466) [#8571](https://github.com/apache/tvm/pull/8571)
+- ARM: CMSIS-NN, Ethos-N [#8653](https://github.com/apache/tvm/pull/8653) [#7628](https://github.com/apache/tvm/pull/7628) [#8951](https://github.com/apache/tvm/pull/8951) [#7506](https://github.com/apache/tvm/pull/7506) [#7443](https://github.com/apache/tvm/pull/7443) [#7858](https://github.com/apache/tvm/pull/7858) [#6982](https://github.com/apache/tvm/pull/6982) [#8795](https://github.com/apache/tvm/pull/8795) [#8806](https://github.com/apache/tvm/pull/8806) [#8833](https://github.com/apache/tvm/pull/8833) [#9147](https://github.com/apache/tvm/pull/9147) [#9159](https://github.com/apache/tvm/pull/9159) [#9160](https://github.com/apache/tvm/pull/9160) [#9162](https://github.com/apache/tvm/pull/9162) [#9163](https://github.com/apache/tvm/pull/9163) [#9167](https://github.com/apache/tvm/pull/9167) [#9209](https://github.com/apache/tvm/pull/9209) [#9386](https://github.com/apache/tvm/pull/9386) [#9387](https://github.com/apache/tvm/pull/9387)
+- Hexagon: build, compilation, model launcher, more target options and better runtime [#7784](https://github.com/apache/tvm/pull/7784) [#6718](https://github.com/apache/tvm/pull/6718) [#8821](https://github.com/apache/tvm/pull/8821) [#8822](https://github.com/apache/tvm/pull/8822) [#9033](https://github.com/apache/tvm/pull/9033) [#8823](https://github.com/apache/tvm/pull/8823) [#8859](https://github.com/apache/tvm/pull/8859) [#8865](https://github.com/apache/tvm/pull/8865) [#8915](https://github.com/apache/tvm/pull/8915) [#8954](https://github.com/apache/tvm/pull/8954) [#9024](https://github.com/apache/tvm/pull/9024) [#9025](https://github.com/apache/tvm/pull/9025) [#8960](https://github.com/apache/tvm/pull/8960) [#8986](https://github.com/apache/tvm/pull/8986) [#9010](https://github.com/apache/tvm/pull/9010) [#9011](https://github.com/apache/tvm/pull/9011) [#9189](https://github.com/apache/tvm/pull/9189) [#9220](https://github.com/apache/tvm/pull/9220) [#9355](https://github.com/apache/tvm/pull/9355) [#9356](https://github.com/apache/tvm/pull/9356)
+
+
+- WASM: Update support for latest emcc, add ffi test. [#6751](https://github.com/apache/tvm/pull/6751)
+
+#### BYOC Integration with Vendor Libraries: TensorRT, ACL, VitisAI
+
+- TensorRT initial integration, stabilization, int8 calibration, dynamism support  [#6395](https://github.com/apache/tvm/pull/6395) [#7702](https://github.com/apache/tvm/pull/7702) [#7595](https://github.com/apache/tvm/pull/7595) [#7581](https://github.com/apache/tvm/pull/7581) [#7412](https://github.com/apache/tvm/pull/7412) [#7372](https://github.com/apache/tvm/pull/7372) [#9047](https://github.com/apache/tvm/pull/9047) [#8073](https://github.com/apache/tvm/pull/8073) [#8808](https://github.com/apache/tvm/pull/8808) [#6905](https://github.com/apache/tvm/pull/6905) [#7967](https://github.com/apache/tvm/pull/7967) [#8005](https://github.com/apache/tvm/pull/8005) [#8172](https://github.com/apache/tvm/pull/8172) [#8461](https://github.com/apache/tvm/pull/8461) [#8506](https://github.com/apache/tvm/pull/8506) [#8607](https://github.com/apache/tvm/pull/8607) [#7205](https://github.com/apache/tvm/pull/7205) [#7026](https://github.com/apache/tvm/pull/7026) [#7016](https://github.com/apache/tvm/pull/7016) [#7011](https://github.com/apache/tvm/pull/7011) [#6955](https://github.com/apache/tvm/pull/6955) [#6872](https://github.com/apache/tvm/pull/6872) [#7253](https://github.com/apache/tvm/pull/7253) [#6805](https://github.com/apache/tvm/pull/6805) [#9324](https://github.com/apache/tvm/pull/9324)
+- Arm Compute Library (ACL) integration [#7649](https://github.com/apache/tvm/pull/7649) [#7206](https://github.com/apache/tvm/pull/7206) [#6532](https://github.com/apache/tvm/pull/6532) [#7121](https://github.com/apache/tvm/pull/7121) [#6724](https://github.com/apache/tvm/pull/6724) [#8149](https://github.com/apache/tvm/pull/8149) [#7251](https://github.com/apache/tvm/pull/7251) [#9396](https://github.com/apache/tvm/pull/9396)
+- Verilator integration [#7406](https://github.com/apache/tvm/pull/7406) [#7351](https://github.com/apache/tvm/pull/7351) [#7286](https://github.com/apache/tvm/pull/7286) [#8094](https://github.com/apache/tvm/pull/8094)
+- VitisAI integration [#6343](https://github.com/apache/tvm/pull/6343) [#7350](https://github.com/apache/tvm/pull/7350)
+- BYOC infrastructure enhancement: improving control flow, AnnotateTarget, custom codegen [#6641](https://github.com/apache/tvm/pull/6641) [#6655](https://github.com/apache/tvm/pull/6655) [#6697](https://github.com/apache/tvm/pull/6697) [#6786](https://github.com/apache/tvm/pull/6786) [#7977](https://github.com/apache/tvm/pull/7977) [#8464](https://github.com/apache/tvm/pull/8464)
+
+
+#### TVMC
+
+- MacOS support [#8396](https://github.com/apache/tvm/pull/8396)
+- AutoScheduler support [#7070](https://github.com/apache/tvm/pull/7070)
+- Support cross compiler options [#7922](https://github.com/apache/tvm/pull/7922)
+- Python scripting [#7823](https://github.com/apache/tvm/pull/7823) [#7698](https://github.com/apache/tvm/pull/7698)
+- More flexible input specification [#7366](https://github.com/apache/tvm/pull/7366) [#7788](https://github.com/apache/tvm/pull/7788)
+- More options, `--disable-pass` and `--config` [#7816](https://github.com/apache/tvm/pull/7816) [#8253](https://github.com/apache/tvm/pull/8253)
+- Allow passing optional arguments to importers [#7674](https://github.com/apache/tvm/pull/7674)
+- Model library format (MLF) support [#8086](https://github.com/apache/tvm/pull/8086) [#8331](https://github.com/apache/tvm/pull/8331)
+- More backend and library support: metal, ACL, Vulkan, OpenCL, ROCm, Vitis AI [#8282](https://github.com/apache/tvm/pull/8282) [#7508](https://github.com/apache/tvm/pull/7508) [#8359](https://github.com/apache/tvm/pull/8359) [#6831](https://github.com/apache/tvm/pull/6831) [#8896](https://github.com/apache/tvm/pull/8896) [#7577](https://github.com/apache/tvm/pull/7577)
+- Support for the new target system [#7651](https://github.com/apache/tvm/pull/7651) [#7654](https://github.com/apache/tvm/pull/7654) [#6788](https://github.com/apache/tvm/pull/6788) [#7304](https://github.com/apache/tvm/pull/7304) [#6855](https://github.com/apache/tvm/pull/6855)
+
+#### Rust Binding
+
+- Rust bindings installable via Cargo [#7503](https://github.com/apache/tvm/pull/7503) [#6678](https://github.com/apache/tvm/pull/6678) [#8631](https://github.com/apache/tvm/pull/8631) [#8665](https://github.com/apache/tvm/pull/8665)
+- Initial support for diagnostic interface [#6656](https://github.com/apache/tvm/pull/6656)
+- Fixes for using Python APIs from Rust [#7085](https://github.com/apache/tvm/pull/7085)
+- Improve NDArray, GraphRt, Relay, IRModule, Array, Attrs bindings [#6563](https://github.com/apache/tvm/pull/6563) [#6741](https://github.com/apache/tvm/pull/6741) [#7138](https://github.com/apache/tvm/pull/7138) [#8353](https://github.com/apache/tvm/pull/8353) [#7082](https://github.com/apache/tvm/pull/7082)
+- Improve error handling, error messages and fix memory leaks [#8289](https://github.com/apache/tvm/pull/8289) [#6815](https://github.com/apache/tvm/pull/6815) [#8714](https://github.com/apache/tvm/pull/8714) [#8725](https://github.com/apache/tvm/pull/8725)
+
+#### Misc
+
+- Enhanced CPP-RPC implementation: allow user supplied work dir, support of CPP-RPC server for Apple, support adb-shell style CPP-RPC [#7670](https://github.com/apache/tvm/pull/7670) [#8224](https://github.com/apache/tvm/pull/8224) [#8223](https://github.com/apache/tvm/pull/8223) [#7766](https://github.com/apache/tvm/pull/7766) [#7013](https://github.com/apache/tvm/pull/7013)
+- Use PopenWorker to handle RPC system: [#7889](https://github.com/apache/tvm/pull/7889) [#7757](https://github.com/apache/tvm/pull/7757) [#7961](https://github.com/apache/tvm/pull/7961)
+- Fold target host into target [#7462](https://github.com/apache/tvm/pull/7462) [#7791](https://github.com/apache/tvm/pull/7791) [#7534](https://github.com/apache/tvm/pull/7534) [#8835](https://github.com/apache/tvm/pull/8835)
+- Target-based intrinsic lowering and legalization [#7936](https://github.com/apache/tvm/pull/7936) [#7809](https://github.com/apache/tvm/pull/7809)
+- Add target tags for all existing CUDA GPU models [#7410](https://github.com/apache/tvm/pull/7410)
+- Linear Congruential Random Engine [#8642](https://github.com/apache/tvm/pull/8642)
 
 ## 0.7
 v0.7 brings many major features. The community works together to refactor the internal code base to bring an unified IR code structure with a unified IRModule, type system and pass infrastructure. We have also bought many exciting new features, some highlights include:
@@ -38,8 +298,8 @@ v0.7 brings many major features. The community works together to refactor the in
 
 The community also continues to bring high quality improvements to the existing modules including, but not limited to: better frontend coverage, performance, quantization, microTVM and dynamic shape support.
 
-## New Features
-### Automatic Scheduling (Experimental)
+### New Features
+#### Automatic Scheduling (Experimental)
 * Phase 0: Ansor minimum system for auto schedule generating #5962
 * Phase 1: Access Analyzer #6103
 * Phase 1: Add `follow_split` and `follow_fused_split` steps #6142
@@ -57,8 +317,8 @@ The community also continues to bring high quality improvements to the existing 
 * Parallel the InitPopulation (#6512)
 * Tutorial: Using the template-free auto-scheduler on CPU (#6488)
 
-### BYOC
-* External codegen support in Relay (#4482)，(#4544)
+#### BYOC
+* External codegen support in Relay (#4482), (#4544)
 * Bring Your Own Codegen Guide -- Part 1 #4602
 * Bring Your Own Codegen Guide -- Part 2 #4718
 * Relay annotation and partitioning for external compilers #4570
@@ -76,7 +336,7 @@ The community also continues to bring high quality improvements to the existing 
 * Add support for quantized convolution #6335
 * CoreML codegen #5634
 
-### Operator Coverage
+#### Operator Coverage
 * Add `strided_set` operation (#4303)
 * Add support for conv3d (#4400), pool3d (#4478), 3d upsampling ops (#4584)
 * Add group convolution for VTA (#4421)
@@ -102,7 +362,7 @@ The community also continues to bring high quality improvements to the existing 
 * Conv1D #4639
 * 1D Pooling #4663
 
-### Quantization
+#### Quantization
 * Channel wise quantization - Quantize & Requantize #4629
 * Support QNN ops. #5066
 * Adding support for QNN subtract op #5153
@@ -110,7 +370,7 @@ The community also continues to bring high quality improvements to the existing 
 * Tutorial: Deploy Quantized Model on CUDA #4667
 * Support asymmetric per-layer quantized operators #6109
 
-### Relay
+#### Relay
 * Add convertlayout pass in Relay (#4335, #4600)
 * Added Merge Composite pass #4771
 * Call graph for relay #4922
@@ -129,7 +389,7 @@ The community also continues to bring high quality improvements to the existing 
 * Convert Layout pass. #4664
 * Pattern Language, Matcher, Rewriter, and Function Paritioner #5231
 
-### Runtime and Backend
+#### Runtime and Backend
 * Add ADTObject POD container type (#4346)
 * TFLite RPC runtime (#4439)
 * Standardized graph runtime export (#4532)
@@ -154,7 +414,7 @@ The community also continues to bring high quality improvements to the existing 
 * Add TVM application extension with WASM runtime #5892
 * Provide guide to user who has difficulty register SEqualReduce (#5300)
 
-### Rust Support
+#### Rust Support
 * Revive the Rust + SGX refactor #4976
 * Improve Rust bindings: Map, Array, String, various IR nodes #6339
 * Rust Refactor Stage 4: Rewrite Rust graph runtime to use new APIs #5830
@@ -162,7 +422,7 @@ The community also continues to bring high quality improvements to the existing 
 * tvm crate stage 3 of Rust refactor #5769
 * Add first stage of updating and rewriting Rust bindings. #5526
 
-### TIR
+#### TIR
 * Introduce StructuralHash for the Unified IR. #5160
 * Introduce StructuralEqual Infra for the unified IR. #5154
 * Introduce ExprDeepEqual, Remove IRDeepCompare #5206
@@ -177,12 +437,12 @@ The community also continues to bring high quality improvements to the existing 
 * Hybrid Script Support for TIR #6227
 * Block scope hoisting added #6238
 
-### TE
+#### TE
 * reverse-mode autodiff without any optimization #5121
 * Tensor Expression Debug Display (TEDD) #4651
 * Optimize and eliminate the Jacobian tensor for te.autodiff #6078
 
-### TVMC(Experimental)
+#### TVMC(Experimental)
 * TVMC - A command line driver for TVM (Part 1) #6112
 * TVMC - Linting error on onnx command line driver frontend #6536
 * TVMC - Command line driver 'compile' (part 2/4) #6302
@@ -191,13 +451,13 @@ The community also continues to bring high quality improvements to the existing 
 * TVMC - Getting started tutorial for TVMC #6597
 
 
-## Feature Improvement
-### Accelerator and Microcontroller Support
+### Feature Improvement
+#### Accelerator and Microcontroller Support
 - Cleanup legacy verilog code (#4576)
 - uTVM support for ARM STM32F746XX boards (#4274)
 - Add --runtime=c, remove `micro_dev` target, enable LLVM backend #6145
 
-### Arithmetic Analysis
+#### Arithmetic Analysis
 * Linear system and equation solver (#5171)
 * Inequalities solver #5618
 * Improve IntervalSet's floormod (#5367)
@@ -206,7 +466,7 @@ The community also continues to bring high quality improvements to the existing 
 * ExtendedEuclidean merge impl to int_operator #5625
 * Rewrite simplify fix for Vectorized Cooperative Fetching #5924
 
-### AutoTVM and Graph Tuner
+#### AutoTVM and Graph Tuner
 * Adding ROCM schedules for TOPI (#4507)
 * NHWC conv2d schedule templates for ARM (#3859)
 * Use VM compile to extract autotvm tasks #4328
@@ -222,7 +482,7 @@ The community also continues to bring high quality improvements to the existing 
 * Enable random fill and CPU cache flush for AutoTVM and Ansor (#6391)
 * Auto-scheduler tutorial for GPU and necessary refactor/fix (#6512)
 
-### BYOC
+#### BYOC
 * [BYOC] Bind constant tuples in graph partitioner (#5476)
 * [BYOC] Add support for composite functions in BYOC (#5261)
 * [BYOC] Register pattern tables from external codegens (#5262)
@@ -236,7 +496,7 @@ The community also continues to bring high quality improvements to the existing 
 * [BYOC] Support input nodes with multiple entries (#6368)
 * [BYOC] Add maximum support for float32 (#6506)
 
-### Codegen
+#### Codegen
 * Intrinsic dispatching with OCML instead of LLVM for ROCm (#4499)
 * Make target codegen take IRModule and PrimFunc. #5107
 * Enhance CUDA codegen for SelectNode #4983
@@ -262,7 +522,7 @@ The community also continues to bring high quality improvements to the existing 
 * Handle empty LLVMModule in GetFunction #5146
 * Support int4/int8 conv2d tensor core with HWNC layout #6121
 
-### Dynamism Support
+#### Dynamism Support
 * Add shape function for `zero`, `zeros_like`, `ones`, `ones_like` (#4448), `tile` (#4441)
 * Support symbolic newshape for Reshape #5429
 * Support symbolic TopK, Ones, Zeros and Full #5459
@@ -278,7 +538,7 @@ The community also continues to bring high quality improvements to the existing 
 * Dynamic upsampling relay op #6273
 * Dynamic Tile Op #5983
 
-### Frontend and User Interface
+#### Frontend and User Interface
 * TFLite parser support for `transpose_conv` (#4440), `unpack` (#4447)
 * LLDB pretty printers for relay (#4453)
 * ONNX to Relay converter op support: expand op (#4483)
@@ -474,7 +734,7 @@ The community also continues to bring high quality improvements to the existing 
 * Keep parameter names from PyTorch #5887
 * Refine LSTMBlockCell to support dynamic rnn #5963
 
-### Relay
+#### Relay
 * Add function attributes to IR hash (#4479)
 * Relay passes lookup overhead optimization (#4594)
 * Add `half_pixel` option to Resize op #4610
@@ -603,7 +863,7 @@ The community also continues to bring high quality improvements to the existing 
 * [External codegen] Add test cases for fused ops with manual annotation (#4741)
 * Multiple output support, reshape, split ops added #6296
 
-### Operator Coverage
+#### Operator Coverage
 * Allow empty tensor for `reshape`, `tile` and `strided_slice` #4618
 * Fix meaning of `conv2d_transpose` `output_padding` parameter"; #4708
 * Remove cpp upsampling and resize op #4769
@@ -653,7 +913,7 @@ The community also continues to bring high quality improvements to the existing 
 * Change the meaning of `conv3d_transpose` `output_padding` to match `conv{1,2}d_transpose` #6065
 * Gather op support added #6013
 
-### Runtime and Backend
+#### Runtime and Backend
 * Cythonize NDArray.copyto (#4549)
 * Unified Object System runtime refactor (#4578, #4581, #4603)
 * VM profiler: sort VM stats by time (#4601)
@@ -711,7 +971,7 @@ The community also continues to bring high quality improvements to the existing 
 * Set `NDArray::Container.shape_` in NDArray::FromDLPack (#5301)
 * Enable x86 cpu cache flush #5914
 
-### Quantization
+#### Quantization
 * Conv2D type checking for kernel per-channel scales. #4732
 * Add missing nullptr check #4773
 * Doc fix on convolution and dequantize #4799
@@ -736,7 +996,7 @@ The community also continues to bring high quality improvements to the existing 
 * Support CallNode inputs in qnn.concatenate #5360
 * QNN support for TFLite 2.1.0 quantized models #5848
 
-### TE
+#### TE
 * Tighten split's extent #4931
 * Set split node's range to minimum of ext and split factor or split np… #5044
 * Support mixing normal and cross-thread reduction (#5193)
@@ -745,7 +1005,7 @@ The community also continues to bring high quality improvements to the existing 
 * Fix import in dump pass ir (#5327)
 * Scalar support for te.extern #6079
 
-### TIR
+#### TIR
 * IR readability enhancement (#4501)
 * Introduce tir::PrimFunc #5070
 * Introduce PrimFuncPass. #5139
@@ -815,7 +1075,7 @@ The community also continues to bring high quality improvements to the existing 
 * Finish `std::string->String` updates #5793
 * Unify StrMapNode and MapNode #5687
 
-### Performance Improvements
+#### Performance Improvements
 * Int8 GEMM performance enhancement using Cublas (#4550)
 * Speedup TSIM with multi-threading (#4491)
 * Support cudnn softmax (#5214)
@@ -829,7 +1089,7 @@ The community also continues to bring high quality improvements to the existing 
 * Improve NHWC depthwise convolution for AArch64 #6095
 * Improve quantized convolution performance for armv8 architectures #5754
 
-### Documentation
+#### Documentation
 * Adding benchmark log format doc (#4366)
 * Add Ninja build system to installation docs (#4554)
 * Doc/comment fixes (#4452, #4463, #4469, #4493, #4397, #4580, #4585, #4591)
@@ -873,7 +1133,7 @@ The community also continues to bring high quality improvements to the existing 
 * Remove legacy `compute_expr.h` #5738
 * `TVM_REGISTER_API` -> `TVM_REGISTER_GLOBAL` #4768
 
-### Bug Fixes
+#### Bug Fixes
 * Add bfloat16 typeflag support (#4525)
 * MSVC / Windows fixes (#4455, #4569)
 * Fix Makefile for `howto_deploy` (#4457)
@@ -1002,7 +1262,7 @@ The community also continues to bring high quality improvements to the existing 
 * Fixed div by zero core dump. Fixed rounding intrinsics on int crash #5026
 * Test case modified for int type #5012
 * Bug Fix for ARM CPUs. Lower strict assumption. #5063
-* Triage the testcases to fit the the new namespaces #5071
+* Triage the testcases to fit the new namespaces #5071
 * Add colors to `compute_at` edges and thread/block indices. #5111
 * Temporary fix to the stack overflow issue in autotvm task extraction #5019
 * Fix compilation of If-Elses #5040
@@ -1348,7 +1608,7 @@ The community also continues to bring high quality improvements to the existing 
 * Fix `conv2d_transpose` output padding #6236
 * Simplify reduce expression in te.gradient #6611
 
-## API Changes
+### API Changes
 * `tvm.module` -> `tvm.runtime.module`
 * `tvm.module.load` -> `tvm.runtime.load_module`
 * `tvm.module.enabled` -> `tvm.runtime.enabled`
@@ -1358,7 +1618,7 @@ The community also continues to bring high quality improvements to the existing 
 * `tvm.placeholder` -> `tvm.te.placeholder`
 * `tvm.compute` -> `tvm.te.compute`
 
-## Deprecation
+### Deprecation
 * Deprecate NNVM (#4535, #4562, #4565, #4571)
 * Deprecate FreeStmt #5890
 * Remove legacy `compute_expr.h` #5738
@@ -1880,7 +2140,7 @@ Rust language support in TVM includes two parts. 1. The frontend wraps the curre
 * Increate the robuteness of CI test (#2841, #2798, #2793, #2788, #2781, #2727, #2710, #2711, #2923)
 * Improve conda build (#2742)
 * Add caffe2 nnvm frontend to CI (#3018)
-* Use bridge network and expose port on macOS when launch docker image (#3086）
+* Use bridge network and expose port on macOS when launch docker image (#3086)
 * Run DarkNet tests (#2673)
 * Add file type check (#3116)
 * Always run cpptest during build to ensure library correctness (#3147)
@@ -1963,7 +2223,7 @@ Rust language support in TVM includes two parts. 1. The frontend wraps the curre
 ### Bug Fixes
 * [RELAY] Fix `get_int_tuple`. (#2691)
 * [ARITH] Select support for integer set analysis. (#2687)
-* [Relay] Fix error in ANF (too agressively inline atomic expression and create free variable). (#2665)
+* [Relay] Fix error in ANF (too aggressively inline atomic expression and create free variable). (#2665)
 * [Hybrid Script] Fix name conflict and attached scope problem. (#2649)
 * [Relay] Fix ANF for reference and pattern matching. (#2637)
 * [Relay] Fix fusion bug when call symbol that is not an operator. (#2630)

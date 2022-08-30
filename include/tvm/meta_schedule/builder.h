@@ -20,6 +20,14 @@
 #define TVM_META_SCHEDULE_BUILDER_H_
 
 #include <tvm/ir/module.h>
+#include <tvm/node/reflection.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/map.h>
+#include <tvm/runtime/container/optional.h>
+#include <tvm/runtime/container/string.h>
+#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/object.h>
+#include <tvm/runtime/packed_func.h>
 #include <tvm/target/target.h>
 
 namespace tvm {
@@ -32,10 +40,13 @@ class BuilderInputNode : public runtime::Object {
   IRModule mod;
   /*! \brief The target to be built for. */
   Target target;
+  /*! \brief Parameters for Relay build module. */
+  Optional<Map<String, runtime::NDArray>> params;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("mod", &mod);
     v->Visit("target", &target);
+    v->Visit("params", &params);
   }
 
   static constexpr const char* _type_key = "meta_schedule.BuilderInput";
@@ -52,8 +63,10 @@ class BuilderInput : public runtime::ObjectRef {
    * \brief Constructor of BuilderInput.
    * \param mod The IRModule to be built.
    * \param target The target to be built for.
+   * \param params Parameters for Relay build module.
    */
-  TVM_DLL explicit BuilderInput(IRModule mod, Target target);
+  TVM_DLL explicit BuilderInput(IRModule mod, Target target,
+                                Optional<Map<String, runtime::NDArray>> params = NullOpt);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(BuilderInput, runtime::ObjectRef, BuilderInputNode);
 };
 

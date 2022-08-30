@@ -23,6 +23,7 @@ import sys
 
 import tvm
 from tvm import te
+from tvm.relay.backend import Runtime
 
 
 def main():
@@ -33,7 +34,8 @@ def main():
     s = tvm.te.create_schedule(C.op)
     s[C].parallel(s[C].op.axis[0])
     print(tvm.lower(s, [A, B, C], simple_mode=True))
-    tvm.build(s, [A, B, C], "llvm -mtriple=wasm32-unknown-unknown --system-lib").save(
+    runtime = Runtime("cpp", {"system-lib": True})
+    tvm.build(s, [A, B, C], "llvm -mtriple=wasm32-unknown-unknown", runtime=runtime).save(
         osp.join(sys.argv[1], "test.o")
     )
 

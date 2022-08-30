@@ -19,7 +19,7 @@ import sys
 
 import pytest
 import tvm
-
+import tvm.testing
 from tvm import tir
 from tvm.ir import IRModule
 from tvm.script import tir as T
@@ -61,7 +61,72 @@ def matmul_relu(a: T.handle, b: T.handle, d: T.handle) -> None:
             D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
+@T.prim_func
+def matmul_relu_ann1(a: T.handle, b: T.handle, d: T.handle) -> None:
+    A = T.match_buffer(a, (1024, 1024))
+    B = T.match_buffer(b, (1024, 1024))
+    C = T.alloc_buffer((1024, 1024))
+    D = T.match_buffer(d, (1024, 1024))
+    for i in T.serial(0, 1024, annotations={"test1": "aaa", "test4": {"arr": [0, 0], "key": 3}}):
+        for j in T.serial(0, 1024, annotations={"test2": 612, "test3": ["aa", 1]}):
+            for k in T.serial(0, 1024):
+                with T.block("matmul"):
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    with T.init():
+                        C[vi, vj] = 0.0
+                    C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+    for i, j in T.grid(1024, 1024):
+        with T.block("relu"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            D[vi, vj] = T.max(C[vi, vj], 0.0)
+
+
+@T.prim_func
+def matmul_relu_ann2(a: T.handle, b: T.handle, d: T.handle) -> None:
+    A = T.match_buffer(a, (1024, 1024))
+    B = T.match_buffer(b, (1024, 1024))
+    C = T.alloc_buffer((1024, 1024))
+    D = T.match_buffer(d, (1024, 1024))
+    for i, j, k in T.grid(1024, 1024, 1024):
+        with T.block("matmul"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                C[vi, vj] = 0.0
+            T.block_attr({"test1": "aaa", "test4": {"arr": [0, 0], "key": 3}})
+            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+    for i, j in T.grid(1024, 1024):
+        with T.block("relu"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.block_attr({"test2": 0.22, "test3": ["aa", 1]})
+            D[vi, vj] = T.max(C[vi, vj], 0.0)
+
+
+@tvm.script.ir_module
+class ModuleWithMultipleFuncs:
+    @T.prim_func
+    def vector_add(
+        A: T.Buffer[128, "float32"],
+        B: T.Buffer[128, "float32"],
+    ) -> None:
+        for i in range(128):
+            with T.block("init"):
+                vi = T.axis.remap("S", [i])
+                B[vi] = A[vi]
+
+    @T.prim_func
+    def vector_add_2(
+        A: T.Buffer[128, "float32"],
+        B: T.Buffer[128, "float32"],
+    ) -> None:
+        for i in range(128):
+            with T.block("init"):
+                vi = T.axis.remap("S", [i])
+                B[vi] = A[vi]
+
+
 # pylint: enable=no-member,invalid-name,unused-variable
+
+use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
 
 
 def test_tir_schedule_creation():
@@ -90,24 +155,32 @@ def test_tir_schedule_get_block():
     assert block.same_as(matmul.body.block.body.body.body[1].body.block)
 
 
-def test_tir_schedule_get_loops():
+def test_tir_schedule_work_on():
+    sch = tir.Schedule(ModuleWithMultipleFuncs, debug_mask="all")
+    with pytest.raises(ValueError, match="does not know which function to be working on"):
+        sch.get_block(name="init")
+    sch.work_on(func_name="vector_add")
+    sch.get_block(name="init")
+
+
+def test_tir_schedule_get_loops(use_block_name):
     # Tests:
     # - Schedule.get_loops
     # - Schedule.get
     sch = tir.Schedule(matmul, debug_mask="all")
-    block_rv = sch.get_block(name="update")
-    i, j, k = sch.get_loops(block_rv)
+    block = "update" if use_block_name else sch.get_block(name="update")
+    i, j, k = sch.get_loops(block)
     assert sch.get(i).loop_var.name == "i"
     assert sch.get(j).loop_var.name == "j"
     assert sch.get(k).loop_var.name == "k"
 
 
-def test_tir_schedule_copy_1():
+def test_tir_schedule_copy_1(use_block_name):
     # Tests:
     # - Schedule.copy
     sch_1 = tir.Schedule(matmul, debug_mask="all")
     block_rv = sch_1.get_block(name="update")
-    i, j, k = sch_1.get_loops(block_rv)
+    i, j, k = sch_1.get_loops(block="update" if use_block_name else block_rv)
     assert sch_1.get(i).loop_var.name == "i"
     assert sch_1.get(j).loop_var.name == "j"
     assert sch_1.get(k).loop_var.name == "k"
@@ -177,9 +250,9 @@ def test_get_child_blocks():
     assert s.get(update) == s.get(blocks[1])
 
 
-def test_get_producers():
+def test_get_producers(use_block_name):
     sch = tir.Schedule(mod=matmul_relu, debug_mask="all")
-    block = sch.get_block("relu")
+    block = "relu" if use_block_name else sch.get_block("relu")
     (producer,) = sch.get_producers(block)
     assert tvm.ir.structural_equal(
         sch.get_sref(producer).stmt,
@@ -188,9 +261,9 @@ def test_get_producers():
     verify_trace_roundtrip(sch, mod=matmul_relu)
 
 
-def test_get_consumers():
+def test_get_consumers(use_block_name):
     sch = tir.Schedule(mod=matmul_relu, debug_mask="all")
-    block = sch.get_block("matmul")
+    block = "matmul" if use_block_name else sch.get_block("matmul")
     (consumer,) = sch.get_consumers(block)
     assert tvm.ir.structural_equal(
         sch.get_sref(consumer).stmt,
@@ -199,5 +272,39 @@ def test_get_consumers():
     verify_trace_roundtrip(sch, mod=matmul_relu)
 
 
+def test_annotate_unannotate_loop():
+    sch = tir.Schedule(mod=matmul_relu, debug_mask="all")
+    matmul = sch.get_block("matmul")
+    relu = sch.get_block("relu")
+    sch.annotate(sch.get_loops(matmul)[0], "test1", "aaa")
+    sch.annotate(sch.get_loops(matmul)[1], "test2", 612)
+    sch.annotate(sch.get_loops(matmul)[1], "test3", ["aa", 1])
+    sch.annotate(sch.get_loops(matmul)[0], "test4", {"arr": [0, 0], "key": 3})
+    tvm.ir.assert_structural_equal(sch.mod["main"], matmul_relu_ann1)
+    verify_trace_roundtrip(sch=sch, mod=matmul_relu)
+    sch.unannotate(sch.get_loops(matmul)[0], "test1")
+    sch.unannotate(sch.get_loops(matmul)[1], "test2")
+    sch.unannotate(sch.get_loops(matmul)[1], "test3")
+    sch.unannotate(sch.get_loops(matmul)[0], "test4")
+    verify_trace_roundtrip(sch=sch, mod=matmul_relu)
+
+
+def test_annotate_unannotate_block():
+    sch = tir.Schedule(mod=matmul_relu, debug_mask="all")
+    matmul = sch.get_block("matmul")
+    relu = sch.get_block("relu")
+    sch.annotate(matmul, "test1", "aaa")
+    sch.annotate(relu, "test2", 0.22)
+    sch.annotate(relu, "test3", ["aa", 1])
+    sch.annotate(matmul, "test4", {"arr": [0, 0], "key": 3})
+    tvm.ir.assert_structural_equal(sch.mod["main"], matmul_relu_ann2)
+    verify_trace_roundtrip(sch=sch, mod=matmul_relu)
+    sch.unannotate(matmul, "test1")
+    sch.unannotate(relu, "test2")
+    sch.unannotate(relu, "test3")
+    sch.unannotate(matmul, "test4")
+    verify_trace_roundtrip(sch=sch, mod=matmul_relu)
+
+
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

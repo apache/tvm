@@ -55,9 +55,9 @@ struct Conv1DAttrs : public tvm::AttrsNode<Conv1DAttrs> {
   int groups;
   IndexExpr channels;
   Array<IndexExpr> kernel_size;
-  std::string data_layout;
-  std::string kernel_layout;
-  std::string out_layout;
+  tvm::String data_layout;
+  tvm::String kernel_layout;
+  tvm::String out_layout;
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Conv1DAttrs, "relay.attrs.Conv1DAttrs") {
@@ -99,6 +99,12 @@ struct Conv1DAttrs : public tvm::AttrsNode<Conv1DAttrs> {
             "Dimension ordering of weight. Can be 'OIW', or 'WIO', etc."
             "'O', 'I', 'W' stands for num_filter, input_channel, and width"
             "dimensions respectively.");
+    TVM_ATTR_FIELD(out_layout)
+        .set_default("")
+        .describe(
+            "Dimension ordering of output. Can be 'NCW', 'NWC', etc."
+            "'N', 'C', 'W' stands for batch, channel, and width"
+            "dimensions respectively. Default to be same as input layout.");
 
     // use 0 bits to indicate none.
     TVM_ATTR_FIELD(out_dtype)
@@ -118,7 +124,8 @@ struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
   tvm::String data_layout;
   tvm::String kernel_layout;
   tvm::String out_layout;
-  tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
+  tvm::String auto_scheduler_rewritten_layout;   // The layout after auto-scheduler's layout rewrite
+  Array<PrimExpr> meta_schedule_original_shape;  // The original shape of the weights
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Conv2DAttrs, "relay.attrs.Conv2DAttrs") {
@@ -211,7 +218,8 @@ struct Conv2DWinogradAttrs : public tvm::AttrsNode<Conv2DWinogradAttrs> {
   tvm::String data_layout;
   tvm::String kernel_layout;
   tvm::String out_layout;
-  tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
+  tvm::String auto_scheduler_rewritten_layout;   // The layout after auto-scheduler's layout rewrite
+  Array<PrimExpr> meta_schedule_original_shape;  // The original shape of the weights
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Conv2DWinogradAttrs, "relay.attrs.Conv2DWinogradAttrs") {
@@ -302,7 +310,8 @@ struct Conv3DAttrs : public tvm::AttrsNode<Conv3DAttrs> {
   tvm::String data_layout;
   tvm::String kernel_layout;
   tvm::String out_layout;
-  tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
+  tvm::String auto_scheduler_rewritten_layout;   // The layout after auto-scheduler's layout rewrite
+  Array<PrimExpr> meta_schedule_original_shape;  // The original shape of the weights
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Conv3DAttrs, "relay.attrs.Conv3DAttrs") {
@@ -371,9 +380,9 @@ struct Conv3DTransposeAttrs : public tvm::AttrsNode<Conv3DTransposeAttrs> {
   Array<IndexExpr> output_padding;
   Array<IndexExpr> dilation;
   int groups;
-  std::string data_layout;
-  std::string kernel_layout;
-  std::string out_layout;
+  tvm::String data_layout;
+  tvm::String kernel_layout;
+  tvm::String out_layout;
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Conv3DTransposeAttrs, "relay.attrs.Conv3DTransposeAttrs") {
@@ -885,10 +894,9 @@ struct MaxPool1DAttrs : public tvm::AttrsNode<MaxPool1DAttrs> {
         .set_default(Array<IndexExpr>({0}))
         .describe(
             "If padding is non-zero, then the input is implicitly zero-padded"
-            "Padding support both symmetric and asymmetric as"
-            "one int : same padding used on all sides"
-            "three int : back, bottom, right will use same padding as front, top, left"
-            "six int : padding width in the order of (front, top, left, back, bottom, right)");
+            "Padding supports both symmetric and asymmetric as"
+            "one int : same padding used on each side"
+            "two int : indicates left padding, right padding");
     TVM_ATTR_FIELD(layout).set_default("NCW").describe(
         "Dimension ordering of input data. Can be 'NCW', 'NWC', etc."
         "'N', 'C', 'W' stands for batch, channel, and width"
@@ -927,10 +935,9 @@ struct AvgPool1DAttrs : public tvm::AttrsNode<AvgPool1DAttrs> {
         .set_default(Array<IndexExpr>({0}))
         .describe(
             "If padding is non-zero, then the input is implicitly zero-padded"
-            "Padding support both symmetric and asymmetric as"
-            "one int : same padding used on all sides"
-            "three int : back, bottom, right will use same padding as front, top, left"
-            "six int : padding width in the order of (front, top, left, back, bottom, right)");
+            "Padding supports both symmetric and asymmetric as"
+            "one int : same padding used on each side"
+            "two int : indicates left padding, right padding");
     TVM_ATTR_FIELD(layout).set_default("NCW").describe(
         "Dimension ordering of input data. Can be 'NCW', 'NHC', etc."
         "'N', 'C', 'W' stands for batch, channel, and width"
@@ -1045,7 +1052,8 @@ struct MatmulAttrs : public tvm::AttrsNode<MatmulAttrs> {
   DataType out_dtype;
   bool transpose_a;
   bool transpose_b;
-  tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
+  tvm::String auto_scheduler_rewritten_layout;   // The layout after auto-scheduler's layout rewrite
+  Array<PrimExpr> meta_schedule_original_shape;  // The original shape of the weights
 
   TVM_DECLARE_ATTRS(MatmulAttrs, "relay.attrs.MatmulAttrs") {
     TVM_ATTR_FIELD(units).describe("Number of hidden units of the dense transformation.");
@@ -1068,7 +1076,8 @@ struct MatmulAttrs : public tvm::AttrsNode<MatmulAttrs> {
 /*! \brief Attributes for dense operator */
 struct DenseAttrs : public tvm::AttrsNode<DenseAttrs> {
   IndexExpr units;
-  tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
+  tvm::String auto_scheduler_rewritten_layout;   // The layout after auto-scheduler's layout rewrite
+  Array<PrimExpr> meta_schedule_original_shape;  // The original shape of the weights
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(DenseAttrs, "relay.attrs.DenseAttrs") {
@@ -1105,7 +1114,8 @@ struct BatchMatmulAttrs : public tvm::AttrsNode<BatchMatmulAttrs> {
   DataType out_dtype;
   bool transpose_a;
   bool transpose_b;
-  tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
+  tvm::String auto_scheduler_rewritten_layout;   // The layout after auto-scheduler's layout rewrite
+  Array<PrimExpr> meta_schedule_original_shape;  // The original shape of the weights
 
   TVM_DECLARE_ATTRS(BatchMatmulAttrs, "relay.attrs.BatchMatmulAttrs") {
     // use 0 bits to indicate none.
@@ -1232,7 +1242,7 @@ struct UpSampling3DAttrs : public tvm::AttrsNode<UpSampling3DAttrs> {
 /*! \brief Attributes used for the padding operator */
 struct PadAttrs : public tvm::AttrsNode<PadAttrs> {
   Array<Array<Integer>> pad_width;
-  std::string pad_mode;
+  tvm::String pad_mode;
 
   TVM_DECLARE_ATTRS(PadAttrs, "relay.attrs.PadAttrs") {
     TVM_ATTR_FIELD(pad_width).describe(

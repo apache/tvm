@@ -34,11 +34,12 @@ from tvm.autotvm.tuner import RandomTuner
 from tvm.autotvm.tuner import XGBTuner
 from tvm.target import Target
 
-from . import common, composite_target, frontends
-from .common import TVMCException
+from . import TVMCException, composite_target, frontends
 from .main import register_parser
 from .model import TVMCModel
-from .target import generate_target_args, reconstruct_target_args
+from .target import target_from_cli, generate_target_args, reconstruct_target_args
+from .shape_parser import parse_shape_string
+from .transform import convert_graph_layout
 
 
 # pylint: disable=invalid-name
@@ -46,7 +47,7 @@ logger = logging.getLogger("TVMC")
 
 
 @register_parser
-def add_tune_parser(subparsers):
+def add_tune_parser(subparsers, _, json_params):
     """Include parser for 'tune' subcommand"""
 
     parser = subparsers.add_parser("tune", help="auto-tune a model")
@@ -135,13 +136,13 @@ def add_tune_parser(subparsers):
     )
     parser.add_argument(
         "--enable-autoscheduler",
-        help="enable tuning the graph through the autoscheduler",
+        help="enable tuning the graph through the AutoScheduler tuner",
         action="store_true",
     )
 
     auto_scheduler_group = parser.add_argument_group(
-        "Autoscheduler options",
-        "Autoscheduler options, used when --enable-autoscheduler is provided",
+        "AutoScheduler options",
+        "AutoScheduler options, used when --enable-autoscheduler is provided",
     )
 
     auto_scheduler_group.add_argument(
@@ -203,8 +204,8 @@ def add_tune_parser(subparsers):
         action="store_true",
     )
     autotvm_group = parser.add_argument_group(
-        "autotvm options",
-        "autotvm options, used when the autoscheduler is not enabled",
+        "AutoTVM options",
+        "AutoTVM options, used when the AutoScheduler is not enabled",
     )
     autotvm_group.add_argument(
         "--tuner",
@@ -220,8 +221,11 @@ def add_tune_parser(subparsers):
         "--input-shapes",
         help="specify non-generic shapes for model to run, format is "
         '"input_name:[dim1,dim2,...,dimn] input_name2:[dim1,dim2]"',
-        type=common.parse_shape_string,
+        type=parse_shape_string,
     )
+
+    for one_entry in json_params:
+        parser.set_defaults(**one_entry)
 
 
 def drive_tune(args):
@@ -232,6 +236,11 @@ def drive_tune(args):
     args: argparse.Namespace
         Arguments from command line parser.
     """
+    if not os.path.isfile(args.FILE):
+        raise TVMCException(
+            f"Input file '{args.FILE}' doesn't exist, is a broken symbolic link, or a directory."
+        )
+
     tvmc_model = frontends.load_model(args.FILE, args.model_format, shape_dict=args.input_shapes)
 
     # Specify hardware parameters, although they'll only be used if autoscheduling.
@@ -256,9 +265,7 @@ def drive_tune(args):
         logger.info("RPC tracker port: %s", rpc_port)
 
         if not args.rpc_key:
-            raise common.TVMCException(
-                "need to provide an RPC tracker key (--rpc-key) for remote tuning"
-            )
+            raise TVMCException("need to provide an RPC tracker key (--rpc-key) for remote tuning")
     else:
         rpc_hostname = None
         rpc_port = None
@@ -376,8 +383,8 @@ def tune_model(
     tuning_records : str
         The path to the produced tuning log file.
     """
-    target, extra_targets = common.target_from_cli(target, additional_target_options)
-    target, target_host = Target.check_and_update_host_consist(target, target_host)
+    target, extra_targets = target_from_cli(target, additional_target_options)
+    target, target_host = Target.canon_target_and_host(target, target_host)
     # TODO(jwfromm) Remove this deepcopy once AlterOpLayout bug that mutates source
     # model is fixed. For now, creating a clone avoids the issue.
     mod = deepcopy(tvmc_model.mod)
@@ -399,7 +406,7 @@ def tune_model(
 
     if rpc_key:
         if hostname is None or port is None:
-            raise common.TVMCException(
+            raise TVMCException(
                 "You must provide a hostname and port to connect to a remote RPC device."
             )
         if isinstance(port, str):
@@ -469,7 +476,7 @@ def tune_model(
 
         # In autotvm, trials is specified per task. We can convert the per-model input
         # provided to per-task trials by dividing by the number of tasks.
-        trials = int(trials / len(tasks))
+        trials = int(trials / max(len(tasks), 1))
         logger.info("Autotuning with %d trials per task.", trials)
 
         tuning_options = {
@@ -517,10 +524,10 @@ def autotvm_get_tuning_tasks(
     tasks : list of autotvm.Tasks
         list of tasks to be tuned
     """
-    target, target_host = Target.check_and_update_host_consist(target, target_host)
+    target, target_host = Target.canon_target_and_host(target, target_host)
 
     if alter_layout:
-        mod = common.convert_graph_layout(mod, alter_layout)
+        mod = convert_graph_layout(mod, alter_layout)
 
     tasks = autotvm.task.extract_from_program(
         mod["main"],
@@ -566,10 +573,10 @@ def autoscheduler_get_tuning_tasks(
     weights : List[int]
         the weight (i.e. the number of appearance) of extracted tasks
     """
-    target, target_host = Target.check_and_update_host_consist(target, target_host)
+    target, target_host = Target.canon_target_and_host(target, target_host)
 
     if alter_layout:
-        mod = common.convert_graph_layout(mod, alter_layout)
+        mod = convert_graph_layout(mod, alter_layout)
 
     # Extract the tasks
     tasks, task_weights = auto_scheduler.extract_tasks(

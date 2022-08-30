@@ -132,5 +132,98 @@ RELAY_REGISTER_OP("random.uniform")
     .add_argument("high", "Tensor", "Higher bound of the distribution")
     .add_type_rel("Uniform", UniformRel);
 
+TVM_REGISTER_NODE_TYPE(NormalAttrs);
+
+bool NormalRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+               const TypeReporter& reporter) {
+  const NormalAttrs* param = attrs.as<NormalAttrs>();
+  ICHECK_EQ(types.size(), 4) << "Normal should have three inputs and one output";
+
+  std::vector<IndexExpr> oshape;
+  for (auto& x : param->out_shape) {
+    oshape.push_back(x);
+  }
+  DataType out_dtype = param->out_dtype;
+  // we are supporting float32 and float64 at the moment.
+  if (!(out_dtype.is_float() && (out_dtype.bits() == 32 || out_dtype.bits() == 64))) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "We only support generating Normal random value of "
+                                     << "type float32 or float64, got " << out_dtype << ".");
+    return false;
+  }
+  reporter->Assign(types[0], ThreefryKeyType());
+  reporter->Assign(types[1], TensorType({}, out_dtype));
+  reporter->Assign(types[2], TensorType({}, out_dtype));
+  // generate returns the next key and an array of random values
+  reporter->Assign(types[3], TupleType({ThreefryKeyType(), TensorType(oshape, out_dtype)}));
+  return true;
+}
+
+Expr MakeNormal(Expr key, Expr mean, Expr scale, Array<Integer> out_shape, DataType out_dtype) {
+  auto attrs = make_object<NormalAttrs>();
+  attrs->out_shape = out_shape;
+  attrs->out_dtype = out_dtype;
+  static const Op& op = Op::Get("random.normal");
+  return Call(op, {key, mean, scale}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.random._make.normal").set_body_typed(MakeNormal);
+
+RELAY_REGISTER_OP("random.normal")
+    .describe(
+        R"doc(Generate an array of random numbers under normal distribution.)doc" TVM_ADD_FILELINE)
+    .set_num_inputs(3)
+    .set_attrs_type<NormalAttrs>()
+    .add_argument("key", "Tensor", "Input Threefry key")
+    .add_argument("mean", "Tensor", "Mean of the distribution")
+    .add_argument("scale", "Tensor", "Standard deviation of the distribution")
+    .add_type_rel("Normal", NormalRel);
+
+TVM_REGISTER_NODE_TYPE(MultinomialAttrs);
+
+bool MultinomialRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                    const TypeReporter& reporter) {
+  const MultinomialAttrs* param = attrs.as<MultinomialAttrs>();
+  ICHECK_EQ(types.size(), 3) << "Normal should have two inputs and one output";
+
+  const auto* data = types[1].as<TensorTypeNode>();
+  if (data == nullptr) {
+    ICHECK(types[1].as<IncompleteTypeNode>())
+        << "multinomial: expect input type to be TensorType but get " << types[0];
+    return false;
+  }
+
+  std::vector<IndexExpr> oshape;
+  for (size_t i = 0; i < data->shape.size() - 1; i++) {
+    oshape.push_back(data->shape[i]);
+  }
+  oshape.push_back(param->num_samples);
+
+  DataType out_dtype = tvm::DataType::Int(32);
+
+  reporter->Assign(types[0], ThreefryKeyType());
+  // generate returns the next key and an array of random values
+  reporter->Assign(types[2], TupleType({ThreefryKeyType(), TensorType(oshape, out_dtype)}));
+  return true;
+}
+
+Expr MakeMultinomial(Expr key, Expr probs, Integer num_samples) {
+  auto attrs = make_object<MultinomialAttrs>();
+  attrs->num_samples = num_samples;
+  static const Op& op = Op::Get("random.multinomial");
+  return Call(op, {key, probs}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.random._make.multinomial").set_body_typed(MakeMultinomial);
+
+RELAY_REGISTER_OP("random.multinomial")
+    .describe(
+        R"doc(Generate an array of random numbers under normal distribution.)doc" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .set_attrs_type<MultinomialAttrs>()
+    .add_argument("key", "Tensor", "Input Threefry key")
+    .add_argument("probs", "Tensor", "Array of probabilities for each corresponding index.")
+    .add_type_rel("Multinomial", MultinomialRel);
+
 }  // namespace relay
 }  // namespace tvm

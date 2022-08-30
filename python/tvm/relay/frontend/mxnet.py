@@ -18,40 +18,50 @@
 """MXNet symbol frontend."""
 import json
 import math
+
 import numpy as np
 import tvm
-from tvm.ir import IRModule
-
 from tvm import relay
+from tvm.ir import IRModule
 from tvm.topi.utils import get_const_tuple
+
+from ... import nd as _nd
 from .. import analysis
 from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
 from .. import scope_builder as _scope_builder
-from ... import nd as _nd
-
 from .common import StrAttrsDict
-from .common import infer_type as _infer_type
-from .common import infer_shape as _infer_shape
-from .common import infer_value as _infer_value
 from .common import get_name as _get_name
-from .nnvm_common import _rename, _binop_scalar, _rbinop_scalar, _reduce
-from .nnvm_common import _arg_reduce, _init_op, _softmax_op, _cast
-from .nnvm_common import _clip, _transpose, _upsampling
-from .nnvm_common import _elemwise_sum, _reshape
-from .nnvm_common import _warn_not_used
+from .common import infer_shape as _infer_shape
+from .common import infer_type as _infer_type
+from .common import infer_value as _infer_value
 from .mxnet_qnn_op_utils import (
-    quantize_mxnet_min_max,
-    quantize_conv_weights_bias_channel_mkldnn_from_var,
-    quantize_conv_bias_mkldnn_from_var,
-    get_conv_mkldnn_requantized_scale_outDtype,
     dequantize_mxnet_min_max,
+    get_conv_mkldnn_requantized_scale_outDtype,
     get_mkldnn_int8_scale,
-    get_mkldnn_uint8_scale,
     get_mkldnn_requantize_scale_outDtype,
+    get_mkldnn_uint8_scale,
+    quantize_conv_bias_mkldnn_from_var,
+    quantize_conv_weights_bias_channel_mkldnn_from_var,
+    quantize_mxnet_min_max,
 )
-
+from .nnvm_common import (
+    _arg_reduce,
+    _binop_scalar,
+    _cast,
+    _clip,
+    _elemwise_sum,
+    _init_op,
+    _rbinop_scalar,
+    _reduce,
+    _rename,
+    _reshape,
+    _softmax_op,
+    _transpose,
+    _upsampling,
+    _warn_not_used,
+)
 
 __all__ = ["from_mxnet"]
 
@@ -329,7 +339,7 @@ def _mx_conv2d_transpose(inputs, attrs):
     if "kernel_layout" in attrs.attrs:
         kernel_layout = attrs.get_str("kernel_layout")
     else:
-        kernel_layout = "HWIO" if data_layout == "NHWC" else "OIHW"
+        kernel_layout = "HWIO" if data_layout == "NHWC" else "IOHW"
 
     new_attrs = {}
     new_attrs["channels"] = attrs.get_int("num_filter")

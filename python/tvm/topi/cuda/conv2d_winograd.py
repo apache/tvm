@@ -18,15 +18,14 @@
 """Winograd template for cuda backend"""
 
 import logging
+
 import tvm
-from tvm import te
-from tvm import autotvm
+from tvm import autotvm, te
 
 from .. import nn
-from ..utils import get_const_int, get_const_tuple, traverse_inline
+from ..nn.conv2d import _conv2d_winograd_nhwc_impl, conv2d_winograd_nhwc
 from ..nn.winograd_util import winograd_transform_matrices
-from ..nn.conv2d import conv2d_winograd_nhwc, _conv2d_winograd_nhwc_impl
-
+from ..utils import get_const_int, get_const_tuple, traverse_inline
 
 logger = logging.getLogger("conv2d_winograd")
 
@@ -78,7 +77,12 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_
         assert HSTR == 1 and WSTR == 1 and dilation_h == 1 and dilation_w == 1
 
     pt, pl, pb, pr = nn.get_pad_tuple(padding, (KH, KW))
-    data_pad = nn.pad(data, (0, 0, pt, pl), (0, 0, pb, pr), name="data_pad")
+    data_pad = nn.pad(
+        data,
+        (0, 0, pt, pl),
+        (0, 0, pb, pr),
+        name="data_pad",
+    )
 
     r = KW
     m = tile_size
@@ -124,6 +128,7 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_
             input_tile[ci][p][r_a][r_b] * B[r_a][eps] * B[r_b][nu], axis=[r_a, r_b]
         ),
         name="data_pack",
+        attrs={"schedule_rule": "meta_schedule.winograd_data_pack.nchw.cuda"},
     )
 
     # do batch gemm
@@ -145,6 +150,7 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_
             bgemm[r_a][r_b][co][p] * A[r_a][vh] * A[r_b][vw], axis=[r_a, r_b]
         ),
         name="inverse",
+        attrs={"schedule_rule": "meta_schedule.winograd_inverse.nchw.cuda"},
     )
 
     # output
@@ -155,6 +161,10 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_
         ],
         name="output",
         tag="conv2d_nchw_winograd",
+        attrs={
+            "schedule_rule": "meta_schedule.winograd_output.nchw.cuda",
+            "winograd_tile_size": alpha - 3 + 1,
+        },
     )
 
     if isinstance(N, int):
@@ -371,6 +381,7 @@ def conv2d_winograd_nhwc_cuda(
     out_dtype,
     pre_computed=False,
     auto_scheduler_rewritten_layout="",
+    meta_schedule_original_shape=None,
 ):
     """Conv2D Winograd in NHWC layout.
     This is a clean version to be used by the auto-scheduler for both CPU and GPU.

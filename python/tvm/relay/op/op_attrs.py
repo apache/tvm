@@ -494,6 +494,11 @@ class OneHotAttrs(Attrs):
     """Attributes used in one_hot operators"""
 
 
+@tvm._ffi.register_object("relay.attrs.BroadcastAttrs")
+class BroadcastAttrs(Attrs):
+    """Attributes used in broadcast operators"""
+
+
 @tvm._ffi.register_object("relay.attrs.QuantizeAttrs")
 class QuantizeAttrs(Attrs):
     """Attributes used in quantize operators"""
@@ -507,6 +512,11 @@ class DequantizeAttrs(Attrs):
 @tvm._ffi.register_object("relay.attrs.ReduceAttrs")
 class ReduceAttrs(Attrs):
     """Attributes used in reduction operators (e.g. sum)"""
+
+
+@tvm._ffi.register_object("relay.attrs.ArgReduceAttrs")
+class ArgReduceAttrs(Attrs):
+    """Attributes used in reduction operators (e.g. argmin/argmax)"""
 
 
 @tvm._ffi.register_object("relay.attrs.VarianceAttrs")
@@ -607,3 +617,8 @@ class NLLLossAttrs(Attrs):
 @tvm._ffi.register_object("relay.attrs.FixedPointMultiplyAttrs")
 class FixedPointMultiplyAttrs(Attrs):
     """Attributes used in fixed_point_multiply operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.TriluAttrs")
+class TriluAttrs(Attrs):
+    """Attributes used in trilu operators"""

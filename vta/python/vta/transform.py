@@ -156,15 +156,45 @@ def CPUAccessRewrite():
     """
 
     def _ftransform(f, mod, ctx):
-        rw_info = {}
         env = get_env()
+
+        var_remap = {}
+        buf_remap = {}
+
+        def find_var_remap(old_var):
+            if old_var in var_remap:
+                return var_remap[old_var]
+
+            new_var = tvm.tir.Var(old_var.name + "_ptr", dtype=old_var.type_annotation)
+            var_remap[old_var] = new_var
+            return new_var
+
+        def find_buf_remap(old_buf):
+            if old_buf in buf_remap:
+                return buf_remap[old_buf]
+
+            new_var = find_var_remap(old_buf.data)
+            new_buf = tvm.tir.decl_buffer(
+                shape=old_buf.shape,
+                dtype=old_buf.dtype,
+                data=new_var,
+                strides=old_buf.strides,
+                elem_offset=old_buf.elem_offset,
+                scope=old_buf.scope,
+                data_alignment=old_buf.data_alignment,
+                offset_factor=old_buf.offset_factor,
+                buffer_type="auto_broadcast" if (old_buf.buffer_type == 2) else "",
+                axis_separators=old_buf.axis_separators,
+            )
+            buf_remap[old_buf] = new_buf
+            return new_buf
 
         def _post_order(op):
             if isinstance(op, tvm.tir.Allocate):
                 buffer_var = op.buffer_var
-                if not buffer_var in rw_info:
+                if buffer_var not in var_remap:
                     return None
-                new_var = rw_info[buffer_var]
+                new_var = var_remap[buffer_var]
                 let_stmt = tvm.tir.LetStmt(
                     new_var,
                     tvm.tir.call_extern(
@@ -173,33 +203,31 @@ def CPUAccessRewrite():
                     op.body,
                 )
                 alloc = tvm.tir.Allocate(buffer_var, op.dtype, op.extents, op.condition, let_stmt)
-                del rw_info[buffer_var]
+                del var_remap[buffer_var]
+                bufs_to_delete = [
+                    old_buf for old_buf in buf_remap if old_buf.data.same_as(buffer_var)
+                ]
+                for buf in bufs_to_delete:
+                    del buf_remap[buf]
                 return alloc
-            if isinstance(op, tvm.tir.Load):
-                buffer_var = op.buffer_var
-                if not buffer_var in rw_info:
-                    rw_info[buffer_var] = te.var(buffer_var.name + "_ptr", "handle")
-                new_var = rw_info[buffer_var]
-                return tvm.tir.Load(op.dtype, new_var, op.index)
-            if isinstance(op, tvm.tir.Store):
-                buffer_var = op.buffer_var
-                if not buffer_var in rw_info:
-                    rw_info[buffer_var] = te.var(buffer_var.name + "_ptr", "handle")
-                new_var = rw_info[buffer_var]
-                return tvm.tir.Store(new_var, op.value, op.index)
+
+            if isinstance(op, tvm.tir.BufferLoad):
+                return tvm.tir.BufferLoad(find_buf_remap(op.buffer), op.indices)
+
+            if isinstance(op, tvm.tir.BufferStore):
+                return tvm.tir.BufferStore(find_buf_remap(op.buffer), op.value, op.indices)
+
             raise RuntimeError("not reached")
 
         stmt_in = f.body
         stmt = tvm.tir.stmt_functor.ir_transform(
-            stmt_in, None, _post_order, ["tir.Allocate", "tir.Load", "tir.Store"]
+            stmt_in, None, _post_order, ["tir.Allocate", "tir.BufferLoad", "tir.BufferStore"]
         )
 
-        for buffer_var, new_var in rw_info.items():
+        for old_var, new_var in var_remap.items():
             stmt = tvm.tir.LetStmt(
                 new_var,
-                tvm.tir.call_extern(
-                    "handle", "VTABufferCPUPtr", env.dev.command_handle, buffer_var
-                ),
+                tvm.tir.call_extern("handle", "VTABufferCPUPtr", env.dev.command_handle, old_var),
                 stmt,
             )
         return f.with_body(stmt)
@@ -874,9 +902,6 @@ def InjectALUIntrin():
         analyzer = tvm.arith.Analyzer()
 
         def _do_fold(stmt):
-            def _equal(x, y):
-                return tvm.ir.structural_equal(analyzer.simplify(x - y), 0)
-
             def _flatten_loop(src_coeff, dst_coeff, extents):
                 src_coeff = list(src_coeff)
                 dst_coeff = list(dst_coeff)
@@ -893,7 +918,9 @@ def InjectALUIntrin():
                     next_dst = dst_coeff.pop()
                     next_ext = extents.pop()
 
-                    if _equal(next_src, vsrc * vext) and _equal(next_dst, vdst * vext):
+                    if analyzer.can_prove_equal(next_src, vsrc * vext) and analyzer.can_prove_equal(
+                        next_dst, vdst * vext
+                    ):
                         vext = analyzer.simplify(vext * next_ext)
                     else:
                         rev_src_coeff.append(vsrc)
@@ -919,8 +946,8 @@ def InjectALUIntrin():
                     loop_body = loop_body.body
                     nest_size += 1
                 # Get the src/dst arguments
-                dst_var = loop_body.buffer_var
-                dst_idx = loop_body.index
+                dst_var = loop_body.buffer.data
+                dst_idx = loop_body.indices[0]
                 # Derive loop variables and extents
                 tmp_body = stmt.body
                 indices = []
@@ -963,7 +990,7 @@ def InjectALUIntrin():
                         raise RuntimeError(
                             "Function call not recognized %s" % (loop_body.value.name)
                         )
-                elif isinstance(loop_body.value, tvm.tir.Load):
+                elif isinstance(loop_body.value, tvm.tir.BufferLoad):
                     alu_opcode = env.dev.ALU_OPCODE_SHR
                     lhs = loop_body.value
                     rhs = tvm.tir.const(0, "int32")
@@ -979,20 +1006,20 @@ def InjectALUIntrin():
                 use_imm = False
                 imm_val = None
                 if isinstance(rhs, tvm.tir.IntImm):
-                    assert lhs.buffer_var.same_as(dst_var)
-                    src_coeff = tvm.arith.detect_linear_equation(lhs.index, indices)
+                    assert lhs.buffer.data.same_as(dst_var)
+                    src_coeff = tvm.arith.detect_linear_equation(lhs.indices[0], indices)
                     use_imm = True
                     imm_val = rhs
                 if isinstance(lhs, tvm.tir.IntImm):
-                    assert rhs.buffer_var.same_as(dst_var)
-                    src_coeff = tvm.arith.detect_linear_equation(rhs.index, indices)
+                    assert rhs.buffer.data.same_as(dst_var)
+                    src_coeff = tvm.arith.detect_linear_equation(rhs.indices[0], indices)
                     use_imm = True
                     imm_val = lhs
                 if imm_val is None:
                     imm_val = 0
-                    assert lhs.buffer_var.same_as(dst_var) and rhs.buffer_var.same_as(dst_var)
-                    src_lhs_coeff = tvm.arith.detect_linear_equation(lhs.index, indices)
-                    src_rhs_coeff = tvm.arith.detect_linear_equation(rhs.index, indices)
+                    assert lhs.buffer.data.same_as(dst_var) and rhs.buffer.data.same_as(dst_var)
+                    src_lhs_coeff = tvm.arith.detect_linear_equation(lhs.indices[0], indices)
+                    src_rhs_coeff = tvm.arith.detect_linear_equation(rhs.indices[0], indices)
                     # Determine which side has the same coefficients
                     lhs_equal = True
                     rhs_equal = True
@@ -1058,7 +1085,12 @@ def InjectALUIntrin():
                 for idx, extent in enumerate(extents):
                     irb.emit(
                         tvm.tir.call_extern(
-                            "int32", "VTAUopLoopBegin", extent, dst_coeff[idx], src_coeff[idx], 0
+                            "int32",
+                            "VTAUopLoopBegin",
+                            extent,
+                            dst_coeff[idx],
+                            src_coeff[idx],
+                            0,
                         )
                     )
                 use_imm = int(use_imm)

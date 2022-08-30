@@ -54,6 +54,40 @@ def schedule_conv1d_nwc(outs):
     return _default_schedule(outs, False)
 
 
+def schedule_group_conv1d_ncw(outs):
+    """Schedule for group_conv1d_ncw
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of group_conv1d_ncw
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+def schedule_group_conv1d_nwc(outs):
+    """Schedule for group_conv1d_nwc
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of group_conv1d_nwc
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
 def schedule_conv2d_hwcn(outs):
     """Schedule for conv2d_hwcn
 
@@ -418,6 +452,23 @@ def schedule_group_conv2d_nchw(outs):
     ----------
     outs: Array of Tensor
           The computation graph description of group_conv2d_nchw
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+def schedule_group_conv2d_transpose_nchw(outs):
+    """Schedule for group_conv2d_transpose_nchw
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of group_conv2d_nhwc
           in the format of an array of tensors.
 
     Returns
@@ -798,6 +849,23 @@ def schedule_batch_matmul(outs):
     return _default_schedule(outs, False)
 
 
+def schedule_batch_norm(outs):
+    """Schedule for batch_norm
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of sparse_transpose
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
 def schedule_correlation_nchw(outs):
     """Schedule for correlation_nchw
 
@@ -811,5 +879,21 @@ def schedule_correlation_nchw(outs):
     -------
     sch: Schedule
         The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+def schedule_lstm(outs):
+    """Schedule for LSTM
+
+    Parameters
+    ----------
+    outs : Array of Tensor
+        The outputs of LSTM (hidden states and cell states).
+
+    Returns
+    -------
+    sch: Schedule
+        The default schedule for LSTM.
     """
     return _default_schedule(outs, False)

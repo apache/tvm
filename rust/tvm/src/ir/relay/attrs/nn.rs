@@ -28,6 +28,35 @@ type IndexExpr = PrimExpr;
 
 #[repr(C)]
 #[derive(Object, Debug)]
+#[ref_name = "PadAttrs"]
+#[type_key = "relay.attrs.PadAttrs"]
+pub struct PadAttrsNode {
+    pub base: BaseAttrsNode,
+    pub pad_width: Array<Array<IndexExpr>>,
+    pub pad_mode: TString,
+}
+
+#[repr(C)]
+#[derive(Object, Debug)]
+#[ref_name = "Conv1DAttrs"]
+#[type_key = "relay.attrs.Conv1DAttrs"]
+pub struct Conv1DAttrsNode {
+    pub base: BaseAttrsNode,
+    pub strides: Array<IndexExpr>,
+    pub padding: Array<IndexExpr>,
+    pub dilation: Array<IndexExpr>,
+    // TODO(@gussmith23) groups is "int", what should it be here?
+    pub groups: i32,
+    pub channels: IndexExpr,
+    pub kernel_size: Array<IndexExpr>,
+    pub data_layout: TString,
+    pub kernel_layout: TString,
+    pub out_layout: TString,
+    pub out_dtype: DataType,
+}
+
+#[repr(C)]
+#[derive(Object, Debug)]
 #[ref_name = "Conv2DAttrs"]
 #[type_key = "relay.attrs.Conv2DAttrs"]
 pub struct Conv2DAttrsNode {
@@ -39,6 +68,45 @@ pub struct Conv2DAttrsNode {
     pub groups: i32,
     pub channels: IndexExpr,
     pub kernel_size: Array<IndexExpr>,
+    pub data_layout: TString,
+    pub kernel_layout: TString,
+    pub out_layout: TString,
+    pub auto_scheduler_rewritten_layout: TString,
+    pub out_dtype: DataType,
+}
+
+#[repr(C)]
+#[derive(Object, Debug)]
+#[ref_name = "Conv3DAttrs"]
+#[type_key = "relay.attrs.Conv3DAttrs"]
+pub struct Conv3DAttrsNode {
+    pub base: BaseAttrsNode,
+    pub strides: Array<IndexExpr>,
+    pub padding: Array<IndexExpr>,
+    pub dilation: Array<IndexExpr>,
+    pub groups: i32,
+    pub channels: IndexExpr,
+    pub kernel_size: Array<IndexExpr>,
+    pub data_layout: TString,
+    pub kernel_layout: TString,
+    pub out_layout: TString,
+    pub auto_scheduler_rewritten_layout: TString,
+    pub out_dtype: DataType,
+}
+
+#[repr(C)]
+#[derive(Object, Debug)]
+#[ref_name = "Conv3DTransposeAttrs"]
+#[type_key = "relay.attrs.Conv3DTransposeAttrs"]
+pub struct Conv3DTransposeAttrsNode {
+    pub base: BaseAttrsNode,
+    pub channels: IndexExpr,
+    pub kernel_size: Array<IndexExpr>,
+    pub strides: Array<IndexExpr>,
+    pub padding: Array<IndexExpr>,
+    pub output_padding: Array<IndexExpr>,
+    pub dilation: Array<IndexExpr>,
+    pub groups: i32,
     pub data_layout: TString,
     pub kernel_layout: TString,
     pub out_layout: TString,
@@ -73,6 +141,7 @@ pub struct MatmulAttrsNode {
 pub struct DenseAttrsNode {
     pub base: BaseAttrsNode,
     pub units: IndexExpr,
+    pub auto_scheduler_rewritten_layout: TString,
     pub out_dtype: DataType,
 }
 
@@ -138,6 +207,7 @@ pub struct AvgPool2DAttrsNode {
     pub pool_size: Array<IndexExpr>,
     pub strides: Array<IndexExpr>,
     pub padding: Array<IndexExpr>,
+    pub dilation: Array<IndexExpr>,
     pub layout: TString,
     pub ceil_mode: bool,
     pub count_include_pad: bool,
@@ -154,4 +224,35 @@ pub struct UpSamplingAttrsNode {
     pub layout: TString,
     pub method: TString,
     pub align_corners: bool,
+}
+
+#[repr(C)]
+#[derive(Object, Debug)]
+#[ref_name = "DropoutAttrs"]
+#[type_key = "relay.attrs.DropoutAttrs"]
+pub struct DropoutAttrsNode {
+    pub base: BaseAttrsNode,
+    pub rate: f64,
+}
+
+#[repr(C)]
+#[derive(Object, Debug)]
+#[ref_name = "BatchMatmulAttrs"]
+#[type_key = "relay.attrs.BatchMatmulAttrs"]
+pub struct BatchMatmulAttrsNode {
+    pub base: BaseAttrsNode,
+    pub auto_scheduler_rewritten_layout: TString,
+    pub out_dtype: DataType,
+}
+
+#[repr(C)]
+#[derive(Object, Debug)]
+#[ref_name = "LayerNormAttrs"]
+#[type_key = "relay.attrs.LayerNormAttrs"]
+pub struct LayerNormAttrsNode {
+    pub base: BaseAttrsNode,
+    pub axis: i32,
+    pub epsilon: f64,
+    pub center: bool,
+    pub scale: bool,
 }

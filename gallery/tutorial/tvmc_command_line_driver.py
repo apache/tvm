@@ -29,7 +29,7 @@ execution of models through a command line interface.
 Upon completion of this section, we will have used TVMC to accomplish the
 following tasks:
 
-* Compile a pre-trained ResNet 50 v2 model for the TVM runtime.
+* Compile a pre-trained ResNet-50 v2 model for the TVM runtime.
 * Run a real image through the compiled model, and interpret the output and
   model performance.
 * Tune the model on a CPU using TVM.
@@ -40,6 +40,12 @@ following tasks:
 The goal of this section is to give you an overview of TVM and TVMC's
 capabilities, and set the stage for understanding how TVM works.
 """
+
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
 
 ################################################################################
 # Using TVMC
@@ -77,32 +83,31 @@ capabilities, and set the stage for understanding how TVM works.
 # -------------------
 #
 # For this tutorial, we will be working with ResNet-50 v2. ResNet-50 is a
-# convolutional neural network that is 50-layers deep and designed to classify
+# convolutional neural network that is 50 layers deep and designed to classify
 # images. The model we will be using has been pre-trained on more than a
 # million images with 1000 different classifications. The network has an input
 # image size of 224x224. If you are interested exploring more of how the
 # ResNet-50 model is structured, we recommend downloading `Netron
-# <https://netron.app>`, a freely available ML model viewer.
+# <https://netron.app>`_, a freely available ML model viewer.
 #
 # For this tutorial we will be using the model in ONNX format.
 #
 # .. code-block:: bash
 #
-#   wget https://github.com/onnx/models/raw/master/vision/classification/resnet/model/resnet50-v2-7.onnx
+#   wget https://github.com/onnx/models/raw/b9a54e89508f101a1611cd64f4ef56b9cb62c7cf/vision/classification/resnet/model/resnet50-v2-7.onnx
 #
-
 
 ################################################################################
-# .. note:: Supported model formats
+# .. admonition:: Supported model formats
 #
 #   TVMC supports models created with Keras, ONNX, TensorFlow, TFLite
-#   and Torch. Use the option``--model-format`` if you need to
+#   and Torch. Use the option ``--model-format`` if you need to
 #   explicitly provide the model format you are using. See ``tvmc
 #   compile --help`` for more information.
 #
 
 ################################################################################
-# .. note:: Adding ONNX Support to TVM
+# .. admonition:: Adding ONNX Support to TVM
 #
 #    TVM relies on the ONNX python library being available on your system. You can
 #    install ONNX using the command ``pip3 install --user onnx onnxoptimizer``. You
@@ -123,8 +128,10 @@ capabilities, and set the stage for understanding how TVM works.
 #
 # .. code-block:: bash
 #
+#   # This may take several minutes depending on your machine
 #   tvmc compile \
 #   --target "llvm" \
+#   --input-shapes "data:[1,3,224,224]" \
 #   --output resnet50-v2-7-tvm.tar \
 #   resnet50-v2-7.onnx
 #
@@ -149,7 +156,7 @@ capabilities, and set the stage for understanding how TVM works.
 
 
 ################################################################################
-# .. note:: Defining the Correct Target
+# .. admonition:: Defining the Correct Target
 #
 #   Specifying the correct target (option ``--target``) can have a huge
 #   impact on the performance of the compiled module, as it can take
@@ -189,8 +196,8 @@ capabilities, and set the stage for understanding how TVM works.
 # Input pre-processing
 # ~~~~~~~~~~~~~~~~~~~~
 #
-# For our ResNet 50 V2 model, the input is expected to be in ImageNet format.
-# Here is an example of a script to pre-process an image for ResNet 50 V2.
+# For our ResNet-50 v2 model, the input is expected to be in ImageNet format.
+# Here is an example of a script to pre-process an image for ResNet-50 v2.
 #
 # You will need to have a supported version of the Python Image Library
 # installed. You can use ``pip3 install --user pillow`` to satisfy this
@@ -220,7 +227,7 @@ capabilities, and set the stage for understanding how TVM works.
 #     imagenet_stddev = np.array([0.229, 0.224, 0.225])
 #     norm_img_data = np.zeros(img_data.shape).astype("float32")
 #     for i in range(img_data.shape[0]):
-#    	    norm_img_data[i, :, :] = (img_data[i, :, :] / 255 - imagenet_mean[i]) / imagenet_stddev[i]
+#    	  norm_img_data[i, :, :] = (img_data[i, :, :] / 255 - imagenet_mean[i]) / imagenet_stddev[i]
 #
 #     # Add batch dimension
 #     img_data = np.expand_dims(norm_img_data, axis=0)
@@ -243,7 +250,7 @@ capabilities, and set the stage for understanding how TVM works.
 #     --output predictions.npz \
 #     resnet50-v2-7-tvm.tar
 #
-# Recall that the `.tar` model file includes a C++ library, a description of
+# Recall that the ``.tar`` model file includes a C++ library, a description of
 # the Relay model, and the parameters for the model. TVMC includes the TVM
 # runtime, which can load the model and make predictions against input. When
 # running the above command, TVMC outputs a new file, ``predictions.npz``, that
@@ -261,7 +268,7 @@ capabilities, and set the stage for understanding how TVM works.
 # providing output tensors.
 #
 # In our case, we need to run some post-processing to render the outputs from
-# ResNet 50 V2 into a more human-readable form, using the lookup-table provided
+# ResNet-50 v2 into a more human-readable form, using the lookup-table provided
 # for the model.
 #
 # The script below shows an example of the post-processing to extract labels
@@ -303,7 +310,6 @@ capabilities, and set the stage for understanding how TVM works.
 # .. code-block:: bash
 #
 #     python postprocess.py
-#
 #     # class='n02123045 tabby, tabby cat' with probability=0.610553
 #     # class='n02123159 tiger cat' with probability=0.367179
 #     # class='n02124075 Egyptian cat' with probability=0.019365
@@ -343,14 +349,18 @@ capabilities, and set the stage for understanding how TVM works.
 #
 # .. code-block:: bash
 #
+#     # The default search algorithm requires xgboost, see below for further
+#     # details on tuning search algorithms
+#     pip install xgboost
+#
 #     tvmc tune \
 #     --target "llvm" \
 #     --output resnet50-v2-7-autotuner_records.json \
 #     resnet50-v2-7.onnx
 #
 # In this example, you will see better results if you indicate a more specific
-# target for the `--target` flag.  For example, on an Intel i7 processor you
-# could use `--target llvm -mcpu=skylake`. For this tuning example, we are
+# target for the ``--target`` flag.  For example, on an Intel i7 processor you
+# could use ``--target llvm -mcpu=skylake``. For this tuning example, we are
 # tuning locally on the CPU using LLVM as the compiler for the specified
 # achitecture.
 #
@@ -359,12 +369,12 @@ capabilities, and set the stage for understanding how TVM works.
 # fastest on your platform. Although this is a guided search based on the CPU
 # and model operations, it can still take several hours to complete the search.
 # The output of this search will be saved to the
-# `resnet50-v2-7-autotuner_records.json` file, which will later be used to
+# ``resnet50-v2-7-autotuner_records.json`` file, which will later be used to
 # compile an optimized model.
 #
-# .. note:: Defining the Tuning Search Algorithm
+# .. admonition:: Defining the Tuning Search Algorithm
 #
-#   By default this search is guided using an `XGBoost Grid` algorithm.
+#   By default this search is guided using an ``XGBoost Grid`` algorithm.
 #   Depending on your model complexity and amount of time avilable, you might
 #   want to choose a different algorithm. A full list is available by
 #   consulting ``tvmc tune --help``.
@@ -373,7 +383,10 @@ capabilities, and set the stage for understanding how TVM works.
 #
 # .. code-block:: bash
 #
-#   tvmc tune   --target "llvm -mcpu=broadwell"   --output resnet50-v2-7-autotuner_records.json   resnet50-v2-7.onnx
+#   tvmc tune \
+#   --target "llvm -mcpu=broadwell" \
+#   --output resnet50-v2-7-autotuner_records.json \
+#   resnet50-v2-7.onnx
 #   # [Task  1/24]  Current/Best:    9.65/  23.16 GFLOPS | Progress: (60/1000) | 130.74 s Done.
 #   # [Task  1/24]  Current/Best:    3.56/  23.16 GFLOPS | Progress: (192/1000) | 381.32 s Done.
 #   # [Task  2/24]  Current/Best:   13.13/  58.61 GFLOPS | Progress: (960/1000) | 1190.59 s Done.
@@ -498,7 +511,7 @@ capabilities, and set the stage for understanding how TVM works.
 # process, we demonstrated how to compare the performance of the unoptimized
 # and optimize models.
 #
-# Here we presented a simple example using ResNet 50 V2 locally. However, TVMC
+# Here we presented a simple example using ResNet-50 v2 locally. However, TVMC
 # supports many more features including cross-compilation, remote execution and
 # profiling/benchmarking.
 #

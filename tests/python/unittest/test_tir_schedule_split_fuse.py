@@ -15,12 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
-import sys
-
 import pytest
 import tvm
-from tvm import tir
+import tvm.testing
+from tvm import te, tir
 from tvm.script import tir as T
+from tvm.tir.expr import IntImm
 from tvm.tir.schedule.testing import verify_trace_roundtrip
 
 # pylint: disable=no-member,invalid-name,unused-variable
@@ -66,7 +66,7 @@ def elementwise_symbolic_fused(a: T.handle, b: T.handle, n: T.int32) -> None:
     for i_j_k_fused in T.serial(0, (n * 16384)):
         with T.block("B"):
             vi = T.axis.S(128, T.floordiv(i_j_k_fused, n * 128))
-            vj = T.axis.S(128, T.floormod(T.floordiv(i_j_k_fused, n), 128))
+            vj = T.axis.S(128, T.floordiv(T.floormod(i_j_k_fused, n * 128), n))
             vk = T.axis.S(n, T.floormod(i_j_k_fused, n))
             T.reads([A[vi, vj, vk]])
             T.writes([B[vi, vj, vk]])
@@ -164,7 +164,7 @@ def elementwise_fused(a: T.handle, b: T.handle) -> None:
     for fused in T.serial(0, 2097152):
         with T.block("B"):
             vi = T.axis.S(128, T.floordiv(fused, 16384))
-            vj = T.axis.S(128, T.floormod(T.floordiv(fused, 128), 128))
+            vj = T.axis.S(128, T.floordiv(T.floormod(fused, 16384), 128))
             vk = T.axis.S(128, T.floormod(fused, 128))
             T.reads([A[vi, vj, vk]])
             T.writes([B[vi, vj, vk]])
@@ -177,7 +177,7 @@ def elementwise_split_case0(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [128, 128, 128])
     for i1, i2, i3, j1, j2, k1, k2 in T.grid(2, 1, 64, 4, 32, 16, 8):
         with T.block("B"):
-            vi = T.axis.S(128, i1 * 64 + i3)
+            vi = T.axis.S(128, i1 * 64 + i2 * 64 + i3)
             vj = T.axis.S(128, j1 * 32 + j2)
             vk = T.axis.S(128, k1 * 8 + k2)
             T.reads([A[vi, vj, vk]])
@@ -191,9 +191,9 @@ def elementwise_split_case1(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [128, 128, 128])
     for i1, i2, i3, j1, j2, j3, k1, k2, k3 in T.grid(2, 1, 64, 2, 1, 64, 2, 1, 64):
         with T.block("B"):
-            vi = T.axis.S(128, i1 * 64 + i3)
-            vj = T.axis.S(128, j1 * 64 + j3)
-            vk = T.axis.S(128, k1 * 64 + k3)
+            vi = T.axis.S(128, i1 * 64 + i2 * 64 + i3)
+            vj = T.axis.S(128, j1 * 64 + j2 * 64 + j3)
+            vk = T.axis.S(128, k1 * 64 + k2 * 64 + k3)
             T.reads([A[vi, vj, vk]])
             T.writes([B[vi, vj, vk]])
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
@@ -205,10 +205,10 @@ def elementwise_split_with_predicate(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128, 128])
     for i0, i1, i2, j0, j1, k0, k1 in T.grid(1000, 2, 3, 1, 129, 3, 43):
         with T.block("B"):
-            T.where((i0 * 2 + i1) * 3 + i2 < 128 and j0 * 129 + j1 < 128 and k0 * 43 + k1 < 128)
             vi = T.axis.S(128, i0 * 6 + i1 * 3 + i2)
-            vj = T.axis.S(128, j1)
+            vj = T.axis.S(128, j0 * 129 + j1)
             vk = T.axis.S(128, k0 * 43 + k1)
+            T.where((i0 * 2 + i1) * 3 + i2 < 128 and j0 * 129 + j1 < 128 and k0 * 43 + k1 < 128)
             T.reads([A[vi, vj, vk]])
             T.writes([B[vi, vj, vk]])
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
@@ -223,8 +223,8 @@ def elementwise_fuse_with_opaque_block(a: T.handle, b: T.handle) -> None:
             T.reads(
                 [
                     A[
-                        T.floormod(T.floordiv(T.floordiv(i_j_k_fused, 128), 128), 128),
-                        T.floormod(T.floordiv(i_j_k_fused, 128), 128),
+                        T.floordiv(i_j_k_fused, 16384),
+                        T.floordiv(T.floormod(i_j_k_fused, 16384), 128),
                         T.floormod(i_j_k_fused, 128),
                     ]
                 ]
@@ -232,15 +232,15 @@ def elementwise_fuse_with_opaque_block(a: T.handle, b: T.handle) -> None:
             T.writes(
                 [
                     B[
-                        T.floormod(T.floordiv(T.floordiv(i_j_k_fused, 128), 128), 128),
-                        T.floormod(T.floordiv(i_j_k_fused, 128), 128),
+                        T.floordiv(i_j_k_fused, 16384),
+                        T.floordiv(T.floormod(i_j_k_fused, 16384), 128),
                         T.floormod(i_j_k_fused, 128),
                     ]
                 ]
             )
             with T.block("B"):
                 vi = T.axis.S(128, T.floordiv(i_j_k_fused, 16384))
-                vj = T.axis.S(128, T.floormod(T.floordiv(i_j_k_fused, 128), 128))
+                vj = T.axis.S(128, T.floordiv(T.floormod(i_j_k_fused, 16384), 128))
                 vk = T.axis.S(128, T.floormod(i_j_k_fused, 128))
                 T.reads([A[vi, vj, vk]])
                 T.writes([B[vi, vj, vk]])
@@ -273,7 +273,7 @@ def opaque_access(a: T.handle, b: T.handle) -> None:
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads([])
             T.writes([A[0:16, 0:16]])
-            T.store(A.data, vi * 16 + vj, 1)
+            A[vi, vj] = 1
     for i, j in T.grid(16, 16):
         with T.block("B"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -292,7 +292,7 @@ def opaque_access_fused(a: T.handle, b: T.handle) -> None:
             vj = T.axis.S(16, T.floormod(i_j_fused, 16))
             T.reads([])
             T.writes([A[0:16, 0:16]])
-            T.store(A.data, ((vi * 16) + vj), 1, 1)
+            A[vi, vj] = 1
     for i_j_fused in T.serial(0, 256):
         with T.block("B"):
             vi = T.axis.S(16, T.floordiv(i_j_fused, 16))
@@ -312,7 +312,7 @@ def opaque_access_split(a: T.handle, b: T.handle) -> None:
             vj = T.axis.S(16, j0 * 4 + j1)
             T.reads([])
             T.writes([A[0:16, 0:16]])
-            T.store(A.data, ((vi * 16) + vj), 1, 1)
+            A[vi, vj] = 1
     for i, j0, j1 in T.grid(16, 4, 4):
         with T.block("B"):
             vi = T.axis.S(16, i)
@@ -343,7 +343,7 @@ def elementwise_not_affine_fused(a: T.handle, b: T.handle) -> None:
             with T.block("B"):
                 vi = T.axis.S(
                     127,
-                    i * 32 + T.floormod(T.floordiv(j_k_fused, 128), T.min(31, 126 - i * 32) + 1),
+                    i * 32 + T.floordiv(j_k_fused, 128),
                 )
                 vj = T.axis.S(128, T.floormod(j_k_fused, 128))
                 T.reads([A[vi, vj]])
@@ -466,6 +466,18 @@ def test_split_with_opaque_access():
     verify_trace_roundtrip(sch=sch, mod=opaque_access)
 
 
+def test_split_with_non_positive_factors():
+    sch = tir.Schedule(elementwise, debug_mask="all")
+    block_b = sch.get_block("B")
+    i, j, k = sch.get_loops(block_b)
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.split(i, factors=[-2, -64])
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.split(j, factors=[0, None])
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.split(k, factors=[None, -16])
+
+
 def test_fuse_split_fail_with_thread_binding():
     sch = tir.Schedule(elementwise_with_thread_binding, debug_mask="all")
     block_b = sch.get_block("B")
@@ -511,5 +523,128 @@ def test_fuse_not_affine():
     verify_trace_roundtrip(sch=sch, mod=elementwise_not_affine)
 
 
+def test_add_unit_loop_above_block():
+    @T.prim_func
+    def zero_dim(
+        A: T.Buffer[(), "int32"],
+        B: T.Buffer[(), "int32"],
+        C: T.Buffer[(), "int32"],
+    ) -> None:
+        with T.block("C"):
+            vi = T.axis.spatial(1, 0)
+            C[()] = A[()] + B[()]
+
+    @T.prim_func
+    def zero_dim_added(
+        A: T.Buffer[(), "int32"],
+        B: T.Buffer[(), "int32"],
+        C: T.Buffer[(), "int32"],
+    ) -> None:
+        for u in range(1):
+            with T.block("C"):
+                vi = T.axis.spatial(1, 0)
+                C[()] = A[()] + B[()]
+
+    sch = tir.Schedule(zero_dim, debug_mask="all")
+    block = sch.get_block("C")
+    sch.add_unit_loop(block)
+    tvm.ir.assert_structural_equal(zero_dim_added, sch.mod["main"])
+
+
+def test_add_unit_loop_above_loop():
+    @T.prim_func
+    def zero_dim(
+        A: T.Buffer[(), "int32"],
+        B: T.Buffer[(), "int32"],
+        C: T.Buffer[(), "int32"],
+    ) -> None:
+        for u in range(1):
+            with T.block("C"):
+                vi = T.axis.spatial(1, 0)
+                C[()] = A[()] + B[()]
+
+    @T.prim_func
+    def zero_dim_added(
+        A: T.Buffer[(), "int32"],
+        B: T.Buffer[(), "int32"],
+        C: T.Buffer[(), "int32"],
+    ) -> None:
+        for u1, u2 in T.grid(1, 1):
+            with T.block("C"):
+                vi = T.axis.spatial(1, 0)
+                C[()] = A[()] + B[()]
+
+    sch = tir.Schedule(zero_dim, debug_mask="all")
+    block = sch.get_block("C")
+    (loop,) = sch.get_loops(block)
+    sch.add_unit_loop(loop)
+    tvm.ir.assert_structural_equal(zero_dim_added, sch.mod["main"])
+
+
+@pytest.mark.skip("Pending fix in affine analysis")
+def test_fuse_int64():
+    def _create_prim_func():
+        n = te.const(16, "int32")
+        m = te.const(32, "int64")
+        A = te.placeholder((n, m), name="A", dtype="int32")
+        B = te.compute((n, m), lambda i, j: A[i, j] + 1, name="B")
+        return te.create_prim_func([A, B])
+
+    mod = _create_prim_func()
+    sch = tir.Schedule(mod, debug_mask="all")
+    i, j = sch.get_loops(sch.get_block("B"))
+    sch.fuse(i, j)
+    verify_trace_roundtrip(sch=sch, mod=mod)
+
+
+def test_split_int64_extent_with_mixed_factors():
+    def _create_prim_func():
+        m = te.const(384, "int64")
+        A = te.placeholder((m,), name="A", dtype="float32")
+        B = te.compute((m,), lambda i: A[i] + 1, name="B")
+        return te.create_prim_func([A, B])
+
+    mod = _create_prim_func()
+    sch = tir.Schedule(mod, debug_mask="all")
+    (i,) = sch.get_loops(sch.get_block("B"))
+    sch.split(
+        i,
+        factors=[
+            te.const(1, "int64"),
+            te.const(512, "int32"),
+        ],
+    )
+
+
+def test_split_int64_extent_with_int32_factors():
+    def _create_prim_func():
+        m = te.const(12, "int64")
+        A = te.placeholder((m,), name="A", dtype="float32")
+        B = te.compute((m,), lambda i: A[i] + 1, name="B")
+        return te.create_prim_func([A, B])
+
+    mod = _create_prim_func()
+    sch = tir.Schedule(mod, debug_mask="all")
+    (i,) = sch.get_loops(sch.get_block("B"))
+    sch.split(
+        i,
+        factors=[
+            te.const(1, "int32"),
+            te.const(1, "int32"),
+            te.const(3, "int32"),
+            te.const(1, "int32"),
+            te.const(4, "int32"),
+        ],
+    )
+
+
+def test_split_int64_factors():
+    sch = tir.Schedule(elementwise_symbolic, debug_mask="all")
+    block_b = sch.get_block("B")
+    _, _, k = sch.get_loops(block_b)
+    sch.split(k, factors=[IntImm(dtype="int64", value=10), None])
+    tvm.ir.assert_structural_equal(elementwise_symbolic_split, sch.mod["main"])
+
+
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

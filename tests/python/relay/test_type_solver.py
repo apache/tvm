@@ -16,7 +16,10 @@
 # under the License.
 import tvm
 from tvm import relay
+from tvm.relay import testing
+
 import pytest
+import numpy as np
 
 
 def make_rel(name, args, num_inputs=None, attrs=None):
@@ -338,6 +341,26 @@ def test_incompatible_quantified_func_unification():
     solver.Unify(ft1, ft2)
 
 
+def test_integer_compatibility_in_layout_transform():
+    x = relay.var("data", shape=(2, 3, 48, 48), dtype="float32")
+    conv_out = relay.nn.conv2d(
+        x,
+        relay.var("weight", shape=(1, 3, 1, 1), dtype="float32"),
+        strides=[47, 47],
+        channels=1,
+        kernel_size=[1, 1],
+    )
+    bias_out = relay.nn.bias_add(conv_out, relay.var("bias"))
+    broadcast_out = relay.op.broadcast_to(bias_out, relay.const([2, 1, 2, 2], dtype="int64"))
+    y = relay.add(bias_out, broadcast_out)
+
+    mod, _ = testing.create_workload(y)
+    with tvm.transform.PassContext(opt_level=3):
+        with tvm.target.Target("llvm"):
+            mod = relay.transform.CanonicalizeOps()(mod)
+            mod = relay.transform.AlterOpLayout()(mod)
+
+
 if __name__ == "__main__":
     test_bcast()
     test_backward_solving()
@@ -357,3 +380,4 @@ if __name__ == "__main__":
     test_incompatible_typecall_var_unification()
     test_incompatible_typecall_args_unification()
     test_incompatible_quantified_func_unification()
+    test_integer_compatibility_in_layout_transform()

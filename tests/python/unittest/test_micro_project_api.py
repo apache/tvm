@@ -25,6 +25,7 @@ from unittest import mock
 import pytest
 
 import tvm
+import tvm.testing
 
 
 # Implementing as a fixture so that the tvm.micro import doesn't occur
@@ -42,8 +43,16 @@ def BaseTestHandler():
             is_template=True,
             model_library_format_path="./model-library-format-path.sh",
             project_options=[
-                project_api.server.ProjectOption(name="foo", help="Option foo"),
-                project_api.server.ProjectOption(name="bar", choices=["qux"], help="Option bar"),
+                project_api.server.ProjectOption(
+                    name="foo", optional=["build"], type="bool", help="Option foo"
+                ),
+                project_api.server.ProjectOption(
+                    name="bar",
+                    required=["generate_project"],
+                    type="str",
+                    choices=["qux"],
+                    help="Option bar",
+                ),
             ],
         )
 
@@ -141,8 +150,24 @@ def test_server_info_query(BaseTestHandler):
     assert reply["is_template"] == True
     assert reply["model_library_format_path"] == "./model-library-format-path.sh"
     assert reply["project_options"] == [
-        {"name": "foo", "choices": None, "help": "Option foo"},
-        {"name": "bar", "choices": ["qux"], "help": "Option bar"},
+        {
+            "name": "foo",
+            "choices": None,
+            "default": None,
+            "type": "bool",
+            "required": None,
+            "optional": ["build"],
+            "help": "Option foo",
+        },
+        {
+            "name": "bar",
+            "choices": ["qux"],
+            "default": None,
+            "type": "str",
+            "required": ["generate_project"],
+            "optional": None,
+            "help": "Option bar",
+        },
     ]
 
 
@@ -470,4 +495,4 @@ def test_invalid_request(BaseTestHandler):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

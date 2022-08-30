@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import tvm
+import tvm.testing
 from tvm import relay
 from tvm.relay.analysis import detect_feature
 from tvm.relay.transform import to_cps, un_cps
@@ -73,10 +74,15 @@ def test_cps_pe():
         x = run_infer_type(x)
         y = un_cps(x)
         y = run_infer_type(y)
+        # TODO(mbs): Revisit once DCE can eliminate dead writes.
         x = run_opt_pass(
             x,
             tvm.transform.Sequential(
-                [transform.PartialEvaluate(), transform.DeadCodeElimination(inline_once=True)]
+                [
+                    transform.PartialEvaluate(),
+                    transform.InferType(),
+                    transform.DeadCodeElimination(inline_once=True, ignore_impurity=True),
+                ]
             ),
         )
         assert Feature.fRefCreate not in detect_feature(x)
@@ -118,5 +124,4 @@ def test_cps_pe():
 
 
 if __name__ == "__main__":
-    test_recursion()
-    test_cps_pe()
+    tvm.testing.main()

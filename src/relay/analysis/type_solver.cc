@@ -258,10 +258,12 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
 
     if (mismatches.size() != 0) {
       auto err = Diagnostic::Error(this->span);
-      err << "The Relay type checker is unable to show the following types match.\n";
-      err << "In particular ";
+      err << "The Relay type checker is unable to show the following types match:\n"
+          << "  " << PrettyPrint(tt1) << "\n"
+          << "  " << PrettyPrint(tt2) << "\n";
+      err << "In particular:\n";
       for (auto mismatch : mismatches) {
-        err << "dimension " << std::get<0>(mismatch) << " conflicts: " << std::get<1>(mismatch)
+        err << "  dimension " << std::get<0>(mismatch) << " conflicts: " << std::get<1>(mismatch)
             << " does not match " << std::get<2>(mismatch) << ".";
       }
       this->solver_->Emit(err);

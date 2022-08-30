@@ -15,9 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Ethos-N integration conv2d tests"""
+"""Arm(R) Ethos(TM)-N integration conv2d tests"""
 
 import numpy as np
+import pytest
 import math
 import tvm
 from tvm import relay
@@ -77,7 +78,7 @@ def _get_model(
         weight_shape = (kernel_h, kernel_w, out_channels, 1)
     w = tvm.nd.array(
         np.random.randint(
-            np.iinfo(dtype).min, high=np.iinfo(dtype).max, size=weight_shape, dtype=dtype
+            np.iinfo(dtype).min, high=np.iinfo(dtype).max + 1, size=weight_shape, dtype=dtype
         )
     )
     weights = relay.const(w, dtype)
@@ -98,102 +99,124 @@ def _get_model(
         padding=p if pad == "attr" or pad == "both" else (0, 0, 0, 0),
         out_dtype="int32",
     )
-    b = tvm.nd.array(np.random.randint(0, high=10, size=(out_channels,), dtype="int32"))
+    b = tvm.nd.array(
+        np.random.randint(
+            np.iinfo(dtype).min, high=np.iinfo(dtype).max + 1, size=(out_channels,), dtype="int32"
+        )
+    )
     biasc = relay.const(b, "int32")
     bias = relay.nn.bias_add(conv, biasc, axis=3)
+    if isinstance(kernel_sc, tvm.runtime.ndarray.NDArray):
+        req_input_sc = [sc * input_sc for sc in kernel_sc.numpy()]
+    else:
+        req_input_sc = input_sc * kernel_sc
     req = relay.qnn.op.requantize(
         bias,
-        relay.const(input_sc * kernel_sc, "float32"),  # input zero scale
+        relay.const(req_input_sc, "float32"),  # input zero scale
         relay.const(0, "int32"),  # input zero point
         relay.const(output_sc, "float32"),  # output zero scale
         relay.const(output_zp, "int32"),  # output zero point
-        out_dtype="uint8",
+        out_dtype=dtype,
     )
     params = {"w": w, "b": b}
     return req, params
 
 
 @requires_ethosn
-def test_conv2d():
+@pytest.mark.parametrize("depthwise", [False, True])
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+def test_conv2d(dtype, depthwise):
     trials = [
-        [(1, 17, 20, 26), 4, 3, 1, "attr", (2, 2), (1, 1)],
-        [(1, 30, 27, 30), 5, 5, 3, "none", (1, 1), (1, 1)],
-        [(1, 14, 28, 11), 6, 2, 2, "op", (2, 2), (1, 1)],
-        [(1, 9, 20, 30), 7, 1, 5, "none", (1, 1), (1, 1)],
-        [(1, 21, 21, 22), 8, 5, 1, "attr", (2, 2), (1, 1)],
-        [(1, 21, 25, 29), 9, 2, 5, "op", (1, 1), (1, 1)],
-        [(1, 31, 28, 15), 10, 1, 2, "attr", (2, 2), (1, 1)],
-        [(1, 21, 21, 8), 11, 3, 3, "none", (1, 1), (1, 1)],
-        [(1, 5, 11, 6), 12, 5, 2, "op", (2, 2), (1, 1)],
-        [(1, 12, 7, 18), 13, 1, 3, "op", (1, 1), (1, 1)],
-        [(1, 24, 6, 26), 14, 3, 5, "none", (2, 2), (1, 1)],
-        [(1, 19, 24, 16), 15, 2, 1, "attr", (1, 1), (1, 1)],
+        [(1, 17, 20, 26), 4, 3, 1, "attr", (2, 2), (1, 1), False],
+        [(1, 30, 27, 30), 5, 5, 3, "none", (1, 1), (1, 1), False],
+        [(1, 30, 27, 30), 5, 5, 3, "none", (1, 1), (1, 1), dtype == "int8"],
+        [(1, 14, 28, 11), 6, 2, 2, "op", (2, 2), (1, 1), False],
+        [(1, 9, 20, 30), 7, 1, 5, "none", (1, 1), (1, 1), False],
+        [(1, 21, 21, 22), 8, 5, 1, "attr", (2, 2), (1, 1), False],
+        [(1, 21, 21, 22), 8, 5, 1, "attr", (2, 2), (1, 1), dtype == "int8"],
+        [(1, 21, 25, 29), 9, 2, 5, "op", (1, 1), (1, 1), False],
+        [(1, 21, 25, 29), 9, 2, 5, "op", (1, 1), (1, 1), dtype == "int8"],
+        [(1, 31, 28, 15), 10, 1, 2, "attr", (2, 2), (1, 1), False],
+        [(1, 21, 21, 8), 11, 3, 3, "none", (1, 1), (1, 1), False],
+        [(1, 5, 11, 6), 12, 5, 2, "op", (2, 2), (1, 1), False],
+        [(1, 12, 7, 18), 13, 1, 3, "op", (1, 1), (1, 1), False],
+        [(1, 24, 6, 26), 14, 3, 5, "none", (2, 2), (1, 1), False],
+        [(1, 19, 24, 16), 15, 2, 1, "attr", (1, 1), (1, 1), False],
     ]
 
     np.random.seed(0)
-    for depthwise in [False, True]:
-        for shape, out_channels, kernel_h, kernel_w, pad, stride, dilation in trials:
-            if depthwise:
-                out_channels = shape[3]
-                groups = out_channels
-                kernel_w = kernel_h
-                weight_format = "HWOI"
-                stride = (1, 1) if kernel_w == 1 else (2, 2)
-            else:
-                groups = 1
-                weight_format = "HWIO"
+    for shape, out_channels, kernel_h, kernel_w, pad, stride, dilation, qnn_per_channel in trials:
+        if depthwise:
+            out_channels = shape[3]
+            groups = out_channels
+            kernel_w = kernel_h
+            weight_format = "HWOI"
+            stride = (1, 1) if kernel_w == 1 else (2, 2)
+        else:
+            groups = 1
+            weight_format = "HWIO"
 
-            outputs = []
-            inputs = {
-                "a": tvm.nd.array(np.random.randint(0, high=255, size=shape, dtype="uint8")),
-            }
-            input_zp = np.random.randint(0, 255)
-            input_sc = np.random.random() * 2
-            kernel_zp = np.random.randint(0, 255)
+        outputs = []
+        inputs = {
+            "a": tvm.nd.array(
+                np.random.randint(
+                    np.iinfo(dtype).min,
+                    np.iinfo(dtype).max + 1,
+                    size=shape,
+                    dtype=dtype,
+                )
+            ),
+        }
+        input_zp = np.random.randint(np.iinfo(dtype).min, np.iinfo(dtype).max)
+        input_sc = np.random.random() * 2
+        if qnn_per_channel:
+            kernel_sc = tvm.nd.array(
+                np.random.uniform(low=0, high=2, size=(out_channels,)).astype(np.float32)
+            )
+        else:
             kernel_sc = np.random.random() * 2
-            output_zp, output_sc = tei.get_conv2d_qnn_params(
-                input_zp, input_sc, kernel_zp, kernel_sc, kernel_h, kernel_w, shape[3]
-            )
-            model, params = _get_model(
-                shape,
-                kernel_h,
-                kernel_w,
-                input_zp,
-                input_sc,
-                kernel_zp,
-                kernel_sc,
-                output_zp,
-                output_sc,
-                pad,
-                stride,
-                dilation,
-                groups,
-                "uint8",
-                out_channels,
-                weight_format,
-            )
-            for npu in [False, True]:
-                mod = tei.make_module(model, params)
-                outputs.append(tei.build_and_run(mod, inputs, 1, params, npu=npu))
+        kernel_zp = (
+            0 if dtype == "int8" else np.random.randint(np.iinfo(dtype).min, np.iinfo(dtype).max)
+        )
+        output_zp, output_sc = tei.get_conv2d_qnn_params(
+            dtype, input_zp, input_sc, kernel_zp, kernel_sc, kernel_h, kernel_w, shape[3]
+        )
+        model, params = _get_model(
+            shape,
+            kernel_h,
+            kernel_w,
+            input_zp,
+            input_sc,
+            kernel_zp,
+            kernel_sc,
+            output_zp,
+            output_sc,
+            pad,
+            stride,
+            dilation,
+            groups,
+            dtype,
+            out_channels,
+            weight_format,
+        )
+        for npu in [False, True]:
+            mod = tei.make_module(model, params)
+            outputs.append(tei.build_and_run(mod, inputs, 1, params, npu=npu))
 
-            tei.verify(outputs, 1)
+        tei.verify(outputs, dtype, 1)
 
 
 @requires_ethosn
 def test_conv2d_failure():
-    _scale_error_msg = (
-        "Overall scale (of the input * weights / output) should be in the range [0, 1)"
-    )
-
     trials = [
         (
             (1, 4, 4, 4),
             1,
             1,
             0,
-            1,
+            1024,
             0,
-            1,
+            1024,
             0,
             1,
             "none",
@@ -203,26 +226,7 @@ def test_conv2d_failure():
             "uint8",
             8,
             "HWIO",
-            _scale_error_msg,
-        ),
-        (
-            (1, 4, 4, 4),
-            1,
-            1,
-            0,
-            1,
-            0,
-            1,
-            0,
-            1,
-            "none",
-            (1, 1),
-            (1, 1),
-            1,
-            "int8",
-            8,
-            "HWIO",
-            "dtype='int8', dtype must be either uint8 or int32",
+            "Overall scale (of the input * weights / output) should be in the range (2^-32, 65536)",
         ),
         (
             (1, 4, 4, 4),

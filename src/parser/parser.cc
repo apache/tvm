@@ -31,13 +31,16 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/target/virtual_device.h>
 
 #include <fstream>
 
+#include "../support/scalars.h"
 #include "./meta_ref.h"
 #include "./op_table.h"
 #include "./span_check.h"
 #include "./tokenizer.h"
+#include "tvm/runtime/builtin_fp16.h"
 
 namespace tvm {
 namespace parser {
@@ -442,16 +445,26 @@ class Parser {
    */
   Expr LookupGraphBinding(const Token& token) {
     auto graph_no = token.ToNumber();
-    return this->graph_ctx.at(graph_no);
+    auto it = this->graph_ctx.find(graph_no);
+    if (it != this->graph_ctx.end()) {
+      return it->second;
+    } else {
+      LOG(FATAL) << "Local variable %" << graph_no << " has not yet been defined";
+      throw;
+    }
   }
 
   /*! \brief Bind a local variable in the expression scope.
    *
    * "x" -> Var("x"), these are needed to map from the raw string names
    * to unique variable nodes.
+   * If a virtual device is specified, sets the virtual device of the variable.
    */
-  Var BindVar(const std::string& name, const relay::Type& type_annotation) {
+  Var BindVar(const std::string& name, const relay::Type& type_annotation,
+              Optional<VirtualDevice> virtual_device = Optional<VirtualDevice>()) {
     auto var = Var(name, type_annotation);
+    var->virtual_device_ = virtual_device.value_or(VirtualDevice::FullyUnconstrained());
+    VLOG(1) << "Binding var named " << name << " to variable node " << PrettyPrint(var);
     this->expr_scopes.Add(name, var);
     return var;
   }
@@ -523,47 +536,13 @@ class Parser {
   /*! \brief Convert a numeric token to an NDArray for embedding into the Relay program. */
   NDArray NumberToNDArray(const Token& token) {
     if (token->token_type == TokenType::kInteger) {
-      DLDevice dev = {DLDeviceType::kDLCPU, 0};
-      int64_t i = Downcast<tvm::Integer>(token->data);
-      if (i > std::numeric_limits<int32_t>::max()) {
-        auto dtype = String2DLDataType("int64");
-        auto data = NDArray::Empty({}, dtype, dev);
-        auto array = reinterpret_cast<int64_t*>(data->data);
-        // revisit this, literal node issue.
-        array[0] = i;
-        return data;
-      } else {
-        auto dtype = String2DLDataType("int32");
-        auto data = NDArray::Empty({}, dtype, dev);
-        auto array = reinterpret_cast<int32_t*>(data->data);
-        // revisit this, literal node issue.
-        array[0] = i;
-        return data;
-      }
+      return support::IntImmToNDArray(Downcast<tvm::IntImm>(token->data));
     } else if (token->token_type == TokenType::kFloat) {
-      DLDevice dev = {DLDeviceType::kDLCPU, 0};
-      auto float_imm = Downcast<tvm::FloatImm>(token->data);
-      auto data = NDArray::Empty({}, float_imm->dtype, dev);
-      auto array = reinterpret_cast<float*>(data->data);
-      // revisit this, literal node issue.
-      // TODO(@jroesch): bounds checking
-      float value = float_imm->value;
-      array[0] = value;
-      return data;
+      return support::FloatImmToNDArray(Downcast<tvm::FloatImm>(token->data));
     } else {
       LOG(FATAL) << "internal error: should only call this function on numeric tokens";
-      return NDArray();
+      return {};
     }
-  }
-
-  /*! \brief Convert a boolean value to an NDArray for embedding into the Relay program. */
-  NDArray BooleanToNDarray(bool value) {
-    DLDevice dev = {DLDeviceType::kDLCPU, 0};
-    auto dtype = String2DLDataType("bool");
-    auto data = NDArray::Empty({}, dtype, dev);
-    auto array = reinterpret_cast<bool*>(data->data);
-    array[0] = value;
-    return data;
   }
 
   [[noreturn]] void ParseError(const Token& token, const std::string& msg) {
@@ -654,7 +633,7 @@ class Parser {
       return ObjectRef();
     }
   }
-  /*! \brief Parses a sequence beginning with a start token, seperated by a seperator token, and
+  /*! \brief Parses a sequence beginning with a start token, separated by a seperator token, and
    * ending with a stop token.
    *
    * The simple form being <start> (<parse()> <seperator>)* <stop>.
@@ -1106,11 +1085,26 @@ class Parser {
           [&]() {
             auto token = Match(TokenType::kLocal);
             auto string = token.ToString();
+
+            // The fake attributes where the virtual device is specified.
+            VirtualDevice virtual_device;
+            if (WhenMatch(TokenType::kLCurly)) {
+              Map<String, ObjectRef> fake_attrs = ParseAttrs();
+              VLOG(9) << "Fake attributes for function parameter: " << fake_attrs;
+              Match(TokenType::kRCurly);
+              if (fake_attrs.size() == 1 && fake_attrs.count(kVirtualDevice)) {
+                ICHECK(fake_attrs[kVirtualDevice].as<VirtualDeviceNode>())
+                    << "Expected the " << kVirtualDevice
+                    << " to have type VirtualDeviceNode, but got " << virtual_device->GetTypeKey();
+                virtual_device = Downcast<VirtualDevice>(fake_attrs[kVirtualDevice]);
+              }
+            }
+
             Type type;
             if (WhenMatch(TokenType::kColon)) {
               type = ParseType();
             }
-            return BindVar(string, type);
+            return BindVar(string, type, virtual_device);
           },
           [&] {
             auto is_ident = Lookahead(1)->token_type == TokenType::kIdentifier;
@@ -1137,7 +1131,26 @@ class Parser {
 
       // TODO(@jroesch): attributes should never be null, they should always be empty.
       if (raw_attrs.size()) {
-        return relay::Function(params, body, ret_type, generics, DictAttrs(raw_attrs));
+        // Promote kVirtualDevice to first-class
+        if (raw_attrs.count(kVirtualDevice)) {
+          ObjectRef vid = raw_attrs.at(kVirtualDevice);
+          ICHECK(vid.as<VirtualDeviceNode>())
+              << "Expected the " << kVirtualDevice << " to have type VirtualDeviceNode, but got "
+              << vid->GetTypeKey();
+
+          DictAttrs attrs;
+          // Don't fill the raw_attrs in if there's nothing other than kVirtualDevice in the
+          // attributes
+          if (raw_attrs.size() > 1) {
+            raw_attrs.erase(kVirtualDevice);
+            attrs = DictAttrs(raw_attrs);
+          }
+          Function func = relay::Function(params, body, ret_type, generics, attrs);
+          func->virtual_device_ = vid;
+          return func;
+        } else {
+          return relay::Function(params, body, ret_type, generics, DictAttrs(raw_attrs));
+        }
       } else {
         return relay::Function(params, body, ret_type, generics, tvm::DictAttrs());
       }
@@ -1527,9 +1540,8 @@ class Parser {
         }
         case TokenType::kBoolean: {
           Consume(TokenType::kBoolean);
-          int64_t value = Downcast<tvm::Integer>(next->data);
-          auto boolean = BooleanToNDarray(value);
-          Expr e = Constant(boolean, next->span);
+          int64_t value = Downcast<tvm::Integer>(next->data).IntValue();
+          Expr e = Constant(support::BoolToNDArray(value), next->span);
           ICHECK(e->span.defined()) << "constant spans must be defined";
           return e;
         }
@@ -1909,7 +1921,8 @@ Parser InitParser(const std::string& file_name, const std::string& file_content,
 
 IRModule ParseModule(const std::string& file_name, const std::string& file_content,
                      const Optional<IRModule>& init_module, const MetaTable& init_meta_table) {
-  VLOG(9) << "ParseModule";
+  VLOG_CONTEXT << "ParseModule";
+  VLOG(9) << "parsing and type-checking " << file_name;
   auto parser = InitParser(file_name, file_content, init_module, init_meta_table);
   auto mod = parser.ParseModule();
   ICHECK(mod.defined()) << "The parser must return a non-null module.";
@@ -1952,15 +1965,21 @@ TVM_REGISTER_GLOBAL("parser.ParseExpr")
       return ParseExpr(file_name, file_content);
     });
 
-TVM_REGISTER_GLOBAL("relay._transform.AnnotateSpans").set_body_typed([]() {
-  return CreateModulePass(
-      [](const IRModule& mod, const PassContext& ctx) {
-        String text = AsText(mod, /*show_meta_data=*/true);
-        VLOG(1) << "AnnotateSpans intermediate text:" << std::endl << text;
-        return ParseModule("GeneratedSource", text);
-      },
-      0, "AnnotateSpans", {});
-});
+/*!
+ * \brief This pass pretty-prints mod then parses it back so as to establish spans and sources
+ * for all Relay sub-expressions. This improves error and debugging diagnostics downstream for
+ * modules constructed programaticaly rather than textually.
+ */
+Pass AnnotateSpans() {
+  auto pass_func = [](const IRModule& mod, const PassContext& ctx) {
+    String text = AsText(mod, /*show_meta_data=*/true);
+    VLOG(1) << "AnnotateSpans intermediate text:" << std::endl << text;
+    return ParseModule("GeneratedSource", text);
+  };
+  return CreateModulePass(pass_func, 0, "AnnotateSpans", {});
+}
+
+TVM_REGISTER_GLOBAL("relay._transform.AnnotateSpans").set_body_typed(AnnotateSpans);
 
 }  // namespace parser
 }  // namespace tvm

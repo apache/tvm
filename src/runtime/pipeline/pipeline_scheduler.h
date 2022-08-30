@@ -41,11 +41,26 @@ class PipelineScheduler {
    * \param modules The list of graph executor module.
    * \param pipeline_config The dependency information of each graph executor module.
    */
-  size_t PipelineInit(const std::vector<Module>& modules, const PipelineConfig& pipeline_config);
+  std::shared_ptr<GlobalRuntime> PipelineInit(const std::vector<Module>& modules,
+                                              const ConfigPipelineExecution& pipeline_config,
+                                              const InputConnectionConfig& input_connection_config);
+  /*!
+   * \brief Running the pipeline logic.
+   * \param runtimes A list of backend runtime modules.
+   */
+  void PipelineRun(const std::vector<std::shared_ptr<BackendRuntime>>& runtimes);
+  /*!
+   * \brief Get a list of outputs.
+   */
+  Array<NDArray> PipelineGetOutput();
 
  private:
   /*!\brief The list of graph executors.*/
   std::vector<Module> graph_modules_;
+  /*!\brief A list of NDArray used to storage outputs.*/
+  Array<NDArray> output_arrays_;
+  /*!\brief The global runtime to represent the pipeline executor.*/
+  std::shared_ptr<GlobalRuntime> global_runtime_;
 };
 }  // namespace runtime
 }  // namespace tvm

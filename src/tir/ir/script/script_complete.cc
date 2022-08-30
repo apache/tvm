@@ -22,11 +22,10 @@
  * \brief Used by TVM Script parser to expand incomplete TIR input
  */
 
+#include "./script_complete.h"
+
 #include <tvm/arith/int_set.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/tir/analysis.h>
-#include <tvm/tir/stmt.h>
-#include <tvm/tir/stmt_functor.h>
 
 #include <utility>
 

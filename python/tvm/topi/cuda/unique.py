@@ -144,7 +144,7 @@ def _calc_unique_ir(
         A buffer that stores the unique elements.
 
     inverse_indices : Buffer
-        A buffer that stores the the index of each input data element in the unique element array.
+        A buffer that stores the index of each input data element in the unique element array.
 
     counts (optional) : Buffer
         A buffer that stores the count of each unique element.

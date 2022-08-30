@@ -54,7 +54,7 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
   PrimExpr VisitExpr_(const VarNode* op) final {
     Var var = GetRef<Var>(op);
     if (Optional<PrimExpr> ret = vmap_(var)) {
-      return ret.value();
+      return tvm::cast(var.dtype(), ret.value());
     } else {
       return std::move(var);
     }
@@ -77,18 +77,21 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
 /*! \brief Simplify the binding of block realize and update the opaque block reuse mapping */
 class IterMapSimplifyBlockBinding : public StmtExprMutator {
  public:
-  explicit IterMapSimplifyBlockBinding(MapNode* opaque_blocks, Map<Var, Range> loop_var2extent)
-      : opaque_blocks_(opaque_blocks), loop_var2extent_(loop_var2extent) {}
+  explicit IterMapSimplifyBlockBinding(MapNode* opaque_blocks, Map<Var, Range> loop_var2extent,
+                                       bool preserve_unit_iters)
+      : opaque_blocks_(opaque_blocks),
+        loop_var2extent_(loop_var2extent),
+        preserve_unit_iters_(preserve_unit_iters) {}
 
-  static For SimplifyBindings(Stmt stmt, const Array<StmtSRef>& loop_srefs,
-                              MapNode* opaque_blocks) {
+  static For SimplifyBindings(Stmt stmt, const Array<StmtSRef>& loop_srefs, MapNode* opaque_blocks,
+                              bool preserve_unit_iters) {
     Map<Var, Range> loop_var2extent;
     for (const StmtSRef& sref : loop_srefs) {
-      const ForNode* loop = TVM_SREF_TO_FOR(loop, sref);
+      const ForNode* loop = TVM_SREF_TO_FOR(sref);
       loop_var2extent.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
     }
-    return Downcast<For>(
-        IterMapSimplifyBlockBinding(opaque_blocks, std::move(loop_var2extent))(std::move(stmt)));
+    return Downcast<For>(IterMapSimplifyBlockBinding(opaque_blocks, std::move(loop_var2extent),
+                                                     preserve_unit_iters)(std::move(stmt)));
   }
 
  private:
@@ -112,10 +115,12 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
       }
       return std::move(realize);
     }
-    Array<PrimExpr> v = arith::IterMapSimplify(/*indices=*/op->iter_values,
-                                               /*input_iters=*/loop_var2extent_,
-                                               /*input_pred=*/op->predicate,
-                                               /*require_bijective=*/false);
+    Array<PrimExpr> v =
+        arith::IterMapSimplify(/*indices=*/op->iter_values,
+                               /*input_iters=*/loop_var2extent_,
+                               /*input_pred=*/op->predicate,
+                               /*check_level=*/arith::IterMapLevel::Surjective,
+                               /*simplify_trivial_iterators=*/!preserve_unit_iters_);
     if (v.same_as(op->iter_values)) {
       return GetRef<Stmt>(op);
     } else {
@@ -129,21 +134,25 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
   MapNode* opaque_blocks_;
   /*! \brief The range of loops */
   Map<Var, Range> loop_var2extent_;
+  /*! \brief Whether or not to simplify unit iterators */
+  bool preserve_unit_iters_;
 };
 
 class BlockPropertyError : public ScheduleError {
  public:
   /*!
-   * \brief Check that all the blocks under the specific stmt have affine bindings and only have
-   *     data-parallel or reduction block iters
+   * \brief Check that all the blocks under the specific stmt have affine bindings
+   *     wrt top loop sref and only have data-parallel or reduction block iters
    * \param self The state of the schedule
    * \param sref The sref to the specific stmt
    */
-  static void CheckBlockIterTypeAndAffineBinding(const ScheduleState& self,
+  static void CheckBlockIterTypeAndAffineBinding(const ScheduleState& self, const StmtSRefNode* top,
                                                  const StmtSRefNode* sref) {
     class BlockIterTypeAndAffineBindingChecker : public StmtVisitor {
      public:
-      explicit BlockIterTypeAndAffineBindingChecker(const ScheduleState& state) : state_(state) {}
+      explicit BlockIterTypeAndAffineBindingChecker(const ScheduleState& state,
+                                                    const StmtSRefNode* top)
+          : state_(state), top_(top) {}
 
      private:
       void VisitStmt_(const BlockNode* op) final {
@@ -151,13 +160,16 @@ class BlockPropertyError : public ScheduleError {
           if (iter_var->iter_type != kDataPar && iter_var->iter_type != kCommReduce) {
             throw BlockPropertyError(state_->mod, GetRef<Block>(op));
           }
-          CheckAffineBinding(state_, GetRef<Block>(op));
+          Optional<StmtSRef> high_exclusive =
+              top_->parent ? GetRef<StmtSRef>(top_->parent) : Optional<StmtSRef>(NullOpt);
+          CheckPartialAffineBinding(state_, GetRef<Block>(op), high_exclusive);
         }
       }
       const ScheduleState& state_;
+      const StmtSRefNode* top_;
     };
 
-    BlockIterTypeAndAffineBindingChecker checker(self);
+    BlockIterTypeAndAffineBindingChecker checker(self, top);
     checker(GetRef<Stmt>(sref->stmt));
   }
 
@@ -243,25 +255,6 @@ class NotOnlyChildError : public ScheduleError {
   IRModule mod_;
   For outer_;
   For inner_;
-};
-
-class LoopNotStartWithZeroError : public ScheduleError {
- public:
-  explicit LoopNotStartWithZeroError(IRModule mod, For loop) : mod_(mod), loop_(std::move(loop)) {}
-
-  String FastErrorString() const final {
-    return "ScheduleError: The primitive only supports loop starting with 0";
-  }
-
-  String DetailRenderTemplate() const final {
-    return "The loop {0} does not start with 0, which is not supported";
-  }
-
-  IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {loop_}; }
-
-  IRModule mod_;
-  For loop_;
 };
 
 class NotSingleInferFactorError : public ScheduleError {
@@ -389,32 +382,39 @@ class DependentLoopError : public ScheduleError {
   PrimitiveKind kind_;
 };
 
-Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
-                      const Array<PrimExpr>& factors) {
+Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref, const Array<PrimExpr>& factors,
+                      bool preserve_unit_iters) {
   // Invariance
   // - The total repeat number has not changed for each direct child block with updating predicate.
   // - The execution order has not changed. (The block executes with the same args and the same
   // order with before.
   // Step 1. Check correctness
-  const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   if (!loop->annotations.empty() || loop->thread_binding.defined()) {
     throw HasAnnotationOrThreadBindingError(self->mod, GetRef<For>(loop));
   }
   // Currently, loops not starting with 0 are not supported
   arith::Analyzer analyzer;
-  if (!analyzer.CanProve(loop->min == 0)) {
-    throw LoopNotStartWithZeroError(self->mod, GetRef<For>(loop));
+  CheckLoopStartsWithZero(self, loop_sref, &analyzer);
+
+  // Find the most common dtype
+  DataType dtype;
+  {
+    int bits = loop->loop_var.dtype().bits();
+    for (const PrimExpr& factor : factors) {
+      bits = std::max(bits, factor.dtype().bits());
+    }
+    dtype = DataType::Int(bits);
   }
-  // Step 2. Replace all occurrences of the original loop var with new variables
   int n = factors.size();
-  PrimExpr substitute_value = 0;
+  PrimExpr substitute_value = make_const(dtype, 0);
   std::vector<Var> new_loop_vars;
   new_loop_vars.reserve(n);
   for (int i = 0; i < n; i++) {
     const PrimExpr& factor = factors[i];
-    Var var = loop->loop_var.copy_with_suffix("_" + std::to_string(i));
+    Var var = loop->loop_var.copy_with_suffix("_" + std::to_string(i)).copy_with_dtype(dtype);
     substitute_value = substitute_value * factor + var;
-    analyzer.Bind(var, Range::FromMinExtent(0, factor));
+    analyzer.Bind(var, Range::FromMinExtent(make_const(dtype, 0), tvm::cast(dtype, factor)));
     new_loop_vars.emplace_back(std::move(var));
   }
   Map<Block, Block> opaque_block_reuse;
@@ -438,19 +438,20 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
     new_stmt = For(new_loop_vars[i], 0, factors[i], ForKind::kSerial, new_stmt);
   }
   new_stmt = IterMapSimplifyBlockBinding::SimplifyBindings(std::move(new_stmt), GetLoops(loop_sref),
-                                                           opaque_block_reuse.CopyOnWrite());
+                                                           opaque_block_reuse.CopyOnWrite(),
+                                                           preserve_unit_iters);
   self->Replace(loop_sref, new_stmt, opaque_block_reuse);
   Array<StmtSRef> result_srefs;
   result_srefs.reserve(n);
   for (int i = 0; i < n; i++) {
     result_srefs.push_back(self->stmt2ref.at(new_stmt.get()));
-    const ForNode* outer_loop = TVM_TYPE_AS(outer_loop, new_stmt, ForNode);
+    const ForNode* outer_loop = TVM_TYPE_AS(new_stmt, ForNode);
     new_stmt = outer_loop->body;
   }
   return result_srefs;
 }
 
-StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
+StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs, bool preserve_unit_iters) {
   // Invariance
   // - The total repeat number has not changed for each direct child block.
   // - The execution order has not changed. (The block executes with the same
@@ -463,7 +464,7 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
   std::unordered_set<const VarNode*> outer_loop_vars;
   // Step 1. check correctness
   for (const StmtSRef& sref : loop_srefs) {
-    const ForNode* loop = TVM_SREF_TO_FOR(loop, sref);
+    const ForNode* loop = TVM_SREF_TO_FOR(sref);
     if (!loop->annotations.empty() || loop->thread_binding.defined()) {
       throw HasAnnotationOrThreadBindingError(self->mod, GetRef<For>(loop));
     }
@@ -477,9 +478,7 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
     }
     outer_loop_sref = sref;
     outer_loop = loop;
-    if (!analyzer.CanProve(loop->min == 0)) {
-      throw LoopNotStartWithZeroError(self->mod, GetRef<For>(loop));
-    }
+    CheckLoopStartsWithZero(self, sref, &analyzer);
     const VarNode* used_var = nullptr;
     auto f_contain = [&outer_loop_vars, &used_var](const VarNode* var) {
       if (outer_loop_vars.count(var)) {
@@ -498,18 +497,23 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
   // Step 2. Create fused loop var and replace the original loop vars
   std::string suffix;
   int n = loops.size();
+  int bits = loops[0]->loop_var.dtype().bits();
   for (int i = 1; i < n; i++) {
     suffix += "_" + loops[i]->loop_var->name_hint;
+    bits = std::max(bits, loops[i]->loop_var.dtype().bits());
   }
   suffix += "_fused";
-  Var fused_var = loops[0]->loop_var.copy_with_suffix(suffix);
+  Var fused_var = loops[0]->loop_var.copy_with_suffix(suffix).copy_with_dtype(DataType::Int(bits));
   Array<PrimExpr> substitute_value;
   substitute_value.resize(loops.size());
-  PrimExpr tot = fused_var;
-  for (int i = static_cast<int>(loops.size()) - 1; i >= 0; i--) {
-    substitute_value.Set(i, floormod(tot, loops[i]->extent));
-    tot = floordiv(tot, loops[i]->extent);
+  PrimExpr lower = 1;
+  for (int i = static_cast<int>(loops.size()) - 1; i > 0; i--) {
+    substitute_value.Set(i, is_one(loops[i]->extent)
+                                ? 0
+                                : floordiv(floormod(fused_var, lower * loops[i]->extent), lower));
+    lower = lower * loops[i]->extent;
   }
+  substitute_value.Set(0, is_one(loops[0]->extent) ? 0 : floordiv(fused_var, lower));
   Stmt new_stmt = loops.back()->body;
   Map<Block, Block> opaque_block_reuse;
   auto f_substitute = [&](const Var& v) -> Optional<PrimExpr> {
@@ -530,10 +534,12 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
   fused_extent = analyzer.Simplify(fused_extent);
   new_stmt = For(fused_var, 0, fused_extent, ForKind::kSerial, new_stmt);
   new_stmt = IterMapSimplifyBlockBinding::SimplifyBindings(
-      std::move(new_stmt), GetLoops(loop_srefs[0]), opaque_block_reuse.CopyOnWrite());
+      std::move(new_stmt), GetLoops(loop_srefs[0]), opaque_block_reuse.CopyOnWrite(),
+      preserve_unit_iters);
   self->Replace(loop_srefs[0], new_stmt, opaque_block_reuse);
   return self->stmt2ref.at(new_stmt.get());
 }
+
 /*!
  * \brief Collect an array of loop srefs into a set
  * \param self The schedule state
@@ -548,7 +554,7 @@ std::unordered_set<const StmtSRefNode*> CollectLoopsIntoSet(
   for (const StmtSRef& loop_sref : ordered_loop_srefs) {
     auto inserted = loop_srefs.insert(loop_sref.get());
     if (!inserted.second) {
-      const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+      const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
       throw LoopMultiAppearanceError(self->mod, GetRef<For>(loop));
     }
   }
@@ -698,18 +704,53 @@ void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
   //   the input array
   // - the bottom of the reorder range is the last loop in the input array which is not visited in
   // the previous traversals
-  const StmtSRefNode* top = nullptr;
-  const StmtSRefNode* bottom = nullptr;
-  std::tie(top, bottom) = GetBoundaryOfReorderRange(self, loop_srefs);
+  auto [top, bottom] = GetBoundaryOfReorderRange(self, loop_srefs);
   // Step 3. Collect all loops in the chain and check the loops are single-branch
   std::vector<const StmtSRefNode*> chain = GetLoopsInReorderRange(self, top, bottom);
   // Step 4. Check the block below has all its block_var to be data-parallel or reduction,
-  // and the block has an affine binding.
-  BlockPropertyError::CheckBlockIterTypeAndAffineBinding(self, bottom);
+  // and the block has an affine binding wrt top of the loop range.
+  BlockPropertyError::CheckBlockIterTypeAndAffineBinding(self, top, bottom);
   // Step 5. Replace the original loops with the reordered loops and check that outer loop is
   // not dependent on inner loop
   For new_loop = ConstructNewLoopChain(self, std::move(chain), ordered_loop_srefs, loop_srefs);
   self->Replace(GetRef<StmtSRef>(top), new_loop, {});
+}
+
+StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref) {
+  if (sref->stmt->IsInstance<ForNode>()) {
+    For new_loop(Var("u", DataType::Int(32)), 0, 1, ForKind::kSerial, GetRef<Stmt>(sref->stmt));
+    self->Replace(sref, new_loop, {});
+    return self->stmt2ref.at(new_loop.get());
+  }
+  class NewLoopCreator : public StmtMutator {
+   public:
+    explicit NewLoopCreator(const StmtNode* src_block) : src_block_(src_block) {}
+
+    Stmt VisitStmt_(const BlockRealizeNode* realize) final {
+      if (realize->block.get() == src_block_) {
+        new_loop_ =
+            For(Var("u", DataType::Int(32)), 0, 1, ForKind::kSerial, GetRef<BlockRealize>(realize));
+        return new_loop_;
+      }
+      return StmtMutator::VisitStmt_(realize);
+    }
+
+    const StmtNode* src_block_;
+    For new_loop_{nullptr};
+  };
+
+  CHECK(sref->parent != nullptr) << "ValueError: Cannot add loops on top of the root block";
+  StmtSRef parent_sref = GetRef<StmtSRef>(sref->parent);
+  NewLoopCreator creator(sref->stmt);
+  Stmt new_stmt = creator(GetRef<Stmt>(parent_sref->stmt));
+  if (new_stmt->IsInstance<ForNode>()) {
+    self->Replace(parent_sref, std::move(new_stmt), {});
+  } else {
+    Block old_parent_block = GetRef<Block>(parent_sref->StmtAs<BlockNode>());
+    Block new_parent_block = Downcast<Block>(new_stmt);
+    self->Replace(parent_sref, new_stmt, {{old_parent_block, new_parent_block}});
+  }
+  return self->stmt2ref.at(creator.new_loop_.get());
 }
 
 /******** InstructionKind Registration ********/
@@ -720,7 +761,7 @@ struct SplitTraits : public UnpackedInstTraits<SplitTraits> {
 
  private:
   static constexpr size_t kNumInputs = 2;
-  static constexpr size_t kNumAttrs = 0;
+  static constexpr size_t kNumAttrs = 1;
   static constexpr size_t kNumDecisions = 0;
 
   template <size_t delta>
@@ -735,14 +776,17 @@ struct SplitTraits : public UnpackedInstTraits<SplitTraits> {
   }
 
   static Array<LoopRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv,
-                                               Array<Optional<ExprRV>> factors) {
-    return sch->Split(loop_rv, factors);
+                                               Array<Optional<ExprRV>> factors,
+                                               Bool preserve_unit_iters) {
+    return sch->Split(loop_rv, factors, preserve_unit_iters.operator bool());
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String loop_rv, Array<ObjectRef> factors) {
+  static String UnpackedAsPython(Array<String> outputs, String loop_rv, Array<ObjectRef> factors,
+                                 Bool preserve_unit_iters) {
     PythonAPICall py("split");
     py.Input("loop", loop_rv);
     py.Input("factors", factors);
+    py.Input("preserve_unit_iters", preserve_unit_iters.operator bool());
     py.OutputList(outputs);
     return py.Str();
   }
@@ -757,7 +801,7 @@ struct FuseTraits : public UnpackedInstTraits<FuseTraits> {
 
  private:
   static constexpr size_t kNumInputs = 1;
-  static constexpr size_t kNumAttrs = 0;
+  static constexpr size_t kNumAttrs = 1;
   static constexpr size_t kNumDecisions = 0;
 
   template <size_t delta>
@@ -766,15 +810,18 @@ struct FuseTraits : public UnpackedInstTraits<FuseTraits> {
     setter(delta, inputs);
   }
 
-  static LoopRV UnpackedApplyToSchedule(Schedule sch, Array<LoopRV> loop_rvs) {
-    return sch->Fuse(loop_rvs);
+  static LoopRV UnpackedApplyToSchedule(Schedule sch, Array<LoopRV> loop_rvs,
+                                        Bool preserve_unit_iters) {
+    return sch->Fuse(loop_rvs, preserve_unit_iters.operator bool());
   }
 
-  static String UnpackedAsPython(Array<String> outputs, Array<String> loop_rvs) {
+  static String UnpackedAsPython(Array<String> outputs, Array<String> loop_rvs,
+                                 Bool preserve_unit_iters) {
     PythonAPICall py("fuse");
     for (const String& loop_rv : loop_rvs) {
       py.Input("", loop_rv);
     }
+    py.Input("preserve_unit_iters", preserve_unit_iters.operator bool());
     py.SingleOutput(outputs);
     return py.Str();
   }
@@ -814,9 +861,41 @@ struct ReorderTraits : public UnpackedInstTraits<ReorderTraits> {
   friend struct ::tvm::tir::UnpackedInstTraits;
 };
 
+struct AddUnitLoopTraits : public UnpackedInstTraits<AddUnitLoopTraits> {
+  static constexpr const char* kName = "AddUnitLoop";
+  static constexpr bool kIsPure = false;
+
+ private:
+  static constexpr size_t kNumInputs = 1;
+  static constexpr size_t kNumAttrs = 0;
+  static constexpr size_t kNumDecisions = 0;
+
+  static LoopRV UnpackedApplyToSchedule(Schedule sch, ObjectRef rv) {
+    if (const auto* block = rv.as<BlockRVNode>()) {
+      return sch->AddUnitLoop(GetRef<BlockRV>(block));
+    } else if (const auto* loop = rv.as<LoopRVNode>()) {
+      return sch->AddUnitLoop(GetRef<LoopRV>(loop));
+    } else {
+      LOG(FATAL) << "TypeError: AddUnitLoop expects a loop or block";
+      throw;
+    }
+  }
+
+  static String UnpackedAsPython(Array<String> outputs, String rv) {
+    PythonAPICall py("add_unit_loop");
+    py.Input("block_or_loop", rv);
+    py.SingleOutput(outputs);
+    return py.Str();
+  }
+
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
+};
+
 TVM_REGISTER_INST_KIND_TRAITS(SplitTraits);
 TVM_REGISTER_INST_KIND_TRAITS(FuseTraits);
 TVM_REGISTER_INST_KIND_TRAITS(ReorderTraits);
+TVM_REGISTER_INST_KIND_TRAITS(AddUnitLoopTraits);
 
 }  // namespace tir
 }  // namespace tvm

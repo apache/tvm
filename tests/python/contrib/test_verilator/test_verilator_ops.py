@@ -19,6 +19,7 @@
 import numpy as np
 
 import tvm
+import tvm.testing
 from tvm import relay
 import pytest
 
@@ -192,3 +193,7 @@ def test_bias_add():
     """bias_add tests."""
     tbias(1)
     tbias(32)
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

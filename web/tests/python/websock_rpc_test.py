@@ -24,6 +24,7 @@ import tvm
 from tvm import te
 from tvm import rpc
 from tvm.contrib import utils, emcc
+from tvm.relay.backend import Runtime
 import numpy as np
 
 proxy_host = "127.0.0.1"
@@ -34,7 +35,8 @@ def test_rpc():
     if not tvm.runtime.enabled("rpc"):
         return
     # generate the wasm library
-    target = "llvm -mtriple=wasm32-unknown-unknown-wasm -system-lib"
+    runtime = Runtime("cpp", {"system-lib": True})
+    target = "llvm -mtriple=wasm32-unknown-unknown-wasm"
     if not tvm.runtime.enabled(target):
         raise RuntimeError("Target %s is not enbaled" % target)
     n = te.var("n")
@@ -42,7 +44,7 @@ def test_rpc():
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
     s = te.create_schedule(B.op)
 
-    fadd = tvm.build(s, [A, B], target, name="addone")
+    fadd = tvm.build(s, [A, B], target, runtime=runtime, name="addone")
     temp = utils.tempdir()
 
     wasm_path = temp.relpath("addone.wasm")

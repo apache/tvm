@@ -152,13 +152,6 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
   // Should only be triggered when op is a free variable being visited for the
   // first time.
   Doc VisitExpr_(const VarNode* op) final;
-  /*!
-   * \brief special method to print out const scalar
-   * \param dtype The data type
-   * \param value The value to be printed.
-   */
-  template <typename T>
-  static Doc ScalarLiteral(DataType dtype, const T& value);
   Doc VisitExpr_(const ConstantNode* op) final;
   Doc VisitExpr_(const TupleNode* op) final;
   Doc VisitExpr_(const TupleGetItemNode* op) final;
@@ -359,6 +352,8 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitStmt_(const BufferRealizeNode* op) override;
   Doc VisitStmt_(const ProducerRealizeNode* op) override;
   Doc VisitStmt_(const AllocateNode* op) override;
+  Doc VisitStmt_(const AllocateConstNode* op) override;
+  Doc VisitStmt_(const DeclBufferNode* op) override;
   Doc VisitStmt_(const IfThenElseNode* op) override;
   Doc VisitStmt_(const SeqStmtNode* op) override;
   Doc VisitStmt_(const EvaluateNode* op) override;
@@ -398,6 +393,7 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   static Doc PrintConstScalar(DataType dtype, const T& data);
   Doc GetUniqueName(std::string prefix);
   Doc AllocVar(const Var& var);
+  Doc AllocConst(const AllocateConst& var);
   Doc AllocBuf(const Buffer& buffer);
   Doc AllocProducer(const DataProducer& buffer);
   /*!
@@ -409,7 +405,7 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc PrintBody(const Stmt& body, bool indent = true);
 };
 
-String AsTVMScript(const ObjectRef& mod, const String& tir_prefix = "tir", bool show_meta = false);
+String AsTVMScript(const ObjectRef& mod, const String& tir_prefix = "T", bool show_meta = false);
 
 String AsTVMScriptWithDiagnostic(const ObjectRef& mod, const String& tir_prefix, bool show_meta,
                                  runtime::TypedPackedFunc<std::string(Stmt)> annotate);
@@ -449,10 +445,11 @@ class TextPrinter {
 
   Doc PrintFinal(const ObjectRef& node) {
     Doc doc;
-    if (node->IsInstance<IRModuleNode>()) {
+    if (node.defined() && node->IsInstance<IRModuleNode>()) {
       doc << PrintMod(Downcast<IRModule>(node));
-    } else if (node->IsInstance<tir::PrimFuncNode>() || node->IsInstance<PrimExprNode>() ||
-               node->IsInstance<tir::StmtNode>()) {
+    } else if (node.defined() &&
+               (node->IsInstance<tir::PrimFuncNode>() || node->IsInstance<PrimExprNode>() ||
+                node->IsInstance<tir::StmtNode>())) {
       doc << tir_text_printer_.Print(node);
     } else {
       doc << relay_text_printer_.PrintFinal(node);

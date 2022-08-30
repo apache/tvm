@@ -76,16 +76,6 @@ class FunctionPassNode : public PassNode {
 
   static constexpr const char* _type_key = "relay.FunctionPass";
   TVM_DECLARE_FINAL_OBJECT_INFO(FunctionPassNode, PassNode);
-
- private:
-  /*
-   * \brief Check if a function should be skipped for optimization.
-   *
-   * \param func The target function to be checked.
-   *
-   * \return Return true if the function will be skipped, otherwise false.
-   */
-  bool SkipFunction(const Function& func) const;
 };
 
 class FunctionPass : public Pass {
@@ -136,13 +126,12 @@ IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
 
   IRModule updated_mod = mod->ShallowCopy();
 
-  std::vector<std::pair<GlobalVar, Function> > updates;
-  for (const auto& it : updated_mod->functions) {
-    // only picks up relay::Function
-    if (auto* n = it.second.as<FunctionNode>()) {
-      Function func = GetRef<Function>(n);
-      auto updated_func = SkipFunction(func) ? func : pass_func(func, updated_mod, pass_ctx);
-      updates.push_back({it.first, updated_func});
+  std::vector<std::pair<GlobalVar, Function>> updates;
+  for (const auto& kv : mod->functions) {
+    // only process optimizable Relay Functions
+    if (const auto* function_node = AsOptimizableFunctionNode(kv.second)) {
+      Function updated_func = pass_func(GetRef<Function>(function_node), updated_mod, pass_ctx);
+      updates.push_back({kv.first, std::move(updated_func)});
     }
   }
 
@@ -161,11 +150,6 @@ IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
   // TODO(@jroesch): move away from eager type checking for performance reasons
   // make issue.
   return transform::InferType()(updated_mod);
-}
-
-bool FunctionPassNode::SkipFunction(const Function& func) const {
-  return (func->GetAttr<String>(attr::kCompiler).defined()) ||
-         func->GetAttr<Integer>(attr::kSkipOptimization, 0) != 0;
 }
 
 Pass CreateFunctionPass(

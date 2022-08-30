@@ -396,9 +396,6 @@ def schedule_group_conv2d_NCHWc_int8(cfg, outs):
     return s
 
 
-_dp4a = dp4a("shared", "shared", "local")
-
-
 def _schedule_group_conv2d_NCHWc_int8(cfg, s, output):
     """Schedule group conv2d int8 NCHWc template"""
     workload = output.op.attrs["workload"]
@@ -509,7 +506,11 @@ def _schedule_group_conv2d_NCHWc_int8(cfg, s, output):
 
     s[conv].reorder(rco, ryo, rxo, rci, ryi, rxi, n, f, y, x, c, rc_block)
     _, rc_block = s[conv].split(rc_block, factor=4)
-    s[conv].tensorize(rc_block, _dp4a)
+    target = tvm.target.Target.current(allow_none=False)
+    do_tensorize = "+dotprod" in target.mattr or target.supports_integer_dot_product
+    if do_tensorize:
+        dtypes = (pad_data.dtype, packed_kernel.dtype)
+        s[conv].tensorize(rc_block, dp4a("shared", "shared", "local", dtypes))
 
     s[AA].compute_at(s[conv], rxo)
     s[WW].compute_at(s[conv], rxo)

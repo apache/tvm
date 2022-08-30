@@ -42,6 +42,7 @@ from .local_response_norm import *
 from .bitserial_conv2d import *
 from .bitserial_dense import *
 from .batch_matmul import *
+from .batch_norm import *
 from .sparse import *
 from .pad import *
 from .fifo_buffer import *
@@ -50,3 +51,4 @@ from .space_to_depth import *
 from .space_to_batch_nd import *
 from .batch_to_space_nd import *
 from .loss import *
+from .lstm import *

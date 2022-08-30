@@ -68,6 +68,7 @@ enum class Opcode {
   ShapeOf = 17U,
   ReshapeTensor = 18U,
   DeviceCopy = 19U,
+  KillRegister = 20U,
 };
 
 /*! \brief A single virtual machine instruction.
@@ -176,6 +177,7 @@ struct Instruction {
       RegName object;
     } get_tag;
     struct /* AllocADT Operands */ {
+      // TODO(mbs): Needs a DeviceAndScope.
       /*! \brief The datatype's constructor tag. */
       Index constructor_tag;
       /*! \brief The number of fields to store in the datatype. */
@@ -184,6 +186,7 @@ struct Instruction {
       RegName* datatype_fields;
     };
     struct /* AllocClosure Operands */ {
+      // TODO(mbs): Needs a DeviceAndScope.
       /*! \brief The index into the function table. */
       Index clo_index;
       /*! \brief The number of free variables to capture. */
@@ -198,8 +201,8 @@ struct Instruction {
       Index alignment;
       /*! \brief The hint of the dtype. */
       DLDataType dtype_hint;
-      /*! \brief The device type of the allocation. */
-      Index device_type;
+      /*! \brief The index of the device on which the allocation will be made. */
+      Index device_index;
     } alloc_storage;
     struct /* ShapeOf Operands */ {
       RegName tensor;
@@ -210,11 +213,11 @@ struct Instruction {
     } reshape_tensor;
     struct /* DeviceCopy Operands */ {
       RegName src;
-      /*! \brief The source device type. */
-      Index src_device_type;
-      /*! \brief The destination device type. */
-      Index dst_device_type;
-    };
+      /*! \brief The index of the source device to copy from. */
+      Index src_device_index;
+      /*! \brief The index of the destination deviceto copy to. */
+      Index dst_device_index;
+    } device_copy;
   };
 
   /*!
@@ -352,12 +355,12 @@ struct Instruction {
    * \param size The size of the allocation.
    * \param alignment The allocation's alignment.
    * \param dtype_hint The data type hint for the allocator.
-   * \param device_type The device type for the allocator.
+   * \param device_index The index of the device to allocate on.
    * \param dst The destination to place the storage.
    * \return The alloc storage instruction.
    */
   static Instruction AllocStorage(RegName size, Index alignment, DLDataType dtype_hint,
-                                  Index device_type, RegName dst);
+                                  Index device_index, RegName dst);
   /*!
    * \brief Get the shape of an input tensor.
    * \param tensor The input tensor.
@@ -376,13 +379,15 @@ struct Instruction {
   /*!
    * \brief Copy tensor cross different devices.
    * \param src The source register.
-   * \param src_device_type The device type of the tensor for the source register.
-   * \param dst_device_type The device type of the tensor ofr the destination register.
+   * \param src_device_index The index of the device holding the tensor in the source register.
+   * \param dst_device_index The index of the device to hold the tensor in the destination register.
    * \param dst The destination register to store the copied tensor.
    * \return The device copy instruction.
    */
-  static Instruction DeviceCopy(RegName src, Index src_device_type, Index dst_device_type,
+  static Instruction DeviceCopy(RegName src, Index src_device_index, Index dst_device_index,
                                 RegName dst);
+
+  static Instruction KillRegister(RegName dst);
 
   Instruction();
   Instruction(const Instruction& instr);

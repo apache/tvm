@@ -24,7 +24,7 @@
  */
 
 // TODO(mbs): Revisit cpp unit test layout or setup include dir at root of src/
-#include "../../../src/relay/transforms/device_domains.h"
+#include "../../../../src/relay/transforms/device_domains.h"
 
 #include <gtest/gtest.h>
 #include <tvm/parser/parser.h>
@@ -45,24 +45,29 @@ IRModule TestModule() {
 }
 
 TEST(DeviceDomains, SmokeTest) {
-  DeviceDomains domains;
+  VirtualDevice cpu = VirtualDevice::ForDeviceType(kDLCPU);
+  VirtualDevice cuda = VirtualDevice::ForDeviceType(kDLCUDA);
+  transform::PassContext ctxt = transform::PassContext::Create();
+  CompilationConfig config(ctxt, {Target("llvm"), Target("cuda")});
+  DeviceDomains domains(config);
   IRModule mod = TestModule();
   Function f = Downcast<Function>(mod->Lookup("f"));
 
   DeviceDomainPtr actual_add_domain = domains.DomainForCallee(Downcast<Call>(f->body));
   DeviceDomainPtr x_domain = domains.DomainFor(f->params[0]);
   DeviceDomainPtr y_domain = domains.DomainFor(f->params[1]);
-  DeviceDomainPtr result_domain = DeviceDomains::Free(f->ret_type);
+  DeviceDomainPtr result_domain = domains.Free(f->ret_type);
   std::vector<DeviceDomainPtr> arg_and_results;
   arg_and_results.push_back(x_domain);
   arg_and_results.push_back(y_domain);
   arg_and_results.push_back(result_domain);
-  DeviceDomainPtr implied_add_domain = DeviceDomains::MakeDomain(std::move(arg_and_results));
-  domains.Unify(actual_add_domain, implied_add_domain);
-  domains.Unify(x_domain, DeviceDomains::ForDeviceType(f->params[0]->checked_type(), kDLCUDA));
+  DeviceDomainPtr implied_add_domain = domains.MakeHigherOrderDomain(std::move(arg_and_results));
+  EXPECT_FALSE(domains.UnifyOrNull(actual_add_domain, implied_add_domain) == nullptr);
+  EXPECT_FALSE(domains.UnifyOrNull(x_domain, domains.ForVirtualDevice(f->params[0]->checked_type(),
+                                                                      cuda)) == nullptr);
 
-  EXPECT_EQ(domains.ResultDeviceType(y_domain), kDLCUDA);
-  EXPECT_EQ(domains.ResultDeviceType(result_domain), kDLCUDA);
+  EXPECT_EQ(domains.ResultVirtualDevice(y_domain), config->CanonicalVirtualDevice(cuda));
+  EXPECT_EQ(domains.ResultVirtualDevice(result_domain), config->CanonicalVirtualDevice(cuda));
 }
 
 }  // namespace

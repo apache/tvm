@@ -1,0 +1,9 @@
+{
+    "targets": [
+        {"kind": "cmsis-nn", "from_device": "1"},
+	{"kind": "c", "mcpu": "cortex-m55"}
+    ],
+    "executor": { "kind": "aot"},
+    "runtime": { "kind": "crt"},
+    "pass-config": { "tir.disable_vectorize": "1"}
+}

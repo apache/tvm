@@ -75,8 +75,14 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
     ----------
     ir_mod : :py:class:`~tvm.IRModule`
         The IR module to build.
+    lowered_ir_mods : dict[Target, IRModule]
+        The IR modules lowered per Target.
     target : tvm.Target
         The Target used to build this module.
+    executor : tvm.relay.backend.Executor
+        Internal representation of the Executor
+    runtime : tvm.relay.backend.Runtime
+        Internal representation of the Runtime
     libmod : tvm.Module
         The module of the corresponding function
     libmod_name: str
@@ -85,16 +91,46 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
         The parameters of module
     function_metadata : Map of String to FunctionInfo
         This holds a map function names to their information
+    devices : List[str]
+        List of devices used in the module
     """
 
-    def __init__(self, ir_mod, target, libmod, libmod_name, params, function_metadata):
+    def __init__(
+        self,
+        ir_mod,
+        lowered_ir_mods,
+        target,
+        executor,
+        runtime,
+        libmod,
+        libmod_name,
+        params,
+        function_metadata,
+        executor_codegen_metadata,
+        devices,
+    ):
+        fcreate = get_global_func("tvm.aot_executor_factory.create")
+        args = []
+        for k, v in params.items():
+            args.append(k)
+            args.append(ndarray.array(v))
+
+        self.module = fcreate(libmod, libmod_name, *args)
         self.ir_mod = ir_mod
+        self.lowered_ir_mods = lowered_ir_mods
         self.target = target
+        self.executor = executor
+        self.runtime = runtime
         self.lib = libmod
         self.libmod_name = libmod_name
         self.params = params
         self.iter_cnt = 0
         self.function_metadata = function_metadata
+        self.executor_codegen_metadata = executor_codegen_metadata
+        self.devices = devices
+
+    def get_devices(self):
+        return self.devices
 
     def get_params(self):
         return self.params
@@ -104,6 +140,9 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
 
     def get_lib(self):
         return self.lib
+
+    def export_library(self, file_name, fcompile=None, addons=None, **kwargs):
+        return self.module.export_library(file_name, fcompile, addons, **kwargs)
 
 
 class GraphExecutorFactoryModule(ExecutorFactoryModule):
@@ -116,6 +155,8 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
         The IR module to build.
     target : tvm.Target
         The Target used to build this module.
+    executor : tvm.relay.backend.Executor
+        Internal representation of the Executor
     graph_json_str : the json graph to be deployed in json format output by graph compiler.
         The graph can contain operator(tvm_op) that points to the name of
         PackedFunc in the libmod.
@@ -130,7 +171,15 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
     """
 
     def __init__(
-        self, ir_mod, target, graph_json_str, libmod, libmod_name, params, function_metadata
+        self,
+        ir_mod,
+        target,
+        executor,
+        graph_json_str,
+        libmod,
+        libmod_name,
+        params,
+        function_metadata,
     ):
         assert isinstance(graph_json_str, string_types)
         fcreate = get_global_func("tvm.graph_executor_factory.create")
@@ -141,6 +190,7 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
 
         self.ir_mod = ir_mod
         self.target = target
+        self.executor = executor
         self.module = fcreate(graph_json_str, libmod, libmod_name, *args)
         self.graph_json = graph_json_str
         self.lib = libmod
@@ -151,6 +201,9 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
 
     def export_library(self, file_name, fcompile=None, addons=None, **kwargs):
         return self.module.export_library(file_name, fcompile, addons, **kwargs)
+
+    def get_devices(self):
+        return []
 
     def get_params(self):
         return self.params

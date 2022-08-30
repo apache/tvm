@@ -106,6 +106,19 @@ def opaque_access_func() -> None:
 
 
 @T.prim_func
+def opaque_access_with_tvm_access_ptr_func() -> None:
+    A = T.alloc_buffer([1024])
+    B = T.alloc_buffer([1024])
+    C = T.alloc_buffer([1024])
+    with T.block("opaque"):
+        T.reads(A[0:1024], C[0:1024])
+        T.writes(B[0:1024], C[0:1024])
+        T.evaluate(A.access_ptr("r"))
+        T.evaluate(B.access_ptr("w"))
+        T.evaluate(C.access_ptr("rw"))
+
+
+@T.prim_func
 def access_in_if_then_else_func() -> None:
     A = T.alloc_buffer([8])
     B = T.alloc_buffer([8])
@@ -128,6 +141,67 @@ def access_in_branch_func() -> None:
                 B[i] = A[i] + 1.0
             else:
                 B[i] = A[i - 1]
+
+
+@T.prim_func
+def gemm() -> None:
+    A = T.alloc_buffer([16, 16], "float32")
+    B = T.alloc_buffer([16, 16], "float32")
+    C = T.alloc_buffer([16, 16], "float32")
+    for i, j, k, ii, jj in T.grid(4, 4, 16, 4, 4):
+        with T.block("update"):
+            vi = T.axis.S(16, i * 4 + ii)
+            vj = T.axis.S(16, j * 4 + jj)
+            vk = T.axis.R(16, k)
+            T.reads(A[vi, vk], B[vj, vk])
+            T.writes(C[vi, vj])
+            with T.init():
+                C[vi, vj] = 0
+            C[vi, vj] += A[vi, vk] * B[vj, vk]
+
+
+@T.prim_func
+def decomposed_gemm() -> None:
+    A = T.alloc_buffer([16, 16], "float32")
+    B = T.alloc_buffer([16, 16], "float32")
+    C = T.alloc_buffer([16, 16], "float32")
+    for i, j in T.grid(4, 4):
+        for ii, jj in T.grid(4, 4):
+            with T.block("init"):
+                vi = T.axis.S(16, i * 4 + ii)
+                vj = T.axis.S(16, j * 4 + jj)
+                T.reads([])
+                T.writes(C[vi, vj])
+                C[vi, vj] = 0
+        for k, ii, jj in T.grid(16, 4, 4):
+            with T.block("update"):
+                vi = T.axis.S(16, i * 4 + ii)
+                vj = T.axis.S(16, j * 4 + jj)
+                vk = T.axis.R(16, k)
+                T.reads(C[vi, vj], A[vi, vk], B[vj, vk])
+                T.writes(C[vi, vj])
+                C[vi, vj] += A[vi, vk] * B[vj, vk]
+
+
+@T.prim_func
+def access_of_padding_pattern() -> None:
+    X = T.alloc_buffer([28, 28])
+    X_pad = T.alloc_buffer([32, 32])
+    Y = T.alloc_buffer([28, 28])
+    for i, j in T.grid(32, 32):
+        with T.block("padding"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads([X[vi - 2, vj - 2]])
+            T.writes([X_pad[vi, vj]])
+            X_pad[vi, vj] = T.if_then_else(
+                2 <= vi and vi < 30 and 2 <= vj and vj < 30, X[vi - 2, vj - 2], 0.0, dtype="float32"
+            )
+        with T.block("padding_reverse"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads([X_pad[vi, vj]])
+            T.writes([Y[vi - 2, vj - 2]])
+            if 2 <= vi and vi < 30 and 2 <= vj and vj < 30:
+                Y[vi - 2, vj - 2] = X_pad[vi, vj]
 
 
 def test_block_access_region_detector():
@@ -166,6 +240,21 @@ def test_opaque_access():
 
     ret0 = tir.analysis.get_block_read_write_region(block, buffer_var_map)
     ret1 = tir.analysis.get_block_access_region(block, buffer_var_map)
+    with pytest.raises(ValueError):
+        tvm.ir.assert_structural_equal(ret0[0], ret1[0])
+    with pytest.raises(ValueError):
+        tvm.ir.assert_structural_equal(ret0[1], ret1[1])
+
+
+def test_opaque_access_with_tvm_access_ptr():
+    block = opaque_access_with_tvm_access_ptr_func.body.block.body.block
+    alloc_buffers = opaque_access_with_tvm_access_ptr_func.body.block.alloc_buffers
+    buffer_var_map = {buf.data: buf for buf in alloc_buffers}
+
+    ret0 = tir.analysis.get_block_read_write_region(block, buffer_var_map)
+    ret1 = tir.analysis.get_block_access_region(block, buffer_var_map)
+    tvm.ir.assert_structural_equal(block.reads, ret0[0])
+    tvm.ir.assert_structural_equal(block.writes, ret0[1])
     with pytest.raises(ValueError):
         tvm.ir.assert_structural_equal(ret0[0], ret1[0])
     with pytest.raises(ValueError):
@@ -220,10 +309,60 @@ def test_access_in_branch_func():
     tvm.ir.assert_structural_equal(ret0[1], ret1[1])
 
 
+def test_access_of_padding_pattern():
+    s = tvm.tir.schedule.Schedule(access_of_padding_pattern)
+    alloc_buffers = s.get_sref(s.get_block("root")).stmt.alloc_buffers
+    buffer_var_map = {buf.data: buf for buf in alloc_buffers}
+
+    def do_compare_buffer_region(region, expect):
+        assert region.buffer == expect.buffer
+        analyzer = tvm.arith.Analyzer()
+        for observed_range, expected_range in zip(region.region, expect.region):
+            analyzer.can_prove_equal(observed_range.min, expected_range.min)
+            analyzer.can_prove_equal(observed_range.extent, expected_range.extent)
+
+    def do_check_block(block_name):
+        block = s.get_sref(s.get_block(block_name)).stmt
+        expect_reads = block.reads
+        expect_writes = block.writes
+        ret = tir.analysis.get_block_access_region(block, buffer_var_map)
+        for i, read in enumerate(ret[0]):
+            do_compare_buffer_region(read, expect_reads[i])
+        for i, write in enumerate(ret[1]):
+            do_compare_buffer_region(write, expect_writes[i])
+
+    do_check_block("padding")
+    do_check_block("padding_reverse")
+
+
+def test_access_of_reduction():
+    block = gemm.body.block.body.body.body.body.body.body.block
+    alloc_buffers = gemm.body.block.alloc_buffers
+    buffer_var_map = {buf.data: buf for buf in alloc_buffers}
+    ret = tir.analysis.get_block_access_region(block, buffer_var_map)
+    tvm.ir.assert_structural_equal(block.reads, ret[0])
+    tvm.ir.assert_structural_equal(block.writes, ret[1])
+
+
+def test_access_of_decompose_reduction():
+    init = decomposed_gemm.body.block.body.body.body[0].body.body.block
+    update = decomposed_gemm.body.block.body.body.body[1].body.body.body.block
+    alloc_buffers = decomposed_gemm.body.block.alloc_buffers
+    buffer_var_map = {buf.data: buf for buf in alloc_buffers}
+    for block in [init, update]:
+        ret = tir.analysis.get_block_access_region(block, buffer_var_map)
+        tvm.ir.assert_structural_equal(block.reads, ret[0])
+        tvm.ir.assert_structural_equal(block.writes, ret[1])
+
+
 if __name__ == "__main__":
     test_block_access_region_detector()
     test_opaque_block()
     test_opaque_access()
+    test_opaque_access_with_tvm_access_ptr()
     test_match_buffer()
     test_access_in_if_then_else_func()
     test_access_in_branch_func()
+    test_access_of_padding_pattern()
+    test_access_of_reduction()
+    test_access_of_decompose_reduction()

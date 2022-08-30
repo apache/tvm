@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-argument
-"""Relay operators for pooling"""
+"""Relay operators for pooling for Arm(R) Ethos(TM)-U NPU"""
 from typing import Tuple
 
 import tvm
@@ -44,6 +44,7 @@ def _extract_ethosu_pooling_params(attrs, args):
     activation = attrs.activation
     clip_min = attrs.clip_min
     clip_max = attrs.clip_max
+    rounding_mode = attrs.rounding_mode
     upscale = attrs.upscale
     ifm_layout = attrs.ifm_layout
     ofm_layout = attrs.ofm_layout
@@ -63,6 +64,7 @@ def _extract_ethosu_pooling_params(attrs, args):
         activation,
         clip_min,
         clip_max,
+        rounding_mode,
         upscale,
         ifm_layout,
         ofm_layout,
@@ -103,12 +105,13 @@ def ethosu_pooling(
     activation: str = "NONE",
     clip_min: int = 0,
     clip_max: int = 0,
+    rounding_mode: str = "TFL",
     upscale: str = "NONE",
     ifm_layout: str = "NHWC",
     ofm_layout: str = "NHWC",
 ) -> tvm.relay.Call:
-    """This is a quantized 2D pooling operation as supported by the
-    Ethos(TM)-U NPU. It accepts either NHWC or NHCWB16 format
+    """This is a quantized 2D pooling operation as supported by
+    the NPU. It accepts either NHWC or NHCWB16 format
     for the input data.
 
     Parameters
@@ -146,6 +149,11 @@ def ethosu_pooling(
         The minimum clipping value if activation = "CLIP".
     clip_max : int, optional
         The maximum clipping value if activation = "CLIP".
+    rounding_mode : str, optional
+        The rounding mode to apply to the Output Feature Map tensor.
+            "TFL" - Tensorflow Lite rounding scheme.
+            "TRUNCATE" - Truncate towards zero.
+            "NATURAL" - Round to nearest value, with x.5 rounded up towards +infinity.
     upscale: str, optional
         The 2x2 upscaling mode to apply to the Input Feature Map tensor.
             "NONE" - no upscaling.
@@ -176,6 +184,7 @@ def ethosu_pooling(
         activation,
         clip_min,
         clip_max,
+        rounding_mode,
         upscale,
         ifm_layout,
         ofm_layout,

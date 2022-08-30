@@ -37,6 +37,7 @@
 
 #include "../analysis/dependency_graph.h"
 #include "../op/annotation/annotation.h"
+#include "../op/memory/on_device.h"
 #include "./let_list.h"
 
 namespace tvm {
@@ -105,7 +106,7 @@ bool IsDataDependent(const CallNode* call);
  */
 inline Expr TransformF(const std::function<Expr(const Expr&)>& func, const Expr& e) {
   if (const FunctionNode* f = e.as<FunctionNode>()) {
-    return Function(f->params, func(f->body), f->ret_type, f->type_params, f->attrs);
+    return WithFields(GetRef<Function>(f), f->params, func(f->body));
   } else {
     return func(e);
   }

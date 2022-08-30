@@ -18,8 +18,12 @@
 """Tensor Expressions for poolings"""
 from typing import Tuple
 
+import numpy as np
 from tvm import te
+from tvm.contrib.ethosu.cascader import TESubgraph, EthosuPart, Propagator, register_matcher
+
 from .dma import dma_ofm_compute, dma_ifm_compute
+from .common import get_layout_transform_matrices
 
 
 def pooling_compute(
@@ -37,6 +41,7 @@ def pooling_compute(
     activation: str,
     clip_min: int,
     clip_max: int,
+    rounding_mode: str,
     upscale: str,
     ifm_layout: str,
     ofm_layout: str,
@@ -78,6 +83,11 @@ def pooling_compute(
         The minimum clipping value if activation = "CLIP".
     clip_max : int
         The maximum clipping value if activation = "CLIP".
+    rounding_mode : str
+        The rounding mode to apply to the Output Feature Map tensor.
+            "TFL" - Tensorflow Lite rounding scheme.
+            "TRUNCATE" - Truncate towards zero.
+            "NATURAL" - Round to nearest value, with x.5 rounded up towards +infinity.
     upscale : str
         The 2x2 upscaling mode to apply to the Input Feature Map tensor.
             "NONE" - no upscaling.
@@ -93,11 +103,19 @@ def pooling_compute(
     te.Tensor
         The OFM tensor.
     """
-    stride_h, stride_w = strides
-    pool_shape_h, pool_shape_w = pool_shape
+    assert ifm.shape[0] == 1
+    assert ifm_layout in {"NHWC", "NHCWB16"}
+    assert ofm_layout in {"NHWC", "NHCWB16"}
+
+    padding = [int(v) for v in padding]
+    stride_h, stride_w = [int(v) for v in strides]
+    pool_shape_h, pool_shape_w = [int(v) for v in pool_shape]
+    upscale_factor = 2 if upscale != "NONE" else 1
 
     # Compute operation for the IFM DMA pipeline
-    dmaed_ifm = dma_ifm_compute(ifm, ifm_layout, ifm_zero_point, ifm_scale, ofm_channels, padding)
+    dmaed_ifm = dma_ifm_compute(
+        ifm, ifm_layout, ifm_zero_point, ifm_scale, ofm_channels, padding, upscale_factor
+    )
 
     # Pooling compute operation
     ofm_height = (dmaed_ifm.shape[1] - pool_shape_h) // stride_h + 1
@@ -108,23 +126,150 @@ def pooling_compute(
     pooling_attrs = {
         "op": "ethosu_pooling",
         "pooling_type": pooling_type,
+        "pool_shape_h": pool_shape_h,
+        "pool_shape_w": pool_shape_w,
         "stride_h": stride_h,
         "stride_w": stride_w,
         "activation": activation,
         "clip_min": clip_min,
         "clip_max": clip_max,
+        "rounding_mode": rounding_mode,
         "upscale": upscale,
     }
+
+    has_lut = activation in ("TANH", "LUT", "SIGMOID")
+
+    # This is a trick to insert the LUT tensor into the TE graph if LUT is present
+    lut_expr = (lut[0] + lut[255]).astype(ifm.dtype) if has_lut else 0
+
+    # Add the LUT tensor to the attributes to be able to later tell which tensor is the LUT
+    if has_lut:
+        pooling_attrs["lut"] = lut
 
     pooling = te.compute(
         (1, ofm_height, ofm_width, ofm_channels),
         lambda nn, hh, ww, cc: te.max(
-            dmaed_ifm(nn, hh * stride_h + rh, ww * stride_w + rw, cc).astype(ifm.dtype),
+            (dmaed_ifm(nn, hh * stride_h + rh, ww * stride_w + rw, cc) + lut_expr).astype(
+                ifm.dtype
+            ),
             axis=[rh, rw],
         ),
         name="ethosu_pooling",
         attrs=pooling_attrs,
     )
 
+    nhwc_to_nhcwb16, nhcwb16_to_nhwc = get_layout_transform_matrices(int(ofm_channels))
+
+    ifm_matrix = [
+        [1, 0, 0, 0, 0],
+        [0, stride_h, 0, 0, (pool_shape_h - stride_h)],
+        [0, 0, stride_w, 0, (pool_shape_w - stride_w)],
+        [0, 0, 0, 1, 0],
+        [0, 0, 0, 0, 1],
+    ]
+    if ofm_layout == "NHCWB16":
+        ifm_matrix = np.matmul(ifm_matrix, nhcwb16_to_nhwc).tolist()
+    if ifm_layout == "NHCWB16":
+        ifm_matrix = np.matmul(nhwc_to_nhcwb16, ifm_matrix).tolist()
+    ifm_propagator = Propagator(
+        ifm_matrix,
+        [0, -padding[0], -padding[1], 0]
+        if ifm_layout == "NHWC"
+        else [0, -padding[0], 0, -padding[1], 0],
+    )
+    propagator_attrs = {
+        "ifm_propagator": ifm_propagator,
+    }
+
     # Compute operation for the OFM DMA pipeline
-    return dma_ofm_compute(pooling, ofm_layout, ofm_zero_point, ofm_scale, ofm_channels)
+    return dma_ofm_compute(
+        pooling, ofm_layout, ofm_zero_point, ofm_scale, ofm_channels, attrs=propagator_attrs
+    )
+
+
+@register_matcher
+def match_ethosu_pooling(output_tensor, device_config):
+    """Match a Tensor Expression corresponding to an NPU Pooling.
+
+    If the Tensor Expression matches, an EthosuPart will be created that models the
+    matched Tensor Expression. Otherwise, None will be returned.
+
+    Parameters
+    ----------
+    output_tensor : tvm.te.Tensor
+        The tensor to attempt to match with.
+    device_config : EthosuDeviceConfig
+        Target device configuration
+
+    Returns
+    -------
+    Union[None, EthosuPart]
+        The created EthosuPart if there was a match, otherwise None.
+
+    """
+    write = output_tensor
+    if write.op.name != "ethosu_write":
+        return None
+    convert_to_nhcwb16 = write.op.input_tensors[0]
+    if convert_to_nhcwb16.op.name != "ethosu_convert_to_nhcwb16":
+        return None
+    pool2d = convert_to_nhcwb16.op.input_tensors[0]
+    if pool2d.op.name != "ethosu_pooling":
+        return None
+    pad = pool2d.op.input_tensors[0]
+    if pad.op.name != "ethosu_pad":
+        return None
+    upscale = pad.op.input_tensors[0]
+    if upscale.op.name != "ethosu_upscale":
+        return None
+    convert_to_nhwc = upscale.op.input_tensors[0]
+    if convert_to_nhwc.op.name != "ethosu_convert_to_nhwc":
+        return None
+    read = convert_to_nhwc.op.input_tensors[0]
+    if read.op.name != "ethosu_read":
+        return None
+
+    input_tensors = [
+        read.op.input_tensors[0],
+    ]
+    subgraph = TESubgraph(input_tensors, output_tensor)
+    propagators = [
+        write.op.attrs["ifm_propagator"],
+    ]
+    ifm_dtype = input_tensors[0].dtype
+    ofm_dtype = output_tensor.dtype
+
+    # Use channels from a stage of TE graph where the IFM is always NHWC
+    channels = int(pool2d.shape[3])
+    pool_shape_h = int(pool2d.op.attrs["pool_shape_h"])
+    pool_shape_w = int(pool2d.op.attrs["pool_shape_w"])
+
+    subkernels = len(
+        device_config.get_kernel_steps(pool2d.op.name, pool_shape_h, pool_shape_w, ifm_dtype)
+    )
+
+    output_layout = convert_to_nhcwb16.op.attrs["layout"]
+    input_layout = convert_to_nhwc.op.attrs["layout"]
+    output_quantum = device_config.get_output_quantum(output_layout)
+
+    valid_block_configs = device_config.get_valid_block_configs(
+        propagators[0],
+        pool2d.op.attrs,
+        output_tensor.shape,
+        channels,
+        channels,
+        output_layout,
+        input_layout,
+        ifm_dtype,
+        ofm_dtype,
+        pool_shape_h,
+        pool_shape_w,
+    )
+
+    return EthosuPart(
+        subgraph,
+        propagators,
+        output_quantum,
+        subkernels,
+        valid_block_configs,
+    )

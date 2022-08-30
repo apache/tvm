@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=unused-wildcard-import
 import numpy as np
-import pytest
 
 import tvm
 from tvm import relay
@@ -599,6 +598,38 @@ def test_match_fake_diamond():
 
     # Check
     assert not diamond.match(out)
+
+
+def test_at_most_one_parent():
+    # Pattern
+    P = is_op("nn.conv2d")(wildcard(), wildcard())  # 'parent'
+    I = is_op("nn.relu")(wildcard())  # 'intermediate' ('path' in the code)
+    C = is_op("add")(wildcard(), wildcard())  # 'child'
+    pattern = dominates(P, I, C)
+
+    #       n6(P)
+    #      /  \
+    #     n7   \
+    #    /      \
+    #    n8(P)  n10(I)
+    #    \      /
+    #    n9(I) /
+    #      \  /
+    #      n11(C)
+
+    x = relay.var("x")
+    w = relay.var("w")
+    n6 = relay.op.nn.conv2d(x, w)  # matches P
+    n7 = relay.op.tanh(n6)  # does not match I
+    n8 = relay.op.nn.conv2d(n7, w)  # matches P
+    n9 = relay.op.nn.relu(n8)  # matches I
+    n10 = relay.op.nn.relu(n6)  # matches I
+    n11 = relay.add(n9, n10)  # matches C
+
+    # Does not match: Can't match the parent pattern P at both 8 and 6.
+    # Note that if we did allow P to be used twice the implementation would
+    # need to be changed to not 'jump over' n7.
+    assert not pattern.match(n11)
 
 
 def test_match_dominator():
@@ -1427,7 +1458,6 @@ def test_partition_fuzzy_tuple():
 
 
 def test_partition_fuzzy_function_args():
-
     func_pattern = FunctionPattern(None, wildcard() + wildcard())(None) + wildcard()
     x = relay.var("x")
     y = relay.var("y")
@@ -1759,5 +1789,56 @@ def test_rewrite_once():
     assert tvm.ir.structural_equal(out, expected)
 
 
+def test_matched_outside_but_dominated():
+    """In this example the pattern matches the nn.conv2d/add/multiply flow. Even though the
+    add output is consumed by the sigmoid, the sigmoid itself is dominated by the multiply.
+    So partitioning can proceed, all be it with a duplication of the add."""
+    in_mod = tvm.parser.parse(
+        """
+        #[version = "0.0.5"]
+        def @main(%data: Tensor[(16, 16, 32, 32), float16], %weight: Tensor[(32, 16, 3, 3), float16], %bias: Tensor[(32), float32]) -> Tensor[(16, 32, 32, 32), float32] {
+          %0 = layout_transform(%data, src_layout="NCHW", dst_layout="NHWC");
+          %1 = layout_transform(%weight, src_layout="OIHW", dst_layout="OHWI");
+          %2 = expand_dims(%bias, axis=1, num_newaxis=2);
+          %3 = expand_dims(%2, axis=0);
+          %4 = nn.conv2d(%0, %1, padding=[1, 1, 1, 1], channels=32, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float32");
+          %5 = layout_transform(%3, src_layout="NCHW", dst_layout="NHWC");
+          %6 = add(%4, %5);
+          %7 = sigmoid(%6);
+          %8 = multiply(%6, %7);
+          layout_transform(%8, src_layout="NHWC", dst_layout="NCHW")
+        }
+        """
+    )
+    expected_mod = tvm.parser.parse(
+        """
+        #[version = "0.0.5"]
+        def @main(%data: Tensor[(16, 16, 32, 32), float16], %weight: Tensor[(32, 16, 3, 3), float16], %bias: Tensor[(32), float32]) -> Tensor[(16, 32, 32, 32), float32] {
+          %2 = expand_dims(%bias, axis=1, num_newaxis=2);
+          %3 = expand_dims(%2, axis=0);
+          %4 = layout_transform(%data, src_layout="NCHW", dst_layout="NHWC");
+          %5 = layout_transform(%weight, src_layout="OIHW", dst_layout="OHWI");
+          %6 = nn.conv2d(%4, %5, padding=[1, 1, 1, 1], channels=32, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float32");
+          %7 = layout_transform(%3, src_layout="NCHW", dst_layout="NHWC");
+          %8 = add(%6, %7);
+          %9 = sigmoid(%8);
+          %10 = fn (%FunctionVar_0_0, %FunctionVar_0_1, %FunctionVar_0_2, %FunctionVar_0_3, PartitionedFromPattern="nn.conv2d_add_multiply_") {
+            %0 = nn.conv2d(%FunctionVar_0_0, %FunctionVar_0_1, padding=[1, 1, 1, 1], channels=32, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float32");
+            %1 = add(%0, %FunctionVar_0_2);
+            multiply(%1, %FunctionVar_0_3)
+          };
+          %11 = %10(%4, %5, %7, %9);
+          layout_transform(%11, src_layout="NHWC", dst_layout="NCHW")
+        }
+        """
+    )
+    pattern = is_op("multiply")(
+        is_op("add")(is_op("nn.conv2d")(wildcard(), wildcard()), wildcard()), wildcard()
+    )
+    actual_mod = tvm.IRModule.from_expr(pattern.partition(in_mod["main"]))
+    actual_mod = relay.transform.InferType()(actual_mod)
+    tvm.ir.assert_structural_equal(actual_mod, expected_mod)
+
+
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

@@ -17,9 +17,9 @@
 
 if(USE_VITIS_AI)
   set(PYXIR_SHARED_LIB libpyxir.so)
-  find_package(PythonInterp 3.6 REQUIRED)
+  find_package(PythonInterp 3.7 REQUIRED)
   if(NOT PYTHON)
-    find_program(PYTHON NAMES python3 python3.6)
+    find_program(PYTHON NAMES python3 python3.7)
   endif()
   execute_process(COMMAND "${PYTHON_EXECUTABLE}" "-c"
     "import pyxir as px; print(px.get_include_dir()); print(px.get_lib_dir());"
@@ -36,10 +36,10 @@ if(USE_VITIS_AI)
     message(FATAL_ERROR "Can't build TVM with Vitis-AI because PyXIR can't be found")
   endif()
   message(STATUS "Build with contrib.vitisai")
-  include_directories(${PYXIR_INCLUDE_DIR})  
-  file(GLOB VAI_CONTRIB_SRC src/runtime/contrib/vitis_ai/*.cc)
-  file(GLOB COMPILER_VITIS_AI_SRCS
-       CONFIGURE_DEPENDS src/relay/backend/contrib/vitis_ai/*)
+  include_directories(${PYXIR_INCLUDE_DIR})
+  tvm_file_glob(GLOB VAI_CONTRIB_SRC src/runtime/contrib/vitis_ai/*.cc)
+  tvm_file_glob(GLOB COMPILER_VITIS_AI_SRCS
+                src/relay/backend/contrib/vitis_ai/*)
   list(APPEND COMPILER_SRCS ${COMPILER_VITIS_AI_SRCS})
   link_directories(${PYXIR_LIB_DIR})
   list(APPEND TVM_RUNTIME_LINKER_LIBS "pyxir")

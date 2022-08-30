@@ -20,24 +20,6 @@ import tvm
 from tvm import arith
 
 
-# TODO(@mbaret): Formalise this with a specification
-def get_weights_pointer(tir_extern_call):
-    """Get the weights pointer from a NPU extern call if it exists"""
-    supported_ops = ["ethosu_conv2d", "ethosu_depthwise_conv2d"]
-    if tir_extern_call.args[0] in supported_ops:
-        return tir_extern_call.args[41].buffer_var
-    return None
-
-
-# TODO(@mbaret): Formalise this with a specification
-def get_scale_bias_pointer(tir_extern_call):
-    """Get the scale_bias pointer from a NPU extern call if it exists"""
-    supported_ops = ["ethosu_conv2d", "ethosu_depthwise_conv2d"]
-    if tir_extern_call.args[0] in supported_ops:
-        return tir_extern_call.args[44].buffer_var
-    return None
-
-
 def get_op_attrs(stmt):
     """Iterate through nested attribute statements accumulating their values
     in an attribute dictionary.
@@ -177,23 +159,23 @@ def get_outer_loops(stmt, layout):
 
 
 def get_loads(stmt):
-    """Get the Load statements.
+    """Get the BufferLoad statements.
 
     Parameters
     ----------
     stmt : tvm.tir.Stmt
-        The statement to get the Loads from.
+        The statement to get the BufferLoads from.
 
     Returns
     -------
-    loads : list of tvm.tir.Load
-        The Loads found.
+    loads : list of tvm.tir.BufferLoad
+        The BufferLoads found.
 
     """
     loads = []
 
     def _visit(s):
-        if isinstance(s, tvm.tir.Load):
+        if isinstance(s, tvm.tir.BufferLoad):
             loads.append(s)
 
     tvm.tir.stmt_functor.post_order_visit(stmt, _visit)
@@ -201,23 +183,23 @@ def get_loads(stmt):
 
 
 def get_stores(stmt):
-    """Get the Store statements.
+    """Get the BufferStore statements.
 
     Parameters
     ----------
     stmt : tvm.tir.Stmt
-        The statement to get the Stores from.
+        The statement to get the BufferStores from.
 
     Returns
     -------
-    stores : list of tvm.tir.Store
-        The Stores found.
+    stores : list of tvm.tir.BufferStore
+        The BufferStores found.
 
     """
     stores = []
 
     def _visit(s):
-        if isinstance(s, tvm.tir.Store):
+        if isinstance(s, tvm.tir.BufferStore):
             stores.append(s)
 
     tvm.tir.stmt_functor.post_order_visit(stmt, _visit)

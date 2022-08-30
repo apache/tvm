@@ -36,33 +36,6 @@ _FWD_ALGOS = [
     "CUDNN_CONVOLUTION_FWD_ALGO_COUNT",
 ]
 
-_BWD_FILTER_ALGOS = [
-    "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_0",
-    # non-deterministic
-    "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_1",
-    "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_FFT",
-    "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_3",
-    # non-deterministic, algo0 with workspaceS
-    "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_WINOGRAD",
-    # not implemented
-    "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_WINOGRAD_NONFUSED",
-    "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_FFT_TILING",
-    "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_COUNT",
-]
-
-_BWD_DATA_ALGOS = [
-    "CUDNN_CONVOLUTION_BWD_DATA_ALGO_0",
-    # non-deterministic
-    "CUDNN_CONVOLUTION_BWD_DATA_ALGO_1",
-    "CUDNN_CONVOLUTION_BWD_DATA_ALGO_FFT",
-    "CUDNN_CONVOLUTION_BWD_DATA_ALGO_FFT_TILING",
-    "CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD",
-    "CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD_NONFUSED",
-    "CUDNN_CONVOLUTION_BWD_DATA_ALGO_COUNT",
-]
-
-_ALGO_TYPE = ["fwd", "bwd_filter", "bwd_data"]
-
 
 def exists():
     """
@@ -285,28 +258,24 @@ def conv_output_shape(
     return output
 
 
-def _conv_output_shape_from_cudnn(
-    tensor_format, pad, stride, dilation, x_shape, w_shape, data_dtype, conv_dtype, groups=1
+def conv_dgrad_shape(
+    tensor_format, pad, stride, dilation, dy_shape, w_shape, output_padding=(0, 0), groups=1
 ):
-    """Get output shape of 2D or 3D convolution.  The output of this
-    function should be identical to that of conv_output_shape, but
-    requires a GPU with CuDNN to be present.  This is maintained for
-    testing purposes to validate the output of conv_output_shape.
+    """Get output shape of conv2d gradient with respect to data
 
     Paramters
     ---------
     tensor_format: int
         0: CUDNN_TENSOR_NCHW
         1: CUDNN_TENSOR_NHWC
-        2: CUDNN_TENSOR_NCHW_VECT_C
     pad: int or list
         padding
     stride: int or list
         stride
     dilation: int or list
         dilation
-    x_shape: list
-        input shape
+    dy_shape: list
+        output gradient shape
     w_shape: list
         weight shape
     data_dtype: str
@@ -320,34 +289,43 @@ def _conv_output_shape_from_cudnn(
     -------
     oshape: list
         output shape
-
     """
-    dims = len(x_shape)
-    assert dims in (4, 5)
 
-    pad, stride, dilation, xshape, wshape = _prepare_global_func_params(
-        dims - 2, pad, stride, dilation, x_shape, w_shape
-    )
-    oshape = np.zeros((dims), dtype=np.int32)
+    assert len(dy_shape) == len(w_shape)
+    assert len(dy_shape) == 4
 
-    func = tvm._ffi.get_global_func("tvm.contrib.cudnn.conv.output_shape_from_cudnn")
-    func(
-        tensor_format,
-        dims - 2,
-        _get_np_int32_array_handle(pad),
-        _get_np_int32_array_handle(stride),
-        _get_np_int32_array_handle(dilation),
-        _get_np_int32_array_handle(xshape),
-        _get_np_int32_array_handle(wshape),
-        _get_np_int32_array_handle(oshape),
-        data_dtype,
-        conv_dtype,
-        groups,
-    )
-    return list(oshape)
+    if tensor_format == 0:
+        N = dy_shape[0]
+        C = w_shape[1] * groups
+        dy_shape = dy_shape[2:]
+        w_shape = w_shape[2:]
+    elif tensor_format == 1:
+        N = dy_shape[0]
+        C = w_shape[-1] * groups
+        dy_shape = dy_shape[1:-1]
+        w_shape = w_shape[1:-1]
+    else:
+        raise ValueError("Unsupported CuDNN tensor format: '{}'".format(tensor_format))
+
+    input_dims = []
+    for dy_shape_i, w_shape_i, pad_i, stride_i, dilation_i, out_pad in zip(
+        dy_shape, w_shape, pad, stride, dilation, output_padding
+    ):
+        input_dim = (
+            (dy_shape_i - 1) * stride_i - 2 * pad_i + (((w_shape_i - 1) * dilation_i) + 1) + out_pad
+        )
+        input_dims.append(input_dim)
+
+    if tensor_format == 0:
+        output = [N, C, *input_dims]
+    else:
+        output = [N, *input_dims, C]
+
+    return output
 
 
-def conv_find_algo(
+def _conv_find_algo(
+    func_name,
     tensor_format,
     pad,
     stride,
@@ -359,7 +337,46 @@ def conv_find_algo(
     conv_dtype,
     groups=1,
 ):
-    """Choose the best algo for the given input.
+    """
+    Common function to choose the best cudnn convolution algorithm for the given input
+    and the convolution type.
+    """
+    dims = len(x_shape)
+    assert dims in (4, 5)
+
+    pad, stride, dilation, xshape, wshape = _prepare_global_func_params(
+        dims - 2, pad, stride, dilation, x_shape, w_shape
+    )
+    yshape = np.array(y_shape, dtype=np.int32)
+    func = tvm._ffi.get_global_func(func_name)
+    return func(
+        tensor_format,
+        dims - 2,
+        _get_np_int32_array_handle(pad),
+        _get_np_int32_array_handle(stride),
+        _get_np_int32_array_handle(dilation),
+        _get_np_int32_array_handle(xshape),
+        _get_np_int32_array_handle(wshape),
+        _get_np_int32_array_handle(yshape),
+        data_dtype,
+        conv_dtype,
+        groups,
+    )
+
+
+def conv_forward_find_algo(
+    tensor_format,
+    pad,
+    stride,
+    dilation,
+    x_shape,
+    w_shape,
+    y_shape,
+    data_dtype,
+    conv_dtype,
+    groups=1,
+):
+    """Choose the best forward algorithm for the given input.
 
     Paramters
     ---------
@@ -391,23 +408,133 @@ def conv_find_algo(
     algo: int
         algo chosen by CUDNN
     """
-    dims = len(x_shape)
-    assert dims in (4, 5)
-
-    pad, stride, dilation, xshape, wshape = _prepare_global_func_params(
-        dims - 2, pad, stride, dilation, x_shape, w_shape
-    )
-    yshape = np.array(y_shape, dtype=np.int32)
-    func = tvm._ffi.get_global_func("tvm.contrib.cudnn.conv.find_algo")
-    return func(
+    return _conv_find_algo(
+        "tvm.contrib.cudnn.conv.forward_find_algo",
         tensor_format,
-        dims - 2,
-        _get_np_int32_array_handle(pad),
-        _get_np_int32_array_handle(stride),
-        _get_np_int32_array_handle(dilation),
-        _get_np_int32_array_handle(xshape),
-        _get_np_int32_array_handle(wshape),
-        _get_np_int32_array_handle(yshape),
+        pad,
+        stride,
+        dilation,
+        x_shape,
+        w_shape,
+        y_shape,
+        data_dtype,
+        conv_dtype,
+        groups,
+    )
+
+
+def conv_backward_data_find_algo(
+    tensor_format,
+    pad,
+    stride,
+    dilation,
+    dy_shape,
+    w_shape,
+    dx_shape,
+    data_dtype,
+    conv_dtype,
+    groups=1,
+):
+    """Choose the best backward data algorithm for the given input.
+
+    Paramters
+    ---------
+    tensor_format: int
+        0: CUDNN_TENSOR_NCHW
+        1: CUDNN_TENSOR_NHWC
+        2: CUDNN_TENSOR_NCHW_VECT_C
+    pad: int or list
+        padding
+    stride: int or list
+        stride
+    dilation: int or list
+        dilation
+    dy_shape: list
+        output gradient shape
+    w_shape: list
+        weight shape
+    dx_shape: list
+        dgrad shape
+    data_dtype: str
+        data type
+    conv_dtype: str
+        convolution type
+    groups: int
+        number of groups
+
+    Returns
+    -------
+    algo: int
+        algo chosen by CUDNN
+    """
+    return _conv_find_algo(
+        "tvm.contrib.cudnn.conv.backward_data_find_algo",
+        tensor_format,
+        pad,
+        stride,
+        dilation,
+        dy_shape,
+        w_shape,
+        dx_shape,
+        data_dtype,
+        conv_dtype,
+        groups,
+    )
+
+
+def conv_backward_filter_find_algo(
+    tensor_format,
+    pad,
+    stride,
+    dilation,
+    dy_shape,
+    x_shape,
+    dw_shape,
+    data_dtype,
+    conv_dtype,
+    groups=1,
+):
+    """Choose the best backward filter algorithm for the given input.
+
+    Paramters
+    ---------
+    tensor_format: int
+        0: CUDNN_TENSOR_NCHW
+        1: CUDNN_TENSOR_NHWC
+        2: CUDNN_TENSOR_NCHW_VECT_C
+    pad: int or list
+        padding
+    stride: int or list
+        stride
+    dilation: int or list
+        dilation
+    dy_shape: list
+        output gradient shape
+    x_shape: list
+        weight shape
+    dw_shape: list
+        wgrad shape
+    data_dtype: str
+        data type
+    conv_dtype: str
+        convolution type
+    groups: int
+        number of groups
+
+    Returns
+    -------
+    algo: int
+        algo chosen by CUDNN
+    """
+    return _conv_find_algo(
+        "tvm.contrib.cudnn.conv.backward_filter_find_algo",
+        tensor_format,
+        pad,
+        stride,
+        dilation,
+        dy_shape,
+        x_shape,
+        dw_shape,
         data_dtype,
         conv_dtype,
         groups,
@@ -476,7 +603,7 @@ def conv_forward(x, w, pad, stride, dilation, conv_mode, tensor_format, algo, co
             if tensor_format == 1 and conv_dtype == "int32":
                 algo = 1
             else:
-                algo = conv_find_algo(
+                algo = conv_forward_find_algo(
                     tensor_format,
                     pad,
                     stride,
@@ -555,6 +682,203 @@ def conv_forward(x, w, pad, stride, dilation, conv_mode, tensor_format, algo, co
             groups,
         ),
         name="y",
+    )
+
+
+def conv_backward_data(
+    dy,
+    w,
+    pad,
+    stride,
+    dilation,
+    conv_mode,
+    tensor_format,
+    conv_dtype,
+    groups=1,
+    output_padding=(0, 0),
+):
+    """Create a CuDNN extern op that computes the gradient of 2D convolution with respect to data.
+
+    Parameters
+    ----------
+    dy: Tensor
+        output gradient
+    w: Tensor
+        convolution weight
+    pad: int or list
+        padding
+    stride: int or list
+        stride
+    dilation: int or list
+        dilation
+    conv_mode: int
+        0: CUDNN_CONVOLUTION
+        1: CUDNN_CROSS_CORRELATION
+    tensor_format: int
+        0: CUDNN_TENSOR_NCHW
+        1: CUDNN_TENSOR_NHWC
+    conv_dtype: str
+        convolution type
+    groups: int
+        the number of groups
+
+    Returns
+    -------
+    dx: Tensor
+        dgrad tensor
+    """
+    dims = len(dy.shape)
+    assert dims == 4
+
+    conv_dtype = dy.dtype if conv_dtype is None else conv_dtype
+    pad, stride, dilation, _, _ = _prepare_global_func_params(dims - 2, pad, stride, dilation)
+
+    assert isinstance(
+        dy.shape[0], tvm.tir.expr.IntImm
+    ), "Dynamic batch is not supported for cudnn conv2d backwad data yet."
+
+    dx_shape = conv_dgrad_shape(
+        tensor_format, pad, stride, dilation, dy.shape, w.shape, output_padding, groups
+    )
+
+    if exists():
+        # When cudnn exists, find the backward data algo
+        algo = conv_backward_data_find_algo(
+            tensor_format,
+            pad,
+            stride,
+            dilation,
+            list(dy.shape),
+            list(w.shape),
+            dx_shape,
+            dy.dtype,
+            conv_dtype,
+            groups,
+        )
+    else:
+        algo = 1
+
+    return te.extern(
+        dx_shape,
+        [dy, w],
+        lambda ins, outs: tvm.tir.call_packed(
+            "tvm.contrib.cudnn.conv2d.backward_data",
+            conv_mode,
+            tensor_format,
+            algo,
+            pad[0],
+            pad[1],
+            stride[0],
+            stride[1],
+            dilation[0],
+            dilation[1],
+            ins[0],
+            ins[1],
+            outs[0],
+            conv_dtype,
+            groups,
+        ),
+        name="dx",
+    )
+
+
+def conv_backward_filter(
+    dy, x, kernel_size, pad, stride, dilation, conv_mode, tensor_format, conv_dtype, groups=1
+):
+    """Create a CuDNN extern op that computes the gradient of 2D convolution with respect to weight.
+
+    Parameters
+    ----------
+    dy: Tensor
+        output gradient
+    x: Tensor
+        input tensor
+    kernel_size: a pair of int
+        The spatial size of the corresponding forward convolution kernel
+    pad: int or list
+        padding
+    stride: int or list
+        stride
+    dilation: int or list
+        dilation
+    conv_mode: int
+        0: CUDNN_CONVOLUTION
+        1: CUDNN_CROSS_CORRELATION
+    tensor_format: int
+        0: CUDNN_TENSOR_NCHW
+        1: CUDNN_TENSOR_NHWC
+    conv_dtype: str
+        convolution type
+    groups: int
+        the number of groups
+
+    Returns
+    -------
+    dw: Tensor
+        wgrad tensor
+    """
+    dims = len(x.shape)
+    assert dims == 4
+
+    conv_dtype = x.dtype if conv_dtype is None else conv_dtype
+    pad, stride, dilation, _, _ = _prepare_global_func_params(dims - 2, pad, stride, dilation)
+    filter_h, filter_w = kernel_size
+
+    x_shape = list(x.shape)
+
+    assert isinstance(
+        x.shape[0], tvm.tir.expr.IntImm
+    ), "Dynamic batch is not supported for cudnn conv2d backwad filter yet."
+
+    ic_ind = 1 if tensor_format == 0 else 3
+
+    if groups > 1:
+        assert (
+            x_shape[ic_ind] == dy.shape[ic_ind] and x_shape[ic_ind] == groups
+        ), "Only depthwise wgrad supported for groups > 1."
+        ic = 1
+    else:
+        ic = x_shape[ic_ind]
+
+    if tensor_format == 0:
+        dw_shape = [dy.shape[1], ic, filter_h, filter_w]
+    else:
+        dw_shape = [dy.shape[3], filter_h, filter_w, ic]
+
+    algo = conv_backward_filter_find_algo(
+        tensor_format,
+        pad,
+        stride,
+        dilation,
+        list(dy.shape),
+        list(x.shape),
+        dw_shape,
+        x.dtype,
+        conv_dtype,
+        groups,
+    )
+
+    return te.extern(
+        dw_shape,
+        [dy, x],
+        lambda ins, outs: tvm.tir.call_packed(
+            "tvm.contrib.cudnn.conv2d.backward_filter",
+            conv_mode,
+            tensor_format,
+            algo,
+            pad[0],
+            pad[1],
+            stride[0],
+            stride[1],
+            dilation[0],
+            dilation[1],
+            ins[0],
+            ins[1],
+            outs[0],
+            conv_dtype,
+            groups,
+        ),
+        name="dw",
     )
 
 

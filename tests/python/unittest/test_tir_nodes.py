@@ -16,13 +16,18 @@
 # under the License.
 import pytest
 import tvm
-from tvm import te
+from tvm import te, ir
 import numpy as np
 
 
 def test_const():
     x = tvm.tir.const(1, "int32")
-    print(x.dtype)
+    assert x.dtype == "int32"
+    assert isinstance(x, tvm.tir.IntImm)
+
+
+def test_te_const():
+    x = tvm.te.const(1, "int32")
     assert x.dtype == "int32"
     assert isinstance(x, tvm.tir.IntImm)
 
@@ -84,11 +89,18 @@ def test_ir():
 
 
 def test_ir2():
+    buf_size = te.var("size")
     x = te.var("n")
-    a = te.var("array", "handle")
-    st = tvm.tir.Store(a, x + 1, 1)
-    assert isinstance(st, tvm.tir.Store)
-    assert st.buffer_var == a
+
+    storage_type = ir.PrimType("int32")
+    handle_type = ir.PointerType(storage_type)
+    array = te.var("array", handle_type)
+    buf = tvm.tir.decl_buffer([buf_size], "int32", data=array)
+
+    st = tvm.tir.BufferStore(buf, x + 1, [1])
+    assert isinstance(st, tvm.tir.BufferStore)
+    assert st.buffer == buf
+    assert st.buffer.data == array
 
 
 def test_let():
@@ -287,6 +299,12 @@ def test_divide_by_zero():
             assert False
         except tvm.TVMError:
             pass
+
+
+def test_infinity():
+    assert str(tvm.tir.infinity("float16")) == "inff16"
+    assert str(tvm.tir.infinity("float32")) == "inff32"
+    assert str(tvm.tir.infinity("float64")) == "inff64"
 
 
 def test_isnan():

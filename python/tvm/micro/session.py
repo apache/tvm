@@ -39,7 +39,7 @@ except ImportError:
 
 @register_error
 class SessionTerminatedError(Exception):
-    """Raised when a transport read operationd discovers that the remote session is terminated."""
+    """Raised when a transport read operation discovers that the remote session is terminated."""
 
 
 class Session:
@@ -73,7 +73,7 @@ class Session:
         ----------
         transport_context_manager : ContextManager[transport.Transport]
             If given, `flasher` and `binary` should not be given. On entry, this context manager
-            should establish a tarnsport between this TVM instance and the device.
+            should establish a transport between this TVM instance and the device.
         session_name : str
             Name of the session, used for debugging.
         timeout_override : TransportTimeouts
@@ -86,11 +86,17 @@ class Session:
 
         self._rpc = None
         self._graph_executor = None
+        self._enable_rpc_logger = False
 
         self._exit_called = False
 
     def get_system_lib(self):
         return self._rpc.get_function("runtime.SystemLib")()
+
+    def create_aot_executor(self):
+        return self._rpc.get_function("tvm.aot_executor.create")(
+            self.get_system_lib(), self.device, "default"
+        )
 
     def _wrap_transport_read(self, n, timeout_microsec):
         try:
@@ -133,6 +139,7 @@ class Session:
                     int(timeouts.session_start_timeout_sec * 1e6),
                     int(timeouts.session_established_timeout_sec * 1e6),
                     self._cleanup,
+                    self._enable_rpc_logger,
                 )
             )
             self.device = self._rpc.cpu(0)

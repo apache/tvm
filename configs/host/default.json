@@ -1,0 +1,7 @@
+{
+  "targets": [
+    {
+      "kind": "llvm"
+    }
+  ]
+}

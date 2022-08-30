@@ -38,7 +38,11 @@ We use matrix multiplication as an example in this tutorial.
   __name__ == "__main__":` block.
 """
 
-import os
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
 
 import numpy as np
 import tvm
@@ -49,7 +53,7 @@ from tvm import te, auto_scheduler
 # ----------------------------------
 # To start, we define a matrix multiplication with a bias addition.  Note that
 # this uses standard operations available in TVMs Tensor Expression language.
-# The major difference is the use of the `auto_sceduler` decorator at the top
+# The major difference is the use of the :any:`register_workload` decorator at the top
 # of the function definition.  The function should return a list of
 # input/output tensors.  From these tensors, the auto-scheduler can get the
 # whole computational graph.
@@ -78,14 +82,16 @@ def matmul_add(N, L, M, dtype):
 # ----------------------
 # With the function defined, we can now create the task for the auto_scheduler
 # to search against. We specify the particular parameters for this matrix
-# multiplication, in this case a multiplication of to square matricies of size
+# multiplication, in this case a multiplication of two square matrices of size
 # 1024x1024. We then create a search task with N=L=M=1024 and dtype="float32"
 #
-# .. note:: Improve performance with custom targets
+# .. admonition:: Improve performance with custom targets
+#
 #   In order for TVM to take full advantage of specific hardware platforms,
-#   you will want to manuall specify your CPU capabilities. For example:
-#   - replace "llvm" below with "llvm -mcpu=core-avx2" to enable AVX2
-#   - replace "llvm" below with "llvm -mcpu=skylake-avx512" to enable AVX-512
+#   you will want to manually specify your CPU capabilities. For example:
+#
+#     - replace ``llvm`` below with ``llvm -mcpu=core-avx2`` to enable AVX2
+#     - replace ``llvm`` below with ``llvm -mcpu=skylake-avx512`` to enable AVX-512
 
 target = tvm.target.Target("llvm")
 N = L = M = 1024
@@ -104,10 +110,10 @@ print(task.compute_dag)
 #   during the search.  We only make 10 trials in this tutorial for a fast
 #   demonstration. In practice, 1000 is a good value for the search to converge.
 #   You can do more trials according to your time budget.
-# * In addition, we use :code:`RecordToFile` to log measurement records into a
-#   file `matmul.json`.  The measurement records can be used to query the history
+# * In addition, we use :any:`RecordToFile <auto_scheduler.RecordToFile>` to log measurement records into a
+#   file ``matmul.json``.  The measurement records can be used to query the history
 #   best, resume the search, and do more analyses later.
-# * see :any:`auto_scheduler.TuningOptions` for more parameters
+# * see :any:`TuningOptions <auto_scheduler.TuningOptions>` for more parameters
 
 log_file = "matmul.json"
 tune_option = auto_scheduler.TuningOptions(
@@ -172,7 +178,7 @@ print(
 # Using the record file
 # ---------------------
 # During the search, all measurement records are logged into the record file
-# "matmul.json". The measurement records can be used to re-apply search
+# ``matmul.json```. The measurement records can be used to re-apply search
 # results, resume the search, and perform other analyses.
 #
 # Here is an example where we load the best schedule from a file, and print the

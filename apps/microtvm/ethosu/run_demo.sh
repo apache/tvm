@@ -71,6 +71,18 @@ while (( $# )); do
             fi
             ;;
 
+        --freertos_path)
+            if [ $# -gt 1 ]
+            then
+                export FREERTOS_PATH="$2"
+                shift 2
+            else
+                echo 'ERROR: --freertos_path requires a non-empty argument' >&2
+                show_usage >&2
+                exit 1
+            fi
+            ;;
+
         --ethosu_platform_path)
             if [ $# -gt 1 ]
             then
@@ -105,7 +117,7 @@ while (( $# )); do
                 show_usage >&2
                 exit 1
             fi
-            ;;            
+            ;;
 
         -*|--*)
             echo "Error: Unknown flag: $1" >&2
@@ -120,27 +132,37 @@ done
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 # Make build directory
+make cleanall
 mkdir -p build
 cd build
 
-# Get mobilenet_v1 tflite model
-mobilenet_url='https://storage.googleapis.com/download.tensorflow.org/models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz'
-curl --retry 64 -sSL ${mobilenet_url} | gunzip | tar -xvf - ./mobilenet_v1_1.0_224_quant.tflite
+# Get mobilenet_v2 tflite model
+mobilenet_url='https://github.com/ARM-software/ML-zoo/raw/b9e26e662c00e0c0b23587888e75ac1205a99b6e/models/image_classification/mobilenet_v2_1.0_224/tflite_int8/mobilenet_v2_1.0_224_INT8.tflite'
+curl --retry 64 -sSL ${mobilenet_url} -o ./mobilenet_v2_1.0_224_INT8.tflite
 
 # Compile model for Arm(R) Cortex(R)-M55 CPU and Ethos(TM)-U55 NPU
 # An alternative to using "python3 -m tvm.driver.tvmc" is to call
 # "tvmc" directly once TVM has been pip installed.
-python3 -m tvm.driver.tvmc compile --target="ethos-u -accelerator_config=ethos-u55-256, \
-    c -runtime=c --link-params -mcpu=cortex-m55 -executor=aot -interface-api=c -unpacked-api=1" \
-    --pass-config tir.disable_vectorize=1 ./mobilenet_v1_1.0_224_quant.tflite --output-format=mlf
-tar -xvf module.tar
+python3 -m tvm.driver.tvmc compile --target=ethos-u,cmsis-nn,c \
+    --target-ethos-u-accelerator_config=ethos-u55-256 \
+    --target-cmsis-nn-mcpu=cortex-m55 \
+    --target-c-mcpu=cortex-m55 \
+    --runtime=crt \
+    --executor=aot \
+    --executor-aot-interface-api=c \
+    --executor-aot-unpacked-api=1 \
+    --pass-config tir.usmp.enable=1 \
+    --pass-config tir.usmp.algorithm=hill_climb \
+    --pass-config tir.disable_storage_rewrite=1 \
+    --pass-config tir.disable_vectorize=1 ./mobilenet_v2_1.0_224_INT8.tflite --output-format=mlf
+tar -xf module.tar
 
 # Get ImageNet labels
 curl -sS  https://raw.githubusercontent.com/tensorflow/tensorflow/master/tensorflow/lite/java/demo/app/src/main/assets/labels_mobilenet_quant_v1_224.txt \
     -o ./labels_mobilenet_quant_v1_224.txt
 
 # Get input image
-curl -sS https://s3.amazonaws.com/model-server/inputs/kitten.jpg -o ./kitten.jpg
+curl -sS https://s3.amazonaws.com/model-server/inputs/kitten.jpg -o kitten.jpg
 
 # Create C header files
 cd ..

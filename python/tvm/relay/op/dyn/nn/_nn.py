@@ -78,8 +78,8 @@ def _upsampling_shape_func(dshape, scale_h, scale_w, height_axis, width_axis):
     out = output_tensor((4,), "int64")
     for i in const_range(4):
         out[i] = int64(dshape[i])
-    out[height_axis] = int64(round(dshape[height_axis] * scale_h[0]))
-    out[width_axis] = int64(round(dshape[width_axis] * scale_w[0]))
+    out[height_axis] = int64(round(dshape[height_axis] * scale_h[()]))
+    out[width_axis] = int64(round(dshape[width_axis] * scale_w[()]))
     return out
 
 
@@ -108,9 +108,9 @@ def _upsampling3d_shape_func(
     out = output_tensor((5,), "int64")
     for i in const_range(5):
         out[i] = int64(dshape[i])
-    out[depth_axis] = int64(round(dshape[depth_axis] * scale_d[0]))
-    out[height_axis] = int64(round(dshape[height_axis] * scale_h[0]))
-    out[width_axis] = int64(round(dshape[width_axis] * scale_w[0]))
+    out[depth_axis] = int64(round(dshape[depth_axis] * scale_d[()]))
+    out[height_axis] = int64(round(dshape[height_axis] * scale_h[()]))
+    out[width_axis] = int64(round(dshape[width_axis] * scale_w[()]))
     return out
 
 

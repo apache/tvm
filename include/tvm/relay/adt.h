@@ -260,7 +260,16 @@ class Clause : public ObjectRef {
   TVM_DLL explicit Clause(Pattern lhs, Expr rhs);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Clause, ObjectRef, ClauseNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ClauseNode);
 };
+
+/*!
+ * \brief Returns \p clause with the given properties. A null property denotes 'no change'.
+ * Returns \p clause if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
+ */
+Clause WithFields(Clause clause, Optional<Pattern> opt_lhs = Optional<Pattern>(),
+                  Optional<Expr> opt_rhs = Optional<Expr>());
 
 /*! \brief ADT pattern matching exression. */
 class Match;
@@ -282,6 +291,7 @@ class MatchNode : public ExprNode {
     v->Visit("data", &data);
     v->Visit("clauses", &clauses);
     v->Visit("complete", &complete);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -315,7 +325,18 @@ class Match : public Expr {
   TVM_DLL Match(Expr data, tvm::Array<Clause> clauses, bool complete = true, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Match, RelayExpr, MatchNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(MatchNode);
 };
+
+/*!
+ * \brief Returns \p match with the given properties. A null property denotes 'no change'.
+ * Returns \p match if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
+ */
+Match WithFields(Match match, Optional<Expr> opt_data = Optional<Expr>(),
+                 Optional<Array<Clause>> opt_clauses = Optional<Array<Clause>>(),
+                 Optional<Bool> opt_complete = Optional<Bool>(),
+                 Optional<Span> opt_span = Optional<Span>());
 
 }  // namespace relay
 }  // namespace tvm

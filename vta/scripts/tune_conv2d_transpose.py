@@ -136,8 +136,7 @@ if __name__ == "__main__":
         task = autotvm.task.create(
             conv2d_transpose,
             args=(N, CI, H, W, CO, KH, KW, strides, padding, opadding),
-            target=tvm.target.vta(),
-            target_host=env.target_host,
+            target=tvm.target.Target(tvm.target.vta(), host=env.target_host),
             template_key="direct",
         )
         print(task.config_space)

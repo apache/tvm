@@ -19,6 +19,7 @@ import sys
 
 import pytest
 import tvm
+import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
 
@@ -67,5 +68,11 @@ def test_tir_schedule_error_none():
     assert "(not rendered)" in msg
 
 
+def test_tir_schedule_attribute_error():
+    sch = tir.Schedule(matmul)
+    with pytest.raises(AttributeError):
+        sch.non_existent_field()
+
+
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

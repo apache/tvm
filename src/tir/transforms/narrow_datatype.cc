@@ -205,12 +205,52 @@ class DataTypeRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const StoreNode* op) final {
-    PrimExpr value = this->VisitExpr(op->value);
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
+  }
+
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
+  }
+
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    BufferStore store = GetRef<BufferStore>(op);
+
+    auto value = this->VisitExpr(op->value);
+    auto indices = VisitIndices(op->indices);
+
+    if (!value.same_as(op->value) || !indices.same_as(op->indices)) {
+      auto writer = store.CopyOnWrite();
+      writer->value = value;
+      writer->indices = indices;
+    }
+
+    return std::move(store);
+  }
+
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    BufferLoad load = GetRef<BufferLoad>(op);
+
+    auto indices = VisitIndices(op->indices);
+
+    if (!indices.same_as(op->indices)) {
+      auto writer = load.CopyOnWrite();
+      writer->indices = indices;
+    }
+
+    return std::move(load);
+  }
+
+  Array<PrimExpr> VisitIndices(Array<PrimExpr> indices) {
     is_index_ = true;
-    PrimExpr index = this->VisitExpr(op->index);
+
+    auto fmutate = [this](const PrimExpr& index) { return this->VisitExpr(index); };
+    indices.MutateByApply(fmutate);
+
     is_index_ = false;
-    Stmt s = Store(op->buffer_var, op->value, index, op->predicate);
-    return StmtExprMutator::VisitStmt_(s.as<StoreNode>());
+
+    return indices;
   }
 
   Stmt VisitStmt_(const ForNode* op) final {
@@ -222,6 +262,17 @@ class DataTypeRewriter : public StmtExprMutator {
     Var var = Downcast<Var>(e);
     return For(var, cast(var.dtype(), op->min), cast(var.dtype(), op->extent), op->kind, op->body,
                op->thread_binding, op->annotations);
+  }
+
+  Stmt VisitStmt_(const IfThenElseNode* op) final {
+    IfThenElse updated = Downcast<IfThenElse>(StmtExprMutator::VisitStmt_(op));
+    is_condition_ = true;
+    PrimExpr cond = VisitExpr(op->condition);
+    is_condition_ = false;
+    if (!cond.same_as(op->condition)) {
+      return std::move(IfThenElse(cond, updated->then_case, updated->else_case));
+    }
+    return std::move(updated);
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
@@ -236,7 +287,16 @@ class DataTypeRewriter : public StmtExprMutator {
       PrimExpr e = VisitExpr(iv->var);
       Var var = Downcast<Var>(e);
       if (ivmap_.find(iv) == ivmap_.end()) {
-        ivmap_[iv] = IterVar(iv->dom, var, iv->iter_type, iv->thread_tag);
+        Range dom = iv->dom;
+        if (dom.defined()) {
+          PrimExpr extend = dom->extent;
+          if (extend.dtype().is_int() && var.dtype().is_int() &&
+              var.dtype().bits() != extend.dtype().bits()) {
+            DataType dtype = var.dtype();
+            dom = Range(cast(dtype, dom->min), cast(dtype, extend), dom->span);
+          }
+        }
+        ivmap_[iv] = IterVar(dom, var, iv->iter_type, iv->thread_tag);
       }
       return AttrStmt(ivmap_[iv], op->attr_key, cast(var.dtype(), op->value), op->body);
     }
@@ -253,6 +313,41 @@ class DataTypeRewriter : public StmtExprMutator {
     return StmtExprMutator::VisitExpr_(op);
   }
 
+  PrimExpr VisitExpr_(const SelectNode* op) final {
+    PrimExpr condition = this->VisitExpr(op->condition);
+    PrimExpr true_value = this->VisitExpr(op->true_value);
+    PrimExpr false_value = this->VisitExpr(op->false_value);
+    if (condition.same_as(op->condition) && true_value.same_as(op->true_value) &&
+        false_value.same_as(op->false_value)) {
+      return GetRef<PrimExpr>(op);
+    } else {
+      if (op->true_value.dtype().is_int() && op->false_value.dtype().is_int()) {
+        int bits = std::max(true_value.dtype().bits(), false_value.dtype().bits());
+        DataType dtype = true_value.dtype().with_bits(bits);
+        if (true_value.dtype() != dtype) true_value = cast(dtype, true_value);
+        if (false_value.dtype() != dtype) false_value = cast(dtype, false_value);
+      }
+      return Select(condition, true_value, false_value);
+    }
+  }
+
+  PrimExpr VisitExpr_(const RampNode* op) final {
+    PrimExpr base = VisitExpr(op->base);
+    PrimExpr stride = VisitExpr(op->stride);
+    if (base.same_as(op->base) && stride.same_as(op->stride)) {
+      return GetRef<PrimExpr>(op);
+    } else {
+      if (base.dtype().is_int()) {
+        ICHECK(stride.dtype().is_int()) << "Ramp base is int but stride is " << stride.dtype();
+        int bits = std::max(base.dtype().bits(), stride.dtype().bits());
+        DataType dtype = base.dtype().with_bits(bits);
+        if (base.dtype() != dtype) base = cast(dtype, base);
+        if (stride.dtype() != dtype) stride = cast(dtype, stride);
+      }
+      return Ramp(base, stride, op->lanes);
+    }
+  }
+
   PrimExpr VisitExpr_(const SizeVarNode* op) final {
     if (visitor_.vmap.find(op) != visitor_.vmap.end()) {
       if (vmap_.find(op) == vmap_.end()) {
@@ -261,14 +356,6 @@ class DataTypeRewriter : public StmtExprMutator {
       return vmap_[op];
     }
     return StmtExprMutator::VisitExpr_(op);
-  }
-
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    is_index_ = true;
-    PrimExpr index = this->VisitExpr(op->index);
-    is_index_ = false;
-    PrimExpr e = Load(op->dtype, op->buffer_var, index, op->predicate);
-    return StmtExprMutator::VisitExpr_(e.as<LoadNode>());
   }
 
   PrimExpr VisitExpr_(const IntImmNode* op) final {
@@ -317,8 +404,10 @@ class DataTypeRewriter : public StmtExprMutator {
   // a map from IterVar before rewrite to that after rewrite,
   // ensures one old IterVar maps to exactly one new IterVar
   std::unordered_map<const IterVarNode*, IterVar> ivmap_;
-  // indicator of LoadNode::index and StoreNode::index
+  // indicator of index expr to rewrite
   bool is_index_{false};
+  // indicator of condition
+  bool is_condition_{false};
   // cached ops
   const Op& builtin_pow_ = Op::Get("tir.pow");
 };
@@ -334,6 +423,23 @@ class DataTypeRewriter : public StmtExprMutator {
     }                                                     \
   }
 
+#define DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)                          \
+  PrimExpr DataTypeRewriter::VisitExpr_(const OP* op) {                             \
+    bool is_index = is_index_;                                                      \
+    bool rewrite = is_condition_ && op->a->dtype.is_int() && op->b->dtype.is_int(); \
+    if (rewrite) {                                                                  \
+      is_index_ = true;                                                             \
+    }                                                                               \
+    PrimExpr a = this->VisitExpr(op->a);                                            \
+    PrimExpr b = this->VisitExpr(op->b);                                            \
+    is_index_ = is_index;                                                           \
+    if (a.same_as(op->a) && b.same_as(op->b)) {                                     \
+      return GetRef<PrimExpr>(op);                                                  \
+    } else {                                                                        \
+      return FUNC(a, b);                                                            \
+    }                                                                               \
+  }
+
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(AddNode, operator+);
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(SubNode, operator-);
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MulNode, operator*);
@@ -343,22 +449,28 @@ DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(FloorDivNode, floordiv);
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(FloorModNode, floormod);
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MinNode, min);
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MaxNode, max);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(EQNode, operator==);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(NENode, operator!=);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(LENode, operator<=);
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(LTNode, operator<);  // NOLINT(*)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GTNode, operator>);  // NOLINT(*)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=);
+DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(EQNode, operator==);
+DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(NENode, operator!=);
+DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(LENode, operator<=);
+DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(LTNode, operator<);  // NOLINT(*)
+DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(GTNode, operator>);  // NOLINT(*)
+DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=);
 
 PrimExpr DataTypeRewriter::VisitExpr_(const CallNode* op) {
+  // handle if_then_else condition
+  if (op->op.same_as(builtin::if_then_else())) {
+    bool is_condition = is_condition_;
+    is_condition_ = true;
+    PrimExpr cond = VisitExpr(op->args[0]);
+    is_condition_ = is_condition;
+    return if_then_else(cond, VisitExpr(op->args[1]), VisitExpr(op->args[2]));
+  }
+
   PrimExpr e = StmtExprMutator::VisitExpr_(op);
   op = e.as<CallNode>();
   ICHECK(op != nullptr) << "Expected type to be CallNode"
                         << ", but get " << e->GetTypeKey();
-
-  if (op->op.same_as(builtin::if_then_else())) {
-    return if_then_else(op->args[0], op->args[1], op->args[2]);
-  } else if (op->op.same_as(builtin::shift_right())) {
+  if (op->op.same_as(builtin::shift_right())) {
     return op->args[0] >> op->args[1];
   } else if (op->op.same_as(builtin::shift_left())) {
     return op->args[0] << op->args[1];

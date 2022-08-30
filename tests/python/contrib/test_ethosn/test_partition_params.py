@@ -14,15 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Ethos(TM)-N partition parameter tests"""
+
+"""Arm(R) Ethos(TM)-N partition parameter tests"""
 
 import pytest
 import tvm
 from tvm import relay
 import numpy as np
 
-from tvm.relay.op.contrib.ethosn import partition_for_ethosn77
-from tvm.relay.op.contrib.ethosn import partition_for_ethosn78
+from tvm.relay.op.contrib.ethosn import partition_for_ethosn
 from tvm.testing import requires_ethosn
 
 
@@ -35,14 +35,14 @@ def test_ethosn78_partition_no_error():
     res = relay.nn.bias_add(res, b, axis=1)
 
     mod = tvm.IRModule.from_expr(res)
-    opts = {"variant": "Ethos-N78"}
-    partition_for_ethosn78(mod, **opts)
+    opts = {"variant": "n78"}
+    partition_for_ethosn(mod, **opts)
 
 
 @requires_ethosn
 def test_ethosn78_partition_undefined_variant():
     with pytest.raises(
-        ValueError, match=r".*When targeting Ethos\(TM\)-N78, -variant=Ethos-N78 should be set.*"
+        ValueError, match=r".*Please specify a variant in the target string, e.g. -variant=n78.*"
     ):
         a = relay.var("a", shape=[2, 7, 8, 8], dtype="uint8")
         w = relay.const(np.random.uniform(-10, 10, (8, 7, 3, 3)).astype("uint8"))
@@ -53,13 +53,13 @@ def test_ethosn78_partition_undefined_variant():
         res = relay.nn.bias_add(res, b, axis=1)
 
         mod = tvm.IRModule.from_expr(res)
-        partition_for_ethosn78(mod)
+        partition_for_ethosn(mod)
 
 
 @requires_ethosn
 def test_ethosn78_partition_invalid_variant():
     with pytest.raises(
-        ValueError, match=r".*When targeting Ethos\(TM\)-N78, -variant=Ethos-N78 should be set.*"
+        ValueError, match=r".*When targeting Ethos\(TM\)-N78, -variant=n78 should be set.*"
     ):
         a = relay.var("a", shape=[2, 7, 8, 8], dtype="uint8")
         w = relay.const(np.random.uniform(-10, 10, (8, 7, 3, 3)).astype("uint8"))
@@ -71,53 +71,4 @@ def test_ethosn78_partition_invalid_variant():
 
         mod = tvm.IRModule.from_expr(res)
         opts = {"variant": "Ethos-N"}
-        partition_for_ethosn78(mod, **opts)
-
-
-@requires_ethosn
-def test_ethosn78_partition_error():
-    with pytest.raises(
-        ValueError, match=r".*When targeting Ethos\(TM\)-N78, -variant=Ethos-N78 should be set.*"
-    ):
-        a = relay.var("a", shape=[2, 7, 8, 8], dtype="uint8")
-        w = relay.const(np.random.uniform(-10, 10, (8, 7, 3, 3)).astype("uint8"))
-        res = relay.nn.conv2d(
-            a, w, kernel_size=(3, 3), padding=(1, 1), channels=8, out_dtype="uint8"
-        )
-        b = relay.var("b", shape=[8], dtype="uint8")
-        res = relay.nn.bias_add(res, b, axis=1)
-
-        mod = tvm.IRModule.from_expr(res)
-        opts = {"variant": "Ethos-N77"}
-        partition_for_ethosn78(mod, **opts)
-
-
-@requires_ethosn
-def test_ethosn77_partition_no_error():
-    a = relay.var("a", shape=[2, 7, 8, 8], dtype="uint8")
-    w = relay.const(np.random.uniform(-10, 10, (8, 7, 3, 3)).astype("uint8"))
-    res = relay.nn.conv2d(a, w, kernel_size=(3, 3), padding=(1, 1), channels=8, out_dtype="uint8")
-    b = relay.var("b", shape=[8], dtype="uint8")
-    res = relay.nn.bias_add(res, b, axis=1)
-
-    mod = tvm.IRModule.from_expr(res)
-    partition_for_ethosn77(mod)
-
-
-@requires_ethosn
-def test_ethosn77_partition_error():
-    with pytest.raises(
-        ValueError,
-        match=r".*Setting tops, ple_ratio or sram_size has no effect when targeting Ethos\(TM\)-N77.*",
-    ):
-        a = relay.var("a", shape=[2, 7, 8, 8], dtype="uint8")
-        w = relay.const(np.random.uniform(-10, 10, (8, 7, 3, 3)).astype("uint8"))
-        res = relay.nn.conv2d(
-            a, w, kernel_size=(3, 3), padding=(1, 1), channels=8, out_dtype="uint8"
-        )
-        b = relay.var("b", shape=[8], dtype="uint8")
-        res = relay.nn.bias_add(res, b, axis=1)
-
-        mod = tvm.IRModule.from_expr(res)
-        opts = {"tops": 4}
-        partition_for_ethosn77(mod, **opts)
+        partition_for_ethosn(mod, **opts)

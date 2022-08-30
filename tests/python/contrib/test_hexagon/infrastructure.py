@@ -14,57 +14,127 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 
 """ Hexagon testing infrastructure """
 
-import tvm
 import numpy
+import tvm
+from tvm import te
+
+
+def allocate_hexagon_array(
+    dev, tensor_shape=None, dtype=None, data=None, axis_separators=None, mem_scope=None
+):
+    """
+    Allocate a hexagon array which could be a 2D array
+    on physical memory defined by axis_separators
+    """
+    if tensor_shape is None:
+        assert data is not None, "Must provide either tensor shape or numpy data array"
+        tensor_shape = data.shape
+    elif data is not None:
+        assert (
+            tensor_shape == data.shape
+        ), "Mismatch between provided tensor shape and numpy data array shape"
+
+    if dtype is None:
+        assert data is not None, "Must provide either dtype or numpy data array"
+        dtype = data.dtype.name
+    elif data is not None:
+        assert dtype == data.dtype, "Mismatch between provided dtype and numpy data array dtype"
+
+    if axis_separators is None:
+        axis_separators = []
+
+    boundaries = [0, *axis_separators, len(tensor_shape)]
+    physical_shape = [
+        numpy.prod(tensor_shape[dim_i:dim_f])
+        for dim_i, dim_f in zip(boundaries[:-1], boundaries[1:])
+    ]
+
+    arr = tvm.nd.empty(physical_shape, dtype=dtype, device=dev, mem_scope=mem_scope)
+
+    if data is not None:
+        arr.copyfrom(data.reshape(physical_shape))
+
+    return arr._create_view(tensor_shape)
 
 
 def ceildiv(o, d):
+    assert o >= 0
+    assert d >= 0
     return tvm.tir.floordiv(o + d - 1, d)
 
 
-def get_packed_activation_layout(shape_nhwc, block_shape, packed_C=True):
-    assert len(shape_nhwc) == 4
-    shape = [shape_nhwc[0]]
-    off_h, off_w, off_c = block_shape
-    shape.append(ceildiv(shape_nhwc[1], off_h))
-    shape.append(ceildiv(shape_nhwc[2], off_w))
-    if packed_C:
-        shape.append(ceildiv(shape_nhwc[3], off_c))
-        shape.extend(block_shape)
-    else:
-        shape.extend([off_h, off_w, shape_nhwc[3]])
-    return shape
-
-
+# defines inner block shape: 8h8w32c
 def get_block_shape():
     return 8, 8, 32
 
 
+# defines inner filter block shape: 8i32o41
 def get_filter_block_shape():
     return 8, 32, 4
 
 
-def get_packed_filter_layout(out_channel, in_channel, kernel_h, kernel_w):
-    filter_Cio, filter_Ki, filter_Cii = get_filter_block_shape()
+# input: locgical shape in nhwc layout
+# output:  physical packed shape in nhw8h8w32c layout
+def get_packed_shape(logical_shape_nhwc):
+    assert len(logical_shape_nhwc) == 4
+    physical_shape_nhwc8h8w32c = [logical_shape_nhwc[0]]
+    block_shape = get_block_shape()
+    off_h, off_w, off_c = block_shape
+    physical_shape_nhwc8h8w32c.append(ceildiv(logical_shape_nhwc[1], off_h))
+    physical_shape_nhwc8h8w32c.append(ceildiv(logical_shape_nhwc[2], off_w))
+    physical_shape_nhwc8h8w32c.append(ceildiv(logical_shape_nhwc[3], off_c))
+    physical_shape_nhwc8h8w32c.extend(block_shape)
+    return physical_shape_nhwc8h8w32c
+
+
+# input: physical packed shape in nhw8h8w32c layout
+# output: logical shape in nhwc layout
+def get_logical_shape(physical_shape_nhwc8h8w32c):
+    assert len(physical_shape_nhwc8h8w32c) == 7
+    logical_shape_nhwc = [physical_shape_nhwc8h8w32c[0]]
+    logical_shape_nhwc.append(physical_shape_nhwc8h8w32c[1] * physical_shape_nhwc8h8w32c[4])
+    logical_shape_nhwc.append(physical_shape_nhwc8h8w32c[2] * physical_shape_nhwc8h8w32c[5])
+    logical_shape_nhwc.append(physical_shape_nhwc8h8w32c[3] * physical_shape_nhwc8h8w32c[6])
+    return logical_shape_nhwc
+
+
+def get_packed_filter_shape(logical_shape_oihw):
+    """return packed filter shape
+
+    Parameters
+    ----------
+    logical_shape_oihw :
+       logical shape in oihw layout
+
+    Returns
+    -------
+    physical_shape_oihw8i32o4i :
+        physical packed shape in oihw8i3204i layout
+    """
+    assert len(logical_shape_oihw) == 4
+    filter_block_shape = get_filter_block_shape()
+    filter_Cio, filter_Ki, filter_Cii = filter_block_shape
     filter_Ci = filter_Cio * filter_Cii
-    return (
-        int(ceildiv(out_channel, filter_Ki)),
-        int(ceildiv(in_channel, filter_Ci)),
-        kernel_h,
-        kernel_w,
-        filter_Cio,
-        filter_Ki,
-        filter_Cii,
-    )
+    physical_shape_oihw8i32o4i = []
+    physical_shape_oihw8i32o4i.append(int(ceildiv(logical_shape_oihw[0], filter_Ki)))
+    physical_shape_oihw8i32o4i.append(int(ceildiv(logical_shape_oihw[1], filter_Ci)))
+    physical_shape_oihw8i32o4i.append(logical_shape_oihw[2])
+    physical_shape_oihw8i32o4i.append(logical_shape_oihw[3])
+    physical_shape_oihw8i32o4i.extend(filter_block_shape)
+    return physical_shape_oihw8i32o4i
 
 
 def build_and_run(inputs, func, target, target_host, *args, **kwargs):
+    """build and run the function func"""
     schedule, placeholders, binds = func(*args, **kwargs)
 
-    func = tvm.build(schedule, placeholders, target=target, target_host=target_host, binds=binds)
+    func = tvm.build(
+        schedule, placeholders, target=tvm.target.Target(target, host=target_host), binds=binds
+    )
     dev = tvm.device(target)
     tensors = []
     for tensor in inputs:
@@ -93,26 +163,11 @@ def get_conv2d_nhwc_shape(shape_nhwc, kernel_size, strides, padding, dilation, o
     )
 
 
-def verify_conv2d(output, ref_output, dtype):
-    # nhwc8h8w32c
-    if len(output.shape) == 7:
-        # nhwc8h8w32c -> nhwc
-        output = output.transpose(0, 1, 4, 2, 5, 3, 6).reshape(
-            output.shape[0],
-            output.shape[1] * output.shape[4],
-            output.shape[2] * output.shape[5],
-            output.shape[3] * output.shape[6],
-        )
-
-    # nhwhwc
-    else:
-        # nhwhwc -> nhwc
-        output = output.transpose(0, 1, 3, 2, 4, 5).reshape(
-            output.shape[0],
-            output.shape[1] * output.shape[3],
-            output.shape[2] * output.shape[4],
-            output.shape[5],
-        )
+def conv2d_verify(output, ref_output, dtype):
+    """transpose and reshape output and compare with ref_output"""
+    # nhwc8h8w32c -> nhwc
+    logical_output_shape = get_logical_shape(output.shape)
+    output = output.transpose(0, 1, 4, 2, 5, 3, 6).reshape(logical_output_shape)
 
     # slice output to match ref_output shape
     # e.g. 8x8 spatial 3x3 filter = 6x6 ref output
@@ -129,3 +184,168 @@ def verify_conv2d(output, ref_output, dtype):
     elif dtype == "float32":
         tol = {"rtol": 1e-4, "atol": 2e-4}
     tvm.testing.assert_allclose(output, ref_output, **tol)
+
+
+def conv2d_compute(X, filt, pad, stride, dilation):
+    """Define conv2d compute"""
+    block_shape = get_block_shape()
+    block_H, block_W, block_C = block_shape
+    filter_c_io, _, filter_c_ii = get_filter_block_shape()
+    filter_c_i = filter_c_io * filter_c_ii
+
+    shape_filter = filt.shape
+    kernel_size = tuple(shape_filter[2:4])
+    out_channels = shape_filter[0] * shape_filter[5]
+
+    logical_input_shape = get_logical_shape(X.shape)
+    logical_output_shape = get_conv2d_nhwc_shape(
+        logical_input_shape,
+        kernel_size,
+        stride,
+        pad,
+        dilation,
+        out_channels,
+    )
+
+    output_shape = get_packed_shape(logical_output_shape)
+    rh = te.reduce_axis((0, kernel_size[0]), name="rh")
+    rw = te.reduce_axis((0, kernel_size[1]), name="rw")
+    rc = te.reduce_axis((0, logical_input_shape[3]), name="rc")
+
+    def compute(n, ho, wo, ko, hi, wi, ki):
+        h = ho * block_H + hi
+        h_contig = h * stride[0] + rh
+        h_block_id = h_contig // block_H
+        h_block_offset = h_contig % block_H
+
+        w = wo * block_W + wi
+        w_contig = w * stride[1] + rw
+        w_block_id = w_contig // block_W
+        w_block_offset = w_contig % block_W
+
+        c_block_id = rc // block_C
+        c_block_offset = rc % block_C
+
+        rco = rc // filter_c_i
+        rcio = (rc % filter_c_i) // filter_c_ii
+        rcii = rc % filter_c_ii
+
+        return te.sum(
+            X[
+                n,
+                h_block_id,
+                w_block_id,
+                c_block_id,
+                h_block_offset,
+                w_block_offset,
+                c_block_offset,
+            ]
+            * filt[ko, rco, rh, rw, rcio, ki, rcii],
+            axis=[rh, rw, rc],
+        )
+
+    return output_shape, compute
+
+
+def transform_numpy(arr_np, current_layout: str, new_layout: str):
+    """Reshape and transpose numpy array according to the specified layout"""
+    if current_layout == "nhwc":
+        if new_layout == "nhwc":
+            return arr_np
+        if new_layout in ["nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-1d"]:
+            n, h, w, c = arr_np.shape
+            return arr_np.reshape([n, h // 8, 8, w // 4, 2, 2, c // 32, 32]).transpose(
+                0, 1, 3, 6, 2, 4, 7, 5
+            )
+        if new_layout in ["nhwc-4h2w32c2w-2d"]:
+            n, h, w, c = arr_np.shape
+            return arr_np.reshape([n, h // 4, 4, w // 4, 2, 2, c // 32, 32]).transpose(
+                0, 1, 3, 6, 2, 4, 7, 5
+            )
+        if new_layout in ["n11c-1024c-2d", "n11c-1024c-1d"]:
+            n, h, w, c = arr_np.shape
+            assert h == 1 and w == 1, "The size of h and w must be 1"
+            return arr_np.reshape([n, 1, 1, c // 1024, 1024])
+        if new_layout == "nc-1024-2d":
+            n, c = arr_np.shape
+            return arr_np.reshape([n, c // 1024, 1024])
+        if new_layout == "nhwc-1024c-2d":
+            N, H, W, C = arr_np.shape
+            return arr_np.reshape([N, H, W, C // 1024, 1024])
+        if new_layout == "nc-2048-2d":
+            N, C = arr_np.shape
+            return arr_np.reshape([N, C // 2048, 2048])
+        if new_layout == "nhwc-2048c-2d":
+            N, H, W, C = arr_np.shape
+            return arr_np.reshape([N, H, W, C // 2048, 2048])
+        if new_layout == "nhwc-8h8w32c-2d":
+            n, h, w, c = arr_np.shape
+            return arr_np.reshape([n, h // 8, 8, w // 8, 8, c // 32, 32]).transpose(
+                0, 1, 3, 5, 2, 4, 6
+            )
+        if new_layout == "n11c-2048c-2d":
+            n, h, w, c = arr_np.shape
+            assert h == 1 and w == 1, "The size of h and w must be 1"
+            return arr_np.reshape([n, h, w, c // 2048, 2048])
+        raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
+
+    if current_layout == "nc":
+        n, c = arr_np.shape
+        if new_layout in ["nc-1024c-2d"]:
+            return arr_np.reshape([n, c // 1024, 1024])
+        if new_layout in ["nc-512c-2d"]:
+            return arr_np.reshape([n, c // 512, 512])
+        raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
+
+    if current_layout == "nhw":
+        if new_layout in ["nhw-32h16w-2d"]:
+            n, h, w = arr_np.shape
+            return arr_np.reshape([n, h // 32, 32, w // 16, 16]).transpose(0, 1, 3, 2, 4)
+
+        raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
+
+    raise RuntimeError(f"Unexpected current_layout '{current_layout}'")
+
+
+def quantize_np(arr_np: numpy.ndarray, dtype: str):
+    """
+    Returns quantized array along with scale and zero-point
+
+    Parameters
+    ----------
+    arr_np: numpy.ndarray
+        Input numpy array to be quantized
+    dtype: str
+        dtype of the quantized array: "uint8", "int8", etc
+
+    Returns
+    -------
+    quant_np: numpy.ndarray
+        Quantized numpy array
+    scale: float
+        Scale
+    zero_point: int
+        Value corresponding to float 0
+
+    """
+    if dtype == "uint8":
+        qmax = 255
+        qmin = 0
+    elif dtype == "int8":
+        qmax = 128
+        qmin = -127
+    else:
+        raise RuntimeError(f"Unsupported quantized data type '{dtype}'")
+    fmin = numpy.amin(arr_np)
+    fmax = numpy.amax(arr_np)
+
+    # Include floating-point zero in the range
+    if fmax < 0:
+        fmax = 0.0
+    elif fmin > 0:
+        fmin = 0.0
+
+    scale = (fmax - fmin) / (qmax - qmin)
+    zero_point = numpy.rint((fmax * qmin - fmin * qmax) / (fmax - fmin)).astype("int32")
+    quant_np = (arr_np / scale + zero_point).astype(dtype)
+    return quant_np, scale, zero_point

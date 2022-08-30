@@ -38,16 +38,16 @@ namespace te {
 using namespace arith;
 using namespace tir;
 
-std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
-                                             const std::unordered_map<IterVar, Range>& dom_map,
-                                             size_t begin_iter_pos, bool new_loop_var,
-                                             const std::unordered_set<IterVar>& skip_iter,
-                                             std::unordered_map<IterVar, PrimExpr>* p_value_map,
-                                             bool debug_keep_trivial_loop) {
+std::vector<std::vector<Stmt>> MakeLoopNest(const Stage& stage,
+                                            const std::unordered_map<IterVar, Range>& dom_map,
+                                            size_t begin_iter_pos, bool new_loop_var,
+                                            const std::unordered_set<IterVar>& skip_iter,
+                                            std::unordered_map<IterVar, PrimExpr>* p_value_map,
+                                            bool debug_keep_trivial_loop) {
   auto leaf_iter_vars = stage->leaf_iter_vars;
   Stmt no_op = Evaluate(0);
   // create the loop nest
-  std::vector<std::vector<Stmt> > nest;
+  std::vector<std::vector<Stmt>> nest;
   nest.resize(leaf_iter_vars.size() + 1);
   std::unordered_map<IterVar, PrimExpr>& value_map = *p_value_map;
 
@@ -66,6 +66,23 @@ std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
     }
 
     Range dom = dom_map.at(iv);
+
+    ICHECK(iv->var.dtype() == dom->min.dtype() && iv->var.dtype() == dom->extent.dtype())
+        << "iter_var type " << iv->var.dtype() << " and domain types (min:" << dom->min.dtype()
+        << ", extent:" << dom->extent.dtype() << ") should all be the same";
+
+    // This is a hack to ensure that the replacing expression has the same
+    // dtype as the replacing expression. This happens when a thread/block
+    // itervar is bound to another itervar. Because the thread/block itervar
+    // has no way to know its correct dtype before it is bound, it defaults to
+    // int32. Then the itervar it is bound to may have a different dtype. The
+    // thread/block dtype really should be promoted to dtype of what it is
+    // bound to (in `bind`) but that would require inplace modification of the
+    // itervar.
+    // XXX: we will get integer overflow if the bound itervar is greater than int32::max.
+    auto promote_to_iv_dtype = [type = iv->var.dtype()](PrimExpr e) {
+      return type != e.dtype() ? cast(type, e) : e;
+    };
 
     // initialize the offset and loop_level
     Var var = bind_iv->var;
@@ -112,13 +129,13 @@ std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
         }
       }
       if (!debug_keep_trivial_loop && is_one(dom->extent)) {
-        nest[i + 1].emplace_back(LetStmt(var, cast(var.dtype(), dom->min), no_op));
-        value_map[iv] = cast(var.dtype(), dom->min);
+        nest[i + 1].emplace_back(LetStmt(var, dom->min, no_op));
+        value_map[iv] = dom->min;
       } else if (is_zero(dom->min)) {
         nest[i + 1].emplace_back(For(var, 0, dom->extent, kind, no_op));
-        value_map[iv] = var;
+        value_map[iv] = promote_to_iv_dtype(var);
       } else {
-        Var idx(bind_iv->var->name_hint + ".idx", bind_iv->var.dtype());
+        Var idx(bind_iv->var->name_hint + ".idx", iv->var.dtype());
         nest[i + 1].emplace_back(For(idx, 0, dom->extent, kind, no_op));
         PrimExpr new_value = dom->min + idx;
         value_map[iv] = new_value;
@@ -139,7 +156,7 @@ std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
       ICHECK(is_positive_const(dom->extent));
       // annotate the extent of the IterVar
       nest[i + 1].emplace_back(AttrStmt(bind_iv, tir::attr::virtual_thread, dom->extent, no_op));
-      value_map[iv] = var;
+      value_map[iv] = promote_to_iv_dtype(var);
     } else if (bind_iv->thread_tag == "pipeline") {
       // pipeline marker.
       ICHECK(is_zero(dom->min));
@@ -157,17 +174,17 @@ std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
       if (!debug_keep_trivial_loop && is_one(dom->extent)) {
         value_map[iv] = dom->min;
       } else if (stage->scope == "") {
-        value_map[iv] = var;
+        value_map[iv] = promote_to_iv_dtype(var);
       } else {
         runtime::ThreadScope ts = runtime::ThreadScope::Create(bind_iv->thread_tag);
         runtime::StorageScope ss = runtime::StorageScope::Create(stage->scope);
         if (static_cast<int>(ss.rank) <= ts.rank) {
-          value_map[iv] = var;
+          value_map[iv] = promote_to_iv_dtype(var);
         } else if (stage->scope == "warp" && ts.rank == 1) {
           // To determine whether a thread index is inside or outside a warp, we need
           // to know the thread extent. We leave a warning for now.
           if (ts.dim_index == 0) {
-            value_map[iv] = var;
+            value_map[iv] = promote_to_iv_dtype(var);
           } else {
             LOG(WARNING)
                 << "WARNING: threadIdx.y or threadIdx.z accessing warp-scope memory detected. "

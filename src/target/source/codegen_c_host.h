@@ -26,6 +26,8 @@
 
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "codegen_c.h"
@@ -38,15 +40,19 @@ namespace codegen {
 class CodeGenCHost : public CodeGenC {
  public:
   CodeGenCHost();
-  void Init(bool output_ssa, bool emit_asserts, std::string target_str);
+  void Init(bool output_ssa, bool emit_asserts, std::string target_str,
+            const std::unordered_set<std::string>& devices);
 
+  void InitGlobalContext();
   void AddFunction(const PrimFunc& f);
-
+  /*!
+   * \brief Add functions from the (unordered) range to the current module in a deterministic
+   * order. This helps with debugging.
+   *
+   * \param functions A vector of unordered range of current module.
+   */
+  void AddFunctionsOrdered(std::vector<std::pair<tvm::GlobalVar, tvm::BaseFunc>> functions);
   void DefineModuleName();
-
-  /*! \brief Add linked parameters, if they are present. */
-  void DeclareParameters(Map<String, LinkedParam> params);
-  void LinkParameters(Map<String, LinkedParam> params);
 
   void PrintType(DataType t, std::ostream& os) final;  // NOLINT(*)
   void PrintFuncPrefix() final;                        // NOLINT(*)
@@ -54,7 +60,7 @@ class CodeGenCHost : public CodeGenC {
 
   // overload visitor functions
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
-  void VisitExpr_(const CallNode* op, std::ostream& os) final;       // NOLINT(*)
+  void VisitExpr_(const CallNode* op, std::ostream& os);             // NOLINT(*)
   // overload min and max to use the ternary operator, so we don't rely on the
   // standard library implementations
   void VisitExpr_(const MinNode* op, std::ostream& os) final;  // NOLINT(*)
@@ -69,10 +75,10 @@ class CodeGenCHost : public CodeGenC {
   struct FunctionInfo {
     /* \brief function name */
     std::string func_name;
-    /* packed name of the function */
-    std::string func_name_packed;
     /* number of arguments required by the function */
     int64_t num_args;
+    /* \brief name of resource_handle to pass */
+    std::string resource_handle_name;
   };
   std::string module_name_;
   /* \brief mapping global packed func to the unique name */
@@ -82,10 +88,12 @@ class CodeGenCHost : public CodeGenC {
   /*! \brief whether to emit asserts in the resulting C code */
   bool emit_asserts_;
 
-  FunctionInfo GetFunctionInfo(const CallNode* op);
+  FunctionInfo GetFunctionInfo(const CallNode* op, bool has_resource_handle);
+  std::string GetPackedName(const CallNode* op);
   void PrintGetFuncFromBackend(const std::string& func_name, const std::string& packed_func_name);
   void PrintFuncCall(const std::string& packed_func_name, int num_args);
-  void PrintFuncCallC(const std::string& packed_func_name, int num_args);
+  void PrintFuncCallC(const std::string& packed_func_name, int num_args,
+                      const std::string& resource_handle_name);
 
   /*!
    * \brief Print ternary conditional operator implementing binary `op`

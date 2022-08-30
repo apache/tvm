@@ -205,7 +205,7 @@ class NodeLookup(object):
         return self.node_lookup[node_id]
 
 
-def get_workload_official(model_url, model_sub_path):
+def get_workload_official(model_url, model_sub_path, retries=5):
     """Import workload from tensorflow official
 
     Parameters
@@ -216,32 +216,43 @@ def get_workload_official(model_url, model_sub_path):
     model_sub_path:
         Sub path in extracted tar for the ftozen protobuf file.
 
+    retries: int
+        The number of retries to attempt downloading and uncompressing
+        the model in the CI, due to possible network and CI node issues.
+
     Returns
     -------
     model_path: str
         Full path to saved model file
 
     """
+    attempts = retries + 1
+    error = None
+    for current_attempt_idx in range(attempts):
+        try:
+            model_tar_name = os.path.basename(model_url)
+            model_path = download_testdata(model_url, model_tar_name, module=["tf", "official"])
+            dir_path = os.path.dirname(model_path)
 
-    model_tar_name = os.path.basename(model_url)
-    model_path = download_testdata(model_url, model_tar_name, module=["tf", "official"])
-    dir_path = os.path.dirname(model_path)
+            if model_path.endswith("tgz") or model_path.endswith("gz"):
+                import tarfile
 
-    if model_path.endswith("tgz") or model_path.endswith("gz"):
-        import tarfile
+                tar = tarfile.open(model_path)
+                tar.extractall(path=dir_path)
+                tar.close()
+            elif model_path.endswith("zip"):
+                import zipfile
 
-        tar = tarfile.open(model_path)
-        tar.extractall(path=dir_path)
-        tar.close()
-    elif model_path.endswith("zip"):
-        import zipfile
-
-        zip_object = zipfile.ZipFile(model_path)
-        zip_object.extractall(path=dir_path)
-        zip_object.close()
-    else:
-        raise RuntimeError("Could not decompress the file: " + model_path)
-    return os.path.join(dir_path, model_sub_path)
+                zip_object = zipfile.ZipFile(model_path)
+                zip_object.extractall(path=dir_path)
+                zip_object.close()
+            else:
+                raise RuntimeError("Could not decompress the file: " + model_path)
+            return os.path.join(dir_path, model_sub_path)
+        except (EOFError, RuntimeError) as err:
+            error = err
+            print(f"Raised : {str(error)}, current attempt : {current_attempt_idx} ...")
+    raise error
 
 
 def get_workload(model_path, model_sub_path=None, inputs_dict=None, output=None):
@@ -310,7 +321,7 @@ def pick_from_weight(weight, pows=1.0):
     """Identify token from Softmax output.
     This token will be mapped to word in the vocabulary.
     """
-    weight = weight ** pows
+    weight = weight**pows
     t = np.cumsum(weight)
     s = np.sum(weight)
     return int(np.searchsorted(t, 0.5 * s))

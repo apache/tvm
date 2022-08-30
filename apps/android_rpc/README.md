@@ -32,15 +32,15 @@ Before you build the Android application, please refer to [TVM4J Installation Gu
 
 ```
 dependencies {
-    compile fileTree(dir: 'libs', include: ['*.jar'])
-    androidTestCompile('com.android.support.test.espresso:espresso-core:2.2.2', {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    androidTestImplementation('com.android.support.test.espresso:espresso-core:3.4.0', {
         exclude group: 'com.android.support', module: 'support-annotations'
     })
-    compile 'com.android.support:appcompat-v7:26.0.1'
-    compile 'com.android.support.constraint:constraint-layout:1.0.2'
-    compile 'com.android.support:design:26.0.1'
-    compile 'org.apache.tvm:tvm4j-core:0.0.1-SNAPSHOT'
-    testCompile 'junit:junit:4.12'
+    implementation 'androidx.appcompat:appcompat:1.4.1'
+    implementation 'com.android.support.constraint:constraint-layout:2.1.3'
+    implementation 'com.android.support:design:28.0.0'
+    implementation 'org.apache.tvm:tvm4j-core:0.0.1-SNAPSHOT'
+    testImplementation 'junit:junit:4.13.2'
 }
 ```
 

@@ -21,9 +21,7 @@
 from os import path as osp
 import sys
 
-import numpy as np
-import tvm
-from tvm import te, runtime
+from tvm import runtime as tvm_runtime
 from tvm import relay
 from tvm.relay import testing
 
@@ -41,7 +39,8 @@ def main():
     dshape = (4, 8)
     net = _get_model(dshape)
     mod, params = testing.create_workload(net)
-    graph, lib, params = relay.build(mod, "llvm --system-lib", params=params)
+    runtime = relay.backend.Runtime("cpp", {"system-lib": True})
+    graph, lib, params = relay.build(mod, "llvm", runtime=runtime, params=params)
 
     out_dir = sys.argv[1]
     lib.save(osp.join(sys.argv[1], "graph.o"))
@@ -49,7 +48,7 @@ def main():
         f_resnet.write(graph)
 
     with open(osp.join(out_dir, "graph.params"), "wb") as f_params:
-        f_params.write(runtime.save_param_dict(params))
+        f_params.write(tvm_runtime.save_param_dict(params))
 
 
 if __name__ == "__main__":

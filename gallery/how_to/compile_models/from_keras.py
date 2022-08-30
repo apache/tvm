@@ -34,11 +34,18 @@ A quick solution is to install via pip
 or please refer to official site
 https://keras.io/#installation
 """
+
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
 import tvm
 from tvm import te
 import tvm.relay as relay
 from tvm.contrib.download import download_testdata
 import keras
+import tensorflow as tf
 import numpy as np
 
 ######################################################################
@@ -65,7 +72,7 @@ else:
 
 
 weights_path = download_testdata(weights_url, weights_file, module="keras")
-keras_resnet50 = keras.applications.resnet50.ResNet50(
+keras_resnet50 = tf.keras.applications.resnet50.ResNet50(
     include_top=True, weights=None, input_shape=(224, 224, 3), classes=1000
 )
 keras_resnet50.load_weights(weights_path)
@@ -76,7 +83,7 @@ keras_resnet50.load_weights(weights_path)
 # A single cat dominates the examples!
 from PIL import Image
 from matplotlib import pyplot as plt
-from keras.applications.resnet50 import preprocess_input
+from tensorflow.keras.applications.resnet50 import preprocess_input
 
 img_url = "https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true"
 img_path = download_testdata(img_url, "cat.png", module="data")

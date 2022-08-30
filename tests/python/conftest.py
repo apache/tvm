@@ -17,6 +17,7 @@
 
 import sys
 import tvm
+import pytest
 
 collect_ignore = []
 if sys.platform.startswith("win"):
@@ -37,3 +38,23 @@ if sys.platform.startswith("win"):
     # collect_ignore.append("unittest/test_auto_scheduler_measure.py") # exception ignored
 
     collect_ignore.append("unittest/test_tir_intrin.py")
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--enable-corstone300-tests",
+        action="store_true",
+        default=False,
+        help="Run Corstone-300 FVP tests",
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    if not config.getoption("--enable-corstone300-tests"):
+        for item in items:
+            if "corstone300" in item.keywords:
+                item.add_marker(
+                    pytest.mark.skip(
+                        reason="Need --enable-corstone300-tests option to run this test"
+                    )
+                )

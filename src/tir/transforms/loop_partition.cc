@@ -29,6 +29,7 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
+#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -433,7 +434,7 @@ class LoopPartitioner : public StmtMutator {
 
   std::pair<IntSet, ExpressionSet> GetIntervalAndCondset(const Partition& partitions,
                                                          const arith::IntervalSet& for_interval,
-                                                         bool cond_value);
+                                                         bool cond_value, bool has_partition_hint);
 
   inline Stmt MakeFor(const Object* op, PrimExpr extent, Stmt body);
 
@@ -448,7 +449,8 @@ class LoopPartitioner : public StmtMutator {
 // Returns an interval (in the first component) in which all the conditions
 // given in the second component provably have value given by cond_value
 std::pair<IntSet, ExpressionSet> LoopPartitioner::GetIntervalAndCondset(
-    const Partition& partitions, const arith::IntervalSet& for_interval, bool cond_value) {
+    const Partition& partitions, const arith::IntervalSet& for_interval, bool cond_value,
+    bool has_partition_hint) {
   Array<IntSet> sets;
   ExpressionSet cond_set;
 
@@ -463,6 +465,32 @@ std::pair<IntSet, ExpressionSet> LoopPartitioner::GetIntervalAndCondset(
     }
   }
   IntSet interval = sets.empty() ? IntSet::Nothing() : Intersect(sets);
+
+  // Try to find the intersection of the cond_intervals until the intersection
+  // is nothing when has_partition_hint is true.
+  if (interval.IsNothing() && has_partition_hint) {
+    arith::IntervalSet cond_intersection = arith::IntervalSet::Everything();
+    cond_set.clear();
+
+    for (const auto& kv : partitions) {
+      if (kv.first.second == cond_value) {
+        arith::IntervalSet cond_interval = Downcast<arith::IntervalSet>(kv.second);
+        arith::IntervalSet intersection = arith::Intersect(&analyzer_, cond_interval, for_interval);
+        if (!intersection->IsEmpty()) {
+          cond_intersection = arith::Intersect(&analyzer_, cond_intersection, cond_interval);
+          // Return the latest interval and cond_set if the cond_intersection is nothing.
+          if (!cond_intersection->IsEmpty()) {
+            cond_set.insert(kv.first.first);
+            interval = arith::IntervalSet(analyzer_.Simplify(cond_intersection->min_value),
+                                          analyzer_.Simplify(cond_intersection->max_value));
+          } else {
+            break;
+          }
+        }
+      }
+    }
+  }
+
   return std::make_pair(interval, cond_set);
 }
 
@@ -526,25 +554,39 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
   if (finder.partitions.empty()) return Stmt();
 
   arith::IntervalSet for_interval(min, max);
-  bool cond_value;
-  IntSet middle_interval;
-  ExpressionSet cond_set;
-  // find an interval in which all conditions on var are true
-  std::tie(middle_interval, cond_set) =
-      GetIntervalAndCondset(finder.partitions, for_interval, true);
-  if (middle_interval.IsNothing()) {
-    // if such interval doesn't exist, find an interval in which all
-    // conditions on var are false
-    std::tie(middle_interval, cond_set) =
-        GetIntervalAndCondset(finder.partitions, for_interval, false);
-    if (middle_interval.IsNothing())
-      // we couldn't find an interval in which the conditions are provably true or false
-      // Therefore, we can't partition the loop based on those conds
-      return Stmt();
-    cond_value = false;
-  } else {
-    cond_value = true;
+
+  auto [middle_interval, cond_set,
+        opt_cond_value] = [&]() -> std::tuple<IntSet, ExpressionSet, std::optional<bool>> {
+    {
+      // find an interval in which all conditions on var are true
+      auto [middle_interval, cond_set] =
+          GetIntervalAndCondset(finder.partitions, for_interval, true, has_partition_hint_);
+      if (!middle_interval.IsNothing()) {
+        return {middle_interval, cond_set, true};
+      }
+    }
+
+    {
+      // if such interval doesn't exist, find an interval in which all
+      // conditions on var are false
+      auto [middle_interval, cond_set] =
+          GetIntervalAndCondset(finder.partitions, for_interval, false, has_partition_hint_);
+
+      if (!middle_interval.IsNothing()) {
+        return {middle_interval, cond_set, false};
+      }
+    }
+
+    // we couldn't find an interval in which the conditions are
+    // provably true or false.  Therefore, we can't partition the loop
+    // based on those conds
+    return {{}, {}, std::nullopt};
+  }();
+
+  if (!opt_cond_value.has_value()) {
+    return Stmt();
   }
+  bool cond_value = opt_cond_value.value();
 
   IntervalSet middle_interval_i = Downcast<IntervalSet>(middle_interval);
   // middle_interval is the subrange of the loop variable range for which a
@@ -560,16 +602,17 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
   if (middle_interval_i->HasLowerBound()) {
     body_begin = analyzer_.Simplify(middle_interval.min());
     if (!analyzer_.CanProve(body_begin == min)) {
-      PrimExpr cond = (body_begin - min >= 0);
-      if (!analyzer_.CanProve(cond)) {
-        LOG(WARNING) << "Cannot prove: " << cond << ", when generating the pre doubt loop";
-        body_begin = Max(body_begin, min);
+      PrimExpr extent = analyzer_.Simplify(body_begin - min);
+      if (!analyzer_.CanProve(extent > 0)) {
+        body_begin = tvm::max(body_begin, min);
         // stop recursing on this interval if we can't prove it has non-negative length
         pre_stmt_recurse = false;
       }
-      if (!partition_thread_scope) {
-        Stmt pre_body = Substitute(body, {{Var{var}, var + min}});
-        pre_stmt = MakeFor(stmt.get(), body_begin - min, pre_body);
+      if (!analyzer_.CanProve(extent <= 0)) {
+        if (!partition_thread_scope) {
+          Stmt pre_body = Substitute(body, {{Var{var}, var + min}});
+          pre_stmt = MakeFor(stmt.get(), body_begin - min, pre_body);
+        }
       }
     }
   } else {
@@ -585,16 +628,17 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
     post_doubt_begin = analyzer_.Simplify(middle_interval.max() + 1);
     if (!analyzer_.CanProve(middle_interval.max() == max)) {
       // require the extent to be non-negative
-      PrimExpr cond = (max - post_doubt_begin + 1 >= 0);
-      if (!analyzer_.CanProve(cond)) {
-        LOG(WARNING) << "Cannot prove: " << cond << ", when generating the post doubt loop";
-        post_doubt_begin = Min(post_doubt_begin, max + 1);
+      PrimExpr extent = analyzer_.Simplify(max - post_doubt_begin + 1);
+      if (!analyzer_.CanProve(extent > 0)) {
+        post_doubt_begin = tvm::min(post_doubt_begin, max + 1);
         // stop recursing on this interval if we can't prove it has non-negative length
         post_stmt_recurse = false;
       }
-      if (!partition_thread_scope) {
-        Stmt post_body = Substitute(body, {{Var{var}, var + post_doubt_begin}});
-        post_stmt = MakeFor(stmt.get(), max - post_doubt_begin + 1, post_body);
+      if (!analyzer_.CanProve(extent <= 0)) {
+        if (!partition_thread_scope) {
+          Stmt post_body = Substitute(body, {{Var{var}, var + post_doubt_begin}});
+          post_stmt = MakeFor(stmt.get(), extent, post_body);
+        }
       }
     }
   } else {

@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, unused-argument
 """Scheduling for Arm(R) Ethos(TM)-U NPU."""
 import tvm
+from tvm.contrib.ethosu.cascader import Propagator
 
 
 def schedule(cached_func, const_dict, cascader=None):
@@ -41,6 +42,8 @@ def schedule(cached_func, const_dict, cascader=None):
     s = tvm.te.create_schedule([t.op for t in cached_func.outputs])
     if cascader:
         cascader(cached_func, const_dict, s)
+    inline_no_ops(cached_func, s)
+    copy_luts()(cached_func, const_dict, s)
     inline_no_ops(cached_func, s)
     schedule_pragmas(s)
     schedule_cache_reads(s)
@@ -129,20 +132,57 @@ def copy_constants():
     def _planner(cached_func, const_dict, sch):
         planned = set()  # type: ignore
 
-        def _visit(tensor, reader):
-            if tensor is not planned:
+        def _visit(tensor, reader, lut):
+            if tensor not in planned:
                 planned.add(tensor)
-                if isinstance(tensor.op, tvm.te.PlaceholderOp):
-                    index = list(cached_func.inputs).index(tensor)
+                if isinstance(tensor.op, tvm.te.PlaceholderOp) and tensor != lut:
+                    # Find index of input using 'same_as' check to prevent equality
+                    # ambiguity when encountering a scalar.
+                    is_same = [var.same_as(tensor) for var in cached_func.inputs]
+                    index = is_same.index(True)
                     if index in const_dict:
                         sch.cache_read(tensor, "global", [reader])
 
                 elif isinstance(tensor.op, tvm.te.ComputeOp):
+                    if "lut" in tensor.op.attrs.keys():
+                        lut = tensor.op.attrs["lut"]
                     for input_tensor in tensor.op.input_tensors:
-                        _visit(input_tensor, tensor)
+                        _visit(input_tensor, tensor, lut)
 
         for output_tensor in cached_func.outputs:
-            _visit(output_tensor, None)
+            _visit(output_tensor, None, None)
+
+    return _planner
+
+
+def copy_luts():
+    """A scheduler that copies LUTs to SHRAM.
+
+    Returns
+    -------
+    planner : callable
+        The planning function.
+    """
+
+    def _planner(te_graph, const_dict, sch):
+        planned = set()  # type: ignore
+
+        def _visit(tensor, reader, lut):
+            if tensor not in planned:
+                planned.add(tensor)
+                if isinstance(tensor.op, tvm.te.PlaceholderOp) and tensor == lut:
+                    index = list(te_graph.inputs).index(tensor)
+                    if index in const_dict:
+                        sch.cache_read(tensor, "local", [reader])
+
+                elif isinstance(tensor.op, tvm.te.ComputeOp):
+                    if "lut" in tensor.op.attrs.keys():
+                        lut = tensor.op.attrs["lut"]
+                    for input_tensor in tensor.op.input_tensors:
+                        _visit(input_tensor, tensor, lut)
+
+        for output_tensor in te_graph.outputs:
+            _visit(output_tensor, None, None)
 
     return _planner
 
@@ -162,11 +202,20 @@ def schedule_pragmas(sch):
     """
 
     def _add_pragmas(stage, ax):
+        if stage.op.name == "T_concat":
+            stage.pragma(ax, "op", "ethosu_concatenate")
         if "op" in [attr for attr, val in stage.op.attrs.items()]:
             stage.pragma(ax, "op", stage.op.attrs["op"])
             for attr, val in stage.op.attrs.items():
-                if attr != "op":
+                if attr not in ("op", "lut") and not isinstance(val, Propagator):
                     stage.pragma(ax, str(attr), val)
+        if stage.op.axis[0] in stage.iter_var_attrs:
+            attrs = stage.iter_var_attrs[stage.op.axis[0]]
+            if "block_config_height" in attrs.pragma_keys:
+                pragmas = dict(zip([k.value for k in attrs.pragma_keys], attrs.pragma_values))
+                stage.pragma(ax, "block_config_height", pragmas["block_config_height"])
+                stage.pragma(ax, "block_config_width", pragmas["block_config_width"])
+                stage.pragma(ax, "block_config_depth", pragmas["block_config_depth"])
 
     for stage in sch.stages:
         if (
@@ -211,9 +260,17 @@ def schedule_cache_reads(sch):
         return False
 
     for stage in sch.stages:
-        if _detect_cache_read(stage):
-            fax = stage.fuse(*stage.op.axis)
-            stage.pragma(fax, "op", "ethosu_copy")
+        if stage.attach_type != 2:  # Not inlined
+            if _detect_cache_read(stage):
+                fax = stage.fuse(*stage.op.axis)
+
+                # propagate pragmas placed on the outer loop
+                if len(stage.op.axis) > 0 and stage.op.axis[0] in stage.iter_var_attrs:
+                    attrs = stage.iter_var_attrs[stage.op.axis[0]]
+                    for k, v in zip(attrs.pragma_keys, attrs.pragma_values):
+                        stage.pragma(fax, k.value, v)
+
+                stage.pragma(fax, "op", "ethosu_copy")
 
 
 def inline_no_ops(cached_func, sch):
@@ -245,14 +302,15 @@ def inline_no_ops(cached_func, sch):
         _visit(out)
 
 
-class Convolution2DCompute:
-    """A helper class to manipulate the series of compute ops that make up a 2D convolution."""
+class OperatorCompute:
+    """A helper class to manipulate the series of compute ops that make up an operator."""
 
-    def __init__(self, read, convert_to_nhwc, pad, conv2d, convert_to_nhcwb16, write):
+    def __init__(self, read, convert_to_nhwc, pad, upscale, op, convert_to_nhcwb16, write):
         self.read = read
         self.convert_to_nhwc = convert_to_nhwc
         self.pad = pad
-        self.conv2d = conv2d
+        self.upscale = upscale
+        self.op = op
         self.convert_to_nhcwb16 = convert_to_nhcwb16
         self.write = write
 
@@ -260,18 +318,37 @@ class Convolution2DCompute:
     def from_output(cls, out):
         write = out
         convert_to_nhcwb16 = write.op.input_tensors[0]
-        conv2d = convert_to_nhcwb16.op.input_tensors[0]
-        pad = conv2d.op.input_tensors[0]
-        convert_to_nhwc = pad.op.input_tensors[0]
+        op = convert_to_nhcwb16.op.input_tensors[0]
+        pad = op.op.input_tensors[0]
+        upscale = pad.op.input_tensors[0]
+        convert_to_nhwc = upscale.op.input_tensors[0]
         read = convert_to_nhwc.op.input_tensors[0]
-        return cls(read, convert_to_nhwc, pad, conv2d, convert_to_nhcwb16, write)
+        return cls(read, convert_to_nhwc, pad, upscale, op, convert_to_nhcwb16, write)
 
     def split(self, sch, axis, val):
         outer, inner = sch[self.write].split(self.write.op.axis[axis], val)
-        sch[self.write].reorder(
-            outer, *[ax for ax in self.write.op.axis if ax != self.write.op.axis[axis]], inner
-        )
+        iter_vars = [ax for ax in self.write.op.axis if ax != self.write.op.axis[axis]]
+        iter_vars.insert(axis, inner)
+        sch[self.write].reorder(outer, *iter_vars)
         sch[self.write].unroll(outer)
         g = sch.create_group(outputs=self.convert_to_nhcwb16, inputs=self.read, include_inputs=True)
         g.compute_at(sch[self.write], outer)
         return outer
+
+    def rolling_buffer(self, sch):
+        sch[self.read].rolling_buffer()
+        sch[self.convert_to_nhwc].rolling_buffer()
+        sch[self.pad].rolling_buffer()
+        sch[self.upscale].rolling_buffer()
+        sch[self.op].rolling_buffer()
+        sch[self.convert_to_nhcwb16].rolling_buffer()
+        sch[self.write].rolling_buffer()
+
+    def compute_at(self, sch, stage, axis):
+        sch[self.read].compute_at(stage, axis)
+        sch[self.convert_to_nhwc].compute_at(stage, axis)
+        sch[self.pad].compute_at(stage, axis)
+        sch[self.upscale].compute_at(stage, axis)
+        sch[self.op].compute_at(stage, axis)
+        sch[self.convert_to_nhcwb16].compute_at(stage, axis)
+        sch[self.write].compute_at(stage, axis)

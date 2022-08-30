@@ -236,7 +236,7 @@ class MeasureCallback : public ObjectRef {
  *  This class will call functions defined in the python */
 class PythonBasedMeasureCallbackNode : public MeasureCallbackNode {
  public:
-  /*! \brief Pointer to the callback funcion in python */
+  /*! \brief Pointer to the callback function in python */
   PackedFunc callback_func;
 
   void Callback(const SearchPolicy& policy, const Array<MeasureInput>& inputs,
@@ -308,6 +308,8 @@ class ProgramRunnerNode : public Object {
   double cooldown_interval;
   /*! \brief Whether to flush cache on CPU between repeated measurements. */
   bool enable_cpu_cache_flush;
+  /*! \brief Which device to run on if multiple are avaialble. */
+  int device;
 
   /*!
    * \brief Run measurement and return results.
@@ -391,9 +393,10 @@ class LocalRunner : public ProgramRunner {
    * \param min_repeat_ms The minimum duration of one repeat in milliseconds.
    * \param cooldown_interval The cool down interval between two measurements.
    * \param enable_cpu_cache_flush Whether to flush cache on CPU between repeated measurements.
+   * \param device Which device to run on if multiple are available.
    */
   LocalRunner(int timeout, int number, int repeat, int min_repeat_ms, double cooldown_interval,
-              bool enable_cpu_cache_flush);
+              bool enable_cpu_cache_flush, int device);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(LocalRunner, ProgramRunner, LocalRunnerNode);
 };
@@ -443,10 +446,11 @@ class RPCRunner : public ProgramRunner {
    * \param min_repeat_ms The minimum duration of one repeat in milliseconds.
    * \param cooldown_interval The cool down interval between two measurements.
    * \param enable_cpu_cache_flush Whether to flush cache on CPU between repeated measurements.
+   * \param device Which device to run on if multiple are available.
    */
   RPCRunner(const String& key, const String& host, int port, int priority, int n_parallel,
             int timeout, int number, int repeat, int min_repeat_ms, double cooldown_interval,
-            bool enable_cpu_cache_flush);
+            bool enable_cpu_cache_flush, int device);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RPCRunner, ProgramRunner, RPCRunnerNode);
 };

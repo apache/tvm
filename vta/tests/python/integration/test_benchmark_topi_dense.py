@@ -125,11 +125,17 @@ def run_gemm(
     # Build
     if "vta" in target.keys:
         mod = vta.build(
-            s, [data, kernel, res], target=target, target_host=env.target_host, name="dense"
+            s,
+            [data, kernel, res],
+            target=tvm.target.Target(target, host=env.target_host),
+            name="dense",
         )
     else:
         mod = tvm.build(
-            s, [data, kernel, res], target=target, target_host=env.target_host, name="dense"
+            s,
+            [data, kernel, res],
+            target=tvm.target.Target(target, host=env.target_host),
+            name="dense",
         )
     temp = utils.tempdir()
     mod.save(temp.relpath("dense.o"))
@@ -178,7 +184,7 @@ def run_gemm(
         res_ref = res_ref.astype(env.out_dtype)
         correct = np.allclose(res_orig, res_ref)
 
-    gops = (num_ops / cost.mean) / float(10 ** 9)
+    gops = (num_ops / cost.mean) / float(10**9)
     status = "PASSED" if correct else "FAILED"
     if "arm_cpu" in target.keys:
         device = "CPU"

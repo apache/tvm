@@ -15,33 +15,32 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# Arm Ethos-N rules
+# Arm(R) Ethos(TM)-N rules
 
 if(NOT USE_ETHOSN STREQUAL "OFF")
   find_ethosn(${USE_ETHOSN})
 
   if(NOT ETHOSN_FOUND)
-    message(FATAL_ERROR "Cannot find Ethos-N, USE_ETHOSN=" ${USE_ETHOSN})
+    message(FATAL_ERROR "Cannot find Arm(R) Ethos(TM)-N, USE_ETHOSN=" ${USE_ETHOSN})
 
   else()
     include_directories(SYSTEM ${ETHOSN_INCLUDE_DIRS})
     add_definitions(${ETHOSN_DEFINITIONS})
 
-    message(STATUS "Build with Ethos-N ${ETHOSN_PACKAGE_VERSION}")
+    message(STATUS "Build with Arm(R) Ethos(TM)-N ${ETHOSN_PACKAGE_VERSION}")
 
-    file(GLOB ETHOSN_RUNTIME_CONTRIB_SRC
-      CONFIGURE_DEPENDS src/runtime/contrib/ethosn/ethosn_runtime.cc
-      CONFIGURE_DEPENDS src/runtime/contrib/ethosn/ethosn_device.cc)
+    tvm_file_glob(GLOB ETHOSN_RUNTIME_CONTRIB_SRC
+                  src/runtime/contrib/ethosn/ethosn_runtime.cc
+                  src/runtime/contrib/ethosn/ethosn_device.cc)
     list(APPEND RUNTIME_SRCS ${ETHOSN_RUNTIME_CONTRIB_SRC})
 
-    file(GLOB COMPILER_ETHOSN_SRCS
-      CONFIGURE_DEPENDS src/relay/backend/contrib/ethosn/*)
+    tvm_file_glob(GLOB COMPILER_ETHOSN_SRCS
+                  src/relay/backend/contrib/ethosn/*)
     list(APPEND COMPILER_SRCS ${COMPILER_ETHOSN_SRCS})
 
     list(APPEND TVM_LINKER_LIBS ${ETHOSN_COMPILER_LIBRARY}
       ${ETHOSN_RUNTIME_LIBRARY})
-    list(APPEND TVM_RUNTIME_LINKER_LIBS ${ETHOSN_COMPILER_LIBRARY}
-      ${ETHOSN_RUNTIME_LIBRARY})
+    list(APPEND TVM_RUNTIME_LINKER_LIBS ${ETHOSN_RUNTIME_LIBRARY})
 
     if(NOT MSVC)
       set_source_files_properties(${COMPILER_ETHOSN_SRCS}
@@ -52,6 +51,6 @@ if(NOT USE_ETHOSN STREQUAL "OFF")
   endif(NOT ETHOSN_FOUND)
 else()
   if(USE_ETHOSN_HW)
-    message(FATAL_ERROR "Cannot enable Ethos-N HW if USE_ETHOSN=OFF")
+    message(FATAL_ERROR "Cannot enable Arm(R) Ethos(TM)-N HW if USE_ETHOSN=OFF")
   endif()
 endif(NOT USE_ETHOSN STREQUAL "OFF")

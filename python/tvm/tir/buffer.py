@@ -16,11 +16,12 @@
 # under the License.
 """Abstraction for array data structures."""
 from numbers import Integral
-import tvm._ffi
 
+import tvm._ffi
 from tvm._ffi.base import string_types
+from tvm.ir import PointerType, PrimExpr, PrimType, Range
 from tvm.runtime import Object, convert
-from tvm.ir import PrimExpr, PointerType, PrimType
+
 from . import _ffi_api
 
 
@@ -42,7 +43,7 @@ class Buffer(Object):
     READ = 1
     WRITE = 2
 
-    def access_ptr(self, access_mask, ptr_type="handle", content_lanes=1, offset=0):
+    def access_ptr(self, access_mask, ptr_type="handle", content_lanes=1, offset=0, extent=None):
         """Get an access pointer to the head of buffer.
 
         This is the recommended method to get buffer data
@@ -66,6 +67,9 @@ class Buffer(Object):
             The offset of pointer. We can use it to offset by
             the number of elements from the address of ptr.
 
+        extent: Expr, optional
+            The extent of pointer.
+
         Examples
         --------
         .. code-block:: python
@@ -78,6 +82,8 @@ class Buffer(Object):
           buffer.access_ptr("rw")
           # Get access ptr for read with offset
           buffer.access_ptr("r", offset = 100)
+          # Get access ptr for read with extent
+          buffer.access_ptr("r", extent = 100)
         """
         if isinstance(access_mask, string_types):
             mask = 0
@@ -90,8 +96,9 @@ class Buffer(Object):
                     raise ValueError("Unknown access_mask %s" % access_mask)
             access_mask = mask
         offset = convert(offset)
+        extent = convert(extent)
         return _ffi_api.BufferAccessPtr(
-            self, access_mask, ptr_type, content_lanes, offset  # type: ignore
+            self, access_mask, ptr_type, content_lanes, offset, extent  # type: ignore
         )
 
     def vload(self, begin, dtype=None):
@@ -143,6 +150,69 @@ class Buffer(Object):
         """
         return _ffi_api.BufferStorageScope(self)  # type: ignore
 
+    def get_flattened_buffer(self):
+        """Generate a Buffer that is a flattened version of this buffer.
+
+        Returns
+        -------
+        flattened : Buffer
+            The corresponding flat buffer.
+        """
+        return _ffi_api.BufferGetFlattenedBuffer(self)  # type: ignore
+
+    def offset_of(self, indices):
+        """Determine the offset of the provided indices in the flattened buffer.
+
+        Parameters
+        ----------
+        indices : Union[PrimExpr, List[PrimExpr]]
+
+            The indices of the element in the original buffer.
+
+        Returns
+        -------
+        flattened_indices: List[PrimExpr]
+
+            The offset indices of the element in the flattened buffer.
+        """
+        return _ffi_api.BufferOffsetOf(self, indices)  # type: ignore
+
+    def __getitem__(self, indices):
+        from ..arith import Analyzer  # pylint: disable=import-outside-toplevel
+        from .expr import BufferLoad, Ramp  # pylint: disable=import-outside-toplevel
+        from .stmt import BufferRegion  # pylint: disable=import-outside-toplevel
+
+        if not isinstance(indices, (tuple, list)):
+            indices = [indices]
+        if any(isinstance(index, slice) and index.step is None for index in indices):
+            region = []
+            analyzer = Analyzer()
+            for index in indices:
+                if isinstance(index, slice):
+                    region.append(
+                        Range.from_min_extent(
+                            index.start, analyzer.simplify(index.stop - index.start)
+                        )
+                    )
+                else:
+                    region.append(Range.from_min_extent(index, 1))
+            return BufferRegion(self, region)
+        else:
+            analyzer = Analyzer()
+            expr_indices = []
+            for index in indices:
+                if isinstance(index, slice):
+                    lanes = analyzer.simplify(
+                        (index.stop - index.start + index.step - 1) // index.step
+                    )
+                    if lanes == 1:
+                        expr_indices.append(index.start)
+                    else:
+                        expr_indices.append(Ramp(index.start, index.step, int(lanes)))
+                else:
+                    expr_indices.append(index)
+            return BufferLoad(self, expr_indices)
+
 
 def decl_buffer(
     shape,
@@ -155,6 +225,7 @@ def decl_buffer(
     data_alignment=-1,
     offset_factor=0,
     buffer_type="",
+    axis_separators=None,
     span=None,
 ):
     """Declare a new symbolic buffer.
@@ -203,6 +274,11 @@ def decl_buffer(
         auto_broadcast buffer allows one to implement broadcast computation
         without considering whether dimension size equals to one.
         TVM maps buffer[i][j][k] -> buffer[i][0][k] if dimension j's shape equals 1.
+
+    axis_separators : list of int, optional
+        If passed, a list of separators between groups of axes,
+        each of which is flattened to an output axis.  For flat
+        memory spaces, should either be None, or an empty list.
 
     span: Optional[Span]
         The location of the decl_buffer creation in the source.
@@ -254,6 +330,10 @@ def decl_buffer(
     shape = (shape,) if isinstance(shape, (PrimExpr, Integral)) else shape
     dtype = "float32" if dtype is None else dtype
     strides = () if strides is None else strides
+
+    if axis_separators is None:
+        axis_separators = []
+
     if offset_factor != 0 and elem_offset is None:
         shape_dtype = shape[0].dtype if shape and hasattr(shape[0], "dtype") else "int32"
         elem_offset = Var("%s_elem_offset" % name, shape_dtype)
@@ -272,6 +352,7 @@ def decl_buffer(
         data_alignment,
         offset_factor,
         buffer_type,
+        axis_separators,
         span,
     )
 

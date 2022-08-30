@@ -21,7 +21,7 @@ Used to verify the correctness of operators in TOPI .
 """
 from __future__ import absolute_import as _abs
 
-from .conv1d_ncw_python import conv1d_ncw_python
+from .conv1d_ncw_python import conv1d_ncw_python, group_conv1d_ncw_python
 from .conv2d_hwcn_python import conv2d_hwcn_python
 from .conv2d_nchw_python import conv2d_nchw_python
 from .conv2d_nhwc_python import conv2d_nhwc_python
@@ -49,6 +49,7 @@ from .gather_python import gather_python
 from .gather_nd_python import gather_nd_python
 from .strided_slice_python import strided_slice_python, strided_set_python
 from .batch_matmul import batch_matmul
+from .batch_norm import batch_norm
 from .slice_axis_python import slice_axis_python
 from .sequence_mask_python import sequence_mask
 from .poolnd_python import poolnd_python
@@ -67,10 +68,12 @@ from .common import (
     dispatch,
 )
 from .adaptive_pool_python import adaptive_pool
-from .grid_sample_python import affine_grid_python, grid_sample_nchw_python
+from .grid_sample_python import affine_grid_python, grid_sample_python
 from .matrix_set_diag import matrix_set_diag
 from .space_to_batch_nd import space_to_batch_nd_python
 from .batch_to_space_nd import batch_to_space_nd_python
 from .nll_loss import nll_loss
 from .dense import dense
 from .searchsorted import searchsorted_ref
+from .conv2d_backcward_weight_python import conv2d_backward_weight_python
+from .lstm_python import lstm_python

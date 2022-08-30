@@ -24,6 +24,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/analysis.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/transform.h>
@@ -70,6 +71,10 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
       // because the call to simplify will always inline the var.
       analyzer_->Bind(op->var, value);
       return this->VisitStmt(op->body);
+    } else if (SideEffect(op->value) <= CallEffectKind::kPure) {
+      // Even if we aren't replacing all occurrences, they may be
+      // necessary for proving conditional statements.
+      non_inlined_bindings_.Set(op->var, value);
     }
     Stmt body = this->VisitStmt(op->body);
     if (value.same_as(op->value) && body.same_as(op->body)) {
@@ -82,18 +87,69 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     }
   }
 
-  // eliminate useless stores
-  Stmt VisitStmt_(const StoreNode* op) final {
-    Stmt stmt = Parent::VisitStmt_(op);
-    op = stmt.as<StoreNode>();
-    if (const LoadNode* load = op->value.as<LoadNode>()) {
-      if (load->buffer_var.same_as(op->buffer_var) &&
-          tir::ExprDeepEqual()(load->index, op->index)) {
+  Stmt VisitStmt_(const IfThenElseNode* op) {
+    PrimExpr cond = analyzer_->Simplify(Substitute(op->condition, non_inlined_bindings_));
+    if (const int64_t* as_int = as_const_int(cond)) {
+      if (*as_int) {
+        return this->VisitStmt(op->then_case);
+      } else if (op->else_case.defined()) {
+        return this->VisitStmt(op->else_case);
+      } else {
         return Evaluate(0);
       }
     }
-    return GetRef<Stmt>(op);
+    return Parent::VisitStmt_(op);
   }
+
+  PrimExpr VisitExpr_(const CallNode* op) {
+    if (op->op.same_as(builtin::if_then_else())) {
+      PrimExpr cond = this->VisitExpr(op->args[0]);
+      cond = analyzer_->Simplify(Substitute(std::move(cond), non_inlined_bindings_));
+      if (const int64_t* as_int = as_const_int(cond)) {
+        if (*as_int) {
+          return this->VisitExpr(op->args[1]);
+        } else {
+          return this->VisitExpr(op->args[2]);
+        }
+      }
+    }
+    return Parent::VisitExpr_(op);
+  }
+
+  Stmt VisitStmt_(const StoreNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
+  }
+
+  // eliminate useless stores
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    BufferStore store = Downcast<BufferStore>(Parent::VisitStmt_(op));
+    if (const BufferLoadNode* load = store->value.as<BufferLoadNode>()) {
+      if (load->buffer->data.same_as(store->buffer->data) &&
+          ArrayDeepEqual(load->indices, store->indices) &&
+          tir::ExprDeepEqual()(load->buffer->elem_offset, store->buffer->elem_offset) &&
+          ArrayDeepEqual(load->buffer->shape, store->buffer->shape) &&
+          ArrayDeepEqual(load->buffer->strides, store->buffer->strides)) {
+        return Evaluate(0);
+      }
+    }
+    return std::move(store);
+  }
+
+ private:
+  bool ArrayDeepEqual(const Array<PrimExpr>& lhs, const Array<PrimExpr>& rhs) {
+    if (lhs.size() != rhs.size()) {
+      return false;
+    }
+    for (size_t i = 0; i < lhs.size(); i++) {
+      if (!tir::ExprDeepEqual()(lhs[i], rhs[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  Map<Var, PrimExpr> non_inlined_bindings_;
 };
 
 }  // namespace arith

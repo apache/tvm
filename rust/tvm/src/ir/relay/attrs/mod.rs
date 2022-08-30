@@ -18,4 +18,5 @@
  */
 
 pub mod nn;
+pub mod reduce;
 pub mod transform;

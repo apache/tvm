@@ -16,19 +16,48 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
-set -o pipefail
+set -euxo pipefail
 
 apt-get update --fix-missing
 
-# The precompiled caffe dependents on tzdata.
-# While installing tzdata in docker, we need set the time zone manually,
-# which will cause the container to hang during installation.
-# So in order to avoid manually selecting the time zone, set as following:
-export DEBIAN_FRONTEND=noninteractive
-apt-get install -y tzdata
+# # Install dependencies
+apt-install-and-clear -y --no-install-recommends protobuf-compiler \
+    libprotobuf-dev libhdf5-serial-dev libopenblas-dev libgflags-dev libgoogle-glog-dev
 
-apt-get install caffe-cpu -y
 
-pip3 install --upgrade scikit-image
+# install python packages
+pip install "numpy" "protobuf" "scikit-image" "six"
+
+# Build the Caffe and the python wrapper
+echo "Downloading Caffe"
+CAFFE_HOME="/opt/caffe"
+git clone --branch=ssd --depth 1 https://github.com/weiliu89/caffe /caffe_src
+cd /caffe_src
+
+
+echo "Building Caffe"
+mkdir /caffe_src/build && cd /caffe_src/build
+cmake -DCMAKE_INSTALL_PREFIX=${CAFFE_HOME}\
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCPU_ONLY=1 \
+    -Dpython_version=3 \
+    -DUSE_OPENCV=OFF \
+    -DUSE_LEVELDB=OFF \
+    -DUSE_LMDB=OFF \
+    -DBUILD_docs=OFF \
+    -DBLAS=open \
+    ..
+
+make all -j$(expr $(nproc) - 1)
+make pycaffe -j$(expr $(nproc) - 1)
+make test -j$(expr $(nproc) - 1)
+
+echo "Installing Caffe to /opt/caffe"
+make install
+
+echo "Removing build directory"
+cd / && rm -rf /caffe_src
+
+PYCAFFE_ROOT=${CAFFE_HOME}/python
+echo "${CAFFE_HOME}/lib" >> /etc/ld.so.conf.d/caffe.conf && ldconfig
+ln -s ${PYCAFFE_ROOT}/caffe /usr/local/lib/python3.7/dist-packages/caffe

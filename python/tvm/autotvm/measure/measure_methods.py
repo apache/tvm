@@ -29,17 +29,18 @@ import shutil
 import tempfile
 import threading
 import time
+import traceback
 import typing
+import warnings
 from collections import namedtuple
 from random import getrandbits
-import warnings
 
 import tvm._ffi
 import tvm.ir.transform
 from tvm import nd
 from tvm import rpc as _rpc
 from tvm.autotvm.env import AutotvmGlobalScope, reset_global_scope
-from tvm.contrib import ndk, nvcc, stackvm, tar
+from tvm.contrib import ndk, stackvm, tar
 from tvm.contrib.popen_pool import PopenPoolExecutor
 from tvm.driver import build
 from tvm.error import TVMError
@@ -89,10 +90,18 @@ class LocalBuilder(Builder):
         If is callable, use it as custom build function, expect lib_format field.
     do_fork: bool
         If False, do not fork when building. Requires n_parallel=1.
+    runtime: Optional[Runtime]
+        Specify the runtime to generate artifacts for
     """
 
     def __init__(
-        self, timeout=10, n_parallel=None, build_kwargs=None, build_func="default", do_fork=False
+        self,
+        timeout=10,
+        n_parallel=None,
+        build_kwargs=None,
+        build_func="default",
+        do_fork=False,
+        runtime=None,
     ):
         super(LocalBuilder, self).__init__(timeout, n_parallel, build_kwargs)
 
@@ -105,7 +114,7 @@ class LocalBuilder(Builder):
                 build_func = stackvm.build
             else:
                 raise ValueError("Invalid build_func" + build_func)
-        self.build_func = _WrappedBuildFunc(build_func)
+        self.build_func = _WrappedBuildFunc(build_func, runtime)
         if not do_fork:
             assert n_parallel in (
                 None,
@@ -132,24 +141,35 @@ class LocalBuilder(Builder):
                 try:
                     res = future.result()
                     if res.error is not None:
+                        assert len(res.error) == 2, (
+                            f"BuildResult errors should be a 2-tuple, but it is a {len(res.error)}"
+                            "-tuple. This should not happen!"
+                        )
+                        tb, exception = res.error
                         # instantiation error
-                        if isinstance(res.error, InstantiationError):
+                        if isinstance(exception, InstantiationError):
                             res = MeasureResult(
-                                (res.error,),
+                                (
+                                    tb,
+                                    exception,
+                                ),
                                 MeasureErrorNo.INSTANTIATION_ERROR,
                                 res.time_cost,
                                 time.time(),
                             )
 
                         else:
-                            if "InstantiationError" in str(res.error):
-                                msg = str(res.error)
+                            if "InstantiationError" in str(exception):
+                                msg = str(exception)
                                 try:
                                     msg = msg.split("\n")[-2].split(": ")[1]
                                 except Exception:  # pylint: disable=broad-except
                                     pass
                                 res = MeasureResult(
-                                    (InstantiationError(msg),),
+                                    (
+                                        tb,
+                                        InstantiationError(msg),
+                                    ),
                                     MeasureErrorNo.INSTANTIATION_ERROR,
                                     res.time_cost,
                                     time.time(),
@@ -157,18 +177,32 @@ class LocalBuilder(Builder):
 
                             else:  # tvm error
                                 res = MeasureResult(
-                                    (res.error,),
+                                    (
+                                        tb,
+                                        res.error,
+                                    ),
                                     MeasureErrorNo.COMPILE_HOST,
                                     res.time_cost,
                                     time.time(),
                                 )
                 except TimeoutError as ex:
+                    tb = traceback.format_exc()
                     res = MeasureResult(
-                        (ex,), MeasureErrorNo.BUILD_TIMEOUT, self.timeout, time.time()
+                        (
+                            tb,
+                            ex,
+                        ),
+                        MeasureErrorNo.BUILD_TIMEOUT,
+                        self.timeout,
+                        time.time(),
                     )
                 except ChildProcessError as ex:
+                    tb = traceback.format_exc()
                     res = MeasureResult(
-                        (ex,),
+                        (
+                            tb,
+                            ex,
+                        ),
                         MeasureErrorNo.RUNTIME_DEVICE,
                         self.timeout,
                         time.time(),
@@ -314,9 +348,6 @@ class RPCRunner(Runner):
                 "max_thread_z": max_dims[2],
             }
 
-            if "cuda" in self.task.target.keys:
-                kwargs["cuda_arch"] = "sm_" + "".join(dev.compute_version.split("."))
-
         return kwargs
 
     def run(self, measure_inputs, build_results):
@@ -359,9 +390,16 @@ class RPCRunner(Runner):
                     res = future.result()
                     results.append(res)
                 except Exception as ex:  # pylint: disable=broad-except
+                    tb = traceback.format_exc()
                     results.append(
                         MeasureResult(
-                            (str(ex),), MeasureErrorNo.RUN_TIMEOUT, self.timeout, time.time()
+                            (
+                                tb,
+                                ex,
+                            ),
+                            MeasureErrorNo.RUN_TIMEOUT,
+                            self.timeout,
+                            time.time(),
                         )
                     )
 
@@ -455,10 +493,10 @@ class LocalRunner(RPCRunner):
         return server, tracker
 
 
-def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_option=None):
+def _build_func_common(measure_input, runtime=None, check_gpu=None, build_option=None):
     """Common part for building a configuration"""
     target, task, config = measure_input
-    target, task.target_host = Target.check_and_update_host_consist(target, task.target_host)
+    target, task.target_host = Target.canon_target_and_host(target, task.target_host)
 
     with target:
         s, args = task.instantiate(config)
@@ -466,12 +504,6 @@ def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_opti
         # check invalidity of template and code hash consistency
         if not config.valid():
             raise InstantiationError(config.errors)
-
-        opts = build_option or {}
-        if check_gpu:  # Add verify pass to filter out invalid configs in advance.
-            opts["tir.add_lower_pass"] = [(2, gpu_verify_pass(**check_gpu))]
-        if cuda_arch:
-            set_cuda_target_arch(cuda_arch)
 
         # if target is vta, we need to use vta build
         if (
@@ -483,8 +515,29 @@ def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_opti
 
             func = vta.build(s, args, target_host=task.target_host)
         else:
-            with tvm.ir.transform.PassContext(config=opts):
-                func = build(s, args, target_host=task.target_host)
+            current_pass_context: tvm.ir.transform.PassContext = (
+                tvm.ir.transform.PassContext.current()
+            )
+            current_config = dict(current_pass_context.config)
+            if build_option is not None:
+                current_config.update(build_option)
+
+            if "tir.add_lower_pass" in current_config:
+                current_add_lower_pass = list(current_config["tir.add_lower_pass"])
+            else:
+                current_add_lower_pass = []
+            if check_gpu:
+                current_add_lower_pass.append((2, gpu_verify_pass(**check_gpu)))
+            current_config["tir.add_lower_pass"] = current_add_lower_pass
+
+            with tvm.ir.transform.PassContext(
+                opt_level=current_pass_context.opt_level,
+                required_pass=current_pass_context.required_pass,
+                disabled_pass=current_pass_context.disabled_pass,
+                instruments=current_pass_context.instruments,
+                config=current_config,
+            ):
+                func = build(s, args, target_host=task.target_host, runtime=runtime)
     return func, tuple((get_const_tuple(x.shape), x.dtype) for x in args)
 
 
@@ -499,6 +552,8 @@ class _WrappedBuildFunc:
     ----------
     build_func : The compilation function
         We expect fcompile to contain an attr "output_format".
+    runtime : Optional[Runtime]
+        The runtime to generate artifacts for
 
     Returns
     -------
@@ -506,10 +561,11 @@ class _WrappedBuildFunc:
         The wrapped build function
     """
 
-    def __init__(self, build_func):
+    def __init__(self, build_func, runtime=None):
         if not hasattr(build_func, "output_format"):
             raise AttributeError("Expect build_func to have the attribute output_format.")
         self.build_func = build_func
+        self.runtime = runtime
 
     def __call__(self, measure_input, tmp_dir, **kwargs):
         """
@@ -529,19 +585,19 @@ class _WrappedBuildFunc:
                 tmp_dir, "tmp_func_%0x.%s" % (getrandbits(64), self.build_func.output_format)
             )
             # TODO(tvm-team) consider linline _build_func_common
-            func, arg_info = _build_func_common(measure_input, **kwargs)
+            func, arg_info = _build_func_common(measure_input, self.runtime, **kwargs)
             if self.build_func.output_format == ".model-library-format":
                 # Late import to preserve autoTVM with USE_MICRO OFF
                 try:
                     from tvm import micro  # pylint: disable=import-outside-toplevel
                 except ImportError:
                     raise ImportError("Requires USE_MICRO")
-
                 micro.export_model_library_format(func, filename)
             else:
                 func.export_library(filename, self.build_func)
         except Exception as e:  # pylint: disable=broad-except
-            return BuildResult(None, None, e, time.time() - tic)
+            tb = traceback.format_exc()
+            return BuildResult(None, None, (tb, e), time.time() - tic)
         return BuildResult(filename, arg_info, None, time.time() - tic)
 
 
@@ -655,7 +711,10 @@ def run_through_rpc(
             msg = msg[: msg.index("Stack trace returned")]
         if "CUDA Source" in msg:
             msg = msg[: msg.index("CUDA Source")]
-        costs = (RuntimeError(msg[:1024]),)
+        costs = (
+            traceback.format_exc(),
+            RuntimeError(msg[:1024]),
+        )
         errno = MeasureErrorNo.RUNTIME_DEVICE
     tstamp = time.time()
     time.sleep(cooldown_interval)
@@ -764,34 +823,28 @@ def check_remote(target, device_key, host=None, port=None, priority=100, timeout
     """
 
     def _check():
+        logger.debug("waiting for device...")
         remote = request_remote(device_key, host, port, priority)
         dev = remote.device(str(target))
         while not dev.exist:  # wait until we get an available device
             pass
+        logger.debug("device available")
 
     t = threading.Thread(
         target=_check,
     )
     t.start()
     t.join(timeout)
-    return not t.is_alive()
 
-
-@tvm._ffi.register_func
-def tvm_callback_cuda_compile(code):
-    """use nvcc to generate ptx code for better optimization"""
-    curr_cuda_target_arch = AutotvmGlobalScope.current.cuda_target_arch
-    # e.g., target arch could be [
-    #   "-gencode", "arch=compute_52,code=sm_52",
-    #   "-gencode", "arch=compute_70,code=sm_70"
-    # ]
-    target = "fatbin" if isinstance(curr_cuda_target_arch, list) else "ptx"
-    ptx = nvcc.compile_cuda(code, target=target, arch=AutotvmGlobalScope.current.cuda_target_arch)
-    return ptx
+    remote = request_remote(device_key, host, port, priority)
+    dev = remote.device(str(target))
+    return dev.exist
 
 
 def set_cuda_target_arch(arch):
-    """set target architecture of nvcc compiler
+    """THIS API IS DEPRECATED.
+
+    set target architecture of nvcc compiler
 
     Parameters
     ----------
@@ -800,7 +853,11 @@ def set_cuda_target_arch(arch):
         it can also be a count of gencode arguments pass to nvcc command line,
         e.g., ["-gencode", "arch=compute_52,code=sm_52", "-gencode", "arch=compute_70,code=sm_70"]
     """
-    AutotvmGlobalScope.current.cuda_target_arch = arch
+    raise ValueError(
+        "The API 'autotvm.measure.set_cuda_target_arch' is deprecated."
+        "Try specifying it by adding '-arch=sm_xx' to your target, such as 'cuda -arch=sm_86'."
+        "See https://github.com/apache/tvm/pull/9544 for the upgrade guide."
+    )
 
 
 def gpu_verify_pass(**kwargs):

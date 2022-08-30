@@ -33,6 +33,7 @@
  *  - Postprocessing: remove the replaced functions that have no reference.
  */
 
+#include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
@@ -42,6 +43,7 @@
 #include <unordered_set>
 
 #include "../analysis/call_graph.h"
+#include "../op/call/call.h"
 
 using namespace tvm::runtime;
 
@@ -54,22 +56,28 @@ class Inliner : ExprMutator {
       : cur_node_(cur_node), call_graph_(call_graph) {}
 
   Expr VisitExpr_(const CallNode* call_node) final {
-    Expr op = call_node->op;
-    const auto* gvn = op.as<GlobalVarNode>();
+    // We can work with calls in both pre- and post-lowered form.
+    Call vanilla_call = GetAnyCall(call_node);
 
-    if (gvn) {
-      GlobalVar gv = GetRef<GlobalVar>(gvn);
+    const auto* global_var_node = vanilla_call->op.as<GlobalVarNode>();
+    if (global_var_node) {
+      GlobalVar gv = GetRef<GlobalVar>(global_var_node);
       auto* cg_node = (*call_graph_)[gv->name_hint];
       if (CanInline(cg_node)) {
-        tvm::Array<Expr> call_args;
-        for (auto arg : call_node->args) {
-          auto new_arg = VisitExpr(arg);
-          call_args.push_back(new_arg);
+        Array<Expr> new_args;
+        new_args.reserve(vanilla_call->args.size());
+        for (auto arg : vanilla_call->args) {
+          new_args.push_back(VisitExpr(arg));
         }
+        // TODO(mbs): Does not handle multiple calls to the same global function.
         cur_node_->RemoveCallTo(gv);
-        return MakeNewExpr(gv, call_args, GetRef<Call>(call_node));
+        return MakeNewExpr(gv, new_args, GetRef<Call>(call_node));
       }
+      // else: fallthrough
     }
+    // else: fallthrough
+
+    // If not calling a global function then nothing to inline.
     return ExprMutator::VisitExpr_(call_node);
   }
 
@@ -84,8 +92,7 @@ class Inliner : ExprMutator {
   }
 
   Function Inline(const Function& func) {
-    return Function(func->params, VisitExpr(func->body), func->ret_type, func->type_params,
-                    func->attrs);
+    return WithFields(func, func->params, VisitExpr(func->body));
   }
 
  private:
@@ -94,14 +101,19 @@ class Inliner : ExprMutator {
     if (!cg_node->empty() || cg_node->IsRecursive()) return false;
 
     auto base_func = call_graph_->GetGlobalFunction(cg_node->GetGlobalVar());
-    auto func = Downcast<Function>(base_func);
+    const auto* function_node = base_func.as<FunctionNode>();
+    if (!function_node) {
+      // Can't inline PrimFuncs!
+      return false;
+    }
     // The body of a global functions must be defined.
-    if (!func->body.defined()) return false;
+    if (!function_node->body.defined()) return false;
 
     // The function must be annotated with the inline attribute.
-    if (!func->HasNonzeroAttr(attr::kInline)) return false;
+    // (Note that partitioned functions and external functions do not have this attribute!)
+    if (!function_node->HasNonzeroAttr(attr::kInline)) return false;
 
-    // The function is not abled to be inlined if any callee under the CallGraph
+    // The function is not able to be inlined if any callee under the CallGraph
     // of this function cannot be inlined.
     for (const auto& it : *cg_node) {
       if (!CanInline(it.second)) {
@@ -112,17 +124,19 @@ class Inliner : ExprMutator {
     return true;
   }
 
-  // Make a new Relay expression to replace the callee.
-  Expr MakeNewExpr(const GlobalVar& global, const Array<Expr>& args, const Expr& callee) {
-    ICHECK(callee->IsInstance<CallNode>() || callee->IsInstance<GlobalVarNode>());
+  // Make a new Relay expression to replace \p expr.
+  Expr MakeNewExpr(const GlobalVar& global, const Array<Expr>& args, const Expr& expr) {
+    ICHECK(expr->IsInstance<CallNode>() || expr->IsInstance<GlobalVarNode>());
     auto base_func = call_graph_->GetGlobalFunction(global);
     const auto* fn = base_func.as<FunctionNode>();
     ICHECK(fn) << "Expected to work on a Relay function.";
 
+    // There is an inconsistency here, the function itself gets shallow-copied but the body is not
+    // shallow-copied.
     auto func = Function(fn->params, fn->body, fn->ret_type, fn->type_params, fn->attrs);
     // Inline the function body to the caller if this function uses default
     // compiler, i.e. no external codegen is needed.
-    if (!func->GetAttr<String>(attr::kCompiler).defined()) {
+    if (!func->GetAttr<String>(attr::kCompiler).defined() && !func->HasNonzeroAttr(attr::kExtern)) {
       ICHECK_EQ(func->params.size(), args.size())
           << "Mismatch found in the number of parameters and call args";
       // Bind the parameters with call args.
@@ -130,17 +144,17 @@ class Inliner : ExprMutator {
       for (size_t i = 0; i < args.size(); i++) {
         bind_map.Set(fn->params[i], args[i]);
       }
-      if (const auto* gvn = callee.as<GlobalVarNode>()) {
+      if (const auto* gvn = expr.as<GlobalVarNode>()) {
         auto ret_type = gvn->checked_type();
         // Cannot replace TensorType/TensorTupleType with FuncType. Therefore,
         // we simply inline the function as a closure instead of directly using
         // its body when the global var returns FuncType.
         return ret_type->IsInstance<FuncTypeNode>() ? std::move(func) : func->body;
       } else {
-        ICHECK(callee->IsInstance<CallNode>());
+        ICHECK(expr->IsInstance<CallNode>());
         return Bind(func->body, bind_map);
       }
-    } else if (const auto* call_node = callee.as<CallNode>()) {
+    } else if (const auto* call_node = expr.as<CallNode>()) {
       return Call(func, args, call_node->attrs, call_node->type_args);
     } else {
       return std::move(func);
@@ -186,6 +200,7 @@ IRModule Inline(const IRModule& module) {
     // `inline`.
     if (cgn->IsRecursive() || original_entry.count(cgn)) continue;
     auto base_func = cg->GetGlobalFunction(cgn->GetGlobalVar());
+    // Skip calls to PrimFuncs since they can't be inlined.
     if (const auto* fn = base_func.as<FunctionNode>()) {
       auto func = GetRef<Function>(fn);
       if (func->HasNonzeroAttr(attr::kInline)) {

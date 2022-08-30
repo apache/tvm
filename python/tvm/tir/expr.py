@@ -435,6 +435,10 @@ class IterVar(Object, ExprOp):
         name = var if var is not None else "iter"
         dtype = "int32" if dom is None else dom.extent.dtype
         var = Var(name, dtype=dtype, span=span) if not isinstance(var, Var) else var
+        if dom is not None:
+            assert (
+                var.dtype == dom.extent.dtype
+            ), "IterVar's Var dtype must match its domain's extent's dtype"
         self.__init_handle_by_constructor__(
             _ffi_api.IterVar, dom, var, iter_type, thread_tag, span  # type: ignore
         )

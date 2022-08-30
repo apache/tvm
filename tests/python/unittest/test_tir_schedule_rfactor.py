@@ -37,7 +37,7 @@ def transformed_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
         with T.block("update"):
             vi, vj = T.axis.remap("SS", [i0, i1])
             vk = T.axis.R(128, i2_outer * 32 + i2_inner_outer * 4 + i2_inner_inner)
-            T.reads([C[vi, vj], A[vi, vk], B[vj, vk]])
+            T.reads([A[vi, vk], B[vj, vk]])
             T.writes([C[vi, vj]])
             with T.init():
                 C[vi, vj] = 0.0
@@ -172,7 +172,7 @@ def transformed_square_sum_square_root(a: T.handle, d: T.handle) -> None:
             b = T.axis.S(16, i0)
             i = T.axis.R(256, T.floordiv(i1_i2_fused_outer, 256))
             j = T.axis.R(256, T.floormod(i1_i2_fused_outer, 256))
-            T.reads([C[b], A[b, i, j]])
+            T.reads([A[b, i, j]])
             T.writes([C[b]])
             with T.init():
                 C[b] = 0.0
@@ -212,6 +212,137 @@ def square_sum_square_root_rfactor(a: T.handle, d: T.handle) -> None:
         with T.block("D"):
             b_2 = T.axis.S(16, i0_2)
             D[b_2] = T.sqrt(C[b_2], dtype="float32")
+
+
+@T.prim_func
+def transformed_square_sum_square_root_factor_one_1(a: T.handle, d: T.handle) -> None:
+    A = T.match_buffer(a, [16, 256, 256])
+    D = T.match_buffer(d, [16])
+    C = T.alloc_buffer([16])
+
+    for i0, i1_i2_fused_outer, i1_i2_fused_inner in T.grid(16, 65536, 1):
+        with T.block("C"):
+            b = T.axis.S(16, i0)
+            i = T.axis.R(256, T.floordiv(i1_i2_fused_outer, 256))
+            j = T.axis.R(256, T.floormod(i1_i2_fused_outer, 256))
+            with T.init():
+                C[b] = 0.0
+            C[b] = C[b] + (A[b, i, j] * A[b, i, j])
+    for i0_1 in T.serial(0, 16):
+        with T.block("D"):
+            b_1 = T.axis.S(16, i0_1)
+            D[b_1] = T.sqrt(C[b_1], dtype="float32")
+
+
+@T.prim_func
+def square_sum_square_root_factor_one_1_rfactor(
+    A: T.Buffer[(16, 256, 256), "float32"], D: T.Buffer[(16,), "float32"]
+) -> None:
+    C = T.alloc_buffer([16], dtype="float32")
+    C_rf = T.alloc_buffer([1, 16], dtype="float32")
+    for i0, i1_i2_fused_outer, i1_i2_fused_inner in T.grid(16, 65536, 1):
+        with T.block("C_rf"):
+            b = T.axis.spatial(16, i0)
+            i = T.axis.reduce(256, i1_i2_fused_outer // 256)
+            j = T.axis.reduce(256, i1_i2_fused_outer % 256)
+            vi1_i2_fused_inner = T.axis.spatial(1, i1_i2_fused_inner)
+            with T.init():
+                C_rf[vi1_i2_fused_inner, b] = T.float32(0)
+            C_rf[vi1_i2_fused_inner, b] = C_rf[vi1_i2_fused_inner, b] + A[b, i, j] * A[b, i, j]
+    for i0, i1_i2_fused_inner in T.grid(16, 1):
+        with T.block("C"):
+            b, vi1_i2_fused_inner = T.axis.remap("SR", [i0, i1_i2_fused_inner])
+            with T.init():
+                C[b] = T.float32(0)
+            C[b] = C[b] + C_rf[vi1_i2_fused_inner, b]
+    for i0_1 in T.serial(16):
+        with T.block("D"):
+            b_1 = T.axis.spatial(16, i0_1)
+            D[b_1] = T.sqrt(C[b_1], dtype="float32")
+
+
+@T.prim_func
+def transformed_square_sum_square_root_factor_one_2(a: T.handle, d: T.handle) -> None:
+    A = T.match_buffer(a, [16, 256, 256])
+    D = T.match_buffer(d, [16])
+    C = T.alloc_buffer([16])
+
+    for i0, i1_i2_fused_outer, i1_i2_fused_inner in T.grid(16, 1, 65536):
+        with T.block("C"):
+            b = T.axis.S(16, i0)
+            i = T.axis.R(256, T.floordiv(i1_i2_fused_inner, 256))
+            j = T.axis.R(256, T.floormod(i1_i2_fused_inner, 256))
+            with T.init():
+                C[b] = 0.0
+            C[b] = C[b] + (A[b, i, j] * A[b, i, j])
+    for i0_1 in T.serial(0, 16):
+        with T.block("D"):
+            b_1 = T.axis.S(16, i0_1)
+            D[b_1] = T.sqrt(C[b_1], dtype="float32")
+
+
+@T.prim_func
+def square_sum_square_root_factor_one_2_rfactor(
+    A: T.Buffer[(16, 256, 256), "float32"], D: T.Buffer[(16,), "float32"]
+) -> None:
+    C = T.alloc_buffer([16], dtype="float32")
+    C_rf = T.alloc_buffer([16, 1], dtype="float32")
+    for i0, i1_i2_fused_outer, i1_i2_fused_inner in T.grid(16, 1, 65536):
+        with T.block("C_rf"):
+            b = T.axis.spatial(16, i0)
+            i = T.axis.reduce(256, i1_i2_fused_inner // 256)
+            j = T.axis.reduce(256, i1_i2_fused_inner % 256)
+            vi1_i2_fused_outer = T.axis.spatial(1, i1_i2_fused_outer)
+            with T.init():
+                C_rf[b, vi1_i2_fused_outer] = T.float32(0)
+            C_rf[b, vi1_i2_fused_outer] = C_rf[b, vi1_i2_fused_outer] + A[b, i, j] * A[b, i, j]
+    for i0, i1_i2_fused_outer in T.grid(16, 1):
+        with T.block("C"):
+            b, vi1_i2_fused_outer = T.axis.remap("SR", [i0, i1_i2_fused_outer])
+            with T.init():
+                C[b] = T.float32(0)
+            C[b] = C[b] + C_rf[b, vi1_i2_fused_outer]
+    for i0_1 in T.serial(16):
+        with T.block("D"):
+            b_1 = T.axis.spatial(16, i0_1)
+            D[b_1] = T.sqrt(C[b_1], dtype="float32")
+
+
+@T.prim_func
+def square_sum_with_annotation(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [16, 256, 256])
+    C = T.match_buffer(c, [16])
+
+    for b0, i0, j0 in T.grid(16, 256, 256):
+        with T.block("C"):
+            T.block_attr({"test_annotation": 1})
+            b, i, j = T.axis.remap("SRR", [b0, i0, j0])
+            with T.init():
+                C[b] = 0.0
+            C[b] = C[b] + A[b, i, j] * A[b, i, j]
+
+
+@T.prim_func
+def square_sum_with_annotation_rfactor(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [16, 256, 256])
+    C = T.match_buffer(c, [16])
+    C_rf = T.alloc_buffer([16, 256])
+
+    for i0, i1, i2 in T.grid(16, 256, 256):
+        with T.block("C_rf"):
+            T.block_attr({"test_annotation": 1})
+            vi2, b, i = T.axis.remap("SSR", [i2, i0, i1])
+            with T.init():
+                C_rf[b, vi2] = 0.0
+            C_rf[b, vi2] = C_rf[b, vi2] + (A[b, i, vi2] * A[b, i, vi2])
+
+    for i0_1, i2_1 in T.grid(16, 256):
+        with T.block("C"):
+            T.block_attr({"test_annotation": 1})
+            vi2_1, b_1 = T.axis.remap("RS", [i2_1, i0_1])
+            with T.init():
+                C[b_1] = 0.0
+            C[b_1] = C[b_1] + C_rf[b_1, vi2_1]
 
 
 @T.prim_func
@@ -341,9 +472,7 @@ def rowsum_zero_dim_rfactor(a: T.handle, b: T.handle) -> None:
     for i in range(128):
         with T.block("B_rf"):
             vi0 = T.axis.S(128, i)
-            with T.init():
-                B_rf[vi0] = 0.0
-            B_rf[vi0] = B_rf[vi0] + A[vi0]
+            B_rf[vi0] = A[vi0]
 
     for i in range(128):
         with T.block("B"):
@@ -473,6 +602,56 @@ def multiple_reduction_blocks_rfactor(a: T.handle, f: T.handle) -> None:
                     with T.init():
                         F[fi, fj] = 0.0
                     F[fi, fj] = (F[fi, fj] + A[fi, fj, fk]) + E[fi, fj]
+
+
+@T.prim_func
+def rfactor_spatial_only(
+    A: T.Buffer[(1, 512, 7, 7), "float32"],
+    B: T.Buffer[(1, 512, 1, 1), "float32"],
+) -> None:
+    for _i0, i1, _i2, _i3, i4, _i5 in T.grid(1, 512, 1, 1, 49, 1):
+        with T.block("acc"):
+            ax0 = T.axis.spatial(1, 0)
+            ax1 = T.axis.spatial(512, i1)
+            ax2 = T.axis.spatial(1, 0)
+            ax3 = T.axis.spatial(1, 0)
+            rv0 = T.axis.reduce(7, i4 // 7)
+            rv1 = T.axis.reduce(7, i4 % 7)
+            T.reads(A[ax0, ax1, ax2 * 7 + rv0, ax3 * 7 + rv1])
+            T.writes(B[ax0, ax1, ax2, ax3])
+            with T.init():
+                B[ax0, ax1, ax2, ax3] = T.float32(0)
+            B[ax0, ax1, ax2, ax3] = (
+                B[ax0, ax1, ax2, ax3] + A[ax0, ax1, ax2 * 7 + rv0, ax3 * 7 + rv1]
+            )
+
+
+@T.prim_func
+def rfactor_spatial_only_after(
+    A: T.Buffer[(1, 512, 7, 7), "float32"],
+    B: T.Buffer[(1, 512, 1, 1), "float32"],
+) -> None:
+    # body
+    # with T.block("root")
+    B_rf = T.alloc_buffer([1, 512, 1, 1, 49], dtype="float32")
+    for _i0, i1, _i2, _i3, i4, _i5 in T.grid(1, 512, 1, 1, 49, 1):
+        with T.block("acc_rf"):
+            vi4 = T.axis.spatial(49, i4)
+            ax0 = T.axis.spatial(1, 0)
+            ax1 = T.axis.spatial(512, i1)
+            ax2 = T.axis.spatial(1, 0)
+            ax3 = T.axis.spatial(1, 0)
+            B_rf[ax0, ax1, ax2, ax3, vi4] = A[ax0, ax1, ax2 * 7 + vi4 // 7, ax3 * 7 + vi4 % 7]
+    for _i0, i1, _i2, _i3, i4, _i5 in T.grid(1, 512, 1, 1, 49, 1):
+        with T.block("acc"):
+            vi4 = T.axis.reduce(49, i4)
+            ax0 = T.axis.spatial(1, 0)
+            ax1 = T.axis.spatial(512, i1)
+            ax2 = T.axis.spatial(1, 0)
+            ax3 = T.axis.spatial(1, 0)
+            with T.init():
+                B[ax0, ax1, ax2, ax3] = T.float32(0)
+            B[ax0, ax1, ax2, ax3] = B[ax0, ax1, ax2, ax3] + B_rf[ax0, ax1, ax2, ax3, vi4]
 
 
 # pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
@@ -653,12 +832,30 @@ def test_reduction_rfactor_predicate():  # pylint: disable=invalid-name
     s = tir.Schedule(rowsum_predicate, debug_mask="all")
     B = s.get_block("B")
     _, ko, _ = s.get_loops(B)
-    rf_block = s.rfactor(ko, 1)
-    tvm.ir.assert_structural_equal(s.mod["main"], rowsum_predicate_rfactor)
-    assert s.get(rf_block).same_as(s.get(s.get_block("B_rf")))
-    assert s.get(B).same_as(s.get(s.get_block("B")))
-    verify_trace_roundtrip(s, mod=rowsum_predicate)
+    # TODO: should be a tvm.tir.ScheduleError
+    with pytest.raises(tvm.TVMError):
+        rf_block = s.rfactor(ko, 1)
+
+
+def test_reduction_rfactor_with_annotation():
+    s = tir.Schedule(square_sum_with_annotation, debug_mask="all")
+    C = s.get_block("C")
+    _, _, j = s.get_loops(C)
+    rf_block = s.rfactor(j, 1)
+    tvm.ir.assert_structural_equal(s.mod["main"], square_sum_with_annotation_rfactor)
+    assert s.get(rf_block).same_as(s.get(s.get_block("C_rf")))
+    assert s.get(C).same_as(s.get(s.get_block("C")))
+    verify_trace_roundtrip(s, mod=square_sum_with_annotation)
+
+
+def test_reduction_rfactor_spatial_only():
+    s = tir.Schedule(rfactor_spatial_only, debug_mask="all")
+    block = s.get_block(name="acc", func_name="main")
+    _, _, _, _, loop, _ = s.get_loops(block)
+    s.rfactor(loop=loop, factor_axis=4)
+    tvm.ir.assert_structural_equal(s.mod["main"], rfactor_spatial_only_after)
+    verify_trace_roundtrip(s, mod=rfactor_spatial_only)
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

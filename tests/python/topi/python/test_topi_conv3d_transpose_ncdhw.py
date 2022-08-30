@@ -132,6 +132,18 @@ def test_conv3d_transpose_ncdhw():
     verify_conv3d_transpose_ncdhw(
         1, 8, (32, 32, 32), 64, (5, 5, 5), (2, 2, 2), (1, 1, 1, 1, 1, 1), (1, 1, 1)
     )
+    verify_conv3d_transpose_ncdhw(
+        1, 8, (32, 32, 32), 64, (3, 5, 7), (2, 2, 2), (1, 1, 1, 1, 1, 1), (0, 0, 0)
+    )
+    verify_conv3d_transpose_ncdhw(
+        1, 8, (32, 32, 32), 64, (3, 5, 5), (2, 2, 2), (1, 1, 1, 1, 1, 1), (0, 0, 0)
+    )
+    verify_conv3d_transpose_ncdhw(
+        1, 8, (32, 32, 32), 64, (3, 3, 7), (2, 2, 2), (1, 1, 1, 1, 1, 1), (0, 0, 0)
+    )
+    verify_conv3d_transpose_ncdhw(
+        1, 8, (32, 32, 32), 64, (3, 5, 3), (2, 2, 2), (1, 1, 1, 1, 1, 1), (0, 0, 0)
+    )
 
 
 if __name__ == "__main__":

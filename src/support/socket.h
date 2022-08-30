@@ -34,7 +34,6 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
-using ssize_t = int;
 #ifdef _MSC_VER
 #pragma comment(lib, "Ws2_32.lib")
 #endif
@@ -57,6 +56,7 @@ using ssize_t = int;
 #include <unordered_map>
 #include <vector>
 
+#include "../support/ssize.h"
 #include "../support/utils.h"
 
 #if defined(_WIN32)
@@ -516,7 +516,7 @@ class TCPSocket : public Socket {
         [&]() { return recv(sockfd, buf, static_cast<sock_size_t>(len), flags); });
   }
   /*!
-   * \brief peform block write that will attempt to send all data out
+   * \brief perform block write that will attempt to send all data out
    *    can still return smaller than request when error occurs
    * \param buf_ the pointer to the buffer
    * \param len the size of the buffer
@@ -538,7 +538,7 @@ class TCPSocket : public Socket {
     return ndone;
   }
   /*!
-   * \brief peform block read that will attempt to read all data
+   * \brief perform block read that will attempt to read all data
    *    can still return smaller than request when error occurs
    * \param buf_ the buffer pointer
    * \param len length of data to recv
@@ -654,7 +654,7 @@ struct PollHelper {
   }
 
   /*!
-   * \brief peform poll on the set defined, read, write, exception
+   * \brief perform poll on the set defined, read, write, exception
    * \param timeout specify timeout in milliseconds(ms) if negative, means poll will block
    * \return
    */

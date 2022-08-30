@@ -125,7 +125,7 @@ class GenericArena {
  private:
   /*! \brief internal page allocator. */
   PageAllocator alloc_;
-  /* \brief The the head of the allocated list. */
+  /* \brief The head of the allocated list. */
   ArenaPageHeader* head_{nullptr};
   /*! \brief The tail of the allocated list. */
   ArenaPageHeader* tail_{nullptr};

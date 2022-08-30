@@ -14,8 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
+import sys
 import numpy as np
 import tvm
+import tvm.testing
 from tvm import te
 from tvm import relay
 from tvm.relay.analysis import detect_feature
@@ -92,6 +95,34 @@ def test_if():
     expected_output = relay.Let(c, cond, expected_output)
     expected_output = run_opt_pass(expected_output, transform.InferType())
     assert tvm.ir.structural_equal(anf, expected_output)
+
+
+def test_let_as_subexpr():
+    def on_cpu(x):
+        return relay.annotation.on_device(x, tvm.device("cpu"), constrain_result=True)
+
+    x = relay.Var("x", relay.IncompleteType())
+    c = relay.const(1)
+    l = relay.Let(x, on_cpu(c + c), x)
+    body = l * l
+
+    anf = run_opt_pass(body, [transform.ToANormalForm(), transform.InferType()])
+
+    v0 = relay.Var("v0", relay.IncompleteType())
+    v1 = relay.Var("v1", relay.IncompleteType())
+    v2 = relay.Var("v2", relay.IncompleteType())
+    expected_output = relay.Let(
+        v0,
+        on_cpu(c),
+        relay.Let(
+            x,
+            on_cpu(v0 + v0),
+            relay.Let(v1, x, relay.Let(v2, v1 * v1, v2)),
+        ),
+    )
+    expected_output = run_opt_pass(expected_output, transform.InferType())
+
+    tvm.ir.assert_structural_equal(anf, expected_output)
 
 
 # make sure we dont infinite loop.
@@ -198,12 +229,4 @@ def test_gradient_if():
 
 
 if __name__ == "__main__":
-    test_explicit_bound()
-    test_order()
-    test_if()
-    test_recursion()
-    test_ref()
-    test_let()
-    test_nat_add()
-    test_function()
-    test_gradient_if()
+    tvm.testing.main()

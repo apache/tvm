@@ -90,6 +90,10 @@ TVM_REGISTER_GLOBAL("ir.OpGetAttr").set_body_typed([](Op op, String attr_name) -
   return rv;
 });
 
+TVM_REGISTER_GLOBAL("ir.OpHasAttr").set_body_typed([](Op op, String attr_name) -> bool {
+  return Op::HasAttrMap(attr_name);
+});
+
 TVM_REGISTER_GLOBAL("ir.OpSetAttr")
     .set_body_typed([](Op op, String attr_name, runtime::TVMArgValue value, int plevel) {
       auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
@@ -117,13 +121,13 @@ TVM_REGISTER_GLOBAL("ir.OpAddTypeRel")
       auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
       if (value.type_code() == kTVMPackedFuncHandle) {
         // do an eager copy of the PackedFunc to avoid deleting function from frontend.
-        PackedFunc* fcopy = new PackedFunc(value.operator tvm::runtime::PackedFunc());
+        PackedFunc fcopy = value;
         auto f = [=](const Array<Type>& args, int num_inputs, const Attrs& attrs,
                      const TypeReporter& reporter) -> bool {
           Array<Type> input_types(args.begin(), args.end() - 1);
           // call customized relation functions
           // *fcopy's signature: function (args: List[Type], attrs: Attrs) -> Type
-          Type ret_type = (*fcopy)(input_types, attrs);
+          Type ret_type = fcopy(input_types, attrs);
           // when defined ret_type, inference of output type is ok, do type assign
           // otherwise, inference failure happens
           if (ret_type.defined()) {
@@ -181,9 +185,7 @@ TVM_REGISTER_GLOBAL("ir.RegisterOpAttr")
         if (value.type_code() == kTVMPackedFuncHandle) {
           // do an eager copy of the PackedFunc
           PackedFunc f = value;
-          // If we get a function from frontend, avoid deleting it.
-          auto* fcopy = new PackedFunc(f);
-          reg.set_attr(attr_key, *fcopy, plevel);
+          reg.set_attr(attr_key, f, plevel);
         } else {
           reg.set_attr(attr_key, value, plevel);
         }

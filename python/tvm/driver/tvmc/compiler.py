@@ -25,20 +25,27 @@ from pathlib import Path
 import tvm
 from tvm import autotvm, auto_scheduler
 from tvm import relay
+from tvm.driver.tvmc.registry import generate_registry_args, reconstruct_registry_entity
+from tvm.ir.memory_pools import WorkspaceMemoryPools
 from tvm.target import Target
+from tvm.relay.backend import Executor, Runtime
 
-from . import common, composite_target, frontends
+from . import composite_target, frontends, TVMCException
 from .model import TVMCModel, TVMCPackage
 from .main import register_parser
-from .target import generate_target_args, reconstruct_target_args
-
+from .target import target_from_cli, generate_target_args, reconstruct_target_args
+from .pass_config import parse_configs
+from .pass_list import parse_pass_list_str
+from .transform import convert_graph_layout
+from .shape_parser import parse_shape_string
+from .workspace_pools import generate_workspace_pools_args, workspace_pools_recombobulate
 
 # pylint: disable=invalid-name
 logger = logging.getLogger("TVMC")
 
 
 @register_parser
-def add_compile_parser(subparsers):
+def add_compile_parser(subparsers, _, json_params):
     """Include parser for 'compile' subcommand"""
 
     parser = subparsers.add_parser("compile", help="compile a model.")
@@ -74,7 +81,7 @@ def add_compile_parser(subparsers):
         "-o",
         "--output",
         default="module.tar",
-        help="output the compiled module to a specifed archive. Defaults to 'module.tar'.",
+        help="output the compiled module to a specified archive. Defaults to 'module.tar'.",
     )
     parser.add_argument(
         "-f",
@@ -90,8 +97,10 @@ def add_compile_parser(subparsers):
         metavar=("name=value"),
         help="configurations to be used at compile time. This option can be provided multiple "
         "times, each one to set one configuration value, "
-        "e.g. '--pass-config relay.backend.use_auto_scheduler=0'.",
+        "e.g. '--pass-config relay.backend.use_auto_scheduler=0', "
+        "e.g. '--pass-config tir.add_lower_pass=opt_level1,pass1,opt_level2,pass2'.",
     )
+
     generate_target_args(parser)
     parser.add_argument(
         "--tuning-records",
@@ -100,24 +109,45 @@ def add_compile_parser(subparsers):
         help="path to an auto-tuning log file by AutoTVM. If not presented, "
         "the fallback/tophub configs will be used.",
     )
+    generate_registry_args(parser, Executor, "graph")
+    generate_registry_args(parser, Runtime, "cpp")
+
     parser.add_argument("-v", "--verbose", action="count", default=0, help="increase verbosity.")
     # TODO (@leandron) This is a path to a physical file, but
     #     can be improved in future to add integration with a modelzoo
     #     or URL, for example.
     parser.add_argument("FILE", help="path to the input model file.")
     parser.add_argument(
+        "-O",
+        "--opt-level",
+        default=3,
+        type=int,
+        choices=range(0, 4),
+        metavar="[0-3]",
+        help="specify which optimization level to use. Defaults to '3'.",
+    )
+    parser.add_argument(
         "--input-shapes",
         help="specify non-generic shapes for model to run, format is "
         '"input_name:[dim1,dim2,...,dimn] input_name2:[dim1,dim2]".',
-        type=common.parse_shape_string,
+        type=parse_shape_string,
         default=None,
     )
     parser.add_argument(
         "--disabled-pass",
         help="disable specific passes, comma-separated list of pass names.",
-        type=common.parse_pass_list_str,
+        type=parse_pass_list_str,
         default="",
     )
+    parser.add_argument(
+        "--module-name",
+        default="default",
+        help="The output module name. Defaults to 'default'.",
+    )
+    for one_entry in json_params:
+        parser.set_defaults(**one_entry)
+
+    generate_workspace_pools_args(parser)
 
 
 def drive_compile(args):
@@ -134,13 +164,25 @@ def drive_compile(args):
         Zero if successfully completed
 
     """
+
+    if not os.path.isfile(args.FILE):
+        raise TVMCException(
+            f"Input file '{args.FILE}' doesn't exist, is a broken symbolic link, or a directory."
+        )
+
     tvmc_model = frontends.load_model(args.FILE, args.model_format, args.input_shapes)
 
     dump_code = [x.strip() for x in args.dump_code.split(",")] if args.dump_code else None
 
+    additional_targets = reconstruct_target_args(args)
+    workspace_pools_target, extra_targets = target_from_cli(args.target, additional_targets)
+
     compile_model(
         tvmc_model,
         args.target,
+        opt_level=args.opt_level,
+        executor=reconstruct_registry_entity(args, Executor),
+        runtime=reconstruct_registry_entity(args, Runtime),
         tuning_records=args.tuning_records,
         package_path=args.output,
         cross=args.cross_compiler,
@@ -151,7 +193,11 @@ def drive_compile(args):
         desired_layout=args.desired_layout,
         disabled_pass=args.disabled_pass,
         pass_context_configs=args.pass_config,
-        additional_target_options=reconstruct_target_args(args),
+        mod_name=args.module_name,
+        additional_target_options=additional_targets,
+        workspace_pools=(
+            workspace_pools_recombobulate(args, [workspace_pools_target], extra_targets)
+        ),
     )
 
     return 0
@@ -160,6 +206,9 @@ def drive_compile(args):
 def compile_model(
     tvmc_model: TVMCModel,
     target: str,
+    opt_level: int = 3,
+    executor: Optional[Executor] = Executor("graph"),
+    runtime: Optional[Runtime] = Runtime("cpp"),
     tuning_records: Optional[str] = None,
     package_path: Optional[str] = None,
     cross: Optional[Union[str, Callable]] = None,
@@ -171,6 +220,9 @@ def compile_model(
     disabled_pass: Optional[str] = None,
     pass_context_configs: Optional[List[str]] = None,
     additional_target_options: Optional[Dict[str, Dict[str, Any]]] = None,
+    use_vm: bool = False,
+    mod_name: Optional[str] = "default",
+    workspace_pools: Optional[WorkspaceMemoryPools] = None,
 ):
     """Compile a model from a supported framework into a TVM module.
 
@@ -185,6 +237,8 @@ def compile_model(
     target : str
         The target for which to compile. Can be a plain string or
         a path.
+    opt_level : int
+        The option that controls various sorts of optimizations.
     tuning_records : str
         A path to tuning records produced using tvmc.tune. When provided,
         compilation will use more optimized kernels leading to better results.
@@ -216,7 +270,13 @@ def compile_model(
         PassContext.
     additional_target_options: Optional[Dict[str, Dict[str, Any]]]
         Additional target options in a dictionary to combine with initial Target arguments
-
+    use_vm: bool
+        Whether to use the VM to compile the model as opposed to the graph executor
+    mod_name: str, optional
+        The module name
+    workspace_pools: WorkspaceMemoryPools, optional
+        Specification of WorkspacePoolInfo objects to be used as workspace memory in the
+        compilation.
 
     Returns
     -------
@@ -226,20 +286,22 @@ def compile_model(
     """
     mod, params = tvmc_model.mod, tvmc_model.params
 
-    config = common.parse_configs(pass_context_configs)
+    config = parse_configs(pass_context_configs)
 
     if desired_layout:
-        mod = common.convert_graph_layout(mod, desired_layout)
+        mod = convert_graph_layout(mod, desired_layout)
 
-    tvm_target, extra_targets = common.target_from_cli(target, additional_target_options)
-    tvm_target, target_host = Target.check_and_update_host_consist(tvm_target, target_host)
+    tvm_target, extra_targets = target_from_cli(target, additional_target_options)
+    tvm_target, target_host = Target.canon_target_and_host(tvm_target, target_host)
 
     for codegen_from_cli in extra_targets:
         codegen = composite_target.get_codegen_by_target(codegen_from_cli["name"])
         partition_function = codegen["pass_pipeline"]
-        mod = partition_function(mod, params, **codegen_from_cli["opts"])
+
         if codegen["config_key"] is not None:
             config[codegen["config_key"]] = codegen_from_cli["opts"]
+        with tvm.transform.PassContext(config=config):
+            mod = partition_function(mod, params, mod_name=mod_name, **codegen_from_cli["opts"])
 
     if tuning_records and os.path.exists(tuning_records):
         logger.debug("tuning records file provided: %s", tuning_records)
@@ -254,21 +316,50 @@ def compile_model(
             with auto_scheduler.ApplyHistoryBest(tuning_records):
                 config["relay.backend.use_auto_scheduler"] = True
                 with tvm.transform.PassContext(
-                    opt_level=3, config=config, disabled_pass=disabled_pass
+                    opt_level=opt_level, config=config, disabled_pass=disabled_pass
                 ):
                     logger.debug("building relay graph with autoscheduler")
-                    graph_module = relay.build(mod, target=tvm_target, params=params)
+                    graph_module = build(
+                        mod,
+                        tvm_target=tvm_target,
+                        executor=executor,
+                        runtime=runtime,
+                        params=params,
+                        use_vm=use_vm,
+                        mod_name=mod_name,
+                        workspace_pools=workspace_pools,
+                    )
         else:
             with autotvm.apply_history_best(tuning_records):
                 with tvm.transform.PassContext(
-                    opt_level=3, config=config, disabled_pass=disabled_pass
+                    opt_level=opt_level, config=config, disabled_pass=disabled_pass
                 ):
                     logger.debug("building relay graph with tuning records")
-                    graph_module = relay.build(mod, target=tvm_target, params=params)
+                    graph_module = build(
+                        mod,
+                        tvm_target=tvm_target,
+                        executor=executor,
+                        runtime=runtime,
+                        params=params,
+                        use_vm=use_vm,
+                        mod_name=mod_name,
+                        workspace_pools=workspace_pools,
+                    )
     else:
-        with tvm.transform.PassContext(opt_level=3, config=config, disabled_pass=disabled_pass):
+        with tvm.transform.PassContext(
+            opt_level=opt_level, config=config, disabled_pass=disabled_pass
+        ):
             logger.debug("building relay graph (no tuning records provided)")
-            graph_module = relay.build(mod, target=tvm_target, params=params)
+            graph_module = build(
+                mod,
+                tvm_target=tvm_target,
+                executor=executor,
+                runtime=runtime,
+                params=params,
+                use_vm=use_vm,
+                mod_name=mod_name,
+                workspace_pools=workspace_pools,
+            )
 
     # Generate output dump files with sources
     if dump_code is None:
@@ -277,7 +368,10 @@ def compile_model(
         dump_code = [dump_code]
     dumps = {}
     for source_type in dump_code:
-        lib = graph_module.get_lib()
+        if use_vm:
+            lib = graph_module.lib
+        else:
+            lib = graph_module.get_lib()
         # TODO lib.get_source call have inconsistent behavior for unsupported
         #      formats (@leandron).
         source = str(mod) if source_type == "relay" else lib.get_source(source_type)
@@ -285,11 +379,7 @@ def compile_model(
 
     # Create a new tvmc model package object from the graph definition.
     package_path = tvmc_model.export_package(
-        graph_module,
-        package_path,
-        cross,
-        cross_options,
-        output_format,
+        graph_module, package_path, cross, cross_options, output_format
     )
 
     # Write dumps to file.
@@ -297,6 +387,53 @@ def compile_model(
         save_dumps(package_path, dumps)
 
     return TVMCPackage(package_path)
+
+
+def build(
+    mod: tvm.IRModule,
+    tvm_target: str,
+    executor: Executor,
+    runtime: Runtime,
+    params: Dict[str, tvm.nd.NDArray],
+    use_vm: bool,
+    mod_name: str,
+    workspace_pools: Optional[WorkspaceMemoryPools],
+):
+    """
+    Builds the model with the provided executor.
+
+    Parameters
+    ----------
+    mod : tvm.IRModule
+        The relay module corresponding to this model.
+    tvm_target : str
+        The target for which to compile. Can be a plain string or
+        a path.
+    executor : Executor
+        The graph executor to build the model if use_vm is not True
+    runtime : Runtime
+        The runtime configuration.
+    params : dict
+        A parameter dictionary for the model.
+    use_vm: bool
+        Whether to use the VM to compile the model as opposed to the graph executor
+    mod_name: str
+        The module name
+
+    """
+    if use_vm:
+        logger.debug("building with vm compile")
+        return relay.vm.compile(mod, target=tvm_target, params=params)
+    logger.debug("building with relay build")
+    return relay.build(
+        mod,
+        target=tvm_target,
+        executor=executor,
+        runtime=runtime,
+        params=params,
+        mod_name=mod_name,
+        workspace_memory_pools=workspace_pools,
+    )
 
 
 def save_dumps(module_name: str, dumps: Dict[str, str], dump_root: str = "."):

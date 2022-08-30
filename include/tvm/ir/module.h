@@ -40,7 +40,9 @@
 #include <vector>
 
 namespace tvm {
+
 class IRModule;
+
 /*!
  * \brief IRModule that holds functions and type definitions.
  *
@@ -302,6 +304,12 @@ class IRModuleNode : public Object {
   TVM_DLL void ImportFromStd(const String& path);
 
   /*!
+   * \brief Should Link Parameters into the module
+   * \return Whether the Executor is configured to execute with linked parameters (Default: false)
+   */
+  TVM_DLL Bool ShouldLinkParameters() const;
+
+  /*!
    * \brief The set of imported files.
    */
   TVM_DLL std::unordered_set<String> Imports() const;
@@ -314,14 +322,6 @@ class IRModuleNode : public Object {
  private:
   /*! \brief Helper function for registering a typedef's constructors */
   void RegisterConstructors(const GlobalTypeVar& var, const TypeData& type);
-
-  /*!
-   * \brief Returns a version of \p name which is unique amongst all function definitions in module.
-   *
-   * \param name The original name.
-   * \return Updated name which is unique.
-   */
-  String GetUniqueName(const String& name);
 
   /*! \brief A map from string names to global variables that
    * ensures global uniqueness.
@@ -468,5 +468,83 @@ TVM_DLL String PrettyPrint(const ObjectRef& node);
  */
 TVM_DLL String AsText(const ObjectRef& node, bool show_meta_data = true,
                       runtime::TypedPackedFunc<String(ObjectRef)> annotate = nullptr);
+
+namespace attr {
+
+// Following are attributes for IRModule only.
+
+/*!
+ * \brief Name of the module
+ *
+ * Type: String
+ *
+ * \sa tvm::runtime::String
+ */
+constexpr const char* kModuleName = "mod_name";
+
+/*!
+ * \brief Executor targeted by the module
+ *
+ * Type: Executor
+ *
+ * \sa tvm::relay::Executor
+ */
+constexpr const char* kExecutor = "executor";
+
+/*!
+ * \brief Runtime target of the module
+ *
+ * Type: Runtime
+ *
+ * \sa tvm::relay::Runtime
+ */
+constexpr const char* kRuntime = "runtime";
+
+/*!
+ * \brief workspace memory pools of the module
+ *
+ * Type: WorkspaceMemoryPools
+ *
+ * \sa tvm::WorkspaceMemoryPools
+ */
+constexpr const char* kWorkspaceMemoryPools = "workspace_memory_pools";
+
+/*!
+ * \brief constant memory pools of the module
+ *
+ * Type: ConstantMemoryPools
+ *
+ * \sa tvm::ConstantMemoryPools
+ */
+constexpr const char* kConstantMemoryPools = "constant_memory_pools";
+
+/*
+ * \brief All the runtime::NDArrays extracted from PrimFunc tir::AllocateConst nodes. The
+ * node will record the index into this array. See also kConstNameToConstant below, which is
+ * the analog for Realy Functions.
+ *
+ * Type: Array<runtime::NDArray>
+ */
+constexpr const char* kConstants = "constants";
+
+/*!
+ * \brief All the runtime::Modules accumulated during compilation by external codegen. These
+ * modules must be either directly linked or captured in the final compilation artifact.
+ *
+ * Type: Array<runtime::Module>
+ */
+constexpr const char* kExternalMods = "external_mods";
+
+/*!
+ * \brief All the named runtime::NDArrays accumulated during compilation by external codegen.
+ * Generally the associated runtime::Module will indicate it requires bindings for these names,
+ * and during module initialization these bindings will be recovered from a ConstLoaderModule.
+ * See also kConstantsArray above, which is the analog for PrimFuncs.
+ *
+ * Type: Map<String, runtime::NDArray>
+ */
+constexpr const char* kConstNameToConstant = "const_name_to_constant";
+
+}  // namespace attr
 }  // namespace tvm
 #endif  // TVM_IR_MODULE_H_

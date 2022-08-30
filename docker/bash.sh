@@ -35,7 +35,6 @@
 
 set -euo pipefail
 
-
 function show_usage() {
     cat <<EOF
 Usage: docker/bash.sh [-i|--interactive] [--net=host] [-t|--tty]
@@ -81,9 +80,17 @@ Usage: docker/bash.sh [-i|--interactive] [--net=host] [-t|--tty]
     as the external location of the repository, to maintain
     compatibility with git-worktree.
 
+--no-gpu
+
+    Do not use GPU device drivers even if using an CUDA Docker image
+
 --dry-run
 
     Print the docker command to be run, but do not execute it.
+
+--env
+
+    Pass an environment variable through to the container.
 
 --name
 
@@ -120,6 +127,7 @@ DRY_RUN=false
 INTERACTIVE=false
 TTY=false
 USE_NET_HOST=false
+USE_GPU=true
 DOCKER_IMAGE_NAME=
 COMMAND=bash
 MOUNT_DIRS=( )
@@ -129,6 +137,9 @@ CONTAINER_NAME=
 # "${REPO_DIR}".  The consistent directory for Jenkins is currently
 # necessary to allow cmake build commands to run in CI after the build
 # steps.
+# TODO(https://github.com/apache/tvm/issues/11952): 
+# Figure out a better way to keep the same path
+# between build and testing stages.
 if [[ -n "${JENKINS_HOME:-}" ]]; then
     REPO_MOUNT_POINT=/workspace
 else
@@ -149,6 +160,7 @@ function parse_error() {
 # to overwrite the parent scope's behavior.
 break_joined_flag='if (( ${#1} == 2 )); then shift; else set -- -"${1#-i}" "${@:2}"; fi'
 
+DOCKER_ENV=( )
 
 while (( $# )); do
     case "$1" in
@@ -195,8 +207,18 @@ while (( $# )); do
             fi
             ;;
 
+        --env)
+            DOCKER_ENV+=( --env "$2" )
+            shift 2
+            ;;
+
         --dry-run)
             DRY_RUN=true
+            shift
+            ;;
+
+        --no-gpu)
+            USE_GPU=false
             shift
             ;;
 
@@ -263,7 +285,6 @@ fi
 source "$(dirname $0)/dev_common.sh" || exit 2
 
 DOCKER_FLAGS=( )
-DOCKER_ENV=( )
 DOCKER_MOUNT=( )
 DOCKER_DEVICES=( )
 
@@ -271,7 +292,15 @@ DOCKER_DEVICES=( )
 # If the user gave a shortcut defined in the Jenkinsfile, use it.
 EXPANDED_SHORTCUT=$(lookup_image_spec "${DOCKER_IMAGE_NAME}")
 if [ -n "${EXPANDED_SHORTCUT}" ]; then
-    DOCKER_IMAGE_NAME="${EXPANDED_SHORTCUT}"
+    if [ "${CI+x}" == "x" ]; then
+        DOCKER_IMAGE_NAME="${EXPANDED_SHORTCUT}"
+    else
+        python3 tests/scripts/determine_docker_images.py "$DOCKER_IMAGE_NAME=$EXPANDED_SHORTCUT" 2> /dev/null
+        DOCKER_IMAGE_NAME=$(cat ".docker-image-names/$DOCKER_IMAGE_NAME")
+        if [[ "$DOCKER_IMAGE_NAME" == *"tlcpackstaging"* ]]; then
+            echo "WARNING: resolved docker image to fallback tag in tlcpackstaging" >&2
+        fi
+    fi
 fi
 
 # Set up working directories
@@ -340,7 +369,7 @@ done
 # Use nvidia-docker for GPU container.  If nvidia-docker is not
 # available, fall back to using "--gpus all" flag, requires docker
 # version 19.03 or higher.
-if [[ "${DOCKER_IMAGE_NAME}" == *"gpu"* || "${DOCKER_IMAGE_NAME}" == *"cuda"* ]]; then
+if [[ "$USE_GPU" == "true" ]] && [[ "${DOCKER_IMAGE_NAME}" == *"gpu"* || "${DOCKER_IMAGE_NAME}" == *"cuda"* ]]; then
     if type nvidia-docker 1> /dev/null 2> /dev/null; then
         DOCKER_BINARY=nvidia-docker
     else

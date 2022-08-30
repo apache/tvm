@@ -24,12 +24,15 @@
 #ifndef TVM_RUNTIME_PIPELINE_PIPELINE_EXECUTOR_H_
 #define TVM_RUNTIME_PIPELINE_PIPELINE_EXECUTOR_H_
 
+#include <tvm/relay/expr.h>
 #include <tvm/runtime/registry.h>
 
 #include <array>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "pipeline_scheduler.h"
@@ -67,14 +70,71 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
    * \return The corresponding packed function.
    */
   virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
-
+  /*!
+   * \brief Using the global input name to get the index, and also get the input interface name
+     of corresponding subgraph from the input connection configuration.
+   * \param The global input name.
+   * \return Returning the index and the input interface name of corresponding subgraph.
+   */
+  Array<String> GetInputPipeplineMap(std::string input_name);
+  /*!
+   * \brief This function return a module index for the global parameters group name.
+   * \param name The parameters group name.
+   * \return Returning a runtime module index.
+   */
+  int GetParamsGroupPipelineMap(const std::string& name);
+  /*!
+   * \brief Use the input name to set the input data of pipeline executor.
+   * \param input_name The input name.
+   * \param data_in The input data.
+   */
+  void SetInput(std::string input_name, DLTensor* data_in);
+  /*!
+   * \brief Use the input name to get the input data.
+   * \param input name The input name.
+   * \return Return input data.
+   */
+  NDArray GetInput(std::string input_name);
+  /*!
+   * \brief Getting the count of running pipeline.
+   */
+  int GetExecutionCount();
+  /*!
+   * \brief Use the parameters group name to get the specific backend runtime then use
+   *  the param_key_name to set param data for the said backend runtime.
+   * \param param_group_name The parameters group name.
+   * \param param_key_name The parameter key name.
+   * \param data_in The parameter value.
+   */
+  void SetParam(std::string param_group_name, std::string param_key_name, DLTensor* data_in);
   /*!
    * \brief Get the number of outputs.
    *
    * \return The number of outputs.
    */
   int NumOutputs() const { return num_outputs_; }
-
+  /*!\brief Run the pipeline executor.*/
+  void Run();
+  int NumInputs();
+  /*!
+   * \brief Get a list output data.
+   * \return A list of output data.
+   */
+  Array<NDArray> GetOutput();
+  /*!
+   * \brief A pipeline params with a specific name correspond with the params of a specific
+   *  backend module, this function return the module index for the params name.
+   * \param name The parameters group name.
+   * \return Return backend runtime module index.
+   */
+  int GetParamModuleIndex(const std::string& name);
+  /*!
+   * \brief A pipeline input with a specific name correspond with a input of a specific
+   *  backend module, this function return a module index and a input index in "pair"
+   *  form for a input name.
+   *  return Return a module index and a input index.
+   */
+  std::pair<int, int> GetInputIndex(const std::string& name);
   /*!\brief Load the module files information.*/
   ModuleConfig& LoadModuleConfig(dmlc::JSONReader* reader) {
     reader->BeginArray();
@@ -115,37 +175,34 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
   /*!\brief The class used to execute and schedule the pipeline logic.*/
   PipelineScheduler pipeline_scheduler_;
   /*!\brief The dependency information of each graph runtime module of the pipeline.*/
-  PipelineConfig pipeline_config_;
+  ConfigPipelineExecution pipeline_config_;
+  /*!\brief The map of global input and subgraph input.*/
+  InputConnectionConfig input_connection_config_;
+  /*!\brief The map includes global parameters groups and runtime modules.*/
+  ParamConnectionConfig param_connection_config_;
   /*!\brief The module information used to create the graph runtimes.*/
   ModuleConfig mod_config_;
   /*!\brief How many outputs are in this pipeline executor.*/
   size_t num_outputs_ = 0;
+  /*!The list of backend runtime module.*/
+  std::vector<std::shared_ptr<BackendRuntime>> runtimes_;
+  std::shared_ptr<GlobalRuntime> global_runtime_;
   /*!\brief Json loader.*/
-  PipelineConfig& LoadPipelineConfig(dmlc::JSONReader* reader) {
-    reader->BeginArray();
-    while (reader->NextArrayItem()) {
-      std::string key;
-      reader->BeginObject();
-      int mod_idx = -1;
-      OutputMap output;
-      std::string dev;
-      while (reader->NextObjectItem(&key)) {
-        if (key == "mod_idx") {
-          reader->Read(&mod_idx);
-        } else if (key == "dev") {
-          reader->Read(&dev);
-        } else if (key == "output") {
-          reader->Read(&output);
-        } else {
-          LOG(FATAL) << "do not support key " << key;
-        }
+  void LoadConfig(dmlc::JSONReader* reader) {
+    reader->BeginObject();
+    std::string key;
+    while (reader->NextObjectItem(&key)) {
+      if (key == "module_connection") {
+        reader->Read(&pipeline_config_);
+      } else if (key == "input_connection") {
+        reader->Read(&input_connection_config_);
+      } else if (key == "param_connection") {
+        reader->Read(&param_connection_config_);
+      } else {
+        LOG(FATAL) << "do not support key " << key;
       }
-      ICHECK(mod_idx >= 0) << "Invalid mod_idx value " << mod_idx;
-      // Check if the output is successfully read.
-      ICHECK(!output.Empty()) << "Invalid output binding result.";
-      pipeline_config_.Insert(mod_idx, output);
     }
-    return pipeline_config_;
+    return;
   }
 };
 }  // namespace runtime

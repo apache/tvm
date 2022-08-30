@@ -35,14 +35,14 @@ namespace te {
 
 using namespace tir;
 
-// Detect the region of input and output to be tensrized.
+// Detect the region of input and output to be tensorized.
 // out_dom: the domain of root iter vars in output op
 // in_region: region of each input tensor.
 // return The location of the tensorized scope start.
 size_t InferTensorizeRegion(const ComputeOpNode* self, const Stage& stage,
                             const std::unordered_map<IterVar, Range>& dom_map,
                             std::unordered_map<IterVar, Range>* out_dom,
-                            std::unordered_map<Tensor, Array<Range> >* in_region) {
+                            std::unordered_map<Tensor, Array<Range>>* in_region) {
   // Get the bound of the tensorized scope.
   bool found_point = false;
   size_t loc_scope = 0;
@@ -198,7 +198,7 @@ class TensorIntrinMatcher final : public StmtExprMutator {
   void Init(const ComputeOpNode* self, const Stage& stage,
             const std::unordered_map<IterVar, Range>& dom_map,
             const std::unordered_map<IterVar, Range>& out_dom,
-            const std::unordered_map<Tensor, Array<Range> >& in_region, const TensorIntrin& intrin,
+            const std::unordered_map<Tensor, Array<Range>>& in_region, const TensorIntrin& intrin,
             Map<Var, Range>* compute_intrin_iter_space) {
     ICHECK(self == stage->op.get());
 
@@ -298,7 +298,7 @@ class TensorIntrinMatcher final : public StmtExprMutator {
 Array<PrimExpr> MatchTensorizeBody(const ComputeOpNode* self, const Stage& stage,
                                    const std::unordered_map<IterVar, Range>& dom_map,
                                    const std::unordered_map<IterVar, Range>& out_dom,
-                                   const std::unordered_map<Tensor, Array<Range> >& in_region,
+                                   const std::unordered_map<Tensor, Array<Range>>& in_region,
                                    const TensorIntrin& intrin,
                                    Map<Var, Range>* compute_intrin_iter_space) {
   TensorIntrinMatcher matcher;
@@ -314,7 +314,7 @@ void VerifyTensorizeBody(const ComputeOpNode* self, const Stage& stage,
                          const std::unordered_map<IterVar, PrimExpr>& value_map,
                          const std::unordered_map<IterVar, Range>& dom_map,
                          const std::unordered_map<IterVar, Range>& out_dom,
-                         const std::unordered_map<Tensor, Array<Range> >& in_region,
+                         const std::unordered_map<Tensor, Array<Range>>& in_region,
                          const TensorIntrin& intrin) {
   StructuralEqual expr_equal;
   Map<Var, Range> compute_intrin_iter_space;
@@ -346,7 +346,7 @@ Stmt MakeTensorize(const ComputeOpNode* self, const Stage& stage,
                    const std::unordered_map<IterVar, Range>& dom_map,
                    bool debug_keep_trivial_loop) {
   std::unordered_map<IterVar, Range> out_dom;
-  std::unordered_map<Tensor, Array<Range> > in_region;
+  std::unordered_map<Tensor, Array<Range>> in_region;
   size_t tloc = InferTensorizeRegion(self, stage, dom_map, &out_dom, &in_region);
   TensorIntrin intrin = stage->iter_var_attrs.at(stage->leaf_iter_vars[tloc])->tensor_intrin;
   ICHECK(intrin.defined());
@@ -418,7 +418,7 @@ Stmt MakeTensorize(const ComputeOpNode* self, const Stage& stage,
   }
   if (tloc <= n.num_common_loop) {
     // Do no need to split reduction
-    std::vector<std::vector<Stmt> > nest(n.main_nest.begin(), n.main_nest.begin() + tloc + 1);
+    std::vector<std::vector<Stmt>> nest(n.main_nest.begin(), n.main_nest.begin() + tloc + 1);
     nest.emplace_back(MakeIfNest(n.main_predicates));
     ICHECK_EQ(n.init_predicates.size(), 0U);
     ICHECK(intrin->body.defined()) << "Normal store op for intrin " << intrin << " is not defined";
@@ -434,16 +434,15 @@ Stmt MakeTensorize(const ComputeOpNode* self, const Stage& stage,
         << "Reduction update op for intrin " << intrin << " is not defined";
     // Need init and update steps
     ICHECK_NE(self->reduce_axis.size(), 0U);
-    std::vector<std::vector<Stmt> > common(n.main_nest.begin(),
-                                           n.main_nest.begin() + n.num_common_loop + 1);
-    std::vector<std::vector<Stmt> > update_nest(n.main_nest.begin() + n.num_common_loop + 1,
-                                                n.main_nest.begin() + tloc + 1);
+    std::vector<std::vector<Stmt>> common(n.main_nest.begin(),
+                                          n.main_nest.begin() + n.num_common_loop + 1);
+    std::vector<std::vector<Stmt>> update_nest(n.main_nest.begin() + n.num_common_loop + 1,
+                                               n.main_nest.begin() + tloc + 1);
     update_nest.emplace_back(MakeIfNest(n.main_predicates));
 
     if (intrin->reduce_init.defined()) {
       // init nest
-      std::vector<std::vector<Stmt> > init_nest(n.init_nest.begin(),
-                                                n.init_nest.begin() + tloc + 1);
+      std::vector<std::vector<Stmt>> init_nest(n.init_nest.begin(), n.init_nest.begin() + tloc + 1);
       init_nest.emplace_back(MakeIfNest(n.init_predicates));
       Stmt init = MergeNest(output_bind_nest, intrin->reduce_init);
       init = te::Substitute(init, n.init_vmap);
@@ -476,17 +475,17 @@ TVM_REGISTER_GLOBAL("test.op.InferTensorizeRegion").set_body([](TVMArgs args, TV
   Stage stage = args[0];
   Map<IterVar, Range> dmap = args[1];
   std::unordered_map<IterVar, Range> out_dom;
-  std::unordered_map<Tensor, Array<Range> > in_region;
+  std::unordered_map<Tensor, Array<Range>> in_region;
   ICHECK(stage->op.as<ComputeOpNode>());
   InferTensorizeRegion(stage->op.as<ComputeOpNode>(), stage, as_unordered_map(dmap), &out_dom,
                        &in_region);
-  *ret = Array<ObjectRef>{Map<IterVar, Range>(out_dom), Map<Tensor, Array<Range> >(in_region)};
+  *ret = Array<ObjectRef>{Map<IterVar, Range>(out_dom), Map<Tensor, Array<Range>>(in_region)};
 });
 
 TVM_REGISTER_GLOBAL("test.op.MatchTensorizeBody").set_body([](TVMArgs args, TVMRetValue* ret) {
   Stage stage = args[0];
   Map<IterVar, Range> out_dom = args[1];
-  Map<Tensor, Array<Range> > in_region = args[2];
+  Map<Tensor, Array<Range>> in_region = args[2];
   TensorIntrin intrin = args[3];
   Map<Var, Range> vrange;
   ICHECK(stage->op.as<ComputeOpNode>());

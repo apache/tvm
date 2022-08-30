@@ -25,6 +25,7 @@
 #define TVM_RELAY_ATTRS_DEVICE_COPY_H_
 
 #include <tvm/ir/attrs.h>
+#include <tvm/target/virtual_device.h>
 
 #include <string>
 
@@ -35,17 +36,14 @@ namespace relay {
  * \brief Options for the device copy operators.
  */
 struct DeviceCopyAttrs : public tvm::AttrsNode<DeviceCopyAttrs> {
-  // TODO(mbs): Should be TargetDevice.
-  int dst_dev_type;
-  int src_dev_type;
+  VirtualDevice src_virtual_device = VirtualDevice::FullyUnconstrained();
+  VirtualDevice dst_virtual_device = VirtualDevice::FullyUnconstrained();
 
   TVM_DECLARE_ATTRS(DeviceCopyAttrs, "relay.attrs.DeviceCopyAttrs") {
-    TVM_ATTR_FIELD(src_dev_type)
-        .describe("The virtual device/context type where the op copies data from.")
-        .set_default(0);
-    TVM_ATTR_FIELD(dst_dev_type)
-        .describe("The virtual device/context type where the op copies data to.")
-        .set_default(0);
+    TVM_ATTR_FIELD(src_virtual_device)
+        .describe("The (virtual) device and scope where the op copies data from.");
+    TVM_ATTR_FIELD(dst_virtual_device)
+        .describe("The (virtual) device and scope where the op copies data to.");
   }
 };
 

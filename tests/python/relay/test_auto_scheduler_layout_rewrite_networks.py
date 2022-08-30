@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test layout rewrite support for whole neural networks"""
+import sys
 import tempfile
+import pytest
 
 import numpy as np
 
@@ -135,9 +137,8 @@ def get_relay_batchmm(batch=4, m=128, n=128, k=128):
     return mod, data, weight
 
 
-def tune_and_check(mod, data, weight):
+def tune_and_check(mod, data, weight, target, dev):
     # Extract tasks from a relay program
-    target = tvm.target.Target("llvm")
     tasks, task_weights = auto_scheduler.extract_tasks(
         mod, target=target, params={"weight": weight}
     )
@@ -168,7 +169,6 @@ def tune_and_check(mod, data, weight):
             lib2 = relay.build(mod, target=target, params={"weight": weight})
 
         def get_output(data, lib):
-            dev = tvm.cpu()
             module = graph_executor.GraphModule(lib["default"](dev))
             module.set_input("data", data)
             module.run()
@@ -182,34 +182,36 @@ def tune_and_check(mod, data, weight):
         tvm.testing.assert_allclose(actual_output, expected_output, rtol=1e-4, atol=2e-4)
 
 
-def test_conv2d():
+# layout rewriting only works on CPU targets
+@tvm.testing.parametrize_targets("llvm", "llvm -device=arm_cpu")
+def test_conv2d(target, dev):
     mod, data, weight = get_relay_conv2d(kh=1, kw=1)
-    tune_and_check(mod, data, weight)
+    tune_and_check(mod, data, weight, target, dev)
 
 
-def test_conv2d_winograd():
+@tvm.testing.parametrize_targets("llvm", "llvm -device=arm_cpu")
+def test_conv2d_winograd(target, dev):
     mod, data, weight = get_relay_conv2d(outc=128, kh=3, kw=3)
-    tune_and_check(mod, data, weight)
+    tune_and_check(mod, data, weight, target, dev)
 
 
-def test_conv3d():
+@tvm.testing.parametrize_targets("llvm", "llvm -device=arm_cpu")
+def test_conv3d(target, dev):
     mod, data, weight = get_relay_conv3d()
-    tune_and_check(mod, data, weight)
+    tune_and_check(mod, data, weight, target, dev)
 
 
-def test_dense():
+@tvm.testing.parametrize_targets("llvm", "llvm -device=arm_cpu")
+def test_dense(target, dev):
     mod, data, weight = get_relay_dense()
-    tune_and_check(mod, data, weight)
+    tune_and_check(mod, data, weight, target, dev)
 
 
-def test_batch_matmul():
+@tvm.testing.parametrize_targets("llvm", "llvm -device=arm_cpu")
+def test_batch_matmul(target, dev):
     mod, data, weight = get_relay_batchmm()
-    tune_and_check(mod, data, weight)
+    tune_and_check(mod, data, weight, target, dev)
 
 
 if __name__ == "__main__":
-    test_conv2d()
-    test_conv2d_winograd()
-    test_conv3d()
-    test_dense()
-    test_batch_matmul()
+    tvm.testing.main()

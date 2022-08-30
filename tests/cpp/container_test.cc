@@ -26,8 +26,14 @@
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 
+#include <algorithm>
+#include <cstring>
+#include <functional>
+#include <iterator>
 #include <new>
+#include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 using namespace tvm;
@@ -342,7 +348,7 @@ TEST(Map, Insert) {
     ICHECK_EQ(result.size(), expected.size());
     for (const auto& kv : result) {
       ICHECK(expected.count(kv.first));
-      ICHECK_EQ(expected[kv.first], kv.second.operator int64_t());
+      ICHECK_EQ(expected[kv.first], kv.second.IntValue());
       expected.erase(kv.first);
     }
   };
@@ -364,12 +370,14 @@ TEST(Map, Erase) {
     ICHECK_EQ(result.size(), expected.size());
     for (const auto& kv : result) {
       ICHECK(expected.count(kv.first));
-      ICHECK_EQ(expected[kv.first], kv.second.operator int64_t());
+      ICHECK_EQ(expected[kv.first], kv.second.IntValue());
       expected.erase(kv.first);
     }
   };
   Map<String, Integer> map{{"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}, {"e", 5}};
-  std::unordered_map<std::string, int64_t> stl(map.begin(), map.end());
+  std::unordered_map<std::string, int64_t> stl;
+  std::transform(map.begin(), map.end(), std::inserter(stl, stl.begin()),
+                 [](auto&& p) { return std::make_pair(p.first, p.second.IntValue()); });
   for (char c = 'a'; c <= 'e'; ++c) {
     Map<String, Integer> result = map;
     std::unordered_map<std::string, int64_t> expected(stl);
@@ -379,6 +387,21 @@ TEST(Map, Erase) {
     check(result, expected);
   }
 }
+
+#if TVM_LOG_DEBUG
+TEST(Map, Race) {
+  using namespace tvm::runtime;
+  Map<Integer, Integer> m;
+
+  m.Set(1, 1);
+  Map<tvm::Integer, tvm::Integer>::iterator it = m.begin();
+  EXPECT_NO_THROW({ auto& kv = *it; });
+
+  m.Set(2, 2);
+  // changed. iterator should be re-obtained
+  EXPECT_ANY_THROW({ auto& kv = *it; });
+}
+#endif  // TVM_LOG_DEBUG
 
 TEST(String, MoveFromStd) {
   using namespace std;

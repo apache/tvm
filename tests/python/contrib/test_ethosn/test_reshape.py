@@ -15,65 +15,59 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Ethos-N integration reshape tests"""
+"""Arm(R) Ethos(TM)-N integration reshape tests"""
 
 import tvm
 from tvm import relay
 from tvm.testing import requires_ethosn
-from tvm.relay.op.contrib import get_pattern_table
-from . import infrastructure as tei
 import numpy as np
+import pytest
+from . import infrastructure as tei
 
 
 def _get_model(input_shape, output_shape, dtype):
     """Return a model and any parameters it may have"""
     a = relay.var("a", shape=input_shape, dtype=dtype)
-    conv, params = tei.get_conv2d(a, input_shape)
+    conv, params = tei.get_conv2d(a, input_shape, dtype)
     req = relay.reshape(conv, output_shape)
     return req, params
 
 
 @requires_ethosn
-def test_reshape():
-    trials = [
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+@pytest.mark.parametrize(
+    "input_shape, output_shape",
+    [
         ((1, 15, 4, 1), (1, 60)),
         ((1, 15, 4, 1), (1, 30, 2)),
         ((1, 15, 4, 1), (1, 4, 15, 1)),
         ((1, 15, 4, 1), (1, 12, 5, 1)),
+        ((1, 15, 4, 1), (1, 0, 2, 2)),
         ((1, 15, 4, 1), (1, -1, 2, 1)),
-    ]
-
+        ((1, 15, 4, 1), (1, -2)),
+        ((1, 15, 4, 1), (1, -3, 1, 1)),
+        ((1, 15, 4, 1), (1, -4, 3, 5, 4)),
+        ((1, 15, 4, 1), (0, -1, -2)),
+        ((1, 15, 4, 1), (0, -1, -3, 1)),
+        ((1, 15, 4, 1), (1, -4, -1, 5, 4)),
+    ],
+)
+def test_reshape(dtype, input_shape, output_shape):
     np.random.seed(0)
-    for input_shape, output_shape in trials:
-        inputs = {
-            "a": tvm.nd.array(np.random.randint(0, high=255, size=input_shape, dtype="uint8"))
-        }
-        outputs = []
-        for npu in [False, True]:
-            model, params = _get_model(input_shape, output_shape, "uint8")
-            mod = tei.make_module(model, params)
-            outputs.append(tei.build_and_run(mod, inputs, 1, params, npu=npu))
-
-        tei.verify(outputs, 1)
-
-
-@requires_ethosn
-def test_reshape_failure():
-    trials = [
-        (
-            (1, 15, 4, 1),
-            (1, 15, -2),
-            "uint8",
-            "reshape dimension=-2, reshape dimension must be >= -1",
-        ),
-    ]
-
-    np.random.seed(0)
-    for input_shape, output_shape, dtype, err_msg in trials:
+    inputs = {
+        "a": tvm.nd.array(
+            np.random.randint(
+                low=np.iinfo(dtype).min,
+                high=np.iinfo(dtype).max + 1,
+                size=input_shape,
+                dtype=dtype,
+            )
+        )
+    }
+    outputs = []
+    for npu in [False, True]:
         model, params = _get_model(input_shape, output_shape, dtype)
         mod = tei.make_module(model, params)
-        pattern = get_pattern_table("ethos-n")
-        mod = tei.make_module(model, params)
-        mod = relay.transform.MergeComposite(pattern)(mod)
-        mod = tei.make_ethosn_partition(mod["main"].body)
-        tei.test_error(mod, {}, err_msg)
+        outputs.append(tei.build_and_run(mod, inputs, 1, params, npu=npu))
+
+    tei.verify(outputs, dtype, 1)

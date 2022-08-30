@@ -22,12 +22,13 @@ architecture_type=$(uname -i)
 # Depending on the architecture selected to compile for,
 # you may need to install an alternative cross-compiler.
 if [ "$architecture_type" != "aarch64" ]; then
-  apt-get update && apt-get install -y --no-install-recommends \
+  apt-get update
+  apt-install-and-clear -y --no-install-recommends \
     g++-aarch64-linux-gnu \
     gcc-aarch64-linux-gnu
 fi
 
-compute_lib_version="v21.08"
+compute_lib_version="v21.11"
 compute_lib_variant="arm64-v8a-neon"
 compute_lib_full_name="arm_compute-${compute_lib_version}-bin-linux-${compute_lib_variant}"
 compute_lib_base_url="https://github.com/ARM-software/ComputeLibrary/releases/download/${compute_lib_version}"

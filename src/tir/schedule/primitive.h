@@ -30,12 +30,22 @@ namespace tir {
 /******** Schedule: Sampling ********/
 /*!
  * \brief Sample a random integer from a given range.
+ * \param rand_state The pointer to schedule's random state.
  * \param min_inclusive The minimum value of the range, inclusive.
  * \param max_exclusive The maximum value of the range, exclusive.
  * \return The random integer sampled in the given range.
  */
 TVM_DLL int32_t SampleInt(support::LinearCongruentialEngine::TRandState* rand_state,
                           int32_t min_inclusive, int32_t max_exclusive);
+/*!
+ * \brief Sample k random integers from given range without replacement, i.e, no duplication.
+ * \param rand_state The pointer to schedule's random state
+ * \param n The range is defined as 0 to n-1.
+ * \param k The total number of samples.
+ * \return The randomly selected samples from the n candidates.
+ */
+std::vector<int32_t> SampleWithoutReplacement(
+    support::LinearCongruentialEngine::TRandState* rand_state, int32_t n, int32_t k);
 /*!
  * \brief Sample once category from candidates according to the probability weights.
  * \param rand_state The pointer to schedule's random state
@@ -47,6 +57,14 @@ TVM_DLL int32_t SampleInt(support::LinearCongruentialEngine::TRandState* rand_st
 TVM_DLL int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState* rand_state,
                                   const Array<Integer>& candidates, const Array<FloatImm>& probs,
                                   Optional<Integer>* decision);
+/*!
+ * \brief Create a sampling function that does multinomial sampling.
+ * \param rand_state The random state.
+ * \param weights The weights for multinomial sampling.
+ * \return The multinomial sampling function.
+ */
+TVM_DLL std::function<int32_t()> MakeMultinomialSampler(
+    support::LinearCongruentialEngine::TRandState* rand_state, const std::vector<double>& weights);
 /*!
  * \brief Sample the factors to perfect tile a specific loop
  * \param rand_state The random state
@@ -81,16 +99,27 @@ TVM_DLL std::vector<int64_t> SamplePerfectTile(
     support::LinearCongruentialEngine::TRandState* rand_state,  //
     const tir::StmtSRef& loop_sref, int32_t n_split, int32_t max_innermost_factor,
     Optional<Array<Integer>>* decision);
+/*!
+ * \brief Sample a compute-at location of the given block
+ * \param self The schedule state
+ * \param rand_state The random state
+ * \param block_sref The sref of the block whose compute-at location is to be sampled
+ * \param decision The sampling decision
+ * \return The sampled loop where the input block is to be computed at
+ */
+TVM_DLL tir::StmtSRef SampleComputeLocation(
+    tir::ScheduleState self, support::LinearCongruentialEngine::TRandState* rand_state,
+    const tir::StmtSRef& block_sref, Optional<Integer>* decision);
 
 /******** Schedule: Get blocks & loops ********/
 /*!
  * \brief Retrieves blocks in a specific function with its name
  * \param self The schedule state
  * \param name The name of the blocks to be retrieved
- * \param func_name The name of the function
+ * \param gvar The function to be retrieved
  * \return A list of blocks with the specific name
  */
-Array<StmtSRef> GetBlocks(const ScheduleState& self, const String& name, const String& func_name);
+Array<StmtSRef> GetBlocks(const ScheduleState& self, const String& name, const GlobalVar& gv);
 /*!
  * \brief Gets the parent loops of the block in its scope, from outer to inner
  * \param self The schedule state
@@ -127,10 +156,11 @@ Array<StmtSRef> GetConsumers(const ScheduleState& self, const StmtSRef& block_sr
  * \param self The state of the schedule
  * \param loop_sref The sref to the loop being split
  * \param factors The splitting factors
+ * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
  * \return An array of srefs to the loops after splitting
  */
 TVM_DLL Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
-                              const Array<PrimExpr>& factors);
+                              const Array<PrimExpr>& factors, bool preserve_unit_iters);
 /*!
  * \brief Fuse a list of consecutive loops into one. It requires:
  * 1) The loops can't have annotations or thread bindings.
@@ -139,9 +169,11 @@ TVM_DLL Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
  * 4) The domain of a loop to be fused cannot depend on another loop to be fused.
  * \param self The state of the schedule
  * \param loop_srefs An array of srefs to the loops to be fused
+ * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
  * \return The sref to the fused loop
  */
-TVM_DLL StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs);
+TVM_DLL StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs,
+                      bool preserve_unit_loops);
 /*!
  * \brief Reorder a list of loops. It doesn't require the loops to be consecutive.
  * It requires:
@@ -156,6 +188,16 @@ TVM_DLL StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs);
  * \param ordered_loop_srefs An array of srefs which indicates the new order of loops
  */
 TVM_DLL void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs);
+
+/*!
+ * \brief Create a new unit loop on top of the specific block or loop.
+ * \param sref The block/loop above which the new thread_binding loop is created
+ * \param extent The extent of the new thread_binding loop
+ * \param thread_axis The thread axis of the new thread_binding loop
+ * \param attrs Extra loop attributes
+ * \return The new thread_binding loop
+ */
+TVM_DLL StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref);
 
 /******** Schedule: Manipulate ForKind ********/
 /*!
@@ -208,10 +250,11 @@ TVM_DLL void Unroll(ScheduleState self, const StmtSRef& loop_sref);
  * \param block_sref The consumer block of the target buffer.
  * \param read_buffer_index The index of the buffer in block's read region.
  * \param storage_scope The target storage scope.
+ * \param consumer_blocks Array of blocks that consume the cache.
  * \return The cache stage block.
  */
 TVM_DLL StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buffer_index,
-                           const String& storage_scope);
+                           const String& storage_scope, const Array<StmtSRef> consumer_blocks = {});
 /*!
  * \brief Create a block that writes a buffer region into a write cache. It requires:
  * 1) There is only one block that writes the target buffer.
@@ -224,6 +267,21 @@ TVM_DLL StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int r
  */
 TVM_DLL StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_buffer_index,
                             const String& storage_scope);
+/*!
+ *!
+ * \brief Create a block that read/write a buffer region into a read/write cache with reindexing.
+ * The layout of the cache will be the same as by the iterators of the block that reads/writes the
+ * buffer. It requires:
+ * 1) There is only one block who reads/writes the target buffer
+ * 2) There is only one buffer load/store of this buffer in the block
+ * \param self The state of the schedule
+ * \param block_rv The block operates on the target buffer.
+ * \param buffer_index The index of the buffer in block's read or write region.
+ * \param buffer_index_type The type of the buffer index, kRead or kWrite.
+ * \return The reindex stage block.
+ */
+TVM_DLL StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
+                         BufferIndexType buffer_index_type);
 /******** Schedule: Compute location ********/
 /*!
  * \brief Move a producer block under the specific loop, and regenerate the
@@ -241,10 +299,13 @@ TVM_DLL StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int 
  * \param self The schedule state
  * \param block_sref The block to be moved
  * \param loop_sref The loop where the block to be moved to
- * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+ * \param index The block index of the loop body subtree blocks:
+ * - `index = -1` means inserted into the last possible insertion point;
+ * - `index = -2` means inserted into the first possible insertion point;
+ * - Otherwise, `index` is a nonnegative number that indicates the insertion point
  */
 TVM_DLL void ComputeAt(ScheduleState self, const StmtSRef& block_sref, const StmtSRef& loop_sref,
-                       bool preserve_unit_loops);
+                       bool preserve_unit_loops, int index = -1);
 /*!
  * \brief Move a consumer block under the specific loop, and regenerate the
  * loops induced by the block so that the buffer region consumed by the consumer block could
@@ -260,9 +321,13 @@ TVM_DLL void ComputeAt(ScheduleState self, const StmtSRef& block_sref, const Stm
  * \param block_sref The block to be moved
  * \param loop_sref The loop where the block to be moved to
  * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+ * \param index The block index of the loop body subtree blocks:
+ * - `index = -1` means inserted into the last possible insertion point;
+ * - `index = -2` means inserted into the first possible insertion point;
+ * - Otherwise, `index` is a nonnegative number that indicates the insertion point
  */
 TVM_DLL void ReverseComputeAt(ScheduleState self, const StmtSRef& block_sref,
-                              const StmtSRef& loop_sref, bool preserve_unit_loops);
+                              const StmtSRef& loop_sref, bool preserve_unit_loops, int index = -1);
 /*!
  * \brief Inline a block into its consumer(s). It requires:
  * 1) The block is a complete non-root block, which only produces one buffer
@@ -329,6 +394,7 @@ using StorageAlignAnnotation = Array<StorageAlignTuple>;
  *        more friendly memory access pattern. For example, we can set alignment to be factor=2,
  *        offset=1 to avoid bank conflict for thread access on higher dimension in GPU shared
  *        memory.
+ * \param self The state of the schedule
  * \param block_sref The producer block of the buffer
  * \param buffer_index The index of the buffer in block's write region
  * \param axis The dimension to be specified for alignment
@@ -337,9 +403,104 @@ using StorageAlignAnnotation = Array<StorageAlignTuple>;
  */
 TVM_DLL void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                           int axis, int factor, int offset);
+/*!
+ * \brief Set the storage scope of a buffer, where the buffer is specified by the a block and a
+ * write-index
+ * \param self The state of the schedule
+ * \param block_sref The sref of the producer block of the buffer
+ * \param buffer_index The index of the buffer in block's write region
+ * \param storage_scope The storage scope to be set
+ */
+TVM_DLL void SetScope(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
+                      const String& storage_scope);
+/*!
+ * \brief Set the axis separator of a buffer, where the buffer is specified by a block and a read
+ * or write index
+ * \param block_rv The block that accesses the target buffer.
+ * \param buffer_index The index of the buffer in block's read or write region.
+ * \param buffer_index_type The type of the buffer index, kRead or kWrite.
+ * \param axis_separators The axis separator of the buffer
+ */
+TVM_DLL void SetAxisSeparator(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
+                              BufferIndexType buffer_index_type,
+                              const Array<IntImm>& axis_separators);
 
 /******** Schedule: Blockize & Tensorize ********/
+
+/*!
+ * \brief Convert the subtree rooted at a specific loop into a block.
+ * \param self The state of the schedule
+ * \param loop_sref The root of the subtree
+ * \return The new block
+ */
+TVM_DLL StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref);
+
+/*!
+ * \brief Tensorize the computation enclosed by loop with the tensor intrinsic.
+ * \param self The state of the schedule
+ * \param block_or_loop_sref The block or loop to be tensorized.
+ * \param intrin The tensor intrinsic.
+ */
+TVM_DLL void Tensorize(ScheduleState self, const StmtSRef& block_or_loop_sref,
+                       const TensorIntrin& intrin);
+
 /******** Schedule: Annotation ********/
+/*!
+ * \brief Annotate a block/loop with a key value pair
+ * \param self The state of the schedule
+ * \param sref The block/loop sref to be annotated
+ * \param ann_key The annotation key
+ * \param ann_val The annotation value
+ */
+TVM_DLL void Annotate(ScheduleState self, const StmtSRef& sref, const String& ann_key,
+                      const ObjectRef& ann_val);
+/*!
+ * \brief Unannotate a block/loop's annotation with key ann_key
+ * \param self The state of the schedule
+ * \param sref The block/loop to be unannotated
+ * \param ann_key The annotation key
+ */
+TVM_DLL void Unannotate(ScheduleState self, const StmtSRef& sref, const String& ann_key);
+
+/******** Schedule: Layout transformation ********/
+/*!
+ * \brief Apply a transformation represented by IndexMap to buffer
+ * \details The indices and the access region to the target buffer is transformed by the given
+ * index_map. The index_map is also used to infer the new shape of the buffer. Buffer must be
+ * one of the parameter of the function, or allocated in some blocks (it cannot be a buffer
+ * subregion created via match_buffer).
+ * \param self The state of the schedule
+ * \param block_sref The block sref that accesses the target buffer.
+ * \param buffer_index The index of the buffer in block's read or write region.
+ * \param buffer_index_type The type of the buffer index, kRead or kWrite.
+ * \param index_map The transformation to apply.
+ */
+TVM_DLL void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
+                             BufferIndexType buffer_index_type, const IndexMap& index_map);
+
+/*!
+ * \brief Apply a transformation represented by IndexMap to block
+ * \details The block iters and the block body are transformed by the given index_map.
+ * Outer loops corresponding to each new block iter are regenerated.
+ * The index_map is required to be bijective affine since we need its inverse mapping.
+ * \param self The state of the schedule
+ * \param block_sref The block sref that refers to the block to be transformed
+ * \param index_map The transformation to apply.
+ */
+TVM_DLL void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
+                                  const IndexMap& index_map);
+
+/******** Schedule: Padding decomposition ********/
+/*!
+ * \brief Decompose a padding block into a block filling const pad values and a block
+ * writing in-bound values.
+ * \param block_sref The block sref that match the padding pattern.
+ * \param loop_sref The loop above which the const filling block is inserted before.
+ * \return The padding value filling block sref.
+ */
+TVM_DLL StmtSRef DecomposePadding(ScheduleState self, const StmtSRef& block_sref,
+                                  const StmtSRef& loop_sref);
+
 /******** Schedule: Misc ********/
 
 }  // namespace tir

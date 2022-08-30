@@ -61,8 +61,11 @@ class StorageAccessVisitor : public StmtExprVisitor {
     Var buffer = NullValue<Var>();
     /*! \brief The access data type */
     DataType dtype;
-    /*! \brief The touched access range */
-    arith::IntSet touched;
+    /*! \brief The touched access range
+     *
+     * Has one IntSet for each index in the buffer being accessed.
+     */
+    Array<arith::IntSet> touched;
     /*! \brief The type of access */
     AccessType type;
     /*! \brief The storage scope */
@@ -80,6 +83,8 @@ class StorageAccessVisitor : public StmtExprVisitor {
   // override visitor pattern
   void VisitExpr_(const LoadNode* op) final;
   void VisitStmt_(const StoreNode* op) final;
+  void VisitExpr_(const BufferLoadNode* op) final;
+  void VisitStmt_(const BufferStoreNode* op) final;
   void VisitStmt_(const EvaluateNode* op) final;
   void VisitStmt_(const AttrStmtNode* op) final;
   void VisitStmt_(const ForNode* op) final;
@@ -120,7 +125,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
    */
   StorageScope GetScope(Var buffer_var) const;
   // access scope
-  std::vector<std::vector<StmtEntry> > scope_;
+  std::vector<std::vector<StmtEntry>> scope_;
 
  private:
   // whether access appending is enabled.

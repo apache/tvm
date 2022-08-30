@@ -23,10 +23,11 @@ import numpy as np
 
 import tvm
 from tvm.relay.backend import te_compiler
+from tvm.relay.backend.runtime import Runtime
 import tvm.relay.testing
 import tvm.relay.op as reg
 from tvm import relay
-from tvm import runtime
+from tvm import runtime as tvm_runtime
 from tvm.relay import transform
 from tvm.relay.testing import byoc
 from tvm.contrib import utils
@@ -36,9 +37,9 @@ from tvm.relay.op.contrib.register import get_pattern_table
 from tvm.relay.build_module import bind_params_by_name
 
 
-# Leverage the pass manager to write a simple white list based annotator
+# Leverage the pass manager to write a simple allowed list based annotator
 @transform.function_pass(opt_level=0)
-class WhiteListAnnotator:
+class AllowedListAnnotator:
     def __init__(self, op_list, compiler):
         assert isinstance(op_list, (list, tuple, set))
         self.op_list = op_list
@@ -121,7 +122,15 @@ class MobileNetAnnotator(ExprMutator):
 
 
 def check_result(
-    mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", device=tvm.cpu(), params=None
+    mod,
+    map_inputs,
+    out_shape,
+    result,
+    tol=1e-5,
+    target="llvm",
+    device=tvm.cpu(),
+    params=None,
+    runtime=Runtime("cpp"),
 ):
     if sys.platform == "win32":
         print("Skip test on Windows for now")
@@ -133,12 +142,12 @@ def check_result(
         contrib_path = os.path.join(source_dir, "src", "runtime", "contrib")
 
         kwargs = {}
-        kwargs["options"] = ["-O2", "-std=c++14", "-I" + contrib_path]
+        kwargs["options"] = ["-O2", "-std=c++17", "-I" + contrib_path]
         tmp_path = utils.tempdir()
         lib_name = "lib.so"
         lib_path = tmp_path.relpath(lib_name)
         lib.export_library(lib_path, fcompile=False, **kwargs)
-        lib = runtime.load_module(lib_path)
+        lib = tvm_runtime.load_module(lib_path)
 
         return lib
 
@@ -148,10 +157,10 @@ def check_result(
             exe = relay.vm.compile(mod, target=target, params=params)
         code, lib = exe.save()
         lib = update_lib(lib)
-        exe = runtime.vm.Executable.load_exec(code, lib)
-        vm = runtime.vm.VirtualMachine(exe, device)
+        exe = tvm_runtime.vm.Executable.load_exec(code, lib)
+        vm = tvm_runtime.vm.VirtualMachine(exe, device)
         outs = vm.run(**map_inputs)
-        outs = outs if isinstance(outs, runtime.container.ADT) else [outs]
+        outs = outs if isinstance(outs, tvm_runtime.container.ADT) else [outs]
         results = result if isinstance(result, list) else [result]
         for out, ref in zip(outs, results):
             tvm.testing.assert_allclose(out.numpy(), ref, rtol=tol, atol=tol)
@@ -159,7 +168,7 @@ def check_result(
     def check_graph_executor_result():
         te_compiler.get().clear()
         with tvm.transform.PassContext(opt_level=3):
-            json, lib, param = relay.build(mod, target=target, params=params)
+            json, lib, param = relay.build(mod, target=target, params=params, runtime=runtime)
         lib = update_lib(lib)
         rt_mod = tvm.contrib.graph_executor.create(json, lib, device)
 
@@ -222,8 +231,8 @@ def test_multi_node_compiler():
     map_inputs = {"w{}".format(i): w_data[i] for i in range(8)}
     map_inputs["x"] = x_data
 
-    targets = ["llvm", "c -runtime=c --system-lib"]
-    for tgt in targets:
+    targets = [("llvm", Runtime("cpp")), ("c", Runtime("crt", {"system-lib": True}))]
+    for tgt, rt in targets:
         check_result(
             mod,
             map_inputs,
@@ -237,6 +246,7 @@ def test_multi_node_compiler():
                 axis=0,
             ),
             target=tgt,
+            runtime=rt,
         )
 
 
@@ -313,7 +323,7 @@ def test_extern_ccompiler_default_ops():
     f = relay.Function([x, y], concat)
     mod = tvm.IRModule()
     mod["main"] = f
-    mod = WhiteListAnnotator(["add", "subtract", "multiply"], "ccompiler")(mod)
+    mod = AllowedListAnnotator(["add", "subtract", "multiply"], "ccompiler")(mod)
     mod = transform.PartitionGraph()(mod)
     fused_mod = transform.FuseOps(2)(mod)
     expected_mod = expected()
@@ -362,7 +372,7 @@ def test_extern_compiler_sanitized_ops():
     f = relay.Function([x, y], concat)
     mod = tvm.IRModule()
     mod["main"] = f
-    mod = WhiteListAnnotator(["add", "subtract", "multiply"], "unsanitary-name++")(mod)
+    mod = AllowedListAnnotator(["add", "subtract", "multiply"], "unsanitary-name++")(mod)
     mod = transform.PartitionGraph()(mod)
     fused_mod = transform.FuseOps(2)(mod)
     expected_mod = expected()
@@ -436,7 +446,7 @@ def test_extern_ccompiler_multiple_functions():
     concat = relay.concatenate([log, exp], axis=0)
     f2 = relay.Function([a, b], concat)
     mod["subfunction"] = f2
-    mod = WhiteListAnnotator(["add", "subtract", "multiply"], "ccompiler")(mod)
+    mod = AllowedListAnnotator(["add", "subtract", "multiply"], "ccompiler")(mod)
     mod = transform.PartitionGraph()(mod)
 
     fused_mod = transform.FuseOps(2)(mod)
@@ -460,7 +470,7 @@ def test_extern_ccompiler():
     y_data = np.random.rand(2, 2).astype("float32")
     mod = tvm.IRModule()
     mod["main"] = f
-    mod = WhiteListAnnotator(["add", "subtract", "multiply"], "ccompiler")(mod)
+    mod = AllowedListAnnotator(["add", "subtract", "multiply"], "ccompiler")(mod)
     mod = transform.PartitionGraph()(mod)
 
     check_result(mod, {"x": x_data, "y": y_data}, (2, 2), (y_data * y_data) - (x_data + x_data))
@@ -577,7 +587,7 @@ def test_function_lifting():
         mod["main"] = func
         mod = relay.transform.InferType()(mod)
         op_list = ["nn.batch_norm", "nn.conv2d"]
-        mod = WhiteListAnnotator(op_list, "test_compiler")(mod)
+        mod = AllowedListAnnotator(op_list, "test_compiler")(mod)
 
         opt_pass = tvm.transform.Sequential(
             [
@@ -657,7 +667,7 @@ def test_function_lifting_inline():
         mod = tvm.IRModule()
         mod["main"] = func
         op_list = ["nn.batch_norm", "nn.conv2d"]
-        mod = WhiteListAnnotator(op_list, "test_compiler")(mod)
+        mod = AllowedListAnnotator(op_list, "test_compiler")(mod)
 
         opt_pass = tvm.transform.Sequential(
             [
@@ -735,7 +745,7 @@ def test_constant_propagation():
     f = bind_params_by_name(f, {"x": tvm.nd.array(ones)})
     mod = tvm.IRModule()
     mod["main"] = f
-    mod = WhiteListAnnotator(["add"], "ccompiler")(mod)
+    mod = AllowedListAnnotator(["add"], "ccompiler")(mod)
     mod = transform.PartitionGraph()(mod)
     mod = relay.transform.InferType()(mod)
 
@@ -909,10 +919,33 @@ def test_mixed_single_multiple_outputs():
 
 def test_dnnl_fuse():
     dnnl_patterns = get_pattern_table("dnnl")
-    conv2d_bias_relu_pat, conv2d_relu_pat = dnnl_patterns
+    for pattern in dnnl_patterns:
+        if pattern[0] == "dnnl.conv2d_bias_relu":
+            conv2d_bias_relu_pat = pattern
+        elif pattern[0] == "dnnl.conv2d_bias_sigmoid":
+            conv2d_bias_sigmoid_pat = pattern
+        elif pattern[0] == "dnnl.conv2d_bias":
+            conv2d_bias_pat = pattern
+        elif pattern[0] == "dnnl.conv2d_relu":
+            conv2d_relu_pat = pattern
+        elif pattern[0] == "dnnl.conv2d_sigmoid":
+            conv2d_sigmoid_pat = pattern
+        elif pattern[0] == "dnnl.conv2d_bias_sum":
+            conv2d_bias_sum_pat = pattern
+        elif pattern[0] == "dnnl.conv2d_bias_sum_relu":
+            conv2d_bias_sum_relu_pat = pattern
 
-    def get_blocks(prefix, data, in_channel, out_channel, include_bn=True, include_sigmoid=False):
+    def get_blocks(
+        prefix,
+        data,
+        in_channel,
+        out_channel,
+        include_bias_add=True,
+        include_bn=True,
+        include_sigmoid=False,
+    ):
         weight = relay.var(prefix + "weight")
+        bias = relay.var(prefix + "bias")
         bn_gamma = relay.var(prefix + "bn_gamma")
         bn_beta = relay.var(prefix + "bn_beta")
         bn_mmean = relay.var(prefix + "bn_mean")
@@ -921,6 +954,8 @@ def test_dnnl_fuse():
         layer = relay.nn.conv2d(
             data=data, weight=weight, kernel_size=(3, 3), channels=out_channel, padding=(1, 1)
         )
+        if include_bias_add:
+            layer = relay.nn.bias_add(layer, bias)
         if include_bn:
             bn_output = relay.nn.batch_norm(layer, bn_gamma, bn_beta, bn_mmean, bn_mvar)
             layer = bn_output[0]
@@ -930,11 +965,11 @@ def test_dnnl_fuse():
         layer = relay.nn.relu(layer)
         return layer
 
-    def get_net(include_bn=True, include_sigmoid=False):
+    def get_net(include_bias_add=True, include_bn=True, include_sigmoid=False):
         data = relay.var("data", relay.TensorType((1, 3, 224, 224), "float32"))
-        block1 = get_blocks("block1_", data, 3, 8, include_bn, include_sigmoid)
+        block1 = get_blocks("block1_", data, 3, 8, include_bias_add, include_bn, include_sigmoid)
         # The second block is always conv + relu, to make it more interesting
-        block2 = get_blocks("block2_", block1, 8, 8, False, include_sigmoid)
+        block2 = get_blocks("block2_", block1, 8, 8, False, False, include_sigmoid)
         return relay.Function(relay.analysis.free_vars(block2), block2)
 
     def get_partitoned_mod(mod, params, pattern_table):
@@ -949,9 +984,18 @@ def test_dnnl_fuse():
                 transform.FoldScaleAxis(),
             ]
         )
+        # fold consecutive add ops to simplify pattern `conv2d-bias_add-bn-relu`
+        remove_linear_pass = tvm.transform.Sequential(
+            [
+                transform.SimplifyExpr(),
+                transform.FoldConstant(),
+            ]
+        )
         composite_partition = tvm.transform.Sequential(
             [
+                transform.CanonicalizeOps(),
                 remove_bn_pass,
+                remove_linear_pass,
                 transform.MergeComposite(pattern_table),
                 transform.AnnotateTarget("dnnl"),
                 transform.PartitionGraph(),
@@ -961,31 +1005,94 @@ def test_dnnl_fuse():
         with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
             return composite_partition(mod)
 
-    def test_detect_pattern(pattern_table, include_bn, include_sigmoid, num_expected_partition):
-        net = get_net(include_bn, include_sigmoid)
+    def test_detect_pattern(
+        pattern_table, include_bias_add, include_bn, include_sigmoid, num_expected_partition
+    ):
+        net = get_net(include_bias_add, include_bn, include_sigmoid)
         mod, params = tvm.relay.testing.create_workload(net)
         mod = get_partitoned_mod(mod, params, pattern_table)
         assert len(mod.functions) - 1 == num_expected_partition  # -1 for main
 
+    def test_sum_pattern(pattern_table, num_expected_partition):
+        def get_conv2d_bn_sum_relu(
+            x_shape=(1, 32, 8, 8),
+            k_shape=(16, 32, 3, 3),
+            sum_shape=(1, 16, 6, 6),
+            dtype="float32",
+        ):
+            x = relay.var("x", shape=(x_shape), dtype=dtype)
+            kernel = relay.const(np.random.randint(0, 1, k_shape).astype(dtype))
+            bias = relay.var("bias", shape=(k_shape[0],), dtype=dtype)
+            beta = relay.const(np.zeros(k_shape[0]).astype(dtype))
+            gamma = relay.const(np.ones(k_shape[0]).astype(dtype))
+            moving_mean = relay.const(np.zeros(k_shape[0]).astype(dtype))
+            moving_var = relay.const(np.ones(k_shape[0]).astype(dtype))
+            sum_data = relay.var("data1", shape=sum_shape, dtype=dtype)
+
+            dic = {"x": x_shape, "bias": (k_shape[0],), "sum_data": sum_shape}
+            param_lst = ["bias", "sum_data"]
+
+            conv = relay.nn.conv2d(
+                x,
+                kernel,
+                channels=k_shape[0],
+                kernel_size=k_shape[2:4],
+            )
+            conv_bias = relay.nn.bias_add(conv, bias)
+            conv_bias_bn, _, _ = relay.nn.batch_norm(
+                conv_bias,
+                gamma=gamma,
+                beta=beta,
+                moving_mean=moving_mean,
+                moving_var=moving_var,
+                axis=1,
+                center=True,
+                scale=True,
+                epsilon=1e-5,
+            )
+            conv_bias_bn_sum = relay.add(conv_bias_bn, sum_data)
+            return relay.nn.relu(conv_bias_bn_sum), dic, param_lst
+
+        net, dic, param_lst = get_conv2d_bn_sum_relu()
+        net = tvm.IRModule.from_expr(net)
+        params = {x: np.random.uniform(-1, 1, dic[x]).astype("float32") for x in param_lst}
+        mod = get_partitoned_mod(net, params, pattern_table)
+        assert len(mod.functions) - 1 == num_expected_partition  # -1 for main
+
     def test_partition():
         # conv + bn + relu, conv + relu -> fused conv_bias_relu, conv, and relu
-        test_detect_pattern([conv2d_bias_relu_pat], True, False, 3)
+        test_detect_pattern([conv2d_bias_relu_pat], False, True, False, 3)
         # conv + bn + relu, conv + relu -> conv, bias, relu, and fused conv_relu
-        test_detect_pattern([conv2d_relu_pat], True, False, 4)
+        test_detect_pattern([conv2d_relu_pat], False, True, False, 4)
         # conv + bn + relu, conv + relu -> fused conv_bias_relu, and fused conv_relu
-        test_detect_pattern([conv2d_bias_relu_pat, conv2d_relu_pat], True, False, 2)
+        test_detect_pattern([conv2d_bias_relu_pat, conv2d_relu_pat], False, True, False, 2)
+        # conv + bias_add + bn + relu, conv + relu -> fused conv_bias_relu, and fused conv_relu
+        test_detect_pattern([conv2d_bias_relu_pat, conv2d_relu_pat], True, True, False, 2)
         # conv + relu, conv + relu -> two fused conv_relu
-        test_detect_pattern([conv2d_relu_pat], False, False, 2)
+        test_detect_pattern([conv2d_relu_pat], False, False, False, 2)
         # conv + relu, conv + relu -> no fusion, 4 partition each with a single op
-        test_detect_pattern([conv2d_bias_relu_pat], False, False, 4)
+        test_detect_pattern([conv2d_bias_relu_pat], False, False, False, 4)
         # conv + bn + sigmoid + relu, conv + sigmoid + relu -> no fusion
-        test_detect_pattern([conv2d_bias_relu_pat, conv2d_relu_pat], True, True, 5)
+        test_detect_pattern([conv2d_bias_relu_pat, conv2d_relu_pat], False, True, True, 7)
+        # conv + bias_add + bn + sigmoid + relu, conv + sigmoid + relu -> fused conv_bias
+        # and single op sigmoid, relu, conv, sigmoid, relu
+        test_detect_pattern([conv2d_bias_pat, conv2d_relu_pat], True, True, True, 6)
+        # conv + bias_add + bn + sigmoid + relu, conv + sigmoid + relu -> fused conv_bias_sigmoid
+        # and single op relu, conv, sigmoid, relu
+        test_detect_pattern([conv2d_bias_sigmoid_pat, conv2d_relu_pat], True, True, True, 5)
+        # conv + bias_add + bn + sigmoid + relu, conv + sigmoid + relu -> fused conv_bias_sigmoid,
+        # fused conv_sigmoid and single op relu, relu
+        test_detect_pattern([conv2d_bias_sigmoid_pat, conv2d_sigmoid_pat], True, True, True, 4)
+        # conv + bias_add + bn + add + relu -> fused conv_bias_sum, relu
+        test_sum_pattern([conv2d_bias_sum_pat], 2)
+        # conv + bias_add + bn + add + relu -> fused conv_bias_sum_relu,
+        test_sum_pattern([conv2d_bias_sum_relu_pat], 1)
 
     def test_partition_mobilenet():
         mod, params = relay.testing.mobilenet.get_workload()
         mod = get_partitoned_mod(mod, params, dnnl_patterns)
-        # 27 fused conv + bn + relu and one dense
-        assert len(mod.functions) - 1 == 28  # -1 for main
+        # 27 fused conv + bn + relu, one dense, one softmax and one global_avg_pooling
+        assert len(mod.functions) - 1 == 30  # -1 for main
 
     def test_exec(mod, params, ref_mod, ref_params, out_shape):
         ishape = (1, 3, 224, 224)
@@ -1089,7 +1196,7 @@ def test_multiple_use_of_an_output():
 
     def test_same_output_region():
         mod = get_mod()
-        mod = WhiteListAnnotator(["subtract", "log", "multiply"], "ccompiler")(mod)
+        mod = AllowedListAnnotator(["subtract", "log", "multiply"], "ccompiler")(mod)
         mod = transform.MergeCompilerRegions()(mod)
         mod = transform.PartitionGraph()(mod)
 
@@ -1098,7 +1205,7 @@ def test_multiple_use_of_an_output():
 
     def test_different_output_region():
         mod = get_mod()
-        mod = WhiteListAnnotator(["subtract", "log"], "ccompiler")(mod)
+        mod = AllowedListAnnotator(["subtract", "log"], "ccompiler")(mod)
         mod = transform.MergeCompilerRegions()(mod)
         mod = transform.PartitionGraph()(mod)
 
@@ -1461,6 +1568,54 @@ def test_preserve_type_import():
     run("float32", [2, 3])
 
 
+def test_not_bind_constant():
+    def get_net(prefix, data, out_channel):
+        weight = relay.var(prefix + "weight")
+        bn_gamma = relay.var(prefix + "bn_gamma")
+        bn_beta = relay.var(prefix + "bn_beta")
+        bn_mmean = relay.var(prefix + "bn_mean")
+        bn_mvar = relay.var(prefix + "bn_var")
+
+        layer = relay.nn.conv2d(
+            data=data, weight=weight, kernel_size=(3, 3), channels=out_channel, padding=(1, 1)
+        )
+        bn_output = relay.nn.batch_norm(layer, bn_gamma, bn_beta, bn_mmean, bn_mvar)
+        out = relay.nn.relu(bn_output[0])
+        return relay.Function(relay.analysis.free_vars(out), out)
+
+    def get_partitoned_mod(mod, params, pattern_table, bind_constants):
+        mod["main"] = bind_params_by_name(mod["main"], params)
+        remove_bn_pass = tvm.transform.Sequential(
+            [
+                transform.InferType(),
+                transform.SimplifyInference(),
+                transform.FoldConstant(),
+                transform.FoldScaleAxis(),
+            ]
+        )
+        composite_partition = tvm.transform.Sequential(
+            [
+                remove_bn_pass,
+                transform.MergeComposite(pattern_table),
+                transform.AnnotateTarget("dnnl"),
+                transform.PartitionGraph(bind_constants=bind_constants),
+            ]
+        )
+
+        with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
+            return composite_partition(mod)
+
+    data = relay.var("data", relay.TensorType((1, 3, 224, 224), "float32"))
+    net = get_net("block_", data, 8)
+    mod, params = tvm.relay.testing.create_workload(net)
+
+    mod = get_partitoned_mod(mod, params, get_pattern_table("dnnl"), bind_constants=True)
+    len(mod["main"].body.args) == 1
+
+    mod = get_partitoned_mod(mod, params, get_pattern_table("dnnl"), bind_constants=False)
+    len(mod["main"].body.args) == 3
+
+
 if __name__ == "__main__":
     test_multi_node_compiler()
     test_extern_ccompiler_single_op()
@@ -1482,4 +1637,4 @@ if __name__ == "__main__":
     test_flatten_tuple_output()
     test_tuple_output_exec()
     test_extern_opt()
-    test_static_tensor_array_gather_partition()
+    test_not_bind_constant()

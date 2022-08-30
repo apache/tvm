@@ -78,8 +78,8 @@ def matmul_decompose0(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def matmul_decompose1(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [32, 4, 128], elem_offset=0, align=128, offset_factor=1)
-    B = T.match_buffer(b, [32, 4], elem_offset=0, align=128, offset_factor=1)
+    A = T.match_buffer(a, [32, 4, 128], elem_offset=0, align=64, offset_factor=1)
+    B = T.match_buffer(b, [32, 4], elem_offset=0, align=64, offset_factor=1)
 
     for i0 in T.serial(0, 32):
         with T.block("blockized_B_init"):
@@ -100,9 +100,9 @@ def matmul_decompose1(a: T.handle, b: T.handle) -> None:
 
 @T.prim_func
 def matmul_decompose2(a: T.handle, b: T.handle, c: T.handle) -> None:
-    C = T.match_buffer(c, [128, 128], elem_offset=0, align=128, offset_factor=1)
-    B = T.match_buffer(b, [128, 128], elem_offset=0, align=128, offset_factor=1)
-    A = T.match_buffer(a, [128, 128], elem_offset=0, align=128, offset_factor=1)
+    C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
+    B = T.match_buffer(b, [128, 128], elem_offset=0, align=64, offset_factor=1)
+    A = T.match_buffer(a, [128, 128], elem_offset=0, align=64, offset_factor=1)
 
     for i0, i1 in T.grid(128, 128):
         with T.block("update_init"):
@@ -130,9 +130,9 @@ def matmul_decompose_fail3(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def matmul_decompose4(a: T.handle, b: T.handle, c: T.handle) -> None:
-    C = T.match_buffer(c, [128, 128], elem_offset=0, align=128, offset_factor=1)
-    B = T.match_buffer(b, [128, 128], elem_offset=0, align=128, offset_factor=1)
-    A = T.match_buffer(a, [128, 128], elem_offset=0, align=128, offset_factor=1)
+    C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
+    B = T.match_buffer(b, [128, 128], elem_offset=0, align=64, offset_factor=1)
+    A = T.match_buffer(a, [128, 128], elem_offset=0, align=64, offset_factor=1)
     # body
     with T.block("root"):
         T.reads([])
@@ -152,21 +152,84 @@ def matmul_decompose4(a: T.handle, b: T.handle, c: T.handle) -> None:
                     C[vi, vj] = C[vi, vj] + (A[vi, vk] * B[vj, vk])
 
 
+@T.prim_func
+def matmul_with_annotation(a: T.handle, b: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128])
+    B = T.match_buffer(b, [128, 128])
+    C = T.match_buffer(c, [128, 128])
+    for i, j, k in T.grid(128, 128, 128):
+        with T.block("update"):
+            T.block_attr({"test_annotation": 1})
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                C[vi, vj] = 0.0
+            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
+
+@T.prim_func
+def matmul_decompose_with_annotation(a: T.handle, b: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128])
+    B = T.match_buffer(b, [128, 128])
+    C = T.match_buffer(c, [128, 128])
+
+    for i, j in T.grid(128, 128):
+        with T.block("init"):
+            T.block_attr({"test_annotation": 1})
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = 0.0
+
+    for i, j, k in T.grid(128, 128, 128):
+        with T.block("update"):
+            T.block_attr({"test_annotation": 1})
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
+
+@T.prim_func
+def colsum_with_vectorization(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [128, 32], dtype="float32")
+    B = T.match_buffer(b, [32], dtype="float32")
+    for k in T.serial(0, 128):
+        for i in T.vectorized(0, 32):
+            with T.block("B"):
+                vk, vi = T.axis.remap("RS", [k, i])
+                with T.init():
+                    B[vi] = T.float32(0)
+                B[vi] = B[vi] + A[vk, vi]
+
+
+@T.prim_func
+def colsum_decompose_with_vectorization(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [128, 32], dtype="float32")
+    B = T.match_buffer(b, [32], dtype="float32")
+    for i in T.vectorized(0, 32):
+        with T.block("B_init"):
+            vi = T.axis.S(32, i)
+            B[vi] = T.float32(0)
+    for k in T.serial(0, 128):
+        for i in T.vectorized(0, 32):
+            with T.block("B"):
+                vk, vi = T.axis.remap("RS", [k, i])
+                B[vi] = B[vi] + A[vk, vi]
+
+
 # pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
+use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
 
-def test_reduction_decompose0():
+
+def test_reduction_decompose0(use_block_name):
     s = tir.Schedule(matmul, debug_mask="all")
-    C = s.get_block("update")
+    C = "update" if use_block_name else s.get_block("update")
     i, j, k = s.get_loops(C)
     s.decompose_reduction(C, i)
     tvm.ir.assert_structural_equal(matmul_decompose0, s.mod["main"])
     verify_trace_roundtrip(s, mod=matmul)
 
 
-def test_reduction_decompose1():
+def test_reduction_decompose1(use_block_name):
     s = tir.Schedule(rowsum_blockized, debug_mask="all")
-    blockized_B = s.get_block("blockized_B")
+    blockized_B = "blockized_B" if use_block_name else s.get_block("blockized_B")
     io, ko = s.get_loops(blockized_B)
     s.decompose_reduction(blockized_B, io)
     tvm.ir.assert_structural_equal(matmul_decompose1, s.mod["main"])
@@ -201,5 +264,37 @@ def test_reduction_decompose4():
     verify_trace_roundtrip(s, mod=matmul)
 
 
+def test_reduction_decompose_with_annotation():
+    s = tir.Schedule(matmul_with_annotation, debug_mask="all")
+    C = s.get_block("update")
+    i, j, k = s.get_loops(C)
+    s.decompose_reduction(C, i)
+    tvm.ir.assert_structural_equal(matmul_decompose_with_annotation, s.mod["main"])
+    verify_trace_roundtrip(s, mod=matmul_with_annotation)
+
+
+def test_reduction_decompose_with_different_for_kind():
+    s = tir.Schedule(colsum_with_vectorization, debug_mask="all")
+    B = s.get_block("B")
+    k, _ = s.get_loops(B)
+    B_init = s.decompose_reduction(B, k)
+    tvm.ir.assert_structural_equal(s.mod["main"], colsum_decompose_with_vectorization)
+    assert s.get(B).same_as(s.get(s.get_block("B_update")))
+    assert s.get(B_init).same_as(s.get(s.get_block("B_init")))
+    verify_trace_roundtrip(s, mod=colsum_with_vectorization)
+
+
+def test_decompose_reduction_ref_hash_check():
+    mod = tvm.IRModule.from_expr(matmul)
+    mod_bak = mod
+    hash_before = tvm.ir.structural_hash(mod_bak)
+    s = tir.Schedule(mod["main"], debug_mask="all")
+    C = s.get_block("update")
+    i, j, k = s.get_loops(C)
+    s.decompose_reduction(C, k)
+    hash_after = tvm.ir.structural_hash(mod_bak)
+    assert hash_before == hash_after
+
+
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

@@ -419,9 +419,6 @@ RELAY_REGISTER_UNARY_OP("bitwise_not")
     .set_support_level(4)
     .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::bitwise_not));
 
-// shape_of
-TVM_REGISTER_NODE_TYPE(ShapeOfAttrs);
-
 Array<te::Tensor> ShapeOfCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                  const Type& out_type) {
   ICHECK_EQ(inputs.size(), 1);

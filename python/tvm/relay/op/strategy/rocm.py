@@ -17,162 +17,39 @@
 """Definition of ROCm operator strategy."""
 # pylint: disable=invalid-name,unused-argument,unused-wildcard-import,wildcard-import
 from tvm import topi
-from tvm.auto_scheduler import is_auto_scheduler_enabled
 from tvm.te import SpecializedCondition
 from tvm.contrib.thrust import can_use_rocthrust
 from tvm.contrib import miopen
 
 from .generic import *
 from .. import op as _op
-from .cuda import judge_winograd, naive_schedule
+from .cuda import batch_matmul_strategy_cuda, conv2d_strategy_cuda, dense_strategy_cuda
 
 
 @conv2d_strategy.register("rocm")
 def conv2d_strategy_rocm(attrs, inputs, out_type, target):
     """conv2d rocm strategy"""
-    strategy = _op.OpStrategy()
-    data, kernel = inputs
-    dilation_h, dilation_w = attrs.get_int_tuple("dilation")
     groups = attrs.groups
     layout = attrs.data_layout
-    stride_h, stride_w = attrs.get_int_tuple("strides")
-    kernel_layout = attrs.kernel_layout
     padding = attrs.get_int_tuple("padding")
-    if dilation_h < 1 or dilation_w < 1:
-        raise ValueError("dilation should be positive value")
 
-    if groups == 1:
-        if layout == "NCHW":
-            # TODO(@vinx13, @icemelon9): Use conv2d_NCHWc_int8 when dtype is int8/uint8.
-            assert kernel_layout == "OIHW"
-            strategy.add_implementation(
-                wrap_compute_conv2d(topi.cuda.conv2d_nchw),
-                wrap_topi_schedule(topi.cuda.schedule_conv2d_nchw),
-                name="conv2d_nchw.cuda",
-            )
-            _, _, kh, kw = get_const_tuple(kernel.shape)
-            if (
-                2 < kh < 8
-                and 2 < kw < 8
-                and kh == kw
-                and stride_h == 1
-                and stride_w == 1
-                and dilation_h == 1
-                and dilation_w == 1
-            ):
-                strategy.add_implementation(
-                    wrap_compute_conv2d(topi.cuda.conv2d_nchw_winograd),
-                    wrap_topi_schedule(topi.cuda.schedule_conv2d_nchw_winograd),
-                    name="conv2d_nchw_winograd.cuda",
-                    plevel=5,
-                )
-        elif layout == "NHWC":
-            assert kernel_layout == "HWIO"
-            strategy.add_implementation(
-                wrap_compute_conv2d(topi.gpu.conv2d_nhwc),
-                wrap_topi_schedule(topi.gpu.schedule_conv2d_nhwc),
-                name="conv2d_nhwc.gpu",
-            )
-            N, H, W, _ = get_const_tuple(data.shape)
-            KH, KW, CI, CO = get_const_tuple(kernel.shape)
+    strategy = conv2d_strategy_cuda(attrs, inputs, out_type, target)
 
-            (_, judge_winograd_autotvm, judge_winograd_auto_scheduler,) = judge_winograd(
-                N,
-                H,
-                W,
-                KH,
-                KW,
-                CI,
-                CO,
-                padding,
-                stride_h,
-                stride_w,
-                dilation_h,
-                dilation_w,
-                data.dtype,
-                kernel.dtype,
-                pre_flag=False,
-            )
+    # add miopen implementation
+    if (
+        "miopen" in target.libs
+        and groups == 1
+        and layout == "NCHW"
+        and padding[0] == padding[2]
+        and padding[1] == padding[3]
+    ):
+        strategy.add_implementation(
+            wrap_compute_conv2d(topi.rocm.conv2d_nchw_miopen, need_data_layout=True),
+            wrap_topi_schedule(topi.rocm.schedule_conv2d_nchw_miopen),
+            name="conv2d_nchw_miopen.rocm",
+            plevel=50,
+        )
 
-            if judge_winograd_autotvm:
-                strategy.add_implementation(
-                    wrap_compute_conv2d(topi.cuda.conv2d_nhwc_winograd_direct),
-                    wrap_topi_schedule(topi.cuda.schedule_conv2d_nhwc_winograd_direct),
-                    name="conv2d_nhwc_winograd_direct.cuda",
-                    plevel=5,
-                )
-
-            if is_auto_scheduler_enabled() and judge_winograd_auto_scheduler:
-                strategy.add_implementation(
-                    wrap_compute_conv2d(topi.nn.conv2d_winograd_nhwc),
-                    naive_schedule,  # this implementation should never be picked by autotvm
-                    name="conv2d_nhwc.winograd",
-                    plevel=15,
-                )
-        elif layout == "HWCN":
-            assert kernel_layout == "HWIO"
-            strategy.add_implementation(
-                wrap_compute_conv2d(topi.cuda.conv2d_hwcn),
-                wrap_topi_schedule(topi.cuda.schedule_conv2d_hwcn),
-                name="conv2d_hwcn.cuda",
-            )
-        elif layout == "NCHW4c" and data.dtype in ["int8", "uint8"]:
-            assert kernel_layout == "OIHW4o4i"
-            strategy.add_implementation(
-                wrap_compute_conv2d(topi.cuda.conv2d_NCHWc_int8, True),
-                wrap_topi_schedule(topi.cuda.schedule_conv2d_NCHWc_int8),
-                name="conv2d_NCHWc_int8.cuda",
-            )
-        else:
-            raise RuntimeError("Unsupported conv2d layout {} for CUDA".format(layout))
-        # add miopen implementation
-        if (
-            "miopen" in target.libs
-            and layout == "NCHW"
-            and padding[0] == padding[2]
-            and padding[1] == padding[3]
-        ):
-            strategy.add_implementation(
-                wrap_compute_conv2d(topi.rocm.conv2d_nchw_miopen, True),
-                wrap_topi_schedule(topi.rocm.schedule_conv2d_nchw_miopen),
-                name="conv2d_nchw_miopen.rocm",
-                plevel=15,
-            )
-    elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
-        if layout == "NCHW":
-            assert kernel_layout == "OIHW"
-            strategy.add_implementation(
-                wrap_compute_conv2d(topi.cuda.depthwise_conv2d_nchw),
-                wrap_topi_schedule(topi.cuda.schedule_depthwise_conv2d_nchw),
-                name="depthwise_conv2d_nchw.cuda",
-            )
-        elif layout == "NHWC":
-            assert kernel_layout == "HWOI"
-            strategy.add_implementation(
-                wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
-                wrap_topi_schedule(topi.cuda.schedule_depthwise_conv2d_nhwc),
-                name="depthwise_conv2d_nhwc.cuda",
-            )
-        else:
-            raise RuntimeError("Unsupported depthwise_conv2d layout {}".format(layout))
-    else:  # group_conv2d
-        if layout == "NCHW":
-            # TODO(@vinx13, @icemelon9): Use group_conv2d_NCHWc_int8 when dtype is int8/uint8.
-            assert kernel_layout == "OIHW"
-            strategy.add_implementation(
-                wrap_compute_conv2d(topi.cuda.group_conv2d_nchw, has_groups=True),
-                wrap_topi_schedule(topi.cuda.schedule_group_conv2d_nchw),
-                name="group_conv2d_nchw.cuda",
-            )
-        elif layout == "NCHW4c" and data.dtype in ["int8", "uint8"]:
-            assert kernel_layout == "OIHW4o4i"
-            strategy.add_implementation(
-                wrap_compute_conv2d(topi.cuda.group_conv2d_NCHWc_int8, True),
-                wrap_topi_schedule(topi.cuda.schedule_group_conv2d_NCHWc_int8),
-                name="group_conv2d_NCHWc_int8.cuda",
-            )
-        else:
-            raise RuntimeError("Unsupported group_conv2d layout {}".format(layout))
     return strategy
 
 
@@ -180,12 +57,8 @@ def conv2d_strategy_rocm(attrs, inputs, out_type, target):
 def dense_strategy_rocm(attrs, inputs, out_type, target):
     """Dense strategy for ROCM"""
     assert len(inputs[0].shape) == 2 and len(inputs[1].shape) == 2, "Only support 2-dim dense"
-    strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_dense(topi.rocm.dense),
-        wrap_topi_schedule(topi.rocm.schedule_dense),
-        name="dense.rocm",
-    )
+    strategy = dense_strategy_cuda(attrs, inputs, out_type, target)
+
     if target.kind.name == "rocm" and "rocblas" in target.libs:
         assert out_type.dtype == inputs[0].dtype, "Mixed precision not supported."
         strategy.add_implementation(
@@ -200,13 +73,8 @@ def dense_strategy_rocm(attrs, inputs, out_type, target):
 @batch_matmul_strategy.register("rocm")
 def batch_matmul_strategy_rocm(attrs, inputs, out_type, target):
     """Batch matmul strategy for ROCM"""
-    strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_batch_matmul(topi.cuda.batch_matmul),
-        wrap_topi_schedule(topi.cuda.schedule_batch_matmul),
-        name="batch_matmul.cuda",
-        plevel=10,
-    )
+    strategy = batch_matmul_strategy_cuda(attrs, inputs, out_type, target)
+
     if target.kind.name == "rocm" and "rocblas" in target.libs:
         assert out_type.dtype == inputs[0].dtype, "Mixed precision not supported."
         strategy.add_implementation(

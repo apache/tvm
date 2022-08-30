@@ -76,13 +76,27 @@ def test_buffer_access_ptr_extent():
     aptr = Ab.access_ptr("rw", offset=100)
     assert tvm.ir.structural_equal(aptr.args[3], Ab.strides[0] * m - 100)
 
+    # Test extent from input params
+    aptr = Ab.access_ptr("rw", extent=200)
+    assert tvm.ir.structural_equal(aptr.args[3], 200)
+    aptr = Ab.access_ptr("rw", offset=100, extent=100)
+    assert tvm.ir.structural_equal(aptr.args[3], 100)
+
 
 def test_buffer_vload():
     m = te.size_var("m")
     n = te.size_var("n")
     Ab = tvm.tir.decl_buffer((m, n), "float32", elem_offset=100)
     load = Ab.vload([2, 3])
-    tvm.testing.assert_prim_expr_equal(load.index, n * 2 + 103)
+    tvm.ir.assert_structural_equal(load.indices, [2, 3])
+
+
+def test_buffer_offset_of():
+    m = te.size_var("m")
+    n = te.size_var("n")
+    Ab = tvm.tir.decl_buffer((m, n), "float32", elem_offset=100)
+    offset = Ab.offset_of([2, 3])
+    tvm.ir.assert_structural_equal(offset, [n * 2 + 103])
 
 
 def test_buffer_vload_nullptr():
@@ -91,7 +105,7 @@ def test_buffer_vload_nullptr():
     buf_load = tvm.tir.expr.BufferLoad(buffer=buf, indices=tvm.runtime.convert([0]))
     buf_load_stmt = tvm.tir.stmt.Evaluate(buf_load)
     for_loop = tvm.tir.stmt.For(
-        loop_var=var, kind=0, min_val=0, extent=buf_load, body=buf_load_stmt
+        loop_var=var, kind=0, min_val=0, extent=tvm.tir.Cast("int32", buf_load), body=buf_load_stmt
     )
     buf_func = tvm.tir.PrimFunc(params={}, body=for_loop)
     mod = tvm.IRModule({"main": buf_func})
@@ -101,6 +115,7 @@ def test_buffer_vload_nullptr():
             [
                 tvm.tir.transform.PlanAndUpdateBufferAllocationLocation(),
                 tvm.tir.transform.CompactBufferAllocation(),
+                tvm.tir.transform.LowerOpaqueBlock(),
                 tvm.tir.transform.FlattenBuffer(),
             ]
         )(mod)
@@ -123,33 +138,34 @@ def test_buffer_index_merge_mult_mod():
 
     idxd = tvm.tir.indexdiv
     idxm = tvm.tir.indexmod
+
     # Test Case1
-    index_simplified = A_stride.vload(
+    index_simplified = A_stride.offset_of(
         (idxd(idxm(k0, k1), s), idxm(idxm(k0, k1), s) + idxd(k0, k1) * k1)
     )
-    index_direct = A_stride.vload((0, k0))
+    index_direct = A_stride.offset_of((0, k0))
     assert_simplified_equal(index_simplified, index_direct)
 
     # Test Case2
-    index_simplified = A.vload(
+    index_simplified = A.offset_of(
         (idxd(idxm(k0, idxd(k1, s)), n), idxm(idxm(k0, idxd(k1, s)), n) + idxm(k0, k1))
     )
-    index_direct = A.vload((0, idxm(k0, k1) + idxm(k0, idxd(k1, s))))
+    index_direct = A.offset_of((0, idxm(k0, k1) + idxm(k0, idxd(k1, s))))
     assert_simplified_equal(index_simplified, index_direct)
     # Test Case3
-    index_simplified = A.vload(
+    index_simplified = A.offset_of(
         (
             idxd((idxd(k0, idxd(k1, s)) * idxd(k1, s)), n) + idxd(idxm(k0, idxd(k1, s)), n),
             idxm((idxd(k0, idxd(k1, s)) * idxd(k1, s)), n) + idxm(idxm(k0, idxd(k1, s)), n),
         )
     )
-    index_direct = A.vload((0, k0))
+    index_direct = A.offset_of((0, k0))
     assert_simplified_equal(index_simplified, index_direct)
     # Test Case4 (not able to simplify)
-    index_simplified = A.vload(
+    index_simplified = A.offset_of(
         (idxd(idxm(k0, idxd(k1, s)), n), idxm(idxm(k0, idxd(k1, n)), n) + idxm(k0, k1))
     )
-    index_direct = A.vload(
+    index_direct = A.offset_of(
         (0, idxd(idxm(k0, idxd(k1, s)), n) * n + (idxm(idxm(k0, idxd(k1, n)), n) + idxm(k0, k1)))
     )
     assert_simplified_equal(index_simplified, index_direct)
@@ -160,7 +176,7 @@ def test_buffer_index_merge_mult_mod():
     j = te.size_var("j")
     k = te.size_var("k")
 
-    index_simplified = B.vload(
+    index_simplified1 = B.offset_of(
         (
             idxd(idxd(idxd((i * 50176 + j * 28672 + k), 1024), 14), 14),
             idxm(idxd(idxd((i * 50176 + j * 28672 + k), 1024), 14), 14),
@@ -168,8 +184,17 @@ def test_buffer_index_merge_mult_mod():
             idxm((i * 50176 + j * 28672 + k), 1024),
         )
     )
-    index_direct = B.vload((0, 0, 0, (i * 50176 + j * 28672 + k)))
-    assert_simplified_equal(index_simplified, index_direct)
+    index_simplified2 = B.offset_of(
+        (
+            idxd(idxd(i * 49 + j * 28 + idxd(k, 1024), 14), 14),
+            idxm(idxd(i * 49 + j * 28 + idxd(k, 1024), 14), 14),
+            idxm(i * 7 + idxd(k, 1024), 14),
+            idxm(k, 1024),
+        )
+    )
+    index_direct = B.offset_of((0, 0, 0, (i * 50176 + j * 28672 + k)))
+    assert_simplified_equal(index_simplified1, index_direct)
+    assert_simplified_equal(index_simplified2, index_direct)
 
 
 @tvm.testing.requires_llvm

@@ -47,15 +47,15 @@ import pyxir.contrib.target.DPUCZDX8G
 import tvm
 import tvm.relay.testing
 from tvm import relay
+from tvm.testing import requires_vitis_ai
 
-from .infrastructure import skip_test, verify_result
+from .infrastructure import verify_result
 
 
+@requires_vitis_ai
 @pytest.mark.parametrize("dpu_target", ["DPUCADF8H", "DPUCVDX8H", "DPUCZDX8G-zcu104"])
 def test_extern_vitis_ai_resnet18(dpu_target):
     """Test first part of Vitis AI on-the-fly quantization runtime with ResNet 18 model"""
-    if skip_test():
-        return
 
     dtype = "float32"
     ishape = (1, 3, 224, 224)

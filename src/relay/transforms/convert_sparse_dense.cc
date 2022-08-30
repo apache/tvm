@@ -73,7 +73,7 @@ TVM_REGISTER_GLOBAL("relay.analysis.search_dense_op_weight").set_body_typed(Sear
 class DenseToSparseDenseMutator : public ExprRewriter {
  public:
   DenseToSparseDenseMutator(const Array<ObjectRef>& weight_name,
-                            const Array<Array<PrimExpr> >& weight_shape)
+                            const Array<Array<PrimExpr>>& weight_shape)
       : dense_op_(Op::Get("nn.dense")), sparse_dense_op_(Op::Get("nn.sparse_dense")) {
     ICHECK_EQ(weight_name.size(), weight_shape.size());
     for (size_t i = 0; i < weight_name.size(); ++i) {
@@ -117,11 +117,11 @@ class DenseToSparseDenseMutator : public ExprRewriter {
   // Cached op
   const Op& dense_op_;
   const Op& sparse_dense_op_;
-  std::unordered_map<std::string, std::vector<int> > target_weights_;
+  std::unordered_map<std::string, std::vector<int>> target_weights_;
 };  // class DenseToSparseDenseAlter
 
 Expr DenseToSparse(const Expr& e, const Array<ObjectRef>& weight_name,
-                   const Array<Array<PrimExpr> >& weight_shape) {
+                   const Array<Array<PrimExpr>>& weight_shape) {
   auto rewriter = DenseToSparseDenseMutator(weight_name, weight_shape);
   return PostOrderRewrite(e, &rewriter);
 }
@@ -129,18 +129,18 @@ Expr DenseToSparse(const Expr& e, const Array<ObjectRef>& weight_name,
 namespace transform {
 
 Pass DenseToSparse(const Array<ObjectRef>& weight_name,
-                   const Array<Array<PrimExpr> >& weight_shape) {
+                   const Array<Array<PrimExpr>>& weight_shape) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
         // Remove FreeVar warnings
         auto f0 = Downcast<Function>(DenseToSparse(f, weight_name, weight_shape));
         Array<Var> sparse_params = FreeVars(f0);
-        auto f1 = Function(sparse_params, f0->body, f0->ret_type, f0->type_params, f0->attrs);
+        auto f1 = WithFields(f0, sparse_params);
         Array<Var> params = FreeVars(f1);
         for (const auto& var : sparse_params) {
           params.push_back(var);
         }
-        return Function(params, f1->body, f1->ret_type, f1->type_params, f1->attrs);
+        return WithFields(f1, params);
       };
   return CreateFunctionPass(pass_func, 4, "DenseToSparse", {"DeadCodeElimination"});
 }

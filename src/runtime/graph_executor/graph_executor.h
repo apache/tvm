@@ -33,7 +33,9 @@
 
 #include <memory>
 #include <string>
+#include <tuple>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -59,7 +61,7 @@ struct TVMOpParam {
 /*!
  * \brief Tiny graph executor.
  *
- *  This runtime can be acccesibly in various language via
+ *  This runtime can be accessible in various languages via
  *  TVM runtime PackedFunc API.
  */
 class TVM_DLL GraphExecutor : public ModuleNode {
@@ -71,6 +73,8 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   };
 
  public:
+  using ShapeInfo = Map<String, ObjectRef>;
+  using DtypeInfo = Map<String, ObjectRef>;
   /*!
    * \brief Get member function to front-end
    * \param name The name of the function.
@@ -106,6 +110,12 @@ class TVM_DLL GraphExecutor : public ModuleNode {
    * \return The index of input.
    */
   int GetInputIndex(const std::string& name);
+
+  /*!
+   * \brief Get the input info of Graph by parsing the input nodes.
+   * \return The shape and dtype tuple.
+   */
+  std::tuple<ShapeInfo, DtypeInfo> GetInputInfo() const;
 
   /*!
    * \brief Get the output index given the name of output.
@@ -194,10 +204,12 @@ class TVM_DLL GraphExecutor : public ModuleNode {
  protected:
   // Memory pool entry.
   struct PoolEntry {
-    size_t size;
     int device_type;
+    std::vector<int64_t> shape;
+    DLDataType dtype;
     int param_data_entry;
     NDArray linked_param;
+    std::string scope;
     //    PoolEntry(int s, int dev_type, void* pre_linked_param) :
     //        size(s), device_type(dev_type), pre_linked_param(std::move(pre_linked_param)) {}
   };
@@ -293,6 +305,7 @@ class TVM_DLL GraphExecutor : public ModuleNode {
     std::vector<int> storage_id;
     std::vector<int> device_index;
     std::vector<std::string> dltype;
+    std::vector<std::string> storage_scope;
     std::vector<std::vector<int64_t>> shape;
     // The graph attribute fields.
     void Load(dmlc::JSONReader* reader) {
@@ -318,6 +331,15 @@ class TVM_DLL GraphExecutor : public ModuleNode {
           reader->Read(&storage_id);
           ICHECK(!reader->NextArrayItem());
           bitmask |= 2;
+        } else if (key == "storage_scope") {
+          reader->BeginArray();
+          ICHECK(reader->NextArrayItem());
+          reader->Read(&type);
+          ICHECK_EQ(type, "list_str");
+          ICHECK(reader->NextArrayItem());
+          reader->Read(&storage_scope);
+          ICHECK(!reader->NextArrayItem());
+          bitmask |= 1;
         } else if (key == "shape") {
           reader->BeginArray();
           ICHECK(reader->NextArrayItem());
@@ -417,6 +439,8 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   std::vector<Node> nodes_;
   /*! \brief The argument nodes. */
   std::vector<uint32_t> input_nodes_;
+  /*! \brief The parameter names. */
+  std::unordered_set<std::string> param_names_;
   /*! \brief Map of input names to input indices. */
   std::unordered_map<std::string, uint32_t> input_map_;
   /*! \brief Map of output names to output indices. */

@@ -56,6 +56,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSeed")  //
     .set_body_method<Schedule>(&ScheduleNode::Seed);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleForkSeed")  //
     .set_body_method<Schedule>(&ScheduleNode::ForkSeed);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleWorkOn")  //
+    .set_body_method<Schedule>(&ScheduleNode::WorkOn);
 
 /**************** (FFI) Constructor ****************/
 
@@ -125,6 +127,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSampleCategorical")
     .set_body_method<Schedule>(&ScheduleNode::SampleCategorical);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSamplePerfectTile")
     .set_body_method<Schedule>(&ScheduleNode::SamplePerfectTile);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSampleComputeLocation")
+    .set_body_method<Schedule>(&ScheduleNode::SampleComputeLocation);
 /******** (FFI) Get blocks & loops ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetBlock")
     .set_body_method<Schedule>(&ScheduleNode::GetBlock);
@@ -151,6 +155,18 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleFuse").set_body_method<Schedule>(&Sche
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSplit").set_body_method<Schedule>(&ScheduleNode::Split);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReorder")
     .set_body_method<Schedule>(&ScheduleNode::Reorder);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleAddUnitLoop")
+    .set_body_typed([](Schedule self, ObjectRef rv) -> LoopRV {
+      if (const auto* loop_rv = rv.as<LoopRVNode>()) {
+        return self->AddUnitLoop(GetRef<LoopRV>(loop_rv));
+      } else if (const auto* block_rv = rv.as<BlockRVNode>()) {
+        return self->AddUnitLoop(GetRef<BlockRV>(block_rv));
+      } else {
+        LOG(FATAL) << "TypeError: Cannot evaluate the random variable of type: " << rv->GetTypeKey()
+                   << ". Its value is: " << rv;
+        throw;
+      }
+    });
 /******** (FFI) Manipulate ForKind ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleParallel")
     .set_body_method<Schedule>(&ScheduleNode::Parallel);
@@ -163,6 +179,11 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheRead")
     .set_body_method<Schedule>(&ScheduleNode::CacheRead);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheWrite")
     .set_body_method<Schedule>(&ScheduleNode::CacheWrite);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReIndex")
+    .set_body_typed([](Schedule self, const BlockRV& block_rv, int buffer_index,
+                       int buffer_index_type) {
+      return self->ReIndex(block_rv, buffer_index, static_cast<BufferIndexType>(buffer_index_type));
+    });
 /******** (FFI) Compute location ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleComputeAt")
     .set_body_method<Schedule>(&ScheduleNode::ComputeAt);
@@ -180,8 +201,70 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleRFactor")
 /******** (FFI) Block annotation ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleStorageAlign")
     .set_body_method<Schedule>(&ScheduleNode::StorageAlign);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSetScope")
+    .set_body_method<Schedule>(&ScheduleNode::SetScope);
 /******** (FFI) Blockize & Tensorize ********/
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleBlockize")
+    .set_body_method<Schedule>(&ScheduleNode::Blockize);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleTensorize")
+    .set_body_typed([](Schedule self, ObjectRef rv, String intrin) {
+      if (const auto* block_rv = rv.as<BlockRVNode>()) {
+        self->Tensorize(GetRef<BlockRV>(block_rv), intrin);
+      } else if (const auto* loop_rv = rv.as<LoopRVNode>()) {
+        self->Tensorize(GetRef<LoopRV>(loop_rv), intrin);
+      } else {
+        LOG(FATAL) << "TypeError: Cannot evaluate the random variable of type: " << rv->GetTypeKey()
+                   << ". Its value is: " << rv;
+      }
+    });
+
 /******** (FFI) Annotation ********/
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleAnnotate")
+    .set_body_typed([](Schedule self, ObjectRef rv, const String& ann_key,
+                       const ObjectRef& ann_val) {
+      if (const auto* block_rv = rv.as<BlockRVNode>()) {
+        return self->Annotate(GetRef<BlockRV>(block_rv), ann_key, ann_val);
+      }
+      if (const auto* loop_rv = rv.as<LoopRVNode>()) {
+        return self->Annotate(GetRef<LoopRV>(loop_rv), ann_key, ann_val);
+      }
+      LOG(FATAL) << "TypeError: Cannot evaluate the random variable of type: " << rv->GetTypeKey()
+                 << ". Its value is: " << rv;
+      throw;
+    });
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleUnannotate")
+    .set_body_typed([](Schedule self, ObjectRef rv, const String& ann_key) {
+      if (const auto* block_rv = rv.as<BlockRVNode>()) {
+        return self->Unannotate(GetRef<BlockRV>(block_rv), ann_key);
+      }
+      if (const auto* loop_rv = rv.as<LoopRVNode>()) {
+        return self->Unannotate(GetRef<LoopRV>(loop_rv), ann_key);
+      }
+      LOG(FATAL) << "TypeError: Cannot evaluate the random variable of type: " << rv->GetTypeKey()
+                 << ". Its value is: " << rv;
+      throw;
+    });
+
+/******** (FFI) Layout transformation ********/
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleTransformLayout")
+    .set_body_typed([](Schedule self, const BlockRV& block_rv, int buffer_index,
+                       int buffer_index_type, const IndexMap& index_map) {
+      return self->TransformLayout(block_rv, buffer_index,
+                                   static_cast<BufferIndexType>(buffer_index_type), index_map);
+    });
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleTransformBlockLayout")
+    .set_body_method<Schedule>(&ScheduleNode::TransformBlockLayout);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSetAxisSeparator")
+    .set_body_typed([](Schedule self, const BlockRV& block_rv, int buffer_index,
+                       int buffer_index_type, const Array<IntImm>& axis_separators) {
+      return self->SetAxisSeparator(
+          block_rv, buffer_index, static_cast<BufferIndexType>(buffer_index_type), axis_separators);
+    });
+
+/******** (FFI) Padding decomposition ********/
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleDecomposePadding")
+    .set_body_method<Schedule>(&ScheduleNode::DecomposePadding);
+
 /******** (FFI) Misc ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleEnterPostproc")
     .set_body_method<Schedule>(&ScheduleNode::EnterPostproc);

@@ -461,8 +461,11 @@ def _conv(opname):
             raise tvm.error.OpAttributeInvalid(msg.format(attr["padding"]))
 
         if "kernel_layout" not in attr:
-            if opname in ["conv", "conv_transpose"]:
+            if opname == "conv":
                 attr["kernel_layout"] = "HWIO" if attr["data_format"] == "NHWC" else "OIHW"
+            elif opname == "conv_transpose":
+                # conv_transpose in TVM has weights be IOHW for NCHW
+                attr["kernel_layout"] = "HWIO" if attr["data_format"] == "NHWC" else "IOHW"
             else:
                 attr["kernel_layout"] = "HWOI" if attr["data_format"] == "NHWC" else "OIHW"
 
@@ -1087,7 +1090,9 @@ def _resize(method):
 
         # Ignore the new attributes from TF2.0, for now.
         return AttrCvt(
-            op_name="resize2d", ignores=["Tdim", "half_pixel_centers"], extras={"method": method}
+            op_name="resize2d",
+            ignores=["Tdim", "half_pixel_centers"],
+            extras={"method": method, "roi": None},
         )(inputs, attr)
 
     return _impl
@@ -2449,6 +2454,7 @@ def _range():
                 delta = inputs[2]
 
         # if all attributes are constant, evalute the range function and return relay.const
+        dtype = attr["Tidx"].name if "Tidx" in attr else str(start.dtype)
         if all(
             [
                 isinstance(start, (np.int32, np.int64, int, np.float32, np.float64, float)),
@@ -2456,9 +2462,8 @@ def _range():
                 isinstance(delta, (np.int32, np.int64, int, np.float32, np.float64, float)),
             ]
         ):
-            return tvm.relay.const(list(range(int(start), int(limit), int(delta))))
+            return tvm.relay.const(list(range(int(start), int(limit), int(delta))), dtype=dtype)
 
-        dtype = attr["Tidx"].name if "Tidx" in attr else str(start.dtype)
         if isinstance(start, (np.int32, np.int64, int, np.float32, np.float64, float)):
             start = _expr.const(start, dtype=dtype)
         if isinstance(limit, (np.int32, np.int64, int, np.float32, np.float64, float)):
@@ -2471,6 +2476,15 @@ def _range():
             ignores=["Tidx", "_class"],
             extras={"start": start, "stop": limit, "step": delta, "dtype": dtype},
         )([], attr)
+
+    return _impl
+
+
+def _einsum():
+    def _impl(inputs, attr, params, mod):
+        einsum_attr = dict(attr)
+        einsum_attr["equation"] = einsum_attr["equation"].decode("utf-8")
+        return AttrCvt(op_name="einsum", ignores=["N"])([inputs], einsum_attr)
 
     return _impl
 
@@ -2902,6 +2916,7 @@ _convert_map = {
     "DepthToSpace": _depth_to_space(),
     "DepthwiseConv2dNative": _conv("depthwise"),
     "Dilation2D": _dilation2d(),
+    "Einsum": _einsum(),
     "Elu": _elu(),
     "Equal": _broadcast("equal"),
     "Erf": AttrCvt("erf"),

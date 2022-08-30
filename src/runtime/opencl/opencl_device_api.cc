@@ -20,7 +20,9 @@
 /*!
  * \file opencl_device_api.cc
  */
+#include <dmlc/parameter.h>
 #include <dmlc/thread_local.h>
+#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
 
 #include "opencl_common.h"
@@ -70,6 +72,8 @@ cl::BufferDescriptor::MemoryLayout cl::BufferDescriptor::MemoryLayoutFromScope(
     return cl::BufferDescriptor::MemoryLayout::kImage2DActivation;
   } else if (mem_scope.value() == "global.texture-weight") {
     return cl::BufferDescriptor::MemoryLayout::kImage2DWeight;
+  } else if (mem_scope.value() == "global.texture-nhwc") {
+    return cl::BufferDescriptor::MemoryLayout::kImage2DNHWC;
   }
   LOG(FATAL) << "No memory layout defined for memory of scope: " << mem_scope.value();
   return cl::BufferDescriptor::MemoryLayout::kBuffer1D;
@@ -83,6 +87,8 @@ String cl::BufferDescriptor::ScopeFromMemoryLayout(cl::BufferDescriptor::MemoryL
       return "global.texture";
     case cl::BufferDescriptor::MemoryLayout::kImage2DWeight:
       return "global.texture-weight";
+    case cl::BufferDescriptor::MemoryLayout::kImage2DNHWC:
+      return "global.texture-nhwc";
   }
   LOG(FATAL) << "No scope corresponding to the provided memory layout: "
              << static_cast<int>(layout);
@@ -122,7 +128,8 @@ void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
                corresponding to the number of SIMD entries the heardware configures.
                We need to figure out a way to query this information from the hardware.
       */
-      *rv = 1;
+      const int warp_size = dmlc::GetEnv("TVM_OPENCL_WARP_SIZE", 1);
+      *rv = warp_size;
       break;
     }
     case kMaxSharedMemoryPerBlock: {
@@ -266,12 +273,31 @@ void OpenCLWorkspace::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHand
 
   if (IsOpenCLDevice(from->device) && IsOpenCLDevice(to->device)) {
     const auto* from_desc = static_cast<const cl::BufferDescriptor*>(from->data);
-    ICHECK(from_desc->layout == cl::BufferDescriptor::MemoryLayout::kBuffer1D)
-        << "Device to device copying is currently only implemented for OpenCL buffer storage";
     auto* to_desc = static_cast<cl::BufferDescriptor*>(to->data);
-    OPENCL_CALL(clEnqueueCopyBuffer(this->GetQueue(to->device), from_desc->buffer, to_desc->buffer,
-                                    from->byte_offset, to->byte_offset, nbytes, 0, nullptr,
-                                    nullptr));
+    if (to_desc->layout == cl::BufferDescriptor::MemoryLayout::kBuffer1D &&
+        from_desc->layout == cl::BufferDescriptor::MemoryLayout::kBuffer1D) {
+      OPENCL_CALL(clEnqueueCopyBuffer(this->GetQueue(to->device), from_desc->buffer,
+                                      to_desc->buffer, from->byte_offset, to->byte_offset, nbytes,
+                                      0, nullptr, nullptr));
+    } else if (to_desc->layout != cl::BufferDescriptor::MemoryLayout::kBuffer1D &&
+               from_desc->layout == cl::BufferDescriptor::MemoryLayout::kBuffer1D) {
+      auto image_info = GetImageInfo(to_desc, to);
+      OPENCL_CALL(clEnqueueCopyBufferToImage(this->GetQueue(to->device), from_desc->buffer,
+                                             to_desc->buffer, from->byte_offset, image_info.origin,
+                                             image_info.region, 0, nullptr, nullptr));
+    } else if (to_desc->layout == cl::BufferDescriptor::MemoryLayout::kBuffer1D &&
+               from_desc->layout != cl::BufferDescriptor::MemoryLayout::kBuffer1D) {
+      auto image_info = GetImageInfo(from_desc, from);
+      OPENCL_CALL(clEnqueueCopyImageToBuffer(this->GetQueue(to->device), from_desc->buffer,
+                                             to_desc->buffer, image_info.origin, image_info.region,
+                                             to->byte_offset, 0, nullptr, nullptr));
+    } else {
+      auto to_image_info = GetImageInfo(to_desc, to);
+      auto from_image_info = GetImageInfo(from_desc, from);
+      OPENCL_CALL(clEnqueueCopyImage(this->GetQueue(to->device), from_desc->buffer, to_desc->buffer,
+                                     from_image_info.origin, to_image_info.origin,
+                                     to_image_info.region, 0, nullptr, nullptr));
+    }
   } else if (IsOpenCLDevice(from->device) && to->device.device_type == kDLCPU) {
     const auto* from_desc = static_cast<const cl::BufferDescriptor*>(from->data);
     switch (from_desc->layout) {
@@ -282,6 +308,7 @@ void OpenCLWorkspace::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHand
         break;
       case cl::BufferDescriptor::MemoryLayout::kImage2DActivation:
       case cl::BufferDescriptor::MemoryLayout::kImage2DWeight:
+      case cl::BufferDescriptor::MemoryLayout::kImage2DNHWC:
         auto image_info = GetImageInfo(from_desc, from);
         // TODO(csullivan): Support calculating row_pitch correctly in the case of reuse.
         // Note that when utilizing texture pools for memory reuse, the allocated image
@@ -303,6 +330,7 @@ void OpenCLWorkspace::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHand
         break;
       case cl::BufferDescriptor::MemoryLayout::kImage2DActivation:
       case cl::BufferDescriptor::MemoryLayout::kImage2DWeight:
+      case cl::BufferDescriptor::MemoryLayout::kImage2DNHWC:
         auto image_info = GetImageInfo(to_desc, to);
         OPENCL_CALL(clEnqueueWriteImage(
             this->GetQueue(to->device), to_desc->buffer, CL_FALSE, image_info.origin,
@@ -426,16 +454,23 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
     this->queues.push_back(clCreateCommandQueue(this->context, did, 0, &err_code));
     OPENCL_CHECK_ERROR(err_code);
   }
+  this->events.resize(this->devices.size());
   initialized_ = true;
 }
 
-TVM_REGISTER_GLOBAL("device_api.opencl.AllocTexture").set_body([](TVMArgs args, TVMRetValue* rv) {
-  int device_type = args[0];
-  int device_id = args[1];
-  int width = args[2];
-  int height = args[3];
-  int dtype_code_hint = args[4];
-  int dtype_bits_hint = args[5];
+TVM_REGISTER_GLOBAL("device_api.opencl.alloc_nd").set_body([](TVMArgs args, TVMRetValue* rv) {
+  int32_t device_type = args[0];
+  int32_t device_id = args[1];
+  int32_t dtype_code_hint = args[2];
+  int32_t dtype_bits_hint = args[3];
+  std::string scope = args[4];
+  CHECK(scope.find("texture") != std::string::npos);
+  int64_t ndim = args[5];
+  CHECK_EQ(ndim, 2);
+  int64_t* shape = static_cast<int64_t*>(static_cast<void*>(args[6]));
+  int64_t width = shape[0];
+  int64_t height = shape[1];
+
   Device dev;
   dev.device_type = static_cast<DLDeviceType>(device_type);
   dev.device_id = device_id;
@@ -450,10 +485,12 @@ TVM_REGISTER_GLOBAL("device_api.opencl.AllocTexture").set_body([](TVMArgs args, 
                                    type_hint);
 });
 
-TVM_REGISTER_GLOBAL("device_api.opencl.FreeTexture").set_body([](TVMArgs args, TVMRetValue* rv) {
-  int device_type = args[0];
-  int device_id = args[1];
-  void* data = args[2];
+TVM_REGISTER_GLOBAL("device_api.opencl.free_nd").set_body([](TVMArgs args, TVMRetValue* rv) {
+  int32_t device_type = args[0];
+  int32_t device_id = args[1];
+  std::string scope = args[2];
+  CHECK(scope.find("texture") != std::string::npos);
+  void* data = args[3];
   OpenCLWorkspace* ptr = OpenCLWorkspace::Global();
   Device dev;
   dev.device_type = static_cast<DLDeviceType>(device_type);
@@ -467,6 +504,14 @@ TVM_REGISTER_GLOBAL("device_api.opencl").set_body([](TVMArgs args, TVMRetValue* 
   *rv = static_cast<void*>(ptr);
 });
 
+TVM_REGISTER_OBJECT_TYPE(OpenCLTimerNode);
+
+TVM_REGISTER_GLOBAL("profiling.timer.opencl").set_body_typed([](Device dev) {
+  return Timer(make_object<OpenCLTimerNode>(dev));
+});
+
 }  // namespace cl
+size_t OpenCLTimerNode::count_timer_execs = 0;
+std::vector<size_t> OpenCLTimerNode::event_start_idxs;
 }  // namespace runtime
 }  // namespace tvm

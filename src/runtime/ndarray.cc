@@ -121,6 +121,13 @@ struct NDArray::Internal {
     }
     delete ptr;
   }
+  // Deleter for NDArray based on external DLTensor
+  // The memory is allocated from outside and it is assumed that
+  // responsibility for its freeing is also outside
+  static void SelfDeleter(Object* ptr_obj) {
+    auto* ptr = static_cast<NDArray::Container*>(ptr_obj);
+    delete ptr;
+  }
   // Local create function which allocates tensor metadata
   // but does not allocate space for the data.
   static NDArray Create(ShapeTuple shape, DLDataType dtype, Device dev) {
@@ -198,12 +205,43 @@ NDArray NDArray::Empty(ShapeTuple shape, DLDataType dtype, Device dev, Optional<
   return ret;
 }
 
+NDArray NDArray::FromExternalDLTensor(const DLTensor& dl_tensor) {
+  ICHECK(::tvm::runtime::IsContiguous(dl_tensor)) << "External DLTensor must be contiguous.";
+  ICHECK(IsAligned(dl_tensor)) << "Data in DLTensor is not aligned as required by NDArray";
+  NDArray::Container* data = new NDArray::Container();
+
+  data->SetDeleter(Internal::SelfDeleter);
+  data->dl_tensor = dl_tensor;
+  std::vector<ShapeTuple::index_type> shape;
+  shape.resize(data->dl_tensor.ndim);
+  shape.assign(data->dl_tensor.shape, data->dl_tensor.shape + data->dl_tensor.ndim);
+  data->shape_ = ShapeTuple(shape);
+  data->dl_tensor.shape = const_cast<ShapeTuple::index_type*>(data->shape_.data());
+
+  return NDArray(GetObjectPtr<Object>(data));
+}
+
+NDArray NDArray::NewFromDLTensor(DLTensor* tensor, const Device& dev) {
+  ICHECK(::tvm::runtime::IsContiguous(*tensor))
+      << "DLTensor is not contiguous. Copying from non-contiguous data is currently not supported";
+  std::vector<int64_t> shape;
+  for (int64_t i = 0; i < tensor->ndim; i++) {
+    shape.push_back(tensor->shape[i]);
+  }
+  NDArray ary = NDArray::Empty(shape, tensor->dtype, dev);
+  ary.CopyFrom(tensor);
+  return ary;
+}
+
 NDArray NDArray::FromDLPack(DLManagedTensor* tensor) {
   NDArray::Container* data = new NDArray::Container();
   // construct header
   data->SetDeleter(Internal::DLPackDeleter);
   // fill up content.
   data->manager_ctx = tensor;
+  ICHECK(::tvm::runtime::IsContiguous(tensor->dl_tensor)) << "DLManagedTensor must be contiguous.";
+  ICHECK(IsAligned(tensor->dl_tensor))
+      << "Data in DLManagedTensor is not aligned as required by NDArray";
   data->dl_tensor = tensor->dl_tensor;
   // update shape_
   std::vector<ShapeTuple::index_type> shape;
@@ -245,8 +283,22 @@ void NDArray::CopyFromTo(const DLTensor* from, DLTensor* to, TVMStreamHandle str
 }
 
 ShapeTuple NDArray::Shape() const { return get_mutable()->shape_; }
+
 runtime::DataType NDArray::DataType() const {
   return runtime::DataType(get_mutable()->dl_tensor.dtype);
+}
+
+bool NDArray::AbilityOfZeroCopyForDLTensor(DLTensor* tensor, const Device& dev) {
+  bool device_check = (dev.device_type == tensor->device.device_type);
+  bool device_id_check = (dev.device_id == tensor->device.device_id);
+  bool alignment_check = IsAligned(*tensor);
+  return device_check && device_id_check && alignment_check;
+}
+
+bool NDArray::IsAligned(const DLTensor& tensor) {
+  return (reinterpret_cast<size_t>(static_cast<char*>(tensor.data) + tensor.byte_offset) %
+              tvm::runtime::kAllocAlignment ==
+          0);
 }
 
 TVM_REGISTER_OBJECT_TYPE(NDArray::Container);
@@ -282,15 +334,11 @@ int TVMArrayAlloc(const tvm_index_t* shape, int ndim, int dtype_code, int dtype_
   API_END();
 }
 
-TVM_REGISTER_GLOBAL("runtime.TVMArrayAllocWithScope").set_body([](TVMArgs args, TVMRetValue* ret) {
-  int64_t* shape_ptr = static_cast<int64_t*>(static_cast<void*>(args[0]));
-  int ndim = args[1];
-  ShapeTuple shape(shape_ptr, shape_ptr + ndim);
-  DataType dtype = args[2];
-  tvm::Device dev = args[3];
-  Optional<String> mem_scope = args[4];
-  auto ndarray = NDArray::Empty(shape, dtype, dev, mem_scope);
-  *ret = ndarray;
+TVM_REGISTER_GLOBAL("runtime.TVMArrayAllocWithScope").set_body_typed(NDArray::Empty);
+
+TVM_REGISTER_GLOBAL("runtime.TVMArrayCreateView").set_body_typed([](NDArray arr, ShapeTuple shape) {
+  NDArray view = arr.CreateView(shape, arr->dtype);
+  return view;
 });
 
 int TVMArrayFree(TVMArrayHandle handle) {

@@ -15,20 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Concatenate tests for Ethos-N"""
+"""Concatenate tests for Arm(R) Ethos(TM)-N"""
 
 import numpy as np
+import pytest
 import tvm
 from tvm import relay
 from tvm.testing import requires_ethosn
 from . import infrastructure as tei
 
 
-def _get_inputs(shapes):
+def _get_inputs(shapes, dtype):
     inputs = {}
     for i, shape in enumerate(shapes):
         inputs["in" + str(i)] = tvm.nd.array(
-            np.random.randint(0, high=256, size=shape, dtype="uint8")
+            np.random.randint(np.iinfo(dtype).min, np.iinfo(dtype).max + 1, size=shape, dtype=dtype)
         )
 
     return inputs
@@ -54,7 +55,8 @@ def _get_model(shapes, dtype, axis):
 
 
 @requires_ethosn
-def test_concatenate():
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+def test_concatenate(dtype):
     trials = [
         ([(1, 4), (1, 6)], 1),
         ([(1, 16, 4), (1, 16, 4)], 1),
@@ -62,15 +64,16 @@ def test_concatenate():
         ([(1, 25, 4, 16), (1, 25, 5, 16), (1, 25, 6, 16)], 2),
     ]
 
+    np.random.seed(0)
     for shapes, axis in trials:
         outputs = []
-        inputs = _get_inputs(shapes)
+        inputs = _get_inputs(shapes, dtype)
         for npu in [False, True]:
-            model = _get_model(shapes, "uint8", axis)
+            model = _get_model(shapes, dtype, axis)
             mod = tei.make_module(model, {})
             outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
 
-        tei.verify(outputs, 0)
+        tei.verify(outputs, dtype, 0)
 
 
 @requires_ethosn
@@ -85,9 +88,9 @@ def test_concatenate_failure():
         ),
         (
             [(1, 4, 4, 4), (1, 4, 4, 4)],
-            "int8",
+            "int16",
             2,
-            "dtype='int8', dtype must be either uint8 or int32; dtype='int8', dtype must be either uint8 or int32;",
+            "dtype='int16', dtype must be either uint8, int8 or int32; dtype='int16', dtype must be either uint8, int8 or int32;",
         ),
         (
             [(2, 4, 4, 4), (2, 4, 4, 4)],
@@ -96,7 +99,7 @@ def test_concatenate_failure():
             "batch size=2, batch size must = 1; batch size=2, batch size must = 1;",
         ),
         (
-            [(1, 4, 4, 4), (1, 4, 4, 4)],
+            [(1, 4, 4, 4)],
             "uint8",
             0,
             "Concatenation cannot be performed along batch axis (axis 0);",

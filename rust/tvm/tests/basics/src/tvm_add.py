@@ -36,7 +36,7 @@ def main(target, out_dir):
         s[C].bind(bx, te.thread_axis("blockIdx.x"))
         s[C].bind(tx, te.thread_axis("threadIdx.x"))
 
-    fadd = tvm.build(s, [A, B, C], target, target_host="llvm", name="myadd")
+    fadd = tvm.build(s, [A, B, C], tvm.target.Target(target, host="llvm"), name="myadd")
     fadd.save(osp.join(out_dir, "test_add.o"))
     if target == "cuda":
         fadd.imported_modules[0].save(osp.join(out_dir, "test_add.ptx"))

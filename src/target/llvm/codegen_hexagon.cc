@@ -19,13 +19,32 @@
 
 #if defined(TVM_LLVM_VERSION) && TVM_LLVM_VERSION >= 70
 
+#include <llvm/ADT/ArrayRef.h>
+#include <llvm/ADT/SmallString.h>
+#include <llvm/ADT/StringRef.h>
 #include <llvm/Bitcode/BitcodeWriter.h>
-#if TVM_LLVM_VERSION <= 90
+#include <llvm/IR/Constants.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/GlobalVariable.h>
+#include <llvm/IR/Instructions.h>
 #include <llvm/IR/Intrinsics.h>
-#else
+#if TVM_LLVM_VERSION >= 100
 #include <llvm/IR/IntrinsicsHexagon.h>
 #endif
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/IR/MDBuilder.h>
+#include <llvm/IR/Module.h>
+#if TVM_LLVM_VERSION >= 100
+#include <llvm/Support/Alignment.h>
+#endif
+#include <llvm/Support/CodeGen.h>
 #include <llvm/Support/CommandLine.h>
+#include <llvm/Support/FileSystem.h>
+#include <llvm/Support/raw_ostream.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/Transforms/Utils/Cloning.h>
 #include <tvm/runtime/module.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tir/analysis.h>
@@ -41,530 +60,191 @@
 
 #include "../../runtime/hexagon/hexagon_module.h"
 #include "../build_common.h"
-#include "codegen_llvm.h"
+#include "codegen_cpu.h"
+#include "llvm_instance.h"
 
 namespace tvm {
 namespace codegen {
 
-static std::string get_name(const PrimFunc& f) {
-  auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
-  ICHECK(global_symbol.defined())
-      << "CodeGenLLVM: Expect PrimFunc to have the global_symbol attribute";
-  return std::string(global_symbol.value());
-}
-
 // Hexagon code generation
-class CodeGenHexagon final : public CodeGenLLVM {
+class CodeGenHexagon final : public CodeGenCPU {
  public:
-  void InitTarget(llvm::TargetMachine* tm) final;
-  void Init(const std::string& module_name, llvm::TargetMachine* tm, llvm::LLVMContext* ctx,
-            bool system_lib, bool dynamic_lookup, bool target_c_runtime) final;
+  void Init(const std::string& module_name, LLVMTarget* llvm_target, bool system_lib,
+            bool dynamic_lookup, bool target_c_runtime) override;
+  void InitTarget() final;
 
-  void VisitStmt_(const AssertStmtNode* op) override;
+  using CodeGenCPU::VisitStmt_;
+  llvm::Value* VisitExpr_(const BufferLoadNode* op) override;
 
-  llvm::Value* CreateIntrinsic(const CallNode* op) override;
   llvm::Value* CreateCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
                                 bool skip_first_arg) override;
+  llvm::Value* CreateCallExternQHL(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
+                                   bool skip_first_arg);
+
   llvm::Module* GetModulePtr() const { return module_.get(); }
 
+  uint64_t GetTypeSizeInBits(llvm::Type* type) const {
+#if TVM_LLVM_VERSION >= 100
+    return data_layout_->getTypeSizeInBits(type).getFixedSize();
+#else
+    return data_layout_->getTypeSizeInBits(type);
+#endif
+  }
+
  protected:
-  // meta data
-  llvm::MDNode* md_tbaa_ctx_ptr_{nullptr};
-  llvm::FunctionType* ftype_tvm_func_call_{nullptr};
-  llvm::FunctionType* ftype_tvm_get_func_from_env_{nullptr};
-  llvm::FunctionType* ftype_tvm_api_set_last_error_{nullptr};
+  void CreatePrintf(const std::string& format, llvm::ArrayRef<llvm::Value*> format_args) final;
 
  private:
+  TypedPointer CreateBufferPtr(llvm::Value* buffer_ptr, DataType buffer_element_dtype,
+                               llvm::ArrayRef<llvm::Value*> indices, DataType value_dtype) final;
   TypedPointer CreateStructRefPtr(DataType t, llvm::Value* buf, llvm::Value* index, int kind);
 
-  // Check if the call to packed function is successful
-  // if not directly finalize function and pass on return code.
-  // return the end block after the check
-  llvm::BasicBlock* CheckCallSuccess(llvm::Value* retcode);
+  bool IsQHLFunction(const std::string& func);
 
-  // Get runtime functions
-  llvm::Value* RuntimeTVMFuncCall();
-  llvm::Value* RuntimeTVMGetFuncFromEnv();
-  llvm::Value* RuntimeTVMAPISetLastError();
-
-  void InitGlobalContext(bool dynamic_lookup);
-  llvm::GlobalVariable* InitContextPtr(llvm::Type* type, std::string name);
-  llvm::Value* GetContextPtr(llvm::GlobalVariable* gv);
-  std::vector<std::pair<std::string, llvm::Value*>> export_system_symbols_;
-  llvm::Value* GetPackedFuncHandle(const std::string& str);
-
-  // global to packed function handle
-  std::unordered_map<std::string, llvm::GlobalVariable*> func_handle_map_;
-
-  // Make packed call.
-  struct PackedCall {
-    llvm::Value* ret_value;
-    llvm::Value* ret_tcode;
-    llvm::BasicBlock* end_block;
-  };
-  PackedCall MakeCallPackedLowered(const Array<PrimExpr>& args, const DataType& r_type,
-                                   const int64_t begin, const int64_t end);
-  // create call into tvm packed function.
-  llvm::Value* CreateCallPacked(const CallNode* op);
-  // Create trace call into tvm packed function.
-  llvm::Value* CreateCallTracePacked(const CallNode* op);
-
-  std::map<std::string, llvm::Type*> types_for_alloca_;
-
-  // Type definitions.
-  llvm::Type* t_tvm_func_handle_{nullptr};
-  llvm::Type* t_tvm_value_{nullptr};
-  llvm::Type* t_tvm_shape_index_{nullptr};
-  llvm::Type* t_tvm_device_{nullptr};
-  llvm::Type* t_tvm_type_{nullptr};
-  llvm::Type* t_tvm_array_{nullptr};
-
-  // Context for injection lookup
-  llvm::GlobalVariable* gv_mod_ctx_{nullptr};
-  llvm::GlobalVariable* gv_tvm_func_call_{nullptr};
-  llvm::GlobalVariable* gv_tvm_get_func_from_env_{nullptr};
-  llvm::GlobalVariable* gv_tvm_api_set_last_error_{nullptr};
-  std::unordered_map<std::string, llvm::GlobalVariable*> gv_func_map_;
-
-  // context for direct dynamic lookup
-  llvm::Function* f_tvm_func_call_{nullptr};
-  llvm::Function* f_tvm_get_func_from_env_{nullptr};
-  llvm::Function* f_tvm_api_set_last_error_{nullptr};
-  llvm::Function* f_tvm_register_system_symbol_{nullptr};
+  llvm::Value* VectorLookupLoad(Buffer buffer, DataType buffer_type, Array<PrimExpr> indices);
+  llvm::Value* Intrinsic(llvm::Intrinsic::ID, llvm::ArrayRef<llvm::Value*> args);
+  std::vector<std::string> fqhl_list_ = {
+      "tvm_vect_qhmath_hvx_cos_ahf",     "tvm_vect_qhmath_hvx_tanh_ahf",
+      "tvm_vect_qhmath_hvx_sigmoid_ahf", "tvm_vect_qhmath_hvx_sin_ahf",
+      "tvm_vect_qhmath_hvx_sqrt_ahf",    "tvm_vect_qhmath_hvx_exp_ahf",
+      "tvm_vect_qhmath_hvx_tan_ahf",     "tvm_vect_qhmath_hvx_floor_ahf",
+      "tvm_vect_qhmath_hvx_ceil_ahf",    "tvm_vect_qhmath_hvx_pow_ahf"};
 };
 
-void CodeGenHexagon::InitTarget(llvm::TargetMachine* tm) {
-  native_vector_bits_ = 64;  // Assume "scalar" vectors at first.
-  llvm::StringRef fs = tm->getTargetFeatureString();
-  size_t npos = llvm::StringRef::npos;
+void CodeGenHexagon::Init(const std::string& module_name, LLVMTarget* llvm_target, bool system_lib,
+                          bool dynamic_lookup, bool target_c_runtime) {
+  CodeGenCPU::Init(module_name, llvm_target, system_lib, dynamic_lookup, target_c_runtime);
+}
+
+void CodeGenHexagon::InitTarget() {
+  native_vector_bits_ = 64;                       // Assume "scalar" vectors at first.
   const auto hvx_length_feature = "+hvx-length";  // +hvx-length{64|128}b
-  size_t len_begin = fs.find(hvx_length_feature);
-  size_t len_end = len_begin != npos ? fs.find('b', len_begin) : npos;
-  if (len_end != npos) {
+  for (const std::string& f : llvm_target_->GetTargetFeatures()) {
+    llvm::StringRef fs(f);
+    if (!fs.startswith(hvx_length_feature)) continue;
+
+    ICHECK(fs.endswith("b")) << "malformed target feature: " << f;
     int hvx_bytes = 0;
-    len_begin += std::strlen(hvx_length_feature);
-    ICHECK(!fs.substr(len_begin, len_end - len_begin).getAsInteger(10, hvx_bytes))
-        << "invalid HVX length in feature string: " << fs.str();
+    size_t len_begin = std::strlen(hvx_length_feature);
+    ICHECK(!fs.substr(len_begin, fs.size() - len_begin - 1).getAsInteger(10, hvx_bytes))
+        << "invalid HVX length in feature string: " << f;
     ICHECK(hvx_bytes == 64 || hvx_bytes == 128)
         << "invalid HVX vector length: " << hvx_bytes << ", should be 64 or 128";
     native_vector_bits_ = hvx_bytes * 8;
+    // There should only be one hvx-length...
+    break;
   }
-  CodeGenLLVM::InitTarget(tm);
+  CodeGenCPU::InitTarget();
 }
 
-void CodeGenHexagon::Init(const std::string& module_name, llvm::TargetMachine* tm,
-                          llvm::LLVMContext* ctx, bool system_lib, bool dynamic_lookup,
-                          bool target_c_runtime) {
-  CodeGenLLVM::Init(module_name, tm, ctx, system_lib, dynamic_lookup, false);
-
-  func_handle_map_.clear();
-  t_tvm_value_ = llvm::StructType::create({t_float64_}, "t_tvm_value");
-  t_tvm_shape_index_ = llvm::Type::getIntNTy(*ctx, DataType::ShapeIndex().bits());
-  t_tvm_device_ = llvm::StructType::create({t_int_, t_int_}, "t_tvm_device");
-  t_tvm_type_ = llvm::StructType::create({t_int8_, t_int8_, t_int16_}, "t_tvm_type");
-  t_tvm_func_handle_ = t_void_p_;
-  // DLTensor
-  t_tvm_array_ = llvm::StructType::create(
-      {t_void_p_, t_tvm_device_, t_int_, t_tvm_type_, t_tvm_shape_index_->getPointerTo(),
-       t_tvm_shape_index_->getPointerTo(), t_int64_},
-      "t_tvm_array");
-
-  types_for_alloca_ = {
-      {"shape", t_tvm_shape_index_},
-      {"arg_value", t_tvm_value_},
-      {"arg_tcode", t_int_},
-      {"array", t_tvm_array_},
-  };
-
-  // Runtime functions.
-  ftype_tvm_func_call_ = llvm::FunctionType::get(
-      t_int_,
-      {t_tvm_func_handle_, t_tvm_value_->getPointerTo(), t_int_->getPointerTo(), t_int_,
-       t_tvm_value_->getPointerTo(), t_int_->getPointerTo()},
-      false);
-  ftype_tvm_get_func_from_env_ = llvm::FunctionType::get(
-      t_int_, {t_void_p_, t_char_->getPointerTo(), t_tvm_func_handle_->getPointerTo()}, false);
-  ftype_tvm_api_set_last_error_ =
-      llvm::FunctionType::get(t_void_, {t_char_->getPointerTo()}, false);
-  md_tbaa_ctx_ptr_ = md_builder_->createTBAAScalarTypeNode("ctx_ptr", md_tbaa_root_);
-
-  // initialize TVM runtime API
-  if (system_lib) {
-    // We will need this in environment for backward registration.
-    f_tvm_register_system_symbol_ = llvm::Function::Create(
-        llvm::FunctionType::get(t_int_, {t_char_->getPointerTo(), t_void_p_}, false),
-        llvm::Function::ExternalLinkage, "TVMBackendRegisterSystemLibSymbol", module_.get());
-  } else {
-    f_tvm_register_system_symbol_ = nullptr;
-  }
-  this->InitGlobalContext(dynamic_lookup);
-}
-
-llvm::Value* CodeGenHexagon::CreateCallExtern(Type ret_type, String global_symbol,
-                                              const Array<PrimExpr>& args, bool skip_first_arg) {
-  std::vector<llvm::Value*> arg_values;
-  for (size_t i = skip_first_arg; i < args.size(); ++i) {
-    arg_values.push_back(MakeValue(args[i]));
-  }
-  std::vector<llvm::Type*> arg_types;
-  for (llvm::Value* v : arg_values) {
-    arg_types.push_back(v->getType());
-  }
-  llvm::FunctionType* ftype = llvm::FunctionType::get(GetLLVMType(ret_type), arg_types, false);
-  // Check if it is available in global function table as injected function.
-  auto it = gv_func_map_.find(global_symbol);
-  if (it != gv_func_map_.end()) {
-    if (it->second == nullptr) {
-      gv_func_map_[global_symbol] = InitContextPtr(ftype->getPointerTo(), "__" + global_symbol);
-      it = gv_func_map_.find(global_symbol);
+llvm::Value* CodeGenHexagon::CreateCallExternQHL(Type ret_type, String global_symbol,
+                                                 const Array<PrimExpr>& args, bool skip_first_arg) {
+  int num_lanes = args[1].dtype().lanes();
+  int vector_length = native_vector_bits_ / args[1].dtype().bits();
+  num_lanes = ((num_lanes + vector_length - 1) / vector_length) * vector_length;
+  std::vector<llvm::Value*> vect_split;
+  for (int i = 0; i < num_lanes / vector_length; ++i) {
+    std::vector<llvm::Value*> sub_vect_val;
+    std::vector<llvm::Type*> arg_types;
+    for (size_t k = skip_first_arg; k < args.size(); ++k)
+      sub_vect_val.push_back(
+          CodeGenCPU::CreateVecSlice(MakeValue(args[k]), i * vector_length, vector_length));
+    for (llvm::Value* v : sub_vect_val) {
+      arg_types.push_back(v->getType());
     }
-#if TVM_LLVM_VERSION >= 90
-    auto ext_callee = llvm::FunctionCallee(ftype, GetContextPtr(it->second));
-#else
-    auto ext_callee = GetContextPtr(it->second);
-#endif
-    return builder_->CreateCall(ext_callee, arg_values);
-  } else {
-    llvm::Function* f = module_->getFunction(global_symbol);
+    llvm::FunctionType* ftype = llvm::FunctionType::get(arg_types[0], arg_types, false);
+    llvm::Function* f = module_->getFunction(MakeStringRef(global_symbol));
     if (f == nullptr) {
       f = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
-                                 global_symbol.operator llvm::StringRef(), module_.get());
+                                 MakeStringRef(global_symbol), module_.get());
     }
 #if TVM_LLVM_VERSION >= 90
     auto ext_callee = llvm::FunctionCallee(f);
 #else
     auto ext_callee = f;
 #endif
-    return builder_->CreateCall(ext_callee, arg_values);
+    vect_split.push_back(builder_->CreateCall(ext_callee, sub_vect_val));
   }
+  return CodeGenCPU::CreateVecConcat(vect_split);
 }
 
-llvm::GlobalVariable* CodeGenHexagon::InitContextPtr(llvm::Type* p_type, std::string name) {
-  llvm::GlobalVariable* gv = new llvm::GlobalVariable(
-      *module_, p_type, false, llvm::GlobalValue::LinkOnceAnyLinkage, nullptr, name);
-#if TVM_LLVM_VERSION >= 100
-  gv->setAlignment(llvm::Align(data_layout_->getTypeAllocSize(p_type)));
-#else
-  gv->setAlignment(data_layout_->getTypeAllocSize(p_type));
-#endif
-  gv->setInitializer(llvm::Constant::getNullValue(p_type));
-  gv->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
-  return gv;
+bool CodeGenHexagon::IsQHLFunction(const std::string& func) {
+  return std::find(fqhl_list_.begin(), fqhl_list_.end(), func) != fqhl_list_.end();
 }
 
-llvm::Value* CodeGenHexagon::GetContextPtr(llvm::GlobalVariable* gv) {
-  ICHECK(gv != nullptr);
-#if TVM_LLVM_VERSION >= 110
-  llvm::LoadInst* faddr =
-      builder_->CreateAlignedLoad(gv->getValueType(), gv, llvm::Align(gv->getAlignment()));
-#elif TVM_LLVM_VERSION >= 80
-  llvm::LoadInst* faddr = builder_->CreateAlignedLoad(gv->getValueType(), gv, gv->getAlignment());
-#else
-  llvm::LoadInst* faddr = builder_->CreateAlignedLoad(gv, gv->getAlignment());
-#endif
-  faddr->setMetadata("tbaa",
-                     md_builder_->createTBAAStructTagNode(md_tbaa_ctx_ptr_, md_tbaa_ctx_ptr_, 0));
-  return faddr;
+llvm::Value* CodeGenHexagon::CreateCallExtern(Type ret_type, String global_symbol,
+                                              const Array<PrimExpr>& args, bool skip_first_arg) {
+  int num_lanes = args[1].dtype().lanes();
+  int vector_length = native_vector_bits_ / args[1].dtype().bits();
+  if (IsQHLFunction(global_symbol) && (num_lanes > vector_length))
+    return CreateCallExternQHL(ret_type, global_symbol, args, skip_first_arg);
+  return CodeGenCPU::CreateCallExtern(ret_type, global_symbol, args, skip_first_arg);
 }
 
-void CodeGenHexagon::InitGlobalContext(bool dynamic_lookup) {
-  // Module context
-  gv_mod_ctx_ = InitContextPtr(t_void_p_, tvm::runtime::symbol::tvm_module_ctx);
-  // Register back the locations.
-  if (f_tvm_register_system_symbol_ != nullptr) {
-    export_system_symbols_.emplace_back(
-        std::make_pair(tvm::runtime::symbol::tvm_module_ctx, gv_mod_ctx_));
-  } else {
-    if (!dynamic_lookup) {
-      gv_tvm_func_call_ = InitContextPtr(ftype_tvm_func_call_->getPointerTo(), "__TVMFuncCall");
-      gv_tvm_get_func_from_env_ = InitContextPtr(ftype_tvm_get_func_from_env_->getPointerTo(),
-                                                 "__TVMBackendGetFuncFromEnv");
-      gv_tvm_api_set_last_error_ =
-          InitContextPtr(ftype_tvm_api_set_last_error_->getPointerTo(), "__TVMAPISetLastError");
-      // Mark as context functions
-      gv_func_map_["TVMBackendAllocWorkspace"] = nullptr;
-      gv_func_map_["TVMBackendFreeWorkspace"] = nullptr;
+llvm::Value* CodeGenHexagon::VisitExpr_(const BufferLoadNode* op) {
+  if (!op->buffer.same_as(op->buffer->data)) {
+    // Check if we can generate a vector lookup.
+    if (!op->indices[0].as<RampNode>()) {
+      if (auto* vlut = VectorLookupLoad(op->buffer, op->dtype, op->indices)) {
+        return vlut;
+      }
     }
   }
+  return CodeGenCPU::VisitExpr_(op);
 }
 
-llvm::Value* CodeGenHexagon::RuntimeTVMFuncCall() {
-  if (f_tvm_func_call_ != nullptr) return f_tvm_func_call_;
-  return GetContextPtr(gv_tvm_func_call_);
-}
+void CodeGenHexagon::CreatePrintf(const std::string& format,
+                                  llvm::ArrayRef<llvm::Value*> format_args) {
+  // This function generates LLVM instructions to call HAP_debug_v2,
+  // as if the FARF macro in `HAP_farf.h` were called as
+  // FARF(ALWAYS, format, format_args[0], format_args[1], ...)
+  std::string func_name = "HAP_debug_v2";
 
-llvm::Value* CodeGenHexagon::RuntimeTVMGetFuncFromEnv() {
-  if (f_tvm_get_func_from_env_ != nullptr) return f_tvm_get_func_from_env_;
-  return GetContextPtr(gv_tvm_get_func_from_env_);
-}
-
-llvm::Value* CodeGenHexagon::RuntimeTVMAPISetLastError() {
-  if (f_tvm_api_set_last_error_ != nullptr) return f_tvm_api_set_last_error_;
-  return GetContextPtr(gv_tvm_api_set_last_error_);
-}
-
-CodeGenHexagon::PackedCall CodeGenHexagon::MakeCallPackedLowered(const Array<PrimExpr>& args,
-                                                                 const DataType& r_type,
-                                                                 const int64_t begin,
-                                                                 const int64_t end) {
-  PackedCall pc;
-  std::string func_name = args[0].as<StringImmNode>()->value;
-  llvm::Value* handle = GetPackedFuncHandle(func_name);
-  // call the function
-  int64_t nargs = end - begin;
-  ICHECK_GE(nargs, 0);
-  llvm::Value* stack_value = MakeValue(args[1]);
-  llvm::Value* stack_tcode = MakeValue(args[2]);
-  llvm::Value* arg_value = builder_->CreateInBoundsGEP(
-      t_tvm_value_, builder_->CreatePointerCast(stack_value, t_tvm_value_->getPointerTo()),
-      ConstInt32(begin));
-  TypedPointer arg_tcode = CreateBufferPtr(DataType::Int(32), stack_tcode, ConstInt32(begin));
-  llvm::Value* ret_value = builder_->CreateInBoundsGEP(
-      t_tvm_value_, builder_->CreatePointerCast(stack_value, t_tvm_value_->getPointerTo()),
-      ConstInt32(end));
-  TypedPointer ret_tcode = CreateBufferPtr(DataType::Int(32), stack_tcode, ConstInt32(end));
-
-#if TVM_LLVM_VERSION >= 90
-  auto call_callee = llvm::FunctionCallee(ftype_tvm_func_call_, RuntimeTVMFuncCall());
-#else
-  auto call_callee = RuntimeTVMFuncCall();
-#endif
-  llvm::Value* call = builder_->CreateCall(
-      call_callee,
-      {handle, arg_value, arg_tcode.addr, ConstInt32(nargs), ret_value, ret_tcode.addr});
-  llvm::BasicBlock* end_block = CheckCallSuccess(call);
-
-  // Load the return value and cast it to the designated type (r_type).
-  DataType r_api_type = tir::APIType(r_type);
-  llvm::Type* llvm_r_api_type = DTypeToLLVMType(r_api_type);
-  llvm::Value* load_ptr = builder_->CreatePointerCast(ret_value, llvm_r_api_type->getPointerTo());
-#if TVM_LLVM_VERSION >= 110
-  llvm::Value* rvalue = builder_->CreateAlignedLoad(llvm_r_api_type, load_ptr, llvm::Align(8));
-#elif TVM_LLVM_VERSION >= 80
-  llvm::Value* rvalue = builder_->CreateAlignedLoad(llvm_r_api_type, load_ptr, 8);
-#else
-  llvm::Value* rvalue = builder_->CreateAlignedLoad(load_ptr, 8);
-#endif
-  pc.ret_value = CreateCast(r_api_type, r_type, rvalue);
-
-  // Load the return type code.
-#if TVM_LLVM_VERSION >= 110
-  pc.ret_tcode = builder_->CreateAlignedLoad(ret_tcode.type, ret_tcode.addr, llvm::Align(8));
-#elif TVM_LLVM_VERSION >= 80
-  pc.ret_tcode = builder_->CreateAlignedLoad(ret_tcode.type, ret_tcode.addr, 8);
-#else
-  pc.ret_tcode = builder_->CreateAlignedLoad(ret_tcode.addr, 8);
-#endif
-
-  pc.end_block = end_block;
-  return pc;
-}
-
-llvm::Value* CodeGenHexagon::GetPackedFuncHandle(const std::string& fname) {
-  using llvm::BasicBlock;
-  // We will store the packed function handle in global space.
-  // Initialize it during the first call.
-  llvm::DataLayout layout(module_.get());
-  uint64_t align = layout.getTypeAllocSize(t_tvm_func_handle_);
-  auto it = func_handle_map_.find(fname);
-
-  llvm::GlobalVariable* hptr;
-  if (it == func_handle_map_.end()) {
-    // create global location for the handle
-    // create the function handle
-    hptr =
-        new llvm::GlobalVariable(*module_, t_tvm_func_handle_, false,
-                                 llvm::GlobalValue::InternalLinkage, nullptr, ".tvm_func." + fname);
-#if TVM_LLVM_VERSION >= 100
-    hptr->setAlignment(llvm::Align(align));
-#else
-    hptr->setAlignment(align);
-#endif
-    hptr->setInitializer(llvm::Constant::getNullValue(t_tvm_func_handle_));
-    func_handle_map_[fname] = hptr;
-  } else {
-    hptr = it->second;
-  }
-  // create emit codes that checks and load the function.
-  BasicBlock* pre_block = builder_->GetInsertBlock();
-  BasicBlock* init_block = BasicBlock::Create(*ctx_, "handle_init", function_);
-  BasicBlock* end_block = BasicBlock::Create(*ctx_, "handle_init_end", function_);
-#if TVM_LLVM_VERSION >= 110
-  llvm::Value* handle = builder_->CreateAlignedLoad(t_tvm_func_handle_, hptr, llvm::Align(align));
-#elif TVM_LLVM_VERSION >= 80
-  llvm::Value* handle = builder_->CreateAlignedLoad(t_tvm_func_handle_, hptr, align);
-#else
-  llvm::Value* handle = builder_->CreateAlignedLoad(hptr, align);
-#endif
-  llvm::Value* handle_not_null =
-      builder_->CreateICmpNE(handle, llvm::Constant::getNullValue(t_tvm_func_handle_));
-  builder_->CreateCondBr(handle_not_null, end_block, init_block, md_very_likely_branch_);
-  // Initialize the handle if needed.
-  builder_->SetInsertPoint(init_block);
-  llvm::Value* out =
-      WithFunctionEntry([&]() { return builder_->CreateAlloca(t_tvm_func_handle_); });
-#if TVM_LLVM_VERSION >= 110
-  llvm::LoadInst* ctx = builder_->CreateAlignedLoad(gv_mod_ctx_->getValueType(), gv_mod_ctx_,
-                                                    llvm::Align(gv_mod_ctx_->getAlignment()));
-#elif TVM_LLVM_VERSION >= 80
-  llvm::LoadInst* ctx = builder_->CreateAlignedLoad(gv_mod_ctx_->getValueType(), gv_mod_ctx_,
-                                                    gv_mod_ctx_->getAlignment());
-#else
-  llvm::LoadInst* ctx = builder_->CreateAlignedLoad(gv_mod_ctx_, gv_mod_ctx_->getAlignment());
-#endif
-  ctx->setMetadata("tbaa",
-                   md_builder_->createTBAAStructTagNode(md_tbaa_ctx_ptr_, md_tbaa_ctx_ptr_, 0));
-#if TVM_LLVM_VERSION >= 90
-  auto env_callee = llvm::FunctionCallee(ftype_tvm_get_func_from_env_, RuntimeTVMGetFuncFromEnv());
-#else
-  auto env_callee = RuntimeTVMGetFuncFromEnv();
-#endif
-  llvm::Value* retcode = builder_->CreateCall(env_callee, {ctx, GetConstString(fname), out});
-  init_block = CheckCallSuccess(retcode);
-#if TVM_LLVM_VERSION >= 110
-  llvm::Value* loaded_handle =
-      builder_->CreateAlignedLoad(t_tvm_func_handle_, out, llvm::Align(align));
-#elif TVM_LLVM_VERSION >= 80
-  llvm::Value* loaded_handle = builder_->CreateAlignedLoad(t_tvm_func_handle_, out, align);
-#else
-  llvm::Value* loaded_handle = builder_->CreateAlignedLoad(out, align);
-#endif
-  // Store the handle
-  builder_->CreateStore(loaded_handle, hptr);
-  builder_->CreateBr(end_block);
-  // end block
-  builder_->SetInsertPoint(end_block);
-  llvm::PHINode* phi = builder_->CreatePHI(t_tvm_func_handle_, 2);
-  phi->addIncoming(handle, pre_block);
-  phi->addIncoming(loaded_handle, init_block);
-  return phi;
-}
-
-llvm::Value* CodeGenHexagon::CreateCallPacked(const CallNode* op) {
-  // There is always a call to __tvm_set_device in a standalone op,
-  // and we can't have calls to packed functions, because they need
-  // a Module object to work (or at least TVMBackendGetFuncFromEnv
-  // function).
-  const std::string& name = op->args[0].as<StringImmNode>()->value;
-  if (name == "__tvm_set_device") {
-    return ConstInt32(0);
+  llvm::Function* func = module_->getFunction(func_name);
+  if (func == nullptr) {
+    llvm::FunctionType* ftype = llvm::FunctionType::get(
+        t_void_, {t_int32_, t_char_->getPointerTo(), t_int32_, t_char_->getPointerTo()}, true);
+    func = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage, func_name, module_.get());
   }
 
-  ICHECK_EQ(op->args.size(), 5U);
-  PackedCall pc = MakeCallPackedLowered(op->args, op->dtype, op->args[3].as<IntImmNode>()->value,
-                                        op->args[4].as<IntImmNode>()->value);
-  return pc.ret_value;
+  llvm::Value* format_str = builder_->CreateGlobalStringPtr(format, "printf_format_str");
+
+  // The value of FARF_ALWAYS_LEVEL, defined as HAP_LEVEL_HIGH
+  llvm::Value* level = ConstInt32(2);
+
+  // There is no such filename/line number for this print statement
+  llvm::Value* filename = builder_->CreateGlobalStringPtr("generated-LLVM-code", "dummy_filename");
+  llvm::Value* line_number = ConstInt32(1);
+
+  std::vector<llvm::Value*> func_args = {level, filename, line_number, format_str};
+  func_args.insert(func_args.end(), format_args.begin(), format_args.end());
+
+  builder_->CreateCall(func, func_args);
 }
 
-llvm::Value* CodeGenHexagon::CreateCallTracePacked(const CallNode* op) {
-  ICHECK_EQ(op->args.size(), 6U);
-  PackedCall pc = MakeCallPackedLowered(op->args, op->dtype, op->args[3].as<IntImmNode>()->value,
-                                        op->args[4].as<IntImmNode>()->value);
-  // Get traced value.
-  llvm::Value* traced_value = MakeValue(op->args[5]);
-  // The update_block handles case when we need to update the return value.
-  llvm::BasicBlock* update_block = llvm::BasicBlock::Create(*ctx_, "update_block", function_);
-  // The continue_block handles case when we need to return original
-  // traced value.
-  llvm::BasicBlock* continue_block = llvm::BasicBlock::Create(*ctx_, "continue_block", function_);
-
-  // Check the ret_type_code and create cmp instruction.
-  llvm::Value* cmp =
-      builder_->CreateICmpNE(pc.ret_tcode, llvm::ConstantInt::get(t_int_, kTVMNullptr));
-  builder_->CreateCondBr(cmp, update_block, continue_block);
-  builder_->SetInsertPoint(update_block);
-  builder_->CreateBr(continue_block);
-  builder_->SetInsertPoint(continue_block);
-  // The return value depends on from what bb we come from.
-  llvm::PHINode* phi_rvalue = builder_->CreatePHI(traced_value->getType(), 2);
-  phi_rvalue->addIncoming(pc.ret_value, update_block);
-  phi_rvalue->addIncoming(traced_value, pc.end_block);
-  return phi_rvalue;
-}
-
-llvm::BasicBlock* CodeGenHexagon::CheckCallSuccess(llvm::Value* retcode) {
-  // create emit codes that checks and load the function.
-  using llvm::BasicBlock;
-  BasicBlock* fail_block = BasicBlock::Create(*ctx_, "call_fail", function_);
-  BasicBlock* end_block = BasicBlock::Create(*ctx_, "call_end", function_);
-  llvm::Value* succ = builder_->CreateICmpEQ(retcode, llvm::ConstantInt::get(t_int_, 0));
-  builder_->CreateCondBr(succ, end_block, fail_block, md_very_likely_branch_);
-  builder_->SetInsertPoint(fail_block);
-  // return the code.
-  builder_->CreateRet(retcode);
-  // otherwise set it to be new end.
-  builder_->SetInsertPoint(end_block);
-  return end_block;
-}
-
-void CodeGenHexagon::VisitStmt_(const AssertStmtNode* op) {
-  using llvm::BasicBlock;
-  llvm::Value* cond = MakeValue(op->condition);
-  std::ostringstream os;
-  os << "Assert fail: " << op->condition;
-  if (op->message.as<StringImmNode>()) {
-    os << ", " << op->message.as<StringImmNode>()->value;
-  }
-  llvm::Value* msg = GetConstString(os.str());
-  BasicBlock* fail_block = BasicBlock::Create(*ctx_, "assert_fail", function_);
-  BasicBlock* end_block = BasicBlock::Create(*ctx_, "assert_end", function_);
-  builder_->CreateCondBr(cond, end_block, fail_block, md_very_likely_branch_);
-  // fail condition.
-  builder_->SetInsertPoint(fail_block);
-#if TVM_LLVM_VERSION >= 90
-  auto err_callee =
-      llvm::FunctionCallee(ftype_tvm_api_set_last_error_, RuntimeTVMAPISetLastError());
-#else
-  auto err_callee = RuntimeTVMAPISetLastError();
-#endif
-  builder_->CreateCall(err_callee, {msg});
-  builder_->CreateRet(ConstInt32(-1));
-  // otherwise set it to be new end.
-  builder_->SetInsertPoint(end_block);
-  CodeGenLLVM::VisitStmt_(op);
-}
-
-llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
-  if (op->op.same_as(builtin::tvm_call_packed_lowered())) {
-    return CreateCallPacked(op);
-  } else if (op->op.same_as(builtin::tvm_call_trace_packed_lowered())) {
-    return CreateCallTracePacked(op);
-  } else if (op->op.same_as(builtin::tvm_struct_get())) {
-    ICHECK_EQ(op->args.size(), 3);
-    int kind = op->args[2].as<IntImmNode>()->value;
-    TypedPointer ref =
-        CreateStructRefPtr(op->dtype, MakeValue(op->args[0]), MakeValue(op->args[1]), kind);
-    if (kind == builtin::kArrAddr) {
-      return builder_->CreatePointerCast(ref.addr, t_void_p_);
-    }
-    return builder_->CreateLoad(ref.type, ref.addr);
-  } else if (op->op.same_as(builtin::tvm_struct_set())) {
-    ICHECK_EQ(op->args.size(), 4);
-    int kind = op->args[2].as<IntImmNode>()->value;
-    ICHECK(kind != builtin::kArrAddr);
-    TypedPointer ref = CreateStructRefPtr(op->args[3].dtype(), MakeValue(op->args[0]),
-                                          MakeValue(op->args[1]), kind);
-    llvm::Value* value = MakeValue(op->args[3]);
-    if (value->getType()->isPointerTy()) {
-      value = builder_->CreatePointerCast(value, ref.type);
-    }
-    builder_->CreateStore(value, ref.addr);
-    return ConstInt32(0);
-  } else if (op->op.same_as(builtin::tvm_stack_alloca())) {
-    ICHECK_EQ(op->args.size(), 2);
-    const std::string& name = op->args[0].as<StringImmNode>()->value;
-    llvm::Value* size = ConstInt32(op->args[1].as<IntImmNode>()->value);
-    return builder_->CreateAlloca(types_for_alloca_.at(name), size);
-  } else if (op->op.same_as(builtin::tvm_throw_last_error())) {
-    llvm::Value* neg_1 = ConstInt32(-1);
-    builder_->CreateRet(neg_1);
-    auto next_block = std::next(builder_->GetInsertBlock()->getIterator());
-    llvm::BasicBlock* new_bb = llvm::BasicBlock::Create(*ctx_, "cont", function_, &*next_block);
-    builder_->SetInsertPoint(new_bb);
-    return neg_1;
+CodeGenLLVM::TypedPointer CodeGenHexagon::CreateBufferPtr(llvm::Value* buffer_ptr,
+                                                          DataType buffer_element_dtype,
+                                                          llvm::ArrayRef<llvm::Value*> indices,
+                                                          DataType value_dtype) {
+  // Flat indices get delegated to the LLVM codegen.
+  if (indices.size() == 1) {
+    return CodeGenCPU::CreateBufferPtr(buffer_ptr, buffer_element_dtype, indices, value_dtype);
   }
 
-  return CodeGenLLVM::CreateIntrinsic(op);
+  ICHECK_EQ(indices.size(), 2) << "CodegenHexagon supports 1-d and 2-d physical buffers, received "
+                               << indices.size() << "-d buffer indices";
+
+  // Use the first index to identify the pointer.
+  DataType dtype_void_ptr = DataType::Handle();
+  CodeGenLLVM::TypedPointer buffer_chunk_ptr_ptr =
+      CodeGenCPU::CreateBufferPtr(buffer_ptr, dtype_void_ptr, {indices[0]}, dtype_void_ptr);
+  llvm::Value* buffer_chunk_ptr =
+      builder_->CreateLoad(buffer_chunk_ptr_ptr.type, buffer_chunk_ptr_ptr.addr);
+
+  // Then delegate the CodeGenLLVM to find the value from the second
+  // index.
+  return CodeGenCPU::CreateBufferPtr(buffer_chunk_ptr, buffer_element_dtype, {indices[1]},
+                                     value_dtype);
 }
 
 CodeGenLLVM::TypedPointer CodeGenHexagon::CreateStructRefPtr(DataType t, llvm::Value* buf,
@@ -653,17 +333,128 @@ CodeGenLLVM::TypedPointer CodeGenHexagon::CreateStructRefPtr(DataType t, llvm::V
   return TypedPointer();
 }
 
-namespace {
-// Check if the function matches the TVMBackendPackedCFunc prototype.
-bool UsesExportABI(const PrimFunc& f) {
-  if (f->attrs.defined()) {
-    auto it = f->attrs->dict.find("calling_conv");
-    return it != f->attrs->dict.end() &&
-           Downcast<Integer>((*it).second) == CallingConv::kCPackedFunc;
+llvm::Value* CodeGenHexagon::Intrinsic(llvm::Intrinsic::ID IntID,
+                                       llvm::ArrayRef<llvm::Value*> args) {
+  llvm::Function* intf = llvm::Intrinsic::getDeclaration(module_.get(), IntID);
+#if TVM_LLVM_VERSION >= 90
+  auto intf_callee = llvm::FunctionCallee(intf);
+#else
+  auto intf_callee = intf;
+#endif
+  std::vector<llvm::Value*> conv_args;
+  llvm::FunctionType* intf_type = intf->getFunctionType();
+  ICHECK(args.size() == intf_type->getNumParams());
+
+  for (int i = 0, e = args.size(); i != e; ++i) {
+    llvm::Value* arg = args[i];
+    auto* need_type = llvm::dyn_cast<llvm::VectorType>(intf_type->getParamType(i));
+    auto* have_type = llvm::dyn_cast<llvm::VectorType>(arg->getType());
+    if (need_type != nullptr && have_type != nullptr && need_type != have_type) {
+      int need_width = GetTypeSizeInBits(need_type);
+      int have_width = GetTypeSizeInBits(have_type);
+      if (need_width == have_width) {
+        if (need_width == native_vector_bits_ || need_width == 2 * native_vector_bits_) {
+          arg = builder_->CreateBitCast(arg, need_type);
+        }
+      }  // TODO(joshherr-quic): add handling of v128i1 <-> v1024i1
+    }
+    conv_args.push_back(arg);
   }
-  return false;
+  return builder_->CreateCall(intf_callee, conv_args);
 }
 
+llvm::Value* CodeGenHexagon::VectorLookupLoad(Buffer buffer, DataType buffer_type,
+                                              Array<PrimExpr> indices) {
+  PrimExpr index = indices[0];
+  if (!index.dtype().is_vector()) {
+    return nullptr;
+  }
+
+  if (buffer_type.bits() != 8) return nullptr;
+
+  int table_elem_count = arith::Analyzer().Simplify(buffer->shape[0]).as<IntImmNode>()->value;
+  if (table_elem_count <= 0 || table_elem_count > 256) return nullptr;
+
+  auto int32 = DataType::Int(32);
+  auto native_vector_bytes = native_vector_bits_ / 8;
+
+  // Indexes
+  llvm::Value* trunc = MakeValue(Cast(index.dtype().with_bits(8), index));
+  llvm::Value* index_pad = CreateVecPad(trunc, native_vector_bytes);
+
+  // Values
+  std::vector<llvm::Value*> vloads;
+  DataType table_type = buffer_type.with_lanes(table_elem_count);
+
+  auto table_all =
+      MakeValue(BufferLoad(buffer, {
+                                       Ramp(IntImm(int32, 0), IntImm(int32, 1), table_elem_count),
+                                   }));
+
+  // The number of value vectors should be a power of 2.
+  int table_vec_count = llvm::PowerOf2Ceil(GetVectorBytes(table_type) / native_vector_bytes);
+  int table_vec_length = native_vector_bytes / buffer_type.bytes();
+  for (int i = 0; i != table_vec_count; ++i) {
+    // CreateVecSlice will generate undefs for elements outside the source vector.
+    vloads.push_back(CreateVecSlice(table_all, i * table_vec_length, table_vec_length));
+  }
+
+#define VLO(x) Intrinsic(llvm::Intrinsic::hexagon_V6_lo_128B, {x})
+#define VHI(x) Intrinsic(llvm::Intrinsic::hexagon_V6_hi_128B, {x})
+#define VXOR(x, y) Intrinsic(llvm::Intrinsic::hexagon_V6_vxor_128B, {x, y})
+#define VSHUFF(x) Intrinsic(llvm::Intrinsic::hexagon_V6_vshuffb_128B, {x})
+#define VSPLATB(x) Intrinsic(llvm::Intrinsic::hexagon_V6_lvsplatb_128B, {x})
+#define VLUT32(x, y, z) Intrinsic(llvm::Intrinsic::hexagon_V6_vlutvvbi_128B, {x, y, z})
+#define VLUT32_OR(v, x, y, z) \
+  Intrinsic(llvm::Intrinsic::hexagon_V6_vlutvvb_oracci_128B, {v, x, y, z})
+
+  // Shuffle table bytes:
+  // 127, 63,  126, 62,........68, 4,  67, 3,  66, 2,  65, 1,  64, 0
+  std::vector<llvm::Value*> table;
+  for (int i = 0; i != table_vec_count; ++i) table.push_back(VSHUFF(vloads[i]));
+
+  // Get each 32 byte sub-table's output
+  std::vector<llvm::Value*> results;
+  int table_iters = table_elem_count / 32;
+  for (int i = 0; i < table_iters; ++i)
+    results.push_back(VLUT32(index_pad, table[i / 4], ConstInt32(i % 8)));
+
+  // Combine outputs
+  llvm::Value* result = results[0];
+  for (int i = 1; i < table_iters; ++i) result = VXOR(result, results[i]);
+
+  llvm::Type* res_type = result->getType();
+  llvm::Type* ret_type = DTypeToLLVMType(buffer_type);
+  if (res_type == ret_type) {
+    return result;
+  }
+
+  int res_bits = GetTypeSizeInBits(res_type);
+  int ret_bits = GetTypeSizeInBits(ret_type);
+  ICHECK_GE(res_bits, ret_bits);
+  if (ret_bits < res_bits) {
+#if TVM_LLVM_VERSION >= 110
+    llvm::Type* res_byte_type = llvm::VectorType::get(t_int8_, res_bits / 8, /*Scalable*/ false);
+#else
+    llvm::Type* res_byte_type = llvm::VectorType::get(t_int8_, res_bits / 8);
+#endif
+    result = CreateVecSlice(builder_->CreateBitCast(result, res_byte_type), 0, ret_bits / 8);
+  }
+  if (result->getType() != ret_type) {
+    return builder_->CreateBitCast(result, ret_type);
+  }
+  return result;
+
+#undef VLUT32_OR
+#undef VLUT32
+#undef VSPLATB
+#undef VSHUFF
+#undef VXOR
+#undef VHI
+#undef VLO
+}
+
+namespace {
 DMLC_ATTRIBUTE_UNUSED std::ostream& operator<<(std::ostream& os, const llvm::Module& m) {
   std::string ms;
   llvm::raw_string_ostream sos(ms);
@@ -683,13 +474,11 @@ void ProcessLLVMOptions(const std::vector<std::string>& llvm_vec) {
 
   llvm::cl::ParseCommandLineOptions(llvm_vec.size(), args);
 }
-
 }  // namespace
 
 runtime::Module BuildHexagon(IRModule mod, Target target) {
-  // Make sure all targets are registered. InitializeLLVM can be called
-  // multiple times, after the first call all subsequent calls are no-ops.
-  InitializeLLVM();
+  LLVMInstance llvm_instance;
+  With<LLVMTarget> llvm_target(llvm_instance, target);
 
   auto split = [](const std::string& str, char delim = ' ') {
     std::vector<std::string> vec;
@@ -729,38 +518,30 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
   static bool CallOnce = (ProcessLLVMOptions(llvm_options_vec), true);
   (void)CallOnce;
 
-  std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(target);
-  std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
-  std::unique_ptr<CodeGenHexagon> cg(new CodeGenHexagon());
+  auto cg = std::make_unique<CodeGenHexagon>();
 
   std::vector<PrimFunc> funcs;
-  Map<String, LinkedParam> linked_params;
-  bool could_have_linked_params = target->GetAttr<Bool>("link-params").value_or(Bool(false));
+  std::string entry_func;
 
   for (auto kv : mod->functions) {
-    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "Can only lower IR Module with PrimFuncs";
-    if (could_have_linked_params &&
-        kv.first->name_hint == ::tvm::runtime::symbol::tvm_lookup_linked_param) {
-      // If `f` is the linked-params function, extract the parameters from the
-      // attribute dictionary, and skip the codegen.
-      auto attrs_dict = Downcast<Map<String, ObjectRef>>(kv.second->attrs->dict);
-      CHECK(attrs_dict.find(::tvm::tir::attr::kLinkedParams) != attrs_dict.end())
-          << "no " << ::tvm::tir::attr::kLinkedParams << " attribute found!";
-
-      CHECK(linked_params.empty()) << "Multiple linked-param functions";
-      linked_params =
-          Downcast<Map<String, LinkedParam>>(attrs_dict[::tvm::tir::attr::kLinkedParams]);
+    if (!kv.second->IsInstance<PrimFuncNode>()) {
+      // (@jroesch): we relax constraints here, Relay functions will just be ignored.
+      DLOG(INFO) << "Can only lower IR Module with PrimFuncs, but got " << kv.second->GetTypeKey();
       continue;
     }
     auto f = Downcast<PrimFunc>(kv.second);
+    if (f->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
+      auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
+      ICHECK(global_symbol.defined());
+      entry_func = global_symbol.value();
+    }
     funcs.emplace_back(f);
   }
 
-  cg->Init("TVMHexagonModule", tm.get(), ctx.get(), false, false, false);
+  cg->Init("TVMHexagonModule", llvm_target.get(), false, false, false);
   cg->AddFunctionsOrdered(funcs.begin(), funcs.end());
-
-  if (!linked_params.empty()) {
-    cg->LinkParameters(linked_params);
+  if (entry_func.length() != 0) {
+    cg->AddMainFunction(entry_func);
   }
 
   // Uncomment to get the LLVM module right out of codegen, before optimizations.
@@ -769,7 +550,7 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
 
   enum CodeGenFileType { Asm, Obj, IR, BC };
 
-  auto EmitToString = [&tm](const llvm::Module& m, CodeGenFileType cgft) {
+  auto EmitToString = [&llvm_target](const llvm::Module& m, CodeGenFileType cgft) {
     std::string out;
 
     if (cgft == IR || cgft == BC) {
@@ -779,18 +560,18 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
       else
         llvm::WriteBitcodeToFile(m, os);
     } else if (cgft == Asm || cgft == Obj) {
-      using namespace llvm;
 #if TVM_LLVM_VERSION <= 90
-      auto ft = cgft == Asm ? TargetMachine::CodeGenFileType::CGFT_AssemblyFile
-                            : TargetMachine::CodeGenFileType::CGFT_ObjectFile;
+      auto ft = cgft == Asm ? llvm::TargetMachine::CodeGenFileType::CGFT_AssemblyFile
+                            : llvm::TargetMachine::CodeGenFileType::CGFT_ObjectFile;
 #else
       auto ft = cgft == Asm ? llvm::CGFT_AssemblyFile : llvm::CGFT_ObjectFile;
 #endif
 
-      SmallString<16384> ss;  // Will grow on demand.
+      llvm::SmallString<16384> ss;  // Will grow on demand.
       llvm::raw_svector_ostream os(ss);
-      std::unique_ptr<llvm::Module> cm = CloneModule(m);
-      legacy::PassManager pass;
+      std::unique_ptr<llvm::Module> cm = llvm::CloneModule(m);
+      llvm::legacy::PassManager pass;
+      llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
       ICHECK(tm->addPassesToEmitFile(pass, os, nullptr, ft) == 0) << "Cannot emit target code";
       pass.run(*cm.get());
       out.assign(ss.c_str(), ss.size());
@@ -827,20 +608,25 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
                           "do import tvm.contrib.hexagon";
 
   Array<PrimExpr> o_names = {StringImm(o_name)};
-  int rc = (*f)(so_name, o_names);
+  Map<String, String> extra_args;
+  if (target->attrs.count("mcpu")) {
+    std::string mcpu = Downcast<String>(target->attrs.at("mcpu"));
+    ICHECK(llvm::StringRef(mcpu).startswith("hexagon"))
+        << "unexpected -mcpu value in target:" << mcpu;
+    extra_args.Set("hex_arch", llvm::StringRef(mcpu).drop_front(strlen("hexagon")).str());
+  }
+  int rc = (*f)(so_name, o_names, extra_args);
   ICHECK(rc == 0) << "Failed to link " << so_name;
 
-  // Move it to ExtractFuncInfo?
-  std::set<std::string> export_abi;
-  for (auto kv : mod->functions) {
-    auto f = Downcast<PrimFunc>(kv.second);
-    if (UsesExportABI(f)) export_abi.insert(get_name(f));
-  }
-  return HexagonModuleCreate(so_name, "so", ExtractFuncInfo(mod), asm_str, obj_str, ir_str, bc_str,
-                             export_abi);
+  return HexagonModuleCreate(so_name, "so", ExtractFuncInfo(mod), asm_str, obj_str, ir_str, bc_str);
 }
 
 TVM_REGISTER_GLOBAL("target.build.hexagon").set_body_typed(BuildHexagon);
+
+TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_hexagon")
+    .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
+      *rv = static_cast<void*>(new CodeGenHexagon());
+    });
 
 }  // namespace codegen
 }  // namespace tvm

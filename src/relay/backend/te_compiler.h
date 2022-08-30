@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file relay/backend/tir_compiler.h
- *  * \brief Internal compilation layer which lowers Relay "primitive functions" to TIR PrimFns.
+ * \file relay/backend/te_compiler.h
+ * \brief Internal compilation layer which lowers Relay "primitive functions" to TIR PrimFns.
  *
  *
  * This represents the new design of the Relay compilation flow and will replace the interface
@@ -58,12 +58,7 @@ namespace tvm {
 namespace relay {
 namespace tec {
 
-// TODO(@jroesch, @chrisS) these should be a tvm::Map for uniformity sake
-// we should a version of context which works in Map
-using TargetMap = std::unordered_map<DLDeviceType, Target, backend::EnumClassHash>;
-using DeviceMap =
-    std::unordered_map<Expr, tvm::Device, runtime::ObjectPtrHash, runtime::ObjectPtrEqual>;
-using ProcessFn = std::function<void(Function)>;
+using ProcessFn = std::function<void(BaseFunc)>;
 
 /*!
  * \brief A compiler which lowers primitive Relay functions to tensor expressions
@@ -78,7 +73,7 @@ class TECompilerNode : public Object {
    * \param key The key to the cached function.
    * \return The result.
    */
-  virtual CachedFunc Lower(const CCacheKey& key, std::function<String(String)> mangle_fn) = 0;
+  virtual CachedFunc Lower(const CCacheKey& key) = 0;
 
   /*!
    * \brief Get lowered result.
@@ -109,7 +104,26 @@ class TECompilerNode : public Object {
    */
   virtual tvm::Array<tvm::runtime::Module> LowerExternalFunctions() = 0;
 
-  virtual std::unordered_map<std::string, int> GetOpWeights() = 0;
+  /*!
+   * \brief Update \p module to remove functions marked with the "Compiler" attribute and replace
+   * them with their 'external' representation using the "ExternalSymbol" attribute.
+   *
+   * TODO(mbs): This is a stepping stone while we migrate to a more official representation
+   * of 'external functions' in the IRModule and allow lowering to incrementally updatethe
+   * module stead of forcing everything via the cache.
+   *
+   */
+  virtual void AddExterns(IRModule module) = 0;
+
+  /*!
+   * \brief Get C Device API context mapping
+   * \return Map of GlobalVar to associated C Device API context name (either Target or kCompiler
+   * annotated)
+   */
+  virtual Map<GlobalVar, String> GetDeviceContexts() = 0;
+  virtual void SetDeviceContexts(const Map<GlobalVar, String>& device_contexts) = 0;
+
+  virtual Map<String, Integer> GetOpWeights() const = 0;
 
   /*! \brief clear the cache. */
   virtual void Clear() = 0;
@@ -123,7 +137,7 @@ class TECompilerNode : public Object {
 /*! \brief cache entry used in compile engine */
 class TECompiler : public ObjectRef {
  public:
-  TECompiler();
+  explicit TECompiler(Optional<IRModule> opt_mod = {}, Optional<String> mod_name = {});
   explicit TECompiler(ObjectPtr<Object> n) : ObjectRef(n) {}
   TECompilerNode* operator->() { return static_cast<TECompilerNode*>(get_mutable()); }
   using ContainerType = TECompilerNode;
@@ -133,71 +147,49 @@ class TECompiler : public ObjectRef {
 /*!
  * \brief A function to create the function metadata for an input function (ie calculate buffer
  * input/output sizes)
- * \param relay_func The function to calculate function metadata for
+ * \param func The function to calculate function metadata for
  * \param function_metadata The map that stores all the function metadatas
+ * \param workspace_byte_alignment Byte alignment for allocations
  */
-void UpdateFunctionMetadata(Function relay_func,
-                            Map<String, backend::FunctionInfo>& function_metadata);  // NOLINT(*)
-
-/*!
- * \brief Obtain the Target from the device type.
- * If homogenous compilation, this will return the only target.
- * If heterogeneous compilation, this will select the associated target using the
- * targets_ Map.
- *
- * \param dev_type
- * \return Target
- */
-Target GetTargetFromInteger(DLDeviceType dev_type, tec::TargetMap targets);
+void UpdateFunctionMetadata(BaseFunc relay_func,
+                            Map<String, backend::FunctionInfo>& function_metadata,  // NOLINT(*)
+                            Integer workspace_byte_alignment = 16);
 
 /*!
  * \brief Update the "main" control function's metadata
  *
  * \param mod The module
- * \param targets Map of targets
+ * \param config All the available targets.
  * \return function_infos Function info for each function in the module
  */
-backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMap targets,
+backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, const CompilationConfig& config,
                                               Map<Expr, backend::StorageInfo> storage_info_map);
 
-/*! \brief Utility to separate the functions in an IRModule by Target.
+/*! \brief Returns all the global \p PrimFunc functions in \p mod, but separated into an \p IRModule
+ * per \p Target.
  *
  * \param mod The IRModule to extract the per target module from
  * \return The map from Target to IRModule
  */
 Map<Target, IRModule> GetPerTargetModules(IRModule mod);
 
-/*! \brief Lower an IRModule's primitive functions to TIR.
- *
- * This is the "back half" of the Relay compiler which lowers "primitive functions"
- * to TE expressions, schedules them, and then to TIR.
- *
- * \param module The IRModule.
- * \param targets The mapping for devices to targets.
- * \param memory_plan The memory plan used during lowering
- * \param module_name The name of this module
- * \param process_fn Callback allowing one-level up code generators to process
- * each function that we lower
- * \return The lowered module, see above.
- */
-IRModule LowerTE(
-    const IRModule& module, TargetMap targets, backend::StaticMemoryPlan memory_plan,
-    const String& module_name, ProcessFn process_fn = [](Function f) {});
+inline void DefaultProcessFn(BaseFunc) {}
 
-/*! \brief Pass to lower an IRModule's primitive functions to TIR.
+/*!
+ * \brief Pass to lower an IRModule's primitive functions to TIR.
  *
  * This is the "back half" of the Relay compiler which lowers "primitive functions"
- * to TE expressions, schedules them, and then to TIR. It annotates all functions
- * with their target.
+ * to TE expressions, schedules them, and emits PrimFuncs.
  *
- * \param targets The mapping for devices to targets.
- * \param module_name The name of this module
+ * \param module_name The name of this module, used as a prefix for generated globals.
+ * \param config All available targets.
  * \param process_fn Callback allowing one-level up code generators to process
- * each function that we lower
+ * each function that we lower (default is no-op).
  * \returns The pass which lowers primitive functions to TIR
  */
-transform::Pass LowerTEPass(TargetMap targets, const String& module_name,
-                            std::function<void(Function)> process_fn);
+transform::Pass LowerTE(String module_name, CompilationConfig config,
+                        ProcessFn process_fn = DefaultProcessFn);
+
 }  // namespace tec
 }  // namespace relay
 }  // namespace tvm

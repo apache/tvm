@@ -19,9 +19,9 @@
 /** NodeJS and Web compact layer */
 
 /**
- * Get performance masurement.
+ * Get performance measurement.
  */
-export function getPeformance(): Performance {
+export function getPerformance(): Performance {
   if (typeof performance == "undefined") {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const performanceNode = require("perf_hooks");

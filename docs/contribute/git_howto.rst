@@ -21,41 +21,45 @@
 Git Usage Tips
 ==============
 
+.. contents::
+  :depth: 2
+  :local:
+
 Here are some tips for git workflow.
 
-How to resolve a conflict with `main`
--------------------------------------
+How to resolve a conflict with ``main``
+---------------------------------------
 
 - First rebase to most recent main
 
-.. code:: bash
+  .. code:: bash
 
-  # The first two steps can be skipped after you do it once.
-  git remote add upstream [url to tvm repo]
-  git fetch upstream
-  git rebase upstream/main
+    # The first two steps can be skipped after you do it once.
+    git remote add upstream [url to tvm repo]
+    git fetch upstream
+    git rebase upstream/main
 
 
-- The git may show some conflicts it cannot merge, say `conflicted.py`.
+- The git may show some conflicts it cannot merge, say ``conflicted.py``.
 
   - Manually modify the file to resolve the conflict.
   - After you resolved the conflict, mark it as resolved by
 
-.. code:: bash
+    .. code:: bash
 
-  git add conflicted.py
+      git add conflicted.py
 
 - Then you can continue rebase by
 
-.. code:: bash
+  .. code:: bash
 
-  git rebase --continue
+    git rebase --continue
 
 - Finally push to your fork, you may need to force push here.
 
-.. code:: bash
+  .. code:: bash
 
-  git push --force
+    git push --force
 
 
 How to combine multiple commits into one
@@ -66,35 +70,36 @@ to create a PR with set of meaningful commits. You can do it by following steps.
 
 - Before doing so, configure the default editor of git if you haven't done so before.
 
-.. code:: bash
+  .. code:: bash
 
-  git config core.editor the-editor-you-like
+    git config core.editor the-editor-you-like
 
 - Assume we want to merge last 3 commits, type the following commands
 
-.. code:: bash
+  .. code:: bash
 
-  git rebase -i HEAD~3
+    git rebase -i HEAD~3
 
-- It will pop up an text editor. Set the first commit as `pick`, and change later ones to `squash`.
+- It will pop up an text editor. Set the first commit as ``pick``, and change later ones to ``squash``.
 - After you saved the file, it will pop up another text editor to ask you modify the combined commit message.
 - Push the changes to your fork, you need to force push.
 
-.. code:: bash
+  .. code:: bash
 
-  git push --force
+    git push --force
 
 
 Reset to the most recent main branch
 ------------------------------------
 
 You can always use git reset to reset your version to the most recent main.
-Note that all your ***local changes will get lost***.
+Note that **all your local changes will get lost**.
 So only do it when you do not have local changes or when your pull request just get merged.
 
 .. code:: bash
 
-  git reset --hard [hash tag of main]
+  git fetch origin main
+  git reset --hard FETCH_HEAD
 
 
 Recover a Previous Commit after Reset

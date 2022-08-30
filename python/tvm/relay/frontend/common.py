@@ -31,8 +31,21 @@ from .. import op as _op
 from .. import ty as _ty
 from .. import analysis
 
+
+class DuplicateFilter:
+    """A log filter that only prints the same message once."""
+
+    def __init__(self):
+        self.msgs = set()
+
+    def filter(self, record):
+        self.msgs.add(record.msg)
+        return record.msg not in self.msgs
+
+
 # pylint: disable=invalid-name
-logger = logging.getLogger("Common")
+logger = logging.getLogger("Frontend")
+logger.addFilter(DuplicateFilter())
 # Uncomment below line to print all debug msgs
 # logger.setLevel(logging.DEBUG)
 
@@ -596,13 +609,16 @@ def try_infer_value(val, on_success=None, on_failure=None, parameters=None):
         return val, False
 
 
-def shape_of(x, dtype="int64"):
+def shape_of(x, dtype="int64", start=None, end=None):
     """Get shape of a tensor."""
 
     ttype = infer_type(x).checked_type
     if not _ty.is_dynamic(ttype):
         shape = list(ttype.shape)
-        return _expr.const(shape, dtype)
+        start = start or 0  # default to first
+        end = end or len(shape)  # default to last
+        shape_sliced = shape[start:end]
+        return _expr.const(shape_sliced, dtype)
     return _op.shape_of(x, dtype)
 
 
@@ -670,6 +686,46 @@ def unbind(data, axis=0):
     return _expr.TupleWrapper(_expr.Tuple(ret), selections)
 
 
+def rnn_cell(
+    input_seqs, hidden_state, w_inp, w_hid, b_inp=None, b_hid=None, backwards=False, act=_op.tanh
+):
+    """
+    Common implementation of RNN cell for all frontends of TVM
+
+    Parameters
+    ----------
+    input_seqs : List[relay.Expr]
+        The sequence of input tensors
+        Input tensor should be 2d while issue #8412 is not resolved
+        Shape = (batch, feature_size)
+    hidden_state : relay.Expr
+        Hidden state. shape = (batch_size, hidden_size)
+    w_inp, w_hid: relay.Expr
+        weight matrices. shape = (hidden_size, feature_size), (hidden_size, feature_size)
+    b_inp, b_hid : relay.Expr
+        bias matrices. The same order of internal parts as for weights. shape = (1 * hidden_size)
+    backwards : bool
+        Flag for reverse pass of RNN
+    act : relay.op
+        activation function. It is tanh by default.
+
+    Returns
+    -------
+    result : List[relay.Expr], relay.Expr, relay.Expr
+        The sequence of computed result, final hidden and cell state
+    """
+    outputs_list = []
+    for x_t in input_seqs if not backwards else reversed(input_seqs):
+        xwt = _op.nn.dense(x_t, w_inp)
+        hwt = _op.nn.dense(hidden_state, w_hid)
+        if b_inp is not None and b_hid is not None:
+            xwt += b_inp
+            hwt += b_hid
+        hidden_state = act(xwt + hwt)
+        outputs_list.append(hidden_state)  # [seq_num, (batch, hidden_size)]
+    return outputs_list, hidden_state
+
+
 def gru_cell(
     input_seqs,
     hidden_state,
@@ -702,11 +758,11 @@ def gru_cell(
     b_inp, b_hid : relay.Expr
         bias matrices. The same order of internal parts as for weights. shape = (3 * hidden_size)
     r_act : relay.op
-        activation funtion for reset gate. it is sigmoid by default
+        activation function for reset gate. it is sigmoid by default
     z_act : relay.op
-        activation funtion for update gate. it is sigmoid by default
+        activation function for update gate. it is sigmoid by default
     n_act : relay.op
-        activation funtion for new gate. it is tanh by default
+        activation function for new gate. it is tanh by default
     backwards : bool
         Flag for reverse pass of GRU
 
@@ -798,7 +854,7 @@ def lstm_cell(
     p_i, p_f, p_o : relay.Expr
         peephole LSTM matrices. shape = (batch, hidden_size)
     f_act, g_act, h_act : relay.op
-        activation funtions
+        activation functions
     backwards : bool
         Flag for reverse pass of LSTM
 

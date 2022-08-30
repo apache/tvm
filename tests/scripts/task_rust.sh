@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,8 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
+set -euxo pipefail
 
 export TVM_HOME="$(git rev-parse --show-toplevel)"
 echo "Using TVM_HOME=$TVM_HOME"
@@ -80,10 +79,11 @@ cd -
 # wasmtime $RUST_DIR/target/wasm32-wasi/debug/test-wasm32.wasm
 # cd -
 
-# run nn graph test
-cd tests/test_nn
-cargo run
-cd -
+# Disabled, see https://github.com/apache/tvm/issues/11419
+# # run nn graph test
+# cd tests/test_nn
+# cargo run
+# cd -
 
 # Finally we test the TVM crate which provides both runtime
 # and compiler bindings.

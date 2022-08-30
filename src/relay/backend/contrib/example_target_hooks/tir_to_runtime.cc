@@ -30,6 +30,8 @@ using namespace tir;
 
 class CodeGenExampleTargetHook : public codegen::CodeGenCHost {
  public:
+  using codegen::CodeGenCHost::VisitExpr_;
+
   /*!
    * \brief Emit code that changes adds to multiplies for testing
    */
@@ -47,7 +49,8 @@ runtime::Module TIRToRuntime(IRModule mod, Target target) {
   bool emit_asserts = false;
   CodeGenExampleTargetHook codegen;
   Array<String> function_names;
-  codegen.Init(output_ssa, emit_asserts, target->str());
+  std::unordered_set<std::string> devices;
+  codegen.Init(output_ssa, emit_asserts, target->str(), devices);
   for (auto kv : mod->functions) {
     auto prim_func = Downcast<PrimFunc>(kv.second);
     auto global_symbol = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol);

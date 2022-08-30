@@ -68,7 +68,7 @@ namespace tvm {
 namespace runtime {
 namespace detail {
 // Override logging mechanism
-void LogFatalImpl(const std::string& file, int lineno, const std::string& message) {
+[[noreturn]] void LogFatalImpl(const std::string& file, int lineno, const std::string& message) {
   std::cerr << "[FATAL] " << file << ":" << lineno << ": " << message << std::endl;
   abort();
 }

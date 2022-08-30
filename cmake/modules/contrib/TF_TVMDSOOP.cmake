@@ -42,7 +42,7 @@ if(NOT USE_TF_TVMDSOOP STREQUAL "OFF")
 
 
   set(OP_LIBRARY_NAME tvm_dso_op)
-  file(GLOB_RECURSE TFTVM_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/src/contrib/tf_op/*.cc)
+  tvm_file_glob(GLOB_RECURSE TFTVM_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/src/contrib/tf_op/*.cc)
   add_library(${OP_LIBRARY_NAME} SHARED ${TFTVM_SRCS})
   set(TFTVM_LINK_FLAGS  -ltvm -L${CMAKE_CURRENT_BINARY_DIR})
   

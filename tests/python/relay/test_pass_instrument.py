@@ -236,7 +236,7 @@ def test_enter_pass_ctx_exception():
     # Make sure we get correct PassContext
     cur_pass_ctx = tvm.transform.PassContext.current()
     assert pass_ctx != cur_pass_ctx
-    assert cur_pass_ctx.instruments == None
+    assert not cur_pass_ctx.instruments
 
 
 def test_enter_pass_ctx_exception_global():

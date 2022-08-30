@@ -19,4 +19,11 @@
 
 # pylint: disable=wildcard-import
 
+from .batch_matmul import *
 from .conv2d import *
+from .dense import *
+from .injective import *
+from .pooling import *
+from .reduce import *
+from .resize2d import *
+from .qnn import *

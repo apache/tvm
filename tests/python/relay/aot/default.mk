@@ -22,6 +22,7 @@ ENABLE_TVM_PLATFORM_ABORT_BACKTRACE = 0
 DMLC_CORE=$(TVM_ROOT)/3rdparty/dmlc-core
 PKG_COMPILE_OPTS = -g
 CC = gcc
+#CC = g++
 AR = ar
 RANLIB = ranlib
 CC_OPTS = CC=$(CC) AR=$(AR) RANLIB=$(RANLIB)
@@ -39,14 +40,20 @@ $(endif)
 
 aot_test_runner: $(build_dir)/aot_test_runner
 
-source_libs= $(wildcard $(build_dir)/../codegen/host/src/*.c)
-lib_objs =$(source_libs:.c=.o)
+c_source_libs= $(wildcard $(build_dir)/../codegen/host/src/*.c)
+cc_source_libs= $(wildcard $(build_dir)/../codegen/host/src/*.cc)
+c_lib_objs =$(c_source_libs:.c=.o)
+cc_lib_objs =$(cc_source_libs:.cc=.o)
 
-$(build_dir)/aot_test_runner: $(build_dir)/test.c  $(source_libs) $(build_dir)/stack_allocator.o $(build_dir)/crt_backend_api.o
+$(build_dir)/aot_test_runner: $(build_dir)/test.c  $(c_source_libs) $(cc_source_libs) $(build_dir)/stack_allocator.o $(build_dir)/crt_backend_api.o
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) $(CFLAGS) $(PKG_CFLAGS) -o $@ $^ $(PKG_LDFLAGS) $(BACKTRACE_LDFLAGS) $(BACKTRACE_CFLAGS) -lm
 
 $(build_dir)/%.o: $(build_dir)/../codegen/host/src/%.c
+	$(QUIET)mkdir -p $(@D)
+	$(QUIET)$(CC) $(CFLAGS) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
+
+$(build_dir)/%.o: $(build_dir)/../codegen/host/src/%.cc
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) $(CFLAGS) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
 

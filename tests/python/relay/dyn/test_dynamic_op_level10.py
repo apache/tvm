@@ -27,9 +27,11 @@ import tvm.topi.testing
 import random
 import tvm.testing
 
+executor_kind = tvm.testing.parameter("debug", "vm")
+
 
 @tvm.testing.uses_gpu
-def test_broadcast_to():
+def test_broadcast_to(executor_kind):
     def verify_more_dynamic_broadcast_to(x_shape, out_shape):
         rank = len(out_shape)
         dtype = "float32"
@@ -45,12 +47,13 @@ def test_broadcast_to():
         x = np.random.uniform(size=np.prod(x_shape)).astype(dtype)
         ref_res = np.broadcast_to(np.reshape(x, x_shape), out_shape)
         for target, dev in tvm.testing.enabled_targets():
-            for kind in ["vm", "debug"]:
-                mod = tvm.ir.IRModule.from_expr(func)
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate(
-                    func
-                )(x, np.array(x_shape).astype(shape_type), np.array(out_shape).astype(shape_type))
-                tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
+            mod = tvm.ir.IRModule.from_expr(func)
+            op_res = relay.create_executor(
+                executor_kind, mod=mod, device=dev, target=target
+            ).evaluate(func)(
+                x, np.array(x_shape).astype(shape_type), np.array(out_shape).astype(shape_type)
+            )
+            tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     verify_more_dynamic_broadcast_to((4, 3), (3, 4, 3))
 
@@ -70,12 +73,11 @@ def test_broadcast_to():
         x = np.random.uniform(size=x_shape).astype(dtype)
         ref_res = np.broadcast_to(x, out_shape)
         for target, dev in tvm.testing.enabled_targets():
-            for kind in ["vm", "debug"]:
-                mod = tvm.ir.IRModule.from_expr(func)
-                op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate(
-                    func
-                )(x, np.array(out_shape).astype(shape_type))
-                tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
+            mod = tvm.ir.IRModule.from_expr(func)
+            op_res = relay.create_executor(
+                executor_kind, mod=mod, device=dev, target=target
+            ).evaluate(func)(x, np.array(out_shape).astype(shape_type))
+            tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     verify_broadcast_to((1,), (1, 1, 1))
     verify_broadcast_to((1, 1), (4, 1, 1))
@@ -83,7 +85,7 @@ def test_broadcast_to():
 
 
 @tvm.testing.uses_gpu
-def test_dyn_broadcast_to():
+def test_dyn_broadcast_to(executor_kind):
     dtype = "uint8"
     rank = 3
     shape_type = "int64"
@@ -101,16 +103,15 @@ def test_dyn_broadcast_to():
     dyn_shape = (1,) * rank
     ref_res = np.broadcast_to(x, dyn_shape)
     for target, dev in tvm.testing.enabled_targets():
-        for kind in ["vm", "debug"]:
-            mod = tvm.ir.IRModule.from_expr(func)
-            op_res = relay.create_executor(kind, mod=mod, device=dev, target=target).evaluate(func)(
-                x, np.array(dyn_shape).astype(shape_type)
-            )
-            tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
+        mod = tvm.ir.IRModule.from_expr(func)
+        op_res = relay.create_executor(executor_kind, mod=mod, device=dev, target=target).evaluate(
+            func
+        )(x, np.array(dyn_shape).astype(shape_type))
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
 @tvm.testing.uses_gpu
-def test_dyn_one_hot():
+def test_dyn_one_hot(executor_kind):
     def _get_oshape(indices_shape, depth, axis):
         oshape = []
         true_axis = len(indices_shape) if axis == -1 else axis
@@ -135,12 +136,11 @@ def test_dyn_one_hot():
         indices_np = np.random.randint(0, depth, size=indices_shape).astype("int32")
         out_np = tvm.topi.testing.one_hot(indices_np, on_value, off_value, depth, axis, dtype)
         for target, dev in tvm.testing.enabled_targets():
-            for kind in ["vm", "debug"]:
-                mod = tvm.ir.IRModule.from_expr(func)
-                out_relay = relay.create_executor(
-                    kind, mod=mod, device=dev, target=target
-                ).evaluate()(indices_np, np.array(depth).astype("int32"))
-                tvm.testing.assert_allclose(out_relay.numpy(), out_np)
+            mod = tvm.ir.IRModule.from_expr(func)
+            out_relay = relay.create_executor(
+                executor_kind, mod=mod, device=dev, target=target
+            ).evaluate()(indices_np, np.array(depth).astype("int32"))
+            tvm.testing.assert_allclose(out_relay.numpy(), out_np)
 
     _verify((3,), 3, 1, 0, -1, "int32")
     _verify((3,), 3, 1.0, 0.0, -1, "float32")
@@ -151,5 +151,4 @@ def test_dyn_one_hot():
 
 
 if __name__ == "__main__":
-    test_dyn_broadcast_to()
-    test_dyn_one_hot()
+    tvm.testing.main()

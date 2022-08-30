@@ -58,9 +58,9 @@ PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
           // on remotes, we accept a nullptr for collectors.
           if (collectors.defined()) {
             std::vector<profiling::MetricCollector> cs(collectors.begin(), collectors.end());
-            prof_ = profiling::Profiler(devices, cs);
+            prof_ = profiling::Profiler(devices, cs, {{String("Executor"), String("VM")}});
           } else {
-            prof_ = profiling::Profiler(devices, {});
+            prof_ = profiling::Profiler(devices, {}, {{String("Executor"), String("VM")}});
           }
 
           auto invoke = VirtualMachine::GetFunction("invoke", sptr_to_self);
@@ -73,11 +73,11 @@ PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
           invoke(arg_name);
           prof_.operator*().Stop();
           auto report = prof_.operator*().Report();
-          prof_ = dmlc::optional<profiling::Profiler>();  // releases hardware counters
+          prof_ = std::nullopt;  // releases hardware counters
           return report;
         });
   } else if (name == "profile_rpc") {
-    // We cannot return a Report over RPC because TMV RPC mechanism only
+    // We cannot return a Report over RPC because TVM RPC mechanism only
     // supports a subset of Object classes. Instead we serialize it on the
     // remote (here) and deserialize it on the other end.
     return TypedPackedFunc<std::string(std::string)>([sptr_to_self, this](std::string arg_name) {
@@ -90,9 +90,8 @@ PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
   }
 }
 
-void VirtualMachineDebug::LoadExecutable(const Executable* exec) {
+void VirtualMachineDebug::LoadExecutable(const ObjectPtr<Executable>& exec) {
   VirtualMachine::LoadExecutable(exec);
-  ICHECK(exec_);
   for (auto kv : exec_->primitive_map) {
     packed_index_map_[kv.second] = kv.first;
   }
@@ -101,15 +100,13 @@ void VirtualMachineDebug::LoadExecutable(const Executable* exec) {
 void VirtualMachineDebug::OpStartHook(Instruction instr) {
   if (prof_ && prof_.operator*().IsRunning()) {
     if (instr.op == Opcode::LoadConst) {
-      Device dev = GetDevice(exec_->const_device_type[instr.const_index]);
+      Device dev = GetDevice(exec_->const_device_indexes[instr.const_index]);
       prof_.operator*().StartCall("VM::LoadConst", dev, {});
     } else if (instr.op == Opcode::DeviceCopy) {
-      Device dst_dev;
-      dst_dev.device_type = static_cast<DLDeviceType>(instr.dst_device_type);
-      dst_dev.device_id = 0;
+      Device dst_dev = GetDevice(instr.device_copy.dst_device_index);
       prof_.operator*().StartCall("VM::DeviceCopy", dst_dev, {});
     } else if (instr.op == Opcode::ReshapeTensor) {
-      prof_.operator*().StartCall("VM::ReshapeTensor", devices_[1], {});
+      prof_.operator*().StartCall("VM::ReshapeTensor", devices_[exec_->host_device_index], {});
     } else if (instr.op == Opcode::AllocTensor) {
       auto shape = std::vector<int64_t>(instr.alloc_tensor.ndim);
 
@@ -124,7 +121,7 @@ void VirtualMachineDebug::OpStartHook(Instruction instr) {
     } else if (instr.op == Opcode::AllocTensorReg) {
       auto storage_obj = ReadRegister(instr.alloc_tensor_reg.storage);
       auto storage = Downcast<Storage>(storage_obj);
-      Device cpu_dev = GetDevice(static_cast<Index>(kDLCPU));
+      Device cpu_dev = GetDevice(exec_->host_device_index);
       auto shape_obj = ReadRegister(instr.alloc_tensor_reg.shape_register);
       NDArray shape_tensor = Downcast<NDArray>(shape_obj).CopyTo(cpu_dev);
       prof_.operator*().StartCall(
@@ -135,11 +132,11 @@ void VirtualMachineDebug::OpStartHook(Instruction instr) {
       auto size = LoadScalarInt(instr.alloc_storage.allocation_size);
       std::ostringstream shape;
       shape << DLDataType2String(instr.alloc_storage.dtype_hint) << "[" << size << "]";
-      prof_.operator*().StartCall("VM::AllocStorage",
-                                  {static_cast<DLDeviceType>(instr.alloc_storage.device_type), 0},
+      Device dev = GetDevice(instr.alloc_storage.device_index);
+      prof_.operator*().StartCall("VM::AllocStorage", dev,
                                   {{"VM::Argument Shapes", String(shape.str())}});
     } else {
-      prof_.operator*().StartCall("VM::UnknownOp", devices_[1], {});
+      prof_.operator*().StartCall("VM::UnknownOp", GetDevice(exec_->host_device_index), {});
     }
   }
 }
@@ -204,17 +201,15 @@ void VirtualMachineDebug::InvokePacked(Index packed_index, const PackedFunc& fun
   }
 }
 
-runtime::Module CreateVirtualMachineDebug(const Executable* exec) {
+runtime::Module CreateVirtualMachineDebug(Executable* exec) {
   auto vm = make_object<VirtualMachineDebug>();
-  vm->LoadExecutable(exec);
+  vm->LoadExecutable(GetObjectPtr<Executable>(exec));
   return runtime::Module(vm);
 }
 
 TVM_REGISTER_GLOBAL("runtime._VirtualMachineDebug").set_body([](TVMArgs args, TVMRetValue* rv) {
   runtime::Module mod = args[0];
-  const auto* exec = dynamic_cast<Executable*>(mod.operator->());
-  ICHECK(exec) << "Virtual machine has not been defined yet."
-               << "\n";
+  auto* exec = dynamic_cast<Executable*>(mod.operator->());
   *rv = CreateVirtualMachineDebug(exec);
 });
 

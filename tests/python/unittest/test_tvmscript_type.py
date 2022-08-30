@@ -25,13 +25,13 @@ e.g. reads/writes, match_buffer/alloc_buffer, serial/block etc.
 
 @T.prim_func
 def element_wise_storage_align(a: T.handle, c: T.handle) -> None:
-    C = T.match_buffer(c, [128, 128], elem_offset=0, align=128, offset_factor=1)
-    A = T.match_buffer(a, [128, 128], elem_offset=0, align=128, offset_factor=1)
+    C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
+    A = T.match_buffer(a, [128, 128], elem_offset=0, align=64, offset_factor=1)
     # body
     with T.block("root"):
         T.reads([])
         T.writes([])
-        B = T.alloc_buffer([128, 128], elem_offset=0, align=128, offset_factor=1)
+        B = T.alloc_buffer([128, 128], elem_offset=0, align=64, offset_factor=1)
         for i0 in T.serial(0, 128):
             for ax1 in T.serial(0, 128):
                 with T.block("B"):
@@ -79,6 +79,102 @@ def element_wise_env_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None:
                     C[blockIdx_x, threadIdx_x * 32 + j1_1] = (
                         B[blockIdx_x, threadIdx_x * 32 + j1_1] + 1.0
                     )
+
+
+"""
+This test case is added to test T.grid
+"""
+
+
+@T.prim_func
+def loop_split(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128], dtype="float32")
+    B = T.match_buffer(b, [128], dtype="float32")
+    for i, ko in T.grid(128, 4):
+        for ki in T.thread_binding(0, 32, thread="threadIdx.x"):
+            with T.block("B"):
+                vi = T.axis.S(128, i)
+                vk = T.axis.R(128, ko * 32 + ki)
+                T.reads([B[vi], A[vi, vk]])
+                T.writes([B[vi]])
+                with T.init():
+                    B[vi] = T.float32(0)
+                B[vi] = B[vi] + A[vi, vk]
+
+
+"""
+This test case is added to test T.comm_reducer, T.reinterpret, T.tvm_thread_allreduce
+"""
+
+
+@T.prim_func
+def lowered_loop_split(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128], dtype="float32")
+    B = T.match_buffer(b, [128], dtype="float32")
+    reduce_temp0 = T.alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    normal_reduce_temp0 = T.alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    for i in T.serial(0, 128):
+        for ki in T.thread_binding(0, 32, thread="threadIdx.x"):
+            normal_reduce_temp0[0] = T.float32(0)
+            for ko in T.serial(0, 4):
+                with T.block("B_normal_reduction"):
+                    vi = T.axis.S(128, i)
+                    vk = T.axis.R(128, ko * 32 + ki)
+                    T.reads([A[vi, vk], normal_reduce_temp0[0]])
+                    T.writes([normal_reduce_temp0[0]])
+                    normal_reduce_temp0[0] = normal_reduce_temp0[0] + A[vi, vk]
+            with T.block("B_cross_thread_reduction"):
+                T.reads([normal_reduce_temp0[0]])
+                T.writes([reduce_temp0[0]])
+                T.attr(
+                    T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
+                    "reduce_scope",
+                    T.reinterpret(T.uint64(0), dtype="handle"),
+                )
+                T.evaluate(
+                    T.tvm_thread_allreduce(
+                        T.uint32(1),
+                        normal_reduce_temp0[0],
+                        True,
+                        reduce_temp0.data,
+                        ki,
+                        dtype="handle",
+                    )
+                )
+            with T.block("B_write_back"):
+                vi = T.axis.S(128, i)
+                T.reads([reduce_temp0[0]])
+                T.writes([B[vi]])
+                B[vi] = reduce_temp0[0]
+
+
+"""
+This test case is added to test T.Buffer with slice as argument and T.exp
+"""
+
+
+@T.prim_func
+def different_access_indices(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128, 128], dtype="float32")
+    B = T.match_buffer(b, [128, 128], dtype="float32")
+    for i, j in T.grid(128, 128):
+        for k in T.thread_binding(0, 128, thread="threadIdx.x"):
+            with T.block("B"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                T.reads([B[vi, vj], A[vi, vj, vk]])
+                T.writes(
+                    [
+                        B[
+                            T.min(vj, vi) : T.min(vj, vi)  # type: ignore[misc]
+                            + (T.max(vj, vi) + 1 - T.min(vj, vi)),
+                            T.min(vi, vj) : T.min(vi, vj)  # type: ignore[misc]
+                            + (T.max(vi, vj) + 1 - T.min(vi, vj)),
+                        ]
+                    ]
+                )
+                with T.init():
+                    B[vj, vi] = T.exp(B[vj, vi], dtype="float32")
+                B[vi, vj] = B[vi, vj] + A[vi, vj, vk]
 
 
 # Not running any test as we only want to type-check here

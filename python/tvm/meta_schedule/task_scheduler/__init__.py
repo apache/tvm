@@ -22,3 +22,4 @@ records to the database.
 """
 from .task_scheduler import TaskScheduler, PyTaskScheduler
 from .round_robin import RoundRobin
+from .gradient_based import GradientBased

@@ -67,6 +67,10 @@ def get_optimal_block_config(
     ethosu.vela.api.NpuShape3D :
         The optimal block config for the operator
     """
+    options = tvm.transform.PassContext.current().config.get("relay.ext.ethos-u.options", None)
+    if options and options.dev_force_block_config:
+        block_config = [int(v) for v in options.dev_force_block_config.split("x")]
+        return vapi.NpuShape3D(height=block_config[0], width=block_config[1], depth=block_config[2])
     all_valid_block_configs = vapi.npu_find_block_configs(npu_op, accel_config)
     return _get_optimal_block_config(all_valid_block_configs)
 
@@ -140,25 +144,25 @@ def encode_weights(
     op = str(tir_extern_call.args[0].value)
     assert op in supported_ops.keys()
     npu_op, weights_zero_point = supported_ops[op](tir_extern_call)
-    block_config = get_optimal_block_config(npu_op, accel_config)
-    # The weight layout is assumed to be flat OHWI, always.
-    assert len(values.shape) == 1
     is_depthwise = op == "ethosu_depthwise_conv2d"
-    shape_ohwi = (
-        npu_op.ofm.shape.depth,
-        npu_op.kernel.height,
-        npu_op.kernel.width,
-        1 if is_depthwise else npu_op.ifm.shape.depth,
-    )
-    assert values.size == np.prod(shape_ohwi)
-    values = np.reshape(values, shape_ohwi)
+    # Recover the original shape if we are dealing with a flattened tensor
+    if len(values.shape) == 1:
+        shape_ohwi = (
+            npu_op.ofm.shape.depth,
+            npu_op.kernel.height,
+            npu_op.kernel.width,
+            1 if is_depthwise else npu_op.ifm.shape.depth,
+        )
+        assert values.size == np.prod(shape_ohwi)
+        values = np.reshape(values, shape_ohwi)
+
     return compress_weights(
         weights=values,
         weights_zp=weights_zero_point,
         # The weight layout is assumed to be OHWI, always.
         weights_layout="OHWI",
         ifm_bitdepth=npu_op.ifm.data_type.size_in_bits(),
-        block_depth=block_config.depth,
+        block_depth=npu_op.block_config.depth,
         dilation=(npu_op.kernel.dilation_x, npu_op.kernel.dilation_y),
         accel_config=accel_config,
         is_depthwise=is_depthwise,
@@ -207,7 +211,7 @@ def compress_weights(
     layout_transform_indices = {"HWIO": (3, 0, 1, 2), "HWOI": (2, 0, 1, 3), "OHWI": (0, 1, 2, 3)}
     assert weights_layout in layout_transform_indices.keys()
     assert isinstance(weights_zp, np.int64)
-    weights = weights.astype(np.int64) - weights_zp
+    weights = weights.astype(np.int16) - weights_zp
     # Vela needs the weights in OHWI layout
     weights_ohwi = np.transpose(weights, layout_transform_indices[weights_layout])
     shape_ohwi = [
@@ -217,6 +221,7 @@ def compress_weights(
         weights.shape[layout_transform_indices[weights_layout][3]],
     ]
     block_traversal = calculate_block_traversal_mode(is_depthwise, shape_ohwi, ifm_bitdepth)
+
     compressed_weights = vapi.npu_encode_weights(
         accelerator=accel_config,
         weights_volume=weights_ohwi,
@@ -316,7 +321,10 @@ def _quantize_scale(scale: float) -> Tuple[int, int]:
     mantissa_scaled = mantissa * (1 << 31)
     mantissa_scaled = int(util.round_away_zero(mantissa_scaled))
     required_shift = 31 - exponent
-    assert 0 <= required_shift < (1 << 6)
+    if required_shift < 0 or required_shift >= (1 << 6):
+        # Shift outside of valid range, set scale to 0
+        return 0, 16
+
     return mantissa_scaled, required_shift
 
 
@@ -332,6 +340,11 @@ def _reduced_quantize_scale(scale: float) -> Tuple[int, int]:
     else:
         reduced_mantissa_scaled = (mantissa_scaled + (1 << 15)) >> 16
     reduced_shift = required_shift - 16
+
+    if required_shift < 0 or required_shift >= (1 << 6):
+        # Shift outside of valid range, set scale to 0
+        return 0, 16
+
     return reduced_mantissa_scaled, reduced_shift
 
 
@@ -380,8 +393,10 @@ def get_accelerator_config() -> vapi.NpuAccelerator:
         "ethos-u55-128": vapi.NpuAccelerator.Ethos_U55_128,
         "ethos-u55-64": vapi.NpuAccelerator.Ethos_U55_64,
         "ethos-u55-32": vapi.NpuAccelerator.Ethos_U55_32,
+        "ethos-u65-256": vapi.NpuAccelerator.Ethos_U65_256,
+        "ethos-u65-512": vapi.NpuAccelerator.Ethos_U65_512,
     }
-    compiler_attrs = tvm.get_global_func("relay.ext.ethosu.get_compiler_attrs")()
+    compiler_attrs = tvm.get_global_func("relay.ext.ethos-u.get_compiler_attrs")()
     accel_config_str = compiler_attrs.accelerator_config
     assert accel_config_str in npu_accel_str_map.keys(), f"{accel_config_str} is not supported"
     return npu_accel_str_map[accel_config_str]

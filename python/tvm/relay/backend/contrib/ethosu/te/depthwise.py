@@ -17,9 +17,13 @@
 # pylint: disable=invalid-name,unused-argument
 """Tensor Expressions for depthwise convolutions"""
 from typing import Tuple, Union, List
+import numpy as np
 
 from tvm import te
+from tvm.contrib.ethosu.cascader import TESubgraph, EthosuPart, Propagator, register_matcher
+
 from .dma import dma_ofm_compute, dma_ifm_compute
+from .common import get_layout_transform_matrices
 
 
 def depthwise_conv2d_compute(
@@ -38,9 +42,11 @@ def depthwise_conv2d_compute(
     activation: str,
     clip_min: int,
     clip_max: int,
+    rounding_mode: str,
     upscale: str,
     ifm_layout: str,
     ofm_layout: str,
+    ofm_dtype: str,
 ) -> te.Tensor:
     """A compute operator representing the capabilities of 2D convolution for the NPU.
 
@@ -81,6 +87,11 @@ def depthwise_conv2d_compute(
         The minimum clipping value if activation = "CLIP".
     clip_max : int
         The maximum clipping value if activation = "CLIP".
+    rounding_mode : str
+        The rounding mode to apply to the Output Feature Map tensor.
+            "TFL" - Tensorflow Lite rounding scheme.
+            "TRUNCATE" - Truncate towards zero.
+            "NATURAL" - Round to nearest value, with x.5 rounded up towards +infinity.
     upscale : str
         The 2x2 upscaling mode to apply to the Input Feature Map tensor.
             "NONE" - no upscaling.
@@ -90,6 +101,8 @@ def depthwise_conv2d_compute(
         The layout of the Input Feature Map tensor. Can be "NHWC" or "NHCWB16".
     ofm_layout : str
         The layout of the Output Feature Map tensor. Can be "NHWC" or "NHCWB16".
+    ofm_dtype : str, optional
+        The Output Feature Map tensor data type. Can be 'int8', 'uint8' or 'int16'.
 
     Returns
     -------
@@ -101,9 +114,10 @@ def depthwise_conv2d_compute(
     assert ifm_layout in {"NHWC", "NHCWB16"}
     assert ofm_layout in {"NHWC", "NHCWB16"}
 
-    stride_h, stride_w = strides
-    dilation_h, dilation_w = dilation
-    channels, kernel_h, kernel_w, _ = weight.shape
+    padding = [int(v) for v in padding]
+    stride_h, stride_w = [int(v) for v in strides]
+    dilation_h, dilation_w = [int(v) for v in dilation]
+    channels, kernel_h, kernel_w, _ = [int(v) for v in weight.shape]
 
     # Compute operation for the IFM DMA pipeline
     dmaed_ifm = dma_ifm_compute(ifm, ifm_layout, ifm_zero_point, ifm_scale, channels, padding)
@@ -120,29 +134,180 @@ def depthwise_conv2d_compute(
         "op": "ethosu_depthwise_conv2d",
         "weight_zero_point": weight_zero_point,
         "activation": activation,
-        "upscale": upscale,
         "clip_min": clip_min,
         "clip_max": clip_max,
+        "rounding_mode": rounding_mode,
+        "upscale": upscale,
         "stride_h": stride_h,
         "stride_w": stride_w,
         "dilation_h": dilation_h,
         "dilation_w": dilation_w,
     }
 
+    has_lut = activation in ("TANH", "LUT", "SIGMOID")
+
+    # This is a trick to insert the LUT tensor into the TE graph if LUT is present
+    lut_expr = (lut[0] + lut[255]).astype(ifm.dtype) if has_lut else 0
+
+    # Add the LUT tensor to the attributes to be able to later tell which tensor is the LUT
+    if has_lut:
+        depthwise_conv2d_attrs["lut"] = lut
+
     depthwise = te.compute(
         (1, ofm_height, ofm_width, channels),
         lambda nn, hh, ww, cc: te.sum(
-            dmaed_ifm(
-                nn, hh * stride_h + rh * dilation_h, ww * stride_w + rw * dilation_w, cc
-            ).astype(ifm.dtype)
-            * weight[cc, rh, rw, 0].astype(ifm.dtype)
-            # This is a trick to load 10 elements of the scale_bias at once, not accurate maths
-            + (scale_bias[cc, 0] * scale_bias[cc, 9]).astype(ifm.dtype),
+            (
+                dmaed_ifm(
+                    nn, hh * stride_h + rh * dilation_h, ww * stride_w + rw * dilation_w, cc
+                ).astype(ifm.dtype)
+                * weight[cc, rh, rw, 0].astype(ifm.dtype)
+                # This is a trick to load 10 elements of the scale_bias at once, not accurate maths
+                + (scale_bias[cc, 0] * scale_bias[cc, 9] + lut_expr).astype(ifm.dtype)
+            ).astype(ofm_dtype),
             axis=[rh, rw],
         ),
         name="ethosu_depthwise_conv2d",
         attrs=depthwise_conv2d_attrs,
     )
 
+    nhwc_to_nhcwb16, nhcwb16_to_nhwc = get_layout_transform_matrices(channels)
+
+    ifm_matrix = [
+        [1, 0, 0, 0, 0],
+        [0, stride_h, 0, 0, (dilated_kernel_h - stride_h)],
+        [0, 0, stride_w, 0, (dilated_kernel_w - stride_w)],
+        [0, 0, 0, 1, 0],
+        [0, 0, 0, 0, 1],
+    ]
+    weights_matrix = [
+        [0, 0, 0, 1, 0],
+        [0, 0, 0, 0, kernel_h],
+        [0, 0, 0, 0, kernel_w],
+        [0, 0, 0, 0, 1],
+        [0, 0, 0, 0, 1],
+    ]
+    bias_matrix = [
+        [0, 0, 0, 1, 0],
+        [0, 0, 0, 0, 10],
+        [0, 0, 0, 0, 1],
+    ]
+    if ofm_layout == "NHCWB16":
+        ifm_matrix = np.matmul(ifm_matrix, nhcwb16_to_nhwc).tolist()
+        weights_matrix = np.matmul(weights_matrix, nhcwb16_to_nhwc).tolist()
+        bias_matrix = np.matmul(bias_matrix, nhcwb16_to_nhwc).tolist()
+    if ifm_layout == "NHCWB16":
+        ifm_matrix = np.matmul(nhwc_to_nhcwb16, ifm_matrix).tolist()
+    ifm_propagator = Propagator(
+        ifm_matrix,
+        [0, -padding[0], -padding[1], 0]
+        if ifm_layout == "NHWC"
+        else [0, -padding[0], 0, -padding[1], 0],
+    )
+    weights_propagator = Propagator(
+        weights_matrix,
+        [0, 0, 0, 0],
+    )
+    bias_propagator = Propagator(
+        bias_matrix,
+        [0, 0],
+    )
+    propagator_attrs = {
+        "ifm_propagator": ifm_propagator,
+        "weights_propagator": weights_propagator,
+        "bias_propagator": bias_propagator,
+    }
+
     # Compute operation for the OFM DMA pipeline
-    return dma_ofm_compute(depthwise, ofm_layout, ofm_zero_point, ofm_scale, channels)
+    return dma_ofm_compute(
+        depthwise, ofm_layout, ofm_zero_point, ofm_scale, channels, attrs=propagator_attrs
+    )
+
+
+@register_matcher
+def match_ethosu_depthwise_conv2d(output_tensor, device_config):
+    """Match a Tensor Expression corresponding to an NPU Depthwise Conv2D.
+
+    If the Tensor Expression matches, an EthosuPart will be created that models the
+    matched Tensor Expression. Otherwise, None will be returned.
+
+    Parameters
+    ----------
+    output_tensor : tvm.te.Tensor
+        The tensor to attempt to match with.
+    device_config : EthosuDeviceConfig
+        Target device configuration.
+
+    Returns
+    -------
+    Union[None, EthosuPart]
+        The created EthosuPart if there was a match, otherwise None.
+
+    """
+    write = output_tensor
+    if write.op.name != "ethosu_write":
+        return None
+    convert_to_nhcwb16 = write.op.input_tensors[0]
+    if convert_to_nhcwb16.op.name != "ethosu_convert_to_nhcwb16":
+        return None
+    depthwise2d = convert_to_nhcwb16.op.input_tensors[0]
+    if depthwise2d.op.name != "ethosu_depthwise_conv2d":
+        return None
+    pad = depthwise2d.op.input_tensors[0]
+    if pad.op.name != "ethosu_pad":
+        return None
+    upscale = pad.op.input_tensors[0]
+    if upscale.op.name != "ethosu_upscale":
+        return None
+    convert_to_nhwc = upscale.op.input_tensors[0]
+    if convert_to_nhwc.op.name != "ethosu_convert_to_nhwc":
+        return None
+    read = convert_to_nhwc.op.input_tensors[0]
+    if read.op.name != "ethosu_read":
+        return None
+
+    input_tensors = [
+        read.op.input_tensors[0],
+        depthwise2d.op.input_tensors[1],
+        depthwise2d.op.input_tensors[2],
+    ]
+    subgraph = TESubgraph(input_tensors, output_tensor)
+    propagators = [
+        write.op.attrs["ifm_propagator"],
+        write.op.attrs["weights_propagator"],
+        write.op.attrs["bias_propagator"],
+    ]
+    ifm_dtype = input_tensors[0].dtype
+    ofm_dtype = output_tensor.dtype
+
+    channels, kernel_height, kernel_width = (int(axis) for axis in input_tensors[1].shape[0:3])
+
+    subkernels = len(
+        device_config.get_kernel_steps(depthwise2d.op.name, kernel_height, kernel_width, ifm_dtype)
+    )
+
+    output_layout = convert_to_nhcwb16.op.attrs["layout"]
+    input_layout = convert_to_nhwc.op.attrs["layout"]
+    output_quantum = device_config.get_output_quantum(output_layout)
+
+    valid_block_configs = device_config.get_valid_block_configs(
+        propagators[0],
+        depthwise2d.op.attrs,
+        output_tensor.shape,
+        channels,
+        channels,
+        output_layout,
+        input_layout,
+        ifm_dtype,
+        ofm_dtype,
+        kernel_height,
+        kernel_width,
+    )
+
+    return EthosuPart(
+        subgraph,
+        propagators,
+        output_quantum,
+        subkernels,
+        valid_block_configs,
+        1,
+    )

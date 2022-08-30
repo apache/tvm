@@ -22,23 +22,45 @@ pytest.importorskip("ethosu.vela")
 import tvm
 from tvm import relay
 from tvm.relay.testing import run_opt_pass
-from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_tir
+from tvm.relay.backend.contrib.ethosu.tir.compiler import _lower_to_tir
 from .infra import make_ethosu_depthwise_conv2d, get_convolutional_args
 
 
 @pytest.mark.parametrize(
     "trial",
     [
-        [(1, 8, 8, 3), 3, (3, 2), (0, 0), (1, 1), (1, 1), "CLIP", "NHWC", "NHWC"],
-        [(1, 8, 8, 3), 3, (1, 1), (2, 1), (1, 1), (1, 1), "TANH", "NHWC", "NHWC"],
-        [(1, 8, 8, 3), 3, (1, 1), (0, 0), (1, 1), (1, 1), "NONE", "NHWC", "NHWC"],
-        [(1, 1, 1, 1), 1, (1, 1), (0, 0), (1, 1), (1, 1), "CLIP", "NHWC", "NHWC"],
-        [(1, 7, 9, 4), 4, (3, 2), (1, 2), (2, 1), (1, 2), "SIGMOID", "NHWC", "NHWC"],
-        [(1, 8, 2, 8, 16), 18, (1, 1), (2, 1), (1, 1), (1, 1), "CLIP", "NHCWB16", "NHWC"],
-        [(1, 7, 9, 40), 40, (3, 2), (1, 2), (2, 1), (1, 2), "CLIP", "NHWC", "NHCWB16"],
-        [(1, 4, 12, 9, 16), 182, (2, 3), (6, 3), (2, 2), (1, 1), "CLIP", "NHCWB16", "NHCWB16"],
-        [(1, 7, 9, 4), 4, (3, 2), (1, 2), (2, 1), (2, 2), "CLIP", "NHWC", "NHWC"],
-        [(1, 7, 9, 41), 41, (3, 2), (1, 2), (2, 1), (2, 2), "CLIP", "NHWC", "NHCWB16"],
+        [(1, 8, 8, 3), 3, (3, 2), (0, 0), (1, 1), (1, 1), "CLIP", "NHWC", "NHWC", "TFL"],
+        [(1, 8, 8, 3), 3, (1, 1), (2, 1), (1, 1), (1, 1), "NONE", "NHWC", "NHWC", "NATURAL"],
+        [(1, 8, 8, 3), 3, (1, 1), (0, 0), (1, 1), (1, 1), "NONE", "NHWC", "NHWC", "TRUNCATE"],
+        [(1, 1, 1, 1), 1, (1, 1), (0, 0), (1, 1), (1, 1), "CLIP", "NHWC", "NHWC", "TFL"],
+        [(1, 7, 9, 4), 4, (3, 2), (1, 2), (2, 1), (1, 2), "NONE", "NHWC", "NHWC", "NATURAL"],
+        [
+            (1, 8, 2, 8, 16),
+            18,
+            (1, 1),
+            (2, 1),
+            (1, 1),
+            (1, 1),
+            "CLIP",
+            "NHCWB16",
+            "NHWC",
+            "TRUNCATE",
+        ],
+        [(1, 7, 9, 40), 40, (3, 2), (1, 2), (2, 1), (1, 2), "CLIP", "NHWC", "NHCWB16", "TFL"],
+        [
+            (1, 4, 12, 9, 16),
+            182,
+            (2, 3),
+            (6, 3),
+            (2, 2),
+            (1, 1),
+            "CLIP",
+            "NHCWB16",
+            "NHCWB16",
+            "NATURAL",
+        ],
+        [(1, 7, 9, 4), 4, (3, 2), (1, 2), (2, 1), (2, 2), "CLIP", "NHWC", "NHWC", "TRUNCATE"],
+        [(1, 7, 9, 41), 41, (3, 2), (1, 2), (2, 1), (2, 2), "CLIP", "NHWC", "NHCWB16", "TFL"],
         [
             (1, 13, 12, 19, 16),
             182,
@@ -49,6 +71,7 @@ from .infra import make_ethosu_depthwise_conv2d, get_convolutional_args
             "CLIP",
             "NHCWB16",
             "NHCWB16",
+            "NATURAL",
         ],
     ],
 )
@@ -63,6 +86,7 @@ def test_depthwise_conv2d_single(trial):
         activation,
         ifm_layout,
         ofm_layout,
+        rounding_mode,
     ):
         ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
         depthwise = make_ethosu_depthwise_conv2d(
@@ -75,13 +99,16 @@ def test_depthwise_conv2d_single(trial):
             activation,
             ifm_layout,
             ofm_layout,
+            "int8",
+            "uint8",
+            rounding_mode,
         )
         func = relay.Function(relay.analysis.free_vars(depthwise), depthwise)
         func = run_opt_pass(func, relay.transform.InferType())
         return func
 
     func = _get_func(*trial)
-    mod, _ = lower_to_tir(func)
+    mod, _ = _lower_to_tir(func)
     data = []
 
     def _visit(stmt):
@@ -99,6 +126,7 @@ def test_depthwise_conv2d_single(trial):
         activation,
         ifm_layout,
         ofm_layout,
+        rounding_mode,
     ) = trial
     dilated_kernel_h = (kernel_shape[0] - 1) * dilation[0] + 1
     dilated_kernel_w = (kernel_shape[1] - 1) * dilation[1] + 1
@@ -173,6 +201,10 @@ def test_depthwise_conv2d_single(trial):
         activation,
         15 if activation == "CLIP" else 0,
         105 if activation == "CLIP" else 0,
+        rounding_mode,
         "NONE",
+        0,
+        0,
+        0,
     ]
     assert data[0] == answer, data[0]

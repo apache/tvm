@@ -83,12 +83,11 @@ struct OutputConfig {
 struct Model {
   Model(tvm::runtime::Module executor, tvm::runtime::Module module, std::string json);
 
-  tvm::runtime::Module graph_executor;
+  tvm::runtime::Module model_executor;
   tvm::runtime::Module graph_module;
   std::string graph_json;
 
   static tvm::Device device() { return tvm::Device{static_cast<DLDeviceType>(kDLHexagon), 0}; }
-
   static tvm::Device external() { return tvm::Device{static_cast<DLDeviceType>(kDLCPU), 0}; }
 
   tvm::runtime::PackedFunc run;
@@ -125,6 +124,7 @@ const tvm::runtime::PackedFunc get_runtime_func(const std::string& name);
 const tvm::runtime::PackedFunc get_module_func(tvm::runtime::Module module,
                                                const std::string& name);
 
+tvm::runtime::Module create_aot_executor(tvm::runtime::Module factory_module, tvm::Device device);
 tvm::runtime::Module create_graph_executor(const std::string& graph_json,
                                            tvm::runtime::Module graph_module, tvm::Device device);
 

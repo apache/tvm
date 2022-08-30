@@ -20,7 +20,7 @@ import json
 import pathlib
 import tarfile
 import tempfile
-from typing import Union
+import logging
 
 import numpy as np
 
@@ -31,11 +31,18 @@ import requests
 
 import tvm.micro
 from tvm.micro import export_model_library_format
-from tvm.micro.testing import mlf_extract_workspace_size_bytes
+from tvm.micro.model_library_format import generate_c_interface_header
+from tvm.micro.testing.utils import (
+    mlf_extract_workspace_size_bytes,
+    aot_transport_init_wait,
+    aot_transport_find_message,
+)
 
 TEMPLATE_PROJECT_DIR = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr"))
 
 BOARDS = TEMPLATE_PROJECT_DIR / "boards.json"
+
+_LOG = logging.getLogger(__name__)
 
 
 def zephyr_boards() -> dict:
@@ -68,7 +75,9 @@ def has_fpu(board: str):
     return board in fpu_boards
 
 
-def build_project(temp_dir, zephyr_board, west_cmd, mod, build_config, extra_files_tar=None):
+def build_project(
+    temp_dir, zephyr_board, west_cmd, mod, build_config, simd=False, extra_files_tar=None
+):
     project_dir = temp_dir / "project"
 
     with tempfile.TemporaryDirectory() as tar_temp_dir:
@@ -76,21 +85,22 @@ def build_project(temp_dir, zephyr_board, west_cmd, mod, build_config, extra_fil
         export_model_library_format(mod, model_tar_path)
 
         workspace_size = mlf_extract_workspace_size_bytes(model_tar_path)
+        project_options = {
+            "extra_files_tar": extra_files_tar,
+            "project_type": "aot_standalone_demo",
+            "west_cmd": west_cmd,
+            "verbose": bool(build_config.get("debug")),
+            "zephyr_board": zephyr_board,
+            "compile_definitions": [
+                # TODO(mehrdadh): It fails without offset.
+                f"-DWORKSPACE_SIZE={workspace_size + 128}",
+            ],
+        }
+        if simd:
+            project_options["config_main_stack_size"] = 1536
+
         project = tvm.micro.project.generate_project_from_mlf(
-            str(TEMPLATE_PROJECT_DIR),
-            project_dir,
-            model_tar_path,
-            {
-                "extra_files_tar": extra_files_tar,
-                "project_type": "aot_demo",
-                "west_cmd": west_cmd,
-                "verbose": bool(build_config.get("debug")),
-                "zephyr_board": zephyr_board,
-                "compile_definitions": [
-                    # TODO(mehrdadh): It fails without offset.
-                    f"-DWORKSPACE_SIZE={workspace_size + 128}",
-                ],
-            },
+            str(TEMPLATE_PROJECT_DIR), project_dir, model_tar_path, project_options
         )
         project.build()
     return project, project_dir
@@ -167,3 +177,56 @@ def loadCMSIS(temp_dir):
                     urlretrieve(file_url, f"{temp_path}/{file_name}")
                 except HTTPError as e:
                     print(f"Failed to download {file_url}: {e}")
+
+
+def run_model(project):
+    project.flash()
+
+    with project.transport() as transport:
+        aot_transport_init_wait(transport)
+        transport.write(b"infer%", timeout_sec=5)
+        result_line = aot_transport_find_message(transport, "result", timeout_sec=60)
+
+    result_line = result_line.strip("\n")
+    result_line = result_line.split(":")
+    result = int(result_line[1])
+    time = int(result_line[2])
+    _LOG.info(f"Result: {result}\ttime: {time} ms")
+
+    return result, time
+
+
+def generate_project(
+    temp_dir, board, west_cmd, lowered, build_config, sample, output_shape, output_type, load_cmsis
+):
+    with tempfile.NamedTemporaryFile() as tar_temp_file:
+        with tarfile.open(tar_temp_file.name, "w:gz") as tf:
+            with tempfile.TemporaryDirectory() as tar_temp_dir:
+                model_files_path = os.path.join(tar_temp_dir, "include")
+                os.mkdir(model_files_path)
+                if load_cmsis:
+                    loadCMSIS(model_files_path)
+                    tf.add(
+                        model_files_path, arcname=os.path.relpath(model_files_path, tar_temp_dir)
+                    )
+                header_path = generate_c_interface_header(
+                    lowered.libmod_name, ["input_1"], ["Identity"], [], {}, [], 0, model_files_path
+                )
+                tf.add(header_path, arcname=os.path.relpath(header_path, tar_temp_dir))
+
+            create_header_file("input_data", sample, "include", tf)
+            create_header_file(
+                "output_data", np.zeros(shape=output_shape, dtype=output_type), "include", tf
+            )
+
+        project, project_dir = build_project(
+            temp_dir,
+            board,
+            west_cmd,
+            lowered,
+            build_config,
+            simd=load_cmsis,
+            extra_files_tar=tar_temp_file.name,
+        )
+
+    return project, project_dir

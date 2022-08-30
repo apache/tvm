@@ -21,149 +21,137 @@
  * \file flatten_buffer.cc
  */
 
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
-#include "../../support/utils.h"
 #include "ir_utils.h"
 
 namespace tvm {
 namespace tir {
 
-PrimExpr BufferArea(const Buffer& buffer) {
-  if (buffer->strides.size()) {
-    ICHECK(buffer->shape.size() == buffer->strides.size());
-    return buffer->strides[0] * buffer->shape[0];
-  }
-  PrimExpr area = Integer(1);
-  for (const PrimExpr& dim : buffer->shape) {
-    area = area * dim;
-  }
-  return area;
-}
-
 /*!
- * \brief Transform multi-dimension BufferLoad/BufferStore into one-dimension Load/Store
+ * \brief Transform multi-dimension BufferLoad/BufferStore into device-supported dimension
+ *        for the TIR not contains opaque block.
  */
 class BufferFlattener : public StmtExprMutator {
  public:
-  static Stmt Flatten(const PrimFunc& f) { return BufferFlattener().VisitStmt(f->body); }
-
- private:
-  Stmt VisitStmt_(const BlockRealizeNode* op) final {
-    // We have convert blocks into opaque blocks in previous passes.
-    ICHECK(op->iter_values.empty()) << "Non-opaque blocks are not allowed in FlattenBuffer. Please "
-                                       "call pass ConvertBlocksToOpaque before.";
-    // Step 1. Visit the body
-    Block new_block = Downcast<Block>(this->VisitStmt(op->block));
-    PrimExpr predicate = this->VisitExpr(op->predicate);
-    // Step 2. Transform the `predicate` to if-then-else
-    Stmt body = new_block->body;
-    if (!is_one(predicate)) {
-      body = IfThenElse(predicate, std::move(body));
-    }
-    // Step 3. Handle allocations in reverse order
-    for (size_t i = new_block->alloc_buffers.size(); i > 0; --i) {
-      const Buffer& buffer = new_block->alloc_buffers[i - 1];
-      body = MakeAllocStmt(buffer, std::move(body));
-    }
-    return body;
+  static PrimFunc Flatten(PrimFunc func) {
+    Map<Var, Buffer> preflattened_buffer_map =
+        Merge(func->buffer_map, func->preflattened_buffer_map);
+    auto pass = BufferFlattener(func->buffer_map);
+    auto writer = func.CopyOnWrite();
+    writer->body = pass.VisitStmt(func->body);
+    writer->preflattened_buffer_map = preflattened_buffer_map;
+    writer->buffer_map = pass.updated_extern_buffer_map_;
+    return func;
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
-    // Step 1. Update unit loop info.
-    PrimExpr min = this->VisitExpr(op->min);
-    PrimExpr extent = this->VisitExpr(op->extent);
-    if (is_one(extent) && op->annotations.empty()) {
-      // handling unit loop
-      unit_loop_vars_[op->loop_var] = min;
+ private:
+  explicit BufferFlattener(const Map<Var, Buffer>& extern_buffer_map) {
+    for (const auto& kv : extern_buffer_map) {
+      updated_extern_buffer_map_.Set(kv.first, GetFlattenedBuffer(kv.second));
     }
-    // Step 2. Visit recursively
-    Stmt body = this->VisitStmt(op->body);
-    // Step 3. Create new For loop accordingly
-    if (op->kind == ForKind::kThreadBinding) {
-      // Case 1. Thread binding
-      ICHECK(op->thread_binding.defined());
-      String thread_tag = op->thread_binding.value()->thread_tag;
-      body = MakeLaunchThread(min, extent, op->loop_var, thread_tag, body);
-    } else if (is_one(extent) && op->annotations.empty()) {
-      // Case 2. Unit loop
-      return body;
+  }
+
+  Stmt VisitStmt_(const AllocateNode* op) final {
+    Allocate alloc = Downcast<Allocate>(StmtExprMutator::VisitStmt_(op));
+    // TODO(Lunderberg): Move the handling of boolean into a
+    // dedicated pass.
+    if (alloc->dtype == DataType::Bool()) {
+      auto writer = alloc.CopyOnWrite();
+      writer->dtype = DataType::Int(8);
+    }
+    // Handle multi-dimension allocations
+    if (alloc->extents.size() == 1) {
+      return std::move(alloc);
     } else {
-      // Case 3. An ordinary loop
-      body = For(op->loop_var, std::move(min), std::move(extent), op->kind, std::move(body));
-    }
-    // Step 4. Handle annotations
-    for (const auto& annotation : op->annotations) {
-      const String& ann_key = annotation.first;
-      const ObjectRef& ann_value = annotation.second;
-      if (attr::IsPragmaKey(ann_key)) {
-        body = AttrStmt(op->loop_var, ann_key, Downcast<PrimExpr>(ann_value), std::move(body));
+      Array<PrimExpr> flat_extent(static_cast<size_t>(1), 1);
+      for (size_t i = 0; i < alloc->extents.size(); i++) {
+        flat_extent.Set(0, flat_extent[0] * alloc->extents[i]);
       }
+      auto n = alloc.CopyOnWrite();
+      n->extents = flat_extent;
+      return std::move(alloc);
     }
-    return body;
+  }
+
+  Buffer GetFlattenedBuffer(Buffer buf) {
+    auto it = buffer_remap_.find(buf);
+    if (it != buffer_remap_.end()) {
+      return it->second;
+    }
+    auto flattened = buf.GetFlattenedBuffer();
+
+    // TODO(Lunderberg): Move the handling of boolean into a
+    // dedicated pass.
+    if (flattened->dtype == DataType::Bool()) {
+      auto writer = flattened.CopyOnWrite();
+      writer->dtype = DataType::Int(8);
+    }
+
+    buffer_remap_[buf] = flattened;
+    return flattened;
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
-    return store->buffer.vstore(store->indices, store->value);
-  }
+    bool store_returns_bool = (op->value.dtype() == DataType::Bool());
+    store = VisitBufferAccess(store);
 
-  PrimExpr VisitExpr_(const VarNode* op) final {
-    Var var = GetRef<Var>(op);
-    auto it = unit_loop_vars_.find(var);
-    if (it == unit_loop_vars_.end()) {
-      return std::move(var);
-    } else {
-      PrimExpr expr = it->second;
-      if (expr.dtype() != var.dtype()) {
-        expr = Cast(var.dtype(), std::move(expr));
-      }
-      return expr;
+    // Handle casts from the value's dtype to the dtype of the
+    // backing array.
+    // TODO(Lunderberg): Move the handling of boolean into a
+    // dedicated pass.
+    if (store_returns_bool) {
+      ICHECK_EQ(store->buffer->dtype, DataType::Int(8))
+          << "Expected int8 backing array for boolean tensor";
+      auto writer = store.CopyOnWrite();
+      writer->value = tvm::cast(DataType::Int(8), store->value);
+      return std::move(store);
     }
+    return std::move(store);
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    bool load_returns_bool = (op->dtype == DataType::Bool());
     BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
-    return load->buffer.vload(load->indices, load->dtype);
+    load = VisitBufferAccess(load);
+    // Handle casts from dtype of the backing array to value's dtype.
+    // TODO(Lunderberg): Move the handling of boolean into a
+    // dedicated pass.
+    if (load_returns_bool) {
+      ICHECK_EQ(load->buffer->dtype, DataType::Int(8))
+          << "Expected int8 backing array for boolean tensor";
+      load.CopyOnWrite()->dtype = DataType::Int(8);
+      return tvm::cast(DataType::Bool(), load);
+    } else {
+      return std::move(load);
+    }
   }
 
-  static Stmt MakeAllocStmt(const Buffer& buffer, Stmt body) {
-    String storage_scope = buffer.scope();
-    PrimExpr area = BufferArea(buffer);
-    body = Allocate(buffer->data, buffer->dtype, {area}, const_true(), std::move(body));
-    return body;
+  template <typename Node>
+  Node VisitBufferAccess(Node node) {
+    ICHECK(node->buffer.defined());
+    auto flattened_indices = node->buffer->ElemOffset(node->indices);
+    Buffer flattened_buffer = GetFlattenedBuffer(node->buffer);
+
+    auto writer = node.CopyOnWrite();
+    writer->buffer = flattened_buffer;
+    writer->indices = flattened_indices;
+    return node;
   }
 
-  static Stmt MakeLaunchThread(PrimExpr min, PrimExpr extent, Var var, String thread_tag,
-                               Stmt body) {
-    IterVar iter_var(/*dom=*/Range::FromMinExtent(min, extent),
-                     /*var=*/std::move(var),
-                     /*iter_type=*/IterVarType::kThreadIndex,
-                     /*thread_tag=*/thread_tag);
-    String attr_key = (thread_tag == "vthread" || thread_tag == "vthread.x" ||
-                       thread_tag == "vthread.y" || thread_tag == "vthread.z")
-                          ? attr::virtual_thread
-                          : attr::thread_extent;
-    return AttrStmt(/*node=*/std::move(iter_var),
-                    /*attr_key=*/std::move(attr_key),
-                    /*value=*/std::move(extent),
-                    /*body=*/std::move(body));
-  }
+  /*! \brief Map of buffers being remapped. */
+  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_remap_;
 
-  /*! \brief Record the loop_var and loop start value of unit loops, whose extent is one. */
-  std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> unit_loop_vars_;
+  /*! \brief The updated external buffer map. */
+  Map<Var, Buffer> updated_extern_buffer_map_;
 };
 
 PrimFunc FlattenBuffer(PrimFunc f) {
   // Only apply this pass to TIR that is not from TE schedules
   if (!IsFromLegacyTESchedule(f)) {
-    PrimFuncNode* fptr = f.CopyOnWrite();
-    fptr->body = BufferFlattener::Flatten(f);
-    return f;
+    return BufferFlattener::Flatten(f);
   } else {
     return f;
   }

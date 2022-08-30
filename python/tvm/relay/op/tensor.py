@@ -16,6 +16,7 @@
 # under the License.
 """Basic tensor operations."""
 # pylint: disable=redefined-builtin, unused-argument
+from tvm import target
 from tvm.runtime import ndarray as _nd
 from tvm.runtime import Device as _Device
 from tvm.te.hybrid import script
@@ -24,6 +25,14 @@ from . import _make
 from .dyn import _make as _dyn_make
 from ..expr import Tuple, Expr, Constant
 from . import op as reg
+
+
+def _make_virtual_device(device):
+    if isinstance(device, _Device):
+        return target.VirtualDevice(device)
+    if isinstance(device, str):
+        return target.VirtualDevice(_nd.device(device))
+    raise ValueError("expecting a Device or device name, but received a %s" % (type(device)))
 
 
 # We create a wrapper function for each operator in the
@@ -602,6 +611,24 @@ def floor_divide(lhs, rhs):
     return _make.floor_divide(lhs, rhs)
 
 
+def trunc_divide(lhs, rhs):
+    """Trunc division with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.trunc_divide(lhs, rhs)
+
+
 def power(lhs, rhs):
     """Power with numpy-style broadcasting.
 
@@ -654,6 +681,24 @@ def floor_mod(lhs, rhs):
         The computed result.
     """
     return _make.floor_mod(lhs, rhs)
+
+
+def trunc_mod(lhs, rhs):
+    """Trunc mod with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.trunc_mod(lhs, rhs)
 
 
 def logical_and(lhs, rhs):
@@ -1169,8 +1214,18 @@ def copy(data):
 
 
 @script
-def _copy_shape_func(data_shape):
-    return data_shape
+def _copy_shape_func_tensor(data_shape):
+    ndim = data_shape.shape[0]
+    out = output_tensor((ndim,), "int64")
+    for i in const_range(ndim):
+        out[i] = data_shape[i]
+    return out
+
+
+@script
+def _copy_shape_func_scalar(data_shape):
+    out = output_tensor((), "int64")
+    return out
 
 
 @reg.register_shape_func("copy", False)
@@ -1178,10 +1233,13 @@ def copy_shape_func(attrs, inputs, _):
     """
     Shape function for copy op.
     """
-    return [_copy_shape_func(inputs[0])]
+    input = inputs[0]
+    if len(input.shape) == 0:
+        return [_copy_shape_func_scalar(input)]
+    return [_copy_shape_func_tensor(input)]
 
 
-def device_copy(data, src_dev, dst_dev):
+def device_copy(data, src_device, dst_device):
     """Copy data from the source device to the destination device. This
     operator helps data transferring between difference devices for
     heterogeneous execution.
@@ -1191,10 +1249,10 @@ def device_copy(data, src_dev, dst_dev):
     data : tvm.relay.Expr
         The tensor to be copied.
 
-    src_dev : Union[:py:class:`Device`, str]
+    src_device : Union[:py:class:`Device`, str]
         The source device where the data is copied from.
 
-    dst_dev : Union[:py:class:`Device`, str]
+    dst_device : Union[:py:class:`Device`, str]
         The destination device where the data is copied to.
 
     Returns
@@ -1202,26 +1260,9 @@ def device_copy(data, src_dev, dst_dev):
     result : tvm.relay.Expr
         The copied result.
     """
-    if isinstance(src_dev, _Device):
-        src_dev = src_dev.device_type
-    elif isinstance(src_dev, str):
-        src_dev = _nd.device(src_dev).device_type
-    else:
-        raise ValueError(
-            "src_dev is expected to be the type of Device or "
-            "str, but received %s" % (type(src_dev))
-        )
-
-    if isinstance(dst_dev, _Device):
-        dst_dev = dst_dev.device_type
-    elif isinstance(dst_dev, str):
-        dst_dev = _nd.device(dst_dev).device_type
-    else:
-        raise ValueError(
-            "dst_dev is expected to be the type of Device or "
-            "str, but received %s" % (type(dst_dev))
-        )
-    return _make.device_copy(data, src_dev, dst_dev)
+    return _make.DeviceCopy(
+        data, _make_virtual_device(src_device), _make_virtual_device(dst_device)
+    )
 
 
 def shape_of(data, dtype="int32"):

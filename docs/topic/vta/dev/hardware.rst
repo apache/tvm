@@ -122,7 +122,7 @@ A few observations on HLS coding:
     - Pointer parameters can mean one of two things depending on the interface
       pragma being used.
 
-       - When used with a ``m_axi`` interface pragma, an AXI master interface
+       - When used with a ``m_axi`` interface pragma, an AXI requestor interface
          gets generated to provide DMA access to DRAM.
        - When used with a ``bram`` interface pragma, a BRAM interface gets
          generated to expose read and/or write ports to an FPGA block-RAM.

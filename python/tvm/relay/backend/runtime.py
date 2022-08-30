@@ -27,6 +27,8 @@ from . import _backend
 class Runtime(Object):
     """Runtime configuration"""
 
+    flag_registry_name = "runtime"
+
     def __init__(self, name, options=None) -> None:
         if options is None:
             options = {}
@@ -37,14 +39,18 @@ class Runtime(Object):
         return name in self._attrs
 
     def __getitem__(self, name):
+        self._attrs = _backend.GetRuntimeAttrs(self)
         return self._attrs[name]
 
+    def __eq__(self, other):
+        return str(other) == str(self) and dict(other._attrs) == dict(self._attrs)
+
     @staticmethod
-    def list_runtimes():
+    def list_registered():
         """Returns a list of possible runtimes"""
         return list(_backend.ListRuntimes())
 
     @staticmethod
-    def list_runtime_options(runtime):
+    def list_registered_options(runtime):
         """Returns the dict of available option names and types"""
         return dict(_backend.ListRuntimeOptions(str(runtime)))

@@ -222,4 +222,4 @@ def test_write_keyboard_interrupt(transport, transport_logger, get_latest_log):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([__file__] + sys.argv[1:]))
+    tvm.testing.main()

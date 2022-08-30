@@ -19,27 +19,32 @@
 
 /*!
  * \file src/relay/transforms/device_planner.cc
- * \brief Determines a unique device to hold the result of every Relay sub-expression.
+ * \brief Determines a unique \p VirtualDevice to hold the result of every Relay sub-expression.
+ * This pass can be run multiple times, and can be run both before and after lowering.
  *
  * We say a Relay expression E is 'on device D' if the result of executing E is stored on D.
- * Currently we only track the 'device_type' of D and not its 'device id'. We do not track the
- * specific target associated with D (this is recovered independently via a TargetMap), and we
- * do not track the storage scope within D (this is yet to be implemented).
+ * We represent D by an \p VirtualDevice, which means we can track anywhere from an arbitrary device
+ * of some \p DLDeviceType to a specific memory scope on a specific (virtual) \p Device who's
+ * code is compiled with a specific \p Target.
  *
  * Note that 'stored on device D' is almost but not quite the same as 'executes on device D',
  * see below.
  *
- * This pass assumes the module already contains some "on_device" and/or "device_copy" CallNodes:
- *  - "device_copy" CallNodes (with a \p DeviceCopyAttrs attribute) specify a 'src_dev_type' and
- *    'dst_dev_type' device type, which constrain the argument and context of the call
- *     respectively. It is ok if source and destination devices are the same, such no-op copies
- *     will be removed after accounting for the device preference.
- *  - "on_device" CallNodes (with a \p OnDeviceAttrs attribute) specify a 'device_type', which
- *    constrains the argument of the call, but (usually, see below) leaves the context
- *    unconstrained. These are called 'annotations' in the rest of the code, have no operational
- *    significance by themselves, but may trigger the insertion of a new "device_copy".
- *  - In two situations the result of an "on_device" CallNode may also be constrained to the
- *    given device:
+ * This pass works by collecting and solving device constraints, using defaulting heuristics to
+ * resolve any remaining undetermined devices, and encoding the results on the output in a form
+ * that's reasonably friendly to downstream passes.
+ *
+ * Specific \p VirtualDevices flow into the constraints from five places:
+ *  - Existing "device_copy" CallNodes (with a \p DeviceCopyAttrs attribute) specify a
+ *    'src_virtual_device' and 'dst_virtual_device' \p VirtualDevice. Those constrain the argument
+ * and context of the call respectively. It is ok if source and destination devices are the same,
+ * such no-op copies will be removed after accounting for the device preference.
+ *  - Existing "on_device" CallNodes (with a \p OnDeviceAttrs attribute) specify an
+ * 'virtual_device', which constrains the argument of the call, but (usually, see below) leaves the
+ * context unconstrained. These are called 'annotations' in the rest of the code, have no
+ * operational significance by themselves, but may trigger the insertion of a new "device_copy" call
+ * by this pass. In two situations the result of an "on_device" CallNode may also be constrained to
+ * the given 'virtual_device':
  *     - The "on_device" call occurs at the top-level of a function body, or occurs as an
  *       immediately let-bound expression. In this situation the extra degree of freedom in
  *       the function result and let-binding leads to surprising device copies, so we simply
@@ -47,6 +52,13 @@
  *     - The \p OnDeviceAttrs has an \p is_fixed field of \p true, which indicates we inserted
  *       it ourselves during an earlier invocation of this pass. This helps make this pass
  *       idempotent.
+ *  - Some special operators require their arguments or results to be on the 'host' (typcially
+ *    a CPU) \p VirtualDevice, see below.
+ *  - Any \p PrimFuncs in the \p IRModule (if \p LowerTEPass has already run) may constrain their
+ *    argument buffers to have a specific memory scope, which is part of \p VirtualDevice.
+ *  - Annotations left over from a previous run of this pass, such as 'param_virtual_devices' and
+ *    'result_virtual_device' function attributes we introduce below. This is so the pass is
+ * idempotent and can be re-run to flow additional memory scope constraints.
  *
  * We proceed in four phases:
  *
@@ -58,26 +70,30 @@
  *  - We wish to treat \code on_device(expr, device_type=d).0 \endcode as if it were written
  *    \code on_device(expr.0, device_type_d) \endcode. I.e. we prefer to copy the projection from
  *    the tuple rather than project from a copy of the tuple. We'll do this by rewriting.
+ *  - We are prepared to insert device_copies on the arguments and result of calls to PrimFuncs,
+ *    on the assumption a) we already ran PlanDevices before lowering so we are not allowing
+ *    any new cross-device copies, but b) after lowering we may have new memory scope constraits
+ *    to deal with.
  *
  * Phase 1
  * -------
- * We flow constraints from the "on_device" and "device_copy" calls (and some special ops, see
- * below) to all other Relay sub-expressions. (For idempotence we also respect any existing
- * "param_device_types" and "result_device_type" function attributes we introduce below.)
+ * We flow constraints from the "on_device" and "device_copy" calls, PrimFunc buffer memory scopes,
+ * and some special ops, to all other Relay sub-expressions.
  *
  * For a primitive such as \code add(e1, e2) \endcode all arguments and results must be on the
  * same device. However each call site can use a different device. In other words primitives are
- * 'device polymorphic' since we compile and execute them for each required device.
+ * 'device polymorphic' since we compile and execute them for each required device. ADT constructors
+ * are similarly polymorphic, but require all constructor args to be on the same device.
  *
  * For most Relay expressions the device for the overall expression is the same as the device
- * for it's sub-expressions. E.g. each field of a tuple must be on the same device as the tuple
- * itself, the condition and arms of an \p if must all be on the same device as the overall if,
+ * for its sub-expressions. E.g. each field of a tuple must be on the same device as the tuple
+ * itself, the condition and arms of an \p if must all be on the same device as the overall \p if,
  * and so on.
  *
  * Some special ops (or 'dialects') are handled:
- *  - Relay supports computing the shape of tensors and operators at runtime using "shape_of",
- *    "shape_func", and "reshape_tensor". Shapes must only be held on the CPU, but the tensors
- *    they describe may reside on any device.
+ *  - Relay supports computing the shape of tensors and operators at runtime using "shape_of"
+ *    and "reshape_tensor". Shapes must only be held on the CPU, but the tensors they describe
+ *    may reside on any device.
  *  - Explicit memory allocation is done using the "alloc_storage" and "alloc_tensor". Again
  *    shapes reside on the CPU, but the allocated tensors may reside on any device.
  *
@@ -89,28 +105,39 @@
  *    different from each other. Every call to the function must use the same choice of parameter
  *    and result devices -- there is no 'device polymorphism' for Relay functions.
  *
+ * Currently \p PrimFuncs and external functions do not carry over their parameter and result
+ * devices from their original Relay Function representations. However we know all calls to those
+ * functions are device-consistent, thus no information is lost.
+ *
  * Phase 2
  * -------
- * After flowing constraints we apply some defaulting heuristics (using a global default device)
- * to fix the device for any as-yet unconstrained sub-expressions.
+ * After flowing constraints we apply some defaulting heuristics (using a global default \p
+ * VirtualDevice) to fix the device for any as-yet unconstrained sub-expressions.
  *  - Unconstrained function result devices default to the global default device.
  *  - Unconstrained function parameters devices default to the device for the function result.
  *  - Unconstrained let-bound expression devices default to the device for the overall let.
- * TODO(mbs): I may have over-innovated here and we simply want to bind all free domaints to
- * the global default device. Worth a design doc with motivating examples I think.
+ * TODO(mbs): These are very simple minded heuristics, and ultimately we'd like to treat the
+ * assignment of the remaining unconstrained sub-expressions as an optimiziation problem in itself.
+ * This requires a formal notion of 'choicepoint' inside the compiler which can integrate with
+ * automation.
  *
  * Phase 3
  * -------
  * Finally, the result of this analysis is reified into the result as:
- *  - Additional "param_device_types" (an Array<Integer>) and "result_device_type" (Integer)
- *    attributes for every function (both top-level and local). These describe the devices for
- *    the function's parameters and the result.
+ *  - Additional "param_virtual_devices" (an \p Array<VirtualDevice>) and "result_virtual_device"
+ * (an \p VirtualDevice) attributes for every function (both top-level and local). These describe
+ * the devices for the function's parameters and the result.
  *  - Additional "device_copy" CallNodes where a copy is required in order to respect the
  *    intent of the original "on_device" CallNodes.
- *  - Additional "on_device" CallNodes where the device type of an expression does not match
- *    that of the lexically enclosing "on_device" CallNode or function attribute. In practice
+ *  - Additional "on_device" CallNodes where the device type of an expression is not trivially
+ *    implied by the lexically enclosing "on_device" CallNode or function attribute. In practice
  *    this means "on_device" CallNodes may appear in two places:
- *     - On a let-bound expression if its device differs from the overall let expression.
+ *     - On let-bound expressions. It is tempting to elide the "on_device" if the let-bound value
+ *       has the same device as the overall let expression. However this would mean passes which
+ *       inline let-bound values, such as FoldConstant and DeadCodeElimination, would need to us
+ *       a DeviceAware visitor which in turn requires the expression to be in ANF to avoid
+ *       deep recursion. To minimize disruption we always include the "on_device" so that it
+ *       can follow the inline.
  *     - On a call argument if its device differs from the call result. In particular, the
  *       argument to a "device_copy" call will always be wrapped in an "on_device". (That may
  *       seem pedantic but simplifies downstream handling.)
@@ -118,20 +145,21 @@
  *    around a var or global var. These uses of "on_device" imply both the argument and result are
  *    on the same device. We signal this by setting the 'is_fixed' OnDeviceAttrs field to true,
  *    which helps make this pass idempotent.
+ *  - The buffer maps for called PrimFuncs are updated to capture memory scopes.
  *
  * Helper visitors (in device_aware_visitors.h) can be used by downstream transforms to recover
  * the device for any expression for their own use, e.g. during memory planning. All downstream
  * passes must preserve the lexical scoping of the "on_device" CallNodes. E.g. conversion
  * to ANF must respect the lexical scoping convention:
  * \code
- * f(on_device(g(h(a, b), c), device_type=CPU))
- * ==>
- * let %x0 = on_device(h(a, b), device_type=CPU)
- * let %x1 = on_device(g(%x0), device-type=CPU)
- * f(on_device(%x1, device_type=CPU))
+ *   f(on_device(g(h(a, b), c), virtual_device=CPU))
+ *   ==>
+ *   let %x0 = on_device(h(a, b), virtual_device=CPU)
+ *   let %x1 = on_device(g(%x0), virtual_device=CPU)
+ *   f(on_device(%x1, virtual_device=CPU))
  * \endcode
  *
- * This pass can be run before FuseOps it can use device-specific fusion rules.
+ * This pass can be run before FuseOps so that it can use device-specific fusion rules.
  *
  * 'Stored on' vs 'Executes on'
  * ----------------------------
@@ -147,7 +175,7 @@
  * pass, but we'd like to fold that into device planning here to ensure everything is consistent.
  *
  * Obviously since tensors are passed-by-pointer it's quite possible to execute a Relay
- * expression (eg an if expression) on one device even though the tensor data resides on
+ * expression (eg an \p if expression) on one device even though the tensor data resides on
  * another. But for AOT that flexibility seems excessive. So we'd like to just take 'executes on'
  * to be 'stored on' exactly. In particular, for a Relay function, we'd like to be able to just
  * compile the function body for the function's result device.
@@ -157,7 +185,7 @@
  * minimize cross-device calls by moving device copies out of functions. E.g.:
  * \code
  *   def @f() {  // execute on CPU
- *     let x = on_device(...GPU computation..., device_type=GPU);
+ *     let x = on_device(...GPU computation..., virtual_device=GPU);
  *     device_copy(...GPU computation..., src_dev_type=GPU, dst_dev_type=CPU)
  *   }
  *   def @main() {
@@ -189,7 +217,7 @@
  * \code
  *   let f = fn(x, y) { ... }
  *   let g = fn(f, z) { f(z, z) }
- *   g(f, on_device(..., device_type=CPU))
+ *   g(f, on_device(..., virtual_device=CPU))
  * \endcode
  * the parameters \p x and \p y will be on the CPU.
  *
@@ -225,29 +253,10 @@
  *    |
  *    `-- Mark's stamp of completeness :-)
  *
- * TODO(mbs):
- *  * Though on_device is the identity for all types we can't wrap it around functions/constructors
- *    taking type args (or at least not without changing type_infer.cc to see through them).
- *    This is not currently handled generally.
- *  * Proper diagnostics for unification failure using spans.
- *  * Make sure the pass is idempotent even after FuseOps etc.
- *  * Support application of constructors properly. Are they device polymorphic?
- *  * Replace DLDeviceType with TargetDevice, and unify 'target annotation' with 'device planning'.
- *  * Support running the pass post FuseOps (so need to understand primitive functions, both
- *    outlines and lined) and post the VM transforms (probably need to support more intrinsic
- *    forms?).
- *  * Don't hardcode the 'CPU' device for shape funcs etc, and distinguish between the default
- *    device for primitives vs the default device for the rest of Relay.
- *  * We'll probably need some support for partial 'device polymorphism' for functions once we
- *    incorporate targets and memory scopes into the domain. For example it's ok for the function
- *    body to be executed on different device ids provided they have the same target and memory
- *    scope.
- *  * Might be simpler to just let every type have a device annotation rather than work in
- *    a separate domain?
- *  * Switch to expr.CopyWith(...) form once implemented to avoid unnecessary copies.
- *  * The original device_annotation.cc RewriteAnnotatedOps removed all "on_device" calls
- *    in tuples at the top level of function bodies or main expression, irrespective of the
- *    "on_device" body. What's up with that?
+ * TODO(mbs): Proper diagnostics for unification failure using spans.
+ * TODO(mbs): We may want some 'device polymorphism' for Relay functions. Eg it's ok for the
+ * function to be called with params/result on different (virtual) device ids provided the target
+ * and memory scopes are consistent.
  */
 
 #include <tvm/ir/transform.h>
@@ -262,11 +271,15 @@
 #include <tvm/relay/type.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/object.h>
+#include <tvm/tir/function.h>
+#include <tvm/tir/stmt_functor.h>
 
 #include <unordered_map>
 
+#include "../../tir/analysis/device_constraint_utils.h"
 #include "../op/annotation/annotation.h"
 #include "../op/memory/device_copy.h"
+#include "../op/memory/on_device.h"
 #include "./device_domains.h"
 
 namespace tvm {
@@ -275,40 +288,55 @@ namespace transform {
 
 namespace {
 
-/******
-******* Phase 0
-*******/
+/* =============== Phase 0 =============== */
 
 /*!
  * \brief Rewrites "on_device" calls to handle some special cases.
  *
- * \code
- * let %x = on_device(e, device_type=d)
- * ==> let %x = on_device(e, device_type=d, is_fixed=True)
+ *  - Don't let the device for %x remain unconstrained:
+ *    \code
+ *      let %x = on_device(e, virtual_device=d)
+ *      ==> let %x = on_device(e, virtual_device=d, constraint=kBoth)
+ *    \endcode
  *
- * fn(%x) { on_device(e, device_type=d) }
- * ==> fn(%x) { on_device(e, device_type=d, is_fixed=True)
+ *  - Don't let the function result remain unconstrained:
+ *    \code
+ *      fn(%x) { on_device(e, virtual_device=d) }
+ *      ==> fn(%x) { on_device(e, virtual_device=d, constraint=kBoth)
+ *    \endcode
  *
- * on_device(e).0
- * ==> on_device(e.0)
- * \endcode
+ *  - Project-then-copy rather than copy-then-project:
+ *    \code
+ *      on_device(e).0
+ *      ==> on_device(e.0)
+ *    \endcode
+ *
+ *  - Be prepared to copy arguments and results on primitive call boundaries in case memory
+ *    scopes don't line up. We'll use the 'fully unconstrained' version of on_device so that
+ *    we can allow for a device_copy without knowing the specific device for the arguments.
+ *    \code
+ *      call_lowered(@prim, (a, b))
+ *      ==> copy_ok(call_lowered(@prim, (copy_ok(a), copy_ok(b))))
+ *      where
+ *        copy_ok(x) = on_device(x, virtual_device=VirtualDevice::FullyUnconstrained,
+ *                               constrain_body=False, constrain_result=False)
+ *    \endcode
  */
 class RewriteOnDevices : public ExprMutator {
  public:
-  RewriteOnDevices() = default;
+  explicit RewriteOnDevices(IRModule mod) : mod_(std::move(mod)) {}
 
  private:
   Expr VisitExpr_(const TupleGetItemNode* tuple_get_item_node) final {
     Expr tuple = VisitExpr(tuple_get_item_node->tuple);
-    // TODO(mbs): Avoid copy.
-    Expr tuple_get_item =
-        TupleGetItem(tuple, tuple_get_item_node->index, tuple_get_item_node->span);
-    auto props = GetOnDeviceProps(tuple);
-    if (props.body.defined() && !props.is_fixed) {
-      VLOG(1) << "wrapping tuple get item:" << std::endl
+    OnDeviceProps props = GetOnDeviceProps(tuple);
+
+    Expr tuple_get_item = WithFields(GetRef<TupleGetItem>(tuple_get_item_node), tuple);
+    if (props.body.defined() && props.is_normal()) {
+      VLOG(2) << "wrapping tuple get item:" << std::endl
               << PrettyPrint(GetRef<TupleGetItem>(tuple_get_item_node)) << std::endl
-              << "with \"on_device\" for device " << props.device_type;
-      return OnDevice(tuple_get_item, props.device_type, /*is_fixed=*/false);
+              << "with \"on_device\" for VirtualDevice " << props.virtual_device;
+      return OnDeviceWithProps(tuple_get_item, props);
     } else {
       return tuple_get_item;
     }
@@ -316,68 +344,86 @@ class RewriteOnDevices : public ExprMutator {
 
   Expr VisitExpr_(const LetNode* let_node) final {
     auto expr = GetRef<Expr>(let_node);
-    std::vector<std::tuple<Var, Expr, Span>> bindings;
+    std::vector<std::tuple<Let, Expr>> bindings;
     while (const auto* inner_let_node = expr.as<LetNode>()) {
-      Expr inner_let = GetRef<Let>(inner_let_node);
+      Let inner_let = GetRef<Let>(inner_let_node);
       Expr value = VisitExpr(inner_let_node->value);
-      auto props = GetOnDeviceProps(value);
-      if (props.body.defined() && !props.is_fixed) {
-        VLOG(1) << "revising let-bound expression of let:" << std::endl
+      OnDeviceProps props = GetOnDeviceProps(value);
+      if (props.body.defined() && props.is_normal()) {
+        VLOG(2) << "revising let-bound expression of let:" << std::endl
                 << PrettyPrint(expr) << std::endl
-                << "to be fixed to device " << props.device_type;
-        value = OnDevice(props.body, props.device_type, /*is_fixed=*/true);
+                << "to be fixed to VirtualDevice " << props.virtual_device;
+        value = MaybeOnDeviceFixed(props.body, props.virtual_device);
       }
-      bindings.emplace_back(inner_let_node->var, value, inner_let_node->span);
+      bindings.emplace_back(inner_let, value);
       expr = inner_let_node->body;
     }
     expr = VisitExpr(expr);
-    // TODO(mbs): Avoid copy.
     for (auto itr = bindings.rbegin(); itr != bindings.rend(); ++itr) {
-      expr = Let(/*var=*/std::get<0>(*itr), /*value=*/std::get<1>(*itr), expr,
-                 /*span=*/std::get<2>(*itr));
+      expr = WithFields(/*let=*/std::get<0>(*itr), /*opt_var=*/{},
+                        /*opt_value=*/std::get<1>(*itr), /*opt_body=*/expr);
     }
     return expr;
   }
 
   Expr VisitExpr_(const FunctionNode* function_node) final {
     Expr body = VisitExpr(function_node->body);
-    auto props = GetOnDeviceProps(body);
-    if (props.body.defined() && !props.is_fixed) {
-      VLOG(1) << "revising body of function:" << std::endl
+    OnDeviceProps props = GetOnDeviceProps(body);
+    if (props.body.defined() && props.is_normal()) {
+      VLOG(2) << "revising body of function:" << std::endl
               << PrettyPrint(GetRef<Function>(function_node)) << std::endl
-              << "to be fixed to device " << props.device_type;
-      body = OnDevice(props.body, props.device_type, /*is_fixed=*/true);
+              << "to be fixed to VirtualDevice " << props.virtual_device;
+      body = MaybeOnDeviceFixed(props.body, props.virtual_device);
     }
-    // TODO(mbs): Avoid copy
-    return Function(function_node->params, body, function_node->ret_type,
-                    function_node->type_params, function_node->attrs, function_node->span);
+    return WithFields(GetRef<Function>(function_node), function_node->params, body);
   }
+
+  Expr VisitExpr_(const CallNode* call_node) final {
+    CallLoweredProps props = GetCallLoweredProps(call_node);
+    if (props.lowered_func.defined()) {
+      BaseFunc base_func = mod_->Lookup(props.lowered_func);
+      if (base_func.as<tir::PrimFuncNode>()) {
+        VLOG(2) << "allowing device_copy on PrimFunc arguments and result";
+        Array<Expr> new_args;
+        new_args.reserve(props.arguments.size());
+        for (const auto& arg : props.arguments) {
+          Expr new_arg = VisitExpr(arg);
+          new_args.push_back(OnDeviceCopyOk(std::move(new_arg)));
+        }
+        Call new_call = CallLowered(std::move(props.lowered_func), std::move(new_args), props.attrs,
+                                    call_node->span);
+        return OnDeviceCopyOk(std::move(new_call));
+      }
+    }
+    return ExprMutator::VisitExpr_(call_node);
+  }
+
+  /*! \brief Module we are rewriting, so we can lookup global definitions. */
+  IRModule mod_;
 };
 
-/******
-******* Phase 1
-*******/
+/* =============== Phase 1 =============== */
 
 /*
  * \brief Collects the system of device constraints for all sub-expressions in a module.
  * It is possible some devices remain free and will need to be defaulted by \p DeviceDefaulter.
  *
  * Eg from \code add(%x, %y) \endcode we know \p %x and \p %y must be on the same device. Later,
- * from \code on_device(%x, device_type=d) \endcode we know \p %x must be on device \p d, and thus
- * so must \p %y.
+ * from \code on_device(%x, virtual_device=d) \endcode we know \p %x must be on device \p d, and
+ * thus so must \p %y.
  *
  * Constraints can flow in interesting ways. E.g. in:
  * \code
- *   let %f = fn(%x, %y) { add(%x, on_device(%y, device_type=d)) }
+ *   let %f = fn(%x, %y) { add(%x, on_device(%y, virtual_device=d)) }
  *   let %g = fn(%f, %x, %y) { %f(%x, %y) }
  *   %g(%f, %a, %b)
  * \endcode
  * we discover \p %b must be on device \p d.
  */
-class DeviceAnalyzer : public ExprVisitor {
+class DeviceAnalyzer : public MixedModeVisitor {
  public:
-  explicit DeviceAnalyzer(IRModule mod)
-      : mod_(std::move(mod)), domains_(std::make_unique<DeviceDomains>()) {}
+  DeviceAnalyzer(IRModule mod, CompilationConfig config)
+      : mod_(std::move(mod)), domains_(std::make_unique<DeviceDomains>(std::move(config))) {}
 
   /*!
    * \brief Returns the expression-to-device-domain map for all expressions in all the global
@@ -386,36 +432,81 @@ class DeviceAnalyzer : public ExprVisitor {
    */
   std::unique_ptr<DeviceDomains> Analyze() {
     VLOG_CONTEXT << "DeviceAnalyzer";
-    for (const auto& pair : mod_->functions) {
-      VLOG(1) << "collecting constraints for '" << PrettyPrint(pair.first) << "'";
-      domains_->UnifyExprExact(pair.first, pair.second);
-      VisitExpr(pair.second);
+    for (const auto& kv : mod_->functions) {
+      // The global variable and what it is bound to must obviously agree on domain.
+      if (const auto* function_node = AsOptimizableFunctionNode(kv.second)) {
+        VLOG(2) << "collecting constraints from Relay Function '" << kv.first->name_hint << "'";
+        domains_->UnifyExprExact(kv.first, kv.second);
+        VisitExpr(GetRef<Function>(function_node));
+      } else if (const auto* prim_func_node = kv.second.as<tir::PrimFuncNode>()) {
+        VLOG(2) << "collecting constraints from TIR PrimFunc '" << kv.first->name_hint << "'";
+        domains_->UnifyExprExact(
+            kv.first, DomainForPrimFunc(kv.first, GetRef<tir::PrimFunc>(prim_func_node)));
+      } else {
+        VLOG(2) << "skipping '" << kv.first->name_hint << "'";
+      }
     }
     return std::move(domains_);
   }
 
  private:
+  /*!
+   * \brief Return the domain representing \p prim_func which, before lowering, had
+   * the Relay \p type.
+   */
+  DeviceDomainPtr DomainForPrimFunc(const GlobalVar& global_var, const tir::PrimFunc& prim_func) {
+    // CAUTION: The prim_func->checked_type() is currently w.r.t. the flattened and DPS form
+    // of the prim func, however here we wish to remain within the Relay view of all functions.
+    // Thus we'll use the global var who's checked_type is in Relay form.
+    auto func_domain = domains_->DomainFor(global_var);  // higher-order
+
+    // TODO(mbs): We don't visit the body of the function -- there's currently nothing to be done.
+    const auto* func_type_node = global_var->checked_type().as<FuncTypeNode>();
+    ICHECK(func_type_node);
+    ICHECK_EQ(func_domain->function_arity(), func_type_node->arg_types.size());
+
+    Array<VirtualDevice> virtual_devices =
+        tir::GetPrimFuncArgAndResultConstraints(prim_func, GetRef<FuncType>(func_type_node));
+
+    // Build the implied domain (in terms of the function's Relay type) implied by any memory scope
+    // constrains in the function's buffers, for both arguments and results.
+    std::vector<DeviceDomainPtr> args_and_result_domains;
+    args_and_result_domains.reserve(virtual_devices.size());
+    for (size_t i = 0; i < func_type_node->arg_types.size(); ++i) {
+      const VirtualDevice& param_virtual_device = virtual_devices[i];
+      VLOG(2) << "param_virtual_device[" << i << "] = " << param_virtual_device;
+      args_and_result_domains.push_back(domains_->MakeFirstOrderDomain(param_virtual_device));
+    }
+    const VirtualDevice& ret_virtual_device = virtual_devices.back();
+    VLOG(2) << "ret_virtual_device = " << ret_virtual_device;
+    args_and_result_domains.push_back(domains_->MakeFirstOrderDomain(ret_virtual_device));
+
+    return domains_->MakeHigherOrderDomain(std::move(args_and_result_domains));
+  }
+
   void VisitExpr_(const CallNode* call_node) final {
     auto call = GetRef<Call>(call_node);
 
+    // We don't care if the call is in pre- or post-lowered form.
+    auto vanilla_call = GetAnyCall(call_node);
+
     // Find the higher-order domain for the callee. See DomainForCallee for the special rules
     // for primitives.
-    VisitExpr(call_node->op);
+    VisitExpr(vanilla_call->op);
     auto func_domain = domains_->DomainForCallee(call);  // higher-order
 
     // Build the domain for the function implied by its arguments and call context.
-    ICHECK_EQ(func_domain->function_arity(), call_node->args.size());
+    ICHECK_EQ(func_domain->function_arity(), vanilla_call->args.size()) << PrettyPrint(call);
     std::vector<DeviceDomainPtr> args_and_result_domains;
-    args_and_result_domains.reserve(call_node->args.size() + 1);
-    for (const auto& arg : call_node->args) {
+    args_and_result_domains.reserve(vanilla_call->args.size() + 1);
+    for (const auto& arg : vanilla_call->args) {
       args_and_result_domains.emplace_back(domains_->DomainFor(arg));
-      VisitExpr(arg);
     }
     args_and_result_domains.emplace_back(domains_->DomainFor(call));
     auto implied_domain =
-        DeviceDomains::MakeDomain(std::move(args_and_result_domains));  // higher-order
+        domains_->MakeHigherOrderDomain(std::move(args_and_result_domains));  // higher-order
 
-    VLOG(1) << "initial call function domain:" << std::endl
+    VLOG(2) << "initial call function domain:" << std::endl
             << domains_->ToString(func_domain) << std::endl
             << "and implied domain:" << std::endl
             << domains_->ToString(implied_domain) << std::endl
@@ -423,21 +514,19 @@ class DeviceAnalyzer : public ExprVisitor {
             << PrettyPrint(call);
 
     // The above must match.
-    try {
-      domains_->Unify(func_domain, implied_domain);  // higher-order
-    } catch (const Error& e) {
+    if (domains_->UnifyOrNull(func_domain, implied_domain) == nullptr) {  // higher-order
       // TODO(mbs): Proper diagnostics.
-      LOG(FATAL) << "Function parameters and result devices do not match those of call. Call:"
-                 << std::endl
-                 << PrettyPrint(call) << std::endl
-                 << "with function devices:" << std::endl
-                 << domains_->ToString(func_domain) << std::endl
-                 << "and implied call devices:" << std::endl
-                 << domains_->ToString(implied_domain) << std::endl
-                 << e.what();
+      LOG(FATAL)
+          << "Function parameters and result VirtualDevices do not match those of call. Call:"
+          << std::endl
+          << PrettyPrint(call) << std::endl
+          << "with function virtual devices:" << std::endl
+          << domains_->ToString(func_domain) << std::endl
+          << "and implied call virtual devices:" << std::endl
+          << domains_->ToString(implied_domain);
     }
 
-    VLOG(1) << "final call function domain:" << std::endl
+    VLOG(2) << "final call function domain:" << std::endl
             << domains_->ToString(func_domain) << std::endl
             << "for call:" << std::endl
             << PrettyPrint(call);
@@ -464,65 +553,46 @@ class DeviceAnalyzer : public ExprVisitor {
   }
 
   void VisitExpr_(const FunctionNode* function_node) final {
-    // No need to step into fused primitive functions as they are lowered individually according
-    // to the devices of all their call sites.
-    if (function_node->HasNonzeroAttr(attr::kPrimitive)) {
-      return;
-    }
-
     auto function = GetRef<Function>(function_node);
     auto func_domain = domains_->DomainFor(function);  // higher-order
+    ICHECK_EQ(func_domain->function_arity(), function_node->params.size());
 
-    // The function body domain must match the function result domain.
-    domains_->UnifyExprExact(function_node->body,
-                             func_domain->function_result());  // may be higher-order
-
-    VLOG(1) << "initial function domain:" << std::endl
+    VLOG(2) << "initial function domain:" << std::endl
             << domains_->ToString(func_domain) << std::endl
             << "and function body domain:" << std::endl
             << domains_->ToString(domains_->DomainFor(function_node->body)) << std::endl
             << "for function:" << std::endl
             << PrettyPrint(function);
 
-    ICHECK_EQ(func_domain->function_arity(), function_node->params.size());
+    // The function body domain must match the function result domain.
+    domains_->UnifyExprExact(function_node->body,
+                             func_domain->function_result());  // may be higher-order
+    if (!function_node->virtual_device()->IsFullyUnconstrained()) {
+      // The function body domain must match any existing virtual device annotation.
+      domains_->UnifyExprExact(function_node->body,
+                               domains_->ForVirtualDevice(function_node->body->checked_type(),
+                                                          function_node->virtual_device()));
+    }
+
     for (size_t i = 0; i < function_node->params.size(); ++i) {
-      // The parameter domains must match the function argument domains.
-      domains_->UnifyExprExact(function_node->params[i],
+      const auto& param = function_node->params[i];
+      // The parameter domain must match the function argument domain.
+      domains_->UnifyExprExact(param,
                                func_domain->function_param(i));  // may be higher-order
-      VisitExpr(function_node->params[i]);
+      if (!param->virtual_device()->IsFullyUnconstrained()) {
+        // The parameter domain must match any existing virtual device annotation.
+        domains_->UnifyExprExact(
+            param, domains_->ForVirtualDevice(param->checked_type(), param->virtual_device()));
+      }
+      VisitExpr(param);
     }
 
-    // If the function already has device attributes then we can further constrain the
-    // function's domain to match them.
-    if (GetFunctionResultDeviceType(function_node) != kInvalidDeviceType) {
-      std::vector<DeviceDomainPtr> args_and_result;
-      for (size_t i = 0; i < function_node->params.size(); ++i) {
-        args_and_result.emplace_back(
-            domains_->ForDeviceType(function_node->params[i]->checked_type(),
-                                    GetFunctionParamDeviceType(function_node, i)));
-      }
-      args_and_result.emplace_back(domains_->ForDeviceType(
-          function_node->body->checked_type(), GetFunctionResultDeviceType(function_node)));
-      auto annotation_domain = domains_->MakeDomain(std::move(args_and_result));
-      try {
-        domains_->Unify(func_domain, annotation_domain);  // higher-order
-      } catch (const Error& e) {
-        // TODO(mbs): Proper diagnostics.
-        LOG(FATAL)
-            << "Function devices are incompatible with its \"on_device\" annotation. Function:"
-            << std::endl
-            << PrettyPrint(function) << std::endl
-            << "with function devices:" << std::endl
-            << domains_->ToString(func_domain) << std::endl
-            << "and annotation devices:" << std::endl
-            << domains_->ToString(annotation_domain) << std::endl
-            << e.what();
-      }
+    // No need to step into the body of Primitive functions.
+    if (!function_node->HasNonzeroAttr(attr::kPrimitive)) {
+      VisitExpr(function_node->body);
     }
 
-    VisitExpr(function_node->body);
-
-    VLOG(1) << "final function domain:" << std::endl
+    VLOG(2) << "final function domain:" << std::endl
             << domains_->ToString(func_domain) << std::endl
             << "and function body domain:" << std::endl
             << domains_->ToString(domains_->DomainFor(function_node->body)) << std::endl
@@ -535,7 +605,6 @@ class DeviceAnalyzer : public ExprVisitor {
     for (size_t i = 0; i < tuple->fields.size(); i++) {
       auto domain = domains_->DomainFor(tuple->fields[i]);  // may be higher-order
       domains_->UnifyExprCollapsed(tuple, domain);          // collapse to first-order if needed
-      VisitExpr(tuple->fields[i]);
     }
   }
 
@@ -544,7 +613,6 @@ class DeviceAnalyzer : public ExprVisitor {
     auto domain = domains_->DomainFor(tuple_get_item);  // may be higher-order
     domains_->UnifyExprCollapsed(tuple_get_item_node->tuple,
                                  domain);  // collapse to first-order if needed
-    VisitExpr(tuple_get_item_node->tuple);
   }
 
   class DevicePatternAnalyzer : public PatternVisitor {
@@ -640,9 +708,52 @@ class DeviceAnalyzer : public ExprVisitor {
   std::unique_ptr<DeviceDomains> domains_;
 };
 
-/******
-******* Phase 2
-*******/
+/* =============== Phase 2 =============== */
+
+/*!
+ * \brief Calls to 'free' "on_device" annotations (ie where both constrain_body=false and
+ * constrain_result=false) indicate a device_copy is allowed if required, but no particular
+ * device is imposed on the body or the context. At this stage we can attempt to unify the
+ * body and device contexts. In this way we can avoid the defaulting rules in \p DeviceDefaulter
+ * from choosing default devices which are only going to induce a device copy.
+ *
+ * TODO(mbs): The order in which we encounter the "on_device" calls can influence the final global
+ * device assignment. However we visit global functions in hash map order.
+ */
+class FreeOnDeviceDefaulter : public ExprVisitor {
+ public:
+  FreeOnDeviceDefaulter(IRModule mod, std::unique_ptr<DeviceDomains> domains)
+      : mod_(std::move(mod)), domains_(std::move(domains)) {}
+
+  std::unique_ptr<DeviceDomains> Default() {
+    VLOG_CONTEXT << "FreeOnDeviceDefaulter";
+    VLOG(0) << "unifying free on_device annotations";
+    for (const auto& kv : mod_->functions) {
+      if (const auto* function_node = AsOptimizableFunctionNode(kv.second)) {
+        VLOG(2) << "unifying for '" << kv.first->name_hint << "'";
+        VisitExpr(GetRef<Function>(function_node));
+      } else {
+        VLOG(2) << "skipping '" << kv.first->name_hint << "'";
+      }
+    }
+    return std::move(domains_);
+  }
+
+ private:
+  void VisitExpr_(const CallNode* call_node) final {
+    auto call = GetRef<Call>(call_node);
+    OnDeviceProps props = GetOnDeviceProps(call_node);
+    ExprVisitor::VisitExpr_(call_node);
+    if (props.body.defined() && !props.constrain_body && !props.constrain_result) {
+      domains_->OptionalUnifyExprExact(call, props.body);
+    }
+  }
+
+  /*! \brief The module we are processing. */
+  IRModule mod_;
+  /*! \brief The domains for all expressions.  */
+  std::unique_ptr<DeviceDomains> domains_;
+};
 
 /*!
  * \brief Ensures every sub-expression in a module has a device type, using both the global
@@ -652,11 +763,12 @@ class DeviceAnalyzer : public ExprVisitor {
  * \code
  *   def @main(%x, %y, %z) {
  *     let %a = add(%x, %y);
- *     multiply(%a, on_device(%z, device_type=d))
+ *     multiply(%a, on_device(%z, virtual_device=d))
+ *   }
  * \endcode
  * we know the parameter \p %z must be on device \p d, but the devices for \p %x and \p %y,
  * and the device for the function result, are still 'free'. The global 'default' device type
- * is first used to 'fix' \p @main's result type, which in turn 'fixes' \p %x and \p %y, which
+ * is first used to 'fix' \p main's result type, which in turn 'fixes' \p %x and \p %y, which
  * in turn 'fixes' the device on which the \p add and \p multiply are executed.
  *
  * TODO(mbs): I think this is deterministic? We do however visit the top-level defs in hashmap
@@ -664,18 +776,20 @@ class DeviceAnalyzer : public ExprVisitor {
  */
 class DeviceDefaulter : public ExprVisitor {
  public:
-  DeviceDefaulter(IRModule mod, std::unique_ptr<DeviceDomains> domains,
-                  DLDeviceType default_device_type)
-      : mod_(std::move(mod)),
-        domains_(std::move(domains)),
-        default_device_type_(default_device_type) {}
+  DeviceDefaulter(IRModule mod, std::unique_ptr<DeviceDomains> domains)
+      : mod_(std::move(mod)), domains_(std::move(domains)) {}
 
   std::unique_ptr<DeviceDomains> Default() {
     VLOG_CONTEXT << "DeviceDefaulter";
-    VLOG(0) << "using default device type " << default_device_type_;
-    for (const auto& pair : mod_->functions) {
-      VLOG(1) << "defaulting devices for '" << PrettyPrint(pair.first) << "'";
-      VisitExpr(pair.second);
+    VLOG(0) << "defaulting to VirtualDevice "
+            << domains_->config()->default_primitive_virtual_device;
+    for (const auto& kv : mod_->functions) {
+      if (const auto* function_node = AsOptimizableFunctionNode(kv.second)) {
+        VLOG(2) << "defaulting devices for '" << kv.first->name_hint << "'";
+        VisitExpr(GetRef<Function>(function_node));
+      } else {
+        VLOG(2) << "skipping '" << kv.first->name_hint << "'";
+      }
     }
     return std::move(domains_);
   }
@@ -689,25 +803,37 @@ class DeviceDefaulter : public ExprVisitor {
     auto function = GetRef<Function>(function_node);
     auto func_domain = domains_->DomainFor(function);  // higher-order
     ICHECK_EQ(func_domain->function_arity(), function_node->params.size());
-    if (domains_->AnyFree(func_domain)) {
-      VLOG(1) << "before defaulting function:" << std::endl << domains_->ToString(func_domain);
-      domains_->SetResultDefaultThenParams(func_domain, default_device_type_);
-      VLOG(1) << "after defaulting function:" << std::endl << domains_->ToString(func_domain);
+    if (!domains_->IsFullyConstrained(func_domain)) {
+      VLOG(2) << "before defaulting function:" << std::endl << domains_->ToString(func_domain);
+      domains_->SetResultDefaultThenParams(func_domain,
+                                           domains_->config()->default_primitive_virtual_device);
+      VLOG(2) << "after defaulting function:" << std::endl << domains_->ToString(func_domain);
     }
     VisitExpr(function_node->body);
   }
 
   void VisitExpr_(const CallNode* call_node) final {
     auto call = GetRef<Call>(call_node);
+
+    // We don't care if the call is pre- or post-lowered.
+    auto vanilla_call = GetAnyCall(call_node);
+
     auto func_domain = domains_->DomainForCallee(call);  // higher-order
-    ICHECK_EQ(func_domain->function_arity(), call_node->args.size());
-    if (domains_->AnyFree(func_domain)) {
+    ICHECK_EQ(func_domain->function_arity(), vanilla_call->args.size());
+    if (!domains_->IsFullyConstrained(func_domain)) {
       // For calls to Relay functions this step is identical to that for VisitExpr_(FunctionNode*)
       // above. But for calls to primitives we may still need to force free domains to be
       // defaulted.
-      VLOG(1) << "before defaulting callee:" << std::endl << domains_->ToString(func_domain);
-      domains_->SetResultDefaultThenParams(func_domain, default_device_type_);
-      VLOG(1) << "after defaulting callee:" << std::endl << domains_->ToString(func_domain);
+      VLOG(2) << "before defaulting callee:" << std::endl
+              << PrettyPrint(call_node->op) << std::endl
+              << "of domain:" << std::endl
+              << domains_->ToString(func_domain);
+      domains_->SetResultDefaultThenParams(func_domain,
+                                           domains_->config()->default_primitive_virtual_device);
+      VLOG(2) << "after defaulting callee:" << std::endl
+              << PrettyPrint(call_node->op) << std::endl
+              << "of domain:" << std::endl
+              << domains_->ToString(func_domain);
     }
     return ExprVisitor::VisitExpr_(call_node);
   }
@@ -719,13 +845,13 @@ class DeviceDefaulter : public ExprVisitor {
       Let let = Downcast<Let>(expr);
       // If the let-var device is still free force it to match the overall let.
       auto let_domain = domains_->DomainFor(let);  // may be higher-order
-      DLDeviceType let_device_type = domains_->ResultDeviceType(let_domain);
-      ICHECK_NE(let_device_type, kInvalidDeviceType);
+      VirtualDevice let_virtual_device = domains_->ResultVirtualDevice(let_domain);
+      ICHECK(!let_virtual_device->IsFullyUnconstrained());
       auto let_var_domain = domains_->DomainFor(let->var);  // may be higher-order
-      if (domains_->AnyFree(let_var_domain)) {
-        VLOG(1) << "before defaulting let-var:" << std::endl << domains_->ToString(let_var_domain);
-        domains_->SetDefault(let_var_domain, let_device_type);
-        VLOG(1) << "after defaulting let-var:" << std::endl << domains_->ToString(let_var_domain);
+      if (!domains_->IsFullyConstrained(let_var_domain)) {
+        VLOG(2) << "before defaulting let-var:" << std::endl << domains_->ToString(let_var_domain);
+        domains_->SetDefault(let_var_domain, let_virtual_device);
+        VLOG(2) << "after defaulting let-var:" << std::endl << domains_->ToString(let_var_domain);
       }
       VisitExpr(let->var);
       VisitExpr(let->value);
@@ -738,14 +864,9 @@ class DeviceDefaulter : public ExprVisitor {
   IRModule mod_;
   /*! \brief The domains for all expressions.  */
   std::unique_ptr<DeviceDomains> domains_;
-  /*! \brief The default device type. */
-  DLDeviceType default_device_type_;
 };
 
-/******
-******* Phase 3
-*******/
-
+/* =============== Phase 3 =============== */
 /*!
  * \brief Inserts missing "device_copy" CallNodes, and ensures the device type of every
  * sub-expression in a module can be easily recovered by a later transformation using simple
@@ -754,8 +875,9 @@ class DeviceDefaulter : public ExprVisitor {
  * - Discard any existing "on_device" CallNodes since their job is done. Similarly, discard
  *   any existing "device_copy" CallNodes which are no-ops.
  *
- * - Functions are given "param_device_types" and "result_device_type" attributes to capture
- *   the device type for its parameters and result.
+ * - The result virtual device for a function is stored in the function's virtual_device_ field
+ *   and the virtual devices of the function's parameters are stored in the parameter's
+ *   virtual_device_ field.
  *
  * - Additional "device_copy" CallNodes are inserted wherever there's a transition between
  *   storage device types. Since the DeviceAnalyzer phase succeeded this can only happen
@@ -771,12 +893,14 @@ class DeviceDefaulter : public ExprVisitor {
  *   keeps downstream processing simple. The "on_device" calls should be removed before code gen,
  *   which is easily done on-the-fly.
  *
+ * - Update memory scopes in PrimFunc buffer maps.
+ *
  * For example, we'll end up with programs that look like:
  * \code
- *   def @main(%x, %y, param_device_types=[...], result_device_type=...) {
- *     let %a = on_device(..., device_type=..., is_fixed=True)
- *     @f(%a, device_copy(on_device(..., device_type=..., is_fixed=True),
- *                        src_device_type=..., dst_device_type=...))
+ *   def @main(%x, %y, param_virtual_devices=[...], result_virtual_device=...) {
+ *     let %a = on_device(..., virtual_device=..., is_fixed=True)
+ *     @f(%a, device_copy(on_device(..., virtual_device=..., is_fixed=True),
+ *                        src_virtual_device=..., dst_virtual_device=...))
  *   }
  * \endcode
  */
@@ -787,15 +911,60 @@ class DeviceCapturer : public ExprMutator {
 
   IRModule Capture() {
     VLOG_CONTEXT << "CaptureDevices";
-    IRModule result(/*functions=*/{}, mod_->type_definitions, mod_->Imports(), mod_->source_map);
-    for (const auto& pair : mod_->functions) {
-      VLOG(1) << "capturing devices for '" << PrettyPrint(pair.first) << "'";
-      result->Add(pair.first, Downcast<BaseFunc>(Mutate(pair.second)));
+    IRModule result(/*functions=*/{}, mod_->type_definitions, mod_->Imports(), mod_->source_map,
+                    mod_->attrs);
+    for (const auto& kv : mod_->functions) {
+      if (const auto* function_node = AsOptimizableFunctionNode(kv.second)) {
+        VLOG(2) << "capturing devices for Relay Function '" << kv.first->name_hint << "'";
+        result->Add(kv.first, Downcast<Function>(Mutate(GetRef<Function>(function_node))));
+      } else if (const auto* prim_func_node = kv.second.as<tir::PrimFuncNode>()) {
+        VLOG(2) << "capturing devices for TIR PrimFunc '" << kv.first->name_hint << "'";
+        auto prim_func = GetRef<tir::PrimFunc>(prim_func_node);
+        tir::PrimFunc new_prim_func = UpdatePrimFunc(kv.first, prim_func);
+        VLOG(2) << "Rewritten prim func:" << std::endl
+                << PrettyPrint(prim_func) << std::endl
+                << "to:" << std::endl
+                << PrettyPrint(new_prim_func);
+        result->Add(kv.first, std::move(new_prim_func));
+      } else {
+        VLOG(2) << "skipping '" << kv.first->name_hint << "'";
+        result->Add(kv.first, kv.second);
+      }
     }
     return result;
   }
 
  private:
+  /*!
+   * \brief Returns \p prim_func updated to capture any memory scope's implied by its device
+   * domain.
+   */
+  tir::PrimFunc UpdatePrimFunc(const GlobalVar& global_var, const tir::PrimFunc& prim_func) {
+    // CAUTION: Same caution as for DeviceAnalyzer::DomainForPrimFunc.
+    auto func_domain = domains_->DomainFor(global_var);
+    ICHECK(func_domain->is_higher_order());
+
+    const auto* func_type_node = global_var->checked_type().as<FuncTypeNode>();
+    ICHECK(func_type_node);
+    ICHECK_EQ(func_domain->function_arity(), func_type_node->arg_types.size());
+
+    std::vector<VirtualDevice> arg_and_result_virtual_devices;
+    arg_and_result_virtual_devices.reserve(func_type_node->arg_types.size() + 1);
+    for (size_t i = 0; i < func_type_node->arg_types.size(); ++i) {
+      VirtualDevice param_virtual_device =
+          domains_->ResultVirtualDevice(func_domain->function_param(i));
+      VLOG(2) << "param_virtual_device[" << i << "] = " << param_virtual_device;
+      arg_and_result_virtual_devices.push_back(param_virtual_device);
+    }
+    VirtualDevice ret_virtual_device =
+        domains_->ResultVirtualDevice(func_domain->function_result());
+    VLOG(2) << "ret_virtual_device = " << ret_virtual_device;
+    arg_and_result_virtual_devices.push_back(ret_virtual_device);
+
+    return tir::ApplyPrimFuncArgAndResultConstraints(prim_func, GetRef<FuncType>(func_type_node),
+                                                     arg_and_result_virtual_devices);
+  }
+
   // Nothing interesting for VarNode, ConstantNode, GlobalVarNode, OpNode and ConstructorNode
 
   Expr VisitExpr_(const TupleNode* tuple_node) final {
@@ -805,8 +974,7 @@ class DeviceCapturer : public ExprMutator {
     for (const auto& field : tuple_node->fields) {
       fields.push_back(VisitChild(tuple, field));
     }
-    // TODO(mbs): Avoid copy
-    return Tuple(std::move(fields), tuple_node->span);
+    return WithFields(tuple, fields);
   }
 
   Expr VisitExpr_(const FunctionNode* function_node) final {
@@ -816,39 +984,59 @@ class DeviceCapturer : public ExprMutator {
 
     auto function = GetRef<Function>(function_node);
     auto func_domain = domains_->DomainFor(function);  // higher-order
-    VLOG(1) << "capturing function:" << std::endl
+    VLOG(2) << "capturing function:" << std::endl
             << PrettyPrint(function) << std::endl
             << "with domain:" << std::endl
             << domains_->ToString(func_domain);
 
     // Gather the parameter and result device types for the function attributes.
     ICHECK_EQ(func_domain->function_arity(), function_node->params.size());
-    DLDeviceType result_device_type = domains_->ResultDeviceType(func_domain);
-    ICHECK_NE(result_device_type, kInvalidDeviceType);
-    Array<Integer> param_device_types;
-    param_device_types.reserve(function_node->params.size());
+    VirtualDevice result_virtual_device = domains_->ResultVirtualDevice(func_domain);
+    ICHECK(!result_virtual_device->IsFullyUnconstrained());
+
+    // Map the function parameters to a new variable annotated with a virtual device so
+    // we can substitute them later.
+    Map<Var, Expr> annotated_bind_map;
+    Array<Var> annotated_params;
+    annotated_params.reserve(function_node->params.size());
     for (size_t i = 0; i < function_node->params.size(); ++i) {
-      DLDeviceType param_device_type = domains_->ResultDeviceType(func_domain->function_param(i));
-      ICHECK_NE(param_device_type, kInvalidDeviceType);
-      param_device_types.push_back(param_device_type);
+      VirtualDevice param_virtual_device =
+          domains_->ResultVirtualDevice(func_domain->function_param(i));
+      VLOG(4) << "Param: " << function_node->params[i];
+      Var annotated_var = WithFields(function_node->params[i], {}, {}, param_virtual_device);
+      VLOG(4) << "Annotated param: " << annotated_var;
+      VLOG(4) << "VirtualDevice: " << annotated_var->virtual_device();
+      ICHECK(!param_virtual_device->IsFullyUnconstrained());
+      annotated_bind_map.Set(function_node->params[i], annotated_var);
+      annotated_params.push_back(annotated_var);
     }
+    // Eventually we probably want to bind before visiting, but for now this is causing an issue
+    // with the GetVirtualDevice utility, so leaving as is for now.
 
     // Rewrite the body. Note that the body may have begun with an "on_device" so
     // be prepared to insert a "device_copy".
     Expr body = VisitChild(
-        /*lexical_device_type=*/result_device_type,
-        /*expected_device_type=*/result_device_type,
-        /*child_device_type=*/GetDeviceType(function_node->body), function_node->body);
-
-    // TODO(mbs): Avoid copy
-    Function func = Function(function_node->params, body, function_node->ret_type,
-                             function_node->type_params, function_node->attrs, function_node->span);
-    return FunctionOnDevice(func, param_device_types, result_device_type);
+        /*lexical_virtual_device=*/result_virtual_device,
+        /*expected_virtual_device=*/result_virtual_device,
+        /*child_virtual_device=*/GetVirtualDevice(function_node->body), function_node->body);
+    VLOG(4) << "Visited body: " << body;
+    Function func = WithFields(GetRef<Function>(function_node), function_node->params, body);
+    VLOG(4) << "New function: " << func;
+    func = SubstituteBoundVars(func, annotated_bind_map);
+    VLOG(4) << "Func with bound params: " << func;
+    func->virtual_device_ = result_virtual_device;
+    VLOG(4) << "Func with bound params & result vid set: " << func;
+    return std::move(func);
   }
 
   Expr VisitExpr_(const CallNode* call_node) final {
     auto call = GetRef<Call>(call_node);
-    DLDeviceType call_device_type = GetDeviceType(call);
+
+    // We don't care if the call is pre- or post-lowered
+    // (However we'll preserve the form in the result below.)
+    auto vanilla_call = GetAnyCall(call_node);
+
+    VirtualDevice call_virtual_device = GetVirtualDevice(call);
 
     auto on_device_props = GetOnDeviceProps(call_node);
     if (on_device_props.body.defined()) {
@@ -857,77 +1045,92 @@ class DeviceCapturer : public ExprMutator {
       return VisitExpr(on_device_props.body);
     }
 
-    auto device_copy_props = GetDeviceCopyProps(call_node);
+    DeviceCopyProps device_copy_props = GetDeviceCopyProps(call_node);
     if (device_copy_props.body.defined()) {
-      DLDeviceType src_device_type = device_copy_props.src_dev_type;
-      ICHECK_EQ(call_device_type, device_copy_props.dst_dev_type);
-      if (call_device_type == src_device_type) {
+      VirtualDevice src_virtual_device =
+          domains_->config()->CanonicalVirtualDevice(device_copy_props.src_virtual_device);
+      VirtualDevice dst_virtual_device =
+          domains_->config()->CanonicalVirtualDevice(device_copy_props.dst_virtual_device);
+      ICHECK_EQ(call_virtual_device, dst_virtual_device);
+      if (src_virtual_device == dst_virtual_device) {
         // We can pinch out existing "device_copy" CallNodes if their source and destinations
         // match.
         return VisitExpr(device_copy_props.body);
+      } else {
+        return VisitChild(/*lexical_virtual_device=*/dst_virtual_device,
+                          /*expected_virtual_device=*/dst_virtual_device,
+                          /*child_virtual_device=*/src_virtual_device, device_copy_props.body);
       }
-      // else: handle as for any other call.
     }
 
+    // Generic call.
     auto func_domain = domains_->DomainForCallee(call);  // higher-order
-    VLOG(1) << "considering call:" << std::endl
+    VLOG(2) << "considering call:" << std::endl
             << PrettyPrint(call) << std::endl
-            << "on device " << call_device_type << " with function domain:" << std::endl
+            << "in virtual device " << call_virtual_device
+            << " with function virtual devices:" << std::endl
             << domains_->ToString(func_domain);
-    DLDeviceType result_device_type = domains_->ResultDeviceType(func_domain);
-    ICHECK_NE(result_device_type, kInvalidDeviceType);
+    VirtualDevice result_virtual_device = domains_->ResultVirtualDevice(func_domain);
+    ICHECK(!result_virtual_device->IsFullyUnconstrained());
 
     // The callee is on the current device.
     Expr op = VisitChild(
-        /*lexical_device_type=*/call_device_type,
-        /*expected_device_type=*/call_device_type,
-        /*child_device_type=*/result_device_type, call_node->op);
+        /*lexical_virtual_device=*/call_virtual_device,
+        /*expected_virtual_device=*/call_virtual_device,
+        /*child_virtual_device=*/result_virtual_device, vanilla_call->op);
 
     // Each argument can be on the device for the corresponding function parameter. However if
     // any of those differ from the overall call device then wrap them in an "on_device" to
     // help downstream transforms track devices lexically.
     Array<Expr> args;
-    args.reserve(call_node->args.size());
-    ICHECK_EQ(func_domain->function_arity(), call->args.size());
-    for (size_t i = 0; i < call_node->args.size(); ++i) {
-      DLDeviceType param_device_type = domains_->ResultDeviceType(func_domain->function_param(i));
-      ICHECK_NE(param_device_type, kInvalidDeviceType)
+    args.reserve(vanilla_call->args.size());
+    ICHECK_EQ(func_domain->function_arity(), vanilla_call->args.size());
+    for (size_t i = 0; i < vanilla_call->args.size(); ++i) {
+      VirtualDevice param_virtual_device =
+          domains_->ResultVirtualDevice(func_domain->function_param(i));
+      ICHECK(!param_virtual_device->IsFullyUnconstrained())
           << "for parameter " << i << " for call:" << std::endl
           << PrettyPrint(call);
-      args.push_back(VisitChild(/*lexical_device_type=*/call_device_type,
-                                /*expected_device_type=*/param_device_type,
-                                /*child_device_type=*/GetDeviceType(call_node->args[i]),
-                                call_node->args[i]));
+      args.push_back(VisitChild(/*lexical_virtual_device=*/call_virtual_device,
+                                /*expected_virtual_device=*/param_virtual_device,
+                                /*child_virtual_device=*/GetVirtualDevice(vanilla_call->args[i]),
+                                vanilla_call->args[i]));
     }
-    // TODO(mbs): Avoid copy
-    return Call(std::move(op), std::move(args), call_node->attrs, call_node->type_args,
-                call_node->span);
+
+    if (call_node->op == CallLoweredOp()) {
+      Call new_call =
+          CallLowered(Downcast<GlobalVar>(op), args, /*call_lowered_attrs=*/{}, /*span=*/{});
+      return WithFields(call, new_call->op, new_call->args);
+    } else {
+      return WithFields(call, op, args);
+    }
   }
 
   Expr VisitExpr_(const LetNode* let_node) final {
     Expr expr = GetRef<Expr>(let_node);
     // Iterate through chained lets, provided they all agree on their device type.
-    DLDeviceType let_device_type = GetDeviceType(expr);
+    VirtualDevice let_virtual_device = GetVirtualDevice(expr);
     std::vector<std::tuple<Var, Expr, Span>> bindings;
     while (const auto* inner_let_node = expr.as<LetNode>()) {
       Expr inner_let = GetRef<Let>(inner_let_node);
-      if (GetDeviceType(inner_let) != let_device_type) {
+      if (GetVirtualDevice(inner_let) != let_virtual_device) {
         // We have a device transition which needs to be handled.
         break;
       }
-      // The let-bound value can be on a different device than the overall let. However if those
-      // devices don't agree wrap the let-bound value in an "on_device" to help downstream
-      // transforms track devices lexically.
-      Expr value = VisitChild(/*lexical_device_type=*/let_device_type,
-                              /*expected_device_type=*/GetDeviceType(inner_let_node->var),
-                              /*child_device_type=*/GetDeviceType(inner_let_node->value),
+      // The let-bound value can be on a different device than the overall let.
+      // By using the fully-unconstrained virtual device for the 'lexical' scope we'll force the
+      // let-bound value to *always* be wrapped by an "on_device" (see introductory comment for
+      // motivation.)
+      Expr value = VisitChild(/*lexical_virtual_device=*/VirtualDevice::FullyUnconstrained(),
+                              /*expected_virtual_device=*/GetVirtualDevice(inner_let_node->var),
+                              /*child_virtual_device=*/GetVirtualDevice(inner_let_node->value),
                               inner_let_node->value);
       bindings.emplace_back(inner_let_node->var, value, inner_let_node->span);
       expr = inner_let_node->body;
     }
-    Expr body = VisitChild(/*lexical_device_type=*/let_device_type,
-                           /*expected_device_type=*/let_device_type,
-                           /*child_device_type=*/GetDeviceType(expr), expr);
+    Expr body = VisitChild(/*lexical_virtual_device=*/let_virtual_device,
+                           /*expected_virtual_device=*/let_virtual_device,
+                           /*child_virtual_device=*/GetVirtualDevice(expr), expr);
     for (auto itr = bindings.rbegin(); itr != bindings.rend(); ++itr) {
       body = Let(/*var=*/std::get<0>(*itr), /*value=*/std::get<1>(*itr), body,
                  /*span=*/std::get<2>(*itr));
@@ -940,37 +1143,32 @@ class DeviceCapturer : public ExprMutator {
     Expr cond = VisitChild(ife, if_node->cond);
     Expr true_branch = VisitChild(ife, if_node->true_branch);
     Expr false_branch = VisitChild(ife, if_node->false_branch);
-    // TODO(mbs): Avoid copy
-    return If(cond, true_branch, false_branch, if_node->span);
+    return WithFields(ife, cond, true_branch, false_branch);
   }
 
   Expr VisitExpr_(const TupleGetItemNode* tuple_get_item_node) final {
     auto tuple_get_item = GetRef<TupleGetItem>(tuple_get_item_node);
     Expr tuple = VisitChild(tuple_get_item, tuple_get_item_node->tuple);
-    // TODO(mbs): Avoid copy
-    return TupleGetItem(tuple, tuple_get_item_node->index, tuple_get_item_node->span);
+    return WithFields(tuple_get_item, tuple);
   }
 
   Expr VisitExpr_(const RefCreateNode* ref_create_node) final {
     auto ref_create = GetRef<RefCreate>(ref_create_node);
     Expr value = VisitChild(ref_create, ref_create_node->value);
-    // TODO(mbs): Avoid copy
-    return RefCreate(value, ref_create_node->span);
+    return WithFields(ref_create, value);
   }
 
   Expr VisitExpr_(const RefReadNode* ref_read_node) final {
     auto ref_read = GetRef<RefRead>(ref_read_node);
     Expr ref = VisitChild(ref_read, ref_read_node->ref);
-    // TODO(mbs): Avoid copy
-    return RefRead(ref, ref_read_node->span);
+    return WithFields(ref_read, ref);
   }
 
   Expr VisitExpr_(const RefWriteNode* ref_write_node) final {
     auto ref_write = GetRef<RefWrite>(ref_write_node);
     Expr ref = VisitChild(ref_write, ref_write_node->ref);
     Expr value = VisitChild(ref_write, ref_write_node->value);
-    // TODO(mbs): Avoid copy
-    return RefWrite(ref, value, ref_write_node->span);
+    return WithFields(ref_write, ref, value);
   }
 
   Expr VisitExpr_(const MatchNode* match_node) final {
@@ -983,73 +1181,73 @@ class DeviceCapturer : public ExprMutator {
       Expr rhs = VisitChild(match, clause->rhs);
       clauses.push_back(Clause(lhs, rhs));
     }
-    // TODO(mbs): Avoid copy
-    return Match(data, std::move(clauses), match_node->complete, match_node->span);
+    return WithFields(match, data, clauses);
   }
 
-  DLDeviceType GetDeviceType(const Expr& expr) {
+  VirtualDevice GetVirtualDevice(const Expr& expr) {
     // Look through any "on_device" CallNodes, to mimic how we will be pinching them out.
-    auto props = GetOnDeviceProps(expr);
+    OnDeviceProps props = GetOnDeviceProps(expr);
     Expr true_expr = props.body.defined() ? props.body : expr;
     ICHECK(domains_->contains(true_expr));
-    // If expr is higher order we'll return only the result domain's device type.
-    DLDeviceType device_type = domains_->ResultDeviceType(domains_->DomainFor(true_expr));
-    ICHECK_NE(device_type, kInvalidDeviceType)
-        << "no device type was determined for expression:" << std::endl
+    // If expr is higher order we'll return only the result domain's device.
+    VirtualDevice virtual_device = domains_->ResultVirtualDevice(domains_->DomainFor(true_expr));
+    ICHECK(!virtual_device->IsFullyUnconstrained())
+        << "no VirtualDevice was determined for expression:" << std::endl
         << PrettyPrint(true_expr);
-    return device_type;
+    return std::move(virtual_device);
   }
 
   /*!
-   * \brief Reconcile the \p child_device_type for \p child with both the \p expected_device_type
-   * (as required by the expression context the \p child is in) and the \p lexical_device_type
-   * (as a downstream transform would infer based only on lexically enclosing "on_device"
-   * CallNodes and function attributes.) Generally \p lexical_device_type and \p
-   * expected_device_type are the same by definition, but may differ in arguments to  functions
+   * \brief Reconcile the \p child_virtual_device for \p child with both the \p
+   * expected_virtual_device (as required by the expression context the \p child is in) and the \p
+   * lexical_virtual_device (as a downstream transform would infer based only on lexically enclosing
+   * "on_device" CallNodes and function attributes.) Generally \p lexical_virtual_device and \p
+   * expected_virtual_device are the same by definition, but may differ in arguments to  functions
    * and let-bound expressions.
    *
-   * If \p child_device_type differs from \p expected_device_type, wrap it as:
+   * If \p child_virtual_device differs from \p expected_virtual_device, wrap it as:
    * \code
-   *   device_copy(on_device(child', device_type=child_device_type),
-   *               src_dev_type=child_device_type, dst_dev_type=expected_device_type)
+   *   device_copy(on_device(child', virtual_device=child_virtual_device),
+   *               src_dev_type=child_virtual_device, dst_dev_type=expected_virtual_device)
    * \endcode
    * (where child is rewritten to child'). Note the pedantic spelling out of "on_device" on the
    * child.
    *
-   * If \p expected_device_type differs from \p lexical_device_type, then (also) wrap
+   * If \p expected_virtual_device differs from \p lexical_virtual_device, then (also) wrap
    * the expression as:
    * \code
-   *   on_device(..., device_type=expected_device_type)
+   *   on_device(..., virtual_device=expected_virtual_device)
    * \endcode
    *
    * TODO(mbs): There's no attempt at sharing here. If usage of child's node could be wrapped
    * by a "device_copy", even though those copies will generally all be to the same destination
    * device.
    */
-  Expr VisitChild(DLDeviceType lexical_device_type, DLDeviceType expected_device_type,
-                  DLDeviceType child_device_type, const Expr& child) {
-    ICHECK_NE(lexical_device_type, kInvalidDeviceType);
-    ICHECK_NE(expected_device_type, kInvalidDeviceType);
-    if (child->IsInstance<OpNode>()) {
-      // Primitive operators don't need to be rewritten and can have a different domain for
-      // each call site.
+  Expr VisitChild(const VirtualDevice& lexical_virtual_device,
+                  const VirtualDevice& expected_virtual_device,
+                  const VirtualDevice& child_virtual_device, const Expr& child) {
+    ICHECK(!expected_virtual_device->IsFullyUnconstrained());
+    if (child->IsInstance<OpNode>() || child->IsInstance<ConstructorNode>()) {
+      // Primitive operators and contructors don't need to be rewritten and can have a
+      // different domain at each call site.
       return child;
     }
     Expr result = VisitExpr(child);
-    if (child_device_type != expected_device_type) {
-      VLOG(1) << "creating " << DeviceCopyOp()->name << " from device type " << child_device_type
-              << " to device type " << expected_device_type << " for:" << std::endl
+    if (child_virtual_device != expected_virtual_device) {
+      VLOG(2) << "creating " << DeviceCopyOp()->name << " from virtual device "
+              << child_virtual_device << " to virtual device " << expected_virtual_device
+              << " for:" << std::endl
               << PrettyPrint(result);
       // Also wrap the child in an "on_device" so downstream transforms can track devices
       // lexically.
-      result = MaybeOnDevice(result, child_device_type, /*is_fixed=*/true);
-      result = DeviceCopy(result, child_device_type, expected_device_type);
+      result = MaybeOnDeviceFixed(result, child_virtual_device);
+      result = DeviceCopy(result, child_virtual_device, expected_virtual_device);
     }
-    if (expected_device_type != lexical_device_type) {
-      VLOG(1) << "creating " << OnDeviceOp()->name << " for device type " << expected_device_type
-              << " for:" << std::endl
+    if (expected_virtual_device != lexical_virtual_device) {
+      VLOG(2) << "creating " << OnDeviceOp()->name << " for virtual device "
+              << expected_virtual_device << " for:" << std::endl
               << PrettyPrint(result);
-      result = MaybeOnDevice(result, expected_device_type, /*is_fixed=*/true);
+      result = MaybeOnDeviceFixed(result, expected_virtual_device);
     }
     return result;
   }
@@ -1059,9 +1257,10 @@ class DeviceCapturer : public ExprMutator {
    * is expected to be on the same device as the \p parent.
    */
   Expr VisitChild(const Expr& parent, const Expr& child) {
-    DLDeviceType expected_device_type = GetDeviceType(parent);
-    DLDeviceType child_device_type = GetDeviceType(child);
-    return VisitChild(expected_device_type, expected_device_type, child_device_type, child);
+    VirtualDevice expected_virtual_device = GetVirtualDevice(parent);
+    VirtualDevice child_virtual_device = GetVirtualDevice(child);
+    return VisitChild(expected_virtual_device, expected_virtual_device, child_virtual_device,
+                      child);
   }
 
   /*! \brief Module we are rewriting, so we can lookup global variables. */
@@ -1073,27 +1272,31 @@ class DeviceCapturer : public ExprMutator {
 /*! \brief Rewrite the "on_device" calls (and implicitly re-type-check). */
 tvm::transform::Pass Rewrite() {
   auto pass_func = [](Function f, IRModule m, transform::PassContext ctxt) {
-    return Downcast<Function>(RewriteOnDevices().Mutate(f));
+    auto attrs = m->attrs;
+    auto r = Downcast<Function>(RewriteOnDevices(std::move(m)).Mutate(f));
+    return attrs.defined() ? WithAttrs(r, {attrs->dict}) : r;
   };
   return tvm::relay::transform::CreateFunctionPass(pass_func, 0, "PlanDevicesRewrite", {});
 }
 
 /*! \brief Run the remaining phases. */
-tvm::transform::Pass PlanDevicesCore(DLDeviceType default_device_type) {
+tvm::transform::Pass PlanDevicesCore(CompilationConfig config) {
   return tvm::transform::CreateModulePass(
-      [=](IRModule mod, tvm::transform::PassContext pass_cnxt) -> IRModule {
+      [config = std::move(config)](IRModule mod,
+                                   tvm::transform::PassContext pass_cnxt) -> IRModule {
         // Collect the system of constraints for every sub-expression using existing "on_device"
         // and "device_copy" calls.
-        std::unique_ptr<DeviceDomains> domains = DeviceAnalyzer(mod).Analyze();
-        VLOG(1) << "Domains after analysis:" << std::endl << domains->ToString();
+        std::unique_ptr<DeviceDomains> domains = DeviceAnalyzer(mod, config).Analyze();
+        VLOG(3) << "Domains after analysis:" << std::endl << domains->ToString();
 
         // Choose sensible default devices for every sub-expression if otherwise unconstrained
         // by existing "on_device" or "device_copy" calls.
-        domains = DeviceDefaulter(mod, std::move(domains), default_device_type).Default();
-        VLOG(1) << "Domains after defaulting: " << std::endl << domains->ToString();
+        domains = FreeOnDeviceDefaulter(mod, std::move(domains)).Default();
+        domains = DeviceDefaulter(mod, std::move(domains)).Default();
+        VLOG(3) << "Domains after defaulting: " << std::endl << domains->ToString();
 
         // Insert "device_copy" and "on_device" CallNodes where needed to unambiguously capture
-        // the above map, and attach additional "param_device_types" and "result_device_type"
+        // the above map, and attach additional "param_virtual_devices" and "result_virtual_device"
         // attributes to all function definitions.
         return DeviceCapturer(mod, std::move(domains)).Capture();
       },
@@ -1102,22 +1305,17 @@ tvm::transform::Pass PlanDevicesCore(DLDeviceType default_device_type) {
 
 }  // namespace
 
-/******
-******* Overall composite Pass
-*******/
+/* =============== Driver =============== */
 
 // This function is declared in the public <tvm/relay/transform.h>.
-TVM_DLL tvm::transform::Pass PlanDevices(DLDeviceType default_device_type) {
+tvm::transform::Pass PlanDevices(CompilationConfig config) {
   std::vector<Pass> passes;
   passes.emplace_back(Rewrite());
-  passes.emplace_back(PlanDevicesCore(default_device_type));
-  return tvm::transform::Sequential(std::move(passes), "PlanDevices");
+  passes.emplace_back(PlanDevicesCore(std::move(config)));
+  return tvm::transform::Sequential(passes, "PlanDevices");
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.PlanDevices")
-    .set_body_typed([](const Device& default_device) {
-      return PlanDevices(default_device.device_type);
-    });
+TVM_REGISTER_GLOBAL("relay._transform.PlanDevices").set_body_typed(PlanDevices);
 
 }  // namespace transform
 }  // namespace relay

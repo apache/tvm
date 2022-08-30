@@ -25,6 +25,7 @@
  * the cost of using functional updates.
  */
 #include <tvm/ir/type_functor.h>
+#include <tvm/relay/adt.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
@@ -32,6 +33,7 @@
 #include <stack>
 
 #include "../op/annotation/annotation.h"
+#include "../op/memory/on_device.h"
 
 namespace tvm {
 namespace relay {
@@ -159,15 +161,12 @@ Expr ExprMutator::VisitExpr(const Expr& expr) {
   }
 }
 
-Expr ExprMutator::VisitExpr_(const VarNode* op) {
-  if (op->type_annotation.defined()) {
-    auto type = this->VisitType(op->type_annotation);
-    if (!op->type_annotation.same_as(type)) {
-      return Var(op->vid, type, op->span);
-    }
+Expr ExprMutator::VisitExpr_(const VarNode* var_node) {
+  Type type_annotation = var_node->type_annotation;
+  if (var_node->type_annotation.defined()) {
+    type_annotation = this->VisitType(var_node->type_annotation);
   }
-  // default case return self.
-  return GetRef<Expr>(op);
+  return WithFields(GetRef<Var>(var_node), var_node->vid, type_annotation);
 }
 
 Expr ExprMutator::VisitExpr_(const ConstantNode* op) { return GetRef<Expr>(op); }
@@ -176,163 +175,111 @@ Expr ExprMutator::VisitExpr_(const GlobalVarNode* op) { return GetRef<Expr>(op);
 
 Expr ExprMutator::VisitExpr_(const OpNode* op) { return GetRef<Expr>(op); }
 
-Expr ExprMutator::VisitExpr_(const TupleNode* op) {
+Expr ExprMutator::VisitExpr_(const TupleNode* tuple_node) {
   tvm::Array<Expr> fields;
-  bool all_fields_unchanged = true;
-  for (auto field : op->fields) {
+  fields.reserve(tuple_node->fields.size());
+
+  for (auto field : tuple_node->fields) {
     auto new_field = this->Mutate(field);
     fields.push_back(new_field);
-    all_fields_unchanged &= new_field.same_as(field);
   }
-
-  if (all_fields_unchanged) {
-    return GetRef<Expr>(op);
-  } else {
-    return Tuple(fields, op->span);
-  }
+  return WithFields(GetRef<Tuple>(tuple_node), fields);
 }
 
-Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
+Expr ExprMutator::VisitExpr_(const FunctionNode* func_node) {
   tvm::Array<TypeVar> ty_params;
-  bool all_ty_params_unchanged = true;
 
-  for (auto ty_param : op->type_params) {
+  for (auto ty_param : func_node->type_params) {
     TypeVar new_ty_param = Downcast<TypeVar>(VisitType(ty_param));
     ty_params.push_back(new_ty_param);
-    all_ty_params_unchanged &= new_ty_param.same_as(ty_param);
   }
 
   tvm::Array<Var> params;
-  bool all_params_unchanged = true;
-  for (auto param : op->params) {
+  for (auto param : func_node->params) {
     Var new_param = Downcast<Var>(this->Mutate(param));
     params.push_back(new_param);
-    all_params_unchanged &= param.same_as(new_param);
   }
 
-  auto ret_type = this->VisitType(op->ret_type);
-  auto body = this->Mutate(op->body);
+  auto ret_type = this->VisitType(func_node->ret_type);
+  auto body = this->Mutate(func_node->body);
 
-  if (all_ty_params_unchanged && all_params_unchanged && ret_type.same_as(op->ret_type) &&
-      body.same_as(op->body)) {
-    return GetRef<Expr>(op);
-  } else {
-    return Function(params, body, ret_type, ty_params, op->attrs, op->span);
-  }
+  return WithFields(GetRef<Function>(func_node), params, body, ret_type, ty_params);
 }
 
 Expr ExprMutator::VisitExpr_(const CallNode* call_node) {
   auto new_op = this->Mutate(call_node->op);
-  bool unchanged = call_node->op.same_as(new_op);
 
   tvm::Array<Type> ty_args;
+  ty_args.reserve(call_node->type_args.size());
+
   for (auto ty_arg : call_node->type_args) {
     auto new_ty_arg = this->VisitType(ty_arg);
     ty_args.push_back(new_ty_arg);
-    unchanged &= new_ty_arg.same_as(ty_arg);
   }
 
   tvm::Array<Expr> call_args;
+  call_args.reserve(call_node->args.size());
   for (auto arg : call_node->args) {
     auto new_arg = this->Mutate(arg);
     call_args.push_back(new_arg);
-    unchanged &= new_arg.same_as(arg);
   }
 
-  if (unchanged) {
-    return GetRef<Expr>(call_node);
-  } else {
-    return Call(new_op, call_args, call_node->attrs, ty_args, call_node->span);
-  }
+  return WithFields(GetRef<Call>(call_node), new_op, call_args, {}, ty_args);
 }
 
-Expr ExprMutator::VisitExpr_(const LetNode* op) {
-  Var var = Downcast<Var>(this->Mutate(op->var));
-  auto value = this->Mutate(op->value);
-  auto body = this->Mutate(op->body);
+Expr ExprMutator::VisitExpr_(const LetNode* let_node) {
+  Var var = Downcast<Var>(this->Mutate(let_node->var));
+  auto value = this->Mutate(let_node->value);
+  auto body = this->Mutate(let_node->body);
 
-  if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body)) {
-    return GetRef<Expr>(op);
-  } else {
-    return Let(var, value, body, op->span);
-  }
+  return WithFields(GetRef<Let>(let_node), var, value, body);
 }
 
-Expr ExprMutator::VisitExpr_(const IfNode* op) {
-  auto guard = this->Mutate(op->cond);
-  auto true_b = this->Mutate(op->true_branch);
-  auto false_b = this->Mutate(op->false_branch);
-  if (op->cond.same_as(guard) && op->true_branch.same_as(true_b) &&
-      op->false_branch.same_as(false_b)) {
-    return GetRef<Expr>(op);
-  } else {
-    return If(guard, true_b, false_b, op->span);
-  }
+Expr ExprMutator::VisitExpr_(const IfNode* if_node) {
+  auto cond = this->Mutate(if_node->cond);
+  auto true_b = this->Mutate(if_node->true_branch);
+  auto false_b = this->Mutate(if_node->false_branch);
+
+  return WithFields(GetRef<If>(if_node), cond, true_b, false_b);
 }
 
 Expr ExprMutator::VisitExpr_(const TupleGetItemNode* get_item) {
-  auto t = this->Mutate(get_item->tuple);
-  if (get_item->tuple == t) {
-    return GetRef<Expr>(get_item);
-  } else {
-    return TupleGetItem(t, get_item->index, get_item->span);
-  }
+  Expr tuple = this->Mutate(get_item->tuple);
+  return WithFields(GetRef<TupleGetItem>(get_item), tuple);
 }
 
-Expr ExprMutator::VisitExpr_(const RefCreateNode* op) {
-  Expr value = this->Mutate(op->value);
-  if (value.same_as(op->value)) {
-    return GetRef<Expr>(op);
-  } else {
-    return RefCreate(value, op->span);
-  }
+Expr ExprMutator::VisitExpr_(const RefCreateNode* ref_create) {
+  Expr value = this->Mutate(ref_create->value);
+  return WithFields(GetRef<RefCreate>(ref_create), value);
 }
 
-Expr ExprMutator::VisitExpr_(const RefReadNode* op) {
-  Expr ref = this->Mutate(op->ref);
-  if (ref.same_as(op->ref)) {
-    return GetRef<Expr>(op);
-  } else {
-    return RefRead(ref, op->span);
-  }
+Expr ExprMutator::VisitExpr_(const RefReadNode* ref_read) {
+  Expr ref = this->Mutate(ref_read->ref);
+  return WithFields(GetRef<RefRead>(ref_read), ref);
 }
 
-Expr ExprMutator::VisitExpr_(const RefWriteNode* op) {
-  Expr ref = this->Mutate(op->ref);
-  Expr value = this->Mutate(op->value);
-  if (ref.same_as(op->ref) && value.same_as(op->value)) {
-    return GetRef<Expr>(op);
-  } else {
-    return RefWrite(ref, value, op->span);
-  }
+Expr ExprMutator::VisitExpr_(const RefWriteNode* ref_write) {
+  Expr ref = this->Mutate(ref_write->ref);
+  Expr value = this->Mutate(ref_write->value);
+  return WithFields(GetRef<RefWrite>(ref_write), ref, value);
 }
 
 Expr ExprMutator::VisitExpr_(const ConstructorNode* c) { return GetRef<Expr>(c); }
 
-Expr ExprMutator::VisitExpr_(const MatchNode* m) {
-  bool unchanged = true;
-  std::vector<Clause> clauses;
-  for (const Clause& p : m->clauses) {
-    Clause c = VisitClause(p);
-    clauses.push_back(c);
-    unchanged &= c.same_as(p);
+Expr ExprMutator::VisitExpr_(const MatchNode* match_node) {
+  Array<Clause> clauses;
+  for (const Clause& p : match_node->clauses) {
+    clauses.push_back(VisitClause(p));
   }
-  Expr data = Mutate(m->data);
-  unchanged &= data.same_as(m->data);
+  Expr data = Mutate(match_node->data);
 
-  if (unchanged) {
-    return GetRef<Expr>(m);
-  }
-  return Match(data, clauses, m->complete, m->span);
+  return WithFields(GetRef<Match>(match_node), data, clauses);
 }
 
-Clause ExprMutator::VisitClause(const Clause& c) {
-  Pattern p = VisitPattern(c->lhs);
-  Expr rhs = Mutate(c->rhs);
-  if (p.same_as(c->lhs) && rhs.same_as(c->rhs)) {
-    return c;
-  }
-  return Clause(p, rhs);
+Clause ExprMutator::VisitClause(const Clause& clause) {
+  Pattern lhs = VisitPattern(clause->lhs);
+  Expr rhs = Mutate(clause->rhs);
+  return WithFields(clause, lhs, rhs);
 }
 
 Pattern ExprMutator::VisitPattern(const Pattern& p) { return p; }
@@ -511,9 +458,9 @@ class ExprBinder : public MixedModeMutator, PatternMutator {
 
   Pattern VisitPattern(const Pattern& p) final { return PatternMutator::VisitPattern(p); }
 
-  Clause VisitClause(const Clause& c) final {
-    Pattern pat = VisitPattern(c->lhs);
-    return Clause(pat, VisitExpr(c->rhs));
+  Clause VisitClause(const Clause& clause) final {
+    Pattern lhs = VisitPattern(clause->lhs);
+    return WithFields(clause, lhs, VisitExpr(clause->rhs));
   }
 
   Var VisitVar(const Var& v) final {
@@ -525,23 +472,25 @@ class ExprBinder : public MixedModeMutator, PatternMutator {
   const tvm::Map<Var, Expr>& args_map_;
 };
 
+// This function should be called SubstAndBind, since it assumes any variables introduced
+// in the substitution right hand side should be implicitly bound in the function.
 Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
   if (const FunctionNode* func = expr.as<FunctionNode>()) {
     Expr new_body = ExprBinder(args_map).VisitExpr(func->body);
     Array<Var> new_params;
-    std::vector<DLDeviceType> new_param_device_types;
     for (size_t i = 0; i < func->params.size(); ++i) {
       if (!args_map.count(func->params[i])) {
         new_params.push_back(func->params[i]);
-        new_param_device_types.push_back(GetFunctionParamDeviceType(func, i));
       }
     }
     if (new_body.same_as(func->body) && new_params.size() == func->params.size()) {
       return expr;
     }
+
     auto ret =
         Function(new_params, new_body, func->ret_type, func->type_params, func->attrs, func->span);
-    ret = MaybeFunctionOnDevice(ret, new_param_device_types, GetFunctionResultDeviceType(func));
+    ret->virtual_device_ = func->virtual_device();
+
     std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> set;
     for (const auto& v : FreeVars(expr)) {
       set.insert(v);
@@ -549,19 +498,16 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
     for (const auto& v : FreeVars(ret)) {
       if (set.count(v) == 0) {
         new_params.push_back(v);
-        if (GetFunctionResultDeviceType(func) != kInvalidDeviceType) {
-          // TODO(mbs): The function has been annotated with a device, which means we are supposed
-          // to be preserving device annotations on every transformation. However there's no
-          // such context for the free vars in args_map.
-          LOG(WARNING) << "introduced free var '" << PrettyPrint(v)
-                       << "' into function body but no device is known for it";
-        }
-        new_param_device_types.push_back(kInvalidDeviceType);
       }
     }
+
     ret =
         Function(new_params, new_body, func->ret_type, func->type_params, func->attrs, func->span);
-    ret = MaybeFunctionOnDevice(ret, new_param_device_types, GetFunctionResultDeviceType(func));
+    ret->virtual_device_ = func->virtual_device();
+
+    VLOG(4) << "Expr:\n" << expr;
+    VLOG(4) << "Ret:\n" << ret;
+
     ICHECK_EQ(FreeVars(expr).size(), FreeVars(ret).size());
     return std::move(ret);
   } else {
@@ -578,6 +524,27 @@ TVM_REGISTER_GLOBAL("relay.ir.Bind").set_body([](TVMArgs args, TVMRetValue* ret)
     *ret = Bind(Downcast<Type>(input), args[1]);
   }
 });
+
+Function SubstituteBoundVars(const Function& func, const tvm::Map<Var, Expr>& args_map) {
+  Expr new_body = ExprBinder(args_map).VisitExpr(func->body);
+  Array<Var> new_params;
+  for (size_t i = 0; i < func->params.size(); i++) {
+    if (!args_map.count(func->params[i])) {
+      new_params.push_back(func->params[i]);
+    } else {
+      if (const VarNode* var = args_map[func->params[i]].as<VarNode>()) {
+        new_params.push_back(GetRef<Var>(var));
+      } else {
+        ICHECK(false) << "Expected all values in args_map to be vars, but found "
+                      << args_map[func->params[i]]->GetTypeKey();
+      }
+    }
+  }
+  auto ret =
+      Function(new_params, new_body, func->ret_type, func->type_params, func->attrs, func->span);
+  ret->virtual_device_ = func->virtual_device();
+  return ret;
+}
 
 void ExpandANormalForm(const LetNode* op, std::function<void(const LetNode*)> pre_visit,
                        std::function<void(const LetNode*)> post_visit) {

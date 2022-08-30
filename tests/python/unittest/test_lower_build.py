@@ -53,37 +53,41 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 @tvm.script.ir_module
 class LoweredModule:
     @T.prim_func
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
+    def main(
+        A: T.Buffer[(16384,), "float32"],
+        B: T.Buffer[(16384,), "float32"],
+        C: T.Buffer[(16384,), "float32"],
+    ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "from_legacy_te_schedule": True, "tir.noalias": True})
-        A = T.match_buffer(a, [128, 128])
-        B = T.match_buffer(b, [128, 128])
-        C = T.match_buffer(c, [128, 128])
+        T.preflattened_buffer(A, [128, 128], data=A.data)
+        T.preflattened_buffer(B, [128, 128], data=B.data)
+        T.preflattened_buffer(C, [128, 128], data=C.data)
         # body
         for x, y in T.grid(128, 128):
-            C.data[x * 128 + y] = 0.0
+            C[x * 128 + y] = 0.0
             for k in T.serial(0, 128):
-                C.data[x * 128 + y] = T.load("float32", C.data, x * 128 + y) + T.load(
-                    "float32", A.data, x * 128 + k
-                ) * T.load("float32", B.data, y * 128 + k)
+                C[x * 128 + y] = C[x * 128 + y] + A[x * 128 + k] * B[y * 128 + k]
 
 
 @tvm.script.ir_module
 class LoweredTIRModule:
     @T.prim_func
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
+    def main(
+        A: T.Buffer[(16384,), "float32"],
+        B: T.Buffer[(16384,), "float32"],
+        C: T.Buffer[(16384,), "float32"],
+    ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        A = T.match_buffer(a, [128, 128])
-        B = T.match_buffer(b, [128, 128])
-        C = T.match_buffer(c, [128, 128])
+        T.preflattened_buffer(A, [128, 128], data=A.data)
+        T.preflattened_buffer(B, [128, 128], data=B.data)
+        T.preflattened_buffer(C, [128, 128], data=C.data)
         # body
         for x, y in T.grid(128, 128):
-            C.data[x * 128 + y] = 0.0
+            C[x * 128 + y] = 0.0
             for k in T.serial(0, 128):
-                C.data[x * 128 + y] = T.load("float32", C.data, x * 128 + y) + T.load(
-                    "float32", A.data, x * 128 + k
-                ) * T.load("float32", B.data, y * 128 + k)
+                C[x * 128 + y] = C[x * 128 + y] + A[x * 128 + k] * B[y * 128 + k]
 
 
 def test_lower_build_te_schedule():
@@ -93,8 +97,9 @@ def test_lower_build_te_schedule():
     B = te.placeholder((k, n), name="B")
     C = te.compute((m, n), lambda x, y: te.sum(A[x, axis_k] * B[y, axis_k], axis=axis_k), name="C")
     s = te.create_schedule(C.op)
-    # check lowering
-    ir_mod = tvm.lower(s, [A, B, C])
+    # check lowering with the CSE pass disabled as otherwise it would do some commoning
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
+        ir_mod = tvm.lower(s, [A, B, C])
     tvm.ir.assert_structural_equal(ir_mod, LoweredModule)
     # check building
     mod = tvm.build(s, [A, B, C], target="llvm")
@@ -102,8 +107,9 @@ def test_lower_build_te_schedule():
 
 
 def test_lower_build_tir_func():
-    # check lowering
-    ir_mod = tvm.lower(matmul)
+    # check lowering with the CSE pass disabled as otherwise it would do some commoning
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
+        ir_mod = tvm.lower(matmul)
     tvm.ir.assert_structural_equal(ir_mod, LoweredTIRModule)
     # check building
     mod = tvm.build(matmul, target="llvm")
@@ -114,8 +120,9 @@ def test_lower_build_tir_module():
     func = matmul.with_attr("global_symbol", "main")
     func = func.with_attr("tir.noalias", True)
     ir_mod = IRModule({"main": func})
-    # check lowering
-    lowered_mod = tvm.lower(ir_mod)
+    # check lowering with the CSE pass disabled as otherwise it would do some commoning
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
+        lowered_mod = tvm.lower(ir_mod)
     tvm.ir.assert_structural_equal(lowered_mod, LoweredTIRModule)
     # check building
     mod = tvm.build(ir_mod, target="llvm")
@@ -123,8 +130,9 @@ def test_lower_build_tir_module():
 
 
 def test_lower_build_lowered_module():
-    # check lowering
-    ir_mod = tvm.lower(LoweredTIRModule)
+    # check lowering with the CSE pass disabled as otherwise it would do some commoning
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
+        ir_mod = tvm.lower(LoweredTIRModule)
     tvm.ir.assert_structural_equal(ir_mod, LoweredTIRModule)
     # check building
     mod = tvm.build(ir_mod, target="llvm")

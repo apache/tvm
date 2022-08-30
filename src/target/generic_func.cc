@@ -31,6 +31,8 @@
 #include <mutex>
 #include <stack>
 
+#include "../runtime/object_internal.h"
+
 namespace tvm {
 
 TVM_REGISTER_NODE_TYPE(GenericFuncNode);
@@ -118,6 +120,20 @@ void GenericFunc::CallPacked(TVMArgs args, TVMRetValue* ret) const {
   func.CallPacked(args, ret);
 }
 
+PackedFunc GenericFunc::GetPacked() const {
+  auto node = static_cast<const GenericFuncNode*>(get());
+  auto target = Target::Current(true);
+  if (target.defined()) {
+    for (auto& k : target->GetKeys()) {
+      auto iter = node->dispatch_dict_.find(k);
+      if (iter != node->dispatch_dict_.end()) {
+        return iter->second;
+      }
+    }
+  }
+  return node->generic_func_;
+}
+
 TVM_REGISTER_GLOBAL("target.GenericFuncCreate").set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = GenericFunc(make_object<GenericFuncNode>());
 });
@@ -129,26 +145,26 @@ TVM_REGISTER_GLOBAL("target.GenericFuncGetGlobal").set_body([](TVMArgs args, TVM
 
 TVM_REGISTER_GLOBAL("target.GenericFuncSetDefault").set_body([](TVMArgs args, TVMRetValue* ret) {
   GenericFunc generic_func = args[0];
-  // Intentionally copy and not de-allocate it, to avoid free pyobject during shutdown
-  PackedFunc* func = new PackedFunc(args[1].operator PackedFunc());
+  PackedFunc func = args[1];
   bool allow_override = args[2];
-
-  generic_func.set_default(*func, allow_override);
+  // Intentionally copy and not de-allocate it, to avoid free pyobject during shutdown
+  runtime::ObjectInternal::ObjectRetain((TVMObjectHandle)(func.get()));
+  generic_func.set_default(func, allow_override);
 });
 
 TVM_REGISTER_GLOBAL("target.GenericFuncRegisterFunc").set_body([](TVMArgs args, TVMRetValue* ret) {
   GenericFunc generic_func = args[0];
-  // Intentionally copy and not de-allocate it, to avoid free pyobject during shutdown
-  PackedFunc* func = new PackedFunc(args[1].operator PackedFunc());
+  PackedFunc func = args[1];
   Array<runtime::String> tags = args[2];
   bool allow_override = args[3];
-
+  // Intentionally copy and not de-allocate it, to avoid free pyobject during shutdown
+  runtime::ObjectInternal::ObjectRetain((TVMObjectHandle)(func.get()));
   std::vector<std::string> tags_vector;
   for (auto& tag : tags) {
     tags_vector.push_back(tag);
   }
 
-  generic_func.register_func(tags_vector, *func, allow_override);
+  generic_func.register_func(tags_vector, func, allow_override);
 });
 
 TVM_REGISTER_GLOBAL("target.GenericFuncCallFunc").set_body([](TVMArgs args, TVMRetValue* ret) {
@@ -156,6 +172,11 @@ TVM_REGISTER_GLOBAL("target.GenericFuncCallFunc").set_body([](TVMArgs args, TVMR
   TVMArgs func_args(&args.values[1], &args.type_codes[1], args.num_args - 1);
 
   generic_func.CallPacked(func_args, ret);
+});
+
+TVM_REGISTER_GLOBAL("target.GenericFuncGetPackedFunc").set_body([](TVMArgs args, TVMRetValue* ret) {
+  GenericFunc generic_func = args[0];
+  *ret = generic_func.GetPacked();
 });
 
 }  // namespace tvm

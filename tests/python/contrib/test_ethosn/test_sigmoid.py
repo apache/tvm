@@ -15,13 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Ethos-N integration sigmoid tests"""
+"""Arm(R) Ethos(TM)-N integration sigmoid tests"""
 
+import pytest
+import numpy as np
 import tvm
 from tvm import relay
 from tvm.testing import requires_ethosn
 from . import infrastructure as tei
-import numpy as np
 
 
 def _get_model(shape, input_zp, input_sc, output_zp, output_sc, dtype):
@@ -42,7 +43,8 @@ def _get_model(shape, input_zp, input_sc, output_zp, output_sc, dtype):
 
 
 @requires_ethosn
-def test_sigmoid():
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+def test_sigmoid(dtype):
     trials = [
         (1, 16, 16, 16),
         (1, 8, 8),
@@ -51,38 +53,42 @@ def test_sigmoid():
     np.random.seed(0)
     for shape in trials:
         inputs = {
-            "a": tvm.nd.array(np.random.randint(0, high=255, size=shape, dtype="uint8")),
+            "a": tvm.nd.array(
+                np.random.randint(
+                    np.iinfo(dtype).min, np.iinfo(dtype).max + 1, size=shape, dtype=dtype
+                )
+            ),
         }
         outputs = []
         for npu in [False, True]:
-            model = _get_model(shape, 64, 0.02, 0, 1 / 256, "uint8")
-            mod = tei.make_module(model, [])
-            outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
+            for d in range(1, 2):
+                if dtype == "uint8":
+                    input_zp = 0
+                    output_zp = 0
+                else:
+                    input_zp = 127
+                    output_zp = -128
+                model = _get_model(shape, input_zp, 0.02, output_zp, 1.0 / 256.0, dtype)
+                mod = tei.make_module(model, [])
+                outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
 
-        tei.verify(outputs, 1)
+        tei.verify(outputs, dtype, 1)
 
 
 @requires_ethosn
-def test_sigmoid_failure():
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+def test_sigmoid_failure(dtype):
+    test_zp = 0 if dtype == "uint8" else -128
     trials = [
-        ((2, 4, 4, 4), 64, 0.2, 0, 1 / 256, "uint8", "batch size=2, batch size must = 1"),
+        ((2, 4, 4, 4), 64, 0.2, test_zp, 1 / 256, dtype, "batch size=2, batch size must = 1"),
         (
             (1, 4, 4, 4),
             64,
             0.2,
-            0,
-            1 / 256,
-            "int8",
-            "dtype='int8', dtype must be either uint8 or int32",
-        ),
-        (
-            (1, 4, 4, 4),
-            64,
-            0.2,
-            0,
+            3,
             1,
-            "uint8",
-            "output quantization params=(0, 1), must = (0, 1/256)",
+            dtype,
+            f"output quantization params=(3, 1), must = ({test_zp}, 1/256)",
         ),
     ]
 

@@ -15,14 +15,30 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import platform
 import pytest
+import builtins
+import importlib
 
 import tvm
+from unittest import mock
 from tvm.ir.module import IRModule
 
 from tvm.driver import tvmc
-from tvm.driver.tvmc.common import TVMCException
+from tvm.driver.tvmc import TVMCException, TVMCImportError
 from tvm.driver.tvmc.model import TVMCModel
+
+
+orig_import = importlib.import_module
+
+
+def mock_error_on_name(name):
+    def mock_imports(module_name, package=None):
+        if module_name == name:
+            raise ImportError()
+        return orig_import(module_name, package)
+
+    return mock_imports
 
 
 def test_get_frontends_contains_only_strings():
@@ -59,6 +75,10 @@ def test_guess_frontend_onnx():
     assert type(sut) is tvmc.frontends.OnnxFrontend
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+)
 def test_guess_frontend_pytorch():
     # some CI environments wont offer pytorch, so skip in case it is not present
     pytest.importorskip("torch")
@@ -89,6 +109,12 @@ def test_guess_frontend_paddle():
 
     sut = tvmc.frontends.guess_frontend("a_model.pdmodel")
     assert type(sut) is tvmc.frontends.PaddleFrontend
+
+
+def test_guess_frontend_relay():
+
+    sut = tvmc.frontends.guess_frontend("relay.relay")
+    assert type(sut) is tvmc.frontends.RelayFrontend
 
 
 def test_guess_frontend_invalid():
@@ -148,7 +174,7 @@ def verify_load_model__onnx(model, **kwargs):
 def test_load_model__onnx(onnx_resnet50):
     # some CI environments wont offer onnx, so skip in case it is not present
     pytest.importorskip("onnx")
-    tvmc_model = verify_load_model__onnx(onnx_resnet50)
+    tvmc_model = verify_load_model__onnx(onnx_resnet50, freeze_params=False)
     # check whether one known value is part of the params dict
     assert "resnetv24_batchnorm0_gamma" in tvmc_model.params.keys()
     tvmc_model = verify_load_model__onnx(onnx_resnet50, freeze_params=True)
@@ -173,6 +199,13 @@ def test_load_model__paddle(paddle_resnet50):
     pytest.importorskip("paddle")
 
     tvmc_model = tvmc.load(paddle_resnet50, model_format="paddle")
+    assert type(tvmc_model) is TVMCModel
+    assert type(tvmc_model.mod) is IRModule
+    assert type(tvmc_model.params) is dict
+
+
+def test_load_model__relay(relay_text_conv2d):
+    tvmc_model = tvmc.load(relay_text_conv2d, model_format="relay")
     assert type(tvmc_model) is TVMCModel
     assert type(tvmc_model.mod) is IRModule
     assert type(tvmc_model.params) is dict
@@ -217,6 +250,10 @@ def test_load_model__pth(pytorch_resnet18):
     assert "layer1.0.conv1.weight" in tvmc_model.params.keys()
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+)
 def test_load_quantized_model__pth(pytorch_mobilenetv2_quantized):
     # some CI environments wont offer torch, so skip in case it is not present
     pytest.importorskip("torch")
@@ -252,7 +289,7 @@ def test_compile_tflite_module_nhwc_to_nchw(tflite_mobilenet_v1_1_quant):
     before = tvmc_model.mod
 
     expected_layout = "NCHW"
-    after = tvmc.common.convert_graph_layout(before, expected_layout)
+    after = tvmc.transform.convert_graph_layout(before, expected_layout)
 
     layout_transform_calls = []
 
@@ -277,7 +314,7 @@ def test_compile_onnx_module_nchw_to_nhwc(onnx_resnet50):
     before = tvmc_model.mod
 
     expected_layout = "NHWC"
-    after = tvmc.common.convert_graph_layout(before, expected_layout)
+    after = tvmc.transform.convert_graph_layout(before, expected_layout)
 
     layout_transform_calls = []
 
@@ -302,7 +339,7 @@ def test_compile_paddle_module_nchw_to_nhwc(paddle_resnet50):
     before = tvmc_model.mod
 
     expected_layout = "NHWC"
-    after = tvmc.common.convert_graph_layout(before, expected_layout)
+    after = tvmc.transform.convert_graph_layout(before, expected_layout)
 
     layout_transform_calls = []
 
@@ -327,7 +364,7 @@ def test_compile_tflite_module__same_layout__nhwc_to_nhwc(tflite_mobilenet_v1_1_
     before = tvmc_model.mod
 
     expected_layout = "NHWC"
-    after = tvmc.common.convert_graph_layout(before, expected_layout)
+    after = tvmc.transform.convert_graph_layout(before, expected_layout)
 
     layout_transform_calls = []
 
@@ -352,7 +389,7 @@ def test_compile_onnx_module__same_layout__nchw_to_nchw(onnx_resnet50):
     before = tvmc_model.mod
 
     expected_layout = "NCHW"
-    after = tvmc.common.convert_graph_layout(before, expected_layout)
+    after = tvmc.transform.convert_graph_layout(before, expected_layout)
 
     layout_transform_calls = []
 
@@ -367,3 +404,39 @@ def test_compile_onnx_module__same_layout__nchw_to_nchw(onnx_resnet50):
     tvm.relay.analysis.post_order_visit(after["main"], _is_layout_transform)
 
     assert not any(layout_transform_calls), "Unexpected 'layout_transform' call"
+
+
+def test_import_keras_friendly_message(keras_resnet50, monkeypatch):
+    # keras is part of tensorflow
+    monkeypatch.setattr("importlib.import_module", mock_error_on_name("tensorflow"))
+
+    with pytest.raises(TVMCImportError, match="tensorflow") as e:
+        _ = tvmc.frontends.load_model(keras_resnet50, model_format="keras")
+
+
+def test_import_onnx_friendly_message(onnx_resnet50, monkeypatch):
+    monkeypatch.setattr("importlib.import_module", mock_error_on_name("onnx"))
+
+    with pytest.raises(TVMCImportError, match="onnx") as e:
+        _ = tvmc.frontends.load_model(onnx_resnet50, model_format="onnx")
+
+
+def test_import_tensorflow_friendly_message(pb_mobilenet_v1_1_quant, monkeypatch):
+    monkeypatch.setattr("importlib.import_module", mock_error_on_name("tensorflow"))
+
+    with pytest.raises(TVMCImportError, match="tensorflow") as e:
+        _ = tvmc.frontends.load_model(pb_mobilenet_v1_1_quant, model_format="pb")
+
+
+def test_import_torch_friendly_message(pytorch_resnet18, monkeypatch):
+    monkeypatch.setattr("importlib.import_module", mock_error_on_name("torch"))
+
+    with pytest.raises(TVMCImportError, match="torch") as e:
+        _ = tvmc.frontends.load_model(pytorch_resnet18, model_format="pytorch")
+
+
+def test_import_tflite_friendly_message(tflite_mobilenet_v1_1_quant, monkeypatch):
+    monkeypatch.setattr("importlib.import_module", mock_error_on_name("tflite.Model"))
+
+    with pytest.raises(TVMCImportError, match="tflite.Model") as e:
+        _ = tvmc.frontends.load_model(tflite_mobilenet_v1_1_quant, model_format="tflite")

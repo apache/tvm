@@ -321,38 +321,43 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 // Syntatic Sugar
-DFPattern DFPattern::operator()(const std::vector<DFPattern>& args) {
+DFPattern DFPattern::operator()(const std::vector<DFPattern>& args) const {
   return CallPattern(GetRef<DFPattern>(this->get()), Array<DFPattern>(args));
 }
-DFPattern DFPattern::operator+(const DFPattern& other) {
+DFPattern DFPattern::operator+(const DFPattern& other) const {
   return IsOp("add")({GetRef<DFPattern>(this->get()), other});
 }
-DFPattern DFPattern::operator-(const DFPattern& other) {
+DFPattern DFPattern::operator-(const DFPattern& other) const {
   return IsOp("subtract")({GetRef<DFPattern>(this->get()), other});
 }
-DFPattern DFPattern::operator*(const DFPattern& other) {
+DFPattern DFPattern::operator*(const DFPattern& other) const {
   return IsOp("multiply")({GetRef<DFPattern>(this->get()), other});
 }
-DFPattern DFPattern::operator/(const DFPattern& other) {
+DFPattern DFPattern::operator/(const DFPattern& other) const {
   return IsOp("divide")({GetRef<DFPattern>(this->get()), other});
 }
-DFPattern DFPattern::operator||(const DFPattern& other) {
+DFPattern DFPattern::operator||(const DFPattern& other) const {
   return AltPattern(GetRef<DFPattern>(this->get()), other);
 }
 
-DFPattern DFPattern::HasAttr(const Map<String, ObjectRef>& attrs) {
+DFPattern DFPattern::Optional(const std::function<DFPattern(const DFPattern&)>& func) const {
+  DFPattern current = GetRef<DFPattern>(this->get());
+  return current || func(current);
+}
+
+DFPattern DFPattern::HasAttr(const Map<String, ObjectRef>& attrs) const {
   return AttrPattern(GetRef<DFPattern>(this->get()), DictAttrs(attrs));
 }
-DFPattern DFPattern::HasType(const Type& type) {
+DFPattern DFPattern::HasType(const Type& type) const {
   return TypePattern(GetRef<DFPattern>(this->get()), type);
 }
-DFPattern DFPattern::HasDtype(const DataType& dtype) {
+DFPattern DFPattern::HasDtype(const DataType& dtype) const {
   return DataTypePattern(GetRef<DFPattern>(this->get()), dtype);
 }
-DFPattern DFPattern::HasDtype(const std::string& dtype) {
+DFPattern DFPattern::HasDtype(const std::string& dtype) const {
   return HasDtype(DataType(runtime::String2DLDataType(dtype)));
 }
-DFPattern DFPattern::HasShape(const Array<PrimExpr> shape) {
+DFPattern DFPattern::HasShape(const Array<PrimExpr> shape) const {
   return ShapePattern(GetRef<DFPattern>(this->get()), shape);
 }
 DFPattern IsVar(const String& name) { return VarPattern(name); }

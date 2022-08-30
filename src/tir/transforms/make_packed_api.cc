@@ -40,6 +40,8 @@
 namespace tvm {
 namespace tir {
 
+static constexpr const char* kDeviceContextVar = "device_api_context";
+
 class ReturnRewriter : public StmtMutator {
  public:
   explicit ReturnRewriter(Var ret_var, Var ret_tcode) : ret_var_(ret_var), ret_tcode_(ret_tcode) {}
@@ -59,34 +61,63 @@ class ReturnRewriter : public StmtMutator {
       if (call->op.same_as(builtin::ret())) {
         ICHECK_EQ(in_parallel_, 0) << "tir.ret cannot be used in parallel scope.";
         ICHECK_EQ(call->args.size(), 1) << "tir.ret expect a single argument.";
-        ret = WriteToOut(call->args[0], ret_var_, ret_tcode_);
+        ret = WriteToOut(call->args[0]);
       }
     }
     return ret;
   }
 
  private:
-  std::pair<int, PrimExpr> ConvertForFFI(PrimExpr val) {
+  struct ConvertedInfo {
+    int tcode{-1};
+    PrimExpr expr;
+    Buffer dummy_val_buffer;
+    Buffer dummy_tcode_buffer;
+  };
+
+  ConvertedInfo ConvertForFFI(PrimExpr val) {
+    ConvertedInfo info;
+
     // convert val's data type to FFI data type, return type code
     DataType dtype = val.dtype();
     if (dtype.is_int() || dtype.is_uint()) {
-      return {kTVMArgInt, Cast(DataType::Int(64), val)};
+      info.tcode = kTVMArgInt;
+      info.expr = Cast(DataType::Int(64), val);
     } else if (dtype.is_float()) {
-      return {kTVMArgFloat, Cast(DataType::Float(64), val)};
+      info.tcode = kTVMArgFloat;
+      info.expr = Cast(DataType::Float(64), val);
     } else if (dtype.is_void()) {
-      return {kTVMNullptr, val};
+      info.tcode = kTVMNullptr;
+      info.expr = val;
     } else {
       LOG(FATAL) << "data type " << dtype << " not supported yet";
     }
-    return {kTVMNullptr, val};
+
+    // If multiple return locations have the same data type, use the
+    // same dummy buffer declaration.
+    auto it = dummy_val_buffer_map_.find(info.tcode);
+    if (it != dummy_val_buffer_map_.end()) {
+      info.dummy_val_buffer = it->second;
+    } else {
+      info.dummy_val_buffer = Buffer(ret_var_, info.expr.dtype(), {1}, {1}, ConstInt32(0),
+                                     ret_var_->name_hint, 0, 0, kDefault);
+      dummy_val_buffer_map_[info.tcode] = info.dummy_val_buffer;
+    }
+
+    // The tcode is always a 32-bit int, so we don't need to have a separate map.
+    if (!dummy_tcode_buffer_.defined()) {
+      dummy_tcode_buffer_ = Buffer(ret_tcode_, DataType::Int(32), {1}, {1}, ConstInt32(0),
+                                   ret_tcode_->name_hint, 0, 0, kDefault);
+    }
+    info.dummy_tcode_buffer = dummy_tcode_buffer_;
+
+    return info;
   }
 
-  Stmt WriteToOut(PrimExpr val, Var ret_var, Var ret_tcode) {
-    auto p = ConvertForFFI(val);
-    int tcode = p.first;
-    val = p.second;
-    Stmt store_val = Store(ret_var_, val, 0, const_true());
-    Stmt store_tcode = Store(ret_tcode_, tcode, 0, const_true());
+  Stmt WriteToOut(PrimExpr val) {
+    auto info = ConvertForFFI(val);
+    Stmt store_val = BufferStore(info.dummy_val_buffer, info.expr, {0});
+    Stmt store_tcode = BufferStore(info.dummy_tcode_buffer, info.tcode, {0});
     Stmt ret_zero = Evaluate(tvm::ret(0));
     return SeqStmt({store_val, store_tcode, ret_zero});
   }
@@ -94,6 +125,9 @@ class ReturnRewriter : public StmtMutator {
   Var ret_var_;
   Var ret_tcode_;
   int in_parallel_{0};
+
+  std::unordered_map<int, Buffer> dummy_val_buffer_map_;
+  Buffer dummy_tcode_buffer_;
 };
 
 Stmt RewriteReturn(Stmt body, Var ret_var, Var ret_tcode) {
@@ -129,10 +163,11 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
   // Data field definitions
   // The packed fields
   Var v_packed_args("args", DataType::Handle());
-  Var v_packed_arg_type_ids("arg_type_ids", DataType::Handle());
+  Buffer buf_packed_arg_type_ids = decl_buffer({IntImm(DataType::Int(32), func_ptr->params.size())},
+                                               DataType::Int(32), "arg_type_ids");
   Var v_num_packed_args("num_args", DataType::Int(32));
-  Var v_out_ret_value("out_ret_value", DataType::Handle());
-  Var v_out_ret_tcode("out_ret_tcode", DataType::Handle());
+  Var v_out_ret_value("out_ret_value", PointerType(PrimType(DataType::Void())));
+  Var v_out_ret_tcode("out_ret_tcode", PointerType(PrimType(DataType::Int(32))));
   Var v_resource_handle("resource_handle", DataType::Handle());
   // The arguments of the function.
   Array<Var> args;
@@ -161,40 +196,49 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
   };
   // ---------------------------
   // start of logics
-  // add signiture for packed arguments.
+  // add signature for packed arguments.
   if (pack_args) {
     args.push_back(v_packed_args);
-    args.push_back(v_packed_arg_type_ids);
+    args.push_back(buf_packed_arg_type_ids->data);
     args.push_back(v_num_packed_args);
-    std::ostringstream os;
-
-    os << name_hint << ": num_args should be " << num_packed_args;
-    seq_init.emplace_back(MakeAssertEQ(v_num_packed_args, num_packed_args, os.str()));
   }
 
   // Need to re-declare vars, in case some arguments also appears in the buffer.
-  std::vector<std::pair<Var, Var> > var_def;
-  std::vector<std::pair<Var, Buffer> > buffer_def;
+  std::vector<std::pair<Var, Var>> var_def;
+  std::vector<std::pair<Var, Buffer>> buffer_def;
 
   for (int i = 0; i < static_cast<int>(func_ptr->params.size()); ++i) {
     Var param = func_ptr->params[i];
-    Var v_arg = Var("arg" + std::to_string(i), param->dtype);
+    std::string param_name;
+    if (param->name_hint.defined() && (!param->name_hint.empty())) {
+      param_name = "arg." + param->name_hint;
+    } else {
+      param_name = "arg" + std::to_string(i);
+    }
+    Var v_arg = Var(param_name, param->dtype);
 
-    auto it = func_ptr->buffer_map.find(param);
-    if (it != func_ptr->buffer_map.end()) {
-      buffer_def.emplace_back(v_arg, (*it).second);
+    // Pluck the device API context out based on name
+    if (param->name_hint == kDeviceContextVar) {
+      num_packed_args--;
+      v_resource_handle = param;
+      continue;
+    }
+
+    if (func_ptr->preflattened_buffer_map.count(param)) {
+      buffer_def.emplace_back(v_arg, func_ptr->preflattened_buffer_map[param]);
+    } else if (func_ptr->buffer_map.count(param)) {
+      buffer_def.emplace_back(v_arg, func_ptr->buffer_map[param]);
     } else {
       var_def.emplace_back(v_arg, param);
     }
+
     if (i < num_packed_args) {
       // Value loads
       seq_init.emplace_back(LetStmt(v_arg, f_arg_value(v_arg.dtype(), i), nop));
       // type code checks
       Var tcode(v_arg->name_hint + ".code", DataType::Int(32));
-      seq_init.emplace_back(LetStmt(tcode,
-                                    Load(DataType::Int(32), v_packed_arg_type_ids,
-                                         IntImm(DataType::Int(32), i), const_true(1)),
-                                    nop));
+      seq_init.emplace_back(
+          LetStmt(tcode, BufferLoad(buf_packed_arg_type_ids, {IntImm(DataType::Int(32), i)}), nop));
       DataType t = v_arg.dtype();
       if (t.is_handle()) {
         std::ostringstream msg;
@@ -262,7 +306,17 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
       body = SeqStmt({set_device, body});
     }
   }
-  func_ptr->body = MergeNest({seq_init, binder.init_nest(), seq_check, binder.asserts()}, body);
+
+  if (pack_args) {
+    std::ostringstream num_args_error;
+    num_args_error << name_hint << ": num_args should be " << num_packed_args;
+    std::vector<Stmt> arg_assert = {
+        MakeAssertEQ(v_num_packed_args, num_packed_args, num_args_error.str())};
+    func_ptr->body =
+        MergeNest({arg_assert, seq_init, binder.init_nest(), seq_check, binder.asserts()}, body);
+  } else {
+    func_ptr->body = MergeNest({seq_init, binder.init_nest(), seq_check, binder.asserts()}, body);
+  }
   func_ptr->params = args;
 
   Array<Var> undefined = UndefinedVars(func_ptr->body, func_ptr->params);
@@ -289,7 +343,7 @@ Pass MakePackedAPI(int num_unpacked_args) {
   // packed arguments anyway while `num_unpacked_args` is -1
   auto pass_func = [num_unpacked_args](IRModule m, PassContext ctx) {
     IRModuleNode* mptr = m.CopyOnWrite();
-    std::vector<std::pair<GlobalVar, PrimFunc> > updates;
+    std::vector<std::pair<GlobalVar, PrimFunc>> updates;
 
     for (const auto& kv : mptr->functions) {
       if (auto* n = kv.second.as<PrimFuncNode>()) {

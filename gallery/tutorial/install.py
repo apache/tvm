@@ -28,8 +28,14 @@ methods for installing TVM. These include:
 * Installing from third-party binary package.
 """
 
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
+
 ################################################################################
-# Installing from Source
+# Installing From Source
 # ----------------------
 # Installing from source is the recommended method for installing TVM. It will
 # allow you to enable specific features such as GPU support, microcontroller
@@ -41,10 +47,10 @@ methods for installing TVM. These include:
 ################################################################################
 # Installing From Binary Packages
 # --------------------------------
-# You may install convenient third-party binary package distributions to
-# quickly try things out. TLCPack is a thirdparty volunteer community that
-# builds binary packages from TVM source. It offers support matrix with
+# You may install convenient third party binary package distributions to
+# quickly try things out. TLCPack is a third party volunteer community that
+# builds binary packages from TVM source. It offers a support matrix with
 # instructions to install on different platforms, with different features.
-# Checkout  `TLCPack <https://tlcpack.ai>`_ to learn more. Note that the
-# thirdparty binary packages could contain additional licensing terms for
+# Check out  `TLCPack <https://tlcpack.ai>`_ to learn more. Note that the
+# third party binary packages could contain additional licensing terms for
 # the hardware drivers that are bundled with it.

@@ -54,7 +54,7 @@ struct VMFunction;
  *  used by the virtual machine.
  *  - Code section, handling the VM functions and bytecode.
  */
-class Executable : public ModuleNode {
+class TVM_DLL Executable : public ModuleNode {
  public:
   /*!
    * \brief Get a PackedFunc from an executable module.
@@ -68,12 +68,20 @@ class Executable : public ModuleNode {
 
   /*!
    * \brief Write the Executable to the binary stream in serialized form.
+   *
+   * Late-bound constants (if any) must have already been saved by \p
+   * MoveLateBoundConstantsToBinary.
+   *
    * \param stream The binary stream to save the executable to.
    */
   void SaveToBinary(dmlc::Stream* stream) final;
 
   /*!
-   * \brief Write the Executable to the provided path as a file contianing its serialized content.
+   * \brief Write the Executable to the provided path as a file containing its serialized content.
+   *
+   * Late-bound constants (if any) must have already been saved by \p
+   * MoveLateBoundConstantsToBinary.
+   *
    * \param path The path to write the serialized data to.
    * \param format The format of the serialized blob.
    */
@@ -81,7 +89,10 @@ class Executable : public ModuleNode {
 
   /*!
    * \brief Serialize the executable into global section, constant section, and
-   * code section.
+   * code section. This object must outlive the returned byte array.
+   *
+   * Late-bound constants (if any) must have already been saved by \p
+   * MoveLateBoundConstantsToBinary.
    *
    * \return The binary representation of the VM.
    */
@@ -90,12 +101,43 @@ class Executable : public ModuleNode {
   /*!
    * \brief Load the saved VM executable.
    *
+   * Late-bound constants (if any) must then be loaded by \p LoadLateBoundConstantsFromBinary.
+   *
    * \param code The bytecode in string.
    * \param lib The compiled runtime library.
    *
    * \return exe The constructed executable.
    */
   static runtime::Module Load(const std::string& code, const runtime::Module lib);
+
+  /*!
+   * \brief Returns the late-bound constants for the executable (if any) as a byte-stream.
+   * Leaves the executable's late-bound constants map empty. Only constants who's byte
+   * tensor size is greater than or equal to \p byte_limit are marked as late-bound. \p byte_limit
+   * may be zero.
+   *
+   * Must be called before \p SaveToBinary and friends if late-bound constants are
+   * desired. Otherwise can be ignore.
+   */
+  void MoveLateBoundConstantsToStream(dmlc::Stream* stream, size_t byte_limit);
+
+  /*!
+   * \brief As for \p MoveLateBoundConstantsToStream, but save to file at \p path.
+   */
+  void MoveLateBoundConstantsToFile(const std::string& path, size_t byte_limit);
+
+  /*!
+   * \brief Restores the late-bound constants for the executable (if any) from given byte-stream.
+   *
+   * Must be called after \p Load but before any other methods if \p MoveLateBoundConstantsToBinary
+   * was used when saving. Otherwise can be ignored.
+   */
+  void LoadLateBoundConstantsFromStream(dmlc::Stream* stream);
+
+  /*!
+   * \brief As for \p LoadLateBoundConstantsFromStream, but load from file at \p path.
+   */
+  void LoadLateBoundConstantsFromFile(const std::string& path);
 
   /*!
    * \brief Get the serialized form of the `functions`. This is
@@ -125,18 +167,30 @@ class Executable : public ModuleNode {
    * example, `DLDataType` will be unpacked into three fields (code, bits, lanes).
    *   4. The rest of the line indicates the field with variable length, e.g.,
    * the shape of a tensor, the args used by an `InvokPacked` instruction, etc.
-
+   *
    * The field starting from # is only used for debugging. The serialized code
    * doesn't contain it, therefore the deserializer doens't need to handle it.
    */
   std::string GetBytecode() const;
 
   /*!
-   * \brief Returns a description of all the contants in the executable in human-readable
-   * format. Not intended to be machine readable, but rather to help with debugging and
-   * diffing generated code.
+   * \brief Returns a description of all the constants in the executable in human-readable
+   * format. Intended for debugging and diff-testing.
    */
   std::string GetConstants() const;
+
+  /*!
+   * \brief Returns a description of all the (virtual) devices in the executable in human-readable
+   * format. Intended for debugging and diff-testing.
+   */
+  std::string GetVirtualDevices() const;
+
+  /*!
+   * \brief Returns a description of all the 'primitive' (ie PackedFuncs) in the executable in
+   * human-readable format. These correspond either to PrimFuncs we've compiled locally, or
+   * functions compiled by a BYOC external codegen. Intended for debugging and diff-testing.
+   */
+  std::string GetPrimitives() const;
 
   /*!
    * \brief Print the detailed statistics of the given code, i.e. number of
@@ -165,6 +219,13 @@ class Executable : public ModuleNode {
   void SetLib(const runtime::Module& lib);
 
   /*!
+   * \brief Get VMFunction.
+   * \param func_name The function's name.
+   * \return VMFunction.
+   */
+  const VMFunction& GetVMFunctionWithName(const std::string& func_name) const;
+
+  /*!
    * \brief Get the arity of the VMFunction.
    * \param func Function name.
    * \return The number of parameters.
@@ -183,11 +244,32 @@ class Executable : public ModuleNode {
 
   const char* type_key() const final { return "VMExecutable"; }
 
-  /*! \brief The global constant pool. */
+  /*!
+   * \brief The (compile-time, virtual) devices corresponding to each device index.
+   * Currently we only support at most one device per device type.
+   */
+  std::vector<Device> virtual_devices;
+  /*!
+   * \brief The device index corresponding to the 'host' device. That will hold and evaluate
+   * shape-related data and code.
+   */
+  int host_device_index = -1;
+  /*!
+   * \brief The global constant array.
+   *
+   * LoadConst instructions indexes are w.r.t. this vector. Late-bound constants are removed
+   * from this table after saving late-bound constants.
+   */
   std::vector<ObjectRef> constants;
-  /*! \brief A map from globals (as strings) to their index in the function map. */
+  /*!
+   * \brief For each constant index the name of the late-bound constant, or null if constant is
+   * immediate. Only populated after loading executable but before loading late-bound constants.
+   */
+  std::vector<String> late_bound_constant_names;
+
+  /*! \brief A map from globals (as strings) to their index in the Relay function map. */
   std::unordered_map<std::string, Index> global_map;
-  /*! \brief A mapping from the packed function (as string) to the index that
+  /*! \brief A mapping from the packed function's global name (as string) to the index that
    * corresponds to the position of the `packed_funcs` list in a `VirtualMachine` object.
    */
   std::unordered_map<std::string, Index> primitive_map;
@@ -195,37 +277,58 @@ class Executable : public ModuleNode {
   std::map<Index, Map<String, ObjectRef>> op_attrs;
   /*! \brief The virtual machine's function table. */
   std::vector<VMFunction> functions;
-  /*! \brief The device type for each constant. */
-  std::vector<Index> const_device_type;
+  /*! \brief The index of the device holding each constant. */
+  std::vector<Index> const_device_indexes;
 
  private:
   /*!
+   * \brief Save the virtual devices
+   *
+   * /param strm The output stream.
+   */
+  void SaveVirtualDevicesSection(dmlc::Stream* strm);
+
+  /*!
    * \brief Save the globals.
    *
-   * \param strm The input stream.
+   * \param strm The output stream.
    */
   void SaveGlobalSection(dmlc::Stream* strm);
 
   /*!
    * \brief Save the constant pool.
    *
-   * \param strm The input stream.
+   * \param stream The output stream.
    */
-  void SaveConstantSection(dmlc::Stream* strm);
+  void SaveConstantSection(dmlc::Stream* stream);
+
+  /*!
+   * \brief Load the constant pool.
+   *
+   * \param stream The input stream.
+   */
+  void LoadConstantSection(dmlc::Stream* stream);
 
   /*!
    * \brief Save primitive op names.
    *
-   *  \param strm The input stream.
+   *  \param strm The output stream.
    */
   void SavePrimitiveOpNames(dmlc::Stream* strm);
 
   /*!
    * \brief Save the vm functions.
    *
-   * \param strm The input stream.
+   * \param strm The output stream.
    */
   void SaveCodeSection(dmlc::Stream* strm);
+
+  /*!
+   * \brief Load the virtual devices
+   *
+   * /param strm The input stream.
+   */
+  void LoadVirtualDevicesSection(dmlc::Stream* strm);
 
   /*!
    * \brief Load the globals.
@@ -233,13 +336,6 @@ class Executable : public ModuleNode {
    * \param strm The input stream.
    */
   void LoadGlobalSection(dmlc::Stream* strm);
-
-  /*!
-   * \brief Load the constant pool.
-   *
-   * \param strm The input stream.
-   */
-  void LoadConstantSection(dmlc::Stream* strm);
 
   /*!
    * \brief Load primitive op names.

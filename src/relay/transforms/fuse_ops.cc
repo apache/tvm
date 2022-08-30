@@ -25,6 +25,7 @@
  *   Fuse necessary ops into a single one.
  */
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/executor.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/transform.h>
@@ -85,6 +86,7 @@ constexpr uint32_t kMaxFusedOps = 256;
 static const Op& stop_fusion_op = Op::Get("annotation.stop_fusion");
 
 TVM_REGISTER_PASS_CONFIG_OPTION("relay.FuseOps.max_depth", Integer);
+TVM_REGISTER_PASS_CONFIG_OPTION("relay.FuseOps.link_params", Bool);
 
 /*!
  * \brief Indexed data flow graph in forward direction.
@@ -178,7 +180,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
       graph_.node_map[key] = current;
     }
     if (parent != nullptr) {
-      auto* link = arena_->make<LinkNode<IndexedForwardGraph::Edge> >();
+      auto* link = arena_->make<LinkNode<IndexedForwardGraph::Edge>>();
       link->value.node = parent;
       link->value.pattern = pattern;
       current->outputs.Push(link);
@@ -809,8 +811,19 @@ std::vector<GraphPartitioner::Group*> GraphPartitioner::Partition(
 
 class FuseMutator : private MixedModeMutator {
  public:
+  FuseMutator(int fuse_opt_level, size_t max_fuse_depth, bool link_params)
+      : fuse_opt_level_(fuse_opt_level),
+        max_fuse_depth_(max_fuse_depth),
+        link_params_(link_params) {}
+
   // Run the transform
-  Expr Transform(const Expr& body, int fuse_opt_level, size_t max_fuse_depth) {
+  Expr Transform(const Expr& body) {
+    return Transform(body, fuse_opt_level_, max_fuse_depth_, link_params_);
+  }
+
+ protected:
+  // Run the transform
+  Expr Transform(const Expr& body, int fuse_opt_level, size_t max_fuse_depth, bool link_params) {
     // setup the group map.
     auto graph = IndexedForwardGraph::Create(&arena_, body);
     auto groups = GraphPartitioner(&arena_, fuse_opt_level, max_fuse_depth).Partition(graph);
@@ -824,6 +837,10 @@ class FuseMutator : private MixedModeMutator {
   }
 
  private:
+  int fuse_opt_level_;
+  size_t max_fuse_depth_;
+  bool link_params_;
+
   using MixedModeMutator::VisitExpr_;
 
   /*! \brief Temporary information from each group. */
@@ -898,14 +915,14 @@ class FuseMutator : private MixedModeMutator {
     }
   }
 
-  Expr Rewrite_(const TupleNode* tuple, const Expr& post) {
-    auto* ret_group = gmap_.at(tuple)->FindRoot();
-    if (ret_group->root_ref == tuple) {
-      return ExprMutator::VisitExpr_(tuple);
+  Expr Rewrite_(const TupleNode* tuple_node, const Expr& post) {
+    auto* ret_group = gmap_.at(tuple_node)->FindRoot();
+    if (ret_group->root_ref == tuple_node) {
+      return ExprMutator::VisitExpr_(tuple_node);
     }
     // This tuple is an intermediate node in the group
-    Array<Expr> new_fields = GetNewArguments(tuple->fields, ret_group);
-    return Tuple(new_fields);
+    Array<Expr> new_fields = GetNewArguments(tuple_node->fields, ret_group);
+    return WithFields(GetRef<Tuple>(tuple_node), new_fields);
   }
 
   Expr Rewrite_(const TupleGetItemNode* tuple_get, const Expr& post) {
@@ -979,6 +996,7 @@ class FuseMutator : private MixedModeMutator {
     const GroupInfo& ginfo = ginfo_[group];
     auto func = Function(ginfo.params, body, ret_type, {});
     func = WithAttr(std::move(func), attr::kPrimitive, tvm::Integer(visitor.has_call));
+    // TODO(mbs): "reshape" cleanup.
     if (visitor.has_call && visitor.reshape_only) {
       func = WithAttr(std::move(func), attr::kReshapeOnly, tvm::Integer(visitor.reshape_only));
     }
@@ -993,8 +1011,12 @@ class FuseMutator : private MixedModeMutator {
       auto type = arg->checked_type();
       Expr new_arg = this->Mutate(arg);
       if (current_group != arg_group) {
-        Var param = ginfo_[current_group].GetOrAllocParam(new_arg, type);
-        new_args.push_back(param);
+        if (!link_params_ || new_arg.as<ConstantNode>() == nullptr) {
+          Var param = ginfo_[current_group].GetOrAllocParam(new_arg, type);
+          new_args.push_back(param);
+        } else {
+          new_args.push_back(new_arg);
+        }
       } else {
         new_args.push_back(new_arg);
       }
@@ -1016,8 +1038,9 @@ class FuseMutator : private MixedModeMutator {
   }
 };
 
-Expr FuseOps(const Expr& expr, int fuse_opt_level, size_t max_fuse_depth, const IRModule& module) {
-  return FuseMutator().Transform(expr, fuse_opt_level, max_fuse_depth);
+Expr FuseOps(const Expr& expr, int fuse_opt_level, size_t max_fuse_depth, bool link_params,
+             const IRModule& module) {
+  return FuseMutator(fuse_opt_level, max_fuse_depth, link_params).Transform(expr);
 }
 
 namespace transform {
@@ -1025,9 +1048,17 @@ namespace transform {
 Pass FuseOps(int fuse_opt_level) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
+        bool link_params = false;
+        Executor executor =
+            m->GetAttr<Executor>(tvm::attr::kExecutor).value_or(NullValue<Executor>());
+        link_params = executor.defined()
+                          ? executor->attrs.GetAttr<Bool>("link-params").value_or(Bool(link_params))
+                          : link_params;
+        link_params = pc->GetConfig("relay.FuseOps.link_params", Bool(link_params)).value();
         int opt_level = fuse_opt_level == -1 ? pc->opt_level : fuse_opt_level;
         auto max_fuse_depth = pc->GetConfig("relay.FuseOps.max_depth", Integer(kMaxFusedOps));
-        return Downcast<Function>(FuseOps(f, opt_level, max_fuse_depth.value(), m));
+        return Downcast<Function>(
+            FuseOps(f, opt_level, max_fuse_depth.value().IntValue(), link_params, m));
       };
   return CreateFunctionPass(pass_func, 0, "FuseOps", {"InferType"});
 }

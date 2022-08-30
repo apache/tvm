@@ -17,15 +17,15 @@
 
 import argparse
 import pytest
-from tvm.driver import tvmc
+from tvm.driver.tvmc.pass_list import parse_pass_list_str
 
 
 def test_parse_pass_list_str():
-    assert [""] == tvmc.common.parse_pass_list_str("")
-    assert ["FoldScaleAxis", "FuseOps"] == tvmc.common.parse_pass_list_str("FoldScaleAxis,FuseOps")
+    assert [""] == parse_pass_list_str("")
+    assert ["FoldScaleAxis", "FuseOps"] == parse_pass_list_str("FoldScaleAxis,FuseOps")
 
     with pytest.raises(argparse.ArgumentTypeError) as ate:
-        tvmc.common.parse_pass_list_str("MyYobaPass,MySuperYobaPass,FuseOps")
+        parse_pass_list_str("MyYobaPass,MySuperYobaPass,FuseOps")
 
     assert "MyYobaPass" in str(ate.value)
     assert "MySuperYobaPass" in str(ate.value)

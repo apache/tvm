@@ -123,3 +123,28 @@ def conv2d_cudnn(
 def schedule_conv2d_cudnn(cfg, outs):
     """Create the schedule for conv2d_cudnn"""
     return generic.schedule_extern(outs)
+
+
+def conv2d_backward_weight_cudnn(
+    dy, x, kernel_size, padding, stride, dilation, groups, layout, output_dtype
+):
+    """Compute conv2d wgrad using CuDNN library"""
+    assert layout in ["NCHW", "NHWC"]
+
+    if dy.dtype == "float16":
+        # cuDNN does not seem to support other combination.
+        assert output_dtype == "float16", "Only supports fp16 output for cuDNN fp16 wgrad."
+
+    conv_dtype = "float32"  # Accumulation is always fp32
+    return cudnn.conv_backward_filter(
+        dy,
+        x,
+        kernel_size,
+        padding,
+        stride,
+        dilation,
+        conv_mode=1,
+        tensor_format=0 if layout == "NCHW" else 1,
+        conv_dtype=conv_dtype,
+        groups=groups,
+    )

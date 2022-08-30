@@ -1,4 +1,3 @@
-
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -33,7 +32,9 @@ runtime::Module TIRToRuntime(IRModule mod, Target target);
 }  // namespace relay
 
 TVM_REGISTER_TARGET_KIND("example_target_hook", kDLCPU)
-    .set_attr<FTVMRelayToTIR>("RelayToTIR", relay::contrib::example_target_hooks::RelayToTIR())
-    .set_attr<FTVMTIRToRuntime>("TIRToRuntime", relay::contrib::example_target_hooks::TIRToRuntime);
+    .set_attr<Bool>("use_device_api", Bool(true))
+    .set_attr<FTVMRelayToTIR>(attr::kRelayToTIR, relay::contrib::example_target_hooks::RelayToTIR())
+    .set_attr<FTVMTIRToRuntime>("TIRToRuntime", relay::contrib::example_target_hooks::TIRToRuntime)
+    .add_attr_option<Integer>("example_attribute", Integer(0));
 
 }  // namespace tvm

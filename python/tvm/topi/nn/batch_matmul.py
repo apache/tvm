@@ -17,8 +17,10 @@
 """Batch matrix multiplication"""
 # pylint: disable=invalid-name
 import logging
+
 import tvm
-from tvm import te, auto_scheduler
+from tvm import auto_scheduler, te
+
 from ..utils import get_const_tuple
 
 logger = logging.getLogger("topi")
@@ -32,6 +34,7 @@ def batch_matmul(
     transpose_a=False,
     transpose_b=True,
     auto_scheduler_rewritten_layout="",
+    meta_schedule_original_shape=None,
 ):
     """Compute batch matrix multiplication of `tensor_a` and `tensor_b`.
 
@@ -62,6 +65,9 @@ def batch_matmul(
     auto_scheduler_rewritten_layout: Optional[str] = ""
         The layout after auto-scheduler's layout rewrite pass.
 
+    meta_schedule_original_shape: Optional[List[PrimExpr]] = None
+        The original shape of the tensor
+
     Returns
     -------
     output : tvm.te.Tensor
@@ -78,6 +84,12 @@ def batch_matmul(
             auto_scheduler_rewritten_layout, ["b", "k", "j"]
         )
         auto_scheduler.remove_index_check(tensor_b)
+    elif meta_schedule_original_shape:
+        auto_scheduler.rewrite_tensor_shape(tensor_b, meta_schedule_original_shape)
+        if transpose_b:
+            YB, YJ, YK = get_const_tuple(tensor_b.shape)
+        else:
+            YB, YK, YJ = get_const_tuple(tensor_b.shape)
     else:
         assert len(tensor_b.shape) == 3, "tensor_b only support 3-dim"
         if transpose_b:

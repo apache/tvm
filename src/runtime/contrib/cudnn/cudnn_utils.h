@@ -28,6 +28,8 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 
+#include <string>
+
 #include "../../cuda/cuda_common.h"
 
 namespace tvm {
@@ -64,13 +66,17 @@ inline void GetCudnnStride(int nbdim, const int* dims, int* strides) {
 
 struct ConvEntry {
   cudnnConvolutionDescriptor_t conv_desc;
-  cudnnConvolutionMode_t mode;
-  cudnnFilterDescriptor_t filter_desc;
+  cudnnConvolutionMode_t mode{CUDNN_CROSS_CORRELATION};
   cudnnDataType_t data_type;
   cudnnTensorFormat_t tensor_format;
   cudnnTensorDescriptor_t input_desc;
+  cudnnFilterDescriptor_t filter_desc;
+  cudnnTensorDescriptor_t bias_desc;
+  cudnnActivationDescriptor_t activation_desc;
   cudnnTensorDescriptor_t output_desc;
   cudnnConvolutionFwdAlgo_t fwd_algo;
+  cudnnConvolutionBwdDataAlgo_t bwd_data_algo;
+  cudnnConvolutionBwdFilterAlgo_t bwd_filter_algo;
   // cudnnMathType_t math_type;
   Device device;
   runtime::DeviceAPI* cuda_api;
@@ -102,6 +108,11 @@ struct CuDNNThreadEntry {
   runtime::DeviceAPI* cuda_api{nullptr};
   static CuDNNThreadEntry* ThreadLocal(bool check_exists = true);
 };  // CuDNNThreadEntry
+
+void SetConvDescriptors(CuDNNThreadEntry* entry_ptr, int format, int dims, int groups,
+                        const int pad[], const int stride[], const int dilation[], int64_t x_dim[],
+                        int64_t w_dim[], int64_t y_dim[], DLDataType data_dtype,
+                        const std::string& conv_dtype);
 
 }  // namespace contrib
 }  // namespace tvm

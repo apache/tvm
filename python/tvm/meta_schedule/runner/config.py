@@ -28,9 +28,14 @@ class EvaluatorConfig(NamedTuple):
     Parameters
     ----------
     number: int
-        The number of runs.
+        The number of times to run this function for taking average.
+        We call these runs as one `repeat` of measurement.
     repeat: int
-        The number of times to repeat in each run.
+        The number of times to repeat the measurement.
+        In total, the function will be invoked (1 + number x repeat) times,
+        where the first one is warm up and will be discarded.
+        The returned result contains `repeat` costs,
+        each of which is an average of `number` costs.
     min_repeat_ms: int
         Minimum repeat time in ms. if the execution latency is too short,
         increase the number of runs to the given time (in ms) to reduce the measurement error.
@@ -45,7 +50,7 @@ class EvaluatorConfig(NamedTuple):
 
     number: int = 3
     repeat: int = 1
-    min_repeat_ms: int = 40
+    min_repeat_ms: int = 100
     enable_cpu_cache_flush: bool = False
 
     @staticmethod

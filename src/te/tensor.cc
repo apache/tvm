@@ -31,26 +31,50 @@ namespace tvm {
 namespace te {
 
 IterVar thread_axis(Range dom, std::string tag) {
-  return IterVar(dom, Var(tag), kThreadIndex, tag);
+  return IterVar(dom, Var(tag, dom.defined() ? dom->extent.dtype() : DataType::Int(32)),
+                 kThreadIndex, tag);
 }
 
-IterVar reduce_axis(Range dom, std::string name) { return IterVar(dom, Var(name), kCommReduce); }
+IterVar reduce_axis(Range dom, std::string name) {
+  return IterVar(dom, Var(name, dom->extent.dtype()), kCommReduce);
+}
 
 Var var(std::string name_hint, DataType t) { return Var(name_hint, t); }
 
 // Tensor
+inline PrimExpr Tensor::IndexTensor(Array<PrimExpr> indices, bool support_negative_indices) const {
+  Array<PrimExpr> shape = (*this)->shape;
+
+  if (shape.size() != 0) {
+    ICHECK_EQ(shape.size(), indices.size())
+        << "Tensor dimension mismatch in read "
+        << "ndim = " << ndim() << ", indices.size=" << indices.size();
+  }
+
+  if (support_negative_indices) {
+    for (size_t i = 0; i < shape.size(); i++) {
+      PrimExpr new_index =
+          Select(indices[i] < make_const(indices[i]->dtype, 0), indices[i] + shape[i], indices[i]);
+      indices.Set(i, new_index);
+    }
+  }
+  return ProducerLoad((*this), indices);
+}
+
 PrimExpr Tensor::operator()(Array<Var> indices) const {
   Array<PrimExpr> arr(indices.begin(), indices.end());
   return operator()(arr);
 }
 
-PrimExpr Tensor::operator()(Array<PrimExpr> indices) const {
-  if (ndim() != 0) {
-    ICHECK_EQ(ndim(), indices.size()) << "Tensor dimension mismatch in read "
-                                      << "ndim = " << ndim() << ", indices.size=" << indices.size();
-  }
+PrimExpr Tensor::operator()(Array<PrimExpr> indices) const { return IndexTensor(indices, false); }
 
-  return ProducerLoad((*this), indices);
+PrimExpr Tensor::IndexWithNegativeIndices(Array<Var> indices) const {
+  Array<PrimExpr> arr(indices.begin(), indices.end());
+  return IndexWithNegativeIndices(arr);
+}
+
+PrimExpr Tensor::IndexWithNegativeIndices(Array<PrimExpr> indices) const {
+  return IndexTensor(indices, true);
 }
 
 String TensorNode::GetNameHint() const {

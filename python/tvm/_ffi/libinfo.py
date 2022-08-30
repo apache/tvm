@@ -114,18 +114,18 @@ def find_lib_path(name=None, search_path=None, optional=False):
         runtime_dll_path = []
     else:
         if sys.platform.startswith("win32"):
-            lib_dll_path = [os.path.join(p, "libtvm.dll") for p in dll_path] + [
-                os.path.join(p, "tvm.dll") for p in dll_path
-            ]
-            runtime_dll_path = [os.path.join(p, "libtvm_runtime.dll") for p in dll_path] + [
-                os.path.join(p, "tvm_runtime.dll") for p in dll_path
-            ]
+            lib_dll_names = ["libtvm.dll", "tvm.dll"]
+            runtime_dll_names = ["libtvm_runtime.dll", "tvm_runtime.dll"]
         elif sys.platform.startswith("darwin"):
-            lib_dll_path = [os.path.join(p, "libtvm.dylib") for p in dll_path]
-            runtime_dll_path = [os.path.join(p, "libtvm_runtime.dylib") for p in dll_path]
+            lib_dll_names = ["libtvm.dylib"]
+            runtime_dll_names = ["libtvm_runtime.dylib"]
         else:
-            lib_dll_path = [os.path.join(p, "libtvm.so") for p in dll_path]
-            runtime_dll_path = [os.path.join(p, "libtvm_runtime.so") for p in dll_path]
+            lib_dll_names = ["libtvm.so"]
+            runtime_dll_names = ["libtvm_runtime.so"]
+
+        name = lib_dll_names + runtime_dll_names
+        lib_dll_path = [os.path.join(p, name) for name in lib_dll_names for p in dll_path]
+        runtime_dll_path = [os.path.join(p, name) for name in runtime_dll_names for p in dll_path]
 
     if not use_runtime:
         # try to find lib_dll_path
@@ -137,12 +137,12 @@ def find_lib_path(name=None, search_path=None, optional=False):
         lib_found = [p for p in runtime_dll_path if os.path.exists(p) and os.path.isfile(p)]
 
     if not lib_found:
-        message = (
-            "Cannot find the files.\n"
-            + "List of candidates:\n"
-            + str("\n".join(lib_dll_path + runtime_dll_path))
-        )
         if not optional:
+            message = (
+                f"Cannot find libraries: {name}\n"
+                + "List of candidates:\n"
+                + "\n".join(lib_dll_path + runtime_dll_path)
+            )
             raise RuntimeError(message)
         return None
 
@@ -220,4 +220,4 @@ def find_include_path(name=None, search_path=None, optional=False):
 # We use the version of the incoming release for code
 # that is under development.
 # The following line is set by tvm/python/update_version.py
-__version__ = "0.8.dev0"
+__version__ = "0.10.dev0"

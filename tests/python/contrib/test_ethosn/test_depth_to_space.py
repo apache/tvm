@@ -15,13 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Ethos-N integration depth-to-space tests"""
+"""Arm(R) Ethos(TM)-N integration depth-to-space tests"""
 
+import pytest
+import numpy as np
 import tvm
 from tvm import relay
 from tvm.testing import requires_ethosn
 from . import infrastructure as tei
-import numpy as np
 
 
 def _get_model(shape, block, dtype, layout):
@@ -31,32 +32,44 @@ def _get_model(shape, block, dtype, layout):
 
 
 @requires_ethosn
-def test_depth_to_space():
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+def test_depth_to_space(dtype):
     trials = [
         (1, 16, 16, 16),
         (1, 64, 32, 16),
     ]
 
+    np.random.seed(0)
     for shape in trials:
         inputs = {
-            "a": tvm.nd.array(np.random.randint(0, high=255, size=shape, dtype="uint8")),
+            "a": tvm.nd.array(
+                np.random.randint(
+                    np.iinfo(dtype).min, np.iinfo(dtype).max + 1, size=shape, dtype=dtype
+                )
+            )
         }
         outputs = []
         for npu in [False, True]:
-            model = _get_model(shape, 2, "uint8", "NHWC")
+            model = _get_model(shape, 2, dtype, "NHWC")
             mod = tei.make_module(model, {})
             outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
 
-        tei.verify(outputs, 1)
+        tei.verify(outputs, dtype, 1)
 
 
 @requires_ethosn
 def test_depth_to_space_failure():
     trials = [
         ((2, 16, 16, 16), 2, "uint8", "NHWC", "batch size=2, batch size must = 1"),
-        ((1, 16, 16, 16), 2, "int8", "NHWC", "dtype='int8', dtype must be either uint8 or int32"),
+        (
+            (1, 16, 16, 16),
+            2,
+            "int16",
+            "NHWC",
+            "dtype='int16', dtype must be either uint8, int8 or int32;",
+        ),
         ((1, 16, 16, 16), 4, "uint8", "NHWC", "Only block size of 2 is supported"),
-        ((1, 16, 16, 16), 2, "uint8", "NCHW", "layout=NCHW, layout must = NHWC"),
+        ((1, 16, 16, 16), 2, "uint8", "NCHW", "Input layer must be NHWC or NHWCB"),
     ]
 
     for shape, block, dtype, layout, err_msg in trials:

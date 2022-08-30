@@ -31,17 +31,21 @@ import argparse
 import logging
 import subprocess
 
-# Modify the following two settings during release
+# Modify the following value during release
 # ---------------------------------------------------
-# Current version
+# Current version:
 # We use the version of the incoming release for code
-# that is under development
-__version__ = "0.8.dev0"
+# that is under development.
+#
+# It is also fallback version to be used when --git-describe
+# is not invoked, or when the repository does not present the
+# git tags in a format that this script can use.
+#
+# Two tag formats are supported:
+# - vMAJ.MIN.PATCH (e.g. v0.8.0) or
+# - vMAJ.MIN.devN (e.g. v0.8.dev0)
+__version__ = "0.10.dev0"
 
-# Most recent tag, used for git describe validation
-# set this value to be the most recent release tag
-# before this development cycle.
-__most_recent_tag__ = "v0.7.0"
 # ---------------------------------------------------
 
 PROJ_ROOT = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
@@ -75,12 +79,20 @@ def git_describe_version():
     - pub_ver = '0.7.0', local_ver = '0.7.0':
       We are at the 0.7.0 release.
     - pub_ver =  '0.8.dev94', local_ver = '0.8.dev94+g0d07a329e':
-      We are at the the 0.8 development cycle.
+      We are at the 0.8 development cycle.
       The current source contains 94 additional commits
       after the most recent tag(v0.7.0),
       the git short hash tag of the current commit is 0d07a329e.
     """
-    cmd = ["git", "describe", "--tags", "--match", "v[0-9]*.[0-9]*.[0-9]*"]
+    cmd = [
+        "git",
+        "describe",
+        "--tags",
+        "--match",
+        "v[0-9]*.[0-9]*.[0-9]*",
+        "--match",
+        "v[0-9]*.[0-9]*.dev[0-9]*",
+    ]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=PROJ_ROOT)
     (out, _) = proc.communicate()
 
@@ -92,15 +104,6 @@ def git_describe_version():
         return __version__, __version__
     describe = py_str(out).strip()
     arr_info = describe.split("-")
-
-    if not arr_info[0].endswith(__most_recent_tag__):
-        logging.warning(
-            "%s does not match most recent tag %s, fallback to %s",
-            describe,
-            __most_recent_tag__,
-            __version__,
-        )
-        return __version__, __version__
 
     # Remove the v prefix, mainly to be robust
     # to the case where v is not presented as well.
@@ -115,8 +118,22 @@ def git_describe_version():
         logging.warning("Invalid output from git describe %s", describe)
         return __version__, __version__
 
-    dev_pos = __version__.find(".dev")
-    pub_ver = "%s.dev%s" % (__version__[:dev_pos], arr_info[1])
+    dev_pos = arr_info[0].find(".dev")
+
+    # Development versions:
+    # The code will reach this point in case it can't match a full release version, such as v0.7.0.
+    #
+    # 1. in case the last known label looks like vMAJ.MIN.devN e.g. v0.8.dev0, we use
+    # the current behaviour of just using vMAJ.MIN.devNNNN+gGIT_REV
+    if dev_pos != -1:
+        dev_version = arr_info[0][: arr_info[0].find(".dev")]
+    # 2. in case the last known label looks like vMAJ.MIN.PATCH e.g. v0.8.0
+    # then we just carry on with a similar version to what git describe provides, which is
+    # vMAJ.MIN.PATCH.devNNNN+gGIT_REV
+    else:
+        dev_version = arr_info[0]
+
+    pub_ver = "%s.dev%s" % (dev_version, arr_info[1])
     local_ver = "%s+%s" % (pub_ver, arr_info[2])
     return pub_ver, local_ver
 
@@ -188,7 +205,7 @@ def sync_version(pub_ver, local_ver, dry_run):
 
 def main():
     logging.basicConfig(level=logging.INFO)
-    parser = argparse.ArgumentParser(description="Detect and sychnronize version.")
+    parser = argparse.ArgumentParser(description="Detect and synchronize version.")
     parser.add_argument(
         "--print-version",
         action="store_true",

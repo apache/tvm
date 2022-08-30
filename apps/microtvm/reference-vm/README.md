@@ -29,9 +29,10 @@ For more information on how to use them, see the
 ## microTVM Developer Information
 
 Each RTOS or platform (like Zephyr, Ardunio, etc) that integrates with microTVM
-can check-in a Reference VM in this directory to help the community collaborate.
-You should use the tools provided here to ensure a uniform release process
-across all platforms. Typically, releases need to be created by TVM committers.
+can check-in installation scripts in the Reference VM in this directory to help
+the community collaborate. You should use the tools provided here to ensure a 
+uniform release process across all platforms. Typically, releases need to be 
+created by TVM committers.
 
 Generally speaking, it's expected that any integrated platform with a regression
 test checked-in to the tvm repository should also define a reference VM. If you
@@ -39,16 +40,13 @@ want to integrate a new platform, please raise a discussion on
 [the forum](https://discuss.tvm.ai).
 
 
-## Reference VMs Organization
+## Reference VM Organization
 
-Reference VMs are organized in this directory as follows:
+The Reference VM is organized in this directory as follows:
 
 ```
 .
 +-- base-box-tool.py - Reference VM build, test, and release tool.
-+-- PLATFORM/        - One or more dirs related to the supported platform(s),
-                       like zephyr/ and arduino/. The dir names are the same to
-                       be passed as arguments to base-box-tool.py as PLATFORM.
     +-- Vagrantfile  - Vagrantfile that end-users will invoke. Should be based
     |                  off a base box which contains dependencies other than the
     |                  TVM python dependencies.
@@ -64,12 +62,12 @@ Reference VMs are organized in this directory as follows:
 
 1. **Build** the base box for a given platform:
 ```bash
-$ ./base-box-tool.py [--provider=PROVIDER] build PLATFORM
+$ ./base-box-tool.py [--provider=PROVIDER] build
 ```
 
 For example:
 ```bash
-$ ./base-box-tool.py --provider virtualbox build zephyr
+$ ./base-box-tool.py --provider virtualbox build
 ```
 
 2. **Run** release tests for each platform:
@@ -90,7 +88,7 @@ $ ./base-box-tool.py --provider virtualbox build zephyr
 
    This command does the following for the specified provider:
 
-   * Copies all files inside `PLATFORM/` dir except `.vagrant` and `base-box` to
+   * Copies all files inside this dir except `.vagrant` and `base-box` to
    `release-test/`. This is done to avoid reusing any VM the developer may have
    started;
 
@@ -108,7 +106,12 @@ $ ./base-box-tool.py --provider virtualbox build zephyr
 
 4. If release tests pass, **release** the box:
 ```bash
-$ ./base-box-tool.py [--provider=PROVIDER] release --release-version=RELEASE_VER --platform-version=PLATFORM_VER PLATFORM
+$ ./base-box-tool.py [--provider=PROVIDER] release --release-version=RELEASE_VER
 ```
    For that step be sure you've logged in to Vagrant Cloud using the `vagrant`
    tool.
+
+## Versioning
+We use semantic versioning as it is recommended by [Vagrant](https://www.vagrantup.com/docs/boxes/versioning). We use `X.Y.Z` version where we maintain the same major version `X` it has minor changes and newer version is still compatible with older versions and we increase minor version `Y`. However, We increase the major version `X` when new RVM is not compatible with older onces. Updates to the Zephyr SDK or Arduino board SDKs are considered major changes and require incrementing major version `X`. In this versioning, `Z` is barely used but we kept it since Vagrant requires this format.
+
+**Note**: We will release all microTVM RVM boxes under [microtvm](https://app.vagrantup.com/tlcpack/boxes/microtvm) and use box versioning in Vagrant file. Previous versions like `microtvm-zephyr`, `microtvm-arduino`, `microtvm-zephyr-2.5`, etc. are deprecated and will be removed in the future.

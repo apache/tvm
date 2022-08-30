@@ -80,7 +80,7 @@ class TensorRTCalibrator : public nvinfer1::IInt8EntropyCalibrator2 {
     }
     num_batches_calibrated_++;
     // TODO(trevmorr): Free data from previous batch?
-    return (num_batches_calibrated_ < data_.size());
+    return (num_batches_calibrated_ < static_cast<int>(data_.size()));
   }
 
   const void* readCalibrationCache(size_t& length) noexcept override {

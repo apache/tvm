@@ -64,6 +64,21 @@ class DecomposeReductionBlockReplacer : public StmtMutator {
       ObjectPtr<BlockNode> p_new_block = CopyOnWrite(block);
       p_new_block->name_hint = p_new_block->name_hint + "_update";
       p_new_block->init = NullOpt;
+      // Add write regions back to read regions in update block.
+      Array<BufferRegion> new_reads;
+      std::unordered_set<const BufferNode*> read_bufs;
+      for (const BufferRegion& read_access : block->reads) {
+        read_bufs.insert(read_access->buffer.get());
+      }
+      for (const BufferRegion& write_access : block->writes) {
+        if (read_bufs.find(write_access->buffer.get()) == read_bufs.end()) {
+          new_reads.push_back(write_access);
+        }
+      }
+      for (const BufferRegion& read_access : block->reads) {
+        new_reads.push_back(read_access);
+      }
+      p_new_block->reads = new_reads;
       new_reduction_block_ = Block(p_new_block);
       return new_reduction_block_;
     } else {
@@ -87,30 +102,6 @@ class DecomposeReductionBlockReplacer : public StmtMutator {
   Block new_reduction_block_;
 };
 
-class LoopPositionError : public ScheduleError {
- public:
-  explicit LoopPositionError(IRModule mod, For loop, Block block)
-      : mod_(std::move(mod)), loop_(std::move(loop)), block_(std::move(block)) {}
-
-  String FastErrorString() const final {
-    return "ScheduleError: decompose_reduction expect the loop to be an ancestor of block";
-  }
-
-  String DetailRenderTemplate() const final {
-    std::ostringstream os;
-    os << "ScheduleError: The input loop {0} of decompose_reduction is required to be be an "
-          "ancestor of block {1}.";
-    return os.str();
-  }
-
-  IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {loop_, block_}; }
-
-  IRModule mod_;
-  For loop_;
-  Block block_;
-};
-
 class LoopHeightError : public ScheduleError {
  public:
   static void CheckLoopHigherThanReduceLoops(const IRModule& mod, const BlockNode* block,
@@ -132,7 +123,7 @@ class LoopHeightError : public ScheduleError {
         // loop_var of a higher loop shouldn't contain loop var
         const Var& loop_var = higher_loop->StmtAs<ForNode>()->loop_var;
         if (UsesVar(binding, [v = loop_var.get()](const VarNode* var) { return var == v; })) {
-          const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+          const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
           throw LoopHeightError(mod, GetRef<For>(loop), GetRef<Block>(block));
         }
       }
@@ -192,19 +183,19 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
    *    - generate corresponding init block and update block
    */
   // Condition Checks and Information Collection
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
-  const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
+  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   // Get the outer loops from high to low
   Array<StmtSRef> loops = GetLoops(block_sref);
   const BlockRealizeNode* realize = GetBlockRealize(self, block_sref).get();
   // Cond 0. Check loop_sref is an ancestor of block_sref
   if (std::find(loops.begin(), loops.end(), loop_sref) == loops.end()) {
-    throw LoopPositionError(self->mod, GetRef<For>(loop), GetRef<Block>(block));
+    throw LoopPositionError(self->mod, GetRef<For>(loop), GetRef<Block>(block),
+                            "decompose_reduction");
   }
   // Cond 1. Check block is reduction
   StmtSRef scope_root_sref = GetScopeRoot(self, block_sref,
-                                          /*require_stage_pipeline=*/false,
-                                          /*require_subtree_compact_dataflow=*/false);
+                                          /*require_stage_pipeline=*/false);
   CheckReductionBlock(self, block_sref, scope_root_sref);
   // Cond 2. Check 'loop' is higher than all the loops related to block var of type reduction
   LoopHeightError::CheckLoopHigherThanReduceLoops(self->mod, block, realize, loops, loop_sref);
@@ -212,6 +203,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   ObjectPtr<BlockNode> init_block = make_object<BlockNode>();
   ObjectPtr<BlockRealizeNode> init_realize = make_object<BlockRealizeNode>();
   init_block->name_hint = block->name_hint + "_init";
+  init_block->annotations = block->annotations;
   init_realize->iter_values = {};
   init_realize->block = Block(init_block);
   // Step 1. Create new block vars and their bindings
@@ -272,7 +264,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> loop_var_map;
   Stmt body = BlockRealize(init_realize);
   for (int i : chosen_loops) {
-    const ForNode* old_loop = TVM_SREF_TO_FOR(old_loop, loops[i]);
+    const ForNode* old_loop = TVM_SREF_TO_FOR(loops[i]);
     // Create a new equivalent to the chosen loop
     Var old_loop_var = old_loop->loop_var;
     Var new_loop_var = old_loop_var.copy_with_suffix("_init");
@@ -280,15 +272,13 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
     body = For(/*loop_var=*/new_loop_var,
                /*min=*/old_loop->min,
                /*extent=*/old_loop->extent,
-               /*kind=*/ForKind::kSerial,
+               /*kind=*/old_loop->kind,
                /*body=*/body);
   }
   body = Substitute(body, loop_var_map);
   // Step 6. Mutate IR
-  const BlockNode* old_scope_root = TVM_SREF_TO_BLOCK(old_scope_root, scope_root_sref);
-  Block new_scope_root{nullptr};
-  Block new_reduction_block{nullptr};
-  std::tie(new_scope_root, new_reduction_block) = DecomposeReductionBlockReplacer::Replace(
+  const BlockNode* old_scope_root = TVM_SREF_TO_BLOCK(scope_root_sref);
+  auto [new_scope_root, new_reduction_block] = DecomposeReductionBlockReplacer::Replace(
       GetRef<Block>(old_scope_root), GetRef<For>(loop), body, GetRef<Block>(block));
   self->Replace(scope_root_sref, new_scope_root,
                 {{GetRef<Block>(old_scope_root), new_scope_root},
@@ -370,69 +360,6 @@ class NotSerialLoopKindError : public ScheduleError {
   For loop_;
 };
 
-class InitBodyNotBufferStoreError : public ScheduleError {
- public:
-  explicit InitBodyNotBufferStoreError(IRModule mod, Block block, bool init_is_bufferstore,
-                                       bool body_is_bufferstore)
-      : mod_(std::move(mod)),
-        block_(std::move(block)),
-        init_is_bufferstore_(init_is_bufferstore),
-        body_is_bufferstore_(body_is_bufferstore) {}
-
-  String FastErrorString() const final {
-    return "ScheduleError: The `init` and `body` of reduction block are required to be both "
-           "BufferStore";
-  }
-
-  String DetailRenderTemplate() const final {
-    if (!init_is_bufferstore_ && !body_is_bufferstore_) {
-      return "The `init` and `body` of block {0} are required to be BufferStore so that rfactor "
-             "can be applied";
-    } else if (!init_is_bufferstore_) {
-      return "The `init` of block {0} is required to be BufferStore so that rfactor can be applied";
-    } else {
-      ICHECK(!body_is_bufferstore_);
-      return "The `body` of block {0} is required to be BufferStore so that rfactor can be applied";
-    }
-  }
-
-  IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
-
-  IRModule mod_;
-  Block block_;
-  bool init_is_bufferstore_;
-  bool body_is_bufferstore_;
-};
-
-class InitBodyNotSameBufferAccessError : public ScheduleError {
- public:
-  explicit InitBodyNotSameBufferAccessError(IRModule mod, Block block)
-      : mod_(std::move(mod)), block_(std::move(block)) {}
-
-  String FastErrorString() const final {
-    return "ScheduleError: The `init` and `body` of the reduction block are required to have the "
-           "same buffer access pattern";
-  }
-
-  String DetailRenderTemplate() const final {
-    std::ostringstream os;
-    const auto* init = block_->init.as<BufferStoreNode>();
-    const auto* update = block_->body.as<BufferStoreNode>();
-    os << "The `init` and `body` of the block {0} is required to have the same buffer access "
-          "pattern. However, in block {0} the `init` writes to "
-       << init->buffer->name << init->indices << ", and the `body` writes to "
-       << update->buffer->name << update->indices;
-    return os.str();
-  }
-
-  IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
-
-  IRModule mod_;
-  Block block_;
-};
-
 class FactorAxisOutOfRangeError : public ScheduleError {
  public:
   explicit FactorAxisOutOfRangeError(IRModule mod, Buffer buffer, int factor_axis)
@@ -471,32 +398,6 @@ class FactorAxisOutOfRangeError : public ScheduleError {
   IRModule mod_;
   Buffer buffer_;
   int factor_axis_;
-};
-
-class NoMatchedReducerError : public ScheduleError {
- public:
-  explicit NoMatchedReducerError(IRModule mod, PrimExpr identity, BufferStore combiner)
-      : mod_(std::move(mod)), identity_(std::move(identity)), combiner_(std::move(combiner)) {}
-
-  String FastErrorString() const final {
-    return "ScheduleError: No matched reducer for the identity and the combiner of this reduction "
-           "block. So rfactor cannot be applied.";
-  }
-
-  String DetailRenderTemplate() const final {
-    std::ostringstream os;
-    os << "No matched reducer for identity " << identity_ << " and combiner " << combiner_
-       << "In this case rfactor cannot be applied. You can check tvm::tir::ReducerRegistry for "
-          "default reducers or registering new reducers.";
-    return os.str();
-  }
-
-  IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {}; }
-
-  IRModule mod_;
-  PrimExpr identity_;
-  BufferStore combiner_;
 };
 
 class LoopPropertyError : public ScheduleError {
@@ -592,53 +493,6 @@ class LoopPropertyError : public ScheduleError {
 };
 
 /*!
- * \brief Convert the `init` and `body` of the input block to BufferStores
- * \param self The schedule state
- * \param block The block to be analyzed
- * \return The BufferStores of the `init` and `body` of the input block
- * \throw ScheduleError If the `init` or `body` is not BufferStore, or they don't write to the same
- * buffer
- */
-std::pair<BufferStore, BufferStore> GetBufferStoreNodes(const ScheduleState& self,
-                                                        const Block& block) {
-  const auto* init = block->init.as<BufferStoreNode>();
-  const auto* body = block->body.as<BufferStoreNode>();
-  if (!(init && body)) {
-    throw InitBodyNotBufferStoreError(self->mod, block, init != nullptr, body != nullptr);
-  }
-  if (!init->buffer.same_as(body->buffer)) {
-    throw InitBodyNotSameBufferAccessError(self->mod, block);
-  }
-  int ndim = static_cast<int>(init->buffer->shape.size());
-  for (int i = 0; i < ndim; ++i) {
-    if (!ExprDeepEqual()(init->indices[i], body->indices[i])) {
-      throw InitBodyNotSameBufferAccessError(self->mod, block);
-    }
-  }
-  return std::make_pair(GetRef<BufferStore>(init), GetRef<BufferStore>(body));
-}
-
-/*!
- * \brief Given a reduction identity and a reduction combiner, detect the corresponding commutative
- * reducer, and extract the combiner lhs and combiner rhs
- * \param self The schedule state
- * \param identity The reduction identity to be analyzed
- * \param combiner The reduction combiner to be analyzed
- * \return The corresponding CommReducer, the combiner lhs and the combiner rhs
- * \throw ScheduleError If no corresponding commutative reducer can be matched
- */
-std::tuple<CommReducer, PrimExpr, PrimExpr> GetReducerAndCombinerLhsRhs(
-    const ScheduleState& self, const PrimExpr& identity, const BufferStore& combiner) {
-  CommReducer reducer{nullptr};
-  PrimExpr combiner_lhs{nullptr}, combiner_rhs{nullptr};
-  bool matched = FromIdentityCombiner(identity, combiner, &reducer, &combiner_lhs, &combiner_rhs);
-  if (!matched) {
-    throw NoMatchedReducerError(self->mod, identity, combiner);
-  }
-  return std::make_tuple(std::move(reducer), std::move(combiner_lhs), std::move(combiner_rhs));
-}
-
-/*!
  * \brief For each loop in the given array of loop, associate its loop var with the loop itself
  * using a mapping
  * \param loops The loops to be analyzed
@@ -699,7 +553,14 @@ class BaseBlockCreator {
     for (int i = 0; i < n_block_iters_; ++i) {
       CreateNormalIters(i);
     }
-    CreateReductionUpdate();
+    bool has_reduce_iter = false;
+    for (const IterVar& iter_var : iter_vars_) {
+      if (iter_var->iter_type == IterVarType::kCommReduce) {
+        has_reduce_iter = true;
+        break;
+      }
+    }
+    CreateReductionUpdate(has_reduce_iter);
     CreateReadWriteRegions();
 
     String new_block_name = old_block_realize_->block->name_hint;
@@ -708,22 +569,27 @@ class BaseBlockCreator {
       new_block_name = new_block_name + "_rf";
       predicate = old_block_realize_->predicate;
     }
+    Optional<Stmt> init_block =
+        has_reduce_iter ? BufferStore(new_reduction_update_->buffer, reducer_->identity_element[0],
+                                      new_reduction_update_->indices)
+                        : Optional<Stmt>(NullOpt);
     new_block_ = Block(
         /*iter_vars=*/iter_vars_,
         /*reads=*/read_regions_,
         /*writes=*/write_regions_,
         /*name_hint=*/new_block_name,
         /*body=*/new_reduction_update_,
-        /*init=*/
-        BufferStore(new_reduction_update_->buffer, reducer_->identity_element[0],
-                    new_reduction_update_->indices));
+        /*init=*/init_block,
+        /*alloc_buffers=*/{},
+        /*match_buffers=*/{},
+        /*annotations=*/old_block_realize_->block->annotations);
     new_block_realize_ = BlockRealize(iter_values_, predicate, new_block_);
   }
 
  private:
   virtual void CreateAdditionalIter() = 0;
   virtual void CreateNormalIters(int idx) = 0;
-  virtual void CreateReductionUpdate() = 0;
+  virtual void CreateReductionUpdate(bool has_reduce_iter) = 0;
   virtual void CreateReadWriteRegions() = 0;
 
  public:
@@ -852,14 +718,17 @@ class RFactorBlockCreator : public BaseBlockCreator {
     var_map_.Set(old_iter->var, Substitute(old_binding, loop_var2block_binding_));
   }
 
-  void CreateReductionUpdate() final {
+  void CreateReductionUpdate(bool has_reduce_iter) final {
     rf_buf_access_indices_ = old_reduction_update_->indices;
     rf_buf_access_indices_.insert(rf_buf_access_indices_.begin() + factor_axis_,
                                   additional_iter_->var);
-    new_reduction_update_ = BufferStore(
-        rf_buffer_,
-        (*reducer_.get())({BufferLoad(rf_buffer_, rf_buf_access_indices_)}, {combiner_rhs_})[0],
-        rf_buf_access_indices_);
+    PrimExpr rhs{nullptr};
+    if (has_reduce_iter) {
+      rhs = (*reducer_.get())({BufferLoad(rf_buffer_, rf_buf_access_indices_)}, {combiner_rhs_})[0];
+    } else {
+      rhs = combiner_rhs_;
+    }
+    new_reduction_update_ = BufferStore(rf_buffer_, rhs, rf_buf_access_indices_);
     new_reduction_update_ = Downcast<BufferStore>(Substitute(new_reduction_update_, var_map_));
   }
 
@@ -948,7 +817,7 @@ class WriteBackBlockCreator : public BaseBlockCreator {
     }
   }
 
-  void CreateReductionUpdate() final {
+  void CreateReductionUpdate(bool has_reduce_iter) final {
     wb_lhs_ = Downcast<BufferLoad>(Substitute(combiner_lhs_, var_map_));
     wb_rhs_ =
         Downcast<BufferLoad>(Substitute(BufferLoad(rf_buffer_, rf_buf_access_indices_), var_map_));
@@ -959,9 +828,8 @@ class WriteBackBlockCreator : public BaseBlockCreator {
   }
 
   void CreateReadWriteRegions() final {
-    read_regions_.push_back(CreateRegion(wb_lhs_));
     read_regions_.push_back(CreateRegion(wb_rhs_));
-    write_regions_.push_back(read_regions_[0]);
+    write_regions_.push_back(CreateRegion(wb_lhs_));
   }
 
   static BufferRegion CreateRegion(const BufferLoad& load) {
@@ -1141,10 +1009,9 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   const StmtSRef& block_sref = self->stmt2ref.at(block_realize->block.get());
   const Block& block = block_realize->block;
   StmtSRef scope_root = GetScopeRoot(self, block_sref,  //
-                                     /*require_stage_pipeline=*/true,
-                                     /*require_subtree_compact_dataflow=*/false);
+                                     /*require_stage_pipeline=*/true);
   CheckReductionBlock(self, block_sref, scope_root);
-  const ForNode* rf_loop = TVM_SREF_TO_FOR(rf_loop, rf_loop_sref);
+  const ForNode* rf_loop = TVM_SREF_TO_FOR(rf_loop_sref);
   if (rf_loop->kind != ForKind::kSerial) {
     throw NotSerialLoopKindError(self->mod, GetRef<For>(rf_loop));
   }
@@ -1173,12 +1040,8 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   // commutative reducer, combiner lhs and combiner rhs from the reduction identity and the
   // reduction combiner. The lhs will be used when constructing the write-back block, and the rhs
   // will be used when constructing the rfactor block.
-  BufferStore init;
-  BufferStore update;
-  CommReducer reducer;
-  PrimExpr combiner_lhs, combiner_rhs;
-  std::tie(init, update) = GetBufferStoreNodes(self, block);
-  std::tie(reducer, combiner_lhs, combiner_rhs) =
+  auto [init, update] = GetBufferStoresFromReductionBlock(self, block);
+  auto [reducer, combiner_lhs, combiner_rhs] =
       GetReducerAndCombinerLhsRhs(self, init->value, update);
 
   // Step 6. Check whether `factor_axis` is in a correct range, and convert it to non-negative if it

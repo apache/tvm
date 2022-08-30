@@ -44,6 +44,12 @@ get it to run, you will need to wrap the body of this tutorial in a :code:`if
 __name__ == "__main__":` block.
 """
 
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
+
 import numpy as np
 
 import tvm
@@ -164,7 +170,7 @@ for idx, task in enumerate(tasks):
 # Now, we set some options for tuning and launch the search tasks
 #
 # * :code:`measure_ctx` launches a different process for measurement to
-#   provide isolation. It can protect the master process from GPU crashes
+#   provide isolation. It can protect the main process from GPU crashes
 #   during measurement and avoid other runtime conflicts.
 # * :code:`min_repeat_ms` defines the minimum duration of one "repeat" in every measurement.
 #   This can warmup the GPU, which is necessary to get accurate measurement results.

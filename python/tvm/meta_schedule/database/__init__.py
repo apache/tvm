@@ -20,3 +20,5 @@ The database that stores serialized tuning records and workloads
 """
 from .database import Database, PyDatabase, TuningRecord, Workload
 from .json_database import JSONDatabase
+from .memory_database import MemoryDatabase
+from .schedule_fn_database import ScheduleFnDatabase

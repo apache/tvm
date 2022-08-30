@@ -104,5 +104,19 @@ TVM_REGISTER_GLOBAL("relay.op._OpStrategyAddImplementation")
       strategy.AddImplementation(compute, schedule, name, plevel);
     });
 
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<OpStrategyNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const OpStrategyNode*>(node.get());
+      p->stream << "op_strategy(" << op->specializations << ")";
+    })
+    .set_dispatch<OpSpecializationNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const OpSpecializationNode*>(node.get());
+      p->stream << "op_spec(" << op->condition << ", " << op->implementations << ")";
+    })
+    .set_dispatch<OpImplementationNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const OpImplementationNode*>(node.get());
+      p->stream << "op_impl(name=" << op->name << ", level=" << op->plevel << ")";
+    });
+
 }  // namespace relay
 }  // namespace tvm

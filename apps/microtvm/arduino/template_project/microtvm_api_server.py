@@ -15,26 +15,20 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import collections
-import functools
 import json
 import logging
-import os
 import os.path
 import pathlib
 import re
-import shlex
 import shutil
 import subprocess
-import sys
 import tarfile
 import tempfile
 import time
 from string import Template
-import re
 
-import serial
-import serial.tools.list_ports
+from packaging import version
+
 from tvm.micro.project_api import server
 
 _LOG = logging.getLogger(__name__)
@@ -46,12 +40,11 @@ MODEL_LIBRARY_FORMAT_PATH = API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH
 
 IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 
-# Used to check Arduino CLI version installed on the host.
-# We only check two levels of the version.
-ARDUINO_CLI_VERSION = 0.18
-
+MIN_ARDUINO_CLI_VERSION = version.parse("0.18.0")
 
 BOARDS = API_SERVER_DIR / "boards.json"
+
+ARDUINO_CLI_CMD = shutil.which("arduino-cli")
 
 # Data structure to hold the information microtvm_api_server.py needs
 # to communicate with each of these boards.
@@ -71,22 +64,48 @@ PROJECT_TYPES = ["example_project", "host_driven"]
 PROJECT_OPTIONS = [
     server.ProjectOption(
         "arduino_board",
+        required=["build", "flash", "open_transport"],
         choices=list(BOARD_PROPERTIES),
-        help="Name of the Arduino board to build for",
+        type="str",
+        help="Name of the Arduino board to build for.",
     ),
-    server.ProjectOption("arduino_cli_cmd", help="Path to the arduino-cli tool."),
-    server.ProjectOption("port", help="Port to use for connecting to hardware"),
+    server.ProjectOption(
+        "arduino_cli_cmd",
+        required=(
+            ["generate_project", "build", "flash", "open_transport"]
+            if not ARDUINO_CLI_CMD
+            else None
+        ),
+        optional=(
+            ["generate_project", "build", "flash", "open_transport"] if ARDUINO_CLI_CMD else None
+        ),
+        default=ARDUINO_CLI_CMD,
+        type="str",
+        help="Path to the arduino-cli tool.",
+    ),
+    server.ProjectOption(
+        "port",
+        optional=["flash", "open_transport"],
+        type="int",
+        help="Port to use for connecting to hardware.",
+    ),
     server.ProjectOption(
         "project_type",
-        help="Type of project to generate.",
+        required=["generate_project"],
         choices=tuple(PROJECT_TYPES),
+        type="str",
+        help="Type of project to generate.",
     ),
     server.ProjectOption(
-        "verbose", help="True to pass --verbose flag to arduino-cli compile and upload"
+        "verbose",
+        optional=["build", "flash"],
+        type="bool",
+        help="Run arduino-cli compile and upload with verbose output.",
     ),
     server.ProjectOption(
         "warning_as_error",
-        choices=(True, False),
+        optional=["build", "flash"],
+        type="bool",
         help="Treat warnings as errors and raise an Exception.",
     ),
 ]
@@ -98,6 +117,7 @@ class Handler(server.ProjectAPIHandler):
         self._proc = None
         self._port = None
         self._serial = None
+        self._version = None
 
     def server_info_query(self, tvm_version):
         return server.ServerInfo(
@@ -176,7 +196,7 @@ class Handler(server.ProjectAPIHandler):
             # Copy C files from model. The filesnames and quantity
             # depend on the target string, so we just copy all c files
             source_dir = mlf_unpacking_dir / "codegen" / "host" / "src"
-            for file in source_dir.rglob(f"*.c"):
+            for file in source_dir.rglob("*.c"):
                 shutil.copy(file, model_dir)
 
             # Return metadata.json for use in templating
@@ -188,14 +208,21 @@ class Handler(server.ProjectAPIHandler):
         with open(source_dir / "model.h", "r") as f:
             model_h_template = Template(f.read())
 
-        assert (
-            metadata["style"] == "full-model"
+        all_module_names = []
+        for name in metadata["modules"].keys():
+            all_module_names.append(name)
+
+        assert all(
+            metadata["modules"][mod_name]["style"] == "full-model" for mod_name in all_module_names
         ), "when generating AOT, expect only full-model Model Library Format"
 
-        template_values = {
-            "workspace_size_bytes": metadata["memory"]["functions"]["main"][0][
+        workspace_size_bytes = 0
+        for mod_name in all_module_names:
+            workspace_size_bytes += metadata["modules"][mod_name]["memory"]["functions"]["main"][0][
                 "workspace_size_bytes"
-            ],
+            ]
+        template_values = {
+            "workspace_size_bytes": workspace_size_bytes,
         }
 
         with open(source_dir / "model.h", "w") as f:
@@ -210,7 +237,7 @@ class Handler(server.ProjectAPIHandler):
             for filename in source_dir.rglob(f"*.{ext}"):
                 filename.rename(filename.with_suffix(".cpp"))
 
-        for filename in source_dir.rglob(f"*.inc"):
+        for filename in source_dir.rglob("*.inc"):
             filename.rename(filename.with_suffix(".h"))
 
     def _convert_includes(self, project_dir, source_dir):
@@ -229,22 +256,21 @@ class Handler(server.ProjectAPIHandler):
         """
         for ext in ("c", "h", "cpp"):
             for filename in source_dir.rglob(f"*.{ext}"):
-                with filename.open() as file:
-                    lines = file.readlines()
-
-                for i in range(len(lines)):
-                    # Check if line has an include
-                    result = re.search(r"#include\s*[<\"]([^>]*)[>\"]", lines[i])
-                    if not result:
-                        continue
-                    new_include = self._find_modified_include_path(
-                        project_dir, filename, result.groups()[0]
-                    )
-
-                    lines[i] = f'#include "{new_include}"\n'
-
-                with filename.open("w") as file:
-                    file.writelines(lines)
+                with filename.open("rb") as src_file:
+                    lines = src_file.readlines()
+                    with filename.open("wb") as dst_file:
+                        for line in lines:
+                            line_str = str(line, "utf-8")
+                            # Check if line has an include
+                            result = re.search(r"#include\s*[<\"]([^>]*)[>\"]", line_str)
+                            if not result:
+                                dst_file.write(line)
+                            else:
+                                new_include = self._find_modified_include_path(
+                                    project_dir, filename, result.groups()[0]
+                                )
+                                updated_line = f'#include "{new_include}"\n'
+                                dst_file.write(updated_line.encode("utf-8"))
 
     # Most of the files we used to be able to point to directly are under "src/standalone_crt/include/".
     # Howver, crt_config.h lives under "src/standalone_crt/crt_config/", and more exceptions might
@@ -287,25 +313,7 @@ class Handler(server.ProjectAPIHandler):
         # It's probably a standard C/C++ header
         return include_path
 
-    def _get_platform_version(self, arduino_cli_path: str) -> float:
-        # sample output of this command:
-        # 'arduino-cli alpha Version: 0.18.3 Commit: d710b642 Date: 2021-05-14T12:36:58Z\n'
-        version_output = subprocess.check_output([arduino_cli_path, "version"], encoding="utf-8")
-        full_version = re.findall("version: ([\.0-9]*)", version_output.lower())
-        full_version = full_version[0].split(".")
-        version = float(f"{full_version[0]}.{full_version[1]}")
-
-        return version
-
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
-        # Check Arduino version
-        version = self._get_platform_version(options["arduino_cli_cmd"])
-        if version != ARDUINO_CLI_VERSION:
-            message = f"Arduino CLI version found is not supported: found {version}, expected {ARDUINO_CLI_VERSION}."
-            if options.get("warning_as_error") is not None and options["warning_as_error"]:
-                raise server.ServerError(message=message)
-            _LOG.warning(message)
-
         # Reference key directories with pathlib
         project_dir = pathlib.Path(project_dir)
         project_dir.mkdir()
@@ -341,15 +349,49 @@ class Handler(server.ProjectAPIHandler):
         # Recursively change includes
         self._convert_includes(project_dir, source_dir)
 
+    def _get_arduino_cli_cmd(self, options: dict):
+        arduino_cli_cmd = options.get("arduino_cli_cmd", ARDUINO_CLI_CMD)
+        assert arduino_cli_cmd, "'arduino_cli_cmd' command not passed and not found by default!"
+        return arduino_cli_cmd
+
+    def _get_platform_version(self, arduino_cli_path: str) -> float:
+        # sample output of this command:
+        # 'arduino-cli alpha Version: 0.18.3 Commit: d710b642 Date: 2021-05-14T12:36:58Z\n'
+        version_output = subprocess.run(
+            [arduino_cli_path, "version"], check=True, stdout=subprocess.PIPE
+        ).stdout.decode("utf-8")
+        str_version = re.search(r"Version: ([\.0-9]*)", version_output).group(1)
+
+        # Using too low a version should raise an error. Note that naively
+        # comparing floats will fail here: 0.7 > 0.21, but 0.21 is a higher
+        # version (hence we need version.parse)
+        return version.parse(str_version)
+
+    # This will only be run for build and upload
+    def _check_platform_version(self, options):
+        if not self._version:
+            cli_command = self._get_arduino_cli_cmd(options)
+            self._version = self._get_platform_version(cli_command)
+
+        if self._version < MIN_ARDUINO_CLI_VERSION:
+            message = (
+                f"Arduino CLI version too old: found {self._version}, "
+                f"need at least {str(MIN_ARDUINO_CLI_VERSION)}."
+            )
+            if options.get("warning_as_error") is not None and options["warning_as_error"]:
+                raise server.ServerError(message=message)
+            _LOG.warning(message)
+
     def _get_fqbn(self, options):
         o = BOARD_PROPERTIES[options["arduino_board"]]
         return f"{o['package']}:{o['architecture']}:{o['board']}"
 
     def build(self, options):
+        self._check_platform_version(options)
         BUILD_DIR.mkdir()
 
         compile_cmd = [
-            options["arduino_cli_cmd"],
+            self._get_arduino_cli_cmd(options),
             "compile",
             "./project/",
             "--fqbn",
@@ -364,14 +406,14 @@ class Handler(server.ProjectAPIHandler):
         # Specify project to compile
         subprocess.run(compile_cmd, check=True)
 
-    BOARD_LIST_HEADERS = ("Port", "Type", "Board Name", "FQBN", "Core")
+    POSSIBLE_BOARD_LIST_HEADERS = ("Port", "Protocol", "Type", "Board Name", "FQBN", "Core")
 
-    def _parse_boards_tabular_str(self, tabular_str):
+    def _parse_connected_boards(self, tabular_str):
         """Parses the tabular output from `arduino-cli board list` into a 2D array
 
         Examples
         --------
-        >>> list(_parse_boards_tabular_str(bytes(
+        >>> list(_parse_connected_boards(bytes(
         ...     "Port         Type              Board Name FQBN                          Core               \n"
         ...     "/dev/ttyS4   Serial Port       Unknown                                                     \n"
         ...     "/dev/ttyUSB0 Serial Port (USB) Spresense  SPRESENSE:spresense:spresense SPRESENSE:spresense\n"
@@ -382,31 +424,32 @@ class Handler(server.ProjectAPIHandler):
 
         """
 
-        str_rows = tabular_str.split("\n")[:-2]
-        header = str_rows[0]
-        indices = [header.index(h) for h in self.BOARD_LIST_HEADERS] + [len(header)]
+        # Which column headers are present depends on the version of arduino-cli
+        column_regex = r"\s*|".join(self.POSSIBLE_BOARD_LIST_HEADERS) + r"\s*"
+        str_rows = tabular_str.split("\n")
+        column_headers = list(re.finditer(column_regex, str_rows[0]))
+        assert len(column_headers) > 0
 
         for str_row in str_rows[1:]:
-            parsed_row = []
-            for cell_index in range(len(self.BOARD_LIST_HEADERS)):
-                start = indices[cell_index]
-                end = indices[cell_index + 1]
-                str_cell = str_row[start:end]
+            if not str_row.strip():
+                continue
+            device = {}
 
-                # Remove trailing whitespace used for padding
-                parsed_row.append(str_cell.rstrip())
-            yield parsed_row
+            for column in column_headers:
+                col_name = column.group(0).strip().lower()
+                device[col_name] = str_row[column.start() : column.end()].strip()
+            yield device
 
     def _auto_detect_port(self, options):
-        list_cmd = [options["arduino_cli_cmd"], "board", "list"]
+        list_cmd = [self._get_arduino_cli_cmd(options), "board", "list"]
         list_cmd_output = subprocess.run(
             list_cmd, check=True, stdout=subprocess.PIPE
         ).stdout.decode("utf-8")
 
         desired_fqbn = self._get_fqbn(options)
-        for line in self._parse_boards_tabular_str(list_cmd_output):
-            if line[3] == desired_fqbn:
-                return line[0]
+        for device in self._parse_connected_boards(list_cmd_output):
+            if device["fqbn"] == desired_fqbn:
+                return device["port"]
 
         # If no compatible boards, raise an error
         raise BoardAutodetectFailed()
@@ -420,11 +463,15 @@ class Handler(server.ProjectAPIHandler):
 
         return self._port
 
+    FLASH_TIMEOUT_SEC = 60
+    FLASH_MAX_RETRIES = 5
+
     def flash(self, options):
+        self._check_platform_version(options)
         port = self._get_arduino_port(options)
 
         upload_cmd = [
-            options["arduino_cli_cmd"],
+            self._get_arduino_cli_cmd(options),
             "upload",
             "./project",
             "--fqbn",
@@ -438,9 +485,28 @@ class Handler(server.ProjectAPIHandler):
         if options.get("verbose"):
             upload_cmd.append("--verbose")
 
-        subprocess.run(upload_cmd, check=True)
+        for _ in range(self.FLASH_MAX_RETRIES):
+            try:
+                subprocess.run(upload_cmd, check=True, timeout=self.FLASH_TIMEOUT_SEC)
+                break
+
+            # We only catch timeout errors - a subprocess.CalledProcessError
+            # (caused by subprocess.run returning non-zero code) will not
+            # be caught.
+            except subprocess.TimeoutExpired:
+                _LOG.warning(
+                    f"Upload attempt to port {port} timed out after {self.FLASH_TIMEOUT_SEC} seconds"
+                )
+
+        else:
+            raise RuntimeError(
+                f"Unable to flash Arduino board after {self.FLASH_MAX_RETRIES} attempts"
+            )
 
     def open_transport(self, options):
+        import serial
+        import serial.tools.list_ports
+
         # Zephyr example doesn't throw an error in this case
         if self._serial is not None:
             return
@@ -449,12 +515,12 @@ class Handler(server.ProjectAPIHandler):
 
         # It takes a moment for the Arduino code to finish initializing
         # and start communicating over serial
-        for attempts in range(10):
+        for _ in range(10):
             if any(serial.tools.list_ports.grep(port)):
                 break
             time.sleep(0.5)
 
-        self._serial = serial.Serial(port, baudrate=115200, timeout=5)
+        self._serial = serial.Serial(port, baudrate=115200, timeout=10)
 
         return server.TransportTimeouts(
             session_start_retry_timeout_sec=2.0,
@@ -469,13 +535,13 @@ class Handler(server.ProjectAPIHandler):
         self._serial = None
 
     def read_transport(self, n, timeout_sec):
-        # It's hard to set timeout_sec, so we just throw it away
-        # TODO fix this
+        self._serial.timeout = timeout_sec
         if self._serial is None:
             raise server.TransportClosedError()
         return self._serial.read(n)
 
     def write_transport(self, data, timeout_sec):
+        self._serial.write_timeout = timeout_sec
         if self._serial is None:
             raise server.TransportClosedError()
         return self._serial.write(data)

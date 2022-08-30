@@ -22,7 +22,6 @@ from tvm.relay import create_executor, transform
 from tvm.relay.testing import rand, run_infer_type
 import tvm.testing
 from tvm.testing import assert_allclose
-import pytest
 
 
 def test_tc():
@@ -288,7 +287,9 @@ def test_after_partial_eval():
             transform.PartialEvaluate(),
             transform.InferType(),
             transform.LazyGradientInit(),
+            transform.InferType(),
             transform.DeadCodeElimination(),
+            transform.InferType(),
         ]
     )
 
@@ -326,7 +327,13 @@ def test_before_partial_eval():
 
     mod["main"] = back_func
     seq = tvm.transform.Sequential(
-        [transform.LazyGradientInit(), transform.PartialEvaluate(), transform.DeadCodeElimination()]
+        [
+            transform.LazyGradientInit(),
+            transform.PartialEvaluate(),
+            transform.InferType(),
+            transform.DeadCodeElimination(),
+            transform.InferType(),
+        ]
     )
     mod = seq(mod)
     back_func = mod["main"]
@@ -438,4 +445,4 @@ def test_ones_like():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

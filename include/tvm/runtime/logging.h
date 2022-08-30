@@ -286,7 +286,8 @@ namespace detail {
  *
  * \sa TVM_LOG_CUSTOMIZE
  */
-TVM_DLL void LogFatalImpl(const std::string& file, int lineno, const std::string& message);
+[[noreturn]] TVM_DLL void LogFatalImpl(const std::string& file, int lineno,
+                                       const std::string& message);
 
 /*!
  * \brief Custom implementations of LogMessage.
@@ -302,7 +303,14 @@ TVM_DLL void LogMessageImpl(const std::string& file, int lineno, const std::stri
 class LogFatal {
  public:
   LogFatal(const std::string& file, int lineno) : file_(file), lineno_(lineno) {}
-  ~LogFatal() TVM_THROW_EXCEPTION { LogFatalImpl(file_, lineno_, stream_.str()); }
+#ifdef _MSC_VER
+#pragma disagnostic push
+#pragma warning(disable : 4722)
+#endif
+  [[noreturn]] ~LogFatal() TVM_THROW_EXCEPTION { LogFatalImpl(file_, lineno_, stream_.str()); }
+#ifdef _MSC_VER
+#pragma disagnostic pop
+#endif
   std::ostringstream& stream() { return stream_; }
 
  private:
@@ -532,8 +540,7 @@ std::unique_ptr<std::string> LogCheckFormat(const X& x, const Y& y) {
   std::ostringstream os;
   os << " (" << x << " vs. " << y << ") ";  // CHECK_XX(x, y) requires x and y can be serialized to
                                             // string. Use CHECK(x OP y) otherwise.
-  // no std::make_unique until c++14
-  return std::unique_ptr<std::string>(new std::string(os.str()));
+  return std::make_unique<std::string>(os.str());
 }
 
 // Inline _Pragma in macros does not work reliably on old version of MSVC and

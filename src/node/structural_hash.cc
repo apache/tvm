@@ -19,8 +19,10 @@
 /*!
  * \file src/node/structural_hash.cc
  */
+#include <dmlc/memory_io.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/node.h>
+#include <tvm/node/object_path.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/structural_hash.h>
 #include <tvm/runtime/container/adt.h>
@@ -30,6 +32,7 @@
 #include <algorithm>
 #include <unordered_map>
 
+#include "../support/base64.h"
 #include "../support/str_escape.h"
 #include "../support/utils.h"
 
@@ -326,46 +329,61 @@ struct ADTObjTrait {
 
 TVM_REGISTER_REFLECTION_VTABLE(runtime::ADTObj, ADTObjTrait);
 
-struct NDArrayContainerTrait {
-  static constexpr const std::nullptr_t VisitAttrs = nullptr;
-
-  static void SHashReduce(const runtime::NDArray::Container* key, SHashReducer hash_reduce) {
-    ICHECK_EQ(key->dl_tensor.device.device_type, kDLCPU) << "can only compare CPU tensor";
-    ICHECK(runtime::IsContiguous(key->dl_tensor)) << "Can only hash contiguous tensor";
-    hash_reduce(runtime::DataType(key->dl_tensor.dtype));
-    hash_reduce(key->dl_tensor.ndim);
-    for (int i = 0; i < key->dl_tensor.ndim; ++i) {
-      hash_reduce(key->dl_tensor.shape[i]);
-    }
-    hash_reduce->SHashReduceHashedValue(runtime::String::HashBytes(
-        static_cast<const char*>(key->dl_tensor.data), runtime::GetDataSize(key->dl_tensor)));
+void NDArrayContainerTrait::SHashReduce(const runtime::NDArray::Container* key,
+                                        SHashReducer hash_reduce) {
+  ICHECK_EQ(key->dl_tensor.device.device_type, kDLCPU) << "can only compare CPU tensor";
+  ICHECK(runtime::IsContiguous(key->dl_tensor)) << "Can only hash contiguous tensor";
+  hash_reduce(runtime::DataType(key->dl_tensor.dtype));
+  hash_reduce(key->dl_tensor.ndim);
+  for (int i = 0; i < key->dl_tensor.ndim; ++i) {
+    hash_reduce(key->dl_tensor.shape[i]);
   }
+  hash_reduce->SHashReduceHashedValue(runtime::String::HashBytes(
+      static_cast<const char*>(key->dl_tensor.data), runtime::GetDataSize(key->dl_tensor)));
+}
 
-  static bool SEqualReduce(const runtime::NDArray::Container* lhs,
-                           const runtime::NDArray::Container* rhs, SEqualReducer equal) {
-    if (lhs == rhs) return true;
+bool NDArrayContainerTrait::SEqualReduce(const runtime::NDArray::Container* lhs,
+                                         const runtime::NDArray::Container* rhs,
+                                         SEqualReducer equal) {
+  if (lhs == rhs) return true;
 
-    auto ldt = lhs->dl_tensor.dtype;
-    auto rdt = rhs->dl_tensor.dtype;
-    ICHECK_EQ(lhs->dl_tensor.device.device_type, kDLCPU) << "can only compare CPU tensor";
-    ICHECK_EQ(rhs->dl_tensor.device.device_type, kDLCPU) << "can only compare CPU tensor";
-    ICHECK(runtime::IsContiguous(lhs->dl_tensor)) << "Can only compare contiguous tensor";
-    ICHECK(runtime::IsContiguous(rhs->dl_tensor)) << "Can only compare contiguous tensor";
+  auto ldt = lhs->dl_tensor.dtype;
+  auto rdt = rhs->dl_tensor.dtype;
+  ICHECK_EQ(lhs->dl_tensor.device.device_type, kDLCPU) << "can only compare CPU tensor";
+  ICHECK_EQ(rhs->dl_tensor.device.device_type, kDLCPU) << "can only compare CPU tensor";
+  ICHECK(runtime::IsContiguous(lhs->dl_tensor)) << "Can only compare contiguous tensor";
+  ICHECK(runtime::IsContiguous(rhs->dl_tensor)) << "Can only compare contiguous tensor";
 
-    if (lhs->dl_tensor.ndim != rhs->dl_tensor.ndim) return false;
-    for (int i = 0; i < lhs->dl_tensor.ndim; ++i) {
-      if (!equal(lhs->dl_tensor.shape[i], rhs->dl_tensor.shape[i])) return false;
-    }
-    if (ldt.code == rdt.code && ldt.lanes == rdt.lanes && ldt.bits == rdt.bits) {
-      size_t data_size = runtime::GetDataSize(lhs->dl_tensor);
-      return std::memcmp(lhs->dl_tensor.data, rhs->dl_tensor.data, data_size) == 0;
-    } else {
-      return false;
-    }
+  if (lhs->dl_tensor.ndim != rhs->dl_tensor.ndim) return false;
+  for (int i = 0; i < lhs->dl_tensor.ndim; ++i) {
+    if (!equal(lhs->dl_tensor.shape[i], rhs->dl_tensor.shape[i])) return false;
   }
-};
+  if (ldt.code == rdt.code && ldt.lanes == rdt.lanes && ldt.bits == rdt.bits) {
+    size_t data_size = runtime::GetDataSize(lhs->dl_tensor);
+    return std::memcmp(lhs->dl_tensor.data, rhs->dl_tensor.data, data_size) == 0;
+  } else {
+    return false;
+  }
+}
 
-TVM_REGISTER_REFLECTION_VTABLE(runtime::NDArray::Container, NDArrayContainerTrait);
+TVM_REGISTER_REFLECTION_VTABLE(runtime::NDArray::Container, NDArrayContainerTrait)
+    .set_creator([](const std::string& blob) {
+      dmlc::MemoryStringStream mstrm(const_cast<std::string*>(&blob));
+      support::Base64InStream b64strm(&mstrm);
+      b64strm.InitPosition();
+      runtime::NDArray temp;
+      ICHECK(temp.Load(&b64strm));
+      return RefToObjectPtr::Get(temp);
+    })
+    .set_repr_bytes([](const Object* n) -> std::string {
+      std::string blob;
+      dmlc::MemoryStringStream mstrm(&blob);
+      support::Base64OutStream b64strm(&mstrm);
+      const auto* ndarray = static_cast<const runtime::NDArray::Container*>(n);
+      runtime::SaveDLTensor(&b64strm, &ndarray->dl_tensor);
+      b64strm.Finish();
+      return blob;
+    });
 
 struct ArrayNodeTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
@@ -378,10 +396,71 @@ struct ArrayNodeTrait {
   }
 
   static bool SEqualReduce(const ArrayNode* lhs, const ArrayNode* rhs, SEqualReducer equal) {
+    if (equal.IsPathTracingEnabled()) {
+      return SEqualReduceTraced(lhs, rhs, equal);
+    }
+
     if (lhs->size() != rhs->size()) return false;
     for (size_t i = 0; i < lhs->size(); ++i) {
       if (!equal(lhs->at(i), rhs->at(i))) return false;
     }
+    return true;
+  }
+
+ private:
+  static bool SEqualReduceTraced(const ArrayNode* lhs, const ArrayNode* rhs,
+                                 const SEqualReducer& equal) {
+    size_t min_size = std::min(lhs->size(), rhs->size());
+    const ObjectPathPair& array_paths = equal.GetCurrentObjectPaths();
+
+    for (size_t index = 0; index < min_size; ++index) {
+      ObjectPathPair element_paths = {array_paths->lhs_path->ArrayIndex(index),
+                                      array_paths->rhs_path->ArrayIndex(index)};
+      if (!equal(lhs->at(index), rhs->at(index), element_paths)) {
+        return false;
+      }
+    }
+
+    if (lhs->size() == rhs->size()) {
+      return true;
+    }
+
+    // If the array length is mismatched, don't report it immediately.
+    // Instead, defer the failure until we visit all children.
+    //
+    // This is for human readability. For example, say we have two sequences
+    //
+    //    (1)     a b c d e f g h i j k l m
+    //    (2)     a b c d e g h i j k l m
+    //
+    // If we directly report a mismatch at the end of the array right now,
+    // the user will see that array (1) has an element `m` at index 12 but array (2)
+    // has no index 12 because it's too short:
+    //
+    //    (1)     a b c d e f g h i j k l m
+    //                                    ^error here
+    //    (2)     a b c d e g h i j k l m
+    //                                    ^ error here
+    //
+    // This is not very helpful. Instead, if we defer reporting this mismatch until all elements
+    // are fully visited, we can be much more helpful with pointing out the location:
+    //
+    //    (1)     a b c d e f g h i j k l m
+    //                      ^
+    //                   error here
+    //
+    //    (2)     a b c d e g h i j k l m
+    //                      ^
+    //                  error here
+    if (lhs->size() > min_size) {
+      equal->DeferFail({array_paths->lhs_path->ArrayIndex(min_size),
+                        array_paths->rhs_path->MissingArrayElement(min_size)});
+    } else {
+      equal->DeferFail({array_paths->lhs_path->MissingArrayElement(min_size),
+                        array_paths->rhs_path->ArrayIndex(min_size)});
+    }
+
+    // Can return `true` pretending that everything is good since we have deferred the failure.
     return true;
   }
 };
@@ -484,13 +563,105 @@ struct MapNodeTrait {
     return true;
   }
 
+  static bool IsStringMap(const MapNode* map) {
+    return std::all_of(map->begin(), map->end(),
+                       [](const auto& v) { return v.first->template IsInstance<StringObj>(); });
+  }
+
+  static bool SEqualReduceTracedForOMap(const MapNode* lhs, const MapNode* rhs,
+                                        const SEqualReducer& equal) {
+    const ObjectPathPair& map_paths = equal.GetCurrentObjectPaths();
+
+    std::vector<const Object*> seen_rhs_keys;
+
+    // First, check that every key from `lhs` is also in `rhs`,
+    // and their values are mapped to each other.
+    for (const auto& kv : *lhs) {
+      ObjectPath lhs_path = map_paths->lhs_path->MapValue(kv.first);
+
+      ObjectRef rhs_key = equal->MapLhsToRhs(kv.first);
+      if (!rhs_key.defined()) {
+        equal.RecordMismatchPaths({lhs_path, map_paths->rhs_path->MissingMapEntry()});
+        return false;
+      }
+
+      auto it = rhs->find(rhs_key);
+      if (it == rhs->end()) {
+        equal.RecordMismatchPaths({lhs_path, map_paths->rhs_path->MissingMapEntry()});
+        return false;
+      }
+
+      if (!equal(kv.second, it->second, {lhs_path, map_paths->rhs_path->MapValue(it->first)})) {
+        return false;
+      }
+
+      seen_rhs_keys.push_back(it->first.get());
+    }
+
+    std::sort(seen_rhs_keys.begin(), seen_rhs_keys.end());
+
+    // Second, check that we have visited every `rhs` key when iterating over `lhs`.
+    for (const auto& kv : *rhs) {
+      if (!std::binary_search(seen_rhs_keys.begin(), seen_rhs_keys.end(), kv.first.get())) {
+        equal.RecordMismatchPaths(
+            {map_paths->lhs_path->MissingMapEntry(), map_paths->rhs_path->MapValue(kv.first)});
+        return false;
+      }
+    }
+
+    ICHECK(lhs->size() == rhs->size());
+    return true;
+  }
+
+  static bool SEqualReduceTracedForSMap(const MapNode* lhs, const MapNode* rhs,
+                                        const SEqualReducer& equal) {
+    const ObjectPathPair& map_paths = equal.GetCurrentObjectPaths();
+
+    // First, check that every key from `lhs` is also in `rhs`, and their values are equal.
+    for (const auto& kv : *lhs) {
+      ObjectPath lhs_path = map_paths->lhs_path->MapValue(kv.first);
+      auto it = rhs->find(kv.first);
+      if (it == rhs->end()) {
+        equal.RecordMismatchPaths({lhs_path, map_paths->rhs_path->MissingMapEntry()});
+        return false;
+      }
+
+      if (!equal(kv.second, it->second, {lhs_path, map_paths->rhs_path->MapValue(it->first)})) {
+        return false;
+      }
+    }
+
+    // Second, make sure every key from `rhs` is also in `lhs`.
+    for (const auto& kv : *rhs) {
+      ObjectPath rhs_path = map_paths->rhs_path->MapValue(kv.first);
+      if (!lhs->count(kv.first)) {
+        equal.RecordMismatchPaths({map_paths->lhs_path->MissingMapEntry(), rhs_path});
+        return false;
+      }
+    }
+
+    ICHECK(lhs->size() == rhs->size());
+    return true;
+  }
+
+  static bool SEqualReduceTraced(const MapNode* lhs, const MapNode* rhs,
+                                 const SEqualReducer& equal) {
+    if (IsStringMap(lhs)) {
+      return SEqualReduceTracedForSMap(lhs, rhs, equal);
+    } else {
+      return SEqualReduceTracedForOMap(lhs, rhs, equal);
+    }
+  }
+
   static bool SEqualReduce(const MapNode* lhs, const MapNode* rhs, SEqualReducer equal) {
+    if (equal.IsPathTracingEnabled()) {
+      return SEqualReduceTraced(lhs, rhs, equal);
+    }
+
     if (rhs->size() != lhs->size()) return false;
     if (rhs->size() == 0) return true;
-    bool ls = std::all_of(lhs->begin(), lhs->end(),
-                          [](const auto& v) { return v.first->template IsInstance<StringObj>(); });
-    bool rs = std::all_of(rhs->begin(), rhs->end(),
-                          [](const auto& v) { return v.first->template IsInstance<StringObj>(); });
+    bool ls = IsStringMap(lhs);
+    bool rs = IsStringMap(rhs);
     if (ls != rs) {
       return false;
     }
@@ -504,6 +675,7 @@ struct ReportNodeTrait {
   static void VisitAttrs(runtime::profiling::ReportNode* report, AttrVisitor* attrs) {
     attrs->Visit("calls", &report->calls);
     attrs->Visit("device_metrics", &report->device_metrics);
+    attrs->Visit("configuration", &report->configuration);
   }
   static constexpr std::nullptr_t SEqualReduce = nullptr;
   static constexpr std::nullptr_t SHashReduce = nullptr;
@@ -554,6 +726,19 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<runtime::profiling::PercentNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const runtime::profiling::PercentNode*>(node.get());
       p->stream << op->GetTypeKey() << "(" << op->percent << ")";
+    });
+struct RatioNodeTrait {
+  static void VisitAttrs(runtime::profiling::RatioNode* n, AttrVisitor* attrs) {
+    attrs->Visit("ratio", &n->ratio);
+  }
+  static constexpr std::nullptr_t SEqualReduce = nullptr;
+  static constexpr std::nullptr_t SHashReduce = nullptr;
+};
+TVM_REGISTER_REFLECTION_VTABLE(runtime::profiling::RatioNode, RatioNodeTrait);
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<runtime::profiling::RatioNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const runtime::profiling::RatioNode*>(node.get());
+      p->stream << op->GetTypeKey() << "(" << op->ratio << ")";
     });
 
 }  // namespace tvm

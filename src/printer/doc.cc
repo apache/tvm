@@ -30,6 +30,8 @@
 #include <sstream>
 #include <vector>
 
+#include "../support/str_escape.h"
+
 namespace tvm {
 
 /*!
@@ -50,12 +52,7 @@ TVM_REGISTER_OBJECT_TYPE(DocTextNode);
 
 class DocText : public DocAtom {
  public:
-  explicit DocText(std::string str) {
-    if (str.find_first_of("\t\n") != str.npos) {
-      LOG(WARNING) << "text node: '" << str << "' should not has tab or newline.";
-    }
-    data_ = runtime::make_object<DocTextNode>(str);
-  }
+  explicit DocText(std::string str) { data_ = runtime::make_object<DocTextNode>(str); }
 
   TVM_DEFINE_OBJECT_REF_METHODS(DocText, DocAtom, DocTextNode);
 };
@@ -129,9 +126,8 @@ Doc Doc::Indent(int indent, Doc doc) {
 }
 
 Doc Doc::StrLiteral(const std::string& value, std::string quote) {
-  // TODO(@M.K.): add escape.
   Doc doc;
-  return doc << quote << value << quote;
+  return doc << quote << support::StrEscape(value) << quote;
 }
 
 Doc Doc::PyBoolLiteral(bool value) {

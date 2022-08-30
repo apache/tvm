@@ -28,6 +28,7 @@
 
 #include <unordered_set>
 
+#include "../../arith/ir_mutator_with_analyzer.h"
 #include "ir_utils.h"
 
 namespace tvm {
@@ -50,7 +51,10 @@ class ExprTouched final : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt(n);
   }
   void VisitExpr_(const LoadNode* op) final {
-    HandleUseVar(op->buffer_var.get());
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+  }
+  void VisitExpr_(const BufferLoadNode* op) final {
+    HandleUseVar(op->buffer->data.get());
     StmtExprVisitor::VisitExpr_(op);
   }
   void VisitExpr_(const VarNode* op) final { HandleUseVar(op); }
@@ -101,11 +105,18 @@ class VarTouchedAnalysis : public StmtVisitor {
     Record(op->var.get(), tc);
     this->VisitStmt(op->body);
   }
+
   void VisitStmt_(const StoreNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+  }
+
+  void VisitStmt_(const BufferStoreNode* op) final {
     ExprTouched tc(touched_var_, false);
     tc(op->value);
-    tc(op->index);
-    Record(op->buffer_var.get(), tc);
+    for (const auto& index : op->indices) {
+      tc(index);
+    }
+    Record(op->buffer->data.get(), tc);
   }
   void VisitStmt_(const ForNode* op) final {
     ExprTouched tc(touched_var_, false);
@@ -166,17 +177,21 @@ class VarTouchedAnalysis : public StmtVisitor {
   // Whether variable is touched by the thread variable.
   std::unordered_set<const VarNode*> touched_var_;
   // x -> all the buffers x read from
-  std::unordered_map<const VarNode*, std::vector<const VarNode*> > affect_;
+  std::unordered_map<const VarNode*, std::vector<const VarNode*>> affect_;
 };
 
 // Inject virtual thread loop
 // rewrite the buffer access pattern when necessary.
-class VTInjector : public StmtExprMutator {
+class VTInjector : public arith::IRMutatorWithAnalyzer {
  public:
+  using IRMutatorWithAnalyzer::VisitExpr_;
+  using IRMutatorWithAnalyzer::VisitStmt_;
+
   // constructor
-  VTInjector(Var var, int num_threads, const std::unordered_set<const VarNode*>& touched_var,
-             bool allow_share)
-      : var_(var),
+  VTInjector(arith::Analyzer* analyzer, Var var, int num_threads,
+             const std::unordered_set<const VarNode*>& touched_var, bool allow_share)
+      : IRMutatorWithAnalyzer(analyzer),
+        var_(var),
         num_threads_(num_threads),
         touched_var_(touched_var),
         allow_share_(allow_share) {}
@@ -202,21 +217,7 @@ class VTInjector : public StmtExprMutator {
     return GetRef<PrimExpr>(op);
   }
   PrimExpr RewriteIndex(PrimExpr index, PrimExpr alloc_extent) const {
-    return index + var_ * alloc_extent;
-  }
-  // Load
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<LoadNode>();
-    if (touched_var_.count(op->buffer_var.get())) {
-      visit_touched_var_ = true;
-    }
-    auto it = alloc_remap_.find(op->buffer_var.get());
-    if (it != alloc_remap_.end()) {
-      return Load(op->dtype, op->buffer_var, RewriteIndex(op->index, it->second), op->predicate);
-    } else {
-      return expr;
-    }
+    return analyzer_->Simplify(index + var_ * alloc_extent);
   }
   // Expression.
   PrimExpr VisitExpr_(const CallNode* op) final {
@@ -230,7 +231,8 @@ class VTInjector : public StmtExprMutator {
       PrimExpr offset = this->VisitExpr(op->args[2]);
       PrimExpr extent = this->VisitExpr(op->args[3]);
       PrimExpr stride = it->second / make_const(offset.dtype(), dtype.lanes());
-      offset = stride * var_ + offset;
+      offset = RewriteIndex(offset, stride);
+
       return Call(op->dtype, op->op, {op->args[0], op->args[1], offset, extent, op->args[4]});
     } else if (op->op.same_as(builtin::tvm_context_id())) {
       return allow_share_ ? GetRef<PrimExpr>(op) : var_;
@@ -242,21 +244,61 @@ class VTInjector : public StmtExprMutator {
     trigger_base_inject_ = !allow_share_;
     return StmtExprMutator::VisitStmt_(op);
   }
+  // Load
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
+  }
   // Store
   Stmt VisitStmt_(const StoreNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<StoreNode>();
-    if (touched_var_.count(op->buffer_var.get())) {
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
+  }
+  // BufferLoad
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    return VisitBufferAccess(std::move(node));
+  }
+  // BufferStore
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    trigger_base_inject_ = !allow_share_;
+    return VisitBufferAccess(std::move(node));
+  }
+
+  template <typename Node>
+  Node VisitBufferAccess(Node node) {
+    if (touched_var_.count(node->buffer->data.get())) {
       visit_touched_var_ = true;
     }
-    trigger_base_inject_ = !allow_share_;
-    auto it = alloc_remap_.find(op->buffer_var.get());
+
+    auto it = alloc_remap_.find(node->buffer->data.get());
     if (it != alloc_remap_.end()) {
-      return Store(op->buffer_var, op->value, RewriteIndex(op->index, it->second), op->predicate);
-    } else {
-      return stmt;
+      ICHECK_EQ(node->indices.size(), 1)
+          << "InjectVirtualThread expects rewritten allocations to be flat memory.";
+      auto writer = node.CopyOnWrite();
+      writer->buffer = GetRemappedBuffer(node->buffer, it->second);
+      writer->indices = {RewriteIndex(node->indices[0], it->second)};
     }
+
+    return node;
   }
+
+  Buffer GetRemappedBuffer(Buffer buf, PrimExpr alloc_extent) {
+    auto key = buf.get();
+    auto it = buf_remap_.find(key);
+    if (it != buf_remap_.end()) {
+      return it->second;
+    }
+
+    ICHECK_EQ(buf->shape.size(), 1) << "Expected buffers being rewritten to already be flattened.";
+    auto writer = buf.CopyOnWrite();
+    writer->shape = {buf->shape[0] * alloc_extent};
+
+    buf_remap_[key] = buf;
+    return buf;
+  }
+
   // Attribute
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     PrimExpr value = this->VisitExpr(op->value);
@@ -354,46 +396,44 @@ class VTInjector : public StmtExprMutator {
   }
   // Allocate
   Stmt VisitStmt_(const AllocateNode* op) final {
+    Allocate node = GetRef<Allocate>(op);
+
     PrimExpr condition = this->VisitExpr(op->condition);
+
+    Array<PrimExpr> extents = op->extents;
+    extents.MutateByApply([this](const PrimExpr& extent) { return this->VisitExpr(extent); });
+
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(GetRef<Stmt>(op), true);
     }
 
-    bool changed = false;
-    Array<PrimExpr> extents;
-    for (size_t i = 0; i < op->extents.size(); i++) {
-      PrimExpr new_ext = this->VisitExpr(op->extents[i]);
-      if (visit_touched_var_ && !vt_loop_injected_) {
-        return InjectVTLoop(GetRef<Stmt>(op), true);
-      }
-      if (!new_ext.same_as(op->extents[i])) changed = true;
-      extents.push_back(new_ext);
-    }
     visit_touched_var_ = false;
 
-    Stmt body;
-    // always rewrite if not allow sharing.
+    // Rewrite the buffer if its shape or any value stored in it
+    // depends on the virtual thread var.  If `allow_share_` is false,
+    // then the buffer is always rewritten, even if separate virtual
+    // threads only read from the buffer.
     if (touched_var_.count(op->buffer_var.get()) || !allow_share_) {
       // place v on highest dimension.
-      PrimExpr stride = foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
-                              make_const(DataType::Int(32), 1), op->extents) *
-                        op->dtype.lanes();
-      Array<PrimExpr> other;
-      other.push_back(make_const(op->extents[0].dtype(), num_threads_));
-      for (PrimExpr e : extents) {
-        other.push_back(e);
-      }
-      extents = other;
-      changed = true;
-      // mark this buffer get touched.
+
+      // TODO(Lunderberg): Move pass to apply before
+      // StorageFlatten/FlattenBuffer.  Would rewrite the Buffer to
+      // add the injected virtual thread as the first index.
+      ICHECK_EQ(extents.size(), 1)
+          << "InjectVirtualThread expects rewritten allocations to be flat memory.";
+      PrimExpr stride = extents[0];
+      extents = {stride * num_threads_};
+
+      // Mark the buffer var as touched.  BufferLoad/BufferStore should
+      // access locations at `current_index + stride*vthread_var`.
       alloc_remap_[op->buffer_var.get()] = stride;
-      // Mutate the body.
-      body = this->VisitStmt(op->body);
-    } else {
-      // Mutate the body.
-      body = this->VisitStmt(op->body);
     }
-    if (!changed && body.same_as(op->body) && condition.same_as(op->condition)) {
+
+    // Mutate the body.  Depends on alloc_remap_.
+    auto body = this->VisitStmt(op->body);
+
+    if (extents.same_as(op->extents) && body.same_as(op->body) &&
+        condition.same_as(op->condition)) {
       return GetRef<Stmt>(op);
     } else {
       return Allocate(op->buffer_var, op->dtype, extents, condition, body);
@@ -448,12 +488,28 @@ class VTInjector : public StmtExprMutator {
   const std::unordered_set<const VarNode*>& touched_var_;
   // Whether allow shareding.
   bool allow_share_;
-  // The allocations that get touched -> extent
+  /* \brief The allocations that get touched -> extent
+   *
+   * Maps from the buffer_var of an allocate node to the original
+   * extent of the allocation.  Used when rewriting the indices of
+   * BufferLoad/BufferStore.
+   */
   std::unordered_map<const VarNode*, PrimExpr> alloc_remap_;
+  /*! \brief Map of buffers that are modified.
+   *
+   * Buffers allocated or written to within the virtual thread loop
+   * must have one copy per virtual thread.  This is done by enlarging
+   * the allocated buffer size, then modifying the indices at which
+   * each virtual thread accesses the buffer.
+   */
+  std::unordered_map<const BufferNode*, Buffer> buf_remap_;
 };
 
-class VirtualThreadInjector : public StmtMutator {
+class VirtualThreadInjector : public arith::IRMutatorWithAnalyzer {
  public:
+  using IRMutatorWithAnalyzer::IRMutatorWithAnalyzer;
+  using IRMutatorWithAnalyzer::VisitStmt_;
+
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<AttrStmtNode>();
@@ -463,7 +519,7 @@ class VirtualThreadInjector : public StmtMutator {
       int nthread = static_cast<int>(op->value.as<IntImmNode>()->value);
       VarTouchedAnalysis vs;
       auto touched = vs.TouchedVar(op->body, iv->var.get());
-      VTInjector injector(iv->var, nthread, touched, allow_share);
+      VTInjector injector(analyzer_, iv->var, nthread, touched, allow_share);
       return injector(op->body);
     } else {
       return stmt;
@@ -481,7 +537,11 @@ namespace transform {
 Pass InjectVirtualThread() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    n->body = ConvertSSA(VirtualThreadInjector()(std::move(n->body)));
+
+    arith::Analyzer analyzer;
+
+    n->body = VirtualThreadInjector(&analyzer)(std::move(n->body));
+    n->body = ConvertSSA(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.InjectVirtualThread", {});

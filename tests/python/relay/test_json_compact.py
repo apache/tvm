@@ -21,6 +21,9 @@ from tvm import te
 import json
 
 
+# 0.6 BACKWARDS COMPATIBILITY TESTS
+
+
 def test_type_var():
     # type var in 0.6
     nodes = [
@@ -49,7 +52,12 @@ def test_var():
         {"type_key": ""},
         {
             "type_key": "relay.Var",
-            "attrs": {"_checked_type_": "0", "span": "0", "type_annotation": "0", "vid": "2"},
+            "attrs": {
+                "_checked_type_": "0",
+                "span": "0",
+                "type_annotation": "0",
+                "vid": "2",
+            },
         },
         {"type_key": "relay.Id", "attrs": {"name_hint": "a3"}},
         {"type_key": "relay.TensorType", "attrs": {"dtype": "float32", "shape": "4", "span": "0"}},
@@ -130,7 +138,10 @@ def test_global_var():
     assert isinstance(tvar, tvm.ir.GlobalVar)
     nodes = [
         {"type_key": ""},
-        {"type_key": "GlobalVar", "attrs": {"_checked_type_": "0", "name_hint": "x", "span": "0"}},
+        {
+            "type_key": "GlobalVar",
+            "attrs": {"_checked_type_": "0", "name_hint": "x", "span": "0"},
+        },
     ]
     data = {
         "root": 1,
@@ -204,6 +215,65 @@ def test_str_map():
     assert "x" in x
     assert "z" in x
     assert bool(x["z"] == 2)
+
+
+# 0.7 BACKWARDS COMPATIBILITY TESTS
+
+
+def test_irmodule_attributes():
+    nodes = [
+        {"type_key": ""},
+        {
+            "type_key": "IRModule",
+            "attrs": {
+                "functions": "0",
+                "global_type_var_map_": "0",
+                "global_var_map_": "0",
+                "source_map": "0",
+                "type_definitions": "0",
+            },
+        },
+    ]
+    data = {
+        "root": 1,
+        "nodes": nodes,
+        "attrs": {"tvm_version": "0.7.0"},
+        "b64ndarrays": [],
+    }
+    mod = tvm.ir.load_json(json.dumps(data))
+    assert isinstance(mod, tvm.ir.IRModule)
+    # IRModule attributes should defualt to null
+    assert not mod.attrs
+
+
+# 0.8 BACKWARDS COMPATIBILITY TESTS
+
+
+def test_virtual_device():
+    nodes = [
+        {"type_key": ""},
+        {
+            "type_key": "relay.Function",
+            "attrs": {
+                "_checked_type_": "0",
+                "attrs": "0",
+                "body": "0",
+                "params": "0",
+                "ret_type": "0",
+                "span": "0",
+                "type_params": "0",
+            },
+        },
+    ]
+    data = {
+        "root": 1,
+        "nodes": nodes,
+        "attrs": {"tvm_version": "0.8.0"},
+        "b64ndarrays": [],
+    }
+    func = tvm.ir.load_json(json.dumps(data))
+    assert isinstance(func, relay.Function)
+    assert not func.virtual_device_
 
 
 if __name__ == "__main__":

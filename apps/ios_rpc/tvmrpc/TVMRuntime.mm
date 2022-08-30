@@ -31,7 +31,7 @@
 #include <../../../src/runtime/file_utils.h>
 
 #if defined(USE_CUSTOM_DSO_LOADER) && USE_CUSTOM_DSO_LOADER == 1
-// internal TVM header to achive Library class
+// internal TVM header to achieve Library class
 #include <../../../src/runtime/library_module.h>
 #include <custom_dlfcn.h>
 #endif
@@ -41,7 +41,7 @@ namespace runtime {
 namespace detail {
 
 // Override logging mechanism
-void LogFatalImpl(const std::string& file, int lineno, const std::string& message) {
+[[noreturn]] void LogFatalImpl(const std::string& file, int lineno, const std::string& message) {
   throw tvm::runtime::InternalError(file, lineno, message);
 }
 

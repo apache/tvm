@@ -127,7 +127,7 @@ logs use it to rank measured performance (but see Future Work).
 Targets are currently represented as strings structured similarly to command-line arguments. An
 example target is shown below:
 
-    ``c -keys=arm_cpu -mcpu=cortex-m7 -link-params -model=stm32f746xx -runtime=c -system-lib=1``
+    ``c -keys=arm_cpu -mcpu=cortex-m7 -model=stm32f746xx``
 
 The relevant parts to microTVM are:
 
@@ -135,10 +135,16 @@ The relevant parts to microTVM are:
  * ``-mcpu=cortex-m7``: used by TOPI to enable Cortex-M schedules, and, when the C source code
    generator is selected, included in the output as a comment to help identify the code and
    configure the downstream C compiler.
- * ``-link-params``: include parameters as global constants to load from flash.
- * ``-runtime=c``: build glue code to allow operators to work with the C runtime
- * ``-system-lib=1``: emit a system library (i.e. which can be loaded by calling the PackedFunc
-   ``runtime.SystemLib``.
+
+Runtime and Executor configuration for microTVM
+-----------------------------------------------
+
+When using microTVM, it's important to use the C Runtime (``Runtime('crt')``), which is the runtime that works best on micro devices rather than the more dynamic C++ Runtime. Alongside this, there are two executors which you could use in combination with the C runtime:
+
+* ``Executor("aot")`` - The Ahead of Time (AOT) executor precompiles the network into a runnable function which you can add directly into your micro application
+* ``Executor("graph", {"link-params": True})`` - The Graph executor provides a JSON representation of your network and requires the C Runtime's system library to be generated to find functions in the function registry (``Runtime("crt", {"system-lib": True})``). ``{"link-params":True}`` enables parameters to be linked into the generated files rather than provided externally.
+
+These are specified when building a runtime module: ``relay.build(..., runtime=..., executor=...)``.
 
 Writing Schedules for microTVM
 ------------------------------

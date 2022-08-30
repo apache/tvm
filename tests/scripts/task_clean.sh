@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,5 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+set -euxo pipefail
+
 echo "Cleanup data..."
 cd $1 && rm -rf standalone_crt && rm -rf host_standalone_crt && rm -rf CMake* && cd ..

@@ -45,10 +45,11 @@ TensorRTBuilder::TensorRTBuilder(TensorRTLogger* logger,
       max_workspace_size_(max_workspace_size),
       use_implicit_batch_(use_implicit_batch),
       use_fp16_(use_fp16),
-      batch_size_(batch_size) {
+      use_int8_(false),
+      batch_size_(batch_size),
+      calibrator_(calibrator) {
   // Create TRT builder and network.
   builder_ = nvinfer1::createInferBuilder(*logger);
-  use_int8_ = false;
 
 #if TRT_VERSION_GE(6, 0, 1)
   // Use INetworkV2.
@@ -58,8 +59,7 @@ TensorRTBuilder::TensorRTBuilder(TensorRTLogger* logger,
     flags = 0U;
     builder_->setMaxBatchSize(batch_size_);
   }
-  this->calibrator_ = calibrator;
-  if (calibrator != nullptr) {
+  if (calibrator_ != nullptr) {
     use_int8_ = true;
   }
   network_ = builder_->createNetworkV2(flags);
@@ -69,6 +69,12 @@ TensorRTBuilder::TensorRTBuilder(TensorRTLogger* logger,
   builder_->setFp16Mode(use_fp16_);
   network_ = builder_->createNetwork();
 #endif
+}
+
+nvinfer1::DataType DLDataType2NVDataType(DLDataType data_type) {
+  ICHECK(data_type.code == kDLFloat && (data_type.bits == 16 || data_type.bits == 32))
+      << "Invalid input Tensor type. Only float16 and float32 are supported";
+  return (data_type.bits == 16) ? nvinfer1::DataType::kHALF : nvinfer1::DataType::kFLOAT;
 }
 
 void TensorRTBuilder::AddInput(int nid, uint32_t entry_id, const JSONGraphNode& node) {
@@ -85,8 +91,7 @@ void TensorRTBuilder::AddInput(int nid, uint32_t entry_id, const JSONGraphNode& 
       shape.erase(shape.begin());
     }
     nvinfer1::Dims dims = VectorToTrtDims(shape);
-    ICHECK(TypeMatch(dtypes[i], kDLFloat, 32)) << "Only FP32 inputs are supported.";
-    auto input_tensor = network_->addInput(name.c_str(), nvinfer1::DataType::kFLOAT, dims);
+    auto input_tensor = network_->addInput(name.c_str(), DLDataType2NVDataType(dtypes[i]), dims);
     node_output_map_[nid].push_back(TensorRTOpInput(input_tensor));
     network_input_names_.push_back(name);
     entry_id_map_[name] = entry_id + i;
@@ -119,37 +124,43 @@ void TensorRTBuilder::AddOutput(const JSONGraphNodeEntry& node, uint32_t entry_i
 }
 
 void TensorRTBuilder::AddLayer(int nid, const JSONGraphNode& node) {
-  TensorRTOpConverterParams params(network_, node, &trt_weights_);
+  TensorRTOpConverterParams params(network_, nid, node, &trt_weights_);
   // Look up converter.
-  auto it = GetOpConverters()->find(params.op_name);
-  ICHECK(it != GetOpConverters()->end())
-      << "Unsupported operator conversion to TRT, op name: " << params.op_name;
-  const auto converter = it->second;
+  const std::unordered_map<std::string, std::unique_ptr<TensorRTOpConverter>>& map =
+      GetOpConverters();
+  auto it = map.find(params.op_name);
+  ICHECK(it != map.end()) << params.op_name << ": Unsupported operator";
+  const TensorRTOpConverter& converter = *it->second;
+  if (!converter.variable_input_count) {
+    ICHECK_EQ(node.GetInputs().size(), converter.input_types.size())
+        << params.op_name << ": Mismatched input sizes";
+  }
   // Get inputs.
   for (size_t i = 0; i < node.GetInputs().size(); ++i) {
     auto in_node = node.GetInputs()[i];
     auto it = node_output_map_.find(in_node.id_);
-    ICHECK(it != node_output_map_.end()) << "Input was not found.";
+    ICHECK(it != node_output_map_.end()) << params.op_name << ": Input was not found";
     auto input = it->second[in_node.index_];
-    if (!converter->variable_input_count) {
-      if (converter->input_types[i] == kTensor && input.type == kWeight) {
+    if (!converter.variable_input_count) {
+      if (converter.input_types[i] == kTensor && input.type == kWeight) {
         input = TensorRTOpInput(GetInputAsTensor(input));
-      } else if (converter->input_types[i] == kWeight && input.type == kTensor) {
-        LOG(FATAL) << "Input " << i << " for " << params.op_name
-                   << " requires weights but got a tensor.";
+      } else if (converter.input_types[i] == kWeight && input.type == kTensor) {
+        LOG(FATAL) << params.op_name << ": Input " << i << " must be a constant.";
       }
     }
     params.inputs.push_back(input);
   }
-  ICHECK(converter->variable_input_count || converter->input_types.size() == params.inputs.size())
-      << "Op expected a different number of inputs.";
 
   // Convert op to TRT.
-  converter->Convert(&params);
+  converter.Convert(&params);
 
   // Get outputs.
   node_output_map_[nid] = {};
-  for (auto out : params.outputs) {
+  std::vector<DLDataType> dtype = node.GetOpDataType();
+  ICHECK_EQ(params.outputs.size(), dtype.size()) << params.op_name << ": Mismatched output sizes";
+  for (size_t i = 0; i < params.outputs.size(); ++i) {
+    auto out = params.outputs[i];
+    out->setType(DLDataType2NVDataType(dtype[i]));
     node_output_map_[nid].push_back(TensorRTOpInput(out));
   }
 }
@@ -166,6 +177,7 @@ TensorRTEngineAndContext TensorRTBuilder::BuildEngine() {
 
   if (use_int8_) {
     config_->setFlag(nvinfer1::BuilderFlag::kINT8);
+    ICHECK(calibrator_);
     config_->setInt8Calibrator(calibrator_);
     LOG(INFO) << "config finishes setting up calibrator as INT8 mode ... ";
   }
@@ -199,24 +211,26 @@ TensorRTEngineAndContext TensorRTBuilder::BuildEngine() {
   nvinfer1::IExecutionContext* context = engine->createExecutionContext();
   CleanUp();
 
+  ICHECK(engine);
+  ICHECK(context);
+
   return {engine, context, network_input_names_, network_output_names_};
 }
 
 nvinfer1::Weights TensorRTBuilder::GetDLTensorAsWeights(const DLTensor* dptr,
                                                         DLDeviceType src_device) {
   ICHECK_EQ(dptr->device.device_type, src_device);
-  ICHECK(static_cast<int>(dptr->dtype.code) == kDLFloat ||
-         static_cast<int>(dptr->dtype.code) == kDLInt);
-  const auto trt_dtype = static_cast<int>(dptr->dtype.code) == kDLFloat
-                             ? nvinfer1::DataType::kFLOAT
-                             : nvinfer1::DataType::kINT32;
+  ICHECK((dptr->dtype.bits != 16 || dptr->dtype.bits != 32))
+      << "Invalid input Tensor type. Float16 and Float32 are supported";
+  const auto trt_dtype = (static_cast<int>(dptr->dtype.bits) == 16) ? nvinfer1::DataType::kHALF
+                                                                    : nvinfer1::DataType::kFLOAT;
+
   const size_t weight_bytes = GetDataSize(*dptr);
   nvinfer1::Weights weight{trt_dtype, nullptr, 0};
   size_t count = 1;
   for (tvm_index_t i = 0; i < dptr->ndim; ++i) {
     count *= dptr->shape[i];
   }
-  ICHECK_EQ(count * 4, weight_bytes);
   weight.count = count;
   weight.values = new float[count];
   ICHECK_EQ(TVMArrayCopyToBytes(const_cast<DLTensor*>(dptr), const_cast<void*>(weight.values),
@@ -244,18 +258,33 @@ nvinfer1::ITensor* TensorRTBuilder::GetInputAsTensor(const TensorRTOpInput& inpu
 }
 
 void TensorRTBuilder::CleanUp() {
+  VLOG(1) << "Destroying TensorRT network";
+  ICHECK(network_);
   network_->destroy();
+  network_ = nullptr;
+
 #if TRT_VERSION_GE(6, 0, 1)
+  VLOG(1) << "Destroying TensorRT config";
+  ICHECK(config_);
   config_->destroy();
+  config_ = nullptr;
 #endif
+
+  VLOG(1) << "Destroying TensorRT builder";
+  ICHECK(builder_);
   builder_->destroy();
+  builder_ = nullptr;
+
+  VLOG(1) << "Destroying TensorRT weights";
   for (auto weight : trt_weights_) {
-    if (weight.type == nvinfer1::DataType::kFLOAT) {
+    ICHECK(weight.values);
+    if (weight.type == nvinfer1::DataType::kFLOAT || weight.type == nvinfer1::DataType::kHALF) {
       delete[] static_cast<const float*>(weight.values);
     } else {
       delete[] static_cast<const uint16_t*>(weight.values);
     }
   }
+  trt_weights_.clear();
 }
 
 }  // namespace contrib

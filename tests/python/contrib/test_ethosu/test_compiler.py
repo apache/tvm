@@ -19,29 +19,47 @@ import pytest
 pytest.importorskip("ethosu.vela")
 import tvm
 from tvm import relay
-from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_tir
+from tvm.relay.backend.contrib.ethosu.tir.compiler import _lower_to_tir
+from . import infra
 
 
-def test_lower_to_tir():
-    data = relay.var("data", shape=(1, 1, 1, 1024), dtype="uint8")
-    weight = relay.var("weight", shape=(1, 1, 1024, 1001), dtype="int8")
-    p2 = relay.var("p2", shape=(1, 1, 1, 1), dtype="int32")
-    conv = relay.nn.conv2d(
-        data,
-        weight,
-        kernel_size=(1, 1),
-        data_layout="NHWC",
-        kernel_layout="HWIO",
-        out_dtype="int32",
-    )
-    multiply = relay.multiply(relay.const(-22, dtype="int32"), p2)
-    tile = relay.tile(multiply, reps=(1, 1, 1, 1001))
-    subtract = relay.subtract(conv, tile)
-    func = subtract
-    expr = relay.Function(relay.analysis.free_vars(func), func)
-    mod = tvm.IRModule.from_expr(expr)
+def _create_single_conv2d():
+    ifm = relay.var("x", shape=(1, 8, 8, 4), dtype="int8")
+    conv1 = infra.make_ethosu_conv2d(ifm, 4, 4, (3, 3), (1, 1), (1, 1), (1, 1))
+    func = relay.Function(relay.analysis.free_vars(conv1), conv1)
+    return func
+
+
+def _create_double_conv2d():
+    ifm = relay.var("x", shape=(1, 8, 8, 4), dtype="int8")
+    conv1 = infra.make_ethosu_conv2d(ifm, 4, 4, (3, 3), (1, 1), (1, 1), (1, 1))
+    conv2 = infra.make_ethosu_conv2d(conv1, 4, 7, (2, 2), (1, 1), (1, 1), (1, 1))
+    func = relay.Function(relay.analysis.free_vars(conv2), conv2)
+    return func
+
+
+def _create_non_linear_conv2d():
+    shape = (1, 8, 8, 4)
+    ifm1 = relay.var("x", shape=shape, dtype="int8")
+    ifm2 = relay.var("y", shape=shape, dtype="int8")
+    conv1 = infra.make_ethosu_conv2d(ifm1, 4, 4, (3, 3), (1, 1), (1, 1), (1, 1))
+    conv2 = infra.make_ethosu_conv2d(ifm2, 4, 4, (3, 3), (1, 1), (1, 1), (1, 1))
+    add = infra.make_ethosu_binary_elementwise(conv1, conv2, shape[3], shape[3], "ADD", "int8")
+    func = relay.Function(relay.analysis.free_vars(add), add)
+    return func
+
+
+@pytest.mark.parametrize(
+    "relay_function, arg_count",
+    [(_create_single_conv2d, 2), (_create_double_conv2d, 2), (_create_non_linear_conv2d, 3)],
+)
+def test_lower_to_tir_arg_count(relay_function, arg_count):
+    mod = tvm.IRModule()
+    mod["main"] = relay_function()
     mod = relay.transform.InferType()(mod)
-    lower_to_tir(mod["main"])
+    tir_mod = _lower_to_tir(mod["main"])[0]
+    primfunc = tir_mod["main"]
+    assert len(primfunc.params) == arg_count
 
 
 if __name__ == "__main__":

@@ -16,17 +16,16 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument
 """Extract information from the pooling operators in TIR."""
-from typing import Dict, Tuple
+from typing import Tuple
 import tvm
-from .utils import get_outer_loops, get_op_attrs
+from .utils import get_outer_loops, get_op_attrs, get_loads, get_stores
 from .dma import get_ifm_params, get_ofm_params
 from .spec import SerialKernel, SerialActivation, SerialPooling
+from .producers_consumers import ProducersConsumers
 
 
 def get_pooling_params(
-    stmt: tvm.tir.AttrStmt,
-    producers: Dict[tvm.tir.Var, tvm.tir.AttrStmt],
-    consumers: Dict[tvm.tir.Var, tvm.tir.AttrStmt],
+    stmt: tvm.tir.AttrStmt, producers_consumers: ProducersConsumers
 ) -> Tuple[SerialPooling, tvm.tir.Var, tvm.tir.Var]:
     """Get the parameters necessary to construct a call_extern for a pooling.
 
@@ -34,12 +33,9 @@ def get_pooling_params(
     ----------
     stmt : tvm.tir.AttrStmt
         The outermost attribute statement of a convolution loop nest.
-    producers : Dict[tvm.tir.Var, tvm.tir.AttrStmt]
-        A dictionary to associate pointers with the loop nest
-        that produces their values.
-    consumers : Dict[tvm.tir.Var, tvm.tir.AttrStmt]
-        A dictionary to associate pointers with the loop nest
-        that consumes their values.
+    producers_consumers: ProducersConsumers
+        It associates pointers with the loop nest that produces
+        their values and with the loop nest that consumes their values.
 
     Returns
     -------
@@ -50,17 +46,24 @@ def get_pooling_params(
     replace_pointer : tvm.tir.Var
         The output pointer of the DMA write operation, which is to replace
         the convolution output pointer.
+    is_allocator : bool
+        Whether this operator allocates its output.
     """
     attrs, body = get_op_attrs(stmt)
     _, _, _, _, _, inner = get_outer_loops(body, "NHWC")
     rh = inner
     rw = rh.body
-    compute = rw.body.value.b
-    input_pointer = compute.buffer_var
-    output_pointer = rw.body.buffer_var
+    # loads = [output, input, LUT, LUT]
+    loads = get_loads(rw.body)
+    # stores = [output]
+    stores = get_stores(rw.body)
+    input_pointer = loads[1].buffer.data
+    output_pointer = stores[0].buffer.data
     # Get feature map info
-    serial_ifm, serial_padding = get_ifm_params(input_pointer, producers)
-    serial_ofm, replace_pointer = get_ofm_params(output_pointer, consumers)
+    serial_ifm, serial_padding = get_ifm_params(input_pointer, producers_consumers, stmt)
+    serial_ofm, serial_block_config, replace_pointer, is_allocator = get_ofm_params(
+        output_pointer, producers_consumers, stmt
+    )
     # Get kernel info
     serial_kernel = SerialKernel(
         width=int(rw.extent),
@@ -83,8 +86,11 @@ def get_pooling_params(
             pool_shape=serial_kernel,
             padding=serial_padding,
             activation=serial_activation,
-            upscale="NONE",
+            rounding_mode=attrs["rounding_mode"],
+            upscale=attrs["upscale"],
+            block_config=serial_block_config,
         ),
         output_pointer,
         replace_pointer,
+        is_allocator,
     )

@@ -76,6 +76,17 @@ class GenericFunc(Object):
         key_list = [key_list] if isinstance(key_list, str) else key_list
         _ffi_api.GenericFuncRegisterFunc(self, func, key_list, allow_override)
 
+    def get_packed_func(self):
+        """Get the packed function specified for the current target.
+
+        Returns
+        -------
+        func : PackedFunc
+            The function specified for the current target. Return the default
+            function if no specializations match the current target.
+        """
+        return _ffi_api.GenericFuncGetPackedFunc(self)
+
 
 def get_native_generic_func(name):
     """Get a generic function from the global registry. If no
@@ -266,7 +277,7 @@ def generic_func(fdefault):
         return _do_reg
 
     def dispatch_func(func, *args, **kwargs):
-        """The wrapped dispath function"""
+        """The wrapped dispatch function"""
         target = Target.current()
         if target is None:
             return func(*args, **kwargs)
@@ -275,8 +286,19 @@ def generic_func(fdefault):
                 return dispatch_dict[k](*args, **kwargs)
         return func(*args, **kwargs)
 
+    def get_packed_func():
+        """The wrapped to get dispatched function"""
+        target = Target.current()
+        if target is None:
+            return fdefault
+        for k in target.keys:
+            if k in dispatch_dict:
+                return dispatch_dict[k]
+        return fdefault
+
     fdecorate = decorate(fdefault, dispatch_func)
     fdecorate.register = register
     fdecorate.fdefault = fdefault
     fdecorate.dispatch_dict = dispatch_dict
+    fdecorate.get_packed_func = get_packed_func
     return fdecorate

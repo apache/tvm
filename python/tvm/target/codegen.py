@@ -55,6 +55,22 @@ def llvm_lookup_intrinsic_id(name):
     return _ffi_api.llvm_lookup_intrinsic_id(name)
 
 
+def llvm_get_intrinsic_name(intrin_id: int) -> str:
+    """Get the name of an intrinsic for a given id.
+
+    Parameters
+    ----------
+    intrin_id : int
+        The id of the intrinsic.
+
+    Returns
+    -------
+    name : str
+        The name of the intrinsic.
+    """
+    return _ffi_api.llvm_get_intrinsic_name(intrin_id)
+
+
 def llvm_version_major(allow_none=False):
     """Get the major LLVM version.
 
@@ -73,4 +89,4 @@ def llvm_version_major(allow_none=False):
     except AttributeError:
         if allow_none:
             return None
-        raise RuntimeError("LLVM version is not available, please check if you build with LLVM")
+        raise RuntimeError("LLVM version is not available, please check if you built TVM with LLVM")

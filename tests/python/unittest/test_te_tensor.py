@@ -160,7 +160,9 @@ def test_tensor_compute1():
     C = te.compute((m // factor, factor), lambda i: vadd(A[i, 0:factor], B[i, 0:factor]))
 
     s = te.create_schedule(C.op)
-    stmt = tvm.lower(s, [A, B, C])["main"].body
+    # check lowering with the CSE pass disabled as otherwise it would do some commoning
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
+        stmt = tvm.lower(s, [A, B, C])["main"].body
     assert isinstance(stmt.body, tvm.tir.Evaluate)
 
 
@@ -204,7 +206,9 @@ def test_tensor_compute2():
     )
 
     s = te.create_schedule(C.op)
-    stmt = tvm.lower(s, [A, B, C])["main"].body
+    # check lowering with the CSE pass disabled as otherwise it would do some commoning
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
+        stmt = tvm.lower(s, [A, B, C])["main"].body
     assert isinstance(stmt.body.body[0], tvm.tir.Evaluate)
     assert isinstance(stmt.body.body[1].body, tvm.tir.Evaluate)
 

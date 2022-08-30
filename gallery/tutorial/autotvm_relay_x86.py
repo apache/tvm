@@ -21,7 +21,7 @@ Compiling and Optimizing a Model with the Python Interface (AutoTVM)
 `Chris Hoge <https://github.com/hogepodge>`_
 
 In the `TVMC Tutorial <tvmc_command_line_driver>`_, we covered how to compile, run, and tune a
-pre-trained vision model, ResNet-50-v2 using the command line interface for
+pre-trained vision model, ResNet-50 v2 using the command line interface for
 TVM, TVMC. TVM is more that just a command-line tool though, it is an
 optimizing framework with APIs available for a number of different languages
 that gives you tremendous flexibility in working with machine learning models.
@@ -30,7 +30,7 @@ In this tutorial we will cover the same ground we did with TVMC, but show how
 it is done with the Python API. Upon completion of this section, we will have
 used the Python API for TVM to accomplish the following tasks:
 
-* Compile a pre-trained ResNet 50 v2 model for the TVM runtime.
+* Compile a pre-trained ResNet-50 v2 model for the TVM runtime.
 * Run a real image through the compiled model, and interpret the output and model
   performance.
 * Tune the model that model on a CPU using TVM.
@@ -41,6 +41,12 @@ used the Python API for TVM to accomplish the following tasks:
 The goal of this section is to give you an overview of TVM's capabilites and
 how to use them through the Python API.
 """
+
+# sphinx_gallery_start_ignore
+from tvm import testing
+
+testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_end_ignore
 
 ################################################################################
 # TVM is a deep learning compiler framework, with a number of different modules
@@ -67,7 +73,7 @@ from tvm.contrib import graph_executor
 # --------------------------------------
 #
 # For this tutorial, we will be working with ResNet-50 v2. ResNet-50 is a
-# convolutional neural network that is 50-layers deep and designed to classify
+# convolutional neural network that is 50 layers deep and designed to classify
 # images. The model we will be using has been pre-trained on more than a
 # million images with 1000 different classifications. The network has an input
 # image size of 224x224. If you are interested exploring more of how the
@@ -79,22 +85,23 @@ from tvm.contrib import graph_executor
 # the model and save it to disk. For the instance of an ONNX model, you can
 # then load it into memory using the ONNX runtime.
 #
-# .. note:: Working with Other Model Formats
+# .. admonition:: Working with Other Model Formats
 #
 #   TVM supports many popular model formats. A list can be found in the
 #   :ref:`Compile Deep Learning Models <tutorial-frontend>` section of the TVM
 #   Documentation.
 
-model_url = "".join(
-    [
-        "https://github.com/onnx/models/raw/",
-        "master/vision/classification/resnet/model/",
-        "resnet50-v2-7.onnx",
-    ]
+model_url = (
+    "https://github.com/onnx/models/raw/main/"
+    "vision/classification/resnet/model/"
+    "resnet50-v2-7.onnx"
 )
 
 model_path = download_testdata(model_url, "resnet50-v2-7.onnx", module="onnx")
 onnx_model = onnx.load(model_path)
+
+# Seed numpy's RNG to get consistent results
+np.random.seed(0)
 
 ################################################################################
 # Downloading, Preprocessing, and Loading the Test Image
@@ -145,7 +152,7 @@ img_data = np.expand_dims(norm_img_data, axis=0)
 target = "llvm"
 
 ######################################################################
-# .. note:: Defining the Correct Target
+# .. admonition:: Defining the Correct Target
 #
 #   Specifying the correct target can have a huge impact on the performance of
 #   the compiled module, as it can take advantage of hardware features
@@ -159,7 +166,7 @@ target = "llvm"
 #
 
 # The input name may vary across model types. You can use a tool
-# like netron to check input names
+# like Netron to check input names
 input_name = "data"
 shape_dict = {input_name: img_data.shape}
 
@@ -220,7 +227,7 @@ print(unoptimized)
 # providing output tensors.
 #
 # In our case, we need to run some post-processing to render the outputs from
-# ResNet-50-V2 into a more human-readable form, using the lookup-table provided
+# ResNet-50 v2 into a more human-readable form, using the lookup-table provided
 # for the model.
 
 from scipy.special import softmax
@@ -307,7 +314,7 @@ runner = autotvm.LocalRunner(
 ################################################################################
 # Create a simple structure for holding tuning options. We use an XGBoost
 # algorithim for guiding the search. For a production job, you will want to set
-# the number of trials to be larger than the value of 10 used here. For CPU we
+# the number of trials to be larger than the value of 20 used here. For CPU we
 # recommend 1500, for GPU 3000-4000. The number of trials required can depend
 # on the particular model and processor, so it's worth spending some time
 # evaluating performance across a range of values to find the best balance
@@ -322,7 +329,7 @@ runner = autotvm.LocalRunner(
 
 tuning_option = {
     "tuner": "xgb",
-    "trials": 10,
+    "trials": 20,
     "early_stopping": 100,
     "measure_option": autotvm.measure_option(
         builder=autotvm.LocalBuilder(build_func="default"), runner=runner
@@ -331,7 +338,7 @@ tuning_option = {
 }
 
 ################################################################################
-# .. note:: Defining the Tuning Search Algorithm
+# .. admonition:: Defining the Tuning Search Algorithm
 #
 #   By default this search is guided using an `XGBoost Grid` algorithm.
 #   Depending on your model complexity and amount of time available, you might
@@ -339,7 +346,7 @@ tuning_option = {
 
 
 ################################################################################
-# .. note:: Setting Tuning Parameters
+# .. admonition:: Setting Tuning Parameters
 #
 #   In this example, in the interest of time, we set the number of trials and
 #   early stopping to 10. You will likely see more performance improvements if
@@ -347,7 +354,7 @@ tuning_option = {
 #   spent tuning. The number of trials required for convergence will vary
 #   depending on the specifics of the model and the target platform.
 
-# begin by extracting the taks from the onnx model
+# begin by extracting the tasks from the onnx model
 tasks = autotvm.task.extract_from_program(mod["main"], target=target, params=params)
 
 # Tune the extracted tasks sequentially.
@@ -472,6 +479,6 @@ print("unoptimized: %s" % (unoptimized))
 # demonstrated how to compare the performance of the unoptimized and optimize
 # models.
 #
-# Here we presented a simple example using ResNet 50 V2 locally. However, TVM
+# Here we presented a simple example using ResNet-50 v2 locally. However, TVM
 # supports many more features including cross-compilation, remote execution and
 # profiling/benchmarking.

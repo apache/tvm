@@ -24,6 +24,7 @@
 
 #include "call_graph.h"
 
+#include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/object.h>
 
@@ -32,6 +33,8 @@
 #include <sstream>
 #include <unordered_set>
 #include <vector>
+
+#include "../op/call/call.h"
 
 namespace tvm {
 namespace relay {
@@ -64,9 +67,19 @@ void CallGraphNode::AddToCallGraph(const GlobalVar& gv, const Function& func) {
   // post-order visitor will visit each AST node of the current function to
   // figure out the dependencies between functions.
   PostOrderVisit(func, [&](const Expr& expr) {
-    if (const GlobalVarNode* gvn = expr.as<GlobalVarNode>()) {
-      auto callee = GetRef<GlobalVar>(gvn);
-      cg_node->AddCalledGlobal(LookupGlobalVar(callee));
+    // TODO(mbs): Cleanup shapes functions.
+    if (const auto* call_node = expr.as<CallNode>()) {
+      CallLoweredProps props = GetCallLoweredProps(call_node);
+      if (props.lowered_func.defined() && props.attrs.metadata.count("prim_shape_fn_var")) {
+        // We are implicitly calling the shape function *in addition to* the call target.
+        CallGraphEntry* callee_cg_node =
+            LookupGlobalVar(Downcast<GlobalVar>(props.attrs.metadata["prim_shape_fn_var"]));
+        cg_node->AddCalledGlobal(callee_cg_node);
+      }
+    } else if (const auto* global_var_node = expr.as<GlobalVarNode>()) {
+      auto callee = GetRef<GlobalVar>(global_var_node);
+      CallGraphEntry* callee_cg_node = LookupGlobalVar(callee);
+      cg_node->AddCalledGlobal(callee_cg_node);
     }
   });
 }
@@ -88,11 +101,9 @@ CallGraphEntry* CallGraphNode::operator[](const GlobalVar& gv) {
 BaseFunc CallGraphNode::GetGlobalFunction(const GlobalVar& var) const {
   ICHECK(module->ContainGlobalVar(var->name_hint))
       << "GlobalVar " << var->name_hint << " not found in the current ir module";
-  return module->Lookup(var);
+  return module->Lookup(var->name_hint);
 }
 
-// Query the existence of a GlobalVar in the call graph. It creates an entry if
-// there is no such node available.
 CallGraphEntry* CallGraphNode::LookupGlobalVar(const GlobalVar& gv) {
   ICHECK(gv.defined());
 
@@ -100,11 +111,8 @@ CallGraphEntry* CallGraphNode::LookupGlobalVar(const GlobalVar& gv) {
   auto& call_graph_node = call_graph_[gv];
   if (call_graph_node) return call_graph_node.get();
 
-  ICHECK(module->ContainGlobalVar(gv->name_hint))
-      << "GlobalVar " << gv->name_hint << " not found in the current ir module";
-
   // Create the node for the inserted entry.
-  call_graph_node = std::unique_ptr<CallGraphEntry>(new CallGraphEntry(gv));
+  call_graph_node = std::make_unique<CallGraphEntry>(gv);
   return call_graph_node.get();
 }
 

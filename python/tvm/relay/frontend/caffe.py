@@ -21,11 +21,12 @@
 import numpy as np
 import tvm
 from tvm.ir import IRModule
+
+from ... import nd as _nd
 from .. import analysis
 from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
-from ... import nd as _nd
 from .common import ExprTable
 from .common import infer_shape as _infer_shape
 
@@ -55,7 +56,9 @@ class OperatorConverter(object):
             "InnerProduct": self.convert_innerproduct,
             "Input": None,
             "LRN": self.convert_lrn,
+            "Permute": self.convert_permute,
             "Pooling": self.convert_pooling,
+            "Power": self.convert_power,
             "PReLU": self.convert_prelu,
             "ReLU": self.convert_relu,
             "Reshape": self.convert_reshape,
@@ -64,6 +67,7 @@ class OperatorConverter(object):
             "Slice": self.convert_slice,
             "Softmax": self.convert_softmax,
             "TanH": self.convert_tanh,
+            "Reduction": self.convert_reduction,
         }
 
     def convert_flatten(self, op):
@@ -80,14 +84,13 @@ class OperatorConverter(object):
     def convert_eltwise(self, op):
         """Convert Eltwise layer"""
         inputs = op.bottom
-        assert len(inputs) == 2, "input tensors length should be 2"
+        assert len(inputs) >= 2, "input tensors length should be larger than 2"
 
+        # gethering initial 2 input expressions
         lhs_expr = self.exp_tab.get_expr(inputs[0])
         rhs_expr = self.exp_tab.get_expr(inputs[1])
-
         lhs_shape = _infer_shape(lhs_expr)
         rhs_shape = _infer_shape(rhs_expr)
-
         assert lhs_shape == rhs_shape, "input tensors shape should be equal"
 
         eltwise_params = op.eltwise_param
@@ -97,6 +100,11 @@ class OperatorConverter(object):
 
         if eltwise_type_dict[eltwise_type] == "PROD":
             out = _op.multiply(lhs_expr, rhs_expr)
+            # for rest inputs
+            for i in range(len(inputs) - 2):
+                extra_expr = self.exp_tab.get_expr(inputs[i + 2])
+                assert _infer_shape(out) == _infer_shape(extra_expr)
+                out = _op.multiply(out, extra_expr)
         elif eltwise_type_dict[eltwise_type] == "SUM":
             if coeff:
                 left_coeff_expr = self.exp_tab.new_const(np.asarray(coeff[0], np.float32))
@@ -106,8 +114,23 @@ class OperatorConverter(object):
                 out = _op.add(lhs_expr_scale, rhs_expr_scale)
             else:
                 out = _op.add(lhs_expr, rhs_expr)
+            # for rest inputs
+            for i in range(len(inputs) - 2):
+                extra_expr = self.exp_tab.get_expr(inputs[i + 2])
+                assert _infer_shape(out) == _infer_shape(extra_expr)
+                if coeff:
+                    coeff_expr = self.exp_tab.new_const(np.asarray(coeff[i + 2], np.float32))
+                    extra_expr_scale = _op.multiply(extra_expr, coeff_expr)
+                    out = _op.add(out, extra_expr_scale)
+                else:
+                    out = _op.add(out, extra_expr)
         elif eltwise_type_dict[eltwise_type] == "MAX":
             out = _op.maximum(lhs_expr, rhs_expr)
+            # for rest inputs
+            for i in range(len(inputs) - 2):
+                extra_expr = self.exp_tab.get_expr(inputs[i + 2])
+                assert _infer_shape(out) == _infer_shape(extra_expr)
+                out = _op.maximum(out, extra_expr)
         else:
             raise tvm.error.OpNotImplemented(
                 "eltwise_type {} is not supported for frontend Caffe.".format(eltwise_type)
@@ -369,8 +392,8 @@ class OperatorConverter(object):
             params["strides"] = (pool_params.stride, pool_params.stride)
 
         params["ceil_mode"] = True
-        if hasattr(pool_params, "ceil_mode"):
-            params["ceil_mode"] = pool_params.ceil_mode
+        if hasattr(pool_params, "round_mode"):
+            params["ceil_mode"] = pool_params.round_mode == "CEIL"
 
         in_expr = self.exp_tab.get_expr(input_name)
 
@@ -512,19 +535,76 @@ class OperatorConverter(object):
         if weight:
             kh, kw = params["kernel_size"]
             weight_shape = [-1, conv_params.num_output, kh, kw]
-            weight_value = np.asarray(weight.data, np.float32)
+            if not weight.data:
+                if conv_params.weight_filler:
+                    _filler = conv_params.weight_filler.value
+                    weight_value = np.full(weight.shape.dim, _filler, np.float32)
+                else:
+                    raise tvm.error.OpAttributeInvalid("At least weight_filler must be given")
+            else:
+                weight_value = np.asarray(weight.data, np.float32)
             weight_value = np.reshape(weight_value, weight_shape)
+
+            # weight shape is in relay's IOHW format rn, we need it to be OIHW
+            weight_value = np.transpose(weight_value, [1, 0, 2, 3])
         else:
-            raise Exception("No weight value of layer {} in caffemodel".format(op.name))
+            raise tvm.error.OpAttributeRequired(
+                "No weight value of layer {} in caffemodel".format(op.name)
+            )
 
         weight_expr = self.exp_tab.new_const(weight_value, dtype="float32")
         in_expr = self.exp_tab.get_expr(inputs[0])
-        out = _op.nn.conv2d_transpose(data=in_expr, weight=weight_expr, **params)
-        if bias:
 
+        groups = params["groups"]
+        channels = params["channels"]
+
+        if bias:
             bias_value = np.asarray(bias.data, np.float32)
             bias_expr = self.exp_tab.new_const(bias_value, dtype="float32")
-            out = _op.nn.bias_add(out, bias_expr)
+
+        if groups > channels:
+            raise tvm.error.OpAttributeInvalid(
+                "Groups cannot be larger than the number of input channels"
+            )
+
+        if groups == channels:
+            inputs_expr = _op.split(in_expr, groups, axis=1)
+            # changing split axis to 0, according to PR #9336
+            weights_expr = _op.split(weight_expr, groups, axis=0)
+            # Preventing to create Concat layer with too many tensors(> 16)
+            q = groups >> 4
+            r = groups % 16
+
+            params["groups"] = 1
+            params["channels"] = 1
+            out = []
+            for lc in range(q):
+                _outputs = []
+                _inputs = [inputs_expr[i] for i in range(lc << 4, (lc << 4) + 16)]
+                _weights = [weights_expr[i] for i in range(lc << 4, (lc << 4) + 16)]
+                for (i, w) in zip(_inputs, _weights):
+                    _out = _op.nn.conv2d_transpose(data=i, weight=w, **params)
+                    if bias:
+                        _out = _op.nn.bias_add(_out, bias_expr)
+                    _outputs.append(_out)
+                out.append(_op.concatenate(_outputs, axis=1))
+            if r != 0:
+                _outputs = []
+                _inputs = [inputs_expr[i] for i in range(groups - r, groups)]
+                _weights = [weights_expr[i] for i in range(groups - r, groups)]
+                for (i, w) in zip(_inputs, _weights):
+                    _out = _op.nn.conv2d_transpose(data=i, weight=w, **params)
+                    if bias:
+                        _out = _op.nn.bias_add(_out, bias_expr)
+                    _outputs.append(_out)
+                out.append(_op.concatenate(_outputs, axis=1))
+            out = _op.concatenate(out, axis=1)
+        elif groups == 1:
+            out = _op.nn.conv2d_transpose(data=in_expr, weight=weight_expr, **params)
+            if bias:
+                out = _op.nn.bias_add(out, bias_expr)
+        else:
+            raise tvm.error.OpAttributeInvalid("Unable to handle.")
         return out
 
     def convert_slice(self, op):
@@ -557,6 +637,44 @@ class OperatorConverter(object):
         inputs = op.bottom
         in_expr = self.exp_tab.get_expr(inputs[0])
         out = _op.tanh(in_expr)
+        return out
+
+    def convert_reduction(self, op):
+        """Convert Reduction layer"""
+        reduction_dic = ["NOP", "SUM", "ASUM", "SUMSQ", "MEAN"]
+
+        inputs = op.bottom
+        in_expr = self.exp_tab.get_expr(inputs[0])
+        method = op.reduction_param.operation
+        axis = op.reduction_param.axis
+        coeff = op.reduction_param.coeff
+        coeff_expr = self.exp_tab.new_const(np.asarray(coeff, np.float32))
+        num_axes = len(_infer_shape(in_expr))
+
+        # Currently, only reduction along ALL "tail" axes is supported in Caffe;
+        # reduction of axis M through N, where N < num_axes - 1, is unsupported.
+        if 0 < axis < (num_axes - 1):
+            for _axis in reversed(range(axis + 1, num_axes)):
+                in_expr = _op.sum(in_expr, axis=_axis)
+            in_expr = _op.squeeze(in_expr)
+
+        if reduction_dic[method] == "SUM":
+            out = _op.sum(in_expr, axis=axis)
+        elif reduction_dic[method] == "MEAN":
+            out = _op.mean(in_expr, axis=axis)
+        elif reduction_dic[method] == "ASUM":
+            in_expr = _op.abs(in_expr)
+            out = _op.sum(in_expr, axis=axis)
+        elif reduction_dic[method] == "SUMSQ":
+            in_expr = _op.multiply(in_expr, in_expr)
+            out = _op.sum(in_expr, axis=axis)
+        else:
+            raise tvm.error.OpAttributeInvalid(
+                "reduction method:{} is invalid in Caffe frontend.".format(method)
+            )
+
+        if float(coeff) != 1.0:
+            out = _op.multiply(out, coeff_expr)
         return out
 
     def convert_crop(self, op):
@@ -592,6 +710,17 @@ class OperatorConverter(object):
         # secondly, crop in_expr_a by in_expr_b
         in_expr_a_stride = _op.strided_slice(in_expr_a, slice_start, slice_end)
         out = _op.slice_like(in_expr_a_stride, in_expr_b, axes=to_crop_axis)
+        return out
+
+    def convert_permute(self, op):
+        """Convert Permute layer"""
+        inputs = op.bottom
+        in_expr = self.exp_tab.get_expr(inputs[0])
+
+        # parse permute params
+        permute_param = op.permute_param
+        axes = list(getattr(permute_param, "order", 0))
+        out = _op.transpose(in_expr, axes)
         return out
 
     def convert_embed(self, op):
@@ -632,6 +761,19 @@ class OperatorConverter(object):
         out_shape.append(num_output)
         out = _op.reshape(out, out_shape)
 
+        return out
+
+    def convert_power(self, op):
+        """Convert Power layer"""
+        inputs = op.bottom
+        in_expr = self.exp_tab.get_expr(inputs[0])
+        power = _expr.const(op.power_param.power)
+        scale = _expr.const(op.power_param.scale)
+        shift = _expr.const(op.power_param.shift)
+
+        out = _op.multiply(in_expr, scale)
+        out = _op.add(out, shift)
+        out = _op.power(out, power)
         return out
 
     def check_unsupported_ops(self):
@@ -743,7 +885,7 @@ class OperatorConverter(object):
 
 
 def _rebuild_layers(predict_layer):
-    """Rebuild caffe layer. If the the caffe net include in-place layers, repalce its top
+    """Rebuild caffe layer. If the caffe net include in-place layers, repalce its top
     with its name and update the bottom of other layer that is related to it.
     """
     # dict of input name that will be changed to new name

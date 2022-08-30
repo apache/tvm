@@ -18,7 +18,13 @@ import os
 
 import tvm
 from tvm import te
-from tvm.contrib import cc, utils
+from tvm.contrib import cc, utils, nvcc
+
+
+@tvm.register_func("tvm_callback_cuda_compile", override=True)
+def tvm_callback_cuda_compile(code):
+    ptx = nvcc.compile_cuda(code, target_format="ptx")
+    return ptx
 
 
 def test_add(target_dir):
@@ -35,7 +41,7 @@ def test_add(target_dir):
     bx, tx = s[C].split(C.op.axis[0], factor=64)
     s[C].bind(bx, te.thread_axis("blockIdx.x"))
     s[C].bind(tx, te.thread_axis("threadIdx.x"))
-    fadd_cuda = tvm.build(s, [A, B, C], "cuda", target_host="llvm", name="myadd")
+    fadd_cuda = tvm.build(s, [A, B, C], tvm.target.Target("cuda", host="llvm"), name="myadd")
 
     fadd_cuda.save(os.path.join(target_dir, "add_cuda.o"))
     fadd_cuda.imported_modules[0].save(os.path.join(target_dir, "add_cuda.ptx"))

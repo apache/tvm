@@ -20,13 +20,26 @@ set -e
 set -u
 set -o pipefail
 
-# install python and pip, don't modify this, modify install_python_package.sh
-apt-get update
-apt-get install -y software-properties-common
-apt-get install -y python3-dev python3-setuptools
 
-# Install pip
-cd /tmp && wget -q https://bootstrap.pypa.io/get-pip.py && python3 get-pip.py
+cleanup() {
+  rm -rf base-requirements.txt
+}
+
+trap cleanup 0
+
+
+# Install python and pip. Don't modify this to add Python package dependencies,
+# instead modify install_python_package.sh
+apt-get update
+apt-install-and-clear -y software-properties-common python3.7 python3.7-dev python3-pip
+update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.7 1
 
 # Pin pip and setuptools versions
-pip3 install pip==19.3.1 setuptools==58.4.0
+# Hashes generated via:
+#   $ pip download <package>==<version>
+#   $ pip hash --algorithm sha512 <package>.whl
+cat <<EOF > base-requirements.txt
+pip==19.3.1 --hash=sha256:6917c65fc3769ecdc61405d3dfd97afdedd75808d200b2838d7d961cebc0c2c7
+setuptools==58.4.0 --hash=sha256:e8b1d3127a0441fb99a130bcc3c2bf256c2d3ead3aba8fd400e5cbbaf788e036
+EOF
+pip3 install -r base-requirements.txt

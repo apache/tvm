@@ -17,39 +17,35 @@
 # pylint: disable=no-else-return, invalid-name, unused-argument, too-many-arguments, consider-using-in
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
+import re
 
-from tvm import topi, relay
-from tvm.topi.utils import get_const_tuple
-
+from tvm import relay, topi
 from tvm.runtime import convert
 from tvm.te.hybrid import script
-from .. import op as reg
-from .. import strategy
-from ..op import OpPattern
-from .._tensor import elemwise_shape_func
-from ..strategy.generic import is_depthwise_conv2d
-from ...transform import LayoutConfig
+from tvm.topi.utils import get_const_tuple
+from tvm.topi.nn.utils import get_pad_tuple
+
 from ....ir import container
 from ....tir import expr
+from ...transform import LayoutConfig
+from .. import op as reg
+from .. import strategy
+from .._tensor import elemwise_shape_func
+from ..strategy.generic import is_depthwise_conv2d
 
 # relu
 reg.register_broadcast_schedule("nn.relu")
-reg.register_pattern("nn.relu", OpPattern.ELEMWISE)
-
 
 # softmax
 reg.register_strategy("nn.softmax", strategy.softmax_strategy)
-reg.register_pattern("nn.softmax", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # fast softmax
 reg.register_strategy("nn.fast_softmax", strategy.fast_softmax_strategy)
-reg.register_pattern("nn.fast_softmax", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # log_softmax
 reg.register_strategy("nn.log_softmax", strategy.log_softmax_strategy)
-reg.register_pattern("nn.log_softmax", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 @reg.register_legalize("nn.matmul")
@@ -75,7 +71,6 @@ def legalize_matmul(attrs, inputs, types):
 
 # matmul
 reg.register_strategy("nn.matmul", strategy.matmul_strategy)
-reg.register_pattern("nn.matmul", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 @reg.register_legalize("nn.dense")
@@ -101,7 +96,6 @@ def legalize_dense(attrs, inputs, types):
 
 # dense
 reg.register_strategy("nn.dense", strategy.dense_strategy)
-reg.register_pattern("nn.dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 @reg.register_alter_op_layout("nn.dense")
@@ -112,7 +106,6 @@ def alter_op_layout_dense(attrs, inputs, tinfos, out_type):
 
 # dense_pack
 reg.register_strategy("nn.contrib_dense_pack", strategy.dense_pack_strategy)
-reg.register_pattern("nn.contrib_dense_pack", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # fifo_buffer
@@ -122,7 +115,6 @@ def compute_fifo_buffer(attrs, inputs, out_type):
 
 
 reg.register_injective_schedule("nn.fifo_buffer")
-reg.register_pattern("nn.fifo_buffer", OpPattern.OPAQUE)
 
 
 @reg.register_legalize("nn.batch_matmul")
@@ -148,7 +140,10 @@ def legalize_batch_matmul(attrs, inputs, types):
 
 # batch_matmul
 reg.register_strategy("nn.batch_matmul", strategy.batch_matmul_strategy)
-reg.register_pattern("nn.batch_matmul", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# batch_norm
+reg.register_strategy("nn.batch_norm", strategy.batch_norm_strategy)
 
 
 # sparse_dense
@@ -159,7 +154,6 @@ def compute_sparse_dense(attrs, inputs, out_type):
 
 
 reg.register_strategy("nn.sparse_dense", strategy.sparse_dense_strategy)
-reg.register_pattern("nn.sparse_dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 @reg.register_alter_op_layout("nn.sparse_dense")
@@ -170,7 +164,6 @@ def alter_op_layout_sparse_dense(attrs, inputs, tinfos, out_type):
 
 # sparse_add
 reg.register_strategy("nn.sparse_add", strategy.sparse_add_strategy)
-reg.register_pattern("nn.sparse_add", reg.OpPattern.OPAQUE)
 
 
 @reg.register_compute("nn.internal.sparse_dense_padded")
@@ -180,7 +173,6 @@ def compute_sparse_dense_padded(attrs, inputs, out_type):
 
 
 reg.register_strategy("nn.internal.sparse_dense_padded", strategy.sparse_dense_padded_strategy)
-reg.register_pattern("nn.internal.sparse_dense_padded", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # sparse_transpose
@@ -191,7 +183,6 @@ def compute_sparse_transpose(attrs, inputs, out_type):
 
 
 reg.register_schedule("nn.sparse_transpose", strategy.schedule_sparse_transpose)
-reg.register_pattern("nn.sparse_transpose", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # sparse_conv2d
@@ -206,17 +197,14 @@ def compute_sparse_conv2d(attrs, inputs, out_type):
 
 
 reg.register_strategy("nn.sparse_conv2d", strategy.sparse_conv2d_strategy)
-reg.register_pattern("nn.sparse_conv2d", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # conv1d
 reg.register_strategy("nn.conv1d", strategy.conv1d_strategy)
-reg.register_pattern("nn.conv1d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # conv2d
 reg.register_strategy("nn.conv2d", strategy.conv2d_strategy)
-reg.register_pattern("nn.conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 @reg.register_alter_op_layout("nn.conv2d")
@@ -283,8 +271,9 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
     desired_data_layout, desired_kernel_layout = map(str, desired_layouts)
     assert desired_data_layout != "default", "Data layout cannot be default"
     new_attrs["data_layout"] = desired_data_layout
+    need_tile = re.match(r"NCHW(\d*)c", desired_data_layout)
 
-    if desired_kernel_layout != "default":
+    if desired_kernel_layout != "default" and not need_tile:
         new_attrs["kernel_layout"] = desired_kernel_layout
         return relay.nn.conv2d(data, weight, **new_attrs)
 
@@ -309,13 +298,20 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
     elif desired_data_layout == "HWNC":
         new_attrs["kernel_layout"] = "HWOI"
         return relay.nn.conv2d(data, weight, **new_attrs)
+    elif need_tile:
+        assert desired_kernel_layout != "default", "Kernel layout cannot be default."
+        tile = int(need_tile.group(1))
+        if isinstance(data, relay.expr.Var) and data.checked_type.shape[1] % tile != 0:
+            return relay.nn.conv2d(data, weight, **attrs)
+        else:
+            new_attrs["kernel_layout"] = desired_kernel_layout
+            return relay.nn.contrib_conv2d_nchwc(data, weight, **new_attrs)
 
     raise ValueError("Layout %s is not yet supported." % desired_data_layout)
 
 
 # conv2d_transpose
 reg.register_strategy("nn.conv2d_transpose", strategy.conv2d_transpose_strategy)
-reg.register_pattern("nn.conv2d_transpose", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 @reg.register_legalize("nn.conv2d_transpose")
@@ -373,7 +369,7 @@ def convert_conv2d_transpose(attrs, inputs, tinfos, desired_layouts):
 
     # Handle default kernel layouts
     if desired_data_layout == "NCHW":
-        new_attrs["kernel_layout"] = "OIHW"
+        new_attrs["kernel_layout"] = "IOHW"
         return relay.nn.conv2d_transpose(data, weight, **new_attrs)
     elif desired_data_layout == "NHWC":
         new_attrs["kernel_layout"] = "HWIO"
@@ -384,7 +380,6 @@ def convert_conv2d_transpose(attrs, inputs, tinfos, desired_layouts):
 
 # conv3d_transpose
 reg.register_strategy("nn.conv3d_transpose", strategy.conv3d_transpose_strategy)
-reg.register_pattern("nn.conv3d_transpose", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 @reg.register_legalize("nn.conv3d_transpose")
@@ -410,7 +405,6 @@ def legalize_conv3d_transpose(attrs, inputs, types):
 
 # conv3d
 reg.register_strategy("nn.conv3d", strategy.conv3d_strategy)
-reg.register_pattern("nn.conv3d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 @reg.register_alter_op_layout("nn.conv3d")
@@ -467,9 +461,6 @@ reg.register_strategy(
     "nn.contrib_conv3d_winograd_without_weight_transform",
     strategy.conv3d_winograd_without_weight_transfrom_strategy,
 )
-reg.register_pattern(
-    "nn.contrib_conv3d_winograd_without_weight_transform", OpPattern.OUT_ELEMWISE_FUSABLE
-)
 
 
 @reg.register_compute("nn.contrib_conv3d_winograd_weight_transform")
@@ -483,27 +474,22 @@ reg.register_schedule(
     "nn.contrib_conv3d_winograd_weight_transform",
     strategy.schedule_conv3d_winograd_weight_transform,
 )
-reg.register_pattern("nn.contrib_conv3d_winograd_weight_transform", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # conv1d_transpose
 reg.register_strategy("nn.conv1d_transpose", strategy.conv1d_transpose_strategy)
-reg.register_pattern("nn.conv1d_transpose", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # bias_add
 reg.register_injective_schedule("nn.bias_add")
-reg.register_pattern("nn.bias_add", OpPattern.BROADCAST)
 
 
 # max_pool1d
 reg.register_schedule("nn.max_pool1d", strategy.schedule_pool)
-reg.register_pattern("nn.max_pool1d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # max_pool2d
 reg.register_schedule("nn.max_pool2d", strategy.schedule_pool)
-reg.register_pattern("nn.max_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 @reg.register_convert_op_layout("nn.max_pool2d")
@@ -532,17 +518,14 @@ def convert_max_pool2d(attrs, inputs, tinfos, desired_layouts):
 
 # max_pool3d
 reg.register_schedule("nn.max_pool3d", strategy.schedule_pool)
-reg.register_pattern("nn.max_pool3d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # avg_pool1d
 reg.register_schedule("nn.avg_pool1d", strategy.schedule_pool)
-reg.register_pattern("nn.avg_pool1d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # avg_pool2d
 reg.register_schedule("nn.avg_pool2d", strategy.schedule_pool)
-reg.register_pattern("nn.avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 @reg.register_convert_op_layout("nn.avg_pool2d")
@@ -571,32 +554,26 @@ def convert_avg_pool2d(attrs, inputs, tinfos, desired_layouts):
 
 # avg_pool3d
 reg.register_schedule("nn.avg_pool3d", strategy.schedule_pool)
-reg.register_pattern("nn.avg_pool3d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # max_pool2d_grad
 reg.register_schedule("nn.max_pool2d_grad", strategy.schedule_pool_grad)
-reg.register_pattern("nn.max_pool2d_grad", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # avg_pool2d_grad
 reg.register_schedule("nn.avg_pool2d_grad", strategy.schedule_pool_grad)
-reg.register_pattern("nn.avg_pool2d_grad", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # adaptive_max_pool1d
 reg.register_schedule("nn.adaptive_max_pool1d", strategy.schedule_adaptive_pool)
-reg.register_pattern("nn.adaptive_max_pool1d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # adaptive_avg_pool1d
 reg.register_schedule("nn.adaptive_avg_pool1d", strategy.schedule_adaptive_pool)
-reg.register_pattern("nn.adaptive_avg_pool1d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # global_max_pool2d
 reg.register_schedule("nn.global_max_pool2d", strategy.schedule_adaptive_pool)
-reg.register_pattern("nn.global_max_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 @reg.register_convert_op_layout("nn.global_max_pool2d")
@@ -625,7 +602,6 @@ def convert_global_max_pool2d(attrs, inputs, tinfos, desired_layouts):
 
 # global_avg_pool2d
 reg.register_schedule("nn.global_avg_pool2d", strategy.schedule_adaptive_pool)
-reg.register_pattern("nn.global_avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 @reg.register_convert_op_layout("nn.global_avg_pool2d")
@@ -654,37 +630,30 @@ def convert_global_avg_pool2d(attrs, inputs, tinfos, desired_layouts):
 
 # adaptive_max_pool2d
 reg.register_schedule("nn.adaptive_max_pool2d", strategy.schedule_adaptive_pool)
-reg.register_pattern("nn.adaptive_max_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # adaptive_avg_pool2d
 reg.register_schedule("nn.adaptive_avg_pool2d", strategy.schedule_adaptive_pool)
-reg.register_pattern("nn.adaptive_avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # adaptive_max_pool3d
 reg.register_schedule("nn.adaptive_max_pool3d", strategy.schedule_adaptive_pool)
-reg.register_pattern("nn.adaptive_max_pool3d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # adaptive_avg_pool3d
 reg.register_schedule("nn.adaptive_avg_pool3d", strategy.schedule_adaptive_pool)
-reg.register_pattern("nn.adaptive_avg_pool3d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # leaky_relu
 reg.register_broadcast_schedule("nn.leaky_relu")
-reg.register_pattern("nn.leaky_relu", OpPattern.ELEMWISE)
 
 
 # prelu
 reg.register_broadcast_schedule("nn.prelu")
-reg.register_pattern("nn.prelu", OpPattern.BROADCAST)
 
 
 # flatten
 reg.register_broadcast_schedule("nn.batch_flatten")
-reg.register_pattern("nn.batch_flatten", OpPattern.INJECTIVE)
 
 
 # lrn
@@ -696,7 +665,6 @@ def compute_lrn(attrs, inputs, out_dtype):
 
 
 reg.register_schedule("nn.lrn", strategy.schedule_lrn)
-reg.register_pattern("nn.lrn", OpPattern.OPAQUE)
 
 
 # upsampling
@@ -767,17 +735,12 @@ reg.register_strategy(
     "nn.contrib_conv2d_winograd_without_weight_transform",
     strategy.conv2d_winograd_without_weight_transfrom_strategy,
 )
-reg.register_pattern(
-    "nn.contrib_conv2d_winograd_without_weight_transform", OpPattern.OUT_ELEMWISE_FUSABLE
-)
+
 
 # conv2d_gemm related operators
 reg.register_strategy(
     "nn.contrib_conv2d_gemm_without_weight_transform",
     strategy.conv2d_gemm_without_weight_transform_strategy,
-)
-reg.register_pattern(
-    "nn.contrib_conv2d_gemm_without_weight_transform", OpPattern.OUT_ELEMWISE_FUSABLE
 )
 
 
@@ -791,7 +754,6 @@ def compute_contrib_conv2d_gemm_weight_transform(attrs, inputs, out_dtype):
 reg.register_schedule(
     "nn.contrib_conv2d_gemm_weight_transform", strategy.schedule_conv2d_gemm_weight_transform
 )
-reg.register_pattern("nn.contrib_conv2d_gemm_weight_transform", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 @reg.register_compute("nn.contrib_conv2d_winograd_weight_transform")
@@ -805,7 +767,6 @@ reg.register_schedule(
     "nn.contrib_conv2d_winograd_weight_transform",
     strategy.schedule_conv2d_winograd_weight_transform,
 )
-reg.register_pattern("nn.contrib_conv2d_winograd_weight_transform", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 @reg.register_compute("nn.contrib_conv2d_winograd_nnpack_weight_transform")
@@ -822,21 +783,17 @@ reg.register_schedule(
     "nn.contrib_conv2d_winograd_nnpack_weight_transform",
     strategy.schedule_conv2d_winograd_nnpack_weight_transform,
 )
-reg.register_pattern("nn.contrib_conv2d_winograd_nnpack_weight_transform", OpPattern.OPAQUE)
 
 
 # conv2d_NCHWc
 reg.register_strategy("nn.contrib_conv2d_NCHWc", strategy.conv2d_NCHWc_strategy)
-reg.register_pattern("nn.contrib_conv2d_NCHWc", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 # depthwise_conv2d_NCHWc
 reg.register_strategy("nn.contrib_depthwise_conv2d_NCHWc", strategy.depthwise_conv2d_NCHWc_strategy)
-reg.register_pattern("nn.contrib_depthwise_conv2d_NCHWc", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # deformable_conv2d
 reg.register_strategy("nn.deformable_conv2d", strategy.deformable_conv2d_strategy)
-reg.register_pattern("nn.deformable_conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 @reg.register_alter_op_layout("nn.deformable_conv2d")
@@ -934,12 +891,10 @@ def compute_bitpack(attrs, inputs, out_dtype):
 
 
 reg.register_schedule("nn.bitpack", strategy.schedule_bitpack)
-reg.register_pattern("nn.bitpack", OpPattern.INJECTIVE)
 
 
 # bitserial_conv2d
 reg.register_strategy("nn.bitserial_conv2d", strategy.bitserial_conv2d_strategy)
-reg.register_pattern("nn.bitserial_conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 @reg.register_legalize("nn.bitserial_conv2d")
@@ -965,7 +920,6 @@ def legalize_bitserial_conv2d(attrs, inputs, types):
 
 # bitserial_dense
 reg.register_strategy("nn.bitserial_dense", strategy.bitserial_dense_strategy)
-reg.register_pattern("nn.bitserial_dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # cross_entropy
@@ -976,7 +930,6 @@ def compute_cross_entropy(attrs, inputs, out_dtype):
 
 
 reg.register_reduce_schedule("nn.cross_entropy")
-reg.register_pattern("nn.cross_entropy", OpPattern.OPAQUE)
 
 
 # dilate
@@ -986,7 +939,6 @@ def compute_dilate(attrs, inputs, out_dtype):
 
 
 reg.register_broadcast_schedule("nn.dilate")
-reg.register_pattern("nn.dilate", OpPattern.INJECTIVE)
 
 
 # cross_entropy_with_logits
@@ -997,7 +949,6 @@ def compute_cross_entropy_with_logits(attrs, inputs, out_dtype):
 
 
 reg.register_reduce_schedule("nn.cross_entropy_with_logits")
-reg.register_pattern("nn.cross_entropy_with_logits", OpPattern.OPAQUE)
 
 
 # nll_loss
@@ -1008,7 +959,6 @@ def compute_nll_loss(attrs, inputs, out_dtype):
 
 
 reg.register_reduce_schedule("nn.nll_loss")
-reg.register_pattern("nn.nll_loss", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # depth_to_space
@@ -1021,7 +971,6 @@ def compute_depth_to_space(attrs, inputs, out_dtype):
 
 
 reg.register_injective_schedule("nn.depth_to_space")
-reg.register_pattern("nn.depth_to_space", OpPattern.INJECTIVE)
 
 
 # space_to_depth
@@ -1033,17 +982,130 @@ def compute_space_to_depth(attrs, inputs, out_dtype):
 
 
 reg.register_injective_schedule("nn.space_to_depth")
-reg.register_pattern("nn.space_to_depth", OpPattern.INJECTIVE)
 
 
 # correlation
 reg.register_strategy("nn.correlation", strategy.correlation_strategy)
-reg.register_pattern("nn.correlation", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # space_to_batch_nd and batch_to_space_nd
 reg.register_injective_schedule("nn.space_to_batch_nd")
 reg.register_injective_schedule("nn.batch_to_space_nd")
+
+
+reg.register_strategy("nn.conv2d_backward_weight", strategy.conv2d_backward_weight_strategy)
+
+
+@reg.register_legalize("nn.conv2d_backward_weight")
+def legalize_conv2d_backward_weight(attrs, inputs, types):
+    """Legalize conv2d_backward_weight op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current op
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    grad, data = inputs
+    data_shape = get_const_tuple(data.checked_type.shape)
+    weight_shape = get_const_tuple(types[2].shape)
+    _, out_channel, grad_h, grad_w = get_const_tuple(grad.checked_type.shape)
+    batch, in_channel, in_h, in_w = data_shape
+    _, _, filter_h, filter_w = weight_shape
+    fpad_top, fpad_left, fpad_bottom, fpad_right = get_pad_tuple(
+        get_const_tuple(attrs.padding), (filter_h, filter_w)
+    )
+    stride_h, stride_w = get_const_tuple(attrs.strides)
+    dilation_h, dilation_w = get_const_tuple(attrs.dilation)
+
+    grad = relay.tile(grad, [1, in_channel // attrs.groups, 1, 1])
+    grad = relay.reshape(grad, [-1, 1, 0, 0])  # batch * oc * ic // groups, 1, oh, ow
+    data = relay.reshape(data, [1, -1, 0, 0])  # 1, batch * ic, ih, iw
+
+    backward_weight = relay.nn.conv2d(
+        data,
+        grad,
+        strides=attrs.dilation,
+        padding=attrs.padding,
+        dilation=attrs.strides,
+        groups=in_channel * batch,
+        out_dtype=attrs.out_dtype,
+    )
+
+    # infer shape of backward_weight
+    padded_weight_grad_h = (
+        in_h - (grad_h - 1) * stride_h - 1 + fpad_top + fpad_bottom
+    ) // dilation_h + 1
+    padded_weight_grad_w = (
+        in_w - (grad_w - 1) * stride_w - 1 + fpad_left + fpad_right
+    ) // dilation_w + 1
+
+    backward_weight = relay.reshape(
+        backward_weight,
+        [
+            batch,
+            in_channel // attrs.groups,
+            out_channel,
+            padded_weight_grad_h,
+            padded_weight_grad_w,
+        ],
+    )
+    backward_weight = relay.sum(backward_weight, axis=0)
+    backward_weight = relay.transpose(backward_weight, [1, 0, 2, 3])
+
+    assert padded_weight_grad_h >= filter_h
+    assert padded_weight_grad_w >= filter_w
+
+    if padded_weight_grad_h > filter_h or padded_weight_grad_w > filter_w:
+        backward_weight = relay.strided_slice(
+            backward_weight,
+            begin=[0, 0, 0, 0],
+            end=[out_channel, in_channel // attrs.groups, filter_h, filter_w],
+        )
+
+    return backward_weight
+
+
+@reg.register_convert_op_layout("nn.conv2d_backward_weight")
+def convert_conv2d_backward_weight(attrs, inputs, _, desired_layouts):
+    """Convert Layout pass registration for conv2d_backward_weight op.
+    Note that `desired_layouts` must be a pair [`data_layout`, `kernel_layouts`],
+    where `kernel_layouts` affects the output of this op (since the output of this op
+    is the weight gradient). The layout of the output gradient (the second input to this op)
+    is assumed to be the same as `data_layout`.
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current op
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    tinfos : list of types
+        List of input and output types
+    desired_layouts : list of layout strings
+        List of layouts defining our desired
+        layout for the data and kernel inputs respectively.
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The transformed expr
+    """
+    new_attrs = dict(attrs)
+    assert len(desired_layouts) == 2, "A desired layout is expected for both of data and gradient."
+    desired_data_layout, desired_kernel_layout = map(str, desired_layouts)
+    assert desired_data_layout != "default", "Data layout cannot be default"
+    new_attrs["grad_layout"] = desired_data_layout
+    new_attrs["data_layout"] = desired_data_layout
+    new_attrs["kernel_layout"] = desired_kernel_layout
+    new_attrs.pop("out_layout")
+    return relay.nn.conv2d_backward_weight(inputs[0], inputs[1], **new_attrs)
 
 
 #####################
@@ -1090,6 +1152,19 @@ def _conv_shape_func_nhwc_hwoi(dshape, kshape, strides, padding, dilation):
     return out
 
 
+@script
+def _conv_shape_func_nhwc_ohwi(dshape, kshape, strides, padding, dilation):
+    """Shape function for conv*d op with nhwc & ohwi layout."""
+    out = output_tensor((dshape.shape[0],), "int64")
+    out[0] = dshape[0]
+    out[dshape.shape[0] - 1] = kshape[0]
+
+    for i in const_range(dshape.shape[0] - 2):
+        dilated_k = (kshape[i + 1] - 1) * dilation[i] + 1
+        out[i + 1] = (dshape[i + 1] + 2 * padding[i] - dilated_k) // strides[i] + 1
+    return out
+
+
 def conv_shape_func(attrs, inputs, _):
     """Shape function for conv*d op."""
     strides = get_const_tuple(attrs.strides)
@@ -1103,6 +1178,8 @@ def conv_shape_func(attrs, inputs, _):
         shape_func = _conv_shape_func_nhwc_hwio
     elif attrs["data_layout"] == "NHWC" and attrs["kernel_layout"] == "HWOI":
         shape_func = _conv_shape_func_nhwc_hwoi
+    elif attrs["data_layout"] == "NHWC" and attrs["kernel_layout"] == "OHWI":
+        shape_func = _conv_shape_func_nhwc_ohwi
     else:
         raise ValueError(
             "Unsupported data/kernel layout: %s, %s"

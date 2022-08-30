@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import numpy
 
 import tvm
 from tvm import te
@@ -43,6 +42,110 @@ def test_makeapi():
     num_unpacked_args = 2
     f = tvm.tir.transform.MakePackedAPI(num_unpacked_args)(mod)["main"]
     assert len(f.params) == 8
+
+
+def _find_assignment(stmt, var_name):
+    while not isinstance(stmt, tvm.tir.LetStmt):
+        stmt = stmt.body
+
+    if stmt.var.name != var_name:
+        return _find_assignment(stmt.body, var_name)
+
+    return stmt
+
+
+def _find_next(stmt, type):
+    while not isinstance(stmt, type):
+        stmt = stmt.body
+    return stmt
+
+
+def test_variable_passed_from_args():
+    ib = tvm.tir.ir_builder.create()
+
+    input_buffer = tvm.tir.decl_buffer(name="input_buffer", shape=[1])
+    not_device_context = tvm.tir.Var("not_device_context", dtype="handle")
+
+    ib.emit(
+        tvm.tir.call_extern("float32", "some_external_call", input_buffer.data, not_device_context),
+    )
+    stmt = ib.get()
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([input_buffer, not_device_context], stmt))
+    mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", tvm.target.Target("llvm")))(mod)
+    mod = tvm.tir.transform.Apply(lambda f: f.with_attr("global_symbol", "main"))(mod)
+    func = tvm.tir.transform.MakePackedAPI()(mod)["main"]
+
+    num_args = func.params[2]
+
+    # num_args assertion
+    assert func.body.condition.a == num_args
+    assert func.body.condition.b == 2
+
+    # Arguments unpacking
+    assignment = _find_assignment(func.body, "arg.input_buffer")
+    assert str(assignment.value) == "@tir.tvm_struct_get(args: handle, 0, 12, dtype=handle)"
+
+    assignment = _find_assignment(func.body, "arg.not_device_context")
+    assert str(assignment.value) == "@tir.tvm_struct_get(args: handle, 1, 12, dtype=handle)"
+
+    assignment = _find_assignment(func.body, "input_buffer")
+    assert (
+        str(assignment.value) == "@tir.tvm_struct_get(arg.input_buffer: handle, 0, 1, dtype=handle)"
+    )
+    unpacked_input_buffer = assignment.var
+
+    assignment = _find_assignment(func.body, "not_device_context")
+    assert str(assignment.value) == "arg.not_device_context: handle"
+    unpacked_not_device_context = assignment.var
+
+    seq_stmt = _find_next(assignment, tvm.tir.SeqStmt)
+    call = _find_next(seq_stmt[1], tvm.tir.Evaluate)
+    call_extern = call.value
+
+    assert call_extern.args[1] == unpacked_input_buffer
+    assert call_extern.args[2] == unpacked_not_device_context
+
+
+def test_device_api_context_implicit_resource_handle():
+    ib = tvm.tir.ir_builder.create()
+
+    input_buffer = tvm.tir.decl_buffer(name="input_buffer", shape=[1])
+    device_context = tvm.tir.Var("device_api_context", dtype="handle")
+
+    ib.emit(
+        tvm.tir.call_extern("float32", "some_external_call", input_buffer.data, device_context),
+    )
+    stmt = ib.get()
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([input_buffer, device_context], stmt))
+    mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", tvm.target.Target("llvm")))(mod)
+    mod = tvm.tir.transform.Apply(lambda f: f.with_attr("global_symbol", "main"))(mod)
+    func = tvm.tir.transform.MakePackedAPI()(mod)["main"]
+
+    num_args = func.params[2]
+    device_context_in_resource_handle = func.params[5]
+
+    # num_args assertion
+    assert func.body.condition.a == num_args
+    assert func.body.condition.b == 1
+
+    # Arguments unpacking
+    assignment = _find_assignment(func.body, "arg.input_buffer")
+    assert str(assignment.value) == "@tir.tvm_struct_get(args: handle, 0, 12, dtype=handle)"
+
+    assignment = _find_assignment(func.body, "input_buffer")
+    assert (
+        str(assignment.value) == "@tir.tvm_struct_get(arg.input_buffer: handle, 0, 1, dtype=handle)"
+    )
+    unpacked_input_buffer = assignment.var
+
+    seq_stmt = _find_next(assignment, tvm.tir.SeqStmt)
+    call = _find_next(seq_stmt[1], tvm.tir.Evaluate)
+    call_extern = call.value
+
+    assert call_extern.args[1] == unpacked_input_buffer
+    assert call_extern.args[2] == device_context_in_resource_handle
 
 
 if __name__ == "__main__":

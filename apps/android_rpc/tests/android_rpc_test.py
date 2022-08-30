@@ -86,7 +86,7 @@ def test_rpc_module():
         s[B].bind(xo, te.thread_axis("blockIdx.x"))
         # Build the dynamic lib.
         # If we don't want to do metal and only use cpu, just set target to be target
-        f = tvm.build(s, [A, B], "opencl", target_host=target, name="myadd")
+        f = tvm.build(s, [A, B], tvm.target.Target("opencl", host=target), name="myadd")
         path_dso_cl = temp.relpath("dev_lib_cl.so")
         f.export_library(path_dso_cl, ndk.create_shared)
 
@@ -109,7 +109,7 @@ def test_rpc_module():
         s[B].bind(xo, te.thread_axis("blockIdx.x"))
         # Build the dynamic lib.
         # If we don't want to do metal and only use cpu, just set target to be target
-        f = tvm.build(s, [A, B], "vulkan", target_host=target, name="myadd")
+        f = tvm.build(s, [A, B], tvm.target.Target("vulkan", host=target), name="myadd")
         path_dso_vulkan = temp.relpath("dev_lib_vulkan.so")
         f.export_library(path_dso_vulkan, ndk.create_shared)
 

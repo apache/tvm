@@ -70,6 +70,8 @@ struct TypeIndex {
     kRuntimeMap = 5,
     /*! \brief runtime::ShapeTuple. */
     kRuntimeShapeTuple = 6,
+    /*! \brief runtime::PackedFunc. */
+    kRuntimePackedFunc = 7,
     // static assignments that may subject to change.
     kRuntimeClosure,
     kRuntimeADT,
@@ -438,6 +440,11 @@ class ObjectPtr {
     ObjectPtr(std::move(other)).swap(*this);  // NOLINT(*)
     return *this;
   }
+  /*!
+   * \brief nullptr check
+   * \return result of comparison of internal pointer with nullptr.
+   */
+  explicit operator bool() const { return get() != nullptr; }
   /*! \brief reset the content of ptr to be nullptr */
   void reset() {
     if (data_ != nullptr) {

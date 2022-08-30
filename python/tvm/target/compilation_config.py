@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """Python bindings for creating CompilationConfigs."""
+import tvm
 from . import _ffi_api
 
 
-def make_compilation_config(ctxt, targets, host_target=None):
-    """Returns a CompilationConfig appropriate for targets and an optional host_target.
-    Currently intended just for unit tests and will be replaced by a Python CompilationConfig
-    class in the future. Note that targets must be a dictionary from IntImm objects to Targets
-    and we do not support any of the lighter-weight conventions used by the various build(...)
-    APIs."""
-    return _ffi_api.MakeCompilationConfig(ctxt, targets, host_target)
+def make_compilation_config(ctxt, target, target_host=None):
+    """Returns a CompilationConfig appropriate for target and target_host, using the same
+    representation conventions as for the standard build interfaces. Intended only for unit
+    testing."""
+    raw_targets = tvm.target.Target.canon_multi_target_and_host(target, target_host)
+    return _ffi_api.MakeCompilationConfig(ctxt, raw_targets)

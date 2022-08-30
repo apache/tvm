@@ -50,12 +50,14 @@ bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (data == nullptr || weight == nullptr) return false;
   const auto* param = attrs.as<Conv2DAttrs>();
   ICHECK(param != nullptr) << "Conv2DAttrs cannot be nullptr.";
-  ICHECK(data->dtype == DataType::Int(8) || data->dtype == DataType::UInt(8))
-      << "Expected qnn conv2d type(int8, uint8) for input but was " << data->dtype;
+  ICHECK(data->dtype == DataType::Int(8) || data->dtype == DataType::UInt(8) ||
+         data->dtype == DataType::Int(16))
+      << "Expected qnn conv2d type(int8, uint8, int16) for input but was " << data->dtype;
   ICHECK(weight->dtype == DataType::Int(8) || weight->dtype == DataType::UInt(8))
       << "Expected qnn conv2d type(int8, uint8) for weight but was " << weight->dtype;
-  ICHECK(param->out_dtype == DataType::Int(16) || param->out_dtype == DataType::Int(32))
-      << "Expected qnn conv2d type(int32, int16) for output but was " << param->out_dtype;
+  ICHECK(param->out_dtype == DataType::Int(16) || param->out_dtype == DataType::Int(32) ||
+         param->out_dtype == DataType::Int(64))
+      << "Expected qnn conv2d type(int16, int32, int64) for output but was " << param->out_dtype;
   ICHECK(param->out_dtype.bits() > 0) << "Output dtype bits should be greater than 0.";
 
   // Check the types of scale and zero points.
@@ -84,7 +86,7 @@ bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   // Collect the input tensor and output tensor devoid of scale and zero points to reuse Relay
   // Conv2D infer type function.
   Array<Type> tensor_types = {types[0], types[1], types[6]};
-  return Conv2DRel<Conv2DAttrs>(tensor_types, 3, attrs, reporter);
+  return Conv2DRel(tensor_types, 3, attrs, reporter);
 }
 
 InferCorrectLayoutOutput QnnConvInferCorrectLayout(const Attrs& attrs,
@@ -140,29 +142,35 @@ WorkloadType GetWorkload(const Array<tvm::relay::Type>& arg_types, const Conv2DA
   int out_channels, kernel_h, kernel_w;
   int channel_multiplier = -1;
   bool depthwise = is_depthwise(param);
-  if (param->kernel_layout == "OIHW") {
-    out_channels = get_const_int(kernel_shape[0]);
-    kernel_h = get_const_int(kernel_shape[2]);
-    kernel_w = get_const_int(kernel_shape[3]);
-    if (depthwise) {
-      channel_multiplier = get_const_int(kernel_shape[1]);
-    }
-  } else if (param->kernel_layout == "HWIO") {
-    kernel_h = get_const_int(kernel_shape[0]);
-    kernel_w = get_const_int(kernel_shape[1]);
-    out_channels = get_const_int(kernel_shape[3]);
-    if (depthwise) {
-      channel_multiplier = get_const_int(kernel_shape[2]);
-    }
+  int index_k = 0;
+  int index_h = 2;
+  int index_w = 3;
+  int index_c = 1;
+  if (param->kernel_layout == "HWIO") {
+    index_k = 3;
+    index_h = 0;
+    index_w = 1;
+    index_c = 2;
   } else if (param->kernel_layout == "HWOI") {
-    kernel_h = get_const_int(kernel_shape[0]);
-    kernel_w = get_const_int(kernel_shape[1]);
-    out_channels = get_const_int(kernel_shape[2]);
-    if (depthwise) {
-      channel_multiplier = get_const_int(kernel_shape[3]);
-    }
-  } else {
+    index_k = 2;
+    index_h = 0;
+    index_w = 1;
+    index_c = 3;
+  } else if (param->kernel_layout == "OHWI") {
+    index_k = 0;
+    index_h = 1;
+    index_w = 2;
+    index_c = 3;
+  } else if (param->kernel_layout != "OIHW") {
     LOG(FATAL) << "qnn.conv2d does not support " << param->kernel_layout << " layout";
+  }
+
+  kernel_h = get_const_int(kernel_shape[index_h]);
+  kernel_w = get_const_int(kernel_shape[index_w]);
+  out_channels = get_const_int(kernel_shape[index_k]);
+
+  if (depthwise) {
+    channel_multiplier = get_const_int(kernel_shape[index_c]);
   }
 
   return std::make_tuple(batch_size, in_channels, out_channels, kernel_h, kernel_w,
@@ -184,19 +192,21 @@ WorkloadType GetWorkload(const Array<tvm::relay::Type>& arg_types, const Conv2DA
  */
 Expr Conv2DFallBack(const Expr& data, const Expr& weight, const Expr& input_zero_point,
                     const Expr& kernel_zero_point, const Conv2DAttrs* param) {
-  // Upcast the zero point to Int16.
-  auto zp_data = Cast(input_zero_point, DataType::Int(16));
-  auto zp_kernel = Cast(kernel_zero_point, DataType::Int(16));
+  // Upcast the parameters to be at least int32 to avoid overflow
+  auto upcast_bits = param->out_dtype.bits() < 32 ? 32 : param->out_dtype.bits();
 
-  auto shifted_data = Cast(data, DataType::Int(16));
-  auto zero_scalar = MakeConstantScalar(DataType::Int(32), 0);
+  auto zp_data = Cast(input_zero_point, DataType::Int(upcast_bits));
+  auto zp_kernel = Cast(kernel_zero_point, DataType::Int(upcast_bits));
+
+  auto shifted_data = Cast(data, DataType::Int(upcast_bits));
+  auto zero_scalar = MakeConstantScalar(DataType::Int(upcast_bits), 0);
   if (!IsEqualScalar(input_zero_point, zero_scalar)) {
-    shifted_data = Subtract(Cast(data, DataType::Int(16)), zp_data);
+    shifted_data = Subtract(Cast(data, DataType::Int(upcast_bits)), zp_data);
   }
 
-  auto shifted_kernel = Cast(weight, DataType::Int(16));
+  auto shifted_kernel = Cast(weight, DataType::Int(upcast_bits));
   if (!IsEqualScalar(kernel_zero_point, zero_scalar)) {
-    shifted_kernel = Subtract(Cast(weight, DataType::Int(16)), zp_kernel);
+    shifted_kernel = Subtract(Cast(weight, DataType::Int(upcast_bits)), zp_kernel);
   }
 
   return Conv2D(shifted_data, shifted_kernel, param->strides, param->padding, param->dilation,
@@ -519,6 +529,8 @@ Expr Conv2DThirdTerm(const Expr& weight, const Expr& input_zero_point, const Con
     axes_t3 = {0, 1, 2};
   } else if (param->kernel_layout == "HWOI") {
     axes_t3 = {0, 1, 3};
+  } else if (param->kernel_layout == "OHWI") {
+    axes_t3 = {1, 2, 3};
   } else {
     LOG(FATAL) << "qnn.conv2d does not support " << param->kernel_layout << " layout";
   }
@@ -549,6 +561,7 @@ Expr Conv2DThirdTerm(const Expr& weight, const Expr& input_zero_point, const Con
  * \param in_channels The number of input channels.
  * \param kernel_h The height of kernel.
  * \param kernel_w The width of kernel.
+ * \param param The qnn conv2d attributes.
  * \return The sequence of Relay operators for term4.
  * \note The term4 looks like this
  *
@@ -556,10 +569,11 @@ Expr Conv2DThirdTerm(const Expr& weight, const Expr& input_zero_point, const Con
  *
  */
 Expr Conv2DFourthTerm(int input_zero_point_int, int kernel_zero_point_int, int in_channels,
-                      int kernel_h, int kernel_w) {
+                      int kernel_h, int kernel_w, const Conv2DAttrs* param) {
+  auto upcast_bits = param->out_dtype.bits() < 32 ? 32 : param->out_dtype.bits();
   int scalar_term4 =
       input_zero_point_int * kernel_zero_point_int * in_channels * kernel_h * kernel_w;
-  return MakeConstantScalar(DataType::Int(32), scalar_term4);
+  return MakeConstantScalar(DataType::Int(upcast_bits), scalar_term4);
 }
 
 /*
@@ -570,6 +584,7 @@ Expr Conv2DFourthTerm(int input_zero_point_int, int kernel_zero_point_int, int i
  * \param in_channels The number of input channels.
  * \param kernel_h The height of kernel.
  * \param kernel_w The width of kernel.
+ * \param param The qnn conv2d attributes.
  * \return The sequence of Relay operators for term4.
  * \note The term4 looks like this
  *
@@ -577,8 +592,10 @@ Expr Conv2DFourthTerm(int input_zero_point_int, int kernel_zero_point_int, int i
  *
  */
 Expr Conv2DFourthTerm(const Expr& input_zero_point, const Expr& kernel_zero_point, int in_channels,
-                      int kernel_h, int kernel_w) {
-  Expr scalar_term4 = MakeConstantScalar(DataType::Int(32), in_channels * kernel_h * kernel_w);
+                      int kernel_h, int kernel_w, const Conv2DAttrs* param) {
+  auto upcast_bits = param->out_dtype.bits() < 32 ? 32 : param->out_dtype.bits();
+  Expr scalar_term4 =
+      MakeConstantScalar(DataType::Int(upcast_bits), in_channels * kernel_h * kernel_w);
   Expr variable_term4 = Multiply(input_zero_point, kernel_zero_point);
   return Multiply(scalar_term4, variable_term4);
 }
@@ -701,13 +718,13 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   ICHECK(param->data_layout == "NCHW" || param->data_layout == "NHWC")
       << "qnn.conv2d supports only NCHW/NHWC input data layout.";
   ICHECK(param->kernel_layout == "OIHW" || param->kernel_layout == "HWIO" ||
-         param->kernel_layout == "HWOI")
-      << "qnn.conv2d supports only OIHW/HWIO/HWOI kernel data layout.";
+         param->kernel_layout == "HWOI" || param->kernel_layout == "OHWI")
+      << "qnn.conv2d supports only OIHW/HWIO/HWOI/OHWI kernel data layout.";
   ICHECK(param->kernel_size.defined()) << "qnn.conv2d requires kernel size to be specified.";
 
-  int batch_size, in_channels, out_channels, kernel_h, kernel_w, channel_multiplier;
-  std::tie(batch_size, in_channels, out_channels, kernel_h, kernel_w, channel_multiplier) =
+  auto [batch_size, in_channels, out_channels, kernel_h, kernel_w, channel_multiplier] =
       GetWorkload(arg_types, param);
+  (void)batch_size;  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
 
   // zero points are allowed to be non-scalar. Let's check if that's the case.
   bool dynamic_zp = false;
@@ -783,10 +800,11 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   auto term3 = Conv2DThirdTerm(weight, input_zero_point, param, out_channels);
   Expr term4;
   if (dynamic_zp) {
-    term4 = Conv2DFourthTerm(input_zero_point, kernel_zero_point, in_channels, kernel_h, kernel_w);
+    term4 = Conv2DFourthTerm(input_zero_point, kernel_zero_point, in_channels, kernel_h, kernel_w,
+                             param);
   } else {
     term4 = Conv2DFourthTerm(input_zero_point_int, kernel_zero_point_int, in_channels, kernel_h,
-                             kernel_w);
+                             kernel_w, param);
   }
   return Conv2DCombineTerms(term1, term2, term3, term4, input_zero_point_int,
                             kernel_zero_point_int);
@@ -821,7 +839,7 @@ This operator convolves quantized weight with quantized data. The scale of the
 output quantized tensor is the product of the weight_scale and input_scale of
 the input quantized tensors. The zero point of the output quantized tensor is
 0. By default, the dtype of output is int32. Please also refer to Requantize
-operator to understand how to scale back the int32 output to (u)int8.
+operator to understand how to scale back the int32 output to (u)int8 or (u)int16.
 - **data**: This depends on the `layout` parameter. Input is 4D array of shape
             (batch_size, in_channels, height, width) if `layout` is `NCHW`.
 - **weight**: (channels, in_channels, kernel_size[0], kernel_size[1])

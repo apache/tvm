@@ -50,7 +50,7 @@ class GemmOperation:
         return ShortDataTypeNames[self.accumulator_type()]
 
     def core_name(self):
-        """ The basic operation kind is prefixed with a letter indicating the accumulation type. """
+        """The basic operation kind is prefixed with a letter indicating the accumulation type."""
         inst_shape = ""
         intermediate_type = ""
 
@@ -74,7 +74,7 @@ class GemmOperation:
         )
 
     def extended_name(self):
-        """ Append data types if they differ from compute type. """
+        """Append data types if they differ from compute type."""
         if (
             self.C.element != self.tile_description.math_instruction.element_accumulator
             and self.A.element != self.tile_description.math_instruction.element_accumulator
@@ -121,7 +121,7 @@ class GemmOperation:
         )
 
     def leading_dim(self):
-        """ lda, ldb, ldc, according to the leading dimension. """
+        """lda, ldb, ldc, according to the leading dimension."""
         if self.A.layout == LayoutType.RowMajor:
             lda = "K"
         elif self.A.layout == LayoutType.ColumnMajor:
@@ -154,7 +154,7 @@ class GemmOperation:
 
 
 class EmitGemmInstance:
-    """ Responsible for emitting a CUTLASS template definition."""
+    """Responsible for emitting a CUTLASS template definition."""
 
     def __init__(self):
         self.epilogue_default = """

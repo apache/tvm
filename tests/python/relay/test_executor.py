@@ -23,12 +23,12 @@ from tvm.relay.backend import Executor
 
 def test_create_executor():
     executor = Executor("aot")
-    assert str(executor) == "aot"
+    assert executor.name == "aot"
 
 
 def test_create_executor_with_options():
     executor = Executor("aot", {"interface-api": "c"})
-    assert str(executor) == "aot"
+    assert executor.name == "aot"
     assert executor["interface-api"] == "c"
 
 
@@ -63,16 +63,16 @@ def test_create_executor_attr_type_incorrect():
 
 
 def test_list_executors():
-    assert "aot" in Executor.list_executors()
+    assert "aot" in Executor.list_registered()
 
 
-@pytest.mark.parametrize("executor", [Executor("aot"), "aot"])
+@pytest.mark.parametrize("executor", [Executor("aot").name, "aot"])
 def test_list_executor_options(executor):
-    aot_options = Executor.list_executor_options(executor)
+    aot_options = Executor.list_registered_options(executor)
     assert "interface-api" in aot_options
     assert aot_options["interface-api"] == "runtime.String"
 
 
 def test_list_executor_options_not_found():
     with pytest.raises(TVMError, match='Executor "woof" is not defined'):
-        Executor.list_executor_options("woof")
+        Executor.list_registered_options("woof")

@@ -133,6 +133,18 @@ ENTRY(Reset_Handler)
 
 SECTIONS
 {
+  /* .ddr is placed before .text so that .rodata.tvm is encountered before .rodata* */
+  .ddr :
+  {
+    . = ALIGN(16);
+    *(ethosu_scratch)
+    . = ALIGN (16);
+    *(.rodata.tvm)
+    . = ALIGN (16);
+    *(.data.tvm)
+    . = ALIGN (16);
+  } > DDR
+
   .text :
   {
     KEEP(*(.vectors))
@@ -239,12 +251,12 @@ SECTIONS
     . = ALIGN(16);
   } > SRAM AT > SRAM
 
-  .bss.NoInit :
+  .bss.noinit (NOLOAD):
   {
     . = ALIGN(16);
-    *(.bss.NoInit)
+    *(.bss.noinit.*)
     . = ALIGN(16);
-  } > DDR AT > DDR
+  } > SRAM AT > SRAM
 
   .bss :
   {
@@ -256,14 +268,6 @@ SECTIONS
     . = ALIGN(4);
     __bss_end__ = .;
   } > DTCM AT > DTCM
-
-  .ddr :
-  {
-    . = ALIGN(4);
-    . = ALIGN(16);
-    *(ethosu_scratch)
-    . = ALIGN (16);
-  } > DDR
 
   .data_sram :
   {

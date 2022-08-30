@@ -89,8 +89,9 @@ Array<te::Tensor> ReshapeCompute(const Attrs& attrs, const Array<te::Tensor>& in
   return {topi::reshape(inputs[0], newshape)};
 }
 
-Expr MakeReshape(Expr data, Expr newshape) {
+Expr MakeReshape(Expr data, Expr newshape, bool allowzero = false) {
   auto attrs = make_object<ReshapeAttrs>();
+  attrs->allowzero = allowzero;
   static const Op& op = Op::Get("dyn.reshape");
   return Call(op, {data, newshape}, Attrs(attrs), {});
 }
@@ -257,6 +258,7 @@ RELAY_REGISTER_OP("dyn.broadcast_to")
     .describe(R"code(Broadcast the first input to match the shape argument.
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(2)
+    .set_attrs_type<InitOpAttrs>()
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("shape", "Tensor", "Target shape.")
     .set_support_level(4)
@@ -467,6 +469,9 @@ bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   int64_t num_axis = dshape.size();
 
   const auto* begin = types[1].as<TensorTypeNode>();
+  if (begin == nullptr) {
+    return false;
+  }
   ICHECK(begin);
 
   // calculate output shape

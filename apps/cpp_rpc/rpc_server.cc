@@ -86,24 +86,33 @@ static std::string getNextString(std::stringstream* iss) {
 
 /*!
  * \brief RPCServer RPC Server class.
+ *
  * \param host The hostname of the server, Default=0.0.0.0
- * \param port The port of the RPC, Default=9090
- * \param port_end The end search port of the RPC, Default=9099
- * \param tracker The address of RPC tracker in host:port format e.g. 10.77.1.234:9190 Default=""
- * \param key The key used to identify the device type in tracker. Default=""
- * \param custom_addr Custom IP Address to Report to RPC Tracker. Default=""
+ *
+ * \param port_search_start The low end of the search range for an
+ *     available port for the RPC, Default=9090
+ *
+ * \param port_search_end The high search the search range for an
+ *     available port for the RPC, Default=9099
+ *
+ * \param tracker The address of RPC tracker in host:port format
+ *     (e.g. "10.77.1.234:9190")
+ *
+ * \param key The key used to identify the device type in tracker.
+ *
+ * \param custom_addr Custom IP Address to Report to RPC Tracker.
  */
 class RPCServer {
  public:
   /*!
    * \brief Constructor.
    */
-  RPCServer(std::string host, int port, int port_end, std::string tracker_addr, std::string key,
-            std::string custom_addr, std::string work_dir)
+  RPCServer(std::string host, int port_search_start, int port_search_end, std::string tracker_addr,
+            std::string key, std::string custom_addr, std::string work_dir)
       : host_(std::move(host)),
-        port_(port),
+        port_search_start_(port_search_start),
         my_port_(0),
-        port_end_(port_end),
+        port_search_end_(port_search_end),
         tracker_addr_(std::move(tracker_addr)),
         key_(std::move(key)),
         custom_addr_(std::move(custom_addr)),
@@ -126,7 +135,7 @@ class RPCServer {
    */
   void Start() {
     listen_sock_.Create();
-    my_port_ = listen_sock_.TryBindHost(host_, port_, port_end_);
+    my_port_ = listen_sock_.TryBindHost(host_, port_search_start_, port_search_end_);
     LOG(INFO) << "bind to " << host_ << ":" << my_port_;
     listen_sock_.Listen(1);
     std::future<void> proc(std::async(std::launch::async, &RPCServer::ListenLoopProc, this));
@@ -140,7 +149,7 @@ class RPCServer {
    * \brief ListenLoopProc The listen process.
    */
   void ListenLoopProc() {
-    TrackerClient tracker(tracker_addr_, key_, custom_addr_, port_);
+    TrackerClient tracker(tracker_addr_, key_, custom_addr_, my_port_);
     while (true) {
       support::TCPSocket conn;
       support::SockAddr addr("0.0.0.0", 0);
@@ -340,9 +349,9 @@ class RPCServer {
   }
 
   std::string host_;
-  int port_;
+  int port_search_start_;
   int my_port_;
-  int port_end_;
+  int port_search_end_;
   std::string tracker_addr_;
   std::string key_;
   std::string custom_addr_;

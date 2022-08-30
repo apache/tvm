@@ -45,6 +45,12 @@ Expr QnnSubtractCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   // Get the input dtype and shape.
   QnnBinaryOpTensorType input_type(arg_types, 0);
 
+  const auto* broadcast_attrs = attrs.as<BroadcastAttrs>();
+  ICHECK(broadcast_attrs != nullptr);
+
+  auto lhs_axis = broadcast_attrs->lhs_axis;
+  auto rhs_axis = broadcast_attrs->rhs_axis;
+
   // TODO(shoubhik) - The lowering can be further optimized. Instead of inserting requantize in
   // the start, we can insert requantize at the end if both input tensors have same qnn params. In
   // that case, we can first subtract the tensors, add the zero point, and requantize at the end.
@@ -68,11 +74,11 @@ Expr QnnSubtractCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   // Requantize LHS if necessary. Computes Q_a'
   auto requantized_lhs =
       RequantizeOrUpcast(args.lhs, args.lhs_scale, args.lhs_zero_point, args.output_scale,
-                         args.output_zero_point, input_type.shape);
+                         args.output_zero_point, input_type.shape, lhs_axis);
   // Requantize RHS if necessary. Computes Q_b'
   auto requantized_rhs =
       RequantizeOrUpcast(args.rhs, args.rhs_scale, args.rhs_zero_point, args.output_scale,
-                         args.output_zero_point, input_type.shape);
+                         args.output_zero_point, input_type.shape, rhs_axis);
 
   // Computes Q_a' - Q_b'
   auto output = Subtract(requantized_lhs, requantized_rhs);
@@ -89,7 +95,7 @@ Expr QnnSubtractCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
 
 // QNN Subtraction operator.
 QNN_REGISTER_BINARY_OP("subtract")
-    .describe("Elementwise subtract with with broadcasting for quantized tensors.")
+    .describe("Elementwise subtract with broadcasting for quantized tensors.")
     .set_support_level(11)
     .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnSubtractCanonicalize);
 

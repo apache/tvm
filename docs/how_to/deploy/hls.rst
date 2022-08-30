@@ -34,8 +34,7 @@ We use two python scripts for this tutorial.
       import tvm
       from tvm import te
 
-      tgt_host="llvm"
-      tgt="sdaccel"
+      tgt= tvm.target.Target("sdaccel", host="llvm")
 
       n = te.var("n")
       A = te.placeholder((n,), name='A')
@@ -47,7 +46,7 @@ We use two python scripts for this tutorial.
 
       s[C].bind(px, tvm.te.thread_axis("pipeline"))
 
-      fadd = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd")
+      fadd = tvm.build(s, [A, B, C], tgt, name="myadd")
 
       fadd.save("myadd.o")
       fadd.imported_modules[0].save("myadd.xclbin")

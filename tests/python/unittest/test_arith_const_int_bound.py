@@ -14,7 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
 import tvm
+import tvm.testing
+
 from tvm import te
 
 
@@ -195,6 +198,14 @@ def test_floordiv_bound():
     assert bd.min_value == -9
     assert bd.max_value == 9
 
+    # Test handling unsigned integers well
+    x, y = te.var("x", dtype="uint32"), te.var("y", dtype="uint32")
+    analyzer.update(x, tvm.arith.ConstIntBound(1, 4), override=True)
+    analyzer.update(y, tvm.arith.ConstIntBound(0, 12), override=True)
+    bd = analyzer.const_int_bound(fld(x, y))
+    assert bd.min_value == 0
+    assert bd.max_value == 4
+
 
 def test_floormod_bound():
     analyzer = tvm.arith.Analyzer()
@@ -328,19 +339,15 @@ def test_floormod_negative_divisor():
     assert bd.max_value == 6
 
 
+def test_multiple_condition():
+    analyzer = tvm.arith.Analyzer()
+    flm, fld = tvm.te.floormod, tvm.te.floordiv
+    a = te.var("a")
+    analyzer.update(a, tvm.arith.ConstIntBound(0, 128))
+    with analyzer.constraint_scope(tvm.tir.all(1 <= flm(a, 58), flm(a, 58) < 57)):
+        bound = analyzer.const_int_bound(flm(a, 58) - 1)
+    assert bound.min_value == 0
+
+
 if __name__ == "__main__":
-    test_let_bound()
-    test_dtype_bound()
-    test_cast_bound()
-    test_add_sub_bound()
-    test_mul_bound()
-    test_truncdiv_bound()
-    test_truncmod_bound()
-    test_floordiv_bound()
-    test_floormod_bound()
-    test_min_max_bound()
-    test_select_bound()
-    test_shift_and_bound()
-    test_mix_index_bound()
-    test_size_var_bound()
-    test_floormod_negative_divisor()
+    tvm.testing.main()

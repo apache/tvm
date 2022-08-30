@@ -23,6 +23,7 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/attrs/transform.h>
+#include <tvm/relay/executor.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/op.h>
@@ -31,8 +32,7 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
 
-#include "../op/annotation/annotation.h"
-#include "./device_aware_visitors.h"
+#include "../op/memory/on_device.h"
 #include "./pattern_utils.h"
 
 namespace tvm {
@@ -42,8 +42,8 @@ namespace transform {
 namespace {
 /*!
  * \brief Returns whether \p expr is a literal \p Constant, optionally wrapped by an "on_device"
- * annotation CallNode (which serves only to associate a device to the constant and has no
- * operational effect).
+ * annotation CallNode (which serves only to associate an \p VirtualDevice to the constant and has
+ * no operational effect).
  */
 bool IsSimpleConstant(const Expr& expr) {
   return AsIgnoringOnDevice<ConstantNode>(expr) != nullptr;
@@ -67,8 +67,9 @@ bool IsComplexConstant(const Expr& expr) {
 // or make a more powerful partial evaluator.
 class ConstantFolder : public MixedModeMutator {
  public:
-  explicit ConstantFolder(IRModule module)
+  explicit ConstantFolder(IRModule module, bool fold_qnn)
       : module_(std::move(module)),
+        fold_qnn_(fold_qnn),
         device_copy_op_(Op::Get("device_copy")),
         shape_of_op_(Op::Get("shape_of")),
         vm_shape_of_op_(Op::Get("vm.shape_of")),
@@ -87,19 +88,19 @@ class ConstantFolder : public MixedModeMutator {
         // the variable.
         //
         // We need to retain any "on_device" annotation so that downstream 'device aware'
-        // passes can still retrieve the device for the constant in its new position(s). Eg:
-        //   def @f(..., result_device_type=D) {
-        //     let %x = on_device(... something we eval to a constant..., device_type=E)
+        // passes can still retrieve the virtual device for the constant in its new position(s). Eg:
+        //   def @f(..., result_virtual_device=D) {
+        //     let %x = on_device(... something we eval to a constant..., virtual_device=E)
         //     @f(..., %x, ...)
         //   }
-        // Here the default device is D, whereas the argument %x to @f is on E (and @f expects
-        // that). No on_device annotation is required in the call according to the convention used
-        // by the device-aware visitors.
+        // Here the default virtual device is D, whereas the argument %x to @f is on E (and @f
+        // expects that). No on_device annotation is required in the call according to the
+        // convention used by the device-aware visitors.
         //
         // However once we've inlined the constant we need to insert an on_device, again to
         // respect the convention used by the device-aware visitors.
-        //   def @f(..., result_device_type=D) {
-        //     @f(..., on_device(...the constant..., device_type=E), ...)
+        //   def @f(..., result_virtual_device=D) {
+        //     @f(..., on_device(...the constant..., virtual_device=E), ...)
         //   }
         VLOG(1) << "Replacing let-binding for " << op->var->name_hint()
                 << " with constant:" << std::endl
@@ -146,7 +147,7 @@ class ConstantFolder : public MixedModeMutator {
   Expr Rewrite_(const CallNode* pre_call_node, const Expr& post) final {
     Call pre_call = GetRef<Call>(pre_call_node);
     if (inside_primitive_) {
-      return pre_call;
+      return std::move(pre_call);
     }
 
     Call post_call = Downcast<Call>(post);
@@ -157,8 +158,6 @@ class ConstantFolder : public MixedModeMutator {
       // For example it is harmful to fold ones(shape=(4, 5)).
       return std::move(pre_call);
     }
-
-    static auto fnoncomputational = Op::GetAttrMap<TNonComputational>("TNonComputational");
 
     const auto* op_node = post_call->op.as<OpNode>();
     if (op_node == nullptr) {
@@ -182,8 +181,15 @@ class ConstantFolder : public MixedModeMutator {
     if (Optional<Expr> opt_result = EvaluateNdarraySize(pre_call)) {
       return opt_result.value();
     }
-    if ((fnoncomputational.count(op) && fnoncomputational[op]) || op == device_copy_op_ ||
-        op == shape_of_op_ || op == vm_shape_of_op_ || op == ndarray_size_op_) {
+    static auto fnoncomputational = Op::GetAttrMap<TNonComputational>("TNonComputational");
+    static auto qnn_canonicalize = Op::GetAttrMap<FTVMLegalize>("FTVMQnnCanonicalize");
+    bool is_no_qnn_canonicalized = !qnn_canonicalize.count(op);
+    bool is_no_computational = fnoncomputational.count(op) && fnoncomputational[op];
+    if (is_no_computational && (is_no_qnn_canonicalized || !fold_qnn_)) {
+      return std::move(post_call);
+    }
+    if (op == device_copy_op_ || op == shape_of_op_ || op == vm_shape_of_op_ ||
+        op == ndarray_size_op_) {
       // We should think about potentially constant evaluation over these ops too.
       return std::move(post_call);
     }
@@ -215,13 +221,13 @@ class ConstantFolder : public MixedModeMutator {
       Expr result = tuple_node->fields[tuple_get_item_node->index];
       OnDeviceProps props = GetOnDeviceProps(post_tuple_get_item_node->tuple);
       if (props.body.defined()) {
-        // (on_device((x, y, z), device_type=D).1 ==> on_device(y, device_type=D)
-        return MaybeOnDevice(result, props.device_type, props.is_fixed);
+        // (on_device((x, y, z), virtual_device=D).1 ==> on_device(y, virtual_device=D)
+        return MaybeOnDeviceWithProps(result, props);
       } else {
         return result;
       }
     }
-    return std::move(post_tuple_get_item);
+    return post_tuple_get_item;
   }
 
   // Convert value to expression.
@@ -248,19 +254,22 @@ class ConstantFolder : public MixedModeMutator {
     VLOG(1) << "Evaluating :" << std::endl << PrettyPrint(expr);
 
     // We'll invoke the interpreter using the generic CPU device and target. Technically there's
-    // no guarantee the results we bitwise equal what we'd get on the true device, however to
+    // no guarantee the results will be bitwise equal what we'd get on the true device, however to
     // support cross-compilation we don't want to assume the true device is available.
-    Device dev;
-    dev.device_type = kDLCPU;
-    dev.device_id = 0;
-    Target target = Target("llvm");
 
     // Use a fresh build context in case we are already in a build context.
     // needed for both execution and creation(due to JIT)
     With<transform::PassContext> fresh_build_ctx(transform::PassContext::Create());
 
-    Expr result =
-        ObjectToExpr(Eval(expr, module_->type_definitions, module_->Imports(), dev, target));
+    Map<String, ObjectRef> dict = (module_->attrs.defined())
+                                      ? Map<String, ObjectRef>(module_->attrs.CopyOnWrite()->dict)
+                                      : Map<String, ObjectRef>();
+
+    // always use graph executor with no link-params
+    dict.Set(tvm::attr::kExecutor,
+             relay::Executor::Create("graph", {{"link-params", Bool(false)}}));
+    Expr result = ObjectToExpr(Eval(expr, module_->type_definitions, module_->Imports(),
+                                    eval_cpu_dev_, eval_cpu_target_, dict));
     VLOG(1) << "Evaluated to constant:" << std::endl << PrettyPrint(result);
     return result;
   }
@@ -288,17 +297,14 @@ class ConstantFolder : public MixedModeMutator {
     }
 
     // Get the constant shape
-    Device dev;
-    dev.device_type = kDLCPU;
-    dev.device_id = 0;
     runtime::NDArray value;
     DLDataType cdtype = DataType::Int(32);
     if (ishape.empty()) {
-      value = runtime::NDArray::Empty({}, cdtype, dev);
+      value = runtime::NDArray::Empty({}, cdtype, eval_cpu_dev_);
     } else {
       ICHECK_NE(ishape.size(), 0);
       std::vector<int64_t> cshape = {static_cast<int64_t>(ishape.size())};
-      value = runtime::NDArray::Empty(cshape, cdtype, dev);
+      value = runtime::NDArray::Empty(cshape, cdtype, eval_cpu_dev_);
       auto* dims = static_cast<int32_t*>(value->data);
       using ::tvm::tir::IntImmNode;
       for (size_t i = 0; i < ishape.size(); ++i) {
@@ -313,7 +319,7 @@ class ConstantFolder : public MixedModeMutator {
     Constant shape = Downcast<Constant>(ObjectToExpr(value));
 
     if (shape->data.Shape().empty() && GetScalarFromConstant<int32_t>(shape) == 0) {
-      auto ndarray = runtime::NDArray::Empty({}, cdtype, dev);
+      auto ndarray = runtime::NDArray::Empty({}, cdtype, eval_cpu_dev_);
       shape = Constant(ndarray);
     }
 
@@ -342,12 +348,9 @@ class ConstantFolder : public MixedModeMutator {
     }
 
     // Get the constant size
-    Device dev;
-    dev.device_type = kDLCPU;
-    dev.device_id = 0;
     runtime::NDArray value;
     DLDataType cdtype = DataType::Int(32);
-    value = runtime::NDArray::Empty({}, cdtype, dev);
+    value = runtime::NDArray::Empty({}, cdtype, eval_cpu_dev_);
     auto* data = static_cast<int32_t*>(value->data);
     if (ishape.empty()) {
       *data = 0;
@@ -390,6 +393,16 @@ class ConstantFolder : public MixedModeMutator {
   // Module
   IRModule module_;
 
+  // Whether to fold constants for QNN operations.
+  bool fold_qnn_;
+
+  // The kDLCPU device assumed to be available to the compiler. Used only when evaluating
+  // sub-expressions.
+  Device eval_cpu_dev_{kDLCPU, /*device_id=*/0};
+  // The target for the above device assumed to be available to the compiler. Used only when
+  // evaluating sub-expressions.
+  Target eval_cpu_target_{"llvm"};
+
   // Cache the following ops for equivalence checking in this pass.
   const Op& device_copy_op_;
   const Op& shape_of_op_;
@@ -413,20 +426,20 @@ TVM_REGISTER_GLOBAL("relay.analysis.check_constant").set_body_typed(IsComplexCon
  * from their p.o.v. Furthermore, this function can be called before conversion to ANF so
  * we must avoid all recursion.
  */
-Expr FoldConstantExpr(const Expr& expr, const IRModule& mod) {
+Expr FoldConstantExpr(const Expr& expr, const IRModule& mod, bool fold_qnn) {
   VLOG_CONTEXT << "FoldConstantExpr";
   VLOG(1) << "folding:" << std::endl << PrettyPrint(expr);
-  Expr result = ConstantFolder(mod).VisitExpr(expr);
+  Expr result = ConstantFolder(mod, fold_qnn).VisitExpr(expr);
   VLOG(1) << "folded to:" << std::endl << PrettyPrint(result);
   return result;
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.FoldConstantExpr").set_body_typed(FoldConstantExpr);
 
-Pass FoldConstant() {
+Pass FoldConstant(bool fold_qnn) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(FoldConstantExpr(f, m));
+        return Downcast<Function>(FoldConstantExpr(f, m, fold_qnn));
       };
   return CreateFunctionPass(pass_func, 2, "FoldConstant", {});
 }
