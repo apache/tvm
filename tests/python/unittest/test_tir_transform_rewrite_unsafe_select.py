@@ -20,7 +20,7 @@ from tvm import te
 
 def test_rewrite_Select():
     ib = tvm.tir.ir_builder.create()
-    A = ib.allocate("float32", 100, name="A", scope="global")
+    A = ib.allocate("float32", 100, name="A")
     i = te.var("i")
     y = tvm.tir.Select(i > 1, A[i - 1], 1.0)
 

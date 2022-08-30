@@ -27,7 +27,7 @@ def test_for():
 
     ib = tvm.tir.ir_builder.create()
     n = te.var("n")
-    A = ib.allocate("float32", n, name="A", scope="global")
+    A = ib.allocate("float32", n, name="A")
     with ib.for_range(0, n, name="i") as i:
         ib.emit(tvm.tir.call_extern("int32", "fadd", device_context(0), A.asobject().data))
         with ib.for_range(0, 10, name="j") as j:

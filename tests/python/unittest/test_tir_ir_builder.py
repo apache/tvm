@@ -24,7 +24,7 @@ from tvm.topi.math import cast
 def test_for():
     ib = tvm.tir.ir_builder.create()
     n = te.size_var("n")
-    A = ib.allocate("float32", n, name="A", scope="global")
+    A = ib.allocate("float32", n, name="A")
     with ib.for_range(0, n, name="i") as i:
         A[i] = A[i] + 1
         with ib.for_range(0, 10, name="j") as j:

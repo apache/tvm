@@ -297,7 +297,7 @@ def test_parallel_alloc():
     n = te.var("n")
     with ib.for_range(0, n, name="i", kind="parallel") as i:
         with ib.for_range(0, 10, name="j") as j:
-            A = ib.allocate("float32", n, name="A", scope="global")
+            A = ib.allocate("float32", n, name="A")
             A[j] = A[j] + 2
 
     body = ib.get()
@@ -314,7 +314,7 @@ def test_parallel_alloc():
         )
         with ib.for_range(0, n, name="i", kind="parallel") as i:
             with ib.for_range(0, 10, name="j") as j:
-                A = ib.allocate("float32", n, name="A", scope="global")
+                A = ib.allocate("float32", n, name="A")
                 A[j] = A[j] + 2
     body = ib.get()
 
@@ -329,10 +329,10 @@ def test_while_alloc():
         ib = tvm.tir.ir_builder.create()
         n = te.var("n")
         with ib.for_range(0, n, name="i", kind=kind) as i:
-            j = ib.allocate("int32", 1, name="j", scope="global")
+            j = ib.allocate("int32", 1, name="j")
             j[0] = 0
             with ib.while_loop(j[0] < 10):
-                A = ib.allocate("float32", n, name="A", scope="global")
+                A = ib.allocate("float32", n, name="A")
                 A[j[0]] = A[j[0]] + 2
                 j[0] += j[0] + 1
 
@@ -655,7 +655,7 @@ def test_access_in_let_value():
     def func(A: T.Buffer[(8,), "float32"]):
         for i in range(8):
             B_data = T.allocate((1,), "float32", "global")
-            B = T.buffer_decl(shape=[1], dtype="float32", scope="global", data=B_data)
+            B = T.buffer_decl(shape=[1], dtype="float32", data=B_data)
             B[0] = 3.14
             x: T.float32 = T.exp(B[0], dtype="float32")
             A[i] = (x + 1.0) / (x - 1.0)
@@ -663,7 +663,7 @@ def test_access_in_let_value():
     @T.prim_func
     def func_rewritten(A: T.Buffer[(8,), "float32"]) -> None:
         B_data = T.allocate((1,), "float32", "global")
-        B = T.buffer_decl(shape=[1], dtype="float32", scope="global", data=B_data)
+        B = T.buffer_decl(shape=[1], dtype="float32", data=B_data)
         for i in range(8):
             B[0] = 3.14
             x: T.float32 = T.exp(B[0], dtype="float32")

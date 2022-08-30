@@ -138,7 +138,7 @@ def intrin_wmma_store_matrix(shape):
     )
     C = te.compute((n, m), lambda i, j: A[i, j], name="C")
     BC = tvm.tir.decl_buffer(
-        C.shape, C.dtype, scope="global", data_alignment=32, offset_factor=n * m
+        C.shape, C.dtype, data_alignment=32, offset_factor=n * m
     )
 
     def intrin_func(ins, outs):

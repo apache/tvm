@@ -24,7 +24,7 @@ def test_coproc_lift():
     cp = te.thread_axis((0, 1), "cop")
     value = tvm.tir.StringImm("xxx")
 
-    A = ib.allocate("float32", n, name="A", scope="global")
+    A = ib.allocate("float32", n, name="A")
     with ib.for_range(0, n, name="i") as i:
         with ib.for_range(0, 10, name="j") as j:
             ib.scope_attr(cp, "coproc_uop_scope", value)
@@ -44,7 +44,7 @@ def test_coproc_lift():
 
     # only able to lift to the common pattern of the last two fors.
     ib = tvm.tir.ir_builder.create()
-    A = ib.allocate("float32", n, name="A", scope="global")
+    A = ib.allocate("float32", n, name="A")
     with ib.for_range(0, n, name="i") as i:
         with ib.for_range(0, 10, name="j") as j:
             A[j] = A[j] + 1

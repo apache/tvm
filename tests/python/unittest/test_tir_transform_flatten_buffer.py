@@ -34,7 +34,7 @@ def elementwise_func(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (16, 16), "float32")
     for i in T.serial(0, 16):
         B_new_data = T.allocate([1, 16], "float32", "global")
-        B_new = T.buffer_decl(shape=[1, 16], dtype="float32", data=B_new_data, scope="global")
+        B_new = T.buffer_decl(shape=[1, 16], dtype="float32", data=B_new_data)
         for j in T.serial(0, 16):
             B_new[0, j] = A[i, j] + 1.0
         for j in T.serial(0, 16):
@@ -49,7 +49,7 @@ def flattened_elementwise_func(a: T.handle, c: T.handle) -> None:
     T.preflattened_buffer(C, (16, 16), dtype="float32", data=C.data)
     for i in T.serial(0, 16):
         B_new_data = T.allocate([16], "float32", "global")
-        B_new = T.buffer_decl(shape=[16], dtype="float32", data=B_new_data, scope="global")
+        B_new = T.buffer_decl(shape=[16], dtype="float32", data=B_new_data)
         for j in T.serial(0, 16):
             B_new[j] = A[((i * 16) + j)] + 1.0
         for j in T.serial(0, 16):
@@ -105,7 +105,7 @@ def symbolic_func(a: T.handle, c: T.handle, n: T.int32, m: T.int32) -> None:
 
     for i in range(0, n):
         B_data = T.allocate([m], "float32", "global")
-        B = T.buffer_decl(shape=[m], dtype="float32", data=B_data, scope="global")
+        B = T.buffer_decl(shape=[m], dtype="float32", data=B_data)
         for j in range(0, m):
             B[j] = A[i, j] + 1.0
         for j in range(0, m):
@@ -121,7 +121,7 @@ def flattened_symbolic_func(a: T.handle, c: T.handle, n: T.int32, m: T.int32) ->
 
     for i in range(0, n):
         B_data = T.allocate([m], "float32", "global")
-        B = T.buffer_decl(shape=[m], dtype="float32", data=B_data, scope="global")
+        B = T.buffer_decl(shape=[m], dtype="float32", data=B_data)
         for j in range(0, m):
             B[j] = A[i * m + j] + 1.0
         for j in range(0, m):
@@ -134,10 +134,10 @@ def multi_alloc_func(a: T.handle, d: T.handle) -> None:
     D = T.match_buffer(d, (4, 32), "float32")
 
     for i, j in T.grid(4, 32):
-        B_data = T.allocate((4, 32), "float32", scope="global")
-        B = T.buffer_decl(shape=(4, 32), dtype="float32", data=B_data, scope="global")
-        C_data = T.allocate((4, 32), "float32", scope="global")
-        C = T.buffer_decl(shape=(4, 32), dtype="float32", data=C_data, scope="global")
+        B_data = T.allocate((4, 32), "float32")
+        B = T.buffer_decl(shape=(4, 32), dtype="float32", data=B_data)
+        C_data = T.allocate((4, 32), "float32")
+        C = T.buffer_decl(shape=(4, 32), dtype="float32", data=C_data)
         B[i, j] = A[i, j] + 1.0
         C[i, j] = A[i, j] + B[i, j]
         D[i, j] = C[i, j] * 2.0
@@ -152,9 +152,9 @@ def flattened_multi_alloc_func(a: T.handle, d: T.handle) -> None:
 
     for i, j in T.grid(4, 32):
         B_data = T.allocate([128], "float32", "global")
-        B = T.buffer_decl(shape=[128], dtype="float32", data=B_data, scope="global")
+        B = T.buffer_decl(shape=[128], dtype="float32", data=B_data)
         C_data = T.allocate([128], "float32", "global")
-        C = T.buffer_decl(shape=[128], dtype="float32", data=C_data, scope="global")
+        C = T.buffer_decl(shape=[128], dtype="float32", data=C_data)
         B[i * 32 + j] = A[i * 32 + j] + 1.0
         C[i * 32 + j] = A[i * 32 + j] + B[i * 32 + j]
         D[i * 32 + j] = C[i * 32 + j] * 2.0
@@ -166,7 +166,7 @@ def strided_buffer_func(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (16, 16), "float32")
     for i0 in T.serial(4):
         B_data = T.allocate([4, 17], "float32", "global")
-        B = T.buffer_decl(shape=[4, 17], dtype="float32", data=B_data, scope="global")
+        B = T.buffer_decl(shape=[4, 17], dtype="float32", data=B_data)
         B_1 = T.buffer_decl([4, 16], dtype="float32", data=B.data, strides=[17, 1])
         for i1, j in T.grid(4, 16):
             B_1[i1, j] = A[i0 * 4 + i1, j] + 1.0
@@ -182,7 +182,7 @@ def flattened_strided_buffer_func(a: T.handle, c: T.handle) -> None:
     T.preflattened_buffer(C, [16, 16], dtype="float32", data=C.data)
     for i0 in T.serial(0, 4):
         B_new_data = T.allocate([68], "float32", "global")
-        B_new = T.buffer_decl(shape=[68], dtype="float32", data=B_new_data, scope="global")
+        B_new = T.buffer_decl(shape=[68], dtype="float32", data=B_new_data)
         for i1 in T.serial(0, 4):
             for j in T.serial(0, 16):
                 B_new[i1 * 17 + j] = A[i0 * 64 + i1 * 16 + j] + 1.0
