@@ -671,7 +671,11 @@ def test_access_in_let_value():
     tvm.ir.assert_structural_equal(mod["main"], func_rewritten)
 
 
-class TestLetBufferRewrite(tvm.testing.CompareBeforeAfter):
+class BaseCompare(tvm.testing.CompareBeforeAfter):
+    transform = tvm.tir.transform.StorageRewrite()
+
+
+class TestLetBufferRewrite(BaseCompare):
     """StorageRewrite replaces the bound var of backing allocations
 
     If StorageRewrite replaces the backing variable of an array, such
@@ -682,8 +686,6 @@ class TestLetBufferRewrite(tvm.testing.CompareBeforeAfter):
     handled.
     """
 
-    transform = tvm.tir.transform.StorageRewrite()
-
     def before() -> None:
         A_data: T.Ptr[T.int32] = T.call_extern("dummy_func", dtype="handle")
         A = T.buffer_decl([8], "int32", data=A_data)
@@ -693,6 +695,89 @@ class TestLetBufferRewrite(tvm.testing.CompareBeforeAfter):
         A_data: T.Ptr[T.int32x8] = T.call_extern("dummy_func", dtype="handle")
         A = T.buffer_decl([1], "int32x8", data=A_data)
         A[0] = T.broadcast(42, 8)
+
+
+class TestRewriteInPlaceUseOfNonFlatBuffer(BaseCompare):
+    """A non-flat buffer may be re-used for in-place operations"""
+
+    def before(A: T.Buffer[(16, 16), "float32"], D: T.Buffer[(16, 16), "float32"]):
+        B = T.decl_buffer(
+            [16, 16],
+            dtype="float32",
+            axis_separators=[1],
+        )
+        C = T.decl_buffer(
+            [16, 16],
+            dtype="float32",
+            axis_separators=[1],
+        )
+
+        for i, j in T.grid(16, 16):
+            B[i, j] = A[i, j]
+
+        for i, j in T.grid(16, 16):
+            C[i, j] = 2.0 * B[i, j]
+
+        for i, j in T.grid(16, 16):
+            D[i, j] = C[i, j]
+
+    def expected(A: T.Buffer[(16, 16), "float32"], D: T.Buffer[(16, 16), "float32"]):
+        B = T.decl_buffer(
+            [16, 16],
+            dtype="float32",
+            axis_separators=[1],
+        )
+        C = T.decl_buffer(
+            [16, 16],
+            dtype="float32",
+            axis_separators=[1],
+            data=B.data,
+        )
+
+        for i, j in T.grid(16, 16):
+            B[i, j] = A[i, j]
+
+        for i, j in T.grid(16, 16):
+            C[i, j] = 2.0 * B[i, j]
+
+        for i, j in T.grid(16, 16):
+            D[i, j] = C[i, j]
+
+
+class TestNoRewriteOfSharedNonFlatBuffer(BaseCompare):
+    """In general, sharing of non-flat buffer isn't supported
+
+    The current packing algorithms in StorageRewrite assume a flat
+    memory space, and do not support packing of N-d buffers.  For
+    buffers with axis separators, normal buffer sharing should be
+    disabled.
+
+    Like TestRewriteInPlaceUseOfNonFlatBuffer, except that B and C do
+    not have matching shapes.
+    """
+
+    def before(A: T.Buffer[(16, 16), "float32"], D: T.Buffer[(16, 16), "float32"]):
+        B = T.decl_buffer(
+            [16, 16],
+            dtype="float32",
+            axis_separators=[1],
+        )
+        C = T.decl_buffer(
+            [20, 20],
+            dtype="float32",
+            axis_separators=[1],
+        )
+
+        for i, j in T.grid(16, 16):
+            B[i, j] = A[i, j]
+
+        for i, j in T.grid(16, 16):
+            C[i, j] = 2.0 * B[i, j]
+
+        for i, j in T.grid(16, 16):
+            D[i, j] = C[i, j]
+
+    expected = before
 
 
 if __name__ == "__main__":
