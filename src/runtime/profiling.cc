@@ -37,6 +37,7 @@
 #include <map>
 #include <numeric>
 #include <thread>
+#include <optional>
 
 namespace tvm {
 namespace runtime {
@@ -847,7 +848,7 @@ TVM_REGISTER_GLOBAL("runtime.profiling.ProfileFunction")
       }
     });
 
-PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, int min_repeat_ms,
+PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, int min_repeat_ms, int max_repeat_ms,
                              int limit_zero_time_iterations, int cooldown_interval_ms,
                              int repeats_to_cooldown, PackedFunc f_preproc) {
   ICHECK(pf != nullptr);
@@ -858,9 +859,10 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
     return (*get_micro_time_evaluator)(pf, dev, number, repeat);
   }
 
-  auto ftimer = [pf, dev, number, repeat, min_repeat_ms, limit_zero_time_iterations,
+  auto ftimer = [pf, dev, number, repeat, min_repeat_ms, max_repeat_ms, limit_zero_time_iterations,
                  cooldown_interval_ms, repeats_to_cooldown,
                  f_preproc](TVMArgs args, TVMRetValue* rv) mutable {
+    // # assert(min_repeat_ms < max_repeat_ms)
     TVMRetValue temp;
     std::ostringstream os;
     // skip first time call, to activate lazy compilation components.
@@ -872,26 +874,99 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
       if (f_preproc != nullptr) {
         f_preproc.CallPacked(args, &temp);
       }
-      double duration_ms = 0.0;
-      int absolute_zero_times = 0;
-      do {
-        if (duration_ms > 0.0) {
-          const double golden_ratio = 1.618;
-          number = static_cast<int>(
-              std::max((min_repeat_ms / (duration_ms / number) + 1), number * golden_ratio));
-        }
+      auto sub_run = [&]() {
+        int absolute_zero_times = 0;
+        // Checking and accumulation of zero measurement limit
+        auto check_zeros = [&absolute_zero_times, limit_zero_time_iterations](/*int64_t t_nanos*/) -> bool {
+          // if (t_nanos == 0)
+          //   ++absolute_zero_times;
+          return absolute_zero_times < limit_zero_time_iterations;
+        };
 
-        // start timing
-        Timer t = Timer::Start(dev);
-        for (int j = 0; j < number; ++j) {
-          pf.CallPacked(args, &temp);
-        }
-        t->Stop();
-        int64_t t_nanos = t->SyncAndGetElapsedNanos();
-        if (t_nanos == 0) absolute_zero_times++;
-        duration_ms = t_nanos / 1e6;
-      } while (duration_ms < min_repeat_ms && absolute_zero_times < limit_zero_time_iterations);
+        // Returns the elapsed time of n runs
+        // n - number of iterations of the run function
+        auto time_run = [dev, pf, args, &temp, &absolute_zero_times](int n) -> double {
+          Timer t = Timer::Start(dev);
+          for (int j = 0; j < n; ++j)
+            pf.CallPacked(args, &temp);
+          t->Stop();
+          int64_t t_nanos = t->SyncAndGetElapsedNanos();
+          if (t_nanos == 0)
+            ++absolute_zero_times;
+          return t_nanos / 1e6;
+        };
 
+        // Try to find mix_number
+        // iter_dur - the duration of one run() function
+        // n - be used if provided and iter_dur is zero or insufficient for the increment step "number"
+        auto calc_min_number = [min_repeat_ms](double iter_dur, std::optional<int> n={}) -> std::optional<int> {
+            std::optional<int> min_number = {};
+            if (iter_dur > 0.0)
+                min_number = int(min_repeat_ms / iter_dur + 1);
+            if (n) {
+                double golden_ratio = 1.618;
+                double gold_min_number = int(n.value() * golden_ratio);
+                if (min_number)
+                    min_number = std::max<double>(min_number.value(), gold_min_number);
+                else
+                    min_number = gold_min_number;
+            }
+            return min_number;
+        };
+        // Try to find max_number
+        // iter_dur - the duration of one run() function
+        auto calc_max_number = [max_repeat_ms](double iter_dur) -> std::optional<int> {
+            if (max_repeat_ms > 0 && iter_dur > 0.0)
+                return (int)std::max<double>(max_repeat_ms / iter_dur, 1);
+            else
+                return {};
+        };
+
+        double duration_ms = time_run(1);
+
+        std::optional<int> max_number = calc_max_number(duration_ms);
+        std::optional<int> min_number = calc_min_number(duration_ms);
+
+        if (!check_zeros(/*duration_ms*/))
+            // print("DEBUG", "1 limit_zero_time_iterations limitation")
+            return duration_ms;
+        if (max_number && max_number == 1)
+            // print("DEBUG", "1 max_repeat_ms limitation")
+            return duration_ms;
+        if (min_number && min_number == 1 && number == 1)
+            // # print(min_number, max_number)
+            // print("DEBUG", "1 min_repeat_ms limitation")
+            return duration_ms;
+        if (min_repeat_ms == 0 && number == 1)
+            // print("DEBUG", "sufficiency")
+            return duration_ms;
+
+        number = std::max<int>(number, min_number ? min_number.value() : number); // number try increase
+        number = std::min<int>(number, max_number ? max_number.value() : number); // number try decrease
+
+        while (true) {
+          duration_ms = time_run(number);
+
+          if (!check_zeros(/*duration_ms*/))
+              // print("DEBUG", "limit_zero_time_iterations limitation")
+              return duration_ms / number;
+          if (max_number) // max_repeat_ms limitation
+              // print("DEBUG", " max_repeat_ms limitation")
+              return duration_ms / number;
+          if (duration_ms >= min_repeat_ms) // min_repeat_ms limitation
+              // print("DEBUG", "min_repeat_ms limitation")
+              return duration_ms / number;
+
+          max_number = calc_max_number(duration_ms / number);
+          min_number = calc_min_number(duration_ms / number, number);
+
+          number = std::max<int>(number, min_number ? min_number.value() : number); // number try increase
+          number = std::min<int>(number, max_number ? max_number.value() : number); // number try decrease
+          
+        }
+      };
+
+      double duration_ms = sub_run();
       double speed = duration_ms / 1e3 / number;
       os.write(reinterpret_cast<char*>(&speed), sizeof(speed));
 

@@ -269,6 +269,7 @@ class RPCRunner(Runner):
         number=4,
         repeat=3,
         min_repeat_ms=0,
+        max_repeat_ms=0,
         cooldown_interval=0.1,
         enable_cpu_cache_flush=False,
         module_loader=None,
@@ -284,6 +285,7 @@ class RPCRunner(Runner):
         self.number = number
         self.repeat = repeat
         self.min_repeat_ms = min_repeat_ms
+        self.max_repeat_ms = max_repeat_ms
         self._ref_input = None
 
         self.enable_cpu_cache_flush = enable_cpu_cache_flush
@@ -377,6 +379,7 @@ class RPCRunner(Runner):
                     self.number,
                     self.repeat,
                     self.min_repeat_ms,
+                    self.max_repeat_ms,
                     self.cooldown_interval,
                     remote_kwargs,
                     self.ref_input,
@@ -449,6 +452,7 @@ class LocalRunner(RPCRunner):
         number=4,
         repeat=3,
         min_repeat_ms=0,
+        max_repeat_ms=0,
         cooldown_interval=0.1,
         enable_cpu_cache_flush=False,
         module_loader=None,
@@ -463,6 +467,7 @@ class LocalRunner(RPCRunner):
             number=number,
             repeat=repeat,
             min_repeat_ms=min_repeat_ms,
+            max_repeat_ms=max_repeat_ms,
             cooldown_interval=cooldown_interval,
             enable_cpu_cache_flush=enable_cpu_cache_flush,
             module_loader=module_loader,
@@ -606,12 +611,13 @@ ModuleLoader = typing.Callable[
 ]
 
 
-def run_through_rpc(
+def run_through_rpc( # ICE TODO
     measure_input,
     build_result,
     number,
     repeat,
     min_repeat_ms,
+    max_repeat_ms,
     cooldown_interval,
     remote_kwargs,
     ref_input,
@@ -679,6 +685,7 @@ def run_through_rpc(
                 number=number,
                 repeat=repeat,
                 min_repeat_ms=min_repeat_ms,
+                max_repeat_ms=max_repeat_ms,
                 f_preproc=f_prepare,
             )
 

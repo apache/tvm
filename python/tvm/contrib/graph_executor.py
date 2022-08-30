@@ -354,7 +354,8 @@ class GraphModule(object):
         func_name="run",
         repeat=5,
         number=5,
-        min_repeat_ms=None,
+        min_repeat_ms=0,
+        max_repeat_ms=0,
         limit_zero_time_iterations=100,
         end_to_end=False,
         cooldown_interval_ms=0,
@@ -429,7 +430,6 @@ class GraphModule(object):
             Runtimes of the function. Use `.mean` to access the mean runtime, use `.results` to
             access the individual runtimes (in seconds).
         """
-        min_repeat_ms = 0 if min_repeat_ms is None else min_repeat_ms
         if end_to_end:
             # Have to unpack kwargs into a single list
             args = []
@@ -442,6 +442,7 @@ class GraphModule(object):
                 repeat=repeat,
                 number=number,
                 min_repeat_ms=min_repeat_ms,
+                max_repeat_ms=max_repeat_ms,
                 limit_zero_time_iterations=limit_zero_time_iterations,
             )(device.device_type % rpc_base.RPC_SESS_MASK, device.device_id, *args)
         if kwargs:
@@ -452,6 +453,7 @@ class GraphModule(object):
             repeat=repeat,
             number=number,
             min_repeat_ms=min_repeat_ms,
+            max_repeat_ms=max_repeat_ms,
             limit_zero_time_iterations=limit_zero_time_iterations,
             cooldown_interval_ms=cooldown_interval_ms,
             repeats_to_cooldown=repeats_to_cooldown,

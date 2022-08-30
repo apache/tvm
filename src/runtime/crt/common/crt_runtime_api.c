@@ -478,6 +478,7 @@ typedef struct {
   int number;
   int repeat;
   int min_repeat_ms;
+  int max_repeat_ms;
   int limit_zero_time_iterations;
   int cooldown_interval_ms;
   int repeats_to_cooldown;
@@ -496,7 +497,7 @@ int RPCTimeEvaluator(TVMValue* args, int* type_codes, int num_args, TVMValue* re
   if (type_codes[0] != kTVMModuleHandle || type_codes[1] != kTVMStr ||
       type_codes[2] != kTVMArgInt || type_codes[3] != kTVMArgInt || type_codes[4] != kTVMArgInt ||
       type_codes[5] != kTVMArgInt || type_codes[6] != kTVMArgInt || type_codes[7] != kTVMArgInt ||
-      type_codes[8] != kTVMArgInt || type_codes[9] != kTVMArgInt || type_codes[10] != kTVMStr) {
+      type_codes[8] != kTVMArgInt || type_codes[9] != kTVMArgInt || type_codes[10] != kTVMArgInt || type_codes[11] != kTVMStr) {
     TVMAPIErrorf("one or more invalid arg types");
     return kTvmErrorFunctionCallWrongArgType;
   }
@@ -508,9 +509,10 @@ int RPCTimeEvaluator(TVMValue* args, int* type_codes, int num_args, TVMValue* re
   g_time_evaluator_state.number = args[4].v_int64;
   g_time_evaluator_state.repeat = args[5].v_int64;
   g_time_evaluator_state.min_repeat_ms = args[6].v_int64;
-  g_time_evaluator_state.limit_zero_time_iterations = args[7].v_int64;
-  g_time_evaluator_state.cooldown_interval_ms = args[8].v_int64;
-  g_time_evaluator_state.repeats_to_cooldown = args[9].v_int64;
+  g_time_evaluator_state.max_repeat_ms = args[7].v_int64;
+  g_time_evaluator_state.limit_zero_time_iterations = args[8].v_int64;
+  g_time_evaluator_state.cooldown_interval_ms = args[9].v_int64;
+  g_time_evaluator_state.repeats_to_cooldown = args[10].v_int64;
 
   int ret_code =
       TVMModGetFunction(mod, name, /* query_imports */ 0, &g_time_evaluator_state.func_to_time);
@@ -556,18 +558,13 @@ tvm_crt_error_t RunTimeEvaluator(tvm_function_index_t function_index, TVMValue* 
   }
 
   double min_repeat_seconds = ((double)g_time_evaluator_state.min_repeat_ms) / 1000;
+  double max_repeat_seconds = ((double)g_time_evaluator_state.max_repeat_ms) / 1000;
+ 
   double* iter = (double*)result_byte_arr->data;
   for (int i = 0; i < g_time_evaluator_state.repeat; i++) {
     double curr_res_seconds = 0.0;
     int absolute_zero_times = 0;
-    // do-while structure ensures we run even when `min_repeat_ms` isn't set (i.e., is 0).
-    do {
-      if (curr_res_seconds > 0.0) {
-        double a = (min_repeat_seconds / (curr_res_seconds / g_time_evaluator_state.number) + 1);
-        const double golden_ratio = 1.618;
-        double b = g_time_evaluator_state.number * golden_ratio;
-        g_time_evaluator_state.number = (int64_t)(a > b ? a : b);
-      }
+    //
       err = TVMPlatformBeforeMeasurement();
       if (err != kTvmErrorNoError) {
         goto release_and_return;
@@ -576,14 +573,13 @@ tvm_crt_error_t RunTimeEvaluator(tvm_function_index_t function_index, TVMValue* 
       if (err != kTvmErrorNoError) {
         goto release_and_return;
       }
-
-      for (int j = 0; j < g_time_evaluator_state.number; j++) {
-        err = TVMFuncCall(g_time_evaluator_state.func_to_time, args, type_codes, num_args, ret_val,
-                          ret_type_code);
-        if (err != kTvmErrorNoError) {
-          goto release_and_return;
-        }
+      // Run 1
+      err = TVMFuncCall(g_time_evaluator_state.func_to_time, args, type_codes, num_args, ret_val,
+                        ret_type_code);
+      if (err != kTvmErrorNoError) {
+        goto release_and_return;
       }
+      // 
       err = TVMPlatformTimerStop(&curr_res_seconds);
       if (err != kTvmErrorNoError) {
         goto release_and_return;
@@ -592,12 +588,173 @@ tvm_crt_error_t RunTimeEvaluator(tvm_function_index_t function_index, TVMValue* 
       if (err != kTvmErrorNoError) {
         goto release_and_return;
       }
-      if (fpclassify(curr_res_seconds) == FP_ZERO) absolute_zero_times++;
-    } while (curr_res_seconds < min_repeat_seconds &&
-             absolute_zero_times < g_time_evaluator_state.limit_zero_time_iterations);
+      if (fpclassify(curr_res_seconds) == FP_ZERO) 
+        absolute_zero_times++;
+    //
+    int max_number = 0;
+    bool max_number_defined = false;
+    if (max_repeat_seconds > 0 && curr_res_seconds > 0.0) {
+        int a = (int)(max_repeat_seconds / curr_res_seconds);
+        int b = 1;
+        max_number = (a > b ? a : b);
+        max_number_defined = true;
+    }
+
+    int min_number = 0;
+    bool min_number_defined = false;
+    if (curr_res_seconds > 0.0) {
+      min_number = (int)(min_repeat_seconds / curr_res_seconds + 1);
+      min_number_defined = true;
+    }
+
+    if (absolute_zero_times >= g_time_evaluator_state.limit_zero_time_iterations) {
+        // print("DEBUG", "1 limit_zero_time_iterations limitation")
+        g_time_evaluator_state.number = 1;
+        // return curr_res_seconds;
+        goto calc_mean;
+    }
+    if (max_number && max_number == 1) {
+        // print("DEBUG", "1 max_repeat_ms limitation")
+        g_time_evaluator_state.number = 1;
+        // return curr_res_seconds;
+        goto calc_mean;
+    }
+    if (min_number && min_number == 1 && g_time_evaluator_state.number == 1) {
+        // # print(min_number, max_number)
+        // print("DEBUG", "1 min_repeat_ms limitation")
+        g_time_evaluator_state.number = 1;
+        // return curr_res_seconds;
+        goto calc_mean;
+    }
+    if (min_repeat_seconds == 0 && g_time_evaluator_state.number == 1) {
+        // print("DEBUG", "sufficiency")
+        g_time_evaluator_state.number = 1;
+        // return curr_res_seconds;
+        goto calc_mean;
+    }
+    
+    if (min_number_defined && g_time_evaluator_state.number < min_number)
+      g_time_evaluator_state.number = min_number; // number try increase
+    if (max_number_defined && max_number < g_time_evaluator_state.number)
+      g_time_evaluator_state.number = max_number; // number try decrease
+
+
+    while (true) {
+        err = TVMPlatformBeforeMeasurement();
+        if (err != kTvmErrorNoError) {
+          goto release_and_return;
+        }
+        err = TVMPlatformTimerStart();
+        if (err != kTvmErrorNoError) {
+          goto release_and_return;
+        }
+        // Run number
+        for (int j = 0; j < g_time_evaluator_state.number; j++) {
+          err = TVMFuncCall(g_time_evaluator_state.func_to_time, args, type_codes, num_args, ret_val,
+                            ret_type_code);
+          if (err != kTvmErrorNoError) {
+            goto release_and_return;
+          }
+        }
+        // 
+        err = TVMPlatformTimerStop(&curr_res_seconds);
+        if (err != kTvmErrorNoError) {
+          goto release_and_return;
+        }
+        err = TVMPlatformAfterMeasurement();
+        if (err != kTvmErrorNoError) {
+          goto release_and_return;
+        }
+        if (fpclassify(curr_res_seconds) == FP_ZERO) 
+          absolute_zero_times++;
+
+
+      if (absolute_zero_times >= g_time_evaluator_state.limit_zero_time_iterations) {
+          // print("DEBUG", "limit_zero_time_iterations limitation")
+          // return curr_res_seconds / g_time_evaluator_state.number;
+          goto calc_mean;
+      }
+      if (max_number_defined)  {// max_repeat_ms limitation
+          // print("DEBUG", " max_repeat_ms limitation")
+          // return curr_res_seconds / g_time_evaluator_state.number;
+          goto calc_mean;
+      }
+      if (curr_res_seconds >= min_repeat_seconds)  {// min_repeat_ms limitation
+          // print("DEBUG", "min_repeat_ms limitation")
+          // return curr_res_seconds / g_time_evaluator_state.number;
+          goto calc_mean;
+      }
+
+      if (max_repeat_seconds > 0 && (curr_res_seconds/g_time_evaluator_state.number) > 0.0) {
+          int a = (int)(max_repeat_seconds / (curr_res_seconds/g_time_evaluator_state.number));
+          int b = 1;
+          max_number = (a > b ? a : b);
+          max_number_defined = true;
+      }
+
+
+      if ((curr_res_seconds/g_time_evaluator_state.number) > 0.0){
+          min_number = (int)(min_repeat_seconds / (curr_res_seconds/g_time_evaluator_state.number) + 1);
+          min_number_defined = true;
+      }
+      double golden_ratio = 1.618;
+      double gold_min_number = (int)(g_time_evaluator_state.number * golden_ratio);
+      if (min_number_defined)
+          min_number = (min_number < gold_min_number ? gold_min_number : min_number);
+      else
+          min_number = gold_min_number;
+  
+      if (min_number_defined && g_time_evaluator_state.number < min_number)
+        g_time_evaluator_state.number = min_number; // number try increase
+      if (max_number_defined && max_number < g_time_evaluator_state.number)
+        g_time_evaluator_state.number = max_number; // number try decrease
+    }
+
+
+
+    // // do-while structure ensures we run even when `min_repeat_ms` isn't set (i.e., is 0).
+    // do {
+    //   if (curr_res_seconds > 0.0) {
+    //     double a = (min_repeat_seconds / (curr_res_seconds / g_time_evaluator_state.number) + 1);
+    //     const double golden_ratio = 1.618;
+    //     double b = g_time_evaluator_state.number * golden_ratio;
+    //     g_time_evaluator_state.number = (int64_t)(a > b ? a : b);
+    //   }
+    //   err = TVMPlatformBeforeMeasurement();
+    //   if (err != kTvmErrorNoError) {
+    //     goto release_and_return;
+    //   }
+    //   err = TVMPlatformTimerStart();
+    //   if (err != kTvmErrorNoError) {
+    //     goto release_and_return;
+    //   }
+
+    //   for (int j = 0; j < g_time_evaluator_state.number; j++) {
+    //     err = TVMFuncCall(g_time_evaluator_state.func_to_time, args, type_codes, num_args, ret_val,
+    //                       ret_type_code);
+    //     if (err != kTvmErrorNoError) {
+    //       goto release_and_return;
+    //     }
+    //   }
+    //   err = TVMPlatformTimerStop(&curr_res_seconds);
+    //   if (err != kTvmErrorNoError) {
+    //     goto release_and_return;
+    //   }
+    //   err = TVMPlatformAfterMeasurement();
+    //   if (err != kTvmErrorNoError) {
+    //     goto release_and_return;
+    //   }
+    //   if (fpclassify(curr_res_seconds) == FP_ZERO) 
+    //     absolute_zero_times++;
+    // } while (curr_res_seconds < min_repeat_seconds && absolute_zero_times < g_time_evaluator_state.limit_zero_time_iterations);
+    
+    calc_mean :
+
     double mean_exec_seconds = curr_res_seconds / g_time_evaluator_state.number;
     *iter = mean_exec_seconds;
     iter++;
+
+
     if (g_time_evaluator_state.cooldown_interval_ms > 0 &&
         (i % g_time_evaluator_state.repeats_to_cooldown) == 0) {
 #if defined(_WIN32) || defined(WIN32)

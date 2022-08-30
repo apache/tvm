@@ -583,7 +583,7 @@ PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, i
  *        evaluator.
  * \return f_timer A timer function.
  */
-PackedFunc WrapTimeEvaluator(PackedFunc f, Device dev, int number, int repeat, int min_repeat_ms,
+PackedFunc WrapTimeEvaluator(PackedFunc f, Device dev, int number, int repeat, int min_repeat_ms, int max_repeat_ms,
                              int limit_zero_time_iterations, int cooldown_interval_ms,
                              int repeats_to_cooldown, PackedFunc f_preproc = nullptr);
 
