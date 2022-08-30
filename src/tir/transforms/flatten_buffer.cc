@@ -53,6 +53,34 @@ class BufferFlattener : public StmtExprMutator {
     }
   }
 
+  Stmt VisitStmt_(const BlockNode* op) final {
+    ICHECK_EQ(op->match_buffers.size(), 0)
+        << "Unexpected MatchBufferRegion found during tir.transform.FlattenBuffer.  "
+        << "All MatchBufferRegion should be removed in tir.transform.LowerMatchBuffer.";
+
+    Block block = GetRef<Block>(op);
+
+    Array<Buffer> alloc_buffers = op->alloc_buffers;
+    alloc_buffers.MutateByApply([this](Buffer buf) { return GetFlattenedBuffer(buf); });
+    if (!alloc_buffers.same_as(op->alloc_buffers)) {
+      block.CopyOnWrite()->alloc_buffers = alloc_buffers;
+    }
+
+    Array<BufferRegion> reads = op->reads;
+    reads.MutateByApply([this](BufferRegion region) { return MutateBufferRegion(region); });
+    if (!reads.same_as(op->reads)) {
+      block.CopyOnWrite()->reads = reads;
+    }
+
+    Array<BufferRegion> writes = op->writes;
+    writes.MutateByApply([this](BufferRegion region) { return MutateBufferRegion(region); });
+    if (!writes.same_as(op->writes)) {
+      block.CopyOnWrite()->writes = writes;
+    }
+
+    return StmtExprMutator::VisitStmt_(block.get());
+  }
+
   Stmt VisitStmt_(const AllocateNode* op) final {
     Allocate alloc = Downcast<Allocate>(StmtExprMutator::VisitStmt_(op));
     // TODO(Lunderberg): Move the handling of boolean into a
@@ -139,6 +167,32 @@ class BufferFlattener : public StmtExprMutator {
     writer->buffer = flattened_buffer;
     writer->indices = flattened_indices;
     return node;
+  }
+
+  BufferRegion MutateBufferRegion(BufferRegion region) {
+    Buffer orig_buf = region->buffer;
+    Buffer flattened_buf = GetFlattenedBuffer(orig_buf);
+    if (flattened_buf.same_as(orig_buf)) {
+      return region;
+    }
+
+    Array<PrimExpr> min_values;
+    Array<PrimExpr> max_values;
+    for (const auto& range : region->region) {
+      min_values.push_back(range->min);
+      max_values.push_back(range->min + range->extent - 1);
+    }
+
+    Array<PrimExpr> flattened_min = orig_buf->ElemOffset(min_values);
+    Array<PrimExpr> flattened_max = orig_buf->ElemOffset(max_values);
+
+    Array<Range> flattened_ranges;
+    ICHECK_EQ(flattened_min.size(), flattened_max.size());
+    for (size_t i = 0; i < flattened_min.size(); i++) {
+      flattened_ranges.push_back(Range(flattened_min[i], flattened_max[i] + 1));
+    }
+
+    return BufferRegion(flattened_buf, flattened_ranges);
   }
 
   /*! \brief Map of buffers being remapped. */
