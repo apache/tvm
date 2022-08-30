@@ -29,36 +29,10 @@
 namespace tvm {
 namespace tir {
 
-struct LowerOpaqueBlockConfigNode : public tvm::AttrsNode<LowerOpaqueBlockConfigNode> {
-  Array<String> preserved_annotations;
-
-  TVM_DECLARE_ATTRS(LowerOpaqueBlockConfigNode, "tir.transform.LowerOpaqueBlockConfig") {
-    TVM_ATTR_FIELD(preserved_annotations)
-        .describe("Annotation keys to be preserved in loop")
-        .set_default(Array<String>({}));
-  }
-};
-
-class LowerOpaqueBlockConfig : public Attrs {
- public:
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(LowerOpaqueBlockConfig, Attrs,
-                                            LowerOpaqueBlockConfigNode);
-};
-
-TVM_REGISTER_NODE_TYPE(LowerOpaqueBlockConfigNode);
-TVM_REGISTER_PASS_CONFIG_OPTION("tir.LowerOpaqueBlock", LowerOpaqueBlockConfig);
-
 /*!
  * \brief Remove Block to ensure that the TIR can not be scheduled again.
  */
 class OpaqueBlockLower : public StmtExprMutator {
- public:
-  explicit OpaqueBlockLower(LowerOpaqueBlockConfig cfg) {
-    for (const String& attr_key : cfg->preserved_annotations) {
-      preserved_annotations_.insert(attr_key);
-    }
-  }
-
  private:
   Stmt VisitStmt_(const BlockRealizeNode* op) final {
     // We have convert blocks into opaque blocks in previous passes.
@@ -85,15 +59,9 @@ class OpaqueBlockLower : public StmtExprMutator {
       }
       body = Allocate(buffer->data, buffer->dtype, new_shape, const_true(), std::move(body));
     }
-    // Step 4. Handle annotations
+    // Step 4. Handle annotations, block annotations are not preserved by default.
     std::vector<std::pair<std::string, PrimExpr>> pragma_attrs;
-    Map<String, ObjectRef> new_annotations =
-        HandleAnnotations(new_block->annotations, &pragma_attrs);
-    if (!new_annotations.empty()) {
-      // Create a dummy loop for preserved block annotations
-      body = For(Var(new_block->name_hint + "_dummy"), 0, 1, ForKind::kSerial, std::move(body),
-                 NullOpt, new_annotations);
-    }
+    HandleAnnotations(new_block->annotations, &pragma_attrs, /*is_block=*/true);
     for (auto it = pragma_attrs.rbegin(); it != pragma_attrs.rend(); ++it) {
       body = AttrStmt(Integer(0), it->first, it->second, std::move(body));
     }
@@ -112,7 +80,8 @@ class OpaqueBlockLower : public StmtExprMutator {
     Stmt body = this->VisitStmt(op->body);
     // Step 3. Handle annotations
     std::vector<std::pair<std::string, PrimExpr>> pragma_attrs;
-    Map<String, ObjectRef> new_annotations = HandleAnnotations(op->annotations, &pragma_attrs);
+    Map<String, ObjectRef> new_annotations =
+        HandleAnnotations(op->annotations, &pragma_attrs, /*is_block=*/false);
     // Step 4. Create new For loop accordingly
     if (op->kind == ForKind::kThreadBinding) {
       // Case 1. Thread binding
@@ -183,21 +152,21 @@ class OpaqueBlockLower : public StmtExprMutator {
    * \brief Helper to handle annotation dict.
    * (1) if the attr key is prefixed by `pragma_`, move to ordered kv list. They
    * are lowered to `AttrStmt` by legacy TE schedule convention.
-   * (2) if the attr key is registered as preserved, keep it in annotation dict.
-   * (3) otherwise the annotation is dropped by default.
+   * (2) the non-pragma loop annotations are preserved
+   * (3) the non-pragma block annotations are dropped
    * \return New annotation dict with preserved keys. Also update pragma attr pairs ordered by key.
    */
   Map<String, ObjectRef> HandleAnnotations(
       const Map<String, ObjectRef>& annotations,
-      std::vector<std::pair<std::string, PrimExpr>>* pragma_attrs) {
+      std::vector<std::pair<std::string, PrimExpr>>* pragma_attrs, bool is_block) {
     Map<String, ObjectRef> preserved_annotations;
     pragma_attrs->clear();
     for (const auto& kv : annotations) {
       const String& key = kv.first;
       if (attr::IsPragmaKey(key)) {
         pragma_attrs->emplace_back(key, ConvertAttrValue(key, kv.second));
-      } else if (preserved_annotations_.count(key)) {
-        // the annotation is preserved
+      } else if (!is_block) {
+        // the loop annotation is preserved
         preserved_annotations.Set(key, kv.second);
       }
     }
@@ -213,11 +182,11 @@ class OpaqueBlockLower : public StmtExprMutator {
   std::unordered_set<std::string> preserved_annotations_;
 };
 
-PrimFunc LowerOpaqueBlock(PrimFunc f, LowerOpaqueBlockConfig cfg) {
+PrimFunc LowerOpaqueBlock(PrimFunc f) {
   // Only apply this pass to TIR that is not from TE schedules
   if (!IsFromLegacyTESchedule(f)) {
     auto fptr = f.CopyOnWrite();
-    fptr->body = OpaqueBlockLower(cfg)(std::move(fptr->body));
+    fptr->body = OpaqueBlockLower()(std::move(fptr->body));
     return f;
   } else {
     return f;
@@ -228,9 +197,7 @@ namespace transform {
 
 Pass LowerOpaqueBlock() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
-    auto cfg = ctx->GetConfig<LowerOpaqueBlockConfig>("tir.LowerOpaqueBlock")
-                   .value_or(AttrsWithDefaultValues<LowerOpaqueBlockConfig>());
-    return LowerOpaqueBlock(std::move(f), cfg);
+    return LowerOpaqueBlock(std::move(f));
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerOpaqueBlock", {});
 }

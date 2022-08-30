@@ -343,22 +343,18 @@ def test_annotated_block():
 def test_preserved_annotations():
     @T.prim_func
     def before(A: T.Buffer[8, "float32"], B: T.Buffer[8, "float32"]):
-        for i in T.serial(8, annotations={"k_0": 1, "k_1": [2, 3], "k_2": 4}):
+        for i in T.serial(8, annotations={"k_0": 1, "k_1": [2, 3], "k_2": 3.14}):
             with T.block("block"):
-                T.block_attr({"k_3": 3.14, "k_4": ""})
+                T.block_attr({"k_3": "oops"})
                 B[i] = A[i] + 1.0
 
     @T.prim_func
     def after(A: T.Buffer[8, "float32"], B: T.Buffer[8, "float32"]):
-        for i in T.serial(8, annotations={"k_0": 1, "k_1": [2, 3]}):
-            for _ in range(1, annotations={"k_3": 3.14}):
-                B[i] = A[i] + T.float32(1)
+        for i in T.serial(8, annotations={"k_0": 1, "k_1": [2, 3], "k_2": 3.14}):
+            B[i] = A[i] + 1.0
 
     mod = tvm.IRModule.from_expr(before)
-    with tvm.transform.PassContext(
-        config={"tir.LowerOpaqueBlock": {"preserved_annotations": ["k_0", "k_1", "k_3"]}}
-    ):
-        mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
+    mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
     tvm.ir.assert_structural_equal(mod["main"], after)
 
 
