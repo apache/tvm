@@ -3313,6 +3313,27 @@ def decl_buffer():
     return func
 
 
+def float_infinity():
+    @T.prim_func
+    def func(
+        placeholder: T.Buffer[(1, 512, 768), "float32"], T_isinf: T.Buffer[(1, 512, 768), "bool"]
+    ) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        # with T.block("root")
+        for i0, i1, i2 in T.grid(1, 512, 768):
+            with T.block("T_isinf"):
+                ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
+                T.reads(placeholder[ax0, ax1, ax2])
+                T.writes(T_isinf[ax0, ax1, ax2])
+                T_isinf[ax0, ax1, ax2] = T.fabs(
+                    placeholder[ax0, ax1, ax2], dtype="float32"
+                ) == T.float32("inf") and not (T.isnan(placeholder[ax0, ax1, ax2], dtype="bool"))
+
+    return func
+
+
 ir_generator = tvm.testing.parameter(
     opt_gemm_normalize,
     opt_gemm_lower,
@@ -3353,6 +3374,7 @@ ir_generator = tvm.testing.parameter(
     let_expression,
     void_ptr,
     decl_buffer,
+    float_infinity,
 )
 
 
