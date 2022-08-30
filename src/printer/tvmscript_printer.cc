@@ -381,18 +381,16 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   }
 
   /*!
-   * \brief special method to print out const scalar
+   * \brief special method to print out const int64_t scalar
    * \param dtype The data type
    * \param data The pointer to hold the data.
    */
-  template <typename T>
-  Doc PrintConstScalar(DataType dtype, const T* data) const {
+  Doc PrintConstScalar(DataType dtype, const int64_t* data) const {
     Doc doc;
     std::ostringstream os;
-    if (dtype.is_float() || dtype.is_float16() || dtype.is_bfloat16()) {
-      os.precision(17);
-    }
+
     os << data[0];
+
     if (dtype == DataType::Int(32)) {
       doc << Doc::Text(os.str());
     } else if (dtype == DataType::Bool()) {
@@ -401,6 +399,29 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
       doc << tir_prefix_ << "." << runtime::DLDataType2String(dtype) << "(" << Doc::Text(os.str())
           << ")";
     }
+    return doc;
+  }
+
+  /*!
+   * \brief special method to print out const double scalar
+   * \param dtype The data type
+   * \param data The pointer to hold the data.
+   * \note this overriden function is created as std::isnan of msvc will complain about int64_t
+   */
+  Doc PrintConstScalar(DataType dtype, const double* data) const {
+    Doc doc;
+    std::ostringstream os;
+
+    os.precision(17);
+    if (std::isinf(data[0]) || std::isnan(data[0])) {
+      os << "\"" << data[0] << "\"";
+    } else {
+      os << data[0];
+    }
+
+    doc << tir_prefix_ << "." << runtime::DLDataType2String(dtype) << "(" << Doc::Text(os.str())
+        << ")";
+
     return doc;
   }
 
@@ -731,12 +752,12 @@ Doc TVMScriptPrinter::VisitStmtDefault_(const Object* op) {
 
 Doc TVMScriptPrinter::VisitExpr_(const IntImmNode* op, ExprPrecedence* out_precedence) {
   *out_precedence = ExprPrecedence::kIdentity;
-  return PrintConstScalar<int64_t>(op->dtype, &(op->value));
+  return PrintConstScalar(op->dtype, &(op->value));
 }
 
 Doc TVMScriptPrinter::VisitExpr_(const FloatImmNode* op, ExprPrecedence* out_precedence) {
   *out_precedence = ExprPrecedence::kIdentity;
-  return PrintConstScalar<double>(op->dtype, &(op->value));
+  return PrintConstScalar(op->dtype, &(op->value));
 }
 
 Doc TVMScriptPrinter::VisitExpr_(const StringImmNode* op, ExprPrecedence* out_precedence) {
