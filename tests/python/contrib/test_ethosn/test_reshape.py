@@ -52,6 +52,8 @@ def _get_model(input_shape, output_shape, dtype):
     ],
 )
 def test_reshape(dtype, input_shape, output_shape):
+    """Compare Reshape output with TVM."""
+
     np.random.seed(0)
     inputs = {
         "a": tvm.nd.array(
@@ -83,6 +85,8 @@ def test_reshape(dtype, input_shape, output_shape):
     ],
 )
 def test_reshape_failure(input_shape, output_shape):
+    """Check Resize is not offloaded."""
+
     model, params = _get_model(input_shape, output_shape, "int8")
     mod = tei.make_module(model, params)
     tei.build(mod, params, expected_host_ops=1, npu_partitions=0)

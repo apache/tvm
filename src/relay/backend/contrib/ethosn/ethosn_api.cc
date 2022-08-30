@@ -299,10 +299,6 @@ EthosnError EthosnAPI::Reshape(const Expr& expr, ReshapeParams* params) {
   sl::DataType input_data_type;
   EthosnError err = Tvm2Npu(input_dtype->shape, &input_tensor_shape);
   err += Tvm2Npu(input_dtype->dtype, &input_data_type);
-  int tensor_size = 1;
-  for (const auto& dim : input_tensor_shape) {
-    tensor_size *= dim;
-  }
 
   Array<IndexExpr> inferred_shape;
   Array<IndexExpr> new_shape = reshape->checked_type().as<TensorTypeNode>()->shape;
