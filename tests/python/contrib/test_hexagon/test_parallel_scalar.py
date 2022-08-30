@@ -23,7 +23,7 @@ import tvm
 from tvm.script import tir as T
 from numpy.random import default_rng
 
-TEST_OUTPUT_TEMPLATE = "Test {} with {} operations... \n    -Single Thread: {} ms \n    -Parallel: {} ms\n    -Speedup: {}x"
+TEST_OUTPUT_TEMPLATE = "Test {} with {} operations... \n    -Single Thread: {} ms \n    -Parallel: {} ms\n    -Speedup: {}x\n"
 
 
 def get_add_operator(operations):
