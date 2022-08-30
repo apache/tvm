@@ -57,6 +57,8 @@ def _get_model(shapes, dtype, axis):
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 def test_concatenate(dtype):
+    """Compare Concatenate output with TVM."""
+
     trials = [
         ([(1, 4), (1, 6)], 1),
         ([(1, 16, 4), (1, 16, 4)], 1),
@@ -78,19 +80,23 @@ def test_concatenate(dtype):
 
 @requires_ethosn
 def test_concatenate_failure():
+    """Check Concatenate error messages."""
+
     trials = [
         ([(1, 4, 4, 4, 4), (1, 4, 4, 4, 4)], "uint8", 1, "dimensions=5, dimensions must be <= 4;"),
         (
             [(1, 4, 4, 4), (1, 4, 4, 4)],
             "uint8",
             3,
-            "Concatenation along the channels dimension (axis 3) requires input tensors with a multiple of 16 channels;",
+            "Concatenation along the channels dimension (axis 3) "
+            "requires input tensors with a multiple of 16 channels;",
         ),
         (
             [(1, 4, 4, 4), (1, 4, 4, 4)],
             "int16",
             2,
-            "dtype='int16', dtype must be either uint8, int8 or int32; dtype='int16', dtype must be either uint8, int8 or int32;",
+            "dtype='int16', dtype must be either uint8, int8 or int32; dtype='int16', "
+            "dtype must be either uint8, int8 or int32;",
         ),
         (
             [(2, 4, 4, 4), (2, 4, 4, 4)],

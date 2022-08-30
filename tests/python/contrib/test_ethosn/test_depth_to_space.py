@@ -34,6 +34,8 @@ def _get_model(shape, block, dtype, layout):
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 def test_depth_to_space(dtype):
+    """Compare Depth To Space output with TVM."""
+
     trials = [
         (1, 16, 16, 16),
         (1, 64, 32, 16),
@@ -59,6 +61,8 @@ def test_depth_to_space(dtype):
 
 @requires_ethosn
 def test_depth_to_space_failure():
+    """Check Depth To Space error messages."""
+
     trials = [
         ((2, 16, 16, 16), 2, "uint8", "NHWC", "batch size=2, batch size must = 1"),
         (

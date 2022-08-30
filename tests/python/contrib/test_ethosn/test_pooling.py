@@ -28,10 +28,10 @@ from . import infrastructure as tei
 def _get_model(shape, typef, sizes, strides, pads, layout, dtype):
     """Return a model and any parameters it may have"""
     req = relay.var("a", shape=shape, dtype=dtype)
-    if typef == relay.nn.avg_pool2d:
+    if typef is relay.nn.avg_pool2d:
         req = relay.cast(req, "int32")
     req = typef(req, pool_size=sizes, strides=strides, padding=pads, ceil_mode=True, layout=layout)
-    if typef == relay.nn.avg_pool2d:
+    if typef is relay.nn.avg_pool2d:
         req = relay.cast(req, dtype)
     return req
 
@@ -39,6 +39,8 @@ def _get_model(shape, typef, sizes, strides, pads, layout, dtype):
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 def test_pooling(dtype):
+    """Compare Pooling output with TVM."""
+
     trials = [
         ((1, 8, 8, 8), relay.nn.max_pool2d, (2, 2), (2, 2), (0, 0, 0, 0), "NHWC"),
         ((1, 9, 9, 9), relay.nn.max_pool2d, (3, 3), (2, 2), (0, 0, 0, 0), "NHWC"),
@@ -65,6 +67,8 @@ def test_pooling(dtype):
 
 @requires_ethosn
 def test_pooling_failure():
+    """Check Pooling error messages."""
+
     trials = [
         (
             (2, 8, 8, 8),

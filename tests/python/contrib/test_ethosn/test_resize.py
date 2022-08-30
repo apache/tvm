@@ -68,6 +68,8 @@ def _get_model(
     ],
 )
 def test_resize(dtype, shape, size, coordinate_transformation_mode, rounding_method):
+    """Compare Resize output with TVM."""
+
     np.random.seed(0)
     zp_min = np.iinfo(dtype).min
     zp_max = np.iinfo(dtype).max
@@ -96,6 +98,8 @@ def test_resize(dtype, shape, size, coordinate_transformation_mode, rounding_met
 
 @requires_ethosn
 def test_resize_failure():
+    """Check Resize error messages."""
+
     trials = [
         (
             (30, 20),

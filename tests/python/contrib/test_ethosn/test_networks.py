@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+# pylint: disable=wrong-import-position
 """Arm(R) Ethos(TM)-N integration end-to-end network tests"""
 
 import pytest
@@ -22,12 +22,11 @@ import pytest
 pytest.importorskip("tflite")
 pytest.importorskip("tensorflow")
 
+import tflite.Model
 from tvm import relay
 from tvm.testing import requires_ethosn
 from tvm.contrib import download
-
 import tvm.relay.testing.tf as tf_testing
-import tflite.Model
 from . import infrastructure as tei
 
 
@@ -41,10 +40,10 @@ def _get_tflite_model(tflite_model_path, inputs_dict, dtype):
         tflite_model = tflite.Model.GetRootAsModel(tflite_model_buffer, 0)
     shape_dict = {}
     dtype_dict = {}
-    for input in inputs_dict:
-        input_shape = inputs_dict[input]
-        shape_dict[input] = input_shape
-        dtype_dict[input] = dtype
+    for value in inputs_dict:
+        input_shape = inputs_dict[value]
+        shape_dict[value] = input_shape
+        dtype_dict[value] = dtype
 
     return relay.frontend.from_tflite(
         tflite_model,
