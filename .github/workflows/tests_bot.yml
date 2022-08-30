@@ -18,4 +18,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eux
-          python tests/scripts/github_skipped_tests_comment.py
+          python ci/scripts/github_skipped_tests_comment.py
