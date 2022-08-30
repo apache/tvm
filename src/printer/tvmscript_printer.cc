@@ -1065,8 +1065,14 @@ Doc TVMScriptPrinter::VisitStmt_(const BufferRealizeNode* op) {
   return Doc();
 }
 
-bool IsAllocateDeclBufferPattern(const AllocateNode* allocate, const DeclBufferNode* decl_buffer) {
+namespace {
+
+bool IsAllocateDeclBufferPattern(const AllocateNode* allocate) {
   const Var& buffer_var = allocate->buffer_var;
+  const DeclBufferNode* decl_buffer = allocat->body.as<DeclBufferNode>();
+  if (!decl_buffer) {
+    return false;
+  }
   const Buffer& buffer = decl_buffer->buffer;
   if (!buffer_var.same_as(buffer->data)) {
     return false;
@@ -1092,6 +1098,8 @@ bool IsAllocateDeclBufferPattern(const AllocateNode* allocate, const DeclBufferN
   return true;
 }
 
+}  // namespace
+
 Doc TVMScriptPrinter::VisitStmt_(const AllocateNode* op) {
   var_not_in_headers_.insert(op->buffer_var.get());
 
@@ -1101,14 +1109,12 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateNode* op) {
   Array<Buffer> buffer_usage = buffer_var_usage_.Get(op->buffer_var).value_or({});
 
   if (buffer_usage.empty()) {
-    if (const DeclBufferNode* decl_buffer = op->body.as<DeclBufferNode>()) {
-      if (IsAllocateDeclBufferPattern(op, decl_buffer)) {
-        // As a syntax sugar, we identify the pattern of Allocate and DeclBuffer and print a single
-        // DeclBuffer statement. It is intentionally to call `Print` instead of `PrintBody` here to
-        // delegate the printing of the current node to `DeclBufferNode` while maintaining the
-        // same value of `current_num_` and `num_child_`.
-        return Print(op->body);
-      }
+    if (IsAllocateDeclBufferPattern(op)) {
+      // As a syntax sugar, we identify the pattern of Allocate and DeclBuffer and print a single
+      // DeclBuffer statement. It is intentionally to call `Print` instead of `PrintBody` here to
+      // delegate the printing of the current node to `DeclBufferNode` while maintaining the
+      // same value of `current_num_` and `num_child_`.
+      return Print(op->body);
     }
   }
 
