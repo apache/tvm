@@ -46,7 +46,7 @@ def get_supported_boards(platform: str):
 
 
 def get_target(platform: str, board: str) -> tvm.target.Target:
-    """Intentionally simple function for making target strings for microcontrollers.
+    """Intentionally simple function for making Targets for microcontrollers.
     If you need more complex arguments, one should call target.micro directly. Note
     that almost all, but not all, supported microcontrollers are Arm-based."""
     model = get_supported_boards(platform)[board]["model"]
