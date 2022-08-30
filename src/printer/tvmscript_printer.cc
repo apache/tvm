@@ -103,6 +103,7 @@ class BufferUsageFinder : public StmtExprVisitor {
   void VisitStmt_(const DeclBufferNode* op) final {
     buffers_declared_.insert(op->buffer.get());
     StmtExprVisitor::VisitStmt_(op);
+    buffers_declared_.erase(op->buffer.get());
   }
 
  private:
@@ -1069,7 +1070,7 @@ namespace {
 
 bool IsAllocateDeclBufferPattern(const AllocateNode* allocate) {
   const Var& buffer_var = allocate->buffer_var;
-  const DeclBufferNode* decl_buffer = allocat->body.as<DeclBufferNode>();
+  const DeclBufferNode* decl_buffer = allocate->body.as<DeclBufferNode>();
   if (!decl_buffer) {
     return false;
   }
