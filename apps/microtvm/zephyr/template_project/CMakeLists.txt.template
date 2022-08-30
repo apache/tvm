@@ -40,7 +40,6 @@ if(${ENABLE_CMSIS})
     ${CMSIS_PATH}/CMSIS/NN/Source/NNSupportFunctions/*.c
     ${CMSIS_PATH}/CMSIS/NN/Source/PoolingFunctions/*.c
     ${CMSIS_PATH}/CMSIS/NN/Source/ReshapeFunctions/*.c
-    ${CMSIS_PATH}/CMSIS/NN/Source/SVDFunctions/*.c
     ${CMSIS_PATH}/CMSIS/NN/Source/SoftmaxFunctions/*.c
   )
 
