@@ -134,9 +134,9 @@ def multi_alloc_func(a: T.handle, d: T.handle) -> None:
     D = T.match_buffer(d, (4, 32), "float32")
 
     for i, j in T.grid(4, 32):
-        B_data = T.allocate((4, 32), "float32")
+        B_data = T.allocate((4, 32), "float32", scope="global")
         B = T.buffer_decl(shape=(4, 32), dtype="float32", data=B_data)
-        C_data = T.allocate((4, 32), "float32")
+        C_data = T.allocate((4, 32), "float32", scope="global")
         C = T.buffer_decl(shape=(4, 32), dtype="float32", data=C_data)
         B[i, j] = A[i, j] + 1.0
         C[i, j] = A[i, j] + B[i, j]

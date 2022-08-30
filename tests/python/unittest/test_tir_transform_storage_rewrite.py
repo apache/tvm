@@ -297,7 +297,7 @@ def test_parallel_alloc():
     n = te.var("n")
     with ib.for_range(0, n, name="i", kind="parallel") as i:
         with ib.for_range(0, 10, name="j") as j:
-            A = ib.allocate("float32", n, name="A")
+            A = ib.allocate("float32", n, name="A", scope="global")
             A[j] = A[j] + 2
 
     body = ib.get()
@@ -314,7 +314,7 @@ def test_parallel_alloc():
         )
         with ib.for_range(0, n, name="i", kind="parallel") as i:
             with ib.for_range(0, 10, name="j") as j:
-                A = ib.allocate("float32", n, name="A")
+                A = ib.allocate("float32", n, name="A", scope="global")
                 A[j] = A[j] + 2
     body = ib.get()
 
@@ -329,10 +329,10 @@ def test_while_alloc():
         ib = tvm.tir.ir_builder.create()
         n = te.var("n")
         with ib.for_range(0, n, name="i", kind=kind) as i:
-            j = ib.allocate("int32", 1, name="j")
+            j = ib.allocate("int32", 1, name="j", scope="global")
             j[0] = 0
             with ib.while_loop(j[0] < 10):
-                A = ib.allocate("float32", n, name="A")
+                A = ib.allocate("float32", n, name="A", scope="global")
                 A[j[0]] = A[j[0]] + 2
                 j[0] += j[0] + 1
 
