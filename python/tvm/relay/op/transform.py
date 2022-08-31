@@ -1926,6 +1926,7 @@ def embedding_bag(
 
     include_last_offset: bool, optional
         If True, the size of offsets is equal to the number of bags + 1.
+        The last element is the ending index position.
         The default value is False.
 
     Returns

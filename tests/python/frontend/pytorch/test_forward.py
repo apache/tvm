@@ -3085,6 +3085,7 @@ def test_embedding_bag():
 
         def __init__(
             self,
+            offsets=None,
             mode="mean",
             padding_idx=None,
             scale_grad_by_freq=False,
@@ -3092,6 +3093,7 @@ def test_embedding_bag():
             per_sample_weights=None,
         ):
             super().__init__()
+            self.offsets = offsets
             self.mode = mode
             self.padding_idx = padding_idx
             self.scale_grad_by_freq = scale_grad_by_freq
@@ -3102,6 +3104,7 @@ def test_embedding_bag():
             return F.embedding_bag(
                 inputs,
                 weights,
+                offsets=self.offsets,
                 mode=self.mode,
                 padding_idx=self.padding_idx,
                 scale_grad_by_freq=self.scale_grad_by_freq,
@@ -3111,24 +3114,33 @@ def test_embedding_bag():
 
     embedding_matrix = torch.rand(10, 3)
     inp = torch.tensor([[1, 1, 4], [5, 9, 4], [4, 2, 5]])
+    offsets = torch.tensor([0, 3, 9])
     pre_sample_weights = torch.tensor([[0.3, 0.4, 0.4], [0.1, 2.2, 3.1], [0.2, 1.1, 3.2]])
     verify_model(EmbeddingBag(mode="mean").float().eval(), [inp, embedding_matrix])
     verify_model(
         EmbeddingBag(mode="sum", per_sample_weights=pre_sample_weights).float().eval(),
         [inp, embedding_matrix],
     )
+    # Normally, we should enforce `offsets[-1] == input.size(0)` when `include_last_offset=True`
+    # When the condition does not hold, in PyTorch, the behaviour diverges. Could see:
+    # https://www.hkteducation.com/nop/apple/hku/13-inch-macbook-air-apple-m2-chip-with-8-core-cpu-10-core-gpu-16gb-512gb-midnight-z161.html
     verify_model(
-        EmbeddingBag(mode="mean", include_last_offset=True).float().eval(), [inp, embedding_matrix]
+        EmbeddingBag(offsets=offsets, mode="mean", include_last_offset=True).float().eval(),
+        [inp.reshape(-1), embedding_matrix],
     )
     verify_model(EmbeddingBag(mode="mean", padding_idx=2).float().eval(), [inp, embedding_matrix])
     verify_model(
-        EmbeddingBag(mode="sum", include_last_offset=True, padding_idx=4).float().eval(),
-        [inp, embedding_matrix],
+        EmbeddingBag(offsets=offsets, mode="sum", include_last_offset=True, padding_idx=4)
+        .float()
+        .eval(),
+        [inp.reshape(-1), embedding_matrix],
     )
     verify_model(EmbeddingBag(mode="max", padding_idx=1).float().eval(), [inp, embedding_matrix])
     verify_model(
-        EmbeddingBag(mode="max", include_last_offset=True, padding_idx=1).float().eval(),
-        [inp, embedding_matrix],
+        EmbeddingBag(offsets=offsets, mode="max", include_last_offset=True, padding_idx=1)
+        .float()
+        .eval(),
+        [inp.reshape(-1), embedding_matrix],
     )
 
 
