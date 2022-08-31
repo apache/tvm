@@ -21,6 +21,7 @@
  * \file  module.cc
  * \brief The global module in Relay.
  */
+#include <tvm/ir/global_var_supply.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/runtime/registry.h>
@@ -292,20 +293,6 @@ Constructor IRModuleNode::LookupTag(const int32_t tag) {
   return (*it).second;
 }
 
-String IRModuleNode::GetUniqueName(const String& name) {
-  String result = name;
-  int suffix = 0;
-  while (true) {
-    auto it = global_var_map_.find(result);
-    if (it == global_var_map_.end()) {
-      return result;
-    }
-    std::ostringstream os;
-    os << name << "_" << ++suffix;
-    result = os.str();
-  }
-}
-
 /*!
  * \brief Renames global type/term variables to prefer the GlobalTypeVar/GlobalVar in the lhs
  * ('one') side above the rhs ('two').
@@ -397,12 +384,14 @@ std::pair<IRModule, GlobalVar> IRModule::FromExprInContext(
     func = relay::Function(relay::FreeVars(expr), expr, Type(), relay::FreeTypeVars(expr, mod), {});
   }
 
+  GlobalVar main_gv;
+  auto global_var_supply = GlobalVarSupply(mod);
   if (gv_name.empty()) {
     // Bind function to 'main' (though rename if would clash with existing 'main').
-    gv_name = mod->GetUniqueName("main");
+    main_gv = global_var_supply->FreshGlobal("main", false);
+  } else {
+    main_gv = global_var_supply->UniqueGlobalFor(gv_name, false);
   }
-
-  GlobalVar main_gv(gv_name);
   mod->Add(main_gv, func);
   return {mod, main_gv};
 }

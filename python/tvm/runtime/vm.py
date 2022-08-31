@@ -583,6 +583,7 @@ class VirtualMachine(object):
         repeat=5,
         number=5,
         min_repeat_ms=None,
+        limit_zero_time_iterations=100,
         end_to_end=False,
         cooldown_interval_ms=0,
         repeats_to_cooldown=1,
@@ -630,6 +631,10 @@ class VirtualMachine(object):
             milliseconds. This can be used to ensure that the function is run enough to get an
             accurate measurement.
 
+        limit_zero_time_iterations : Optional[int]
+            The maximum number of repeats when measured time is equal to 0.
+            It helps to avoid hanging during measurements.
+
         end_to_end : bool
             If set, include time to transfer input tensors to the device and time to transfer
             returned tensors in the total runtime. This will give accurate timings for end to end
@@ -672,6 +677,7 @@ class VirtualMachine(object):
                 repeat=repeat,
                 number=number,
                 min_repeat_ms=min_repeat_ms,
+                limit_zero_time_iterations=limit_zero_time_iterations,
             )(func_name, device.device_type % RPC_SESS_MASK, device.device_id, *packed_args)
         if args or kwargs:
             self.set_input(func_name, *args, **kwargs)
@@ -681,6 +687,7 @@ class VirtualMachine(object):
             repeat=repeat,
             number=number,
             min_repeat_ms=min_repeat_ms,
+            limit_zero_time_iterations=limit_zero_time_iterations,
             cooldown_interval_ms=cooldown_interval_ms,
             repeats_to_cooldown=repeats_to_cooldown,
         )(func_name)

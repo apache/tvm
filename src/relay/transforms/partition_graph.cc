@@ -333,14 +333,15 @@ class Partitioner : public MixedModeMutator {
         WithAttr(std::move(global_region_func), attr::kCompiler, tvm::runtime::String(target));
     global_region_func = WithAttr(std::move(global_region_func), attr::kInline, tvm::Integer(1));
 
-    std::string fname = name;
-    ICHECK(!module_->ContainGlobalVar(fname)) << "Global function " << fname << " already exists";
+    GlobalVarSupply global_var_supply = GlobalVarSupply(module_);
+    GlobalVar glob_func = global_var_supply->FreshGlobal(name, false);
+    ICHECK(!module_->ContainGlobalVar(glob_func->name_hint))
+        << "Global function " << glob_func->name_hint << " already exists";
     // Create a global function and add it to the IRModule for the region.
     // This way we lift the functions that should be handled by external
     // codegen to the module scope and rely on the pass manager to prevent
     // relay function level passes (i.e. simplify inference and fusion)
     // optimizing it.
-    GlobalVar glob_func(fname);
     module_->Add(glob_func, global_region_func);
     module_ = relay::transform::InferType()(module_);
 

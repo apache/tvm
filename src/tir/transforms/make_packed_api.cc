@@ -204,8 +204,8 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
   }
 
   // Need to re-declare vars, in case some arguments also appears in the buffer.
-  std::vector<std::pair<Var, Var> > var_def;
-  std::vector<std::pair<Var, Buffer> > buffer_def;
+  std::vector<std::pair<Var, Var>> var_def;
+  std::vector<std::pair<Var, Buffer>> buffer_def;
 
   for (int i = 0; i < static_cast<int>(func_ptr->params.size()); ++i) {
     Var param = func_ptr->params[i];
@@ -343,7 +343,7 @@ Pass MakePackedAPI(int num_unpacked_args) {
   // packed arguments anyway while `num_unpacked_args` is -1
   auto pass_func = [num_unpacked_args](IRModule m, PassContext ctx) {
     IRModuleNode* mptr = m.CopyOnWrite();
-    std::vector<std::pair<GlobalVar, PrimFunc> > updates;
+    std::vector<std::pair<GlobalVar, PrimFunc>> updates;
 
     for (const auto& kv : mptr->functions) {
       if (auto* n = kv.second.as<PrimFuncNode>()) {

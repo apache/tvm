@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 #include <tvm/meta_schedule/extracted_task.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
@@ -31,22 +30,20 @@ namespace tvm {
 namespace relay {
 namespace backend {
 
-Array<meta_schedule::ExtractedTask> ExtractTask(
-    IRModule mod, Target target, Map<String, runtime::NDArray> params,
-    runtime::TypedPackedFunc<Optional<tir::PrimFunc>(const Array<te::Tensor>&)> filter_func) {
+Array<meta_schedule::ExtractedTask> ExtractTask(IRModule mod, Target target,
+                                                Map<String, runtime::NDArray> params) {
   using meta_schedule::ExtractedTask;
-  if (filter_func == nullptr) {
-    filter_func = tvm::meta_schedule::DefaultTaskFilter;
-  }
+  backend::FTECompilerTIRConverter tir_converter = backend::GetTIRConverter();
   backend::BindParamsInModule(mod, params);
   // is_vm=true for backward compatibility
   Array<Pass> pass_seqs = relay::backend::GetPassPrefix(/*is_homogenous=*/true, /*is_vm=*/true);
   pass_seqs.push_back(transform::FuseOps());
+
   mod = transform::Sequential(pass_seqs)(std::move(mod));
 
   std::vector<ExtractedTask> tasks;
   std::unordered_map<tec::CCacheKey, ExtractedTask> cache;
-  PostOrderVisit(mod->Lookup("main"), [&target, &tasks, &cache, &filter_func](const Expr& exp) {
+  PostOrderVisit(mod->Lookup("main"), [&target, &tasks, &cache, &tir_converter](const Expr& exp) {
     if (exp->IsInstance<FunctionNode>()) {
       Function relay_func = Downcast<Function>(exp);
       if (!relay_func->HasNonzeroAttr(attr::kPrimitive)) {
@@ -58,25 +55,21 @@ Array<meta_schedule::ExtractedTask> ExtractTask(
         it->second->weight += 1;
         return;
       }
-      Array<te::Tensor> inputs_outputs{nullptr};
-      std::string fused_name;
-      std::tie(inputs_outputs, fused_name) =
+      auto [inputs_outputs, constants, fused_name] =
           tec::LowerTECompute(relay_func, target, /*return_inputs=*/true);
-      if (Optional<tir::PrimFunc> prim_func = filter_func(inputs_outputs)) {
-        GlobalVar prim_fn_var(fused_name);
-        IRModule relay_mod({{prim_fn_var, relay_func}});
-        IRModule tir_mod({{prim_fn_var, prim_func.value()}});
-        ExtractedTask extracted_task(fused_name, relay_mod, target, {tir_mod}, 1);
-        tasks.push_back(extracted_task);
-        cache.emplace(cache_key, extracted_task);
+      if (Optional<tir::PrimFunc> f = tir_converter(inputs_outputs, constants)) {
+        IRModule relay_mod({{GlobalVar(fused_name), relay_func}});
+        ExtractedTask task(fused_name, relay_mod, target, {PrimFuncToIRModule(f.value())}, 1);
+        tasks.push_back(task);
+        cache.emplace(cache_key, task);
       }
     }
   });
   // Tasks are extracted via post order visit, return the reversed list.
   std::reverse(tasks.begin(), tasks.end());
-  std::unordered_map<std::string, int> name_map;
+  NameSupply name_supply = NameSupply("");
   for (ExtractedTask task : tasks) {
-    task->task_name = tec::GetUniqueName(task->task_name, &name_map);
+    task->task_name = name_supply->FreshName(task->task_name);
   }
   return tasks;
 }

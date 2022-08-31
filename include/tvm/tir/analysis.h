@@ -262,6 +262,17 @@ TVM_DLL Pass VerifyMemory();
  */
 TVM_DLL Pass VerifyGPUCode(Map<String, PrimExpr> constraints);
 
+/*!
+ * \brief Statically check TIR code for out of bounds array access.
+ *
+ * This analysis is conservative: it will only raise errors if it can prove
+ * that out of bounds access occurs. Cases that are uncertain do not raise
+ * errors.
+ *
+ * \returns The pass.
+ */
+TVM_DLL Pass OOBChecker();
+
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm

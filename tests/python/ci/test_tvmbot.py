@@ -126,6 +126,14 @@ TEST_DATA = {
         "user": "abc",
         "detail": "Start a new CI job",
     },
+    "ignore-jobs": {
+        "number": 10786,
+        "filename": "pr10786-ignore-jobs.json",
+        "expected": "Dry run, would have merged",
+        "comment": "@tvm-bot merge",
+        "user": "abc",
+        "detail": "Ignore GitHub Actions jobs that don't start with CI / ",
+    },
 }
 
 
@@ -139,7 +147,7 @@ def test_tvmbot(tmpdir_factory, number, filename, expected, comment, user, detai
     """
     Test the mergebot test cases
     """
-    mergebot_script = REPO_ROOT / "tests" / "scripts" / "github_tvmbot.py"
+    mergebot_script = REPO_ROOT / "ci" / "scripts" / "github_tvmbot.py"
     test_json_dir = Path(__file__).resolve().parent / "sample_prs"
 
     git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
@@ -156,7 +164,7 @@ def test_tvmbot(tmpdir_factory, number, filename, expected, comment, user, detai
             "login": user,
         },
     }
-    collaborators = ["abc"]
+    allowed_users = [{"login": "abc"}]
 
     proc = subprocess.run(
         [
@@ -169,9 +177,9 @@ def test_tvmbot(tmpdir_factory, number, filename, expected, comment, user, detai
             "--testing-pr-json",
             json.dumps(test_data),
             "--testing-collaborators-json",
-            json.dumps(collaborators),
+            json.dumps(allowed_users),
             "--testing-mentionable-users-json",
-            json.dumps(collaborators),
+            json.dumps(allowed_users),
             "--trigger-comment-json",
             json.dumps(comment),
         ],

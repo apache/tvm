@@ -28,7 +28,6 @@
 
 #include <vector>
 
-#include "../../../relay/backend/contrib/ethosn/ethosn_api_version.h"
 #include "ethosn_runtime.h"
 
 namespace tvm {
@@ -39,15 +38,9 @@ namespace dl = ::ethosn::driver_library;
 
 using tvm::runtime::TVMArgs;
 
-#if _ETHOSN_API_VERSION_ <= 2102
-bool Inference(TVMArgs args, sl::CompiledNetwork* npu, const std::vector<uint32_t>& input_order,
-               const std::vector<uint32_t>& output_order, const std::vector<uint32_t>& input_sizes,
-               const std::vector<uint32_t>& output_sizes);
-#else
 bool Inference(tvm::runtime::TVMArgs args, dl::Network* npu,
                const std::vector<uint32_t>& input_order, const std::vector<uint32_t>& output_order,
                const std::vector<uint32_t>& input_sizes, const std::vector<uint32_t>& output_sizes);
-#endif
 
 }  // namespace ethosn
 }  // namespace runtime

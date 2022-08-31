@@ -27,6 +27,7 @@
 #include <tvm/auto_scheduler/measure.h>
 #include <tvm/auto_scheduler/measure_record.h>
 #include <tvm/driver/driver_api.h>
+#include <tvm/ir/global_var_supply.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/support/parallel_for.h>
 #include <tvm/te/operation.h>
@@ -951,9 +952,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
         unique_lines = std::max(unique_lines, 1.0f);
       }
 
-      ReuseType reuse_type;
-      float reuse_dis_iter, reuse_dis_bytes, reuse_ct;
-      std::tie(reuse_type, reuse_dis_iter, reuse_dis_bytes, reuse_ct) =
+      auto [reuse_type, reuse_dis_iter, reuse_dis_bytes, reuse_ct] =
           ComputeReuse(t, acc.indices, for_loop_stack_, for_touch_regions_, ana_);
 
       acc_feas.emplace_back();
@@ -1355,10 +1354,7 @@ void GetPerStoreFeatureName(int max_n_bufs, std::vector<std::string>* ret) {
 
 void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, int max_n_bufs,
                                    std::vector<float>* feature, std::atomic<int>* error_ct) {
-  te::Schedule sch;
-  Array<te::Tensor> tensors;
-
-  std::tie(sch, tensors) = task->compute_dag.ApplySteps(state->transform_steps);
+  auto [sch, tensors] = task->compute_dag.ApplySteps(state->transform_steps);
 
   // When inlining, replace const matrices with const values.
   // Produces wrong IR, but good enough for feature extraction, and
@@ -1371,7 +1367,8 @@ void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, i
     auto pass_ctx = tvm::transform::PassContext::Current();
 
     auto mod = ScheduleToModule(sch, Array<ObjectRef>{tensors.begin(), tensors.end()}, name,
-                                std::unordered_map<te::Tensor, te::Buffer>());
+                                std::unordered_map<te::Tensor, te::Buffer>(),
+                                GlobalVarSupply(NameSupply("")));
 
     bool disable_vectorize =
         pass_ctx->GetConfig<Bool>("tir.disable_vectorize", Bool(false)).value();

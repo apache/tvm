@@ -497,14 +497,10 @@ class CrossThreadReductionTransformer : public StmtMutator {
     // both be BufferStores with the same buffer and indices;
     // Extract the commutative reducer, combiner lhs and combiner rhs from the reduction identity
     // and the reduction combiner.
-    BufferStore init{nullptr};
-    BufferStore update{nullptr};
-    CommReducer reducer{nullptr};
-    PrimExpr combiner_lhs{nullptr};
-    PrimExpr combiner_rhs{nullptr};
-    std::tie(init, update) = GetBufferStoresFromReductionBlock(NullOpt, GetRef<Block>(block));
-    std::tie(reducer, combiner_lhs, combiner_rhs) =
+    auto [init, update] = GetBufferStoresFromReductionBlock(NullOpt, GetRef<Block>(block));
+    auto [reducer, combiner_lhs, combiner_rhs] =
         GetReducerAndCombinerLhsRhs(NullOpt, init->value, update);
+    (void)combiner_lhs;  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
 
     // Condition 5. The block should be the last block under the first reduction-related loop.
     bool visit = false;
@@ -577,10 +573,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
     ++reduction_id_;
     // Step 2. Check whether cross-thread reduction can be applied. If no, throw an exception on
     // which condition the block violates.
-    int n_bound_reduction_loops = 0;
-    CommReducer reducer{nullptr};
-    PrimExpr combiner_rhs{nullptr};
-    std::tie(n_bound_reduction_loops, reducer, combiner_rhs) =
+    auto [n_bound_reduction_loops, reducer, combiner_rhs] =
         CheckCanApplyCrossThreadReduction(block, reduction_loops);
     // Step 3. Before doing the cross-thread reduction, in-thread reduction is needed when
     //  - not all the reduction-related loops are bound to thread axes, or

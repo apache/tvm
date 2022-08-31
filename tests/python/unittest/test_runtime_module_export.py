@@ -202,7 +202,7 @@ def test_mod_export():
         path_lib = temp.relpath(file_name)
         synthetic_cpu_lib.import_module(f)
         synthetic_cpu_lib.import_module(engine_module)
-        kwargs = {"options": ["-O2", "-std=c++14", "-I" + header_file_dir_path.relpath("")]}
+        kwargs = {"options": ["-O2", "-std=c++17", "-I" + header_file_dir_path.relpath("")]}
         synthetic_cpu_lib.export_library(path_lib, fcompile=False, **kwargs)
         loaded_lib = tvm.runtime.load_module(path_lib)
         assert loaded_lib.type_key == "library"

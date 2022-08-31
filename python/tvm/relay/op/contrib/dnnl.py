@@ -282,6 +282,8 @@ def add_checker(attrs, args, op_name):
         if tuple(get_shape(args[0])) != tuple(get_shape(args[1])):
             return False
     if op_name == "bias_add":
+        if attrs is None:
+            return False
         if not isinstance(args[0].op, tvm.ir.op.Op):
             return False
         if args[0].op.name != "nn.conv2d":
@@ -854,7 +856,8 @@ class LayerNormRewrite(DFPatternCallback):
         added_eps = is_op("add")(mp1, eps)
         deno = is_op("sqrt")(added_eps)
         div_out = is_op("divide")(diff, deno)
-        weighted = is_op("multiply")(div_out, self.gamma)
+        div_out2 = diff * is_op("rsqrt")(added_eps)
+        weighted = is_op("multiply")(div_out | div_out2, self.gamma)
         added_bias = is_op("add")(weighted, self.beta)
         self.pattern = added_bias
 

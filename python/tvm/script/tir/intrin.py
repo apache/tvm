@@ -20,6 +20,7 @@ import builtins
 from typing import List, Any
 
 import tvm.tir
+from tvm.tir import FloatImm
 from ..registry import register
 from ...target import codegen
 from ..utils import get_param_list, tvm_span_from_synr
@@ -42,74 +43,25 @@ def bool(imm, span):
     return imm.astype("bool", span)
 
 
-@register
-def int8(imm, span):
-    return imm.astype("int8", span)
+# register all datatypes
+for _dtype in ["float", "uint", "int"]:
+    for _size in ["8", "16", "32", "64"]:
+        for _lanes in ["", "x4", "x8", "x16", "x32"]:
+            _name = _dtype + _size + _lanes
 
+            # nest closures so we copy the name string
+            def wrap(name):
+                def f(imm, span):
+                    if name.startswith("float"):
+                        if imm in {"inf", "-inf", "nan"}:
+                            return FloatImm(dtype=name, value=float(imm), span=span)
+                    return imm.astype(name, span)
 
-@register
-def int16(imm, span):
-    return imm.astype("int16", span)
+                f.__name__ = name
+                return f
 
-
-@register
-def int32(imm, span):
-    return imm.astype("int32", span)
-
-
-@register
-def int64(imm, span):
-    return imm.astype("int64", span)
-
-
-@register
-def uint8(imm, span):
-    return imm.astype("uint8", span)
-
-
-@register
-def uint16(imm, span):
-    return imm.astype("uint16", span)
-
-
-@register
-def uint32(imm, span):
-    return imm.astype("uint32", span)
-
-
-@register
-def uint64(imm, span):
-    return imm.astype("uint64", span)
-
-
-@register
-def float8(imm, span):
-    return imm.astype("float8", span)
-
-
-@register
-def float16(imm, span):
-    return imm.astype("float16", span)
-
-
-@register
-def float32(imm, span):
-    return imm.astype("float32", span)
-
-
-@register
-def float64(imm, span):
-    return imm.astype("float64", span)
-
-
-@register
-def int32x16(imm, span):
-    return imm.astype("int32x16", span)
-
-
-@register
-def int32x4(imm, span):
-    return imm.astype("int32x4", span)
+            _intrin = wrap(_name)
+            register(_intrin)
 
 
 @register

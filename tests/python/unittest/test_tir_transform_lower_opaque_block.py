@@ -321,6 +321,43 @@ def test_annotated_loops():
     tvm.ir.assert_structural_equal(attr3.value, tvm.tir.FloatImm("float32", 0.0))
 
 
+def test_annotated_block():
+    @T.prim_func
+    def annotated_block() -> None:
+        with T.block():
+            T.block_attr({"pragma_1": "str_value", "pragma_2": 1, "pragma_3": 0.0})
+            T.evaluate(0)
+
+    mod = tvm.IRModule.from_expr(annotated_block)
+    mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
+    attr1 = mod["main"].body
+    attr2 = attr1.body
+    attr3 = attr2.body
+    assert attr1.attr_key == "pragma_1" and attr1.value == "str_value"
+    assert attr2.attr_key == "pragma_2"
+    tvm.ir.assert_structural_equal(attr2.value, tvm.tir.IntImm("int32", 1))
+    assert attr3.attr_key == "pragma_3"
+    tvm.ir.assert_structural_equal(attr3.value, tvm.tir.FloatImm("float32", 0.0))
+
+
+def test_preserved_annotations():
+    @T.prim_func
+    def before(A: T.Buffer[8, "float32"], B: T.Buffer[8, "float32"]):
+        for i in T.serial(8, annotations={"k_0": 1, "k_1": [2, 3], "k_2": 3.14}):
+            with T.block("block"):
+                T.block_attr({"k_3": "oops"})
+                B[i] = A[i] + 1.0
+
+    @T.prim_func
+    def after(A: T.Buffer[8, "float32"], B: T.Buffer[8, "float32"]):
+        for i in T.serial(8, annotations={"k_0": 1, "k_1": [2, 3], "k_2": 3.14}):
+            B[i] = A[i] + 1.0
+
+    mod = tvm.IRModule.from_expr(before)
+    mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
+    tvm.ir.assert_structural_equal(mod["main"], after)
+
+
 def test_boolean_handling():
     _check(boolean_handling_before, boolean_handling_after)
 

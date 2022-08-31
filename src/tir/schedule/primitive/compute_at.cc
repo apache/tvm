@@ -37,7 +37,7 @@ class NotAllRequiredBlocksAreVisitedError : public ScheduleError {
       : mod_(mod), num_not_visited_(num_not_visited) {
     required_.reserve(required.size());
     for (const StmtSRef& block_sref : required) {
-      const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+      const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
       required_.push_back(GetRef<Block>(block));
     }
   }
@@ -129,15 +129,19 @@ class NotInSameScopeError : public ScheduleError {
  * \param producer_srefs The producer blocks
  * \param consumer_srefs The consumer blocks
  * \param block2realize A cache that maps a block to its realize
- * \return The last position the new block can be inserted onto, and the
+ * \param index The block index of the loop body subtree blocks:
+ * - `index = -1` means inserted into the last possible insertion point;
+ * - `index = -2` means inserted into the first possible insertion point;
+ * - Otherwise, `index` is a nonnegative number that indicates the insertion point
+ * \return The possible position the new block can be inserted into, and the
  * producer-consumer-relationship is still satisfied.
  * \throws ScheduleError if there is no such insertion point found
  */
 template <bool require_all_producers_visited, bool require_all_consumers_visited>
-int FindInsertionPoint(
-    const ScheduleState& self, const Array<Stmt>& subtrees, const Array<StmtSRef>& producer_srefs,
-    const Array<StmtSRef>& consumer_srefs,
-    std::unordered_map<const BlockNode*, const BlockRealizeNode*>* block2realize) {
+int FindInsertionPoint(const ScheduleState& self, const Array<Stmt>& subtrees,
+                       const Array<StmtSRef>& producer_srefs, const Array<StmtSRef>& consumer_srefs,
+                       std::unordered_map<const BlockNode*, const BlockRealizeNode*>* block2realize,
+                       int index) {
   ProducerConsumerSplit split =
       ProducerConsumerSplit::Find(self, subtrees, producer_srefs, consumer_srefs, block2realize);
   // Step 1. Check if all the producers are visited in the subtrees, if required to
@@ -159,8 +163,22 @@ int FindInsertionPoint(
   // Step 3. Check if there is at least one index of the position can be inserted into
   // The valid indices are: (last_producer_position, first_consumer_position]
   ICHECK(split.last_producer_position < split.first_consumer_position);
-  // Step 4. Return the last valid insertion point
-  return split.first_consumer_position;
+  // Step 4. Return the possible insertion point according to index
+  int insert_position;
+  if (index == -1) {
+    insert_position = split.first_consumer_position;
+  } else if (index == -2) {
+    insert_position = split.last_producer_position + 1;
+  } else if (index >= 0 && index >= split.last_producer_position + 1 &&
+             index <= split.first_consumer_position) {
+    insert_position = index;
+  } else {
+    LOG(FATAL) << "Valid index:(-1, -2, [" << split.last_producer_position + 1 << ", "
+               << split.first_consumer_position << "]), "
+               << "current index=" << index;
+    throw;
+  }
+  return insert_position;
 }
 
 /*!
@@ -288,14 +306,14 @@ class ScopeReconstructor : private StmtMutator {
       return GetRef<Block>(block);
     }
     if (block == rm_src_stmt_.get()) {
-      block = TVM_TYPE_AS(block, rm_tgt_stmt_, BlockNode);
+      block = TVM_TYPE_AS(rm_tgt_stmt_, BlockNode);
     }
     return StmtMutator::VisitStmt_(block);
   }
 
   Stmt VisitStmt_(const ForNode* loop) final {
     if (loop == rm_src_stmt_.get()) {
-      loop = TVM_TYPE_AS(loop, rm_tgt_stmt_, ForNode);
+      loop = TVM_TYPE_AS(rm_tgt_stmt_, ForNode);
     }
     if (loop == loop_.get()) {
       return new_loop_;
@@ -356,7 +374,7 @@ void RelaxBufferRegions(const Map<Var, PrimExpr>& binding,
     runtime::StorageRank rank = scope.rank;
     if (rank != previous_rank || !var_dom.defined()) {
       previous_rank = rank;
-      var_dom = AsIntSet(LoopDomainOfSRefTreePath(
+      var_dom = arith::AsIntSet(LoopDomainOfSRefTreePath(
           /*low_inclusive=*/relax_path_low_inclusive,
           /*high_exclusive=*/relax_path_high_exclusive,
           /*extra_relax_scope=*/scope));
@@ -541,7 +559,7 @@ void CalculateProvidedRequiredRegions(
   }
   // Step 2. Calculate the region required by dependent blocks under `loop`
   for (const StmtSRef& required_block_sref : is_compute_at ? consumer_srefs : producer_srefs) {
-    const BlockNode* required_block = TVM_SREF_TO_BLOCK(required_block, required_block_sref);
+    const BlockNode* required_block = TVM_SREF_TO_BLOCK(required_block_sref);
     ICHECK(block2realize.count(required_block));
     RelaxBufferRegions</*relax_storage_scope=*/is_compute_at>(
         /*binding=*/GetBindings(GetRef<BlockRealize>(block2realize.at(required_block))),
@@ -556,9 +574,10 @@ void CalculateProvidedRequiredRegions(
 template <bool is_compute_at>
 void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_sref,
                                      const StmtSRef& loop_sref, bool preserve_unit_loops,
-                                     arith::Analyzer* analyzer, bool check_only = false) {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
-  const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+                                     arith::Analyzer* analyzer, bool check_only = false,
+                                     int index = -1) {
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
+  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   // Step 1. Bunch of checks
   // Check condition 1) : scope stage pipeline
   StmtSRef scope_root_sref = GetScopeRoot(self, block_sref,
@@ -588,7 +607,8 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
       /*self=*/self,
       /*subtrees=*/AsArray(loop->body),
       /*producer_srefs=*/producer_srefs,
-      /*consumer_srefs=*/consumer_srefs, /*block2realize=*/&block2realize);
+      /*consumer_srefs=*/consumer_srefs, /*block2realize=*/&block2realize,
+      /*index=*/index);
   // Step 4. Calculate the region provided by a single execution instance of `block`,
   // as well as the region required by dependent blocks under `loop`.
   // Here is the definition of `provide` and `require`:
@@ -626,17 +646,17 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
 }
 
 void ComputeAt(ScheduleState self, const StmtSRef& block_sref, const StmtSRef& loop_sref,
-               bool preserve_unit_loops) {
+               bool preserve_unit_loops, int index) {
   arith::Analyzer analyzer;
-  ComputeAtOrReverseComputeAtImpl<true>(self, block_sref, loop_sref, preserve_unit_loops,
-                                        &analyzer);
+  ComputeAtOrReverseComputeAtImpl<true>(self, block_sref, loop_sref, preserve_unit_loops, &analyzer,
+                                        false, index);
 }
 
 void ReverseComputeAt(ScheduleState self, const StmtSRef& block_sref, const StmtSRef& loop_sref,
-                      bool preserve_unit_loops) {
+                      bool preserve_unit_loops, int index) {
   arith::Analyzer analyzer;
   ComputeAtOrReverseComputeAtImpl<false>(self, block_sref, loop_sref, preserve_unit_loops,
-                                         &analyzer);
+                                         &analyzer, false, index);
 }
 
 bool CanComputeAt(const ScheduleState& self, const StmtSRef& block_sref, const StmtSRef& loop_sref,
@@ -671,20 +691,21 @@ struct ComputeAtTraits : public UnpackedInstTraits<ComputeAtTraits> {
 
  private:
   static constexpr size_t kNumInputs = 2;
-  static constexpr size_t kNumAttrs = 1;
+  static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
   static void UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv, LoopRV loop_rv,
-                                      Bool preserve_unit_loops) {
-    return sch->ComputeAt(block_rv, loop_rv, preserve_unit_loops.operator bool());
+                                      Bool preserve_unit_loops, IntImm index) {
+    return sch->ComputeAt(block_rv, loop_rv, preserve_unit_loops.operator bool(), index->value);
   }
 
   static String UnpackedAsPython(Array<String> outputs, String block_rv, String loop_rv,
-                                 Bool preserve_unit_loops) {
+                                 Bool preserve_unit_loops, IntImm index) {
     PythonAPICall py("compute_at");
     py.Input("block", block_rv);
     py.Input("loop", loop_rv);
     py.Input("preserve_unit_loops", preserve_unit_loops.operator bool());
+    py.Input("index", index);
     return py.Str();
   }
 
@@ -698,20 +719,22 @@ struct ReverseComputeAtTraits : public UnpackedInstTraits<ReverseComputeAtTraits
 
  private:
   static constexpr size_t kNumInputs = 2;
-  static constexpr size_t kNumAttrs = 1;
+  static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
   static void UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv, LoopRV loop_rv,
-                                      Bool preserve_unit_loops) {
-    return sch->ReverseComputeAt(block_rv, loop_rv, preserve_unit_loops.operator bool());
+                                      Bool preserve_unit_loops, IntImm index) {
+    return sch->ReverseComputeAt(block_rv, loop_rv, preserve_unit_loops.operator bool(),
+                                 index->value);
   }
 
   static String UnpackedAsPython(Array<String> outputs, String block_rv, String loop_rv,
-                                 Bool preserve_unit_loops) {
+                                 Bool preserve_unit_loops, IntImm index) {
     PythonAPICall py("reverse_compute_at");
     py.Input("block", block_rv);
     py.Input("loop", loop_rv);
     py.Input("preserve_unit_loops", preserve_unit_loops.operator bool());
+    py.Input("index", index);
     return py.Str();
   }
 

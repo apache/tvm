@@ -267,8 +267,8 @@ def transform_numpy(arr_np, current_layout: str, new_layout: str):
             assert h == 1 and w == 1, "The size of h and w must be 1"
             return arr_np.reshape([n, 1, 1, c // 1024, 1024])
         if new_layout == "nc-1024-2d":
-            N, C = arr_np.shape
-            return arr_np.reshape([N, C // 1024, 1024])
+            n, c = arr_np.shape
+            return arr_np.reshape([n, c // 1024, 1024])
         if new_layout == "nhwc-1024c-2d":
             N, H, W, C = arr_np.shape
             return arr_np.reshape([N, H, W, C // 1024, 1024])
@@ -278,11 +278,16 @@ def transform_numpy(arr_np, current_layout: str, new_layout: str):
         if new_layout == "nhwc-2048c-2d":
             N, H, W, C = arr_np.shape
             return arr_np.reshape([N, H, W, C // 2048, 2048])
-        if new_layout in ["nhwc-8h8w32c-2d"]:
+        if new_layout == "nhwc-8h8w32c-2d":
             n, h, w, c = arr_np.shape
             return arr_np.reshape([n, h // 8, 8, w // 8, 8, c // 32, 32]).transpose(
                 0, 1, 3, 5, 2, 4, 6
             )
+        if new_layout == "n11c-2048c-2d":
+            n, h, w, c = arr_np.shape
+            assert h == 1 and w == 1, "The size of h and w must be 1"
+            return arr_np.reshape([n, h, w, c // 2048, 2048])
+        raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
 
     if current_layout == "nc":
         n, c = arr_np.shape
@@ -300,3 +305,47 @@ def transform_numpy(arr_np, current_layout: str, new_layout: str):
         raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
 
     raise RuntimeError(f"Unexpected current_layout '{current_layout}'")
+
+
+def quantize_np(arr_np: numpy.ndarray, dtype: str):
+    """
+    Returns quantized array along with scale and zero-point
+
+    Parameters
+    ----------
+    arr_np: numpy.ndarray
+        Input numpy array to be quantized
+    dtype: str
+        dtype of the quantized array: "uint8", "int8", etc
+
+    Returns
+    -------
+    quant_np: numpy.ndarray
+        Quantized numpy array
+    scale: float
+        Scale
+    zero_point: int
+        Value corresponding to float 0
+
+    """
+    if dtype == "uint8":
+        qmax = 255
+        qmin = 0
+    elif dtype == "int8":
+        qmax = 128
+        qmin = -127
+    else:
+        raise RuntimeError(f"Unsupported quantized data type '{dtype}'")
+    fmin = numpy.amin(arr_np)
+    fmax = numpy.amax(arr_np)
+
+    # Include floating-point zero in the range
+    if fmax < 0:
+        fmax = 0.0
+    elif fmin > 0:
+        fmin = 0.0
+
+    scale = (fmax - fmin) / (qmax - qmin)
+    zero_point = numpy.rint((fmax * qmin - fmin * qmax) / (fmax - fmin)).astype("int32")
+    quant_np = (arr_np / scale + zero_point).astype(dtype)
+    return quant_np, scale, zero_point

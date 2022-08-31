@@ -16,6 +16,7 @@
 # under the License.
 """Default schedule rules"""
 from typing import List, Union
+
 from tvm.meta_schedule.schedule_rule import (
     AddRFactor,
     AutoBind,
@@ -28,7 +29,6 @@ from tvm.meta_schedule.schedule_rule import (
     ScheduleRule,
 )
 from tvm.meta_schedule.schedule_rule.multi_level_tiling import MultiLevelTilingTensorCore
-from tvm.tir import tensor_intrin
 from tvm.target import Target
 
 
@@ -98,7 +98,7 @@ def multi_level_tiling(target: Target) -> ScheduleRule:
             structure="SSSRRSRS",
             tile_binds=["blockIdx.x", "vthread.x", "threadIdx.x"],
             max_innermost_factor=64,
-            vector_load_lens=[1, 2, 3, 4],
+            vector_load_lens=[1, 2, 3, 4, 8, 16],
             reuse_read=ReuseType(
                 req="must",
                 levels=[4],
@@ -119,6 +119,7 @@ def multi_level_tiling_tensor_core(
     in_dtype: Union[str, List[str]] = "float16",
     out_dtype: Union[str, List[str]] = "float32",
     trans_b: Union[bool, List[bool]] = False,
+    use_software_pipeline: bool = False,
 ) -> ScheduleRule:
     """Default schedule rules for with multi-level tiling reuse for tensor core"""
     assert write_reuse_scope in ["shared", "global"]
@@ -130,8 +131,10 @@ def multi_level_tiling_tensor_core(
         trans_b = [trans_b]
 
     if target.kind.name == "cuda":
+        from tvm.tir.tensor_intrin import cuda  # pylint: disable=import-outside-toplevel
+
         intrin_groups = [
-            tensor_intrin.get_wmma_intrin_group(write_reuse_scope, _in_dtype, _out_dtype, _trans_b)
+            cuda.get_wmma_intrin_group(write_reuse_scope, _in_dtype, _out_dtype, _trans_b)
             for _in_dtype in in_dtype
             for _out_dtype in out_dtype
             for _trans_b in trans_b
@@ -141,7 +144,7 @@ def multi_level_tiling_tensor_core(
             structure="SSSRRSRS",
             tile_binds=["blockIdx.y", "blockIdx.x", "threadIdx.y"],
             max_innermost_factor=4,  # 64 // tensor intrin size
-            vector_load_lens=[1, 2, 3, 4],
+            vector_load_lens=[1, 2, 3, 4, 8, 16],
             reuse_read=ReuseType(
                 req="must",
                 levels=[4],
@@ -152,6 +155,7 @@ def multi_level_tiling_tensor_core(
                 levels=[2],
                 scope=write_reuse_scope,
             ),
+            use_software_pipeline=use_software_pipeline,
         )
     raise NotImplementedError(f"{target.kind.name} is not supported")
 

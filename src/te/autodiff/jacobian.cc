@@ -317,9 +317,7 @@ Tensor Jacobian(const Tensor& output, const Tensor& input) {
 
   // We have to clone the iteration axes because otherwise the original expression
   // cannot be used together with the derivative (it will lead to errors during lowering)
-  Array<IterVar> new_axis;
-  Map<Var, PrimExpr> vmap;
-  std::tie(new_axis, vmap) = te::CloneIterVars(op->axis);
+  auto [new_axis, vmap] = te::CloneIterVars(op->axis);
 
   Array<PrimExpr> input_indices;
   size_t i = 0;

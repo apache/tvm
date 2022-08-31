@@ -258,3 +258,17 @@ class Trace(Object):
             The TensorIR schedule
         """
         _ffi_api.TraceApplyJSONToSchedule(json_obj, sch)  # type: ignore # pylint: disable=no-member
+
+    def show(self, style: Optional[str] = None) -> None:
+        """A sugar for print highlighted trace.
+
+        Parameters
+        ----------
+        style : str, optional
+            Pygments styles extended by "light" (default) and "dark", by default "light"
+        """
+        from tvm.script.highlight import (  # pylint: disable=import-outside-toplevel
+            cprint,
+        )
+
+        cprint(str(self), style=style)

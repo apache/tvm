@@ -43,8 +43,8 @@ CodeGenCUDA::CodeGenCUDA() { restrict_keyword_ = "__restrict__"; }
 
 void CodeGenCUDA::Init(bool output_ssa) {
   CodeGenC::Init(output_ssa);
-  vid_global_barrier_state_ = GetUniqueName(runtime::symbol::tvm_global_barrier_state);
-  vid_global_barrier_expect_ = GetUniqueName("__barrier_expect");
+  vid_global_barrier_state_ = name_supply_->FreshName(runtime::symbol::tvm_global_barrier_state);
+  vid_global_barrier_expect_ = name_supply_->FreshName("__barrier_expect");
   ICHECK_EQ(vid_global_barrier_state_, runtime::symbol::tvm_global_barrier_state);
 }
 
@@ -403,7 +403,7 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
 void CodeGenCUDA::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs, PrimExpr rhs,
                                    std::ostream& os) {  // NOLINT(*)
   // Delcare the result.
-  std::string sret = GetUniqueName("_");
+  std::string sret = name_supply_->FreshName("_");
   this->PrintIndent();
   this->PrintType(t, stream);
   stream << ' ' << sret << ";\n";
@@ -555,7 +555,7 @@ void CodeGenCUDA::PrintStorageSync(const CallNode* op) {
     this->PrintIndent();
     this->stream << "atomicAdd(&" << vid_global_barrier_state_ << ", 1);\n";
     this->PrintIndent();
-    std::string ptr = GetUniqueName("pf");
+    std::string ptr = name_supply_->FreshName("pf");
     this->stream << "volatile unsigned* " << ptr << " = &" << vid_global_barrier_state_ << ";\n";
     this->PrintIndent();
     this->stream << vid_global_barrier_expect_ << " += " << num_blocks << ";\n";
@@ -589,7 +589,7 @@ void CodeGenCUDA::VisitExpr_(const CastNode* op, std::ostream& os) {
 
   // We could emit make_float4 like calls, but the emitted code looks
   // too compact to read. Emit this as vectorized unary ops.
-  std::string sret = GetUniqueName("_");
+  std::string sret = name_supply_->FreshName("_");
   this->PrintIndent();
   this->PrintType(target_ty, stream);
   stream << ' ' << sret << ";\n";
@@ -631,7 +631,7 @@ void CodeGenCUDA::PrintCallExtern(Type ret_type, String global_symbol, const Arr
     // v = __ret;
     //
     // Declare the result vector.
-    std::string sret = GetUniqueName("_");
+    std::string sret = name_supply_->FreshName("_");
     this->PrintIndent();
     this->PrintType(ret_dtype, stream);
     stream << ' ' << sret << ";\n";
@@ -1004,6 +1004,7 @@ void CodeGenCUDA::VisitStmt_(const EvaluateNode* op) {
 }
 
 void CodeGenCUDA::VisitExpr_(const RampNode* op, std::ostream& os) {
+  CHECK_LE(op->lanes, 4) << "ValueError: Ramp of more than 4 lanes is not allowed.";
   os << "(make_int" << op->lanes << "(";
   for (int i = 0; i < op->lanes; i++) {
     os << "(" << PrintExpr(op->base) << ")"
@@ -1138,7 +1139,7 @@ void CodeGenCUDA::VisitExpr_(const SelectNode* op, std::ostream& os) {
   ICHECK(op->false_value->dtype == op->dtype && op->true_value->dtype == op->dtype &&
          op->dtype.lanes() == op->condition.dtype().lanes());
 
-  std::string r_var = GetUniqueName("_");
+  std::string r_var = name_supply_->FreshName("_");
   this->PrintIndent();
   this->PrintType(op->dtype, stream);
   stream << ' ' << r_var << ";\n";
@@ -1196,8 +1197,10 @@ inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p)
       break;
     }
     case 16: {
-      os << "__float2half_rn";
-      os << '(' << std::scientific << op->value << 'f' << ')';
+      os << "__float2half_rn" << '(';
+      FloatImm const_f32 = FloatImm(DataType::Float(32), op->value);
+      PrintConst(const_f32.get(), os, p);
+      os << ')';
       break;
     }
     default:

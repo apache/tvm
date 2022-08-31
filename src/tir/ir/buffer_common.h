@@ -26,7 +26,7 @@
 #include <tvm/ir/type.h>
 #include <tvm/runtime/data_type.h>
 
-#include <utility>
+#include <optional>
 
 namespace tvm {
 namespace tir {
@@ -36,22 +36,20 @@ namespace tir {
  *
  * \param type The type to be checked.
  *
- * \return A (bool, DataType) pair.  If the type is a pointer to a
- * primitive, the boolean is true and the DataType is the pointed-to
- * type.  Otherwise, the boolean is false and the DataType is
- * default-constructed.  This can be replaced with std::optional with
- * C++17 if/when C++17 is required.
+ * \return An std::optional<DataType> object. If the type is a pointer
+ * to a primitive type, the object has a value which is the pointed-to
+ * type. Otherwise the object is nullopt.
  */
-inline std::pair<bool, runtime::DataType> GetPointerType(const Type& type) {
+inline std::optional<runtime::DataType> GetPointerType(const Type& type) {
   if (type.defined()) {
     if (auto* ptr_type = type.as<PointerTypeNode>()) {
       if (auto* prim_type = ptr_type->element_type.as<PrimTypeNode>()) {
-        return {true, prim_type->dtype};
+        return prim_type->dtype;
       }
     }
   }
 
-  return {false, DataType()};
+  return std::nullopt;
 }
 
 }  // namespace tir

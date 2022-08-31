@@ -79,6 +79,7 @@ ExprPrecedence GetExprPrecedence(const ExprDoc& doc) {
     std::map<OpKind, ExprPrecedence> raw_table = {
         {OpKind::kUSub, ExprPrecedence::kUnary},
         {OpKind::kInvert, ExprPrecedence::kUnary},
+        {OpKind::kNot, ExprPrecedence::kBooleanNot},
         {OpKind::kAdd, ExprPrecedence::kAdd},
         {OpKind::kSub, ExprPrecedence::kAdd},
         {OpKind::kMult, ExprPrecedence::kMult},
@@ -97,6 +98,8 @@ ExprPrecedence GetExprPrecedence(const ExprDoc& doc) {
         {OpKind::kNotEq, ExprPrecedence::kComparison},
         {OpKind::kGt, ExprPrecedence::kComparison},
         {OpKind::kGtE, ExprPrecedence::kComparison},
+        {OpKind::kAnd, ExprPrecedence::kBooleanAnd},
+        {OpKind::kOr, ExprPrecedence::kBooleanOr},
         {OpKind::kIfThenElse, ExprPrecedence::kIfThenElse},
     };
     int n = static_cast<int>(OpKind::kSpecialEnd);
@@ -138,7 +141,7 @@ ExprPrecedence GetExprPrecedence(const ExprDoc& doc) {
 
 class PythonDocPrinter : public DocPrinter {
  public:
-  explicit PythonDocPrinter(int indent_spaces = 4) : DocPrinter(indent_spaces) {}
+  explicit PythonDocPrinter(const DocPrinterOptions& options) : DocPrinter(options) {}
 
  protected:
   using DocPrinter::PrintDoc;
@@ -323,6 +326,7 @@ const std::string OperatorToString(OperationDocNode::Kind operation_kind) {
     std::map<OpKind, std::string> raw_table = {
         {OpKind::kUSub, "-"},       //
         {OpKind::kInvert, "~"},     //
+        {OpKind::kNot, "not "},     //
         {OpKind::kAdd, "+"},        //
         {OpKind::kSub, "-"},        //
         {OpKind::kMult, "*"},       //
@@ -341,6 +345,8 @@ const std::string OperatorToString(OperationDocNode::Kind operation_kind) {
         {OpKind::kNotEq, "!="},     //
         {OpKind::kGt, ">"},         //
         {OpKind::kGtE, ">="},       //
+        {OpKind::kAnd, "and"},      //
+        {OpKind::kOr, "or"},        //
     };
 
     std::vector<std::string> table;
@@ -622,9 +628,17 @@ void PythonDocPrinter::PrintTypedDoc(const ClassDoc& doc) {
   NewLineWithoutIndent();
 }
 
-String DocToPythonScript(Doc doc, int indent_spaces) {
-  PythonDocPrinter printer(indent_spaces);
-  printer.Append(doc);
+String DocToPythonScript(Doc doc, int indent_spaces, bool print_line_numbers, int num_context_lines,
+                         Optional<ObjectPath> path_to_underline) {
+  DocPrinterOptions options;
+  options.indent_spaces = indent_spaces;
+  options.print_line_numbers = print_line_numbers;
+  if (num_context_lines >= 0) {
+    options.num_context_lines = num_context_lines;
+  }
+
+  PythonDocPrinter printer(options);
+  printer.Append(doc, path_to_underline);
   return printer.GetString();
 }
 

@@ -27,6 +27,7 @@
 
 #include <dmlc/common.h>
 
+#include <functional>
 #include <utility>
 
 namespace tvm {
@@ -75,9 +76,40 @@ class With {
   ContextType& operator*() { return *get(); }
   const ContextType* operator*() const { return *get(); }
 
+  ContextType operator()() { return ctx_; }
+
  private:
   /*! \brief internal context type. */
   ContextType ctx_;
+};
+
+/*!
+ * \brief A context type that delegates EnterWithScope and ExitWithScope
+ *        to user-provided functions.
+ */
+class ContextManager {
+ public:
+  /*!
+   * \brief Constructor of ContextManager.
+   * \param f_enter The function to call when entering scope. If it's nullptr, do nothing when
+   *                entering.
+   * \param f_exit The function to call when exiting scope. If it's nullptr, do nothing
+   *               when exiting.
+   */
+  template <class FEnter, class FExit>
+  explicit ContextManager(FEnter f_enter, FExit f_exit) : f_enter_(f_enter), f_exit_(f_exit) {}
+
+ private:
+  void EnterWithScope() {
+    if (f_enter_) f_enter_();
+  }
+  void ExitWithScope() {
+    if (f_exit_) f_exit_();
+  }
+  std::function<void()> f_enter_;
+  std::function<void()> f_exit_;
+  template <typename>
+  friend class With;
 };
 
 }  // namespace tvm

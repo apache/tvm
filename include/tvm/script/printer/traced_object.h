@@ -86,6 +86,8 @@ class TracedObject {
   using ObjectType = typename RefT::ContainerType;
 
  public:
+  using ObjectRefType = RefT;
+
   // Don't use this direcly. For convenience, call MakeTraced() instead.
   explicit TracedObject(const RefT& object_ref, ObjectPath path)
       : ref_(object_ref), path_(std::move(path)) {}
@@ -448,7 +450,7 @@ class TracedBasicValue {
    * \brief Transform the wrapped value without changing its path.
    */
   template <typename F>
-  typename detail::TracedObjectWrapperSelector<typename std::result_of<F(const T&)>::type>::Type
+  typename detail::TracedObjectWrapperSelector<typename std::invoke_result<F, const T&>::type>::Type
   ApplyFunc(F&& f) const {
     return MakeTraced(f(value_), path_);
   }

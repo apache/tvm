@@ -20,7 +20,6 @@ import logging
 from os import path as osp
 from typing import Callable, Dict, List, Optional, Union
 
-from tvm._ffi.registry import register_func
 from tvm.ir import IRModule
 from tvm.target import Target
 from tvm.tir import PrimFunc
@@ -44,7 +43,6 @@ FnPostproc = Callable[[], List[Postproc]]
 FnMutatorProb = Callable[[], Dict[Mutator, float]]
 
 
-@register_func("tvm.meta_schedule.tune.parse_mod")  # for use in ApplyHistoryBest
 def mod(mod: Union[PrimFunc, IRModule]) -> IRModule:  # pylint: disable=redefined-outer-name
     """Normalize the input to an IRModule"""
     if isinstance(mod, PrimFunc):
@@ -53,8 +51,6 @@ def mod(mod: Union[PrimFunc, IRModule]) -> IRModule:  # pylint: disable=redefine
         mod = IRModule({"main": mod})
     if not isinstance(mod, IRModule):
         raise TypeError(f"Expected `mod` to be PrimFunc or IRModule, but gets: {mod}")
-    # in order to make sure the mod can be found in ApplyHistoryBest
-    # different func name can cause structural unequal
     func_names = mod.get_global_vars()
     (func_name,) = func_names
     if len(func_names) == 1 and func_name != "main":
@@ -178,7 +174,7 @@ def schedule_rules(  # pylint: disable=redefined-outer-name
         return sch_rules()
     if sch_rules is not None:
         raise TypeError(f"Expected `sch_rules` to be None or callable, but gets: {sch_rules}")
-    if target.kind.name == "llvm":
+    if target.kind.name in ["llvm", "hexagon"]:
         return _DefaultLLVM.schedule_rules()
     if target.kind.name in ["cuda", "rocm", "vulkan"]:
         return _DefaultCUDA.schedule_rules()
@@ -194,7 +190,7 @@ def postproc(  # pylint: disable=redefined-outer-name
         return postproc()
     if postproc is not None:
         raise TypeError(f"Expected `postproc` to be None or callable, but gets: {postproc}")
-    if target.kind.name == "llvm":
+    if target.kind.name in ["llvm", "hexagon"]:
         return _DefaultLLVM.postprocs()
     if target.kind.name in ["cuda", "rocm", "vulkan"]:
         return _DefaultCUDA.postprocs()
@@ -212,7 +208,7 @@ def mutator_probs(  # pylint: disable=redefined-outer-name
         raise TypeError(
             f"Expected `mutator_probs` to be None or callable, but gets: {mutator_probs}"
         )
-    if target.kind.name == "llvm":
+    if target.kind.name in ["llvm", "hexagon"]:
         return _DefaultLLVM.mutator_probs()
     if target.kind.name in ["cuda", "rocm", "vulkan"]:
         return _DefaultCUDA.mutator_probs()
@@ -293,7 +289,7 @@ class _DefaultCUDA:
                 structure="SSSRRSRS",
                 tile_binds=["blockIdx.x", "vthread.x", "threadIdx.x"],
                 max_innermost_factor=64,
-                vector_load_lens=[1, 2, 3, 4],
+                vector_load_lens=[1, 2, 3, 4, 8, 16],
                 reuse_read=M.ReuseType(
                     req="must",
                     levels=[4],
@@ -357,29 +353,31 @@ class _DefaultCUDATensorCore:
     @staticmethod
     def schedule_rules():
         from tvm.meta_schedule import schedule_rule as M
-        from tvm.tir.tensor_intrin import get_wmma_intrin_group
+        from tvm.tir.tensor_intrin.cuda import get_wmma_intrin_group
 
         return [
             M.MultiLevelTilingTensorCore(
                 intrin_groups=[
                     get_wmma_intrin_group(
                         store_scope="shared",
-                        in_dtype="float16",
-                        out_dtype="float16",
+                        in_dtype=in_dtype,
+                        out_dtype=out_dtype,
                         trans_b=trans_b,
                     )
+                    for (in_dtype, out_dtype) in [("float16", "float16"), ("int8", "int32")]
                     for trans_b in [False, True]
                 ],
                 structure="SSSRRSRS",
                 tile_binds=["blockIdx.y", "blockIdx.x", "threadIdx.y"],
                 max_innermost_factor=4,
-                vector_load_lens=[1, 2, 3, 4],
+                vector_load_lens=[1, 2, 3, 4, 8, 16],
                 reuse_read=M.ReuseType(req="must", levels=[4], scope="shared"),
                 reuse_write=M.ReuseType(
                     req="must",
                     levels=[2],
                     scope="shared",
                 ),
+                use_software_pipeline=False,
             ),
             *_DefaultCUDA.schedule_rules(),
         ]

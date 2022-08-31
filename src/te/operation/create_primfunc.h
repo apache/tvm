@@ -30,6 +30,14 @@ namespace tir {
 /*! \brief Use Tensor Expression to create a schedulable TensorIR func. */
 PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list);
 
+/*! \brief The same as above but create a PrimFunc with AllocateConstNode. If the size of the
+ * constants array is N, the last N tensors in arg_list will be treated as constant tensors.
+ * Constant tensors will not be part of the parameters of the created PrimFunc, instead constants
+ * will be embedded in the body as AllocateConstNode.
+ */
+PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
+                                     const Array<runtime::NDArray>& constants);
+
 }  // namespace tir
 }  // namespace tvm
 

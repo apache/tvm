@@ -99,7 +99,7 @@ class PooledAllocator final : public Allocator {
  private:
   size_t page_size_;
   std::atomic<size_t> used_memory_;
-  std::unordered_map<size_t, std::vector<Buffer> > memory_pool_;
+  std::unordered_map<size_t, std::vector<Buffer>> memory_pool_;
   std::recursive_mutex mu_;
   Device device_;
 };

@@ -911,7 +911,9 @@ class PyTorchOpConverter:
 
     def log_sigmoid(self, inputs, input_types):
         data = inputs[0]
-        return _op.log(_op.tensor.sigmoid(data))
+        mn = _op.minimum(_op.const(0, dtype=input_types[0]), data)
+        z = _op.exp(-_op.abs(data))
+        return mn - self.log1p([z], input_types)
 
     def cross_entropy_loss_with_logits(self, inputs, input_types):
         input = inputs[0]
@@ -1071,13 +1073,17 @@ class PyTorchOpConverter:
     def maxpool_3d(self, inputs, input_types):
         data = inputs[0]
 
+        need_squeeze = False
+        if len(self.get_dims(data)) == 4:
+            need_squeeze = True
+            data = _op.expand_dims(data, 0)
         pool_size = inputs[1]
         strides = inputs[2] if inputs[2] else pool_size
         padding = inputs[3]
         dilation = inputs[4]
         ceil_mode = int(inputs[5])
 
-        return _op.nn.max_pool3d(
+        res = _op.nn.max_pool3d(
             data,
             pool_size=pool_size,
             strides=strides,
@@ -1085,6 +1091,7 @@ class PyTorchOpConverter:
             padding=padding,
             ceil_mode=ceil_mode,
         )
+        return res if not need_squeeze else _op.squeeze(res, [0])
 
     def hardtanh(self, inputs, input_types):
         a = inputs[0]
@@ -1558,10 +1565,8 @@ class PyTorchOpConverter:
             return _op.tensor.sigmoid(x)
 
         if self.is_quantized_tensor(data):
-            assert len(inputs) == 3, "Input quant param not found in op inputs"
-            input_scale = _expr.const(inputs[1])
-            input_zero_point = _expr.const(inputs[2])
-            return qnn_torch.quantized_sigmoid(data, input_scale, input_zero_point)
+            assert len(inputs) == 5, "Input/Ouput quant param not found in op inputs"
+            return qnn_torch.quantized_sigmoid(inputs)
 
         return func(data)
 
@@ -1905,7 +1910,7 @@ class PyTorchOpConverter:
 
         # initialize paddings based on input len
         pad_len = len(self.infer_shape(data)) * 2
-        paddings = [pad_value] * pad_len
+        paddings = [0] * pad_len
 
         if len(pad_list) >= 2:
             paddings[-1] = pad_list[1]
@@ -1925,8 +1930,10 @@ class PyTorchOpConverter:
         for pad in paddings:
             const_paddings.append([])
             for p in pad:
-                if not isinstance(p, int):
+                if isinstance(p, _expr.Expr):
                     p = int(_infer_value(p, {}).numpy())
+                elif not isinstance(p, int):
+                    raise NotImplementedError("pad width should be int/expr")
                 const_paddings[-1].append(p)
                 if p != 0:
                     non_zero_found = True
@@ -1934,12 +1941,11 @@ class PyTorchOpConverter:
         if not non_zero_found:
             return data
         elif mode == "constant":
-            return _op.nn.pad(data, const_paddings, pad_value=inputs[2], pad_mode=mode)
+            return _op.nn.pad(data, const_paddings, pad_value=pad_value, pad_mode=mode)
         else:
             return _op.nn.pad(data, const_paddings, pad_mode=mode)
 
     def pad(self, inputs, input_types):
-
         # mode: Optional default "constant"
         if len(inputs) > 2 and inputs[2] is not None:
             mode = inputs[2]
@@ -1960,7 +1966,7 @@ class PyTorchOpConverter:
         return self.pad_common(mode, pad_value, inputs, input_types)
 
     def constant_pad_nd(self, inputs, input_types):
-        return self.pad_common("constant", 0, inputs, input_types)
+        return self.pad_common("constant", _expr.const(inputs[2]), inputs, input_types)
 
     def reflection_pad1d(self, inputs, input_types):
         return self.pad_common("reflect", 0, inputs, input_types)
@@ -2497,6 +2503,21 @@ class PyTorchOpConverter:
         else:
             dtype = input_types[0]
         return _op.zeros(shape, dtype)
+
+    def new_empty(self, inputs, input_types):
+        size = inputs[1]
+
+        import torch
+
+        if not isinstance(size, (_expr.Expr, list, tuple, torch.Size, np.ndarray)):
+            msg = "Data type %s could not be parsed in empty op" % (type(size))
+            raise AssertionError(msg)
+
+        if inputs[2] is not None:
+            dtype = _convert_dtype_value(inputs[2])
+        else:
+            dtype = input_types[0]
+        return _op.zeros(size, dtype)
 
     def randn(self, inputs, input_types):
         import time  # use current time as seed
@@ -3252,8 +3273,14 @@ class PyTorchOpConverter:
         return (output, _op.stack(hy, 0), _op.stack(cy, 0))
 
     def all_any_common(self, op, inputs, input_types):
-        dim = inputs[1]
-        keepdim = inputs[2]
+        if len(inputs) >= 2:
+            dim = inputs[1]
+        else:
+            dim = None
+        if len(inputs) >= 3:
+            keepdim = inputs[2]
+        else:
+            keepdim = False
         if self.infer_type(inputs[0]).dtype != "bool":
             # The input dtype can be uint8.
             inp = _op.cast(inputs[0], "bool")
@@ -3625,6 +3652,7 @@ class PyTorchOpConverter:
             "aten::numel": self.numel,
             "aten::empty": self.empty,
             "aten::empty_like": self.empty_like,
+            "aten::new_empty": self.new_empty,
             "aten::randn": self.randn,
             "aten::bincount": self.bincount,
             "aten::scatter_add": self.scatter_add,

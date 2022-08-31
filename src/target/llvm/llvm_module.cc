@@ -390,8 +390,8 @@ void LLVMModuleNode::LazyInitJIT() {
 }
 
 bool LLVMModuleNode::IsCompatibleWithHost(const llvm::TargetMachine* tm) const {
-  With<LLVMTarget> host_target(*llvm_instance_, "llvm");  // FIXME(kparzysz-quic): nesting
-  auto tm_host = host_target->GetOrCreateTargetMachine();
+  LLVMTargetInfo host_target(*llvm_instance_, "llvm");
+  auto tm_host = host_target.GetOrCreateTargetMachine();
   if (tm_host->getTargetTriple().getArch() != tm->getTargetTriple().getArch()) {
     LOG(INFO) << "Architecture mismatch: module=" << tm->getTargetTriple().str()
               << " host=" << tm_host->getTargetTriple().str();
@@ -496,7 +496,7 @@ runtime::Module CreateLLVMCppMetadataModule(runtime::metadata::Metadata metadata
   auto llvm_instance = std::make_unique<LLVMInstance>();
   With<LLVMTarget> llvm_target(*llvm_instance, target);
   bool system_lib = runtime->GetAttr<Bool>("system-lib").value_or(Bool(false));
-  std::unique_ptr<CodeGenCPU> cg{new CodeGenCPU()};
+  auto cg = std::make_unique<CodeGenCPU>();
 
   cg->Init("TVMMetadataMod", llvm_target.get(), system_lib, system_lib,
            /*target_c_runtime=*/false);
@@ -544,7 +544,7 @@ runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& module
   ICHECK(system_lib && target_c_runtime)
       << "For LLVM C-runtime metadata module, must include --system-lib and --runtime=c; "
       << "got target: " << target->str();
-  std::unique_ptr<CodeGenCPU> cg{new CodeGenCPU()};
+  auto cg = std::make_unique<CodeGenCPU>();
   cg->Init("TVMMetadataMod", llvm_target.operator->(), system_lib, system_lib, target_c_runtime);
 
   cg->DefineFunctionRegistry(func_names);

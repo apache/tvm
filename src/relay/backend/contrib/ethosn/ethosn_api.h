@@ -140,6 +140,18 @@ struct ReluParams {
   sl::TensorInfo output_info;
 };
 
+struct RequantizeParams {
+  sl::RequantizeInfo requantize_info;
+  sl::TensorInfo input_info;
+  sl::TensorInfo output_info;
+};
+
+struct ResizeParams {
+  sl::ResizeInfo resize_info;
+  sl::TensorInfo input_info;
+  sl::TensorInfo output_info;
+};
+
 /*!
  * \brief A wrapper around std::stringstream to build an EthosnError.
  */
@@ -233,6 +245,10 @@ class EthosnAPI {
   static EthosnError DepthToSpace(const Expr& expr, DepthToSpaceParams* params);
   /*! \brief Extract the Support Library relu params from a Relay relu call */
   static EthosnError Relu(const Expr& expr, ReluParams* params);
+  /*! \brief Extract the Support Library requantize params from a Relay qnn.requantize call */
+  static EthosnError Requantize(const Expr& expr, RequantizeParams* params);
+  /*! \brief Extract the Support Library resize params from a Relay resize call */
+  static EthosnError Resize(const Expr& expr, ResizeParams* params);
 
  private:
   /*! \brief Convert a TVM IndexExpr array to a SL tensor shape */

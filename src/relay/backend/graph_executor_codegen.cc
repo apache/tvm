@@ -466,7 +466,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     }
 
     // Compute the operator name, because we used the get unique name when generating the kernel.
-    auto op_name = _GetUniqueName(func_name);
+    auto op_name = name_supply_->FreshName(func_name);
     auto node = GraphOpNode::make_node_ptr(op_name, GraphAttrs(), func_name, inputs, attrs);
     return AddNode(node, call);
   }
@@ -604,22 +604,6 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     writer->EndObject();
   }
 
-  /*!
-   * \brief Get unique name for func
-   *
-   * \param name
-   * \return std::string
-   */
-  std::string _GetUniqueName(const std::string& name) {
-    if (!name_map_.count(name)) {
-      name_map_[name] = 1;
-      return name;
-    }
-    auto index = name_map_[name];
-    name_map_[name] += 1;
-    return _GetUniqueName(name + std::to_string(index));
-  }
-
  protected:
   /*! \brief nodes */
   std::vector<GraphObjectPtr> nodes_;
@@ -645,8 +629,8 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
   String mod_name_;
   /*! \brief function metadata */
   Map<String, FunctionInfo> function_metadata_;
-  /*! \brief name map */
-  std::unordered_map<std::string, size_t> name_map_;
+  /*! \brief NameSupply */
+  NameSupply name_supply_ = NameSupply("");
 };
 
 class GraphExecutorCodegenModule : public runtime::ModuleNode {

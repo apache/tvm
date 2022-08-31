@@ -42,7 +42,7 @@
 namespace tvm {
 namespace codegen {
 
-CodeGenCHost::CodeGenCHost() { module_name_ = GetUniqueName("__tvm_module_ctx"); }
+CodeGenCHost::CodeGenCHost() { module_name_ = name_supply_->FreshName("__tvm_module_ctx"); }
 
 void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, std::string target_str,
                         const std::unordered_set<std::string>& devices) {
@@ -207,8 +207,8 @@ void CodeGenCHost::PrintGetFuncFromBackend(const std::string& func_name,
 
 void CodeGenCHost::PrintFuncCall(const std::string& packed_func_name, int num_args) {
   this->PrintIndent();
-  std::string ret_val = GetUniqueName("ret_val");
-  std::string ret_type_code = GetUniqueName("ret_type_code");
+  std::string ret_val = name_supply_->FreshName("ret_val");
+  std::string ret_type_code = name_supply_->FreshName("ret_type_code");
   this->stream << "TVMValue " << ret_val << ";\n";
   this->PrintIndent();
   this->stream << "int " << ret_type_code << ";\n";
@@ -231,8 +231,8 @@ void CodeGenCHost::PrintFuncCall(const std::string& packed_func_name, int num_ar
 void CodeGenCHost::PrintFuncCallC(const std::string& packed_func_name, int num_args,
                                   const std::string& resource_handle_name) {
   this->PrintIndent();
-  std::string ret_val = GetUniqueName("ret_val");
-  std::string ret_type_code = GetUniqueName("ret_type_code");
+  std::string ret_val = name_supply_->FreshName("ret_val");
+  std::string ret_type_code = name_supply_->FreshName("ret_type_code");
   this->stream << "TVMValue " << ret_val << ";\n";
   this->PrintIndent();
   this->stream << "int " << ret_type_code << ";\n";
@@ -264,7 +264,7 @@ std::string CodeGenCHost::GetPackedName(const CallNode* op) {
   if (it != declared_globals_.end()) {
     unique_name = it->second;
   } else {
-    unique_name = GetUniqueName(packed_func_name);
+    unique_name = name_supply_->FreshName(packed_func_name);
     declared_globals_[packed_func_name] = unique_name;
     decl_stream << "static void* " << unique_name << " = NULL;\n";
   }
@@ -310,7 +310,7 @@ CodeGenCHost::FunctionInfo CodeGenCHost::GetFunctionInfo(const CallNode* op,
 
 void CodeGenCHost::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   if (op->op.same_as(builtin::tvm_stack_alloca())) {
-    std::string stack_name = GetUniqueName("stack");
+    std::string stack_name = name_supply_->FreshName("stack");
     const std::string& type = op->args[0].as<StringImmNode>()->value;
     const IntImmNode* num = op->args[1].as<IntImmNode>();
     ICHECK(num != nullptr);
