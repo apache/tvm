@@ -703,15 +703,27 @@ class TestRewriteInPlaceUseOfNonFlatBuffer(BaseCompare):
     """A non-flat buffer may be re-used for in-place operations"""
 
     def before(A: T.Buffer[(16, 16), "float32"], D: T.Buffer[(16, 16), "float32"]):
-        B = T.decl_buffer(
+        B_data = T.allocate(
             [16, 16],
             dtype="float32",
-            axis_separators=[1],
+            scope="global",
         )
-        C = T.decl_buffer(
+        B = T.buffer_decl(
             [16, 16],
             dtype="float32",
             axis_separators=[1],
+            data=B_data,
+        )
+        C_data = T.allocate(
+            [16, 16],
+            dtype="float32",
+            scope="global",
+        )
+        C = T.buffer_decl(
+            [16, 16],
+            dtype="float32",
+            axis_separators=[1],
+            data=C_data,
         )
 
         for i, j in T.grid(16, 16):
@@ -724,12 +736,13 @@ class TestRewriteInPlaceUseOfNonFlatBuffer(BaseCompare):
             D[i, j] = C[i, j]
 
     def expected(A: T.Buffer[(16, 16), "float32"], D: T.Buffer[(16, 16), "float32"]):
-        B = T.decl_buffer(
+        B_data = T.allocate(
             [16, 16],
             dtype="float32",
-            axis_separators=[1],
+            scope="global",
         )
-        C = T.decl_buffer(
+        B = T.buffer_decl([16, 16], dtype="float32", axis_separators=[1], data=B_data)
+        C = T.buffer_decl(
             [16, 16],
             dtype="float32",
             axis_separators=[1],
@@ -759,15 +772,27 @@ class TestNoRewriteOfSharedNonFlatBuffer(BaseCompare):
     """
 
     def before(A: T.Buffer[(16, 16), "float32"], D: T.Buffer[(16, 16), "float32"]):
-        B = T.decl_buffer(
+        B_data = T.allocate(
+            [16, 16],
+            dtype="float32",
+            scope="global",
+        )
+        B = T.buffer_decl(
             [16, 16],
             dtype="float32",
             axis_separators=[1],
+            data=B_data,
         )
-        C = T.decl_buffer(
+        C_data = T.allocate(
+            [20, 20],
+            dtype="float32",
+            scope="global",
+        )
+        C = T.buffer_decl(
             [20, 20],
             dtype="float32",
             axis_separators=[1],
+            data=C_data,
         )
 
         for i, j in T.grid(16, 16):
