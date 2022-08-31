@@ -151,7 +151,7 @@ def test_resnet_50_int8():
         input_dict={"input": (1, 224, 224, 3)},
         compile_hash=_compile_hash,
         output_count=1,
-        host_ops=11,
+        host_ops=10,
         npu_partitions=2,
     )
 
@@ -211,6 +211,6 @@ def test_ssd_mobilenet_v1():
         input_dict={"normalized_input_image_tensor": (1, 300, 300, 3)},
         compile_hash=_compile_hash,
         output_count=4,
-        host_ops=28,
+        host_ops=27,
         npu_partitions=2,
     )

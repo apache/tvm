@@ -360,8 +360,6 @@ def reshape(expr):
     """Check if a reshape is supported by Ethos-N."""
     if not ethosn_available():
         return False
-    if not _is_ethosn_composite(expr.args[0]):
-        return False
 
     return _ethosn.reshape(expr)
 
