@@ -100,11 +100,20 @@ class BufferUsageFinder : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
+  void VisitStmt_(const DeclBufferNode* op) final {
+    buffers_declared_.insert(op->buffer.get());
+    StmtExprVisitor::VisitStmt_(op);
+    buffers_declared_.erase(op->buffer.get());
+  }
+
  private:
   explicit BufferUsageFinder(Map<Var, Array<Buffer>> usage) : usage_(usage) {}
 
   void VisitBuffer(const Buffer& buffer) {
     if (buffers_visited_.count(buffer.get())) {
+      return;
+    }
+    if (buffers_declared_.count(buffer.get())) {
       return;
     }
     buffers_visited_.insert(buffer.get());
@@ -119,6 +128,9 @@ class BufferUsageFinder : public StmtExprVisitor {
   // The buffers that have been visited so far, to avoid duplicate
   // entries in the search result.
   std::unordered_set<const BufferNode*> buffers_visited_;
+  // The buffers declared via `DeclBuffer`. These buffers are excluded from the result because
+  // T.buffer_decl shouldn't be printed for them.
+  std::unordered_set<const BufferNode*> buffers_declared_;
 };
 
 /*!
@@ -1055,58 +1067,57 @@ Doc TVMScriptPrinter::VisitStmt_(const BufferRealizeNode* op) {
 }
 
 namespace {
-struct AllocUsage {
-  Buffer alloc_buffer;
-  Array<Buffer> aliasing_buffers;
-};
 
-template <typename AllocNode>
-AllocUsage FindAllocateUsage(AllocNode* op, Map<Var, Array<Buffer>>* cache_ptr) {
-  Map<Var, Array<Buffer>>& cache = *cache_ptr;
-  if (!cache.count(op->buffer_var)) {
-    cache = BufferUsageFinder::FindUsage(std::move(cache), op->body);
+bool IsAllocateDeclBufferPattern(const AllocateNode* allocate) {
+  const Var& buffer_var = allocate->buffer_var;
+  const DeclBufferNode* decl_buffer = allocate->body.as<DeclBufferNode>();
+  if (!decl_buffer) {
+    return false;
   }
-  Array<Buffer> buffer_usage = cache.Get(op->buffer_var).value_or({});
-
-  auto is_exact_match = [](Buffer a, Buffer b) {
-    if (a->dtype != b->dtype) return false;
-    if (a->shape.size() != b->shape.size()) return false;
-
-    arith::Analyzer analyzer;
-    for (size_t i = 0; i < a->shape.size(); i++) {
-      if (!analyzer.CanProveEqual(a->shape[i], b->shape[i])) {
-        return false;
-      }
-    }
-    return true;
-  };
-
-  // If the buffer allocated via T.allocate is an exact match to the
-  // usage of the buffer later on, then that buffer is the return
-  // value of T.allocate, and no T.buffer_decl statement is needed.
-  Buffer alloc_buffer(op->buffer_var, op->dtype, op->extents, {}, 0, op->buffer_var->name_hint, 0,
-                      0, kDefault);
-  bool found_alloc_buf = false;
-  Array<Buffer> aliasing_buffers;
-  for (const auto& buf : buffer_usage) {
-    if (!found_alloc_buf && is_exact_match(buf, alloc_buffer)) {
-      alloc_buffer = buf;
-      found_alloc_buf = true;
-    } else {
-      aliasing_buffers.push_back(buf);
+  const Buffer& buffer = decl_buffer->buffer;
+  if (!buffer_var.same_as(buffer->data)) {
+    return false;
+  }
+  if (allocate->dtype != buffer->dtype) {
+    return false;
+  }
+  if (!is_one(allocate->condition)) {
+    return false;
+  }
+  if (allocate->annotations.size()) {
+    return false;
+  }
+  if (allocate->extents.size() != buffer->shape.size()) {
+    return false;
+  }
+  tir::ExprDeepEqual expr_equal;
+  for (size_t i = 0, n = allocate->extents.size(); i < n; ++i) {
+    if (!expr_equal(allocate->extents[i], buffer->shape[i])) {
+      return false;
     }
   }
-
-  return AllocUsage{alloc_buffer, aliasing_buffers};
+  return true;
 }
+
 }  // namespace
 
 Doc TVMScriptPrinter::VisitStmt_(const AllocateNode* op) {
-  auto usage = FindAllocateUsage(op, &buffer_var_usage_);
-  Buffer& alloc_buffer = usage.alloc_buffer;
-  Array<Buffer>& aliasing_buffers = usage.aliasing_buffers;
-  buf_not_in_headers_.insert(alloc_buffer.get());
-  var_not_in_headers_.insert(alloc_buffer->data.get());
+  var_not_in_headers_.insert(op->buffer_var.get());
+
+  if (!buffer_var_usage_.count(op->buffer_var)) {
+    buffer_var_usage_ = BufferUsageFinder::FindUsage(std::move(buffer_var_usage_), op->body);
+  }
+  Array<Buffer> buffer_usage = buffer_var_usage_.Get(op->buffer_var).value_or({});
+
+  if (buffer_usage.empty()) {
+    if (IsAllocateDeclBufferPattern(op)) {
+      // As a syntax sugar, we identify the pattern of Allocate and DeclBuffer and print a single
+      // DeclBuffer statement. It is intentionally to call `Print` instead of `PrintBody` here to
+      // delegate the printing of the current node to `DeclBufferNode` while maintaining the
+      // same value of `current_num_` and `num_child_`.
+      return Print(op->body);
+    }
+  }
 
   auto storage_scope = GetPtrStorageScope(op->buffer_var);
   Doc func_call;
@@ -1124,12 +1135,12 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateNode* op) {
 
   Doc doc;
   if (current_num_ != num_child_ - 1) {
-    doc << "with " << func_call << " as " << Print(alloc_buffer) << ":";
-    doc << Doc::Indent(4, Doc::NewLine() << PrintNonHeaderBufferDeclarations(aliasing_buffers)
-                                         << PrintBody(op->body));
+    doc << "with " << func_call << " as " << Print(op->buffer_var) << ":";
+    doc << Doc::Indent(
+        4, Doc::NewLine() << PrintNonHeaderBufferDeclarations(buffer_usage) << PrintBody(op->body));
   } else {
-    doc << Print(alloc_buffer) << " = " << func_call << Doc::NewLine();
-    doc << PrintNonHeaderBufferDeclarations(aliasing_buffers) << PrintBody(op->body);
+    doc << Print(op->buffer_var) << " = " << func_call << Doc::NewLine();
+    doc << PrintNonHeaderBufferDeclarations(buffer_usage) << PrintBody(op->body);
   }
   TryDeallocVar(op->buffer_var);
   return doc;
@@ -1179,11 +1190,12 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateConstNode* alloc) {
   }
   auto ndarray_str = ss.str();
 
-  auto usage = FindAllocateUsage(alloc, &buffer_var_usage_);
-  Buffer& alloc_buffer = usage.alloc_buffer;
-  Array<Buffer>& aliasing_buffers = usage.aliasing_buffers;
-  buf_not_in_headers_.insert(alloc_buffer.get());
-  var_not_in_headers_.insert(alloc_buffer->data.get());
+  var_not_in_headers_.insert(alloc->buffer_var.get());
+
+  if (!buffer_var_usage_.count(alloc->buffer_var)) {
+    buffer_var_usage_ = BufferUsageFinder::FindUsage(std::move(buffer_var_usage_), alloc->body);
+  }
+  Array<Buffer> buffer_usage = buffer_var_usage_.Get(alloc->buffer_var).value_or({});
 
   Doc func_call;
   func_call << tir_prefix_ << ".allocate_const(" << ndarray_str << ", " << PrintDType(alloc->dtype)
@@ -1192,12 +1204,12 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateConstNode* alloc) {
   Doc doc;
   var_not_in_headers_.insert(alloc->buffer_var.get());
   if (current_num_ != num_child_ - 1) {
-    doc << "with " << func_call << " as " << Print(alloc_buffer) << ":";
-    doc << Doc::Indent(4, Doc::NewLine() << PrintNonHeaderBufferDeclarations(aliasing_buffers)
+    doc << "with " << func_call << " as " << Print(alloc->buffer_var) << ":";
+    doc << Doc::Indent(4, Doc::NewLine() << PrintNonHeaderBufferDeclarations(buffer_usage)
                                          << PrintBody(alloc->body));
   } else {
-    doc << Print(alloc_buffer) << " = " << func_call << Doc::NewLine();
-    doc << PrintNonHeaderBufferDeclarations(aliasing_buffers) << PrintBody(alloc->body);
+    doc << Print(alloc->buffer_var) << " = " << func_call << Doc::NewLine();
+    doc << PrintNonHeaderBufferDeclarations(buffer_usage) << PrintBody(alloc->body);
   }
   return doc;
 }
