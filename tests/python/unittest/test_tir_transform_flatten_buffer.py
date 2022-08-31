@@ -52,11 +52,7 @@ class TestElementwise(BaseCompare):
 
 
 class TestGPU(BaseCompare):
-    """Buffers allocated inside GPU-specific constructs are ignored.
-
-    These are assumed to be deliberate on the part of the
-    schedule-writer, and are left as-is.
-    """
+    """Buffer flattening may have indices based on GPU thread vars"""
 
     def before(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]):
 
