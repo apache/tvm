@@ -52,10 +52,10 @@ def mma_sp_m16n8k16_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: 
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    multi_a = T.allocate([4], "float16", scope="local")
-    multi_b = T.allocate([4], "float16", scope="local")
-    accum = T.allocate([4], "float16", scope="local")
-    meta_local = T.allocate([1], "uint32", scope="local")
+    multi_a = T.decl_buffer([4], "float16", scope="local")
+    multi_b = T.decl_buffer([4], "float16", scope="local")
+    accum = T.decl_buffer([4], "float16", scope="local")
+    meta_local = T.decl_buffer([1], "uint32", scope="local")
     for i in range(4):
         accum[i] = T.float16(0)
 
@@ -106,10 +106,10 @@ def mma_sp_m16n8k16_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: 
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    multi_a = T.allocate([4], "float16", scope="local")
-    multi_b = T.allocate([4], "float16", scope="local")
-    accum = T.allocate([4], "float32", scope="local")
-    meta_local = T.allocate([1], "uint32", scope="local")
+    multi_a = T.decl_buffer([4], "float16", scope="local")
+    multi_b = T.decl_buffer([4], "float16", scope="local")
+    accum = T.decl_buffer([4], "float32", scope="local")
+    meta_local = T.decl_buffer([1], "uint32", scope="local")
     for i in range(4):
         accum[i] = T.float16(0)
 
@@ -160,10 +160,10 @@ def mma_sp_m16n8k32_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: 
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    multi_a = T.allocate([8], "float16", scope="local")
-    multi_b = T.allocate([8], "float16", scope="local")
-    accum = T.allocate([4], "float16", scope="local")
-    meta_local = T.allocate([1], "uint32", scope="local")
+    multi_a = T.decl_buffer([8], "float16", scope="local")
+    multi_b = T.decl_buffer([8], "float16", scope="local")
+    accum = T.decl_buffer([4], "float16", scope="local")
+    meta_local = T.decl_buffer([1], "uint32", scope="local")
     for i in range(4):
         accum[i] = T.float16(0)
 
@@ -214,10 +214,10 @@ def mma_sp_m16n8k32_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: 
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    multi_a = T.allocate([8], "float16", scope="local")
-    multi_b = T.allocate([8], "float16", scope="local")
-    accum = T.allocate([4], "float32", scope="local")
-    meta_local = T.allocate([1], "uint32", scope="local")
+    multi_a = T.decl_buffer([8], "float16", scope="local")
+    multi_b = T.decl_buffer([8], "float16", scope="local")
+    accum = T.decl_buffer([4], "float32", scope="local")
+    meta_local = T.decl_buffer([1], "uint32", scope="local")
     for i in range(4):
         accum[i] = T.float16(0)
 
