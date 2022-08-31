@@ -34,11 +34,12 @@ logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 def _get_network(
-    args: Tuple[str, List[int]]
+    args: Tuple[str, List[int], str]
 ) -> Tuple[IRModule, bytearray, Tuple[str, List[int], str]]:
     name: str
     input_shape: List[int]
-    name, input_shape = args
+    layout: str
+    name, input_shape, layout = args
 
     mod: IRModule
 
@@ -56,6 +57,8 @@ def _get_network(
     ]:
         import torch  # type: ignore
         from torchvision import models  # type: ignore
+
+        assert layout is None or layout in ["NCHW", "NHWC"]
 
         if name in ["resnet_18", "resnet_50"]:
             model = getattr(models, name.replace("_", ""))(pretrained=False)
@@ -86,26 +89,29 @@ def _get_network(
         input_name = "input0"
         shape_list = [(input_name, input_shape)]
         mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
+        passes = [relay.transform.RemoveUnusedFunctions()]
+        if layout == "NHWC":
+            # PyTorch is imported as NCHW by default
+            passes.append(
+                relay.transform.ConvertLayout(
+                    {
+                        "nn.conv2d": ["NHWC", "default"],
+                        "nn.conv3d": ["NDHWC", "default"],
+                        "nn.max_pool2d": ["NHWC", "default"],
+                        "nn.avg_pool2d": ["NHWC", "default"],
+                    }
+                )
+            )
         with tvm.transform.PassContext(opt_level=3):
-            mod = tvm.transform.Sequential(
-                [
-                    relay.transform.RemoveUnusedFunctions(),
-                    relay.transform.ConvertLayout(
-                        {
-                            "nn.conv2d": ["NHWC", "default"],
-                            "nn.conv3d": ["NDHWC", "default"],
-                            "nn.max_pool2d": ["NHWC", "default"],
-                            "nn.avg_pool2d": ["NHWC", "default"],
-                        }
-                    ),
-                ]
-            )(mod)
+            mod = tvm.transform.Sequential(passes)(mod)
         inputs = (input_name, input_shape, dtype)
     elif name in ["bert_tiny", "bert_base", "bert_medium", "bert_large"]:
         os.environ["TOKENIZERS_PARALLELISM"] = "false"
         # pip3 install transformers==3.5 torch==1.7
         import torch  # type: ignore
         import transformers  # type: ignore
+
+        assert layout is None
 
         config_dict = {
             "bert_tiny": transformers.BertConfig(
@@ -151,6 +157,8 @@ def _get_network(
         mod = relay.transform.CombineParallelBatchMatmul()(mod)
         inputs = (input_name, input_shape, input_dtype)
     elif name == "dcgan":
+        assert layout is None
+
         output_shape = input_shape
         batch_size = output_shape[0]
         oshape = output_shape[1:]
@@ -190,6 +198,7 @@ def get_network(
     name: str,
     input_shape: List[int],
     *,
+    layout: Optional[str] = None,
     cache_dir: Optional[str] = None,
 ) -> Tuple[IRModule, Dict[str, NDArray], Tuple[str, List[int], str]]:
     """Get the symbol definition and random weight of a network
@@ -200,6 +209,8 @@ def get_network(
         The name of the network.
     input_shape : List[int]
         The shape of the input tensor.
+    layout : Optional[str]
+        The layout of the input tensor. For vision models, the layout is by default NHWC.
     cache_dir : Optional[str], optional
         The directory to cache the generated network.
         If not specified, the cache will be disabled.
@@ -223,7 +234,7 @@ def get_network(
     cached = _load_cache(cache_dir, filename)
     if cached is None:
         with multiprocessing.Pool(processes=1) as pool:
-            result = pool.map(_get_network, [(name, input_shape)])
+            result = pool.map(_get_network, [(name, input_shape, layout)])
         ((mod, params_bytearray, inputs),) = result
         cached = [mod, params_bytearray, inputs]
         _save_cache(cache_dir, filename, cached)
