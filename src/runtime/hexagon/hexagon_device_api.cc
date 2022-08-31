@@ -170,7 +170,8 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.mem_copy").set_body([](TVMArgs args, TVM
   void* src = args[1];
   int size = args[2];
 
-  hexagon_user_dma_1d_sync(dst, src, size);
+  int error_code = hexagon_user_dma_1d_sync(dst, src, size);
+  CHECK_EQ(error_code, 0);
 
   *rv = static_cast<int32_t>(0);
 });

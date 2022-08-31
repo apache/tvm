@@ -174,7 +174,7 @@ class NonSingleProducerError : public ScheduleError {
         }
       }
     }
-    const BlockNode* block = TVM_SREF_TO_BLOCK(block, consumer_block_sref);
+    const BlockNode* block = TVM_SREF_TO_BLOCK(consumer_block_sref);
     throw NonSingleProducerError(self->mod, GetRef<Block>(block));
   }
 };
@@ -183,7 +183,7 @@ class OpaqueAccessError : public ScheduleError {
  public:
   explicit OpaqueAccessError(IRModule mod, StmtSRef scope_root_sref)
       : mod_(mod), scope_root_(nullptr) {
-    const BlockNode* scope_root = TVM_SREF_TO_BLOCK(scope_root, scope_root_sref);
+    const BlockNode* scope_root = TVM_SREF_TO_BLOCK(scope_root_sref);
     this->scope_root_ = GetRef<Block>(scope_root);
   }
 
@@ -653,7 +653,7 @@ class ReverseComputeInliner : public BaseInliner {
 
 void ComputeInlineImpl(ScheduleState self, const StmtSRef& producer_block_sref,
                        bool check_only = false) {
-  const BlockNode* _producer_block = TVM_SREF_TO_BLOCK(_producer_block, producer_block_sref);
+  const BlockNode* _producer_block = TVM_SREF_TO_BLOCK(producer_block_sref);
   Block producer_block = GetRef<Block>(_producer_block);
   HasInitBlock::Check(self->mod, producer_block);
   Buffer inlined_buffer = NotSingleReadWriteBuffer::GetSingleWrite(self, producer_block);
@@ -698,7 +698,7 @@ bool CanComputeInline(const ScheduleState& self, const StmtSRef& producer_block_
 
 void ReverseComputeInlineImpl(ScheduleState self, const StmtSRef& consumer_block_sref,
                               bool check_only = false) {
-  const BlockNode* _consumer_block = TVM_SREF_TO_BLOCK(_consumer_block, consumer_block_sref);
+  const BlockNode* _consumer_block = TVM_SREF_TO_BLOCK(consumer_block_sref);
   Block consumer_block = GetRef<Block>(_consumer_block);
   HasInitBlock::Check(self->mod, consumer_block);
   // Step 1. Get the scope block

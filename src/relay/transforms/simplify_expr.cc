@@ -685,6 +685,7 @@ class SimplifyConsecutiveAdd : public DFPatternRewrite {
   DFPattern const2_;
 };
 
+/*! \brief Simplifying x/sqrt to x*sqrt */
 class SimplifyRSqrt : public DFPatternRewrite {
  public:
   SimplifyRSqrt() {
@@ -708,6 +709,50 @@ class SimplifyRSqrt : public DFPatternRewrite {
   DFPattern numerator_;
 };
 
+/*! \brief Base class for simplifying dequantize followed by arg ops */
+class SimplifyDQArgFunc : public DFPatternRewrite {
+ public:
+  explicit SimplifyDQArgFunc(std::string op) : op_(op) {
+    x_ = IsWildcard();
+    dq_ = IsOp("qnn.dequantize")({x_, IsWildcard(), IsWildcard()});
+    pattern_ = IsOp(op_)({dq_});
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    const CallNode* call = pre.as<CallNode>();
+    ICHECK(call);
+    auto x = node_map[x_][0];
+    return Call(Op::Get(op_), {x}, call->attrs);
+  }
+
+ protected:
+  /*! \brief Pattern input */
+  DFPattern x_;
+  /*! \brief dequantize op */
+  DFPattern dq_;
+  /*! \brief Name of op to simplify */
+  String op_;
+};
+
+/*! \brief Simplify dequantize follwed by argmax */
+class SimplifyDQArgMax : public SimplifyDQArgFunc {
+ public:
+  SimplifyDQArgMax() : SimplifyDQArgFunc("argmax") {}
+};
+
+/*! \brief Simplify dequantize follwed by argmin */
+class SimplifyDQArgMin : public SimplifyDQArgFunc {
+ public:
+  SimplifyDQArgMin() : SimplifyDQArgFunc("argmin") {}
+};
+
+/*! \brief Simplify dequantize follwed by argsort */
+class SimplifyDQArgSort : public SimplifyDQArgFunc {
+ public:
+  SimplifyDQArgSort() : SimplifyDQArgFunc("argsort") {}
+};
+
 Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   // the rewrites will be applied in the given order, and repeated until fixed point
   DFPatternRewriteComposer composer;
@@ -725,6 +770,9 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<SimplifyConsecutiveCast>();
   composer.AddRewrite<FullElementwise>();
   composer.AddRewrite<SimplifyConsecutiveAdd>();
+  composer.AddRewrite<SimplifyDQArgMax>();
+  composer.AddRewrite<SimplifyDQArgMin>();
+  composer.AddRewrite<SimplifyDQArgSort>();
   return RewritePatterns(composer.MakeCallbacks(), expr, mod);
 }
 

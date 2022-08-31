@@ -47,7 +47,7 @@ struct TensorDom {
   // constructor
   explicit TensorDom(int ndim) : data(ndim) {}
   /*! \brief The domain data */
-  std::vector<std::vector<IntSet> > data;
+  std::vector<std::vector<IntSet>> data;
 };
 
 /*!

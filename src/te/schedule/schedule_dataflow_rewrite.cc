@@ -507,7 +507,7 @@ void RebaseNonZeroMinLoop(ScheduleNode* sch) {
 void InjectInline(ScheduleNode* sch, bool feature_extraction_mode) {
   sch->InvalidateCache();
 
-  std::vector<Array<PrimExpr> > new_body(sch->stages.size());
+  std::vector<Array<PrimExpr>> new_body(sch->stages.size());
   std::vector<bool> changed(sch->stages.size(), false);
   std::vector<Stmt> new_hybrid_body(sch->stages.size());
   std::vector<bool> hybrid_changed(sch->stages.size(), false);

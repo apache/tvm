@@ -194,3 +194,10 @@ def create_aot_shared(so_name: Union[str, pathlib.Path], files, hexagon_arch: st
     cross_compile.output_format = "o"
     c_files = [str(file) for file in files]
     cross_compile(str(so_name), c_files, options=compile_options + options)
+
+
+def export_module(module, out_dir, binary_name="test_binary.so"):
+    """Export Hexagon shared object to a file."""
+    binary_path = pathlib.Path(out_dir) / binary_name
+    module.save(str(binary_path))
+    return binary_path

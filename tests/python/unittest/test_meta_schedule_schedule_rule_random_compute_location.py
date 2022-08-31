@@ -71,7 +71,7 @@ def test_random_compute_location():
         [
             'b0 = sch.get_block(name="move", func_name="main")',
             "l1 = sch.sample_compute_location(block=b0)",
-            "sch.compute_at(block=b0, loop=l1, preserve_unit_loops=True)",
+            "sch.compute_at(block=b0, loop=l1, preserve_unit_loops=True, index=-1)",
         ]
     ]
     mod = Add

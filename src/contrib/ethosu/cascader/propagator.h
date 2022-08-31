@@ -43,7 +43,7 @@ class PropagatorNode : public Object {
   void VisitAttrs(AttrVisitor* v);
 
   /*! \return The transform matrix to apply to the StripeConfigs */
-  const std::vector<std::vector<float> > GetTransform() const { return transform_; }
+  const std::vector<std::vector<float>> GetTransform() const { return transform_; }
   /*! \return The offset vector to apply to the StripeConfigs */
   const std::vector<int> GetOffset() const { return offset_; }
   /*! \return The number of input dimensions */
@@ -92,7 +92,7 @@ class PropagatorNode : public Object {
   friend class Propagator;
 
   /*! \brief The transform matrix to apply to the StripeConfigs */
-  std::vector<std::vector<float> > transform_;
+  std::vector<std::vector<float>> transform_;
   /*! \brief The offset vector to apply to the StripeConfigs */
   std::vector<int> offset_;
 };
@@ -124,7 +124,7 @@ class PropagatorNode : public Object {
  */
 class Propagator : public ObjectRef {
  public:
-  Propagator(const std::vector<std::vector<float> >& transform, const std::vector<int>& offset);
+  Propagator(const std::vector<std::vector<float>>& transform, const std::vector<int>& offset);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Propagator, ObjectRef, PropagatorNode);
 };

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test various CI scripts and GitHub Actions workflows"""
+import shutil
 import subprocess
 import json
 import textwrap
@@ -31,6 +32,184 @@ def parameterize_named(*values):
         return pytest.mark.parametrize(",".join(keys), [d[keys[0]] for d in values])
 
     return pytest.mark.parametrize(",".join(keys), [tuple(d.values()) for d in values])
+
+
+# pylint: disable=line-too-long
+TEST_DATA_SKIPPED_BOT = {
+    "found-diff": {
+        "main_xml_file": "unittest/file1.xml",
+        "main_xml_content": """<?xml version="1.0" encoding="utf-8"?>
+                <testsuites>
+                    <testsuite errors="0" failures="0" hostname="13e7c5f749d8" name="python-unittest-gpu-0-shard-1-ctypes" skipped="102"
+                               tests="165" time="79.312" timestamp="2022-08-10T22:39:36.673781">
+                        <testcase classname="ctypes.tests.python.unittest.test_auto_scheduler_search_policy"
+                                  name="test_sketch_search_policy_cuda_rpc_runner" time="9.679">
+                        </testcase>
+                    </testsuite>
+                </testsuites>
+                """,
+        "pr_xml_file": "unittest/file2.xml",
+        "pr_xml_content": """<?xml version="1.0" encoding="utf-8"?>
+                <testsuites>
+                    <testsuite errors="0" failures="0" hostname="13e7c5f749d8" name="python-unittest-gpu-0-shard-1-ctypes" skipped="102"
+                               tests="165" time="79.312" timestamp="2022-08-10T22:39:36.673781">
+                        <testcase classname="ctypes.tests.python.unittest.test_auto_scheduler_search_policy"
+                                  name="test_sketch_search_policy_cuda_rpc_runner" time="9.679">
+                            <skipped message="This test is skipped" type="pytest.skip">
+                                Skipped
+                            </skipped>
+                        </testcase>
+                        <testcase classname="ctypes.tests.python.unittest.test_roofline"
+                                  name="test_estimate_peak_bandwidth[cuda]" time="4.679">
+                            <skipped message="This is another skippe test" type="pytest.skip">
+                                Skipped
+                            </skipped>
+                        </testcase>
+                    </testsuite>
+                </testsuites>
+                """,
+        "target_url": "https://ci.tlcpack.ai/job/tvm/job/PR-11594/3/display/redirect",
+        "s3_prefix": "tvm-jenkins-artifacts-prod",
+        "jenkins_prefix": "ci.tlcpack.ai",
+        "common_main_build": """{"build_number": "4115", "state": "success"}""",
+        "commit_sha": "SHA",
+        "expected_url": "issues/11594/comments",
+        "expected_body": """<!---skipped-tests-comment-->\n\nThe list below shows some tests that ran in main SHA but were skipped in the CI build of SHA:\n```\nunittest -> ctypes.tests.python.unittest.test_auto_scheduler_search_policy#test_sketch_search_policy_cuda_rpc_runner\nunittest -> ctypes.tests.python.unittest.test_roofline#test_estimate_peak_bandwidth[cuda]\n```\nA detailed report of ran tests is [here](https://ci.tlcpack.ai/job/tvm/job/PR-11594/3/testReport/).""",
+    },
+    "no-diff": {
+        "main_xml_file": "unittest/file1.xml",
+        "main_xml_content": """<?xml version="1.0" encoding="utf-8"?>
+                <testsuites>
+                    <testsuite errors="0" failures="0" hostname="13e7c5f749d8" name="python-unittest-gpu-0-shard-1-ctypes" skipped="102"
+                               tests="165" time="79.312" timestamp="2022-08-10T22:39:36.673781">
+                        <testcase classname="ctypes.tests.python.unittest.test_auto_scheduler_search_policy"
+                                  name="test_sketch_search_policy_cuda_rpc_runner" time="9.679">
+                            <skipped message="This test is skipped" type="pytest.skip">
+                                Skipped
+                            </skipped>
+                        </testcase>
+                    </testsuite>
+                </testsuites>
+                """,
+        "pr_xml_file": "unittest/file2.xml",
+        "pr_xml_content": """<?xml version="1.0" encoding="utf-8"?>
+                <testsuites>
+                    <testsuite errors="0" failures="0" hostname="13e7c5f749d8" name="python-unittest-gpu-0-shard-1-ctypes" skipped="102"
+                               tests="165" time="79.312" timestamp="2022-08-10T22:39:36.673781">
+                        <testcase classname="ctypes.tests.python.unittest.test_auto_scheduler_search_policy"
+                                  name="test_sketch_search_policy_cuda_rpc_runner" time="9.679">
+                            <skipped message="This test is skipped" type="pytest.skip">
+                                Skipped
+                            </skipped>
+                        </testcase>
+                    </testsuite>
+                </testsuites>
+                """,
+        "target_url": "https://ci.tlcpack.ai/job/tvm/job/PR-11594/3/display/redirect",
+        "s3_prefix": "tvm-jenkins-artifacts-prod",
+        "jenkins_prefix": "ci.tlcpack.ai",
+        "common_main_build": """{"build_number": "4115", "state": "success"}""",
+        "commit_sha": "SHA",
+        "expected_url": "issues/11594/comments",
+        "expected_body": """<!---skipped-tests-comment-->\n\nNo additional skipped tests found in this branch for commit SHA.""",
+    },
+    "unable-to-run": {
+        "main_xml_file": "unittest/file1.xml",
+        "main_xml_content": """<?xml version="1.0" encoding="utf-8"?>
+                    <testsuites>
+                    </testsuites>
+                    """,
+        "pr_xml_file": "unittest/file2.xml",
+        "pr_xml_content": """<?xml version="1.0" encoding="utf-8"?>
+                    <testsuites>
+                    </testsuites>
+                    """,
+        "target_url": "https://ci.tlcpack.ai/job/tvm/job/PR-11594/3/display/redirect",
+        "s3_prefix": "tvm-jenkins-artifacts-prod",
+        "jenkins_prefix": "ci.tlcpack.ai",
+        "common_main_build": """{"build_number": "4115", "state": "failed"}""",
+        "commit_sha": "SHA",
+        "expected_url": "issues/11594/comments",
+        "expected_body": """<!---skipped-tests-comment-->\n\nUnable to run tests bot because main failed to pass CI at SHA.""",
+    },
+}
+# pylint: enable=line-too-long
+
+
+@tvm.testing.skip_if_wheel_test
+@pytest.mark.parametrize(
+    [
+        "main_xml_file",
+        "main_xml_content",
+        "pr_xml_file",
+        "pr_xml_content",
+        "target_url",
+        "s3_prefix",
+        "jenkins_prefix",
+        "common_main_build",
+        "commit_sha",
+        "expected_url",
+        "expected_body",
+    ],
+    [tuple(d.values()) for d in TEST_DATA_SKIPPED_BOT.values()],
+    ids=TEST_DATA_SKIPPED_BOT.keys(),
+)
+# pylint: enable=line-too-long
+def test_skipped_tests_comment(
+    tmpdir_factory,
+    main_xml_file,
+    main_xml_content,
+    pr_xml_file,
+    pr_xml_content,
+    target_url,
+    s3_prefix,
+    jenkins_prefix,
+    common_main_build,
+    commit_sha,
+    expected_url,
+    expected_body,
+):
+    """
+    Test that a comment with a link to the docs is successfully left on PRs
+    """
+    skipped_tests_script = REPO_ROOT / "ci" / "scripts" / "github_skipped_tests_comment.py"
+
+    def write_xml_file(root_dir, xml_file, xml_content):
+        shutil.rmtree(root_dir, ignore_errors=True)
+        file = root_dir / xml_file
+        file.parent.mkdir(parents=True)
+        with open(file, "w") as f:
+            f.write(textwrap.dedent(xml_content))
+
+    git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
+    git.run("init")
+    git.run("checkout", "-b", "main")
+    git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
+
+    pr_test_report_dir = Path(git.cwd) / "pr-reports"
+    write_xml_file(pr_test_report_dir, pr_xml_file, pr_xml_content)
+    main_test_report_dir = Path(git.cwd) / "main-reports"
+    write_xml_file(main_test_report_dir, main_xml_file, main_xml_content)
+
+    proc = subprocess.run(
+        [
+            str(skipped_tests_script),
+            "--dry-run",
+            f"--s3-prefix={s3_prefix}",
+            f"--jenkins-prefix={jenkins_prefix}",
+            f"--common-main-build={common_main_build}",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env={"TARGET_URL": target_url, "COMMIT_SHA": commit_sha},
+        encoding="utf-8",
+        cwd=git.cwd,
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"Process failed:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
+
+    assert f"Dry run, would have posted {expected_url} with data {expected_body}." in proc.stderr
 
 
 @tvm.testing.skip_if_wheel_test
@@ -53,7 +232,7 @@ def test_docs_comment(
     """
     Test that a comment with a link to the docs is successfully left on PRs
     """
-    docs_comment_script = REPO_ROOT / "tests" / "scripts" / "github_docs_comment.py"
+    docs_comment_script = REPO_ROOT / "ci" / "scripts" / "github_docs_comment.py"
 
     git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
     git.run("init")
@@ -79,7 +258,7 @@ def test_cc_reviewers(tmpdir_factory):
     """
     Test that reviewers are added from 'cc @someone' messages in PRs
     """
-    reviewers_script = REPO_ROOT / "tests" / "scripts" / "github_cc_reviewers.py"
+    reviewers_script = REPO_ROOT / "ci" / "scripts" / "github_cc_reviewers.py"
 
     def run(pr_body, requested_reviewers, existing_review_users, expected_reviewers):
         git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
@@ -156,7 +335,7 @@ def test_update_branch(tmpdir_factory):
     """
     Test that the last-successful branch script updates successfully
     """
-    update_script = REPO_ROOT / "tests" / "scripts" / "update_branch.py"
+    update_script = REPO_ROOT / "ci" / "scripts" / "update_branch.py"
 
     def run(statuses, expected_rc, expected_output):
         git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
@@ -336,7 +515,7 @@ def test_skip_ci(tmpdir_factory, commands, should_skip, pr_title, why):
     """
     Test that CI is skipped when it should be
     """
-    skip_ci_script = REPO_ROOT / "tests" / "scripts" / "git_skip_ci.py"
+    skip_ci_script = REPO_ROOT / "ci" / "scripts" / "git_skip_ci.py"
 
     git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
     # Jenkins git is too old and doesn't have 'git init --initial-branch'
@@ -369,7 +548,7 @@ def test_skip_globs(tmpdir_factory):
     """
     Test that CI is skipped if only certain files are edited
     """
-    script = REPO_ROOT / "tests" / "scripts" / "git_skip_ci_globs.py"
+    script = REPO_ROOT / "ci" / "scripts" / "git_skip_ci_globs.py"
 
     def run(files, should_skip):
         git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
@@ -408,7 +587,7 @@ def test_ping_reviewers(tmpdir_factory):
     """
     Test that reviewers are messaged after a time period of inactivity
     """
-    reviewers_script = REPO_ROOT / "tests" / "scripts" / "ping_reviewers.py"
+    reviewers_script = REPO_ROOT / "ci" / "scripts" / "ping_reviewers.py"
 
     def run(pull_request, check):
         git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
@@ -565,7 +744,7 @@ def test_github_tag_teams(tmpdir_factory):
     """
     Check that individuals are tagged from team headers
     """
-    tag_script = REPO_ROOT / "tests" / "scripts" / "github_tag_teams.py"
+    tag_script = REPO_ROOT / "ci" / "scripts" / "github_tag_teams.py"
 
     def run(source_type, data, check):
         git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
@@ -902,7 +1081,7 @@ def test_open_docker_update_pr(
     tmpdir_factory, tlcpackstaging_body, tlcpack_body, expected, expected_images
 ):
     """Test workflow to open a PR to update Docker images"""
-    tag_script = REPO_ROOT / "tests" / "scripts" / "open_docker_update_pr.py"
+    tag_script = REPO_ROOT / "ci" / "scripts" / "open_docker_update_pr.py"
 
     git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
     git.run("init")
@@ -973,7 +1152,7 @@ def test_open_docker_update_pr(
 )
 def test_determine_docker_images(tmpdir_factory, images, expected):
     """Test script to decide whether to use tlcpack or tlcpackstaging for images"""
-    tag_script = REPO_ROOT / "tests" / "scripts" / "determine_docker_images.py"
+    tag_script = REPO_ROOT / "ci" / "scripts" / "determine_docker_images.py"
 
     git_dir = tmpdir_factory.mktemp("tmp_git_dir")
 
@@ -1040,7 +1219,7 @@ def test_should_rebuild_docker(tmpdir_factory, changed_files, name, check, expec
     """
     Check that the Docker images are built when necessary
     """
-    tag_script = REPO_ROOT / "tests" / "scripts" / "should_rebuild_docker.py"
+    tag_script = REPO_ROOT / "ci" / "scripts" / "should_rebuild_docker.py"
 
     git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
     git.run("init")

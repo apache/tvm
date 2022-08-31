@@ -44,7 +44,7 @@ class MemoryDatabaseNode : public DatabaseNode {
     return false;
   }
 
-  Workload CommitWorkload(const IRModule& mod) {
+  Workload CommitWorkload(const IRModule& mod) final {
     for (const auto& workload : workloads) {
       if (StructuralEqual()(workload->mod, mod)) {
         return workload;
@@ -55,9 +55,9 @@ class MemoryDatabaseNode : public DatabaseNode {
     return workload;
   }
 
-  void CommitTuningRecord(const TuningRecord& record) { records.push_back(record); }
+  void CommitTuningRecord(const TuningRecord& record) final { records.push_back(record); }
 
-  Array<TuningRecord> GetTopK(const Workload& workload, int top_k) {
+  Array<TuningRecord> GetTopK(const Workload& workload, int top_k) final {
     std::vector<std::pair<double, TuningRecord>> results;
     results.reserve(this->records.size());
     for (const TuningRecord& record : records) {
@@ -91,9 +91,9 @@ class MemoryDatabaseNode : public DatabaseNode {
     return ret;
   }
 
-  Array<TuningRecord> GetAllTuningRecords() { return records; }
+  Array<TuningRecord> GetAllTuningRecords() final { return records; }
 
-  int64_t Size() { return records.size(); }
+  int64_t Size() final { return records.size(); }
 };
 
 Database Database::MemoryDatabase() {

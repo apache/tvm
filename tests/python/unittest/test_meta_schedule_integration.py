@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Integration test for MetaSchedule"""
-from typing import Optional
 import numpy as np
 import pytest
 import tvm
@@ -23,11 +22,10 @@ import tvm.testing
 from tvm import IRModule
 from tvm import meta_schedule as ms
 from tvm import relay, te, tir
+from tvm._ffi import register_func
 from tvm.meta_schedule.testing.relay_workload import get_network
 from tvm.meta_schedule.testing.tlcbench import load_quantized_bert_base
 from tvm.script import tir as T
-from tvm.target import Target
-from tvm.tir import Schedule
 
 # pylint: disable=no-member,line-too-long,too-many-nested-blocks,unbalanced-tuple-unpacking,no-self-argument,missing-docstring,invalid-name
 
@@ -56,10 +54,6 @@ def _has_torch():
 
 
 requires_torch = pytest.mark.skipif(not _has_torch(), reason="torch is not installed")
-
-
-def test_meta_schedule_apply_history_best_no_current():
-    assert ms.ApplyHistoryBest.current() is None
 
 
 def test_meta_schedule_dynamic_loop_extent():
@@ -125,7 +119,7 @@ def test_meta_schedule_integration_extract_from_bert_base():
             12,
             [[64, 768], [3072, 768], [64, 3072]],
         ),
-        "fused_subtract_add_sqrt_divide_multiply_add": (
+        "fused_subtract_add_rsqrt_multiply_multiply_add": (
             25,
             [[1, 64, 768], [1, 64, 1], [1, 64, 1], [768], [768], [1, 64, 768]],
         ),
@@ -206,7 +200,8 @@ def test_meta_schedule_integration_extract_from_bert_base():
 
 @requires_torch
 def test_meta_schedule_integration_extract_from_resnet_with_filter_func():
-    def filter_func(args) -> bool:
+    @register_func("relay.backend.tir_converter.remove_purely_spatial", override=True)
+    def filter_func(args, _) -> bool:
         from tvm.te import create_prim_func  # pylint: disable=import-outside-toplevel
 
         has_complex_op = False
@@ -236,7 +231,7 @@ def test_meta_schedule_integration_extract_from_resnet_with_filter_func():
         mod,
         target="llvm",
         params=params,
-        te_filter_func=filter_func,
+        tir_converter="remove_purely_spatial",
     )
     expected_task_names = [
         "fused_" + s
@@ -265,53 +260,6 @@ def test_meta_schedule_integration_extract_from_resnet_with_filter_func():
     assert len(extracted_tasks) == len(expected_task_names)
     for t in extracted_tasks:
         assert t.task_name in expected_task_names, t.task_name
-
-
-@requires_torch
-def test_meta_schedule_integration_apply_history_best():
-    mod, _, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
-    database = ms.database.MemoryDatabase()
-    env = ms.ApplyHistoryBest(database)
-    target = Target("llvm")
-    workload = database.commit_workload(MockModule)
-    database.commit_tuning_record(
-        ms.database.TuningRecord(
-            trace=Schedule(MockModule).trace,
-            workload=workload,
-            run_secs=[1.0],
-            target=target,
-            args_info=[],
-        )
-    )
-    mod = env.query(
-        task_name="mock-task",
-        mod=mod,
-        target=target,
-        dispatched=[MockModule],
-    )
-    assert tvm.ir.structural_equal(mod, workload.mod)
-
-
-@requires_torch
-def test_meta_schedule_integration_apply_history_best_direct_dispatch():
-    def direct_dispatch(mod: IRModule) -> Optional[IRModule]:
-        if tvm.ir.structural_equal(mod, MockModule):
-            return MockModule
-        return None
-
-    mod, _, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
-    database = ms.database.MemoryDatabase()
-    env = ms.ApplyHistoryBest(database)
-    target = Target("llvm")
-    workload = database.commit_workload(MockModule)
-    mod = env.query(
-        task_name="mock-task-direct-dispatch",
-        mod=mod,
-        target=target,
-        dispatched=[MockModule],
-        f_direct_dispatch=direct_dispatch,
-    )
-    assert tvm.ir.structural_equal(mod, workload.mod)
 
 
 @pytest.mark.skip("Too slow on CI")

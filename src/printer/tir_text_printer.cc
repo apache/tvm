@@ -251,7 +251,7 @@ Doc TIRTextPrinter::BufferNode2Doc(const BufferNode* buf, Doc doc) {
   if (GetRef<Buffer>(buf).scope() != "global") {
     doc << ", scope=" << Doc::StrLiteral(GetRef<Buffer>(buf).scope());
   }
-  if (buf->data_alignment != 128) {
+  if (buf->data_alignment != runtime::kAllocAlignment) {
     doc << ", align=" << buf->data_alignment;
   }
   if (buf->offset_factor != 1) {

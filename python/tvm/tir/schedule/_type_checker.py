@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Type checking functionality"""
+import collections
+import collections.abc
 import functools
 import inspect
 from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Union
@@ -26,6 +28,7 @@ def _is_none_type(type_: Any) -> bool:
 
 
 if hasattr(typing, "_GenericAlias"):
+    # For python versions 3.7 onward, check the __origin__ attribute.
 
     class _Subtype:
         @staticmethod
@@ -71,7 +74,15 @@ if hasattr(typing, "_GenericAlias"):
                     return list(subtypes)
             return None
 
+        @staticmethod
+        def callable(type_: Any) -> Optional[List[type]]:
+            if _Subtype._origin(type_) is collections.abc.Callable:
+                subtypes = type_.__args__
+                return subtypes
+            return None
+
 elif hasattr(typing, "_Union"):
+    # For python 3.6 and below, check the __name__ attribute, or CallableMeta.
 
     class _Subtype:  # type: ignore
         @staticmethod
@@ -114,6 +125,13 @@ elif hasattr(typing, "_Union"):
                     return list(subtypes)
             return None
 
+        @staticmethod
+        def callable(type_: Any) -> Optional[List[type]]:
+            if isinstance(type_, typing.CallableMeta):  # type: ignore # pylint: disable=no-member,protected-access
+                subtypes = type_.__args__
+                return subtypes
+            return None
+
 
 def _dispatcher(type_: Any) -> Tuple[str, List[type]]:
     if _is_none_type(type_):
@@ -139,12 +157,27 @@ def _dispatcher(type_: Any) -> Tuple[str, List[type]]:
     if subtype is not None:
         return "union", subtype
 
+    subtype = _Subtype.callable(type_)
+    if subtype is not None:
+        return "callable", subtype
+
     return "atomic", [type_]
+
+
+def callable_str(subtypes):
+    if subtypes:
+        *arg_types, return_type = subtypes
+        arg_str = ", ".join(_type2str(arg_type) for arg_type in arg_types)
+        return_type_str = _type2str(return_type)
+        return f"Callable[[{arg_str}], {return_type_str}]"
+    else:
+        return "Callable"
 
 
 _TYPE2STR: Dict[Any, Callable] = {
     "none": lambda: "None",
     "atomic": lambda t: str(t.__name__),
+    "callable": callable_str,
     "list": lambda t: f"List[{_type2str(t)}]",
     "dict": lambda k, v: f"Dict[{_type2str(k)}, {_type2str(v)}]",
     "tuple": lambda *t: f"Tuple[{', '.join([_type2str(x) for x in t])}]",
@@ -187,6 +220,12 @@ def _type_check_vtable() -> Dict[str, Callable]:
 
     def _type_check_atomic(v: Any, name: str, type_: Any) -> Optional[str]:
         return None if isinstance(v, type_) else _type_check_err(v, name, type_)
+
+    def _type_check_callable(v: Any, name: str, *_subtypes: Any) -> Optional[str]:
+        # Current implementation only validates that the argument is
+        # callable, and doesn't validate the arguments accepted by the
+        # callable, if any.
+        return None if callable(v) else _type_check_err(v, name, Callable)
 
     def _type_check_list(v: List[Any], name: str, type_: Any) -> Optional[str]:
         if not isinstance(v, (list, tuple)):
@@ -234,6 +273,7 @@ def _type_check_vtable() -> Dict[str, Callable]:
     return {
         "none": _type_check_none,
         "atomic": _type_check_atomic,
+        "callable": _type_check_callable,
         "list": _type_check_list,
         "dict": _type_check_dict,
         "tuple": _type_check_tuple,

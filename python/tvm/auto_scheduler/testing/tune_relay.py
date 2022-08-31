@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
-from distutils.util import strtobool
 import argparse
 import json
 import os
+from distutils.util import strtobool
 
 import tvm
 from tvm import auto_scheduler
@@ -26,7 +26,7 @@ from tvm import meta_schedule as ms
 from tvm import relay
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.meta_schedule.testing.relay_workload import get_network
-from tvm.meta_schedule.testing.tune_utils import generate_input_data, create_timer
+from tvm.meta_schedule.testing.tune_utils import create_timer, generate_input_data
 from tvm.meta_schedule.utils import cpu_count
 from tvm.support import describe
 
@@ -72,6 +72,11 @@ def _parse_args():
         "--work-dir",
         type=str,
         required=True,
+    )
+    args.add_argument(
+        "--layout",
+        type=str,
+        default=None,
     )
     args.add_argument(
         "--cache-dir",
@@ -168,55 +173,65 @@ def main():
     mod, params, (input_name, input_shape, input_dtype) = get_network(
         ARGS.workload,
         ARGS.input_shape,
+        layout=ARGS.layout,
         cache_dir=ARGS.cache_dir,
     )
-    input_info = {input_name: input_shape}
+    input_info = [
+        {
+            "name": input_name,
+            "shape": input_shape,
+            "dtype": input_dtype,
+        },
+    ]
     input_data = {
-        item["name"]: generate_input_data(item["shape"], item["dtype"]) for item in ARGS.input_shape
+        item["name"]: generate_input_data(item["shape"], item["dtype"]) for item in input_info
     }
-    for input_name, input_shape in input_info.items():
-        print(f"  input_name : {input_name}")
-        print(f"  input_shape: {input_shape}")
-        print(f"  input_dtype: {input_dtype}")
+    for item in input_info:
+        print(f"  input_name : {item['name']}")
+        print(f"  input_shape: {item['shape']}")
+        print(f"  input_dtype: {item['dtype']}")
 
     with ms.Profiler() as profiler:
-        tasks, task_weights = auto_scheduler.extract_tasks(
-            mod["main"],
-            params,
-            target=ARGS.target,
-            hardware_params=hardware_params,
-        )
-        for idx, (task, task_weight) in enumerate(zip(tasks, task_weights)):
-            print(
-                f"==== Task {idx}: {task.desc} "
-                f"(weight {task_weight} key: {task.workload_key}) ====="
+        with ms.Profiler.timeit("TaskExtraction"):
+            tasks, task_weights = auto_scheduler.extract_tasks(
+                mod["main"],
+                params,
+                target=ARGS.target,
+                hardware_params=hardware_params,
             )
-            print(task.compute_dag)
+            for idx, (task, task_weight) in enumerate(zip(tasks, task_weights)):
+                print(
+                    f"==== Task {idx}: {task.desc} "
+                    f"(weight {task_weight} key: {task.workload_key}) ====="
+                )
+                print(task.compute_dag)
 
-        if ARGS.num_trials > 0:
-            tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
-            tuner.tune(
-                auto_scheduler.TuningOptions(
-                    num_measure_trials=ARGS.num_trials,
-                    runner=runner,
-                    measure_callbacks=[
-                        auto_scheduler.RecordToFile(log_file),
-                    ],
-                ),
-                adaptive_training=ARGS.adaptive_training,
-            )
+        with ms.Profiler.timeit("Tuning"):
+            if ARGS.num_trials > 0:
+                tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
+                tuner.tune(
+                    auto_scheduler.TuningOptions(
+                        num_measure_trials=ARGS.num_trials,
+                        runner=runner,
+                        measure_callbacks=[
+                            auto_scheduler.RecordToFile(log_file),
+                        ],
+                    ),
+                    adaptive_training=ARGS.adaptive_training,
+                )
 
         relay_build = {"graph": relay.build, "vm": relay.vm.compile}[ARGS.backend]
-        with auto_scheduler.ApplyHistoryBest(log_file):
-            with tvm.transform.PassContext(
-                opt_level=3,
-                config={"relay.backend.use_auto_scheduler": True},
-            ):
-                lib = relay_build(
-                    mod,
-                    target=ARGS.target,
-                    params=params,
-                )
+        with ms.Profiler.timeit("PostTuningCompilation"):
+            with auto_scheduler.ApplyHistoryBest(log_file):
+                with tvm.transform.PassContext(
+                    opt_level=3,
+                    config={"relay.backend.use_auto_scheduler": True},
+                ):
+                    lib = relay_build(
+                        mod,
+                        target=ARGS.target,
+                        params=params,
+                    )
     print("Tuning Time:")
     print(profiler.table())
 

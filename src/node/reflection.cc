@@ -254,7 +254,7 @@ void NodeListAttrNames(TVMArgs args, TVMRetValue* ret) {
   Object* self = static_cast<Object*>(args[0].value().v_handle);
 
   auto names =
-      std::make_shared<std::vector<std::string> >(ReflectionVTable::Global()->ListAttrNames(self));
+      std::make_shared<std::vector<std::string>>(ReflectionVTable::Global()->ListAttrNames(self));
 
   *ret = PackedFunc([names](TVMArgs args, TVMRetValue* rv) {
     int64_t i = args[0];

@@ -29,6 +29,7 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
+#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -553,25 +554,39 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
   if (finder.partitions.empty()) return Stmt();
 
   arith::IntervalSet for_interval(min, max);
-  bool cond_value;
-  IntSet middle_interval;
-  ExpressionSet cond_set;
-  // find an interval in which all conditions on var are true
-  std::tie(middle_interval, cond_set) =
-      GetIntervalAndCondset(finder.partitions, for_interval, true, has_partition_hint_);
-  if (middle_interval.IsNothing()) {
-    // if such interval doesn't exist, find an interval in which all
-    // conditions on var are false
-    std::tie(middle_interval, cond_set) =
-        GetIntervalAndCondset(finder.partitions, for_interval, false, has_partition_hint_);
-    if (middle_interval.IsNothing())
-      // we couldn't find an interval in which the conditions are provably true or false
-      // Therefore, we can't partition the loop based on those conds
-      return Stmt();
-    cond_value = false;
-  } else {
-    cond_value = true;
+
+  auto [middle_interval, cond_set,
+        opt_cond_value] = [&]() -> std::tuple<IntSet, ExpressionSet, std::optional<bool>> {
+    {
+      // find an interval in which all conditions on var are true
+      auto [middle_interval, cond_set] =
+          GetIntervalAndCondset(finder.partitions, for_interval, true, has_partition_hint_);
+      if (!middle_interval.IsNothing()) {
+        return {middle_interval, cond_set, true};
+      }
+    }
+
+    {
+      // if such interval doesn't exist, find an interval in which all
+      // conditions on var are false
+      auto [middle_interval, cond_set] =
+          GetIntervalAndCondset(finder.partitions, for_interval, false, has_partition_hint_);
+
+      if (!middle_interval.IsNothing()) {
+        return {middle_interval, cond_set, false};
+      }
+    }
+
+    // we couldn't find an interval in which the conditions are
+    // provably true or false.  Therefore, we can't partition the loop
+    // based on those conds
+    return {{}, {}, std::nullopt};
+  }();
+
+  if (!opt_cond_value.has_value()) {
+    return Stmt();
   }
+  bool cond_value = opt_cond_value.value();
 
   IntervalSet middle_interval_i = Downcast<IntervalSet>(middle_interval);
   // middle_interval is the subrange of the loop variable range for which a
