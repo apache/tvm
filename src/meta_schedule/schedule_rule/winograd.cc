@@ -185,6 +185,32 @@ TVM_REGISTER_GLOBAL("meta_schedule.winograd_inverse.nchw.cuda")
       return {sch};
     });
 
+TVM_REGISTER_GLOBAL("meta_schedule.winograd_kernel_pack.nchw.cuda")
+    .set_body_typed([](Schedule sch, BlockRV kernel_pack) -> Array<Schedule> {
+      Array<LoopRV> loops = sch->GetLoops(kernel_pack);
+      ICHECK_EQ(loops.size(), 6);
+      if (const int64_t* i = tir::GetLoopIntExtent(sch->GetSRef(loops[0]))) {
+        if (*i <= 16) {
+          sch->Unroll(loops[0]);
+        }
+      }
+      if (const int64_t* i = tir::GetLoopIntExtent(sch->GetSRef(loops[1]))) {
+        if (*i <= 16) {
+          sch->Unroll(loops[1]);
+        }
+      }
+      sch->Unroll(loops[4]);
+      sch->Unroll(loops[5]);
+
+      LoopRV fused = sch->Fuse({loops[2], loops[3]});
+
+      int64_t max_threadblocks = 256;
+      int64_t max_threads_per_block = 1024;
+      auto get_factor = MakeFactorSampler(sch, {32, 64, 128, 256, 512, 1024});
+      BindBlockThreadIdx(sch, kernel_pack, max_threadblocks, max_threads_per_block, get_factor);
+      return {sch};
+    });
+
 TVM_REGISTER_GLOBAL("meta_schedule.winograd_data_pack.cuda")
     .set_body_typed([](Schedule sch, BlockRV data_pack) -> Array<Schedule> {
       BlockRV input_tile = GetOnlyProducer(sch, data_pack);
@@ -206,9 +232,10 @@ TVM_REGISTER_GLOBAL("meta_schedule.winograd_data_pack.nchw.cuda")
       BlockRV data_pad = GetOnlyProducer(sch, input_tile);
 
       BlockRV data_l = sch->CacheWrite(data_pack, /*buffer_index=*/0, /*storage_scope=*/"local");
+      BlockRV d = sch->CacheRead(data_pack, /*buffer_index=*/0, /*storage_scope=*/"local");
       LoopRV loop = ScheduleDataPackNCHW(sch, data_pack);
       sch->ReverseComputeAt(data_l, loop, /*preserve_unit_loops=*/true);
-      sch->ComputeAt(input_tile, /*loop_rv=*/loop, /*preserve_unit_loops=*/true);
+      sch->ComputeAt(d, /*loop_rv=*/loop, /*preserve_unit_loops=*/true);
       sch->ComputeInline(data_pad);
 
       int64_t max_threadblocks = 256;
