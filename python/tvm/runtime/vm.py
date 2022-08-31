@@ -323,7 +323,7 @@ class Executable(object):
         return self._load_late_bound_consts(path)
 
     def load_late_bound_consts(self, map):
-        """Re-load constants supply in map"""
+        """Re-load constants supplied in map"""
         return self._load_late_bound_consts_from_map(map)
 
 

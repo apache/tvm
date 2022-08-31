@@ -334,7 +334,7 @@ Map<String, NDArray> Executable::GetLateBoundConstants(size_t byte_limit) {
     map.Set(name, Downcast<NDArray>(std::move(constants[const_index])));
     late_bound_constant_names.emplace_back(std::move(name));
   }
-  VLOG(1) << "found " << map.size() << " constants of " << total_late_bound_bytes
+  VLOG(1) << "moved " << map.size() << " constants of " << total_late_bound_bytes
           << " bytes (out of " << constants.size() << " overall) to be late-bound";
   return map;
 }
