@@ -27,7 +27,8 @@ class Module4:
     def constant1(a: T.handle) -> None:
         A = T.match_buffer(a, (10), "int32")
         B = T.alloc_buffer((10), "int32")
-        K = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
+        K_data = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
+        K = T.buffer_decl(shape=(10), dtype="int32", data=K_data)
         for x in T.serial(0, 10):
             B[x] = A[x] + K[x]
 
@@ -35,7 +36,8 @@ class Module4:
     def constant2(a: T.handle) -> None:
         A = T.match_buffer(a, (10), "int32")
         B = T.alloc_buffer((10), "int32")
-        K = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
+        K_data = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
+        K = T.buffer_decl(shape=(10), dtype="int32", data=K_data)
         for x in T.serial(0, 10):
             B[x] = A[x] + K[x]
 
@@ -43,7 +45,8 @@ class Module4:
     def constant3(a: T.handle) -> None:
         A = T.match_buffer(a, (10), "int32")
         B = T.alloc_buffer((10), "int32")
-        K = T.allocate_const([1, 2, 3, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
+        K_data = T.allocate_const([1, 2, 3, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
+        K = T.buffer_decl(shape=(10), dtype="int32", data=K_data)
         for x in T.serial(0, 10):
             B[x] = A[x] + K[x]
 
