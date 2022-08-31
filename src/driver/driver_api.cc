@@ -225,6 +225,7 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   }
   // LowerVtcmAlloc must occur after any transformations that modify memory allocation locations
   pass_list.push_back(tir::transform::LowerVtcmAlloc());
+  pass_list.push_back(tir::transform::LowerAsyncDMA());
   pass_list.push_back(tir::transform::UnrollLoop());
 
   // Add user-defined phase-2 passes
