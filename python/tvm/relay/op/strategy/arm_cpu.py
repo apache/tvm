@@ -247,7 +247,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 target.features.has_dsp
                 and kernel.shape[0] == kernel.shape[1] == 3
                 and dilation_w == dilation_h == 1
-                and kernel.shape[3] == 1 # channel_multiplier == 1
+                and kernel.shape[3] == 1  # channel_multiplier == 1
                 and data.dtype == "int8"
                 and data.shape[3] % 4 == 0
             ):

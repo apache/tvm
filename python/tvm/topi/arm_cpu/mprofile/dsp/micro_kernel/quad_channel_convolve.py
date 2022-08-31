@@ -24,7 +24,9 @@ import textwrap
 
 from tvm import te, tir
 
+
 def intrin_quad_channel_convolve(tensor_w, channels, kernel_h, kernel_w, suffix):
+    """Defines a v7e-m DSP-accelerated four-channel convolution."""
     data_slice = te.placeholder((kernel_h, kernel_w, 4), name="a", dtype="int8")
 
     if kernel_h * kernel_w % 2 == 1:
@@ -84,8 +86,8 @@ def intrin_quad_channel_convolve(tensor_w, channels, kernel_h, kernel_w, suffix)
 
 
 def quad_channel_convolve_impl(tensor_w, channels, kernel_h, kernel_w, suffix):
-    # intrin_quad_channel_convolve supports any kernel size, but this function only supports
-    # 3x3 kernels (though this could be fixed with work).
+    """Emits C code for quad_channel_convolve. Note that while intrin_quad_channel_convolve supports
+    any kernel size, this function only supports 3x3 kernels (though this could be fixed with work)."""
     assert kernel_h == kernel_w == 3
 
     return textwrap.dedent(

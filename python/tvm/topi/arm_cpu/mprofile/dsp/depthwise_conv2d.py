@@ -110,7 +110,7 @@ def depthwise_conv2d_nhwc_dsp(*args, **kwargs):
     cfg = autotvm.get_config()
     args = [cfg] + args
     assert layout == "NHWC"
-    conv = depthwise_conv2d_nhwc_dsp_compute(args)
+    conv = depthwise_conv2d_nhwc_dsp_compute(*args)
     sched = depthwise_conv2d_nhwc_dsp_schedule(cfg, [data, kernel, conv])
     return sched, [data, kernel, conv]
 
@@ -159,10 +159,6 @@ def depthwise_conv2d_nhwc_dsp_compute(cfg, data, kernel, strides, padding, dilat
     # to QUAD_CHANNEL_REARRANGE_SUM.
     assert kernel_w == kernel_h == 3
 
-    # We do not currently support custom padding. Would be pretty easy to implement.
-    # assert padding == "SAME" or padding == "VALID"
-    padding = "SAME"
-
     # Padding the data requires COPYING THE ENTIRE INPUT TENSOR, which
     # is slow and bad. We should really implement a strip mining
     # routine to avoid this, but TVM has terrible support for that.
@@ -191,6 +187,22 @@ def depthwise_conv2d_nhwc_dsp_compute(cfg, data, kernel, strides, padding, dilat
         output_h = (height - kernel_h) // stride_h + 1
         output_w = (width - kernel_w) // stride_w + 1
         padded_data = data
+
+    elif isinstance(padding, tuple):
+        if len(padding) == 2:
+            pad_up, pad_down = padding[0]
+            pad_left, pad_right = padding[1]
+        else:
+            pad_up, pad_left, pad_down, pad_right = padding
+
+        output_h = (height - kernel_h + pad_up + pad_down) // stride_h + 1
+        output_w = (width - kernel_w + pad_left + pad_right) // stride_w + 1
+        padded_data = pad(
+            data,
+            [0, pad_up, pad_left, 0],
+            [0, pad_down, pad_right, 0],
+            name="padded_data",
+        )
 
     else:
         raise RuntimeError()
