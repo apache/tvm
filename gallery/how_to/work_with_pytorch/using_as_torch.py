@@ -115,8 +115,8 @@ def tvm_depthwise(
             C[vj, vi] += B[vj, vk] * A[vj, vi + vk]
 
 
-# We can build the TVMscript code by calling the `tune` method.
-# Without providing more information, the model will be tuned for CPU.
+# We can build the TVMscript code by calling the `tune` method in default setting.
+# Without providing extra information, the model will be tuned for CPU.
 
 tvm_depthwise.tune()
 
