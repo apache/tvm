@@ -158,9 +158,8 @@ def bias_add(expr, type_map):
     x, b = expr.args
     x_t = type_map[x]
     if b in type_map:
+        # Ensure bias matches the previous op
         b_t = type_map[b]
-        # if the pad value is calcuated from a dequantize op, it should be in the type map
-        # and we need to make sure it's affine type matches the arg
         in_scale = fold_constant(x_t.scale)
         in_zero_point = fold_constant(x_t.zero_point)
         if not (
