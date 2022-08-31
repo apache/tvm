@@ -272,13 +272,17 @@ def schedule_conv2d_NHWC(cfg, s, output):
     # 3. If we have pad (independently if we have runtime repack or not) we should inline it in the
     #    cache_read("texture")
     if autotvm.GLOBAL_SCOPE.in_tuning or input_pack_rt:
-        if "pad_temp" in pad_data.op.name:
-            s[pad_data].compute_inline()
-            pack_data = pad_data.op.input_tensors[0]
-            bind_data_copy(s[pack_data])
+        if autotvm.GLOBAL_SCOPE.in_tuning:
+            if "pad_temp" in pad_data.op.name:
+                s[pad_data].compute_inline()
         else:
-            pack_data = pad_data
-            bind_data_copy(s[pack_data])
+            if "pad_temp" in pad_data.op.name:
+                s[pad_data].compute_inline()
+                pack_data = pad_data.op.input_tensors[0]
+                bind_data_copy(s[pack_data])
+            else:
+                pack_data = pad_data
+                bind_data_copy(s[pack_data])
 
         AT = s.cache_read(pad_data, get_texture_storage(pad_data.shape), [conv])
         bind_data_copy(s[AT])
@@ -289,7 +293,8 @@ def schedule_conv2d_NHWC(cfg, s, output):
         bind_data_copy(s[AT])
 
     if autotvm.GLOBAL_SCOPE.in_tuning or filter_pack_rt:
-        bind_data_copy(s[kernel])
+        if not autotvm.GLOBAL_SCOPE.in_tuning:
+            bind_data_copy(s[kernel])
         WT = s.cache_read(kernel, get_texture_storage(kernel.shape), [conv])
         bind_data_copy(s[WT])
 
