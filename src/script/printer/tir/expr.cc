@@ -28,6 +28,7 @@
 
 #include "../utils.h"
 #include "./tir.h"
+#include "./var.h"
 
 namespace tvm {
 namespace script {
@@ -160,7 +161,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       auto body = expr.GetAttr(&tir::LetNode::body);
 
       auto value_doc = p->AsExprDoc(value);
-      IdDoc var_doc = DefineTIRVar(var, frame, p);
+      auto var_doc = p->AsExprDoc(var);
       return TIR(p)->Attr("let")->Call({var_doc, value_doc, p->AsExprDoc(body)});
     });
 
@@ -198,11 +199,11 @@ ExprDoc PrintCommReducer(TracedObject<tir::CommReducer> expr, IRDocsifier p) {
 
   Array<IdDoc> reducer_args;
   for (TracedObject<tir::Var> v_lhs : lhs) {
-    IdDoc var_doc = DefineTIRVar(v_lhs, frame, p);
+    IdDoc var_doc = DefineVar(v_lhs, frame, p);
     reducer_args.push_back(var_doc);
   }
   for (TracedObject<tir::Var> v_rhs : rhs) {
-    IdDoc var_doc = DefineTIRVar(v_rhs, frame, p);
+    IdDoc var_doc = DefineVar(v_rhs, frame, p);
     reducer_args.push_back(var_doc);
   }
 
@@ -229,7 +230,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
       Array<ExprDoc> axis_docs;
       for (const auto& iter_var : axis) {
-        axis_docs.push_back(IterVarStandaloneDef(iter_var, p));
+        axis_docs.push_back(IterVarDef(iter_var, p));
       }
       ListDoc axis_list_doc = ListDoc(axis_docs);
       axis_list_doc->source_paths.push_back(axis.GetPath());

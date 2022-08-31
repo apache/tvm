@@ -245,6 +245,32 @@ std::vector<BufferPrintInfo> GetBufferPrintInfo(
   return results;
 }
 
+static TracedOptional<tir::Buffer> GetUsedBuffer(const TracedObject<ObjectRef>& stmt_or_expr) {
+  if (auto load = stmt_or_expr.TryDowncast<tir::BufferLoad>()) {
+    return load.value().GetAttr(&tir::BufferLoadNode::buffer);
+  } else if (auto store = stmt_or_expr.TryDowncast<tir::BufferStore>()) {
+    return store.value().GetAttr(&tir::BufferStoreNode::buffer);
+  } else {
+    return TracedOptional<tir::Buffer>(NullOpt, ObjectPath::Root());
+  }
+}
+
+std::vector<TracedObject<tir::Buffer>> FindAliasingBuffers(tir::Var ptr_var,
+                                                           TracedObject<tir::Stmt> body) {
+  std::vector<TracedObject<tir::Buffer>> ret;
+  PostOrderVisitStmtExprTraced(body, [&ret, ptr_var](const TracedObject<ObjectRef>& stmt_or_expr) {
+    if (auto buffer_opt = GetUsedBuffer(stmt_or_expr)) {
+      auto buffer = buffer_opt.value();
+      if (buffer.Get()->data.same_as(ptr_var) &&
+          std::find_if(ret.begin(), ret.end(),
+                       [&](const auto& b) { return b.Get() == buffer.Get(); }) == ret.end()) {
+        ret.push_back(buffer);
+      }
+    }
+  });
+  return ret;
+}
+
 TracedObject<String> GetBufferNameHint(const TracedObject<tir::Buffer>& buf) {
   TracedObject<String> name_hint = buf.GetAttr(&tir::BufferNode::name);
   if (name_hint.Get().empty()) {

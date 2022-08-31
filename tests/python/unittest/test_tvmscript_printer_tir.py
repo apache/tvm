@@ -26,10 +26,13 @@ from tvm.tir import (
     LT,
     NE,
     Add,
+    Allocate,
     And,
     AssertStmt,
+    AttrStmt,
     Broadcast,
     BufferLoad,
+    BufferRealize,
     BufferRegion,
     BufferStore,
     Call,
@@ -549,6 +552,7 @@ def test_let():
     node = Let(x, 1, x + y)
     # Not var definition for x because x isn't free variable in this expression
     expected = """
+    x: T.int32
     y: T.int32
     T.let(x, 1, x + y)
     """
@@ -846,5 +850,123 @@ def test_let_stmt_alias_buffer():
     buf2 = T.decl_buffer(shape=(2, 5), data=ptr)
     buf1 = T.decl_buffer(shape=(5, 10), data=ptr)
     buf1[1, 2] = buf2[2, 4]
+    """
+    assert as_tir_script(node) == format_script(expected)
+
+
+def test_allocate_stmt_all_params():
+    buf = decl_buffer((10, 10), name="buf", scope="global")
+    body = BufferStore(buf, 0, [1, 1])
+    node = Allocate(buf.data, "float32", [10, 10], Var("cond", "bool"), body, {"attr": 3})
+    expected = """
+    cond: T.bool
+    buf = T.allocate([10, 10], "float32", "global", cond, annotations={"attr": 3})
+    buf[1, 1] = 0
+    """
+    assert as_tir_script(node) == format_script(expected)
+
+
+def test_allocate_stmt_concise_scoping():
+    buf = decl_buffer((10, 10), name="buf", scope="global")
+    body = BufferStore(buf, 0, [1, 1])
+    node = SeqStmt(
+        [
+            Allocate(buf.data, "float32", [10, 10], IntImm("bool", 1), body),
+            Allocate(buf.data, "float32", [10, 10], IntImm("bool", 1), body),
+        ]
+    )
+    expected = """
+    with T.allocate([10, 10], "float32", "global") as buf:
+        buf[1, 1] = 0
+    buf = T.allocate([10, 10], "float32", "global")
+    buf[1, 1] = 0
+    """
+    assert as_tir_script(node) == format_script(expected)
+
+
+def test_allocate_aliasing_buffers():
+    buf1 = decl_buffer((10, 10), name="buf1", scope="global")
+    buf2 = decl_buffer((5, 20), name="buf2", data=buf1.data)
+    buf_unrelated = decl_buffer((10, 10), name="buf_unrelated")
+    body = BufferStore(buf1, BufferLoad(buf2, [2, 2]) + BufferLoad(buf_unrelated, [3, 3]), [1, 1])
+    node = Allocate(buf1.data, "float32", [10, 10], IntImm("bool", 1), body)
+    expected = """
+    buf_unrelated: T.Buffer(shape=(10, 10))
+    buf1 = T.allocate([10, 10], "float32", "global")
+    buf2 = T.decl_buffer(shape=(5, 20), data=buf1.data)
+    buf1[1, 1] = buf2[2, 2] + buf_unrelated[3, 3]
+    """
+    assert as_tir_script(node) == format_script(expected)
+
+
+def test_attr_stmt():
+    buf = decl_buffer((10, 10), name="buf")
+    body = BufferStore(buf, 0, [0, 0])
+    node = AttrStmt(buf.data, "storage_alignment", 128, body)
+    expected = """
+    buf: T.Ptr(T.float32)
+    buf_1: T.Buffer(shape=(10, 10), data=buf)
+    T.attr(buf, "storage_alignment", 128)
+    buf_1[0, 0] = 0
+    """
+    assert as_tir_script(node) == format_script(expected)
+
+
+def test_attr_stmt_concise_scoping():
+    buf = decl_buffer((10, 10), name="buf")
+    body = BufferStore(buf, 0, [0, 0])
+    node = SeqStmt(
+        [
+            AttrStmt(buf.data, "storage_alignment", 128, body),
+            AttrStmt(buf.data, "storage_alignment", 64, body),
+        ]
+    )
+    expected = """
+    buf: T.Ptr(T.float32)
+    buf_1: T.Buffer(shape=(10, 10), data=buf)
+    with T.attr(buf, "storage_alignment", 128):
+        buf_1[0, 0] = 0
+    T.attr(buf, "storage_alignment", 64)
+    buf_1[0, 0] = 0
+    """
+    assert as_tir_script(node) == format_script(expected)
+
+
+def test_attr_stmt_buffer_realize():
+    buf = decl_buffer((10, 10), name="buf")
+    body = BufferRealize(
+        buf, [Range(0, 1), Range(1, 2)], Var("cond", "bool"), BufferStore(buf, 0, [0, 0])
+    )
+    node = AttrStmt(buf, "realize_scope", StringImm("global"), body)
+    expected = """
+    buf: T.Buffer(shape=(10, 10))
+    cond: T.bool
+    T.realize(buf[0:1, 1:2], "global", cond)
+    buf[0, 0] = 0
+    """
+    assert as_tir_script(node) == format_script(expected)
+
+
+def test_attr_stmt_launch_thread():
+    iter_var = IterVar(Range(1, 5), Var("i", "int32"), 2, "blockIdx.x")
+    body = Evaluate(iter_var)
+    node = AttrStmt(iter_var, "thread_extent", 8, body)
+    expected = """
+    i = T.env_thread("blockIdx.x")
+    T.launch_thread(i, 8)
+    i
+    """
+    assert as_tir_script(node) == format_script(expected)
+
+
+def test_attr_stmt_launch_thread_multiple():
+    iter_var = IterVar(Range(1, 5), Var("i", "int32"), 2, "blockIdx.x")
+    body = AttrStmt(iter_var, "thread_extent", 24, Evaluate(iter_var))
+    node = AttrStmt(iter_var, "thread_extent", 8, body)
+    expected = """
+    i = T.env_thread("blockIdx.x")
+    T.launch_thread(i, 8)
+    T.launch_thread(i, 24)
+    i
     """
     assert as_tir_script(node) == format_script(expected)
