@@ -235,5 +235,36 @@ class TestFlattenWithAxisSeparators(BaseCompare):
             T.evaluate(A[i0 * 15 + i1 * 5 + i2, i3 * 143 + i4 * 13 + i5])
 
 
+def test_lower_2d_physical_memory():
+    """Axis separators should preserve 2-d buffers through lowering.
+
+    A catch-all test to ensure that defining axis_separators is
+    sufficient to maintain non-flat buffer descriptions through all
+    lowering steps.
+    """
+
+    # This test doesn't use CompareBeforeAfter, because the after step
+    # is not currently expressible in TVMScript.  This test can be
+    # re-written after https://github.com/apache/tvm/pull/12412.
+
+    @T.prim_func
+    def func():
+        buf = T.alloc_buffer(
+            [1, 1],
+            dtype="int32",
+            scope="global",
+            axis_separators=[1],
+        )
+        buf[0, 0] = 0
+
+    lowered = tvm.lower(func)["main"]
+    assert isinstance(lowered.body, tvm.tir.Allocate)
+    assert list(lowered.body.extents) == [1, 1], (
+        "Non-flat buffer allocations, "
+        "marked by axis_separators, "
+        "flattened to flat memory allocation."
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()
