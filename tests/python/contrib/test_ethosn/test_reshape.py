@@ -28,9 +28,8 @@ from . import infrastructure as tei
 def _get_model(input_shape, output_shape, dtype):
     """Return a model and any parameters it may have"""
     a = relay.var("a", shape=input_shape, dtype=dtype)
-    conv, params = tei.get_conv2d(a, input_shape, dtype)
-    req = relay.reshape(conv, output_shape)
-    return req, params
+    req = relay.reshape(a, output_shape)
+    return req, {}
 
 
 @requires_ethosn
@@ -53,6 +52,8 @@ def _get_model(input_shape, output_shape, dtype):
     ],
 )
 def test_reshape(dtype, input_shape, output_shape):
+    """Compare Reshape output with TVM."""
+
     np.random.seed(0)
     inputs = {
         "a": tvm.nd.array(
@@ -71,3 +72,21 @@ def test_reshape(dtype, input_shape, output_shape):
         outputs.append(tei.build_and_run(mod, inputs, 1, params, npu=npu))
 
     tei.verify(outputs, dtype, 1)
+
+
+@requires_ethosn
+@pytest.mark.parametrize(
+    "input_shape, output_shape",
+    [
+        (
+            (1, 13, 13, 255),
+            (1, 13, 13, 3, 85),
+        ),
+    ],
+)
+def test_reshape_failure(input_shape, output_shape):
+    """Check Resize is not offloaded."""
+
+    model, params = _get_model(input_shape, output_shape, "int8")
+    mod = tei.make_module(model, params)
+    tei.build(mod, params, expected_host_ops=1, npu_partitions=0)

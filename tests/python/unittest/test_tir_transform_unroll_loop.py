@@ -117,16 +117,19 @@ def test_unroll_allocations():
         @T.prim_func
         def main():
             for i in T.unroll(2):
-                with T.allocate([16], "float32", "global") as buf:
+                with T.allocate([16], "float32", "global") as buf_data:
+                    buf = T.buffer_decl(shape=[16], dtype="float32", data=buf_data)
                     buf[0] = 0.0
 
     @tvm.script.ir_module
     class expected:
         @T.prim_func
         def main():
-            with T.allocate([16], "float32", "global") as buf1:
+            with T.allocate([16], "float32", "global") as buf1_data:
+                buf1 = T.buffer_decl(shape=[16], dtype="float32", data=buf1_data)
                 buf1[0] = 0.0
-            with T.allocate([16], "float32", "global") as buf2:
+            with T.allocate([16], "float32", "global") as buf2_data:
+                buf2 = T.buffer_decl(shape=[16], dtype="float32", data=buf2_data)
                 buf2[0] = 0.0
 
     after = tvm.tir.transform.UnrollLoop()(before)
