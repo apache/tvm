@@ -3123,7 +3123,7 @@ def test_embedding_bag():
     )
     # Normally, we should enforce `offsets[-1] == input.size(0)` when `include_last_offset=True`
     # When the condition does not hold, in PyTorch, the behaviour diverges. Could see:
-    # https://www.hkteducation.com/nop/apple/hku/13-inch-macbook-air-apple-m2-chip-with-8-core-cpu-10-core-gpu-16gb-512gb-midnight-z161.html
+    # https://github.com/pytorch/pytorch/pull/57208#issuecomment-1021727378
     verify_model(
         EmbeddingBag(offsets=offsets, mode="mean", include_last_offset=True).float().eval(),
         [inp.reshape(-1), embedding_matrix],
