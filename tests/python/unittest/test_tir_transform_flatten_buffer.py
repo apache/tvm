@@ -34,7 +34,7 @@ class TestElementwise(BaseCompare):
 
     def before(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]):
         for i in T.serial(0, 16):
-            B_new = T.decl_buffer([1, 16], "float32", "global")
+            B_new = T.decl_buffer([1, 16], "float32")
             for j in T.serial(0, 16):
                 B_new[0, j] = A[i, j] + 1.0
             for j in T.serial(0, 16):
@@ -44,7 +44,7 @@ class TestElementwise(BaseCompare):
         T.preflattened_buffer(A, (16, 16), dtype="float32", data=A.data)
         T.preflattened_buffer(C, (16, 16), dtype="float32", data=C.data)
         for i in T.serial(0, 16):
-            B_new = T.decl_buffer(16, "float32", "global")
+            B_new = T.decl_buffer([16], "float32")
             for j in T.serial(0, 16):
                 B_new[j] = A[((i * 16) + j)] + 1.0
             for j in T.serial(0, 16):
@@ -74,7 +74,7 @@ class TestElementwiseWithoutDeclBuffer(BaseCompare):
         T.preflattened_buffer(A, (16, 16), dtype="float32", data=A.data)
         T.preflattened_buffer(C, (16, 16), dtype="float32", data=C.data)
         for i in T.serial(0, 16):
-            B_new_data = T.allocate(16, "float32", "global")
+            B_new_data = T.allocate([16], "float32", "global")
             B_new = T.buffer_decl(16, "float32", data=B_new_data)
             for j in T.serial(0, 16):
                 B_new[j] = A[((i * 16) + j)] + 1.0
@@ -93,7 +93,7 @@ class TestGPU(BaseCompare):
         T.launch_thread(i0, 4)
         T.launch_thread(i1, 2)
         T.launch_thread(i2, 2)
-        B = T.decl_buffer([1, 16], "float32", "local")
+        B = T.decl_buffer([1, 16], "float32", scope="local")
         for j in range(0, 16):
             B[0, j] = A[i0 * 4 + i1 * 2 + i2, j] + 1.0
         for j in range(0, 16):
@@ -110,7 +110,7 @@ class TestGPU(BaseCompare):
         T.launch_thread(i0, 4)
         T.launch_thread(i1, 2)
         T.launch_thread(i2, 2)
-        B = T.decl_buffer([16], "float32", "local")
+        B = T.decl_buffer([16], "float32", scope="local")
         for j in range(0, 16):
             B[j] = A[i0 * 64 + i1 * 32 + i2 * 16 + j] + 1.0
         for j in range(0, 16):
@@ -125,7 +125,7 @@ class TestSymbolic(BaseCompare):
         C = T.match_buffer(c, (n, m), "float32")
 
         for i in range(0, n):
-            B = T.decl_buffer([m], "float32", "global")
+            B = T.decl_buffer([m], "float32")
             for j in range(0, m):
                 B[j] = A[i, j] + 1.0
             for j in range(0, m):
@@ -138,7 +138,7 @@ class TestSymbolic(BaseCompare):
         T.preflattened_buffer(C, (n, m), "float32", data=C.data)
 
         for i in range(0, n):
-            B = T.decl_buffer([m], "float32", "global")
+            B = T.decl_buffer([m], "float32")
             for j in range(0, m):
                 B[j] = A[i * m + j] + 1.0
             for j in range(0, m):
@@ -161,8 +161,8 @@ class TestMultiAlloc(BaseCompare):
         T.preflattened_buffer(D, (4, 32), "float32", data=D.data)
 
         for i, j in T.grid(4, 32):
-            B = T.decl_buffer([128], "float32", "global")
-            C = T.decl_buffer([128], "float32", "global")
+            B = T.decl_buffer([128], "float32")
+            C = T.decl_buffer([128], "float32")
             B[i * 32 + j] = A[i * 32 + j] + 1.0
             C[i * 32 + j] = A[i * 32 + j] + B[i * 32 + j]
             D[i * 32 + j] = C[i * 32 + j] * 2.0
@@ -173,7 +173,7 @@ class TestStrided(BaseCompare):
 
     def before(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]):
         for i0 in T.serial(4):
-            B = T.decl_buffer([4, 17], "float32", "global")
+            B = T.decl_buffer([4, 17], "float32")
             B_1 = T.buffer_decl([4, 16], dtype="float32", data=B.data, strides=[17, 1])
             for i1, j in T.grid(4, 16):
                 B_1[i1, j] = A[i0 * 4 + i1, j] + 1.0
@@ -184,7 +184,7 @@ class TestStrided(BaseCompare):
         T.preflattened_buffer(A, [16, 16], dtype="float32", data=A.data)
         T.preflattened_buffer(C, [16, 16], dtype="float32", data=C.data)
         for i0 in T.serial(0, 4):
-            B_new = T.decl_buffer([68], "float32", "global")
+            B_new = T.decl_buffer([68], "float32")
             for i1 in T.serial(0, 4):
                 for j in T.serial(0, 16):
                     B_new[i1 * 17 + j] = A[i0 * 64 + i1 * 16 + j] + 1.0
