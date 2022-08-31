@@ -21,6 +21,7 @@
  * \file flatten_buffer.cc
  */
 
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
@@ -89,18 +90,56 @@ class BufferFlattener : public StmtExprMutator {
       auto writer = alloc.CopyOnWrite();
       writer->dtype = DataType::Int(8);
     }
-    // Handle multi-dimension allocations
+
     if (alloc->extents.size() == 1) {
-      return std::move(alloc);
-    } else {
-      Array<PrimExpr> flat_extent(static_cast<size_t>(1), 1);
-      for (size_t i = 0; i < alloc->extents.size(); i++) {
-        flat_extent.Set(0, flat_extent[0] * alloc->extents[i]);
-      }
-      auto n = alloc.CopyOnWrite();
-      n->extents = flat_extent;
+      // No flattening required for buffers that are already flat
       return std::move(alloc);
     }
+
+    if (auto* decl_buffer = alloc->body.as<DeclBufferNode>();
+        decl_buffer && decl_buffer->buffer->data.same_as(alloc->buffer_var)) {
+      // N-d buffer, use the DeclBuffer inside to determine how it
+      // should be flattened.
+      auto& buffer = decl_buffer->buffer;
+      bool matching_buffer = [&]() {
+        if (alloc->dtype != buffer->dtype) {
+          return false;
+        }
+        if (alloc->extents.size() != buffer->shape.size()) {
+          return false;
+        }
+        ExprDeepEqual expr_equal;
+        for (size_t i = 0; i < alloc->extents.size(); i++) {
+          if (!expr_equal(alloc->extents[i], buffer->shape[i])) {
+            return false;
+          }
+        }
+        return true;
+      }();
+
+      if (matching_buffer) {
+        Buffer flattened = GetFlattenedBuffer(buffer);
+
+        auto n = alloc.CopyOnWrite();
+        n->body = DeclBuffer(flattened, std::move(decl_buffer->body));
+        n->extents = flattened->shape;
+        return std::move(alloc);
+      } else {
+        ICHECK(decl_buffer->buffer->axis_separators.empty())
+            << "DeclBuffer node doesn't match Allocate extents, but also shouldn't be "
+               "flattened to 1-d physical memory";
+      }
+    }
+
+    // Fallback, this is an allocation without a matching DeclBuffer
+    PrimExpr flat_extent = 1;
+    for (const auto& dim : alloc->extents) {
+      flat_extent *= dim;
+    }
+
+    auto n = alloc.CopyOnWrite();
+    n->extents = {flat_extent};
+    return std::move(alloc);
   }
 
   Buffer GetFlattenedBuffer(Buffer buf) {
