@@ -201,12 +201,14 @@ class TestFlattenInsideBlock(BaseCompare):
         A = T.alloc_buffer([32, 32])
         for i, j in T.grid(32, 32):
             with T.block("block"):
+                T.reads(A[i, j])
                 T.evaluate(A[i, j])
 
     def expected():
         A = T.alloc_buffer([1024])
         for i, j in T.grid(32, 32):
             with T.block("block"):
+                T.reads(A[i * 32 + j])
                 T.evaluate(A[i * 32 + j])
 
 
