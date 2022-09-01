@@ -280,7 +280,7 @@ Phase 3: Propagate IntSets to consumer's input tensors
 
    /*
     * Input: Map<IterVar, IntSet> dom_map: consumer root -> IntSet
-    * Output: Map<Tensor, TensorDom> tmap: output tensor -> vector<vector<IntSet> >
+    * Output: Map<Tensor, TensorDom> tmap: output tensor -> vector<vector<IntSet>>
     */
 
 Note that the consumer's input tensors are output tensors of the stage InferBound is working on. So by establishing information about the consumer's input tensors, we actually obtain information about the stage's output tensors too: the consumers require certain regions of these tensors to be computed. This information can then be propagated through the rest of the stage, eventually obtaining Ranges for the stage's root_iter_vars by the end of Phase 4.
@@ -306,7 +306,7 @@ Phase 4: Consolidate across all consumers
 .. code:: cpp
 
    /*
-    * Input: Map<Tensor, TensorDom> tmap: output tensor -> vector<vector<IntSet> >
+    * Input: Map<Tensor, TensorDom> tmap: output tensor -> vector<vector<IntSet>>
     * Output: Map<IterVar, Range> rmap: rmap is populated for all of the stage's root_iter_vars
     */
 

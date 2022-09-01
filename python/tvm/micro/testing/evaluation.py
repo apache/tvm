@@ -22,6 +22,7 @@ tests in the future.
 
 """
 
+import logging
 from io import StringIO
 from pathlib import Path
 from contextlib import ExitStack
@@ -151,7 +152,8 @@ def predict_labels_aot(session, aot_executor, input_data, runs_per_sample=1):
     assert aot_executor.get_num_outputs() == 1
     assert runs_per_sample > 0
 
-    for sample in input_data:
+    for counter, sample in enumerate(input_data):
+        logging.info("Evaluating sample %d", counter)
         aot_executor.get_input(0).copyfrom(sample)
         result = aot_executor.module.time_evaluator("run", session.device, number=runs_per_sample)()
         predicted_label = aot_executor.get_output(0).numpy().argmax()

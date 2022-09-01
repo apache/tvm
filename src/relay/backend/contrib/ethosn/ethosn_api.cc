@@ -23,6 +23,7 @@
 
 #include "ethosn_api.h"
 
+#include <tvm/relay/attrs/image.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
@@ -293,51 +294,23 @@ EthosnError EthosnAPI::Reshape(const Expr& expr, ReshapeParams* params) {
   // Create input info
   Call reshape = Downcast<Call>(expr);
   const auto* input_dtype = reshape->args[0]->checked_type().as<TensorTypeNode>();
-  const auto& reshape_attrs = reshape->attrs.as<ReshapeAttrs>();
-
-  if (reshape_attrs->newshape.size() > params->new_shape.size()) {
-    return EthosnError(ErrStrm() << "reshape dimension=" << reshape_attrs->newshape.size()
-                                 << ", reshape dimension must be <= " << params->new_shape.size());
-  }
 
   sl::TensorShape input_tensor_shape = {1, 1, 1, 1};
   sl::DataType input_data_type;
   EthosnError err = Tvm2Npu(input_dtype->shape, &input_tensor_shape);
   err += Tvm2Npu(input_dtype->dtype, &input_data_type);
-  int tensor_size = 1;
-  for (const auto& dim : input_tensor_shape) {
-    tensor_size *= dim;
+
+  Array<IndexExpr> inferred_shape;
+  Array<IndexExpr> new_shape = reshape->checked_type().as<TensorTypeNode>()->shape;
+  if (new_shape.size() < 4) {
+    inferred_shape = {1, 1, 1, 1};
+    for (size_t i = 0; i < new_shape.size(); ++i) {
+      inferred_shape.Set(i, new_shape[i]);
+    }
+  } else {
+    inferred_shape = new_shape;
   }
 
-  int infer_index = -1;
-  int reshaped_size = 1;
-  Array<Integer> inferred_shape = {1, 1, 1, 1};
-  for (size_t i = 0; i < reshape_attrs->newshape.size(); i++) {
-    int value = reshape_attrs->newshape[i].as<IntImmNode>()->value;
-    if (value < -1) {
-      return EthosnError(ErrStrm()
-                         << "reshape dimension=" << value << ", reshape dimension must be >= -1");
-    }
-    if (value == -1) {
-      if (infer_index != -1) {
-        return EthosnError("only one reshape dimension can be inferred");
-      }
-      infer_index = i;
-    } else {
-      inferred_shape.Set(i, value);
-      reshaped_size *= value;
-    }
-  }
-
-  if (infer_index != -1) {
-    if (tensor_size % reshaped_size != 0) {
-      return EthosnError(ErrStrm()
-                         << "reshaped size=" << reshaped_size
-                         << ", must be an integer factor of the input size " << tensor_size);
-    }
-    int value = tensor_size / reshaped_size;
-    inferred_shape.Set(infer_index, Integer(value));
-  }
   err += Tvm2Npu(inferred_shape, &params->new_shape);
   params->input_info =
       sl::TensorInfo(input_tensor_shape, input_data_type, params->input_info.m_DataFormat,
@@ -709,6 +682,45 @@ EthosnError EthosnAPI::Requantize(const Expr& expr, RequantizeParams* params) {
 
   params->output_info = sl::TensorInfo(output_tensor_shape, output_data_type, sl::DataFormat::NHWC,
                                        requantize_q_info);
+  return err;
+}
+
+EthosnError EthosnAPI::Resize(const Expr& expr, ResizeParams* params) {
+  Call requantize = Downcast<Call>(expr);
+  Call resize = Downcast<Call>(requantize->args[0]);
+
+  const auto* input_dtype = resize->args[0]->checked_type().as<TensorTypeNode>();
+  sl::TensorShape input_tensor_shape = {1, 1, 1, 1};
+  EthosnError err = Tvm2Npu(input_dtype->shape, &input_tensor_shape);
+  sl::DataType input_tensor_dtype;
+  err += Tvm2Npu(input_dtype->dtype, &input_tensor_dtype);
+  float input_sc;
+  int input_zp;
+  err += AsConstant(requantize->args[2], &input_zp);
+  err += AsConstant(requantize->args[1], &input_sc);
+  sl::QuantizationInfo input_q_info;
+  err += Tvm2Npu(input_zp, input_sc, &input_q_info);
+  params->input_info =
+      sl::TensorInfo(input_tensor_shape, input_tensor_dtype, sl::DataFormat::NHWC, input_q_info);
+
+  float output_sc;
+  int output_zp;
+  err += AsConstant(requantize->args[3], &output_sc);
+  err += AsConstant(requantize->args[4], &output_zp);
+  sl::QuantizationInfo resize_q_info;
+  err += Tvm2Npu(output_zp, output_sc, &resize_q_info);
+  const auto* attrs = resize->attrs.as<Resize2DAttrs>();
+  uint32_t height, width;
+  err += Tvm2Npu(attrs->size, &height, &width);
+  params->resize_info =
+      sl::ResizeInfo{sl::ResizeAlgorithm::NEAREST_NEIGHBOUR, height, width, resize_q_info};
+
+  sl::TensorInfo output_info = params->input_info;
+  output_info.m_Dimensions[1] = params->resize_info.m_NewHeight;
+  output_info.m_Dimensions[2] = params->resize_info.m_NewWidth;
+  output_info.m_QuantizationInfo = params->resize_info.m_OutputQuantizationInfo;
+  params->output_info = output_info;
+
   return err;
 }
 

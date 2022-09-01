@@ -320,6 +320,21 @@ class AfterPureSpatial:
                 T.writes(T_add[ax0, ax1, ax2])
                 T_add[ax0, ax1, ax2] = placeholder_1[T.min(T.max(T.int64(0), T.Select(T.cast(placeholder[ax0, ax1] < T.int64(0), "int32") != 0, placeholder[ax0, ax1] + T.int64(30522), placeholder[ax0, ax1])), T.int64(30521)), ax2] + placeholder_2[ax0, ax1, ax2]
 
+@tvm.script.ir_module
+class ConstConsumer:
+    @T.prim_func
+    def main(T_full: T.Buffer[(1, 12, 4096), "int64"]) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        # with T.block("root")
+        for i0, i1, i2 in T.grid(1, 12, 4096):
+            with T.block("T_full"):
+                ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
+                T.reads()
+                T.writes(T_full[ax0, ax1, ax2])
+                T_full[ax0, ax1, ax2] = T.int64(0)
+
 # pylint: enable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
 # fmt: on
 
@@ -383,8 +398,21 @@ def test_inline_pure_spatial():
     tvm.ir.assert_structural_equal(lhs=space.mod, rhs=AfterPureSpatial)
 
 
+def test_inline_constant_tensor():
+    mod = ConstConsumer
+    target = Target("cuda", host="llvm")
+    ctx = _create_context(
+        mod=mod,
+        target=target,
+        rule=auto_inline(target=target),
+    )
+    (space,) = ctx.space_generator.generate_design_space(mod=mod)
+    tvm.ir.assert_structural_equal(lhs=space.mod, rhs=ConstConsumer)
+
+
 if __name__ == "__main__":
     test_inline_consumer_chain()
     test_inline_into_cache()
     test_inline_into_multiple_consumers()
     test_inline_pure_spatial()
+    test_inline_constant_tensor()

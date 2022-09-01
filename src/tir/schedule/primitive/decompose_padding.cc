@@ -415,7 +415,7 @@ StmtSRef DecomposePaddingImpl(ScheduleState self, const StmtSRef& block_sref,
    *    - trim original block to write non-padding part only
    */
   // Condition Checks and Information Collection
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   const BlockRealizeNode* realize = GetBlockRealize(self, block_sref).get();
   Map<Var, Range> dom_map;
   arith::Analyzer analyzer;

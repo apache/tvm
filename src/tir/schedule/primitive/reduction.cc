@@ -123,7 +123,7 @@ class LoopHeightError : public ScheduleError {
         // loop_var of a higher loop shouldn't contain loop var
         const Var& loop_var = higher_loop->StmtAs<ForNode>()->loop_var;
         if (UsesVar(binding, [v = loop_var.get()](const VarNode* var) { return var == v; })) {
-          const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+          const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
           throw LoopHeightError(mod, GetRef<For>(loop), GetRef<Block>(block));
         }
       }
@@ -183,8 +183,8 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
    *    - generate corresponding init block and update block
    */
   // Condition Checks and Information Collection
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
-  const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
+  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   // Get the outer loops from high to low
   Array<StmtSRef> loops = GetLoops(block_sref);
   const BlockRealizeNode* realize = GetBlockRealize(self, block_sref).get();
@@ -264,7 +264,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> loop_var_map;
   Stmt body = BlockRealize(init_realize);
   for (int i : chosen_loops) {
-    const ForNode* old_loop = TVM_SREF_TO_FOR(old_loop, loops[i]);
+    const ForNode* old_loop = TVM_SREF_TO_FOR(loops[i]);
     // Create a new equivalent to the chosen loop
     Var old_loop_var = old_loop->loop_var;
     Var new_loop_var = old_loop_var.copy_with_suffix("_init");
@@ -277,10 +277,8 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   }
   body = Substitute(body, loop_var_map);
   // Step 6. Mutate IR
-  const BlockNode* old_scope_root = TVM_SREF_TO_BLOCK(old_scope_root, scope_root_sref);
-  Block new_scope_root{nullptr};
-  Block new_reduction_block{nullptr};
-  std::tie(new_scope_root, new_reduction_block) = DecomposeReductionBlockReplacer::Replace(
+  const BlockNode* old_scope_root = TVM_SREF_TO_BLOCK(scope_root_sref);
+  auto [new_scope_root, new_reduction_block] = DecomposeReductionBlockReplacer::Replace(
       GetRef<Block>(old_scope_root), GetRef<For>(loop), body, GetRef<Block>(block));
   self->Replace(scope_root_sref, new_scope_root,
                 {{GetRef<Block>(old_scope_root), new_scope_root},
@@ -1013,7 +1011,7 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   StmtSRef scope_root = GetScopeRoot(self, block_sref,  //
                                      /*require_stage_pipeline=*/true);
   CheckReductionBlock(self, block_sref, scope_root);
-  const ForNode* rf_loop = TVM_SREF_TO_FOR(rf_loop, rf_loop_sref);
+  const ForNode* rf_loop = TVM_SREF_TO_FOR(rf_loop_sref);
   if (rf_loop->kind != ForKind::kSerial) {
     throw NotSerialLoopKindError(self->mod, GetRef<For>(rf_loop));
   }
@@ -1042,12 +1040,8 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   // commutative reducer, combiner lhs and combiner rhs from the reduction identity and the
   // reduction combiner. The lhs will be used when constructing the write-back block, and the rhs
   // will be used when constructing the rfactor block.
-  BufferStore init;
-  BufferStore update;
-  CommReducer reducer;
-  PrimExpr combiner_lhs, combiner_rhs;
-  std::tie(init, update) = GetBufferStoresFromReductionBlock(self, block);
-  std::tie(reducer, combiner_lhs, combiner_rhs) =
+  auto [init, update] = GetBufferStoresFromReductionBlock(self, block);
+  auto [reducer, combiner_lhs, combiner_rhs] =
       GetReducerAndCombinerLhsRhs(self, init->value, update);
 
   // Step 6. Check whether `factor_axis` is in a correct range, and convert it to non-negative if it

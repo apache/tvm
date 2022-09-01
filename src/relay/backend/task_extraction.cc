@@ -16,8 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-#include <tvm/meta_schedule/apply_history_best.h>
 #include <tvm/meta_schedule/extracted_task.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
@@ -32,13 +30,10 @@ namespace tvm {
 namespace relay {
 namespace backend {
 
-Array<meta_schedule::ExtractedTask> ExtractTask(
-    IRModule mod, Target target, Map<String, runtime::NDArray> params,
-    meta_schedule::ApplyHistoryBestNode::FTEFilterFunc filter_func) {
+Array<meta_schedule::ExtractedTask> ExtractTask(IRModule mod, Target target,
+                                                Map<String, runtime::NDArray> params) {
   using meta_schedule::ExtractedTask;
-  if (filter_func == nullptr) {
-    filter_func = tvm::meta_schedule::DefaultTaskFilter;
-  }
+  backend::FTECompilerTIRConverter tir_converter = backend::GetTIRConverter();
   backend::BindParamsInModule(mod, params);
   // is_vm=true for backward compatibility
   Array<Pass> pass_seqs = relay::backend::GetPassPrefix(/*is_homogenous=*/true, /*is_vm=*/true);
@@ -48,7 +43,7 @@ Array<meta_schedule::ExtractedTask> ExtractTask(
 
   std::vector<ExtractedTask> tasks;
   std::unordered_map<tec::CCacheKey, ExtractedTask> cache;
-  PostOrderVisit(mod->Lookup("main"), [&target, &tasks, &cache, &filter_func](const Expr& exp) {
+  PostOrderVisit(mod->Lookup("main"), [&target, &tasks, &cache, &tir_converter](const Expr& exp) {
     if (exp->IsInstance<FunctionNode>()) {
       Function relay_func = Downcast<Function>(exp);
       if (!relay_func->HasNonzeroAttr(attr::kPrimitive)) {
@@ -62,13 +57,11 @@ Array<meta_schedule::ExtractedTask> ExtractTask(
       }
       auto [inputs_outputs, constants, fused_name] =
           tec::LowerTECompute(relay_func, target, /*return_inputs=*/true);
-      if (Optional<tir::PrimFunc> prim_func = filter_func(inputs_outputs, constants)) {
-        GlobalVar prim_fn_var(fused_name);
-        IRModule relay_mod({{prim_fn_var, relay_func}});
-        IRModule tir_mod({{prim_fn_var, prim_func.value()}});
-        ExtractedTask extracted_task(fused_name, relay_mod, target, {tir_mod}, 1);
-        tasks.push_back(extracted_task);
-        cache.emplace(cache_key, extracted_task);
+      if (Optional<tir::PrimFunc> f = tir_converter(inputs_outputs, constants)) {
+        IRModule relay_mod({{GlobalVar(fused_name), relay_func}});
+        ExtractedTask task(fused_name, relay_mod, target, {PrimFuncToIRModule(f.value())}, 1);
+        tasks.push_back(task);
+        cache.emplace(cache_key, task);
       }
     }
   });

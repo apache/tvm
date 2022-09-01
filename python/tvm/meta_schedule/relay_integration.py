@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """MetaSchedule-Relay integration"""
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import numpy as np  # type: ignore
 from tvm import nd
@@ -23,8 +23,6 @@ from tvm._ffi import get_global_func
 from tvm.ir import IRModule, transform
 from tvm.runtime import NDArray
 from tvm.target import Target
-from tvm.te import Tensor
-from tvm.tir import PrimFunc
 
 from .extracted_task import ExtractedTask
 from .utils import autotvm_silencer
@@ -38,7 +36,7 @@ def extract_task_from_relay(
     opt_level: int = 3,
     pass_config: Optional[Dict[str, Any]] = None,
     disabled_pass: Optional[List[str]] = None,
-    te_filter_func: Union[str, None, Callable[[List[Tensor]], PrimFunc]] = None,
+    tir_converter: str = "default",
 ) -> List[ExtractedTask]:
     """Extract tuning tasks from a relay program.
 
@@ -56,13 +54,13 @@ def extract_task_from_relay(
         The pass config of the compiler
     disabled_pass : Optional[List[str]]
         The list of disabled passes of the compiler
-    te_filter_func : Callable[[List[tvm.te.Tensor], List[NDArray]], bool]
-        The filter function to filter out the extracted tasks
-        If it's a string, it's the name of the filtering function. Built in functions are
-          - "meta_schedule.DefaultTaskFilter"
-          - "meta_schedule.DefaultTaskFilterAllowExtern"
-        If it's None, it's the default filtering function
-        If it's a callable, it's the filtering function
+    tir_converter : str
+        The filter function to filter out the extracted tasks. Builtin filters:
+          - "default"
+          - "allow_extern"
+        The converter is a PackedFunc registered as f"relay.backend.tir_converter.{tir_converter}",
+        with the signature below:
+            (args: List[te.Tensor], constants: List[NDArray]) -> Optional[tir.PrimFunc]
 
     Returns
     -------
@@ -75,8 +73,6 @@ def extract_task_from_relay(
 
     # pylint: enable=import-outside-toplevel
 
-    if isinstance(te_filter_func, str):
-        te_filter_func = get_global_func(te_filter_func)
     extract_task_func = get_global_func(
         "relay.backend.MetaScheduleExtractTask",
         allow_missing=False,
@@ -89,7 +85,10 @@ def extract_task_from_relay(
     if disabled_pass is None:
         disabled_pass = []
     if pass_config is None:
-        pass_config = {"relay.backend.use_meta_schedule": True}
+        pass_config = {
+            "relay.backend.use_meta_schedule": True,
+            "relay.backend.tir_converter": tir_converter,
+        }
     if params is None:
         params = {}
     relay_params = {}
@@ -110,7 +109,7 @@ def extract_task_from_relay(
         else:
             tophub_context = autotvm.utils.EmptyContext()
         with tophub_context:
-            return list(extract_task_func(mod, target, relay_params, te_filter_func))
+            return list(extract_task_func(mod, target, relay_params))
 
 
 def is_meta_schedule_enabled() -> bool:

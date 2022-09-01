@@ -180,7 +180,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
       graph_.node_map[key] = current;
     }
     if (parent != nullptr) {
-      auto* link = arena_->make<LinkNode<IndexedForwardGraph::Edge> >();
+      auto* link = arena_->make<LinkNode<IndexedForwardGraph::Edge>>();
       link->value.node = parent;
       link->value.pattern = pattern;
       current->outputs.Push(link);

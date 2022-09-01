@@ -83,9 +83,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
   Call MakeCombinedOp(const Group& branches) {
     const Op& conv2d = Op::Get("nn.conv2d");
     Expr data = branches[0][0]->args[0];
-    Expr new_weight;
-    IndexExpr new_channels;
-    std::tie(new_weight, new_channels) = TransformWeight(branches);
+    auto [new_weight, new_channels] = TransformWeight(branches);
 
     const CallNode* group_root = branches[0][0];
     const auto* attrs = group_root->attrs.as<Conv2DAttrs>();

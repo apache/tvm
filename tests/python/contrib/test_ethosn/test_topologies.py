@@ -31,6 +31,8 @@ from . import infrastructure as tei
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 def test_split_add_concat(dtype):
+    """Test a model with split, add and contatenate."""
+
     def get_model(input_shape, dtype, var_names):
         """Return a model"""
 
@@ -148,23 +150,25 @@ def test_multiple_command_streams(dtype):
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 def test_output_order(dtype):
+    """Test the output order."""
+
     def get_model(input_shape, dtype, var_names):
         """Return a model"""
 
-        min = np.iinfo(dtype).min
-        max = np.iinfo(dtype).max
+        min_value = np.iinfo(dtype).min
+        max_value = np.iinfo(dtype).max
         a = relay.var(next(var_names), shape=input_shape, dtype=dtype)
 
-        z = relay.op.clip(a, min, max)
-        b = relay.op.clip(z, min, min + 15)
-        c = relay.op.clip(z, min + 16, min + 31)
-        d = relay.op.clip(z, min + 32, min + 47)
-        e = relay.op.clip(z, min + 48, min + 63)
-        f = relay.op.clip(z, min + 64, min + 79)
-        g = relay.op.clip(z, min + 80, min + 95)
-        h = relay.op.clip(z, min + 96, min + 111)
-        i = relay.op.clip(z, min + 112, max)
-        return relay.Tuple((d, c, e, f, i, b, h, g))
+        op_z = relay.op.clip(a, min_value, max_value)
+        op_b = relay.op.clip(op_z, min_value, min_value + 15)
+        op_c = relay.op.clip(op_z, min_value + 16, min_value + 31)
+        op_d = relay.op.clip(op_z, min_value + 32, min_value + 47)
+        op_e = relay.op.clip(op_z, min_value + 48, min_value + 63)
+        op_f = relay.op.clip(op_z, min_value + 64, min_value + 79)
+        op_g = relay.op.clip(op_z, min_value + 80, min_value + 95)
+        op_h = relay.op.clip(op_z, min_value + 96, min_value + 111)
+        op_i = relay.op.clip(op_z, min_value + 112, max_value)
+        return relay.Tuple((op_d, op_c, op_e, op_f, op_i, op_b, op_h, op_g))
 
     np.random.seed(0)
     inputs = {
@@ -190,6 +194,7 @@ def test_output_order_different_sizes(dtype):
     """
     Test the output order when there are multiple outputs of different sizes.
     """
+
     np.random.seed(0)
     input_name = "a"
     input_shape = (1, 8, 8, 4)
@@ -233,6 +238,8 @@ def test_output_order_different_sizes(dtype):
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 def test_split_with_asym_concats(dtype):
+    """Test a model with split and contatenates."""
+
     def get_model(shape, dtype, splits, axis):
         a = relay.var("a", shape=shape, dtype=dtype)
         split = relay.op.split(a, indices_or_sections=splits, axis=axis)
@@ -335,6 +342,8 @@ def test_output_tuple_propagation(dtype):
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 def test_input_tuples(dtype):
+    """Test a model with a tuple as input."""
+
     def get_model(shapes, dtype, axis):
         tup = []
         for i, shape in enumerate(shapes):

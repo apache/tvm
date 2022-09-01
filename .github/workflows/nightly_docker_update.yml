@@ -28,4 +28,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eux
-          python tests/scripts/open_docker_update_pr.py
+          python ci/scripts/open_docker_update_pr.py

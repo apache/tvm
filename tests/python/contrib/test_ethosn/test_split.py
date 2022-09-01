@@ -37,6 +37,8 @@ def _get_model(shape, dtype, splits, axis):
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 def test_split(dtype):
+    """Compare Split output with TVM."""
+
     trials = [
         ((1, 16, 16, 32), (2, 7, 10), 2),
         ((1, 12, 8, 16), 3, 1),
@@ -55,7 +57,7 @@ def test_split(dtype):
         for npu in [False, True]:
             model = _get_model(shape, dtype, splits, axis)
             mod = tei.make_module(model, {})
-            output_count = splits if type(splits) == int else len(splits) + 1
+            output_count = splits if isinstance(splits, int) else len(splits) + 1
             outputs.append(tei.build_and_run(mod, inputs, output_count, {}, npu=npu))
 
         tei.verify(outputs, dtype, 0)
@@ -64,6 +66,8 @@ def test_split(dtype):
 @pytest.mark.skip("Split is not supported by the 3.0.1 version of the driver stack.")
 @requires_ethosn
 def test_split_failure():
+    """Check Split error messages."""
+
     trials = [
         ((1, 4, 4, 4, 4), "uint8", 4, 2, "dimensions=5, dimensions must be <= 4;"),
         ((1, 4, 4, 4), "int16", 4, 2, "dtype='int16', dtype must be either uint8, int8 or int32;"),
@@ -74,7 +78,8 @@ def test_split_failure():
             "uint8",
             4,
             3,
-            "Split along the channels dimension (axis 3) requires all output sizes (specified in splitInfo.m_Sizes) to be multiples of 16;",
+            "Split along the channels dimension (axis 3) requires all output sizes "
+            "(specified in splitInfo.m_Sizes) to be multiples of 16;",
         ),
     ]
 

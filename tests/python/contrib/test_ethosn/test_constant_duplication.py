@@ -36,8 +36,10 @@ def _get_model():
     add_const = relay.const(add_const_value, "uint8")
     a = relay.add(a, add_const)
     weight_shape = (kernel_h, kernel_w, shape[3], out_channels)
-    w = tvm.nd.array(np.random.randint(low=0, high=255, size=weight_shape, dtype="uint8"))
-    weights = relay.const(w, "uint8")
+    weights_array = tvm.nd.array(
+        np.random.randint(low=0, high=255, size=weight_shape, dtype="uint8")
+    )
+    weights = relay.const(weights_array, "uint8")
     conv = relay.qnn.op.conv2d(
         a,
         weights,
@@ -66,12 +68,14 @@ def _get_model():
         relay.const(0, "int32"),  # output zero point
         out_dtype="uint8",
     )
-    params = {"w": w, "b": b}
+    params = {"w": weights_array, "b": b}
     return req, params
 
 
 @requires_ethosn
 def test_constant_duplication():
+    """Test that constants are not duplicated."""
+
     np.random.seed(0)
     model, params = _get_model()
     mod = tei.make_module(model, params)

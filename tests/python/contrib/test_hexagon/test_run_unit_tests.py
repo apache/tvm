@@ -17,8 +17,6 @@
 
 """ capture gtest output and return over FFI """
 
-import numpy as np
-
 import tvm
 from tvm.contrib.hexagon.session import Session
 
@@ -46,4 +44,7 @@ def test_run_unit_tests(hexagon_session: Session, gtest_args):
     gtest_error_code = int(gtest_error_code_and_output.splitlines()[0])
     gtest_output = gtest_error_code_and_output.split("\n", 1)[-1]
     print(gtest_output)
-    np.testing.assert_equal(gtest_error_code, 0)
+    if gtest_error_code != 0:
+        raise RuntimeError(
+            f"Hexagon gtest retruned non-zero error code = {gtest_error_code}:\n{gtest_output}"
+        )

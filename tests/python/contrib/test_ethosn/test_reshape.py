@@ -20,7 +20,6 @@
 import tvm
 from tvm import relay
 from tvm.testing import requires_ethosn
-from tvm.relay.op.contrib import get_pattern_table
 import numpy as np
 import pytest
 from . import infrastructure as tei
@@ -29,9 +28,8 @@ from . import infrastructure as tei
 def _get_model(input_shape, output_shape, dtype):
     """Return a model and any parameters it may have"""
     a = relay.var("a", shape=input_shape, dtype=dtype)
-    conv, params = tei.get_conv2d(a, input_shape, dtype)
-    req = relay.reshape(conv, output_shape)
-    return req, params
+    req = relay.reshape(a, output_shape)
+    return req, {}
 
 
 @requires_ethosn
@@ -43,10 +41,19 @@ def _get_model(input_shape, output_shape, dtype):
         ((1, 15, 4, 1), (1, 30, 2)),
         ((1, 15, 4, 1), (1, 4, 15, 1)),
         ((1, 15, 4, 1), (1, 12, 5, 1)),
+        ((1, 15, 4, 1), (1, 0, 2, 2)),
         ((1, 15, 4, 1), (1, -1, 2, 1)),
+        ((1, 15, 4, 1), (1, -2)),
+        ((1, 15, 4, 1), (1, -3, 1, 1)),
+        ((1, 15, 4, 1), (1, -4, 3, 5, 4)),
+        ((1, 15, 4, 1), (0, -1, -2)),
+        ((1, 15, 4, 1), (0, -1, -3, 1)),
+        ((1, 15, 4, 1), (1, -4, -1, 5, 4)),
     ],
 )
 def test_reshape(dtype, input_shape, output_shape):
+    """Compare Reshape output with TVM."""
+
     np.random.seed(0)
     inputs = {
         "a": tvm.nd.array(
@@ -69,28 +76,17 @@ def test_reshape(dtype, input_shape, output_shape):
 
 @requires_ethosn
 @pytest.mark.parametrize(
-    "input_shape, output_shape, dtype, err_msg",
+    "input_shape, output_shape",
     [
         (
-            (1, 15, 4, 1),
-            (1, 15, -2),
-            "uint8",
-            "reshape dimension=-2, reshape dimension must be >= -1",
-        ),
-        (
-            (1, 1, 4, 1),
-            (1, 1, 2, 2, 1),
-            "uint8",
-            "reshape dimension=5, reshape dimension must be <= 4",
+            (1, 13, 13, 255),
+            (1, 13, 13, 3, 85),
         ),
     ],
 )
-def test_reshape_failure(input_shape, output_shape, dtype, err_msg):
-    np.random.seed(0)
-    model, params = _get_model(input_shape, output_shape, dtype)
+def test_reshape_failure(input_shape, output_shape):
+    """Check Resize is not offloaded."""
+
+    model, params = _get_model(input_shape, output_shape, "int8")
     mod = tei.make_module(model, params)
-    pattern = get_pattern_table("ethos-n")
-    mod = tei.make_module(model, params)
-    mod = relay.transform.MergeComposite(pattern)(mod)
-    mod = tei.make_ethosn_partition(mod["main"].body)
-    tei.test_error(mod, {}, err_msg)
+    tei.build(mod, params, expected_host_ops=1, npu_partitions=0)

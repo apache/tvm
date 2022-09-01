@@ -975,6 +975,9 @@ IntSet EvalSet(PrimExpr e, const std::unordered_map<const VarNode*, IntSet>& dom
 
 IntSet EvalSet(Range r, const Map<Var, IntSet>& dom_map) {
   Analyzer ana;
+  if ((r->min->dtype.is_int() || r->min->dtype.is_uint()) && ana.CanProveEqual(r->extent, 1)) {
+    return EvalSet(r->min, dom_map);
+  }
   IntervalSetEvaluator m(&ana, dom_map);
   // Simplifying first can give tighter bounds if r->min and r->extent share variables
   PrimExpr sum = r->min + r->extent - 1;
@@ -1035,15 +1038,57 @@ IntSet EvalSet(Range r, const Map<IterVar, IntSet>& dom_map) {
   return EvalSet(r, ConvertDomMap(dom_map));
 }
 
-Optional<Array<IntSet>> EstimateRegionLowerBound(const Array<Range>& region,
-                                                 const Map<Var, Range>& var_dom,
-                                                 const PrimExpr& predicate, Analyzer* analyzer) {
+Map<Var, arith::IntSet> AsIntSet(const Map<Var, Range>& var_dom) {
+  Map<Var, arith::IntSet> result;
+  for (auto kv : var_dom) {
+    const Var& var = kv.first;
+    const Range& range = kv.second;
+    result.Set(var, arith::IntSet::FromRange(range));
+  }
+  return result;
+}
+
+/*! \brief Helper function to convert IterSumExpr to the actual touched range. */
+static Optional<IntSet> EvalIterSum(const IterSumExpr& iter_min, const PrimExpr& extent,
+                                    Analyzer* analyzer) {
+  if (iter_min->args.empty()) {
+    return IntSet::FromMinExtent(iter_min->base, extent);
+  }
+  ICHECK_EQ(iter_min->args.size(), 1) << "The `EvalIterSum` expects fused iter sum expr";
+  const IterSplitExpr& split = iter_min->args[0];
+  if (!analyzer->CanProve(extent >= split->scale)) {
+    return NullOpt;
+  }
+
+  const PrimExpr& base = iter_min->base;
+  // IterSplitExpr: (source // lower_factor) % extent * scale
+  // where `(source // lower_factor) % extent` is within [0, extent - 1]
+  if (analyzer->CanProve(split->scale < 0)) {
+    // If scale is negative, the var dom is [(extent - 1) * scale, 0]
+    // The total base is `base + (extent - 1) * scale`,
+    // while total extent is `dom_extent + (extent - 1) * (-scale)`
+    const PrimExpr& var_extent = (split->extent - 1) * split->scale;
+    return IntSet::FromMinExtent(base + var_extent, extent - var_extent);
+  } else {
+    // If scale is positive, the var dom is [0, (extent - 1) * scale]
+    // The total dom is [base, dom_extent + (extent - 1) * scale]
+    return IntSet::FromMinExtent(base, extent + (split->extent - 1) * split->scale);
+  }
+}
+
+Optional<Array<IntSet>> EstimateRegionStrictBound(const Array<Range>& region,
+                                                  const Map<Var, Range>& var_dom,
+                                                  const PrimExpr& predicate, Analyzer* analyzer) {
   int ndim = region.size();
   Array<IterSumExpr> iter_sum_exprs{nullptr};
   {
     Array<PrimExpr> affine_indices;
     affine_indices.reserve(ndim);
     for (const Range& range : region) {
+      if (!is_const_number(range->extent)) {
+        // dynamic extent is not supported yet.
+        return NullOpt;
+      }
       affine_indices.push_back(range->min);
     }
     auto res = DetectIterMap(
@@ -1060,31 +1105,57 @@ Optional<Array<IntSet>> EstimateRegionLowerBound(const Array<Range>& region,
   for (int i = 0; i < ndim; ++i) {
     const IterSumExpr& sum_expr = iter_sum_exprs[i];
     const Range& range = region[i];
-    if (sum_expr->args.empty()) {
-      result.push_back(IntSet::FromMinExtent(sum_expr->base, range->extent));
-      continue;
-    }
-    ICHECK_EQ(sum_expr->args.size(), 1);
-    const IterSplitExpr& split = sum_expr->args[0];
-    if (!analyzer->CanProve(range->extent >= split->scale)) {
+    Optional<IntSet> int_set = EvalIterSum(sum_expr, range->extent, analyzer);
+    if (int_set.defined()) {
+      result.push_back(int_set.value());
+    } else {
       return NullOpt;
     }
+  }
+  return result;
+}
 
-    const PrimExpr& base = sum_expr->base;
-    // IterSplitExpr: (source // lower_factor) % extent * scale
-    // where `(source // lower_factor) % extent` is within [0, extent - 1]
-    if (analyzer->CanProve(split->scale < 0)) {
-      // If scale is negative, the var dom is [(extent - 1) * scale, 0]
-      // The total base is `base + (extent - 1) * scale`,
-      // while total extent is `dom_extent + (extent - 1) * (-scale)`
-      const PrimExpr& var_extent = (split->extent - 1) * split->scale;
-      result.push_back(IntSet::FromMinExtent(base + var_extent, range->extent - var_extent));
-    } else {
-      // If scale is positive, the var dom is [0, (extent - 1) * scale]
-      // The total dom is [base, dom_extent + (extent - 1) * scale]
-      result.push_back(
-          IntSet::FromMinExtent(base, range->extent + (split->extent - 1) * split->scale));
+Optional<Array<IntSet>> EstimateRegionLowerBound(const Array<Range>& region,
+                                                 const Map<Var, Range>& var_dom,
+                                                 const PrimExpr& predicate,
+                                                 arith::Analyzer* analyzer) {
+  return EstimateRegionStrictBound(region, var_dom, predicate, analyzer);
+}
+
+Array<IntSet> EstimateRegionUpperBound(const Array<Range>& region, const Map<Var, Range>& var_dom,
+                                       const PrimExpr& predicate, Analyzer* analyzer) {
+  if (Optional<Array<arith::IntSet>> result = EstimateRegionStrictBound(
+          /*region=*/region,
+          /*var_dom=*/var_dom,
+          /*predicate=*/predicate, /*analyzer=*/analyzer)) {
+    return result.value();
+  }
+  Array<IntSet> result;
+  result.reserve(region.size());
+  // try estimate each dimension independently
+  for (const Range& range : region) {
+    auto res = DetectIterMap(
+        /*indices=*/{range->min}, /*input_iters=*/var_dom,
+        /*predicate=*/predicate, /*check_level=*/IterMapLevel::Surjective, analyzer);
+    if (!res->indices.empty()) {
+      ICHECK_EQ(res->indices.size(), 1U);
+      IterSumExpr sum_expr = res->indices[0];
+
+      // dynamic extent is not supported yet.
+      PrimExpr extent = range->extent;
+      if (!is_const_number(extent)) {
+        IntSet relaxed = EvalSet(extent, AsIntSet(var_dom));
+        ICHECK(relaxed.HasUpperBound());
+        extent = relaxed.max();
+      }
+
+      if (Optional<IntSet> int_set = EvalIterSum(sum_expr, range->extent, analyzer)) {
+        result.push_back(int_set.value());
+        continue;
+      }
     }
+    // fallback to coarse grained evalset
+    result.push_back(EvalSet(range, AsIntSet(var_dom)));
   }
   return result;
 }
@@ -1117,6 +1188,18 @@ TVM_REGISTER_GLOBAL("arith.EstimateRegionLowerBound")
                        PrimExpr predicate) -> Optional<Array<IntSet>> {
       Analyzer analyzer;
       return EstimateRegionLowerBound(region, var_dom, predicate, &analyzer);
+    });
+TVM_REGISTER_GLOBAL("arith.EstimateRegionStrictBound")
+    .set_body_typed([](Array<Range> region, Map<Var, Range> var_dom,
+                       PrimExpr predicate) -> Optional<Array<IntSet>> {
+      Analyzer analyzer;
+      return EstimateRegionStrictBound(region, var_dom, predicate, &analyzer);
+    });
+TVM_REGISTER_GLOBAL("arith.EstimateRegionUpperBound")
+    .set_body_typed([](Array<Range> region, Map<Var, Range> var_dom,
+                       PrimExpr predicate) -> Optional<Array<IntSet>> {
+      Analyzer analyzer;
+      return EstimateRegionUpperBound(region, var_dom, predicate, &analyzer);
     });
 
 TVM_REGISTER_GLOBAL("arith.PosInf").set_body_typed([]() { return SymbolicLimits::pos_inf_; });

@@ -140,9 +140,7 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
       result.clear();
       while (!stack.empty()) {
         // get the stack.top()
-        tir::Schedule sch;
-        Array<tir::BlockRV> blocks;
-        std::tie(sch, blocks) = stack.back();
+        auto [sch, blocks] = stack.back();
         stack.pop_back();
         // if all blocks are visited
         if (blocks.empty()) {

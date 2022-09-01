@@ -654,14 +654,16 @@ def test_access_in_let_value():
     @T.prim_func
     def func(A: T.Buffer[(8,), "float32"]):
         for i in range(8):
-            B = T.allocate((1,), "float32", "global")
+            B_data = T.allocate((1,), "float32", "global")
+            B = T.buffer_decl(shape=[1], dtype="float32", data=B_data)
             B[0] = 3.14
             x: T.float32 = T.exp(B[0], dtype="float32")
             A[i] = (x + 1.0) / (x - 1.0)
 
     @T.prim_func
     def func_rewritten(A: T.Buffer[(8,), "float32"]) -> None:
-        B = T.allocate((1,), "float32", "global")
+        B_data = T.allocate((1,), "float32", "global")
+        B = T.buffer_decl(shape=[1], dtype="float32", data=B_data)
         for i in range(8):
             B[0] = 3.14
             x: T.float32 = T.exp(B[0], dtype="float32")
