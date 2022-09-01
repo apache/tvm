@@ -417,6 +417,12 @@ def is_aarch64_arm():
     return "aarch64" in target.attrs.get("mtriple", "")
 
 
+def is_cortexm_arm():
+    """Checks whether we are compiling for a Cortex-M target."""
+    target = tvm.target.Target.current(allow_none=False)
+    return "cortex-m" in target.attrs.get("mcpu", "")
+
+
 ########################
 # ARM CPU legalizations.
 ########################
@@ -433,7 +439,7 @@ def _qnn_conv2d_legalize_arm_cpu(attrs, inputs, types):
         attrs["groups"],
     )
     use_int8_on_arm = (not is_depthwise) and is_aarch64_arm() and attrs["data_layout"] == "NHWC"
-    if use_int8_on_arm or is_fast_int8_on_arm():
+    if use_int8_on_arm or is_fast_int8_on_arm() or is_cortexm_arm():
         return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.conv2d)
     return helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay.nn.conv2d)
 
@@ -441,7 +447,7 @@ def _qnn_conv2d_legalize_arm_cpu(attrs, inputs, types):
 @qnn_dense_legalize.register("arm_cpu")
 def _qnn_dense_legalize_arm_cpu(attrs, inputs, types):
     # ARM prefers the dtypes to be same.
-    if is_fast_int8_on_arm():
+    if is_fast_int8_on_arm() or is_cortexm_arm():
         return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.dense)
     return helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay.nn.dense)
 
