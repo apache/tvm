@@ -45,6 +45,8 @@ def _get_model(shape, input_zp, input_sc, output_zp, output_sc, dtype):
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 def test_sigmoid(dtype):
+    """Compare Sigmoid output with TVM."""
+
     trials = [
         (1, 16, 16, 16),
         (1, 8, 8),
@@ -61,7 +63,7 @@ def test_sigmoid(dtype):
         }
         outputs = []
         for npu in [False, True]:
-            for d in range(1, 2):
+            for _ in range(1, 2):
                 if dtype == "uint8":
                     input_zp = 0
                     output_zp = 0
@@ -78,21 +80,22 @@ def test_sigmoid(dtype):
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 def test_sigmoid_failure(dtype):
+    """Check Sigmoid error messages."""
+
     test_zp = 0 if dtype == "uint8" else -128
     trials = [
-        ((2, 4, 4, 4), 64, 0.2, test_zp, 1 / 256, dtype, "batch size=2, batch size must = 1"),
+        ((2, 4, 4, 4), 64, 0.2, test_zp, 1 / 256, "batch size=2, batch size must = 1"),
         (
             (1, 4, 4, 4),
             64,
             0.2,
             3,
             1,
-            dtype,
             f"output quantization params=(3, 1), must = ({test_zp}, 1/256)",
         ),
     ]
 
-    for shape, input_zp, input_sc, output_zp, output_sc, dtype, err_msg in trials:
+    for shape, input_zp, input_sc, output_zp, output_sc, err_msg in trials:
         model = _get_model(shape, input_zp, input_sc, output_zp, output_sc, dtype)
         model = tei.make_ethosn_composite(model, "ethos-n.qnn_sigmoid")
         mod = tei.make_ethosn_partition(model)

@@ -18,17 +18,17 @@
 """Arm(R) Ethos(TM)-N test functions"""
 
 from __future__ import absolute_import, print_function
+from hashlib import md5
+from itertools import zip_longest, combinations
+import os
+import numpy as np
+from PIL import Image
+
 import tvm
 from tvm import relay
 from tvm.contrib import utils, graph_executor, download
-from hashlib import md5
-from itertools import zip_longest, combinations
-import numpy as np
-from PIL import Image
-import os
-
-from . import _infrastructure
 from tvm.relay.op.contrib import partition_for_ethosn
+from . import _infrastructure
 
 
 def get_real_image(im_height, im_width):
@@ -82,23 +82,25 @@ def make_module(func, params):
 
 
 def make_ethosn_composite(ethosn_expr, name):
-    vars = relay.analysis.free_vars(ethosn_expr)
-    inner_vars = [relay.Var(v.name_hint, v.type_annotation) for v in vars]
+    variables = relay.analysis.free_vars(ethosn_expr)
+    inner_vars = [relay.Var(v.name_hint, v.type_annotation) for v in variables]
     func = relay.Function(inner_vars, ethosn_expr)
     func = func.with_attr("Composite", name)
-    call = relay.Call(func, vars)
+    call = relay.Call(func, variables)
     return call
 
 
 def make_ethosn_partition(ethosn_expr):
+    """Make an Ethos(TM)-N partition."""
+
     # Create an Ethos-N global function
     mod = tvm.IRModule({})
-    vars = relay.analysis.free_vars(ethosn_expr)
+    variables = relay.analysis.free_vars(ethosn_expr)
     # NB: it is illegal to reuse variables inside and outside a scope in Relay
     # if you want to duplicate types and names you must re-allocate them.
-    fresh_vars = [relay.Var(v.name_hint, v.type_annotation) for v in vars]
+    fresh_vars = [relay.Var(v.name_hint, v.type_annotation) for v in variables]
     binds = {}
-    for var, fresh_var in zip(vars, fresh_vars):
+    for var, fresh_var in zip(variables, fresh_vars):
         binds[var] = fresh_var
     ethosn_expr_fresh = relay.bind(ethosn_expr, binds)
     func = relay.Function(fresh_vars, ethosn_expr_fresh)
@@ -106,19 +108,21 @@ def make_ethosn_partition(ethosn_expr):
     func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
     func = func.with_attr("Compiler", "ethos-n")
     func = func.with_attr("global_symbol", "ethos-n_0")
-    g1 = relay.GlobalVar("ethos-n_0")
-    mod[g1] = func
+    global_var = relay.GlobalVar("ethos-n_0")
+    mod[global_var] = func
     mod = relay.transform.InferType()(mod)
 
     # These are the vars to call the Ethos-N partition with
     more_vars = relay.analysis.free_vars(ethosn_expr)
     # Call the Ethos-N partition in main
-    call_fn1 = g1(*more_vars)
+    call_fn1 = global_var(*more_vars)
     mod["main"] = relay.Function(more_vars, call_fn1)
     return relay.transform.InferType()(mod)
 
 
 def get_host_op_count(mod):
+    """Return the number of host operators."""
+
     class Counter(tvm.relay.ExprVisitor):
         def __init__(self):
             super().__init__()
@@ -219,9 +223,7 @@ def run(lib, inputs, outputs, npu=True):
     return out
 
 
-def build_and_run(
-    mod, inputs, outputs, params, device=tvm.cpu(), npu=True, expected_host_ops=0, npu_partitions=1
-):
+def build_and_run(mod, inputs, outputs, params, npu=True, expected_host_ops=0, npu_partitions=1):
     lib = build(mod, params, npu, expected_host_ops, npu_partitions)
     return run(lib, inputs, outputs, npu)
 
@@ -254,6 +256,8 @@ def inference_result(outputs):
 
 
 def test_error(mod, params, err_msg):
+    """Test an operator error message."""
+
     caught = None
     with tvm.transform.PassContext(
         opt_level=3, config={"relay.ext.ethos-n.options": {"variant": get_ethosn_variant()}}
@@ -262,8 +266,8 @@ def test_error(mod, params, err_msg):
             try:
                 mod = relay.transform.InferType()(mod)
                 relay.build(mod, params=params)
-            except tvm.error.TVMError as e:
-                caught = e.args[0]
+            except tvm.error.TVMError as error:
+                caught = error.args[0]
             finally:
                 relay.backend.te_compiler.get().clear()
 
@@ -275,8 +279,8 @@ def get_conv2d(var, shape, dtype):
     """Standard convolution to test activation functions"""
 
     weight_shape = (1, 1, shape[3], 1)
-    w = tvm.nd.array(np.ones(weight_shape, dtype))
-    weights = relay.const(w, dtype)
+    weights_array = tvm.nd.array(np.ones(weight_shape, dtype))
+    weights = relay.const(weights_array, dtype)
     conv = relay.qnn.op.conv2d(
         var,
         weights,
@@ -300,13 +304,15 @@ def get_conv2d(var, shape, dtype):
         relay.const(0, "int32"),  # output zero point
         out_dtype=dtype,
     )
-    params = {"w": w, "b": b}
+    params = {"w": weights_array, "b": b}
     return req, params
 
 
 def get_conv2d_qnn_params(
     dtype, input_zp, input_sc, kernel_zp, kernel_sc, kernel_h, kernel_w, channels
 ):
+    """Return Conv2D QNN params."""
+
     kernel_sc = (
         kernel_sc.numpy() if isinstance(kernel_sc, tvm.runtime.ndarray.NDArray) else [kernel_sc]
     )
