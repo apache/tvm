@@ -121,7 +121,13 @@ class BufferFlattener : public StmtExprMutator {
         Buffer flattened = GetFlattenedBuffer(buffer);
 
         auto n = alloc.CopyOnWrite();
-        n->body = DeclBuffer(flattened, std::move(decl_buffer->body));
+        // TODO(rfc-70): Update the DeclBuffer node instead of
+        // stripping it out.  Stripping it out in the current
+        // implementation as not all lowering passes support
+        // DeclBuffer.
+        //
+        // n->body = DeclBuffer(flattened, std::move(decl_buffer->body));
+        n->body = std::move(decl_buffer->body);
         n->extents = flattened->shape;
         return std::move(alloc);
       } else {
