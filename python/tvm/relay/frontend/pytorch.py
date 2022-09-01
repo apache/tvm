@@ -2265,11 +2265,21 @@ class PyTorchOpConverter:
 
         if scale_grad_by_freq:
             logger.warning(
-                "`scale_grad_by_freq` arguments would not effect the results of our embedding_bag implementation."
+                " ".join(
+                    [
+                        "`scale_grad_by_freq` arguments would not",
+                        "affect the results of our embedding_bag implementation.",
+                    ]
+                )
             )
         if sparse:
             logger.warning(
-                "`sparse` arguments would not effect the results of our embedding_bag implementation."
+                " ".join(
+                    [
+                        "`sparse` arguments would not",
+                        "affect the results of our embedding_bag implementation.",
+                    ]
+                )
             )
 
         mode_map = {0: _op.sum, 1: _op.mean, 2: _op.max}
