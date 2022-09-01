@@ -26,4 +26,5 @@ from .injective import *
 from .pooling import *
 from .reduce import *
 from .resize2d import *
+from .tensor_intrin import *
 from .qnn import *
