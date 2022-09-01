@@ -3117,27 +3117,45 @@ def test_embedding_bag():
 
     embedding_matrix = torch.rand(10, 3)
     inp = torch.tensor([[1, 1, 4], [5, 9, 4], [4, 2, 5]])
-    offsets = torch.tensor([0, 3, 9])
     pre_sample_weights = torch.tensor([[0.3, 0.4, 0.4], [0.1, 2.2, 3.1], [0.2, 1.1, 3.2]])
+
+    # If the indice is 2d tensor, then we do not need to provide offsets
+    # In our tests, when we provide offsets we need to reshape indice tensor to 1d
+    # `offsets_include_last_offset` is used when `include_last_offset=True`.
+    # In such a case, we should enforce `offsets[-1] == input.size(0)`.
+    # When the restriction does not hold, in PyTorch, the behaviour diverges. Could see:
+    # https://github.com/pytorch/pytorch/pull/57208#issuecomment-1021727378
+    offsets_include_last_offset = torch.tensor([0, 3, 9])
+    offsets_exclude_last_offset = torch.tensor([0, 2, 5])
+
     verify_model(EmbeddingBag(mode="mean").float().eval(), [inp, embedding_matrix])
     verify_model(
-        EmbeddingBag(mode="mean", sparse=True, scale_grad_by_freq=True).float().eval(),
-        [inp, embedding_matrix],
+        EmbeddingBag(
+            mode="mean", offsets=offsets_exclude_last_offset, sparse=True, scale_grad_by_freq=True
+        )
+        .float()
+        .eval(),
+        [inp.reshape(-1), embedding_matrix],
+    )
+    verify_model(
+        EmbeddingBag(mode="sum", offsets=offsets_exclude_last_offset).float().eval(),
+        [inp.reshape(-1), embedding_matrix],
     )
     verify_model(
         EmbeddingBag(mode="sum", per_sample_weights=pre_sample_weights, sparse=True).float().eval(),
         [inp, embedding_matrix],
     )
-    # Normally, we should enforce `offsets[-1] == input.size(0)` when `include_last_offset=True`
-    # When the condition does not hold, in PyTorch, the behaviour diverges. Could see:
-    # https://github.com/pytorch/pytorch/pull/57208#issuecomment-1021727378
     verify_model(
-        EmbeddingBag(offsets=offsets, mode="mean", include_last_offset=True).float().eval(),
+        EmbeddingBag(offsets=offsets_include_last_offset, mode="mean", include_last_offset=True)
+        .float()
+        .eval(),
         [inp.reshape(-1), embedding_matrix],
     )
     verify_model(EmbeddingBag(mode="mean", padding_idx=2).float().eval(), [inp, embedding_matrix])
     verify_model(
-        EmbeddingBag(offsets=offsets, mode="sum", include_last_offset=True, padding_idx=4)
+        EmbeddingBag(
+            offsets=offsets_include_last_offset, mode="sum", include_last_offset=True, padding_idx=4
+        )
         .float()
         .eval(),
         [inp.reshape(-1), embedding_matrix],
@@ -3147,7 +3165,9 @@ def test_embedding_bag():
         [inp, embedding_matrix],
     )
     verify_model(
-        EmbeddingBag(offsets=offsets, mode="max", include_last_offset=True, padding_idx=1)
+        EmbeddingBag(
+            offsets=offsets_include_last_offset, mode="max", include_last_offset=True, padding_idx=1
+        )
         .float()
         .eval(),
         [inp.reshape(-1), embedding_matrix],
