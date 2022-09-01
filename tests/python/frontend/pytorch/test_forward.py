@@ -3161,7 +3161,7 @@ def test_embedding_bag():
         [inp.reshape(-1), embedding_matrix],
     )
     verify_model(
-        EmbeddingBag(mode="max", padding_idx=1, scale_grad_by_freq=True).float().eval(),
+        EmbeddingBag(mode="max", padding_idx=1).float().eval(),
         [inp, embedding_matrix],
     )
     verify_model(
