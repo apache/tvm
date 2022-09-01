@@ -358,6 +358,22 @@ class Database : public runtime::ObjectRef {
   TVM_DLL static Database JSONDatabase(String path_workload, String path_tuning_record,
                                        bool allow_missing);
   /*!
+   * \brief A database composed of multiple databases, allowing users to guide IR rewriting using
+   * combined knowledge of those databases. To each query, it returns the best record among all the
+   * databases given.
+   * \param databases The list of databases to be combined.
+   * \return The combined database.
+   */
+  TVM_DLL static Database UnionDatabase(Array<Database, void> databases);
+  /*!
+   * \brief A database composed of multiple databases, allowing users to guide IR rewriting using
+   * combined knowledge of those databases. To each query, it returns the record from the first
+   * database that responds to the query.
+   * \param databases The database to be subsetted.
+   * \return The subsetted database.
+   */
+  TVM_DLL static Database OrderedUnionDatabase(Array<Database, void> databases);
+  /*!
    * \brief Create a database with customized methods on the python-side.
    * \param f_has_workload The packed function of `HasWorkload`.
    * \param f_commit_workload The packed function of `CommitWorkload`.
