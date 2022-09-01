@@ -148,7 +148,7 @@ class TestDepthwiseConv2d_NHWC_HWOI(BasicDepthwiseConv2dTests):
 
 
 class TestDepthwiseConv2d_NHWC_HWOI_DSP(BasicDepthwiseConv2dTests):
-    """This test is for depthwise_conv2d_nhwc.generic schedule."""
+    """This test is for depthwise_conv2d_nhwc_dsp.arm_cpu schedule."""
 
     data_shape, kernel_size, num_filter, strides, padding, dilation = tvm.testing.parameters(
         # The LLVM implementation doesn't support "SAME" and "VALID" padding,

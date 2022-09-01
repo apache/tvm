@@ -16,7 +16,7 @@
 # under the License.
 """This is a special intrinsic used for depthwise convolution using Cortex-M DSP instructions
 (v7e-m). It takes as inputs an int8 HWC data tensor and an int8 CHWc kernel. This intrinsic "lays"
-the kernel on top of the data tensors tarting from a given pointer, performs signed sixteen-bit
+the kernel on top of the data tensors starting from a given pointer, performs signed sixteen-bit
 multiplies on each pair of values, and sums all the products in an int32 accumlator. This process is
 repeated four times giving four int32 outputs - one per channel."""
 
