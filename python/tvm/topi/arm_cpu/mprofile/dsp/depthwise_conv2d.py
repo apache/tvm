@@ -19,8 +19,6 @@
 import random
 import string
 
-from tvm import autotvm
-from tvm.autotvm.task import deserialize_args
 from tvm import te
 from tvm.topi.utils import traverse_inline, get_const_tuple
 from tvm.topi.nn.pad import pad
@@ -101,28 +99,9 @@ def _rearrange_kernel(kernel):
     )
 
 
-def depthwise_conv2d_nhwc_dsp(*args, **kwargs):
-    """Defines the v7e-m DSP instructions of depthwise_conv2d."""
-    assert not kwargs, "Do not support kwargs in template function call"
-    args = deserialize_args(args)
-    data, kernel = args[:2]
-    layout = args[-2]
-    cfg = autotvm.get_config()
-    args = [cfg] + args
-    assert layout == "NHWC"
-    conv = depthwise_conv2d_nhwc_dsp_compute(*args)
-    sched = depthwise_conv2d_nhwc_dsp_schedule(cfg, [data, kernel, conv])
-    return sched, [data, kernel, conv]
-
-
-depthwise_conv2d_nhwc_dsp.template_key = "dsp"
-depthwise_conv2d_nhwc_dsp.default_data_layout = "NHWC"
-depthwise_conv2d_nhwc_dsp.default_kernel_layout = "HWOI"
-
-
-def depthwise_conv2d_nhwc_dsp_compute(cfg, data, kernel, strides, padding, dilation, out_dtype):
+def depthwise_conv2d_nhwc_dsp_compute(_cfg, data, kernel, strides, padding, dilation, out_dtype):
     """Compute function for v7e-m DSP instructions of DepthwiseConv2D. Has a lot of requirements
-    for use - not not all apply, the fallback implementation will be used instead."""
+    for use - if not all apply, the fallback implementation will be used instead."""
     assert isinstance(strides, int) or len(strides) == 2
     assert isinstance(dilation, int) or len(dilation) == 2
 
@@ -227,7 +206,7 @@ def depthwise_conv2d_nhwc_dsp_compute(cfg, data, kernel, strides, padding, dilat
     )
 
 
-def depthwise_conv2d_nhwc_dsp_schedule(cfg, outs):
+def depthwise_conv2d_nhwc_dsp_schedule(_cfg, outs):
 
     """Schedule function for v7e-m DSP instructions of conv2d."""
     schedule = te.create_schedule([x.op for x in outs])

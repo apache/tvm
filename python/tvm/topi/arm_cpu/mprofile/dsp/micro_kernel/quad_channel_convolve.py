@@ -87,7 +87,7 @@ def intrin_quad_channel_convolve(tensor_w, channels, kernel_h, kernel_w, suffix)
 
 def quad_channel_convolve_impl(tensor_w, channels, kernel_h, kernel_w, suffix):
     """Emits C code for quad_channel_convolve. Note that while intrin_quad_channel_convolve supports
-    any kernel size, this function only supports 3x3 kernels (though this could be fixed with work)."""
+    any kernel size, this function only supports 3x3 kernels (this could be fixed with work)."""
     assert kernel_h == kernel_w == 3
 
     return textwrap.dedent(
