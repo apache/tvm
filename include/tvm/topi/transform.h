@@ -2053,7 +2053,7 @@ inline Tensor embedding_bag(const Tensor& input, const Tensor& weight, const Ten
     auto ed = tvm::tir::Select(row == i + 1, PrimExpr(N),
                                cast(DataType::Int(32), offset(i + 1)));  // end point
 
-    // can't find `fold` function, so use a stupid method to iterate from st to ed
+    // Use loop iteration here for the lack of `fold` in relay
     for (auto idx = 0; idx < N; idx++) {
       auto real_idx = st + idx;
       auto idx_i = input(real_idx);

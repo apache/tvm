@@ -2263,10 +2263,14 @@ class PyTorchOpConverter:
 
         assert len(_infer_shape(indices)) == 1, "Expects 1D indices for aten::embedding_bag."
 
-        assert (
-            not scale_grad_by_freq
-        ), "unsupported `scale_grad_by_freq` parameter in embedding_bag."
-        assert not sparse, "unsupported `sparse` parameter in embedding_bag."
+        if scale_grad_by_freq:
+            logger.warning(
+                "`scale_grad_by_freq` arguments would not effect the results of our embedding_bag implementation."
+            )
+        if sparse:
+            logger.warning(
+                "`sparse` arguments would not effect the results of our embedding_bag implementation."
+            )
 
         mode_map = {0: _op.sum, 1: _op.mean, 2: _op.max}
         assert mode in mode_map, "unsupported reduction op mode %d." % mode

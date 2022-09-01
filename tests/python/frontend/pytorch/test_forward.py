@@ -3091,6 +3091,7 @@ def test_embedding_bag():
             scale_grad_by_freq=False,
             include_last_offset=False,
             per_sample_weights=None,
+            sparse=False,
         ):
             super().__init__()
             self.offsets = offsets
@@ -3099,6 +3100,7 @@ def test_embedding_bag():
             self.scale_grad_by_freq = scale_grad_by_freq
             self.include_last_offset = include_last_offset
             self.per_sample_weights = per_sample_weights
+            self.sparse = sparse
 
         def forward(self, inputs, weights):
             return F.embedding_bag(
@@ -3108,6 +3110,7 @@ def test_embedding_bag():
                 mode=self.mode,
                 padding_idx=self.padding_idx,
                 scale_grad_by_freq=self.scale_grad_by_freq,
+                sparse=self.sparse,
                 include_last_offset=self.include_last_offset,
                 per_sample_weights=self.per_sample_weights,
             )
@@ -3118,7 +3121,11 @@ def test_embedding_bag():
     pre_sample_weights = torch.tensor([[0.3, 0.4, 0.4], [0.1, 2.2, 3.1], [0.2, 1.1, 3.2]])
     verify_model(EmbeddingBag(mode="mean").float().eval(), [inp, embedding_matrix])
     verify_model(
-        EmbeddingBag(mode="sum", per_sample_weights=pre_sample_weights).float().eval(),
+        EmbeddingBag(mode="mean", sparse=True, scale_grad_by_freq=True).float().eval(),
+        [inp, embedding_matrix],
+    )
+    verify_model(
+        EmbeddingBag(mode="sum", per_sample_weights=pre_sample_weights, sparse=True).float().eval(),
         [inp, embedding_matrix],
     )
     # Normally, we should enforce `offsets[-1] == input.size(0)` when `include_last_offset=True`
@@ -3135,7 +3142,10 @@ def test_embedding_bag():
         .eval(),
         [inp.reshape(-1), embedding_matrix],
     )
-    verify_model(EmbeddingBag(mode="max", padding_idx=1).float().eval(), [inp, embedding_matrix])
+    verify_model(
+        EmbeddingBag(mode="max", padding_idx=1, scale_grad_by_freq=True).float().eval(),
+        [inp, embedding_matrix],
+    )
     verify_model(
         EmbeddingBag(offsets=offsets, mode="max", include_last_offset=True, padding_idx=1)
         .float()
