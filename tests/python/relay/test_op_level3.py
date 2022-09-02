@@ -210,13 +210,18 @@ class TestSqueeze:
         ((1, 3, 2, 5), "float32", None),
         ((1, 3, 1), "float32", [0]),
         ((1, 2, 1, 2, 1), "float32", [0, 2]),
+        ((1, 3, 1), "float32", 2),
+        ((1, 3, 1), "float32", []),
     )
 
     def test_squeeze(self, shape, dtype, axis):
         x = relay.var("x", relay.TensorType(shape, dtype))
         squeeze = relay.squeeze(x, axis=axis)
 
-        np_axis = tuple(axis) if axis is not None else None
+        if isinstance(axis, int):
+            np_axis = (axis,)
+        else:
+            np_axis = tuple(axis) if axis is not None else None
 
         data = np.random.random_sample(shape).astype(dtype)
         op_res = create_executor().evaluate(squeeze, {x: relay.const(data)})

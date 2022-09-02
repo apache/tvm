@@ -204,23 +204,39 @@ def squeeze(data, axis=None):
 
     Parameters
     ----------
-    data : tvm.relay.Expr
+    data : relay.Expr
         The input data to the operator.
 
-    axis : None or List[int] or Expr
+    axis : Union[None, int, Tuple[int], List[int]] or Expr
         The set of axes to remove.
-        If axis = None, remove all axis of dimensions 1.
+        If axis = None, remove all axes of dimension 1.
         If any specified axis has dimension that does not equal 1, it is an error.
 
     Returns
     -------
-    result : tvm.relay.Expr
+    result : relay.Expr
         The squeezed result.
     """
     if isinstance(axis, Constant):
-        axis = list(axis.data.numpy())
+        if axis.data.shape:
+            axis = list(axis.data.numpy())
+        else:
+            axis = [axis.data.numpy().item()]
     if isinstance(axis, Expr):
         return _dyn_make.squeeze(data, axis)
+    if isinstance(axis, int):
+        axis = [axis]
+    if isinstance(axis, (tuple, list)):
+        tempaxis = []
+        for tmpax in axis:
+            if isinstance(tmpax, _expr.IntImm):
+                tempaxis.append(tmpax.value)
+            else:
+                try:
+                    tempaxis.append(int(tmpax))
+                except ValueError as err:
+                    raise RuntimeError("Unrecognized axis type: %s" % err)
+        axis = tempaxis
     return _make.squeeze(data, axis)
 
 
