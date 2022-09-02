@@ -34,10 +34,7 @@ def _get_tflite_model(tflite_model_path, inputs_dict, dtype):
     with open(tflite_model_path, "rb") as f:
         tflite_model_buffer = f.read()
 
-    try:
-        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buffer, 0)
-    except AttributeError:
-        tflite_model = tflite.Model.GetRootAsModel(tflite_model_buffer, 0)
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buffer, 0)
     shape_dict = {}
     dtype_dict = {}
     for value in inputs_dict:
@@ -116,6 +113,7 @@ def _test_image_network(
 
 @requires_ethosn
 def test_mobilenet_v1():
+    """Compare compile hashes for mobilenetv1 with an expected result."""
     # If this test is failing due to a hash mismatch, please notify @lhutton1 and
     # @Leo-arm. The hash is there to catch any changes in the behaviour of the
     # codegen, which could come about from either a change in Support Library
@@ -137,6 +135,7 @@ def test_mobilenet_v1():
 
 @requires_ethosn
 def test_resnet_50_int8():
+    """Compare compile hashes for resnet50 with an expected result."""
     # If this test is failing due to a hash mismatch, please notify @lhutton1 and
     # @Leo-arm. The hash is there to catch any changes in the behaviour of the
     # codegen, which could come about from either a change in Support Library
@@ -157,6 +156,7 @@ def test_resnet_50_int8():
 
 @requires_ethosn
 def test_inception_v3():
+    """Compare compile hashes for inceptionv3 with an expected result."""
     # If this test is failing due to a hash mismatch, please notify @lhutton1 and
     # @Leo-arm. The hash is there to catch any changes in the behaviour of the
     # codegen, which could come about from either a change in Support Library
@@ -177,6 +177,7 @@ def test_inception_v3():
 
 @requires_ethosn
 def test_inception_v4():
+    """Compare compile hashes for inceptionv4 with an expected result."""
     # If this test is failing due to a hash mismatch, please notify @lhutton1 and
     # @Leo-arm. The hash is there to catch any changes in the behaviour of the
     # codegen, which could come about from either a change in Support Library
@@ -197,6 +198,7 @@ def test_inception_v4():
 
 @requires_ethosn
 def test_ssd_mobilenet_v1():
+    """Compare compile hashes for ssdmobilenetv1 with an expected result."""
     # If this test is failing due to a hash mismatch, please notify @lhutton1 and
     # @Leo-arm. The hash is there to catch any changes in the behaviour of the
     # codegen, which could come about from either a change in Support Library

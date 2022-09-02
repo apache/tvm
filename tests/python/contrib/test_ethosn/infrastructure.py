@@ -67,7 +67,8 @@ def assert_lib_hash(lib, golden):
     for mod in lib.imported_modules:
         if mod.type_key == "ethos-n":
             mod.save(path)
-            lib_hash = md5(open(path, "rb").read()).hexdigest()
+            with open(path, "rb") as compiled_model:
+                lib_hash = md5(compiled_model.read()).hexdigest()
             hash_set.add(lib_hash)
 
     assert hash_set == golden, "Expected hash: {} Got hash: {}".format(golden, hash_set)
