@@ -104,7 +104,7 @@ class TestResize2d:
     )
 
     coord_trans = tvm.testing.parameter("asymmetric", "align_corners", "half_pixel")
-    method = tvm.testing.parameter("nearest_neighbor", "linear", "cubic")
+    method = tvm.testing.parameter("nearest_neighbor", "linear")
 
     @tvm.testing.requires_hexagon
     def test_resize2d(
