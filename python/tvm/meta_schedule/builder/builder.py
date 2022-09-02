@@ -17,6 +17,10 @@
 """Meta Schedule builders that translate IRModule to runtime.Module, and then export"""
 from typing import Callable, Dict, List, Optional
 
+# isort: off
+from typing_extensions import Literal
+
+# isort: on
 from tvm._ffi import register_object
 from tvm.ir import IRModule
 from tvm.runtime import NDArray, Object
@@ -164,3 +168,16 @@ class PyBuilder:
             The results of building the given inputs.
         """
         raise NotImplementedError
+
+
+def create(  # pylint: disable=keyword-arg-before-vararg
+    kind: Literal["local"] = "local",
+    *args,
+    **kwargs,
+) -> Builder:
+    """Create a Builder."""
+    from . import LocalBuilder  # pylint: disable=import-outside-toplevel
+
+    if kind == "local":
+        return LocalBuilder(*args, **kwargs)  # type: ignore
+    raise ValueError(f"Unknown Builder: {kind}")
