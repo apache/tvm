@@ -23,8 +23,7 @@ import tvm
 from tvm.script import tir as T
 from numpy.random import default_rng
 
-# TEST_OUTPUT_TEMPLATE = "Test with {} MB of data to load... \n    -No VTCM: {} Gops \n    -Basic VTCM: {} Gops \n    -Vectorized: {} Gops\n    -Vectorized and Parallelized: {} Gops\n    -Preallocated and Vectorized: {} Gops\n    -Preallocated, Vectorized, and Parallelized: {} Gops\n    -Single DMA: {} Gops\n    -Preloaded: {} Gops\n"
-TEST_OUTPUT_TEMPLATE = "{}, {}, {}, {}, {}, {}, {}, {}, {}"
+TEST_OUTPUT_TEMPLATE = "Test with {} MB of data to load... \n    -No VTCM: {} Gops \n    -Basic VTCM: {} Gops \n    -Vectorized: {} Gops\n    -Vectorized and Parallelized: {} Gops\n    -Preallocated and Vectorized: {} Gops\n    -Preallocated, Vectorized, and Parallelized: {} Gops\n    -Single DMA: {} Gops\n    -Preloaded: {} Gops\n"
 
 
 def apply_parallel_unroll_vectorize(sch, blocks, outer_split, unroll_split, vector_split):
