@@ -31,7 +31,8 @@ sudo apt-install-and-clear -y --no-install-recommends \
      git cmake ninja-build gperf \
      ccache dfu-util device-tree-compiler wget \
      python3-dev python3-pip python3-setuptools python3-tk python3-wheel python3-venv \
-     xz-utils file make gcc gcc-multilib g++-multilib apt-transport-https
+     xz-utils file make gcc gcc-multilib g++-multilib apt-transport-https libudev-dev \
+     libmagic1
 
 wget --no-verbose https://apt.kitware.com/keys/kitware-archive-latest.asc
 sudo apt-key add kitware-archive-latest.asc
