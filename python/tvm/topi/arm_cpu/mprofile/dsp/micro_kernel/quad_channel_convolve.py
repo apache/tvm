@@ -70,7 +70,7 @@ def intrin_quad_channel_convolve(tensor_w, channels, kernel_h, kernel_w, suffix)
         builder.emit(
             tir.call_extern(
                 "int32",
-                f"kernel_convolve_{tensor_w}_{channels}_{kernel_h}_{kernel_w}_{suffix}",
+                f"kernel_convolve_w{tensor_w}_c{channels}_kh{kernel_h}_kw{kernel_w}_{suffix}",
                 outs[0].access_ptr("w"),
                 ins[0].access_ptr("r"),
                 ins[1].access_ptr("r"),
@@ -131,7 +131,7 @@ def quad_channel_convolve_impl(tensor_w, channels, kernel_h, kernel_w, suffix):
         #ifdef __cplusplus
         extern "C"
         #endif
-        int32_t kernel_convolve_{tensor_w}_{channels}_{kernel_h}_{kernel_w}_{suffix}(
+        int32_t kernel_convolve_w{tensor_w}_c{channels}_kh{kernel_h}_kw{kernel_w}_{suffix}(
             uint32_t *out,
             uint32_t *tensor,
             uint32_t *packed_kernel) {{

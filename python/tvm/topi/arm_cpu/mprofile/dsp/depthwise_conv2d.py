@@ -149,8 +149,9 @@ def depthwise_conv2d_nhwc_dsp_compute(_cfg, data, kernel, strides, padding, dila
         output_h = height // stride_h
         output_w = width // stride_w
 
-        # Note - this padding behavior is DIFFERENT from Tensorflow, which pads the top left if
-        # stride > 1. Need to investigate and decide which behavior we want.
+        # This padding behavior is consistent with other TVM depthwise_conv2d schedules. However it
+        # differs from the TensorFlow, which only pads the bottom right if stride > 1. This probably
+        # brings down accuracy slightly for models imported from TFLite.
         pad_down = 1 if stride_h == 1 else 0
         pad_right = 1 if stride_w == 1 else 0
 
