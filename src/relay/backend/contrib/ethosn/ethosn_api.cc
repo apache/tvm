@@ -520,7 +520,12 @@ EthosnError EthosnAPI::LeakyReLU(const Expr& expr, LeakyReLUParams* params) {
 EthosnError EthosnAPI::Concatenate(const Expr& expr, ConcatenateParams* params) {
   Call call = Downcast<Call>(expr);
   const auto& attrs = call->attrs.as<ConcatenateAttrs>();
-  params->concat_info.m_Axis = attrs->axis;
+  int axis = attrs->axis;
+  if (axis < 0) {
+    int output_dims = Downcast<TensorType>(call->checked_type())->shape.size();
+    axis = output_dims + axis;
+  }
+  params->concat_info.m_Axis = axis;
 
   float output_sc;
   int output_zp;
