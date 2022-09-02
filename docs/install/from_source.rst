@@ -64,7 +64,7 @@ The minimal building requirements for the ``TVM`` libraries are:
       - Clang 5.0
       - Apple Clang 9.3
       - Visual Studio 2019 (v16.7)
-   - CMake 3.10 or higher
+   - CMake 3.18 or higher
    - We highly recommend to build with LLVM to enable all the features.
    - If you want to use CUDA, CUDA toolkit version >= 8.0 is required. If you are upgrading from an older version, make sure you purge the older version and reboot after installation.
    - On macOS, you may want to install `Homebrew <https://brew.sh>`_ to easily install and manage dependencies.
@@ -77,6 +77,9 @@ linux operating systems, execute (in a terminal):
 
     sudo apt-get update
     sudo apt-get install -y python3 python3-dev python3-setuptools gcc libtinfo-dev zlib1g-dev build-essential cmake libedit-dev libxml2-dev
+
+
+Note that the version of CMake on apt may not be sufficiently up to date; it may be necessary to install it directly from `Kitware's third-party APT repository <https://apt.kitware.com/>`_.
 
 Use Homebrew to install the required dependencies for macOS running either the Intel or M1 processors. You must follow the post-installation steps specified by
 Homebrew to ensure the dependencies are correctly installed and configured:
