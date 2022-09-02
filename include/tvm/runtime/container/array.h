@@ -575,6 +575,44 @@ class Array : public ObjectRef {
   ArrayNode* GetArrayNode() const { return static_cast<ArrayNode*>(data_.get()); }
 
   /*!
+   * \brief Helper function to apply a map function onto the array.
+   *
+   * \param fmap The transformation function T -> U.
+   *
+   * \tparam F The type of the mutation function.
+   *
+   * \tparam U The type of the returned array, inferred from the
+   * return type of F.  If overridden by the user, must be something
+   * that is convertible from the return type of F.
+   *
+   * \note This function performs copy on write optimization.  If
+   * `fmap` returns an object of type `T`, and all elements of the
+   * array are mapped to themselves, then the returned array will be
+   * the same as the original, and reference counts of the elements in
+   * the array will not be incremented.
+   *
+   * \return The transformed array.
+   */
+  template <typename F, typename U = std::invoke_result_t<F, T>>
+  Array<U> Map(F fmap) const {
+    if constexpr (std::is_same_v<T, U>) {
+      // Special case for outputs of the same type, may be able to use
+      // MutateByApply's in-place handling to avoid copying data, if
+      // the mapping function is the identity for all elements.
+      Array<T> output = *this;
+      output.MutateByApply(fmap);
+      return output;
+    } else {
+      Array<U> output;
+      output.reserve(size());
+      for (T item : *this) {
+        output.push_back(fmap(std::move(item)));
+      }
+      return output;
+    }
+  }
+
+  /*!
    * \brief Helper function to apply fmutate to mutate an array.
    * \param fmutate The transformation function T -> T.
    * \tparam F the type of the mutation function.
