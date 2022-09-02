@@ -584,6 +584,23 @@ struct TriluAttrs : public tvm::AttrsNode<TriluAttrs> {
   }
 };  // struct TriluAttrs
 
+
+struct HfDemoAttrs : public tvm::AttrsNode<ScanopAttrs> {
+  Integer axis;
+  DataType dtype;
+  Bool exclusive = Bool(false);
+  TVM_DECLARE_ATTRS(ScanopAttrs, "relay.attrs.ScanopAttrs") {
+    TVM_ATTR_FIELD(axis).describe("[Demo]The axis to operate over").set_default(NullValue<Integer>());
+    TVM_ATTR_FIELD(dtype).describe("[Demo]Output data type").set_default(NullValue<DataType>());
+
+    // Default is 0 which is "false"
+    TVM_ATTR_FIELD(exclusive)
+        .describe("[Demo]The first element is not included")
+        .set_default(Bool(false));
+  }
+};
+
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_TRANSFORM_H_

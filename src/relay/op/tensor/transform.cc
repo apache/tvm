@@ -4164,6 +4164,30 @@ RELAY_REGISTER_OP("cumprod")
     .add_type_rel("Cumprod", ScanopRel)
     .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
+
+
+Expr MakeDemomul(Expr data, Integer axis, DataType dtype, Bool exclusive) {
+  auto attrs = make_object<ScanopAttrs>();
+  attrs->dtype = dtype;
+  attrs->axis = axis;
+  attrs->exclusive = exclusive;
+  static const Op& op = Op::Get("demomul");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.demomul").set_body_typed(MakeDemomul);
+
+RELAY_REGISTER_OP("demomul")
+    .describe(
+        R"doc(demo mul)doc" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "[Demo]The input tensor.")
+    .set_support_level(3)
+    .add_type_rel("Demomul", ScanopRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
+
+
+
 TVM_REGISTER_NODE_TYPE(UniqueAttrs);
 
 bool UniqueRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,

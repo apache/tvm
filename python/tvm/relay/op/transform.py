@@ -1742,6 +1742,9 @@ def cumprod(data, axis=None, dtype=None, exclusive=None):
     """
     return _make.cumprod(data, axis, dtype, exclusive)
 
+def demomul(data, axis=None, dtype=None, exclusive=None):
+    print('-----------demo------------------')
+    return _make.demomul(data, axis, dtype, exclusive)
 
 def unique(data, is_sorted=True, return_counts=False):
     """

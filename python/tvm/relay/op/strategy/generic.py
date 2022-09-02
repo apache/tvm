@@ -1904,6 +1904,20 @@ def cumsum_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
+@override_native_generic_func("demomul_strategy")
+def demomul_strategy(attrs, inputs, out_type, target):
+    """demomul generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_scanop(topi.demomul),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="demomul.generic",
+    )
+    return strategy
+
+
+
+
 @override_native_generic_func("concat_strategy")
 def concatenate_strategy(attrs, inputs, out_type, target):
     """concatenate generic strategy"""

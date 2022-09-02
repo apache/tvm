@@ -223,6 +223,18 @@ def compute_cumsum(attrs, inputs, output_type):
 _reg.register_strategy("cumsum", strategy.cumsum_strategy)
 _reg.register_shape_func("cumsum", False, elemwise_shape_func)
 
+# demomul
+@_reg.register_compute("demomul")
+def compute_demomul(attrs, inputs, output_type):
+    """Compute definition of demomul"""
+    return [topi.cumsum(inputs[0], attrs.axis, attrs.dtype, attrs.exclusive)]
+
+
+_reg.register_strategy("demomul", strategy.demomul_strategy)
+_reg.register_shape_func("demomul", False, elemwise_shape_func)
+
+
+
 # cumprod
 @_reg.register_compute("cumprod")
 def compute_cumprod(attrs, inputs, output_type):

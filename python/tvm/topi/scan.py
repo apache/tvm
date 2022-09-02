@@ -234,3 +234,46 @@ def cumprod(
         dtype=dtype,
         exclusive=exclusive,
     )
+
+def demomul(
+    data: tvm.te.Tensor,
+    axis: Optional[int] = None,
+    dtype: Optional[int] = None,
+    exclusive: Optional[bool] = None,
+) -> tvm.te.Tensor:
+    """Numpy style cumprod op. Return the cumulative product of the elements along a given axis.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        The input data to the operator.
+
+    axis : int, optional
+        Axis along which the cumulative product is computed. The default (None) is to compute
+        the cumproduct over the flattened array.
+
+    dtype : string, optional
+        Type of the returned array and of the accumulator in which the elements are multiplied.
+        If dtype is not specified, it defaults to the dtype of data.
+
+    exclusive : bool, optional
+        If True, will return exclusive product in which the first element is not
+        included. In other terms, if True, the j-th output element would be
+        the product of the first (j-1) elements. Otherwise, it would be the product of
+        the first j elements.
+
+    Returns
+    -------
+    result : tvm.te.Tensor
+        The result has the same size as data, and the same shape as data if axis is not None.
+        If axis is None, the result is a 1-d array.
+    """
+    return scanop(
+        data=data,
+        binop=generic.add,
+        identity_value=0,
+        op_name="demo_generic",
+        axis=axis,
+        dtype=dtype,
+        exclusive=exclusive,
+    )
