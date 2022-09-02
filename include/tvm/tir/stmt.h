@@ -713,6 +713,7 @@ class DeclBuffer : public Stmt {
  public:
   TVM_DLL DeclBuffer(Buffer buffer, Stmt body, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(DeclBuffer, Stmt, DeclBufferNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(DeclBufferNode);
 };
 
 /*!

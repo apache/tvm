@@ -132,6 +132,15 @@ class IRConvertSSA final : public StmtExprMutator {
     return std::move(output);
   }
 
+  Stmt VisitStmt_(const DeclBufferNode* op) final {
+    DeclBuffer decl = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+    Buffer new_buffer = GetRemappedBuffer(decl->buffer);
+    if (!new_buffer.same_as(decl->buffer)) {
+      decl.CopyOnWrite()->buffer = std::move(new_buffer);
+    }
+    return std::move(decl);
+  }
+
   template <typename Node>
   Node VisitBufferAccess(Node node) {
     Buffer new_buf = GetRemappedBuffer(node->buffer);
