@@ -1144,5 +1144,48 @@ def test_should_rebuild_docker(tmpdir_factory, changed_files, name, check, expec
     assert proc.returncode == expected_code
 
 
+@parameterize_named(
+    passing=dict(
+        title="[something] a change",
+        body="something",
+        expected="All checks passed",
+        expected_code=0,
+    ),
+    period=dict(
+        title="[something] a change.",
+        body="something",
+        expected="trailing_period: FAILED",
+        expected_code=1,
+    ),
+    empty_body=dict(
+        title="[something] a change",
+        body=None,
+        expected="non_empty: FAILED",
+        expected_code=1,
+    ),
+)
+def test_pr_linter(title, body, expected, expected_code):
+    """
+    Test the PR linter
+    """
+    tag_script = REPO_ROOT / "ci" / "scripts" / "check_pr.py"
+    pr_data = {
+        "title": title,
+        "body": body,
+    }
+    proc = run_script(
+        [
+            tag_script,
+            "--pr",
+            1234,
+            "--pr-data",
+            json.dumps(pr_data),
+        ],
+        check=False,
+    )
+    assert proc.returncode == expected_code
+    assert_in(expected, proc.stdout)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
