@@ -23,15 +23,14 @@ from pathlib import Path
 
 import pytest
 import tvm.testing
-from .test_utils import REPO_ROOT, TempGit
+from .test_utils import REPO_ROOT, TempGit, run_script
 
 
-def parameterize_named(*values):
-    keys = list(values[0].keys())
-    if len(keys) == 1:
-        return pytest.mark.parametrize(",".join(keys), [d[keys[0]] for d in values])
-
-    return pytest.mark.parametrize(",".join(keys), [tuple(d.values()) for d in values])
+def parameterize_named(**kwargs):
+    keys = next(iter(kwargs.values())).keys()
+    return pytest.mark.parametrize(
+        ",".join(keys), [tuple(d.values()) for d in kwargs.values()], ids=kwargs.keys()
+    )
 
 
 # pylint: disable=line-too-long
@@ -137,23 +136,7 @@ TEST_DATA_SKIPPED_BOT = {
 
 
 @tvm.testing.skip_if_wheel_test
-@pytest.mark.parametrize(
-    [
-        "main_xml_file",
-        "main_xml_content",
-        "pr_xml_file",
-        "pr_xml_content",
-        "target_url",
-        "s3_prefix",
-        "jenkins_prefix",
-        "common_main_build",
-        "commit_sha",
-        "expected_url",
-        "expected_body",
-    ],
-    [tuple(d.values()) for d in TEST_DATA_SKIPPED_BOT.values()],
-    ids=TEST_DATA_SKIPPED_BOT.keys(),
-)
+@parameterize_named(**TEST_DATA_SKIPPED_BOT)
 # pylint: enable=line-too-long
 def test_skipped_tests_comment(
     tmpdir_factory,
@@ -182,49 +165,37 @@ def test_skipped_tests_comment(
             f.write(textwrap.dedent(xml_content))
 
     git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
-    git.run("init")
-    git.run("checkout", "-b", "main")
-    git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
 
     pr_test_report_dir = Path(git.cwd) / "pr-reports"
     write_xml_file(pr_test_report_dir, pr_xml_file, pr_xml_content)
     main_test_report_dir = Path(git.cwd) / "main-reports"
     write_xml_file(main_test_report_dir, main_xml_file, main_xml_content)
 
-    proc = subprocess.run(
+    proc = run_script(
         [
-            str(skipped_tests_script),
+            skipped_tests_script,
             "--dry-run",
             f"--s3-prefix={s3_prefix}",
             f"--jenkins-prefix={jenkins_prefix}",
             f"--common-main-build={common_main_build}",
         ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
         env={"TARGET_URL": target_url, "COMMIT_SHA": commit_sha},
-        encoding="utf-8",
         cwd=git.cwd,
-        check=False,
     )
-    if proc.returncode != 0:
-        raise RuntimeError(f"Process failed:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
 
-    assert f"Dry run, would have posted {expected_url} with data {expected_body}." in proc.stderr
+    assert_in(f"Dry run, would have posted {expected_url} with data {expected_body}.", proc.stderr)
 
 
 @tvm.testing.skip_if_wheel_test
-@pytest.mark.parametrize(
-    "target_url,base_url,commit_sha,expected_url,expected_body",
-    [
-        (
-            "https://ci.tlcpack.ai/job/tvm/job/PR-11594/3/display/redirect",
-            "https://pr-docs.tlcpack.ai",
-            "SHA",
-            "issues/11594/comments",
-            "<!---docs-bot-comment-->\n\nBuilt docs for commit SHA can be found "
-            "[here](https://pr-docs.tlcpack.ai/PR-11594/3/docs/index.html).",
-        )
-    ],
+@parameterize_named(
+    doc_link=dict(
+        target_url="https://ci.tlcpack.ai/job/tvm/job/PR-11594/3/display/redirect",
+        base_url="https://pr-docs.tlcpack.ai",
+        commit_sha="SHA",
+        expected_url="issues/11594/comments",
+        expected_body="<!---docs-bot-comment-->\n\nBuilt docs for commit SHA can be found "
+        "[here](https://pr-docs.tlcpack.ai/PR-11594/3/docs/index.html).",
+    )
 )
 def test_docs_comment(
     tmpdir_factory, target_url, base_url, commit_sha, expected_url, expected_body
@@ -235,146 +206,93 @@ def test_docs_comment(
     docs_comment_script = REPO_ROOT / "ci" / "scripts" / "github_docs_comment.py"
 
     git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
-    git.run("init")
-    git.run("checkout", "-b", "main")
-    git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
-    proc = subprocess.run(
-        [str(docs_comment_script), "--dry-run", f"--base-url-docs={base_url}"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+    proc = run_script(
+        [docs_comment_script, "--dry-run", f"--base-url-docs={base_url}"],
         env={"TARGET_URL": target_url, "COMMIT_SHA": commit_sha},
-        encoding="utf-8",
         cwd=git.cwd,
-        check=False,
     )
-    if proc.returncode != 0:
-        raise RuntimeError(f"Process failed:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
 
-    assert f"Dry run, would have posted {expected_url} with data {expected_body}." in proc.stderr
+    assert_in(f"Dry run, would have posted {expected_url} with data {expected_body}.", proc.stderr)
 
 
 @tvm.testing.skip_if_wheel_test
-def test_cc_reviewers(tmpdir_factory):
+@parameterize_named(
+    cc_no_one=dict(
+        pr_body="abc", requested_reviewers=[], existing_review_users=[], expected_reviewers=[]
+    ),
+    cc_abc=dict(
+        pr_body="cc @abc",
+        requested_reviewers=[],
+        existing_review_users=[],
+        expected_reviewers=["abc"],
+    ),
+    bad_cc_line=dict(
+        pr_body="cc @", requested_reviewers=[], existing_review_users=[], expected_reviewers=[]
+    ),
+    cc_multiple=dict(
+        pr_body="cc @abc @def",
+        requested_reviewers=[],
+        existing_review_users=[],
+        expected_reviewers=["abc", "def"],
+    ),
+    with_existing=dict(
+        pr_body="some text cc @abc @def something else",
+        requested_reviewers=[],
+        existing_review_users=[],
+        expected_reviewers=["abc", "def"],
+    ),
+    with_existing_split=dict(
+        pr_body="some text cc @abc @def something else\n\n another cc @zzz z",
+        requested_reviewers=[],
+        existing_review_users=[],
+        expected_reviewers=["abc", "def", "zzz"],
+    ),
+    with_existing_request=dict(
+        pr_body="some text cc @abc @def something else\n\n another cc @zzz z",
+        requested_reviewers=["abc"],
+        existing_review_users=[],
+        expected_reviewers=["def", "zzz"],
+    ),
+    with_existing_reviewers=dict(
+        pr_body="some text cc @abc @def something else\n\n another cc @zzz z",
+        requested_reviewers=["abc"],
+        existing_review_users=["abc"],
+        expected_reviewers=["def", "zzz"],
+    ),
+    with_no_reviewers=dict(
+        pr_body="some text cc @abc @def something else\n\n another cc @zzz z",
+        requested_reviewers=[],
+        existing_review_users=["abc"],
+        expected_reviewers=["def", "zzz"],
+    ),
+)
+def test_cc_reviewers(
+    tmpdir_factory, pr_body, requested_reviewers, existing_review_users, expected_reviewers
+):
     """
     Test that reviewers are added from 'cc @someone' messages in PRs
     """
     reviewers_script = REPO_ROOT / "ci" / "scripts" / "github_cc_reviewers.py"
 
-    def run(pr_body, requested_reviewers, existing_review_users, expected_reviewers):
-        git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
-        git.run("init")
-        git.run("checkout", "-b", "main")
-        git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
-        reviews = [{"user": {"login": r}} for r in existing_review_users]
-        requested_reviewers = [{"login": r} for r in requested_reviewers]
-        proc = subprocess.run(
-            [str(reviewers_script), "--dry-run", "--testing-reviews-json", json.dumps(reviews)],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            env={
-                "PR": json.dumps(
-                    {"number": 1, "body": pr_body, "requested_reviewers": requested_reviewers}
-                )
-            },
-            encoding="utf-8",
-            cwd=git.cwd,
-            check=False,
-        )
-        if proc.returncode != 0:
-            raise RuntimeError(f"Process failed:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
-
-        assert f"After filtering existing reviewers, adding: {expected_reviewers}" in proc.stdout
-
-    run(pr_body="abc", requested_reviewers=[], existing_review_users=[], expected_reviewers=[])
-    run(
-        pr_body="cc @abc",
-        requested_reviewers=[],
-        existing_review_users=[],
-        expected_reviewers=["abc"],
-    )
-    run(pr_body="cc @", requested_reviewers=[], existing_review_users=[], expected_reviewers=[])
-    run(
-        pr_body="cc @abc @def",
-        requested_reviewers=[],
-        existing_review_users=[],
-        expected_reviewers=["abc", "def"],
-    )
-    run(
-        pr_body="some text cc @abc @def something else",
-        requested_reviewers=[],
-        existing_review_users=[],
-        expected_reviewers=["abc", "def"],
-    )
-    run(
-        pr_body="some text cc @abc @def something else\n\n another cc @zzz z",
-        requested_reviewers=[],
-        existing_review_users=[],
-        expected_reviewers=["abc", "def", "zzz"],
-    )
-    run(
-        pr_body="some text cc @abc @def something else\n\n another cc @zzz z",
-        requested_reviewers=["abc"],
-        existing_review_users=[],
-        expected_reviewers=["def", "zzz"],
-    )
-    run(
-        pr_body="some text cc @abc @def something else\n\n another cc @zzz z",
-        requested_reviewers=["abc"],
-        existing_review_users=["abc"],
-        expected_reviewers=["def", "zzz"],
-    )
-    run(
-        pr_body="some text cc @abc @def something else\n\n another cc @zzz z",
-        requested_reviewers=[],
-        existing_review_users=["abc"],
-        expected_reviewers=["def", "zzz"],
-    )
-
-
-def test_update_branch(tmpdir_factory):
-    """
-    Test that the last-successful branch script updates successfully
-    """
-    update_script = REPO_ROOT / "ci" / "scripts" / "update_branch.py"
-
-    def run(statuses, expected_rc, expected_output):
-        git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
-        git.run("init")
-        git.run("checkout", "-b", "main")
-        git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
-        commit = {
-            "statusCheckRollup": {"contexts": {"nodes": statuses}},
-            "oid": "123",
-            "messageHeadline": "hello",
-        }
-        data = {
-            "data": {
-                "repository": {
-                    "defaultBranchRef": {"target": {"history": {"edges": [], "nodes": [commit]}}}
-                }
-            }
-        }
-        proc = subprocess.run(
-            [str(update_script), "--dry-run", "--testonly-json", json.dumps(data)],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            encoding="utf-8",
-            cwd=git.cwd,
-            check=False,
-        )
-
-        if proc.returncode != expected_rc:
-            raise RuntimeError(
-                f"Wrong return code:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}"
+    git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
+    reviews = [{"user": {"login": r}} for r in existing_review_users]
+    requested_reviewers = [{"login": r} for r in requested_reviewers]
+    proc = run_script(
+        [reviewers_script, "--dry-run", "--testing-reviews-json", json.dumps(reviews)],
+        env={
+            "PR": json.dumps(
+                {"number": 1, "body": pr_body, "requested_reviewers": requested_reviewers}
             )
+        },
+        cwd=git.cwd,
+    )
 
-        if expected_output not in proc.stdout:
-            raise RuntimeError(
-                f"Missing {expected_output}:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}"
-            )
+    assert f"After filtering existing reviewers, adding: {expected_reviewers}" in proc.stdout
 
+
+@parameterize_named(
     # Missing expected tvm-ci/branch test
-    run(
+    missing_tvm_ci_branch=dict(
         statuses=[
             {
                 "context": "test",
@@ -383,10 +301,9 @@ def test_update_branch(tmpdir_factory):
         ],
         expected_rc=1,
         expected_output="No good commits found in the last 1 commits",
-    )
-
+    ),
     # Only has the right passing test
-    run(
+    has_expected_test=dict(
         statuses=[
             {
                 "context": "tvm-ci/branch",
@@ -395,10 +312,9 @@ def test_update_branch(tmpdir_factory):
         ],
         expected_rc=0,
         expected_output="Found last good commit: 123: hello",
-    )
-
+    ),
     # Check with many statuses
-    run(
+    many_statuses=dict(
         statuses=[
             {
                 "context": "tvm-ci/branch",
@@ -415,8 +331,8 @@ def test_update_branch(tmpdir_factory):
         ],
         expected_rc=1,
         expected_output="No good commits found in the last 1 commits",
-    )
-    run(
+    ),
+    many_success_statuses=dict(
         statuses=[
             {
                 "context": "tvm-ci/branch",
@@ -433,17 +349,50 @@ def test_update_branch(tmpdir_factory):
         ],
         expected_rc=0,
         expected_output="Found last good commit: 123: hello",
+    ),
+)
+def test_update_branch(tmpdir_factory, statuses, expected_rc, expected_output):
+    """
+    Test that the last-successful branch script updates successfully
+    """
+    update_script = REPO_ROOT / "ci" / "scripts" / "update_branch.py"
+
+    git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
+    commit = {
+        "statusCheckRollup": {"contexts": {"nodes": statuses}},
+        "oid": "123",
+        "messageHeadline": "hello",
+    }
+    data = {
+        "data": {
+            "repository": {
+                "defaultBranchRef": {"target": {"history": {"edges": [], "nodes": [commit]}}}
+            }
+        }
+    }
+    proc = run_script(
+        [update_script, "--dry-run", "--testonly-json", json.dumps(data)],
+        cwd=git.cwd,
+        check=False,
     )
+
+    if proc.returncode != expected_rc:
+        raise RuntimeError(f"Wrong return code:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
+
+    if expected_output not in proc.stdout:
+        raise RuntimeError(
+            f"Missing {expected_output}:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}"
+        )
 
 
 @parameterize_named(
-    dict(
+    dont_skip_main=dict(
         commands=[],
         should_skip=False,
         pr_title="[skip ci] test",
         why="ci should not be skipped on main",
     ),
-    dict(
+    dont_skip_main_with_commit=dict(
         commands=[
             ["commit", "--allow-empty", "--message", "[skip ci] commit 1"],
         ],
@@ -451,7 +400,7 @@ def test_update_branch(tmpdir_factory):
         pr_title="[skip ci] test",
         why="ci should not be skipped on main",
     ),
-    dict(
+    skip_on_new_branch=dict(
         commands=[
             ["checkout", "-b", "some_new_branch"],
             ["commit", "--allow-empty", "--message", "[skip ci] commit 1"],
@@ -460,7 +409,7 @@ def test_update_branch(tmpdir_factory):
         pr_title="[skip ci] test",
         why="ci should be skipped on a branch with [skip ci] in the last commit",
     ),
-    dict(
+    no_skip_in_pr_title=dict(
         commands=[
             ["checkout", "-b", "some_new_branch"],
             ["commit", "--allow-empty", "--message", "[skip ci] commit 1"],
@@ -470,7 +419,7 @@ def test_update_branch(tmpdir_factory):
         why="ci should not be skipped on a branch with "
         "[skip ci] in the last commit but not the PR title",
     ),
-    dict(
+    skip_in_pr_title=dict(
         commands=[
             ["checkout", "-b", "some_new_branch"],
             ["commit", "--allow-empty", "--message", "[skip ci] commit 1"],
@@ -480,17 +429,7 @@ def test_update_branch(tmpdir_factory):
         pr_title="[skip ci] test",
         why="ci should be skipped with [skip ci] in the PR title",
     ),
-    dict(
-        commands=[
-            ["checkout", "-b", "some_new_branch"],
-            ["commit", "--allow-empty", "--message", "[skip ci] commit 1"],
-            ["commit", "--allow-empty", "--message", "commit 2"],
-        ],
-        should_skip=True,
-        pr_title="[skip ci] test",
-        why="ci should be skipped with [skip ci] in the PR title",
-    ),
-    dict(
+    skip_in_pr_title_many_commits=dict(
         commands=[
             ["checkout", "-b", "some_new_branch"],
             ["commit", "--allow-empty", "--message", "commit 1"],
@@ -502,7 +441,7 @@ def test_update_branch(tmpdir_factory):
         pr_title="[skip ci] test",
         why="ci should be skipped with [skip ci] in the PR title",
     ),
-    dict(
+    skip_anywhere_in_title=dict(
         commands=[
             ["checkout", "-b", "some_new_branch"],
         ],
@@ -518,22 +457,16 @@ def test_skip_ci(tmpdir_factory, commands, should_skip, pr_title, why):
     skip_ci_script = REPO_ROOT / "ci" / "scripts" / "git_skip_ci.py"
 
     git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
-    # Jenkins git is too old and doesn't have 'git init --initial-branch'
-    git.run("init")
-    git.run("checkout", "-b", "main")
-    git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
+
     git.run("config", "user.name", "ci")
     git.run("config", "user.email", "email@example.com")
     git.run("commit", "--allow-empty", "--message", "base commit")
     for command in commands:
         git.run(*command)
     pr_number = "1234"
-    proc = subprocess.run(
-        [str(skip_ci_script), "--pr", pr_number, "--pr-title", pr_title],
+    proc = run_script(
+        [skip_ci_script, "--pr", pr_number, "--pr-title", pr_title],
         cwd=git.cwd,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        encoding="utf-8",
         check=False,
     )
     expected = 0 if should_skip else 1
@@ -544,120 +477,66 @@ def test_skip_ci(tmpdir_factory, commands, should_skip, pr_title, why):
         )
 
 
-def test_skip_globs(tmpdir_factory):
+@parameterize_named(
+    no_file=dict(files=[], should_skip=True),
+    readme=dict(files=["README.md"], should_skip=True),
+    c_file=dict(files=["test.c"], should_skip=False),
+    c_and_readme=dict(files=["test.c", "README.md"], should_skip=False),
+    src_file_and_readme=dict(
+        files=["src/autotvm/feature_visitor.cc", "README.md"], should_skip=False
+    ),
+    yaml_and_readme=dict(files=[".asf.yaml", "docs/README.md"], should_skip=True),
+)
+def test_skip_globs(tmpdir_factory, files, should_skip):
     """
     Test that CI is skipped if only certain files are edited
     """
     script = REPO_ROOT / "ci" / "scripts" / "git_skip_ci_globs.py"
 
-    def run(files, should_skip):
-        git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
-        # Jenkins git is too old and doesn't have 'git init --initial-branch'
-        git.run("init")
-        git.run("checkout", "-b", "main")
-        git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
+    git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
 
-        proc = subprocess.run(
-            [
-                str(script),
-                "--files",
-                ",".join(files),
-            ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            encoding="utf-8",
-            cwd=git.cwd,
-            check=False,
-        )
+    proc = run_script(
+        [
+            script,
+            "--files",
+            ",".join(files),
+        ],
+        check=False,
+        cwd=git.cwd,
+    )
 
-        if should_skip:
-            assert proc.returncode == 0
-        else:
-            assert proc.returncode == 1
-
-    run([], should_skip=True)
-    run(["README.md"], should_skip=True)
-    run(["test.c"], should_skip=False)
-    run(["test.c", "README.md"], should_skip=False)
-    run(["src/autotvm/feature_visitor.cc", "README.md"], should_skip=False)
-    run([".asf.yaml", "docs/README.md"], should_skip=True)
+    if should_skip:
+        assert proc.returncode == 0
+    else:
+        assert proc.returncode == 1
 
 
-def test_ping_reviewers(tmpdir_factory):
-    """
-    Test that reviewers are messaged after a time period of inactivity
-    """
-    reviewers_script = REPO_ROOT / "ci" / "scripts" / "ping_reviewers.py"
+def all_time_keys(time):
+    return {
+        "updatedAt": time,
+        "lastEditedAt": time,
+        "createdAt": time,
+        "publishedAt": time,
+    }
 
-    def run(pull_request, check):
-        git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
-        # Jenkins git is too old and doesn't have 'git init --initial-branch'
-        git.run("init")
-        git.run("checkout", "-b", "main")
-        git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
 
-        data = {
-            "data": {
-                "repository": {
-                    "pullRequests": {
-                        "nodes": [pull_request],
-                        "edges": [],
-                    }
-                }
-            }
-        }
-        proc = subprocess.run(
-            [
-                str(reviewers_script),
-                "--dry-run",
-                "--wait-time-minutes",
-                "1",
-                "--cutoff-pr-number",
-                "5",
-                "--allowlist",
-                "user",
-                "--pr-json",
-                json.dumps(data),
-                "--now",
-                "2022-01-26T17:54:19Z",
-            ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            encoding="utf-8",
-            cwd=git.cwd,
-            check=False,
-        )
-        if proc.returncode != 0:
-            raise RuntimeError(f"Process failed:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
-
-        assert check in proc.stdout
-
-    def all_time_keys(time):
-        return {
-            "updatedAt": time,
-            "lastEditedAt": time,
-            "createdAt": time,
-            "publishedAt": time,
-        }
-
-    run(
-        {
+@parameterize_named(
+    draft=dict(
+        pull_request={
             "isDraft": True,
             "number": 2,
         },
-        "Checking 0 of 1 fetched",
-    )
-
-    run(
-        {
+        check="Checking 0 of 1 fetched",
+    ),
+    not_draft=dict(
+        pull_request={
             "isDraft": False,
             "number": 2,
         },
-        "Checking 0 of 1 fetched",
-    )
-
-    run(
-        {
+        check="Checking 0 of 1 fetched",
+    ),
+    week_old=dict(
+        pull_request={
             "number": 123,
             "url": "https://github.com/apache/tvm/pull/123",
             "body": "cc @someone",
@@ -667,12 +546,11 @@ def test_ping_reviewers(tmpdir_factory):
             **all_time_keys("2022-01-18T17:54:19Z"),
             "comments": {"nodes": []},
         },
-        "Pinging reviewers ['someone'] on https://github.com/apache/tvm/pull/123",
-    )
-
+        check="Pinging reviewers ['someone'] on https://github.com/apache/tvm/pull/123",
+    ),
     # Check allowlist functionality
-    run(
-        {
+    allowlist=dict(
+        pull_request={
             "number": 123,
             "url": "https://github.com/apache/tvm/pull/123",
             "body": "cc @someone",
@@ -686,12 +564,11 @@ def test_ping_reviewers(tmpdir_factory):
                 ]
             },
         },
-        "Checking 0 of 1 fetched",
-    )
-
+        check="Checking 0 of 1 fetched",
+    ),
     # Old comment, ping
-    run(
-        {
+    old_comment=dict(
+        pull_request={
             "number": 123,
             "url": "https://github.com/apache/tvm/pull/123",
             "body": "cc @someone",
@@ -708,12 +585,11 @@ def test_ping_reviewers(tmpdir_factory):
                 ]
             },
         },
-        "Pinging reviewers ['someone'] on https://github.com/apache/tvm/pull/123",
-    )
-
+        check="Pinging reviewers ['someone'] on https://github.com/apache/tvm/pull/123",
+    ),
     # New comment, don't ping
-    run(
-        {
+    new_comment=dict(
+        pull_request={
             "number": 123,
             "url": "https://github.com/apache/tvm/pull/123",
             "body": "cc @someone",
@@ -727,8 +603,45 @@ def test_ping_reviewers(tmpdir_factory):
                 ]
             },
         },
-        "Not pinging PR 123",
+        check="Not pinging PR 123",
+    ),
+)
+def test_ping_reviewers(tmpdir_factory, pull_request, check):
+    """
+    Test that reviewers are messaged after a time period of inactivity
+    """
+    reviewers_script = REPO_ROOT / "ci" / "scripts" / "ping_reviewers.py"
+
+    git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
+
+    data = {
+        "data": {
+            "repository": {
+                "pullRequests": {
+                    "nodes": [pull_request],
+                    "edges": [],
+                }
+            }
+        }
+    }
+    proc = run_script(
+        [
+            reviewers_script,
+            "--dry-run",
+            "--wait-time-minutes",
+            "1",
+            "--cutoff-pr-number",
+            "5",
+            "--allowlist",
+            "user",
+            "--pr-json",
+            json.dumps(data),
+            "--now",
+            "2022-01-26T17:54:19Z",
+        ],
+        cwd=git.cwd,
     )
+    assert_in(check, proc.stdout)
 
 
 def assert_in(needle: str, haystack: str):
@@ -740,69 +653,8 @@ def assert_in(needle: str, haystack: str):
 
 
 @tvm.testing.skip_if_wheel_test
-def test_github_tag_teams(tmpdir_factory):
-    """
-    Check that individuals are tagged from team headers
-    """
-    tag_script = REPO_ROOT / "ci" / "scripts" / "github_tag_teams.py"
-
-    def run(source_type, data, check):
-        git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
-        git.run("init")
-        git.run("checkout", "-b", "main")
-        git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
-
-        issue_body = """
-        some text
-        [temporary] opt-in: @person5
-
-        - something: @person1 @person2
-        - something3: @person1 @person2 @SOME1-ONE-
-        - something else @person1 @person2
-        - something else2: @person1 @person2
-        - something-else @person1 @person2
-        """
-        comment1 = """
-        another thing: @person3
-        another-thing @person3
-        """
-        comment2 = """
-        something @person4
-        @person5
-        """
-        teams = {
-            "data": {
-                "repository": {
-                    "issue": {
-                        "body": issue_body,
-                        "comments": {"nodes": [{"body": comment1}, {"body": comment2}]},
-                    }
-                }
-            }
-        }
-        env = {
-            source_type: json.dumps(data),
-        }
-        proc = subprocess.run(
-            [
-                str(tag_script),
-                "--dry-run",
-                "--team-issue-json",
-                json.dumps(teams),
-            ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            encoding="utf-8",
-            cwd=git.cwd,
-            env=env,
-            check=False,
-        )
-        if proc.returncode != 0:
-            raise RuntimeError(f"Process failed:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
-
-        assert_in(check, proc.stdout)
-
-    run(
+@parameterize_named(
+    no_cc=dict(
         source_type="ISSUE",
         data={
             "title": "A title",
@@ -818,9 +670,8 @@ def test_github_tag_teams(tmpdir_factory):
             ),
         },
         check="No one to cc, exiting",
-    )
-
-    run(
+    ),
+    no_additional_cc=dict(
         source_type="ISSUE",
         data={
             "title": "A title",
@@ -838,9 +689,8 @@ def test_github_tag_teams(tmpdir_factory):
             ),
         },
         check="No one to cc, exiting",
-    )
-
-    run(
+    ),
+    cc_update=dict(
         source_type="ISSUE",
         data={
             "title": "A title",
@@ -858,9 +708,8 @@ def test_github_tag_teams(tmpdir_factory):
         },
         check="would have updated issues/1234 with {'body': "
         "'\\nhello\\n\\nsomething\\n\\ncc @person1 @person2 @person4'}",
-    )
-
-    run(
+    ),
+    already_cced=dict(
         source_type="ISSUE",
         data={
             "title": "A title",
@@ -877,9 +726,8 @@ def test_github_tag_teams(tmpdir_factory):
             ),
         },
         check="No one to cc, exiting",
-    )
-
-    run(
+    ),
+    not_already_cced=dict(
         source_type="ISSUE",
         data={
             "title": "[something] A title",
@@ -897,9 +745,8 @@ def test_github_tag_teams(tmpdir_factory):
         },
         check="would have updated issues/1234 with {'body': "
         "'\\nhello\\n\\nsomething\\n\\ncc @person1 @person2 @person4'}",
-    )
-
-    run(
+    ),
+    no_new_ccs=dict(
         source_type="ISSUE",
         data={
             "title": "[something] A title",
@@ -916,9 +763,8 @@ def test_github_tag_teams(tmpdir_factory):
             ),
         },
         check="No one to cc, exiting",
-    )
-
-    run(
+    ),
+    mismatching_tags=dict(
         source_type="PR",
         data={
             "title": "[something] A title",
@@ -936,9 +782,8 @@ def test_github_tag_teams(tmpdir_factory):
             ),
         },
         check="No one to cc, exiting",
-    )
-
-    run(
+    ),
+    draft_pr=dict(
         source_type="PR",
         data={
             "title": "[something] A title",
@@ -956,9 +801,8 @@ def test_github_tag_teams(tmpdir_factory):
             ),
         },
         check="Terminating since 1234 is a draft",
-    )
-
-    run(
+    ),
+    edit_inplace=dict(
         source_type="ISSUE",
         data={
             "title": "[something] A title",
@@ -974,9 +818,8 @@ def test_github_tag_teams(tmpdir_factory):
         check="would have updated issues/1234 with {'body': '`mold` and `lld` can be a much"
         " faster alternative to `ld` from gcc. We should modify our CMakeLists.txt to "
         "detect and use these when possible. cc @person1\\n\\ncc @person2 @person4'}",
-    )
-
-    run(
+    ),
+    edit_out_of_place=dict(
         source_type="ISSUE",
         data={
             "title": "[something3] A title",
@@ -989,9 +832,8 @@ def test_github_tag_teams(tmpdir_factory):
         },
         check="Dry run, would have updated issues/1234 with"
         " {'body': '@person2 @SOME1-ONE-\\n\\ncc @person1'}",
-    )
-
-    run(
+    ),
+    atted_but_not_cced=dict(
         source_type="ISSUE",
         data={
             "title": "[] A title",
@@ -1003,12 +845,64 @@ def test_github_tag_teams(tmpdir_factory):
             "body": "@person2 @SOME1-ONE-",
         },
         check="No one to cc, exiting",
+    ),
+)
+def test_github_tag_teams(tmpdir_factory, source_type, data, check):
+    """
+    Check that individuals are tagged from team headers
+    """
+    tag_script = REPO_ROOT / "ci" / "scripts" / "github_tag_teams.py"
+
+    git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
+
+    issue_body = """
+    some text
+    [temporary] opt-in: @person5
+
+    - something: @person1 @person2
+    - something3: @person1 @person2 @SOME1-ONE-
+    - something else @person1 @person2
+    - something else2: @person1 @person2
+    - something-else @person1 @person2
+    """
+    comment1 = """
+    another thing: @person3
+    another-thing @person3
+    """
+    comment2 = """
+    something @person4
+    @person5
+    """
+    teams = {
+        "data": {
+            "repository": {
+                "issue": {
+                    "body": issue_body,
+                    "comments": {"nodes": [{"body": comment1}, {"body": comment2}]},
+                }
+            }
+        }
+    }
+    env = {
+        source_type: json.dumps(data),
+    }
+    proc = run_script(
+        [
+            tag_script,
+            "--dry-run",
+            "--team-issue-json",
+            json.dumps(teams),
+        ],
+        cwd=git.cwd,
+        env=env,
     )
+
+    assert_in(check, proc.stdout)
 
 
 @tvm.testing.skip_if_wheel_test
 @parameterize_named(
-    dict(
+    same_tags=dict(
         tlcpackstaging_body={
             "results": [
                 {
@@ -1028,7 +922,7 @@ def test_github_tag_teams(tmpdir_factory):
         expected="Tag names were the same, no update needed",
         expected_images=[],
     ),
-    dict(
+    staging_update=dict(
         tlcpackstaging_body={
             "results": [
                 {
@@ -1054,7 +948,7 @@ def test_github_tag_teams(tmpdir_factory):
             "ci_arm = 'tlcpack/ci-arm:456-456-abc'",
         ],
     ),
-    dict(
+    tlcpack_update=dict(
         tlcpackstaging_body={
             "results": [
                 {
@@ -1084,22 +978,19 @@ def test_open_docker_update_pr(
     tag_script = REPO_ROOT / "ci" / "scripts" / "open_docker_update_pr.py"
 
     git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
-    git.run("init")
     git.run("config", "user.name", "ci")
     git.run("config", "user.email", "email@example.com")
-    git.run("checkout", "-b", "main")
-    git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
     images = [
-        "ci_lint",
-        "ci_gpu",
-        "ci_cpu",
-        "ci_minimal",
-        "ci_wasm",
-        "ci_i386",
-        "ci_cortexm",
         "ci_arm",
+        "ci_cortexm",
+        "ci_cpu",
+        "ci_gpu",
         "ci_hexagon",
+        "ci_i386",
+        "ci_lint",
+        "ci_minimal",
         "ci_riscv",
+        "ci_wasm",
     ]
 
     docker_data = {}
@@ -1107,52 +998,43 @@ def test_open_docker_update_pr(
         docker_data[f"repositories/tlcpackstaging/{image}/tags"] = tlcpackstaging_body
         docker_data[f"repositories/tlcpack/{image.replace('_', '-')}/tags"] = tlcpack_body
 
-    proc = subprocess.run(
+    proc = run_script(
         [
-            str(tag_script),
+            tag_script,
             "--dry-run",
             "--testing-docker-data",
             json.dumps(docker_data),
         ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        encoding="utf-8",
         cwd=git.cwd,
         env={"GITHUB_TOKEN": "1234"},
-        check=False,
+        stderr=subprocess.STDOUT,
     )
 
     for line in expected_images:
         if line not in proc.stdout:
             raise RuntimeError(f"Missing line {line} in output:\n{proc.stdout}")
 
-    if proc.returncode != 0:
-        raise RuntimeError(f"Process failed:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
-
     assert_in(expected, proc.stdout)
 
 
-@pytest.mark.parametrize(
-    "images,expected",
-    [
-        (
-            ["ci_arm=tlcpack/ci-arm:abc-abc-123", "ci_lint=tlcpack/ci-lint:abc-abc-234"],
-            {
-                "ci_arm": "tlcpack/ci-arm:abc-abc-123",
-                "ci_lint": "tlcpack/ci-lint:abc-abc-234",
-            },
-        ),
-        (
-            ["ci_arm2=tlcpack/ci-arm2:abc-abc-123"],
-            {
-                "ci_arm2": "tlcpackstaging/ci_arm2:abc-abc-123",
-            },
-        ),
-    ],
+@parameterize_named(
+    use_tlcpack=dict(
+        images=["ci_arm=tlcpack/ci-arm:abc-abc-123", "ci_lint=tlcpack/ci-lint:abc-abc-234"],
+        expected={
+            "ci_arm": "tlcpack/ci-arm:abc-abc-123",
+            "ci_lint": "tlcpack/ci-lint:abc-abc-234",
+        },
+    ),
+    use_staging=dict(
+        images=["ci_arm2=tlcpack/ci-arm2:abc-abc-123"],
+        expected={
+            "ci_arm2": "tlcpackstaging/ci_arm2:abc-abc-123",
+        },
+    ),
 )
 def test_determine_docker_images(tmpdir_factory, images, expected):
     """Test script to decide whether to use tlcpack or tlcpackstaging for images"""
-    tag_script = REPO_ROOT / "ci" / "scripts" / "determine_docker_images.py"
+    script = REPO_ROOT / "ci" / "scripts" / "determine_docker_images.py"
 
     git_dir = tmpdir_factory.mktemp("tmp_git_dir")
 
@@ -1161,23 +1043,17 @@ def test_determine_docker_images(tmpdir_factory, images, expected):
         "repositories/tlcpack/ci-lint/tags/abc-abc-234": {},
     }
 
-    proc = subprocess.run(
+    run_script(
         [
-            str(tag_script),
+            script,
             "--testing-docker-data",
             json.dumps(docker_data),
             "--base-dir",
             git_dir,
         ]
         + images,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        encoding="utf-8",
         cwd=git_dir,
-        check=False,
     )
-    if proc.returncode != 0:
-        raise RuntimeError(f"Failed to run script:\n{proc.stdout}")
 
     for expected_filename, expected_image in expected.items():
         with open(Path(git_dir) / expected_filename) as f:
@@ -1186,34 +1062,28 @@ def test_determine_docker_images(tmpdir_factory, images, expected):
         assert actual_image == expected_image
 
 
-@pytest.mark.parametrize(
-    "changed_files,name,check,expected_code",
-    [
-        d.values()
-        for d in [
-            dict(
-                changed_files=[],
-                name="abc",
-                check="Image abc is not using new naming scheme",
-                expected_code=1,
-            ),
-            dict(
-                changed_files=[], name="123-123-abc", check="No extant hash found", expected_code=1
-            ),
-            dict(
-                changed_files=[["test.txt"]],
-                name=None,
-                check="Did not find changes, no rebuild necessary",
-                expected_code=0,
-            ),
-            dict(
-                changed_files=[["test.txt"], ["docker/test.txt"]],
-                name=None,
-                check="Found docker changes",
-                expected_code=2,
-            ),
-        ]
-    ],
+@parameterize_named(
+    invalid_name=dict(
+        changed_files=[],
+        name="abc",
+        check="Image abc is not using new naming scheme",
+        expected_code=1,
+    ),
+    no_hash=dict(
+        changed_files=[], name="123-123-abc", check="No extant hash found", expected_code=1
+    ),
+    no_changes=dict(
+        changed_files=[["test.txt"]],
+        name=None,
+        check="Did not find changes, no rebuild necessary",
+        expected_code=0,
+    ),
+    docker_changes=dict(
+        changed_files=[["test.txt"], ["docker/test.txt"]],
+        name=None,
+        check="Found docker changes",
+        expected_code=2,
+    ),
 )
 def test_should_rebuild_docker(tmpdir_factory, changed_files, name, check, expected_code):
     """
@@ -1222,11 +1092,8 @@ def test_should_rebuild_docker(tmpdir_factory, changed_files, name, check, expec
     tag_script = REPO_ROOT / "ci" / "scripts" / "should_rebuild_docker.py"
 
     git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
-    git.run("init")
     git.run("config", "user.name", "ci")
     git.run("config", "user.email", "email@example.com")
-    git.run("checkout", "-b", "main")
-    git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
 
     git_path = Path(git.cwd)
     for i, commits in enumerate(changed_files):
@@ -1262,15 +1129,13 @@ def test_should_rebuild_docker(tmpdir_factory, changed_files, name, check, expec
         },
     }
 
-    proc = subprocess.run(
+    proc = run_script(
         [
-            str(tag_script),
+            tag_script,
             "--testing-docker-data",
             json.dumps(docker_data),
         ],
-        stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        encoding="utf-8",
         cwd=git.cwd,
         check=False,
     )
