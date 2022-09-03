@@ -107,7 +107,6 @@ def test_array_vectorize_add(target, dev, dtype):
 
 
 @tvm.testing.parametrize_targets("vulkan")
-@pytest.mark.skip("Flaky, https://github.com/apache/tvm/issues/10779")
 def test_vulkan_stress(target, dev):
     """
     Launch a randomized test with multiple kernels per stream, multiple uses of
