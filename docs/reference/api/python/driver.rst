@@ -19,6 +19,8 @@ tvm.driver
 ----------
 .. automodule:: tvm.driver
 
+.. automodule:: tvm.driver.tvmc
+
 .. autofunction:: tvm.lower
 
 .. autofunction:: tvm.build
