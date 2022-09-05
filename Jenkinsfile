@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-08-30T11:58:06.036509
+// Generated at 2022-08-30T15:26:50.100067
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -288,7 +288,7 @@ def should_skip_ci(pr_number) {
   }
   withCredentials([string(
     credentialsId: 'tvm-bot-jenkins-reader',
-    variable: 'TOKEN',
+    variable: 'GITHUB_TOKEN',
     )]) {
     // Exit code of 1 means run full CI (or the script had an error, so run
     // full CI just in case). Exit code of 0 means skip CI.
@@ -301,11 +301,30 @@ def should_skip_ci(pr_number) {
   return git_skip_ci_code == 0
 }
 
+def check_pr(pr_number) {
+  if (env.BRANCH_NAME == null || !env.BRANCH_NAME.startsWith('PR-')) {
+    // never skip CI on build sourced from a branch
+    return false
+  }
+  withCredentials([string(
+    credentialsId: 'tvm-bot-jenkins-reader',
+    variable: 'GITHUB_TOKEN',
+    )]) {
+    sh (
+      script: "python3 ci/scripts/check_pr.py --pr ${pr_number}",
+      label: 'Check PR title and body',
+    )
+  }
+
+}
+
 def prepare() {
   stage('Prepare') {
     node('CPU-SMALL') {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/prepare") {
         init_git()
+
+        check_pr(env.CHANGE_ID)
 
         if (env.DETERMINE_DOCKER_IMAGES == 'yes') {
           sh(

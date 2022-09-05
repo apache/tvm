@@ -1405,5 +1405,85 @@ def test_vm_save_and_load_without_designating_late_bound_consts():
     tvm.testing.assert_allclose(expected, actual.numpy())
 
 
+def test_load_and_save_constants_via_map():
+    """Large constants can be serialized outside of executable"""
+    target = tvm.target.Target("llvm")
+    dev = tvm.cpu()
+
+    # fn(x) { add(x, <large constant>) }
+    x = relay.var("x", shape=(1000, 1000))
+    const_data = np.random.rand(1000, 1000).astype("float32")
+    const = relay.const(const_data, dtype="float32")
+    func = relay.Function([x], relay.op.add(x, const))
+    mod = tvm.IRModule.from_expr(func)
+
+    # Compile to executable.
+    vm_exec = vm.compile(mod, target=target)
+
+    consts_map = vm_exec.get_late_bound_consts(byte_limit=256)
+
+    # Save to constants and library files
+    temp = utils.tempdir()
+    path_dso = temp.relpath("lib.so")
+    vm_exec.mod.export_library(path_dso)
+
+    # Load library files and constants
+    mod = runtime.load_module(path_dso)
+    mod["load_late_bound_consts_from_map"](consts_map)
+
+    # Test main
+    x_data = np.random.rand(1000, 1000).astype("float32")
+    the_vm = runtime.vm.VirtualMachine(mod, dev)
+    actual = the_vm.invoke("main", x_data)
+    expected = x_data + const_data
+    tvm.testing.assert_allclose(expected, actual.numpy())
+
+    # We load the mod again so it's missing the consts.
+    mod = runtime.load_module(path_dso)
+    exe = runtime.vm.Executable(mod)
+
+    # Also test loading consts via the VM's wrapper API.
+    exe.load_late_bound_consts_from_map(consts_map)
+
+    # Test main again with consts now loaded via the above API.
+    x_data = np.random.rand(1000, 1000).astype("float32")
+    the_vm = runtime.vm.VirtualMachine(exe, dev)
+    actual = the_vm.invoke("main", x_data)
+    expected = x_data + const_data
+    tvm.testing.assert_allclose(expected, actual.numpy())
+
+
+def test_load_late_bound_consts_via_map_with_no_late_bound_consts():
+    """Check that load_late_bound_consts handles a model with no late bound consts."""
+    target = tvm.target.Target("llvm")
+    dev = tvm.cpu()
+
+    const_data = np.random.rand(1).astype("float64")
+    x = relay.var("x", shape=(1,), dtype="float64")
+    const = relay.const(const_data, dtype="float64")
+
+    func = relay.Function([x], relay.op.add(x, const))
+    mod = tvm.IRModule.from_expr(func)
+
+    vm_exec = vm.compile(mod, target=target)
+
+    temp = utils.tempdir()
+    path_dso = temp.relpath("lib.so")
+
+    # Ensure const_data is below the byte threshold for a late-bound const.
+    byte_limit = len(const_data.tobytes()) + 1
+    consts_map = vm_exec.get_late_bound_consts(byte_limit=byte_limit)
+    vm_exec.mod.export_library(path_dso)
+
+    mod = runtime.load_module(path_dso)
+    mod["load_late_bound_consts_from_map"](consts_map)
+
+    x_data = np.random.rand(1).astype("float64")
+    loaded_vm = runtime.vm.VirtualMachine(mod, dev)
+    actual = loaded_vm.invoke("main", x_data)
+    expected = x_data + const_data
+    tvm.testing.assert_allclose(expected, actual.numpy())
+
+
 if __name__ == "__main__":
     tvm.testing.main()

@@ -30,9 +30,9 @@ def _get_model(
 ):
     """Return a model an any parameters it may have"""
     a = relay.var("a", shape=shape, dtype=dtype)
-    w = tvm.nd.array(np.ones(weight_shape, dtype))
-    weights = relay.const(w, dtype)
-    fc = relay.qnn.op.dense(
+    weights_array = tvm.nd.array(np.ones(weight_shape, dtype))
+    weights = relay.const(weights_array, dtype)
+    dense = relay.qnn.op.dense(
         a,
         weights,
         input_zero_point=relay.const(input_zp, "int32"),
@@ -44,7 +44,7 @@ def _get_model(
     )
     b = tvm.nd.array(np.random.randint(0, high=255, size=(weight_shape[0],), dtype="int32"))
     biasc = relay.const(b, "int32")
-    bias = relay.nn.bias_add(fc, biasc)
+    bias = relay.nn.bias_add(dense, biasc)
     req = relay.qnn.op.requantize(
         bias,
         relay.const(input_sc * kernel_sc, "float32"),  # input zero scale
@@ -53,7 +53,7 @@ def _get_model(
         relay.const(output_zp, "int32"),  # output zero point
         out_dtype=dtype,
     )
-    params = {"w": w, "b": b}
+    params = {"w": weights_array, "b": b}
     return req, params
 
 
@@ -76,9 +76,8 @@ def _get_model(
     ],
 )
 def test_fullyconnected(shape, out_channels, dtype, input_zp, input_sc, kernel_zp, kernel_sc):
-    """
-    Test fully connected offloading.
-    """
+    """Compare Fully Connected output with TVM."""
+
     np.random.seed(0)
     inputs = {
         "a": tvm.nd.array(
@@ -116,6 +115,8 @@ def test_fullyconnected(shape, out_channels, dtype, input_zp, input_sc, kernel_z
 
 @requires_ethosn
 def test_fullyconnected_failure():
+    """Check Fully Connected error messages."""
+
     trials = [
         (
             (1, 64),
@@ -139,7 +140,8 @@ def test_fullyconnected_failure():
             0,
             1,
             "uint8",
-            "Weights tensor must have I dimension equal to the number of channels of the input tensor.;",
+            "Weights tensor must have I dimension equal to the number"
+            " of channels of the input tensor.;",
         ),
         ((1024, 64), (1, 64), 0, 1, 0, 1, 0, 1, "uint8", "batch size=1024, batch size must = 1;"),
     ]
@@ -157,10 +159,7 @@ def test_fullyconnected_failure():
         dtype,
         err_msg,
     ) in trials:
-        inputs = {
-            "a": tvm.nd.array(np.random.randint(0, high=255, size=shape, dtype=dtype)),
-        }
-        model, params = _get_model(
+        model, _ = _get_model(
             shape,
             weight_shape,
             input_zp,

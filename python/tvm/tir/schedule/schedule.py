@@ -1014,7 +1014,7 @@ class Schedule(Object):
     def cache_read(
         self,
         block: Union[BlockRV, str],
-        read_buffer_index: int,
+        read_buffer_index: Union[int, str, Buffer],
         storage_scope: str,
         consumer_blocks: Optional[List[Union[BlockRV, str]]] = None,
     ) -> BlockRV:
@@ -1029,8 +1029,10 @@ class Schedule(Object):
         block : Union[BlockRV, str]
             The consumer block of the target buffer.
 
-        read_buffer_index: int
-            The index of the buffer in block's read region.
+        buffer: Union[int, str, Buffer]
+            The index of the buffer in block's read region, the unique
+            name of a read buffer in the block, or a Buffer object
+            that is within the blocks read region.
 
         storage_scope: str
             The target storage scope.
@@ -1093,13 +1095,21 @@ class Schedule(Object):
         # Convert any string block names into Block RVs.
         consumer_blocks = [self._normalize_block_arg(b) for b in consumer_blocks]
         block = self._normalize_block_arg(block)
+
+        if not isinstance(read_buffer_index, int):
+            _, read_buffer_index, _ = self._normalize_buffer_arg(
+                block, read_buffer_index, required_buffer_type="read"
+            )
         return _ffi_api.ScheduleCacheRead(  # type: ignore # pylint: disable=no-member
             self, block, read_buffer_index, storage_scope, consumer_blocks
         )
 
     @type_checked
     def cache_write(
-        self, block: Union[BlockRV, str], write_buffer_index: int, storage_scope: str
+        self,
+        block: Union[BlockRV, str],
+        write_buffer_index: Union[int, str, Buffer],
+        storage_scope: str,
     ) -> BlockRV:
         """Create a block that reads a buffer region into a write cache. It requires:
 
@@ -1113,7 +1123,9 @@ class Schedule(Object):
             The producer block of the target buffer.
 
         write_buffer_index: int
-            The index of the buffer in block's write region.
+            The index of the buffer in block's write region, the unique
+            name of a write buffer in the block, or a Buffer object
+            that is within the blocks write region.
 
         storage_scope: str
             The target storage scope.
@@ -1168,6 +1180,11 @@ class Schedule(Object):
 
         """
         block = self._normalize_block_arg(block)
+
+        if not isinstance(write_buffer_index, int):
+            _, write_buffer_index, _ = self._normalize_buffer_arg(
+                block, write_buffer_index, required_buffer_type="write"
+            )
         return _ffi_api.ScheduleCacheWrite(  # type: ignore # pylint: disable=no-member
             self, block, write_buffer_index, storage_scope
         )
@@ -2352,7 +2369,10 @@ class Schedule(Object):
         return block
 
     def _normalize_buffer_arg(
-        self, block: BlockRV, buffer: Union[Tuple[str, int], str, Buffer]
+        self,
+        block: BlockRV,
+        buffer: Union[Tuple[str, int], int, str, Buffer],
+        required_buffer_type=None,
     ) -> Tuple[str, int, Buffer]:
 
         block_obj: Block = self.get(block)
@@ -2363,6 +2383,9 @@ class Schedule(Object):
                 yield "read", i, read.buffer
             for i, write in enumerate(block_obj.writes):
                 yield "write", i, write.buffer
+
+        if isinstance(buffer, int):
+            buffer = (required_buffer_type, buffer)
 
         if isinstance(buffer, str):
             possible_buffers = {}
@@ -2404,6 +2427,13 @@ class Schedule(Object):
 
         else:
             raise TypeError(f"Invalid type for argument 'buffer': {type(buffer)}")
+
+        if required_buffer_type is not None:
+            assert buffer_index_type == required_buffer_type, (
+                f"Expected buffer to be read buffer, "
+                f"but {buffer_obj.name} was a {buffer_index_type} buffer "
+                f"in the specified block"
+            )
 
         return (buffer_index_type, buffer_index, buffer_obj)
 

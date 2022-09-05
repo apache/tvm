@@ -330,9 +330,6 @@ class TestmaxPool2dSlice:
         expected_output_np,
         hexagon_session: Session,
     ):
-        if hexagon_session._launcher._serial_number != "simulator":
-            pytest.skip(msg="Due to https://github.com/apache/tvm/issues/11928")
-
         target_hexagon = tvm.target.hexagon("v69")
         A = te.placeholder(input_shape_padded, name="A", dtype=dtype)
 

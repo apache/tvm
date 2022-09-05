@@ -17,9 +17,9 @@
 
 """Arm(R) Ethos(TM)-N integration conv2d tests"""
 
+import math
 import numpy as np
 import pytest
-import math
 import tvm
 from tvm import relay
 from tvm.testing import requires_ethosn
@@ -61,7 +61,7 @@ def _get_model(
 ):
     """Return a model and any parameters it may have"""
     a = relay.var("a", shape=shape, dtype=dtype)
-    if pad == "op" or pad == "both":
+    if pad in ("op", "both"):
         p = _get_same_padding((shape[1], shape[2]), (kernel_h, kernel_w), dilation, strides)
         a = relay.nn.pad(
             a,
@@ -76,12 +76,12 @@ def _get_model(
         weight_shape = (kernel_h, kernel_w, shape[3] // groups, out_channels)
     else:
         weight_shape = (kernel_h, kernel_w, out_channels, 1)
-    w = tvm.nd.array(
+    weights_array = tvm.nd.array(
         np.random.randint(
             np.iinfo(dtype).min, high=np.iinfo(dtype).max + 1, size=weight_shape, dtype=dtype
         )
     )
-    weights = relay.const(w, dtype)
+    weights = relay.const(weights_array, dtype)
     conv = relay.qnn.op.conv2d(
         a,
         weights,
@@ -96,7 +96,7 @@ def _get_model(
         strides=strides,
         groups=groups,
         channels=out_channels,
-        padding=p if pad == "attr" or pad == "both" else (0, 0, 0, 0),
+        padding=p if pad in ("attr", "both") else (0, 0, 0, 0),
         out_dtype="int32",
     )
     b = tvm.nd.array(
@@ -118,7 +118,7 @@ def _get_model(
         relay.const(output_zp, "int32"),  # output zero point
         out_dtype=dtype,
     )
-    params = {"w": w, "b": b}
+    params = {"w": weights_array, "b": b}
     return req, params
 
 
@@ -126,6 +126,8 @@ def _get_model(
 @pytest.mark.parametrize("depthwise", [False, True])
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 def test_conv2d(dtype, depthwise):
+    """Compare Conv2D output with TVM."""
+
     trials = [
         [(1, 17, 20, 26), 4, 3, 1, "attr", (2, 2), (1, 1), False],
         [(1, 30, 27, 30), 5, 5, 3, "none", (1, 1), (1, 1), False],
@@ -208,6 +210,8 @@ def test_conv2d(dtype, depthwise):
 
 @requires_ethosn
 def test_conv2d_failure():
+    """Check Conv2D error messages."""
+
     trials = [
         (
             (1, 4, 4, 4),
@@ -326,7 +330,7 @@ def test_conv2d_failure():
         weight_format,
         err_msg,
     ) in trials:
-        model, params = _get_model(
+        model, _ = _get_model(
             shape,
             kernel_h,
             kernel_w,

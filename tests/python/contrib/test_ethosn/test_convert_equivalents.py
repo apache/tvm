@@ -158,6 +158,7 @@ def test_add_to_depthwise(reverse_inputs):
 
         sequence = ["qnn.conv2d", "nn.bias_add", "qnn.requantize"]
 
+        # pylint: disable=invalid-name
         def visit_function(self, fn):
             composite_name = fn.attrs["Composite"]
             expected = "ethos-n.qnn_conv2d"

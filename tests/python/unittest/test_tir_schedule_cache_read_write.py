@@ -774,8 +774,12 @@ def test_cache_read_elementwise(use_block_name):
     sch = tir.Schedule(elementwise, debug_mask="all")
     block_b = sch.get_block("B")
     block_c = sch.get_block("C")
-    cached_a = sch.cache_read("B" if use_block_name else block_b, 0, "global")
-    cached_b = sch.cache_read("C" if use_block_name else block_c, 0, "local")
+    if use_block_name:
+        cached_a = sch.cache_read("B", "A", "global")
+        cached_b = sch.cache_read("C", "B", "local")
+    else:
+        cached_a = sch.cache_read(block_b, 0, "global")
+        cached_b = sch.cache_read(block_c, 0, "local")
     assert sch.get(cached_a) == sch.get(sch.get_block("A_global"))
     assert sch.get(cached_b) == sch.get(sch.get_block("B_local"))
     assert sch.get(block_b) == sch.get(sch.get_block("B"))

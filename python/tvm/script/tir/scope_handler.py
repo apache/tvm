@@ -112,9 +112,9 @@ class Allocate(WithScopeHandler):
             scope = tvm.runtime.convert(scope)
 
             return tvm.tir.Allocate(
-                self.buffer.data,
-                self.buffer.dtype,
-                self.buffer.shape,
+                self.buffer_var,
+                dtype,
+                extents,
                 condition,
                 self.body,
                 annotations=annotations,
@@ -122,7 +122,7 @@ class Allocate(WithScopeHandler):
             )
 
         super().__init__(allocate, concise_scope=True, def_symbol=True)
-        self.buffer = None
+        self.buffer_var = None
 
     def enter_scope(
         self,
@@ -146,20 +146,15 @@ class Allocate(WithScopeHandler):
         else:
             raise Exception("Internal Bug")
 
-        def setup_buffer(
+        def setup_buffer_var(
             extents, dtype, scope, condition=True, annotations=None, span: Span = None
         ):
-            """Setup buffer object for a given type."""
-            self.buffer = tvm.tir.decl_buffer(
-                shape=extents,
-                dtype=dtype,
-                name=name,
-                scope=scope,
-                span=span,
-            )
+            """Setup buffer var for a given type."""
+            buffer_ptr_type = tvm.ir.PointerType(tvm.ir.PrimType(dtype), scope)
+            self.buffer_var = tvm.tir.Var(name, buffer_ptr_type, span)
 
-        setup_buffer(*arg_list, span=tvm_span_from_synr(var_span))
-        context.update_symbol(name, self.buffer, node)
+        setup_buffer_var(*arg_list, span=tvm_span_from_synr(var_span))
+        context.update_symbol(name, self.buffer_var, node)
 
 
 @register
@@ -176,7 +171,7 @@ class AllocateConst(WithScopeHandler):
                 list_data.append(i.value)
             nd_data = tvm.nd.array(np.asarray(list_data, dtype=dtype))
             n = tvm.tir.AllocateConst(
-                self.buffer.data,
+                self.buffer_var,
                 dtype,
                 shape,
                 nd_data,
@@ -187,7 +182,7 @@ class AllocateConst(WithScopeHandler):
             return n
 
         super().__init__(allocate_const, concise_scope=True, def_symbol=True)
-        self.buffer = None
+        self.buffer_var = None
 
     def enter_scope(
         self,
@@ -211,17 +206,13 @@ class AllocateConst(WithScopeHandler):
         else:
             raise Exception("Internal Bug")
 
-        def setup_buffer(data, dtype, shape, annotations: dict = None, span: Span = None):
+        def setup_buffer_var(data, dtype, shape, annotations: dict = None, span: Span = None):
             """Setup buffer var for a given type."""
-            self.buffer = tvm.tir.decl_buffer(
-                shape=shape,
-                dtype=dtype,
-                name=name,
-                span=span,
-            )
+            buffer_ptr_type = tvm.ir.PointerType(tvm.ir.PrimType(dtype))
+            self.buffer_var = tvm.tir.Var(name, buffer_ptr_type, span)
 
-        setup_buffer(*arg_list, span=tvm_span_from_synr(var_span))
-        context.update_symbol(name, self.buffer, node)
+        setup_buffer_var(*arg_list, span=tvm_span_from_synr(var_span))
+        context.update_symbol(name, self.buffer_var, node)
 
 
 @register
@@ -248,7 +239,18 @@ class DeclBuffer(WithScopeHandler):
             axis_separators=None,
             span=None,
         ):
-            return tvm.tir.DeclBuffer(self.buffer, self.body, span=span)
+            decl_buffer = tvm.tir.DeclBuffer(self.buffer, self.body, span=span)
+            if data is None:
+                # when data is not specified, the buffer is implicitly allocated
+                return tvm.tir.Allocate(
+                    self.buffer.data,
+                    dtype,
+                    shape,
+                    tvm.runtime.convert(True),
+                    decl_buffer,
+                    span=span,
+                )
+            return decl_buffer
 
         super().__init__(decl_buffer, concise_scope=True, def_symbol=True)
 
@@ -298,6 +300,7 @@ class DeclBuffer(WithScopeHandler):
                 offset_factor=offset_factor,
                 buffer_type=buffer_type,
                 axis_separators=axis_separators,
+                name=name,
                 span=span,
             )
 

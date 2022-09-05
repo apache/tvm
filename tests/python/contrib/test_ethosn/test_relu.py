@@ -35,6 +35,8 @@ def _get_model(shape, dtype, a_min, a_max):
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 def test_relu(dtype):
+    """Compare Relu output with TVM."""
+
     trials = [
         ((1, 4, 4, 4), 65, 178, "uint8"),
         ((1, 8, 4, 2), 1, 254, "uint8"),
@@ -68,6 +70,8 @@ def test_relu(dtype):
 
 @requires_ethosn
 def test_relu_failure():
+    """Check Relu error messages."""
+
     trials = [
         ((1, 4, 4, 4, 4), "uint8", 65, 78, "dimensions=5, dimensions must be <= 4"),
         ((1, 8, 4, 2), "int16", 1, 254, "dtype='int16', dtype must be either uint8, int8 or int32"),

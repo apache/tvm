@@ -46,7 +46,7 @@ if __name__ == "__main__":
         if args.pr_title:
             title = args.pr_title
         else:
-            github = GitHubRepo(token=os.environ["TOKEN"], user=user, repo=repo)
+            github = GitHubRepo(token=os.environ["GITHUB_TOKEN"], user=user, repo=repo)
             pr = github.get(f"pulls/{args.pr}")
             title = pr["title"]
         logging.info(f"pr title: {title}")
