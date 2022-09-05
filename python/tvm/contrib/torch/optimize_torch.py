@@ -40,7 +40,6 @@ from tvm._ffi import get_global_func, register_func
 from tvm.ir.module import IRModule
 from tvm.ir.transform import PassContext
 from tvm.meta_schedule import TuneConfig, default_config
-from tvm.meta_schedule.apply_history_best import ApplyHistoryBest
 from tvm.meta_schedule.relay_integration import extract_task_from_relay
 from tvm.meta_schedule.tune import tune_extracted_tasks
 from tvm.meta_schedule.utils import autotvm_silencer
@@ -114,12 +113,13 @@ def tune_relay_auto(
         )
     database = tune_extracted_tasks(extracted_tasks, config, work_dir)
     relay_build = {"graph": relay.build, "vm": relay.vm.compile}[backend]
-    with target, autotvm_silencer(), ApplyHistoryBest(database):
+    with target, autotvm_silencer(), database:
         with PassContext(
             opt_level=3,
             config={
                 "relay.backend.use_meta_schedule": True,
                 "relay.backend.use_meta_schedule_dispatch": target.kind.name != "cuda",
+                "relay.backend.tir_converter": "default",
             },
         ):
             return relay_build(mod, target=target, params=params)
