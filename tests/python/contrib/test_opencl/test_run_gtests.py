@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from inspect import Attribute
 import os
 import pytest
 import numpy as np
