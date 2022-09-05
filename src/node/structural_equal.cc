@@ -233,8 +233,11 @@ bool NDArrayContainerTrait::SEqualReduce(const runtime::NDArray::Container* lhs,
  */
 class RemapVarSEqualHandler : public SEqualReducer::Handler {
  public:
-  explicit RemapVarSEqualHandler(bool assert_mode, Optional<ObjectPathPair>* first_mismatch)
-      : assert_mode_(assert_mode), first_mismatch_(first_mismatch) {}
+  explicit RemapVarSEqualHandler(bool assert_mode, Optional<ObjectPathPair>* first_mismatch,
+                                 bool compare_ndarray_data = true)
+      : assert_mode_(assert_mode),
+        first_mismatch_(first_mismatch),
+        compare_ndarray_data_(compare_ndarray_data) {}
 
   bool SEqualReduce(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars,
                     const Optional<ObjectPathPair>& current_paths) final {
@@ -400,7 +403,7 @@ class RemapVarSEqualHandler : public SEqualReducer::Handler {
       if (auto lhs_ptr = lhs.as<runtime::NDArray::Container>(),
           rhs_ptr = rhs.as<runtime::NDArray::Container>();
           lhs_ptr && rhs_ptr) {
-        return NDArrayEqual(lhs_ptr, rhs_ptr, reducer, /*compare_data*/ false);
+        return NDArrayEqual(lhs_ptr, rhs_ptr, reducer, compare_ndarray_data_);
       } else {
         return vtable_->SEqualReduce(lhs.get(), rhs.get(), reducer);
       }
@@ -467,12 +470,15 @@ class RemapVarSEqualHandler : public SEqualReducer::Handler {
   std::unordered_map<ObjectRef, ObjectRef, ObjectPtrHash, ObjectPtrEqual> equal_map_lhs_;
   // map from rhs to lhs
   std::unordered_map<ObjectRef, ObjectRef, ObjectPtrHash, ObjectPtrEqual> equal_map_rhs_;
+  // TODO
+  bool compare_ndarray_data_;
 };
 
 TVM_REGISTER_GLOBAL("node.StructuralEqual")
     .set_body_typed([](const ObjectRef& lhs, const ObjectRef& rhs, bool assert_mode,
-                       bool map_free_vars) {
-      return RemapVarSEqualHandler(assert_mode, nullptr).Equal(lhs, rhs, map_free_vars);
+                       bool map_free_vars, bool compare_ndarray_data) {
+      return RemapVarSEqualHandler(assert_mode, nullptr, compare_ndarray_data)
+          .Equal(lhs, rhs, map_free_vars);
     });
 
 TVM_REGISTER_GLOBAL("node.GetFirstStructuralMismatch")
@@ -484,7 +490,7 @@ TVM_REGISTER_GLOBAL("node.GetFirstStructuralMismatch")
     });
 
 bool StructuralEqual::operator()(const ObjectRef& lhs, const ObjectRef& rhs) const {
-  return RemapVarSEqualHandler(false, nullptr).Equal(lhs, rhs, false);
+  return RemapVarSEqualHandler(false, nullptr, compare_ndarray_data_).Equal(lhs, rhs, false);
 }
 
 }  // namespace tvm

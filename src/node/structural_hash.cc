@@ -72,6 +72,9 @@ void NDArrayHash(const runtime::NDArray::Container* arr, SHashReducer& hash_redu
 
 class VarCountingSHashHandler : public SHashReducer::Handler {
  public:
+  explicit VarCountingSHashHandler(bool hash_ndarray_data = true)
+      : hash_ndarray_data_(hash_ndarray_data) {}
+
   /*! \brief Pending reduce tasks. */
   struct Task {
     /*!
@@ -251,7 +254,7 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
     ICHECK(object.defined());
     SHashReducer hash_reduce(this, map_free_vars);
     if (auto ndarray = object.as<runtime::NDArray::Container>()) {
-      NDArrayHash(ndarray, hash_reduce, /*hash_data*/ false);
+      NDArrayHash(ndarray, hash_reduce, hash_ndarray_data_);
     } else {
       vtable_->SHashReduce(object.get(), hash_reduce);
     }
@@ -274,16 +277,19 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
   ReflectionVTable* vtable_ = ReflectionVTable::Global();
   // map from lhs to rhs
   std::unordered_map<ObjectRef, size_t, ObjectPtrHash, ObjectPtrEqual> hash_memo_;
+  // TODO
+  bool hash_ndarray_data_;
 };
 
 TVM_REGISTER_GLOBAL("node.StructuralHash")
-    .set_body_typed([](const ObjectRef& object, bool map_free_vars) -> int64_t {
-      size_t hashed_value = VarCountingSHashHandler().Hash(object, map_free_vars);
+    .set_body_typed([](const ObjectRef& object, bool map_free_vars,
+                       bool hash_ndarray_data) -> int64_t {
+      size_t hashed_value = VarCountingSHashHandler(hash_ndarray_data).Hash(object, map_free_vars);
       return static_cast<int64_t>(hashed_value);
     });
 
 size_t StructuralHash::operator()(const ObjectRef& object) const {
-  return VarCountingSHashHandler().Hash(object, false);
+  return VarCountingSHashHandler(hash_ndarray_data_).Hash(object, false);
 }
 
 // SEQualReduce traits for runtime containers.

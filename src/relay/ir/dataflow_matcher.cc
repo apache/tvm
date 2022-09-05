@@ -111,7 +111,7 @@ bool MatchRetValue(const ObjectRef& lhs, const TVMRetValue& rhs) {
         // Compare the objects for structural equality
         static auto* structural_equal = runtime::Registry::Get("node.StructuralEqual");
         ICHECK(structural_equal) << "node.StructuralEqual is not registered.";
-        if ((*structural_equal)(lhs, GetRef<ObjectRef>(rhs.ptr<Object>()), false, true)) {
+        if ((*structural_equal)(lhs, GetRef<ObjectRef>(rhs.ptr<Object>()), false, true, true)) {
           return true;
         }
       }
@@ -815,7 +815,7 @@ Expr PatternRewriter::Rewrite(const Array<DFPatternCallback>& callbacks, const E
       VLOG(1) << "post rewritten:" << std::endl << PrettyPrint(post);
       count++;
     }
-    equal = (*structural_equal)(last, post, false, true);
+    equal = (*structural_equal)(last, post, false, true, true);
   } while (!equal && count < 100 && !callback_->rewrite_once);
   if (count >= 100) {
     LOG(FATAL) << "Observed 100 rewrite passes, possible conflicting passes?";

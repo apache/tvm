@@ -238,7 +238,7 @@ CachedFunc ShapeFuncFor(const Function& prim_func, const Target& target,
 inline size_t CCacheKeyNode::Hash() const {
   if (hash_ != 0) return hash_;
   // do structral hash, avoid 0.
-  hash_ = tvm::StructuralHash()(this->source_func);
+  hash_ = tvm::StructuralHash(/*hash_ndarray_data*/ false)(this->source_func);
   hash_ = dmlc::HashCombine(hash_, std::hash<std::string>()(target->str()));
   if (hash_ == 0) hash_ = 1;
   return hash_;
@@ -248,7 +248,8 @@ inline bool CCacheKeyNode::Equal(const CCacheKeyNode* other) const {
   if (Hash() != other->Hash()) return false;
   return this->target->str() == other->target->str() &&
          this->virtual_device == other->virtual_device &&
-         tvm::StructuralEqual()(this->source_func, other->source_func);
+         tvm::StructuralEqual(/*compare_ndarray_data*/ false)(this->source_func,
+                                                              other->source_func);
 }
 
 }  // namespace tec

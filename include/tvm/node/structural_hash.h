@@ -74,6 +74,7 @@ class BaseValueHash {
  */
 class StructuralHash : public BaseValueHash {
  public:
+  StructuralHash(bool hash_ndarray_data = true) : hash_ndarray_data_(hash_ndarray_data) {}
   // inheritate operator()
   using BaseValueHash::operator();
   /*!
@@ -82,6 +83,9 @@ class StructuralHash : public BaseValueHash {
    * \return The hash value.
    */
   TVM_DLL size_t operator()(const ObjectRef& key) const;
+
+ private:
+  bool hash_ndarray_data_;
 };
 
 /*!

@@ -102,6 +102,8 @@ class ObjectPathPair : public ObjectRef {
  */
 class StructuralEqual : public BaseValueEqual {
  public:
+  StructuralEqual(bool compare_ndarray_data = true) : compare_ndarray_data_(compare_ndarray_data) {}
+
   // inheritate operator()
   using BaseValueEqual::operator();
   /*!
@@ -111,6 +113,9 @@ class StructuralEqual : public BaseValueEqual {
    * \return The comparison result.
    */
   TVM_DLL bool operator()(const ObjectRef& lhs, const ObjectRef& rhs) const;
+
+ private:
+  bool compare_ndarray_data_;
 };
 
 /*!

@@ -104,7 +104,7 @@ external! {
     #[name("ir.DebugPrint")]
     pub fn debug_print(object: ObjectRef) -> CString;
     #[name("node.StructuralHash")]
-    fn structural_hash(object: ObjectRef, map_free_vars: bool) -> i64;
+    fn structural_hash(object: ObjectRef, map_free_vars: bool, hash_ndarray_data : bool) -> i64;
     #[name("node.StructuralEqual")]
-    fn structural_equal(lhs: ObjectRef, rhs: ObjectRef, assert_mode: bool, map_free_vars: bool) -> bool;
+    fn structural_equal(lhs: ObjectRef, rhs: ObjectRef, assert_mode: bool, map_free_vars: bool, compare_ndarray_data : bool) -> bool;
 }
