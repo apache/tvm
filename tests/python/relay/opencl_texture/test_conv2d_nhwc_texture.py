@@ -304,7 +304,6 @@ def test_conv2d_inceptionv3_35_35_strides(target, dtype):
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_conv2d_resnet50_v2_nhwc_3c(target, dtype):
     input_shape = (1, 224, 224, 3)
     filter_shape = (7, 7, 3, 64)
@@ -386,9 +385,8 @@ def test_conv2d_inceptionv3_nhwc_3c(target, dtype):
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-@pytest.mark.xfail(raises=tvm._ffi.base.TVMError)
 def test_conv2d_1x1_16c16spatial(target, dtype):
-    input_shape = (1, 256, 256, 16)
+    input_shape = (1, 128, 128, 16)
     filter_shape = (4, 4, 16, 32)
     bias_shape = (1, 1, 1, 32)
     A = relay.var("data", shape=input_shape, dtype=dtype)
@@ -576,7 +574,7 @@ def test_conv2d_vgg16_winograd_4d(target, dtype):
     stat_file = temp.relpath("stat.log")
     with open(stat_file, "w") as f:
         f.write(
-            '{"input": ["opencl -keys=adreno,opencl,gpu -device=adreno -max_num_threads=256", "conv2d_nhwc_winograd.image2d", [["TENSOR", [1, 28, 28, 512], "float16"], ["TENSOR", [3, 3, 512, 512], "float16"], [1, 1], [1, 1, 1, 1], [1, 1], "float16"], {}], "config": {"index": 1591, "code_hash": null, "entity": [["auto_unroll_max_step", "ot", 4], ["tile_y", "sp", [-1, 1, 32]], ["tile_x", "sp", [-1, 4, 2]], ["tile_rc", "sp", [-1, 8]]]}, "result": [[0.0037244], 0, 7.06374192237854, 1653898629.7427933], "version": 0.2, "tvm_version": "0.8.dev0"}\n'
+            f'{{"input": ["opencl -keys=adreno,opencl,gpu -device=adreno -max_num_threads=256", "conv2d_nhwc_winograd.image2d", [["TENSOR", [1, 28, 28, 512], "{dtype}"], ["TENSOR", [3, 3, 512, 512], "{dtype}"], [1, 1], [1, 1, 1, 1], [1, 1], "{dtype}"], {{}}], "config": {{"index": 1591, "code_hash": null, "entity": [["auto_unroll_max_step", "ot", 4], ["tile_y", "sp", [-1, 1, 32]], ["tile_x", "sp", [-1, 4, 2]], ["tile_rc", "sp", [-1, 8]]]}}, "result": [[0.0037244], 0, 7.06374192237854, 1653898629.7427933], "version": 0.2, "tvm_version": "0.8.dev0"}}\n'
         )
     graph = build_run_compare(
         mod, params1, {"data": input_shape}, dtype, target, stat_file=stat_file

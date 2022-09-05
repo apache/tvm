@@ -29,7 +29,6 @@ from tvm import rpc
 # for example to run all "foo" tests twice and observe gtest output run
 # pytest -sv <this file> --gtests_args="--gtest_filter=*foo* --gtest_repeat=2"
 @tvm.testing.requires_opencl
-@pytest.mark.xfail(raises=AttributeError)
 def test_run_gtests(gtest_args):
     if (
         "TVM_TRACKER_HOST" in os.environ
