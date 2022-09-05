@@ -272,7 +272,7 @@ def pattern_table():
         return _ethosn.mean(extract)
 
     def check_conv2d_transpose(extract):
-        """Check if mean is supported by Ethos-N."""
+        """Check if conv2d_transpose is supported by Ethos-N."""
         if not ethosn_available():
             return False
 
