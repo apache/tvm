@@ -50,8 +50,19 @@ def count_num_calls(mod):
     return counter.count
 
 
-def assert_partitioned_function(orig_mod, cmsisnn_mod):
-    """If kCompiler attribute is missing, this function raises assertion"""
+def assert_partitioned_function(orig_mod, cmsisnn_mod, expected_ops_unchanged=True):
+    """
+    if KCompiler attribute is missing, this function raises an assertion.
+
+    Parameters
+    ----------
+    orig_mod : IRModule
+        Pre-partitioning module
+    cmsisnn_mod : IRModule
+        Post-partitioning module
+    is_num_calls_same: bool
+        Are number of CallNode(s) before and after partitioning expected to be the same
+    """
     attrs = [
         cmsisnn_mod[var.name_hint].attrs
         for var in cmsisnn_mod.get_global_vars()
@@ -64,9 +75,10 @@ def assert_partitioned_function(orig_mod, cmsisnn_mod):
     ]
     assert any(compilers), "Module does not contain function for cmsisnn target."
 
-    assert count_num_calls(orig_mod) == count_num_calls(
-        cmsisnn_mod
-    ), "Number of calls changed during partitioning"
+    if expected_ops_unchanged:
+        assert count_num_calls(orig_mod) == count_num_calls(
+            cmsisnn_mod
+        ), "Number of calls changed during partitioning"
 
 
 def assert_no_external_function(mod):
@@ -226,6 +238,29 @@ def make_qnn_relu(expr, fused_activation_fn, scale, zero_point, dtype):
     if fused_activation_fn == "RELU":
         return tvm.relay.op.clip(expr, a_min=max(qmin, quantize(0.0)), a_max=qmax)
     raise ValueError("Invalid argument provided with fused_activation_fn")
+
+
+class CheckForPadsWithinCompositeFunc(tvm.relay.ExprVisitor):
+    """Provides method to test number of pads present inside the function being visited."""
+
+    def __init__(self):
+        super().__init__()
+        self.num_pads_ = 0
+
+    def visit_call(self, call):
+        super().visit_call(call)
+        if (
+            isinstance(call, tvm.relay.Call)
+            and isinstance(call.op, tvm.ir.op.Op)
+            and call.op.name == "nn.pad"
+        ):
+            self.num_pads_ += 1
+
+    def assert_no_pads_within_func(self):
+        assert self.num_pads_ == 0, "CMSIS-NN composite function should not have pads."
+
+    def assert_pads_within_func(self):
+        assert self.num_pads_ > 0, "Composite function should have pads within it."
 
 
 def create_test_runner(compiler_cpu="cortex-m55", cpu_flags=""):

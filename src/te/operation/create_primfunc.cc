@@ -17,6 +17,8 @@
  * under the License.
  */
 
+#include "create_primfunc.h"
+
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/name_supply.h>
 #include <tvm/runtime/registry.h>
@@ -24,9 +26,13 @@
 #include <tvm/tir/stmt_functor.h>
 
 #include <algorithm>
+#include <set>
+#include <unordered_map>
 #include <unordered_set>
+#include <utility>
 
 #include "../../tir/ir/functor_common.h"
+#include "../../tir/transforms/ir_utils.h"
 #include "../schedule/graph.h"
 
 namespace tvm {
@@ -490,6 +496,12 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list) {
   }
   // Step 4. Create func and complete prim func.
   return GenerateAndCompletePrimFunc(arg_list, root_stmts, &info);
+}
+
+PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
+                                     const Array<runtime::NDArray>& constants) {
+  PrimFunc func = CreatePrimFunc(arg_list);
+  return tir::BindParams(func, constants);
 }
 
 TVM_REGISTER_GLOBAL("te.CreatePrimFunc").set_body_typed(CreatePrimFunc);

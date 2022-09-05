@@ -35,7 +35,7 @@ from .utils import (
 
 
 def conv2d_winograd_comp(
-    cfg, data, kernel, strides, padding, dilation, out_dtype, args, pre_computed, layout
+    cfg, data, kernel, strides, padding, dilation, out_dtype, pre_computed, layout
 ):
     """Compute declaration for winograd
 
@@ -63,9 +63,6 @@ def conv2d_winograd_comp(
 
     out_dtype: str
         The output type. This is used for mixed precision.
-
-    args: dict
-        Dictionary with additional arguments, e.g. accumulator type
 
     pre_computed: bool
         Flag if weights were pre computed if true or the weights should be
@@ -186,7 +183,7 @@ def conv2d_winograd_comp(
 
     r = KW
     m = tile_size
-    A, B, G = winograd_transform_matrices(m, r, out_dtype)
+    A, B, G = winograd_transform_matrices(m, r, data.dtype)
 
     H = (H + pt + pb - KH) // HSTR + 1
     W = (W + pl + pr - KW) // WSTR + 1
@@ -268,7 +265,7 @@ def conv2d_winograd_comp(
         lambda eps, nu, co, p, cob: te.sum(
             (
                 kernel_pack[eps][nu][ci * CB + cb][co][cob] * data_pack_trans[eps][nu][ci][p][cb]
-            ).astype(args["accumulator"]),
+            ).astype(out_dtype),
             axis=[ci, cb],
         ),
         name="bgemm",
@@ -280,7 +277,7 @@ def conv2d_winograd_comp(
     inverse = te.compute(
         (CO, P, m, m, COB),
         lambda co, p, vh, vw, cob: te.sum(
-            bgemm[r_a][r_b][co][p][cob] * (A[r_a][vh] * A[r_b][vw]).astype(args["accumulator"]),
+            bgemm[r_a][r_b][co][p][cob] * (A[r_a][vh] * A[r_b][vw]).astype(out_dtype),
             axis=[r_a, r_b],
         ),
         name="inverse",
@@ -295,7 +292,7 @@ def conv2d_winograd_comp(
                     idxmod(h, m)
                 ][idxmod(w, m)][c % CB].astype(out_dtype),
                 name="output",
-                tag="cast_from_acc" + args["accumulator"][-2:],
+                tag="dummy_compute_at",
             )
         else:
             output = te.compute(
@@ -304,7 +301,7 @@ def conv2d_winograd_comp(
                     n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m)
                 ][idxmod(h, m)][idxmod(w, m)][cob].astype(out_dtype),
                 name="output",
-                tag="cast_from_acc" + args["accumulator"][-2:],
+                tag="dummy_compute_at",
             )
     else:
         if convert_from4d and autotvm.GLOBAL_SCOPE.in_tuning is False:
@@ -314,7 +311,7 @@ def conv2d_winograd_comp(
                     idxmod(h, m)
                 ][idxmod(w, m)][c % CB].astype(out_dtype),
                 name="output",
-                tag="cast_from_acc" + args["accumulator"][-2:],
+                tag="dummy_compute_at",
             )
         else:
             output = te.compute(
@@ -323,7 +320,7 @@ def conv2d_winograd_comp(
                     n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m)
                 ][idxmod(h, m)][idxmod(w, m)][cob].astype(out_dtype),
                 name="output",
-                tag="cast_from_acc" + args["accumulator"][-2:],
+                tag="dummy_compute_at",
             )
 
     if isinstance(N, int):

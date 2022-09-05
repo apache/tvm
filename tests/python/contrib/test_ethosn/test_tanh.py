@@ -46,6 +46,8 @@ def _get_model(shape, input_zp, input_sc, output_zp, output_sc, dtype):
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 @pytest.mark.parametrize("shape", [(1, 52, 52, 3)])
 def test_tanh(dtype, shape):
+    """Compare Tanh output with TVM."""
+
     zp_min = np.iinfo(dtype).min
     zp_max = np.iinfo(dtype).max
 
@@ -78,6 +80,8 @@ def test_tanh(dtype, shape):
     ],
 )
 def test_tanh_failure(shape, input_zp, input_sc, output_zp, output_sc, err_msg, dtype):
+    """Check Tanh error messages."""
+
     test_zp = 0 if dtype == "int8" else 128
     model = _get_model(shape, input_zp, input_sc, output_zp, output_sc, dtype)
     model = tei.make_ethosn_composite(model, "ethos-n.qnn_tanh")

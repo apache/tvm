@@ -633,7 +633,7 @@ class Parser {
       return ObjectRef();
     }
   }
-  /*! \brief Parses a sequence beginning with a start token, seperated by a seperator token, and
+  /*! \brief Parses a sequence beginning with a start token, separated by a seperator token, and
    * ending with a stop token.
    *
    * The simple form being <start> (<parse()> <seperator>)* <stop>.

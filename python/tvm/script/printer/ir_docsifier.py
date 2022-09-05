@@ -59,6 +59,21 @@ def _ensure_cleanup_function_registered():
         _CLEANUP_REGISTERED = True
 
 
+@register_object("script.printer.RootNodeContainer")
+class RootNodeContainer(Object):
+    """
+    A wrapper object to provide injection point for printer of each IR.
+
+    This class shouldn't be used directly. `IRDocsifier.set_root_dispatch`
+    should be used instead.
+    """
+
+    root_node: Object
+
+    def __init__(self, root_node: Object):
+        self.__init_handle_by_constructor__(_ffi_api.RootNodeContainer, root_node)  # type: ignore # pylint: disable=no-member
+
+
 @register_object("script.printer.IRDocsifier")
 class IRDocsifier(Object):
     """
@@ -91,7 +106,7 @@ class IRDocsifier(Object):
     def set_dispatch(
         cls,
         node_type: Type[_TObject],
-        dispatch_function: Callable[[_TObject, "IRDocsifier"], Doc],
+        dispatch_function: Callable[[_TObject, ObjectPath, "IRDocsifier"], Doc],
         dispatch_token: str = "",
     ) -> None:
         """
@@ -101,7 +116,7 @@ class IRDocsifier(Object):
         ----------
         node_type : Type[_TObject]
             The type of object to dispatch on.
-        dispatch_function : Callable[[_TObject, "IRDocsifier"], Doc]
+        dispatch_function : Callable[[_TObject, ObjectPath, "IRDocsifier"], Doc]
             The dispatch function. It's called to transform IR node object to Doc.
         dispatch_token : str
             Function will only be called when this dispatch_token is the same as the one
@@ -118,6 +133,38 @@ class IRDocsifier(Object):
             dispatch_token, type_index, dispatch_function
         )
         _REGISTERED_TYPES.add((dispatch_token, type_index))
+
+    @classmethod
+    def set_root_dispatch(
+        cls, dispatch_token: str, root_dispatch_function: Callable[[Object, "IRDocsifier"], Doc]
+    ) -> None:
+        """
+        Set the root dispatch function for an IR.
+
+        The root dispatch function will be called with the root node of an IR graph
+        that's being transformed to Doc. This provides an injection point for
+        each IR's printer implemention to add specialized logic, for example,
+        pushing a special Frame to the IRDocsifier before doing actual IR->Doc
+        transformation.
+
+        The simplest root dispatch function is
+        ```
+        def f(obj, ir_docsifier)
+            return ir_docsifier.as_doc(obj, ObjectPath.root())
+        ```
+
+        Parameters
+        ----------
+        root_dispatch_function : Callable[[_TObject, "IRDocsifier"], Doc]
+            The root dispatch function. It's called with the root node to be printed.
+        dispatch_token : str
+            The dispatch token of the IR that root_dispatch_funnction applies to.
+        """
+
+        def dispatch_function(obj: RootNodeContainer, _, ir_docsifier):
+            return root_dispatch_function(obj.root_node, ir_docsifier)
+
+        cls.set_dispatch(RootNodeContainer, dispatch_function, dispatch_token)
 
     def as_doc(self, obj: Object, object_path: ObjectPath) -> Doc:
         """

@@ -49,7 +49,7 @@ We do encourage everyone to work anything they are interested in.
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame - relay
 - [Tristan Konolige](https://github.com/tkonolige): @tkonolige - profiling, relay, tir, runtime
 - [Ruihang Lai](https://github.com/MasterJH5574): @MasterJH5574 - tir, tvm-script
-- [Wuwei Lin](https://github.com/vinx13): @vinx13 - relay, topi
+- [Wuwei Lin](https://github.com/vinx13) (PMC): @vinx13 - relay, topi, tir, meta_schedule
 - [Yizhi Liu](https://github.com/yzhliu) (PMC): @yzhliu - jvm, topi, relay
 - [Hao Lu](https://github.com/hlu1): @hlu1 - nnpack, frontends
 - [Eric Lunderberg](https://github.com/Lunderberg): @Lunderberg - CI, Vulkan backend
@@ -92,11 +92,13 @@ We do encourage everyone to work anything they are interested in.
 - [Matthew Barrett](https://github.com/mbaret): @mbaret
 - [Arnaud Bergeron](https://github.com/abergeron): @abergeron
 - [Matthew Brookhart](https://github.com/mbrookhart): @mbrookhart
+- [Yaxing Cai](https://github.com/cyx-6): @cyx-6
 - [Liangfu Chen](https://github.com/liangfu): @liangfu
 - [Tianqi Chen](https://github.com/tqchen): @tqchen
 - [Zhi Chen](https://github.com/zhiics): @zhiics
 - [Valery Chernov](https://github.com/vvchernov): @vvchernov
 - [Neo Chien](https://github.com/cchung100m): @cchung100m
+- [Christian Convey](https://github.com/cconvey/): @cconvey
 - [Meghan Cowan](https://github.com/cowanmeg): @cowanmeg
 - [Balint Cristian](https://github.com/cbalint13): @cbalint13
 - [Egor Churaev](https://github.com/echuraev): @echuraev - metal
@@ -120,6 +122,8 @@ We do encourage everyone to work anything they are interested in.
 - [Manupa Karunaratne](https://github.com/manupa-arm): @manupa-arm
 - [Elen Kalda](https://github.com/ekalda): @ekalda
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame
+- [Michael J. Klaiber](https://github.com/MichaelJKlaiber/) @MichaelJKlaiber
+- [Noah Kontur](https://github.com/konturn/) @konturn
 - [Tristan Konolige](https://github.com/tkonolige): @tkonolige
 - [Denise Kutnick](https://github.com/denise-k): @denise-k
 - [Ruihang Lai](https://github.com/MasterJH5574): @MasterJH5574
@@ -174,6 +178,7 @@ We do encourage everyone to work anything they are interested in.
 - [Gavin Uberti](https://github.com/guberti): @guberti
 - [Luis Vega](https://github.com/vegaluisjose): @vegaluisjose
 - [Thomas Viehmann](https://github.com/t-vi): @t-vi
+- [An Wang](https://github.com/anwang2009): @anwang2009
 - [Yao Wang](https://github.com/kevinthesun): @kevinthesun
 - [Yuchen Wang](https://github.com/wyc-ruiker): @wyc-ruiker
 - [Leyuan Wang](https://github.com/Laurawly): @Laurawly

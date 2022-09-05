@@ -119,6 +119,7 @@ def multi_level_tiling_tensor_core(
     in_dtype: Union[str, List[str]] = "float16",
     out_dtype: Union[str, List[str]] = "float32",
     trans_b: Union[bool, List[bool]] = False,
+    use_software_pipeline: bool = False,
 ) -> ScheduleRule:
     """Default schedule rules for with multi-level tiling reuse for tensor core"""
     assert write_reuse_scope in ["shared", "global"]
@@ -154,6 +155,7 @@ def multi_level_tiling_tensor_core(
                 levels=[2],
                 scope=write_reuse_scope,
             ),
+            use_software_pipeline=use_software_pipeline,
         )
     raise NotImplementedError(f"{target.kind.name} is not supported")
 

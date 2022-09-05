@@ -91,7 +91,7 @@ bool FindUnrollDecision(const Trace& trace, TRandState* rand_state,
   for (const Instruction& inst : trace->insts) {
     if (inst->kind.same_as(inst_sample_categorical)) {
       ICHECK_EQ(inst->outputs.size(), 1);
-      const PrimExprNode* var_rv = TVM_TYPE_AS(var_rv, inst->outputs[0], PrimExprNode);
+      const PrimExprNode* var_rv = TVM_TYPE_AS(inst->outputs[0], PrimExprNode);
       sample_insts[var_rv] = inst.get();
     } else if (IsAnnotateWithUnroll(inst)) {
       ann_insts.push_back(inst.get());
@@ -103,7 +103,7 @@ bool FindUnrollDecision(const Trace& trace, TRandState* rand_state,
   }
   const InstructionNode* ann_inst = ann_insts[tir::SampleInt(rand_state, 0, n_ann_insts)];
   ICHECK_EQ(ann_inst->inputs.size(), 2);
-  const auto* var_rv = TVM_TYPE_AS(var_rv, ann_inst->inputs[1], PrimExprNode);
+  const auto* var_rv = TVM_TYPE_AS(ann_inst->inputs[1], PrimExprNode);
   ICHECK(sample_insts.count(var_rv));
   const InstructionNode* sample_inst = sample_insts.at(var_rv);
   ICHECK_EQ(sample_inst->attrs.size(), 2);

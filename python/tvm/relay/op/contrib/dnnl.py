@@ -856,7 +856,8 @@ class LayerNormRewrite(DFPatternCallback):
         added_eps = is_op("add")(mp1, eps)
         deno = is_op("sqrt")(added_eps)
         div_out = is_op("divide")(diff, deno)
-        weighted = is_op("multiply")(div_out, self.gamma)
+        div_out2 = diff * is_op("rsqrt")(added_eps)
+        weighted = is_op("multiply")(div_out | div_out2, self.gamma)
         added_bias = is_op("add")(weighted, self.beta)
         self.pattern = added_bias
 

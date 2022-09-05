@@ -25,28 +25,6 @@
 namespace tvm {
 namespace meta_schedule {
 
-/*! \brief The struct defining comparison function of sorting by mean run seconds. */
-struct SortTuningRecordByMeanRunSecs {
-  static const constexpr double kMaxMeanTime = 1e10;
-
-  static double Mean(const Array<FloatImm>& a) {
-    if (a.empty()) {
-      return kMaxMeanTime;
-    }
-    double sum = 0.0;
-    for (const FloatImm& i : a) {
-      sum += i->value;
-    }
-    return sum / a.size();
-  }
-
-  bool operator()(const TuningRecord& a, const TuningRecord& b) const {
-    double a_time = Mean(a->run_secs.value_or({}));
-    double b_time = Mean(b->run_secs.value_or({}));
-    return a_time < b_time;
-  }
-};
-
 /*!
  * \brief Read lines from a json file.
  * \param path The path to the json file.
@@ -115,9 +93,7 @@ class JSONDatabaseNode : public DatabaseNode {
 
   Workload CommitWorkload(const IRModule& mod) {
     // Try to insert `mod` into `workloads_`
-    decltype(this->workloads2idx_)::iterator it;
-    bool inserted = false;
-    std::tie(it, inserted) =
+    auto [it, inserted] =
         this->workloads2idx_.emplace(Workload(mod, tvm::StructuralHash()(mod)), -1);
     Workload workload = it->first;
     // If `mod` is new in `workloads2idx_`, append it to the workload file

@@ -24,7 +24,7 @@ from apps.uma._template.passes import (
 )
 from apps.uma._template.codegen import gen_includes
 
-from apps.uma._template.patterns import conv2d_pattern
+from apps.uma._template.patterns import conv2d_pattern, dense_pattern
 from tvm.relay.backend.contrib.uma import uma_available
 
 pytestmark = pytest.mark.skipif(not uma_available(), reason="UMA not available")
@@ -40,6 +40,7 @@ class VanillaAcceleratorBackend(UMABackend):
         # Relay to Relay function registration
         #######################################################################
         self._register_pattern("conv2d", conv2d_pattern())
+        self._register_pattern("dense", dense_pattern())
 
         #######################################################################
         # Relay to TIR function registration

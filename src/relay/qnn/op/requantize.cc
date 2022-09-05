@@ -223,8 +223,7 @@ Expr RequantizeLowerInt(const Expr& input_tensor, const Expr& input_scale,
         static_cast<double>(input_scale_float) / static_cast<double>(output_scale_float);
     // Skip if input and output scales are same.
     if (!IsEqualScalar(input_scale, output_scale)) {
-      int32_t fixed_point_multiplier, shift;
-      std::tie(fixed_point_multiplier, shift) = GetFixedPointMultiplierShift(double_multiplier);
+      auto [fixed_point_multiplier, shift] = GetFixedPointMultiplierShift(double_multiplier);
 
       const bool is_upward_rounding = (param->rounding == "UPWARD");
 

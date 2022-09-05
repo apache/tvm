@@ -37,6 +37,9 @@ URL_MAP = {
     "http://images.cocodataset.org/zips/val2017.zip": f"{BASE}/cocodataset-val2017.zip",
     "https://bj.bcebos.com/x2paddle/models/paddle_resnet50.tar": f"{BASE}/bcebos-paddle_resnet50.tar",
     "https://data.deepai.org/stanfordcars.zip": f"{BASE}/deepai-stanfordcars.zip",
+    "http://dl.caffe.berkeleyvision.org/bvlc_alexnet.caffemodel": f"{BASE}/bvlc_alexnet.caffemodel",
+    "http://dl.caffe.berkeleyvision.org/bvlc_googlenet.caffemodel": f"{BASE}/bvlc_googlenet.caffemodel",
+    "https://github.com/dmlc/web-data/blob/main/darknet/data/dog.jpg": f"{BASE}/dog.jpg",
 }
 
 

@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=missing-docstring
 import tvm
+import tvm.testing
 from tvm import tir
 
 
@@ -104,6 +105,180 @@ def test_tir_op_tvm_throw_last_error():
     assert expr.op.name == "tir.tvm_throw_last_error"
 
 
+def test_tir_op_tvm_load_matrix_sync():
+    buffer = tir.decl_buffer((16, 16), "float32")
+    x = tir.Var("x", "handle")
+    expr = tir.tvm_load_matrix_sync(buffer.data, 16, 16, 16, 0, x, 128, "row_major")
+    assert expr.op.name == "tir.tvm_load_matrix_sync"
+
+
+def test_tir_op_tvm_store_matrix_sync():
+    buffer = tir.decl_buffer((16, 16), "float32")
+    x = tir.Var("x", "handle")
+    expr = tir.tvm_store_matrix_sync(buffer.data, 16, 16, 16, 0, x, 128, "row_major")
+    assert expr.op.name == "tir.tvm_store_matrix_sync"
+
+
+def test_tir_op_tvm_mma_sync():
+    buffer_0 = tir.decl_buffer((16, 16), "float32")
+    buffer_1 = tir.decl_buffer((16, 16), "float32")
+    buffer_2 = tir.decl_buffer((16, 16), "float32")
+    buffer_3 = tir.decl_buffer((16, 16), "float32")
+    expr = tir.tvm_mma_sync(buffer_0.data, 0, buffer_1.data, 0, buffer_2.data, 0, buffer_3.data, 0)
+    assert expr.op.name == "tir.tvm_mma_sync"
+
+
+def test_tir_op_tvm_bmma_sync():
+    buffer_0 = tir.decl_buffer((16, 16), "float32")
+    buffer_1 = tir.decl_buffer((16, 16), "float32")
+    buffer_2 = tir.decl_buffer((16, 16), "float32")
+    buffer_3 = tir.decl_buffer((16, 16), "float32")
+    expr = tir.tvm_bmma_sync(buffer_0.data, 0, buffer_1.data, 0, buffer_2.data, 0, buffer_3.data, 0)
+    assert expr.op.name == "tir.tvm_bmma_sync"
+
+
+def test_tir_op_tvm_fill_fragment():
+    buffer = tir.decl_buffer((16, 16), "float32")
+    expr = tir.tvm_fill_fragment(buffer.data, 16, 16, 16, 0, 0)
+    assert expr.op.name == "tir.tvm_fill_fragment"
+
+
+def test_tir_op_ptx_mma():
+    buffer_a = tir.decl_buffer([32], "int4", scope="local")
+    buffer_b = tir.decl_buffer([16], "uint4", scope="local")
+    buffer_c = tir.decl_buffer([4], "int32", scope="local")
+    expr = tir.ptx_mma(
+        "int32",
+        "m8n8k32",
+        "row",
+        "col",
+        "int4",
+        "uint4",
+        "int32",
+        buffer_a.data,
+        0,
+        buffer_b.data,
+        0,
+        buffer_c.data,
+        0,
+        False,
+    )
+    assert expr.op.name == "tir.ptx_mma"
+
+
+def test_tir_op_ptx_mma_sp():
+    buffer_a = tir.decl_buffer([32], "int4", scope="local")
+    buffer_b = tir.decl_buffer([16], "uint4", scope="local")
+    buffer_c = tir.decl_buffer([4], "int32", scope="local")
+    buffer_d = tir.decl_buffer([1], "uint32", scope="local")
+    expr = tir.ptx_mma_sp(
+        "int32",
+        "m8n8k32",
+        "row",
+        "col",
+        "int4",
+        "uint4",
+        "int32",
+        buffer_a.data,
+        0,
+        buffer_b.data,
+        0,
+        buffer_c.data,
+        0,
+        buffer_d.data,
+        0,
+        0,
+        False,
+    )
+    assert expr.op.name == "tir.ptx_mma_sp"
+
+
+def test_tir_op_mma_store():
+    x = tir.Var("x", dtype="int32")
+    y = tir.Var("y", dtype="int32")
+    buffer_w = tir.decl_buffer([16, 8], dtype="int32", scope="warp", offset_factor=1)
+    buffer = tir.decl_buffer(
+        [16, 16], dtype="int32", scope="global", offset_factor=1, strides=[x, y]
+    )
+    expr = tir.mma_store(
+        "int32",
+        16,
+        16,
+        buffer.access_ptr("w"),
+        buffer_w.data,
+        buffer_w.elem_offset,
+        x,
+    )
+    assert expr.op.name == "tir.mma_store"
+
+
+def test_tir_op_mma_fill():
+    buffer_w = tir.decl_buffer([16, 8], dtype="int32", scope="warp", offset_factor=1)
+    expr = tir.mma_fill("int32", 8, buffer_w.data, buffer_w.elem_offset)
+    assert expr.op.name == "tir.mma_fill"
+
+
+def test_op_ptx_ldmatrix():
+    buffer_shared = tir.decl_buffer([16, 16], "float16", scope="shared")
+    buffer_local = tir.decl_buffer([8], "float16", scope="local")
+    expr = tir.ptx_ldmatrix(
+        "float16", False, 4, ".b16", buffer_local.data, 0, buffer_shared.data, 0
+    )
+    assert expr.op.name == "tir.ptx_ldmatrix"
+
+
+def test_op_ptx_cp_async():
+    buffer_shared = tir.decl_buffer([16, 16], "float16", scope="shared")
+    buffer_local = tir.decl_buffer([8], "float16", scope="local")
+    expr = tir.ptx_cp_async("float16", buffer_shared.data, 0, buffer_local.data, 0, 16)
+    assert expr.op.name == "tir.ptx_cp_async"
+
+
+def test_op_ptx_commit_group():
+    expr = tir.ptx_commit_group()
+    assert expr.op.name == "tir.ptx_commit_group"
+
+
+def test_op_ptx_wait_group():
+    expr = tir.ptx_wait_group(8)
+    assert expr.op.name == "tir.ptx_wait_group"
+
+
+def test_tir_op_vectorlow():
+    buffer = tir.decl_buffer((4, 4), "int8", offset_factor=1)
+    vec = buffer.vload([0, 0], dtype="int8x16")
+    expr = tir.vectorlow("int8x8", vec)
+    assert expr.op.name == "tir.vectorlow"
+
+
+def test_tir_op_vectorhigh():
+    buffer = tir.decl_buffer((4, 4), "int8", offset_factor=1)
+    vec = buffer.vload([0, 0], dtype="int8x16")
+    expr = tir.vectorhigh("int8x8", vec)
+    assert expr.op.name == "tir.vectorhigh"
+
+
+def test_tir_op_vectorcombine():
+    buffer = tir.decl_buffer((4, 4), "int8", offset_factor=1)
+    vec = buffer.vload([0, 0], dtype="int8x16")
+    expr = tir.vectorcombine("int8x8", vec, vec)
+    assert expr.op.name == "tir.vectorcombine"
+
+
+def test_tir_op_shift_left():
+    x = tir.Var("x", dtype="int32")
+    y = tir.Var("x", dtype="int32")
+    expr = tir.shift_left(x, y)
+    assert expr.op.name == "tir.shift_left"
+
+
+def test_tir_op_shift_right():
+    x = tir.Var("x", dtype="int32")
+    y = tir.Var("x", dtype="int32")
+    expr = tir.shift_right(x, y)
+    assert expr.op.name == "tir.shift_right"
+
+
 def test_tir_op_TVMBackendAllocWorkspace():
     expr = tir.TVMBackendAllocWorkspace(0, 1, 2, 3, 4)
     assert expr.op.name == "tir.TVMBackendAllocWorkspace"
@@ -116,19 +291,4 @@ def test_tir_op_TVMBackendFreeWorkspace():
 
 
 if __name__ == "__main__":
-    test_tir_op_tvm_tuple()
-    test_tir_op_tvm_struct_get()
-    test_tir_op_tvm_struct_set()
-    test_tir_op_address_of()
-    test_tir_op_lookup_param()
-    test_tir_op_reinterpret()
-    test_tir_op_isnullptr()
-    test_tir_op_call_assume()
-    test_tir_op_call_undef()
-    test_tir_op_call_likely()
-    test_tir_op_tvm_thread_allreduce()
-    test_tir_op_type_annotation()
-    test_tir_op_tvm_access_ptr()
-    test_tir_op_tvm_throw_last_error()
-    test_tir_op_TVMBackendAllocWorkspace()
-    test_tir_op_TVMBackendFreeWorkspace()
+    tvm.testing.main()

@@ -15,7 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """Runners"""
-from typing import Callable, Optional, List
+from typing import Callable, List, Optional
+
+# isort: off
+from typing_extensions import Literal
+
+# isort: on
 
 from tvm._ffi import register_object
 from tvm.runtime import Object
@@ -223,3 +228,18 @@ class PyRunner:
             The runner futures.
         """
         raise NotImplementedError
+
+
+def create(  # pylint: disable=keyword-arg-before-vararg
+    kind: Literal["local", "rpc"] = "local",
+    *args,
+    **kwargs,
+) -> Runner:
+    """Create a Runner."""
+    from . import LocalRunner, RPCRunner  # pylint: disable=import-outside-toplevel
+
+    if kind == "local":
+        return LocalRunner(*args, **kwargs)  # type: ignore
+    elif kind == "rpc":
+        return RPCRunner(*args, **kwargs)  # type: ignore
+    raise ValueError(f"Unknown Runner: {kind}")

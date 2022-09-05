@@ -20,6 +20,7 @@
 import tvm
 import numpy
 from tvm import te
+from tvm._ffi.registry import register_func
 from tvm.topi.utils import simplify
 from tvm.topi import nn
 from tvm.autotvm.task.space import SplitEntity
@@ -569,6 +570,19 @@ def get_texture_storage(shape):
         return "global.texture-nhwc"
     else:
         return "global.texture-weight"
+
+
+@register_func("tvm.info.mem.global.texture")
+@register_func("tvm.info.mem.global.texture-nhwc")
+@register_func("tvm.info.mem.global.texture-weight")
+def mem_info_global_texture_variants():
+    return tvm.ir.make_node(
+        "MemoryInfo",
+        unit_bits=16,
+        max_num_bits=16384 * 16384 * 4 * 32,
+        max_simd_bits=4 * 32,
+        head_address=None,
+    )
 
 
 def infer_tile_size(data, layout):

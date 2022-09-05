@@ -404,6 +404,32 @@ def cache_read_multi_consumer() -> None:
 
 
 @T.prim_func
+def cache_read_multi_consumer_target() -> None:
+    A = T.alloc_buffer((128))
+    B = T.alloc_buffer((128))
+    C = T.alloc_buffer((128))
+    A_global = T.alloc_buffer((128))
+    for i in T.grid(8):
+        for j in T.grid(16):
+            with T.block("A"):
+                vi = T.axis.S(128, i * 16 + j)
+                A[vi] = 1.0
+        for j in T.grid(16):
+            with T.block("A"):
+                vi = T.axis.S(128, i * 16 + j)
+                A_global[vi] = A[vi]
+        for j in T.grid(16):
+            with T.block("B"):
+                vi = T.axis.S(128, i * 16 + j)
+                B[vi] = A[vi] + 1.0
+
+    for i in T.grid(128):
+        with T.block("C"):
+            vi = T.axis.S(128, i)
+            C[vi] = A_global[vi]
+
+
+@T.prim_func
 def continuous_cache_read(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
@@ -748,8 +774,12 @@ def test_cache_read_elementwise(use_block_name):
     sch = tir.Schedule(elementwise, debug_mask="all")
     block_b = sch.get_block("B")
     block_c = sch.get_block("C")
-    cached_a = sch.cache_read("B" if use_block_name else block_b, 0, "global")
-    cached_b = sch.cache_read("C" if use_block_name else block_c, 0, "local")
+    if use_block_name:
+        cached_a = sch.cache_read("B", "A", "global")
+        cached_b = sch.cache_read("C", "B", "local")
+    else:
+        cached_a = sch.cache_read(block_b, 0, "global")
+        cached_b = sch.cache_read(block_c, 0, "local")
     assert sch.get(cached_a) == sch.get(sch.get_block("A_global"))
     assert sch.get(cached_b) == sch.get(sch.get_block("B_local"))
     assert sch.get(block_b) == sch.get(sch.get_block("B"))
@@ -780,6 +810,22 @@ def test_cache_read_location(use_block_name):
     sch = tir.Schedule(func_multi_consumer, debug_mask="all")
     block_b = "B" if use_block_name else sch.get_block("B")
     sch.cache_read(block_b, 0, "global")
+    tvm.ir.assert_structural_equal(cache_read_multi_consumer, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=func_multi_consumer)
+
+    # Test that specific consumer block targetting works.
+    sch = tir.Schedule(func_multi_consumer, debug_mask="all")
+    block_b = "B" if use_block_name else sch.get_block("B")
+    block_c = "C" if use_block_name else sch.get_block("C")
+    sch.cache_read(block_b, 0, "global", consumer_blocks=[block_c])
+    tvm.ir.assert_structural_equal(cache_read_multi_consumer_target, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=func_multi_consumer)
+
+    # Also test setting multiple consumers yields same result as unspecified.
+    sch = tir.Schedule(func_multi_consumer, debug_mask="all")
+    block_b = "B" if use_block_name else sch.get_block("B")
+    block_c = "C" if use_block_name else sch.get_block("C")
+    sch.cache_read(block_b, 0, "global", consumer_blocks=[block_b, block_c])
     tvm.ir.assert_structural_equal(cache_read_multi_consumer, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=func_multi_consumer)
 

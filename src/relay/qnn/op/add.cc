@@ -58,7 +58,7 @@ Expr QnnAddCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
 
   // Since the input qnn params can be different than output qnn params, we first requantize the
   // input tensors to the output qnn params. Then we call relay.add on the requantized inputs. This
-  // addition results in extra addition of the output zero point. We futher subtract the zero
+  // addition results in extra addition of the output zero point. We further subtract the zero
   // point. The whole process can be represented using following equations
   //
   //          scale_c * (Q_c - zp_c) = scale_a * (Q_a - zp_a) + scale_b * (Q_b - zp_b)
@@ -94,7 +94,7 @@ Expr QnnAddCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
 
 // QNN Addition operator.
 QNN_REGISTER_BINARY_OP("add")
-    .describe("Elementwise add with with broadcasting for quantized tensors.")
+    .describe("Elementwise add with broadcasting for quantized tensors.")
     .set_support_level(11)
     .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnAddCanonicalize);
 

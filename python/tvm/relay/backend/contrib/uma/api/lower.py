@@ -60,27 +60,7 @@ class UMALower:
         """
 
         def _get_tensors(te_cached_func):
-            outputs = list(te_cached_func.outputs)
-            stack = []
-            visited = set()
-            for output_ in outputs:
-                if output_ not in visited:
-                    visited.add(output_)
-                    stack.append(output_)
-
-            args = []
-            while len(stack) != 0:
-                tensor = stack.pop()
-                if isinstance(tensor.op, tvm.te.tensor.PlaceholderOp):
-                    args.append(tensor)
-                elif isinstance(tensor.op, tvm.te.tensor.ComputeOp):
-                    inputs = tensor.op.input_tensors
-                    for input_ in inputs:
-                        if input_ not in visited:
-                            visited.add(input_)
-                            stack.append(input_)
-
-            return args + outputs
+            return list(te_cached_func.inputs) + list(te_cached_func.outputs)
 
         lower_to_te = tvm._ffi.get_global_func("relay.backend.LowerToTE")
         te_cached_func = lower_to_te(relay_prim_func)

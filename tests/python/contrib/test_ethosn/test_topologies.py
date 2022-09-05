@@ -19,16 +19,20 @@
 
 import numpy as np
 import pytest
+
 import tvm
 from tvm import relay
 from tvm.testing import requires_ethosn
 from tvm.relay.op.contrib.ethosn import Available, ethosn_available
+
 from . import infrastructure as tei
 
 
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 def test_split_add_concat(dtype):
+    """Test a model with split, add and contatenate."""
+
     def get_model(input_shape, dtype, var_names):
         """Return a model"""
 
@@ -74,11 +78,11 @@ def test_split_add_concat(dtype):
         model = get_model(inputs["a"].shape, dtype, iter(inputs))
         mod = tei.make_module(model, [])
 
-        expected_host_ops = 1 if tei.get_ethosn_api_version() == 2205 else 0
-        npu_partitions = 2 if tei.get_ethosn_api_version() == 2205 else 1
+        expected_host_ops = 1
+        npu_partitions = 2
 
         # Mock inference is only supported when the whole graph is offloaded to the NPU
-        if tei.get_ethosn_api_version() == 2205 and ethosn_available() == Available.SW_ONLY:
+        if ethosn_available() == Available.SW_ONLY:
             tei.build(
                 mod, {}, npu=npu, expected_host_ops=expected_host_ops, npu_partitions=npu_partitions
             )
@@ -146,23 +150,25 @@ def test_multiple_command_streams(dtype):
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 def test_output_order(dtype):
+    """Test the output order."""
+
     def get_model(input_shape, dtype, var_names):
         """Return a model"""
 
-        min = np.iinfo(dtype).min
-        max = np.iinfo(dtype).max
+        min_value = np.iinfo(dtype).min
+        max_value = np.iinfo(dtype).max
         a = relay.var(next(var_names), shape=input_shape, dtype=dtype)
 
-        z = relay.op.clip(a, min, max)
-        b = relay.op.clip(z, min, min + 15)
-        c = relay.op.clip(z, min + 16, min + 31)
-        d = relay.op.clip(z, min + 32, min + 47)
-        e = relay.op.clip(z, min + 48, min + 63)
-        f = relay.op.clip(z, min + 64, min + 79)
-        g = relay.op.clip(z, min + 80, min + 95)
-        h = relay.op.clip(z, min + 96, min + 111)
-        i = relay.op.clip(z, min + 112, max)
-        return relay.Tuple((d, c, e, f, i, b, h, g))
+        op_z = relay.op.clip(a, min_value, max_value)
+        op_b = relay.op.clip(op_z, min_value, min_value + 15)
+        op_c = relay.op.clip(op_z, min_value + 16, min_value + 31)
+        op_d = relay.op.clip(op_z, min_value + 32, min_value + 47)
+        op_e = relay.op.clip(op_z, min_value + 48, min_value + 63)
+        op_f = relay.op.clip(op_z, min_value + 64, min_value + 79)
+        op_g = relay.op.clip(op_z, min_value + 80, min_value + 95)
+        op_h = relay.op.clip(op_z, min_value + 96, min_value + 111)
+        op_i = relay.op.clip(op_z, min_value + 112, max_value)
+        return relay.Tuple((op_d, op_c, op_e, op_f, op_i, op_b, op_h, op_g))
 
     np.random.seed(0)
     inputs = {
@@ -188,6 +194,7 @@ def test_output_order_different_sizes(dtype):
     """
     Test the output order when there are multiple outputs of different sizes.
     """
+
     np.random.seed(0)
     input_name = "a"
     input_shape = (1, 8, 8, 4)
@@ -230,7 +237,16 @@ def test_output_order_different_sizes(dtype):
 
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
-def test_split_with_asym_concats(dtype):
+@pytest.mark.parametrize(
+    "shape,splits,axis",
+    [
+        ((1, 16, 16, 32), (2, 7, 10), 2),
+    ],
+)
+def test_split_with_asym_concats(dtype, shape, splits, axis):
+    """Test a model with split and contatenates."""
+    np.random.seed(0)
+
     def get_model(shape, dtype, splits, axis):
         a = relay.var("a", shape=shape, dtype=dtype)
         split = relay.op.split(a, indices_or_sections=splits, axis=axis)
@@ -254,57 +270,46 @@ def test_split_with_asym_concats(dtype):
         )
         return relay.Tuple((con2, con1))
 
-    trials = [
-        ((1, 16, 16, 32), (2, 7, 10), 2),
-    ]
+    outputs = []
+    inputs = {
+        "a": tvm.nd.array(
+            np.random.randint(np.iinfo(dtype).min, np.iinfo(dtype).max + 1, size=shape, dtype=dtype)
+        )
+    }
+    for npu in [False, True]:
+        model = get_model(shape, dtype, splits, axis)
+        mod = tei.make_module(model, {})
 
-    np.random.seed(0)
-    for shape, splits, axis in trials:
-        outputs = []
-        inputs = {
-            "a": tvm.nd.array(
-                np.random.randint(
-                    np.iinfo(dtype).min, np.iinfo(dtype).max + 1, size=shape, dtype=dtype
-                )
+        expected_host_ops = 1
+        npu_partitions = 2
+
+        # Mock inference is only supported when the whole graph is offloaded to the NPU
+        if ethosn_available() == Available.SW_ONLY:
+            tei.build(
+                mod,
+                {},
+                npu=npu,
+                expected_host_ops=expected_host_ops,
+                npu_partitions=npu_partitions,
             )
-        }
-        for npu in [False, True]:
-            model = get_model(shape, dtype, splits, axis)
-            mod = tei.make_module(model, {})
-
-            expected_host_ops = 1 if tei.get_ethosn_api_version() == 2205 else 0
-            npu_partitions = 2 if tei.get_ethosn_api_version() == 2205 else 1
-
-            # Mock inference is only supported when the whole graph is offloaded to the NPU
-            if tei.get_ethosn_api_version() == 2205 and ethosn_available() == Available.SW_ONLY:
-                tei.build(
+        else:
+            outputs.append(
+                tei.build_and_run(
                     mod,
+                    inputs,
+                    2,
                     {},
                     npu=npu,
                     expected_host_ops=expected_host_ops,
                     npu_partitions=npu_partitions,
                 )
-            else:
-                outputs.append(
-                    tei.build_and_run(
-                        mod,
-                        inputs,
-                        2,
-                        {},
-                        npu=npu,
-                        expected_host_ops=expected_host_ops,
-                        npu_partitions=npu_partitions,
-                    )
-                )
+            )
 
-        if outputs:
-            tei.verify(outputs, dtype, 0)
+    if outputs:
+        tei.verify(outputs, dtype, 0)
 
 
-@pytest.mark.skipif(
-    tei.get_ethosn_api_version() == 2205,
-    reason="Split is not supported by the 22.05 release of the driver stack",
-)
+@pytest.mark.skip("Split is not supported by the 3.0.1 version of the driver stack.")
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 def test_output_tuple_propagation(dtype):
@@ -336,6 +341,8 @@ def test_output_tuple_propagation(dtype):
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 def test_input_tuples(dtype):
+    """Test a model with a tuple as input."""
+
     def get_model(shapes, dtype, axis):
         tup = []
         for i, shape in enumerate(shapes):
