@@ -48,7 +48,7 @@ from tvm.script import tir as T
 # Nevertheless, sometimes you might want to write your own operators in PyTorch.
 # In that case, the performance of such custom operators might not be satisfactory for your needs.
 #
-# One of the examples is to define a 1-d depthwise convolution operator.
+# For example, suppose that we are going to define a 1-d depthwise convolution operator.
 # Assume the number of in_channel and out_channel are both 70,
 # the width is 80 and the kernel size is 20,
 # then the 1-d depthwise conv could be written in PyTorch in one line:
@@ -82,22 +82,21 @@ def vanilla_depthwise(input, weight):
 
 
 # Then, we plan to optimize the `depthwise` function by leveraging the power of TVM.
-# TVM community proposes an embedded Domain Specific Language on Python call TVMscript,
-# which serves for an abstraction of program on various hardware backends.
+# TVM community proposes an embedded Domain Specific Language on Python called TVMscript,
+# serving for a high-level abstraction of TVM intermediate representative,
+# which is easy to impose transformations and optimizations and deploy on various hardware backends.
 
 # As a concrete example, we can write such a TVMscript for 1-d depthwise conv code as below.
 # The computation procedure of `tvm_depthwise` is corresponding to the code snippet of `vanilla_depthwise`.
 
 # In our `tvm_depthwise` function, both inputs and outputs are set to be function parameters
-# that held on the multi-dimension buffers. For each buffer, the shape and data type information are required.
-# In the function body, there is a syntactic sugar `T.grid` for writing multiple nested iterators.
-# In the body of the loop, each computation is wrapped in an additional construct named `T.block`.
-# A block is a basic unit of computation. Inside the block, we need to provide a few more information about the block axes.
-# Here, 2 spatial and 1 reduce block iterators are created and bound to the loop iterators i, j and k.
-# The computations and machine learning compilation analysis will be defined around them.
-# The last 3 lines are computation statements, including an initialization of `C[vj, vi]` and the summing up along the axis k.
-# Finally, we place 2 decorators `T.prim_func` and `as_torch` above the definition of function,
-# which converts the Python AST to TVMscript AST and then converts to PyTorch's `nn.Module`.
+# that are held on the multi-dimension buffers. For each buffer, the shape and data type information are required.
+# In the function body, the syntactic sugar `T.grid`, `T.block` and `T.axis.remap`
+# are for writing multiple nested iterators, wrapping a basic unit of computation, and
+# creating spatial or reduce block iterators and bounding to the loop iterators, respectively.
+# Inside the computation statement, `C[vj, vi]` is initialized and sums up along the axis k.
+# Finally, we place 2 decorators `T.prim_func` and `as_torch` above the definition of the function,
+# which converts the Python AST to TVMscript and then converts to PyTorch's `nn.Module`.
 
 
 @as_torch
