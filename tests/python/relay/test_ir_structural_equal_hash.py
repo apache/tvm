@@ -796,5 +796,54 @@ def test_lets():
     assert not tvm.ir.structural_equal(func1(), func3())
 
 
+def test_ignore_ndarray_data():
+    a = relay.const([1.0, 2.0], dtype="float32")
+    b = relay.const([2.0, 1.0], dtype="float32")
+    assert not tvm.ir.structural_equal(a, b)
+    assert not tvm.ir.structural_hash(a) == tvm.ir.structural_hash(b)
+    assert tvm.ir.structural_equal(a, b, compare_ndarray_data=False)
+    assert tvm.ir.structural_hash(a, hash_ndarray_data=False) == tvm.ir.structural_hash(
+        b, hash_ndarray_data=False
+    )
+
+    def get_conv2d_nchw(
+        d_shape,
+        w_shape,
+    ):
+        data = relay.var("data", shape=d_shape, dtype="float16")
+        weight = relay.var("weight", shape=w_shape, dtype="float16")
+        out_channel = w_shape[0]
+        return relay.nn.conv2d(
+            data=data,
+            weight=weight,
+            kernel_size=w_shape[2:],
+            channels=out_channel,
+            padding=(1, 1),
+            strides=(1, 1),
+            out_dtype="float16",
+        )
+
+    data_shape = (1, 128, 28, 28)
+    weight_shape = (128, 128, 1, 1)
+
+    conv2d = get_conv2d_nchw(data_shape, weight_shape)
+    mod1 = tvm.IRModule.from_expr(conv2d)
+    mod2 = tvm.IRModule.from_expr(conv2d)
+
+    params = {"weight": np.random.randn(*weight_shape).astype("float16")}
+    mod1 = relay.build_module.bind_params_by_name(mod1["main"], params)
+
+    params = {"weight": np.random.randn(*weight_shape).astype("float16")}
+    mod2 = relay.build_module.bind_params_by_name(mod2["main"], params)
+
+    assert not tvm.ir.structural_equal(mod1, mod2)
+    assert not tvm.ir.structural_hash(mod1) == tvm.ir.structural_hash(mod2)
+
+    assert tvm.ir.structural_equal(mod1, mod2, compare_ndarray_data=False)
+    assert tvm.ir.structural_hash(mod1, hash_ndarray_data=False) == tvm.ir.structural_hash(
+        mod2, hash_ndarray_data=False
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()

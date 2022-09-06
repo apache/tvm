@@ -206,7 +206,11 @@ def structural_equal(lhs, rhs, map_free_vars=False, compare_ndarray_data=True):
     """
     lhs = tvm.runtime.convert(lhs)
     rhs = tvm.runtime.convert(rhs)
-    return bool(tvm.runtime._ffi_node_api.StructuralEqual(lhs, rhs, False, map_free_vars, compare_ndarray_data))
+    return bool(
+        tvm.runtime._ffi_node_api.StructuralEqual(
+            lhs, rhs, False, map_free_vars, compare_ndarray_data
+        )
+    )
 
 
 def get_first_structural_mismatch(lhs, rhs, map_free_vars=False):

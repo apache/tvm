@@ -339,5 +339,22 @@ def test_extract_task_arm_conv2d_nchwc():
     assert list(out_type.shape) == [1, 8, 130, 130, 4]
 
 
+@requires_torch
+def test_link_params():
+    target = "llvm --num-cores=10"
+    mod, params, _ = get_network(name="resnet_50", input_shape=[1, 3, 224, 224])
+
+    pass_config = {"relay.FuseOps.link_params": True,
+                    "relay.backend.use_meta_schedule": True,
+                    "relay.backend.tir_converter": "default"
+                    }
+
+    extracted_tasks = ms.extract_task_from_relay(mod, target, params, pass_config=pass_config)
+
+    conv2d_tasks = list(filter(lambda task: "conv2d" in task.task_name, extracted_tasks))
+
+    assert len(conv2d_tasks) == 24
+
+
 if __name__ == "__main__":
     tvm.testing.main()
