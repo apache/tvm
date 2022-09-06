@@ -444,35 +444,6 @@ class TestErrorOnWrongPaddingType(BasePaddingCompare):
     expected = tvm.tir.schedule.schedule.ScheduleError
 
 
-@pytest.mark.xfail(reason="Superceded by TestPaddedTransformIfThenElse")
-class TestPaddedTransformPostProc(BasePaddingCompare):
-    """Set the transformation padding in a post-processing block.
-
-    This test is incompatible with TestPaddedTransformIfThenElse, and
-    is here for initial development purposes.
-    """
-
-    pad_value = tvm.testing.parameter(0)
-    transformed_buffer = tvm.testing.parameter("B")
-
-    def before(A: T.Buffer[14, "int32"]):
-        B = T.alloc_buffer(14, "int32")
-        for i in T.serial(14):
-            with T.block("block"):
-                B[i] = A[i]
-
-    def expected(A: T.Buffer[14, "int32"]):
-        B = T.alloc_buffer([4, 4], "int32")
-        for i in T.serial(14):
-            with T.block("block"):
-                B[i // 4, i % 4] = A[i]
-
-        for i, j in T.grid(4, 4):
-            with T.block("buffer_B_padding"):
-                T.where(i == 3 and 2 <= j)
-                B[i, j] = 0
-
-
 class TestPaddedTransformIfThenElse(BasePaddingCompare):
     """Use if_then_else to represent padding, if possible.
 
@@ -482,10 +453,6 @@ class TestPaddedTransformIfThenElse(BasePaddingCompare):
     transform the loop iterators to be a row-major traversal of the
     post-transformation buffer, with padding represented by
     `T.if_then_else`.
-
-    This test is incompatible with TestPaddedTransformPostProc.  This
-    is the long-term intended method to be supported, with
-    TestPaddedTransformPostProc present for development purposes.
     """
 
     pad_value = tvm.testing.parameter(0)
