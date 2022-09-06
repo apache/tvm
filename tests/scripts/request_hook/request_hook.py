@@ -40,6 +40,7 @@ URL_MAP = {
     "http://dl.caffe.berkeleyvision.org/bvlc_alexnet.caffemodel": f"{BASE}/bvlc_alexnet.caffemodel",
     "http://dl.caffe.berkeleyvision.org/bvlc_googlenet.caffemodel": f"{BASE}/bvlc_googlenet.caffemodel",
     "https://github.com/dmlc/web-data/blob/main/darknet/data/dog.jpg": f"{BASE}/dog.jpg",
+    "https://github.com/onnx/models/raw/bd206494e8b6a27b25e5cf7199dbcdbfe9d05d1c/vision/classification/mnist/model/mnist-1.onnx": f"{BASE}/onnx/mnist-1.onnx",
 }
 
 
