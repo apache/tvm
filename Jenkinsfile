@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-08-30T15:26:50.100067
+// Generated at 2022-09-06T14:20:39.436668
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -5758,7 +5758,7 @@ def deploy_docs() {
       script: '''
         cd tvm-site
         git remote add deploy https://$GITHUB_TOKEN:x-oauth-basic@github.com/apache/tvm-site.git
-        git push deploy $DOCS_DEPLOY_BRANCH
+        git push deploy $DOCS_DEPLOY_BRANCH || true
       ''',
       label: 'Upload docs to apache/tvm-site'
     )

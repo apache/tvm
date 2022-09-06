@@ -72,7 +72,7 @@ def deploy_docs() {
       script: '''
         cd tvm-site
         git remote add deploy https://$GITHUB_TOKEN:x-oauth-basic@github.com/apache/tvm-site.git
-        git push deploy $DOCS_DEPLOY_BRANCH
+        git push deploy $DOCS_DEPLOY_BRANCH || true
       ''',
       label: 'Upload docs to apache/tvm-site'
     )
