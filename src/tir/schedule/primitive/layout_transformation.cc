@@ -28,9 +28,14 @@ namespace tir {
 
 class LayoutTransformPlanner : private StmtExprVisitor {
  public:
+  // Statement to be inserted prior to the analyzed block
+  struct ProloguePlan {
+    Stmt prologue;
+  };
+
   struct NoPaddingRequired {};
 
-  using TransformPlan = std::variant<NoPaddingRequired>;
+  using TransformPlan = std::variant<ProloguePlan, NoPaddingRequired>;
   static TransformPlan Plan(Block block, Buffer old_buffer, Buffer new_buffer, IndexMap index_map,
                             IndexMap inverse, PrimExpr padding_predicate,
                             Optional<PrimExpr> pad_value) {
@@ -41,11 +46,65 @@ class LayoutTransformPlanner : private StmtExprVisitor {
 
  private:
   LayoutTransformPlanner(Buffer old_buffer) : old_buffer_(old_buffer) {}
+  void VisitStmt_(const BufferStoreNode* op) override {
+    if (!op->buffer.same_as(old_buffer_)) {
+      return;
+    }
+
+    WriteInfo write_info;
+    write_info.store = GetRef<BufferStore>(op);
+
+    write_info_.push_back(write_info);
+
+    // Don't need to continue recursing, as the entire goal was to
+    // find the BufferStore.
+  }
   TransformPlan Finalize(Buffer new_buffer, IndexMap index_map, IndexMap inverse,
                          PrimExpr padding_predicate, Optional<PrimExpr> pad_value) const {
+    if (auto prologue_plan =
+            FinalizeProloguePlan(new_buffer, index_map, inverse, padding_predicate, pad_value);
+        prologue_plan.has_value()) {
+      return prologue_plan.value();
+    } else {
       return NoPaddingRequired();
+    }
   }
 
+  std::optional<ProloguePlan> FinalizeProloguePlan(Buffer new_buffer, IndexMap index_map,
+                                                   IndexMap inverse, PrimExpr padding_predicate,
+                                                   Optional<PrimExpr> pad_value) const {
+    if (write_info_.size() || is_zero(padding_predicate) || !pad_value.defined()) {
+      return std::nullopt;
+    }
+
+    Array<PrimExpr> indices;
+    for (const auto& var : inverse->initial_indices) {
+      indices.push_back(var);
+    }
+
+    PrimExpr expr = (!padding_predicate) || (BufferLoad(new_buffer, indices) == pad_value.value());
+    Stmt stmt = Evaluate(Call(DataType::Bool(), builtin::assume(), {expr}));
+
+    std::stringstream block_name;
+    block_name << "buffer_" << new_buffer->name << "_assumptions";
+    auto read_region = BufferRegion::FromPoint(new_buffer, indices);
+    stmt = BlockRealize({}, Bool(true), Block({}, {read_region}, {}, block_name.str(), stmt));
+
+    for (size_t rev_i = 0; rev_i < inverse->initial_indices.size(); rev_i++) {
+      size_t i = (inverse->initial_indices.size() - 1) - rev_i;
+      Var loop_var = inverse->initial_indices[i];
+      PrimExpr extent = new_buffer->shape[i];
+      stmt = For(loop_var, 0, extent, ForKind::kSerial, stmt);
+    }
+    return ProloguePlan{stmt};
+  }
+
+  struct WriteInfo {
+    // The BufferStore object
+    BufferStore store;
+  };
+
+  std::vector<WriteInfo> write_info_;
   Buffer old_buffer_;
 };
 
@@ -70,6 +129,10 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
     arith::Analyzer analyzer;
     TransformLayoutRewriter rewriter(old_buffer, new_buffer, index_map, plan, &analyzer);
     Block result = Downcast<Block>(rewriter(scope_stmt));
+    if (auto plan_ptr = std::get_if<LayoutTransformPlanner::ProloguePlan>(&plan)) {
+      auto write_ptr = result.CopyOnWrite();
+      write_ptr->body = SeqStmt({plan_ptr->prologue, write_ptr->body});
+    }
     return {result, rewriter.block_sref_reuse_};
   }
 
