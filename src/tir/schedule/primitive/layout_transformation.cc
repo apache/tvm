@@ -33,6 +33,11 @@ class LayoutTransformPlanner : private StmtExprVisitor {
     Stmt prologue;
   };
 
+  // Loops within the analyzed block that should be replaced
+  struct ReplacementPlan {
+    Map<For, Stmt> replacements;
+    Map<Block, Block> block_sref_reuse;
+  };
 
   // The block to be inserted, along with the location at which it
   // should be inserted.  The location will be either a For or a
@@ -44,7 +49,9 @@ class LayoutTransformPlanner : private StmtExprVisitor {
 
   struct NoPaddingRequired {};
 
-  using TransformPlan = std::variant<ProloguePlan, EpiloguePlan, NoPaddingRequired>;
+  using TransformPlan =
+      std::variant<ProloguePlan, ReplacementPlan, EpiloguePlan, NoPaddingRequired>;
+
   static TransformPlan Plan(Block block, Buffer old_buffer, Buffer new_buffer, IndexMap index_map,
                             IndexMap inverse, PrimExpr padding_predicate,
                             Optional<PrimExpr> pad_value) {
@@ -101,6 +108,30 @@ class LayoutTransformPlanner : private StmtExprVisitor {
     }
     write_info.innermost_block_realize = innermost_block_realize_;
 
+    write_info.contains_row_major_traversal = [&]() -> bool {
+      const auto& loopnest = write_info.dependent_loopnest;
+      if (loopnest.empty()) {
+        return false;
+      }
+
+      if (loopnest.size() != old_buffer_->shape.size() || loopnest.size() != op->indices.size()) {
+        return false;
+      }
+
+      for (size_t i = 0; i < loopnest.size(); i++) {
+        const For& loop = loopnest[i];
+        const PrimExpr& buffer_dim = old_buffer_->shape[i];
+        PrimExpr index = Substitute(op->indices[i], active_let_bindings_);
+        bool is_loop_over_axis = index.same_as(loop->loop_var) && is_const_int(loop->min, 0) &&
+                                 ExprDeepEqual()(loop->extent, buffer_dim) &&
+                                 loop->kind == ForKind::kSerial;
+        if (!is_loop_over_axis) {
+          return false;
+        }
+      }
+
+      return true;
+    }();
 
     write_info_.push_back(write_info);
 
@@ -124,12 +155,48 @@ class LayoutTransformPlanner : private StmtExprVisitor {
 
     return prev;
   }
+
+  class BufferStoreReplacer : public StmtExprMutator {
+   public:
+    BufferStoreReplacer(std::function<Optional<Stmt>(const BufferStoreNode*)> replace_store,
+                        std::function<Optional<Stmt>(const BlockRealizeNode*, const BlockRealize&)>
+                            replace_block_realize)
+        : replace_store_(replace_store), replace_block_realize_(replace_block_realize) {}
+
+    Stmt VisitStmt_(const BufferStoreNode* op) final {
+      if (auto replacement = replace_store_(op)) {
+        auto store = Downcast<BufferStore>(replacement.value());
+        return StmtExprMutator::VisitStmt_(store.get());
+      } else {
+        return StmtExprMutator::VisitStmt_(op);
+      }
+    }
+
+    Stmt VisitStmt_(const BlockRealizeNode* op) final {
+      auto realize = Downcast<BlockRealize>(StmtExprMutator::VisitStmt_(op));
+      if (auto replacement = replace_block_realize_(op, realize)) {
+        return replacement.value();
+      } else {
+        return std::move(realize);
+      }
+    }
+
+   private:
+    std::function<Optional<Stmt>(const BufferStoreNode*)> replace_store_;
+    std::function<Optional<Stmt>(const BlockRealizeNode*, const BlockRealize&)>
+        replace_block_realize_;
+  };
+
   TransformPlan Finalize(Buffer new_buffer, IndexMap index_map, IndexMap inverse,
                          PrimExpr padding_predicate, Optional<PrimExpr> pad_value) const {
     if (auto prologue_plan =
             FinalizeProloguePlan(new_buffer, index_map, inverse, padding_predicate, pad_value);
         prologue_plan.has_value()) {
       return prologue_plan.value();
+    } else if (auto replacement_plan = FinalizeReplacementPlan(new_buffer, index_map, inverse,
+                                                               padding_predicate, pad_value);
+               replacement_plan.has_value()) {
+      return replacement_plan.value();
     } else if (auto epilogue_plan = FinalizeEpiloguePlan(new_buffer, index_map, inverse,
                                                          padding_predicate, pad_value);
                epilogue_plan.has_value()) {
@@ -166,6 +233,193 @@ class LayoutTransformPlanner : private StmtExprVisitor {
       stmt = For(loop_var, 0, extent, ForKind::kSerial, stmt);
     }
     return ProloguePlan{stmt};
+  }
+
+  std::optional<ReplacementPlan> FinalizeReplacementPlan(Buffer new_buffer, IndexMap index_map,
+                                                         IndexMap inverse,
+                                                         PrimExpr padding_predicate,
+                                                         Optional<PrimExpr> pad_value) const {
+    if (write_info_.empty() || is_zero(padding_predicate) || !pad_value.defined()) {
+      return std::nullopt;
+    }
+
+    auto generate_if_then_else_block = [&](const WriteInfo& info) -> Optional<Stmt> {
+      if (!info.contains_row_major_traversal || !pad_value.defined() ||
+          is_zero(padding_predicate)) {
+        return NullOpt;
+      }
+
+      Array<PrimExpr> old_indices = info.store->indices;
+      PrimExpr if_then_else_condition = padding_predicate;
+      Array<PrimExpr> new_indices;
+      for (const auto& var : inverse->initial_indices) {
+        new_indices.push_back(var);
+      }
+
+      auto replace_block_realize =
+          [&]() -> std::function<Optional<Stmt>(const BlockRealizeNode*, const BlockRealize&)> {
+        auto no_change = [](const BlockRealizeNode*, const BlockRealize&) -> Optional<Stmt> {
+          return NullOpt;
+        };
+        if (!info.innermost_block_realize) {
+          return no_change;
+        }
+        if (old_indices.empty()) {
+          return no_change;
+        }
+
+        BlockRealize block_realize = info.innermost_block_realize.value();
+        const auto& block = block_realize->block;
+
+        // Find the block iterators that are used to access the buffer.  Must be in the same order
+        // as they appear in the indices.
+        if (block->iter_vars.size() < old_indices.size()) {
+          return no_change;
+        }
+        const auto& iter_vars = block->iter_vars;
+        size_t block_index_start = 0;
+        for (; block_index_start < iter_vars.size() - old_indices.size(); block_index_start++) {
+          if (old_indices[0].same_as(iter_vars[block_index_start]->var)) {
+            break;
+          }
+        }
+        if (block_index_start >= iter_vars.size() - old_indices.size()) {
+          return no_change;
+        }
+
+        for (size_t i = 0; i < old_indices.size(); i++) {
+          if (!old_indices[i].same_as(iter_vars[block_index_start + i]->var) ||
+              iter_vars[block_index_start + i]->iter_type != kDataPar) {
+            return no_change;
+          }
+        }
+
+        // If we got to this point, all indices used to access the
+        // buffer are virtual indices defined in the innermost block.
+        // Therefore, generate new virtual indices for iterating over
+        // the post-transform buffer.
+        Array<PrimExpr> new_iter_values;             // For BlockRealize
+        Array<IterVar> new_iter_vars;                // For Block
+        Array<PrimExpr> new_access_indices;          // For BufferStore
+        Map<Var, PrimExpr> loop_var_to_virtual_var;  // For updating if_then_else_condition
+
+        for (size_t i = 0; i < block_index_start; i++) {
+          new_iter_vars.push_back(iter_vars[i]);
+          new_iter_values.push_back(block_realize->iter_values[i]);
+        }
+
+        ICHECK_EQ(inverse->initial_indices.size(), new_buffer->shape.size());
+        for (size_t i = 0; i < inverse->initial_indices.size(); i++) {
+          Var var = inverse->initial_indices[i];
+          PrimExpr dim = new_buffer->shape[i];
+          std::stringstream ss;
+          ss << "v_" << var->name_hint;
+          Var virtual_var(ss.str(), var.dtype());
+          new_iter_values.push_back(var);
+          new_iter_vars.push_back(IterVar(Range::FromMinExtent(0, dim), virtual_var, kDataPar));
+          new_access_indices.push_back(virtual_var);
+          loop_var_to_virtual_var.Set(var, virtual_var);
+        }
+
+        for (size_t i = block_index_start + old_indices.size(); i < iter_vars.size(); i++) {
+          new_iter_vars.push_back(iter_vars[i]);
+          new_iter_values.push_back(block_realize->iter_values[i]);
+        }
+
+        Map<Var, PrimExpr> old_virtual_var_to_new_virtual_var;
+        ICHECK_EQ(inverse->final_indices.size(), old_indices.size());
+        for (size_t i = 0; i < old_indices.size(); i++) {
+          Var var = Downcast<Var>(old_indices[i]);
+          PrimExpr expr = Substitute(inverse->final_indices[i], loop_var_to_virtual_var);
+          old_virtual_var_to_new_virtual_var.Set(var, expr);
+        }
+
+        if_then_else_condition = Substitute(if_then_else_condition, loop_var_to_virtual_var);
+        new_indices = new_access_indices;
+
+        return [target_realize = info.innermost_block_realize, new_iter_vars, new_iter_values,
+                old_virtual_var_to_new_virtual_var](const BlockRealizeNode* op,
+                                                    const BlockRealize& visited) -> Optional<Stmt> {
+          if (op == target_realize.get()) {
+            Block block = visited->block;
+            block =
+                Downcast<Block>(Substitute(std::move(block), old_virtual_var_to_new_virtual_var));
+            block.CopyOnWrite()->iter_vars = new_iter_vars;
+
+            BlockRealize realize = visited;
+            {
+              auto write_ptr = realize.CopyOnWrite();
+              write_ptr->block = block;
+              write_ptr->iter_values = new_iter_values;
+            }
+            return realize;
+          } else {
+            return NullOpt;
+          }
+        };
+      }();
+
+      bool all_stores_replaced = true;
+      auto replace_store = [&](const BufferStoreNode* op) -> Optional<Stmt> {
+        if (!op->buffer.same_as(info.store->buffer)) {
+          all_stores_replaced = false;
+          return NullOpt;
+        }
+        ICHECK_EQ(old_indices.size(), op->indices.size());
+        ExprDeepEqual expr_equal;
+        for (size_t i = 0; i < old_indices.size(); i++) {
+          if (!expr_equal(old_indices[i], op->indices[i])) {
+            all_stores_replaced = false;
+            return NullOpt;
+          }
+        }
+
+        return BufferStore(new_buffer,
+                           if_then_else(if_then_else_condition, pad_value.value(), op->value),
+                           new_indices);
+      };
+
+      BufferStoreReplacer replacer(replace_store, replace_block_realize);
+      Stmt stmt = replacer(info.dependent_loopnest.back()->body);
+      if (!all_stores_replaced) {
+        return NullOpt;
+      }
+
+      std::unordered_map<const VarNode*, PrimExpr> var_remap;
+      ICHECK_EQ(info.dependent_loopnest.size(), inverse->final_indices.size());
+      for (size_t i = 0; i < info.dependent_loopnest.size(); i++) {
+        Var var = info.dependent_loopnest[i]->loop_var;
+        PrimExpr expr = inverse->final_indices[i];
+        var_remap[var.get()] = expr;
+      }
+      stmt = Substitute(std::move(stmt), var_remap);
+
+      ICHECK_EQ(inverse->initial_indices.size(), new_buffer->shape.size());
+      for (size_t rev_i = 0; rev_i < inverse->initial_indices.size(); rev_i++) {
+        size_t i = (inverse->initial_indices.size() - 1) - rev_i;
+        Var loop_var = inverse->initial_indices[i];
+        PrimExpr extent = new_buffer->shape[i];
+        stmt = For(loop_var, 0, extent, ForKind::kSerial, stmt);
+      }
+
+      return stmt;
+    };
+
+    Map<For, Stmt> loop_replacements;
+
+    for (const auto& info : write_info_) {
+      if (info.dependent_loopnest.size()) {
+        if (auto opt_stmt = generate_if_then_else_block(info)) {
+          loop_replacements.Set(info.dependent_loopnest[0], opt_stmt.value());
+        }
+      }
+    }
+
+    if (loop_replacements.size()) {
+      return ReplacementPlan{std::move(loop_replacements)};
+    } else {
+      return std::nullopt;
+    }
   }
 
   std::optional<EpiloguePlan> FinalizeEpiloguePlan(Buffer new_buffer, IndexMap index_map,
@@ -235,11 +489,13 @@ class LayoutTransformPlanner : private StmtExprVisitor {
     BindLetVar(LayoutTransformPlanner* self, Var var, PrimExpr value) : self_(self), var_(var) {
       if (auto loop_depth = self->LoopDependencyRange(value); loop_depth.has_value()) {
         self_->loop_depth_lookup_[var_.get()] = loop_depth.value();
+        self_->active_let_bindings_[var_.get()] = Substitute(value, self_->active_let_bindings_);
       }
     }
     ~BindLetVar() {
       if (self_) {
         self_->loop_depth_lookup_.erase(var_.get());
+        self_->active_let_bindings_.erase(var_.get());
       }
     }
     BindLetVar(const BindLetVar&) = delete;
@@ -260,6 +516,11 @@ class LayoutTransformPlanner : private StmtExprVisitor {
 
   struct BindBlockRealize {
     BindBlockRealize(LayoutTransformPlanner* self, BlockRealize block_realize) : self_(self) {
+      ICHECK_EQ(block_realize->iter_values.size(), block_realize->block->iter_vars.size());
+      for (size_t i = 0; i < block_realize->iter_values.size(); i++) {
+        bound_vars_.emplace_back(self, block_realize->block->iter_vars[i]->var,
+                                 block_realize->iter_values[i]);
+      }
       cache_ = std::move(block_realize);
       std::swap(self_->innermost_block_realize_, cache_);
     }
@@ -271,6 +532,7 @@ class LayoutTransformPlanner : private StmtExprVisitor {
 
     LayoutTransformPlanner* self_{nullptr};
     Optional<BlockRealize> cache_;
+    std::vector<BindLetVar> bound_vars_;
   };
 
   struct WriteInfo {
@@ -284,11 +546,20 @@ class LayoutTransformPlanner : private StmtExprVisitor {
     // the store.  Not all loop variables in the loopnest need to
     // contribute, but the first and last must.
     std::vector<For> dependent_loopnest;
+
+    // Whether the padding could be represented as a tir::if_then_else
+    // node.  This requires that the surrounding loop iterators
+    // iterate over all pre-transformation buffer axes, that there are
+    // no data dependencies between loop iterations, and that
+    bool contains_row_major_traversal{false};
   };
+
+  struct LoopEntry {};
 
   std::vector<WriteInfo> write_info_;
   std::vector<For> active_loops_;
   std::unordered_map<const VarNode*, std::pair<size_t, size_t>> loop_depth_lookup_;
+  std::unordered_map<const VarNode*, PrimExpr> active_let_bindings_;
   Optional<BlockRealize> innermost_block_realize_{NullOpt};
 
   Buffer old_buffer_;
@@ -351,6 +622,21 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
       }
     }
     return output;
+  }
+
+  Stmt VisitStmt_(const ForNode* op) final {
+    // Some replacements may include the original string, such as
+    // replacing `loop` with `{loop, post_proc}`.  In this case, avoid
+    // infinite recursion.
+
+    For node = GetRef<For>(op);
+    if (auto plan_ptr = std::get_if<LayoutTransformPlanner::ReplacementPlan>(&plan_)) {
+      auto it = plan_ptr->replacements.find(node);
+      if (it != plan_ptr->replacements.end()) {
+        return VisitStmt((*it).second);
+      }
+    }
+    return Parent::VisitStmt_(op);
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
