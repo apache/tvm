@@ -143,7 +143,7 @@ TEST(CMSISNNDepthwiseConv2dBufferSize, UnEvenChannels) {
   int32_t input_n = 1;
 
   auto depthwise_conv2d_with_channels = [=](Target target, int32_t input_c, int32_t output_c) {
-    return DepthwiseConv2dBufferSize(target, input_n, input_c, output_c, filter_w, filter_h);
+    return DepthwiseConv2dBufferSize(target, input_n, input_c, output_c, filter_w, filter_h, 1, 1);
   };
 
   ASSERT_EQ(depthwise_conv2d_with_channels(kNoExt, 4, 6), 0);
@@ -161,7 +161,7 @@ TEST(CMSISNNDepthwiseConv2dBufferSize, MultipleBatches) {
 
   auto depthwise_conv2d_with_batch = [=](Target target, int32_t input_n) {
     return DepthwiseConv2dBufferSize(target, input_n, input_output_c, input_output_c, filter_w,
-                                     filter_h);
+                                     filter_h, 1, 1);
   };
 
   ASSERT_EQ(depthwise_conv2d_with_batch(kNoExt, 4), 0);
@@ -179,12 +179,12 @@ TEST(CMSISNNDepthwiseConv2dBufferSize, Default) {
   int32_t input_n = 1;
 
   int32_t mve_calculated_buffer =
-      (2 * input_output_c * filter_w * filter_h) * (int32_t)sizeof(int16_t) + 4;
+      (4 * CH_IN_BLOCK_MVE * filter_w * filter_h) * (int32_t)sizeof(int8_t);
   int32_t dsp_calculated_buffer = (input_output_c * filter_w * filter_h) * (int32_t)sizeof(int16_t);
 
   auto depthwise_conv2d = [=](Target target) {
     return DepthwiseConv2dBufferSize(target, input_n, input_output_c, input_output_c, filter_w,
-                                     filter_h);
+                                     filter_h, 1, 1);
   };
 
   ASSERT_EQ(depthwise_conv2d(kNoExt), 0);
