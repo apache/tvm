@@ -108,7 +108,7 @@ class MyResNet18(torch.nn.Module):
         super(MyResNet18, self).__init__()
         # Here we impose the `optimize_torch` function
         # The default setting is adapted automatically by the number of operations of the optimized model.
-        self.resnet = optimize_torch(resnet18(), [torch.rand(1, 3, 224, 224)], target=target)
+        self.resnet = optimize_torch(resnet18(), torch.rand(1, 3, 224, 224), target=target)
 
     def forward(self, input):
         return self.resnet(input)
@@ -143,12 +143,12 @@ jit_module_resnet18 = JitModule()
 
 results = []
 for i in range(5):
-    test_input = torch.rand(1, 3, 224, 224).half().cuda()
+    test_input = torch.rand(1, 3, 224, 224).cuda()
     sub_label = f"[test {i}]"
     results.append(
         benchmark.Timer(
-            stmt="meta_module_resnet18(test_input)",
-            setup="from __main__ import meta_module_resnet18",
+            stmt="tvm_module_resnet18(test_input)",
+            setup="from __main__ import tvm_module_resnet18",
             globals={"test_input": test_input},
             sub_label=sub_label,
             description="tuning by meta",
@@ -170,6 +170,3 @@ compare.print()
 # In author's environment, the average inference time of `tvm_module_resnet18` is 620.0 us (TVM version is 0.9.0),
 # while the average inference time of `jit_module_resnet18` is 980.0 us (PyTorch version is 1.11.0),
 # showing the speedup of around 38%.
-
-# As above, we can save the module for future use.
-torch.save(tvm_module_resnet18, "meta_tuned_resnet18.pt")
