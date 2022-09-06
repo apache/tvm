@@ -63,7 +63,6 @@ def get_int_scale(
     Get fixed-point number and exp_scale_factor from topi.hexagon.utils.get_fixed_point_value.
     Also, depending on the op, this function uses exp_scale_factor(log2 of the scale factor)
     to adjust the output's zero_point.
-
     """
 
     C_recip = 1 / scale_M
@@ -71,13 +70,13 @@ def get_int_scale(
     if op == "qmul":
         scale = scale_A * scale_B * C_recip
         scale_fixed_point, rsh = get_fixed_point_value(scale, "int16")
-        """
-        We need to adjust output's zero point value since the compute for the op is multiplied
-        by a scaling factor.
-        The scaling factor is 2^x where x is the exp_scale_factor which is assigned to rsh here.
-        Since zero_point_M is multipled by 2^rsh while converting floating-point scale value into fixed-point number, 
-        we left shift it by rsh in our compute to reflect that.
-        """
+
+        # We need to adjust output's zero point value since the compute for the op is multiplied
+        # by a scaling factor.
+        # The scaling factor is 2^x where x is the exp_scale_factor which is assigned to rsh here.
+        # Since zero_point_M is multipled by 2^rsh while converting floating-point scale value
+        # into fixed-point number, we left shift it by rsh in our compute to reflect that.
+
         corr = zero_point_M << rsh
 
         return scale_fixed_point, rsh, corr
@@ -87,22 +86,20 @@ def get_int_scale(
         scale_fixed_point_a, rsh_a = get_fixed_point_value(a_scale_f, "int16")
         scale_fixed_point_b, rsh_b = get_fixed_point_value(b_scale_f, "int16")
 
-        """
-        Here we have two exp_scale_factors rsh_a and rsh_b. 
-        To avoid complexity, we want to use a common exp_scale_factor and 
-        we want to use the lowest of the two. 
+        # Here we have two exp_scale_factors rsh_a and rsh_b.
+        # To avoid complexity, we want to use a common exp_scale_factor and
+        # we want to use the lowest of the two.
 
-        Since, either of scale_fixed_point_a or scale_fixed_point_b has already been multiplied
-        by 2^max(rsh_a, rsh_b) in topi.hexagon.utils.get_fixed_point_value, 
-        we want to undo that by right shifting that scale_fixed_point value
-        by the difference of rsh_a and rsh_b.
+        # Since, either of scale_fixed_point_a or scale_fixed_point_b has already been multiplied
+        # by 2^max(rsh_a, rsh_b) in topi.hexagon.utils.get_fixed_point_value,
+        # we want to undo that by right shifting that scale_fixed_point value
+        # by the difference of rsh_a and rsh_b.
 
-        This results into having a common exp_scale_factor for both scale_fixed_point_a and scale_fixed_point_b.
+        # This results into having a common exp_scale_factor for both scale_fixed_point_a
+        # and scale_fixed_point_b.
 
-        We also set rsh here which is used to adjust the zero_point_M and compute the corr value,
-        computation of which comes from the original equation of the op's compute.
-
-        """
+        # We also set rsh here which is used to adjust the zero_point_M and compute the corr value,
+        # computation of which comes from the original equation of the op's compute.
 
         if rsh_a > rsh_b:
             scale_fixed_point_a = scale_fixed_point_a >> (rsh_a - rsh_b)
