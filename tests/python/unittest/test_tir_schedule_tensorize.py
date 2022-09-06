@@ -36,9 +36,9 @@ from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN
 
 @T.prim_func
 def mma_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (16, 16), align=128, offset_factor=1)
-    B = T.match_buffer(b, (16, 16), align=128, offset_factor=1)
-    C = T.match_buffer(c, (16, 16), align=128, offset_factor=1)
+    A = T.match_buffer(a, (16, 16), align=64, offset_factor=1)
+    B = T.match_buffer(b, (16, 16), align=64, offset_factor=1)
+    C = T.match_buffer(c, (16, 16), align=64, offset_factor=1)
 
     with T.block("root"):
         T.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
@@ -51,9 +51,9 @@ def mma_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def mma_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (16, 16), align=128, offset_factor=1)
-    B = T.match_buffer(b, (16, 16), align=128, offset_factor=1)
-    C = T.match_buffer(c, (16, 16), align=128, offset_factor=1)
+    A = T.match_buffer(a, (16, 16), align=64, offset_factor=1)
+    B = T.match_buffer(b, (16, 16), align=64, offset_factor=1)
+    C = T.match_buffer(c, (16, 16), align=64, offset_factor=1)
 
     with T.block("root"):
         T.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
@@ -173,9 +173,9 @@ def matmul(
 
 @T.prim_func
 def tensorized_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-    C = T.match_buffer(c, [128, 128], elem_offset=0, align=128, offset_factor=1)
-    B = T.match_buffer(b, [128, 128], elem_offset=0, align=128, offset_factor=1)
-    A = T.match_buffer(a, [128, 128], elem_offset=0, align=128, offset_factor=1)
+    C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
+    B = T.match_buffer(b, [128, 128], elem_offset=0, align=64, offset_factor=1)
+    A = T.match_buffer(a, [128, 128], elem_offset=0, align=64, offset_factor=1)
 
     for i_outer, j_outer in T.grid(8, 8):
         for i_inner_init, j_inner_init in T.grid(16, 16):
@@ -375,9 +375,9 @@ def tensorized_batch_matmul_outer_product(
 
 @T.prim_func
 def annotated_mma_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (16, 16), align=128, offset_factor=1)
-    B = T.match_buffer(b, (16, 16), align=128, offset_factor=1)
-    C = T.match_buffer(c, (16, 16), align=128, offset_factor=1)
+    A = T.match_buffer(a, (16, 16), align=64, offset_factor=1)
+    B = T.match_buffer(b, (16, 16), align=64, offset_factor=1)
+    C = T.match_buffer(c, (16, 16), align=64, offset_factor=1)
 
     with T.block("root"):
         T.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
@@ -406,9 +406,9 @@ def annotated_matmul(
 
 @T.prim_func
 def annotated_tensorized_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-    C = T.match_buffer(c, [128, 128], elem_offset=0, align=128, offset_factor=1)
-    B = T.match_buffer(b, [128, 128], elem_offset=0, align=128, offset_factor=1)
-    A = T.match_buffer(a, [128, 128], elem_offset=0, align=128, offset_factor=1)
+    C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
+    B = T.match_buffer(b, [128, 128], elem_offset=0, align=64, offset_factor=1)
+    A = T.match_buffer(a, [128, 128], elem_offset=0, align=64, offset_factor=1)
 
     for i_outer, j_outer in T.grid(8, 8):
         for i_inner_init, j_inner_init in T.grid(16, 16):

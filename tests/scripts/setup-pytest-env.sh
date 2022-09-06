@@ -39,7 +39,7 @@ function cleanup() {
     set +x
     if [ "${#pytest_errors[@]}" -gt 0 ]; then
         echo "These pytest invocations failed, the results can be found in the Jenkins 'Tests' tab or by scrolling up through the raw logs here."
-        python3 tests/scripts/pytest_wrapper.py "${pytest_errors[@]}"
+        python3 ci/scripts/pytest_wrapper.py "${pytest_errors[@]}"
         exit 1
     fi
     set -x
@@ -74,8 +74,14 @@ function run_pytest() {
 
     suite_name="${test_suite_name}-${current_shard}-${ffi_type}"
 
+    # Some test environments don't play well with parallelism
+    DEFAULT_PARALLELISM=2
+    if [[ "${TEST_STEP_NAME:-default}" == "frontend: GPU"* ]] || [[ "${TEST_STEP_NAME:-default}" == "test: Hexagon"* ]]; then
+        DEFAULT_PARALLELISM=1
+    fi
+
     if [ ! "${extra_args[@]}" == *" -n"* ] && [! "${extra_args[@]}" == *" -dist"* ]; then
-        extra_args+=("-n=1")
+        extra_args+=("-n=$DEFAULT_PARALLELISM")
     fi
 
     exit_code=0

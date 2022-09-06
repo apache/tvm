@@ -43,6 +43,8 @@ def _get_model(shape, input_zp, input_sc, output_zp, output_sc, in_dtype, out_dt
 @pytest.mark.parametrize("out_dtype", ["int8", "uint8"])
 @pytest.mark.parametrize("shape", [(1, 52, 52, 3)])
 def test_requantize(in_dtype, out_dtype, shape):
+    """Compare Requantize output with TVM."""
+
     np.random.seed(0)
     low = 0 if in_dtype == "uint8" else -5
     high = low + 10
@@ -74,6 +76,7 @@ def test_requantize_mixed_precision_with_following_op():
     Checks a requantize operation that changes precision from uint8 to int8 with a
     following add op.
     """
+
     np.random.seed(0)
     shape = (1, 4, 6, 8)
     in_sc = 0.012566
@@ -133,6 +136,8 @@ def test_requantize_mixed_precision_with_following_op():
 
 @requires_ethosn
 def test_requantize_failure():
+    """Check Requantize error messages."""
+
     input_sc = 0.8
     output_sc = (input_sc / 128) - 0.0001
     model = _get_model(

@@ -19,13 +19,12 @@ import tempfile
 
 import numpy as np
 import pytest
-
 import tvm
 import tvm.testing
 import tvm.topi.testing
 from tvm import meta_schedule as ms
 from tvm import relay
-from tvm.meta_schedule import ApplyHistoryBest, postproc, schedule_rule
+from tvm.meta_schedule import postproc, schedule_rule
 from tvm.meta_schedule.relay_integration import extract_task_from_relay
 from tvm.meta_schedule.testing.tlcbench import load_quantized_bert_base
 from tvm.meta_schedule.tune import tune_extracted_tasks
@@ -176,12 +175,11 @@ def tune_and_test(relay_mod, data_np, weight_np, op_name, target, sch_rules, pos
             postprocs=lambda: postprocs,
         )
 
-    with ApplyHistoryBest(database):
-        with tvm.transform.PassContext(
-            opt_level=3,
-            config={"relay.backend.use_meta_schedule": True},
-        ):
-            lib = relay.build(relay_mod, target=target, params=params)
+    with database, tvm.transform.PassContext(
+        opt_level=3,
+        config={"relay.backend.use_meta_schedule": True},
+    ):
+        lib = relay.build(relay_mod, target=target, params=params)
 
     if "cascadelake" in target:
         asm = lib.lib.get_source("asm")
@@ -267,12 +265,11 @@ def _test_bert_int8(target, sch_rules, postprocs):
             postprocs=lambda: postprocs,
         )
 
-    with ApplyHistoryBest(database):
-        with tvm.transform.PassContext(
-            opt_level=3,
-            config={"relay.backend.use_meta_schedule": True},
-        ):
-            lib = relay.build(relay_mod, target=target, params=params)
+    with database, tvm.transform.PassContext(
+        opt_level=3,
+        config={"relay.backend.use_meta_schedule": True},
+    ):
+        lib = relay.build(relay_mod, target=target, params=params)
 
     dev = tvm.device("cuda" if "nvidia" in target else target, 0)
     runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))

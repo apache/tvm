@@ -559,6 +559,37 @@ inline bool IsMetaScheduleEnabled() {
 }
 
 /*!
+ * \brief Method in TECompiler to convert TE compute to scheduleable TIR
+ * \param args The arguments of the TE compute
+ * \param constants The constants used in AllocateConst
+ * \return NullOpt if conversion fails; Otherwise the converted TIR
+ * \note This method could be further used as a task filtering mechanism in task extraction
+ */
+using FTECompilerTIRConverter = runtime::TypedPackedFunc<  //
+    Optional<tir::PrimFunc>(                               //
+        const Array<te::Tensor>& args,                     //
+        const Array<runtime::NDArray>& constants)>;
+
+/*! \brief Return a task filter for AutoTIR according to `relay.backend.tir_converter` */
+inline FTECompilerTIRConverter GetTIRConverter() {
+  String name = transform::PassContext::Current()
+                    ->GetConfig<String>("relay.backend.tir_converter", "default")
+                    .value();
+  const PackedFunc* f = runtime::Registry::Get("relay.backend.tir_converter." + name);
+  ICHECK(f != nullptr) << "IndexError: Cannot find TIR converter: " << name;
+  return FTECompilerTIRConverter(*f);
+}
+
+/*! \brief Converts a PrimFunc to IRModule. */
+inline IRModule PrimFuncToIRModule(tir::PrimFunc f) {
+  f = WithAttrs(f, Map<String, ObjectRef>{
+                       {tvm::attr::kGlobalSymbol, String("main")},
+                       {tvm::tir::attr::kNoAlias, Bool(1)},
+                   });
+  return IRModule({{GlobalVar("main"), f}});
+}
+
+/*!
  * \brief Get the sequence of Relay optimization passes based on backend type.
  * The prefix of the Relay passes almost overlaps between the vm and graph backend, with some slight
  * difference. This function unifies the shared optimization pass prefix between vm and graph

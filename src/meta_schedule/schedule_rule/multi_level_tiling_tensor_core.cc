@@ -411,7 +411,7 @@ Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
   tir::StmtSRef block_sref = state->sch->GetSRef(state->block_rv);
 
   // Add reindex stages
-  const tir::BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const tir::BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   // Hold the reference of the block before reindex
   const tir::Block block_before_reindex = GetRef<tir::Block>(block);
   if (block->reads.size() != 2 || block->writes.size() != 1) {
@@ -488,7 +488,7 @@ Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
     }
     visited_buffers.insert(lhs_buffer);
     // Refresh block pointer (block sref is not invalidated)
-    block = TVM_SREF_TO_BLOCK(block, block_sref);
+    block = TVM_SREF_TO_BLOCK(block_sref);
     const tir::BufferRegion& reindexed_buffer_region = tir::GetNthAccessBufferRegion(
         state->sch->state(), GetRef<tir::Block>(block), buffer_index, index_type);
     auto sub_index_map = f_get_sub_index_map(lhs_buffer, reindexed_buffer_region->region);

@@ -37,7 +37,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../../op/tensor/transform.h"
 #include "ethosn_support_library/Support.hpp"
 #include "ethosn_support_library/SupportQueries.hpp"
 #include "tvm/relay/qnn/attrs.h"
@@ -300,15 +299,16 @@ EthosnError EthosnAPI::Reshape(const Expr& expr, ReshapeParams* params) {
   sl::DataType input_data_type;
   EthosnError err = Tvm2Npu(input_dtype->shape, &input_tensor_shape);
   err += Tvm2Npu(input_dtype->dtype, &input_data_type);
-  int tensor_size = 1;
-  for (const auto& dim : input_tensor_shape) {
-    tensor_size *= dim;
-  }
 
-  Array<IndexExpr> inferred_shape = {1, 1, 1, 1};
-  Array<IndexExpr> new_shape = InferNewShape(input_dtype->shape, reshape->attrs, false);
-  for (size_t i = 0; i < new_shape.size(); ++i) {
-    inferred_shape.Set(i, new_shape[i]);
+  Array<IndexExpr> inferred_shape;
+  Array<IndexExpr> new_shape = reshape->checked_type().as<TensorTypeNode>()->shape;
+  if (new_shape.size() < 4) {
+    inferred_shape = {1, 1, 1, 1};
+    for (size_t i = 0; i < new_shape.size(); ++i) {
+      inferred_shape.Set(i, new_shape[i]);
+    }
+  } else {
+    inferred_shape = new_shape;
   }
 
   err += Tvm2Npu(inferred_shape, &params->new_shape);
@@ -520,7 +520,12 @@ EthosnError EthosnAPI::LeakyReLU(const Expr& expr, LeakyReLUParams* params) {
 EthosnError EthosnAPI::Concatenate(const Expr& expr, ConcatenateParams* params) {
   Call call = Downcast<Call>(expr);
   const auto& attrs = call->attrs.as<ConcatenateAttrs>();
-  params->concat_info.m_Axis = attrs->axis;
+  int axis = attrs->axis;
+  if (axis < 0) {
+    int output_dims = Downcast<TensorType>(call->checked_type())->shape.size();
+    axis = output_dims + axis;
+  }
+  params->concat_info.m_Axis = axis;
 
   float output_sc;
   int output_zp;
