@@ -161,17 +161,16 @@ void* HexagonBuffer::GetPointer() {
 HexagonBuffer::StorageScope HexagonBuffer::GetStorageScope() const { return storage_scope_; }
 
 void HexagonBuffer::SetStorageScope(Optional<String> scope) {
-  if (!scope.defined()) {
+  const std::string s = scope.value_or("global");
+
+  if (s == "global") {
     storage_scope_ = StorageScope::kDDR;
+  } else if (s == "global.ddr") {
+    storage_scope_ = StorageScope::kDDR;
+  } else if (s == "global.vtcm") {
+    storage_scope_ = StorageScope::kVTCM;
   } else {
-    if (scope.value() == "global") {
-      storage_scope_ = StorageScope::kDDR;
-    } else if (scope.value() == "global.vtcm") {
-      storage_scope_ = StorageScope::kVTCM;
-    } else {
-      CHECK(false) << "Encountered unknown HexagonBuffer storage scope: "
-                   << std::string(scope.value());
-    }
+    CHECK(false) << "Encountered unknown HexagonBuffer storage scope: " << std::string(s);
   }
 }
 
