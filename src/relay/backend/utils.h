@@ -289,8 +289,8 @@ inline void UpdateConstants(BaseFunc func,
     for (const auto& it : constants) {
       std::string const_name(it.first);
       // Constant names should begin this the compiler name (to avoid conflicts)
-      // ICHECK(const_name.find(codegen_name) == 0)
-      //    << "External constant names must start with compiler name";
+      ICHECK(const_name.find(codegen_name) == 0)
+         << "External constant names must start with compiler name";
       (*params)[const_name] = it.second;
     }
   }
