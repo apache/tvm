@@ -25,7 +25,7 @@ from tvm import testing
 from tvm import relay
 from tvm.ir import IRModule
 
-from test_clml.infrastructure import (
+from infrastructure import (
     skip_runtime_test,
     skip_codegen_test,
     build_and_run,
@@ -212,5 +212,5 @@ def test_batchnorm():
 
 
 if __name__ == "__main__":
-    # test_conv2d()
+    test_conv2d()
     test_batchnorm()
