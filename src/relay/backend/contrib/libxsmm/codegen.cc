@@ -18,7 +18,7 @@ class LibxsmmJSONSerializer : public backend::contrib::JSONSerializer {
 
  public:
   LibxsmmJSONSerializer(const std::string& symbol, const Expr& expr)
-      : JSONSerializer(symbol, expr) {}
+      : JSONSerializer(symbol, expr), symbol_(symbol) {}
 
   std::vector<JSONGraphNodeEntry> VisitExpr_(const CallNode* call_node) override {
     std::string name;
@@ -32,14 +32,18 @@ class LibxsmmJSONSerializer : public backend::contrib::JSONSerializer {
       auto body = function_node->body.as<CallNode>();
       if (name == "libxsmm.dense_bias") {
         auto add_op_type = IsOp(body->args[0].as<CallNode>(), "add") ? "add" : "nn.bias_add";
-        call = GetRootCall(body, 1, {"nn.dense", add_op_type});
+        std::vector<std::string> expected_op_names = {"nn.dense", add_op_type};
+        call = GetRootCall(body, 1, expected_op_names);
       } else if (name == "libxsmm.dense_relu") {
-        call = GetRootCall(body, 1, {"nn.dense", "nn.relu"});
+        std::vector<std::string> expected_op_names = {"nn.dense", "nn.relu"};
+        call = GetRootCall(body, 1, expected_op_names);
       } else if (name == "libxsmm.dense_bias_relu") {
         auto add_op_type = IsOp(body->args[0].as<CallNode>(), "add") ? "add" : "nn.bias_add";
-        call = GetRootCall(body, 2, {"nn.dense", add_op_type, "nn.relu"});
+        std::vector<std::string> expected_op_names = {"nn.dense", add_op_type, "nn.relu"};
+        call = GetRootCall(body, 2, expected_op_names);
       } else if (name == "libxsmm.dense") {
-        call = GetRootCall(body, 0, {"nn.dense"});
+        std::vector<std::string> expected_op_names = {"nn.dense"};
+        call = GetRootCall(body, 0, expected_op_names);
       } else {
         LOG(FATAL) << "Unrecognized LIBXSMM pattern: " << name;
       }
@@ -63,6 +67,25 @@ class LibxsmmJSONSerializer : public backend::contrib::JSONSerializer {
     SetCallNodeAttribute(node, call);
     return AddNode(node, GetRef<Expr>(call_node));
   }
+
+  /*!
+   * \brief Visit call nodes and generate ordered params.
+   *
+   * \param cn The current constant node.
+   * \return A list of graph entry nodes.
+   */
+  std::vector<JSONGraphNodeEntry> VisitExpr_(const ConstantNode* cn) override {
+    std::string name = "libxsmm_" + symbol_ + "_const_" + std::to_string(params_.size());
+    params_.push_back(name);
+    auto node = std::make_shared<JSONGraphNode>(name, "const" /* op_type_ */);
+    return AddNode(node, GetRef<Expr>(cn));
+  }
+
+  Array<String> GetParams() const { return params_; }
+
+ private:
+  std::string symbol_;
+  Array<String> params_;
 };
 
 /*!
@@ -84,12 +107,11 @@ runtime::Module LibxsmmCompiler(const ObjectRef& ref) {
   return mod;
 }
 
-struct LibxsmmConstantUpdater : public ConstantUpdater {
+struct LibxsmmConstantUpdater : public ExprVisitor {
  public:
   LibxsmmConstantUpdater(const std::string& symbol,
                          std::unordered_map<std::string, runtime::NDArray>* params)
-      : ConstantUpdater(symbol, params) {}
-  using ConstantUpdater::VisitExpr_;
+      : symbol_(symbol), params_(params) {}
 
   void VisitExpr_(const FunctionNode* op) final {
     // Set true if current op is a libxsmm composite function.
@@ -122,6 +144,17 @@ struct LibxsmmConstantUpdater : public ConstantUpdater {
 
       this->VisitExpr(arg);
     }
+  }
+
+  /*!
+   * \brief Visit call nodes and generate ordered params.
+   *
+   * \param cn The current constant node.
+   * \return A list of graph entry nodes.
+   */
+  void VisitExpr_(const ConstantNode* cn) override {
+    std::string name = "libxsmm_" + symbol_ + "_const_" + std::to_string(const_idx_++);
+    (*params_)[name] = cn->data;
   }
 
  private:
@@ -185,6 +218,9 @@ struct LibxsmmConstantUpdater : public ConstantUpdater {
   // Composite operator patterns libxsmm supports.
   std::vector<std::string> patterns_{"libxsmm.dense", "libxsmm.dense_relu", "libxsmm.dense_bias",
                                      "libxsmm.dense_bias_relu"};
+  int const_idx_{0};
+  std::string symbol_;
+  std::unordered_map<std::string, runtime::NDArray>* params_;
 };
 
 Map<String, runtime::NDArray> LibxsmmConstantUpdaterFunc(Expr expr, std::string symbol) {
@@ -194,6 +230,7 @@ Map<String, runtime::NDArray> LibxsmmConstantUpdaterFunc(Expr expr, std::string 
 
   Map<String, runtime::NDArray> ret;
   for (const auto& kvp : res) ret.Set(kvp.first, kvp.second);
+
   return ret;
 }
 
