@@ -71,7 +71,6 @@ def build_run_compare(
         tvm_mod_nchwc = gpu_preprocess(tvm_mod)
     else:
         tvm_mod_nchwc = tvm_mod
-        
     if stat_file is not None:
         with autotvm.apply_history_best(stat_file):
             with tvm.transform.PassContext(opt_level=3):
