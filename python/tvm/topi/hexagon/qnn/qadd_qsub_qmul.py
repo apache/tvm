@@ -50,13 +50,34 @@ def saturate(x: te.Tensor, dtype: str):
     return te.max(te.min_value(dtype), te.min(x, te.max_value(dtype)))
 
 
-def get_int_scale(scale_A, scale_B, scale_M, zero_point_A, zero_point_B, zero_point_M, op):
-    """Get fixed-point number"""
+def get_int_scale(
+    scale_A: float,
+    scale_B: float,
+    scale_M: float,
+    zero_point_A: int,
+    zero_point_B: int,
+    zero_point_M: int,
+    op: str,
+):
+    """
+    Get fixed-point number and exp_scale_factor from topi.hexagon.utils.get_fixed_point_value.
+    Also, depending on the op, this function uses exp_scale_factor(log2 of the scale factor)
+    to adjust the output's zero_point.
+
+    """
+
     C_recip = 1 / scale_M
 
     if op == "qmul":
         scale = scale_A * scale_B * C_recip
         scale_fixed_point, rsh = get_fixed_point_value(scale, "int16")
+        """
+        We need to adjust output's zero point value since the compute for the op is multiplied
+        by a scaling factor.
+        The scaling factor is 2^x where x is the exp_scale_factor which is assigned to rsh here.
+        Since zero_point_M is multipled by 2^rsh while converting floating-point scale value into fixed-point number, 
+        we left shift it by rsh in our compute to reflect that.
+        """
         corr = zero_point_M << rsh
 
         return scale_fixed_point, rsh, corr
@@ -65,6 +86,23 @@ def get_int_scale(scale_A, scale_B, scale_M, zero_point_A, zero_point_B, zero_po
         b_scale_f = scale_B * C_recip
         scale_fixed_point_a, rsh_a = get_fixed_point_value(a_scale_f, "int16")
         scale_fixed_point_b, rsh_b = get_fixed_point_value(b_scale_f, "int16")
+
+        """
+        Here we have two exp_scale_factors rsh_a and rsh_b. 
+        To avoid complexity, we want to use a common exp_scale_factor and 
+        we want to use the lowest of the two. 
+
+        Since, either of scale_fixed_point_a or scale_fixed_point_b has already been multiplied
+        by 2^max(rsh_a, rsh_b) in topi.hexagon.utils.get_fixed_point_value, 
+        we want to undo that by right shifting that scale_fixed_point value
+        by the difference of rsh_a and rsh_b.
+
+        This results into having a common exp_scale_factor for both scale_fixed_point_a and scale_fixed_point_b.
+
+        We also set rsh here which is used to adjust the zero_point_M and compute the corr value,
+        computation of which comes from the original equation of the op's compute.
+
+        """
 
         if rsh_a > rsh_b:
             scale_fixed_point_a = scale_fixed_point_a >> (rsh_a - rsh_b)
@@ -86,16 +124,16 @@ def get_int_scale(scale_A, scale_B, scale_M, zero_point_A, zero_point_B, zero_po
 
 
 def qadd_broadcast_compute(
-    tensor_A,
-    tensor_B,
-    output_shape,
-    zero_point_A,
-    scale_A,
-    zero_point_B,
-    scale_B,
-    zero_point_M,
-    scale_M,
-    dtype,
+    tensor_A: te.Tensor,
+    tensor_B: te.Tensor,
+    output_shape: list,
+    zero_point_A: int,
+    scale_A: float,
+    zero_point_B: int,
+    scale_B: float,
+    zero_point_M: int,
+    scale_M: float,
+    dtype: str,
 ):
     """Compute quantized add with broadcasting"""
     A_broadcast, B_broadcast = broadcast_axis(tensor_A, tensor_B)
@@ -123,16 +161,16 @@ def qadd_broadcast_compute(
 
 
 def qsubtract_broadcast_compute(
-    tensor_A,
-    tensor_B,
-    output_shape,
-    zero_point_A,
-    scale_A,
-    zero_point_B,
-    scale_B,
-    zero_point_M,
-    scale_M,
-    dtype,
+    tensor_A: te.Tensor,
+    tensor_B: te.Tensor,
+    output_shape: list,
+    zero_point_A: int,
+    scale_A: float,
+    zero_point_B: int,
+    scale_B: float,
+    zero_point_M: int,
+    scale_M: float,
+    dtype: str,
 ):
     """Compute quantized subtract with broadcasting"""
     A_broadcast, B_broadcast = broadcast_axis(tensor_A, tensor_B)
@@ -160,16 +198,16 @@ def qsubtract_broadcast_compute(
 
 
 def qmultiply_broadcast_compute(
-    tensor_A,
-    tensor_B,
-    output_shape,
-    zero_point_A,
-    scale_A,
-    zero_point_B,
-    scale_B,
-    zero_point_M,
-    scale_M,
-    dtype,
+    tensor_A: te.Tensor,
+    tensor_B: te.Tensor,
+    output_shape: list,
+    zero_point_A: int,
+    scale_A: float,
+    zero_point_B: int,
+    scale_B: float,
+    zero_point_M: int,
+    scale_M: float,
+    dtype: str,
 ):
     """Compute quantized multiply with broadcasting"""
     A_broadcast, B_broadcast = broadcast_axis(tensor_A, tensor_B)
@@ -198,9 +236,9 @@ def qmultiply_broadcast_compute(
 
 
 def tir_schedule_quant(
-    out_M,
-    tensor_A,
-    tensor_B,
+    out_M: te.Tensor,
+    tensor_A: te.Tensor,
+    tensor_B: te.Tensor,
     output_layout: str,
     tensor_A_layout: str,
     tensor_B_layout: str,

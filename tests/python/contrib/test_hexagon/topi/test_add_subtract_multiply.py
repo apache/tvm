@@ -39,14 +39,14 @@ def expected_output_np(input_np_A, input_np_B, op_name):
 
 @tvm.testing.fixture
 def input_np_A(input_shape_A, dtype):
-    if dtype == "uint8":
+    if dtype == "uint8" or dtype == "int8":
         dtype = "float32"
     return np.random.random(input_shape_A).astype(dtype)
 
 
 @tvm.testing.fixture
 def input_np_B(input_shape_B, dtype):
-    if dtype == "uint8":
+    if dtype == "uint8" or dtype == "int8":
         dtype = "float32"
     return np.random.random(input_shape_B).astype(dtype)
 
