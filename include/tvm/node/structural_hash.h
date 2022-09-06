@@ -78,7 +78,7 @@ class StructuralHash : public BaseValueHash {
    * \brief Constructor
    * \param hash_ndarray_data Whether or not we hash ndarray data.
    */
-  StructuralHash(bool hash_ndarray_data = true) : hash_ndarray_data_(hash_ndarray_data) {}
+  explicit StructuralHash(bool hash_ndarray_data = true) : hash_ndarray_data_(hash_ndarray_data) {}
 
   // inheritate operator()
   using BaseValueHash::operator();

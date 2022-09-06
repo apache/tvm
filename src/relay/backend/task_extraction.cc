@@ -49,7 +49,7 @@ Array<meta_schedule::ExtractedTask> ExtractTask(IRModule mod, Target target,
       if (!relay_func->HasNonzeroAttr(attr::kPrimitive)) {
         return;
       }
-      tec::CCacheKey cache_key(relay_func, target);
+      tec::CCacheKey cache_key(relay_func, target, /*ignore_ndarray_data*/ true);
       auto it = cache.find(cache_key);
       if (it != cache.end()) {
         it->second->weight += 1;

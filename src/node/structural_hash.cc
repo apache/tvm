@@ -48,18 +48,19 @@ void ReflectionVTable::SHashReduce(const Object* self, SHashReducer reducer) con
   fshash_reduce_[tindex](self, reducer);
 }
 
-void NDArrayHash(const runtime::NDArray::Container* arr, SHashReducer& hash_reduce,
+void NDArrayHash(const runtime::NDArray::Container* arr, SHashReducer* hash_reduce,
                  bool hash_data) {
   ICHECK_EQ(arr->dl_tensor.device.device_type, kDLCPU) << "can only compare CPU tensor";
   ICHECK(runtime::IsContiguous(arr->dl_tensor)) << "Can only hash contiguous tensor";
-  hash_reduce(runtime::DataType(arr->dl_tensor.dtype));
-  hash_reduce(arr->dl_tensor.ndim);
+  (*hash_reduce)(runtime::DataType(arr->dl_tensor.dtype));
+  (*hash_reduce)(arr->dl_tensor.ndim);
   for (int i = 0; i < arr->dl_tensor.ndim; ++i) {
-    hash_reduce(arr->dl_tensor.shape[i]);
+    (*hash_reduce)(arr->dl_tensor.shape[i]);
   }
   if (hash_data) {
-    hash_reduce->SHashReduceHashedValue(runtime::String::HashBytes(
-        static_cast<const char*>(arr->dl_tensor.data), runtime::GetDataSize(arr->dl_tensor)));
+    (*hash_reduce)
+        ->SHashReduceHashedValue(runtime::String::HashBytes(
+            static_cast<const char*>(arr->dl_tensor.data), runtime::GetDataSize(arr->dl_tensor)));
   }
 }
 
@@ -254,7 +255,7 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
     ICHECK(object.defined());
     SHashReducer hash_reduce(this, map_free_vars);
     if (auto ndarray = object.as<runtime::NDArray::Container>()) {
-      NDArrayHash(ndarray, hash_reduce, hash_ndarray_data_);
+      NDArrayHash(ndarray, &hash_reduce, hash_ndarray_data_);
     } else {
       vtable_->SHashReduce(object.get(), hash_reduce);
     }
@@ -357,7 +358,7 @@ TVM_REGISTER_REFLECTION_VTABLE(runtime::ADTObj, ADTObjTrait);
 
 void NDArrayContainerTrait::SHashReduce(const runtime::NDArray::Container* key,
                                         SHashReducer hash_reduce) {
-  NDArrayHash(key, hash_reduce, /*hash_data*/ true);
+  NDArrayHash(key, &hash_reduce, /*hash_data*/ true);
 }
 
 TVM_REGISTER_REFLECTION_VTABLE(runtime::NDArray::Container, NDArrayContainerTrait)

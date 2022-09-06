@@ -86,10 +86,13 @@ class CCacheKeyNode : public Object {
   Target target;
   /*! \brief The virtual device constrains.*/
   VirtualDevice virtual_device;
+  /*! \brief Whether or not we ignore ndarray raw data when comparing and hashing them. */
+  bool ignore_ndarray_data;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("source_func", &source_func);
     v->Visit("target", &target);
+    v->Visit("ignore_ndarray_data", &ignore_ndarray_data);
     v->Visit("virtual_device", &virtual_device);
   }
   /*! \return The hash value of CCacheKey. */
@@ -121,8 +124,10 @@ class CCacheKey : public ObjectRef {
    * \brief The constructor
    * \param source_func The source function.
    * \param target The target device.
+   * \param ignore_ndarray_data Whether or not we ignore ndarray raw data when comparing and hashing
+   * them
    */
-  TVM_DLL CCacheKey(Function source_func, Target target,
+  TVM_DLL CCacheKey(Function source_func, Target target, bool ignore_ndarray_data = false,
                     VirtualDevice virtual_device = VirtualDevice::FullyUnconstrained());
 
   const CCacheKeyNode* operator->() const { return static_cast<const CCacheKeyNode*>(get()); }
@@ -238,7 +243,7 @@ CachedFunc ShapeFuncFor(const Function& prim_func, const Target& target,
 inline size_t CCacheKeyNode::Hash() const {
   if (hash_ != 0) return hash_;
   // do structral hash, avoid 0.
-  hash_ = tvm::StructuralHash(/*hash_ndarray_data*/ false)(this->source_func);
+  hash_ = tvm::StructuralHash(!ignore_ndarray_data)(this->source_func);
   hash_ = dmlc::HashCombine(hash_, std::hash<std::string>()(target->str()));
   if (hash_ == 0) hash_ = 1;
   return hash_;
@@ -248,8 +253,7 @@ inline bool CCacheKeyNode::Equal(const CCacheKeyNode* other) const {
   if (Hash() != other->Hash()) return false;
   return this->target->str() == other->target->str() &&
          this->virtual_device == other->virtual_device &&
-         tvm::StructuralEqual(/*compare_ndarray_data*/ false)(this->source_func,
-                                                              other->source_func);
+         tvm::StructuralEqual(!ignore_ndarray_data)(this->source_func, other->source_func);
 }
 
 }  // namespace tec

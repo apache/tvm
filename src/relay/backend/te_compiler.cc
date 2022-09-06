@@ -918,7 +918,7 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
     } else {
       // Cases 1 and 2: lower the primitive function for the desired target, possibly using external
       // codegen.
-      CCacheKey key(Downcast<Function>(primitive_func), target,
+      CCacheKey key(Downcast<Function>(primitive_func), target, /*ignore_ndarray_data*/ false,
                     GetVirtualDevice(GetRef<Call>(call_node)));
       CachedFunc cfunc = compiler_->Lower(key);
       ICHECK(cfunc.defined());

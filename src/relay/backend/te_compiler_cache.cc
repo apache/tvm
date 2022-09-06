@@ -69,10 +69,11 @@ LoweredOutput::LoweredOutput(tvm::Array<te::Tensor> outputs, OpImplementation im
   data_ = std::move(n);
 }
 
-CCacheKey::CCacheKey(Function source_func, Target target, VirtualDevice vd) {
+CCacheKey::CCacheKey(Function source_func, Target target, bool ignore_ndarray_data, VirtualDevice vd) {
   auto n = make_object<CCacheKeyNode>();
   n->source_func = std::move(source_func);
   n->target = std::move(target);
+  n->ignore_ndarray_data = ignore_ndarray_data;
   n->virtual_device = std::move(vd);
   data_ = std::move(n);
 }
