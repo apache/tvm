@@ -491,6 +491,7 @@ class Handler(server.ProjectAPIHandler):
                 if options["zephyr_board"] in board_list:
                     f.write(f"{line}\n")
 
+            f.write("# For setting -O2 in compiler.\n" "CONFIG_SPEED_OPTIMIZATIONS=y\n")
             f.write("\n")
 
     API_SERVER_CRT_LIBS_TOKEN = "<API_SERVER_CRT_LIBS>"
