@@ -16,11 +16,38 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
+#include <optional>
+#include <variant>
+
 #include "../../../arith/ir_mutator_with_analyzer.h"
 #include "../utils.h"
 
 namespace tvm {
 namespace tir {
+
+class LayoutTransformPlanner : private StmtExprVisitor {
+ public:
+  struct NoPaddingRequired {};
+
+  using TransformPlan = std::variant<NoPaddingRequired>;
+  static TransformPlan Plan(Block block, Buffer old_buffer, Buffer new_buffer, IndexMap index_map,
+                            IndexMap inverse, PrimExpr padding_predicate,
+                            Optional<PrimExpr> pad_value) {
+    LayoutTransformPlanner visitor(old_buffer);
+    visitor(block);
+    return visitor.Finalize(new_buffer, index_map, inverse, padding_predicate, pad_value);
+  }
+
+ private:
+  LayoutTransformPlanner(Buffer old_buffer) : old_buffer_(old_buffer) {}
+  TransformPlan Finalize(Buffer new_buffer, IndexMap index_map, IndexMap inverse,
+                         PrimExpr padding_predicate, Optional<PrimExpr> pad_value) const {
+      return NoPaddingRequired();
+  }
+
+  Buffer old_buffer_;
+};
 
 class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
  public:
@@ -33,23 +60,29 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
    * \return The new AST rooting at the original parent scope and the map from the old block to the
    * new block
    */
-  static std::pair<Stmt, Map<Block, Block>> Rewrite(const Stmt& scope_stmt,
-                                                    const Buffer& old_buffer,
-                                                    const Buffer& new_buffer,
-                                                    const IndexMap& index_map) {
+  static std::pair<Stmt, Map<Block, Block>> Rewrite(
+      const Block& scope_stmt, const Buffer& old_buffer, const Buffer& new_buffer,
+      const IndexMap& index_map, const IndexMap& inverse, const PrimExpr& padding_predicate,
+      const Optional<PrimExpr>& pad_value) {
+    auto plan = LayoutTransformPlanner::Plan(scope_stmt, old_buffer, new_buffer, index_map, inverse,
+                                             padding_predicate, pad_value);
+
     arith::Analyzer analyzer;
-    TransformLayoutRewriter rewriter(old_buffer, new_buffer, index_map, &analyzer);
-    Stmt result = rewriter(scope_stmt);
+    TransformLayoutRewriter rewriter(old_buffer, new_buffer, index_map, plan, &analyzer);
+    Block result = Downcast<Block>(rewriter(scope_stmt));
     return {result, rewriter.block_sref_reuse_};
   }
 
  private:
   TransformLayoutRewriter(const Buffer& old_buffer, const Buffer& new_buffer,
-                          const IndexMap& index_map, arith::Analyzer* analyzer)
+                          const IndexMap& index_map,
+                          const LayoutTransformPlanner::TransformPlan& plan,
+                          arith::Analyzer* analyzer)
       : IRMutatorWithAnalyzer(analyzer),
         old_buffer_(old_buffer),
         new_buffer_(new_buffer),
         index_map_(index_map),
+        plan_(plan),
         buffer_data_to_buffer_{{new_buffer->data, new_buffer}} {}
 
   void RewriteBufferAccess(Buffer* buffer, Array<PrimExpr>* indices) {
@@ -111,6 +144,7 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
   const Buffer& old_buffer_;
   const Buffer& new_buffer_;
   const IndexMap& index_map_;
+  const LayoutTransformPlanner::TransformPlan& plan_;
   Map<Var, Buffer> buffer_data_to_buffer_;
   Map<Block, Block> block_sref_reuse_;
 };
