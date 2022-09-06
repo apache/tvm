@@ -97,6 +97,13 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
     auto* n = block.CopyOnWrite();
     RewriteAccessRegion(&n->reads, infered_access_regions[0]);
     RewriteAccessRegion(&n->writes, infered_access_regions[1]);
+    n->alloc_buffers.MutateByApply([this](const Buffer& buffer) {
+      if (buffer.same_as(old_buffer_)) {
+        return new_buffer_;
+      } else {
+        return buffer;
+      }
+    });
     block_sref_reuse_.Set(GetRef<Block>(op), block);
     return std::move(block);
   }
@@ -197,6 +204,7 @@ class TransformationIntroducesPaddingError : public ScheduleError {
 void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                      BufferIndexType buffer_index_type, const IndexMap& index_map,
                      const Optional<PrimExpr>& pad_value) {
+  // Step 1: Input handling and error checking
   const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_sref);
   Buffer old_buffer =
       GetNthAccessBuffer(self, GetRef<Block>(block_ptr), buffer_index, buffer_index_type);
@@ -213,12 +221,6 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
                             : GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
   const BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_sref);
 
-  // Step 1: Infer the shape of the new buffer
-  ObjectPtr<BufferNode> new_buffer_node = make_object<BufferNode>(*(old_buffer.get()));
-  new_buffer_node->shape = index_map->MapShape(old_buffer->shape);
-  Buffer new_buffer{new_buffer_node};
-
-  // Step 1.1: Validate that padding hasn't been introduced.
   auto [inverse, padding_predicate] = [&]() {
     Array<Range> region;
     for (const auto& dim : old_buffer->shape) {
@@ -232,22 +234,19 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
     throw TransformationIntroducesPaddingError(self->mod, old_buffer, index_map, padding_predicate);
   }
 
-  // Step 2: Rewrite access indices and regions of the buffer
-  auto [new_stmt, block_sref_reuse] = TransformLayoutRewriter::Rewrite(
-      GetRef<Block>(scope_block), old_buffer, new_buffer, index_map);
+  // Step 2: Infer the shape of the new buffer
+  Buffer new_buffer = old_buffer;
+  new_buffer.CopyOnWrite()->shape = index_map->MapShape(old_buffer->shape);
+
+  // Step 3: Rewrite BufferLoad/BufferStore access indices, block read/write regions, and block
+  // alloc_buffers.
+  auto [new_stmt, block_sref_reuse] =
+      TransformLayoutRewriter::Rewrite(GetRef<Block>(scope_block), old_buffer, new_buffer,
+                                       index_map, inverse, padding_predicate, pad_value);
   Block new_scope_block = Downcast<Block>(new_stmt);
 
-  // Step 3: Rewrite alloc_buffer of the block or buffer_map of the PrimFunc.
-  if (defining_site_sref.defined()) {
-    auto* n = new_scope_block.CopyOnWrite();
-    n->alloc_buffers.MutateByApply([&old_buffer, &new_buffer](const Buffer& buffer) {
-      if (buffer.same_as(old_buffer)) {
-        return new_buffer;
-      }
-      return buffer;
-    });
-    block_sref_reuse.Set(GetRef<Block>(scope_block), new_scope_block);
-  } else {
+  // Step 4: Rewrite buffer_map of the PrimFunc if necessary.
+  if (!defining_site_sref.defined()) {
     GlobalVar g_var;
     GetRootPrimFunc(self->mod, scope_block, &g_var);
     IRModuleNode* new_mod = self->mod.CopyOnWrite();
