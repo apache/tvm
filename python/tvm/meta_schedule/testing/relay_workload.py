@@ -85,7 +85,7 @@ def _get_network(
                 "float32": torch.float32,  # pylint: disable=no-member
             }[dtype]
         )
-        scripted_model = torch.jit.trace(model, input_data).eval()
+        scripted_model = torch.jit.trace(model, input_data).eval()  # type: ignore
         input_name = "input0"
         shape_list = [(input_name, input_shape)]
         mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
@@ -149,7 +149,7 @@ def _get_network(
         input_dtype = "int64"
         a = torch.randint(10000, input_shape)  # pylint: disable=no-member
         model.eval()
-        scripted_model = torch.jit.trace(model, [a], strict=False)
+        scripted_model = torch.jit.trace(model, [a], strict=False)  # type: ignore
         input_name = "input_ids"
         shape_list = [(input_name, input_shape)]
         mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)

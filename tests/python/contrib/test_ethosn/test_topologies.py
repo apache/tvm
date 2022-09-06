@@ -237,8 +237,15 @@ def test_output_order_different_sizes(dtype):
 
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
-def test_split_with_asym_concats(dtype):
+@pytest.mark.parametrize(
+    "shape,splits,axis",
+    [
+        ((1, 16, 16, 32), (2, 7, 10), 2),
+    ],
+)
+def test_split_with_asym_concats(dtype, shape, splits, axis):
     """Test a model with split and contatenates."""
+    np.random.seed(0)
 
     def get_model(shape, dtype, splits, axis):
         a = relay.var("a", shape=shape, dtype=dtype)
@@ -263,51 +270,43 @@ def test_split_with_asym_concats(dtype):
         )
         return relay.Tuple((con2, con1))
 
-    trials = [
-        ((1, 16, 16, 32), (2, 7, 10), 2),
-    ]
+    outputs = []
+    inputs = {
+        "a": tvm.nd.array(
+            np.random.randint(np.iinfo(dtype).min, np.iinfo(dtype).max + 1, size=shape, dtype=dtype)
+        )
+    }
+    for npu in [False, True]:
+        model = get_model(shape, dtype, splits, axis)
+        mod = tei.make_module(model, {})
 
-    np.random.seed(0)
-    for shape, splits, axis in trials:
-        outputs = []
-        inputs = {
-            "a": tvm.nd.array(
-                np.random.randint(
-                    np.iinfo(dtype).min, np.iinfo(dtype).max + 1, size=shape, dtype=dtype
-                )
+        expected_host_ops = 1
+        npu_partitions = 2
+
+        # Mock inference is only supported when the whole graph is offloaded to the NPU
+        if ethosn_available() == Available.SW_ONLY:
+            tei.build(
+                mod,
+                {},
+                npu=npu,
+                expected_host_ops=expected_host_ops,
+                npu_partitions=npu_partitions,
             )
-        }
-        for npu in [False, True]:
-            model = get_model(shape, dtype, splits, axis)
-            mod = tei.make_module(model, {})
-
-            expected_host_ops = 1
-            npu_partitions = 2
-
-            # Mock inference is only supported when the whole graph is offloaded to the NPU
-            if ethosn_available() == Available.SW_ONLY:
-                tei.build(
+        else:
+            outputs.append(
+                tei.build_and_run(
                     mod,
+                    inputs,
+                    2,
                     {},
                     npu=npu,
                     expected_host_ops=expected_host_ops,
                     npu_partitions=npu_partitions,
                 )
-            else:
-                outputs.append(
-                    tei.build_and_run(
-                        mod,
-                        inputs,
-                        2,
-                        {},
-                        npu=npu,
-                        expected_host_ops=expected_host_ops,
-                        npu_partitions=npu_partitions,
-                    )
-                )
+            )
 
-        if outputs:
-            tei.verify(outputs, dtype, 0)
+    if outputs:
+        tei.verify(outputs, dtype, 0)
 
 
 @pytest.mark.skip("Split is not supported by the 3.0.1 version of the driver stack.")

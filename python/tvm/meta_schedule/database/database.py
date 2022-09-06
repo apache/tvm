@@ -17,12 +17,16 @@
 """TuningRecord database"""
 from typing import Any, Callable, List, Optional, Union
 
+# isort: off
+from typing_extensions import Literal
+
+# isort: on
+
 from tvm._ffi import register_object
 from tvm.ir.module import IRModule
 from tvm.runtime import Object
 from tvm.target import Target
 from tvm.tir.schedule import Schedule, Trace
-from typing_extensions import Literal  # pylint: disable=wrong-import-order
 
 from .. import _ffi_api
 from ..arg_info import ArgInfo
@@ -483,3 +487,38 @@ class PyDatabase:
             The number of records in the database
         """
         raise NotImplementedError
+
+
+def create(  # pylint: disable=keyword-arg-before-vararg
+    kind: Union[
+        Literal[
+            "json",
+            "memory",
+            "union",
+            "ordered_union",
+        ],
+        Callable[[Schedule], bool],
+    ] = "json",
+    *args,
+    **kwargs,
+) -> Database:
+    """Create a Database."""
+    from . import (  # pylint: disable=import-outside-toplevel
+        JSONDatabase,
+        MemoryDatabase,
+        OrderedUnionDatabase,
+        ScheduleFnDatabase,
+        UnionDatabase,
+    )
+
+    if callable(kind):
+        return ScheduleFnDatabase(kind, *args, **kwargs)  # type: ignore
+    if kind == "json":
+        return JSONDatabase(*args, **kwargs)
+    if kind == "memory":
+        return MemoryDatabase(*args, **kwargs)  # type: ignore
+    if kind == "union":
+        return UnionDatabase(*args, **kwargs)  # type: ignore
+    if kind == "ordered_union":
+        return OrderedUnionDatabase(*args, **kwargs)  # type: ignore
+    raise ValueError(f"Unknown Database: {kind}")

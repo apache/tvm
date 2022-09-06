@@ -14,12 +14,4 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-The tvm.meta_schedule.task_scheduler package.
-Meta Schedule task scheduler that manage the task scheduling
-for measure candidates generation and measurement, then save
-records to the database.
-"""
-from .gradient_based import GradientBased
-from .round_robin import RoundRobin
-from .task_scheduler import PyTaskScheduler, TaskScheduler, create
+"""Testing utilities for autotvm"""
