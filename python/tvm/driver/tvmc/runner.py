@@ -92,7 +92,8 @@ def add_run_parser(subparsers, main_parser, json_params):
     parser.add_argument(
         "--print-time",
         action="store_true",
-        help="record and print the execution time(s). (non-micro devices only)",
+        help="record and print the execution time(s). Enabling print-time will result "
+        " in (1 + repeat * number) executions of the model. (non-micro devices only)",
     )
     parser.add_argument(
         "--print-top",
@@ -509,7 +510,8 @@ def run_module(
         Valid options are "zeros", "ones" and "random".
         Defaults to "random".
     benchmark : bool, optional
-        Whether to benchmark the execution of the module.
+        Whether to benchmark the execution of the module. Enabling benchmark will
+        result in (1 + repeat * number) executions of the model.
     repeat : int, optional
         How many times to repeat the run. Requires `benchmark` to be set to True.
     number : int, optional
