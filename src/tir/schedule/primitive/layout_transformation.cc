@@ -60,6 +60,12 @@ class LayoutTransformPlanner : private StmtExprVisitor {
     BindLoopVar context(this, GetRef<For>(op));
     StmtExprVisitor::VisitStmt_(op);
   }
+
+  void VisitStmt_(const LetStmtNode* op) override {
+    BindLetVar context(this, op->var, op->value);
+    StmtExprVisitor::VisitStmt_(op);
+  }
+
   void VisitStmt_(const BlockRealizeNode* op) override {
     BindBlockRealize context(this, GetRef<BlockRealize>(op));
     StmtExprVisitor::VisitStmt_(op);
@@ -219,6 +225,34 @@ class LayoutTransformPlanner : private StmtExprVisitor {
     BindLoopVar& operator=(const BindLoopVar&) = delete;
     BindLoopVar(BindLoopVar&&) = delete;
     BindLoopVar& operator=(BindLoopVar&&) = delete;
+
+    LayoutTransformPlanner* self_{nullptr};
+    Var var_;
+  };
+
+  struct BindLetVar {
+    BindLetVar() {}
+    BindLetVar(LayoutTransformPlanner* self, Var var, PrimExpr value) : self_(self), var_(var) {
+      if (auto loop_depth = self->LoopDependencyRange(value); loop_depth.has_value()) {
+        self_->loop_depth_lookup_[var_.get()] = loop_depth.value();
+      }
+    }
+    ~BindLetVar() {
+      if (self_) {
+        self_->loop_depth_lookup_.erase(var_.get());
+      }
+    }
+    BindLetVar(const BindLetVar&) = delete;
+    BindLetVar& operator=(const BindLetVar&) = delete;
+    BindLetVar(BindLetVar&& other) : BindLetVar() { swap(other); }
+    BindLetVar& operator=(BindLetVar&& other) {
+      swap(other);
+      return *this;
+    }
+    void swap(BindLetVar& other) {
+      std::swap(self_, other.self_);
+      std::swap(var_, other.var_);
+    }
 
     LayoutTransformPlanner* self_{nullptr};
     Var var_;
