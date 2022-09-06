@@ -93,6 +93,14 @@ class BufferFlattener : public StmtExprMutator {
 
     if (alloc->extents.size() == 1) {
       // No flattening required for buffers that are already flat
+
+      // TODO(rfc-70): Keep the DeclBuffer node as-is.  Stripping it
+      // out in the current implementation as not all lowering passes
+      // support DeclBuffer.
+      if (auto* decl_buffer = alloc->body.as<DeclBufferNode>()) {
+        alloc.CopyOnWrite()->body = std::move(decl_buffer->body);
+      }
+
       return std::move(alloc);
     }
 
