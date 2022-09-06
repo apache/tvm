@@ -33,9 +33,18 @@ class LayoutTransformPlanner : private StmtExprVisitor {
     Stmt prologue;
   };
 
+
+  // The block to be inserted, along with the location at which it
+  // should be inserted.  The location will be either a For or a
+  // Block, and will be after all writes the transformed buffer.
+  struct EpiloguePlan {
+    Stmt insert_after;
+    Stmt new_block;
+  };
+
   struct NoPaddingRequired {};
 
-  using TransformPlan = std::variant<ProloguePlan, NoPaddingRequired>;
+  using TransformPlan = std::variant<ProloguePlan, EpiloguePlan, NoPaddingRequired>;
   static TransformPlan Plan(Block block, Buffer old_buffer, Buffer new_buffer, IndexMap index_map,
                             IndexMap inverse, PrimExpr padding_predicate,
                             Optional<PrimExpr> pad_value) {
@@ -46,18 +55,68 @@ class LayoutTransformPlanner : private StmtExprVisitor {
 
  private:
   LayoutTransformPlanner(Buffer old_buffer) : old_buffer_(old_buffer) {}
+
+  void VisitStmt_(const ForNode* op) override {
+    BindLoopVar context(this, GetRef<For>(op));
+    StmtExprVisitor::VisitStmt_(op);
+  }
+  void VisitStmt_(const BlockRealizeNode* op) override {
+    BindBlockRealize context(this, GetRef<BlockRealize>(op));
+    StmtExprVisitor::VisitStmt_(op);
+  }
+
   void VisitStmt_(const BufferStoreNode* op) override {
     if (!op->buffer.same_as(old_buffer_)) {
       return;
     }
 
+    std::optional<std::pair<size_t, size_t>> loop_dependency_range = std::nullopt;
+    for (const auto& index : op->indices) {
+      if (auto index_depth = LoopDependencyRange(index); index_depth.has_value()) {
+        if (loop_dependency_range) {
+          loop_dependency_range = {
+              std::min(loop_dependency_range.value().first, index_depth.value().first),
+              std::max(loop_dependency_range.value().second, index_depth.value().second)};
+        } else {
+          loop_dependency_range = index_depth;
+        }
+      }
+    }
+
     WriteInfo write_info;
     write_info.store = GetRef<BufferStore>(op);
+    if (loop_dependency_range) {
+      size_t i = loop_dependency_range.value().first;
+      size_t j = loop_dependency_range.value().second;
+      ICHECK_LT(i, active_loops_.size());
+      ICHECK_LT(j, active_loops_.size());
+
+      write_info.dependent_loopnest = {active_loops_.begin() + i, active_loops_.begin() + j + 1};
+    }
+    write_info.innermost_block_realize = innermost_block_realize_;
+
 
     write_info_.push_back(write_info);
 
     // Don't need to continue recursing, as the entire goal was to
     // find the BufferStore.
+  }
+
+  std::optional<std::pair<size_t, size_t>> LoopDependencyRange(const PrimExpr& expr) const {
+    std::optional<std::pair<size_t, size_t>> prev = std::nullopt;
+    for (const auto& var : UndefinedVars(expr)) {
+      auto it = loop_depth_lookup_.find(var.get());
+      if (it != loop_depth_lookup_.end()) {
+        if (prev.has_value()) {
+          prev = {std::min(prev.value().first, it->second.first),
+                  std::max(prev.value().second, it->second.second)};
+        } else {
+          prev = it->second;
+        }
+      }
+    }
+
+    return prev;
   }
   TransformPlan Finalize(Buffer new_buffer, IndexMap index_map, IndexMap inverse,
                          PrimExpr padding_predicate, Optional<PrimExpr> pad_value) const {
@@ -65,6 +124,10 @@ class LayoutTransformPlanner : private StmtExprVisitor {
             FinalizeProloguePlan(new_buffer, index_map, inverse, padding_predicate, pad_value);
         prologue_plan.has_value()) {
       return prologue_plan.value();
+    } else if (auto epilogue_plan = FinalizeEpiloguePlan(new_buffer, index_map, inverse,
+                                                         padding_predicate, pad_value);
+               epilogue_plan.has_value()) {
+      return epilogue_plan.value();
     } else {
       return NoPaddingRequired();
     }
@@ -99,12 +162,101 @@ class LayoutTransformPlanner : private StmtExprVisitor {
     return ProloguePlan{stmt};
   }
 
+  std::optional<EpiloguePlan> FinalizeEpiloguePlan(Buffer new_buffer, IndexMap index_map,
+                                                   IndexMap inverse, PrimExpr padding_predicate,
+                                                   Optional<PrimExpr> pad_value) const {
+    if (write_info_.empty() || is_zero(padding_predicate) || !pad_value.defined()) {
+      return std::nullopt;
+    }
+
+    Array<PrimExpr> indices;
+    for (const auto& var : inverse->initial_indices) {
+      indices.push_back(var);
+    }
+
+    Stmt stmt = BufferStore(new_buffer, pad_value.value(), indices);
+
+    std::stringstream block_name;
+    block_name << "buffer_" << new_buffer->name << "_padding";
+    auto write_region = BufferRegion::FromPoint(new_buffer, indices);
+    stmt =
+        BlockRealize({}, padding_predicate, Block({}, {}, {write_region}, block_name.str(), stmt));
+
+    ICHECK_EQ(inverse->initial_indices.size(), new_buffer->shape.size());
+    for (size_t rev_i = 0; rev_i < inverse->initial_indices.size(); rev_i++) {
+      size_t i = (inverse->initial_indices.size() - 1) - rev_i;
+      Var loop_var = inverse->initial_indices[i];
+      PrimExpr extent = new_buffer->shape[i];
+      stmt = For(loop_var, 0, extent, ForKind::kSerial, stmt);
+    }
+
+    const auto& info = write_info_.back();
+    Stmt insert_after = [&]() -> Stmt {
+      if (info.dependent_loopnest.size()) {
+        return info.dependent_loopnest.front();
+      } else if (info.innermost_block_realize) {
+        return info.innermost_block_realize.value();
+      } else {
+        LOG(FATAL) << "Write occured outside of any block/loop";
+        return Stmt();
+      }
+    }();
+    return EpiloguePlan{insert_after, stmt};
+  }
+
+  struct BindLoopVar {
+    BindLoopVar(LayoutTransformPlanner* self, For for_node)
+        : self_(self), var_(for_node->loop_var) {
+      size_t loop_depth = self_->active_loops_.size();
+      self_->loop_depth_lookup_[var_.get()] = {loop_depth, loop_depth};
+      self_->active_loops_.push_back(std::move(for_node));
+    }
+    ~BindLoopVar() {
+      self_->active_loops_.pop_back();
+      self_->loop_depth_lookup_.erase(var_.get());
+    }
+    BindLoopVar(const BindLoopVar&) = delete;
+    BindLoopVar& operator=(const BindLoopVar&) = delete;
+    BindLoopVar(BindLoopVar&&) = delete;
+    BindLoopVar& operator=(BindLoopVar&&) = delete;
+
+    LayoutTransformPlanner* self_{nullptr};
+    Var var_;
+  };
+
+  struct BindBlockRealize {
+    BindBlockRealize(LayoutTransformPlanner* self, BlockRealize block_realize) : self_(self) {
+      cache_ = std::move(block_realize);
+      std::swap(self_->innermost_block_realize_, cache_);
+    }
+    ~BindBlockRealize() { std::swap(self_->innermost_block_realize_, cache_); }
+    BindBlockRealize(const BindBlockRealize&) = delete;
+    BindBlockRealize& operator=(const BindBlockRealize&) = delete;
+    BindBlockRealize(BindBlockRealize&&) = delete;
+    BindBlockRealize& operator=(BindBlockRealize&&) = delete;
+
+    LayoutTransformPlanner* self_{nullptr};
+    Optional<BlockRealize> cache_;
+  };
+
   struct WriteInfo {
     // The BufferStore object
     BufferStore store;
+
+    // The block realize that contains the store, if any.
+    Optional<BlockRealize> innermost_block_realize;
+
+    // The nested loops whose values contribute to the indices used in
+    // the store.  Not all loop variables in the loopnest need to
+    // contribute, but the first and last must.
+    std::vector<For> dependent_loopnest;
   };
 
   std::vector<WriteInfo> write_info_;
+  std::vector<For> active_loops_;
+  std::unordered_map<const VarNode*, std::pair<size_t, size_t>> loop_depth_lookup_;
+  Optional<BlockRealize> innermost_block_realize_{NullOpt};
+
   Buffer old_buffer_;
 };
 
@@ -156,6 +308,16 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
   using Parent = arith::IRMutatorWithAnalyzer;
   using Parent::VisitExpr_;
   using Parent::VisitStmt_;
+
+  Stmt VisitStmt(const Stmt& stmt) final {
+    Stmt output = Parent::VisitStmt(stmt);
+    if (auto plan_ptr = std::get_if<LayoutTransformPlanner::EpiloguePlan>(&plan_)) {
+      if (plan_ptr->insert_after.same_as(stmt)) {
+        return SeqStmt({output, plan_ptr->new_block});
+      }
+    }
+    return output;
+  }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     BufferLoad buffer_load = Downcast<BufferLoad>(Parent::VisitExpr_(op));
