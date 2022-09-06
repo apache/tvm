@@ -344,10 +344,11 @@ def test_link_params():
     target = "llvm --num-cores=10"
     mod, params, _ = get_network(name="resnet_50", input_shape=[1, 3, 224, 224])
 
-    pass_config = {"relay.FuseOps.link_params": True,
-                    "relay.backend.use_meta_schedule": True,
-                    "relay.backend.tir_converter": "default"
-                    }
+    pass_config = {
+        "relay.FuseOps.link_params": True,
+        "relay.backend.use_meta_schedule": True,
+        "relay.backend.tir_converter": "default",
+    }
 
     extracted_tasks = ms.extract_task_from_relay(mod, target, params, pass_config=pass_config)
 

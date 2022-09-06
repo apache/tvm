@@ -25,7 +25,7 @@ namespace meta_schedule {
 
 Workload::Workload(IRModule mod) {
   ObjectPtr<WorkloadNode> n = runtime::make_object<WorkloadNode>();
-  n->shash = tvm::StructuralHash()(mod);
+  n->shash = tvm::StructuralHash(/*hash_ndarray_data*/ false)(mod);
   n->mod = mod;
   data_ = std::move(n);
 }
@@ -61,7 +61,7 @@ Workload Workload::FromJSON(const ObjectRef& json_obj) {
       mod = Downcast<IRModule>(LoadJSON(json_mod));
     }
     // Verify SHash(mod) == shash
-    shash = tvm::StructuralHash()(mod);
+    shash = tvm::StructuralHash(/*hash_ndarray_data*/ false)(mod);
     String recalc_shash = SHash2Str(shash);
     CHECK_EQ(recalc_shash, str_shash) << "ValueError: Structural hash changed. Given: " << str_shash
                                       << "; Recalculated: " << recalc_shash;

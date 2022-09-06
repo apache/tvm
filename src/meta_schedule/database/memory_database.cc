@@ -37,7 +37,7 @@ class MemoryDatabaseNode : public DatabaseNode {
  public:
   bool HasWorkload(const IRModule& mod) final {
     for (const auto& workload : workloads) {
-      if (StructuralEqual()(workload->mod, mod)) {
+      if (StructuralEqual(/*compare_ndarray_data*/ false)(workload->mod, mod)) {
         return true;
       }
     }
@@ -46,7 +46,7 @@ class MemoryDatabaseNode : public DatabaseNode {
 
   Workload CommitWorkload(const IRModule& mod) final {
     for (const auto& workload : workloads) {
-      if (StructuralEqual()(workload->mod, mod)) {
+      if (StructuralEqual(/*compare_ndarray_data*/false)(workload->mod, mod)) {
         return workload;
       }
     }
