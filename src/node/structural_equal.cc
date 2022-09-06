@@ -470,7 +470,7 @@ class RemapVarSEqualHandler : public SEqualReducer::Handler {
   std::unordered_map<ObjectRef, ObjectRef, ObjectPtrHash, ObjectPtrEqual> equal_map_lhs_;
   // map from rhs to lhs
   std::unordered_map<ObjectRef, ObjectRef, ObjectPtrHash, ObjectPtrEqual> equal_map_rhs_;
-  // TODO
+  // Whether or not compare ndarray raw data
   bool compare_ndarray_data_;
 };
 

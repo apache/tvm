@@ -194,6 +194,9 @@ def structural_equal(lhs, rhs, map_free_vars=False, compare_ndarray_data=True):
         Whether free variables (i.e. variables without a definition site) should be mapped
         as equal to each other.
 
+    compare_ndarray_data : bool
+        Whether or not we compare ndarray data to determine equality.
+
     Return
     ------
     result : bool
@@ -243,7 +246,7 @@ def get_first_structural_mismatch(lhs, rhs, map_free_vars=False):
         return mismatch.lhs_path, mismatch.rhs_path
 
 
-def assert_structural_equal(lhs, rhs, map_free_vars=False):
+def assert_structural_equal(lhs, rhs, map_free_vars=False, compare_ndarray_data=True):
     """Assert lhs and rhs are structurally equal to each other.
 
     Parameters
@@ -258,6 +261,9 @@ def assert_structural_equal(lhs, rhs, map_free_vars=False):
         Whether or not shall we map free vars that does
         not bound to any definitions as equal to each other.
 
+    compare_ndarray_data : bool
+        Whether or not we compare ndarray data to determine equality.
+
     Raises
     ------
     ValueError : if assertion does not hold.
@@ -268,7 +274,7 @@ def assert_structural_equal(lhs, rhs, map_free_vars=False):
     """
     lhs = tvm.runtime.convert(lhs)
     rhs = tvm.runtime.convert(rhs)
-    tvm.runtime._ffi_node_api.StructuralEqual(lhs, rhs, True, map_free_vars)
+    tvm.runtime._ffi_node_api.StructuralEqual(lhs, rhs, True, map_free_vars, compare_ndarray_data)
 
 
 def structural_hash(node, map_free_vars=False, hash_ndarray_data=True):
@@ -300,6 +306,9 @@ def structural_hash(node, map_free_vars=False, hash_ndarray_data=True):
         If map_free_vars is set to true, we will hash free variables
         by the order of their occurrences. Otherwise, we will hash by
         their in-memory pointer address.
+
+    hash_ndarray_data : bool
+        Whether or not we hash ndarray data.
 
     Return
     ------

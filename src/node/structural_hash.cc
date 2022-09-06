@@ -277,7 +277,7 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
   ReflectionVTable* vtable_ = ReflectionVTable::Global();
   // map from lhs to rhs
   std::unordered_map<ObjectRef, size_t, ObjectPtrHash, ObjectPtrEqual> hash_memo_;
-  // TODO
+  // Whether or not hash ndarray raw data
   bool hash_ndarray_data_;
 };
 
