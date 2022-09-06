@@ -103,25 +103,13 @@ class LibxsmmJSONRuntime : public json::JSONRuntimeBase {
     void* filter_handle = data_entry_[filter_eid]->data;
     void* output_handle = data_entry_[output_eid]->data;
 
-    // Transpose weight matrix since libxsmm only support GEMM rather than DENSE.
-    if (!transposed_filter_handle_) {
-      TVMDeviceAllocDataSpace(dev_, K_ * N_ * sizeof(float), kAllocAlignment, type_hint_,
-                              &transposed_filter_handle_);
-      for (int k = 0; k < K_; ++k) {
-        for (int n = 0; n < N_; ++n) {
-          static_cast<float*>(transposed_filter_handle_)[k * N_ + n] =
-              static_cast<float*>(filter_handle)[n * K_ + k];
-        }
-      }
-    }
-
     if (has_bias_ || has_relu_) {
       // Setup GEMM params.
       libxsmm_gemm_ext_param gemm_param_ext;
       gemm_param_ext.a.secondary = NULL;
       gemm_param_ext.b.secondary = NULL;
 
-      gemm_param_ext.a.primary = transposed_filter_handle_;
+      gemm_param_ext.a.primary = filter_handle;
       gemm_param_ext.b.primary = data_handle;
       gemm_param_ext.c.primary = output_handle;
       if (has_bias_) {
@@ -143,7 +131,7 @@ class LibxsmmJSONRuntime : public json::JSONRuntimeBase {
       gemm_param.a.secondary = NULL;
       gemm_param.b.secondary = NULL;
 
-      gemm_param.a.primary = transposed_filter_handle_;
+      gemm_param.a.primary = filter_handle;
       gemm_param.b.primary = data_handle;
       gemm_param.c.primary = output_handle;
       gemm_param.op.tertiary = &blocks_;
@@ -153,14 +141,9 @@ class LibxsmmJSONRuntime : public json::JSONRuntimeBase {
     }
   }
 
-  ~LibxsmmJSONRuntime() { TVMDeviceFreeDataSpace(dev_, transposed_filter_handle_); }
-
  private:
   libxsmm_gemmfunction gemm_kernel_;
   libxsmm_gemmfunction_ext gemm_fusion_kernel_;
-
-  // Transposed weight is saved to avoid redundant transpose in following steps.
-  void* transposed_filter_handle_{nullptr};
 
   DLDevice dev_{kDLCPU, 0};
   DLDataType type_hint_{2, 32, 1};
