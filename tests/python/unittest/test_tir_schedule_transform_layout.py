@@ -341,7 +341,6 @@ class BasePaddingCompare(tvm.testing.CompareBeforeAfter):
             sch.transform_layout(
                 "block", transformed_buffer, lambda i: [i // 4, i % 4], pad_value=pad_value
             )
-            # sch.transform_block_layout("block", lambda i: [i // 4, i % 4])
             return sch.mod
 
         return transform
