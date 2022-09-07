@@ -479,6 +479,7 @@ def test_conv2d_winograd_conv(target, dtype):
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
+@pytest.mark.skipIf(tvm.testing.utils.IS_IN_CI, reason="failed due to nvidia libOpencl")
 def test_residual_block(target, dtype):
     """
     - some kind of residual block followed by convolution to have texture after residual block
