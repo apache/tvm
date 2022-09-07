@@ -445,19 +445,16 @@ class LayoutTransformPlanner : private StmtExprVisitor {
     Array<IterVar> iter_vars;
     Array<PrimExpr> iter_values;
     Array<PrimExpr> indices;
-    Map<Var, PrimExpr> loop_indices_to_block_indices;
     ICHECK_EQ(inverse->initial_indices.size(), new_buffer->shape.size());
     for (size_t i = 0; i < inverse->initial_indices.size(); i++) {
       const auto& loop_var = inverse->initial_indices[i];
       const auto& dim = new_buffer->shape[i];
       Var block_var("v_" + loop_var->name_hint, loop_var->dtype);
       IterVar iter_var(Range(0, dim), block_var, kDataPar);
-      loop_indices_to_block_indices.Set(loop_var, block_var);
       indices.push_back(iter_var->var);
       iter_vars.push_back(iter_var);
       iter_values.push_back(loop_var);
     }
-    padding_predicate = Substitute(std::move(padding_predicate), loop_indices_to_block_indices);
 
     Stmt stmt = BufferStore(new_buffer, pad_value.value(), indices);
 

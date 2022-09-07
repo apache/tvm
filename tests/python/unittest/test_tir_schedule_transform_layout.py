@@ -504,7 +504,7 @@ class TestPaddedTransformWithoutLoop(BasePaddingCompare):
         for i, j in T.grid(4, 4):
             with T.block("buffer_A_padding"):
                 vi, vj = T.axis.remap("SS", [i, j])
-                T.where(vi == 3 and 2 <= vj)
+                T.where(i == 3 and 2 <= j)
                 A[vi, vj] = 0
 
 
@@ -591,7 +591,7 @@ class TestPaddedTransformPostProcIfRequiredDueToSideEffects(BasePaddingCompare):
         for i, j in T.grid(4, 4):
             with T.block("block_pad_B"):
                 vi, vj = T.axis.remap("SS", [i, j])
-                T.where(vi == 3 and 2 <= vj)
+                T.where(i == 3 and 2 <= j)
                 B[vi, vj] = 0
 
 
