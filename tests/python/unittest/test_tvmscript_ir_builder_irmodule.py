@@ -16,6 +16,7 @@
 # under the License.
 """Unittests for tvm.script.ir_builder.ir"""
 import pytest
+import tvm.testing
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import ir as I
 from tvm import ir
@@ -37,4 +38,4 @@ def test_ir_builder_irmodule():
 
 
 if __name__ == "__main__":
-    test_ir_builder_irmodule()
+    tvm.testing.main()
