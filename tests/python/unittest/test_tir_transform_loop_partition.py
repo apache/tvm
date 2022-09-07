@@ -559,7 +559,7 @@ def test_explicit_partition_hint():
     C = te.compute((32,), lambda i: te.if_then_else(i < 16, A[i], B[i]), name="C")
     s = te.create_schedule(C.op)
     s.normalize()
-    s[C].pragma(s[C].op.axis[0], "loop_partition_hint")
+    s[C].pragma(s[C].op.axis[0], "loop_partition_hint", True)
     mod = tvm.driver.build_module.schedule_to_module(s, [A, B, C], "main", None)
     with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
         mod = tvm.tir.transform.StorageFlatten(64)(mod)
