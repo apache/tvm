@@ -125,6 +125,10 @@ void InferTensorsVisitor::InferCall(const CallNode* cn) {
     LeakyReLUParams params;
     err += EthosnAPI::LeakyReLU(cn->op.as<FunctionNode>()->body, &params);
     tensor_table_[cn->args[0]] = {params.input_info};
+  } else if (IsEthosnFunc(call, "ethos-n.qnn_conv2d_transpose")) {
+    QnnConv2dTransposeParams params;
+    err += EthosnAPI::QnnConv2dTranspose(cn->op.as<FunctionNode>()->body, &params);
+    tensor_table_[cn->args[0]] = {params.input_info};
   } else if (IsEthosnOp(call, "qnn.concatenate")) {
     ConcatenateParams params;
     err = EthosnAPI::Concatenate(call, &params);
@@ -310,6 +314,9 @@ sl::TensorsAndId ConstructNetworkVisitor::HandleCall(const CallNode* cn) {
     return MakeOps(tensor);
   } else if (IsEthosnFunc(call, "ethos-n.qnn_leaky_relu")) {
     if ((err = MakeLeakyReLULayer(call, &tensor))) ReportFatalError(call, err);
+    return MakeOps(tensor);
+  } else if (IsEthosnFunc(call, "ethos-n.qnn_conv2d_transpose")) {
+    if ((err = MakeConv2DTransposeLayer(call, &tensor))) ReportFatalError(call, err);
     return MakeOps(tensor);
   } else if (IsEthosnOp(call, "qnn.concatenate")) {
     if ((err = MakeConcatenateLayer(call, &tensor))) ReportFatalError(call, err);
@@ -531,6 +538,24 @@ EthosnError ConstructNetworkVisitor::MakeLeakyReLULayer(const Call& call,
 
   try {
     *out = AddLeakyRelu(network_, *input, params.leaky_relu_info);
+  } catch (const sl::NotSupportedException& e) {
+    return EthosnError(e.what());
+  }
+  return EthosnError();
+}
+
+EthosnError ConstructNetworkVisitor::MakeConv2DTransposeLayer(const Call& call,
+                                                              sl::TensorAndId<sl::Operand>* out) {
+  QnnConv2dTransposeParams params;
+  if (auto err = EthosnAPI::QnnConv2dTranspose(call->op.as<FunctionNode>()->body, &params)) {
+    return err;
+  }
+
+  auto activation = operand_table_[call->args[0]][0];
+  auto weights = AddConstant(network_, params.weights_info, params.raw_weights->data).tensor;
+  auto bias = AddConstant(network_, params.bias_info, params.raw_bias->data).tensor;
+  try {
+    *out = AddTransposeConvolution(network_, *activation, *bias, *weights, params.conv_info);
   } catch (const sl::NotSupportedException& e) {
     return EthosnError(e.what());
   }
@@ -910,6 +935,20 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.leaky_relu")
       *rv = !err && EthosnCompiler::GetSupported()->IsLeakyReluSupported(
                         params.leaky_relu_info, params.input_info, &params.output_info, reason,
                         sizeof(reason));
+      err += EthosnError(reason);
+    });
+
+TVM_REGISTER_GLOBAL("relay.ethos-n.support.conv2d_transpose")
+    .set_body([](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
+      Call call = args[0];
+      QnnConv2dTransposeParams params;
+      auto err = EthosnAPI::QnnConv2dTranspose(call, &params);
+      err += EthosnCompiler::SupportedSetup();
+      char reason[kReasonMaxLength];
+      reason[0] = '\0';
+      *rv = !err && EthosnCompiler::GetSupported()->IsTransposeConvolutionSupported(
+                        params.bias_info, params.weights_info, params.conv_info, params.input_info,
+                        &params.output_info, reason, sizeof(reason));
       err += EthosnError(reason);
     });
 

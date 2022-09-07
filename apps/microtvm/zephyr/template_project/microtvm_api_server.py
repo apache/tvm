@@ -456,6 +456,7 @@ class Handler(server.ProjectAPIHandler):
     }
 
     def _create_prj_conf(self, project_dir, options):
+        zephyr_board = options["zephyr_board"]
         with open(project_dir / "prj.conf", "w") as f:
             f.write(
                 "# For UART used from main().\n"
@@ -477,7 +478,7 @@ class Handler(server.ProjectAPIHandler):
 
             f.write("# For math routines\n" "CONFIG_NEWLIB_LIBC=y\n" "\n")
 
-            if self._has_fpu(options["zephyr_board"]):
+            if self._has_fpu(zephyr_board):
                 f.write("# For models with floating point.\n" "CONFIG_FPU=y\n" "\n")
 
             # Set main stack size, if needed.
@@ -488,8 +489,12 @@ class Handler(server.ProjectAPIHandler):
 
             f.write("\n# Extra prj.conf directives\n")
             for line, board_list in self.EXTRA_PRJ_CONF_DIRECTIVES.items():
-                if options["zephyr_board"] in board_list:
+                if zephyr_board in board_list:
                     f.write(f"{line}\n")
+
+            # TODO(mehrdadh): due to https://github.com/apache/tvm/issues/12721
+            if zephyr_board not in ["qemu_riscv64"]:
+                f.write("# For setting -O2 in compiler.\n" "CONFIG_SPEED_OPTIMIZATIONS=y\n")
 
             f.write("\n")
 
