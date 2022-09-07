@@ -50,17 +50,19 @@ class HexagonDeviceAPI final : public DeviceAPI {
   //! \brief Destructor
   ~HexagonDeviceAPI() {}
 
-  //! \brief Ensures we have a clean state to begin the runtime
+  //! \brief Creates resource managers for the runtime
   void AcquireResources() {
-    CHECK_EQ(hexbuffs->empty(), true);
+    if (!hexbuffs->empty()) {
+      LOG(INFO) << "hexbuffs was not empty in AcquireResources";
+    }
   }
 
   //! \brief Ensures we have freed all resources when we end the runtime
   void ReleaseResources()  {
     if (!hexbuffs->empty()) { 
-      LOG(INFO) << "hexbuffs was not empty";
-      // hexbuffs.reset();
-      // hexbuffs = std::make_unique<HexagonBufferManager>();
+      LOG(INFO) << "hexbuffs was not empty in ReleaseResources, resetting";
+      hexbuffs.reset();
+      hexbuffs = std::make_unique<HexagonBufferManager>();
     }
   } 
 

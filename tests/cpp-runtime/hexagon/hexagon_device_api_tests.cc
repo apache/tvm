@@ -146,3 +146,13 @@ TEST_F(HexagonDeviceAPITest, DISABLED_alloc_free_diff_dev) {
   CHECK(buf != nullptr);
   EXPECT_THROW(hexapi->FreeDataSpace(cpu_dev, buf), InternalError);
 }
+
+// Alloc a buffer, but do not free it.
+// "Release" resources, and verify it cannot be freed.
+TEST_F(HexagonDeviceAPITest, leak_resources) {
+  hexapi->AcquireResources();
+  void* buf = hexapi->AllocDataSpace(hex_dev, nbytes, alignment, int8);
+  CHECK(buf != nullptr);
+  hexapi->ReleaseResources();
+  EXPECT_THROW(hexapi->FreeDataSpace(hex_dev, buf), InternalError);
+}
