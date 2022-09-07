@@ -27,6 +27,8 @@ WELCOME_TEXT = "Thanks for contributing to TVM! Please refer to the contributing
 
 
 class BotCommentBuilder:
+    ALLOWLIST_USERS = {"driazati", "gigiblender", "areusch"}
+
     def __init__(self, github: GitHubRepo, data: Dict[str, Any]):
         self.github = github
         self.pr_number = data["number"]
@@ -88,7 +90,7 @@ class BotCommentBuilder:
 
         logging.info(f"Commenting {comment} on {url}")
 
-        if self.author not in {"driazati", "gigiblender", "areusch"}:
+        if self.author not in self.ALLOWLIST_USERS:
             logging.info(f"Skipping comment for author {self.author}")
             return
 

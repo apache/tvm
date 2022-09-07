@@ -61,6 +61,8 @@ def dry_run_token(is_dry_run: bool) -> Any:
 
 
 class GitHubRepo:
+    GRAPHQL_URL = "https://api.github.com/graphql"
+
     def __init__(self, user, repo, token, test_data=None):
         self.token = token
         self.user = user
@@ -82,14 +84,13 @@ class GitHubRepo:
         if variables is None:
             variables = {}
 
-        url = "https://api.github.com/graphql"
         response = self._request(
-            url,
+            self.GRAPHQL_URL,
             {"query": query, "variables": variables},
             method="POST",
         )
         if self.dry_run():
-            return self.testing_response("POST", url)
+            return self.testing_response("POST", self.GRAPHQL_URL)
 
         if "data" not in response:
             msg = f"Error fetching data with query:\n{query}\n\nvariables:\n{variables}\n\nerror:\n{json.dumps(response, indent=2)}"

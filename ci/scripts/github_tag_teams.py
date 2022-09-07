@@ -250,7 +250,7 @@ if __name__ == "__main__":
             print(f"Terminating since {pr['number']} is a draft")
             exit(0)
 
-    # # PRs/issues have the same structure for the fields needed here
+    # PRs/issues have the same structure for the fields needed here
     item = issue if issue is not None else pr
     title = item["title"]
     body = item["body"]
