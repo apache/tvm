@@ -26,7 +26,44 @@
 namespace tvm {
 namespace tir {
 
-class LayoutTransformPlanner : private StmtExprVisitor {
+/*! \brief Planning stage prior to rewriting in TransformLayoutRewriter
+ *
+ * There are four ways that transformation may be handled.  Each
+ * updates the buffer shape and the indices used to acces the buffer
+ * in BufferStore/BufferLoad nodes, but differ in how they handle the
+ * `pad_value`.  In order of preference, the different strategies are
+ * as follows:
+ *
+ * 1. NoPaddingRequired.  The transformation does not introduce
+ * padding, so only local changes to update the indices of
+ * BufferLoad/BufferStore nodes are required.  No blocks are added,
+ * removed, or replaced.
+ *
+ * 2. ProloguePlan.  The transformation introduces padding, but the
+ * analyzed block has no write stages for the transformed buffer.
+ * This buffer is an input and the caller is responsible for ensuring
+ * that the padding contains the specified `pad_value`.  The generated
+ * prologue contains `builtin::assume()` calls that will expose this
+ * known value during scheduling/simplification, but will be removed
+ * during lowering.
+ *
+ * 3. ReplacementPlan.  The transformation introduces padding, has at
+ * least one write stage for the transformed buffer, and at least one
+ * of those write stages writes to all pre-transformation indices
+ * following a row-major traversal.  These write stage is rewritten to
+ * be row-major traversals of the post-transformation indices, with a
+ * `tir::if_then_else` call to write either the specified `pad_value`
+ * into padding or the computed value into non-padding.
+ *
+ * 4. EpiloguePlan.  The transformation introduces padding, has at
+ * least one write stage for the transformed buffer, but no write
+ * stage can be rewritten to use `tir::if_then_else`.  The
+ * transformation still requires the `pad_value` to be written into
+ * the padding, so a new block is inserted after the last write stage
+ * to explicitly fill the padding.
+ *
+ */
+class TransformLayoutPlanner : private StmtExprVisitor {
  public:
   // Statement to be inserted prior to the analyzed block
   struct ProloguePlan {
@@ -55,13 +92,13 @@ class LayoutTransformPlanner : private StmtExprVisitor {
   static TransformPlan Plan(Block block, Buffer old_buffer, Buffer new_buffer, IndexMap index_map,
                             IndexMap inverse, PrimExpr padding_predicate,
                             Optional<PrimExpr> pad_value) {
-    LayoutTransformPlanner visitor(old_buffer);
+    TransformLayoutPlanner visitor(old_buffer);
     visitor(block);
     return visitor.Finalize(new_buffer, index_map, inverse, padding_predicate, pad_value);
   }
 
  private:
-  explicit LayoutTransformPlanner(Buffer old_buffer) : old_buffer_(old_buffer) {}
+  explicit TransformLayoutPlanner(Buffer old_buffer) : old_buffer_(old_buffer) {}
 
   void VisitStmt_(const ForNode* op) override {
     BindLoopVar context(this, GetRef<For>(op));
@@ -69,7 +106,7 @@ class LayoutTransformPlanner : private StmtExprVisitor {
   }
 
   void VisitStmt_(const LetStmtNode* op) override {
-    BindLetVar context(this, op->var, op->value);
+    BindVariableDefinition context(this, op->var, op->value);
     StmtExprVisitor::VisitStmt_(op);
   }
 
@@ -121,7 +158,7 @@ class LayoutTransformPlanner : private StmtExprVisitor {
       for (size_t i = 0; i < loopnest.size(); i++) {
         const For& loop = loopnest[i];
         const PrimExpr& buffer_dim = old_buffer_->shape[i];
-        PrimExpr index = Substitute(op->indices[i], active_let_bindings_);
+        PrimExpr index = Substitute(op->indices[i], active_var_bindings_);
         bool is_loop_over_axis = index.same_as(loop->loop_var) && is_const_int(loop->min, 0) &&
                                  ExprDeepEqual()(loop->extent, buffer_dim) &&
                                  loop->kind == ForKind::kSerial;
@@ -487,7 +524,7 @@ class LayoutTransformPlanner : private StmtExprVisitor {
   }
 
   struct BindLoopVar {
-    BindLoopVar(LayoutTransformPlanner* self, For for_node)
+    BindLoopVar(TransformLayoutPlanner* self, For for_node)
         : self_(self), var_(for_node->loop_var) {
       size_t loop_depth = self_->active_loops_.size();
       self_->loop_depth_lookup_[var_.get()] = {loop_depth, loop_depth};
@@ -502,42 +539,45 @@ class LayoutTransformPlanner : private StmtExprVisitor {
     BindLoopVar(BindLoopVar&&) = delete;
     BindLoopVar& operator=(BindLoopVar&&) = delete;
 
-    LayoutTransformPlanner* self_{nullptr};
+    TransformLayoutPlanner* self_{nullptr};
     Var var_;
   };
 
-  struct BindLetVar {
-    BindLetVar() {}
-    BindLetVar(LayoutTransformPlanner* self, Var var, PrimExpr value) : self_(self), var_(var) {
+  struct BindVariableDefinition {
+    BindVariableDefinition() {}
+    BindVariableDefinition(TransformLayoutPlanner* self, Var var, PrimExpr value)
+        : self_(self), var_(var) {
       if (auto loop_depth = self->LoopDependencyRange(value); loop_depth.has_value()) {
         self_->loop_depth_lookup_[var_.get()] = loop_depth.value();
-        self_->active_let_bindings_[var_.get()] = Substitute(value, self_->active_let_bindings_);
+        self_->active_var_bindings_[var_.get()] = Substitute(value, self_->active_var_bindings_);
       }
     }
-    ~BindLetVar() {
+    ~BindVariableDefinition() {
       if (self_) {
         self_->loop_depth_lookup_.erase(var_.get());
-        self_->active_let_bindings_.erase(var_.get());
+        self_->active_var_bindings_.erase(var_.get());
       }
     }
-    BindLetVar(const BindLetVar&) = delete;
-    BindLetVar& operator=(const BindLetVar&) = delete;
-    BindLetVar(BindLetVar&& other) : BindLetVar() { swap(other); }
-    BindLetVar& operator=(BindLetVar&& other) {
+    BindVariableDefinition(const BindVariableDefinition&) = delete;
+    BindVariableDefinition& operator=(const BindVariableDefinition&) = delete;
+    BindVariableDefinition(BindVariableDefinition&& other) : BindVariableDefinition() {
+      swap(other);
+    }
+    BindVariableDefinition& operator=(BindVariableDefinition&& other) {
       swap(other);
       return *this;
     }
-    void swap(BindLetVar& other) {
+    void swap(BindVariableDefinition& other) {
       std::swap(self_, other.self_);
       std::swap(var_, other.var_);
     }
 
-    LayoutTransformPlanner* self_{nullptr};
+    TransformLayoutPlanner* self_{nullptr};
     Var var_;
   };
 
   struct BindBlockRealize {
-    BindBlockRealize(LayoutTransformPlanner* self, BlockRealize block_realize) : self_(self) {
+    BindBlockRealize(TransformLayoutPlanner* self, BlockRealize block_realize) : self_(self) {
       ICHECK_EQ(block_realize->iter_values.size(), block_realize->block->iter_vars.size());
       for (size_t i = 0; i < block_realize->iter_values.size(); i++) {
         bound_vars_.emplace_back(self, block_realize->block->iter_vars[i]->var,
@@ -552,9 +592,9 @@ class LayoutTransformPlanner : private StmtExprVisitor {
     BindBlockRealize(BindBlockRealize&&) = delete;
     BindBlockRealize& operator=(BindBlockRealize&&) = delete;
 
-    LayoutTransformPlanner* self_{nullptr};
+    TransformLayoutPlanner* self_{nullptr};
     Optional<BlockRealize> cache_;
-    std::vector<BindLetVar> bound_vars_;
+    std::vector<BindVariableDefinition> bound_vars_;
   };
 
   struct WriteInfo {
@@ -576,14 +616,39 @@ class LayoutTransformPlanner : private StmtExprVisitor {
     bool contains_row_major_traversal{false};
   };
 
-  struct LoopEntry {};
-
+  /*! \brief Collected information about each BufferStore */
   std::vector<WriteInfo> write_info_;
+
+  /*! \brief The loop iterators surrounding the current node
+   *
+   * The outermost loop iterator is `active_loops_.front()`, and the
+   * innermost loop iterator is `active_loops_.back()`.
+   *
+   * Used to fill the `WriteInfo::dependent_loopnest` field.
+   */
   std::vector<For> active_loops_;
+
+  /*! \brief Lookup for the outer/inner loops
+   *
+   * Used to fill the `WriteInfo::dependent_loopnest` field.
+   */
   std::unordered_map<const VarNode*, std::pair<size_t, size_t>> loop_depth_lookup_;
-  std::unordered_map<const VarNode*, PrimExpr> active_let_bindings_;
+
+  /*! \brief The variable mappings that are currently in-scope
+   *
+   * Used to determine whether the indices of a BufferStore are a
+   * row-major traversal, even if they are rebound in let/block
+   * mappings.
+   */
+  std::unordered_map<const VarNode*, PrimExpr> active_var_bindings_;
+
+  /*! \brief The innermost BlockRealize surrounding the current node
+   *
+   * Used to fill the `WriteInfo::innermost_block_realize` field..
+   */
   Optional<BlockRealize> innermost_block_realize_{NullOpt};
 
+  /*! \brief The buffer to be replaced */
   Buffer old_buffer_;
 };
 
@@ -602,13 +667,13 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
       const Block& scope_stmt, const Buffer& old_buffer, const Buffer& new_buffer,
       const IndexMap& index_map, const IndexMap& inverse, const PrimExpr& padding_predicate,
       const Optional<PrimExpr>& pad_value) {
-    auto plan = LayoutTransformPlanner::Plan(scope_stmt, old_buffer, new_buffer, index_map, inverse,
+    auto plan = TransformLayoutPlanner::Plan(scope_stmt, old_buffer, new_buffer, index_map, inverse,
                                              padding_predicate, pad_value);
 
     arith::Analyzer analyzer;
     TransformLayoutRewriter rewriter(old_buffer, new_buffer, index_map, plan, &analyzer);
     Block result = Downcast<Block>(rewriter(scope_stmt));
-    if (auto plan_ptr = std::get_if<LayoutTransformPlanner::ProloguePlan>(&plan)) {
+    if (auto plan_ptr = std::get_if<TransformLayoutPlanner::ProloguePlan>(&plan)) {
       auto write_ptr = result.CopyOnWrite();
       write_ptr->body = SeqStmt({plan_ptr->prologue, write_ptr->body});
     }
@@ -618,7 +683,7 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
  private:
   TransformLayoutRewriter(const Buffer& old_buffer, const Buffer& new_buffer,
                           const IndexMap& index_map,
-                          const LayoutTransformPlanner::TransformPlan& plan,
+                          const TransformLayoutPlanner::TransformPlan& plan,
                           arith::Analyzer* analyzer)
       : IRMutatorWithAnalyzer(analyzer),
         old_buffer_(old_buffer),
@@ -638,7 +703,7 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
 
   Stmt VisitStmt(const Stmt& stmt) final {
     Stmt output = Parent::VisitStmt(stmt);
-    if (auto plan_ptr = std::get_if<LayoutTransformPlanner::EpiloguePlan>(&plan_)) {
+    if (auto plan_ptr = std::get_if<TransformLayoutPlanner::EpiloguePlan>(&plan_)) {
       if (plan_ptr->insert_after.same_as(stmt)) {
         return SeqStmt({output, plan_ptr->new_block});
       }
@@ -652,7 +717,7 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
     // infinite recursion.
 
     For node = GetRef<For>(op);
-    if (auto plan_ptr = std::get_if<LayoutTransformPlanner::ReplacementPlan>(&plan_)) {
+    if (auto plan_ptr = std::get_if<TransformLayoutPlanner::ReplacementPlan>(&plan_)) {
       auto it = plan_ptr->replacements.find(node);
       if (it != plan_ptr->replacements.end()) {
         return VisitStmt((*it).second);
@@ -711,7 +776,7 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
   const Buffer& old_buffer_;
   const Buffer& new_buffer_;
   const IndexMap& index_map_;
-  const LayoutTransformPlanner::TransformPlan& plan_;
+  const TransformLayoutPlanner::TransformPlan& plan_;
   Map<Var, Buffer> buffer_data_to_buffer_;
   Map<Block, Block> block_sref_reuse_;
 };
