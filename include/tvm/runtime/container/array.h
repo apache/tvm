@@ -778,6 +778,7 @@ class Array : public ObjectRef {
           output = ArrayNode::CreateRepeated(arr->size(), U());
           output->InitRange(0, arr->begin(), it);
           output->SetItem(it - arr->begin(), std::move(mapped));
+          it++;
           break;
         }
       }
