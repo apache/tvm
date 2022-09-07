@@ -520,7 +520,7 @@ void TracedScheduleNode::SetAxisSeparator(const BlockRV& block_rv, int buffer_in
       /*outputs=*/{}));
 }
 
-/******** Schedule: Padding decomposition ********/
+/******** Schedule: Padding ********/
 BlockRV TracedScheduleNode::DecomposePadding(const BlockRV& block_rv, const LoopRV& loop_rv) {
   BlockRV new_block = ConcreteScheduleNode::DecomposePadding(block_rv, loop_rv);
   static const InstructionKind& kind = InstructionKind::Get("DecomposePadding");
@@ -530,6 +530,16 @@ BlockRV TracedScheduleNode::DecomposePadding(const BlockRV& block_rv, const Loop
       /*attrs=*/{},
       /*outputs=*/{new_block}));
   return new_block;
+}
+
+void TracedScheduleNode::PadEinsum(const BlockRV& block_rv, const Array<Integer>& padding) {
+  ConcreteScheduleNode::PadEinsum(block_rv, padding);
+  static const InstructionKind& kind = InstructionKind::Get("PadEinsum");
+  trace_->Append(/*inst=*/Instruction(
+      /*kind=*/kind,
+      /*inputs=*/{block_rv},
+      /*attrs=*/{padding},
+      /*outputs=*/{}));
 }
 
 /******** Schedule: Misc ********/

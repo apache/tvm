@@ -298,6 +298,15 @@ bool GetVarsTouchedByBlockIters(const BlockRealize& block_realize,
 void CheckLoopStartsWithZero(const ScheduleState& self, const StmtSRef& loop_sref,
                              arith::Analyzer* analyzer);
 
+/*!
+ * \brief Check whether a block has a trivial binding, i.e. each block var is bound to a outer loop,
+ * from outer to inner.
+ * \param self The schedule state
+ * \param block_sref The block to be checked
+ * \throw ScheduleError If the block does not have trivial bindings
+ */
+void CheckBlockHasTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref);
+
 /******** Block-loop relation ********/
 
 /*!
