@@ -605,7 +605,7 @@ class ScheduleNode : public runtime::Object {
    */
   virtual void TransformLayout(const BlockRV& block_rv, int buffer_index,
                                BufferIndexType buffer_index_type, const IndexMap& index_map,
-                               const Optional<PrimExpr>& pad_value) = 0;
+                               const Optional<PrimExpr>& pad_value = NullOpt) = 0;
 
   /*!
    * \brief Apply a transformation represented by IndexMap to block
