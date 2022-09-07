@@ -42,7 +42,7 @@
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="integration: CPU",
   node="CPU-SMALL",
-  num_shards=10,
+  num_shards=4,
   ws="tvm/integration-python-cpu",
   platform="cpu",
   docker_image="ci_cpu",
@@ -58,7 +58,7 @@
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="python: i386",
   node="CPU-SMALL",
-  num_shards=5,
+  num_shards=3,
   ws="tvm/integration-python-i386",
   platform="i386",
   docker_image="ci_i386",
@@ -85,7 +85,7 @@
   platform="hexagon",
   docker_image="ci_hexagon",
   test_method_names=test_method_names,
-  num_shards=7,
+  num_shards=8,
 ) %}
   {{ m.download_artifacts(tag='hexagon', filenames=tvm_lib, folders=hexagon_api) }}
   add_hexagon_permissions()
@@ -118,7 +118,7 @@
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="topi: GPU",
   node="GPU",
-  num_shards=4,
+  num_shards=3,
   ws="tvm/topi-python-gpu",
   platform="gpu",
   docker_image="ci_gpu",
@@ -192,7 +192,7 @@
   ws="tvm/test-cortexm",
   platform="cortexm",
   docker_image="ci_cortexm",
-  num_shards=8,
+  num_shards=12,
   test_method_names=test_method_names,
 ) %}
   {{ m.download_artifacts(tag='cortexm', filenames=tvm_lib, folders=microtvm_template_projects) }}
