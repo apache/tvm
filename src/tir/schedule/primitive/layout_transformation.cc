@@ -61,7 +61,7 @@ class LayoutTransformPlanner : private StmtExprVisitor {
   }
 
  private:
-  LayoutTransformPlanner(Buffer old_buffer) : old_buffer_(old_buffer) {}
+  explicit LayoutTransformPlanner(Buffer old_buffer) : old_buffer_(old_buffer) {}
 
   void VisitStmt_(const ForNode* op) override {
     BindLoopVar context(this, GetRef<For>(op));
