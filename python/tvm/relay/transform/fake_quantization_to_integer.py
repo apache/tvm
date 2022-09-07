@@ -179,6 +179,7 @@ def bias_add(expr, type_map):
     else:
         # If the bias is a constant, we need to quantize it
         assert isinstance(b, relay.expr.Constant)
+        assert b.checked_type.dtype in ["float32", "float64", "float16", "bfloat16"]
         b = relay.qnn.op.quantize(b, x_t.scale, x_t.zero_point, axis=0, out_dtype=x_t.dtype)
     out = relay.op.nn.bias_add(x, b, **expr.attrs)
     return [out, x_t]
@@ -390,6 +391,7 @@ def pad(expr, type_map):
     else:
         # If the pad-value is a constant, we need to quantize it
         assert isinstance(pad_value, relay.expr.Constant)
+        assert pad_value.checked_type.dtype in ["float32", "float64", "float16", "bfloat16"]
         pad_value = relay.qnn.op.quantize(pad_value, t.scale, t.zero_point)
 
     out = relay.op.nn.pad(arg, pad_value=pad_value, **expr.attrs)
