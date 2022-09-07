@@ -26,46 +26,26 @@ from ..infrastructure import allocate_hexagon_array, transform_numpy
 
 @tvm.testing.fixture
 def expected_output_np(
-    input_np,
-    in_height,
-    in_width,
-    out_height,
-    out_width,
-    layout,
-    method,
-    coord_trans,
-    dtype,
+    input_np, in_height, in_width, out_height, out_width, layout, method, coord_trans
 ):
     scale_h = out_height / in_height
     scale_w = out_width / in_width
-
     return resize2d_python(input_np, (scale_h, scale_w), layout, method, coord_trans)
 
 
 @tvm.testing.fixture
 def input_np(input_shape, dtype):
-    if dtype == "float16":
-        return np.random.random(input_shape).astype(dtype)
-    elif dtype == "uint8":
-        return np.random.randint(0, 255, input_shape).astype(dtype)
-    elif dtype == "int8":
-        return np.random.randint(-128, 127, input_shape).astype(dtype)
+    return np.random.random(input_shape).astype(dtype)
 
 
 @tvm.testing.fixture
-def transformed_input_np(input_np, layout, input_crouton_layout, dtype):
-    if dtype == "float16" or dtype == "uint8" or dtype == "int8":
-        return transform_numpy(input_np, layout.lower(), input_crouton_layout)
-    else:
-        raise RuntimeError(f"Unsupported data type '{dtype}'")
+def transformed_input_np(input_np, layout, input_crouton_layout):
+    return transform_numpy(input_np, layout.lower(), input_crouton_layout)
 
 
 @tvm.testing.fixture
-def transformed_expected_output_np(expected_output_np, layout, output_layout, dtype):
-    if dtype == "float16" or dtype == "uint8" or dtype == "int8":
-        return transform_numpy(expected_output_np, layout.lower(), output_layout)
-    else:
-        raise RuntimeError(f"Unsupported data type '{dtype}'")
+def transformed_expected_output_np(expected_output_np, layout, output_layout):
+    return transform_numpy(expected_output_np, layout.lower(), output_layout)
 
 
 @tvm.testing.fixture
@@ -100,7 +80,6 @@ class TestResize2d:
 
     (layout, input_crouton_layout, output_layout, dtype,) = tvm.testing.parameters(
         ("NHWC", "nhwc-8h2w32c2w-2d", "nhwc-8h2w32c2w-2d", "float16"),
-        ("NHWC", "nhwc-8h8w32c-2d", "nhwc-8h8w32c-2d", "uint8"),
     )
 
     coord_trans = tvm.testing.parameter("asymmetric", "align_corners", "half_pixel")
@@ -133,18 +112,14 @@ class TestResize2d:
             layout=layout,
             coordinate_transformation_mode=coord_trans,
             method=method,
-            out_dtype=dtype,
         )
 
-        tir_schedule = s1.tir_resize2d_schedule(M, A, input_crouton_layout, output_layout)
+        tir_schedule = s1.tir_broadcast_schedule(M, A, input_crouton_layout, output_layout)
 
         sch = tir_schedule.mod
 
         input_axis_separator = [4]
-        if output_layout in (
-            "nhwc-8h2w32c2w-2d",
-            "nhwc-8h8w32c-2d",
-        ):
+        if output_layout == "nhwc-8h2w32c2w-2d":
             output_axis_separator = [4]
         else:
             raise RuntimeError(f"Unexpected layout '{output_layout}'")
@@ -180,15 +155,8 @@ class TestResize2d:
         # convert nd to np and reshape to fixed chunk size layout
         if output_layout == "nhwc-8h2w32c2w-2d":
             M_data_np = M_data_nd.numpy().reshape([b, h // 8, w // 4, c // 32, 8, 2, 32, 2])
-        elif output_layout == "nhwc-8h8w32c-2d":
-            M_data_np = M_data_nd.numpy().reshape([b, h // 8, w // 8, c // 32, 8, 8, 32])
 
-        if dtype == "float16":
-            np.testing.assert_allclose(
-                transformed_expected_output_np, M_data_np, rtol=1e-3, atol=1e-3
-            )
-        elif dtype == "int8" or dtype == "uint8":
-            np.testing.assert_allclose(transformed_expected_output_np, M_data_np, rtol=1, atol=1)
+        np.testing.assert_allclose(transformed_expected_output_np, M_data_np, rtol=1e-3, atol=1e-3)
 
 
 if __name__ == "__main__":
