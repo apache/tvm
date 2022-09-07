@@ -294,5 +294,42 @@ def test_meta_schedule_database_reload():
             _equal_record(ret[1], records[2])
 
 
+def test_meta_schedule_database_union():
+    mod: IRModule = Matmul
+    target = tvm.target.Target("llvm")
+    arg_info = ms.arg_info.ArgInfo.from_prim_func(func=mod["main"])
+    db_1 = ms.database.MemoryDatabase()
+    db_2 = ms.database.MemoryDatabase()
+    trace = _create_schedule(mod, _schedule_matmul).trace
+
+    def query(db):
+        return db.query_tuning_record(mod=mod, target=target, workload_name="main").run_secs
+
+    def commit_record(db, run_sec):
+        db.commit_tuning_record(
+            ms.database.TuningRecord(
+                trace,
+                workload=db.commit_workload(mod),
+                run_secs=[run_sec],
+                target=target,
+                args_info=arg_info,
+            )
+        )
+
+    commit_record(db_1, 1.0)
+    (run_sec,) = query(db_1)
+    assert run_sec.value == 1.0
+
+    commit_record(db_2, 0.5)
+    (run_sec,) = query(db_2)
+    assert run_sec.value == 0.5
+
+    (run_secs,) = query(ms.database.UnionDatabase(db_1, db_2))
+    assert run_secs.value == 0.5
+
+    (run_secs,) = query(ms.database.OrderedUnionDatabase(db_1, db_2))
+    assert run_secs.value == 1.0
+
+
 if __name__ == "__main__":
     tvm.testing.main()

@@ -571,9 +571,7 @@ def _create_header_file(tensor_name, npy_data, output_path, data_linkage):
         header_file.write("};\n\n")
 
 
-def convert_to_relay(
-    tflite_model_buf,
-):
+def convert_to_relay(tflite_model_buf, bind_params_by_name=True):
     """Convert a tflite model buffer in a Relay module"""
     # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
     try:
@@ -588,7 +586,8 @@ def convert_to_relay(
         raise ImportError("The tflite package must be installed")
 
     mod, params = relay.frontend.from_tflite(tflite_model)
-    mod["main"] = relay.build_module.bind_params_by_name(mod["main"], params)
+    if bind_params_by_name:
+        mod["main"] = relay.build_module.bind_params_by_name(mod["main"], params)
     return mod, params
 
 
@@ -931,20 +930,30 @@ def generate_ref_data(mod, input_data, params=None, target="llvm"):
     return dict(zip(output_tensor_names, out))
 
 
-def create_relay_module_and_inputs_from_tflite_file(tflite_model_file):
+def create_relay_module_and_inputs_from_tflite_file(tflite_model_file, bind_params_by_name=True):
     """A helper function to create a Relay IRModule with inputs
     and params from a tflite file"""
     with open(tflite_model_file, "rb") as f:
         tflite_model_buf = f.read()
-    mod, params = convert_to_relay(tflite_model_buf)
+    mod, params = convert_to_relay(tflite_model_buf, bind_params_by_name)
 
     inputs = dict()
     for param in mod["main"].params:
         name = str(param.name_hint)
         data_shape = [int(i) for i in param.type_annotation.shape]
         dtype = str(param.type_annotation.dtype)
-        in_min, in_max = (np.iinfo(dtype).min, np.iinfo(dtype).max)
-        data = np.random.randint(in_min, high=in_max, size=data_shape, dtype=dtype)
+        if np.issubdtype(dtype, np.floating):
+            # Since np.random.uniform only allows the ranges of float32,
+            # at first float16 is used and scaled afterwards, if necessary.
+            in_min, in_max = (np.finfo("float16").min, np.finfo("float16").max)
+            data = np.random.uniform(low=in_min, high=in_max, size=data_shape).astype(dtype)
+            scale = np.finfo(dtype).min / np.finfo("float16").min
+            data *= scale
+        elif np.issubdtype(dtype, np.integer):
+            in_min, in_max = (np.iinfo(dtype).min, np.iinfo(dtype).max)
+            data = np.random.randint(in_min, high=in_max, size=data_shape, dtype=dtype)
+        else:
+            raise TypeError(f"Type {dtype} not supported")
         inputs[name] = data
 
     return mod, inputs, params

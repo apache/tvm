@@ -104,12 +104,12 @@ def _apply_desired_layout_no_simd(relay_mod):
 
 @tvm.testing.requires_micro
 @pytest.mark.skip_boards(["mps2_an521"])
+@pytest.mark.xfail(reason="due https://github.com/apache/tvm/issues/12619")
 def test_armv7m_intrinsic(workspace_dir, board, west_cmd, microtvm_debug):
     """Testing a ARM v7m SIMD extension."""
-
     if board not in [
         "mps2_an521",
-        "stm32f746xx_disco",
+        "stm32f746g_disco",
         "nucleo_f746zg",
         "nucleo_l4r5zi",
         "nrf5340dk_nrf5340_cpuapp",

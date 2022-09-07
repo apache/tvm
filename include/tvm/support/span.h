@@ -68,7 +68,7 @@ class Span {
 
     inline bool operator!=(iterator_base<W1> other) { return !(*this == other); }
 
-    template <class X = W1, typename = std::enable_if_t<!std::is_const<X>::value> >
+    template <class X = W1, typename = std::enable_if_t<!std::is_const<X>::value>>
     inline operator iterator_base<const_W>() const {
       return iterator_base<const_W>(ptr_, end_);
     }

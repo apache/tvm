@@ -23,3 +23,8 @@ def conv2d_pattern():
     pattern = is_op("nn.conv2d")(wildcard(), wildcard())
     pattern = pattern.has_attr({"strides": [1, 1], "groups": 1})
     return pattern
+
+
+def dense_pattern():
+    pattern = is_op("nn.dense")(wildcard(), wildcard())
+    return pattern

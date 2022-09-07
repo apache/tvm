@@ -14,26 +14,25 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Defines functions to analyze available opcodes in the ARM ISA."""
+"""A database for injecting handcrafted schedule functions."""
+from typing import Callable
 
-import tvm.target
+from tvm._ffi import register_object
+from tvm.tir import Schedule
 
-
-ARM_MPROFILE_DSP_SUPPORT_LIST = [
-    "cortex-m7",
-    "cortex-m4",
-    "cortex-m33",
-    "cortex-m35p",
-    "cortex-m55",
-]
+from .. import _ffi_api
+from .database import Database
 
 
-class IsaAnalyzer(object):
-    """Checks ISA support for given target"""
+@register_object("meta_schedule.ScheduleFnDatabase")
+class ScheduleFnDatabase(Database):
+    """A database for injecting handcrafted schedule functions."""
 
-    def __init__(self, target):
-        self.target = tvm.target.Target(target)
-
-    @property
-    def has_dsp_support(self):
-        return self.target.mcpu is not None and self.target.mcpu in ARM_MPROFILE_DSP_SUPPORT_LIST
+    def __init__(
+        self,
+        schedule_fn: Callable[[Schedule], bool],
+    ) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.DatabaseScheduleFnDatabase,  # type: ignore # pylint: disable=no-member
+            schedule_fn,
+        )

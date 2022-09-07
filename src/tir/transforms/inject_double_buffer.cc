@@ -299,9 +299,9 @@ class DoubleBufferInjector : public StmtExprMutator {
   // The current loop next
   std::vector<const ForNode*> loop_nest_;
   // The allocs to be appended before the loop
-  std::unordered_map<const ForNode*, std::vector<Stmt> > loop_allocs_;
+  std::unordered_map<const ForNode*, std::vector<Stmt>> loop_allocs_;
   // The stmt to be appended before the loop
-  std::unordered_map<const ForNode*, std::vector<Stmt> > loop_pre_;
+  std::unordered_map<const ForNode*, std::vector<Stmt>> loop_pre_;
   // The allocation size of the buffer
   std::unordered_map<const VarNode*, StorageEntry> dbuffer_info_;
   // The updated Buffer objects

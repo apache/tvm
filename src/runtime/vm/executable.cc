@@ -97,11 +97,24 @@ PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Obje
       uint64_t byte_limit = args[1];
       MoveLateBoundConstantsToFile(path, static_cast<size_t>(byte_limit));
     });
+  } else if (name == "get_late_bound_consts") {
+    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
+      CHECK_EQ(args.size(), 1);
+      uint64_t byte_limit = args[0];
+      Map<String, NDArray> consts = GetLateBoundConstants(static_cast<size_t>(byte_limit));
+      *rv = consts;
+    });
   } else if (name == "load_late_bound_consts") {
     return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
       CHECK_EQ(args.size(), 1);
       std::string path = args[0];
       LoadLateBoundConstantsFromFile(path);
+    });
+  } else if (name == "load_late_bound_consts_from_map") {
+    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
+      CHECK_EQ(args.size(), 1);
+      Map<String, NDArray> map = args[0];
+      LoadLateBoundConstantsFromMap(map);
     });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
@@ -300,7 +313,7 @@ void Executable::SaveVirtualDevicesSection(dmlc::Stream* strm) {
   strm->Write(host_device_index);
 }
 
-void Executable::MoveLateBoundConstantsToStream(dmlc::Stream* stream, size_t byte_limit) {
+Map<String, NDArray> Executable::GetLateBoundConstants(size_t byte_limit) {
   ICHECK(late_bound_constant_names.empty());
   late_bound_constant_names.reserve(constants.size());
   Map<String, NDArray> map;
@@ -323,6 +336,11 @@ void Executable::MoveLateBoundConstantsToStream(dmlc::Stream* stream, size_t byt
   }
   VLOG(1) << "moved " << map.size() << " constants of " << total_late_bound_bytes
           << " bytes (out of " << constants.size() << " overall) to be late-bound";
+  return map;
+}
+
+void Executable::MoveLateBoundConstantsToStream(dmlc::Stream* stream, size_t byte_limit) {
+  Map<String, NDArray> map = GetLateBoundConstants(byte_limit);
   runtime::SaveParams(stream, map);
 }
 
@@ -341,6 +359,10 @@ void Executable::LoadLateBoundConstantsFromStream(dmlc::Stream* stream) {
   ICHECK_EQ(late_bound_constant_names.size(), constants.size());
   Map<String, NDArray> map = runtime::LoadParams(stream);
   VLOG(1) << "loaded " << map.size() << " late-bound constants";
+  LoadLateBoundConstantsFromMap(map);
+}
+
+void Executable::LoadLateBoundConstantsFromMap(Map<String, NDArray> map) {
   for (size_t const_index = 0; const_index < constants.size(); ++const_index) {
     if (!late_bound_constant_names[const_index].defined()) {
       ICHECK(constants[const_index].defined())

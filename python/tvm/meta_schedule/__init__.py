@@ -30,7 +30,6 @@ from . import (
     search_strategy,
     space_generator,
 )
-from .apply_history_best import ApplyHistoryBest
 from .extracted_task import ExtractedTask
 from .profiler import Profiler
 from .relay_integration import (

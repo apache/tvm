@@ -46,7 +46,9 @@ String ScheduleError::RenderReport(const String& primitive) const {
       runtime::TypedPackedFunc<std::string(Stmt)>(
           [&loc_obj_to_name](const Stmt& expr) -> std::string {
             auto it = loc_obj_to_name.find(Downcast<ObjectRef>(expr));
-            if (it == loc_obj_to_name.end()) return "";
+            if (it == loc_obj_to_name.end()) {
+              return "";
+            }
             return it->second;
           });
 

@@ -19,6 +19,11 @@
 import logging
 from typing import Callable, List, Optional
 
+# isort: off
+from typing_extensions import Literal
+
+# isort: on
+
 from tvm._ffi import register_object
 from tvm.runtime import Object
 
@@ -255,3 +260,18 @@ class PyTaskScheduler:
         """
         # Using self._outer to replace the self pointer
         _ffi_api.TaskSchedulerTouchTask(self._outer(), task_id)  # type: ignore # pylint: disable=no-member
+
+
+def create(  # pylint: disable=keyword-arg-before-vararg
+    kind: Literal["round-robin", "gradient"] = "gradient",
+    *args,
+    **kwargs,
+) -> "TaskScheduler":
+    """Create a task scheduler."""
+    from . import GradientBased, RoundRobin  # pylint: disable=import-outside-toplevel
+
+    if kind == "round-robin":
+        return RoundRobin(*args, **kwargs)
+    if kind == "gradient":
+        return GradientBased(*args, **kwargs)
+    raise ValueError(f"Unknown TaskScheduler name: {kind}")

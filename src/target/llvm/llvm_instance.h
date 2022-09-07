@@ -38,6 +38,7 @@
 #include <tvm/runtime/container/string.h>
 #include <tvm/target/target.h>
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <utility>
@@ -57,8 +58,9 @@ class LLVMTarget;
 
 /*!
  * \class LLVMInstance
- * \brief LLVMInstance is a class that (conceptually) starts and stops LLVM. All
- * uses of LLVM should take place within a lifetime of an object of this class.
+ * \brief LLVMInstance is a class that (conceptually) starts and stops LLVM.
+ *        All uses of LLVM should take place within a lifetime of an object
+ *        of this class.
  *
  * E.g.
  * ```{.cpp}
@@ -128,60 +130,48 @@ class LLVMInstance {
 };
 
 /*!
- * \class LLVMTarget
- * \brief Information used by LLVM for code generation for particular target
+ * \class LLVMTargetInfo
+ * \brief Summary of information for this TVM target relevant to LLVM code
+ *        generation.
  *
  * This class contains all information that LLVM needs for code generation for
- * a particular target. Since Target in TVM will soon contain command line
- * flags for LLVM, objects of this class will handle saving and restoring
- * global LLVM state that may be affected by these flags. This way, code
- * generation for each LLVM-based target in TVM will start with the same LLVM
- * global state.
+ * a particular target. The purpose of this class is only to provide information
+ * in an easily-accessible form (for example for querying the target properties).
  *
  * Note that objects of this class must be created within the lifetime of an
  * LLVMInstance object.
  */
-class LLVMTarget {
+class LLVMTargetInfo {
  public:
   /*!
-   * \brief Constructs LLVMTarget from `Target`
+   * \brief Constructs LLVMTargetInfo from `Target`
    * \param scope LLVMInstance object
    * \param target TVM Target object for target "llvm"
    */
-  LLVMTarget(LLVMInstance& scope, const Target& target);  // NOLINT(runtime/references)
+  LLVMTargetInfo(LLVMInstance& scope, const Target& target);  // NOLINT(runtime/references)
   /*!
-   * \brief Constructs LLVMTarget from target string
+   * \brief Constructs LLVMTargetInfo from target string
    * \param scope LLVMInstance object
    * \param target TVM target string for target "llvm"
    */
-  LLVMTarget(LLVMInstance& scope, const std::string& target_str);  // NOLINT(runtime/references)
+  // NOLINTNEXTLINE(runtime/references)
+  LLVMTargetInfo(LLVMInstance& scope, const std::string& target_str);
   /*!
-   * \brief Destroys LLVMTarget object
+   * \brief Destroys LLVMTargetInfo object
    */
-  ~LLVMTarget();
+  ~LLVMTargetInfo();
 
   /*!
-   * \brief Returns string representation (as TVM target) of the LLVMTarget
+   * \brief Returns string representation (as TVM target) of the LLVMTargetInfo
    * \return Target string
    *
-   * Note: If the LLVMTarget object was created from a string `s`, the string
+   * Note: If the LLVMTargetInfo object was created from a string `s`, the string
    * returned here may not be exactly equal to `s`. For example, if the CPU
    * was "default", the returned string will have CPU set to the detected host
    * CPU.
    */
   std::string str() const;
 
-  /*!
-   * \brief Get the LLVMInstance object from which the LLVMTarget object was
-   *        created
-   * \return The enclosing LLVMInstance object
-   */
-  const LLVMInstance& GetInstance() const { return instance_; }
-  /*!
-   * \brief Get the current LLVM context
-   * \return the current LLVM context
-   */
-  llvm::LLVMContext* GetContext() const;
   /*!
    * \brief Return LLVM's `TargetMachine`, or nullptr
    * \param allow_missing do not abort if the target machine cannot be created,
@@ -229,6 +219,125 @@ class LLVMTarget {
   llvm::CodeGenOpt::Level GetOptLevel() const { return opt_level_; }
 
   /*!
+   * \class Option
+   * \brief Internal representation of command-line option
+   */
+  struct Option {
+    enum class OptType {
+      Invalid = 0,  //!< placeholder, indicates parsing error
+      Bool,         //!< enum value corresponding to type string "bool"
+      Int,          //!< enum value corresponding to type string "int"
+      UInt,         //!< enum value corresponding to type string "uint"
+      String,       //!< enum value corresponding to type string "string"
+    };
+    std::string name;  //!< option name
+    OptType type;      //!< type of the option value
+    struct {
+      union {
+        bool b;          //!< bool option value
+        int i;           //!< int option value
+        unsigned u = 0;  //!< unsigned option value
+      };
+      std::string s;  //!< string option value
+    } value;          //!< option value specified in the option string
+  };
+
+  /*!
+   * \brief Get LLVM command line options
+   * \return the list of LLVM command line options specified for this target
+   */
+  const std::vector<Option>& GetCommandLineOptions() const { return llvm_options_; }
+
+  /*!
+   * \brief Parse a string from the `cl-opt` target attribute
+   * \param str the option string
+   * \return parsed `Option` object, if parsing failed the type member will be
+   *         set to `Option::OptType::Invalid`
+   */
+  static Option ParseOptionString(const std::string& str);
+
+  /*!
+   * \brief Checks if the settings in this object that describe global state
+   *        match the current global state
+   * \return true or false correspondingly
+   * \note The global state can be modified by command line options. This
+   *       function checks if the specified options differ from their current
+   *       values.
+   */
+  bool MatchesGlobalState() const;
+
+ protected:
+  /*!
+   * \brief Get the current value of given LLVM option
+   * \param opt Option with "type" and "name" set
+   * Fills in the "value" field in the provided Option argument, or sets the
+   * "type" to Invalid if the option value cannot be obtained.
+   */
+  void GetOptionValue(Option* opt) const;
+
+ private:
+  std::string triple_;
+  std::string cpu_;
+  std::vector<std::string> attrs_;
+  std::vector<Option> llvm_options_;
+  llvm::TargetOptions target_options_;
+  llvm::FastMathFlags fast_math_flags_;
+  llvm::CodeGenOpt::Level opt_level_;
+  llvm::Reloc::Model reloc_model_ = llvm::Reloc::PIC_;
+  llvm::CodeModel::Model code_model_ = llvm::CodeModel::Small;
+  std::shared_ptr<llvm::TargetMachine> target_machine_;
+};
+
+/*!
+ * \class LLVMTarget
+ * \brief Information used by LLVM for code generation for particular target
+ *
+ * In addition to all information that LLVM needs for code generation for
+ * a particular target, objects of this class handle saving and restoring
+ * global LLVM state that may be affected by these flags. This way, code
+ * generation for each LLVM-based target in TVM will start with the same LLVM
+ * global state.
+ *
+ * Note that objects of this class must be created within the lifetime of an
+ * LLVMInstance object.
+ */
+class LLVMTarget : public LLVMTargetInfo {
+ public:
+  /*!
+   * \brief Constructs LLVMTarget from `Target`
+   * \param scope LLVMInstance object
+   * \param target_info Target info object for target "llvm"
+   */
+  LLVMTarget(LLVMInstance& scope, const LLVMTargetInfo& target_info);  // NOLINT(runtime/references)
+  /*!
+   * \brief Constructs LLVMTarget from `Target`
+   * \param scope LLVMInstance object
+   * \param target TVM Target object for target "llvm"
+   */
+  LLVMTarget(LLVMInstance& scope, const Target& target);  // NOLINT(runtime/references)
+  /*!
+   * \brief Constructs LLVMTarget from target string
+   * \param scope LLVMInstance object
+   * \param target TVM target string for target "llvm"
+   */
+  LLVMTarget(LLVMInstance& scope, const std::string& target_str);  // NOLINT(runtime/references)
+  /*!
+   * \brief Destroys LLVMTarget object
+   */
+  ~LLVMTarget();
+
+  /*!
+   * \brief Get the LLVMInstance object from which the LLVMTarget object was
+   *        created
+   * \return The enclosing LLVMInstance object
+   */
+  const LLVMInstance& GetInstance() const { return instance_; }
+  /*!
+   * \brief Get the current LLVM context
+   * \return the current LLVM context
+   */
+  llvm::LLVMContext* GetContext() const;
+  /*!
    * \brief Extract the target string from given `llvm::Module`
    * \param module LLVM module with the TVM target string embedded as metadata
    * \return the target string from module's metadata
@@ -245,18 +354,27 @@ class LLVMTarget {
   void ExitWithScope() {}
 
  private:
+  std::vector<Option> saved_llvm_options_;
+
+  /*!
+   * \brief Apply or revert command-line LLVM options
+   * \param apply_otherwise_revert if true, apply the options (saving previous
+   *        values, if false, then restore the saved values
+   * \param dry_run if true, do not make any changes (or save anything)
+   * \return true is changes were made (or would have been made in a dry run),
+   *         false otherwise
+   */
+  bool ApplyLLVMOptions(bool apply_otherwise_revert, bool dry_run = false);
+
   const LLVMInstance& instance_;
   std::weak_ptr<llvm::LLVMContext> ctx_;
 
-  std::string triple_;
-  std::string cpu_;
-  std::vector<std::string> attrs_;
-  llvm::TargetOptions target_options_;
-  llvm::FastMathFlags fast_math_flags_;
-  llvm::CodeGenOpt::Level opt_level_;
-  llvm::Reloc::Model reloc_model_ = llvm::Reloc::PIC_;
-  llvm::CodeModel::Model code_model_ = llvm::CodeModel::Small;
-  std::shared_ptr<llvm::TargetMachine> target_machine_;
+  /*!
+   * \brief Global singleton flag indicating whether LLVM's global state has
+   *        been modified or not (via command-line flags). There can only be
+   *        a single such modification in effect at any given time.
+   */
+  static bool modified_llvm_state_;
 };
 
 }  // namespace codegen

@@ -26,14 +26,18 @@ import pytest
 
 from tvm.contrib.utils import tempdir
 
-from .utils import get_supported_boards
+from .utils import get_supported_platforms, get_supported_boards
 
 
 def pytest_addoption(parser):
     """Adds more pytest arguments"""
     parser.addoption(
+        "--platform",
+        choices=get_supported_platforms(),
+        help=("microTVM platform for tests."),
+    )
+    parser.addoption(
         "--board",
-        required=True,
         choices=list(get_supported_boards("zephyr").keys())
         + list(get_supported_boards("arduino").keys()),
         help=(
@@ -58,9 +62,25 @@ def pytest_addoption(parser):
     )
 
 
-@pytest.fixture(scope="session")
-def board(request):
-    return request.config.getoption("--board")
+def pytest_generate_tests(metafunc):
+    """Hooks into pytest to add platform and board fixtures to tests that
+    require them. To make sure that "platform" and "board" are treated as
+    parameters for the appropriate tests (and included in the test names),
+    we add them as function level parametrizations. This prevents data
+    from being overwritten in Junit XML files if multiple platforms
+    or boards are tested."""
+
+    for argument in ["platform", "board"]:
+        if argument in metafunc.fixturenames:
+            value = metafunc.config.getoption(f"--{argument}", default=None)
+
+            if not value:
+                raise ValueError(
+                    f"Test {metafunc.function.__name__} in module {metafunc.module.__name__} "
+                    f"requires a --{argument} argument, but none was given."
+                )
+
+            metafunc.parametrize(argument, [metafunc.config.getoption(f"--{argument}")])
 
 
 @pytest.fixture(scope="session")

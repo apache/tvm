@@ -450,7 +450,7 @@ class TracedBasicValue {
    * \brief Transform the wrapped value without changing its path.
    */
   template <typename F>
-  typename detail::TracedObjectWrapperSelector<typename std::result_of<F(const T&)>::type>::Type
+  typename detail::TracedObjectWrapperSelector<typename std::invoke_result<F, const T&>::type>::Type
   ApplyFunc(F&& f) const {
     return MakeTraced(f(value_), path_);
   }

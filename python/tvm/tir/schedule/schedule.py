@@ -1012,7 +1012,11 @@ class Schedule(Object):
 
     @type_checked
     def cache_read(
-        self, block: Union[BlockRV, str], read_buffer_index: int, storage_scope: str
+        self,
+        block: Union[BlockRV, str],
+        read_buffer_index: Union[int, str, Buffer],
+        storage_scope: str,
+        consumer_blocks: Optional[List[Union[BlockRV, str]]] = None,
     ) -> BlockRV:
         """Create a block that reads a buffer region into a read cache. It requires:
 
@@ -1025,11 +1029,17 @@ class Schedule(Object):
         block : Union[BlockRV, str]
             The consumer block of the target buffer.
 
-        read_buffer_index: int
-            The index of the buffer in block's read region.
+        buffer: Union[int, str, Buffer]
+            The index of the buffer in block's read region, the unique
+            name of a read buffer in the block, or a Buffer object
+            that is within the blocks read region.
 
         storage_scope: str
             The target storage scope.
+
+        consumer_blocks: Optional[List[Union[BlockRV, str]]]
+            An optional list of consumers that should read from the cache. If not specified,
+            all consumers will use the cache.
 
         Returns
         -------
@@ -1079,14 +1089,27 @@ class Schedule(Object):
                         B[vi, vj] = A_local[vi, vj] * 2.0
 
         """
+        if consumer_blocks is None:
+            consumer_blocks = []
+
+        # Convert any string block names into Block RVs.
+        consumer_blocks = [self._normalize_block_arg(b) for b in consumer_blocks]
         block = self._normalize_block_arg(block)
+
+        if not isinstance(read_buffer_index, int):
+            _, read_buffer_index, _ = self._normalize_buffer_arg(
+                block, read_buffer_index, required_buffer_type="read"
+            )
         return _ffi_api.ScheduleCacheRead(  # type: ignore # pylint: disable=no-member
-            self, block, read_buffer_index, storage_scope
+            self, block, read_buffer_index, storage_scope, consumer_blocks
         )
 
     @type_checked
     def cache_write(
-        self, block: Union[BlockRV, str], write_buffer_index: int, storage_scope: str
+        self,
+        block: Union[BlockRV, str],
+        write_buffer_index: Union[int, str, Buffer],
+        storage_scope: str,
     ) -> BlockRV:
         """Create a block that reads a buffer region into a write cache. It requires:
 
@@ -1100,7 +1123,9 @@ class Schedule(Object):
             The producer block of the target buffer.
 
         write_buffer_index: int
-            The index of the buffer in block's write region.
+            The index of the buffer in block's write region, the unique
+            name of a write buffer in the block, or a Buffer object
+            that is within the blocks write region.
 
         storage_scope: str
             The target storage scope.
@@ -1155,6 +1180,11 @@ class Schedule(Object):
 
         """
         block = self._normalize_block_arg(block)
+
+        if not isinstance(write_buffer_index, int):
+            _, write_buffer_index, _ = self._normalize_buffer_arg(
+                block, write_buffer_index, required_buffer_type="write"
+            )
         return _ffi_api.ScheduleCacheWrite(  # type: ignore # pylint: disable=no-member
             self, block, write_buffer_index, storage_scope
         )
@@ -1261,6 +1291,7 @@ class Schedule(Object):
         block: Union[BlockRV, str],
         loop: LoopRV,
         preserve_unit_loops: bool = False,
+        index: int = -1,
     ) -> None:
         """Compute-At. Move a producer block under the specific loop, and regenerate the
         loops induced by the block so that the buffer region produced by the producer block could
@@ -1289,6 +1320,12 @@ class Schedule(Object):
 
         preserve_unit_loops: bool
             Whether to keep the trivial loops whose extents are 1
+
+        index: int
+            The block index of the loop body subtree blocks:
+            - `index = -1` means inserted into the last possible insertion point;
+            - `index = -2` means inserted into the first possible insertion point;
+            - Otherwise, `index` is a nonnegative number that indicates the insertion point
 
         Examples
         --------
@@ -1347,6 +1384,7 @@ class Schedule(Object):
             block,
             loop,
             preserve_unit_loops,
+            index,
         )
 
     @type_checked
@@ -1355,6 +1393,7 @@ class Schedule(Object):
         block: Union[BlockRV, str],
         loop: LoopRV,
         preserve_unit_loops: bool = False,
+        index: int = -1,
     ) -> None:
         """Reverse-Compute-At. Move a consumer block under the specific loop, and regenerate the
         loops induced by the block so that the buffer region consumed by the consumer block could
@@ -1380,6 +1419,12 @@ class Schedule(Object):
 
         preserve_unit_loops: bool
             Whether to keep the trivial loops whose extents are 1
+
+        index: int
+            The block index of the loop body subtree blocks:
+            - `index = -1` means inserted into the last possible insertion point;
+            - `index = -2` means inserted into the first possible insertion point;
+            - Otherwise, `index` is a nonnegative number that indicates the insertion point
 
         Examples
         --------
@@ -1438,6 +1483,7 @@ class Schedule(Object):
             block,
             loop,
             preserve_unit_loops,
+            index,
         )
 
     @type_checked
@@ -2323,7 +2369,10 @@ class Schedule(Object):
         return block
 
     def _normalize_buffer_arg(
-        self, block: BlockRV, buffer: Union[Tuple[str, int], str, Buffer]
+        self,
+        block: BlockRV,
+        buffer: Union[Tuple[str, int], int, str, Buffer],
+        required_buffer_type=None,
     ) -> Tuple[str, int, Buffer]:
 
         block_obj: Block = self.get(block)
@@ -2334,6 +2383,9 @@ class Schedule(Object):
                 yield "read", i, read.buffer
             for i, write in enumerate(block_obj.writes):
                 yield "write", i, write.buffer
+
+        if isinstance(buffer, int):
+            buffer = (required_buffer_type, buffer)
 
         if isinstance(buffer, str):
             possible_buffers = {}
@@ -2375,6 +2427,13 @@ class Schedule(Object):
 
         else:
             raise TypeError(f"Invalid type for argument 'buffer': {type(buffer)}")
+
+        if required_buffer_type is not None:
+            assert buffer_index_type == required_buffer_type, (
+                f"Expected buffer to be read buffer, "
+                f"but {buffer_obj.name} was a {buffer_index_type} buffer "
+                f"in the specified block"
+            )
 
         return (buffer_index_type, buffer_index, buffer_obj)
 
