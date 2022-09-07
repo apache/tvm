@@ -97,10 +97,9 @@ def test_resize(dtype, shape, size, coordinate_transformation_mode, rounding_met
 
 
 @requires_ethosn
-def test_resize_failure():
-    """Check Resize error messages."""
-
-    trials = [
+@pytest.mark.parametrize(
+    "size,err_msg",
+    [
         (
             (30, 20),
             "Requested height isn't supported",
@@ -117,22 +116,25 @@ def test_resize_failure():
             (20, 19),
             "Requested width and height must be both even or both odd",
         ),
-    ]
+    ],
+)
+def test_resize_failure(size, err_msg):
+    """Check Resize error messages."""
+
     dtype = "int8"
     zp_min = np.iinfo(dtype).min
 
-    for size, err_msg in trials:
-        model = _get_model(
-            shape=(1, 10, 10, 1),
-            dtype=dtype,
-            size=size,
-            input_zp=zp_min + 128,
-            input_sc=0.0784314,
-            output_zp=zp_min + 128,
-            output_sc=0.0784314,
-            coordinate_transformation_mode="half_pixel",
-            rounding_method="round_prefer_ceil",
-        )
-        model = tei.make_ethosn_composite(model, "ethos-n.qnn_resize")
-        mod = tei.make_ethosn_partition(model)
-        tei.test_error(mod, {}, err_msg)
+    model = _get_model(
+        shape=(1, 10, 10, 1),
+        dtype=dtype,
+        size=size,
+        input_zp=zp_min + 128,
+        input_sc=0.0784314,
+        output_zp=zp_min + 128,
+        output_sc=0.0784314,
+        coordinate_transformation_mode="half_pixel",
+        rounding_method="round_prefer_ceil",
+    )
+    model = tei.make_ethosn_composite(model, "ethos-n.qnn_resize")
+    mod = tei.make_ethosn_partition(model)
+    tei.test_error(mod, {}, err_msg)

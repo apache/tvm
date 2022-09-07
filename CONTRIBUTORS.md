@@ -46,6 +46,7 @@ We do encourage everyone to work anything they are interested in.
 - [Chenfan Jia](https://github.com/jcf94): @jcf94 - auto_scheduler
 - [Ziheng Jiang](https://github.com/ZihengJiang) (PMC): @ZihengJiang - relay, compiler
 - [Manupa Karunaratne](https://github.com/manupa-arm): @manupa-arm - ethos-u, memory planner
+- [Elen Kalda](https://github.com/ekalda): @ekalda - ethos-u, arm
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame - relay
 - [Tristan Konolige](https://github.com/tkonolige): @tkonolige - profiling, relay, tir, runtime
 - [Ruihang Lai](https://github.com/MasterJH5574): @MasterJH5574 - tir, tvm-script
@@ -92,6 +93,7 @@ We do encourage everyone to work anything they are interested in.
 - [Matthew Barrett](https://github.com/mbaret): @mbaret
 - [Arnaud Bergeron](https://github.com/abergeron): @abergeron
 - [Matthew Brookhart](https://github.com/mbrookhart): @mbrookhart
+- [Yaxing Cai](https://github.com/cyx-6): @cyx-6
 - [Liangfu Chen](https://github.com/liangfu): @liangfu
 - [Tianqi Chen](https://github.com/tqchen): @tqchen
 - [Zhi Chen](https://github.com/zhiics): @zhiics
