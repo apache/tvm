@@ -2483,7 +2483,18 @@ class Schedule(Object):
         pad_value: Optional[Union[int, float, PrimExpr, IndexMap, Callable]]
 
             The value to be used for any padding introduced by the
-            transformation.
+            transformation.  If the schedule contains a producer block
+            for the specified buffer, the pad value will be written as
+            part of the producer block if possible, or after the producer
+            block otherwise.  Otherwise, if the buffer is an input, will
+            insert an annotation block to state that the padding contains
+            the known value.
+
+            Note: If applied to an input buffer, the calling scope is
+            responsible for ensuring that the pad_value is present.
+            Algebraic symplifications, branch elimination, and other
+            optimizations may assume that this precondition is met, and
+            may result in incorrect results being returned.
 
             If None, the transformation may not introduce padding.
 
