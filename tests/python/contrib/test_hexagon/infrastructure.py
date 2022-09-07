@@ -295,6 +295,8 @@ def transform_numpy(arr_np, current_layout: str, new_layout: str):
             return arr_np.reshape([n, c // 1024, 1024])
         if new_layout in ["nc-512c-2d"]:
             return arr_np.reshape([n, c // 512, 512])
+        if new_layout in ["nc-2048c-2d"]:
+            return arr_np.reshape([n, c // 2048, 2048])
         raise RuntimeError(f"Unexpected new_layout '{new_layout}'")
 
     if current_layout == "nhw":

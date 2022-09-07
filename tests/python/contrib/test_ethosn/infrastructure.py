@@ -21,6 +21,9 @@ from __future__ import absolute_import, print_function
 from hashlib import md5
 from itertools import zip_longest, combinations
 import os
+from typing import Tuple
+import math
+
 import numpy as np
 from PIL import Image
 
@@ -28,6 +31,7 @@ import tvm
 from tvm import relay
 from tvm.contrib import utils, graph_executor, download
 from tvm.relay.op.contrib import partition_for_ethosn
+
 from . import _infrastructure
 
 
@@ -338,6 +342,45 @@ def get_conv2d_qnn_params(
     output_sc = (output_max - output_min) / (dtype_max - dtype_min)
     output_zp = int(dtype_min - (output_min / output_sc))
     return output_zp, output_sc
+
+
+def get_same_padding(
+    data: Tuple[int, int],
+    kernel: Tuple[int, int],
+    dilation: Tuple[int, int],
+    stride: Tuple[int, int],
+) -> Tuple[int, int, int, int]:
+    """
+    Get the padding values required for 'SAME' padding.
+
+    Parameters
+    ----------
+    data : Tuple[int, int]
+        The height and width of the data respectively.
+    kernel : Tuple[int, int]
+        The height and width of the kernel respectively.
+    dilation : Tuple[int, int]
+        The dilation of the kernel.
+    stride : Tuple[int, int]
+        The stride of the kernel.
+
+    Returns
+    -------
+    Tuple[int, int, int, int]
+        The padding values for top, left, bottom and right respectively.
+    """
+    dilated_kernel_h = dilation[0] * (kernel[0] - 1) + 1
+    dilated_kernel_w = dilation[1] * (kernel[1] - 1) + 1
+    out = int(math.ceil(float(data[0]) / float(stride[0])))
+    pad = max(0, (out - 1) * stride[0] + dilated_kernel_h - data[0])
+    pad_top = pad // 2
+    pad_bottom = pad - pad_top
+
+    out = int(math.ceil(float(data[1]) / float(stride[1])))
+    pad = max(0, (out - 1) * stride[1] + dilated_kernel_w - data[1])
+    pad_left = pad // 2
+    pad_right = pad - pad_left
+    return (pad_top, pad_left, pad_bottom, pad_right)
 
 
 def get_ethosn_variant():
