@@ -1323,19 +1323,22 @@ class BlockRealizeNode : public StmtNode {
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("iter_values", &iter_values);
-    v->Visit("predicate", &predicate);
     v->Visit("block", &block);
+    v->Visit("predicate", &predicate);
   }
 
   bool SEqualReduce(const BlockRealizeNode* other, SEqualReducer equal) const {
-    return equal(iter_values, other->iter_values) && equal(predicate, other->predicate) &&
-           equal(block, other->block);
+    // Need to reduce the block before the predicate, because the
+    // predicate may be in terms of the iter_vars defined in the
+    // block.
+    return equal(iter_values, other->iter_values) && equal(block, other->block) &&
+           equal(predicate, other->predicate);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(iter_values);
-    hash_reduce(predicate);
     hash_reduce(block);
+    hash_reduce(predicate);
   }
 
   static constexpr const char* _type_key = "tir.BlockRealize";

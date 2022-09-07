@@ -2580,6 +2580,18 @@ def predicate():
     return predicate
 
 
+def predicate_using_iter_vars():
+    @T.prim_func
+    def func(A: T.Buffer[(4, 4), "int32"]) -> None:
+        for i, j in T.grid(4, 4):
+            with T.block("buffer_A_padding"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                T.where(vi == 3 and 2 <= vj)
+                T.evaluate(0)
+
+    return func
+
+
 def test_module_define():
     func1 = tvm.ir.IRModule({"matmul": matmul()})["matmul"]
     func2 = tvm.ir.IRModule({"element_wise": element_wise()})["element_wise"]
@@ -2629,6 +2641,12 @@ def test_predicate():
     assert isinstance(rt_func.body.block.body.body, tir.stmt.For)
     assert isinstance(rt_func.body.block.body.body.body, tir.stmt.For)
     assert isinstance(rt_func.body.block.body.body.body.body.block, tir.stmt.Block)
+
+
+def test_predicate_using_iter_vars():
+    func = predicate_using_iter_vars()
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    tvm.ir.assert_structural_equal(func, rt_func)
 
 
 def for_thread_binding():
