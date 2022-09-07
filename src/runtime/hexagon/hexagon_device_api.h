@@ -45,10 +45,24 @@ class HexagonDeviceAPI final : public DeviceAPI {
   static HexagonDeviceAPI* Global();
 
   //! \brief Constructor
-  HexagonDeviceAPI() {}
+  HexagonDeviceAPI() { hexbuffs = std::make_unique<HexagonBufferManager>(); }
 
   //! \brief Destructor
   ~HexagonDeviceAPI() {}
+
+  //! \brief Ensures we have a clean state to begin the runtime
+  void AcquireResources() {
+    CHECK_EQ(hexbuffs->empty(), true);
+  }
+
+  //! \brief Ensures we have freed all resources when we end the runtime
+  void ReleaseResources()  {
+    if (!hexbuffs->empty()) { 
+      LOG(INFO) << "hexbuffs was not empty";
+      // hexbuffs.reset();
+      // hexbuffs = std::make_unique<HexagonBufferManager>();
+    }
+  } 
 
   /*! \brief Currently unimplemented interface to specify the active
    *  Hexagon device.
@@ -137,8 +151,8 @@ class HexagonDeviceAPI final : public DeviceAPI {
            (DLDeviceType(dev.device_type) == kDLCPU);
   }
 
-  //! \brief Manages underlying HexagonBuffer allocations
-  HexagonBufferManager hexbuffs;
+  //! \brief Manages underlying HexagonBuffer allocations 
+  std::unique_ptr<HexagonBufferManager> hexbuffs;
 };
 }  // namespace hexagon
 }  // namespace runtime

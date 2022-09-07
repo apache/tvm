@@ -69,6 +69,9 @@ class HexagonBufferManager {
     return nullptr;
   }
 
+  //! \brief Returns whether the HexagonBufferManager has any allocations.
+  bool empty() { return hexagon_buffer_map_.empty(); }
+
  private:
   //! \brief Contains the HexagonBuffer objects managed by this class.
   std::unordered_map<void*, std::unique_ptr<HexagonBuffer>> hexagon_buffer_map_;
