@@ -213,10 +213,22 @@ class LayoutTransformPlanner : private StmtExprVisitor {
       return std::nullopt;
     }
 
+    Array<IterVar> iter_vars;
+    Array<PrimExpr> iter_values;
     Array<PrimExpr> indices;
-    for (const auto& var : inverse->initial_indices) {
-      indices.push_back(var);
+    Map<Var, PrimExpr> loop_indices_to_block_indices;
+    ICHECK_EQ(inverse->initial_indices.size(), new_buffer->shape.size());
+    for (size_t i = 0; i < inverse->initial_indices.size(); i++) {
+      const auto& loop_var = inverse->initial_indices[i];
+      const auto& dim = new_buffer->shape[i];
+      Var block_var("v_" + loop_var->name_hint, loop_var->dtype);
+      IterVar iter_var(Range(0, dim), block_var, kDataPar);
+      loop_indices_to_block_indices.Set(loop_var, block_var);
+      indices.push_back(iter_var->var);
+      iter_vars.push_back(iter_var);
+      iter_values.push_back(loop_var);
     }
+    padding_predicate = Substitute(std::move(padding_predicate), loop_indices_to_block_indices);
 
     PrimExpr expr = (!padding_predicate) || (BufferLoad(new_buffer, indices) == pad_value.value());
     Stmt stmt = Evaluate(Call(DataType::Bool(), builtin::assume(), {expr}));
@@ -224,7 +236,8 @@ class LayoutTransformPlanner : private StmtExprVisitor {
     std::stringstream block_name;
     block_name << "buffer_" << new_buffer->name << "_assumptions";
     auto read_region = BufferRegion::FromPoint(new_buffer, indices);
-    stmt = BlockRealize({}, Bool(true), Block({}, {read_region}, {}, block_name.str(), stmt));
+    stmt = BlockRealize(iter_values, Bool(true),
+                        Block(iter_vars, {read_region}, {}, block_name.str(), stmt));
 
     for (size_t rev_i = 0; rev_i < inverse->initial_indices.size(); rev_i++) {
       size_t i = (inverse->initial_indices.size() - 1) - rev_i;
@@ -283,7 +296,7 @@ class LayoutTransformPlanner : private StmtExprVisitor {
             break;
           }
         }
-        if (block_index_start >= iter_vars.size() - old_indices.size()) {
+        if (block_index_start > iter_vars.size() - old_indices.size()) {
           return no_change;
         }
 
@@ -429,18 +442,30 @@ class LayoutTransformPlanner : private StmtExprVisitor {
       return std::nullopt;
     }
 
+    Array<IterVar> iter_vars;
+    Array<PrimExpr> iter_values;
     Array<PrimExpr> indices;
-    for (const auto& var : inverse->initial_indices) {
-      indices.push_back(var);
+    Map<Var, PrimExpr> loop_indices_to_block_indices;
+    ICHECK_EQ(inverse->initial_indices.size(), new_buffer->shape.size());
+    for (size_t i = 0; i < inverse->initial_indices.size(); i++) {
+      const auto& loop_var = inverse->initial_indices[i];
+      const auto& dim = new_buffer->shape[i];
+      Var block_var("v_" + loop_var->name_hint, loop_var->dtype);
+      IterVar iter_var(Range(0, dim), block_var, kDataPar);
+      loop_indices_to_block_indices.Set(loop_var, block_var);
+      indices.push_back(iter_var->var);
+      iter_vars.push_back(iter_var);
+      iter_values.push_back(loop_var);
     }
+    padding_predicate = Substitute(std::move(padding_predicate), loop_indices_to_block_indices);
 
     Stmt stmt = BufferStore(new_buffer, pad_value.value(), indices);
 
     std::stringstream block_name;
     block_name << "buffer_" << new_buffer->name << "_padding";
     auto write_region = BufferRegion::FromPoint(new_buffer, indices);
-    stmt =
-        BlockRealize({}, padding_predicate, Block({}, {}, {write_region}, block_name.str(), stmt));
+    stmt = BlockRealize(iter_values, padding_predicate,
+                        Block(iter_vars, {}, {write_region}, block_name.str(), stmt));
 
     ICHECK_EQ(inverse->initial_indices.size(), new_buffer->shape.size());
     for (size_t rev_i = 0; rev_i < inverse->initial_indices.size(); rev_i++) {
