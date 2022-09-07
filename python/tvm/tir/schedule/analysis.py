@@ -68,7 +68,7 @@ class TensorizeInfo(Object):
 
 
 def get_tensorize_loop_mapping(
-    sch: Schedule, block: BlockRV, desc_func: PrimFunc
+    sch: Schedule, block: BlockRV, desc_func: PrimFunc, allow_padding: bool = False
 ) -> Optional[TensorizeInfo]:
     """Establish a mapping between loops in a target block and an intrinsic description
 
@@ -80,13 +80,14 @@ def get_tensorize_loop_mapping(
         The target block to match against
     desc_func : PrimFunc
         The prim func describing the computation to be tensorized
-
+    allow_padding : bool
+        Whether to allow padding the block iters to match the intrinsic description
     Returns
     -------
     tensorize_info : Optional[TensorizeInfo]
         TensorizeInfo structure if a valid mapping is found, None otherwise
     """
-    return _ffi_api.GetTensorizeLoopMapping(sch, block, desc_func)  # type: ignore
+    return _ffi_api.GetTensorizeLoopMapping(sch, block, desc_func, allow_padding)  # type: ignore
 
 
 @tvm._ffi.register_object("tir.schedule.AutoTensorizeMappingInfo")

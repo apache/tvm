@@ -197,7 +197,7 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
  * block tiled according to the given intrin, NullOpt if a valid loop mapping is not found
  */
 Optional<tir::LoopRV> TileWithTensorIntrin(const tir::Schedule& sch, const tir::BlockRV& block_rv,
-                                           const String& intrin_name);
+                                           const String& intrin_name, bool allow_padding = false);
 
 /******** Block mutation ********/
 
