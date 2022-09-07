@@ -231,7 +231,7 @@ class CLMLRuntime : public JSONRuntimeBase {
   void Run() override {
     cl_int result = 0;
     cl_command_queue queue = workspace->GetQueue(tentry->device);
-    std::vector<cl_event>* evts = &(workspace->GetEventQueue(tentry->device));
+    std::vector<cl_event>& evts = workspace->GetEventQueue(tentry->device);
     for (size_t i = 0; i < input_nodes_.size(); ++i) {
       auto nid = input_nodes_[i];
       uint32_t eid = EntryID(nid, 0);
@@ -266,8 +266,8 @@ class CLMLRuntime : public JSONRuntimeBase {
 
     for (size_t i = 0; i < this->layer_.function.size(); ++i) {
       if (getenv("CLML_PROFILING")) {
-        evts->resize(evts->size() + 1);
-        cl_event* evt = &(evts->back());
+        evts.resize(evts.size() + 1);
+        cl_event* evt = &(evts.back());
         result = h_ClmlIntf->clEnqueueMLOpQCOM(queue, this->layer_.function[i],
                                                this->layer_.descriptorSet, 0, NULL, evt);
       } else {
@@ -280,12 +280,11 @@ class CLMLRuntime : public JSONRuntimeBase {
     if (getenv("CLML_PROFILING")) {
       cl_ulong start, end;
       cl_ulong duration = 0;
-      clWaitForEvents(1, &(evts->back()));
+      clWaitForEvents(1, &(evts.back()));
       for (size_t i = 0; i < this->layer_.layer_names.size(); ++i) {
-        clGetEventProfilingInfo((*evts)[i], CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &start,
+        clGetEventProfilingInfo(evts[i], CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &start,
                                 nullptr);
-        clGetEventProfilingInfo((*evts)[i], CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &end,
-                                nullptr);
+        clGetEventProfilingInfo(evts[i], CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &end, nullptr);
         duration += (end - start);
         LOG(WARNING) << "Layer:" << this->layer_.layer_names[i] << " Duration:" << (end - start);
       }
@@ -486,22 +485,16 @@ class CLMLRuntime : public JSONRuntimeBase {
 
   bool ExtensionStringPresent(void) {
     cl_int result = 0;
-    cl_platform_id platform;
-    cl_device_id device_id;
-    result = clGetPlatformIDs(1, &platform, NULL);
-    ICHECK(result == CL_SUCCESS) << "clGetPlatformIDs:" << result;
-    uint32_t num_devices = 0;
-    result = clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 0, NULL, &num_devices);
-    ICHECK(result == CL_SUCCESS && num_devices == 1) << "clGetDeviceIDs:" << result;
-    result = clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device_id, NULL);
-    ICHECK(device_id && result == CL_SUCCESS) << "clGetDeviceIDs:" << result;
-
+    if (workspace->platform_id == nullptr) {
+      return 0;
+    }
     size_t reqd_size = 0;
-    result = clGetDeviceInfo(device_id, CL_DEVICE_EXTENSIONS, 0, NULL, &reqd_size);
+    result = clGetDeviceInfo(workspace->devices[0], CL_DEVICE_EXTENSIONS, 0, NULL, &reqd_size);
     ICHECK(reqd_size > 0u && result == CL_SUCCESS) << "clGetDeviceInfo:" << result;
 
     std::vector<char> buf(reqd_size);
-    result = clGetDeviceInfo(device_id, CL_DEVICE_EXTENSIONS, reqd_size, buf.data(), NULL);
+    result =
+        clGetDeviceInfo(workspace->devices[0], CL_DEVICE_EXTENSIONS, reqd_size, buf.data(), NULL);
     ICHECK(result == CL_SUCCESS) << "clGetDeviceInfo:" << result;
 
     std::string extensions(buf.data());
