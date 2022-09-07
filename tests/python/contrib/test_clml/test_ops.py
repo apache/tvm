@@ -25,7 +25,7 @@ from tvm import testing
 from tvm import relay
 from tvm.ir import IRModule
 
-from infrastructure import (
+from test_clml.infrastructure import (
     skip_runtime_test,
     skip_codegen_test,
     build_and_run,

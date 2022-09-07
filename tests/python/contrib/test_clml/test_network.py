@@ -22,7 +22,7 @@ from tvm import testing
 from tvm import relay
 
 import tvm
-from infrastructure import skip_runtime_test, build_and_run, Device
+from test_clml.infrastructure import skip_runtime_test, build_and_run, Device
 
 
 def _build_and_run_network(mod, params, inputs, data, device, atol, rtol):

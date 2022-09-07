@@ -489,12 +489,12 @@ class CLMLRuntime : public JSONRuntimeBase {
       return 0;
     }
     size_t reqd_size = 0;
-    result = clGetDeviceInfo(workspace->devices[0], CL_DEVICE_EXTENSIONS, 0, NULL, &reqd_size);
+    cl_device_id device_id = workspace->devices[workspace->GetThreadEntry()->device.device_id];
+    result = clGetDeviceInfo(device_id, CL_DEVICE_EXTENSIONS, 0, NULL, &reqd_size);
     ICHECK(reqd_size > 0u && result == CL_SUCCESS) << "clGetDeviceInfo:" << result;
 
     std::vector<char> buf(reqd_size);
-    result =
-        clGetDeviceInfo(workspace->devices[0], CL_DEVICE_EXTENSIONS, reqd_size, buf.data(), NULL);
+    result = clGetDeviceInfo(device_id, CL_DEVICE_EXTENSIONS, reqd_size, buf.data(), NULL);
     ICHECK(result == CL_SUCCESS) << "clGetDeviceInfo:" << result;
 
     std::string extensions(buf.data());
