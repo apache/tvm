@@ -32,25 +32,12 @@
 #include "../../../qnn/utils.h"
 #include "../../../transforms/pattern_utils.h"
 #include "../../../transforms/simplify_expr.h"
+#include "ethosn_api.h"
 
 namespace tvm {
 namespace relay {
 namespace contrib {
 namespace ethosn {
-
-/*!
- * \brief Apply constant folding on an expression.
- *
- * \param expr The expression to fold.
- * \param fold_qnn Whether to fold constants for QNN operations.
- * \returns The new folded expression.
- */
-Expr FoldConstantExpr(const Expr& expr, bool fold_qnn = true) {
-  auto mod = IRModule::FromExpr(expr);
-  mod = transform::FoldConstant(fold_qnn)(mod);
-  auto entry_func = Downcast<Function>(mod->Lookup("main"));
-  return expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
-}
 
 /*!
  * \brief Converts qnn.mul to mathematically equivalent

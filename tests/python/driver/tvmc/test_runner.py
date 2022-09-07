@@ -87,6 +87,7 @@ def test_run_tflite_module__with_profile__valid_input(
     result = tvmc.run(
         tflite_compiled_model,
         inputs=input_dict,
+        benchmark=True,
         hostname=None,
         device="cpu",
         profile=True,
@@ -145,3 +146,44 @@ def test_run_tflite_module_with_rpc(
     ), "tiger cat is expected in the top-5 for mobilenet v1"
     assert isinstance(result.outputs, dict)
     assert "output_0" in result.outputs.keys()
+
+
+@pytest.mark.parametrize("use_vm", [True, False])
+@pytest.mark.parametrize(
+    "benchmark,repeat,number,expected_len", [(False, 1, 1, 0), (True, 1, 1, 1), (True, 3, 2, 3)]
+)
+def test_run_relay_module__benchmarking(
+    use_vm,
+    benchmark,
+    repeat,
+    number,
+    expected_len,
+    relay_text_conv2d,
+    relay_compile_model,
+):
+    """Check the length of the results from benchmarking is what is expected by expected_len."""
+    shape_dict = {"data": (1, 3, 64, 64), "weight": (3, 3, 5, 5)}
+    input_dict = {
+        "data": np.random.randint(low=0, high=10, size=shape_dict["data"], dtype="uint8"),
+        "weight": np.random.randint(low=0, high=10, size=shape_dict["weight"], dtype="int8"),
+    }
+
+    tflite_compiled_model = relay_compile_model(
+        relay_text_conv2d, shape_dict=shape_dict, use_vm=use_vm
+    )
+    result = tvmc.run(
+        tflite_compiled_model,
+        inputs=input_dict,
+        hostname=None,
+        device="cpu",
+        benchmark=benchmark,
+        repeat=repeat,
+        number=number,
+    )
+
+    # When no benchmarking is used, an empty list is used to
+    # represent an absence of results.
+    if isinstance(result.times, list):
+        assert len(result.times) == expected_len
+    else:
+        assert len(result.times.results) == expected_len

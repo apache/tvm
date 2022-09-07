@@ -1,6 +1,6 @@
 {
     "title": "[Hexagon] 2-d allocation cleanup",
-    "body": "- Added device validity check in allocation. HexagonDeviceAPI should only be called for CPU/Hexagon types.\r\n\r\n- Check for \"global.vtcm\" scope instead of \"vtcm\".  The ccope of N-d allocations produced by `LowerVtcmAlloc` should be `\"global.vtcm\"`.  The previous check allowed unsupported scope such as `\"local.vtcm\"`.\r\n\r\n- Remove `vtcmallocs` entry after calling free. Previously, the vtcm allocation map kept dangling pointers to `HexagonBuffer` objects after they had been freed.\r\n\r\n- Rename N-d alloc and free packed functions.  Since most of the similar device functions use snake case, renaming `*.AllocND` to `*.alloc_nd` and `*.FreeND` to `*.free_nd`.\r\n\r\nCo-authored-by: Adam Straw <astraw@octoml.ai>",
+    "body": "- Added device validity check in allocation. HexagonDeviceAPI should only be called for CPU/Hexagon types.\r\n\r\n- Check for \"global.vtcm\" scope instead of \"vtcm\".  The ccope of N-d allocations produced by `LowerVtcmAlloc` should be `\"global.vtcm\"`.  The previous check allowed unsupported scope such as `\"local.vtcm\"`.\r\n\r\n- Remove `vtcmallocs` entry after calling free.\n\n\nThanks for contributing to TVM!   Please refer to guideline https://tvm.apache.org/docs/contribute/ for useful information and tips. After the pull request is submitted, please request code reviews from [Reviewers](https://github.com/apache/incubator-tvm/blob/master/CONTRIBUTORS.md#reviewers) by @ them in the pull request thread.\n\n\nPreviously, the vtcm allocation map kept dangling pointers to `HexagonBuffer` objects after they had been freed.\r\n\r\n- Rename N-d alloc and free packed functions.  Since most of the similar device functions use snake case, renaming `*.AllocND` to `*.alloc_nd` and `*.FreeND` to `*.free_nd`.\n\n\ncc @someone\n\r\n\r\nCo-authored-by: Adam Straw <astraw@octoml.ai>\n\n\nThanks for contributing to TVM!   Please refer to guideline https://tvm.apache.org/docs/contribute/ for useful information and tips. After the pull request is submitted, please request code reviews from [Reviewers](https://github.com/apache/incubator-tvm/blob/master/CONTRIBUTORS.md#reviewers) by @ them in the pull request thread.\n\n",
     "state": "OPEN",
     "author": {
       "login": "abc"
@@ -65,7 +65,7 @@
                       }
                     },
                     "status": "COMPLETED",
-                    "conclusion": "FAILED",
+                    "conclusion": "SUCCESS",
                     "url": "https://github.com/apache/tvm/runs/5694945029"
                   },
                   {
@@ -119,7 +119,6 @@
           "commit": {
             "oid": "6f04bcf57d07f915a98fd91178f04d9e92a09fcd"
           },
-          "id": 123,
           "author": {
             "login": "kparzysz-quic"
           },

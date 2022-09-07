@@ -269,6 +269,10 @@ def test_load_quantized_model__pth(pytorch_mobilenetv2_quantized):
         assert p.dtype in ["int8", "uint8", "int32"]  # int32 for bias
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+)
 def test_load_model___wrong_language__to_pytorch(tflite_mobilenet_v1_1_quant):
     # some CI environments wont offer pytorch, so skip in case it is not present
     pytest.importorskip("torch")

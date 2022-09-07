@@ -86,7 +86,9 @@ class Executable(object):
         self._get_function_arity = self.mod["get_function_arity"]
         self._get_function_param_name = self.mod["get_function_param_name"]
         self._move_late_bound_consts = self.mod["move_late_bound_consts"]
+        self._get_late_bound_consts = self.mod["get_late_bound_consts"]
         self._load_late_bound_consts = self.mod["load_late_bound_consts"]
+        self._load_late_bound_consts_from_map = self.mod["load_late_bound_consts_from_map"]
 
     def save(self):
         """Save the Relay VM Executable.
@@ -312,9 +314,17 @@ class Executable(object):
         """Move all constants of byte size greater or equal to byte_limit to file at path"""
         return self._move_late_bound_consts(path, byte_limit)
 
+    def get_late_bound_consts(self, byte_limit):
+        """Return all constants of byte size greater or equal to byte_limit"""
+        return self._get_late_bound_consts(byte_limit)
+
     def load_late_bound_consts(self, path):
         """Re-load constants previously saved to file at path"""
         return self._load_late_bound_consts(path)
+
+    def load_late_bound_consts_from_map(self, map):
+        """Re-load constants supplied in map"""
+        return self._load_late_bound_consts_from_map(map)
 
 
 class VirtualMachine(object):
