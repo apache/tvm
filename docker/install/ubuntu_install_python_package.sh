@@ -28,7 +28,7 @@ pip3 install --upgrade \
     cython \
     decorator \
     mypy \
-    numpy~=1.19.5 \
+    numpy==1.21.* \
     orderedset \
     packaging \
     Pillow==9.1.0 \
