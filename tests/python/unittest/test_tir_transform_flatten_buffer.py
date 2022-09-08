@@ -20,223 +20,307 @@ from tvm import te
 from tvm.script import tir as T
 
 
-def _check(original, transformed):
-    func = original
-    mod = tvm.IRModule.from_expr(func)
-    mod = tvm.tir.transform.FlattenBuffer()(mod)
-    mod = tvm.tir.transform.Simplify()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], transformed, True)
+class BaseCompare(tvm.testing.CompareBeforeAfter):
+    transform = tvm.transform.Sequential(
+        [
+            tvm.tir.transform.FlattenBuffer(),
+            tvm.tir.transform.Simplify(),
+        ]
+    )
 
 
-@T.prim_func
-def elementwise_func(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (16, 16), "float32")
-    C = T.match_buffer(c, (16, 16), "float32")
-    for i in T.serial(0, 16):
-        B_new_data = T.allocate([1, 16], "float32", "global")
-        B_new = T.buffer_decl(shape=[1, 16], dtype="float32", data=B_new_data)
-        for j in T.serial(0, 16):
-            B_new[0, j] = A[i, j] + 1.0
-        for j in T.serial(0, 16):
-            C[i, j] = B_new[0, j] * 2.0
+class TestElementwise(BaseCompare):
+    """2-d buffers are flattened to 1-d"""
 
-
-@T.prim_func
-def flattened_elementwise_func(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, 256, "float32")
-    C = T.match_buffer(c, 256, "float32")
-    T.preflattened_buffer(A, (16, 16), dtype="float32", data=A.data)
-    T.preflattened_buffer(C, (16, 16), dtype="float32", data=C.data)
-    for i in T.serial(0, 16):
-        B_new_data = T.allocate([16], "float32", "global")
-        B_new = T.buffer_decl(shape=[16], dtype="float32", data=B_new_data)
-        for j in T.serial(0, 16):
-            B_new[j] = A[((i * 16) + j)] + 1.0
-        for j in T.serial(0, 16):
-            C[((i * 16) + j)] = B_new[j] * 2.0
-
-
-@T.prim_func
-def gpu_func(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (16, 16), "float32")
-    C = T.match_buffer(c, (16, 16), "float32")
-
-    i0 = T.env_thread("blockIdx.x")
-    i1 = T.env_thread("threadIdx.x")
-    i2 = T.env_thread("vthread")
-
-    T.launch_thread(i0, 4)
-    T.launch_thread(i1, 2)
-    T.launch_thread(i2, 2)
-    B_data = T.allocate([1, 16], "float32", "local")
-    B = T.buffer_decl(shape=[1, 16], dtype="float32", data=B_data, scope="local")
-    for j in range(0, 16):
-        B[0, j] = A[i0 * 4 + i1 * 2 + i2, j] + 1.0
-    for j in range(0, 16):
-        C[i0 * 4 + i1 * 2 + i2, j] = B[0, j] * 2.0
-
-
-@T.prim_func
-def flattened_gpu_func(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, 256, "float32")
-    C = T.match_buffer(c, 256, "float32")
-    T.preflattened_buffer(A, (16, 16), dtype="float32", data=A.data)
-    T.preflattened_buffer(C, (16, 16), dtype="float32", data=C.data)
-
-    i0 = T.env_thread("blockIdx.x")
-    i1 = T.env_thread("threadIdx.x")
-    i2 = T.env_thread("vthread")
-
-    T.launch_thread(i0, 4)
-    T.launch_thread(i1, 2)
-    T.launch_thread(i2, 2)
-    B_data = T.allocate([16], "float32", "local")
-    B = T.buffer_decl(shape=[16], dtype="float32", data=B_data, scope="local")
-    for j in range(0, 16):
-        B[j] = A[i0 * 64 + i1 * 32 + i2 * 16 + j] + 1.0
-    for j in range(0, 16):
-        C[i0 * 64 + i1 * 32 + i2 * 16 + j] = B[j] * 2.0
-
-
-@T.prim_func
-def symbolic_func(a: T.handle, c: T.handle, n: T.int32, m: T.int32) -> None:
-    A = T.match_buffer(a, (n, m), "float32")
-    C = T.match_buffer(c, (n, m), "float32")
-
-    for i in range(0, n):
-        B_data = T.allocate([m], "float32", "global")
-        B = T.buffer_decl(shape=[m], dtype="float32", data=B_data)
-        for j in range(0, m):
-            B[j] = A[i, j] + 1.0
-        for j in range(0, m):
-            C[i, j] = B[j] * 2.0
-
-
-@T.prim_func
-def flattened_symbolic_func(a: T.handle, c: T.handle, n: T.int32, m: T.int32) -> None:
-    A = T.match_buffer(a, n * m, "float32")
-    C = T.match_buffer(c, n * m, "float32")
-    T.preflattened_buffer(A, (n, m), "float32", data=A.data)
-    T.preflattened_buffer(C, (n, m), "float32", data=C.data)
-
-    for i in range(0, n):
-        B_data = T.allocate([m], "float32", "global")
-        B = T.buffer_decl(shape=[m], dtype="float32", data=B_data)
-        for j in range(0, m):
-            B[j] = A[i * m + j] + 1.0
-        for j in range(0, m):
-            C[i * m + j] = B[j] * 2.0
-
-
-@T.prim_func
-def multi_alloc_func(a: T.handle, d: T.handle) -> None:
-    A = T.match_buffer(a, (4, 32), "float32")
-    D = T.match_buffer(d, (4, 32), "float32")
-
-    for i, j in T.grid(4, 32):
-        B_data = T.allocate((4, 32), "float32", scope="global")
-        B = T.buffer_decl(shape=(4, 32), dtype="float32", data=B_data)
-        C_data = T.allocate((4, 32), "float32", scope="global")
-        C = T.buffer_decl(shape=(4, 32), dtype="float32", data=C_data)
-        B[i, j] = A[i, j] + 1.0
-        C[i, j] = A[i, j] + B[i, j]
-        D[i, j] = C[i, j] * 2.0
-
-
-@T.prim_func
-def flattened_multi_alloc_func(a: T.handle, d: T.handle) -> None:
-    A = T.match_buffer(a, 128, "float32")
-    D = T.match_buffer(d, 128, "float32")
-    T.preflattened_buffer(A, (4, 32), "float32", data=A.data)
-    T.preflattened_buffer(D, (4, 32), "float32", data=D.data)
-
-    for i, j in T.grid(4, 32):
-        B_data = T.allocate([128], "float32", "global")
-        B = T.buffer_decl(shape=[128], dtype="float32", data=B_data)
-        C_data = T.allocate([128], "float32", "global")
-        C = T.buffer_decl(shape=[128], dtype="float32", data=C_data)
-        B[i * 32 + j] = A[i * 32 + j] + 1.0
-        C[i * 32 + j] = A[i * 32 + j] + B[i * 32 + j]
-        D[i * 32 + j] = C[i * 32 + j] * 2.0
-
-
-@T.prim_func
-def strided_buffer_func(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (16, 16), "float32")
-    C = T.match_buffer(c, (16, 16), "float32")
-    for i0 in T.serial(4):
-        B_data = T.allocate([4, 17], "float32", "global")
-        B = T.buffer_decl(shape=[4, 17], dtype="float32", data=B_data)
-        B_1 = T.buffer_decl([4, 16], dtype="float32", data=B.data, strides=[17, 1])
-        for i1, j in T.grid(4, 16):
-            B_1[i1, j] = A[i0 * 4 + i1, j] + 1.0
-        for i1, j in T.grid(4, 16):
-            C[i0 * 4 + i1, j] = B_1[i1, j] * 2.0
-
-
-@T.prim_func
-def flattened_strided_buffer_func(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (256,), "float32")
-    C = T.match_buffer(c, (256,), "float32")
-    T.preflattened_buffer(A, [16, 16], dtype="float32", data=A.data)
-    T.preflattened_buffer(C, [16, 16], dtype="float32", data=C.data)
-    for i0 in T.serial(0, 4):
-        B_new_data = T.allocate([68], "float32", "global")
-        B_new = T.buffer_decl(shape=[68], dtype="float32", data=B_new_data)
-        for i1 in T.serial(0, 4):
+    def before(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]):
+        for i in T.serial(0, 16):
+            B_new = T.decl_buffer([1, 16], "float32")
             for j in T.serial(0, 16):
-                B_new[i1 * 17 + j] = A[i0 * 64 + i1 * 16 + j] + 1.0
-        for i1 in T.serial(0, 4):
+                B_new[0, j] = A[i, j] + 1.0
             for j in T.serial(0, 16):
-                C[i0 * 64 + i1 * 16 + j] = B_new[i1 * 17 + j] * 2.0
+                C[i, j] = B_new[0, j] * 2.0
+
+    def expected(A: T.Buffer[256, "float32"], C: T.Buffer[256, "float32"]):
+        T.preflattened_buffer(A, (16, 16), dtype="float32", data=A.data)
+        T.preflattened_buffer(C, (16, 16), dtype="float32", data=C.data)
+        for i in T.serial(0, 16):
+            B_new_data = T.allocate([16], "float32", scope="global")
+            B_new = T.buffer_decl([16], "float32", scope="global", data=B_new_data)
+            for j in T.serial(0, 16):
+                B_new[j] = A[((i * 16) + j)] + 1.0
+            for j in T.serial(0, 16):
+                C[((i * 16) + j)] = B_new[j] * 2.0
 
 
-@T.prim_func
-def boolean_handling_before(a: T.Buffer[10, "bool"], b: T.Buffer[10, "bool"]) -> None:
-    for i0 in T.serial(10):
-        b[i0] = a[i0]
+class TestElementwiseWithoutDeclBuffer(BaseCompare):
+    """2-d buffers are flattened to 1-d
+
+    Like TestElementwise, but the TIR doesn't have the DeclBuffer
+    node.  The T.buffer_decl declaration applies only during the
+    parsing the TVMScript, and doesn't occur in the TIR itself.  In
+    this case, the allocation should be assumed to be targeting flat
+    memory, and should be flattened to a 1-d allocation.
+    """
+
+    def before(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]):
+        for i in T.serial(0, 16):
+            B_new_data = T.allocate([1, 16], "float32", "global")
+            B_new = T.buffer_decl([1, 16], "float32", data=B_new_data)
+            for j in T.serial(0, 16):
+                B_new[0, j] = A[i, j] + 1.0
+            for j in T.serial(0, 16):
+                C[i, j] = B_new[0, j] * 2.0
+
+    def expected(A: T.Buffer[256, "float32"], C: T.Buffer[256, "float32"]):
+        T.preflattened_buffer(A, (16, 16), dtype="float32", data=A.data)
+        T.preflattened_buffer(C, (16, 16), dtype="float32", data=C.data)
+        for i in T.serial(0, 16):
+            B_new_data = T.allocate([16], "float32", "global")
+            B_new = T.buffer_decl(16, "float32", data=B_new_data)
+            for j in T.serial(0, 16):
+                B_new[j] = A[((i * 16) + j)] + 1.0
+            for j in T.serial(0, 16):
+                C[((i * 16) + j)] = B_new[j] * 2.0
 
 
-@T.prim_func
-def boolean_handling_after(a: T.Buffer[10, "int8"], b: T.Buffer[10, "int8"]) -> None:
-    T.preflattened_buffer(a, [10], dtype="bool", data=a.data)
-    T.preflattened_buffer(b, [10], dtype="bool", data=b.data)
-    # body
-    for i0 in T.serial(10):
-        b[i0] = T.cast(T.cast(a[i0], "bool"), "int8")
+class TestGPU(BaseCompare):
+    """Buffer flattening may have indices based on GPU thread vars"""
+
+    def before(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]):
+        i0 = T.env_thread("blockIdx.x")
+        i1 = T.env_thread("threadIdx.x")
+        i2 = T.env_thread("vthread")
+
+        T.launch_thread(i0, 4)
+        T.launch_thread(i1, 2)
+        T.launch_thread(i2, 2)
+        B = T.decl_buffer([1, 16], "float32", scope="local")
+        for j in range(0, 16):
+            B[0, j] = A[i0 * 4 + i1 * 2 + i2, j] + 1.0
+        for j in range(0, 16):
+            C[i0 * 4 + i1 * 2 + i2, j] = B[0, j] * 2.0
+
+    def expected(A: T.Buffer[256, "float32"], C: T.Buffer[256, "float32"]):
+        T.preflattened_buffer(A, (16, 16), dtype="float32", data=A.data)
+        T.preflattened_buffer(C, (16, 16), dtype="float32", data=C.data)
+
+        i0 = T.env_thread("blockIdx.x")
+        i1 = T.env_thread("threadIdx.x")
+        i2 = T.env_thread("vthread")
+
+        T.launch_thread(i0, 4)
+        T.launch_thread(i1, 2)
+        T.launch_thread(i2, 2)
+        B_data = T.allocate([16], "float32", scope="local")
+        B = T.buffer_decl([16], "float32", scope="local", data=B_data)
+        for j in range(0, 16):
+            B[j] = A[i0 * 64 + i1 * 32 + i2 * 16 + j] + 1.0
+        for j in range(0, 16):
+            C[i0 * 64 + i1 * 32 + i2 * 16 + j] = B[j] * 2.0
 
 
-def test_elementwise():
-    _check(elementwise_func, flattened_elementwise_func)
+class TestSymbolic(BaseCompare):
+    """Dynamically-sized arrrays are flattened"""
+
+    def before(a: T.handle, c: T.handle, n: T.int32, m: T.int32) -> None:
+        A = T.match_buffer(a, (n, m), "float32")
+        C = T.match_buffer(c, (n, m), "float32")
+
+        for i in range(0, n):
+            B = T.decl_buffer([m], "float32")
+            for j in range(0, m):
+                B[j] = A[i, j] + 1.0
+            for j in range(0, m):
+                C[i, j] = B[j] * 2.0
+
+    def expected(a: T.handle, c: T.handle, n: T.int32, m: T.int32) -> None:
+        A = T.match_buffer(a, n * m, "float32")
+        C = T.match_buffer(c, n * m, "float32")
+        T.preflattened_buffer(A, (n, m), "float32", data=A.data)
+        T.preflattened_buffer(C, (n, m), "float32", data=C.data)
+
+        for i in range(0, n):
+            B_data = T.allocate([m], "float32", scope="global")
+            B = T.buffer_decl([m], "float32", scope="global", data=B_data)
+            for j in range(0, m):
+                B[j] = A[i * m + j] + 1.0
+            for j in range(0, m):
+                C[i * m + j] = B[j] * 2.0
 
 
-def test_gpu_workload():
-    _check(gpu_func, flattened_gpu_func)
+class TestMultiAlloc(BaseCompare):
+    """If multiple allocations occur, all are flattened."""
+
+    def before(A: T.Buffer[(4, 32), "float32"], D: T.Buffer[(4, 32), "float32"]):
+        for i, j in T.grid(4, 32):
+            B = T.decl_buffer((4, 32), "float32", scope="global")
+            C = T.decl_buffer((4, 32), "float32", scope="global")
+            B[i, j] = A[i, j] + 1.0
+            C[i, j] = A[i, j] + B[i, j]
+            D[i, j] = C[i, j] * 2.0
+
+    def expected(A: T.Buffer[128, "float32"], D: T.Buffer[128, "float32"]):
+        T.preflattened_buffer(A, (4, 32), "float32", data=A.data)
+        T.preflattened_buffer(D, (4, 32), "float32", data=D.data)
+
+        for i, j in T.grid(4, 32):
+            B_data = T.allocate([128], "float32", scope="global")
+            B = T.buffer_decl([128], "float32", scope="global", data=B_data)
+            C_data = T.allocate([128], "float32", scope="global")
+            C = T.buffer_decl([128], "float32", scope="global", data=C_data)
+            B[i * 32 + j] = A[i * 32 + j] + 1.0
+            C[i * 32 + j] = A[i * 32 + j] + B[i * 32 + j]
+            D[i * 32 + j] = C[i * 32 + j] * 2.0
 
 
-def test_symbolic_shape():
-    _check(symbolic_func, flattened_symbolic_func)
+class TestStrided(BaseCompare):
+    """Indices for flattened buffers use the specified striding."""
+
+    def before(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]):
+        for i0 in T.serial(4):
+            B = T.decl_buffer([4, 17], "float32")
+            B_1 = T.buffer_decl([4, 16], dtype="float32", data=B.data, strides=[17, 1])
+            for i1, j in T.grid(4, 16):
+                B_1[i1, j] = A[i0 * 4 + i1, j] + 1.0
+            for i1, j in T.grid(4, 16):
+                C[i0 * 4 + i1, j] = B_1[i1, j] * 2.0
+
+    def expected(A: T.Buffer[256, "float32"], C: T.Buffer[256, "float32"]):
+        T.preflattened_buffer(A, [16, 16], dtype="float32", data=A.data)
+        T.preflattened_buffer(C, [16, 16], dtype="float32", data=C.data)
+        for i0 in T.serial(0, 4):
+            B_new_data = T.allocate([68], "float32", scope="global")
+            B_new = T.buffer_decl([68], "float32", scope="global", data=B_new_data)
+            for i1 in T.serial(0, 4):
+                for j in T.serial(0, 16):
+                    B_new[i1 * 17 + j] = A[i0 * 64 + i1 * 16 + j] + 1.0
+            for i1 in T.serial(0, 4):
+                for j in T.serial(0, 16):
+                    C[i0 * 64 + i1 * 16 + j] = B_new[i1 * 17 + j] * 2.0
 
 
-def test_multi_alloc():
-    _check(multi_alloc_func, flattened_multi_alloc_func)
+class TestBoolean(BaseCompare):
+    """Boolean buffers should be replaced by a backing int8 array"""
+
+    def before(A: T.Buffer[10, "bool"], B: T.Buffer[10, "bool"]) -> None:
+        for i0 in T.serial(10):
+            B[i0] = A[i0]
+
+    def expected(A: T.Buffer[10, "int8"], B: T.Buffer[10, "int8"]) -> None:
+        T.preflattened_buffer(A, [10], dtype="bool", data=A.data)
+        T.preflattened_buffer(B, [10], dtype="bool", data=B.data)
+        # body
+        for i0 in T.serial(10):
+            B[i0] = T.cast(T.cast(A[i0], "bool"), "int8")
 
 
-def test_strided_buffer():
-    _check(strided_buffer_func, flattened_strided_buffer_func)
+class TestLowerTE(BaseCompare):
+    """FlattenBuffer should do nothing on TE-based functions"""
+
+    def before(self):
+        x = te.placeholder((1,))
+        y = te.compute((1,), lambda i: x[i] + 2)
+        s = te.create_schedule(y.op)
+        mod = tvm.driver.build_module.schedule_to_module(s, [x, y])
+        return mod["main"]
+
+    expected = before
 
 
-def test_lower_te():
-    x = te.placeholder((1,))
-    y = te.compute((1,), lambda i: x[i] + 2)
-    s = te.create_schedule(y.op)
-    orig_mod = tvm.driver.build_module.schedule_to_module(s, [x, y])
-    mod = tvm.tir.transform.FlattenBuffer()(orig_mod)
-    tvm.ir.assert_structural_equal(mod, orig_mod)  # FlattenBuffer should do nothing on TE
+class TestFlattenInsideBlock(BaseCompare):
+    """Flattening access inside a block flattens the accessed region."""
+
+    def before():
+        A = T.alloc_buffer([32, 32])
+        for i, j in T.grid(32, 32):
+            with T.block("block"):
+                T.reads(A[i, j])
+                T.evaluate(A[i, j])
+
+    def expected():
+        A = T.alloc_buffer([1024])
+        for i, j in T.grid(32, 32):
+            with T.block("block"):
+                T.reads(A[i * 32 + j])
+                T.evaluate(A[i * 32 + j])
 
 
-def test_boolean_handling():
-    _check(boolean_handling_before, boolean_handling_after)
+class TestNoChangeTo2DPhysicalBuffer(BaseCompare):
+    """Flattening preserves axis separators."""
+
+    def before():
+        A = T.alloc_buffer([32, 32], axis_separators=[1])
+        for i, j in T.grid(32, 32):
+            T.evaluate(A[i, j])
+
+    expected = before
+
+
+class TestFlattenAllocBufferWithAxisSeparators(BaseCompare):
+    """Flattening preserves axis separators"""
+
+    def before():
+        A = T.alloc_buffer([2, 3, 5, 7, 11, 13], axis_separators=[3])
+        for i0, i1, i2, i3, i4, i5 in T.grid(2, 3, 5, 7, 11, 13):
+            T.evaluate(A[i0, i1, i2, i3, i4, i5])
+
+    def expected():
+        A = T.alloc_buffer([30, 1001], axis_separators=[1])
+        for i0, i1, i2, i3, i4, i5 in T.grid(2, 3, 5, 7, 11, 13):
+            T.evaluate(A[i0 * 15 + i1 * 5 + i2, i3 * 143 + i4 * 13 + i5])
+
+
+class TestFlattenDeclBufferWithAxisSeparators(BaseCompare):
+    """Flattening preserves axis separators
+
+    Like TestFlattenAllocBufferWithAxisSeparators, but the allocations
+    is done using Allocate/DeclBuffer, rather than through
+    BlockNode::alloc_buffers.
+    """
+
+    def before():
+        A = T.decl_buffer([2, 3, 5, 7, 11, 13], axis_separators=[3])
+        for i0, i1, i2, i3, i4, i5 in T.grid(2, 3, 5, 7, 11, 13):
+            T.evaluate(A[i0, i1, i2, i3, i4, i5])
+
+    def expected():
+        A_data = T.allocate([30, 1001], dtype="float32", scope="global")
+        A = T.buffer_decl(
+            [30, 1001], dtype="float32", scope="global", axis_separators=[1], data=A_data
+        )
+        for i0, i1, i2, i3, i4, i5 in T.grid(2, 3, 5, 7, 11, 13):
+            T.evaluate(A[i0 * 15 + i1 * 5 + i2, i3 * 143 + i4 * 13 + i5])
+
+
+def test_lower_2d_physical_memory():
+    """Axis separators should preserve 2-d buffers through lowering.
+
+    A catch-all test to ensure that defining axis_separators is
+    sufficient to maintain non-flat buffer descriptions through all
+    lowering steps.
+    """
+
+    # This test doesn't use CompareBeforeAfter, because the after step
+    # is not currently expressible in TVMScript.  This test can be
+    # re-written after https://github.com/apache/tvm/pull/12412.
+
+    @T.prim_func
+    def func():
+        buf = T.alloc_buffer(
+            [1, 1],
+            dtype="int32",
+            scope="global",
+            axis_separators=[1],
+        )
+        buf[0, 0] = 0
+
+    lowered = tvm.lower(func)["main"]
+    assert isinstance(lowered.body, tvm.tir.Allocate)
+    assert list(lowered.body.extents) == [1, 1], (
+        "Non-flat buffer allocations, "
+        "marked by axis_separators, "
+        "flattened to flat memory allocation."
+    )
 
 
 if __name__ == "__main__":
