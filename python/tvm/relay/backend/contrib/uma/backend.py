@@ -278,7 +278,7 @@ class UMABackend(ABC):
         """
         registration_func = tvm.get_global_func("relay.backend.contrib.uma.RegisterTarget")
 
-        for name, attr in self._target_attrs:
+        for name, attr in self._target_attrs.items():
             if attr is None:
                 raise ValueError("Target attribute None is not supported.")
 

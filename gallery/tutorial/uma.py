@@ -57,7 +57,7 @@ testing.utils.install_request_hook(depth=3)
 #
 
 ######################################################################
-# .. image:: https://raw.githubusercontent.com/apache/tvm-site/main/images/tutorial/uma_vanilla_block_diagram.png
+# .. image:: https://raw.githubusercontent.com/tlc-pack/web-data/main/images/tutorial/uma_vanilla_block_diagram.png
 #   :width: 100%
 #   :alt: A block diagram of Vanilla
 #
