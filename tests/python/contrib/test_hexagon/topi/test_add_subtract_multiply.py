@@ -71,32 +71,32 @@ def quantize_input_np_B(input_np_B, dtype):
 def transformed_input_np_A(input_np_A, quantize_input_np_A, input_A_layout, dtype):
     if dtype == "float16":
         return transform_numpy(input_np_A, "nhwc", input_A_layout)
-    elif dtype == "uint8" or dtype == "int8":
+    if dtype == "uint8" or dtype == "int8":
         return transform_numpy(quantize_input_np_A, "nhwc", input_A_layout)
-    else:
-        raise RuntimeError(f"Unsupported data type '{dtype}'")
+
+    raise RuntimeError(f"Unsupported data type '{dtype}'")
 
 
 @tvm.testing.fixture
 def transformed_input_np_B(input_np_B, quantize_input_np_B, input_B_layout, dtype):
     if dtype == "float16":
         return transform_numpy(input_np_B, "nhwc", input_B_layout)
-    elif dtype == "uint8" or dtype == "int8":
+    if dtype == "uint8" or dtype == "int8":
         return transform_numpy(quantize_input_np_B, "nhwc", input_B_layout)
-    else:
-        raise RuntimeError(f"Unsupported data type '{dtype}'")
+
+    raise RuntimeError(f"Unsupported data type '{dtype}'")
 
 
 @tvm.testing.fixture
 def transformed_expected_output_np(expected_output_np, output_layout, dtype):
     if dtype == "float16":
         return transform_numpy(expected_output_np, "nhwc", output_layout)
-    elif dtype == "uint8" or dtype == "int8":
+    if dtype == "uint8" or dtype == "int8":
         global zero_point_M_val, scale_M_val
         out_ref_quantized, scale_M_val, zero_point_M_val = quantize_np(expected_output_np, dtype)
         return transform_numpy(out_ref_quantized, "nhwc", output_layout)
-    else:
-        raise RuntimeError(f"Unsupported data type '{dtype}'")
+
+    raise RuntimeError(f"Unsupported data type '{dtype}'")
 
 
 def hexagon_wrapper_allocation(

@@ -80,44 +80,44 @@ def get_int_scale(
         corr = zero_point_M << rsh
 
         return scale_fixed_point, rsh, corr
+
+    a_scale_f = scale_A * C_recip
+    b_scale_f = scale_B * C_recip
+    scale_fixed_point_a, rsh_a = get_fixed_point_value(a_scale_f, "int16")
+    scale_fixed_point_b, rsh_b = get_fixed_point_value(b_scale_f, "int16")
+
+    # Here we have two exp_scale_factors rsh_a and rsh_b.
+    # To avoid complexity, we want to use a common exp_scale_factor and
+    # we want to use the lowest of the two.
+
+    # Since, either of scale_fixed_point_a or scale_fixed_point_b has already been multiplied
+    # by 2^max(rsh_a, rsh_b) in topi.hexagon.utils.get_fixed_point_value,
+    # we want to undo that by right shifting that scale_fixed_point value
+    # by the difference of rsh_a and rsh_b.
+
+    # This results into having a common exp_scale_factor for both scale_fixed_point_a
+    # and scale_fixed_point_b.
+
+    # We also set rsh here which is used to adjust the zero_point_M and compute the corr value,
+    # computation of which comes from the original equation of the op's compute.
+
+    if rsh_a > rsh_b:
+        scale_fixed_point_a = scale_fixed_point_a >> (rsh_a - rsh_b)
+        rsh = rsh_b
     else:
-        a_scale_f = scale_A * C_recip
-        b_scale_f = scale_B * C_recip
-        scale_fixed_point_a, rsh_a = get_fixed_point_value(a_scale_f, "int16")
-        scale_fixed_point_b, rsh_b = get_fixed_point_value(b_scale_f, "int16")
+        scale_fixed_point_b = scale_fixed_point_b >> (rsh_b - rsh_a)
+        rsh = rsh_a
 
-        # Here we have two exp_scale_factors rsh_a and rsh_b.
-        # To avoid complexity, we want to use a common exp_scale_factor and
-        # we want to use the lowest of the two.
+    if op == "qadd":
+        corr = (zero_point_M << rsh) - (
+            zero_point_A * scale_fixed_point_a + zero_point_B * scale_fixed_point_b
+        )
+    else:
+        corr = (zero_point_M << rsh) - (
+            zero_point_A * scale_fixed_point_a - zero_point_B * scale_fixed_point_b
+        )
 
-        # Since, either of scale_fixed_point_a or scale_fixed_point_b has already been multiplied
-        # by 2^max(rsh_a, rsh_b) in topi.hexagon.utils.get_fixed_point_value,
-        # we want to undo that by right shifting that scale_fixed_point value
-        # by the difference of rsh_a and rsh_b.
-
-        # This results into having a common exp_scale_factor for both scale_fixed_point_a
-        # and scale_fixed_point_b.
-
-        # We also set rsh here which is used to adjust the zero_point_M and compute the corr value,
-        # computation of which comes from the original equation of the op's compute.
-
-        if rsh_a > rsh_b:
-            scale_fixed_point_a = scale_fixed_point_a >> (rsh_a - rsh_b)
-            rsh = rsh_b
-        else:
-            scale_fixed_point_b = scale_fixed_point_b >> (rsh_b - rsh_a)
-            rsh = rsh_a
-
-        if op == "qadd":
-            corr = (zero_point_M << rsh) - (
-                zero_point_A * scale_fixed_point_a + zero_point_B * scale_fixed_point_b
-            )
-        else:
-            corr = (zero_point_M << rsh) - (
-                zero_point_A * scale_fixed_point_a - zero_point_B * scale_fixed_point_b
-            )
-
-        return scale_fixed_point_a, scale_fixed_point_b, rsh, corr
+    return scale_fixed_point_a, scale_fixed_point_b, rsh, corr
 
 
 def qadd_broadcast_compute(
