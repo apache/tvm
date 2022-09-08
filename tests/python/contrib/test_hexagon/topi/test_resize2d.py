@@ -56,7 +56,7 @@ def input_np(input_shape, dtype):
 def transformed_input_np(input_np, layout, input_crouton_layout, dtype):
     if dtype == "float16" or dtype == "uint8" or dtype == "int8":
         return transform_numpy(input_np, layout.lower(), input_crouton_layout)
-    
+
     raise RuntimeError(f"Unsupported data type '{dtype}'")
 
 
@@ -64,7 +64,7 @@ def transformed_input_np(input_np, layout, input_crouton_layout, dtype):
 def transformed_expected_output_np(expected_output_np, layout, output_layout, dtype):
     if dtype == "float16" or dtype == "uint8" or dtype == "int8":
         return transform_numpy(expected_output_np, layout.lower(), output_layout)
-    
+
     raise RuntimeError(f"Unsupported data type '{dtype}'")
 
 

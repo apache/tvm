@@ -139,14 +139,16 @@ class CandidateSelector final : public StmtExprVisitor {
         return;
       }
     } else if (op->attr_key == attr::pragma_loop_partition_hint) {
-      const VarNode* var = nullptr;
-      if (op->node->IsInstance<VarNode>()) {
-        var = op->node.as<VarNode>();
-      } else if (op->node->IsInstance<IterVarNode>()) {
-        var = op->node.as<IterVarNode>()->var.get();
+      if (analyzer_.CanProve(op->value)) {
+        const VarNode* var = nullptr;
+        if (op->node->IsInstance<VarNode>()) {
+          var = op->node.as<VarNode>();
+        } else if (op->node->IsInstance<IterVarNode>()) {
+          var = op->node.as<IterVarNode>()->var.get();
+        }
+        ICHECK(var);
+        partition_hint_vars.insert(var);
       }
-      ICHECK(var);
-      partition_hint_vars.insert(var);
     }
     StmtExprVisitor::VisitStmt_(op);
   }
@@ -191,6 +193,7 @@ class CandidateSelector final : public StmtExprVisitor {
   bool no_split_{false};
   bool partition_const_loop_{false};
   std::unordered_map<const VarNode*, VarIsUsed> record_;
+  arith::Analyzer analyzer_;
 };
 
 // Finder try best to find partitions for hinted vars
