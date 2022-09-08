@@ -29,6 +29,7 @@ from tvm import rpc
 from tvm.contrib import graph_executor
 from tvm.relay.op.contrib import clml
 from tvm.contrib import utils
+from tvm import autotvm
 from tvm.autotvm.measure import request_remote
 from tvm.relay.expr_functor import ExprMutator, Call
 
@@ -144,35 +145,28 @@ def skip_codegen_test():
         return True
 
 
-def build_module(mod, target, target_host, params=None, enable_clml=True):
+def build_module(mod, target, target_host, params=None, enable_clml=True, tune_log=""):
     """Build module with option to build for CLML."""
     if isinstance(mod, tvm.relay.expr.Call):
         mod = tvm.IRModule.from_expr(mod)
 
-    with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
-        if enable_clml:
-            mod = clml.partition_for_clml(mod, params)
-        relay.backend.te_compiler.get().clear()
-        # print("Build  Mod:", mod)
-        return relay.build(mod, target=target, target_host=target_host, params=params)
+    with autotvm.apply_history_best(tune_log):
+        with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
+            if enable_clml:
+                mod = clml.partition_for_clml(mod, params)
+            relay.backend.te_compiler.get().clear()
+            return relay.build(mod, target=target, target_host=target_host, params=params)
 
 
 def build_and_run(
-    mod,
-    inputs,
-    outputs,
-    params,
-    device,
-    enable_clml=True,
-    no_runs=1,
-    config=None,
+    mod, inputs, outputs, params, device, enable_clml=True, no_runs=1, config=None, tune_log=""
 ):
     """Build and run the relay module."""
     if config is None:
         config = {}
 
     try:
-        libm = build_module(mod, device.target, device.target_host, params, enable_clml)
+        libm = build_module(mod, device.target, device.target_host, params, enable_clml, tune_log)
 
         clml_modules = extract_clml_modules(libm)
         for mod in clml_modules:
@@ -198,7 +192,7 @@ def build_and_run(
     for _ in range(no_runs):
         gen_module.run()
         out.append([gen_module.get_output(i) for i in range(outputs)])
-    time_f = gen_module.module.time_evaluator("run", device.device.cl(0), number=50)
+    time_f = gen_module.module.time_evaluator("run", device.device.cl(0), number=1)
     cost = time_f().mean
     print("%g secs/iteration\n" % cost)
     return out
