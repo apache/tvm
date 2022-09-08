@@ -124,8 +124,16 @@ if (rebuild_docker_images) {
 
 lint()
 
-build()
+build('Build')
 
-test()
+test('Test')
+
+if (rebuild_docker_images) {
+  use_built_docker_images()
+
+  build('Build (with new Docker images)')
+
+  test('Test (with new Docker images)')
+}
 
 deploy()

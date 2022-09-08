@@ -116,3 +116,10 @@ def build_docker_images() {
     )
   }
 }
+
+def use_built_docker_images() {
+  {% for image in images %}
+  {{ image.name }} = built_{{ image.name }}
+  {% endfor %}
+}
+

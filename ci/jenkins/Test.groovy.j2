@@ -245,8 +245,8 @@ def run_unittest_minimal() {
   {% endcall %}
 }
 
-def test() {
-stage('Test') {
+def test(stage_name) {
+stage(stage_name) {
   environment {
     SKIP_SLOW_TESTS = "${skip_slow_tests}"
   }
