@@ -613,8 +613,7 @@ def elementwise_overcomputed_producer_reverse_inlined(
 
 @T.prim_func
 def elementwise_producer_not_cover_consumer(
-    A: T.Buffer[(128, 128), "float32"],
-    D: T.Buffer[(256, 128), "float32"]
+    A: T.Buffer[(128, 128), "float32"], D: T.Buffer[(256, 128), "float32"]
 ) -> None:
     B = T.alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
