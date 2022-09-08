@@ -69,6 +69,7 @@ def _get_model(
 @pytest.mark.parametrize("reverse_inputs", [False, True])
 def test_multiply(dtype, shape, constant_shape, reverse_inputs):
     """Compare Multiply output with TVM."""
+
     np.random.seed(0)
 
     iinfo = np.iinfo(dtype)
@@ -106,6 +107,7 @@ def test_multiply(dtype, shape, constant_shape, reverse_inputs):
 @requires_ethosn
 def test_multiply_multiple_inputs_unsupported():
     """Check multiply operator with two inputs is not offloaded."""
+
     np.random.seed(0)
 
     shape = (1, 4, 5, 6)
@@ -151,6 +153,7 @@ def test_multiply_multiple_inputs_unsupported():
 @requires_ethosn
 def test_multiply_unsupported_datatype():
     """Check multiply operator with unsupported datatype is not offloaded."""
+
     np.random.seed(0)
 
     shape = (1, 4, 5, 6)

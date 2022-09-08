@@ -56,8 +56,8 @@ class MultiEthosUConv2D:
         placeholder_8 = T.buffer_decl([1], "uint8")
         placeholder_5 = T.buffer_decl([1], "uint8")
         # body
-        ethosu_conv2d_2 = T.allocate([1024], "uint8", "global")
-        ethosu_conv2d_3 = T.allocate([2048], "uint8", "global")
+        ethosu_conv2d_2 = T.decl_buffer([1024], "uint8")
+        ethosu_conv2d_3 = T.decl_buffer([2048], "uint8")
         T.evaluate(T.call_extern("ethosu_conv2d", "uint8", 4, 8, 3, 4, 0, 8, placeholder_6[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 3, 1, "uint8", 4, 8, 32, 4, 0, 8, ethosu_conv2d_2[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 256, 32, 1, 1, 1, 1, 1, 1, 1, placeholder_7[0], 0, T.int8(-1), T.int8(-1), 12, placeholder_8[0], 0, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="uint8"))
         T.evaluate(T.call_extern("ethosu_conv2d", "uint8", 4, 8, 32, 4, 0, 8, ethosu_conv2d_2[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 256, 32, 1, "uint8", 4, 8, 8, 4, 0, 8, ethosu_conv2d_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 64, 8, 1, 1, 1, 1, 1, 1, 1, placeholder_9[0], 0, T.int8(-1), T.int8(-1), 12, placeholder_5[0], 0, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "CLIP", 0, 255, "TFL", "NONE", 0, 0, 0, dtype="uint8"))
         T.evaluate(T.call_extern("ethosu_conv2d", "uint8", 4, 8, 3, 4, 0, 8, placeholder_6[96], 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 3, 1, "uint8", 4, 8, 32, 4, 0, 8, ethosu_conv2d_2[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 256, 32, 1, 1, 1, 1, 1, 1, 1, placeholder_7[0], 0, T.int8(-1), T.int8(-1), 12, placeholder_8[0], 0, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "CLIP", 0, 255, "TFL", "NONE", 0, 0, 0, dtype="uint8"))
@@ -76,8 +76,8 @@ class MultiEthosUCopy:
         placeholder_5 = T.buffer_decl([1], "int32")
         placeholder_4 = T.buffer_decl([1], "uint8")
         # body
-        placeholder_global = T.allocate([256], "uint8", "global")
-        placeholder_d_global = T.allocate([8], "int32", "global")
+        placeholder_global = T.decl_buffer([256], "uint8")
+        placeholder_d_global = T.decl_buffer([8], "int32")
         T.evaluate(T.call_extern("ethosu_copy", placeholder_4[0], 256,  placeholder_global[0], dtype="handle"))
         T.evaluate(T.call_extern("ethosu_copy", placeholder_5[0], 8, placeholder_d_global[0], dtype="handle"))
         T.evaluate(T.call_extern("ethosu_conv2d", "uint8", 16, 16, 32, 16, 0, 16, placeholder_3[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "uint8", 16, 16, 8, 16, 0, 16, ethosu_conv2d_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, placeholder_global[0], 0, T.int8(-1), T.int8(-1), 12, placeholder_d_global[0], 0, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "CLIP", 0, 255, "TFL", "NONE", 0, 0, 0, dtype="handle"))
@@ -110,8 +110,10 @@ class WeightStreamOnly:
                                        buffer_6.name: buffer_6,
                                        buffer_7.name: buffer_7}})
         # body
-        placeholder_global = T.allocate([128], "uint8", "global", annotations={"disable_lower_builtin":True})
-        placeholder_d_global = T.allocate([32], "uint8", "global", annotations={"disable_lower_builtin":True})
+        placeholder_global_data = T.allocate([128], "uint8", "global", annotations={"disable_lower_builtin":True})
+        placeholder_global = T.decl_buffer([128], "uint8", data=placeholder_global_data)
+        placeholder_d_global_data = T.allocate([32], "uint8", "global", annotations={"disable_lower_builtin":True})
+        placeholder_d_global = T.decl_buffer([32], "uint8", data=placeholder_d_global_data)
         T.evaluate(T.call_extern("ethosu_copy", buffer[0], 128, placeholder_global[0], dtype="handle"))
         T.evaluate(T.call_extern("ethosu_copy", buffer_1[0], 32, placeholder_d_global[0], dtype="handle"))
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 32, 16, 0, 16, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 16, 2, 16, 0, 16, ethosu_write[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, placeholder_global[0], 128, T.int8(-1), T.int8(-1), 12, placeholder_d_global[0], 32, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
@@ -158,9 +160,12 @@ class MixedRead:
                                    buffer_8.name: buffer_8,
                                    buffer_9.name: buffer_9}})
         # body
-        ethosu_write_1 = T.allocate([4096], "int8", "global", annotations={"disable_lower_builtin":True})
-        placeholder_global = T.allocate([80], "uint8", "global", annotations={"disable_lower_builtin":True})
-        placeholder_d_global = T.allocate([32], "uint8", "global", annotations={"disable_lower_builtin":True})
+        ethosu_write_1_data = T.allocate([4096], "int8", "global", annotations={"disable_lower_builtin":True})
+        ethosu_write_1 = T.buffer_decl([4096], "int8", data=ethosu_write_1_data)
+        placeholder_global_data = T.allocate([80], "uint8", "global", annotations={"disable_lower_builtin":True})
+        placeholder_global = T.buffer_decl([80], "uint8", data=placeholder_global_data)
+        placeholder_d_global_data = T.allocate([32], "uint8", "global", annotations={"disable_lower_builtin":True})
+        placeholder_d_global = T.buffer_decl([32], "uint8", data=placeholder_d_global_data)
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 32, 16, 0, 16, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 16, 16, 16, 0, 16, ethosu_write_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 256, 16, 1, 1, 1, 1, 1, 1, 1, buffer[0], 592, T.int8(-1), T.int8(-1), 12, buffer_1[0], 160, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
         T.evaluate(T.call_extern("ethosu_copy", buffer_2[0], 80, placeholder_global[0], dtype="handle"))
         T.evaluate(T.call_extern("ethosu_copy", buffer_3[0], 32, placeholder_d_global[0], dtype="handle"))
@@ -678,10 +683,10 @@ class MixedConstantDatatypes:
                                    buffer_1.name: buffer_1,
                                    buffer_2.name: buffer_2}})
         # body
-        placeholder_global = T.allocate([272], "uint8", "global")
-        placeholder_d_global = T.allocate([160], "uint8", "global")
-        ethosu_write_2 = T.allocate([16], "int16", "global")
-        placeholder_d_global_1 = T.allocate([1], "int16", "global")
+        placeholder_global = T.decl_buffer([272], "uint8")
+        placeholder_d_global = T.decl_buffer([160], "uint8")
+        ethosu_write_2 = T.decl_buffer([16], "int16")
+        placeholder_d_global_1 = T.decl_buffer([1], "int16")
         T.evaluate(T.call_extern("ethosu_copy", buffer_1[0], 272, placeholder_global[0], dtype="uint8"))
         T.evaluate(T.call_extern("ethosu_copy", buffer[0], 160, placeholder_d_global[0], dtype="uint8"))
         T.evaluate(T.call_extern("ethosu_depthwise_conv2d", "int8", 8, 16, 16, 8, 0, 16, placeholder_4[0], 0, 0, 0, T.float32(0.0039215548895299435), -128, "NHWC", 256, 16, 1, "int16", 1, 1, 16, 1, 0, 1, ethosu_write_2[0], 0, 0, 0, T.float32(0.0023205536417663097), -128, "NHWC", 1, 1, 1, 16, 8, 1, 1, 1, 1, placeholder_global[0], 272, 0, placeholder_d_global[0], 160, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="int16"))

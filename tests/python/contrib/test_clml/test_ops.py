@@ -212,5 +212,5 @@ def test_batchnorm():
 
 
 if __name__ == "__main__":
-    # test_conv2d()
+    test_conv2d()
     test_batchnorm()

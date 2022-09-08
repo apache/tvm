@@ -20,6 +20,10 @@ candidates for measurement.
 """
 from typing import TYPE_CHECKING, Callable, List, Optional
 
+# isort: off
+from typing_extensions import Literal
+
+# isort: on
 from tvm._ffi import register_object
 from tvm.runtime import Object
 from tvm.tir.schedule import Schedule
@@ -245,3 +249,28 @@ class PySearchStrategy:
             The profiling results from the runner.
         """
         raise NotImplementedError
+
+
+def create(  # pylint: disable=keyword-arg-before-vararg
+    kind: Literal[
+        "evolutionary",
+        "replay_trace",
+        "replay_func",
+    ] = "evolutionary",
+    *args,
+    **kwargs,
+) -> SearchStrategy:
+    """Create a search strategy."""
+    from . import (  # pylint: disable=import-outside-toplevel
+        EvolutionarySearch,
+        ReplayFunc,
+        ReplayTrace,
+    )
+
+    if kind == "evolutionary":
+        return EvolutionarySearch(*args, **kwargs)
+    if kind == "replay_trace":
+        return ReplayTrace(*args, **kwargs)
+    if kind == "replay_func":
+        return ReplayFunc(*args, **kwargs)
+    raise ValueError(f"Unknown SearchStrategy: {kind}")

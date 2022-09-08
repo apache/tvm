@@ -701,7 +701,7 @@ reg.register_injective_schedule("nn.upsampling3d")
 
 
 # pad
-reg.register_broadcast_schedule("nn.pad")
+reg.register_schedule("nn.pad", strategy.schedule_pad)
 
 
 # mirror_pad

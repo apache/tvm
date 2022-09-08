@@ -655,7 +655,25 @@ class StoragePlanRewriter : public StmtExprMutator {
           }
         }
 
-        if (e->allocs.size() == 1) {
+        bool all_allocs_identical = std::all_of(
+            e->allocs.begin() + 1, e->allocs.end(), [&](const AllocateNode* op) -> bool {
+              const AllocateNode* first = *e->allocs.begin();
+              if (op->dtype != first->dtype) {
+                return false;
+              }
+              if (op->extents.size() != first->extents.size()) {
+                return false;
+              }
+              ExprDeepEqual expr_equal;
+              for (size_t i = 0; i < op->extents.size(); i++) {
+                if (!expr_equal(op->extents[i], first->extents[i])) {
+                  return false;
+                }
+              }
+              return true;
+            });
+
+        if (all_allocs_identical) {
           // simply use the original allocation.
           e->new_alloc = Allocate(e->alloc_var, alloc_type, e->allocs[0]->extents,
                                   e->allocs[0]->condition, Evaluate(0));

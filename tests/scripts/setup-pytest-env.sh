@@ -47,6 +47,7 @@ function cleanup() {
 trap cleanup 0
 
 function run_pytest() {
+    set -e
     local ffi_type="$1"
     shift
     local test_suite_name="$1"
@@ -74,17 +75,14 @@ function run_pytest() {
 
     suite_name="${test_suite_name}-${current_shard}-${ffi_type}"
 
-    # Some test environments don't play well with parallelism
-    DEFAULT_PARALLELISM=2
-    if [[ "${TEST_STEP_NAME:-default}" == "frontend: GPU"* ]] || [[ "${TEST_STEP_NAME:-default}" == "test: Hexagon"* ]]; then
-        DEFAULT_PARALLELISM=1
-    fi
+    DEFAULT_PARALLELISM=1
 
-    if [ ! "${extra_args[@]}" == *" -n"* ] && [! "${extra_args[@]}" == *" -dist"* ]; then
+    if [[ ! "${extra_args[*]}" == *" -n"* ]] && [[ ! "${extra_args[*]}" == *" -dist"* ]]; then
         extra_args+=("-n=$DEFAULT_PARALLELISM")
     fi
 
     exit_code=0
+    set +e
     TVM_FFI=${ffi_type} python3 -m pytest \
            -o "junit_suite_name=${suite_name}" \
            "--junit-xml=${TVM_PYTEST_RESULT_DIR}/${suite_name}.xml" \

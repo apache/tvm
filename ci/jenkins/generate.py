@@ -31,6 +31,12 @@ JENKINSFILE_TEMPLATE = REPO_ROOT / "ci" / "jenkins" / "Jenkinsfile.j2"
 JENKINSFILE = REPO_ROOT / "Jenkinsfile"
 
 
+class Change:
+    IMAGES_ONLY = object()
+    NONE = object()
+    FULL = object()
+
+
 data = {
     "images": [
         {
@@ -83,7 +89,7 @@ def lines_without_generated_tag(content):
     ]
 
 
-def is_changed_images_only(lines: List[str]) -> bool:
+def change_type(lines: List[str]) -> Change:
     """
     Return True if 'line' only edits an image tag or if 'line' is not a changed
     line in a diff
@@ -101,7 +107,7 @@ def is_changed_images_only(lines: List[str]) -> bool:
 
     if len(diff_lines) == 0:
         # no changes made
-        return True
+        return Change.NONE
 
     for line in diff_lines:
         is_add = line.startswith("+")
@@ -113,7 +119,7 @@ def is_changed_images_only(lines: List[str]) -> bool:
         )
         if match is None:
             # matched a non-image line, quit early
-            return False
+            return Change.FULL
 
         if is_add:
             added_images.append(match.groups()[0])
@@ -121,7 +127,10 @@ def is_changed_images_only(lines: List[str]) -> bool:
             removed_images.append(match.groups()[0])
 
     # make sure that the added image lines match the removed image lines
-    return len(added_images) > 0 and added_images == removed_images
+    if len(added_images) > 0 and added_images == removed_images:
+        return Change.IMAGES_ONLY
+    else:
+        return Change.FULL
 
 
 if __name__ == "__main__":
@@ -156,9 +165,11 @@ if __name__ == "__main__":
             lines_without_generated_tag(content), lines_without_generated_tag(new_content)
         )
     ]
-    if not args.force and is_changed_images_only(diff):
+    change = change_type(diff)
+    if not args.force and change == Change.IMAGES_ONLY or change == Change.NONE:
+        if change != Change.NONE:
+            print("Detected only Docker-image name changes, skipping timestamp update")
         new_content = new_content.replace(data["generated_time"], original_timestamp)
-        print("Detected only Docker-image name changed, skipping timestamp update")
 
     diff = "".join(diff)
 

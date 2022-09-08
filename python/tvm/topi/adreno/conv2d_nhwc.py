@@ -33,44 +33,22 @@ from .utils import (
 )
 
 
-@autotvm.register_topi_compute("conv2d_nhwc.image2d")
-def conv2d_nhwc(cfg, data, kernel, strides, padding, dilation, out_dtype="float16"):
-    """Compute conv2d with NCHWc layout"""
-    args = {"shared": False, "accumulator": "float16"}
-    return compute_conv2d_NHWC_HWIO(data, kernel, strides, padding, dilation, out_dtype, args=args)
-
-
-@autotvm.register_topi_compute("conv2d_nhwc_acc32.image2d")
-def conv2d_nhwc_acc32(cfg, data, kernel, strides, padding, dilation, out_dtype="float16"):
-    """Compute conv2d with NCHWc layout"""
-    args = {"shared": False, "accumulator": "float32"}
-    return compute_conv2d_NHWC_HWIO(data, kernel, strides, padding, dilation, out_dtype, args=args)
-
-
 @autotvm.register_topi_schedule("conv2d_nhwc.image2d")
 def schedule_conv2d_nhwc(cfg, outs):
-    return schedule_conv2d_nhwc_impl(cfg, outs, tag="cast_from_acc16")
-
-
-@autotvm.register_topi_schedule("conv2d_nhwc_acc32.image2d")
-def schedule_conv2d_nhwc_acc32(cfg, outs):
-    return schedule_conv2d_nhwc_impl(cfg, outs, tag="cast_from_acc32")
-
-
-def schedule_conv2d_nhwc_impl(cfg, outs, tag):
     """Create the schedule for conv2d_nhwc"""
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if op.tag == tag:
+        if op.tag == "adreno_conv2d_latest_op":
             schedule_conv2d_NHWC(cfg, s, op.output(0))
 
     traverse_inline(s, outs[0].op, _callback)
     return s
 
 
-def compute_conv2d_NHWC_HWIO(Input, Filter, stride, padding, dilation, out_dtype, args):
+@autotvm.register_topi_compute("conv2d_nhwc.image2d")
+def conv2d_nhwc(cfg, Input, Filter, stride, padding, dilation, out_dtype):
     """
     Convolution operator in NHWC layout.
     Algo:
@@ -105,18 +83,12 @@ def compute_conv2d_NHWC_HWIO(Input, Filter, stride, padding, dilation, out_dtype
     convert_from4d = False
     if len(Input.shape) == 4:
         batch, in_height, in_width, in_channels = Input.shape
-        kernel_h, kernel_w, in_filter_channels, out_channles = Filter.shape
-
         in_channel_chunks, in_channel_block, in_channel_tail = split_to_chunks(in_channels, 4)
-        out_channel_chunks, out_channel_block, out_channel_tail = split_to_chunks(out_channles, 4)
 
         if autotvm.GLOBAL_SCOPE.in_tuning:
             dshape = (batch, in_height, in_width, in_channel_chunks, in_channel_block)
             Input = tvm.te.placeholder(dshape, Input.dtype, name="data_placeholder")
-            kshape = (kernel_h, kernel_w, in_filter_channels, out_channel_chunks, out_channel_block)
-            Filter = tvm.te.placeholder(kshape, Filter.dtype, name="kernel_placeholder")
         else:
-            convert_from4d = True
             Input = pack_input(
                 Input,
                 "NHWC",
@@ -127,6 +99,17 @@ def compute_conv2d_NHWC_HWIO(Input, Filter, stride, padding, dilation, out_dtype
                 in_height,
                 in_width,
             )
+    else:
+        batch, in_height, in_width, in_channel_chunks, in_channel_block = Input.shape
+
+    if len(Filter.shape) == 4:
+        kernel_h, kernel_w, in_filter_channels, out_channles = Filter.shape
+        out_channel_chunks, out_channel_block, out_channel_tail = split_to_chunks(out_channles, 4)
+        if autotvm.GLOBAL_SCOPE.in_tuning:
+            kshape = (kernel_h, kernel_w, in_filter_channels, out_channel_chunks, out_channel_block)
+            Filter = tvm.te.placeholder(kshape, Filter.dtype, name="kernel_placeholder")
+        else:
+            convert_from4d = True
             Filter = pack_filter(
                 Filter,
                 "HWIO",
@@ -140,9 +123,7 @@ def compute_conv2d_NHWC_HWIO(Input, Filter, stride, padding, dilation, out_dtype
                 kernel_h,
                 kernel_w,
             )
-
     else:
-        batch, in_height, in_width, in_channel_chunks, in_channel_block = Input.shape
         kernel_h, kernel_w, in_filter_channels, out_channel_chunks, out_channel_block = Filter.shape
 
     out_height_orig, out_height, out_width_orig, out_width = expand_spatial_dimensions(
@@ -173,7 +154,7 @@ def compute_conv2d_NHWC_HWIO(Input, Filter, stride, padding, dilation, out_dtype
             (
                 temp[nn, yy * stride_h + ry * dilation_h, xx * stride_w + rx * dilation_w, rcc, rcb]
                 * Filter[ry, rx, rcc * in_channel_block + rcb, fc, fb]
-            ).astype(args["accumulator"]),
+            ).astype(out_dtype),
             axis=[ry, rx, rcc, rcb],
         ),
         tag="conv2d_nhwc",
@@ -188,13 +169,13 @@ def compute_conv2d_NHWC_HWIO(Input, Filter, stride, padding, dilation, out_dtype
         return te.compute(
             (batch, out_height_orig, out_width_orig, out_channles),
             lambda n, y, x, c: dummy_cast[n, y, x, c // out_channel_block, c % out_channel_block],
-            tag="cast_from_acc" + args["accumulator"][-2:],
+            tag="adreno_conv2d_latest_op",
         )
     else:
         return te.compute(
             (batch, out_height_orig, out_width_orig, out_channel_chunks, out_channel_block),
             lambda n, y, x, ffc, ffb: conv[n, y, x, ffc, ffb].astype(out_dtype),
-            tag="cast_from_acc" + args["accumulator"][-2:],
+            tag="adreno_conv2d_latest_op",
         )
 
 
@@ -229,6 +210,19 @@ def schedule_conv2d_NHWC(cfg, s, output):
         conv = output.op.input_tensors[0]
         latest_blocked = latest
 
+    pad_data, kernel = s[conv].op.input_tensors
+    filter_pack_rt = bool(
+        isinstance(kernel.op, tvm.te.ComputeOp) and "filter_pack" in kernel.op.tag
+    )
+
+    if "pad_temp" in pad_data.op.name:
+        input_pad_temp = pad_data.op.input_tensors[0]
+    else:
+        input_pad_temp = pad_data
+
+    input_pack_rt = bool(
+        isinstance(input_pad_temp.op, tvm.te.ComputeOp) and "input_pack" in input_pad_temp.op.tag
+    )
     ##### space definition begin #####
     n, y, x, fc, fb = s[conv].op.axis
     ry, rx, rcc, rcb = s[conv].op.reduce_axis
@@ -270,36 +264,39 @@ def schedule_conv2d_NHWC(cfg, s, output):
     ##### space definition end #####
 
     pad_data, kernel = s[conv].op.input_tensors
-    if (
-        isinstance(kernel.op, tvm.te.ComputeOp) and "filter_pack" in kernel.op.tag
-    ):  # len(latest.op.axis) == 4:
-        # manage scheduling of datacopy
-        pad_data, kernel = s[conv].op.input_tensors
-        if "pad_temp" in pad_data.op.name:
-            pack_data = pad_data.op.input_tensors[0]
-            bind_data_copy(s[pack_data])
+    # There are several conditions that have to be handled:
+    # 1. If we are in the tuning, we always add cache read for data to main conv kernel
+    #    to get texture in tuning opencl kernel
+    # 2. If we are repacking input in runtime, we should always explicit schedule this one more
+    #    stage of data copy from 4d to 5d (referred as pack_data).
+    # 3. If we have pad (independently if we have runtime repack or not) we should inline it in the
+    #    cache_read("texture")
+    if autotvm.GLOBAL_SCOPE.in_tuning or input_pack_rt:
+        if autotvm.GLOBAL_SCOPE.in_tuning:
+            if "pad_temp" in pad_data.op.name:
+                s[pad_data].compute_inline()
         else:
-            bind_data_copy(s[pad_data])
-        bind_data_copy(s[kernel])
+            if "pad_temp" in pad_data.op.name:
+                s[pad_data].compute_inline()
+                pack_data = pad_data.op.input_tensors[0]
+                bind_data_copy(s[pack_data])
+            else:
+                pack_data = pad_data
+                bind_data_copy(s[pack_data])
 
-    pad_data, kernel = s[conv].op.input_tensors
-
-    if (
-        autotvm.GLOBAL_SCOPE.in_tuning
-        or isinstance(kernel.op, tvm.te.ComputeOp)
-        and "filter_pack" in kernel.op.tag
-    ):
-        if "pad_temp" in pad_data.op.name:
-            s[pad_data].compute_inline()
         AT = s.cache_read(pad_data, get_texture_storage(pad_data.shape), [conv])
         bind_data_copy(s[AT])
-        WT = s.cache_read(kernel, get_texture_storage(kernel.shape), [conv])
-        bind_data_copy(s[WT])
     elif "pad_temp" in pad_data.op.name:
         s[pad_data].compute_inline()
         # create cache stage
         AT = s.cache_read(pad_data, get_texture_storage(pad_data.shape), [conv])
         bind_data_copy(s[AT])
+
+    if autotvm.GLOBAL_SCOPE.in_tuning or filter_pack_rt:
+        if not autotvm.GLOBAL_SCOPE.in_tuning:
+            bind_data_copy(s[kernel])
+        WT = s.cache_read(kernel, get_texture_storage(kernel.shape), [conv])
+        bind_data_copy(s[WT])
 
     s[conv].set_scope("local")
     if latest_blocked == latest and output != latest:

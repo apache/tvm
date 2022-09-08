@@ -168,6 +168,13 @@ def schedule_concatenate_hexagon(attrs, outs, target):
         return topi.hexagon.schedule_injective(outs)
 
 
+@schedule_pad.register("hexagon")
+def schedule_pad_hexagon(attrs, outs, target):
+    """Schedule pad ops for Hexagon"""
+    with target:
+        return topi.hexagon.schedule_pad(outs)
+
+
 @schedule_pool.register("hexagon")
 def schedule_pool_hexagon(attrs, outs, target):
     """Schedule pool ops for Hexagon"""

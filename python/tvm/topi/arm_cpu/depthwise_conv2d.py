@@ -28,6 +28,11 @@ from ..nn.utils import get_pad_tuple
 from .tensor_intrin import smlal_int16_int32
 from .arm_utils import is_aarch64_arm
 
+from .mprofile.dsp.depthwise_conv2d import (
+    depthwise_conv2d_nhwc_dsp_compute,
+    depthwise_conv2d_nhwc_dsp_schedule,
+)
+
 
 @autotvm.register_topi_compute("depthwise_conv2d_nchw.arm_cpu")
 def depthwise_conv2d_nchw(_, data, kernel, strides, padding, dilation, out_dtype):
@@ -699,3 +704,17 @@ def _schedule_spatial_pack(cfg, s, data_vec, kernel_vec, conv, output, last):
             s[kernel_vec].parallel(co)
 
     return s
+
+
+@autotvm.register_topi_compute("depthwise_conv2d_nhwc_dsp.arm_cpu")
+def depthwise_conv2d_nhwc_dsp(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    """Compute conv2d_nhwc with v7e-m DSP instructions."""
+    return depthwise_conv2d_nhwc_dsp_compute(
+        cfg, data, kernel, strides, padding, dilation, out_dtype
+    )
+
+
+@autotvm.register_topi_schedule("depthwise_conv2d_nhwc_dsp.arm_cpu")
+def schedule_depthwise_conv2d_nhwc_dsp(cfg, outs):
+    """Create schedule for conv2d_nhwc_dsp"""
+    return depthwise_conv2d_nhwc_dsp_schedule(cfg, outs)

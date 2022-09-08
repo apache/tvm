@@ -30,9 +30,9 @@ def _get_model(
 ):
     """Return a model an any parameters it may have"""
     a = relay.var("a", shape=shape, dtype=dtype)
-    w = tvm.nd.array(np.ones(weight_shape, dtype))
-    weights = relay.const(w, dtype)
-    fc = relay.qnn.op.dense(
+    weights_array = tvm.nd.array(np.ones(weight_shape, dtype))
+    weights = relay.const(weights_array, dtype)
+    dense = relay.qnn.op.dense(
         a,
         weights,
         input_zero_point=relay.const(input_zp, "int32"),
@@ -44,7 +44,7 @@ def _get_model(
     )
     b = tvm.nd.array(np.random.randint(0, high=255, size=(weight_shape[0],), dtype="int32"))
     biasc = relay.const(b, "int32")
-    bias = relay.nn.bias_add(fc, biasc)
+    bias = relay.nn.bias_add(dense, biasc)
     req = relay.qnn.op.requantize(
         bias,
         relay.const(input_sc * kernel_sc, "float32"),  # input zero scale
@@ -53,7 +53,7 @@ def _get_model(
         relay.const(output_zp, "int32"),  # output zero point
         out_dtype=dtype,
     )
-    params = {"w": w, "b": b}
+    params = {"w": weights_array, "b": b}
     return req, params
 
 
@@ -76,9 +76,8 @@ def _get_model(
     ],
 )
 def test_fullyconnected(shape, out_channels, dtype, input_zp, input_sc, kernel_zp, kernel_sc):
-    """
-    Test fully connected offloading.
-    """
+    """Compare Fully Connected output with TVM."""
+
     np.random.seed(0)
     inputs = {
         "a": tvm.nd.array(
@@ -115,62 +114,63 @@ def test_fullyconnected(shape, out_channels, dtype, input_zp, input_sc, kernel_z
 
 
 @requires_ethosn
-def test_fullyconnected_failure():
-    trials = [
-        (
-            (1, 64),
-            (1, 64),
-            0,
-            1024,
-            0,
-            1024,
-            0,
-            1,
-            "uint8",
-            "Overall scale (of the input * weights / output) should be in the range (2^-32, 65536)",
-        ),
+@pytest.mark.parametrize(
+    "shape,weight_shape,err_msg",
+    [
         (
             (1, 1, 1, 64),
             (1, 64),
-            0,
-            1,
-            0,
-            1,
-            0,
-            1,
-            "uint8",
-            "Weights tensor must have I dimension equal to the number of channels of the input tensor.;",
+            "Weights tensor must have I dimension equal to the number"
+            " of channels of the input tensor.;",
         ),
-        ((1024, 64), (1, 64), 0, 1, 0, 1, 0, 1, "uint8", "batch size=1024, batch size must = 1;"),
-    ]
-
+        ((1024, 64), (1, 64), "batch size=1024, batch size must = 1;"),
+    ],
+)
+def test_fullyconnected_failure(shape, weight_shape, err_msg):
+    """Check Fully Connected error messages."""
     np.random.seed(0)
-    for (
+
+    dtype = "uint8"
+
+    model, _ = _get_model(
         shape,
         weight_shape,
-        input_zp,
-        input_sc,
-        kernel_zp,
-        kernel_sc,
-        output_zp,
-        output_sc,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
         dtype,
-        err_msg,
-    ) in trials:
-        inputs = {
-            "a": tvm.nd.array(np.random.randint(0, high=255, size=shape, dtype=dtype)),
-        }
-        model, params = _get_model(
-            shape,
-            weight_shape,
-            input_zp,
-            input_sc,
-            kernel_zp,
-            kernel_sc,
-            output_zp,
-            output_sc,
-            dtype,
-        )
-        model = tei.make_ethosn_composite(model, "ethos-n.qnn_fc")
-        mod = tei.make_ethosn_partition(model)
-        tei.test_error(mod, {}, err_msg)
+    )
+    model = tei.make_ethosn_composite(model, "ethos-n.qnn_fc")
+    mod = tei.make_ethosn_partition(model)
+    tei.test_error(mod, {}, err_msg)
+
+
+@requires_ethosn
+def test_fullyconnected_scale_out_of_range():
+    """Check Fully Connected out of range scale error message."""
+    np.random.seed(0)
+
+    input_sc = 1024
+    kernel_sc = 1024
+    output_sc = 1
+
+    model, _ = _get_model(
+        (1, 64),
+        (1, 64),
+        0,
+        input_sc,
+        0,
+        kernel_sc,
+        0,
+        output_sc,
+        "uint8",
+    )
+    model = tei.make_ethosn_composite(model, "ethos-n.qnn_fc")
+    mod = tei.make_ethosn_partition(model)
+    expected_error_msg = (
+        "Overall scale (of the input * weights / output) should be in the range (2^-32, 65536)"
+    )
+    tei.test_error(mod, {}, expected_error_msg)
