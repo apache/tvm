@@ -945,6 +945,9 @@ requires_rpc = Feature("rpc", "RPC", cmake_flag="USE_RPC")
 # Mark a test as requiring Arm(R) Ethos(TM)-N to run
 requires_ethosn = Feature("ethosn", "Arm(R) Ethos(TM)-N", cmake_flag="USE_ETHOSN")
 
+# Mark a test as requiring libtorch to run
+requires_libtorch = Feature("libtorch", "LibTorch", cmake_flag="USE_LIBTORCH")
+
 # Mark a test as requiring Hexagon to run
 requires_hexagon = Feature(
     "hexagon",
