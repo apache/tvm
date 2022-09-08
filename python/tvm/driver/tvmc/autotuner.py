@@ -635,7 +635,7 @@ def schedule_tasks(
     if log_estimated_latency:
         callbacks.append(auto_scheduler.task_scheduler.LogEstimatedLatency(("total_latency.tsv")))
     if visualize:
-        callbacks.append(auto_scheduler.task_scheduler.VisualizeProgress())
+        callbacks.append(auto_scheduler.task_scheduler.VisualizeProgress(keep_open=True))
 
     # Create the scheduler
     tuner = auto_scheduler.TaskScheduler(tasks, task_weights, load_log_file=prior_records, callbacks=callbacks)
@@ -716,8 +716,8 @@ def tune_tasks(
             autotvm.callback.log_to_file(log_file),
         ]
         if visualize:
-            # callbacks.append(autotvm.callback.visualize_progress(i, title=f"AutoTVM Progress [Task {i+1}/{len(tasks)}]", si_prefix=si_prefix)
-            callbacks.append(autotvm.callback.visualize_progress(i, multi=True, si_prefix=si_prefix))
+            keep_open = i == len(tasks) - 1
+            callbacks.append(autotvm.callback.visualize_progress(i, si_prefix=si_prefix, keep_open=keep_open))
         tuner_obj.tune(
             n_trial=min(trials, len(tsk.config_space)),
             early_stopping=early_stopping,

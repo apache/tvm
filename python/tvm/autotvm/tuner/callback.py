@@ -180,7 +180,7 @@ def progress_bar(total, prefix="", si_prefix="G"):
     return _callback
 
 
-def visualize_progress(idx, title="AutoTVM Progress", multi=False, si_prefix="G"):
+def visualize_progress(idx, title="AutoTVM Progress", si_prefix="G", keep_open=False):
     """Display tuning progress in graph
 
     Parameters
@@ -189,11 +189,10 @@ def visualize_progress(idx, title="AutoTVM Progress", multi=False, si_prefix="G"
         Index of the current task.
     title: str
         Specify the title of the matplotlib figure.
-    multi: bool
-        Add traces for alls tuned tasks into a single plot.
-        If False, one plot is generated for each task.
     si_prefix: str
         SI prefix for flops
+    keep_open: bool
+        TODO
     """
     import matplotlib.pyplot as plt
 
@@ -201,9 +200,11 @@ def visualize_progress(idx, title="AutoTVM Progress", multi=False, si_prefix="G"
         """Context to store local variables"""
 
         def __init__(self):
+            self.keep_open = keep_open
+            self.out_file = "/tmp/plot.png"
             self.best_flops = [0]
             self.all_flops = []
-            if multi and idx > 0:
+            if idx > 0:
                 plt.figure(title)
             else:
                 plt.figure(title).clear()
@@ -213,6 +214,14 @@ def visualize_progress(idx, title="AutoTVM Progress", multi=False, si_prefix="G"
             plt.ylabel(f"{si_prefix}FLOPS")
             plt.legend(loc="upper left")
             plt.pause(0.05)
+
+        def __del__(self):
+            if self.out_file:
+                print(f"Writing plot to file {self.out_file}...")
+                plt.savefig(self.out_file)
+            if self.keep_open:
+                print("Close matplotlib window to continue...")
+                plt.show()
 
     ctx = _Context()
 
