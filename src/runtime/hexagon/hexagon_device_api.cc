@@ -235,15 +235,17 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.free_nd").set_body([](TVMArgs args, TVMR
   *rv = static_cast<int32_t>(0);
 });
 
-TVM_REGISTER_GLOBAL("device_api.hexagon.acquire_resources").set_body([](TVMArgs args, TVMRetValue* rv) {
-  HexagonDeviceAPI* api = HexagonDeviceAPI::Global();
-  api->AcquireResources();
-});
+TVM_REGISTER_GLOBAL("device_api.hexagon.acquire_resources")
+    .set_body([](TVMArgs args, TVMRetValue* rv) {
+      HexagonDeviceAPI* api = HexagonDeviceAPI::Global();
+      api->AcquireResources();
+    });
 
-TVM_REGISTER_GLOBAL("device_api.hexagon.release_resources").set_body([](TVMArgs args, TVMRetValue* rv) {
-  HexagonDeviceAPI* api = HexagonDeviceAPI::Global();
-  api->ReleaseResources();
-});
+TVM_REGISTER_GLOBAL("device_api.hexagon.release_resources")
+    .set_body([](TVMArgs args, TVMRetValue* rv) {
+      HexagonDeviceAPI* api = HexagonDeviceAPI::Global();
+      api->ReleaseResources();
+    });
 
 TVM_REGISTER_GLOBAL("device_api.hexagon").set_body([](TVMArgs args, TVMRetValue* rv) {
   DeviceAPI* ptr = HexagonDeviceAPI::Global();

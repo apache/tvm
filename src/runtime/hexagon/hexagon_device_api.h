@@ -58,13 +58,13 @@ class HexagonDeviceAPI final : public DeviceAPI {
   }
 
   //! \brief Ensures we have freed all resources when we end the runtime
-  void ReleaseResources()  {
-    if (!hexbuffs->empty()) { 
+  void ReleaseResources() {
+    if (!hexbuffs->empty()) {
       LOG(INFO) << "hexbuffs was not empty in ReleaseResources, resetting";
       hexbuffs.reset();
       hexbuffs = std::make_unique<HexagonBufferManager>();
     }
-  } 
+  }
 
   /*! \brief Currently unimplemented interface to specify the active
    *  Hexagon device.
@@ -153,7 +153,7 @@ class HexagonDeviceAPI final : public DeviceAPI {
            (DLDeviceType(dev.device_type) == kDLCPU);
   }
 
-  //! \brief Manages underlying HexagonBuffer allocations 
+  //! \brief Manages underlying HexagonBuffer allocations
   std::unique_ptr<HexagonBufferManager> hexbuffs;
 };
 }  // namespace hexagon

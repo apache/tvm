@@ -150,14 +150,14 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         ...
 
     def _acquire_device_resources(self):
+        """Call into device to initialize objects to acquire resources"""
         with self.start_session() as session:
-            """Call into device to initialize objects to acquire resources"""
             func = session._rpc.get_function("device_api.hexagon.acquire_resources")
             func()
 
     def _release_device_resources(self):
+        """Call into device to release resources"""
         with self.start_session() as session:
-            """Call into device to release resources"""
             func = session._rpc.get_function("device_api.hexagon.release_resources")
             func()
 
