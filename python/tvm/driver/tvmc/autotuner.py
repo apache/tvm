@@ -139,6 +139,11 @@ def add_tune_parser(subparsers, _, json_params):
         help="enable tuning the graph through the AutoScheduler tuner",
         action="store_true",
     )
+    parser.add_argument(
+        "--visualize",
+        help="whether the tuning progress should be visualized in a graph",
+        action="store_true",
+    )
 
     auto_scheduler_group = parser.add_argument_group(
         "AutoScheduler options",
@@ -212,11 +217,6 @@ def add_tune_parser(subparsers, _, json_params):
         choices=["ga", "gridsearch", "random", "xgb", "xgb_knob", "xgb-rank"],
         default="xgb",
         help="type of tuner to use when tuning with autotvm.",
-    )
-    autotvm_group.add_argument(
-        "--visualize",
-        help="whether the tuning progress should be visualized in a graph",
-        action="store_true",
     )
     # TODO (@leandron) This is a path to a physical file, but
     #     can be improved in future to add integration with a modelzoo
@@ -480,7 +480,7 @@ def tune_model(
             logger.info("Autoscheduling with configuration: %s", tuning_options)
 
             # Schedule the tasks (i.e., produce a schedule for each task)
-            schedule_tasks(tasks, weights, tuning_options, prior_records, log_estimated_latency)
+            schedule_tasks(tasks, weights, tuning_options, prior_records, log_estimated_latency, visualize=visualize)
         else:
             tasks = autotvm_get_tuning_tasks(
                 mod=mod,
@@ -611,6 +611,7 @@ def schedule_tasks(
     tuning_options: auto_scheduler.TuningOptions,
     prior_records: Optional[str] = None,
     log_estimated_latency: bool = False,
+    visualize: bool = False,
 ):
     """Generate the schedules for the different tasks (i.e., subgraphs) contained in the module.
     Store the schedules in a json file that will be used later by the compiler.
@@ -627,14 +628,14 @@ def schedule_tasks(
         The json file used to preload the autoscheduler
     log_estimated_latency : bool, optional
         If true, writes the estimated runtime of the model during each step of tuning to file.
+    visualize : bool
+        Whether the tuning progress should be visualized with matplotlib.
     """
-    if not log_estimated_latency:
-        callbacks = [auto_scheduler.task_scheduler.PrintTableInfo()]
-    else:
-        callbacks = [
-            auto_scheduler.task_scheduler.PrintTableInfo(),
-            auto_scheduler.task_scheduler.LogEstimatedLatency(("total_latency.tsv")),
-        ]
+    callbacks = [auto_scheduler.task_scheduler.PrintTableInfo()]
+    if log_estimated_latency:
+        callbacks.append(auto_scheduler.task_scheduler.LogEstimatedLatency(("total_latency.tsv")))
+    if visualize:
+        callbacks.append(auto_scheduler.task_scheduler.VisualizeProgress())
 
     # Create the scheduler
     tuner = auto_scheduler.TaskScheduler(tasks, task_weights, load_log_file=prior_records, callbacks=callbacks)
