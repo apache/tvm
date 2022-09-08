@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-09-07T10:10:53.080276
+// Generated at 2022-09-08T10:14:47.578545
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -812,10 +812,11 @@ stage('Build') {
           )
 
 
-          // compiler test
-          sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build2"
-          make("${ci_gpu} --no-gpu", 'build2', '-j2')
-          sh(
+          // // compiler test
+          // See https://github.com/apache/tvm/issues/12739
+          // sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build2"
+          // make("${ci_gpu} --no-gpu", 'build2', '-j2')
+          // sh(
             script: """
               set -eux
               retry() {
