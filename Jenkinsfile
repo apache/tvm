@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-09-01T11:52:42.195970
+// Generated at 2022-09-07T10:10:53.080276
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -712,7 +712,7 @@ def fsim_test(image) {
 
 def cmake_build(image, path, make_flag) {
   sh (
-    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod",
+    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --build-dir ${path}",
     label: 'Run cmake build',
   )
 }
@@ -1250,6 +1250,28 @@ stage('Build') {
       }
      } else {
       Utils.markStageSkippedForConditional('BUILD: RISC-V')
+    }
+  },
+  'BUILD: CSINN2': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU-SMALL') {
+        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-csinn2") {
+          docker_init(ci_riscv)
+          init_git()
+          sh (
+            script: "${docker_run} ${ci_riscv} ./tests/scripts/task_config_build_csinn2.sh build",
+            label: 'Create CSINN2 x86 cmake config',
+          )
+          make(ci_riscv, 'build', '-j2')
+          sh (
+            script: "${docker_run} ${ci_riscv} ./tests/scripts/task_config_build_c906.sh build-csinn2-c906",
+            label: 'Create CSINN2 c906 cmake config',
+          )
+          make(ci_riscv, 'build-csinn2-c906', 'tvm_rpc -j2')
+        }
+      }
+     } else {
+      Utils.markStageSkippedForConditional('BUILD: CSINN2')
     }
   },
   )
