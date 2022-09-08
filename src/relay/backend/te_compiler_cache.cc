@@ -366,8 +366,9 @@ class ScheduleBuilder : public ExprVisitor {
           constants.push_back(const_node->data);
         }
         if (Optional<PrimFunc> f = tir_converter(te_args, constants)) {
+	  IRModule query_mod = backend::PrimFuncToIRModule(f.value());
           if (Optional<TuningRecord> opt_record = database_.value()->QueryTuningRecord(
-                  /*mod=*/backend::PrimFuncToIRModule(f.value()),
+                  /*mod=*/query_mod,
                   /*target=*/target_,
                   /*workload_name=*/prim_fn_var->name_hint)) {
             static InstructionKind kind_transform_layout = InstructionKind::Get("TransformLayout");
@@ -378,7 +379,7 @@ class ScheduleBuilder : public ExprVisitor {
                 MetaScheduleLayoutRewriter::LayoutQueuePush(Downcast<IndexMap>(inst->attrs[2]));
               }
             }
-            Schedule sch = Schedule::Traced(record->workload->mod, /*seed=*/-1, /*debug_mask=*/0,
+            Schedule sch = Schedule::Traced(query_mod, /*seed=*/-1, /*debug_mask=*/0,
                                             tir::ScheduleErrorRenderLevel::kDetail);
             record->trace->ApplyToSchedule(sch, /*remove_postproc=*/false);
             IRModule mod = sch->mod();
