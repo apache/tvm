@@ -180,7 +180,9 @@ def progress_bar(total, prefix="", si_prefix="G"):
     return _callback
 
 
-def visualize_progress(idx, title="AutoTVM Progress", si_prefix="G", keep_open=False):
+def visualize_progress(
+    idx, title="AutoTVM Progress", si_prefix="G", keep_open=False, live=True, out_path=None
+):
     """Display tuning progress in graph
 
     Parameters
@@ -192,7 +194,11 @@ def visualize_progress(idx, title="AutoTVM Progress", si_prefix="G", keep_open=F
     si_prefix: str
         SI prefix for flops
     keep_open: bool
-        TODO
+        Wait until the matplotlib window was closed by the user.
+    live: bool
+        If false, the graph is only written to the file specified in out_path.
+    out_path: str
+        Path where the graph image should be written (if defined).
     """
     import matplotlib.pyplot as plt
 
@@ -201,7 +207,8 @@ def visualize_progress(idx, title="AutoTVM Progress", si_prefix="G", keep_open=F
 
         def __init__(self):
             self.keep_open = keep_open
-            self.out_file = "/tmp/plot.png"
+            self.live = live
+            self.out_path = out_path
             self.best_flops = [0]
             self.all_flops = []
             if idx > 0:
@@ -213,13 +220,14 @@ def visualize_progress(idx, title="AutoTVM Progress", si_prefix="G", keep_open=F
             plt.xlabel("Iterations")
             plt.ylabel(f"{si_prefix}FLOPS")
             plt.legend(loc="upper left")
-            plt.pause(0.05)
+            if self.live:
+                plt.pause(0.05)
 
         def __del__(self):
-            if self.out_file:
-                print(f"Writing plot to file {self.out_file}...")
-                plt.savefig(self.out_file)
-            if self.keep_open:
+            if self.out_path:
+                print(f"Writing plot to file {self.out_path}...")
+                plt.savefig(self.out_path)
+            if self.live and self.keep_open:
                 print("Close matplotlib window to continue...")
                 plt.show()
 
@@ -245,6 +253,7 @@ def visualize_progress(idx, title="AutoTVM Progress", si_prefix="G", keep_open=F
             plt.axis([0, max(len(ctx.all_flops) + 1, xmax), 0, max(ctx.best_flops[-1] * 1.1, ymax)])
             plt.scatter(len(ctx.all_flops), flops, color=ctx.color, marker=m, s=15)
             ctx.p.set_data(list(range(0, len(ctx.all_flops) + 1)), ctx.best_flops)
+        if live:
             plt.pause(0.05)
 
     return _callback
