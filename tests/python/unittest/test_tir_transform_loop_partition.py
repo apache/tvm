@@ -619,26 +619,54 @@ def test_condition_mutually_exclusive():
     assert tvm.ir.structural_equal(mod["main"], partitioned_concat_3)
 
 
+def test_loop_partition_unroll_hint():
+    @T.prim_func
+    def main(A: T.Buffer[150528, "int8"], B: T.Buffer[25088, "int8"]) -> None:
+        T.preflattened_buffer(A, [1, 3, 224, 224], "int8", data=A.data)
+        T.preflattened_buffer(B, [1, 224, 7, 16], "int8", data=B.data)
+        for ax0 in T.serial(
+            112,
+            annotations={"pragma_loop_partition_hint": True},
+        ):
+            for ax1, ax2, ax3 in T.grid(224, 7, 16):
+                if 3 <= ax0 * 2 + ax2 and ax0 * 2 + ax2 < 227 and ax3 < 3:
+                    B[ax1 * 112 + ax2 * 16 + ax3] = A[ax3 * 50176 + ax1 * 224 + ax0 * 2 + ax2 - 3]
+
+    @T.prim_func
+    def partitioned_main(A: T.Buffer[150528, "int8"], B: T.Buffer[25088, "int8"]) -> None:
+        T.preflattened_buffer(A, [1, 3, 224, 224], dtype="int8", data=A.data)
+        T.preflattened_buffer(B, [1, 224, 7, 16], dtype="int8", data=B.data)
+        # body
+        for ax1, ax2, ax3 in T.grid(224, 7, 16):
+            if 3 <= ax2 and ax3 < 3:
+                B[ax1 * 112 + ax2 * 16 + ax3] = A[ax3 * 50176 + ax1 * 224 + ax2 - 3]
+        for ax1, ax2, ax3 in T.grid(224, 7, 16):
+            if 1 <= ax2 and ax3 < 3:
+                B[ax1 * 112 + ax2 * 16 + ax3] = A[ax3 * 50176 + ax1 * 224 + ax2 - 1]
+        for ax0, ax1, ax2, ax3 in T.grid(109, 224, 7, 16):
+            if ax3 < 3:
+                B[ax1 * 112 + ax2 * 16 + ax3] = A[ax3 * 50176 + ax1 * 224 + ax0 * 2 + ax2 + 1]
+        for ax1, ax2, ax3 in T.grid(224, 7, 16):
+            if ax2 < 5 and ax3 < 3:
+                B[ax1 * 112 + ax2 * 16 + ax3] = A[ax3 * 50176 + ax1 * 224 + ax2 + 219]
+
+    mod = tvm.ir.module.IRModule.from_expr(main)
+    with tvm.transform.PassContext(
+        config={
+            "tir.LoopPartition": {
+                "partition_const_loop": True,
+                "unroll_loop_with_partition_hint_no_interval": True,
+            }
+        }
+    ):
+        mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
+        mod = tvm.tir.transform.FlattenBuffer()(mod)
+        mod = tvm.tir.transform.LoopPartition()(mod)
+        mod = tvm.tir.transform.UnrollLoop()(mod)
+        mod = tvm.tir.transform.RemoveNoOp()(mod)
+        mod = tvm.tir.transform.Simplify()(mod)
+    assert tvm.ir.structural_equal(mod["main"], partitioned_main)
+
+
 if __name__ == "__main__":
-    test_basic()
-    test_const_loop()
-    test_multi_loop()
-    test_multi_if()
-    test_thread_axis()
-    test_vectorize()
-    test_condition()
-    test_condition_EQ()
-    test_thread_axis2()
-    test_everything_during_deduction()
-    test_single_likely()
-    test_multi_likely()
-    test_oneD_pool()
-    test_cce_loop_1()
-    test_cce_loop_2()
-    test_cce_loop_3()
-    test_conv_tiling()
-    test_double_splitting_with_indivisible_factors()
-    test_multilevel_splitting_with_indivisble_factors()
-    test_simple_rfactor()
-    test_explicit_partition_hint()
-    test_condition_mutually_exclusive()
+    tvm.testing.main()

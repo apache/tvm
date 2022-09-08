@@ -43,11 +43,15 @@ namespace tir {
 struct LoopPartitionConfigNode : public tvm::AttrsNode<LoopPartitionConfigNode> {
   bool partition_const_loop;
   bool no_unroll_loop_with_extent_one;
+  bool unroll_loop_with_partition_hint_no_interval;
 
   TVM_DECLARE_ATTRS(LoopPartitionConfigNode, "tir.transform.LoopPartitionConfig") {
     TVM_ATTR_FIELD(partition_const_loop).describe("Split constant loop").set_default(false);
     TVM_ATTR_FIELD(no_unroll_loop_with_extent_one)
         .describe("Don't unroll loops with extent 1")
+        .set_default(false);
+    TVM_ATTR_FIELD(unroll_loop_with_partition_hint_no_interval)
+        .describe("Unroll loops with pragma_loop_partition_hint and no interval")
         .set_default(false);
   }
 };
@@ -377,9 +381,11 @@ class ThreadPartitionInserter : public StmtMutator {
 // likely conditions
 class LoopPartitioner : public StmtMutator {
  public:
-  explicit LoopPartitioner(bool partition_const_loop, bool no_unroll_loop_with_extent_one)
+  explicit LoopPartitioner(bool partition_const_loop, bool no_unroll_loop_with_extent_one,
+                           bool unroll_loop_with_partition_hint_no_interval)
       : selector(CandidateSelector(partition_const_loop)),
-        no_unroll_loop_with_extent_one_(no_unroll_loop_with_extent_one) {}
+        no_unroll_loop_with_extent_one_(no_unroll_loop_with_extent_one),
+        unroll_loop_with_partition_hint_no_interval_(unroll_loop_with_partition_hint_no_interval) {}
 
   Stmt VisitAndMutate(Stmt stmt) {
     selector(stmt);
@@ -447,6 +453,7 @@ class LoopPartitioner : public StmtMutator {
   arith::Analyzer analyzer_;
   CandidateSelector selector;
   bool no_unroll_loop_with_extent_one_;
+  bool unroll_loop_with_partition_hint_no_interval_;
 };
 
 // Returns an interval (in the first component) in which all the conditions
@@ -587,6 +594,10 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
   }();
 
   if (!opt_cond_value.has_value()) {
+    if (has_partition_hint_ && unroll_loop_with_partition_hint_no_interval_ &&
+        analyzer_.CanProve(max - min > 0)) {
+      return For(var, min, max - min + 1, ForKind::kUnrolled, body);
+    }
     return Stmt();
   }
   bool cond_value = opt_cond_value.value();
@@ -658,11 +669,11 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
       Stmt simplified_body = ConditionEliminator(cond_set, cond_value)(body);
       Stmt new_body = Substitute(simplified_body, {{Var{var}, var + body_begin}});
       mid_stmt = MakeFor(stmt.get(), post_doubt_begin - body_begin, new_body);
-
+      // Recurse until partitions is empty
+      mid_stmt = VisitAndMutate(mid_stmt);
       // Recurse for each non-empty subrange only if there are at least
       // two non-empty subranges
       if (pre_stmt.defined() || post_stmt.defined()) {
-        mid_stmt = VisitAndMutate(mid_stmt);
         if (pre_stmt.defined() && pre_stmt_recurse) {
           pre_stmt = VisitAndMutate(pre_stmt);
         }
@@ -714,8 +725,10 @@ class RemoveLikelyTagsAndHints : public StmtExprMutator {
   }
 };
 
-Stmt LoopPartition(Stmt stmt, bool partition_const_loop, bool no_unroll_loop_with_extent_one) {
-  stmt = LoopPartitioner(partition_const_loop, no_unroll_loop_with_extent_one)
+Stmt LoopPartition(Stmt stmt, bool partition_const_loop, bool no_unroll_loop_with_extent_one,
+                   bool unroll_loop_with_partition_hint_no_interval) {
+  stmt = LoopPartitioner(partition_const_loop, no_unroll_loop_with_extent_one,
+                         unroll_loop_with_partition_hint_no_interval)
              .VisitAndMutate(std::move(stmt));
   stmt = RemoveLikelyTagsAndHints()(std::move(stmt));
   return stmt;
@@ -731,7 +744,8 @@ Pass LoopPartition() {
       cfg = AttrsWithDefaultValues<LoopPartitionConfig>();
     }
     n->body = LoopPartition(std::move(n->body), cfg.value()->partition_const_loop,
-                            cfg.value()->no_unroll_loop_with_extent_one);
+                            cfg.value()->no_unroll_loop_with_extent_one,
+                            cfg.value()->unroll_loop_with_partition_hint_no_interval);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LoopPartition", {});
