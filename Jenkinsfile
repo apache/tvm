@@ -45,7 +45,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2022-10-04T13:17:33.929159
+// Generated at 2022-10-11T10:27:35.784555
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
@@ -607,6 +607,20 @@ def build_docker_images() {
     )
   }
 }
+
+def use_built_docker_images() {
+  ci_arm = built_ci_arm
+  ci_cortexm = built_ci_cortexm
+  ci_cpu = built_ci_cpu
+  ci_gpu = built_ci_gpu
+  ci_hexagon = built_ci_hexagon
+  ci_i386 = built_ci_i386
+  ci_lint = built_ci_lint
+  ci_minimal = built_ci_minimal
+  ci_riscv = built_ci_riscv
+  ci_wasm = built_ci_wasm
+}
+
 def lint() {
   stage('Lint') {
     parallel(
@@ -725,8 +739,8 @@ def make(docker_type, path, make_flag) {
 }
 
 
-def build() {
-stage('Build') {
+def build(stage_name) {
+stage(stage_name) {
   environment {
     SKIP_SLOW_TESTS = "${skip_slow_tests}"
   }
@@ -3886,8 +3900,8 @@ def run_unittest_minimal() {
   }
 }
 
-def test() {
-stage('Test') {
+def test(stage_name) {
+stage(stage_name) {
   environment {
     SKIP_SLOW_TESTS = "${skip_slow_tests}"
   }
@@ -4541,8 +4555,16 @@ if (rebuild_docker_images) {
 
 lint()
 
-build()
+build('Build')
 
-test()
+test('Test')
+
+if (rebuild_docker_images) {
+  use_built_docker_images()
+
+  build('Build (with new Docker images)')
+
+  test('Test (with new Docker images)')
+}
 
 deploy()

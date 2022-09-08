@@ -74,8 +74,8 @@ def make(docker_type, path, make_flag) {
 }
 
 
-def build() {
-stage('Build') {
+def build(stage_name) {
+stage(stage_name) {
   environment {
     SKIP_SLOW_TESTS = "${skip_slow_tests}"
   }
