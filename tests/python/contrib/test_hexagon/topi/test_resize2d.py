@@ -46,9 +46,9 @@ def expected_output_np(
 def input_np(input_shape, dtype):
     if dtype == "float16":
         return np.random.random(input_shape).astype(dtype)
-    elif dtype == "uint8":
+    if dtype == "uint8":
         return np.random.randint(0, 255, input_shape).astype(dtype)
-    elif dtype == "int8":
+    if dtype == "int8":
         return np.random.randint(-128, 127, input_shape).astype(dtype)
 
 
@@ -56,16 +56,16 @@ def input_np(input_shape, dtype):
 def transformed_input_np(input_np, layout, input_crouton_layout, dtype):
     if dtype == "float16" or dtype == "uint8" or dtype == "int8":
         return transform_numpy(input_np, layout.lower(), input_crouton_layout)
-    else:
-        raise RuntimeError(f"Unsupported data type '{dtype}'")
+    
+    raise RuntimeError(f"Unsupported data type '{dtype}'")
 
 
 @tvm.testing.fixture
 def transformed_expected_output_np(expected_output_np, layout, output_layout, dtype):
     if dtype == "float16" or dtype == "uint8" or dtype == "int8":
         return transform_numpy(expected_output_np, layout.lower(), output_layout)
-    else:
-        raise RuntimeError(f"Unsupported data type '{dtype}'")
+    
+    raise RuntimeError(f"Unsupported data type '{dtype}'")
 
 
 @tvm.testing.fixture
