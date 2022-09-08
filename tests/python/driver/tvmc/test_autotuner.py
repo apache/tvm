@@ -207,3 +207,18 @@ def test_autotune_pass_context(mock_pc, onnx_mnist, tmpdir_factory):
     # AutoTVM overrides the pass context later in the pipeline to disable AlterOpLayout
     assert mock_pc.call_count == 2
     assert mock_pc.call_args_list[0][1]["opt_level"] == 3
+
+
+def test_parse_visualize_arg_valid():
+    tvmc.autotuner.parse_visualize_arg("live") == "live", None
+    tvmc.autotuner.parse_visualize_arg("plot.png") == "file", Path("plot.png")
+    tvmc.autotuner.parse_visualize_arg("live2") == "file", Path("live2")
+    tvmc.autotuner.parse_visualize_arg("live,plot.png") == "both", Path("plot.png")
+    tvmc.autotuner.parse_visualize_arg("plot.png,live") == "both", Path("plot.png")
+
+
+def test_parse_visualize_arg_invalid():
+    invalid = ["foo,bar,baz", "plot.png,plot2.png", "plot.png,", "live,", ","]
+    for arg in invalid:
+        with pytest.raises(AssertionError):
+            tvmc.autotuner.parse_visualize_arg(arg)
