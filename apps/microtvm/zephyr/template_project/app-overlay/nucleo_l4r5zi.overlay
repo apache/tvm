@@ -1,0 +1,3 @@
+&rcc {
+	clock-frequency = <DT_FREQ_M(120)>;
+};

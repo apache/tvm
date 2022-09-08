@@ -567,6 +567,8 @@ class Handler(server.ProjectAPIHandler):
         return cmake_args
 
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
+        zephyr_board = options["zephyr_board"]
+
         # Check Zephyr version
         version = self._get_platform_version(get_zephyr_base(options))
         if version != ZEPHYR_VERSION:
@@ -586,6 +588,11 @@ class Handler(server.ProjectAPIHandler):
         # Copy boards.json file to generated project.
         shutil.copy2(BOARDS, project_dir / BOARDS.name)
 
+        # Copy overlay files
+        board_overlay_path = API_SERVER_DIR / "app-overlay" / f"{zephyr_board}.overlay"
+        if board_overlay_path.exists():
+            shutil.copy2(board_overlay_path, project_dir / f"{zephyr_board}.overlay")
+
         # Place Model Library Format tarball in the special location, which this script uses to decide
         # whether it's being invoked in a template or generated project.
         project_model_library_format_tar_path = project_dir / MODEL_LIBRARY_FORMAT_RELPATH
@@ -597,9 +604,9 @@ class Handler(server.ProjectAPIHandler):
             os.makedirs(extract_path)
             tf.extractall(path=extract_path)
 
-        if self._is_qemu(options["zephyr_board"], options.get("use_fvp")):
+        if self._is_qemu(zephyr_board, options.get("use_fvp")):
             shutil.copytree(API_SERVER_DIR / "qemu-hack", project_dir / "qemu-hack")
-        elif self._is_fvp(options["zephyr_board"], options.get("use_fvp")):
+        elif self._is_fvp(zephyr_board, options.get("use_fvp")):
             shutil.copytree(API_SERVER_DIR / "fvp-hack", project_dir / "fvp-hack")
 
         # Populate CRT.
@@ -650,7 +657,7 @@ class Handler(server.ProjectAPIHandler):
                     for item in flags:
                         cmake_f.write(f"target_compile_definitions(app PUBLIC {item})\n")
 
-                if self._is_fvp(options["zephyr_board"], options.get("use_fvp")):
+                if self._is_fvp(zephyr_board, options.get("use_fvp")):
                     cmake_f.write(f"target_compile_definitions(app PUBLIC -DFVP=1)\n")
 
         self._create_prj_conf(project_dir, options)
@@ -665,7 +672,7 @@ class Handler(server.ProjectAPIHandler):
         # Populate src/
         src_dir = project_dir / "src"
         if options["project_type"] != "host_driven" or self._is_fvp(
-            options["zephyr_board"], options.get("use_fvp")
+            zephyr_board, options.get("use_fvp")
         ):
             shutil.copytree(API_SERVER_DIR / "src" / options["project_type"], src_dir)
         else:
