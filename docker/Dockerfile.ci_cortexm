@@ -33,7 +33,7 @@ COPY install/ubuntu1804_install_python.sh /install/ubuntu1804_install_python.sh
 RUN bash /install/ubuntu1804_install_python.sh
 
 COPY install/ubuntu_install_cmake_source.sh /install/ubuntu_install_cmake_source.sh
-RUN bash /install/ubuntu_install_cmake_source.sh
+RUN bash /install/ubuntu_install_cmake_source.sh 3.20.0
 
 COPY install/ubuntu1804_install_python_venv.sh /install/ubuntu1804_install_python_venv.sh
 RUN bash /install/ubuntu1804_install_python_venv.sh
