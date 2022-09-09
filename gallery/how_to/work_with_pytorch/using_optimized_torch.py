@@ -17,7 +17,10 @@
 """
 Compile PyTorch Models
 ======================
-**Author**: `Yaoda Zhou <https://github.com/juda/>`_
+**Author**: 
+`Yaoda Zhou <https://github.com/juda>`_,
+`Masahiro Masuda <https://github.com/masahi>`_
+
 This article is an introductory tutorial to optimize PyTorch models by using `tvm.contrib.torch.optimize_torch`.
 To follow this tutorial, PyTorch, as well as TorchVision, should be installed.
 """
@@ -135,6 +138,7 @@ class JitModule(torch.nn.Module):
 
 
 jit_module_resnet18 = JitModule()
+
 
 ######################################################################
 # Compare the performance between two approaches.
