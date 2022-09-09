@@ -16,30 +16,33 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/ir/module.h>
-#include <tvm/runtime/registry.h>
-#include <tvm/script/ir_builder/ir/frame.h>
+#ifndef TVM_SCRIPT_IR_BUILDER_TIR_IR_H_
+#define TVM_SCRIPT_IR_BUILDER_TIR_IR_H_
+
+#include <tvm/script/ir_builder/base.h>
+#include <tvm/script/ir_builder/tir/frame.h>
+#include <tvm/tir/op.h>
 
 namespace tvm {
 namespace script {
 namespace ir_builder {
-namespace ir {
+namespace tir {
 
-void IRModuleFrameNode::ExitWithScope() {
-  ICHECK_EQ(functions.size(), global_vars.size());
-  int n = functions.size();
-  Map<GlobalVar, BaseFunc> func_map;
-  for (int i = 0; i < n; ++i) {
-    func_map.Set(global_vars[i], functions[i]);
-  }
-  IRBuilder builder = IRBuilder::Current();
-  ICHECK(!builder->result.defined()) << "ValueError: Builder.result has already been set";
-  builder->result = tvm::IRModule(func_map);
-}
+/*!
+ * \brief The primitive function statement.
+ * \return The PrimFuncFrame.
+ */
+PrimFuncFrame PrimFunc();
 
-TVM_REGISTER_NODE_TYPE(IRModuleFrameNode);
+/*!
+ * \brief Evaluate the input expression.
+ * \param value The input expression to evaluate.
+ */
+void Evaluate(PrimExpr value);
 
-}  // namespace ir
+}  // namespace tir
 }  // namespace ir_builder
 }  // namespace script
 }  // namespace tvm
+
+#endif  // TVM_SCRIPT_IR_BUILDER_TIR_IR_H_
