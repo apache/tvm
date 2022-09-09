@@ -60,6 +60,15 @@ inline PrimFuncFrame FindPrimFuncFrame(const String& method) {
   throw;
 }
 
+inline BlockFrame FindBlockFrame(const String& method) {
+  if (Optional<BlockFrame> frame = IRBuilder::Current()->GetLastFrame<BlockFrame>()) {
+    return frame.value();
+  }
+  LOG(FATAL) << "ValueError: Block frame not find. Please ensure '" << method
+             << "' is called under T.block()";
+  throw;
+}
+
 }  // namespace tir
 }  // namespace ir_builder
 }  // namespace script
