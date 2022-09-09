@@ -2254,6 +2254,7 @@ def _test_elemwise(
     quantized=False,
     qnn_op=None,
     same_qnn_params=False,
+    comparison_op=False,
 ):
     """One iteration of elemwise"""
 
@@ -2298,7 +2299,7 @@ def _test_elemwise(
                 if x[0] is not None
             }
 
-            if math_op is math_ops.equal:
+            if comparison_op:
                 out = math_op(inq_data[0], inq_data[1])
                 out = with_fused_activation_function(out, fused_activation_function)
 
@@ -2307,6 +2308,9 @@ def _test_elemwise(
                     [x + ":0" for x in input_range.keys()],
                     [x[1] for x in zip(in_data, inq_data) if x[0] is not None],
                     [out],
+                    quantized=True,
+                    input_range=input_range,
+                    experimental_new_converter=same_qnn_params,
                 )
             else:
                 out = math_op(inq_data[0], inq_data[1])
@@ -2314,6 +2318,7 @@ def _test_elemwise(
                 out = tf.quantization.fake_quant_with_min_max_args(
                     out, min=out_min, max=out_max, name="out"
                 )
+
                 # Note same_qnn_params uses experimental_new_converter as toco failed
                 compare_tflite_with_tvm(
                     [x[1] for x in zip(in_data, data) if x[0] is not None],
@@ -2440,9 +2445,17 @@ def _test_minimum(data, fused_activation_function=None, quantized=False, qnn_op=
 # -------
 
 
-def _test_greater(data):
+def _test_greater(data, fused_activation_function=None, quantized=False, qnn_op=None):
     """One iteration of greater"""
-    return _test_elemwise(math_ops.greater, data)
+    return _test_elemwise(
+        math_ops.greater,
+        data,
+        fused_activation_function,
+        quantized,
+        qnn_op,
+        same_qnn_params=True,
+        comparison_op=True,
+    )
 
 
 #######################################################################
@@ -2489,6 +2502,7 @@ def _test_equal(data, fused_activation_function=None, quantized=False, qnn_op=No
         quantized,
         qnn_op,
         same_qnn_params=True,
+        comparison_op=True,
     )
 
 
@@ -2615,6 +2629,7 @@ def test_all_elemwise():
     _test_forward_elemwise(_test_minimum)
     _test_forward_elemwise_quantized(_test_minimum)
     _test_forward_elemwise(_test_greater)
+    _test_forward_elemwise_quantized(_test_greater)
     _test_forward_elemwise(_test_squared_difference)
     _test_forward_elemwise(_test_greater_equal)
     _test_forward_elemwise(_test_less)
