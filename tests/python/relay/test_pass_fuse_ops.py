@@ -777,7 +777,7 @@ def test_fuse_dynamic_squeeze_slice_take():
 
     squeeze = relay.op.squeeze(x, axis=[0])
     strided_slice = relay.op.strided_slice(
-        squeeze, begin=[0, 0], end=[15130, 9223372036854775807], strides=[1, 1]
+        squeeze, begin=[0, 0], end=[15130, 2147483647], strides=[1, 1]
     )
     take = relay.op.take(strided_slice, take_val, axis=0)
 
