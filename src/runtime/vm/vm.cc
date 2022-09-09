@@ -621,7 +621,7 @@ void VirtualMachine::CollectOutputTensorRegIndices(const std::string& func_name)
   } else if (op_code == Opcode::ReshapeTensor) {
     reg_indices.push_back(preres_instr.reshape_tensor.tensor);
   } else {
-    LOG(WARNING) << "Operation " << size_t(op_code) << " is not supported for set_outputs method";
+    LOG(FATAL) << "Operation " << size_t(op_code) << " is not supported for set_outputs method";
   }
 }
 
@@ -981,7 +981,7 @@ void VirtualMachine::WriteAllocatedTensorFromOutside(const Instruction& instr) {
       auto reshaped_tensor = ex_arr.CreateView(ref_shape, ex_dtype);
       WriteRegister(instr.dst, reshaped_tensor);
     } else {
-      LOG_ERROR << "Internal and external output tensor shapes are mismatched";
+      LOG(FATAL) << "Internal and external output tensor shapes are mismatched";
     }
   }
 }
