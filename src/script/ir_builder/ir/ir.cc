@@ -23,6 +23,7 @@
 namespace tvm {
 namespace script {
 namespace ir_builder {
+namespace ir {
 
 IRModuleFrame IRModule() {
   ObjectPtr<IRModuleFrameNode> n = make_object<IRModuleFrameNode>();
@@ -33,6 +34,7 @@ IRModuleFrame IRModule() {
 
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.IRModule").set_body_typed(IRModule);
 
+}  // namespace ir
 }  // namespace ir_builder
 }  // namespace script
 }  // namespace tvm

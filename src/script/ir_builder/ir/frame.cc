@@ -23,6 +23,7 @@
 namespace tvm {
 namespace script {
 namespace ir_builder {
+namespace ir {
 
 void IRModuleFrameNode::ExitWithScope() {
   ICHECK_EQ(functions.size(), global_vars.size());
@@ -38,6 +39,7 @@ void IRModuleFrameNode::ExitWithScope() {
 
 TVM_REGISTER_NODE_TYPE(IRModuleFrameNode);
 
+}  // namespace ir
 }  // namespace ir_builder
 }  // namespace script
 }  // namespace tvm
