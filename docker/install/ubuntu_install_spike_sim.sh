@@ -39,11 +39,6 @@ export RISCV=$1
 export PATH=$RISCV/bin:$PATH
 shift
 
-export DEBIAN_FRONTEND=noninteractive
-export TZ=Etc/UTC
-sudo ln -snf /usr/share/zoneinfo/$TZ /etc/localtime
-echo $TZ > /etc/timezone
-
 sudo apt-install-and-clear -y --no-install-recommends device-tree-compiler
 
 # Install spike
