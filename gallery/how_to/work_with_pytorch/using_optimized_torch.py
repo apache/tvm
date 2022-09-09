@@ -111,7 +111,7 @@ class MyResNet18(torch.nn.Module):
         super(MyResNet18, self).__init__()
         # Here we impose the `optimize_torch` function
         # The default setting is adapted automatically by the number of operations of the optimized model.
-        self.resnet = optimize_torch(resnet18(), torch.rand(1, 3, 224, 224), target=target)
+        self.resnet = optimize_torch(resnet18(), [torch.rand(1, 3, 224, 224)], target=target)
 
     def forward(self, input):
         return self.resnet(input)
