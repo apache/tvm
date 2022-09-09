@@ -61,6 +61,10 @@ std::string FloatImmToString(const FloatImm& float_imm);
 IntImm ValueToIntImm(int64_t value, int width);
 FloatImm ValueToFloatImm(double value, int width);
 
+// 2^15 * (1 + 1023/1024)
+// See https://en.wikipedia.org/wiki/Half-precision_floating-point_format
+constexpr double kMaxFloat16 = 65504.0;
+
 }  // namespace support
 }  // namespace tvm
 

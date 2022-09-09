@@ -33,6 +33,8 @@
 #include <tvm/te/tensor.h>
 #include <tvm/tir/expr.h>
 
+#include "../support/scalars.h"
+
 namespace tvm {
 
 PrimExpr::PrimExpr(int32_t value) : PrimExpr(IntImm(DataType::Int(32), value)) {}
@@ -76,7 +78,20 @@ IntImm::IntImm(DataType dtype, int64_t value, Span span) {
   ICHECK(dtype.is_int() || dtype.is_uint())
       << "ValueError: IntImm supports only int or uint type, but " << dtype << " was supplied.";
   if (dtype.is_uint()) {
-    ICHECK_GE(value, 0U);
+    ICHECK_GE(value, 0U) << "ValueError: Literal value " << value
+                         << " is negative for unsigned integer type " << dtype;
+    if (dtype.bits() < 64) {
+      ICHECK_LT(value, 1LL << dtype.bits())
+          << "ValueError: Literal value " << value << " exceeds maximum of " << dtype;
+    }
+  } else if (dtype.bits() == 1) {
+    // int(1)
+    ICHECK(value == 0 || value == 1) << "ValueError: " << value << " exceeds range of " << dtype;
+  } else if (dtype.bits() < 64) {
+    ICHECK_GE(value, -(1LL << (dtype.bits() - 1)))
+        << "ValueError: Literal value " << value << " exceeds minimum of " << dtype;
+    ICHECK_LT(value, 1LL << (dtype.bits() - 1))
+        << "ValueError: Literal value " << value << " exceeds maximum of " << dtype;
   }
   ObjectPtr<IntImmNode> node = make_object<IntImmNode>();
   node->dtype = dtype;
@@ -103,6 +118,21 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 FloatImm::FloatImm(DataType dtype, double value, Span span) {
   ICHECK_EQ(dtype.lanes(), 1) << "ValueError: FloatImm can only take scalar.";
+
+  // check range for float32 and float16 since they have specified range.
+  if (!std::isinf(value) && !std::isnan(value)) {
+    if (dtype.bits() == 32) {
+      ICHECK_GE(value, std::numeric_limits<float>::lowest())
+          << "ValueError: Literal value " << value << " exceeds minimum of " << dtype;
+      ICHECK_LE(value, std::numeric_limits<float>::max())
+          << "ValueError: Literal value " << value << " exceeds maximum of " << dtype;
+    } else if (dtype.is_float16()) {
+      ICHECK_GE(value, -support::kMaxFloat16)
+          << "ValueError: Literal value " << value << " exceeds minimum of " << dtype;
+      ICHECK_LE(value, support::kMaxFloat16)
+          << "ValueError: Literal value " << value << " exceeds maximum of " << dtype;
+    }
+  }
   ObjectPtr<FloatImmNode> node = make_object<FloatImmNode>();
   node->dtype = dtype;
   node->value = value;
