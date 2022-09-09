@@ -5758,5 +5758,46 @@ def test_invert_permutation():
         compare_tf_with_tvm(x, "Placeholder:0", out_name, no_gpu=False)
 
 
+#######################################################################
+# DenseBincount
+# ----
+
+
+def _test_dense_bincount(in_shape, size, weights, binary_output):
+    with tf.Graph().as_default():
+        inputs = []
+        data = []
+        inputs.append(tf.placeholder(shape=in_shape, dtype="int32", name="input0"))
+        data.append(np.random.uniform(0, size, size=in_shape).astype("int32"))
+        inputs.append(tf.placeholder(shape=(), dtype="int32", name="size"))
+        data.append(np.array(size, "int32"))
+        if weights:
+            inputs.append(tf.placeholder(shape=in_shape, dtype="float32", name="weights"))
+            data.append(np.reshape(weights, in_shape).astype("float32"))
+        else:
+            inputs.append(tf.placeholder(shape=(0,), dtype="float32", name="weights"))
+            data.append(np.array([], "float32"))
+        result = tf.raw_ops.DenseBincount(
+            input=data[0],
+            size=data[1],
+            weights=data[2],
+            binary_output=binary_output,
+        )
+        compare_tf_with_tvm(data, [a.name for a in inputs], result.name, mode="vm")
+
+
+def test_forward_dense_bincount():
+    """Test DenseBincount Op"""
+    for binary_output in [False, True]:
+        # 2D input
+        _test_dense_bincount((3, 10), 20, [1.0] * 30, binary_output)
+        _test_dense_bincount((3, 10), 20, [1.5] * 30, binary_output)
+        _test_dense_bincount((3, 10), 20, None, binary_output)
+        # 1D input
+        _test_dense_bincount((10,), 20, [1.0] * 10, binary_output)
+        _test_dense_bincount((10,), 20, [1.5] * 10, binary_output)
+        _test_dense_bincount((10,), 20, None, binary_output)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
