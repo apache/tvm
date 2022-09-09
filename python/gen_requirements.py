@@ -157,6 +157,7 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
             [
                 "ethos-u-vela",
                 "future",  # Hidden dependency of torch.
+                "matplotlib",
                 "onnx",
                 "onnxoptimizer",
                 "onnxruntime",
