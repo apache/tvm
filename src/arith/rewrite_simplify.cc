@@ -1667,6 +1667,22 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
       return match.value();
     }
   }
+  if (op->op.same_as(tir::builtin::if_then_else())) {
+    // Simplify nested if_then_else
+    const PrimExpr& cond = op->args[0];
+    const PrimExpr& then_expr = op->args[1];
+    const PrimExpr& else_expr = op->args[2];
+    const CallNode* inner_call = then_expr.as<CallNode>();
+    if (inner_call != nullptr && inner_call->op.same_as(tir::builtin::if_then_else())) {
+      const PrimExpr& inner_cond = inner_call->args[0];
+      const PrimExpr& inner_then_expr = inner_call->args[1];
+      const PrimExpr& inner_else_expr = inner_call->args[2];
+      if (analyzer_->CanProveEqual(else_expr, inner_else_expr)) {
+        return Call(op->dtype, tir::builtin::if_then_else(),
+                    {cond && inner_cond, inner_then_expr, else_expr});
+      }
+    }
+  }
 
   return ret;
 }
