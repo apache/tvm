@@ -439,9 +439,9 @@ class OpenCLTimerNode : public TimerNode {
  public:
   // Timer start
   virtual void Start() {
+    this->duration = 0;
     if (count_timer_execs == 0) {
       cl::OpenCLWorkspace::Global()->GetEventQueue(dev_).clear();
-      this->duration = 0;
       // Very first call of Start() leads to the recreation of
       // OpenCL command queue in profiling mode. This allows to run profile after inference.
       recreateCommandQueue();
