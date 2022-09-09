@@ -29,6 +29,7 @@
 namespace tvm {
 namespace script {
 namespace ir_builder {
+namespace ir {
 
 /*!
  * \brief The IRModule declaration statement.
@@ -36,6 +37,7 @@ namespace ir_builder {
  */
 TVM_DLL IRModuleFrame IRModule();
 
+}  // namespace ir
 }  // namespace ir_builder
 }  // namespace script
 }  // namespace tvm

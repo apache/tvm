@@ -16,30 +16,35 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/ir/module.h>
-#include <tvm/runtime/registry.h>
-#include <tvm/script/ir_builder/ir/frame.h>
+#include <tvm/arith/analyzer.h>
+#include <tvm/script/ir_builder/tir/ir.h>
+
+#include "./utils.h"
 
 namespace tvm {
 namespace script {
 namespace ir_builder {
-namespace ir {
+namespace tir {
 
-void IRModuleFrameNode::ExitWithScope() {
-  ICHECK_EQ(functions.size(), global_vars.size());
-  int n = functions.size();
-  Map<GlobalVar, BaseFunc> func_map;
-  for (int i = 0; i < n; ++i) {
-    func_map.Set(global_vars[i], functions[i]);
-  }
-  IRBuilder builder = IRBuilder::Current();
-  ICHECK(!builder->result.defined()) << "ValueError: Builder.result has already been set";
-  builder->result = tvm::IRModule(func_map);
+using tvm::tir::IterVar;
+
+PrimFuncFrame PrimFunc() {
+  ObjectPtr<PrimFuncFrameNode> n = make_object<PrimFuncFrameNode>();
+  n->name = NullOpt;
+  n->args.clear();
+  n->ret_type = NullOpt;
+  n->buffer_map.clear();
+  n->preflattened_buffer_map.clear();
+  n->attrs = NullOpt;
+  n->env_threads.clear();
+  n->root_alloc_buffers.clear();
+  return PrimFuncFrame(n);
 }
 
-TVM_REGISTER_NODE_TYPE(IRModuleFrameNode);
-
-}  // namespace ir
+void Evaluate(PrimExpr value) { AddToParent(tvm::tir::Evaluate(value)); }
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.PrimFunc").set_body_typed(PrimFunc);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.Evaluate").set_body_typed(Evaluate);
+}  // namespace tir
 }  // namespace ir_builder
 }  // namespace script
 }  // namespace tvm
