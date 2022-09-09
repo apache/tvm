@@ -417,6 +417,9 @@ testing.utils.install_request_hook(depth=3)
 # process, in terms of number of repetitions (``--repeat`` and ``--number``, for example), the tuning
 # algorithm to be used, and so on. Check ``tvmc tune --help`` for more information.
 #
+# The `--visualize ARG` flag allows showing the tuning progress in a graph which can be
+# written to a file (ARG: `filename.png`), displayed as a live plot window (ARG: `live`)
+# or both (ARG: `live,filename.png`).
 
 ################################################################################
 # Compiling an Optimized Model with Tuning Data
