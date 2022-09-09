@@ -94,7 +94,7 @@ stage('Build') {
           // See https://github.com/apache/tvm/issues/12739
           // sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build2"
           // make("${ci_gpu} --no-gpu", 'build2', '-j2')
-          // {{ m.upload_artifacts(tag='gpu2', filenames=tvm_multilib) }}
+          /* {{ m.upload_artifacts(tag='gpu2', filenames=tvm_multilib) }}          */
         }
       }
     }
