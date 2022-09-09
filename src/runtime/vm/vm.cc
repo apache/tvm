@@ -314,7 +314,9 @@ void VirtualMachine::SetOutputTensorsToRegister(const std::string& func_name,
                                                 const std::vector<ObjectRef>& outputs) {
   size_t size = outputs.size();
 
-  CollectOutputTensorRegIndices(func_name);
+  if (output_tensor_reg_indices_[func_name].empty()) {
+    output_tensor_reg_indices_[func_name] = GetOutputTensorRegIndices();
+  }
   auto& reg_indices = output_tensor_reg_indices_[func_name];
   ICHECK_EQ(reg_indices.size(), size)
       << "Number of outside output tensors should be equal to model outputs number";
@@ -602,12 +604,8 @@ void VirtualMachine::CalculatePreResultOpIndex(Index res_index) {
   }
 }
 
-void VirtualMachine::CollectOutputTensorRegIndices(const std::string& func_name) {
-  if (!output_tensor_reg_indices_[func_name].empty()) {
-    return;
-  }
-
-  auto& reg_indices = output_tensor_reg_indices_[func_name];
+std::vector<Index> VirtualMachine::GetOutputTensorRegIndices() {
+  std::vector<Index> reg_indices;
   Index res_index = GetResultRegisterIndex();
   CalculatePreResultOpIndex(res_index);
   auto& preres_instr = code_[preresult_op_index_];
@@ -623,6 +621,7 @@ void VirtualMachine::CollectOutputTensorRegIndices(const std::string& func_name)
   } else {
     LOG(FATAL) << "Operation " << size_t(op_code) << " is not supported for set_outputs method";
   }
+  return reg_indices;
 }
 
 void VirtualMachine::RunLoop(const std::vector<Index>& output_tensor_reg_indices) {

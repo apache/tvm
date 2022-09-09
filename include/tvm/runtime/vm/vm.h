@@ -392,12 +392,12 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
   void CalculatePreResultOpIndex(Index res_index);
 
   /*!
-   * \brief Collect indices from register_file for output tensors.
+   * \brief Get indices from register_file for output tensors.
    * It helps to replace output tensors allocated in RunLoop by
    * tensors pre-allocated outside. Scenario is when `set_output` is used
-   * \param func_name The function's name.
+   * \return indices from register_file for output tensors.
    */
-  void CollectOutputTensorRegIndices(const std::string& func_name);
+  std::vector<Index> GetOutputTensorRegIndices();
 
   /*!
    * \brief Write new allocated tensor to register_file of frame.
