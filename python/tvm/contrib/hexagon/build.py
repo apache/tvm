@@ -627,14 +627,12 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
 
         self._server_process = mp.Process(target=lambda *a: _start(self, *a))
         self._server_process.start()
-        super()._acquire_device_resources()
 
     def cleanup_directory(self):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
 
     def stop_server(self):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
-        super()._release_device_resources()
         self._server_process.terminate()
 
 

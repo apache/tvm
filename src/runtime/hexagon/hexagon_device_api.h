@@ -50,14 +50,14 @@ class HexagonDeviceAPI final : public DeviceAPI {
   //! \brief Destructor
   ~HexagonDeviceAPI() {}
 
-  //! \brief Creates resource managers for the runtime
+  //! \brief Ensures resource managers are in a good state for the runtime
   void AcquireResources() {
     if (!hexbuffs->empty()) {
       LOG(INFO) << "hexbuffs was not empty in AcquireResources";
     }
   }
 
-  //! \brief Ensures we have freed all resources when we end the runtime
+  //! \brief Ensures all runtime resources are freed
   void ReleaseResources() {
     if (!hexbuffs->empty()) {
       LOG(INFO) << "hexbuffs was not empty in ReleaseResources, resetting";
