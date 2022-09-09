@@ -29,6 +29,7 @@
 #include <stddef.h>
 #include <tvm/runtime/crt/error_codes.h>
 #include <tvm/runtime/crt/rpc_common/write_stream.h>
+#include <tvm/support/ssize.h>
 
 namespace tvm {
 namespace runtime {
@@ -143,7 +144,7 @@ class Unframer {
 
 class Framer {
  public:
-  typedef ssize_t (*WriteFunc)(const uint8_t* data, size_t data_size_bytes);
+  typedef tvm_ssize_t (*WriteFunc)(const uint8_t* data, size_t data_size_bytes);
 
   explicit Framer(WriteStream* stream)
       : stream_{stream}, state_{State::kReset}, num_payload_bytes_remaining_{0} {}

@@ -46,14 +46,14 @@ class SockChannel final : public RPCChannel {
     }
   }
   size_t Send(const void* data, size_t size) final {
-    ssize_t n = sock_.Send(data, size);
+    tvm_ssize_t n = sock_.Send(data, size);
     if (n == -1) {
       support::Socket::Error("SockChannel::Send");
     }
     return static_cast<size_t>(n);
   }
   size_t Recv(void* data, size_t size) final {
-    ssize_t n = sock_.Recv(data, size);
+    tvm_ssize_t n = sock_.Recv(data, size);
     if (n == -1) {
       support::Socket::Error("SockChannel::Recv");
     }

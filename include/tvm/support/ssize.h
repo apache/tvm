@@ -19,18 +19,22 @@
 
 /*!
  * \file ssize.h
- * \brief this file aims to define ssize_t for Windows platform
+ * \brief this file aims to define tvm_ssize_t.
  */
 
 #ifndef TVM_SUPPORT_SSIZE_H_
 #define TVM_SUPPORT_SSIZE_H_
 
+#include <sys/types.h>
+
 #if defined(_MSC_VER)
-#if defined(_WIN32)
-using ssize_t = int32_t;
+#if defined(_WIN64)
+typedef int64_t tvm_ssize_t;
 #else
-using ssize_t = int64_t;
+typedef int32_t tvm_ssize_t;
 #endif
+#else
+typedef ssize_t tvm_ssize_t;
 #endif
 
 #endif  // TVM_SUPPORT_SSIZE_H_

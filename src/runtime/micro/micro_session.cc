@@ -27,6 +27,7 @@
 #include <tvm/runtime/crt/rpc_common/session.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/support/ssize.h>
 
 #include <algorithm>
 #include <chrono>
@@ -52,7 +53,7 @@ class CallbackWriteStream : public WriteStream {
   explicit CallbackWriteStream(PackedFunc fsend, ::std::chrono::microseconds write_timeout)
       : fsend_{fsend}, write_timeout_{write_timeout} {}
 
-  ssize_t Write(const uint8_t* data, size_t data_size_bytes) override {
+  tvm_ssize_t Write(const uint8_t* data, size_t data_size_bytes) override {
     TVMByteArray bytes;
     bytes.data = (const char*)data;
     bytes.size = data_size_bytes;
@@ -62,7 +63,7 @@ class CallbackWriteStream : public WriteStream {
       fsend_(bytes, write_timeout_.count());
     }
 
-    return static_cast<ssize_t>(data_size_bytes);
+    return static_cast<tvm_ssize_t>(data_size_bytes);
   }
 
   void PacketDone(bool is_valid) override {}
@@ -180,7 +181,11 @@ class MicroTransportChannel : public RPCChannel {
     }
     uint8_t initial_nonce = 0;
     for (int i = 0; i < kNumRandRetries && initial_nonce == 0; ++i) {
+#if defined(_MSC_VER)
+      initial_nonce = rand();
+#else
       initial_nonce = rand_r(&seed);
+#endif
     }
     random_seed.store(seed);
     ICHECK_NE(initial_nonce, 0) << "rand() does not seem to be producing random values";

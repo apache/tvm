@@ -25,11 +25,11 @@
 #define TVM_RUNTIME_RPC_RPC_CHANNEL_LOGGER_H_
 
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/support/ssize.h>
 
 #include <memory>
 #include <utility>
 
-#include "../../support/ssize.h"
 #include "../minrpc/minrpc_server_logging.h"
 #include "rpc_channel.h"
 
@@ -99,11 +99,11 @@ class SnifferIOHandler {
 
   void MessageStart(size_t message_size_bytes) {}
 
-  ssize_t PosixWrite(const uint8_t* buf, size_t buf_size_bytes) { return 0; }
+  tvm_ssize_t PosixWrite(const uint8_t* buf, size_t buf_size_bytes) { return 0; }
 
   void MessageDone() {}
 
-  ssize_t PosixRead(uint8_t* buf, size_t buf_size_bytes) {
+  tvm_ssize_t PosixRead(uint8_t* buf, size_t buf_size_bytes) {
     return receive_buffer_->Read(buf, buf_size_bytes);
   }
 

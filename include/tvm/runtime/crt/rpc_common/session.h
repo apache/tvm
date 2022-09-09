@@ -30,6 +30,7 @@
 #include <tvm/runtime/crt/rpc_common/frame_buffer.h>
 #include <tvm/runtime/crt/rpc_common/framing.h>
 #include <tvm/runtime/crt/rpc_common/write_stream.h>
+#include <tvm/support/ssize.h>
 
 namespace tvm {
 namespace runtime {
@@ -43,10 +44,18 @@ enum class MessageType : uint8_t {
   kNormal = 0x10,
 };
 
+#if defined(_MSC_VER)
+#pragma pack(4)
+typedef struct SessionHeader {
+  uint16_t session_id;
+  MessageType message_type;
+} SessionHeader;
+#else
 typedef struct SessionHeader {
   uint16_t session_id;
   MessageType message_type;
 } __attribute__((packed)) SessionHeader;
+#endif
 
 /*!
  * \brief CRT communication session management class.
@@ -187,7 +196,7 @@ class Session {
     explicit SessionReceiver(Session* session) : session_{session} {}
     virtual ~SessionReceiver() {}
 
-    ssize_t Write(const uint8_t* data, size_t data_size_bytes) override;
+    tvm_ssize_t Write(const uint8_t* data, size_t data_size_bytes) override;
     void PacketDone(bool is_valid) override;
 
    private:

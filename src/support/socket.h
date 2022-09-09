@@ -50,13 +50,13 @@
 #endif
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/support/ssize.h>
 
 #include <cstring>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-#include "../support/ssize.h"
 #include "../support/utils.h"
 
 #if defined(_WIN32)
@@ -378,8 +378,8 @@ class Socket {
    * \return The return code returned by function f or error_value on retry failure.
    */
   template <typename FuncType>
-  ssize_t RetryCallOnEINTR(FuncType func) {
-    ssize_t ret = func();
+  tvm_ssize_t RetryCallOnEINTR(FuncType func) {
+    tvm_ssize_t ret = func();
     // common path
     if (ret != -1) return ret;
     // less common path
@@ -497,7 +497,7 @@ class TCPSocket : public Socket {
    * \return size of data actually sent
    *         return -1 if error occurs
    */
-  ssize_t Send(const void* buf_, size_t len, int flag = 0) {
+  tvm_ssize_t Send(const void* buf_, size_t len, int flag = 0) {
     const char* buf = reinterpret_cast<const char*>(buf_);
     return RetryCallOnEINTR(
         [&]() { return send(sockfd, buf, static_cast<sock_size_t>(len), flag); });
@@ -510,7 +510,7 @@ class TCPSocket : public Socket {
    * \return size of data actually received
    *         return -1 if error occurs
    */
-  ssize_t Recv(void* buf_, size_t len, int flags = 0) {
+  tvm_ssize_t Recv(void* buf_, size_t len, int flags = 0) {
     char* buf = reinterpret_cast<char*>(buf_);
     return RetryCallOnEINTR(
         [&]() { return recv(sockfd, buf, static_cast<sock_size_t>(len), flags); });
@@ -526,8 +526,8 @@ class TCPSocket : public Socket {
     const char* buf = reinterpret_cast<const char*>(buf_);
     size_t ndone = 0;
     while (ndone < len) {
-      ssize_t ret = RetryCallOnEINTR(
-          [&]() { return send(sockfd, buf, static_cast<ssize_t>(len - ndone), 0); });
+      tvm_ssize_t ret = RetryCallOnEINTR(
+          [&]() { return send(sockfd, buf, static_cast<tvm_ssize_t>(len - ndone), 0); });
       if (ret == -1) {
         if (LastErrorWouldBlock()) return ndone;
         Socket::Error("SendAll");
@@ -548,7 +548,7 @@ class TCPSocket : public Socket {
     char* buf = reinterpret_cast<char*>(buf_);
     size_t ndone = 0;
     while (ndone < len) {
-      ssize_t ret = RetryCallOnEINTR(
+      tvm_ssize_t ret = RetryCallOnEINTR(
           [&]() { return recv(sockfd, buf, static_cast<sock_size_t>(len - ndone), MSG_WAITALL); });
       if (ret == -1) {
         if (LastErrorWouldBlock()) {
