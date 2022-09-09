@@ -37,12 +37,12 @@ INSTALLATION_PATH=$1
 # Create installation path directory
 mkdir -p "${INSTALLATION_PATH}"
 
-QEMU_RELEASE="1.12"
-QEMU_DATE="20220402-0353"
+QEMU_DATE="20220623-0307"
+QEMU_SOURCE_ID="1655972947885"
 QEMU_ARCH="x86_64-Ubuntu-18.04"
 QEMU_BASE="xuantie-qemu-${QEMU_ARCH}-${QEMU_DATE}"
 QEMU_EXT="tar.gz"
-QEMU_URL="https://github.com/T-head-Semi/csi-nn2/releases/download/v${QEMU_RELEASE}/${QEMU_BASE}.${QEMU_EXT}"
+QEMU_URL="https://occ-oss-prod.oss-cn-hangzhou.aliyuncs.com/resource//${QEMU_SOURCE_ID}/${QEMU_BASE}.${QEMU_EXT}"
 DOWNLOAD_PATH="/tmp/${QEMU_BASE}.${QEMU_EXT}"
 
 wget ${QEMU_URL} -O "${DOWNLOAD_PATH}"
