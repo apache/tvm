@@ -293,6 +293,8 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
 
   /*!
    * \brief Set pre-allocated outputs to a function.
+   * It is native implementation of 'set_outputs' python method.
+   * It is used in scenario when output tensors are allocated outside.
    * \param name The function name
    * \param args outputs to the function.
    */
