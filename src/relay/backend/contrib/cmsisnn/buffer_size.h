@@ -34,6 +34,8 @@ namespace relay {
 namespace contrib {
 namespace cmsisnn {
 
+#define CH_IN_BLOCK_MVE (124)
+
 /*!
  * \brief Calculates the appropriate buffer size for CMSIS-NN Convolutions
  * See:
@@ -70,11 +72,14 @@ int Conv2dBufferSize(Target target, int32_t padding_w, int32_t padding_h, int32_
  * \param output_c - Output channels
  * \param filter_w - Filter width
  * \param filter_h - Filter height
+ * \param dilation_w - Dilation width
+ * \param dilation_h - Dilation height
  *
  * \return Size of buffer to allocate for depthwise convolution
  */
 int DepthwiseConv2dBufferSize(Target target, int32_t input_n, int32_t input_c, int32_t output_c,
-                              int32_t filter_w, int32_t filter_h);
+                              int32_t filter_w, int32_t filter_h, int32_t dilation_w,
+                              int32_t dilation_h);
 
 /*!
  * \brief Calculates the appropriate buffer size for CMSIS-NN Average Pooling
