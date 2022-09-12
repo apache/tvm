@@ -33,6 +33,25 @@ def prim_func() -> frame.PrimFuncFrame:
     return _ffi_api.PrimFunc()  # pylint: disable=no-member # type: ignore
 
 
+def block(name: str = "", no_realize: bool = False) -> frame.BlockFrame:
+    """The block declaration statement.
+
+    Parameters
+    ----------
+    name : str
+        The name of the block.
+
+    no_realize : bool
+        The flag whether to construct BlockRealize or Block.
+
+    Returns
+    -------
+    res : frame.BlockFrame
+        The BlockFrame.
+    """
+    return _ffi_api.Block(name, no_realize)  # pylint: disable=no-member # type: ignore
+
+
 def evaluate(value: PrimExpr) -> None:
     """Evaluate the input expression.
 
@@ -50,6 +69,7 @@ def evaluate(value: PrimExpr) -> None:
 
 
 __all__ = [
+    "block",
     "evaluate",
     "prim_func",
 ]

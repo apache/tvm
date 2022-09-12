@@ -35,6 +35,14 @@ namespace tir {
 PrimFuncFrame PrimFunc();
 
 /*!
+ * \brief The block declaration statement.
+ * \param name The name of the block.
+ * \param no_realize The flag whether to construct BlockRealize or Block.
+ * \return The BlockFrame.
+ */
+BlockFrame Block(String name, bool no_realize = false);
+
+/*!
  * \brief Evaluate the input expression.
  * \param value The input expression to evaluate.
  */
