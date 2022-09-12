@@ -118,6 +118,76 @@ class PrimFuncFrame : public TIRFrame {
 };
 
 /*!
+ * \brief A frame that represents the block.
+ *
+ * \sa BlockFrame
+ */
+class BlockFrameNode : public TIRFrameNode {
+ public:
+  /*! \brief The name of the block. */
+  String name;
+  /*! \brief The variables of the block. */
+  Array<tvm::tir::IterVar> iter_vars;
+  /*! \brief The read buffer regions of the block. */
+  Optional<Array<tvm::tir::BufferRegion>> reads;
+  /*! \brief The write buffer regions of the block. */
+  Optional<Array<tvm::tir::BufferRegion>> writes;
+  /*! \brief The init statement of the bolck. */
+  Optional<tvm::tir::Stmt> init;
+  /*! \brief The buffer allocated in the block. */
+  Array<tvm::tir::Buffer> alloc_buffers;
+  /*! \brief The match buffer regions. */
+  Array<tvm::tir::MatchBufferRegion> match_buffers;
+  /*! \brief The annotation of the block. */
+  Optional<Map<String, ObjectRef>> annotations;
+  /*! \brief The corresponding values of the iter vars. */
+  Array<PrimExpr> iter_values;
+  /*!
+   * \brief The predicate of the block realization, the block will only be executed when the
+   * predicate is true.
+   */
+  Optional<PrimExpr> predicate;
+  /*! \brief The flag whether to construct BlockRealize or Block. */
+  bool no_realize;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    TIRFrameNode::VisitAttrs(v);
+    v->Visit("name", &name);
+    v->Visit("iter_vars", &iter_vars);
+    v->Visit("reads", &reads);
+    v->Visit("writes", &writes);
+    v->Visit("init", &init);
+    v->Visit("alloc_buffers", &alloc_buffers);
+    v->Visit("match_buffers", &match_buffers);
+    v->Visit("annotations", &annotations);
+    v->Visit("iter_values", &iter_values);
+    v->Visit("predicate", &predicate);
+    v->Visit("no_realize", &no_realize);
+  }
+
+  static constexpr const char* _type_key = "script.ir_builder.tir.BlockFrame";
+  TVM_DECLARE_FINAL_OBJECT_INFO(BlockFrameNode, TIRFrameNode);
+
+ public:
+  /*!
+   * \brief The method called when exiting RAII scope.
+   * \sa tvm::support::With
+   */
+  void ExitWithScope() final;
+};
+
+/*!
+ * \brief Managed reference to BlockFrameNode.
+ *
+ * \sa BlockFrameNode
+ */
+
+class BlockFrame : public TIRFrame {
+ public:
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(BlockFrame, TIRFrame, BlockFrameNode);
+};
+
+/*!
  * \brief A frame that represents the assert statement. Proceeds if the condition is true,
  * otherwise aborts with the message.
  *

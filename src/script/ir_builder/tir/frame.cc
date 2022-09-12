@@ -50,8 +50,32 @@ void PrimFuncFrameNode::ExitWithScope() {
   }
 }
 
+void BlockFrameNode::ExitWithScope() {
+  TIRFrameNode::ExitWithScope();
+  Array<tvm::tir::Buffer> tir_alloc_buffers;
+  for (const tvm::tir::Buffer& buffer : alloc_buffers) {
+    tir_alloc_buffers.push_back(buffer);
+  }
+  Map<String, ObjectRef> attrs = annotations.value_or({});
+  if (int detect_access = (!reads.defined()) | (!writes.defined() << 1)) {
+    attrs.Set("tir.script_parsing_detect_access", tvm::IntImm(DataType::Int(64), detect_access));
+  }
+  tvm::tir::Block block(iter_vars, reads.value_or(Array<tvm::tir::BufferRegion>()),
+                        writes.value_or(Array<tvm::tir::BufferRegion>()), name, AsStmt(stmts), init,
+                        tir_alloc_buffers, match_buffers, attrs);
+  if (no_realize) {
+    CHECK(iter_values.empty())
+        << "ValueError: Block bindings are not allowed when `no_realize=True`";
+    CHECK(!predicate.defined()) << "ValueError: `T.where` is not allowed when `no_realize=True`";
+    AddToParent(block);
+  } else {
+    AddToParent(tvm::tir::BlockRealize(iter_values, predicate.value_or(Bool(true)), block));
+  }
+}
+
 TVM_REGISTER_NODE_TYPE(TIRFrameNode);
 TVM_REGISTER_NODE_TYPE(PrimFuncFrameNode);
+TVM_REGISTER_NODE_TYPE(BlockFrameNode);
 
 }  // namespace tir
 }  // namespace ir_builder
