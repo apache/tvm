@@ -148,6 +148,7 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
           ICHECK(outputs_.count(func_name))
               << "Outputs have not been set for function " << func_name;
           *rv = Invoke(func, input_args, outputs_[func_name]);
+          outputs_[func_name].clear();
           set_outputs_enabled_[func_name] = false;
         } else {
           *rv = Invoke(func, input_args);
