@@ -561,9 +561,9 @@ class VirtualMachine(object):
             self.set_input(func_name, *args, **kwargs)
         self._invoke_stateful(func_name)
 
-    def invoke_with_outputs(self, func_name, *args):
+    def invoke_with_outputs(self, func_name, input_args, output_args):
         """Invoke a function with pre-allocated outputs tensors.
-        It requires use set_input method before.
+        input_args can be None if set_input method was used before.
 
         This invoke method allows to avoid excess copying if memory for output tensors
         was allocated before inference.
@@ -573,10 +573,31 @@ class VirtualMachine(object):
         func_name : str
             The name of the function.
 
-        args : list[tvm.runtime.NDArray] or list[DLTensor]
+        input_args: dict of str to tvm.runtime.NDArray or np.ndarray
+            Named arguments to the function.
+
+        output_args : list[tvm.runtime.NDArray] or list[DLTensor]
             The output tensors of the function.
         """
-        self._set_outputs(func_name, *args)
+        if input_args:
+            func_params = self._exec.get_function_params(func_name)
+            new_args = [None] * len(func_params)
+            cnt = 0
+            for k in input_args:
+                if k in func_params:
+                    idx = func_params.index(k)
+                    new_args[idx] = input_args[k]
+                    cnt += 1
+            assert len(args) + cnt == len(func_params)
+            idx = 0
+            for i, arg in enumerate(new_args):
+                if arg is None:
+                    new_args[i] = args[idx]
+                    idx += 1
+            args = new_args
+        cargs = convert(args)
+        self._set_input(func_name, *cargs)
+        self._set_outputs(func_name, *output_args)
         self._invoke(func_name)
 
     def get_outputs(self):
