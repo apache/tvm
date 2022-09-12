@@ -2868,11 +2868,49 @@ def _unique(return_counts=True):
     return _impl
 
 
+def _bincount():
+    def _impl(inputs, attr, params, mod):
+        input = inputs[0]  # arr: int32 Tensor
+        size = inputs[1]  # size: non-negative int scalar Tensor
+        # weights: int32, int64, float32, or float64 Tensor with the same shape as arr
+        # or a length-0 Tensor, in which case it acts as all weights equal to 1.
+        weights = inputs[2]
+        # Returns: Output: 1D Tensor with length equal to size
+        # The counts or summed weights for each value in the range [0, size).
+
+        input_shape = _infer_shape(input, mod)
+        if len(input_shape) > 1:
+            input = _op.reshape(input, [-1])
+
+        is_weights_zero_tensor = True
+        if weights:
+            weights_shape = _infer_shape(weights, mod)
+            is_weights_zero_tensor = weights_shape == (0,)
+            if len(weights_shape) > 1:
+                weights = _op.reshape(weights, [-1])
+
+        # Output should have the same dtype as weights.
+        if is_weights_zero_tensor:
+            # if weights are length-0 Tensor - output dtype is float32
+            out_dtype = "float32"
+            updates = _op.cast(_op.ones_like(input), out_dtype)
+        else:
+            out_dtype = _infer_type(weights, mod).checked_type.dtype
+            updates = weights
+
+        counts_shape = _op.reshape(size, [1])
+        counts = _op.zeros(counts_shape, out_dtype)
+        out = _op.scatter_add(counts, input, updates, axis=0)
+        return out
+
+    return _impl
+
+
 def _dense_bincount():
     def _impl(inputs, attr, params, mod):
         input = inputs[0]  # input: int32, int64. 1D or 2D int Tensor
         size = inputs[1]  # size: non-negative int scalar Tensor
-        # weights: int32, int64, float32, or float64 Tensor with the same shape as arr
+        # weights: int32, int64, float32, or float64 Tensor with the same shape as input
         # or a length-0 Tensor, in which case it acts as all weights equal to 1.
         weights = inputs[2]
         # Returns: Output: 1D Tensor with length equal to size
@@ -2951,6 +2989,7 @@ _convert_map = {
     "BatchNormWithGlobalNormalization": _batch_norm(),
     "BatchToSpaceND": _batch_to_space_nd(),
     "BiasAdd": _bias_add(),
+    "Bincount": _bincount(),
     "BroadcastTo": _broadcast_to(),
     "BroadcastArgs": _broadcast_args(),
     "Cast": _cast(),

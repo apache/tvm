@@ -29,6 +29,7 @@
 namespace tvm {
 namespace script {
 namespace ir_builder {
+namespace ir {
 
 /*!
  * \brief A frame that represents the IRModule frame with functions and global variables.
@@ -64,6 +65,7 @@ class IRModuleFrame : public IRBuilderFrame {
                                                     IRModuleFrameNode);
 };
 
+}  // namespace ir
 }  // namespace ir_builder
 }  // namespace script
 }  // namespace tvm

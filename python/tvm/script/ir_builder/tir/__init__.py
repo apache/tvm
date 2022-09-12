@@ -1,4 +1,3 @@
-#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,45 +14,5 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-set -e
-set -u
-set -o pipefail
-
-repo_url="https://github.com/Arm-software/ethos-n-driver-stack"
-repo_dir="ethosn-driver"
-repo_revision="22.08"
-install_path="/opt/arm/$repo_dir"
-
-tmpdir=$(mktemp -d)
-
-cleanup()
-{
-  rm -rf "$tmpdir"
-}
-
-trap cleanup 0
-
-# Ubuntu 16.04 dependencies
-apt-get update
-
-apt-install-and-clear -y \
-    bsdmainutils \
-    build-essential \
-    cmake \
-    cpp \
-    git \
-    linux-headers-generic \
-    python-dev \
-    python3 \
-    scons \
-    wget
-
-cd "$tmpdir"
-git clone "$repo_url" "$repo_dir"
-
-cd "$repo_dir"
-git checkout "$repo_revision"
-
-cd "driver"
-scons install_prefix="$install_path" install
+"""Package tvm.script.ir_builder.tir"""
+from .ir import *  # pylint: disable=wildcard-import,redefined-builtin

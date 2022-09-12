@@ -17,13 +17,15 @@
 
 """Arm(R) Ethos(TM)-N tests for complex network topologies."""
 
+from distutils.version import LooseVersion
+
 import numpy as np
 import pytest
 
 import tvm
 from tvm import relay
 from tvm.testing import requires_ethosn
-from tvm.relay.op.contrib.ethosn import Available, ethosn_available
+from tvm.relay.op.contrib.ethosn import Available, ethosn_available, ethosn_api_version
 
 from . import infrastructure as tei
 
@@ -78,8 +80,8 @@ def test_split_add_concat(dtype):
         model = get_model(inputs["a"].shape, dtype, iter(inputs))
         mod = tei.make_module(model, [])
 
-        expected_host_ops = 1
-        npu_partitions = 2
+        expected_host_ops = 1 if ethosn_api_version() == LooseVersion("3.0.1") else 0
+        npu_partitions = 2 if ethosn_api_version() == LooseVersion("3.0.1") else 1
 
         # Mock inference is only supported when the whole graph is offloaded to the NPU
         if ethosn_available() == Available.SW_ONLY:
@@ -280,8 +282,8 @@ def test_split_with_asym_concats(dtype, shape, splits, axis):
         model = get_model(shape, dtype, splits, axis)
         mod = tei.make_module(model, {})
 
-        expected_host_ops = 1
-        npu_partitions = 2
+        expected_host_ops = 1 if ethosn_api_version() == LooseVersion("3.0.1") else 0
+        npu_partitions = 2 if ethosn_api_version() == LooseVersion("3.0.1") else 1
 
         # Mock inference is only supported when the whole graph is offloaded to the NPU
         if ethosn_available() == Available.SW_ONLY:
@@ -309,12 +311,16 @@ def test_split_with_asym_concats(dtype, shape, splits, axis):
         tei.verify(outputs, dtype, 0)
 
 
-@pytest.mark.skip("Split is not supported by the 3.0.1 version of the driver stack.")
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 def test_output_tuple_propagation(dtype):
     """This tests the case where the output tuple must be inferred
     as having dummy tensor information."""
+
+    if ethosn_api_version() == LooseVersion("3.0.1"):
+        pytest.skip(
+            "Split is not supported by the 3.0.1 version of the driver stack.",
+        )
 
     def get_model(dtype):
         a = relay.var("a", shape=(1, 4, 4, 16), dtype=dtype)
