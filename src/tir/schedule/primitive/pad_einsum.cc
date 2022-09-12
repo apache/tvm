@@ -110,7 +110,7 @@ bool CheckTrivialBufferIndices(const T& buffer_access, Array<Var>* indices = nul
 
 class EinsumExtractor : public ExprVisitor {
  public:
-  explicit EinsumExtractor() = default;
+  EinsumExtractor() = default;
 
   std::optional<Einsum> Extract(const Block& block) {
     const BufferStoreNode* update = block->body.as<BufferStoreNode>();

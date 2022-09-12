@@ -106,7 +106,6 @@ def test_pad_matmul():
     sch = tir.Schedule(matmul_before, debug_mask="all")
     C = sch.get_block("C_shared")
     sch.pad_einsum(C, [0, 1, 1])
-    print(sch.mod["main"].script())
     tvm.ir.assert_structural_equal(matmul_expected, sch.mod["main"])
     verify_trace_roundtrip(sch, mod=matmul_before)
 

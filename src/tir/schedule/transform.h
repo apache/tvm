@@ -114,8 +114,7 @@ class ReplaceBufferMutator : public StmtExprMutator {
   ReplaceBufferMutator(const Buffer& old_buffer, Buffer new_buffer,
                        Map<Block, Block>* block_sref_reuse);
 
-  ReplaceBufferMutator(const Map<Buffer, Buffer>& buffer_map,
-                       Map<Block, Block>* block_sref_reuse);
+  ReplaceBufferMutator(const Map<Buffer, Buffer>& buffer_map, Map<Block, Block>* block_sref_reuse);
 
  protected:
   using StmtExprMutator::VisitExpr_;
