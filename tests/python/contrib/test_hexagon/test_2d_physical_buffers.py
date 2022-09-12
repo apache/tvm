@@ -41,6 +41,8 @@ from .infrastructure import allocate_hexagon_array
 # there as well
 # pylint: disable=invalid-name
 
+schedule_type = tvm.testing.parameter("TE", "TIR")
+
 dtype = tvm.testing.parameter("int8")
 batch_size = tvm.testing.parameter(
     16,
@@ -198,6 +200,7 @@ class TestElementWise:
     @tvm.testing.fixture
     def schedule_args(
         self,
+        schedule_type,
         input_shape,
         dtype,
         input_layout,
@@ -206,12 +209,39 @@ class TestElementWise:
         working_scope,
     ):
         """Create and return the schedule and input args after applying layout transform"""
+        if schedule_type == "TE":
+
+            return self._te_schedule_args(
+                input_shape, dtype, input_layout, output_layout, working_layout, working_scope
+            )
+        elif schedule_type == "TIR":
+            return self._tir_schedule_args(
+                input_shape, dtype, input_layout, output_layout, working_layout, working_scope
+            )
+
+        else:
+            raise ValueError(f"Unknown schedule type: {schedule_type}")
+
+    def _te_tensors(self, input_shape, dtype):
         input_tensor = te.placeholder(input_shape, dtype, name="Input")
         output_tensor = te.compute(
             shape=input_tensor.shape,
             fcompute=lambda *indices: (2 * input_tensor[indices]).astype(dtype),
             name="Output",
         )
+        return input_tensor, output_tensor
+
+    def _te_schedule_args(
+        self,
+        input_shape,
+        dtype,
+        input_layout,
+        output_layout,
+        working_layout,
+        working_scope,
+    ):
+        input_tensor, output_tensor = self._te_tensors(input_shape, dtype)
+
         schedule = te.create_schedule(output_tensor.op)
 
         write_cache = schedule.cache_write(output_tensor, working_scope)
@@ -234,6 +264,33 @@ class TestElementWise:
         apply_transform(write_cache, working_layout)
 
         return [schedule, [input_tensor, output_tensor]]
+
+    def _tir_schedule_args(
+        self, input_shape, dtype, input_layout, output_layout, working_layout, working_scope
+    ):
+        tensors = self._te_tensors(input_shape, dtype)
+
+        sch = tvm.tir.Schedule(te.create_prim_func(tensors))
+
+        cache_read_block = sch.cache_read("Output", 0, working_scope)
+        cache_write_block = sch.cache_write("Output", 0, working_scope)
+
+        def apply_transform(block, buffer_name, layout):
+            if layout == "nhwc":
+                pass
+            elif layout == "nchw-8h8w32c-1d":
+                sch.transform_layout(block, buffer_name, layout_transform_1d)
+            elif layout == "nchw-8h8w32c-2d":
+                sch.transform_layout(block, buffer_name, layout_transform_2d)
+            else:
+                raise RuntimeError(f"Unexpected layout '{layout}'")
+
+        apply_transform(cache_read_block, ("read", 0), input_layout)
+        apply_transform(cache_read_block, ("write", 0), working_layout)
+        apply_transform(cache_write_block, ("read", 0), working_layout)
+        apply_transform(cache_write_block, ("write", 0), output_layout)
+
+        return [sch.mod]
 
     @tvm.testing.fixture
     def ir_module(self, schedule_args):
@@ -272,7 +329,7 @@ class TestElementWise:
                 "Input.global.vtcm": working_layout,
                 "Output.global.vtcm": working_layout,
                 "Output": output_layout,
-            }[buffer.name]
+            }[buffer.name.replace("_", ".")]
 
             expected_physical_dimensions = {
                 "nhwc": 1,
