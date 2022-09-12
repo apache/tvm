@@ -230,7 +230,7 @@ def get_network(
     inputs: Tuple[str, List[int], str]
     params_bytearray: bytearray
 
-    filename = f'relay-{name}-{",".join(str(i) for i in input_shape)}.json'
+    filename = f'relay-{name}-{layout}-{",".join(str(i) for i in input_shape)}.json'
     cached = _load_cache(cache_dir, filename)
     if cached is None:
         with multiprocessing.Pool(processes=1) as pool:
