@@ -122,7 +122,7 @@ class TestMatMulVec:
         2 * MB,
         3 * MB,
         4 * MB,
-        8 * MB,  # Only works on 8gen1 HDKs
+        # 8 * MB,  # Only works on 8gen1 HDKs
     )
 
     outer_split = tvm.testing.parameter(4)

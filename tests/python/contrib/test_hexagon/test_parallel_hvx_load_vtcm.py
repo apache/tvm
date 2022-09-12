@@ -378,8 +378,8 @@ class TestMatMulVec:
         2048,
         4096,
         5 * 2048,  # 3.93MB of total transfer
-        16384,
-        5 * 4096,  # 7.86MB of total transfer
+        # 16384, #Only works on 8Gen1 HDK's
+        # 5 * 4096,  # 7.86MB of total transfer. Only works on 8Gen1 HDK's
     )
 
     # Experimentally best configurations for the memcopy
