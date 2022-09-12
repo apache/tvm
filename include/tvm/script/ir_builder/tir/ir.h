@@ -68,7 +68,7 @@ Var Arg(String name, Var var);
 /*!
  * \brief The PrimFunc buffer arguments adding function.
  * \param name The name of the buffer.
- * \param var The buffer argument.
+ * \param buffer The buffer argument.
  * \return The buffer.
  */
 Buffer Arg(String name, Buffer buffer);
