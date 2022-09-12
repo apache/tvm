@@ -1,4 +1,3 @@
-#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,16 +14,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""IRBuilder for TIR"""
 
-set -e
-set -u
-set -o pipefail
+from tvm._ffi import register_object as _register_object
 
-# install python and pip, don't modify this, modify install_python_package.sh
-apt-get update
-apt-install-and-clear -y software-properties-common python3.7-dev python3-setuptools python3.7-venv
+from ..base import IRBuilderFrame
 
-python3 -mvenv /opt/tvm-venv
 
-# Pin pip and setuptools versions
-/opt/tvm-venv/bin/pip3 install pip==19.3.1 setuptools==58.4.0
+@_register_object("script.ir_builder.tir.TIRFrame")
+class TIRFrame(IRBuilderFrame):
+    ...
+
+
+@_register_object("script.ir_builder.tir.PrimFuncFrame")
+class PrimFuncFrame(TIRFrame):
+    ...
+
+
+@_register_object("script.ir_builder.tir.BlockFrame")
+class BlockFrame(TIRFrame):
+    ...

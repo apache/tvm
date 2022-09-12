@@ -53,7 +53,7 @@ def mod(mod: Union[PrimFunc, IRModule]) -> IRModule:  # pylint: disable=redefine
         raise TypeError(f"Expected `mod` to be PrimFunc or IRModule, but gets: {mod}")
     func_names = mod.get_global_vars()
     (func_name,) = func_names
-    if len(func_names) == 1 and func_name != "main":
+    if len(func_names) == 1 and func_name.name_hint != "main":
         mod = IRModule({"main": mod[func_name]})
     return mod
 

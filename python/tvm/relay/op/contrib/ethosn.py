@@ -102,11 +102,11 @@ def partition_for_ethosn(mod, params=None, **opts):
         raise ValueError("When targeting Ethos(TM)-N78, -variant=n78 should be set.")
 
     api_version = ethosn_api_version()
-    expected_api_version = "3.0.1"
-    if api_version != LooseVersion(expected_api_version):
+    supported_api_versions = ["3.0.1", "3.1.0"]
+    if all(api_version != LooseVersion(exp_ver) for exp_ver in supported_api_versions):
         raise ValueError(
             f"Driver stack version {api_version} is unsupported. "
-            f"Please use version {expected_api_version}."
+            f"Please use version in {supported_api_versions}."
         )
 
     if params:
@@ -415,7 +415,7 @@ def split(expr):
     """Check if a split is supported by Ethos-N."""
     if not ethosn_available():
         return False
-    if ethosn_api_version() >= LooseVersion("3.0.1"):
+    if ethosn_api_version() == LooseVersion("3.0.1"):
         return False
     if not _ethosn.split(expr):
         return False

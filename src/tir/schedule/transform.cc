@@ -138,9 +138,30 @@ Stmt ReplaceBufferMutator::VisitStmt_(const BlockNode* block) {
     return this->VisitMatchBufferRegion(match_buffer);
   };
   auto f_mutate_read_write_region = [this](const BufferRegion& buffer_region) {
-    auto it = buffer_var_map_.find(buffer_region->buffer->data.get());
-    return it == buffer_var_map_.end() ? buffer_region
-                                       : BufferRegion(it->second, buffer_region->region);
+    auto region = MutateArray(buffer_region->region, [this](const Range& range) {
+      PrimExpr min = VisitExpr(range->min);
+      PrimExpr extent = VisitExpr(range->extent);
+      if (min.same_as(range->min) && extent.same_as(range->extent)) {
+        return range;
+      } else {
+        return Range::FromMinExtent(min, extent);
+      }
+    });
+
+    Buffer buf = [&]() {
+      auto it = buffer_var_map_.find(buffer_region->buffer->data.get());
+      if (it == buffer_var_map_.end()) {
+        return buffer_region->buffer;
+      } else {
+        return it->second;
+      }
+    }();
+
+    if (buf.same_as(buffer_region->buffer) && region.same_as(buffer_region->region)) {
+      return buffer_region;
+    } else {
+      return BufferRegion(buf, region);
+    }
   };
   auto f_mutate_alloc_buffers = [this](const Buffer& buffer) {
     auto it = buffer_var_map_.find(buffer->data.get());
