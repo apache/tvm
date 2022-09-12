@@ -2569,25 +2569,14 @@ def _test_forward_elemwise(testop):
 
 
 def _test_forward_elemwise_quantized(testop):
-    if testop is not _test_equal:
-        testop(
-            [
-                np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8),
-                np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8),
-            ],
-            quantized=True,
-            qnn_op=testop,
-        )
-    else:
-        # no need for fake_quant to hold tensors in float32 until conversion
-        testop(
-            [
-                np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.float32),
-                np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.float32),
-            ],
-            quantized=True,
-            qnn_op=testop,
-        )
+    testop(
+        [
+            np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8),
+            np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8),
+        ],
+        quantized=True,
+        qnn_op=testop,
+    )
 
 
 def _test_elemwise_qnn_out_range(qnn_op):
@@ -2599,6 +2588,7 @@ def _test_elemwise_qnn_out_range(qnn_op):
         _test_maximum: (-112, 111),
         _test_minimum: (-128, 127),
         _test_equal: (-150, 150),
+        _test_greater: (-150, 150),
     }
 
     return qnn_out_range[qnn_op]
