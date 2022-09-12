@@ -69,6 +69,14 @@ inline BlockFrame FindBlockFrame(const String& method) {
   throw;
 }
 
+inline tvm::tir::BufferRegion BufferRegionFromLoad(tvm::tir::BufferLoad buffer_load) {
+  Array<Range> ranges;
+  for (const PrimExpr& index : buffer_load->indices) {
+    ranges.push_back(Range::FromMinExtent(index, IntImm(index->dtype, 1)));
+  }
+  return tvm::tir::BufferRegion(buffer_load->buffer, ranges);
+}
+
 }  // namespace tir
 }  // namespace ir_builder
 }  // namespace script
