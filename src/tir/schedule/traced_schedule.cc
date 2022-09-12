@@ -488,7 +488,7 @@ void TracedScheduleNode::Unannotate(const BlockRV& block_rv, const String& ann_k
 void TracedScheduleNode::TransformLayout(const BlockRV& block_rv, int buffer_index,
                                          BufferIndexType buffer_index_type,
                                          const IndexMap& index_map,
-                                         const Optional<PrimExpr>& pad_value) {
+                                         const Optional<IndexMap>& pad_value) {
   ConcreteScheduleNode::TransformLayout(block_rv, buffer_index, buffer_index_type, index_map,
                                         pad_value);
   static const InstructionKind& kind = InstructionKind::Get("TransformLayout");

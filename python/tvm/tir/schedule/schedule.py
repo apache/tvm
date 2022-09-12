@@ -2562,6 +2562,15 @@ class Schedule(Object):
         else:
             axis_separators = []
 
+        if pad_value is None:
+            pass
+        elif callable(pad_value):
+            pad_value = IndexMap.from_func(pad_value, ndim=len(index_map.final_indices))
+        elif not isinstance(pad_value, IndexMap):
+            pad_value = IndexMap.from_func(
+                lambda *indices: pad_value, ndim=len(index_map.final_indices)
+            )
+
         buffer_index_type_enum = 0 if buffer_index_type == "read" else 1
         _ffi_api.ScheduleTransformLayout(  # type: ignore # pylint: disable=no-member
             self, block, buffer_index, buffer_index_type_enum, index_map, pad_value

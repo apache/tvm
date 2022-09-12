@@ -618,5 +618,43 @@ class TestPaddedTransformOfInputCreatesAssumption(BasePaddingCompare):
                 B[vi] = A[vi // 4, vi % 4]
 
 
+class TestPaddedTransformNonConstantValue(tvm.testing.CompareBeforeAfter):
+    """Allow an expression to specify the pad value.
+
+    Like TestPaddedTransformIfThenElse, but the pad value depends on
+    the indices.
+    """
+
+    @pytest.fixture
+    def transform(self):
+        def transform(mod):
+            sch = tir.Schedule(mod)
+            sch.transform_layout(
+                "block",
+                "B",
+                lambda i: [i // 4, i % 4],
+                pad_value=lambda i, j: i + j,
+            )
+            return sch.mod
+
+        return transform
+
+    def before(A: T.Buffer[14, "int32"]):
+        B = T.alloc_buffer(14, "int32")
+        for i in T.serial(14):
+            with T.block("block"):
+                vi = T.axis.remap("S", [i])
+                B[vi] = A[vi]
+
+    def expected(A: T.Buffer[14, "int32"]):
+        B = T.alloc_buffer([4, 4], "int32")
+        for i, j in T.grid(4, 4):
+            with T.block("block"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                B[vi, vj] = T.if_then_else(
+                    vi == 3 and 2 <= vj, vi + vj, A[vi * 4 + vj], dtype="int32"
+                )
+
+
 if __name__ == "__main__":
     tvm.testing.main()

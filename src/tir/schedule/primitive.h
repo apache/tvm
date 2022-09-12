@@ -478,7 +478,7 @@ TVM_DLL void Unannotate(ScheduleState self, const StmtSRef& sref, const String& 
  */
 TVM_DLL void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                              BufferIndexType buffer_index_type, const IndexMap& index_map,
-                             const Optional<PrimExpr>& pad_value);
+                             const Optional<IndexMap>& pad_value);
 
 /*!
  * \brief Apply a transformation represented by IndexMap to block

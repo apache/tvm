@@ -389,17 +389,27 @@ class IndexMap(Object):
 
         final_indices = []
         axis_separators = []
-        for val in mapping:
-            if isinstance(val, tvm.ir.PrimExpr):
-                final_indices.append(val)
-            elif val is IndexMap.AXIS_SEPARATOR:
-                axis_separators.append(len(final_indices))
-            else:
-                raise TypeError(
-                    "Expected mapping function to return list of "
-                    "either tvm.ir.PrimExpr or IndexMap.AXIS_SEPARATOR.  "
-                    f"Instead received {val} of type {type(val)}."
-                )
+
+        try:
+            iter(mapping)
+            is_iterable = True
+        except TypeError:
+            is_iterable = False
+
+        if is_iterable:
+            for val in mapping:
+                if isinstance(val, tvm.ir.PrimExpr):
+                    final_indices.append(val)
+                elif val is IndexMap.AXIS_SEPARATOR:
+                    axis_separators.append(len(final_indices))
+                else:
+                    raise TypeError(
+                        "Expected mapping function to return list of "
+                        "either tvm.ir.PrimExpr or IndexMap.AXIS_SEPARATOR.  "
+                        f"Instead received {val} of type {type(val)}."
+                    )
+        else:
+            final_indices.append(mapping)
 
         return IndexMap(initial_indices, final_indices), axis_separators
 

@@ -91,7 +91,9 @@ class TransformLayoutPlanner : private StmtExprVisitor {
 
   static TransformPlan Plan(Block block, Buffer old_buffer, Buffer new_buffer, IndexMap index_map,
                             IndexMap inverse, PrimExpr padding_predicate,
-                            Optional<PrimExpr> pad_value) {
+                            Optional<IndexMap> pad_value) {
+    ICHECK(!pad_value.defined() || pad_value.value()->final_indices.size() == 1)
+        << "Internal error: Should be caught by ScheduleError checks prior to this point";
     TransformLayoutPlanner visitor(old_buffer);
     visitor(block);
     return visitor.Finalize(new_buffer, index_map, inverse, padding_predicate, pad_value);
@@ -225,7 +227,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
   };
 
   TransformPlan Finalize(Buffer new_buffer, IndexMap index_map, IndexMap inverse,
-                         PrimExpr padding_predicate, Optional<PrimExpr> pad_value) const {
+                         PrimExpr padding_predicate, Optional<IndexMap> pad_value) const {
     if (auto prologue_plan =
             FinalizeProloguePlan(new_buffer, index_map, inverse, padding_predicate, pad_value);
         prologue_plan.has_value()) {
@@ -245,7 +247,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
 
   std::optional<ProloguePlan> FinalizeProloguePlan(Buffer new_buffer, IndexMap index_map,
                                                    IndexMap inverse, PrimExpr padding_predicate,
-                                                   Optional<PrimExpr> pad_value) const {
+                                                   Optional<IndexMap> pad_value) const {
     if (write_info_.size() || is_zero(padding_predicate) || !pad_value.defined()) {
       return std::nullopt;
     }
@@ -267,7 +269,8 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     }
     padding_predicate = Substitute(std::move(padding_predicate), loop_indices_to_block_indices);
 
-    PrimExpr expr = (!padding_predicate) || (BufferLoad(new_buffer, indices) == pad_value.value());
+    PrimExpr pad_value_at_index = pad_value.value()->MapIndices(indices)[0];
+    PrimExpr expr = (!padding_predicate) || (BufferLoad(new_buffer, indices) == pad_value_at_index);
     Stmt stmt = Evaluate(Call(DataType::Bool(), builtin::assume(), {expr}));
 
     std::stringstream block_name;
@@ -288,7 +291,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
   std::optional<ReplacementPlan> FinalizeReplacementPlan(Buffer new_buffer, IndexMap index_map,
                                                          IndexMap inverse,
                                                          PrimExpr padding_predicate,
-                                                         Optional<PrimExpr> pad_value) const {
+                                                         Optional<IndexMap> pad_value) const {
     if (write_info_.empty() || is_zero(padding_predicate) || !pad_value.defined()) {
       return std::nullopt;
     }
@@ -424,8 +427,9 @@ class TransformLayoutPlanner : private StmtExprVisitor {
           }
         }
 
+        PrimExpr pad_value_at_index = pad_value.value()->MapIndices(new_indices)[0];
         return BufferStore(new_buffer,
-                           if_then_else(if_then_else_condition, pad_value.value(), op->value),
+                           if_then_else(if_then_else_condition, pad_value_at_index, op->value),
                            new_indices);
       };
 
@@ -474,7 +478,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
 
   std::optional<EpiloguePlan> FinalizeEpiloguePlan(Buffer new_buffer, IndexMap index_map,
                                                    IndexMap inverse, PrimExpr padding_predicate,
-                                                   Optional<PrimExpr> pad_value) const {
+                                                   Optional<IndexMap> pad_value) const {
     if (write_info_.empty() || is_zero(padding_predicate) || !pad_value.defined()) {
       return std::nullopt;
     }
@@ -493,7 +497,8 @@ class TransformLayoutPlanner : private StmtExprVisitor {
       iter_values.push_back(loop_var);
     }
 
-    Stmt stmt = BufferStore(new_buffer, pad_value.value(), indices);
+    PrimExpr pad_value_at_index = pad_value.value()->MapIndices(indices)[0];
+    Stmt stmt = BufferStore(new_buffer, pad_value_at_index, indices);
 
     std::stringstream block_name;
     block_name << "buffer_" << new_buffer->name << "_padding";
@@ -666,7 +671,7 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
   static std::pair<Stmt, Map<Block, Block>> Rewrite(
       const Block& scope_stmt, const Buffer& old_buffer, const Buffer& new_buffer,
       const IndexMap& index_map, const IndexMap& inverse, const PrimExpr& padding_predicate,
-      const Optional<PrimExpr>& pad_value) {
+      const Optional<IndexMap>& pad_value) {
     auto plan = TransformLayoutPlanner::Plan(scope_stmt, old_buffer, new_buffer, index_map, inverse,
                                              padding_predicate, pad_value);
 
@@ -805,14 +810,44 @@ class BufferIsSubregionError : public ScheduleError {
   Buffer buffer_;
 };
 
-class TransformationPaddingTypeError : public ScheduleError {
+class TransformationPaddingIndexMapError : public ScheduleError {
  public:
-  TransformationPaddingTypeError(IRModule mod, Buffer buffer, PrimExpr pad_value)
-      : mod_(mod), buffer_(buffer), pad_value_(pad_value) {}
+  TransformationPaddingIndexMapError(IRModule mod, IndexMap pad_value)
+      : mod_(mod), pad_value_(pad_value) {}
 
   String FastErrorString() const final {
     std::ostringstream ss;
-    ss << "ScheduleError: Type mismatch " << buffer_->dtype << " vs " << pad_value_->dtype;
+    ss << "ScheduleError: The IndexMap specifying pad_value has "
+       << pad_value_->final_indices.size() << " outputs, should only have one output";
+    return ss.str();
+  }
+
+  String DetailRenderTemplate() const final {
+    std::ostringstream ss;
+    ss << "ScheduleError: Pad value is specified as " << pad_value_ << " which has "
+       << pad_value_->final_indices.size() << " outputs, but should only have one output";
+    return ss.str();
+  }
+
+  IRModule mod() const final { return mod_; }
+  Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+
+ private:
+  IRModule mod_;
+  IndexMap pad_value_;
+};
+
+class TransformationPaddingTypeError : public ScheduleError {
+ public:
+  TransformationPaddingTypeError(IRModule mod, Buffer buffer, IndexMap pad_value)
+      : mod_(mod), buffer_(buffer), pad_value_(pad_value) {
+    ICHECK_EQ(pad_value_->final_indices.size(), 1);
+    pad_value_dtype_ = pad_value_->final_indices[0].dtype();
+  }
+
+  String FastErrorString() const final {
+    std::ostringstream ss;
+    ss << "ScheduleError: Type mismatch " << buffer_->dtype << " vs " << pad_value_dtype_;
     return ss.str();
   }
 
@@ -820,7 +855,7 @@ class TransformationPaddingTypeError : public ScheduleError {
     std::ostringstream ss;
     ss << "ScheduleError: Buffer " << buffer_->name << " has elements of type " << buffer_->dtype
        << ", but the transformation fills padding with " << pad_value_ << ", which is of type "
-       << pad_value_->dtype;
+       << pad_value_dtype_;
     return ss.str();
   }
 
@@ -830,7 +865,8 @@ class TransformationPaddingTypeError : public ScheduleError {
  private:
   IRModule mod_;
   Buffer buffer_;
-  PrimExpr pad_value_;
+  IndexMap pad_value_;
+  DataType pad_value_dtype_;
 };
 
 class TransformationIntroducesPaddingError : public ScheduleError {
@@ -869,7 +905,7 @@ class TransformationIntroducesPaddingError : public ScheduleError {
 
 void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                      BufferIndexType buffer_index_type, const IndexMap& index_map,
-                     const Optional<PrimExpr>& pad_value) {
+                     const Optional<IndexMap>& pad_value) {
   // Step 1: Input handling and error checking
   const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_sref);
   Buffer old_buffer =
@@ -878,8 +914,13 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
   if (defining_site_sref.defined() && !is_alloc) {
     throw BufferIsSubregionError(self->mod, old_buffer);
   }
-  if (pad_value && pad_value.value()->dtype != old_buffer->dtype) {
-    throw TransformationPaddingTypeError(self->mod, old_buffer, pad_value.value());
+  if (pad_value) {
+    if (pad_value.value()->final_indices.size() != 1) {
+      throw TransformationPaddingIndexMapError(self->mod, pad_value.value());
+    }
+    if (pad_value.value()->final_indices[0]->dtype != old_buffer->dtype) {
+      throw TransformationPaddingTypeError(self->mod, old_buffer, pad_value.value());
+    }
   }
 
   StmtSRef scope_sref = defining_site_sref.defined()
@@ -1286,7 +1327,7 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
 
   static void UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv, Integer buffer_index,
                                       Integer buffer_index_type, IndexMap index_map,
-                                      Optional<PrimExpr> pad_value) {
+                                      Optional<IndexMap> pad_value) {
     return sch->TransformLayout(block_rv, buffer_index.IntValue(),
                                 static_cast<BufferIndexType>(buffer_index_type->value), index_map,
                                 pad_value);
@@ -1294,7 +1335,7 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
 
   static String UnpackedAsPython(Array<String> outputs, String block_rv, Integer buffer_index,
                                  Integer buffer_index_type, IndexMap index_map,
-                                 Optional<PrimExpr> pad_value) {
+                                 Optional<IndexMap> pad_value) {
     PythonAPICall py("transform_layout");
     py.Input("block", block_rv);
 
@@ -1304,7 +1345,7 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
     py.Input("buffer", os.str());
 
     py.Input("index_map", index_map->ToPythonString());
-    py.Input("pad_value", pad_value);
+    py.Input("pad_value", pad_value ? pad_value.value()->ToPythonString() : "None");
 
     return py.Str();
   }
