@@ -29,3 +29,8 @@ class TIRFrame(IRBuilderFrame):
 @_register_object("script.ir_builder.tir.PrimFuncFrame")
 class PrimFuncFrame(TIRFrame):
     ...
+
+
+@_register_object("script.ir_builder.tir.BlockFrame")
+class BlockFrame(TIRFrame):
+    ...

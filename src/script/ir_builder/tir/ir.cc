@@ -41,8 +41,25 @@ PrimFuncFrame PrimFunc() {
   return PrimFuncFrame(n);
 }
 
+BlockFrame Block(String name, bool no_realize) {
+  ObjectPtr<BlockFrameNode> n = make_object<BlockFrameNode>();
+  n->name = name;
+  n->iter_vars.clear();
+  n->reads = NullOpt;
+  n->writes = NullOpt;
+  n->init = NullOpt;
+  n->alloc_buffers.clear();
+  n->match_buffers.clear();
+  n->annotations = NullOpt;
+  n->iter_values.clear();
+  n->predicate = NullOpt;
+  n->no_realize = no_realize;
+  return BlockFrame(n);
+}
+
 void Evaluate(PrimExpr value) { AddToParent(tvm::tir::Evaluate(value)); }
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.PrimFunc").set_body_typed(PrimFunc);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.Block").set_body_typed(Block);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Evaluate").set_body_typed(Evaluate);
 }  // namespace tir
 }  // namespace ir_builder
