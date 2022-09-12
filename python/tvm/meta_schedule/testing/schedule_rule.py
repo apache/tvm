@@ -18,7 +18,6 @@
 from typing import List, Union
 
 from tvm.meta_schedule.schedule_rule import (
-    AddRFactor,
     AutoBind,
     AutoInline,
     CrossThreadReduction,
@@ -28,7 +27,9 @@ from tvm.meta_schedule.schedule_rule import (
     ReuseType,
     ScheduleRule,
 )
-from tvm.meta_schedule.schedule_rule.multi_level_tiling import MultiLevelTilingTensorCore
+from tvm.meta_schedule.schedule_rule.multi_level_tiling import (
+    MultiLevelTilingTensorCore,
+)
 from tvm.target import Target
 
 
@@ -61,13 +62,6 @@ def auto_inline(target: Target) -> ScheduleRule:
             require_ordered=False,
             disallow_op=None,
         )
-    raise NotImplementedError(f"{target.kind.name} is not supported")
-
-
-def add_rfactor(target: Target) -> ScheduleRule:
-    """Default schedule rules for with add_rfactor"""
-    if target.kind.name == "llvm":
-        return AddRFactor(max_jobs_per_core=16, max_innermost_factor=64)
     raise NotImplementedError(f"{target.kind.name} is not supported")
 
 
@@ -131,7 +125,9 @@ def multi_level_tiling_tensor_core(
         trans_b = [trans_b]
 
     if target.kind.name == "cuda":
-        from tvm.tir.tensor_intrin import cuda  # pylint: disable=import-outside-toplevel
+        from tvm.tir.tensor_intrin import (  # pylint: disable=import-outside-toplevel
+            cuda,
+        )
 
         intrin_groups = [
             cuda.get_wmma_intrin_group(write_reuse_scope, _in_dtype, _out_dtype, _trans_b)
