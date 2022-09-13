@@ -15,62 +15,108 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
-
-from tvm.meta_schedule.space_generator.post_order_apply import PostOrderApply
+from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing import te_workload
-from tvm.meta_schedule.testing.schedule_rule import add_rfactor
-from tvm.meta_schedule.testing.space_generation import check_trace
-from tvm.meta_schedule.tune_context import TuneContext
+from tvm.meta_schedule.testing.space_generation import check_sketches
+from tvm.script import tir as T
 from tvm.target import Target
-from tvm.te.operation import create_prim_func
-
-
-def _create_context(mod, target, rule) -> TuneContext:
-    ctx = TuneContext(
-        mod=mod,
-        target=target,
-        space_generator=PostOrderApply(),
-        sch_rules=[rule],
-        task_name="test",
-    )
-    return ctx
+from tvm.te import create_prim_func
 
 
 def test_cpu_matmul():
-    expected = [
-        [],
-        [
-            'b0 = sch.get_block(name="C", func_name="main")',
-            "l1, l2, l3 = sch.get_loops(block=b0)",
-            "v4, v5 = sch.sample_perfect_tile(loop=l3, n=2, max_innermost_factor=64)",
-            "l6, l7 = sch.split(loop=l3, factors=[v4, v5], preserve_unit_iters=True)",
-            "b8 = sch.rfactor(loop=l7, factor_axis=2)",
-            'sch.annotate(block_or_loop=b0, ann_key="meta_schedule.random_compute_producer", ann_val=1)',
-        ],
-        [
-            'b0 = sch.get_block(name="C", func_name="main")',
-            "l1, l2, l3 = sch.get_loops(block=b0)",
-            "v4, v5 = sch.sample_perfect_tile(loop=l3, n=2, max_innermost_factor=64)",
-            "l6, l7 = sch.split(loop=l3, factors=[v4, v5], preserve_unit_iters=True)",
-            "b8 = sch.rfactor(loop=l6, factor_axis=2)",
-            'sch.annotate(block_or_loop=b0, ann_key="meta_schedule.random_compute_producer", ann_val=1)',
-        ],
+    @T.prim_func
+    def cpu_matmul_0(
+        A: T.Buffer[(4, 512), "float32"],
+        B: T.Buffer[(512, 4), "float32"],
+        C: T.Buffer[(4, 4), "float32"],
+    ) -> None:
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        for i0, i1, i2 in T.grid(4, 4, 512):
+            with T.block("C"):
+                i, j, k = T.axis.remap("SSR", [i0, i1, i2])
+                T.reads(A[i, k], B[k, j])
+                T.writes(C[i, j])
+                with T.init():
+                    C[i, j] = T.float32(0)
+                C[i, j] = C[i, j] + A[i, k] * B[k, j]
+
+    @T.prim_func
+    def cpu_matmul_1(
+        A: T.Buffer[(4, 512), "float32"],
+        B: T.Buffer[(512, 4), "float32"],
+        C: T.Buffer[(4, 4), "float32"],
+    ) -> None:
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        C_rf = T.alloc_buffer([4, 4, 128], dtype="float32")
+        for i0, i1, i2_0, i2_1 in T.grid(4, 4, 4, 128):
+            with T.block("C_rf"):
+                vi2_1, i, j, vi2_0 = T.axis.remap("SSSR", [i2_1, i0, i1, i2_0])
+                T.reads(A[i, vi2_0 * 128 + vi2_1], B[vi2_0 * 128 + vi2_1, j])
+                T.writes(C_rf[i, j, vi2_1])
+                with T.init():
+                    C_rf[i, j, vi2_1] = T.float32(0)
+                C_rf[i, j, vi2_1] = (
+                    C_rf[i, j, vi2_1] + A[i, vi2_0 * 128 + vi2_1] * B[vi2_0 * 128 + vi2_1, j]
+                )
+        for i0, i1, i2_1 in T.grid(4, 4, 128):
+            with T.block("C"):
+                vi2_1, i, j = T.axis.remap("RSS", [i2_1, i0, i1])
+                T.reads(C_rf[i, j, vi2_1])
+                T.writes(C[i, j])
+                T.block_attr({"meta_schedule.random_compute_producer": 1})
+                with T.init():
+                    C[i, j] = T.float32(0)
+                C[i, j] = C[i, j] + C_rf[i, j, vi2_1]
+
+    @T.prim_func
+    def cpu_matmul_2(
+        A: T.Buffer[(4, 512), "float32"],
+        B: T.Buffer[(512, 4), "float32"],
+        C: T.Buffer[(4, 4), "float32"],
+    ) -> None:
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        C_rf = T.alloc_buffer([4, 4, 4], dtype="float32")
+        for i0, i1, i2_0, i2_1 in T.grid(4, 4, 4, 128):
+            with T.block("C_rf"):
+                vi2_0, i, j, vi2_1 = T.axis.remap("SSSR", [i2_0, i0, i1, i2_1])
+                T.reads(A[i, vi2_0 * 128 + vi2_1], B[vi2_0 * 128 + vi2_1, j])
+                T.writes(C_rf[i, j, vi2_0])
+                with T.init():
+                    C_rf[i, j, vi2_0] = T.float32(0)
+                C_rf[i, j, vi2_0] = (
+                    C_rf[i, j, vi2_0] + A[i, vi2_0 * 128 + vi2_1] * B[vi2_0 * 128 + vi2_1, j]
+                )
+        for i0, i1, i2_0 in T.grid(4, 4, 4):
+            with T.block("C"):
+                vi2_0, i, j = T.axis.remap("RSS", [i2_0, i0, i1])
+                T.reads(C_rf[i, j, vi2_0])
+                T.writes(C[i, j])
+                T.block_attr({"meta_schedule.random_compute_producer": 1})
+                with T.init():
+                    C[i, j] = T.float32(0)
+                C[i, j] = C[i, j] + C_rf[i, j, vi2_0]
+
+    decision_0 = []  # type: ignore
+    decision_1 = [
+        ("SamplePerfectTile", [4, 128]),
     ]
-    target = Target("llvm --num-cores=32")
-    ctx = _create_context(
-        create_prim_func(
-            te_workload.matmul(
-                n=4,
-                m=4,
-                k=512,
-            )
-        ),
-        target=target,
-        rule=add_rfactor(target=target),
+    decision_2 = [
+        ("SamplePerfectTile", [4, 128]),
+    ]
+    mod = create_prim_func(te_workload.matmul(n=4, m=4, k=512))
+    actual = ms.TuneContext(
+        mod=mod,
+        target=Target("llvm --num-cores=32"),
+        space_generator=ms.space_generator.PostOrderApply(),
+        sch_rules=[ms.schedule_rule.AddRFactor()],
+        task_name="test",
+    ).generate_design_space()
+    check_sketches(
+        mod,
+        sketches=actual,
+        expected_mods=[cpu_matmul_0, cpu_matmul_1, cpu_matmul_2],
+        expected_decisions=[decision_0, decision_1, decision_2],
     )
-    spaces = ctx.space_generator.generate_design_space(mod=ctx.mod)
-    assert len(spaces) == 3
-    check_trace(spaces, expected)
 
 
 if __name__ == "__main__":
