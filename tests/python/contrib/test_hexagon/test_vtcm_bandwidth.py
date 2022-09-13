@@ -1,0 +1,169 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+"""Test theoretical bandwith for data transfers to VTCM for different strategies."""
+
+import numpy as np
+from tests.python.contrib.test_hexagon.infrastructure import allocate_hexagon_array
+import tvm
+
+from tvm.script import tir as T
+from numpy.random import default_rng
+
+MB = 1024**2
+KB = 1024
+TEST_OUTPUT_TEMPLATE = "Test bandwidth with buffer size {}MB... \n    -Base: {} GBps \n    -Vectorized: {} GBps\n    -Vectorized and Parallelized: {} GBps\n    -Single DMA Copy: {} GBps\n"
+
+
+def memcopy_operator(size):
+    @T.prim_func
+    def operator(a: T.handle, a_v: T.handle) -> None:
+        A = T.match_buffer(a, size, dtype="int8", align=128, scope="global")
+        A_global_vtcm = T.match_buffer(a_v, size, dtype="int8", align=128, scope="global.vtcm")
+        for ax0 in T.serial(size):
+            with T.block("A_global.vtcm"):
+                v0 = T.axis.spatial(size, ax0)
+                T.reads(A[v0])
+                T.writes(A_global_vtcm[v0])
+                A_global_vtcm[v0] = A[v0]
+
+    return operator
+
+
+def single_dma_operator(size):
+    @T.prim_func
+    def operator(a: T.handle, a_v: T.handle) -> None:
+        A = T.match_buffer(a, size, dtype="int8", align=128, scope="global")
+        A_global_vtcm = T.match_buffer(a_v, size, dtype="int8", align=128, scope="global.vtcm")
+        T.evaluate(
+            T.tvm_call_packed(
+                "device_api.hexagon.mem_copy_DLTensor",
+                T.tvm_stack_make_array(
+                    A_global_vtcm.data,
+                    T.tvm_stack_make_shape(size, dtype="handle"),
+                    0,
+                    1,
+                    A_global_vtcm.dtype,
+                    0,
+                    dtype="handle",
+                ),
+                T.tvm_stack_make_array(
+                    A.data,
+                    T.tvm_stack_make_shape(size, dtype="handle"),
+                    0,
+                    1,
+                    A.dtype,
+                    0,
+                    dtype="handle",
+                ),
+                T.cast(size, dtype="int"),
+                dtype="int32",
+            )
+        )
+
+    return operator
+
+
+def evaluate(hexagon_session, sch, size):
+    a_shape = size
+
+    target_hexagon = tvm.target.hexagon("v69")
+    func_tir = tvm.build(
+        sch.mod["main"], target=tvm.target.Target(target_hexagon, host=target_hexagon)
+    )
+    module = hexagon_session.load_module(func_tir)
+
+    rng = default_rng()
+    a = rng.integers(-128, 127, a_shape, dtype="int8")
+    a_vtcm = np.zeros(a_shape, dtype="int8")
+
+    a_hexagon = tvm.runtime.ndarray.array(a, device=hexagon_session.device, mem_scope="global")
+    a_vtcm_hexagon = tvm.runtime.ndarray.array(
+        a_vtcm, device=hexagon_session.device, mem_scope="global.vtcm"
+    )
+
+    # a_hexagon = allocate_hexagon_array(hexagon_session.device, data=a, mem_scope="global")
+    # a_vtcm_hexagon = allocate_hexagon_array(hexagon_session.device, data=a_vtcm, mem_scope="global.vtcm")
+
+    timer = module.time_evaluator("__tvm_main__", hexagon_session.device, number=100, repeat=10)
+    runtime = timer(a_hexagon, a_vtcm_hexagon)
+
+    gbps = round((size / 2**30) / runtime.mean, 4)
+    tvm.testing.assert_allclose(a_vtcm_hexagon.asnumpy(), a)
+
+    return gbps
+
+
+class TestMatMulVec:
+
+    size = tvm.testing.parameter(
+        10 * KB,
+        20 * KB,
+        40 * KB,
+        80 * KB,
+        160 * KB,
+        320 * KB,
+        640 * KB,
+        MB,
+        2 * MB,
+        3 * MB,
+        4 * MB,
+        # 8 * MB,  # Only works on 8gen1 HDKs
+    )
+
+    outer_split = tvm.testing.parameter(4)
+    unroll_split = tvm.testing.parameter(2)
+    vector_split = tvm.testing.parameter(128)
+
+    @tvm.testing.requires_hexagon
+    def test_bandwidth(self, hexagon_session, size, outer_split, unroll_split, vector_split):
+
+        # Run the base memcopy operator.
+        sch = tvm.tir.Schedule(memcopy_operator(size))
+        base_gpbs = evaluate(hexagon_session, sch, size)
+
+        # Run with some basic unroll and vectorize scheduling.
+        sch = tvm.tir.Schedule(memcopy_operator(size))
+        vtcm_block_a = sch.get_block("A_global.vtcm")
+        vb = sch.get_loops(vtcm_block_a)
+        vbi_a, vio_a, vii_a = sch.split(vb[0], factors=[None, unroll_split, vector_split])
+        sch.unroll(vio_a)
+        sch.vectorize(vii_a)
+        vectorize_gbps = evaluate(hexagon_session, sch, size)
+
+        # Run with some basic unroll and vectorize scheduling and parallelization.
+        sch = tvm.tir.Schedule(memcopy_operator(size))
+        vtcm_block_a = sch.get_block("A_global.vtcm")
+        vb = sch.get_loops(vtcm_block_a)
+        vbo_a, vbi_a, vio_a, vii_a = sch.split(
+            vb[0], factors=[outer_split, None, unroll_split, vector_split]
+        )
+        sch.unroll(vio_a)
+        sch.vectorize(vii_a)
+        sch.parallel(vbo_a)
+        parallel_gbps = evaluate(hexagon_session, sch, size)
+
+        # Run using a single dma copy to transfer the data.
+        sch = tvm.tir.Schedule(single_dma_operator(size))
+        single_dma_gbps = evaluate(hexagon_session, sch, size)
+
+        mbs = round(size / MB, 2)
+        print(
+            TEST_OUTPUT_TEMPLATE.format(
+                mbs, base_gpbs, vectorize_gbps, parallel_gbps, single_dma_gbps
+            )
+        )

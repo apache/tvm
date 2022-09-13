@@ -184,6 +184,17 @@ void HexagonDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void
   memcpy(static_cast<char*>(to) + to_offset, static_cast<const char*>(from) + from_offset, size);
 }
 
+TVM_REGISTER_GLOBAL("device_api.hexagon.mem_copy_DLTensor")
+    .set_body([](TVMArgs args, TVMRetValue* rv) {
+      DLTensor* dst = args[0];
+      DLTensor* src = args[1];
+      int size = args[2];
+
+      hexagon_user_dma_1d_sync(dst->data, src->data, size);
+
+      *rv = static_cast<int32_t>(0);
+    });
+
 TVM_REGISTER_GLOBAL("device_api.hexagon.mem_copy").set_body([](TVMArgs args, TVMRetValue* rv) {
   void* dst = args[0];
   void* src = args[1];
