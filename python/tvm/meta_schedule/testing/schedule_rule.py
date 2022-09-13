@@ -20,12 +20,9 @@ from typing import List, Union
 from tvm.meta_schedule.schedule_rule import (
     AutoInline,
     MultiLevelTiling,
-    ParallelizeVectorizeUnroll,
+    MultiLevelTilingTensorCore,
     ReuseType,
     ScheduleRule,
-)
-from tvm.meta_schedule.schedule_rule.multi_level_tiling import (
-    MultiLevelTilingTensorCore,
 )
 from tvm.target import Target
 
@@ -135,24 +132,5 @@ def multi_level_tiling_tensor_core(
                 scope=write_reuse_scope,
             ),
             use_software_pipeline=use_software_pipeline,
-        )
-    raise NotImplementedError(f"{target.kind.name} is not supported")
-
-
-def parallel_vectorize_unroll(target: Target) -> ScheduleRule:
-    """Default schedule rules for with parallel-vectorize-unroll"""
-    if target.kind.name == "llvm":
-        return ParallelizeVectorizeUnroll(
-            max_jobs_per_core=16,
-            max_vectorize_extent=32,
-            unroll_max_steps=[0, 16, 64, 512],
-            unroll_explicit=True,
-        )
-    if target.kind.name == "cuda":
-        return ParallelizeVectorizeUnroll(
-            max_jobs_per_core=-1,
-            max_vectorize_extent=-1,
-            unroll_max_steps=[0, 16, 64, 512, 1024],
-            unroll_explicit=True,
         )
     raise NotImplementedError(f"{target.kind.name} is not supported")
