@@ -19,7 +19,6 @@ from typing import List, Union
 
 from tvm.meta_schedule.schedule_rule import (
     AutoInline,
-    CrossThreadReduction,
     MultiLevelTiling,
     ParallelizeVectorizeUnroll,
     ReuseType,
@@ -53,13 +52,6 @@ def auto_inline(target: Target) -> ScheduleRule:
             require_ordered=False,
             disallow_op=None,
         )
-    raise NotImplementedError(f"{target.kind.name} is not supported")
-
-
-def cross_thread_reduction(target: Target) -> ScheduleRule:
-    """Default schedule rules for with cross-thread reduction"""
-    if target.kind.name == "cuda":
-        return CrossThreadReduction(thread_extents=[4, 8, 16, 32, 64, 128, 256, 512])
     raise NotImplementedError(f"{target.kind.name} is not supported")
 
 
