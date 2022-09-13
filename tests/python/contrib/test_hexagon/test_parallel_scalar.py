@@ -100,6 +100,12 @@ def evaluate(hexagon_session, operations, expected, sch):
 
 class TestMatMulVec:
 
+    (operation_name, operator_producer, expected_output_producer,) = tvm.testing.parameters(
+        ("add", get_add_operator, (lambda a, b: a + b)),
+        ("mul", get_multiply_operator, (lambda a, b: a * b)),
+        ("sub", get_sub_operator, (lambda a, b: a - b)),
+    )
+
     operations = tvm.testing.parameter(
         128,
         256,
@@ -114,62 +120,30 @@ class TestMatMulVec:
     split_factor = tvm.testing.parameter(4)
 
     @tvm.testing.requires_hexagon
-    def test_add(self, hexagon_session, operations, split_factor):
+    def test_add(
+        self,
+        hexagon_session,
+        operation_name,
+        operator_producer,
+        expected_output_producer,
+        operations,
+        split_factor,
+    ):
 
-        sch = tvm.tir.Schedule(get_add_operator(operations))
-        single_thread_runtime = evaluate(hexagon_session, operations, (lambda a, b: a + b), sch)
+        sch = tvm.tir.Schedule(operator_producer(operations))
+        single_thread_runtime = evaluate(hexagon_session, operations, expected_output_producer, sch)
 
-        sch = tvm.tir.Schedule(get_add_operator(operations))
+        sch = tvm.tir.Schedule(operator_producer(operations))
         block = sch.get_block("C")
         b = sch.get_loops(block)
         bo, _ = sch.split(b[0], factors=[split_factor, None])
         sch.parallel(bo)
-        parallel_runtime = evaluate(hexagon_session, operations, (lambda a, b: a + b), sch)
+        parallel_runtime = evaluate(hexagon_session, operations, expected_output_producer, sch)
 
         speedup = round(single_thread_runtime / parallel_runtime, 2)
         print(
             TEST_OUTPUT_TEMPLATE.format(
-                "add", operations, single_thread_runtime, parallel_runtime, speedup
-            )
-        )
-
-    @tvm.testing.requires_hexagon
-    def test_multiply(self, hexagon_session, operations, split_factor):
-
-        sch = tvm.tir.Schedule(get_multiply_operator(operations))
-        single_thread_runtime = evaluate(hexagon_session, operations, (lambda a, b: a * b), sch)
-
-        sch = tvm.tir.Schedule(get_multiply_operator(operations))
-        block = sch.get_block("C")
-        b = sch.get_loops(block)
-        bo, _ = sch.split(b[0], factors=[split_factor, None])
-        sch.parallel(bo)
-        parallel_runtime = evaluate(hexagon_session, operations, (lambda a, b: a * b), sch)
-
-        speedup = round(single_thread_runtime / parallel_runtime, 2)
-        print(
-            TEST_OUTPUT_TEMPLATE.format(
-                "multiply", operations, single_thread_runtime, parallel_runtime, speedup
-            )
-        )
-
-    @tvm.testing.requires_hexagon
-    def test_sub(self, hexagon_session, operations, split_factor):
-
-        sch = tvm.tir.Schedule(get_sub_operator(operations))
-        single_thread_runtime = evaluate(hexagon_session, operations, (lambda a, b: a - b), sch)
-
-        sch = tvm.tir.Schedule(get_sub_operator(operations))
-        block = sch.get_block("C")
-        b = sch.get_loops(block)
-        bo, _ = sch.split(b[0], factors=[split_factor, None])
-        sch.parallel(bo)
-        parallel_runtime = evaluate(hexagon_session, operations, (lambda a, b: a - b), sch)
-
-        speedup = round(single_thread_runtime / parallel_runtime, 2)
-        print(
-            TEST_OUTPUT_TEMPLATE.format(
-                "sub", operations, single_thread_runtime, parallel_runtime, speedup
+                operation_name, operations, single_thread_runtime, parallel_runtime, speedup
             )
         )
 

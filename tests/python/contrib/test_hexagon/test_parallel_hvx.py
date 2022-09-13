@@ -129,7 +129,7 @@ def get_vrmpy_operator(operations):
     return operator
 
 
-def evaluate(hexagon_session, shape_dtypes, expected_producer, sch):
+def evaluate(hexagon_session, shape_dtypes, expected_output_producer, sch):
     a_shape, a_dtype, b_shape, b_dtype, c_shape, c_dtype = shape_dtypes
 
     target_hexagon = tvm.target.hexagon("v68")
@@ -149,14 +149,30 @@ def evaluate(hexagon_session, shape_dtypes, expected_producer, sch):
 
     timer = module.time_evaluator("__tvm_main__", hexagon_session.device, number=100, repeat=10)
     runtime = timer(a_hexagon, b_hexagon, c_hexagon)
-    tvm.testing.assert_allclose(c_hexagon.asnumpy(), expected_producer(c_shape, a, b))
+    tvm.testing.assert_allclose(c_hexagon.asnumpy(), expected_output_producer(c_shape, a, b))
 
     return round(runtime.mean * 1000, 6)
 
 
 class TestMatMulVec:
 
-    operations = tvm.testing.parameter(
+    (
+        operation_name,
+        operator_producer,
+        shape_dtypes_producer,
+        expected_output_producer,
+    ) = tvm.testing.parameters(
+        ("vrmpy", get_vrmpy_operator, get_vrmpy_shape_dtypes, vrmpy_expected_producer),
+        ("vmpy", get_vmpy_operator, get_vmpy_vadd_shape_dtype, vmpy_expected_producer),
+        ("vadd", get_vadd_operator, get_vmpy_vadd_shape_dtype, vadd_expected_producer),
+    )
+
+    # Experimentally best split factor but all multiples of 4 perform pretty well.
+    # This is because there are 4 HVX untis available on the device and pipelining
+    # works best with parallels of the number of available HVX.
+    split_factor = tvm.testing.parameter(4)
+
+    operation_count = tvm.testing.parameter(
         128,
         256,
         512,
@@ -167,86 +183,38 @@ class TestMatMulVec:
         16384,
     )
 
-    # Experimentally best split factor but all multiples of 4 perform pretty well.
-    # This is because there are 4 HVX untis available on the device and pipelining
-    # works best with parallels of the number of available HVX.
-    split_factor = tvm.testing.parameter(4)
-
     @tvm.testing.requires_hexagon
-    def test_vrmpy(self, hexagon_session, operations, split_factor):
+    def test(
+        self,
+        hexagon_session,
+        operation_count,
+        operation_name,
+        operator_producer,
+        shape_dtypes_producer,
+        expected_output_producer,
+        split_factor,
+    ):
 
-        sch = tvm.tir.Schedule(get_vrmpy_operator(operations))
+        sch = tvm.tir.Schedule(operator_producer(operation_count))
         single_thread_runtime = evaluate(
-            hexagon_session, get_vrmpy_shape_dtypes(operations), vrmpy_expected_producer, sch
+            hexagon_session, shape_dtypes_producer(operation_count), expected_output_producer, sch
         )
 
-        sch = tvm.tir.Schedule(get_vrmpy_operator(operations))
+        sch = tvm.tir.Schedule(operator_producer(operation_count))
         block = sch.get_block("C")
         b = sch.get_loops(block)
         bo, _ = sch.split(b[0], factors=[split_factor, None])
         sch.parallel(bo)
 
         parallel_runtime = evaluate(
-            hexagon_session, get_vrmpy_shape_dtypes(operations), vrmpy_expected_producer, sch
+            hexagon_session, shape_dtypes_producer(operation_count), expected_output_producer, sch
         )
 
         speedup = round(single_thread_runtime / parallel_runtime, 2)
 
         print(
             TEST_OUTPUT_TEMPLATE.format(
-                "vrmpy", operations, single_thread_runtime, parallel_runtime, speedup
-            )
-        )
-
-    @tvm.testing.requires_hexagon
-    def test_vmpy_parallel(self, hexagon_session, operations, split_factor):
-
-        sch = tvm.tir.Schedule(get_vmpy_operator(operations))
-        single_thread_runtime = evaluate(
-            hexagon_session, get_vmpy_vadd_shape_dtype(operations), vmpy_expected_producer, sch
-        )
-
-        sch = tvm.tir.Schedule(get_vmpy_operator(operations))
-        block = sch.get_block("C")
-        b = sch.get_loops(block)
-        bo, _ = sch.split(b[0], factors=[split_factor, None])
-        sch.parallel(bo)
-
-        parallel_runtime = evaluate(
-            hexagon_session, get_vmpy_vadd_shape_dtype(operations), vmpy_expected_producer, sch
-        )
-
-        speedup = round(single_thread_runtime / parallel_runtime, 2)
-
-        print(
-            TEST_OUTPUT_TEMPLATE.format(
-                "vmpy", operations, single_thread_runtime, parallel_runtime, speedup
-            )
-        )
-
-    @tvm.testing.requires_hexagon
-    def test_vadd(self, hexagon_session, operations, split_factor):
-
-        sch = tvm.tir.Schedule(get_vadd_operator(operations))
-        single_thread_runtime = evaluate(
-            hexagon_session, get_vmpy_vadd_shape_dtype(operations), vadd_expected_producer, sch
-        )
-
-        sch = tvm.tir.Schedule(get_vadd_operator(operations))
-        block = sch.get_block("C")
-        b = sch.get_loops(block)
-        bo, _ = sch.split(b[0], factors=[split_factor, None])
-        sch.parallel(bo)
-
-        parallel_runtime = evaluate(
-            hexagon_session, get_vmpy_vadd_shape_dtype(operations), vadd_expected_producer, sch
-        )
-
-        speedup = round(single_thread_runtime / parallel_runtime, 2)
-
-        print(
-            TEST_OUTPUT_TEMPLATE.format(
-                "vadd", operations, single_thread_runtime, parallel_runtime, speedup
+                operation_name, operation_count, single_thread_runtime, parallel_runtime, speedup
             )
         )
 
