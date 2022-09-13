@@ -18,7 +18,6 @@
 from typing import List, Union
 
 from tvm.meta_schedule.schedule_rule import (
-    AutoBind,
     AutoInline,
     CrossThreadReduction,
     MultiLevelTiling,
@@ -31,13 +30,6 @@ from tvm.meta_schedule.schedule_rule.multi_level_tiling import (
     MultiLevelTilingTensorCore,
 )
 from tvm.target import Target
-
-
-def auto_bind(target: Target) -> ScheduleRule:
-    """Default schedule rules for auto bind"""
-    if target.kind.name == "cuda":
-        return AutoBind(max_threadblocks=256, thread_extents=[32, 64, 128, 256, 512, 1024])
-    raise NotImplementedError(f"{target.kind.name} is not supported")
 
 
 def auto_inline(target: Target) -> ScheduleRule:
