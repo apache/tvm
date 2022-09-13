@@ -414,6 +414,7 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const Array<Integ
     Array<Var> producer_store_indices;
     if (!buffer_store || producer_block->writes.size() != 1 ||
         !CheckTrivialBufferIndices(buffer_store, &producer_store_indices)) {
+      LOG(INFO) << "A";
       throw InvalidProducerError(self->mod, GetRef<Block>(producer_block));
     }
 
@@ -435,10 +436,6 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const Array<Integ
       indices_to_padded_extents.Set(index, padded_extent);
     }
 
-    // Check all block iters are used in the buffer indices, and no other variables are used.
-    if (producer_block->iter_vars.size() != producer_store_indices.size()) {
-      throw InvalidProducerError(self->mod, GetRef<Block>(producer_block));
-    }
     for (int i = 0, n = producer_block->iter_vars.size(); i < n; ++i) {
       const IterVar& iter = producer_block->iter_vars[i];
       if (auto it = indices_to_padded_extents.find(iter->var);
@@ -446,7 +443,7 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const Array<Integ
         const PrimExpr& padded_extent = (*it).second;
         padded_iter_extents.Set(iter->var, padded_extent);
         padded_iter_extents.Set(Downcast<Var>(producer_realize->iter_values[i]), padded_extent);
-      } else {
+      } else if (!is_one(iter->dom->extent)) {
         throw InvalidProducerError(self->mod, GetRef<Block>(producer_block));
       }
     }
