@@ -147,12 +147,20 @@ TEST_F(HexagonDeviceAPITest, DISABLED_alloc_free_diff_dev) {
   EXPECT_THROW(hexapi->FreeDataSpace(cpu_dev, buf), InternalError);
 }
 
-// Alloc a buffer, but do not free it.
-// "Release" resources, and verify it cannot be freed.
-TEST_F(HexagonDeviceAPITest, leak_resources) {
-  hexapi->AcquireResources();
-  void* buf = hexapi->AllocDataSpace(hex_dev, nbytes, alignment, int8);
-  CHECK(buf != nullptr);
+// Alloc a non-runtime buffer
+// Alloc a runtime buffer
+// "Release" resources for runtime
+// Verify the runtime buffer cannot be freed, but the non-runtime buffer can
+// This test should be run last
+TEST_F(HexagonDeviceAPITest, z_leak_resources) {
   hexapi->ReleaseResources();
-  EXPECT_THROW(hexapi->FreeDataSpace(hex_dev, buf), InternalError);
+  void* pre_runtime_buf = hexapi->AllocDataSpace(hex_dev, nbytes, alignment, int8);
+  CHECK(pre_runtime_buf != nullptr);
+  hexapi->AcquireResources();
+  void* runtime_buf = hexapi->AllocDataSpace(hex_dev, nbytes, alignment, int8);
+  CHECK(runtime_buf != nullptr);
+  hexapi->ReleaseResources();
+  EXPECT_THROW(hexapi->FreeDataSpace(hex_dev, runtime_buf), InternalError);
+  hexapi->FreeDataSpace(hex_dev, pre_runtime_buf);
+  hexapi->AcquireResources();
 }

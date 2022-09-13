@@ -88,12 +88,16 @@ class Session:
                     self._rpc_receive_buffer_size_bytes,
                 ],
             )
+            func = self._rpc.get_function("device_api.hexagon.acquire_resources")
+            func()
             return self
 
         except RuntimeError as exception:
             raise exception
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
+        func = self._rpc.get_function("device_api.hexagon.release_resources")
+        func()
         # close session to the tracker
         del self._rpc
 

@@ -149,18 +149,6 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         """Stop the RPC server"""
         ...
 
-    def _acquire_device_resources(self):
-        """Call into device to initialize objects to acquire resources"""
-        with self.start_session() as session:
-            func = session._rpc.get_function("device_api.hexagon.acquire_resources")
-            func()
-
-    def _release_device_resources(self):
-        """Call into device to release resources"""
-        with self.start_session() as session:
-            func = session._rpc.get_function("device_api.hexagon.release_resources")
-            func()
-
     @abc.abstractmethod
     def cleanup_directory(self):
         """Cleanup working directory"""
@@ -520,11 +508,9 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
         self._copy_binaries()
         self._run_server_script()
-        super()._acquire_device_resources()
 
     def stop_server(self):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
-        super()._release_device_resources()
         self._cleanup_port_forwarding()
         self._terminate_remote()
         self.cleanup_directory()
