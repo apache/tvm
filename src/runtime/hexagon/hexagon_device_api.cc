@@ -90,7 +90,7 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shap
 
   const size_t typesize = (dtype.bits / 8) * dtype.lanes;
 
-  HexagonBufferManager *mgr = runtime_hexbuffs ? runtime_hexbuffs.get() : &hexbuffs;
+  HexagonBufferManager* mgr = runtime_hexbuffs ? runtime_hexbuffs.get() : &hexbuffs;
 
   if (ndim == 0) {
     // Allocate storage for a single scalar value.
@@ -117,16 +117,15 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, size_t nbytes, size_t alignme
   if (alignment < kHexagonAllocAlignment) {
     alignment = kHexagonAllocAlignment;
   }
-  HexagonBufferManager *mgr = runtime_hexbuffs ? runtime_hexbuffs.get() : &hexbuffs;
+  HexagonBufferManager* mgr = runtime_hexbuffs ? runtime_hexbuffs.get() : &hexbuffs;
   return mgr->AllocateHexagonBuffer(nbytes, alignment, String("global"));
 }
 
 void HexagonDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
   CHECK(ptr) << "buffer pointer is null";
   CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
-  HexagonBufferManager *mgr = (runtime_hexbuffs && runtime_hexbuffs->count(ptr) != 0) ?
-                              runtime_hexbuffs.get() :
-                              &hexbuffs;
+  HexagonBufferManager* mgr =
+      (runtime_hexbuffs && runtime_hexbuffs->count(ptr) != 0) ? runtime_hexbuffs.get() : &hexbuffs;
   mgr->FreeHexagonBuffer(ptr);
 }
 
@@ -169,9 +168,8 @@ void HexagonDeviceAPI::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHan
   CHECK_EQ(GetDataSize(*from), GetDataSize(*to));
 
   auto lookup_hexagon_buffer = [this](void* ptr) -> HexagonBuffer* {
-    return (runtime_hexbuffs && runtime_hexbuffs->count(ptr) != 0) ?
-      runtime_hexbuffs->find(ptr) :
-      hexbuffs.find(ptr);
+    return (runtime_hexbuffs && runtime_hexbuffs->count(ptr) != 0) ? runtime_hexbuffs->find(ptr)
+                                                                   : hexbuffs.find(ptr);
   };
 
   HexagonBuffer* hex_from_buf = lookup_hexagon_buffer(from->data);
