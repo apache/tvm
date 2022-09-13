@@ -18,26 +18,13 @@
 from typing import List, Union
 
 from tvm.meta_schedule.schedule_rule import (
-    AutoBind,
     AutoInline,
-    CrossThreadReduction,
     MultiLevelTiling,
-    ParallelizeVectorizeUnroll,
-    RandomComputeLocation,
+    MultiLevelTilingTensorCore,
     ReuseType,
     ScheduleRule,
 )
-from tvm.meta_schedule.schedule_rule.multi_level_tiling import (
-    MultiLevelTilingTensorCore,
-)
 from tvm.target import Target
-
-
-def auto_bind(target: Target) -> ScheduleRule:
-    """Default schedule rules for auto bind"""
-    if target.kind.name == "cuda":
-        return AutoBind(max_threadblocks=256, thread_extents=[32, 64, 128, 256, 512, 1024])
-    raise NotImplementedError(f"{target.kind.name} is not supported")
 
 
 def auto_inline(target: Target) -> ScheduleRule:
@@ -62,13 +49,6 @@ def auto_inline(target: Target) -> ScheduleRule:
             require_ordered=False,
             disallow_op=None,
         )
-    raise NotImplementedError(f"{target.kind.name} is not supported")
-
-
-def cross_thread_reduction(target: Target) -> ScheduleRule:
-    """Default schedule rules for with cross-thread reduction"""
-    if target.kind.name == "cuda":
-        return CrossThreadReduction(thread_extents=[4, 8, 16, 32, 64, 128, 256, 512])
     raise NotImplementedError(f"{target.kind.name} is not supported")
 
 
@@ -152,31 +132,5 @@ def multi_level_tiling_tensor_core(
                 scope=write_reuse_scope,
             ),
             use_software_pipeline=use_software_pipeline,
-        )
-    raise NotImplementedError(f"{target.kind.name} is not supported")
-
-
-def random_compute_location(target: Target) -> ScheduleRule:
-    """Default schedule rules for with random-compute-location"""
-    if target.kind.name == "llvm":
-        return RandomComputeLocation()
-    raise NotImplementedError(f"{target.kind.name} is not supported")
-
-
-def parallel_vectorize_unroll(target: Target) -> ScheduleRule:
-    """Default schedule rules for with parallel-vectorize-unroll"""
-    if target.kind.name == "llvm":
-        return ParallelizeVectorizeUnroll(
-            max_jobs_per_core=16,
-            max_vectorize_extent=32,
-            unroll_max_steps=[0, 16, 64, 512],
-            unroll_explicit=True,
-        )
-    if target.kind.name == "cuda":
-        return ParallelizeVectorizeUnroll(
-            max_jobs_per_core=-1,
-            max_vectorize_extent=-1,
-            unroll_max_steps=[0, 16, 64, 512, 1024],
-            unroll_explicit=True,
         )
     raise NotImplementedError(f"{target.kind.name} is not supported")
