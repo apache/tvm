@@ -31,11 +31,12 @@ RUN bash /install/ubuntu_install_core.sh
 COPY install/ubuntu_install_googletest.sh /install/ubuntu_install_googletest.sh
 RUN bash /install/ubuntu_install_googletest.sh
 
-COPY install/ubuntu2004_install_python.sh /install/ubuntu2004_install_python.sh
-RUN bash /install/ubuntu2004_install_python.sh
-
-# Globally disable pip cache
-RUN pip config set global.cache-dir false
+ENV TVM_VENV /venv/apache-tvm-py3.8
+COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles
+COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
+RUN bash /install/ubuntu_install_python.sh
+ENV PATH ${TVM_VENV}/bin:$PATH
+ENV PYTHONNOUSERSITE 1  # Disable .local directory from affecting CI.
 
 # Rust env (build early; takes a while)
 COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh

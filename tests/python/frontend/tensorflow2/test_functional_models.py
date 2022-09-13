@@ -585,5 +585,65 @@ def test_tensorlist_stack_unpack():
     run_test((-1, -1))
 
 
+def test_bincount_1d():
+    def run_test(weights, minlength, maxlength, axis, binary_output):
+        class Bincount1D(tf.Module):
+            def get_input(self):
+                return np.random.uniform(low=0, high=maxlength, size=(100,)).astype("int32")
+
+            @tf.function(input_signature=[tf.TensorSpec(shape=[None], dtype=tf.int32)])
+            def func(self, x):
+                return tf.math.bincount(
+                    x,
+                    weights=weights,
+                    minlength=minlength,
+                    maxlength=maxlength,
+                    axis=axis,
+                    binary_output=binary_output,
+                )
+
+        run_model_graph(Bincount1D)
+        run_func_graph(Bincount1D, runtime="vm")
+
+    for axis in [None, 0, -1]:
+        run_test(weights=None, minlength=20, maxlength=20, axis=axis, binary_output=False)
+        run_test(weights=None, minlength=20, maxlength=20, axis=axis, binary_output=True)
+
+    # weights and axis=None need operator UnsortedSegmentSum to be implemented. Skip axis=None
+    weights = np.random.uniform(low=0.2, high=5, size=(100,)).astype("float32")
+    for axis in [0, -1]:
+        run_test(weights=weights, minlength=20, maxlength=20, axis=axis, binary_output=False)
+
+
+def test_bincount_2d():
+    def run_test(weights, minlength, maxlength, axis, binary_output):
+        class Bincount2D(tf.Module):
+            def get_input(self):
+                return np.random.uniform(low=0, high=maxlength, size=(3, 100)).astype("int32")
+
+            @tf.function(input_signature=[tf.TensorSpec([None, None], tf.int32)])
+            def func(self, x):
+                return tf.math.bincount(
+                    x,
+                    weights=weights,
+                    minlength=minlength,
+                    maxlength=maxlength,
+                    axis=axis,
+                    binary_output=binary_output,
+                )
+
+        run_model_graph(Bincount2D)
+        run_func_graph(Bincount2D, runtime="vm")
+
+    for axis in [None, 0, -1]:
+        run_test(weights=None, minlength=20, maxlength=20, axis=axis, binary_output=False)
+        run_test(weights=None, minlength=20, maxlength=20, axis=axis, binary_output=True)
+
+    # weights and axis=None need operator UnsortedSegmentSum to be implemented. Skip axis=None
+    weights = np.random.uniform(low=0.2, high=5, size=(3, 100)).astype("float32")
+    for axis in [0, -1]:
+        run_test(weights=weights, minlength=20, maxlength=20, axis=axis, binary_output=False)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

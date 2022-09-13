@@ -104,6 +104,7 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_
                 kernel[co][ci][r_kh][r_kw] * G[eps][r_kh] * G[nu][r_kw], axis=[r_kh, r_kw]
             ),
             name="kernel_pack",
+            attrs={"schedule_rule": "meta_schedule.winograd_kernel_pack.nchw.cuda"},
         )
     else:
         kernel_pack = kernel

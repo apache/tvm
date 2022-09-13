@@ -1291,7 +1291,13 @@ class OperatorConverter(object):
 
         return out
 
-    def _convert_elemwise(self, relay_op, op, ignore_qnn_params=False):
+    def _convert_elemwise(
+        self,
+        relay_op,
+        op,
+        ignore_qnn_params=False,
+        comparison_op=False,
+    ):
         """Generic method to Convert TFLite elemwise"""
         try:
             from tflite.AddOptions import AddOptions
@@ -1316,7 +1322,7 @@ class OperatorConverter(object):
 
         # TFLite format demands equal scale and zero_point tuple parameters for some operations
         # to allow us to use non-quantized operation instead of quantized if ignore_qnn_params=True
-        if ignore_qnn_params:
+        if ignore_qnn_params and not comparison_op:
             assert (
                 lhs_tensor.qnn_params
                 and self.has_same_qnn_params(lhs_tensor, output_tensor)
@@ -1431,12 +1437,7 @@ class OperatorConverter(object):
 
     def convert_greater(self, op):
         """Convert TFLite GREATER"""
-        # Check if the input tensor is quantized, call QNN op
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized GREATER operator is not supported yet."
-            )
-        return self._convert_elemwise(_op.greater, op)
+        return self._convert_elemwise(_op.greater, op, self.is_quantized(op), comparison_op=True)
 
     def convert_squared_difference(self, op):
         """Convert TFLite SQUARED DIFFERENCE"""
@@ -1475,7 +1476,7 @@ class OperatorConverter(object):
 
     def convert_equal(self, op):
         """Convert TFLite EQUAL"""
-        return self._convert_elemwise(_op.equal, op, self.is_quantized(op))
+        return self._convert_elemwise(_op.equal, op, self.is_quantized(op), comparison_op=True)
 
     def convert_not_equal(self, op):
         """Convert TFLite NOT_EQUAL"""

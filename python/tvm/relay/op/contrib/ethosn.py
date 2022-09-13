@@ -102,11 +102,11 @@ def partition_for_ethosn(mod, params=None, **opts):
         raise ValueError("When targeting Ethos(TM)-N78, -variant=n78 should be set.")
 
     api_version = ethosn_api_version()
-    expected_api_version = "3.0.1"
-    if api_version != LooseVersion(expected_api_version):
+    supported_api_versions = ["3.0.1", "3.1.0"]
+    if all(api_version != LooseVersion(exp_ver) for exp_ver in supported_api_versions):
         raise ValueError(
             f"Driver stack version {api_version} is unsupported. "
-            f"Please use version {expected_api_version}."
+            f"Please use version in {supported_api_versions}."
         )
 
     if params:
@@ -233,6 +233,16 @@ def pattern_table():
 
         return input_is_left | input_is_right | two_inputs
 
+    def qnn_conv2d_transpose_pattern():
+        pattern = is_op("qnn.conv2d_transpose")(
+            wildcard(), is_constant(), is_constant(), is_constant(), is_constant(), is_constant()
+        ).has_attr({"data_layout": "NHWC"})
+        pattern = pattern.optional(lambda x: is_op("nn.bias_add")(x, is_constant()))
+        pattern = is_op("qnn.requantize")(
+            pattern, is_constant(), is_constant(), is_constant(), is_constant()
+        )
+        return pattern
+
     def check_conv2d(extract):
         """Check if a conv2d is supported by Ethos-N."""
         if not ethosn_available():
@@ -260,6 +270,13 @@ def pattern_table():
             return False
 
         return _ethosn.mean(extract)
+
+    def check_conv2d_transpose(extract):
+        """Check if conv2d_transpose is supported by Ethos-N."""
+        if not ethosn_available():
+            return False
+
+        return _ethosn.conv2d_transpose(extract)
 
     def check_sigmoid(extract):
         """Check if a sigmoid is supported by Ethos-N."""
@@ -326,6 +343,7 @@ def pattern_table():
         ("ethos-n.qnn_mul", qnn_mul_pattern(), check_mul),
         ("ethos-n.qnn_add", qnn_add_pattern(), check_add),
         ("ethos-n.qnn_conv2d", qnn_conv_pattern(), check_conv2d),
+        ("ethos-n.qnn_conv2d_transpose", qnn_conv2d_transpose_pattern(), check_conv2d_transpose),
         ("ethos-n.qnn_avg_pool2d", qnn_avg_pool2d_pattern(), check_avg_pool2d),
         ("ethos-n.qnn_sigmoid", qnn_sigmoid_pattern(), check_sigmoid),
         ("ethos-n.qnn_fc", qnn_fc_pattern(), check_fc),
@@ -359,8 +377,6 @@ def max_pool2d(expr):
 def reshape(expr):
     """Check if a reshape is supported by Ethos-N."""
     if not ethosn_available():
-        return False
-    if not _is_ethosn_composite(expr.args[0]):
         return False
 
     return _ethosn.reshape(expr)
@@ -399,7 +415,7 @@ def split(expr):
     """Check if a split is supported by Ethos-N."""
     if not ethosn_available():
         return False
-    if ethosn_api_version() >= LooseVersion("3.0.1"):
+    if ethosn_api_version() == LooseVersion("3.0.1"):
         return False
     if not _ethosn.split(expr):
         return False

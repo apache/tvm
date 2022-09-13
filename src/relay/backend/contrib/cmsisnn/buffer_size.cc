@@ -17,6 +17,8 @@
  * under the License.
  */
 
+#include "buffer_size.h"
+
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/transform.h>
 
@@ -44,13 +46,13 @@ int Conv2dBufferSize(Target target, int32_t padding_w, int32_t padding_h, int32_
   }
 
   if (is1xN) {
-    if (!has_mve) {
-      return (2 * input_c * filter_w * filter_h) * (int32_t)sizeof(int16_t);
+    if (has_mve) {
+      return 0;
     }
-    return 0;
+    return (2 * input_c * filter_w * filter_h) * (int32_t)sizeof(int16_t);
   }
 
-  if (has_mve) {
+  if (has_mve || is1xN) {
     int32_t col_length = input_c * filter_w * filter_h;
     col_length = (col_length + 7) / 8;
     return 4 * col_length * 8 * (int32_t)sizeof(int8_t);
@@ -61,15 +63,15 @@ int Conv2dBufferSize(Target target, int32_t padding_w, int32_t padding_h, int32_
 }
 
 int DepthwiseConv2dBufferSize(Target target, int32_t input_n, int32_t input_c, int32_t output_c,
-                              int32_t filter_w, int32_t filter_h) {
+                              int32_t filter_w, int32_t filter_h, int32_t dilation_w,
+                              int32_t dilation_h) {
   bool has_mve = target->GetFeature<Bool>("has_mve").value_or(Bool(false));
   bool has_dsp = target->GetFeature<Bool>("has_dsp").value_or(Bool(false));
 
-  if (input_c == output_c && input_n == 1) {
+  if (input_c == output_c && input_n == 1 && dilation_w == 1 && dilation_h == 1) {
     if (has_mve) {
-      return (2 * input_c * filter_w * filter_h) * (int32_t)sizeof(int16_t) + 4;
-    }
-    if (has_dsp) {
+      return (4 * CH_IN_BLOCK_MVE * filter_w * filter_h) * (int32_t)sizeof(int8_t);
+    } else if (has_dsp) {
       return (input_c * filter_w * filter_h) * (int32_t)sizeof(int16_t);
     }
   }

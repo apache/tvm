@@ -82,9 +82,7 @@ class NonAllocatedBufferError : public ScheduleError {
 
   static StmtSRef CheckAndGetBufferAllocationSite(const IRModule& mod, const StmtSRef& block_sref,
                                                   const Buffer& buffer) {
-    Optional<StmtSRef> defining_site_sref;
-    bool is_alloc;
-    std::tie(defining_site_sref, is_alloc) = GetBufferDefiningSite(block_sref, buffer);
+    auto [defining_site_sref, is_alloc] = GetBufferDefiningSite(block_sref, buffer);
     if (!defining_site_sref.defined() || !is_alloc) {
       throw NonAllocatedBufferError(mod, buffer);
     }

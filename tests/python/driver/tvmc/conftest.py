@@ -192,6 +192,22 @@ def tflite_compile_model(tmpdir_factory):
     return model_compiler
 
 
+@pytest.fixture
+def relay_compile_model(tmpdir_factory):
+    """Support function that returns a TFLite compiled module"""
+
+    def model_compiler(model_file, shape_dict, **overrides):
+        package_path = tmpdir_factory.mktemp("data").join("mock.tar")
+        tvmc_model = tvmc.frontends.load_model(
+            model_file, model_format="relay", shape_dict=shape_dict
+        )
+        args = {"target": "llvm", **overrides}
+        return tvmc.compiler.compile_model(tvmc_model, package_path=package_path, **args)
+
+    # Returns a TVMCPackage
+    return model_compiler
+
+
 @pytest.fixture(scope="session")
 def imagenet_cat(tmpdir_factory):
     tmpdir_name = tmpdir_factory.mktemp("data")

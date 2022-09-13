@@ -404,6 +404,28 @@ inline Array<Integer> AsIntArray(const ObjectRef& obj) {
   return results;
 }
 
+/*! \brief The struct defining comparison function of sorting by mean run seconds. */
+struct SortTuningRecordByMeanRunSecs {
+  static const constexpr double kMaxMeanTime = 1e10;
+
+  static double Mean(const Array<FloatImm>& a) {
+    if (a.empty()) {
+      return kMaxMeanTime;
+    }
+    double sum = 0.0;
+    for (const FloatImm& i : a) {
+      sum += i->value;
+    }
+    return sum / a.size();
+  }
+
+  bool operator()(const TuningRecord& a, const TuningRecord& b) const {
+    double a_time = Mean(a->run_secs.value_or({}));
+    double b_time = Mean(b->run_secs.value_or({}));
+    return a_time < b_time;
+  }
+};
+
 }  // namespace meta_schedule
 }  // namespace tvm
 

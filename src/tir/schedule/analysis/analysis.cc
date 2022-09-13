@@ -558,9 +558,13 @@ bool IsWriteCache(const StmtSRef& block_sref) {
   }
   const BufferRegion& write_region = block->writes[0];
   for (const BufferRegion& read_region : block->reads) {
-    bool exists, surjective, injective, ordered, no_const_read, no_shift_read;
-    std::tie(exists, surjective, injective, ordered, no_const_read, no_shift_read) =
+    auto [exists, surjective, injective, ordered, no_const_read, no_shift_read] =
         AnalyzeReadWritePattern(read_region, write_region);
+    // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
+    (void)exists;
+    (void)surjective;
+    (void)no_const_read;
+    (void)no_shift_read;
     if (!(injective && ordered)) {
       return false;
     }
@@ -2118,8 +2122,7 @@ bool NeedsRFactorOrCrossThreadReduction(const tir::ScheduleState& self,   //
   }
 
   // Cond 6. Can successfully calculating the cumulative loop length.
-  int64_t cum_space_len, cum_reduce_len;
-  std::tie(cum_space_len, cum_reduce_len) = GetCumulativeSpaceAndReductionLength(self, block_sref);
+  auto [cum_space_len, cum_reduce_len] = GetCumulativeSpaceAndReductionLength(self, block_sref);
   if (cum_space_len == -1 || cum_reduce_len == -1) {
     return false;
   }

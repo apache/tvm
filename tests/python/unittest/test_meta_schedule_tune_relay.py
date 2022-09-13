@@ -18,7 +18,7 @@
 import logging
 import tempfile
 from os import path as osp
-from typing import List
+from typing import List, Optional
 
 import numpy as np  # type: ignore
 import pytest
@@ -113,20 +113,21 @@ class tvmgen_default_fused_layout_transform_1:
 
 @pytest.mark.skip("Integration test")
 @pytest.mark.parametrize(
-    "model_name, input_shape, target",
+    "model_name, input_shape, target, layout",
     [
-        ("resnet_18", [1, 3, 224, 224], "llvm --num-cores=16"),
-        ("resnet_18", [1, 3, 224, 224], "nvidia/geforce-rtx-3070"),
-        ("mobilenet_v2", [1, 3, 224, 224], "llvm --num-cores=16"),
-        ("mobilenet_v2", [1, 3, 224, 224], "nvidia/geforce-rtx-3070"),
-        ("bert_base", [1, 64], "llvm --num-cores=16"),
-        ("bert_base", [1, 64], "nvidia/geforce-rtx-3070"),
+        ("resnet_18", [1, 3, 224, 224], "llvm --num-cores=16", "NHWC"),
+        ("resnet_18", [1, 3, 224, 224], "nvidia/geforce-rtx-3070", "NHWC"),
+        ("mobilenet_v2", [1, 3, 224, 224], "llvm --num-cores=16", "NHWC"),
+        ("mobilenet_v2", [1, 3, 224, 224], "nvidia/geforce-rtx-3070", "NHWC"),
+        ("bert_base", [1, 64], "llvm --num-cores=16", None),
+        ("bert_base", [1, 64], "nvidia/geforce-rtx-3070", None),
     ],
 )
 def test_meta_schedule_tune_relay(
     model_name: str,
     input_shape: List[int],
     target: str,
+    layout: Optional[str],
 ):
     dev = tvm.cpu() if str(target).startswith("llvm") else tvm.cuda()
     if model_name.startswith("bert"):
@@ -134,7 +135,12 @@ def test_meta_schedule_tune_relay(
     else:
         data = tvm.nd.array(np.random.randn(*input_shape).astype("float32"), dev)
 
-    mod, params, (input_name, _, _) = get_network(name=model_name, input_shape=input_shape)
+    mod, params, (input_name, _, _) = get_network(
+        name=model_name,
+        input_shape=input_shape,
+        layout=layout,
+    )
+
     target = Target(target)
     with tempfile.TemporaryDirectory() as work_dir:
         with ms.Profiler() as profiler:
@@ -536,12 +542,12 @@ def test_tune_relay_manual_tir_vnni():
 
 
 if __name__ == """__main__""":
-    test_meta_schedule_tune_relay("resnet_18", [1, 3, 224, 224], "llvm --num-cores=16")
-    test_meta_schedule_tune_relay("resnet_18", [1, 3, 224, 224], "nvidia/geforce-rtx-3070")
-    test_meta_schedule_tune_relay("mobilenet_v2", [1, 3, 224, 224], "llvm --num-cores=16")
-    test_meta_schedule_tune_relay("mobilenet_v2", [1, 3, 224, 224], "nvidia/geforce-rtx-3070")
-    test_meta_schedule_tune_relay("bert_base", [1, 64], "llvm --num-cores=16")
-    test_meta_schedule_tune_relay("bert_base", [1, 64], "nvidia/geforce-rtx-3070")
+    test_meta_schedule_tune_relay("resnet_18", [1, 3, 224, 224], "llvm --num-cores=16", None)
+    test_meta_schedule_tune_relay("resnet_18", [1, 3, 224, 224], "nvidia/geforce-rtx-3070", "NCHW")
+    test_meta_schedule_tune_relay("mobilenet_v2", [1, 3, 224, 224], "llvm --num-cores=16", None)
+    test_meta_schedule_tune_relay("mobilenet_v2", [1, 3, 224, 224], "nvidia/geforce-rtx-3070", None)
+    test_meta_schedule_tune_relay("bert_base", [1, 64], "llvm --num-cores=16", None)
+    test_meta_schedule_tune_relay("bert_base", [1, 64], "nvidia/geforce-rtx-3070", None)
     test_meta_schedule_te2primfunc_argument_order()
     test_meta_schedule_relay_lowering()
     test_tune_relay_manual_tir_vnni()

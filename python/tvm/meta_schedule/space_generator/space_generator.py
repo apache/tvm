@@ -20,6 +20,10 @@ space for generation of measure candidates.
 """
 from typing import TYPE_CHECKING, Callable, List, Optional, Union
 
+# isort: off
+from typing_extensions import Literal
+
+# isort: on
 from tvm._ffi import register_object
 from tvm.ir import IRModule
 from tvm.runtime import Object
@@ -132,3 +136,27 @@ class PySpaceGenerator:
             The generated design spaces, i.e., schedules.
         """
         raise NotImplementedError
+
+
+def create(  # pylint: disable=keyword-arg-before-vararg
+    kind: Union[
+        Literal["post_order_apply", "union"],
+        ScheduleFnType,
+    ] = "post_order_apply",
+    *args,
+    **kwargs,
+) -> SpaceGenerator:
+    """Create a design space generator."""
+    from . import (  # pylint: disable=import-outside-toplevel
+        PostOrderApply,
+        ScheduleFn,
+        SpaceGeneratorUnion,
+    )
+
+    if callable(kind):
+        return ScheduleFn(kind, *args, **kwargs)  # type: ignore
+    if kind == "post_order_apply":
+        return PostOrderApply(*args, **kwargs)
+    if kind == "union":
+        return SpaceGeneratorUnion(*args, **kwargs)
+    raise ValueError(f"Unknown SpaceGenerator: {kind}")

@@ -104,7 +104,10 @@ inline InlineType AutoInlineNode::CheckInline(const tir::Schedule& sch,
   }
   // Cond 2. For a block that generates a constant tensor, ignore all other conditions
   if (inline_const_tensor && block->reads.empty()) {
-    return InlineType::kInlineIntoConsumer;
+    Array<tir::StmtSRef> consumer_srefs = GetConsumers(state, block_sref);
+    if (!consumer_srefs.empty() && CanComputeInline(state, block_sref)) {
+      return InlineType::kInlineIntoConsumer;
+    }
   }
   // Cond 3. The block doesn't contain any disallowed operators
   if (!is_pure_sptial && !disallow_op.empty() && HasOp(realize, disallow_op)) {

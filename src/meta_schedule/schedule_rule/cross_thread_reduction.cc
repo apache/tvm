@@ -64,15 +64,11 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     // Step 2. Check the opportunity for block fusion. We say "fusible", if we can compute-at the
     // block to its consumers. We want to fuse as much as possible because it results in
     // significantly faster schedule.
-    bool fusible = false;
     // `target_loop` is the loop position where the input block will be computed at.
-    tir::LoopRV target_loop{nullptr};
     // `target_block` is the consumer block that we want to compute-at the input block to.
-    tir::BlockRV target_block{nullptr};
     // `tgt_block_innermost_loop` is the innermost loop outside the target block.
-    tir::LoopRV tgt_block_innermost_loop{nullptr};
 
-    std::tie(fusible, target_loop, target_block, tgt_block_innermost_loop) =
+    auto [fusible, target_loop, target_block, tgt_block_innermost_loop] =
         GetComputeTargetLoopAndBlock(tmp_sch, block_rv);
 
     // Step 3. Try block fusion.
