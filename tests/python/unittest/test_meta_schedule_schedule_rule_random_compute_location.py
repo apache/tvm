@@ -16,10 +16,8 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 import tvm
-from tvm.meta_schedule.schedule_rule import RandomComputeLocation
-from tvm.meta_schedule.space_generator.post_order_apply import PostOrderApply
-from tvm.meta_schedule.testing.space_generation import check_trace
-from tvm.meta_schedule.tune_context import TuneContext
+from tvm import meta_schedule as ms
+from tvm.meta_schedule.testing.space_generation import check_sketches
 from tvm.script import tir as T
 from tvm.target import Target
 
@@ -55,35 +53,53 @@ class Add:
 # fmt: on
 
 
-def _create_context(mod, target, rule):
-    ctx = TuneContext(
-        mod=mod,
-        target=target,
-        space_generator=PostOrderApply(),
-        sch_rules=[rule],
-        task_name="test",
-    )
-    return ctx
-
-
 def test_random_compute_location():
-    expected = [
-        [
-            'b0 = sch.get_block(name="move", func_name="main")',
-            "l1 = sch.sample_compute_location(block=b0)",
-            "sch.compute_at(block=b0, loop=l1, preserve_unit_loops=True, index=-1)",
-        ]
+    @T.prim_func
+    def add_0(
+        A: T.Buffer[(2048, 2048, 2048), "float32"],
+        B: T.Buffer[(2048, 2048, 2048), "float32"],
+    ) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main"})
+        # body
+        # with T.block("root")
+        A_cached = T.alloc_buffer([2048, 2048, 2048], dtype="float32")
+        for i0, j0, i1, j1, k0, i2 in T.grid(128, 64, 4, 4, 64, 4):
+            for ax0, ax1, ax2 in T.grid(1, 8, 32):
+                with T.block("move"):
+                    vi = T.axis.spatial(2048, i0 * 16 + i1 * 4 + i2 + ax0)
+                    vj = T.axis.spatial(2048, j0 * 32 + j1 * 8 + ax1)
+                    vk = T.axis.spatial(2048, k0 * 32 + ax2)
+                    T.reads(A[vi, vj, vk])
+                    T.writes(A_cached[vi, vj, vk])
+                    A_cached[vi, vj, vk] = A[vi, vj, vk]
+            for j2, k1 in T.grid(8, 32):
+                with T.block("add"):
+                    vi = T.axis.spatial(2048, i0 * 16 + i1 * 4 + i2)
+                    vj = T.axis.spatial(2048, j0 * 32 + j1 * 8 + j2)
+                    vk = T.axis.spatial(2048, k0 * 32 + k1)
+                    T.reads(A_cached[vi, vj, vk])
+                    T.writes(B[vi, vj, vk])
+                    B[vi, vj, vk] = A_cached[vi, vj, vk] + T.float32(1)
+
+    decision_0 = [
+        ("SampleComputeLocation", 5),
     ]
+
     mod = Add
-    target = Target("llvm")
-    ctx = _create_context(
+    actual = ms.TuneContext(
         mod=mod,
-        target=target,
-        rule=RandomComputeLocation(),
+        target=Target("llvm"),
+        space_generator=ms.space_generator.PostOrderApply(),
+        sch_rules=[ms.schedule_rule.RandomComputeLocation()],
+        task_name="test",
+    ).generate_design_space()
+    check_sketches(
+        mod,
+        sketches=actual,
+        expected_mods=[add_0],
+        expected_decisions=[decision_0],
     )
-    spaces = ctx.space_generator.generate_design_space(mod=mod)
-    assert len(spaces) == 1
-    check_trace(spaces, expected)
 
 
 if __name__ == "__main__":

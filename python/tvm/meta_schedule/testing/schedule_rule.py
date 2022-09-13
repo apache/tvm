@@ -22,7 +22,6 @@ from tvm.meta_schedule.schedule_rule import (
     CrossThreadReduction,
     MultiLevelTiling,
     ParallelizeVectorizeUnroll,
-    RandomComputeLocation,
     ReuseType,
     ScheduleRule,
 )
@@ -145,13 +144,6 @@ def multi_level_tiling_tensor_core(
             ),
             use_software_pipeline=use_software_pipeline,
         )
-    raise NotImplementedError(f"{target.kind.name} is not supported")
-
-
-def random_compute_location(target: Target) -> ScheduleRule:
-    """Default schedule rules for with random-compute-location"""
-    if target.kind.name == "llvm":
-        return RandomComputeLocation()
     raise NotImplementedError(f"{target.kind.name} is not supported")
 
 
