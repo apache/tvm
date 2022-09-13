@@ -96,10 +96,15 @@ class Session:
             raise exception
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
-        func = self._rpc.get_function("device_api.hexagon.release_resources")
-        func()
-        # close session to the tracker
-        del self._rpc
+        try:
+            func = self._rpc.get_function("device_api.hexagon.release_resources")
+            func()
+        except RuntimeError as exception:
+            # do nothing, as we are shutting down
+            ...
+        finally:
+            # close session to the tracker
+            del self._rpc
 
     @property
     def device(self):
