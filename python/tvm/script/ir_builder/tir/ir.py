@@ -21,7 +21,6 @@ from numbers import Integral
 from typing import Any, Dict, List, Optional, Union, Tuple
 
 from tvm.ir import Type
-from tvm.runtime import convert
 from tvm.tir import (
     Buffer,
     BufferLoad,
@@ -499,8 +498,6 @@ def float8(expr: Optional[PrimExpr] = None) -> PrimExpr:
     res : PrimExpr
         The new tir.Var with type float8 or casted expression with type float8.
     """
-    if not isinstance(expr, PrimExpr):
-        expr = convert(expr)
     return _ffi_api.Float8(expr)  # pylint: disable=no-member # type: ignore
 
 
@@ -517,8 +514,6 @@ def float16(expr: Optional[PrimExpr] = None) -> PrimExpr:
     res : PrimExpr
         The new tir.Var with type float16 or casted expression with type float16.
     """
-    if not isinstance(expr, PrimExpr):
-        expr = convert(expr)
     return _ffi_api.Float16(expr)  # pylint: disable=no-member # type: ignore
 
 
@@ -535,8 +530,6 @@ def float32(expr: Optional[PrimExpr] = None) -> PrimExpr:
     res : PrimExpr
         The new tir.Var with type float32 or casted expression with type float32.
     """
-    if not isinstance(expr, PrimExpr):
-        expr = convert(expr)
     return _ffi_api.Float32(expr)  # pylint: disable=no-member # type: ignore
 
 
@@ -553,8 +546,6 @@ def float64(expr: Optional[PrimExpr] = None) -> PrimExpr:
     res : PrimExpr
         The new tir.Var with type float64 or casted expression with type float64.
     """
-    if not isinstance(expr, PrimExpr):
-        expr = convert(expr)
     return _ffi_api.Float64(expr)  # pylint: disable=no-member # type: ignore
 
 
