@@ -359,86 +359,317 @@ def evaluate(value: PrimExpr) -> None:
 
 
 def int8(expr: Optional[PrimExpr] = None) -> PrimExpr:
+    """Construct a new tir.Var with type int8 or cast expression to type int8.
+
+    Parameters
+    ----------
+    expr: PrimExpr
+        The expression to be cast.
+
+    Returns
+    -------
+    res : PrimExpr
+        The new tir.Var with type int8 or casted expression with type int8.
+    """
     return _ffi_api.Int8(expr)  # pylint: disable=no-member # type: ignore
 
 
 def int16(expr: Optional[PrimExpr] = None) -> PrimExpr:
+    """Construct a new tir.Var with type int16 or cast expression to type int16.
+
+    Parameters
+    ----------
+    expr: PrimExpr
+        The expression to be cast.
+
+    Returns
+    -------
+    res : PrimExpr
+        The new tir.Var with type int16 or casted expression with type int16.
+    """
     return _ffi_api.Int16(expr)  # pylint: disable=no-member # type: ignore
 
 
 def int32(expr: Optional[PrimExpr] = None) -> PrimExpr:
+    """Construct a new tir.Var with type int32 or cast expression to type int32.
+
+    Parameters
+    ----------
+    expr: PrimExpr
+        The expression to be cast.
+
+    Returns
+    -------
+    res : PrimExpr
+        The new tir.Var with type int32 or casted expression with type int32.
+    """
     return _ffi_api.Int32(expr)  # pylint: disable=no-member # type: ignore
 
 
 def int64(expr: Optional[PrimExpr] = None) -> PrimExpr:
+    """Construct a new tir.Var with type int64 or cast expression to type int64.
+
+    Parameters
+    ----------
+    expr: PrimExpr
+        The expression to be cast.
+
+    Returns
+    -------
+    res : PrimExpr
+        The new tir.Var with type int64 or casted expression with type int64.
+    """
     return _ffi_api.Int64(expr)  # pylint: disable=no-member # type: ignore
 
 
 def uint8(expr: Optional[PrimExpr] = None) -> PrimExpr:
+    """Construct a new tir.Var with type uint8 or cast expression to type uint8.
+
+    Parameters
+    ----------
+    expr: PrimExpr
+        The expression to be cast.
+
+    Returns
+    -------
+    res : PrimExpr
+        The new tir.Var with type uint8 or casted expression with type uint8.
+    """
     return _ffi_api.UInt8(expr)  # pylint: disable=no-member # type: ignore
 
 
 def uint16(expr: Optional[PrimExpr] = None) -> PrimExpr:
+    """Construct a new tir.Var with type uint16 or cast expression to type uint16.
+
+    Parameters
+    ----------
+    expr: PrimExpr
+        The expression to be cast.
+
+    Returns
+    -------
+    res : PrimExpr
+        The new tir.Var with type uint16 or casted expression with type uint16.
+    """
     return _ffi_api.UInt16(expr)  # pylint: disable=no-member # type: ignore
 
 
 def uint32(expr: Optional[PrimExpr] = None) -> PrimExpr:
+    """Construct a new tir.Var with type uint32 or cast expression to type uint32.
+
+    Parameters
+    ----------
+    expr: PrimExpr
+        The expression to be cast.
+
+    Returns
+    -------
+    res : PrimExpr
+        The new tir.Var with type uint32 or casted expression with type uint32.
+    """
     return _ffi_api.UInt32(expr)  # pylint: disable=no-member # type: ignore
 
 
 def uint64(expr: Optional[PrimExpr] = None) -> PrimExpr:
+    """Construct a new tir.Var with type uint64 or cast expression to type uint64.
+
+    Parameters
+    ----------
+    expr: PrimExpr
+        The expression to be cast.
+
+    Returns
+    -------
+    res : PrimExpr
+        The new tir.Var with type uint64 or casted expression with type uint64.
+    """
     return _ffi_api.UInt64(expr)  # pylint: disable=no-member # type: ignore
 
 
 def float8(expr: Optional[PrimExpr] = None) -> PrimExpr:
+    """Construct a new tir.Var with type float8 or cast expression to type float8.
+
+    Parameters
+    ----------
+    expr: PrimExpr
+        The expression to be cast.
+
+    Returns
+    -------
+    res : PrimExpr
+        The new tir.Var with type float8 or casted expression with type float8.
+    """
     if not isinstance(expr, PrimExpr):
         expr = convert(expr)
     return _ffi_api.Float8(expr)  # pylint: disable=no-member # type: ignore
 
 
 def float16(expr: Optional[PrimExpr] = None) -> PrimExpr:
+    """Construct a new tir.Var with type float16 or cast expression to type float16.
+
+    Parameters
+    ----------
+    expr: PrimExpr
+        The expression to be cast.
+
+    Returns
+    -------
+    res : PrimExpr
+        The new tir.Var with type float16 or casted expression with type float16.
+    """
     if not isinstance(expr, PrimExpr):
         expr = convert(expr)
     return _ffi_api.Float16(expr)  # pylint: disable=no-member # type: ignore
 
 
 def float32(expr: Optional[PrimExpr] = None) -> PrimExpr:
+    """Construct a new tir.Var with type float32 or cast expression to type float32.
+
+    Parameters
+    ----------
+    expr: PrimExpr
+        The expression to be cast.
+
+    Returns
+    -------
+    res : PrimExpr
+        The new tir.Var with type float32 or casted expression with type float32.
+    """
     if not isinstance(expr, PrimExpr):
         expr = convert(expr)
     return _ffi_api.Float32(expr)  # pylint: disable=no-member # type: ignore
 
 
 def float64(expr: Optional[PrimExpr] = None) -> PrimExpr:
+    """Construct a new tir.Var with type float64 or cast expression to type float64.
+
+    Parameters
+    ----------
+    expr: PrimExpr
+        The expression to be cast.
+
+    Returns
+    -------
+    res : PrimExpr
+        The new tir.Var with type float64 or casted expression with type float64.
+    """
     if not isinstance(expr, PrimExpr):
         expr = convert(expr)
     return _ffi_api.Float64(expr)  # pylint: disable=no-member # type: ignore
 
 
 def int32x4(expr: Optional[PrimExpr] = None) -> PrimExpr:
+    """Construct a new tir.Var with type int32x4 or cast expression to type int32x4.
+
+    Parameters
+    ----------
+    expr: PrimExpr
+        The expression to be cast.
+
+    Returns
+    -------
+    res : PrimExpr
+        The new tir.Var with type int32x4 or casted expression with type int32x4.
+    """
     return _ffi_api.Int32x4(expr)  # pylint: disable=no-member # type: ignore
 
 
 def int32x8(expr: Optional[PrimExpr] = None) -> PrimExpr:
+    """Construct a new tir.Var with type int32x8 or cast expression to type int32x8.
+
+    Parameters
+    ----------
+    expr: PrimExpr
+        The expression to be cast.
+
+    Returns
+    -------
+    res : PrimExpr
+        The new tir.Var with type int32x8 or casted expression with type int32x8.
+    """
     return _ffi_api.Int32x8(expr)  # pylint: disable=no-member # type: ignore
 
 
 def int32x16(expr: Optional[PrimExpr] = None) -> PrimExpr:
+    """Construct a new tir.Var with type int32x16 or cast expression to type int32x16.
+
+    Parameters
+    ----------
+    expr: PrimExpr
+        The expression to be cast.
+
+    Returns
+    -------
+    res : PrimExpr
+        The new tir.Var with type int32x16 or casted expression with type int32x16.
+    """
     return _ffi_api.Int32x16(expr)  # pylint: disable=no-member # type: ignore
 
 
 def boolean(expr: Optional[PrimExpr] = None) -> PrimExpr:
+    """Construct a new tir.Var with type boolean or cast expression to type boolean.
+
+    Parameters
+    ----------
+    expr: PrimExpr
+        The expression to be cast.
+
+    Returns
+    -------
+    res : PrimExpr
+        The new tir.Var with type boolean or casted expression with type boolean.
+    """
     return _ffi_api.Boolean(expr)  # pylint: disable=no-member # type: ignore
 
 
 def handle(expr: Optional[PrimExpr] = None) -> PrimExpr:
+    """Construct a new tir.Var with type handle or cast expression to type handle.
+
+    Parameters
+    ----------
+    expr: PrimExpr
+        The expression to be cast.
+
+    Returns
+    -------
+    res : PrimExpr
+        The new tir.Var with type handle or casted expression with type handle.
+    """
     return _ffi_api.Handle(expr)  # pylint: disable=no-member # type: ignore
 
 
 def void(expr: Optional[PrimExpr] = None) -> PrimExpr:
+    """Construct a new tir.Var with type void or cast expression to type void.
+
+    Parameters
+    ----------
+    expr: PrimExpr
+        The expression to be cast.
+
+    Returns
+    -------
+    res : PrimExpr
+        The new tir.Var with type void or casted expression with type void.
+    """
     return _ffi_api.Void(expr)  # pylint: disable=no-member # type: ignore
 
 
 def var(dtype, name="") -> Var:
+    """Construct a new tir.Var.
+
+    Parameters
+    ----------
+    dtype: str
+        The dtype of the Var.
+
+    name: str
+        The name of the Var.
+
+    Returns
+    -------
+    res : Var
+        The result tir.Var.
+    """
     return Var(name, dtype)  # pylint: disable=no-member # type: ignore
 
 
