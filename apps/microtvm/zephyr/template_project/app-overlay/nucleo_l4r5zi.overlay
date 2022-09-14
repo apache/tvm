@@ -21,3 +21,25 @@
 &rcc {
 	clock-frequency = <DT_FREQ_M(120)>;
 };
+
+/*
+   Set PLL accordingly to freq. reported by 'clock-frequency' property, where:
+
+   VCO freq = PLL clock input freq (HSI: 16 MHz) * N / M and
+   Core freq = VCO freq / R.
+
+   Hence:
+
+   VCO freq = 16 * 30 / 2 = 240 MHz and
+   Core freq = 240 MHz / 2 = 120 MHz
+
+   Prop. 'div-p' and 'div-q' will be inherited from the overlaid 'pll' node.
+*/
+
+&pll {
+	div-m = <2>;
+	mul-n = <30>;
+	div-r = <2>;
+	clocks = <&clk_hsi>;
+	status = "okay";
+};
