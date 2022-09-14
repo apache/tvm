@@ -1629,7 +1629,8 @@ def dense(data, weight, units=None, out_dtype=""):
     result : tvm.relay.Expr
         The computed result.
     """
-    return _make.dense(data, weight, units, out_dtype)
+    print("zhf invoke dense")
+    return _make.hf_dense(data, weight, units, out_dtype)
 
 
 def contrib_dense_pack(data, weight, weight_layout="NC", units=None, out_dtype=""):

@@ -1631,9 +1631,12 @@ class PyTorchOpConverter:
         # https://pytorch.org/docs/stable/nn.functional.html#linear
         # 0 - input
         # 1 - weight
+        print("zhf use tvm linear")
         bias = inputs[2]
         a_shape = self.infer_shape_with_prelude(inputs[0])
         b_shape = self.infer_shape_with_prelude(inputs[1])
+        print("a_shape: ",len(a_shape),a_shape)
+        print("b_shape: ",len(b_shape),b_shape)
         if len(a_shape) == 2 and len(b_shape) == 2:
             mm_out = _op.nn.dense(inputs[0], inputs[1])
         elif len(b_shape) == 1:
@@ -3858,6 +3861,7 @@ class PyTorchOpConverter:
         """Convert each Torch IR operators to Relay equivalent"""
         for node_name, op_node in operators:
             operator = op_node.kind()
+            print("zhfzhf:",operator)
             inputs = _get_op_inputs(op_node, outputs)
 
             if operator == "prim::Constant":
@@ -3911,6 +3915,7 @@ class PyTorchOpConverter:
                     )
                     relay_op = self.convert_map[operator[:-1]]
                 else:
+                    print("fall into converter map")
                     relay_op = self.convert_map[operator]
 
                 relay_out = relay_op(
@@ -4480,6 +4485,7 @@ def from_pytorch(
     params : dict of str to tvm.runtime.NDArray
         Dict of converted parameters stored in tvm.runtime.ndarray format
     """
+    print("zhfzhfzhfsadasad")
     import torch
 
     mod = tvm.IRModule()

@@ -217,9 +217,9 @@ InferCorrectLayoutOutput DenseInferCorrectLayout(const Attrs& attrs,
   return InferCorrectLayoutOutput({"NC", "NC"}, {"NC"}, attrs);
 }
 
-TVM_REGISTER_GLOBAL("relay.op.nn._make.dense").set_body_typed(MakeDense);
+TVM_REGISTER_GLOBAL("relay.op.nn._make.hf_dense").set_body_typed(MakeDense);
 
-RELAY_REGISTER_OP("nn.dense")
+RELAY_REGISTER_OP("nn.hf_dense")
     .describe(R"code(Applies a linear transformation: :math:`Y = XW^T`.
 
 - **data**: `(x1, x2, ..., xn, input_dim)`
