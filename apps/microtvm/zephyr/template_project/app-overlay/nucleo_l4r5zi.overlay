@@ -22,27 +22,23 @@
 	clock-frequency = <DT_FREQ_M(120)>;
 };
 
-/* Set PLL, where:
+/*
+   Set PLL accordingly to freq. reported by 'clock-frequency' property, where:
 
-   VCO freq = PLL clock input freq (HSI: 16 MHz) * N / M,
-   Core freq = VCO freq / R,
-   PLL48M1CLK freq = VCO freq / Q, and
-   PLLSAI3CLK freq = VCO freq / P,
+   VCO freq = PLL clock input freq (HSI: 16 MHz) * N / M and
+   Core freq = VCO freq / R.
 
-   Hence, since div-q = 2 => Q = 6 and div-p = 7 => P = 7:
+   Hence:
 
-   VCO freq = 16 * 30 / 2 = 240 MHz
-
+   VCO freq = 16 * 30 / 2 = 240 MHz and
    Core freq = 240 MHz / 2 = 120 MHz
-   PLL48M1CLK freq = 240 MHz / PLLQ = 40 MHz
-   PLLSAI3CLK freq = 240 MHz / PLLP = 34.28571 MHz
+
+   Prop. 'div-p' and 'div-q' will be inherited from the overlaid 'pll' node.
 */
 
 &pll {
 	div-m = <2>;
 	mul-n = <30>;
-	div-p = <7>;
-	div-q = <2>;
 	div-r = <2>;
 	clocks = <&clk_hsi>;
 	status = "okay";
