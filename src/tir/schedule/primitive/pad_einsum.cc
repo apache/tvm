@@ -314,6 +314,7 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const Array<Integ
   const StmtSRef& scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
   InvalidPaddingError::Check(self, GetRef<Block>(block), padding);
 
+  const Array<StmtSRef> producers = GetProducers(self, block_sref);
   {
     auto f_check_block_properties = [&](const StmtSRef& block_sref, bool is_producer) {
       CheckBlockHasTrivialBinding(self, block_sref);
@@ -331,7 +332,6 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const Array<Integ
     f_check_block_properties(block_sref, false);
 
     // Check block properties of the producer block
-    const Array<StmtSRef> producers = GetProducers(self, block_sref);
     for (const StmtSRef& producer_sref : producers) {
       f_check_block_properties(producer_sref, true);
     }
@@ -384,7 +384,6 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const Array<Integ
 
   buffer_remap.Set(einsum.output_buffer, f_pad_buffer(einsum.output_buffer, einsum.output_indices));
 
-  // std::unordered_set<const BlockNode*> producers;
   std::unordered_map<const BlockNode*, PrimExpr> producer_predicate;
 
   // Different from the output block, the padding for the producer block is not directly specified

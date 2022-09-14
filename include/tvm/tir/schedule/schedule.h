@@ -647,7 +647,7 @@ class ScheduleNode : public runtime::Object {
    * the output buffer and the producer buffer to be allocated inside the PrimFunc.
    *
    * The padding is a list of non-negative integers, each element corresponds to the padding for
-   * each block iter in the order of block iters. The block and it's producer blocks should have
+   * each block iter in the order of block iters. The block and its producer blocks should have
    * trivial bindings, i.e. each block iter is bound to a single loop variable. After padding, the
    * block iter extent and the corresponding outer loop is extended by the padding size.
    *
