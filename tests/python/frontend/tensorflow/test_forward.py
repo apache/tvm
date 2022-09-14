@@ -26,11 +26,11 @@ from distutils.version import LooseVersion
 import threading
 import platform
 import os.path
+from packaging import version as package_version
 import numpy as np
 import pytest
 
 from PIL import Image
-from packaging import version as package_version
 from tvm import relay
 from tvm.runtime.vm import VirtualMachine
 from tvm.relay.frontend.tensorflow import from_tensorflow
