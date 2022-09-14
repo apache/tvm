@@ -312,7 +312,7 @@ def test_1D_cascade_op_rolling_buffer():
                             vi = T.axis.opaque(2, i)
                             cc, vj, vk = T.axis.remap("SSR", [c, j, k])
                             if vk == 0:
-                                C[cc, i * 4 + j] = 0
+                                C[cc, vi * 4 + vj] = 0
                             C[cc, vi * 4 + vj] = (
                                 C[cc, vi * 4 + vj] + B[cc, T.floormod(vi * 4 + vj + vk, 6)]
                             )
@@ -322,7 +322,7 @@ def test_1D_cascade_op_rolling_buffer():
         for c in T.serial(4):
             with T.block():
                 T.reads(A[c, 0:12], C[c, 0:8])
-                T.writes(C[c, 0:15])
+                T.writes(C[c, 0:8])
                 B = T.alloc_buffer([4, 6], dtype="int32")
                 for i in T.serial(2):
                     for j, k in T.grid(6, 3):
@@ -339,7 +339,7 @@ def test_1D_cascade_op_rolling_buffer():
                             vi = T.axis.opaque(2, i)
                             cc, vj, vk = T.axis.remap("SSR", [c, j, k])
                             if vk == 0:
-                                C[cc, i * 4 + j] = 0
+                                C[cc, vi * 4 + vj] = 0
                             C[cc, vi * 4 + vj] = C[cc, vi * 4 + vj] + B[cc, (vi * 4 + vj + vk) % 6]
 
     _check(before, after)

@@ -117,9 +117,9 @@ class LCADetector : public StmtExprVisitor {
 
     ancestor_scopes_.push_back(current_scope);
 
-    // For each buffer the block has accessed, update the buffer's lca
-    // to the lowest inclusive stmt scope which dominate all loop carried
-    // dependencies related to the accessed opaque block iter vars.
+    // For each accessed buffer of the block, update the buffer's lca to
+    // the lowest inclusive stmt position, which should dominate all loops
+    // related to the accessed opaque block iter vars in buffer indices.
     UpdateDominateScopeOfOpaqueIter(op);
 
     // Update match_buffers
@@ -147,6 +147,7 @@ class LCADetector : public StmtExprVisitor {
             return;
           }
           const ScopeInfo* scope = it->second->parent_scope_info;
+          // find the highest loop scope the iter var binding has related to.
           auto dom_scope_it = itervar_to_dom_scope.find(itervar->var.get());
           if (dom_scope_it == itervar_to_dom_scope.end()) {
             itervar_to_dom_scope.insert(dom_scope_it, {itervar->var.get(), scope});
@@ -170,12 +171,15 @@ class LCADetector : public StmtExprVisitor {
           if (dom_scope_it == itervar_to_dom_scope.end()) {
             return;
           }
+          // find the highest loop scope the accessed buffer index has
+          // loop carried dependencies to (via opaque iter var binding).
           if (dom_scope_it->second->depth < scope->depth) {
             scope = dom_scope_it->second;
           }
         }
       };
 
+      // visit region min and max to find the lowest legal lca scope
       for (const Range& range : region->region) {
         PostOrderVisit(range->min, handle_itervar);
         PostOrderVisit(range->min + range->extent - 1, handle_itervar);
@@ -183,7 +187,7 @@ class LCADetector : public StmtExprVisitor {
       UpdateBufferLCA(buffer.get(), scope);
     };
 
-    // execute collect and update
+    // do collect and update
     const Block& block = block_realize->block;
     for (size_t i = 0; i < block_realize->iter_values.size(); ++i) {
       const IterVar& iter_var = block->iter_vars[i];
