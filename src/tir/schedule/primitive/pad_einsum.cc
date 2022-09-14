@@ -314,25 +314,26 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const Array<Integ
   const StmtSRef& scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
   InvalidPaddingError::Check(self, GetRef<Block>(block), padding);
 
-  // Check block properties of the computation block
-  CheckBlockHasTrivialBinding(self, block_sref);
-  CheckReductionBlock(self, block_sref, scope_sref);
-  Array loops = GetLoops(block_sref);
-  ICHECK(!loops.empty());
-  CheckGetSingleChildBlockRealizeOnSRefTree(self, loops.front());
-
-  // Check block properties of the producer block
-  const Array<StmtSRef> producers = GetProducers(self, block_sref);
   {
-    auto f_check_producer = [&](const StmtSRef& producer_sref) {
-      CheckBlockHasTrivialBinding(self, producer_sref);
-      CheckCompleteBlock(self, producer_sref, scope_sref);
+    auto f_check_block_properties = [&](const StmtSRef& block_sref, bool is_producer) {
+      CheckBlockHasTrivialBinding(self, block_sref);
+      if (is_producer) {
+        CheckCompleteBlock(self, block_sref, scope_sref);
+      } else {
+        CheckReductionBlock(self, block_sref, scope_sref);
+      }
       Array loops = GetLoops(block_sref);
       ICHECK(!loops.empty());
       CheckGetSingleChildBlockRealizeOnSRefTree(self, loops.front());
     };
+
+    // Check block properties of the computation block
+    f_check_block_properties(block_sref, false);
+
+    // Check block properties of the producer block
+    const Array<StmtSRef> producers = GetProducers(self, block_sref);
     for (const StmtSRef& producer_sref : producers) {
-      f_check_producer(producer_sref);
+      f_check_block_properties(producer_sref, true);
     }
   }
 
