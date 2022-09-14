@@ -14,31 +14,30 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Utility backend functions."""
-from enum import Enum
+# pylint: disable=invalid-name
+"""AOT passes"""
+from tvm.ir.transform import Pass
+from .utils import CallType
+
+from . import _aot
 
 
-class CallType(Enum):
-    Packed = 0
-    CPacked = 1
-    Unpacked = 2
+def AOTLowerMain(mod_name: str, config: object, call_type: CallType) -> Pass:
+    """Lower a Relay main function into an AOT TIR main function.
 
+    Parameters
+    ----------
+    mod_name: str
+        The name of the module.
+    config : CompilationConfig
+        The compilation configuration.
+    call_type : CallType
+        The calling convention to use.
 
-def _is_valid_modname(mod_name):
-    """Determine if mod_name is a valid string to use inside function names"""
-    if mod_name:
-        try:
-            mod_name.encode("ascii")
-            return True
-        except UnicodeEncodeError:
-            return False
+    Returns
+    -------
+    Pass
+        The AOTLowerMain pass.
 
-    return True
-
-
-def mangle_module_name(mod_name):
-    if not _is_valid_modname(mod_name):
-        raise ValueError(mod_name + " contains invalid characters")
-    if mod_name:
-        return "tvmgen_" + mod_name
-    return "tvmgen"
+    """
+    return _aot.AOTLowerMain(mod_name, config, call_type.value)

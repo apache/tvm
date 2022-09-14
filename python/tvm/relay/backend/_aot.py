@@ -14,31 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Utility backend functions."""
-from enum import Enum
+"""The AOT FFI namespace.
+"""
+import tvm._ffi
 
-
-class CallType(Enum):
-    Packed = 0
-    CPacked = 1
-    Unpacked = 2
-
-
-def _is_valid_modname(mod_name):
-    """Determine if mod_name is a valid string to use inside function names"""
-    if mod_name:
-        try:
-            mod_name.encode("ascii")
-            return True
-        except UnicodeEncodeError:
-            return False
-
-    return True
-
-
-def mangle_module_name(mod_name):
-    if not _is_valid_modname(mod_name):
-        raise ValueError(mod_name + " contains invalid characters")
-    if mod_name:
-        return "tvmgen_" + mod_name
-    return "tvmgen"
+tvm._ffi._init_api("relay.backend.aot", __name__)
