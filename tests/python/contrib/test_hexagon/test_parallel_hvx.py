@@ -147,7 +147,13 @@ def evaluate(hexagon_session, shape_dtypes, expected_output_producer, sch):
     b_hexagon = tvm.runtime.ndarray.array(b, device=hexagon_session.device)
     c_hexagon = tvm.runtime.ndarray.array(c, device=hexagon_session.device)
 
-    timer = module.time_evaluator("__tvm_main__", hexagon_session.device, number=100, repeat=10)
+    # These are reduced for CI but number=100 and repeat=10 does a good job of removing noise.
+    number = 1
+    repeat = 1
+
+    timer = module.time_evaluator(
+        "__tvm_main__", hexagon_session.device, number=number, repeat=repeat
+    )
     runtime = timer(a_hexagon, b_hexagon, c_hexagon)
     tvm.testing.assert_allclose(c_hexagon.asnumpy(), expected_output_producer(c_shape, a, b))
 
@@ -172,15 +178,16 @@ class TestMatMulVec:
     # works best with parallels of the number of available HVX.
     split_factor = tvm.testing.parameter(4)
 
+    # Removed most of these to speedup CI.
     operation_count = tvm.testing.parameter(
         128,
-        256,
-        512,
-        1024,  # Single thread runs faster since L2 cache can handle the entire request quickly
-        2048,
-        4096,  # Significant performance degredation once the inputs and outputs cannot all fit in L2
-        8192,
-        16384,
+        # 256,
+        # 512,
+        # 1024,  # Single thread runs faster since L2 cache can handle the entire request quickly
+        # 2048,
+        # 4096,  # Significant performance degredation once the inputs and outputs cannot all fit in L2
+        # 8192,
+        # 16384,
     )
 
     @tvm.testing.requires_hexagon

@@ -59,7 +59,6 @@ class Session:
         session_name: str = "hexagon-rpc",
         remote_stack_size_bytes: int = 256 * 1024,  # Min size for main thread in QuRT/sim
         rpc_receive_buffer_size_bytes: int = 256 * 1024 * 1024,  # Size for passing hexagon tests
-
     ):
         self._launcher = launcher
         self._session_name: str = session_name
