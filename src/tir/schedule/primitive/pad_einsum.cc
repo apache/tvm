@@ -88,26 +88,6 @@ struct Einsum {
   Map<Buffer, Array<Var>> input_indices;
 };
 
-/*!
- * \brief Check if buffer indices are all Vars and extr
- * \param buffer_access The BufferLoad or BufferStore
- * \param[out] indices The optional array to store the indices
- * \return Whether The indices are all Vars
- */
-template <typename T>
-bool CheckTrivialBufferIndices(const T& buffer_access, Array<Var>* indices = nullptr) {
-  for (const PrimExpr& index : buffer_access->indices) {
-    const VarNode* var = index.as<VarNode>();
-    if (var == nullptr) {
-      return false;
-    }
-    if (indices != nullptr) {
-      indices->push_back(GetRef<Var>(var));
-    }
-  }
-  return true;
-}
-
 class EinsumExtractor : public ExprVisitor {
  public:
   EinsumExtractor() = default;
@@ -120,7 +100,10 @@ class EinsumExtractor : public ExprVisitor {
       return std::nullopt;
     }
 
-    if (!CheckTrivialBufferIndices(update, &(ein_sum_.output_indices))) {
+    if (Optional<Array<Var>> opt_indices = CheckTrivialBufferIndices(update);
+        opt_indices.defined()) {
+      ein_sum_.output_indices = std::move(opt_indices.value());
+    } else {
       return std::nullopt;
     }
     ein_sum_.output_buffer = update->buffer;
@@ -180,12 +163,12 @@ class EinsumExtractor : public ExprVisitor {
       fail_ = true;
       return;
     }
-    Array<Var> indices;
-    if (!CheckTrivialBufferIndices(GetRef<BufferLoad>(op), &indices)) {
+    if (Optional<Array<Var>> opt_indices = CheckTrivialBufferIndices(op); opt_indices.defined()) {
+      ein_sum_.input_indices.Set(op->buffer, std::move(opt_indices.value()));
+    } else {
       fail_ = true;
       return;
     }
-    ein_sum_.input_indices.Set(op->buffer, std::move(indices));
   }
 
   void VisitExpr_(const CastNode* op) { VisitExpr(op->value); }
@@ -411,13 +394,11 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const Array<Integ
   for (const StmtSRef& producer_sref : producers) {
     const BlockNode* producer_block = TVM_SREF_TO_BLOCK(producer_sref);
     const BufferStoreNode* buffer_store = producer_block->body.as<BufferStoreNode>();
-    Array<Var> producer_store_indices;
+    Optional<Array<Var>> producer_store_indices;
     if (!buffer_store || producer_block->writes.size() != 1 ||
-        !CheckTrivialBufferIndices(buffer_store, &producer_store_indices)) {
-      LOG(INFO) << "A";
+        !(producer_store_indices = CheckTrivialBufferIndices(buffer_store)).defined()) {
       throw InvalidProducerError(self->mod, GetRef<Block>(producer_block));
     }
-
     BlockRealize producer_realize = GetBlockRealize(self, producer_sref);
 
     const Buffer& old_buffer = producer_block->writes[0]->buffer;
@@ -427,8 +408,8 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const Array<Integ
     // The predicate to ensure the producer block is in the original bound before padding
     PrimExpr predicate = Bool(true);
     Map<Var, PrimExpr> indices_to_padded_extents;  // buffer indices to padded extents
-    for (int i = 0, n = producer_store_indices.size(); i < n; ++i) {
-      const Var& index = producer_store_indices[i];
+    for (int i = 0, n = producer_store_indices.value().size(); i < n; ++i) {
+      const Var& index = producer_store_indices.value()[i];
       PrimExpr padded_extent = new_buffer->shape[i];
       if (!analyzer.CanProveEqual(padded_extent, old_buffer->shape[i])) {
         predicate = predicate && (index < old_buffer->shape[i]);
