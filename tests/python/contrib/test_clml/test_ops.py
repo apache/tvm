@@ -211,6 +211,87 @@ def test_batchnorm():
     )
 
 
+def test_concat():
+    Device.load("test_config.json")
+
+    if skip_runtime_test():
+        return
+
+    device = Device()
+    dtype = "float16"
+    in_shape_1 = (1, 16, 16, 16)
+    in_shape_2 = (1, 16, 16, 16)
+    a = relay.var("input_1", shape=in_shape_1, dtype=dtype)
+    b = relay.var("input_2", shape=in_shape_2, dtype=dtype)
+    low, high = -1, 1
+    inputs = {
+        "input_1": tvm.nd.array(np.random.uniform(-1, 1, in_shape_1).astype(dtype)),
+        "input_2": tvm.nd.array(np.random.uniform(-1, 1, in_shape_2).astype(dtype)),
+    }
+
+    params = {}
+    func = relay.concatenate((a, b), axis=1)
+    mod = IRModule.from_expr(func)
+
+    opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
+    clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+
+    tvm.testing.assert_allclose(
+        clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+    )
+
+
+def test_avgpool():
+    Device.load("test_config.json")
+
+    if skip_runtime_test():
+        return
+
+    device = Device()
+    dtype = "float16"
+    trials = [
+        # input size         pool_size stride  paading
+        [(1, 64, 147, 147), (3, 3), (2, 2), (0, 0, 0, 0), "max"],
+        [(1, 192, 71, 71), (3, 3), (2, 2), (0, 0, 0, 0), "max"],
+        [(1, 288, 35, 35), (3, 3), (2, 2), (0, 0, 0, 0), "max"],
+        [(1, 768, 17, 17), (3, 3), (2, 2), (0, 0, 0, 0), "max"],
+        [(1, 2048, 17, 17), (3, 3), (2, 2), (0, 0, 0, 0), "max"],
+        [(1, 192, 35, 35), (3, 3), (1, 1), (0, 0, 1, 1), "avg"],
+        [(1, 256, 35, 35), (3, 3), (1, 1), (0, 0, 1, 1), "avg"],
+        [(1, 288, 35, 35), (3, 3), (1, 1), (0, 0, 1, 1), "avg"],
+        [(1, 768, 17, 17), (3, 3), (1, 1), (0, 0, 1, 1), "avg"],
+        [(1, 1280, 8, 8), (3, 3), (1, 1), (0, 0, 1, 1), "avg"],
+    ]
+    params = {}
+    for (
+        input_shape,
+        pool_size,
+        stride,
+        padding,
+        pooling_type,
+    ) in trials:
+        a = relay.var("input_1", shape=input_shape, dtype=dtype)
+        input_arr = tvm.nd.array(np.random.uniform(-1, 1, input_shape).astype(dtype))
+        inputs = {
+            "input_1": input_arr,
+        }
+
+        if pooling_type == "max":
+            func = relay.nn.max_pool2d(a, pool_size=pool_size, strides=stride, padding=padding)
+        else:
+            func = relay.nn.avg_pool2d(a, pool_size=pool_size, strides=stride, padding=padding)
+        mod = IRModule.from_expr(func)
+
+        opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
+        clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+
+        tvm.testing.assert_allclose(
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+        )
+
+
 if __name__ == "__main__":
     test_conv2d()
-    test_batchnorm()
+    # test_batchnorm()
+    test_avgpool()
+    test_concat()
