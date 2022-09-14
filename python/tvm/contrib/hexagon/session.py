@@ -99,7 +99,7 @@ class Session:
         try:
             func = self._rpc.get_function("device_api.hexagon.release_resources")
             func()
-        except RuntimeError as exception:
+        except RuntimeError:
             # do nothing, as we are shutting down
             ...
         finally:
