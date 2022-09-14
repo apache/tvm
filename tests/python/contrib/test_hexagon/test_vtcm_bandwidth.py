@@ -96,11 +96,13 @@ def evaluate(hexagon_session, sch, size):
         a_vtcm, device=hexagon_session.device, mem_scope="global.vtcm"
     )
 
-    # These are reduced for CI but number=100 and repeat=10 does a good job of removing noise. 
-    number = 1 
+    # These are reduced for CI but number=100 and repeat=10 does a good job of removing noise.
+    number = 1
     repeat = 1
 
-    timer = module.time_evaluator("__tvm_main__", hexagon_session.device, number=number, repeat=repeat)
+    timer = module.time_evaluator(
+        "__tvm_main__", hexagon_session.device, number=number, repeat=repeat
+    )
     runtime = timer(a_hexagon, a_vtcm_hexagon)
 
     gbps = round((size / 2**30) / runtime.mean, 4)
