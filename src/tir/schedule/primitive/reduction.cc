@@ -297,29 +297,85 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
  */
 struct ReducerRegistry {
   ReducerRegistry()
-      : reducer_getters{CreateReducerGetter([](const Var& x, const Var& y) { return x + y; },
-                                            [](DataType dtype) { return make_const(dtype, 0); }),
-                        CreateReducerGetter([](const Var& x, const Var& y) { return x * y; },
-                                            [](DataType dtype) { return make_const(dtype, 1); }),
-                        CreateReducerGetter([](const Var& x, const Var& y) { return min(x, y); },
-                                            [](DataType dtype) { return max_value(dtype); }),
-                        CreateReducerGetter([](const Var& x, const Var& y) { return max(x, y); },
-                                            [](DataType dtype) { return min_value(dtype); })} {}
+      : reducer_getters{CreateReducerGetter(
+                            /*n_buffers=*/1,
+                            [](const Array<Var>& x, const Array<Var>& y) {
+                              return Array<PrimExpr>{x[0] + y[0]};
+                            },
+                            [](const Array<PrimExpr>& values) {
+                              return Array<PrimExpr>{make_const(values[0]->dtype, 0)};
+                            }),
+                        CreateReducerGetter(
+                            /*n_buffers=*/1,
+                            [](const Array<Var>& x, const Array<Var>& y) {
+                              return Array<PrimExpr>{x[0] * y[0]};
+                            },
+                            [](const Array<PrimExpr>& values) {
+                              return Array<PrimExpr>{make_const(values[0]->dtype, 1)};
+                            }),
+                        CreateReducerGetter(
+                            /*n_buffers=*/1,
+                            [](const Array<Var>& x, const Array<Var>& y) {
+                              return Array<PrimExpr>{min(x[0], y[0])};
+                            },
+                            [](const Array<PrimExpr>& values) {
+                              return Array<PrimExpr>{max_value(values[0]->dtype)};
+                            }),
+                        CreateReducerGetter(
+                            /*n_buffers=*/1,
+                            [](const Array<Var>& x, const Array<Var>& y) {
+                              return Array<PrimExpr>{max(x[0], y[0])};
+                            },
+                            [](const Array<PrimExpr>& values) {
+                              return Array<PrimExpr>{min_value(values[0]->dtype)};
+                            }),
+                        CreateReducerGetter(
+                            /*n_buffers=*/2,
+                            [](const Array<Var>& x, const Array<Var>& y) {
+                              PrimExpr idx = Select(x[1] >= y[1], x[0], y[0]);
+                              PrimExpr val = Select(x[1] >= y[1], x[1], y[1]);
+                              return Array<PrimExpr>{idx, val};
+                            },
+                            [](const Array<PrimExpr>& values) {
+                              return Array<PrimExpr>{make_const(values[0]->dtype, -1),
+                                                     min_value(values[1]->dtype)};
+                            }),
+                        CreateReducerGetter(
+                            /*n_buffers=*/2,
+                            [](const Array<Var>& x, const Array<Var>& y) {
+                              PrimExpr idx = Select(x[1] <= y[1], x[0], y[0]);
+                              PrimExpr val = Select(x[1] <= y[1], x[1], y[1]);
+                              return Array<PrimExpr>{idx, val};
+                            },
+                            [](const Array<PrimExpr>& values) {
+                              return Array<PrimExpr>{make_const(values[0]->dtype, -1),
+                                                     max_value(values[1]->dtype)};
+                            })} {}
 
-  static void RegisterReducer(TypedPackedFunc<PrimExpr(Var, Var)> combiner_getter,
-                              TypedPackedFunc<PrimExpr(DataType)> identity_getter) {
+  static void RegisterReducer(
+      int n_buffers, TypedPackedFunc<Array<PrimExpr>(Array<Var>, Array<Var>)> combiner_getter,
+      TypedPackedFunc<Array<PrimExpr>(Array<PrimExpr>)> identity_getter) {
     ReducerRegistry::Global()->reducer_getters.push_back(ReducerRegistry::CreateReducerGetter(
-        std::move(combiner_getter), std::move(identity_getter)));
+        n_buffers, std::move(combiner_getter), std::move(identity_getter)));
   }
 
-  static TypedPackedFunc<CommReducer(DataType)> CreateReducerGetter(
-      TypedPackedFunc<PrimExpr(Var, Var)> combiner_getter,
-      TypedPackedFunc<PrimExpr(DataType)> identity_getter) {
-    return [combiner_getter = std::move(combiner_getter),
-            identity_getter = std::move(identity_getter)](DataType dtype) -> CommReducer {
-      Var lhs("x", dtype);
-      Var rhs("y", dtype);
-      return CommReducer({lhs}, {rhs}, {combiner_getter(lhs, rhs)}, {identity_getter(dtype)});
+  static TypedPackedFunc<Optional<CommReducer>(Array<PrimExpr>)> CreateReducerGetter(
+      int n_buffers, TypedPackedFunc<Array<PrimExpr>(Array<Var>, Array<Var>)> combiner_getter,
+      TypedPackedFunc<Array<PrimExpr>(Array<PrimExpr>)> identity_getter) {
+    return [n_buffers,                                     //
+            combiner_getter = std::move(combiner_getter),  //
+            identity_getter = std::move(identity_getter)   //
+    ](Array<PrimExpr> values) -> Optional<CommReducer> {
+      if (static_cast<int>(values.size()) != n_buffers) {
+        return NullOpt;
+      }
+      Array<Var> lhs;
+      Array<Var> rhs;
+      for (int i = 0; i < n_buffers; ++i) {
+        lhs.push_back(Var("x" + std::to_string(i), values[i]->dtype));
+        rhs.push_back(Var("y" + std::to_string(i), values[i]->dtype));
+      }
+      return CommReducer(lhs, rhs, combiner_getter(lhs, rhs), identity_getter(values));
     };
   }
 
@@ -328,10 +384,10 @@ struct ReducerRegistry {
     return &instance;
   }
 
-  std::vector<TypedPackedFunc<CommReducer(DataType)>> reducer_getters;
+  std::vector<TypedPackedFunc<Optional<CommReducer>(Array<PrimExpr>)>> reducer_getters;
 };
 
-std::vector<TypedPackedFunc<CommReducer(DataType)>> GetReducerGetters() {
+std::vector<TypedPackedFunc<Optional<CommReducer>(Array<PrimExpr>)>> GetReducerGetters() {
   return ReducerRegistry::Global()->reducer_getters;
 }
 
@@ -508,44 +564,57 @@ std::unordered_map<const VarNode*, For> GetLoopVar2LoopMap(const Array<For>& loo
 }
 
 /*!
- * \brief Create the intermediate rfactor buffer, which the rfactor block writes to and the
+ * \brief Create the intermediate rfactor buffers, which the rfactor block writes to and the
  * write-back block reads from
- * \param buffer The buffer written by the reduction block
+ * \param buf_stores The BufferStores of the original block, where the rfactor buffers will be
+ * created from
  * \param factor_axis The `factor_axis` parameter of rfactor
  * \param rf_loop The rfactor loop
  * \return The new created intermediate rfactor buffer
  */
-Buffer CreateRFactorBuffer(const Buffer& buffer, int factor_axis, const ForNode* rf_loop) {
-  Array<PrimExpr> rf_shape = buffer->shape;
-  rf_shape.insert(rf_shape.begin() + factor_axis, rf_loop->extent);
+Array<Buffer> CreateRFactorBuffers(const Array<BufferStore>& buf_stores, int factor_axis,
+                                   const ForNode* rf_loop) {
+  Array<Buffer> rf_buffers;
+  rf_buffers.reserve(buf_stores.size());
+  for (const BufferStore& buf_store : buf_stores) {
+    Buffer buffer = buf_store->buffer;
+    Array<PrimExpr> rf_shape = buffer->shape;
+    rf_shape.insert(rf_shape.begin() + factor_axis, rf_loop->extent);
 
-  ObjectPtr<BufferNode> n = make_object<BufferNode>(*buffer.get());
-  n->shape = rf_shape;
-  n->name = buffer->name + ".rf";
-  n->data = buffer->data.copy_with_suffix(".rf");
-  return Buffer(n);
+    ObjectPtr<BufferNode> n = make_object<BufferNode>(*buffer.get());
+    n->shape = rf_shape;
+    n->name = buffer->name + ".rf";
+    n->data = buffer->data.copy_with_suffix(".rf");
+    rf_buffers.push_back(Buffer(n));
+  }
+  return rf_buffers;
 }
 
 /*!
  * \brief The base class of the rfactor/write-back block creator, which creates the blocks in four
  * steps:
  * 1) Create the new block iters and the their iter bindings
- * 2) Create the reduction update of the new block
+ * 2) Create the body and init of the new block
  * 3) Create the read/write regions of the new block
  * 4) Create the new block and the new block-realize
  */
 class BaseBlockCreator {
  public:
   explicit BaseBlockCreator(BlockRealize old_block_realize, For rf_loop,
-                            BufferStore old_reduction_update, CommReducer reducer, Buffer rf_buffer,
-                            bool is_rf_block)
+                            Array<BufferStore> old_reduction_updates, CommReducer reducer,
+                            Array<Buffer> rf_buffers, bool is_rf_block)
       : old_block_realize_(std::move(old_block_realize)),
         rf_loop_(std::move(rf_loop)),
-        old_reduction_update_(std::move(old_reduction_update)),
+        old_reduction_updates_(std::move(old_reduction_updates)),
         reducer_(std::move(reducer)),
-        rf_buffer_(std::move(rf_buffer)),
+        rf_buffers_(std::move(rf_buffers)),
+        n_buffers_(static_cast<int>(rf_buffers_.size())),
         is_rf_block_(is_rf_block) {
     n_block_iters_ = static_cast<int>(old_block_realize_->iter_values.size());
+    update_buffers_.reserve(n_buffers_);
+    update_indices_.reserve(n_buffers_);
+    update_lhs_.reserve(n_buffers_);
+    update_rhs_.reserve(n_buffers_);
   }
 
   void CreateBlock() {
@@ -560,7 +629,15 @@ class BaseBlockCreator {
         break;
       }
     }
-    CreateReductionUpdate(has_reduce_iter);
+
+    // The pre-processing finds out the buffers written in the block, the indices of the buffer
+    // accesses, and the reduction LHS and RHS of the stored values.
+    PreProcess();
+    Stmt block_body = Substitute(CreateBlockBody(has_reduce_iter), var_map_);
+    Optional<Stmt> block_init = CreateBlockInit(has_reduce_iter);
+    if (block_init.defined()) {
+      block_init = Substitute(block_init.value(), var_map_);
+    }
     CreateReadWriteRegions();
 
     String new_block_name = old_block_realize_->block->name_hint;
@@ -569,17 +646,13 @@ class BaseBlockCreator {
       new_block_name = new_block_name + "_rf";
       predicate = old_block_realize_->predicate;
     }
-    Optional<Stmt> init_block =
-        has_reduce_iter ? BufferStore(new_reduction_update_->buffer, reducer_->identity_element[0],
-                                      new_reduction_update_->indices)
-                        : Optional<Stmt>(NullOpt);
     new_block_ = Block(
         /*iter_vars=*/iter_vars_,
         /*reads=*/read_regions_,
         /*writes=*/write_regions_,
         /*name_hint=*/new_block_name,
-        /*body=*/new_reduction_update_,
-        /*init=*/init_block,
+        /*body=*/std::move(block_body),
+        /*init=*/std::move(block_init),
         /*alloc_buffers=*/{},
         /*match_buffers=*/{},
         /*annotations=*/old_block_realize_->block->annotations);
@@ -589,8 +662,57 @@ class BaseBlockCreator {
  private:
   virtual void CreateAdditionalIter() = 0;
   virtual void CreateNormalIters(int idx) = 0;
-  virtual void CreateReductionUpdate(bool has_reduce_iter) = 0;
+  virtual void PreProcess() = 0;
   virtual void CreateReadWriteRegions() = 0;
+
+  Stmt CreateBlockBody(bool has_reduce_iter) {
+    Array<Stmt> buf_stores;
+    buf_stores.reserve(n_buffers_);
+
+    // Case 1. If the block has no reduction iterator, we just store the RHS values into the
+    // buffers.
+    if (!has_reduce_iter) {
+      for (int i = 0; i < n_buffers_; ++i) {
+        buf_stores.push_back(BufferStore(update_buffers_[i], update_rhs_[i], update_indices_[i]));
+      }
+      return n_buffers_ > 1 ? SeqStmt(buf_stores) : buf_stores[0];
+    }
+
+    // Case 2. If the reduction is for single buffer, the block body is a single BufferStore.
+    Array<PrimExpr> stored_values = (*reducer_.get())(update_lhs_, update_rhs_);
+    if (n_buffers_ == 1) {
+      return BufferStore(update_buffers_[0], stored_values[0], update_indices_[0]);
+    }
+
+    // Case 3. In case the reduction is for multiple buffers, we should create the reduction with
+    // LetStmt so that the reduction execution generates correct results.
+    Array<Var> let_vars;
+    let_vars.reserve(n_buffers_);
+    for (int i = 0; i < n_buffers_; ++i) {
+      Var var("v_" + update_buffers_[i]->name, PrimType(stored_values[i]->dtype));
+      let_vars.push_back(var);
+      buf_stores.push_back(BufferStore(update_buffers_[i], var, update_indices_[i]));
+    }
+    Stmt body = SeqStmt(buf_stores);
+    for (int i = n_buffers_ - 1; i >= 0; --i) {
+      body = LetStmt(let_vars[i], stored_values[i], std::move(body));
+    }
+    return body;
+  }
+
+  Optional<Stmt> CreateBlockInit(bool has_reduce_iter) {
+    if (!has_reduce_iter) {
+      return NullOpt;
+    }
+
+    Array<Stmt> inits;
+    inits.reserve(n_buffers_);
+    for (int i = 0; i < n_buffers_; ++i) {
+      inits.push_back(
+          BufferStore(update_buffers_[i], reducer_->identity_element[i], update_indices_[i]));
+    }
+    return n_buffers_ > 1 ? SeqStmt(inits) : inits[0];
+  }
 
  public:
   /*! \brief The new created block */
@@ -607,12 +729,19 @@ class BaseBlockCreator {
   int n_block_iters_;
   /*! \brief The rfactor loop */
   For rf_loop_;
-  /*! \brief The update BufferStore of the old block */
-  BufferStore old_reduction_update_;
+  /*! \brief The update BufferStores of the old block */
+  Array<BufferStore> old_reduction_updates_;
   /*! \brief The matched commutative reducer */
   CommReducer reducer_;
-  /*! \brief The intermediate rfactor buffer */
-  Buffer rf_buffer_;
+  /*! \brief The intermediate rfactor buffers */
+  Array<Buffer> rf_buffers_;
+  /*! \brief The number of rfactor buffers. */
+  const int n_buffers_;
+  /*!
+   * \brief A mapping which maps old block iters to new expressions. The old iters will be replaced
+   * by the expressions in future substitution for the two blocks
+   */
+  Map<Var, PrimExpr> var_map_;
 
   /*! \brief Whether we are creating the rfactor block or the write-back block */
   bool is_rf_block_;
@@ -620,13 +749,14 @@ class BaseBlockCreator {
   std::vector<IterVar> iter_vars_;
   /*! \brief The new block iter bindings of the new created block-realize */
   std::vector<PrimExpr> iter_values_;
-  /*!
-   * \brief A mapping which maps old block iters to new expressions. The old iters will be replaced
-   * by the expressions in future substitution for the two blocks
-   */
-  Map<Var, PrimExpr> var_map_;
-  /*! \brief The update BufferStore of the new created block */
-  BufferStore new_reduction_update_;
+  /*! \brief The buffers updated in this block */
+  Array<Buffer> update_buffers_;
+  /*! \brief The indices of the buffers updated in this block, respectively */
+  Array<Array<PrimExpr>> update_indices_;
+  /*! \brief The LHS values of the reduction in this block */
+  Array<PrimExpr> update_lhs_;
+  /*! \brief THe RHS values of the reduction in this block */
+  Array<PrimExpr> update_rhs_;
   /*! \brief The read regions of the new created block */
   Array<BufferRegion> read_regions_;
   /*! \brief The write regions of the new created block */
@@ -658,13 +788,13 @@ class BaseBlockCreator {
 class RFactorBlockCreator : public BaseBlockCreator {
  public:
   explicit RFactorBlockCreator(BlockRealize old_block_realize, For rf_loop,
-                               BufferStore old_reduction_update, CommReducer reducer,
-                               Buffer rf_buffer,
+                               Array<BufferStore> old_reduction_updates, CommReducer reducer,
+                               Array<Buffer> rf_buffers,
                                std::unordered_map<const VarNode*, For> loop_vars2loop,
-                               int factor_axis, PrimExpr combiner_rhs)
+                               int factor_axis, Array<PrimExpr> combiner_rhs)
       : BaseBlockCreator(std::move(old_block_realize), std::move(rf_loop),
-                         std::move(old_reduction_update), std::move(reducer), std::move(rf_buffer),
-                         true),
+                         std::move(old_reduction_updates), std::move(reducer),
+                         std::move(rf_buffers), true),
         loop_vars2loop_(std::move(loop_vars2loop)),
         factor_axis_(factor_axis),
         combiner_rhs_(std::move(combiner_rhs)) {}
@@ -718,41 +848,38 @@ class RFactorBlockCreator : public BaseBlockCreator {
     var_map_.Set(old_iter->var, Substitute(old_binding, loop_var2block_binding_));
   }
 
-  void CreateReductionUpdate(bool has_reduce_iter) final {
-    rf_buf_access_indices_ = old_reduction_update_->indices;
+  void PreProcess() final {
+    // The accessed indices for all reduction buffers are the same.
+    rf_buf_access_indices_ = old_reduction_updates_[0]->indices;
     rf_buf_access_indices_.insert(rf_buf_access_indices_.begin() + factor_axis_,
                                   additional_iter_->var);
-    PrimExpr rhs{nullptr};
-    if (has_reduce_iter) {
-      rhs = (*reducer_.get())({BufferLoad(rf_buffer_, rf_buf_access_indices_)}, {combiner_rhs_})[0];
-    } else {
-      rhs = combiner_rhs_;
+    for (int i = 0; i < n_buffers_; ++i) {
+      update_buffers_.push_back(rf_buffers_[i]);
+      update_indices_.push_back(rf_buf_access_indices_);
+      update_lhs_.push_back(BufferLoad(update_buffers_[i], rf_buf_access_indices_));
+      update_rhs_.push_back(combiner_rhs_[i]);
     }
-    new_reduction_update_ = BufferStore(rf_buffer_, rhs, rf_buf_access_indices_);
-    new_reduction_update_ = Downcast<BufferStore>(Substitute(new_reduction_update_, var_map_));
   }
 
   void CreateReadWriteRegions() final {
-    const Block& old_block = old_block_realize_->block;
-    read_regions_ = CreateRegions(old_block->reads);
-    write_regions_ = CreateRegions(old_block->writes);
-  }
-
-  Array<BufferRegion> CreateRegions(const Array<BufferRegion>& old_regions) {
-    Array<BufferRegion> new_regions;
-    new_regions.reserve(old_regions.size());
-    for (const BufferRegion& buffer_region : old_regions) {
-      if (buffer_region->buffer.same_as(old_reduction_update_->buffer)) {
-        Array<Range> region = buffer_region->region;
-        region.insert(region.begin() + factor_axis_,
-                      Range::FromMinExtent(additional_iter_->var, 1));
-        new_regions.push_back(BufferRegion(rf_buffer_, Substitute(region, var_map_)));
-      } else {
-        new_regions.push_back(
-            BufferRegion(buffer_region->buffer, Substitute(buffer_region->region, var_map_)));
-      }
+    Map<Buffer, Buffer> buffer_map;
+    for (int i = 0; i < n_buffers_; ++i) {
+      buffer_map.Set(old_reduction_updates_[i]->buffer, rf_buffers_[i]);
     }
-    return new_regions;
+    const Block& old_block = old_block_realize_->block;
+    read_regions_.reserve(old_block->reads.size());
+    for (const BufferRegion& read_region : old_block->reads) {
+      read_regions_.push_back(
+          BufferRegion(read_region->buffer, Substitute(read_region->region, var_map_)));
+    }
+    write_regions_.reserve(old_block->writes.size());
+    for (const BufferRegion& write_region : old_block->writes) {
+      Array<Range> region = write_region->region;
+      region.insert(region.begin() + factor_axis_, Range::FromMinExtent(additional_iter_->var, 1));
+      Optional<Buffer> rf_buffer = buffer_map.Get(write_region->buffer);
+      ICHECK(rf_buffer.defined());
+      write_regions_.push_back(BufferRegion(rf_buffer.value(), Substitute(region, var_map_)));
+    }
   }
 
  public:
@@ -767,8 +894,8 @@ class RFactorBlockCreator : public BaseBlockCreator {
   std::unordered_map<const VarNode*, For> loop_vars2loop_;
   /*! \brief The factor_axis specified for rfactor */
   int factor_axis_;
-  /*! \brief The rhs of the combiner in the reduction update of the old block */
-  PrimExpr combiner_rhs_;
+  /*! \brief The RHS values of the reduction in the old block */
+  Array<PrimExpr> combiner_rhs_;
   /*!
    * \brief A mapping which maps loop vars to new created block iters. This map is used to
    * substitute the loop vars which appear in the bindings of some old block iters with the new
@@ -784,12 +911,13 @@ class RFactorBlockCreator : public BaseBlockCreator {
 class WriteBackBlockCreator : public BaseBlockCreator {
  public:
   explicit WriteBackBlockCreator(BlockRealize old_block_realize, For rf_loop,
-                                 BufferStore old_reduction_update, CommReducer reducer,
-                                 Buffer rf_buffer, IterVar rf_additional_iter,
-                                 PrimExpr combiner_lhs, Array<PrimExpr> rf_buf_access_indices)
+                                 Array<BufferStore> old_reduction_updates, CommReducer reducer,
+                                 Array<Buffer> rf_buffers, IterVar rf_additional_iter,
+                                 Array<PrimExpr> combiner_lhs,
+                                 Array<PrimExpr> rf_buf_access_indices)
       : BaseBlockCreator(std::move(old_block_realize), std::move(rf_loop),
-                         std::move(old_reduction_update), std::move(reducer), std::move(rf_buffer),
-                         false),
+                         std::move(old_reduction_updates), std::move(reducer),
+                         std::move(rf_buffers), false),
         rf_additional_iter_(std::move(rf_additional_iter)),
         combiner_lhs_(std::move(combiner_lhs)) {
     iter_vars_.reserve(n_block_iters_);
@@ -817,39 +945,40 @@ class WriteBackBlockCreator : public BaseBlockCreator {
     }
   }
 
-  void CreateReductionUpdate(bool has_reduce_iter) final {
-    wb_lhs_ = Downcast<BufferLoad>(Substitute(combiner_lhs_, var_map_));
-    wb_rhs_ =
-        Downcast<BufferLoad>(Substitute(BufferLoad(rf_buffer_, rf_buf_access_indices_), var_map_));
-    new_reduction_update_ =
-        BufferStore(old_reduction_update_->buffer, (*reducer_.get())({wb_lhs_}, {wb_rhs_})[0],
-                    old_reduction_update_->indices);
-    new_reduction_update_ = Downcast<BufferStore>(Substitute(new_reduction_update_, var_map_));
+  void PreProcess() final {
+    for (int i = 0; i < n_buffers_; ++i) {
+      PrimExpr rhs = BufferLoad(rf_buffers_[i], rf_buf_access_indices_);
+      update_buffers_.push_back(old_reduction_updates_[i]->buffer);
+      update_indices_.push_back(old_reduction_updates_[i]->indices);
+      update_lhs_.push_back(Substitute(combiner_lhs_[i], var_map_));
+      update_rhs_.push_back(Substitute(std::move(rhs), var_map_));
+    }
   }
 
   void CreateReadWriteRegions() final {
-    read_regions_.push_back(CreateRegion(wb_rhs_));
-    write_regions_.push_back(CreateRegion(wb_lhs_));
+    CreateRegion(update_rhs_, true);
+    CreateRegion(update_lhs_, false);
   }
 
-  static BufferRegion CreateRegion(const BufferLoad& load) {
-    Array<Range> region;
-    region.reserve(load->indices.size());
-    for (const PrimExpr& index : load->indices) {
-      region.push_back(Range::FromMinExtent(index, 1));
+  void CreateRegion(const Array<PrimExpr>& buf_loads, bool is_read) {
+    Array<BufferRegion>& buf_regions = is_read ? read_regions_ : write_regions_;
+    for (const PrimExpr& expr : buf_loads) {
+      const auto* buf_load = expr.as<BufferLoadNode>();
+      ICHECK(buf_load != nullptr);
+      Array<Range> region;
+      region.reserve(buf_load->indices.size());
+      for (const PrimExpr& index : buf_load->indices) {
+        region.push_back(Range::FromMinExtent(index, 1));
+      }
+      buf_regions.push_back(BufferRegion(buf_load->buffer, std::move(region)));
     }
-    return BufferRegion(load->buffer, std::move(region));
   }
 
  private:
   /*! \brief The new created additional block iter of the rfactor block */
   IterVar rf_additional_iter_;
-  /*! \brief The lhs of the combiner in the reduction update of the old block */
-  PrimExpr combiner_lhs_;
-  /*! \brief The lhs of the combiner of the write-back block */
-  BufferLoad wb_lhs_;
-  /*! \brief The rhs of the combiner of the write-back block */
-  BufferLoad wb_rhs_;
+  /*! \brief The LHS values of the reduction in the old block */
+  Array<PrimExpr> combiner_lhs_;
 };
 
 /*!
@@ -924,14 +1053,16 @@ class BlockReplacer : public StmtMutator {
                        BlockRealize wb_block_realize, BlockRealize old_block_realize, For rf_loop,
                        std::unordered_set<const VarNode*> reduce_loop_vars,
                        std::unordered_map<const VarNode*, For> loop_vars2loop,
-                       const Buffer& rf_buffer) {
+                       const Array<Buffer>& rf_buffers) {
     BlockReplacer replacer(std::move(rf_body), std::move(outermost_loop),
                            std::move(wb_block_realize), std::move(old_block_realize),
                            std::move(rf_loop), std::move(reduce_loop_vars),
                            std::move(loop_vars2loop));
     Block new_scope_root = Downcast<Block>(replacer(std::move(scope_root_block)));
     BlockNode* p = new_scope_root.CopyOnWrite();
-    p->alloc_buffers.push_back(rf_buffer);
+    for (const Buffer& rf_buffer : rf_buffers) {
+      p->alloc_buffers.push_back(rf_buffer);
+    }
     return new_scope_root;
   }
 
@@ -1040,13 +1171,19 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   // commutative reducer, combiner lhs and combiner rhs from the reduction identity and the
   // reduction combiner. The lhs will be used when constructing the write-back block, and the rhs
   // will be used when constructing the rfactor block.
-  auto [init, update] = GetBufferStoresFromReductionBlock(self, block);
-  auto [reducer, combiner_lhs, combiner_rhs] =
-      GetReducerAndCombinerLhsRhs(self, init->value, update);
+  Array<PrimExpr> init_values{nullptr};
+  Array<BufferStore> updates{nullptr};
+  CommReducer reducer{nullptr};
+  Array<PrimExpr> combiner_lhs{nullptr};
+  Array<PrimExpr> combiner_rhs{nullptr};
+  std::tie(init_values, updates) = GetInitValuesAndUpdatesFromReductionBlock(self, block);
+  std::tie(reducer, combiner_lhs, combiner_rhs) =
+      GetReducerAndCombinerLhsRhs(self, init_values, updates);
 
   // Step 6. Check whether `factor_axis` is in a correct range, and convert it to non-negative if it
   // is negative.
-  factor_axis = FactorAxisOutOfRangeError::CheckAndUpdate(self->mod, update->buffer, factor_axis);
+  factor_axis =
+      FactorAxisOutOfRangeError::CheckAndUpdate(self->mod, updates[0]->buffer, factor_axis);
 
   // *****************************************************
   // *                 IR Manipulation                   *
@@ -1056,17 +1193,17 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
 
   // Step 1. Create the intermediate buffer (a.k.a. rfactor buffer), which has an additional
   // dimension that specified by `factor_axis` and `rf_loop`.
-  Buffer rf_buffer = CreateRFactorBuffer(update->buffer, factor_axis, rf_loop);
+  Array<Buffer> rf_buffers = CreateRFactorBuffers(updates, factor_axis, rf_loop);
 
   // Step 2. Create the rfactor block.
-  RFactorBlockCreator rf_block_creator(block_realize, GetRef<For>(rf_loop), update, reducer,
-                                       rf_buffer, loop_vars2loop, factor_axis,
+  RFactorBlockCreator rf_block_creator(block_realize, GetRef<For>(rf_loop), updates, reducer,
+                                       rf_buffers, loop_vars2loop, factor_axis,
                                        std::move(combiner_rhs));
   rf_block_creator.CreateBlock();
 
   // Step 3. Create the write-back block.
-  WriteBackBlockCreator wb_block_creator(block_realize, GetRef<For>(rf_loop), update, reducer,
-                                         rf_buffer, std::move(rf_block_creator.additional_iter_),
+  WriteBackBlockCreator wb_block_creator(block_realize, GetRef<For>(rf_loop), updates, reducer,
+                                         rf_buffers, std::move(rf_block_creator.additional_iter_),
                                          std::move(combiner_lhs),
                                          std::move(rf_block_creator.rf_buf_access_indices_));
   wb_block_creator.CreateBlock();
@@ -1082,7 +1219,7 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   Block old_scope_root_block = GetRef<Block>(scope_root->StmtAs<BlockNode>());
   Block new_scope_root_block = BlockReplacer::Replace(
       old_scope_root_block, rf_body, loops[0], wb_block_creator.new_block_realize_, block_realize,
-      GetRef<For>(rf_loop), reduce_loop_vars, loop_vars2loop, rf_buffer);
+      GetRef<For>(rf_loop), reduce_loop_vars, loop_vars2loop, rf_buffers);
   self->Replace(
       scope_root, new_scope_root_block,
       {{old_scope_root_block, new_scope_root_block}, {block, wb_block_creator.new_block_}});
@@ -1157,8 +1294,9 @@ TVM_REGISTER_INST_KIND_TRAITS(DecomposeReductionTraits);
 /******** FFI ********/
 
 TVM_REGISTER_GLOBAL("tir.schedule.RegisterReducer")
-    .set_body_typed([](PackedFunc combiner_getter, PackedFunc identity_getter) {
-      ReducerRegistry::RegisterReducer(std::move(combiner_getter), std::move(identity_getter));
+    .set_body_typed([](int n_buffers, PackedFunc combiner_getter, PackedFunc identity_getter) {
+      ReducerRegistry::RegisterReducer(n_buffers, std::move(combiner_getter),
+                                       std::move(identity_getter));
     });
 
 }  // namespace tir
