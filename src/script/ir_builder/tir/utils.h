@@ -28,6 +28,10 @@ namespace script {
 namespace ir_builder {
 namespace tir {
 
+/*!
+ * \brief Add tir Stmt to the top frame in IRBuilder frame stack.
+ * \param stmt The Stmt.
+ */
 inline void AddToParent(tvm::tir::Stmt stmt) {
   IRBuilder builder = IRBuilder::Current();
   if (builder->frames.empty()) {
@@ -40,6 +44,11 @@ inline void AddToParent(tvm::tir::Stmt stmt) {
   }
 }
 
+/*!
+ * \brief Convert array of tir Stmt to single Stmt.
+ * \param stmt The array of Stmt.
+ * \return The SeqStmt.
+ */
 inline tvm::tir::Stmt AsStmt(const Array<tvm::tir::Stmt>& stmt) {
   using namespace tvm::tir;
   if (stmt.empty()) {
@@ -51,6 +60,11 @@ inline tvm::tir::Stmt AsStmt(const Array<tvm::tir::Stmt>& stmt) {
   }
 }
 
+/*!
+ * \brief Check whether the top frame in IRBuilder frame stack is PrimFuncFrame.
+ * \param method The method name to be printed when throwing exception.
+ * \return The top frame of PrimFuncFrame.
+ */
 inline PrimFuncFrame FindPrimFuncFrame(const String& method) {
   if (Optional<PrimFuncFrame> frame = IRBuilder::Current()->GetLastFrame<PrimFuncFrame>()) {
     return frame.value();
@@ -60,6 +74,11 @@ inline PrimFuncFrame FindPrimFuncFrame(const String& method) {
   throw;
 }
 
+/*!
+ * \brief Check whether the top frame in IRBuilder frame stack is BlockFrame.
+ * \param method The method name to be printed when throwing exception.
+ * \return The top frame of BlockFrame.
+ */
 inline BlockFrame FindBlockFrame(const String& method) {
   if (Optional<BlockFrame> frame = IRBuilder::Current()->GetLastFrame<BlockFrame>()) {
     return frame.value();
@@ -67,6 +86,19 @@ inline BlockFrame FindBlockFrame(const String& method) {
   LOG(FATAL) << "ValueError: Block frame not find. Please ensure '" << method
              << "' is called under T.block()";
   throw;
+}
+
+/*!
+ * \brief Convert BufferLoad to BufferRegion.
+ * \param buffer_load The BufferLoad.
+ * \return The converted BufferRegion.
+ */
+inline tvm::tir::BufferRegion BufferRegionFromLoad(tvm::tir::BufferLoad buffer_load) {
+  Array<Range> ranges;
+  for (const PrimExpr& index : buffer_load->indices) {
+    ranges.push_back(Range::FromMinExtent(index, IntImm(index->dtype, 1)));
+  }
+  return tvm::tir::BufferRegion(buffer_load->buffer, ranges);
 }
 
 }  // namespace tir
