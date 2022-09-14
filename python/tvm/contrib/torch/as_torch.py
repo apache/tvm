@@ -21,7 +21,7 @@
 # pylint: disable=missing-class-docstring
 # pylint: disable=missing-function-docstring
 """
-as_torch: a decorator, which is used to wrap the TVMscript code to `torch.nn.module`.
+as_torch: a decorator, which is used to wrap the TVMScript code to `torch.nn.module`.
 """
 import tempfile
 from typing import Callable, List, Union
@@ -50,7 +50,7 @@ class OperatorModuleWrapper(torch.nn.Module):
 
     def tune(self, config: TuneConfig = None, target: Union[str, Target] = None):
         """
-        Tune the TVMscript code.
+        Tune the TVMScript code.
 
         Parameters
         ----------
@@ -108,7 +108,7 @@ def as_torch(func: Union[tvm.ir.module.IRModule, tvm.tir.function.PrimFunc, Call
     Parameters
     ----------
     func: Optional[tvm.ir.module.IRModule, tvm.tir.function.PrimFunc, Callable]
-        The function written by TVMscript.
+        The function written by TVMScript.
 
     Returns
     -------

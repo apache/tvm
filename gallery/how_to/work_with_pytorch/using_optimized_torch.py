@@ -18,10 +18,9 @@
 Compile PyTorch Models
 ======================
 **Author**: 
-`Yaoda Zhou <https://github.com/juda>`_,
-`Masahiro Masuda <https://github.com/masahi>`_
+`Yaoda Zhou <https://github.com/juda>`_
 
-This article is an introductory tutorial to optimize PyTorch models by using `tvm.contrib.torch.optimize_torch`.
+This article is a tutorial to optimize PyTorch models by using `tvm.contrib.torch.optimize_torch`.
 To follow this tutorial, PyTorch, as well as TorchVision, should be installed.
 """
 
@@ -61,11 +60,11 @@ class SimpleModel(nn.Module):
 
 
 ######################################################################
-# Optimized SimpleModel by TVM MetaSchedule
+# Optimize SimpleModel by TVM MetaSchedule
 # ------------------------------
-# We provide a `optimize_torch` function, which has the similar usage as `torch.jit.trace`.
+# We provide the `optimize_torch` function, which has the similar usage as `torch.jit.trace`.
 # The PyTorch model to optimize, along with its example input, are provided by users.
-# We can optimized the PyTorch's module by calling the `optimized_torch` method in default setting.
+# The PyTorch module will be tuned by TVM for the target hardware.
 # Without providing extra information, the model will be tuned for CPU.
 
 simple_model = SimpleModel()
@@ -75,7 +74,7 @@ model_optimized_by_tvm = optimize_torch(simple_model, example_input)
 ######################################################################
 # Save/Load module
 # ------------------------------
-# We can save and load our tuned module like the standard `nn.module`.
+# We can save and load our tuned module like the standard `nn.Module`.
 
 # Let us run our tuned module.
 ret1 = model_optimized_by_tvm(example_input)
@@ -86,18 +85,20 @@ model_loaded = torch.load("model_optimized.pt")
 # We load the module and run it again.
 ret2 = model_loaded(example_input)
 
-# We show that the results from original SimpleModel,
-# optimized model and loaded model are the same.
+# We will show 2 results:
+# (1) we can safely load and save model by showing the result of model
+# after safe and load operations is still the same as original one;
+# (2) the model we optimize returns the same result as the original PyTorch model.
 
-ret3 = simple_model.forward(example_input)
+ret3 = simple_model(example_input)
 testing.assert_allclose(ret1.detach().numpy(), ret2.detach().numpy(), atol=1e-5, rtol=1e-5)
 testing.assert_allclose(ret1.detach().numpy(), ret3.detach().numpy(), atol=1e-5, rtol=1e-5)
 
 ######################################################################
-# Resnet18 optimized by TVM MetaSchedule
+# Optimize Resnet18 by MetaSchedule
 # ------------------------------
 # In the following, we will show that our approach is able to
-# accelerate common and large models, such as Resnet18.
+# accelerate common models, such as Resnet18.
 
 # We will tune our model on the GPU.
 target_cuda = "nvidia/geforce-rtx-3070"
