@@ -548,24 +548,6 @@ def all_time_keys(time):
         },
         check="Pinging reviewers ['someone'] on https://github.com/apache/tvm/pull/123",
     ),
-    # Check allowlist functionality
-    allowlist=dict(
-        pull_request={
-            "number": 123,
-            "url": "https://github.com/apache/tvm/pull/123",
-            "body": "cc @someone",
-            "isDraft": False,
-            "author": {"login": "user2"},
-            "reviews": {"nodes": []},
-            **all_time_keys("2022-01-18T17:54:19Z"),
-            "comments": {
-                "nodes": [
-                    {**all_time_keys("2022-01-19T17:54:19Z"), "bodyText": "abc"},
-                ]
-            },
-        },
-        check="Checking 0 of 1 fetched",
-    ),
     # Old comment, ping
     old_comment=dict(
         pull_request={
@@ -632,8 +614,6 @@ def test_ping_reviewers(tmpdir_factory, pull_request, check):
             "1",
             "--cutoff-pr-number",
             "5",
-            "--allowlist",
-            "user",
             "--pr-json",
             json.dumps(data),
             "--now",
