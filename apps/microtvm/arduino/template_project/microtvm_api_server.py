@@ -65,6 +65,7 @@ PROJECT_OPTIONS = server.default_project_options(
     project_type={"choices": tuple(PROJECT_TYPES)},
     board={"choices": list(BOARD_PROPERTIES), "required": ["build", "flash", "open_transport"]},
     verbose={"optional": ["build", "flash"]},
+    warning_as_error={"optional": ["build", "flash"]},
 ) + [
     server.ProjectOption(
         "arduino_cli_cmd",

@@ -805,6 +805,12 @@ def default_project_options(**kw) -> typing.List[ProjectOption]:
             type="str",
             help="Path to the CMSIS directory.",
         ),
+        ProjectOption(
+            "warning_as_error",
+            optional=["generate_project"],
+            type="bool",
+            help="Treat warnings as errors and raise an Exception.",
+        ),
     ]
     for name, config in kw.items():
         for ind, option in enumerate(options):

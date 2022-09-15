@@ -351,12 +351,6 @@ PROJECT_OPTIONS = server.default_project_options(
         help="Sets CONFIG_MAIN_STACK_SIZE for Zephyr board.",
     ),
     server.ProjectOption(
-        "warning_as_error",
-        optional=["generate_project"],
-        type="bool",
-        help="Treat warnings as errors and raise an Exception.",
-    ),
-    server.ProjectOption(
         "compile_definitions",
         optional=["generate_project"],
         type="str",
