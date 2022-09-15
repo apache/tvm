@@ -35,7 +35,6 @@ from ..relay.backend import executor_factory
 from ..relay.backend.name_transforms import to_c_variable_style, prefix_generated_name
 from ..relay import param_dict
 from ..tir import expr
-import numpy as np
 
 # This should be kept identical to runtime::symbol::tvm_module_main
 MAIN_FUNC_NAME_STR = "__tvm_main__"
@@ -295,7 +294,7 @@ def _build_function_memory_map(function_metadata):
             main_func_metadata.io_sizes[target]
         )
 
-        # Now, we also add the information about the size of inputs and outputs (in bytes) 
+        # Now, we also add the information about the size of inputs and outputs (in bytes)
         input_dict = {}
         for input_param in main_func_metadata.relay_primfuncs[target].params:
             input_dict[input_param.name_hint] = int(
