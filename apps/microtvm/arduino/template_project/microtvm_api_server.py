@@ -61,14 +61,11 @@ class BoardAutodetectFailed(Exception):
 
 PROJECT_TYPES = ["example_project", "host_driven"]
 
-PROJECT_OPTIONS = [
-    # server.ProjectOption(
-    #     "arduino_board",
-    #     required=["build", "flash", "open_transport"],
-    #     choices=list(BOARD_PROPERTIES),
-    #     type="str",
-    #     help="Name of the Arduino board to build for.",
-    # ),
+PROJECT_OPTIONS = server.default_project_options(
+    project_type={"choices": tuple(PROJECT_TYPES)},
+    board={"choices": list(BOARD_PROPERTIES), "required": ["build", "flash", "open_transport"]},
+    verbose={"optional": ["build", "flash"]},
+) + [
     server.ProjectOption(
         "arduino_cli_cmd",
         required=(
@@ -89,19 +86,6 @@ PROJECT_OPTIONS = [
         type="int",
         help="Port to use for connecting to hardware.",
     ),
-    # server.ProjectOption(
-    #     "project_type",
-    #     required=["generate_project"],
-    #     choices=tuple(PROJECT_TYPES),
-    #     type="str",
-    #     help="Type of project to generate.",
-    # ),
-    # server.ProjectOption(
-    #     "verbose",
-    #     optional=["build", "flash"],
-    #     type="bool",
-    #     help="Run arduino-cli compile and upload with verbose output.",
-    # ),
     server.ProjectOption(
         "warning_as_error",
         optional=["build", "flash"],
@@ -383,7 +367,7 @@ class Handler(server.ProjectAPIHandler):
             _LOG.warning(message)
 
     def _get_fqbn(self, options):
-        o = BOARD_PROPERTIES[options["arduino_board"]]
+        o = BOARD_PROPERTIES[options["board"]]
         return f"{o['package']}:{o['architecture']}:{o['board']}"
 
     def build(self, options):

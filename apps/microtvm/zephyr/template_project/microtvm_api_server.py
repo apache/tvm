@@ -297,8 +297,11 @@ if IS_TEMPLATE:
         if d.is_dir():
             PROJECT_TYPES.append(d.name)
 
-
-PROJECT_OPTIONS = server.default_project_options() + [
+PROJECT_OPTIONS = server.default_project_options(
+    project_type={"choices": tuple(PROJECT_TYPES)},
+    board={"choices": list(BOARD_PROPERTIES)},
+    verbose={"optional": ["generate_project"]},
+) + [
     server.ProjectOption(
         "extra_files_tar",
         optional=["generate_project"],
@@ -323,19 +326,6 @@ PROJECT_OPTIONS = server.default_project_options() + [
         type="int",
         help=("When used with OpenOCD targets, serial # of the attached board to use."),
     ),
-    # server.ProjectOption(
-    #     "project_type",
-    #     choices=tuple(PROJECT_TYPES),
-    #     required=["generate_project"],
-    #     type="str",
-    #     help="Type of project to generate.",
-    # ),
-    # server.ProjectOption(
-    #     "verbose",
-    #     optional=["generate_project"],
-    #     type="bool",
-    #     help="Run build with verbose output.",
-    # ),
     server.ProjectOption(
         "west_cmd",
         optional=["generate_project"],
@@ -354,13 +344,6 @@ PROJECT_OPTIONS = server.default_project_options() + [
         type="str",
         help="Path to the zephyr base directory.",
     ),
-    # server.ProjectOption(
-    #     "board",
-    #     required=["generate_project"],
-    #     choices=list(BOARD_PROPERTIES),
-    #     type="str",
-    #     help="Name of the Zephyr board to build for.",
-    # ),
     server.ProjectOption(
         "config_main_stack_size",
         optional=["generate_project"],
@@ -379,12 +362,6 @@ PROJECT_OPTIONS = server.default_project_options() + [
         type="str",
         help="Extra definitions added project compile.",
     ),
-    # server.ProjectOption(
-    #     "cmsis_path",
-    #     optional=["generate_project"],
-    #     type="str",
-    #     help="Path to the CMSIS directory.",
-    # ),
     server.ProjectOption(
         "arm_fvp_path",
         optional=["generate_project", "open_transport"],
@@ -397,12 +374,12 @@ PROJECT_OPTIONS = server.default_project_options() + [
         type="bool",
         help="Run on the FVP emulator instead of hardware.",
     ),
-    # server.ProjectOption(
-    #     "heap_size_bytes",
-    #     optional=["generate_project"],
-    #     type="int",
-    #     help="Sets the value for HEAP_SIZE_BYTES passed to K_HEAP_DEFINE() to service TVM memory allocation requests.",
-    # ),
+    server.ProjectOption(
+        "heap_size_bytes",
+        optional=["generate_project"],
+        type="int",
+        help="Sets the value for HEAP_SIZE_BYTES passed to K_HEAP_DEFINE() to service TVM memory allocation requests.",
+    ),
 ]
 
 

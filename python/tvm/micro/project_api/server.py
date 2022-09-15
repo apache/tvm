@@ -64,6 +64,26 @@ class ProjectOption(_ProjectOption):
 
         return super().__new__(cls, **kw)
 
+    def replace(self, **kw):
+        """Update attributes associated to the project option."""
+        updated_option = self
+        for key, val in kw.items():
+            if key == "choices":
+                updated_option = updated_option._replace(choices=val)
+            elif key == "default":
+                updated_option = updated_option._replace(default=val)
+            elif key == "type":
+                updated_option = updated_option._replace(type=val)
+            elif key == "required":
+                updated_option = updated_option._replace(required=val)
+            elif key == "optional":
+                updated_option = updated_option._replace(optional=val)
+            elif key == "help":
+                updated_option = updated_option._replace(help=val)
+            else:
+                raise ValueError("Attribute {} is not supported.".format(key))
+        return updated_option
+
 
 ServerInfo = collections.namedtuple(
     "ServerInfo", ("platform_name", "is_template", "model_library_format_path", "project_options")
@@ -758,11 +778,12 @@ def write_with_timeout(fd, data, timeout_sec):  # pylint: disable=invalid-name
 
     return num_written
 
-def default_project_options() -> typing.List[ProjectOption]:
-    return [
+
+def default_project_options(**kw) -> typing.List[ProjectOption]:
+    options = [
         ProjectOption(
             "verbose",
-            optional=["build", "flash"],
+            optional=["generate_project"],
             type="bool",
             help="Run build with verbose output.",
         ),
@@ -784,14 +805,14 @@ def default_project_options() -> typing.List[ProjectOption]:
             type="str",
             help="Path to the CMSIS directory.",
         ),
-        ProjectOption(
-            "heap_size_bytes",
-            optional=["generate_project"],
-            type="int",
-            # TODO: fix help message
-            help="Sets the value for HEAP_SIZE_BYTES passed to K_HEAP_DEFINE() to service TVM memory allocation requests.",
-        ),
     ]
+    for name, config in kw.items():
+        for ind, option in enumerate(options):
+            if option.name == name:
+                options[ind] = option.replace(**config)
+
+    return options
+
 
 def main(handler: ProjectAPIHandler, argv: typing.List[str] = None):
     """Start a Project API server.
