@@ -1078,8 +1078,13 @@ def requires_cuda_compute_version(major_version, minor_version=0):
         The minor version of the (major,minor) version tuple.
     """
     min_version = (major_version, minor_version)
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    compute_version = tvm.contrib.nvcc.parse_compute_version(arch)
+    try:
+        arch = tvm.contrib.nvcc.get_target_compute_version()
+        compute_version = tvm.contrib.nvcc.parse_compute_version(arch)
+    except ValueError:
+        # No GPU present.  This test will be skipped from the
+        # requires_cuda() marks as well.
+        compute_version = (0, 0)
 
     min_version_str = ".".join(str(v) for v in min_version)
     compute_version_str = ".".join(str(v) for v in compute_version)
