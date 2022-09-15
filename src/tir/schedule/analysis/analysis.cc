@@ -652,6 +652,35 @@ void CheckAffineBinding(const ScheduleState& self, Block block) {
   CheckPartialAffineBinding(self, std::move(block), NullOpt);
 }
 
+void CheckBlockHasTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref) {
+  class NotTrivialBindingError : public ScheduleError {
+   public:
+    explicit NotTrivialBindingError(IRModule mod, Block block)
+        : mod_(std::move(mod)), block_(std::move(block)) {}
+
+    String FastErrorString() const final {
+      return "ScheduleError: The binding values of the block are not variables of outer loops.";
+    }
+
+    String DetailRenderTemplate() const final {
+      std::ostringstream os;
+      os << "The binding values of the {0} are not variables of outer loops.";
+      return os.str();
+    }
+
+    IRModule mod() const final { return mod_; }
+    Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+
+   private:
+    IRModule mod_;
+    Block block_;
+  };
+
+  if (!IsTrivialBinding(self, block_sref)) {
+    throw NotTrivialBindingError(self->mod, GetRef<Block>(block_sref->StmtAs<BlockNode>()));
+  }
+}
+
 Map<Var, Range> LoopDomainOfSRefTreePath(const StmtSRef& low_inclusive,
                                          const Optional<StmtSRef>& high_exclusive,
                                          const runtime::StorageScope& extra_relax_scope) {

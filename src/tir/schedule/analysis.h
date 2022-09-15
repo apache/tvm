@@ -298,6 +298,15 @@ bool GetVarsTouchedByBlockIters(const BlockRealize& block_realize,
 void CheckLoopStartsWithZero(const ScheduleState& self, const StmtSRef& loop_sref,
                              arith::Analyzer* analyzer);
 
+/*!
+ * \brief Check whether a block has a trivial binding, i.e. each block var is bound to a outer loop,
+ * from outer to inner.
+ * \param self The schedule state
+ * \param block_sref The block to be checked
+ * \throw ScheduleError If the block does not have trivial bindings
+ */
+void CheckBlockHasTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref);
+
 /******** Block-loop relation ********/
 
 /*!
@@ -696,6 +705,24 @@ Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region, const P
                                              const StmtSRef& dom_low_inclusive,
                                              const StmtSRef& dom_high_exclusive,
                                              arith::Analyzer* analyzer);
+
+/*!
+ * \brief Check if buffer indices are all Vars and extr
+ * \param buffer_access The BufferLoad or BufferStore
+ * \return The indices if the indices are all Vars, otherwise NullOpt
+ */
+template <typename T>
+Optional<Array<Var>> CheckTrivialBufferIndices(const T& buffer_access) {
+  Array<Var> indices;
+  for (const PrimExpr& index : buffer_access->indices) {
+    const VarNode* var = index.as<VarNode>();
+    if (var == nullptr) {
+      return NullOpt;
+    }
+    indices.push_back(GetRef<Var>(var));
+  }
+  return indices;
+}
 
 /*! \brief Necessary information used for tensorization */
 class TensorizeInfoNode : public Object {
