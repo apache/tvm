@@ -34,24 +34,35 @@ def compress_query(query: str) -> str:
     return query
 
 
-def post(url: str, body: Optional[Any] = None, auth: Optional[Tuple[str, str]] = None):
-    logging.info(f"Requesting POST to", url, "with", body)
+def _request(
+    url: str, method: str, body: Optional[Any] = None, auth: Optional[Tuple[str, str]] = None
+):
+    print(f"Requesting {method} to", url, "with", body)
     headers = {}
-    req = request.Request(url, headers=headers, method="POST")
+    req = request.Request(url, headers=headers, method=method)
     if auth is not None:
         auth_str = base64.b64encode(f"{auth[0]}:{auth[1]}".encode())
         req.add_header("Authorization", f"Basic {auth_str.decode()}")
 
     if body is None:
-        body = ""
+        with request.urlopen(req) as response:
+            return response.read()
+    else:
+        req.add_header("Content-Type", "application/json; charset=utf-8")
+        data = json.dumps(body)
+        data = data.encode("utf-8")
+        req.add_header("Content-Length", len(data))
 
-    req.add_header("Content-Type", "application/json; charset=utf-8")
-    data = json.dumps(body)
-    data = data.encode("utf-8")
-    req.add_header("Content-Length", len(data))
+        with request.urlopen(req, data) as response:
+            return response.read()
 
-    with request.urlopen(req, data) as response:
-        return response.read()
+
+def post(url: str, body: Optional[Any] = None, auth: Optional[Tuple[str, str]] = None):
+    return _request(url=url, method="POST", body=body, auth=auth)
+
+
+def get(url: str):
+    return _request(url=url, method="GET")
 
 
 def dry_run_token(is_dry_run: bool) -> Any:

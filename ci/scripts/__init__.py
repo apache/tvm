@@ -16,4 +16,10 @@
 # under the License.
 """Package to enable testing of CI scripts"""
 
-from . import github_skipped_tests_comment, github_pr_comment, github_tag_teams, github_docs_comment
+from . import (
+    github_skipped_tests_comment,
+    github_pr_comment,
+    github_tag_teams,
+    github_docs_comment,
+    github_ci_runtime_bot,
+)

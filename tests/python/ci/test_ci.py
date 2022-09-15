@@ -22,6 +22,7 @@ import textwrap
 import sys
 import logging
 from pathlib import Path
+import unittest.mock
 
 import pytest
 import tvm.testing
@@ -211,6 +212,80 @@ def test_skipped_tests_comment(
         )
     assert_in(expected_body, comment)
     assert_in(f"with target {target_url}", caplog.text)
+
+
+@tvm.testing.skip_if_wheel_test
+@parameterize_named(
+    significant=dict(
+        build_time=12,
+        main_times=[("SUCCESS", 123), ("SUCCESS", 123), ("SUCCESS", 123)],
+        expected_comment="This PR **significantly changed",
+    ),
+    insignificant=dict(
+        build_time=124,
+        main_times=[("SUCCESS", 123), ("SUCCESS", 120), ("SUCCESS", 125)],
+        expected_comment="This PR had no significant effect",
+    ),
+    main_failures=dict(
+        build_time=124,
+        main_times=[("FAILED", 123), ("FAILED", 120), ("FAILED", 125)],
+        expected_comment=None,
+    ),
+)
+def test_ci_runtime_comment(caplog, build_time, main_times, expected_comment):
+    """
+    Test the CI runtime commenter bot
+    """
+    build_id = 1
+    target_url = f"https://ci.tlcpack.ai/job/tvm/job/PR-12824/{build_id}/display/redirect"
+    commit = {
+        "statusCheckRollup": {
+            "contexts": {
+                "nodes": [
+                    {
+                        "context": "tvm-ci/pr-head",
+                        "targetUrl": target_url,
+                    }
+                ]
+            }
+        }
+    }
+    pr_data = {"commits": {"nodes": [{"commit": commit}]}}
+    main_build_data = [
+        {
+            "state": "FINISHED",
+            "result": result,
+            "durationInMillis": time,
+        }
+        for result, time in main_times
+    ]
+    pr_build_data = [
+        {
+            "id": str(build_id),
+            "state": "FINISHED",
+            "result": "SUCCESS",
+            "durationInMillis": build_time,
+        },
+    ]
+    jenkins_blue_base = "https://ci.tlcpack.ai/blue/rest/organizations/jenkins/pipelines/tvm/runs/?"
+    mock_data = {
+        jenkins_blue_base + "branch=main&start=0&limit=26": main_build_data,
+        jenkins_blue_base + "branch=PR-12824&start=0&limit=25": pr_build_data,
+    }
+
+    def mock_get(x):
+        return json.dumps(mock_data[x]).encode()
+
+    with caplog.at_level(logging.INFO):
+        with unittest.mock.patch(
+            "scripts.github_ci_runtime_bot.get", new_callable=lambda: mock_get
+        ):
+            comment = scripts.github_ci_runtime_bot.ci_runtime_comment(pr_data)
+
+    if expected_comment is None:
+        assert comment is None
+    else:
+        assert_in(expected_comment, comment)
 
 
 @tvm.testing.skip_if_wheel_test
@@ -550,6 +625,7 @@ def test_pr_comment(tmpdir_factory, pr_author, comments, expected):
         "ccs": "the cc",
         "docs": "the docs",
         "skipped-tests": "the skipped tests",
+        "ci_runtime": "the ci runtime",
     }
     proc = run_script(
         [

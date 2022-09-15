@@ -31,6 +31,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - name: Setup
+        run: |
+          set -eux
+          python3 -m pip install scipy
       - name: Comment bot comment (pr)
         if: ${{ github.event.number }}
         env:

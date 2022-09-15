@@ -25,6 +25,7 @@ from github_commenter import BotCommentBuilder
 from github_skipped_tests_comment import get_skipped_tests_comment
 from github_tag_teams import get_tags
 from github_docs_comment import get_doc_url
+from github_ci_runtime_bot import ci_runtime_comment
 
 PR_QUERY = """
     query ($owner: String!, $name: String!, $number: Int!) {
@@ -128,14 +129,17 @@ if __name__ == "__main__":
         skipped_tests = test_comments["skipped-tests"]
         ccs = test_comments["ccs"]
         docs_info = test_comments["docs"]
+        ci_runtime = test_comments["ci_runtime"]
     else:
         skipped_tests = get_skipped_tests_comment(pr_data, github=github)
         ccs = get_tags(pr_data, github, team_issue=10317)
         docs_info = get_doc_url(pr_data)
+        ci_runtime = ci_runtime_comment(pr_data)
 
     items = {
         "ccs": ccs,
         "skipped-tests": skipped_tests,
         "docs": docs_info,
+        "ci_runtime": ci_runtime,
     }
     commenter.post_items(items=items.items())
