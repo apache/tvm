@@ -188,6 +188,57 @@ class BlockFrame : public TIRFrame {
 };
 
 /*!
+ * \brief A frame that represents the for loop.
+ *
+ * \sa ForFrame
+ */
+class ForFrameNode : public TIRFrameNode {
+ public:
+  /*!
+   * \brief Functions that generate loop nests.
+   * \param loop_vars The loop variables, from outer to inner
+   * \param loop_extents The loop extents that correspond to loop variables
+   * \param loop_body The loop body
+   * \return A stmt, the loop nest
+   */
+  using FMakeForLoop = runtime::TypedPackedFunc<tvm::tir::Stmt(
+      Array<tvm::tir::Var> loop_vars, Array<Range> loop_extents, tvm::tir::Stmt loop_body)>;
+  /*! \brief The loop variable. */
+  Array<tvm::tir::Var> vars;
+  /*! \brief The domains of iteration. */
+  Array<Range> doms;
+  /*! \brief The for loop generating function. */
+  FMakeForLoop f_make_for_loop;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    TIRFrameNode::VisitAttrs(v);
+    v->Visit("vars", &vars);
+    v->Visit("doms", &doms);
+    // `f_make_for_loop` is not visited.
+  }
+
+  static constexpr const char* _type_key = "script.ir_builder.tir.ForFrame";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ForFrameNode, TIRFrameNode);
+
+ public:
+  /*!
+   * \brief The method called when exiting RAII scope.
+   * \sa tvm::support::With
+   */
+  void ExitWithScope() final;
+};
+
+/*!
+ * \brief Managed reference to ForFrameNode.
+ *
+ * \sa ForFrameNode
+ */
+class ForFrame : public TIRFrame {
+ public:
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(ForFrame, TIRFrame, ForFrameNode);
+};
+
+/*!
  * \brief A frame that represents the assert statement. Proceeds if the condition is true,
  * otherwise aborts with the message.
  *

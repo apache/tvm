@@ -73,9 +73,15 @@ void BlockFrameNode::ExitWithScope() {
   }
 }
 
+void ForFrameNode::ExitWithScope() {
+  TIRFrameNode::ExitWithScope();
+  AddToParent(this->f_make_for_loop(vars, doms, AsStmt(stmts)));
+}
+
 TVM_REGISTER_NODE_TYPE(TIRFrameNode);
 TVM_REGISTER_NODE_TYPE(PrimFuncFrameNode);
 TVM_REGISTER_NODE_TYPE(BlockFrameNode);
+TVM_REGISTER_NODE_TYPE(ForFrameNode);
 
 }  // namespace tir
 }  // namespace ir_builder
