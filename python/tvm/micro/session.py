@@ -20,6 +20,7 @@
 import json
 import logging
 import sys
+import os
 import pathlib
 import shutil
 from typing import Union
@@ -261,7 +262,7 @@ def compile_and_create_micro_session(
     mod_src_bytes: bytes,
     template_project_dir: str,
     project_options: dict = None,
-    project_dir: Union[pathlib.Path, str] = None,
+    project_dir: Union[os.PathLike, str] = None,
     use_existing: bool = False,
 ):
     """Compile the given libraries and sources into a MicroBinary, then invoke create_micro_session.
@@ -280,7 +281,7 @@ def compile_and_create_micro_session(
     project_options: dict
         Options for the microTVM API Server contained in template_project_dir.
 
-    project_dir: str
+    project_dir: Union[os.PathLike, str]
         if use_existing is False: The path to save the generated microTVM Project.
         if use_existing is True: The path to a generated microTVM Project for debugging.
 

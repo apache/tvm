@@ -20,7 +20,6 @@
 import json
 import logging
 import os
-import pathlib
 import contextlib
 import enum
 
@@ -115,7 +114,7 @@ class AutoTvmModuleLoader:
 
     Parameters
     ----------
-    template_project_dir : Union[pathlib.Path, str]
+    template_project_dir : Union[os.PathLike, str]
         project template path
 
     project_options : dict
@@ -131,20 +130,20 @@ class AutoTvmModuleLoader:
 
     def __init__(
         self,
-        template_project_dir: Union[pathlib.Path, str],
+        template_project_dir: Union[os.PathLike, str],
         project_options: dict = None,
-        project_dir: Union[pathlib.Path, str] = None,
+        project_dir: Union[os.PathLike, str] = None,
         use_existing: bool = False,
     ):
         self._project_options = project_options
         self._use_existing = use_existing
 
-        if isinstance(template_project_dir, (pathlib.Path, str)):
+        if isinstance(template_project_dir, (os.PathLike, str)):
             self._template_project_dir = str(template_project_dir)
         elif not isinstance(template_project_dir, str):
             raise TypeError(f"Incorrect type {type(template_project_dir)}.")
 
-        if isinstance(project_dir, (pathlib.Path, str)):
+        if isinstance(project_dir, (os.PathLike, str)):
             self._project_dir = str(project_dir)
         else:
             self._project_dir = None
