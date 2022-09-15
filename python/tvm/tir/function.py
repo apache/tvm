@@ -294,8 +294,9 @@ class IndexMap(Object):
 
             The function to map from source indices to target indices.
             The function should accept `tir.Var` parameters and return
-            a list. Each element of the returned list should be a
-            `tir.PrimExpr`.
+            a either a `tir.PrimExpr`, or a list of `tir.PrimExpr`.
+            Returning a `tir.PrimExpr` is equivalent to returning a
+            list of length 1 containing that `tir.PrimExpr`.
 
         ndim: Optional[int]
 
@@ -329,9 +330,12 @@ class IndexMap(Object):
         mapping_function : Callable
 
             The function to map from source indices to target indices.
-            The function should accept tir.Var parameters and return a
-            list. Each element of the returned list should be either a
-            `tir.PrimExpr` or the object `IndexMap.AXIS_SEPARATOR`.
+            The function should accept tir.Var parameters and return
+            either a `tir.PrimExpr` or a list.  Each element of the
+            returned list should be either a `tir.PrimExpr` or the
+            object `IndexMap.AXIS_SEPARATOR`.  Returning a
+            `tir.PrimExpr` is equivalent to returning a list of length
+            1 containing that `tir.PrimExpr`.
 
         ndim: Optional[int]
 
